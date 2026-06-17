@@ -66,6 +66,18 @@ component-gallery pages/ 里的组件**已在 vue 环境验证可用**（auto-mu
 
 **auto-forge 前端真正缺口**（shadcn 没有的）：**SSE 流式渲染、Tiptap 富文本、mermaid 图表**，需手写 Vue。
 
+### 2.2 a2vue 已知缺陷（Step 2-4 实测，建议反馈 auto-lang）
+
+| # | 缺陷 | 现象 | 影响 | 当前绕过 |
+|---|---|---|---|---|
+| 1 | **`outlet` 易漏导致空白页** | app.at 的 `routes {}` 必须配 `view { outlet }`，否则 App.vue 渲染成空 `<div/>`，路由注册了但无出口，页面全白 | 致命（整页空白） | app.at 始终保留 `view { outlet }`；建议生成器在有 routes 时自动补 outlet |
+| 2 | **input 生成 `:value` 非 `v-model`** | 生成的 `<input :value="x">` 是单向绑定，**输入框打不进字** | 严重（表单不可用） | 手写 login.vue 用 `v-model`；待 a2vue 修复 `input (value:)` → `v-model` |
+| 3 | **无 DSL 层编程式路由跳转** | `on {}` 块无法表达 `router.push('/x')`（只有声明式 `link (to:)`） | 中（登录提交跳转等场景受限） | 手写组件用 `useRouter().push()`；建议 a2vue 增加 `goto("/x")` 类语句 |
+| 4 | **shadcn 组件不自动安装** | `auto gen` 检测并 import shadcn 组件，但不运行 `shadcn-vue add` | 中（build 失败，需手动 add） | 见 §2.1 流程缺口 |
+| 5 | **`nav-link`/`theme-toggle` 声明未实现** | component-gallery pac.at 注册但无源文件 | 低（避免使用即可） | 用 `link`+`icon` 替代 |
+
+> 当前 mock 登录（手写 `gen/front/vue/src/pages/login.vue`，用 router.push）是为演示导航流程的**临时方案**，会被 `auto gen` 覆盖、不纳入 git。等后端 `#[api]` login 就绪后，连同缺陷 2/3 一起做真实版。
+
 ## 3. 工程目录结构
 
 参照 015-notes 的 workspace 结构（前端 `scene: "ui"` + `api` 指向后端）：

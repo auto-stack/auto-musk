@@ -11,4 +11,8 @@ widget App {
         "/specs" -> use specs
         "/relay" -> use relay
     }
+
+    view {
+        outlet
+    }
 }
