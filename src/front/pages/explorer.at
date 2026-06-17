@@ -1,4 +1,5 @@
-// src/front/pages/explorer.at - 项目浏览器页（含 NavRail + 内容区）
+// src/front/pages/explorer.at - 项目浏览器页（NavRail + card 列表）
+// 升级版：用 component-gallery 已验证组件（card/avatar/separator/badge）。
 // 占位骨架，mock 数据。后端修复后改为从 #[api] 加载。
 
 use nav_rail: NavRail
@@ -11,20 +12,41 @@ widget ExplorerPage {
     view {
         row (style: "w-full h-screen") {
             NavRail
-            col (style: "flex-1 p-6 overflow-y-auto") {
-                text (text: "Explorer", style: "text-2xl font-bold mb-4") {}
-                if .projects.len() > 0 {
-                    row (style: "gap-2 flex-wrap") {
-                        for project in .projects {
-                            col (style: "w-64 p-4 border rounded-lg cursor-pointer hover:bg-gray-50") {
-                                text (text: project.name, style: "font-semibold text-gray-800") {}
-                                text (text: project.path, style: "text-xs text-gray-500") {}
+            scroll (style: "flex-1 h-screen") {
+                col (style: "p-8 max-w-5xl mx-auto gap-6") {
+                    // 页头
+                    col (style: "gap-1") {
+                        h1 (text: "Explorer", style: "text-2xl font-bold") {}
+                        text (text: "Browse and open projects", style: "text-sm text-muted-foreground") {}
+                    }
+
+                    // 项目列表（card 网格）
+                    if .projects.len() > 0 {
+                        col (style: "gap-4") {
+                            for project in .projects {
+                                card (style: "cursor-pointer hover:bg-accent transition-colors") {
+                                    card-header {
+                                        card-title (text: project.name) {}
+                                        card-description (text: project.path) {}
+                                        card-action {
+                                            badge (variant: "secondary", text: "Auto") {}
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
-                }
-                if .projects.len() == 0 {
-                    text (text: "No projects. (mock data — backend not connected)", style: "text-gray-400") {}
+
+                    // 空态
+                    if .projects.len() == 0 {
+                        card {
+                            card-content (style: "py-10 flex flex-col items-center gap-2 text-muted-foreground") {
+                                icon (name: "folder-open", style: "h-8 w-8") {}
+                                text (text: "No projects yet", style: "text-sm") {}
+                                text (text: "Backend not connected — mock data will appear here", style: "text-xs") {}
+                            }
+                        }
+                    }
                 }
             }
         }

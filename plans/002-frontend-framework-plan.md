@@ -39,24 +39,32 @@
 
 **结论**：a2vue 覆盖 auto-forge 前端的"骨架与表单类视图"（约 60-70%），复杂交互（流式/富文本/图表/全局状态）走手写 Vue 混用。
 
-### 2.1 已验证的内置组件词汇（重要澄清）
+### 2.1 已验证的内置组件词汇（重要澄清，Step 4 实测修正）
 
-**component-gallery 的全套组件已在 vue 环境验证可用**，auto-musk 前端可直接使用，不必局限于 015-notes 的 6 个基础元素。这覆盖了 auto-forge 前端大部分 UI 需求：
+component-gallery pages/ 里的组件**已在 vue 环境验证可用**（auto-musk Step 4 实测：card/badge/scroll-area 经 `shadcn-vue add` + build 通过），auto-musk 前端可直接使用：
 
-| 类别 | 已验证组件（来自 component-gallery pages/） |
+| 类别 | 已验证组件 |
 |---|---|
-| 导航/布局 | `link`、`nav-link`、`breadcrumb`、`tabs`、`menubar`、`navigationmenu`、`pagination`、`sidebar`、`scroll` |
-| 表单 | `input`、`textarea`、`checkbox`、`switch`、`select`、`combobox`、`slider`、`radiogroup`、`label`、`form`、`datepicker`、`calendar` |
-| 展示 | `card`、`badge`、`avatar`、`table`、`datatable`、`skeleton`、`carousel`、`aspectratio`、`separator`、`progress` |
+| 布局基础 | `row`、`col`、`div`、`span`、`header`/`aside`/`main`/`scroll-area` |
+| 文本/标题 | `text`、`h1`-`h6`、`label` |
+| 表单 | `input`、`textarea`、`checkbox`、`switch`、`select`(套件)、`combobox`、`slider`、`radiogroup`、`form`、`datepicker`、`calendar` |
+| 展示 | `card`(header/title/description/action/content/footer)、`badge`、`avatar`(image/fallback)、`table`、`datatable`、`skeleton`、`carousel`、`separator`、`progress` |
 | 反馈 | `alert`、`alertdialog`、`dialog`、`drawer`、`sheet`、`popover`、`tooltip`、`sonner`、`toast`、`hovercard` |
-| 交互 | `accordion`、`collapsible`、`command`、`contextmenu`、`dropdownmenu`、`toggle`、`togglegroup` |
-| 辅助 | `icon`、`theme-toggle`、`codeblock`、`preview-card`、`category-section`、`component-card` |
-| blocks | `dashboard_01`、`login_01..05`、`sidebar_01..16`、`products_01`（完整页面块） |
+| 交互 | `accordion`、`collapsible`、`command`、`contextmenu`、`dropdownmenu`、`toggle`、`togglegroup`、`breadcrumb`、`tabs`、`menubar`、`pagination` |
+| 图标 | `icon (name: "lucide-name")` → lucide-vue-next 组件（内置，如 `icon (name: "folder")` → `<Folder/>`） |
+| 路由 | `link (to: "/path")` → `<router-link>` |
 
-**说明**：
-- 这些是 a2vue 映射到 shadcn-vue/reka-ui 的内置组件，用法见 component-gallery 各 page（如 `button (text: "x", variant: "ghost", size: "sm") {}`、`dialog (open: .o, onClose: .c) {}`、`card { ... }`）。
-- **局限**：当前仅在 `render: vue` 下验证。未来需扩展支持所有 render 目标（**vm / rust / jet / ark 等**）——这是 auto-lang 的后续工作，auto-musk 当前只面向 vue，不受影响。
-- auto-forge 前端真正缺口的仍是：**SSE 流式渲染、Tiptap 富文本、mermaid 图表**（这些 shadcn 组件库里没有，需手写 Vue）。
+**⚠️ 关键区分（Step 4 踩坑）**：
+- **`nav-link`、`theme-toggle` 在 component-gallery 中是 pac.at `components:` 块注册但源文件缺失的自定义组件**（`components/nav_link.at`、`theme_toggle.at` 不存在），**未实现、不可用**。这也是 component-gallery 没有 gen/ 目录（从未成功生成）的原因。导航请用 `link` + `icon` 组合替代。
+- **shadcn 组件需手动安装**：`auto gen` 会检测并报告用到的 shadcn 组件（如 `shadcn-vue: card, badge, scroll-area`）并生成 import，但**不会自动运行 `shadcn-vue add`**。每次新增 shadcn 组件后需手动执行：
+  ```bash
+  cd gen/front/vue && npx shadcn-vue@latest add <component> --yes
+  ```
+  这是 a2vue 的流程缺口（015-notes README 声称自动装，实测未触发），建议未来补到 `auto gen` 流程里。
+
+**局限**：当前仅在 `render: vue` 下验证。未来需扩展支持所有 render 目标（**vm / rust / jet / ark 等**）——auto-lang 后续工作。
+
+**auto-forge 前端真正缺口**（shadcn 没有的）：**SSE 流式渲染、Tiptap 富文本、mermaid 图表**，需手写 Vue。
 
 ## 3. 工程目录结构
 

@@ -1,28 +1,56 @@
 // src/front/nav_rail.at - 左侧导航 rail（可复用子组件）
-// 各主界面页面 import 此组件。参照 auto-forge frontend/src/App.vue:134 的 9-tab rail。
-// DSL 风格沿用 015-notes 已验证写法（col/link/text）。
+// 用 component-gallery 已验证的内置组件（icon/link + shadcn scroll-area）。
+// 注：nav-link/theme-toggle 在 component-gallery 中声明但无源文件（未实现），故不用。
+// 参照 auto-forge frontend/src/App.vue:134 的 9-tab rail。
 
 widget NavRail {
     view {
-        col (style: "w-16 md:w-56 h-screen border-r border-gray-200 bg-gray-50 flex flex-col gap-1 p-2") {
+        aside (style: "hidden md:flex w-56 h-screen border-r border-gray-200 bg-background flex-col shrink-0") {
             // Logo
-            text (text: "auto-musk", style: "hidden md:block text-lg font-bold text-gray-800 px-3 py-3") {}
+            row (style: "items-center gap-2 h-14 px-4 border-b") {
+                icon (name: "layers", style: "h-5 w-5 text-primary") {}
+                text (text: "auto-musk", style: "font-bold text-lg") {}
+            }
 
-            // 导航项（用 link 路由跳转）
-            link (to: "/explorer") {
-                text (text: "Explorer", style: "px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-200") {}
+            // 导航项（link 路由跳转 + icon 图标）
+            scroll-area (style: "flex-1") {
+                col (style: "px-3 py-4 gap-1") {
+                    text (text: "Workspace", style: "mb-1.5 px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground") {}
+                    link (to: "/explorer") {
+                        row (style: "items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent") {
+                            icon (name: "folder", style: "h-4 w-4") {}
+                            text (text: "Explorer") {}
+                        }
+                    }
+                    link (to: "/chats") {
+                        row (style: "items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent") {
+                            icon (name: "message-square", style: "h-4 w-4") {}
+                            text (text: "Chats") {}
+                        }
+                    }
+                    link (to: "/specs") {
+                        row (style: "items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent") {
+                            icon (name: "file-text", style: "h-4 w-4") {}
+                            text (text: "Specs") {}
+                        }
+                    }
+                    link (to: "/relay") {
+                        row (style: "items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent") {
+                            icon (name: "git-branch", style: "h-4 w-4") {}
+                            text (text: "Relay") {}
+                        }
+                    }
+                }
             }
-            link (to: "/chats") {
-                text (text: "Chats", style: "px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-200") {}
-            }
-            link (to: "/specs") {
-                text (text: "Specs", style: "px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-200") {}
-            }
-            link (to: "/relay") {
-                text (text: "Relay", style: "px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-200") {}
-            }
-            link (to: "/") {
-                text (text: "Logout", style: "mt-auto px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50") {}
+
+            // 底部：登出
+            col (style: "border-t p-3 gap-1") {
+                link (to: "/") {
+                    row (style: "items-center gap-2 rounded-md px-2 py-1.5 text-sm text-red-600 hover:bg-red-50") {
+                        icon (name: "log-out", style: "h-4 w-4") {}
+                        text (text: "Logout") {}
+                    }
+                }
             }
         }
     }
