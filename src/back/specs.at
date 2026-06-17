@@ -1,0 +1,302 @@
+// src/back/specs.at - Spec Ledger 数据模型层（最小首版）
+//
+// 契约来源：auto-forge backend/src/forge/mod.rs（唯一权威）
+// 蓝本：auto-coder/coder/forge/specs.at（数据模型 ~85% 可复用）
+// 范围：纯数据模型定义（struct/enum + to_str/from_str）。不含状态机/解析器/持久化。
+//
+// 移植决策（绿地修正，相对 auto-forge 的简化）：
+// - Status 保留全集 23 变体（数据完整性 + 序列化兼容）；状态机层只实现实际用到的子集（下一版）
+// - SpecItem 补 tags 字段（auto-coder 遗漏，auto-forge 有）
+// - SectionType 补 as_str/from_id（auto-coder 遗漏）
+// - related 标注为派生字段（不手写，由 rebuild_relations 填充，下一版实现）
+//
+// ⚠️ AutoVM 已知缺陷绕过：enum 实例方法（fn ... { is self {} }）在 AutoVM 下不被调用（返回 None）。
+//    故 to_str/from_str/as_str 等均实现为【模块级函数】，而非 enum 方法。
+//    （详见交付给 auto-lang 的 bug 报告。auto-coder 蓝本用的是 enum 方法写法，AutoVM 下不可用。）
+
+use auto.time: now_sec
+
+// ============================================================
+// SectionType — 7 类 spec section
+// ============================================================
+
+/// 7 类 spec section。serde rename snake_case。
+/// 对应 auto-forge mod.rs:81-91。
+pub enum SectionType {
+    Goals
+    Architecture
+    Designs
+    Plans
+    Tests
+    Reviews
+    Reports
+}
+
+/// section_type → snake_case 字符串。对应 auto-forge mod.rs:94-104。
+pub fn section_type_as_str(st SectionType) str {
+    is st {
+        SectionType.Goals -> return "goals"
+        SectionType.Architecture -> return "architecture"
+        SectionType.Designs -> return "designs"
+        SectionType.Plans -> return "plans"
+        SectionType.Tests -> return "tests"
+        SectionType.Reviews -> return "reviews"
+        SectionType.Reports -> return "reports"
+    }
+    return "goals"
+}
+
+/// section_type → 显示标题（带 emoji，用于 .ad 文件 `# <title>` 行）。
+pub fn section_type_display_title(st SectionType) str {
+    is st {
+        SectionType.Goals -> return "🎯 Goals"
+        SectionType.Architecture -> return "🏗️ Architecture"
+        SectionType.Designs -> return "🎨 Designs"
+        SectionType.Plans -> return "📋 Plans"
+        SectionType.Tests -> return "🧪 Tests"
+        SectionType.Reviews -> return "🔍 Reviews"
+        SectionType.Reports -> return "📊 Reports"
+    }
+    return "🎯 Goals"
+}
+
+/// 从 section id（文件名 stem）解析。未知 id 归到 Goals（auto-forge 行为，mod.rs:106-116）。
+pub fn section_type_from_id(id str) SectionType {
+    is id {
+        "goals" -> return SectionType.Goals
+        "architecture" -> return SectionType.Architecture
+        "designs" -> return SectionType.Designs
+        "plans" -> return SectionType.Plans
+        "tests" -> return SectionType.Tests
+        "reviews" -> return SectionType.Reviews
+        "reports" -> return SectionType.Reports
+    }
+    return SectionType.Goals
+}
+
+// ============================================================
+// SpecStatus — spec item/section 的生命周期状态（23 变体）
+// ============================================================
+
+/// spec item 与 section 的生命周期状态。
+/// 保留全集 23 变体以保证序列化兼容与数据完整性。
+/// 注意：状态机（SectionConfig）实际只用到其中 ~17 个（下一版实现）。
+/// 对应 auto-forge mod.rs:121-147。
+pub enum SpecStatus {
+    Empty
+    Proposed
+    Draft
+    UnderReview
+    Approved
+    InProgress
+    InImplementation
+    Implemented
+    Verified
+    Done
+    Archived
+    Rejected
+    Backlog
+    Ready
+    InReview
+    Blocked
+    Superseded
+    Outdated
+    Stable
+    Deprecated
+    Published
+    Analysed
+    Obsolete
+}
+
+/// status → snake_case 字符串。对应 auto-forge mod.rs:149-167。
+pub fn status_to_str(s SpecStatus) str {
+    is s {
+        SpecStatus.Empty -> return "empty"
+        SpecStatus.Proposed -> return "proposed"
+        SpecStatus.Draft -> return "draft"
+        SpecStatus.UnderReview -> return "under_review"
+        SpecStatus.Approved -> return "approved"
+        SpecStatus.InProgress -> return "in_progress"
+        SpecStatus.InImplementation -> return "in_implementation"
+        SpecStatus.Implemented -> return "implemented"
+        SpecStatus.Verified -> return "verified"
+        SpecStatus.Done -> return "done"
+        SpecStatus.Archived -> return "archived"
+        SpecStatus.Rejected -> return "rejected"
+        SpecStatus.Backlog -> return "backlog"
+        SpecStatus.Ready -> return "ready"
+        SpecStatus.InReview -> return "in_review"
+        SpecStatus.Blocked -> return "blocked"
+        SpecStatus.Superseded -> return "superseded"
+        SpecStatus.Outdated -> return "outdated"
+        SpecStatus.Stable -> return "stable"
+        SpecStatus.Deprecated -> return "deprecated"
+        SpecStatus.Published -> return "published"
+        SpecStatus.Analysed -> return "analysed"
+        SpecStatus.Obsolete -> return "obsolete"
+    }
+    return "draft"
+}
+
+/// 从字符串解析 status。未知值 fallback 到 Draft（auto-forge from_str_lossy 行为，mod.rs:1152-1179）。
+pub fn status_from_str(s str) SpecStatus {
+    is s {
+        "empty" -> return SpecStatus.Empty
+        "proposed" -> return SpecStatus.Proposed
+        "draft" -> return SpecStatus.Draft
+        "under_review" -> return SpecStatus.UnderReview
+        "approved" -> return SpecStatus.Approved
+        "in_progress" -> return SpecStatus.InProgress
+        "in_implementation" -> return SpecStatus.InImplementation
+        "implemented" -> return SpecStatus.Implemented
+        "verified" -> return SpecStatus.Verified
+        "done" -> return SpecStatus.Done
+        "archived" -> return SpecStatus.Archived
+        "rejected" -> return SpecStatus.Rejected
+        "backlog" -> return SpecStatus.Backlog
+        "ready" -> return SpecStatus.Ready
+        "in_review" -> return SpecStatus.InReview
+        "blocked" -> return SpecStatus.Blocked
+        "superseded" -> return SpecStatus.Superseded
+        "outdated" -> return SpecStatus.Outdated
+        "stable" -> return SpecStatus.Stable
+        "deprecated" -> return SpecStatus.Deprecated
+        "published" -> return SpecStatus.Published
+        "analysed" -> return SpecStatus.Analysed
+        "obsolete" -> return SpecStatus.Obsolete
+    }
+    return SpecStatus.Draft
+}
+
+// ============================================================
+// SpecItem — spec 最小单元（一条规格条目）
+// ============================================================
+
+/// spec 的最小单元（如某个 Goal 或某个 Architecture 决策）。
+/// 对应 auto-forge mod.rs:210-239。
+///
+/// 字段说明：
+/// - id: 类型前缀+数字（G1/A3/S1.1）；auto-musk 下一版将加 ID 生成器强制校验
+/// - depends_on: 手动声明的前向依赖（item ID 列表）
+/// - related: 自动反向链接（引用本 item 的所有 ID）；【派生字段，不手写】
+/// - tags: 标签列表（auto-coder 遗漏此字段，已补）
+pub type SpecItem {
+    id str
+    title str
+    content str
+    status SpecStatus
+    depends_on List<str>
+    related List<str>
+    priority ?str
+    assignee ?str
+    test_file ?str
+    file ?str
+    milestone ?str
+    module ?str
+    tags List<str>
+    created_at uint
+    modified_at uint
+    completed_at ?uint
+}
+
+/// 工厂：用 id+title 创建 SpecItem，状态默认 Empty，时间戳取当前。
+pub fn new_spec_item(id str, title str) SpecItem {
+    let now = now_sec()
+    return SpecItem {
+        id: id,
+        title: title,
+        content: "",
+        status: SpecStatus.Empty,
+        depends_on: [],
+        related: [],
+        priority: None,
+        assignee: None,
+        test_file: None,
+        file: None,
+        milestone: None,
+        module: None,
+        tags: [],
+        created_at: now,
+        modified_at: now,
+        completed_at: None,
+    }
+}
+
+// ============================================================
+// SpecsSection — 7 类 section 之一的容器
+// ============================================================
+
+/// 一个 section 容器（如全部 Goals）。
+/// 对应 auto-forge mod.rs:680-698。
+///
+/// - status: section 级聚合状态（由 derive_statuses 派生，下一版）
+/// - content: 遗留字段（无 item 时的整段正文），迁移期保留
+pub type SpecsSection {
+    id str
+    section_type SectionType
+    title str
+    items List<SpecItem>
+    status SpecStatus
+    content str
+    depends_on List<str>
+    last_modified uint
+    last_verified ?uint
+}
+
+/// 工厂：按 section 类型创建空 section（title 用 display_title）。
+pub fn new_section(st SectionType) SpecsSection {
+    return SpecsSection {
+        id: section_type_as_str(st),
+        section_type: st,
+        title: section_type_display_title(st),
+        items: [],
+        status: SpecStatus.Empty,
+        content: "",
+        depends_on: [],
+        last_modified: now_sec(),
+        last_verified: None,
+    }
+}
+
+// ============================================================
+// SpecsDocument — 文档根（三层嵌套：Document → Section[] → Item[]）
+// ============================================================
+
+/// spec 文档根。对应 auto-forge mod.rs:673-678。
+/// version 每次 upsert/delete 自增（持久化层实现，下一版）。
+pub type SpecsDocument {
+    project str
+    version uint
+    sections List<SpecsSection>
+}
+
+/// 工厂：创建包含全部 7 类空 section 的文档。
+pub fn new_specs_document(project str) SpecsDocument {
+    return SpecsDocument {
+        project: project,
+        version: 0,
+        sections: [
+            new_section(SectionType.Goals),
+            new_section(SectionType.Architecture),
+            new_section(SectionType.Designs),
+            new_section(SectionType.Plans),
+            new_section(SectionType.Tests),
+            new_section(SectionType.Reviews),
+            new_section(SectionType.Reports),
+        ],
+    }
+}
+
+// ============================================================
+// SpecChange — 待审批的 spec 变更
+// ============================================================
+
+/// LLM 提出的待审批 spec 变更。对应 auto-forge mod.rs:345。
+pub type SpecChange {
+    section_id str
+    item_id str
+    title ?str
+    content ?str
+    status ?SpecStatus
+    reason str
+}
