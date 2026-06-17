@@ -6,6 +6,40 @@
 
 ---
 
+## ⚠️ 架构演进通告（2026-06-17，重大修订）
+
+**auto-musk（auto-forge 的 Auto 化）整体延期**，原因：发现 auto-forge 的 LLM 相关能力（ApiSource / Agent Profession / LLM 调用 Harness）应下沉为 **AutoOS 的全局资源管理能力**，而非做在单个 Agent 应用里。未来 AutoOS 会有多个 AI App（auto-musk 只是其一），它们共享底层 AI 能力，甚至通过 MCP 协议互相进行 AI 操作。
+
+**新的三成分架构**（auto-forge 需先拆成这三部分，再考虑翻译成 Auto）：
+
+| 成分 | 职责 | 当前 auto-forge 对应 |
+|---|---|---|
+| **auto-ai-daemon** | 系统级统一 AI 资源管理与调度服务（管 ApiSource、统一 LLM 调用、连接池/调度） | `provider/`（LLM 调用）+ `relay/config.rs` ApiSource + `relay/api.rs` api-sources 端点 + test-connection |
+| **auto-ai-client** | AI 调用的客户端库（各 AI App 复用来调 daemon） | 新建——替换当前 5 处直接 `.chat_turn()` 调用为统一 client 接口 |
+| **app**（auto-musk） | 应用业务（Forge 聊天、Spec、Relay、工具、Profession/Soul） | `forge/` + `relay/`（除 config 外）+ `mcp/` + `runtime/` |
+
+**对原计划的影响**：
+- 原阶段 5（Forge 聊天）、阶段 7（Relay）等"调用 LLM"的部分，**依赖 auto-ai-daemon + auto-ai-client 先就位**。
+- 原阶段 8（MCP + 配置体系）中的 ApiSource/AgentConfig 部分**移出 auto-musk，归 daemon**。
+- **前置工作变为：先在 auto-forge（Rust 原版）完成三成分拆分，再翻译成 Auto**。
+- 详见 `designs/002-auto-forge-ai-capability-split.md`（拆分分析）。
+
+**当前可继续推进的（不受架构演进影响）**：
+- 前端骨架（已完成，纯 UI 不依赖 LLM 调用层）
+- Spec 数据模型层（已完成 specs.at，待 AutoVM bug 修复后验证——Spec 是纯数据，不涉及 LLM）
+- 等 AutoVM 基础缺陷（Plan 325）修复
+
+**阻塞项（按优先级）**：
+1. AutoVM 基础缺陷（Plan 325）——阻塞所有后端 Auto 代码
+2. auto-forge 三成分拆分——阻塞 auto-musk 的 LLM 相关阶段
+3. `#[api]` server panic（Plan 316）——阻塞前后端打通
+
+---
+
+## 1. 目标（原始，待架构演进后修订）
+
+用 **Auto 语言**重写 [auto-forge](../auto-forge)（spec-driven、serial-agent 的 AI 编码助手），作为 auto-forge 的 Auto 实现版本。
+
 ## 1. 目标
 
 用 **Auto 语言**重写 [auto-forge](../auto-forge)（spec-driven、serial-agent 的 AI 编码助手），作为 auto-forge 的 Auto 实现版本。
