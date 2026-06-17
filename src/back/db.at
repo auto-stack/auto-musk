@@ -1,0 +1,8 @@
+// src/back/db.at - 后端业务层占位
+
+use api
+
+/// 返回问候 JSON 字符串
+pub fn greet() str {
+    return "{\"msg\":\"hello from auto-musk\"}"
+}

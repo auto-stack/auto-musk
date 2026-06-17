@@ -1,0 +1,35 @@
+// src/front/views/login.at - 登录视图（占位骨架）
+// 后端修复后接入真实 #[api] login 端点。
+
+widget LoginPage {
+    msg Msg { Submit }
+
+    model {
+        username str = ""
+        password str = ""
+        error str = ""
+    }
+
+    view {
+        col (style: "min-h-screen flex items-center justify-center bg-gray-50") {
+            col (style: "w-full max-w-md p-8 bg-white rounded-lg shadow-md gap-4") {
+                text (text: "auto-musk", style: "text-2xl font-bold text-center text-gray-800") {}
+                input (placeholder: "Username", value: .username, style: "w-full px-3 py-2 border rounded-lg") {}
+                input (placeholder: "Password", value: .password, style: "w-full px-3 py-2 border rounded-lg") {}
+                button (text: "Login", onClick: .Submit, style: "w-full px-4 py-2 bg-blue-500 text-white rounded-lg") {}
+                if .error != "" {
+                    text (text: .error, style: "text-sm text-red-500 text-center") {}
+                }
+            }
+        }
+    }
+
+    on {
+        .Submit -> {
+            // 占位：后端修复后改为 login(.username, .password)
+            if .username == "" {
+                .error = "Username required"
+            }
+        }
+    }
+}

@@ -1,0 +1,11 @@
+// pac.at - auto-musk Workspace Config
+// auto-forge 的 Auto 实现版本（移植自 auto-forge 03087fb）。
+// 后端用 AutoVM 脚本运行（待 auto-lang #[api] server 修复后激活）。
+// 参照 examples/ui/015-notes 的单包结构（scene:ui + render:vue + api 指向后端）。
+
+name: "auto-musk"
+version: "0.1.0"
+
+scene: "ui"
+render: "vue"
+api: "rust"

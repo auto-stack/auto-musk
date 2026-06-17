@@ -1,0 +1,12 @@
+// src/back/api.at - 后端 API 占位
+// 后端用 AutoVM 脚本运行（#[api] 自动路由）。
+// ⚠️ 当前阻塞：auto-lang 的 #[api] server 启动 panic（见 plans/auto-lang-fix-312-server-panic.md）。
+//    待 auto-lang 修复后，本文件即可用 AutoVM 直接运行（auto run src/back/api.at）。
+// 前端在修复前可独立 dev（auto gen + npm run dev），不依赖本后端运行。
+
+/// 健康检查 / 占位端点
+#[api(method = "GET", path = "/api/hello")]
+pub fn hello() str {
+    use db
+    return db.greet()
+}

@@ -1,0 +1,28 @@
+// src/front/views/explorer.at - 项目浏览器视图（占位骨架，mock 数据）
+// 后端修复后改为从 #[api] 加载项目列表。
+
+widget ExplorerPage {
+    msg Msg { Select(int) }
+
+    model {
+        projects List = []
+        selected int = 0
+    }
+
+    view {
+        row (style: "w-full h-screen") {
+            col (style: "w-64 border-r p-3 gap-1 overflow-y-auto") {
+                text (text: "Projects", style: "text-lg font-bold mb-2") {}
+                for project in .projects {
+                    button (text: project.name, variant: "ghost", onClick: .Select(project.id), style: "w-full text-left p-2 rounded-lg text-sm") {}
+                }
+            }
+            col (style: "flex-1 p-6") {
+                if .projects.len() > 0 {
+                    text (text: .projects[.selected].name, style: "text-2xl font-bold") {}
+                    text (text: .projects[.selected].path, style: "text-sm text-gray-500") {}
+                }
+            }
+        }
+    }
+}

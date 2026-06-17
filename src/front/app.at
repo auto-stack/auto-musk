@@ -1,0 +1,15 @@
+// src/front/app.at - auto-musk 根 widget
+// 最小路由骨架：登录 + 浏览器视图，验证 a2vue 的 routes/outlet 生成质量。
+// routes 的 use <key> 对应 pac.at 的 pages 注册块。
+// 参照 component-gallery app.at 的 routes + outlet 写法。
+
+widget App {
+    routes {
+        "/" -> use login
+        "/explorer" -> use explorer
+    }
+
+    view {
+        outlet
+    }
+}
