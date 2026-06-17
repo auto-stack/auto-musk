@@ -1,26 +1,30 @@
-// src/front/views/explorer.at - 项目浏览器视图（占位骨架，mock 数据）
-// 后端修复后改为从 #[api] 加载项目列表。
+// src/front/pages/explorer.at - 项目浏览器页（含 NavRail + 内容区）
+// 占位骨架，mock 数据。后端修复后改为从 #[api] 加载。
+
+use nav_rail: NavRail
 
 widget ExplorerPage {
-    msg Msg { Select(int) }
-
     model {
         projects List = []
-        selected int = 0
     }
 
     view {
         row (style: "w-full h-screen") {
-            col (style: "w-64 border-r p-3 gap-1 overflow-y-auto") {
-                text (text: "Projects", style: "text-lg font-bold mb-2") {}
-                for project in .projects {
-                    button (text: project.name, variant: "ghost", onClick: .Select(project.id), style: "w-full text-left p-2 rounded-lg text-sm") {}
-                }
-            }
-            col (style: "flex-1 p-6") {
+            NavRail
+            col (style: "flex-1 p-6 overflow-y-auto") {
+                text (text: "Explorer", style: "text-2xl font-bold mb-4") {}
                 if .projects.len() > 0 {
-                    text (text: .projects[.selected].name, style: "text-2xl font-bold") {}
-                    text (text: .projects[.selected].path, style: "text-sm text-gray-500") {}
+                    row (style: "gap-2 flex-wrap") {
+                        for project in .projects {
+                            col (style: "w-64 p-4 border rounded-lg cursor-pointer hover:bg-gray-50") {
+                                text (text: project.name, style: "font-semibold text-gray-800") {}
+                                text (text: project.path, style: "text-xs text-gray-500") {}
+                            }
+                        }
+                    }
+                }
+                if .projects.len() == 0 {
+                    text (text: "No projects. (mock data — backend not connected)", style: "text-gray-400") {}
                 }
             }
         }

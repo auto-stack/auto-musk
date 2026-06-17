@@ -1,0 +1,16 @@
+// src/front/pages/relay.at - Relay 编排引擎页（占位）
+// 后续阶段移植：serial-agent 流水线监控。
+
+use nav_rail: NavRail
+
+widget RelayPage {
+    view {
+        row (style: "w-full h-screen") {
+            NavRail
+            col (style: "flex-1 p-6") {
+                text (text: "Relay", style: "text-2xl font-bold mb-4") {}
+                text (text: "Relay Engine — coming in Phase 7", style: "text-gray-400") {}
+            }
+        }
+    }
+}

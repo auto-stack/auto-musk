@@ -1,0 +1,20 @@
+// src/front/pages/chats.at - Forge 聊天页（占位）
+// 后续阶段移植：provider + 会话 + SSE 流式（依赖 auto-lang 服务端 SSE）。
+
+use nav_rail: NavRail
+
+widget ChatsPage {
+    model {
+        placeholder str = "Forge Chat — coming in Phase 5 (needs SSE streaming)"
+    }
+
+    view {
+        row (style: "w-full h-screen") {
+            NavRail
+            col (style: "flex-1 p-6") {
+                text (text: "Chats", style: "text-2xl font-bold mb-4") {}
+                text (text: .placeholder, style: "text-gray-400") {}
+            }
+        }
+    }
+}

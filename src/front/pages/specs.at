@@ -1,0 +1,16 @@
+// src/front/pages/specs.at - Spec Ledger 页（占位）
+// 后续阶段移植：7 类 spec 文件持久化 + 状态机。
+
+use nav_rail: NavRail
+
+widget SpecsPage {
+    view {
+        row (style: "w-full h-screen") {
+            NavRail
+            col (style: "flex-1 p-6") {
+                text (text: "Specs", style: "text-2xl font-bold mb-4") {}
+                text (text: "Spec Ledger — coming in Phase 6", style: "text-gray-400") {}
+            }
+        }
+    }
+}

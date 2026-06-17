@@ -1,15 +1,14 @@
 // src/front/app.at - auto-musk 根 widget
-// 最小路由骨架：登录 + 浏览器视图，验证 a2vue 的 routes/outlet 生成质量。
-// routes 的 use <key> 对应 pac.at 的 pages 注册块。
-// 参照 component-gallery app.at 的 routes + outlet 写法。
+// App Shell: 路由 + 左侧导航 rail + outlet。
+// 参照 auto-forge 的 9-tab 布局（frontend/src/App.vue:134）。
+// DSL 风格沿用 015-notes 已验证写法（row/col/link/button），不依赖未验证的内置组件。
 
 widget App {
     routes {
         "/" -> use login
         "/explorer" -> use explorer
-    }
-
-    view {
-        outlet
+        "/chats" -> use chats
+        "/specs" -> use specs
+        "/relay" -> use relay
     }
 }
