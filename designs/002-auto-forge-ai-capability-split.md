@@ -1,9 +1,14 @@
 # 002 — auto-forge AI 能力三成分拆分分析
 
-> **目的**：为"把 auto-forge 拆成 auto-ai-daemon / auto-ai-client / app 三成分"提供事实依据和划分方案。
-> **背景**：auto-musk（auto-forge 的 Auto 化）延期。auto-forge 的 LLM 相关能力应下沉为 AutoOS 全局资源，支撑未来多 AI App 生态。
-> **依据**：对 auto-forge backend 源码的逐模块分析（带文件路径:行号证据）。
-> **决策**：auto-forge 先在 Rust 层完成三成分拆分，再考虑翻译成 Auto（auto-musk）。
+> **v2 更新(2026-06-18)**:本文分析的"三成分拆分"(daemon / client / app)已在 **auto-ai 仓库以 Rust 实现**:
+> `auto-ai-daemon` + `auto-ai-client` + `ai-config` 已就绪(见 auto-ai `ARCHITECTURE.md`)。
+> 因此 auto-musk 的 app 层用 **Rust 后端**直接依赖 `auto-ai-agent`,无需在 AutoVM 重写 daemon/client。
+> 本文的逐模块拆分表(§3)仍然有效,作为"auto-forge 哪些模块归哪层"的参考 —— 只是落地语言从 Auto 改为 Rust。
+>
+> **目的**:为"把 auto-forge 拆成 auto-ai-daemon / auto-ai-client / app 三成分"提供事实依据和划分方案。
+> **背景**:auto-musk(auto-forge 的继任者)用 Rust 后端。auto-forge 的 LLM 相关能力已下沉为 AutoOS 全局资源(auto-ai 仓库)。
+> **依据**:对 auto-forge backend 源码的逐模块分析(带文件路径:行号证据)。
+> **决策**:三成分拆分已在 auto-ai(Rust)完成 daemon+client;app 层(auto-musk)用 Rust 依赖 auto-ai-agent。
 
 ---
 

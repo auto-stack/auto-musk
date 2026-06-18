@@ -1,19 +1,48 @@
-// src/front/pages/chats.at - Forge 聊天页（占位）
-// 后续阶段移植：provider + 会话 + SSE 流式（依赖 auto-lang 服务端 SSE）。
+// src/front/pages/chats.at - Forge 聊天页
+// 与后端 /api/run + /api/professions 打通 (rust-impl 分支)。
+// NOTE: 当前 gen/front/vue/src/pages/chats.vue 是手工编辑的(因 a2vue 重新生成
+// 依赖 auto-lang,尚未可用)。此 .at 源文件描述期望的 UI 意图,供未来重生成参考。
 
 use nav_rail: NavRail
 
 widget ChatsPage {
+    // UI: 左侧 NavRail,右侧上下分:header(profession 选择)+ 消息列表 + 输入框。
+    // 数据:
+    //   - professions: GET /api/professions → [{name, model, ...}]
+    //   - send(task): POST /api/run {task, profession} → {output, turns, tool_calls[]}
+    //   - 消息追加到列表(user/assistant),assistant 带 turns + 可折叠 tool_calls
+    // 交互: Ctrl/Cmd+Enter 发送;loading 态显示 "thinking…";错误红框。
     model {
-        placeholder str = "Forge Chat — coming in Phase 5 (needs SSE streaming)"
+        professions list = []
+        selected_profession str = "coder"
+        task_input str = ""
+        messages list = []
+        loading bool = false
+    }
+
+    msg Send {
+        // POST /api/run, 追加结果到 messages
     }
 
     view {
         row (style: "w-full h-screen") {
             NavRail
-            col (style: "flex-1 p-6") {
-                text (text: "Chats", style: "text-2xl font-bold mb-4") {}
-                text (text: .placeholder, style: "text-gray-400") {}
+            col (style: "flex-1 flex-col h-screen") {
+                // header: 标题 + profession 下拉
+                row (style: "border-b px-6 py-3") {
+                    text (text: "Chats", style: "text-2xl font-bold") {}
+                    select (style: "ml-auto", model: .selected_profession, options: .professions) {}
+                }
+                // 消息列表 (可滚动)
+                scroll_area (style: "flex-1 overflow-y-auto px-6 py-4") {
+                    // 每个 message: user 右对齐, assistant 左对齐, 错误红框
+                    // assistant 带 turns + 可折叠 tool_calls
+                }
+                // 输入框 + Send 按钮
+                row (style: "border-t px-6 py-3") {
+                    input (style: "flex-1", model: .task_input, placeholder: "Describe a task…") {}
+                    button (text: "Send", on_click: Send) {}
+                }
             }
         }
     }
