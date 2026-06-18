@@ -17,7 +17,7 @@ path = "src/lib.rs"
 auto-ai-agent = { path = "../../../../auto-ai/crates/auto-ai-agent" }
 # daemon 发现/调用(auto-ai-agent 已重导出,但直接依赖更清晰)
 auto-ai-client = { path = "../../../../auto-ai/crates/auto-ai-client" }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync"] }
 clap = { version = "4", features = ["derive"] }
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
@@ -26,6 +26,8 @@ serde_json = "1"
 axum = "0.8"
 tower-http = { version = "0.6", features = ["cors"] }
 tracing = "0.1"
+async-stream = "0.3"
+futures = "0.3"
 
 [dev-dependencies]
 # tools 单元测试用 #[tokio::test]

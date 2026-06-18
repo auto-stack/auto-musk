@@ -45,6 +45,7 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/health", get(health))
         .route("/api/professions", get(professions))
         .route("/api/run", post(run))
+        .route("/api/run/stream", post(run_stream_handler))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -157,6 +158,96 @@ async fn run(
     match run_inner(state, req).await {
         Ok(resp) => Json(resp).into_response(),
         Err(err) => err.into_response(),
+    }
+}
+
+/// `POST /api/run/stream` — streaming variant. Streams the agent's progress as
+/// SSE events so the frontend can render tokens live.
+///
+/// SSE events (each is a `data:` line with JSON):
+/// - `{"type":"delta","text":"…"}`   — a text chunk
+/// - `{"type":"tool",…}`             — a tool call + result
+/// - `{"type":"done",…}`             — loop finished (full result)
+/// - `{"type":"error","message":"…"}`— loop failed
+async fn run_stream_handler(
+    State(state): State<AppState>,
+    Json(req): Json<RunRequest>,
+) -> impl IntoResponse {
+    use axum::body::Body;
+    use axum::response::Response;
+    use tokio::sync::mpsc;
+
+    let (tx, mut rx) = mpsc::channel::<serde_json::Value>(64);
+
+    // Resolve the profession up front so we can fail fast on a bad spec.
+    let profession: Arc<dyn Profession> = match resolve(&req.profession) {
+        Ok(p) => p,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError {
+                    error: format!("invalid profession '{}': {e}", req.profession),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    // Spawn the agent run, pushing StreamEvents into the channel as SSE JSON.
+    let client = state.client.clone();
+    tokio::spawn(async move {
+        let mut agent = build_agent(profession, client);
+        let tx2 = tx.clone();
+        let on_event: Arc<dyn Fn(auto_ai_agent::StreamEvent) + Send + Sync> =
+            Arc::new(move |ev| {
+                let value = stream_event_to_json(&ev);
+                let _ = tx2.try_send(value);
+            });
+        match agent.run_stream(&req.task, on_event).await {
+            Ok(_) => {
+                // Done event already emitted by run_stream; nothing more.
+            }
+            Err(e) => {
+                let _ = tx.try_send(json!({"type": "error", "message": format!("{e}")}));
+            }
+        }
+    });
+
+    let stream = async_stream::stream! {
+        while let Some(value) = rx.recv().await {
+            yield Ok::<_, std::convert::Infallible>(format!("data: {value}\n\n"));
+        }
+    };
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "text/event-stream")
+        .header("Cache-Control", "no-cache")
+        .header("Connection", "keep-alive")
+        .body(Body::from_stream(stream))
+        .unwrap()
+}
+
+/// Serialize a [`auto_ai_agent::StreamEvent`] to the SSE JSON shape.
+fn stream_event_to_json(ev: &auto_ai_agent::StreamEvent) -> serde_json::Value {
+    use auto_ai_agent::StreamEvent;
+    match ev {
+        StreamEvent::Delta { text } => json!({"type": "delta", "text": text}),
+        StreamEvent::Tool { tool, args, result } => json!({
+            "type": "tool",
+            "tool": tool,
+            "args": args,
+            "result": result,
+        }),
+        StreamEvent::Done { result } => json!({
+            "type": "done",
+            "output": result.output,
+            "turns": result.turns,
+            "tool_calls": result.tool_calls.iter().map(|tc| json!({
+                "tool": tc.tool, "args": tc.args, "result": tc.result,
+            })).collect::<Vec<_>>(),
+        }),
+        StreamEvent::Error { message } => json!({"type": "error", "message": message}),
     }
 }
 
