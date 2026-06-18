@@ -320,6 +320,177 @@ pub fn now_sec() -> u64 {
         .unwrap_or(0)
 }
 
+// ============================================================
+// State machine — valid status transitions
+// ============================================================
+
+/// Is the transition `from -> to` valid? Models the canonical spec lifecycle:
+/// empty → proposed → draft → review → approved → implemented → verified → done,
+/// with rejection/archive/done side-branches at sensible points.
+///
+/// Unknown "back to draft" is allowed from most states (specs get reopened).
+pub fn can_transition(from: SpecStatus, to: SpecStatus) -> bool {
+    use SpecStatus::*;
+    if from == to {
+        return true; // idempotent
+    }
+    match from {
+        Empty => matches!(to, Proposed | Draft | Backlog),
+        Proposed => matches!(to, Draft | Backlog | Rejected),
+        Draft => matches!(to, UnderReview | InReview | Approved | Backlog),
+        UnderReview | InReview => {
+            matches!(to, Approved | Rejected | Draft | Blocked)
+        }
+        Approved => matches!(to, Ready | InProgress | InImplementation),
+        Ready => matches!(to, InProgress | InImplementation | Backlog),
+        InProgress | InImplementation => matches!(to, Implemented | Blocked),
+        Implemented => matches!(to, Verified | InProgress),
+        Verified => matches!(to, Done | Archived),
+        Done => matches!(to, Archived | Draft),
+        Backlog => matches!(to, Ready | Proposed | Draft),
+        Blocked => matches!(to, InProgress | InReview | Backlog | Rejected),
+        // terminal-ish states: allow reopen-to-draft/backlog for correction,
+        // or proceed to Archived.
+        Archived | Rejected | Superseded | Outdated | Stable | Deprecated
+        | Published | Analysed | Obsolete => matches!(to, Draft | Backlog | Archived),
+    }
+}
+
+/// Transition a status, returning the new status or an error if invalid.
+pub fn transition(from: SpecStatus, to: SpecStatus) -> Result<SpecStatus, String> {
+    if can_transition(from, to) {
+        Ok(to)
+    } else {
+        Err(format!(
+            "invalid status transition: {} -> {}",
+            from.to_str(),
+            to.to_str()
+        ))
+    }
+}
+
+// ============================================================
+// SpecsStore — JSON file persistence + CRUD
+// ============================================================
+
+/// A file-backed spec store. The whole document is serialized to one JSON file
+/// at `path`. Good enough for single-user; a real DB is a later phase.
+pub struct SpecsStore {
+    path: std::path::PathBuf,
+}
+
+impl SpecsStore {
+    /// Open (or create) a store at `path`.
+    pub fn new(path: impl Into<std::path::PathBuf>) -> Self {
+        Self { path: path.into() }
+    }
+
+    /// Load the document; create an empty one (persisted) if absent.
+    pub fn load(&self) -> std::io::Result<SpecsDocument> {
+        match std::fs::read(&self.path) {
+            Ok(bytes) => serde_json::from_slice(&bytes).map_err(|e| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, e)
+            }),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                let doc = SpecsDocument::new(
+                    self.path
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("project"),
+                );
+                self.save(&doc)?;
+                Ok(doc)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Persist the document.
+    pub fn save(&self, doc: &SpecsDocument) -> std::io::Result<()> {
+        if let Some(parent) = self.path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let bytes = serde_json::to_vec_pretty(doc)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        std::fs::write(&self.path, bytes)
+    }
+
+    /// Upsert an item into a section, bumping the document version. Creates the
+    /// item if `item.id` is new, replaces it otherwise.
+    pub fn upsert_item(
+        &self,
+        doc: &mut SpecsDocument,
+        section_id: &str,
+        item: SpecItem,
+    ) -> Result<(), String> {
+        let section = doc
+            .sections
+            .iter_mut()
+            .find(|s| s.id == section_id)
+            .ok_or_else(|| format!("section '{section_id}' not found"))?;
+        let now = now_sec();
+        if let Some(existing) = section.items.iter_mut().find(|i| i.id == item.id) {
+            *existing = item;
+        } else {
+            section.items.push(item);
+        }
+        section.last_modified = now;
+        doc.version += 1;
+        Ok(())
+    }
+
+    /// Transition an item's status (validates via the state machine).
+    pub fn transition_item(
+        &self,
+        doc: &mut SpecsDocument,
+        section_id: &str,
+        item_id: &str,
+        new_status: SpecStatus,
+    ) -> Result<(), String> {
+        let section = doc
+            .sections
+            .iter_mut()
+            .find(|s| s.id == section_id)
+            .ok_or_else(|| format!("section '{section_id}' not found"))?;
+        let item = section
+            .items
+            .iter_mut()
+            .find(|i| i.id == item_id)
+            .ok_or_else(|| format!("item '{item_id}' not found in '{section_id}'"))?;
+        let updated = transition(item.status, new_status)?;
+        item.status = updated;
+        item.modified_at = now_sec();
+        if matches!(updated, SpecStatus::Done) {
+            item.completed_at = Some(now_sec());
+        }
+        section.last_modified = now_sec();
+        doc.version += 1;
+        Ok(())
+    }
+
+    /// Delete an item. Returns true if it existed.
+    pub fn delete_item(
+        &self,
+        doc: &mut SpecsDocument,
+        section_id: &str,
+        item_id: &str,
+    ) -> Result<bool, String> {
+        let section = doc
+            .sections
+            .iter_mut()
+            .find(|s| s.id == section_id)
+            .ok_or_else(|| format!("section '{section_id}' not found"))?;
+        let before = section.items.len();
+        section.items.retain(|i| i.id != item_id);
+        let removed = section.items.len() < before;
+        if removed {
+            section.last_modified = now_sec();
+            doc.version += 1;
+        }
+        Ok(removed)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -436,5 +607,177 @@ mod tests {
         let t = now_sec();
         // After 2024-01-01 (a safe lower bound).
         assert!(t > 1704067200);
+    }
+
+    // ── state machine ──────────────────────────────────────────
+
+    #[test]
+    fn transition_empty_to_proposed_ok() {
+        assert!(can_transition(SpecStatus::Empty, SpecStatus::Proposed));
+        assert!(can_transition(SpecStatus::Proposed, SpecStatus::Draft));
+        assert!(can_transition(SpecStatus::Draft, SpecStatus::UnderReview));
+        assert!(can_transition(SpecStatus::Approved, SpecStatus::InProgress));
+        assert!(can_transition(SpecStatus::Verified, SpecStatus::Done));
+    }
+
+    #[test]
+    fn transition_rejects_skipping() {
+        // can't go Empty -> Approved (must pass proposed/draft/review)
+        assert!(!can_transition(SpecStatus::Empty, SpecStatus::Approved));
+        // can't verify before implementing
+        assert!(!can_transition(SpecStatus::Approved, SpecStatus::Verified));
+    }
+
+    #[test]
+    fn transition_blocked_can_proceed() {
+        assert!(can_transition(SpecStatus::Blocked, SpecStatus::InProgress));
+        assert!(can_transition(SpecStatus::Blocked, SpecStatus::Backlog));
+    }
+
+    #[test]
+    fn transition_terminal_reopens_to_draft() {
+        assert!(can_transition(SpecStatus::Done, SpecStatus::Draft));
+        assert!(can_transition(SpecStatus::Rejected, SpecStatus::Draft));
+    }
+
+    #[test]
+    fn transition_idempotent() {
+        for s in [SpecStatus::Draft, SpecStatus::Done, SpecStatus::Backlog] {
+            assert!(can_transition(s, s));
+        }
+    }
+
+    #[test]
+    fn transition_fn_returns_status_or_err() {
+        assert_eq!(
+            transition(SpecStatus::Empty, SpecStatus::Proposed).unwrap(),
+            SpecStatus::Proposed
+        );
+        assert!(transition(SpecStatus::Empty, SpecStatus::Done).is_err());
+    }
+
+    // ── SpecsStore ─────────────────────────────────────────────
+
+    #[test]
+    fn store_creates_empty_doc_if_absent() {
+        let dir = std::env::temp_dir().join("musk_specs_test_new");
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("specs.json");
+        let store = SpecsStore::new(&path);
+        let doc = store.load().unwrap();
+        assert_eq!(doc.sections.len(), 7);
+        assert!(path.exists()); // persisted
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn store_upsert_then_load_roundtrip() {
+        let dir = std::env::temp_dir().join("musk_specs_test_upsert");
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("specs.json");
+        let store = SpecsStore::new(&path);
+        let mut doc = store.load().unwrap();
+
+        let item = SpecItem::new("G1", "first goal");
+        store.upsert_item(&mut doc, "goals", item).unwrap();
+        assert_eq!(doc.version, 1);
+        store.save(&doc).unwrap();
+
+        // Reload from disk.
+        let reloaded = store.load().unwrap();
+        let goals = reloaded.sections.iter().find(|s| s.id == "goals").unwrap();
+        assert_eq!(goals.items.len(), 1);
+        assert_eq!(goals.items[0].id, "G1");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn store_upsert_replaces_existing() {
+        let path = std::env::temp_dir().join("musk_specs_test_replace.json");
+        let store = SpecsStore::new(&path);
+        let mut doc = SpecsDocument::new("t");
+        store
+            .upsert_item(&mut doc, "goals", SpecItem::new("G1", "old"))
+            .unwrap();
+        store
+            .upsert_item(&mut doc, "goals", SpecItem::new("G1", "new title"))
+            .unwrap();
+        let goals = doc.sections.iter().find(|s| s.id == "goals").unwrap();
+        assert_eq!(goals.items.len(), 1); // not duplicated
+        assert_eq!(goals.items[0].title, "new title");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn store_transition_item_validates() {
+        let path = std::env::temp_dir().join("musk_specs_test_trans.json");
+        let store = SpecsStore::new(&path);
+        let mut doc = SpecsDocument::new("t");
+        store
+            .upsert_item(&mut doc, "goals", SpecItem::new("G1", "g"))
+            .unwrap();
+        // Empty -> Proposed (valid)
+        store
+            .transition_item(&mut doc, "goals", "G1", SpecStatus::Proposed)
+            .unwrap();
+        // Proposed -> Done (invalid, skips)
+        let err = store
+            .transition_item(&mut doc, "goals", "G1", SpecStatus::Done)
+            .unwrap_err();
+        assert!(err.contains("invalid"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn store_transition_to_done_sets_completed_at() {
+        let path = std::env::temp_dir().join("musk_specs_test_done.json");
+        let store = SpecsStore::new(&path);
+        let mut doc = SpecsDocument::new("t");
+        // Walk the item through to Verified, then Done.
+        store
+            .upsert_item(&mut doc, "goals", SpecItem::new("G1", "g"))
+            .unwrap();
+        for s in [
+            SpecStatus::Proposed,
+            SpecStatus::Draft,
+            SpecStatus::Approved,
+            SpecStatus::InProgress,
+            SpecStatus::Implemented,
+            SpecStatus::Verified,
+            SpecStatus::Done,
+        ] {
+            store.transition_item(&mut doc, "goals", "G1", s).unwrap();
+        }
+        let goals = doc.sections.iter().find(|s| s.id == "goals").unwrap();
+        assert_eq!(goals.items[0].status, SpecStatus::Done);
+        assert!(goals.items[0].completed_at.is_some());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn store_delete_item() {
+        let path = std::env::temp_dir().join("musk_specs_test_del.json");
+        let store = SpecsStore::new(&path);
+        let mut doc = SpecsDocument::new("t");
+        store
+            .upsert_item(&mut doc, "goals", SpecItem::new("G1", "g"))
+            .unwrap();
+        assert!(store.delete_item(&mut doc, "goals", "G1").unwrap());
+        assert!(!store.delete_item(&mut doc, "goals", "G1").unwrap()); // gone
+        let goals = doc.sections.iter().find(|s| s.id == "goals").unwrap();
+        assert!(goals.items.is_empty());
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn store_unknown_section_errors() {
+        let path = std::env::temp_dir().join("musk_specs_test_unknown.json");
+        let store = SpecsStore::new(&path);
+        let mut doc = SpecsDocument::new("t");
+        let err = store
+            .upsert_item(&mut doc, "nonexistent", SpecItem::new("X1", "x"))
+            .unwrap_err();
+        assert!(err.contains("not found"));
+        let _ = std::fs::remove_file(&path);
     }
 }
