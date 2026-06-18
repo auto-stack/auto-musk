@@ -1,48 +1,77 @@
-// src/front/pages/chats.at - Forge 聊天页
-// 与后端 /api/run + /api/professions 打通 (rust-impl 分支)。
-// NOTE: 当前 gen/front/vue/src/pages/chats.vue 是手工编辑的(因 a2vue 重新生成
-// 依赖 auto-lang,尚未可用)。此 .at 源文件描述期望的 UI 意图,供未来重生成参考。
+// src/front/pages/chats.at - Chats 页
+// 与 Rust 后端 /api/run + /api/professions 打通 (非流式 MVP)。
+// 参考 examples/ui/015-notes 的 list/for/on 模式。
 
-use nav_rail: NavRail
+use back.api: run_agent, list_professions
 
 widget ChatsPage {
-    // UI: 左侧 NavRail,右侧上下分:header(profession 选择)+ 消息列表 + 输入框。
-    // 数据:
-    //   - professions: GET /api/professions → [{name, model, ...}]
-    //   - send(task): POST /api/run {task, profession} → {output, turns, tool_calls[]}
-    //   - 消息追加到列表(user/assistant),assistant 带 turns + 可折叠 tool_calls
-    // 交互: Ctrl/Cmd+Enter 发送;loading 态显示 "thinking…";错误红框。
-    model {
-        professions list = []
-        selected_profession str = "coder"
-        task_input str = ""
-        messages list = []
-        loading bool = false
-    }
+    msg Msg { Send }
 
-    msg Send {
-        // POST /api/run, 追加结果到 messages
+    model {
+        var task_input str = ""
+        var selected_profession str = "coder"
+        // 对话历史:每行 "role: text"
+        var history str = ""
+        var last_output str = ""
+        var loading bool = false
     }
 
     view {
-        row (style: "w-full h-screen") {
-            NavRail
-            col (style: "flex-1 flex-col h-screen") {
-                // header: 标题 + profession 下拉
-                row (style: "border-b px-6 py-3") {
-                    text (text: "Chats", style: "text-2xl font-bold") {}
-                    select (style: "ml-auto", model: .selected_profession, options: .professions) {}
+        col {
+            // header
+            row {
+                h2 "Chats" { style: "text-2xl font-bold" }
+                text "Profession:" { style: "ml-auto text-sm text-gray-500" }
+                select {
+                    value: .selected_profession
+                    options: list_professions()
                 }
-                // 消息列表 (可滚动)
-                scroll_area (style: "flex-1 overflow-y-auto px-6 py-4") {
-                    // 每个 message: user 右对齐, assistant 左对齐, 错误红框
-                    // assistant 带 turns + 可折叠 tool_calls
+                style: "px-6 py-3 border-b items-center w-full"
+            }
+
+            // history display
+            col {
+                if .history == "" {
+                    text "Send a user_task to the agent." { style: "text-gray-400 text-center mt-8" }
                 }
-                // 输入框 + Send 按钮
-                row (style: "border-t px-6 py-3") {
-                    input (style: "flex-1", model: .task_input, placeholder: "Describe a task…") {}
-                    button (text: "Send", on_click: Send) {}
+                text .history { style: "whitespace-pre-wrap break-words px-6 py-4" }
+                style: "flex-1 overflow-y-auto"
+            }
+
+            // last agent output
+            col {
+                if .last_output != "" {
+                    text .last_output { style: "whitespace-pre-wrap break-words px-6 py-2 bg-gray-50" }
                 }
+                style: "px-6"
+            }
+
+            // input
+            row {
+                input {
+                    value: .task_input
+                    oninput: .Send
+                    placeholder: "Describe a user_task..."
+                    style: "flex-1 border rounded px-3 py-2"
+                }
+                button "Send" { onclick: .Send, style: "px-4 py-2 rounded bg-primary text-primary-foreground" }
+                style: "border-t px-6 py-3 gap-2"
+            }
+            style: "w-full h-screen flex-col"
+        }
+    }
+
+    on {
+        .Send -> {
+            if .task_input != "" {
+                let user_task = .task_input
+                .task_input = ""
+                .history = .history + "you: " + user_task + "\n\n"
+                .loading = true
+                let result = run_agent(user_task, .selected_profession)
+                .last_output = result.output
+                .history = .history + .selected_profession + ": " + result.output + "\n\n"
+                .loading = false
             }
         }
     }

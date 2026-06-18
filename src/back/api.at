@@ -1,12 +1,81 @@
-// src/back/api.at - 后端 API 占位
-// 后端用 AutoVM 脚本运行（#[api] 自动路由）。
-// ⚠️ 当前阻塞：auto-lang 的 #[api] server 启动 panic（见 plans/auto-lang-fix-312-server-panic.md）。
-//    待 auto-lang 修复后，本文件即可用 AutoVM 直接运行（auto run src/back/api.at）。
-// 前端在修复前可独立 dev（auto gen + npm run dev），不依赖本后端运行。
+// src/back/api.at - auto-musk API 接口契约
+//
+// 这些 #[api] 函数声明前端调用的端点。auto build 据此生成
+// gen/front/vue/src/lib/api.ts (TypeScript client),前端页面通过
+// `use back.api: <fn>` 调用它们。
+//
+// 重要:实际端点由 Rust axum 后端实现 (musk serve, :8080),而非 AutoVM。
+// 这里的函数体仅给 a2vm 生成的 Rust server skeleton 用(我们不用它),
+// 所以用占位实现。TS client 只依据函数签名 + method/path 生成。
+// 路径必须与 backend/crates/musk/src/server.rs 的路由一一对应。
 
-/// 健康检查 / 占位端点
-#[api(method = "GET", path = "/api/hello")]
-pub fn hello() str {
-    use db
-    return db.greet()
+// ═══════════════════════════════════════════════════════════
+// 共享类型
+// ═══════════════════════════════════════════════════════════
+
+/// 一次工具调用的记录(agent 调过的工具 + 参数 + 结果)
+pub type ToolCall = {
+    tool: str
+    args: any
+    result: str
+}
+
+/// agent 运行结果
+pub type RunResult = {
+    output: str
+    turns: int
+    tool_calls: []ToolCall
+}
+
+/// 内置 profession 元数据
+pub type Profession = {
+    name: str
+    model: str
+    temperature: f64
+    max_turns: int
+}
+
+/// workflow 步骤输出(每步 id -> 文本)
+// 注:返回类型用 any,因为 a2vm 对 Map 的支持有限,Rust 端实际返回
+// { steps: { id: output }, outputs: { var: value } }
+pub type WorkflowResult = {
+    steps: any
+    outputs: any
+}
+
+// ═══════════════════════════════════════════════════════════
+// Agent 端点
+// ═══════════════════════════════════════════════════════════
+
+/// 运行 agent 处理任务(非流式;流式用 /api/run/stream,不经此契约)
+/// POST /api/run
+#[api(method = "POST", path = "/api/run")]
+pub fn run_agent(task str, profession str) RunResult {
+    // 实现在 Rust axum 后端 (server.rs);此处占位。
+    return RunResult { output: "", turns: 0, tool_calls: [] }
+}
+
+/// 列出所有内置 profession
+/// GET /api/professions
+#[api(method = "GET", path = "/api/professions")]
+pub fn list_professions() any {
+    return { professions: [] }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Workflow 端点
+// ═══════════════════════════════════════════════════════════
+
+/// 列出内置 workflow
+/// GET /api/workflows
+#[api(method = "GET", path = "/api/workflows")]
+pub fn list_workflows() any {
+    return { workflows: [] }
+}
+
+/// 运行一个 workflow
+/// POST /api/workflow/run
+#[api(method = "POST", path = "/api/workflow/run")]
+pub fn run_workflow(task str, workflow str) WorkflowResult {
+    return WorkflowResult { steps: {}, outputs: {} }
 }

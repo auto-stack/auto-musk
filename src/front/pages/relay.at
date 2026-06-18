@@ -1,45 +1,93 @@
 // src/front/pages/relay.at - Relay 工作流页
 // 运行多角色 Workflow (architect→coder→tester→reviewer),展示每步输出。
-// NOTE: gen/front/vue/src/pages/relay.vue 是手工编辑的(a2vm 尚不可用),
-// 此 .at 描述 UI 意图供未来重生成。
+// 与 Rust 后端 /api/workflow/run + /api/workflows 打通。
 
-use nav_rail: NavRail
+use back.api: run_workflow, list_workflows
 
 widget RelayPage {
-    // UI: workflow 下拉 + 任务输入 + 每步输出卡片(编号+id+pre 输出)。
-    // 数据:
-    //   - workflows: GET /api/workflows → ["feature-dev", ...]
-    //   - runWorkflow(task): POST /api/workflow/run {task, workflow} → {steps:{id:output}}
-    model {
-        workflows list = []
-        selected_workflow str = "feature-dev"
-        task_input str = ""
-        step_outputs list = []
-        loading bool = false
-        error str = ""
-    }
+    msg Msg { RunWorkflow, WorkflowChanged }
 
-    msg RunWorkflow {
-        // POST /api/workflow/run, 把 steps 渲染成卡片
+    model {
+        var workflows list = []
+        var selected_workflow str = "feature-dev"
+        var task_input str = ""
+        // step_outputs: [{id, output}] 每步输出卡片
+        var step_outputs list = []
+        var loading bool = false
+        var error str = ""
     }
 
     view {
-        row (style: "w-full h-screen") {
-            NavRail
-            col (style: "flex-1 flex-col h-screen") {
-                row (style: "border-b px-6 py-3") {
-                    text (text: "Relay", style: "text-2xl font-bold") {}
-                    select (style: "ml-auto", model: .selected_workflow, options: .workflows) {}
+        row {
+            col {
+                // header
+                row {
+                    text "Relay" { style: "text-2xl font-bold" }
+                    text "Workflow:" { style: "ml-auto text-sm text-gray-500" }
+                    select {
+                        value: .selected_workflow
+                        onchange: .WorkflowChanged
+                        options: .workflows
+                    }
+                    style: "px-6 py-3 border-b items-center"
                 }
-                row (style: "border-b px-6 py-3") {
-                    input (style: "flex-1", model: .task_input, placeholder: "Describe the feature…") {}
-                    button (text: "Run Workflow", on_click: RunWorkflow) {}
+
+                // user_task input
+                row {
+                    input {
+                        value: .task_input
+                        oninput: .RunWorkflow
+                        placeholder: "Describe the feature to build..."
+                        style: "flex-1 border rounded px-3 py-2"
+                    }
+                    button "Run Workflow" { onclick: .RunWorkflow, style: "px-4 py-2 rounded bg-primary text-primary-foreground" }
+                    style: "px-6 py-3 border-b gap-2"
                 }
-                scroll_area (style: "flex-1 overflow-y-auto px-6 py-4") {
-                    // error 红框
-                    // 每个 step: 编号圆 + id + pre 输出
+
+                // step outputs
+                col {
+                    if .error != "" {
+                        text .error { style: "bg-red-50 text-red-700 border border-red-300 rounded-lg px-4 py-2" }
+                    }
+                    if .step_outputs.len() == 0 {
+                        if .error == "" {
+                            text "Run a workflow — architect to coder to tester to reviewer." { style: "text-gray-400 text-center mt-8" }
+                        }
+                    }
+                    for step in .step_outputs {
+                        col {
+                            row {
+                                text step.id { style: "font-semibold" }
+                                style: "items-center gap-2 mb-2"
+                            }
+                            text step.output { style: "whitespace-pre-wrap text-sm bg-gray-50 rounded p-3" }
+                            style: "border rounded-lg p-4"
+                        }
+                    }
+                    style: "flex-1 overflow-y-auto px-6 py-4"
                 }
+                style: "flex-1 flex-col h-screen"
             }
+            style: "w-full h-screen"
+        }
+    }
+
+    on {
+        .RunWorkflow -> {
+            if .task_input != "" {
+                var user_task = .task_input
+                .task_input = ""
+                .step_outputs = []
+                .loading = true
+                .error = ""
+                var result = run_workflow(user_task, .selected_workflow)
+                // result.steps 是 { id: output } 的对象,转成卡片列表
+                .step_outputs = result.steps
+                .loading = false
+            }
+        }
+        .WorkflowChanged -> {
+            // selected_workflow 已通过 select 绑定更新
         }
     }
 }
