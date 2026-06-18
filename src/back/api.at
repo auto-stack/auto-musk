@@ -79,3 +79,33 @@ pub fn list_workflows() any {
 pub fn run_workflow(task str, workflow str) WorkflowResult {
     return WorkflowResult { steps: {}, outputs: {} }
 }
+
+// ═══════════════════════════════════════════════════════════
+// Auth 端点 (RBAC)
+// ═══════════════════════════════════════════════════════════
+
+/// 用户信息(公开部分,无密码)
+pub type UserInfo = {
+    username: str
+    role: str
+}
+
+/// 登录返回(带 bearer token)
+pub type LoginResult = {
+    token: str
+    user: UserInfo
+}
+
+/// 登录
+/// POST /api/auth/login
+#[api(method = "POST", path = "/api/auth/login")]
+pub fn login(username str, password str) LoginResult {
+    return LoginResult { token: "", user: UserInfo { username: "", role: "viewer" } }
+}
+
+/// 获取当前登录用户(需 Authorization: Bearer <token>)
+/// GET /api/auth/me
+#[api(method = "GET", path = "/api/auth/me")]
+pub fn me() UserInfo {
+    return UserInfo { username: "", role: "viewer" }
+}

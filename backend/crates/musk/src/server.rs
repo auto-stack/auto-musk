@@ -31,15 +31,22 @@ use auto_ai_agent::{builtin_names, load_builtin, load_profession, Client, Profes
 
 use crate::build_agent;
 
-/// Shared server state: a client that talks to the daemon.
+/// Shared server state: a client that talks to the daemon, plus the auth store.
 #[derive(Clone)]
 pub struct AppState {
     pub client: Arc<dyn Client>,
+    pub auth: Arc<crate::auth::AuthStore>,
 }
 
 /// Run the HTTP server on the given address (default `127.0.0.1:8080`).
 pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn std::error::Error>> {
-    let state = AppState { client };
+    let users_path = dirs::home_dir()
+        .map(|h| h.join(".config/autoos/users.json"))
+        .unwrap_or_else(|| std::path::PathBuf::from("users.json"));
+    let state = AppState {
+        client,
+        auth: Arc::new(crate::auth::AuthStore::new(users_path)),
+    };
 
     let app = Router::new()
         .route("/api/health", get(health))
@@ -49,6 +56,9 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/workflows", get(workflows))
         .route("/api/workflow/run", post(workflow_run))
         .route("/api/workflow/run/stream", post(workflow_run_stream))
+        .route("/api/auth/login", post(auth_login))
+        .route("/api/auth/me", get(auth_me))
+        .route("/api/auth/logout", post(auth_logout))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -59,6 +69,95 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
 
 async fn health() -> impl IntoResponse {
     Json(json!({"status": "ok"}))
+}
+
+// ── Auth endpoints ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct LoginRequest {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LoginResponse {
+    pub token: String,
+    pub user: crate::auth::UserInfo,
+}
+
+/// `POST /api/auth/login` — verify credentials, return a bearer token.
+async fn auth_login(
+    State(state): State<AppState>,
+    Json(req): Json<LoginRequest>,
+) -> impl IntoResponse {
+    match state.auth.login(&req.username, &req.password) {
+        Some(session) => {
+            let user = state
+                .auth
+                .session_user(&session.token)
+                .expect("session just created");
+            Json(LoginResponse {
+                token: session.token,
+                user,
+            })
+            .into_response()
+        }
+        None => (
+            StatusCode::UNAUTHORIZED,
+            Json(ApiError {
+                error: "invalid credentials".into(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+/// `GET /api/auth/me` — resolve the bearer token to the user, else 401.
+async fn auth_me(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    match bearer_token(&headers) {
+        Some(token) => match state.auth.session_user(&token) {
+            Some(user) => Json(user).into_response(),
+            None => (
+                StatusCode::UNAUTHORIZED,
+                Json(ApiError {
+                    error: "invalid or expired session".into(),
+                }),
+            )
+                .into_response(),
+        },
+        None => (
+            StatusCode::UNAUTHORIZED,
+            Json(ApiError {
+                error: "missing Authorization header".into(),
+            }),
+        )
+            .into_response(),
+    }
+}
+
+/// `POST /api/auth/logout` — invalidate the bearer session.
+async fn auth_logout(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    if let Some(token) = bearer_token(&headers) {
+        state.auth.logout(&token);
+    }
+    Json(json!({"status": "logged out"}))
+}
+
+/// Extract a bearer token from `Authorization: Bearer <token>`.
+fn bearer_token(headers: &axum::http::HeaderMap) -> Option<String> {
+    let h = headers.get("authorization")?.to_str().ok()?;
+    let t = h.strip_prefix("Bearer ")?.trim();
+    if t.is_empty() {
+        None
+    } else {
+        Some(t.to_string())
+    }
 }
 
 async fn professions() -> impl IntoResponse {
@@ -446,10 +545,20 @@ mod tests {
         }
     }
 
+    fn tmp_auth() -> Arc<crate::auth::AuthStore> {
+        let path = std::env::temp_dir().join(format!(
+            "musk_server_auth_test_{}.json",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+        Arc::new(crate::auth::AuthStore::new(path))
+    }
+
     #[tokio::test]
     async fn run_endpoint_returns_result() {
         let state = AppState {
             client: Arc::new(MockClient) as Arc<dyn Client>,
+            auth: tmp_auth(),
         };
         let req = RunRequest {
             task: "say hello".into(),
@@ -464,6 +573,7 @@ mod tests {
     async fn run_endpoint_bad_profession_errors() {
         let state = AppState {
             client: Arc::new(MockClient) as Arc<dyn Client>,
+            auth: tmp_auth(),
         };
         let req = RunRequest {
             task: "x".into(),

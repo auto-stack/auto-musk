@@ -2,6 +2,7 @@
 //!
 //! Re-exports modules so the binary and integration tests share one source.
 
+pub mod auth;
 pub mod server;
 pub mod specs;
 pub mod tools;

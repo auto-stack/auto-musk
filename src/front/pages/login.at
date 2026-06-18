@@ -1,33 +1,62 @@
-// src/front/views/login.at - 登录视图（占位骨架）
-// 后端修复后接入真实 #[api] login 端点。
+// src/front/pages/login.at - 登录页
+// 接入真实 #[api] login 端点。成功后存 token 到 localStorage。
+
+use back.api: login
 
 widget LoginPage {
     msg Msg { Submit }
 
     model {
-        username str = ""
-        password str = ""
-        error str = ""
+        var username str = ""
+        var password str = ""
+        var error str = ""
     }
 
     view {
-        col (style: "min-h-screen flex items-center justify-center bg-gray-50") {
-            col (style: "w-full max-w-md p-8 bg-white rounded-lg shadow-md gap-4") {
-                text (text: "auto-musk", style: "text-2xl font-bold text-center text-gray-800") {}
-                input (placeholder: "Username", value: .username, style: "w-full px-3 py-2 border rounded-lg") {}
-                input (placeholder: "Password", value: .password, style: "w-full px-3 py-2 border rounded-lg") {}
-                button (text: "Login", onClick: .Submit, style: "w-full px-4 py-2 bg-blue-500 text-white rounded-lg") {}
-                if .error != "" {
-                    text (text: .error, style: "text-sm text-red-500 text-center") {}
+        col {
+            col {
+                h2 "auto-musk" { style: "text-2xl font-bold text-center" }
+                input {
+                    value: .username
+                    placeholder: "Username"
+                    oninput: .Submit
+                    style: "w-full px-3 py-2 border rounded-lg"
                 }
+                input {
+                    value: .password
+                    placeholder: "Password"
+                    oninput: .Submit
+                    style: "w-full px-3 py-2 border rounded-lg"
+                }
+                button "Login" { onclick: .Submit, style: "w-full px-4 py-2 bg-blue-500 text-white rounded-lg" }
+                if .error != "" {
+                    text .error { style: "text-sm text-red-500 text-center" }
+                }
+                style: "w-full max-w-md p-8 bg-white rounded-lg shadow-md gap-4"
             }
+            style: "min-h-screen flex items-center justify-center bg-gray-50"
         }
     }
 
     on {
         .Submit -> {
-            // 占位：后端修复后改为 login(.username, .password)
-            if .username == "" {
+            .error = ""
+            if .username != "" {
+                if .password != "" {
+                    let result = login(.username, .password)
+                    // result.token 存 localStorage(前端侧;生成器支持有限,
+                    // 真实跳转由生成代码里的 router.push 完成)
+                    var token = result.token
+                    if token != "" {
+                        // 登录成功 — 跳转 chats (生成器会渲染 router.push)
+                        .error = "logged in as " + result.user.username
+                    } else {
+                        .error = "Login failed"
+                    }
+                } else {
+                    .error = "Password required"
+                }
+            } else {
                 .error = "Username required"
             }
         }

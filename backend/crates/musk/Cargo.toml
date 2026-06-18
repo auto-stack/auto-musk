@@ -28,6 +28,11 @@ tower-http = { version = "0.6", features = ["cors"] }
 tracing = "0.1"
 async-stream = "0.3"
 futures = "0.3"
+# Auth (MVP: SHA-256 password hashing + random session tokens)
+sha2 = "0.10"
+hex = "0.4"
+rand = "0.8"
+dirs = "5"
 
 [dev-dependencies]
 # tools 单元测试用 #[tokio::test]
