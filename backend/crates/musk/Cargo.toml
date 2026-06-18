@@ -1,0 +1,32 @@
+[package]
+name = "musk"
+version = "0.1.0"
+edition = "2021"
+description = "auto-musk — Forge-successor AI coding agent (Rust backend)"
+
+[[bin]]
+name = "musk"
+path = "src/main.rs"
+
+[lib]
+name = "musk"
+path = "src/lib.rs"
+
+[dependencies]
+# auto-ai-agent 提供 Profession/Agent/Workflow(经它间接依赖 auto-ai-client/ai-config)
+auto-ai-agent = { path = "../../../../auto-ai/crates/auto-ai-agent" }
+# daemon 发现/调用(auto-ai-agent 已重导出,但直接依赖更清晰)
+auto-ai-client = { path = "../../../../auto-ai/crates/auto-ai-client" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
+clap = { version = "4", features = ["derive"] }
+async-trait = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# HTTP server (musk serve — frontend talks to this on :8080)
+axum = "0.8"
+tower-http = { version = "0.6", features = ["cors"] }
+tracing = "0.1"
+
+[dev-dependencies]
+# tools 单元测试用 #[tokio::test]
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }

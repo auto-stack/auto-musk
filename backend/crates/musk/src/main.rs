@@ -1,0 +1,209 @@
+//! `musk` — auto-musk CLI 入口。
+//!
+//! 用法:
+//!   musk run "<task>"                         用内置 Coder agent 处理任务
+//!   musk run --profession coder "<task>"      指定内置 profession
+//!   musk run --profession my-profession.at "<task>"  从 .at 文件加载自定义 profession
+//!   musk professions                          列出所有内置 profession
+//!   musk serve [--addr 127.0.0.1:8080]        启动 HTTP API server(给前端用)
+//!
+//! agent 经 auto-ai-daemon 调用 LLM,工具在本地执行。详见 backend/README.md。
+
+use std::sync::Arc;
+
+use clap::{Parser, Subcommand};
+
+use auto_ai_agent::{builtin_names, load_builtin, load_profession, Client, Profession};
+use auto_ai_client::AiClient;
+
+use musk::tools::{ReadFile, RunCommand, WriteFile};
+
+#[derive(Parser)]
+#[command(
+    name = "musk",
+    version,
+    about = "auto-musk — Forge-successor AI coding agent"
+)]
+struct Cli {
+    #[command(subcommand)]
+    cmd: Cmd,
+}
+
+#[derive(Subcommand)]
+enum Cmd {
+    /// Run an agent on a task (one-shot, prints result to stdout).
+    Run {
+        /// The task description for the agent.
+        task: String,
+
+        /// Profession to use: a built-in name (coder, architect, tester,
+        /// reviewer, documenter, translator, runner) or a path to a custom
+        /// `.at` profession file. Defaults to "coder".
+        #[arg(long, default_value = "coder")]
+        profession: String,
+    },
+
+    /// List available built-in professions.
+    Professions,
+
+    /// Start the HTTP API server (for the Vue frontend).
+    Serve {
+        /// Address to listen on.
+        #[arg(long, default_value = "127.0.0.1:8080")]
+        addr: String,
+    },
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    match cli.cmd {
+        Cmd::Professions => {
+            list_professions();
+            return;
+        }
+        Cmd::Run { task, profession } => {
+            // For `run`, a missing daemon is fatal — there's nothing to do
+            // without the LLM. Build the client (blocking daemon discovery)
+            // BEFORE entering the tokio runtime to avoid the
+            // reqwest::blocking "cannot drop runtime" panic.
+            let client: Arc<dyn Client> = match AiClient::new() {
+                Ok(c) => Arc::new(c),
+                Err(e) => {
+                    eprintln!(
+                        "musk: cannot reach auto-ai-daemon: {e}\n  \
+                         Is `aaid` running? Build & start it from the auto-ai repo:\n    \
+                         cd ../auto-ai && cargo run -p auto-ai-daemon\n  \
+                         Also ensure ~/.config/autoos/ai-daemon.at is configured."
+                    );
+                    std::process::exit(1);
+                }
+            };
+            let prof = match resolve_profession(&profession) {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("musk: invalid profession '{profession}': {e}");
+                    std::process::exit(1);
+                }
+            };
+            let rt = tokio::runtime::Runtime::new().expect("failed to start tokio runtime");
+            if let Err(e) = rt.block_on(run_task(&task, prof, client)) {
+                eprintln!("musk: {e}");
+                std::process::exit(1);
+            }
+        }
+        Cmd::Serve { addr } => {
+            // For `serve`, start the HTTP server even if the daemon is down —
+            // the frontend still loads, and each /api/run surfaces the daemon
+            // error so the user can start aaid afterward.
+            let client: Arc<dyn Client> = match AiClient::new() {
+                Ok(c) => Arc::new(c),
+                Err(e) => {
+                    eprintln!(
+                        "musk: warning — auto-ai-daemon unreachable: {e}\n  \
+                         Starting HTTP server anyway; /api/run will error until aaid is up.\n  \
+                         Start it: cd ../auto-ai && cargo run -p auto-ai-daemon"
+                    );
+                    Arc::new(NoDaemonClient)
+                }
+            };
+            let rt = tokio::runtime::Runtime::new().expect("failed to start tokio runtime");
+            if let Err(e) = rt.block_on(musk::server::serve(&addr, client)) {
+                eprintln!("musk server: {e}");
+                std::process::exit(1);
+            }
+        }
+    }
+}
+
+/// A stand-in client used by `serve` when the daemon isn't up yet. Every call
+/// returns a clear "daemon not running" error so `/api/run` surfaces it to the
+/// frontend instead of crashing the server.
+struct NoDaemonClient;
+
+#[async_trait::async_trait]
+impl Client for NoDaemonClient {
+    async fn complete(
+        &self,
+        _req: &auto_ai_client::CompletionRequest,
+    ) -> Result<auto_ai_client::CompletionResponse, auto_ai_client::ClientError> {
+        Err(auto_ai_client::ClientError::DaemonUnavailable)
+    }
+}
+
+/// Resolve a profession spec: a built-in name, or a path to a `.at` file.
+fn resolve_profession(spec: &str) -> Result<Arc<dyn Profession>, String> {
+    if let Some(p) = load_builtin(spec) {
+        return Ok(p);
+    }
+    let content = std::fs::read_to_string(spec)
+        .map_err(|e| format!("not a builtin, and cannot read '{spec}' as a file: {e}"))?;
+    load_profession(&content).map_err(|e| format!("parse '{spec}': {e}"))
+}
+
+fn list_professions() {
+    println!("Built-in professions:");
+    for name in builtin_names() {
+        if let Some(p) = load_builtin(name) {
+            println!(
+                "  {name:<14} model={:<10} max_turns={:<4} temp={}",
+                p.model(),
+                p.max_turns(),
+                p.temperature()
+            );
+            let first_line = p
+                .system_prompt()
+                .lines()
+                .find(|l| !l.trim().is_empty() && !l.starts_with('#'))
+                .unwrap_or("")
+                .chars()
+                .take(70)
+                .collect::<String>();
+            if !first_line.is_empty() {
+                println!("                  {first_line}");
+            }
+        }
+    }
+    println!("\nUse --profession <name|file.at> with 'musk run'.");
+}
+
+async fn run_task(
+    task: &str,
+    profession: Arc<dyn Profession>,
+    client: Arc<dyn Client>,
+) -> Result<(), String> {
+    use musk::build_agent;
+    let name = profession.name().to_string();
+    let model = profession.model().to_string();
+
+    let mut agent = build_agent(profession, client);
+    // build_agent already registers the 3 standard tools.
+    let _ = (ReadFile, WriteFile, RunCommand); // imported for discoverability
+
+    println!("musk: running profession '{}' (model={}) on task:\n  {task}\n", name, model);
+
+    let result = agent
+        .run(task)
+        .await
+        .map_err(|e| format!("agent failed: {e}"))?;
+
+    println!(
+        "──── result ({} turn{}, {} tool call{}) ────",
+        result.turns,
+        if result.turns == 1 { "" } else { "s" },
+        result.tool_calls.len(),
+        if result.tool_calls.len() == 1 { "" } else { "s" }
+    );
+    println!("{}", result.output);
+
+    if !result.tool_calls.is_empty() {
+        println!("\n──── tool calls ────");
+        for (i, tc) in result.tool_calls.iter().enumerate() {
+            let preview: String = tc.result.chars().take(120).collect();
+            let ellipsis = if tc.result.len() > 120 { "…" } else { "" };
+            println!("  {}. {} args={} → {}{}", i + 1, tc.tool, tc.args, preview, ellipsis);
+        }
+    }
+
+    Ok(())
+}
