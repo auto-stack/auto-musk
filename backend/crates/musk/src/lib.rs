@@ -6,6 +6,7 @@ pub mod server;
 pub mod specs;
 pub mod tools;
 pub mod workflow;
+pub mod hello;
 
 use std::sync::Arc;
 

@@ -48,6 +48,7 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/run/stream", post(run_stream_handler))
         .route("/api/workflows", get(workflows))
         .route("/api/workflow/run", post(workflow_run))
+        .route("/api/workflow/run/stream", post(workflow_run_stream))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -316,6 +317,98 @@ async fn workflow_run(
                 }),
             )
         })
+}
+
+/// `POST /api/workflow/run/stream` — streaming workflow run.
+///
+/// Emits step-by-step SSE events so a long multi-step workflow doesn't block
+/// a single HTTP response. Events:
+/// - `{"type":"step_start","step_id":"architect","profession":"architect","input":"…"}`
+/// - `{"type":"step_done","step_id":"architect","output":"…"}`
+/// - `{"type":"step_skipped","step_id":"reviewer"}`
+/// - `{"type":"finished",…}` (or `{"type":"error","message":"…"}`)
+async fn workflow_run_stream(
+    State(state): State<AppState>,
+    Json(req): Json<WorkflowRunRequest>,
+) -> axum::response::Response {
+    use axum::body::Body;
+    use axum::response::Response;
+    use tokio::sync::mpsc;
+
+    let (tx, mut rx) = mpsc::channel::<serde_json::Value>(64);
+
+    let wf = match crate::workflow::load(&req.workflow) {
+        Ok(w) => w,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError {
+                    error: format!("invalid workflow '{}': {e}", req.workflow),
+                }),
+            )
+                .into_response();
+        }
+    };
+
+    let client = state.client.clone();
+    let task = req.task.clone();
+    tokio::spawn(async move {
+        let on_event: Arc<dyn Fn(auto_ai_agent::WorkflowEvent) + Send + Sync> =
+            Arc::new(move |ev| {
+                let value = workflow_event_to_json(&ev);
+                let _ = tx.try_send(value);
+            });
+        if let Err(e) = wf
+            .run_with_progress(&shared_tools(), client, &task, on_event)
+            .await
+        {
+            // Errors also surfaced via the event stream (StepDone error), but
+            // a top-level failure (e.g. cycle) goes here:
+            tracing::error!("workflow stream failed: {e}");
+        }
+    });
+
+    let stream = async_stream::stream! {
+        while let Some(value) = rx.recv().await {
+            yield Ok::<_, std::convert::Infallible>(format!("data: {value}\n\n"));
+        }
+    };
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "text/event-stream")
+        .header("Cache-Control", "no-cache")
+        .header("Connection", "keep-alive")
+        .body(Body::from_stream(stream))
+        .unwrap()
+}
+
+/// Serialize a [`auto_ai_agent::WorkflowEvent`] to the SSE JSON shape.
+fn workflow_event_to_json(ev: &auto_ai_agent::WorkflowEvent) -> serde_json::Value {
+    use auto_ai_agent::WorkflowEvent;
+    match ev {
+        WorkflowEvent::StepStart {
+            step_id,
+            profession,
+            input,
+        } => json!({
+            "type": "step_start",
+            "step_id": step_id,
+            "profession": profession,
+            "input": input,
+        }),
+        WorkflowEvent::StepDone { step_id, output } => {
+            json!({"type": "step_done", "step_id": step_id, "output": output})
+        }
+        WorkflowEvent::StepSkipped { step_id } => {
+            json!({"type": "step_skipped", "step_id": step_id})
+        }
+        WorkflowEvent::Finished { result } => json!({
+            "type": "finished",
+            "steps": result.step_outputs,
+            "outputs": result.outputs,
+        }),
+    }
 }
 
 /// Resolve a profession spec: built-in name, else `.at` file path.
