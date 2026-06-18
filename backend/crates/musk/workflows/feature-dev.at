@@ -1,0 +1,42 @@
+// feature-dev.at — the canonical architect → coder → tester → reviewer chain.
+//
+// Each step is a 'relay' that runs one Profession's agent, reads $var refs
+// from prior steps' outputs, and writes its own output to a new $var.
+// Run via: musk serve → POST /api/workflow/run { task: "...", workflow: "feature-dev" }
+// (built-in workflows live under crates/musk/workflows/).
+
+workflow {
+    name : "feature-dev"
+
+    steps : [
+        relay {
+            id : "architect"
+            profession : "architect"
+            input : "Design a plan for the following task. Output only the plan.\n\nTask:\n$user_request"
+            output : "$design"
+        }
+        relay {
+            id : "coder"
+            profession : "coder"
+            input : "Implement the following plan using the available tools (read_file/write_file/run_command). Write real code.\n\nPlan:\n$design"
+            output : "$code"
+            depends_on : ["architect"]
+        }
+        relay {
+            id : "tester"
+            profession : "tester"
+            input : "Write and run tests for the implementation described below. Use run_command to execute them. Report pass/fail.\n\nImplementation:\n$code"
+            output : "$test_report"
+            depends_on : ["coder"]
+        }
+        relay {
+            id : "reviewer"
+            profession : "reviewer"
+            // Review only if the tests actually ran (skip if tester produced nothing).
+            input : "Review the implementation and test results. List issues, or confirm approval.\n\nImplementation:\n$code\n\nTests:\n$test_report"
+            output : "$review"
+            depends_on : ["coder", "tester"]
+            condition : "$test_report"
+        }
+    ]
+}

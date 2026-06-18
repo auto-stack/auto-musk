@@ -1,15 +1,44 @@
-// src/front/pages/relay.at - Relay 编排引擎页（占位）
-// 后续阶段移植：serial-agent 流水线监控。
+// src/front/pages/relay.at - Relay 工作流页
+// 运行多角色 Workflow (architect→coder→tester→reviewer),展示每步输出。
+// NOTE: gen/front/vue/src/pages/relay.vue 是手工编辑的(a2vm 尚不可用),
+// 此 .at 描述 UI 意图供未来重生成。
 
 use nav_rail: NavRail
 
 widget RelayPage {
+    // UI: workflow 下拉 + 任务输入 + 每步输出卡片(编号+id+pre 输出)。
+    // 数据:
+    //   - workflows: GET /api/workflows → ["feature-dev", ...]
+    //   - runWorkflow(task): POST /api/workflow/run {task, workflow} → {steps:{id:output}}
+    model {
+        workflows list = []
+        selected_workflow str = "feature-dev"
+        task_input str = ""
+        step_outputs list = []
+        loading bool = false
+        error str = ""
+    }
+
+    msg RunWorkflow {
+        // POST /api/workflow/run, 把 steps 渲染成卡片
+    }
+
     view {
         row (style: "w-full h-screen") {
             NavRail
-            col (style: "flex-1 p-6") {
-                text (text: "Relay", style: "text-2xl font-bold mb-4") {}
-                text (text: "Relay Engine — coming in Phase 7", style: "text-gray-400") {}
+            col (style: "flex-1 flex-col h-screen") {
+                row (style: "border-b px-6 py-3") {
+                    text (text: "Relay", style: "text-2xl font-bold") {}
+                    select (style: "ml-auto", model: .selected_workflow, options: .workflows) {}
+                }
+                row (style: "border-b px-6 py-3") {
+                    input (style: "flex-1", model: .task_input, placeholder: "Describe the feature…") {}
+                    button (text: "Run Workflow", on_click: RunWorkflow) {}
+                }
+                scroll_area (style: "flex-1 overflow-y-auto px-6 py-4") {
+                    // error 红框
+                    // 每个 step: 编号圆 + id + pre 输出
+                }
             }
         }
     }

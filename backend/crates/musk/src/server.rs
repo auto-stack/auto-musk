@@ -46,6 +46,8 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/professions", get(professions))
         .route("/api/run", post(run))
         .route("/api/run/stream", post(run_stream_handler))
+        .route("/api/workflows", get(workflows))
+        .route("/api/workflow/run", post(workflow_run))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -249,6 +251,71 @@ fn stream_event_to_json(ev: &auto_ai_agent::StreamEvent) -> serde_json::Value {
         }),
         StreamEvent::Error { message } => json!({"type": "error", "message": message}),
     }
+}
+
+// ── Workflow endpoints ─────────────────────────────────────────────────────
+
+/// The shared tool set every workflow agent may use (read/write/run).
+fn shared_tools() -> Vec<Arc<dyn auto_ai_agent::Tool>> {
+    vec![
+        Arc::new(crate::tools::ReadFile),
+        Arc::new(crate::tools::WriteFile),
+        Arc::new(crate::tools::RunCommand),
+    ]
+}
+
+/// `GET /api/workflows` — list built-in workflows.
+async fn workflows() -> impl IntoResponse {
+    Json(json!({"workflows": crate::workflow::builtin_names()}))
+}
+
+/// `POST /api/workflow/run` request.
+#[derive(Debug, Deserialize)]
+pub struct WorkflowRunRequest {
+    /// The task / user request (seeds `$user_request`).
+    pub task: String,
+    /// Built-in workflow name (e.g. "feature-dev") or path to a `.at` file.
+    pub workflow: String,
+}
+
+/// `POST /api/workflow/run` response.
+#[derive(Debug, Serialize)]
+pub struct WorkflowRunResponse {
+    /// Each step id → its output.
+    pub steps: std::collections::HashMap<String, String>,
+    /// Each output variable → its value.
+    pub outputs: std::collections::HashMap<String, String>,
+}
+
+async fn workflow_run(
+    State(state): State<AppState>,
+    Json(req): Json<WorkflowRunRequest>,
+) -> Result<Json<WorkflowRunResponse>, (StatusCode, Json<ApiError>)> {
+    let wf = crate::workflow::load(&req.workflow).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError {
+                error: format!("invalid workflow '{}': {e}", req.workflow),
+            }),
+        )
+    })?;
+
+    wf.run(&shared_tools(), state.client.clone(), &req.task)
+        .await
+        .map(|result| {
+            Json(WorkflowRunResponse {
+                steps: result.step_outputs,
+                outputs: result.outputs,
+            })
+        })
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError {
+                    error: format!("workflow failed: {e}"),
+                }),
+            )
+        })
 }
 
 /// Resolve a profession spec: built-in name, else `.at` file path.
