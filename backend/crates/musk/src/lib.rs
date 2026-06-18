@@ -3,6 +3,7 @@
 //! Re-exports modules so the binary and integration tests share one source.
 
 pub mod server;
+pub mod specs;
 pub mod tools;
 pub mod workflow;
 
