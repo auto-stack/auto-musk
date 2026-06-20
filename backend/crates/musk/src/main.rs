@@ -242,14 +242,20 @@ async fn run_task(
     Ok(())
 }
 
-/// Interactive multi-turn chat REPL. The agent persists across turns, so
-/// conversation memory accumulates. Skills (if configured) are available — the
-/// model can invoke them via the `skill` tool.
+/// Interactive multi-turn chat REPL with streaming output. The agent persists
+/// across turns, so conversation memory accumulates. Skills (if configured) are
+/// available — the model can invoke them via the `skill` tool.
+///
+/// Uses `Agent::run_stream` so the model's answer prints token-by-token (via
+/// `StreamEvent::Delta`), tool calls print inline, and a summary follows each
+/// turn.
 async fn chat_loop(
     profession: Arc<dyn Profession>,
     client: Arc<dyn Client>,
 ) -> Result<(), String> {
     use std::io::{self, BufRead, Write};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc as StdArc;
 
     let name = profession.name().to_string();
     let mut agent = musk::build_agent(profession, client);
@@ -277,20 +283,49 @@ async fn chat_loop(
         }
 
         turn += 1;
-        let result = agent.run(input).await.map_err(|e| format!("agent: {e}"))?;
-        println!(
-            "\n{} (turn {}, {} tool call{}) ───",
-            name,
-            turn,
-            result.tool_calls.len(),
-            if result.tool_calls.len() == 1 { "" } else { "s" }
-        );
-        println!("{}", result.output);
-        if !result.tool_calls.is_empty() {
-            for (i, tc) in result.tool_calls.iter().enumerate() {
-                let preview: String = tc.result.chars().take(100).collect();
-                let ellipsis = if tc.result.len() > 100 { "…" } else { "" };
-                println!("  {}. {} → {}{}", i + 1, tc.tool, preview, ellipsis);
+        println!("\n{} ───", name);
+
+        // The on_event callback: Delta → print token; Tool → print inline;
+        // Done → summary; Error → message. Uses atomics for the tool count
+        // (the callback is Sync but we want a running tally).
+        let tool_count = StdArc::new(AtomicUsize::new(0));
+        let tool_count_cb = tool_count.clone();
+        let on_event: StdArc<dyn Fn(auto_ai_agent::StreamEvent) + Send + Sync> =
+            StdArc::new(move |ev| {
+                use auto_ai_agent::StreamEvent;
+                match ev {
+                    StreamEvent::Delta { text } => {
+                        print!("{text}");
+                        let _ = io::stdout().flush();
+                    }
+                    StreamEvent::Tool { tool, result, .. } => {
+                        tool_count_cb.fetch_add(1, Ordering::SeqCst);
+                        let preview: String = result.chars().take(80).collect();
+                        let ellipsis = if result.len() > 80 { "…" } else { "" };
+                        println!("\n  [tool] {tool} → {preview}{ellipsis}");
+                    }
+                    StreamEvent::Done { result } => {
+                        let n = result.tool_calls.len();
+                        println!(
+                            "\n──── turn {turn}, {n} tool call{} ────",
+                            if n == 1 { "" } else { "s" }
+                        );
+                    }
+                    StreamEvent::Error { message } => {
+                        println!("\n  [error] {message}");
+                    }
+                }
+            });
+
+        match agent.run_stream(input, on_event).await {
+            Ok(_) => {}
+            Err(e) => {
+                // Don't kill the session on one failed turn (e.g. max_turns,
+                // loop detected) — print and let the user continue.
+                let tc = tool_count.load(Ordering::SeqCst);
+                eprintln!(
+                    "\n  [agent error after {tc} tool call(s)] {e}\n  (session continues; type another message or 'exit')"
+                );
             }
         }
     }
