@@ -131,6 +131,132 @@ impl Tool for RunCommand {
     }
 }
 
+/// 精确字符串替换:把文件中 `old_string` 替换为 `new_string`。
+/// 要求 `old_string` 在文件中唯一,否则报错(避免歧义替换)。
+/// 比 WriteFile 安全(不覆盖整个文件),是 executing-plans 的核心工具。
+pub struct EditFile;
+
+#[async_trait]
+impl Tool for EditFile {
+    fn name(&self) -> &str {
+        "edit_file"
+    }
+    fn description(&self) -> &str {
+        "Replace a unique string in a file with a new string. The old_string \
+         must appear exactly once in the file (ambiguous matches error). Use \
+         this for targeted edits instead of rewriting the whole file."
+    }
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "path": { "type": "string", "description": "file to edit" },
+                "old_string": { "type": "string", "description": "the exact text to find (must be unique)" },
+                "new_string": { "type": "string", "description": "the replacement text" }
+            },
+            "required": ["path", "old_string", "new_string"]
+        })
+    }
+    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+        let path = args["path"]
+            .as_str()
+            .ok_or_else(|| ToolError::Args("missing 'path'".into()))?;
+        let old_string = args["old_string"]
+            .as_str()
+            .ok_or_else(|| ToolError::Args("missing 'old_string'".into()))?;
+        let new_string = args["new_string"]
+            .as_str()
+            .ok_or_else(|| ToolError::Args("missing 'new_string'".into()))?;
+
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
+        let count = content.matches(old_string).count();
+        if count == 0 {
+            return Err(ToolError::Exec(format!(
+                "old_string not found in '{path}'"
+            )));
+        }
+        if count > 1 {
+            return Err(ToolError::Exec(format!(
+                "old_string appears {count} times in '{path}'; it must be unique. \
+                 Include more surrounding context to make it unique."
+            )));
+        }
+        let new_content = content.replacen(old_string, new_string, 1);
+        std::fs::write(path, &new_content)
+            .map_err(|e| ToolError::Exec(format!("write '{path}': {e}")))?;
+        Ok(format!("edited '{path}' (1 replacement)"))
+    }
+}
+
+/// 内容搜索(grep/rg):在文件树里搜 pattern,返回匹配的行。
+/// 用 rg(若可用)否则 fallback 到 grep -rn。
+pub struct Search;
+
+#[async_trait]
+impl Tool for Search {
+    fn name(&self) -> &str {
+        "search"
+    }
+    fn description(&self) -> &str {
+        "Search file contents for a pattern (regex). Returns matching lines \
+         with file:line prefixes. Searches the current directory by default, \
+         or a given path."
+    }
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "pattern": { "type": "string", "description": "regex pattern to search for" },
+                "path": { "type": "string", "description": "directory or file to search (default: current dir)" }
+            },
+            "required": ["pattern"]
+        })
+    }
+    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+        let pattern = args["pattern"]
+            .as_str()
+            .ok_or_else(|| ToolError::Args("missing 'pattern'".into()))?;
+        let path = args["path"].as_str().unwrap_or(".");
+
+        // Prefer ripgrep if available (faster, respects .gitignore); else grep.
+        let rg_available = std::process::Command::new("rg")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+
+        let output = if rg_available {
+            std::process::Command::new("rg")
+                .args(["-n", "--no-heading", "--max-filesize", "1M", pattern, path])
+                .output()
+        } else if cfg!(windows) {
+            std::process::Command::new("cmd")
+                .args(["/C", &format!("findstr /S /N /R \"{pattern}\" {path}\\*")]
+        )
+                .output()
+        } else {
+            std::process::Command::new("grep")
+                .args(["-rn", "--include=*", pattern, path])
+                .output()
+        }
+        .map_err(|e| ToolError::Exec(format!("spawn search: {e}")))?;
+
+        let mut result = String::from_utf8_lossy(&output.stdout).to_string();
+        if result.is_empty() {
+            // No matches is a valid, non-error result.
+            result.push_str("(no matches)");
+        }
+        // Cap output length to avoid flooding the context.
+        const MAX_BYTES: usize = 8 * 1024;
+        if result.len() > MAX_BYTES {
+            result.truncate(MAX_BYTES);
+            result.push_str("\n... (truncated, refine your pattern)");
+        }
+        Ok(result)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,5 +329,72 @@ mod tests {
         let t = RunCommand;
         let err = t.execute(&json!({})).await.unwrap_err();
         assert!(matches!(err, ToolError::Args(_)));
+    }
+
+    // ── EditFile ───────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn edit_file_replaces_unique_match() {
+        let path = std::env::temp_dir().join("musk_edit_test_unique.txt");
+        std::fs::write(&path, "alpha\nbeta\ngamma\n").unwrap();
+        let p = path.to_string_lossy().to_string();
+        let out = EditFile
+            .execute(&json!({"path": p, "old_string": "beta", "new_string": "BETA"}))
+            .await
+            .unwrap();
+        assert!(out.contains("1 replacement"));
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "alpha\nBETA\ngamma\n");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn edit_file_errors_when_not_found() {
+        let path = std::env::temp_dir().join("musk_edit_test_missing.txt");
+        std::fs::write(&path, "alpha\n").unwrap();
+        let p = path.to_string_lossy().to_string();
+        let err = EditFile
+            .execute(&json!({"path": p, "old_string": "zzz", "new_string": "x"}))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, ToolError::Exec(_)));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn edit_file_errors_on_ambiguous_match() {
+        let path = std::env::temp_dir().join("musk_edit_test_ambig.txt");
+        std::fs::write(&path, "dup\ndup\n").unwrap();
+        let p = path.to_string_lossy().to_string();
+        let err = EditFile
+            .execute(&json!({"path": p, "old_string": "dup", "new_string": "x"}))
+            .await
+            .unwrap_err();
+        match err {
+            ToolError::Exec(msg) => assert!(msg.contains("2 times")),
+            other => panic!("expected Exec, got {other:?}"),
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    // ── Search ─────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn search_finds_pattern() {
+        // Search the crate's own lib.rs for a known string.
+        let out = Search
+            .execute(&json!({"pattern": "pub mod", "path": "src/lib.rs"}))
+            .await
+            .unwrap();
+        // rg or grep should find "pub mod" in lib.rs.
+        assert!(!out.contains("(no matches)"));
+    }
+
+    #[tokio::test]
+    async fn search_no_match_returns_empty_marker() {
+        let out = Search
+            .execute(&json!({"pattern": "zzz_definitely_not_here_xyz", "path": "src/lib.rs"}))
+            .await
+            .unwrap();
+        assert!(out.contains("(no matches)"));
     }
 }

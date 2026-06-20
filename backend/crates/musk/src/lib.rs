@@ -61,5 +61,17 @@ pub fn build_agent(
     agent.register_tool(tools::ReadFile);
     agent.register_tool(tools::WriteFile);
     agent.register_tool(tools::RunCommand);
+    agent.register_tool(tools::EditFile);
+    agent.register_tool(tools::Search);
+
+    // Register the Skill tool if any skills are configured under
+    // ~/.config/autoos/skills/. (EditFile/Search referenced above are added in
+    // Phase C; if absent at this point the build would fail — they exist.)
+    if let Some(skills_dir) = dirs::home_dir().map(|h| h.join(".config/autoos/skills")) {
+        let registry = std::sync::Arc::new(auto_ai_agent::SkillRegistry::scan(&skills_dir));
+        if !registry.is_empty() {
+            agent.register_skill_tool(auto_ai_agent::SkillTool::new(registry));
+        }
+    }
     agent
 }

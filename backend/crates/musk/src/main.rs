@@ -43,6 +43,15 @@ enum Cmd {
         profession: String,
     },
 
+    /// Interactive chat session (multi-turn REPL). The agent persists across
+    /// turns, accumulating context. Type a message, Enter to send; `exit` or
+    /// `quit` (or Ctrl-D) to leave.
+    Chat {
+        /// Profession to use (built-in name or .at path). Defaults to "coder".
+        #[arg(long, default_value = "coder")]
+        profession: String,
+    },
+
     /// List available built-in professions.
     Professions,
 
@@ -88,6 +97,31 @@ fn main() {
             };
             let rt = tokio::runtime::Runtime::new().expect("failed to start tokio runtime");
             if let Err(e) = rt.block_on(run_task(&task, prof, client)) {
+                eprintln!("musk: {e}");
+                std::process::exit(1);
+            }
+        }
+        Cmd::Chat { profession } => {
+            // Chat needs the daemon (LLM). Build client before the runtime.
+            let client: Arc<dyn Client> = match AiClient::new() {
+                Ok(c) => Arc::new(c),
+                Err(e) => {
+                    eprintln!(
+                        "musk: cannot reach auto-ai-daemon: {e}\n  \
+                         Start it: cd ../auto-ai && cargo run -p auto-ai-daemon"
+                    );
+                    std::process::exit(1);
+                }
+            };
+            let prof = match resolve_profession(&profession) {
+                Ok(p) => p,
+                Err(e) => {
+                    eprintln!("musk: invalid profession '{profession}': {e}");
+                    std::process::exit(1);
+                }
+            };
+            let rt = tokio::runtime::Runtime::new().expect("failed to start tokio runtime");
+            if let Err(e) = rt.block_on(chat_loop(prof, client)) {
                 eprintln!("musk: {e}");
                 std::process::exit(1);
             }
@@ -205,5 +239,60 @@ async fn run_task(
         }
     }
 
+    Ok(())
+}
+
+/// Interactive multi-turn chat REPL. The agent persists across turns, so
+/// conversation memory accumulates. Skills (if configured) are available — the
+/// model can invoke them via the `skill` tool.
+async fn chat_loop(
+    profession: Arc<dyn Profession>,
+    client: Arc<dyn Client>,
+) -> Result<(), String> {
+    use std::io::{self, BufRead, Write};
+
+    let name = profession.name().to_string();
+    let mut agent = musk::build_agent(profession, client);
+
+    println!(
+        "musk chat — profession '{}' (Ctrl-D or 'exit' to quit)",
+        name
+    );
+    let mut turn = 0u32;
+    let stdin = io::stdin();
+    loop {
+        print!("\nyou> ");
+        io::stdout().flush().ok();
+        let mut line = String::new();
+        let n = stdin.lock().read_line(&mut line).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break; // EOF (Ctrl-D)
+        }
+        let input = line.trim();
+        if input.is_empty() {
+            continue;
+        }
+        if input == "exit" || input == "quit" {
+            break;
+        }
+
+        turn += 1;
+        let result = agent.run(input).await.map_err(|e| format!("agent: {e}"))?;
+        println!(
+            "\n{} (turn {}, {} tool call{}) ───",
+            name,
+            turn,
+            result.tool_calls.len(),
+            if result.tool_calls.len() == 1 { "" } else { "s" }
+        );
+        println!("{}", result.output);
+        if !result.tool_calls.is_empty() {
+            for (i, tc) in result.tool_calls.iter().enumerate() {
+                let preview: String = tc.result.chars().take(100).collect();
+                let ellipsis = if tc.result.len() > 100 { "…" } else { "" };
+                println!("  {}. {} → {}{}", i + 1, tc.tool, preview, ellipsis);
+            }
+        }
+    }
     Ok(())
 }
