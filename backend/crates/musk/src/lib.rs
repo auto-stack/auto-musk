@@ -63,6 +63,10 @@ pub fn build_agent(
     agent.register_tool(tools::RunCommand);
     agent.register_tool(tools::EditFile);
     agent.register_tool(tools::Search);
+    agent.register_tool(tools::ListDir);
+    agent.register_tool(tools::ListSymbols);
+    agent.register_tool(tools::Glob);
+    agent.register_tool(tools::BatchReplace);
 
     // Register the Skill tool if any skills are configured under
     // ~/.config/autoos/skills/. (EditFile/Search referenced above are added in
