@@ -69,13 +69,36 @@ pub fn build_agent(
     agent.register_tool(tools::BatchReplace);
 
     // Register the Skill tool if any skills are configured under
-    // ~/.config/autoos/skills/. (EditFile/Search referenced above are added in
-    // Phase C; if absent at this point the build would fail — they exist.)
+    // ~/.config/autoos/skills/.
     if let Some(skills_dir) = dirs::home_dir().map(|h| h.join(".config/autoos/skills")) {
         let registry = std::sync::Arc::new(auto_ai_agent::SkillRegistry::scan(&skills_dir));
         if !registry.is_empty() {
             agent.register_skill_tool(auto_ai_agent::SkillTool::new(registry));
         }
     }
+
+    // Auto-discover project context: search upward from CWD for `.musk.md`
+    // (then `CLAUDE.md`), like git finds `.git`. Injected into the system
+    // prompt so the agent starts knowing the project's tech stack/conventions.
+    let context_path = find_context_file();
+    if let Some(path) = context_path {
+        agent = auto_ai_agent::Agent::with_context_file(agent, &path);
+    }
+
     agent
+}
+
+/// Search upward from CWD for `.musk.md`, then `CLAUDE.md`. Returns the first
+/// found path, or None.
+fn find_context_file() -> Option<std::path::PathBuf> {
+    let cwd = std::env::current_dir().ok()?;
+    for dir in cwd.ancestors() {
+        for name in [".musk.md", "CLAUDE.md"] {
+            let candidate = dir.join(name);
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+        }
+    }
+    None
 }
