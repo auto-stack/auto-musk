@@ -1,0 +1,14 @@
+mode {
+    name : "superpowers"
+    description : "Full agent with skills + brainstorm/plan/execute. Best for complex multi-step tasks."
+    profession : "coder"
+    skills : true
+    tools : [
+        read_file, write_file, edit_file, batch_replace,
+        search, list_dir, list_symbols, glob,
+        run_command, skill
+    ]
+    workflow : "feature-dev"
+    context_file : ".musk.md"
+    extra_system_prompt : ""
+}

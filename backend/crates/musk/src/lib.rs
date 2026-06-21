@@ -3,6 +3,7 @@
 //! Re-exports modules so the binary and integration tests share one source.
 
 pub mod auth;
+pub mod mode;
 pub mod server;
 pub mod specs;
 pub mod tools;
@@ -53,31 +54,43 @@ impl Profession for OwnedProfession {
 
 /// Build the standard 3-tool set (read_file/write_file/run_command), returning
 /// a fresh agent configured for the given profession + client.
-/// Build the standard tool set + skill tool (if enabled + configured) for the
-/// given profession + client.
+/// Build an agent configured by an [`crate::mode::AgentMode`].
 ///
-/// `skills_enabled`: when true (default), the SkillTool is registered and the
-/// agent gets the `<available_skills>` block (Superpowers mode). When false,
-/// the agent has only the base tools (read/write/edit/search/run/etc.) — a
-/// simpler "basic" mode, like Claude without superpowers.
-pub fn build_agent(
-    profession: Arc<dyn Profession>,
+/// The mode declares: profession, tool whitelist, skills on/off, context file,
+/// extra system prompt. This function resolves the profession, registers only
+/// the allowed tools (+ skill tool if enabled), injects context, and returns
+/// the agent.
+pub fn build_agent_from_mode(
+    mode: &crate::mode::AgentMode,
     client: Arc<dyn auto_ai_agent::Client>,
-    skills_enabled: bool,
-) -> auto_ai_agent::Agent {
-    let mut agent = auto_ai_agent::Agent::new(OwnedProfession::new(profession), client);
-    agent.register_tool(tools::ReadFile);
-    agent.register_tool(tools::WriteFile);
-    agent.register_tool(tools::RunCommand);
-    agent.register_tool(tools::EditFile);
-    agent.register_tool(tools::Search);
-    agent.register_tool(tools::ListDir);
-    agent.register_tool(tools::ListSymbols);
-    agent.register_tool(tools::Glob);
-    agent.register_tool(tools::BatchReplace);
+) -> Result<auto_ai_agent::Agent, String> {
+    // 1. Resolve profession from the mode's profession field.
+    let profession: Arc<dyn Profession> = resolve_profession(&mode.profession)
+        .map_err(|e| format!("mode '{}': {e}", mode.name))?;
 
-    // Register the Skill tool only in Superpowers mode (skills_enabled).
-    if skills_enabled {
+    let mut agent = auto_ai_agent::Agent::new(OwnedProfession::new(profession), client);
+
+    // 2. Register tools filtered by the mode's whitelist.
+    //    Empty whitelist = register all base tools.
+    let all_tools: Vec<(&str, Arc<dyn auto_ai_agent::Tool>)> = vec![
+        ("read_file", Arc::new(tools::ReadFile)),
+        ("write_file", Arc::new(tools::WriteFile)),
+        ("edit_file", Arc::new(tools::EditFile)),
+        ("batch_replace", Arc::new(tools::BatchReplace)),
+        ("search", Arc::new(tools::Search)),
+        ("list_dir", Arc::new(tools::ListDir)),
+        ("list_symbols", Arc::new(tools::ListSymbols)),
+        ("glob", Arc::new(tools::Glob)),
+        ("run_command", Arc::new(tools::RunCommand)),
+    ];
+    for (name, tool) in &all_tools {
+        if mode.tools.is_empty() || mode.tools.iter().any(|t| t == name) {
+            agent.register_shared(tool.clone());
+        }
+    }
+
+    // 3. Register the Skill tool if the mode enables skills.
+    if mode.skills {
         if let Some(skills_dir) =
             dirs::home_dir().map(|h| h.join(".config/autoos/skills"))
         {
@@ -89,15 +102,27 @@ pub fn build_agent(
         }
     }
 
-    // Auto-discover project context: search upward from CWD for `.musk.md`
-    // (then `CLAUDE.md`), like git finds `.git`. Injected into the system
-    // prompt so the agent starts knowing the project's tech stack/conventions.
-    let context_path = find_context_file();
-    if let Some(path) = context_path {
+    // 4. Inject context file (from mode config or auto-discovered).
+    let ctx_path = if !mode.context_file.is_empty() {
+        Some(std::path::PathBuf::from(&mode.context_file))
+    } else {
+        find_context_file()
+    };
+    if let Some(path) = ctx_path {
         agent = auto_ai_agent::Agent::with_context_file(agent, &path);
     }
 
-    agent
+    Ok(agent)
+}
+
+/// Resolve a profession: built-in name, or `.at` file path.
+fn resolve_profession(spec: &str) -> Result<Arc<dyn Profession>, String> {
+    if let Some(p) = auto_ai_agent::load_builtin(spec) {
+        return Ok(p);
+    }
+    let content = std::fs::read_to_string(spec)
+        .map_err(|e| format!("not a builtin, cannot read '{spec}': {e}"))?;
+    auto_ai_agent::load_profession(&content).map_err(|e| format!("parse '{spec}': {e}"))
 }
 
 /// Search upward from CWD for `.musk.md`, then `CLAUDE.md`. Returns the first

@@ -983,6 +983,8 @@ dependencies = [
  "async-trait",
  "auto-ai-agent",
  "auto-ai-client",
+ "auto-atom",
+ "auto-val",
  "axum",
  "clap",
  "dirs",

@@ -29,7 +29,7 @@ use serde_json::json;
 
 use auto_ai_agent::{builtin_names, load_builtin, load_profession, Client, Profession};
 
-use crate::build_agent;
+use crate::build_agent_from_mode;
 
 /// Shared server state: a client that talks to the daemon, the auth store,
 /// and the spec ledger store.
@@ -327,21 +327,14 @@ async fn professions() -> impl IntoResponse {
 #[derive(Debug, Deserialize)]
 pub struct RunRequest {
     pub task: String,
-    /// Built-in name (e.g. "coder") or path to a `.at` file. Defaults to "coder".
-    #[serde(default = "default_profession")]
-    pub profession: String,
-    /// Enable Superpowers (skill system). Default true; set false for basic
-    /// mode (base tools only, no skill directory).
-    #[serde(default = "default_skills_enabled")]
-    pub skills: bool,
+    /// Agent mode: built-in name (superpowers/basic/coding/review) or path to
+    /// a `.at` mode file. Defaults to "superpowers".
+    #[serde(default = "default_mode")]
+    pub mode: String,
 }
 
-fn default_profession() -> String {
-    "coder".to_string()
-}
-
-fn default_skills_enabled() -> bool {
-    true
+fn default_mode() -> String {
+    "superpowers".to_string()
 }
 
 /// One tool-call record in the response.
@@ -372,16 +365,30 @@ async fn run_inner(
     state: AppState,
     req: RunRequest,
 ) -> Result<RunResponse, (StatusCode, Json<ApiError>)> {
-    let profession: Arc<dyn Profession> = resolve(&req.profession).map_err(|e| {
+    // Resolve the mode from the request.
+    let reg = crate::mode::ModeRegistry::load();
+    let mode = reg.get(&req.mode).cloned().ok_or_else(|| {
         (
             StatusCode::BAD_REQUEST,
             Json(ApiError {
-                error: format!("invalid profession '{}': {e}", req.profession),
+                error: format!(
+                    "unknown mode '{}'; available: {}",
+                    req.mode,
+                    reg.names().join(", ")
+                ),
             }),
         )
     })?;
 
-    let mut agent = build_agent(profession, state.client.clone(), req.skills);
+    let mut agent = crate::build_agent_from_mode(&mode, state.client.clone())
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError {
+                    error: format!("build agent: {e}"),
+                }),
+            )
+        })?;
     let result = agent.run(&req.task).await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -435,14 +442,19 @@ async fn run_stream_handler(
 
     let (tx, mut rx) = mpsc::channel::<serde_json::Value>(64);
 
-    // Resolve the profession up front so we can fail fast on a bad spec.
-    let profession: Arc<dyn Profession> = match resolve(&req.profession) {
-        Ok(p) => p,
-        Err(e) => {
+    // Resolve the mode up front so we can fail fast on a bad spec.
+    let reg = crate::mode::ModeRegistry::load();
+    let mode = match reg.get(&req.mode).cloned() {
+        Some(m) => m,
+        None => {
             return (
                 StatusCode::BAD_REQUEST,
                 Json(ApiError {
-                    error: format!("invalid profession '{}': {e}", req.profession),
+                    error: format!(
+                        "unknown mode '{}'; available: {}",
+                        req.mode,
+                        reg.names().join(", ")
+                    ),
                 }),
             )
                 .into_response();
@@ -452,7 +464,13 @@ async fn run_stream_handler(
     // Spawn the agent run, pushing StreamEvents into the channel as SSE JSON.
     let client = state.client.clone();
     tokio::spawn(async move {
-        let mut agent = build_agent(profession, client, req.skills);
+        let mut agent = match crate::build_agent_from_mode(&mode, client) {
+            Ok(a) => a,
+            Err(e) => {
+                let _ = tx.try_send(json!({"type": "error", "message": format!("build agent: {e}")}));
+                return;
+            }
+        };
         let tx2 = tx.clone();
         let on_event: Arc<dyn Fn(auto_ai_agent::StreamEvent) + Send + Sync> =
             Arc::new(move |ev| {
