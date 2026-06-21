@@ -1,0 +1,12 @@
+mode {
+    name : "review"
+    description : "Code review mode: Reviewer profession + read-only tools + review skill. Analyzes code, finds issues, does NOT modify files."
+    profession : "reviewer"
+    skills : true
+    tools : [
+        read_file, search, list_dir, list_symbols, glob,
+        run_command, skill
+    ]
+    context_file : ".musk.md"
+    extra_system_prompt : "You are in review mode. Your job is to REVIEW code, not write it. You have read-only tools. Analyze the code for correctness, bugs, naming, and style. Report issues clearly. Use the requesting-code-review skill to structure your review."
+}

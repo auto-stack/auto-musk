@@ -36,34 +36,28 @@ enum Cmd {
         /// The task description for the agent.
         task: String,
 
-        /// Profession to use: a built-in name (coder, architect, tester,
-        /// reviewer, documenter, translator, runner) or a path to a custom
-        /// `.at` profession file. Defaults to "coder".
-        #[arg(long, default_value = "coder")]
-        profession: String,
-
-        /// Disable Superpowers (skill system). The agent gets only base tools
-        /// — simpler/faster, like Claude without superpowers. Useful for quick
-        /// Q&A or simple edits where brainstorm/plan/execute is overkill.
-        #[arg(long)]
-        no_skills: bool,
+        /// Agent mode: a built-in name (superpowers, basic, coding, review)
+        /// or a path to a custom `.at` mode file. Defaults to "superpowers".
+        /// Use 'basic' for quick Q&A (no skills); 'coding' for focused coding;
+        /// 'review' for code review (read-only).
+        #[arg(long, default_value = "superpowers")]
+        mode: String,
     },
 
     /// Interactive chat session (multi-turn REPL). The agent persists across
     /// turns, accumulating context. Type a message, Enter to send; `exit` or
     /// `quit` (or Ctrl-D) to leave.
     Chat {
-        /// Profession to use (built-in name or .at path). Defaults to "coder".
-        #[arg(long, default_value = "coder")]
-        profession: String,
-
-        /// Disable Superpowers (skill system) — basic mode (see `musk run --no-skills`).
-        #[arg(long)]
-        no_skills: bool,
+        /// Agent mode (see `musk run --mode`). Defaults to "superpowers".
+        #[arg(long, default_value = "superpowers")]
+        mode: String,
     },
 
     /// List available built-in professions.
     Professions,
+
+    /// List available agent modes.
+    Modes,
 
     /// Start the HTTP API server (for the Vue frontend).
     Serve {
@@ -81,11 +75,11 @@ fn main() {
             list_professions();
             return;
         }
-        Cmd::Run { task, profession, no_skills } => {
-            // For `run`, a missing daemon is fatal — there's nothing to do
-            // without the LLM. Build the client (blocking daemon discovery)
-            // BEFORE entering the tokio runtime to avoid the
-            // reqwest::blocking "cannot drop runtime" panic.
+        Cmd::Modes => {
+            list_modes();
+            return;
+        }
+        Cmd::Run { task, mode } => {
             let client: Arc<dyn Client> = match AiClient::new() {
                 Ok(c) => Arc::new(c),
                 Err(e) => {
@@ -98,21 +92,14 @@ fn main() {
                     std::process::exit(1);
                 }
             };
-            let prof = match resolve_profession(&profession) {
-                Ok(p) => p,
-                Err(e) => {
-                    eprintln!("musk: invalid profession '{profession}': {e}");
-                    std::process::exit(1);
-                }
-            };
+            let agent_mode = resolve_mode(&mode);
             let rt = tokio::runtime::Runtime::new().expect("failed to start tokio runtime");
-            if let Err(e) = rt.block_on(run_task(&task, prof, client, !no_skills)) {
+            if let Err(e) = rt.block_on(run_task(&task, agent_mode, client)) {
                 eprintln!("musk: {e}");
                 std::process::exit(1);
             }
         }
-        Cmd::Chat { profession, no_skills } => {
-            // Chat needs the daemon (LLM). Build client before the runtime.
+        Cmd::Chat { mode } => {
             let client: Arc<dyn Client> = match AiClient::new() {
                 Ok(c) => Arc::new(c),
                 Err(e) => {
@@ -123,15 +110,9 @@ fn main() {
                     std::process::exit(1);
                 }
             };
-            let prof = match resolve_profession(&profession) {
-                Ok(p) => p,
-                Err(e) => {
-                    eprintln!("musk: invalid profession '{profession}': {e}");
-                    std::process::exit(1);
-                }
-            };
+            let agent_mode = resolve_mode(&mode);
             let rt = tokio::runtime::Runtime::new().expect("failed to start tokio runtime");
-            if let Err(e) = rt.block_on(chat_loop(prof, client, !no_skills)) {
+            if let Err(e) = rt.block_on(chat_loop(agent_mode, client)) {
                 eprintln!("musk: {e}");
                 std::process::exit(1);
             }
@@ -175,57 +156,49 @@ impl Client for NoDaemonClient {
     }
 }
 
-/// Resolve a profession spec: a built-in name, or a path to a `.at` file.
-fn resolve_profession(spec: &str) -> Result<Arc<dyn Profession>, String> {
-    if let Some(p) = load_builtin(spec) {
-        return Ok(p);
+/// Resolve a mode spec: built-in name → registry, else error.
+fn resolve_mode(spec: &str) -> musk::mode::AgentMode {
+    let reg = musk::mode::ModeRegistry::load();
+    match reg.get(spec) {
+        Some(m) => m.clone(),
+        None => {
+            eprintln!(
+                "musk: unknown mode '{spec}'. Available: {}",
+                reg.names().join(", ")
+            );
+            std::process::exit(1);
+        }
     }
-    let content = std::fs::read_to_string(spec)
-        .map_err(|e| format!("not a builtin, and cannot read '{spec}' as a file: {e}"))?;
-    load_profession(&content).map_err(|e| format!("parse '{spec}': {e}"))
 }
 
-fn list_professions() {
-    println!("Built-in professions:");
-    for name in builtin_names() {
-        if let Some(p) = load_builtin(name) {
-            println!(
-                "  {name:<14} model={:<10} max_turns={:<4} temp={}",
-                p.model(),
-                p.max_turns(),
-                p.temperature()
-            );
-            let first_line = p
-                .system_prompt()
-                .lines()
-                .find(|l| !l.trim().is_empty() && !l.starts_with('#'))
-                .unwrap_or("")
-                .chars()
-                .take(70)
-                .collect::<String>();
-            if !first_line.is_empty() {
-                println!("                  {first_line}");
+/// List available modes.
+fn list_modes() {
+    let reg = musk::mode::ModeRegistry::load();
+    println!("Agent modes:");
+    for name in reg.names() {
+        if let Some(m) = reg.get(&name) {
+            println!("  {name:<14} profession={:<10} skills={:<3} tools={}", m.profession, m.skills, m.tools.len());
+            if !m.description.is_empty() {
+                println!("                  {}", m.description.chars().take(80).collect::<String>());
             }
         }
     }
-    println!("\nUse --profession <name|file.at> with 'musk run'.");
+    println!("\nUse --mode <name> with 'musk run' or 'musk chat'.");
 }
 
 async fn run_task(
     task: &str,
-    profession: Arc<dyn Profession>,
+    mode: musk::mode::AgentMode,
     client: Arc<dyn Client>,
-    skills_enabled: bool,
 ) -> Result<(), String> {
-    use musk::build_agent;
-    let name = profession.name().to_string();
-    let model = profession.model().to_string();
+    use musk::build_agent_from_mode;
+    let name = mode.name.clone();
+    let prof_name = mode.profession.clone();
 
-    let mut agent = build_agent(profession, client, skills_enabled);
-    // build_agent already registers the 3 standard tools.
-    let _ = (ReadFile, WriteFile, RunCommand); // imported for discoverability
+    let mut agent = build_agent_from_mode(&mode, client)
+        .map_err(|e| format!("build agent: {e}"))?;
 
-    println!("musk: running profession '{}' (model={}) on task:\n  {task}\n", name, model);
+    println!("musk: running mode '{}' (profession={}) on task:\n  {task}\n", name, prof_name);
 
     let result = agent
         .run(task)
@@ -253,6 +226,22 @@ async fn run_task(
     Ok(())
 }
 
+/// List available built-in professions.
+fn list_professions() {
+    use auto_ai_agent::{builtin_names, load_builtin};
+    println!("Built-in professions:");
+    for name in builtin_names() {
+        if let Some(p) = load_builtin(name) {
+            println!(
+                "  {name:<14} tier={:<5} max_turns={:<4} temp={}",
+                p.model_tier().display_name(),
+                p.max_turns(),
+                p.temperature()
+            );
+        }
+    }
+}
+
 /// Interactive multi-turn chat REPL with streaming output. The agent persists
 /// across turns, so conversation memory accumulates. Skills (if configured) are
 /// available — the model can invoke them via the `skill` tool.
@@ -261,16 +250,16 @@ async fn run_task(
 /// `StreamEvent::Delta`), tool calls print inline, and a summary follows each
 /// turn.
 async fn chat_loop(
-    profession: Arc<dyn Profession>,
+    mode: musk::mode::AgentMode,
     client: Arc<dyn Client>,
-    skills_enabled: bool,
 ) -> Result<(), String> {
     use std::io::{self, BufRead, Write};
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc as StdArc;
 
-    let name = profession.name().to_string();
-    let mut agent = musk::build_agent(profession, client, skills_enabled);
+    let name = mode.name.clone();
+    let mut agent = musk::build_agent_from_mode(&mode, client)
+        .map_err(|e| format!("build agent: {e}"))?;
 
     println!(
         "musk chat — profession '{}' (Ctrl-D or 'exit' to quit)",

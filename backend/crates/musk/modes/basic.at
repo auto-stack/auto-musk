@@ -1,0 +1,8 @@
+mode {
+    name : "basic"
+    description : "Quick Q&A and simple edits. No skills, no workflow, minimal tools. Like Claude without superpowers."
+    profession : "coder"
+    skills : false
+    tools : [read_file, write_file, edit_file, run_command]
+    extra_system_prompt : ""
+}
