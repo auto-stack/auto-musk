@@ -4,3 +4,6 @@ list_workflows
 run_workflow
 login
 me
+get_specs
+upsert_spec
+transition_spec

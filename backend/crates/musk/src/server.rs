@@ -31,11 +31,13 @@ use auto_ai_agent::{builtin_names, load_builtin, load_profession, Client, Profes
 
 use crate::build_agent;
 
-/// Shared server state: a client that talks to the daemon, plus the auth store.
+/// Shared server state: a client that talks to the daemon, the auth store,
+/// and the spec ledger store.
 #[derive(Clone)]
 pub struct AppState {
     pub client: Arc<dyn Client>,
     pub auth: Arc<crate::auth::AuthStore>,
+    pub specs: Arc<crate::specs::SpecsStore>,
 }
 
 /// Run the HTTP server on the given address (default `127.0.0.1:8080`).
@@ -43,9 +45,13 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
     let users_path = dirs::home_dir()
         .map(|h| h.join(".config/autoos/users.json"))
         .unwrap_or_else(|| std::path::PathBuf::from("users.json"));
+    let specs_path = dirs::home_dir()
+        .map(|h| h.join(".config/autoos/specs.json"))
+        .unwrap_or_else(|| std::path::PathBuf::from("specs.json"));
     let state = AppState {
         client,
         auth: Arc::new(crate::auth::AuthStore::new(users_path)),
+        specs: Arc::new(crate::specs::SpecsStore::new(specs_path)),
     };
 
     let app = Router::new()
@@ -59,6 +65,10 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/auth/login", post(auth_login))
         .route("/api/auth/me", get(auth_me))
         .route("/api/auth/logout", post(auth_logout))
+        .route("/api/specs", get(specs_list))
+        .route("/api/specs/item", post(specs_upsert))
+        .route("/api/specs/transition", post(specs_transition))
+        .route("/api/specs/item/{section}/{id}", axum::routing::delete(specs_delete))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -157,6 +167,142 @@ fn bearer_token(headers: &axum::http::HeaderMap) -> Option<String> {
         None
     } else {
         Some(t.to_string())
+    }
+}
+
+// ── Spec Ledger endpoints ───────────────────────────────────────────────────
+
+/// `GET /api/specs` — return the full spec document (all sections + items).
+async fn specs_list(State(state): State<AppState>) -> impl IntoResponse {
+    match state.specs.load() {
+        Ok(doc) => Json(doc).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError { error: format!("load specs: {e}") }),
+        )
+            .into_response(),
+    }
+}
+
+/// `POST /api/specs/item` — create or update a spec item.
+#[derive(Debug, Deserialize)]
+pub struct SpecsUpsertRequest {
+    pub section_id: String,
+    pub item: crate::specs::SpecItem,
+}
+
+async fn specs_upsert(
+    State(state): State<AppState>,
+    Json(req): Json<SpecsUpsertRequest>,
+) -> impl IntoResponse {
+    let mut doc = match state.specs.load() {
+        Ok(d) => d,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError { error: format!("load: {e}") }),
+            )
+                .into_response()
+        }
+    };
+    match state
+        .specs
+        .upsert_item(&mut doc, &req.section_id, req.item)
+    {
+        Ok(_) => match state.specs.save(&doc) {
+            Ok(_) => Json(&doc).into_response(),
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError { error: format!("save: {e}") }),
+            )
+                .into_response(),
+        },
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError { error: e }),
+        )
+            .into_response(),
+    }
+}
+
+/// `POST /api/specs/transition` — change an item's status (validated by the
+/// state machine).
+#[derive(Debug, Deserialize)]
+pub struct SpecsTransitionRequest {
+    pub section_id: String,
+    pub item_id: String,
+    pub new_status: String,
+}
+
+async fn specs_transition(
+    State(state): State<AppState>,
+    Json(req): Json<SpecsTransitionRequest>,
+) -> impl IntoResponse {
+    let new_status = crate::specs::SpecStatus::from_str_lossy(&req.new_status);
+    let mut doc = match state.specs.load() {
+        Ok(d) => d,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError { error: format!("load: {e}") }),
+            )
+                .into_response()
+        }
+    };
+    match state
+        .specs
+        .transition_item(&mut doc, &req.section_id, &req.item_id, new_status)
+    {
+        Ok(_) => match state.specs.save(&doc) {
+            Ok(_) => Json(json!({"status": "ok", "new_status": req.new_status})).into_response(),
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError { error: format!("save: {e}") }),
+            )
+                .into_response(),
+        },
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError { error: e }),
+        )
+            .into_response(),
+    }
+}
+
+/// `DELETE /api/specs/item/:section/:id` — remove a spec item.
+async fn specs_delete(
+    State(state): State<AppState>,
+    axum::extract::Path((section_id, item_id)): axum::extract::Path<(String, String)>,
+) -> impl IntoResponse {
+    let mut doc = match state.specs.load() {
+        Ok(d) => d,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError { error: format!("load: {e}") }),
+            )
+                .into_response()
+        }
+    };
+    match state.specs.delete_item(&mut doc, &section_id, &item_id) {
+        Ok(true) => match state.specs.save(&doc) {
+            Ok(_) => Json(json!({"status": "deleted"})).into_response(),
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError { error: format!("save: {e}") }),
+            )
+                .into_response(),
+        },
+        Ok(false) => (
+            StatusCode::NOT_FOUND,
+            Json(ApiError { error: "item not found".into() }),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError { error: e }),
+        )
+            .into_response(),
     }
 }
 
@@ -554,11 +700,21 @@ mod tests {
         Arc::new(crate::auth::AuthStore::new(path))
     }
 
+    fn tmp_specs() -> Arc<crate::specs::SpecsStore> {
+        let path = std::env::temp_dir().join(format!(
+            "musk_server_specs_test_{}.json",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+        Arc::new(crate::specs::SpecsStore::new(path))
+    }
+
     #[tokio::test]
     async fn run_endpoint_returns_result() {
         let state = AppState {
             client: Arc::new(MockClient) as Arc<dyn Client>,
             auth: tmp_auth(),
+            specs: tmp_specs(),
         };
         let req = RunRequest {
             task: "say hello".into(),
@@ -574,6 +730,7 @@ mod tests {
         let state = AppState {
             client: Arc::new(MockClient) as Arc<dyn Client>,
             auth: tmp_auth(),
+            specs: tmp_specs(),
         };
         let req = RunRequest {
             task: "x".into(),

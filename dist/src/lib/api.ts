@@ -92,3 +92,32 @@ export async function me(): Promise<UserInfo> {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
 }
+
+export async function get_specs(): Promise<any> {
+    const response = await fetch('/api/specs', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+}
+
+export async function upsert_spec(section_id: string, item: any): Promise<any> {
+    const response = await fetch('/api/specs/item', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ section_id, item }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+}
+
+export async function transition_spec(section_id: string, item_id: string, new_status: string): Promise<any> {
+    const response = await fetch('/api/specs/transition', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ section_id, item_id, new_status }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+}

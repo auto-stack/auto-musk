@@ -109,3 +109,28 @@ pub fn login(username str, password str) LoginResult {
 pub fn me() UserInfo {
     return UserInfo { username: "", role: "viewer" }
 }
+
+// ═══════════════════════════════════════════════════════════
+// Spec Ledger 端点
+// ═══════════════════════════════════════════════════════════
+
+/// 获取完整 spec 文档(所有 section + items)
+/// GET /api/specs
+#[api(method = "GET", path = "/api/specs")]
+pub fn get_specs() any {
+    return { sections: [] }
+}
+
+/// 创建/更新一个 spec item
+/// POST /api/specs/item
+#[api(method = "POST", path = "/api/specs/item")]
+pub fn upsert_spec(section_id str, item any) any {
+    return { status: "ok" }
+}
+
+/// 修改一个 item 的状态(状态机校验)
+/// POST /api/specs/transition
+#[api(method = "POST", path = "/api/specs/transition")]
+pub fn transition_spec(section_id str, item_id str, new_status str) any {
+    return { status: "ok" }
+}

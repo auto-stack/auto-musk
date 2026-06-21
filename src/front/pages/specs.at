@@ -1,16 +1,60 @@
-// src/front/pages/specs.at - Spec Ledger 页（占位）
-// 后续阶段移植：7 类 spec 文件持久化 + 状态机。
+// src/front/pages/specs.at - Spec Ledger 页
+// 展示 spec 文档的 7 个 section + items。
+// 与 Rust 后端 /api/specs + /api/specs/item 打通。
+// NOTE: for 循环必须用 .var (点前缀),不能用裸变量(a2vm 要求)。
 
-use nav_rail: NavRail
+use back.api: get_specs, upsert_spec
 
 widget SpecsPage {
+    msg Msg { Load, AddItem }
+
+    model {
+        var doc any = { sections: [] }
+        var new_title str = ""
+        var message str = ""
+    }
+
     view {
-        row (style: "w-full h-screen") {
-            NavRail
-            col (style: "flex-1 p-6") {
-                text (text: "Specs", style: "text-2xl font-bold mb-4") {}
-                text (text: "Spec Ledger — coming in Phase 6", style: "text-gray-400") {}
+        col {
+            row {
+                h2 "Specs" { style: "text-2xl font-bold" }
+                button "Refresh" { onclick: .Load, style: "ml-auto px-3 py-1 border rounded" }
+                style: "px-6 py-3 border-b w-full items-center"
             }
+
+            text .message { style: "text-sm text-center py-2" }
+
+            for section in .doc.sections {
+                col {
+                    h3 section.title { style: "text-lg font-semibold px-6 pt-4" }
+                    text section.status { style: "text-xs text-gray-400 px-8" }
+                    style: "border-b"
+                }
+            }
+
+            row {
+                input {
+                    value: .new_title
+                    oninput: .AddItem
+                    placeholder: "New spec item title..."
+                    style: "flex-1 border rounded px-3 py-2"
+                }
+                button "Add" { onclick: .AddItem, style: "px-4 py-2 rounded bg-primary text-primary-foreground" }
+                style: "border-t px-6 py-3 gap-2"
+            }
+            style: "w-full h-screen flex-col"
+        }
+    }
+
+    on {
+        .Load -> {
+            .doc = get_specs()
+            .message = "Loaded specs"
+        }
+        .AddItem -> {
+            let result = upsert_spec("goals", .new_title)
+            .message = "Added: " + .new_title
+            .new_title = ""
         }
     }
 }
