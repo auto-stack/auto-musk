@@ -53,9 +53,17 @@ impl Profession for OwnedProfession {
 
 /// Build the standard 3-tool set (read_file/write_file/run_command), returning
 /// a fresh agent configured for the given profession + client.
+/// Build the standard tool set + skill tool (if enabled + configured) for the
+/// given profession + client.
+///
+/// `skills_enabled`: when true (default), the SkillTool is registered and the
+/// agent gets the `<available_skills>` block (Superpowers mode). When false,
+/// the agent has only the base tools (read/write/edit/search/run/etc.) — a
+/// simpler "basic" mode, like Claude without superpowers.
 pub fn build_agent(
     profession: Arc<dyn Profession>,
     client: Arc<dyn auto_ai_agent::Client>,
+    skills_enabled: bool,
 ) -> auto_ai_agent::Agent {
     let mut agent = auto_ai_agent::Agent::new(OwnedProfession::new(profession), client);
     agent.register_tool(tools::ReadFile);
@@ -68,12 +76,16 @@ pub fn build_agent(
     agent.register_tool(tools::Glob);
     agent.register_tool(tools::BatchReplace);
 
-    // Register the Skill tool if any skills are configured under
-    // ~/.config/autoos/skills/.
-    if let Some(skills_dir) = dirs::home_dir().map(|h| h.join(".config/autoos/skills")) {
-        let registry = std::sync::Arc::new(auto_ai_agent::SkillRegistry::scan(&skills_dir));
-        if !registry.is_empty() {
-            agent.register_skill_tool(auto_ai_agent::SkillTool::new(registry));
+    // Register the Skill tool only in Superpowers mode (skills_enabled).
+    if skills_enabled {
+        if let Some(skills_dir) =
+            dirs::home_dir().map(|h| h.join(".config/autoos/skills"))
+        {
+            let registry =
+                std::sync::Arc::new(auto_ai_agent::SkillRegistry::scan(&skills_dir));
+            if !registry.is_empty() {
+                agent.register_skill_tool(auto_ai_agent::SkillTool::new(registry));
+            }
         }
     }
 

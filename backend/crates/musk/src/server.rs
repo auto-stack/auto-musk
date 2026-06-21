@@ -330,10 +330,18 @@ pub struct RunRequest {
     /// Built-in name (e.g. "coder") or path to a `.at` file. Defaults to "coder".
     #[serde(default = "default_profession")]
     pub profession: String,
+    /// Enable Superpowers (skill system). Default true; set false for basic
+    /// mode (base tools only, no skill directory).
+    #[serde(default = "default_skills_enabled")]
+    pub skills: bool,
 }
 
 fn default_profession() -> String {
     "coder".to_string()
+}
+
+fn default_skills_enabled() -> bool {
+    true
 }
 
 /// One tool-call record in the response.
@@ -373,7 +381,7 @@ async fn run_inner(
         )
     })?;
 
-    let mut agent = build_agent(profession, state.client.clone());
+    let mut agent = build_agent(profession, state.client.clone(), req.skills);
     let result = agent.run(&req.task).await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -444,7 +452,7 @@ async fn run_stream_handler(
     // Spawn the agent run, pushing StreamEvents into the channel as SSE JSON.
     let client = state.client.clone();
     tokio::spawn(async move {
-        let mut agent = build_agent(profession, client);
+        let mut agent = build_agent(profession, client, req.skills);
         let tx2 = tx.clone();
         let on_event: Arc<dyn Fn(auto_ai_agent::StreamEvent) + Send + Sync> =
             Arc::new(move |ev| {
@@ -719,6 +727,7 @@ mod tests {
         let req = RunRequest {
             task: "say hello".into(),
             profession: "coder".into(),
+            skills: true,
         };
         let resp = run_inner(state, req).await.unwrap();
         assert_eq!(resp.output, "mock answer");
@@ -735,6 +744,7 @@ mod tests {
         let req = RunRequest {
             task: "x".into(),
             profession: "nonexistent".into(),
+            skills: true,
         };
         let err = run_inner(state, req).await.unwrap_err();
         assert_eq!(err.0, StatusCode::BAD_REQUEST);

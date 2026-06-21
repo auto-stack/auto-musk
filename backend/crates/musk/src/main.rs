@@ -41,6 +41,12 @@ enum Cmd {
         /// `.at` profession file. Defaults to "coder".
         #[arg(long, default_value = "coder")]
         profession: String,
+
+        /// Disable Superpowers (skill system). The agent gets only base tools
+        /// — simpler/faster, like Claude without superpowers. Useful for quick
+        /// Q&A or simple edits where brainstorm/plan/execute is overkill.
+        #[arg(long)]
+        no_skills: bool,
     },
 
     /// Interactive chat session (multi-turn REPL). The agent persists across
@@ -50,6 +56,10 @@ enum Cmd {
         /// Profession to use (built-in name or .at path). Defaults to "coder".
         #[arg(long, default_value = "coder")]
         profession: String,
+
+        /// Disable Superpowers (skill system) — basic mode (see `musk run --no-skills`).
+        #[arg(long)]
+        no_skills: bool,
     },
 
     /// List available built-in professions.
@@ -71,7 +81,7 @@ fn main() {
             list_professions();
             return;
         }
-        Cmd::Run { task, profession } => {
+        Cmd::Run { task, profession, no_skills } => {
             // For `run`, a missing daemon is fatal — there's nothing to do
             // without the LLM. Build the client (blocking daemon discovery)
             // BEFORE entering the tokio runtime to avoid the
@@ -96,12 +106,12 @@ fn main() {
                 }
             };
             let rt = tokio::runtime::Runtime::new().expect("failed to start tokio runtime");
-            if let Err(e) = rt.block_on(run_task(&task, prof, client)) {
+            if let Err(e) = rt.block_on(run_task(&task, prof, client, !no_skills)) {
                 eprintln!("musk: {e}");
                 std::process::exit(1);
             }
         }
-        Cmd::Chat { profession } => {
+        Cmd::Chat { profession, no_skills } => {
             // Chat needs the daemon (LLM). Build client before the runtime.
             let client: Arc<dyn Client> = match AiClient::new() {
                 Ok(c) => Arc::new(c),
@@ -121,7 +131,7 @@ fn main() {
                 }
             };
             let rt = tokio::runtime::Runtime::new().expect("failed to start tokio runtime");
-            if let Err(e) = rt.block_on(chat_loop(prof, client)) {
+            if let Err(e) = rt.block_on(chat_loop(prof, client, !no_skills)) {
                 eprintln!("musk: {e}");
                 std::process::exit(1);
             }
@@ -205,12 +215,13 @@ async fn run_task(
     task: &str,
     profession: Arc<dyn Profession>,
     client: Arc<dyn Client>,
+    skills_enabled: bool,
 ) -> Result<(), String> {
     use musk::build_agent;
     let name = profession.name().to_string();
     let model = profession.model().to_string();
 
-    let mut agent = build_agent(profession, client);
+    let mut agent = build_agent(profession, client, skills_enabled);
     // build_agent already registers the 3 standard tools.
     let _ = (ReadFile, WriteFile, RunCommand); // imported for discoverability
 
@@ -252,13 +263,14 @@ async fn run_task(
 async fn chat_loop(
     profession: Arc<dyn Profession>,
     client: Arc<dyn Client>,
+    skills_enabled: bool,
 ) -> Result<(), String> {
     use std::io::{self, BufRead, Write};
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc as StdArc;
 
     let name = profession.name().to_string();
-    let mut agent = musk::build_agent(profession, client);
+    let mut agent = musk::build_agent(profession, client, skills_enabled);
 
     println!(
         "musk chat — profession '{}' (Ctrl-D or 'exit' to quit)",
