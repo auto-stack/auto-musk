@@ -1,5 +1,8 @@
 run_agent
 list_professions
+get_config
+list_skills
+list_modes
 list_workflows
 run_workflow
 login

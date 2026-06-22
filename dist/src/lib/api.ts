@@ -55,6 +55,33 @@ export async function list_professions(): Promise<any> {
     return response.json();
 }
 
+export async function get_config(): Promise<any> {
+    const response = await fetch('/api/config', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+}
+
+export async function list_skills(): Promise<any> {
+    const response = await fetch('/api/skills', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+}
+
+export async function list_modes(): Promise<any> {
+    const response = await fetch('/api/modes', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+}
+
 export async function list_workflows(): Promise<any> {
     const response = await fetch('/api/workflows', {
         method: 'GET',
