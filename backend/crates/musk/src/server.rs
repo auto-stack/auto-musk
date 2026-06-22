@@ -69,6 +69,9 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/specs/item", post(specs_upsert))
         .route("/api/specs/transition", post(specs_transition))
         .route("/api/specs/item/{section}/{id}", axum::routing::delete(specs_delete))
+        .route("/api/config", get(config_overview))
+        .route("/api/modes", get(modes_list))
+        .route("/api/skills", get(skills_list))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -321,6 +324,91 @@ async fn professions() -> impl IntoResponse {
         })
         .collect();
     Json(json!({"professions": list}))
+}
+
+// ── Config page endpoints ───────────────────────────────────────────────────
+
+/// `GET /api/config` — combined overview of modes, professions, skills.
+async fn config_overview() -> impl IntoResponse {
+    let reg = crate::mode::ModeRegistry::load();
+    let modes: Vec<serde_json::Value> = reg
+        .names()
+        .iter()
+        .filter_map(|n| {
+            reg.get(n).map(|m| {
+                json!({
+                    "name": m.name,
+                    "description": m.description,
+                    "profession": m.profession,
+                    "skills": m.skills,
+                    "tool_count": m.tools.len(),
+                })
+            })
+        })
+        .collect();
+
+    let profs: Vec<serde_json::Value> = auto_ai_agent::builtin_names()
+        .iter()
+        .filter_map(|name| {
+            auto_ai_agent::load_builtin(name).map(|p| {
+                json!({
+                    "name": name,
+                    "tier": format!("{:?}", p.model_tier()).to_lowercase(),
+                    "temperature": p.temperature(),
+                    "max_turns": p.max_turns(),
+                })
+            })
+        })
+        .collect();
+
+    let skills_dir = dirs::home_dir().map(|h| h.join(".config/autoos/skills"));
+    let skills: Vec<serde_json::Value> = if let Some(dir) = skills_dir {
+        let reg = std::sync::Arc::new(auto_ai_agent::SkillRegistry::scan(&dir));
+        reg.descriptions()
+            .iter()
+            .map(|(name, desc)| json!({ "name": name, "description": desc }))
+            .collect()
+    } else {
+        vec![]
+    };
+
+    Json(json!({ "modes": modes, "professions": profs, "skills": skills }))
+}
+
+/// `GET /api/modes` — list all agent modes.
+async fn modes_list() -> impl IntoResponse {
+    let reg = crate::mode::ModeRegistry::load();
+    let modes: Vec<serde_json::Value> = reg
+        .names()
+        .iter()
+        .filter_map(|n| {
+            reg.get(n).map(|m| {
+                json!({
+                    "name": m.name,
+                    "description": m.description,
+                    "profession": m.profession,
+                    "skills": m.skills,
+                    "tool_count": m.tools.len(),
+                })
+            })
+        })
+        .collect();
+    Json(json!({ "modes": modes }))
+}
+
+/// `GET /api/skills` — list all configured skills.
+async fn skills_list() -> impl IntoResponse {
+    let skills_dir = dirs::home_dir().map(|h| h.join(".config/autoos/skills"));
+    let skills: Vec<serde_json::Value> = if let Some(dir) = skills_dir {
+        let reg = std::sync::Arc::new(auto_ai_agent::SkillRegistry::scan(&dir));
+        reg.descriptions()
+            .iter()
+            .map(|(name, desc)| json!({ "name": name, "description": desc }))
+            .collect()
+    } else {
+        vec![]
+    };
+    Json(json!({ "skills": skills }))
 }
 
 /// `POST /api/run` request body.

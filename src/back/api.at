@@ -62,6 +62,27 @@ pub fn list_professions() any {
     return { professions: [] }
 }
 
+/// 配置概览(modes + professions + skills)
+/// GET /api/config
+#[api(method = "GET", path = "/api/config")]
+pub fn get_config() any {
+    return { modes: [], professions: [], skills: [] }
+}
+
+/// 列出所有配置的 skills
+/// GET /api/skills
+#[api(method = "GET", path = "/api/skills")]
+pub fn list_skills() any {
+    return { skills: [] }
+}
+
+/// 列出所有 agent modes
+/// GET /api/modes
+#[api(method = "GET", path = "/api/modes")]
+pub fn list_modes() any {
+    return { modes: [] }
+}
+
 // ═══════════════════════════════════════════════════════════
 // Workflow 端点
 // ═══════════════════════════════════════════════════════════

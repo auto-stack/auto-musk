@@ -1,0 +1,72 @@
+// src/front/pages/config.at - 配置页
+// 展示 musk 的运行模式 / 职业 / 技能配置概览。
+// 参考 auto-forge 的 ApiSourcesView/AgentsConfigView 布局。
+// 与 Rust 后端 /api/config 打通。
+
+use back.api: get_config
+
+widget ConfigPage {
+    msg Msg { Load }
+
+    model {
+        var config any = { modes: [], professions: [], skills: [] }
+        var message str = ""
+    }
+
+    view {
+        col {
+            row {
+                h2 "Configuration" { style: "text-2xl font-bold" }
+                button "Refresh" { onclick: .Load, style: "ml-auto px-3 py-1 border rounded" }
+                style: "px-6 py-3 border-b w-full items-center"
+            }
+
+            text .message { style: "text-sm text-center py-2" }
+
+            // ── Modes section ──
+            h3 "Agent Modes" { style: "text-lg font-semibold px-6 pt-4" }
+            for mode in .config.modes {
+                col {
+                    row {
+                        text mode.name { style: "font-semibold" }
+                        text mode.profession { style: "ml-2 text-sm text-gray-500" }
+                        text mode.skills { style: "ml-auto text-xs px-2 py-0.5 rounded bg-blue-100" }
+                        style: "items-center px-6 py-1"
+                    }
+                    text mode.description { style: "text-sm text-gray-600 px-6 pb-1" }
+                }
+            }
+
+            // ── Professions section ──
+            h3 "Professions" { style: "text-lg font-semibold px-6 pt-4" }
+            for prof in .config.professions {
+                col {
+                    row {
+                        text prof.name { style: "font-semibold" }
+                        text prof.tier { style: "ml-2 text-sm text-gray-500" }
+                        text prof.temperature { style: "ml-auto text-xs text-gray-400" }
+                        style: "items-center px-6 py-1"
+                    }
+                }
+            }
+
+            // ── Skills section ──
+            h3 "Skills" { style: "text-lg font-semibold px-6 pt-4" }
+            for skill in .config.skills {
+                col {
+                    text skill.name { style: "font-semibold px-6" }
+                    text skill.description { style: "text-sm text-gray-600 px-6 pb-1" }
+                }
+            }
+
+            style: "w-full h-screen flex-col overflow-y-auto"
+        }
+    }
+
+    on {
+        .Load -> {
+            .config = get_config()
+            .message = "Loaded configuration"
+        }
+    }
+}
