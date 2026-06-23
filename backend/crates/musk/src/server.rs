@@ -54,6 +54,19 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         specs: Arc::new(crate::specs::SpecsStore::new(specs_path)),
     };
 
+    // Serve the standalone ESM config-page bundle (config-page.js) so that
+    // auto-os-config can load it cross-origin via dynamic import(). The file is
+    // produced by `npm run build` in frontend/ → frontend-dist/config-page.js.
+    let assets_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("frontend-dist");
+    let static_service = tower_http::services::ServeDir::new(&assets_path);
+
+    // CORS: allow auto-os-config (and any localhost dev server) to load the
+    // config-page bundle + config API cross-origin.
+    let cors = tower_http::cors::CorsLayer::permissive()
+        .allow_methods(tower_http::cors::Any)
+        .allow_headers(tower_http::cors::Any)
+        .allow_origin(tower_http::cors::Any);
+
     let app = Router::new()
         .route("/api/health", get(health))
         .route("/api/professions", get(professions))
@@ -72,6 +85,9 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/config", get(config_overview))
         .route("/api/modes", get(modes_list))
         .route("/api/skills", get(skills_list))
+        // Serve config-page.js + any other static assets at the root.
+        .fallback_service(static_service)
+        .layer(cors)
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
