@@ -48,9 +48,16 @@ export default defineConfig({
     target: 'esnext',
     minify: true,
     lib: {
-      entry: './src/config-page.vue',
+      // Two standalone entry bundles, one per auto-os-config module:
+      //   config-page.js        → "AI Agent" module (modes + professions)
+      //   skills-config-page.js → "AI Skills" module (skill registry)
+      // Both keep `vue` external and inline their CSS, so each is self-contained
+      // and shares the host's single Vue runtime via the import map.
+      entry: {
+        'config-page': './src/agents-config-page.vue',
+        'skills-config-page': './src/skills-config-page.vue',
+      },
       formats: ['es'],
-      fileName: 'config-page',
     },
     rollupOptions: {
       // Externalize vue so the bundle emits `import { ref } from 'vue'` (a bare

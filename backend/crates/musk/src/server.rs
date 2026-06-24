@@ -332,6 +332,7 @@ async fn professions() -> impl IntoResponse {
             load_builtin(name).map(|p| {
                 json!({
                     "name": name,
+                    "tier": format!("{:?}", p.model_tier()).to_lowercase(),
                     "model": p.model(),
                     "temperature": p.temperature(),
                     "max_turns": p.max_turns(),

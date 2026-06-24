@@ -28,26 +28,16 @@ interface Profession {
   max_turns: number
 }
 
-interface Skill {
-  name: string
-  description: string
-}
-
-interface ConfigOverview {
-  modes: Mode[]
-  professions: Profession[]
-  skills: Skill[]
-}
-
-const config = ref<ConfigOverview>({ modes: [], professions: [], skills: [] })
+const modes = ref<Mode[]>([])
+const professions = ref<Profession[]>([])
 const errorMsg = ref('')
 const loaded = ref(false)
 const filter = ref('')
 
 const filteredModes = computed(() => {
   const q = filter.value.trim().toLowerCase()
-  if (!q) return config.value.modes
-  return config.value.modes.filter(
+  if (!q) return modes.value
+  return modes.value.filter(
     (m) =>
       m.name.toLowerCase().includes(q) ||
       m.profession.toLowerCase().includes(q) ||
@@ -55,18 +45,22 @@ const filteredModes = computed(() => {
   )
 })
 
-async function loadConfig() {
+async function load() {
   errorMsg.value = ''
   loaded.value = false
   try {
-    const resp = await fetch(`${API_BASE}/api/config`)
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-    const data = await resp.json()
-    config.value = {
-      modes: data.modes || [],
-      professions: data.professions || [],
-      skills: data.skills || [],
-    }
+    // Two independent endpoints — modes come from .at files, professions from
+    // compiled-in built-ins. They are unrelated data sources (see README).
+    const [modesResp, profsResp] = await Promise.all([
+      fetch(`${API_BASE}/api/modes`),
+      fetch(`${API_BASE}/api/professions`),
+    ])
+    if (!modesResp.ok) throw new Error(`GET /api/modes → HTTP ${modesResp.status}`)
+    if (!profsResp.ok) throw new Error(`GET /api/professions → HTTP ${profsResp.status}`)
+    const modesData = await modesResp.json()
+    const profsData = await profsResp.json()
+    modes.value = modesData.modes || []
+    professions.value = profsData.professions || []
   } catch (e: any) {
     errorMsg.value = e.message || String(e)
   } finally {
@@ -74,11 +68,11 @@ async function loadConfig() {
   }
 }
 
-onMounted(() => loadConfig())
+onMounted(() => load())
 </script>
 
 <template>
-  <div class="musk-config">
+  <div class="agents-config">
     <div v-if="errorMsg" class="state-msg error">
       ✗ Failed to load: {{ errorMsg }}
       <span class="hint">Make sure <code>musk serve</code> is running on {{ API_BASE }}</span>
@@ -98,8 +92,9 @@ onMounted(() => loadConfig())
           />
         </div>
         <p class="card-sub">
-          Modes are declared in <code>modes/*.at</code>. Select one with <code>--mode &lt;name&gt;</code> on
-          <code>musk run</code> / <code>musk chat</code>.
+          Modes are declared in <code>modes/*.at</code> (built-ins) and
+          <code>~/.config/autoos/modes/*.at</code> (user). Select one with
+          <code>--mode &lt;name&gt;</code> on <code>musk run</code> / <code>musk chat</code>.
         </p>
         <div v-if="filteredModes.length === 0" class="empty">No modes match.</div>
         <div v-for="m in filteredModes" :key="m.name" class="mode-card">
@@ -107,7 +102,7 @@ onMounted(() => loadConfig())
             <span class="mode-name">{{ m.name }}</span>
             <span class="badge">{{ m.profession }}</span>
             <span class="badge muted">{{ m.tool_count }} tools</span>
-            <span v-if="m.skills" class="badge muted">{{ m.skills }} skills</span>
+            <span v-if="m.skills" class="badge muted">skills on</span>
           </div>
           <div v-if="m.description" class="mode-desc">{{ m.description }}</div>
         </div>
@@ -125,7 +120,7 @@ onMounted(() => loadConfig())
             <tr><th>Name</th><th>Tier</th><th>Temp</th><th>Max Turns</th></tr>
           </thead>
           <tbody>
-            <tr v-for="p in config.professions" :key="p.name">
+            <tr v-for="p in professions" :key="p.name">
               <td class="mono">{{ p.name }}</td>
               <td><span class="badge">{{ p.tier }}</span></td>
               <td>{{ p.temperature }}</td>
@@ -134,29 +129,14 @@ onMounted(() => loadConfig())
           </tbody>
         </table>
       </div>
-
-      <!-- Skills -->
-      <div class="card">
-        <h2>Skills</h2>
-        <p class="card-sub">
-          Skills are Markdown prompts in <code>~/.config/autoos/skills/*/SKILL.md</code>.
-          The model invokes them autonomously via the <code>skill</code> tool.
-        </p>
-        <div v-if="config.skills.length === 0" class="empty">No skills installed.</div>
-        <div v-for="s in config.skills" :key="s.name" class="skill-row">
-          <span class="skill-name">{{ s.name }}</span>
-          <span class="skill-desc">{{ s.description }}</span>
-        </div>
-      </div>
     </template>
   </div>
 </template>
 
 <style scoped>
 /* All colors reference the host's theme variables (set on :root), so this page
-   follows the sidebar accent picker automatically — same indigo/coral/ocean…
-   as the rest of AutoOS Settings. */
-.musk-config { max-width: 760px; }
+   follows the sidebar accent picker automatically. */
+.agents-config { max-width: 760px; }
 .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius, 8px); padding: 20px 22px; margin-bottom: 16px; }
 .card h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px 0; }
 .card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
@@ -169,17 +149,12 @@ onMounted(() => loadConfig())
 .mode-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .mode-name { font-weight: 600; font-size: 14px; }
 .mode-desc { font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
-/* Badges use the accent tint so they follow the picked theme color */
 .badge { font-size: 11px; padding: 2px 9px; border-radius: 10px; background: var(--accent-light); color: var(--accent); font-weight: 500; }
 .badge.muted { background: var(--bg-hover); color: var(--text-secondary); }
 table { width: 100%; border-collapse: collapse; margin-top: 8px; }
 th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
 th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); font-weight: 600; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.skill-row { display: flex; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); align-items: baseline; }
-.skill-row:last-child { border-bottom: none; }
-.skill-name { font-weight: 600; font-size: 13px; min-width: 180px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text-primary); }
-.skill-desc { font-size: 12px; color: var(--text-secondary); flex: 1; }
 .empty { color: var(--text-muted); font-size: 13px; padding: 12px 0; }
 .state-msg { padding: 14px; border-radius: var(--radius, 8px); background: var(--bg-hover); color: var(--text-secondary); font-size: 13px; }
 .state-msg.error { background: rgba(196,43,28,0.08); color: var(--danger); }
