@@ -1,0 +1,46 @@
+/* Musk web app — base styles + theme tokens.
+   Theme colors use HSL so a future accent picker can override --primary. */
+:root {
+  --primary: 239 84% 67%;
+  --accent: hsl(var(--primary));
+  --accent-hover: hsl(var(--primary) / 0.88);
+  --accent-light: hsl(var(--primary) / 0.10);
+  --accent-foreground: #fff;
+
+  --bg-app: #0f0f10;
+  --bg-panel: #1a1a1d;
+  --bg-elevated: #242428;
+  --bg-input: #2a2a2e;
+  --border: #333338;
+  --border-light: #404048;
+
+  --text-primary: #e8e8ea;
+  --text-secondary: #a0a0a8;
+  --text-muted: #6a6a72;
+
+  --danger: #ef4444;
+  --success: #22c55e;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #app { height: 100%; }
+body {
+  font-family: var(--font-family);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+input, textarea { font-family: inherit; }
+a { color: var(--accent); }
+code, pre { font-family: var(--font-mono); }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }

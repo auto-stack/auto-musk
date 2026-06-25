@@ -205,6 +205,26 @@ fn bearer_token(headers: &axum::http::HeaderMap) -> Option<String> {
     }
 }
 
+/// Resolve a bearer token from EITHER the Authorization header or a `?token=`
+/// query param. The query fallback exists for `EventSource` (SSE), which
+/// cannot set request headers — the chat stream endpoint uses it.
+fn bearer_token_or_query(
+    headers: &axum::http::HeaderMap,
+    query: Option<&str>,
+) -> Option<String> {
+    if let Some(t) = bearer_token(headers) {
+        return Some(t);
+    }
+    // ?token=... fallback
+    let q = query?;
+    for pair in q.split('&') {
+        if let Some(val) = pair.strip_prefix("token=") {
+            return Some(val.to_string());
+        }
+    }
+    None
+}
+
 // ── Spec Ledger endpoints ───────────────────────────────────────────────────
 
 /// `GET /api/specs` — return the full spec document (all sections + items).
