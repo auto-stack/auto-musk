@@ -38,6 +38,7 @@ pub struct AppState {
     pub client: Arc<dyn Client>,
     pub auth: Arc<crate::auth::AuthStore>,
     pub specs: Arc<crate::specs::SpecsStore>,
+    pub chats: Arc<crate::chats::ChatStore>,
 }
 
 /// Run the HTTP server on the given address (default `127.0.0.1:8080`).
@@ -52,6 +53,7 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         client,
         auth: Arc::new(crate::auth::AuthStore::new(users_path)),
         specs: Arc::new(crate::specs::SpecsStore::new(specs_path)),
+        chats: Arc::new(crate::chats::ChatStore::default_path()),
     };
 
     // Serve the standalone ESM config-page bundle (config-page.js) so that
@@ -90,6 +92,15 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/roles/{name}", get(role_detail).put(role_save).delete(role_delete))
         // App runtime config (musk): how it connects to the daemon, default mode, etc.
         .route("/api/app-config", get(app_config_get).put(app_config_save))
+        // Chats (Plan 008): persistent multi-turn sessions.
+        .route("/api/chats/sessions", get(chat_list).delete(chat_delete_all))
+        .route("/api/chats/session", post(chat_create))
+        .route(
+            "/api/chats/session/{id}",
+            get(chat_get).patch(chat_rename).delete(chat_delete),
+        )
+        .route("/api/chats/session/{id}/message", post(chat_message))
+        .route("/api/chats/session/{id}/stream", get(chat_stream))
         // Serve config-page.js + any other static assets at the root.
         .fallback_service(static_service)
         .layer(cors)
@@ -823,6 +834,246 @@ fn stream_event_to_json(ev: &auto_ai_agent::StreamEvent) -> serde_json::Value {
         }),
         StreamEvent::Error { message } => json!({"type": "error", "message": message}),
     }
+}
+
+// ── Chats endpoints (Plan 008) ──────────────────────────────────────────────
+
+/// `POST /api/chats/session` body.
+#[derive(Debug, Deserialize)]
+struct ChatCreateBody {
+    /// Mode for the session (defaults to "superpowers").
+    #[serde(default = "default_mode")]
+    mode: String,
+}
+
+/// `POST /api/chats/session` — create a new (empty) chat session.
+async fn chat_create(
+    State(state): State<AppState>,
+    Json(body): Json<ChatCreateBody>,
+) -> impl IntoResponse {
+    match state.chats.create(&body.mode) {
+        Ok(session) => Json(json!({"session": session})).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("create: {e}")).into_response(),
+    }
+}
+
+/// `GET /api/chats/sessions` — list all sessions (summaries).
+async fn chat_list(State(state): State<AppState>) -> impl IntoResponse {
+    Json(json!({"sessions": state.chats.list()}))
+}
+
+/// `GET /api/chats/session/{id}` — full session with all messages.
+async fn chat_get(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    match state.chats.get(&id) {
+        Some(session) => Json(json!({"session": session})).into_response(),
+        None => (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response(),
+    }
+}
+
+/// `PATCH /api/chats/session/{id}` body.
+#[derive(Debug, Deserialize)]
+struct ChatRenameBody {
+    name: String,
+}
+
+/// `PATCH /api/chats/session/{id}` — rename a session.
+async fn chat_rename(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(body): Json<ChatRenameBody>,
+) -> impl IntoResponse {
+    match state.chats.rename(&id, &body.name) {
+        Ok(Some(session)) => Json(json!({"session": session})).into_response(),
+        Ok(None) => (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("rename: {e}")).into_response(),
+    }
+}
+
+/// `DELETE /api/chats/session/{id}` — delete one session.
+async fn chat_delete(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    match state.chats.delete(&id) {
+        Ok(true) => Json(json!({"status": "deleted", "id": id})).into_response(),
+        Ok(false) => (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("delete: {e}")).into_response(),
+    }
+}
+
+/// `DELETE /api/chats/sessions` — delete all sessions.
+async fn chat_delete_all(State(state): State<AppState>) -> impl IntoResponse {
+    match state.chats.delete_all() {
+        Ok(_) => Json(json!({"status": "deleted_all"})).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("delete_all: {e}")).into_response(),
+    }
+}
+
+/// `POST /api/chats/session/{id}/message` body.
+#[derive(Debug, Deserialize)]
+struct ChatMessageBody {
+    content: String,
+}
+
+/// `POST /api/chats/session/{id}/message` — append the user's message and run
+/// one agent turn (non-streaming). Returns the assistant reply + tool calls.
+/// For streaming, the client calls `GET /api/chats/session/{id}/stream` after.
+///
+/// NOTE: in the streaming flow the client POSTs the message here (persisting
+/// the user turn) then opens the SSE stream, which runs the turn and appends
+/// the assistant message on completion. To avoid double-runs, this endpoint
+/// only persists the user message + returns it; the actual agent run happens
+/// in `chat_stream`. (Kept as a distinct endpoint so persistence and streaming
+/// are cleanly separated.)
+async fn chat_message(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(body): Json<ChatMessageBody>,
+) -> impl IntoResponse {
+    let msg = crate::chats::ChatMessage::user(body.content);
+    match state.chats.append_message(&id, msg.clone()) {
+        Ok(Some(session)) => Json(json!({"session": session, "queued": msg})).into_response(),
+        Ok(None) => (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("append: {e}")).into_response(),
+    }
+}
+
+/// `GET /api/chats/session/{id}/stream` — run the last queued user message as
+/// an agent turn, streaming SSE events (delta/tool/done/error). On completion,
+/// the assistant reply (+ tool calls) is persisted to the session.
+///
+/// The agent is rebuilt from the session's mode and pre-loaded with the
+/// conversation history (all prior user/assistant turns), so it continues the
+/// multi-turn context across the stateless HTTP boundary.
+async fn chat_stream(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Response {
+    use axum::body::Body;
+    // Load the session + its history.
+    let session = match state.chats.get(&id) {
+        Some(s) => s,
+        None => {
+            return (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response()
+        }
+    };
+    let mode = session.mode.clone();
+
+    // The user message to run = the last user turn in history.
+    let user_msg = match session.messages.iter().rev().find(|m| m.role == crate::chats::Role::User) {
+        Some(m) => m.content.clone(),
+        None => {
+            return (StatusCode::BAD_REQUEST, "no user message to run").into_response();
+        }
+    };
+
+    // Build (role, content) history pairs for prior turns (exclude the last
+    // user message — that's the one we're about to run).
+    let mut history: Vec<(String, String)> = Vec::new();
+    let mut seen_last_user = false;
+    for m in session.messages.iter().rev() {
+        if !seen_last_user && m.role == crate::chats::Role::User {
+            seen_last_user = true;
+            continue; // skip the message we're running now
+        }
+        let role = match m.role {
+            crate::chats::Role::User => "user",
+            crate::chats::Role::Assistant => "assistant",
+            crate::chats::Role::Tool => continue, // tool observations aren't plain turns
+        };
+        history.push((role.to_string(), m.content.clone()));
+    }
+    history.reverse(); // chronological order for the agent
+
+    // Spawn the agent run, streaming events.
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<serde_json::Value>(64);
+    let client = state.client.clone();
+    let chats = state.chats.clone();
+    let session_id = id.clone();
+    let history_for_agent = history.clone();
+    // Resolve the session's mode to an AgentMode (built-in or user .at).
+    let mode_reg = crate::mode::ModeRegistry::load();
+    let agent_mode = match mode_reg.get(&mode).cloned() {
+        Some(m) => m,
+        None => mode_reg.get("superpowers").cloned().unwrap_or_else(|| {
+            // Fallback: a minimal superpowers-like mode if the registry is empty.
+            crate::mode::AgentMode {
+                name: "superpowers".into(),
+                description: String::new(),
+                profession: "coder".into(),
+                skills: true,
+                tools: vec![],
+                workflow: None,
+                context_file: String::new(),
+                extra_system_prompt: String::new(),
+            }
+        }),
+    };
+    tokio::spawn(async move {
+        let mut agent = match crate::build_agent_from_mode(&agent_mode, client) {
+            Ok(a) => a,
+            Err(e) => {
+                let _ = tx.try_send(json!({"type": "error", "message": format!("build agent: {e}")}));
+                return;
+            }
+        };
+        // Pre-load the conversation history so the agent has context.
+        agent = agent.with_history(history_for_agent);
+
+        // Accumulate the streamed text + tool calls to persist on completion.
+        let accumulated = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+        let tool_calls: std::sync::Arc<std::sync::Mutex<Vec<crate::chats::ToolCall>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        // tx is moved into the on_event closure; keep a clone for the error path.
+        let tx_err = tx.clone();
+        let acc2 = accumulated.clone();
+        let tc2 = tool_calls.clone();
+        let on_event: Arc<dyn Fn(auto_ai_agent::StreamEvent) + Send + Sync> =
+            Arc::new(move |ev| {
+                let value = stream_event_to_json(&ev);
+                // capture for persistence
+                if let Some(text) = value.get("text").and_then(|t| t.as_str()) {
+                    acc2.lock().unwrap().push_str(text);
+                }
+                if value.get("type").and_then(|t| t.as_str()) == Some("tool") {
+                    let tool = value.get("tool").and_then(|t| t.as_str()).unwrap_or("").to_string();
+                    let args = value.get("args").cloned().unwrap_or(json!(null));
+                    let result = value.get("result").and_then(|t| t.as_str()).unwrap_or("").to_string();
+                    tc2.lock().unwrap().push(crate::chats::ToolCall { tool, args, result });
+                }
+                let _ = tx.try_send(value);
+            });
+        match agent.run_stream(&user_msg, on_event).await {
+            Ok(_) => {
+                // Persist the assistant reply + tool calls.
+                let text = std::mem::take(&mut *accumulated.lock().unwrap());
+                let tcs = std::mem::take(&mut *tool_calls.lock().unwrap());
+                let mut msg = crate::chats::ChatMessage::assistant(text);
+                msg.tool_calls = tcs;
+                let _ = chats.append_message(&session_id, msg);
+            }
+            Err(e) => {
+                let _ = tx_err.try_send(json!({"type": "error", "message": format!("{e}")}));
+            }
+        }
+    });
+
+    let stream = async_stream::stream! {
+        while let Some(value) = rx.recv().await {
+            yield Ok::<_, std::convert::Infallible>(format!("data: {value}\n\n"));
+        }
+    };
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "text/event-stream")
+        .header("Cache-Control", "no-cache")
+        .header("Connection", "keep-alive")
+        .body(Body::from_stream(stream))
+        .unwrap()
 }
 
 // ── Workflow endpoints ─────────────────────────────────────────────────────
