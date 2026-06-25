@@ -48,14 +48,16 @@ export default defineConfig({
     target: 'esnext',
     minify: true,
     lib: {
-      // Two standalone entry bundles, one per auto-os-config module:
+      // Standalone ESM entry bundles, one per auto-os-config module:
       //   config-page.js        → "AI Agent" module (modes + professions)
       //   skills-config-page.js → "AI Skills" module (skill registry)
-      // Both keep `vue` external and inline their CSS, so each is self-contained
+      //   roles-config-page.js  → "AI Roles" module (Plan 004)
+      // Each keeps `vue` external and inlines its CSS, so each is self-contained
       // and shares the host's single Vue runtime via the import map.
       entry: {
         'config-page': './src/agents-config-page.vue',
         'skills-config-page': './src/skills-config-page.vue',
+        'roles-config-page': './src/roles-config-page.vue',
       },
       formats: ['es'],
     },

@@ -20,35 +20,71 @@ use auto_ai_agent::Profession;
 /// `Arc<dyn Trait>` itself doesn't implement the trait — this thin wrapper
 /// bridges that. (Mirrors the private `ArcProfession` in auto-ai-agent's
 /// workflow module.)
-pub(crate) struct OwnedProfession(Arc<dyn Profession>);
+///
+/// When `extra_prompt` is set, `system_prompt()` returns the base prompt with
+/// the extra appended — this is how a Mode's `extra_system_prompt` customizes
+/// the Role's Soul (Plan 004).
+pub(crate) struct OwnedProfession {
+    inner: Arc<dyn Profession>,
+    extra_prompt: Option<String>,
+    /// Materialized base+extra prompt so system_prompt() can borrow it.
+    prompt: String,
+}
 
 impl OwnedProfession {
     pub(crate) fn new(inner: Arc<dyn Profession>) -> Self {
-        Self(inner)
+        let prompt = inner.system_prompt().to_string();
+        Self { inner, extra_prompt: None, prompt }
+    }
+
+    /// Return a variant whose system prompt has `extra` appended to the base
+    /// Soul (the mode-level customization).
+    pub(crate) fn with_extra_prompt(mut self, extra: &str) -> Self {
+        if !extra.trim().is_empty() {
+            let mut p = self.inner.system_prompt().to_string();
+            p.push_str("\n\n");
+            p.push_str(extra);
+            self.prompt = p;
+            self.extra_prompt = Some(extra.to_string());
+        }
+        self
     }
 }
 
 impl Profession for OwnedProfession {
     fn name(&self) -> &str {
-        self.0.name()
+        self.inner.name()
     }
     fn system_prompt(&self) -> &str {
-        self.0.system_prompt()
+        &self.prompt
     }
     fn model(&self) -> &str {
-        self.0.model()
+        self.inner.model()
+    }
+    fn model_tier(&self) -> auto_ai_agent::ModelTier {
+        self.inner.model_tier()
     }
     fn temperature(&self) -> f64 {
-        self.0.temperature()
+        self.inner.temperature()
     }
     fn max_turns(&self) -> usize {
-        self.0.max_turns()
+        self.inner.max_turns()
     }
     fn allowed_tools(&self) -> Vec<String> {
-        self.0.allowed_tools()
+        self.inner.allowed_tools()
     }
     fn memory_limit(&self) -> Option<usize> {
-        self.0.memory_limit()
+        self.inner.memory_limit()
+    }
+    // Plan 004: forward the new role fields too.
+    fn allowed_tiers(&self) -> Vec<auto_ai_agent::ModelTier> {
+        self.inner.allowed_tiers()
+    }
+    fn token_budget(&self) -> Option<u64> {
+        self.inner.token_budget()
+    }
+    fn skills(&self) -> Vec<String> {
+        self.inner.skills()
     }
 }
 
@@ -64,11 +100,38 @@ pub fn build_agent_from_mode(
     mode: &crate::mode::AgentMode,
     client: Arc<dyn auto_ai_agent::Client>,
 ) -> Result<auto_ai_agent::Agent, String> {
-    // 1. Resolve profession from the mode's profession field.
+    // 1. Resolve profession: user role (.at) > built-in name > .at file path.
     let profession: Arc<dyn Profession> = resolve_profession(&mode.profession)
         .map_err(|e| format!("mode '{}': {e}", mode.name))?;
 
-    let mut agent = auto_ai_agent::Agent::new(OwnedProfession::new(profession), client);
+    // Tier clamp (Plan 004): if the role declares allowed_tiers and the role's
+    // own tier falls outside them, warn + clamp to the highest allowed tier.
+    // (We compare against the role's declared tier, which is what the agent
+    // will request from the daemon.)
+    let allowed = profession.allowed_tiers();
+    if !allowed.is_empty() {
+        let tier = profession.model_tier();
+        if !allowed.contains(&tier) {
+            let clamped = allowed
+                .iter()
+                .max_by_key(|t| t.order())
+                .copied()
+                .unwrap_or(tier);
+            tracing::warn!(
+                "mode '{}': role '{}' tier {:?} not in allowed_tiers {:?}; clamping to {:?}",
+                mode.name,
+                profession.name(),
+                tier,
+                allowed,
+                clamped
+            );
+        }
+    }
+
+    // Wrap, applying the mode's extra_system_prompt as a Soul customization.
+    let owned = OwnedProfession::new(profession).with_extra_prompt(&mode.extra_system_prompt);
+    let role_skills = owned.skills();
+    let mut agent = auto_ai_agent::Agent::new(owned, client);
 
     // 2. Register tools filtered by the mode's whitelist.
     //    Empty whitelist = register all base tools.
@@ -89,14 +152,20 @@ pub fn build_agent_from_mode(
         }
     }
 
-    // 3. Register the Skill tool if the mode enables skills.
+    // 3. Register the Skill tool if the mode enables skills. Plan 004: if the
+    //    role declares a skills whitelist, only those skills are exposed;
+    //    otherwise (empty whitelist) all installed skills are exposed.
     if mode.skills {
         if let Some(skills_dir) =
             dirs::home_dir().map(|h| h.join(".config/autoos/skills"))
         {
-            let registry =
-                std::sync::Arc::new(auto_ai_agent::SkillRegistry::scan(&skills_dir));
+            let mut registry =
+                auto_ai_agent::SkillRegistry::scan(&skills_dir);
+            if !role_skills.is_empty() {
+                registry.retain(&role_skills);
+            }
             if !registry.is_empty() {
+                let registry = std::sync::Arc::new(registry);
                 agent.register_skill_tool(auto_ai_agent::SkillTool::new(registry));
             }
         }
@@ -115,13 +184,22 @@ pub fn build_agent_from_mode(
     Ok(agent)
 }
 
-/// Resolve a profession: built-in name, or `.at` file path.
+/// Resolve a profession by spec. Order: a user Role from the RoleRegistry
+/// (`.at` in ~/.config/autoos/roles), then a built-in name, then a literal
+/// `.at` file path. (Plan 004 adds the RoleRegistry-first lookup.)
 fn resolve_profession(spec: &str) -> Result<Arc<dyn Profession>, String> {
+    // 1. User role from the on-disk registry.
+    let registry = auto_ai_agent::RoleRegistry::load();
+    if let Some(p) = registry.resolve_profession(spec) {
+        return Ok(p);
+    }
+    // 2. Built-in name.
     if let Some(p) = auto_ai_agent::load_builtin(spec) {
         return Ok(p);
     }
+    // 3. Literal .at file path.
     let content = std::fs::read_to_string(spec)
-        .map_err(|e| format!("not a builtin, cannot read '{spec}': {e}"))?;
+        .map_err(|e| format!("not a builtin or role, cannot read '{spec}': {e}"))?;
     auto_ai_agent::load_profession(&content).map_err(|e| format!("parse '{spec}': {e}"))
 }
 

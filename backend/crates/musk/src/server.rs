@@ -21,7 +21,7 @@ use std::sync::Arc;
 
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
@@ -85,6 +85,9 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/config", get(config_overview))
         .route("/api/modes", get(modes_list))
         .route("/api/skills", get(skills_list))
+        // Plan 004: Agent Roles — list / detail / save / delete.
+        .route("/api/roles", get(roles_list))
+        .route("/api/roles/{name}", get(role_detail).put(role_save).delete(role_delete))
         // Serve config-page.js + any other static assets at the root.
         .fallback_service(static_service)
         .layer(cors)
@@ -426,6 +429,143 @@ async fn skills_list() -> impl IntoResponse {
         vec![]
     };
     Json(json!({ "skills": skills }))
+}
+
+// ── Plan 004: Agent Roles endpoints ─────────────────────────────────────────
+
+/// `GET /api/roles` — list all roles (built-in + user). Built-ins are flagged.
+async fn roles_list() -> impl IntoResponse {
+    let reg = auto_ai_agent::RoleRegistry::load();
+    let roles: Vec<serde_json::Value> = reg
+        .list()
+        .iter()
+        .map(|r| {
+            json!({
+                "name": r.name,
+                "description": r.description,
+                "tier": format!("{:?}", r.tier).to_lowercase(),
+                "allowed_tiers": r.allowed_tiers.iter()
+                    .map(|t| format!("{:?}", t).to_lowercase())
+                    .collect::<Vec<_>>(),
+                "skills": r.skills,
+                "skill_count": r.skills.len(),
+                "token_budget": r.token_budget,
+                "is_builtin": r.is_builtin,
+            })
+        })
+        .collect();
+    Json(json!({ "roles": roles }))
+}
+
+/// `GET /api/roles/{name}` — full detail of one role, including the Soul md.
+async fn role_detail(axum::extract::Path(name): axum::extract::Path<String>) -> impl IntoResponse {
+    let reg = auto_ai_agent::RoleRegistry::load();
+    match reg.get(&name) {
+        Some(d) => {
+            let cfg = &d.config;
+            Json(json!({
+                "name": d.summary.name,
+                "description": d.summary.description,
+                "tier": format!("{:?}", d.summary.tier).to_lowercase(),
+                "allowed_tiers": d.summary.allowed_tiers.iter()
+                    .map(|t| format!("{:?}", t).to_lowercase())
+                    .collect::<Vec<_>>(),
+                "skills": d.summary.skills,
+                "token_budget": d.summary.token_budget,
+                "is_builtin": d.summary.is_builtin,
+                "soul": d.soul,
+                "soul_from_file": d.soul_from_file,
+                "temperature": cfg.temperature,
+                "max_turns": cfg.max_turns,
+                "inherit": cfg.inherit,
+                "tools": cfg.tools.clone().unwrap_or_default(),
+                "model": cfg.model,
+                "soul_file": cfg.soul_file,
+            }))
+            .into_response()
+        }
+        None => (StatusCode::NOT_FOUND, format!("role '{name}' not found")).into_response(),
+    }
+}
+
+/// `PUT /api/roles/{name}` body.
+#[derive(Debug, Deserialize)]
+struct RoleSaveBody {
+    description: Option<String>,
+    #[serde(default)]
+    tier: Option<String>,
+    #[serde(default)]
+    allowed_tiers: Vec<String>,
+    #[serde(default)]
+    skills: Vec<String>,
+    token_budget: Option<u64>,
+    temperature: Option<f64>,
+    max_turns: Option<usize>,
+    inherit: Option<String>,
+    #[serde(default)]
+    tools: Vec<String>,
+    model: Option<String>,
+    /// The Soul markdown body. When Some, written to the sidecar .soul.md.
+    #[serde(default)]
+    soul: Option<String>,
+}
+
+/// `PUT /api/roles/{name}` — create or overwrite a user role.
+async fn role_save(
+    axum::extract::Path(name): axum::extract::Path<String>,
+    Json(body): Json<RoleSaveBody>,
+) -> impl IntoResponse {
+    use auto_ai_agent::{parse_tier_field, ProfessionConfig};
+    let cfg = ProfessionConfig {
+        name: Some(name.clone()),
+        description: body.description,
+        inherit: body.inherit,
+        model: body.model,
+        model_tier: body.tier.as_deref().and_then(parse_tier_field),
+        temperature: body.temperature,
+        max_turns: body.max_turns,
+        allowed_tiers: if body.allowed_tiers.is_empty() {
+            None
+        } else {
+            Some(body.allowed_tiers.iter().filter_map(|s| parse_tier_field(s)).collect())
+        },
+        skills: if body.skills.is_empty() { None } else { Some(body.skills) },
+        token_budget: body.token_budget,
+        tools: if body.tools.is_empty() { None } else { Some(body.tools) },
+        soul_file: None, // set by save() when soul is provided
+        system_prompt: None,
+        system_prompt_append: None,
+        tools_append: None,
+        memory_limit: None,
+    };
+    let reg = auto_ai_agent::RoleRegistry::load();
+    match reg.save(&name, cfg, body.soul.as_deref()) {
+        Ok(_) => Json(json!({"status": "saved", "name": name})).into_response(),
+        Err(e) => (
+            StatusCode::BAD_REQUEST,
+            format!("failed to save role '{name}': {e}"),
+        )
+            .into_response(),
+    }
+}
+
+/// `DELETE /api/roles/{name}` — delete a user role (built-ins: 403).
+async fn role_delete(axum::extract::Path(name): axum::extract::Path<String>) -> impl IntoResponse {
+    let reg = auto_ai_agent::RoleRegistry::load();
+    match reg.delete(&name) {
+        Ok(_) => Json(json!({"status": "deleted", "name": name})).into_response(),
+        Err(e) => {
+            // Built-in roles → 403; not-found → 404; else 400.
+            let code = if e.to_string().contains("built-in") {
+                StatusCode::FORBIDDEN
+            } else if e.to_string().contains("not found") {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::BAD_REQUEST
+            };
+            (code, e.to_string()).into_response()
+        }
+    }
 }
 
 /// `POST /api/run` request body.
