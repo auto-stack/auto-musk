@@ -70,6 +70,12 @@ enum Cmd {
 fn main() {
     let cli = Cli::parse();
 
+    // Apply the runtime config (daemon_url etc.) from
+    // ~/.config/autoos/apps/musk/config.at to the environment, so the CLI
+    // (run/chat/serve) honors it just like the config UI. An explicit AAID_URL
+    // env var still wins. (Plan 008 Level 1.)
+    musk::app_config::apply_app_config();
+
     match cli.cmd {
         Cmd::Professions => {
             list_professions();

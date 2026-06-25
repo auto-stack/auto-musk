@@ -2,6 +2,7 @@
 //!
 //! Re-exports modules so the binary and integration tests share one source.
 
+pub mod app_config;
 pub mod auth;
 pub mod mode;
 pub mod server;
