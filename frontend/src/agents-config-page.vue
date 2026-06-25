@@ -21,15 +21,7 @@ interface Mode {
   tool_count: number
 }
 
-interface Profession {
-  name: string
-  tier: string
-  temperature: number
-  max_turns: number
-}
-
 const modes = ref<Mode[]>([])
-const professions = ref<Profession[]>([])
 const errorMsg = ref('')
 const loaded = ref(false)
 const filter = ref('')
@@ -49,18 +41,10 @@ async function load() {
   errorMsg.value = ''
   loaded.value = false
   try {
-    // Two independent endpoints — modes come from .at files, professions from
-    // compiled-in built-ins. They are unrelated data sources (see README).
-    const [modesResp, profsResp] = await Promise.all([
-      fetch(`${API_BASE}/api/modes`),
-      fetch(`${API_BASE}/api/professions`),
-    ])
-    if (!modesResp.ok) throw new Error(`GET /api/modes → HTTP ${modesResp.status}`)
-    if (!profsResp.ok) throw new Error(`GET /api/professions → HTTP ${profsResp.status}`)
-    const modesData = await modesResp.json()
-    const profsData = await profsResp.json()
-    modes.value = modesData.modes || []
-    professions.value = profsData.professions || []
+    const resp = await fetch(`${API_BASE}/api/modes`)
+    if (!resp.ok) throw new Error(`GET /api/modes → HTTP ${resp.status}`)
+    const data = await resp.json()
+    modes.value = data.modes || []
   } catch (e: any) {
     errorMsg.value = e.message || String(e)
   } finally {
@@ -108,27 +92,11 @@ onMounted(() => load())
         </div>
       </div>
 
-      <!-- Professions -->
-      <div class="card">
-        <h2>Professions</h2>
-        <p class="card-sub">
-          Built-in professions define the model tier, temperature and turn cap.
-          The daemon resolves each tier to a concrete model.
-        </p>
-        <table>
-          <thead>
-            <tr><th>Name</th><th>Tier</th><th>Temp</th><th>Max Turns</th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="p in professions" :key="p.name">
-              <td class="mono">{{ p.name }}</td>
-              <td><span class="badge">{{ p.tier }}</span></td>
-              <td>{{ p.temperature }}</td>
-              <td>{{ p.max_turns }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <p class="note">
+        Professions are now configured as <strong>Roles</strong> in the
+        <strong>AI Roles</strong> module (🎭), where each role's Soul, skill
+        whitelist, allowed tiers, and token budget can be edited.
+      </p>
     </template>
   </div>
 </template>
@@ -156,6 +124,8 @@ th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--bor
 th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); font-weight: 600; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .empty { color: var(--text-muted); font-size: 13px; padding: 12px 0; }
+.note { font-size: 12px; color: var(--text-secondary); background: var(--accent-light); border: 1px solid var(--accent-light); border-radius: var(--radius-sm, 6px); padding: 12px 14px; margin: 0; }
+.note strong { color: var(--accent); }
 .state-msg { padding: 14px; border-radius: var(--radius, 8px); background: var(--bg-hover); color: var(--text-secondary); font-size: 13px; }
 .state-msg.error { background: rgba(196,43,28,0.08); color: var(--danger); }
 .state-msg.error .hint { display: block; margin-top: 6px; font-size: 12px; opacity: 0.85; }
