@@ -88,6 +88,8 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         // Plan 004: Agent Roles — list / detail / save / delete.
         .route("/api/roles", get(roles_list))
         .route("/api/roles/{name}", get(role_detail).put(role_save).delete(role_delete))
+        // App runtime config (musk): how it connects to the daemon, default mode, etc.
+        .route("/api/app-config", get(app_config_get).put(app_config_save))
         // Serve config-page.js + any other static assets at the root.
         .fallback_service(static_service)
         .layer(cors)
@@ -566,6 +568,156 @@ async fn role_delete(axum::extract::Path(name): axum::extract::Path<String>) -> 
             (code, e.to_string()).into_response()
         }
     }
+}
+
+// ── App runtime config (musk) ───────────────────────────────────────────────
+//
+// musk's runtime config — how it connects to the daemon, its default mode,
+// context-file discovery, etc. This is deliberately SEPARATE from the
+// capability registries (Roles/Skills/Modes): per the unified-Harness design
+// (auto-os-config/designs/), app config is "how this app runs", not "which
+// capabilities it inherits".
+//
+// Persisted to ~/.config/autoos/apps/musk/config.at. Values fall back to
+// env vars / compiled defaults when the file is absent or a field is unset.
+
+/// Path: `~/.config/autoos/apps/musk/config.at`.
+fn musk_config_path() -> Option<std::path::PathBuf> {
+    dirs::home_dir().map(|h| h.join(".config/autoos/apps/musk/config.at"))
+}
+
+/// The effective musk runtime config, merging: file < env var < compiled default.
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct MuskAppConfig {
+    /// Daemon URL (env `AAID_URL`, default http://127.0.0.1:17654).
+    #[serde(default)]
+    daemon_url: Option<String>,
+    /// Default mode for `musk run` / `musk chat` (default "superpowers").
+    #[serde(default)]
+    default_mode: Option<String>,
+    /// Context file musk auto-loads (`.musk.md` / `CLAUDE.md`), or explicit.
+    #[serde(default)]
+    context_file: Option<String>,
+    /// HTTP server bind addr for `musk serve` (default 127.0.0.1:8080).
+    #[serde(default)]
+    serve_addr: Option<String>,
+    /// Whether the daemon should be lazily started if unreachable.
+    #[serde(default)]
+    auto_start_daemon: Option<bool>,
+}
+
+impl MuskAppConfig {
+    /// Read the on-disk file (if any). Missing file → empty (all None).
+    fn load() -> Self {
+        match musk_config_path().and_then(|p| std::fs::read_to_string(p).ok()) {
+            Some(content) => Self::parse_from_at(&content).unwrap_or_default(),
+            None => Self::default(),
+        }
+    }
+
+    /// Parse the persisted .at back into the struct (best-effort prop read).
+    fn parse_from_at(content: &str) -> Option<Self> {
+        use auto_atom::AtomParser;
+        let atom = AtomParser::parse(content).ok()?;
+        let node = match atom {
+            auto_atom::Atom::Node(n) if n.name.as_str() == "musk" || n.name.as_str() == "config" => n,
+            _ => return None,
+        };
+        let opt_str = |k: &str| match node.get_prop_of(k) {
+            auto_val::Value::Str(s) => Some(s.to_string()),
+            auto_val::Value::Nil => None,
+            other => Some(other.to_astr().to_string()),
+        };
+        let opt_bool = |k: &str| match node.get_prop_of(k) {
+            auto_val::Value::Bool(b) => Some(b),
+            _ => None,
+        };
+        Some(Self {
+            daemon_url: opt_str("daemon_url"),
+            default_mode: opt_str("default_mode"),
+            context_file: opt_str("context_file"),
+            serve_addr: opt_str("serve_addr"),
+            auto_start_daemon: opt_bool("auto_start_daemon"),
+        })
+    }
+
+    /// Serialize back to a `musk { ... }` .at block.
+    fn to_at_source(&self) -> String {
+        use auto_val::{AtomSource as _, Node, Value};
+        let mut node = Node::new("musk");
+        if let Some(v) = &self.daemon_url {
+            node.set_prop("daemon_url", Value::str(v.as_str()));
+        }
+        if let Some(v) = &self.default_mode {
+            node.set_prop("default_mode", Value::str(v.as_str()));
+        }
+        if let Some(v) = &self.context_file {
+            node.set_prop("context_file", Value::str(v.as_str()));
+        }
+        if let Some(v) = &self.serve_addr {
+            node.set_prop("serve_addr", Value::str(v.as_str()));
+        }
+        if let Some(v) = self.auto_start_daemon {
+            node.set_prop("auto_start_daemon", Value::Bool(v));
+        }
+        node.to_at_source()
+    }
+
+    /// Merge env-var / compiled defaults for the *effective* values reported
+    /// to the UI (so the page shows what's actually in use, not just the file).
+    fn effective(&self) -> serde_json::Value {
+        json!({
+            "daemon_url": self.daemon_url.clone()
+                .or_else(|| std::env::var("AAID_URL").ok())
+                .unwrap_or_else(|| "http://127.0.0.1:17654".into()),
+            "default_mode": self.default_mode.clone().unwrap_or_else(|| "superpowers".into()),
+            "context_file": self.context_file.clone().unwrap_or_else(|| "auto (.musk.md / CLAUDE.md)".into()),
+            "serve_addr": self.serve_addr.clone().unwrap_or_else(|| "127.0.0.1:8080".into()),
+            "auto_start_daemon": self.auto_start_daemon.unwrap_or(true),
+        })
+    }
+}
+
+/// `GET /api/app-config` — the persisted config + the effective (merged) values.
+async fn app_config_get() -> impl IntoResponse {
+    let cfg = MuskAppConfig::load();
+    Json(json!({
+        "stored": cfg,
+        "effective": cfg.effective(),
+    }))
+}
+
+/// `PUT /api/app-config` body.
+#[derive(Debug, Deserialize)]
+struct AppConfigSaveBody {
+    daemon_url: Option<String>,
+    default_mode: Option<String>,
+    context_file: Option<String>,
+    serve_addr: Option<String>,
+    auto_start_daemon: Option<bool>,
+}
+
+/// `PUT /api/app-config` — persist the config to ~/.config/autoos/apps/musk/config.at.
+async fn app_config_save(Json(body): Json<AppConfigSaveBody>) -> impl IntoResponse {
+    let cfg = MuskAppConfig {
+        daemon_url: body.daemon_url,
+        default_mode: body.default_mode,
+        context_file: body.context_file,
+        serve_addr: body.serve_addr,
+        auto_start_daemon: body.auto_start_daemon,
+    };
+    let path = match musk_config_path() {
+        Some(p) => p,
+        None => return (StatusCode::INTERNAL_SERVER_ERROR, "cannot determine home dir".to_string()).into_response(),
+    };
+    if let Err(e) = std::fs::create_dir_all(path.parent().unwrap_or(std::path::Path::new("."))) {
+        return (StatusCode::INTERNAL_SERVER_ERROR, format!("mkdir: {e}")).into_response();
+    }
+    let src = cfg.to_at_source();
+    if let Err(e) = std::fs::write(&path, &src) {
+        return (StatusCode::INTERNAL_SERVER_ERROR, format!("write: {e}")).into_response();
+    }
+    Json(json!({"status": "saved", "path": path.display().to_string(), "effective": cfg.effective()})).into_response()
 }
 
 /// `POST /api/run` request body.

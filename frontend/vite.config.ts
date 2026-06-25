@@ -52,12 +52,14 @@ export default defineConfig({
       //   config-page.js        → "AI Agent" module (modes + professions)
       //   skills-config-page.js → "AI Skills" module (skill registry)
       //   roles-config-page.js  → "AI Roles" module (Plan 004)
+      //   app-config-page.js    → "AI Musk" module (runtime: daemon conn etc.)
       // Each keeps `vue` external and inlines its CSS, so each is self-contained
       // and shares the host's single Vue runtime via the import map.
       entry: {
         'config-page': './src/agents-config-page.vue',
         'skills-config-page': './src/skills-config-page.vue',
         'roles-config-page': './src/roles-config-page.vue',
+        'app-config-page': './src/app-config-page.vue',
       },
       formats: ['es'],
     },
