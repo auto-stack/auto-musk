@@ -422,7 +422,7 @@ impl Tool for Glob {
         // Cap the output to avoid flooding context.
         const MAX: usize = 200;
         let mut out = String::new();
-        for (i, m) in matches.iter().enumerate().take(MAX) {
+        for (_i, m) in matches.iter().enumerate().take(MAX) {
             out.push_str(m);
             out.push('\n');
         }

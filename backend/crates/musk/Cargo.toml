@@ -41,3 +41,5 @@ auto-val = { path = "../../../../auto-lang/crates/auto-val" }
 [dev-dependencies]
 # tools 单元测试用 #[tokio::test]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
+# chats 单元测试用临时文件
+tempfile = "3"

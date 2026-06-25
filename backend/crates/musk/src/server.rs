@@ -1044,8 +1044,7 @@ mod tests {
         };
         let req = RunRequest {
             task: "say hello".into(),
-            profession: "coder".into(),
-            skills: true,
+            mode: "superpowers".into(),
         };
         let resp = run_inner(state, req).await.unwrap();
         assert_eq!(resp.output, "mock answer");
@@ -1061,8 +1060,7 @@ mod tests {
         };
         let req = RunRequest {
             task: "x".into(),
-            profession: "nonexistent".into(),
-            skills: true,
+            mode: "nonexistent-mode".into(),
         };
         let err = run_inner(state, req).await.unwrap_err();
         assert_eq!(err.0, StatusCode::BAD_REQUEST);

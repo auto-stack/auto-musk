@@ -4,6 +4,7 @@
 
 pub mod app_config;
 pub mod auth;
+pub mod chats;
 pub mod mode;
 pub mod server;
 pub mod specs;
