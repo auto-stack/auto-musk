@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useAuth } from './composables/useAuth'
-import MuskIcon from './components/MuskIcon.vue'
 import LoginView from './views/LoginView.vue'
 import ChatsView from './views/ChatsView.vue'
 
@@ -19,7 +18,7 @@ onMounted(async () => {
   <LoginView v-else-if="!token" />
   <div v-else class="app-shell">
     <header class="topbar">
-      <span class="brand"><MuskIcon :size="22" /> Auto Musk</span>
+      <span class="brand">🦌 Auto Musk</span>
       <span class="spacer"></span>
       <span class="nav-item active">Chats</span>
       <span class="nav-item muted" title="coming soon">Flows</span>
