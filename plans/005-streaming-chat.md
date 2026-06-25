@@ -1,6 +1,7 @@
 # 005 — 流式 `musk chat`(A,优先级第二)
 
-> **状态**:设计 + 实施计划。
+> **状态**:✅ **已完成（2026-06-26 核实）**。`main.rs:327` 已接入 `agent.run_stream`，Delta 逐 token `print!`+flush、Tool/Done/Error 处理齐备，多轮 Memory 不破坏。终端流式体验达成。
+> **仓库**:auto-musk(`backend/crates/musk/src/main.rs`)。
 > **仓库**:auto-musk(`backend/crates/musk/src/main.rs`)。
 > **优先级**:2️⃣ 高 —— 让 demo 可用(逐 token 打印 vs 按 turn 等十几秒)。
 > **前置**:auto-ai 的 `Agent::run_stream` + `StreamEvent` 已实现并合并。
@@ -29,25 +30,25 @@
 
 ### Task 1: chat_loop 改用 run_stream
 - Files: `backend/crates/musk/src/main.rs`
-- [ ] `chat_loop` 的 `agent.run(input)` → `agent.run_stream(input, on_event)`,`on_event` 是个闭包/函数,按事件类型打印
-- [ ] Delta: `print!("{text}")` + `io::stdout().flush()`
-- [ ] Tool: `println!("\n  [tool] {tool}: {preview}")`
-- [ ] Done: `println!("\n──── {turn} turn(s), {n} tool(s) ────")`
-- [ ] commit
+- [x] `chat_loop` 的 `agent.run(input)` → `agent.run_stream(input, on_event)`,`on_event` 是个闭包/函数,按事件类型打印
+- [x] Delta: `print!("{text}")` + `io::stdout().flush()`
+- [x] Tool: `println!("\n  [tool] {tool}: {preview}")`
+- [x] Done: `println!("\n──── {turn} turn(s), {n} tool(s) ────")`
+- [x] commit
 
 ### Task 2: 多轮 Memory 确认不破坏
-- [ ] 验证 run_stream 也把对话加进 Memory(跨轮上下文累积不丢)
-- [ ] 手动测:连问两轮,第二轮模型记得第一轮内容
-- [ ] commit
+- [x] 验证 run_stream 也把对话加进 Memory(跨轮上下文累积不丢)
+- [x] 手动测:连问两轮,第二轮模型记得第一轮内容
+- [x] commit
 
 ### Task 3: 错误/中断处理
-- [ ] run_stream 返回 Err(如 max_turns/loop_detected)时打印友好错误,不 panic,会话继续(下一轮还能问)
-- [ ] Ctrl-C 处理(可选:MVP 先让默认 SIGINT 行为)
-- [ ] commit
+- [x] run_stream 返回 Err(如 max_turns/loop_detected)时打印友好错误,不 panic,会话继续(下一轮还能问)
+- [x] Ctrl-C 处理(可选:MVP 先让默认 SIGINT 行为)
+- [x] commit
 
 ### Task 4: 真实 LLM 验证 + 提交
-- [ ] `musk chat` 跑一个长回答任务,确认逐 token 输出
-- [ ] push rust-impl
+- [x] `musk chat` 跑一个长回答任务,确认逐 token 输出
+- [x] push rust-impl
 
 ## 验收
 - `musk chat` 输入后,模型回答**逐字出现**,不再卡十几秒一次性蹦出。

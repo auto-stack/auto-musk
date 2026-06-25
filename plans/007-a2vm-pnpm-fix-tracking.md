@@ -1,8 +1,8 @@
 # 001 — a2vm pnpm fix PR review/合并(E,优先级最低)
 
-> **状态**:修复**已完成并推送**,待 review/合并。本文件是跟踪记录。
+> **状态**: ✅ **已解决（2026-06-26 核实）** —— auto-lang master 已以**另案方案**修复并合并,本跟踪文件可关闭。
 > **仓库**:auto-lang(`gitee.com:auto-stack/auto-lang`)。
-> **分支**:`fix/vue-pnpm-workspace-single-package`(已推送)。
+> **分支**:`fix/vue-pnpm-workspace-single-package`(本仓原修复分支,本地已不可见)。
 > **优先级**:5️⃣ 低 —— 不阻塞任何东西,挂着等 review。
 
 ## 已完成的修复
@@ -13,11 +13,19 @@
 
 **验证**:修复后 `auto build` 在 auto-musk 上完整跑通(install + shadcn 组件自动装 + vite build)。
 
-## 待办
+## ✅ 解决情况（2026-06-26 核实）
 
-- [ ] review 分支 `fix/vue-pnpm-workspace-single-package`
-- [ ] 合并到 auto-lang master
-- [ ] (可选)考虑:是否在生成器里加个单测,防回归(写 pnpm-workspace.yaml 的逻辑不再触发)
+auto-lang 团队**未采用本计划提议的 no-op 方案,而是以另一套方案解决并合并到 master**。证据（auto-lang master 提交）:
+- `dc0886c8 fix(auto-man): pnpm v11 build approvals — allowBuilds map + workspace root check`
+- `51280936 fix(auto-man): pnpm build approvals via .npmrc, not workspace yaml`
+- `fa6c93fa fix(pnpm): disable verify-deps-before-run to stop vite startup crash`
+- `0eeae905 fix(pnpm): remove deprecated pnpm field from package.json + clean yaml`
+
+`ensure_pnpm_build_approvals` 仍在 `crates/auto-man/src/vue.rs:557`(采用 allowBuilds map + workspace root check,而非本计划的 no-op)。**根因问题（pnpm install 失败阻塞生成的 Vue 项目）已消除**,目标达成。
+
+- [x] review 分支 `fix/vue-pnpm-workspace-single-package`(auto-lang 另案处理)
+- [x] 合并到 auto-lang master(以 `dc0886c8` 等系列提交)
+- [ ] (可选)防回归单测——auto-lang master 现方案是否已有,未核实
 
 ## 影响
 

@@ -1,6 +1,8 @@
 # 003 — auto-musk MVP:Rust 后端 + 单 agent + 基础工具
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+
+> **✅ 已完成（2026-06-26 核实）**：Rust workspace 骨架（`backend/Cargo.toml` + `crates/musk`）、3 个基础工具、`musk run` CLI、README 全部落地。验收标准全达成：`cargo build`/`cargo test` 通过，9 个工具就位（见 Plan 004 扩展）。产出 commit 见 git log。
 
 **Goal:** 建立 auto-musk 的 Rust 后端骨架,实现一个可运行的 CLI agent —— 用 `auto-ai-agent` 的 Coder profession + 基础工具(读/写/执行),经 `auto-ai-daemon` 完成任务。这是 v2 阶段 0(骨架)+ 阶段 1(MVP)合并为首期交付。
 
@@ -12,9 +14,9 @@
 
 ## 前置条件(执行前确认)
 
-- [ ] `auto-ai` 仓库 main 分支已包含 auto-ai-agent(auto-ai-client/daemon/agent/ai-config),路径 `D:/autostack/auto-ai`。✅(已完成)
-- [ ] `auto-ai-daemon`(`aaid`)可构建:`cd ../auto-ai && cargo build -p auto-ai-daemon`。执行本计划前先确认它能跑(或至少能编译)。
-- [ ] 有一个可用的 LLM provider 配置(智谱/Anthropic/OpenAI 任一),否则 MVP 的 agent run 会因 daemon 无 provider 而失败。配置见 `~/.config/autoos/ai-daemon.at`(参考 `../auto-ai/crates/ai-config/examples/daemon.at`)。
+- [x] `auto-ai` 仓库 main 分支已包含 auto-ai-agent(auto-ai-client/daemon/agent/ai-config),路径 `D:/autostack/auto-ai`。✅(已完成)
+- [x] `auto-ai-daemon`(`aaid`)可构建:`cd ../auto-ai && cargo build -p auto-ai-daemon`。执行本计划前先确认它能跑(或至少能编译)。
+- [x] 有一个可用的 LLM provider 配置(智谱/Anthropic/OpenAI 任一),否则 MVP 的 agent run 会因 daemon 无 provider 而失败。配置见 `~/.config/autoos/ai-daemon.at`(参考 `../auto-ai/crates/ai-config/examples/daemon.at`)。
 
 ---
 
@@ -65,7 +67,7 @@ auto-musk/
 
 **说明:** 建立 Rust workspace,`musk` 二进制依赖 `auto-ai-agent`(本地 path 依赖 `../../auto-ai/crates/auto-ai-agent`)。先确认依赖能解析、能编译,再写业务。
 
-- [ ] **Step 1: 创建 `backend/Cargo.toml`(workspace 根)**
+- [x] **Step 1: 创建 `backend/Cargo.toml`(workspace 根)**
 
 ```toml
 [workspace]
@@ -73,7 +75,7 @@ resolver = "2"
 members = ["crates/musk"]
 ```
 
-- [ ] **Step 2: 创建 `backend/crates/musk/Cargo.toml`**
+- [x] **Step 2: 创建 `backend/crates/musk/Cargo.toml`**
 
 ```toml
 [package]
@@ -99,7 +101,7 @@ serde_json = "1"
 
 **路径核验**:`backend/crates/musk/` → `../`=`crates` → `../../`=`backend` → `../../../`=`auto-musk` → 需要到 `auto-ai/crates/auto-ai-agent`。从 `auto-musk` 到 `auto-ai` 是兄弟目录(`D:/autostack/auto-musk` → `D:/autostack/auto-ai`)。所以从 `backend/crates/musk` 是 `../../../auto-ai/crates/auto-ai-agent`?算一下:`backend/crates/musk` 上三级 = `auto-musk`,再 `../auto-ai` = `D:/autostack/auto-ai`。所以正确路径是 `../../../../auto-ai/crates/auto-ai-agent`(四级 `../`)。**Step 2 实现时务必用 `cargo` 报错来校准路径**(参考 auto-ai-agent Cargo.toml 里 auto-atom 的三级 `../` 模式),不要假设。
 
-- [ ] **Step 3: 创建最小 `backend/crates/musk/src/main.rs`**
+- [x] **Step 3: 创建最小 `backend/crates/musk/src/main.rs`**
 
 ```rust
 fn main() {
@@ -107,12 +109,12 @@ fn main() {
 }
 ```
 
-- [ ] **Step 4: 验证编译 + 依赖解析**
+- [x] **Step 4: 验证编译 + 依赖解析**
 
 Run: `cd backend && cargo build`
 Expected: 编译通过,`auto-ai-agent` 及其依赖(auto-ai-client/ai-config/auto-atom)全部拉取成功。若路径错误,cargo 会报 "failed to read Cargo.toml",据报错校准 `../` 层数。
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add backend/
@@ -130,7 +132,7 @@ git commit -m "feat(backend): Rust workspace skeleton + auto-ai-agent dep"
 
 **说明:** 实现 3 个 `auto_ai_agent::Tool`,参照 auto-ai-agent 的 Tool trait(`name`/`description`/`parameters`/`execute`)。这些是 agent 调 daemon 之外、在本地执行的工具。
 
-- [ ] **Step 1: 写 `tools.rs` 的 read_file 工具(TDD:先写测试)**
+- [x] **Step 1: 写 `tools.rs` 的 read_file 工具(TDD:先写测试)**
 
 `backend/crates/musk/tests/tools.rs`:
 ```rust
@@ -155,12 +157,12 @@ async fn read_file_missing_errors() {
 
 (测试引用 `musk::tools`,所以 tools 要在 lib.rs 或 main.rs 里 `pub mod tools;` 并让 crate 有 lib target。**决策:把 musk 做成 lib + bin 双 target**,lib 暴露 tools,bin 是 CLI。更新 Cargo.toml 加 `[lib]`。)
 
-- [ ] **Step 2: 运行测试确认失败(ReadFile 未实现)**
+- [x] **Step 2: 运行测试确认失败(ReadFile 未实现)**
 
 Run: `cd backend && cargo test`
 Expected: 编译失败(`musk::tools` 不存在)。
 
-- [ ] **Step 3: 实现 `tools.rs`(ReadFile + WriteFile + RunCommand)**
+- [x] **Step 3: 实现 `tools.rs`(ReadFile + WriteFile + RunCommand)**
 
 ```rust
 //! auto-musk 基础工具:agent 在本地执行的能力(不经 daemon)。
@@ -229,7 +231,7 @@ impl Tool for RunCommand {
 }
 ```
 
-- [ ] **Step 4: 让 musk 成为 lib + bin(更新 Cargo.toml 加 `[lib]`)**
+- [x] **Step 4: 让 musk 成为 lib + bin(更新 Cargo.toml 加 `[lib]`)**
 
 `backend/crates/musk/Cargo.toml` 加:
 ```toml
@@ -239,12 +241,12 @@ path = "src/lib.rs"
 ```
 创建 `src/lib.rs`:`pub mod tools;`
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run: `cd backend && cargo test`
 Expected: read_file 测试通过。
 
-- [ ] **Step 6: 加 WriteFile / RunCommand 测试 + 提交**
+- [x] **Step 6: 加 WriteFile / RunCommand 测试 + 提交**
 
 补 WriteFile 测试(写临时文件再读回),RunCommand 测试(`echo hi`)。
 ```bash
@@ -261,7 +263,7 @@ git commit -m "feat(musk): basic tools (read_file/write_file/run_command)"
 
 **说明:** 用 clap 定义 `musk run <task>` 子命令。构建 Coder Agent,注册 3 个工具,调 `Agent::run`,打印 output + 轮次 + 工具调用记录。
 
-- [ ] **Step 1: 写 main.rs(clap + agent)**
+- [x] **Step 1: 写 main.rs(clap + agent)**
 
 ```rust
 mod tools;
@@ -323,16 +325,16 @@ async fn run_task(task: &str) -> anyhow::Result<()> {
 }
 ```
 
-- [ ] **Step 2: 加 anyhow 依赖**
+- [x] **Step 2: 加 anyhow 依赖**
 
 `backend/crates/musk/Cargo.toml` 的 `[dependencies]` 加 `anyhow = "1"`。
 
-- [ ] **Step 3: 验证编译**
+- [x] **Step 3: 验证编译**
 
 Run: `cd backend && cargo build`
 Expected: 编译通过。
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add backend/
@@ -348,23 +350,23 @@ git commit -m "feat(musk): CLI 'musk run <task>' with Coder agent + tools"
 
 **说明:** 端到端跑一次(需 daemon + provider),写 README 说明构建/运行。这一步的"验证"依赖真实 LLM,若环境没有 provider,至少验证 CLI 能启动并给出清晰的 daemon-unavailable 错误。
 
-- [ ] **Step 1: 确认 daemon 可跑**
+- [x] **Step 1: 确认 daemon 可跑**
 
 Run(在 auto-ai 仓库): `cd ../auto-ai && cargo build -p auto-ai-daemon`
 然后确保 `~/.config/autoos/ai-daemon.at` 存在(参考 `crates/ai-config/examples/daemon.at`),或设了 `ZHIPU_API_KEY` 等环境变量。
 
-- [ ] **Step 2: 跑 musk(有 provider 时)**
+- [x] **Step 2: 跑 musk(有 provider 时)**
 
 Run: `cd backend && cargo run -- run "List the files in the current directory using the run_command tool, then read Cargo.toml."`
 Expected: agent 调 run_command 列目录、读 Cargo.toml,返回汇总。轮次 ≥ 2,有 tool_calls 记录。
 
 (若无 provider,跑 `cargo run -- run "anything"`,确认它给出清晰的 "cannot reach auto-ai-daemon" 错误,不 panic。)
 
-- [ ] **Step 3: 写 `backend/README.md`**
+- [x] **Step 3: 写 `backend/README.md`**
 
 包含:定位、依赖 auto-ai-agent、构建(`cargo build`)、运行(`musk run "task"`)、前置条件(daemon + provider 配置)、与 auto-ai 的关系。
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 git add backend/README.md
@@ -375,11 +377,11 @@ git commit -m "docs(musk): backend README + e2e verification"
 
 ## 验收标准(MVP 完成 = 本计划完成)
 
-- [ ] `cd backend && cargo build` 成功,依赖 auto-ai-agent 正确解析。
-- [ ] `cargo test`(在 backend)通过:read_file/write_file/run_command 工具测试全绿。
-- [ ] `musk run "<task>"` 在有 daemon + provider 时,能跑完一个 ReAct 循环,调用工具,返回结果。
-- [ ] 在无 daemon 时,给出清晰错误而非 panic。
-- [ ] `backend/README.md` 说明清楚。
+- [x] `cd backend && cargo build` 成功,依赖 auto-ai-agent 正确解析。
+- [x] `cargo test`(在 backend)通过:read_file/write_file/run_command 工具测试全绿。
+- [x] `musk run "<task>"` 在有 daemon + provider 时,能跑完一个 ReAct 循环,调用工具,返回结果。
+- [x] 在无 daemon 时,给出清晰错误而非 panic。
+- [x] `backend/README.md` 说明清楚。
 
 ## 不在本期范围(明确排除)
 

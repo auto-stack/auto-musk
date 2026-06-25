@@ -1,6 +1,9 @@
 # 004 — 工具集补全(B,优先级最高)
 
 > **状态**:设计 + 实施计划。执行时用 `executing-plans` 技能逐 task 推进。
+
+> **✅ 已完成（2026-06-26 核实）**：list_dir / list_symbols / glob / batch_replace 全部实现并注册。tools.rs 现 9 个工具。
+> **澄清**：计划标题"~10 个工具"曾疑缺 `skill`——核实确认 `skill` 是独立 mode 机制（`mode.rs:22 skills: bool`，basic/coding mode 切换），**不在 tools.rs 工具位**，故 9 个工具即完整，无缺失。
 > **仓库**:auto-musk(`backend/crates/musk/src/tools.rs`)。
 > **优先级**:1️⃣ 最高 —— 工具是 agent 的"手",executing-plans 的验证阶段依赖它们。
 
@@ -60,34 +63,34 @@ backend/crates/musk/src/tools.rs   ← 加 ListDir / ListSymbols / Glob / BatchR
 
 ### Task 1: `list_dir`
 - Files: `backend/crates/musk/src/tools.rs`
-- [ ] 实现 `ListDir`(返回 `[{name, is_dir, size}]`)
-- [ ] 测试:列 tmp 目录、不存在报错
-- [ ] 注册进 `build_agent`(`lib.rs`)
-- [ ] commit
+- [x] 实现 `ListDir`(返回 `[{name, is_dir, size}]`)
+- [x] 测试:列 tmp 目录、不存在报错
+- [x] 注册进 `build_agent`(`lib.rs`)
+- [x] commit
 
 ### Task 2: `list_symbols`
-- [ ] 实现(Rust + TS 正则扫描,返回符号行列表)
-- [ ] 测试:扫 tools.rs 自己(应含 `pub struct EditFile`)
-- [ ] 注册进 `build_agent`
-- [ ] commit
+- [x] 实现(Rust + TS 正则扫描,返回符号行列表)
+- [x] 测试:扫 tools.rs 自己(应含 `pub struct EditFile`)
+- [x] 注册进 `build_agent`
+- [x] commit
 
 ### Task 3: `glob`(加 `glob` crate 依赖)
-- [ ] `Cargo.toml` + `glob = "0.3"`
-- [ ] 实现 `Glob`(pattern + path)
-- [ ] 测试:找 `**/*.rs`
-- [ ] 注册进 `build_agent`
-- [ ] commit
+- [x] `Cargo.toml` + `glob = "0.3"`
+- [x] 实现 `Glob`(pattern + path)
+- [x] 测试:找 `**/*.rs`
+- [x] 注册进 `build_agent`
+- [x] commit
 
 ### Task 4: `batch_replace`
-- [ ] 实现(逐个唯一性校验 + 替换)
-- [ ] 测试:批量替换、其中一个不唯一时报错回滚
-- [ ] 注册进 `build_agent`
-- [ ] commit
+- [x] 实现(逐个唯一性校验 + 替换)
+- [x] 测试:批量替换、其中一个不唯一时报错回滚
+- [x] 注册进 `build_agent`
+- [x] commit
 
 ### Task 5: 验证 + 提交
-- [ ] `musk chat` 真实 LLM:让模型探索一个项目,确认它用了新工具
-- [ ] 全测试绿
-- [ ] push rust-impl
+- [x] `musk chat` 真实 LLM:让模型探索一个项目,确认它用了新工具
+- [x] 全测试绿
+- [x] push rust-impl
 
 ## 验收
 - 工具数从 6 → 10,覆盖"探索(list_dir/list_symbols/glob)+ 编辑(edit_file/batch_replace)+ 验证(run_command/search)+ 技能(skill)"闭环。

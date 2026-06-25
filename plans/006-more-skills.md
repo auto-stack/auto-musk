@@ -1,6 +1,7 @@
 # 006 — 更多技能移植(D,优先级中低)
 
-> **状态**:设计 + 实施计划。
+> **状态**:✅ **已完成（2026-06-26 核实）**。技能从 3 个扩展到 7 个（新增 test-driven-development / systematic-debugging / requesting-code-review / verification-before-completion）。`skills/` 与 `~/.config/autoos/skills/` 双处安装齐备。
+> **仓库**:auto-musk(`skills/` + 用户目录 `~/.config/autoos/skills/`)。
 > **仓库**:auto-musk(`skills/` + 用户目录 `~/.config/autoos/skills/`)。
 > **优先级**:4️⃣ 中低 —— 三步曲(最核心)已有,这些是"锦上添花"。
 
@@ -44,14 +45,14 @@
 
 ### Task 1-4: 各写一个技能 SKILL.md
 每个:
-- [ ] 读 superpowers 原文,提取核心方法论
-- [ ] 改编为 musk 上下文(工具名、流程适配 CLI agent)
-- [ ] 写 `skills/<name>/SKILL.md` + 装到 `~/.config/autoos/skills/<name>/`
-- [ ] commit
+- [x] 读 superpowers 原文,提取核心方法论
+- [x] 改编为 musk 上下文(工具名、流程适配 CLI agent)
+- [x] 写 `skills/<name>/SKILL.md` + 装到 `~/.config/autoos/skills/<name>/`
+- [x] commit
 
 ### Task 5: 验证 + 提交
-- [ ] `musk chat` 确认新技能出现在 `<available_skills>` 且模型能调用
-- [ ] push
+- [x] `musk chat` 确认新技能出现在 `<available_skills>` 且模型能调用
+- [x] push
 
 ## 验收
 - 技能库从 3 → 7(+4 个核心)。
