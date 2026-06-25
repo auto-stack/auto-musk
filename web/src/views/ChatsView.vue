@@ -144,7 +144,7 @@ onMounted(loadSessions)
           <textarea
             v-model="input"
             class="input"
-            placeholder="Message Musk…  (Enter to send, Shift+Enter for newline)"
+            placeholder="Message Auto Musk…  (Enter to send, Shift+Enter for newline)"
             @keydown.enter.exact.prevent="send"
             :disabled="streaming"
             rows="1"

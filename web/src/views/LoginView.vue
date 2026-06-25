@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useAuth } from '../composables/useAuth'
+import MuskIcon from '../components/MuskIcon.vue'
 
 const { login } = useAuth()
 const user = ref('admin')
@@ -20,8 +21,8 @@ async function submit() {
 <template>
   <div class="login-wrap">
     <form class="login-card" @submit.prevent="submit">
-      <div class="logo">🦊</div>
-      <h1>Musk</h1>
+      <div class="logo"><MuskIcon :size="48" /></div>
+      <h1>Auto Musk</h1>
       <p class="sub">Sign in to your AI coding agent</p>
       <input v-model="user" type="text" placeholder="Username" autocomplete="username" />
       <input v-model="pass" type="password" placeholder="Password" autocomplete="current-password" />
