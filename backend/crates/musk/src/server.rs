@@ -610,7 +610,7 @@ async fn role_delete(axum::extract::Path(name): axum::extract::Path<String>) -> 
 // Per the unified-Harness design, app config is "how this app runs", not
 // "which capabilities it inherits".
 
-use crate::app_config::{musk_config_path, MuskAppConfig};
+use crate::app_config::{musk_config_path, HarnessSelection, MuskAppConfig};
 
 /// `GET /api/app-config` — the persisted config + the effective (merged) values.
 async fn app_config_get() -> impl IntoResponse {
@@ -629,6 +629,18 @@ struct AppConfigSaveBody {
     context_file: Option<String>,
     serve_addr: Option<String>,
     auto_start_daemon: Option<bool>,
+    #[serde(default)]
+    harness: HarnessBody,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct HarnessBody {
+    #[serde(default)]
+    roles: Vec<String>,
+    #[serde(default)]
+    skills: Vec<String>,
+    #[serde(default)]
+    modes: Vec<String>,
 }
 
 /// `PUT /api/app-config` — persist the config to ~/.config/autoos/apps/musk/config.at.
@@ -639,6 +651,11 @@ async fn app_config_save(Json(body): Json<AppConfigSaveBody>) -> impl IntoRespon
         context_file: body.context_file,
         serve_addr: body.serve_addr,
         auto_start_daemon: body.auto_start_daemon,
+        harness: HarnessSelection {
+            roles: body.harness.roles,
+            skills: body.harness.skills,
+            modes: body.harness.modes,
+        },
     };
     let path = match musk_config_path() {
         Some(p) => p,

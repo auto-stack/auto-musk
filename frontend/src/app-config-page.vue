@@ -31,6 +31,11 @@ const form = reactive({
   auto_start_daemon: true,
 })
 
+// Harness selection (which OS-level roles/skills/modes this app inherits)
+interface HarnessCatalog { roles: string[]; skills: string[]; modes: string[] }
+const osCatalog = ref<HarnessCatalog>({ roles: [], skills: [], modes: [] })
+const harness = reactive<HarnessCatalog>({ roles: [], skills: [], modes: [] })
+
 const loaded = ref(false)
 const errorMsg = ref('')
 const saving = ref(false)
@@ -40,17 +45,31 @@ async function load() {
   errorMsg.value = ''
   loaded.value = false
   try {
-    const resp = await fetch(`${API_BASE}/api/app-config`)
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-    const data = await resp.json()
+    const [cfgResp, rolesResp, skillsResp, modesResp] = await Promise.all([
+      fetch(`${API_BASE}/api/app-config`),
+      fetch(`${API_BASE}/api/roles`),
+      fetch(`${API_BASE}/api/skills`),
+      fetch(`${API_BASE}/api/modes`),
+    ])
+    if (!cfgResp.ok) throw new Error(`HTTP ${cfgResp.status}`)
+    const data = await cfgResp.json()
     effective.value = data.effective
-    // Seed the form with stored values (or effective defaults)
     const s = data.stored || {}
     form.daemon_url = s.daemon_url ?? data.effective.daemon_url
     form.default_mode = s.default_mode ?? data.effective.default_mode
     form.context_file = s.context_file ?? ''
     form.serve_addr = s.serve_addr ?? data.effective.serve_addr
     form.auto_start_daemon = s.auto_start_daemon ?? data.effective.auto_start_daemon
+    // Harness catalog (OS-level available) + this app's selection
+    osCatalog.value = {
+      roles: (await rolesResp.json().then(d => d.roles || []).catch(() => [])).map((r: any) => r.name),
+      skills: (await skillsResp.json().then(d => d.skills || []).catch(() => [])).map((r: any) => r.name),
+      modes: (await modesResp.json().then(d => d.modes || []).catch(() => [])).map((r: any) => r.name),
+    }
+    const h = data.effective.harness || { roles: [], skills: [], modes: [] }
+    harness.roles = [...(h.roles || [])]
+    harness.skills = [...(h.skills || [])]
+    harness.modes = [...(h.modes || [])]
     // Probe daemon reachability
     testDaemon(data.effective.daemon_url)
   } catch (e: any) {
@@ -93,6 +112,7 @@ async function save() {
         context_file: form.context_file || null,
         serve_addr: form.serve_addr || null,
         auto_start_daemon: form.auto_start_daemon,
+        harness: { roles: harness.roles, skills: harness.skills, modes: harness.modes },
       }),
     })
     const data = await resp.json()
@@ -107,6 +127,13 @@ async function save() {
   } finally {
     saving.value = false
   }
+}
+
+function toggleHarness(kind: 'roles' | 'skills' | 'modes', name: string) {
+  const list = harness[kind]
+  const i = list.indexOf(name)
+  if (i >= 0) list.splice(i, 1)
+  else list.push(name)
 }
 
 onMounted(() => load())
@@ -178,6 +205,40 @@ onMounted(() => load())
         </div>
       </div>
 
+      <!-- Harness selection (which OS-level capabilities this app inherits) -->
+      <div class="card">
+        <h2>Harness</h2>
+        <p class="card-sub">
+          Choose which OS-level capabilities this app inherits. Selected items
+          are used as-is (no field overrides). This is the app's capability scope.
+        </p>
+
+        <div v-for="kind in (['roles','skills','modes'] as const)" :key="kind" class="harness-kind">
+          <h3>{{ kind }} <span class="muted">({{ harness[kind].length }}/{{ osCatalog[kind].length }})</span></h3>
+          <div v-if="osCatalog[kind].length === 0" class="muted small">No OS-level {{ kind }} available.</div>
+          <div v-else class="harness-grid">
+            <label
+              v-for="name in osCatalog[kind]"
+              :key="name"
+              class="harness-check"
+              :class="{ on: harness[kind].includes(name) }"
+            >
+              <input
+                type="checkbox"
+                :checked="harness[kind].includes(name)"
+                @change="toggleHarness(kind, name)"
+              />
+              {{ name }}
+            </label>
+          </div>
+        </div>
+
+        <p class="where tight">
+          APP-level custom harnesses (defined here, same format as OS-level)
+          are a planned follow-up. Phase 1 covers OS-level inheritance only.
+        </p>
+      </div>
+
       <!-- Save bar -->
       <div class="save-bar">
         <button class="btn-sm primary" :disabled="saving" @click="save">
@@ -234,6 +295,15 @@ onMounted(() => load())
 
 .where { font-size: 11px; color: var(--text-muted); line-height: 1.6; margin-top: 12px; }
 .where code { background: var(--bg-hover); padding: 1px 5px; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.harness-kind { margin-bottom: 14px; }
+.harness-kind h3 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--text-muted); margin: 0 0 6px 0; text-transform: capitalize; }
+.harness-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.harness-check { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 8px; border-radius: var(--radius-sm, 4px); cursor: pointer; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.harness-check.on { background: var(--accent-light); color: var(--accent); }
+.harness-check input { margin: 0; }
+.muted.small { font-size: 11px; color: var(--text-muted); }
+.where.tight { margin-top: 10px; font-size: 11px; }
 
 .state-msg { padding: 14px; border-radius: var(--radius, 8px); background: var(--bg-hover); color: var(--text-secondary); font-size: 13px; }
 .state-msg.error { background: rgba(196,43,28,.08); color: var(--danger); }

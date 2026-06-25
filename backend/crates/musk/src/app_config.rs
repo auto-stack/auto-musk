@@ -36,6 +36,23 @@ pub struct MuskAppConfig {
     /// Whether the daemon should be lazily started if unreachable.
     #[serde(default)]
     pub auto_start_daemon: Option<bool>,
+    /// Which OS-level harness kinds/names this app has opted into (inherited
+    /// as-is — no field override, per the unified-Harness design Phase 1).
+    /// Keyed by kind ("roles"/"skills"/"modes"). Empty = inherit nothing.
+    #[serde(default)]
+    pub harness: HarnessSelection,
+}
+
+/// The app's harness selection: which OS-level (or app-level) harnesses it
+/// uses. Phase 1 is "inherit as-is" — names are used directly, no overrides.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct HarnessSelection {
+    #[serde(default)]
+    pub roles: Vec<String>,
+    #[serde(default)]
+    pub skills: Vec<String>,
+    #[serde(default)]
+    pub modes: Vec<String>,
 }
 
 impl MuskAppConfig {
@@ -70,6 +87,7 @@ impl MuskAppConfig {
             context_file: opt_str("context_file"),
             serve_addr: opt_str("serve_addr"),
             auto_start_daemon: opt_bool("auto_start_daemon"),
+            harness: parse_harness(&node),
         })
     }
 
@@ -91,6 +109,21 @@ impl MuskAppConfig {
         }
         if let Some(v) = self.auto_start_daemon {
             node.set_prop("auto_start_daemon", Value::Bool(v));
+        }
+        // Harness selection (nested node).
+        let h = &self.harness;
+        if !h.roles.is_empty() || !h.skills.is_empty() || !h.modes.is_empty() {
+            let mut hn = Node::new("harness");
+            if !h.roles.is_empty() {
+                hn.set_prop("roles", str_array(&h.roles));
+            }
+            if !h.skills.is_empty() {
+                hn.set_prop("skills", str_array(&h.skills));
+            }
+            if !h.modes.is_empty() {
+                hn.set_prop("modes", str_array(&h.modes));
+            }
+            node.add_kid(hn);
         }
         node.to_at_source()
     }
@@ -119,6 +152,11 @@ impl MuskAppConfig {
             "context_file": self.context_file.clone().unwrap_or_else(|| "auto (.musk.md / CLAUDE.md)".into()),
             "serve_addr": self.serve_addr.clone().unwrap_or_else(|| "127.0.0.1:8080".into()),
             "auto_start_daemon": self.auto_start_daemon.unwrap_or(true),
+            "harness": {
+                "roles": self.harness.roles,
+                "skills": self.harness.skills,
+                "modes": self.harness.modes,
+            },
         })
     }
 
@@ -142,6 +180,38 @@ impl MuskAppConfig {
 /// Convenience: load + apply the app config to the environment (for CLI use).
 pub fn apply_app_config() {
     MuskAppConfig::load().apply_to_env();
+}
+
+/// Parse the `harness { roles: [...]; skills: [...]; modes: [...] }` child node.
+fn parse_harness(node: &auto_val::Node) -> HarnessSelection {
+    let h = match node.kids_iter().find(|(_, k)| matches!(k, auto_val::Kid::Node(n) if n.name.as_str() == "harness")) {
+        Some((_, auto_val::Kid::Node(n))) => n,
+        _ => return HarnessSelection::default(),
+    };
+    let list = |k: &str| -> Vec<String> {
+        match h.get_prop_of(k) {
+            auto_val::Value::Array(a) => a
+                .values
+                .iter()
+                .filter_map(|v| match v {
+                    auto_val::Value::Str(s) => Some(s.to_string()),
+                    _ => None,
+                })
+                .collect(),
+            auto_val::Value::Str(s) => vec![s.to_string()],
+            _ => Vec::new(),
+        }
+    };
+    HarnessSelection {
+        roles: list("roles"),
+        skills: list("skills"),
+        modes: list("modes"),
+    }
+}
+
+fn str_array(items: &[String]) -> auto_val::Value {
+    let values = items.iter().map(|s| auto_val::Value::str(s.as_str())).collect();
+    auto_val::Value::Array(auto_val::Array { values })
 }
 
 #[cfg(test)]
