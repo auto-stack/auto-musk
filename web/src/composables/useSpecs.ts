@@ -1,169 +1,130 @@
 import { ref } from 'vue'
-import { apiFetch } from './useAuth'
+import type { SpecsDocument, SpecsSection, SpecItem } from '@/types/specs'
+import { authFetch } from './useAuth'
 
-// Types mirroring backend crates/musk/src/specs.rs
-export type SectionType =
-  | 'Goals' | 'Architecture' | 'Designs' | 'Plans'
-  | 'Tests' | 'Reviews' | 'Reports'
+const API_BASE = '/api/forge/specs'
 
-export type SpecStatus =
-  | 'Empty' | 'Proposed' | 'Draft' | 'UnderReview' | 'Approved'
-  | 'InProgress' | 'InImplementation' | 'Implemented' | 'Verified' | 'Done'
-  | 'Archived' | 'Rejected' | 'Backlog' | 'Ready' | 'InReview' | 'Blocked'
-  | 'Superseded' | 'Outdated' | 'Stable' | 'Deprecated' | 'Published'
-  | 'Analysed' | 'Obsolete'
-
-export interface SpecItem {
-  id: string
-  title: string
-  content: string
-  status: SpecStatus
-  depends_on: string[]
-  related: string[]
-  priority: string | null
-  assignee: string | null
-  test_file: string | null
-  file: string | null
-  milestone: string | null
-  module: string | null
-  tags: string[]
-  created_at: number
-  modified_at: number
-  completed_at: number | null
-}
-
-export interface SpecsSection {
-  id: string
-  section_type: SectionType
-  title: string
-  items: SpecItem[]
-  status: SpecStatus
-  content: string
-  depends_on: string[]
-  last_modified: number
-  last_verified: number | null
-}
-
-export interface SpecsDocument {
-  project: string
-  version: number
-  sections: SpecsSection[]
-}
-
-export interface SectionOverview {
-  id: string
-  section_type: SectionType
-  title: string
-  status: SpecStatus
-  item_count: number
-  status_counts: [string, number][]
-}
-export interface SpecsOverview {
-  project: string
-  version: number
-  total_items: number
-  sections: SectionOverview[]
-}
-
-// module-level singleton state
-const doc = ref<SpecsDocument | null>(null)
-const overview = ref<SpecsOverview | null>(null)
-const loading = ref(false)
-const error = ref('')
-
-async function loadDoc() {
-  loading.value = true
-  error.value = ''
-  const resp = await apiFetch('/api/specs')
-  if (resp.ok) {
-    doc.value = await resp.json()
-  } else {
-    error.value = `load specs: ${resp.status}`
-  }
-  loading.value = false
-}
-
-async function loadOverview() {
-  const resp = await apiFetch('/api/specs/overview')
-  if (resp.ok) overview.value = await resp.json()
-}
-
-async function upsertItem(sectionId: string, item: Partial<SpecItem> & { id: string }) {
-  const full: SpecItem = {
-    title: '',
-    content: '',
-    status: 'Empty',
-    depends_on: [],
-    related: [],
-    priority: null,
-    assignee: null,
-    test_file: null,
-    file: null,
-    milestone: null,
-    module: null,
-    tags: [],
-    created_at: 0,
-    modified_at: 0,
-    completed_at: null,
-    ...item,
-  }
-  const resp = await apiFetch('/api/specs/item', {
-    method: 'POST',
-    body: JSON.stringify({ section_id: sectionId, item: full }),
-  })
-  if (resp.ok) {
-    await loadDoc()
-    await loadOverview()
-  }
-}
-
-async function transitionItem(sectionId: string, itemId: string, newStatus: SpecStatus) {
-  const resp = await apiFetch('/api/specs/transition', {
-    method: 'POST',
-    body: JSON.stringify({ section_id: sectionId, item_id: itemId, new_status: newStatus }),
-  })
-  if (resp.ok) {
-    await loadDoc()
-    await loadOverview()
-  }
-}
-
-async function deleteItem(sectionId: string, itemId: string) {
-  const resp = await apiFetch(`/api/specs/item/${sectionId}/${itemId}`, {
-    method: 'DELETE',
-  })
-  if (resp.ok) {
-    await loadDoc()
-    await loadOverview()
-  }
-}
-
-async function driftCheck() {
-  const resp = await apiFetch('/api/specs/drift-check', { method: 'POST' })
-  if (resp.ok) return await resp.json()
-  return null
-}
+// ─── Singleton state ────────────────────────────────────────────────────────
+const _document = ref<SpecsDocument | null>(null)
+const _isLoading = ref(false)
+const _error = ref<string | null>(null)
 
 export function useSpecs() {
-  return {
-    doc, overview, loading, error,
-    loadDoc, loadOverview, upsertItem, transitionItem, deleteItem, driftCheck,
-  }
-}
+  const document = _document
+  const isLoading = _isLoading
+  const error = _error
 
-// Status → tailwind color class for badges (per designs/001 StatusBadge mapping)
-export function statusColor(s: SpecStatus): string {
-  switch (s) {
-    case 'Empty': return 'gray'
-    case 'Proposed': case 'Draft': case 'Backlog': return 'gray'
-    case 'UnderReview': case 'InReview': case 'Analysed': return 'yellow'
-    case 'Approved': case 'Ready': return 'blue'
-    case 'InProgress': case 'InImplementation': return 'blue'
-    case 'Implemented': case 'Published': return 'green'
-    case 'Verified': case 'Done': case 'Stable': return 'green'
-    case 'Blocked': case 'Rejected': return 'red'
-    case 'Archived': case 'Superseded': case 'Outdated':
-    case 'Deprecated': case 'Obsolete': return 'gray'
-    default: return 'gray'
+  async function loadDocument(project: string = 'auto-lang') {
+    isLoading.value = true
+    error.value = null
+    try {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}`)
+      if (!resp.ok) throw new Error(`Failed to load specs: ${resp.status}`)
+      const data: SpecsDocument = await resp.json()
+      document.value = data
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : String(e)
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  async function loadOverview(project: string = 'auto-lang'): Promise<{ content: string; exists: boolean }> {
+    try {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}/overview`)
+      if (!resp.ok) throw new Error(`Failed to load overview: ${resp.status}`)
+      const data = await resp.json()
+      return { content: data.content || '', exists: data.exists || false }
+    } catch (e) {
+      return { content: '', exists: false }
+    }
+  }
+
+  async function loadModuleOutline(project: string, module: string): Promise<{ content: string; exists: boolean }> {
+    try {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}/module/${encodeURIComponent(module)}/outline`)
+      if (!resp.ok) throw new Error(`Failed to load module outline: ${resp.status}`)
+      const data = await resp.json()
+      return { content: data.content || '', exists: data.exists || false }
+    } catch (e) {
+      return { content: '', exists: false }
+    }
+  }
+
+  async function saveSection(project: string, section: SpecsSection) {
+    try {
+      const resp = await authFetch(
+        `${API_BASE}/${encodeURIComponent(project)}/${encodeURIComponent(section.id)}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: section.content, status: section.status }),
+        }
+      )
+      if (!resp.ok) throw new Error(`Failed to save section: ${resp.status}`)
+      await loadDocument(project)
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : String(e)
+    }
+  }
+
+  async function saveDocument(project: string, doc: SpecsDocument) {
+    try {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(doc),
+      })
+      if (!resp.ok) throw new Error(`Failed to save specs: ${resp.status}`)
+      const data: SpecsDocument = await resp.json()
+      document.value = data
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : String(e)
+    }
+  }
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  function findItemById(id: string): { item: SpecItem; section: SpecsSection } | null {
+    const doc = document.value
+    if (!doc) return null
+    for (const section of doc.sections) {
+      const item = section.items.find((i) => i.id === id)
+      if (item) return { item, section }
+    }
+    return null
+  }
+
+  function findSectionByItemId(id: string): SpecsSection | null {
+    const doc = document.value
+    if (!doc) return null
+    return doc.sections.find((s) => s.items.some((i) => i.id === id)) ?? null
+  }
+
+  async function rebuildRelations(project: string) {
+    try {
+      const resp = await authFetch(`${API_BASE}/${encodeURIComponent(project)}/rebuild-relations`, {
+        method: 'POST',
+      })
+      if (!resp.ok) throw new Error(`Failed to rebuild relations: ${resp.status}`)
+      const data: SpecsDocument = await resp.json()
+      document.value = data
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : String(e)
+    }
+  }
+
+  return {
+    document,
+    isLoading,
+    error,
+    loadDocument,
+    loadOverview,
+    loadModuleOutline,
+    saveSection,
+    saveDocument,
+    findItemById,
+    findSectionByItemId,
+    rebuildRelations,
   }
 }

@@ -1,58 +1,206 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useAuth } from '../composables/useAuth'
+import { useAuth } from '@/composables/useAuth'
+import { useI18n } from 'vue-i18n'
+import { Flame } from 'lucide-vue-next'
 
-const { login } = useAuth()
-const user = ref('admin')
-const pass = ref('admin')
-const error = ref('')
-const busy = ref(false)
+const { t } = useI18n()
+const emit = defineEmits<{ 'auth-success': [] }>()
 
-async function submit() {
-  busy.value = true
-  error.value = ''
-  const ok = await login(user.value, pass.value)
-  if (!ok) error.value = 'Invalid credentials'
-  busy.value = false
+const { login, register, loading, error, isAuthenticated } = useAuth()
+
+const username = ref('')
+const password = ref('')
+const isRegisterMode = ref(false)
+
+async function handleSubmit() {
+  const success = isRegisterMode.value
+    ? await register(username.value, password.value)
+    : await login(username.value, password.value)
+  if (success) {
+    emit('auth-success')
+  }
+}
+
+function toggleMode() {
+  isRegisterMode.value = !isRegisterMode.value
+  error.value = null
 }
 </script>
 
 <template>
-  <div class="login-wrap">
-    <form class="login-card" @submit.prevent="submit">
-      <div class="logo">🦌</div>
-      <h1>Auto Musk</h1>
-      <p class="sub">Sign in to your AI coding agent</p>
-      <input v-model="user" type="text" placeholder="Username" autocomplete="username" />
-      <input v-model="pass" type="password" placeholder="Password" autocomplete="current-password" />
-      <div v-if="error" class="error">{{ error }}</div>
-      <button type="submit" class="btn-primary" :disabled="busy">{{ busy ? 'Signing in…' : 'Sign in' }}</button>
-      <p class="hint">Default: admin / admin</p>
-    </form>
+  <div class="login-view">
+    <div class="login-card">
+      <div class="login-brand">
+        <Flame :size="32" />
+        <h1>AutoForge</h1>
+      </div>
+
+      <form @submit.prevent="handleSubmit" class="login-form">
+        <div class="form-group">
+          <label for="username">{{ t('auth.username') }}</label>
+          <input
+            id="username"
+            v-model="username"
+            type="text"
+            autocomplete="username"
+            required
+            :disabled="loading"
+            :placeholder="t('auth.usernamePlaceholder')"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="password">{{ t('auth.password') }}</label>
+          <input
+            id="password"
+            v-model="password"
+            type="password"
+            autocomplete="current-password"
+            required
+            :disabled="loading"
+            :placeholder="t('auth.passwordPlaceholder')"
+          />
+        </div>
+
+        <div v-if="error" class="login-error" role="alert">
+          {{ error }}
+        </div>
+
+        <button type="submit" class="login-button" :disabled="loading">
+          {{ loading
+            ? t('auth.loading')
+            : isRegisterMode
+              ? t('auth.register')
+              : t('auth.login')
+          }}
+        </button>
+      </form>
+
+      <div class="login-footer">
+        <button class="toggle-mode" @click="toggleMode">
+          {{ isRegisterMode
+            ? t('auth.hasAccount')
+            : t('auth.noAccount')
+          }}
+        </button>
+      </div>
+
+      <div class="login-hint">
+        {{ t('auth.defaultHint') }}
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.login-wrap { display: flex; align-items: center; justify-content: center; height: 100vh; }
+.login-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: hsl(var(--af-bg));
+}
+
 .login-card {
-  background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 32px; width: 320px; display: flex; flex-direction: column; gap: 12px; align-items: center;
+  width: 100%;
+  max-width: 380px;
+  padding: 2rem;
+  background: hsl(var(--card));
+  border: 1px solid var(--af-border);
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.1);
 }
-.logo { font-size: 40px; }
-h1 { font-size: 22px; font-weight: 700; }
-.sub { font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
-input {
-  width: 100%; padding: 10px 12px; background: var(--bg-input); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); color: var(--text-primary); font-size: 14px; outline: none;
-  transition: border-color .15s;
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  color: var(--af-primary);
 }
-input:focus { border-color: var(--accent); }
-.btn-primary {
-  width: 100%; padding: 10px; background: var(--accent); color: var(--accent-foreground);
-  border-radius: var(--radius-sm); font-weight: 600; font-size: 14px; transition: background .15s;
+
+.login-brand h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
 }
-.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
-.btn-primary:disabled { opacity: .6; }
-.error { color: var(--danger); font-size: 12px; }
-.hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.form-group label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--af-muted);
+}
+
+.form-group input {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--af-border);
+  border-radius: 6px;
+  background: hsl(var(--af-bg));
+  color: var(--af-fg);
+  font-size: 0.95rem;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--af-primary);
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.15);
+}
+
+.login-error {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
+  font-size: 0.85rem;
+}
+
+.login-button {
+  padding: 0.65rem 1rem;
+  border: none;
+  border-radius: 6px;
+  background: var(--af-primary);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.login-button:hover { opacity: 0.9; }
+.login-button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.login-footer {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.toggle-mode {
+  background: none;
+  border: none;
+  color: var(--af-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.toggle-mode:hover { opacity: 0.8; }
+
+.login-hint {
+  margin-top: 1rem;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--af-muted);
+}
 </style>
