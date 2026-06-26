@@ -19,20 +19,40 @@ use std::path::{Path, PathBuf};
 /// sandbox chdir). Tools confine file operations to this tree.
 static PROJECT_ROOT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
+/// Thread-local override for the project root (used by the test sandbox so
+/// each test's temp dir acts as the "project root" for path confinement).
+thread_local! {
+    static ROOT_OVERRIDE: std::cell::RefCell<Option<PathBuf>> = std::cell::RefCell::new(None);
+}
+
 /// Initialize the project root from the current directory. Called once at
-/// startup (main.rs). Tests can call `override_project_root_for_tests`.
+/// startup (main.rs).
 pub fn init_project_root() {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let canonical = std::fs::canonicalize(&cwd).unwrap_or(cwd);
     let _ = PROJECT_ROOT.set(canonical);
 }
 
-/// Get the project root (panics if not initialized — always init at startup).
-pub fn project_root() -> &'static Path {
-    PROJECT_ROOT
-        .get()
-        .map(|p| p.as_path())
-        .unwrap_or_else(|| Path::new("."))
+/// Set a thread-local project root override (for test sandboxes).
+pub fn set_test_root(path: PathBuf) {
+    ROOT_OVERRIDE.with(|r| *r.borrow_mut() = Some(path));
+}
+
+/// Clear the thread-local override (on sandbox drop).
+pub fn clear_test_root() {
+    ROOT_OVERRIDE.with(|r| *r.borrow_mut() = None);
+}
+
+/// Get the effective project root: the thread-local override if set (tests),
+/// else the startup snapshot.
+pub fn project_root() -> PathBuf {
+    ROOT_OVERRIDE.with(|r| r.borrow().clone())
+        .unwrap_or_else(|| {
+            PROJECT_ROOT
+                .get()
+                .cloned()
+                .unwrap_or_else(|| PathBuf::from("."))
+        })
 }
 
 /// Resolve `path` relative to the project root, canonicalize it, and verify
@@ -56,26 +76,39 @@ pub fn resolve_within_project(path: &str) -> Result<PathBuf, String> {
     };
 
     // Canonicalize to resolve `..` and symlinks. If the path doesn't exist
-    // yet (write_file creating a new file), canonicalize the parent instead
-    // and append the file name.
+    // yet (write_file creating a new file/dir), walk up to the nearest
+    // existing ancestor, canonicalize that, then re-attach the missing tail.
     let canonical = match std::fs::canonicalize(&candidate) {
         Ok(c) => c,
         Err(_) => {
-            // Path may not exist yet (we're about to create it). Canonicalize
-            // the parent, then re-attach the file name.
-            let parent = candidate.parent().unwrap_or(Path::new("."));
-            let file_name = candidate
-                .file_name()
-                .ok_or_else(|| format!("invalid path: '{path}'"))?;
-            let canon_parent = std::fs::canonicalize(parent).map_err(|e| {
-                format!("cannot resolve parent of '{path}': {e}")
-            })?;
-            canon_parent.join(file_name)
+            // Walk up until we find an ancestor that exists.
+            let mut existing = candidate.clone();
+            let mut missing_tail: Vec<std::ffi::OsString> = Vec::new();
+            while !existing.exists() {
+                let name = existing.file_name().map(|n| n.to_os_string());
+                match name {
+                    Some(n) => {
+                        missing_tail.push(n);
+                        existing = existing
+                            .parent()
+                            .map(|p| p.to_path_buf())
+                            .unwrap_or_else(|| root.clone());
+                    }
+                    None => break,
+                }
+            }
+            let canon_existing = std::fs::canonicalize(&existing).unwrap_or(existing);
+            // Re-attach the missing components in reverse order.
+            let mut result = canon_existing;
+            for name in missing_tail.into_iter().rev() {
+                result.push(name);
+            }
+            result
         }
     };
 
     // Check containment: canonical must be the root itself or start with root.
-    if canonical == *root || canonical.starts_with(root) {
+    if canonical == root || canonical.starts_with(&root) {
         Ok(canonical)
     } else {
         Err(format!(

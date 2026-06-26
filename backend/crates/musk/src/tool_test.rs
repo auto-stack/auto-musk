@@ -76,23 +76,28 @@ pub struct Sandbox {
 }
 
 impl Sandbox {
-    /// Create a unique temp dir, chdir into it, apply fixtures.
+    /// Create a unique temp dir, chdir into it, apply fixtures, and set it as
+    /// the project root for path confinement (so tools treat the sandbox as
+    /// their "project").
     pub fn new(fixtures: &[Fixture]) -> std::io::Result<Self> {
         let dir = tempfile::tempdir()?;
         let prev_cwd = std::env::current_dir()?;
-        std::env::set_current_dir(dir.path())?;
-        let root = dir.path();
+        let root = dir.path().to_path_buf();
+        std::env::set_current_dir(&root)?;
+        // Set this sandbox as the project root for path confinement (Design 004).
+        let canonical_root = std::fs::canonicalize(&root).unwrap_or(root.clone());
+        crate::tool_safety::set_test_root(canonical_root);
         for fx in fixtures {
             match fx {
                 Fixture::File { path, content } => {
-                    let full = root.join(path);
+                    let full = dir.path().join(path);
                     if let Some(parent) = full.parent() {
                         std::fs::create_dir_all(parent)?;
                     }
                     std::fs::write(full, content)?;
                 }
                 Fixture::Dir { path } => {
-                    std::fs::create_dir_all(root.join(path))?;
+                    std::fs::create_dir_all(dir.path().join(path))?;
                 }
             }
         }
@@ -102,7 +107,8 @@ impl Sandbox {
 
 impl Drop for Sandbox {
     fn drop(&mut self) {
-        // Restore CWD; TempDir auto-deletes on its own drop.
+        // Clear the test root override + restore CWD; TempDir auto-deletes.
+        crate::tool_safety::clear_test_root();
         let _ = std::env::set_current_dir(&self._prev_cwd);
     }
 }

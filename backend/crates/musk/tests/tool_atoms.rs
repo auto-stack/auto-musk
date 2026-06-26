@@ -11,6 +11,7 @@
 
 use musk::tool_test::{run_cases, run_case, CaseCategory, Expect, Fixture, ToolCase};
 use musk::tools::*;
+use auto_ai_agent::Tool; // for direct .execute() calls in run_command tests
 
 /// Produce a fresh tool instance by name. Each case gets its own (tools are
 /// cheap zero-field unit structs).
@@ -430,4 +431,90 @@ async fn batch_replace_matrix() {
         },
     ];
     run_cases(&cases, make_tool).await;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Security: path confinement (Design 004) — out-of-bounds paths rejected
+// ════════════════════════════════════════════════════════════════════════════
+
+#[tokio::test]
+#[serial_test::serial]
+async fn path_confinement_rejects_traversal() {
+    let cases = vec![
+        ToolCase {
+            name: "read_traversal_rejected",
+            category: CaseCategory::Error,
+            fixtures: vec![Fixture::file("a.txt", "safe")],
+            call: ("read_file", json!({"path":"../../../etc/passwd"})),
+            expect: Expect::Err,
+        },
+        ToolCase {
+            name: "write_traversal_rejected",
+            category: CaseCategory::Error,
+            fixtures: vec![],
+            call: ("write_file", json!({"path":"../escape.txt","content":"evil"})),
+            expect: Expect::Err,
+        },
+        ToolCase {
+            name: "edit_absolute_outside_rejected",
+            category: CaseCategory::Error,
+            fixtures: vec![Fixture::file("a.txt", "x")],
+            call: ("edit_file", json!({"path":"/etc/hosts","old_string":"x","new_string":"y"})),
+            expect: Expect::Err,
+        },
+        ToolCase {
+            name: "glob_traversal_rejected",
+            category: CaseCategory::Error,
+            fixtures: vec![],
+            call: ("glob", json!({"pattern":"*.txt","path":".."})),
+            expect: Expect::Err,
+        },
+    ];
+    run_cases(&cases, make_tool).await;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Security: run_command classification (Design 004)
+// ════════════════════════════════════════════════════════════════════════════
+
+#[tokio::test]
+#[serial_test::serial]
+async fn run_command_whitelist_passes() {
+    let cases = vec![
+        ToolCase {
+            name: "echo_whitelisted",
+            category: CaseCategory::Normal,
+            fixtures: vec![],
+            call: ("run_command", json!({"cmd":"echo safe_cmd"})),
+            expect: Expect::OkContains("safe_cmd"),
+        },
+    ];
+    run_cases(&cases, make_tool).await;
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn run_command_unknown_returns_paused() {
+    let t = RunCommand;
+    let result = t.execute(&json!({"cmd":"some-unknown-binary --flag"})).await.unwrap();
+    assert!(result.contains("PAUSED"), "unknown command should return PAUSED, got: {result}");
+    assert!(result.contains("not on the whitelist"), "should explain why: {result}");
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn run_command_dangerous_returns_paused() {
+    let t = RunCommand;
+    let result = t.execute(&json!({"cmd":"rm -rf /"})).await.unwrap();
+    assert!(result.contains("PAUSED"), "dangerous command should return PAUSED, got: {result}");
+    assert!(result.contains("dangerous pattern"), "should warn about danger: {result}");
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn run_command_force_overrides_pause() {
+    let t = RunCommand;
+    let result = t.execute(&json!({"cmd":"echo forced","force":true})).await.unwrap();
+    assert!(result.contains("forced"), "force should execute the command, got: {result}");
+    assert!(!result.contains("PAUSED"), "force should not PAUSE: {result}");
 }
