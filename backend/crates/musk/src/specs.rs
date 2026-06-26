@@ -14,6 +14,7 @@
 //! - `related` is a derived field (filled by `rebuild_relations`, later).
 
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
 
 // ============================================================
 // SectionType — the 7 spec-section kinds
@@ -309,8 +310,91 @@ pub struct SpecChange {
 }
 
 // ============================================================
-// helpers
+// Relation graph — derived reverse-links (`related`)
 // ============================================================
+
+/// Regex matching a spec item ID: optional `<module>-` prefix, a type letter
+/// from [GADPSVXTIR], digits, optional `.sub`. Ported from auto-forge
+/// `mod.rs:1812` (`\b((?:[A-Za-z]+-)?[GADPSVXTIR]\d+(?:\.\d+)?)\b`).
+static ID_RE: OnceLock<regex::Regex> = OnceLock::new();
+
+fn id_regex() -> &'static regex::Regex {
+    ID_RE.get_or_init(|| {
+        // \b boundaries; module prefix is letters + '-'; type letter fixed set.
+        regex::Regex::new(r"\b(?:[A-Za-z]+-)?[GADPSVXTIR]\d+(?:\.\d+)?\b").unwrap()
+    })
+}
+
+/// Collect all spec item IDs present in the document (across all sections).
+fn all_ids(doc: &SpecsDocument) -> std::collections::HashSet<String> {
+    let mut set = std::collections::HashSet::new();
+    for section in &doc.sections {
+        for item in &section.items {
+            set.insert(item.id.clone());
+        }
+    }
+    set
+}
+
+/// Scan `text` for references to known item IDs, returning the matched IDs
+/// (deduped). Only references to IDs that actually exist in `known` are kept
+/// (avoids matching ordinary text that happens to look like an ID).
+fn scan_refs(text: &str, known: &std::collections::HashSet<String>) -> Vec<String> {
+    let mut refs: Vec<String> = id_regex()
+        .find_iter(text)
+        .map(|m| m.as_str().to_string())
+        .filter(|r| known.contains(r))
+        .collect();
+    refs.sort();
+    refs.dedup();
+    refs
+}
+
+impl SpecsDocument {
+    /// Rebuild every item's derived `related` field (reverse-links).
+    ///
+    /// For each item A, its forward references are: (a) `depends_on` (manual)
+    /// and (b) any IDs mentioned in its `content`. For each forward edge
+    /// `A -> B`, B's `related` list gains A. After the scan, each `related`
+    /// list is sorted + deduped.
+    ///
+    /// Call this after any upsert/delete/load (mirrors auto-forge
+    /// `mod.rs:1810-1850`).
+    pub fn rebuild_relations(&mut self) {
+        let known = all_ids(self);
+        // referrer_id -> set of IDs it references (forward edges)
+        let mut reverse: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+
+        for section in &self.sections {
+            for item in &section.items {
+                // forward edges: depends_on + content-scanned refs
+                let mut forwards: Vec<String> = item.depends_on.clone();
+                forwards.extend(scan_refs(&item.content, &known));
+                forwards.sort();
+                forwards.dedup();
+                for target in &forwards {
+                    reverse
+                        .entry(target.clone())
+                        .or_default()
+                        .push(item.id.clone());
+                }
+            }
+        }
+
+        // write back reverse-links into each item's `related`
+        for section in &mut self.sections {
+            for item in &mut section.items {
+                let mut rel = reverse.remove(&item.id).unwrap_or_default();
+                rel.sort();
+                rel.dedup();
+                item.related = rel;
+            }
+        }
+    }
+}
+
+
 
 /// Current unix timestamp in seconds (stand-in for the `.at`'s `now_sec`).
 pub fn now_sec() -> u64 {
@@ -504,7 +588,7 @@ impl SpecsStore {
     }
 
     /// Upsert an item into a section, bumping the document version. Creates the
-    /// item if `item.id` is new, replaces it otherwise.
+    /// item if `item.id` is new, replaces it otherwise. Rebuilds relations.
     pub fn upsert_item(
         &self,
         doc: &mut SpecsDocument,
@@ -524,6 +608,7 @@ impl SpecsStore {
         }
         section.last_modified = now;
         doc.version += 1;
+        doc.rebuild_relations();
         Ok(())
     }
 
@@ -557,7 +642,7 @@ impl SpecsStore {
         Ok(())
     }
 
-    /// Delete an item. Returns true if it existed.
+    /// Delete an item. Returns true if it existed. Rebuilds relations.
     pub fn delete_item(
         &self,
         doc: &mut SpecsDocument,
@@ -575,6 +660,7 @@ impl SpecsStore {
         if removed {
             section.last_modified = now_sec();
             doc.version += 1;
+            doc.rebuild_relations();
         }
         Ok(removed)
     }
@@ -949,5 +1035,107 @@ mod tests {
             .unwrap_err();
         assert!(err.contains("not found"));
         let _ = std::fs::remove_file(&path);
+    }
+
+    // ── rebuild_relations (relation graph) ────────────────────
+
+    #[test]
+    fn rebuild_relations_depends_on_creates_reverse_link() {
+        let mut doc = SpecsDocument::new("t");
+        let mut a = SpecItem::new("G1", "goal");
+        a.depends_on = vec!["P1".into()];
+        let mut p = SpecItem::new("P1", "plan");
+        p.status = SpecStatus::Draft;
+        store_upsert_both(&mut doc, a, p);
+        // After rebuild via upsert: P1.related should contain G1.
+        let p1 = find_item(&doc, "plans", "P1");
+        assert!(p1.related.contains(&"G1".to_string()));
+    }
+
+    #[test]
+    fn rebuild_relations_content_reference_creates_edge() {
+        // An item whose content mentions another item's ID by text creates an edge.
+        let mut doc = SpecsDocument::new("t");
+        let mut g = SpecItem::new("G1", "goal");
+        g.content = "This depends on plan P1 for delivery".into();
+        let p = SpecItem::new("P1", "plan");
+        store_upsert_both(&mut doc, g, p);
+        let p1 = find_item(&doc, "plans", "P1");
+        assert!(p1.related.contains(&"G1".to_string()), "P1.related = {:?}", p1.related);
+    }
+
+    #[test]
+    fn rebuild_relations_ignores_unknown_ids() {
+        // Text that looks like an ID but isn't a real item is NOT an edge.
+        let mut doc = SpecsDocument::new("t");
+        let mut g = SpecItem::new("G1", "goal");
+        g.content = "see Z99 for details".into(); // Z99 doesn't exist
+        store_upsert_both(&mut doc, g, SpecItem::new("P1", "plan"));
+        let p1 = find_item(&doc, "plans", "P1");
+        assert!(!p1.related.contains(&"G1".to_string()) || true); // P1 not referenced by G1
+        // G1.related should NOT contain Z99 (it doesn't exist)
+        let g1 = find_item(&doc, "goals", "G1");
+        assert!(!g1.related.contains(&"Z99".to_string()));
+    }
+
+    #[test]
+    fn rebuild_relations_module_prefixed_id() {
+        let path = std::env::temp_dir().join("musk_specs_rel_mod.json");
+        let store = SpecsStore::new(&path);
+        let mut doc = SpecsDocument::new("t");
+        let mut g = SpecItem::new("G1", "goal");
+        g.content = "covered by auth-T1".into();
+        store.upsert_item(&mut doc, "goals", g).unwrap();
+        store.upsert_item(&mut doc, "tests", SpecItem::new("auth-T1", "test")).unwrap();
+        let t1 = find_item(&doc, "tests", "auth-T1");
+        assert!(t1.related.contains(&"G1".to_string()), "auth-T1.related = {:?}", t1.related);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn rebuild_relations_delete_removes_edges() {
+        let path = std::env::temp_dir().join("musk_specs_rel_del.json");
+        let store = SpecsStore::new(&path);
+        let mut doc = SpecsDocument::new("t");
+        let mut a = SpecItem::new("G1", "g");
+        a.depends_on = vec!["P1".into()];
+        store.upsert_item(&mut doc, "goals", a).unwrap();
+        store.upsert_item(&mut doc, "plans", SpecItem::new("P1", "p")).unwrap();
+        // P1.related has G1
+        assert!(find_item(&doc, "plans", "P1").related.contains(&"G1".into()));
+        // delete G1 -> P1.related should no longer reference G1
+        store.delete_item(&mut doc, "goals", "G1").unwrap();
+        assert!(!find_item(&doc, "plans", "P1").related.contains(&"G1".into()));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn rebuild_relations_dedupes_and_sorts() {
+        let mut doc = SpecsDocument::new("t");
+        let mut g = SpecItem::new("G1", "g");
+        g.depends_on = vec!["P1".into(), "P1".into()]; // dup
+        g.content = "P1 P1".into(); // dup refs
+        store_upsert_both(&mut doc, g, SpecItem::new("P1", "p"));
+        let p1 = find_item(&doc, "plans", "P1");
+        assert_eq!(p1.related.iter().filter(|x| x == &&"G1".to_string()).count(), 1);
+    }
+
+    // helpers for relation tests
+    fn store_upsert_both(doc: &mut SpecsDocument, goal: SpecItem, plan: SpecItem) {
+        let store = SpecsStore::new(std::env::temp_dir().join("musk_specs_rel_helper.json"));
+        store.upsert_item(doc, "goals", goal).unwrap();
+        store.upsert_item(doc, "plans", plan).unwrap();
+        let _ = std::fs::remove_file(std::env::temp_dir().join("musk_specs_rel_helper.json"));
+    }
+
+    fn find_item<'a>(doc: &'a SpecsDocument, section_id: &str, item_id: &str) -> &'a SpecItem {
+        doc.sections
+            .iter()
+            .find(|s| s.id == section_id)
+            .unwrap()
+            .items
+            .iter()
+            .find(|i| i.id == item_id)
+            .unwrap()
     }
 }

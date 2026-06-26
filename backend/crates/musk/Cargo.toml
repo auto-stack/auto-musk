@@ -34,6 +34,8 @@ hex = "0.4"
 rand = "0.8"
 dirs = "5"
 glob = "0.3"
+# spec ID scanning for rebuild_relations (e.g. G1, A3, auth-S1.1)
+regex = "1"
 # auto-atom parser(for mode .at config parsing)
 auto-atom = { path = "../../../../auto-lang/crates/auto-atom" }
 auto-val = { path = "../../../../auto-lang/crates/auto-val" }

@@ -1017,6 +1017,7 @@ dependencies = [
  "glob",
  "hex",
  "rand",
+ "regex",
  "serde",
  "serde_json",
  "serial_test",
