@@ -3,9 +3,11 @@ import { ref, onMounted } from 'vue'
 import { useAuth } from './composables/useAuth'
 import LoginView from './views/LoginView.vue'
 import ChatsView from './views/ChatsView.vue'
+import SpecsView from './views/SpecsView.vue'
 
 const { token, username, fetchMe, logout } = useAuth()
 const checking = ref(true)
+const currentView = ref<'chats' | 'specs'>('chats')
 
 onMounted(async () => {
   if (token.value) await fetchMe()
@@ -20,7 +22,14 @@ onMounted(async () => {
     <header class="topbar">
       <span class="brand">🦌 Auto Musk</span>
       <span class="spacer"></span>
-      <span class="nav-item active">Chats</span>
+      <span
+        :class="['nav-item', { active: currentView === 'chats' }]"
+        @click="currentView = 'chats'"
+      >Chats</span>
+      <span
+        :class="['nav-item', { active: currentView === 'specs' }]"
+        @click="currentView = 'specs'"
+      >Specs</span>
       <span class="nav-item muted" title="coming soon">Flows</span>
       <span class="nav-item muted" title="coming soon">Wikis</span>
       <span class="spacer"></span>
@@ -28,7 +37,8 @@ onMounted(async () => {
       <button class="btn-link" @click="logout">Sign out</button>
     </header>
     <main class="main">
-      <ChatsView />
+      <ChatsView v-if="currentView === 'chats'" />
+      <SpecsView v-else-if="currentView === 'specs'" />
     </main>
   </div>
 </template>
@@ -42,7 +52,8 @@ onMounted(async () => {
 }
 .brand { font-weight: 700; font-size: 15px; }
 .spacer { flex: 1; }
-.nav-item { font-size: 13px; color: var(--text-secondary); padding: 4px 10px; border-radius: var(--radius-sm); }
+.nav-item { font-size: 13px; color: var(--text-secondary); padding: 4px 10px; border-radius: var(--radius-sm); cursor: pointer; }
+.nav-item:hover { background: var(--accent-light); }
 .nav-item.active { color: var(--accent); background: var(--accent-light); font-weight: 600; }
 .nav-item.muted { opacity: 0.4; cursor: not-allowed; }
 .user { font-size: 12px; color: var(--text-secondary); }
