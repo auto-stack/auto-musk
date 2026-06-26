@@ -5,7 +5,7 @@ import { useEventRouter, type SSEEvent } from './useEventRouter'
 import { authFetch } from './useAuth'
 import { useViewState } from './useViewState'
 
-const API_BASE = '/api/forge/chats'
+const API_BASE = '/api/chats'
 const STORAGE_KEY = 'autoforge_session_id'
 
 // ─── Singleton state: persists across component instances ───────────────────
@@ -182,7 +182,7 @@ export function useForge() {
     try {
       const body: Record<string, string> = { content }
       if (professionId) body.profession_id = professionId
-      const resp = await authFetch(`${API_BASE}/${sessionId.value}/message`, {
+      const resp = await authFetch(`${API_BASE}/session/${sessionId.value}/message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -231,7 +231,7 @@ export function useForge() {
     }
 
     try {
-      const eventSource = new EventSource(`${API_BASE}/${sessionId.value}/stream`)
+      const eventSource = new EventSource(`${API_BASE}/session/${sessionId.value}/stream`)
 
       const eventRouter = useEventRouter()
 
@@ -388,7 +388,7 @@ export function useForge() {
   async function loadHistory() {
     if (!sessionId.value) return
     try {
-      const resp = await authFetch(`${API_BASE}/${sessionId.value}/history`)
+      const resp = await authFetch(`${API_BASE}/session/${sessionId.value}/history`)
       if (resp.ok) {
         const data: ForgeMessage[] = await resp.json()
         if (data.length > 0) messages.value = data
@@ -398,18 +398,16 @@ export function useForge() {
     }
   }
 
-  async function approveSpec(editedSpecs?: Record<string, string>) {
+  async function approveSpec(_editedSpecs?: Record<string, string>) {
     if (!sessionId.value) return
     try {
-      const resp = await authFetch(`${API_BASE}/${sessionId.value}/approve`, {
+      // auto-musk: approve by index (0 = first pending change).
+      const resp = await authFetch(`${API_BASE}/session/${sessionId.value}/approve/0`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ edited_specs: editedSpecs ?? {} }),
       })
       if (!resp.ok) throw new Error(`Failed to approve: ${resp.status}`)
       const data = await resp.json()
-      if (session.value) {
-        session.value.phase = data.phase
+      if (session.value && data.session) {
         session.value.status = 'idle'
       }
     } catch (e) {
@@ -420,13 +418,13 @@ export function useForge() {
   async function rejectSpec() {
     if (!sessionId.value) return
     try {
-      const resp = await authFetch(`${API_BASE}/${sessionId.value}/reject`, {
+      // auto-musk: reject all pending changes.
+      const resp = await authFetch(`${API_BASE}/session/${sessionId.value}/reject-all`, {
         method: 'POST',
       })
       if (!resp.ok) throw new Error(`Failed to reject: ${resp.status}`)
       const data = await resp.json()
-      if (session.value) {
-        session.value.phase = data.phase
+      if (session.value && data.session) {
         session.value.status = 'idle'
       }
     } catch (e) {

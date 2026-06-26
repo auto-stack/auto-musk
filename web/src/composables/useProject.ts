@@ -1,5 +1,9 @@
+// useProject — auto-musk is single-project (no open/close model). auto-forge's
+// version called /api/forge/project/* (status/open/close/recent/browse); musk
+// has no project concept, so this is a stub that reports a default open project.
+// ChatsView reads projectPath from here. Replace with real integration if musk
+// later gains a project model.
 import { ref, computed } from 'vue'
-import { authFetch } from './useAuth'
 
 export interface ProjectInfo {
   path: string
@@ -22,10 +26,16 @@ export interface BrowseEntry {
   is_dir: boolean
 }
 
-const API_BASE = '/api/forge/project'
+const DEFAULT_INFO: ProjectInfo = {
+  path: '.',
+  name: 'musk',
+  specs_dir: 'specs',
+  has_specs: true,
+  is_open: true,
+  is_empty: false,
+}
 
-// Singleton state
-const _projectInfo = ref<ProjectInfo | null>(null)
+const _projectInfo = ref<ProjectInfo | null>(DEFAULT_INFO)
 const _isLoading = ref(false)
 const _error = ref<string | null>(null)
 const _recentProjects = ref<RecentProject[]>([])
@@ -36,75 +46,43 @@ export function useProject() {
   const error = _error
   const recentProjects = _recentProjects
 
-  const isOpen = computed(() => _projectInfo.value?.is_open ?? false)
-  const projectName = computed(() => _projectInfo.value?.name ?? null)
-  const projectPath = computed(() => _projectInfo.value?.path ?? null)
+  const isOpen = computed(() => true)
+  const projectName = computed(() => _projectInfo.value?.name ?? 'musk')
+  const projectPath = computed(() => _projectInfo.value?.path ?? '.')
 
   async function fetchStatus() {
-    try {
-      const resp = await authFetch(`${API_BASE}/status`)
-      if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
-      const data: ProjectInfo = await resp.json()
-      _projectInfo.value = data
-    } catch (e) {
-      _error.value = e instanceof Error ? e.message : String(e)
-    }
+    // no-op: single-project, always open.
+    _projectInfo.value = DEFAULT_INFO
   }
 
-  async function openProject(path: string): Promise<ProjectInfo | null> {
-    _isLoading.value = true
-    _error.value = null
-    try {
-      const resp = await authFetch(`${API_BASE}/open`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path }),
-      })
-      if (!resp.ok) {
-        const msg = await resp.text()
-        throw new Error(msg || `Failed to open project: ${resp.status}`)
-      }
-      const data: ProjectInfo = await resp.json()
-      _projectInfo.value = data
-      localStorage.setItem('autoforge-last-project', path)
-      return data
-    } catch (e) {
-      _error.value = e instanceof Error ? e.message : String(e)
-      return null
-    } finally {
-      _isLoading.value = false
-    }
+  async function openProject(_path: string) {
+    _projectInfo.value = { ...DEFAULT_INFO, path: _path }
   }
 
   async function closeProject() {
-    try {
-      await authFetch(`${API_BASE}/close`, { method: 'POST' })
-      _projectInfo.value = null
-    } catch (e) {
-      _error.value = e instanceof Error ? e.message : String(e)
-    }
+    // no-op in single-project mode
   }
 
-  async function fetchRecentProjects() {
-    try {
-      const resp = await authFetch(`${API_BASE}/recent`)
-      if (!resp.ok) return
-      const data: RecentProject[] = await resp.json()
-      _recentProjects.value = data
-    } catch { /* ignore */ }
+  async function loadRecent() {
+    // no-op
   }
 
-  async function browseDirectory(path: string): Promise<BrowseEntry[]> {
-    const resp = await authFetch(`${API_BASE}/browse?path=${encodeURIComponent(path)}`)
-    if (!resp.ok) throw new Error(`Browse failed: ${resp.status}`)
-    const data = await resp.json()
-    return data.children ?? []
+  async function browse(_path: string): Promise<BrowseEntry[]> {
+    return []
   }
 
   return {
-    projectInfo, isLoading, error, recentProjects,
-    isOpen, projectName, projectPath,
-    fetchStatus, openProject, closeProject,
-    fetchRecentProjects, browseDirectory,
+    projectInfo,
+    isLoading,
+    error,
+    recentProjects,
+    isOpen,
+    projectName,
+    projectPath,
+    fetchStatus,
+    openProject,
+    closeProject,
+    loadRecent,
+    browse,
   }
 }

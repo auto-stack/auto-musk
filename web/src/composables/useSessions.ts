@@ -2,7 +2,7 @@ import { ref, computed } from 'vue'
 import type { ForgeSession, ForgeSessionSummary } from '@/types/forge'
 import { authFetch } from './useAuth'
 
-const API_BASE = '/api/forge/chats'
+const API_BASE = '/api/chats'
 
 // ─── Singleton state ───────────────────────────────────────────────────────
 const _sessionList = ref<ForgeSessionSummary[]>([])
