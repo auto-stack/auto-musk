@@ -394,6 +394,146 @@ impl SpecsDocument {
     }
 }
 
+// ============================================================
+// Derived statuses — auto-advance item/section status from relations
+// ============================================================
+
+impl SpecsDocument {
+    /// Derive (auto-advance) statuses from the relation graph.
+    ///
+    /// Rules (ported from auto-forge `mod.rs:1875-2040+`):
+    /// 1. **Goal → Implemented**: a Goal in {Empty, Proposed, Analysed,
+    ///    Approved, InProgress} whose *all* related Plans are `Done` advances
+    ///    to `Implemented` (only if the per-section machine allows it).
+    /// 2. **Goal → Verified**: a Goal that is `Implemented`, whose all related
+    ///    Tests are `Done`/`Verified` AND at least one related Review is
+    ///    `Published`, advances to `Verified`.
+    /// 3. **Section aggregate**: a section whose every item has reached its
+    ///    section type's "done-ish" status (see `section_complete_status`)
+    ///    advances the section-level `status`.
+    ///
+    /// Only forward transitions allowed by `SectionConfig` are applied; invalid
+    /// ones are skipped silently (no forcing). Call after `rebuild_relations`.
+    pub fn derive_statuses(&mut self) {
+        // Snapshot ids + their related lists + statuses for read-only scanning.
+        // (We need to read across sections while mutating, so snapshot first.)
+        #[derive(Clone)]
+        struct Snap {
+            id: String,
+            section_type: SectionType,
+            status: SpecStatus,
+            related: Vec<String>,
+        }
+        let snap: std::collections::HashMap<String, Snap> = {
+            let mut m = std::collections::HashMap::new();
+            for s in &self.sections {
+                for it in &s.items {
+                    m.insert(
+                        it.id.clone(),
+                        Snap {
+                            id: it.id.clone(),
+                            section_type: s.section_type,
+                            status: it.status,
+                            related: it.related.clone(),
+                        },
+                    );
+                }
+            }
+            m
+        };
+
+        // ── Rule 1 & 2: Goal auto-advance ──
+        // A Goal's forward deps (the Plans/Tests/Reviews it references) live in
+        // its `depends_on` (and content-scanned refs, captured into the reverse
+        // graph as: those targets' `related` contains the Goal). For derivation
+        // we need the FORWARD edges out of the Goal, so we read `depends_on`
+        // (plus content refs recomputed via the snap of reverse edges would be
+        // circular — `depends_on` is the authoritative forward list).
+        use SpecStatus::*;
+        let goal_cfg = SectionConfig::for_type(SectionType::Goals);
+        for section in &mut self.sections {
+            if section.section_type != SectionType::Goals {
+                continue;
+            }
+            for item in &mut section.items {
+                // forward refs = depends_on (manual) — the authoritative list
+                let forwards: Vec<&String> = item.depends_on.iter().collect();
+                let related_plans_all_done = forwards
+                    .iter()
+                    .filter_map(|rid| snap.get(*rid))
+                    .filter(|x| x.section_type == SectionType::Plans)
+                    .all(|x| x.status == Done);
+                let has_any_plan = forwards
+                    .iter()
+                    .any(|rid| matches!(snap.get(*rid).map(|x| x.section_type), Some(SectionType::Plans)));
+
+                // Rule 1: Goal → Implemented
+                if has_any_plan
+                    && related_plans_all_done
+                    && matches!(item.status, Empty | Proposed | Analysed | Approved | InProgress)
+                    && goal_cfg.can_transition(item.status, Implemented)
+                {
+                    item.status = Implemented;
+                    item.modified_at = now_sec();
+                }
+
+                // Rule 2: Goal → Verified (needs Implemented now, all Tests done/verified, ≥1 Review published)
+                if item.status == Implemented {
+                    let tests_ok = forwards
+                        .iter()
+                        .filter_map(|rid| snap.get(*rid))
+                        .filter(|x| x.section_type == SectionType::Tests)
+                        .all(|x| matches!(x.status, Done | Verified));
+                    let has_tests = forwards
+                        .iter()
+                        .any(|rid| matches!(snap.get(*rid).map(|x| x.section_type), Some(SectionType::Tests)));
+                    let has_review_published = forwards
+                        .iter()
+                        .filter_map(|rid| snap.get(*rid))
+                        .any(|x| x.section_type == SectionType::Reviews && x.status == Published);
+                    if has_tests && tests_ok && has_review_published && goal_cfg.can_transition(Implemented, Verified) {
+                        item.status = Verified;
+                        item.modified_at = now_sec();
+                    }
+                }
+            }
+        }
+
+        // ── Rule 3: section aggregate status ──
+        for section in &mut self.sections {
+            if section.items.is_empty() {
+                continue;
+            }
+            let done_status = section_complete_status(section.section_type);
+            let cfg = SectionConfig::for_type(section.section_type);
+            // Every item reached its done status ⇒ section advances to it.
+            if section.items.iter().all(|it| it.status == done_status) {
+                if cfg.can_transition(section.status, done_status) && section.status != done_status {
+                    section.status = done_status;
+                    section.last_modified = now_sec();
+                }
+            } else if section.items.iter().any(|it| it.status != Empty) {
+                // Any non-empty activity ⇒ section at least Draft (if machine allows).
+                if cfg.can_transition(section.status, Draft) && section.status == Empty {
+                    section.status = Draft;
+                    section.last_modified = now_sec();
+                }
+            }
+        }
+    }
+}
+
+/// The "done-ish" terminal status for a section type (used by aggregate rule).
+fn section_complete_status(st: SectionType) -> SpecStatus {
+    match st {
+        SectionType::Goals => SpecStatus::Archived,
+        SectionType::Architecture | SectionType::Designs => SpecStatus::Approved,
+        SectionType::Plans => SpecStatus::Done,
+        SectionType::Tests => SpecStatus::Verified,
+        SectionType::Reviews | SectionType::Reports => SpecStatus::Published,
+    }
+}
+
 
 
 /// Current unix timestamp in seconds (stand-in for the `.at`'s `now_sec`).
@@ -438,7 +578,8 @@ impl SectionConfig {
             SectionType::Goals => Self {
                 section_type: st,
                 allowed_statuses: vec![
-                    Empty, Proposed, Analysed, Approved, InProgress, Implemented, Done, Archived,
+                    Empty, Proposed, Analysed, Approved, InProgress, Implemented, Verified, Done,
+                    Archived,
                 ],
                 allowed_transitions: vec![
                     (Empty, Proposed),
@@ -446,7 +587,8 @@ impl SectionConfig {
                     (Analysed, Approved),
                     (Approved, InProgress),
                     (InProgress, Implemented),
-                    (Implemented, Done),
+                    (Implemented, Verified),
+                    (Verified, Done),
                     (Done, Archived),
                     (InProgress, Archived),
                 ],
@@ -609,6 +751,7 @@ impl SpecsStore {
         section.last_modified = now;
         doc.version += 1;
         doc.rebuild_relations();
+        doc.derive_statuses();
         Ok(())
     }
 
@@ -661,6 +804,7 @@ impl SpecsStore {
             section.last_modified = now_sec();
             doc.version += 1;
             doc.rebuild_relations();
+            doc.derive_statuses();
         }
         Ok(removed)
     }
@@ -795,7 +939,8 @@ mod tests {
         assert!(can_transition(st, Analysed, Approved));
         assert!(can_transition(st, Approved, InProgress));
         assert!(can_transition(st, InProgress, Implemented));
-        assert!(can_transition(st, Implemented, Done));
+        assert!(can_transition(st, Implemented, Verified));
+        assert!(can_transition(st, Verified, Done));
         assert!(can_transition(st, Done, Archived));
         // side branch
         assert!(can_transition(st, InProgress, Archived));
@@ -1000,6 +1145,7 @@ mod tests {
             SpecStatus::Approved,
             SpecStatus::InProgress,
             SpecStatus::Implemented,
+            SpecStatus::Verified,
             SpecStatus::Done,
         ] {
             store.transition_item(&mut doc, "goals", "G1", s).unwrap();
@@ -1118,6 +1264,92 @@ mod tests {
         store_upsert_both(&mut doc, g, SpecItem::new("P1", "p"));
         let p1 = find_item(&doc, "plans", "P1");
         assert_eq!(p1.related.iter().filter(|x| x == &&"G1".to_string()).count(), 1);
+    }
+
+    // ── derive_statuses (derived status advancement) ─────────
+
+    #[test]
+    fn derive_goal_implemented_when_all_plans_done() {
+        let path = std::env::temp_dir().join("musk_specs_derive_impl.json");
+        let store = SpecsStore::new(&path);
+        let mut doc = SpecsDocument::new("t");
+        // Goal G1 depends on Plan P1; walk G1 to InProgress, P1 to Done.
+        let mut g = SpecItem::new("G1", "goal");
+        g.depends_on = vec!["P1".into()];
+        g.status = SpecStatus::Approved;
+        store.upsert_item(&mut doc, "goals", g).unwrap();
+        // walk G1 Approved -> InProgress (per-section machine)
+        store.transition_item(&mut doc, "goals", "G1", SpecStatus::InProgress).unwrap();
+        let mut p = SpecItem::new("P1", "plan");
+        p.status = SpecStatus::Approved;
+        store.upsert_item(&mut doc, "plans", p).unwrap();
+        store.transition_item(&mut doc, "plans", "P1", SpecStatus::InProgress).unwrap();
+        store.transition_item(&mut doc, "plans", "P1", SpecStatus::Done).unwrap();
+        // re-upsert G1 (triggers rebuild+derive) — G1 should now be Implemented
+        let mut g2 = SpecItem::new("G1", "goal");
+        g2.depends_on = vec!["P1".into()];
+        g2.status = SpecStatus::InProgress;
+        store.upsert_item(&mut doc, "goals", g2).unwrap();
+        assert_eq!(find_item(&doc, "goals", "G1").status, SpecStatus::Implemented);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn derive_goal_verified_when_tests_and_review() {
+        let path = std::env::temp_dir().join("musk_specs_derive_ver.json");
+        let store = SpecsStore::new(&path);
+        let mut doc = SpecsDocument::new("t");
+        // G1 -> T1 (test) + R1 (review); set G1 Implemented, T1 Verified, R1 Published
+        let mut g = SpecItem::new("G1", "goal");
+        g.depends_on = vec!["T1".into(), "R1".into()];
+        g.status = SpecStatus::Implemented; // already implemented
+        store.upsert_item(&mut doc, "goals", g).unwrap();
+        // T1: Draft -> Implemented -> Done -> Verified
+        let mut t = SpecItem::new("T1", "test");
+        t.status = SpecStatus::Draft;
+        store.upsert_item(&mut doc, "tests", t).unwrap();
+        store.transition_item(&mut doc, "tests", "T1", SpecStatus::Implemented).unwrap();
+        store.transition_item(&mut doc, "tests", "T1", SpecStatus::Done).unwrap();
+        store.transition_item(&mut doc, "tests", "T1", SpecStatus::Verified).unwrap();
+        // R1: Empty -> Draft -> Published
+        let mut r = SpecItem::new("R1", "review");
+        r.status = SpecStatus::Empty;
+        store.upsert_item(&mut doc, "reviews", r).unwrap();
+        store.transition_item(&mut doc, "reviews", "R1", SpecStatus::Draft).unwrap();
+        store.transition_item(&mut doc, "reviews", "R1", SpecStatus::Published).unwrap();
+        // re-upsert G1 triggers derive -> Verified
+        let mut g2 = SpecItem::new("G1", "goal");
+        g2.depends_on = vec!["T1".into(), "R1".into()];
+        g2.status = SpecStatus::Implemented;
+        store.upsert_item(&mut doc, "goals", g2).unwrap();
+        assert_eq!(find_item(&doc, "goals", "G1").status, SpecStatus::Verified);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn derive_section_aggregate_to_draft() {
+        // A section with any non-Empty item advances section Empty -> Draft.
+        let path = std::env::temp_dir().join("musk_specs_derive_sec.json");
+        let store = SpecsStore::new(&path);
+        let mut doc = SpecsDocument::new("t");
+        // section starts Empty; upsert a plan in Draft
+        let mut p = SpecItem::new("P1", "plan");
+        p.status = SpecStatus::Draft;
+        store.upsert_item(&mut doc, "plans", p).unwrap();
+        let plans = doc.sections.iter().find(|s| s.id == "plans").unwrap();
+        assert_eq!(plans.status, SpecStatus::Draft);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn derive_does_not_force_invalid_transition() {
+        // A Goal at Empty with no related plans stays Empty (nothing to satisfy).
+        let path = std::env::temp_dir().join("musk_specs_derive_nop.json");
+        let store = SpecsStore::new(&path);
+        let mut doc = SpecsDocument::new("t");
+        store.upsert_item(&mut doc, "goals", SpecItem::new("G1", "goal")).unwrap();
+        assert_eq!(find_item(&doc, "goals", "G1").status, SpecStatus::Empty);
+        let _ = std::fs::remove_file(&path);
     }
 
     // helpers for relation tests
