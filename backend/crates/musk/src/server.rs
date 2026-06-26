@@ -107,6 +107,8 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/specs/item/{section}/{id}", axum::routing::delete(specs_delete))
         .route("/api/specs/overview", get(specs_overview))
         .route("/api/specs/drift-check", post(specs_drift_check))
+        .route("/api/specs/rebuild-relations", post(specs_rebuild_relations))
+        .route("/api/specs/related/{item_id}", get(specs_related))
         .route("/api/config", get(config_overview))
         .route("/api/modes", get(modes_list))
         .route("/api/skills", get(skills_list))
@@ -302,6 +304,62 @@ async fn specs_drift_check(State(state): State<AppState>) -> impl IntoResponse {
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError { error: format!("load specs: {e}") }),
+        )
+            .into_response(),
+    }
+}
+
+/// `POST /api/specs/rebuild-relations` — recompute all `related` reverse-links.
+async fn specs_rebuild_relations(State(state): State<AppState>) -> impl IntoResponse {
+    let mut doc = match state.specs.load() {
+        Ok(d) => d,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError { error: format!("load: {e}") }),
+            )
+                .into_response()
+        }
+    };
+    doc.rebuild_relations();
+    doc.derive_statuses();
+    if let Err(e) = state.specs.save(&doc) {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError { error: format!("save: {e}") }),
+        )
+            .into_response();
+    }
+    Json(doc).into_response()
+}
+
+/// `GET /api/specs/related/{item_id}` — the related (reverse-link) ids of an item.
+async fn specs_related(
+    State(state): State<AppState>,
+    axum::extract::Path(item_id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    match state.specs.load() {
+        Ok(mut doc) => {
+            doc.rebuild_relations();
+            for section in &doc.sections {
+                if let Some(item) = section.items.iter().find(|i| i.id == item_id) {
+                    return Json(serde_json::json!({
+                        "item_id": item_id,
+                        "depends_on": item.depends_on,
+                        "related": item.related,
+                    }))
+                    .into_response();
+                }
+            }
+            (
+                StatusCode::NOT_FOUND,
+                Json(ApiError { error: format!("item '{item_id}' not found") }),
+            )
+                .into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError { error: format!("load: {e}") }),
         )
             .into_response(),
     }
