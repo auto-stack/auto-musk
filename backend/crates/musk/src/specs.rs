@@ -534,6 +534,77 @@ fn section_complete_status(st: SectionType) -> SpecStatus {
     }
 }
 
+// ============================================================
+// Overview & drift-check
+// ============================================================
+
+/// A per-section summary for the overview endpoint.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SectionOverview {
+    pub id: String,
+    pub section_type: SectionType,
+    pub title: String,
+    pub status: SpecStatus,
+    pub item_count: usize,
+    /// How many items are in each status (status_str -> count).
+    pub status_counts: Vec<(String, usize)>,
+}
+
+/// A document-level overview (aggregate of all sections).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SpecsOverview {
+    pub project: String,
+    pub version: u64,
+    pub total_items: usize,
+    pub sections: Vec<SectionOverview>,
+}
+
+impl SpecsDocument {
+    /// Build an aggregate overview (per-section item counts + status dist).
+    pub fn overview(&self) -> SpecsOverview {
+        let mut sections = Vec::new();
+        let mut total = 0;
+        for s in &self.sections {
+            let mut counts: std::collections::BTreeMap<String, usize> =
+                std::collections::BTreeMap::new();
+            for it in &s.items {
+                *counts.entry(it.status.to_str().to_string()).or_insert(0) += 1;
+            }
+            total += s.items.len();
+            sections.push(SectionOverview {
+                id: s.id.clone(),
+                section_type: s.section_type,
+                title: s.title.clone(),
+                status: s.status,
+                item_count: s.items.len(),
+                status_counts: counts.into_iter().collect(),
+            });
+        }
+        SpecsOverview {
+            project: self.project.clone(),
+            version: self.version,
+            total_items: total,
+            sections,
+        }
+    }
+}
+
+impl SpecsStore {
+    /// Drift check: compare the in-memory `doc` against what's persisted on
+    /// disk. Returns `(disk_version, drifted)` — `drifted` is true if the
+    /// disk document's version differs from `doc.version` (a signal that
+    /// another writer / external edit touched the file).
+    ///
+    /// (auto-forge watches `.ad` files via notify; musk uses a single JSON
+    /// file, so drift = version mismatch with the file on disk.)
+    pub fn drift_check(&self, doc: &SpecsDocument) -> Result<(u64, bool), String> {
+        match self.load() {
+            Ok(disk) => Ok((disk.version, disk.version != doc.version)),
+            Err(e) => Err(format!("drift_check load failed: {e}")),
+        }
+    }
+}
+
 
 
 /// Current unix timestamp in seconds (stand-in for the `.at`'s `now_sec`).
@@ -1349,6 +1420,57 @@ mod tests {
         let mut doc = SpecsDocument::new("t");
         store.upsert_item(&mut doc, "goals", SpecItem::new("G1", "goal")).unwrap();
         assert_eq!(find_item(&doc, "goals", "G1").status, SpecStatus::Empty);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    // ── overview & drift-check ───────────────────────────────
+
+    #[test]
+    fn overview_counts_items_per_section() {
+        let path = std::env::temp_dir().join("musk_specs_overview.json");
+        let store = SpecsStore::new(&path);
+        let mut doc = SpecsDocument::new("proj");
+        store.upsert_item(&mut doc, "goals", SpecItem::new("G1", "g1")).unwrap();
+        store.upsert_item(&mut doc, "goals", SpecItem::new("G2", "g2")).unwrap();
+        store.upsert_item(&mut doc, "plans", SpecItem::new("P1", "p1")).unwrap();
+        let ov = doc.overview();
+        assert_eq!(ov.project, "proj");
+        assert_eq!(ov.total_items, 3);
+        let goals = ov.sections.iter().find(|s| s.id == "goals").unwrap();
+        assert_eq!(goals.item_count, 2);
+        let plans = ov.sections.iter().find(|s| s.id == "plans").unwrap();
+        assert_eq!(plans.item_count, 1);
+        // status_counts: both goals Empty
+        let empty_count = goals
+            .status_counts
+            .iter()
+            .find(|(k, _)| k == "empty")
+            .map(|(_, v)| *v)
+            .unwrap_or(0);
+        assert_eq!(empty_count, 2);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn drift_check_no_drift_when_unchanged() {
+        let path = std::env::temp_dir().join("musk_specs_drift_ok.json");
+        let store = SpecsStore::new(&path);
+        let doc = store.load().unwrap();
+        let (disk_ver, drifted) = store.drift_check(&doc).unwrap();
+        assert_eq!(disk_ver, doc.version);
+        assert!(!drifted);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn drift_check_detects_version_mismatch() {
+        let path = std::env::temp_dir().join("musk_specs_drift_diff.json");
+        let store = SpecsStore::new(&path);
+        let mut doc = store.load().unwrap();
+        // mutate in-memory (bump version) but DON'T save
+        doc.version += 1;
+        let (_, drifted) = store.drift_check(&doc).unwrap();
+        assert!(drifted);
         let _ = std::fs::remove_file(&path);
     }
 

@@ -84,6 +84,8 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/specs/item", post(specs_upsert))
         .route("/api/specs/transition", post(specs_transition))
         .route("/api/specs/item/{section}/{id}", axum::routing::delete(specs_delete))
+        .route("/api/specs/overview", get(specs_overview))
+        .route("/api/specs/drift-check", post(specs_drift_check))
         .route("/api/config", get(config_overview))
         .route("/api/modes", get(modes_list))
         .route("/api/skills", get(skills_list))
@@ -231,6 +233,48 @@ fn bearer_token_or_query(
 async fn specs_list(State(state): State<AppState>) -> impl IntoResponse {
     match state.specs.load() {
         Ok(doc) => Json(doc).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError { error: format!("load specs: {e}") }),
+        )
+            .into_response(),
+    }
+}
+
+/// `GET /api/specs/overview` — aggregate per-section summary (counts + status dist).
+async fn specs_overview(State(state): State<AppState>) -> impl IntoResponse {
+    match state.specs.load() {
+        Ok(doc) => {
+            // relations + derived statuses reflect the freshest view
+            let mut doc = doc;
+            doc.rebuild_relations();
+            doc.derive_statuses();
+            Json(doc.overview()).into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError { error: format!("load specs: {e}") }),
+        )
+            .into_response(),
+    }
+}
+
+/// `POST /api/specs/drift-check` — compare in-memory vs disk version.
+async fn specs_drift_check(State(state): State<AppState>) -> impl IntoResponse {
+    match state.specs.load() {
+        Ok(doc) => match state.specs.drift_check(&doc) {
+            Ok((disk_version, drifted)) => Json(serde_json::json!({
+                "memory_version": doc.version,
+                "disk_version": disk_version,
+                "drifted": drifted,
+            }))
+            .into_response(),
+            Err(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError { error: e }),
+            )
+                .into_response(),
+        },
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError { error: format!("load specs: {e}") }),
