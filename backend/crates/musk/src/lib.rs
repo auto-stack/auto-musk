@@ -7,7 +7,9 @@ pub mod auth;
 pub mod chats;
 pub mod mode;
 pub mod server;
+pub mod spec_tools;
 pub mod specs;
+pub mod tool_safety;
 pub mod tool_test;
 pub mod tools;
 pub mod workflow;
@@ -148,6 +150,12 @@ pub fn build_agent_from_mode(
         ("list_symbols", Arc::new(tools::ListSymbols)),
         ("glob", Arc::new(tools::Glob)),
         ("run_command", Arc::new(tools::RunCommand)),
+        // Spec tools (Plan 009 P1a): read/write the Spec Ledger.
+        ("read_specs", Arc::new(spec_tools::ReadSpecs::new())),
+        ("list_specs", Arc::new(spec_tools::ListSpecs::new())),
+        ("write_spec", Arc::new(spec_tools::WriteSpec::new())),
+        ("update_spec", Arc::new(spec_tools::UpdateSpec::new())),
+        ("write_goals", Arc::new(spec_tools::WriteGoals::new())),
     ];
     for (name, tool) in &all_tools {
         if mode.tools.is_empty() || mode.tools.iter().any(|t| t == name) {

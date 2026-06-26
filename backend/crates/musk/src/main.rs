@@ -70,6 +70,10 @@ enum Cmd {
 fn main() {
     let cli = Cli::parse();
 
+    // Snapshot CWD as the project root for tool path confinement (Design 004).
+    // Must happen before any chdir (e.g. test sandboxes).
+    musk::tool_safety::init_project_root();
+
     // Apply the runtime config (daemon_url etc.) from
     // ~/.config/autoos/apps/musk/config.at to the environment, so the CLI
     // (run/chat/serve) honors it just like the config UI. An explicit AAID_URL

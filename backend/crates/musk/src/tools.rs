@@ -32,7 +32,10 @@ impl Tool for ReadFile {
         let path = args["path"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'path' argument".into()))?;
-        std::fs::read_to_string(path)
+        // Path confinement (Design 004): reject paths outside project root.
+        let resolved = crate::tool_safety::resolve_within_project(path)
+            .map_err(|e| ToolError::Exec(e))?;
+        std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))
     }
 }
@@ -67,14 +70,16 @@ impl Tool for WriteFile {
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'content' argument".into()))?;
 
-        // Auto-create parent directories (a small convenience over std::fs::write).
-        if let Some(parent) = std::path::Path::new(path).parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| ToolError::Exec(format!("create dirs for '{path}': {e}")))?;
-            }
+        // Path confinement (Design 004).
+        let resolved = crate::tool_safety::resolve_within_project(path)
+            .map_err(|e| ToolError::Exec(e))?;
+
+        // Auto-create parent directories.
+        if let Some(parent) = resolved.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| ToolError::Exec(format!("create dirs for '{path}': {e}")))?;
         }
-        std::fs::write(path, content)
+        std::fs::write(&resolved, content)
             .map_err(|e| ToolError::Exec(format!("write '{path}': {e}")))?;
         Ok(format!("wrote {} bytes to {}", content.len(), path))
     }
@@ -82,7 +87,9 @@ impl Tool for WriteFile {
 
 /// 执行一条 shell 命令,返回合并的 stdout+stderr。
 ///
-/// MVP 直接执行(无白名单/确认);后续阶段加安全护栏。
+/// 安全分级(Design 004):白名单命令直接执行;其他命令返回 PAUSED 状态
+/// 提醒用户确认。设 `force: true` 可跳过白名单检查(用户 approve 后)。
+/// 未来 run_command 后端将换为 Ash,由 Ash 的逐命令沙箱接管安全。
 pub struct RunCommand;
 
 #[async_trait]
@@ -91,13 +98,17 @@ impl Tool for RunCommand {
         "run_command"
     }
     fn description(&self) -> &str {
-        "Run a shell command and return its combined stdout and stderr."
+        "Run a shell command and return its combined stdout and stderr. \
+         Whitelisted commands (cargo/npm/git status/echo/…) run directly; \
+         all others are PAUSED for user approval. Pass \"force\": true to \
+         run a paused command after the user approves it."
     }
     fn parameters(&self) -> Value {
         json!({
             "type": "object",
             "properties": {
-                "cmd": { "type": "string", "description": "the shell command to run" }
+                "cmd": { "type": "string", "description": "the shell command to run" },
+                "force": { "type": "boolean", "description": "skip the whitelist check (set true only after user approval)" }
             },
             "required": ["cmd"]
         })
@@ -106,6 +117,23 @@ impl Tool for RunCommand {
         let cmd = args["cmd"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'cmd' argument".into()))?;
+        let force = args["force"].as_bool().unwrap_or(false);
+
+        // Safety classification (Design 004).
+        if !force {
+            match crate::tool_safety::classify_command(cmd) {
+                crate::tool_safety::CommandTier::Allowed => { /* proceed */ }
+                crate::tool_safety::CommandTier::NeedsApproval(reason) => {
+                    // Return a PAUSED result — not an error. The agent should
+                    // relay this to the user; if approved, re-call with force.
+                    return Ok(format!(
+                        "⏸ PAUSED: {reason}\n\n\
+                         To run this command, the user must approve it. \
+                         If approved, call run_command again with \"force\": true."
+                    ));
+                }
+            }
+        }
 
         let output = if cfg!(windows) {
             std::process::Command::new("cmd").args(["/C", cmd]).output()
@@ -168,7 +196,11 @@ impl Tool for EditFile {
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'new_string'".into()))?;
 
-        let content = std::fs::read_to_string(path)
+        // Path confinement (Design 004).
+        let resolved = crate::tool_safety::resolve_within_project(path)
+            .map_err(|e| ToolError::Exec(e))?;
+
+        let content = std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
         let count = content.matches(old_string).count();
         if count == 0 {
@@ -183,7 +215,7 @@ impl Tool for EditFile {
             )));
         }
         let new_content = content.replacen(old_string, new_string, 1);
-        std::fs::write(path, &new_content)
+        std::fs::write(&resolved, &new_content)
             .map_err(|e| ToolError::Exec(format!("write '{path}': {e}")))?;
         Ok(format!("edited '{path}' (1 replacement)"))
     }
@@ -217,7 +249,12 @@ impl Tool for Search {
         let pattern = args["pattern"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'pattern'".into()))?;
-        let path = args["path"].as_str().unwrap_or(".");
+        let raw_path = args["path"].as_str().unwrap_or(".");
+
+        // Path confinement (Design 004): constrain search to project root.
+        let resolved = crate::tool_safety::resolve_within_project(raw_path)
+            .map_err(|e| ToolError::Exec(e))?;
+        let path = resolved.to_string_lossy().to_string();
 
         // Prefer ripgrep if available (faster, respects .gitignore); else grep.
         let rg_available = std::process::Command::new("rg")
@@ -228,7 +265,7 @@ impl Tool for Search {
 
         let output = if rg_available {
             std::process::Command::new("rg")
-                .args(["-n", "--no-heading", "--max-filesize", "1M", pattern, path])
+                .args(["-n", "--no-heading", "--max-filesize", "1M", pattern, &path])
                 .output()
         } else if cfg!(windows) {
             std::process::Command::new("cmd")
@@ -237,7 +274,7 @@ impl Tool for Search {
                 .output()
         } else {
             std::process::Command::new("grep")
-                .args(["-rn", "--include=*", pattern, path])
+                .args(["-rn", "--include=*", pattern, &path])
                 .output()
         }
         .map_err(|e| ToolError::Exec(format!("spawn search: {e}")))?;
@@ -279,9 +316,12 @@ impl Tool for ListDir {
         })
     }
     async fn execute(&self, args: &Value) -> Result<String, ToolError> {
-        let path = args["path"].as_str().unwrap_or(".");
-        let entries = std::fs::read_dir(path)
-            .map_err(|e| ToolError::Exec(format!("list '{path}': {e}")))?;
+        let raw_path = args["path"].as_str().unwrap_or(".");
+        // Path confinement (Design 004).
+        let path = crate::tool_safety::resolve_within_project(raw_path)
+            .map_err(|e| ToolError::Exec(e))?;
+        let entries = std::fs::read_dir(&path)
+            .map_err(|e| ToolError::Exec(format!("list '{raw_path}': {e}")))?;
 
         let mut items: Vec<(String, bool, u64)> = entries
             .filter_map(|e| e.ok())
@@ -475,7 +515,11 @@ impl Tool for BatchReplace {
             .as_array()
             .ok_or_else(|| ToolError::Args("missing 'replacements' array".into()))?;
 
-        let mut content = std::fs::read_to_string(path)
+        // Path confinement (Design 004).
+        let resolved = crate::tool_safety::resolve_within_project(path)
+            .map_err(|e| ToolError::Exec(e))?;
+
+        let mut content = std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
 
         // Pre-validate ALL replacements (atomicity): each old must be unique.
@@ -507,7 +551,7 @@ impl Tool for BatchReplace {
                 .ok_or_else(|| ToolError::Args("missing 'new_string'".into()))?;
             content = content.replacen(old, new, 1);
         }
-        std::fs::write(path, &content)
+        std::fs::write(&resolved, &content)
             .map_err(|e| ToolError::Exec(format!("write '{path}': {e}")))?;
         Ok(format!("applied {} replacement(s) to '{path}'", replacements.len()))
     }
