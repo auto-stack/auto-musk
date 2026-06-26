@@ -103,6 +103,9 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         )
         .route("/api/chats/session/{id}/message", post(chat_message))
         .route("/api/chats/session/{id}/stream", get(chat_stream))
+        .route("/api/chats/session/{id}/approve/{index}", post(chat_approve))
+        .route("/api/chats/session/{id}/reject/{index}", post(chat_reject))
+        .route("/api/chats/session/{id}/reject-all", post(chat_reject_all))
         // Serve config-page.js + any other static assets at the root.
         .fallback_service(static_service)
         .layer(cors)
@@ -1155,6 +1158,50 @@ async fn chat_stream(
         .header("Connection", "keep-alive")
         .body(Body::from_stream(stream))
         .unwrap()
+}
+
+// ── Spec-change approval endpoints (Plan 009 P1b) ──────────────────────────
+
+/// `POST /api/chats/session/{id}/approve/{index}` — apply the pending spec
+/// change at `index` to the Spec Ledger, then remove it from the queue.
+async fn chat_approve(
+    State(state): State<AppState>,
+    axum::extract::Path((id, index)): axum::extract::Path<(String, usize)>,
+) -> Response {
+    match state.chats.approve_spec_change(&id, index, &state.specs) {
+        Ok(Some((change, session))) => Json(json!({
+            "applied": change,
+            "session": session,
+        }))
+        .into_response(),
+        Ok(None) => (StatusCode::NOT_FOUND, "session not found").into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
+    }
+}
+
+/// `POST /api/chats/session/{id}/reject/{index}` — discard the pending spec
+/// change at `index` without applying it.
+async fn chat_reject(
+    State(state): State<AppState>,
+    axum::extract::Path((id, index)): axum::extract::Path<(String, usize)>,
+) -> Response {
+    match state.chats.reject_spec_change(&id, index) {
+        Ok(Some(session)) => Json(json!({ "session": session })).into_response(),
+        Ok(None) => (StatusCode::NOT_FOUND, "session not found").into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
+    }
+}
+
+/// `POST /api/chats/session/{id}/reject-all` — discard all pending spec changes.
+async fn chat_reject_all(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Response {
+    match state.chats.reject_all_spec_changes(&id) {
+        Ok(Some(session)) => Json(json!({ "session": session })).into_response(),
+        Ok(None) => (StatusCode::NOT_FOUND, "session not found").into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
+    }
 }
 
 // ── Workflow endpoints ─────────────────────────────────────────────────────

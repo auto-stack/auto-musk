@@ -92,6 +92,11 @@ pub struct ChatSession {
     pub messages: Vec<ChatMessage>,
     pub created_at: u64,
     pub updated_at: u64,
+    /// Spec changes proposed by the agent, awaiting user approval (Plan 009 P1b).
+    /// When the agent calls `update_spec`, the change is queued here instead of
+    /// applied directly; the user approves/rejects via the HTTP endpoints.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pending_spec_changes: Vec<crate::specs::SpecChange>,
 }
 
 /// A lightweight summary for list views (no message bodies).
@@ -116,6 +121,7 @@ impl ChatSession {
             messages: Vec::new(),
             created_at: now,
             updated_at: now,
+            pending_spec_changes: Vec::new(),
         }
     }
 
@@ -277,6 +283,130 @@ impl ChatStore {
             Ok(None)
         }
     }
+
+    // ── Spec-change approval (Plan 009 P1b) ──────────────────
+
+    /// Queue a spec change proposed by the agent (not yet applied). Returns
+    /// the updated session, or None if the id wasn't found.
+    pub fn queue_spec_change(
+        &self,
+        id: &str,
+        change: crate::specs::SpecChange,
+    ) -> std::io::Result<Option<ChatSession>> {
+        let mut map = self.load_map();
+        if let Some(session) = map.get_mut(id) {
+            session.pending_spec_changes.push(change);
+            session.updated_at = now_sec();
+            let updated = session.clone();
+            self.save_map(&map)?;
+            Ok(Some(updated))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Approve the spec change at `index`: apply it to `specs` (upsert or
+    /// set_status), then remove it from the pending queue. Returns the applied
+    /// change + updated session, or None if session/index not found.
+    pub fn approve_spec_change(
+        &self,
+        id: &str,
+        index: usize,
+        specs: &crate::specs::SpecsStore,
+    ) -> Result<Option<(crate::specs::SpecChange, ChatSession)>, String> {
+        let mut map = self.load_map();
+        let session = map
+            .get_mut(id)
+            .ok_or_else(|| format!("session '{id}' not found"))?;
+        if index >= session.pending_spec_changes.len() {
+            return Err(format!("pending change index {index} out of range"));
+        }
+        let change = session.pending_spec_changes.remove(index);
+        // Apply the change to the spec document.
+        let mut doc = specs
+            .load()
+            .map_err(|e| format!("load specs: {e}"))?;
+        apply_spec_change(&change, specs, &mut doc)?;
+        specs
+            .save(&doc)
+            .map_err(|e| format!("save specs: {e}"))?;
+        session.updated_at = now_sec();
+        let updated = session.clone();
+        self.save_map(&map)
+            .map_err(|e| format!("save chats: {e}"))?;
+        Ok(Some((change, updated)))
+    }
+
+    /// Reject (discard) the spec change at `index` without applying it.
+    pub fn reject_spec_change(
+        &self,
+        id: &str,
+        index: usize,
+    ) -> Result<Option<ChatSession>, String> {
+        let mut map = self.load_map();
+        let session = map
+            .get_mut(id)
+            .ok_or_else(|| format!("session '{id}' not found"))?;
+        if index >= session.pending_spec_changes.len() {
+            return Err(format!("pending change index {index} out of range"));
+        }
+        session.pending_spec_changes.remove(index);
+        session.updated_at = now_sec();
+        let updated = session.clone();
+        self.save_map(&map)
+            .map_err(|e| format!("save chats: {e}"))?;
+        Ok(Some(updated))
+    }
+
+    /// Reject all pending spec changes for a session.
+    pub fn reject_all_spec_changes(&self, id: &str) -> Result<Option<ChatSession>, String> {
+        let mut map = self.load_map();
+        let session = map
+            .get_mut(id)
+            .ok_or_else(|| format!("session '{id}' not found"))?;
+        session.pending_spec_changes.clear();
+        session.updated_at = now_sec();
+        let updated = session.clone();
+        self.save_map(&map)
+            .map_err(|e| format!("save chats: {e}"))?;
+        Ok(Some(updated))
+    }
+}
+
+/// Apply one SpecChange to a document via the store (upsert or set_status).
+fn apply_spec_change(
+    change: &crate::specs::SpecChange,
+    store: &crate::specs::SpecsStore,
+    doc: &mut crate::specs::SpecsDocument,
+) -> Result<(), String> {
+    use crate::specs::{SpecItem, SpecStatus};
+    // If a status is given, treat as a status transition; otherwise upsert the
+    // item (title/content) into the section.
+    if let Some(new_status) = change.status {
+        store.transition_item(doc, &change.section_id, &change.item_id, new_status)?;
+        return Ok(());
+    }
+    // Build the item from the change (title/content); keep status Empty if new.
+    let existing = doc
+        .sections
+        .iter()
+        .find(|s| s.id == change.section_id)
+        .and_then(|s| s.items.iter().find(|i| i.id == change.item_id))
+        .cloned();
+    let mut item = existing.unwrap_or_else(|| SpecItem::new(change.item_id.clone(), ""));
+    if let Some(t) = &change.title {
+        item.title = t.clone();
+    }
+    if let Some(c) = &change.content {
+        item.content = c.clone();
+    }
+    if item.title.is_empty() && item.content.is_empty() {
+        item.title = "(empty)".into();
+    }
+    // If brand new, status stays Empty; if existing, keep its status.
+    let _ = SpecStatus::Empty; // suppress unused import warning if no status path
+    store.upsert_item(doc, &change.section_id, item)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -363,5 +493,108 @@ mod tests {
         f.write_all(b"not json {{{").unwrap();
         let store = ChatStore::at(f.path());
         assert!(store.list().is_empty()); // warns, returns empty
+    }
+
+    // ── Spec-change approval (Plan 009 P1b) ──────────────────
+
+    use crate::specs::{SpecChange, SpecsStore};
+
+    fn tmp_specs() -> SpecsStore {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static N: AtomicU64 = AtomicU64::new(0);
+        let n = N.fetch_add(1, Ordering::SeqCst);
+        let path = std::env::temp_dir().join(format!("musk_chats_approve_{}_{}.json", std::process::id(), n));
+        let _ = std::fs::remove_file(&path);
+        SpecsStore::new(path)
+    }
+
+    #[test]
+    fn queue_then_reject_spec_change() {
+        let (store, _f) = temp_store();
+        let s = store.create("superpowers").unwrap();
+        let change = SpecChange {
+            section_id: "goals".into(),
+            item_id: "G1".into(),
+            title: Some("new goal".into()),
+            content: None,
+            status: None,
+            reason: "proposed by agent".into(),
+        };
+        let updated = store.queue_spec_change(&s.id, change).unwrap().unwrap();
+        assert_eq!(updated.pending_spec_changes.len(), 1);
+
+        // reject it
+        let after = store.reject_spec_change(&s.id, 0).unwrap().unwrap();
+        assert!(after.pending_spec_changes.is_empty());
+    }
+
+    #[test]
+    fn approve_applies_upsert_to_specs() {
+        let (store, _f) = temp_store();
+        let specs = tmp_specs();
+        let s = store.create("superpowers").unwrap();
+        let change = SpecChange {
+            section_id: "goals".into(),
+            item_id: "G1".into(),
+            title: Some("approved goal".into()),
+            content: Some("body".into()),
+            status: None,
+            reason: "agent proposal".into(),
+        };
+        store.queue_spec_change(&s.id, change).unwrap();
+
+        // approve → applies upsert to specs
+        let (applied, session) = store.approve_spec_change(&s.id, 0, &specs).unwrap().unwrap();
+        assert_eq!(applied.item_id, "G1");
+        assert!(session.pending_spec_changes.is_empty());
+
+        // verify it landed in the spec doc
+        let doc = specs.load().unwrap();
+        let goals = doc.sections.iter().find(|x| x.id == "goals").unwrap();
+        assert_eq!(goals.items.len(), 1);
+        assert_eq!(goals.items[0].id, "G1");
+        assert_eq!(goals.items[0].title, "approved goal");
+    }
+
+    #[test]
+    fn approve_applies_status_transition() {
+        let (store, _f) = temp_store();
+        let specs = tmp_specs();
+        let s = store.create("superpowers").unwrap();
+        // seed a goal at Empty first
+        let mut doc = specs.load().unwrap();
+        specs.upsert_item(&mut doc, "goals", crate::specs::SpecItem::new("G1", "g")).unwrap();
+        specs.save(&doc).unwrap();
+
+        // queue a status change Empty -> Proposed (legal for Goals)
+        let change = SpecChange {
+            section_id: "goals".into(),
+            item_id: "G1".into(),
+            title: None,
+            content: None,
+            status: Some(crate::specs::SpecStatus::Proposed),
+            reason: "advance".into(),
+        };
+        store.queue_spec_change(&s.id, change).unwrap();
+        store.approve_spec_change(&s.id, 0, &specs).unwrap();
+
+        let doc = specs.load().unwrap();
+        let g = doc.sections.iter().find(|x| x.id == "goals").unwrap();
+        assert_eq!(g.items[0].status, crate::specs::SpecStatus::Proposed);
+    }
+
+    #[test]
+    fn reject_all_clears_queue() {
+        let (store, _f) = temp_store();
+        let s = store.create("superpowers").unwrap();
+        for i in 0..3 {
+            store.queue_spec_change(&s.id, SpecChange {
+                section_id: "goals".into(),
+                item_id: format!("G{i}"),
+                title: None, content: None, status: None, reason: "x".into(),
+            }).unwrap();
+        }
+        let after = store.reject_all_spec_changes(&s.id).unwrap().unwrap();
+        assert!(after.pending_spec_changes.is_empty());
     }
 }

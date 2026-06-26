@@ -378,7 +378,10 @@ impl Tool for ListSymbols {
         let path = args["path"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'path'".into()))?;
-        let content = std::fs::read_to_string(path)
+        // Path confinement (Design 004).
+        let resolved = crate::tool_safety::resolve_within_project(path)
+            .map_err(|e| ToolError::Exec(e))?;
+        let content = std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
 
         // Patterns that indicate a symbol definition line. We match on the
@@ -442,12 +445,16 @@ impl Tool for Glob {
         let pattern = args["pattern"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'pattern'".into()))?;
-        let base = args["path"].as_str().unwrap_or(".");
+        let raw_base = args["path"].as_str().unwrap_or(".");
+        // Path confinement (Design 004): constrain glob base to project root.
+        let base = crate::tool_safety::resolve_within_project(raw_base)
+            .map_err(|e| ToolError::Exec(e))?;
+        let base_str = base.to_string_lossy().to_string();
         let full_pattern = if pattern.starts_with('/') || pattern.contains(':') {
             // absolute or has a drive letter — use as-is
             pattern.to_string()
         } else {
-            format!("{base}/{pattern}")
+            format!("{base_str}/{pattern}")
         };
 
         let matches: Vec<String> = glob::glob(&full_pattern)
