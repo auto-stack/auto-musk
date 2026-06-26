@@ -56,11 +56,32 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         chats: Arc::new(crate::chats::ChatStore::default_path()),
     };
 
-    // Serve the standalone ESM config-page bundle (config-page.js) so that
-    // auto-os-config can load it cross-origin via dynamic import(). The file is
-    // produced by `npm run build` in frontend/ → frontend-dist/config-page.js.
-    let assets_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("frontend-dist");
-    let static_service = tower_http::services::ServeDir::new(&assets_path);
+    // Static assets: the web app (Chats/Specs SPA) lives at `web/dist`
+    // (built by `npm run build` in web/). The legacy config-page ESM bundle
+    // (`frontend-dist/config-page.js`, if present) is served as a fallback so
+    // auto-os-config can still load it cross-origin.
+    let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    // web/dist is two levels up from backend/crates/musk → auto-musk/web/dist.
+    let web_dist = manifest
+        .join("../../../web/dist")
+        .canonicalize()
+        .unwrap_or_else(|_| manifest.join("../../../web/dist"));
+    let frontend_dist = manifest.join("../../../frontend-dist");
+    let static_service = tower_http::services::ServeDir::new(&web_dist)
+        .fallback(tower_http::services::ServeDir::new(&frontend_dist))
+        // SPA: unknown non-/api paths fall back to index.html so client-side
+        // routing (e.g. /chats) works on refresh.
+        .fallback(tower_http::services::ServeFile::new(web_dist.join("index.html")));
+
+    // Warn (not fail) if the web app wasn't built — the API still works, but
+    // the browser UI will be missing. Tells the user how to build it.
+    if !web_dist.join("index.html").exists() {
+        tracing::warn!(
+            "web app not built at {} — `cd web && npm install && npm run build` for the UI. \
+             The HTTP API is still available; the browser will show nothing until the web app is built.",
+            web_dist.display()
+        );
+    }
 
     // CORS: allow auto-os-config (and any localhost dev server) to load the
     // config-page bundle + config API cross-origin.
