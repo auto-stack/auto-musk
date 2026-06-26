@@ -1323,12 +1323,22 @@ mod tests {
         Arc::new(crate::specs::SpecsStore::new(path))
     }
 
+    fn tmp_chats() -> Arc<crate::chats::ChatStore> {
+        let path = std::env::temp_dir().join(format!(
+            "musk_server_chats_test_{}.json",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+        Arc::new(crate::chats::ChatStore::at(path))
+    }
+
     #[tokio::test]
     async fn run_endpoint_returns_result() {
         let state = AppState {
             client: Arc::new(MockClient) as Arc<dyn Client>,
             auth: tmp_auth(),
             specs: tmp_specs(),
+            chats: tmp_chats(),
         };
         let req = RunRequest {
             task: "say hello".into(),
@@ -1345,6 +1355,7 @@ mod tests {
             client: Arc::new(MockClient) as Arc<dyn Client>,
             auth: tmp_auth(),
             specs: tmp_specs(),
+            chats: tmp_chats(),
         };
         let req = RunRequest {
             task: "x".into(),

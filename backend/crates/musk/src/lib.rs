@@ -8,6 +8,7 @@ pub mod chats;
 pub mod mode;
 pub mod server;
 pub mod specs;
+pub mod tool_test;
 pub mod tools;
 pub mod workflow;
 pub mod hello;

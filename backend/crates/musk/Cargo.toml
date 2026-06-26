@@ -37,9 +37,11 @@ glob = "0.3"
 # auto-atom parser(for mode .at config parsing)
 auto-atom = { path = "../../../../auto-lang/crates/auto-atom" }
 auto-val = { path = "../../../../auto-lang/crates/auto-val" }
+# temp dir for the tool-test framework (Design 003); also used by chats tests
+tempfile = "3"
 
 [dev-dependencies]
 # tools 单元测试用 #[tokio::test]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
-# chats 单元测试用临时文件
-tempfile = "3"
+# 副作用工具测试串行(chdir 全局状态,不能并行)
+serial_test = "3"

@@ -321,48 +321,136 @@ pub fn now_sec() -> u64 {
 }
 
 // ============================================================
-// State machine — valid status transitions
+// State machine — per-section valid status transitions
 // ============================================================
 
-/// Is the transition `from -> to` valid? Models the canonical spec lifecycle:
-/// empty → proposed → draft → review → approved → implemented → verified → done,
-/// with rejection/archive/done side-branches at sensible points.
+/// Per-section-type state-machine configuration.
 ///
-/// Unknown "back to draft" is allowed from most states (specs get reopened).
-pub fn can_transition(from: SpecStatus, to: SpecStatus) -> bool {
-    use SpecStatus::*;
-    if from == to {
-        return true; // idempotent
-    }
-    match from {
-        Empty => matches!(to, Proposed | Draft | Backlog),
-        Proposed => matches!(to, Draft | Backlog | Rejected),
-        Draft => matches!(to, UnderReview | InReview | Approved | Backlog),
-        UnderReview | InReview => {
-            matches!(to, Approved | Rejected | Draft | Blocked)
+/// Each of the 7 `SectionType`s has its own `allowed_statuses` and
+/// `allowed_transitions`. This is the per-section replacement for the old
+/// single global `can_transition` (which applied one rule set to all sections).
+///
+/// Ported from auto-forge `mod.rs:242-342` (`SectionConfig::for_type`), with
+/// the greenfield simplifications noted in plans/009 Task 1:
+/// - The loose 3rd rule ("to ∈ allowed_statuses ⇒ allow") is REMOVED — only
+///   explicit transitions (and idempotent from==to) pass.
+/// - The Reports state-machine bug is fixed: auto-forge's first `Reports` match
+///   arm (`mod.rs:297`) was shadowed by the later `Reviews | Reports` arm
+///   (`mod.rs:324`); we use a single clear arm for Reviews|Reports.
+#[derive(Clone, Debug)]
+pub struct SectionConfig {
+    pub section_type: SectionType,
+    pub allowed_statuses: Vec<SpecStatus>,
+    pub allowed_transitions: Vec<(SpecStatus, SpecStatus)>,
+}
+
+impl SectionConfig {
+    /// The state machine for a given section type.
+    pub fn for_type(st: SectionType) -> Self {
+        use SpecStatus::*;
+        match st {
+            // Goals: Empty → Proposed → Analysed → Approved → InProgress →
+            //        Implemented → Done → Archived (+ InProgress → Archived)
+            SectionType::Goals => Self {
+                section_type: st,
+                allowed_statuses: vec![
+                    Empty, Proposed, Analysed, Approved, InProgress, Implemented, Done, Archived,
+                ],
+                allowed_transitions: vec![
+                    (Empty, Proposed),
+                    (Proposed, Analysed),
+                    (Analysed, Approved),
+                    (Approved, InProgress),
+                    (InProgress, Implemented),
+                    (Implemented, Done),
+                    (Done, Archived),
+                    (InProgress, Archived),
+                ],
+            },
+            // Architecture / Designs: Empty → Draft → UnderReview → {Approved|Rejected},
+            //   Approved → {Superseded|Outdated}
+            SectionType::Architecture | SectionType::Designs => Self {
+                section_type: st,
+                allowed_statuses: vec![
+                    Empty, Draft, UnderReview, Approved, Rejected, Superseded, Outdated,
+                ],
+                allowed_transitions: vec![
+                    (Empty, Draft),
+                    (Draft, UnderReview),
+                    (UnderReview, Approved),
+                    (UnderReview, Rejected),
+                    (Approved, Superseded),
+                    (Approved, Outdated),
+                ],
+            },
+            // Plans: Empty → Draft → Approved → InProgress → Done → Obsolete
+            SectionType::Plans => Self {
+                section_type: st,
+                allowed_statuses: vec![Empty, Draft, Approved, InProgress, Done, Obsolete],
+                allowed_transitions: vec![
+                    (Empty, Draft),
+                    (Draft, Approved),
+                    (Approved, InProgress),
+                    (InProgress, Done),
+                    (Done, Obsolete),
+                ],
+            },
+            // Tests: Empty → Draft → Implemented → Done → Verified,
+            //        Implemented ↔ Blocked
+            SectionType::Tests => Self {
+                section_type: st,
+                allowed_statuses: vec![
+                    Empty, Draft, Implemented, Done, Verified, Blocked,
+                ],
+                allowed_transitions: vec![
+                    (Empty, Draft),
+                    (Draft, Implemented),
+                    (Implemented, Done),
+                    (Done, Verified),
+                    (Implemented, Blocked),
+                    (Blocked, Implemented),
+                ],
+            },
+            // Reviews / Reports: Empty → Draft → Published
+            // (fixed: auto-forge shadowed Reports' own arm; we unify both)
+            SectionType::Reviews | SectionType::Reports => Self {
+                section_type: st,
+                allowed_statuses: vec![Empty, Draft, Published],
+                allowed_transitions: vec![(Empty, Draft), (Draft, Published)],
+            },
         }
-        Approved => matches!(to, Ready | InProgress | InImplementation),
-        Ready => matches!(to, InProgress | InImplementation | Backlog),
-        InProgress | InImplementation => matches!(to, Implemented | Blocked),
-        Implemented => matches!(to, Verified | InProgress),
-        Verified => matches!(to, Done | Archived),
-        Done => matches!(to, Archived | Draft),
-        Backlog => matches!(to, Ready | Proposed | Draft),
-        Blocked => matches!(to, InProgress | InReview | Backlog | Rejected),
-        // terminal-ish states: allow reopen-to-draft/backlog for correction,
-        // or proceed to Archived.
-        Archived | Rejected | Superseded | Outdated | Stable | Deprecated
-        | Published | Analysed | Obsolete => matches!(to, Draft | Backlog | Archived),
+    }
+
+    /// Is `from -> to` a legal transition for this section type?
+    /// Idempotent (from == to) is always allowed. Otherwise the pair must be in
+    /// `allowed_transitions`. (The loose "to ∈ allowed_statuses" rule is
+    /// intentionally NOT applied — see plans/009 Task 1.)
+    pub fn can_transition(&self, from: SpecStatus, to: SpecStatus) -> bool {
+        if from == to {
+            return true;
+        }
+        self.allowed_transitions.contains(&(from, to))
     }
 }
 
-/// Transition a status, returning the new status or an error if invalid.
-pub fn transition(from: SpecStatus, to: SpecStatus) -> Result<SpecStatus, String> {
-    if can_transition(from, to) {
+/// Per-section transition check: is `from -> to` valid for `section_type`?
+pub fn can_transition(st: SectionType, from: SpecStatus, to: SpecStatus) -> bool {
+    SectionConfig::for_type(st).can_transition(from, to)
+}
+
+/// Per-section transition: return the new status or an error if invalid for
+/// this section type.
+pub fn transition(
+    st: SectionType,
+    from: SpecStatus,
+    to: SpecStatus,
+) -> Result<SpecStatus, String> {
+    if SectionConfig::for_type(st).can_transition(from, to) {
         Ok(to)
     } else {
         Err(format!(
-            "invalid status transition: {} -> {}",
+            "invalid status transition for {}: {} -> {}",
+            st.as_str(),
             from.to_str(),
             to.to_str()
         ))
@@ -439,7 +527,7 @@ impl SpecsStore {
         Ok(())
     }
 
-    /// Transition an item's status (validates via the state machine).
+    /// Transition an item's status (validates via the per-section state machine).
     pub fn transition_item(
         &self,
         doc: &mut SpecsDocument,
@@ -452,12 +540,13 @@ impl SpecsStore {
             .iter_mut()
             .find(|s| s.id == section_id)
             .ok_or_else(|| format!("section '{section_id}' not found"))?;
+        let st = section.section_type;
         let item = section
             .items
             .iter_mut()
             .find(|i| i.id == item_id)
             .ok_or_else(|| format!("item '{item_id}' not found in '{section_id}'"))?;
-        let updated = transition(item.status, new_status)?;
+        let updated = transition(st, item.status, new_status)?;
         item.status = updated;
         item.modified_at = now_sec();
         if matches!(updated, SpecStatus::Done) {
@@ -609,51 +698,133 @@ mod tests {
         assert!(t > 1704067200);
     }
 
-    // ── state machine ──────────────────────────────────────────
+    // ── state machine (per-section) ──────────────────────────
 
     #[test]
-    fn transition_empty_to_proposed_ok() {
-        assert!(can_transition(SpecStatus::Empty, SpecStatus::Proposed));
-        assert!(can_transition(SpecStatus::Proposed, SpecStatus::Draft));
-        assert!(can_transition(SpecStatus::Draft, SpecStatus::UnderReview));
-        assert!(can_transition(SpecStatus::Approved, SpecStatus::InProgress));
-        assert!(can_transition(SpecStatus::Verified, SpecStatus::Done));
+    fn goals_transitions_canonical_path() {
+        use SpecStatus::*;
+        let st = SectionType::Goals;
+        assert!(can_transition(st, Empty, Proposed));
+        assert!(can_transition(st, Proposed, Analysed));
+        assert!(can_transition(st, Analysed, Approved));
+        assert!(can_transition(st, Approved, InProgress));
+        assert!(can_transition(st, InProgress, Implemented));
+        assert!(can_transition(st, Implemented, Done));
+        assert!(can_transition(st, Done, Archived));
+        // side branch
+        assert!(can_transition(st, InProgress, Archived));
     }
 
     #[test]
-    fn transition_rejects_skipping() {
-        // can't go Empty -> Approved (must pass proposed/draft/review)
-        assert!(!can_transition(SpecStatus::Empty, SpecStatus::Approved));
-        // can't verify before implementing
-        assert!(!can_transition(SpecStatus::Approved, SpecStatus::Verified));
+    fn goals_rejects_skipping() {
+        use SpecStatus::*;
+        let st = SectionType::Goals;
+        assert!(!can_transition(st, Empty, Approved)); // must pass proposed/analysed
+        assert!(!can_transition(st, Approved, Done)); // must implement first
     }
 
     #[test]
-    fn transition_blocked_can_proceed() {
-        assert!(can_transition(SpecStatus::Blocked, SpecStatus::InProgress));
-        assert!(can_transition(SpecStatus::Blocked, SpecStatus::Backlog));
+    fn architecture_transitions() {
+        use SpecStatus::*;
+        let st = SectionType::Architecture;
+        assert!(can_transition(st, Empty, Draft));
+        assert!(can_transition(st, Draft, UnderReview));
+        assert!(can_transition(st, UnderReview, Approved));
+        assert!(can_transition(st, UnderReview, Rejected));
+        assert!(can_transition(st, Approved, Superseded));
+        assert!(can_transition(st, Approved, Outdated));
+        // can't skip review
+        assert!(!can_transition(st, Draft, Approved));
     }
 
     #[test]
-    fn transition_terminal_reopens_to_draft() {
-        assert!(can_transition(SpecStatus::Done, SpecStatus::Draft));
-        assert!(can_transition(SpecStatus::Rejected, SpecStatus::Draft));
+    fn plans_transitions() {
+        use SpecStatus::*;
+        let st = SectionType::Plans;
+        assert!(can_transition(st, Empty, Draft));
+        assert!(can_transition(st, Draft, Approved));
+        assert!(can_transition(st, Approved, InProgress));
+        assert!(can_transition(st, InProgress, Done));
+        assert!(can_transition(st, Done, Obsolete));
+        assert!(!can_transition(st, Draft, Done));
+    }
+
+    #[test]
+    fn tests_transitions_with_blocked() {
+        use SpecStatus::*;
+        let st = SectionType::Tests;
+        assert!(can_transition(st, Empty, Draft));
+        assert!(can_transition(st, Draft, Implemented));
+        assert!(can_transition(st, Implemented, Done));
+        assert!(can_transition(st, Done, Verified));
+        // blocked toggle
+        assert!(can_transition(st, Implemented, Blocked));
+        assert!(can_transition(st, Blocked, Implemented));
+        // can't verify before done
+        assert!(!can_transition(st, Implemented, Verified));
+    }
+
+    #[test]
+    fn reviews_reports_unified_simple_flow() {
+        // auto-forge bug fix: Reports now uses the same flow as Reviews
+        use SpecStatus::*;
+        for st in [SectionType::Reviews, SectionType::Reports] {
+            assert!(can_transition(st, Empty, Draft));
+            assert!(can_transition(st, Draft, Published));
+            // no UnderReview/Stable/Deprecated (those were the shadowed arm)
+            assert!(!can_transition(st, Draft, Stable));
+            assert!(!can_transition(st, Empty, Published));
+        }
     }
 
     #[test]
     fn transition_idempotent() {
-        for s in [SpecStatus::Draft, SpecStatus::Done, SpecStatus::Backlog] {
-            assert!(can_transition(s, s));
+        for st in [
+            SectionType::Goals,
+            SectionType::Plans,
+            SectionType::Tests,
+        ] {
+            assert!(can_transition(st, SpecStatus::Draft, SpecStatus::Draft));
         }
     }
 
     #[test]
     fn transition_fn_returns_status_or_err() {
         assert_eq!(
-            transition(SpecStatus::Empty, SpecStatus::Proposed).unwrap(),
+            transition(SectionType::Goals, SpecStatus::Empty, SpecStatus::Proposed).unwrap(),
             SpecStatus::Proposed
         );
-        assert!(transition(SpecStatus::Empty, SpecStatus::Done).is_err());
+        assert!(transition(SectionType::Goals, SpecStatus::Empty, SpecStatus::Done).is_err());
+    }
+
+    #[test]
+    fn section_config_allowed_statuses_match_machine() {
+        // every transition's endpoints must be in allowed_statuses
+        for st in [
+            SectionType::Goals,
+            SectionType::Architecture,
+            SectionType::Designs,
+            SectionType::Plans,
+            SectionType::Tests,
+            SectionType::Reviews,
+            SectionType::Reports,
+        ] {
+            let cfg = SectionConfig::for_type(st);
+            for (from, to) in &cfg.allowed_transitions {
+                assert!(
+                    cfg.allowed_statuses.contains(from),
+                    "{:?}: transition source {:?} not in allowed_statuses",
+                    st,
+                    from
+                );
+                assert!(
+                    cfg.allowed_statuses.contains(to),
+                    "{:?}: transition target {:?} not in allowed_statuses",
+                    st,
+                    to
+                );
+            }
+        }
     }
 
     // ── SpecsStore ─────────────────────────────────────────────
@@ -733,17 +904,16 @@ mod tests {
         let path = std::env::temp_dir().join("musk_specs_test_done.json");
         let store = SpecsStore::new(&path);
         let mut doc = SpecsDocument::new("t");
-        // Walk the item through to Verified, then Done.
+        // Walk the item through the Goals state machine to Verified, then Done.
         store
             .upsert_item(&mut doc, "goals", SpecItem::new("G1", "g"))
             .unwrap();
         for s in [
             SpecStatus::Proposed,
-            SpecStatus::Draft,
+            SpecStatus::Analysed,
             SpecStatus::Approved,
             SpecStatus::InProgress,
             SpecStatus::Implemented,
-            SpecStatus::Verified,
             SpecStatus::Done,
         ] {
             store.transition_item(&mut doc, "goals", "G1", s).unwrap();
