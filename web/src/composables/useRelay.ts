@@ -178,7 +178,9 @@ export function useRelay() {
       const query = projectPath ? `?project_path=${encodeURIComponent(projectPath)}` : ''
       const resp = await authFetch(`${API_BASE}/runs${query}`)
       if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
-      const data = await resp.json()
+      const raw = await resp.json()
+      // Backend returns { runs: [...] }; tolerate a bare array too.
+      const data: RunSummary[] = Array.isArray(raw) ? raw : (raw?.runs ?? [])
       runs.value = data.sort((a: RunSummary, b: RunSummary) => b.updated_at - a.updated_at)
       // Clear stale currentRun if it's no longer in the list
       if (currentRun.value && !data.find((r: RunSummary) => r.run_id === currentRun.value!.run_id)) {
@@ -187,6 +189,7 @@ export function useRelay() {
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)
+      runs.value = []
     }
   }
 

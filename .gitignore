@@ -24,3 +24,18 @@ Thumbs.db
 # Rust build output (backend)
 backend/target/
 **/target/
+
+# ZCode / Claude agent working dirs
+.claude/
+
+# Playwright debug artifacts (screenshots, debug scripts, temp responses)
+web/debug-shots/
+web/debug-*.mjs
+web/*cookies.txt
+web/*login-resp.txt
+web/*relay-resp.txt
+
+# Accidental Windows "nul" device-name files + temp greeting output
+nul
+web/nul
+greeting.txt

@@ -6,12 +6,14 @@ pub mod app_config;
 pub mod auth;
 pub mod chats;
 pub mod mode;
+pub mod relay;
 pub mod server;
 pub mod spec_tools;
 pub mod specs;
 pub mod tool_safety;
 pub mod tool_test;
 pub mod tools;
+pub mod wiki;
 pub mod workflow;
 pub mod hello;
 

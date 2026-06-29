@@ -19,6 +19,23 @@ const _errands = ref<Record<string, ErrandState>>({})
 const _relayRuns = ref<Record<string, import('@/types/forge').RelayRunState>>({})
 const _taskPlans = ref<Record<string, import('@/types/forge').TaskPlanState>>({})
 
+/** Normalize a backend session-summary record into the shape the frontend
+ *  expects. The current backend summary carries {id, name, mode, message_count,
+ *  preview, updated_at} but no `status`/`phase`/`last_activity`; backfill those
+ *  so list views and `resume()` keep working. */
+function normalizeSummary(s: any): ForgeSessionSummary {
+  return {
+    id: s.id,
+    name: s.name,
+    preview: s.preview ?? '',
+    message_count: s.message_count ?? 0,
+    status: s.status ?? 'idle',
+    phase: s.phase ?? 'intake',
+    last_activity: s.last_activity ?? s.updated_at ?? 0,
+    ...(s.mode !== undefined ? { mode: s.mode } : {}),
+  } as ForgeSessionSummary
+}
+
 export function useForge() {
   const session = _session
   const messages = _messages
@@ -152,13 +169,18 @@ export function useForge() {
     }
   }
 
-  /** Fetch the list of all sessions from the server */
+  /** Fetch the list of all sessions from the server.
+   *  Backend returns `{ sessions: [...] }` (object-wrapped); older/newer
+   *  endpoints may return a bare array. Normalize both, and backfill the
+   *  `status`/`last_activity` fields the frontend expects but the backend
+   *  summary does not yet carry. */
   async function loadSessionList() {
     try {
       const resp = await authFetch(`${API_BASE}/sessions`)
       if (resp.ok) {
-        const data: ForgeSessionSummary[] = await resp.json()
-        sessionList.value = data
+        const raw = await resp.json()
+        const arr: any[] = Array.isArray(raw) ? raw : (raw?.sessions ?? [])
+        sessionList.value = arr.map(normalizeSummary)
       }
     } catch {
       // ignore

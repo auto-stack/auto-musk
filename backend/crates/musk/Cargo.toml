@@ -23,8 +23,10 @@ async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # HTTP server (musk serve — frontend talks to this on :8080)
-axum = { version = "0.8", features = ["macros"] }
+axum = { version = "0.8", features = ["macros", "multipart"] }
 tower-http = { version = "0.6", features = ["cors", "fs"] }
+# SSE streaming for the relay events endpoint (api.rs).
+tokio-stream = { version = "0.1", features = ["sync"] }
 tracing = "0.1"
 async-stream = "0.3"
 futures = "0.3"

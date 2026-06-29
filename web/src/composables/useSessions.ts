@@ -14,16 +14,28 @@ export function useSessions() {
   const isLoading = _isLoading
   const error = _error
 
-  /** Fetch all sessions from the server */
+  /** Fetch all sessions from the server.
+   *  Backend returns `{ sessions: [...] }` (object-wrapped); also tolerate a
+   *  bare array. Backfill `status`/`last_activity` that the backend summary
+   *  does not yet carry so downstream `.filter` calls stay safe. */
   async function loadSessionList() {
     try {
       _isLoading.value = true
       const resp = await authFetch(`${API_BASE}/sessions`)
       if (!resp.ok) throw new Error(`Failed to load sessions: ${resp.status}`)
-      const data: ForgeSessionSummary[] = await resp.json()
-      _sessionList.value = data
+      const raw = await resp.json()
+      const arr: ForgeSessionSummary[] = Array.isArray(raw) ? raw : (raw?.sessions ?? [])
+      _sessionList.value = arr.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        preview: s.preview ?? '',
+        message_count: s.message_count ?? 0,
+        status: s.status ?? 'idle',
+        phase: s.phase ?? 'intake',
+        last_activity: s.last_activity ?? s.updated_at ?? 0,
+      }))
       _error.value = null
-      return data
+      return _sessionList.value
     } catch (e) {
       _error.value = e instanceof Error ? e.message : String(e)
       throw e
