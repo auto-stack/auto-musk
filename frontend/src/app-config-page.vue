@@ -31,10 +31,29 @@ const form = reactive({
   auto_start_daemon: true,
 })
 
-// Harness selection (which OS-level roles/skills/modes this app inherits)
-interface HarnessCatalog { roles: string[]; skills: string[]; modes: string[] }
-const osCatalog = ref<HarnessCatalog>({ roles: [], skills: [], modes: [] })
-const harness = reactive<HarnessCatalog>({ roles: [], skills: [], modes: [] })
+// Harness: merged view data (OS available + app custom per kind)
+interface HarnessItem {
+  name: string
+  description: string
+  tier?: string
+  is_builtin: boolean
+  selected?: boolean
+}
+interface HarnessData {
+  os_available: HarnessItem[]
+  app_custom: HarnessItem[]
+}
+const harnessData = ref<Record<string, HarnessData>>({
+  roles: { os_available: [], app_custom: [] },
+  skills: { os_available: [], app_custom: [] },
+  modes: { os_available: [], app_custom: [] },
+})
+// The reference list (which OS items are selected) — persisted to config.at
+const harness = reactive<{ roles: string[]; skills: string[]; modes: string[] }>({
+  roles: [], skills: [], modes: [],
+})
+const editingCustom = ref<{ kind: string; name: string; soul: string; tier: string; description: string } | null>(null)
+const savingCustom = ref(false)
 
 const loaded = ref(false)
 const errorMsg = ref('')
@@ -45,11 +64,11 @@ async function load() {
   errorMsg.value = ''
   loaded.value = false
   try {
-    const [cfgResp, rolesResp, skillsResp, modesResp] = await Promise.all([
+    const [cfgResp, rolesH, skillsH, modesH] = await Promise.all([
       fetch(`${API_BASE}/api/app-config`),
-      fetch(`${API_BASE}/api/roles`),
-      fetch(`${API_BASE}/api/skills`),
-      fetch(`${API_BASE}/api/modes`),
+      fetch(`${API_BASE}/api/app-harness/roles`),
+      fetch(`${API_BASE}/api/app-harness/skills`),
+      fetch(`${API_BASE}/api/app-harness/modes`),
     ])
     if (!cfgResp.ok) throw new Error(`HTTP ${cfgResp.status}`)
     const data = await cfgResp.json()
@@ -60,17 +79,14 @@ async function load() {
     form.context_file = s.context_file ?? ''
     form.serve_addr = s.serve_addr ?? data.effective.serve_addr
     form.auto_start_daemon = s.auto_start_daemon ?? data.effective.auto_start_daemon
-    // Harness catalog (OS-level available) + this app's selection
-    osCatalog.value = {
-      roles: (await rolesResp.json().then(d => d.roles || []).catch(() => [])).map((r: any) => r.name),
-      skills: (await skillsResp.json().then(d => d.skills || []).catch(() => [])).map((r: any) => r.name),
-      modes: (await modesResp.json().then(d => d.modes || []).catch(() => [])).map((r: any) => r.name),
-    }
     const h = data.effective.harness || { roles: [], skills: [], modes: [] }
     harness.roles = [...(h.roles || [])]
     harness.skills = [...(h.skills || [])]
     harness.modes = [...(h.modes || [])]
-    // Probe daemon reachability
+    // Load merged harness data
+    harnessData.value.roles = await rolesH.json()
+    harnessData.value.skills = await skillsH.json()
+    harnessData.value.modes = await modesH.json()
     testDaemon(data.effective.daemon_url)
   } catch (e: any) {
     errorMsg.value = e.message || String(e)
@@ -134,6 +150,50 @@ function toggleHarness(kind: 'roles' | 'skills' | 'modes', name: string) {
   const i = list.indexOf(name)
   if (i >= 0) list.splice(i, 1)
   else list.push(name)
+  // Also update the selected flag in harnessData for immediate UI feedback
+  const item = harnessData.value[kind].os_available.find((r) => r.name === name)
+  if (item) item.selected = i < 0
+}
+
+function startNewCustom(kind: string) {
+  editingCustom.value = { kind, name: '', soul: '', tier: 'mid', description: '' }
+}
+
+function editCustom(kind: string, item: HarnessItem) {
+  editingCustom.value = { kind, name: item.name, soul: '', tier: item.tier || 'mid', description: item.description }
+  // Fetch detail for the soul (only roles have soul; reuse /api/roles/{name} for OS, or fetch .at for custom)
+  // For simplicity, start with empty soul for custom roles; the user fills it in.
+}
+
+async function saveCustom() {
+  if (!editingCustom.value || !editingCustom.value.name.trim()) return
+  savingCustom.value = true
+  const e = editingCustom.value
+  try {
+    const resp = await fetch(`${API_BASE}/api/app-harness/${e.kind}/${encodeURIComponent(e.name)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        description: e.description || null,
+        tier: e.tier || 'mid',
+        soul: e.soul || null,
+      }),
+    })
+    if (resp.ok) {
+      editingCustom.value = null
+      await load() // reload harness data
+    }
+  } catch (e: any) {
+    saveNote.value = e.message
+  } finally {
+    savingCustom.value = false
+  }
+}
+
+async function deleteCustom(kind: string, name: string) {
+  if (!confirm(`Delete custom ${kind.slice(0, -1)} "${name}"?`)) return
+  await fetch(`${API_BASE}/api/app-harness/${kind}/${encodeURIComponent(name)}`, { method: 'DELETE' })
+  await load()
 }
 
 onMounted(() => load())
@@ -205,38 +265,66 @@ onMounted(() => load())
         </div>
       </div>
 
-      <!-- Harness selection (which OS-level capabilities this app inherits) -->
+      <!-- Harness: merged view (OS inherit + app custom) per Design 005 -->
       <div class="card">
         <h2>Harness</h2>
         <p class="card-sub">
-          Choose which OS-level capabilities this app inherits. Selected items
-          are used as-is (no field overrides). This is the app's capability scope.
+          OS-level capabilities this app inherits (🟦 checkboxes) + app-level
+          custom harnesses (🟩, editable). Both use the same format.
         </p>
 
         <div v-for="kind in (['roles','skills','modes'] as const)" :key="kind" class="harness-kind">
-          <h3>{{ kind }} <span class="muted">({{ harness[kind].length }}/{{ osCatalog[kind].length }})</span></h3>
-          <div v-if="osCatalog[kind].length === 0" class="muted small">No OS-level {{ kind }} available.</div>
-          <div v-else class="harness-grid">
-            <label
-              v-for="name in osCatalog[kind]"
-              :key="name"
-              class="harness-check"
-              :class="{ on: harness[kind].includes(name) }"
-            >
-              <input
-                type="checkbox"
-                :checked="harness[kind].includes(name)"
-                @change="toggleHarness(kind, name)"
-              />
-              {{ name }}
-            </label>
+          <h3>{{ kind }}</h3>
+
+          <!-- OS-level (inherit) -->
+          <div class="harness-sub">
+            <span class="harness-sub-label">🟦 OS-level (inherit) <span class="muted">— {{ harnessData[kind].os_available.filter(r => r.selected).length }}/{{ harnessData[kind].os_available.length }} selected</span></span>
+            <div v-if="harnessData[kind].os_available.length === 0" class="muted small">No OS-level {{ kind }} available.</div>
+            <div v-else class="harness-grid">
+              <label
+                v-for="item in harnessData[kind].os_available"
+                :key="item.name"
+                class="harness-check"
+                :class="{ on: item.selected, os: true }"
+              >
+                <input
+                  type="checkbox"
+                  :checked="item.selected"
+                  @change="toggleHarness(kind, item.name)"
+                />
+                {{ item.name }}
+                <span v-if="item.tier" class="badge-mini">{{ item.tier }}</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- App-level (custom) -->
+          <div class="harness-sub">
+            <span class="harness-sub-label">🟩 App-level (custom) <span class="muted">— {{ harnessData[kind].app_custom.length }} defined</span></span>
+            <div v-if="editingCustom && editingCustom.kind === kind" class="custom-editor">
+              <input v-model="editingCustom.name" type="text" placeholder="name" class="custom-name-input" />
+              <input v-model="editingCustom.description" type="text" placeholder="description" class="custom-desc-input" />
+              <select v-model="editingCustom.tier" class="custom-tier-select">
+                <option v-for="t in ['min','lite','mid','pro','max']" :key="t" :value="t">{{ t }}</option>
+              </select>
+              <textarea v-if="kind === 'roles'" v-model="editingCustom.soul" class="custom-soul-input" placeholder="# Soul of the role&#10;&#10;## Personality&#10;..." rows="6"></textarea>
+              <div class="custom-actions">
+                <button class="btn-sm primary" :disabled="savingCustom" @click="saveCustom">{{ savingCustom ? 'Saving…' : 'Save' }}</button>
+                <button class="btn-sm" @click="editingCustom = null">Cancel</button>
+              </div>
+            </div>
+            <div v-else>
+              <div v-for="item in harnessData[kind].app_custom" :key="item.name" class="custom-item">
+                <span class="custom-name">{{ item.name }}</span>
+                <span v-if="item.tier" class="badge-mini">{{ item.tier }}</span>
+                <span class="custom-desc">{{ item.description }}</span>
+                <button v-if="kind === 'roles'" class="btn-mini" @click="editCustom(kind, item)">Edit</button>
+                <button class="btn-mini danger" @click="deleteCustom(kind, item.name)">Delete</button>
+              </div>
+              <button class="btn-sm" @click="startNewCustom(kind)">+ New {{ kind.slice(0, -1) }}</button>
+            </div>
           </div>
         </div>
-
-        <p class="where tight">
-          APP-level custom harnesses (defined here, same format as OS-level)
-          are a planned follow-up. Phase 1 covers OS-level inheritance only.
-        </p>
       </div>
 
       <!-- Save bar -->
@@ -304,6 +392,25 @@ onMounted(() => load())
 .harness-check input { margin: 0; }
 .muted.small { font-size: 11px; color: var(--text-muted); }
 .where.tight { margin-top: 10px; font-size: 11px; }
+
+/* Harness merged view (Design 005) */
+.harness-sub { margin-bottom: 12px; }
+.harness-sub-label { display: block; font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.harness-check.os { background: var(--bg-hover); }
+.harness-check.os.on { background: var(--accent-light); color: var(--accent); }
+.badge-mini { font-size: 10px; padding: 0 5px; border-radius: 8px; background: var(--border); color: var(--text-secondary); margin-left: 4px; }
+
+.custom-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: var(--radius-sm, 4px); background: var(--accent-light); margin-bottom: 4px; }
+.custom-name { font-weight: 600; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--accent); }
+.custom-desc { font-size: 11px; color: var(--text-secondary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.custom-editor { background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); padding: 12px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
+.custom-name-input, .custom-desc-input { padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; background: var(--bg-card); outline: none; }
+.custom-tier-select { padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 11px; background: var(--bg-card); width: fit-content; }
+.custom-soul-input { padding: 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--bg-card); outline: none; resize: vertical; }
+.custom-actions { display: flex; gap: 6px; }
+.btn-mini { padding: 2px 8px; font-size: 11px; border: 1px solid var(--border); border-radius: 3px; background: var(--bg-card); cursor: pointer; color: var(--text-secondary); }
+.btn-mini:hover { border-color: var(--accent); color: var(--accent); }
+.btn-mini.danger:hover { color: var(--danger); border-color: var(--danger); }
 
 .state-msg { padding: 14px; border-radius: var(--radius, 8px); background: var(--bg-hover); color: var(--text-secondary); font-size: 13px; }
 .state-msg.error { background: rgba(196,43,28,.08); color: var(--danger); }

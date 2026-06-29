@@ -39,6 +39,8 @@ pub struct AppState {
     pub auth: Arc<crate::auth::AuthStore>,
     pub specs: Arc<crate::specs::SpecsStore>,
     pub chats: Arc<crate::chats::ChatStore>,
+    pub wiki: Arc<crate::wiki::WikiStore>,
+    pub relay: Arc<crate::relay::store::RunStore>,
 }
 
 /// Run the HTTP server on the given address (default `127.0.0.1:8080`).
@@ -49,11 +51,21 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
     let specs_path = dirs::home_dir()
         .map(|h| h.join(".config/autoos/specs.json"))
         .unwrap_or_else(|| std::path::PathBuf::from("specs.json"));
+    let config_dir = dirs::home_dir()
+        .map(|h| h.join(".config/autoos"))
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
     let state = AppState {
         client,
         auth: Arc::new(crate::auth::AuthStore::new(users_path)),
         specs: Arc::new(crate::specs::SpecsStore::new(specs_path)),
         chats: Arc::new(crate::chats::ChatStore::default_path()),
+        wiki: Arc::new(crate::wiki::WikiStore::new(
+            config_dir.join("wiki"),
+            config_dir.join("raw"),
+        )),
+        relay: Arc::new(crate::relay::store::RunStore::new(
+            config_dir.join("relay"),
+        )),
     };
 
     // Static assets: the web app (Chats/Specs SPA) lives at `web/dist`
@@ -66,12 +78,19 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .join("../../../web/dist")
         .canonicalize()
         .unwrap_or_else(|_| manifest.join("../../../web/dist"));
-    let frontend_dist = manifest.join("../../../frontend-dist");
+    // The config-page ESM bundles (served to auto-os-config) live at
+    // backend/crates/musk/frontend-dist/ (that's where vite lib mode outputs).
+    let frontend_dist = manifest.join("frontend-dist");
+    // Serve static files: web/dist (the SPA) first, then frontend-dist (config
+    // bundles for auto-os-config) as a nested fallback, then index.html (SPA
+    // client-side routing). The nesting matters: each layer only falls through
+    // if the previous didn't find the file.
+    let index_html = web_dist.join("index.html");
     let static_service = tower_http::services::ServeDir::new(&web_dist)
-        .fallback(tower_http::services::ServeDir::new(&frontend_dist))
-        // SPA: unknown non-/api paths fall back to index.html so client-side
-        // routing (e.g. /chats) works on refresh.
-        .fallback(tower_http::services::ServeFile::new(web_dist.join("index.html")));
+        .fallback(
+            tower_http::services::ServeDir::new(&frontend_dist)
+                .fallback(tower_http::services::ServeFile::new(&index_html)),
+        );
 
     // Warn (not fail) if the web app wasn't built — the API still works, but
     // the browser UI will be missing. Tells the user how to build it.
@@ -117,6 +136,9 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/roles/{name}", get(role_detail).put(role_save).delete(role_delete))
         // App runtime config (musk): how it connects to the daemon, default mode, etc.
         .route("/api/app-config", get(app_config_get).put(app_config_save))
+        // App harness (Design 005): merged view of OS-level (inherit) + app-level (custom).
+        .route("/api/app-harness/{kind}", get(app_harness_list))
+        .route("/api/app-harness/{kind}/{name}", axum::routing::put(app_harness_save).delete(app_harness_delete))
         // Chats (Plan 008): persistent multi-turn sessions.
         .route("/api/chats/sessions", get(chat_list).delete(chat_delete_all))
         .route("/api/chats/session", post(chat_create))
@@ -129,6 +151,11 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/chats/session/{id}/approve/{index}", post(chat_approve))
         .route("/api/chats/session/{id}/reject/{index}", post(chat_reject))
         .route("/api/chats/session/{id}/reject-all", post(chat_reject_all))
+        // Relay (Flows) orchestration engine (P2a + P2b.1): runs/flows/professions
+        // + the pipeline state machine. Full background driver arrives in P2b.2.
+        .merge(crate::relay::api::relay_routes())
+        // Wiki knowledge base (Phase 4): markdown pages + raw resource tree.
+        .merge(crate::wiki::wiki_routes())
         // Serve config-page.js + any other static assets at the root.
         .fallback_service(static_service)
         .layer(cors)
@@ -504,6 +531,8 @@ async fn professions() -> impl IntoResponse {
         .collect();
     Json(json!({"professions": list}))
 }
+
+// ── Wiki (Flows) ── relay routes now live in `crate::relay::api`. ──────────
 
 // ── Config page endpoints ───────────────────────────────────────────────────
 
@@ -997,6 +1026,246 @@ fn stream_event_to_json(ev: &auto_ai_agent::StreamEvent) -> serde_json::Value {
         }),
         StreamEvent::Error { message } => json!({"type": "error", "message": message}),
     }
+}
+
+// ── App Harness endpoints (Design 005) ──────────────────────────────────────
+//
+// Merged view: for each kind (roles/skills/modes), show OS-level harnesses
+// (with `selected` flag from the app's reference list) + app-level custom
+// harnesses (scanned from apps/musk/harness/<kind>/).
+
+/// The app-level harness dir: `~/.config/autoos/apps/musk/harness/<kind>/`.
+fn app_harness_dir(kind: &str) -> Option<std::path::PathBuf> {
+    dirs::home_dir().map(|h| h.join(format!(".config/autoos/apps/musk/harness/{kind}")))
+}
+
+/// `GET /api/app-harness/{kind}` — merged OS-available + app-custom view.
+///
+/// Returns `{ os_available: [...], app_custom: [...] }` where each item has
+/// `name`, `description`, `is_builtin`, and `selected` (for os_available, based
+/// on the app config's harness reference list).
+async fn app_harness_list(axum::extract::Path(kind): axum::extract::Path<String>) -> Response {
+    let cfg = crate::app_config::MuskAppConfig::load();
+    let selected_list: &[String] = match kind.as_str() {
+        "roles" => &cfg.harness.roles,
+        "skills" => &cfg.harness.skills,
+        "modes" => &cfg.harness.modes,
+        _ => return (StatusCode::BAD_REQUEST, format!("unknown kind '{kind}'")).into_response(),
+    };
+
+    // OS-level list (reuse existing endpoints' data sources).
+    let os_available: Vec<serde_json::Value> = match kind.as_str() {
+        "roles" => {
+            let reg = auto_ai_agent::RoleRegistry::load();
+            reg.list().iter().map(|r| {
+                json!({
+                    "name": r.name,
+                    "description": r.description,
+                    "tier": format!("{:?}", r.tier).to_lowercase(),
+                    "is_builtin": r.is_builtin,
+                    "selected": selected_list.contains(&r.name),
+                })
+            }).collect()
+        }
+        "skills" => {
+            let skills_dir = dirs::home_dir().map(|h| h.join(".config/autoos/skills"));
+            if let Some(dir) = skills_dir {
+                let reg = auto_ai_agent::SkillRegistry::scan(&dir);
+                reg.descriptions().iter().map(|(name, desc)| {
+                    json!({
+                        "name": name,
+                        "description": desc,
+                        "is_builtin": false,
+                        "selected": selected_list.contains(name),
+                    })
+                }).collect()
+            } else {
+                vec![]
+            }
+        }
+        "modes" => {
+            let reg = crate::mode::ModeRegistry::load();
+            reg.names().iter().filter_map(|n| {
+                reg.get(n).map(|m| json!({
+                    "name": m.name,
+                    "description": m.description,
+                    "is_builtin": false,
+                    "selected": selected_list.contains(&m.name),
+                }))
+            }).collect()
+        }
+        _ => vec![],
+    };
+
+    // App-level custom: scan apps/musk/harness/<kind>/.
+    let app_custom: Vec<serde_json::Value> = if let Some(dir) = app_harness_dir(&kind) {
+        match kind.as_str() {
+            "roles" => scan_app_roles(&dir),
+            "skills" => scan_app_skills(&dir),
+            "modes" => scan_app_modes(&dir),
+            _ => vec![],
+        }
+    } else {
+        vec![]
+    };
+
+    Json(json!({
+        "os_available": os_available,
+        "app_custom": app_custom,
+    })).into_response()
+}
+
+/// Scan `dir` for app-level custom roles (*.at files).
+fn scan_app_roles(dir: &std::path::Path) -> Vec<serde_json::Value> {
+    let mut out = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("at") {
+                continue;
+            }
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                if let Ok(cfg) = auto_ai_agent::parse_at_profession(&content) {
+                    out.push(json!({
+                        "name": cfg.name.unwrap_or_else(|| {
+                            path.file_stem().and_then(|s| s.to_str()).unwrap_or("?").to_string()
+                        }),
+                        "description": cfg.description.unwrap_or_default(),
+                        "tier": cfg.model_tier.map(|t| format!("{:?}", t).to_lowercase()).unwrap_or("mid".into()),
+                        "is_builtin": false,
+                    }));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Scan `dir` for app-level custom skills (<name>/SKILL.md).
+fn scan_app_skills(dir: &std::path::Path) -> Vec<serde_json::Value> {
+    let reg = auto_ai_agent::SkillRegistry::scan(dir);
+    reg.descriptions().iter().map(|(name, desc)| {
+        json!({ "name": name, "description": desc, "is_builtin": false })
+    }).collect()
+}
+
+/// Scan `dir` for app-level custom modes (*.at files).
+fn scan_app_modes(dir: &std::path::Path) -> Vec<serde_json::Value> {
+    let mut out = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("at") {
+                continue;
+            }
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                if let Ok(mode) = crate::mode::parse_mode_at(&content) {
+                    out.push(json!({
+                        "name": mode.name,
+                        "description": mode.description,
+                        "is_builtin": false,
+                    }));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// `PUT /api/app-harness/{kind}/{name}` body — app-level custom role/mode creation.
+#[derive(Debug, Deserialize)]
+struct AppHarnessSaveBody {
+    description: Option<String>,
+    #[serde(default)]
+    tier: Option<String>,
+    #[serde(default)]
+    allowed_tiers: Vec<String>,
+    #[serde(default)]
+    skills: Vec<String>,
+    token_budget: Option<u64>,
+    temperature: Option<f64>,
+    max_turns: Option<usize>,
+    inherit: Option<String>,
+    #[serde(default)]
+    tools: Vec<String>,
+    model: Option<String>,
+    #[serde(default)]
+    soul: Option<String>,
+}
+
+/// `PUT /api/app-harness/{kind}/{name}` — create/update an app-level custom harness.
+async fn app_harness_save(
+    axum::extract::Path((kind, name)): axum::extract::Path<(String, String)>,
+    Json(body): Json<AppHarnessSaveBody>,
+) -> Response {
+    match kind.as_str() {
+        "roles" => {
+            let cfg = auto_ai_agent::ProfessionConfig {
+                name: Some(name.clone()),
+                description: body.description,
+                inherit: body.inherit,
+                model: body.model,
+                model_tier: body.tier.as_deref().and_then(auto_ai_agent::parse_tier_field),
+                temperature: body.temperature,
+                max_turns: body.max_turns,
+                allowed_tiers: if body.allowed_tiers.is_empty() {
+                    None
+                } else {
+                    Some(body.allowed_tiers.iter().filter_map(|s| auto_ai_agent::parse_tier_field(s)).collect())
+                },
+                skills: if body.skills.is_empty() { None } else { Some(body.skills) },
+                token_budget: body.token_budget,
+                tools: if body.tools.is_empty() { None } else { Some(body.tools) },
+                soul_file: None,
+                system_prompt: None,
+                system_prompt_append: None,
+                tools_append: None,
+                memory_limit: None,
+            };
+            let dir = match app_harness_dir("roles") {
+                Some(d) => d,
+                None => return (StatusCode::INTERNAL_SERVER_ERROR, "no home dir").into_response(),
+            };
+            if let Err(e) = std::fs::create_dir_all(&dir) {
+                return (StatusCode::INTERNAL_SERVER_ERROR, format!("mkdir: {e}")).into_response();
+            }
+            // Write sidecar soul if provided.
+            if let Some(md) = &body.soul {
+                let soul_path = dir.join(format!("{name}.soul.md"));
+                if let Err(e) = std::fs::write(&soul_path, md) {
+                    return (StatusCode::INTERNAL_SERVER_ERROR, format!("write soul: {e}")).into_response();
+                }
+            }
+            let src = auto_ai_agent::serialize_at_role(&cfg);
+            let at_path = dir.join(format!("{name}.at"));
+            if let Err(e) = std::fs::write(&at_path, &src) {
+                return (StatusCode::INTERNAL_SERVER_ERROR, format!("write: {e}")).into_response();
+            }
+            Json(json!({"status": "saved", "kind": kind, "name": name, "path": at_path.display().to_string()})).into_response()
+        }
+        _ => (StatusCode::BAD_REQUEST, format!("kind '{kind}' not yet supported for app custom")).into_response(),
+    }
+}
+
+/// `DELETE /api/app-harness/{kind}/{name}` — delete an app-level custom harness.
+async fn app_harness_delete(
+    axum::extract::Path((kind, name)): axum::extract::Path<(String, String)>,
+) -> Response {
+    let dir = match app_harness_dir(&kind) {
+        Some(d) => d,
+        None => return (StatusCode::INTERNAL_SERVER_ERROR, "no home dir").into_response(),
+    };
+    let at_path = dir.join(format!("{name}.at"));
+    let soul_path = dir.join(format!("{name}.soul.md"));
+    let existed = at_path.exists();
+    if existed {
+        let _ = std::fs::remove_file(&at_path);
+    }
+    let _ = std::fs::remove_file(&soul_path);
+    if !existed {
+        return (StatusCode::NOT_FOUND, format!("{kind} '{name}' not found")).into_response();
+    }
+    Json(json!({"status": "deleted", "kind": kind, "name": name})).into_response()
 }
 
 // ── Chats endpoints (Plan 008) ──────────────────────────────────────────────
@@ -1502,6 +1771,27 @@ mod tests {
         Arc::new(crate::chats::ChatStore::at(path))
     }
 
+    fn tmp_wiki() -> Arc<crate::wiki::WikiStore> {
+        let tag = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        Arc::new(crate::wiki::WikiStore::new(
+            std::env::temp_dir().join(format!("musk_server_wiki_test_{tag}")),
+            std::env::temp_dir().join(format!("musk_server_raw_test_{tag}")),
+        ))
+    }
+
+    fn tmp_relay() -> Arc<crate::relay::store::RunStore> {
+        let tag = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        Arc::new(crate::relay::store::RunStore::at(
+            std::env::temp_dir().join(format!("musk_server_relay_test_{tag}")),
+        ))
+    }
+
     #[tokio::test]
     async fn run_endpoint_returns_result() {
         let state = AppState {
@@ -1509,6 +1799,8 @@ mod tests {
             auth: tmp_auth(),
             specs: tmp_specs(),
             chats: tmp_chats(),
+            wiki: tmp_wiki(),
+            relay: tmp_relay(),
         };
         let req = RunRequest {
             task: "say hello".into(),
@@ -1526,6 +1818,8 @@ mod tests {
             auth: tmp_auth(),
             specs: tmp_specs(),
             chats: tmp_chats(),
+            wiki: tmp_wiki(),
+            relay: tmp_relay(),
         };
         let req = RunRequest {
             task: "x".into(),

@@ -101,7 +101,7 @@ impl ModeRegistry {
 }
 
 /// 解析一个 `mode { ... }` .at 文件。
-fn parse_mode_at(content: &str) -> Result<AgentMode, String> {
+pub fn parse_mode_at(content: &str) -> Result<AgentMode, String> {
     use auto_atom::{Atom, AtomParser};
 
     let atom = AtomParser::parse(content)
