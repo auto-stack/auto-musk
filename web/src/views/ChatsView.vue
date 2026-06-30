@@ -446,7 +446,7 @@ const {
   taskPlans,
 } = useForge()
 
-const { projectPath } = useProject()
+const { projectPath, workspaceId } = useProject()
 const { currentSecretary, badgeCount: gateBadgeCount, resolveGate: resolveGateInbox, snoozeGate } = useGateInbox()
 const { configs: agentConfigs, loadConfigs: loadAgentConfigs } = useAgentConfigs()
 const { startRun } = useRelay()
@@ -1254,6 +1254,13 @@ onMounted(async () => {
   }
   await loadSessionList()
   await loadAgentConfigs()
+})
+
+// Reload chat data when the workspace changes
+watch(workspaceId, () => {
+  if (workspaceId.value) {
+    loadSessionList()
+  }
 })
 
 onUnmounted(() => {

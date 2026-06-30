@@ -26,6 +26,7 @@
       </div>
       <div class="rail-divider"></div>
       <div class="rail-footer">
+        <WorkspaceSelector />
         <SettingsMenu />
       </div>
     </nav>
@@ -47,7 +48,9 @@ import { MessageSquare, Scroll, BookOpen, Orbit } from 'lucide-vue-next'
 import { useGateInbox } from '@/composables/useGateInbox'
 import { useAuth } from '@/composables/useAuth'
 import { useViewState } from '@/composables/useViewState'
+import { useProject } from '@/composables/useProject'
 import SettingsMenu from '@/components/SettingsMenu.vue'
+import WorkspaceSelector from '@/components/WorkspaceSelector.vue'
 import LoginView from './views/LoginView.vue'
 import ChatsView from './views/ChatsView.vue'
 import SpecsView from './views/SpecsView.vue'
@@ -58,13 +61,17 @@ const { t } = useI18n()
 const { badgeCount: gateBadgeCount } = useGateInbox()
 const { isAuthenticated } = useAuth()
 const { currentView, setView } = useViewState()
+const { fetchStatus } = useProject()
 
 function onAuthSuccess() {
   // Auth state is reactive in useAuth; this acknowledges the LoginView event.
+  fetchStatus()
 }
 
 onMounted(() => {
   document.addEventListener('keydown', onKeyDown)
+  // In case already authenticated on reload, fetch workspace status.
+  if (isAuthenticated.value) fetchStatus()
 })
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeyDown)
@@ -126,7 +133,7 @@ html, body, #app {
 .rail-tab.active { background: hsl(var(--primary) / 0.08); color: var(--af-primary); font-weight: 500; }
 .rail-tab.active .tab-icon { color: var(--af-primary); stroke: var(--af-primary); }
 .tab-label { font-size: 0.88rem; }
-.rail-footer { margin-top: auto; display: flex; align-items: center; justify-content: flex-end; gap: 0.25rem; padding: 0 1rem; color: var(--af-muted); }
+.rail-footer { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 0.25rem; padding: 0 1rem; color: var(--af-muted); }
 .version { font-size: 0.73rem; color: var(--af-muted); font-weight: 400; margin-left: 0.35rem; }
 .view-main { flex: 1; min-width: 0; overflow: hidden; display: flex; flex-direction: column; }
 .tab-badge {
