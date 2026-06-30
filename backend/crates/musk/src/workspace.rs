@@ -255,15 +255,22 @@ impl WorkspaceRegistry {
     pub fn open(&self, root_path: &str) -> WorkspaceMeta {
         let canonical = std::fs::canonicalize(root_path)
             .unwrap_or_else(|_| PathBuf::from(root_path));
-        // Reuse if path already indexed.
+        // Reuse if path already indexed — but re-check is_empty + refresh
+        // last_opened, since the dir's contents (or the feature set) may have
+        // changed since the entry was first recorded.
         {
-            let idx = self.index.read().unwrap();
+            let mut idx = self.index.write().unwrap();
             if let Some(existing) = idx
                 .workspaces
-                .iter()
+                .iter_mut()
                 .find(|m| m.path == canonical.to_string_lossy().to_string())
             {
-                return existing.clone();
+                existing.is_empty = is_workspace_empty(&canonical);
+                existing.last_opened = now_secs();
+                let out = existing.clone();
+                drop(idx);
+                self.save();
+                return out;
             }
         }
         let _ = std::fs::create_dir_all(autoos_dir(&canonical));
