@@ -1299,8 +1299,9 @@ async fn chat_create(
     Query(q): Query<WorkspaceQuery>,
     Json(body): Json<ChatCreateBody>,
 ) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    match ws.chats.create(&body.mode) {
+    let ws_id = q.id_or_default(&state.registry);
+    let ws = state.registry.get(&ws_id);
+    match ws.chats.create(&body.mode, Some(ws_id)) {
         Ok(session) => Json(json!({"session": session})).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("create: {e}")).into_response(),
     }
@@ -1461,6 +1462,7 @@ async fn chat_stream(
     let chats = ws.chats.clone();
     let session_id = id.clone();
     let history_for_agent = history.clone();
+    let ws_root = ws.root.clone();
     // Resolve the session's mode to an AgentMode (built-in or user .at).
     let mode_reg = crate::mode::ModeRegistry::load();
     let agent_mode = match mode_reg.get(&mode).cloned() {
@@ -1480,9 +1482,12 @@ async fn chat_stream(
         }),
     };
     tokio::spawn(async move {
+        // Confine this task's file-tool operations to the workspace root.
+        crate::tool_safety::set_current_root(ws_root.clone());
         let mut agent = match crate::build_agent_from_mode(&agent_mode, client) {
             Ok(a) => a,
             Err(e) => {
+                crate::tool_safety::clear_current_root();
                 let _ = tx.try_send(json!({"type": "error", "message": format!("build agent: {e}")}));
                 return;
             }
@@ -1521,8 +1526,10 @@ async fn chat_stream(
                 let mut msg = crate::chats::ChatMessage::assistant(text);
                 msg.tool_calls = tcs;
                 let _ = chats.append_message(&session_id, msg);
+                crate::tool_safety::clear_current_root();
             }
             Err(e) => {
+                crate::tool_safety::clear_current_root();
                 let _ = tx_err.try_send(json!({"type": "error", "message": format!("{e}")}));
             }
         }

@@ -176,6 +176,8 @@ pub struct RunMetadata {
     pub initial_task: Option<String>,
     #[serde(default)]
     pub originating_chat_session: Option<String>,
+    #[serde(default)]
+    pub workspace_id: Option<String>,
 }
 
 fn now_secs() -> u64 {
@@ -276,7 +278,11 @@ impl RunStore {
     }
 
     /// Start a new run. Returns `(run_id, RunState)`.
-    pub fn start_run(&self, req: &StartRunRequest) -> (String, RunState) {
+    pub fn start_run(
+        &self,
+        req: &StartRunRequest,
+        workspace_id: Option<String>,
+    ) -> (String, RunState) {
         let flow = resolve_flow(req);
         let run_id = req.run_id.clone().unwrap_or_else(|| {
             let ts = now_secs();
@@ -294,6 +300,7 @@ impl RunStore {
                 title: req.task.as_ref().map(|t| truncate_title(t)),
                 initial_task: req.task.clone(),
                 originating_chat_session: None,
+                workspace_id,
             },
         };
         self.save_run(&entry);
@@ -548,6 +555,15 @@ impl RunStore {
         // "next" is current+1.
         steps.get(cur + 1).map(|s| s.profession_id.clone())
     }
+
+    /// Which workspace a run belongs to (so the driver knows which root to set).
+    pub fn workspace_of(&self, run_id: &str) -> Option<String> {
+        self.runs
+            .lock()
+            .unwrap()
+            .get(run_id)
+            .and_then(|e| e.metadata.workspace_id.clone())
+    }
 }
 
 /// Build the frontend read-model from a run entry.
@@ -708,10 +724,13 @@ mod tests {
     #[test]
     fn start_get_list_delete() {
         let store = tmp_store();
-        let (id, state) = store.start_run(&StartRunRequest {
-            flow_id: Some("simple".into()),
-            ..Default::default()
-        });
+        let (id, state) = store.start_run(
+            &StartRunRequest {
+                flow_id: Some("simple".into()),
+                ..Default::default()
+            },
+            None,
+        );
         assert_eq!(state.status, "idle");
         assert!(store.get(&id).is_some());
         assert!(store.list().iter().any(|s| s.run_id == id));
@@ -722,10 +741,13 @@ mod tests {
     #[test]
     fn advance_then_handoff_completes_simple_flow() {
         let store = tmp_store();
-        let (id, _) = store.start_run(&StartRunRequest {
-            flow_id: Some("simple".into()),
-            ..Default::default()
-        });
+        let (id, _) = store.start_run(
+            &StartRunRequest {
+                flow_id: Some("simple".into()),
+                ..Default::default()
+            },
+            None,
+        );
         // Step 1: advisor.
         let (r, _) = store.advance(&id).unwrap();
         assert!(matches!(r, crate::relay::pipeline::AdvanceResult::ExecuteStep { .. }));
@@ -752,10 +774,13 @@ mod tests {
         ));
         let id = {
             let store = RunStore::at(dir.clone());
-            let (id, _) = store.start_run(&StartRunRequest {
-                flow_id: Some("simple".into()),
-                ..Default::default()
-            });
+            let (id, _) = store.start_run(
+                &StartRunRequest {
+                    flow_id: Some("simple".into()),
+                    ..Default::default()
+                },
+                None,
+            );
             id
         };
         // A fresh store over the same dir reloads the run.

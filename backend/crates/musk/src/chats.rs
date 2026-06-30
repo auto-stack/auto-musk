@@ -97,6 +97,9 @@ pub struct ChatSession {
     /// applied directly; the user approves/rejects via the HTTP endpoints.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pending_spec_changes: Vec<crate::specs::SpecChange>,
+    /// Which workspace this session belongs to (for agent root routing).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<String>,
 }
 
 /// A lightweight summary for list views (no message bodies).
@@ -112,7 +115,7 @@ pub struct ChatSessionSummary {
 }
 
 impl ChatSession {
-    pub fn new(mode: impl Into<String>) -> Self {
+    pub fn new(mode: impl Into<String>, workspace_id: Option<String>) -> Self {
         let now = now_sec();
         Self {
             id: new_id(12),
@@ -122,6 +125,7 @@ impl ChatSession {
             created_at: now,
             updated_at: now,
             pending_spec_changes: Vec::new(),
+            workspace_id,
         }
     }
 
@@ -217,9 +221,13 @@ impl ChatStore {
     }
 
     /// Create + persist a new session; return it.
-    pub fn create(&self, mode: &str) -> std::io::Result<ChatSession> {
+    pub fn create(
+        &self,
+        mode: &str,
+        workspace_id: Option<String>,
+    ) -> std::io::Result<ChatSession> {
         let mut map = self.load_map();
-        let session = ChatSession::new(mode);
+        let session = ChatSession::new(mode, workspace_id);
         map.insert(session.id.clone(), session.clone());
         self.save_map(&map)?;
         Ok(session)
@@ -425,7 +433,7 @@ mod tests {
     #[test]
     fn create_and_get_session() {
         let (store, _f) = temp_store();
-        let s = store.create("superpowers").unwrap();
+        let s = store.create("superpowers", None).unwrap();
         assert_eq!(s.mode, "superpowers");
         assert!(s.messages.is_empty());
         let loaded = store.get(&s.id).unwrap();
@@ -435,8 +443,8 @@ mod tests {
     #[test]
     fn list_returns_all_summaries() {
         let (store, _f) = temp_store();
-        let a = store.create("superpowers").unwrap();
-        let b = store.create("coding").unwrap();
+        let a = store.create("superpowers", None).unwrap();
+        let b = store.create("coding", None).unwrap();
         let list = store.list();
         assert_eq!(list.len(), 2);
         // Both created within the same second → equal updated_at; ordering
@@ -449,7 +457,7 @@ mod tests {
     #[test]
     fn append_message_persists_and_autonames() {
         let (store, _f) = temp_store();
-        let s = store.create("superpowers").unwrap();
+        let s = store.create("superpowers", None).unwrap();
         let updated = store
             .append_message(&s.id, ChatMessage::user("List the files in this dir"))
             .unwrap()
@@ -467,7 +475,7 @@ mod tests {
     #[test]
     fn rename_and_delete() {
         let (store, _f) = temp_store();
-        let s = store.create("superpowers").unwrap();
+        let s = store.create("superpowers", None).unwrap();
         let renamed = store.rename(&s.id, "My coding task").unwrap().unwrap();
         assert_eq!(renamed.name, "My coding task");
         assert!(store.delete(&s.id).unwrap());
@@ -480,7 +488,7 @@ mod tests {
         let store = ChatStore::at("/nonexistent/path/chats-test.json");
         assert!(store.list().is_empty());
         // create persists (creating the dir).
-        let s = store.create("x").unwrap();
+        let s = store.create("x", None).unwrap();
         assert_eq!(store.list().len(), 1);
         // cleanup
         let _ = std::fs::remove_file("/nonexistent/path/chats-test.json");
@@ -511,7 +519,7 @@ mod tests {
     #[test]
     fn queue_then_reject_spec_change() {
         let (store, _f) = temp_store();
-        let s = store.create("superpowers").unwrap();
+        let s = store.create("superpowers", None).unwrap();
         let change = SpecChange {
             section_id: "goals".into(),
             item_id: "G1".into(),
@@ -532,7 +540,7 @@ mod tests {
     fn approve_applies_upsert_to_specs() {
         let (store, _f) = temp_store();
         let specs = tmp_specs();
-        let s = store.create("superpowers").unwrap();
+        let s = store.create("superpowers", None).unwrap();
         let change = SpecChange {
             section_id: "goals".into(),
             item_id: "G1".into(),
@@ -560,7 +568,7 @@ mod tests {
     fn approve_applies_status_transition() {
         let (store, _f) = temp_store();
         let specs = tmp_specs();
-        let s = store.create("superpowers").unwrap();
+        let s = store.create("superpowers", None).unwrap();
         // seed a goal at Empty first
         let mut doc = specs.load().unwrap();
         specs.upsert_item(&mut doc, "goals", crate::specs::SpecItem::new("G1", "g")).unwrap();
@@ -586,7 +594,7 @@ mod tests {
     #[test]
     fn reject_all_clears_queue() {
         let (store, _f) = temp_store();
-        let s = store.create("superpowers").unwrap();
+        let s = store.create("superpowers", None).unwrap();
         for i in 0..3 {
             store.queue_spec_change(&s.id, SpecChange {
                 section_id: "goals".into(),

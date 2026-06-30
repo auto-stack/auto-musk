@@ -104,8 +104,9 @@ async fn start_run(
     Query(q): Query<WorkspaceQuery>,
     Json(req): Json<StartRunRequest>,
 ) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    let (run_id, run_state) = ws.relay.start_run(&req);
+    let ws_id = q.id_or_default(&state.registry);
+    let ws = state.registry.get(&ws_id);
+    let (run_id, run_state) = ws.relay.start_run(&req, Some(ws_id));
     // Publish a synthetic run_started so any live listeners refresh.
     publish(
         &run_id,

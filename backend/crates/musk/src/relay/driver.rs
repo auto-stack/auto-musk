@@ -29,10 +29,25 @@ use crate::server::AppState;
 /// Drive a run forward as far as possible: run every auto step until a human
 /// gate, completion, failure, or pause. Designed to be `tokio::spawn`-ed.
 pub async fn drive_run(state: Arc<AppState>, ws_id: String, run_id: String) {
+    // Confine this task's file-tool operations to the workspace root.
     let ws = state.registry.get(&ws_id);
+    crate::tool_safety::set_current_root(ws.root.clone());
+    // Run the drive loop in an inner block so there's a single cleanup point —
+    // clear_current_root runs on EVERY exit path (gate/completed/failed/paused).
+    drive_loop(&state, &ws, &run_id).await;
+    crate::tool_safety::clear_current_root();
+}
+
+/// The actual advance/run loop, factored out so the caller can guarantee the
+/// thread-local root is cleared exactly once on return.
+async fn drive_loop(
+    state: &AppState,
+    ws: &std::sync::Arc<crate::workspace::WorkspaceStores>,
+    run_id: &str,
+) {
     loop {
         // 1. Advance the state machine.
-        let (result, _state) = match ws.relay.advance(&run_id) {
+        let (result, _state) = match ws.relay.advance(run_id) {
             Some(v) => v,
             None => {
                 tracing::warn!("drive_run: run {run_id} vanished mid-drive");
@@ -40,19 +55,19 @@ pub async fn drive_run(state: Arc<AppState>, ws_id: String, run_id: String) {
             }
         };
         // Publish the transition (StepStarted / GateWaiting / RunCompleted / ...).
-        crate::relay::api::publish_advance_result(&run_id, &result);
+        crate::relay::api::publish_advance_result(run_id, &result);
 
         match result {
             AdvanceResult::ExecuteStep {
                 profession_id, ..
             } => {
                 // 2. Run the agent for this step (outside the store lock).
-                if let Err(e) = run_step(&state, &ws, &run_id, &profession_id).await {
+                if let Err(e) = run_step(state, ws, run_id, &profession_id).await {
                     // Agent build/run failure → fail the run with a handoff carrying the error.
                     tracing::error!("drive_run: step agent failed for {run_id}: {e}");
-                    let mut h = HandoffDocument::new(&profession_id, "", &run_id, 0);
+                    let mut h = HandoffDocument::new(&profession_id, "", run_id, 0);
                     h.summary = format!("[agent error] {e}");
-                    let _ = ws.relay.submit_handoff(&run_id, h);
+                    let _ = ws.relay.submit_handoff(run_id, h);
                     continue;
                 }
                 // 3. The agent step submitted its own handoff inside run_step;
