@@ -10,11 +10,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Path: `~/.config/autoos/chats.json`.
-fn chats_path() -> Option<std::path::PathBuf> {
-    dirs::home_dir().map(|h| h.join(".config/autoos/chats.json"))
-}
-
 /// Seconds since the UNIX epoch (re-used convention from specs.rs).
 fn now_sec() -> u64 {
     std::time::SystemTime::now()
@@ -183,13 +178,6 @@ pub struct ChatStore {
 }
 
 impl ChatStore {
-    /// The default store at `~/.config/autoos/chats.json`.
-    pub fn default_path() -> Self {
-        Self {
-            path: chats_path().unwrap_or_else(|| std::path::PathBuf::from("chats.json")),
-        }
-    }
-
     /// Open a store at an explicit path (mainly for tests).
     pub fn at(path: impl Into<std::path::PathBuf>) -> Self {
         Self { path: path.into() }

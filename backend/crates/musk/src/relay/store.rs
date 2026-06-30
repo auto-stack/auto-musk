@@ -556,14 +556,6 @@ impl RunStore {
         steps.get(cur + 1).map(|s| s.profession_id.clone())
     }
 
-    /// Which workspace a run belongs to (so the driver knows which root to set).
-    pub fn workspace_of(&self, run_id: &str) -> Option<String> {
-        self.runs
-            .lock()
-            .unwrap()
-            .get(run_id)
-            .and_then(|e| e.metadata.workspace_id.clone())
-    }
 }
 
 /// Build the frontend read-model from a run entry.

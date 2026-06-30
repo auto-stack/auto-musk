@@ -258,26 +258,6 @@ fn bearer_token(headers: &axum::http::HeaderMap) -> Option<String> {
     }
 }
 
-/// Resolve a bearer token from EITHER the Authorization header or a `?token=`
-/// query param. The query fallback exists for `EventSource` (SSE), which
-/// cannot set request headers — the chat stream endpoint uses it.
-fn bearer_token_or_query(
-    headers: &axum::http::HeaderMap,
-    query: Option<&str>,
-) -> Option<String> {
-    if let Some(t) = bearer_token(headers) {
-        return Some(t);
-    }
-    // ?token=... fallback
-    let q = query?;
-    for pair in q.split('&') {
-        if let Some(val) = pair.strip_prefix("token=") {
-            return Some(val.to_string());
-        }
-    }
-    None
-}
-
 // ── Spec Ledger endpoints ───────────────────────────────────────────────────
 
 /// `GET /api/specs` — return the full spec document (all sections + items).
@@ -941,9 +921,14 @@ async fn run_inner(
 
 async fn run(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Json(req): Json<RunRequest>,
 ) -> impl IntoResponse {
-    match run_inner(state, req).await {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    crate::tool_safety::set_current_root(ws.root.clone());
+    let result = run_inner(state, req).await;
+    crate::tool_safety::clear_current_root();
+    match result {
         Ok(resp) => Json(resp).into_response(),
         Err(err) => err.into_response(),
     }
@@ -959,6 +944,7 @@ async fn run(
 /// - `{"type":"error","message":"…"}`— loop failed
 async fn run_stream_handler(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Json(req): Json<RunRequest>,
 ) -> impl IntoResponse {
     use axum::body::Body;
@@ -966,6 +952,9 @@ async fn run_stream_handler(
     use tokio::sync::mpsc;
 
     let (tx, mut rx) = mpsc::channel::<serde_json::Value>(64);
+
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    let ws_root = ws.root.clone();
 
     // Resolve the mode up front so we can fail fast on a bad spec.
     let reg = crate::mode::ModeRegistry::load();
@@ -989,9 +978,12 @@ async fn run_stream_handler(
     // Spawn the agent run, pushing StreamEvents into the channel as SSE JSON.
     let client = state.client.clone();
     tokio::spawn(async move {
+        // Confine this task's file-tool operations to the workspace root.
+        crate::tool_safety::set_current_root(ws_root.clone());
         let mut agent = match crate::build_agent_from_mode(&mode, client) {
             Ok(a) => a,
             Err(e) => {
+                crate::tool_safety::clear_current_root();
                 let _ = tx.try_send(json!({"type": "error", "message": format!("build agent: {e}")}));
                 return;
             }
@@ -1010,6 +1002,7 @@ async fn run_stream_handler(
                 let _ = tx.try_send(json!({"type": "error", "message": format!("{e}")}));
             }
         }
+        crate::tool_safety::clear_current_root();
     });
 
     let stream = async_stream::stream! {
@@ -1718,8 +1711,10 @@ pub struct WorkflowRunResponse {
 
 async fn workflow_run(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Json(req): Json<WorkflowRunRequest>,
 ) -> Result<Json<WorkflowRunResponse>, (StatusCode, Json<ApiError>)> {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
     let wf = crate::workflow::load(&req.workflow).map_err(|e| {
         (
             StatusCode::BAD_REQUEST,
@@ -1729,8 +1724,11 @@ async fn workflow_run(
         )
     })?;
 
-    wf.run(&shared_tools(), state.client.clone(), &req.task)
-        .await
+    crate::tool_safety::set_current_root(ws.root.clone());
+    let result = wf.run(&shared_tools(), state.client.clone(), &req.task).await;
+    crate::tool_safety::clear_current_root();
+
+    result
         .map(|result| {
             Json(WorkflowRunResponse {
                 steps: result.step_outputs,
@@ -1757,6 +1755,7 @@ async fn workflow_run(
 /// - `{"type":"finished",…}` (or `{"type":"error","message":"…"}`)
 async fn workflow_run_stream(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Json(req): Json<WorkflowRunRequest>,
 ) -> axum::response::Response {
     use axum::body::Body;
@@ -1764,6 +1763,9 @@ async fn workflow_run_stream(
     use tokio::sync::mpsc;
 
     let (tx, mut rx) = mpsc::channel::<serde_json::Value>(64);
+
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    let ws_root = ws.root.clone();
 
     let wf = match crate::workflow::load(&req.workflow) {
         Ok(w) => w,
@@ -1781,6 +1783,8 @@ async fn workflow_run_stream(
     let client = state.client.clone();
     let task = req.task.clone();
     tokio::spawn(async move {
+        // Confine this task's file-tool operations to the workspace root.
+        crate::tool_safety::set_current_root(ws_root.clone());
         let on_event: Arc<dyn Fn(auto_ai_agent::WorkflowEvent) + Send + Sync> =
             Arc::new(move |ev| {
                 let value = workflow_event_to_json(&ev);
@@ -1794,6 +1798,7 @@ async fn workflow_run_stream(
             // a top-level failure (e.g. cycle) goes here:
             tracing::error!("workflow stream failed: {e}");
         }
+        crate::tool_safety::clear_current_root();
     });
 
     let stream = async_stream::stream! {
