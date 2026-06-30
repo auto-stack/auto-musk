@@ -239,6 +239,29 @@ impl WorkspaceRegistry {
     }
 }
 
+/// Query extractor: `?workspace=<id>` on business endpoints. Empty/absent →
+/// falls back to the default workspace inside `registry.get`.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct WorkspaceQuery {
+    #[serde(default)]
+    pub workspace: Option<String>,
+}
+
+impl WorkspaceQuery {
+    /// Resolve to a concrete id (empty → default workspace id).
+    pub fn id_or_default(&self, registry: &WorkspaceRegistry) -> String {
+        match &self.workspace {
+            Some(id) if !id.is_empty() => id.clone(),
+            _ => registry
+                .index
+                .read()
+                .ok()
+                .and_then(|idx| idx.default_workspace_id.clone())
+                .unwrap_or_default(),
+        }
+    }
+}
+
 impl WorkspaceStores {
     /// Instantiate all stores rooted at {root}/.autoos.
     pub fn new(root: PathBuf) -> Self {

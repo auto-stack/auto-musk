@@ -24,6 +24,7 @@ use crate::relay::pipeline::{AdvanceResult, GateDecision};
 use crate::relay::profession::ProfessionRegistry;
 use crate::relay::store::{RunEvent, RunState, RunStore, StartRunRequest};
 use crate::server::AppState;
+use crate::workspace::WorkspaceQuery;
 
 // ─── Broadcast event bus (for SSE) ──────────────────────────────────────────
 //
@@ -88,19 +89,23 @@ struct ListRunsQuery {
 /// `GET /api/forge/relay/runs` — list all runs (newest first).
 async fn list_runs(
     State(state): State<AppState>,
-    Query(_q): Query<ListRunsQuery>,
+    Query(q): Query<WorkspaceQuery>,
+    Query(_list_q): Query<ListRunsQuery>,
 ) -> impl IntoResponse {
     // useRelay.loadRuns tolerates {runs:[...]} or a bare array; return the
     // wrapper for forward-compat with pagination metadata.
-    Json(serde_json::json!({ "runs": state.relay.list() }))
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    Json(serde_json::json!({ "runs": ws.relay.list() }))
 }
 
 /// `POST /api/forge/relay/runs` — start a run.
 async fn start_run(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Json(req): Json<StartRunRequest>,
 ) -> impl IntoResponse {
-    let (run_id, run_state) = state.relay.start_run(&req);
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    let (run_id, run_state) = ws.relay.start_run(&req);
     // Publish a synthetic run_started so any live listeners refresh.
     publish(
         &run_id,
@@ -118,8 +123,10 @@ async fn start_run(
 async fn get_run(
     State(state): State<AppState>,
     Path(run_id): Path<String>,
+    Query(q): Query<WorkspaceQuery>,
 ) -> Response {
-    match state.relay.get(&run_id) {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.relay.get(&run_id) {
         Some(state) => Json(state).into_response(),
         None => (StatusCode::NOT_FOUND, format!("run '{run_id}' not found")).into_response(),
     }
@@ -129,8 +136,10 @@ async fn get_run(
 async fn delete_run(
     State(state): State<AppState>,
     Path(run_id): Path<String>,
+    Query(q): Query<WorkspaceQuery>,
 ) -> Response {
-    if state.relay.delete(&run_id) {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    if ws.relay.delete(&run_id) {
         Json(serde_json::json!({"status": "deleted", "id": run_id})).into_response()
     } else {
         (StatusCode::NOT_FOUND, format!("run '{run_id}' not found")).into_response()
@@ -141,9 +150,11 @@ async fn delete_run(
 async fn update_title(
     State(state): State<AppState>,
     Path(run_id): Path<String>,
+    Query(q): Query<WorkspaceQuery>,
     Json(body): Json<UpdateTitleBody>,
 ) -> Response {
-    match state.relay.set_title(&run_id, &body.title) {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.relay.set_title(&run_id, &body.title) {
         Some(state) => Json(state).into_response(),
         None => (StatusCode::NOT_FOUND, format!("run '{run_id}' not found")).into_response(),
     }
@@ -158,10 +169,13 @@ async fn update_title(
 async fn advance_run(
     State(state): State<AppState>,
     Path(run_id): Path<String>,
+    Query(q): Query<WorkspaceQuery>,
 ) -> Response {
+    let ws_id = q.id_or_default(&state.registry);
+    let ws = state.registry.get(&ws_id);
     // Guard: don't start a second driver if one is already running this run.
-    if state.relay.is_running(&run_id) {
-        return match state.relay.get(&run_id) {
+    if ws.relay.is_running(&run_id) {
+        return match ws.relay.get(&run_id) {
             Some(s) => Json(s).into_response(),
             None => (StatusCode::NOT_FOUND, format!("run '{run_id}' not found")).into_response(),
         };
@@ -171,10 +185,10 @@ async fn advance_run(
     let state_arc = Arc::new(state.clone());
     let run_id_clone = run_id.clone();
     tokio::spawn(async move {
-        crate::relay::driver::drive_run(state_arc, run_id_clone).await;
+        crate::relay::driver::drive_run(state_arc, ws_id, run_id_clone).await;
     });
     // Return the current (pre-drive or just-advanced) snapshot.
-    match state.relay.get(&run_id) {
+    match ws.relay.get(&run_id) {
         Some(s) => Json(s).into_response(),
         None => (StatusCode::NOT_FOUND, format!("run '{run_id}' not found")).into_response(),
     }
@@ -184,15 +198,17 @@ async fn advance_run(
 async fn submit_handoff(
     State(state): State<AppState>,
     Path(run_id): Path<String>,
+    Query(q): Query<WorkspaceQuery>,
     Json(body): Json<SubmitHandoffBody>,
 ) -> Response {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
     let handoff: HandoffDocument = match serde_json::from_value(body.handoff) {
         Ok(h) => h,
         Err(e) => {
             return (StatusCode::BAD_REQUEST, format!("invalid handoff: {e}")).into_response()
         }
     };
-    match state.relay.submit_handoff(&run_id, handoff) {
+    match ws.relay.submit_handoff(&run_id, handoff) {
         Some((result, state)) => {
             publish_advance_result(&run_id, &result);
             Json(state).into_response()
@@ -205,8 +221,11 @@ async fn submit_handoff(
 async fn resolve_gate(
     State(state): State<AppState>,
     Path(run_id): Path<String>,
+    Query(q): Query<WorkspaceQuery>,
     Json(body): Json<ResolveGateBody>,
 ) -> Response {
+    let ws_id = q.id_or_default(&state.registry);
+    let ws = state.registry.get(&ws_id);
     let decision = match body.decision.as_str() {
         "approve" => GateDecision::Approve,
         "reject" => GateDecision::Reject {
@@ -223,7 +242,7 @@ async fn resolve_gate(
                 .into_response()
         }
     };
-    match state.relay.resolve_gate(&run_id, decision) {
+    match ws.relay.resolve_gate(&run_id, decision) {
         Some((result, run_state)) => {
             publish_advance_result(&run_id, &result);
             // After resolving a gate, resume the background driver so the run
@@ -232,7 +251,7 @@ async fn resolve_gate(
                 let state_arc = Arc::new(state.clone());
                 let run_id_clone = run_id.clone();
                 tokio::spawn(async move {
-                    crate::relay::driver::drive_run(state_arc, run_id_clone).await;
+                    crate::relay::driver::drive_run(state_arc, ws_id, run_id_clone).await;
                 });
             }
             Json(run_state).into_response()
@@ -245,8 +264,10 @@ async fn resolve_gate(
 async fn rerun_run(
     State(state): State<AppState>,
     Path(run_id): Path<String>,
+    Query(q): Query<WorkspaceQuery>,
 ) -> Response {
-    match state.relay.rerun(&run_id) {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.relay.rerun(&run_id) {
         Some(state) => Json(state).into_response(),
         None => (StatusCode::NOT_FOUND, format!("run '{run_id}' not found")).into_response(),
     }

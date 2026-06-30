@@ -21,6 +21,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use crate::server::AppState;
+use crate::workspace::WorkspaceQuery;
 
 // ─── Data Model ──────────────────────────────────────────────────────────────
 
@@ -451,6 +452,8 @@ struct MkdirRequest {
 struct UploadQuery {
     #[serde(default)]
     prefix: String,
+    #[serde(default)]
+    workspace: Option<String>,
 }
 
 // ─── API Handlers ────────────────────────────────────────────────────────────
@@ -458,10 +461,12 @@ struct UploadQuery {
 /// `GET /api/forge/wiki/{project}/tree` — directory tree of wiki pages.
 /// `project` is accepted but ignored (single-project model).
 async fn wiki_tree(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Path(_project): Path<String>,
 ) -> Json<Vec<TreeNode>> {
-    let wiki_dir = _state.wiki.wiki_dir.clone();
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    let wiki_dir = ws.wiki.wiki_dir.clone();
     let mut tree = build_tree(&wiki_dir, "");
     strip_md_extensions(&mut tree);
     Json(tree)
@@ -470,9 +475,11 @@ async fn wiki_tree(
 /// `GET /api/forge/raw/{project}/tree` — directory tree of raw resources.
 async fn raw_tree(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Path(_project): Path<String>,
 ) -> Json<Vec<TreeNode>> {
-    let raw_dir = state.wiki.raw_dir.clone();
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    let raw_dir = ws.wiki.raw_dir.clone();
     let _ = std::fs::create_dir_all(&raw_dir);
     let tree = build_tree(&raw_dir, "");
     Json(tree)
@@ -481,21 +488,25 @@ async fn raw_tree(
 /// `GET /api/forge/wiki/{project}/pages` — list all page metadata.
 async fn list_pages(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Path(_project): Path<String>,
 ) -> Json<WikiListResponse> {
-    state.wiki.load();
-    let pages = state.wiki.list_pages();
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    ws.wiki.load();
+    let pages = ws.wiki.list_pages();
     Json(WikiListResponse { pages })
 }
 
 /// `GET /api/forge/wiki/{project}/page/{*slug}` — read a single page.
 async fn get_page(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Path((_project, slug)): Path<(String, String)>,
 ) -> Result<Json<WikiPageResponse>, StatusCode> {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
     validate_path(&slug).map_err(|_| StatusCode::BAD_REQUEST)?;
-    state.wiki.load();
-    match state.wiki.get_page(&slug) {
+    ws.wiki.load();
+    match ws.wiki.get_page(&slug) {
         Some(page) => Ok(Json(WikiPageResponse { page })),
         None => Err(StatusCode::NOT_FOUND),
     }
@@ -504,11 +515,13 @@ async fn get_page(
 /// `POST /api/forge/wiki/{project}/pages` — create a new page.
 async fn create_page(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Path(_project): Path<String>,
     Json(req): Json<CreatePageRequest>,
 ) -> Result<Json<WikiPageResponse>, (StatusCode, String)> {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
     validate_path(&req.slug)?;
-    state.wiki.load();
+    ws.wiki.load();
     let page = WikiPage {
         slug: req.slug,
         title: req.title,
@@ -519,8 +532,7 @@ async fn create_page(
         created_at: 0,
         updated_at: 0,
     };
-    state
-        .wiki
+    ws.wiki
         .create_page(page)
         .map(|p| Json(WikiPageResponse { page: p }))
         .map_err(|e| (StatusCode::CONFLICT, e))
@@ -529,13 +541,14 @@ async fn create_page(
 /// `PUT /api/forge/wiki/{project}/page/{*slug}` — update page content/meta.
 async fn update_page(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Path((_project, slug)): Path<(String, String)>,
     Json(req): Json<UpdatePageRequest>,
 ) -> Result<Json<WikiPageResponse>, (StatusCode, String)> {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
     validate_path(&slug)?;
-    state.wiki.load();
-    state
-        .wiki
+    ws.wiki.load();
+    ws.wiki
         .update_page(&slug, req.content, req.title, req.tags)
         .map(|p| Json(WikiPageResponse { page: p }))
         .map_err(|e| (StatusCode::NOT_FOUND, e))
@@ -544,12 +557,13 @@ async fn update_page(
 /// `DELETE /api/forge/wiki/{project}/page/{*slug}` — delete a page.
 async fn delete_page(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Path((_project, slug)): Path<(String, String)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
     validate_path(&slug)?;
-    state.wiki.load();
-    state
-        .wiki
+    ws.wiki.load();
+    ws.wiki
         .delete_page(&slug)
         .map(|_| StatusCode::NO_CONTENT)
         .map_err(|e| (StatusCode::NOT_FOUND, e))
@@ -558,11 +572,13 @@ async fn delete_page(
 /// `POST /api/forge/wiki/{project}/search` — full-text search across pages.
 async fn search(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Path(_project): Path<String>,
     Json(req): Json<SearchRequest>,
 ) -> Json<SearchResponse> {
-    state.wiki.load();
-    let results = state.wiki.search(&req.query);
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    ws.wiki.load();
+    let results = ws.wiki.search(&req.query);
     Json(SearchResponse { results })
 }
 
@@ -573,7 +589,10 @@ async fn raw_upload(
     Query(query): Query<UploadQuery>,
     mut multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    let raw_dir = state.wiki.raw_dir.clone();
+    let ws = state
+        .registry
+        .get(&WorkspaceQuery { workspace: query.workspace.clone() }.id_or_default(&state.registry));
+    let raw_dir = ws.wiki.raw_dir.clone();
     if !query.prefix.is_empty() {
         validate_path(&query.prefix)?;
     }
@@ -615,10 +634,12 @@ async fn raw_upload(
 /// `GET /api/forge/raw/{project}/file/{*path}` — serve a raw file by path.
 async fn raw_file(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Path((_project, path)): Path<(String, String)>,
 ) -> Result<Response, StatusCode> {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
     validate_path(&path).map_err(|_| StatusCode::BAD_REQUEST)?;
-    let file_path = state.wiki.raw_dir.join(&path);
+    let file_path = ws.wiki.raw_dir.join(&path);
 
     let data = std::fs::read(&file_path).map_err(|_| StatusCode::NOT_FOUND)?;
     let mime = guess_mime(&file_path);
@@ -629,10 +650,12 @@ async fn raw_file(
 /// `DELETE /api/forge/raw/{project}/file/{*path}` — delete a raw file or folder.
 async fn raw_delete(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Path((_project, path)): Path<(String, String)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
     validate_path(&path)?;
-    let file_path = state.wiki.raw_dir.join(&path);
+    let file_path = ws.wiki.raw_dir.join(&path);
     if !file_path.exists() {
         return Err((StatusCode::NOT_FOUND, "Not found".into()));
     }
@@ -649,11 +672,13 @@ async fn raw_delete(
 /// `POST /api/forge/raw/{project}/mkdir` — create a folder (recursively).
 async fn raw_mkdir(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Path(_project): Path<String>,
     Json(req): Json<MkdirRequest>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
     validate_path(&req.path)?;
-    let target = state.wiki.raw_dir.join(&req.path);
+    let target = ws.wiki.raw_dir.join(&req.path);
     std::fs::create_dir_all(&target)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(StatusCode::NO_CONTENT)

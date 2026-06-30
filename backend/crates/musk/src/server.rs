@@ -19,7 +19,7 @@
 
 use std::sync::Arc;
 
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -30,17 +30,16 @@ use serde_json::json;
 use auto_ai_agent::{builtin_names, load_builtin, load_profession, Client, Profession};
 
 use crate::build_agent_from_mode;
+use crate::workspace::WorkspaceQuery;
 
 /// Shared server state: a client that talks to the daemon, the auth store,
-/// and the spec ledger store.
+/// and the workspace registry (which resolves per-workspace specs/chats/wiki/
+/// relay stores via `?workspace=<id>`).
 #[derive(Clone)]
 pub struct AppState {
     pub client: Arc<dyn Client>,
     pub auth: Arc<crate::auth::AuthStore>,
-    pub specs: Arc<crate::specs::SpecsStore>,
-    pub chats: Arc<crate::chats::ChatStore>,
-    pub wiki: Arc<crate::wiki::WikiStore>,
-    pub relay: Arc<crate::relay::store::RunStore>,
+    pub registry: Arc<crate::workspace::WorkspaceRegistry>,
 }
 
 /// Run the HTTP server on the given address (default `127.0.0.1:8080`).
@@ -48,24 +47,16 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
     let users_path = dirs::home_dir()
         .map(|h| h.join(".config/autoos/users.json"))
         .unwrap_or_else(|| std::path::PathBuf::from("users.json"));
-    let specs_path = dirs::home_dir()
-        .map(|h| h.join(".config/autoos/specs.json"))
-        .unwrap_or_else(|| std::path::PathBuf::from("specs.json"));
     let config_dir = dirs::home_dir()
         .map(|h| h.join(".config/autoos"))
         .unwrap_or_else(|| std::path::PathBuf::from("."));
+    let default_root = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let registry =
+        crate::workspace::WorkspaceRegistry::load(config_dir.join("workspaces.json"), default_root);
     let state = AppState {
         client,
         auth: Arc::new(crate::auth::AuthStore::new(users_path)),
-        specs: Arc::new(crate::specs::SpecsStore::new(specs_path)),
-        chats: Arc::new(crate::chats::ChatStore::default_path()),
-        wiki: Arc::new(crate::wiki::WikiStore::new(
-            config_dir.join("wiki"),
-            config_dir.join("raw"),
-        )),
-        relay: Arc::new(crate::relay::store::RunStore::new(
-            config_dir.join("relay"),
-        )),
+        registry: Arc::new(registry),
     };
 
     // Static assets: the web app (Chats/Specs SPA) lives at `web/dist`
@@ -283,8 +274,12 @@ fn bearer_token_or_query(
 // ── Spec Ledger endpoints ───────────────────────────────────────────────────
 
 /// `GET /api/specs` — return the full spec document (all sections + items).
-async fn specs_list(State(state): State<AppState>) -> impl IntoResponse {
-    match state.specs.load() {
+async fn specs_list(
+    State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
+) -> impl IntoResponse {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.specs.load() {
         Ok(doc) => Json(doc).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -295,8 +290,12 @@ async fn specs_list(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 /// `GET /api/specs/overview` — aggregate per-section summary (counts + status dist).
-async fn specs_overview(State(state): State<AppState>) -> impl IntoResponse {
-    match state.specs.load() {
+async fn specs_overview(
+    State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
+) -> impl IntoResponse {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.specs.load() {
         Ok(doc) => {
             // relations + derived statuses reflect the freshest view
             let mut doc = doc;
@@ -313,9 +312,13 @@ async fn specs_overview(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 /// `POST /api/specs/drift-check` — compare in-memory vs disk version.
-async fn specs_drift_check(State(state): State<AppState>) -> impl IntoResponse {
-    match state.specs.load() {
-        Ok(doc) => match state.specs.drift_check(&doc) {
+async fn specs_drift_check(
+    State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
+) -> impl IntoResponse {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.specs.load() {
+        Ok(doc) => match ws.specs.drift_check(&doc) {
             Ok((disk_version, drifted)) => Json(serde_json::json!({
                 "memory_version": doc.version,
                 "disk_version": disk_version,
@@ -337,8 +340,12 @@ async fn specs_drift_check(State(state): State<AppState>) -> impl IntoResponse {
 }
 
 /// `POST /api/specs/rebuild-relations` — recompute all `related` reverse-links.
-async fn specs_rebuild_relations(State(state): State<AppState>) -> impl IntoResponse {
-    let mut doc = match state.specs.load() {
+async fn specs_rebuild_relations(
+    State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
+) -> impl IntoResponse {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    let mut doc = match ws.specs.load() {
         Ok(d) => d,
         Err(e) => {
             return (
@@ -350,7 +357,7 @@ async fn specs_rebuild_relations(State(state): State<AppState>) -> impl IntoResp
     };
     doc.rebuild_relations();
     doc.derive_statuses();
-    if let Err(e) = state.specs.save(&doc) {
+    if let Err(e) = ws.specs.save(&doc) {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError { error: format!("save: {e}") }),
@@ -363,9 +370,11 @@ async fn specs_rebuild_relations(State(state): State<AppState>) -> impl IntoResp
 /// `GET /api/specs/related/{item_id}` — the related (reverse-link) ids of an item.
 async fn specs_related(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     axum::extract::Path(item_id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    match state.specs.load() {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.specs.load() {
         Ok(mut doc) => {
             doc.rebuild_relations();
             for section in &doc.sections {
@@ -401,9 +410,11 @@ pub struct SpecsUpsertRequest {
 
 async fn specs_upsert(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Json(req): Json<SpecsUpsertRequest>,
 ) -> impl IntoResponse {
-    let mut doc = match state.specs.load() {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    let mut doc = match ws.specs.load() {
         Ok(d) => d,
         Err(e) => {
             return (
@@ -413,11 +424,11 @@ async fn specs_upsert(
                 .into_response()
         }
     };
-    match state
+    match ws
         .specs
         .upsert_item(&mut doc, &req.section_id, req.item)
     {
-        Ok(_) => match state.specs.save(&doc) {
+        Ok(_) => match ws.specs.save(&doc) {
             Ok(_) => Json(&doc).into_response(),
             Err(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -444,10 +455,12 @@ pub struct SpecsTransitionRequest {
 
 async fn specs_transition(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Json(req): Json<SpecsTransitionRequest>,
 ) -> impl IntoResponse {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
     let new_status = crate::specs::SpecStatus::from_str_lossy(&req.new_status);
-    let mut doc = match state.specs.load() {
+    let mut doc = match ws.specs.load() {
         Ok(d) => d,
         Err(e) => {
             return (
@@ -457,11 +470,11 @@ async fn specs_transition(
                 .into_response()
         }
     };
-    match state
+    match ws
         .specs
         .transition_item(&mut doc, &req.section_id, &req.item_id, new_status)
     {
-        Ok(_) => match state.specs.save(&doc) {
+        Ok(_) => match ws.specs.save(&doc) {
             Ok(_) => Json(json!({"status": "ok", "new_status": req.new_status})).into_response(),
             Err(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -480,9 +493,11 @@ async fn specs_transition(
 /// `DELETE /api/specs/item/:section/:id` — remove a spec item.
 async fn specs_delete(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     axum::extract::Path((section_id, item_id)): axum::extract::Path<(String, String)>,
 ) -> impl IntoResponse {
-    let mut doc = match state.specs.load() {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    let mut doc = match ws.specs.load() {
         Ok(d) => d,
         Err(e) => {
             return (
@@ -492,8 +507,8 @@ async fn specs_delete(
                 .into_response()
         }
     };
-    match state.specs.delete_item(&mut doc, &section_id, &item_id) {
-        Ok(true) => match state.specs.save(&doc) {
+    match ws.specs.delete_item(&mut doc, &section_id, &item_id) {
+        Ok(true) => match ws.specs.save(&doc) {
             Ok(_) => Json(json!({"status": "deleted"})).into_response(),
             Err(e) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -1281,25 +1296,33 @@ struct ChatCreateBody {
 /// `POST /api/chats/session` — create a new (empty) chat session.
 async fn chat_create(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     Json(body): Json<ChatCreateBody>,
 ) -> impl IntoResponse {
-    match state.chats.create(&body.mode) {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.chats.create(&body.mode) {
         Ok(session) => Json(json!({"session": session})).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("create: {e}")).into_response(),
     }
 }
 
 /// `GET /api/chats/sessions` — list all sessions (summaries).
-async fn chat_list(State(state): State<AppState>) -> impl IntoResponse {
-    Json(json!({"sessions": state.chats.list()}))
+async fn chat_list(
+    State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
+) -> impl IntoResponse {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    Json(json!({"sessions": ws.chats.list()}))
 }
 
 /// `GET /api/chats/session/{id}` — full session with all messages.
 async fn chat_get(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    match state.chats.get(&id) {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.chats.get(&id) {
         Some(session) => Json(json!({"session": session})).into_response(),
         None => (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response(),
     }
@@ -1314,10 +1337,12 @@ struct ChatRenameBody {
 /// `PATCH /api/chats/session/{id}` — rename a session.
 async fn chat_rename(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(body): Json<ChatRenameBody>,
 ) -> impl IntoResponse {
-    match state.chats.rename(&id, &body.name) {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.chats.rename(&id, &body.name) {
         Ok(Some(session)) => Json(json!({"session": session})).into_response(),
         Ok(None) => (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("rename: {e}")).into_response(),
@@ -1327,9 +1352,11 @@ async fn chat_rename(
 /// `DELETE /api/chats/session/{id}` — delete one session.
 async fn chat_delete(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
-    match state.chats.delete(&id) {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.chats.delete(&id) {
         Ok(true) => Json(json!({"status": "deleted", "id": id})).into_response(),
         Ok(false) => (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("delete: {e}")).into_response(),
@@ -1337,8 +1364,12 @@ async fn chat_delete(
 }
 
 /// `DELETE /api/chats/sessions` — delete all sessions.
-async fn chat_delete_all(State(state): State<AppState>) -> impl IntoResponse {
-    match state.chats.delete_all() {
+async fn chat_delete_all(
+    State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
+) -> impl IntoResponse {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.chats.delete_all() {
         Ok(_) => Json(json!({"status": "deleted_all"})).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("delete_all: {e}")).into_response(),
     }
@@ -1362,11 +1393,13 @@ struct ChatMessageBody {
 /// are cleanly separated.)
 async fn chat_message(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(body): Json<ChatMessageBody>,
 ) -> impl IntoResponse {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
     let msg = crate::chats::ChatMessage::user(body.content);
-    match state.chats.append_message(&id, msg.clone()) {
+    match ws.chats.append_message(&id, msg.clone()) {
         Ok(Some(session)) => Json(json!({"session": session, "queued": msg})).into_response(),
         Ok(None) => (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("append: {e}")).into_response(),
@@ -1382,11 +1415,13 @@ async fn chat_message(
 /// multi-turn context across the stateless HTTP boundary.
 async fn chat_stream(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Response {
     use axum::body::Body;
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
     // Load the session + its history.
-    let session = match state.chats.get(&id) {
+    let session = match ws.chats.get(&id) {
         Some(s) => s,
         None => {
             return (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response()
@@ -1423,7 +1458,7 @@ async fn chat_stream(
     // Spawn the agent run, streaming events.
     let (tx, mut rx) = tokio::sync::mpsc::channel::<serde_json::Value>(64);
     let client = state.client.clone();
-    let chats = state.chats.clone();
+    let chats = ws.chats.clone();
     let session_id = id.clone();
     let history_for_agent = history.clone();
     // Resolve the session's mode to an AgentMode (built-in or user .at).
@@ -1514,9 +1549,11 @@ async fn chat_stream(
 /// change at `index` to the Spec Ledger, then remove it from the queue.
 async fn chat_approve(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     axum::extract::Path((id, index)): axum::extract::Path<(String, usize)>,
 ) -> Response {
-    match state.chats.approve_spec_change(&id, index, &state.specs) {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.chats.approve_spec_change(&id, index, &ws.specs) {
         Ok(Some((change, session))) => Json(json!({
             "applied": change,
             "session": session,
@@ -1531,9 +1568,11 @@ async fn chat_approve(
 /// change at `index` without applying it.
 async fn chat_reject(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     axum::extract::Path((id, index)): axum::extract::Path<(String, usize)>,
 ) -> Response {
-    match state.chats.reject_spec_change(&id, index) {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.chats.reject_spec_change(&id, index) {
         Ok(Some(session)) => Json(json!({ "session": session })).into_response(),
         Ok(None) => (StatusCode::NOT_FOUND, "session not found").into_response(),
         Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
@@ -1543,9 +1582,11 @@ async fn chat_reject(
 /// `POST /api/chats/session/{id}/reject-all` — discard all pending spec changes.
 async fn chat_reject_all(
     State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Response {
-    match state.chats.reject_all_spec_changes(&id) {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.chats.reject_all_spec_changes(&id) {
         Ok(Some(session)) => Json(json!({ "session": session })).into_response(),
         Ok(None) => (StatusCode::NOT_FOUND, "session not found").into_response(),
         Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
@@ -1753,55 +1794,27 @@ mod tests {
         Arc::new(crate::auth::AuthStore::new(path))
     }
 
-    fn tmp_specs() -> Arc<crate::specs::SpecsStore> {
-        let path = std::env::temp_dir().join(format!(
-            "musk_server_specs_test_{}.json",
-            std::process::id()
+    fn tmp_state() -> AppState {
+        let dir = std::env::temp_dir().join(format!(
+            "musk-server-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
         ));
-        let _ = std::fs::remove_file(&path);
-        Arc::new(crate::specs::SpecsStore::new(path))
-    }
-
-    fn tmp_chats() -> Arc<crate::chats::ChatStore> {
-        let path = std::env::temp_dir().join(format!(
-            "musk_server_chats_test_{}.json",
-            std::process::id()
-        ));
-        let _ = std::fs::remove_file(&path);
-        Arc::new(crate::chats::ChatStore::at(path))
-    }
-
-    fn tmp_wiki() -> Arc<crate::wiki::WikiStore> {
-        let tag = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        Arc::new(crate::wiki::WikiStore::new(
-            std::env::temp_dir().join(format!("musk_server_wiki_test_{tag}")),
-            std::env::temp_dir().join(format!("musk_server_raw_test_{tag}")),
-        ))
-    }
-
-    fn tmp_relay() -> Arc<crate::relay::store::RunStore> {
-        let tag = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        Arc::new(crate::relay::store::RunStore::at(
-            std::env::temp_dir().join(format!("musk_server_relay_test_{tag}")),
-        ))
+        std::fs::create_dir_all(&dir).unwrap();
+        let registry =
+            crate::workspace::WorkspaceRegistry::load(dir.join("workspaces.json"), dir.clone());
+        AppState {
+            client: Arc::new(MockClient) as Arc<dyn Client>,
+            auth: tmp_auth(),
+            registry: Arc::new(registry),
+        }
     }
 
     #[tokio::test]
     async fn run_endpoint_returns_result() {
-        let state = AppState {
-            client: Arc::new(MockClient) as Arc<dyn Client>,
-            auth: tmp_auth(),
-            specs: tmp_specs(),
-            chats: tmp_chats(),
-            wiki: tmp_wiki(),
-            relay: tmp_relay(),
-        };
+        let state = tmp_state();
         let req = RunRequest {
             task: "say hello".into(),
             mode: "superpowers".into(),
@@ -1813,14 +1826,7 @@ mod tests {
 
     #[tokio::test]
     async fn run_endpoint_bad_profession_errors() {
-        let state = AppState {
-            client: Arc::new(MockClient) as Arc<dyn Client>,
-            auth: tmp_auth(),
-            specs: tmp_specs(),
-            chats: tmp_chats(),
-            wiki: tmp_wiki(),
-            relay: tmp_relay(),
-        };
+        let state = tmp_state();
         let req = RunRequest {
             task: "x".into(),
             mode: "nonexistent-mode".into(),

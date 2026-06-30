@@ -28,10 +28,11 @@ use crate::server::AppState;
 
 /// Drive a run forward as far as possible: run every auto step until a human
 /// gate, completion, failure, or pause. Designed to be `tokio::spawn`-ed.
-pub async fn drive_run(state: Arc<AppState>, run_id: String) {
+pub async fn drive_run(state: Arc<AppState>, ws_id: String, run_id: String) {
+    let ws = state.registry.get(&ws_id);
     loop {
         // 1. Advance the state machine.
-        let (result, _state) = match state.relay.advance(&run_id) {
+        let (result, _state) = match ws.relay.advance(&run_id) {
             Some(v) => v,
             None => {
                 tracing::warn!("drive_run: run {run_id} vanished mid-drive");
@@ -46,12 +47,12 @@ pub async fn drive_run(state: Arc<AppState>, run_id: String) {
                 profession_id, ..
             } => {
                 // 2. Run the agent for this step (outside the store lock).
-                if let Err(e) = run_step(&state, &run_id, &profession_id).await {
+                if let Err(e) = run_step(&state, &ws, &run_id, &profession_id).await {
                     // Agent build/run failure → fail the run with a handoff carrying the error.
                     tracing::error!("drive_run: step agent failed for {run_id}: {e}");
                     let mut h = HandoffDocument::new(&profession_id, "", &run_id, 0);
                     h.summary = format!("[agent error] {e}");
-                    let _ = state.relay.submit_handoff(&run_id, h);
+                    let _ = ws.relay.submit_handoff(&run_id, h);
                     continue;
                 }
                 // 3. The agent step submitted its own handoff inside run_step;
@@ -83,11 +84,12 @@ pub async fn drive_run(state: Arc<AppState>, run_id: String) {
 /// accumulated output on success.
 async fn run_step(
     state: &AppState,
+    ws: &std::sync::Arc<crate::workspace::WorkspaceStores>,
     run_id: &str,
     profession_id: &str,
 ) -> Result<String, String> {
     // Compose the task + prior-step context.
-    let (task, prior_md) = state
+    let (task, prior_md) = ws
         .relay
         .step_context(run_id)
         .unwrap_or(("Continue the relay pipeline.".to_string(), String::new()));
@@ -110,7 +112,7 @@ async fn run_step(
 
     // Stream events into the run's history + SSE bus. The callback is `Fn` (not
     // async) so it must be cheap; it locks the store only to push an event.
-    let store = state.relay.clone();
+    let store = ws.relay.clone();
     let run_id_owned = run_id.to_string();
     let profession_owned = profession_id.to_string();
     let accumulated = Arc::new(std::sync::Mutex::new(String::new()));
@@ -172,7 +174,7 @@ async fn run_step(
     };
 
     // TurnComplete event.
-    state.relay.push_event(
+    ws.relay.push_event(
         run_id,
         RunEvent::TurnComplete {
             timestamp: now_secs(),
@@ -181,15 +183,14 @@ async fn run_step(
     );
 
     // Wrap into a HandoffDocument and submit (the engine routes to the next step).
-    let next_profession = state.relay.next_profession(run_id).unwrap_or_default();
+    let next_profession = ws.relay.next_profession(run_id).unwrap_or_default();
     let mut handoff = HandoffDocument::new(profession_id, &next_profession, run_id, 0);
     handoff.summary = final_output.clone();
     handoff.token_usage.step_input = result.total_tokens / 2;
     handoff.token_usage.step_output =
         result.total_tokens.saturating_sub(result.total_tokens / 2);
 
-    state
-        .relay
+    ws.relay
         .submit_handoff(run_id, handoff)
         .ok_or_else(|| "run vanished after step".to_string())?;
     // submit_handoff already pushes StepCompleted/TokenSpend + publishes.
