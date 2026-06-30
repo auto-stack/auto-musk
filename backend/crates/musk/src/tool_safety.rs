@@ -25,6 +25,28 @@ thread_local! {
     static ROOT_OVERRIDE: std::cell::RefCell<Option<PathBuf>> = std::cell::RefCell::new(None);
 }
 
+/// Thread-local "current workspace root" — set by the chat/relay driver before
+/// running an agent so file tools confine to the active workspace's project dir.
+/// Takes precedence over the startup snapshot, but yields to ROOT_OVERRIDE
+/// (which tests use for stricter sandboxing).
+thread_local! {
+    static CURRENT_ROOT: std::cell::RefCell<Option<PathBuf>> = std::cell::RefCell::new(None);
+}
+
+/// Set the current workspace root for this thread (agent driver entry point).
+/// The path is canonicalized so it matches the canonical form produced by
+/// `resolve_within_project` (important on Windows, where canonical paths gain
+/// the `\\?\` prefix).
+pub fn set_current_root(path: PathBuf) {
+    let canonical = std::fs::canonicalize(&path).unwrap_or(path);
+    CURRENT_ROOT.with(|r| *r.borrow_mut() = Some(canonical));
+}
+
+/// Clear the current workspace root (agent driver exit point).
+pub fn clear_current_root() {
+    CURRENT_ROOT.with(|r| *r.borrow_mut() = None);
+}
+
 /// Initialize the project root from the current directory. Called once at
 /// startup (main.rs).
 pub fn init_project_root() {
@@ -47,6 +69,7 @@ pub fn clear_test_root() {
 /// else the startup snapshot.
 pub fn project_root() -> PathBuf {
     ROOT_OVERRIDE.with(|r| r.borrow().clone())
+        .or_else(|| CURRENT_ROOT.with(|r| r.borrow().clone()))
         .unwrap_or_else(|| {
             PROJECT_ROOT
                 .get()
@@ -203,6 +226,7 @@ pub fn classify_command(cmd: &str) -> CommandTier {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     fn setup_root() {
         // Use the test's CWD as project root.
@@ -283,5 +307,30 @@ mod tests {
         );
         let err = result.unwrap_err();
         assert!(err.contains("outside the project root"), "got: {err}");
+    }
+
+    #[test]
+    fn current_root_override_routes_resolution() {
+        let tmp = std::env::temp_dir().join(format!(
+            "musk-ts-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("hello.txt"), "hi").unwrap();
+
+        set_current_root(tmp.clone());
+        let resolved = resolve_within_project("hello.txt").unwrap();
+        assert_eq!(resolved, tmp.join("hello.txt").canonicalize().unwrap());
+        clear_current_root();
+    }
+
+    #[test]
+    fn without_override_falls_back_to_project_root() {
+        // Just ensure it doesn't panic and returns *some* root.
+        clear_current_root();
+        let _ = project_root();
     }
 }
