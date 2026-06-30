@@ -73,7 +73,9 @@ export function useForge() {
         body: JSON.stringify({ notebook_sid: notebookSid, project_path: projectPath }),
       })
       if (!resp.ok) throw new Error(`Failed to create session: ${resp.status}`)
-      const data: ForgeSession = await resp.json()
+      const raw = await resp.json()
+      // Backend returns { session: {...} }; tolerate a bare object too.
+      const data: ForgeSession = raw?.session ?? raw
       session.value = data
       messages.value = data.messages
       error.value = null
@@ -92,7 +94,8 @@ export function useForge() {
     try {
       const resp = await authFetch(`${API_BASE}/session/${sid}`)
       if (!resp.ok) throw new Error(`Session not found: ${resp.status}`)
-      const data: ForgeSession | null = await resp.json()
+      const raw = await resp.json()
+      const data: ForgeSession | null = raw?.session ?? raw
       if (!data) throw new Error('Session returned null')
 
       session.value = data
