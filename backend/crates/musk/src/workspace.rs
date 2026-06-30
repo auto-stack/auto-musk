@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use crate::chats::ChatStore;
@@ -55,6 +55,22 @@ fn autoos_dir(root: &std::path::Path) -> PathBuf {
     root.join(".autoos")
 }
 
+/// Pick a unique workspace id under the lock held by `open()`. Returns `base`
+/// if free, otherwise `{base}-{n}` for the smallest n that is free.
+fn unique_id_locked(idx: &WorkspaceIndex, base: &str) -> String {
+    if !idx.workspaces.iter().any(|m| m.id == base) {
+        return base.to_string();
+    }
+    let mut n = 1;
+    loop {
+        let candidate = format!("{base}-{n}");
+        if !idx.workspaces.iter().any(|m| m.id == candidate) {
+            return candidate;
+        }
+        n += 1;
+    }
+}
+
 impl WorkspaceRegistry {
     /// Load the index from `index_path`; if empty, seed a default workspace
     /// rooted at `default_root` (startup cwd / --workdir).
@@ -93,14 +109,14 @@ impl WorkspaceRegistry {
         reg
     }
 
-    fn read_index(path: &PathBuf) -> WorkspaceIndex {
+    fn read_index(path: &Path) -> WorkspaceIndex {
         std::fs::read_to_string(path)
             .ok()
             .and_then(|c| serde_json::from_str(&c).ok())
             .unwrap_or_default()
     }
 
-    fn write_index(path: &PathBuf, idx: &WorkspaceIndex) {
+    fn write_index(path: &Path, idx: &WorkspaceIndex) {
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
@@ -128,20 +144,25 @@ impl WorkspaceRegistry {
                         .as_ref()
                         .and_then(|did| idx.workspaces.iter().find(|m| &m.id == did).cloned())
                 })
+                // Recover from a corrupted/stale index: if the requested id
+                // and the default id both miss, fall back to the first entry
+                // rather than panicking (which would crash startup via load()).
+                .or_else(|| idx.workspaces.first().cloned())
         };
         let meta = match meta {
             Some(m) => m,
             None => panic!("no workspaces registered and no default"),
         };
         let root = PathBuf::from(&meta.path);
-        {
-            let cache = self.cache.read().unwrap();
-            if let Some(stores) = cache.get(&root) {
-                return stores.clone();
-            }
+        // Double-checked locking: acquire the write lock, re-check the cache,
+        // and only construct if still absent. This guarantees a single
+        // WorkspaceStores per root even under concurrent get() calls.
+        let mut cache = self.cache.write().unwrap();
+        if let Some(stores) = cache.get(&root).cloned() {
+            return stores;
         }
         let stores = Arc::new(WorkspaceStores::new(root.clone()));
-        self.cache.write().unwrap().insert(root.clone(), stores.clone());
+        cache.insert(root, stores.clone());
         stores
     }
 
@@ -166,37 +187,26 @@ impl WorkspaceRegistry {
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| "workspace".into());
-        let id = self.unique_id(&base_id);
-        let meta = WorkspaceMeta {
-            id: id.clone(),
-            path: canonical.to_string_lossy().to_string(),
-            name: base_id,
-            last_opened: now_secs(),
-        };
-        {
+        // Compute the unique id AND push the new entry inside the same write
+        // lock so two concurrent open() calls with the same dirname cannot
+        // both receive the same id (TOCTOU).
+        let meta = {
             let mut idx = self.index.write().unwrap();
+            let id = unique_id_locked(&idx, &base_id);
+            let meta = WorkspaceMeta {
+                id: id.clone(),
+                path: canonical.to_string_lossy().to_string(),
+                name: base_id,
+                last_opened: now_secs(),
+            };
             idx.workspaces.push(meta.clone());
             if idx.default_workspace_id.is_none() {
                 idx.default_workspace_id = Some(id);
             }
-        }
+            meta
+        };
         self.save();
         meta
-    }
-
-    fn unique_id(&self, base: &str) -> String {
-        let idx = self.index.read().unwrap();
-        if !idx.workspaces.iter().any(|m| m.id == base) {
-            return base.to_string();
-        }
-        let mut n = 1;
-        loop {
-            let candidate = format!("{base}-{n}");
-            if !idx.workspaces.iter().any(|m| m.id == candidate) {
-                return candidate;
-            }
-            n += 1;
-        }
     }
 
     /// List workspaces, most-recently-opened first.
@@ -304,5 +314,31 @@ mod tests {
         let m2 = reg.open(&b.to_string_lossy());
         assert_eq!(m1.id, "myproj");
         assert_eq!(m2.id, "myproj-1", "second clash gets -1 suffix");
+    }
+
+    #[test]
+    fn get_returns_default_bundle_and_caches_it() {
+        let (reg, dir) = tmp_registry();
+        let default = reg.list().into_iter().next().unwrap();
+        let canonical_root = std::fs::canonicalize(&dir).unwrap();
+
+        // First get(): root matches the canonical default root.
+        let bundle = reg.get(&default.id);
+        assert_eq!(bundle.root, canonical_root);
+
+        // Second get(): returns the same bundle (cache hit).
+        let bundle_again = reg.get(&default.id);
+        assert!(
+            Arc::ptr_eq(&bundle, &bundle_again),
+            "get() must return the same Arc on a cache hit"
+        );
+
+        // Fallback: a nonexistent id resolves to the default workspace's bundle.
+        let fallback = reg.get("does-not-exist");
+        assert_eq!(fallback.root, canonical_root);
+        assert!(
+            Arc::ptr_eq(&fallback, &bundle),
+            "fallback to default must reuse the cached default bundle"
+        );
     }
 }
