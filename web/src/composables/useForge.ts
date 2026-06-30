@@ -3,6 +3,7 @@ import type { ForgeMessage, ForgeSession, ForgeSessionSummary, ForgeStreamEvent,
 import type { ToolCallInfo } from '@/types/tool'
 import { useEventRouter, type SSEEvent } from './useEventRouter'
 import { authFetch } from './useAuth'
+import { currentWorkspaceId } from './useWorkspaceId'
 import { useViewState } from './useViewState'
 
 const API_BASE = '/api/chats'
@@ -256,7 +257,11 @@ export function useForge() {
     }
 
     try {
-      const eventSource = new EventSource(`${API_BASE}/session/${sessionId.value}/stream`)
+      // EventSource can't set headers, so workspace + token go as query params.
+      // (musk doesn't enforce auth on the stream endpoint, but workspace is
+      // required to locate the session in the right store.)
+      const wsParam = currentWorkspaceId.value ? `?workspace=${encodeURIComponent(currentWorkspaceId.value)}` : ''
+      const eventSource = new EventSource(`${API_BASE}/session/${sessionId.value}/stream${wsParam}`)
 
       const eventRouter = useEventRouter()
 
