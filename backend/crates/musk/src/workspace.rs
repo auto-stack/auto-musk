@@ -18,6 +18,11 @@ pub struct WorkspaceMeta {
     pub path: String, // canonical project root
     pub name: String,
     pub last_opened: u64,
+    /// True if the project directory has no user files yet (ignoring dotfiles
+    /// like `.autoos`/`.git` and an empty `specs/` subdir). When true, the
+    /// frontend shows the new-project onboarding dialog.
+    #[serde(default)]
+    pub is_empty: bool,
 }
 
 /// The on-disk index file at ~/.config/autoos/workspaces.json.
@@ -53,6 +58,38 @@ fn now_secs() -> u64 {
 
 fn autoos_dir(root: &std::path::Path) -> PathBuf {
     root.join(".autoos")
+}
+
+/// Decide whether a project directory counts as "empty" for onboarding.
+///
+/// Ported from auto-forge's `is_project_empty`. A directory is empty if it
+/// contains nothing but:
+/// - dotfiles/dotdirs (`.autoos`, `.git`, `.vscode`, …) — always ignored
+/// - an empty `specs/` subdir (a freshly-seeded spec ledger)
+///
+/// Any other file or non-empty directory → not empty.
+pub fn is_workspace_empty(root: &std::path::Path) -> bool {
+    let Ok(dir) = std::fs::read_dir(root) else {
+        return true; // missing / unreadable → treat as empty
+    };
+    for entry in dir.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue; // ignore all dotfiles/dotdirs
+        }
+        if entry.path().is_dir() {
+            // An empty `specs/` is allowed (seeded ledger); anything else is content.
+            if name == "specs" {
+                let inner = std::fs::read_dir(entry.path());
+                if inner.map_or(true, |mut d| d.next().is_none()) {
+                    continue;
+                }
+            }
+            return false;
+        }
+        return false; // any regular file → not empty
+    }
+    true
 }
 
 /// Move a single file, falling back to copy+delete if a direct rename fails
@@ -133,6 +170,7 @@ impl WorkspaceRegistry {
                 path: canonical.to_string_lossy().to_string(),
                 name: id,
                 last_opened: now_secs(),
+                is_empty: is_workspace_empty(&canonical),
             };
             let seeded = WorkspaceIndex {
                 default_workspace_id: Some(meta.id.clone()),
@@ -233,6 +271,7 @@ impl WorkspaceRegistry {
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| "workspace".into());
+        let empty = is_workspace_empty(&canonical);
         // Compute the unique id AND push the new entry inside the same write
         // lock so two concurrent open() calls with the same dirname cannot
         // both receive the same id (TOCTOU).
@@ -244,6 +283,7 @@ impl WorkspaceRegistry {
                 path: canonical.to_string_lossy().to_string(),
                 name: base_id,
                 last_opened: now_secs(),
+                is_empty: empty,
             };
             idx.workspaces.push(meta.clone());
             if idx.default_workspace_id.is_none() {
@@ -498,5 +538,62 @@ mod tests {
         // .autoos/specs.json NOT overwritten by the old one.
         let content = std::fs::read_to_string(ws_root.join(".autoos/specs.json")).unwrap();
         assert!(content.contains("new"), "existing .autoos data must not be overwritten");
+    }
+
+    #[test]
+    fn is_empty_truly_empty_dir() {
+        let dir = tmp_dir();
+        assert!(is_workspace_empty(&dir));
+    }
+
+    #[test]
+    fn is_empty_ignores_dotfiles_and_autoos() {
+        let dir = tmp_dir();
+        std::fs::create_dir_all(dir.join(".autoos")).unwrap();
+        std::fs::create_dir_all(dir.join(".git")).unwrap();
+        std::fs::write(dir.join(".gitignore"), "*").unwrap();
+        assert!(is_workspace_empty(&dir), "dotfiles/.autoos must not count as content");
+    }
+
+    #[test]
+    fn is_empty_ignores_empty_specs_dir() {
+        let dir = tmp_dir();
+        std::fs::create_dir_all(dir.join("specs")).unwrap(); // empty specs/
+        assert!(is_workspace_empty(&dir), "empty specs/ must not count as content");
+    }
+
+    #[test]
+    fn is_empty_false_when_source_file_present() {
+        let dir = tmp_dir();
+        std::fs::write(dir.join("README.md"), "# hi").unwrap();
+        assert!(!is_workspace_empty(&dir));
+    }
+
+    #[test]
+    fn is_empty_false_when_non_empty_specs_present() {
+        let dir = tmp_dir();
+        std::fs::create_dir_all(dir.join("specs")).unwrap();
+        std::fs::write(dir.join("specs/goal.md"), "# G1").unwrap();
+        assert!(!is_workspace_empty(&dir), "non-empty specs/ counts as content");
+    }
+
+    #[test]
+    fn is_empty_false_when_src_dir_present() {
+        let dir = tmp_dir();
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        assert!(!is_workspace_empty(&dir), "any non-specs dir counts as content");
+    }
+
+    /// Helper: a fresh empty temp dir for is_empty tests.
+    fn tmp_dir() -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "musk-ws-empty-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
     }
 }

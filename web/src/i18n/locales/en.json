@@ -339,6 +339,17 @@
   "detail": {
     "noDetail": "No detail provided."
   },
+  "onboarding": {
+    "emptyTitle": "Empty Directory",
+    "emptyMessage": "This directory is empty. Would you like to create a new project?",
+    "yes": "Yes",
+    "no": "No",
+    "describePrompt": "What kind of application or project would you like to build?",
+    "describePlaceholder": "Describe your project idea in a few sentences...",
+    "back": "Back",
+    "startProject": "Start Project",
+    "starting": "Starting..."
+  },
   "auth": {
     "username": "Username",
     "password": "Password",

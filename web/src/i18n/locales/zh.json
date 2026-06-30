@@ -351,5 +351,16 @@
   },
   "detail": {
     "noDetail": "未提供详情。"
+  },
+  "onboarding": {
+    "emptyTitle": "空目录",
+    "emptyMessage": "这个目录是空的，请问你想新建一个工程吗？",
+    "yes": "是",
+    "no": "否",
+    "describePrompt": "请问您想开发一个什么样的应用或工程？",
+    "describePlaceholder": "用几句话描述一下你的工程想法…",
+    "back": "返回",
+    "startProject": "开始工程",
+    "starting": "正在创建…"
   }
 }

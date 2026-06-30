@@ -1630,13 +1630,17 @@ async fn workspace_status(
     Query(q): Query<WorkspaceQuery>,
 ) -> Response {
     let ws_id = q.id_or_default(&state.registry);
-    let meta = state.registry.list().into_iter().find(|m| m.id == ws_id);
-    match meta {
-        Some(m) => Json(json!({
-            "workspace": m,
-            "root_exists": std::path::Path::new(&m.path).exists(),
-        }))
-        .into_response(),
+    let mut meta = state.registry.list().into_iter().find(|m| m.id == ws_id);
+    match meta.as_mut() {
+        Some(m) => {
+            // Re-check emptiness live (the dir may have gained files since open).
+            m.is_empty = crate::workspace::is_workspace_empty(std::path::Path::new(&m.path));
+            Json(json!({
+                "workspace": m,
+                "root_exists": std::path::Path::new(&m.path).exists(),
+            }))
+            .into_response()
+        }
         None => (StatusCode::NOT_FOUND, "workspace not found").into_response(),
     }
 }

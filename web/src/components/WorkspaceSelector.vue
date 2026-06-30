@@ -40,7 +40,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Folder, FolderOpen, ChevronUp, ChevronDown, X } from 'lucide-vue-next'
-import { useProject } from '@/composables/useProject'
+import { useProject, type WorkspaceMeta } from '@/composables/useProject'
+
+const emit = defineEmits<{
+  (e: 'empty-opened', workspace: WorkspaceMeta): void
+}>()
 
 const { currentWorkspace: current, recentWorkspaces: recent, openWorkspace, loadRecent, browse } = useProject()
 const open = ref(false)
@@ -63,16 +67,18 @@ function onInput() {
 }
 
 async function choose(w: { path: string }) {
-  await openWorkspace(w.path)
+  const meta = await openWorkspace(w.path)
   open.value = false
+  if (meta.is_empty) emit('empty-opened', meta)
 }
 async function openCustom() {
   const p = customPath.value.trim()
   if (!p) return
-  await openWorkspace(p)
+  const meta = await openWorkspace(p)
   customPath.value = ''
   suggestions.value = []
   open.value = false
+  if (meta.is_empty) emit('empty-opened', meta)
 }
 </script>
 

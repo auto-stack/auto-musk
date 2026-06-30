@@ -26,7 +26,7 @@
       </div>
       <div class="rail-divider"></div>
       <div class="rail-footer">
-        <WorkspaceSelector />
+        <WorkspaceSelector @empty-opened="startOnboarding" />
         <SettingsMenu />
       </div>
     </nav>
@@ -38,19 +38,27 @@
       <!-- default: chats -->
       <ChatsView v-else />
     </main>
+    <!-- New-project onboarding dialog (modal overlay) -->
+    <OnboardingDialog
+      v-if="showOnboarding"
+      :workspace="onboardingWorkspace"
+      @done="showOnboarding = false"
+      @cancel="showOnboarding = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed } from 'vue'
+import { onMounted, onUnmounted, computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { MessageSquare, Scroll, BookOpen, Orbit } from 'lucide-vue-next'
 import { useGateInbox } from '@/composables/useGateInbox'
 import { useAuth } from '@/composables/useAuth'
 import { useViewState } from '@/composables/useViewState'
-import { useProject } from '@/composables/useProject'
+import { useProject, type WorkspaceMeta } from '@/composables/useProject'
 import SettingsMenu from '@/components/SettingsMenu.vue'
 import WorkspaceSelector from '@/components/WorkspaceSelector.vue'
+import OnboardingDialog from '@/components/OnboardingDialog.vue'
 import LoginView from './views/LoginView.vue'
 import ChatsView from './views/ChatsView.vue'
 import SpecsView from './views/SpecsView.vue'
@@ -62,6 +70,14 @@ const { badgeCount: gateBadgeCount } = useGateInbox()
 const { isAuthenticated } = useAuth()
 const { currentView, setView } = useViewState()
 const { fetchStatus } = useProject()
+
+// New-project onboarding: shown when an empty workspace is opened.
+const showOnboarding = ref(false)
+const onboardingWorkspace = ref<WorkspaceMeta | null>(null)
+function startOnboarding(ws: WorkspaceMeta) {
+  onboardingWorkspace.value = ws
+  showOnboarding.value = true
+}
 
 function onAuthSuccess() {
   // Auth state is reactive in useAuth; this acknowledges the LoginView event.

@@ -7,6 +7,8 @@ export interface WorkspaceMeta {
   path: string
   name: string
   last_opened: number
+  /** True if the project dir has no user files yet (triggers onboarding). */
+  is_empty?: boolean
 }
 
 // Singleton state
@@ -63,7 +65,7 @@ export function useProject() {
     }
   }
 
-  async function openWorkspace(path: string) {
+  async function openWorkspace(path: string): Promise<WorkspaceMeta> {
     const resp = await authFetch('/api/workspace/open', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -75,6 +77,7 @@ export function useProject() {
     currentWorkspaceId.value = data.workspace.id
     syncUrl(data.workspace.id)
     await loadRecent()
+    return data.workspace as WorkspaceMeta
   }
 
   async function loadRecent() {
