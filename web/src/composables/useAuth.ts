@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import { currentWorkspaceId } from './useWorkspaceId'
 
 const API_BASE = '/api/auth'
 const TOKEN_KEY = 'musk_jwt'
@@ -177,7 +178,21 @@ export async function authFetch(
     mergedHeaders['Authorization'] = `Bearer ${token}`
   }
 
-  const resp = await fetch(input, { ...init, headers: mergedHeaders })
+  let finalInput: string | URL | globalThis.Request = input
+  if (
+    typeof input === 'string' &&
+    input.startsWith('/api/') &&
+    !input.startsWith('/api/workspace/') &&
+    !input.startsWith('/api/auth/')
+  ) {
+    const wid = currentWorkspaceId.value
+    if (wid) {
+      const sep = input.includes('?') ? '&' : '?'
+      finalInput = `${input}${sep}workspace=${encodeURIComponent(wid)}`
+    }
+  }
+
+  const resp = await fetch(finalInput, { ...init, headers: mergedHeaders })
 
   if (resp.status === 401) {
     // Token expired or invalid — clear auth state

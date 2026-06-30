@@ -1,88 +1,114 @@
-// useProject — auto-musk is single-project (no open/close model). auto-forge's
-// version called /api/forge/project/* (status/open/close/recent/browse); musk
-// has no project concept, so this is a stub that reports a default open project.
-// ChatsView reads projectPath from here. Replace with real integration if musk
-// later gains a project model.
 import { ref, computed } from 'vue'
+import { authFetch } from './useAuth'
+import { currentWorkspaceId } from './useWorkspaceId'
 
-export interface ProjectInfo {
-  path: string
-  name: string
-  specs_dir: string
-  has_specs: boolean
-  is_open: boolean
-  is_empty?: boolean
-}
-
-export interface RecentProject {
+export interface WorkspaceMeta {
+  id: string
   path: string
   name: string
   last_opened: number
 }
 
-export interface BrowseEntry {
-  name: string
-  path: string
-  is_dir: boolean
-}
-
-const DEFAULT_INFO: ProjectInfo = {
-  path: '.',
-  name: 'musk',
-  specs_dir: 'specs',
-  has_specs: true,
-  is_open: true,
-  is_empty: false,
-}
-
-const _projectInfo = ref<ProjectInfo | null>(DEFAULT_INFO)
+// Singleton state
+const _current = ref<WorkspaceMeta | null>(null)
+const _recent = ref<WorkspaceMeta[]>([])
 const _isLoading = ref(false)
 const _error = ref<string | null>(null)
-const _recentProjects = ref<RecentProject[]>([])
 
 export function useProject() {
-  const projectInfo = _projectInfo
+  const isOpen = computed(() => _current.value !== null)
+  const projectName = computed(() => _current.value?.name ?? null)
+  const projectPath = computed(() => _current.value?.path ?? null)
+  const workspaceId = computed(() => _current.value?.id ?? null)
+  const currentWorkspace = _current
+  const recentWorkspaces = _recent
   const isLoading = _isLoading
   const error = _error
-  const recentProjects = _recentProjects
 
-  const isOpen = computed(() => true)
-  const projectName = computed(() => _projectInfo.value?.name ?? 'musk')
-  const projectPath = computed(() => _projectInfo.value?.path ?? '.')
+  // Backwards-compat aliases for older views that may reference these names.
+  const projectInfo = computed(() =>
+    _current.value
+      ? {
+          path: _current.value.path,
+          name: _current.value.name,
+          specs_dir: 'specs',
+          has_specs: true,
+          is_open: true,
+          is_empty: false,
+        }
+      : null,
+  )
+  const recentProjects = _recent
+
+  function syncUrl(id: string | null) {
+    const url = new URL(window.location.href)
+    if (id) url.searchParams.set('workspace', id)
+    else url.searchParams.delete('workspace')
+    window.history.replaceState({}, '', url.toString())
+  }
 
   async function fetchStatus() {
-    // no-op: single-project, always open.
-    _projectInfo.value = DEFAULT_INFO
+    const id = new URL(window.location.href).searchParams.get('workspace')
+    const query = id ? `?workspace=${encodeURIComponent(id)}` : ''
+    try {
+      const resp = await authFetch(`/api/workspace/status${query}`)
+      if (resp.ok) {
+        const data = await resp.json()
+        _current.value = data.workspace
+        currentWorkspaceId.value = data.workspace.id
+        syncUrl(data.workspace.id)
+      }
+    } catch {
+      // ignore — leave current null
+    }
   }
 
-  async function openProject(_path: string) {
-    _projectInfo.value = { ...DEFAULT_INFO, path: _path }
-  }
-
-  async function closeProject() {
-    // no-op in single-project mode
+  async function openWorkspace(path: string) {
+    const resp = await authFetch('/api/workspace/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    })
+    if (!resp.ok) throw new Error(`open workspace failed: ${resp.status}`)
+    const data = await resp.json()
+    _current.value = data.workspace
+    currentWorkspaceId.value = data.workspace.id
+    syncUrl(data.workspace.id)
+    await loadRecent()
   }
 
   async function loadRecent() {
-    // no-op
+    try {
+      const resp = await authFetch('/api/workspace/list')
+      if (resp.ok) _recent.value = (await resp.json()).workspaces ?? []
+    } catch {
+      // ignore
+    }
   }
 
-  async function browse(_path: string): Promise<BrowseEntry[]> {
-    return []
+  async function browse(path: string) {
+    const q = path ? `?path=${encodeURIComponent(path)}` : ''
+    const resp = await authFetch(`/api/workspace/browse${q}`)
+    if (!resp.ok) return []
+    return ((await resp.json()).entries ?? []) as { name: string; path: string }[]
   }
 
   return {
-    projectInfo,
-    isLoading,
-    error,
-    recentProjects,
     isOpen,
     projectName,
     projectPath,
+    workspaceId,
+    currentWorkspace,
+    recentWorkspaces,
+    isLoading,
+    error,
+    // compat aliases
+    projectInfo,
+    recentProjects,
     fetchStatus,
-    openProject,
-    closeProject,
+    openWorkspace,
     loadRecent,
     browse,
+    syncUrl,
   }
 }
