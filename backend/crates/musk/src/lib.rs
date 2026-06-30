@@ -15,6 +15,7 @@ pub mod tool_test;
 pub mod tools;
 pub mod wiki;
 pub mod workflow;
+pub mod workspace;
 pub mod hello;
 
 use std::sync::Arc;
