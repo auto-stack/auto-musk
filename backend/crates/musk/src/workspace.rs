@@ -62,13 +62,21 @@ fn autoos_dir(root: &std::path::Path) -> PathBuf {
 
 /// Decide whether a project directory counts as "empty" for onboarding.
 ///
-/// Ported from auto-forge's `is_project_empty`. A directory is empty if it
-/// contains nothing but:
+/// A directory is empty if it contains nothing but:
 /// - dotfiles/dotdirs (`.autoos`, `.git`, `.vscode`, …) — always ignored
 /// - an empty `specs/` subdir (a freshly-seeded spec ledger)
 ///
 /// Any other file or non-empty directory → not empty.
+///
+/// Additionally, if `.autoos/initialized` exists, the project is considered
+/// non-empty even with no source files yet — this prevents the onboarding
+/// dialog from re-appearing after the user already completed it (the agent
+/// may not have written files to the project root yet).
 pub fn is_workspace_empty(root: &std::path::Path) -> bool {
+    // Onboarding already completed? Then not empty.
+    if autoos_dir(root).join("initialized").exists() {
+        return false;
+    }
     let Ok(dir) = std::fs::read_dir(root) else {
         return true; // missing / unreadable → treat as empty
     };
@@ -589,6 +597,17 @@ mod tests {
         let dir = tmp_dir();
         std::fs::create_dir_all(dir.join("src")).unwrap();
         assert!(!is_workspace_empty(&dir), "any non-specs dir counts as content");
+    }
+
+    #[test]
+    fn is_empty_false_after_initialized_marker() {
+        let dir = tmp_dir();
+        // Empty dir with only .autoos → empty.
+        std::fs::create_dir_all(dir.join(".autoos")).unwrap();
+        assert!(is_workspace_empty(&dir));
+        // After onboarding drops the marker → not empty.
+        std::fs::write(dir.join(".autoos/initialized"), "1").unwrap();
+        assert!(!is_workspace_empty(&dir), "initialized marker must prevent re-onboarding");
     }
 
     /// Helper: a fresh empty temp dir for is_empty tests.

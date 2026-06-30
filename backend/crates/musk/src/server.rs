@@ -149,6 +149,7 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/workspace/open", post(workspace_open))
         .route("/api/workspace/status", get(workspace_status))
         .route("/api/workspace/browse", get(workspace_browse))
+        .route("/api/workspace/initialize", post(workspace_initialize))
         // Relay (Flows) orchestration engine (P2a + P2b.1): runs/flows/professions
         // + the pipeline state machine. Full background driver arrives in P2b.2.
         .merge(crate::relay::api::relay_routes())
@@ -1677,6 +1678,22 @@ async fn workspace_browse(Query(q): Query<BrowseQuery>) -> impl IntoResponse {
         .parent()
         .map(|p| p.to_string_lossy().to_string());
     Json(json!({ "entries": entries, "parent": parent }))
+}
+
+/// `POST /api/workspace/initialize?workspace=<id>` — mark a workspace as
+/// initialized (drops `.autoos/initialized`). Called by the frontend after
+/// the onboarding dialog completes, so the dialog won't re-appear on re-open.
+async fn workspace_initialize(
+    State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
+) -> Response {
+    let ws_id = q.id_or_default(&state.registry);
+    let ws = state.registry.get(&ws_id);
+    let marker = ws.root.join(".autoos").join("initialized");
+    match std::fs::write(&marker, b"1") {
+        Ok(_) => Json(json!({ "status": "initialized", "workspace": ws_id })).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("write marker: {e}")).into_response(),
+    }
 }
 
 // ── Workflow endpoints ─────────────────────────────────────────────────────

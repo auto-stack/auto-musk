@@ -47,6 +47,7 @@ import { useI18n } from 'vue-i18n'
 import { FolderOpen, Flame } from 'lucide-vue-next'
 import { useForge } from '@/composables/useForge'
 import { useViewState } from '@/composables/useViewState'
+import { authFetch } from '@/composables/useAuth'
 import type { WorkspaceMeta } from '@/composables/useProject'
 
 const props = defineProps<{ workspace: WorkspaceMeta | null }>()
@@ -82,6 +83,12 @@ async function startProject() {
     // first message — the agent initializes the project via its tools.
     await clearSession(props.workspace?.path)
     await sendMessage(desc)
+    // Mark the workspace as initialized so the onboarding dialog doesn't
+    // re-appear on re-open (the agent may not have written root files yet).
+    const wsId = props.workspace?.id
+    if (wsId) {
+      await authFetch(`/api/workspace/initialize?workspace=${encodeURIComponent(wsId)}`, { method: 'POST' })
+    }
     setView('chats')
     emit('done')
   } catch {
