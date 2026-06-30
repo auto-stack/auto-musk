@@ -1027,7 +1027,10 @@ async function onQuestionnaireSubmit(answers: Record<string, string | string[]>,
 }
 
 function formatTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  // Backend sends seconds; JS Date expects milliseconds. Detect by magnitude
+  // (a seconds value is ~10 digits, milliseconds ~13) to handle both.
+  const ms = ts > 1e12 ? ts : ts * 1000
+  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 async function scrollToBottom() {
