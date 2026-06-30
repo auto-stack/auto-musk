@@ -64,11 +64,26 @@ enum Cmd {
         /// Address to listen on.
         #[arg(long, default_value = "127.0.0.1:8080")]
         addr: String,
+
+        /// Working directory to serve from (becomes the default workspace root).
+        /// When set, the process chdir()s here before starting.
+        #[arg(long)]
+        workdir: Option<String>,
     },
 }
 
 fn main() {
     let cli = Cli::parse();
+
+    // `serve --workdir <dir>` chdir()s into that directory before anything
+    // else, so the project-root snapshot (Design 004) and the default workspace
+    // root both resolve to it. Must run before `init_project_root()`.
+    if let Cmd::Serve { workdir: Some(wd), .. } = &cli.cmd {
+        if let Err(e) = std::env::set_current_dir(wd) {
+            eprintln!("musk: cannot chdir to --workdir '{wd}': {e}");
+            std::process::exit(1);
+        }
+    }
 
     // Snapshot CWD as the project root for tool path confinement (Design 004).
     // Must happen before any chdir (e.g. test sandboxes).
@@ -127,7 +142,7 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        Cmd::Serve { addr } => {
+        Cmd::Serve { addr, workdir: _ } => {
             // For `serve`, start the HTTP server even if the daemon is down —
             // the frontend still loads, and each /api/run surfaces the daemon
             // error so the user can start aaid afterward.

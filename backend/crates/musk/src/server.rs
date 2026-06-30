@@ -142,6 +142,12 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/chats/session/{id}/approve/{index}", post(chat_approve))
         .route("/api/chats/session/{id}/reject/{index}", post(chat_reject))
         .route("/api/chats/session/{id}/reject-all", post(chat_reject_all))
+        // Workspace management (recent / open / status / browse) — operate on
+        // the registry itself, not per-workspace stores.
+        .route("/api/workspace/list", get(workspace_list))
+        .route("/api/workspace/open", post(workspace_open))
+        .route("/api/workspace/status", get(workspace_status))
+        .route("/api/workspace/browse", get(workspace_browse))
         // Relay (Flows) orchestration engine (P2a + P2b.1): runs/flows/professions
         // + the pipeline state machine. Full background driver arrives in P2b.2.
         .merge(crate::relay::api::relay_routes())
@@ -1598,6 +1604,81 @@ async fn chat_reject_all(
         Ok(None) => (StatusCode::NOT_FOUND, "session not found").into_response(),
         Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
     }
+}
+
+// ── Workspace management endpoints ──────────────────────────────────────────
+
+/// `GET /api/workspace/list` — recent workspaces.
+async fn workspace_list(State(state): State<AppState>) -> impl IntoResponse {
+    Json(json!({ "workspaces": state.registry.list() }))
+}
+
+/// `POST /api/workspace/open` body.
+#[derive(Deserialize)]
+struct OpenWorkspaceBody {
+    path: String,
+}
+
+/// `POST /api/workspace/open` — open/reuse a workspace by path.
+async fn workspace_open(
+    State(state): State<AppState>,
+    Json(body): Json<OpenWorkspaceBody>,
+) -> impl IntoResponse {
+    let meta = state.registry.open(&body.path);
+    state.registry.touch(&meta.id);
+    Json(json!({ "workspace": meta }))
+}
+
+/// `GET /api/workspace/status?workspace=<id>` — current workspace meta + whether
+/// its root still exists on disk.
+async fn workspace_status(
+    State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
+) -> Response {
+    let ws_id = q.id_or_default(&state.registry);
+    let meta = state.registry.list().into_iter().find(|m| m.id == ws_id);
+    match meta {
+        Some(m) => Json(json!({
+            "workspace": m,
+            "root_exists": std::path::Path::new(&m.path).exists(),
+        }))
+        .into_response(),
+        None => (StatusCode::NOT_FOUND, "workspace not found").into_response(),
+    }
+}
+
+/// `GET /api/workspace/browse?path=<dir>` — list child directories (for the
+/// picker). Hides dotfiles. Returns `parent` for the "up one level" affordance.
+#[derive(Deserialize)]
+struct BrowseQuery {
+    #[serde(default)]
+    path: String,
+}
+
+async fn workspace_browse(Query(q): Query<BrowseQuery>) -> impl IntoResponse {
+    let base = if q.path.is_empty() {
+        ".".to_string()
+    } else {
+        q.path.clone()
+    };
+    let mut entries: Vec<serde_json::Value> = Vec::new();
+    if let Ok(dir) = std::fs::read_dir(&base) {
+        for e in dir.flatten() {
+            if e.path().is_dir() {
+                let name = e.file_name().to_string_lossy().to_string();
+                if !name.starts_with('.') {
+                    entries.push(json!({
+                        "name": name,
+                        "path": e.path().to_string_lossy().to_string(),
+                    }));
+                }
+            }
+        }
+    }
+    let parent = std::path::Path::new(&base)
+        .parent()
+        .map(|p| p.to_string_lossy().to_string());
+    Json(json!({ "entries": entries, "parent": parent }))
 }
 
 // ── Workflow endpoints ─────────────────────────────────────────────────────
