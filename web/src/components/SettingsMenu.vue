@@ -93,6 +93,19 @@
             </button>
           </div>
         </div>
+
+        <!-- AutoOS Settings deep-link: opens auto-os-config at the Auto Musk page -->
+        <div class="settings-section">
+          <div class="settings-section-title">AutoOS Settings</div>
+          <button
+            class="deep-link-btn"
+            title="Open AutoOS system settings (daemon, harness, roles…)"
+            @click="openAutoOsConfig"
+          >
+            <ExternalLink :size="14" />
+            <span>Open System Settings</span>
+          </button>
+        </div>
       </div>
     </transition>
   </div>
@@ -101,7 +114,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Settings, Check, Sun, Moon, Monitor } from 'lucide-vue-next'
+import { Settings, Check, Sun, Moon, Monitor, ExternalLink } from 'lucide-vue-next'
 import { useTheme } from '@/composables/useTheme'
 import { useAccentColor, ACCENT_OPTIONS } from '@/composables/useAccentColor'
 import { useForgeMode } from '@/composables/useForgeMode'
@@ -124,6 +137,14 @@ function setForgeMode(val: 'gsd' | 'check') {
 function changeLocale(locale: SupportedLocale) {
   setLocale(locale)
   currentLocale.value = locale
+}
+
+/// Deep-link to auto-os-config at the Auto Musk config page. Opens in a new
+/// tab so the user can return to musk after configuring. (Design: single
+/// config UI at auto-os-config; musk just links to it.)
+function openAutoOsConfig() {
+  isOpen.value = false
+  window.open('http://localhost:17700/#ai-musk', '_blank')
 }
 
 const themeOptions = computed(() => [
@@ -356,6 +377,29 @@ onUnmounted(() => {
 
 .language-option .check {
   margin-left: auto;
+  color: var(--af-primary);
+}
+
+/* ─── Deep-link to AutoOS Settings ──────────────────────────────────────── */
+
+.deep-link-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--af-fg);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.1s;
+  text-align: left;
+}
+
+.deep-link-btn:hover {
+  background: hsl(var(--muted-foreground) / 0.06);
   color: var(--af-primary);
 }
 
