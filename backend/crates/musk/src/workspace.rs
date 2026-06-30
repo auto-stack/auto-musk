@@ -55,6 +55,52 @@ fn autoos_dir(root: &std::path::Path) -> PathBuf {
     root.join(".autoos")
 }
 
+/// Move a single file, falling back to copy+delete if a direct rename fails
+/// (e.g. across filesystems / devices). Best-effort: errors are swallowed.
+fn move_file(src: &std::path::Path, dst: &std::path::Path) {
+    if std::fs::rename(src, dst).is_ok() {
+        return;
+    }
+    if std::fs::copy(src, dst)
+        .and_then(|_| std::fs::remove_file(src))
+        .is_ok()
+    {
+        return;
+    }
+}
+
+/// Recursively move the contents of `src` into `dst` (dst is created if
+/// missing). Existing entries in `dst` are not overwritten. Best-effort.
+fn move_dir_contents(src: &std::path::Path, dst: &std::path::Path) {
+    let entries = match std::fs::read_dir(src) {
+        Ok(rd) => rd,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let from = entry.path();
+        let to = dst.join(entry.file_name());
+        let metadata = match entry.metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        if metadata.is_dir() {
+            if !to.exists() {
+                // Try a direct rename first (cheap when dst fs matches).
+                if std::fs::rename(&from, &to).is_ok() {
+                    continue;
+                }
+            }
+            let _ = std::fs::create_dir_all(&to);
+            move_dir_contents(&from, &to);
+            let _ = std::fs::remove_dir(&from);
+        } else {
+            if !to.exists() {
+                move_file(&from, &to);
+            }
+        }
+    }
+}
+
 /// Pick a unique workspace id under the lock held by `open()`. Returns `base`
 /// if free, otherwise `{base}-{n}` for the smallest n that is free.
 fn unique_id_locked(idx: &WorkspaceIndex, base: &str) -> String {
@@ -227,6 +273,42 @@ impl WorkspaceRegistry {
         self.save();
     }
 
+    /// Best-effort: if old global data exists at `global_dir` and the default
+    /// workspace's .autoos/ has no specs.json yet, move the old files/dirs into
+    /// it. Idempotent (guarded by the top-level specs.json check).
+    pub fn migrate_global_data(&self, global_dir: &std::path::Path) {
+        let idx = self.index.read().unwrap().clone();
+        let Some(default_id) = &idx.default_workspace_id else { return };
+        let Some(default_meta) = idx.workspaces.iter().find(|m| &m.id == default_id) else { return };
+        let autoos = autoos_dir(&PathBuf::from(&default_meta.path));
+        // Only migrate if .autoos has no specs.json yet (idempotent guard).
+        // Note: the store constructors may have pre-created empty wiki/raw/relay
+        // subdirs, so the per-subdir guard alone is not enough; this top-level
+        // specs.json check is what makes the whole operation idempotent.
+        if autoos.join("specs.json").exists() {
+            return;
+        }
+        let _ = std::fs::create_dir_all(&autoos);
+        // Move loose JSON files.
+        for name in ["specs.json", "chats.json"] {
+            let src = global_dir.join(name);
+            let dst = autoos.join(name);
+            if src.exists() && !dst.exists() {
+                move_file(&src, &dst);
+            }
+        }
+        // Move data subdirectories' contents. The dst dirs may already exist
+        // (created empty by the store constructors), so move entry-by-entry.
+        for sub in ["wiki", "raw", "relay"] {
+            let src = global_dir.join(sub);
+            if src.is_dir() {
+                let dst = autoos.join(sub);
+                let _ = std::fs::create_dir_all(&dst);
+                move_dir_contents(&src, &dst);
+            }
+        }
+    }
+
     /// Rename a workspace's display name.
     pub fn rename(&self, ws_id: &str, name: &str) -> Option<WorkspaceMeta> {
         let mut idx = self.index.write().unwrap();
@@ -363,5 +445,58 @@ mod tests {
             Arc::ptr_eq(&fallback, &bundle),
             "fallback to default must reuse the cached default bundle"
         );
+    }
+
+    #[test]
+    fn migrate_moves_global_data_into_default_autoos() {
+        let dir = std::env::temp_dir().join(format!(
+            "musk-ws-migrate-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        // Simulate old global data.
+        let global = dir.join("global");
+        std::fs::create_dir_all(&global).unwrap();
+        std::fs::write(global.join("specs.json"), "{\"old\":true}").unwrap();
+        std::fs::create_dir_all(global.join("wiki")).unwrap();
+        std::fs::write(global.join("wiki/page.md"), "# old").unwrap();
+        // Default workspace root = a fresh dir under `dir`.
+        let ws_root = dir.join("myproj");
+        std::fs::create_dir_all(&ws_root).unwrap();
+        let reg = WorkspaceRegistry::load(dir.join("workspaces.json"), ws_root.clone());
+        reg.migrate_global_data(&global);
+        // Files moved into {ws_root}/.autoos/
+        assert!(ws_root.join(".autoos/specs.json").exists());
+        assert!(ws_root.join(".autoos/wiki/page.md").exists());
+        // Idempotent: second call is a no-op (specs.json now exists in .autoos).
+        reg.migrate_global_data(&global);
+    }
+
+    #[test]
+    fn migrate_skips_if_autoos_already_has_specs() {
+        let dir = std::env::temp_dir().join(format!(
+            "musk-ws-migrate-skip-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let global = dir.join("global");
+        std::fs::create_dir_all(&global).unwrap();
+        std::fs::write(global.join("specs.json"), "{\"old\":true}").unwrap();
+        let ws_root = dir.join("myproj2");
+        std::fs::create_dir_all(&ws_root).unwrap();
+        // Pre-seed .autoos/specs.json so migration should skip.
+        std::fs::create_dir_all(ws_root.join(".autoos")).unwrap();
+        std::fs::write(ws_root.join(".autoos/specs.json"), "{\"new\":true}").unwrap();
+        let reg = WorkspaceRegistry::load(dir.join("workspaces.json"), ws_root.clone());
+        reg.migrate_global_data(&global);
+        // .autoos/specs.json NOT overwritten by the old one.
+        let content = std::fs::read_to_string(ws_root.join(".autoos/specs.json")).unwrap();
+        assert!(content.contains("new"), "existing .autoos data must not be overwritten");
     }
 }

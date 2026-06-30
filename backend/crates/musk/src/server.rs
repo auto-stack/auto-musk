@@ -53,6 +53,7 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
     let default_root = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     let registry =
         crate::workspace::WorkspaceRegistry::load(config_dir.join("workspaces.json"), default_root);
+    registry.migrate_global_data(&config_dir);
     let state = AppState {
         client,
         auth: Arc::new(crate::auth::AuthStore::new(users_path)),
