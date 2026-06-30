@@ -4,8 +4,10 @@ import { resolve } from 'path'
 
 // musk web app (ported from auto-forge frontend). Dev server proxies /api →
 // musk backend (:8888). In production, `musk serve` serves dist/ via ServeDir.
+// base: '/' (absolute) so deep-link refreshes like /chats/{id} load assets
+// from /assets/... instead of resolving relative to the path segment.
 export default defineConfig({
-  base: './',
+  base: '/',
   plugins: [vue()],
   resolve: {
     alias: {
