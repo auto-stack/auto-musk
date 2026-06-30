@@ -75,10 +75,15 @@ function updateHistory(view: ViewId, detailPath: string, replace = false) {
   const path = buildPath(view, detailPath || undefined)
   if (window.location.pathname === path) return
 
+  // Preserve the query string (e.g. ?workspace=xxx) so view switches don't
+  // wipe the active workspace selection.
+  const search = window.location.search
+  const url = path + search
+
   if (replace) {
-    window.history.replaceState({}, '', path)
+    window.history.replaceState({}, '', url)
   } else {
-    window.history.pushState({}, '', path)
+    window.history.pushState({}, '', url)
   }
 }
 

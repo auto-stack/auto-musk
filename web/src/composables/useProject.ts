@@ -17,6 +17,8 @@ const _recent = ref<WorkspaceMeta[]>([])
 const _isLoading = ref(false)
 const _error = ref<string | null>(null)
 
+const WS_STORAGE_KEY = 'musk-workspace-id'
+
 export function useProject() {
   const isOpen = computed(() => _current.value !== null)
   const projectName = computed(() => _current.value?.name ?? null)
@@ -43,6 +45,10 @@ export function useProject() {
   const recentProjects = _recent
 
   function syncUrl(id: string | null) {
+    // Persist to localStorage so a refresh restores the workspace even if the
+    // URL query param was wiped by a view-switch.
+    if (id) localStorage.setItem(WS_STORAGE_KEY, id)
+    else localStorage.removeItem(WS_STORAGE_KEY)
     const url = new URL(window.location.href)
     if (id) url.searchParams.set('workspace', id)
     else url.searchParams.delete('workspace')
@@ -50,7 +56,9 @@ export function useProject() {
   }
 
   async function fetchStatus() {
-    const id = new URL(window.location.href).searchParams.get('workspace')
+    // Prefer URL param, fall back to localStorage.
+    let id = new URL(window.location.href).searchParams.get('workspace')
+    if (!id) id = localStorage.getItem(WS_STORAGE_KEY)
     const query = id ? `?workspace=${encodeURIComponent(id)}` : ''
     try {
       const resp = await authFetch(`/api/workspace/status${query}`)
