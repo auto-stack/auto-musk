@@ -128,6 +128,8 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/roles/{name}", get(role_detail).put(role_save).delete(role_delete))
         // App runtime config (musk): how it connects to the daemon, default mode, etc.
         .route("/api/app-config", get(app_config_get).put(app_config_save))
+        // Service registry proxy: musk → aaid → ensure os-config → return URL.
+        .route("/api/settings-link", post(settings_link))
         // App harness (Design 005): merged view of OS-level (inherit) + app-level (custom).
         .route("/api/app-harness/{kind}", get(app_harness_list))
         .route("/api/app-harness/{kind}/{name}", axum::routing::put(app_harness_save).delete(app_harness_delete))
@@ -827,6 +829,56 @@ async fn app_config_save(Json(body): Json<AppConfigSaveBody>) -> impl IntoRespon
         return (StatusCode::INTERNAL_SERVER_ERROR, format!("write: {e}")).into_response();
     }
     Json(json!({"status": "saved", "path": path.display().to_string(), "effective": cfg.effective()})).into_response()
+}
+
+/// `POST /api/settings-link` — proxy to aaid's service registry to ensure
+/// auto-os-config is running, then return its URL. The frontend uses this to
+/// implement the "Open System Settings" deep-link (musk → aaid → os-config).
+async fn settings_link() -> axum::response::Response {
+    let cfg = crate::app_config::MuskAppConfig::load();
+    let daemon_url = cfg.effective_daemon_url();
+    let ensure_url = format!("{}/v1/services/os-config/ensure", daemon_url);
+
+    let result = tokio::task::spawn_blocking(move || {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(20))
+            .build()
+            .map_err(|e| format!("http client: {e}"))?;
+        client
+            .post(&ensure_url)
+            .send()
+            .map_err(|e| format!("aaid unreachable: {e}"))?
+            .json::<serde_json::Value>()
+            .map_err(|e| format!("parse aaid response: {e}"))
+    })
+    .await;
+
+    match result {
+        Ok(Ok(val)) => {
+            let status = val.get("status").and_then(|s| s.as_str()).unwrap_or("error");
+            let url = val.get("url").and_then(|u| u.as_str()).unwrap_or("");
+            if status == "running" && !url.is_empty() {
+                Json(json!({"status": "running", "url": url})).into_response()
+            } else {
+                let err = val.get("error").and_then(|e| e.as_str()).unwrap_or("unknown");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({"status": "error", "error": err})),
+                )
+                    .into_response()
+            }
+        }
+        Ok(Err(e)) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"status": "error", "error": e})),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"status": "error", "error": format!("internal: {e}")})),
+        )
+            .into_response(),
+    }
 }
 
 /// `POST /api/run` request body.

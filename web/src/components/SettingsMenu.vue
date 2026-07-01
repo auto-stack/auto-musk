@@ -139,12 +139,21 @@ function changeLocale(locale: SupportedLocale) {
   currentLocale.value = locale
 }
 
-/// Deep-link to auto-os-config at the Auto Musk config page. Opens in a new
-/// tab so the user can return to musk after configuring. (Design: single
-/// config UI at auto-os-config; musk just links to it.)
-function openAutoOsConfig() {
+/// Deep-link to auto-os-config via aaid's service registry. If os-config
+/// isn't running, aaid will start it automatically. Then open in a new tab.
+async function openAutoOsConfig() {
   isOpen.value = false
-  window.open('http://localhost:17700/#ai-musk', '_blank')
+  try {
+    const resp = await fetch('/api/settings-link', { method: 'POST' })
+    const data = await resp.json()
+    if (data.status === 'running' && data.url) {
+      window.open(data.url + '/#ai-musk', '_blank')
+    } else {
+      alert('Could not open System Settings: ' + (data.error || 'unknown error'))
+    }
+  } catch (e: any) {
+    alert('Could not reach the settings service: ' + (e.message || e))
+  }
 }
 
 const themeOptions = computed(() => [
