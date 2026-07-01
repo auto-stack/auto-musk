@@ -113,7 +113,7 @@ async fn run_step(
     let mode = crate::mode::AgentMode {
         name: format!("relay-{profession_id}"),
         description: String::new(),
-        profession: profession_id.to_string(),
+        role: profession_id.to_string(),
         skills: false,
         tools: Vec::new(),
         workflow: None,

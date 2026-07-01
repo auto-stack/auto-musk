@@ -11,10 +11,10 @@
 //! - `POST /api/run`           — run an agent on a task, return the result.
 //!
 //! ## `POST /api/run` contract
-//! Request:  `{ "task": "...", "profession": "coder" | "<path.at>" }`
+//! Request:  `{ "task": "...", "role": "coder" | "<path.at>" }`
 //! Response: `{ "output": "...", "turns": N, "tool_calls": [...] }`
 //!
-//! `profession` is optional (defaults to "coder"). SSE streaming of partial
+//! `role` is optional (defaults to "coder"). SSE streaming of partial
 //! output is a later phase; this endpoint returns the full result when done.
 
 use std::sync::Arc;
@@ -27,7 +27,7 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use auto_ai_agent::{builtin_names, load_builtin, load_profession, Client, Profession};
+use auto_ai_agent::{builtin_names, load_builtin, load_role, Client, Role};
 
 use crate::build_agent_from_mode;
 use crate::workspace::WorkspaceQuery;
@@ -550,7 +550,7 @@ async fn config_overview() -> impl IntoResponse {
                 json!({
                     "name": m.name,
                     "description": m.description,
-                    "profession": m.profession,
+                    "role": m.role,
                     "skills": m.skills,
                     "tool_count": m.tools.len(),
                 })
@@ -597,7 +597,7 @@ async fn modes_list() -> impl IntoResponse {
                 json!({
                     "name": m.name,
                     "description": m.description,
-                    "profession": m.profession,
+                    "role": m.role,
                     "skills": m.skills,
                     "tool_count": m.tools.len(),
                 })
@@ -706,8 +706,8 @@ async fn role_save(
     axum::extract::Path(name): axum::extract::Path<String>,
     Json(body): Json<RoleSaveBody>,
 ) -> impl IntoResponse {
-    use auto_ai_agent::{parse_tier_field, ProfessionConfig};
-    let cfg = ProfessionConfig {
+    use auto_ai_agent::{parse_tier_field, RoleConfig};
+    let cfg = RoleConfig {
         name: Some(name.clone()),
         description: body.description,
         inherit: body.inherit,
@@ -1141,7 +1141,7 @@ fn scan_app_roles(dir: &std::path::Path) -> Vec<serde_json::Value> {
                 continue;
             }
             if let Ok(content) = std::fs::read_to_string(&path) {
-                if let Ok(cfg) = auto_ai_agent::parse_at_profession(&content) {
+                if let Ok(cfg) = auto_ai_agent::parse_at_role(&content) {
                     out.push(json!({
                         "name": cfg.name.unwrap_or_else(|| {
                             path.file_stem().and_then(|s| s.to_str()).unwrap_or("?").to_string()
@@ -1216,7 +1216,7 @@ async fn app_harness_save(
 ) -> Response {
     match kind.as_str() {
         "roles" => {
-            let cfg = auto_ai_agent::ProfessionConfig {
+            let cfg = auto_ai_agent::RoleConfig {
                 name: Some(name.clone()),
                 description: body.description,
                 inherit: body.inherit,
@@ -1473,7 +1473,7 @@ async fn chat_stream(
             crate::mode::AgentMode {
                 name: "superpowers".into(),
                 description: String::new(),
-                profession: "coder".into(),
+                role: "coder".into(),
                 skills: true,
                 tools: vec![],
                 workflow: None,
@@ -1770,7 +1770,7 @@ async fn workflow_run(
 ///
 /// Emits step-by-step SSE events so a long multi-step workflow doesn't block
 /// a single HTTP response. Events:
-/// - `{"type":"step_start","step_id":"architect","profession":"architect","input":"…"}`
+/// - `{"type":"step_start","step_id":"architect","role":"architect","input":"…"}`
 /// - `{"type":"step_done","step_id":"architect","output":"…"}`
 /// - `{"type":"step_skipped","step_id":"reviewer"}`
 /// - `{"type":"finished",…}` (or `{"type":"error","message":"…"}`)
@@ -1843,12 +1843,12 @@ fn workflow_event_to_json(ev: &auto_ai_agent::WorkflowEvent) -> serde_json::Valu
     match ev {
         WorkflowEvent::StepStart {
             step_id,
-            profession,
+            role,
             input,
         } => json!({
             "type": "step_start",
             "step_id": step_id,
-            "profession": profession,
+            "role": role,
             "input": input,
         }),
         WorkflowEvent::StepDone { step_id, output } => {
@@ -1865,14 +1865,14 @@ fn workflow_event_to_json(ev: &auto_ai_agent::WorkflowEvent) -> serde_json::Valu
     }
 }
 
-/// Resolve a profession spec: built-in name, else `.at` file path.
-fn resolve(spec: &str) -> Result<Arc<dyn Profession>, String> {
+/// Resolve a role spec: built-in name, else `.at` file path.
+fn resolve(spec: &str) -> Result<Arc<dyn Role>, String> {
     if let Some(p) = load_builtin(spec) {
         return Ok(p);
     }
     let content = std::fs::read_to_string(spec)
         .map_err(|e| format!("not a builtin, cannot read '{spec}': {e}"))?;
-    load_profession(&content).map_err(|e| format!("parse '{spec}': {e}"))
+    load_role(&content).map_err(|e| format!("parse '{spec}': {e}"))
 }
 
 #[cfg(test)]

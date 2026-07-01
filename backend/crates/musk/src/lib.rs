@@ -20,27 +20,27 @@ pub mod hello;
 
 use std::sync::Arc;
 
-use auto_ai_agent::Profession;
+use auto_ai_agent::Role;
 
-/// Owns an `Arc<dyn Profession>` and re-implements `Profession` so it can be
-/// passed to `Agent::new` (which takes `P: Profession + 'static`). The agent
-/// crate's `load_builtin`/`load_profession` return `Arc<dyn Profession>`, and
+/// Owns an `Arc<dyn Role>` and re-implements `Role` so it can be
+/// passed to `Agent::new` (which takes `P: Role + 'static`). The agent
+/// crate's `load_builtin`/`load_role` return `Arc<dyn Role>`, and
 /// `Arc<dyn Trait>` itself doesn't implement the trait — this thin wrapper
-/// bridges that. (Mirrors the private `ArcProfession` in auto-ai-agent's
+/// bridges that. (Mirrors the private `ArcRole` in auto-ai-agent's
 /// workflow module.)
 ///
 /// When `extra_prompt` is set, `system_prompt()` returns the base prompt with
 /// the extra appended — this is how a Mode's `extra_system_prompt` customizes
 /// the Role's Soul (Plan 004).
-pub(crate) struct OwnedProfession {
-    inner: Arc<dyn Profession>,
+pub(crate) struct OwnedRole {
+    inner: Arc<dyn Role>,
     extra_prompt: Option<String>,
     /// Materialized base+extra prompt so system_prompt() can borrow it.
     prompt: String,
 }
 
-impl OwnedProfession {
-    pub(crate) fn new(inner: Arc<dyn Profession>) -> Self {
+impl OwnedRole {
+    pub(crate) fn new(inner: Arc<dyn Role>) -> Self {
         let prompt = inner.system_prompt().to_string();
         Self { inner, extra_prompt: None, prompt }
     }
@@ -59,7 +59,7 @@ impl OwnedProfession {
     }
 }
 
-impl Profession for OwnedProfession {
+impl Role for OwnedRole {
     fn name(&self) -> &str {
         self.inner.name()
     }
@@ -97,28 +97,28 @@ impl Profession for OwnedProfession {
 }
 
 /// Build the standard 3-tool set (read_file/write_file/run_command), returning
-/// a fresh agent configured for the given profession + client.
+/// a fresh agent configured for the given role + client.
 /// Build an agent configured by an [`crate::mode::AgentMode`].
 ///
-/// The mode declares: profession, tool whitelist, skills on/off, context file,
-/// extra system prompt. This function resolves the profession, registers only
+/// The mode declares: role, tool whitelist, skills on/off, context file,
+/// extra system prompt. This function resolves the role, registers only
 /// the allowed tools (+ skill tool if enabled), injects context, and returns
 /// the agent.
 pub fn build_agent_from_mode(
     mode: &crate::mode::AgentMode,
     client: Arc<dyn auto_ai_agent::Client>,
 ) -> Result<auto_ai_agent::Agent, String> {
-    // 1. Resolve profession: user role (.at) > built-in name > .at file path.
-    let profession: Arc<dyn Profession> = resolve_profession(&mode.profession)
+    // 1. Resolve role: user role (.at) > built-in name > .at file path.
+    let role: Arc<dyn Role> = resolve_role(&mode.role)
         .map_err(|e| format!("mode '{}': {e}", mode.name))?;
 
     // Tier clamp (Plan 004): if the role declares allowed_tiers and the role's
     // own tier falls outside them, warn + clamp to the highest allowed tier.
     // (We compare against the role's declared tier, which is what the agent
     // will request from the daemon.)
-    let allowed = profession.allowed_tiers();
+    let allowed = role.allowed_tiers();
     if !allowed.is_empty() {
-        let tier = profession.model_tier();
+        let tier = role.model_tier();
         if !allowed.contains(&tier) {
             let clamped = allowed
                 .iter()
@@ -128,7 +128,7 @@ pub fn build_agent_from_mode(
             tracing::warn!(
                 "mode '{}': role '{}' tier {:?} not in allowed_tiers {:?}; clamping to {:?}",
                 mode.name,
-                profession.name(),
+                role.name(),
                 tier,
                 allowed,
                 clamped
@@ -137,7 +137,7 @@ pub fn build_agent_from_mode(
     }
 
     // Wrap, applying the mode's extra_system_prompt as a Soul customization.
-    let owned = OwnedProfession::new(profession).with_extra_prompt(&mode.extra_system_prompt);
+    let owned = OwnedRole::new(role).with_extra_prompt(&mode.extra_system_prompt);
     let role_skills = owned.skills();
     let mut agent = auto_ai_agent::Agent::new(owned, client);
 
@@ -198,13 +198,13 @@ pub fn build_agent_from_mode(
     Ok(agent)
 }
 
-/// Resolve a profession by spec. Order: a user Role from the RoleRegistry
+/// Resolve a role by spec. Order: a user Role from the RoleRegistry
 /// (`.at` in ~/.config/autoos/roles), then a built-in name, then a literal
 /// `.at` file path. (Plan 004 adds the RoleRegistry-first lookup.)
-fn resolve_profession(spec: &str) -> Result<Arc<dyn Profession>, String> {
+fn resolve_role(spec: &str) -> Result<Arc<dyn Role>, String> {
     // 1. User role from the on-disk registry.
     let registry = auto_ai_agent::RoleRegistry::load();
-    if let Some(p) = registry.resolve_profession(spec) {
+    if let Some(p) = registry.resolve_role(spec) {
         return Ok(p);
     }
     // 2. Built-in name.
@@ -214,7 +214,7 @@ fn resolve_profession(spec: &str) -> Result<Arc<dyn Profession>, String> {
     // 3. Literal .at file path.
     let content = std::fs::read_to_string(spec)
         .map_err(|e| format!("not a builtin or role, cannot read '{spec}': {e}"))?;
-    auto_ai_agent::load_profession(&content).map_err(|e| format!("parse '{spec}': {e}"))
+    auto_ai_agent::load_role(&content).map_err(|e| format!("parse '{spec}': {e}"))
 }
 
 /// Search upward from CWD for `.musk.md`, then `CLAUDE.md`. Returns the first

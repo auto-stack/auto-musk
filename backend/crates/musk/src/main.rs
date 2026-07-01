@@ -2,9 +2,9 @@
 //!
 //! 用法:
 //!   musk run "<task>"                         用内置 Coder agent 处理任务
-//!   musk run --profession coder "<task>"      指定内置 profession
-//!   musk run --profession my-profession.at "<task>"  从 .at 文件加载自定义 profession
-//!   musk professions                          列出所有内置 profession
+//!   musk run --role coder "<task>"      指定内置 role
+//!   musk run --role my-role.at "<task>"  从 .at 文件加载自定义 role
+//!   musk professions                          列出所有内置 role
 //!   musk serve [--addr 127.0.0.1:8080]        启动 HTTP API server(给前端用)
 //!
 //! agent 经 auto-ai-daemon 调用 LLM,工具在本地执行。详见 backend/README.md。
@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
 
-use auto_ai_agent::{builtin_names, load_builtin, load_profession, Client, Profession};
+use auto_ai_agent::{builtin_names, load_builtin, load_role, Client, Role};
 use auto_ai_client::AiClient;
 
 use musk::tools::{ReadFile, RunCommand, WriteFile};
@@ -202,7 +202,7 @@ fn list_modes() {
     println!("Agent modes:");
     for name in reg.names() {
         if let Some(m) = reg.get(&name) {
-            println!("  {name:<14} profession={:<10} skills={:<3} tools={}", m.profession, m.skills, m.tools.len());
+            println!("  {name:<14} role={:<10} skills={:<3} tools={}", m.role, m.skills, m.tools.len());
             if !m.description.is_empty() {
                 println!("                  {}", m.description.chars().take(80).collect::<String>());
             }
@@ -218,12 +218,12 @@ async fn run_task(
 ) -> Result<(), String> {
     use musk::build_agent_from_mode;
     let name = mode.name.clone();
-    let prof_name = mode.profession.clone();
+    let prof_name = mode.role.clone();
 
     let mut agent = build_agent_from_mode(&mode, client)
         .map_err(|e| format!("build agent: {e}"))?;
 
-    println!("musk: running mode '{}' (profession={}) on task:\n  {task}\n", name, prof_name);
+    println!("musk: running mode '{}' (role={}) on task:\n  {task}\n", name, prof_name);
 
     let result = agent
         .run(task)
@@ -287,7 +287,7 @@ async fn chat_loop(
         .map_err(|e| format!("build agent: {e}"))?;
 
     println!(
-        "musk chat — profession '{}' (Ctrl-D or 'exit' to quit)",
+        "musk chat — role '{}' (Ctrl-D or 'exit' to quit)",
         name
     );
     let mut turn = 0u32;

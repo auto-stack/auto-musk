@@ -1,6 +1,6 @@
 //! Agent 运行模式 —— 每种模式是一个 `.at` 配置,声明该模式的全部设置。
 //!
-//! 模式 = 一组 agent 配置的声明式集合:profession、工具集、技能开关、
+//! 模式 = 一组 agent 配置的声明式集合:role、工具集、技能开关、
 //! 可选的 workflow、上下文文件、额外 system prompt。用户可以在
 //! `~/.config/autoos/modes/` 放自定义模式 `.at` 文件,不用改代码。
 //!
@@ -16,8 +16,8 @@ pub struct AgentMode {
     pub name: String,
     /// 描述(CLI help 用)。
     pub description: String,
-    /// 使用的 profession(内置名或 .at 路径)。
-    pub profession: String,
+    /// 使用的 role(内置名或 .at 路径)。
+    pub role: String,
     /// 是否启用技能系统(Superpowers)。
     pub skills: bool,
     /// 工具白名单(空 = 所有已注册工具)。名字匹配 Tool::name()。
@@ -26,7 +26,7 @@ pub struct AgentMode {
     pub workflow: Option<String>,
     /// 可选:上下文文件(如 ".musk.md"),空 = 自动发现。
     pub context_file: String,
-    /// 可选:额外 system prompt(拼在 profession prompt 之后)。
+    /// 可选:额外 system prompt(拼在 role prompt 之后)。
     pub extra_system_prompt: String,
 }
 
@@ -115,7 +115,7 @@ pub fn parse_mode_at(content: &str) -> Result<AgentMode, String> {
 
     let name = opt_str(&node, "name").ok_or("missing 'name'")?;
     let description = opt_str(&node, "description").unwrap_or_default();
-    let profession = opt_str(&node, "profession").unwrap_or_else(|| "coder".into());
+    let role = opt_str(&node, "role").unwrap_or_else(|| "coder".into());
     let skills = opt_bool(&node, "skills").unwrap_or(false);
     let tools = opt_str_list(&node, "tools");
     let workflow = opt_str(&node, "workflow");
@@ -125,7 +125,7 @@ pub fn parse_mode_at(content: &str) -> Result<AgentMode, String> {
     Ok(AgentMode {
         name,
         description,
-        profession,
+        role,
         skills,
         tools,
         workflow,
@@ -174,7 +174,7 @@ mod tests {
         let mode = parse_mode_at(src).unwrap();
         assert_eq!(mode.name, "superpowers");
         assert!(mode.skills);
-        assert_eq!(mode.profession, "coder");
+        assert_eq!(mode.role, "coder");
         assert!(!mode.tools.is_empty()); // has tool list
     }
 
@@ -196,7 +196,7 @@ mod tests {
     fn parse_mode_review() {
         let mode = parse_mode_at(BUILTIN_MODES[3].1).unwrap();
         assert_eq!(mode.name, "review");
-        assert_eq!(mode.profession, "reviewer");
+        assert_eq!(mode.role, "reviewer");
     }
 
     #[test]

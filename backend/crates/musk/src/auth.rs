@@ -23,7 +23,7 @@ pub enum Permission {
     RunAgent,
     /// Read/write spec ledger.
     EditSpecs,
-    /// Read anything (specs, professions, workflows).
+    /// Read anything (specs, roles, workflows).
     Read,
     /// Manage users (create/role-change).
     ManageUsers,

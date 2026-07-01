@@ -1,7 +1,7 @@
 mode {
     name : "coding"
-    description : "Coding focus: Coder profession + full tool set + TDD skill, but no full brainstorm/plan/execute workflow. For fast iterative coding."
-    profession : "coder"
+    description : "Coding focus: Coder role + full tool set + TDD skill, but no full brainstorm/plan/execute workflow. For fast iterative coding."
+    role : "coder"
     skills : true
     tools : [
         read_file, write_file, edit_file, batch_replace,

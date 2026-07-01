@@ -1,7 +1,7 @@
 mode {
     name : "review"
-    description : "Code review mode: Reviewer profession + read-only tools + review skill. Analyzes code, finds issues, does NOT modify files."
-    profession : "reviewer"
+    description : "Code review mode: Reviewer role + read-only tools + review skill. Analyzes code, finds issues, does NOT modify files."
+    role : "reviewer"
     skills : true
     tools : [
         read_file, search, list_dir, list_symbols, glob,
