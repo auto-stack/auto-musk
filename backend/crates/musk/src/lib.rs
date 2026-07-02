@@ -5,6 +5,7 @@
 pub mod app_config;
 pub mod auth;
 pub mod chats;
+pub mod conversation;
 pub mod mode;
 pub mod relay;
 pub mod server;
