@@ -7,16 +7,9 @@ export type ViewId =
   | 'chats'
   | 'specs'
   | 'wiki'
-  | 'agents'
-  | 'agents-config'
-  | 'professions'
-  | 'skills'
-  | 'apis'
-  | 'explorer'
 
 const VALID_VIEW_IDS: Set<ViewId> = new Set([
-  'chats', 'specs', 'wiki', 'agents',
-  'agents-config', 'professions', 'skills', 'apis', 'explorer',
+  'chats', 'specs', 'wiki',
 ])
 
 const DEFAULT_VIEW: ViewId = 'chats'

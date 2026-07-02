@@ -34,7 +34,6 @@
       <ChatsView v-if="currentView === 'chats'" />
       <SpecsView v-else-if="currentView === 'specs'" />
       <WikiView v-else-if="currentView === 'wiki'" />
-      <RelayView v-else-if="currentView === 'agents'" />
       <!-- default: chats -->
       <ChatsView v-else />
     </main>
@@ -51,7 +50,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { MessageSquare, Scroll, BookOpen, Orbit } from 'lucide-vue-next'
+import { MessageSquare, Scroll, BookOpen } from 'lucide-vue-next'
 import { useGateInbox } from '@/composables/useGateInbox'
 import { useAuth } from '@/composables/useAuth'
 import { useViewState } from '@/composables/useViewState'
@@ -63,7 +62,6 @@ import LoginView from './views/LoginView.vue'
 import ChatsView from './views/ChatsView.vue'
 import SpecsView from './views/SpecsView.vue'
 import WikiView from './views/WikiView.vue'
-import RelayView from './views/RelayView.vue'
 
 const { t } = useI18n()
 const { badgeCount: gateBadgeCount } = useGateInbox()
@@ -98,17 +96,15 @@ function onKeyDown(e: KeyboardEvent) {
   switch (e.key) {
     case '1': e.preventDefault(); setView('chats'); break
     case '2': e.preventDefault(); setView('specs'); break
-    case '3': e.preventDefault(); setView('agents'); break
-    case '4': e.preventDefault(); setView('wiki'); break
+    case '3': e.preventDefault(); setView('wiki'); break
   }
 }
 
-type ViewId = 'chats' | 'specs' | 'wiki' | 'agents'
+type ViewId = 'chats' | 'specs' | 'wiki'
 
 const tabs = computed(() => {
   const base: { id: ViewId; i18nKey: string; icon: unknown }[] = [
     { id: 'chats', i18nKey: 'nav.chat', icon: MessageSquare },
-    { id: 'agents', i18nKey: 'nav.relay', icon: Orbit },
     { id: 'specs', i18nKey: 'nav.specs', icon: Scroll },
     { id: 'wiki', i18nKey: 'nav.wiki', icon: BookOpen },
   ]
