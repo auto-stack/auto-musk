@@ -397,6 +397,41 @@ impl ConversationStore {
         })
     }
 
+    /// Migrate old chat sessions from chats.json into the unified conversation
+    /// model. Each ChatSession becomes a kind=Chat Conversation with its
+    /// messages converted to Turns via `chat_message_to_turns`. Idempotent:
+    /// skipped if any conversations already exist.
+    pub fn migrate_chats(&self, chats: &crate::chats::ChatStore) -> usize {
+        // If we already have conversations, don't migrate.
+        if !self.list().is_empty() {
+            return 0;
+        }
+        let summaries = chats.list();
+        let mut count = 0;
+        for summary in &summaries {
+            let Some(session) = chats.get(&summary.id) else {
+                continue;
+            };
+            let conv = self.create(
+                ConversationKind::Chat,
+                session.workspace_id.clone().unwrap_or_default(),
+                Driver::Human,
+                Some(session.mode.clone()),
+                Some(session.name.clone()),
+            );
+            let mut seq = 0;
+            for msg in &session.messages {
+                let turns = chat_message_to_turns(msg, seq);
+                for turn in turns {
+                    let _ = self.append_turn(&conv.id, turn);
+                    seq += 1;
+                }
+            }
+            count += 1;
+        }
+        count
+    }
+
     // -----------------------------------------------------------------
     // Internals
     // -----------------------------------------------------------------
@@ -774,5 +809,59 @@ mod tests {
         assert_eq!(list.len(), 2);
         assert_eq!(list[0].id, b.id, "newest first");
         assert_eq!(list[1].id, a.id);
+    }
+
+    #[test]
+    fn migrate_chats_creates_conversations() {
+        use crate::chats::ChatStore;
+        let dir = temp_dir();
+        let chat_store = ChatStore::at(dir.join("chats.json"));
+        // Create a session with a message.
+        let session = chat_store.create("superpowers", None).unwrap();
+        chat_store
+            .append_message(&session.id, crate::chats::ChatMessage::user("hello world"))
+            .unwrap();
+
+        let conv_store = ConversationStore::at(dir.join("conversations"));
+        let count = conv_store.migrate_chats(&chat_store);
+        assert_eq!(count, 1);
+        let list = conv_store.list();
+        assert_eq!(list.len(), 1);
+        let conv = conv_store.get(&list[0].id).unwrap();
+        assert_eq!(conv.kind, ConversationKind::Chat);
+        // The user message should be one of the turns.
+        assert!(
+            conv.turns
+                .iter()
+                .any(|t| t.content == "hello world" && t.from == "human"),
+            "user message should migrate to a human turn"
+        );
+    }
+
+    #[test]
+    fn migrate_chats_idempotent() {
+        use crate::chats::ChatStore;
+        let dir = temp_dir();
+        let chat_store = ChatStore::at(dir.join("chats.json"));
+        chat_store.create("superpowers", None).unwrap();
+
+        let conv_store = ConversationStore::at(dir.join("conversations"));
+        let count1 = conv_store.migrate_chats(&chat_store);
+        assert_eq!(count1, 1);
+        // Second call should be a no-op (conversations already exist).
+        let count2 = conv_store.migrate_chats(&chat_store);
+        assert_eq!(count2, 0);
+    }
+
+    #[test]
+    fn migrate_chats_empty_is_noop() {
+        use crate::chats::ChatStore;
+        let dir = temp_dir();
+        let chat_store = ChatStore::at(dir.join("chats.json"));
+        // No sessions at all.
+        let conv_store = ConversationStore::at(dir.join("conversations"));
+        let count = conv_store.migrate_chats(&chat_store);
+        assert_eq!(count, 0);
+        assert!(conv_store.list().is_empty());
     }
 }

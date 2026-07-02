@@ -41,6 +41,7 @@ pub struct WorkspaceStores {
     pub chats: Arc<ChatStore>,
     pub wiki: Arc<WikiStore>,
     pub relay: Arc<RunStore>,
+    pub conversations: Arc<crate::conversation::ConversationStore>,
 }
 
 pub struct WorkspaceRegistry {
@@ -404,13 +405,19 @@ impl WorkspaceStores {
     pub fn new(root: PathBuf) -> Self {
         let data = autoos_dir(&root);
         let _ = std::fs::create_dir_all(&data);
-        Self {
+        let stores = Self {
             specs: Arc::new(SpecsStore::new(data.join("specs.json"))),
             chats: Arc::new(ChatStore::at(data.join("chats.json"))),
             wiki: Arc::new(WikiStore::new(data.join("wiki"), data.join("raw"))),
             relay: Arc::new(RunStore::at(data.join("relay"))),
+            conversations: Arc::new(crate::conversation::ConversationStore::new(
+                data.join("conversations"),
+            )),
             root,
-        }
+        };
+        // Migrate old chat sessions into the unified conversation model (idempotent).
+        stores.conversations.migrate_chats(&stores.chats);
+        stores
     }
 }
 
