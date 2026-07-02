@@ -13,7 +13,11 @@ const _loading = ref(false)
 const _error = ref<string | null>(null)
 const _liveLog = ref<Array<{ time: string; profession: string; action: string }>>([])
 const _professionTokens = ref<Record<string, number>>({})
-const _sessionLog = ref<SessionLogEntry[]>([])
+const _sessionLogs = ref<Record<string, SessionLogEntry[]>>({})
+
+function sessionLogFor(runId: string): SessionLogEntry[] {
+  return _sessionLogs.value[runId] ?? []
+}
 
 export interface SessionLogEntry {
   id: string
@@ -149,7 +153,10 @@ export function useRelay() {
   })
   const liveLog = _liveLog
   const professionTokens = _professionTokens
-  const sessionLog = _sessionLog
+  const sessionLog = computed(() => {
+    const id = _currentRun.value?.run_id
+    return id ? _sessionLogs.value[id] ?? [] : []
+  })
 
   async function loadProfessions() {
     try {
@@ -185,7 +192,6 @@ export function useRelay() {
       // Clear stale currentRun if it's no longer in the list
       if (currentRun.value && !data.find((r: RunSummary) => r.run_id === currentRun.value!.run_id)) {
         currentRun.value = null
-        _sessionLog.value = []
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)
@@ -254,7 +260,7 @@ export function useRelay() {
       if (!resp.ok) {
         if (resp.status === 404) {
           currentRun.value = null
-          _sessionLog.value = []
+          delete _sessionLogs.value[runId]
         }
         throw new Error(`Failed: ${resp.status}`)
       }
@@ -262,7 +268,7 @@ export function useRelay() {
       currentRun.value = data
       // Populate session log from persisted events
       if (data.events && data.events.length > 0) {
-        _sessionLog.value = eventsToSessionLog(runId, data.events)
+        _sessionLogs.value[runId] = eventsToSessionLog(runId, data.events)
       }
       // Populate profession tokens for cost breakdown when viewing historical runs
       if (data.profession_tokens) {
@@ -351,7 +357,7 @@ export function useRelay() {
       if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
       if (currentRun.value?.run_id === runId) {
         currentRun.value = null
-        _sessionLog.value = []
+        delete _sessionLogs.value[runId]
       }
       await loadRuns()
     } catch (e) {
@@ -381,6 +387,7 @@ export function useRelay() {
   // SSE for live updates
   function subscribeToRun(runId: string, onEvent?: (event: any) => void) {
     const eventRouter = useEventRouter()
+    if (!_sessionLogs.value[runId]) _sessionLogs.value[runId] = []
     const es = new EventSource(`${API_BASE}/runs/${runId}/events`)
     es.onmessage = (event) => {
       try {
@@ -412,11 +419,11 @@ export function useRelay() {
         const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
         const prof = data.payload?.profession_id || 'unknown'
         if (data.event_type === 'turn_delta') {
-          const last = _sessionLog.value[_sessionLog.value.length - 1]
+          const last = _sessionLogs.value[runId][_sessionLogs.value[runId].length - 1]
           if (last && last.type === 'text' && last.profession_id === prof) {
             last.content += data.payload.text || ''
           } else {
-            _sessionLog.value.push({
+            _sessionLogs.value[runId].push({
               id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
               time,
               profession_id: prof,
@@ -426,11 +433,11 @@ export function useRelay() {
           }
         }
         if (data.event_type === 'turn_thinking') {
-          const last = _sessionLog.value[_sessionLog.value.length - 1]
+          const last = _sessionLogs.value[runId][_sessionLogs.value[runId].length - 1]
           if (last && last.type === 'thinking' && last.profession_id === prof) {
             last.content += data.payload.thinking || ''
           } else {
-            _sessionLog.value.push({
+            _sessionLogs.value[runId].push({
               id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
               time,
               profession_id: prof,
@@ -440,7 +447,7 @@ export function useRelay() {
           }
         }
         if (data.event_type === 'turn_tool_call') {
-          _sessionLog.value.push({
+          _sessionLogs.value[runId].push({
             id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
             time,
             profession_id: prof,
@@ -452,12 +459,12 @@ export function useRelay() {
           })
         }
         if (data.event_type === 'turn_tool_result') {
-          const last = _sessionLog.value[_sessionLog.value.length - 1]
+          const last = _sessionLogs.value[runId][_sessionLogs.value[runId].length - 1]
           if (last && last.type === 'tool_call' && last.tool_id === data.payload.tool_id) {
             last.type = 'tool'
             last.result = data.payload.result || ''
           } else {
-            _sessionLog.value.push({
+            _sessionLogs.value[runId].push({
               id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
               time,
               profession_id: prof,
@@ -468,7 +475,7 @@ export function useRelay() {
           }
         }
         if (data.event_type === 'turn_complete') {
-          _sessionLog.value.push({
+          _sessionLogs.value[runId].push({
             id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
             time,
             profession_id: prof,
@@ -477,7 +484,7 @@ export function useRelay() {
           })
         }
         if (data.event_type === 'turn_error') {
-          _sessionLog.value.push({
+          _sessionLogs.value[runId].push({
             id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
             time,
             profession_id: prof,
@@ -486,7 +493,7 @@ export function useRelay() {
           })
         }
         if (data.event_type === 'turn_budget_warning') {
-          _sessionLog.value.push({
+          _sessionLogs.value[runId].push({
             id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
             time,
             profession_id: prof,
@@ -496,7 +503,7 @@ export function useRelay() {
           })
         }
         if (data.event_type === 'turn_budget_exceeded') {
-          _sessionLog.value.push({
+          _sessionLogs.value[runId].push({
             id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
             time,
             profession_id: prof,
@@ -506,7 +513,7 @@ export function useRelay() {
         }
         // Step lifecycle events
         if (data.event_type === 'step_started') {
-          _sessionLog.value.push({
+          _sessionLogs.value[runId].push({
             id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
             time,
             profession_id: data.payload?.profession_id || 'system',
@@ -515,7 +522,7 @@ export function useRelay() {
           })
         }
         if (data.event_type === 'step_completed') {
-          _sessionLog.value.push({
+          _sessionLogs.value[runId].push({
             id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
             time,
             profession_id: data.payload?.profession_id || 'system',
@@ -524,7 +531,7 @@ export function useRelay() {
           })
         }
         if (data.event_type === 'gate_waiting') {
-          _sessionLog.value.push({
+          _sessionLogs.value[runId].push({
             id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
             time,
             profession_id: data.payload?.profession_id || 'system',
@@ -533,7 +540,7 @@ export function useRelay() {
           })
         }
         if (data.event_type === 'run_completed') {
-          _sessionLog.value.push({
+          _sessionLogs.value[runId].push({
             id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
             time,
             profession_id: 'system',
@@ -542,7 +549,7 @@ export function useRelay() {
           })
         }
         if (data.event_type === 'run_failed') {
-          _sessionLog.value.push({
+          _sessionLogs.value[runId].push({
             id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
             time,
             profession_id: 'system',
@@ -594,5 +601,6 @@ export function useRelay() {
     deleteRun,
     updateRunTitle,
     sessionLog,
+    sessionLogFor,
   }
 }
