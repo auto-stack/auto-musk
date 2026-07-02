@@ -2,10 +2,8 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
-// musk web app (ported from auto-forge frontend). Dev server proxies /api →
-// musk backend (:8888). In production, `musk serve` serves dist/ via ServeDir.
-// base: '/' (absolute) so deep-link refreshes like /chats/{id} load assets
-// from /assets/... instead of resolving relative to the path segment.
+// musk web app. Dev server proxies /api → musk backend (:8080).
+// In production, `musk serve` serves dist/ via ServeDir.
 export default defineConfig({
   base: '/',
   plugins: [vue()],
@@ -22,7 +20,7 @@ export default defineConfig({
     host: '127.0.0.1',
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8888',
+        target: 'http://127.0.0.1:8080',
         changeOrigin: true,
       },
     },
