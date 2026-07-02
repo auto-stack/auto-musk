@@ -83,7 +83,7 @@
           <button
             v-if="Object.keys(relayRuns).length > 0"
             class="errand-toggle-btn relay-toggle-btn"
-            @click="openRelayView"
+            disabled
           >
             <span class="errand-toggle-label">{{ t('chat.relay') }}</span>
             <span class="errand-toggle-badge">{{ Object.keys(relayRuns).length }}</span>
@@ -91,7 +91,7 @@
           <button
             v-if="Object.keys(taskPlans).length > 0"
             class="errand-toggle-btn relay-toggle-btn"
-            @click="openRelayView"
+            disabled
           >
             <span class="errand-toggle-label">{{ t('chat.taskPlans') }}</span>
             <span class="errand-toggle-badge">{{ Object.keys(taskPlans).length }}</span>
@@ -233,20 +233,9 @@
                   <button v-if="tc.result && !tc._expanded" class="shell-toggle" @click="tc._expanded = true">show output</button>
                   <button v-if="tc.result && tc._expanded" class="shell-toggle" @click="tc._expanded = false">hide</button>
                 </div>
-                <!-- Spawn Relay card -->
-                <div v-else-if="tc.name === 'spawn_relay'" class="relay-card" :class="tc.status">
-                  <div class="relay-header">
-                    <span class="relay-icon">🚀</span>
-                    <span class="relay-name">Relay: {{ tc.arguments?.flow_id || 'standard' }}</span>
-                    <span class="relay-status" :class="getRelayStatus(tc)?.status || 'started'">
-                      {{ getRelayStatus(tc)?.status || 'started' }}
-                    </span>
-                    <button v-if="getRelayStatus(tc)?.run_id" class="relay-view-btn" @click="goToRelayRun(getRelayStatus(tc)!.run_id)">
-                      Monitor →
-                    </button>
-                  </div>
-                  <div v-if="tc.arguments?.task" class="relay-task">{{ tc.arguments.task }}</div>
-                  <div v-if="getRelayStatus(tc)?.summary" class="relay-summary">{{ getRelayStatus(tc)?.summary }}</div>
+                <!-- Spawn Relay inline -->
+                <div v-else-if="tc.name === 'spawn_relay'" class="relay-inline">
+                  <RelayRunBox :run-id="extractRunId(tc)" />
                 </div>
                 <!-- Dispatch / Errand card -->
                 <div v-else-if="tc.name === 'dispatch'" class="errand-card" :class="tc.status">
@@ -414,6 +403,7 @@ import GateCard from '@/components/GateCard.vue'
 import SecretaryMessage from '@/components/SecretaryMessage.vue'
 import ReportCard from '@/components/ReportCard.vue'
 import QuestionnaireCard from '@/components/QuestionnaireCard.vue'
+import RelayRunBox from '@/components/RelayRunBox.vue'
 import type { ReportData } from '@/components/ReportCard.vue'
 import type { Question } from '@/components/QuestionnaireCard.vue'
 
@@ -570,12 +560,15 @@ function getRelayStatus(tc: { arguments?: Record<string, unknown> }) {
   return relayRuns.value[runId] || null
 }
 
-function goToRelayRun(runId: string) {
-  window.open(`/forge/relay?run=${encodeURIComponent(runId)}`, '_blank')
-}
-
-function openRelayView() {
-  window.open('/forge/relay', '_blank')
+function extractRunId(tc: { arguments?: Record<string, unknown>; result?: string }): string {
+  try {
+    const args = tc.arguments as any
+    if (args?.run_id) return args.run_id as string
+    const result = typeof tc.result === 'string' ? JSON.parse(tc.result) : tc.result
+    return result?.run_id || ''
+  } catch {
+    return ''
+  }
 }
 
 /** Build a set of known agent names (lowercased) for mention detection */
@@ -2360,6 +2353,12 @@ onUnmounted(() => {
   padding: 0.3rem 0.4rem;
   background: hsl(var(--muted-foreground) / 0.04);
   border-radius: 4px;
+}
+
+/* ─── Relay Inline ─────────────────────────────────────────────────────────── */
+
+.relay-inline {
+  margin-top: 0.15rem;
 }
 
 .typing-dots {
