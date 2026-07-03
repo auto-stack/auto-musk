@@ -284,9 +284,48 @@ impl ConversationStore {
         mode: Option<String>,
         title: Option<String>,
     ) -> Conversation {
+        let conv = self.build_conversation(
+            new_id(ID_LEN),
+            kind,
+            workspace_id,
+            driver,
+            mode,
+            title,
+        );
+        self.persist_new(&conv);
+        conv
+    }
+
+    /// Like `create` but with a caller-supplied id. Used for dual-write so a
+    /// chat session and its conversation share the same id, keeping them
+    /// linked without an extra mapping.
+    pub fn create_with_id(
+        &self,
+        id: String,
+        kind: ConversationKind,
+        workspace_id: String,
+        driver: Driver,
+        mode: Option<String>,
+        title: Option<String>,
+    ) -> Conversation {
+        let conv = self.build_conversation(id, kind, workspace_id, driver, mode, title);
+        self.persist_new(&conv);
+        conv
+    }
+
+    /// Shared constructor used by both `create` and `create_with_id`.
+    fn build_conversation(
+        &self,
+        id: String,
+        kind: ConversationKind,
+        workspace_id: String,
+        driver: Driver,
+        mode: Option<String>,
+        title: Option<String>,
+    ) -> Conversation {
         let now = now_secs();
-        let conv = Conversation {
-            id: new_id(ID_LEN),
+        Conversation {
+            id,
             parent_id: None,
             parent_turn_id: None,
             kind,
@@ -304,9 +343,7 @@ impl ConversationStore {
             pending_gate: None,
             created_at: now,
             updated_at: now,
-        };
-        self.persist_new(&conv);
-        conv
+        }
     }
 
     /// Get a conversation by id (loads turns from jsonl if not cached).
@@ -341,6 +378,16 @@ impl ConversationStore {
         self.remove_from_index(id);
         self.cache.lock().unwrap().remove(id);
         existed
+    }
+
+    /// Delete all conversations. Returns the number removed.
+    pub fn delete_all(&self) -> usize {
+        let summaries = self.list();
+        let count = summaries.len();
+        for s in &summaries {
+            self.delete(&s.id);
+        }
+        count
     }
 
     /// Rename (set title).

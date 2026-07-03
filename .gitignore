@@ -42,3 +42,5 @@ greeting.txt
 
 # Superpowers brainstorming visual-companion mockups
 .superpowers/
+backend/.autoos/
+tmp/

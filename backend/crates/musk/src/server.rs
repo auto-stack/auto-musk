@@ -1354,8 +1354,21 @@ async fn chat_create(
 ) -> impl IntoResponse {
     let ws_id = q.id_or_default(&state.registry);
     let ws = state.registry.get(&ws_id);
-    match ws.chats.create(&body.mode, Some(ws_id)) {
-        Ok(session) => Json(json!({"session": session})).into_response(),
+    match ws.chats.create(&body.mode, Some(ws_id.clone())) {
+        Ok(session) => {
+            // Dual-write: create a matching conversation with the SAME id so the
+            // two stores stay linked. Failure here is non-fatal — the ChatStore
+            // is the source of truth for the /api/chats surface.
+            let _ = ws.conversations.create_with_id(
+                session.id.clone(),
+                crate::conversation::ConversationKind::Chat,
+                ws_id.clone(),
+                crate::conversation::Driver::Human,
+                Some(body.mode.clone()),
+                Some(session.name.clone()),
+            );
+            Json(json!({"session": session})).into_response()
+        }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("create: {e}")).into_response(),
     }
 }
@@ -1397,7 +1410,11 @@ async fn chat_rename(
 ) -> impl IntoResponse {
     let ws = state.registry.get(&q.id_or_default(&state.registry));
     match ws.chats.rename(&id, &body.name) {
-        Ok(Some(session)) => Json(json!({"session": session})).into_response(),
+        Ok(Some(session)) => {
+            // Dual-write: keep the conversation title in sync.
+            let _ = ws.conversations.rename(&id, &body.name);
+            Json(json!({"session": session})).into_response()
+        }
         Ok(None) => (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("rename: {e}")).into_response(),
     }
@@ -1411,7 +1428,11 @@ async fn chat_delete(
 ) -> impl IntoResponse {
     let ws = state.registry.get(&q.id_or_default(&state.registry));
     match ws.chats.delete(&id) {
-        Ok(true) => Json(json!({"status": "deleted", "id": id})).into_response(),
+        Ok(true) => {
+            // Dual-write: delete the matching conversation (ignore missing).
+            let _ = ws.conversations.delete(&id);
+            Json(json!({"status": "deleted", "id": id})).into_response()
+        }
         Ok(false) => (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("delete: {e}")).into_response(),
     }
@@ -1424,7 +1445,11 @@ async fn chat_delete_all(
 ) -> impl IntoResponse {
     let ws = state.registry.get(&q.id_or_default(&state.registry));
     match ws.chats.delete_all() {
-        Ok(_) => Json(json!({"status": "deleted_all"})).into_response(),
+        Ok(_) => {
+            // Dual-write: clear all conversations too.
+            ws.conversations.delete_all();
+            Json(json!({"status": "deleted_all"})).into_response()
+        }
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("delete_all: {e}")).into_response(),
     }
 }
@@ -1454,7 +1479,18 @@ async fn chat_message(
     let ws = state.registry.get(&q.id_or_default(&state.registry));
     let msg = crate::chats::ChatMessage::user(body.content);
     match ws.chats.append_message(&id, msg.clone()) {
-        Ok(Some(session)) => Json(json!({"session": session, "queued": msg})).into_response(),
+        Ok(Some(session)) => {
+            // Dual-write: mirror the user message as a turn in the conversation.
+            let seq_base = ws
+                .conversations
+                .get(&id)
+                .map(|c| c.turns.len())
+                .unwrap_or(0);
+            for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
+                let _ = ws.conversations.append_turn(&id, turn);
+            }
+            Json(json!({"session": session, "queued": msg})).into_response()
+        }
         Ok(None) => (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("append: {e}")).into_response(),
     }
@@ -1513,6 +1549,7 @@ async fn chat_stream(
     let (tx, mut rx) = tokio::sync::mpsc::channel::<serde_json::Value>(64);
     let client = state.client.clone();
     let chats = ws.chats.clone();
+    let conversations = ws.conversations.clone();
     let session_id = id.clone();
     let history_for_agent = history.clone();
     let ws_root = ws.root.clone();
@@ -1578,7 +1615,18 @@ async fn chat_stream(
                 let tcs = std::mem::take(&mut *tool_calls.lock().unwrap());
                 let mut msg = crate::chats::ChatMessage::assistant(text);
                 msg.tool_calls = tcs;
-                let _ = chats.append_message(&session_id, msg);
+                let _ = chats.append_message(&session_id, msg.clone());
+                // Dual-write: mirror the assistant message (+ tool calls) into
+                // the conversation as turns.
+                let seq_base = conversations
+                    .get(&session_id)
+                    .map(|c| c.turns.len())
+                    .unwrap_or(0);
+                for turn in
+                    crate::conversation::chat_message_to_turns(&msg, seq_base)
+                {
+                    let _ = conversations.append_turn(&session_id, turn);
+                }
                 crate::tool_safety::clear_current_root();
             }
             Err(e) => {
