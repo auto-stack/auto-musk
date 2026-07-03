@@ -417,6 +417,11 @@ impl WorkspaceStores {
         };
         // Migrate old chat sessions into the unified conversation model (idempotent).
         stores.conversations.migrate_chats(&stores.chats);
+        // Link the run store to the conversation store so relay events are
+        // dual-written as turns into a Flow conversation sharing the run id.
+        stores
+            .relay
+            .link_conversations(stores.conversations.clone());
         stores
     }
 }

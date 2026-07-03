@@ -224,6 +224,221 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
     turns
 }
 
+/// Convert a relay `RunEvent` to zero or more `Turn`s. This is the dual-write
+/// bridge that mirrors flow runs into the unified conversation model. The caller
+/// passes in the starting `seq_base` (typically the conversation's current turn
+/// count) so turns are numbered monotonically.
+pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize) -> Vec<Turn> {
+    use crate::relay::store::RunEvent;
+    let ts = event.timestamp();
+    let mut turns = Vec::new();
+    let mut seq = seq_base;
+
+    macro_rules! push_system {
+        ($from:expr, $content:expr) => {
+            turns.push(Turn {
+                id: new_id(8),
+                seq,
+                from: $from,
+                to: None,
+                kind: TurnKind::System,
+                content: $content,
+                tool: None,
+                gate: None,
+                child_conversation: None,
+                tokens: None,
+                timestamp: ts,
+            });
+            seq += 1;
+        };
+    }
+
+    match event {
+        RunEvent::StepStarted {
+            step_id,
+            profession_id,
+            ..
+        } => {
+            push_system!(
+                profession_id.clone(),
+                format!("Step '{}' started ({})", step_id, profession_id)
+            );
+        }
+        RunEvent::StepCompleted {
+            step_id,
+            handoff_summary,
+            ..
+        } => {
+            push_system!(
+                "system".into(),
+                format!("Step '{}' completed: {}", step_id, handoff_summary)
+            );
+        }
+        RunEvent::TurnDelta {
+            profession_id,
+            text,
+            ..
+        } => {
+            turns.push(Turn {
+                id: new_id(8),
+                seq,
+                from: profession_id.clone(),
+                to: None,
+                kind: TurnKind::Message,
+                content: text.clone(),
+                tool: None,
+                gate: None,
+                child_conversation: None,
+                tokens: None,
+                timestamp: ts,
+            });
+            seq += 1;
+        }
+        RunEvent::TurnToolCall {
+            profession_id,
+            tool_name,
+            arguments,
+            ..
+        } => {
+            turns.push(Turn {
+                id: new_id(8),
+                seq,
+                from: profession_id.clone(),
+                to: None,
+                kind: TurnKind::ToolCall,
+                content: String::new(),
+                tool: Some(ToolRecord {
+                    name: tool_name.clone(),
+                    args: arguments.clone(),
+                    result: String::new(),
+                    tool_id: None,
+                }),
+                gate: None,
+                child_conversation: None,
+                tokens: None,
+                timestamp: ts,
+            });
+            seq += 1;
+        }
+        RunEvent::TurnToolResult {
+            profession_id,
+            result,
+            ..
+        } => {
+            turns.push(Turn {
+                id: new_id(8),
+                seq,
+                from: profession_id.clone(),
+                to: None,
+                kind: TurnKind::ToolResult,
+                content: String::new(),
+                tool: Some(ToolRecord {
+                    name: String::new(),
+                    args: serde_json::Value::Null,
+                    result: result.clone(),
+                    tool_id: None,
+                }),
+                gate: None,
+                child_conversation: None,
+                tokens: None,
+                timestamp: ts,
+            });
+            seq += 1;
+        }
+        RunEvent::TurnComplete { .. } => {
+            // No standalone turn — content already captured by TurnDelta turns.
+        }
+        RunEvent::GateWaiting { step_id, .. } => {
+            turns.push(Turn {
+                id: new_id(8),
+                seq,
+                from: "system".into(),
+                to: None,
+                kind: TurnKind::Gate,
+                content: format!("Waiting for gate approval: {}", step_id),
+                tool: None,
+                gate: Some(GateRecord {
+                    step_id: step_id.clone(),
+                    status: "waiting".into(),
+                    feedback: None,
+                }),
+                child_conversation: None,
+                tokens: None,
+                timestamp: ts,
+            });
+            seq += 1;
+        }
+        RunEvent::GateResolved {
+            step_id, decision, ..
+        } => {
+            turns.push(Turn {
+                id: new_id(8),
+                seq,
+                from: "human".into(),
+                to: None,
+                kind: TurnKind::Gate,
+                content: format!("Gate {} {}", step_id, decision),
+                tool: None,
+                gate: Some(GateRecord {
+                    step_id: step_id.clone(),
+                    status: decision.clone(),
+                    feedback: None,
+                }),
+                child_conversation: None,
+                tokens: None,
+                timestamp: ts,
+            });
+            seq += 1;
+        }
+        RunEvent::RunCompleted { .. } => {
+            push_system!("system".into(), "Flow completed".into());
+        }
+        RunEvent::RunFailed { error, .. } => {
+            push_system!("system".into(), format!("Flow failed: {}", error));
+        }
+        RunEvent::TokenSpend { .. } => {
+            // Metadata only — not surfaced as a turn.
+        }
+        RunEvent::RelayUpdate {
+            step_id,
+            profession_id,
+            status,
+            ..
+        } => {
+            push_system!(
+                profession_id.clone(),
+                format!("Step '{}' {}", step_id, status)
+            );
+        }
+        RunEvent::TurnError {
+            profession_id,
+            message,
+            ..
+        } => {
+            push_system!(
+                profession_id.clone(),
+                format!("Error: {}", message)
+            );
+        }
+        RunEvent::TurnBudgetWarning {
+            profession_id,
+            remaining,
+            ..
+        } => {
+            push_system!(
+                profession_id.clone(),
+                format!("Budget warning: {} tokens remaining", remaining)
+            );
+        }
+        RunEvent::TurnBudgetExceeded {
+            profession_id, ..
+        } => {
+            push_system!(profession_id.clone(), "Budget exceeded".into());
+        }
+    }
+    turns
+}
+
 #[allow(dead_code)]
 fn now_secs() -> u64 {
     std::time::SystemTime::now()
@@ -233,7 +448,7 @@ fn now_secs() -> u64 {
 }
 
 #[allow(dead_code)]
-fn new_id(len: usize) -> String {
+pub fn new_id(len: usize) -> String {
     use rand::Rng;
     let chars: &[u8] = b"0123456789abcdef";
     let mut rng = rand::thread_rng();
@@ -910,5 +1125,113 @@ mod tests {
         let count = conv_store.migrate_chats(&chat_store);
         assert_eq!(count, 0);
         assert!(conv_store.list().is_empty());
+    }
+
+    // --- run_event_to_turns tests ---
+
+    #[test]
+    fn run_event_step_started_to_system_turn() {
+        let event = crate::relay::store::RunEvent::StepStarted {
+            timestamp: 42,
+            step_id: "s1".into(),
+            profession_id: "advisor".into(),
+        };
+        let turns = run_event_to_turns(&event, 0);
+        assert_eq!(turns.len(), 1);
+        assert_eq!(turns[0].seq, 0);
+        assert_eq!(turns[0].kind, TurnKind::System);
+        assert_eq!(turns[0].from, "advisor");
+        assert_eq!(turns[0].timestamp, 42);
+        assert!(turns[0].content.contains("s1"));
+    }
+
+    #[test]
+    fn run_event_turn_delta_to_message_turn() {
+        let event = crate::relay::store::RunEvent::TurnDelta {
+            timestamp: 1,
+            profession_id: "coder".into(),
+            text: "writing code".into(),
+        };
+        let turns = run_event_to_turns(&event, 5);
+        assert_eq!(turns.len(), 1);
+        assert_eq!(turns[0].kind, TurnKind::Message);
+        assert_eq!(turns[0].from, "coder");
+        assert_eq!(turns[0].content, "writing code");
+        assert_eq!(turns[0].seq, 5);
+    }
+
+    #[test]
+    fn run_event_tool_call_and_result() {
+        let call = crate::relay::store::RunEvent::TurnToolCall {
+            timestamp: 0,
+            profession_id: "coder".into(),
+            tool_id: "t1".into(),
+            tool_name: "read_file".into(),
+            arguments: serde_json::json!({"path": "x"}),
+        };
+        let res = crate::relay::store::RunEvent::TurnToolResult {
+            timestamp: 0,
+            profession_id: "coder".into(),
+            tool_id: "t1".into(),
+            result: "contents".into(),
+        };
+        let call_turns = run_event_to_turns(&call, 0);
+        assert_eq!(call_turns.len(), 1);
+        assert_eq!(call_turns[0].kind, TurnKind::ToolCall);
+        assert_eq!(call_turns[0].tool.as_ref().unwrap().name, "read_file");
+
+        let res_turns = run_event_to_turns(&res, 1);
+        assert_eq!(res_turns.len(), 1);
+        assert_eq!(res_turns[0].kind, TurnKind::ToolResult);
+        assert_eq!(res_turns[0].tool.as_ref().unwrap().result, "contents");
+    }
+
+    #[test]
+    fn run_event_gate_waiting_and_resolved() {
+        let waiting = crate::relay::store::RunEvent::GateWaiting {
+            timestamp: 0,
+            step_id: "gate1".into(),
+            gate: "human".into(),
+        };
+        let resolved = crate::relay::store::RunEvent::GateResolved {
+            timestamp: 0,
+            step_id: "gate1".into(),
+            decision: "approve".into(),
+        };
+        let w = run_event_to_turns(&waiting, 0);
+        assert_eq!(w.len(), 1);
+        assert_eq!(w[0].kind, TurnKind::Gate);
+        assert_eq!(w[0].gate.as_ref().unwrap().status, "waiting");
+
+        let r = run_event_to_turns(&resolved, 1);
+        assert_eq!(r.len(), 1);
+        assert_eq!(r[0].from, "human");
+        assert_eq!(r[0].gate.as_ref().unwrap().status, "approve");
+    }
+
+    #[test]
+    fn run_event_token_spend_produces_no_turn() {
+        let event = crate::relay::store::RunEvent::TokenSpend {
+            timestamp: 0,
+            cumulative: 100,
+            step_tokens: 10,
+        };
+        let turns = run_event_to_turns(&event, 0);
+        assert!(turns.is_empty(), "TokenSpend is metadata, not a turn");
+    }
+
+    #[test]
+    fn run_event_run_failed_and_completed() {
+        let failed = crate::relay::store::RunEvent::RunFailed {
+            timestamp: 0,
+            error: "boom".into(),
+        };
+        let completed = crate::relay::store::RunEvent::RunCompleted { timestamp: 0 };
+        let f = run_event_to_turns(&failed, 0);
+        assert_eq!(f.len(), 1);
+        assert_eq!(f[0].kind, TurnKind::System);
+        assert!(f[0].content.contains("boom"));
+        let c = run_event_to_turns(&completed, 1);
+        assert_eq!(c[0].content, "Flow completed");
     }
 }

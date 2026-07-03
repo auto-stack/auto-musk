@@ -9,7 +9,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use crate::relay::budget::TokenBudget;
 use crate::relay::flow::{FlowSpec, FlowStep, GateType};
@@ -228,6 +228,10 @@ pub fn resolve_flow(req: &StartRunRequest) -> FlowSpec {
 pub struct RunStore {
     runs: Mutex<HashMap<String, RunEntry>>,
     dir: PathBuf,
+    /// Optional dual-write target: when linked, run events are mirrored as
+    /// `Turn`s into a Conversation sharing the run's id. Linked by
+    /// `WorkspaceStores::new` after both stores are constructed.
+    conversations: Mutex<Option<Arc<crate::conversation::ConversationStore>>>,
 }
 
 impl RunStore {
@@ -238,9 +242,17 @@ impl RunStore {
         let store = Self {
             runs: Mutex::new(HashMap::new()),
             dir,
+            conversations: Mutex::new(None),
         };
         store.load_all();
         store
+    }
+
+    /// Link a `ConversationStore` so relay events are dual-written as turns
+    /// into a conversation that shares the run's id. Called once from
+    /// `WorkspaceStores::new`.
+    pub fn link_conversations(&self, conv: Arc<crate::conversation::ConversationStore>) {
+        *self.conversations.lock().unwrap() = Some(conv);
     }
 
     /// Create an empty store at an arbitrary path (for tests).
@@ -290,6 +302,7 @@ impl RunStore {
         });
         let engine = PipelineEngine::with_budget(flow, &run_id, TokenBudget::new(10_000_000));
         let now = now_secs();
+        let ws_id_for_conv = workspace_id.clone();
         let entry = RunEntry {
             run_id: run_id.clone(),
             engine,
@@ -306,7 +319,47 @@ impl RunStore {
         self.save_run(&entry);
         let state = build_run_state(&entry);
         self.runs.lock().unwrap().insert(run_id.clone(), entry);
+        // Dual-write: mirror the run as a Flow conversation sharing the run id.
+        self.create_conversation_for_run(&run_id, req, ws_id_for_conv.as_deref());
         (run_id, state)
+    }
+
+    /// Create the linked Flow conversation for a run (if a ConversationStore is
+    /// linked). Idempotent — skipped if the conversation already exists.
+    fn create_conversation_for_run(
+        &self,
+        run_id: &str,
+        req: &StartRunRequest,
+        workspace_id: Option<&str>,
+    ) {
+        let conv_store = self.conversations.lock().unwrap();
+        let Some(conv) = conv_store.as_ref() else {
+            return;
+        };
+        // Avoid duplicating if the conversation was already created (e.g. on a
+        // reload). `get` is cheap (cache check first).
+        if conv.get(run_id).is_some() {
+            return;
+        }
+        let ws_id = workspace_id.unwrap_or_default().to_string();
+        let flow_id = req
+            .flow_id
+            .clone()
+            .or_else(|| {
+                req.steps
+                    .first()
+                    .map(|s| s.id.clone())
+                    .or_else(|| Some("default".into()))
+            })
+            .unwrap_or_default();
+        conv.create_with_id(
+            run_id.to_string(),
+            crate::conversation::ConversationKind::Flow,
+            ws_id,
+            crate::conversation::Driver::Flow { flow_id },
+            None,
+            req.task.clone(),
+        );
     }
 
     pub fn get(&self, run_id: &str) -> Option<RunState> {
@@ -323,10 +376,18 @@ impl RunStore {
     }
 
     pub fn delete(&self, run_id: &str) -> bool {
-        let mut runs = self.runs.lock().unwrap();
-        let removed = runs.remove(run_id).is_some();
-        if removed {
-            self.delete_run_disk(run_id);
+        let removed = {
+            let mut runs = self.runs.lock().unwrap();
+            let removed = runs.remove(run_id).is_some();
+            if removed {
+                self.delete_run_disk(run_id);
+            }
+            removed
+        };
+        // Also remove the dual-written conversation (if linked).
+        let conv_store = self.conversations.lock().unwrap();
+        if let Some(conv) = conv_store.as_ref() {
+            conv.delete(run_id);
         }
         removed
     }
@@ -345,139 +406,165 @@ impl RunStore {
     /// run state. Pushes the appropriate RunEvent. The caller (api.rs) drives
     /// the agent turn when the result is `ExecuteStep`.
     pub fn advance(&self, run_id: &str) -> Option<(crate::relay::pipeline::AdvanceResult, RunState)> {
-        let mut runs = self.runs.lock().unwrap();
-        let entry = runs.get_mut(run_id)?;
-        let result = entry.engine.advance();
-        let now = now_secs();
-        entry.updated_at = now;
-        match &result {
-            crate::relay::pipeline::AdvanceResult::ExecuteStep { step_id, profession_id, .. } => {
-                entry.events.push(RunEvent::StepStarted {
-                    timestamp: now,
-                    step_id: step_id.clone(),
-                    profession_id: profession_id.clone(),
-                });
-                entry.events.push(RunEvent::RelayUpdate {
-                    timestamp: now,
-                    step_id: step_id.clone(),
-                    profession_id: profession_id.clone(),
-                    status: "running".into(),
-                });
+        let mut appended: Vec<RunEvent> = Vec::new();
+        let (result, state) = {
+            let mut runs = self.runs.lock().unwrap();
+            let entry = runs.get_mut(run_id)?;
+            let result = entry.engine.advance();
+            let now = now_secs();
+            entry.updated_at = now;
+            match &result {
+                crate::relay::pipeline::AdvanceResult::ExecuteStep { step_id, profession_id, .. } => {
+                    appended.push(RunEvent::StepStarted {
+                        timestamp: now,
+                        step_id: step_id.clone(),
+                        profession_id: profession_id.clone(),
+                    });
+                    appended.push(RunEvent::RelayUpdate {
+                        timestamp: now,
+                        step_id: step_id.clone(),
+                        profession_id: profession_id.clone(),
+                        status: "running".into(),
+                    });
+                }
+                crate::relay::pipeline::AdvanceResult::WaitForHuman { step_id, .. } => {
+                    appended.push(RunEvent::GateWaiting {
+                        timestamp: now,
+                        step_id: step_id.clone(),
+                        gate: "human".into(),
+                    });
+                }
+                crate::relay::pipeline::AdvanceResult::Completed => {
+                    appended.push(RunEvent::RunCompleted { timestamp: now });
+                }
+                crate::relay::pipeline::AdvanceResult::Failed { error } => {
+                    appended.push(RunEvent::RunFailed {
+                        timestamp: now,
+                        error: error.clone(),
+                    });
+                }
+                crate::relay::pipeline::AdvanceResult::Paused { .. } => {}
             }
-            crate::relay::pipeline::AdvanceResult::WaitForHuman { step_id, .. } => {
-                entry.events.push(RunEvent::GateWaiting {
-                    timestamp: now,
-                    step_id: step_id.clone(),
-                    gate: "human".into(),
-                });
+            for ev in &appended {
+                entry.events.push(ev.clone());
             }
-            crate::relay::pipeline::AdvanceResult::Completed => {
-                entry.events.push(RunEvent::RunCompleted { timestamp: now });
-            }
-            crate::relay::pipeline::AdvanceResult::Failed { error } => {
-                entry.events.push(RunEvent::RunFailed {
-                    timestamp: now,
-                    error: error.clone(),
-                });
-            }
-            crate::relay::pipeline::AdvanceResult::Paused { .. } => {}
-        }
-        let state = build_run_state(entry);
-        self.save_run(entry);
+            let state = build_run_state(entry);
+            self.save_run(entry);
+            Some((result, state))
+        }?;
+        // Dual-write the appended events to the linked conversation (if any),
+        // outside the runs lock.
+        self.mirror_events(run_id, &appended);
         Some((result, state))
     }
 
     /// Submit a handoff document and record the step completion.
     pub fn submit_handoff(&self, run_id: &str, handoff: HandoffDocument) -> Option<(crate::relay::pipeline::AdvanceResult, RunState)> {
-        let mut runs = self.runs.lock().unwrap();
-        let entry = runs.get_mut(run_id)?;
-        let step_id = entry.engine.current_step_id().map(String::from);
-        let result = entry.engine.submit_handoff(handoff);
-        let now = now_secs();
-        entry.updated_at = now;
-        if let Some(sid) = &step_id {
-            entry.events.push(RunEvent::StepCompleted {
-                timestamp: now,
-                step_id: sid.clone(),
-                handoff_summary: entry
-                    .engine
-                    .step_history
-                    .last()
-                    .and_then(|r| r.handoff.as_ref().map(|h| h.summary.clone()))
-                    .unwrap_or_default(),
-            });
-            entry.events.push(RunEvent::TokenSpend {
-                timestamp: now,
-                cumulative: entry.engine.cumulative_tokens,
-                step_tokens: entry
-                    .engine
-                    .step_history
-                    .last()
-                    .map(|r| {
-                        r.handoff
-                            .as_ref()
-                            .map(|h| h.token_usage.step_input + h.token_usage.step_output)
-                            .unwrap_or(0)
-                    })
-                    .unwrap_or(0),
-            });
-        }
-        match &result {
-            crate::relay::pipeline::AdvanceResult::Completed => {
-                entry.events.push(RunEvent::RunCompleted { timestamp: now });
-            }
-            crate::relay::pipeline::AdvanceResult::Failed { error, .. } => {
-                entry.events.push(RunEvent::RunFailed {
+        let mut appended: Vec<RunEvent> = Vec::new();
+        let (result, state) = {
+            let mut runs = self.runs.lock().unwrap();
+            let entry = runs.get_mut(run_id)?;
+            let step_id = entry.engine.current_step_id().map(String::from);
+            let result = entry.engine.submit_handoff(handoff);
+            let now = now_secs();
+            entry.updated_at = now;
+            if let Some(sid) = &step_id {
+                appended.push(RunEvent::StepCompleted {
                     timestamp: now,
-                    error: error.clone(),
+                    step_id: sid.clone(),
+                    handoff_summary: entry
+                        .engine
+                        .step_history
+                        .last()
+                        .and_then(|r| r.handoff.as_ref().map(|h| h.summary.clone()))
+                        .unwrap_or_default(),
+                });
+                appended.push(RunEvent::TokenSpend {
+                    timestamp: now,
+                    cumulative: entry.engine.cumulative_tokens,
+                    step_tokens: entry
+                        .engine
+                        .step_history
+                        .last()
+                        .map(|r| {
+                            r.handoff
+                                .as_ref()
+                                .map(|h| h.token_usage.step_input + h.token_usage.step_output)
+                                .unwrap_or(0)
+                        })
+                        .unwrap_or(0),
                 });
             }
-            _ => {}
-        }
-        let state = build_run_state(entry);
-        self.save_run(entry);
+            match &result {
+                crate::relay::pipeline::AdvanceResult::Completed => {
+                    appended.push(RunEvent::RunCompleted { timestamp: now });
+                }
+                crate::relay::pipeline::AdvanceResult::Failed { error, .. } => {
+                    appended.push(RunEvent::RunFailed {
+                        timestamp: now,
+                        error: error.clone(),
+                    });
+                }
+                _ => {}
+            }
+            for ev in &appended {
+                entry.events.push(ev.clone());
+            }
+            let state = build_run_state(entry);
+            self.save_run(entry);
+            Some((result, state))
+        }?;
+        self.mirror_events(run_id, &appended);
         Some((result, state))
     }
 
     /// Resolve a pending human gate.
     pub fn resolve_gate(&self, run_id: &str, decision: GateDecision) -> Option<(crate::relay::pipeline::AdvanceResult, RunState)> {
-        let mut runs = self.runs.lock().unwrap();
-        let entry = runs.get_mut(run_id)?;
-        let now = now_secs();
-        let decision_str = match &decision {
-            GateDecision::Approve => "approve",
-            GateDecision::Reject { .. } => "reject",
-            GateDecision::Edit { .. } => "edit",
-        };
-        let step_id = entry
-            .engine
-            .pending_gate
-            .as_ref()
-            .map(|g| g.step_id.clone());
-        let result = entry.engine.resolve_gate(decision);
-        entry.updated_at = now;
-        entry.events.push(RunEvent::GateResolved {
-            timestamp: now,
-            step_id: step_id.unwrap_or_default(),
-            decision: decision_str.into(),
-        });
-        // resolve_gate may itself advance into ExecuteStep/WaitForHuman/etc.;
-        // record the resulting transition.
-        match &result {
-            crate::relay::pipeline::AdvanceResult::ExecuteStep { step_id, profession_id, .. } => {
-                entry.events.push(RunEvent::StepStarted {
-                    timestamp: now,
-                    step_id: step_id.clone(),
-                    profession_id: profession_id.clone(),
-                });
+        let mut appended: Vec<RunEvent> = Vec::new();
+        let (result, state) = {
+            let mut runs = self.runs.lock().unwrap();
+            let entry = runs.get_mut(run_id)?;
+            let now = now_secs();
+            let decision_str = match &decision {
+                GateDecision::Approve => "approve",
+                GateDecision::Reject { .. } => "reject",
+                GateDecision::Edit { .. } => "edit",
+            };
+            let step_id = entry
+                .engine
+                .pending_gate
+                .as_ref()
+                .map(|g| g.step_id.clone());
+            let result = entry.engine.resolve_gate(decision);
+            entry.updated_at = now;
+            appended.push(RunEvent::GateResolved {
+                timestamp: now,
+                step_id: step_id.unwrap_or_default(),
+                decision: decision_str.into(),
+            });
+            // resolve_gate may itself advance into ExecuteStep/WaitForHuman/etc.;
+            // record the resulting transition.
+            match &result {
+                crate::relay::pipeline::AdvanceResult::ExecuteStep { step_id, profession_id, .. } => {
+                    appended.push(RunEvent::StepStarted {
+                        timestamp: now,
+                        step_id: step_id.clone(),
+                        profession_id: profession_id.clone(),
+                    });
+                }
+                crate::relay::pipeline::AdvanceResult::Completed => {
+                    appended.push(RunEvent::RunCompleted { timestamp: now });
+                }
+                _ => {}
             }
-            crate::relay::pipeline::AdvanceResult::Completed => {
-                entry.events.push(RunEvent::RunCompleted { timestamp: now });
+            for ev in &appended {
+                entry.events.push(ev.clone());
             }
-            _ => {}
-        }
-        let state = build_run_state(entry);
-        self.save_run(entry);
+            let state = build_run_state(entry);
+            self.save_run(entry);
+            Some((result, state))
+        }?;
+        self.mirror_events(run_id, &appended);
         Some((result, state))
     }
 
@@ -508,6 +595,42 @@ impl RunStore {
             drop(runs);
             crate::relay::api::publish(run_id, &event);
             let _ = snapshot;
+        }
+        // Dual-write: mirror the event as Turn(s) into the linked conversation
+        // (if any). Done outside the runs lock to avoid nesting store locks.
+        let conv_store = self.conversations.lock().unwrap();
+        if let Some(conv) = conv_store.as_ref() {
+            let seq_base = conv
+                .get(run_id)
+                .map(|c| c.turns.len())
+                .unwrap_or(0);
+            for turn in crate::conversation::run_event_to_turns(&event, seq_base) {
+                conv.append_turn(run_id, turn);
+            }
+        }
+    }
+
+    /// Mirror a batch of events into the linked conversation (if any) as turns.
+    /// Called by `advance`/`submit_handoff`/`resolve_gate` after they've pushed
+    /// events to the run's in-memory log + persisted it. Runs entirely outside
+    /// the runs lock so the conversation store's own lock never nests inside.
+    fn mirror_events(&self, run_id: &str, events: &[RunEvent]) {
+        if events.is_empty() {
+            return;
+        }
+        let conv_store = self.conversations.lock().unwrap();
+        let Some(conv) = conv_store.as_ref() else {
+            return;
+        };
+        let mut seq_base = conv
+            .get(run_id)
+            .map(|c| c.turns.len())
+            .unwrap_or(0);
+        for event in events {
+            for turn in crate::conversation::run_event_to_turns(event, seq_base) {
+                seq_base += 1;
+                conv.append_turn(run_id, turn);
+            }
         }
     }
 
@@ -789,5 +912,150 @@ mod tests {
                 task: None,
             }
         }
+    }
+
+    /// Build a RunStore linked to a ConversationStore at the same temp root,
+    /// exercising the full dual-write path.
+    fn linked_stores() -> (
+        RunStore,
+        Arc<crate::conversation::ConversationStore>,
+    ) {
+        let dir = std::env::temp_dir().join(format!(
+            "musk-relay-dual-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let conv = Arc::new(crate::conversation::ConversationStore::at(
+            dir.join("conversations"),
+        ));
+        let relay = RunStore::at(dir.join("relay"));
+        relay.link_conversations(conv.clone());
+        (relay, conv)
+    }
+
+    #[test]
+    fn dual_write_creates_flow_conversation_on_start() {
+        let (store, conv) = linked_stores();
+        let (id, _) = store.start_run(
+            &StartRunRequest {
+                flow_id: Some("simple".into()),
+                task: Some("build it".into()),
+                ..Default::default()
+            },
+            Some("ws1".into()),
+        );
+        let conversation = conv.get(&id).expect("conversation should be created");
+        assert_eq!(conversation.kind, crate::conversation::ConversationKind::Flow);
+        assert_eq!(conversation.workspace_id, "ws1");
+        assert_eq!(conversation.title.as_deref(), Some("build it"));
+        // The run id and conversation id match (that's the dual-write link).
+        assert_eq!(conversation.id, id);
+    }
+
+    #[test]
+    fn dual_write_mirrors_advance_and_handoff_as_turns() {
+        let (store, conv) = linked_stores();
+        let (id, _) = store.start_run(
+            &StartRunRequest {
+                flow_id: Some("simple".into()),
+                ..Default::default()
+            },
+            None,
+        );
+        // Step 1.
+        store.advance(&id).unwrap();
+        store.submit_handoff(&id, handoff("coder")).unwrap();
+        // Step 2.
+        store.submit_handoff(&id, handoff("documenter")).unwrap();
+
+        let conversation = conv.get(&id).expect("conversation exists");
+        // advance(StepStarted + RelayUpdate) + submit_handoff(StepCompleted + TokenSpend)
+        // for two steps, plus a final RunCompleted. StepStarted/RelayUpdate/
+        // StepCompleted produce turns; TokenSpend does not; RunCompleted does.
+        // Expect at least one System turn mentioning a step + a completion turn.
+        assert!(
+            !conversation.turns.is_empty(),
+            "dual-written turns should exist"
+        );
+        assert!(
+            conversation
+                .turns
+                .iter()
+                .any(|t| t.content.contains("completed")),
+            "should have a step-completion turn"
+        );
+        assert!(
+            conversation
+                .turns
+                .iter()
+                .any(|t| t.content == "Flow completed"),
+            "should have a run-completed turn"
+        );
+    }
+
+    #[test]
+    fn dual_write_mirrors_push_event() {
+        let (store, conv) = linked_stores();
+        let (id, _) = store.start_run(
+            &StartRunRequest {
+                flow_id: Some("simple".into()),
+                ..Default::default()
+            },
+            None,
+        );
+        store.push_event(
+            &id,
+            RunEvent::TurnDelta {
+                timestamp: 0,
+                profession_id: "advisor".into(),
+                text: "thinking...".into(),
+            },
+        );
+        let conversation = conv.get(&id).unwrap();
+        assert_eq!(conversation.turns.len(), 1);
+        assert_eq!(conversation.turns[0].kind, crate::conversation::TurnKind::Message);
+        assert_eq!(conversation.turns[0].from, "advisor");
+        assert_eq!(conversation.turns[0].content, "thinking...");
+    }
+
+    #[test]
+    fn dual_write_delete_run_deletes_conversation() {
+        let (store, conv) = linked_stores();
+        let (id, _) = store.start_run(
+            &StartRunRequest {
+                flow_id: Some("simple".into()),
+                ..Default::default()
+            },
+            None,
+        );
+        assert!(conv.get(&id).is_some());
+        assert!(store.delete(&id));
+        assert!(conv.get(&id).is_none(), "conversation should be deleted with run");
+    }
+
+    #[test]
+    fn no_link_means_no_dual_write() {
+        // A standalone RunStore (no link_conversations) must not crash and
+        // simply skip the dual-write.
+        let store = tmp_store();
+        let (id, _) = store.start_run(
+            &StartRunRequest {
+                flow_id: Some("simple".into()),
+                ..Default::default()
+            },
+            None,
+        );
+        store.advance(&id).unwrap();
+        store.push_event(
+            &id,
+            RunEvent::TurnDelta {
+                timestamp: 0,
+                profession_id: "advisor".into(),
+                text: "hi".into(),
+            },
+        );
+        // No panic → success.
     }
 }
