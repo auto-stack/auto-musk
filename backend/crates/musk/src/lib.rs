@@ -7,10 +7,12 @@ pub mod auth;
 pub mod chats;
 pub mod conversation;
 pub mod mode;
+pub mod orch_tools;
 pub mod relay;
 pub mod server;
 pub mod spec_tools;
 pub mod specs;
+pub mod tool_context;
 pub mod tool_safety;
 pub mod tool_test;
 pub mod tools;
@@ -196,6 +198,30 @@ pub fn build_agent_from_mode(
         agent = auto_ai_agent::Agent::with_context_file(agent, &path);
     }
 
+    Ok(agent)
+}
+
+/// Like [`build_agent_from_mode`], but also registers orchestration tools
+/// (`spawn_relay`, `dispatch`) when a [`tool_context::ToolContext`] is provided
+/// and the mode's tool whitelist allows them. Used by chat_stream and the relay
+/// driver to give agents the ability to spawn sub-conversations.
+pub fn build_agent_with_context(
+    mode: &crate::mode::AgentMode,
+    client: Arc<dyn auto_ai_agent::Client>,
+    ctx: Option<tool_context::ToolContext>,
+) -> Result<auto_ai_agent::Agent, String> {
+    let mut agent = build_agent_from_mode(mode, client)?;
+    if let Some(ctx) = ctx {
+        let orch_tools: Vec<(&str, Arc<dyn auto_ai_agent::Tool>)> = vec![
+            ("spawn_relay", Arc::new(crate::orch_tools::SpawnRelay::new(ctx.clone()))),
+            ("dispatch", Arc::new(crate::orch_tools::Dispatch::new(ctx))),
+        ];
+        for (name, tool) in &orch_tools {
+            if mode.tools.is_empty() || mode.tools.iter().any(|t| t == name) {
+                agent.register_shared(tool.clone());
+            }
+        }
+    }
     Ok(agent)
 }
 

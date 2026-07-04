@@ -120,7 +120,17 @@ async fn run_step(
         context_file: String::new(),
         extra_system_prompt: String::new(),
     };
-    let mut agent = crate::build_agent_from_mode(&mode, state.client.clone())?;
+    // Build agent with orchestration tool context (spawn_relay, dispatch).
+    let tool_ctx = crate::tool_context::ToolContext {
+        state: std::sync::Arc::new(crate::server::AppState {
+            client: state.client.clone(),
+            auth: state.auth.clone(),
+            registry: state.registry.clone(),
+        }),
+        workspace_id: ws.relay.workspace_of(run_id).unwrap_or_default(),
+        parent_conversation_id: run_id.to_string(),
+    };
+    let mut agent = crate::build_agent_with_context(&mode, state.client.clone(), Some(tool_ctx))?;
     if !prior_md.is_empty() {
         agent = agent.with_history(vec![("user".to_string(), prior_md)]);
     }

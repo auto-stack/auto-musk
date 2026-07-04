@@ -648,6 +648,12 @@ impl RunStore {
         runs.get(run_id).map(|e| e.engine.status.to_status_str())
     }
 
+    /// Which workspace this run belongs to (for orchestration tool context).
+    pub fn workspace_of(&self, run_id: &str) -> Option<String> {
+        let runs = self.runs.lock().unwrap();
+        runs.get(run_id).and_then(|e| e.metadata.workspace_id.clone())
+    }
+
     /// Snapshot the initial task + prior handoff markdown for the driver.
     /// (Read-only; the driver calls this before running the agent.)
     pub fn step_context(&self, run_id: &str) -> Option<(String, String)> {

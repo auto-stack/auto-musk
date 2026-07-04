@@ -1562,6 +1562,8 @@ async fn chat_stream(
     let session_id = id.clone();
     let history_for_agent = history.clone();
     let ws_root = ws.root.clone();
+    let ws_id_for_ctx = q.id_or_default(&state.registry);
+    let state_for_ctx = Arc::new(state.clone());
     // Resolve the session's mode to an AgentMode (built-in or user .at).
     let mode_reg = crate::mode::ModeRegistry::load();
     let agent_mode = match mode_reg.get(&mode).cloned() {
@@ -1583,7 +1585,13 @@ async fn chat_stream(
     tokio::spawn(async move {
         // Confine this task's file-tool operations to the workspace root.
         crate::tool_safety::set_current_root(ws_root.clone());
-        let mut agent = match crate::build_agent_from_mode(&agent_mode, client) {
+        // Build agent with orchestration tool context (spawn_relay, dispatch).
+        let tool_ctx = crate::tool_context::ToolContext {
+            state: state_for_ctx.clone(),
+            workspace_id: ws_id_for_ctx.clone(),
+            parent_conversation_id: session_id.clone(),
+        };
+        let mut agent = match crate::build_agent_with_context(&agent_mode, client, Some(tool_ctx)) {
             Ok(a) => a,
             Err(e) => {
                 crate::tool_safety::clear_current_root();
