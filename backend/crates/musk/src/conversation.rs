@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
+use tokio::sync::broadcast;
 
 use crate::chats::{ChatMessage, Role};
 
@@ -469,6 +470,15 @@ const ID_LEN: usize = 16;
 pub struct ConversationStore {
     dir: PathBuf,
     cache: Mutex<HashMap<String, Conversation>>,
+    event_tx: broadcast::Sender<ConversationEvent>,
+}
+
+/// A real-time event broadcast by [`ConversationStore`], consumed via SSE.
+#[derive(Clone, Debug)]
+pub struct ConversationEvent {
+    pub conversation_id: String,
+    pub turn: Option<Turn>,
+    pub status: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -477,9 +487,11 @@ impl ConversationStore {
     /// Loads index.json into the cache (summaries only — turns loaded lazily on get).
     pub fn new(dir: PathBuf) -> Self {
         std::fs::create_dir_all(&dir).ok();
+        let (event_tx, _) = broadcast::channel(256);
         let store = Self {
             dir,
             cache: Mutex::new(HashMap::new()),
+            event_tx,
         };
         store.warm_cache_from_index();
         store
@@ -488,6 +500,11 @@ impl ConversationStore {
     /// Alias for `new` — handy in tests.
     pub fn at(dir: PathBuf) -> Self {
         Self::new(dir)
+    }
+
+    /// Subscribe to real-time conversation events (for SSE).
+    pub fn subscribe(&self) -> broadcast::Receiver<ConversationEvent> {
+        self.event_tx.subscribe()
     }
 
     /// Create a new conversation. Returns the created Conversation.
@@ -621,6 +638,7 @@ impl ConversationStore {
         // Ensure seq is set relative to existing turn count.
         // (Caller may have set seq already; we trust caller if seq > 0, else assign.)
         let _ = turn.seq;
+        let turn_clone = turn.clone();
 
         // Serialize + append one line to turns.jsonl.
         let turns_path = conv_dir.join(TURNS_FILE);
@@ -635,21 +653,40 @@ impl ConversationStore {
             }
         }
 
-        self.mutate(id, |conv| {
+        let updated = self.mutate(id, |conv| {
             let seq = conv.turns.len();
             turn.seq = seq;
             if let Some(t) = turn.tokens {
                 conv.cumulative_tokens = conv.cumulative_tokens.saturating_add(t);
             }
             conv.turns.push(turn);
-        })
+        });
+
+        // Broadcast the new turn to SSE subscribers (best-effort).
+        if updated.is_some() {
+            let _ = self.event_tx.send(ConversationEvent {
+                conversation_id: id.to_string(),
+                turn: Some(turn_clone),
+                status: None,
+            });
+        }
+        updated
     }
 
     /// Update conversation status.
     pub fn set_status(&self, id: &str, status: ConversationStatus) -> Option<Conversation> {
-        self.mutate(id, |conv| {
+        let status_str = status.to_status_str();
+        let updated = self.mutate(id, |conv| {
             conv.status = status;
-        })
+        });
+        if updated.is_some() {
+            let _ = self.event_tx.send(ConversationEvent {
+                conversation_id: id.to_string(),
+                turn: None,
+                status: Some(status_str),
+            });
+        }
+        updated
     }
 
     /// Update pending gate.
@@ -980,6 +1017,63 @@ mod tests {
         );
         assert!(store.delete(&conv.id));
         assert!(store.get(&conv.id).is_none());
+    }
+
+    #[test]
+    fn broadcast_on_append_turn() {
+        let dir = temp_dir();
+        let store = ConversationStore::at(dir);
+        let conv = store.create(
+            ConversationKind::Chat,
+            "ws1".into(),
+            Driver::Human,
+            None,
+            None,
+        );
+
+        // Subscribe before appending.
+        let mut rx = store.subscribe();
+
+        store.append_turn(
+            &conv.id,
+            Turn {
+                id: "t0".into(),
+                seq: 0,
+                from: "human".into(),
+                to: None,
+                kind: TurnKind::Message,
+                content: "test".into(),
+                tool: None,
+                gate: None,
+                child_conversation: None,
+                tokens: None,
+                timestamp: now_secs(),
+            },
+        );
+
+        // broadcast::Receiver::try_recv is sync — works in a regular #[test].
+        let ev = rx.try_recv();
+        assert!(ev.is_ok(), "should receive broadcast event");
+        assert_eq!(ev.unwrap().conversation_id, conv.id);
+    }
+
+    #[test]
+    fn broadcast_on_set_status() {
+        let dir = temp_dir();
+        let store = ConversationStore::at(dir);
+        let conv = store.create(
+            ConversationKind::Chat,
+            "ws1".into(),
+            Driver::Human,
+            None,
+            None,
+        );
+        let mut rx = store.subscribe();
+        store.set_status(&conv.id, ConversationStatus::Completed);
+        let ev = rx.try_recv().expect("should receive status event");
+        assert_eq!(ev.conversation_id, conv.id);
+        assert_eq!(ev.status.as_deref(), Some("completed"));
+        assert!(ev.turn.is_none());
     }
 
     #[test]

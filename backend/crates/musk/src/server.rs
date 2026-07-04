@@ -22,7 +22,7 @@ use std::sync::Arc;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{get, patch, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -145,6 +145,15 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/chats/session/{id}/approve/{index}", post(chat_approve))
         .route("/api/chats/session/{id}/reject/{index}", post(chat_reject))
         .route("/api/chats/session/{id}/reject-all", post(chat_reject_all))
+        // Conversations (unified chat + flow): direct ConversationStore reads
+        // + an SSE stream of real-time turn/status events.
+        .route("/api/conversations", get(conversation_list))
+        .route(
+            "/api/conversations/{id}",
+            get(conversation_get).delete(conversation_delete),
+        )
+        .route("/api/conversations/{id}/title", patch(conversation_rename))
+        .route("/api/conversations/{id}/stream", get(conversation_stream))
         // Workspace management (recent / open / status / browse) — operate on
         // the registry itself, not per-workspace stores.
         .route("/api/workspace/list", get(workspace_list))
@@ -1794,6 +1803,115 @@ async fn workspace_initialize(
         Ok(_) => Json(json!({ "status": "initialized", "workspace": ws_id })).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("write marker: {e}")).into_response(),
     }
+}
+
+// ── Conversation endpoints (unified chat + flow) ────────────────────────────
+
+/// `GET /api/conversations?workspace=<id>` — list all conversations.
+async fn conversation_list(
+    State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
+) -> impl IntoResponse {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    Json(json!({ "conversations": ws.conversations.list() }))
+}
+
+/// `GET /api/conversations/{id}?workspace=<id>` — get conversation with all turns.
+async fn conversation_get(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Query(q): Query<WorkspaceQuery>,
+) -> Response {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.conversations.get(&id) {
+        Some(conv) => Json(conv).into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            format!("conversation '{id}' not found"),
+        )
+            .into_response(),
+    }
+}
+
+/// `DELETE /api/conversations/{id}?workspace=<id>`
+async fn conversation_delete(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Query(q): Query<WorkspaceQuery>,
+) -> Response {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    if ws.conversations.delete(&id) {
+        Json(json!({"status": "deleted", "id": id})).into_response()
+    } else {
+        (
+            StatusCode::NOT_FOUND,
+            format!("conversation '{id}' not found"),
+        )
+            .into_response()
+    }
+}
+
+/// `PATCH /api/conversations/{id}/title?workspace=<id>` body.
+#[derive(Deserialize)]
+struct ConversationTitleBody {
+    title: String,
+}
+
+/// `PATCH /api/conversations/{id}/title?workspace=<id>` — rename a conversation.
+async fn conversation_rename(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Query(q): Query<WorkspaceQuery>,
+    Json(body): Json<ConversationTitleBody>,
+) -> Response {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    match ws.conversations.rename(&id, &body.title) {
+        Some(conv) => Json(conv).into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            format!("conversation '{id}' not found"),
+        )
+            .into_response(),
+    }
+}
+
+/// `GET /api/conversations/{id}/stream?workspace=<id>` — SSE stream of
+/// conversation events (appended turns + status changes). Events from other
+/// conversations are filtered out client-side here.
+async fn conversation_stream(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Query(q): Query<WorkspaceQuery>,
+) -> Response {
+    use axum::response::sse::{Event, KeepAlive, Sse};
+    use std::convert::Infallible;
+    use std::time::Duration;
+    use tokio_stream::StreamExt;
+
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    let rx = ws.conversations.subscribe();
+
+    let stream = tokio_stream::wrappers::BroadcastStream::new(rx)
+        .filter_map(move |res| match res {
+            Ok(ev) if ev.conversation_id == id => Some(ev),
+            _ => None,
+        })
+        .map(|ev| {
+            Ok::<_, Infallible>(
+                Event::default()
+                    .event("conversation_event")
+                    .json_data(serde_json::json!({
+                        "conversation_id": ev.conversation_id,
+                        "turn": ev.turn,
+                        "status": ev.status,
+                    }))
+                    .unwrap_or_else(|_| Event::default()),
+            )
+        });
+
+    Sse::new(stream)
+        .keep_alive(KeepAlive::new().interval(Duration::from_secs(15)))
+        .into_response()
 }
 
 // ── Workflow endpoints ─────────────────────────────────────────────────────
