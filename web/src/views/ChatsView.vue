@@ -1073,6 +1073,28 @@ async function sendMessage() {
     return
   }
 
+  // ─── Superpower shortcut: /superpower <task> ──────────────────────────
+  // Medium-complexity flow: brainstorm → plan → execute → review
+  if (text.startsWith('/superpower ')) {
+    const task = text.slice('/superpower '.length).trim()
+    if (!task) return
+    const runId = await startRun({
+      flow_id: 'superpower',
+      task,
+    })
+    if (runId) {
+      await advanceRun(runId)
+      messages.value.push({
+        id: `superpower-${runId}`,
+        role: 'assistant',
+        content: `⚡ **Superpowers 工作流已启动**\n\n**任务**: ${task}\n**Run ID**: \`${runId}\`\n**Flow**: superpower\n\n流程：Brainstorm → Plan → Execute → Review。点击下方的 Run 卡片查看实时进度。`,
+        timestamp: Date.now(),
+        profession_id: 'assistant',
+      })
+    }
+    return
+  }
+
   // ─── Quick Spec1 shortcut: /spec1 <goal> ──────────────────────────────
   // Runs only the Advisor step to test goal-discovery before full pipeline.
   if (text.startsWith('/spec1 ')) {

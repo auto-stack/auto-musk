@@ -214,7 +214,8 @@ pub fn build_agent_with_context(
     if let Some(ctx) = ctx {
         let orch_tools: Vec<(&str, Arc<dyn auto_ai_agent::Tool>)> = vec![
             ("spawn_relay", Arc::new(crate::orch_tools::SpawnRelay::new(ctx.clone()))),
-            ("dispatch", Arc::new(crate::orch_tools::Dispatch::new(ctx))),
+            ("dispatch", Arc::new(crate::orch_tools::Dispatch::new(ctx.clone()))),
+            ("bring_in", Arc::new(crate::orch_tools::BringIn::new(ctx))),
         ];
         for (name, tool) in &orch_tools {
             if mode.tools.is_empty() || mode.tools.iter().any(|t| t == name) {

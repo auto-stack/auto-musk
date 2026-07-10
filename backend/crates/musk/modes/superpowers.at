@@ -6,7 +6,7 @@ mode {
     tools : [
         read_file, write_file, edit_file, batch_replace,
         search, list_dir, list_symbols, glob,
-        run_command, skill, spawn_relay, dispatch
+        run_command, skill, spawn_relay, dispatch, bring_in
     ]
     workflow : "feature-dev"
     context_file : ".musk.md"

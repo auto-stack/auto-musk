@@ -1,9 +1,9 @@
-//! Orchestration tools — `spawn_relay` and `dispatch`.
+//! Orchestration tools — `spawn_relay`, `dispatch`, and `bring_in`.
 //!
 //! These tools let an agent create nested sub-conversations. When called, they:
-//! 1. Create a child Conversation (kind=Flow for spawn_relay, kind=Errand for dispatch)
+//! 1. Create a child Conversation (kind=Flow for spawn_relay, kind=Errand for dispatch/bring_in)
 //! 2. Record a Turn with `child_conversation` in the parent conversation
-//! 3. Drive the sub-conversation asynchronously (tokio::spawn)
+//! 3. Drive the sub-conversation asynchronously (spawn_relay) or synchronously (dispatch/bring_in)
 //! 4. Wait for completion, then return the summary as the tool_result string
 //!
 //! The Tool trait's `execute(&self, args)` carries no business context, so these
@@ -298,6 +298,141 @@ impl Tool for Dispatch {
                     },
                 );
                 Err(ToolError::Exec(format!("dispatch to '{}' failed: {}", target, e)))
+            }
+        }
+    }
+}
+
+// ─── BringIn (specialist sub-task) ──────────────────────────────────────────
+
+/// `bring_in` — bring in a specialist agent (e.g. coder, architect) to handle
+/// a sub-task. Unlike `dispatch` (which targets gofer for quick lookups),
+/// `bring_in` targets a full specialist that runs a complete multi-turn session.
+pub struct BringIn {
+    ctx: ToolContext,
+}
+
+impl BringIn {
+    pub fn new(ctx: ToolContext) -> Self {
+        Self { ctx }
+    }
+}
+
+#[async_trait]
+impl Tool for BringIn {
+    fn name(&self) -> &str {
+        "bring_in"
+    }
+
+    fn description(&self) -> &str {
+        "Bring in a specialist agent (e.g. 'coder', 'architect', 'tester') to \
+         handle a sub-task. Use for tasks that need a specific specialist's \
+         expertise but don't require a full relay pipeline. Args: target \
+         (agent id, e.g. 'coder'), task (clear, self-contained instruction \
+         with full context). Returns the specialist's output."
+    }
+
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "target": {
+                    "type": "string",
+                    "description": "Specialist agent id: 'coder', 'architect', 'tester', 'reviewer', etc."
+                },
+                "task": {
+                    "type": "string",
+                    "description": "A clear, self-contained instruction with full context for the specialist."
+                }
+            },
+            "required": ["target", "task"]
+        })
+    }
+
+    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+        let target = args["target"]
+            .as_str()
+            .unwrap_or("coder")
+            .to_string();
+        let task = args["task"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+        if task.is_empty() {
+            return Err(ToolError::Exec("bring_in: 'task' is required".into()));
+        }
+
+        let ws = self.ctx.state.registry.get(&self.ctx.workspace_id);
+
+        // 1. Create child errand conversation.
+        let child = ws.conversations.create(
+            ConversationKind::Errand,
+            self.ctx.workspace_id.clone(),
+            Driver::Agent {
+                agent_id: target.clone(),
+            },
+            Some(target.clone()),
+            Some(task.clone()),
+        );
+
+        // 2. Record parent Turn linking to child.
+        let parent_turn = build_toolcall_turn("bring_in", args, &child.id);
+        ws.conversations
+            .append_turn(&self.ctx.parent_conversation_id, parent_turn);
+
+        // 3. Record the task as the first turn in the child conversation.
+        ws.conversations.append_turn(
+            &child.id,
+            Turn {
+                id: conversation::new_id(8),
+                seq: 0,
+                from: "assistant".into(),
+                to: Some(target.clone()),
+                kind: TurnKind::Message,
+                content: task.clone(),
+                tool: None,
+                gate: None,
+                child_conversation: None,
+                tokens: None,
+                timestamp: conversation::now_secs(),
+            },
+        );
+
+        // 4. Build + run the specialist agent (synchronous, multi-turn).
+        crate::tool_safety::set_current_root(ws.root.clone());
+        let result = run_errand_agent(&self.ctx.state, &target, &task, &child.id, &ws).await;
+        crate::tool_safety::clear_current_root();
+
+        match result {
+            Ok(output) => {
+                ws.conversations.append_turn(
+                    &child.id,
+                    Turn {
+                        id: conversation::new_id(8),
+                        seq: 1,
+                        from: target.clone(),
+                        to: None,
+                        kind: TurnKind::Message,
+                        content: output.clone(),
+                        tool: None,
+                        gate: None,
+                        child_conversation: None,
+                        tokens: None,
+                        timestamp: conversation::now_secs(),
+                    },
+                );
+                ws.conversations
+                    .set_status(&child.id, ConversationStatus::Completed);
+                Ok(output)
+            }
+            Err(e) => {
+                ws.conversations.set_status(
+                    &child.id,
+                    ConversationStatus::Failed {
+                        error: e.clone(),
+                    },
+                );
+                Err(ToolError::Exec(format!("bring_in '{}' failed: {}", target, e)))
             }
         }
     }
