@@ -439,7 +439,7 @@ const {
 const { projectPath, workspaceId } = useProject()
 const { currentSecretary, badgeCount: gateBadgeCount, resolveGate: resolveGateInbox, snoozeGate } = useGateInbox()
 const { configs: agentConfigs, loadConfigs: loadAgentConfigs } = useAgentConfigs()
-const { startRun } = useRelay()
+const { startRun, advanceRun } = useRelay()
 const reportData = ref<ReportData | null>(null)
 
 // @mention state
@@ -1056,24 +1056,16 @@ async function sendMessage() {
     const goal = text.slice('/relay '.length).trim()
     if (!goal) return
     const runId = await startRun({
-      flow_id: 'auto-discovery',
+      flow_id: 'default',
       task: goal,
-      steps: [
-        { id: 'discover', profession_id: 'advisor' },
-        { id: 'design', profession_id: 'architect' },
-        { id: 'plan', profession_id: 'planner' },
-        { id: 'draft-tests', profession_id: 'tester' },
-        { id: 'code', profession_id: 'coder' },
-        { id: 'run-tests', profession_id: 'tester' },
-        { id: 'review', profession_id: 'reviewer' },
-        { id: 'report', profession_id: 'documenter' },
-      ],
     })
     if (runId) {
+      // Kick off the background driver so the flow actually runs.
+      await advanceRun(runId)
       messages.value.push({
         id: `relay-${runId}`,
         role: 'assistant',
-        content: `🚀 **Relay Run 已开始自动执行**\n\n**目标**: ${goal}\n**Run ID**: \`${runId}\`\n**Flow**: auto-discovery\n\nAdvisor 正在自动分析 Goals 和 Subgoals，随后将无缝传递给 Architect → Planner → Coder → Tester → Reviewer → Documenter。你可以在 [Relay 视图](/forge/relay?run=${encodeURIComponent(runId)}) 中实时查看进度。`,
+        content: `🚀 **Relay 工作流已启动**\n\n**目标**: ${goal}\n**Run ID**: \`${runId}\`\n**Flow**: default\n\nAdvisor → Architect → Planner → Tester → Coder → Reviewer → Documenter 正在自动接力执行。点击下方的 Run 卡片可查看实时进度。`,
         timestamp: Date.now(),
         profession_id: 'assistant',
       })
@@ -1087,17 +1079,18 @@ async function sendMessage() {
     const goal = text.slice('/spec1 '.length).trim()
     if (!goal) return
     const runId = await startRun({
-      flow_id: 'goal-discovery',
+      flow_id: 'simple',
       task: goal,
       steps: [
         { id: 'discover', profession_id: 'advisor' },
       ],
     })
     if (runId) {
+      await advanceRun(runId)
       messages.value.push({
         id: `spec1-${runId}`,
         role: 'assistant',
-        content: `🎯 **Goal Discovery Run 已开始**\n\n**目标**: ${goal}\n**Run ID**: \`${runId}\`\n**Flow**: goal-discovery\n\nAdvisor 正在自动分析并尝试写出 Goals。此 Run 只执行 Advisor 一步，成功写出 Goal 即结束。你可以在 [Relay 视图](/forge/relay?run=${encodeURIComponent(runId)}) 中实时查看进度。`,
+        content: `🎯 **Goal Discovery 已启动**\n\n**目标**: ${goal}\n**Run ID**: \`${runId}\`\n\nAdvisor 正在分析并尝试写出 Goals。此 Run 只执行 Advisor 一步。`,
         timestamp: Date.now(),
         profession_id: 'assistant',
       })
