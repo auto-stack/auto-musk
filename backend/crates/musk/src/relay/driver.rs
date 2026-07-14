@@ -21,8 +21,8 @@ use std::sync::Arc;
 
 use auto_ai_agent::StreamEvent;
 
-use crate::relay::handoff::HandoffDocument;
-use crate::relay::pipeline::AdvanceResult;
+use crate::relay::HandoffDocument;
+use crate::relay::AdvanceResult;
 use crate::relay::store::{RunEvent, RunStore};
 use crate::server::AppState;
 
@@ -59,13 +59,13 @@ async fn drive_loop(
 
         match result {
             AdvanceResult::ExecuteStep {
-                profession_id, ..
+                role_id, ..
             } => {
                 // 2. Run the agent for this step (outside the store lock).
-                if let Err(e) = run_step(state, ws, run_id, &profession_id).await {
+                if let Err(e) = run_step(state, ws, run_id, &role_id).await {
                     // Agent build/run failure → fail the run with a handoff carrying the error.
                     tracing::error!("drive_run: step agent failed for {run_id}: {e}");
-                    let mut h = HandoffDocument::new(&profession_id, "", run_id, 0);
+                    let mut h = HandoffDocument::new(&role_id, "");
                     h.summary = format!("[agent error] {e}");
                     let _ = ws.relay.submit_handoff(run_id, h);
                     continue;
@@ -101,7 +101,7 @@ async fn run_step(
     state: &AppState,
     ws: &std::sync::Arc<crate::workspace::WorkspaceStores>,
     run_id: &str,
-    profession_id: &str,
+    role_id: &str,
 ) -> Result<String, String> {
     // Compose the task + prior-step context.
     let (task, prior_md) = ws
@@ -111,9 +111,9 @@ async fn run_step(
 
     // Build a one-shot mode whose profession is this step's profession.
     let mode = crate::mode::AgentMode {
-        name: format!("relay-{profession_id}"),
+        name: format!("relay-{role_id}"),
         description: String::new(),
-        role: profession_id.to_string(),
+        role: role_id.to_string(),
         skills: false,
         tools: Vec::new(),
         workflow: None,
@@ -139,7 +139,7 @@ async fn run_step(
     // async) so it must be cheap; it locks the store only to push an event.
     let store = ws.relay.clone();
     let run_id_owned = run_id.to_string();
-    let profession_owned = profession_id.to_string();
+    let profession_owned = role_id.to_string();
     let accumulated = Arc::new(std::sync::Mutex::new(String::new()));
     let acc = accumulated.clone();
     let on_event: Arc<dyn Fn(StreamEvent) + Send + Sync> = Arc::new(move |ev| {
@@ -150,7 +150,7 @@ async fn run_step(
                     &run_id_owned,
                     RunEvent::TurnDelta {
                         timestamp: now_secs(),
-                        profession_id: profession_owned.clone(),
+                        role_id: profession_owned.clone(),
                         text: text.clone(),
                     },
                 );
@@ -164,7 +164,7 @@ async fn run_step(
                     &run_id_owned,
                     RunEvent::TurnToolCall {
                         timestamp: now_secs(),
-                        profession_id: profession_owned.clone(),
+                        role_id: profession_owned.clone(),
                         tool_id: String::new(),
                         tool_name: tool.clone(),
                         arguments: args.clone(),
@@ -174,7 +174,7 @@ async fn run_step(
                     &run_id_owned,
                     RunEvent::TurnToolResult {
                         timestamp: now_secs(),
-                        profession_id: profession_owned.clone(),
+                        role_id: profession_owned.clone(),
                         tool_id: String::new(),
                         result: result.clone(),
                     },
@@ -203,16 +203,16 @@ async fn run_step(
         run_id,
         RunEvent::TurnComplete {
             timestamp: now_secs(),
-            profession_id: profession_id.into(),
+            role_id: role_id.into(),
         },
     );
 
     // Wrap into a HandoffDocument and submit (the engine routes to the next step).
     let next_profession = ws.relay.next_profession(run_id).unwrap_or_default();
-    let mut handoff = HandoffDocument::new(profession_id, &next_profession, run_id, 0);
+    let mut handoff = HandoffDocument::new(role_id, &next_profession);
     handoff.summary = final_output.clone();
-    handoff.token_usage.step_input = result.total_tokens / 2;
-    handoff.token_usage.step_output =
+    handoff.token_usage.step_tokens = result.total_tokens / 2;
+    handoff.token_usage.step_tokens =
         result.total_tokens.saturating_sub(result.total_tokens / 2);
 
     ws.relay

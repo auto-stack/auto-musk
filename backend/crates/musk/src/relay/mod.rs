@@ -1,30 +1,35 @@
-//! Relay orchestration engine — the auto-forge differentiation core.
+//! Relay orchestration engine — multi-agent pipeline for musk.
 //!
-//! Ported from auto-forge `backend/src/relay/` (~12k lines across 21 files),
-//! flattened to auto-musk's app-layer model. Key design decision (verified
-//! against auto-ai-agent): the `Profession` trait in auto-ai-agent is purely
-//! static config (no `handoff_to`/`dispatchable_to`/`owned_sections`/`ForgePhase`),
-//! and its `relay.rs` only defines a 101-line `RelayTarget` trait with runtime
-//! handoff explicitly marked as a v2 concern. So we build the orchestration
-//! layer entirely here in the musk app, not in auto-ai-agent.
+//! As of Plan 008, the generic orchestration primitives (HandoffDocument,
+//! BudgetTracker, FlowSpec, PipelineEngine) have been moved to
+//! `auto_ai_agent::orchestration`. This module re-exports them for backward
+//! compatibility + provides musk-specific layers:
 //!
-//! This module is the P2b.1 foundation: profession metadata (P2a) + the
-//! pure state machine (PipelineEngine) + run store + REST/SSE endpoints.
-//! A full background driver + AgentTurn ReAct loop arrives in P2b.2; for now
-//! `advance` drives a step synchronously via `build_agent_from_mode`.
+//! - `profession.rs` — musk's Profession metadata (handoff_to, dispatchable_to,
+//!   approval_gates, ForgePhase) + ProfessionRegistry
+//! - `store.rs` — run persistence + SSE event bus (app-specific)
+//! - `api.rs` — HTTP/SSE endpoints (app-specific)
+//! - `driver.rs` — musk's orchestration loop (builds agents with musk context)
 
+// Re-export the generic orchestration types from auto-ai-agent (Plan 008).
+pub use auto_ai_agent::orchestration::{
+    AdvanceResult, BudgetAction, BudgetStrategy, BudgetTracker, ContextPointers,
+    Decision, ExitRouting, FlowSpec, FlowStep, GateDecision, GateType,
+    HandoffDocument, PendingGate, PipelineEngine, PipelineMode, PipelineStatus,
+    StepRecord, TokenBudget, TokenUsage, WorkProduct, Question,
+};
+
+// Musk-specific modules.
 pub mod api;
-pub mod budget;
 pub mod driver;
-pub mod flow;
-pub mod handoff;
-pub mod pipeline;
+pub mod flows;
+pub use flows::{builtin_flows, get_builtin_flow};
 pub mod profession;
 pub mod store;
 
-pub use budget::{BudgetAction, BudgetTracker, TokenBudget};
-pub use flow::{ExitRouting, FlowSpec, FlowStep, GateType};
-pub use handoff::HandoffDocument;
-pub use pipeline::{AdvanceResult, GateDecision, PipelineEngine, PipelineStatus, RelayMode};
+// Musk-specific re-exports.
 pub use profession::{ForgePhase, Profession, ProfessionRegistry};
 pub use store::{RunEvent, RunState, RunStore, RunSummary};
+
+// Compatibility alias: musk code uses `RelayMode` → now `PipelineMode`.
+pub type RelayMode = PipelineMode;

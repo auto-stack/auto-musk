@@ -1,7 +1,7 @@
 //! Relay REST API + SSE — the HTTP surface the frontend `useRelay.ts` talks to.
 //!
 //! P2b.1 simplified driver: `advance` runs a step synchronously by resolving
-//! the step's `profession_id` into a minimal [`AgentMode`] and calling
+//! the step's `role_id` into a minimal [`AgentMode`] and calling
 //! `agent.run(task)`, then wraps the result in a [`HandoffDocument`] and
 //! submits it. A full background driver with streaming turn events arrives in
 //! P2b.2.
@@ -19,8 +19,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio_stream::StreamExt;
 
-use crate::relay::handoff::HandoffDocument;
-use crate::relay::pipeline::{AdvanceResult, GateDecision};
+use crate::relay::HandoffDocument;
+use crate::relay::{AdvanceResult, GateDecision};
 use crate::relay::profession::ProfessionRegistry;
 use crate::relay::store::{RunEvent, RunState, RunStore, StartRunRequest};
 use crate::server::AppState;
@@ -113,7 +113,7 @@ async fn start_run(
         &RunEvent::RelayUpdate {
             timestamp: now_secs(),
             step_id: String::new(),
-            profession_id: String::new(),
+            role_id: String::new(),
             status: "idle".into(),
         },
     );
@@ -228,12 +228,9 @@ async fn resolve_gate(
     let ws_id = q.id_or_default(&state.registry);
     let ws = state.registry.get(&ws_id);
     let decision = match body.decision.as_str() {
-        "approve" => GateDecision::Approve,
+        "approve" | "edit" => GateDecision::Approve,
         "reject" => GateDecision::Reject {
             feedback: body.feedback.unwrap_or_default(),
-        },
-        "edit" => GateDecision::Edit {
-            changes: body.feedback.unwrap_or_default(),
         },
         other => {
             return (
@@ -307,7 +304,7 @@ async fn list_souls() -> impl IntoResponse {
 
 /// `GET /api/forge/relay/flows` — list built-in flows.
 async fn list_flows() -> impl IntoResponse {
-    let flows: Vec<serde_json::Value> = crate::relay::flow::builtin_flows()
+    let flows: Vec<serde_json::Value> = crate::relay::builtin_flows()
         .into_iter()
         .map(|f| {
             serde_json::json!({
@@ -315,10 +312,10 @@ async fn list_flows() -> impl IntoResponse {
                 "steps": f.steps.iter().map(|s| {
                     serde_json::json!({
                         "id": s.id,
-                        "profession_id": s.profession_id,
+                        "role_id": s.role_id,
                         "gate": match s.gate {
-                            crate::relay::flow::GateType::Auto => "auto",
-                            crate::relay::flow::GateType::Human => "human",
+                            crate::relay::GateType::Auto => "auto",
+                            crate::relay::GateType::Human => "human",
                         },
                     })
                 }).collect::<Vec<_>>(),
@@ -344,11 +341,11 @@ fn now_secs() -> u64 {
 pub fn publish_advance_result(run_id: &str, result: &AdvanceResult) {
     let now = now_secs();
     match result {
-        AdvanceResult::ExecuteStep { step_id, profession_id, .. } => {
+        AdvanceResult::ExecuteStep { step_id, role_id, .. } => {
             publish(run_id, &RunEvent::StepStarted {
                 timestamp: now,
                 step_id: step_id.clone(),
-                profession_id: profession_id.clone(),
+                role_id: role_id.clone(),
             });
         }
         AdvanceResult::WaitForHuman { step_id, .. } => {

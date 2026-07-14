@@ -135,7 +135,7 @@ pub struct GateRecord {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GateInfo {
     pub step_id: String,
-    pub profession_id: String,
+    pub role_id: String,
     pub since: u64,
 }
 
@@ -257,12 +257,12 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
     match event {
         RunEvent::StepStarted {
             step_id,
-            profession_id,
+            role_id,
             ..
         } => {
             push_system!(
-                profession_id.clone(),
-                format!("Step '{}' started ({})", step_id, profession_id)
+                role_id.clone(),
+                format!("Step '{}' started ({})", step_id, role_id)
             );
         }
         RunEvent::StepCompleted {
@@ -276,14 +276,14 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
             );
         }
         RunEvent::TurnDelta {
-            profession_id,
+            role_id,
             text,
             ..
         } => {
             turns.push(Turn {
                 id: new_id(8),
                 seq,
-                from: profession_id.clone(),
+                from: role_id.clone(),
                 to: None,
                 kind: TurnKind::Message,
                 content: text.clone(),
@@ -296,7 +296,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
             seq += 1;
         }
         RunEvent::TurnToolCall {
-            profession_id,
+            role_id,
             tool_name,
             arguments,
             ..
@@ -304,7 +304,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
             turns.push(Turn {
                 id: new_id(8),
                 seq,
-                from: profession_id.clone(),
+                from: role_id.clone(),
                 to: None,
                 kind: TurnKind::ToolCall,
                 content: String::new(),
@@ -322,14 +322,14 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
             seq += 1;
         }
         RunEvent::TurnToolResult {
-            profession_id,
+            role_id,
             result,
             ..
         } => {
             turns.push(Turn {
                 id: new_id(8),
                 seq,
-                from: profession_id.clone(),
+                from: role_id.clone(),
                 to: None,
                 kind: TurnKind::ToolResult,
                 content: String::new(),
@@ -402,39 +402,39 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
         }
         RunEvent::RelayUpdate {
             step_id,
-            profession_id,
+            role_id,
             status,
             ..
         } => {
             push_system!(
-                profession_id.clone(),
+                role_id.clone(),
                 format!("Step '{}' {}", step_id, status)
             );
         }
         RunEvent::TurnError {
-            profession_id,
+            role_id,
             message,
             ..
         } => {
             push_system!(
-                profession_id.clone(),
+                role_id.clone(),
                 format!("Error: {}", message)
             );
         }
         RunEvent::TurnBudgetWarning {
-            profession_id,
+            role_id,
             remaining,
             ..
         } => {
             push_system!(
-                profession_id.clone(),
+                role_id.clone(),
                 format!("Budget warning: {} tokens remaining", remaining)
             );
         }
         RunEvent::TurnBudgetExceeded {
-            profession_id, ..
+            role_id, ..
         } => {
-            push_system!(profession_id.clone(), "Budget exceeded".into());
+            push_system!(role_id.clone(), "Budget exceeded".into());
         }
     }
     turns
@@ -1228,7 +1228,7 @@ mod tests {
         let event = crate::relay::store::RunEvent::StepStarted {
             timestamp: 42,
             step_id: "s1".into(),
-            profession_id: "advisor".into(),
+            role_id: "advisor".into(),
         };
         let turns = run_event_to_turns(&event, 0);
         assert_eq!(turns.len(), 1);
@@ -1243,7 +1243,7 @@ mod tests {
     fn run_event_turn_delta_to_message_turn() {
         let event = crate::relay::store::RunEvent::TurnDelta {
             timestamp: 1,
-            profession_id: "coder".into(),
+            role_id: "coder".into(),
             text: "writing code".into(),
         };
         let turns = run_event_to_turns(&event, 5);
@@ -1258,14 +1258,14 @@ mod tests {
     fn run_event_tool_call_and_result() {
         let call = crate::relay::store::RunEvent::TurnToolCall {
             timestamp: 0,
-            profession_id: "coder".into(),
+            role_id: "coder".into(),
             tool_id: "t1".into(),
             tool_name: "read_file".into(),
             arguments: serde_json::json!({"path": "x"}),
         };
         let res = crate::relay::store::RunEvent::TurnToolResult {
             timestamp: 0,
-            profession_id: "coder".into(),
+            role_id: "coder".into(),
             tool_id: "t1".into(),
             result: "contents".into(),
         };

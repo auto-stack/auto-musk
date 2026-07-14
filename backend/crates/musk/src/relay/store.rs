@@ -11,17 +11,17 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use crate::relay::budget::TokenBudget;
-use crate::relay::flow::{FlowSpec, FlowStep, GateType};
-use crate::relay::handoff::HandoffDocument;
-use crate::relay::pipeline::{GateDecision, PipelineEngine, PipelineStatus, RelayMode};
+use crate::relay::TokenBudget;
+use crate::relay::{FlowSpec, FlowStep, GateType};
+use crate::relay::HandoffDocument;
+use crate::relay::{GateDecision, PipelineEngine, PipelineStatus, RelayMode};
 
 /// A run event for SSE streaming + history replay. Tagged so the frontend's
 /// `event_type` switch (`useRelay.ts` `subscribeToRun`) maps 1:1.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RunEvent {
-    StepStarted { #[serde(default)] timestamp: u64, step_id: String, profession_id: String },
+    StepStarted { #[serde(default)] timestamp: u64, step_id: String, role_id: String },
     StepCompleted { #[serde(default)] timestamp: u64, step_id: String, handoff_summary: String },
     GateWaiting { #[serde(default)] timestamp: u64, step_id: String, gate: String },
     GateResolved { #[serde(default)] timestamp: u64, step_id: String, decision: String },
@@ -31,28 +31,28 @@ pub enum RunEvent {
     RelayUpdate {
         #[serde(default)] timestamp: u64,
         step_id: String,
-        profession_id: String,
+        role_id: String,
         status: String,
     },
     // ─── Turn events (session-log persistence; populated by the P2b.2 driver) ───
-    TurnDelta { #[serde(default)] timestamp: u64, profession_id: String, text: String },
+    TurnDelta { #[serde(default)] timestamp: u64, role_id: String, text: String },
     TurnToolCall {
         #[serde(default)] timestamp: u64,
-        profession_id: String,
+        role_id: String,
         tool_id: String,
         tool_name: String,
         arguments: serde_json::Value,
     },
     TurnToolResult {
         #[serde(default)] timestamp: u64,
-        profession_id: String,
+        role_id: String,
         tool_id: String,
         result: String,
     },
-    TurnComplete { #[serde(default)] timestamp: u64, profession_id: String },
-    TurnError { #[serde(default)] timestamp: u64, profession_id: String, message: String },
-    TurnBudgetWarning { #[serde(default)] timestamp: u64, profession_id: String, remaining: u64 },
-    TurnBudgetExceeded { #[serde(default)] timestamp: u64, profession_id: String },
+    TurnComplete { #[serde(default)] timestamp: u64, role_id: String },
+    TurnError { #[serde(default)] timestamp: u64, role_id: String, message: String },
+    TurnBudgetWarning { #[serde(default)] timestamp: u64, role_id: String, remaining: u64 },
+    TurnBudgetExceeded { #[serde(default)] timestamp: u64, role_id: String },
 }
 
 impl RunEvent {
@@ -124,7 +124,7 @@ pub struct RunState {
     pub total_steps: usize,
     pub current_profession: Option<String>,
     pub steps: Vec<StepState>,
-    pub step_history: Vec<crate::relay::pipeline::StepRecord>,
+    pub step_history: Vec<crate::relay::StepRecord>,
     pub cumulative_tokens: u64,
     pub budget_limit: u64,
     pub budget_remaining: u64,
@@ -134,7 +134,7 @@ pub struct RunState {
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub current_step_started_at: Option<u64>,
-    /// Per-profession token totals (key = profession_id).
+    /// Per-profession token totals (key = role_id).
     #[serde(default)]
     pub profession_tokens: HashMap<String, u64>,
 }
@@ -142,7 +142,7 @@ pub struct RunState {
 #[derive(Debug, Clone, Serialize)]
 pub struct StepState {
     pub id: String,
-    pub profession_id: String,
+    pub role_id: String,
     pub status: String, // pending | running | completed | failed
     pub gate: String,   // auto | human
 }
@@ -150,7 +150,7 @@ pub struct StepState {
 #[derive(Debug, Clone, Serialize)]
 pub struct GateState {
     pub step_id: String,
-    pub profession_id: String,
+    pub role_id: String,
     pub since: u64,
 }
 
@@ -203,7 +203,7 @@ pub struct StartRunRequest {
 #[derive(Debug, Clone, Deserialize)]
 pub struct StartRunStep {
     pub id: String,
-    pub profession_id: String,
+    pub role_id: String,
     #[serde(default)]
     pub gate: Option<GateType>,
 }
@@ -214,14 +214,14 @@ pub fn resolve_flow(req: &StartRunRequest) -> FlowSpec {
     if !req.steps.is_empty() {
         let mut flow = FlowSpec::new("inline");
         for s in &req.steps {
-            flow.add_step(FlowStep::new(s.id.clone(), s.profession_id.clone())
+            flow.add_step(FlowStep::new(s.id.clone(), s.role_id.clone())
                 .with_gate(s.gate.unwrap_or(GateType::Auto)));
         }
         return flow;
     }
     let id = req.flow_id.as_deref().unwrap_or("default");
-    crate::relay::flow::get_builtin_flow(id)
-        .unwrap_or_else(|| crate::relay::flow::get_builtin_flow("default").unwrap())
+    crate::relay::get_builtin_flow(id)
+        .unwrap_or_else(|| crate::relay::get_builtin_flow("default").unwrap())
 }
 
 /// The run store: in-memory map keyed by run_id, with disk persistence.
@@ -405,7 +405,7 @@ impl RunStore {
     /// Advance the run's pipeline engine. Returns the advance result + the new
     /// run state. Pushes the appropriate RunEvent. The caller (api.rs) drives
     /// the agent turn when the result is `ExecuteStep`.
-    pub fn advance(&self, run_id: &str) -> Option<(crate::relay::pipeline::AdvanceResult, RunState)> {
+    pub fn advance(&self, run_id: &str) -> Option<(crate::relay::AdvanceResult, RunState)> {
         let mut appended: Vec<RunEvent> = Vec::new();
         let (result, state) = {
             let mut runs = self.runs.lock().unwrap();
@@ -414,36 +414,36 @@ impl RunStore {
             let now = now_secs();
             entry.updated_at = now;
             match &result {
-                crate::relay::pipeline::AdvanceResult::ExecuteStep { step_id, profession_id, .. } => {
+                crate::relay::AdvanceResult::ExecuteStep { step_id, role_id, .. } => {
                     appended.push(RunEvent::StepStarted {
                         timestamp: now,
                         step_id: step_id.clone(),
-                        profession_id: profession_id.clone(),
+                        role_id: role_id.clone(),
                     });
                     appended.push(RunEvent::RelayUpdate {
                         timestamp: now,
                         step_id: step_id.clone(),
-                        profession_id: profession_id.clone(),
+                        role_id: role_id.clone(),
                         status: "running".into(),
                     });
                 }
-                crate::relay::pipeline::AdvanceResult::WaitForHuman { step_id, .. } => {
+                crate::relay::AdvanceResult::WaitForHuman { step_id, .. } => {
                     appended.push(RunEvent::GateWaiting {
                         timestamp: now,
                         step_id: step_id.clone(),
                         gate: "human".into(),
                     });
                 }
-                crate::relay::pipeline::AdvanceResult::Completed => {
+                crate::relay::AdvanceResult::Completed => {
                     appended.push(RunEvent::RunCompleted { timestamp: now });
                 }
-                crate::relay::pipeline::AdvanceResult::Failed { error } => {
+                crate::relay::AdvanceResult::Failed { error } => {
                     appended.push(RunEvent::RunFailed {
                         timestamp: now,
                         error: error.clone(),
                     });
                 }
-                crate::relay::pipeline::AdvanceResult::Paused { .. } => {}
+                crate::relay::AdvanceResult::Paused { .. } => {}
             }
             for ev in &appended {
                 entry.events.push(ev.clone());
@@ -459,7 +459,7 @@ impl RunStore {
     }
 
     /// Submit a handoff document and record the step completion.
-    pub fn submit_handoff(&self, run_id: &str, handoff: HandoffDocument) -> Option<(crate::relay::pipeline::AdvanceResult, RunState)> {
+    pub fn submit_handoff(&self, run_id: &str, handoff: HandoffDocument) -> Option<(crate::relay::AdvanceResult, RunState)> {
         let mut appended: Vec<RunEvent> = Vec::new();
         let (result, state) = {
             let mut runs = self.runs.lock().unwrap();
@@ -489,17 +489,17 @@ impl RunStore {
                         .map(|r| {
                             r.handoff
                                 .as_ref()
-                                .map(|h| h.token_usage.step_input + h.token_usage.step_output)
+                                .map(|h| h.token_usage.step_tokens + h.token_usage.step_tokens)
                                 .unwrap_or(0)
                         })
                         .unwrap_or(0),
                 });
             }
             match &result {
-                crate::relay::pipeline::AdvanceResult::Completed => {
+                crate::relay::AdvanceResult::Completed => {
                     appended.push(RunEvent::RunCompleted { timestamp: now });
                 }
-                crate::relay::pipeline::AdvanceResult::Failed { error, .. } => {
+                crate::relay::AdvanceResult::Failed { error, .. } => {
                     appended.push(RunEvent::RunFailed {
                         timestamp: now,
                         error: error.clone(),
@@ -519,7 +519,7 @@ impl RunStore {
     }
 
     /// Resolve a pending human gate.
-    pub fn resolve_gate(&self, run_id: &str, decision: GateDecision) -> Option<(crate::relay::pipeline::AdvanceResult, RunState)> {
+    pub fn resolve_gate(&self, run_id: &str, decision: GateDecision) -> Option<(crate::relay::AdvanceResult, RunState)> {
         let mut appended: Vec<RunEvent> = Vec::new();
         let (result, state) = {
             let mut runs = self.runs.lock().unwrap();
@@ -528,7 +528,7 @@ impl RunStore {
             let decision_str = match &decision {
                 GateDecision::Approve => "approve",
                 GateDecision::Reject { .. } => "reject",
-                GateDecision::Edit { .. } => "edit",
+                GateDecision::Approve => "edit",
             };
             let step_id = entry
                 .engine
@@ -545,14 +545,14 @@ impl RunStore {
             // resolve_gate may itself advance into ExecuteStep/WaitForHuman/etc.;
             // record the resulting transition.
             match &result {
-                crate::relay::pipeline::AdvanceResult::ExecuteStep { step_id, profession_id, .. } => {
+                crate::relay::AdvanceResult::ExecuteStep { step_id, role_id, .. } => {
                     appended.push(RunEvent::StepStarted {
                         timestamp: now,
                         step_id: step_id.clone(),
-                        profession_id: profession_id.clone(),
+                        role_id: role_id.clone(),
                     });
                 }
-                crate::relay::pipeline::AdvanceResult::Completed => {
+                crate::relay::AdvanceResult::Completed => {
                     appended.push(RunEvent::RunCompleted { timestamp: now });
                 }
                 _ => {}
@@ -682,7 +682,7 @@ impl RunStore {
         let steps = &entry.engine.flow.steps;
         // current_step points at the step about to run; after it completes the
         // "next" is current+1.
-        steps.get(cur + 1).map(|s| s.profession_id.clone())
+        steps.get(cur + 1).map(|s| s.role_id.clone())
     }
 
 }
@@ -710,7 +710,7 @@ fn build_run_state(entry: &RunEntry) -> RunState {
             };
             StepState {
                 id: s.id.clone(),
-                profession_id: s.profession_id.clone(),
+                role_id: s.role_id.clone(),
                 status: status.into(),
                 gate: match s.gate {
                     GateType::Auto => "auto".into(),
@@ -722,14 +722,14 @@ fn build_run_state(entry: &RunEntry) -> RunState {
 
     let waiting_for_gate = match &eng.status {
         PipelineStatus::WaitingForHuman { step_id, since, .. } => {
-            let profession_id = eng
+            let role_id = eng
                 .flow
                 .get_step(step_id)
-                .map(|s| s.profession_id.clone())
+                .map(|s| s.role_id.clone())
                 .unwrap_or_default();
             Some(GateState {
                 step_id: step_id.clone(),
-                profession_id,
+                role_id,
                 since: *since,
             })
         }
@@ -751,8 +751,8 @@ fn build_run_state(entry: &RunEntry) -> RunState {
     let mut profession_tokens: HashMap<String, u64> = HashMap::new();
     for rec in &eng.step_history {
         if let Some(h) = &rec.handoff {
-            let spent = h.token_usage.step_input + h.token_usage.step_output;
-            *profession_tokens.entry(rec.profession_id.clone()).or_insert(0) += spent;
+            let spent = h.token_usage.step_tokens + h.token_usage.step_tokens;
+            *profession_tokens.entry(rec.role_id.clone()).or_insert(0) += spent;
         }
     }
 
@@ -761,7 +761,7 @@ fn build_run_state(entry: &RunEntry) -> RunState {
         status: eng.status.to_status_str(),
         current_step,
         total_steps,
-        current_profession: eng.current_profession_id().map(String::from),
+        current_profession: eng.current_role_id().map(String::from),
         steps,
         step_history: eng.step_history.clone(),
         cumulative_tokens: eng.cumulative_tokens,
@@ -782,7 +782,7 @@ fn build_run_summary(entry: &RunEntry) -> RunSummary {
         status: eng.status.to_status_str(),
         current_step: eng.current_step.min(eng.flow.steps.len()),
         total_steps: eng.flow.steps.len(),
-        current_profession: eng.current_profession_id().map(String::from),
+        current_profession: eng.current_role_id().map(String::from),
         cumulative_tokens: eng.cumulative_tokens,
         created_at: entry.created_at,
         updated_at: entry.updated_at,
@@ -823,7 +823,7 @@ fn uuidish() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::relay::handoff::HandoffDocument;
+    use crate::relay::HandoffDocument;
 
     fn tmp_store() -> RunStore {
         let dir = std::env::temp_dir().join(format!(
@@ -837,7 +837,7 @@ mod tests {
     }
 
     fn handoff(to: &str) -> HandoffDocument {
-        let mut h = HandoffDocument::new("advisor", to, "run", 0);
+        let mut h = HandoffDocument::new("advisor", to);
         h.summary = "done".into();
         h
     }
@@ -871,16 +871,16 @@ mod tests {
         );
         // Step 1: advisor.
         let (r, _) = store.advance(&id).unwrap();
-        assert!(matches!(r, crate::relay::pipeline::AdvanceResult::ExecuteStep { .. }));
+        assert!(matches!(r, crate::relay::AdvanceResult::ExecuteStep { .. }));
         let (r, _) = store
             .submit_handoff(&id, handoff("coder"))
             .unwrap();
         // Step 2: coder.
-        assert!(matches!(r, crate::relay::pipeline::AdvanceResult::ExecuteStep { .. }));
+        assert!(matches!(r, crate::relay::AdvanceResult::ExecuteStep { .. }));
         let (r, state) = store
             .submit_handoff(&id, handoff("documenter"))
             .unwrap();
-        assert!(matches!(r, crate::relay::pipeline::AdvanceResult::Completed));
+        assert!(matches!(r, crate::relay::AdvanceResult::Completed));
         assert_eq!(state.status, "completed");
     }
 
@@ -1015,7 +1015,7 @@ mod tests {
             &id,
             RunEvent::TurnDelta {
                 timestamp: 0,
-                profession_id: "advisor".into(),
+                role_id: "advisor".into(),
                 text: "thinking...".into(),
             },
         );
@@ -1058,7 +1058,7 @@ mod tests {
             &id,
             RunEvent::TurnDelta {
                 timestamp: 0,
-                profession_id: "advisor".into(),
+                role_id: "advisor".into(),
                 text: "hi".into(),
             },
         );

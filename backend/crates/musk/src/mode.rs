@@ -174,7 +174,7 @@ mod tests {
         let mode = parse_mode_at(src).unwrap();
         assert_eq!(mode.name, "superpowers");
         assert!(mode.skills);
-        assert_eq!(mode.role, "coder");
+        assert_eq!(mode.role, "assistant");
         assert!(!mode.tools.is_empty()); // has tool list
     }
 
