@@ -528,7 +528,6 @@ impl RunStore {
             let decision_str = match &decision {
                 GateDecision::Approve => "approve",
                 GateDecision::Reject { .. } => "reject",
-                GateDecision::Approve => "edit",
             };
             let step_id = entry
                 .engine
@@ -683,6 +682,18 @@ impl RunStore {
         // current_step points at the step about to run; after it completes the
         // "next" is current+1.
         steps.get(cur + 1).map(|s| s.role_id.clone())
+    }
+
+    /// The last completed handoff document (for the next agent's context).
+    /// Returns None for the first step.
+    pub fn last_handoff(&self, run_id: &str) -> Option<HandoffDocument> {
+        let runs = self.runs.lock().unwrap();
+        let entry = runs.get(run_id)?;
+        entry
+            .engine
+            .step_history
+            .last()
+            .and_then(|r| r.handoff.clone())
     }
 
 }

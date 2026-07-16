@@ -6,8 +6,8 @@
 //! [`StreamEvent`]s into relay [`RunEvent`]s. The driver:
 //!
 //! 1. `store.advance(run_id)` → if `ExecuteStep`, build an agent for the step's
-//!    profession and `agent.run_stream(task, on_event)` *outside* any store
-//!    lock (so other runs stay responsive).
+//!    profession via [`MuskAgentFactory`] (Plan 008 Phase 6: implements
+//!    `auto_ai_agent::orchestration::AgentFactory`).
 //! 2. The `on_event` callback maps `StreamEvent → RunEvent` and pushes/publishes
 //!    each one (brief store lock).
 //! 3. On `Done`, wrap the accumulated output in a [`HandoffDocument`] and
@@ -19,12 +19,65 @@
 
 use std::sync::Arc;
 
+use auto_ai_agent::orchestration::{AgentFactory, HandoffDocument};
 use auto_ai_agent::StreamEvent;
 
-use crate::relay::HandoffDocument;
 use crate::relay::AdvanceResult;
-use crate::relay::store::{RunEvent, RunStore};
+use crate::relay::store::RunEvent;
 use crate::server::AppState;
+
+// ── MuskAgentFactory (Plan 008 Phase 6) ────────────────────────────────────
+
+/// Agent factory for musk relay steps. Implements
+/// [`auto_ai_agent::orchestration::AgentFactory`] so the relay driver can
+/// build agents with musk-specific context:
+/// - [`crate::tool_context::ToolContext`] for orchestration tools
+///   (`spawn_relay`, `dispatch`, `bring_in`)
+/// - Workspace-scoped file safety
+/// - Musk's full tool set (spec tools, skills, etc.)
+struct MuskAgentFactory {
+    state: Arc<AppState>,
+    workspace_id: String,
+    run_id: String,
+}
+
+impl AgentFactory for MuskAgentFactory {
+    fn build_agent(
+        &self,
+        role_id: &str,
+        handoff: Option<&HandoffDocument>,
+    ) -> Result<auto_ai_agent::Agent, String> {
+        // Build a one-shot mode whose profession is this step's profession.
+        let mode = crate::mode::AgentMode {
+            name: format!("relay-{role_id}"),
+            description: String::new(),
+            role: role_id.to_string(),
+            skills: false,
+            tools: Vec::new(),
+            workflow: None,
+            context_file: String::new(),
+            extra_system_prompt: String::new(),
+        };
+        // Build agent with orchestration tool context (spawn_relay, dispatch).
+        let tool_ctx = crate::tool_context::ToolContext {
+            state: self.state.clone(),
+            workspace_id: self.workspace_id.clone(),
+            parent_conversation_id: self.run_id.clone(),
+        };
+        let mut agent =
+            crate::build_agent_with_context(&mode, self.state.client.clone(), Some(tool_ctx))?;
+        // Inject prior handoff context if this isn't the first step.
+        if let Some(h) = handoff {
+            let prior_md = h.render();
+            if !prior_md.is_empty() {
+                agent = agent.with_history(vec![("user".to_string(), prior_md)]);
+            }
+        }
+        Ok(agent)
+    }
+}
+
+// ── Driver entry points ────────────────────────────────────────────────────
 
 /// Drive a run forward as far as possible: run every auto step until a human
 /// gate, completion, failure, or pause. Designed to be `tokio::spawn`-ed.
@@ -104,36 +157,19 @@ async fn run_step(
     role_id: &str,
 ) -> Result<String, String> {
     // Compose the task + prior-step context.
-    let (task, prior_md) = ws
+    let (task, _prior_md) = ws
         .relay
         .step_context(run_id)
         .unwrap_or(("Continue the relay pipeline.".to_string(), String::new()));
 
-    // Build a one-shot mode whose profession is this step's profession.
-    let mode = crate::mode::AgentMode {
-        name: format!("relay-{role_id}"),
-        description: String::new(),
-        role: role_id.to_string(),
-        skills: false,
-        tools: Vec::new(),
-        workflow: None,
-        context_file: String::new(),
-        extra_system_prompt: String::new(),
-    };
-    // Build agent with orchestration tool context (spawn_relay, dispatch).
-    let tool_ctx = crate::tool_context::ToolContext {
-        state: std::sync::Arc::new(crate::server::AppState {
-            client: state.client.clone(),
-            auth: state.auth.clone(),
-            registry: state.registry.clone(),
-        }),
+    // Build the agent via MuskAgentFactory (Plan 008 Phase 6).
+    let factory = MuskAgentFactory {
+        state: Arc::new(state.clone()),
         workspace_id: ws.relay.workspace_of(run_id).unwrap_or_default(),
-        parent_conversation_id: run_id.to_string(),
+        run_id: run_id.to_string(),
     };
-    let mut agent = crate::build_agent_with_context(&mode, state.client.clone(), Some(tool_ctx))?;
-    if !prior_md.is_empty() {
-        agent = agent.with_history(vec![("user".to_string(), prior_md)]);
-    }
+    let prior_handoff = ws.relay.last_handoff(run_id);
+    let mut agent = factory.build_agent(role_id, prior_handoff.as_ref())?;
 
     // Stream events into the run's history + SSE bus. The callback is `Fn` (not
     // async) so it must be cheap; it locks the store only to push an event.
