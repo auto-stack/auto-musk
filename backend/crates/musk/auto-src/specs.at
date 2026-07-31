@@ -414,3 +414,88 @@ fn scan_refs(text str, known HashSet<str>) List<str> {
 // Options (plan 014): #[rs] escape hatch, hand-written Rust retained, or wait
 // for a2r to fix composite-generic HashMap method handling. all_ids + scan_refs
 // above ARE ported and verified; only the HashMap-accumulation loop is blocked.
+
+// ============================================================
+// Derived statuses — auto-advance item/section status from relations
+// ============================================================
+
+// 原版 derive_statuses 在函数内定义局部 struct Snap —— a2r 不支持函数内类型，
+// 提到顶层。纯内部快照，无需 serde derive。
+// a2r-4: 无显式 derive 时 a2r 自动加全量含 PartialOrd/Ord，会传播要求字段实现
+// Ord（SectionType/SpecStatus 没有）—— 显式只 derive Clone, Debug。
+#[derive(Clone, Debug)]
+type Snap {
+    id str
+    section_type SectionType
+    status SpecStatus
+    related List<str>
+}
+
+/// Linear lookup in the snap list by id — returns Option<Snap> (owned clone).
+/// 用 List 线性查找替代 HashMap.get（a2r-10: HashMap 复合泛型方法调用有缺陷）。
+fn find_snap(snap List<Snap>, id str) Option<Snap> {
+    for s in snap {
+        if s.id == id {
+            return Some(s.clone())
+        }
+    }
+    return None
+}
+
+// 原版用 matches!(s, Empty|Proposed|Analysed|Approved|InProgress) —— Auto 无多模式，
+// 用 is 链等价。
+fn is_goal_advanceable(s SpecStatus) bool {
+    is s {
+        SpecStatus.Empty -> return true,
+        SpecStatus.Proposed -> return true,
+        SpecStatus.Analysed -> return true,
+        SpecStatus.Approved -> return true,
+        SpecStatus.InProgress -> return true,
+        else -> return false
+    }
+}
+
+// 原版 matches!(s, Done|Verified)。
+fn is_test_done(s SpecStatus) bool {
+    is s {
+        SpecStatus.Done -> return true,
+        SpecStatus.Verified -> return true,
+        else -> return false
+    }
+}
+
+// 否定形式（Auto 无逻辑非运算符 not/!，用否定语义函数替代 not is_test_done）。
+fn is_test_pending(s SpecStatus) bool {
+    is s {
+        SpecStatus.Done -> return false,
+        SpecStatus.Verified -> return false,
+        else -> return true
+    }
+}
+
+/// The "done-ish" terminal status for a section type (used by aggregate rule).
+fn section_complete_status(st SectionType) SpecStatus {
+    is st {
+        SectionType.Goals -> return SpecStatus.Archived,
+        SectionType.Architecture -> return SpecStatus.Approved,
+        SectionType.Designs -> return SpecStatus.Approved,
+        SectionType.Plans -> return SpecStatus.Done,
+        SectionType.Tests -> return SpecStatus.Verified,
+        SectionType.Reviews -> return SpecStatus.Published,
+        SectionType.Reports -> return SpecStatus.Published
+    }
+}
+
+// NOTE: derive_statuses() is NOT ported to Auto yet. It needs to mutate
+// item.status / section.status in place while iterating &mut self.sections.
+// a2r has two compounding gaps here (a2r-11):
+//   - `for section in self.sections` in a mut fn generates a MOVE (`for section
+//     in self.sections`), not `&mut self.sections`; `for mut x` is rejected
+//     ("'mut' is not supported as a storage modifier").
+//   - indexed mutable assignment `self.items[i].field = v` compiles to
+//     `self.items[i].clone().field = v` (writes to a clone — no effect).
+// Auto has no idiom for mutable-borrow iteration / in-place nested mutation,
+// so this method needs an escape hatch or hand-written Rust. The helper fns
+// above (Snap, find_snap, is_goal_advanceable, is_test_done, is_test_pending,
+// section_complete_status) ARE ported and verified; only the mutating driver
+// is blocked.

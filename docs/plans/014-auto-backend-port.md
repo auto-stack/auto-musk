@@ -66,6 +66,7 @@ PoC 手写源码：`backend/crates/musk/auto-src/specs.at`
 | **a2r-8** | `r"..."` 原始字符串字面量被渲染成 `r { content: "..." }`（结构体误解析）| `Regex.new(r"\d+")` | 用普通字符串 + 双反斜杠 `"\\d+"` |
 | **a2r-9** | `str` 变量传给 `&str` 形参方法调用类型不匹配（E0308）| `re.find_iter(text)`（text: String）| a2r-3 的泛化；regex/IO 场景高发，需手动 `&` 或改参数形态 |
 | **a2r-10** | `HashMap<K, Vec<V>>` 复合泛型方法调用处理不全：`insert` 给 Vec 值误注入 `.to_string()`（E0599）；`remove`/`contains_key` 对 String key 不加 `&`（E0308，但 `get` 会加）| `m.insert(k, list_val)` / `m.remove(string_key)` | **当前硬边界**，非写法可绕开；需 `#[rs]` 逃生舱或保留手写 Rust |
+| **a2r-11** | 无可变借用遍历 / 就地嵌套修改：`mut fn` 里 `for x in self.coll` 生成 move 而非 `&mut`；`for mut x` 被拒；`self.items[i].field = v` 编译成 `self.items[i].clone().field = v`（写进 clone，无效）| 任何"遍历 `&mut self` 集合并改元素字段"的方法 | **当前硬边界**；Auto 无 mutable-borrow 迭代惯用法。需 `#[rs]` 逃生舱或保留手写 Rust。影响所有"就地修改"型方法 |
 
 > 与技能（auto-lang-creator）规则对应：a2r-1/a2r-5/a2r-8/a2r-9 未被 A 类 23 条
 > 覆盖（新发现）；a2r-2 ≈ A21；a2r-3/a2r-9 同源；a2r-4/a2r-7 = A23；a2r-6 = A20。
@@ -126,11 +127,28 @@ struct + 字符串转换 + factory）可作为阶段 2 的「首批可移植」�
 
 `all_ids` + `scan_refs` 已就绪，待 rebuild_relations 路径定下后拼装。
 
-### 批次 C — derive_statuses（待启动）
+### 批次 C — derive_statuses 🔶 辅助函数已移植，主方法受阻 a2r-11
 
 原版用 iterator 链（filter_map/filter/all/any）+ `matches!` 宏 + 函数内局部
-struct。a2r 对迭代器适配器链无证据、不支持 `matches!`。需用 `for` 循环 +
-`is` 匹配 + `Map` 查表等价重写。逻辑复杂但纯计算，无 regex/IO 依赖。
+struct + 就地修改 `item.status`。
+
+**已移植并 0 错误**（`specs.at`）：
+- `Snap` struct（提到顶层，原版是函数内局部）+ `find_snap` 线性查找
+- `is_goal_advanceable` / `is_test_done` / `is_test_pending`（用 `is` 链替代
+  `matches!` 宏，Auto 无多模式 A|B）
+- `section_complete_status`（7 分支 is）
+- 探针验证：`is` 链替代 matches!、for 循环替代 iter().all() 均可编译
+
+**受阻：derive_statuses 主方法**。即便用 `for` + 辅助 bool 重写了所有迭代器
+链、用 List<Snap> 替代 HashMap 绕开 a2r-10，仍卡在**就地修改**：方法要遍历
+`&mut self.sections` 改 `item.status`/`section.status`。a2r-11（新硬边界）：
+- `mut fn` 里 `for x in self.coll` 生成 move，非 `&mut`
+- `for mut x` 被拒（"'mut' is not supported as a storage modifier"）
+- `self.items[i].field = v` 编译成 `self.items[i].clone().field = v`（无效）
+
+Auto 无 mutable-borrow 迭代惯用法。需 `#[rs]` 逃生舱或保留手写 Rust。
+**影响面**：所有"遍历并就地修改 self 集合元素"的方法都中招 —— 这是个高频
+模式，specs.rs 的 SpecsStore CRUD、其它模块的类似方法都会受影响。
 
 ### 批次 D — SpecsStore（文件 IO，待启动）
 
