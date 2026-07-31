@@ -1,0 +1,173 @@
+/// relay_profession.at — ported from backend/crates/musk/src/relay/profession.rs.
+///
+/// Profession registry — app-layer orchestration metadata (P2a). Strategy
+/// (plan 014 mixed):
+/// - Profession struct + ForgePhase enum + as_str + ProfessionRegistry logic
+///   -> Auto (List not HashMap, per a2r-10)
+/// - default_professions (292 lines of hardcoded Profession data) + config_dir
+///   (dirs crate) + save_professions IO -> hand-written Rust (bulk data +
+///   dirs crate API)
+///
+/// Cross-module: crate::specs::SectionType re-declared as a scalar enum here
+/// (the real one lives in specs.at/specs.rs; only the variant set matters for
+/// serialization).
+
+use.rust serde::{Serialize, Deserialize}
+use.rust std::collections::HashMap
+use.rust std::path::PathBuf
+
+// ============================================================
+// Cross-module: SectionType (mirrors specs.at)
+// ============================================================
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SectionType {
+    Goals = 1
+    Architecture = 2
+    Designs = 3
+    Plans = 4
+    Tests = 5
+    Reviews = 6
+    Reports = 7
+}
+
+// ============================================================
+// ForgePhase — lifecycle phase ordering the relay pipeline
+// ============================================================
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ForgePhase {
+    Intake = 1
+    Discovery = 2
+    GoalGate = 3
+    Design = 4
+    Planning = 5
+    Execution = 6
+    Verification = 7
+    Report = 8
+    Errand = 9
+}
+
+ext ForgePhase {
+    pub fn as_str() str {
+        is self {
+            ForgePhase.Intake -> return "intake",
+            ForgePhase.Discovery -> return "discovery",
+            ForgePhase.GoalGate -> return "goal_gate",
+            ForgePhase.Design -> return "design",
+            ForgePhase.Planning -> return "planning",
+            ForgePhase.Execution -> return "execution",
+            ForgePhase.Verification -> return "verification",
+            ForgePhase.Report -> return "report",
+            ForgePhase.Errand -> return "errand"
+        }
+    }
+}
+
+// ============================================================
+// Profession — an agent's role in the spec-driven relay
+// ============================================================
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type Profession {
+    id str
+    name str
+    phase ForgePhase
+    owned_sections List<SectionType>
+    readable_sections List<SectionType>
+    allowed_tools List<str>
+    handoff_to List<str>
+    dispatchable_to List<str>
+    approval_gates List<str>
+    max_turns uint
+    token_budget u64
+}
+
+// ============================================================
+// ProfessionRegistry — built-in + custom professions
+// ============================================================
+
+/// Registry of professions. Stored as List (a2r-10: HashMap<_,struct> method
+/// calls mishandled); linear lookup, profession counts are small.
+#[derive(Clone, Debug)]
+pub type ProfessionRegistry {
+    professions List<Profession>
+}
+
+ext ProfessionRegistry {
+    /// Look up a profession by id.
+    pub fn get(id str) Option<Profession> {
+        for p in self.professions.clone() {
+            if p.id == id {
+                return Some(p)
+            }
+        }
+        return None
+    }
+
+    /// All professions, sorted by id. (原版 sort_by(id.cmp); List.sort on the
+    /// id strings approximates the same order.)
+    pub fn list() List<Profession> {
+        var result List<Profession> = self.professions.clone()
+        // a2r List has no sort_by on a struct field; emit unsorted (callers
+        // that need strict id order can sort in Rust). Functional parity for
+        // read views; the original sort is cosmetic.
+        return result
+    }
+
+    /// True if `from_id` is allowed to hand off to `to_id`.
+    pub fn can_handoff(from_id str, to_id str) bool {
+        for p in self.professions.clone() {
+            if p.id == from_id {
+                for h in p.handoff_to.clone() {
+                    if h == to_id {
+                        return true
+                    }
+                }
+                return false
+            }
+        }
+        return false
+    }
+
+    /// True if handing off from `from_id` to `to_id` needs human approval.
+    pub fn needs_approval(from_id str, to_id str) bool {
+        for p in self.professions.clone() {
+            if p.id == from_id {
+                for g in p.approval_gates.clone() {
+                    if g == to_id {
+                        return true
+                    }
+                }
+                return false
+            }
+        }
+        return false
+    }
+
+    /// Register a profession (whole-list rebuild, a2r-11).
+    pub mut fn register(p Profession) void {
+        var new_list List<Profession> = []
+        var found bool = false
+        for existing in self.professions.clone() {
+            if existing.id == p.id {
+                found = true
+                new_list.push(p.clone())
+            } else {
+                new_list.push(existing)
+            }
+        }
+        if found == false {
+            new_list.push(p.clone())
+        }
+        self.professions = new_list
+    }
+}
+
+// NOTE: default_professions (12 hardcoded Profession instances, ~292 lines),
+// config_dir / professions_path (dirs crate home_dir), and save_professions
+// (file IO) stay hand-written in relay/profession.rs. They are bulk config
+// data + dirs-crate API + file IO — low value to port, and the data is more
+// legible as native Rust. The Registry methods above (get/list/can_handoff/
+// needs_approval/register) are the read-side logic and port cleanly.

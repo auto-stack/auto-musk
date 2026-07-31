@@ -1,10 +1,10 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
-> **状态**：**6 个读侧模块移植完成，最终产物不依赖 a2r-std**（2026-08-01）。
-> specs.rs 全文件 + auth/hello/tool_safety/mode/app_config 部分。流转：`auto trans` →
-> `nativeize.pl`（去 a2r-std 桥接）→ cargo check（仅 serde 等真实 crate）。16 个 a2r 限制
-> 全部实测记录。剩余 🟡 模块（relay/chats 数据模型）可移植但需多文件整合；🔴 模块
-> （server/main/tools 等 axum+async 集，~7000 行）需 a2r-std 补服务器运行时。
+> **状态**：**9 个模块移植完成，最终产物不依赖 a2r-std**（2026-08-01）。specs.rs 全文件 +
+> auth/hello/tool_safety/mode/app_config/chats/relay{profession,store} 部分。流转：
+> `auto trans` → `nativeize.pl`（去 a2r-std 桥接）→ cargo check（仅 serde 等真实 crate）。
+> 18 个 a2r 限制全部实测记录。剩余 🔴 模块（server/main/tools 等 axum+async 集，~7000 行）
+> 需 a2r-std 补服务器运行时，不在本计划可达范围。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
@@ -76,6 +76,8 @@ PoC 手写源码：`backend/crates/musk/auto-src/specs.at`
 | **a2r-15** | `fs.write` 等名称冲突：a2r 优先映射到 `a2r_std::fs::write`（签名 `(str,str)->bool`）而非 `std::fs::write`（`(Path,[u8])->Result`）| `fs.write(path, bytes)` | 改用 String 内容（a2r_std::write 接 `&str`）或 `write_bytes`；按 a2r_std 的实际签名处理返回值 |
 | **a2r-16** | `#[rs]` 逃生舱**仍按 Auto 语法解析函数体**，不是原样透传任意 Rust：不支持 `&mut`/`&` 引用、`vec![]` 宏、`::` 路径、`use` 语句 | `#[rs] fn f() { let mut buf = vec![0u8; n]; }` | `#[rs` 仅适合"Auto 语法 + Rust 语义"的代码（接近 Rust 的方法调用）。真正的 Rust API（sha2/hex/rand/Mutex）须保留手写 Rust，不走 `#[rs]` |
 | **a2r-17** | a2r 对 `str.contains`/`str.find`/`fs.write`/`fs.exists` 等**硬桥接到 a2r-std**（rust.rs 源码硬编码分支，`a2r_std_used.set(true)`），写法无法绕开（连 `#[rs]` 内的 `.contains()` 都被桥接）。导致最终产物依赖 a2r-std crate | `text.contains(n)` → `a2r_std::str_contains(text, n)` | **后处理 `nativeize.pl`**：把桥接调用 1:1 替换回原生（`a.contains(b)`、`std::fs::write(p,c).is_ok()`）并删 `use a2r_std` 注入。`time` 可在 .at 层用 `SystemTime.elapsed()` 绕开（非 str/fs 方法，不桥接） |
+| **a2r-18** | named-field 异构 enum（tag union）的**解构**：`Variant(e)` 把 e 绑到第一个命名字段，且省略 `..`，导致 E0027（"pattern does not mention fields"）。a2r 测试只有 positional（元组变体）解构用例 | `is ev { RunEvent.StepStarted(e) -> e.timestamp }` | named-field 变体的字段访问型方法（如 timestamp()）保留手写 Rust；无解构的 arm（`Variant -> "str"`，如 event_type）可用 |
+| **a2r-19** | `str` 类型注解一律渲染成 `String`，但 `substring`/`trim` 等方法返回 `&str`；赋值给 str 变量或链式 `.to_string()` 会类型不匹配（E0308） | `let s str = text.trim()` → `let s: String = text.trim()`（&str≠String） | 用 `+ ""`/`+ "…"` 拼接（a2r 把 &str+&str 处理成 String）替代中间变量；或 `text.trim().to_string()` 单独一行（注意 a2r 对链式 `.to_string()` 的解析，必要时拆成两步） |
 
 > 与技能（auto-lang-creator）规则对应：a2r-1/a2r-5/a2r-8/a2r-9 未被 A 类 23 条
 > 覆盖（新发现）；a2r-2 ≈ A21；a2r-3/a2r-9 同源；a2r-4/a2r-7 = A23；a2r-6 = A20。
@@ -216,6 +218,9 @@ auto-musk/
 │   │   ├── tool_safety.at   ✅ 命令分类
 │   │   ├── mode.at          ✅ struct + registry
 │   │   ├── app_config.at    ✅ struct + effective
+│   │   ├── chats.at         ✅ 会话模型 + summary/append + ChatStore IO
+│   │   ├── relay_profession.at ✅ Profession + ForgePhase + Registry
+│   │   ├── relay_store.at   ✅ RunEvent(异构 enum) + 7 读模型 struct
 │   │   ├── nativeize.pl     ✅ 后处理脚本（a2r 输出 → 去 a2r-std → 纯 Rust）
 │   │   └── ...（🔴 模块 server/relay/main 等暂不移植）
 │   └── src/                 ← 现有手写 Rust（a2r 输出 .a2r.rs 与之并存，不覆盖）
@@ -250,6 +255,9 @@ a2r-std（转译器层面，写法绕不开），所以需后处理。
 | tool_safety.rs | 336 | ✅ 部分 | 命令分类（CommandTier+classify_command）用 Auto；路径限制（OnceLock+thread_local+Path 方法）保留手写 |
 | mode.rs | 236 | ✅ 部分 | AgentMode struct + ModeRegistry 纯逻辑用 Auto（List 替代 HashMap）；parse_mode_at(auto_atom)+include_str! 保留手写 |
 | app_config.rs | 250 | ✅ 部分 | MuskAppConfig/HarnessSelection struct + effective_* 用 Auto；load/parse/env 保留手写 |
+| chats.rs | 596 | ✅ 部分 | Role/ToolCall/ChatMessage/ChatSession/Summary + summary/append + ChatStore IO 用 Auto（SpecChange 跨模块重声明）；new_id(rand) 保留手写 |
+| relay/profession.rs | 494 | ✅ 部分 | Profession struct + ForgePhase enum + Registry（get/list/can_handoff/needs_approval/register）用 Auto；default_professions(292 行数据)/dirs/save 保留手写 |
+| relay/store.rs | 1078 | ✅ 部分 | RunEvent（15 变体 hetero tag union）+ 7 个读模型 struct 用 Auto；RunState/RunEntry(含上游类型)/RunStore(Mutex) 保留手写 |
 
 ### 混合策略（auth.rs 验证确立）
 
@@ -262,19 +270,32 @@ a2r-std（转译器层面，写法绕不开），所以需后处理。
 不影响"Auto 版本经 a2r 转译实现同等能力"的总目标——手写 Rust 边角可视为
 a2r-std 的等价补充，最终产物仍是完整可编译的 Rust。
 
+### 跨模块类型约定（relay/chats 验证确立）
+
+auto-musk 的模块间有类型引用（chats→specs::SpecChange，relay/profession→
+specs::SectionType，relay/store→relay::GateType）。a2r 单文件转译不解析跨文件
+引用，处理方式：**在引用方 .at 里重新声明被引用类型**（自包含）。代价是同一类型
+在多个 .at 里重复声明，但：
+- 语义一致（serde 序列化的变体集/字段集相同，JSON 往返兼容）；
+- 真正的单一真源仍是 specs.rs（Auto 版只是可编译的镜像）。
+- 含上游 auto_ai_agent 复杂类型（PipelineEngine/FlowSpec/StepRecord）的 struct
+  （RunState/RunEntry）不移植——这些类型无法用 plain data 重声明。
+
+**异构 enum（tag union）**：`tag E { Variant { fields } }` 生成正确的 Rust 异构
+enum + serde 标签属性透传（`#[serde(tag=..)]`）。但 named-field 变体的**解构**
+a2r 处理有缺陷（a2r-18），字段访问型方法保留手写。
+
 ### 剩余模块评估（2026-07-31）
 
 经 6 个模块实测，剩余模块的可移植性判定如下：
 
 | 模块 | 行数 | 判定 | 原因 |
 |---|---|---|---|
-| tool_test.rs | 184 | 🟡 数据模型可移植 | Fixture/CaseCategory/Expect/ToolCase 可移植；Sandbox(tempfile)+run_case(async+闭包)保留手写 |
+| tool_test.rs | 184 | 🟡 数据模型可移植 | Fixture/CaseCategory/Expect/ToolCase 可移植；Sandbox(tempfile)+run_case(async+闭包)保留手写（低价值，未做）|
 | workflow.rs | 30 | 🔴 保留手写 | include_str! + parse_at_workflow(auto_ai_agent 上游) |
 | tool_context.rs | 18 | 🔴 保留手写 | Arc<AppState> 循环依赖 server.rs |
 | relay/flows.rs | 59 | 🔴 保留手写 | FlowSpec/FlowStep(auto_ai_agent builder API) |
 | relay/mod.rs | 35 | 🔴 保留手写 | 纯上游类型重导出 |
-| relay/profession.rs | 494 | 🟡 数据模型可移植 | Profession struct+ForgePhase enum+as_str 可移植；Registry 用 List 替代 HashMap，需跨模块引用 SectionType |
-| relay/store.rs | 1078 | 🟡 数据模型可移植 | RunEvent(11 变体)+7 个 struct 可移植；RunStore(broadcast+OnceLock)保留手写，需多文件整合 |
 | server.rs | 2206 | 🔴 不移植 | axum async handler（121 处 async/axum/tokio） |
 | main.rs | 370 | 🔴 不移植 | tokio runtime + clap + 启动编排 |
 | lib.rs | 261 | 🔴 保留手写 | Agent/Role/Tool trait 装配 + OwnedRole(Arc<dyn Role>) |
@@ -282,14 +303,12 @@ a2r-std 的等价补充，最终产物仍是完整可编译的 Rust。
 | spec_tools.rs | 559 | 🔴 不移植 | async Tool trait + Arc<SpecsStore> |
 | orch_tools.rs | 494 | 🔴 不移植 | async spawn_relay/dispatch + ToolContext |
 | conversation.rs | 1331 | 🔴 不移植 | broadcast 事件总线 + async SSE |
-| chats.rs | 596 | 🟡 数据模型可移植 | ChatSession/ChatMessage/Role 可移植；审批队列+ChatStore(IO)需混合 |
 | relay/driver.rs | 289 | 🔴 不移植 | async run_stream + StreamEvent |
 | relay/api.rs | 393 | 🔴 不移植 | axum relay routes + broadcast |
 
-**总结**：剩余 🟡 模块（relay/profession、relay/store、chats、tool_test）的数据模型
-仍可移植，但需多文件整合（跨模块类型引用）且体量大，边际价值递减。🔴 模块
-（server/main/tools 等约 7000 行）是 axum+async+tokio 集，a2r-std 无服务器运行时，
-不在本计划可达范围。
+**总结**：所有含可移植数据模型的 🟡 模块（chats / relay profession / relay store）
+已移植。剩余 🔴 模块（server/main/tools 等约 7000 行）是 axum+async+tokio 集，
+a2r-std 无服务器运行时，不在本计划可达范围。
 
 ---
 

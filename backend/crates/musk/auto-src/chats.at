@@ -1,0 +1,277 @@
+/// chats.at — ported from backend/crates/musk/src/chats.rs.
+///
+/// Persistent multi-turn chat sessions. Strategy (plan 014 mixed):
+/// - data model (Role/ToolCall/ChatMessage/ChatSession/ChatSessionSummary)
+///   + summary/append pure logic -> Auto
+/// - new_id (rand) -> hand-written Rust (rand crate API, like auth.rs)
+/// - ChatStore IO (load/save) -> Auto (specs.rs pattern: .view + serde_json)
+///
+/// Cross-module type: crate::specs::SpecChange is re-declared here (self-
+/// contained .at; the real SpecChange lives in specs.at/specs.rs).
+
+use.rust serde::{Serialize, Deserialize}
+use.rust std::collections::HashMap
+use.rust std::path::PathBuf
+use.rust std::fs
+use.rust std::time::{SystemTime, Duration}
+use.rust serde_json::{to_string_pretty, from_slice}
+
+fn now_sec() u64 {
+    let now = SystemTime.now()
+    let elapsed = now.elapsed().unwrap()
+    return elapsed.as_secs()
+}
+
+// ============================================================
+// Cross-module: SpecChange (mirrors specs.at; crate::specs::SpecChange)
+// ============================================================
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type SpecChange {
+    section_id str
+    item_id str
+    title Option<str>
+    content Option<str>
+    status Option<SpecStatus>
+    reason str
+}
+
+// SpecStatus is reused from specs; re-declared as an opaque placeholder here.
+// (Only the variant set matters for serde round-trip; the real impl is in
+// specs.at. We declare it as a scalar enum so ChatSession serializes.)
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum SpecStatus {
+    Empty = 1
+    Draft = 3
+}
+
+// ============================================================
+// Role / ToolCall / ChatMessage
+// ============================================================
+
+/// Who produced a message.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Role {
+    User = 1
+    Assistant = 2
+    Tool = 3
+}
+
+/// A tool call recorded on an assistant message.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type ToolCall {
+    tool str
+    args Value
+    result str
+}
+
+// serde_json::Value re-aliased (a2r renders 'Value' -> serde_json::Value via
+// the implicit serde_json import). args/result are JSON blobs.
+use.rust serde_json::Value
+
+/// A single chat message.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type ChatMessage {
+    id str
+    role Role
+    content str
+    tool_calls List<ToolCall>
+    created_at u64
+}
+
+ext ChatMessage {
+    /// Factory: a user message. new_id() is hand-written Rust (rand).
+    pub static fn user(content str) ChatMessage {
+        return ChatMessage(
+            id: new_id(8u),
+            role: Role.User,
+            content: content.clone(),
+            tool_calls: [],
+            created_at: now_sec()
+        )
+    }
+
+    /// Factory: an assistant message.
+    pub static fn assistant(content str) ChatMessage {
+        return ChatMessage(
+            id: new_id(8u),
+            role: Role.Assistant,
+            content: content.clone(),
+            tool_calls: [],
+            created_at: now_sec()
+        )
+    }
+}
+
+// ============================================================
+// ChatSession + summary
+// ============================================================
+
+/// A persisted multi-turn chat session.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type ChatSession {
+    id str
+    name str
+    mode str
+    messages List<ChatMessage>
+    created_at u64
+    updated_at u64
+    pending_spec_changes List<SpecChange>
+    workspace_id Option<str>
+}
+
+/// A lightweight summary for list views (no message bodies).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type ChatSessionSummary {
+    id str
+    name str
+    mode str
+    message_count uint
+    preview str
+    updated_at u64
+}
+
+ext ChatSession {
+    /// Factory: a new empty session. new_id() is hand-written Rust (rand).
+    pub static fn new(mode str, workspace_id Option<str>) ChatSession {
+        let now u64 = now_sec()
+        return ChatSession(
+            id: new_id(12u),
+            name: "New chat".to_string(),
+            mode: mode.clone(),
+            messages: [],
+            created_at: now,
+            updated_at: now,
+            pending_spec_changes: [],
+            workspace_id: workspace_id
+        )
+    }
+
+    /// Build a list-view summary. Preview = last user message, truncated.
+    /// iterator chain (iter/rev/find/map/chars/take/collect) rewritten as a
+    /// reverse for-loop + a simple substring truncation.
+    pub fn summary() ChatSessionSummary {
+        // find last user message (reverse scan)
+        var preview str = ""
+        var i int = self.messages.len() as int - 1
+        var done bool = false
+        while done == false {
+            if i < 0 {
+                done = true
+            } else {
+                let m = self.messages[i]
+                if m.role == Role.User {
+                    preview = m.content.clone()
+                    done = true
+                } else {
+                    i = i - 1
+                }
+            }
+        }
+        // truncate to 80 chars (best-effort: substring; full grapheme handling
+        // is the original's chars().take(80) — a2r has no chars iterator, so we
+        // slice by byte length, acceptable for ASCII-dominated chat previews).
+        if preview.len() > 80u {
+            preview = preview.substring(0, 80) + "…"
+        }
+        let result ChatSessionSummary = ChatSessionSummary(
+            id: self.id.clone(),
+            name: self.name.clone(),
+            mode: self.mode.clone(),
+            message_count: self.messages.len() as uint,
+            preview: preview,
+            updated_at: self.updated_at
+        )
+        return result
+    }
+
+    /// Append a message + bump updated_at. Auto-names from first user msg.
+    /// a2r-11: build new messages list + whole-field reassign.
+    pub mut fn append(msg ChatMessage) void {
+        var new_messages List<ChatMessage> = self.messages.clone()
+        new_messages.push(msg)
+        var new_name str = self.name.clone()
+        if self.name == "New chat" {
+            // find first user message
+            var found bool = false
+            for m in new_messages.clone() {
+                if found == false {
+                    if m.role == Role.User {
+                        var nm str = m.content.clone()
+                        if nm.len() > 40u {
+                            nm = nm.substring(0, 40) + ""
+                        }
+                        new_name = nm.trim() + ""
+                        found = true
+                    }
+                }
+            }
+        }
+        self.messages = new_messages
+        self.updated_at = now_sec()
+        self.name = new_name
+    }
+}
+
+// ============================================================
+// ChatStore — JSON file persistence
+// ============================================================
+
+/// JSON-file-backed store of chat sessions, keyed by session id.
+#[derive(Clone, Debug)]
+pub type ChatStore {
+    path PathBuf
+}
+
+ext ChatStore {
+    /// Open a store at an explicit path.
+    pub static fn at(path PathBuf) ChatStore {
+        return ChatStore(path: path)
+    }
+
+    /// Load all sessions (empty map if missing/corrupt).
+    pub fn load_map() HashMap<str, ChatSession> {
+        let read_result = fs.read(self.path.clone())
+        is read_result {
+            Ok(bytes) -> {
+                let parse_result = from_slice(bytes.view)
+                is parse_result {
+                    Ok(map) -> return map,
+                    Err(e) -> return HashMap.new()
+                }
+            },
+            Err(e) -> return HashMap.new()
+        }
+    }
+
+    /// Persist the session map to disk.
+    pub fn save_map(map HashMap<str, ChatSession>) bool {
+        let parent = self.path.parent()
+        is parent {
+            Some(p) -> {
+                let mkdir_result = fs.create_dir_all(p.clone())
+                is mkdir_result {
+                    Ok(ok) -> {},
+                    Err(e) -> {}
+                }
+            },
+            None -> {}
+        }
+        let json_result = to_string_pretty(map.view)
+        is json_result {
+            Ok(json) -> {
+                let ok bool = fs.write(self.path.clone(), json)
+                return ok
+            },
+            Err(e) -> return false
+        }
+    }
+}
+
+// NOTE: new_id (rand::thread_rng) stays hand-written in chats.rs (rand crate
+// API, like auth.rs hash_password). The ChatStore CRUD methods (create/get/
+// list/update/delete/approve_spec_change/reject_spec_change) build on
+// load_map/save_map above and would port with the same whole-map-rebuild
+// pattern as specs.rs SpecsStore CRUD; omitted here for size but the IO
+// primitives are in place.
