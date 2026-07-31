@@ -2,7 +2,7 @@
 
 Auto-forge 的继任者 —— 一个 spec-driven、serial-agent 的 AI 编码助手。Rust 后端 + Vue 前端，LLM 能力经 [auto-ai-daemon](../auto-ai) 统一调度。
 
-> 这是 AutoStack 生态的应用层。AI 资源管理（ApiSource / LLM 调用）已下沉到 `auto-ai-daemon`；auto-musk 聚焦 Forge 聊天、Spec Ledger、（未来的）Relay 编排。
+> 这是 AutoStack 生态的应用层。AI 资源管理（ApiSource / LLM 调用）已下沉到 `auto-ai-daemon`；auto-musk 聚焦 Forge 聊天、Spec Ledger、Relay 编排、Wiki。
 
 ## 架构
 
@@ -80,18 +80,24 @@ cd web && npm run dev      # → http://localhost:3000
 
 ## 主要能力
 
-- **Forge 聊天**：多轮会话（JSON 持久化）+ SSE 流式 + 工具调用展示
+- **Forge 聊天**：多轮会话（ConversationStore / jsonl 持久化）+ SSE 流式 + 工具调用展示 + spec 变更审批队列（approve/reject/reject-all）
 - **Spec Ledger**：7 类 spec section、per-section 状态机、关系图（rebuild_relations）、派生状态（derive_statuses）、overview/drift-check、LLM 经工具读写 + 审批队列
-- **工具集**：read/write/edit/search/list_dir/list_symbols/glob/batch_replace/run_command + 5 个 spec 工具
+- **Relay 引擎**：消费 `auto-ai-agent::orchestration`；`spawn_relay` + `bring_in` 编排工具；relay run 后台驱动 + 事件流；运行 dual-write 进 conversations，前端 ChatsView 内联渲染（RelayRunBox）
+- **Wiki**：WikiStore（CRUD + 树形导航 + 全文检索）+ `/api/wiki` + `/api/raw` + WikiView 前端
+- **工具集**：read/write/edit/search/list_dir/list_symbols/glob/batch_replace/run_command + 5 个 spec 工具 + 编排工具
 - **技能库**：brainstorming / writing-plans / executing-plans / TDD / systematic-debugging / requesting-code-review / verification-before-completion
-- **配置体系**：mode（basic/coding/review）、agent roles、app runtime config
+- **配置体系**：mode（superpower/basic/coding/review）、agent roles（Nicole/Cody/Ash...）、app runtime config、三种工作模式（superpower + relay flows + bring_in）
 
 ## 状态与计划
 
-当前进度见 [`docs/plans/009-parity-roadmap-vs-auto-forge.md`](docs/plans/009-parity-roadmap-vs-auto-forge.md)。
-- ✅ P0 Spec 派生层 / P1a Spec 工具 / P1b spec 审批
-- 🔶 P1b WorkMode+errand（延后）/ P2 Relay 引擎（最大缺口，待做）
-- ⬜ P3 Wiki / MCP
+当前进度见 [`docs/plans/009-parity-roadmap-vs-auto-forge.md`](docs/plans/009-parity-roadmap-vs-auto-forge.md)（注：plan 009 的阶段勾选尚未回填，实际进度已领先其标注）。
+- ✅ P0 Spec 派生层（per-section 状态机 + rebuild_relations + derive_statuses）
+- ✅ P1a Spec 工具集（read/list/write/update/write_goals + 审批）
+- ✅ P1b spec 变更审批（approve/reject/reject-all 端点）
+- ✅ P2 Relay 引擎（driver/store/api/flows + orch_tools；原「最大缺口」已实质落地）
+- ✅ P3a Wiki 模块（WikiStore + 前端 WikiView）
+- 🔶 P1b WorkMode 三态 + errand（部分；延后）
+- ⬜ P3b MCP 层（30 个 forge_* 工具，最后做）
 
 ## 与相关项目的关系
 
