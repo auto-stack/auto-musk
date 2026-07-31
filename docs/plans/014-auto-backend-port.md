@@ -1,10 +1,11 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
-> **状态**：**9 个模块移植完成，最终产物不依赖 a2r-std**（2026-08-01）。specs.rs 全文件 +
+> **状态**：**9 个模块移植完成 + axum 保留字障碍解除**（2026-08-01）。specs.rs 全文件 +
 > auth/hello/tool_safety/mode/app_config/chats/relay{profession,store} 部分。流转：
-> `auto trans` → `nativeize.pl`（去 a2r-std 桥接）→ cargo check（仅 serde 等真实 crate）。
-> 18 个 a2r 限制全部实测记录。剩余 🔴 模块（server/main/tools 等 axum+async 集，~7000 行）
-> 需 a2r-std 补服务器运行时，不在本计划可达范围。
+> `auto trans` → `nativeize.pl`（去 a2r-std 桥接）→ cargo check（仅真实 crate）。
+> **Plan 379**（auto-lang）：放宽 `route` 保留字，axum `Router::route()` 装配 + `~T` async
+> handler 现可生成可编译原生 Rust（已验证完整闭环）。剩余限制：`Arc<dyn Trait>`/
+> `impl Trait`/`json!` 宏仍是 a2r 盲区，server handler 体需混合处理。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
@@ -296,7 +297,7 @@ a2r 处理有缺陷（a2r-18），字段访问型方法保留手写。
 | tool_context.rs | 18 | 🔴 保留手写 | Arc<AppState> 循环依赖 server.rs |
 | relay/flows.rs | 59 | 🔴 保留手写 | FlowSpec/FlowStep(auto_ai_agent builder API) |
 | relay/mod.rs | 35 | 🔴 保留手写 | 纯上游类型重导出 |
-| server.rs | 2206 | 🔴 不移植 | axum async handler（121 处 async/axum/tokio） |
+| server.rs | 2206 | 🟡 路由表可移植 | Plan 379 解除 route 保留字后，`.route()` 路由表 + `~T` async handler 可移植；但 `Arc<dyn Client>`/`impl IntoResponse`/`json!` 宏/acl 是 a2r 盲区，handler 体需混合（路由骨架 + 简单 handler 用 Auto，trait object/宏 handler 保留手写）|
 | main.rs | 370 | 🔴 不移植 | tokio runtime + clap + 启动编排 |
 | lib.rs | 261 | 🔴 保留手写 | Agent/Role/Tool trait 装配 + OwnedRole(Arc<dyn Role>) |
 | tools.rs | 874 | 🔴 不移植 | 9 个 async Tool trait 实现 |
