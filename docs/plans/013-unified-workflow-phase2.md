@@ -1,4 +1,4 @@
-# Phase 2: 后端数据模型统一 — Conversation/Turn/ConversationStore
+# 013 — 后端数据模型统一 Phase 2: Conversation/Turn/ConversationStore
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax.
 

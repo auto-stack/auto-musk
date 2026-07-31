@@ -12,7 +12,7 @@ auto-musk/
 │   └── crates/musk/  lib + bin：tools / specs / chats / server / auth / mode
 ├── web/              独立 Vue3 + TS SPA（Chats + Specs + Login）
 ├── skills/           agent 技能库（brainstorming/writing-plans/...）
-├── plans/            实施计划（001-009）
+├── docs/plans/       实施计划（001-013）
 └── designs/          设计参考（前端 widget / 三成分拆分 / ...）
 ```
 
@@ -88,7 +88,7 @@ cd web && npm run dev      # → http://localhost:3000
 
 ## 状态与计划
 
-当前进度见 [`plans/009-parity-roadmap-vs-auto-forge.md`](plans/009-parity-roadmap-vs-auto-forge.md)。
+当前进度见 [`docs/plans/009-parity-roadmap-vs-auto-forge.md`](docs/plans/009-parity-roadmap-vs-auto-forge.md)。
 - ✅ P0 Spec 派生层 / P1a Spec 工具 / P1b spec 审批
 - 🔶 P1b WorkMode+errand（延后）/ P2 Relay 引擎（最大缺口，待做）
 - ⬜ P3 Wiki / MCP

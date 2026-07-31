@@ -1,4 +1,4 @@
-# Plan 008:auto-musk Chats Web 应用 + CLI 配置接通
+# 008 — auto-musk Chats Web 应用 + CLI 配置接通
 
 > **Status**: ✅ **已完成（2026-06-26 核实）**。Level 1（CLI 配置接通）+ Stage 2-6（chats.rs 会话存储 / chat HTTP+SSE 端点 / web/ SPA 骨架 / 聊天区 SSE 流式 / 静态服务）全部落地，6 个阶段各对应一个 commit（见 `e5c8ead`/`50a6c3c`/`a2f8b70`/`97c3116` 等）。
 > **Status**: Approved

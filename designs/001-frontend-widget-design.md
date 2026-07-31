@@ -12,8 +12,8 @@
 |---|---|
 | **一类实体 = 一个通用 widget** | 凡是 auto-forge 里出现 N 个近亲的（7 类 Spec 卡片、4 个 CRUD 配置实体），auto-musk 只设计 1 个参数化 widget，用 `section`/`entity` 等 prop 区分 |
 | **复用契约，不复用源码** | 数据模型/状态机/UX 范式参照 auto-forge，但实现用 Auto widget DSL 重写 |
-| **DSL 能表达用 DSL，不能则手写** | 布局/卡片/列表/表单用 widget；SSE 流式/Tiptap/图表手写 Vue 混用（见 plans/002 §2） |
-| **避坑 a2vue 缺陷** | 见 plans/002 §2.2（outlet 必需、input 无 v-model、无 DSL 路由跳转等） |
+| **DSL 能表达用 DSL，不能则手写** | 布局/卡片/列表/表单用 widget；SSE 流式/Tiptap/图表手写 Vue 混用（见 docs/plans/002 §2） |
+| **避坑 a2vue 缺陷** | 见 docs/plans/002 §2.2（outlet 必需、input 无 v-model、无 DSL 路由跳转等） |
 
 ---
 
@@ -112,7 +112,7 @@ widget CrudEntityWidget (entity: str, fields: List) {
 
 **后端契约要求**：所有配置实体走统一的 RESTful 约定（`GET /api/config/{entity}` / `POST` / `PUT /:id` / `DELETE /:id`），这样前端 1 个 `list_entities(entity)` 通用客户端即可。auto-forge 后端已有 `/api/forge/config/{api-sources,professions,skills,agents}`，移植时统一成这个约定。
 
-**⚠️ a2vue 限制**：表单的 input 当前生成 `:value` 非 `v-model`（plans/002 §2.2 缺陷 2），编辑面板的表单输入需手写 Vue 或等 a2vue 修复。这是 CrudEntityWidget 落地的主要阻塞点。
+**⚠️ a2vue 限制**：表单的 input 当前生成 `:value` 非 `v-model`（docs/plans/002 §2.2 缺陷 2），编辑面板的表单输入需手写 Vue 或等 a2vue 修复。这是 CrudEntityWidget 落地的主要阻塞点。
 
 ---
 

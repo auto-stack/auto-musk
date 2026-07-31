@@ -35,7 +35,7 @@ auto-musk/
 │   │           └── tools.rs      ← 3 个基础 Tool 实现(read_file/write_file/run_command)
 │   └── README.md                 ← 构建/运行说明
 ├── src/                          ← 现有 Auto 代码(见下方"处置")
-├── plans/                        ← 本文件所在
+├── docs/plans/                    ← 本文件所在
 └── pac.at                        ← 前端 workspace(保留)
 ```
 

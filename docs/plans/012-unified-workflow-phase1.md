@@ -1,4 +1,4 @@
-# Phase 1: UI 统一 — Relay Box in Chat 实施计划
+# 012 — UI 统一 Phase 1: Relay Box in Chat 实施计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

@@ -15,7 +15,7 @@ Turn an approved design (or requirements) into a concrete, bite-sized implementa
 
 3. **Break into bite-sized tasks.** Each task is one coherent change (2-5 minutes): a single function, a single file edit, a single test. If a task is "add the feature," it's too big — split it.
 
-4. **Write the plan to `plans/<feature>.md`.** Use this shape per task:
+4. **Write the plan to `docs/plans/<feature>.md`.** Use this shape per task:
    ```
    ### Task N: <one-line title>
    Files: <exact paths>
@@ -41,4 +41,4 @@ Turn an approved design (or requirements) into a concrete, bite-sized implementa
 
 ## Output
 
-A plan file at `plans/<feature>.md` with bite-sized, file-mapped tasks. Then: "Plan written — invoke executing-plans to carry it out task by task."
+A plan file at `docs/plans/<feature>.md` with bite-sized, file-mapped tasks. Then: "Plan written — invoke executing-plans to carry it out task by task."

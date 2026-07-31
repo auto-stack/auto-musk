@@ -121,6 +121,6 @@ cargo test    # 7 tool unit tests
 
 ## Status
 
-This is the **v2 phase 0 + 1 MVP** (see `../plans/001-auto-forge-migration-super-plan.md`
-and `../plans/003-musk-mvp-rust-backend.md`). Next phases: HTTP API + frontend
+This is the **v2 phase 0 + 1 MVP** (see `../docs/plans/001-auto-forge-migration-super-plan.md`
+and `../docs/plans/003-musk-mvp-rust-backend.md`). Next phases: HTTP API + frontend
 integration, SSE streaming, multi-role workflows.

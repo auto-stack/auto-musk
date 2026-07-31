@@ -110,7 +110,7 @@ auto-musk/
 │       │   ├── sse.ts           # 【手写】EventSource 封装
 │       │   └── auth.ts          # 【手写】api wrapper（在 api.ts 上加 auth 头）
 │       └── components/custom/   # 【手写】StreamingRenderer.vue 等（SSE/Tiptap/mermaid）
-└── plans/                      # 计划文档
+└── docs/plans/                  # 计划文档
 ```
 
 **关键约定**（基于 Step 1 验证结论）：

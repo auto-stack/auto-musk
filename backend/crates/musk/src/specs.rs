@@ -626,7 +626,7 @@ pub fn now_sec() -> u64 {
 /// single global `can_transition` (which applied one rule set to all sections).
 ///
 /// Ported from auto-forge `mod.rs:242-342` (`SectionConfig::for_type`), with
-/// the greenfield simplifications noted in plans/009 Task 1:
+/// the greenfield simplifications noted in docs/plans/009 Task 1:
 /// - The loose 3rd rule ("to ∈ allowed_statuses ⇒ allow") is REMOVED — only
 ///   explicit transitions (and idempotent from==to) pass.
 /// - The Reports state-machine bug is fixed: auto-forge's first `Reports` match
@@ -721,7 +721,7 @@ impl SectionConfig {
     /// Is `from -> to` a legal transition for this section type?
     /// Idempotent (from == to) is always allowed. Otherwise the pair must be in
     /// `allowed_transitions`. (The loose "to ∈ allowed_statuses" rule is
-    /// intentionally NOT applied — see plans/009 Task 1.)
+    /// intentionally NOT applied — see docs/plans/009 Task 1.)
     pub fn can_transition(&self, from: SpecStatus, to: SpecStatus) -> bool {
         if from == to {
             return true;

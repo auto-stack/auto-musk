@@ -9,7 +9,7 @@ Carry out a written plan, one task at a time. Follow the plan; don't improvise a
 
 ## Process
 
-1. **Load the plan.** `read_file` the plan (e.g. `plans/<feature>.md`). Re-read the relevant design doc if a task is unclear.
+1. **Load the plan.** `read_file` the plan (e.g. `docs/plans/<feature>.md`). Re-read the relevant design doc if a task is unclear.
 
 2. **Review critically.** If the plan has a real problem (wrong file, missing dependency, contradicts the design), raise it before starting rather than executing a broken plan. Otherwise proceed.
 
