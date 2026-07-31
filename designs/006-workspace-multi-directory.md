@@ -3,7 +3,7 @@
 > **状态**：设计已确认（brainstorm 完成），待写实现计划。
 > **日期**：2026-06-30
 > **仓库**：auto-musk（`backend/crates/musk/` + `web/`）
-> **当前分支**：`rust-impl`（HEAD `8f8c752`）
+> **当前分支**：`main`（原 `rust-impl` 已合并删除）
 > **依赖**：无（独立功能，但触动 specs/chats/wiki/relay 所有 store 的存储路径）
 
 ---

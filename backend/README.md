@@ -4,8 +4,8 @@ auto-musk is the Forge-successor AI coding agent. This is its **Rust backend**
 — a CLI agent built on the [auto-ai](../..) three-layer stack
 (`auto-ai-daemon` + `auto-ai-client` + `auto-ai-agent`).
 
-> This `rust-impl` branch implements auto-musk in Rust. The `main` branch
-> retains the earlier Auto-language work for a future Auto reimplementation.
+> auto-musk is implemented in Rust on the `main` branch (the Rust backend
+> pivot superseded the earlier Auto-language work).
 
 ## Installation
 
@@ -15,7 +15,6 @@ The easiest install is via the install script (clones siblings + `cargo install`
 ```sh
 git clone https://github.com/auto-stack/auto-musk.git
 cd auto-musk
-git checkout rust-impl
 bash install.sh
 ```
 
