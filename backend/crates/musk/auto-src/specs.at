@@ -14,6 +14,9 @@
 use.rust a2r_std::time
 use.rust serde::{Serialize, Deserialize}
 use.rust std::collections::{HashSet, HashMap}
+use.rust std::fs
+use.rust std::path::PathBuf
+use.rust serde_json::{to_string_pretty, from_slice}
 /// - Rust 的 SectionType 是无 repr 的 unit 枚举 (Goals, Architecture, ...)。
 ///   Auto 的 scalar enum 形态是 `VARIANT = N` (见 02_types/002_enum)。这里先
 ///   用 scalar 形态 (显式数字) — 这是 PoC 的第一个待测点: a2r 对此能否生成
@@ -801,5 +804,332 @@ ext SpecsDocument {
         // whole-field reassign (a2r handles this; in-place element mutation
         // would compile to a no-op clone write per a2r-11)
         self.sections = new_sections
+    }
+}
+
+// ============================================================
+// Overview & drift-check
+// ============================================================
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type SectionOverview {
+    id str
+    section_type SectionType
+    title str
+    status SpecStatus
+    item_count uint
+    status_counts List<(str, uint)>
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type SpecsOverview {
+    project str
+    version u64
+    total_items uint
+    sections List<SectionOverview>
+}
+
+ext SpecsDocument {
+    /// Build an aggregate overview (per-section item counts + status dist).
+    pub fn overview() SpecsOverview {
+        var sections List<SectionOverview> = []
+        var total uint = 0
+        for s in self.sections.clone() {
+            // count items per status (simple two-pass, no BTreeMap)
+            var seen List<str> = []
+            var counts List<(str, uint)> = []
+            for it in s.items.clone() {
+                let st str = it.status.to_str()
+                var found bool = false
+                for pair in counts.clone() {
+                    if pair[0] == st {
+                        found = true
+                    }
+                }
+                if found == false {
+                    seen.push(st.clone())
+                }
+            }
+            // tally each seen status
+            for st in seen.clone() {
+                var n uint = 0
+                for it in s.items.clone() {
+                    if it.status.to_str() == st {
+                        n = n + 1u
+                    }
+                }
+                counts.push((st.clone(), n))
+            }
+            let count uint = s.items.len() as uint
+            total = total + count
+            // a2r-12: bind struct literal to var before push
+            let so SectionOverview = SectionOverview(
+                id: s.id.clone(),
+                section_type: s.section_type,
+                title: s.title.clone(),
+                status: s.status,
+                item_count: count,
+                status_counts: counts
+            )
+            sections.push(so)
+        }
+        let result SpecsOverview = SpecsOverview(
+            project: self.project.clone(),
+            version: self.version,
+            total_items: total,
+            sections: sections
+        )
+        return result
+    }
+}
+
+// ============================================================
+// SpecsStore — JSON file persistence + CRUD
+// ============================================================
+
+/// A file-backed spec store. The whole document is serialized to one JSON file.
+pub type SpecsStore {
+    path PathBuf
+}
+
+ext SpecsStore {
+    /// Open (or create) a store at path.
+    pub static fn new(path PathBuf) SpecsStore {
+        return SpecsStore(path: path)
+    }
+
+    /// Load the document; create an empty one (persisted) if absent.
+    /// a2r-13: .view marks a borrow (&) for &T params. serde_json fn calls
+    /// need explicit `use.rust serde_json::{fn}` then bare `fn(...)` (not
+    /// `serde_json.fn` — that becomes a value access, E0423). Result types
+    /// left unannotated so a2r infers them, unwrapped via is-match.
+    pub fn load() SpecsDocument {
+        let read_result = fs.read(self.path.clone())
+        is read_result {
+            Ok(bytes) -> {
+                let parse_result = from_slice(bytes.view)
+                is parse_result {
+                    Ok(doc) -> return doc,
+                    Err(e) -> return SpecsDocument.new("project")
+                }
+            },
+            Err(e) -> {
+                // NotFound or other error -> create + persist empty doc
+                let doc SpecsDocument = SpecsDocument.new("project")
+                self.save(doc.clone())
+                return doc
+            }
+        }
+    }
+
+    /// Persist the document.
+    pub fn save(doc SpecsDocument) void {
+        // ensure parent dir exists.
+        let parent = self.path.parent()
+        is parent {
+            Some(p) -> {
+                let mkdir_result = fs.create_dir_all(p.clone())
+                is mkdir_result {
+                    Ok(ok) -> {},
+                    Err(e) -> {}
+                }
+            },
+            None -> {}
+        }
+        // serialize to JSON string, then write.
+        // (use to_string_pretty -> String, then fs.write(&str,&str); avoids the
+        // Vec<u8> vs &str mismatch a2r hits when mapping fs.write to a2r_std.)
+        let json_result = to_string_pretty(doc.view)
+        is json_result {
+            Ok(json) -> {
+                // a2r maps fs.write to a2r_std::fs::write which returns bool
+                // (not std::fs::write's Result); just call it, ignore outcome.
+                let ok bool = fs.write(self.path.clone(), json)
+            },
+            Err(e) -> {}
+        }
+    }
+
+    /// Upsert an item into a section, bumping the document version. Creates
+    /// the item if item.id is new, replaces it otherwise. Rebuilds relations.
+    /// a2r-11: returns the updated doc (whole-field rebuild) instead of
+    /// mutating in place; returns Option to signal section-not-found (None).
+    pub fn upsert_item(doc SpecsDocument, section_id str, item SpecItem) Option<SpecsDocument> {
+        var section_found bool = false
+        var new_sections List<SpecsSection> = []
+        for s in doc.sections.clone() {
+            if s.id == section_id {
+                section_found = true
+                // build new items list: replace if id matches, else append
+                var item_found bool = false
+                var new_items List<SpecItem> = []
+                for existing in s.items.clone() {
+                    if existing.id == item.id {
+                        item_found = true
+                        new_items.push(item.clone())
+                    } else {
+                        new_items.push(existing)
+                    }
+                }
+                if item_found == false {
+                    new_items.push(item.clone())
+                }
+                let now u64 = time.now_sec() as u64
+                let updated_section SpecsSection = SpecsSection(
+                    id: s.id.clone(),
+                    section_type: s.section_type,
+                    title: s.title.clone(),
+                    items: new_items,
+                    status: s.status,
+                    content: s.content.clone(),
+                    depends_on: s.depends_on.clone(),
+                    last_modified: now,
+                    last_verified: s.last_verified.clone()
+                )
+                new_sections.push(updated_section)
+            } else {
+                new_sections.push(s)
+            }
+        }
+        if section_found == false {
+            return None
+        }
+        // rebuild new doc with bumped version + rebuilt relations + derived
+        var new_doc SpecsDocument = SpecsDocument(project: doc.project.clone(), version: doc.version + 1u, sections: new_sections)
+        new_doc.rebuild_relations()
+        new_doc.derive_statuses()
+        return Some(new_doc)
+    }
+
+    /// Transition an item's status (validates via per-section state machine).
+    /// Returns Option<SpecsDocument> — None if section/item not found OR the
+    /// transition is invalid for that section type.
+    pub fn transition_item(doc SpecsDocument, section_id str, item_id str, new_status SpecStatus) Option<SpecsDocument> {
+        var section_found bool = false
+        var new_sections List<SpecsSection> = []
+        var transition_ok bool = false
+        for s in doc.sections.clone() {
+            if s.id == section_id {
+                section_found = true
+                let cfg SectionConfig = SectionConfig.for_type(s.section_type)
+                var new_items List<SpecItem> = []
+                for it in s.items.clone() {
+                    if it.id == item_id {
+                        if cfg.can_transition(it.status, new_status) {
+                            transition_ok = true
+                            let now u64 = time.now_sec() as u64
+                            var completed Option<u64> = it.completed_at.clone()
+                            if new_status == SpecStatus.Done {
+                                completed = Some(now)
+                            }
+                            let updated SpecItem = SpecItem(
+                                id: it.id.clone(),
+                                title: it.title.clone(),
+                                content: it.content.clone(),
+                                status: new_status,
+                                depends_on: it.depends_on.clone(),
+                                related: it.related.clone(),
+                                priority: it.priority.clone(),
+                                assignee: it.assignee.clone(),
+                                test_file: it.test_file.clone(),
+                                file: it.file.clone(),
+                                milestone: it.milestone.clone(),
+                                module: it.module.clone(),
+                                tags: it.tags.clone(),
+                                created_at: it.created_at,
+                                modified_at: now,
+                                completed_at: completed
+                            )
+                            new_items.push(updated)
+                        } else {
+                            new_items.push(it)
+                        }
+                    } else {
+                        new_items.push(it)
+                    }
+                }
+                let now u64 = time.now_sec() as u64
+                let updated_section SpecsSection = SpecsSection(
+                    id: s.id.clone(),
+                    section_type: s.section_type,
+                    title: s.title.clone(),
+                    items: new_items,
+                    status: s.status,
+                    content: s.content.clone(),
+                    depends_on: s.depends_on.clone(),
+                    last_modified: now,
+                    last_verified: s.last_verified.clone()
+                )
+                new_sections.push(updated_section)
+            } else {
+                new_sections.push(s)
+            }
+        }
+        if section_found == false {
+            return None
+        }
+        if transition_ok == false {
+            return None
+        }
+        let new_doc SpecsDocument = SpecsDocument(project: doc.project.clone(), version: doc.version + 1u, sections: new_sections)
+        return Some(new_doc)
+    }
+
+    /// Delete an item. Returns (updated_doc, removed) — removed is true if the
+    /// item existed. Rebuilds relations on success.
+    pub fn delete_item(doc SpecsDocument, section_id str, item_id str) Option<SpecsDocument> {
+        var section_found bool = false
+        var any_removed bool = false
+        var new_sections List<SpecsSection> = []
+        for s in doc.sections.clone() {
+            if s.id == section_id {
+                section_found = true
+                var new_items List<SpecItem> = []
+                for it in s.items.clone() {
+                    if it.id == item_id {
+                        any_removed = true
+                    } else {
+                        new_items.push(it)
+                    }
+                }
+                if any_removed {
+                    let now u64 = time.now_sec() as u64
+                    let updated_section SpecsSection = SpecsSection(
+                        id: s.id.clone(),
+                        section_type: s.section_type,
+                        title: s.title.clone(),
+                        items: new_items,
+                        status: s.status,
+                        content: s.content.clone(),
+                        depends_on: s.depends_on.clone(),
+                        last_modified: now,
+                        last_verified: s.last_verified.clone()
+                    )
+                    new_sections.push(updated_section)
+                } else {
+                    new_sections.push(s)
+                }
+            } else {
+                new_sections.push(s)
+            }
+        }
+        if section_found == false {
+            return None
+        }
+        if any_removed == false {
+            return None
+        }
+        var new_doc SpecsDocument = SpecsDocument(project: doc.project.clone(), version: doc.version + 1u, sections: new_sections)
+        new_doc.rebuild_relations()
+        new_doc.derive_statuses()
+        return Some(new_doc)
+    }
+
+    /// Drift check: compare in-memory doc against disk. Returns (disk_version,
+    /// drifted) — drifted is true if disk version differs.
+    pub fn drift_check(doc SpecsDocument) Option<(u64, bool)> {
+        let disk SpecsDocument = self.load()
+        let drifted bool = disk.version != doc.version
+        return Some((disk.version, drifted))
     }
 }

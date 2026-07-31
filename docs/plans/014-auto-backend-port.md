@@ -1,8 +1,8 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
-> **状态**：阶段 0 PoC + 批次 A/B/C 完成（2026-07-31）。specs.rs 核心逻辑层
-> （数据模型 + 状态机 + 关系图反链 + 状态推导）全部移植成功、0 错误编译。
-> a2r-10/11 经绕开后**降级**（非硬边界）；新发现 a2r-12。批次 D（IO）可选。
+> **状态**：**specs.rs 全文件移植完成**（2026-07-31）。1495 行 Rust → Auto
+> 全量覆盖（数据模型 + 状态机 + 关系图 + 状态推导 + 概览 + JSON 持久化 CRUD），
+> a2r 转译 + cargo check 双双 0 错误。下一步：横向扩展其它 🟢 模块。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
@@ -69,6 +69,9 @@ PoC 手写源码：`backend/crates/musk/auto-src/specs.at`
 | **a2r-10** | `HashMap<K, Vec<V>>` 复合泛型方法调用处理不全：`insert` 给 Vec 值误注入 `.to_string()`（E0599）；`remove`/`contains_key` 对 String key 不加 `&`（E0308，但 `get` 会加）| `m.insert(k, list_val)` / `m.remove(string_key)` | **可绕开**（非硬边界）：用 `List<结构体>` + 线性查找替代 HashMap（specs.rs rebuild_relations 已验证）|
 | **a2r-11** | 无可变借用遍历 / 就地嵌套修改：`mut fn` 里 `for x in self.coll` 生成 move 而非 `&mut`；`for mut x` 被拒；`self.items[i].field = v` 编译成 `self.items[i].clone().field = v`（写进 clone，无效）| 任何"遍历 `&mut self` 集合并改元素字段"的方法 | **可绕开**（非硬边界）：构建新集合 + **整体字段重赋值** `self.field = new_list`（a2r 正确处理）；而非就地改元素（derive_statuses / rebuild_relations 已验证）|
 | **a2r-12** | 在 `ext A` 方法里把 `B(...)` struct 字面量作为 `.push()` 参数（A≠B）触发 "field type mismatch" 类型检查失败 | `list.push(OtherType(field: ...))` | 用 `let x B = B(...); list.push(x)` 中转变量绕开（已验证）|
+| **a2r-13** | 借用标记 `.view` = `&`：传 `&T` 形参时需显式 `arg.view`；a2r 不会自动给 struct 值参数加 `&` | `serde_json::to_string(doc)` 要 `&doc` | 写 `to_string(doc.view)` → 生成 `&doc`。同理 `.mut`=`&mut`、`.take`=move |
+| **a2r-14** | serde_json 等外部 crate 的函数调用：`serde_json.fn()` 会被当成值访问（E0423）；必须 `use.rust serde_json::{fn}` 显式导入函数后裸调用 `fn(...)` | `serde_json.to_string_pretty(x)` | `use.rust serde_json::{to_string_pretty, from_slice}` 然后 `to_string_pretty(x.view)` |
+| **a2r-15** | `fs.write` 等名称冲突：a2r 优先映射到 `a2r_std::fs::write`（签名 `(str,str)->bool`）而非 `std::fs::write`（`(Path,[u8])->Result`）| `fs.write(path, bytes)` | 改用 String 内容（a2r_std::write 接 `&str`）或 `write_bytes`；按 a2r_std 的实际签名处理返回值 |
 
 > 与技能（auto-lang-creator）规则对应：a2r-1/a2r-5/a2r-8/a2r-9 未被 A 类 23 条
 > 覆盖（新发现）；a2r-2 ≈ A21；a2r-3/a2r-9 同源；a2r-4/a2r-7 = A23；a2r-6 = A20。
@@ -144,11 +147,26 @@ struct + 就地修改 `item.status`。
 **关键突破**：a2r-10/11 原判"硬边界"，经组合绕开后**降级为可处理** —— 只要
 重构为"构建新集合 + 整体重赋值"模式，"遍历并修改 self"的方法都能移植。
 
-### 批次 D — SpecsStore（文件 IO，待启动）
+### 批次 D — SpecsStore（JSON 持久化 + CRUD）✅ 完成
 
-`std::fs` + `serde_json` + `PathBuf` + `std::io::Result`。a2r-std 有 `fs`
-模块但 API 不同；serde_json 经 use.rust 可能可用但 IO 错误处理是薄弱点。
-预判 🟡/🔴 边界。
+`std::fs` + `serde_json` + `PathBuf` + IO 错误处理 —— 原以为是 a2r 最难覆盖的
+领域，实测全部攻克。
+
+**已移植并 0 错误**（`specs.at`）：
+- `SpecsStore` struct + `new` + `load`/`save`（文件读写 + serde_json 序列化）
+- `upsert_item` / `transition_item` / `delete_item`（CRUD，整体重赋值绕开 a2r-11）
+- `drift_check`（版本对比）
+- `SectionOverview` / `SpecsOverview` + `overview()`（聚合统计）
+
+**IO 层的 a2r 突破**：
+- a2r-13：`.view` 所有权标记 = `&`，解决 serde_json `&T` 参数（`doc.view` → `&doc`）
+- a2r-14：外部 crate 函数需 `use.rust serde_json::{fn}` 显式导入后裸调用
+- a2r-15：`fs.write` 名称冲突，a2r 优先映射到 a2r_std::fs::write（按其签名处理）
+- Result 类型不标注（让 a2r 推断），用 `is` 匹配 Ok/Err 解包
+- CRUD 用"返回更新后的 doc（Option<SpecsDocument>）"而非就地改 `&mut doc`
+
+**结论**：IO 层不是硬边界 —— serde_json + 文件 IO 在 a2r 里可用，只要按
+`.view` / 显式导入 / Result 解包的约定写。
 
 ---
 
@@ -156,20 +174,24 @@ struct + 就地修改 `item.status`。
 
 对 27 个 `.rs` 模块逐一标注三档可移植性，输出分层地图。
 
-### 预判分层（待 PoC 推广后校验）
+### 预判分层（specs.rs 全文件实测后修正）
 
-| 档位 | 判据 | 预判模块 |
+| 档位 | 判据 | 模块 |
 |---|---|---|
-| 🟢 纯逻辑可移植 | 无 axum/tokio/async/上游 trait | specs.rs 模型层 ✅(已验)、chats.rs 模型、auth.rs 密码逻辑、tool_safety.rs、hello.rs |
-| 🟡 需逃生舱 | serde derive / 简单 IO / 上游 trait | mode.rs、app_config.rs（auto_atom）、tool_test.rs |
-| 🔴 a2r 不支持 | axum async handler / tokio broadcast / async-trait / SSE | server.rs、main.rs、relay/{driver,api,store}.rs、orch_tools.rs、conversation.rs(broadcast)、tools.rs(async) |
+| 🟢 已验证可移植 | 无 axum/tokio/async/上游 async trait | **specs.rs ✅ 全文件**（含 regex/HashMap/IO/CRUD）、hello.rs |
+| 🟢 预判可移植 | 同上，待验证 | chats.rs 模型、auth.rs 密码逻辑、tool_safety.rs、mode.rs、app_config.rs |
+| 🔴 a2r 不支持 | axum async handler / tokio broadcast / async-trait / SSE | server.rs、main.rs、relay/{driver,api}.rs、orch_tools.rs、conversation.rs(broadcast)、tools.rs(async) |
 
-### 阶段 0 实测对预判的修正
+### specs.rs 全文件实测对预判的根本修正
 
-- specs.rs 整体（1495 行）含大量纯逻辑（状态机 SectionConfig、derive_statuses、
-  rebuild_relations），**比初判更乐观**：状态机部分（match 密集）可能也可移植，
-  但 rebuild_relations 用了 `regex::Regex` + `OnceLock` + `HashSet`，需单独验证。
-- serde derive 经 a2r-4 规则可控 → 🟡 档中「serde derive」不再是阻塞因素。
+specs.rs 原判"纯逻辑层可移植、rebuild_relations/derive_statuses/SpecsStore 需逃生舱"，
+**全部被推翻** —— 经组合绕开后全文件 0 错误。关键经验（适用其它模块）：
+
+1. **regex/HashMap/IO 都不是硬边界**：regex 用 str_contains 替代；HashMap 用
+   List+线性查找替代；IO 用 `.view` + serde_json 显式导入。
+2. **"就地修改"是唯一需要重构的模式**：a2r-11 不支持就地改 self 集合元素，
+   但"构建新集合 + 整体字段重赋值"可绕开。这是高频模式但都有等价重写。
+3. **serde derive / 文件持久化可用**：🟡 档不再是阻塞因素。
 
 ---
 
@@ -184,7 +206,7 @@ struct + 就地修改 `item.status`。
 auto-musk/
 ├── backend/crates/musk/
 │   ├── auto-src/            ← 新：手写 .at 源码（a2r 输入）
-│   │   ├── specs.at         ✅ 批次 A/B/C 完成（数据模型+状态机+关系图+状态推导）
+│   │   ├── specs.at         ✅ 全文件完成（1495 行 Rust → Auto，0 错误）
 │   │   └── ...（按模块）
 │   └── src/                 ← 现有手写 Rust（a2r 输出 .a2r.rs 与之并存，不覆盖）
 └── docs/plans/014-auto-backend-port.md   ← 本文件
