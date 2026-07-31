@@ -72,6 +72,7 @@ PoC 手写源码：`backend/crates/musk/auto-src/specs.at`
 | **a2r-13** | 借用标记 `.view` = `&`：传 `&T` 形参时需显式 `arg.view`；a2r 不会自动给 struct 值参数加 `&` | `serde_json::to_string(doc)` 要 `&doc` | 写 `to_string(doc.view)` → 生成 `&doc`。同理 `.mut`=`&mut`、`.take`=move |
 | **a2r-14** | serde_json 等外部 crate 的函数调用：`serde_json.fn()` 会被当成值访问（E0423）；必须 `use.rust serde_json::{fn}` 显式导入函数后裸调用 `fn(...)` | `serde_json.to_string_pretty(x)` | `use.rust serde_json::{to_string_pretty, from_slice}` 然后 `to_string_pretty(x.view)` |
 | **a2r-15** | `fs.write` 等名称冲突：a2r 优先映射到 `a2r_std::fs::write`（签名 `(str,str)->bool`）而非 `std::fs::write`（`(Path,[u8])->Result`）| `fs.write(path, bytes)` | 改用 String 内容（a2r_std::write 接 `&str`）或 `write_bytes`；按 a2r_std 的实际签名处理返回值 |
+| **a2r-16** | `#[rs]` 逃生舱**仍按 Auto 语法解析函数体**，不是原样透传任意 Rust：不支持 `&mut`/`&` 引用、`vec![]` 宏、`::` 路径、`use` 语句 | `#[rs] fn f() { let mut buf = vec![0u8; n]; }` | `#[rs` 仅适合"Auto 语法 + Rust 语义"的代码（接近 Rust 的方法调用）。真正的 Rust API（sha2/hex/rand/Mutex）须保留手写 Rust，不走 `#[rs]` |
 
 > 与技能（auto-lang-creator）规则对应：a2r-1/a2r-5/a2r-8/a2r-9 未被 A 类 23 条
 > 覆盖（新发现）；a2r-2 ≈ A21；a2r-3/a2r-9 同源；a2r-4/a2r-7 = A23；a2r-6 = A20。
@@ -207,6 +208,7 @@ auto-musk/
 ├── backend/crates/musk/
 │   ├── auto-src/            ← 新：手写 .at 源码（a2r 输入）
 │   │   ├── specs.at         ✅ 全文件完成（1495 行 Rust → Auto，0 错误）
+│   │   ├── auth.at          ✅ 数据模型+权限+用户 IO（hash/Mutex/session 保留手写）
 │   │   └── ...（按模块）
 │   └── src/                 ← 现有手写 Rust（a2r 输出 .a2r.rs 与之并存，不覆盖）
 └── docs/plans/014-auto-backend-port.md   ← 本文件
@@ -217,6 +219,24 @@ auto-musk/
 1. `A2R_CRATE_ROOT=0 auto.exe trans --path <m>.at rust` → 0 转译错误
 2. 临时 crate + a2r-std/auto-atom/auto-val（+ serde）path 依赖 → cargo check 0 错误
 3. 对照原 `.rs`：公开 API 签名一致（允许 `&'static str`→`String` 等无害差异）
+
+### 已完成模块
+
+| 模块 | 行数 | 状态 | 策略 |
+|---|---|---|---|
+| specs.rs | 1495 | ✅ 全文件 | 纯 Auto（regex→str_contains、HashMap→List、就地改→整体重赋值、IO→.view+serde_json 显式导入）|
+| auth.rs | 266 | ✅ 部分 | 数据模型+权限+用户 IO 用 Auto；hash_password/random_hex/Mutex sessions 保留手写 Rust（`#[rs]` 仍解析 Auto 语法，a2r-16，不能写 sha2/Mutex）|
+
+### 混合策略（auth.rs 验证确立）
+
+经 specs.rs（纯 Auto）+ auth.rs（混合）验证，确立移植策略：
+- **纯逻辑 + 数据模型 + serde IO** → Auto（占模块主体）
+- **外部 crate 复杂 API（sha2/hex/rand/regex/Mutex）** → 保留手写 Rust
+- **`#[rs]` 逃生舱**：仅适合"Auto 语法 + Rust 语义"的代码；不能写任意 Rust（a2r-16）
+
+这意味着每个模块通常是"Auto 主体 + 少量手写 Rust 边角"的混合，而非全 Auto。
+不影响"Auto 版本经 a2r 转译实现同等能力"的总目标——手写 Rust 边角可视为
+a2r-std 的等价补充，最终产物仍是完整可编译的 Rust。
 
 ---
 

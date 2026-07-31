@@ -1,0 +1,184 @@
+/// auth.at — ported from backend/crates/musk/src/auth.rs.
+///
+/// Minimal RBAC + session auth for auto-musk (MVP). Strategy (plan 014):
+/// - data model + role/permission logic -> Auto
+/// - password hashing (sha2/hex) + random token (rand) -> #[rs] escape hatch
+///   (these use external-crate APIs a2r maps poorly; #[rs] passes Rust through)
+/// - AuthStore sessions use std::sync::Mutex -> #[rs] for the mutex-guarded
+///   HashMap ops; load/save users reuse the specs.rs IO pattern.
+
+use.rust std::collections::HashMap
+use.rust std::path::PathBuf
+use.rust std::sync::Mutex
+use.rust std::fs
+use.rust serde::{Serialize, Deserialize}
+use.rust serde_json::{to_string_pretty, from_slice}
+
+// ============================================================
+// Permission / Role — RBAC enums + logic
+// ============================================================
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Permission {
+    RunAgent = 1
+    EditSpecs = 2
+    Read = 3
+    ManageUsers = 4
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Role {
+    Admin = 1
+    Developer = 2
+    Viewer = 3
+}
+
+ext Role {
+    /// The permission set for this role. (原版返回 &'static [Permission];
+    /// Auto 无静态切片，返回 List<Permission>。)
+    pub fn permissions() List<Permission> {
+        is self {
+            Role.Admin -> return [Permission.RunAgent, Permission.EditSpecs, Permission.Read, Permission.ManageUsers],
+            Role.Developer -> return [Permission.RunAgent, Permission.EditSpecs, Permission.Read],
+            Role.Viewer -> return [Permission.Read]
+        }
+    }
+
+    /// Does this role grant `perm`?
+    pub fn allows(perm Permission) bool {
+        let perms List<Permission> = self.permissions()
+        for p in perms {
+            if p == perm {
+                return true
+            }
+        }
+        return false
+    }
+}
+
+// ============================================================
+// User / UserInfo / Session — persisted + in-memory shapes
+// ============================================================
+
+/// A persisted user (password hashed + salted).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type User {
+    username str
+    role Role
+    password_hash str
+    salt str
+}
+
+/// Public user shape (no secret material).
+#[derive(Clone, Debug, Serialize)]
+pub type UserInfo {
+    username str
+    role Role
+}
+
+ext UserInfo {
+    /// From a User (strips secret material). (原版 impl From<&User>;
+    /// Auto 无 trait impl，用 static fn 替代。)
+    pub static fn from_user(u User) UserInfo {
+        return UserInfo(username: u.username.clone(), role: u.role)
+    }
+}
+
+/// A live session (bearer token -> username).
+#[derive(Clone, Debug)]
+pub type Session {
+    token str
+    username str
+}
+
+// ============================================================
+// password hashing + random — NOT ported (sha2/hex/rand external APIs)
+// These stay hand-written in Rust (auth.rs keeps hash_password/random_hex).
+// #[rs] escape hatch still parses Auto syntax, so it can't express raw
+// Rust like `&mut buf` or `sha2::Sha256` — kept as native Rust instead.
+// ============================================================
+
+// ============================================================
+// AuthStore — persisted users + in-memory sessions
+// ============================================================
+
+/// The auth store: persisted users (JSON file) + in-memory sessions.
+/// NOTE: sessions (Mutex<HashMap>) and login/session_user/logout (which need
+/// the Mutex guard) stay hand-written in Rust — a2r/#[rs] can't express
+/// `mutex.lock().unwrap().insert(&k, v)`. Only the user-file IO + seeding
+/// logic is ported here.
+pub type AuthStore {
+    users_path PathBuf
+}
+
+ext AuthStore {
+    /// Open at users.json. Seeds a default admin if the file is absent.
+    /// (Caller wires in the in-memory sessions separately in Rust.)
+    pub static fn new(users_path PathBuf) AuthStore {
+        let store AuthStore = AuthStore(users_path: users_path)
+        store.ensure_default_admin()
+        return store
+    }
+
+    /// Seed a default admin user if the user store is empty.
+    /// hash_password/random_hex are native Rust (declared in auth.rs).
+    pub fn ensure_default_admin() void {
+        let users List<User> = self.load_users()
+        if users.len() > 0u {
+            return
+        }
+        // empty -> seed admin/admin (hash_password/random_hex = native Rust)
+        let salt str = random_hex(16u)
+        let hash str = hash_password("admin", salt.view)
+        let admin User = User(
+            username: "admin".to_string(),
+            role: Role.Admin,
+            password_hash: hash,
+            salt: salt
+        )
+        let _ = self.save_users([admin])
+    }
+
+    /// Load users from the JSON file (empty list if absent).
+    pub fn load_users() List<User> {
+        let read_result = fs.read(self.users_path.clone())
+        is read_result {
+            Ok(bytes) -> {
+                let parse_result = from_slice(bytes.view)
+                is parse_result {
+                    Ok(users) -> return users,
+                    Err(e) -> return []
+                }
+            },
+            Err(e) -> return []
+        }
+    }
+
+    /// Persist users to the JSON file.
+    pub fn save_users(users List<User>) bool {
+        let parent = self.users_path.parent()
+        is parent {
+            Some(p) -> {
+                let mkdir_result = fs.create_dir_all(p.clone())
+                is mkdir_result {
+                    Ok(ok) -> {},
+                    Err(e) -> {}
+                }
+            },
+            None -> {}
+        }
+        let json_result = to_string_pretty(users.view)
+        is json_result {
+            Ok(json) -> {
+                let ok bool = fs.write(self.users_path.clone(), json)
+                return ok
+            },
+            Err(e) -> return false
+        }
+    }
+}
+
+// NOTE: login / session_user / token_allows / logout need the in-memory
+// Mutex<HashMap> sessions, which a2r can't express. They stay hand-written
+// in auth.rs (native Rust), calling the Auto-ported load_users/save_users
+// + hash_password/random_hex + Role::allows above.
