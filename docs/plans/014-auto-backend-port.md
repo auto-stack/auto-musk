@@ -1,6 +1,6 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
-> **状态**：**9 个模块移植完成 + axum 保留字障碍解除**（2026-08-01）。specs.rs 全文件 +
+> **状态**：**10 个模块移植完成 + axum 保留字障碍解除**（2026-08-01）。specs.rs 全文件 +
 > auth/hello/tool_safety/mode/app_config/chats/relay{profession,store} 部分。流转：
 > `auto trans` → `nativeize.pl`（去 a2r-std 桥接）→ cargo check（仅真实 crate）。
 > **Plan 379**（auto-lang）：放宽 `route` 保留字，axum `Router::route()` 装配 + `~T` async
@@ -79,6 +79,8 @@ PoC 手写源码：`backend/crates/musk/auto-src/specs.at`
 | **a2r-17** | a2r 对 `str.contains`/`str.find`/`fs.write`/`fs.exists` 等**硬桥接到 a2r-std**（rust.rs 源码硬编码分支，`a2r_std_used.set(true)`），写法无法绕开（连 `#[rs]` 内的 `.contains()` 都被桥接）。导致最终产物依赖 a2r-std crate | `text.contains(n)` → `a2r_std::str_contains(text, n)` | **后处理 `nativeize.pl`**：把桥接调用 1:1 替换回原生（`a.contains(b)`、`std::fs::write(p,c).is_ok()`）并删 `use a2r_std` 注入。`time` 可在 .at 层用 `SystemTime.elapsed()` 绕开（非 str/fs 方法，不桥接） |
 | **a2r-18** | named-field 异构 enum（tag union）的**解构**：`Variant(e)` 把 e 绑到第一个命名字段，且省略 `..`，导致 E0027（"pattern does not mention fields"）。a2r 测试只有 positional（元组变体）解构用例 | `is ev { RunEvent.StepStarted(e) -> e.timestamp }` | named-field 变体的字段访问型方法（如 timestamp()）保留手写 Rust；无解构的 arm（`Variant -> "str"`，如 event_type）可用 |
 | **a2r-19** | `str` 类型注解一律渲染成 `String`，但 `substring`/`trim` 等方法返回 `&str`；赋值给 str 变量或链式 `.to_string()` 会类型不匹配（E0308） | `let s str = text.trim()` → `let s: String = text.trim()`（&str≠String） | 用 `+ ""`/`+ "…"` 拼接（a2r 把 &str+&str 处理成 String）替代中间变量；或 `text.trim().to_string()` 单独一行（注意 a2r 对链式 `.to_string()` 的解析，必要时拆成两步） |
+| **a2r-20** | 元组结构体构造 `TupleType(value)` 被生成成命名字段 `TupleType { field0: value }`（E0560，axum 的 `Json<T>` 是 `pub struct Json<T>(pub T)`）| `Json("ok")` → `Json { field0: "ok" }` | 返回 `String`（自身实现 IntoResponse）替代 `Json(String)`；或这类构造保留手写 Rust |
+| **a2r-21** | axum handler 的 extractor 参数解构不被支持（`State(s)`/`Path(id)`/`Json(body)` 作为函数参数）| `fn h(State(s) ~AppState)` 解析失败 | 含 extractor 的 handler 保留手写 Rust（server.rs 主体）|
 
 > 与技能（auto-lang-creator）规则对应：a2r-1/a2r-5/a2r-8/a2r-9 未被 A 类 23 条
 > 覆盖（新发现）；a2r-2 ≈ A21；a2r-3/a2r-9 同源；a2r-4/a2r-7 = A23；a2r-6 = A20。
@@ -222,6 +224,7 @@ auto-musk/
 │   │   ├── chats.at         ✅ 会话模型 + summary/append + ChatStore IO
 │   │   ├── relay_profession.at ✅ Profession + ForgePhase + Registry
 │   │   ├── relay_store.at   ✅ RunEvent(异构 enum) + 7 读模型 struct
+│   │   ├── server.at        ✅ axum DTO struct + 路由表骨架 + health handler
 │   │   ├── nativeize.pl     ✅ 后处理脚本（a2r 输出 → 去 a2r-std → 纯 Rust）
 │   │   └── ...（🔴 模块 server/relay/main 等暂不移植）
 │   └── src/                 ← 现有手写 Rust（a2r 输出 .a2r.rs 与之并存，不覆盖）
@@ -259,6 +262,7 @@ a2r-std（转译器层面，写法绕不开），所以需后处理。
 | chats.rs | 596 | ✅ 部分 | Role/ToolCall/ChatMessage/ChatSession/Summary + summary/append + ChatStore IO 用 Auto（SpecChange 跨模块重声明）；new_id(rand) 保留手写 |
 | relay/profession.rs | 494 | ✅ 部分 | Profession struct + ForgePhase enum + Registry（get/list/can_handoff/needs_approval/register）用 Auto；default_professions(292 行数据)/dirs/save 保留手写 |
 | relay/store.rs | 1078 | ✅ 部分 | RunEvent（15 变体 hetero tag union）+ 7 个读模型 struct 用 Auto；RunState/RunEntry(含上游类型)/RunStore(Mutex) 保留手写 |
+| server.rs | 2206 | ✅ 部分 | axum DTO struct（LoginRequest/Response、*Request/*Body/Query、ApiError、RunRequest/Response）+ build_router() 路由表骨架 + health handler 用 Auto（Plan 379 解除 route 保留字后）；含 extractor(State/Path/Json)/impl IntoResponse/json!()/Arc<dyn Client> 的 handler 体保留手写（a2r-20/21）|
 
 ### 混合策略（auth.rs 验证确立）
 

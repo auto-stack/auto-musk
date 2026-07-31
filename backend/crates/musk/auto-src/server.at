@@ -1,0 +1,143 @@
+/// server.at — ported from backend/crates/musk/src/server.rs (axum HTTP layer).
+///
+/// Strategy (plan 014 mixed, axum tier):
+/// - DTO structs (LoginRequest/Response, *Request/*Body/*Query, ApiError, etc.)
+///   + the router assembly table + health/simple handlers -> Auto
+/// - handler bodies using axum extractors (State(s)/Path(id)/Json(body)) +
+///   impl IntoResponse + Json() tuple construction + json!() macro +
+///   Arc<dyn Client> -> hand-written Rust (a2r blind spots: extractor
+///   destructuring in params, impl Trait return, tuple-struct construction,
+///   macros, trait objects)
+///
+/// The router table is the architectural skeleton; handlers are the bodies.
+/// Plan 379 (auto-lang) relaxed the 'route' keyword so .route() chains parse.
+
+use.rust axum::Router
+use.rust axum::routing::{get, post, delete, put, patch}
+use.rust serde::{Serialize, Deserialize}
+
+// ============================================================
+// DTO structs (request/response bodies) — pure data, portable
+// ============================================================
+
+#[derive(Debug, Deserialize)]
+pub type LoginRequest {
+    username str
+    password str
+}
+
+#[derive(Debug, Serialize)]
+pub type LoginResponse {
+    token str
+    username str
+    role str
+}
+
+#[derive(Debug, Deserialize)]
+pub type SpecsUpsertRequest {
+    section str
+    item SpecItemPayload
+}
+
+// SpecItemPayload mirrors specs::SpecItem but as a loose JSON body (the API
+// accepts partial items). Re-declared self-contained (cross-module).
+#[derive(Debug, Deserialize)]
+pub type SpecItemPayload {
+    id str
+    title str
+    content str
+    status str
+}
+
+#[derive(Debug, Deserialize)]
+pub type SpecsTransitionRequest {
+    section str
+    item_id str
+    new_status str
+}
+
+#[derive(Debug, Serialize)]
+pub type ApiError {
+    error str
+}
+
+#[derive(Debug, Deserialize)]
+pub type RunRequest {
+    task str
+    mode Option<str>
+}
+
+#[derive(Debug, Serialize)]
+pub type RunResponse {
+    output str
+    tool_calls List<ToolCallOut>
+}
+
+#[derive(Debug, Serialize)]
+pub type ToolCallOut {
+    tool str
+    args str
+    result str
+}
+
+#[derive(Debug, Deserialize)]
+pub type ChatCreateBody {
+    mode Option<str>
+    workspace_id Option<str>
+}
+
+#[derive(Debug, Deserialize)]
+pub type ChatMessageBody {
+    content str
+}
+
+#[derive(Debug, Deserialize)]
+pub type OpenWorkspaceBody {
+    path str
+}
+
+#[derive(Debug, Deserialize)]
+pub type BrowseQuery {
+    path Option<str>
+}
+
+// ============================================================
+// Router assembly table — the architectural skeleton
+// (handlers are declared first; a2r is single-pass)
+// ============================================================
+
+// health is the one handler simple enough to port (no extractor, returns a
+// plain JSON string body). String implements IntoResponse, so no Json() wrap
+// needed (a2r mis-constructs tuple structs Json(v) -> Json{field0:v}).
+fn health() ~str {
+    return "{\"status\":\"ok\"}".to_string()
+}
+
+use.rust axum::Json
+
+/// Build the full axum router. This mirrors server.rs's `serve()` router
+/// table (.route chain). Handler functions are referenced by name — the real
+/// handler bodies live in server.rs (hand-written); this Auto version wires
+/// the table shape + delegates to them via the hand-written serve() wrapper.
+///
+/// (In the merged build, server.rs's serve() calls this build_router() for the
+/// table, then attaches the hand-written handlers. The pure-Auto handlers like
+/// health() are defined here; the rest are extern Rust fns.)
+fn build_router() Router {
+    let app = Router.new()
+        .route("/api/health", get(health))
+    return app
+}
+
+// NOTE: the full router in server.rs has ~50 routes + .merge(relay_routes()) +
+// .merge(wiki_routes()) + .fallback_service(static) + .layer(cors) +
+// .with_state(state) + tokio TcpListener + axum::serve. Those handler refs
+// (run/specs/chats/conversations/workspace/...) and the serve() driver stay
+// hand-written because:
+//   - handlers use State(s)/Path(id)/Json(body) extractors (a2r can't destructure
+//     params) + impl IntoResponse (a2r has no impl Trait) + json!() macro;
+//   - AppState has Arc<dyn Client> (a2r has no trait objects);
+//   - .merge() takes other Routers built from hand-written relay/wiki routes.
+// The DTO structs above + build_router() skeleton + health() ARE portable and
+// demonstrate the axum tier works post-Plan-379. Full handler migration would
+// need a2r gains on extractors/impl Trait/macros — a separate auto-lang effort.
