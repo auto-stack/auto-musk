@@ -1,9 +1,10 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
-> **状态**：**6 个读侧模块移植完成**（2026-07-31）。specs.rs 全文件 + auth/hello/
-> tool_safety/mode/app_config 部分（纯逻辑/数据模型/IO → Auto，外部 API/全局状态 → 手写 Rust）。
-> 16 个 a2r 限制全部实测记录、多数有规避。剩余 🟡 模块（relay/chats 数据模型）可移植但
-> 需多文件整合；🔴 模块（server/main/tools 等 axum+async 集，~7000 行）需 a2r-std 补服务器运行时。
+> **状态**：**6 个读侧模块移植完成，最终产物不依赖 a2r-std**（2026-08-01）。
+> specs.rs 全文件 + auth/hello/tool_safety/mode/app_config 部分。流转：`auto trans` →
+> `nativeize.pl`（去 a2r-std 桥接）→ cargo check（仅 serde 等真实 crate）。16 个 a2r 限制
+> 全部实测记录。剩余 🟡 模块（relay/chats 数据模型）可移植但需多文件整合；🔴 模块
+> （server/main/tools 等 axum+async 集，~7000 行）需 a2r-std 补服务器运行时。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
@@ -74,6 +75,7 @@ PoC 手写源码：`backend/crates/musk/auto-src/specs.at`
 | **a2r-14** | serde_json 等外部 crate 的函数调用：`serde_json.fn()` 会被当成值访问（E0423）；必须 `use.rust serde_json::{fn}` 显式导入函数后裸调用 `fn(...)` | `serde_json.to_string_pretty(x)` | `use.rust serde_json::{to_string_pretty, from_slice}` 然后 `to_string_pretty(x.view)` |
 | **a2r-15** | `fs.write` 等名称冲突：a2r 优先映射到 `a2r_std::fs::write`（签名 `(str,str)->bool`）而非 `std::fs::write`（`(Path,[u8])->Result`）| `fs.write(path, bytes)` | 改用 String 内容（a2r_std::write 接 `&str`）或 `write_bytes`；按 a2r_std 的实际签名处理返回值 |
 | **a2r-16** | `#[rs]` 逃生舱**仍按 Auto 语法解析函数体**，不是原样透传任意 Rust：不支持 `&mut`/`&` 引用、`vec![]` 宏、`::` 路径、`use` 语句 | `#[rs] fn f() { let mut buf = vec![0u8; n]; }` | `#[rs` 仅适合"Auto 语法 + Rust 语义"的代码（接近 Rust 的方法调用）。真正的 Rust API（sha2/hex/rand/Mutex）须保留手写 Rust，不走 `#[rs]` |
+| **a2r-17** | a2r 对 `str.contains`/`str.find`/`fs.write`/`fs.exists` 等**硬桥接到 a2r-std**（rust.rs 源码硬编码分支，`a2r_std_used.set(true)`），写法无法绕开（连 `#[rs]` 内的 `.contains()` 都被桥接）。导致最终产物依赖 a2r-std crate | `text.contains(n)` → `a2r_std::str_contains(text, n)` | **后处理 `nativeize.pl`**：把桥接调用 1:1 替换回原生（`a.contains(b)`、`std::fs::write(p,c).is_ok()`）并删 `use a2r_std` 注入。`time` 可在 .at 层用 `SystemTime.elapsed()` 绕开（非 str/fs 方法，不桥接） |
 
 > 与技能（auto-lang-creator）规则对应：a2r-1/a2r-5/a2r-8/a2r-9 未被 A 类 23 条
 > 覆盖（新发现）；a2r-2 ≈ A21；a2r-3/a2r-9 同源；a2r-4/a2r-7 = A23；a2r-6 = A20。
@@ -214,6 +216,7 @@ auto-musk/
 │   │   ├── tool_safety.at   ✅ 命令分类
 │   │   ├── mode.at          ✅ struct + registry
 │   │   ├── app_config.at    ✅ struct + effective
+│   │   ├── nativeize.pl     ✅ 后处理脚本（a2r 输出 → 去 a2r-std → 纯 Rust）
 │   │   └── ...（🔴 模块 server/relay/main 等暂不移植）
 │   └── src/                 ← 现有手写 Rust（a2r 输出 .a2r.rs 与之并存，不覆盖）
 └── docs/plans/014-auto-backend-port.md   ← 本文件
@@ -221,9 +224,21 @@ auto-musk/
 
 ### 验证基线（每个移植模块须过）
 
-1. `A2R_CRATE_ROOT=0 auto.exe trans --path <m>.at rust` → 0 转译错误
-2. 临时 crate + a2r-std/auto-atom/auto-val（+ serde）path 依赖 → cargo check 0 错误
-3. 对照原 `.rs`：公开 API 签名一致（允许 `&'static str`→`String` 等无害差异）
+**重要约束**：最终产物必须是**不依赖 a2r-std 的纯 Rust**（用 `use.rust` 直接调
+Rust 库）。a2r 转译器会对 `str.contains`/`str.find`/`fs.write`/`time` 硬桥接到
+a2r-std（转译器层面，写法绕不开），所以需后处理。
+
+```
+1. 转译:  A2R_CRATE_ROOT=0 auto.exe trans --path <m>.at rust   (0 转译错误)
+2. 去桥接: perl nativeize.pl <m>.a2r.rs
+   (把 a2r_std::str_contains(a,b)->a.contains(b)、a2r_std::fs::write(p,c)->
+    std::fs::write(p,c).is_ok()，并删 use a2r_std 注入)
+3. cargo check: 临时 crate 仅依赖 serde/serde_json 等**真实 crate**（不含 a2r-std）→ 0 错误
+4. 对照原 .rs: 公开 API 一致（允许 &'static str→String 等无害差异）
+```
+
+`.at` 源码层也应尽量避开桥接：`time` 用 `SystemTime.elapsed()`（非 `a2r_std::time`）；
+但 `str.contains`/`fs.write` 无法在 .at 绕开（a2r 硬桥接），只能靠 nativeize 后处理。
 
 ### 已完成模块
 

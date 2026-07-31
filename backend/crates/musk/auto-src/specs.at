@@ -9,14 +9,22 @@
 /// Notes on porting choices (cross-referenced to auto-lang-creator skill):
 /// - A 类规则: 函数体不写 `::` 路径; 返回类型用空格不用 `->`; 字段/参数
 ///   类型用空格; 模式匹配用 `is` + `->`; 无分号。
-/// - A15: now_sec() via `use.rust a2r_std::time` + `time.now_sec()`.
+/// - now_sec() via std::time SystemTime.elapsed() (NOT a2r_std::time — this
+///   port targets native Rust via use.rust, no a2r-std runtime dependency).
 
-use.rust a2r_std::time
+use.rust std::time::{SystemTime, Duration}
 use.rust serde::{Serialize, Deserialize}
 use.rust std::collections::{HashSet, HashMap}
 use.rust std::fs
 use.rust std::path::PathBuf
 use.rust serde_json::{to_string_pretty, from_slice}
+
+/// Current unix timestamp in seconds (native std::time, no a2r-std).
+fn now_sec() u64 {
+    let now = SystemTime.now()
+    let elapsed = now.elapsed().unwrap()
+    return elapsed.as_secs()
+}
 /// - Rust 的 SectionType 是无 repr 的 unit 枚举 (Goals, Architecture, ...)。
 ///   Auto 的 scalar enum 形态是 `VARIANT = N` (见 02_types/002_enum)。这里先
 ///   用 scalar 形态 (显式数字) — 这是 PoC 的第一个待测点: a2r 对此能否生成
@@ -198,7 +206,7 @@ ext SpecItem {
     /// Rust 原版用 impl Into<String> — Auto 无 trait 约束参数，简化为 str。
     /// A15: now_sec() via time bridge. A8: id/title owned，多次用需 clone。
     pub static fn new(id str, title str) SpecItem {
-        let now u64 = time.now_sec() as u64
+        let now u64 = now_sec()
         return SpecItem(
             id: id.clone(),
             title: title.clone(),
@@ -250,7 +258,7 @@ ext SpecsSection {
             status: SpecStatus.Empty,
             content: "".to_string(),
             depends_on: [],
-            last_modified: time.now_sec() as u64,
+            last_modified: now_sec(),
             last_verified: None
         )
     }
@@ -680,7 +688,7 @@ ext SpecsDocument {
                             if is_goal_advanceable(item.status) {
                                 if goal_cfg.can_transition(item.status, SpecStatus.Implemented) {
                                     new_status = SpecStatus.Implemented
-                                    new_item_modified = time.now_sec() as u64
+                                    new_item_modified = now_sec()
                                 }
                             }
                         }
@@ -714,7 +722,7 @@ ext SpecsDocument {
                                 if has_review_published {
                                     if goal_cfg.can_transition(SpecStatus.Implemented, SpecStatus.Verified) {
                                         new_status = SpecStatus.Verified
-                                        new_item_modified = time.now_sec() as u64
+                                        new_item_modified = now_sec()
                                     }
                                 }
                             }
@@ -764,7 +772,7 @@ ext SpecsDocument {
                     if cfg.can_transition(new_section_status, done_status) {
                         if new_section_status != done_status {
                             new_section_status = done_status
-                            new_last_modified = time.now_sec() as u64
+                            new_last_modified = now_sec()
                         }
                     }
                 } else {
@@ -778,7 +786,7 @@ ext SpecsDocument {
                         if cfg.can_transition(new_section_status, SpecStatus.Draft) {
                             if new_section_status == SpecStatus.Empty {
                                 new_section_status = SpecStatus.Draft
-                                new_last_modified = time.now_sec() as u64
+                                new_last_modified = now_sec()
                             }
                         }
                     }
@@ -944,7 +952,7 @@ ext SpecsStore {
             Ok(json) -> {
                 // a2r maps fs.write to a2r_std::fs::write which returns bool
                 // (not std::fs::write's Result); just call it, ignore outcome.
-                let ok bool = fs.write(self.path.clone(), json)
+                fs.write(self.path.clone(), json)
             },
             Err(e) -> {}
         }
@@ -974,7 +982,7 @@ ext SpecsStore {
                 if item_found == false {
                     new_items.push(item.clone())
                 }
-                let now u64 = time.now_sec() as u64
+                let now u64 = now_sec()
                 let updated_section SpecsSection = SpecsSection(
                     id: s.id.clone(),
                     section_type: s.section_type,
@@ -1017,7 +1025,7 @@ ext SpecsStore {
                     if it.id == item_id {
                         if cfg.can_transition(it.status, new_status) {
                             transition_ok = true
-                            let now u64 = time.now_sec() as u64
+                            let now u64 = now_sec()
                             var completed Option<u64> = it.completed_at.clone()
                             if new_status == SpecStatus.Done {
                                 completed = Some(now)
@@ -1048,7 +1056,7 @@ ext SpecsStore {
                         new_items.push(it)
                     }
                 }
-                let now u64 = time.now_sec() as u64
+                let now u64 = now_sec()
                 let updated_section SpecsSection = SpecsSection(
                     id: s.id.clone(),
                     section_type: s.section_type,
@@ -1093,7 +1101,7 @@ ext SpecsStore {
                     }
                 }
                 if any_removed {
-                    let now u64 = time.now_sec() as u64
+                    let now u64 = now_sec()
                     let updated_section SpecsSection = SpecsSection(
                         id: s.id.clone(),
                         section_type: s.section_type,
