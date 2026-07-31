@@ -65,6 +65,7 @@ PoC 手写源码：`backend/crates/musk/auto-src/specs.at`
 | **a2r-7** | 显式 derive 必须含 `PartialEq, Eq`，否则 enum `==` 失败（E0369）| 加 serde derive 时漏掉 | derive 全套写齐 `Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize` |
 | **a2r-8** | `r"..."` 原始字符串字面量被渲染成 `r { content: "..." }`（结构体误解析）| `Regex.new(r"\d+")` | 用普通字符串 + 双反斜杠 `"\\d+"` |
 | **a2r-9** | `str` 变量传给 `&str` 形参方法调用类型不匹配（E0308）| `re.find_iter(text)`（text: String）| a2r-3 的泛化；regex/IO 场景高发，需手动 `&` 或改参数形态 |
+| **a2r-10** | `HashMap<K, Vec<V>>` 复合泛型方法调用处理不全：`insert` 给 Vec 值误注入 `.to_string()`（E0599）；`remove`/`contains_key` 对 String key 不加 `&`（E0308，但 `get` 会加）| `m.insert(k, list_val)` / `m.remove(string_key)` | **当前硬边界**，非写法可绕开；需 `#[rs]` 逃生舱或保留手写 Rust |
 
 > 与技能（auto-lang-creator）规则对应：a2r-1/a2r-5/a2r-8/a2r-9 未被 A 类 23 条
 > 覆盖（新发现）；a2r-2 ≈ A21；a2r-3/a2r-9 同源；a2r-4/a2r-7 = A23；a2r-6 = A20。
@@ -102,21 +103,28 @@ struct + 字符串转换 + factory）可作为阶段 2 的「首批可移植」�
 
 发现并解决 a2r-5/6/7（详见上表）。
 
-### 批次 B — rebuild_relations（regex）🔶 探针完成，待决策
+### 批次 B — rebuild_relations（regex + HashMap 反链）🔶 部分完成
 
 原版用 `regex::Regex` + `OnceLock` + `HashSet` + `HashMap` 做关系图反链。
-探针结论：
-- `use.rust std::collections::{HashSet, HashMap}` ✅ 可用
-- `use.rust regex::Regex` + `Regex.new("...")` + `find_iter` ✅ 转译通过
-- **但叠加 3 个 a2r 限制**：a2r-8（`r"..."` 要改普通串）、a2r-9（str 变量传
-  `&str` 形参不匹配）、`OnceLock` 全局单例未验证
 
-**可选路径**（待用户拍板）：
-1. **纯 Auto 重写 scan_refs**：用手写字符扫描替代 regex（正则只匹配
-   `[A-Z]\d+` 模式），完全绕开 regex crate —— 工作量中，最干净
-2. **`#[rs]` 逃生舱**：rebuild_relations/scan_defs 直接写 Rust 透传 —— 但
-   a2r 对 `#[rs]` 的支持未经测试（a2r test 套件无 `#[rs]` 用例）
-3. **暂缓**：先做批次 C（derive_statuses）或横向扩展其它模块
+**已移植并 0 错误**（`specs.at`）：
+- `all_ids(doc)` —— 遍历 sections/items 收集到 `HashSet<str>` ✅
+- `scan_refs(text, known)` —— **绕开 regex**，改为遍历 known 用 `str_contains`
+  检查（语义等价：原版本就 filter `known.contains`，仅放弃 `\b` 词边界，
+  实际 spec ID 独立出现，影响可忽略）✅
+
+**受阻：rebuild_relations 主体**（HashMap 反链累积循环）。a2r 对
+`HashMap<K, Vec<V>>` 复合泛型的方法调用处理有系统性缺陷（a2r-10）：
+- `insert(k, List_value)` 给 Vec 值误注入 `.to_string()`（E0599）
+- `remove(key)` / `contains_key(key)` 对 String key 不加 `&`（E0308）
+- 单独验证发现：`get(str_key)` 会正确加 `&`，但 `remove`/`contains_key` 不会
+
+**结论**：这是 a2r 当前硬边界，非写法可绕开。`rebuild_relations` 主体需：
+1. `#[rs]` 逃生舱直接写 Rust（a2r 对 `#[rs]` 支持未验证），或
+2. 保留手写 Rust，或
+3. 等 a2r 修复复合泛型 HashMap 方法处理。
+
+`all_ids` + `scan_refs` 已就绪，待 rebuild_relations 路径定下后拼装。
 
 ### 批次 C — derive_statuses（待启动）
 

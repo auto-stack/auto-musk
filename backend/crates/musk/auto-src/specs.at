@@ -13,6 +13,7 @@
 
 use.rust a2r_std::time
 use.rust serde::{Serialize, Deserialize}
+use.rust std::collections::{HashSet, HashMap}
 /// - Rust 的 SectionType 是无 repr 的 unit 枚举 (Goals, Architecture, ...)。
 ///   Auto 的 scalar enum 形态是 `VARIANT = N` (见 02_types/002_enum)。这里先
 ///   用 scalar 形态 (显式数字) — 这是 PoC 的第一个待测点: a2r 对此能否生成
@@ -371,3 +372,45 @@ ext SectionConfig {
         return false
     }
 }
+
+// ============================================================
+// Relation graph — derived reverse-links (related)
+// ============================================================
+
+// 原版用 regex::Regex 匹配 spec ID (a2r-8/9 限制: r"..." 误解析 + str/&str
+// 不匹配)。改为遍历 known ID 集合用 str_contains 检查 —— 语义等价(scan_refs
+// 本来就 filter known.contains),仅放弃 regex 的 \b 词边界(spec ID 实际独立
+// 出现,影响可忽略)。
+
+/// Collect all spec item IDs present in the document (across all sections).
+fn all_ids(doc SpecsDocument) HashSet<str> {
+    var set HashSet<str> = HashSet.new()
+    for section in doc.sections {
+        for item in section.items {
+            set.insert(item.id.clone())
+        }
+    }
+    return set
+}
+
+/// Scan text for references to known item IDs (deduped). Only references to
+/// IDs that actually exist in known are kept.
+fn scan_refs(text str, known HashSet<str>) List<str> {
+    var refs List<str> = []
+    for id in known {
+        if text.contains(id) {
+            refs.push(id.clone())
+        }
+    }
+    refs.sort()
+    return refs
+}
+
+// NOTE: rebuild_relations() is NOT ported to Auto yet. The original uses a
+// HashMap<String, Vec<String>> reverse-edge accumulator, and a2r mishandles
+// std HashMap method calls on composite-generic value types:
+//   - insert(k, List_value) spuriously injects .to_string() on the Vec (E0599)
+//   - remove(key) / contains_key(key) don't add & to a String key (E0308)
+// Options (plan 014): #[rs] escape hatch, hand-written Rust retained, or wait
+// for a2r to fix composite-generic HashMap method handling. all_ids + scan_refs
+// above ARE ported and verified; only the HashMap-accumulation loop is blocked.
