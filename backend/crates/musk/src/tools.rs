@@ -568,15 +568,29 @@ impl Tool for BatchReplace {
 mod tests {
     use super::*;
 
+    /// File-tool tests operate on the crate's own source (src/…) and on
+    /// crate-local `.test-tmp/` fixtures. Tests don't run `main()`, so the
+    /// process-wide project root (normally snapshotted at startup) is
+    /// uninitialized and path confinement would fall back to literal `.`.
+    /// Initialize it once to the crate dir (cwd) so resolution is
+    /// deterministic regardless of test ordering (OnceLock: idempotent).
+    /// Also pre-create the `.test-tmp/` fixture dir (tests that seed files
+    /// with a direct `std::fs::write` expect it to already exist).
+    fn init_root() {
+        crate::tool_safety::init_project_root();
+        let _ = std::fs::create_dir_all(".test-tmp");
+    }
+
     #[tokio::test]
     async fn read_file_reads_existing() {
+        init_root();
         let t = ReadFile;
-        // Cargo.toml lives at the workspace root, two levels up from the crate.
+        // The crate's own Cargo.toml lives inside the project root.
         let out = t
-            .execute(&json!({"path": "../../Cargo.toml"}))
+            .execute(&json!({"path": "Cargo.toml"}))
             .await
             .unwrap();
-        assert!(out.contains("[workspace]"));
+        assert!(out.contains("[package]"));
     }
 
     #[tokio::test]
@@ -595,9 +609,10 @@ mod tests {
 
     #[tokio::test]
     async fn write_file_then_read_back() {
+        init_root();
         let t_write = WriteFile;
         let t_read = ReadFile;
-        let path = std::env::temp_dir().join("musk_tool_test_write.txt");
+        let path = std::path::PathBuf::from(".test-tmp/musk_tool_test_write.txt");
         let p = path.to_string_lossy().to_string();
 
         t_write
@@ -611,8 +626,9 @@ mod tests {
 
     #[tokio::test]
     async fn write_file_creates_parent_dirs() {
+        init_root();
         let t = WriteFile;
-        let dir = std::env::temp_dir().join("musk_tool_test_subdir");
+        let dir = std::path::PathBuf::from(".test-tmp/musk_tool_test_subdir");
         let path = dir.join("nested/deep/file.txt");
         let p = path.to_string_lossy().to_string();
 
@@ -642,7 +658,8 @@ mod tests {
 
     #[tokio::test]
     async fn edit_file_replaces_unique_match() {
-        let path = std::env::temp_dir().join("musk_edit_test_unique.txt");
+        init_root();
+        let path = std::path::PathBuf::from(".test-tmp/musk_edit_test_unique.txt");
         std::fs::write(&path, "alpha\nbeta\ngamma\n").unwrap();
         let p = path.to_string_lossy().to_string();
         let out = EditFile
@@ -669,7 +686,8 @@ mod tests {
 
     #[tokio::test]
     async fn edit_file_errors_on_ambiguous_match() {
-        let path = std::env::temp_dir().join("musk_edit_test_ambig.txt");
+        init_root();
+        let path = std::path::PathBuf::from(".test-tmp/musk_edit_test_ambig.txt");
         std::fs::write(&path, "dup\ndup\n").unwrap();
         let p = path.to_string_lossy().to_string();
         let err = EditFile
@@ -687,6 +705,7 @@ mod tests {
 
     #[tokio::test]
     async fn search_finds_pattern() {
+        init_root();
         // Search the crate's own lib.rs for a known string.
         let out = Search
             .execute(&json!({"pattern": "pub mod", "path": "src/lib.rs"}))
@@ -698,6 +717,7 @@ mod tests {
 
     #[tokio::test]
     async fn search_no_match_returns_empty_marker() {
+        init_root();
         let out = Search
             .execute(&json!({"pattern": "zzz_definitely_not_here_xyz", "path": "src/lib.rs"}))
             .await
@@ -709,6 +729,7 @@ mod tests {
 
     #[tokio::test]
     async fn list_dir_lists_files() {
+        init_root();
         let out = ListDir.execute(&json!({"path": "src"})).await.unwrap();
         // src/ contains tools.rs, lib.rs, main.rs, etc.
         assert!(out.contains("tools.rs"));
@@ -725,11 +746,12 @@ mod tests {
 
     #[tokio::test]
     async fn list_dir_empty_shows_marker() {
-        let dir = std::env::temp_dir().join("musk_listdir_empty_test");
+        init_root();
+        let dir = std::path::PathBuf::from(".test-tmp/musk_listdir_empty_test");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let out = ListDir
-            .execute(&json!({"path": dir.to_string_lossy()}))
+            .execute(&json!({"path": dir.to_string_lossy().to_string()}))
             .await
             .unwrap();
         assert!(out.contains("(empty directory)"));
@@ -740,6 +762,7 @@ mod tests {
 
     #[tokio::test]
     async fn list_symbols_finds_rust_structs() {
+        init_root();
         let out = ListSymbols
             .execute(&json!({"path": "src/tools.rs"}))
             .await
@@ -761,6 +784,7 @@ mod tests {
 
     #[tokio::test]
     async fn glob_finds_rust_files() {
+        init_root();
         let out = Glob
             .execute(&json!({"pattern": "**/*.rs", "path": "src"}))
             .await
@@ -771,6 +795,7 @@ mod tests {
 
     #[tokio::test]
     async fn glob_no_match() {
+        init_root();
         let out = Glob
             .execute(&json!({"pattern": "**/*.nonexistent", "path": "src"}))
             .await
@@ -782,7 +807,8 @@ mod tests {
 
     #[tokio::test]
     async fn batch_replace_multiple_unique() {
-        let path = std::env::temp_dir().join("musk_batch_test.txt");
+        init_root();
+        let path = std::path::PathBuf::from(".test-tmp/musk_batch_test.txt");
         std::fs::write(&path, "aaa\nbbb\nccc\n").unwrap();
         let p = path.to_string_lossy().to_string();
         let out = BatchReplace
@@ -802,7 +828,8 @@ mod tests {
 
     #[tokio::test]
     async fn batch_replace_atomic_on_ambiguous() {
-        let path = std::env::temp_dir().join("musk_batch_atomic.txt");
+        init_root();
+        let path = std::path::PathBuf::from(".test-tmp/musk_batch_atomic.txt");
         std::fs::write(&path, "dup\ndup\nunique\n").unwrap();
         let p = path.to_string_lossy().to_string();
         let err = BatchReplace

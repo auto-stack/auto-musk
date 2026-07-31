@@ -279,7 +279,7 @@ async fn chat_loop(
     client: Arc<dyn Client>,
 ) -> Result<(), String> {
     use std::io::{self, BufRead, Write};
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc as StdArc;
 
     let name = mode.name.clone();
@@ -324,11 +324,17 @@ async fn chat_loop(
                         print!("{text}");
                         let _ = io::stdout().flush();
                     }
+                    StreamEvent::ToolStart { tool, .. } => {
+                        println!("\n  [tool] {tool} starting…");
+                    }
                     StreamEvent::Tool { tool, result, .. } => {
                         tool_count_cb.fetch_add(1, Ordering::SeqCst);
                         let preview: String = result.chars().take(80).collect();
                         let ellipsis = if result.len() > 80 { "…" } else { "" };
                         println!("\n  [tool] {tool} → {preview}{ellipsis}");
+                    }
+                    StreamEvent::Warning { text } => {
+                        println!("\n  [warn] {text}");
                     }
                     StreamEvent::Done { result } => {
                         let n = result.tool_calls.len();
@@ -337,13 +343,18 @@ async fn chat_loop(
                             if n == 1 { "" } else { "s" }
                         );
                     }
+                    StreamEvent::Cancelled { result } => {
+                        println!("\n  [cancelled] {}", result.output.trim_end());
+                    }
                     StreamEvent::Error { message } => {
                         println!("\n  [error] {message}");
                     }
                 }
             });
 
-        match agent.run_stream(input, on_event).await {
+        // No cancellation endpoint yet — the run flag is never set.
+        let cancel = StdArc::new(AtomicBool::new(false));
+        match agent.run_stream(input, on_event, cancel).await {
             Ok(_) => {}
             Err(e) => {
                 // Don't kill the session on one failed turn (e.g. max_turns,

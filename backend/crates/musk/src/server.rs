@@ -1056,7 +1056,9 @@ async fn run_stream_handler(
                 let value = stream_event_to_json(&ev);
                 let _ = tx2.try_send(value);
             });
-        match agent.run_stream(&req.task, on_event).await {
+        // No cancellation endpoint yet — the run flag is never set.
+        let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        match agent.run_stream(&req.task, on_event, cancel).await {
             Ok(_) => {
                 // Done event already emitted by run_stream; nothing more.
             }
@@ -1087,14 +1089,26 @@ fn stream_event_to_json(ev: &auto_ai_agent::StreamEvent) -> serde_json::Value {
     use auto_ai_agent::StreamEvent;
     match ev {
         StreamEvent::Delta { text } => json!({"type": "delta", "text": text}),
+        StreamEvent::ToolStart { tool, args } => {
+            json!({"type": "tool_start", "tool": tool, "args": args})
+        }
         StreamEvent::Tool { tool, args, result } => json!({
             "type": "tool",
             "tool": tool,
             "args": args,
             "result": result,
         }),
+        StreamEvent::Warning { text } => json!({"type": "warning", "text": text}),
         StreamEvent::Done { result } => json!({
             "type": "done",
+            "output": result.output,
+            "turns": result.turns,
+            "tool_calls": result.tool_calls.iter().map(|tc| json!({
+                "tool": tc.tool, "args": tc.args, "result": tc.result,
+            })).collect::<Vec<_>>(),
+        }),
+        StreamEvent::Cancelled { result } => json!({
+            "type": "cancelled",
             "output": result.output,
             "turns": result.turns,
             "tool_calls": result.tool_calls.iter().map(|tc| json!({
@@ -1625,7 +1639,9 @@ async fn chat_stream(
                 }
                 let _ = tx.try_send(value);
             });
-        match agent.run_stream(&user_msg, on_event).await {
+        // No cancellation endpoint yet — the run flag is never set.
+        let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        match agent.run_stream(&user_msg, on_event, cancel).await {
             Ok(_) => {
                 // Persist the assistant reply + tool calls.
                 let text = std::mem::take(&mut *accumulated.lock().unwrap());

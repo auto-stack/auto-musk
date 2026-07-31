@@ -25,6 +25,9 @@ Thumbs.db
 backend/target/
 **/target/
 
+# File-tool unit-test fixtures (crate-local .test-tmp/ under backend/crates)
+**/.test-tmp/
+
 # ZCode / Claude agent working dirs
 .claude/
 

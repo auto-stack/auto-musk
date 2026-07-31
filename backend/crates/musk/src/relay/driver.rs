@@ -191,6 +191,10 @@ async fn run_step(
                     },
                 );
             }
+            StreamEvent::ToolStart { .. } => {
+                // The Tool event follows with the actual result; nothing to
+                // persist yet (kept for state-tracking parity with server.rs).
+            }
             StreamEvent::Tool {
                 tool,
                 args,
@@ -216,14 +220,25 @@ async fn run_step(
                     },
                 );
             }
+            StreamEvent::Warning { text } => {
+                tracing::warn!("relay turn warning: {text}");
+            }
             StreamEvent::Done { .. } | StreamEvent::Error { .. } => {
                 // Handled below via the return value.
+            }
+            StreamEvent::Cancelled { result } => {
+                // The driver never sets the cancel flag; belt-and-braces so
+                // partial output still lands in the handoff.
+                acc.lock().unwrap().push_str(&result.output);
+                tracing::warn!("relay turn cancelled (unexpected)");
             }
         }
     });
 
+    // No cancellation endpoint yet — the run flag is never set.
+    let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let result = agent
-        .run_stream(&task, on_event)
+        .run_stream(&task, on_event, cancel)
         .await
         .map_err(|e| format!("agent: {e}"))?;
 
