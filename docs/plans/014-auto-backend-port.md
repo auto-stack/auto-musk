@@ -1,6 +1,7 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
-> **状态**：阶段 0 PoC 完成（2026-07-31）。阶段 1/2 待启动。
+> **状态**：阶段 0 PoC + 批次 A 完成（2026-07-31）。specs.rs 前 ~736 行已验证可移植。
+> 批次 B（regex）探针完成，待决策。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
@@ -59,9 +60,15 @@ PoC 手写源码：`backend/crates/musk/auto-src/specs.at`
 | **a2r-3** | `str` 字面量实参被注入 `.to_string()`（E0308）| 调用形参为 `&str` 的函数时传字面量 | 系统性启发式 bug；库内影响有限（多见于测试代码）。规避：避免 `&str` 形参 + 字面量调用的组合，或调用方先 `let s = "x"` |
 | **a2r-4** | 显式 `#[derive(...)]` 覆盖 a2r 自动全套 derive | 给 enum/struct 加任何 derive | 显式写出**全套**需要的 derive（`Clone, Debug, Serialize, Deserialize`），不可只写 serde（A23） |
 | **a2r-4b** | 透传 derive 不自动注入对应 `use` | `#[derive(Serialize)]` | 显式 `use.rust serde::{Serialize, Deserialize}` |
+| **a2r-5** | `from`/`to` 是保留字，做参数名/标识符致解析失败（E0007，报错位置误导到文件尾）| `fn f(from X)` | A22 扩展：改名 `from_status`/`to_status`/`up_to` 等 |
+| **a2r-6** | tuple 字段访问 `pair.1` 报"Invalid field name"（E0099）；仅 `pair.0` 经 `fix_tuple_index` 处理 | `pair.1` / `pair.0` 后跟非 clone 操作 | 用 `pair[0]`/`pair[1]` 写法（A20），由 fix_tuple_index 转成 `.0`/`.1` |
+| **a2r-7** | 显式 derive 必须含 `PartialEq, Eq`，否则 enum `==` 失败（E0369）| 加 serde derive 时漏掉 | derive 全套写齐 `Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize` |
+| **a2r-8** | `r"..."` 原始字符串字面量被渲染成 `r { content: "..." }`（结构体误解析）| `Regex.new(r"\d+")` | 用普通字符串 + 双反斜杠 `"\\d+"` |
+| **a2r-9** | `str` 变量传给 `&str` 形参方法调用类型不匹配（E0308）| `re.find_iter(text)`（text: String）| a2r-3 的泛化；regex/IO 场景高发，需手动 `&` 或改参数形态 |
 
-> 与技能（auto-lang-creator）规则对应：a2r-1 未被 A 类 23 条覆盖（新发现）；
-> a2r-2 ≈ A21；a2r-3 新发现；a2r-4 = A23。
+> 与技能（auto-lang-creator）规则对应：a2r-1/a2r-5/a2r-8/a2r-9 未被 A 类 23 条
+> 覆盖（新发现）；a2r-2 ≈ A21；a2r-3/a2r-9 同源；a2r-4/a2r-7 = A23；a2r-6 = A20。
+> **a2r-5 的报错会误导到文件末尾**（offset 越界），定位时需二分排查保留字。
 
 ### 阶段 0 结论
 
@@ -73,6 +80,55 @@ PoC 手写源码：`backend/crates/musk/auto-src/specs.at`
 
 **对 auto-musk 的指导**：specs.rs 的数据模型层（约 ~300 行：两个 enum + 5 个
 struct + 字符串转换 + factory）可作为阶段 2 的「首批可移植」目标。
+
+---
+
+## specs.rs 全文移植进度（阶段 2 首个模块）
+
+逐批验证 specs.rs（1495 行），每批 a2r 转译 + cargo check 闭环至 0 错误。
+
+### 批次 A — 数据模型 + 状态机 ✅（specs.rs 行 1-736，约 50%）
+
+**已移植并 0 错误编译**（`auto-src/specs.at`，373 行 Auto）：
+- 2 scalar enum：`SectionType`（7 变体）+ `SpecStatus`（23 变体），全套 derive
+  （Clone/Copy/Debug/PartialEq/Eq/Serialize/Deserialize）
+- 字符串转换：`as_str`/`display_title`/`to_str`（枚举 `is` 匹配）+
+  `from_str_lossy`（Map 查表，避开 str_as_str）
+- 4 个 struct + factory：`SpecItem`（17 字段）/`SpecsSection`/`SpecsDocument`/
+  `SpecChange`，均含 serde derive
+- **`SectionConfig` 状态机**：`for_type`（7 分支 is）+ `can_transition`
+  （`List<(SpecStatus, SpecStatus)>` 转换矩阵，for 遍历 + `pair[N]` 比较）
+- `Copy` derive 解决 owned enum 多次方法调用的 move 问题
+
+发现并解决 a2r-5/6/7（详见上表）。
+
+### 批次 B — rebuild_relations（regex）🔶 探针完成，待决策
+
+原版用 `regex::Regex` + `OnceLock` + `HashSet` + `HashMap` 做关系图反链。
+探针结论：
+- `use.rust std::collections::{HashSet, HashMap}` ✅ 可用
+- `use.rust regex::Regex` + `Regex.new("...")` + `find_iter` ✅ 转译通过
+- **但叠加 3 个 a2r 限制**：a2r-8（`r"..."` 要改普通串）、a2r-9（str 变量传
+  `&str` 形参不匹配）、`OnceLock` 全局单例未验证
+
+**可选路径**（待用户拍板）：
+1. **纯 Auto 重写 scan_refs**：用手写字符扫描替代 regex（正则只匹配
+   `[A-Z]\d+` 模式），完全绕开 regex crate —— 工作量中，最干净
+2. **`#[rs]` 逃生舱**：rebuild_relations/scan_defs 直接写 Rust 透传 —— 但
+   a2r 对 `#[rs]` 的支持未经测试（a2r test 套件无 `#[rs]` 用例）
+3. **暂缓**：先做批次 C（derive_statuses）或横向扩展其它模块
+
+### 批次 C — derive_statuses（待启动）
+
+原版用 iterator 链（filter_map/filter/all/any）+ `matches!` 宏 + 函数内局部
+struct。a2r 对迭代器适配器链无证据、不支持 `matches!`。需用 `for` 循环 +
+`is` 匹配 + `Map` 查表等价重写。逻辑复杂但纯计算，无 regex/IO 依赖。
+
+### 批次 D — SpecsStore（文件 IO，待启动）
+
+`std::fs` + `serde_json` + `PathBuf` + `std::io::Result`。a2r-std 有 `fs`
+模块但 API 不同；serde_json 经 use.rust 可能可用但 IO 错误处理是薄弱点。
+预判 🟡/🔴 边界。
 
 ---
 
@@ -108,7 +164,7 @@ struct + 字符串转换 + factory）可作为阶段 2 的「首批可移植」�
 auto-musk/
 ├── backend/crates/musk/
 │   ├── auto-src/            ← 新：手写 .at 源码（a2r 输入）
-│   │   ├── specs.at         ✅（阶段 0 PoC，数据模型子集）
+│   │   ├── specs.at         ✅ 批次 A 完成（数据模型 + 状态机，0 错误）
 │   │   └── ...（按模块）
 │   └── src/                 ← 现有手写 Rust（a2r 输出 .a2r.rs 与之并存，不覆盖）
 └── docs/plans/014-auto-backend-port.md   ← 本文件

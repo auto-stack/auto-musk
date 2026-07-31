@@ -22,7 +22,7 @@ use.rust serde::{Serialize, Deserialize}
 // SectionType — the 7 spec-section kinds (scalar enum)
 // ============================================================
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 enum SectionType {
     Goals = 1
     Architecture = 2
@@ -48,13 +48,26 @@ ext SectionType {
             SectionType.Reports -> return "reports"
         }
     }
+
+    /// display title with emoji (for .ad file headers).
+    pub fn display_title() str {
+        is self {
+            SectionType.Goals -> return "Goals",
+            SectionType.Architecture -> return "Architecture",
+            SectionType.Designs -> return "Designs",
+            SectionType.Plans -> return "Plans",
+            SectionType.Tests -> return "Tests",
+            SectionType.Reviews -> return "Reviews",
+            SectionType.Reports -> return "Reports"
+        }
+    }
 }
 
 // ============================================================
 // SpecStatus — spec item/section lifecycle (23 variants)
 // ============================================================
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 enum SpecStatus {
     Empty = 1
     Proposed = 2
@@ -200,5 +213,161 @@ ext SpecItem {
             modified_at: now,
             completed_at: None
         )
+    }
+}
+
+// ============================================================
+// SpecsSection — a container for one of the 7 section kinds
+// ============================================================
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type SpecsSection {
+    id str
+    section_type SectionType
+    title str
+    items List<SpecItem>
+    status SpecStatus
+    content str
+    depends_on List<str>
+    last_modified u64
+    last_verified Option<u64>
+}
+
+ext SpecsSection {
+    /// Factory: empty section of the given type (title = display title).
+    /// st is Copy in Rust; in Auto the owned value is consumed by the first
+    /// method call, so derive fields from copies.
+    pub static fn new(st SectionType) SpecsSection {
+        return SpecsSection(
+            id: st.as_str(),
+            section_type: st,
+            title: st.display_title(),
+            items: [],
+            status: SpecStatus.Empty,
+            content: "".to_string(),
+            depends_on: [],
+            last_modified: time.now_sec() as u64,
+            last_verified: None
+        )
+    }
+}
+
+// ============================================================
+// SpecsDocument — the root (Document -> Section[] -> Item[])
+// ============================================================
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type SpecsDocument {
+    project str
+    version u64
+    sections List<SpecsSection>
+}
+
+ext SpecsDocument {
+    /// Factory: a document with all 7 empty sections.
+    pub static fn new(project str) SpecsDocument {
+        return SpecsDocument(
+            project: project.clone(),
+            version: 0,
+            sections: [
+                SpecsSection.new(SectionType.Goals),
+                SpecsSection.new(SectionType.Architecture),
+                SpecsSection.new(SectionType.Designs),
+                SpecsSection.new(SectionType.Plans),
+                SpecsSection.new(SectionType.Tests),
+                SpecsSection.new(SectionType.Reviews),
+                SpecsSection.new(SectionType.Reports)
+            ]
+        )
+    }
+}
+
+// ============================================================
+// SpecChange — a pending spec change (for LLM-proposed edits)
+// ============================================================
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type SpecChange {
+    section_id str
+    item_id str
+    title Option<str>
+    content Option<str>
+    status Option<SpecStatus>
+    reason str
+}
+
+// ============================================================
+// State machine — per-section valid status transitions
+// ============================================================
+
+/// Per-section-type state-machine configuration.
+/// A7 待测点: Vec<(SpecStatus, SpecStatus)> 作为字段类型 — Auto tuple 有限制。
+#[derive(Clone, Debug)]
+pub type SectionConfig {
+    section_type SectionType
+    allowed_statuses List<SpecStatus>
+    allowed_transitions List<(SpecStatus, SpecStatus)>
+}
+
+ext SectionConfig {
+    /// The state machine for a given section type.
+    pub static fn for_type(st SectionType) SectionConfig {
+        is st {
+            SectionType.Goals -> return SectionConfig(
+                section_type: st,
+                allowed_statuses: [SpecStatus.Empty, SpecStatus.Proposed, SpecStatus.Analysed, SpecStatus.Approved, SpecStatus.InProgress, SpecStatus.Implemented, SpecStatus.Verified, SpecStatus.Done, SpecStatus.Archived],
+                allowed_transitions: [(SpecStatus.Empty, SpecStatus.Proposed), (SpecStatus.Proposed, SpecStatus.Analysed), (SpecStatus.Analysed, SpecStatus.Approved), (SpecStatus.Approved, SpecStatus.InProgress), (SpecStatus.InProgress, SpecStatus.Implemented), (SpecStatus.Implemented, SpecStatus.Verified), (SpecStatus.Verified, SpecStatus.Done), (SpecStatus.Done, SpecStatus.Archived), (SpecStatus.InProgress, SpecStatus.Archived)]
+            ),
+            SectionType.Architecture -> return SectionConfig.for_arch_designs(st),
+            SectionType.Designs -> return SectionConfig.for_arch_designs(st),
+            SectionType.Plans -> return SectionConfig(
+                section_type: st,
+                allowed_statuses: [SpecStatus.Empty, SpecStatus.Draft, SpecStatus.Approved, SpecStatus.InProgress, SpecStatus.Done, SpecStatus.Obsolete],
+                allowed_transitions: [(SpecStatus.Empty, SpecStatus.Draft), (SpecStatus.Draft, SpecStatus.Approved), (SpecStatus.Approved, SpecStatus.InProgress), (SpecStatus.InProgress, SpecStatus.Done), (SpecStatus.Done, SpecStatus.Obsolete)]
+            ),
+            SectionType.Tests -> return SectionConfig(
+                section_type: st,
+                allowed_statuses: [SpecStatus.Empty, SpecStatus.Draft, SpecStatus.Implemented, SpecStatus.Done, SpecStatus.Verified, SpecStatus.Blocked],
+                allowed_transitions: [(SpecStatus.Empty, SpecStatus.Draft), (SpecStatus.Draft, SpecStatus.Implemented), (SpecStatus.Implemented, SpecStatus.Done), (SpecStatus.Done, SpecStatus.Verified), (SpecStatus.Implemented, SpecStatus.Blocked), (SpecStatus.Blocked, SpecStatus.Implemented)]
+            ),
+            SectionType.Reviews -> return SectionConfig.for_reviews_reports(st),
+            SectionType.Reports -> return SectionConfig.for_reviews_reports(st)
+        }
+    }
+
+    // Architecture / Designs 共用（Auto 的 is 不支持 A | B 多模式合并）。
+    static fn for_arch_designs(st SectionType) SectionConfig {
+        return SectionConfig(
+            section_type: st,
+            allowed_statuses: [SpecStatus.Empty, SpecStatus.Draft, SpecStatus.UnderReview, SpecStatus.Approved, SpecStatus.Rejected, SpecStatus.Superseded, SpecStatus.Outdated],
+            allowed_transitions: [(SpecStatus.Empty, SpecStatus.Draft), (SpecStatus.Draft, SpecStatus.UnderReview), (SpecStatus.UnderReview, SpecStatus.Approved), (SpecStatus.UnderReview, SpecStatus.Rejected), (SpecStatus.Approved, SpecStatus.Superseded), (SpecStatus.Approved, SpecStatus.Outdated)]
+        )
+    }
+
+    // Reviews / Reports 共用。
+    static fn for_reviews_reports(st SectionType) SectionConfig {
+        return SectionConfig(
+            section_type: st,
+            allowed_statuses: [SpecStatus.Empty, SpecStatus.Draft, SpecStatus.Published],
+            allowed_transitions: [(SpecStatus.Empty, SpecStatus.Draft), (SpecStatus.Draft, SpecStatus.Published)]
+        )
+    }
+
+    /// Is `from_status -> to_status` a legal transition? Idempotent (equal)
+    /// always allowed; otherwise the pair must be in allowed_transitions.
+    /// A22: `from`/`to` 是 Auto 保留字 — 参数名改为 from_status/to_status。
+    /// A7: .contains((tuple)) 不支持 — 改用 for 循环逐对比较。
+    pub fn can_transition(from_status SpecStatus, to_status SpecStatus) bool {
+        if from_status == to_status {
+            return true
+        }
+        for pair in self.allowed_transitions {
+            if pair[0] == from_status {
+                if pair[1] == to_status {
+                    return true
+                }
+            }
+        }
+        return false
     }
 }
