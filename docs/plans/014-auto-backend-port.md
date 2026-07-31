@@ -207,9 +207,13 @@ specs.rs 原判"纯逻辑层可移植、rebuild_relations/derive_statuses/SpecsS
 auto-musk/
 ├── backend/crates/musk/
 │   ├── auto-src/            ← 新：手写 .at 源码（a2r 输入）
-│   │   ├── specs.at         ✅ 全文件完成（1495 行 Rust → Auto，0 错误）
-│   │   ├── auth.at          ✅ 数据模型+权限+用户 IO（hash/Mutex/session 保留手写）
-│   │   └── ...（按模块）
+│   │   ├── specs.at         ✅ 全文件（1495 行 → Auto）
+│   │   ├── auth.at          ✅ 数据模型+权限+用户 IO
+│   │   ├── hello.at         ✅ 全文件（greet）
+│   │   ├── tool_safety.at   ✅ 命令分类
+│   │   ├── mode.at          ✅ struct + registry
+│   │   ├── app_config.at    ✅ struct + effective
+│   │   └── ...（🔴 模块 server/relay/main 等暂不移植）
 │   └── src/                 ← 现有手写 Rust（a2r 输出 .a2r.rs 与之并存，不覆盖）
 └── docs/plans/014-auto-backend-port.md   ← 本文件
 ```
@@ -225,7 +229,11 @@ auto-musk/
 | 模块 | 行数 | 状态 | 策略 |
 |---|---|---|---|
 | specs.rs | 1495 | ✅ 全文件 | 纯 Auto（regex→str_contains、HashMap→List、就地改→整体重赋值、IO→.view+serde_json 显式导入）|
-| auth.rs | 266 | ✅ 部分 | 数据模型+权限+用户 IO 用 Auto；hash_password/random_hex/Mutex sessions 保留手写 Rust（`#[rs]` 仍解析 Auto 语法，a2r-16，不能写 sha2/Mutex）|
+| auth.rs | 266 | ✅ 部分 | 数据模型+权限+用户 IO 用 Auto；hash_password/random_hex/Mutex sessions 保留手写 Rust |
+| hello.rs | 28 | ✅ 全文件 | 纯 Auto（单函数 greet）|
+| tool_safety.rs | 336 | ✅ 部分 | 命令分类（CommandTier+classify_command）用 Auto；路径限制（OnceLock+thread_local+Path 方法）保留手写 |
+| mode.rs | 236 | ✅ 部分 | AgentMode struct + ModeRegistry 纯逻辑用 Auto（List 替代 HashMap）；parse_mode_at(auto_atom)+include_str! 保留手写 |
+| app_config.rs | 250 | ✅ 部分 | MuskAppConfig/HarnessSelection struct + effective_* 用 Auto；load/parse/env 保留手写 |
 
 ### 混合策略（auth.rs 验证确立）
 

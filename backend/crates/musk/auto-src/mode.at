@@ -1,0 +1,93 @@
+/// mode.at — ported from backend/crates/musk/src/mode.rs.
+///
+/// Agent 运行模式配置。Strategy (plan 014 mixed):
+/// - AgentMode struct + ModeRegistry pure logic (names/lookup/default) -> Auto
+/// - parse_mode_at + auto_atom/auto_val navigation -> hand-written Rust
+///   (AtomParser::parse / Atom::Node / node.get_prop_of / Value enum are
+///   auto-lang upstream APIs a2r can't express)
+/// - include_str! builtin embedding + user-dir file scan -> hand-written Rust
+
+use.rust std::collections::HashMap
+
+/// 一种运行模式的配置。
+#[derive(Clone, Debug)]
+pub type AgentMode {
+    name str
+    description str
+    role str
+    skills bool
+    tools List<str>
+    workflow Option<str>
+    context_file str
+    extra_system_prompt str
+}
+
+/// 模式注册表:内置 + 用户自定义。用户模式同名时覆盖内置。
+/// (用 List 而非 HashMap 存储 — a2r-10 对 HashMap<_, struct> 方法处理有缺陷;
+/// 模式数量少，线性查找无性能影响。)
+#[derive(Clone, Debug)]
+pub type ModeRegistry {
+    modes List<AgentMode>
+}
+
+ext ModeRegistry {
+    /// 默认模式名。
+    pub static fn default_name() str {
+        return "superpowers"
+    }
+
+    /// 列出所有已注册模式名(排序)。
+    pub fn names() List<str> {
+        var result List<str> = []
+        for m in self.modes.clone() {
+            result.push(m.name.clone())
+        }
+        result.sort()
+        return result
+    }
+
+    /// 按 name 查找一个模式。
+    pub fn get(name str) Option<AgentMode> {
+        for m in self.modes.clone() {
+            if m.name == name {
+                return Some(m)
+            }
+        }
+        return None
+    }
+
+    /// 是否包含某模式。
+    pub fn contains(name str) bool {
+        for m in self.modes.clone() {
+            if m.name == name {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// 注册一个模式(覆盖同名)。整体重赋值绕开 a2r-10/a2r-11。
+    pub mut fn register(mode AgentMode) void {
+        var new_modes List<AgentMode> = []
+        var found bool = false
+        for m in self.modes.clone() {
+            if m.name == mode.name {
+                found = true
+                new_modes.push(mode.clone())
+            } else {
+                new_modes.push(m)
+            }
+        }
+        if found == false {
+            new_modes.push(mode.clone())
+        }
+        self.modes = new_modes
+    }
+}
+
+// NOTE: parse_mode_at (auto_atom/auto_val .at parsing), BUILTIN_MODES
+// (include_str! embedding), and ModeRegistry::load (user-dir file scan +
+// parse) stay hand-written in mode.rs — they use auto-lang upstream crate
+// APIs (AtomParser/Atom::Node/node.get_prop_of/Value enum) and include_str!,
+// all a2r blind spots. The struct + registry pure logic above ports cleanly;
+// parse_mode_at populates AgentMode, then register() (above) adds it.

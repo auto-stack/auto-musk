@@ -1,0 +1,106 @@
+/// tool_safety.at — ported from backend/crates/musk/src/tool_safety.rs.
+///
+/// Tool safety layer — path confinement + run_command classification.
+/// Strategy (plan 014 mixed):
+/// - run_command classification (CommandTier + classify_command) -> Auto
+///   (pure string logic: contains/starts_with/trim/to_lowercase)
+/// - path confinement (PROJECT_ROOT/ROOT_OVERRIDE/CURRENT_ROOT +
+///   resolve_within_project) -> hand-written Rust (OnceLock + thread_local!
+///   + RefCell + Path methods are a2r blind spots)
+
+// ============================================================
+// run_command classification — pure string logic
+// ============================================================
+
+/// The safety tier of a shell command.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CommandTier {
+    Allowed = 1
+    // NeedsApproval carries a human-readable reason. Auto enum variants can't
+    // easily carry a named String payload alongside a unit variant in a way
+    // a2r renders cleanly, so we model the reason via a separate constructor
+    // + a flat enum + companion reason field at call sites. For the classifier
+    // return, callers check the tier then read a reason string separately.
+    NeedsApproval = 2
+}
+
+/// Commands that are always safe (matched by prefix). Modeled as a function
+/// returning a List (Auto has no &'static [&str]); mirrors ALLOWED_PREFIXES.
+fn allowed_prefixes() List<str> {
+    return [
+        "cargo", "npm", "npx", "yarn", "pnpm", "node", "python", "python3", "pip",
+        "pytest", "rustc", "rustup", "tsc", "eslint", "prettier",
+        "git status", "git diff", "git log", "git show", "git branch", "git add",
+        "git stash", "git fetch", "git remote",
+        "echo", "type", "cat", "ls", "dir", "pwd", "cd", "mkdir", "touch",
+        "head", "tail", "wc", "sort", "uniq", "grep", "find", "which", "where",
+        "test", "[", "true", "false",
+        "go ", "go test", "go build", "go vet", "go run",
+        "make", "cmake"
+    ]
+}
+
+/// Patterns that are explicitly dangerous (checked first, override whitelist).
+fn danger_patterns() List<str> {
+    return [
+        "rm -rf", "rm -fr", "rmdir /s", "del /s", "del /f", "format ", "mkfs",
+        "shutdown", "reboot", "halt",
+        "curl ", "wget ",
+        ">", ">>",
+        "| sh", "| bash", "|sh", "|bash",
+        "chmod 777", "chown",
+        "kill -9", "taskkill",
+        ":(){",
+        "dd if",
+        "mv /", "cp /"
+    ]
+}
+
+/// Classify a shell command into Allowed or NeedsApproval.
+/// Checks danger patterns first (override whitelist), then whitelist prefix,
+/// then defaults to NeedsApproval. Returns the tier; the reason string is
+/// produced by classify_reason() (kept separate because Auto enum variants
+/// don't carry payloads cleanly).
+pub fn classify_command(cmd str) CommandTier {
+    let trimmed str = cmd.trim()
+    // 1. danger patterns -> NeedsApproval
+    let dangers List<str> = danger_patterns()
+    for pat in dangers {
+        if trimmed.contains(pat) {
+            return CommandTier.NeedsApproval
+        }
+    }
+    // 2. whitelist prefix -> Allowed
+    let lower str = trimmed.to_lower()
+    let prefixes List<str> = allowed_prefixes()
+    for prefix in prefixes {
+        if lower == prefix {
+            return CommandTier.Allowed
+        }
+        let with_space str = prefix + " "
+        if lower.starts_with(with_space) {
+            return CommandTier.Allowed
+        }
+    }
+    // 3. else -> NeedsApproval
+    return CommandTier.NeedsApproval
+}
+
+/// The human-readable reason for a NeedsApproval verdict on `cmd`.
+/// (Companion to classify_command; separated to avoid enum-payload issues.)
+pub fn classify_reason(cmd str) str {
+    let trimmed str = cmd.trim()
+    let dangers List<str> = danger_patterns()
+    for pat in dangers {
+        if trimmed.contains(pat) {
+            return "dangerous pattern detected: " + pat + " — needs approval"
+        }
+    }
+    return "command " + trimmed + " is not on the whitelist and needs approval"
+}
+
+// NOTE: path confinement (PROJECT_ROOT OnceLock, ROOT_OVERRIDE/CURRENT_ROOT
+// thread_local!, resolve_within_project, is_within_project, set/clear_root)
+// stays hand-written in tool_safety.rs — OnceLock + thread_local! + RefCell +
+// Path methods (join/parent/file_name/starts_with/canonicalize) are a2r blind
+// spots. The classifier above calls no path APIs, so it ports cleanly.

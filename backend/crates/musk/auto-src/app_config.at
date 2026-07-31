@@ -1,0 +1,73 @@
+/// app_config.at — ported from backend/crates/musk/src/app_config.rs.
+///
+/// musk 运行时配置。Strategy (plan 014 mixed):
+/// - MuskAppConfig / HarnessSelection structs + effective_* pure logic -> Auto
+/// - load / parse_from_at / to_at_source (auto_atom/auto_val + AtomSource) ->
+///   hand-written Rust (upstream crate APIs a2r can't express)
+/// - apply_to_env / apply_app_config (env mutation) -> hand-written Rust
+
+use.rust serde::{Serialize, Deserialize}
+
+// ============================================================
+// Config structs
+// ============================================================
+
+/// The app's harness selection: which OS-level harnesses it uses.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type HarnessSelection {
+    roles List<str>
+    skills List<str>
+    modes List<str>
+}
+
+/// musk runtime config (single source: ~/.config/autoos/apps/musk/config.at).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type MuskAppConfig {
+    daemon_url Option<str>
+    default_mode Option<str>
+    context_file Option<str>
+    serve_addr Option<str>
+    auto_start_daemon Option<bool>
+    harness HarnessSelection
+}
+
+ext MuskAppConfig {
+    /// Effective daemon URL (configured or default).
+    pub fn effective_daemon_url() str {
+        is self.daemon_url {
+            Some(url) -> return url.clone(),
+            None -> return "http://127.0.0.1:17654"
+        }
+    }
+
+    /// Effective default mode (configured or "superpowers").
+    pub fn effective_default_mode() str {
+        is self.default_mode {
+            Some(mode) -> return mode.clone(),
+            None -> return "superpowers"
+        }
+    }
+
+    /// Effective serve addr (configured or default).
+    pub fn effective_serve_addr() str {
+        is self.serve_addr {
+            Some(addr) -> return addr.clone(),
+            None -> return "127.0.0.1:8080"
+        }
+    }
+
+    /// Whether auto-start daemon is on (configured or default false).
+    pub fn effective_auto_start() bool {
+        is self.auto_start_daemon {
+            Some(b) -> return b,
+            None -> return false
+        }
+    }
+}
+
+// NOTE: load / parse_from_at / to_at_source (auto_atom/auto_val .at parse +
+// AtomSource serialize), apply_to_env / apply_app_config (std::env mutation),
+// and musk_config_path (path discovery) stay hand-written in app_config.rs.
+// They use auto-lang upstream crate APIs and env mutation — a2r blind spots.
+// The structs + effective_* defaults above port cleanly; load() populates the
+// struct, effective_* read it.

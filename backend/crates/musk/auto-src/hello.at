@@ -1,0 +1,7 @@
+/// hello.at — ported from backend/crates/musk/src/hello.rs.
+/// Simple hello world module (greeting function for demonstration).
+
+/// Prints "hello world" to stdout.
+pub fn greet() void {
+    print("hello world")
+}
