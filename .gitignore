@@ -30,6 +30,7 @@ backend/target/
 
 # ZCode / Claude agent working dirs
 .claude/
+.zcode/
 
 # Playwright debug artifacts (screenshots, debug scripts, temp responses)
 web/debug-shots/
@@ -42,6 +43,10 @@ web/*relay-resp.txt
 nul
 web/nul
 greeting.txt
+
+# Agent tool-testing scratch files (write_file demos, pie-chart demo, etc.)
+backend/hello.py
+backend/my-demo.py
 
 # Superpowers brainstorming visual-companion mockups
 .superpowers/
