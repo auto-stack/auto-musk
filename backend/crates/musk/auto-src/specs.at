@@ -1,0 +1,204 @@
+/// specs.at — PoC: Spec Ledger data-model subset, ported from
+/// backend/crates/musk/src/specs.rs.
+///
+/// Goal: validate whether a2r can transpile a real, axum-free data-model
+/// slice of auto-musk back to compiling Rust. Scope (v2): the two scalar
+/// enums (SectionType / SpecStatus) + string conversions + SpecItem struct
+/// + factory (exercises String/Vec/Option/u64 fields + time bridge).
+///
+/// Notes on porting choices (cross-referenced to auto-lang-creator skill):
+/// - A 类规则: 函数体不写 `::` 路径; 返回类型用空格不用 `->`; 字段/参数
+///   类型用空格; 模式匹配用 `is` + `->`; 无分号。
+/// - A15: now_sec() via `use.rust a2r_std::time` + `time.now_sec()`.
+
+use.rust a2r_std::time
+use.rust serde::{Serialize, Deserialize}
+/// - Rust 的 SectionType 是无 repr 的 unit 枚举 (Goals, Architecture, ...)。
+///   Auto 的 scalar enum 形态是 `VARIANT = N` (见 02_types/002_enum)。这里先
+///   用 scalar 形态 (显式数字) — 这是 PoC 的第一个待测点: a2r 对此能否生成
+///   可编译的 Rust enum + Display。
+
+// ============================================================
+// SectionType — the 7 spec-section kinds (scalar enum)
+// ============================================================
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+enum SectionType {
+    Goals = 1
+    Architecture = 2
+    Designs = 3
+    Plans = 4
+    Tests = 5
+    Reviews = 6
+    Reports = 7
+}
+
+ext SectionType {
+    /// snake_case string id (e.g. "goals", "architecture").
+    /// NOTE: a2r auto-generates `from_id` for scalar enums, so we only
+    /// hand-write `as_str` + `display_title` here.
+    pub fn as_str() str {
+        is self {
+            SectionType.Goals -> return "goals",
+            SectionType.Architecture -> return "architecture",
+            SectionType.Designs -> return "designs",
+            SectionType.Plans -> return "plans",
+            SectionType.Tests -> return "tests",
+            SectionType.Reviews -> return "reviews",
+            SectionType.Reports -> return "reports"
+        }
+    }
+}
+
+// ============================================================
+// SpecStatus — spec item/section lifecycle (23 variants)
+// ============================================================
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+enum SpecStatus {
+    Empty = 1
+    Proposed = 2
+    Draft = 3
+    UnderReview = 4
+    Approved = 5
+    InProgress = 6
+    InImplementation = 7
+    Implemented = 8
+    Verified = 9
+    Done = 10
+    Archived = 11
+    Rejected = 12
+    Backlog = 13
+    Ready = 14
+    InReview = 15
+    Blocked = 16
+    Superseded = 17
+    Outdated = 18
+    Stable = 19
+    Deprecated = 20
+    Published = 21
+    Analysed = 22
+    Obsolete = 23
+}
+
+ext SpecStatus {
+    /// snake_case string.
+    pub fn to_str() str {
+        is self {
+            SpecStatus.Empty -> return "empty",
+            SpecStatus.Proposed -> return "proposed",
+            SpecStatus.Draft -> return "draft",
+            SpecStatus.UnderReview -> return "under_review",
+            SpecStatus.Approved -> return "approved",
+            SpecStatus.InProgress -> return "in_progress",
+            SpecStatus.InImplementation -> return "in_implementation",
+            SpecStatus.Implemented -> return "implemented",
+            SpecStatus.Verified -> return "verified",
+            SpecStatus.Done -> return "done",
+            SpecStatus.Archived -> return "archived",
+            SpecStatus.Rejected -> return "rejected",
+            SpecStatus.Backlog -> return "backlog",
+            SpecStatus.Ready -> return "ready",
+            SpecStatus.InReview -> return "in_review",
+            SpecStatus.Blocked -> return "blocked",
+            SpecStatus.Superseded -> return "superseded",
+            SpecStatus.Outdated -> return "outdated",
+            SpecStatus.Stable -> return "stable",
+            SpecStatus.Deprecated -> return "deprecated",
+            SpecStatus.Published -> return "published",
+            SpecStatus.Analysed -> return "analysed",
+            SpecStatus.Obsolete -> return "obsolete"
+        }
+    }
+
+    /// Parse from a string. Unknown -> Draft (lossy).
+    /// A21: str 的 `is` 匹配会被 a2r 渲染成 unstable 的 str_as_str —— 改用
+    /// Map 查表（避开字符串 is 匹配；A4: get() 返回 Option 需 ?? 兜底）。
+    pub static fn from_str_lossy(s str) SpecStatus {
+        var table Map<str, SpecStatus> = Map.new()
+        table.insert("empty", SpecStatus.Empty)
+        table.insert("proposed", SpecStatus.Proposed)
+        table.insert("draft", SpecStatus.Draft)
+        table.insert("under_review", SpecStatus.UnderReview)
+        table.insert("approved", SpecStatus.Approved)
+        table.insert("in_progress", SpecStatus.InProgress)
+        table.insert("in_implementation", SpecStatus.InImplementation)
+        table.insert("implemented", SpecStatus.Implemented)
+        table.insert("verified", SpecStatus.Verified)
+        table.insert("done", SpecStatus.Done)
+        table.insert("archived", SpecStatus.Archived)
+        table.insert("rejected", SpecStatus.Rejected)
+        table.insert("backlog", SpecStatus.Backlog)
+        table.insert("ready", SpecStatus.Ready)
+        table.insert("in_review", SpecStatus.InReview)
+        table.insert("blocked", SpecStatus.Blocked)
+        table.insert("superseded", SpecStatus.Superseded)
+        table.insert("outdated", SpecStatus.Outdated)
+        table.insert("stable", SpecStatus.Stable)
+        table.insert("deprecated", SpecStatus.Deprecated)
+        table.insert("published", SpecStatus.Published)
+        table.insert("analysed", SpecStatus.Analysed)
+        table.insert("obsolete", SpecStatus.Obsolete)
+        // A4: map.get() 返回 Option<&T> —— is 解构 + .clone()（trap23 A4 已验证形态）。
+        is table.get(s) {
+            Some(v) -> return v.clone(),
+            None -> return SpecStatus.Draft
+        }
+    }
+}
+
+// ============================================================
+// SpecItem — the minimal spec unit (struct + factory)
+// ============================================================
+
+/// The minimal spec unit (one Goal, one Architecture decision, ...).
+/// - id: type-prefixed number (G1, A3, S1.1)
+/// - depends_on: manually-declared forward deps (item IDs)
+/// - related: derived reverse-links (filled by rebuild_relations, later)
+/// - tags: label list
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type SpecItem {
+    id str
+    title str
+    content str
+    status SpecStatus
+    depends_on List<str>
+    related List<str>
+    priority Option<str>
+    assignee Option<str>
+    test_file Option<str>
+    file Option<str>
+    milestone Option<str>
+    module Option<str>
+    tags List<str>
+    created_at u64
+    modified_at u64
+    completed_at Option<u64>
+}
+
+ext SpecItem {
+    /// Factory: create with id + title, status Empty, timestamps = now.
+    /// Rust 原版用 impl Into<String> — Auto 无 trait 约束参数，简化为 str。
+    /// A15: now_sec() via time bridge. A8: id/title owned，多次用需 clone。
+    pub static fn new(id str, title str) SpecItem {
+        let now u64 = time.now_sec() as u64
+        return SpecItem(
+            id: id.clone(),
+            title: title.clone(),
+            content: "".to_string(),
+            status: SpecStatus.Empty,
+            depends_on: [],
+            related: [],
+            priority: None,
+            assignee: None,
+            test_file: None,
+            file: None,
+            milestone: None,
+            module: None,
+            tags: [],
+            created_at: now,
+            modified_at: now,
+            completed_at: None
+        )
+    }
+}
