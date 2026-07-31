@@ -1,8 +1,9 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
-> **状态**：**specs.rs 全文件移植完成**（2026-07-31）。1495 行 Rust → Auto
-> 全量覆盖（数据模型 + 状态机 + 关系图 + 状态推导 + 概览 + JSON 持久化 CRUD），
-> a2r 转译 + cargo check 双双 0 错误。下一步：横向扩展其它 🟢 模块。
+> **状态**：**6 个读侧模块移植完成**（2026-07-31）。specs.rs 全文件 + auth/hello/
+> tool_safety/mode/app_config 部分（纯逻辑/数据模型/IO → Auto，外部 API/全局状态 → 手写 Rust）。
+> 16 个 a2r 限制全部实测记录、多数有规避。剩余 🟡 模块（relay/chats 数据模型）可移植但
+> 需多文件整合；🔴 模块（server/main/tools 等 axum+async 集，~7000 行）需 a2r-std 补服务器运行时。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
@@ -245,6 +246,35 @@ auto-musk/
 这意味着每个模块通常是"Auto 主体 + 少量手写 Rust 边角"的混合，而非全 Auto。
 不影响"Auto 版本经 a2r 转译实现同等能力"的总目标——手写 Rust 边角可视为
 a2r-std 的等价补充，最终产物仍是完整可编译的 Rust。
+
+### 剩余模块评估（2026-07-31）
+
+经 6 个模块实测，剩余模块的可移植性判定如下：
+
+| 模块 | 行数 | 判定 | 原因 |
+|---|---|---|---|
+| tool_test.rs | 184 | 🟡 数据模型可移植 | Fixture/CaseCategory/Expect/ToolCase 可移植；Sandbox(tempfile)+run_case(async+闭包)保留手写 |
+| workflow.rs | 30 | 🔴 保留手写 | include_str! + parse_at_workflow(auto_ai_agent 上游) |
+| tool_context.rs | 18 | 🔴 保留手写 | Arc<AppState> 循环依赖 server.rs |
+| relay/flows.rs | 59 | 🔴 保留手写 | FlowSpec/FlowStep(auto_ai_agent builder API) |
+| relay/mod.rs | 35 | 🔴 保留手写 | 纯上游类型重导出 |
+| relay/profession.rs | 494 | 🟡 数据模型可移植 | Profession struct+ForgePhase enum+as_str 可移植；Registry 用 List 替代 HashMap，需跨模块引用 SectionType |
+| relay/store.rs | 1078 | 🟡 数据模型可移植 | RunEvent(11 变体)+7 个 struct 可移植；RunStore(broadcast+OnceLock)保留手写，需多文件整合 |
+| server.rs | 2206 | 🔴 不移植 | axum async handler（121 处 async/axum/tokio） |
+| main.rs | 370 | 🔴 不移植 | tokio runtime + clap + 启动编排 |
+| lib.rs | 261 | 🔴 保留手写 | Agent/Role/Tool trait 装配 + OwnedRole(Arc<dyn Role>) |
+| tools.rs | 874 | 🔴 不移植 | 9 个 async Tool trait 实现 |
+| spec_tools.rs | 559 | 🔴 不移植 | async Tool trait + Arc<SpecsStore> |
+| orch_tools.rs | 494 | 🔴 不移植 | async spawn_relay/dispatch + ToolContext |
+| conversation.rs | 1331 | 🔴 不移植 | broadcast 事件总线 + async SSE |
+| chats.rs | 596 | 🟡 数据模型可移植 | ChatSession/ChatMessage/Role 可移植；审批队列+ChatStore(IO)需混合 |
+| relay/driver.rs | 289 | 🔴 不移植 | async run_stream + StreamEvent |
+| relay/api.rs | 393 | 🔴 不移植 | axum relay routes + broadcast |
+
+**总结**：剩余 🟡 模块（relay/profession、relay/store、chats、tool_test）的数据模型
+仍可移植，但需多文件整合（跨模块类型引用）且体量大，边际价值递减。🔴 模块
+（server/main/tools 等约 7000 行）是 axum+async+tokio 集，a2r-std 无服务器运行时，
+不在本计划可达范围。
 
 ---
 
