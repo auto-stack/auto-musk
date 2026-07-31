@@ -1,7 +1,8 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
-> **状态**：阶段 0 PoC + 批次 A 完成（2026-07-31）。specs.rs 前 ~736 行已验证可移植。
-> 批次 B（regex）探针完成，待决策。
+> **状态**：阶段 0 PoC + 批次 A/B/C 完成（2026-07-31）。specs.rs 核心逻辑层
+> （数据模型 + 状态机 + 关系图反链 + 状态推导）全部移植成功、0 错误编译。
+> a2r-10/11 经绕开后**降级**（非硬边界）；新发现 a2r-12。批次 D（IO）可选。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
@@ -65,8 +66,9 @@ PoC 手写源码：`backend/crates/musk/auto-src/specs.at`
 | **a2r-7** | 显式 derive 必须含 `PartialEq, Eq`，否则 enum `==` 失败（E0369）| 加 serde derive 时漏掉 | derive 全套写齐 `Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize` |
 | **a2r-8** | `r"..."` 原始字符串字面量被渲染成 `r { content: "..." }`（结构体误解析）| `Regex.new(r"\d+")` | 用普通字符串 + 双反斜杠 `"\\d+"` |
 | **a2r-9** | `str` 变量传给 `&str` 形参方法调用类型不匹配（E0308）| `re.find_iter(text)`（text: String）| a2r-3 的泛化；regex/IO 场景高发，需手动 `&` 或改参数形态 |
-| **a2r-10** | `HashMap<K, Vec<V>>` 复合泛型方法调用处理不全：`insert` 给 Vec 值误注入 `.to_string()`（E0599）；`remove`/`contains_key` 对 String key 不加 `&`（E0308，但 `get` 会加）| `m.insert(k, list_val)` / `m.remove(string_key)` | **当前硬边界**，非写法可绕开；需 `#[rs]` 逃生舱或保留手写 Rust |
-| **a2r-11** | 无可变借用遍历 / 就地嵌套修改：`mut fn` 里 `for x in self.coll` 生成 move 而非 `&mut`；`for mut x` 被拒；`self.items[i].field = v` 编译成 `self.items[i].clone().field = v`（写进 clone，无效）| 任何"遍历 `&mut self` 集合并改元素字段"的方法 | **当前硬边界**；Auto 无 mutable-borrow 迭代惯用法。需 `#[rs]` 逃生舱或保留手写 Rust。影响所有"就地修改"型方法 |
+| **a2r-10** | `HashMap<K, Vec<V>>` 复合泛型方法调用处理不全：`insert` 给 Vec 值误注入 `.to_string()`（E0599）；`remove`/`contains_key` 对 String key 不加 `&`（E0308，但 `get` 会加）| `m.insert(k, list_val)` / `m.remove(string_key)` | **可绕开**（非硬边界）：用 `List<结构体>` + 线性查找替代 HashMap（specs.rs rebuild_relations 已验证）|
+| **a2r-11** | 无可变借用遍历 / 就地嵌套修改：`mut fn` 里 `for x in self.coll` 生成 move 而非 `&mut`；`for mut x` 被拒；`self.items[i].field = v` 编译成 `self.items[i].clone().field = v`（写进 clone，无效）| 任何"遍历 `&mut self` 集合并改元素字段"的方法 | **可绕开**（非硬边界）：构建新集合 + **整体字段重赋值** `self.field = new_list`（a2r 正确处理）；而非就地改元素（derive_statuses / rebuild_relations 已验证）|
+| **a2r-12** | 在 `ext A` 方法里把 `B(...)` struct 字面量作为 `.push()` 参数（A≠B）触发 "field type mismatch" 类型检查失败 | `list.push(OtherType(field: ...))` | 用 `let x B = B(...); list.push(x)` 中转变量绕开（已验证）|
 
 > 与技能（auto-lang-creator）规则对应：a2r-1/a2r-5/a2r-8/a2r-9 未被 A 类 23 条
 > 覆盖（新发现）；a2r-2 ≈ A21；a2r-3/a2r-9 同源；a2r-4/a2r-7 = A23；a2r-6 = A20。
@@ -104,7 +106,7 @@ struct + 字符串转换 + factory）可作为阶段 2 的「首批可移植」�
 
 发现并解决 a2r-5/6/7（详见上表）。
 
-### 批次 B — rebuild_relations（regex + HashMap 反链）🔶 部分完成
+### 批次 B — rebuild_relations（关系图反链）✅ 完成
 
 原版用 `regex::Regex` + `OnceLock` + `HashSet` + `HashMap` 做关系图反链。
 
@@ -113,42 +115,34 @@ struct + 字符串转换 + factory）可作为阶段 2 的「首批可移植」�
 - `scan_refs(text, known)` —— **绕开 regex**，改为遍历 known 用 `str_contains`
   检查（语义等价：原版本就 filter `known.contains`，仅放弃 `\b` 词边界，
   实际 spec ID 独立出现，影响可忽略）✅
+- **`rebuild_relations`** ✅ —— 两个 a2r 限制组合绕开：
+  - a2r-10（HashMap 复合泛型缺陷）→ 用 `List<ReverseEntry>`（target_id +
+    referrers）+ 线性查找替代 `HashMap<String, Vec<String>>`
+  - a2r-11（无可变借用遍历）→ 整体字段重赋值 `self.sections = new_sections`
+    （构建新 sections 列表，每个 item 用更新的 related 复制）
+  - a2r-12（push struct 字面量）→ `let x = Struct(...); list.push(x)` 中转
 
-**受阻：rebuild_relations 主体**（HashMap 反链累积循环）。a2r 对
-`HashMap<K, Vec<V>>` 复合泛型的方法调用处理有系统性缺陷（a2r-10）：
-- `insert(k, List_value)` 给 Vec 值误注入 `.to_string()`（E0599）
-- `remove(key)` / `contains_key(key)` 对 String key 不加 `&`（E0308）
-- 单独验证发现：`get(str_key)` 会正确加 `&`，但 `remove`/`contains_key` 不会
-
-**结论**：这是 a2r 当前硬边界，非写法可绕开。`rebuild_relations` 主体需：
-1. `#[rs]` 逃生舱直接写 Rust（a2r 对 `#[rs]` 支持未验证），或
-2. 保留手写 Rust，或
-3. 等 a2r 修复复合泛型 HashMap 方法处理。
-
-`all_ids` + `scan_refs` 已就绪，待 rebuild_relations 路径定下后拼装。
-
-### 批次 C — derive_statuses 🔶 辅助函数已移植，主方法受阻 a2r-11
+### 批次 C — derive_statuses（状态推导）✅ 完成
 
 原版用 iterator 链（filter_map/filter/all/any）+ `matches!` 宏 + 函数内局部
 struct + 就地修改 `item.status`。
 
 **已移植并 0 错误**（`specs.at`）：
 - `Snap` struct（提到顶层，原版是函数内局部）+ `find_snap` 线性查找
-- `is_goal_advanceable` / `is_test_done` / `is_test_pending`（用 `is` 链替代
-  `matches!` 宏，Auto 无多模式 A|B）
+- `is_goal_advanceable` / `is_test_done` / `is_test_pending`（`is` 链替代
+  `matches!` 宏；Auto 无逻辑非运算符 not/!，用否定语义函数替代）
 - `section_complete_status`（7 分支 is）
-- 探针验证：`is` 链替代 matches!、for 循环替代 iter().all() 均可编译
+- **`derive_statuses`** ✅ —— 三条规则全实现，组合绕开：
+  - iterator 链 → `for` 循环 + 辅助 bool（探针验证可行）
+  - `matches!` 宏 → `is_goal_advanceable`/`is_test_pending` 辅助函数
+  - HashMap 快照 → `List<Snap>` + `find_snap` 线性查找（绕开 a2r-10）
+  - 就地修改 status → 构建新 sections/items 列表 + 整体字段重赋值
+    `self.sections = new_sections`（绕开 a2r-11）
+  - struct 字面量 push → let 中转（绕开 a2r-12）
+  - move 值 → `for x in coll.clone()` + `fn(coll.clone())`
 
-**受阻：derive_statuses 主方法**。即便用 `for` + 辅助 bool 重写了所有迭代器
-链、用 List<Snap> 替代 HashMap 绕开 a2r-10，仍卡在**就地修改**：方法要遍历
-`&mut self.sections` 改 `item.status`/`section.status`。a2r-11（新硬边界）：
-- `mut fn` 里 `for x in self.coll` 生成 move，非 `&mut`
-- `for mut x` 被拒（"'mut' is not supported as a storage modifier"）
-- `self.items[i].field = v` 编译成 `self.items[i].clone().field = v`（无效）
-
-Auto 无 mutable-borrow 迭代惯用法。需 `#[rs]` 逃生舱或保留手写 Rust。
-**影响面**：所有"遍历并就地修改 self 集合元素"的方法都中招 —— 这是个高频
-模式，specs.rs 的 SpecsStore CRUD、其它模块的类似方法都会受影响。
+**关键突破**：a2r-10/11 原判"硬边界"，经组合绕开后**降级为可处理** —— 只要
+重构为"构建新集合 + 整体重赋值"模式，"遍历并修改 self"的方法都能移植。
 
 ### 批次 D — SpecsStore（文件 IO，待启动）
 
@@ -190,7 +184,7 @@ Auto 无 mutable-borrow 迭代惯用法。需 `#[rs]` 逃生舱或保留手写 R
 auto-musk/
 ├── backend/crates/musk/
 │   ├── auto-src/            ← 新：手写 .at 源码（a2r 输入）
-│   │   ├── specs.at         ✅ 批次 A 完成（数据模型 + 状态机，0 错误）
+│   │   ├── specs.at         ✅ 批次 A/B/C 完成（数据模型+状态机+关系图+状态推导）
 │   │   └── ...（按模块）
 │   └── src/                 ← 现有手写 Rust（a2r 输出 .a2r.rs 与之并存，不覆盖）
 └── docs/plans/014-auto-backend-port.md   ← 本文件

@@ -406,14 +406,133 @@ fn scan_refs(text str, known HashSet<str>) List<str> {
     return refs
 }
 
-// NOTE: rebuild_relations() is NOT ported to Auto yet. The original uses a
-// HashMap<String, Vec<String>> reverse-edge accumulator, and a2r mishandles
-// std HashMap method calls on composite-generic value types:
-//   - insert(k, List_value) spuriously injects .to_string() on the Vec (E0599)
-//   - remove(key) / contains_key(key) don't add & to a String key (E0308)
-// Options (plan 014): #[rs] escape hatch, hand-written Rust retained, or wait
-// for a2r to fix composite-generic HashMap method handling. all_ids + scan_refs
-// above ARE ported and verified; only the HashMap-accumulation loop is blocked.
+// NOTE: rebuild_relations() originally used HashMap<String, Vec<String>> to
+// accumulate reverse edges. a2r-10 mishandles composite-generic HashMap method
+// calls (insert injects .to_string() on Vec values; remove/contains_key omit &
+// on String keys). Workaround: use a List<ReverseEntry> (target_id + referrers)
+// with linear lookup instead of HashMap. Plus a2r-11 workaround (whole-field
+// reassign instead of in-place item.related mutation).
+
+type ReverseEntry {
+    target_id str
+    referrers List<str>
+}
+
+/// Linear lookup: find or create the ReverseEntry for target_id in the list.
+/// (replaces HashMap.entry(); a2r-10 blocks HashMap on composite generics.)
+fn upsert_reverse(entries List<ReverseEntry>, target_id str) ReverseEntry {
+    for e in entries.clone() {
+        if e.target_id == target_id {
+            return e
+        }
+    }
+    let fresh ReverseEntry = ReverseEntry(target_id: target_id.clone(), referrers: [])
+    return fresh
+}
+
+ext SpecsDocument {
+    /// Rebuild every item's derived `related` field (reverse-links).
+    /// For each forward edge A -> B (from depends_on + content-scanned refs),
+    /// B's related list gains A. After scan, each related list is sorted+deduped.
+    pub mut fn rebuild_relations() void {
+        var known HashSet<str> = all_ids(self.clone())
+        // reverse edges, accumulated as a List (NOT HashMap — a2r-10)
+        var reverse List<ReverseEntry> = []
+
+        for section in self.sections.clone() {
+            for item in section.items.clone() {
+                var forwards List<str> = item.depends_on.clone()
+                let scanned List<str> = scan_refs(item.content.clone(), known.clone())
+                for s in scanned.clone() {
+                    forwards.push(s.clone())
+                }
+                forwards.sort()
+                // record reverse edge: for each target, referrer=item.id.
+                // a2r-11: can't mutate an element yielded by `for e in list`;
+                // rebuild the reverse list with an updated entry instead.
+                for target in forwards.clone() {
+                    var updated_reverse List<ReverseEntry> = []
+                    var target_found bool = false
+                    for e in reverse.clone() {
+                        if e.target_id == target {
+                            target_found = true
+                            var more List<str> = e.referrers.clone()
+                            more.push(item.id.clone())
+                            let updated ReverseEntry = ReverseEntry(target_id: e.target_id.clone(), referrers: more)
+                            updated_reverse.push(updated)
+                        } else {
+                            updated_reverse.push(e)
+                        }
+                    }
+                    if target_found == false {
+                        let entry ReverseEntry = ReverseEntry(target_id: target.clone(), referrers: [item.id.clone()])
+                        updated_reverse.push(entry)
+                    }
+                    reverse = updated_reverse
+                }
+            }
+        }
+
+        // Build new sections with updated related fields (whole-field reassign,
+        // per a2r-11 workaround).
+        var new_sections List<SpecsSection> = []
+        for section in self.sections.clone() {
+            var new_items List<SpecItem> = []
+            for item in section.items.clone() {
+                // find reverse entry for this item's id
+                var new_related List<str> = []
+                for e in reverse.clone() {
+                    if e.target_id == item.id {
+                        new_related = e.referrers.clone()
+                    }
+                }
+                new_related.sort()
+                // dedup (simple: rebuild without consecutive dups after sort)
+                var deduped List<str> = []
+                var prev str = ""
+                for r in new_related.clone() {
+                    if r != prev {
+                        deduped.push(r.clone())
+                    }
+                    prev = r.clone()
+                }
+                // copy item with updated related (a2r-12: bind to var before push)
+                let new_item SpecItem = SpecItem(
+                    id: item.id.clone(),
+                    title: item.title.clone(),
+                    content: item.content.clone(),
+                    status: item.status,
+                    depends_on: item.depends_on.clone(),
+                    related: deduped,
+                    priority: item.priority.clone(),
+                    assignee: item.assignee.clone(),
+                    test_file: item.test_file.clone(),
+                    file: item.file.clone(),
+                    milestone: item.milestone.clone(),
+                    module: item.module.clone(),
+                    tags: item.tags.clone(),
+                    created_at: item.created_at,
+                    modified_at: item.modified_at,
+                    completed_at: item.completed_at
+                )
+                new_items.push(new_item)
+            }
+            let new_section SpecsSection = SpecsSection(
+                id: section.id.clone(),
+                section_type: section.section_type,
+                title: section.title.clone(),
+                items: new_items,
+                status: section.status,
+                content: section.content.clone(),
+                depends_on: section.depends_on.clone(),
+                last_modified: section.last_modified,
+                last_verified: section.last_verified.clone()
+            )
+            new_sections.push(new_section)
+        }
+        self.sections = new_sections
+    }
+}
 
 // ============================================================
 // Derived statuses — auto-advance item/section status from relations
@@ -499,3 +618,188 @@ fn section_complete_status(st SectionType) SpecStatus {
 // above (Snap, find_snap, is_goal_advanceable, is_test_done, is_test_pending,
 // section_complete_status) ARE ported and verified; only the mutating driver
 // is blocked.
+
+ext SpecsDocument {
+    /// Derive (auto-advance) statuses from the relation graph (see plan 014).
+    /// WORKAROUND for a2r-11 (no mutable-borrow iteration / in-place nested
+    /// mutation): instead of mutating item.status in place, build NEW lists of
+    /// sections/items with updated statuses and whole-field reassign
+    /// self.sections at the end (a2r handles `self.field = new_list` fine).
+    pub mut fn derive_statuses() void {
+        // Snapshot as a flat List<Snap> for read-only cross-section lookup.
+        var snap List<Snap> = []
+        for section in self.sections.clone() {
+            for item in section.items.clone() {
+                snap.push(Snap(
+                    id: item.id.clone(),
+                    section_type: section.section_type,
+                    status: item.status,
+                    related: item.related.clone()
+                ))
+            }
+        }
+
+        let goal_cfg SectionConfig = SectionConfig.for_type(SectionType.Goals)
+
+        // Build new sections list (whole-field reassign pattern).
+        var new_sections List<SpecsSection> = []
+        for section in self.sections.clone() {
+            var new_section_status SpecStatus = section.status
+            var new_last_modified u64 = section.last_modified
+
+            // Build new items list for this section.
+            var new_items List<SpecItem> = []
+            for item in section.items.clone() {
+                var new_status SpecStatus = item.status
+                var new_item_modified u64 = item.modified_at
+
+                if section.section_type == SectionType.Goals {
+                    let forwards List<str> = item.depends_on.clone()
+                    var related_plans_all_done bool = true
+                    var has_any_plan bool = false
+                    for rid in forwards.clone() {
+                        is find_snap(snap.clone(), rid) {
+                            Some(x) -> {
+                                if x.section_type == SectionType.Plans {
+                                    has_any_plan = true
+                                    if x.status != SpecStatus.Done {
+                                        related_plans_all_done = false
+                                    }
+                                }
+                            },
+                            None -> {}
+                        }
+                    }
+
+                    // Rule 1: Goal -> Implemented
+                    if has_any_plan {
+                        if related_plans_all_done {
+                            if is_goal_advanceable(item.status) {
+                                if goal_cfg.can_transition(item.status, SpecStatus.Implemented) {
+                                    new_status = SpecStatus.Implemented
+                                    new_item_modified = time.now_sec() as u64
+                                }
+                            }
+                        }
+                    }
+
+                    // Rule 2: Goal -> Verified
+                    if new_status == SpecStatus.Implemented {
+                        var tests_ok bool = true
+                        var has_tests bool = false
+                        var has_review_published bool = false
+                        for rid in forwards.clone() {
+                            is find_snap(snap.clone(), rid) {
+                                Some(x) -> {
+                                    if x.section_type == SectionType.Tests {
+                                        has_tests = true
+                                        if is_test_pending(x.status) {
+                                            tests_ok = false
+                                        }
+                                    }
+                                    if x.section_type == SectionType.Reviews {
+                                        if x.status == SpecStatus.Published {
+                                            has_review_published = true
+                                        }
+                                    }
+                                },
+                                None -> {}
+                            }
+                        }
+                        if has_tests {
+                            if tests_ok {
+                                if has_review_published {
+                                    if goal_cfg.can_transition(SpecStatus.Implemented, SpecStatus.Verified) {
+                                        new_status = SpecStatus.Verified
+                                        new_item_modified = time.now_sec() as u64
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // copy item with possibly-updated status.
+                // a2r-12: struct literal as a .push() arg in an ext method of
+                // a DIFFERENT type fails type-check ("field type mismatch").
+                // Workaround: bind to a local var first, then push.
+                let new_item SpecItem = SpecItem(
+                    id: item.id.clone(),
+                    title: item.title.clone(),
+                    content: item.content.clone(),
+                    status: new_status,
+                    depends_on: item.depends_on.clone(),
+                    related: item.related.clone(),
+                    priority: item.priority.clone(),
+                    assignee: item.assignee.clone(),
+                    test_file: item.test_file.clone(),
+                    file: item.file.clone(),
+                    milestone: item.milestone.clone(),
+                    module: item.module.clone(),
+                    tags: item.tags.clone(),
+                    created_at: item.created_at,
+                    modified_at: new_item_modified,
+                    completed_at: item.completed_at
+                )
+                new_items.push(new_item)
+            }
+
+            // Rule 3: section aggregate status
+            var all_items_empty bool = section.items.len() == 0
+            if all_items_empty {
+                // empty section: no aggregate change
+            } else {
+                let done_status SpecStatus = section_complete_status(section.section_type)
+                let cfg SectionConfig = SectionConfig.for_type(section.section_type)
+                var all_done bool = true
+                for it in new_items.clone() {
+                    if it.status != done_status {
+                        all_done = false
+                    }
+                }
+                if all_done {
+                    if cfg.can_transition(new_section_status, done_status) {
+                        if new_section_status != done_status {
+                            new_section_status = done_status
+                            new_last_modified = time.now_sec() as u64
+                        }
+                    }
+                } else {
+                    var any_non_empty bool = false
+                    for it in new_items.clone() {
+                        if it.status != SpecStatus.Empty {
+                            any_non_empty = true
+                        }
+                    }
+                    if any_non_empty {
+                        if cfg.can_transition(new_section_status, SpecStatus.Draft) {
+                            if new_section_status == SpecStatus.Empty {
+                                new_section_status = SpecStatus.Draft
+                                new_last_modified = time.now_sec() as u64
+                            }
+                        }
+                    }
+                }
+            }
+
+            // copy section with possibly-updated status + new items.
+            // a2r-12 workaround: bind to local var first, then push.
+            let new_section SpecsSection = SpecsSection(
+                id: section.id.clone(),
+                section_type: section.section_type,
+                title: section.title.clone(),
+                items: new_items,
+                status: new_section_status,
+                content: section.content.clone(),
+                depends_on: section.depends_on.clone(),
+                last_modified: new_last_modified,
+                last_verified: section.last_verified.clone()
+            )
+            new_sections.push(new_section)
+        }
+
+        // whole-field reassign (a2r handles this; in-place element mutation
+        // would compile to a no-op clone write per a2r-11)
+        self.sections = new_sections
+    }
+}
