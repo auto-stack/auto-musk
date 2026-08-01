@@ -1,0 +1,73 @@
+/// spec_tools.at — 5 个 spec Tool impl (spec_tools.rs). 同 tools.at 模式。
+
+use.rust auto_ai_agent::{Tool, ToolError}
+use.rust serde_json::Value
+
+spec Tool {
+    fn name() str
+    fn description() str
+    fn parameters() Value
+    fn execute(args Value) ~Result<str, ToolError>
+}
+
+let read_specs_schema = `{"type":"object","properties":{"section":{"type":"string"}}}`
+let list_specs_schema = `{"type":"object"}`
+let write_spec_schema = `{"type":"object","properties":{"section":{"type":"string"},"content":{"type":"string"}},"required":["section","content"]}`
+let update_spec_schema = `{"type":"object","properties":{"action":{"type":"string"},"section":{"type":"string"},"item_id":{"type":"string"}},"required":["action","section"]}`
+let write_goals_schema = `{"type":"object","properties":{"goals":{"type":"string"}},"required":["goals"]}`
+
+type ReadSpecs as Tool {
+    fn name() str { return "read_specs" }
+    fn description() str { return "Read spec sections" }
+    fn parameters() Value { return parse_json(read_specs_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let section = value_get_str(args, "section")
+        let result = specs_read(section)
+        return Ok(result)
+    }
+}
+
+type ListSpecs as Tool {
+    fn name() str { return "list_specs" }
+    fn description() str { return "List all spec sections" }
+    fn parameters() Value { return parse_json(list_specs_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let result = specs_list()
+        return Ok(result)
+    }
+}
+
+type WriteSpec as Tool {
+    fn name() str { return "write_spec" }
+    fn description() str { return "Write a spec section" }
+    fn parameters() Value { return parse_json(write_spec_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let section = value_get_str(args, "section")
+        let content = value_get_str(args, "content")
+        let result = specs_write(section, content)
+        return Ok(result)
+    }
+}
+
+type UpdateSpec as Tool {
+    fn name() str { return "update_spec" }
+    fn description() str { return "Update a spec item" }
+    fn parameters() Value { return parse_json(update_spec_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let action = value_get_str(args, "action")
+        let section = value_get_str(args, "section")
+        let result = specs_update(action, section, args)
+        return Ok(result)
+    }
+}
+
+type WriteGoals as Tool {
+    fn name() str { return "write_goals" }
+    fn description() str { return "Write goals section" }
+    fn parameters() Value { return parse_json(write_goals_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let goals = value_get_str(args, "goals")
+        let result = specs_write_goals(goals)
+        return Ok(result)
+    }
+}

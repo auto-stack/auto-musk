@@ -1,0 +1,56 @@
+/// relay_driver.at — MuskAgentFactory + AgentFactory impl (relay/driver.rs).
+/// drive_run/drive_loop/run_step（async 闭包 + Mutex）保留手写。
+
+use.rust std::sync::Arc
+use.rust crate::server::AppState
+use.rust crate::tool_context::ToolContext
+use.rust crate::mode::AgentMode
+use.rust auto_ai_agent::orchestration::AgentFactory
+
+// AgentFactory spec（上游 orchestration trait）
+spec AgentFactory {
+    fn build_agent(role_id str, handoff Option<str>) Result<Agent, str>
+}
+
+// MuskAgentFactory — relay 步骤的 agent 工厂
+type MuskAgentFactory {
+    state Arc<AppState>
+    workspace_id str
+    run_id str
+}
+
+ext MuskAgentFactory {
+    fn build_agent(role_id str, handoff Option<str>) Result<Agent, str> {
+        let mode = AgentMode(
+            name: "relay-" + role_id,
+            description: "",
+            role: role_id,
+            skills: false,
+            tools: [],
+            workflow: None,
+            context_file: "",
+            extra_system_prompt: ""
+        )
+        let tool_ctx = ToolContext(
+            state: self.state.clone(),
+            workspace_id: self.workspace_id.clone(),
+            parent_conversation_id: self.run_id.clone()
+        )
+        let agent = build_agent_with_context(mode, self.state.client.clone(), Some(tool_ctx))
+        is handoff {
+            Some(h) -> {
+                let prior = handoff_render(h)
+                if prior.len() > 0 {
+                    let agent2 = agent_with_history(agent, prior)
+                    return Ok(agent2)
+                }
+                return Ok(agent)
+            },
+            None -> return Ok(agent)
+        }
+    }
+}
+
+// NOTE: drive_run/drive_loop/run_step（async + 闭包捕获 + Mutex + StreamEvent
+// 匹配）保留手写在 relay/driver.rs。MuskAgentFactory 的 build_agent 在此移植。
+

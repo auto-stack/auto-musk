@@ -1,0 +1,49 @@
+/// orch_tools.at — 3 个编排 Tool impl (orch_tools.rs).
+
+use.rust auto_ai_agent::{Tool, ToolError}
+use.rust serde_json::Value
+
+spec Tool {
+    fn name() str
+    fn description() str
+    fn parameters() Value
+    fn execute(args Value) ~Result<str, ToolError>
+}
+
+let spawn_relay_schema = `{"type":"object","properties":{"task":{"type":"string"},"flow_id":{"type":"string"}},"required":["task"]}`
+let dispatch_schema = `{"type":"object","properties":{"task":{"type":"string"},"to":{"type":"string"}},"required":["task","to"]}`
+let bring_in_schema = `{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`
+
+type SpawnRelay as Tool {
+    fn name() str { return "spawn_relay" }
+    fn description() str { return "Spawn a relay sub-process" }
+    fn parameters() Value { return parse_json(spawn_relay_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let task_input = value_get_str(args, "task")
+        let result = orch_spawn_relay(task_input, args)
+        return Ok(result)
+    }
+}
+
+type Dispatch as Tool {
+    fn name() str { return "dispatch" }
+    fn description() str { return "Dispatch an errand sub-task" }
+    fn parameters() Value { return parse_json(dispatch_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let task_input = value_get_str(args, "task")
+        let to_role = value_get_str(args, "to")
+        let result = orch_dispatch(task_input, to_role)
+        return Ok(result)
+    }
+}
+
+type BringIn as Tool {
+    fn name() str { return "bring_in" }
+    fn description() str { return "Bring in context from another agent" }
+    fn parameters() Value { return parse_json(bring_in_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let query = value_get_str(args, "query")
+        let result = orch_bring_in(query)
+        return Ok(result)
+    }
+}

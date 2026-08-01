@@ -1,0 +1,12 @@
+/// tool_context.at — ToolContext struct (tool_context.rs).
+/// Orchestr tools 持有的执行上下文。
+
+use.rust std::sync::Arc
+use.rust crate::server::AppState
+
+#[derive(Clone)]
+pub type ToolContext {
+    state Arc<AppState>
+    workspace_id str
+    parent_conversation_id str
+}
