@@ -1,8 +1,9 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
-> **状态**：**全部模块移植完成**（2026-08-01）。22 个 .at 文件覆盖全后端（Rust ~15000 行）。
-> 单独转译 0 错误（每个 .at 自包含）。合并编译有 275 个错误（extern 实现缺失 + 上游依赖缺失），
-> 需 glue layer（extern_impl.rs + 真实 auto-ai 依赖 + 模块整合）。
+> **状态**：**全部模块移植完成**（2026-08-01）。24 个 .at 文件覆盖全后端（Rust ~15000 行）。
+> 单独转译 0 错误（每个 .at 自包含）。合并编译（隔离 crate）有 310 个错误，
+> 根因是 extern_impl stub 签名与 a2r 生成调用类型不匹配（缺上游 auto_ai_agent 类型）。
+> 下一步：在真实 musk workspace（有完整 auto-ai 依赖）编译验证。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
