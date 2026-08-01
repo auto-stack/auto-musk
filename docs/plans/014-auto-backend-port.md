@@ -1,11 +1,11 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
-> **状态**：**10 个模块移植完成 + axum 保留字障碍解除**（2026-08-01）。specs.rs 全文件 +
-> auth/hello/tool_safety/mode/app_config/chats/relay{profession,store} 部分。流转：
-> `auto trans` → `nativeize.pl`（去 a2r-std 桥接）→ cargo check（仅真实 crate）。
-> **Plan 379**（auto-lang）：放宽 `route` 保留字，axum `Router::route()` 装配 + `~T` async
-> handler 现可生成可编译原生 Rust（已验证完整闭环）。剩余限制：`Arc<dyn Trait>`/
-> `impl Trait`/`json!` 宏仍是 a2r 盲区，server handler 体需混合处理。
+> **状态**：**10 个模块移植完成 + 剩余 12 个模块精确评估完成**（2026-08-01）。specs.rs 全文件 +
+> auth/hello/tool_safety/mode/app_config/chats/relay{profession,store}/server(骨架) 部分。
+> 流转：`auto trans` → `nativeize.pl`（去 a2r-std 桥接）→ cargo check（仅真实 crate）。
+> **Plan 379**（auto-lang）：放宽 `route` 保留字，axum 路由表 + `~T` async handler 可生成原生 Rust。
+> 剩余 12 个模块评估结论：conversation.rs(高)/relay api(中)/relay flows(边界用例) 可继续移植；
+> 其余 9 个（main/lib/workflow/tool_context/tools/spec_tools/orch_tools/relay driver/mod）确认无纯数据可提取，保持手写。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
@@ -290,30 +290,33 @@ specs::SectionType，relay/store→relay::GateType）。a2r 单文件转译不�
 enum + serde 标签属性透传（`#[serde(tag=..)]`）。但 named-field 变体的**解构**
 a2r 处理有缺陷（a2r-18），字段访问型方法保留手写。
 
-### 剩余模块评估（2026-07-31）
+### 剩余模块评估（2026-08-01 精确评估，逐文件实测）
 
-经 6 个模块实测，剩余模块的可移植性判定如下：
+经逐文件读取评估，剩余 12 个模块的可移植边界如下（server.rs 已落地骨架，见已完成表）：
 
-| 模块 | 行数 | 判定 | 原因 |
+| 模块 | 行数 | 判定 | 可移植部分 / 必须手写 |
 |---|---|---|---|
-| tool_test.rs | 184 | 🟡 数据模型可移植 | Fixture/CaseCategory/Expect/ToolCase 可移植；Sandbox(tempfile)+run_case(async+闭包)保留手写（低价值，未做）|
-| workflow.rs | 30 | 🔴 保留手写 | include_str! + parse_at_workflow(auto_ai_agent 上游) |
-| tool_context.rs | 18 | 🔴 保留手写 | Arc<AppState> 循环依赖 server.rs |
-| relay/flows.rs | 59 | 🔴 保留手写 | FlowSpec/FlowStep(auto_ai_agent builder API) |
-| relay/mod.rs | 35 | 🔴 保留手写 | 纯上游类型重导出 |
-| server.rs | 2206 | 🟡 路由表可移植 | Plan 379 解除 route 保留字后，`.route()` 路由表 + `~T` async handler 可移植；但 `Arc<dyn Client>`/`impl IntoResponse`/`json!` 宏/acl 是 a2r 盲区，handler 体需混合（路由骨架 + 简单 handler 用 Auto，trait object/宏 handler 保留手写）|
-| main.rs | 370 | 🔴 不移植 | tokio runtime + clap + 启动编排 |
-| lib.rs | 261 | 🔴 保留手写 | Agent/Role/Tool trait 装配 + OwnedRole(Arc<dyn Role>) |
-| tools.rs | 874 | 🔴 不移植 | 9 个 async Tool trait 实现 |
-| spec_tools.rs | 559 | 🔴 不移植 | async Tool trait + Arc<SpecsStore> |
-| orch_tools.rs | 494 | 🔴 不移植 | async spawn_relay/dispatch + ToolContext |
-| conversation.rs | 1331 | 🔴 不移植 | broadcast 事件总线 + async SSE |
-| relay/driver.rs | 289 | 🔴 不移植 | async run_stream + StreamEvent |
-| relay/api.rs | 393 | 🔴 不移植 | axum relay routes + broadcast |
+| **conversation.rs** | 1331 | 🟢 **高** ⭐ | **可移植**：L14-157 全部数据类型（Conversation/ConversationKind/Driver/ConversationStatus/Turn/TurnKind/ToolRecord/GateRecord/GateInfo/ConversationSummary，全 serde derive）+ ConversationEvent + to_status_str + chat_message_to_turns + now_secs。**手写**：ConversationStore（Mutex+broadcast）、run_event_to_turns（上游 RunEvent + macro_rules!）、测试 |
+| **relay/api.rs** | 393 | 🟡 中 | **可移植**：L34-86 的 5 个 DTO（BusEvent/ResolveGateBody/SubmitHandoffBody/UpdateTitleBody/ListRunsQuery）。**手写**：bus()（OnceLock+broadcast）、所有 handler（async+extractor+impl Trait+Sse）、relay_routes |
+| **relay/flows.rs** | 59 | 🟡 中（边界用例）| **逻辑 100% 纯**（4 个 flow 构造，无 async/trait/Mutex），唯一障碍是产物类型 FlowSpec/FlowStep/GateType/ExitRouting 来自上游 auto_ai_agent。**需试验**：上游类型作为不透明构造目标 + builder 方法链能否转译 |
+| tool_test.rs | 184 | 🟡 低价值 | Fixture/CaseCategory/Expect/ToolCase 可移植；Sandbox(tempfile)+run_case(async+闭包)手写。低价值未做 |
+| main.rs | 370 | 🔴 手写 | clap derive（Cli/Cmd）+ tokio runtime + Arc<dyn Client> + NoDaemonClient(async trait) + 闭包捕获 StreamEvent。无纯数据可提取 |
+| lib.rs | 261 | 🔴 手写 | OwnedRole(Arc<dyn Role>) + impl Role + build_agent_*(Arc<dyn Client>/Tool) + resolve_role。全是上游 trait 桥接 |
+| workflow.rs | 30 | 🔴 手写 | include_str! + parse_at_workflow/Workflow（上游）。无数据 |
+| tool_context.rs | 18 | 🔴 手写 | ToolContext.state: Arc<AppState>，与 server 耦合 |
+| tools.rs | 874 | 🔴 手写 | 9 个单元 struct（无字段）+ 9 个 #[async_trait] impl Tool + json!() 宏。校验逻辑（EditFile/BatchReplace/ListSymbols）可抽纯函数但需重构、收益小 |
+| spec_tools.rs | 559 | 🔴 手写 | 5 个 #[async_trait] impl Tool + json!()。WriteSpec/WriteGoals 的 markdown 解析可抽纯函数，收益中 |
+| orch_tools.rs | 494 | 🔴 手写 | 3 个 Tool impl + tokio::spawn + thread_local。build_toolcall_turn 可抽纯函数（依赖 Turn 先移植）|
+| relay/driver.rs | 289 | 🔴 手写 | AgentFactory trait + async loop + 闭包捕获 StreamEvent + Mutex。无数据 |
+| relay/mod.rs | 35 | 🔴 手写 | 纯 pub use re-export 墙，无逻辑 |
 
-**总结**：所有含可移植数据模型的 🟡 模块（chats / relay profession / relay store）
-已移植。剩余 🔴 模块（server/main/tools 等约 7000 行）是 axum+async+tokio 集，
-a2r-std 无服务器运行时，不在本计划可达范围。
+**实施步骤（按 ROI 排序）**：
+1. **conversation.rs 数据层**（高收益）：提取 L14-157 + ConversationEvent + 3 个纯函数 → `conversation.at`，复刻 specs.rs/chats.rs 模式。
+2. **relay/api.rs DTO 层**（低风险）：提取 5 个 DTO → 并入 `relay_store.at` 或新建 `relay_api.at`。
+3. **relay/flows.rs 边界试验**（验证新规则）：整文件尝试转译，确认"上游类型 + builder 链"是否可移植。通过则白捡 59 行 + 扩展可移植规则；不通过则记录为 a2r 限制。
+4. 其余 9 个模块：确认无纯数据可提取，保持手写，不投入。
+
+**跨模块注意**：`now_secs()` 在 conversation.rs/relay api/driver 三处重复，移植时统一到 conversation.at。relay/store.rs 的 RunEvent（已移植）是 conversation.rs::run_event_to_turns 的入参依赖。
 
 ---
 
