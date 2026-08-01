@@ -1,56 +1,13 @@
 use.rust clap::Parser
-use.rust std::sync::Arc
+
+// main.at — CLI entrypoint data model.
+// NOTE: only the `Cli` struct is expressed in Auto here. The actual main()
+// / run_main() / make_client() / NoDaemonClient live in the hand-written
+// main.rs (binary entrypoint) and depend on many extern symbols not available
+// in this module. Keeping them here would produce "cannot find function"
+// errors, so they are intentionally omitted from the Auto version.
 
 #[derive(Parser)]
-#[command(name = "musk", version)]
 type Cli {
     cmd str
-}
-
-fn main() {
-    let cli = Cli.parse()
-    init_project_root()
-    apply_app_config()
-    run_main(cli).await
-}
-
-fn run_main(cli Cli) ~void {
-    let cmd_input = cli.cmd
-    if cmd_input == "professions" {
-        list_professions()
-    } else {
-        if cmd_input == "modes" {
-            list_modes()
-        } else {
-            if cmd_input == "serve" {
-                let client = make_client_or_fallback()
-                serve(cli).await
-            } else {
-                let client = make_client()
-                run_task(cli).await
-            }
-        }
-    }
-}
-
-spec Client {
-    fn complete(req) ~str
-}
-
-type NoDaemonClient as Client {
-    fn complete(req) ~str {
-        return Ok("daemon not running")
-    }
-}
-
-fn make_client() Arc<dyn Client> {
-    return Arc.new(AiClient.new())
-}
-
-fn make_client_or_fallback() Arc<dyn Client> {
-    let result = make_client_or_none()
-    is result {
-        Some(c) -> return c,
-        None -> return Arc.new(NoDaemonClient())
-    }
 }

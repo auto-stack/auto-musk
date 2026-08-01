@@ -453,7 +453,7 @@ ext SpecsDocument {
         for section in self.sections.clone() {
             for item in section.items.clone() {
                 var forwards List<str> = item.depends_on.clone()
-                let scanned List<str> = scan_refs(item.content.clone(), known.clone())
+                let scanned List<str> = scan_refs(item.content.view, known.clone())
                 for s in scanned.clone() {
                     forwards.push(s.clone())
                 }

@@ -4,12 +4,12 @@
 /// Plan 321(async_stream ~Stream+yield) 后重新评估为可移植。本文件移植它们。
 ///
 /// 流式 handler 的 dyn Fn 闭包 → named sink struct（Arc<dyn StreamSink>，P1-dyn）。
-use.rust axum::extract::{Query, Path}
+use.rust axum::extract::{Query, Path, State}
 /// json!() 宏 → DTO。impl IntoResponse → concrete Response/Result。
 
 use.rust axum::Json
 use.rust axum::http::StatusCode
-use.rust axum::response::Response
+use.rust axum::response::{Response, IntoResponse}
 use.rust axum::response::sse::{Event, KeepAlive, Sse}
 use.rust std::sync::Arc
 use.rust std::convert::Infallible
@@ -19,9 +19,6 @@ use.rust serde_json::Value
 
 // AppState (opaque extern — real one in server.rs with Arc<dyn Client>)
 use.rust crate::server::AppState
-use.rust axum::extract::{State}
-use.rust axum::extract::{Path}
-use.rust axum::extract::{Query}
 use.rust crate::tools::{ReadFile, WriteFile, RunCommand}
 
 // ============================================================

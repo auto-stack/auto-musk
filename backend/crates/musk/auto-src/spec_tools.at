@@ -10,6 +10,8 @@ spec Tool {
     fn execute(args Value) ~Result<str, ToolError>
 }
 
+// NOTE: schema `let`s are emitted into fn main() by a2r and stripped by
+// nativeize.pl (real consts live in extern_impl.rs).
 let read_specs_schema = `{"type":"object","properties":{"section":{"type":"string"}}}`
 let list_specs_schema = `{"type":"object"}`
 let write_spec_schema = `{"type":"object","properties":{"section":{"type":"string"},"content":{"type":"string"}},"required":["section","content"]}`

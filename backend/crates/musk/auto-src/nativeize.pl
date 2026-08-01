@@ -129,12 +129,24 @@ $src =~ s/^use a2r_std;\s*\n//gm;
 $src =~ s/^use a2r_std::\*;\s*\n//gm;
 $src =~ s/^use a2r_std::\w+(?:::\w+)?;\s*\n//gm;
 
-# Inject extern_impl glob import so the .a2r.rs can call the glue-layer
+# Inject/fix extern_impl glob import so the .a2r.rs can call the glue-layer
 # stubs (value_get_str, parse_json, specs_load, etc.) that live in
-# extern_impl.rs. Only inject if not already present and the file has code.
-if ($src !~ /use crate::extern_impl/) {
-    $src = "use crate::extern_impl::*;\n" . $src;
+# extern_impl.rs. Use `super::` because every transpiled product lives in the
+# auto_generated module alongside extern_impl (they are sibling modules).
+# a2r emits `use super::extern_impl::*` already; if it emitted `crate::` (some
+# files) rewrite it, otherwise inject it.
+if ($src =~ /use crate::extern_impl/) {
+    $src =~ s/use crate::extern_impl/use super::extern_impl/g;
+} elsif ($src !~ /use super::extern_impl/) {
+    $src = "use super::extern_impl::*;\n" . $src;
 }
+
+# Plan 384: strip the synthetic `fn main()` that a2r emits for top-level
+# `let xxx_schema = \`...\`` constants. These schema strings are provided as
+# `pub const` by extern_impl.rs (imported via the glob above), so the fn-main
+# shadowing copies (which also have malformed format! braces) must be removed.
+# Only matches a fn main whose body is exclusively schema `let` bindings.
+$src =~ s/\nfn main\(\) \{\s*(?:let \w+_schema: String = format!\([^;]*;;\s*)+\}\s*\n/\n/g;
 
 open my $out, '>', $file or die "cannot write $file: $!\n";
 print $out $src;

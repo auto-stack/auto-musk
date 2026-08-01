@@ -13,6 +13,8 @@ spec AgentFactory {
 }
 
 // MuskAgentFactory — relay 步骤的 agent 工厂
+// Arc<AppState> 不实现 Debug/Eq/Ord，故只 derive Clone
+#[derive(Clone)]
 type MuskAgentFactory {
     state Arc<AppState>
     workspace_id str

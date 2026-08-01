@@ -2,6 +2,14 @@
 
 > **状态**：✅ **完成**（2026-08-01）。24 个 .at 转译产物合并编译 **0 错误**（96 warning，均为 unused import）。
 > 前置：计划 014（335→153）。本计划把剩余 153 错误清零。
+>
+> **后续 Plan 384 进展**（2026-08-02）：a2r 治本已在 auto-lang master 合并
+> （A3 引用注入 + A5 dyn derive + A9 delete 透传 + void/Ok 修复）。用新版 a2r
+> 全量重新转译，错误从 207 降到 **45**（核心引用注入机制清掉 162 个）。
+> 剩余 45 个集中在 server_stream.rs 流式处理（mpsc/SSE/Stream/yield 的 a2r
+> 深度支持），记录为 plan 384 阶段二。当前 auto-musk master 仍用 plan 015 的
+> 产物（0 错误）；新版 a2r + .at 配合改动（extern_sigs.at 等）已就绪，待
+> server_stream 流式长尾解决后即可切换到「全量转译 0 产物手改」。
 
 ## 关键发现：推翻交接说明的「C1 需 auto-lang worktree」
 

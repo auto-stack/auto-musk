@@ -12,6 +12,9 @@ spec Tool {
     fn execute(args Value) ~Result<str, ToolError>
 }
 
+// NOTE: xxx_schema are defined as `let` here so a2r sees them as defined.
+// a2r emits them into fn main(); nativeize.pl strips that fn main afterward
+// (the real consts live in extern_impl.rs, imported via the glob use).
 let read_file_schema = `{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}`
 let write_file_schema = `{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}`
 let run_command_schema = `{"type":"object","properties":{"cmd":{"type":"string"},"force":{"type":"boolean"}},"required":["cmd"]}`
