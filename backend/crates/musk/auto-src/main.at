@@ -1,9 +1,8 @@
-use.rust clap::{Parser, Subcommand}
+use.rust clap::Parser
 use.rust std::sync::Arc
-use.rust auto_ai_agent::Client
-use.rust auto_ai_client::AiClient
 
-#[derive(Parser, Subcommand)]
+#[derive(Parser)]
+#[command(name = "musk", version)]
 type Cli {
     cmd str
 }

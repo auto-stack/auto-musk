@@ -188,6 +188,8 @@ pub fn list_symbols_in(p: &str) -> String { format!("(stub) {}", p) }
 pub fn glob_files(p: &str) -> String { format!("(stub) {}", p) }
 pub fn http_post_json(_u: String) -> impl std::future::Future<Output = Result<Value, String>> { async { Ok(Value::Null) } }
 pub fn mpsc_channel() -> (std::sync::mpsc::Sender<Value>, std::sync::mpsc::Receiver<Value>) { std::sync::mpsc::channel() }
+pub fn mpsc_sender(ch: (std::sync::mpsc::Sender<Value>, std::sync::mpsc::Receiver<Value>)) -> std::sync::mpsc::Sender<Value> { ch.0 }
+pub fn mpsc_receiver(ch: (std::sync::mpsc::Sender<Value>, std::sync::mpsc::Receiver<Value>)) -> std::sync::mpsc::Receiver<Value> { ch.1 }
 pub fn mpsc_try_send(t: &std::sync::mpsc::Sender<Value>, m: Value) { let _ = t.send(m); }
 pub async fn mpsc_recv(r: &mut std::sync::mpsc::Receiver<Value>) -> Option<Value> { None }
 pub fn msg_is_none(m: Option<Value>) -> bool { m.is_none() }

@@ -1,25 +1,25 @@
 use.rust std::sync::Arc
-use.rust auto_ai_agent::{Role, Agent, Client, Tool, SkillRegistry, SkillTool, ModelTier, RoleRegistry, load_builtin, load_role}
+use.rust auto_ai_agent::{Agent, Client, Tool, SkillRegistry, SkillTool, ModelTier, RoleRegistry, load_builtin, load_role}
 use.rust crate::tools::{ReadFile, WriteFile, EditFile, BatchReplace, Search, ListDir, ListSymbols, Glob, RunCommand}
 use.rust crate::spec_tools::{ReadSpecs, ListSpecs, WriteSpec, UpdateSpec, WriteGoals}
 use.rust crate::orch_tools::{SpawnRelay, Dispatch, BringIn}
 use.rust crate::tool_context::ToolContext
 
-spec Role {
-    fn name() str
-    fn system_prompt() str
-    fn model() str
-    fn model_tier() ModelTier
-    fn temperature() float
-    fn max_turns() uint
-    fn allowed_tools() List<str>
-    fn memory_limit() Option<uint>
-    fn allowed_tiers() List<ModelTier>
-    fn token_budget() Option<u64>
-    fn skills() List<str>
-}
+type OwnedRole {
+    inner Arc<dyn auto_ai_agent::Role>
+    extra_prompt Option<str>
+    prompt str
 
-type OwnedRole as Role {
+    pub static fn new(inner Arc<dyn auto_ai_agent::Role>) OwnedRole {
+        let p = role_system_prompt(inner)
+        return OwnedRole(inner: inner, extra_prompt: None, prompt: p)
+    }
+
+    pub fn with_extra_prompt(extra str) OwnedRole {
+        var p = self.prompt.clone()
+        if extra.trim().len() > 0 {
+            p = role_system_prompt(self.inner)
+            p = p + "\n\n" + extra
     inner Arc<dyn Role>
     extra_prompt Option<str>
     prompt str
@@ -53,22 +53,24 @@ type OwnedRole as Role {
     fn skills() List<str> { return role_skills(self.inner) }
 }
 
+// OwnedRole impl auto_ai_agent::Role is hand-written in lib.rs (delegates to inner).
+
 pub fn build_agent_from_mode(mode AgentMode, client Arc<dyn Client>) Result<Agent, str> {
     let role = resolve_role(mode.role).unwrap()
     let owned = OwnedRole.new(role)
     let owned2 = owned.with_extra_prompt(mode.extra_system_prompt)
     let agent = Agent.new(owned2, client)
     let all_tools List<(str, Arc<dyn Tool>)> = [
-        ("read_file", Arc.new(ReadFile())),
-        ("write_file", Arc.new(WriteFile())),
-        ("edit_file", Arc.new(EditFile())),
-        ("batch_replace", Arc.new(BatchReplace())),
-        ("search", Arc.new(Search())),
-        ("list_dir", Arc.new(ListDir())),
-        ("list_symbols", Arc.new(ListSymbols())),
-        ("glob", Arc.new(Glob())),
-        ("run_command", Arc.new(RunCommand())),
-        ("read_specs", Arc.new(ReadSpecs())),
+        ("read_file", Arc.new(ReadFile.new())),
+        ("write_file", Arc.new(WriteFile.new())),
+        ("edit_file", Arc.new(EditFile.new())),
+        ("batch_replace", Arc.new(BatchReplace.new())),
+        ("search", Arc.new(Search.new())),
+        ("list_dir", Arc.new(ListDir.new())),
+        ("list_symbols", Arc.new(ListSymbols.new())),
+        ("glob", Arc.new(Glob.new())),
+        ("run_command", Arc.new(RunCommand.new())),
+        ("read_specs", Arc.new(ReadSpecs.new())),
         ("list_specs", Arc.new(ListSpecs())),
         ("write_spec", Arc.new(WriteSpec())),
         ("update_spec", Arc.new(UpdateSpec())),

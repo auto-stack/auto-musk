@@ -5,7 +5,7 @@ use super::extern_impl::*;
 #[allow(unused_imports)]
 use auto_ai_agent::{parse_at_workflow, Workflow};
 use std::fs;
-const FEATURE_DEV_AT: /* unknown */ = "// feature-dev.at — the canonical architect → coder → tester → reviewer chain.
+const FEATURE_DEV_AT: &str = "// feature-dev.at — the canonical architect → coder → tester → reviewer chain.
 //
 // Each step is a 'relay' that runs one Profession's agent, reads $var refs
 // from prior steps' outputs, and writes its own output to a new $var.
