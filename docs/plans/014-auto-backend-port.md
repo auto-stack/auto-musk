@@ -351,19 +351,34 @@ relay{profession,store,api,flows}/conversation/server）：
 
 **23 个 a2r 限制实测记录**，流转 `auto trans → nativeize.pl → cargo check`（无 a2r-std）。
 
-### 剩余 🔴 handler 的阻塞重新评估（P1-dyn + async_stream 后）
+### 剩余 🔴 handler 的阻塞重新评估（P1-dyn + async_stream 后，逐个精确评估）
 
 之前判为"自然终点"的结论**已过时** —— P4 调研发现 async_stream 桥接早就是 Plan 321
-实现，P1-dyn 修复了 `Arc<dyn T>` 字段。剩余 🔴 handler 的两大阻塞已解除：
+实现，P1-dyn 修复了 `Arc<dyn T>` 字段。经逐个 handler 精确评估，**6 个全部可移植**：
 
-| 原🔴 handler | 阻塞 | 现状 |
-|---|---|---|
-| conversation_stream | SSE + async_stream | ✅ 可移植（`~Stream<Event>` + yield + Sse 构造）|
-| run_stream/chat_stream/workflow_run_stream | SSE + daemon client | 🟡 可尝试（async_stream ✓ + Arc<dyn Client> ✓ + 显式 .await）|
-| run/workflow_run/chat_message | daemon client | 🟡 可尝试（Arc<dyn Client> ✓ + agent.run().await 显式）|
-| settings_link | reqwest + spawn_blocking | 🔴 保留手写（外部 HTTP 模式）|
+| handler | 行号 | 判定 | 关键障碍 + 改写策略 |
+|---|---|---|---|
+| **workflow_run** | 1975-2009 | 🟢 | **最干净**：concrete Result 返回 + `Vec<Arc<dyn Tool>>`(P1-dyn) + 显式 .await + DTO 映射。仅 extractor 解构→整体参数 |
+| **conversation_stream** | 1905-1939 | 🟡 | `Sse`+`Event` builder（已支持）+ combinator 链→generator `~Stream<Event>` + yield（替代 BroadcastStream.filter_map().map()）|
+| **workflow_run_stream** | 2019-2080 | 🟡 | mpsc+spawn+stream!/yield（已支持）+ `dyn Fn` 闭包→named sink struct（Arc<dyn StreamSink>，P1-dyn）+ workflow_event_to_json→DTO |
+| **run_stream_handler** | 1007-1085 | 🟡 | 同上 recipe + stream_event_to_json→SseEventDto + impl IntoResponse→concrete Response |
+| **run** / run_inner | 984-997/931-982 | 🟡 | agent.run().await（显式）+ concrete Result + DTO。impl IntoResponse→concrete Response |
+| **chat_stream** | 1529-1685 | 🟡 | **最大改写**：dyn Fn 闭包（重捕获 Mutex 累加器 + Value 解析）→sink struct + SseEventDto（去掉 Value 解析）+ history 构建 |
 
-**下一步**：重新评估这 6 个 daemon/SSE handler，用 `~Stream<T>`+yield + 显式 .await +
-`Arc<dyn Client>` 字段尝试移植。settings_link 保留手写。剩余 9 个 🔴 模块（main/lib/
-tools 等）的 async trait 实现（`impl Tool`）仍需 a2r 支持 trait impl 的 async 方法 ——
-这是真正剩余的 a2r 缺口。
+**helpers**：`stream_event_to_json`/`workflow_event_to_json` → 改写为 DTO-returning（当前
+全用 json!() 宏）；`shared_tools`（`Vec<Arc<dyn Tool>>`）→ 🟢 P1-dyn 支持；`run_inner` → 🟢。
+
+**唯一待确认**：a2r 对 `Arc<dyn Fn(...)>` **闭包** trait object 的支持（P1-dyn 覆盖 named
+trait，dyn Fn 闭包不同）。若不支持，统一绕开为 **named sink struct**（实现 StreamSink
+trait，捕获物作字段，Arc<dyn StreamSink> 走 P1-dyn）。三个流式 handler 的闭包体都简单
+（try_send + DTO 转换），sink struct 改写直接。
+
+**settings_link**（reqwest + spawn_blocking 外部 HTTP）仍保留手写。
+
+**实施顺序**（按 ROI）：workflow_run(🟢) → workflow_event_to_json DTO → workflow_run_stream →
+stream_event_to_json DTO → run_stream_handler → conversation_stream → run/run_inner →
+chat_stream（最大，最后）。
+
+**剩余 9 个 🔴 模块**（main/lib/tools/spec_tools/orch_tools/relay{driver,mod}/workflow/
+tool_context）的 async trait 实现（`impl Tool`/`AgentFactory`）仍需 a2r 支持 trait impl 的
+async 方法 —— 这是真正剩余的 a2r 缺口，不在本计划当前范围。
