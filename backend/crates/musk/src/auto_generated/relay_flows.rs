@@ -22,7 +22,7 @@ fn default_flow() -> FlowSpec {
     flow.add_step(FlowStep::new("plan", "planner"));
     flow.add_step(FlowStep::new("test-first", "tester"));
 
-    flow.add_step(FlowStep::new("code", "coder").with_exit(ExitRouting::Loop("test-first", 3)));
+    flow.add_step(FlowStep::new("code", "coder").with_exit(ExitRouting::Loop { target_step_id: "test-first".to_string(), max_iterations: 3 }));
     flow.add_step(FlowStep::new("review", "reviewer"));
     flow.add_step(FlowStep::new("document", "documenter"));
     return flow;

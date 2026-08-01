@@ -330,7 +330,7 @@ impl SpecsDocument {
         for section in self.sections.clone() {
             for item in section.items.clone() {
                 let mut forwards: Vec<String> = item.depends_on.clone();
-                let scanned: Vec<String> = scan_refs(item.content.clone(), known.clone());
+                let scanned: Vec<String> = scan_refs(&item.content, known.clone());
                 for s in scanned.clone() {
                     forwards.push(s.clone());
                 }

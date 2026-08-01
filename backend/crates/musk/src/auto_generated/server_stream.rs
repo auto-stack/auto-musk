@@ -5,7 +5,7 @@ use axum::extract::{Query, Path};
 use axum::extract::{State};
 use axum::Json;
 use axum::http::StatusCode;
-use axum::response::Response;
+use axum::response::{Response, IntoResponse};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use std::sync::Arc;
 use std::convert::Infallible;
@@ -88,16 +88,14 @@ fn workflow_event_to_dto(ev: i32) -> WorkflowEventDto {
 }
 
 async fn workflow_run(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<WorkflowRunRequest>) -> Json<WorkflowRunResponse> {
-    let resp = wf_run(s, q, body).await;
+    let resp = wf_run(&s, q, body).await;
     return Json(resp);
 }
 
 async fn workflow_run_stream(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<WorkflowRunRequest>) -> Response {
-    let ch = mpsc_channel();
-    let tx = mpsc_sender(ch);
-    let rx = mpsc_receiver(ch);
+    let (tx, rx) = mpsc_channel();
     let sink = WorkflowStreamSink { tx: tx };
-    wf_run_with_progress(s, q, body, Arc::new(sink)).await;
+    wf_run_with_progress(&s, q, body, Arc::new(sink)).await;
     let stream = workflow_sse_stream(rx);
     let mut sse = Sse::new(stream);
     let mut ka = KeepAlive::new();
@@ -105,16 +103,16 @@ async fn workflow_run_stream(s: State<AppState>, q: Query<WorkspaceQuery>, body:
     return sse.keep_alive(ka).into_response();
 }
 
-fn workflow_sse_stream(rx: std::sync::mpsc::Receiver<serde_json::Value>) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
+fn workflow_sse_stream(mut rx: std::sync::mpsc::Receiver<serde_json::Value>) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
     loop {
-        let msg = mpsc_recv(rx).await;
-        if msg_is_none(msg) {
+        let msg = mpsc_recv(&mut rx).await;
+        if msg_is_none(&msg) {
             
 
         } else {
             let dto = serde_json::Value::Null;
             let event = Event::default().event("workflow").json_data(dto);
-            yield Ok(event)
+            yield Ok(event.unwrap_or_default())
         }
 
     }
@@ -125,24 +123,22 @@ trait StreamSink {
 }
 
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone)]
 struct WorkflowStreamSink {
-    pub tx: Value,
+    pub tx: std::sync::mpsc::Sender<Value>,
 }
 
 impl StreamSink for WorkflowStreamSink {
     fn on_event(&self, ev: i32) {
         let dto = workflow_event_to_dto(ev);
-        mpsc_try_send(self.tx.clone(), dto);
+        let _ = self.tx.send(serde_json::to_value(&dto).unwrap_or(Value::Null));
     }
 }
 
 async fn run_stream_handler(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<RunRequest>) -> Response {
-    let ch = mpsc_channel();
-    let tx = mpsc_sender(ch);
-    let rx = mpsc_receiver(ch);
+    let (tx, rx) = mpsc_channel();
     let sink = RunStreamSink { tx: tx };
-    agent_run_stream(s, q, body, Arc::new(sink)).await;
+    agent_run_stream(&s, q, body, Arc::new(sink)).await;
     let stream = run_sse_stream(rx);
     let mut sse = Sse::new(stream);
     let mut ka = KeepAlive::new();
@@ -150,30 +146,30 @@ async fn run_stream_handler(s: State<AppState>, q: Query<WorkspaceQuery>, body: 
     return sse.keep_alive(ka).into_response();
 }
 
-fn run_sse_stream(rx: std::sync::mpsc::Receiver<serde_json::Value>) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
+fn run_sse_stream(mut rx: std::sync::mpsc::Receiver<serde_json::Value>) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
     loop {
-        let msg = mpsc_recv(rx).await;
-        if msg_is_none(msg) {
+        let msg = mpsc_recv(&mut rx).await;
+        if msg_is_none(&msg) {
             
 
         } else {
             let dto = serde_json::Value::Null;
             let event = Event::default().event("run").json_data(dto);
-            yield Ok(event)
+            yield Ok(event.unwrap_or_default())
         }
 
     }
 } } }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone)]
 struct RunStreamSink {
-    pub tx: Value,
+    pub tx: std::sync::mpsc::Sender<Value>,
 }
 
 impl StreamSink for RunStreamSink {
     fn on_event(&self, ev: i32) {
         let dto = stream_event_to_dto(ev);
-        mpsc_try_send(self.tx.clone(), dto);
+        let _ = self.tx.send(serde_json::to_value(&dto).unwrap_or(Value::Null));
     }
 }
 
@@ -188,27 +184,27 @@ pub struct RunRequest {
 }
 
 async fn conversation_stream(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuery>) -> Response {
-    let rx = conversations_subscribe(s, q);
-    let id = path_inner(p);
-    let stream = conv_event_stream(rx, id.as_str());
+    let rx = conversations_subscribe(&s, q);
+    let id = path_inner(&p);
+    let stream = conv_event_stream(rx, id);
     let mut sse = Sse::new(stream);
     let mut ka = KeepAlive::new();
     ka = ka.interval(std::time::Duration::from_secs(15));
     return sse.keep_alive(ka).into_response();
 }
 
-fn conv_event_stream(rx: i32, id: &str) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
+fn conv_event_stream(rx: i32, id: String) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
     loop {
         let msg = broadcast_recv(rx).await;
-        if msg_is_none(msg) {
+        if msg_is_none(&msg) {
             
 
         } else {
             let ev = msg_unwrap(msg);
-            if conv_event_matches(ev, id) {
-                let dto = ConvEventDto { conversation_id: conv_event_id(ev).to_string(), turn: conv_event_turn(ev), status: conv_event_status(ev) };
+            if conv_event_matches(&ev, &id) {
+                let dto = ConvEventDto { conversation_id: conv_event_id(&ev).to_string(), turn: conv_event_turn(&ev), status: conv_event_status(&ev) };
                 let event = Event::default().event("conversation_event").json_data(dto);
-                yield Ok(event)
+                yield Ok(event.unwrap_or_default())
             }        }
 
     }
@@ -222,7 +218,7 @@ pub struct ConvEventDto {
 }
 
 async fn run(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<RunRequest>) -> Json<RunResponse> {
-    let resp = agent_run(s, q, body).await;
+    let resp = agent_run(&s, q, body).await;
     return Json(resp);
 }
 
@@ -233,11 +229,9 @@ pub struct RunResponse {
 }
 
 async fn chat_stream(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuery>) -> Response {
-    let ch = mpsc_channel();
-    let tx = mpsc_sender(ch);
-    let rx = mpsc_receiver(ch);
+    let (tx, rx) = mpsc_channel();
     let sink = ChatStreamSink { tx: tx };
-    chat_run_stream(s, q, p, Arc::new(sink)).await;
+    chat_run_stream(&s, q, p, Arc::new(sink)).await;
     let stream = chat_sse_stream(rx);
     let mut sse = Sse::new(stream);
     let mut ka = KeepAlive::new();
@@ -245,29 +239,29 @@ async fn chat_stream(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuer
     return sse.keep_alive(ka).into_response();
 }
 
-fn chat_sse_stream(rx: std::sync::mpsc::Receiver<serde_json::Value>) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
+fn chat_sse_stream(mut rx: std::sync::mpsc::Receiver<serde_json::Value>) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
     loop {
-        let msg = mpsc_recv(rx).await;
-        if msg_is_none(msg) {
+        let msg = mpsc_recv(&mut rx).await;
+        if msg_is_none(&msg) {
             
 
         } else {
             let dto = serde_json::Value::Null;
             let event = Event::default().event("chat").json_data(dto);
-            yield Ok(event)
+            yield Ok(event.unwrap_or_default())
         }
 
     }
 } } }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone)]
 struct ChatStreamSink {
-    pub tx: Value,
+    pub tx: std::sync::mpsc::Sender<Value>,
 }
 
 impl StreamSink for ChatStreamSink {
     fn on_event(&self, ev: i32) {
         let dto = stream_event_to_dto(ev);
-        mpsc_try_send(self.tx.clone(), dto);
+        let _ = self.tx.send(serde_json::to_value(&dto).unwrap_or(Value::Null));
     }
 }

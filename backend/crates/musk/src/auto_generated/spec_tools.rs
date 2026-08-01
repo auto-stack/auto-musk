@@ -27,7 +27,7 @@ impl Tool for ReadSpecs {
         return parse_json(read_specs_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let section = value_get_str(args, "section");
+        let section = value_get_str(&args, "section");
         let result = specs_read(section);
         return Ok(result);
     }
@@ -68,8 +68,8 @@ impl Tool for WriteSpec {
         return parse_json(write_spec_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let section = value_get_str(args, "section");
-        let content = value_get_str(args, "content");
+        let section = value_get_str(&args, "section");
+        let content = value_get_str(&args, "content");
         let result = specs_write(section, content);
         return Ok(result);
     }
@@ -90,8 +90,8 @@ impl Tool for UpdateSpec {
         return parse_json(update_spec_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let action = value_get_str(args, "action");
-        let section = value_get_str(args, "section");
+        let action = value_get_str(&args, "action");
+        let section = value_get_str(&args, "section");
         let result = specs_update(action, section, args);
         return Ok(result);
     }
@@ -112,16 +112,8 @@ impl Tool for WriteGoals {
         return parse_json(write_goals_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let goals = value_get_str(args, "goals");
+        let goals = value_get_str(&args, "goals");
         let result = specs_write_goals(goals);
         return Ok(result);
     }
-}
-
-fn main() {
-    let read_specs_schema: String = format!("{{\"type\":\"object\",\"properties\":{{\"section\":{{\"type\":\"string\"}}}}");;
-    let list_specs_schema: String = format!("{{\"type\":\"object\"}}");;
-    let write_spec_schema: String = format!("{{\"type\":\"object\",\"properties\":{{\"section\":{{\"type\":\"string\"}},\"content\":{{\"type\":\"string\"}},\"required\":[\"section\",\"content\"]}}");;
-    let update_spec_schema: String = format!("{{\"type\":\"object\",\"properties\":{{\"action\":{{\"type\":\"string\"}},\"section\":{{\"type\":\"string\"}},\"item_id\":{{\"type\":\"string\"}},\"required\":[\"action\",\"section\"]}}");;
-    let write_goals_schema: String = format!("{{\"type\":\"object\",\"properties\":{{\"goals\":{{\"type\":\"string\"}},\"required\":[\"goals\"]}}");;
 }

@@ -12,7 +12,7 @@ trait AgentFactory {
 
 /// relay_driver.at — MuskAgentFactory + AgentFactory impl (relay/driver.rs).
 /// drive_run/drive_loop/run_step（async 闭包 + Mutex）保留手写。
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone)]
 struct MuskAgentFactory {
     pub state: Arc<AppState>,
     pub workspace_id: String,
@@ -21,14 +21,14 @@ struct MuskAgentFactory {
 
 impl MuskAgentFactory {
     fn build_agent(&self, role_id: &str, handoff: Option<String>) -> Result<Agent, String> {
-        let mode = AgentMode { name: format!("{}{}", "relay-", role_id), description: "".to_string(), role: role_id, skills: false, tools: vec![], workflow: None, context_file: "".to_string(), extra_system_prompt: "".to_string() };
+        let mode = AgentMode { name: format!("{}{}", "relay-", role_id), description: "".to_string(), role: role_id.to_string(), skills: false, tools: vec![], workflow: None, context_file: "".to_string(), extra_system_prompt: "".to_string() };
         let tool_ctx = ToolContext { state: self.state.clone(), workspace_id: self.workspace_id.clone(), parent_conversation_id: self.run_id.clone() };
         let agent = build_agent_with_context(mode, self.state.client.clone(), Some(tool_ctx));
         match handoff {
             Some(h) => {
                 let prior = handoff_render(h);
                 if (prior.len() as i32) > 0 {
-                    let agent2 = agent_with_history(agent, prior);
+                    let agent2 = agent_with_history(agent, &prior);
                     return Ok(agent2);
                 }
                 return Ok(agent);

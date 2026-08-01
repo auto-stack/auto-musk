@@ -31,8 +31,8 @@ impl Tool for ReadFile {
         return parse_json(read_file_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let path = value_get_str(args, "path");
-        let resolved = resolve_within_project(path);
+        let path = value_get_str(&args, "path");
+        let resolved = resolve_within_project(&path);
         let content = std::fs::read_to_string(resolved.as_str()).unwrap();
         return Ok(content);
     }
@@ -53,10 +53,10 @@ impl Tool for WriteFile {
         return parse_json(write_file_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let path = value_get_str(args, "path");
-        let content = value_get_str(args, "content");
-        write_file_do(path, content);
-        return Ok("wrote file");
+        let path = value_get_str(&args, "path");
+        let content = value_get_str(&args, "content");
+        write_file_do(&path, &content);
+        return Ok("wrote file".to_string());
     }
 }
 
@@ -75,14 +75,14 @@ impl Tool for RunCommand {
         return parse_json(run_command_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let cmd = value_get_str(args, "cmd");
-        let force = value_get_bool(args, "force");
+        let cmd = value_get_str(&args, "cmd");
+        let force = value_get_bool(&args, "force");
         if force == false {
-            let needs = command_needs_approval(cmd);
+            let needs = command_needs_approval(&cmd);
             if needs {
-                return Ok("PAUSED: needs approval");
+                return Ok("PAUSED: needs approval".to_string());
             }        }
-        let output = run_shell_command(cmd);
+        let output = run_shell_command(&cmd);
         return Ok(output);
     }
 }
@@ -102,10 +102,10 @@ impl Tool for EditFile {
         return parse_json(edit_file_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let path = value_get_str(args, "path");
-        let old_str = value_get_str(args, "old_string");
-        let new_str = value_get_str(args, "new_string");
-        let result = edit_file_do(path, old_str, new_str);
+        let path = value_get_str(&args, "path");
+        let old_str = value_get_str(&args, "old_string");
+        let new_str = value_get_str(&args, "new_string");
+        let result = edit_file_do(&path, &old_str, &new_str);
         return Ok(result);
     }
 }
@@ -125,9 +125,9 @@ impl Tool for BatchReplace {
         return parse_json(batch_replace_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let path = value_get_str(args, "path");
-        let replacements = value_get_array(args, "replacements");
-        let result = batch_replace_do(path, replacements);
+        let path = value_get_str(&args, "path");
+        let replacements = value_get_array(&args, "replacements");
+        let result = batch_replace_do(&path, replacements);
         return Ok(result);
     }
 }
@@ -147,8 +147,8 @@ impl Tool for Search {
         return parse_json(search_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let pattern = value_get_str(args, "pattern");
-        let result = search_files(pattern);
+        let pattern = value_get_str(&args, "pattern");
+        let result = search_files(&pattern);
         return Ok(result);
     }
 }
@@ -168,8 +168,8 @@ impl Tool for ListDir {
         return parse_json(list_dir_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let path = value_get_str(args, "path");
-        let result = list_directory(path);
+        let path = value_get_str(&args, "path");
+        let result = list_directory(&path);
         return Ok(result);
     }
 }
@@ -189,8 +189,8 @@ impl Tool for ListSymbols {
         return parse_json(list_symbols_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let path = value_get_str(args, "path");
-        let result = list_symbols_in(path);
+        let path = value_get_str(&args, "path");
+        let result = list_symbols_in(&path);
         return Ok(result);
     }
 }
@@ -210,20 +210,8 @@ impl Tool for Glob {
         return parse_json(glob_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let pattern = value_get_str(args, "pattern");
-        let result = glob_files(pattern);
+        let pattern = value_get_str(&args, "pattern");
+        let result = glob_files(&pattern);
         return Ok(result);
     }
-}
-
-fn main() {
-    let read_file_schema: String = format!("{{\"type\":\"object\",\"properties\":{{\"path\":{{\"type\":\"string\"}},\"required\":[\"path\"]}}");;
-    let write_file_schema: String = format!("{{\"type\":\"object\",\"properties\":{{\"path\":{{\"type\":\"string\"}},\"content\":{{\"type\":\"string\"}},\"required\":[\"path\",\"content\"]}}");;
-    let run_command_schema: String = format!("{{\"type\":\"object\",\"properties\":{{\"cmd\":{{\"type\":\"string\"}},\"force\":{{\"type\":\"boolean\"}},\"required\":[\"cmd\"]}}");;
-    let edit_file_schema: String = format!("{{\"type\":\"object\",\"properties\":{{\"path\":{{\"type\":\"string\"}},\"old_string\":{{\"type\":\"string\"}},\"new_string\":{{\"type\":\"string\"}},\"required\":[\"path\",\"old_string\",\"new_string\"]}}");;
-    let batch_replace_schema: String = format!("{{\"type\":\"object\",\"properties\":{{\"path\":{{\"type\":\"string\"}},\"replacements\":{{\"type\":\"array\"}},\"required\":[\"path\",\"replacements\"]}}");;
-    let search_schema: String = format!("{{\"type\":\"object\",\"properties\":{{\"pattern\":{{\"type\":\"string\"}},\"required\":[\"pattern\"]}}");;
-    let list_dir_schema: String = format!("{{\"type\":\"object\",\"properties\":{{\"path\":{{\"type\":\"string\"}},\"required\":[\"path\"]}}");;
-    let list_symbols_schema: String = format!("{{\"type\":\"object\",\"properties\":{{\"path\":{{\"type\":\"string\"}},\"required\":[\"path\"]}}");;
-    let glob_schema: String = format!("{{\"type\":\"object\",\"properties\":{{\"pattern\":{{\"type\":\"string\"}},\"required\":[\"pattern\"]}}");;
 }

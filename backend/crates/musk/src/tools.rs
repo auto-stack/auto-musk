@@ -10,6 +10,7 @@ use serde_json::{json, Value};
 
 /// 读取文件内容(UTF-8 文本)。
 pub struct ReadFile;
+impl ReadFile { pub fn new() -> Self { Self } }
 
 #[async_trait]
 impl Tool for ReadFile {
@@ -42,6 +43,7 @@ impl Tool for ReadFile {
 
 /// 写入文件(覆盖已存在文件;自动创建父目录)。
 pub struct WriteFile;
+impl WriteFile { pub fn new() -> Self { Self } }
 
 #[async_trait]
 impl Tool for WriteFile {
@@ -91,6 +93,7 @@ impl Tool for WriteFile {
 /// 提醒用户确认。设 `force: true` 可跳过白名单检查(用户 approve 后)。
 /// 未来 run_command 后端将换为 Ash,由 Ash 的逐命令沙箱接管安全。
 pub struct RunCommand;
+impl RunCommand { pub fn new() -> Self { Self } }
 
 #[async_trait]
 impl Tool for RunCommand {
@@ -163,6 +166,7 @@ impl Tool for RunCommand {
 /// 要求 `old_string` 在文件中唯一,否则报错(避免歧义替换)。
 /// 比 WriteFile 安全(不覆盖整个文件),是 executing-plans 的核心工具。
 pub struct EditFile;
+impl EditFile { pub fn new() -> Self { Self } }
 
 #[async_trait]
 impl Tool for EditFile {
@@ -224,6 +228,7 @@ impl Tool for EditFile {
 /// 内容搜索(grep/rg):在文件树里搜 pattern,返回匹配的行。
 /// 用 rg(若可用)否则 fallback 到 grep -rn。
 pub struct Search;
+impl Search { pub fn new() -> Self { Self } }
 
 #[async_trait]
 impl Tool for Search {
@@ -297,6 +302,7 @@ impl Tool for Search {
 /// 目录列表:列出目录内容,返回结构化的 [{name, is_dir, size}]。
 /// 比 run_command ls 更适合 agent 消费(JSON 而非原始 shell 输出)。
 pub struct ListDir;
+impl ListDir { pub fn new() -> Self { Self } }
 
 #[async_trait]
 impl Tool for ListDir {
@@ -354,6 +360,7 @@ impl Tool for ListDir {
 /// 文件符号大纲:扫描 Rust/TS 文件的 pub fn/struct/enum/mod 等定义行。
 /// 不引入 tree-sitter,用轻量正则。看结构不用读全文。
 pub struct ListSymbols;
+impl ListSymbols { pub fn new() -> Self { Self } }
 
 #[async_trait]
 impl Tool for ListSymbols {
@@ -421,6 +428,7 @@ impl Tool for ListSymbols {
 /// 文件名模式匹配:用 glob 找文件(如 **/*.rs, **/test_*)。
 /// 比 search(内容)和 list_dir(单层)更适合"找某类文件"。
 pub struct Glob;
+impl Glob { pub fn new() -> Self { Self } }
 
 #[async_trait]
 impl Tool for Glob {
@@ -483,6 +491,7 @@ impl Tool for Glob {
 /// 多处批量替换:在一个文件里一次性做多处 edit_file 风格的替换。
 /// 每个替换要求 old 唯一;任一不唯一则全部不执行(原子性)。
 pub struct BatchReplace;
+impl BatchReplace { pub fn new() -> Self { Self } }
 
 #[async_trait]
 impl Tool for BatchReplace {

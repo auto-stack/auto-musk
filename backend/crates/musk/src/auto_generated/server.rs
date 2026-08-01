@@ -20,7 +20,7 @@ use crate::server::AppState;
 /// 关键转换规则（Plan 379 + 380 P0 后）:
 /// - `impl IntoResponse` 多分支 -> 统一 `~Json<T>` 返回（错误也用 DTO，状态码在外壳层处理）
 /// - `json!({"k":v})` -> 新建 DTO struct
-/// - `State(s): State<AppState>` -> `s State<AppState>`（整体参数，函数体内访问 s.auth 等）
+/// - `State(&s): State<AppState>` -> `s State<AppState>`（整体参数，函数体内访问 s.auth 等）
 /// - `Path(id): Path<T>` -> `p Path<T>`
 /// - handler 定义在 build_router 之前（a2r 单遍）
 #[derive(Debug, Serialize)]
@@ -341,60 +341,60 @@ async fn health() -> Json<StatusOk> {
 async fn auth_login(s: State<AppState>, body: Json<LoginRequest>) -> Json<LoginResponse> {
 
     let username: String = body.username.clone();
-    let role: String = auth_login_role(s, username.clone(), body.password.clone());
-    let token: String = auth_login_token(s, username.clone(), body.password.clone());
+    let role: String = auth_login_role(&s, username.clone(), body.password.clone());
+    let token: String = auth_login_token(&s, username.clone(), body.password.clone());
     return Json(LoginResponse { token: token.to_string(), username: username.to_string(), role: role.to_string() });
 }
 
 async fn auth_me(s: State<AppState>, headers: HeaderMap) -> Json<LoginResponse> {
-    let token: String = auth_token_from_headers(s, headers);
-    let username: String = auth_username_from_token(s, token.clone());
-    let role: String = auth_role_from_token(s, token);
+    let token: String = auth_token_from_headers(&s, headers);
+    let username: String = auth_username_from_token(&s, &token);
+    let role: String = auth_role_from_token(&s, &token);
     return Json(LoginResponse { token: token.to_string(), username: username.to_string(), role: role.to_string() });
 }
 
 async fn auth_logout(s: State<AppState>, headers: HeaderMap) -> Json<StatusOk> {
-    auth_logout_token(s, headers);
+    auth_logout_token(&s, headers);
     return Json(StatusOk { status: "logged out".to_string() });
 }
 
 async fn specs_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
-    let doc = specs_load(s, q);
+    let doc = specs_load(&s, q);
     return Json(doc);
 }
 
 async fn specs_overview(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
-    let overview = specs_overview_of(s, q);
+    let overview = specs_overview_of(&s, q);
     return Json(overview);
 }
 
 async fn specs_drift_check(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<DriftResult> {
-    let result = specs_drift(s, q);
+    let result = specs_drift(&s, q);
     return Json(result);
 }
 
 async fn specs_rebuild_relations(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
-    let doc = specs_rebuild(s, q);
+    let doc = specs_rebuild(&s, q);
     return Json(doc);
 }
 
 async fn specs_related(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<RelatedInfo> {
-    let info = specs_related_of(s, q, p);
+    let info = specs_related_of(&s, q, p);
     return Json(info);
 }
 
 async fn specs_upsert(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<SpecsUpsertRequest>) -> Json<Value> {
-    let doc = specs_upsert_of(s, q, body);
+    let doc = specs_upsert_of(&s, q, body);
     return Json(doc);
 }
 
 async fn specs_transition(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<SpecsTransitionRequest>) -> Json<TransitionOk> {
-    let new_status = specs_transition_of(s, q, body);
+    let new_status = specs_transition_of(&s, q, body);
     return Json(TransitionOk { status: "ok".to_string(), new_status: new_status.to_string() });
 }
 
 async fn specs_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, String)>) -> Json<Deleted> {
-    let id = specs_delete_of(s, q, p);
+    let id = specs_delete_of(&s, q, p);
     return Json(Deleted { status: "deleted".to_string(), id: id.to_string() });
 }
 
@@ -424,18 +424,18 @@ async fn roles_list() -> Json<RolesResp> {
 }
 
 async fn role_detail(p: Path<String>) -> Json<RoleDetail> {
-    let detail = role_get(p);
+    let detail = role_get(&p);
     return Json(detail);
 }
 
 async fn role_save(p: Path<String>, body: Json<RoleSaveBody>) -> Json<Saved> {
-    role_save_of(p, body);
-    return Json(Saved { status: "saved".to_string(), name: path_inner(p).to_string() });
+    role_save_of(&p, body);
+    return Json(Saved { status: "saved".to_string(), name: path_inner(&p).to_string() });
 }
 
 async fn role_delete(p: Path<String>) -> Json<Deleted> {
-    role_delete_of(p);
-    return Json(Deleted { status: "deleted".to_string(), id: path_inner(p).to_string() });
+    role_delete_of(&p);
+    return Json(Deleted { status: "deleted".to_string(), id: path_inner(&p).to_string() });
 }
 
 async fn app_config_get() -> Json<AppConfigResp> {
@@ -449,19 +449,19 @@ async fn app_config_save(body: Json<AppConfigSaveBody>) -> Json<AppConfigResp> {
 }
 
 async fn app_harness_list(p: Path<String>) -> Json<Value> {
-    let result = harness_list(p);
+    let result = harness_list(&p);
     return Json(result);
 }
 
 async fn app_harness_save(p: Path<(String, String)>, body: Json<AppHarnessSaveBody>) -> Json<Saved> {
-    harness_save(p, body);
-    let name: String = harness_name_from_path(p);
+    harness_save(&p, body);
+    let name: String = harness_name_from_path(&p);
     return Json(Saved { status: "saved".to_string(), name: name.to_string() });
 }
 
 async fn app_harness_delete(p: Path<(String, String)>) -> Json<Deleted> {
-    harness_delete(p);
-    let name: String = harness_name_from_path(p);
+    harness_delete(&p);
+    let name: String = harness_name_from_path(&p);
     return Json(Deleted { status: "deleted".to_string(), id: name.to_string() });
 }
 
@@ -486,22 +486,22 @@ async fn chat_rename(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<Strin
 }
 
 async fn chat_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<Deleted> {
-    chats_delete(s, q, p);
-    return Json(Deleted { status: "deleted".to_string(), id: path_inner(p).to_string() });
+    chats_delete(&s, q, &p);
+    return Json(Deleted { status: "deleted".to_string(), id: path_inner(&p).to_string() });
 }
 
 async fn chat_delete_all(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<DeletedAll> {
-    let count = chats_delete_all(s, q);
+    let count = chats_delete_all(&s, q);
     return Json(DeletedAll { status: "deleted".to_string(), count: count });
 }
 
 async fn chat_message(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ChatMessageBody>) -> Json<QueuedResp> {
-    chats_message(s, q, p, body);
+    chats_message(&s, q, p, body);
     return Json(QueuedResp { status: "queued".to_string() });
 }
 
 async fn chat_approve(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, u32)>) -> Json<ApproveResp> {
-    let applied = chats_approve(s, q, p);
+    let applied = chats_approve(&s, q, p);
     return Json(ApproveResp { status: "ok".to_string(), applied: applied });
 }
 
@@ -516,47 +516,47 @@ async fn chat_reject_all(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<S
 }
 
 async fn conversation_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
-    let list = conversations_list(s, q);
+    let list = conversations_list(&s, q);
     return Json(list);
 }
 
 async fn conversation_get(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuery>) -> Json<Value> {
-    let conv = conversations_get(s, q, p);
+    let conv = conversations_get(&s, q, p);
     return Json(conv);
 }
 
 async fn conversation_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<Deleted> {
-    conversations_delete(s, q, p);
-    return Json(Deleted { status: "deleted".to_string(), id: path_inner(p).to_string() });
+    conversations_delete(&s, q, &p);
+    return Json(Deleted { status: "deleted".to_string(), id: path_inner(&p).to_string() });
 }
 
 async fn conversation_rename(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ConversationTitleBody>) -> Json<Value> {
-    let conv = conversations_rename(s, q, p, body);
+    let conv = conversations_rename(&s, q, p, body);
     return Json(conv);
 }
 
 async fn workspace_list(s: State<AppState>) -> Json<WorkspacesResp> {
-    let list = workspace_list_all(s);
+    let list = workspace_list_all(&s);
     return Json(WorkspacesResp { workspaces: list });
 }
 
 async fn workspace_open(s: State<AppState>, body: Json<OpenWorkspaceBody>) -> Json<WorkspaceResp> {
-    let resp = workspace_open_of(s, body);
+    let resp = workspace_open_of(&s, body);
     return Json(resp);
 }
 
 async fn workspace_status(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<WorkspaceStatusResp> {
-    let resp = workspace_status_of(s, q);
+    let resp = workspace_status_of(&s, q);
     return Json(resp);
 }
 
 async fn workspace_browse(q: Query<BrowseQuery>) -> Json<BrowseResp> {
-    let list = workspace_browse_of(q);
+    let list = workspace_browse_of(&q);
     return Json(BrowseResp { entries: list });
 }
 
 async fn workspace_initialize(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Initialized> {
-    workspace_initialize_of(s, q);
+    workspace_initialize_of(&s, q);
     return Json(Initialized { status: "initialized".to_string() });
 }
 
@@ -565,7 +565,7 @@ async fn workflows() -> Json<WorkflowsResp> {
     return Json(WorkflowsResp { workflows: list });
 }
 
-fn build_router() -> Router {
+fn build_router() -> Router<crate::server::AppState> {
     let mut app = Router::new();
     app = app.route("/api/health", get(health));
     app = app.route("/api/professions", get(professions));
@@ -584,19 +584,19 @@ fn build_router() -> Router {
     app = app.route("/api/modes", get(modes_list));
     app = app.route("/api/skills", get(skills_list));
     app = app.route("/api/roles", get(roles_list));
-    app = app.route("/api/roles/{name}", get(role_detail).put(role_save).remove(role_delete));
+    app = app.route("/api/roles/{name}", get(role_detail).put(role_save).delete(role_delete));
     app = app.route("/api/app-config", get(app_config_get).put(app_config_save));
     app = app.route("/api/app-harness/{kind}", get(app_harness_list));
-    app = app.route("/api/app-harness/{kind}/{name}", put(app_harness_save).remove(app_harness_delete));
-    app = app.route("/api/chats/sessions", get(chat_list).remove(chat_delete_all));
+    app = app.route("/api/app-harness/{kind}/{name}", put(app_harness_save).delete(app_harness_delete));
+    app = app.route("/api/chats/sessions", get(chat_list).delete(chat_delete_all));
     app = app.route("/api/chats/session", post(chat_create));
-    app = app.route("/api/chats/session/{id}", get(chat_get).patch(chat_rename).remove(chat_delete));
+    app = app.route("/api/chats/session/{id}", get(chat_get).patch(chat_rename).delete(chat_delete));
     app = app.route("/api/chats/session/{id}/message", post(chat_message));
     app = app.route("/api/chats/session/{id}/approve/{index}", post(chat_approve));
     app = app.route("/api/chats/session/{id}/reject/{index}", post(chat_reject));
     app = app.route("/api/chats/session/{id}/reject-all", post(chat_reject_all));
     app = app.route("/api/conversations", get(conversation_list));
-    app = app.route("/api/conversations/{id}", get(conversation_get).remove(conversation_delete));
+    app = app.route("/api/conversations/{id}", get(conversation_get).delete(conversation_delete));
     app = app.route("/api/conversations/{id}/title", patch(conversation_rename));
     app = app.route("/api/workspace/list", get(workspace_list));
     app = app.route("/api/workspace/open", post(workspace_open));

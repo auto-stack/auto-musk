@@ -5,21 +5,8 @@ use.rust crate::spec_tools::{ReadSpecs, ListSpecs, WriteSpec, UpdateSpec, WriteG
 use.rust crate::orch_tools::{SpawnRelay, Dispatch, BringIn}
 use.rust crate::tool_context::ToolContext
 
+#[derive(Clone)]
 type OwnedRole {
-    inner Arc<dyn auto_ai_agent::Role>
-    extra_prompt Option<str>
-    prompt str
-
-    pub static fn new(inner Arc<dyn auto_ai_agent::Role>) OwnedRole {
-        let p = role_system_prompt(inner)
-        return OwnedRole(inner: inner, extra_prompt: None, prompt: p)
-    }
-
-    pub fn with_extra_prompt(extra str) OwnedRole {
-        var p = self.prompt.clone()
-        if extra.trim().len() > 0 {
-            p = role_system_prompt(self.inner)
-            p = p + "\n\n" + extra
     inner Arc<dyn Role>
     extra_prompt Option<str>
     prompt str
@@ -35,30 +22,17 @@ type OwnedRole {
             p = role_system_prompt(self.inner)
             p = p + "\n\n" + extra
         }
-        var result = self.clone()
-        result.prompt = p
-        return result
+        return OwnedRole(inner: self.inner, extra_prompt: self.extra_prompt, prompt: p)
     }
-
-    fn name() str { return role_name(self.inner) }
-    fn system_prompt() str { return self.prompt.clone() }
-    fn model() str { return role_model(self.inner) }
-    fn model_tier() ModelTier { return role_model_tier(self.inner) }
-    fn temperature() float { return role_temperature(self.inner) }
-    fn max_turns() uint { return role_max_turns(self.inner) }
-    fn allowed_tools() List<str> { return role_allowed_tools(self.inner) }
-    fn memory_limit() Option<uint> { return role_memory_limit(self.inner) }
-    fn allowed_tiers() List<ModelTier> { return role_allowed_tiers(self.inner) }
-    fn token_budget() Option<u64> { return role_token_budget(self.inner) }
-    fn skills() List<str> { return role_skills(self.inner) }
 }
 
-// OwnedRole impl auto_ai_agent::Role is hand-written in lib.rs (delegates to inner).
+// OwnedRole impl auto_ai_agent::Role is hand-written in auto_lib.rs (delegates to
+// inner), because Role's &str returns are incompatible with Auto's str->String.
 
 pub fn build_agent_from_mode(mode AgentMode, client Arc<dyn Client>) Result<Agent, str> {
-    let role = resolve_role(mode.role).unwrap()
+    let role = resolve_role(mode.role.view).unwrap()
     let owned = OwnedRole.new(role)
-    let owned2 = owned.with_extra_prompt(mode.extra_system_prompt)
+    let owned2 = owned.with_extra_prompt(mode.extra_system_prompt.view)
     let agent = Agent.new(owned2, client)
     let all_tools List<(str, Arc<dyn Tool>)> = [
         ("read_file", Arc.new(ReadFile.new())),
@@ -71,10 +45,10 @@ pub fn build_agent_from_mode(mode AgentMode, client Arc<dyn Client>) Result<Agen
         ("glob", Arc.new(Glob.new())),
         ("run_command", Arc.new(RunCommand.new())),
         ("read_specs", Arc.new(ReadSpecs.new())),
-        ("list_specs", Arc.new(ListSpecs())),
-        ("write_spec", Arc.new(WriteSpec())),
-        ("update_spec", Arc.new(UpdateSpec())),
-        ("write_goals", Arc.new(WriteGoals()))
+        ("list_specs", Arc.new(ListSpecs.new())),
+        ("write_spec", Arc.new(WriteSpec.new())),
+        ("update_spec", Arc.new(UpdateSpec.new())),
+        ("write_goals", Arc.new(WriteGoals.new()))
     ]
     for pair in all_tools {
         let tool_name = pair[0]

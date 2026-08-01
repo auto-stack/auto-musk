@@ -27,7 +27,7 @@ impl Tool for SpawnRelay {
         return parse_json(spawn_relay_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let task_input = value_get_str(args, "task");
+        let task_input = value_get_str(&args, "task");
         let result = orch_spawn_relay(task_input, args);
         return Ok(result);
     }
@@ -48,8 +48,8 @@ impl Tool for Dispatch {
         return parse_json(dispatch_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let task_input = value_get_str(args, "task");
-        let to_role = value_get_str(args, "to");
+        let task_input = value_get_str(&args, "task");
+        let to_role = value_get_str(&args, "to");
         let result = orch_dispatch(task_input, to_role);
         return Ok(result);
     }
@@ -70,14 +70,8 @@ impl Tool for BringIn {
         return parse_json(bring_in_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let query = value_get_str(args, "query");
+        let query = value_get_str(&args, "query");
         let result = orch_bring_in(query);
         return Ok(result);
     }
-}
-
-fn main() {
-    let spawn_relay_schema: String = format!("{{\"type\":\"object\",\"properties\":{{\"task\":{{\"type\":\"string\"}},\"flow_id\":{{\"type\":\"string\"}},\"required\":[\"task\"]}}");;
-    let dispatch_schema: String = format!("{{\"type\":\"object\",\"properties\":{{\"task\":{{\"type\":\"string\"}},\"to\":{{\"type\":\"string\"}},\"required\":[\"task\",\"to\"]}}");;
-    let bring_in_schema: String = format!("{{\"type\":\"object\",\"properties\":{{\"query\":{{\"type\":\"string\"}},\"required\":[\"query\"]}}");;
 }

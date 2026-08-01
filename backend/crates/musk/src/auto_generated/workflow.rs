@@ -55,8 +55,8 @@ pub fn builtin_names() -> Vec<String> {
 
 pub fn load(spec_input: &str) -> Result<Workflow, String> {
     if spec_input == "feature-dev" {
-        return parse_at_workflow(FEATURE_DEV_AT);
+        return parse_at_workflow(FEATURE_DEV_AT).map_err(|e| e.to_string());
     }
     let content = std::fs::read_to_string(spec_input).unwrap();
-    return parse_at_workflow(content);
+    return parse_at_workflow(&content).map_err(|e| e.to_string());
 }

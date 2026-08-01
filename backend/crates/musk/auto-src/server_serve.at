@@ -97,7 +97,7 @@ fn run_step(state Arc<AppState>, ws_id str, run_id str, role_id str) ~Result<str
 }
 
 spec DriveSink {
-    fn on_event(self, ev)
+    fn on_event(ev)
 }
 
 type DriveStreamSink as DriveSink {
