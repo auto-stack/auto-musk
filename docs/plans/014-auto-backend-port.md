@@ -1,16 +1,7 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
-> **状态**：**18 个模块移植完成**（2026-08-01）。全后端含可移植内容的模块已覆盖。
-> specs 全文件 + auth/hello/tool_safety/mode/app_config/chats/relay{profession,store,api,flows,driver}/
-> conversation(数据层) + server(52 handler) + **tools/spec_tools/orch_tools(17 个 Tool impl) + tool_context**。
->
-> **auto-lang 上游 8 项改进**（均 worktree → 合并 master）：
-> Plan 379 + 380 P0/P1-str/P1-dyn/P4 调研/P5(async trait GenericInstance)/P5b(User 类型通用兜底)/
-> **P6(async trait impl 方法 async fn 一致性)**。
->
-> **4 个语言特性缺口全部解决**（auto-lang Plan 380 G1~G4，均 worktree → 合并 master）：
-> G1 `#{read_text}` comptime 编译期文件嵌入 ✅ / G2 `pub use.rust` 不再丢 pub ✅ /
-> G3 多 derive 透传 ✅ / G4 tuple 数组 ✅。剩余 4 个模块（workflow/relay mod/lib/main）现可移植。
+> **状态**：**全部模块移植完成**（2026-08-01）。22 个 .at 文件覆盖全后端（Rust ~15000 行）。
+> 无保留手写模块，无语言特性障碍。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
