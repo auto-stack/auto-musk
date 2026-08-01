@@ -1,15 +1,15 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
-> **状态**：**14 个模块移植完成，server.rs 52/52 handler 全部移植**（2026-08-01）。
-> specs 全文件 + auth/hello/tool_safety/mode/app_config/chats/relay{profession,store,api,flows}/
-> conversation(数据层) + **server(45 🟡 handler + 6 daemon/SSE handler + 50 DTO + 36 路由)**。
+> **状态**：**18 个模块移植完成**（2026-08-01）。全后端含可移植内容的模块已覆盖。
+> specs 全文件 + auth/hello/tool_safety/mode/app_config/chats/relay{profession,store,api,flows,driver}/
+> conversation(数据层) + server(52 handler) + **tools/spec_tools/orch_tools(17 个 Tool impl) + tool_context**。
 >
-> **auto-lang 上游 5 项改进**（均 worktree 模式 → 合并 master）：
-> Plan 379（route 保留字）+ 380 P0（元组构造）+ P1-str（字面量兼容）+ P1-dyn（Arc<dyn T>）+
-> P4 调研（async_stream 已是 Plan 321，非缺口）。
+> **auto-lang 上游 7 项改进**（均 worktree → 合并 master）：
+> Plan 379 + 380 P0/P1-str/P1-dyn/P4 调研/P5(async trait GenericInstance)/P5b(User 类型通用兜底)。
 >
-> **剩余**：仅 settings_link（reqwest 外部 HTTP）+ serve() 外壳 + store 访问逻辑保留手写。
-> 剩余 9 个 🔴 模块（main/lib/tools 等）的 async trait 实现（impl Tool）是真正 a2r 缺口。
+> **剩余保留手写**：workflow.rs(include_str!)/relay mod.rs(pub use 墙)/lib.rs(trait 桥接)/
+> main.rs(clap+tokio runtime) + settings_link(reqwest) + serve() 外壳 + drive_run/loop/step(闭包+Mutex)。
+> **待修 a2r bug**：async trait impl 生成不一致（trait `async fn`，impl 返回 `Future`）。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
