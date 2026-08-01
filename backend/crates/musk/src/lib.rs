@@ -21,6 +21,11 @@ pub mod workflow;
 pub mod workspace;
 pub mod hello;
 
+/// Auto-generated Rust from .at sources (a2r transpilation). Coexists with
+/// the hand-written modules above. See `auto_generated/mod.rs`.
+#[allow(dead_code, unused_imports)]
+pub mod auto_generated;
+
 use std::sync::Arc;
 
 use auto_ai_agent::Role;
