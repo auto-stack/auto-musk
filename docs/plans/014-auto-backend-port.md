@@ -8,9 +8,9 @@
 > Plan 379 + 380 P0/P1-str/P1-dyn/P4 调研/P5(async trait GenericInstance)/P5b(User 类型通用兜底)/
 > **P6(async trait impl 方法 async fn 一致性)**。
 >
-> **剩余保留手写**：仅 workflow.rs（`#{}` comptime → a2r 转译待 CTEE 增强，G1）。
-> G2（`pub use.rust` 已修复 ✅）、G3（多 derive 已工作 ✅）、G4（tuple 数组已工作 ✅）阻塞已解除。
-> relay/mod.rs、lib.rs、main.rs 现可移植。详见 auto-lang Plan 380 §6。
+> **4 个语言特性缺口全部解决**（auto-lang Plan 380 G1~G4，均 worktree → 合并 master）：
+> G1 `#{read_text}` comptime 编译期文件嵌入 ✅ / G2 `pub use.rust` 不再丢 pub ✅ /
+> G3 多 derive 透传 ✅ / G4 tuple 数组 ✅。剩余 4 个模块（workflow/relay mod/lib/main）现可移植。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
