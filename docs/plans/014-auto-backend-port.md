@@ -1,15 +1,15 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
-> **状态**：**14 个模块移植完成，server.rs 全量 handler 移植**（2026-08-01）。specs 全文件 +
-> auth/hello/tool_safety/mode/app_config/chats/relay{profession,store,api,flows}/conversation(数据层)/
-> **server(45 handler + 50 DTO + 36 路由)**。
+> **状态**：**14 个模块移植完成，server.rs 52/52 handler 全部移植**（2026-08-01）。
+> specs 全文件 + auth/hello/tool_safety/mode/app_config/chats/relay{profession,store,api,flows}/
+> conversation(数据层) + **server(45 🟡 handler + 6 daemon/SSE handler + 50 DTO + 36 路由)**。
 >
-> **auto-lang 上游改动**：Plan 379（route 保留字）+ Plan 380 P0（元组结构体构造）+ P1（str 字面量
-> 兼容，解锁 `Json(DTO(field:"x"))` 嵌套构造）。三者完成后，axum handler 全量移植可行。
+> **auto-lang 上游 5 项改进**（均 worktree 模式 → 合并 master）：
+> Plan 379（route 保留字）+ 380 P0（元组构造）+ P1-str（字面量兼容）+ P1-dyn（Arc<dyn T>）+
+> P4 调研（async_stream 已是 Plan 321，非缺口）。
 >
-> **server.rs 移植形态**：45/52 handler 用 Auto（async fn + 整体 extractor + 具体 Json<T> 返回 +
-> json!→DTO），7 个 🔴 handler（daemon/SSE/reqwest）+ serve() 外壳 + store 访问逻辑保留手写。
-> 路由表用拆分赋值式（`app = app.route(...)`）避开 a2r-22 超长方法链栈溢出。
+> **剩余**：仅 settings_link（reqwest 外部 HTTP）+ serve() 外壳 + store 访问逻辑保留手写。
+> 剩余 9 个 🔴 模块（main/lib/tools 等）的 async trait 实现（impl Tool）是真正 a2r 缺口。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
@@ -230,7 +230,8 @@ auto-musk/
 │   │   ├── chats.at         ✅ 会话模型 + summary/append + ChatStore IO
 │   │   ├── relay_profession.at ✅ Profession + ForgePhase + Registry
 │   │   ├── relay_store.at   ✅ RunEvent(异构 enum) + 7 读模型 struct
-│   │   ├── server.at        ✅ axum DTO struct + 路由表骨架 + health handler
+│   │   ├── server.at        ✅ 45 🟡 handler + 50 DTO + 36 路由
+│   │   ├── server_stream.at ✅ 6 daemon/SSE handler(~Stream+yield+sink struct)
 │   │   ├── conversation.at  ✅ 会话数据层（12 类型 + 转换函数）
 │   │   ├── relay_api.at     ✅ relay API DTO（5 个）
 │   │   ├── relay_flows.at   ✅ 4 个 flow 构造（全文件，上游类型边界用例）
@@ -271,7 +272,7 @@ a2r-std（转译器层面，写法绕不开），所以需后处理。
 | chats.rs | 596 | ✅ 部分 | Role/ToolCall/ChatMessage/ChatSession/Summary + summary/append + ChatStore IO 用 Auto（SpecChange 跨模块重声明）；new_id(rand) 保留手写 |
 | relay/profession.rs | 494 | ✅ 部分 | Profession struct + ForgePhase enum + Registry（get/list/can_handoff/needs_approval/register）用 Auto；default_professions(292 行数据)/dirs/save 保留手写 |
 | relay/store.rs | 1078 | ✅ 部分 | RunEvent（15 变体 hetero tag union）+ 7 个读模型 struct 用 Auto；RunState/RunEntry(含上游类型)/RunStore(Mutex) 保留手写 |
-| server.rs | 2206 | ✅ 部分 | **45 个 🟡 handler 全移植**（async fn + 整体 extractor 参数 + 具体 Json<T> 返回 + json!→DTO）+ 50 个 DTO struct + build_router() 36 条路由装配（拆分赋值式避 a2r-22 栈溢出）；7 个 🔴 handler（run/run_stream/chat_stream/conversation_stream/workflow_run/workflow_run_stream/settings_link —— daemon/SSE/reqwest）+ serve() 外壳（静态文件/CORS/TcpListener/axum::serve）+ store/registry 访问逻辑保留手写 |
+| server.rs | 2206 | ✅ 部分 | **52/52 handler 全移植**（server.at 45 🟡 handler + server_stream.at 6 daemon/SSE handler）+ 50 DTO + build_router() 36 路由。daemon/SSE handler 用 `~Stream<T>`+yield（Plan 321）+ sink struct 替代 dyn Fn 闭包 + DTO 替代 json!。仅 settings_link（reqwest）+ serve() 外壳 + store 访问逻辑保留手写 |
 | conversation.rs | 1331 | ✅ 部分 | 12 个数据类型（Conversation/ConversationKind/Driver/ConversationStatus/Turn/TurnKind/ToolRecord/GateRecord/GateInfo/ConversationSummary/ConversationEvent + ChatMessage/Role 跨模块重声明）+ to_status_str + chat_message_to_turns + now_secs 用 Auto；ConversationStore(Mutex+broadcast)/run_event_to_turns(上游+宏) 保留手写 |
 | relay/api.rs | 393 | ✅ 部分 | 5 个 DTO（BusEvent/ResolveGateBody/SubmitHandoffBody/UpdateTitleBody/ListRunsQuery）用 Auto；bus(OnceLock+broadcast)+handler(async+extractor)+relay_routes 保留手写 |
 | relay/flows.rs | 59 | ✅ 全文件 | 纯 Auto（4 个 flow 构造 + get_builtin_flow）；**边界用例验证**：上游 auto_ai_agent 类型（FlowSpec/FlowStep/GateType/ExitRouting）作为不透明构造目标 + builder 链 + 字段访问可转译为原生 Rust |
@@ -339,7 +340,7 @@ a2r 处理有缺陷（a2r-18），字段访问型方法保留手写。
 **14 个模块移植到 Auto**（specs/auth/hello/tool_safety/mode/app_config/chats/
 relay{profession,store,api,flows}/conversation/server）：
 - specs.rs 全文件（1495 行，纯 Auto）
-- server.rs 45/52 handler + 50 DTO + 36 路由
+- server.rs **52/52 handler** + 50 DTO + 36 路由（server.at 45 🟡 + server_stream.at 6 daemon/SSE）
 - 其余 12 个模块的数据层 + 纯逻辑 + serde IO
 
 **auto-lang 上游 5 项改进**（均 worktree 模式 → 合并 master）：
