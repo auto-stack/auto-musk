@@ -9,9 +9,7 @@
 use.rust axum::Json
 use.rust axum::http::StatusCode
 use.rust axum::response::Response
-use.rust axum::response::sse::{Event}
-use.rust axum::response::sse::{KeepAlive}
-use.rust axum::response::sse::{Sse}
+use.rust axum::response::sse::{Event, KeepAlive, Sse}
 use.rust std::sync::Arc
 use.rust std::convert::Infallible
 use.rust std::collections::HashMap
