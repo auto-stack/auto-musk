@@ -23,6 +23,7 @@ use.rust crate::server::AppState
 use.rust axum::extract::{State}
 use.rust axum::extract::{Path}
 use.rust axum::extract::{Query}
+use.rust crate::tools::{ReadFile, WriteFile, RunCommand}
 
 // ============================================================
 // DTOs for daemon/SSE handlers (replacing json!() macros)
@@ -61,15 +62,19 @@ pub type ToolCallOut { tool str, args str, result str }
 #[derive(Debug, Deserialize)]
 pub type WorkspaceQuery { workspace Option<str> }
 
+// mpsc channel pair (tx/rx as opaque Value)
+#[derive(Clone)]
+pub type Channel { tx Value, rx Value }
+
 // ============================================================
 // shared_tools — Vec<Arc<dyn Tool>> (P1-dyn)
 // ============================================================
 
 fn shared_tools() List<Arc<dyn Tool>> {
     var tools List<Arc<dyn Tool>> = []
-    tools.push(Arc.new(ReadFile))
-    tools.push(Arc.new(WriteFile))
-    tools.push(Arc.new(RunCommand))
+    tools.push(Arc.new(ReadFile()))
+    tools.push(Arc.new(WriteFile()))
+    tools.push(Arc.new(RunCommand()))
     return tools
 }
 
@@ -90,17 +95,9 @@ fn workflow_event_to_dto(ev) WorkflowEventDto {
 // POST /api/workflow/run (concrete Result return)
 // ============================================================
 
-fn workflow_run(s State<AppState>, q Query<WorkspaceQuery>, body Json<WorkflowRunRequest>) Result<Json<WorkflowRunResponse>, > {
-    let result = workflow_run_inner(s, q, body).await
-    is result {
-        Ok(resp) -> return Ok(Json(resp)),
-        Err(err) -> return Err(err)
-    }
-}
-
-fn workflow_run_inner(s State<AppState>, q Query<WorkspaceQuery>, body Json<WorkflowRunRequest>) ~Result<WorkflowRunResponse, > {
+fn workflow_run(s State<AppState>, q Query<WorkspaceQuery>, body Json<WorkflowRunRequest>) ~Json<WorkflowRunResponse> {
     let resp = wf_run(s, q, body).await
-    return Ok(resp)
+    return Json(resp)
 }
 
 // extern: serve 侧提供的 workflow 执行（构建 Agent + wf.run().await + DTO 映射）
@@ -111,7 +108,9 @@ fn workflow_run_inner(s State<AppState>, q Query<WorkspaceQuery>, body Json<Work
 // ============================================================
 
 fn workflow_run_stream(s State<AppState>, q Query<WorkspaceQuery>, body Json<WorkflowRunRequest>) ~Response {
-    let (tx, rx) = mpsc_channel()
+    let ch = mpsc_channel()
+    let tx = ch.tx
+    let rx = ch.rx
     let sink = WorkflowStreamSink(tx: tx)
     wf_run_with_progress(s, q, body, Arc.new(sink)).await
     let stream = workflow_sse_stream(rx)
@@ -136,11 +135,7 @@ fn workflow_sse_stream(rx) ~Stream<Result<Event, Infallible>> {
 
 // StreamSink for workflow events (replaces dyn Fn closure)
 spec StreamSink {
-    fn on_event(self, ev)
-}
-
-spec StreamSink {
-    fn on_event(self, ev)
+    fn on_event(ev)
 }
 
 type WorkflowStreamSink as StreamSink {
@@ -162,7 +157,9 @@ type WorkflowStreamSink as StreamSink {
 // ============================================================
 
 fn run_stream_handler(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunRequest>) ~Response {
-    let (tx, rx) = mpsc_channel()
+    let ch = mpsc_channel()
+    let tx = ch.tx
+    let rx = ch.rx
     let sink = RunStreamSink(tx: tx)
     agent_run_stream(s, q, body, Arc.new(sink)).await
     let stream = run_sse_stream(rx)
@@ -244,17 +241,9 @@ pub type ConvEventDto { conversation_id str, turn Option<str>, status Option<str
 // POST /api/run
 // ============================================================
 
-fn run(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunRequest>) Result<Json<RunResponse>, > {
-    let result = run_inner(s, q, body).await
-    is result {
-        Ok(resp) -> return Ok(Json(resp)),
-        Err(err) -> return Err(err)
-    }
-}
-
-fn run_inner(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunRequest>) ~Result<RunResponse, > {
+fn run(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunRequest>) ~Json<RunResponse> {
     let resp = agent_run(s, q, body).await
-    return Ok(resp)
+    return Json(resp)
 }
 
 #[derive(Debug, Serialize)]
@@ -267,7 +256,9 @@ pub type RunResponse { output str, tool_calls List<ToolCallOut> }
 // ============================================================
 
 fn chat_stream(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Response {
-    let (tx, rx) = mpsc_channel()
+    let ch = mpsc_channel()
+    let tx = ch.tx
+    let rx = ch.rx
     let sink = ChatStreamSink(tx: tx)
     chat_run_stream(s, q, p, Arc.new(sink)).await
     let stream = chat_sse_stream(rx)
