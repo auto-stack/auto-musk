@@ -332,7 +332,7 @@ a2r 处理有缺陷（a2r-18），字段访问型方法保留手写。
 
 ---
 
-## 最终总结（2026-08-01，a2r 当前能力边界内的自然终点）
+## 最终总结（2026-08-01，持续更新）
 
 ### 已完成
 
@@ -342,30 +342,28 @@ relay{profession,store,api,flows}/conversation/server）：
 - server.rs 45/52 handler + 50 DTO + 36 路由
 - 其余 12 个模块的数据层 + 纯逻辑 + serde IO
 
-**auto-lang 上游 3 项改进**（均 worktree 模式 → 合并 master）：
+**auto-lang 上游 5 项改进**（均 worktree 模式 → 合并 master）：
 - Plan 379：放宽 `route` 保留字（axum `.route()` 可调用）
 - Plan 380 P0：元组结构体构造（`Json(v)` 不误造 field0）
-- Plan 380 P1：str 字面量兼容（`Json(DTO(field:"x"))` 嵌套构造）
+- Plan 380 P1-str：str 字面量兼容（`Json(DTO(field:"x"))` 嵌套构造）
+- Plan 380 P1-dyn：泛型参数 `dyn` 解析（`Arc<dyn T>`/`Box<dyn T>` 字段）—— 解锁 AppState
+- Plan 380 P4 调研：确认 `async_stream` 桥接**已是 Plan 321 实现**（`~Stream<T>`+yield），非缺口
 
-**23 个 a2r 限制实测记录**（多数已修复或有规避），流转 `auto trans → nativeize.pl → cargo check`（无 a2r-std）。
+**23 个 a2r 限制实测记录**，流转 `auto trans → nativeize.pl → cargo check`（无 a2r-std）。
 
-### 剩余（阻塞在 auto-lang Plan 380 P4）
+### 剩余 🔴 handler 的阻塞重新评估（P1-dyn + async_stream 后）
 
-**9 个 🔴 模块**（main/lib/workflow/tool_context/tools/spec_tools/orch_tools/relay{driver,mod}）
-+ **server.rs 7 个 🔴 handler**（run/run_stream/chat_stream/conversation_stream/workflow_run/
-workflow_run_stream/settings_link）+ **serve() 外壳**。
+之前判为"自然终点"的结论**已过时** —— P4 调研发现 async_stream 桥接早就是 Plan 321
+实现，P1-dyn 修复了 `Arc<dyn T>` 字段。剩余 🔴 handler 的两大阻塞已解除：
 
-经重新评估确认：这些模块**无可移植的纯数据/纯函数**——逻辑全内嵌在 async trait 实现
-（`impl Tool`/`AgentFactory`）、上游 trait object 方法调用（`agent.run().await`）、
-SSE 流（`async_stream::stream!`/`Body::from_stream`）、全局状态（Mutex/broadcast）里。
-tools.rs/spec_tools.rs 的校验逻辑（unique-match 等）虽理论可抽纯函数，但需重构、
-收益小（单个 if 判断），ROI 低。
+| 原🔴 handler | 阻塞 | 现状 |
+|---|---|---|
+| conversation_stream | SSE + async_stream | ✅ 可移植（`~Stream<Event>` + yield + Sse 构造）|
+| run_stream/chat_stream/workflow_run_stream | SSE + daemon client | 🟡 可尝试（async_stream ✓ + Arc<dyn Client> ✓ + 显式 .await）|
+| run/workflow_run/chat_message | daemon client | 🟡 可尝试（Arc<dyn Client> ✓ + agent.run().await 显式）|
+| settings_link | reqwest + spawn_blocking | 🔴 保留手写（外部 HTTP 模式）|
 
-**阻塞的 a2r 能力缺口**（详见 auto-lang `docs/plans/380-a2r-rust-interop-completeness.md` §P4）：
-1. `async_stream::stream!` 宏（4 个 SSE handler 用，ROI 最高 —— Auto 的 `~Iter<T>`/yield
-   生成器已有 `21_generators` 测试基础，可桥接）
-2. axum `Sse` + `impl Stream` trait bound（关联 P2 impl Trait）
-3. async trait 方法调用（上游 trait object 的 `.await` 方法，Plan 373 自动 await 对上游类型无效）
-
-P4 落地后，server.rs 可 100% 移植，9 个 🔴 模块也可推进。这是后续 auto-lang 计划
-（381+）的工作。本计划（014）在 a2r 当前能力边界内已全部实现。
+**下一步**：重新评估这 6 个 daemon/SSE handler，用 `~Stream<T>`+yield + 显式 .await +
+`Arc<dyn Client>` 字段尝试移植。settings_link 保留手写。剩余 9 个 🔴 模块（main/lib/
+tools 等）的 async trait 实现（`impl Tool`）仍需 a2r 支持 trait impl 的 async 方法 ——
+这是真正剩余的 a2r 缺口。
