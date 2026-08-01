@@ -332,11 +332,40 @@ a2r 处理有缺陷（a2r-18），字段访问型方法保留手写。
 
 ---
 
-## 下一步决策点
+## 最终总结（2026-08-01，a2r 当前能力边界内的自然终点）
 
-1. **specs.rs 全文件推进**？状态机 + rebuild_relations（regex）+ derive_statuses
-   是 specs.rs 余下 ~1200 行的核心，需先验证 regex/OnceLock/HashSet 的 a2r 支持。
-2. **🔴 模块策略**？server.rs（2206 行，最大）等 axum/tokio 模块是"保留手写 Rust"、
-   "用 `#[rs]` 逃生舱"、还是"等 a2r-std 补服务器运行时后再做"？需用户拍板。
-3. **🟡 模块**：mode.rs/app_config.rs 用 auto_atom 解析 .at —— 这恰好是 Auto 生态
-   原生能力，可能比 Rust 版更自然，值得优先试。
+### 已完成
+
+**14 个模块移植到 Auto**（specs/auth/hello/tool_safety/mode/app_config/chats/
+relay{profession,store,api,flows}/conversation/server）：
+- specs.rs 全文件（1495 行，纯 Auto）
+- server.rs 45/52 handler + 50 DTO + 36 路由
+- 其余 12 个模块的数据层 + 纯逻辑 + serde IO
+
+**auto-lang 上游 3 项改进**（均 worktree 模式 → 合并 master）：
+- Plan 379：放宽 `route` 保留字（axum `.route()` 可调用）
+- Plan 380 P0：元组结构体构造（`Json(v)` 不误造 field0）
+- Plan 380 P1：str 字面量兼容（`Json(DTO(field:"x"))` 嵌套构造）
+
+**23 个 a2r 限制实测记录**（多数已修复或有规避），流转 `auto trans → nativeize.pl → cargo check`（无 a2r-std）。
+
+### 剩余（阻塞在 auto-lang Plan 380 P4）
+
+**9 个 🔴 模块**（main/lib/workflow/tool_context/tools/spec_tools/orch_tools/relay{driver,mod}）
++ **server.rs 7 个 🔴 handler**（run/run_stream/chat_stream/conversation_stream/workflow_run/
+workflow_run_stream/settings_link）+ **serve() 外壳**。
+
+经重新评估确认：这些模块**无可移植的纯数据/纯函数**——逻辑全内嵌在 async trait 实现
+（`impl Tool`/`AgentFactory`）、上游 trait object 方法调用（`agent.run().await`）、
+SSE 流（`async_stream::stream!`/`Body::from_stream`）、全局状态（Mutex/broadcast）里。
+tools.rs/spec_tools.rs 的校验逻辑（unique-match 等）虽理论可抽纯函数，但需重构、
+收益小（单个 if 判断），ROI 低。
+
+**阻塞的 a2r 能力缺口**（详见 auto-lang `docs/plans/380-a2r-rust-interop-completeness.md` §P4）：
+1. `async_stream::stream!` 宏（4 个 SSE handler 用，ROI 最高 —— Auto 的 `~Iter<T>`/yield
+   生成器已有 `21_generators` 测试基础，可桥接）
+2. axum `Sse` + `impl Stream` trait bound（关联 P2 impl Trait）
+3. async trait 方法调用（上游 trait object 的 `.await` 方法，Plan 373 自动 await 对上游类型无效）
+
+P4 落地后，server.rs 可 100% 移植，9 个 🔴 模块也可推进。这是后续 auto-lang 计划
+（381+）的工作。本计划（014）在 a2r 当前能力边界内已全部实现。
