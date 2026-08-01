@@ -65,7 +65,7 @@ fn drive_loop(state Arc<AppState>, ws_id str, run_id str) ~void {
             "execute" -> {
                 let role_id = advance_role_id(result)
                 let step_err = run_step(state, ws_id, run_id, role_id).await
-                if step_err.len() > 0 {
+                if step_err_is_err(step_err) {
                     relay_submit_error(run_id, role_id, step_err)
                 }
             },

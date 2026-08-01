@@ -319,12 +319,12 @@ fn role_detail(p Path<str>) ~Json<RoleDetail> {
 
 fn role_save(p Path<str>, body Json<RoleSaveBody>) ~Json<Saved> {
     role_save_of(p, body)
-    return Json(Saved(status: "saved", name: p.into_inner()))
+    return Json(Saved(status: "saved", name: path_inner(p)))
 }
 
 fn role_delete(p Path<str>) ~Json<Deleted> {
     role_delete_of(p)
-    return Json(Deleted(status: "deleted", id: p.into_inner()))
+    return Json(Deleted(status: "deleted", id: path_inner(p)))
 }
 
 
@@ -386,7 +386,7 @@ fn chat_rename(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Jso
 
 fn chat_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<Deleted> {
     chats_delete(s, q, p)
-    return Json(Deleted(status: "deleted", id: p.into_inner()))
+    return Json(Deleted(status: "deleted", id: path_inner(p)))
 }
 
 fn chat_delete_all(s State<AppState>, q Query<WorkspaceQuery>) ~Json<DeletedAll> {
@@ -431,7 +431,7 @@ fn conversation_get(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Js
 
 fn conversation_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<Deleted> {
     conversations_delete(s, q, p)
-    return Json(Deleted(status: "deleted", id: p.into_inner()))
+    return Json(Deleted(status: "deleted", id: path_inner(p)))
 }
 
 fn conversation_rename(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ConversationTitleBody>) ~Json<Value> {

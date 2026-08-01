@@ -25,15 +25,13 @@ pub use auto_ai_agent::{
 pub use auto_ai_agent::orchestration::*;
 
 pub fn parse_json(s: &str) -> Value { serde_json::from_str(s).unwrap_or(Value::Null) }
-pub fn value_get_str(v: &Value, k: &str) -> String { v.get(k).and_then(|s| s.as_str()).unwrap_or("").to_string() }
+pub fn value_get_str(v: Value, k: &str) -> String { v.get(k).and_then(|s| s.as_str()).unwrap_or("").to_string() }
 pub fn value_get_bool(v: &Value, k: &str) -> bool { v.get(k).and_then(|b| b.as_bool()).unwrap_or(false) }
 pub fn value_get_array(v: &Value, k: &str) -> Value { v.get(k).cloned().unwrap_or(Value::Array(vec![])) }
 pub fn null_value() -> Value { Value::Null }
 pub fn new_id(_: u32) -> String { format!("{:016x}", rand::random::<u64>()) }
 pub fn random_hex(n: u32) -> String { format!("{:0width$x}", rand::random::<u64>(), width = (n as usize) * 2) }
-pub fn hash_password(p: &str, s: &str) -> String {
-    use sha2::Digest; let mut h = sha2::Sha256::new(); h.update(s.as_bytes()); h.update(p.as_bytes()); hex::encode(h.finalize())
-}
+pub fn hash_password(p: &str, s: &str) -> String { use sha2::Digest; let mut h = sha2::Sha256::new(); h.update(s.as_bytes()); h.update(p.as_bytes()); hex::encode(h.finalize()) }
 
 pub const read_file_schema: &str = r#"{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}"#;
 pub const write_file_schema: &str = r#"{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}"#;
@@ -124,8 +122,8 @@ pub fn workspace_status_of<T,U>(_s: T, _q: U) -> Value { Value::Null }
 pub fn workspace_browse_of<T>(_q: T) -> Vec<Value> { vec![] }
 pub fn workspace_initialize_of<T,U>(_s: T, _q: U) {}
 pub fn workflows_builtin_names() -> Vec<String> { vec!["feature-dev".into()] }
-pub fn wf_run<T,U,V>(_s: T, _q: U, _b: V) -> Value { Value::Null }
-pub fn wf_run_with_progress<T,U,V,W>(_s: T, _q: U, _b: V, _sink: W) {}
+pub async fn wf_run<T,U,V>(_s: T, _q: U, _b: V) -> Value { Value::Null }
+pub async fn wf_run_with_progress<T,U,V,W>(_s: T, _q: U, _b: V, _sink: W) {}
 pub fn orch_spawn_relay(_t: String, _a: Value) -> String { "(stub)".into() }
 pub fn orch_dispatch(_t: String, _to: String) -> String { "(stub)".into() }
 pub fn orch_bring_in(_q: String) -> String { "(stub)".into() }
@@ -138,6 +136,9 @@ pub fn advance_kind(_r: Value) -> String { "completed".into() }
 pub fn advance_role_id(_r: Value) -> String { String::new() }
 pub fn relay_submit_error(_r: String, _r2: String, _e: String) {}
 pub fn relay_step_context(_w: String, _r: String) -> String { String::new() }
+pub async fn factory_build_agent<T>(_s: T, _w: String, _r: String, _r2: String) -> Agent {
+    Agent::new(Arc::new(NoDaemonClient) as Arc<dyn Client>, "")
+}
 pub fn drive_accumulated(_w: String, _r: String) -> String { String::new() }
 pub fn drive_finalize_output(_o: String, _r: Value) -> String { _o }
 pub fn drive_submit_handoff(_w: String, _r: String, _r2: String, _o: String, _v: Value) {}
@@ -158,10 +159,9 @@ pub fn current_dir() -> String { ".".into() }
 pub fn ctx_is_some<T>(_c: T) -> bool { false }
 pub fn ctx_unwrap(_c: Option<String>) -> String { String::new() }
 pub fn handoff_render(_h: String) -> String { String::new() }
-pub fn factory_build_agent<T>(_s: T, _w: String, _r: String, _r2: String) -> Agent { Agent::new(Arc::new(NoDaemonClient), "") }
 pub async fn agent_run<T,U,V>(_s: T, _q: U, _b: V) -> Value { Value::Null }
-pub fn chat_run_stream<T,U,V,W>(_s: T, _q: U, _p: V, _sink: W) {}
-pub fn agent_run_stream<T,U,V,W>(_s: T, _q: U, _b: V, _sink: W) {}
+pub async fn chat_run_stream<T,U,V,W>(_s: T, _q: U, _p: V, _sink: W) {}
+pub async fn agent_run_stream<T,U,V,W>(_s: T, _q: U, _b: V, _sink: W) {}
 pub fn agent_run_stream_with_sink(_a: Agent, _t: String, _sink: Arc<()>, _c: Arc<std::sync::atomic::AtomicBool>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Value, String>> + Send>> {
     Box::pin(async { Ok(Value::Null) })
 }
@@ -172,6 +172,7 @@ pub fn serve_build_app(_s: AppState, _st: (), _c: ()) -> () {}
 pub async fn serve_listen(_a: String, _app: ()) {}
 pub fn stream_event_map(_e: Value) -> Value { Value::Null }
 pub fn workflow_event_map(_e: Value) -> Value { Value::Null }
+pub fn step_err_is_err(e: String) -> bool { e.len() > 0 }
 pub fn resolve_within_project(p: &str) -> String { p.to_string() }
 pub fn write_file_do(p: &str, c: &str) { let _ = std::fs::write(p, c); }
 pub fn command_needs_approval(c: &str) -> bool { !c.starts_with("echo") }
@@ -188,11 +189,11 @@ pub fn glob_files(p: &str) -> String { format!("(stub) {}", p) }
 pub fn http_post_json(_u: String) -> impl std::future::Future<Output = Result<Value, String>> { async { Ok(Value::Null) } }
 pub fn mpsc_channel() -> (std::sync::mpsc::Sender<Value>, std::sync::mpsc::Receiver<Value>) { std::sync::mpsc::channel() }
 pub fn mpsc_try_send(t: &std::sync::mpsc::Sender<Value>, m: Value) { let _ = t.send(m); }
-pub async fn mpsc_recv(r: &mut std::sync::mpsc::Receiver<Value>) -> Option<Value> { r.recv().ok() }
-pub fn msg_is_none(m: &Option<Value>) -> bool { m.is_none() }
+pub async fn mpsc_recv(r: &mut std::sync::mpsc::Receiver<Value>) -> Option<Value> { None }
+pub fn msg_is_none(m: Option<Value>) -> bool { m.is_none() }
 pub fn msg_unwrap(m: Option<Value>) -> Value { m.unwrap_or(Value::Null) }
 pub fn broadcast_recv(_r: &()) -> impl std::future::Future<Output = Option<Value>> { async { None } }
-pub fn path_inner(p: &axum::extract::Path<String>) -> String { p.0.clone() }
+pub fn path_inner<T>(p: T) -> String { String::new() }
 pub fn json_response<T: serde::Serialize>(_d: T) -> Response { Response::default() }
 pub fn error_response<T: serde::Serialize>(_c: u16, _d: T) -> Response { Response::default() }
 pub fn atomic_bool_false() -> Arc<std::sync::atomic::AtomicBool> { Arc::new(std::sync::atomic::AtomicBool::new(false)) }
@@ -200,7 +201,7 @@ pub fn atomic_bool_false() -> Arc<std::sync::atomic::AtomicBool> { Arc::new(std:
 struct NoDaemonClient;
 #[async_trait::async_trait]
 impl Client for NoDaemonClient {
-    async fn complete(&self, _req: auto_ai_agent::CompletionRequest) -> Result<auto_ai_agent::CompletionResponse, auto_ai_agent::ClientError> {
-        Err(auto_ai_agent::ClientError::DaemonUnavailable("stub".into()))
+    async fn complete(&self, _req: auto_ai_client::CompletionRequest) -> Result<auto_ai_client::CompletionResponse, auto_ai_client::ClientError> {
+        Err(auto_ai_client::ClientError::DaemonUnavailable("stub".into()))
     }
 }

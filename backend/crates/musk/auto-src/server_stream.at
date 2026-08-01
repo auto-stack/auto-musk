@@ -114,7 +114,7 @@ fn workflow_run_stream(s State<AppState>, q Query<WorkspaceQuery>, body Json<Wor
     let stream = workflow_sse_stream(rx)
     var sse = Sse.new(stream)
     var ka = KeepAlive.new()
-    ka = ka.interval_secs(15)
+    ka = ka.interval(15)
     return sse.keep_alive(ka).into_response()
 }
 
@@ -163,7 +163,7 @@ fn run_stream_handler(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunR
     let stream = run_sse_stream(rx)
     var sse = Sse.new(stream)
     var ka = KeepAlive.new()
-    ka = ka.interval_secs(15)
+    ka = ka.interval(15)
     return sse.keep_alive(ka).into_response()
 }
 
@@ -210,7 +210,7 @@ fn conversation_stream(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) 
     let stream = conv_event_stream(rx, id)
     var sse = Sse.new(stream)
     var ka = KeepAlive.new()
-    ka = ka.interval_secs(15)
+    ka = ka.interval(15)
     return sse.keep_alive(ka).into_response()
 }
 
@@ -262,7 +262,7 @@ fn chat_stream(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Respons
     let stream = chat_sse_stream(rx)
     var sse = Sse.new(stream)
     var ka = KeepAlive.new()
-    ka = ka.interval_secs(15)
+    ka = ka.interval(15)
     return sse.keep_alive(ka).into_response()
 }
 

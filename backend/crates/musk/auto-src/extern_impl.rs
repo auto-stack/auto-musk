@@ -289,3 +289,4 @@ pub fn workflow_event_map(_ev: Value) -> Value { Value::Null }
 // ── chat_run_stream / agent_run_stream ──────────────────────────────────────
 pub fn chat_run_stream(_s: Arc<AppState>, _q: Value, _p: axum::extract::Path<String>, _sink: Arc<()>) {}
 pub fn agent_run_stream(_s: &AppState, _q: Value, _b: Value, _sink: Arc<()>) {}
+pub fn step_err_is_err(e: String) -> bool { e.len() > 0 }
