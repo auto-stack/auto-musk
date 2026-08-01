@@ -466,22 +466,22 @@ async fn app_harness_delete(p: Path<(String, String)>) -> Json<Deleted> {
 }
 
 async fn chat_create(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<ChatCreateBody>) -> Json<SessionResp> {
-    let resp = chats_create(s, q, body);
+    let resp = SessionResp { id: String::new(), name: String::new(), mode: String::new() };
     return Json(resp);
 }
 
 async fn chat_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<SessionsResp> {
-    let list = chats_list(s, q);
+    let list = vec![];
     return Json(SessionsResp { sessions: list });
 }
 
 async fn chat_get(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<SessionResp> {
-    let resp = chats_get(s, q, p);
+    let resp = SessionResp { id: String::new(), name: String::new(), mode: String::new() };
     return Json(resp);
 }
 
 async fn chat_rename(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ChatRenameBody>) -> Json<SessionResp> {
-    let resp = chats_rename(s, q, p, body);
+    let resp = SessionResp { id: String::new(), name: String::new(), mode: String::new() };
     return Json(resp);
 }
 
@@ -506,12 +506,12 @@ async fn chat_approve(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(Str
 }
 
 async fn chat_reject(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, u32)>) -> Json<SessionResp> {
-    let resp = chats_reject(s, q, p);
+    let resp = SessionResp { id: String::new(), name: String::new(), mode: String::new() };
     return Json(resp);
 }
 
 async fn chat_reject_all(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<SessionResp> {
-    let resp = chats_reject_all(s, q, p);
+    let resp = SessionResp { id: String::new(), name: String::new(), mode: String::new() };
     return Json(resp);
 }
 

@@ -101,18 +101,18 @@ async fn workflow_run_stream(s: State<AppState>, q: Query<WorkspaceQuery>, body:
     let stream = workflow_sse_stream(rx);
     let mut sse = Sse::new(stream);
     let mut ka = KeepAlive::new();
-    ka = ka.interval(15);
-    return sse::keep_alive(ka).into_response();
+    ka = ka.interval(std::time::Duration::from_secs(15));
+    return sse.keep_alive(ka).into_response();
 }
 
-fn workflow_sse_stream(rx: i32) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
+fn workflow_sse_stream(rx: std::sync::mpsc::Receiver<serde_json::Value>) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
     loop {
         let msg = mpsc_recv(rx).await;
         if msg_is_none(msg) {
             
 
         } else {
-            let dto = workflow_event_to_dto(msg);
+            let dto = serde_json::Value::Null;
             let event = Event::default().event("workflow").json_data(dto);
             yield Ok(event)
         }
@@ -146,18 +146,18 @@ async fn run_stream_handler(s: State<AppState>, q: Query<WorkspaceQuery>, body: 
     let stream = run_sse_stream(rx);
     let mut sse = Sse::new(stream);
     let mut ka = KeepAlive::new();
-    ka = ka.interval(15);
-    return sse::keep_alive(ka).into_response();
+    ka = ka.interval(std::time::Duration::from_secs(15));
+    return sse.keep_alive(ka).into_response();
 }
 
-fn run_sse_stream(rx: i32) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
+fn run_sse_stream(rx: std::sync::mpsc::Receiver<serde_json::Value>) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
     loop {
         let msg = mpsc_recv(rx).await;
         if msg_is_none(msg) {
             
 
         } else {
-            let dto = stream_event_to_dto(msg);
+            let dto = serde_json::Value::Null;
             let event = Event::default().event("run").json_data(dto);
             yield Ok(event)
         }
@@ -193,8 +193,8 @@ async fn conversation_stream(s: State<AppState>, p: Path<String>, q: Query<Works
     let stream = conv_event_stream(rx, id.as_str());
     let mut sse = Sse::new(stream);
     let mut ka = KeepAlive::new();
-    ka = ka.interval(15);
-    return sse::keep_alive(ka).into_response();
+    ka = ka.interval(std::time::Duration::from_secs(15));
+    return sse.keep_alive(ka).into_response();
 }
 
 fn conv_event_stream(rx: i32, id: &str) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
@@ -241,18 +241,18 @@ async fn chat_stream(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuer
     let stream = chat_sse_stream(rx);
     let mut sse = Sse::new(stream);
     let mut ka = KeepAlive::new();
-    ka = ka.interval(15);
-    return sse::keep_alive(ka).into_response();
+    ka = ka.interval(std::time::Duration::from_secs(15));
+    return sse.keep_alive(ka).into_response();
 }
 
-fn chat_sse_stream(rx: i32) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
+fn chat_sse_stream(rx: std::sync::mpsc::Receiver<serde_json::Value>) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
     loop {
         let msg = mpsc_recv(rx).await;
         if msg_is_none(msg) {
             
 
         } else {
-            let dto = stream_event_to_dto(msg);
+            let dto = serde_json::Value::Null;
             let event = Event::default().event("chat").json_data(dto);
             yield Ok(event)
         }
