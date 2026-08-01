@@ -129,6 +129,13 @@ $src =~ s/^use a2r_std;\s*\n//gm;
 $src =~ s/^use a2r_std::\*;\s*\n//gm;
 $src =~ s/^use a2r_std::\w+(?:::\w+)?;\s*\n//gm;
 
+# Inject extern_impl glob import so the .a2r.rs can call the glue-layer
+# stubs (value_get_str, parse_json, specs_load, etc.) that live in
+# extern_impl.rs. Only inject if not already present and the file has code.
+if ($src !~ /use crate::extern_impl/) {
+    $src = "use crate::extern_impl::*;\n" . $src;
+}
+
 open my $out, '>', $file or die "cannot write $file: $!\n";
 print $out $src;
 close $out;
