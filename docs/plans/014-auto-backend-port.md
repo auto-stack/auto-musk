@@ -1,11 +1,17 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
-> **状态**：**13 个模块移植完成（全后端可移植部分已覆盖）**（2026-08-01）。specs 全文件 +
+> **状态**：**13 个模块移植完成 + axum handler 全量解锁**（2026-08-01）。specs 全文件 +
 > auth/hello/tool_safety/mode/app_config/chats/relay{profession,store,api,flows}/server(骨架)/conversation(数据层)。
 > 流转：`auto trans` → `nativeize.pl`（去 a2r-std 桥接）→ cargo check（仅真实 crate）。
-> **Plan 379**（auto-lang）：放宽 `route` 保留字，axum 路由表 + `~T` async handler 可生成原生 Rust。
-> **新规则验证**：上游 auto_ai_agent 类型（FlowSpec 等）作为不透明构造目标 + builder 链可移植（relay/flows 全文件）。
-> 剩余 9 个模块（main/lib/workflow/tool_context/tools/spec_tools/orch_tools/relay driver/mod）确认全是 async trait/上游桥接/全局状态，无纯数据可提取，保持手写——这是 a2r 当前能力边界。
+>
+> **重要纠偏（Plan 380 调研）**：早期判断"a2r 缺 async/trait/服务器运行时支持"是**错误的**——
+> a2r 的 async 库调用（tokio::fs::read_to_string().await）、trait object（spec T→Box<dyn T>）、
+> trait impl（type X as Trait）、axum 路由链（Plan 379）都已完整支持。
+>
+> **auto-lang 上游改动**：Plan 379（route 保留字解除）+ **Plan 380 P0**（元组结构体构造修复，
+> `Json(v)` 不再误造 `field0`）。P0 后完整 axum handler（Json extractor + Json 返回 + 路由装配）
+> 经 a2r 转译在真实 axum 0.8 下 cargo check 0 错误——server handler 主体可全量移植。
+> 剩余 a2r 限制（impl Trait 返回/extractor 解构）均可绕开（具体返回类型/extractor 作整体参数）。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
@@ -79,7 +85,7 @@ PoC 手写源码：`backend/crates/musk/auto-src/specs.at`
 | **a2r-17** | a2r 对 `str.contains`/`str.find`/`fs.write`/`fs.exists` 等**硬桥接到 a2r-std**（rust.rs 源码硬编码分支，`a2r_std_used.set(true)`），写法无法绕开（连 `#[rs]` 内的 `.contains()` 都被桥接）。导致最终产物依赖 a2r-std crate | `text.contains(n)` → `a2r_std::str_contains(text, n)` | **后处理 `nativeize.pl`**：把桥接调用 1:1 替换回原生（`a.contains(b)`、`std::fs::write(p,c).is_ok()`）并删 `use a2r_std` 注入。`time` 可在 .at 层用 `SystemTime.elapsed()` 绕开（非 str/fs 方法，不桥接） |
 | **a2r-18** | named-field 异构 enum（tag union）的**解构**：`Variant(e)` 把 e 绑到第一个命名字段，且省略 `..`，导致 E0027（"pattern does not mention fields"）。a2r 测试只有 positional（元组变体）解构用例 | `is ev { RunEvent.StepStarted(e) -> e.timestamp }` | named-field 变体的字段访问型方法（如 timestamp()）保留手写 Rust；无解构的 arm（`Variant -> "str"`，如 event_type）可用 |
 | **a2r-19** | `str` 类型注解一律渲染成 `String`，但 `substring`/`trim` 等方法返回 `&str`；赋值给 str 变量或链式 `.to_string()` 会类型不匹配（E0308） | `let s str = text.trim()` → `let s: String = text.trim()`（&str≠String） | 用 `+ ""`/`+ "…"` 拼接（a2r 把 &str+&str 处理成 String）替代中间变量；或 `text.trim().to_string()` 单独一行（注意 a2r 对链式 `.to_string()` 的解析，必要时拆成两步） |
-| **a2r-20** | 元组结构体构造 `TupleType(value)` 被生成成命名字段 `TupleType { field0: value }`（E0560，axum 的 `Json<T>` 是 `pub struct Json<T>(pub T)`）| `Json("ok")` → `Json { field0: "ok" }` | 返回 `String`（自身实现 IntoResponse）替代 `Json(String)`；或这类构造保留手写 Rust |
+| **a2r-20** | ~~元组结构体构造误造 field0~~ **已修复**（auto-lang Plan 380 P0）| `Json("ok")` 曾 → `Json { field0: "ok" }`（E0560）| **已修复**：a2r 现在对全位置参数 + 无已知字段的类型生成位置构造 `Json(value)`。axum handler 的 `Json(v)` 返回构造、Option/Result 包装均已可用 |
 | **a2r-21** | axum handler 的 extractor 参数解构不被支持（`State(s)`/`Path(id)`/`Json(body)` 作为函数参数）| `fn h(State(s) ~AppState)` 解析失败 | 含 extractor 的 handler 保留手写 Rust（server.rs 主体）|
 
 > 与技能（auto-lang-creator）规则对应：a2r-1/a2r-5/a2r-8/a2r-9 未被 A 类 23 条
