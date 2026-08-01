@@ -1,0 +1,275 @@
+/// conversation.at — ported from backend/crates/musk/src/conversation.rs.
+///
+/// Unified conversation model (chat + flow 共同抽象). Strategy (plan 014 mixed):
+/// - 全部数据类型 (L14-157) + ConversationEvent + to_status_str +
+///   chat_message_to_turns + now_secs -> Auto
+/// - ConversationStore (Mutex<HashMap> + broadcast) + run_event_to_turns
+///   (上游 RunEvent + macro_rules!) + 测试 -> 手写 Rust
+///
+/// Cross-module: ChatMessage/Role (from chats.rs) + RunEvent (from relay/store.rs)
+/// re-declared here (self-contained; serde-compatible mirrors).
+
+use.rust serde::{Serialize, Deserialize}
+use.rust std::time::{SystemTime, Duration}
+use.rust serde_json::Value
+
+fn now_secs() u64 {
+    let now = SystemTime.now()
+    let elapsed = now.elapsed().unwrap()
+    return elapsed.as_secs()
+}
+
+// ============================================================
+// Cross-module: ChatMessage / Role (mirrors chats.at)
+// ============================================================
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Role {
+    User = 1
+    Assistant = 2
+    Tool = 3
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type ToolCall {
+    tool str
+    args Value
+    result str
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type ChatMessage {
+    id str
+    role Role
+    content str
+    tool_calls List<ToolCall>
+    created_at u64
+}
+
+// ============================================================
+// Conversation data model (conversation.rs L14-157)
+// ============================================================
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConversationKind {
+    Chat = 1
+    Flow = 2
+    Errand = 3
+}
+
+// Driver / ConversationStatus: hetero tag unions with named-field variants.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub tag Driver {
+    Human
+    Agent { agent_id str }
+    Flow { flow_id str }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub tag ConversationStatus {
+    Active
+    WaitingGate
+    Completed
+    Failed { error str }
+    Paused { reason str }
+}
+
+ext ConversationStatus {
+    /// Snake-case status string. (a2r-18: named-field variant destructure to
+    /// *read* a field is broken, but { .. } ignore-arms work — these arms
+    /// discard error/reason, only need the variant tag.)
+    pub fn to_status_str() str {
+        is self {
+            ConversationStatus.Active -> return "active",
+            ConversationStatus.WaitingGate -> return "waiting_gate",
+            ConversationStatus.Completed -> return "completed",
+            ConversationStatus.Failed -> return "failed",
+            ConversationStatus.Paused -> return "paused"
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TurnKind {
+    Message = 1
+    ToolCall = 2
+    ToolResult = 3
+    Gate = 4
+    System = 5
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type ToolRecord {
+    name str
+    args Value
+    result str
+    tool_id Option<str>
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type GateRecord {
+    step_id str
+    status str
+    feedback Option<str>
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type GateInfo {
+    step_id str
+    role_id str
+    since u64
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type Turn {
+    id str
+    seq uint
+    from str
+    // A22: 'to' is a reserved word as a field name; rename to to_role with a
+    // serde rename so the JSON key stays "to" (wire-compatible with Rust原版).
+    #[serde(rename = "to")]
+    to_role Option<str>
+    kind TurnKind
+    content str
+    tool Option<ToolRecord>
+    gate Option<GateRecord>
+    child_conversation Option<str>
+    tokens Option<u64>
+    timestamp u64
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type Conversation {
+    id str
+    parent_id Option<str>
+    parent_turn_id Option<str>
+    kind ConversationKind
+    workspace_id str
+    driver Driver
+    status ConversationStatus
+    turns List<Turn>
+    title Option<str>
+    initial_prompt Option<str>
+    mode Option<str>
+    flow_id Option<str>
+    current_step uint
+    cumulative_tokens u64
+    budget_limit Option<u64>
+    pending_gate Option<GateInfo>
+    created_at u64
+    updated_at u64
+}
+
+/// Lightweight summary for list views.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type ConversationSummary {
+    id str
+    kind ConversationKind
+    parent_id Option<str>
+    workspace_id str
+    status str
+    title Option<str>
+    turn_count uint
+    cumulative_tokens u64
+    created_at u64
+    updated_at u64
+}
+
+/// An event broadcast by ConversationStore (the bus payload).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type ConversationEvent {
+    kind str
+    conversation_id str
+    turn_id Option<str>
+}
+
+// ============================================================
+// chat_message_to_turns — pure conversion
+// ============================================================
+
+/// Convert a ChatMessage to one or more Turns (tool_calls expand to pairs).
+/// 原版用 format!()/matches!()/iter().enumerate() —— 改用 + 拼接 + == + 手动计数。
+fn chat_message_to_turns(msg ChatMessage, seq_base uint) List<Turn> {
+    var from str = "system"
+    is msg.role {
+        Role.User -> from = "human",
+        Role.Assistant -> from = "assistant",
+        Role.Tool -> from = "system"
+    }
+    var turns List<Turn> = []
+
+    // main message turn
+    if msg.content.len() > 0u {
+        var to_field Option<str> = None
+        if msg.role == Role.User {
+            to_field = Some("assistant")
+        }
+        let main_turn Turn = Turn(
+            id: msg.id.clone(),
+            seq: seq_base,
+            from: from.clone(),
+            to_role: to_field,
+            kind: TurnKind.Message,
+            content: msg.content.clone(),
+            tool: None,
+            gate: None,
+            child_conversation: None,
+            tokens: None,
+            timestamp: msg.created_at
+        )
+        turns.push(main_turn)
+    }
+
+    // each tool call -> ToolCall + ToolResult pair
+    var i uint = 0u
+    for tc in msg.tool_calls.clone() {
+        let tc_id str = msg.id.clone() + "-tc" + i
+        let tc_turn Turn = Turn(
+            id: tc_id,
+            seq: seq_base + turns.len() as uint,
+            from: from.clone(),
+            to_role: None,
+            kind: TurnKind.ToolCall,
+            content: "",
+            tool: Some(ToolRecord(name: tc.tool.clone(), args: tc.args.clone(), result: "", tool_id: None)),
+            gate: None,
+            child_conversation: None,
+            tokens: None,
+            timestamp: msg.created_at
+        )
+        turns.push(tc_turn)
+        let tr_id str = msg.id.clone() + "-tr" + i
+        let tr_turn Turn = Turn(
+            id: tr_id,
+            seq: seq_base + turns.len() as uint,
+            from: "system",
+            to_role: None,
+            kind: TurnKind.ToolResult,
+            content: "",
+            tool: Some(ToolRecord(name: tc.tool.clone(), args: null_value(), result: tc.result.clone(), tool_id: None)),
+            gate: None,
+            child_conversation: None,
+            tokens: None,
+            timestamp: msg.created_at
+        )
+        turns.push(tr_turn)
+        i = i + 1u
+    }
+
+    return turns
+}
+
+// NOTE: ConversationStore (Mutex<HashMap> + broadcast::Sender) and
+// run_event_to_turns (matches upstream RunEvent + macro_rules! push_system!)
+// stay hand-written in conversation.rs. The 12 data types + ConversationEvent
+// + to_status_str + chat_message_to_turns + now_secs above are the portable
+// data layer (mirrors specs.rs/chats.rs).
+//
+// null_value() is a hand-written Rust stub (returns serde_json::Value::Null) —
+// a2r can't express the Value::Null constant (no const import, 'null' literal
+// is dropped). Like auth.rs hash_password, it stays in conversation.rs.

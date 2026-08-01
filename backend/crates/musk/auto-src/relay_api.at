@@ -1,0 +1,47 @@
+/// relay_api.at — ported from backend/crates/musk/src/relay/api.rs (DTO layer).
+///
+/// Relay REST API DTOs. Strategy (plan 014 mixed):
+/// - 5 DTO structs (L34-86) -> Auto (pure Deserialize data)
+/// - bus() (OnceLock + broadcast) + publish() + all handlers (async + extractor
+///   + impl Trait Sse) + relay_routes() -> hand-written Rust (a2r blind spots)
+
+use.rust serde::{Serialize, Deserialize}
+use.rust serde_json::Value
+
+/// An event on the relay broadcast bus (the SSE payload).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type BusEvent {
+    run_id str
+    event_type str
+    payload Value
+}
+
+// ─── Request body DTOs ──────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub type ResolveGateBody {
+    decision str
+    feedback Option<str>
+}
+
+#[derive(Debug, Deserialize)]
+pub type SubmitHandoffBody {
+    handoff Value
+}
+
+#[derive(Debug, Deserialize)]
+pub type UpdateTitleBody {
+    title str
+}
+
+#[derive(Debug, Deserialize)]
+pub type ListRunsQuery {
+    project_path Option<str>
+}
+
+// NOTE: bus() (static BUS: OnceLock<broadcast::Sender<BusEvent>>) + publish()/
+// publish_internal() + publish_advance_result() (match上游 AdvanceResult) +
+// all handlers (list_runs/start_run/get_run/delete_run/update_title/advance_run/
+// submit_handoff/resolve_gate/rerun_run/list_professions/list_souls/list_flows,
+// 全是 async fn + State/Path/Query/Json extractor + impl IntoResponse/Sse) +
+// relay_routes() (axum Router 装配) stay hand-written in relay/api.rs.

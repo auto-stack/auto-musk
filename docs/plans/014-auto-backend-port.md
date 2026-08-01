@@ -1,11 +1,11 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
-> **状态**：**10 个模块移植完成 + 剩余 12 个模块精确评估完成**（2026-08-01）。specs.rs 全文件 +
-> auth/hello/tool_safety/mode/app_config/chats/relay{profession,store}/server(骨架) 部分。
+> **状态**：**13 个模块移植完成（全后端可移植部分已覆盖）**（2026-08-01）。specs 全文件 +
+> auth/hello/tool_safety/mode/app_config/chats/relay{profession,store,api,flows}/server(骨架)/conversation(数据层)。
 > 流转：`auto trans` → `nativeize.pl`（去 a2r-std 桥接）→ cargo check（仅真实 crate）。
 > **Plan 379**（auto-lang）：放宽 `route` 保留字，axum 路由表 + `~T` async handler 可生成原生 Rust。
-> 剩余 12 个模块评估结论：conversation.rs(高)/relay api(中)/relay flows(边界用例) 可继续移植；
-> 其余 9 个（main/lib/workflow/tool_context/tools/spec_tools/orch_tools/relay driver/mod）确认无纯数据可提取，保持手写。
+> **新规则验证**：上游 auto_ai_agent 类型（FlowSpec 等）作为不透明构造目标 + builder 链可移植（relay/flows 全文件）。
+> 剩余 9 个模块（main/lib/workflow/tool_context/tools/spec_tools/orch_tools/relay driver/mod）确认全是 async trait/上游桥接/全局状态，无纯数据可提取，保持手写——这是 a2r 当前能力边界。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
@@ -225,6 +225,9 @@ auto-musk/
 │   │   ├── relay_profession.at ✅ Profession + ForgePhase + Registry
 │   │   ├── relay_store.at   ✅ RunEvent(异构 enum) + 7 读模型 struct
 │   │   ├── server.at        ✅ axum DTO struct + 路由表骨架 + health handler
+│   │   ├── conversation.at  ✅ 会话数据层（12 类型 + 转换函数）
+│   │   ├── relay_api.at     ✅ relay API DTO（5 个）
+│   │   ├── relay_flows.at   ✅ 4 个 flow 构造（全文件，上游类型边界用例）
 │   │   ├── nativeize.pl     ✅ 后处理脚本（a2r 输出 → 去 a2r-std → 纯 Rust）
 │   │   └── ...（🔴 模块 server/relay/main 等暂不移植）
 │   └── src/                 ← 现有手写 Rust（a2r 输出 .a2r.rs 与之并存，不覆盖）
@@ -263,6 +266,9 @@ a2r-std（转译器层面，写法绕不开），所以需后处理。
 | relay/profession.rs | 494 | ✅ 部分 | Profession struct + ForgePhase enum + Registry（get/list/can_handoff/needs_approval/register）用 Auto；default_professions(292 行数据)/dirs/save 保留手写 |
 | relay/store.rs | 1078 | ✅ 部分 | RunEvent（15 变体 hetero tag union）+ 7 个读模型 struct 用 Auto；RunState/RunEntry(含上游类型)/RunStore(Mutex) 保留手写 |
 | server.rs | 2206 | ✅ 部分 | axum DTO struct（LoginRequest/Response、*Request/*Body/Query、ApiError、RunRequest/Response）+ build_router() 路由表骨架 + health handler 用 Auto（Plan 379 解除 route 保留字后）；含 extractor(State/Path/Json)/impl IntoResponse/json!()/Arc<dyn Client> 的 handler 体保留手写（a2r-20/21）|
+| conversation.rs | 1331 | ✅ 部分 | 12 个数据类型（Conversation/ConversationKind/Driver/ConversationStatus/Turn/TurnKind/ToolRecord/GateRecord/GateInfo/ConversationSummary/ConversationEvent + ChatMessage/Role 跨模块重声明）+ to_status_str + chat_message_to_turns + now_secs 用 Auto；ConversationStore(Mutex+broadcast)/run_event_to_turns(上游+宏) 保留手写 |
+| relay/api.rs | 393 | ✅ 部分 | 5 个 DTO（BusEvent/ResolveGateBody/SubmitHandoffBody/UpdateTitleBody/ListRunsQuery）用 Auto；bus(OnceLock+broadcast)+handler(async+extractor)+relay_routes 保留手写 |
+| relay/flows.rs | 59 | ✅ 全文件 | 纯 Auto（4 个 flow 构造 + get_builtin_flow）；**边界用例验证**：上游 auto_ai_agent 类型（FlowSpec/FlowStep/GateType/ExitRouting）作为不透明构造目标 + builder 链 + 字段访问可转译为原生 Rust |
 
 ### 混合策略（auth.rs 验证确立）
 
