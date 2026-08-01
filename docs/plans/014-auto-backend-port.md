@@ -343,12 +343,13 @@ relay{profession,store,api,flows}/conversation/server）：
 - server.rs **52/52 handler** + 50 DTO + 36 路由（server.at 45 🟡 + server_stream.at 6 daemon/SSE）
 - 其余 12 个模块的数据层 + 纯逻辑 + serde IO
 
-**auto-lang 上游 5 项改进**（均 worktree 模式 → 合并 master）：
+**auto-lang 上游 6 项改进**（均 worktree 模式 → 合并 master）：
 - Plan 379：放宽 `route` 保留字（axum `.route()` 可调用）
 - Plan 380 P0：元组结构体构造（`Json(v)` 不误造 field0）
 - Plan 380 P1-str：str 字面量兼容（`Json(DTO(field:"x"))` 嵌套构造）
 - Plan 380 P1-dyn：泛型参数 `dyn` 解析（`Arc<dyn T>`/`Box<dyn T>` 字段）—— 解锁 AppState
 - Plan 380 P4 调研：确认 `async_stream` 桥接**已是 Plan 321 实现**（`~Stream<T>`+yield），非缺口
+- **Plan 380 P5：async trait impl**（GenericInstance 返回类型比对修复）—— 解锁 `impl Tool`/`AgentFactory` 的 async 方法
 
 **23 个 a2r 限制实测记录**，流转 `auto trans → nativeize.pl → cargo check`（无 a2r-std）。
 
@@ -380,6 +381,9 @@ trait，捕获物作字段，Arc<dyn StreamSink> 走 P1-dyn）。三个流式 ha
 stream_event_to_json DTO → run_stream_handler → conversation_stream → run/run_inner →
 chat_stream（最大，最后）。
 
-**剩余 9 个 🔴 模块**（main/lib/tools/spec_tools/orch_tools/relay{driver,mod}/workflow/
-tool_context）的 async trait 实现（`impl Tool`/`AgentFactory`）仍需 a2r 支持 trait impl 的
-async 方法 —— 这是真正剩余的 a2r 缺口，不在本计划当前范围。
+**剩余 9 个 🔴 模块**（main/lib/workflow/tool_context/tools/spec_tools/orch_tools/
+relay{driver,mod}）的 async trait 实现（`impl Tool`/`AgentFactory`）—— **Plan 380 P5
+已修复 async trait impl 的 GenericInstance 返回类型比对**。这些模块现可重新评估/移植
+（`spec Tool { fn execute() ~str }` + `type X as Tool { fn execute() ~str { ... } }`
+现生成 `trait Tool { async fn execute() }` + `impl Tool for X { async fn execute() }`）。
+主要障碍变为 json!() 宏（parameters 方法）+ 具体业务逻辑改写。
