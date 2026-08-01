@@ -1,0 +1,134 @@
+/// tools.at — 9 个 Tool impl (tools.rs). P5b 后 async trait impl 可用。
+/// parameters json!() → backtick 原始字符串 + parse_json。
+
+use.rust auto_ai_agent::{Tool, ToolError}
+use.rust serde_json::Value
+use.rust std::fs
+
+spec Tool {
+    fn name() str
+    fn description() str
+    fn parameters() Value
+    fn execute(args Value) ~Result<str, ToolError>
+}
+
+let read_file_schema = `{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}`
+let write_file_schema = `{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}`
+let run_command_schema = `{"type":"object","properties":{"cmd":{"type":"string"},"force":{"type":"boolean"}},"required":["cmd"]}`
+let edit_file_schema = `{"type":"object","properties":{"path":{"type":"string"},"old_string":{"type":"string"},"new_string":{"type":"string"}},"required":["path","old_string","new_string"]}`
+let batch_replace_schema = `{"type":"object","properties":{"path":{"type":"string"},"replacements":{"type":"array"}},"required":["path","replacements"]}`
+let search_schema = `{"type":"object","properties":{"pattern":{"type":"string"}},"required":["pattern"]}`
+let list_dir_schema = `{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}`
+let list_symbols_schema = `{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}`
+let glob_schema = `{"type":"object","properties":{"pattern":{"type":"string"}},"required":["pattern"]}`
+
+type ReadFile as Tool {
+    fn name() str { return "read_file" }
+    fn description() str { return "Read file contents" }
+    fn parameters() Value { return parse_json(read_file_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let path = value_get_str(args, "path")
+        let resolved = resolve_within_project(path)
+        let content = fs.read_to_string(resolved).unwrap()
+        return Ok(content)
+    }
+}
+
+type WriteFile as Tool {
+    fn name() str { return "write_file" }
+    fn description() str { return "Write file" }
+    fn parameters() Value { return parse_json(write_file_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let path = value_get_str(args, "path")
+        let content = value_get_str(args, "content")
+        write_file_do(path, content)
+        return Ok("wrote file")
+    }
+}
+
+type RunCommand as Tool {
+    fn name() str { return "run_command" }
+    fn description() str { return "Run shell command" }
+    fn parameters() Value { return parse_json(run_command_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let cmd = value_get_str(args, "cmd")
+        let force = value_get_bool(args, "force")
+        if force == false {
+            let needs = command_needs_approval(cmd)
+            if needs {
+                return Ok("PAUSED: needs approval")
+            }
+        }
+        let output = run_shell_command(cmd)
+        return Ok(output)
+    }
+}
+
+type EditFile as Tool {
+    fn name() str { return "edit_file" }
+    fn description() str { return "Replace unique string in file" }
+    fn parameters() Value { return parse_json(edit_file_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let path = value_get_str(args, "path")
+        let old_str = value_get_str(args, "old_string")
+        let new_str = value_get_str(args, "new_string")
+        let result = edit_file_do(path, old_str, new_str)
+        return Ok(result)
+    }
+}
+
+type BatchReplace as Tool {
+    fn name() str { return "batch_replace" }
+    fn description() str { return "Multiple replacements" }
+    fn parameters() Value { return parse_json(batch_replace_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let path = value_get_str(args, "path")
+        let replacements = value_get_array(args, "replacements")
+        let result = batch_replace_do(path, replacements)
+        return Ok(result)
+    }
+}
+
+type Search as Tool {
+    fn name() str { return "search" }
+    fn description() str { return "Search file tree" }
+    fn parameters() Value { return parse_json(search_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let pattern = value_get_str(args, "pattern")
+        let result = search_files(pattern)
+        return Ok(result)
+    }
+}
+
+type ListDir as Tool {
+    fn name() str { return "list_dir" }
+    fn description() str { return "List directory" }
+    fn parameters() Value { return parse_json(list_dir_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let path = value_get_str(args, "path")
+        let result = list_directory(path)
+        return Ok(result)
+    }
+}
+
+type ListSymbols as Tool {
+    fn name() str { return "list_symbols" }
+    fn description() str { return "List code symbols" }
+    fn parameters() Value { return parse_json(list_symbols_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let path = value_get_str(args, "path")
+        let result = list_symbols_in(path)
+        return Ok(result)
+    }
+}
+
+type Glob as Tool {
+    fn name() str { return "glob" }
+    fn description() str { return "Find files by glob" }
+    fn parameters() Value { return parse_json(glob_schema) }
+    fn execute(args Value) ~Result<str, ToolError> {
+        let pattern = value_get_str(args, "pattern")
+        let result = glob_files(pattern)
+        return Ok(result)
+    }
+}
