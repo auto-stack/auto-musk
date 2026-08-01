@@ -1,0 +1,115 @@
+
+use.rust axum::Router
+use.rust axum::routing::{get}
+use.rust axum::response::Response
+use.rust axum::Json
+use.rust std::sync::Arc
+use.rust std::path::PathBuf
+use.rust serde::{Serialize}
+use.rust serde_json::Value
+
+#[derive(Serialize)]
+pub type SettingsLinkOk { status str, url str }
+#[derive(Serialize)]
+pub type SettingsLinkErr { status str, error str }
+
+
+fn serve(addr str, client Arc<dyn Client>) ~Result<str, str> {
+    let state = serve_init_state(client)
+    let static_service = serve_build_static()
+    let cors = serve_build_cors()
+    let app = serve_build_app(state, static_service, cors)
+    serve_listen(addr, app).await
+    return Ok("")
+}
+
+
+fn settings_link() ~Response {
+    let cfg = app_config_load()
+    let daemon_url = app_config_effective_daemon_url(cfg)
+    let ensure_url = daemon_url + "/v1/services/os-config/ensure"
+    let result = http_post_json(ensure_url).await
+    is result {
+        Ok(val) -> {
+            let status = value_get_str(val, "status")
+            let url = value_get_str(val, "url")
+            if status == "running" {
+                if url.len() > 0 {
+                    return json_response(SettingsLinkOk(status: "running", url: url))
+                }
+            }
+            let error_val = value_get_str(val, "error")
+            return error_response(500, SettingsLinkErr(status: "error", error: error_val))
+        },
+        Err(e) -> {
+            return error_response(502, SettingsLinkErr(status: "error", error: e))
+        }
+    }
+}
+
+
+fn drive_run(state Arc<AppState>, ws_id str, run_id str) ~void {
+    drive_set_root(ws_id)
+    drive_loop(state, ws_id, run_id).await
+    drive_clear_root()
+}
+
+fn drive_loop(state Arc<AppState>, ws_id str, run_id str) ~void {
+    while true {
+        let result = relay_advance(ws_id, run_id)
+        if advance_is_none(result) {
+            return
+        }
+        relay_publish(run_id, result)
+        is advance_kind(result) {
+            "execute" -> {
+                let role_id = advance_role_id(result)
+                let step_err = run_step(state, ws_id, run_id, role_id).await
+                if step_err.len() > 0 {
+                    relay_submit_error(run_id, role_id, step_err)
+                }
+            },
+            "wait" -> { return },
+            "completed" -> { return },
+            "failed" -> { return },
+            "paused" -> { return }
+        }
+    }
+}
+
+fn run_step(state Arc<AppState>, ws_id str, run_id str, role_id str) ~Result<str, str> {
+    let task_input = relay_step_context(ws_id, run_id)
+    let agent = factory_build_agent(state, ws_id, run_id, role_id).await
+    let sink = DriveStreamSink(ws_id: ws_id, run_id: run_id, role_id: role_id)
+    let cancel = atomic_bool_false()
+    let result = agent_run_stream_with_sink(agent, task_input, Arc.new(sink), cancel).await
+    is result {
+        Ok(r) -> {
+            let output = drive_accumulated(ws_id, run_id)
+            let final_output = drive_finalize_output(output, r)
+            drive_submit_handoff(ws_id, run_id, role_id, final_output, r)
+            return Ok(final_output)
+        },
+        Err(e) -> {
+            return Err(e)
+        }
+    }
+}
+
+spec DriveSink {
+    fn on_event(self, ev)
+}
+
+type DriveStreamSink as DriveSink {
+    ws_id str
+    run_id str
+    role_id str
+}
+
+ext DriveStreamSink {
+    fn on_event(ev) {
+        // StreamEvent 匹配 → store.push_event + 累加（逻辑在 extern 侧简化）
+        drive_handle_stream_event(self.ws_id, self.run_id, self.role_id, ev)
+    }
+}
+
