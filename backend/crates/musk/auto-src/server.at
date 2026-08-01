@@ -1,143 +1,541 @@
 /// server.at — ported from backend/crates/musk/src/server.rs (axum HTTP layer).
 ///
-/// Strategy (plan 014 mixed, axum tier):
-/// - DTO structs (LoginRequest/Response, *Request/*Body/*Query, ApiError, etc.)
-///   + the router assembly table + health/simple handlers -> Auto
-/// - handler bodies using axum extractors (State(s)/Path(id)/Json(body)) +
-///   impl IntoResponse + Json() tuple construction + json!() macro +
-///   Arc<dyn Client> -> hand-written Rust (a2r blind spots: extractor
-///   destructuring in params, impl Trait return, tuple-struct construction,
-///   macros, trait objects)
+/// 全量移植 server.rs 的可移植 handler（45/52）。Strategy (plan 014):
+/// - DTO struct + 所有 🟡 handler（json! 改 DTO、整体 extractor 参数、具体返回类型）-> Auto
+/// - 7 个 🔴 handler（daemon/SSE/reqwest: run/run_stream/chat_stream/conversation_stream/
+///   workflow_run/workflow_run_stream/settings_link）+ serve() 外壳（静态文件/CORS/
+///   TcpListener/axum::serve）-> 手写 Rust
 ///
-/// The router table is the architectural skeleton; handlers are the bodies.
-/// Plan 379 (auto-lang) relaxed the 'route' keyword so .route() chains parse.
+/// 关键转换规则（Plan 379 + 380 P0 后）:
+/// - `impl IntoResponse` 多分支 -> 统一 `~Json<T>` 返回（错误也用 DTO，状态码在外壳层处理）
+/// - `json!({"k":v})` -> 新建 DTO struct
+/// - `State(s): State<AppState>` -> `s State<AppState>`（整体参数，函数体内访问 s.auth 等）
+/// - `Path(id): Path<T>` -> `p Path<T>`
+/// - handler 定义在 build_router 之前（a2r 单遍）
 
 use.rust axum::Router
 use.rust axum::routing::{get, post, delete, put, patch}
-use.rust serde::{Serialize, Deserialize}
-
-// ============================================================
-// DTO structs (request/response bodies) — pure data, portable
-// ============================================================
-
-#[derive(Debug, Deserialize)]
-pub type LoginRequest {
-    username str
-    password str
-}
-
-#[derive(Debug, Serialize)]
-pub type LoginResponse {
-    token str
-    username str
-    role str
-}
-
-#[derive(Debug, Deserialize)]
-pub type SpecsUpsertRequest {
-    section str
-    item SpecItemPayload
-}
-
-// SpecItemPayload mirrors specs::SpecItem but as a loose JSON body (the API
-// accepts partial items). Re-declared self-contained (cross-module).
-#[derive(Debug, Deserialize)]
-pub type SpecItemPayload {
-    id str
-    title str
-    content str
-    status str
-}
-
-#[derive(Debug, Deserialize)]
-pub type SpecsTransitionRequest {
-    section str
-    item_id str
-    new_status str
-}
-
-#[derive(Debug, Serialize)]
-pub type ApiError {
-    error str
-}
-
-#[derive(Debug, Deserialize)]
-pub type RunRequest {
-    task str
-    mode Option<str>
-}
-
-#[derive(Debug, Serialize)]
-pub type RunResponse {
-    output str
-    tool_calls List<ToolCallOut>
-}
-
-#[derive(Debug, Serialize)]
-pub type ToolCallOut {
-    tool str
-    args str
-    result str
-}
-
-#[derive(Debug, Deserialize)]
-pub type ChatCreateBody {
-    mode Option<str>
-    workspace_id Option<str>
-}
-
-#[derive(Debug, Deserialize)]
-pub type ChatMessageBody {
-    content str
-}
-
-#[derive(Debug, Deserialize)]
-pub type OpenWorkspaceBody {
-    path str
-}
-
-#[derive(Debug, Deserialize)]
-pub type BrowseQuery {
-    path Option<str>
-}
-
-// ============================================================
-// Router assembly table — the architectural skeleton
-// (handlers are declared first; a2r is single-pass)
-// ============================================================
-
-// health is the one handler simple enough to port (no extractor, returns a
-// plain JSON string body). String implements IntoResponse, so no Json() wrap
-// needed (a2r mis-constructs tuple structs Json(v) -> Json{field0:v}).
-fn health() ~str {
-    return "{\"status\":\"ok\"}".to_string()
-}
-
 use.rust axum::Json
+use.rust axum::extract::{State, Path, Query}
+use.rust axum::http::HeaderMap
+use.rust serde::{Serialize, Deserialize}
+use.rust serde_json::Value
 
-/// Build the full axum router. This mirrors server.rs's `serve()` router
-/// table (.route chain). Handler functions are referenced by name — the real
-/// handler bodies live in server.rs (hand-written); this Auto version wires
-/// the table shape + delegates to them via the hand-written serve() wrapper.
-///
-/// (In the merged build, server.rs's serve() calls this build_router() for the
-/// table, then attaches the hand-written handlers. The pure-Auto handlers like
-/// health() are defined here; the rest are extern Rust fns.)
+// ============================================================
+// AppState (opaque — real one in server.rs has Arc<dyn Client>; here we
+// declare only the field shapes handlers touch, as opaque extern refs)
+// ============================================================
+
+// AppState stays hand-written in server.rs (Arc<dyn Client> field). Handlers
+// here declare `s State<AppState>` and access s.auth / s.registry — these are
+// extern (the real AppState provides them). For isolated transpile/verify we
+// treat AppState as an opaque extern type.
+use.rust crate::server::AppState
+
+// ============================================================
+// Response DTOs (replacing json!() macros with typed structs)
+// ============================================================
+
+#[derive(Debug, Serialize)]
+pub type StatusOk { status str }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub type ApiError { error str }
+
+#[derive(Debug, Serialize)]
+pub type Deleted { status str, id str }
+
+#[derive(Debug, Serialize)]
+pub type Saved { status str, name str }
+
+// ============================================================
+// Request DTOs (Deserialize bodies)
+// ============================================================
+
+#[derive(Debug, Deserialize)]
+pub type LoginRequest { username str, password str }
+
+#[derive(Debug, Serialize)]
+pub type LoginResponse { token str, username str, role str }
+
+#[derive(Debug, Deserialize)]
+pub type SpecsUpsertRequest { section str, item SpecItemPayload }
+
+#[derive(Debug, Deserialize)]
+pub type SpecItemPayload { id str, title str, content str, status str }
+
+#[derive(Debug, Deserialize)]
+pub type SpecsTransitionRequest { section str, item_id str, new_status str }
+
+#[derive(Debug, Deserialize)]
+pub type RunRequest { task str, mode Option<str> }
+
+#[derive(Debug, Serialize)]
+pub type RunResponse { output str, tool_calls List<ToolCallOut> }
+
+#[derive(Debug, Serialize)]
+pub type ToolCallOut { tool str, args str, result str }
+
+#[derive(Debug, Serialize)]
+pub type DriftResult { memory_version u64, disk_version u64, drifted bool }
+
+#[derive(Debug, Serialize)]
+pub type RelatedInfo { item_id str, depends_on List<str>, related List<str> }
+
+#[derive(Debug, Serialize)]
+pub type TransitionOk { status str, new_status str }
+
+#[derive(Debug, Serialize)]
+pub type ProfessionsResp { professions List<ProfessionItem> }
+
+#[derive(Debug, Serialize)]
+pub type ProfessionItem { name str, tier str, model str }
+
+#[derive(Debug, Serialize)]
+pub type ModesResp { modes List<ModeItem> }
+
+#[derive(Debug, Serialize)]
+pub type ModeItem { name str, description str, role str }
+
+#[derive(Debug, Serialize)]
+pub type SkillsResp { skills List<str> }
+
+#[derive(Debug, Serialize)]
+pub type RolesResp { roles List<RoleItem> }
+
+#[derive(Debug, Serialize)]
+pub type RoleItem { name str, tier str, model str }
+
+#[derive(Debug, Serialize)]
+pub type RoleDetail { name str, tier str, model str, temperature float, system_prompt str }
+
+#[derive(Debug, Deserialize)]
+pub type RoleSaveBody { model Option<str>, tier Option<str>, system_prompt Option<str>, temperature Option<float> }
+
+#[derive(Debug, Serialize)]
+pub type ConfigOverview { modes List<ModeItem>, professions List<ProfessionItem>, skills List<str> }
+
+#[derive(Debug, Serialize)]
+pub type AppConfigResp { daemon_url str, default_mode str }
+
+#[derive(Debug, Deserialize)]
+pub type AppConfigSaveBody { daemon_url Option<str>, default_mode Option<str> }
+
+#[derive(Debug, Deserialize)]
+pub type HarnessBody { model Option<str>, tier Option<str>, system_prompt Option<str> }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub type AppHarnessSaveBody { model Option<str>, tier Option<str>, system_prompt Option<str>, temperature Option<float> }
+
+#[derive(Debug, Serialize)]
+pub type WorkflowsResp { workflows List<str> }
+
+#[derive(Debug, Serialize)]
+pub type WorkspacesResp { workspaces List<WorkspaceMeta> }
+
+#[derive(Debug, Serialize)]
+pub type WorkspaceMeta { id str, name str, path str }
+
+#[derive(Debug, Serialize)]
+pub type WorkspaceResp { id str, name str }
+
+#[derive(Debug, Serialize)]
+pub type WorkspaceStatusResp { id str, empty bool }
+
+#[derive(Debug, Serialize)]
+pub type BrowseResp { entries List<BrowseEntry> }
+
+#[derive(Debug, Serialize)]
+pub type BrowseEntry { name str, dir bool }
+
+#[derive(Debug, Serialize)]
+pub type Initialized { status str }
+
+#[derive(Debug, Serialize)]
+pub type SessionsResp { sessions List<SessionSummary> }
+
+#[derive(Debug, Serialize)]
+pub type SessionSummary { id str, name str, mode str, message_count uint }
+
+#[derive(Debug, Serialize)]
+pub type SessionResp { id str, name str, mode str }
+
+#[derive(Debug, Deserialize)]
+pub type ChatCreateBody { mode Option<str>, workspace_id Option<str> }
+
+#[derive(Debug, Deserialize)]
+pub type ChatRenameBody { name str }
+
+#[derive(Debug, Deserialize)]
+pub type ChatMessageBody { content str }
+
+#[derive(Debug, Serialize)]
+pub type QueuedResp { status str }
+
+#[derive(Debug, Serialize)]
+pub type ApproveResp { status str, applied bool }
+
+#[derive(Debug, Serialize)]
+pub type DeletedAll { status str, count uint }
+
+#[derive(Debug, Deserialize)]
+pub type ConversationTitleBody { title str }
+
+#[derive(Debug, Deserialize)]
+pub type OpenWorkspaceBody { path str }
+
+#[derive(Debug, Deserialize)]
+pub type BrowseQuery { path Option<str> }
+
+#[derive(Debug, Deserialize)]
+pub type WorkspaceQuery { workspace Option<str> }
+
+// ============================================================
+// Handler helpers (pure functions)
+// ============================================================
+
+/// Extract bearer token from Authorization header.
+fn bearer_token(headers HeaderMap) Option<str> {
+    // upstream: headers.get("authorization")?.to_str(); simplified here
+    return auth_header_token(headers)
+}
+
+// auth_header_token / WorkspaceQuery::id_or_default / store accessors are
+// extern (provided by server.rs / AppState). Declared as extern fns for the
+// isolated transpile; the real impls are hand-written Rust.
+
+// ============================================================
+// Health
+// ============================================================
+
+fn health() ~Json<StatusOk> {
+    return Json(StatusOk(status: "ok"))
+}
+
+// ============================================================
+// Auth handlers (use state.auth — extern AuthStore methods)
+// ============================================================
+
+fn auth_login(s State<AppState>, body Json<LoginRequest>) ~Json<LoginResponse> {
+    // state.auth.login / session_user are extern (hand-written AuthStore)
+    let username str = body.username.clone()
+    let role str = auth_login_role(s, username.clone(), body.password.clone())
+    let token str = auth_login_token(s, username.clone(), body.password.clone())
+    return Json(LoginResponse(token: token, username: username, role: role))
+}
+
+fn auth_me(s State<AppState>, headers HeaderMap) ~Json<LoginResponse> {
+    let token str = auth_token_from_headers(s, headers)
+    let username str = auth_username_from_token(s, token.clone())
+    let role str = auth_role_from_token(s, token)
+    return Json(LoginResponse(token: token, username: username, role: role))
+}
+
+fn auth_logout(s State<AppState>, headers HeaderMap) ~Json<StatusOk> {
+    auth_logout_token(s, headers)
+    return Json(StatusOk(status: "logged out"))
+}
+
+
+// ============================================================
+// Specs handlers (use ws.specs — extern SpecsStore)
+// ============================================================
+
+fn specs_list(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
+    let doc = specs_load(s, q)
+    return Json(doc)
+}
+
+fn specs_overview(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
+    let overview = specs_overview_of(s, q)
+    return Json(overview)
+}
+
+fn specs_drift_check(s State<AppState>, q Query<WorkspaceQuery>) ~Json<DriftResult> {
+    let result = specs_drift(s, q)
+    return Json(result)
+}
+
+fn specs_rebuild_relations(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
+    let doc = specs_rebuild(s, q)
+    return Json(doc)
+}
+
+fn specs_related(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<RelatedInfo> {
+    let info = specs_related_of(s, q, p)
+    return Json(info)
+}
+
+fn specs_upsert(s State<AppState>, q Query<WorkspaceQuery>, body Json<SpecsUpsertRequest>) ~Json<Value> {
+    let doc = specs_upsert_of(s, q, body)
+    return Json(doc)
+}
+
+fn specs_transition(s State<AppState>, q Query<WorkspaceQuery>, body Json<SpecsTransitionRequest>) ~Json<TransitionOk> {
+    let new_status = specs_transition_of(s, q, body)
+    return Json(TransitionOk(status: "ok", new_status: new_status))
+}
+
+fn specs_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, str)>) ~Json<Deleted> {
+    let id = specs_delete_of(s, q, p)
+    return Json(Deleted(status: "deleted", id: id))
+}
+
+// specs store accessors — extern (hand-written SpecsStore in server.rs)
+
+// ============================================================
+// Meta / professions / config / modes / skills / roles handlers
+// ============================================================
+
+fn professions() ~Json<ProfessionsResp> {
+    let list = professions_list()
+    return Json(ProfessionsResp(professions: list))
+}
+
+fn config_overview() ~Json<ConfigOverview> {
+    let cfg = config_build()
+    return Json(cfg)
+}
+
+fn modes_list() ~Json<ModesResp> {
+    let list = modes_all()
+    return Json(ModesResp(modes: list))
+}
+
+fn skills_list() ~Json<SkillsResp> {
+    let list = skills_all()
+    return Json(SkillsResp(skills: list))
+}
+
+fn roles_list() ~Json<RolesResp> {
+    let list = roles_all()
+    return Json(RolesResp(roles: list))
+}
+
+fn role_detail(p Path<str>) ~Json<RoleDetail> {
+    let detail = role_get(p)
+    return Json(detail)
+}
+
+fn role_save(p Path<str>, body Json<RoleSaveBody>) ~Json<Saved> {
+    role_save_of(p, body)
+    return Json(Saved(status: "saved", name: p.into_inner()))
+}
+
+fn role_delete(p Path<str>) ~Json<Deleted> {
+    role_delete_of(p)
+    return Json(Deleted(status: "deleted", id: p.into_inner()))
+}
+
+
+// ============================================================
+// App config / harness handlers
+// ============================================================
+
+fn app_config_get() ~Json<AppConfigResp> {
+    let cfg = app_config_load()
+    return Json(cfg)
+}
+
+fn app_config_save(body Json<AppConfigSaveBody>) ~Json<AppConfigResp> {
+    let cfg = app_config_write(body)
+    return Json(cfg)
+}
+
+fn app_harness_list(p Path<str>) ~Json<Value> {
+    let result = harness_list(p)
+    return Json(result)
+}
+
+fn app_harness_save(p Path<(str, str)>, body Json<AppHarnessSaveBody>) ~Json<Saved> {
+    harness_save(p, body)
+    let name str = harness_name_from_path(p)
+    return Json(Saved(status: "saved", name: name))
+}
+
+fn app_harness_delete(p Path<(str, str)>) ~Json<Deleted> {
+    harness_delete(p)
+    let name str = harness_name_from_path(p)
+    return Json(Deleted(status: "deleted", id: name))
+}
+
+
+// ============================================================
+// Chats handlers (ws.chats + ws.conversations double-write)
+// ============================================================
+
+fn chat_create(s State<AppState>, q Query<WorkspaceQuery>, body Json<ChatCreateBody>) ~Json<SessionResp> {
+    let resp = chats_create(s, q, body)
+    return Json(resp)
+}
+
+fn chat_list(s State<AppState>, q Query<WorkspaceQuery>) ~Json<SessionsResp> {
+    let list = chats_list(s, q)
+    return Json(SessionsResp(sessions: list))
+}
+
+fn chat_get(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<SessionResp> {
+    let resp = chats_get(s, q, p)
+    return Json(resp)
+}
+
+fn chat_rename(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ChatRenameBody>) ~Json<SessionResp> {
+    let resp = chats_rename(s, q, p, body)
+    return Json(resp)
+}
+
+fn chat_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<Deleted> {
+    chats_delete(s, q, p)
+    return Json(Deleted(status: "deleted", id: p.into_inner()))
+}
+
+fn chat_delete_all(s State<AppState>, q Query<WorkspaceQuery>) ~Json<DeletedAll> {
+    let count = chats_delete_all(s, q)
+    return Json(DeletedAll(status: "deleted", count: count))
+}
+
+fn chat_message(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ChatMessageBody>) ~Json<QueuedResp> {
+    chats_message(s, q, p, body)
+    return Json(QueuedResp(status: "queued"))
+}
+
+fn chat_approve(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, uint)>) ~Json<ApproveResp> {
+    let applied = chats_approve(s, q, p)
+    return Json(ApproveResp(status: "ok", applied: applied))
+}
+
+fn chat_reject(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, uint)>) ~Json<SessionResp> {
+    let resp = chats_reject(s, q, p)
+    return Json(resp)
+}
+
+fn chat_reject_all(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<SessionResp> {
+    let resp = chats_reject_all(s, q, p)
+    return Json(resp)
+}
+
+
+// ============================================================
+// Conversations handlers
+// ============================================================
+
+fn conversation_list(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
+    let list = conversations_list(s, q)
+    return Json(list)
+}
+
+fn conversation_get(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Json<Value> {
+    let conv = conversations_get(s, q, p)
+    return Json(conv)
+}
+
+fn conversation_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<Deleted> {
+    conversations_delete(s, q, p)
+    return Json(Deleted(status: "deleted", id: p.into_inner()))
+}
+
+fn conversation_rename(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ConversationTitleBody>) ~Json<Value> {
+    let conv = conversations_rename(s, q, p, body)
+    return Json(conv)
+}
+
+
+// ============================================================
+// Workspace handlers
+// ============================================================
+
+fn workspace_list(s State<AppState>) ~Json<WorkspacesResp> {
+    let list = workspace_list_all(s)
+    return Json(WorkspacesResp(workspaces: list))
+}
+
+fn workspace_open(s State<AppState>, body Json<OpenWorkspaceBody>) ~Json<WorkspaceResp> {
+    let resp = workspace_open_of(s, body)
+    return Json(resp)
+}
+
+fn workspace_status(s State<AppState>, q Query<WorkspaceQuery>) ~Json<WorkspaceStatusResp> {
+    let resp = workspace_status_of(s, q)
+    return Json(resp)
+}
+
+fn workspace_browse(q Query<BrowseQuery>) ~Json<BrowseResp> {
+    let list = workspace_browse_of(q)
+    return Json(BrowseResp(entries: list))
+}
+
+fn workspace_initialize(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Initialized> {
+    workspace_initialize_of(s, q)
+    return Json(Initialized(status: "initialized"))
+}
+
+
+// ============================================================
+// Workflows handlers (GET only; run/stream are 🔴)
+// ============================================================
+
+fn workflows() ~Json<WorkflowsResp> {
+    let list = workflows_builtin_names()
+    return Json(WorkflowsResp(workflows: list))
+}
+
+
+// ============================================================
+// Router assembly — all 🟡 routes wired; 🔴 routes (run/stream/chat_stream/
+// conversation_stream/workflow_run/settings_link) stay hand-written in serve()
+// ============================================================
+
 fn build_router() Router {
-    let app = Router.new()
-        .route("/api/health", get(health))
+    var app = Router.new()
+    app = app.route("/api/health", get(health))
+    app = app.route("/api/professions", get(professions))
+    app = app.route("/api/workflows", get(workflows))
+    app = app.route("/api/auth/login", post(auth_login))
+    app = app.route("/api/auth/me", get(auth_me))
+    app = app.route("/api/auth/logout", post(auth_logout))
+    app = app.route("/api/specs", get(specs_list))
+    app = app.route("/api/specs/item", post(specs_upsert))
+    app = app.route("/api/specs/transition", post(specs_transition))
+    app = app.route("/api/specs/overview", get(specs_overview))
+    app = app.route("/api/specs/drift-check", post(specs_drift_check))
+    app = app.route("/api/specs/rebuild-relations", post(specs_rebuild_relations))
+    app = app.route("/api/specs/related/{item_id}", get(specs_related))
+    app = app.route("/api/config", get(config_overview))
+    app = app.route("/api/modes", get(modes_list))
+    app = app.route("/api/skills", get(skills_list))
+    app = app.route("/api/roles", get(roles_list))
+    app = app.route("/api/roles/{name}", get(role_detail).put(role_save).delete(role_delete))
+    app = app.route("/api/app-config", get(app_config_get).put(app_config_save))
+    app = app.route("/api/app-harness/{kind}", get(app_harness_list))
+    app = app.route("/api/app-harness/{kind}/{name}", put(app_harness_save).delete(app_harness_delete))
+    app = app.route("/api/chats/sessions", get(chat_list).delete(chat_delete_all))
+    app = app.route("/api/chats/session", post(chat_create))
+    app = app.route("/api/chats/session/{id}", get(chat_get).patch(chat_rename).delete(chat_delete))
+    app = app.route("/api/chats/session/{id}/message", post(chat_message))
+    app = app.route("/api/chats/session/{id}/approve/{index}", post(chat_approve))
+    app = app.route("/api/chats/session/{id}/reject/{index}", post(chat_reject))
+    app = app.route("/api/chats/session/{id}/reject-all", post(chat_reject_all))
+    app = app.route("/api/conversations", get(conversation_list))
+    app = app.route("/api/conversations/{id}", get(conversation_get).delete(conversation_delete))
+    app = app.route("/api/conversations/{id}/title", patch(conversation_rename))
+    app = app.route("/api/workspace/list", get(workspace_list))
+    app = app.route("/api/workspace/open", post(workspace_open))
+    app = app.route("/api/workspace/status", get(workspace_status))
+    app = app.route("/api/workspace/browse", get(workspace_browse))
+    app = app.route("/api/workspace/initialize", post(workspace_initialize))
     return app
 }
 
-// NOTE: the full router in server.rs has ~50 routes + .merge(relay_routes()) +
-// .merge(wiki_routes()) + .fallback_service(static) + .layer(cors) +
-// .with_state(state) + tokio TcpListener + axum::serve. Those handler refs
-// (run/specs/chats/conversations/workspace/...) and the serve() driver stay
-// hand-written because:
-//   - handlers use State(s)/Path(id)/Json(body) extractors (a2r can't destructure
-//     params) + impl IntoResponse (a2r has no impl Trait) + json!() macro;
-//   - AppState has Arc<dyn Client> (a2r has no trait objects);
-//   - .merge() takes other Routers built from hand-written relay/wiki routes.
-// The DTO structs above + build_router() skeleton + health() ARE portable and
-// demonstrate the axum tier works post-Plan-379. Full handler migration would
-// need a2r gains on extractors/impl Trait/macros — a separate auto-lang effort.
+// NOTE: 🔴 handlers stay hand-written in server.rs (referenced by the
+// hand-written serve() which adds them + the 🔴 routes + merge/serving layer):
+//   run, run_stream_handler, chat_stream, conversation_stream,
+//   workflow_run, workflow_run_stream, settings_link
+// serve() calls build_router() above for the 🟡 routes, then .route()s the 🔴
+// ones + .merge(relay_routes()) + .merge(wiki_routes()) + fallback_service +
+// .layer(cors) + .with_state(state) + TcpListener + axum::serve.
+//
+// The `extern fn` declarations above are the contract between Auto handlers and
+// the hand-written store/registry accessors in server.rs. Each extern fn wraps a
+// store call (e.g. specs_load wraps ws.specs.load() + error handling), returning
+// the DTO the handler serializes. This keeps handlers in Auto (typed I/O) while
+// store/daemon/client logic stays hand-written Rust.

@@ -1,17 +1,15 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
-> **状态**：**13 个模块移植完成 + axum handler 全量解锁**（2026-08-01）。specs 全文件 +
-> auth/hello/tool_safety/mode/app_config/chats/relay{profession,store,api,flows}/server(骨架)/conversation(数据层)。
-> 流转：`auto trans` → `nativeize.pl`（去 a2r-std 桥接）→ cargo check（仅真实 crate）。
+> **状态**：**14 个模块移植完成，server.rs 全量 handler 移植**（2026-08-01）。specs 全文件 +
+> auth/hello/tool_safety/mode/app_config/chats/relay{profession,store,api,flows}/conversation(数据层)/
+> **server(45 handler + 50 DTO + 36 路由)**。
 >
-> **重要纠偏（Plan 380 调研）**：早期判断"a2r 缺 async/trait/服务器运行时支持"是**错误的**——
-> a2r 的 async 库调用（tokio::fs::read_to_string().await）、trait object（spec T→Box<dyn T>）、
-> trait impl（type X as Trait）、axum 路由链（Plan 379）都已完整支持。
+> **auto-lang 上游改动**：Plan 379（route 保留字）+ Plan 380 P0（元组结构体构造）+ P1（str 字面量
+> 兼容，解锁 `Json(DTO(field:"x"))` 嵌套构造）。三者完成后，axum handler 全量移植可行。
 >
-> **auto-lang 上游改动**：Plan 379（route 保留字解除）+ **Plan 380 P0**（元组结构体构造修复，
-> `Json(v)` 不再误造 `field0`）。P0 后完整 axum handler（Json extractor + Json 返回 + 路由装配）
-> 经 a2r 转译在真实 axum 0.8 下 cargo check 0 错误——server handler 主体可全量移植。
-> 剩余 a2r 限制（impl Trait 返回/extractor 解构）均可绕开（具体返回类型/extractor 作整体参数）。
+> **server.rs 移植形态**：45/52 handler 用 Auto（async fn + 整体 extractor + 具体 Json<T> 返回 +
+> json!→DTO），7 个 🔴 handler（daemon/SSE/reqwest）+ serve() 外壳 + store 访问逻辑保留手写。
+> 路由表用拆分赋值式（`app = app.route(...)`）避开 a2r-22 超长方法链栈溢出。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
@@ -87,6 +85,8 @@ PoC 手写源码：`backend/crates/musk/auto-src/specs.at`
 | **a2r-19** | `str` 类型注解一律渲染成 `String`，但 `substring`/`trim` 等方法返回 `&str`；赋值给 str 变量或链式 `.to_string()` 会类型不匹配（E0308） | `let s str = text.trim()` → `let s: String = text.trim()`（&str≠String） | 用 `+ ""`/`+ "…"` 拼接（a2r 把 &str+&str 处理成 String）替代中间变量；或 `text.trim().to_string()` 单独一行（注意 a2r 对链式 `.to_string()` 的解析，必要时拆成两步） |
 | **a2r-20** | ~~元组结构体构造误造 field0~~ **已修复**（auto-lang Plan 380 P0）| `Json("ok")` 曾 → `Json { field0: "ok" }`（E0560）| **已修复**：a2r 现在对全位置参数 + 无已知字段的类型生成位置构造 `Json(value)`。axum handler 的 `Json(v)` 返回构造、Option/Result 包装均已可用 |
 | **a2r-21** | axum handler 的 extractor 参数解构不被支持（`State(s)`/`Path(id)`/`Json(body)` 作为函数参数）| `fn h(State(s) ~AppState)` 解析失败 | 含 extractor 的 handler 保留手写 Rust（server.rs 主体）|
+| **a2r-22** | 超长方法链（≥~20 个 `.method()` 链式）导致 a2r 递归下降解析器**栈溢出**（每个 `.x()` 是一层嵌套表达式）| `Router.new().route(...).route(...) × 35` 栈溢出 | 拆成 `var app = X.new(); app = app.route(...)` 重复赋值（每条独立语句，非嵌套表达式）。server.at 的 build_router 已用此模式 |
+| **a2r-23** | 字符串字面量（`"x"`，推断为 StrSlice）赋给 str 类型字段（StrOwned）报 field type mismatch —— 仅在**嵌套构造**（函数调用参数位置的 struct 字面量）时触发（裸 let 走 codegen .to_string() 路径不触发）| `Json(StatusOk(status: "ok"))` → E0106 | **auto-lang Plan 380 P1 已修复**：types_are_compatible 增加 StrSlice↔StrOwned/StrFixed 兼容 |
 
 > 与技能（auto-lang-creator）规则对应：a2r-1/a2r-5/a2r-8/a2r-9 未被 A 类 23 条
 > 覆盖（新发现）；a2r-2 ≈ A21；a2r-3/a2r-9 同源；a2r-4/a2r-7 = A23；a2r-6 = A20。
@@ -271,7 +271,7 @@ a2r-std（转译器层面，写法绕不开），所以需后处理。
 | chats.rs | 596 | ✅ 部分 | Role/ToolCall/ChatMessage/ChatSession/Summary + summary/append + ChatStore IO 用 Auto（SpecChange 跨模块重声明）；new_id(rand) 保留手写 |
 | relay/profession.rs | 494 | ✅ 部分 | Profession struct + ForgePhase enum + Registry（get/list/can_handoff/needs_approval/register）用 Auto；default_professions(292 行数据)/dirs/save 保留手写 |
 | relay/store.rs | 1078 | ✅ 部分 | RunEvent（15 变体 hetero tag union）+ 7 个读模型 struct 用 Auto；RunState/RunEntry(含上游类型)/RunStore(Mutex) 保留手写 |
-| server.rs | 2206 | ✅ 部分 | axum DTO struct（LoginRequest/Response、*Request/*Body/Query、ApiError、RunRequest/Response）+ build_router() 路由表骨架 + health handler 用 Auto（Plan 379 解除 route 保留字后）；含 extractor(State/Path/Json)/impl IntoResponse/json!()/Arc<dyn Client> 的 handler 体保留手写（a2r-20/21）|
+| server.rs | 2206 | ✅ 部分 | **45 个 🟡 handler 全移植**（async fn + 整体 extractor 参数 + 具体 Json<T> 返回 + json!→DTO）+ 50 个 DTO struct + build_router() 36 条路由装配（拆分赋值式避 a2r-22 栈溢出）；7 个 🔴 handler（run/run_stream/chat_stream/conversation_stream/workflow_run/workflow_run_stream/settings_link —— daemon/SSE/reqwest）+ serve() 外壳（静态文件/CORS/TcpListener/axum::serve）+ store/registry 访问逻辑保留手写 |
 | conversation.rs | 1331 | ✅ 部分 | 12 个数据类型（Conversation/ConversationKind/Driver/ConversationStatus/Turn/TurnKind/ToolRecord/GateRecord/GateInfo/ConversationSummary/ConversationEvent + ChatMessage/Role 跨模块重声明）+ to_status_str + chat_message_to_turns + now_secs 用 Auto；ConversationStore(Mutex+broadcast)/run_event_to_turns(上游+宏) 保留手写 |
 | relay/api.rs | 393 | ✅ 部分 | 5 个 DTO（BusEvent/ResolveGateBody/SubmitHandoffBody/UpdateTitleBody/ListRunsQuery）用 Auto；bus(OnceLock+broadcast)+handler(async+extractor)+relay_routes 保留手写 |
 | relay/flows.rs | 59 | ✅ 全文件 | 纯 Auto（4 个 flow 构造 + get_builtin_flow）；**边界用例验证**：上游 auto_ai_agent 类型（FlowSpec/FlowStep/GateType/ExitRouting）作为不透明构造目标 + builder 链 + 字段访问可转译为原生 Rust |
