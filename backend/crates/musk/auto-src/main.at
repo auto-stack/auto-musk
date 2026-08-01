@@ -1,0 +1,57 @@
+use.rust clap::{Parser, Subcommand}
+use.rust std::sync::Arc
+use.rust auto_ai_agent::Client
+use.rust auto_ai_client::AiClient
+
+#[derive(Parser, Subcommand)]
+type Cli {
+    cmd str
+}
+
+fn main() {
+    let cli = Cli.parse()
+    init_project_root()
+    apply_app_config()
+    run_main(cli).await
+}
+
+fn run_main(cli Cli) ~void {
+    let cmd_input = cli.cmd
+    if cmd_input == "professions" {
+        list_professions()
+    } else {
+        if cmd_input == "modes" {
+            list_modes()
+        } else {
+            if cmd_input == "serve" {
+                let client = make_client_or_fallback()
+                serve(cli).await
+            } else {
+                let client = make_client()
+                run_task(cli).await
+            }
+        }
+    }
+}
+
+spec Client {
+    fn complete(req) ~str
+}
+
+type NoDaemonClient as Client {
+    fn complete(req) ~str {
+        return Ok("daemon not running")
+    }
+}
+
+fn make_client() Arc<dyn Client> {
+    return Arc.new(AiClient.new())
+}
+
+fn make_client_or_fallback() Arc<dyn Client> {
+    let result = make_client_or_none()
+    is result {
+        Some(c) -> return c,
+        None -> return Arc.new(NoDaemonClient())
+    }
+}

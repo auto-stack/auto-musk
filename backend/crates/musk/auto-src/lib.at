@@ -1,0 +1,147 @@
+use.rust std::sync::Arc
+use.rust auto_ai_agent::{Role, Agent, Client, Tool, SkillRegistry, SkillTool, ModelTier, RoleRegistry, load_builtin, load_role}
+use.rust crate::tools::{ReadFile, WriteFile, EditFile, BatchReplace, Search, ListDir, ListSymbols, Glob, RunCommand}
+use.rust crate::spec_tools::{ReadSpecs, ListSpecs, WriteSpec, UpdateSpec, WriteGoals}
+use.rust crate::orch_tools::{SpawnRelay, Dispatch, BringIn}
+use.rust crate::tool_context::ToolContext
+
+spec Role {
+    fn name() str
+    fn system_prompt() str
+    fn model() str
+    fn model_tier() ModelTier
+    fn temperature() float
+    fn max_turns() uint
+    fn allowed_tools() List<str>
+    fn memory_limit() Option<uint>
+    fn allowed_tiers() List<ModelTier>
+    fn token_budget() Option<u64>
+    fn skills() List<str>
+}
+
+type OwnedRole as Role {
+    inner Arc<dyn Role>
+    extra_prompt Option<str>
+    prompt str
+
+    pub static fn new(inner Arc<dyn Role>) OwnedRole {
+        let p = role_system_prompt(inner)
+        return OwnedRole(inner: inner, extra_prompt: None, prompt: p)
+    }
+
+    pub fn with_extra_prompt(extra str) OwnedRole {
+        var p = self.prompt.clone()
+        if extra.trim().len() > 0 {
+            p = role_system_prompt(self.inner)
+            p = p + "\n\n" + extra
+        }
+        var result = self.clone()
+        result.prompt = p
+        return result
+    }
+
+    fn name() str { return role_name(self.inner) }
+    fn system_prompt() str { return self.prompt.clone() }
+    fn model() str { return role_model(self.inner) }
+    fn model_tier() ModelTier { return role_model_tier(self.inner) }
+    fn temperature() float { return role_temperature(self.inner) }
+    fn max_turns() uint { return role_max_turns(self.inner) }
+    fn allowed_tools() List<str> { return role_allowed_tools(self.inner) }
+    fn memory_limit() Option<uint> { return role_memory_limit(self.inner) }
+    fn allowed_tiers() List<ModelTier> { return role_allowed_tiers(self.inner) }
+    fn token_budget() Option<u64> { return role_token_budget(self.inner) }
+    fn skills() List<str> { return role_skills(self.inner) }
+}
+
+pub fn build_agent_from_mode(mode AgentMode, client Arc<dyn Client>) Result<Agent, str> {
+    let role = resolve_role(mode.role).unwrap()
+    let owned = OwnedRole.new(role)
+    let owned2 = owned.with_extra_prompt(mode.extra_system_prompt)
+    let agent = Agent.new(owned2, client)
+    let all_tools List<(str, Arc<dyn Tool>)> = [
+        ("read_file", Arc.new(ReadFile())),
+        ("write_file", Arc.new(WriteFile())),
+        ("edit_file", Arc.new(EditFile())),
+        ("batch_replace", Arc.new(BatchReplace())),
+        ("search", Arc.new(Search())),
+        ("list_dir", Arc.new(ListDir())),
+        ("list_symbols", Arc.new(ListSymbols())),
+        ("glob", Arc.new(Glob())),
+        ("run_command", Arc.new(RunCommand())),
+        ("read_specs", Arc.new(ReadSpecs())),
+        ("list_specs", Arc.new(ListSpecs())),
+        ("write_spec", Arc.new(WriteSpec())),
+        ("update_spec", Arc.new(UpdateSpec())),
+        ("write_goals", Arc.new(WriteGoals()))
+    ]
+    for pair in all_tools {
+        let tool_name = pair[0]
+        let tool = pair[1]
+        if mode.tools.len() == 0 {
+            agent_register_shared(agent, tool)
+        } else {
+            if mode_tools_contains(mode, tool_name) {
+                agent_register_shared(agent, tool)
+            }
+        }
+    }
+    if mode.skills {
+        agent_register_skill_tool(agent)
+    }
+    if mode.context_file.len() > 0 {
+        agent_with_context_file(agent, mode.context_file)
+    } else {
+        let ctx = find_context_file()
+        if ctx_is_some(ctx) {
+            agent_with_context_file(agent, ctx_unwrap(ctx))
+        }
+    }
+    return Ok(agent)
+}
+
+pub fn build_agent_with_context(mode AgentMode, client Arc<dyn Client>, ctx Option<ToolContext>) Result<Agent, str> {
+    let agent = build_agent_from_mode(mode, client).unwrap()
+    is ctx {
+        Some(c) -> {
+            let orch List<(str, Arc<dyn Tool>)> = [
+                ("spawn_relay", Arc.new(SpawnRelay.new(c))),
+                ("dispatch", Arc.new(Dispatch.new(c))),
+                ("bring_in", Arc.new(BringIn.new(c)))
+            ]
+            for pair in orch {
+                let tool_name = pair[0]
+                let tool = pair[1]
+                if mode.tools.len() == 0 {
+                    agent_register_shared(agent, tool)
+                } else {
+                    if mode_tools_contains(mode, tool_name) {
+                        agent_register_shared(agent, tool)
+                    }
+                }
+            }
+        },
+        None -> {}
+    }
+    return Ok(agent)
+}
+
+fn resolve_role(spec_input str) Result<Arc<dyn Role>, str> {
+    let registry = RoleRegistry.load()
+    let r = registry_resolve(registry, spec_input)
+    is r {
+        Some(role) -> return Ok(role),
+        None -> {}
+    }
+    let builtin = load_builtin(spec_input)
+    is builtin {
+        Some(role) -> return Ok(role),
+        None -> {}
+    }
+    let content = read_at_file(spec_input)
+    return load_role(content)
+}
+
+fn find_context_file() Option<str> {
+    let cwd = current_dir()
+    return find_ctx_upward(cwd)
+}

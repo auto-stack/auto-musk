@@ -1,0 +1,6 @@
+/// relay_mod.at — relay/mod.rs (G2: pub use.rust re-export).
+
+pub use.rust auto_ai_agent::orchestration::{AdvanceResult, BudgetAction, BudgetStrategy, BudgetTracker, ContextPointers, Decision, ExitRouting, FlowSpec, FlowStep, GateDecision, GateType, HandoffDocument, PendingGate, PipelineEngine, PipelineMode, PipelineStatus, StepRecord, TokenBudget, TokenUsage, WorkProduct, Question}
+pub use.rust crate::relay::flows::{builtin_flows, get_builtin_flow}
+pub use.rust crate::relay::profession::{ForgePhase, Profession, ProfessionRegistry}
+pub use.rust crate::relay::store::{RunEvent, RunState, RunStore, RunSummary}

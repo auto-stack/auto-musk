@@ -76,6 +76,10 @@ sub rewrite_bridge {
                 my ($a, $b) = split_top_comma($_[0]);
                 return "std::fs::write($a, $b).is_ok()";
             }],
+            ['a2r_std::fs::read_to_string', sub {
+                my ($a) = split_top_comma($_[0]);
+                return "std::fs::read_to_string($a)";
+            }],
             ['a2r_std::fs::exists', sub {
                 my ($a) = split_top_comma($_[0]);
                 return "std::path::Path::new($a).exists()";

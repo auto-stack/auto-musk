@@ -1,0 +1,16 @@
+use.rust auto_ai_agent::{parse_at_workflow, Workflow}
+use.rust std::fs
+
+const FEATURE_DEV_AT = #{ read_text("../workflows/feature-dev.at") }
+
+pub fn builtin_names() List<str> {
+    return ["feature-dev"]
+}
+
+pub fn load(spec_input str) Result<Workflow, str> {
+    if spec_input == "feature-dev" {
+        return parse_at_workflow(FEATURE_DEV_AT)
+    }
+    let content = fs.read_to_string(spec_input).unwrap()
+    return parse_at_workflow(content)
+}
