@@ -1,9 +1,8 @@
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
 > **状态**：**全部模块移植完成**（2026-08-01）。24 个 .at 文件覆盖全后端（Rust ~15000 行）。
-> 单独转译 0 错误（每个 .at 自包含）。合并编译（隔离 crate）有 310 个错误，
-> 根因是 extern_impl stub 签名与 a2r 生成调用类型不匹配（缺上游 auto_ai_agent 类型）。
-> 下一步：在真实 musk workspace（有完整 auto-ai 依赖）编译验证。
+> 单独转译 0 错误。合并编译（真实 workspace）180 个错误，分 7 类（见 §7），
+> 逐类修复中。
 > **目标**：把 auto-musk 的 Rust 后端用 Auto 语言重写一份（`.at`），
 > 经 a2r 转译回 Rust 后，实现与现有 Rust 版本一致的能力。
 > **前置现实**：a2r 运行时（a2r-std）目前不含 axum/tokio/SSE，故整个后端
@@ -381,3 +380,86 @@ relay{driver,mod}）的 async trait 实现（`impl Tool`/`AgentFactory`）——
 （`spec Tool { fn execute() ~str }` + `type X as Tool { fn execute() ~str { ... } }`
 现生成 `trait Tool { async fn execute() }` + `impl Tool for X { async fn execute() }`）。
 主要障碍变为 json!() 宏（parameters 方法）+ 具体业务逻辑改写。
+
+---
+
+## 7. 合并编译错误分析 + 逐类解决方案（180 错误）
+
+24 个 .at 转译后合并到 `src/auto_generated/` + `extern_impl.rs` glue layer，
+在真实 musk workspace 编译。从 335 降到 **180 个错误**，分 7 类：
+
+### C1: String vs &str 类型不匹配（32 个 E0308）
+
+**根因**：a2r 对 str 参数/返回值统一生成 `&str` 或 `String`，但调用方/被调方
+期望不一致。a2r 的 str→String 转换是启发式的（有时加 `.to_string()`，有时不加）。
+
+**方案**：在 auto-lang（worktree）改进 a2r 的 str 参数传递——对函数调用参数
+统一加 `.to_string()`（当形参是 `String`）；对返回值统一加 `.to_string()`。
+这属于 a2r str 所有权分析改进。
+
+**影响**：17 个 `expected String, found &str` + 15 个 `expected &str, found String`
+
+### C2: moved value（20 个 E0382）
+
+**根因**：handler 参数 `s: State<AppState>` 被多个 extern 函数调用消费（move），
+a2r 不自动加 `.clone()`。如 `auth_login_role(s, ...)` move 了 s，后续
+`auth_login_token(s, ...)` 再用就报 moved。
+
+**方案**：在 auto-lang（worktree）改进 a2r——对函数参数被多次使用时自动加
+`.clone()`（类似 specs.rs 里的 self.field.clone() 模式）。或 .at 手动加 clone。
+
+**影响**：server.rs handler 里 `s` 参数重复使用（20 处）
+
+### C3: extern_impl 签名不精确（~40 个，混合 E0308/E0277/E0599/E0271）
+
+**根因**：extern_impl stub 的返回类型/参数类型不匹配 a2r 生成的调用。
+主要子类：
+- 具体 DTO vs Value（SessionResp/AppConfigResp/Duration 等，~15 个）
+- Agent::new 签名（期望 Role 不是 Client，~4 个）
+- mpsc_recv 参数类型 i32（a2r 推断为 i32，~6 个）
+- sse 模块路径（~5 个）
+
+**方案**：在 auto-musk 修 extern_impl.rs（改返回类型/参数类型精确匹配 a2r 调用）+ 修 .at 写法。
+
+### C4: .at 写法问题（~25 个，非 E 编号 + E0252/E0119/E0050）
+
+- `#[derive(Subcommand)]` 只支持 enum（auto_main.at 用了 type）→ 改用 tag
+- `spec_tools` 私有字段（tools.at 里 `ReadSpecs()` 构造但字段私有）→ 加 `()` 构造
+- `self` 参数（server_serve.at spec 方法签名）→ 去掉 self
+- `Parser` 重复导入（auto_main.at）→ 去重
+- `const` 缺类型标注 → 加 `: &str`
+
+**方案**：在 auto-musk 修 .at 文件。
+
+### C5: Query/Path 导入缺失（8 个 E0425）
+
+**根因**：server_stream.at 使用 `Query<...>`/`Path<...>` 但没 import（只有 server.at 导入了）。
+
+**方案**：在 server_stream.at 加 `use.rust axum::extract::{Query, Path}`。
+
+### C6: Channel struct 字段访问（6 个 E0609）
+
+**根因**：a2r 把 `mpsc_channel()` 返回值推断为 `i32`（不透明），然后 `ch.tx`/`ch.rx`
+访问字段失败。
+
+**方案**：在 .at 里改用直接调用 `mpsc_channel()` 返回 tuple，用 `.0`/`.1` 而非
+`ch.tx`/`ch.rx`。或在 extern_impl 提供返回 struct 的版本。
+
+### C7: Role trait 冲突 + derive 不兼容（~10 个 E0277/E0369/E0533）
+
+**根因**：auto_lib.at 定义了 `spec Role`，但 extern_impl re-export 了
+`auto_ai_agent::Role`——两个 `Role` trait 冲突。auto_lib 的 `OwnedRole as Role`
+impl 的是 auto_lib 的 Role，但 build_agent 期望 auto_ai_agent 的 Role。
+
+**方案**：auto_lib.at 不自定义 `spec Role`，改用 `use.rust auto_ai_agent::Role`
++ OwnedRole impl 上游的 Role。需在 .at 里调整。
+
+### 实施顺序
+
+1. **C5（Query/Path 导入）** — .at 改，最简单
+2. **C4（.at 写法）** — auto-musk 直接改
+3. **C7（Role trait 冲突）** — .at 改
+4. **C3（extern_impl 签名）** — extern_impl.rs 改
+5. **C6（Channel 字段）** — .at 改
+6. **C2（moved value clone）** — auto-lang worktree 或 .at 手动 clone
+7. **C1（str→String）** — auto-lang worktree 改进 a2r
