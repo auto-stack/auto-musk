@@ -22,28 +22,11 @@ impl OwnedRole {
     pub fn with_extra_prompt(&self, extra: &str) -> OwnedRole {
         let mut p = self.prompt.clone();
         if (extra.trim().to_string().len() as i32) > 0 {
-            p = role_system_prompt(&self.inner);
+            p = role_system_prompt(&self.inner.clone());
             p = format!("{}{}", format!("{}{}", p, "\n\n"), extra)
         }
         return OwnedRole { inner: self.inner.clone(), extra_prompt: self.extra_prompt.clone(), prompt: p.to_string() };
     }
-}
-
-// Hand-written: OwnedRole delegates Role to its inner Arc<dyn Role>.
-// (Auto's `str`→String is incompatible with Role's `&str` returns, so this is
-// not expressed in lib.at — see plan 015 §3 a2r issue #7.)
-impl auto_ai_agent::Role for OwnedRole {
-    fn name(&self) -> &str { self.inner.name() }
-    fn system_prompt(&self) -> &str { &self.prompt }
-    fn model_tier(&self) -> ModelTier { self.inner.model_tier() }
-    fn model(&self) -> &str { self.inner.model() }
-    fn temperature(&self) -> f64 { self.inner.temperature() }
-    fn max_turns(&self) -> usize { self.inner.max_turns() }
-    fn allowed_tools(&self) -> Vec<String> { self.inner.allowed_tools() }
-    fn memory_limit(&self) -> Option<usize> { self.inner.memory_limit() }
-    fn allowed_tiers(&self) -> Vec<ModelTier> { self.inner.allowed_tiers() }
-    fn token_budget(&self) -> Option<u64> { self.inner.token_budget() }
-    fn skills(&self) -> Vec<String> { self.inner.skills() }
 }
 
 pub fn build_agent_from_mode(mode: AgentMode, client: Arc<dyn Client>) -> Result<Agent, String> {
@@ -67,11 +50,11 @@ pub fn build_agent_from_mode(mode: AgentMode, client: Arc<dyn Client>) -> Result
         agent_register_skill_tool(&agent);
     }
     if (mode.context_file.len() as i32) > 0 {
-        agent = agent_with_context_file(agent, &mode.context_file);
+        agent = agent_with_context_file(agent, &mode.context_file)
     } else {
         let ctx = find_context_file();
         if ctx_is_some(&ctx) {
-            agent = agent_with_context_file(agent, &ctx_unwrap(ctx));
+            agent = agent_with_context_file(agent, &ctx_unwrap(ctx))
         }    }
 
     return Ok(agent);
@@ -112,10 +95,26 @@ fn resolve_role(spec_input: &str) -> Result<Arc<dyn Role>, String> {
         None => {},
     };
     let content = read_at_file(spec_input);
-    return load_role(&content).map_err(|e| e.to_string());
+    let r = load_role(&content);
+    match r {
+        Ok(role) => return Ok(role),
+        Err(e) => return Err(e.to_string()),
+    };
 }
 
 fn find_context_file() -> Option<String> {
     let cwd = current_dir();
     return find_ctx_upward(&cwd);
+}impl auto_ai_agent::Role for OwnedRole {
+    fn name(&self) -> &str { self.inner.name() }
+    fn system_prompt(&self) -> &str { self.inner.system_prompt() }
+    fn model_tier(&self) -> ModelTier { self.inner.model_tier() }
+    fn model(&self) -> &str { self.inner.model() }
+    fn temperature(&self) -> f64 { self.inner.temperature() }
+    fn max_turns(&self) -> usize { self.inner.max_turns() }
+    fn allowed_tools(&self) -> Vec<String> { self.inner.allowed_tools() }
+    fn memory_limit(&self) -> Option<usize> { self.inner.memory_limit() }
+    fn allowed_tiers(&self) -> Vec<ModelTier> { self.inner.allowed_tiers() }
+    fn token_budget(&self) -> Option<u64> { self.inner.token_budget() }
+    fn skills(&self) -> Vec<String> { self.inner.skills() }
 }

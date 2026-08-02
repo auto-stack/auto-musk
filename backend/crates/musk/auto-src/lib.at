@@ -33,7 +33,7 @@ pub fn build_agent_from_mode(mode AgentMode, client Arc<dyn Client>) Result<Agen
     let role = resolve_role(mode.role.view).unwrap()
     let owned = OwnedRole.new(role)
     let owned2 = owned.with_extra_prompt(mode.extra_system_prompt.view)
-    let agent = Agent.new(owned2, client)
+    var agent = Agent.new(owned2, client)
     let all_tools List<(str, Arc<dyn Tool>)> = [
         ("read_file", Arc.new(ReadFile.new())),
         ("write_file", Arc.new(WriteFile.new())),
@@ -65,11 +65,11 @@ pub fn build_agent_from_mode(mode AgentMode, client Arc<dyn Client>) Result<Agen
         agent_register_skill_tool(agent)
     }
     if mode.context_file.len() > 0 {
-        agent_with_context_file(agent, mode.context_file)
+        agent = agent_with_context_file(agent, mode.context_file)
     } else {
         let ctx = find_context_file()
         if ctx_is_some(ctx) {
-            agent_with_context_file(agent, ctx_unwrap(ctx))
+            agent = agent_with_context_file(agent, ctx_unwrap(ctx))
         }
     }
     return Ok(agent)
@@ -80,8 +80,8 @@ pub fn build_agent_with_context(mode AgentMode, client Arc<dyn Client>, ctx Opti
     is ctx {
         Some(c) -> {
             let orch List<(str, Arc<dyn Tool>)> = [
-                ("spawn_relay", Arc.new(SpawnRelay.new(c))),
-                ("dispatch", Arc.new(Dispatch.new(c))),
+                ("spawn_relay", Arc.new(SpawnRelay.new(c.clone()))),
+                ("dispatch", Arc.new(Dispatch.new(c.clone()))),
                 ("bring_in", Arc.new(BringIn.new(c)))
             ]
             for pair in orch {
@@ -114,7 +114,11 @@ fn resolve_role(spec_input str) Result<Arc<dyn Role>, str> {
         None -> {}
     }
     let content = read_at_file(spec_input)
-    return load_role(content)
+    let r = load_role(content.view)
+    is r {
+        Ok(role) -> return Ok(role),
+        Err(e) -> return Err(e.to_string())
+    }
 }
 
 fn find_context_file() Option<str> {

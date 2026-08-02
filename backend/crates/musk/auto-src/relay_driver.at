@@ -26,7 +26,7 @@ ext MuskAgentFactory {
         let mode = AgentMode(
             name: "relay-" + role_id,
             description: "",
-            role: role_id,
+            role: role_id.to_string(),
             skills: false,
             tools: [],
             workflow: None,

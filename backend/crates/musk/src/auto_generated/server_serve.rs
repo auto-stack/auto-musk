@@ -34,7 +34,7 @@ async fn settings_link() -> Response {
     let cfg = app_config_load();
     let daemon_url = app_config_effective_daemon_url(cfg);
     let ensure_url: String = format!("{}{}", daemon_url, "/v1/services/os-config/ensure");
-    let result = http_post_json(ensure_url.as_str()).await;
+    let result = http_post_json(&ensure_url.as_str()).await;
     match result {
         Ok(val) => {
             let status = value_get_str(&val, "status");
@@ -67,10 +67,9 @@ async fn drive_loop(state: Arc<AppState>, ws_id: &str, run_id: &str) -> () {
             "execute" => {
                 let role_id = advance_role_id(&result);
                 let step_err = run_step(state.clone(), ws_id, run_id, role_id.as_str()).await;
-                match step_err {
-                    Err(e) => relay_submit_error(run_id, &role_id, &e),
-                    Ok(_) => {},
-                };
+                if step_err_is_err(&step_err) {
+                    relay_submit_error(run_id, &role_id, &step_err);
+                }
             },
             "wait" => return,
             "completed" => return,
@@ -113,6 +112,6 @@ struct DriveStreamSink {
 impl DriveSink for DriveStreamSink {
     fn on_event(&self, ev: i32) {
 
-        drive_handle_stream_event(&self.ws_id, &self.run_id, &self.role_id, ev);
+        drive_handle_stream_event(&self.ws_id.clone(), &self.run_id.clone(), &self.role_id.clone(), ev);
     }
 }

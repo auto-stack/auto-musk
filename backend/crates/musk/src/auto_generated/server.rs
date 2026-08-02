@@ -20,7 +20,7 @@ use crate::server::AppState;
 /// 关键转换规则（Plan 379 + 380 P0 后）:
 /// - `impl IntoResponse` 多分支 -> 统一 `~Json<T>` 返回（错误也用 DTO，状态码在外壳层处理）
 /// - `json!({"k":v})` -> 新建 DTO struct
-/// - `State(&s): State<AppState>` -> `s State<AppState>`（整体参数，函数体内访问 s.auth 等）
+/// - `State(s): State<AppState>` -> `s State<AppState>`（整体参数，函数体内访问 s.auth 等）
 /// - `Path(id): Path<T>` -> `p Path<T>`
 /// - handler 定义在 build_router 之前（a2r 单遍）
 #[derive(Debug, Serialize)]
@@ -348,7 +348,7 @@ async fn auth_login(s: State<AppState>, body: Json<LoginRequest>) -> Json<LoginR
 
 async fn auth_me(s: State<AppState>, headers: HeaderMap) -> Json<LoginResponse> {
     let token: String = auth_token_from_headers(&s, headers);
-    let username: String = auth_username_from_token(&s, &token);
+    let username: String = auth_username_from_token(&s, &token.clone());
     let role: String = auth_role_from_token(&s, &token);
     return Json(LoginResponse { token: token.to_string(), username: username.to_string(), role: role.to_string() });
 }
@@ -466,22 +466,22 @@ async fn app_harness_delete(p: Path<(String, String)>) -> Json<Deleted> {
 }
 
 async fn chat_create(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<ChatCreateBody>) -> Json<SessionResp> {
-    let resp = SessionResp { id: String::new(), name: String::new(), mode: String::new() };
+    let resp = chats_create(&s, q, body);
     return Json(resp);
 }
 
 async fn chat_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<SessionsResp> {
-    let list = vec![];
+    let list = chats_list(&s, q);
     return Json(SessionsResp { sessions: list });
 }
 
 async fn chat_get(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<SessionResp> {
-    let resp = SessionResp { id: String::new(), name: String::new(), mode: String::new() };
+    let resp = chats_get(&s, q, p);
     return Json(resp);
 }
 
 async fn chat_rename(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ChatRenameBody>) -> Json<SessionResp> {
-    let resp = SessionResp { id: String::new(), name: String::new(), mode: String::new() };
+    let resp = chats_rename(&s, q, p, body);
     return Json(resp);
 }
 
@@ -506,12 +506,12 @@ async fn chat_approve(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(Str
 }
 
 async fn chat_reject(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, u32)>) -> Json<SessionResp> {
-    let resp = SessionResp { id: String::new(), name: String::new(), mode: String::new() };
+    let resp = chats_reject(&s, q, p);
     return Json(resp);
 }
 
 async fn chat_reject_all(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<SessionResp> {
-    let resp = SessionResp { id: String::new(), name: String::new(), mode: String::new() };
+    let resp = chats_reject_all(&s, q, p);
     return Json(resp);
 }
 
@@ -565,7 +565,7 @@ async fn workflows() -> Json<WorkflowsResp> {
     return Json(WorkflowsResp { workflows: list });
 }
 
-fn build_router() -> Router<crate::server::AppState> {
+fn build_router() -> Router<AppState> {
     let mut app = Router::new();
     app = app.route("/api/health", get(health));
     app = app.route("/api/professions", get(professions));

@@ -28,7 +28,7 @@ impl Tool for ReadFile {
         return "Read file contents".to_string();
     }
     fn parameters(&self) -> Value {
-        return parse_json(read_file_schema);
+        return parse_json(&read_file_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
         let path = value_get_str(&args, "path");
@@ -50,7 +50,7 @@ impl Tool for WriteFile {
         return "Write file".to_string();
     }
     fn parameters(&self) -> Value {
-        return parse_json(write_file_schema);
+        return parse_json(&write_file_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
         let path = value_get_str(&args, "path");
@@ -72,7 +72,7 @@ impl Tool for RunCommand {
         return "Run shell command".to_string();
     }
     fn parameters(&self) -> Value {
-        return parse_json(run_command_schema);
+        return parse_json(&run_command_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
         let cmd = value_get_str(&args, "cmd");
@@ -99,7 +99,7 @@ impl Tool for EditFile {
         return "Replace unique string in file".to_string();
     }
     fn parameters(&self) -> Value {
-        return parse_json(edit_file_schema);
+        return parse_json(&edit_file_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
         let path = value_get_str(&args, "path");
@@ -122,7 +122,7 @@ impl Tool for BatchReplace {
         return "Multiple replacements".to_string();
     }
     fn parameters(&self) -> Value {
-        return parse_json(batch_replace_schema);
+        return parse_json(&batch_replace_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
         let path = value_get_str(&args, "path");
@@ -144,7 +144,7 @@ impl Tool for Search {
         return "Search file tree".to_string();
     }
     fn parameters(&self) -> Value {
-        return parse_json(search_schema);
+        return parse_json(&search_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
         let pattern = value_get_str(&args, "pattern");
@@ -165,7 +165,7 @@ impl Tool for ListDir {
         return "List directory".to_string();
     }
     fn parameters(&self) -> Value {
-        return parse_json(list_dir_schema);
+        return parse_json(&list_dir_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
         let path = value_get_str(&args, "path");
@@ -186,7 +186,7 @@ impl Tool for ListSymbols {
         return "List code symbols".to_string();
     }
     fn parameters(&self) -> Value {
-        return parse_json(list_symbols_schema);
+        return parse_json(&list_symbols_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
         let path = value_get_str(&args, "path");
@@ -207,7 +207,7 @@ impl Tool for Glob {
         return "Find files by glob".to_string();
     }
     fn parameters(&self) -> Value {
-        return parse_json(glob_schema);
+        return parse_json(&glob_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
         let pattern = value_get_str(&args, "pattern");

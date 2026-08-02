@@ -36,7 +36,7 @@ function mapParam(rustSig) {
 }
 
 function mapRet(rustRet) {
-  // 返回类型简化（对 a2r 注入无关紧要，但 fn 声明需要）
+  // 返回类型简化（对 a2r 引用注入无关紧要，但 fn 声明需要类型）
   const t = rustRet.trim();
   if (t === '()') return '';
   if (t === 'String' || t === '&str') return ' str';
@@ -65,4 +65,9 @@ for (const line of lines) {
   // reference-ness (the `@` markers) matters for call-site injection.
   out.push(`fn ${name}(${autoParams})${retPart} {}`);
 }
-fs.writeFileSync(process.argv[3] || '/dev/stdout', out.join('\n') + '\n');
+// Plan 384 S1: post-process — restore precise return types that matter for
+// type inference (a2r uses extern_sig return types for stream Item etc.).
+// sse_event returns axum Event (not Value) so ~Stream<Event> resolves correctly.
+let result = out.join('\n') + '\n';
+result = result.replace(/^fn sse_event\((.*?)\) Value \{\}$/m, 'fn sse_event($1) Event {}');
+fs.writeFileSync(process.argv[3] || '/dev/stdout', result);

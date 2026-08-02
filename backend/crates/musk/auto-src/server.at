@@ -485,7 +485,7 @@ fn workflows() ~Json<WorkflowsResp> {
 // conversation_stream/workflow_run/settings_link) stay hand-written in serve()
 // ============================================================
 
-fn build_router() Router {
+fn build_router() Router<AppState> {
     var app = Router.new()
     app = app.route("/api/health", get(health))
     app = app.route("/api/professions", get(professions))

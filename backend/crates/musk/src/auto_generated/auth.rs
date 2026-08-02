@@ -151,7 +151,7 @@ impl AuthStore {
         }
 
         let salt: String = random_hex(16);
-        let hash: String = hash_password("admin", &salt);
+        let hash: String = hash_password("admin", &&salt);
         let admin: User = User { username: "admin".to_string(), role: Role::Admin, password_hash: hash.to_string(), salt: salt.to_string() };
         let _ = self.save_users(vec![admin]);
     }

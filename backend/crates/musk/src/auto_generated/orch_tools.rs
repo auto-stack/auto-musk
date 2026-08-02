@@ -24,7 +24,7 @@ impl Tool for SpawnRelay {
         return "Spawn a relay sub-process".to_string();
     }
     fn parameters(&self) -> Value {
-        return parse_json(spawn_relay_schema);
+        return parse_json(&spawn_relay_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
         let task_input = value_get_str(&args, "task");
@@ -45,7 +45,7 @@ impl Tool for Dispatch {
         return "Dispatch an errand sub-task".to_string();
     }
     fn parameters(&self) -> Value {
-        return parse_json(dispatch_schema);
+        return parse_json(&dispatch_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
         let task_input = value_get_str(&args, "task");
@@ -67,7 +67,7 @@ impl Tool for BringIn {
         return "Bring in context from another agent".to_string();
     }
     fn parameters(&self) -> Value {
-        return parse_json(bring_in_schema);
+        return parse_json(&bring_in_schema);
     }
     async fn execute(&self, args: Value) -> Result<String, ToolError> {
         let query = value_get_str(&args, "query");

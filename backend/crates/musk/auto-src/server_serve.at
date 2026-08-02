@@ -72,7 +72,8 @@ fn drive_loop(state Arc<AppState>, ws_id str, run_id str) ~void {
             "wait" -> { return },
             "completed" -> { return },
             "failed" -> { return },
-            "paused" -> { return }
+            "paused" -> { return },
+            _ -> {}
         }
     }
 }

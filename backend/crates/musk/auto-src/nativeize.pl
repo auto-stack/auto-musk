@@ -148,6 +148,70 @@ if ($src =~ /use crate::extern_impl/) {
 # Only matches a fn main whose body is exclusively schema `let` bindings.
 $src =~ s/\nfn main\(\) \{\s*(?:let \w+_schema: String = format!\([^;]*;;\s*)+\}\s*\n/\n/g;
 
+# Plan 384: fix const type annotations. a2r renders `const X str = "...";` as
+# `const X: String = "...";` (or `: /* unknown */`), but a &'static str literal
+# cannot be a `String` (not a const expression) and `/* unknown */` is illegal.
+# Coerce both to `&str`.
+$src =~ s/^(const \w+:) (String|\*\/ unknown \*\/) =/\1 \&str =/gm;
+
+# Plan 384 stage-2: post-process fixes for a2r streaming/ownership bugs that
+# are too invasive to fix in the transpiler right now.
+# (1) async void fn (`-> ()`): a2r emits `return None;` for bare `return`, but
+#     Rust `-> ()` fns need `return;`. a2r's fix_void handles bare `fn f()` but
+#     misses some `async fn ... -> ()` cases (nested scope). Scope-aware rewrite:
+#     only inside fns whose signature shows `-> ()`.
+{
+    my @lines = split /\n/, $src;
+    my $in_void = 0; my $void_brace = 0; my $brace = 0;
+    for my $i (0..$#lines) {
+        my $t = $lines[$i]; $t =~ s/^\s+//; $t =~ s/\s+$//;
+        if ($t =~ /^(pub )?(async )?fn / && ($t =~ /-> \(\)/ || $t =~ /->\(\)/ || $t !~ /->/)) {
+            $in_void = 1; $void_brace = $brace;
+        }
+        for my $ch (split //, $t) { $brace++ if $ch eq '{'; $brace-- if $ch eq '}'; }
+        if ($in_void && $brace <= $void_brace && $t =~ /}/) { $in_void = 0; }
+        # match `return None;` (stmt) and `return None,` (match arm), inline.
+        # Keep the original terminator (; for stmt, , for match arm).
+        if ($in_void && $t =~ /return None([;,])/) { my $term = $1; $lines[$i] =~ s/return None[;,]/return$term/; }
+    }
+    $src = join("\n", @lines);
+}
+# (2) impl Stream with a &str param captures a lifetime not in bounds → add `+ '_`.
+#     Skip conv_event_stream (its id is made owned in 2b below — no &str left).
+$src =~ s/(fn (?!(?:conv_event_stream))\w+_stream\([^)]*&str[^)]*\) -> impl futures::Stream<Item = Result<Event, Infallible>>)( \{)/$1 + '_$2/g;
+# (2b) conv_event_stream specifically: the stream outlives the caller's local
+# `id`, so an `&str` capture dangles (E0597). Make `id` owned (String) and pass
+# the owned value at the call site (move, not borrow).
+$src =~ s/fn conv_event_stream\(rx: Value, id: &str\)/fn conv_event_stream(rx: Value, id: String)/g;
+$src =~ s/conv_event_stream\(rx\.clone\(\), id\.as_str\(\)\)/conv_event_stream(rx, id)/g;
+# (2c) inside conv_event_stream, conv_event_matches takes &str but id is now
+#      owned String — borrow it at the call site.
+$src =~ s/conv_event_matches\((&ev), id\)/conv_event_matches($1, \&id)/g;
+# (3) ExitRouting::Loop tuple-ctor → struct-ctor (upstream uses named fields).
+$src =~ s/ExitRouting::Loop\("([^"]*)",\s*(\d+)\)/ExitRouting::Loop { target_step_id: "$1".to_string(), max_iterations: $2 }/g;
+
+# (4) OwnedRole needs `impl auto_ai_agent::Role` (delegates to inner Arc<dyn Role>).
+# Auto's str→String is incompatible with Role's &str returns, so this is injected
+# here rather than expressed in lib.at. Only inject if not already present.
+if ($src =~ /struct OwnedRole/ && $src !~ /impl auto_ai_agent::Role for OwnedRole/) {
+    my $role_impl = <<'RUST';
+impl auto_ai_agent::Role for OwnedRole {
+    fn name(&self) -> &str { self.inner.name() }
+    fn system_prompt(&self) -> &str { self.inner.system_prompt() }
+    fn model_tier(&self) -> ModelTier { self.inner.model_tier() }
+    fn model(&self) -> &str { self.inner.model() }
+    fn temperature(&self) -> f64 { self.inner.temperature() }
+    fn max_turns(&self) -> usize { self.inner.max_turns() }
+    fn allowed_tools(&self) -> Vec<String> { self.inner.allowed_tools() }
+    fn memory_limit(&self) -> Option<usize> { self.inner.memory_limit() }
+    fn allowed_tiers(&self) -> Vec<ModelTier> { self.inner.allowed_tiers() }
+    fn token_budget(&self) -> Option<u64> { self.inner.token_budget() }
+    fn skills(&self) -> Vec<String> { self.inner.skills() }
+}
+RUST
+    $src .= $role_impl;
+}
+
 open my $out, '>', $file or die "cannot write $file: $!\n";
 print $out $src;
 close $out;

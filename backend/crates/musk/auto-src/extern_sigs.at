@@ -61,7 +61,7 @@ fn chats_create(_s @T, _q Value, _b Value) Value {}
 fn chats_list(_s @T, _q Value) Value {}
 fn chats_get(_s @T, _q Value, _p Value) Value {}
 fn chats_rename(_s @T, _q Value, _p Value, _b Value) Value {}
-fn chats_delete(_s @T, _q Value, _p Value) {}
+fn chats_delete(_s @T, _q Value, _p @T) {}
 fn chats_delete_all(_s @T, _q Value) int {}
 fn chats_message(_s @T, _q Value, _p Value, _b Value) {}
 fn chats_approve(_s @T, _q Value, _p Value) bool {}
@@ -69,9 +69,9 @@ fn chats_reject(_s @T, _q Value, _p Value) Value {}
 fn chats_reject_all(_s @T, _q Value, _p Value) Value {}
 fn conversations_list(_s @T, _q Value) Value {}
 fn conversations_get(_s @T, _q Value, _p Value) Value {}
-fn conversations_delete(_s @T, _q Value, _p Value) {}
+fn conversations_delete(_s @T, _q Value, _p @T) {}
 fn conversations_rename(_s @T, _q Value, _p Value, _b Value) Value {}
-fn conversations_subscribe(_s @T, _q Value) int {}
+fn conversations_subscribe(_s @T, _q Value) Value {}
 fn conv_event_matches(_ev @T, _id @str) bool {}
 fn conv_event_id(_ev @T) str {}
 fn conv_event_turn(_ev @T) Value {}
@@ -94,7 +94,7 @@ fn relay_publish(_r @str, _v @T) {}
 fn advance_is_none(_r @T) bool {}
 fn advance_kind(_r @T) str {}
 fn advance_role_id(_r @T) str {}
-fn relay_submit_error(_r @str, _r2 @str, _e @str) {}
+fn relay_submit_error(_r @str, _r2 @str, _e @T) {}
 fn relay_step_context(_w @str, _r @str) str {}
 fn factory_build_agent(_s @T, _w @str, _r @str, _r2 @str) Value {}
 fn drive_accumulated(_w @str, _r @str) str {}
@@ -124,9 +124,9 @@ fn agent_run_stream_with_sink(_a Value, _t str, _sink Value, _c Value) Value {}
 fn serve_init_state(_c Value) Value {}
 fn serve_build_static() {}
 fn serve_build_cors() {}
-fn stream_event_map(_e int) Value {}
-fn workflow_event_map(_e int) Value {}
-fn step_err_is_err(e str) bool {}
+fn stream_event_map(_e Value) Value {}
+fn workflow_event_map(_e Value) Value {}
+fn step_err_is_err(e @T) bool {}
 fn resolve_within_project(p @str) str {}
 fn write_file_do(p @str, c @str) {}
 fn command_needs_approval(c @str) bool {}
@@ -139,11 +139,14 @@ fn list_symbols_in(p @str) str {}
 fn glob_files(p @str) str {}
 fn http_post_json(_u @str) Value {}
 fn mpsc_channel() Value {}
-fn mpsc_try_send(t @T, m Value) {}
-fn mpsc_recv(r @T) Value {}
+fn mpsc_sender(_ch @T) Value {}
+fn mpsc_receiver(_ch @T) Value {}
+fn mpsc_try_send(_t @T, _m Value) {}
+fn mpsc_recv(_r @T) Value {}
 fn msg_is_none(m @T) bool {}
 fn msg_unwrap(m Value) Value {}
-fn broadcast_recv(_r int) Value {}
+fn broadcast_recv(_r @T) Value {}
+fn sse_event(name @str, dto Value) Event {}
 fn path_inner(p @T) str {}
 fn json_response(_d Value) Value {}
 fn error_response(_c int, _d Value) Value {}

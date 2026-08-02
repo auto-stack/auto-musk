@@ -28,7 +28,7 @@ pub use auto_ai_agent::orchestration::*;
 use super::server::{
     DriftResult, RelatedInfo, ProfessionItem, ModeItem, RoleItem, RoleDetail,
     ConfigOverview, AppConfigResp, WorkspaceMeta, WorkspaceResp, WorkspaceStatusResp,
-    BrowseEntry,
+    BrowseEntry, SessionResp, SessionSummary,
 };
 use super::server_stream::{
     WorkflowRunResponse, WorkflowEventDto, SseEventDto, RunResponse,
@@ -107,21 +107,21 @@ pub fn harness_list<T>(_p: &T) -> Value { Value::Null }
 pub fn harness_save<T,U>(_p: &T, _b: U) {}
 pub fn harness_delete<T>(_p: &T) {}
 pub fn harness_name_from_path<T>(_p: &T) -> String { String::new() }
-pub fn chats_create<T,U,V>(_s: &T, _q: U, _b: V) -> Value { Value::Null }
-pub fn chats_list<T,U>(_s: &T, _q: U) -> Vec<Value> { vec![] }
-pub fn chats_get<T,U,V>(_s: &T, _q: U, _p: V) -> Value { Value::Null }
-pub fn chats_rename<T,U,V,W>(_s: &T, _q: U, _p: V, _b: W) -> Value { Value::Null }
-pub fn chats_delete<T,U,V>(_s: &T, _q: U, _p: V) {}
+pub fn chats_create<T,U,V>(_s: &T, _q: U, _b: V) -> SessionResp { SessionResp { id: String::new(), name: String::new(), mode: String::new() } }
+pub fn chats_list<T,U>(_s: &T, _q: U) -> Vec<SessionSummary> { vec![] }
+pub fn chats_get<T,U,V>(_s: &T, _q: U, _p: V) -> SessionResp { SessionResp { id: String::new(), name: String::new(), mode: String::new() } }
+pub fn chats_rename<T,U,V,W>(_s: &T, _q: U, _p: V, _b: W) -> SessionResp { SessionResp { id: String::new(), name: String::new(), mode: String::new() } }
+pub fn chats_delete<T,U,V>(_s: &T, _q: U, _p: &V) {}
 pub fn chats_delete_all<T,U>(_s: &T, _q: U) -> u32 { 0 }
 pub fn chats_message<T,U,V,W>(_s: &T, _q: U, _p: V, _b: W) {}
 pub fn chats_approve<T,U,V>(_s: &T, _q: U, _p: V) -> bool { true }
-pub fn chats_reject<T,U,V>(_s: &T, _q: U, _p: V) -> Value { Value::Null }
-pub fn chats_reject_all<T,U,V>(_s: &T, _q: U, _p: V) -> Value { Value::Null }
+pub fn chats_reject<T,U,V>(_s: &T, _q: U, _p: V) -> SessionResp { SessionResp { id: String::new(), name: String::new(), mode: String::new() } }
+pub fn chats_reject_all<T,U,V>(_s: &T, _q: U, _p: V) -> SessionResp { SessionResp { id: String::new(), name: String::new(), mode: String::new() } }
 pub fn conversations_list<T,U>(_s: &T, _q: U) -> Value { Value::Null }
 pub fn conversations_get<T,U,V>(_s: &T, _q: U, _p: V) -> Value { Value::Null }
-pub fn conversations_delete<T,U,V>(_s: &T, _q: U, _p: V) {}
+pub fn conversations_delete<T,U,V>(_s: &T, _q: U, _p: &V) {}
 pub fn conversations_rename<T,U,V,W>(_s: &T, _q: U, _p: V, _b: W) -> Value { Value::Null }
-pub fn conversations_subscribe<T,U>(_s: &T, _q: U) -> i32 { 0 }
+pub fn conversations_subscribe<T,U>(_s: &T, _q: U) -> Value { Value::Null }
 pub fn conv_event_matches(_ev: &Value, _id: &str) -> bool { false }
 pub fn conv_event_id(_ev: &Value) -> String { String::new() }
 pub fn conv_event_turn(_ev: &Value) -> Option<String> { None }
@@ -144,7 +144,7 @@ pub fn relay_publish(_r: &str, _v: &Value) {}
 pub fn advance_is_none(_r: &Value) -> bool { true }
 pub fn advance_kind(_r: &Value) -> String { "completed".into() }
 pub fn advance_role_id(_r: &Value) -> String { String::new() }
-pub fn relay_submit_error(_r: &str, _r2: &str, _e: &str) {}
+pub fn relay_submit_error(_r: &str, _r2: &str, _e: &Result<String, String>) {}
 pub fn relay_step_context(_w: &str, _r: &str) -> String { String::new() }
 pub async fn factory_build_agent<T>(_s: &T, _w: &str, _r: &str, _r2: &str) -> Agent {
     Agent::new(StubRole, Arc::new(NoDaemonClient) as Arc<dyn Client>)
@@ -180,9 +180,9 @@ pub fn serve_build_static() -> () {}
 pub fn serve_build_cors() -> () {}
 pub fn serve_build_app(_s: AppState, _st: (), _c: ()) -> () {}
 pub async fn serve_listen(_a: &str, _app: ()) {}
-pub fn stream_event_map(_e: i32) -> SseEventDto { SseEventDto::Cancelled }
-pub fn workflow_event_map(_e: i32) -> WorkflowEventDto { WorkflowEventDto::StepSkipped { step_id: String::new() } }
-pub fn step_err_is_err(e: String) -> bool { e.len() > 0 }
+pub fn stream_event_map(_e: Option<Value>) -> SseEventDto { SseEventDto::Cancelled }
+pub fn workflow_event_map(_e: Option<Value>) -> WorkflowEventDto { WorkflowEventDto::StepSkipped { step_id: String::new() } }
+pub fn step_err_is_err(e: &Result<String, String>) -> bool { e.is_err() }
 pub fn resolve_within_project(p: &str) -> String { p.to_string() }
 pub fn write_file_do(p: &str, c: &str) { let _ = std::fs::write(p, c); }
 pub fn command_needs_approval(c: &str) -> bool { !c.starts_with("echo") }
@@ -197,14 +197,19 @@ pub fn list_directory(p: &str) -> String { format!("(stub) {}", p) }
 pub fn list_symbols_in(p: &str) -> String { format!("(stub) {}", p) }
 pub fn glob_files(p: &str) -> String { format!("(stub) {}", p) }
 pub fn http_post_json(_u: &str) -> impl std::future::Future<Output = Result<Value, String>> { async { Ok(Value::Null) } }
-pub fn mpsc_channel() -> (std::sync::mpsc::Sender<Value>, std::sync::mpsc::Receiver<Value>) { std::sync::mpsc::channel() }
-pub fn mpsc_sender(ch: (std::sync::mpsc::Sender<Value>, std::sync::mpsc::Receiver<Value>)) -> std::sync::mpsc::Sender<Value> { ch.0 }
-pub fn mpsc_receiver(ch: (std::sync::mpsc::Sender<Value>, std::sync::mpsc::Receiver<Value>)) -> std::sync::mpsc::Receiver<Value> { ch.1 }
-pub fn mpsc_try_send(t: &std::sync::mpsc::Sender<Value>, m: Value) { let _ = t.send(m); }
-pub async fn mpsc_recv(r: &mut std::sync::mpsc::Receiver<Value>) -> Option<Value> { None }
+pub fn mpsc_channel() -> Value { Value::Null }
+pub fn mpsc_sender(_ch: &Value) -> Value { Value::Null }
+pub fn mpsc_receiver(_ch: &Value) -> Value { Value::Null }
+pub fn mpsc_try_send(_t: &Value, _m: Value) {}
+pub async fn mpsc_recv(_r: &Value) -> Option<Value> { None }
 pub fn msg_is_none(m: &Option<Value>) -> bool { m.is_none() }
 pub fn msg_unwrap(m: Option<Value>) -> Value { m.unwrap_or(Value::Null) }
-pub fn broadcast_recv(_r: i32) -> impl std::future::Future<Output = Option<Value>> { async { None } }
+pub fn broadcast_recv(_r: &Value) -> impl std::future::Future<Output = Option<Value>> { async { None } }
+/// Plan 384 S1: build an axum SSE Event from a serializable DTO + event name,
+/// unwrapping the inner json_data Result so callers can `yield event` directly.
+pub fn sse_event(name: &str, dto: Value) -> Event {
+    Event::default().event(name).json_data(dto).unwrap_or_else(|_| Event::default())
+}
 pub fn path_inner<T>(p: &T) -> String { String::new() }
 pub fn json_response<T: serde::Serialize>(_d: T) -> Response { Response::default() }
 pub fn error_response<T: serde::Serialize>(_c: u16, _d: T) -> Response { Response::default() }
