@@ -1,5 +1,9 @@
 # 003 — auto-musk MVP:Rust 后端 + 单 agent + 基础工具
 
+## Status: COMPLETE
+
+> 🗄️ **已归档**（2026-08-03）。验收标准全达成；产物在 `backend/crates/musk/`（MVP CLI + 9 工具）。归档方法见 `../skills/plan-archiver`。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 > **✅ 已完成（2026-06-26 核实）**：Rust workspace 骨架（`backend/Cargo.toml` + `crates/musk`）、3 个基础工具、`musk run` CLI、README 全部落地。验收标准全达成：`cargo build`/`cargo test` 通过，9 个工具就位（见 Plan 004 扩展）。产出 commit 见 git log。

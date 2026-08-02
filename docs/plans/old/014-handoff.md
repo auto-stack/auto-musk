@@ -1,5 +1,9 @@
 # 计划 014 交接说明：合并编译验证（335→153 错误）
 
+## Status: SUPERSEDED
+
+> 🗄️ **已归档**（2026-08-03）。本交接为 335→153 的中间记录，已被 `015-merge-compile-zero.md`（153→0）及 commit `f065ff1`（Plan 384 阶段二，全量自动转译 0 产物手改）超越。保留作错误分类（§7）的历史参考。
+
 > 日期：2026-08-01
 > 仓库：auto-musk（main 分支，已提交）+ auto-lang（master，已合并所有 P0~P7/G1~G4）
 > 计划文档：`docs/plans/014-auto-backend-port.md`（§7 是错误分析）

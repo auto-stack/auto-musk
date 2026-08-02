@@ -1,5 +1,9 @@
 # 004 — 工具集补全(B,优先级最高)
 
+## Status: COMPLETE
+
+> 🗄️ **已归档**（2026-08-03）。9 个工具全部落地于 `backend/crates/musk/src/tools.rs`。
+
 > **状态**:设计 + 实施计划。执行时用 `executing-plans` 技能逐 task 推进。
 
 > **✅ 已完成（2026-06-26 核实）**：list_dir / list_symbols / glob / batch_replace 全部实现并注册。tools.rs 现 9 个工具。

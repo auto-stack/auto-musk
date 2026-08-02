@@ -1,5 +1,9 @@
 # 006 — 更多技能移植(D,优先级中低)
 
+## Status: COMPLETE
+
+> 🗄️ **已归档**（2026-08-03）。7 个技能落地于 `skills/`。
+
 > **状态**:✅ **已完成（2026-06-26 核实）**。技能从 3 个扩展到 7 个（新增 test-driven-development / systematic-debugging / requesting-code-review / verification-before-completion）。`skills/` 与 `~/.config/autoos/skills/` 双处安装齐备。
 > **仓库**:auto-musk(`skills/` + 用户目录 `~/.config/autoos/skills/`)。
 > **仓库**:auto-musk(`skills/` + 用户目录 `~/.config/autoos/skills/`)。

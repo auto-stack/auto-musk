@@ -1,5 +1,9 @@
 # 007 — a2vm pnpm fix PR review/合并(E,优先级最低)
 
+## Status: SUPERSEDED / CLOSED
+
+> 🗄️ **已归档**（2026-08-03）。另案已修复合并，原跟踪文件关闭（2026-06-26）。
+
 > **状态**: ✅ **已解决（2026-06-26 核实）** —— auto-lang master 已以**另案方案**修复并合并,本跟踪文件可关闭。
 > **仓库**:auto-lang(`gitee.com:auto-stack/auto-lang`)。
 > **分支**:`fix/vue-pnpm-workspace-single-package`(本仓原修复分支,本地已不可见)。

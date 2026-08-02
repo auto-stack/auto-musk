@@ -1,5 +1,9 @@
 # 005 — 流式 `musk chat`(A,优先级第二)
 
+## Status: COMPLETE
+
+> 🗄️ **已归档**（2026-08-03）。流式接入落地于 `backend/crates/musk/src/main.rs`。
+
 > **状态**:✅ **已完成（2026-06-26 核实）**。`main.rs:327` 已接入 `agent.run_stream`，Delta 逐 token `print!`+flush、Tool/Done/Error 处理齐备，多轮 Memory 不破坏。终端流式体验达成。
 > **仓库**:auto-musk(`backend/crates/musk/src/main.rs`)。
 > **仓库**:auto-musk(`backend/crates/musk/src/main.rs`)。

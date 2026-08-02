@@ -1,5 +1,9 @@
 # auto-musk 上游依赖：auto-lang 补强任务（交付给 auto-lang）
 
+## Status: SUPERSEDED
+
+> 🗄️ **已归档**（2026-08-03）。本文件属 v1（AutoVM 后端）方向。v2 架构（见 `001-auto-forge-migration-super-plan.md` §「对 v1 阶段的影响」）已将后端改为 Rust，明确「不再依赖 auto-lang 的任何补强」，故任务 A/B 不再需要执行。保留作历史参考。
+
 > 本文件是 auto-musk 移植的两个前置基础的详细任务描述，供复制到 auto-lang 工程的 agent 中执行。
 > 两个任务**有依赖顺序**：任务 A 先做，任务 B 后做（B 依赖 A 的 HTTP server 请求处理流程）。
 

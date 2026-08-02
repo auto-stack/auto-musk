@@ -2,6 +2,7 @@
 
 > **状态**：高层总纲。每个阶段的详细实施计划由对应的 `00x-*.md` 单独建立。
 > **维护**：阶段开始前用 `writing-plans` skill 生成详细计划；阶段完成后在此文件勾选进度。
+> **进度**（2026-08-03 核对）：阶段 0+1 ✅（产物见 `backend/crates/musk/`，已归档至 `docs/plans/old/`）；阶段 2-6 ⬜（待启动，规划见 `009`~`013`）。
 
 ---
 
@@ -97,13 +98,13 @@ auto-ai-agent = { git = "git@github.com:auto-stack/auto-ai.git", branch = "main"
 
 | 阶段 | 状态 | 计划文件 | 完成摘要 |
 |------|------|----------|----------|
-| 0 — Rust 后端骨架 | ⬜ | (本文件 §阶段0) | — |
-| 1 — MVP 单 agent + 基础工具 | ⬜ | `003-*.md`(首期) | — |
-| 2 — HTTP API + 前后端打通 | ⬜ | TBD | — |
-| 3 — Forge 聊天流式 SSE | ⬜ | TBD | — |
-| 4 — 多角色 Workflow | ⬜ | TBD | — |
+| 0 — Rust 后端骨架 | ✅ | (本文件 §阶段0) | `backend/Cargo.toml` + `crates/musk` 骨架就位（2026-06-26）。 |
+| 1 — MVP 单 agent + 基础工具 | ✅ | `003-*.md`(首期，已归档) | MVP CLI + 9 工具 + 流式 chat（`003`/`004`/`005`/`006`/`008` 全部落地）。 |
+| 2 — HTTP API + 前后端打通 | ⬜ | `008`/`009` | chats Web 应用 + CLI 配置已接通（`008`），完整 parity 见 `009`。 |
+| 3 — Forge 聊天流式 SSE | ✅ | `005`/`008`(已归档) | `main.rs`/`chats.rs` SSE 端点已落地（CLI 终端流式见 `005`，Web 见 `008`）。 |
+| 4 — 多角色 Workflow | ⬜ | `012`/`013` | Relay Box（`012`）+ Conversation/Turn 数据模型（`013`）规划就绪，未实施。 |
 | 5 — Spec Ledger | ⬜ | TBD | — |
-| 6 — RBAC + App Shell + MCP | ⬜ | TBD | — |
+| 6 — RBAC + App Shell + MCP | ⬜ | `010`/`011` | UI 移植（`010`）+ 多目录 workspace（`011`）规划就绪，未实施。 |
 
 ---
 
