@@ -90,13 +90,15 @@ cd web && npm run dev      # → http://localhost:3000
 
 ## 状态与计划
 
-当前进度见 [`docs/plans/009-parity-roadmap-vs-auto-forge.md`](docs/plans/009-parity-roadmap-vs-auto-forge.md)（注：plan 009 的阶段勾选尚未回填，实际进度已领先其标注）。
+当前进度见 [`docs/plans/009-parity-roadmap-vs-auto-forge.md`](docs/plans/009-parity-roadmap-vs-auto-forge.md)（总览见 [`001`](docs/plans/001-auto-forge-migration-super-plan.md#v2-进度跟踪)）。
 - ✅ P0 Spec 派生层（per-section 状态机 + rebuild_relations + derive_statuses）
 - ✅ P1a Spec 工具集（read/list/write/update/write_goals + 审批）
 - ✅ P1b spec 变更审批（approve/reject/reject-all 端点）
 - ✅ P2 Relay 引擎（driver/store/api/flows + orch_tools；原「最大缺口」已实质落地）
 - ✅ P3a Wiki 模块（WikiStore + 前端 WikiView）
+- ✅ 对话工具卡流式可见 + display_image + thinking 推理链路（2026-08-04）
 - 🔶 P1b WorkMode 三态 + errand（部分；延后）
+- ⬜ P2b.3 checkpoint 快照回滚
 - ⬜ P3b MCP 层（30 个 forge_* 工具，最后做）
 
 ## 与相关项目的关系

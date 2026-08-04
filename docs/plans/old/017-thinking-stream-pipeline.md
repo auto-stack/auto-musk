@@ -1,5 +1,13 @@
 # Plan 017 — Thinking(推理过程)流式链路打通
 
+## Status: COMPLETE
+
+> 🗄️ 已落地(2026-08-04 核对代码)。Step 1-5 全部完成:
+> - auto-ai(commit `993d4dc`):provider 解析 reasoning + daemon 推 reasoning SSE + agent StreamEvent::Thinking
+> - auto-musk(commit `42e3a96`):stream_event_to_json 加 Thinking 分支
+> - 端到端验证:SSE 收到 `{delta:14, thinking:11}`,前端思考卡片正常渲染
+> - Step 6(CLI 接入)已附带实现(main.rs 暗色打印 + tui.rs/chat_model.rs append_thinking)
+
 > 跨仓库任务:由 auto-musk 发起,实现落在 **auto-ai** 仓库。
 > 创建日期:2026-08-04
 > 关联:auto-musk 的对话工具卡改进(本轮已完成 Step 1-4)
