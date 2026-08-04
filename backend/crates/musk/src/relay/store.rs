@@ -178,6 +178,20 @@ pub struct RunMetadata {
     pub originating_chat_session: Option<String>,
     #[serde(default)]
     pub workspace_id: Option<String>,
+    // ── TaskPlan tracing (Plan 009 P2b.7) ───────────────────────────────────
+    /// When this run belongs to a TaskPlan, the plan's id.
+    #[serde(default)]
+    pub task_plan_id: Option<String>,
+    #[serde(default)]
+    pub task_run_name: Option<String>,
+    #[serde(default)]
+    pub phase_name: Option<String>,
+    #[serde(default)]
+    pub phase_index: Option<usize>,
+    #[serde(default)]
+    pub parent_run_id: Option<String>,
+    #[serde(default)]
+    pub root_run_id: Option<String>,
 }
 
 fn now_secs() -> u64 {
@@ -314,6 +328,12 @@ impl RunStore {
                 initial_task: req.task.clone(),
                 originating_chat_session: None,
                 workspace_id,
+                task_plan_id: None,
+                task_run_name: None,
+                phase_name: None,
+                phase_index: None,
+                parent_run_id: None,
+                root_run_id: None,
             },
         };
         self.save_run(&entry);

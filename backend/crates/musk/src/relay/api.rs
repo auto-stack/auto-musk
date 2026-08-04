@@ -59,6 +59,19 @@ pub fn publish(run_id: &str, event: &RunEvent) {
     publish_internal(run_id, event);
 }
 
+/// Publish a TaskPlan lifecycle event to all SSE subscribers (Plan 009 P2b.7).
+///
+/// Reuses the same broadcast bus as run events; `run_id` carries the task-plan
+/// instance id so subscribers (e.g. the `/events` SSE filtered by instance id)
+/// receive plan-level events alongside run-level ones.
+pub fn publish_task_plan_event(run_id: &str, event_type: &str, payload: serde_json::Value) {
+    let _ = bus().send(BusEvent {
+        run_id: run_id.into(),
+        event_type: event_type.into(),
+        payload,
+    });
+}
+
 // ─── DTOs ───────────────────────────────────────────────────────────────────
 
 #[derive(serde::Deserialize)]
