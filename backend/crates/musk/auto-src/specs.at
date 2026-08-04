@@ -35,7 +35,7 @@ fn now_sec() u64 {
 // ============================================================
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-enum SectionType {
+pub enum SectionType {
     Goals = 1
     Architecture = 2
     Designs = 3
@@ -64,13 +64,13 @@ ext SectionType {
     /// display title with emoji (for .ad file headers).
     pub fn display_title() str {
         is self {
-            SectionType.Goals -> return "Goals",
-            SectionType.Architecture -> return "Architecture",
-            SectionType.Designs -> return "Designs",
-            SectionType.Plans -> return "Plans",
-            SectionType.Tests -> return "Tests",
-            SectionType.Reviews -> return "Reviews",
-            SectionType.Reports -> return "Reports"
+            SectionType.Goals -> return "🎯 Goals",
+            SectionType.Architecture -> return "🏗️ Architecture",
+            SectionType.Designs -> return "🎨 Designs",
+            SectionType.Plans -> return "📋 Plans",
+            SectionType.Tests -> return "🧪 Tests",
+            SectionType.Reviews -> return "🔍 Reviews",
+            SectionType.Reports -> return "📊 Reports"
         }
     }
 }
@@ -80,7 +80,7 @@ ext SectionType {
 // ============================================================
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-enum SpecStatus {
+pub enum SpecStatus {
     Empty = 1
     Proposed = 2
     Draft = 3
@@ -450,8 +450,8 @@ ext SpecsDocument {
         // reverse edges, accumulated as a List (NOT HashMap — a2r-10)
         var reverse List<ReverseEntry> = []
 
-        for section in self.sections.clone() {
-            for item in section.items.clone() {
+        for section in self.sections {
+            for item in section.items {
                 var forwards List<str> = item.depends_on.clone()
                 let scanned List<str> = scan_refs(item.content.view, known.clone())
                 for s in scanned.clone() {
@@ -487,9 +487,9 @@ ext SpecsDocument {
         // Build new sections with updated related fields (whole-field reassign,
         // per a2r-11 workaround).
         var new_sections List<SpecsSection> = []
-        for section in self.sections.clone() {
+        for section in self.sections {
             var new_items List<SpecItem> = []
-            for item in section.items.clone() {
+            for item in section.items {
                 // find reverse entry for this item's id
                 var new_related List<str> = []
                 for e in reverse.clone() {
@@ -639,8 +639,8 @@ ext SpecsDocument {
     pub mut fn derive_statuses() void {
         // Snapshot as a flat List<Snap> for read-only cross-section lookup.
         var snap List<Snap> = []
-        for section in self.sections.clone() {
-            for item in section.items.clone() {
+        for section in self.sections {
+            for item in section.items {
                 snap.push(Snap(
                     id: item.id.clone(),
                     section_type: section.section_type,
@@ -654,13 +654,13 @@ ext SpecsDocument {
 
         // Build new sections list (whole-field reassign pattern).
         var new_sections List<SpecsSection> = []
-        for section in self.sections.clone() {
+        for section in self.sections {
             var new_section_status SpecStatus = section.status
             var new_last_modified u64 = section.last_modified
 
             // Build new items list for this section.
             var new_items List<SpecItem> = []
-            for item in section.items.clone() {
+            for item in section.items {
                 var new_status SpecStatus = item.status
                 var new_item_modified u64 = item.modified_at
 
@@ -842,11 +842,11 @@ ext SpecsDocument {
     pub fn overview() SpecsOverview {
         var sections List<SectionOverview> = []
         var total uint = 0
-        for s in self.sections.clone() {
+        for s in self.sections {
             // count items per status (simple two-pass, no BTreeMap)
             var seen List<str> = []
             var counts List<(str, uint)> = []
-            for it in s.items.clone() {
+            for it in s.items {
                 let st str = it.status.to_str()
                 var found bool = false
                 for pair in counts.clone() {
@@ -861,7 +861,7 @@ ext SpecsDocument {
             // tally each seen status
             for st in seen.clone() {
                 var n uint = 0
-                for it in s.items.clone() {
+                for it in s.items {
                     if it.status.to_str() == st {
                         n = n + 1u
                     }
@@ -965,13 +965,13 @@ ext SpecsStore {
     pub fn upsert_item(doc SpecsDocument, section_id str, item SpecItem) Option<SpecsDocument> {
         var section_found bool = false
         var new_sections List<SpecsSection> = []
-        for s in doc.sections.clone() {
+        for s in doc.sections {
             if s.id == section_id {
                 section_found = true
                 // build new items list: replace if id matches, else append
                 var item_found bool = false
                 var new_items List<SpecItem> = []
-                for existing in s.items.clone() {
+                for existing in s.items {
                     if existing.id == item.id {
                         item_found = true
                         new_items.push(item.clone())
@@ -1016,12 +1016,12 @@ ext SpecsStore {
         var section_found bool = false
         var new_sections List<SpecsSection> = []
         var transition_ok bool = false
-        for s in doc.sections.clone() {
+        for s in doc.sections {
             if s.id == section_id {
                 section_found = true
                 let cfg SectionConfig = SectionConfig.for_type(s.section_type)
                 var new_items List<SpecItem> = []
-                for it in s.items.clone() {
+                for it in s.items {
                     if it.id == item_id {
                         if cfg.can_transition(it.status, new_status) {
                             transition_ok = true
@@ -1089,11 +1089,11 @@ ext SpecsStore {
         var section_found bool = false
         var any_removed bool = false
         var new_sections List<SpecsSection> = []
-        for s in doc.sections.clone() {
+        for s in doc.sections {
             if s.id == section_id {
                 section_found = true
                 var new_items List<SpecItem> = []
-                for it in s.items.clone() {
+                for it in s.items {
                     if it.id == item_id {
                         any_removed = true
                     } else {

@@ -35,7 +35,7 @@ fn now_sec() -> u64 {
 /// 用 scalar 形态 (显式数字) — 这是 PoC 的第一个待测点: a2r 对此能否生成
 /// 可编译的 Rust enum + Display。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-enum SectionType {
+pub enum SectionType {
     Goals = 1,
     Architecture = 2,
     Designs = 3,
@@ -83,18 +83,18 @@ impl SectionType {
             SectionType::Tests => return "tests".to_string(),
             SectionType::Reviews => return "reviews".to_string(),
             SectionType::Reports => return "reports".to_string(),
-        };
+        }
     }
     pub fn display_title(&self) -> String {
         match self {
-            SectionType::Goals => return "Goals".to_string(),
-            SectionType::Architecture => return "Architecture".to_string(),
-            SectionType::Designs => return "Designs".to_string(),
-            SectionType::Plans => return "Plans".to_string(),
-            SectionType::Tests => return "Tests".to_string(),
-            SectionType::Reviews => return "Reviews".to_string(),
-            SectionType::Reports => return "Reports".to_string(),
-        };
+            SectionType::Goals => return "🎯 Goals".to_string(),
+            SectionType::Architecture => return "🏗️ Architecture".to_string(),
+            SectionType::Designs => return "🎨 Designs".to_string(),
+            SectionType::Plans => return "📋 Plans".to_string(),
+            SectionType::Tests => return "🧪 Tests".to_string(),
+            SectionType::Reviews => return "🔍 Reviews".to_string(),
+            SectionType::Reports => return "📊 Reports".to_string(),
+        }
     }
 }
 
@@ -103,7 +103,7 @@ impl SectionType {
 /// hand-write `as_str` + `display_title` here.
 /// display title with emoji (for .ad file headers).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-enum SpecStatus {
+pub enum SpecStatus {
     Empty = 1,
     Proposed = 2,
     Draft = 3,
@@ -215,7 +215,7 @@ impl SpecStatus {
             SpecStatus::Published => return "published".to_string(),
             SpecStatus::Analysed => return "analysed".to_string(),
             SpecStatus::Obsolete => return "obsolete".to_string(),
-        };
+        }
     }
     pub fn from_str_lossy(s: &str) -> SpecStatus {
         let mut table: std::collections::HashMap<String, SpecStatus> = std::collections::HashMap::new();
@@ -246,7 +246,7 @@ impl SpecStatus {
         match table.get(s) {
             Some(v) => return v.clone(),
             None => return SpecStatus::Draft,
-        };
+        }
     }
 }
 
@@ -327,8 +327,8 @@ impl SpecsDocument {
 
         let mut reverse: Vec<ReverseEntry> = vec![];
 
-        for section in self.sections.clone() {
-            for item in section.items.clone() {
+        for section in &self.sections {
+            for item in &section.items {
                 let mut forwards: Vec<String> = item.depends_on.clone();
                 let scanned: Vec<String> = scan_refs(&item.content, known.clone());
                 for s in scanned.clone() {
@@ -365,9 +365,9 @@ impl SpecsDocument {
 
 
         let mut new_sections: Vec<SpecsSection> = vec![];
-        for section in self.sections.clone() {
+        for section in &self.sections {
             let mut new_items: Vec<SpecItem> = vec![];
-            for item in section.items.clone() {
+            for item in &section.items {
                 
                 let mut new_related: Vec<String> = vec![];
                 for e in reverse.clone() {
@@ -397,8 +397,8 @@ impl SpecsDocument {
     pub fn derive_statuses(&mut self) {
 
         let mut snap: Vec<Snap> = vec![];
-        for section in self.sections.clone() {
-            for item in section.items.clone() {
+        for section in &self.sections {
+            for item in &section.items {
                 snap.push(Snap { id: item.id.clone().to_string(), section_type: section.section_type, status: item.status, related: item.related.clone() });
             }
         }
@@ -407,13 +407,13 @@ impl SpecsDocument {
 
 
         let mut new_sections: Vec<SpecsSection> = vec![];
-        for section in self.sections.clone() {
+        for section in &self.sections {
             let mut new_section_status: SpecStatus = section.status;
             let mut new_last_modified: u64 = section.last_modified;
             
 
             let mut new_items: Vec<SpecItem> = vec![];
-            for item in section.items.clone() {
+            for item in &section.items {
                 let mut new_status: SpecStatus = item.status;
                 let mut new_item_modified: u64 = item.modified_at;
                 
@@ -529,11 +529,11 @@ impl SpecsDocument {
     pub fn overview(&self) -> SpecsOverview {
         let mut sections: Vec<SectionOverview> = vec![];
         let mut total: u32 = 0 as u32;
-        for s in self.sections.clone() {
+        for s in &self.sections {
             
             let mut seen: Vec<String> = vec![];
             let mut counts: Vec<(String, u32)> = vec![];
-            for it in s.items.clone() {
+            for it in &s.items {
                 let st: String = it.status.to_str();
                 let mut found: bool = false;
                 for pair in counts.clone() {
@@ -548,7 +548,7 @@ impl SpecsDocument {
             
             for st in seen.clone() {
                 let mut n: u32 = 0 as u32;
-                for it in s.items.clone() {
+                for it in &s.items {
                     if it.status.to_str() == st {
                         n = n + 1
                     }
@@ -596,7 +596,7 @@ impl SectionConfig {
             SectionType::Tests => return SectionConfig { section_type: st, allowed_statuses: vec![SpecStatus::Empty, SpecStatus::Draft, SpecStatus::Implemented, SpecStatus::Done, SpecStatus::Verified, SpecStatus::Blocked], allowed_transitions: vec![(SpecStatus::Empty, SpecStatus::Draft), (SpecStatus::Draft, SpecStatus::Implemented), (SpecStatus::Implemented, SpecStatus::Done), (SpecStatus::Done, SpecStatus::Verified), (SpecStatus::Implemented, SpecStatus::Blocked), (SpecStatus::Blocked, SpecStatus::Implemented)] },
             SectionType::Reviews => return SectionConfig::for_reviews_reports(st),
             SectionType::Reports => return SectionConfig::for_reviews_reports(st),
-        };
+        }
     }
     pub fn for_arch_designs(st: SectionType) -> SectionConfig {
         return SectionConfig { section_type: st, allowed_statuses: vec![SpecStatus::Empty, SpecStatus::Draft, SpecStatus::UnderReview, SpecStatus::Approved, SpecStatus::Rejected, SpecStatus::Superseded, SpecStatus::Outdated], allowed_transitions: vec![(SpecStatus::Empty, SpecStatus::Draft), (SpecStatus::Draft, SpecStatus::UnderReview), (SpecStatus::UnderReview, SpecStatus::Approved), (SpecStatus::UnderReview, SpecStatus::Rejected), (SpecStatus::Approved, SpecStatus::Superseded), (SpecStatus::Approved, SpecStatus::Outdated)] };
@@ -626,8 +626,8 @@ impl SectionConfig {
 /// Collect all spec item IDs present in the document (across all sections).
 fn all_ids(doc: SpecsDocument) -> HashSet<String> {
     let mut set: HashSet<String> = HashSet::new();
-    for section in doc.sections {
-        for item in section.items {
+    for section in &doc.sections {
+        for item in &section.items {
             set.insert(item.id.clone().to_string());
         }
     }
@@ -638,7 +638,7 @@ fn all_ids(doc: SpecsDocument) -> HashSet<String> {
 /// IDs that actually exist in known are kept.
 fn scan_refs(text: &str, known: HashSet<String>) -> Vec<String> {
     let mut refs: Vec<String> = vec![];
-    for id in known {
+    for id in &known {
         if text.contains(id.as_str()) {
             refs.push(id.clone());
         }
@@ -679,7 +679,7 @@ struct Snap {
 /// Linear lookup in the snap list by id — returns Option<Snap> (owned clone).
 /// 用 List 线性查找替代 HashMap.get（a2r-10: HashMap 复合泛型方法调用有缺陷）。
 fn find_snap(snap: Vec<Snap>, id: &str) -> Option<Snap> {
-    for s in snap {
+    for s in &snap {
         if s.id == id {
             return Some(s.clone());
         }
@@ -695,7 +695,7 @@ fn is_goal_advanceable(s: SpecStatus) -> bool {
         SpecStatus::Approved => return true,
         SpecStatus::InProgress => return true,
         _ => return false,
-    };
+    }
 }
 
 fn is_test_done(s: SpecStatus) -> bool {
@@ -703,7 +703,7 @@ fn is_test_done(s: SpecStatus) -> bool {
         SpecStatus::Done => return true,
         SpecStatus::Verified => return true,
         _ => return false,
-    };
+    }
 }
 
 fn is_test_pending(s: SpecStatus) -> bool {
@@ -711,7 +711,7 @@ fn is_test_pending(s: SpecStatus) -> bool {
         SpecStatus::Done => return false,
         SpecStatus::Verified => return false,
         _ => return true,
-    };
+    }
 }
 
 /// The "done-ish" terminal status for a section type (used by aggregate rule).
@@ -724,7 +724,7 @@ fn section_complete_status(st: SectionType) -> SpecStatus {
         SectionType::Tests => return SpecStatus::Verified,
         SectionType::Reviews => return SpecStatus::Published,
         SectionType::Reports => return SpecStatus::Published,
-    };
+    }
 }
 
 /// Derive (auto-advance) statuses from the relation graph (see plan 014).
@@ -778,7 +778,7 @@ impl SpecsStore {
                 self.save(doc.clone());
                 return doc;
             },
-        };
+        }
     }
     pub fn save(&self, doc: SpecsDocument) {
 
@@ -810,14 +810,14 @@ impl SpecsStore {
     pub fn upsert_item(&self, doc: SpecsDocument, section_id: &str, item: SpecItem) -> Option<SpecsDocument> {
         let mut section_found: bool = false;
         let mut new_sections: Vec<SpecsSection> = vec![];
-        for s in doc.sections.clone() {
+        for s in &doc.sections {
             if s.id == section_id {
                 section_found = true;
                 
 
                 let mut item_found: bool = false;
                 let mut new_items: Vec<SpecItem> = vec![];
-                for existing in s.items.clone() {
+                for existing in &s.items {
                     if existing.id == item.id {
                         item_found = true;
                         new_items.push(item.clone())
@@ -849,12 +849,12 @@ impl SpecsStore {
         let mut section_found: bool = false;
         let mut new_sections: Vec<SpecsSection> = vec![];
         let mut transition_ok: bool = false;
-        for s in doc.sections.clone() {
+        for s in &doc.sections {
             if s.id == section_id {
                 section_found = true;
                 let cfg: SectionConfig = SectionConfig::for_type(s.section_type);
                 let mut new_items: Vec<SpecItem> = vec![];
-                for it in s.items.clone() {
+                for it in &s.items {
                     if it.id == item_id {
                         if cfg.can_transition(it.status, new_status) {
                             transition_ok = true;
@@ -893,11 +893,11 @@ impl SpecsStore {
         let mut section_found: bool = false;
         let mut any_removed: bool = false;
         let mut new_sections: Vec<SpecsSection> = vec![];
-        for s in doc.sections.clone() {
+        for s in &doc.sections {
             if s.id == section_id {
                 section_found = true;
                 let mut new_items: Vec<SpecItem> = vec![];
-                for it in s.items.clone() {
+                for it in &s.items {
                     if it.id == item_id {
                         any_removed = true
                     } else {
