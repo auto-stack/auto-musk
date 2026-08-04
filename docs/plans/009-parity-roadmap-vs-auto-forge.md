@@ -1,6 +1,6 @@
 # 009 — auto-musk vs auto-forge 功能补全计划（Parity Roadmap）
 
-> **状态**：🟡 **大部分已落地**（2026-08-04 核对代码）。P0/P1a/P1b/P2a/P2b(除 7)/P2c(3/5)/P3a 均已实施；**剩余 3 项**：P2b.7 task_plan_engine（多 relay 编排）、P2b.3 checkpoint 快照回滚、P2c spawn_task_plan/register_task_plan 2 工具、P3b MCP 层。详见各阶段 checkbox。
+> **状态**：🟡 **绝大部分已落地**（2026-08-04 核对代码）。P0/P1a/P1b/P2a/P2b(全)/P2c(全)/P3a 均已实施；**剩余 2 项**：P2b.3 checkpoint 快照回滚、P3b MCP 层。详见各阶段 checkbox 与文末「剩余工作」。
 > **架构说明**：Plan 008 已把通用编排原语（PipelineEngine/HandoffDocument/FlowSpec/BudgetTracker）下沉到外部 `auto-ai-agent` crate（`backend/crates/musk/Cargo.toml:17` path 依赖），故本计划 P2b 中"在 musk 找不到"的 `.rs` 文件实为**已下沉实现**，非缺失。
 > **状态**：实施计划。基于 2026-06-26 逐模块对比（对比报告见本文件附录 A）。
 > **仓库**：auto-musk（`backend/crates/musk/` + `web/`）。
@@ -204,8 +204,8 @@ P0  Spec Ledger 派生层（per-section 状态机 + 关系图 + 派生状态）
 - [x] **P2b.4** ✅：FlowSpec/FlowStep/GateType（auto-ai-agent `flow.at`）+ `relay/flows.rs` + `auto_generated/relay_flows.rs` 内置 default/simple/superpower/relay 4 模板（注：代码定义，非 YAML 加载）
 - [x] **P2b.5** ✅：BudgetTracker/BudgetStrategy/TokenBudget（auto-ai-agent `budget.at`）+ profession.rs/server.rs 串联
 - [x] **P2b.6** ✅：`relay/api.rs`(393 行) 全端点：runs list/start/get/delete/title/advance/rerun/handoff/gate/events + professions/souls/flows
-- [ ] **P2b.7** ❌：task_plan_engine.rs（多 relay 编排）— **未实现**（仅 profession.rs 有 `spawn_task_plan`/`register_task_plan` 字符串，无引擎代码）
-- [ ] 每小阶段一 commit + 单测/手测 — P2b.1-6 ✅；P2b.7 待做
+- [x] **P2b.7** ✅：task_plan_engine.rs（多 relay 编排）— 已移植 auto-forge：数据模型+解析（`task_plan.rs`/`task_plan_parser.rs`，Atom DSL）、`HandoffStore`（跨 run 交接）、`TaskPlanRegistry`（每工作区内置+用户 plan）、`TaskPlanEngine`（拓扑排序 phase + serial/parallel + 失败传播 + input_from 串接）、默认执行器 `drive_task_plan_run`（复用 musk `drive_run`）、6 REST 端点 + SSE。19 单测全通过。
+- [x] 每小阶段一 commit + 单测/手测 — P2b.1-6 ✅；P2b.7 ✅（Step 1-6 各一 commit）
 
 ### 验收
 - 能定义一个 flow（architect→coder→tester），启动 relay run，agent 依次接力（handoff 传递上下文），gate 处审批，产出 work product。
@@ -215,7 +215,7 @@ P0  Spec Ledger 派生层（per-section 状态机 + 关系图 + 派生状态）
 
 ## 7. P2c — 编排工具
 
-> **状态**：🟡 **3/5 已落地**（2026-08-04）。bring_in / spawn_relay / dispatch ✅（`orch_tools.rs` + lib.rs:221-223）；**spawn_task_plan / register_task_plan ❌ 未实现**（依赖 P2b.7 task_plan_engine）。
+> **状态**：✅ **5/5 全部落地**（2026-08-04）。bring_in / spawn_relay / dispatch ✅（`orch_tools.rs`）；**spawn_task_plan / register_task_plan ✅**（随 P2b.7 落地，`orch_tools.rs` + lib.rs orch_tools 列表）。
 
 **依赖**：P2b。
 **Tasks**：bring_in / spawn_relay / spawn_task_plan / register_task_plan / dispatch（参考 `tools.rs:2590-3100`）。
@@ -253,6 +253,23 @@ P0  Spec Ledger 派生层（per-section 状态机 + 关系图 + 派生状态）
 | RelayView | P2b | relay 引擎 |
 | WikiView | P3a | wiki |
 | ~~ApiSourcesView~~ | 跳过 | 归 daemon |
+
+---
+
+## 11. 剩余工作（下一轮，2026-08-04 记录）
+
+Plan 009 现仅剩 2 项未实施：
+
+### P2b.3 — checkpoint 快照/回滚
+- **现状**：auto-forge 有完整的 `relay/checkpoint.rs`（569 行，`Checkpoint` 结构 + `save`/`load`/`restore_files`/`from_checkpoint` + 单测通过），**但从未接线进 driver**（死代码）。实跑的只有 `HandoffDocument.checkpoint_id`（= step 索引）+ 一个只读 `get_checkpoint_diff` 工具。无任何 rollback 操作。
+- **移植方案**：移植 `checkpoint.rs`（快照 git state + 文件 manifest + ledger + handoff + pipeline 状态）；在 `driver.rs` 每个 step 完成后（`run_step` 返回与 `submit_handoff` 之间，~line 269）接线 `save_checkpoint`；新增 `rollback(run_id, checkpoint_id)` 方法（替换 `RunEntry.engine`）+ REST 端点 + `restore_files` 落盘回滚。
+- **风险**：auto-forge 自己都没接线，属 net-new；需设计快照触发时机（per-handoff）与回滚语义。
+
+### P3b — MCP 层
+- **现状**：musk 无任何 MCP 代码（无 `mcp/` 目录、无 `forge_*` 工具、无 MCP 依赖）。
+- **参考**：auto-forge `mcp/mod.rs`（1313 行，27 个 `#[tool]`，非 30），用 **`rmcp`** crate（features: server/macros/transport-io/transport-streamable-http-server），以 Streamable HTTP 挂在 `/mcp`。工具分 7 类：Core/Session/File/Spec Workflow/API Sources/Batch/Monitoring。
+- **移植方案**：`Cargo.toml` 加 `rmcp` + `schemars` 依赖；新建 `mcp.rs` 模块，27 个 `#[tool]` 方法各调内部 store/server 函数（同 REST handler）；`server.rs` 挂 `StreamableHttpService` 在 `/mcp`。
+- **注意**：auto-forge MCP 层**未暴露 TaskPlan/checkpoint**（早于该特性）——musk 移植时可补 `forge_*_task_plan` 工具。
 
 ---
 
