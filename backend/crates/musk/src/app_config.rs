@@ -43,6 +43,24 @@ pub struct MuskAppConfig {
     pub harness: HarnessSelection,
 }
 
+/// Deserialization view for the scalar props of a `musk { … }` config node.
+/// Used by [`MuskAppConfig::parse_from_at`] via auto-val's serde support
+/// (Plan 381). The `harness` child node is parsed separately (it's a nested
+/// block, not a prop) — see [`parse_harness`].
+#[derive(Debug, Clone, Default, Deserialize)]
+struct ScalarBody {
+    #[serde(default)]
+    daemon_url: Option<String>,
+    #[serde(default)]
+    default_mode: Option<String>,
+    #[serde(default)]
+    context_file: Option<String>,
+    #[serde(default)]
+    serve_addr: Option<String>,
+    #[serde(default)]
+    auto_start_daemon: Option<bool>,
+}
+
 /// The app's harness selection: which OS-level (or app-level) harnesses it
 /// uses. Phase 1 is "inherit as-is" — names are used directly, no overrides.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -64,7 +82,14 @@ impl MuskAppConfig {
         }
     }
 
-    /// Parse the persisted .at back into the struct (best-effort prop read).
+    /// Parse the persisted .at back into the struct.
+    ///
+    /// Scalar fields are deserialized via auto-val's serde support (Plan 381)
+    /// — the `ScalarBody` struct below reads them in one call, replacing the
+    /// old hand-written `opt_str`/`opt_bool` closures. The `harness` field is
+    /// a nested **child node** (`harness { … }`), which auto-val's v1
+    /// `Node::deserialize` doesn't traverse (it walks props only), so it stays
+    /// hand-written via [`parse_harness`].
     fn parse_from_at(content: &str) -> Option<Self> {
         use auto_atom::AtomParser;
         let atom = AtomParser::parse(content).ok()?;
@@ -72,21 +97,14 @@ impl MuskAppConfig {
             auto_atom::Atom::Node(n) if n.name.as_str() == "musk" || n.name.as_str() == "config" => n,
             _ => return None,
         };
-        let opt_str = |k: &str| match node.get_prop_of(k) {
-            auto_val::Value::Str(s) => Some(s.to_string()),
-            auto_val::Value::Nil => None,
-            other => Some(other.to_astr().to_string()),
-        };
-        let opt_bool = |k: &str| match node.get_prop_of(k) {
-            auto_val::Value::Bool(b) => Some(b),
-            _ => None,
-        };
+        // Deserialize the scalar props via serde; harness (child node) separately.
+        let body: ScalarBody = node.deserialize().ok()?;
         Some(Self {
-            daemon_url: opt_str("daemon_url"),
-            default_mode: opt_str("default_mode"),
-            context_file: opt_str("context_file"),
-            serve_addr: opt_str("serve_addr"),
-            auto_start_daemon: opt_bool("auto_start_daemon"),
+            daemon_url: body.daemon_url,
+            default_mode: body.default_mode,
+            context_file: body.context_file,
+            serve_addr: body.serve_addr,
+            auto_start_daemon: body.auto_start_daemon,
             harness: parse_harness(&node),
         })
     }
@@ -246,5 +264,29 @@ mod tests {
         let cfg = MuskAppConfig::default();
         // daemon_url falls back to env or compiled default; just check shape.
         assert!(cfg.effective_daemon_url().starts_with("http://"));
+    }
+
+    #[test]
+    fn roundtrip_with_harness() {
+        // Verifies the merged parse path: serde-deserialized scalar props +
+        // hand-written harness child node both survive a serialize→parse cycle.
+        let cfg = MuskAppConfig {
+            daemon_url: Some("http://127.0.0.1:17654".into()),
+            default_mode: Some("superpowers".into()),
+            auto_start_daemon: Some(true),
+            harness: HarnessSelection {
+                roles: vec!["coder".into(), "architect".into()],
+                skills: vec!["test-driven-development".into()],
+                modes: vec!["superpowers".into()],
+            },
+            ..Default::default()
+        };
+        let src = cfg.to_at_source();
+        let reparsed = MuskAppConfig::parse_from_at(&src).expect("must reparse");
+        assert_eq!(reparsed.daemon_url.as_deref(), Some("http://127.0.0.1:17654"));
+        assert_eq!(reparsed.auto_start_daemon, Some(true));
+        assert_eq!(reparsed.harness.roles, vec!["coder".to_string(), "architect".into()]);
+        assert_eq!(reparsed.harness.skills, vec!["test-driven-development".to_string()]);
+        assert_eq!(reparsed.harness.modes, vec!["superpowers".to_string()]);
     }
 }
