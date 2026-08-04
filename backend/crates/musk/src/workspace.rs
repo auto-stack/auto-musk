@@ -42,6 +42,7 @@ pub struct WorkspaceStores {
     pub wiki: Arc<WikiStore>,
     pub relay: Arc<RunStore>,
     pub conversations: Arc<crate::conversation::ConversationStore>,
+    pub handoffs: Arc<crate::relay::handoff_store::HandoffStore>,
 }
 
 pub struct WorkspaceRegistry {
@@ -413,6 +414,7 @@ impl WorkspaceStores {
             conversations: Arc::new(crate::conversation::ConversationStore::new(
                 data.join("conversations"),
             )),
+            handoffs: Arc::new(crate::relay::handoff_store::HandoffStore::new(&data)),
             root,
         };
         // Migrate old chat sessions into the unified conversation model (idempotent).
