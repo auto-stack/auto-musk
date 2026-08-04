@@ -59,10 +59,12 @@ fn danger_patterns() List<str> {
 pub fn classify_command(cmd str) CommandTier {
     let trimmed str = cmd.trim()
     // 1. danger patterns -> NeedsApproval(reason)
+    // (reason text mirrors the hand-written tool_safety.rs exactly — ⚠️ emoji,
+    // quoted pattern, full wording)
     let dangers List<str> = danger_patterns()
     for pat in dangers {
         if trimmed.contains(pat) {
-            return CommandTier.NeedsApproval(reason: "dangerous pattern detected: " + pat + " — needs approval")
+            return CommandTier.NeedsApproval(reason: "⚠️ dangerous pattern detected: '" + pat + "' — this command may cause irreversible damage and needs your approval.")
         }
     }
     // 2. whitelist prefix -> Allowed
@@ -78,7 +80,8 @@ pub fn classify_command(cmd str) CommandTier {
         }
     }
     // 3. else -> NeedsApproval(reason)
-    return CommandTier.NeedsApproval(reason: "command " + trimmed + " is not on the whitelist and needs approval")
+    // (reason text mirrors the hand-written tool_safety.rs exactly)
+    return CommandTier.NeedsApproval(reason: "command '" + trimmed + "' is not on the whitelist and needs your approval to run.")
 }
 
 // NOTE: path confinement (PROJECT_ROOT OnceLock, ROOT_OVERRIDE/CURRENT_ROOT

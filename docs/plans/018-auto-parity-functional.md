@@ -226,8 +226,8 @@ task_plan_engine 的 execute/run_one（async 泛型闭包 `F: Fn->Fut`）**确�
 | Phase | 状态 | 完成摘要 |
 |---|---|---|
 | 1 — specs | ✅ | 7/7 parity 测试通过；enum pub + display_title emoji 修复 |
-| 0 — a2r 改进 | 🔶 C1 ✅ + C4/C5 ✅(无需改) + C6 推迟 + C7b/C8 待修 | C1 for 借用遍历(`e2c94535`)；C4 serde 属性是 .at 遗漏；C7b tag 构造丢值待修；C8 const 不支持待修 |
-| 2 — 已移植模块 | 🔶 4/6 完成 | specs ✅ / app_config ✅ / chats ✅ / **auth ✅**(Mutex 方法补齐) / mode ⏸️(const 待 C8) / tool_safety 🔶(C7b 待修) / conversation ⬜ |
+| 0 — a2r 改进 | 🔶 C1 ✅ + C4/C5 ✅(无需改) + C6 推迟 + C7b ✅ + C8 待修 | C1 for 借用遍历(`e2c94535`)；C4 serde 属性是 .at 遗漏；C7b tag 构造丢值(`94418cda`)；C8 const 不支持待修 |
+| 2 — 已移植模块 | 🔶 5/6 有 parity 测试 | specs 7 ✅ / app_config 7 ✅ / chats 9 ✅ / auth 8 ✅ / tool_safety 7 ✅ / mode ⏸️(const 待 C8) / conversation ⬜ |
 | 3 — 缺失模块 | ⬜ 待启动 | parser 优先（试点） |
 | 4 — 复杂模块 | ⬜ 待启动 | 视 Phase 0 成果 |
 
@@ -235,10 +235,17 @@ task_plan_engine 的 execute/run_one（async 泛型闭包 `F: Fn->Fut`）**确�
 
 | 模块 | 状态 | 完成内容 | 手写边界（依赖外部 crate/a2r 限制） |
 |---|---|---|---|
-| specs | ✅ | enum pub + display_title + 去 15 处 clone | — |
-| app_config | ✅ | 10 处 serde default + Default derive | load/apply（auto_atom/env） |
-| chats | ✅ | ToolCall status/id + 7 处 serde 属性 | ChatStore 11 方法（Mutex，待移植） |
-| auth | ✅ | Hash derive + sessions 字段 + 4 个 Mutex 方法 + 修正 derive | hash_password/random_hex（sha2/hex/rand） |
+| specs | ✅ | enum pub + display_title + 去 15 处 clone；7/7 parity 测试 | — |
+| app_config | ✅ | 10 处 serde default + Default derive；7/7 parity 测试 | load/parse_from_at/to_at_source/apply_to_env（auto_atom/auto_val/env） |
+| chats | ✅ | ToolCall status/id + 7 处 serde 属性；9/9 parity 测试 | new_id（rand）；ChatStore 11 方法（文件 IO） |
+| auth | ✅ | Hash derive + sessions 字段 + 4 个 Mutex 方法 + 修正 derive；8/8 parity 测试 | hash_password/random_hex（sha2/hex/rand） |
 | mode | ⏸️ | — | BUILTIN_MODES/DEFAULT（const，待 C8）；load/parse_mode_at（auto_atom/dirs） |
-| tool_safety | 🔶 | classify_command 补 .clone()（C1 连带） | CommandTier 载荷（待 C7b）；8 路径围栏（OnceLock/thread_local） |
-| conversation | ⬜ | — | ConversationStore（Mutex+broadcast）；ConversationEvent 结构 |
+| tool_safety | ✅ | C7b 载荷恢复 + classify_reason 去变通；**理由文案对齐手写版**（⚠️ emoji/引号/完整句）；7/7 parity 测试 | 8 路径围栏（OnceLock/thread_local） |
+| conversation | ⬜ | — | ConversationStore（Mutex+broadcast）；ConversationEvent 结构待对齐 |
+
+### 2026-08-04 parity 测试补充记录
+
+- **新增 4 个 parity 测试文件**（`tests/parity_auth.rs` 8 + `parity_tool_safety.rs` 7 + `parity_app_config.rs` 7 + `parity_chats.rs` 9 = 31 测试）。至此 app_config/chats/auth/tool_safety 达到 §0 三层标准的第 2 层（单测行为等价）——此前仅完成第 1 层（API 对齐）。
+- **新发现（已记录，非本次闭环）**：
+  - `app_config` effective_daemon_url 的 `AAID_URL` env 覆盖在 a2r 产物中缺失——实测 a2r 无法表达 `env::var(...).ok()`（`Expected Asn, but found .`），确认是 B 类手写边界而非 .at 遗漏。已在 `parity_app_config.rs::documented_divergence_env_override_skipped_in_ag` 固定当前行为。
+  - `auto_generated::chats` 的 `SpecChange` 是自包含镜像，其 `SpecStatus` 仅含 Empty/Draft 两变体（真实版 23 变体）。parity 测试以 `status: None` 规避该收窄。

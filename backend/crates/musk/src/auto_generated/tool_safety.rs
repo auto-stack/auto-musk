@@ -36,10 +36,12 @@ fn danger_patterns() -> Vec<String> {
 pub fn classify_command(cmd: &str) -> CommandTier {
     let trimmed: String = cmd.trim().to_string();
 
+
+
     let dangers: Vec<String> = danger_patterns();
     for pat in &dangers {
         if trimmed.as_str().contains(pat.as_str()) {
-            return CommandTier::NeedsApproval { reason: format!("{}{}", format!("{}{}", "dangerous pattern detected: ", pat), " — needs approval") };
+            return CommandTier::NeedsApproval { reason: format!("{}{}", format!("{}{}", "⚠️ dangerous pattern detected: '", pat), "' — this command may cause irreversible damage and needs your approval.") };
         }
     }
 
@@ -55,5 +57,6 @@ pub fn classify_command(cmd: &str) -> CommandTier {
         }
     }
 
-    return CommandTier::NeedsApproval { reason: format!("{}{}", format!("{}{}", "command ", trimmed), " is not on the whitelist and needs approval") };
+
+    return CommandTier::NeedsApproval { reason: format!("{}{}", format!("{}{}", "command '", trimmed), "' is not on the whitelist and needs your approval to run.") };
 }
