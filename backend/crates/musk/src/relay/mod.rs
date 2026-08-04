@@ -29,6 +29,7 @@ pub mod store;
 pub mod task_plan;
 pub mod task_plan_parser;
 pub mod handoff_store;
+pub mod task_plan_registry;
 
 // Musk-specific re-exports.
 pub use profession::{ForgePhase, Profession, ProfessionRegistry};

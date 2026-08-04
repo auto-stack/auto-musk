@@ -43,6 +43,7 @@ pub struct WorkspaceStores {
     pub relay: Arc<RunStore>,
     pub conversations: Arc<crate::conversation::ConversationStore>,
     pub handoffs: Arc<crate::relay::handoff_store::HandoffStore>,
+    pub task_plans: Arc<std::sync::Mutex<crate::relay::task_plan_registry::TaskPlanRegistry>>,
 }
 
 pub struct WorkspaceRegistry {
@@ -415,6 +416,9 @@ impl WorkspaceStores {
                 data.join("conversations"),
             )),
             handoffs: Arc::new(crate::relay::handoff_store::HandoffStore::new(&data)),
+            task_plans: Arc::new(std::sync::Mutex::new(
+                crate::relay::task_plan_registry::TaskPlanRegistry::new(&data),
+            )),
             root,
         };
         // Migrate old chat sessions into the unified conversation model (idempotent).
