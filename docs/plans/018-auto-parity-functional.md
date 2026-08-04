@@ -128,7 +128,7 @@ use musk::auto_generated::specs as ag;    // a2r-transpiled
 | C6 | str 所有权推断（`impl Into<String>`） | 大（全模块构造函数） | ⏸️ 推迟到接线阶段 | 无需改 a2r | `&str` 签名行为等价；owned String 传入差异仅在接线运行时出现 |
 | C7 | enum 数据载荷（NeedsApproval(String)） | 小（tool_safety） | ✅ 完成（随 C7b） | — | tag 定义 + 构造均可用 |
 | C7b | tag union 命名字段构造丢值 | 中（所有带载荷 enum） | ✅ 完成（2026-08-04） | auto-lang rust.rs:5818 | 加 Arg::Pair 处理；tool_safety 恢复 tag + 去掉 classify_reason 变通 |
-| C8 | `const` 关键字不支持 | 中（mode DEFAULT/BUILTIN_MODES） | ⬜ 待启动 | 需改 a2r | mode.at 的 DEFAULT const 和 BUILTIN_MODES 无法表达 |
+| C8 | `const` 关键字不支持 | 中（mode DEFAULT/BUILTIN_MODES） | ✅ 完成（2026-08-04） | auto-lang `e01f0f84` | mode.at 用 `pub const DEFAULT str = "superpowers"` 替代 `static fn default_name()` 变通 |
 
 ### C1 闭环详情（a2r-11 for 循环借用遍历）✅
 
@@ -226,8 +226,8 @@ task_plan_engine 的 execute/run_one（async 泛型闭包 `F: Fn->Fut`）**确�
 | Phase | 状态 | 完成摘要 |
 |---|---|---|
 | 1 — specs | ✅ | 7/7 parity 测试通过；enum pub + display_title emoji 修复 |
-| 0 — a2r 改进 | 🔶 C1 ✅ + C4/C5 ✅(无需改) + C6 推迟 + C7b ✅ + C8 待修 | C1 for 借用遍历(`e2c94535`)；C4 serde 属性是 .at 遗漏；C7b tag 构造丢值(`94418cda`)；C8 const 不支持待修 |
-| 2 — 已移植模块 | 🔶 6/6 有 parity 测试 | specs 7 ✅ / app_config 7 ✅ / chats 9 ✅ / auth 8 ✅ / tool_safety 7 ✅ / conversation 10 ✅ / mode ⏸️(const 待 C8) |
+| 0 — a2r 改进 | 🔶 C1 ✅ + C4/C5 ✅(无需改) + C6 推迟 + C7b ✅ + C8 ✅ | C1 for 借用遍历(`e2c94535`)；C4 serde 属性是 .at 遗漏；C7b tag 构造丢值(`94418cda`)；C8 const 支持(`e01f0f84`) |
+| 2 — 已移植模块 | ✅ 7/7 有 parity 测试 | specs 7 ✅ / app_config 7 ✅ / chats 9 ✅ / auth 8 ✅ / tool_safety 7 ✅ / conversation 10 ✅ / mode 4 ✅ |
 | 3 — 缺失模块 | ⬜ 待启动 | parser 优先（试点） |
 | 4 — 复杂模块 | ⬜ 待启动 | 视 Phase 0 成果 |
 
@@ -239,7 +239,7 @@ task_plan_engine 的 execute/run_one（async 泛型闭包 `F: Fn->Fut`）**确�
 | app_config | ✅ | 10 处 serde default + Default derive；7/7 parity 测试 | load/parse_from_at/to_at_source/apply_to_env（auto_atom/auto_val/env） |
 | chats | ✅ | ToolCall status/id + 7 处 serde 属性；9/9 parity 测试 | new_id（rand）；ChatStore 11 方法（文件 IO） |
 | auth | ✅ | Hash derive + sessions 字段 + 4 个 Mutex 方法 + 修正 derive；8/8 parity 测试 | hash_password/random_hex（sha2/hex/rand） |
-| mode | ⏸️ | — | BUILTIN_MODES/DEFAULT（const，待 C8）；load/parse_mode_at（auto_atom/dirs） |
+| mode | ✅ | **C8 闭环**：`static fn default_name()` 变通 → `pub const DEFAULT str`（转译 `&str`，对齐手写 `&'static str`）；4/4 parity 测试 | BUILTIN_MODES（include_str!）；load/parse_mode_at（auto_atom/dirs） |
 | tool_safety | ✅ | C7b 载荷恢复 + classify_reason 去变通；**理由文案对齐手写版**（⚠️ emoji/引号/完整句）；7/7 parity 测试 | 8 路径围栏（OnceLock/thread_local） |
 | conversation | ✅ | ConversationEvent 结构对齐 + serde 属性补齐 + chat_message_to_turns 主 turn 条件对齐 + pub；10/10 parity 测试 | ConversationStore（Mutex+broadcast+jsonl）；run_event_to_turns（上游 RunEvent）；now_secs 的 UNIX_EPOCH（a2r 无法表达，转译版返回≈0，已文档化） |
 
@@ -250,6 +250,10 @@ task_plan_engine 的 execute/run_one（async 泛型闭包 `F: Fn->Fut`）**确�
   1. `ConversationEvent` 重构为 `{ conversation_id, turn: Option<Turn>, status: Option<String> }`（原为过期结构 `{ kind, conversation_id, turn_id }`）+ 去掉 Serialize/Deserialize derive（对齐手写版仅 Clone, Debug）。
   2. 补 26 处 serde 属性（`default`/`skip_serializing_if`/`rename`），对齐手写版 Conversation/Turn/ToolRecord/GateRecord/ConversationSummary 的线格式。
   3. `chat_message_to_turns` 主 turn 条件对齐为 `!content.is_empty() || tool_calls.is_empty()`——Auto 无 `||`/`or` 关键字，改用两个嵌套 if 累积布尔量（实测 a2r 可转译），并加 `pub`。
+- **C8 闭环（2026-08-04）**：a2r 新增 const 关键字支持（`e01f0f84`）——ext 关联 const + 顶层 pub const，`str` 类型 const → `&str`。mode.at 的 `static fn default_name()` 变通改为 `pub const DEFAULT str = "superpowers"`（转译产物 `pub const DEFAULT: &str`，与手写版 `&'static str` 语义等价），4/4 parity 测试通过。
+- **顺带修复两个既有回归（auto-lang `cf0b2e25`，均非 C8 引入）**：
+  - 大 .at 文件栈溢出：specs.at(~1100 行) 在 Windows 1MB 主线程栈上溢出（f288f80d 起可复现）。build.rs 默认栈 4MB → 64MB（虚拟预留）。
+  - `rust_return_type_name` 的 impl 前缀启发式（Plan 380 P2）误伤本地 struct：`-> Foo` 错误产出 `-> impl Foo`、`Option<Foo>` 错误产出 `Option<impl Foo>`（E0404 不可编译）。修复为本地声明类型不加 impl；真实 trait（如 axum IntoResponse）不受影响。10 个 golden 重生成。
 - **新发现（已记录，非本次闭环）**：
   - `app_config` effective_daemon_url 的 `AAID_URL` env 覆盖在 a2r 产物中缺失——实测 a2r 无法表达 `env::var(...).ok()`（`Expected Asn, but found .`），确认是 B 类手写边界而非 .at 遗漏。已在 `parity_app_config.rs::documented_divergence_env_override_skipped_in_ag` 固定当前行为。
   - `auto_generated::chats` 的 `SpecChange` 是自包含镜像，其 `SpecStatus` 仅含 Empty/Draft 两变体（真实版 23 变体）。parity 测试以 `status: None` 规避该收窄。

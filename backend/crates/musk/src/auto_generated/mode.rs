@@ -32,9 +32,7 @@ pub struct ModeRegistry {
 }
 
 impl ModeRegistry {
-    pub fn default_name() -> String {
-        return "superpowers".to_string();
-    }
+    pub const DEFAULT: &str = "superpowers";
     pub fn names(&self) -> Vec<String> {
         let mut result: Vec<String> = vec![];
         for m in self.modes.clone() {

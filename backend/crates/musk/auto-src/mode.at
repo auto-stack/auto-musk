@@ -31,10 +31,9 @@ pub type ModeRegistry {
 }
 
 ext ModeRegistry {
-    /// 默认模式名。
-    pub static fn default_name() str {
-        return "superpowers"
-    }
+    /// 默认模式名。(C8: a2r 现支持 ext 关联 const, 对齐手写版
+    /// `pub const DEFAULT: &'static str = "superpowers"`.)
+    pub const DEFAULT str = "superpowers"
 
     /// 列出所有已注册模式名(排序)。
     pub fn names() List<str> {
