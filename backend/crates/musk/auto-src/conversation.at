@@ -107,7 +107,9 @@ pub enum TurnKind {
 pub type ToolRecord {
     name str
     args Value
+    #[serde(default)]
     result str
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     tool_id Option<str>
 }
 
@@ -115,6 +117,7 @@ pub type ToolRecord {
 pub type GateRecord {
     step_id str
     status str
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     feedback Option<str>
 }
 
@@ -132,13 +135,20 @@ pub type Turn {
     from str
     // A22: 'to' is a reserved word as a field name; rename to to_role with a
     // serde rename so the JSON key stays "to" (wire-compatible with Rust原版).
-    #[serde(rename = "to")]
+    // serde attrs mirror hand-written conversation.rs (default + skip for
+    // optional fields — C4-class alignment).
+    #[serde(rename = "to", default, skip_serializing_if = "Option::is_none")]
     to_role Option<str>
     kind TurnKind
+    #[serde(default)]
     content str
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     tool Option<ToolRecord>
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     gate Option<GateRecord>
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     child_conversation Option<str>
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     tokens Option<u64>
     timestamp u64
 }
@@ -146,20 +156,31 @@ pub type Turn {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub type Conversation {
     id str
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     parent_id Option<str>
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     parent_turn_id Option<str>
     kind ConversationKind
     workspace_id str
     driver Driver
     status ConversationStatus
+    #[serde(default)]
     turns List<Turn>
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     title Option<str>
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     initial_prompt Option<str>
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     mode Option<str>
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     flow_id Option<str>
+    #[serde(default)]
     current_step uint
+    #[serde(default)]
     cumulative_tokens u64
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     budget_limit Option<u64>
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pending_gate Option<GateInfo>
     created_at u64
     updated_at u64
@@ -170,9 +191,11 @@ pub type Conversation {
 pub type ConversationSummary {
     id str
     kind ConversationKind
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     parent_id Option<str>
     workspace_id str
     status str
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     title Option<str>
     turn_count uint
     cumulative_tokens u64
@@ -180,12 +203,14 @@ pub type ConversationSummary {
     updated_at u64
 }
 
-/// An event broadcast by ConversationStore (the bus payload).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// An event broadcast by ConversationStore (the bus payload). Mirrors the
+/// hand-written shape exactly: conversation_id + optional Turn + optional
+/// status string. (原版 derive 仅 Clone, Debug — 不序列化,事件走 broadcast 总线.)
+#[derive(Clone, Debug)]
 pub type ConversationEvent {
-    kind str
     conversation_id str
-    turn_id Option<str>
+    turn Option<Turn>
+    status Option<str>
 }
 
 // ============================================================
@@ -194,7 +219,8 @@ pub type ConversationEvent {
 
 /// Convert a ChatMessage to one or more Turns (tool_calls expand to pairs).
 /// 原版用 format!()/matches!()/iter().enumerate() —— 改用 + 拼接 + == + 手动计数。
-fn chat_message_to_turns(msg ChatMessage, seq_base uint) List<Turn> {
+/// pub 以匹配手写版签名 (conversation.rs L160)。
+pub fn chat_message_to_turns(msg ChatMessage, seq_base uint) List<Turn> {
     var from str = "system"
     is msg.role {
         Role.User -> from = "human",
@@ -203,8 +229,17 @@ fn chat_message_to_turns(msg ChatMessage, seq_base uint) List<Turn> {
     }
     var turns List<Turn> = []
 
-    // main message turn
+    // main message turn. 原版条件: !content.is_empty() || tool_calls.is_empty()
+    // (空内容且无工具调用也推一条消息 turn)。Auto 无 `||`/`or`，用两个 if
+    // 累积布尔量表达同一逻辑（实测 a2r 可转译嵌套 if）。
+    var has_main_turn bool = false
     if msg.content.len() > 0u {
+        has_main_turn = true
+    }
+    if msg.tool_calls.len() == 0u {
+        has_main_turn = true
+    }
+    if has_main_turn {
         var to_field Option<str> = None
         if msg.role == Role.User {
             to_field = Some("assistant")

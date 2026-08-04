@@ -227,7 +227,7 @@ task_plan_engine 的 execute/run_one（async 泛型闭包 `F: Fn->Fut`）**确�
 |---|---|---|
 | 1 — specs | ✅ | 7/7 parity 测试通过；enum pub + display_title emoji 修复 |
 | 0 — a2r 改进 | 🔶 C1 ✅ + C4/C5 ✅(无需改) + C6 推迟 + C7b ✅ + C8 待修 | C1 for 借用遍历(`e2c94535`)；C4 serde 属性是 .at 遗漏；C7b tag 构造丢值(`94418cda`)；C8 const 不支持待修 |
-| 2 — 已移植模块 | 🔶 5/6 有 parity 测试 | specs 7 ✅ / app_config 7 ✅ / chats 9 ✅ / auth 8 ✅ / tool_safety 7 ✅ / mode ⏸️(const 待 C8) / conversation ⬜ |
+| 2 — 已移植模块 | 🔶 6/6 有 parity 测试 | specs 7 ✅ / app_config 7 ✅ / chats 9 ✅ / auth 8 ✅ / tool_safety 7 ✅ / conversation 10 ✅ / mode ⏸️(const 待 C8) |
 | 3 — 缺失模块 | ⬜ 待启动 | parser 优先（试点） |
 | 4 — 复杂模块 | ⬜ 待启动 | 视 Phase 0 成果 |
 
@@ -241,11 +241,16 @@ task_plan_engine 的 execute/run_one（async 泛型闭包 `F: Fn->Fut`）**确�
 | auth | ✅ | Hash derive + sessions 字段 + 4 个 Mutex 方法 + 修正 derive；8/8 parity 测试 | hash_password/random_hex（sha2/hex/rand） |
 | mode | ⏸️ | — | BUILTIN_MODES/DEFAULT（const，待 C8）；load/parse_mode_at（auto_atom/dirs） |
 | tool_safety | ✅ | C7b 载荷恢复 + classify_reason 去变通；**理由文案对齐手写版**（⚠️ emoji/引号/完整句）；7/7 parity 测试 | 8 路径围栏（OnceLock/thread_local） |
-| conversation | ⬜ | — | ConversationStore（Mutex+broadcast）；ConversationEvent 结构待对齐 |
+| conversation | ✅ | ConversationEvent 结构对齐 + serde 属性补齐 + chat_message_to_turns 主 turn 条件对齐 + pub；10/10 parity 测试 | ConversationStore（Mutex+broadcast+jsonl）；run_event_to_turns（上游 RunEvent）；now_secs 的 UNIX_EPOCH（a2r 无法表达，转译版返回≈0，已文档化） |
 
 ### 2026-08-04 parity 测试补充记录
 
-- **新增 4 个 parity 测试文件**（`tests/parity_auth.rs` 8 + `parity_tool_safety.rs` 7 + `parity_app_config.rs` 7 + `parity_chats.rs` 9 = 31 测试）。至此 app_config/chats/auth/tool_safety 达到 §0 三层标准的第 2 层（单测行为等价）——此前仅完成第 1 层（API 对齐）。
+- **新增 5 个 parity 测试文件**（`tests/parity_auth.rs` 8 + `parity_tool_safety.rs` 7 + `parity_app_config.rs` 7 + `parity_chats.rs` 9 + `parity_conversation.rs` 10 = 41 测试）。至此 app_config/chats/auth/tool_safety/conversation 达到 §0 三层标准的第 2 层（单测行为等价）——此前仅完成第 1 层（API 对齐）。
+- **conversation.at 三处对齐**（C4 类，均无需改 a2r）：
+  1. `ConversationEvent` 重构为 `{ conversation_id, turn: Option<Turn>, status: Option<String> }`（原为过期结构 `{ kind, conversation_id, turn_id }`）+ 去掉 Serialize/Deserialize derive（对齐手写版仅 Clone, Debug）。
+  2. 补 26 处 serde 属性（`default`/`skip_serializing_if`/`rename`），对齐手写版 Conversation/Turn/ToolRecord/GateRecord/ConversationSummary 的线格式。
+  3. `chat_message_to_turns` 主 turn 条件对齐为 `!content.is_empty() || tool_calls.is_empty()`——Auto 无 `||`/`or` 关键字，改用两个嵌套 if 累积布尔量（实测 a2r 可转译），并加 `pub`。
 - **新发现（已记录，非本次闭环）**：
   - `app_config` effective_daemon_url 的 `AAID_URL` env 覆盖在 a2r 产物中缺失——实测 a2r 无法表达 `env::var(...).ok()`（`Expected Asn, but found .`），确认是 B 类手写边界而非 .at 遗漏。已在 `parity_app_config.rs::documented_divergence_env_override_skipped_in_ag` 固定当前行为。
   - `auto_generated::chats` 的 `SpecChange` 是自包含镜像，其 `SpecStatus` 仅含 Empty/Draft 两变体（真实版 23 变体）。parity 测试以 `status: None` 规避该收窄。
+  - `conversation` 转译版 `now_secs` 用 `SystemTime::now().elapsed()`（≈0），手写版用 `duration_since(UNIX_EPOCH)`。UNIX_EPOCH 常量 a2r 无法表达，转译版该函数为私有，暂无实际影响——文档化待 C8 后评估。

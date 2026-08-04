@@ -120,7 +120,7 @@ impl ConversationStatus {
             ConversationStatus::Completed => return "completed".to_string(),
             ConversationStatus::Failed { .. } => return "failed".to_string(),
             ConversationStatus::Paused { .. } => return "paused".to_string(),
-        };
+        }
     }
 }
 
@@ -165,7 +165,9 @@ impl TurnKind {
 pub struct ToolRecord {
     pub name: String,
     pub args: Value,
+    #[serde(default)]
     pub result: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_id: Option<String>,
 }
 
@@ -173,6 +175,7 @@ pub struct ToolRecord {
 pub struct GateRecord {
     pub step_id: String,
     pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub feedback: Option<String>,
 }
 
@@ -188,13 +191,18 @@ pub struct Turn {
     pub id: String,
     pub seq: u32,
     pub from: String,
-    #[serde(rename = "to")]
+    #[serde(rename = "to", default, skip_serializing_if = "Option::is_none")]
     pub to_role: Option<String>,
     pub kind: TurnKind,
+    #[serde(default)]
     pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool: Option<ToolRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gate: Option<GateRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub child_conversation: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tokens: Option<u64>,
     pub timestamp: u64,
 }
@@ -202,20 +210,31 @@ pub struct Turn {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Conversation {
     pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_turn_id: Option<String>,
     pub kind: ConversationKind,
     pub workspace_id: String,
     pub driver: Driver,
     pub status: ConversationStatus,
+    #[serde(default)]
     pub turns: Vec<Turn>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub initial_prompt: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub flow_id: Option<String>,
+    #[serde(default)]
     pub current_step: u32,
+    #[serde(default)]
     pub cumulative_tokens: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub budget_limit: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pending_gate: Option<GateInfo>,
     pub created_at: u64,
     pub updated_at: u64,
@@ -226,9 +245,11 @@ pub struct Conversation {
 pub struct ConversationSummary {
     pub id: String,
     pub kind: ConversationKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<String>,
     pub workspace_id: String,
     pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     pub turn_count: u32,
     pub cumulative_tokens: u64,
@@ -236,17 +257,17 @@ pub struct ConversationSummary {
     pub updated_at: u64,
 }
 
-/// An event broadcast by ConversationStore (the bus payload).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// An event broadcast by ConversationStore (the bus payload). Mirrors the
+/// hand-written shape exactly: conversation_id + optional Turn + optional
+/// status string. (原版 derive 仅 Clone, Debug — 不序列化,事件走 broadcast 总线.)
+#[derive(Clone, Debug)]
 pub struct ConversationEvent {
-    pub kind: String,
     pub conversation_id: String,
-    pub turn_id: Option<String>,
+    pub turn: Option<Turn>,
+    pub status: Option<String>,
 }
 
-/// Convert a ChatMessage to one or more Turns (tool_calls expand to pairs).
-/// 原版用 format!()/matches!()/iter().enumerate() —— 改用 + 拼接 + == + 手动计数。
-fn chat_message_to_turns(mut msg: ChatMessage, seq_base: u32) -> Vec<Turn> {
+pub fn chat_message_to_turns(mut msg: ChatMessage, seq_base: u32) -> Vec<Turn> {
     let mut from: String = "system".to_string();
     match msg.role {
         Role::User => from = "human".to_string(),
@@ -256,7 +277,16 @@ fn chat_message_to_turns(mut msg: ChatMessage, seq_base: u32) -> Vec<Turn> {
     let mut turns: Vec<Turn> = vec![];
 
 
+
+
+    let mut has_main_turn: bool = false;
     if (msg.content.len() as i32) > 0 {
+        has_main_turn = true
+    }
+    if (msg.tool_calls.len() as i32) == 0 {
+        has_main_turn = true
+    }
+    if has_main_turn {
         let mut to_field: Option<String> = None;
         if msg.role == Role::User {
             to_field = Some("assistant".to_string())
