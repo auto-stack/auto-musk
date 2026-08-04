@@ -133,6 +133,10 @@ fn parity_effective_default_mode() {
 fn parity_effective_daemon_url() {
     // Deterministic environment: remove any AAID_URL so both sides agree on the
     // compiled default (the transpiled version never reads the env var).
+    // NOTE: this test must own ALL AAID_URL manipulation — a second test racing
+    // on the same env var (set/remove) was intermittently failing under the
+    // default parallel harness, so the documented-divergence assertions below
+    // live here too (serialized).
     std::env::remove_var("AAID_URL");
 
     let hw_c = full_config_hw();
@@ -147,15 +151,11 @@ fn parity_effective_daemon_url() {
         ag::MuskAppConfig::default().effective_daemon_url(),
     );
     assert_eq!(hw::MuskAppConfig::default().effective_daemon_url(), "http://127.0.0.1:17654");
-}
 
-/// Documented divergence — the transpiled `effective_daemon_url` skips the
-/// `AAID_URL` env override (a2r can't express `env::var(...).ok()`; env access
-/// is a plan-014 hand-written boundary). This test pins the *current* behavior
-/// of each side; if a future dogfooding loop closes the gap, it should change
-/// here.
-#[test]
-fn documented_divergence_env_override_skipped_in_ag() {
+    // Documented divergence — the transpiled `effective_daemon_url` skips the
+    // `AAID_URL` env override (a2r can't express `env::var(...).ok()`; env access
+    // is a plan-014 hand-written boundary). This pins the *current* behavior of
+    // each side; if a future dogfooding loop closes the gap, it should change here.
     std::env::set_var("AAID_URL", "http://env:9999");
     // Hand-written merges env AAID_URL into the effective URL...
     assert_eq!(

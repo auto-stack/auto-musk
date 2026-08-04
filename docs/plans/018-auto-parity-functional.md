@@ -314,7 +314,7 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
   - 大 .at 文件栈溢出：specs.at(~1100 行) 在 Windows 1MB 主线程栈上溢出（f288f80d 起可复现）。build.rs 默认栈 4MB → 64MB（虚拟预留）。
   - `rust_return_type_name` 的 impl 前缀启发式（Plan 380 P2）误伤本地 struct：`-> Foo` 错误产出 `-> impl Foo`、`Option<Foo>` 错误产出 `Option<impl Foo>`（E0404 不可编译）。修复为本地声明类型不加 impl；真实 trait（如 axum IntoResponse）不受影响。10 个 golden 重生成。
 - **新发现（已记录，非本次闭环）**：
-  - `app_config` effective_daemon_url 的 `AAID_URL` env 覆盖在 a2r 产物中缺失——实测 a2r 无法表达 `env::var(...).ok()`（`Expected Asn, but found .`），确认是 B 类手写边界而非 .at 遗漏。已在 `parity_app_config.rs::documented_divergence_env_override_skipped_in_ag` 固定当前行为。
+  - `app_config` effective_daemon_url 的 `AAID_URL` env 覆盖在 a2r 产物中缺失——实测 a2r 无法表达 `env::var(...).ok()`（`Expected Asn, but found .`），确认是 B 类手写边界而非 .at 遗漏。已在 `parity_app_config.rs::parity_effective_daemon_url`（含文档化分歧断言；2026-08-04 合并原 `documented_divergence_env_override_skipped_in_ag` 以消除并行 env 竞态 flake）固定当前行为。
   - `auto_generated::chats` 的 `SpecChange` 是自包含镜像，其 `SpecStatus` 仅含 Empty/Draft 两变体（真实版 23 变体）。parity 测试以 `status: None` 规避该收窄。
   - `conversation` 转译版 `now_secs` 用 `SystemTime::now().elapsed()`（≈0），手写版用 `duration_since(UNIX_EPOCH)`。UNIX_EPOCH 常量 a2r 无法表达，转译版该函数为私有，暂无实际影响——文档化待 C8 后评估。
 - **Phase 3 wiki 试点闭环（2026-08-04，详见 §10）**：
