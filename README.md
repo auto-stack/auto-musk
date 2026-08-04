@@ -98,8 +98,7 @@ cd web && npm run dev      # → http://localhost:3000
 - ✅ P3a Wiki 模块（WikiStore + 前端 WikiView）
 - ✅ 对话工具卡流式可见 + display_image + thinking 推理链路（2026-08-04）
 - 🔶 P1b WorkMode 三态 + errand（部分；延后）
-- ⬜ P2b.3 checkpoint 快照回滚
-- ⬜ P3b MCP 层（30 个 forge_* 工具，最后做）
+- ⏸️ P2b.3 checkpoint 回滚 + P3b MCP 层（降级为按需 Backlog，见 `009` §11）
 
 ## 与相关项目的关系
 

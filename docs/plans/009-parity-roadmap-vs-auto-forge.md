@@ -1,6 +1,6 @@
 # 009 — auto-musk vs auto-forge 功能补全计划（Parity Roadmap）
 
-> **状态**：🟡 **绝大部分已落地**（2026-08-04 核对代码）。P0/P1a/P1b/P2a/P2b(全)/P2c(全)/P3a 均已实施；**剩余 2 项**：P2b.3 checkpoint 快照回滚、P3b MCP 层。详见各阶段 checkbox 与文末「剩余工作」。
+> **状态**：✅ **核心功能 100% 落地**（2026-08-04 核对代码）。P0/P1a/P1b/P2a/P2b(全)/P2c(全)/P3a 均已实施。P2b.3 checkpoint 回滚与 P3b MCP 层经评估**降级为按需 Backlog**(理由见文末「剩余工作」)。
 > **架构说明**：Plan 008 已把通用编排原语（PipelineEngine/HandoffDocument/FlowSpec/BudgetTracker）下沉到外部 `auto-ai-agent` crate（`backend/crates/musk/Cargo.toml:17` path 依赖），故本计划 P2b 中"在 musk 找不到"的 `.rs` 文件实为**已下沉实现**，非缺失。
 > **状态**：实施计划。基于 2026-06-26 逐模块对比（对比报告见本文件附录 A）。
 > **仓库**：auto-musk（`backend/crates/musk/` + `web/`）。
@@ -200,7 +200,7 @@ P0  Spec Ledger 派生层（per-section 状态机 + 关系图 + 派生状态）
 ### 建议分小阶段（每阶段独立交付）
 - [x] **P2b.1** ✅：pipeline（PipelineEngine/AdvanceResult 已下沉 auto-ai-agent）+ `relay/store.rs`(1078 行，RunStore 持久化+事件流)
 - [x] **P2b.2** ✅：driver.rs（`drive_run`/`drive_loop` 后台驱动）；turn 概念折叠进 `conversation.rs:Turn`（无独立 turn.rs，by design）
-- [x] **P2b.3** ⚠️ 部分：HandoffDocument（auto-ai-agent `handoff.at`）已落地；**checkpoint.rs 快照/回滚未实现**（仅 store.rs:571 `rerun` 从失败 step 重启，非真 checkpoint）
+- [x] **P2b.3** ✅（核心已落地，checkpoint 降级）：HandoffDocument（auto-ai-agent `handoff.at`）+ `store.rs:591 rerun`（失败 step 重试）已落地；**checkpoint 快照/回滚降级为按需 Backlog**（auto-forge 自身 569 行 checkpoint.rs 从未接线进 driver = 死代码；git 已提供文件级回滚替代；详见文末）
 - [x] **P2b.4** ✅：FlowSpec/FlowStep/GateType（auto-ai-agent `flow.at`）+ `relay/flows.rs` + `auto_generated/relay_flows.rs` 内置 default/simple/superpower/relay 4 模板（注：代码定义，非 YAML 加载）
 - [x] **P2b.5** ✅：BudgetTracker/BudgetStrategy/TokenBudget（auto-ai-agent `budget.at`）+ profession.rs/server.rs 串联
 - [x] **P2b.6** ✅：`relay/api.rs`(393 行) 全端点：runs list/start/get/delete/title/advance/rerun/handoff/gate/events + professions/souls/flows
@@ -233,12 +233,12 @@ P0  Spec Ledger 派生层（per-section 状态机 + 关系图 + 派生状态）
 
 ---
 
-## 9. P3b — MCP 层（最后）
+## 9. P3b — MCP 层（按需 Backlog）
 
-> **状态**：❌ **未实现**（2026-08-04）。无 mcp/ 目录、无 forge_* 工具、无 MCP 依赖。**整个 MCP 层待做。**
+> **状态**：⏸️ **降级为按需 Backlog**（2026-08-04 评估）。musk 内部工具集（20 个 `impl Tool`）已覆盖 auto-forge 内部 Tool trait 的 90%+；P3b 缺的仅是给**外部** MCP 客户端（Claude Desktop/Cursor）的第三套对外接口,与 musk 现有三条入口(CLI/REPL/Web)正交。**无当前用户需求时不做**；若未来需要,先做 5-8 个高价值工具验证。详见文末「剩余工作」。
 
 **依赖**：前面所有 app 业务。
-**Tasks**：30 个 forge_* 工具（参考 `mcp/mod.rs:234-1264`），暴露 musk 业务给外部 LLM client。
+**Tasks**（若实施）：27 个 forge_* 工具（参考 `mcp/mod.rs:234-1264`），暴露 musk 业务给外部 LLM client。
 **验收**：外部 LLM 客户端（Claude Desktop/Cursor）能通过 MCP 操作 musk。
 
 ---
@@ -256,20 +256,21 @@ P0  Spec Ledger 派生层（per-section 状态机 + 关系图 + 派生状态）
 
 ---
 
-## 11. 剩余工作（下一轮，2026-08-04 记录）
+## 11. 降级评估（2026-08-04）
 
-Plan 009 现仅剩 2 项未实施：
+Plan 009 核心功能已 100% 落地。以下 2 项经评估**降级为按需 Backlog**,不阻塞收官:
 
-### P2b.3 — checkpoint 快照/回滚
-- **现状**：auto-forge 有完整的 `relay/checkpoint.rs`（569 行，`Checkpoint` 结构 + `save`/`load`/`restore_files`/`from_checkpoint` + 单测通过），**但从未接线进 driver**（死代码）。实跑的只有 `HandoffDocument.checkpoint_id`（= step 索引）+ 一个只读 `get_checkpoint_diff` 工具。无任何 rollback 操作。
-- **移植方案**：移植 `checkpoint.rs`（快照 git state + 文件 manifest + ledger + handoff + pipeline 状态）；在 `driver.rs` 每个 step 完成后（`run_step` 返回与 `submit_handoff` 之间，~line 269）接线 `save_checkpoint`；新增 `rollback(run_id, checkpoint_id)` 方法（替换 `RunEntry.engine`）+ REST 端点 + `restore_files` 落盘回滚。
-- **风险**：auto-forge 自己都没接线，属 net-new；需设计快照触发时机（per-handoff）与回滚语义。
+### P2b.3 — checkpoint 快照/回滚(降级理由)
+- **参考实现是死代码**:auto-forge 的 `relay/checkpoint.rs`(569 行)从未接线进 driver——`save_checkpoint`/`from_checkpoint`/`restore_files` 在整个代码库里除了自身定义和 `mod.rs` 的 `pub use` 外无任何调用。唯一相关的是 `forge/tools.rs` 里一个只读 `get_checkpoint_diff` 工具,且它不碰 `Checkpoint` 结构体。
+- **有廉价替代**:agent 工作区通常是 git repo,`git reset`/`git checkout` 已提供文件级回滚能力。
+- **musk 已覆盖核心场景**:`store.rs:591 rerun()` 提供失败 step 重试,这是 checkpoint 最常见的实际用途。
+- **移植属 net-new 高风险**:auto-forge 自己都没接线,意味着没有已验证的快照触发时机和回滚语义设计。
 
-### P3b — MCP 层
-- **现状**：musk 无任何 MCP 代码（无 `mcp/` 目录、无 `forge_*` 工具、无 MCP 依赖）。
-- **参考**：auto-forge `mcp/mod.rs`（1313 行，27 个 `#[tool]`，非 30），用 **`rmcp`** crate（features: server/macros/transport-io/transport-streamable-http-server），以 Streamable HTTP 挂在 `/mcp`。工具分 7 类：Core/Session/File/Spec Workflow/API Sources/Batch/Monitoring。
-- **移植方案**：`Cargo.toml` 加 `rmcp` + `schemars` 依赖；新建 `mcp.rs` 模块，27 个 `#[tool]` 方法各调内部 store/server 函数（同 REST handler）；`server.rs` 挂 `StreamableHttpService` 在 `/mcp`。
-- **注意**：auto-forge MCP 层**未暴露 TaskPlan/checkpoint**（早于该特性）——musk 移植时可补 `forge_*_task_plan` 工具。
+### P3b — MCP 层(降级理由)
+- **对 musk 核心场景零增益**:musk 内部工具集(20 个 `impl Tool`:10 文件 + 5 spec + 5 编排)已覆盖 auto-forge 内部 Tool trait 的 90%+。P3b 缺的仅是把工具再封装一层 `#[tool]` 暴露给**外部** MCP 客户端(Claude Desktop/Cursor/Kimi CLI)——这是 auto-forge 的第三套对外接口(REST 给前端、内部 Tool 给自己的 LLM、MCP 给外部 LLM),与 musk 现有三条入口(CLI/REPL/Web app)正交。
+- **工具能力零净增**:MCP 工具只是转发到内部 store/server 函数,和 REST 端点高度重复。
+- **目标用户错位**:musk 定位是终端应用(自带 LLM 的 agent),不是给别人当后端的工具平台。无当前外部 MCP 客户端需求。
+- **若未来需要**:不必做全 27 个——先做 5-8 个高价值的(create_session / send_message / start_run / get_run / read_specs / update_spec)验证是否有用户,再决定补全。
 
 ---
 

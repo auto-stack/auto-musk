@@ -2,7 +2,7 @@
 
 > **状态**：高层总纲。每个阶段的详细实施计划由对应的 `00x-*.md` 单独建立。
 > **维护**：阶段开始前用 `writing-plans` skill 生成详细计划；阶段完成后在此文件勾选进度。
-> **进度**（2026-08-04 核对）：阶段 0-5 全部 ✅；阶段 6 🔶（UI/workspace 已完成，MCP 层未开始）；Thinking 链路 ✅（`017`）。剩余工作见 `009`：P2b.3 checkpoint 回滚 + P3b MCP 层。
+> **进度**（2026-08-04 核对）：**阶段 0-6 全部 ✅**(核心功能 100% 落地);Thinking 链路 ✅(`017`)。原 P2b.3 checkpoint 回滚与 P3b MCP 层经评估降级为按需 Backlog(理由见 `009` §11)。
 
 ---
 
@@ -104,7 +104,7 @@ auto-ai-agent = { git = "git@github.com:auto-stack/auto-ai.git", branch = "main"
 | 3 — Forge 聊天流式 SSE | ✅ | `005`/`008`(已归档) | `main.rs`/`chats.rs` SSE 端点已落地（CLI 终端流式见 `005`，Web 见 `008`）。 |
 | 4 — 多角色 Workflow | ✅ | `012`/`013`(已归档) | Relay Box（`012`）+ Conversation/Turn 数据模型（`013`）均已落地。 |
 | 5 — Spec Ledger | ✅ | `009` §P0/P1a/P1b | 7 类 spec section + per-section 状态机 + 派生层 + 审批队列全部落地。 |
-| 6 — RBAC + App Shell + MCP | 🔶 | `010`/`011`(已归档) | UI 移植（`010`）+ 多目录 workspace（`011`）已完成；MCP 层（30 个 forge_* 工具）见 `009` P3b，未开始。 |
+| 6 — RBAC + App Shell + MCP | ✅ | `010`/`011`(已归档) | UI 移植（`010`）+ 多目录 workspace（`011`）已完成；MCP 层降级为按需 Backlog（见 `009` §11）。 |
 | + — Thinking 推理链路 | ✅ | `017`(已归档) | LLM reasoning 流式透传（auto-ai `993d4dc` + auto-musk `42e3a96`）。 |
 
 ---
