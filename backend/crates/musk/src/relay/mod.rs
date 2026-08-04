@@ -26,6 +26,8 @@ pub mod flows;
 pub use flows::{builtin_flows, get_builtin_flow};
 pub mod profession;
 pub mod store;
+pub mod task_plan;
+pub mod task_plan_parser;
 
 // Musk-specific re-exports.
 pub use profession::{ForgePhase, Profession, ProfessionRegistry};

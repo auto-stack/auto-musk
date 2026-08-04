@@ -1,0 +1,20 @@
+// Built-in TaskPlan: ask a Planner to decompose a large goal and write a
+// concrete multi-relay plan at runtime. The system detects the newly written
+// plan and continues execution automatically.
+//
+// Adapted from auto-forge for musk: flow_id "default" (musk's spec-driven
+// pipeline), output path `.autoos/task_plans/` (musk convention).
+
+task_plan(id: "deferred-decompose", version: 1) {
+    title: "Deferred decomposition"
+    description: "Planner writes a concrete TaskPlan; executor picks it up automatically."
+    default_mode: "gsd"
+
+    phase(name: "planning") {
+        mode: "serial"
+        run(name: "write_plan", flow_id: "default") {
+            input: "Decompose the user goal into phases and runs, then write a TaskPlan atom file to .autoos/task_plans/<goal_id>.atom."
+            context: "You are the Planner. Output only a valid static Atom TaskPlan. Do not execute code."
+        }
+    }
+}
