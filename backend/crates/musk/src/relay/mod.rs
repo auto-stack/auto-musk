@@ -22,6 +22,7 @@ pub use auto_ai_agent::orchestration::{
 // Musk-specific modules.
 pub mod api;
 pub mod driver;
+pub mod feature_dev;
 pub mod flows;
 pub use flows::{builtin_flows, get_builtin_flow};
 pub mod profession;

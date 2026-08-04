@@ -16,11 +16,10 @@ pub use crate::conversation::*;
 pub use crate::chats::*;
 pub use crate::server::AppState;
 pub use crate::tool_context::ToolContext;
-pub use crate::workflow;
 pub use crate::workspace::{WorkspaceRegistry, WorkspaceStores};
 pub use auto_ai_agent::{
     Agent, Client, Tool, ToolError, Role, ModelTier, SkillRegistry, SkillTool,
-    load_builtin, load_role, parse_at_workflow, Workflow,
+    load_builtin, load_role,
 };
 pub use auto_ai_agent::orchestration::*;
 

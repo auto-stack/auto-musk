@@ -2043,18 +2043,9 @@ async fn conversation_stream(
 
 // ── Workflow endpoints ─────────────────────────────────────────────────────
 
-/// The shared tool set every workflow agent may use (read/write/run).
-fn shared_tools() -> Vec<Arc<dyn auto_ai_agent::Tool>> {
-    vec![
-        Arc::new(crate::tools::ReadFile),
-        Arc::new(crate::tools::WriteFile),
-        Arc::new(crate::tools::RunCommand),
-    ]
-}
-
 /// `GET /api/workflows` — list built-in workflows.
 async fn workflows() -> impl IntoResponse {
-    Json(json!({"workflows": crate::workflow::builtin_names()}))
+    Json(json!({"workflows": crate::relay::feature_dev::builtin_names()}))
 }
 
 /// `POST /api/workflow/run` request.
@@ -2062,7 +2053,7 @@ async fn workflows() -> impl IntoResponse {
 pub struct WorkflowRunRequest {
     /// The task / user request (seeds `$user_request`).
     pub task: String,
-    /// Built-in workflow name (e.g. "feature-dev") or path to a `.at` file.
+    /// Built-in workflow name (e.g. "feature-dev").
     pub workflow: String,
 }
 
@@ -2080,8 +2071,7 @@ async fn workflow_run(
     Query(q): Query<WorkspaceQuery>,
     Json(req): Json<WorkflowRunRequest>,
 ) -> Result<Json<WorkflowRunResponse>, (StatusCode, Json<ApiError>)> {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    let wf = crate::workflow::load(&req.workflow).map_err(|e| {
+    crate::relay::feature_dev::require_builtin(&req.workflow).map_err(|e| {
         (
             StatusCode::BAD_REQUEST,
             Json(ApiError {
@@ -2090,15 +2080,14 @@ async fn workflow_run(
         )
     })?;
 
-    crate::tool_safety::set_current_root(ws.root.clone());
-    let result = wf.run(&shared_tools(), state.client.clone(), &req.task).await;
-    crate::tool_safety::clear_current_root();
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    let result = crate::relay::feature_dev::run(&state, &ws, &req.task).await;
 
     result
-        .map(|result| {
+        .map(|r| {
             Json(WorkflowRunResponse {
-                steps: result.step_outputs,
-                outputs: result.outputs,
+                steps: r.steps,
+                outputs: r.outputs,
             })
         })
         .map_err(|e| {
@@ -2118,7 +2107,7 @@ async fn workflow_run(
 /// - `{"type":"step_start","step_id":"architect","role":"architect","input":"…"}`
 /// - `{"type":"step_done","step_id":"architect","output":"…"}`
 /// - `{"type":"step_skipped","step_id":"reviewer"}`
-/// - `{"type":"finished",…}` (or `{"type":"error","message":"…"}`)
+/// - `{"type":"finished",…}`
 async fn workflow_run_stream(
     State(state): State<AppState>,
     Query(q): Query<WorkspaceQuery>,
@@ -2128,40 +2117,36 @@ async fn workflow_run_stream(
     use axum::response::Response;
     use tokio::sync::mpsc;
 
+    if let Err(e) = crate::relay::feature_dev::require_builtin(&req.workflow) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError {
+                error: format!("invalid workflow '{}': {e}", req.workflow),
+            }),
+        )
+            .into_response();
+    }
+
     let (tx, mut rx) = mpsc::channel::<serde_json::Value>(64);
 
     let ws = state.registry.get(&q.id_or_default(&state.registry));
     let ws_root = ws.root.clone();
-
-    let wf = match crate::workflow::load(&req.workflow) {
-        Ok(w) => w,
-        Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiError {
-                    error: format!("invalid workflow '{}': {e}", req.workflow),
-                }),
-            )
-                .into_response();
-        }
-    };
-
-    let client = state.client.clone();
+    let state = state.clone();
     let task = req.task.clone();
     tokio::spawn(async move {
         // Confine this task's file-tool operations to the workspace root.
-        crate::tool_safety::set_current_root(ws_root.clone());
-        let on_event: Arc<dyn Fn(auto_ai_agent::WorkflowEvent) + Send + Sync> =
+        crate::tool_safety::set_current_root(ws_root);
+        let on_event: Arc<dyn Fn(crate::relay::feature_dev::WorkflowStreamEvent) + Send + Sync> =
             Arc::new(move |ev| {
-                let value = workflow_event_to_json(&ev);
-                let _ = tx.try_send(value);
+                let _ = tx.try_send(
+                    serde_json::to_value(&ev).unwrap_or(serde_json::Value::Null),
+                );
             });
-        if let Err(e) = wf
-            .run_with_progress(&shared_tools(), client, &task, on_event)
-            .await
+        if let Err(e) =
+            crate::relay::feature_dev::run_stream(&state, &ws, &task, on_event).await
         {
-            // Errors also surfaced via the event stream (StepDone error), but
-            // a top-level failure (e.g. cycle) goes here:
+            // A top-level failure (e.g. agent build error) lands here — the
+            // event stream carries whatever step events ran before it.
             tracing::error!("workflow stream failed: {e}");
         }
         crate::tool_safety::clear_current_root();
@@ -2180,34 +2165,6 @@ async fn workflow_run_stream(
         .header("Connection", "keep-alive")
         .body(Body::from_stream(stream))
         .unwrap()
-}
-
-/// Serialize a [`auto_ai_agent::WorkflowEvent`] to the SSE JSON shape.
-fn workflow_event_to_json(ev: &auto_ai_agent::WorkflowEvent) -> serde_json::Value {
-    use auto_ai_agent::WorkflowEvent;
-    match ev {
-        WorkflowEvent::StepStart {
-            step_id,
-            role,
-            input,
-        } => json!({
-            "type": "step_start",
-            "step_id": step_id,
-            "role": role,
-            "input": input,
-        }),
-        WorkflowEvent::StepDone { step_id, output } => {
-            json!({"type": "step_done", "step_id": step_id, "output": output})
-        }
-        WorkflowEvent::StepSkipped { step_id } => {
-            json!({"type": "step_skipped", "step_id": step_id})
-        }
-        WorkflowEvent::Finished { result } => json!({
-            "type": "finished",
-            "steps": result.step_outputs,
-            "outputs": result.outputs,
-        }),
-    }
 }
 
 /// Resolve a role spec: built-in name, else `.at` file path.
@@ -2304,5 +2261,73 @@ mod tests {
     #[test]
     fn resolve_unknown_errors() {
         assert!(resolve("does-not-exist").is_err());
+    }
+
+    // ── Plan 017: feature-dev on PipelineEngine (replaces deprecated Workflow) ──
+
+    /// The feature-dev runner drives all four steps through the engine; the
+    /// mock client answers each turn, so the reviewer condition is satisfied
+    /// (tester produced a non-empty report) and no step is skipped.
+    #[tokio::test]
+    async fn workflow_run_end_to_end_runs_four_steps() {
+        let state = tmp_state();
+        let ws = state.registry.get("default");
+        let result =
+            crate::relay::feature_dev::run(&state, &ws, "implement binary search").await.unwrap();
+        assert_eq!(result.steps.len(), 4);
+        assert_eq!(result.steps.get("architect").unwrap(), "mock answer");
+        assert_eq!(result.steps.get("reviewer").unwrap(), "mock answer");
+        assert_eq!(result.outputs.get("design").unwrap(), "mock answer");
+        assert_eq!(result.outputs.get("review").unwrap(), "mock answer");
+        assert_eq!(result.outputs.len(), 4);
+        // Token accounting is driven by client-reported usage; the mock
+        // reports none, so the total stays 0 (nothing to assert there).
+    }
+
+    /// The streaming variant emits the old step-level SSE shapes: four
+    /// step_start/step_done pairs, no skips, then a finished event.
+    #[tokio::test]
+    async fn workflow_run_stream_emits_step_events() {
+        use crate::relay::feature_dev::WorkflowStreamEvent;
+        let state = tmp_state();
+        let ws = state.registry.get("default");
+        let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = events.clone();
+        let on_event: Arc<dyn Fn(WorkflowStreamEvent) + Send + Sync> =
+            Arc::new(move |ev| sink.lock().unwrap().push(ev));
+        let _ = crate::relay::feature_dev::run_stream(&state, &ws, "task", on_event)
+            .await
+            .unwrap();
+        let got = events.lock().unwrap();
+        let starts = got
+            .iter()
+            .filter(|e| matches!(e, WorkflowStreamEvent::StepStart { .. }))
+            .count();
+        let dones = got
+            .iter()
+            .filter(|e| matches!(e, WorkflowStreamEvent::StepDone { .. }))
+            .count();
+        let skips = got
+            .iter()
+            .filter(|e| matches!(e, WorkflowStreamEvent::StepSkipped { .. }))
+            .count();
+        assert_eq!(starts, 4, "expected 4 step_start events: {got:?}");
+        assert_eq!(dones, 4, "expected 4 step_done events: {got:?}");
+        assert_eq!(skips, 0, "no step should be skipped with a live tester");
+        assert!(
+            got.iter().any(|e| matches!(e, WorkflowStreamEvent::Finished { .. })),
+            "missing finished event: {got:?}"
+        );
+    }
+
+    /// Unknown workflow specs are rejected before any agent runs (the handler
+    /// validates via require_builtin; the runner itself drives the built-in
+    /// flow unconditionally).
+    #[test]
+    fn workflow_spec_validation() {
+        assert!(crate::relay::feature_dev::require_builtin("not-a-workflow").is_err());
+        assert!(crate::relay::feature_dev::require_builtin("feature-dev").is_ok());
+        // Custom .at paths are retired with the old workflow parser.
+        assert!(crate::relay::feature_dev::require_builtin("workflows/custom.at").is_err());
     }
 }
