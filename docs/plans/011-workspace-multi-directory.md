@@ -1,5 +1,9 @@
 # 011 — Workspace Multi-Directory Implementation Plan
 
+## Status: COMPLETE
+
+> 🗄️ **已落地**（2026-08-04 核对代码）。`WorkspaceRegistry`（workspace.rs:47）+ `WorkspaceStores`（:38）+ `WorkspaceMeta`（:16）；端点 `/api/workspace/{list,open,status,browse,initialize}`（server.rs:159-163）；前端 `useProject.ts` + `?workspace=`（:62）+ `WorkspaceSelector.vue`（App.vue:29）+ `useWorkspaceId.ts`。数据从全局 `~/.config/autoos/*` 迁入默认工作区 `.autoos/`（`migrate_global_data` workspace.rs:335）。8 个 Task 全部完成。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add multi-workspace support to auto-musk — each workspace is a project directory whose musk data (specs/chats/wiki/raw/relay) lives in `{root}/.autoos/`, fully isolated; users switch workspaces via a nav-rail footer selector and the URL `?workspace=<id>`.
@@ -51,7 +55,7 @@ The plan is split into 6 phases. **Phase 1–4 are backend, 5 is frontend, 6 is 
 - Create: `backend/crates/musk/src/workspace.rs`
 - Modify: `backend/crates/musk/src/lib.rs:9` (add `pub mod workspace;`)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `backend/crates/musk/src/workspace.rs` with the test first:
 
@@ -168,12 +172,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails (won't compile)**
+- [x] **Step 2: Run test to verify it fails (won't compile)**
 
 Run: `cargo test -p musk workspace:: 2>&1 | head -5`
 Expected: compile error — `WorkspaceRegistry::load/open/list` not defined, and `index_path` field access in test.
 
-- [ ] **Step 3: Implement WorkspaceRegistry minimal**
+- [x] **Step 3: Implement WorkspaceRegistry minimal**
 
 Add to `workspace.rs` (above the `#[cfg(test)]` block):
 
@@ -391,7 +395,7 @@ let _raw = std::fs::read_to_string(&reg.index_path).unwrap_or_default();
 
 and remove the `.unwrap_or_default()`.
 
-- [ ] **Step 4: Add `pub mod workspace;` to lib.rs**
+- [x] **Step 4: Add `pub mod workspace;` to lib.rs**
 
 Modify `backend/crates/musk/src/lib.rs` — add after `pub mod wiki;` (around line where modules are declared):
 
@@ -399,12 +403,12 @@ Modify `backend/crates/musk/src/lib.rs` — add after `pub mod wiki;` (around li
 pub mod workspace;
 ```
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `cargo test -p musk workspace:: 2>&1 | tail -8`
 Expected: 4 tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd D:/autostack/auto-musk
@@ -419,7 +423,7 @@ git commit -m "feat(workspace): WorkspaceRegistry core — index + lazy store bu
 **Files:**
 - Modify: `backend/crates/musk/src/tool_safety.rs:20-56`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to the `#[cfg(test)]` block in `tool_safety.rs` (create one if absent):
 
@@ -456,12 +460,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cargo test -p musk tool_safety:: 2>&1 | tail -5`
 Expected: FAIL — `set_current_root`/`clear_current_root` undefined.
 
-- [ ] **Step 3: Implement the current-root thread-local**
+- [x] **Step 3: Implement the current-root thread-local**
 
 In `tool_safety.rs`, add a new thread-local alongside the existing `ROOT_OVERRIDE` (after line 26):
 
@@ -500,12 +504,12 @@ pub fn project_root() -> PathBuf {
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cargo test -p musk tool_safety:: 2>&1 | tail -5`
 Expected: 2 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd D:/autostack/auto-musk
@@ -523,7 +527,7 @@ This is the large wiring task. `AppState` drops its 4 store fields, gains `regis
 - Modify: `backend/crates/musk/src/workspace.rs` (add `WorkspaceQuery`)
 - Modify: `backend/crates/musk/src/server.rs` (AppState + ~27 handler signatures + serve())
 
-- [ ] **Step 1: Add WorkspaceQuery extractor to workspace.rs**
+- [x] **Step 1: Add WorkspaceQuery extractor to workspace.rs**
 
 Append to `workspace.rs`:
 
@@ -552,7 +556,7 @@ impl WorkspaceQuery {
 }
 ```
 
-- [ ] **Step 2: Refactor AppState in server.rs**
+- [x] **Step 2: Refactor AppState in server.rs**
 
 In `server.rs`, change the struct (around lines 37-44):
 
@@ -566,7 +570,7 @@ pub struct AppState {
 
 Remove the old `specs`, `chats`, `wiki`, `relay` fields.
 
-- [ ] **Step 3: Update serve() to build the registry**
+- [x] **Step 3: Update serve() to build the registry**
 
 In `serve()` (around lines 46-64), replace the `specs_path`/`config_dir`/state-construction block with:
 
@@ -589,7 +593,7 @@ In `serve()` (around lines 46-64), replace the `specs_path`/`config_dir`/state-c
     };
 ```
 
-- [ ] **Step 4: Convert specs handlers**
+- [x] **Step 4: Convert specs handlers**
 
 For each specs handler in `server.rs` that currently reads `state.specs`, add `Query(q): Query<WorkspaceQuery>` to the signature and replace `state.specs` with `state.registry.get(&q.id_or_default(&state.registry)).specs`. Example for `specs_list` (apply the same pattern to ALL specs handlers: `specs_list`, `specs_upsert`, `specs_transition`, `specs_delete`, `specs_overview`, `specs_drift_check`, `specs_rebuild_relations`, `specs_related`):
 
@@ -615,7 +619,7 @@ async fn specs_list(
 
 Repeat for every specs handler — each gains `Query(q): Query<WorkspaceQuery>` and uses `let ws = state.registry.get(&q.id_or_default(&state.registry));` then `ws.specs.<method>`. For `specs_related` (which takes a `Path`), keep the `Path` extractor and add `Query` alongside.
 
-- [ ] **Step 5: Convert chats handlers**
+- [x] **Step 5: Convert chats handlers**
 
 Same pattern for all chats handlers (`chat_list`, `chat_create`, `chat_get`, `chat_rename`, `chat_delete`, `chat_delete_all`, `chat_message`, `chat_stream`, `chat_approve`, `chat_reject`, `chat_reject_all`). Each gains `Query(q): Query<WorkspaceQuery>` and uses `let ws = state.registry.get(...); ws.chats.<method>`. For `chat_stream`, the spawned task needs the workspace id captured:
 
@@ -634,7 +638,7 @@ async fn chat_stream(
 }
 ```
 
-- [ ] **Step 6: Update server tests (tmp helpers)**
+- [x] **Step 6: Update server tests (tmp helpers)**
 
 In the `#[cfg(test)]` block of `server.rs`, replace `tmp_specs()`/`tmp_chats()`/`tmp_wiki()`/`tmp_relay()` helpers with a single `tmp_state()` that builds an `AppState` with a temp-rooted registry:
 
@@ -659,12 +663,12 @@ fn tmp_state() -> AppState {
 
 Then update `run_endpoint_returns_result` / `run_endpoint_bad_profession_errors` to use `let state = tmp_state();` (they currently construct AppState inline). Remove the now-unused `tmp_specs/tmp_chats/tmp_wiki/tmp_relay`.
 
-- [ ] **Step 7: Run full backend test suite**
+- [x] **Step 7: Run full backend test suite**
 
 Run: `cargo test -p musk 2>&1 | tail -10`
 Expected: all tests PASS (existing specs/chats/server/wiki/relay + new workspace/tool_safety).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 cd D:/autostack/auto-musk
@@ -684,7 +688,7 @@ git commit -m "feat(workspace): AppState registry + specs/chats handlers via ?wo
 - Modify: `backend/crates/musk/src/relay/driver.rs` (set_current_root before agent run)
 - Modify: `backend/crates/musk/src/server.rs` (chat_stream: set_current_root + create session with workspace_id)
 
-- [ ] **Step 1: Add workspace_id to ChatSession**
+- [x] **Step 1: Add workspace_id to ChatSession**
 
 In `chats.rs`, add to the `ChatSession` struct (around line 87-100):
 
@@ -696,7 +700,7 @@ In `chats.rs`, add to the `ChatSession` struct (around line 87-100):
 
 Update `ChatSession::new` to accept and store it (or default to None in existing call sites; the chat_create handler will set it from the WorkspaceQuery).
 
-- [ ] **Step 2: Add workspace_id to RunMetadata**
+- [x] **Step 2: Add workspace_id to RunMetadata**
 
 In `relay/store.rs`, add to `RunMetadata` (around line 170):
 
@@ -718,15 +722,15 @@ pub fn start_run(&self, req: &StartRunRequest, workspace_id: Option<String>) -> 
     },
 ```
 
-- [ ] **Step 3: Convert wiki handlers**
+- [x] **Step 3: Convert wiki handlers**
 
 In `wiki.rs`, every handler currently does `State(state): State<AppState>` and reads `state.wiki`. Add `Query(q): Query<WorkspaceQuery>` and replace with `let ws = state.registry.get(&q.id_or_default(&state.registry));` then `ws.wiki.<method>`. Apply to: `wiki_tree`, `raw_tree`, `list_pages`, `get_page`, `create_page`, `update_page`, `delete_page`, `search`, `raw_upload`, `raw_file`, `raw_delete`, `raw_mkdir`. Add the import `use crate::workspace::WorkspaceQuery; use axum::extract::Query;`.
 
-- [ ] **Step 4: Convert relay handlers**
+- [x] **Step 4: Convert relay handlers**
 
 In `relay/api.rs`, every handler reading `state.relay` gains `Query(q): Query<WorkspaceQuery>` and uses `let ws = state.registry.get(&q.id_or_default(&state.registry)); ws.relay.<method>`. For `start_run`, pass `Some(ws_id)` into `ws.relay.start_run(&req, Some(ws_id))`. For `advance_run`, capture the workspace_id before spawning the driver and set the thread-local root inside the spawned task. Add imports.
 
-- [ ] **Step 5: Wire set_current_root in driver + chat_stream**
+- [x] **Step 5: Wire set_current_root in driver + chat_stream**
 
 In `relay/driver.rs` `drive_run`/`run_step`: before building the agent, look up the run's workspace_id → `state.registry.get(&ws_id).root` → call `crate::tool_safety::set_current_root(root.clone())`; in a `finally`-style guard (or at driver exit) call `clear_current_root()`. Since this runs on a spawned tokio task (which is a thread), set it at the top of the task:
 
@@ -752,12 +756,12 @@ pub fn workspace_of(&self, run_id: &str) -> Option<String> {
 
 Same pattern in `server.rs` `chat_stream`: before the spawned agent run, `let root = state.registry.get(&ws_id).root.clone(); crate::tool_safety::set_current_root(root);` inside the spawned task, and `clear_current_root()` after `agent.run_stream` completes.
 
-- [ ] **Step 6: Run full backend test suite**
+- [x] **Step 6: Run full backend test suite**
 
 Run: `cargo test -p musk 2>&1 | tail -10`
 Expected: all tests PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd D:/autostack/auto-musk
@@ -773,7 +777,7 @@ git commit -m "feat(workspace): wiki/relay handlers + ChatSession/RunMetadata wo
 - Modify: `backend/crates/musk/src/server.rs` (add workspace endpoints + routes)
 - Modify: `backend/crates/musk/src/main.rs` (Serve += --workdir)
 
-- [ ] **Step 1: Add workspace management endpoints in server.rs**
+- [x] **Step 1: Add workspace management endpoints in server.rs**
 
 Add handlers (these do NOT take WorkspaceQuery — they operate on the registry itself):
 
@@ -839,7 +843,7 @@ Register routes in the router (before `.fallback_service`):
 .route("/api/workspace/browse", get(workspace_browse))
 ```
 
-- [ ] **Step 2: Add --workdir to the Serve CLI**
+- [x] **Step 2: Add --workdir to the Serve CLI**
 
 In `main.rs`, change the `Serve` variant (around line 62-67):
 
@@ -854,12 +858,12 @@ Serve {
 
 In the `Cmd::Serve { addr, workdir }` match arm, if `workdir` is Some, `std::env::set_current_dir(&workdir)?` **before** `init_project_root()` so the default workspace root honors `--workdir`.
 
-- [ ] **Step 3: Run full backend test suite + build**
+- [x] **Step 3: Run full backend test suite + build**
 
 Run: `cargo test -p musk 2>&1 | tail -5 && cargo build -p musk 2>&1 | tail -3`
 Expected: tests PASS, build OK.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd D:/autostack/auto-musk
@@ -875,7 +879,7 @@ git commit -m "feat(workspace): /api/workspace/* endpoints + --workdir CLI flag"
 - Modify: `web/src/composables/useProject.ts`
 - Modify: `web/src/composables/useAuth.ts` (authFetch appends ?workspace=)
 
-- [ ] **Step 1: Rewrite useProject.ts**
+- [x] **Step 1: Rewrite useProject.ts**
 
 Replace the stub body with real state + API calls:
 
@@ -953,7 +957,7 @@ export function useProject() {
 }
 ```
 
-- [ ] **Step 2: Make authFetch append ?workspace=**
+- [x] **Step 2: Make authFetch append ?workspace=**
 
 In `useAuth.ts`, find the `authFetch` implementation. Wrap it so relative `/api/...` calls (except `/api/workspace/*` and `/api/auth/*`) get `?workspace=<currentId>` appended. Simplest: export a `currentWorkspaceId` ref from `useProject` and read it inside `authFetch`:
 
@@ -969,12 +973,12 @@ if (url.startsWith('/api/') && !url.startsWith('/api/workspace/') && !url.starts
 }
 ```
 
-- [ ] **Step 3: Build frontend to verify it compiles**
+- [x] **Step 3: Build frontend to verify it compiles**
 
 Run: `cd D:/autostack/auto-musk/web && npx vite build 2>&1 | tail -3`
 Expected: build OK (TS type errors may remain from pre-existing issues, but no NEW errors from these changes).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd D:/autostack/auto-musk
@@ -990,7 +994,7 @@ git commit -m "feat(workspace): useProject real + authFetch appends ?workspace="
 - Create: `web/src/components/WorkspaceSelector.vue`
 - Modify: `web/src/App.vue` (render selector in footer + fetchStatus on mount)
 
-- [ ] **Step 1: Create WorkspaceSelector.vue**
+- [x] **Step 1: Create WorkspaceSelector.vue**
 
 ```vue
 <template>
@@ -1096,7 +1100,7 @@ async function openCustom() {
 </style>
 ```
 
-- [ ] **Step 2: Wire into App.vue footer + fetchStatus on mount**
+- [x] **Step 2: Wire into App.vue footer + fetchStatus on mount**
 
 In `App.vue`:
 - Import: `import WorkspaceSelector from '@/components/WorkspaceSelector.vue'`
@@ -1112,7 +1116,7 @@ In `App.vue`:
 
 Adjust `.rail-footer` CSS to `justify-content: space-between` so the two elements spread out.
 
-- [ ] **Step 3: Add reload-on-workspace-change to views**
+- [x] **Step 3: Add reload-on-workspace-change to views**
 
 In each of `ChatsView.vue`, `SpecsView.vue`, `WikiView.vue`, `RelayView.vue`, add (they already import useProject) a watch on `workspaceId` that re-fetches. Example for ChatsView:
 
@@ -1124,12 +1128,12 @@ watch(workspaceId, () => { if (workspaceId.value) { loadSessionList(); resume(pr
 
 (Each view already has its own load functions; call them in the watch.)
 
-- [ ] **Step 4: Build frontend**
+- [x] **Step 4: Build frontend**
 
 Run: `cd D:/autostack/auto-musk/web && npx vite build 2>&1 | tail -3`
 Expected: build OK.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd D:/autostack/auto-musk
@@ -1145,7 +1149,7 @@ git commit -m "feat(workspace): WorkspaceSelector component + App.vue footer + v
 - Modify: `backend/crates/musk/src/workspace.rs` (migration on first load)
 - Modify: `backend/crates/musk/src/server.rs` (call migration in serve)
 
-- [ ] **Step 1: Add migration helper to WorkspaceRegistry**
+- [x] **Step 1: Add migration helper to WorkspaceRegistry**
 
 In `workspace.rs`, add a method that runs once if the default workspace's `.autoos/` is empty AND old global data exists:
 
@@ -1179,7 +1183,7 @@ impl WorkspaceRegistry {
 }
 ```
 
-- [ ] **Step 2: Call migration in serve()**
+- [x] **Step 2: Call migration in serve()**
 
 In `server.rs` `serve()`, after building the registry:
 
@@ -1188,12 +1192,12 @@ In `server.rs` `serve()`, after building the registry:
     registry.migrate_global_data(&config_dir);
 ```
 
-- [ ] **Step 3: Run full backend test suite**
+- [x] **Step 3: Run full backend test suite**
 
 Run: `cargo test -p musk 2>&1 | tail -5`
 Expected: all PASS.
 
-- [ ] **Step 4: Build release + restart server**
+- [x] **Step 4: Build release + restart server**
 
 ```bash
 cd D:/autostack/auto-musk/backend && cargo build --release -p musk 2>&1 | tail -3
@@ -1202,7 +1206,7 @@ cd D:/autostack/auto-musk/web && npx vite build 2>&1 | tail -3
 # backend/target/release/musk.exe serve --addr 127.0.0.1:8888
 ```
 
-- [ ] **Step 5: curl-verify the workspace flow**
+- [x] **Step 5: curl-verify the workspace flow**
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8888/api/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"admin"}' | python -c "import sys,json;print(json.load(sys.stdin)['token'])")
@@ -1215,11 +1219,11 @@ curl -s "http://localhost:8888/api/specs?workspace=auto-musk" -H "Authorization:
 ```
 Expected: workspace/list returns ≥1 entry; workspace/open returns a meta with id `auto-forge`; specs differ (or one is empty) between the two workspace ids.
 
-- [ ] **Step 6: Playwright-verify the UI**
+- [x] **Step 6: Playwright-verify the UI**
 
 Run a Playwright script (login → check the footer shows a workspace name → click it → panel opens with recent list → enter a path → open → URL gains `?workspace=`). Confirm 0 console errors.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd D:/autostack/auto-musk

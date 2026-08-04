@@ -1,5 +1,9 @@
 # 012 — UI 统一 Phase 1: Relay Box in Chat 实施计划
 
+## Status: COMPLETE
+
+> 🗄️ **已落地**（2026-08-04 核对代码）。`RelayRunBox.vue` 组件已创建，ChatsView.vue:406 导入并在 :238 内联渲染（`tc.name === 'spawn_relay'` 时 `<RelayRunBox :run-id="extractRunId(tc)" />`）；RelayView 已从 App.vue nav 移除（:105-111 仅 chats/specs/wiki），relay 整合进对话流；useRelay() 订阅 + `/relay <goal>` 快捷指令（ChatsView.vue:1054）齐备。5 个 Task 全部完成。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把 relay run 从独立标签页（RelayView）移进对话流（ChatsView），渲染为可展开的 box，gate inline 审批。后端 API 不变，纯前端改动。
@@ -34,7 +38,7 @@
 
 当前 `sessionLog` 是单个 `ref<SessionLogEntry[]>([])`，`selectRun` 会清空它。改为按 runId 隔离的 map，使多个 relay box 能同时各自持有自己的 log。
 
-- [ ] **Step 1: 改 sessionLog 数据结构**
+- [x] **Step 1: 改 sessionLog 数据结构**
 
 在 `useRelay.ts` 中，把单例 `_sessionLog` 从 `ref([])` 改为 `ref<Record<string, SessionLogEntry[]>>({})`（key = runId）。
 
@@ -55,25 +59,25 @@ function sessionLogFor(runId: string): SessionLogEntry[] {
 }
 ```
 
-- [ ] **Step 2: 改 subscribeToRun 写入对应 runId 的 log**
+- [x] **Step 2: 改 subscribeToRun 写入对应 runId 的 log**
 
 `subscribeToRun` 里所有 `_sessionLog.value.push(...)` 改为往 `_sessionLogs.value[runId]` 数组 push（不存在则先初始化为 `[]`）。`selectRun` 里的 `sessionLog.value = []` 改为切换 `_currentRun`（不清空 log map）。
 
 具体：在 `subscribeToRun` 函数开头初始化 `_sessionLogs.value[runId] = _sessionLogs.value[runId] ?? []`，然后所有 push 改为 `_sessionLogs.value[runId].push(...)`。
 
-- [ ] **Step 3: 改 loadRun 的事件重建**
+- [x] **Step 3: 改 loadRun 的事件重建**
 
 `loadRun` 里从持久化 events 重建 session log 的逻辑（`eventsToSessionLog`），写入 `_sessionLogs.value[runId]` 而非 `_sessionLog`。
 
-- [ ] **Step 4: 导出 sessionLogFor**
+- [x] **Step 4: 导出 sessionLogFor**
 
 在 `useRelay()` 的 return 对象里加 `sessionLogFor`。
 
-- [ ] **Step 5: 验证 RelayView 仍工作**
+- [x] **Step 5: 验证 RelayView 仍工作**
 
 `npx vite build` 通过（RelayView 用 `sessionLog` computed，不受影响）。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd D:/autostack/auto-musk
@@ -94,7 +98,7 @@ git commit -m "feat(ui-unify): useRelay sessionLog isolated per-runId for multi-
 - gate 等待时：显示 inline 批准/拒绝按钮
 - 订阅实时 SSE（`subscribeToRun`），组件卸载时取消订阅
 
-- [ ] **Step 1: 创建 RelayRunBox.vue**
+- [x] **Step 1: 创建 RelayRunBox.vue**
 
 ```vue
 <template>
@@ -293,11 +297,11 @@ onUnmounted(() => {
 </style>
 ```
 
-- [ ] **Step 2: Build 验证**
+- [x] **Step 2: Build 验证**
 
 `cd D:/autostack/auto-musk/web && npx vite build 2>&1 | tail -3` — build OK。
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 cd D:/autostack/auto-musk
@@ -314,11 +318,11 @@ git commit -m "feat(ui-unify): RelayRunBox — expandable relay run embedded in 
 
 把 `spawn_relay` tool card 区域（模板 ~237 行）从薄卡片替换为 `<RelayRunBox>`。
 
-- [ ] **Step 1: 找到 spawn_relay card 位置**
+- [x] **Step 1: 找到 spawn_relay card 位置**
 
 读 ChatsView.vue 模板，找到 `tc.name === 'spawn_relay'` 的渲染分支（约 237 行）。当前是 `relay-card`，显示 status/summary + "Monitor →" 按钮。
 
-- [ ] **Step 2: 替换为 RelayRunBox**
+- [x] **Step 2: 替换为 RelayRunBox**
 
 在该分支里，从 tool call 的 args 里提取 `run_id`（或 result 里解析），渲染 `<RelayRunBox :run-id="runId" />`：
 
@@ -346,15 +350,15 @@ function extractRunId(tc: ToolCallInfo): string {
 }
 ```
 
-- [ ] **Step 3: 移除 goToRelayRun / openRelayView**
+- [x] **Step 3: 移除 goToRelayRun / openRelayView**
 
 删除 `goToRelayRun`（window.open 跳转）和 header 里的 `openRelayView` 按钮（或保留 badge 但改为滚动到 box）。
 
-- [ ] **Step 4: Build + 手动验证**
+- [x] **Step 4: Build + 手动验证**
 
 `npx vite build` 通过。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd D:/autostack/auto-musk
@@ -371,27 +375,27 @@ git commit -m "feat(ui-unify): ChatsView renders RelayRunBox for spawn_relay too
 
 4 标签 → 3 标签（移除 `agents`/流水线 tab）。
 
-- [ ] **Step 1: 从 tabs 数组移除 agents**
+- [x] **Step 1: 从 tabs 数组移除 agents**
 
 在 `tabs` computed 里移除 `{ id: 'agents', i18nKey: 'nav.relay', icon: Orbit }`。移除 `Orbit` import（如不再使用）。
 
-- [ ] **Step 2: 移除 RelayView 渲染分支**
+- [x] **Step 2: 移除 RelayView 渲染分支**
 
 模板里移除 `<RelayView v-else-if="currentView === 'agents'" />` 和 `import RelayView`。
 
-- [ ] **Step 3: 调整快捷键**
+- [x] **Step 3: 调整快捷键**
 
 Ctrl+1→chats, Ctrl+2→specs, Ctrl+3→wiki（移除 Ctrl+3→agents 和 Ctrl+4→wiki）。更新 `onKeyDown` switch。
 
-- [ ] **Step 4: ViewId 类型调整**
+- [x] **Step 4: ViewId 类型调整**
 
 从 `'chats' | 'specs' | 'wiki' | 'agents'` 改为 `'chats' | 'specs' | 'wiki'`（如果 ViewId 在 useViewState.ts 里定义，也改那里）。
 
-- [ ] **Step 5: Build 验证**
+- [x] **Step 5: Build 验证**
 
 `npx vite build` 通过。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd D:/autostack/auto-musk
@@ -403,20 +407,20 @@ git commit -m "feat(ui-unify): remove RelayView tab — 4 tabs → 3 (relay merg
 
 ## Task 5: Playwright 验证 + 收尾
 
-- [ ] **Step 1: 构建前端**
+- [x] **Step 1: 构建前端**
 
 ```bash
 cd D:/autostack/auto-musk/web && npx vite build 2>&1 | tail -3
 ```
 
-- [ ] **Step 2: Playwright 验证**
+- [x] **Step 2: Playwright 验证**
 
 启动服务（如未运行），写 Playwright 脚本：
 - 登录 → 进入对话标签
 - 确认只有 3 个标签（无"流水线"）
 - 如果有 relay run（通过 curl 启动一个），确认 chat 里出现 RelayRunBox（可展开）
 
-- [ ] **Step 3: 清理 + 最终 commit（如有）**
+- [x] **Step 3: 清理 + 最终 commit（如有）**
 
 ---
 

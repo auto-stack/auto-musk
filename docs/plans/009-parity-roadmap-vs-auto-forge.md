@@ -1,5 +1,7 @@
 # 009 — auto-musk vs auto-forge 功能补全计划（Parity Roadmap）
 
+> **状态**：🟡 **大部分已落地**（2026-08-04 核对代码）。P0/P1a/P1b/P2a/P2b(除 7)/P2c(3/5)/P3a 均已实施；**剩余 3 项**：P2b.7 task_plan_engine（多 relay 编排）、P2b.3 checkpoint 快照回滚、P2c spawn_task_plan/register_task_plan 2 工具、P3b MCP 层。详见各阶段 checkbox。
+> **架构说明**：Plan 008 已把通用编排原语（PipelineEngine/HandoffDocument/FlowSpec/BudgetTracker）下沉到外部 `auto-ai-agent` crate（`backend/crates/musk/Cargo.toml:17` path 依赖），故本计划 P2b 中"在 musk 找不到"的 `.rs` 文件实为**已下沉实现**，非缺失。
 > **状态**：实施计划。基于 2026-06-26 逐模块对比（对比报告见本文件附录 A）。
 > **仓库**：auto-musk（`backend/crates/musk/` + `web/`）。
 > **当前分支**：`main`（原 `rust-impl` 已合并删除）。
@@ -77,35 +79,35 @@ P0  Spec Ledger 派生层（per-section 状态机 + 关系图 + 派生状态）
   - Reviews|Reports: Empty→Draft→Published
 - `can_transition(st, from, to) -> bool`（参考 `mod.rs:337-341`，**收紧**：去掉"to∈allowed_statuses 即放行"的宽松第三条）
 - **绿地修正**：修 auto-forge 的 Reports 状态机 bug（`mod.rs:297` 的 match 臂被 `:324` 遮蔽）。
-- [ ] 实现 + 单测（每类 section 的合法/非法转换）
-- [ ] commit
+- [x] 实现 + 单测（每类 section 的合法/非法转换）— `specs.rs` `SectionConfig::for_type` + `can_transition`（642-755 行），~30 单测覆盖
+- [x] commit — `7cfee8e`
 
 #### Task 2: rebuild_relations（关系图）
 - 当前 `specs.rs:187` related 是死字段。
 - 实现：扫 `depends_on` + 正则扫正文 ID `(?:[A-Za-z]+-)?[GADPSVXTIR]\d+(?:\.\d+)?`（参考 `mod.rs:1825-1865`），建反向 `related`，sort+dedup。
 - upsert/delete/load 后自动调用。
-- [ ] 实现 + 单测（A depends_on B → B.related 含 A；正文引用也建边）
-- [ ] commit
+- [x] 实现 + 单测（A depends_on B → B.related 含 A；正文引用也建边）— `rebuild_relations`（specs.rs:363）+ `id_regex`/`scan_refs`，upsert/delete 自动调用
+- [x] commit — `bd094de`
 
 #### Task 3: derive_statuses（派生状态）
 - 当前无派生。实现 auto-forge `mod.rs:1875-2040+` 的规则：
   - Goal 全 related Plans Done → Implemented
   - Goal Implemented + 全 related Tests Done/Verified + ≥1 Review Published → Verified
   - section 全 item 满足条件 → section 聚合状态升级
-- [ ] 实现 + 单测
-- [ ] commit
+- [x] 实现 + 单测 — `derive_statuses`（specs.rs:417）3 规则全覆盖
+- [x] commit — `deb600a`
 
 #### Task 4: overview + drift-check 端点
 - `GET /api/specs/overview`（聚合视图，参考 `mod.rs:3515`）
 - `POST /api/specs/drift-check`（对比磁盘 vs 内存）
-- [ ] 端点 + 手测
-- [ ] commit
+- [x] 端点 + 手测 — `GET /api/specs/overview` + `POST /api/specs/drift-check` + 额外 `rebuild-relations`/`related`（server.rs:119-122）
+- [x] commit — `ef1278f`
 
 #### Task 5: SpecsView 前端（跟进）
 - 参考 auto-forge SpecsView（7 类 section 卡片 + StatusBadge + 关系面板）
 - 用 designs/001 的 SpecSectionWidget 思路（1 个参数化 widget 消灭 7 类重复）
-- [ ] SpecsView.vue + useSpecs.ts
-- [ ] commit
+- [x] SpecsView.vue + useSpecs.ts — `web/src/views/SpecsView.vue`(1396 行) + `useSpecs.ts`(135 行) + 7 类 category 组件
+- [x] commit — `9976953`（P0 complete）
 
 ### 验收
 - 每类 section 的状态转换受独立状态机约束（非法转换被拒）。
@@ -126,8 +128,8 @@ P0  Spec Ledger 派生层（per-section 状态机 + 关系图 + 派生状态）
   - `read_specs(section_id?)` / `list_specs()` / `write_spec(section, content)` / `update_spec(action, section, item_id, ...)` / `write_goals(...)`
 - `update_spec` 的 action：upsert/delete/patch/set_status，调 SpecsStore（含 P0 派生）。
 - 注册进 `build_agent_from_mode`（按 mode 授权）。
-- [ ] 5 个工具 + 单测
-- [ ] commit
+- [x] 5 个工具 + 单测 — `spec_tools.rs`(559 行) 5 个工具：read_specs/list_specs/write_spec/update_spec/write_goals，注册于 lib.rs:165-169
+- [x] commit — `d9cb8e7`
 
 ### 验收
 - `musk chat` 中让模型 read_specs/update_spec，能正确读写 spec 并触发派生。
@@ -144,26 +146,26 @@ P0  Spec Ledger 派生层（per-section 状态机 + 关系图 + 派生状态）
 
 #### Task 1: 扩 ChatSession
 - 当前 `chats.rs:87` 只有 messages+mode。补字段（参考 `mod.rs:53-78`）：work_mode / pending_spec_changes / active_profession / errand_sessions / active_relay_runs / active_task_plan / status(ForgeStatus)。
-- [ ] 字段 + 持久化往返测试
-- [ ] commit
+- [x] 字段 + 持久化往返测试 — ChatSession 已扩展（work_mode/pending_spec_changes/active_profession 等），对话统一模型见 conversation.rs
+- [x] commit — `105e16d`（部分）/ `522f61e`（三 work mode）
 
 #### Task 2: WorkMode 分类 + errand
 - chat_stream 加分支：检测工具结果类型 → 设 work_mode（Direct/SingleRelay/MultiRelay）。
 - errand：检测 run_errand → 创建子 agent → 跑 → 回写（参考 `mod.rs:2804-2826`）。
-- [ ] 实现 + 手测
-- [ ] commit
+- [x] 实现 + 手测 — 三 work mode（superpower/relay/bring_in）+ errand 派发回写已落地
+- [x] commit — `522f61e`（三 work mode + relay flows + bring_in）/ `cbc269b`（spawn_relay + dispatch）
 
 #### Task 3: spec 变更审批
 - update_spec 工具产生 pending_spec_changes → approve/reject 端点（`POST /api/chats/session/{id}/approve|reject`）。
 - approve 应用到 SpecsStore，reject 清空。
-- [ ] 端点 + 手测
-- [ ] commit
+- [x] 端点 + 手测 — `POST /api/chats/session/{id}/approve|reject|reject-all`（server.rs:1689-1723）
+- [x] commit — `105e16d`
 
 #### Task 4: 流事件扩展
 - 当前 SSE 只有 delta/tool/done/error。补 errand_start/turn_start/tool_result/complete（参考 `mod.rs:609-646`）。
 - 前端 ChatsView 处理新事件。
-- [ ] 实现 + 前端适配
-- [ ] commit
+- [x] 实现 + 前端适配 — 统一 SSE 事件总线（见 plan 013）；ChatsView 处理 relay_spawned/relay_update 等事件
+- [x] commit — 随 conversation 统一（plan 013）落地
 
 ### 验收
 - chat 中触发 spec 变更 → 前端显示待审批 → approve 后 spec 更新。
@@ -181,8 +183,8 @@ P0  Spec Ledger 派生层（per-section 状态机 + 关系图 + 派生状态）
 - **先核实** `D:\autostack\auto-ai\crates\auto-ai-agent\src\profession.rs` 的 Profession trait 是否含 handoff_to/dispatchable_to/ForgePhase。当前 `lib.rs:56-91` OwnedProfession 转发未含这三字段。
 - 若 trait 不含：在 musk 自建 app 级 Profession 注册表（补 handoff_to/dispatchable_to/owned_sections/ForgePhase），或扩展 auto-ai-agent trait。
 - 对齐 auto-forge 9+3 profession 的 handoff/dispatch 关系图（`profession.rs:138-615`）。
-- [ ] 核实 + 设计决策
-- [ ] 实现 + commit
+- [x] 核实 + 设计决策 — Profession（后改名 Role，`505cd95`）编排元数据落地；通用原语下沉 auto-ai-agent
+- [x] 实现 + commit — `8f8c752`（P2a）/ `505cd95`（Profession→Role 重命名）
 
 ### 验收
 - profession 之间可按 handoff_to/dispatchable_to 图路由。
@@ -196,14 +198,14 @@ P0  Spec Ledger 派生层（per-section 状态机 + 关系图 + 派生状态）
 **风险**：高（多 agent 状态机，~12000 行）。
 
 ### 建议分小阶段（每阶段独立交付）
-- **P2b.1**：pipeline.rs（RelayPipelineEngine，串行 step + gate + AdvanceResult）+ store.rs（RunStore 持久化 + 事件流）
-- **P2b.2**：turn.rs（AgentTurn 单 agent 一次 turn）+ driver.rs（后台驱动 run）
-- **P2b.3**：handoff.rs（HandoffDocument 上下文压缩交接）+ checkpoint.rs（快照回滚）
-- **P2b.4**：flow.rs（FlowSpec YAML）+ 内置 flows 模板
-- **P2b.5**：budget.rs（token 预算追踪）
-- **P2b.6**：api.rs（relay REST 端点：runs list/start/advance/handoff/gate/events）
-- **P2b.7**：task_plan_engine.rs（多 relay 编排）
-- [ ] 每小阶段一 commit + 单测/手测
+- [x] **P2b.1** ✅：pipeline（PipelineEngine/AdvanceResult 已下沉 auto-ai-agent）+ `relay/store.rs`(1078 行，RunStore 持久化+事件流)
+- [x] **P2b.2** ✅：driver.rs（`drive_run`/`drive_loop` 后台驱动）；turn 概念折叠进 `conversation.rs:Turn`（无独立 turn.rs，by design）
+- [x] **P2b.3** ⚠️ 部分：HandoffDocument（auto-ai-agent `handoff.at`）已落地；**checkpoint.rs 快照/回滚未实现**（仅 store.rs:571 `rerun` 从失败 step 重启，非真 checkpoint）
+- [x] **P2b.4** ✅：FlowSpec/FlowStep/GateType（auto-ai-agent `flow.at`）+ `relay/flows.rs` + `auto_generated/relay_flows.rs` 内置 default/simple/superpower/relay 4 模板（注：代码定义，非 YAML 加载）
+- [x] **P2b.5** ✅：BudgetTracker/BudgetStrategy/TokenBudget（auto-ai-agent `budget.at`）+ profession.rs/server.rs 串联
+- [x] **P2b.6** ✅：`relay/api.rs`(393 行) 全端点：runs list/start/get/delete/title/advance/rerun/handoff/gate/events + professions/souls/flows
+- [ ] **P2b.7** ❌：task_plan_engine.rs（多 relay 编排）— **未实现**（仅 profession.rs 有 `spawn_task_plan`/`register_task_plan` 字符串，无引擎代码）
+- [ ] 每小阶段一 commit + 单测/手测 — P2b.1-6 ✅；P2b.7 待做
 
 ### 验收
 - 能定义一个 flow（architect→coder→tester），启动 relay run，agent 依次接力（handoff 传递上下文），gate 处审批，产出 work product。
@@ -213,6 +215,8 @@ P0  Spec Ledger 派生层（per-section 状态机 + 关系图 + 派生状态）
 
 ## 7. P2c — 编排工具
 
+> **状态**：🟡 **3/5 已落地**（2026-08-04）。bring_in / spawn_relay / dispatch ✅（`orch_tools.rs` + lib.rs:221-223）；**spawn_task_plan / register_task_plan ❌ 未实现**（依赖 P2b.7 task_plan_engine）。
+
 **依赖**：P2b。
 **Tasks**：bring_in / spawn_relay / spawn_task_plan / register_task_plan / dispatch（参考 `tools.rs:2590-3100`）。
 **验收**：chat 中 spawn_relay 触发 P2b 引擎。
@@ -221,6 +225,8 @@ P0  Spec Ledger 派生层（per-section 状态机 + 关系图 + 派生状态）
 
 ## 8. P3a — Wiki 模块（独立，可与 P2 并行）
 
+> **状态**：✅ **完成**（`8f8c752`）。`wiki.rs`(847 行，WikiStore + wiki_routes) + `web/src/views/WikiView.vue`(865 行) + `useWiki.ts`(231 行)。
+
 **依赖**：无。
 **Tasks**：wiki.rs（CRUD，参考 auto-forge `forge/wiki.rs:719`）+ 4 个 wiki 工具 + WikiView 前端。
 **验收**：LLM 能 create/query wiki 页面。
@@ -228,6 +234,8 @@ P0  Spec Ledger 派生层（per-section 状态机 + 关系图 + 派生状态）
 ---
 
 ## 9. P3b — MCP 层（最后）
+
+> **状态**：❌ **未实现**（2026-08-04）。无 mcp/ 目录、无 forge_* 工具、无 MCP 依赖。**整个 MCP 层待做。**
 
 **依赖**：前面所有 app 业务。
 **Tasks**：30 个 forge_* 工具（参考 `mcp/mod.rs:234-1264`），暴露 musk 业务给外部 LLM client。

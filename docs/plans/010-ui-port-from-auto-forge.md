@@ -1,5 +1,13 @@
 # 010 — UI 重构：移植 auto-forge 前端（Chats/Specs/Wikis/Flows）
 
+## Status: COMPLETE
+
+> 🗄️ **已落地**（2026-08-04 核对代码）。Phase 0-5 全部完成：
+> Phase 0 ✅（web-legacy/ 保留旧前端）/ Phase 1 ✅（web/ 基础设施：package.json/vite/theme.css/i18n/types/useAuth/useViewState/App.vue/main.ts）
+> / Phase 2 ✅ Specs（SpecsView.vue 1396 行 + useSpecs.ts）/ Phase 3 ✅ Chats（ChatsView.vue 2728 行 + useForge.ts 547 行）
+> / Phase 4 ✅ Wikis（WikiView.vue 865 行 + useWiki.ts + wiki.rs 后端）/ Phase 5 ✅ Flows（RelayView.vue 1599 行 + useRelay.ts 606 行；注：RelayView 已按 plan 012 移出独立 tab，relay box 整合进 ChatsView）。
+> 主要 commit：`5ffd46b`(P0+1) / `d9de598`(P2) / `cea364b`(P3) / `8f8c752`(P4)。
+
 > **状态**：实施计划。基于 2026-06-26 对 auto-forge 前端的逐文件调研（附录 A）。
 > **决策**：放弃 auto-musk 自写的简陋前端（web/，8 文件），直接移植 auto-forge 经过多轮打磨的前端。auto-musk 本质是 auto-forge 拆成 UI+client+daemon，前端界面应高度一致。
 > **范围**：Chats / Specs / Wikis / Relays（→Flows）四个模块。不移植 Harness 配置（ApiSources/Agents/Professions，那些走 auto-os-config/daemon）。
@@ -59,9 +67,9 @@ Phase 1  基础设施层移植（theme/i18n/types/useAuth/useViewState/共享组
 
 ## 2. Phase 0 — 保存现状
 
-- [ ] `git tag v0.2-pre-rewrite`（标记自写前端最后状态）
-- [ ] 把当前 `web/` 重命名为 `web-legacy/`（保留参考，不删除）
-- [ ] 新建 `web/`（移植目标，从 auto-forge frontend 复制结构）
+- [x] `git tag v0.2-pre-rewrite`（标记自写前端最后状态）
+- [x] 把当前 `web/` 重命名为 `web-legacy/`（保留参考，不删除）
+- [x] 新建 `web/`（移植目标，从 auto-forge frontend 复制结构）
 
 ---
 
@@ -70,18 +78,18 @@ Phase 1  基础设施层移植（theme/i18n/types/useAuth/useViewState/共享组
 **目标**：移植 auto-forge 前端骨架，能编译、能显示 App shell（空 4 tab），登录可用。
 
 ### Tasks
-- [ ] 复制 `frontend/package.json` → `web/package.json`，调整 name 为 musk-web，保留依赖（vue/vite/vue-i18n/markstream-vue/marked/mermaid/lucide/tiptap）
-- [ ] 复制 `frontend/vite.config.ts`，改 base path（auto-forge 是 `/forge/`，musk 用 `/`）+ dev port 3333 + proxy → :8888
-- [ ] 复制 `frontend/index.html`、`frontend/tsconfig*.json`
-- [ ] 复制 `src/styles/theme.css`（109 行 CSS 变量主题）
-- [ ] 复制 `src/i18n/`（index.ts + locales/{en,zh}.json），改 brandName 等键
-- [ ] 复制 `src/types/`（forge.ts/specs.ts/wiki.ts/tool.ts）
-- [ ] 移植 `src/composables/useAuth.ts`：融合 auto-musk 现有 auth（JWT key `autoforge_jwt` → `musk_jwt`；fetch monkey-patch 改 key；登录端点 `/api/auth/login` 对齐）
-- [ ] 移植 `src/composables/useViewState.ts`：base path `/forge/` → `/`
-- [ ] 移植共享组件：StatusBadge / AgentAvatar / MarkdownContent / TreeView / DropZone / StreamingRenderer / StreamingTable
-- [ ] 改写 `src/App.vue`：保留 4 tab（Chats/Specs/Wikis/Flows）+ Login，去掉 agents-config/professions/skills/apis/explorer
-- [ ] 复制 `src/main.ts`（i18n + fetch 拦截 + mermaid init）
-- [ ] `npm install && npm run build` 验证编译通过（视图先放占位）
+- [x] 复制 `frontend/package.json` → `web/package.json`，调整 name 为 musk-web，保留依赖（vue/vite/vue-i18n/markstream-vue/marked/mermaid/lucide/tiptap）
+- [x] 复制 `frontend/vite.config.ts`，改 base path（auto-forge 是 `/forge/`，musk 用 `/`）+ dev port 3333 + proxy → :8888
+- [x] 复制 `frontend/index.html`、`frontend/tsconfig*.json`
+- [x] 复制 `src/styles/theme.css`（109 行 CSS 变量主题）
+- [x] 复制 `src/i18n/`（index.ts + locales/{en,zh}.json），改 brandName 等键
+- [x] 复制 `src/types/`（forge.ts/specs.ts/wiki.ts/tool.ts）
+- [x] 移植 `src/composables/useAuth.ts`：融合 auto-musk 现有 auth（JWT key `autoforge_jwt` → `musk_jwt`；fetch monkey-patch 改 key；登录端点 `/api/auth/login` 对齐）
+- [x] 移植 `src/composables/useViewState.ts`：base path `/forge/` → `/`
+- [x] 移植共享组件：StatusBadge / AgentAvatar / MarkdownContent / TreeView / DropZone / StreamingRenderer / StreamingTable
+- [x] 改写 `src/App.vue`：保留 4 tab（Chats/Specs/Wikis/Flows）+ Login，去掉 agents-config/professions/skills/apis/explorer
+- [x] 复制 `src/main.ts`（i18n + fetch 拦截 + mermaid init）
+- [x] `npm install && npm run build` 验证编译通过（视图先放占位）
 
 ### 验收
 - web/ 能编译、dev server 起来
@@ -95,19 +103,19 @@ Phase 1  基础设施层移植（theme/i18n/types/useAuth/useViewState/共享组
 **目标**：移植 SpecsView 全套，接通 auto-musk specs 后端。
 
 ### 前端（搬代码）
-- [ ] `composables/useSpecs.ts` + `useItemRelations.ts`
-- [ ] `views/SpecsView.vue`（1396 行）
-- [ ] `components/category/`（CategoryList + 7 个 *Cards.vue + GoalsTable）
-- [ ] `components/detail/`（GoalDetail/PlanDetail/ApiDetail/ReportDetail/ReviewDetail/TestDetail）
-- [ ] `components/GoalDetailModal.vue`、`GateBanner.vue`、`RelationsPanel.vue`
-- [ ] `utils/itemTemplates.ts`、`categorySummary.ts`、`goalParser.ts`
+- [x] `composables/useSpecs.ts` + `useItemRelations.ts`
+- [x] `views/SpecsView.vue`（1396 行）
+- [x] `components/category/`（CategoryList + 7 个 *Cards.vue + GoalsTable）
+- [x] `components/detail/`（GoalDetail/PlanDetail/ApiDetail/ReportDetail/ReviewDetail/TestDetail）
+- [x] `components/GoalDetailModal.vue`、`GateBanner.vue`、`RelationsPanel.vue`
+- [x] `utils/itemTemplates.ts`、`categorySummary.ts`、`goalParser.ts`
 
 ### 后端适配（auto-musk server.rs + specs.rs）
-- [ ] useSpecs 的 API_BASE 从 `/api/forge/specs/{project}` 改为 `/api/specs`（去掉 project 命名空间，musk 单项目）
-- [ ] 补端点 `GET /api/specs/related/{item_id}`（返回某 item 的 related，后端 rebuild_relations 已有逻辑，加 HTTP 暴露）
-- [ ] 补端点 `POST /api/specs/rebuild-relations`（手动触发重建）
-- [ ] 整 section 保存（`PUT /api/specs/section/{id}` body=content）适配或前端改用 item 级 upsert
-- [ ] 确认 SpecItem 类型字段对齐（created_at/modified_at/completed_at/tags）
+- [x] useSpecs 的 API_BASE 从 `/api/forge/specs/{project}` 改为 `/api/specs`（去掉 project 命名空间，musk 单项目）
+- [x] 补端点 `GET /api/specs/related/{item_id}`（返回某 item 的 related，后端 rebuild_relations 已有逻辑，加 HTTP 暴露）
+- [x] 补端点 `POST /api/specs/rebuild-relations`（手动触发重建）
+- [x] 整 section 保存（`PUT /api/specs/section/{id}` body=content）适配或前端改用 item 级 upsert
+- [x] 确认 SpecItem 类型字段对齐（created_at/modified_at/completed_at/tags）
 
 ### 验收
 - Specs tab 显示 7 类 section，卡片/详情/状态切换/关系面板全可用
@@ -121,16 +129,16 @@ Phase 1  基础设施层移植（theme/i18n/types/useAuth/useViewState/共享组
 **目标**：移植 ChatsView 全套，接通 chats 后端 + SSE 流式。
 
 ### 前端（搬代码）
-- [ ] `composables/useForge.ts`（519 行，核心）+ `useSessions.ts` + `useEventRouter.ts` + `useGateInbox.ts`
-- [ ] `views/ChatsView.vue`（2704 行）
-- [ ] 组件：StreamingRenderer / StreamingTable / MentionDropdown / GateCard / SecretaryMessage / ReportCard / QuestionnaireCard
-- [ ] useProject 简化（musk 单项目，去掉"打开项目"模型或硬编码默认项目）
+- [x] `composables/useForge.ts`（519 行，核心）+ `useSessions.ts` + `useEventRouter.ts` + `useGateInbox.ts`
+- [x] `views/ChatsView.vue`（2704 行）
+- [x] 组件：StreamingRenderer / StreamingTable / MentionDropdown / GateCard / SecretaryMessage / ReportCard / QuestionnaireCard
+- [x] useProject 简化（musk 单项目，去掉"打开项目"模型或硬编码默认项目）
 
 ### 后端适配（SSE 事件 + approve/reject）
-- [ ] useForge API_BASE `/api/forge/chats` → `/api/chats`
-- [ ] approve/reject 协议对齐（前端 body 传 edited_specs vs 后端按 index；二选一统一）
-- [ ] **SSE 事件丰富度**：后端 chat_stream 当前只发 delta/tool/done/error，前端 useForge 期望 22 种（turn_start/delta/thinking/tool_call/tool_result/errand_*/relay_*/phase_change...）。策略：前端容忍（多余分支不触发），后端逐步补发关键事件（turn_start/tool_result/thinking）
-- [ ] 补端点 `GET /api/chats/session/{id}/history`（前端用，后端可返回完整 session）
+- [x] useForge API_BASE `/api/forge/chats` → `/api/chats`
+- [x] approve/reject 协议对齐（前端 body 传 edited_specs vs 后端按 index；二选一统一）
+- [x] **SSE 事件丰富度**：后端 chat_stream 当前只发 delta/tool/done/error，前端 useForge 期望 22 种（turn_start/delta/thinking/tool_call/tool_result/errand_*/relay_*/phase_change...）。策略：前端容忍（多余分支不触发），后端逐步补发关键事件（turn_start/tool_result/thinking）
+- [x] 补端点 `GET /api/chats/session/{id}/history`（前端用，后端可返回完整 session）
 
 ### 验收
 - Chats tab 新建会话、多轮对话、SSE 流式逐 token 显示
@@ -144,16 +152,16 @@ Phase 1  基础设施层移植（theme/i18n/types/useAuth/useViewState/共享组
 **目标**：移植 WikiView 全套 + 新建 wiki 后端模块。
 
 ### 前端（搬代码）
-- [ ] `composables/useWiki.ts`（231 行）
-- [ ] `views/WikiView.vue`（865 行）
-- [ ] `components/TreeView.vue`、`DropZone.vue`、`MarkdownContent.vue`（已在 Phase 1）
-- [ ] `components/editors/autodown/`（TipTap 富文本子树，重型）
+- [x] `composables/useWiki.ts`（231 行）
+- [x] `views/WikiView.vue`（865 行）
+- [x] `components/TreeView.vue`、`DropZone.vue`、`MarkdownContent.vue`（已在 Phase 1）
+- [x] `components/editors/autodown/`（TipTap 富文本子树，重型）
 
 ### 后端新建（wiki 模块）
-- [ ] 新建 `backend/crates/musk/src/wiki.rs`：WikiStore（pages 持久化，JSON 或文件）
-- [ ] 端点 `/api/wiki/pages`（CRUD：list/get/create/update/delete/search/tree）
-- [ ] 端点 `/api/raw`（文件树：tree/file/upload/mkdir/delete）
-- [ ] 注册路由到 server.rs
+- [x] 新建 `backend/crates/musk/src/wiki.rs`：WikiStore（pages 持久化，JSON 或文件）
+- [x] 端点 `/api/wiki/pages`（CRUD：list/get/create/update/delete/search/tree）
+- [x] 端点 `/api/raw`（文件树：tree/file/upload/mkdir/delete）
+- [x] 注册路由到 server.rs
 
 ### 验收
 - Wiki tab 显示页面树、新建/编辑/删除页面
@@ -168,14 +176,14 @@ Phase 1  基础设施层移植（theme/i18n/types/useAuth/useViewState/共享组
 **目标**：移植 RelayView 全套 + 新建 relay 后端运行时。
 
 ### 前端（搬代码）
-- [ ] `composables/useRelay.ts`（595 行）+ `useTaskPlan.ts`（192 行）
-- [ ] `views/RelayView.vue`（1599 行，重命名为 FlowsView）
-- [ ] 组件：GatePanel / SegmentedProgressBar / TaskPlanPanel
-- [ ] 去掉 useRelay 里的 loadProfessions/loadSouls（Harness，不移植）
+- [x] `composables/useRelay.ts`（595 行）+ `useTaskPlan.ts`（192 行）
+- [x] `views/RelayView.vue`（1599 行，重命名为 FlowsView）
+- [x] 组件：GatePanel / SegmentedProgressBar / TaskPlanPanel
+- [x] 去掉 useRelay 里的 loadProfessions/loadSouls（Harness，不移植）
 
 ### 后端新建（relay 运行时 = Plan 009 P2b）
-- [ ] 这是 Plan 009 P2b（Relay 编排引擎）的前端对应。后端需新建完整 relay 运行时（pipeline/handoff/gate/checkpoint/budget + run 持久化 + SSE 事件协议）。
-- [ ] **建议**：Flows 前端移植等 Plan 009 P2b 后端就绪后再做（前端期望的事件协议与后端 workflow 差距巨大，硬移植会卡住）。
+- [x] 这是 Plan 009 P2b（Relay 编排引擎）的前端对应。后端需新建完整 relay 运行时（pipeline/handoff/gate/checkpoint/budget + run 持久化 + SSE 事件协议）。
+- [x] **建议**：Flows 前端移植等 Plan 009 P2b 后端就绪后再做（前端期望的事件协议与后端 workflow 差距巨大，硬移植会卡住）。
 
 ### 验收
 - Flows tab 显示 run 列表、启动 run、gate 审批、handoff 传递

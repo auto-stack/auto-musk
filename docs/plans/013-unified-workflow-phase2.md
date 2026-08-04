@@ -1,5 +1,9 @@
 # 013 — 后端数据模型统一 Phase 2: Conversation/Turn/ConversationStore
 
+## Status: COMPLETE
+
+> 🗄️ **已落地**（2026-08-04 核对代码）。`Conversation`/`Turn`/`ConversationKind`/`ConversationStatus`/`GateRecord` 等类型（conversation.rs:15-144）+ `ConversationStore`（:470，create/get/list/delete/rename/append_turn/set_status/set_gate/subscribe/migrate_chats）+ 挂入 `WorkspaceStores.conversations`（workspace.rs:44）+ RunStore 经 `link_conversations`（relay/store.rs:254）双写为 Flow 对话。统一 API `/api/conversations` + `/{id}` + `/{id}/stream` SSE（server.rs:150-156, :1905）；旧 `/api/chats/*` 经适配层（chat_create 双写同 id、chat_message 转 Turn）继续工作。4 子阶段（2a/2b/2c/2d）全部完成。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax.
 
 **Goal:** 引入统一的 Conversation/Turn 数据模型和 ConversationStore，把 chat 和 relay 的数据统一到一套模型 + 一套存储（conversations/{id}/turns.jsonl）。旧的 /api/chats + /api/forge/relay 端点通过适配层继续工作，前端无感。
@@ -133,11 +137,11 @@ pub struct GateInfo {
 }
 ```
 
-- [ ] Step 1: 创建 conversation.rs（上述全部类型 + 从 chats.rs/relay store.rs 的转换函数）
-- [ ] Step 2: 加转换函数 `ChatMessage → Turn` 和 `RunEvent → Vec<Turn>`（按 Design 007 §2.1 映射表）
-- [ ] Step 3: 单测：转换正确性
-- [ ] Step 4: lib.rs 注册模块
-- [ ] Step 5: cargo test + commit
+- [x] Step 1: 创建 conversation.rs（上述全部类型 + 从 chats.rs/relay store.rs 的转换函数）
+- [x] Step 2: 加转换函数 `ChatMessage → Turn` 和 `RunEvent → Vec<Turn>`（按 Design 007 §2.1 映射表）
+- [x] Step 3: 单测：转换正确性
+- [x] Step 4: lib.rs 注册模块
+- [x] Step 5: cargo test + commit
 
 ---
 
@@ -170,7 +174,7 @@ pub struct ConversationStore {
 - index.json: `Vec<ConversationSummary { id, kind, parent_id, workspace_id, status, title, turn_count, child_count, cumulative_tokens, created_at, updated_at }>`
 - {id}/turns.jsonl: 每行一个 Turn JSON
 
-- [ ] Step 1-5: 实现 + 单测 + commit
+- [x] Step 1-5: 实现 + 单测 + commit
 
 ---
 
@@ -186,7 +190,7 @@ pub struct ConversationStore {
 - 迁移函数：检测旧 `chats.json` → 每个 ChatSession 转为 Conversation；检测旧 `relay/` → 每个 run 转为 Conversation
 - 迁移后旧文件重命名 `.bak`
 
-- [ ] 实现 + 单测 + commit
+- [x] 实现 + 单测 + commit
 
 ---
 
@@ -202,8 +206,8 @@ pub struct ConversationStore {
 
 **这是最大的改动面**（~40 个 handler 签名），但每个改动是机械的：旧格式 ↔ Conversation 互转。
 
-- [ ] 分批改造（先 chats list/get/create/delete，再 chats message/stream/approve/reject，再 relay 全部）
-- [ ] cargo test + commit
+- [x] 分批改造（先 chats list/get/create/delete，再 chats message/stream/approve/reject，再 relay 全部）
+- [x] cargo test + commit
 
 ---
 
@@ -216,9 +220,9 @@ pub struct ConversationStore {
 
 统一 SSE 广播（一套事件格式替代 StreamEvent 4 种 + RunEvent 15 种）。新 API `/api/conversations/*`。
 
-- [ ] 统一事件总线
-- [ ] 新端点
-- [ ] commit
+- [x] 统一事件总线
+- [x] 新端点
+- [x] commit
 
 ---
 
