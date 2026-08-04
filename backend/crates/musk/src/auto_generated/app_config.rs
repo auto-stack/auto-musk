@@ -10,21 +10,30 @@ use serde::{Serialize, Deserialize};
 /// hand-written Rust (upstream crate APIs a2r can't express)
 /// - apply_to_env / apply_app_config (env mutation) -> hand-written Rust
 /// The app's harness selection: which OS-level harnesses it uses.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct HarnessSelection {
+    #[serde(default)]
     pub roles: Vec<String>,
+    #[serde(default)]
     pub skills: Vec<String>,
+    #[serde(default)]
     pub modes: Vec<String>,
 }
 
 /// musk runtime config (single source: ~/.config/autoos/apps/musk/config.at).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct MuskAppConfig {
+    #[serde(default)]
     pub daemon_url: Option<String>,
+    #[serde(default)]
     pub default_mode: Option<String>,
+    #[serde(default)]
     pub context_file: Option<String>,
+    #[serde(default)]
     pub serve_addr: Option<String>,
+    #[serde(default)]
     pub auto_start_daemon: Option<bool>,
+    #[serde(default)]
     pub harness: HarnessSelection,
 }
 
@@ -33,24 +42,24 @@ impl MuskAppConfig {
         match self.daemon_url.clone() {
             Some(url) => return url.clone(),
             None => return "http://127.0.0.1:17654".to_string(),
-        };
+        }
     }
     pub fn effective_default_mode(&self) -> String {
         match self.default_mode.clone() {
             Some(mode) => return mode.clone(),
             None => return "superpowers".to_string(),
-        };
+        }
     }
     pub fn effective_serve_addr(&self) -> String {
         match self.serve_addr.clone() {
             Some(addr) => return addr.clone(),
             None => return "127.0.0.1:8080".to_string(),
-        };
+        }
     }
     pub fn effective_auto_start(&self) -> bool {
         match self.auto_start_daemon.clone() {
             Some(b) => return b,
             None => return false,
-        };
+        }
     }
 }

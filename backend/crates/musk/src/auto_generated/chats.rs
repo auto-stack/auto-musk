@@ -93,9 +93,25 @@ impl Role {
 /// A tool call recorded on an assistant message.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ToolCall {
+    #[serde(rename = "name", alias = "tool")]
     pub tool: String,
+    #[serde(rename = "arguments", alias = "args")]
     pub args: Value,
     pub result: String,
+    #[serde(default = "default_status", skip_serializing_if = "is_default_status")]
+    pub status: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub id: String,
+}
+
+/// Default tool-call status (used by serde `default = "default_status"`).
+fn default_status() -> String {
+    return "success".to_string();
+}
+
+/// Whether a tool-call status is the default (used by serde skip_serializing_if).
+fn is_default_status(s: &str) -> bool {
+    return s == "success";
 }
 
 /// A single chat message.
@@ -104,6 +120,7 @@ pub struct ChatMessage {
     pub id: String,
     pub role: Role,
     pub content: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_calls: Vec<ToolCall>,
     pub created_at: u64,
 }
@@ -128,7 +145,9 @@ pub struct ChatSession {
     pub messages: Vec<ChatMessage>,
     pub created_at: u64,
     pub updated_at: u64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pending_spec_changes: Vec<SpecChange>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_id: Option<String>,
 }
 
@@ -228,7 +247,7 @@ impl ChatStore {
                 };
             },
             Err(e) => return HashMap::new(),
-        };
+        }
     }
     pub fn save_map(&self, map: HashMap<String, ChatSession>) -> bool {
         let parent = self.path.parent();
@@ -249,6 +268,6 @@ impl ChatStore {
                 return ok;
             },
             Err(e) => return false,
-        };
+        }
     }
 }

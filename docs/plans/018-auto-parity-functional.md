@@ -123,9 +123,9 @@ use musk::auto_generated::specs as ag;    // a2r-transpiled
 | C1 | a2r-11 可变借用遍历（`for x in coll` 不加 `&`） | 巨大（所有集合遍历场景） | ✅ 完成（2026-08-04） | `e2c94535` | specs.at 去掉 15 处 `.clone()` 变通；7/7 parity 通过 |
 | C2 | async 泛型闭包 `F: Fn->Fut` | 大（task_plan_engine::execute） | ⬜ 待启动 | — | execute 留手写边界 |
 | C3 | HashMap<K,Vec<V>> 方法调用（a2r-10） | 中（detect_cycle 等） | ⬜ 待启动 | — | task_plan 可用标准写法 |
-| C4 | serde 属性透传（default/rename/skip/alias） | 大（全模块向后兼容） | ⬜ 待启动 | — | app_config/chats 等 |
-| C5 | enum Default derive + `#[default]` | 中（config 类） | ⬜ 待启动 | — | ModeRegistry::DEFAULT |
-| C6 | str 所有权推断（`impl Into<String>`） | 大（全模块构造函数） | ⬜ 待启动 | — | SpecItem::new 等 |
+| C4 | serde 属性透传（default/rename/skip/alias） | 大（全模块向后兼容） | ✅ 确认非 a2r 限制（2026-08-04） | 无需改 a2r | app_config.at 补 10 处 default + Default derive；chats.at 补 ToolCall status/id + 7 处 serde 属性 |
+| C5 | enum Default derive + `#[default]` | 中（config 类） | ✅ 已验证可用 | 无需改 a2r | Default derive 透传正常（C4 中验证） |
+| C6 | str 所有权推断（`impl Into<String>`） | 大（全模块构造函数） | ⏸️ 推迟到接线阶段 | 无需改 a2r | `&str` 签名行为等价；owned String 传入差异仅在接线运行时出现 |
 | C7 | enum 数据载荷（NeedsApproval(String)） | 小（tool_safety） | ⬜ 待启动 | — | CommandTier |
 
 ### C1 闭环详情（a2r-11 for 循环借用遍历）✅

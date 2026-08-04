@@ -61,9 +61,25 @@ pub enum Role {
 /// A tool call recorded on an assistant message.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub type ToolCall {
+    #[serde(rename = "name", alias = "tool")]
     tool str
+    #[serde(rename = "arguments", alias = "args")]
     args Value
     result str
+    #[serde(default = "default_status", skip_serializing_if = "is_default_status")]
+    status str
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    id str
+}
+
+/// Default tool-call status (used by serde `default = "default_status"`).
+fn default_status() str {
+    return "success"
+}
+
+/// Whether a tool-call status is the default (used by serde skip_serializing_if).
+fn is_default_status(s str) bool {
+    return s == "success"
 }
 
 // serde_json::Value re-aliased (a2r renders 'Value' -> serde_json::Value via
@@ -76,6 +92,7 @@ pub type ChatMessage {
     id str
     role Role
     content str
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     tool_calls List<ToolCall>
     created_at u64
 }
@@ -117,7 +134,9 @@ pub type ChatSession {
     messages List<ChatMessage>
     created_at u64
     updated_at u64
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pending_spec_changes List<SpecChange>
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     workspace_id Option<str>
 }
 

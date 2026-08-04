@@ -13,21 +13,30 @@ use.rust serde::{Serialize, Deserialize}
 // ============================================================
 
 /// The app's harness selection: which OS-level harnesses it uses.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub type HarnessSelection {
+    #[serde(default)]
     roles List<str>
+    #[serde(default)]
     skills List<str>
+    #[serde(default)]
     modes List<str>
 }
 
 /// musk runtime config (single source: ~/.config/autoos/apps/musk/config.at).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub type MuskAppConfig {
+    #[serde(default)]
     daemon_url Option<str>
+    #[serde(default)]
     default_mode Option<str>
+    #[serde(default)]
     context_file Option<str>
+    #[serde(default)]
     serve_addr Option<str>
+    #[serde(default)]
     auto_start_daemon Option<bool>
+    #[serde(default)]
     harness HarnessSelection
 }
 
