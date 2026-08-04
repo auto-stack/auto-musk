@@ -18,7 +18,7 @@ use serde_json::Value;
 /// (these use external-crate APIs a2r maps poorly; #[rs] passes Rust through)
 /// - AuthStore sessions use std::sync::Mutex -> #[rs] for the mutex-guarded
 /// HashMap ops; load/save users reuse the specs.rs IO pattern.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Permission {
     RunAgent = 1,
     EditSpecs = 2,
@@ -81,11 +81,11 @@ impl Role {
             Role::Admin => return vec![Permission::RunAgent, Permission::EditSpecs, Permission::Read, Permission::ManageUsers],
             Role::Developer => return vec![Permission::RunAgent, Permission::EditSpecs, Permission::Read],
             Role::Viewer => return vec![Permission::Read],
-        };
+        }
     }
     pub fn allows(&self, perm: Permission) -> bool {
         let perms: Vec<Permission> = self.permissions();
-        for p in perms {
+        for p in perms.clone() {
             if p == perm {
                 return true;
             }
@@ -129,18 +129,16 @@ pub struct Session {
 }
 
 /// The auth store: persisted users (JSON file) + in-memory sessions.
-/// NOTE: sessions (Mutex<HashMap>) and login/session_user/logout (which need
-/// the Mutex guard) stay hand-written in Rust — a2r/#[rs] can't express
-/// `mutex.lock().unwrap().insert(&k, v)`. Only the user-file IO + seeding
-/// logic is ported here.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// Note: no Clone/PartialEq derive — Mutex doesn't implement them.
+#[derive(Debug)]
 pub struct AuthStore {
     pub users_path: PathBuf,
+    pub sessions: Mutex<HashMap<String, String>>,
 }
 
 impl AuthStore {
     pub fn new(users_path: PathBuf) -> AuthStore {
-        let store: AuthStore = AuthStore { users_path: users_path };
+        let store: AuthStore = AuthStore { users_path: users_path, sessions: Mutex::new(HashMap::new()) };
         store.ensure_default_admin();
         return store;
     }
@@ -151,7 +149,7 @@ impl AuthStore {
         }
 
         let salt: String = random_hex(16);
-        let hash: String = hash_password("admin", &&salt);
+        let hash: String = hash_password("admin", &salt);
         let admin: User = User { username: "admin".to_string(), role: Role::Admin, password_hash: hash.to_string(), salt: salt.to_string() };
         let _ = self.save_users(vec![admin]);
     }
@@ -166,7 +164,7 @@ impl AuthStore {
                 };
             },
             Err(e) => return vec![],
-        };
+        }
     }
     pub fn save_users(&self, users: Vec<User>) -> bool {
         let parent = self.users_path.parent();
@@ -187,6 +185,54 @@ impl AuthStore {
                 return ok;
             },
             Err(e) => return false,
-        };
+        }
+    }
+    pub fn login(&self, username: &str, password: &str) -> Option<Session> {
+        let users: Vec<User> = self.load_users();
+        let mut found: User = User { username: "".to_string(), role: Role::Viewer, password_hash: "".to_string(), salt: "".to_string() };
+        let mut matched: bool = false;
+        for u in &users {
+            if u.username == username {
+                found = u.clone();
+                matched = true
+            }
+        }
+        if matched == false {
+            return None;
+        }
+        let candidate: String = hash_password(password, &found.salt);
+        if candidate != found.password_hash {
+            return None;
+        }
+        let token: String = random_hex(32);
+        let mut guard = self.sessions.lock().unwrap();
+        guard.insert(token.clone().to_string(), username.clone().to_string());
+        return Some(Session { token: token.to_string(), username: username.clone().to_string() });
+    }
+    pub fn session_user(&self, token: &str) -> Option<UserInfo> {
+        let mut guard = self.sessions.lock().unwrap();
+        match guard.get(token) {
+            Some(username) => {
+                let username_str: String = username.clone();
+                let users: Vec<User> = self.load_users();
+                for u in &users {
+                    if u.username == username_str {
+                        return Some(UserInfo::from_user(u.clone()));
+                    }
+                }
+                return None;
+            },
+            None => return None,
+        }
+    }
+    pub fn token_allows(&self, token: &str, perm: Permission) -> bool {
+        match self.session_user(token) {
+            Some(u) => return u.role.allows(perm),
+            None => return false,
+        }
+    }
+    pub fn logout(&self, token: &str) {
+        let mut guard = self.sessions.lock().unwrap();
+        guard.remove(token);
     }
 }

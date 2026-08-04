@@ -18,7 +18,7 @@ use.rust serde_json::{to_string_pretty, from_slice}
 // Permission / Role — RBAC enums + logic
 // ============================================================
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Permission {
     RunAgent = 1
     EditSpecs = 2
@@ -47,7 +47,7 @@ ext Role {
     /// Does this role grant `perm`?
     pub fn allows(perm Permission) bool {
         let perms List<Permission> = self.permissions()
-        for p in perms {
+        for p in perms.clone() {
             if p == perm {
                 return true
             }
@@ -103,19 +103,20 @@ pub type Session {
 // ============================================================
 
 /// The auth store: persisted users (JSON file) + in-memory sessions.
-/// NOTE: sessions (Mutex<HashMap>) and login/session_user/logout (which need
-/// the Mutex guard) stay hand-written in Rust — a2r/#[rs] can't express
-/// `mutex.lock().unwrap().insert(&k, v)`. Only the user-file IO + seeding
-/// logic is ported here.
+/// Note: no Clone/PartialEq derive — Mutex doesn't implement them.
+#[derive(Debug)]
 pub type AuthStore {
     users_path PathBuf
+    sessions Mutex<HashMap<str, str>>
 }
 
 ext AuthStore {
     /// Open at users.json. Seeds a default admin if the file is absent.
-    /// (Caller wires in the in-memory sessions separately in Rust.)
     pub static fn new(users_path PathBuf) AuthStore {
-        let store AuthStore = AuthStore(users_path: users_path)
+        let store AuthStore = AuthStore(
+            users_path: users_path,
+            sessions: Mutex.new(HashMap.new())
+        )
         store.ensure_default_admin()
         return store
     }
@@ -176,9 +177,65 @@ ext AuthStore {
             Err(e) -> return false
         }
     }
+
+    /// Verify credentials; on success create a session + return its token.
+    /// hash_password/random_hex are native Rust (declared in auth.rs).
+    pub fn login(username str, password str) Option<Session> {
+        let users List<User> = self.load_users()
+        var found User = User(username: "", role: Role.Viewer, password_hash: "", salt: "")
+        var matched bool = false
+        for u in users {
+            if u.username == username {
+                found = u.clone()
+                matched = true
+            }
+        }
+        if matched == false {
+            return None
+        }
+        let candidate str = hash_password(password, found.salt.view)
+        if candidate != found.password_hash {
+            return None
+        }
+        let token str = random_hex(32u)
+        var guard = self.sessions.lock().unwrap()
+        guard.insert(token.clone(), username.clone())
+        return Some(Session(token: token, username: username.clone()))
+    }
+
+    /// Look up the user for a session token (None if unknown/expired).
+    pub fn session_user(token str) Option<UserInfo> {
+        var guard = self.sessions.lock().unwrap()
+        is guard.get(token) {
+            Some(username) -> {
+                let username_str str = username.clone()
+                let users List<User> = self.load_users()
+                for u in users {
+                    if u.username == username_str {
+                        return Some(UserInfo.from_user(u.clone()))
+                    }
+                }
+                return None
+            },
+            None -> return None
+        }
+    }
+
+    /// Does the bearer token's user have `perm`?
+    pub fn token_allows(token str, perm Permission) bool {
+        is self.session_user(token) {
+            Some(u) -> return u.role.allows(perm),
+            None -> return false
+        }
+    }
+
+    /// Log out a session (no-op if unknown).
+    pub fn logout(token str) void {
+        var guard = self.sessions.lock().unwrap()
+        guard.remove(token)
+    }
 }
 
-// NOTE: login / session_user / token_allows / logout need the in-memory
-// Mutex<HashMap> sessions, which a2r can't express. They stay hand-written
-// in auth.rs (native Rust), calling the Auto-ported load_users/save_users
-// + hash_password/random_hex + Role::allows above.
+// hash_password/random_hex are native Rust (sha2/hex/rand crate APIs,
+// declared in auth.rs). They are called from the Auto methods above via
+// extern_impl re-export.

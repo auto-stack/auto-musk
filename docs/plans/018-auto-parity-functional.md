@@ -126,7 +126,9 @@ use musk::auto_generated::specs as ag;    // a2r-transpiled
 | C4 | serde 属性透传（default/rename/skip/alias） | 大（全模块向后兼容） | ✅ 确认非 a2r 限制（2026-08-04） | 无需改 a2r | app_config.at 补 10 处 default + Default derive；chats.at 补 ToolCall status/id + 7 处 serde 属性 |
 | C5 | enum Default derive + `#[default]` | 中（config 类） | ✅ 已验证可用 | 无需改 a2r | Default derive 透传正常（C4 中验证） |
 | C6 | str 所有权推断（`impl Into<String>`） | 大（全模块构造函数） | ⏸️ 推迟到接线阶段 | 无需改 a2r | `&str` 签名行为等价；owned String 传入差异仅在接线运行时出现 |
-| C7 | enum 数据载荷（NeedsApproval(String)） | 小（tool_safety） | ⬜ 待启动 | — | CommandTier |
+| C7 | enum 数据载荷（NeedsApproval(String)） | 小（tool_safety） | 🔶 定义可用，构造丢值 | 待 C7b | `tag T { V { f str } }` 定义正确，但 `T.V(f: "...")` 构造渲染为 `T::V { }`（值丢失） |
+| C7b | tag union 命名字段构造丢值 | 中（所有带载荷 enum） | ⬜ 待启动 | 需改 a2r | tool_safety CommandTier 暂用无载荷 enum + classify_reason 变通 |
+| C8 | `const` 关键字不支持 | 中（mode DEFAULT/BUILTIN_MODES） | ⬜ 待启动 | 需改 a2r | mode.at 的 DEFAULT const 和 BUILTIN_MODES 无法表达 |
 
 ### C1 闭环详情（a2r-11 for 循环借用遍历）✅
 
@@ -224,7 +226,19 @@ task_plan_engine 的 execute/run_one（async 泛型闭包 `F: Fn->Fut`）**确�
 | Phase | 状态 | 完成摘要 |
 |---|---|---|
 | 1 — specs | ✅ | 7/7 parity 测试通过；enum pub + display_title emoji 修复 |
-| 0 — a2r 改进 | ⏸️ 按需 | 降级为遇阻时才做 |
-| 2 — 6 模块对齐 | ⬜ 待启动 | auth 优先 |
+| 0 — a2r 改进 | 🔶 C1 ✅ + C4/C5 ✅(无需改) + C6 推迟 + C7b/C8 待修 | C1 for 借用遍历(`e2c94535`)；C4 serde 属性是 .at 遗漏；C7b tag 构造丢值待修；C8 const 不支持待修 |
+| 2 — 已移植模块 | 🔶 4/6 完成 | specs ✅ / app_config ✅ / chats ✅ / **auth ✅**(Mutex 方法补齐) / mode ⏸️(const 待 C8) / tool_safety 🔶(C7b 待修) / conversation ⬜ |
 | 3 — 缺失模块 | ⬜ 待启动 | parser 优先（试点） |
 | 4 — 复杂模块 | ⬜ 待启动 | 视 Phase 0 成果 |
+
+### Phase 2 各模块详情
+
+| 模块 | 状态 | 完成内容 | 手写边界（依赖外部 crate/a2r 限制） |
+|---|---|---|---|
+| specs | ✅ | enum pub + display_title + 去 15 处 clone | — |
+| app_config | ✅ | 10 处 serde default + Default derive | load/apply（auto_atom/env） |
+| chats | ✅ | ToolCall status/id + 7 处 serde 属性 | ChatStore 11 方法（Mutex，待移植） |
+| auth | ✅ | Hash derive + sessions 字段 + 4 个 Mutex 方法 + 修正 derive | hash_password/random_hex（sha2/hex/rand） |
+| mode | ⏸️ | — | BUILTIN_MODES/DEFAULT（const，待 C8）；load/parse_mode_at（auto_atom/dirs） |
+| tool_safety | 🔶 | classify_command 补 .clone()（C1 连带） | CommandTier 载荷（待 C7b）；8 路径围栏（OnceLock/thread_local） |
+| conversation | ⬜ | — | ConversationStore（Mutex+broadcast）；ConversationEvent 结构 |

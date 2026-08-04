@@ -13,6 +13,9 @@ use super::extern_impl::*;
 /// resolve_within_project) -> hand-written Rust (OnceLock + thread_local!
 /// + RefCell + Path methods are a2r blind spots)
 /// The safety tier of a shell command.
+/// NOTE: C7b 待修 — a2r 渲染 tag union 命名字段构造时丢弃值
+/// (NeedsApproval(reason: "...") → NeedsApproval { })。暂用无载荷 enum +
+/// classify_reason 变通。C7b 修好后恢复 tag + NeedsApproval { reason str }。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CommandTier {
     Allowed = 1,
@@ -52,7 +55,7 @@ pub fn classify_command(cmd: &str) -> CommandTier {
     let trimmed: String = cmd.trim().to_string();
 
     let dangers: Vec<String> = danger_patterns();
-    for pat in dangers {
+    for pat in &dangers {
         if trimmed.as_str().contains(pat.as_str()) {
             return CommandTier::NeedsApproval;
         }
@@ -60,8 +63,8 @@ pub fn classify_command(cmd: &str) -> CommandTier {
 
     let lower: String = trimmed.to_lowercase();
     let prefixes: Vec<String> = allowed_prefixes();
-    for prefix in prefixes {
-        if lower == prefix {
+    for prefix in &prefixes {
+        if lower == prefix.clone() {
             return CommandTier::Allowed;
         }
         let with_space: String = format!("{}{}", prefix, " ");
@@ -76,7 +79,7 @@ pub fn classify_command(cmd: &str) -> CommandTier {
 pub fn classify_reason(cmd: &str) -> String {
     let trimmed: String = cmd.trim().to_string();
     let dangers: Vec<String> = danger_patterns();
-    for pat in dangers {
+    for pat in &dangers {
         if trimmed.as_str().contains(pat.as_str()) {
             return format!("{}{}", format!("{}{}", "dangerous pattern detected: ", pat), " — needs approval");
         }
