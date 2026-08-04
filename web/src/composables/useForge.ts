@@ -228,6 +228,21 @@ export function useForge() {
     // Current assistant message for this turn — reset on each turn_start
     let assistantMsg: ForgeMessage | null = null
 
+    // Heuristic: detect tool results that represent failures, since the
+    // upstream agent loop turns tool errors into a string result rather than a
+    // distinct event variant.
+    function isErrorResult(result: string): boolean {
+      if (!result) return false
+      return result.startsWith('[tool error:')
+        || /^Error:/.test(result)
+        || /command not found/i.test(result)
+        || /cannot find (the )?file/i.test(result)
+        || /No such file or directory/i.test(result)
+        || /can't open file/i.test(result)
+        || /\bPermission denied\b/i.test(result)
+        || /⏸ PAUSED:/.test(result)
+    }
+
     function newAssistantMsg(professionId?: string): ForgeMessage {
       // Reuse the current assistant message if it's completely empty (no content, no tool calls).
       // This prevents creating ghost messages for turns that only contained tool calls.
@@ -300,10 +315,27 @@ export function useForge() {
             msg.tool_calls.push(call)
           } else if (data.type === 'tool_result') {
             if (assistantMsg) {
-              const call = assistantMsg.tool_calls?.find((c) => c.id === data.id)
+              // Match by id first; fall back to the last running call with the
+              // same name (guards against id-pairing gaps in the SSE stream).
+              const calls = assistantMsg.tool_calls ?? []
+              let call = data.id ? calls.find((c) => c.id === data.id) : undefined
+              if (!call) {
+                const name = data.name
+                for (let i = calls.length - 1; i >= 0; i--) {
+                  if (calls[i].status === 'running' && (!name || calls[i].name === name)) {
+                    call = calls[i]
+                    break
+                  }
+                }
+              }
               if (call) {
                 call.result = data.result ?? ''
-                call.status = 'success'
+                // Prefer backend-provided status; else infer from the result text.
+                if (data.status === 'error' || isErrorResult(data.result ?? '')) {
+                  call.status = 'error'
+                } else {
+                  call.status = 'success'
+                }
               }
             }
           } else if (data.type === 'agent_handoff') {

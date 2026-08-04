@@ -37,12 +37,27 @@ pub enum Role {
 }
 
 /// A tool call recorded on an assistant message (tool name + args + result).
+///
+/// Field wire names (`name` / `arguments`) match what the Vue frontend reads
+/// (`ToolCallInfo.name` / `.arguments`). The `alias` keeps older persisted
+/// `chats.json` rows (which used `tool` / `args`) deserializable.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCall {
+    #[serde(rename = "name", alias = "tool")]
     pub tool: String,
+    #[serde(rename = "arguments", alias = "args")]
     pub args: serde_json::Value,
     pub result: String,
+    /// `"success"` / `"error"` — surfaced to the frontend for card styling.
+    #[serde(default = "default_status", skip_serializing_if = "is_default_status")]
+    pub status: String,
+    /// Stable id matching the SSE `tool_call`/`tool_result` pair (e.g. `tc-1`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub id: String,
 }
+
+fn default_status() -> String { "success".into() }
+fn is_default_status(s: &String) -> bool { s == "success" }
 
 /// A single chat message.
 #[derive(Debug, Clone, Serialize, Deserialize)]

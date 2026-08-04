@@ -915,6 +915,8 @@ mod tests {
             tool: "read_file".into(),
             args: serde_json::json!({"path": "test.rs"}),
             result: "file contents".into(),
+            status: "success".into(),
+            id: "tc-1".into(),
         });
         let turns = chat_message_to_turns(&msg, 0);
         assert_eq!(turns.len(), 3); // message + tool_call + tool_result

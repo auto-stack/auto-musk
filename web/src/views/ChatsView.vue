@@ -222,16 +222,34 @@
                   <div class="handoff-reason">{{ handoffReason(tc) }}</div>
                   <span v-if="tc.arguments?.classification" class="handoff-badge">{{ tc.arguments.classification }}</span>
                 </div>
-                <!-- Shell card -->
-                <div v-else-if="tc.name === 'shell'" class="shell-card" :class="tc.status">
-                  <div class="shell-header">
+                <!-- Shell card (run_command) -->
+                <div v-else-if="tc.name === 'run_command' || tc.name === 'shell'" class="shell-card" :class="tc.status">
+                  <div class="shell-header" @click="tc.result && (tc._expanded = !tc._expanded)">
                     <span class="shell-icon">$</span>
-                    <code class="shell-cmd">{{ tc.arguments?.command || '' }}</code>
-                    <span class="shell-status" :class="tc.status">{{ tc.status }}</span>
+                    <code class="shell-cmd">{{ tc.arguments?.cmd || tc.arguments?.command || '' }}</code>
+                    <span class="shell-status" :class="tc.status">{{ tc.status || 'running' }}</span>
+                    <ChevronDown v-if="tc.result && !tc._expanded" :size="14" class="tool-chevron" />
+                    <ChevronUp v-else-if="tc.result && tc._expanded" :size="14" class="tool-chevron" />
                   </div>
                   <pre v-if="tc.result && tc._expanded" class="shell-output">{{ tc.result }}</pre>
-                  <button v-if="tc.result && !tc._expanded" class="shell-toggle" @click="tc._expanded = true">show output</button>
-                  <button v-if="tc.result && tc._expanded" class="shell-toggle" @click="tc._expanded = false">hide</button>
+                </div>
+                <!-- Write-file card: shows the written code with syntax highlight -->
+                <div v-else-if="tc.name === 'write_file'" class="tool-card write-card" :class="tc.status">
+                  <div class="tool-header" @click="tc._expanded = !tc._expanded">
+                    <span class="tool-icon">📝</span>
+                    <span class="tool-name">write_file</span>
+                    <span class="tool-seg seg-path">{{ tc.arguments?.path || '' }}</span>
+                    <span class="tool-status" :class="tc.status || 'running'">{{ tc.status || 'running' }}</span>
+                    <ChevronDown v-if="!tc._expanded" :size="14" class="tool-chevron" />
+                    <ChevronUp v-else :size="14" class="tool-chevron" />
+                  </div>
+                  <div v-if="tc._expanded" class="tool-body">
+                    <MarkdownRender
+                      :content="'```' + langFromPath(tc.arguments?.path) + '\n' + (tc.arguments?.content || '') + '\n```'"
+                      :final="true"
+                      :max-live-nodes="320"
+                    />
+                  </div>
                 </div>
                 <!-- Spawn Relay inline -->
                 <div v-else-if="tc.name === 'spawn_relay'" class="relay-inline">
@@ -296,7 +314,11 @@
                   </div>
                   <div v-if="tc.result" class="tool-section">
                     <div class="tool-section-title">Result</div>
-                    <pre class="tool-code result">{{ tc.result }}</pre>
+                    <MarkdownRender
+                      :content="tc.result"
+                      :final="true"
+                      :max-live-nodes="320"
+                    />
                   </div>
                 </div>
                 </div>
@@ -397,6 +419,7 @@ import { useAgentConfigs } from '@/composables/useAgentConfigs'
 import { useRelay } from '@/composables/useRelay'
 import { setEventCallbacks } from '@/composables/useEventRouter'
 import StreamingRenderer from '@/components/StreamingRenderer.vue'
+import { MarkdownRender } from 'markstream-vue'
 import MentionDropdown from '@/components/MentionDropdown.vue'
 import AgentAvatar from '@/components/AgentAvatar.vue'
 import GateCard from '@/components/GateCard.vue'
@@ -504,6 +527,22 @@ function getErrandStatus(tc: { id: string }) {
 
 function getErrandToolCalls(tc: { id: string }) {
   return getErrandState(tc)?.tool_calls || []
+}
+
+// ─── File extension → code-fence language hint ──────────────────────────────
+function langFromPath(path: unknown): string {
+  if (typeof path !== 'string') return ''
+  const ext = path.split('.').pop()?.toLowerCase() || ''
+  const map: Record<string, string> = {
+    rs: 'rust', py: 'python', js: 'javascript', ts: 'typescript',
+    vue: 'vue', go: 'go', java: 'java', rb: 'ruby', php: 'php',
+    c: 'c', h: 'c', cpp: 'cpp', cc: 'cpp', hpp: 'cpp',
+    sh: 'bash', bash: 'bash', zsh: 'bash',
+    json: 'json', yaml: 'yaml', yml: 'yaml', toml: 'toml',
+    html: 'html', xml: 'xml', css: 'css', scss: 'scss',
+    md: 'markdown', sql: 'sql',
+  }
+  return map[ext] || ext || ''
 }
 
 // ─── Tool summary for inline header display ─────────────────────────────────

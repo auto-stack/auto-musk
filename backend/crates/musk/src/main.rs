@@ -324,6 +324,11 @@ async fn chat_loop(
                         print!("{text}");
                         let _ = io::stdout().flush();
                     }
+                    StreamEvent::Thinking { text } => {
+                        // Dim the reasoning so it's visually distinct from the answer.
+                        print!("\x1b[2m{text}\x1b[0m");
+                        let _ = io::stdout().flush();
+                    }
                     StreamEvent::ToolStart { tool, .. } => {
                         println!("\n  [tool] {tool} starting…");
                     }

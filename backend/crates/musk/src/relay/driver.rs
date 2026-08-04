@@ -223,6 +223,12 @@ async fn run_step(
             StreamEvent::Warning { text } => {
                 tracing::warn!("relay turn warning: {text}");
             }
+            StreamEvent::Thinking { text } => {
+                // Reasoning is not persisted into the relay run store — the
+                // handoff/output should carry the final answer, not the
+                // chain-of-thought. (Surfaced only in the direct chat SSE.)
+                tracing::debug!("relay thinking: {}…", &text[..text.len().min(60)]);
+            }
             StreamEvent::Done { .. } | StreamEvent::Error { .. } => {
                 // Handled below via the return value.
             }

@@ -19,7 +19,7 @@
 
 use std::sync::Arc;
 
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, patch, post};
@@ -31,6 +31,26 @@ use auto_ai_agent::{builtin_names, load_builtin, load_role, Client, Role};
 
 use crate::build_agent_from_mode;
 use crate::workspace::WorkspaceQuery;
+
+/// Guess a Content-Type from a file extension (mirrors `wiki::guess_mime` but
+/// local to the server module so the `/api/files` endpoint stays self-contained).
+fn guess_mime_from_path(path: &std::path::Path) -> &'static str {
+    match path.extension().and_then(|e| e.to_str()) {
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("svg") => "image/svg+xml",
+        Some("webp") => "image/webp",
+        Some("bmp") => "image/bmp",
+        Some("md") => "text/markdown",
+        Some("txt") => "text/plain",
+        Some("json") => "application/json",
+        Some("html") => "text/html",
+        Some("js") => "application/javascript",
+        Some("css") => "text/css",
+        _ => "application/octet-stream",
+    }
+}
 
 /// Shared server state: a client that talks to the daemon, the auth store,
 /// and the workspace registry (which resolves per-workspace specs/chats/wiki/
@@ -168,6 +188,10 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .merge(crate::relay::api::task_plan_routes())
         // Wiki knowledge base (Phase 4): markdown pages + raw resource tree.
         .merge(crate::wiki::wiki_routes())
+        // Workspace file serving (for display_image tool): serves any file
+        // inside a workspace's root so generated artifacts (e.g. PNG charts)
+        // can be rendered inline in the chat via a URL.
+        .route("/api/files/{workspace_id}/{*path}", get(workspace_file))
         // Serve config-page.js + any other static assets at the root.
         .fallback_service(static_service)
         .layer(cors)
@@ -1053,9 +1077,23 @@ async fn run_stream_handler(
             }
         };
         let tx2 = tx.clone();
+        let tc_counter = std::sync::Arc::new(std::sync::Mutex::new(0usize));
+        let tc_stack: std::sync::Arc<std::sync::Mutex<Vec<String>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let on_event: Arc<dyn Fn(auto_ai_agent::StreamEvent) + Send + Sync> =
             Arc::new(move |ev| {
-                let value = stream_event_to_json(&ev);
+                use auto_ai_agent::StreamEvent;
+                let id = match &ev {
+                    StreamEvent::ToolStart { .. } => {
+                        let n = { let mut c = tc_counter.lock().unwrap(); *c += 1; *c };
+                        let id = format!("tc-{n}");
+                        tc_stack.lock().unwrap().push(id.clone());
+                        Some(id)
+                    }
+                    StreamEvent::Tool { .. } => tc_stack.lock().unwrap().pop(),
+                    _ => None,
+                };
+                let value = stream_event_to_json(&ev, id.as_deref());
                 let _ = tx2.try_send(value);
             });
         // No cancellation endpoint yet — the run flag is never set.
@@ -1087,18 +1125,32 @@ async fn run_stream_handler(
 }
 
 /// Serialize a [`auto_ai_agent::StreamEvent`] to the SSE JSON shape.
-fn stream_event_to_json(ev: &auto_ai_agent::StreamEvent) -> serde_json::Value {
+///
+/// Tool events are emitted as the `tool_call` / `tool_result` pair the Vue
+/// frontend expects (field names `name` / `arguments`, not `tool` / `args`).
+/// `id` ties a `tool_result` back to its `tool_call` so the frontend can fill
+/// in the result on the same card it already rendered as "running".
+fn stream_event_to_json(ev: &auto_ai_agent::StreamEvent, id: Option<&str>) -> serde_json::Value {
     use auto_ai_agent::StreamEvent;
+    let id_val = |id: Option<&str>| -> serde_json::Value {
+        match id { Some(s) => json!(s), None => json!(null) }
+    };
     match ev {
         StreamEvent::Delta { text } => json!({"type": "delta", "text": text}),
-        StreamEvent::ToolStart { tool, args } => {
-            json!({"type": "tool_start", "tool": tool, "args": args})
-        }
+        StreamEvent::Thinking { text } => json!({"type": "thinking", "thinking": text}),
+        StreamEvent::ToolStart { tool, args } => json!({
+            "type": "tool_call",
+            "id": id_val(id),
+            "name": tool,
+            "arguments": args,
+        }),
         StreamEvent::Tool { tool, args, result } => json!({
-            "type": "tool",
-            "tool": tool,
-            "args": args,
+            "type": "tool_result",
+            "id": id_val(id),
+            "name": tool,
+            "arguments": args,
             "result": result,
+            "status": "success",
         }),
         StreamEvent::Warning { text } => json!({"type": "warning", "text": text}),
         StreamEvent::Done { result } => json!({
@@ -1106,7 +1158,7 @@ fn stream_event_to_json(ev: &auto_ai_agent::StreamEvent) -> serde_json::Value {
             "output": result.output,
             "turns": result.turns,
             "tool_calls": result.tool_calls.iter().map(|tc| json!({
-                "tool": tc.tool, "args": tc.args, "result": tc.result,
+                "name": tc.tool, "arguments": tc.args, "result": tc.result,
             })).collect::<Vec<_>>(),
         }),
         StreamEvent::Cancelled { result } => json!({
@@ -1114,7 +1166,7 @@ fn stream_event_to_json(ev: &auto_ai_agent::StreamEvent) -> serde_json::Value {
             "output": result.output,
             "turns": result.turns,
             "tool_calls": result.tool_calls.iter().map(|tc| json!({
-                "tool": tc.tool, "args": tc.args, "result": tc.result,
+                "name": tc.tool, "arguments": tc.args, "result": tc.result,
             })).collect::<Vec<_>>(),
         }),
         StreamEvent::Error { message } => json!({"type": "error", "message": message}),
@@ -1626,18 +1678,41 @@ async fn chat_stream(
         let tx_err = tx.clone();
         let acc2 = accumulated.clone();
         let tc2 = tool_calls.clone();
+        // Tool-call id pairing: ToolStart has no shared id with Tool, so we hand
+        // out a sequential id on ToolStart and re-use it for the matching Tool.
+        // Start/result are strictly nested (a tool always finishes before the
+        // next begins in the current agent loop), so a simple stack suffices.
+        let tc_counter = std::sync::Arc::new(std::sync::Mutex::new(0usize));
+        let tc_stack: std::sync::Arc<std::sync::Mutex<Vec<String>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let on_event: Arc<dyn Fn(auto_ai_agent::StreamEvent) + Send + Sync> =
             Arc::new(move |ev| {
-                let value = stream_event_to_json(&ev);
+                // Assign / reuse an id for tool start/result pairing.
+                use auto_ai_agent::StreamEvent;
+                let id = match &ev {
+                    StreamEvent::ToolStart { .. } => {
+                        let n = { let mut c = tc_counter.lock().unwrap(); *c += 1; *c };
+                        let id = format!("tc-{n}");
+                        tc_stack.lock().unwrap().push(id.clone());
+                        Some(id)
+                    }
+                    StreamEvent::Tool { .. } => tc_stack.lock().unwrap().pop(),
+                    _ => None,
+                };
+                let value = stream_event_to_json(&ev, id.as_deref());
                 // capture for persistence
                 if let Some(text) = value.get("text").and_then(|t| t.as_str()) {
                     acc2.lock().unwrap().push_str(text);
                 }
-                if value.get("type").and_then(|t| t.as_str()) == Some("tool") {
-                    let tool = value.get("tool").and_then(|t| t.as_str()).unwrap_or("").to_string();
-                    let args = value.get("args").cloned().unwrap_or(json!(null));
+                if value.get("type").and_then(|t| t.as_str()) == Some("tool_result") {
+                    let tool = value.get("name").and_then(|t| t.as_str()).unwrap_or("").to_string();
+                    let args = value.get("arguments").cloned().unwrap_or(json!(null));
                     let result = value.get("result").and_then(|t| t.as_str()).unwrap_or("").to_string();
-                    tc2.lock().unwrap().push(crate::chats::ToolCall { tool, args, result });
+                    tc2.lock().unwrap().push(crate::chats::ToolCall {
+                        tool, args, result,
+                        status: String::from("success"),
+                        id: id.unwrap_or_default(),
+                    });
                 }
                 let _ = tx.try_send(value);
             });
@@ -1813,6 +1888,32 @@ async fn workspace_browse(Query(q): Query<BrowseQuery>) -> impl IntoResponse {
         .parent()
         .map(|p| p.to_string_lossy().to_string());
     Json(json!({ "entries": entries, "parent": parent }))
+}
+
+/// `GET /api/files/{workspace_id}/{*path}` — serve a file from inside a
+/// workspace's root. Used by the `display_image` tool so generated artifacts
+/// (e.g. a PNG chart) can be rendered inline in the chat via a URL. The path
+/// is confined to the workspace root via canonicalize.
+async fn workspace_file(
+    State(state): State<AppState>,
+    Path((workspace_id, path)): Path<(String, String)>,
+) -> Response {
+    let ws = state.registry.get(&workspace_id);
+    // Confine the requested path to the workspace root.
+    let candidate = ws.root.join(&path);
+    let canonical = match std::fs::canonicalize(&candidate) {
+        Ok(c) => c,
+        Err(_) => return StatusCode::NOT_FOUND.into_response(),
+    };
+    if canonical != ws.root && !canonical.starts_with(&ws.root) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    let data = match std::fs::read(&canonical) {
+        Ok(d) => d,
+        Err(_) => return StatusCode::NOT_FOUND.into_response(),
+    };
+    let mime = guess_mime_from_path(&canonical);
+    ([(axum::http::header::CONTENT_TYPE, mime)], data).into_response()
 }
 
 /// `POST /api/workspace/initialize?workspace=<id>` — mark a workspace as

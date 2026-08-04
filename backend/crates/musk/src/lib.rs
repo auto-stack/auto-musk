@@ -245,6 +245,7 @@ pub fn build_agent_with_context(
             ("dispatch", Arc::new(crate::orch_tools::Dispatch::new(ctx.clone()))),
             ("bring_in", Arc::new(crate::orch_tools::BringIn::new(ctx.clone()))),
             ("spawn_task_plan", Arc::new(crate::orch_tools::SpawnTaskPlan::new(ctx.clone()))),
+            ("display_image", Arc::new(crate::tools::DisplayImage::new(ctx.clone()))),
             ("register_task_plan", Arc::new(crate::orch_tools::RegisterTaskPlan::new(ctx))),
         ];
         for (name, tool) in &orch_tools {
