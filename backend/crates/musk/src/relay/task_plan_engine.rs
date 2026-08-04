@@ -28,9 +28,11 @@ use std::sync::Arc;
 /// Resolves the per-workspace stores (RunStore, HandoffStore) from musk's
 /// `AppState` + workspace id. The broadcast SSE bus is process-global
 /// (`relay::api::publish_task_plan_event`), so it is not held here.
+///
+/// `AppState` is cheap to clone (all fields are `Arc`), so it is held by value.
 #[derive(Clone)]
 pub struct TaskPlanContext {
-    pub state: Arc<AppState>,
+    pub state: AppState,
     pub workspace_id: String,
 }
 
@@ -482,8 +484,12 @@ pub async fn drive_task_plan_run(
     let (_run_id, _state) = ws.relay.start_run(&start_req, Some(ctx.workspace_id.clone()));
 
     // Drive the run to a terminal state using musk's background driver.
-    crate::relay::driver::drive_run(ctx.state.clone(), ctx.workspace_id.clone(), req.run_id.clone())
-        .await;
+    crate::relay::driver::drive_run(
+        Arc::new(ctx.state.clone()),
+        ctx.workspace_id.clone(),
+        req.run_id.clone(),
+    )
+    .await;
 
     let state = ws
         .relay

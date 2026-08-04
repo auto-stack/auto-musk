@@ -383,6 +383,164 @@ pub fn publish_advance_result(run_id: &str, result: &AdvanceResult) {
 
 // Placeholder removed — publish_advance_result no longer needs an AppState.
 
+// ─── TaskPlan routes (Plan 009 P2b.7) ────────────────────────────────────────
+
+#[derive(serde::Deserialize)]
+struct CreateTaskPlanBody {
+    atom: String,
+}
+
+#[derive(serde::Deserialize)]
+struct StartTaskPlanRunBody {
+    initial_input: String,
+}
+
+/// `GET /api/forge/relay/task_plans` — list all registered TaskPlans.
+async fn list_task_plans(
+    State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
+) -> impl IntoResponse {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    let summaries = ws.task_plans.lock().unwrap().list();
+    Json(serde_json::json!({ "task_plans": summaries }))
+}
+
+/// `GET /api/forge/relay/task_plans/{id}` — one TaskPlan detail.
+async fn get_task_plan(
+    State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
+    Path(plan_id): Path<String>,
+) -> Response {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    let plan = ws.task_plans.lock().unwrap().get(&plan_id);
+    match plan {
+        Some(plan) => Json(plan).into_response(),
+        None => (StatusCode::NOT_FOUND, format!("task_plan '{plan_id}' not found"))
+            .into_response(),
+    }
+}
+
+/// `POST /api/forge/relay/task_plans` — register a TaskPlan from Atom source.
+async fn create_task_plan(
+    State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
+    Json(body): Json<CreateTaskPlanBody>,
+) -> Response {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    let mut reg = ws.task_plans.lock().unwrap();
+    match reg.register(&body.atom) {
+        Ok(plan) => {
+            let phase_count = plan.phases.len();
+            let run_count = plan.phases.iter().map(|p| p.runs.len()).sum::<usize>();
+            Json(serde_json::json!({
+                "task_plan_registered": true,
+                "id": plan.id,
+                "phase_count": phase_count,
+                "run_count": run_count,
+            }))
+            .into_response()
+        }
+        Err(e) => (StatusCode::BAD_REQUEST, format!("register failed: {e}")).into_response(),
+    }
+}
+
+/// `DELETE /api/forge/relay/task_plans/{id}` — delete a user TaskPlan (built-ins cannot be removed).
+async fn delete_task_plan(
+    State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
+    Path(plan_id): Path<String>,
+) -> Response {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    let mut reg = ws.task_plans.lock().unwrap();
+    match reg.remove(&plan_id) {
+        Some(_) => Json(serde_json::json!({ "deleted": plan_id })).into_response(),
+        None => (
+            StatusCode::BAD_REQUEST,
+            format!("cannot remove '{plan_id}' (not found or built-in)"),
+        )
+            .into_response(),
+    }
+}
+
+/// `POST /api/forge/relay/task_plans/{id}/runs` — start a TaskPlan instance.
+async fn start_task_plan_run(
+    State(state): State<AppState>,
+    Query(q): Query<WorkspaceQuery>,
+    Path(plan_id): Path<String>,
+    Json(body): Json<StartTaskPlanRunBody>,
+) -> Response {
+    let ws_id = q.id_or_default(&state.registry);
+
+    let plan = {
+        let ws = state.registry.get(&ws_id);
+        let reg = ws.task_plans.lock().unwrap();
+        match reg.get(&plan_id) {
+            Some(p) => p,
+            None => {
+                return (
+                    StatusCode::NOT_FOUND,
+                    format!("task_plan '{plan_id}' not found"),
+                )
+                    .into_response();
+            }
+        }
+    };
+
+    let mut engine =
+        crate::relay::task_plan_engine::TaskPlanEngine::new(plan, body.initial_input.clone());
+    if let Err(e) = engine.validate() {
+        return (StatusCode::BAD_REQUEST, format!("plan invalid: {e}")).into_response();
+    }
+    let instance_id = engine.instance_id.clone();
+
+    let handoffs = state.registry.get(&ws_id).handoffs.clone();
+    let state_clone = state.clone();
+    tokio::spawn(async move {
+        let ctx = crate::relay::task_plan_engine::TaskPlanContext {
+            state: state_clone,
+            workspace_id: ws_id,
+        };
+        let result = engine
+            .execute(&handoffs, |req| {
+                let ctx = ctx.clone();
+                async move {
+                    crate::relay::task_plan_engine::drive_task_plan_run(&ctx, req).await
+                }
+            })
+            .await;
+        if let Err(e) = result {
+            tracing::error!("TaskPlan instance failed: {e}");
+        }
+    });
+
+    Json(serde_json::json!({
+        "instance_id": instance_id,
+        "task_plan_id": plan_id,
+        "status": "started",
+    }))
+    .into_response()
+}
+
+/// `GET /api/forge/relay/task_plans/{instance_id}/events` — SSE stream of
+/// TaskPlan lifecycle events for one instance (reuses the run-event bus).
+async fn task_plan_events(
+    Path(instance_id): Path<String>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let rx = bus().subscribe();
+    let stream = tokio_stream::wrappers::BroadcastStream::new(rx)
+        .filter_map(move |res| match res {
+            Ok(ev) if ev.run_id == instance_id => Some(ev),
+            _ => None,
+        })
+        .map(|ev| {
+            Ok(Event::default()
+                .event(ev.event_type.clone())
+                .json_data(ev.payload.clone())
+                .unwrap_or_else(|_| Event::default()))
+        });
+    Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)))
+}
+
 // ─── Router ─────────────────────────────────────────────────────────────────
 
 /// All relay routes. Paths match `useRelay.ts` exactly; `.merge`-ed into the
@@ -403,4 +561,25 @@ pub fn relay_routes() -> Router<AppState> {
         .route("/api/forge/relay/professions", get(list_professions))
         .route("/api/forge/relay/souls", get(list_souls))
         .route("/api/forge/relay/flows", get(list_flows))
+}
+
+/// All TaskPlan routes (Plan 009 P2b.7). `.merge`-ed into the main router.
+pub fn task_plan_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/api/forge/relay/task_plans",
+            get(list_task_plans).post(create_task_plan),
+        )
+        .route(
+            "/api/forge/relay/task_plans/{id}",
+            get(get_task_plan).delete(delete_task_plan),
+        )
+        .route(
+            "/api/forge/relay/task_plans/{id}/runs",
+            post(start_task_plan_run),
+        )
+        .route(
+            "/api/forge/relay/task_plans/{instance_id}/events",
+            get(task_plan_events),
+        )
 }

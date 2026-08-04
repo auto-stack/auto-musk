@@ -164,6 +164,8 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         // Relay (Flows) orchestration engine (P2a + P2b.1): runs/flows/professions
         // + the pipeline state machine. Full background driver arrives in P2b.2.
         .merge(crate::relay::api::relay_routes())
+        // TaskPlan orchestration (Plan 009 P2b.7): multi-relay DAG plans.
+        .merge(crate::relay::api::task_plan_routes())
         // Wiki knowledge base (Phase 4): markdown pages + raw resource tree.
         .merge(crate::wiki::wiki_routes())
         // Serve config-page.js + any other static assets at the root.

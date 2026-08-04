@@ -586,7 +586,7 @@ impl Tool for SpawnTaskPlan {
             .append_turn(&self.ctx.parent_conversation_id, parent_turn);
 
         // Drive the plan in the background.
-        let state = self.ctx.state.clone();
+        let state = (*self.ctx.state).clone();
         let ws_id = self.ctx.workspace_id.clone();
         let handoffs = ws.handoffs.clone();
         tokio::spawn(async move {
@@ -596,7 +596,7 @@ impl Tool for SpawnTaskPlan {
                 async move { crate::relay::task_plan_engine::drive_task_plan_run(&ctx, req).await }
             }).await;
             if let Err(e) = result {
-                tracing::error!("TaskPlan instance {} failed: {}", ctx.workspace_id, e);
+                tracing::error!("TaskPlan instance failed: {}", e);
             }
         });
 
