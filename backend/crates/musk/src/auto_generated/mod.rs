@@ -32,3 +32,4 @@ pub mod specs;
 pub mod tool_context;
 pub mod tool_safety;
 pub mod tools;
+pub mod wiki;

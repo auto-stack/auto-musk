@@ -1,0 +1,447 @@
+/// wiki.at — Wiki Knowledge Layer 数据层 + 纯 CRUD (Plan 018 Phase 3 试点)。
+///
+/// Ported from backend/crates/musk/src/wiki.rs, flattened to the portable
+/// subset per the Phase 2 pattern:
+/// - data model (WikiPage/WikiSource/WikiPageMeta/TreeNode/WikiManifest) -> Auto
+/// - WikiStore 纯 Mutex CRUD + fs + serde_json -> Auto
+/// - axum 路由/handler (wiki_routes/wiki_tree/.../Multipart) + API DTO +
+///   guess_mime -> 手写边界 (axum/async/&'static str 是 a2r 盲区)
+///
+/// a2r 惯用法注记(本轮探测确认):
+/// - `or`/`and` 关键字不支持 -> 布尔组合用嵌套 if
+/// - `sort_by(fn-ref)` 不支持 -> 手动插入排序(comes_first)
+/// - Result 链式 `.ok()` 不支持 -> `is` 匹配逐层展开
+/// - Mutex guard 迭代: `for pair in guard` -> 发射 `&guard`
+/// - TreeNode size/modified: file 节点省略 metadata(见 build_tree 内注记)
+
+use.rust std::collections::HashMap
+use.rust std::path::{Path, PathBuf}
+use.rust std::sync::Mutex
+use.rust std::fs
+use.rust serde::{Serialize, Deserialize}
+use.rust serde_json::{to_string_pretty, from_str}
+use.rust std::time::{SystemTime, Duration}
+
+// ============================================================
+// Data model
+// ============================================================
+
+/// WikiSource: 与手写版完全对齐 —— 无判别值 + snake_case wire 格式。
+/// 手写版用手动 `impl Default` 返回 Custom; a2r 丢弃 `#[default]` 且
+/// enum 上 derive(Default) 必须带 `#[default]`(E0665), 所以不 derive
+/// Default —— load() 里显式 `WikiSource.Custom` 兜底, 行为一致。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WikiSource {
+    Manual
+    Guide
+    ApiRef
+    Custom
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type WikiPage {
+    slug str
+    title str
+    content str
+    source_type WikiSource
+    tags List<str>
+    version uint
+    created_at u64
+    updated_at u64
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type WikiPageMeta {
+    slug str
+    title str
+    source_type WikiSource
+    tags List<str>
+    version uint
+    updated_at u64
+}
+
+/// Internal manifest shape (private in the hand-written version).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type WikiManifest {
+    pages List<WikiPageMeta>
+}
+
+/// Tree node — recursive (folders carry children).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type TreeNode {
+    name str
+    path str
+    #[serde(rename = "type")]
+    node_type str
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    children Option<List<TreeNode>>
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    size Option<u64>
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    modified Option<u64>
+}
+
+// ============================================================
+// WikiStore — Mutex<HashMap> cache + fs persistence
+// ============================================================
+
+/// Seconds since the UNIX epoch (used for page timestamps).
+fn now() u64 {
+    let elapsed = SystemTime.now().duration_since(SystemTime.UNIX_EPOCH).unwrap_or_default()
+    return elapsed.as_secs()
+}
+
+/// 单项目 wiki 存储: wiki_dir 放 .md + _manifest.json; raw_dir 放上传资源。
+/// pages 是懒加载内存缓存; 磁盘是源, 每次变更落盘。
+#[derive(Debug)]
+pub type WikiStore {
+    wiki_dir PathBuf
+    raw_dir PathBuf
+    pages Mutex<HashMap<str, WikiPage>>
+}
+
+ext WikiStore {
+    pub static fn new(wiki_dir PathBuf, raw_dir PathBuf) WikiStore {
+        let m1 = fs.create_dir_all(wiki_dir.clone())
+        is m1 {
+            Ok(ok) -> {},
+            Err(e) -> {}
+        }
+        let m2 = fs.create_dir_all(raw_dir.clone())
+        is m2 {
+            Ok(ok) -> {},
+            Err(e) -> {}
+        }
+        let store WikiStore = WikiStore(
+            wiki_dir: wiki_dir,
+            raw_dir: raw_dir,
+            pages: Mutex.new(HashMap.new())
+        )
+        return store
+    }
+
+    /// 从磁盘加载(或刷新)页面缓存: 读 manifest 元数据 + 每个 .md 内容。
+    /// 幂等 — 任何读操作前调用都安全。
+    pub fn load() void {
+        var guard = self.pages.lock().unwrap()
+        guard.clear()
+
+        // manifest: _manifest.json 优先, 回退 manifest.json。
+        // (a2r HashMap.get() 借用规则对 `&str` 键不可靠, 用 List + 线性查找)
+        var metas List<WikiPageMeta> = []
+        let r1 = fs.read_to_string(self.wiki_dir.join("_manifest.json"))
+        is r1 {
+            Ok(c) -> {
+                let pr = parse_manifest(c)
+                is pr {
+                    Ok(m) -> {
+                        for p in m.pages {
+                            metas.push(p)
+                        }
+                    },
+                    Err(e) -> {}
+                }
+            },
+            Err(e) -> {
+                let r2 = fs.read_to_string(self.wiki_dir.join("manifest.json"))
+                is r2 {
+                    Ok(c2) -> {
+                        let pr2 = parse_manifest(c2)
+                        is pr2 {
+                            Ok(m2) -> {
+                                for p in m2.pages {
+                                    metas.push(p)
+                                }
+                            },
+                            Err(e2) -> {}
+                        }
+                    },
+                    Err(e2) -> {}
+                }
+            }
+        }
+
+        let slugs_res = walk_md_files(self.wiki_dir, "")
+        is slugs_res {
+            Ok(slugs) -> {
+                for slug in slugs {
+                    let page_path PathBuf = self.wiki_dir.join(slug.clone() + ".md")
+                    let read_res = fs.read_to_string(page_path)
+                    is read_res {
+                        Ok(content) -> {
+                            let meta = find_meta(metas.clone(), slug)
+                            var source_type WikiSource = WikiSource.Custom
+                            var tags List<str> = []
+                            var version uint = 1
+                            var updated_at u64 = 0
+                            var title str = slug.clone()
+                            is meta {
+                                Some(m) -> {
+                                    title = m.title.clone()
+                                    source_type = m.source_type
+                                    tags = m.tags.clone()
+                                    version = m.version
+                                    updated_at = m.updated_at
+                                },
+                                None -> {}
+                            }
+                            let page WikiPage = WikiPage(
+                                slug: slug.clone(),
+                                title: title,
+                                content: content,
+                                source_type: source_type,
+                                tags: tags,
+                                version: version,
+                                created_at: updated_at,
+                                updated_at: updated_at
+                            )
+                            guard.insert(slug, page)
+                        },
+                        Err(e) -> {}
+                    }
+                }
+            },
+            Err(e) -> {}
+        }
+    }
+
+    /// 列出所有页面元数据。
+    pub fn list_pages() List<WikiPageMeta> {
+        var result List<WikiPageMeta> = []
+        var guard = self.pages.lock().unwrap()
+        for pair in guard.iter() {
+            let p = pair[1]
+            result.push(WikiPageMeta(
+                slug: p.slug.clone(),
+                title: p.title.clone(),
+                source_type: p.source_type,
+                tags: p.tags.clone(),
+                version: p.version,
+                updated_at: p.updated_at
+            ))
+        }
+        return result
+    }
+
+    /// 取单个页面(克隆)。
+    pub fn get_page(slug str) Option<WikiPage> {
+        var guard = self.pages.lock().unwrap()
+        is guard.get(slug) {
+            Some(p) -> return Some(p.clone()),
+            None -> return None
+        }
+    }
+
+    /// 全文搜索(content/title 含 query, 不区分大小写)。
+    pub fn search(query str) List<WikiPage> {
+        let q str = query.to_lower()
+        var result List<WikiPage> = []
+        var guard = self.pages.lock().unwrap()
+        for pair in guard.iter() {
+            let p = pair[1]
+            let in_content = p.content.to_lower().contains(q.clone())
+            let in_title = p.title.to_lower().contains(q.clone())
+            if in_content {
+                result.push(p.clone())
+            } else if in_title {
+                result.push(p.clone())
+            }
+        }
+        return result
+    }
+}
+
+// ============================================================
+// fs 辅助 — 递归目录遍历 / 树构建
+// ============================================================
+
+/// 解析 manifest 文本为 WikiManifest。
+fn parse_manifest(content str) Result<WikiManifest, str> {
+    let pr = from_str(content)
+    is pr {
+        Ok(m) -> return Ok(m),
+        Err(e) -> return Err(e.to_string())
+    }
+}
+
+/// 在 manifest 元数据列表里线性查找 slug(a2r HashMap.get() 借用不可靠)。
+fn find_meta(metas List<WikiPageMeta>, slug str) Option<WikiPageMeta> {
+    for m in metas {
+        if m.slug == slug {
+            return Some(m.clone())
+        }
+    }
+    return None
+}
+
+/// 递归收集 .md 文件(slug = 相对路径去 .md 扩展名)。
+pub fn walk_md_files(root PathBuf, prefix str) Result<List<str>, str> {
+    var result List<str> = []
+    let dir_res = fs.read_dir(root)
+    is dir_res {
+        Err(e) -> return Err(e.to_string()),
+        Ok(dir) -> {
+            for entry in dir.flatten() {
+                let name str = entry.file_name().to_string_lossy().to_string()
+                if name.starts_with(".") {
+                    continue
+                }
+                if name == "_manifest.json" {
+                    continue
+                }
+                if name == "manifest.json" {
+                    continue
+                }
+                var path str = name.clone()
+                if prefix.len() > 0u {
+                    path = prefix + "/" + name
+                }
+                let is_dir = entry.path().is_dir()
+                if is_dir {
+                    let sub = walk_md_files(entry.path(), path)
+                    is sub {
+                        Ok(slugs) -> {
+                            for s in slugs {
+                                result.push(s)
+                            }
+                        },
+                        Err(e) -> return Err(e)
+                    }
+                } else if name.ends_with(".md") {
+                    let slug str = path.trim_end_matches(".md").to_string()
+                    result.push(slug)
+                }
+            }
+        }
+    }
+    return Ok(result)
+}
+
+/// 文件夹在前 + 字母序 —— 插入排序(a2r 无 sort_by)。
+fn comes_first(a TreeNode, b TreeNode) bool {
+    if a.node_type == "folder" {
+        if b.node_type != "folder" {
+            return true
+        }
+        if a.name < b.name {
+            return true
+        }
+        return false
+    }
+    if b.node_type == "folder" {
+        return false
+    }
+    if a.name < b.name {
+        return true
+    }
+    return false
+}
+
+fn insert_sorted(list List<TreeNode>, item TreeNode) List<TreeNode> {
+    var result List<TreeNode> = []
+    var inserted bool = false
+    for e in list {
+        if inserted == false {
+            if comes_first(item.clone(), e.clone()) {
+                result.push(item.clone())
+                inserted = true
+            }
+        }
+        result.push(e)
+    }
+    if inserted == false {
+        result.push(item)
+    }
+    return result
+}
+
+/// 构建目录树(文件夹在前, 字母序)。
+pub fn build_tree(root PathBuf, prefix str) List<TreeNode> {
+    var entries List<TreeNode> = []
+    let dir_res = fs.read_dir(root)
+    is dir_res {
+        Err(e) -> return entries,
+        Ok(dir) -> {
+            for entry in dir.flatten() {
+                let name str = entry.file_name().to_string_lossy().to_string()
+                if name.starts_with(".") {
+                    continue
+                }
+                if name == "_manifest.json" {
+                    continue
+                }
+                if name == "manifest.json" {
+                    continue
+                }
+                var path str = name.clone()
+                if prefix.len() > 0u {
+                    path = prefix + "/" + name
+                }
+                let entry_path = entry.path()
+                let is_dir = entry_path.is_dir()
+                if is_dir {
+                    let children = build_tree(entry_path, path)
+                    let node TreeNode = TreeNode(
+                        name: name,
+                        path: path,
+                        node_type: "folder",
+                        children: Some(children),
+                        size: None,
+                        modified: None
+                    )
+                    entries = insert_sorted(entries, node)
+                } else {
+                    // NOTE: size/modified are deliberately None here. The
+                    // hand-written build_tree enriches them from fs::Metadata,
+                    // but a2r's Auto int model casts `.len()` to i32 (C9 codegen
+                    // limitation) which can't feed an Option<u64> size. Kept as
+                    // a documented parity reduction; tree structure/ordering is
+                    // the functional surface the parity tests assert.
+                    let node TreeNode = TreeNode(
+                        name: name,
+                        path: path,
+                        node_type: "file",
+                        children: None,
+                        size: None,
+                        modified: None
+                    )
+                    entries = insert_sorted(entries, node)
+                }
+            }
+        }
+    }
+    return entries
+}
+
+/// 递归去掉 .md 扩展名 — 构建新列表(避免 a2r-11 可变借用遍历)。
+pub fn strip_md_extensions(nodes List<TreeNode>) List<TreeNode> {
+    var result List<TreeNode> = []
+    for node in nodes {
+        var name str = node.name.clone()
+        var path str = node.path.clone()
+        if node.node_type == "file" {
+            if name.ends_with(".md") {
+                name = name.trim_end_matches(".md").to_string()
+                path = path.trim_end_matches(".md").to_string()
+            }
+        }
+        var children Option<List<TreeNode>> = node.children.clone()
+        is children {
+            Some(c) -> {
+                let stripped = strip_md_extensions(c)
+                children = Some(stripped)
+            },
+            None -> {}
+        }
+        result.push(TreeNode(
+            name: name,
+            path: path,
+            node_type: node.node_type.clone(),
+            children: children,
+            size: node.size,
+            modified: node.modified
+        ))
+    }
+    return result
+}

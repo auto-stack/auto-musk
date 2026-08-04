@@ -179,14 +179,19 @@ if is_borrowable { sink.body.write(b"&")?; }
 
 | Task | 文件 | 可移植率 | 关键阻塞 |
 |---|---|---|---|
-| 3.1 | task_plan_parser.rs (137行) | ~95% | 几乎无 |
-| 3.2 | task_plan_registry.rs (306行) | ~85% | 借用模式 + 文件 IO |
+| 3.1 | task_plan_parser.rs (137行) | **已改判 ~5%（边界）** | auto_atom/auto_val 上游 crate API |
+| 3.2 | task_plan_registry.rs (306行) | **已改判 ~30%（边界）** | include_str! + auto_atom + 文件 IO |
 | 3.3 | task_plan.rs (513行) | ~80% | a2r-10（detect_cycle） |
-| 3.4 | wiki.rs (847行) | 高（纯 CRUD） | 无 async/Mutex |
+| 3.4 | wiki.rs (847行) | **✅ 数据层+读路径已闭环（试点）** | axum/async 手写边界 |
 | 3.5 | handoff_store.rs (193行) | ~60% | a2r-10/11（Mutex tuple-key） |
 | 3.6 | task_plan_engine.rs (672行) | ~40% | **async 泛型闭包（硬墙）** |
 
 task_plan_engine 的 execute/run_one（async 泛型闭包 `F: Fn->Fut`）**确认是 a2r 硬墙**（§1 实测），留手写边界。
+
+**Phase 3 实况修订（2026-08-04）**：探索 agent 实测后发现计划中 3.1/3.2 的可移植率估算是错的 ——
+task_plan_parser 是 `auto_atom::AtomParser`/`auto_val::Node` 上游 crate API 的薄封装，registry 依赖
+`include_str!` + `parse_task_plan` + 文件 IO，二者都是**手写边界**（a2r 无法 import 上游 crate 类型）。
+试点改为 **wiki 数据层 + 纯 Mutex CRUD + fs + serde_json**（与 Phase 2 同构），闭环内容见 §10。
 
 ---
 
@@ -197,6 +202,60 @@ task_plan_engine 的 execute/run_one（async 泛型闭包 `F: Fn->Fut`）**确�
 - tools/spec_tools：9+5 个 `impl Tool`（async trait，~Result 模式可用）
 
 ---
+
+## 10. Phase 3 试点 — wiki 数据层 ✅ 闭环（2026-08-04）
+
+### 移植范围
+`auto-src/wiki.at`（数据模型 + WikiStore 读路径 + tree builders），对齐 Phase 2 模式：
+- **数据模型**：WikiSource / WikiPage / WikiPageMeta / WikiManifest / TreeNode
+- **WikiStore 读路径**：new / load / list_pages / get_page / search（5 个纯 Mutex CRUD + fs + serde_json）
+- **tree builders**：parse_manifest / walk_md_files / find_meta / comes_first / insert_sorted / build_tree / strip_md_extensions
+
+### 手写边界（未移植，文档化）
+- **写路径**（create_page / update_page / delete_page / save_manifest）：因 a2r **parser 状态 bug** 推迟
+  —— 某些 ext-block 方法组合在 ext 闭合处报 "Expected term, got RBrace" 或 "field type mismatch"
+  （E0106 无行号）。之前把写路径方法移出 ext 块后 tmp 副本可转译，但**随后用同一二进制重试时字节
+  相同的文件也失败**（旧观察过期），最终确认是 `types_are_compatible` 容器类型缺陷（见 C9）+ 组合
+  触发。写路径留作后续闭环。
+- **axum 路由/handler**（wiki_routes / wiki_tree / Multipart）+ API DTO + guess_mime：async 手写边界。
+- **TreeNode file 节点 metadata**（size/modified）：ag 版设为 `None`（见下"已知简化"）。
+
+### C9 闭环 — a2r `types_are_compatible` 容器类型缺陷（auto-lang）
+`check_field_type` 的 `types_are_compatible` **没有容器类型分支**：
+1. `GenericInstance` 无匹配分支 → 结构相同（Display 相同的 `Option<List<TreeNode>>`）被判不兼容；
+   触发 `strip_md_extensions` 的 `children: children`（变量显式注解与字段同为 GenericInstance）。
+2. `Option<T>`（.at 写法 → GenericInstance）与 `Some(x)`/`?T`（推断 → Type::Option）是别名但无等价
+   规则；触发 `build_tree` 的 `children: Some(children)`。
+
+修复（`crates/auto-lang/src/infer/mod.rs`）：新增 GenericInstance↔GenericInstance 逐元素比较 +
+GenericInstance(Option/Result/List) ↔ Type::Option/Result/List 别名等价 + List/Map/Slice/Reference/
+Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
+
+### C9 连带 codegen 修复（`crates/auto-lang/src/trans/rust.rs`，均为新路径首踩）
+1. **`expr_map_value_is_string` 无法穿透容器/包装**：`HashMap<str, WikiPage>` 解析为 GenericInstance、
+   `self.pages.lock().unwrap()` 是 MutexGuard 包装 —— 回退 `true` 给结构体 insert 值误加 `.to_string()`
+   （`page.to_string()` → E0308 非 Display）。新增 `map_value_ty` 穿透 Map/HashMap/BTreeMap 泛型与
+   Mutex/RwLock/Arc 等包装；未知回退改为 `false`（String 值本就无需 `.to_string()`）。
+2. **`needs_as_str` 对 `join`/PathBuf 误加 `.as_str()`**：`fs.read_to_string(self.wiki_dir.join(...))`
+   产出 `join(...).as_str()`（PathBuf 无 as_str，E0599）。新增 `join` 方法守卫 + PathBuf/Path 类型本地
+   变量守卫（`let page_path PathBuf = ...` 需显式注解）。
+3. **`arg_is_str_slice` 用 `local_var_types` 判定**：该表把所有 str 变量（含本地 String）记为 StrSlice，
+   导致同模块 fn 调用传本地 str 变量到 &str 参数时漏加 `.as_str()`（E0308 String vs &str）。改为按
+   `current_fn_str_params`（真正的 &str 参数）判定 —— 与 `is_str_slice_var` 一致。
+
+### 已知简化（文档化）
+- **TreeNode file 节点 size/modified = None**：手写版从 `fs::Metadata` 丰富，但 a2r 的 Auto int 模型把
+  `.len()` 无条件转 `as i32`（无法喂 `Option<u64>`），修 codegen 需触 Auto int 模型深层，留作后续。
+  tree 结构/排序/strip 是功能性面，parity 测试已断言；metadata 差异在 parity_wiki.rs 注释记录。
+- **load() 用 List + find_meta 线性查找**替代 HashMap.get()：a2r 的 `.get()` 借用规则对 `&str` 键
+  不可靠（Call 参数不加 `&`；Ident 又可能多加 `&&`）。manifest 小，线性可接受。
+- **WikiSource 不 derive(Default)**：a2r 丢弃 `#[default]` 且 enum 上 derive(Default) 必须带它
+  （E0665）。load() 显式 `WikiSource.Custom` 兜底，行为一致；wire 格式（snake_case）完全对齐。
+
+### 验收
+`tests/parity_wiki.rs` 11/11 通过：WikiSource wire + 数据模型 wire + WikiStore 读路径
+（load/list_pages/get_page/search + _manifest 优先）+ tree builders（walk/build/strip + 排序）。
+
 
 ## 8. 附录：API 差距清单（6 模块，探索汇总）
 
@@ -226,9 +285,9 @@ task_plan_engine 的 execute/run_one（async 泛型闭包 `F: Fn->Fut`）**确�
 | Phase | 状态 | 完成摘要 |
 |---|---|---|
 | 1 — specs | ✅ | 7/7 parity 测试通过；enum pub + display_title emoji 修复 |
-| 0 — a2r 改进 | 🔶 C1 ✅ + C4/C5 ✅(无需改) + C6 推迟 + C7b ✅ + C8 ✅ | C1 for 借用遍历(`e2c94535`)；C4 serde 属性是 .at 遗漏；C7b tag 构造丢值(`94418cda`)；C8 const 支持(`e01f0f84`) |
-| 2 — 已移植模块 | ✅ 7/7 有 parity 测试 | specs 7 ✅ / app_config 7 ✅ / chats 9 ✅ / auth 8 ✅ / tool_safety 7 ✅ / conversation 10 ✅ / mode 4 ✅ |
-| 3 — 缺失模块 | ⬜ 待启动 | parser 优先（试点） |
+| 0 — a2r 改进 | 🔶 C1 ✅ + C4/C5 ✅(无需改) + C6 推迟 + C7b ✅ + C8 ✅ + **C9 ✅** | C1 for 借用遍历(`e2c94535`)；C4 serde 属性是 .at 遗漏；C7b tag 构造丢值(`94418cda`)；C8 const 支持(`e01f0f84`)；C9 types_are_compatible 容器类型 + 连带 codegen 修复（见 §10） |
+| 2 — 已移植模块 | ✅ 8/8 有 parity 测试 | specs 7 ✅ / app_config 7 ✅ / chats 9 ✅ / auth 8 ✅ / tool_safety 7 ✅ / conversation 10 ✅ / mode 4 ✅ / **wiki 11 ✅** |
+| 3 — 缺失模块 | 🔶 wiki 试点 ✅（§10） | parser/registry 改判为边界（探索实测）；task_plan 3.3 待续 |
 | 4 — 复杂模块 | ⬜ 待启动 | 视 Phase 0 成果 |
 
 ### Phase 2 各模块详情
@@ -258,3 +317,15 @@ task_plan_engine 的 execute/run_one（async 泛型闭包 `F: Fn->Fut`）**确�
   - `app_config` effective_daemon_url 的 `AAID_URL` env 覆盖在 a2r 产物中缺失——实测 a2r 无法表达 `env::var(...).ok()`（`Expected Asn, but found .`），确认是 B 类手写边界而非 .at 遗漏。已在 `parity_app_config.rs::documented_divergence_env_override_skipped_in_ag` 固定当前行为。
   - `auto_generated::chats` 的 `SpecChange` 是自包含镜像，其 `SpecStatus` 仅含 Empty/Draft 两变体（真实版 23 变体）。parity 测试以 `status: None` 规避该收窄。
   - `conversation` 转译版 `now_secs` 用 `SystemTime::now().elapsed()`（≈0），手写版用 `duration_since(UNIX_EPOCH)`。UNIX_EPOCH 常量 a2r 无法表达，转译版该函数为私有，暂无实际影响——文档化待 C8 后评估。
+- **Phase 3 wiki 试点闭环（2026-08-04，详见 §10）**：
+  - 探索实测改判：task_plan_parser/registry 是上游 crate API 边界（auto_atom/auto_val/include_str!），
+    可移植率估算大幅修正；试点改为 wiki 数据层 + 读路径 + tree builders。
+  - `auto-src/wiki.at` 新增 + `tests/parity_wiki.rs` 11/11 通过（wire 格式 + WikiStore 读路径 +
+    tree 结构/排序/strip）。
+  - **C9 闭环（auto-lang）**：`types_are_compatible` 缺容器类型分支（GenericInstance 判不兼容 +
+    `Option<T>`/`Some(x)` 别名不等价）；连带修 3 处 codegen（insert 值 `.to_string()` 误加 / `join`+PathBuf
+    `.as_str()` 误加 / 本地 str 变量漏加 `.as_str()`）。
+  - 文档化简化：TreeNode file 节点 metadata 省略（`.len() as i32` Auto int 模型限制）；load() 用
+    List+find_meta 线性查找（HashMap.get() 借用不可靠）；WikiSource 不 derive(Default)（E0665）。
+  - 写路径（create_page/update_page/delete_page/save_manifest）因 a2r parser 状态 bug 推迟，留作后续闭环。
+  - 顺带：重生 3 个 impl-prefix 遗留陈旧 golden（`rand_custom`×2 + `log_custom`，上一轮修复漏网）。
