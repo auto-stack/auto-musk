@@ -45,12 +45,24 @@ pub(crate) struct OwnedRole {
     extra_prompt: Option<String>,
     /// Materialized base+extra prompt so system_prompt() can borrow it.
     prompt: String,
+    /// Tier forced by Plan 004 tier-clamping: when a mode's allowed_tiers
+    /// excludes the role's own tier, this is set to the highest allowed tier
+    /// (see build_agent_from_mode). `model_tier()` returns it when set,
+    /// making `allowed_tiers` actually enforce.
+    override_tier: Option<auto_ai_agent::ModelTier>,
 }
 
 impl OwnedRole {
     pub(crate) fn new(inner: Arc<dyn Role>) -> Self {
         let prompt = inner.system_prompt().to_string();
-        Self { inner, extra_prompt: None, prompt }
+        Self { inner, extra_prompt: None, prompt, override_tier: None }
+    }
+
+    /// Force the role to report `tier` from `model_tier()`, overriding the
+    /// inner role's own tier. Used by the Plan 004 tier-clamp logic.
+    pub(crate) fn with_override_tier(mut self, tier: auto_ai_agent::ModelTier) -> Self {
+        self.override_tier = Some(tier);
+        self
     }
 
     /// Return a variant whose system prompt has `extra` appended to the base
@@ -78,7 +90,9 @@ impl Role for OwnedRole {
         self.inner.model()
     }
     fn model_tier(&self) -> auto_ai_agent::ModelTier {
-        self.inner.model_tier()
+        // Plan 004 tier-clamp: honor the forced tier when set (see
+        // build_agent_from_mode + with_override_tier); otherwise forward.
+        self.override_tier.unwrap_or_else(|| self.inner.model_tier())
     }
     fn temperature(&self) -> f64 {
         self.inner.temperature()
@@ -122,10 +136,10 @@ pub fn build_agent_from_mode(
 
     // Tier clamp (Plan 004): if the role declares allowed_tiers and the role's
     // own tier falls outside them, warn + clamp to the highest allowed tier.
-    // (We compare against the role's declared tier, which is what the agent
-    // will request from the daemon.)
+    // The clamped tier is applied via `with_override_tier` so that
+    // `model_tier()` actually returns it (previously computed-but-discarded).
     let allowed = role.allowed_tiers();
-    if !allowed.is_empty() {
+    let clamp_to = if !allowed.is_empty() {
         let tier = role.model_tier();
         if !allowed.contains(&tier) {
             let clamped = allowed
@@ -141,11 +155,20 @@ pub fn build_agent_from_mode(
                 allowed,
                 clamped
             );
+            Some(clamped)
+        } else {
+            None
         }
-    }
+    } else {
+        None
+    };
 
-    // Wrap, applying the mode's extra_system_prompt as a Soul customization.
-    let owned = OwnedRole::new(role).with_extra_prompt(&mode.extra_system_prompt);
+    // Wrap, applying the mode's extra_system_prompt as a Soul customization,
+    // and the tier clamp (if any) so model_tier() honors allowed_tiers.
+    let mut owned = OwnedRole::new(role).with_extra_prompt(&mode.extra_system_prompt);
+    if let Some(tier) = clamp_to {
+        owned = owned.with_override_tier(tier);
+    }
     let role_skills = owned.skills();
     let mut agent = auto_ai_agent::Agent::new(owned, client);
 
@@ -265,4 +288,51 @@ fn find_context_file() -> Option<std::path::PathBuf> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use auto_ai_agent::ModelTier;
+
+    /// Minimal Role for testing OwnedRole tier-clamping. Only `name`,
+    /// `system_prompt`, and the tier methods are meaningful.
+    struct MockRole {
+        tier: ModelTier,
+        allowed: Vec<ModelTier>,
+    }
+
+    impl Role for MockRole {
+        fn name(&self) -> &str { "mock" }
+        fn system_prompt(&self) -> &str { "mock soul" }
+        fn model_tier(&self) -> ModelTier { self.tier }
+        fn allowed_tiers(&self) -> Vec<ModelTier> { self.allowed.clone() }
+    }
+
+    #[test]
+    fn owned_role_forwards_inner_tier_when_no_override() {
+        let role = MockRole { tier: ModelTier::Mid, allowed: vec![] };
+        let owned = OwnedRole::new(Arc::new(role));
+        assert_eq!(owned.model_tier(), ModelTier::Mid);
+    }
+
+    #[test]
+    fn owned_role_override_tier_wins_over_inner() {
+        // Plan 004 F1: the override set by tier-clamping must take effect.
+        let role = MockRole { tier: ModelTier::Max, allowed: vec![ModelTier::Mid, ModelTier::Pro] };
+        let owned = OwnedRole::new(Arc::new(role))
+            .with_override_tier(ModelTier::Pro); // clamp Max → highest allowed (Pro)
+        assert_eq!(owned.model_tier(), ModelTier::Pro);
+    }
+
+    #[test]
+    fn owned_role_override_preserves_extra_prompt() {
+        // The builder chain (extra_prompt + override_tier) must compose.
+        let role = MockRole { tier: ModelTier::Max, allowed: vec![ModelTier::Mid] };
+        let owned = OwnedRole::new(Arc::new(role))
+            .with_extra_prompt("extra")
+            .with_override_tier(ModelTier::Mid);
+        assert_eq!(owned.model_tier(), ModelTier::Mid);
+        assert!(owned.system_prompt().ends_with("extra"));
+    }
 }
