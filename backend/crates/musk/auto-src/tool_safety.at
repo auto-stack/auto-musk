@@ -13,13 +13,12 @@
 // ============================================================
 
 /// The safety tier of a shell command.
-/// NOTE: C7b 待修 — a2r 渲染 tag union 命名字段构造时丢弃值
-/// (NeedsApproval(reason: "...") → NeedsApproval { })。暂用无载荷 enum +
-/// classify_reason 变通。C7b 修好后恢复 tag + NeedsApproval { reason str }。
+/// NeedsApproval carries a human-readable reason (e.g. "not on whitelist"
+/// or "matches dangerous pattern").
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CommandTier {
-    Allowed = 1
-    NeedsApproval = 2
+pub tag CommandTier {
+    Allowed
+    NeedsApproval { reason str }
 }
 
 /// Commands that are always safe (matched by prefix). Modeled as a function
@@ -56,15 +55,14 @@ fn danger_patterns() List<str> {
 
 /// Classify a shell command into Allowed or NeedsApproval(reason).
 /// Checks danger patterns first (override whitelist), then whitelist prefix,
-/// then defaults to NeedsApproval. Returns the tier; reason via classify_reason.
-/// (C7b 待修: a2r tag union 命名字段构造丢值,暂用无载荷 enum + 变通)
+/// then defaults to NeedsApproval with a reason string.
 pub fn classify_command(cmd str) CommandTier {
     let trimmed str = cmd.trim()
-    // 1. danger patterns -> NeedsApproval
+    // 1. danger patterns -> NeedsApproval(reason)
     let dangers List<str> = danger_patterns()
     for pat in dangers {
         if trimmed.contains(pat) {
-            return CommandTier.NeedsApproval
+            return CommandTier.NeedsApproval(reason: "dangerous pattern detected: " + pat + " — needs approval")
         }
     }
     // 2. whitelist prefix -> Allowed
@@ -79,21 +77,8 @@ pub fn classify_command(cmd str) CommandTier {
             return CommandTier.Allowed
         }
     }
-    // 3. else -> NeedsApproval
-    return CommandTier.NeedsApproval
-}
-
-/// The human-readable reason for a NeedsApproval verdict on `cmd`.
-/// (C7b 待修: 恢复 tag union 载荷后此函数可删除)
-pub fn classify_reason(cmd str) str {
-    let trimmed str = cmd.trim()
-    let dangers List<str> = danger_patterns()
-    for pat in dangers {
-        if trimmed.contains(pat) {
-            return "dangerous pattern detected: " + pat + " — needs approval"
-        }
-    }
-    return "command " + trimmed + " is not on the whitelist and needs approval"
+    // 3. else -> NeedsApproval(reason)
+    return CommandTier.NeedsApproval(reason: "command " + trimmed + " is not on the whitelist and needs approval")
 }
 
 // NOTE: path confinement (PROJECT_ROOT OnceLock, ROOT_OVERRIDE/CURRENT_ROOT

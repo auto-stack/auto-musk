@@ -13,32 +13,14 @@ use super::extern_impl::*;
 /// resolve_within_project) -> hand-written Rust (OnceLock + thread_local!
 /// + RefCell + Path methods are a2r blind spots)
 /// The safety tier of a shell command.
-/// NOTE: C7b 待修 — a2r 渲染 tag union 命名字段构造时丢弃值
-/// (NeedsApproval(reason: "...") → NeedsApproval { })。暂用无载荷 enum +
-/// classify_reason 变通。C7b 修好后恢复 tag + NeedsApproval { reason str }。
+/// NeedsApproval carries a human-readable reason (e.g. "not on whitelist"
+/// or "matches dangerous pattern").
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CommandTier {
-    Allowed = 1,
-    NeedsApproval = 2,
+    Allowed,
+    NeedsApproval { reason: String },
 }
 
-impl std::fmt::Display for CommandTier {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            CommandTier::Allowed => write!(f, "Allowed"),
-            CommandTier::NeedsApproval => write!(f, "NeedsApproval"),
-        }
-    }
-}
-impl CommandTier {
-    pub fn from_id(id: &str) -> Self {
-        match id {
-            "Allowed" | "allowed" => CommandTier::Allowed,
-            "NeedsApproval" | "needsapproval" => CommandTier::NeedsApproval,
-            _ => CommandTier::Allowed
-        }
-    }
-}
 
 /// Commands that are always safe (matched by prefix). Modeled as a function
 /// returning a List (Auto has no &'static [&str]); mirrors ALLOWED_PREFIXES.
@@ -57,7 +39,7 @@ pub fn classify_command(cmd: &str) -> CommandTier {
     let dangers: Vec<String> = danger_patterns();
     for pat in &dangers {
         if trimmed.as_str().contains(pat.as_str()) {
-            return CommandTier::NeedsApproval;
+            return CommandTier::NeedsApproval { reason: format!("{}{}", format!("{}{}", "dangerous pattern detected: ", pat), " — needs approval") };
         }
     }
 
@@ -73,16 +55,5 @@ pub fn classify_command(cmd: &str) -> CommandTier {
         }
     }
 
-    return CommandTier::NeedsApproval;
-}
-
-pub fn classify_reason(cmd: &str) -> String {
-    let trimmed: String = cmd.trim().to_string();
-    let dangers: Vec<String> = danger_patterns();
-    for pat in &dangers {
-        if trimmed.as_str().contains(pat.as_str()) {
-            return format!("{}{}", format!("{}{}", "dangerous pattern detected: ", pat), " — needs approval");
-        }
-    }
-    return format!("{}{}", format!("{}{}", "command ", trimmed), " is not on the whitelist and needs approval");
+    return CommandTier::NeedsApproval { reason: format!("{}{}", format!("{}{}", "command ", trimmed), " is not on the whitelist and needs approval") };
 }

@@ -126,8 +126,8 @@ use musk::auto_generated::specs as ag;    // a2r-transpiled
 | C4 | serde 属性透传（default/rename/skip/alias） | 大（全模块向后兼容） | ✅ 确认非 a2r 限制（2026-08-04） | 无需改 a2r | app_config.at 补 10 处 default + Default derive；chats.at 补 ToolCall status/id + 7 处 serde 属性 |
 | C5 | enum Default derive + `#[default]` | 中（config 类） | ✅ 已验证可用 | 无需改 a2r | Default derive 透传正常（C4 中验证） |
 | C6 | str 所有权推断（`impl Into<String>`） | 大（全模块构造函数） | ⏸️ 推迟到接线阶段 | 无需改 a2r | `&str` 签名行为等价；owned String 传入差异仅在接线运行时出现 |
-| C7 | enum 数据载荷（NeedsApproval(String)） | 小（tool_safety） | 🔶 定义可用，构造丢值 | 待 C7b | `tag T { V { f str } }` 定义正确，但 `T.V(f: "...")` 构造渲染为 `T::V { }`（值丢失） |
-| C7b | tag union 命名字段构造丢值 | 中（所有带载荷 enum） | ⬜ 待启动 | 需改 a2r | tool_safety CommandTier 暂用无载荷 enum + classify_reason 变通 |
+| C7 | enum 数据载荷（NeedsApproval(String)） | 小（tool_safety） | ✅ 完成（随 C7b） | — | tag 定义 + 构造均可用 |
+| C7b | tag union 命名字段构造丢值 | 中（所有带载荷 enum） | ✅ 完成（2026-08-04） | auto-lang rust.rs:5818 | 加 Arg::Pair 处理；tool_safety 恢复 tag + 去掉 classify_reason 变通 |
 | C8 | `const` 关键字不支持 | 中（mode DEFAULT/BUILTIN_MODES） | ⬜ 待启动 | 需改 a2r | mode.at 的 DEFAULT const 和 BUILTIN_MODES 无法表达 |
 
 ### C1 闭环详情（a2r-11 for 循环借用遍历）✅
