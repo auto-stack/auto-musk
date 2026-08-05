@@ -379,6 +379,27 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
   要么"先对齐 ag store API"(② 的大工作),要么"server.at .view 手术 + DTO parity + extern_impl
   委托 + router 合并"(③④ 的大工作)。两者都是多 session 级别,建议作为下一个独立计划里程碑。
 
+### ② 重新评估:workspace stores 41 处级联是否必需(2026-08-05)✅ 非必需
+- **结论:级联非必需。** C2 extern_impl 委托路径(与 auth 委托同模式)已验证可行,
+  换 store 类型(41 处级联)作为最后手段,不推荐。
+- **PoC 证据**:`specs_load` 从泛型 fake stub 改为走 `s.0.registry` 的真实
+  workspace stores(hw SpecsStore):
+  `pub fn specs_load(s: &State<AppState>, q: Query<auto_generated::server::WorkspaceQuery>) -> Value`
+  → seed 一个 spec item 后,委托返回真实 doc(与 hw specs_list 的 `Json(doc)` 同构)。
+  测试 `server::tests::specs_extern_delegation_returns_real_doc` 通过。
+- **为什么可行**:
+  - extern_impl 是手写 Rust,签名可自由定为具体 `&State<AppState>`;调用点仍由
+    extern_sigs.at 的 `@T` 驱动 `&s`,无需动 server.at 的调用形态。
+  - ag/hw store 类型不相同的镜像(即便 C1 对齐了写方法签名),swap 仍会波及
+    6 模块 41 处;委托路径完全不碰 store 类型。
+- **顺带确认**:ag server 有自己的 `WorkspaceQuery` mirror(与 hw 不同),委托
+  函数必须用 ag 类型做参数(取 `q.workspace` 手动解析,不用 hw 的 id_or_default)。
+- **② 剩余工作(委托路径)**:其余 ~17 个 specs/chats extern stub 逐个改具体签名
+  + hw store → ag DTO/Value 转换 + ag router 的 specs/chats 路由接入 serve()。
+  每 stub 一个 PoC 同款改动,可增量验收。
+- **C1 的意义**:specs store `&mut doc` 对齐 + chats CRUD 11/11,让委托可选的
+  "swap 到底层 ag store"路径也接近就绪(非必需,但留作未来 dogfooding)。
+
 ### B 阶段完成状态(2026-08-05)
 - **specs ✅ 对齐闭环**:ag SpecsStore load/save/drift_check → Result 签名 + project_name 修复
   (hw 用文件 stem 兜底,ag 硬编码 "project" —— 真 parity 缺口,已修)+ parity_specs 2 个
@@ -436,9 +457,9 @@ C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
   就地改。修复:a2r 支持 `&mut` 参数 + 集合元素就地修改(重大特性,worktree 开发)。
 - **chats 缺 11 个 CRUD 方法 ✅(2026-08-05)**:ag ChatStore 11 个方法全部移植
   (含 approve_spec_change,见 §12 C1)。
-- **workspace stores 41 处级联 🔶(重新评估)**:
-  C2 extern_impl 委托路径若成立,store swap 可能非必需 —— 级联作为最后手段,
-  优先走"ag handler 委托 + 状态码模型"的完整接线。
+- **workspace stores 41 处级联 ✅(重新评估完成,2026-08-05)**:**非必需**。
+  C2 extern_impl 委托路径已 PoC 验证(specs_load 走 s.0.registry 真实 hw store),
+  store swap 作为最后手段不推荐 —— 走"ag handler 委托 + 状态码模型"接线(见 §11 ② 重新评估)。
 
 ### C3 完成状态(2026-08-05)✅
 - extern_impl `ok_response`/`err_response` helper 落地(auth 401 保真)。

@@ -2273,6 +2273,35 @@ mod tests {
         assert_eq!(resp.turns, 1);
     }
 
+    /// C1 重新评估 PoC(plan 018 §11 ②):extern_impl 的 specs_load 走
+    /// AppState.registry 的真实 workspace stores(hw SpecsStore),返回真实 doc
+    /// —— 证明"换 store 类型(41 处级联)"非必需,委托路径可行。
+    #[test]
+    fn specs_extern_delegation_returns_real_doc() {
+        let state = tmp_state();
+        // Seed a spec item into the default workspace's real (hw) specs store.
+        let ws = state.registry.get("");
+        let mut doc = ws.specs.load().unwrap();
+        ws.specs
+            .upsert_item(&mut doc, "goals", crate::specs::SpecItem::new("G1", "goal"))
+            .unwrap();
+        ws.specs.save(&doc).unwrap();
+
+        let state_wrapper = axum::extract::State(state);
+        let q = axum::extract::Query(crate::auto_generated::server::WorkspaceQuery {
+            workspace: None,
+        });
+        let value = crate::auto_generated::extern_impl::specs_load(&state_wrapper, q);
+
+        // The delegated value is the real doc (same wire shape as hw
+        // specs_list's Json(doc)).
+        let doc: crate::specs::SpecsDocument = serde_json::from_value(value).unwrap();
+        let goals = doc.sections.iter().find(|s| s.id == "goals").unwrap();
+        assert_eq!(goals.items.len(), 1);
+        assert_eq!(goals.items[0].id, "G1");
+        assert_eq!(goals.items[0].title, "goal");
+    }
+
     #[tokio::test]
     async fn run_endpoint_bad_profession_errors() {
         let state = tmp_state();

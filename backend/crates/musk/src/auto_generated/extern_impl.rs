@@ -115,7 +115,18 @@ fn bearer_from(headers: &axum::http::HeaderMap) -> Option<String> {
         Some(t.to_string())
     }
 }
-pub fn specs_load<T,U>(_s: &T, _q: U) -> Value { Value::Null }
+// C1 重新评估(plan 018 §11 ②):specs/chats 委托路径 PoC —— extern_impl 从
+// 泛型 fake stub 改为走 `s.0.registry` 的真实 workspace stores(与 auth 委托
+// 同模式),证明"换 store 类型(41 处级联)"非必需。调用点仍由 extern_sigs.at
+// 的 `@T` 驱动 `&s`;此处签名改为具体类型(手写 impl,可任意定)。
+pub fn specs_load(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> Value {
+    let id = q.workspace.clone().unwrap_or_default();
+    let ws = s.0.registry.get(&id);
+    match ws.specs.load() {
+        Ok(doc) => serde_json::to_value(doc).unwrap_or(Value::Null),
+        Err(_) => Value::Null,
+    }
+}
 pub fn specs_overview_of<T,U>(_s: &T, _q: U) -> Value { Value::Null }
 pub fn specs_drift<T,U>(_s: &T, _q: U) -> DriftResult { DriftResult { memory_version: 0, disk_version: 0, drifted: false } }
 pub fn specs_rebuild<T,U>(_s: &T, _q: U) -> Value { Value::Null }
