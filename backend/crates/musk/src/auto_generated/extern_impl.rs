@@ -263,7 +263,7 @@ pub fn professions_list() -> Value {
             })
         })
         .collect();
-    serde_json::to_value(list).unwrap_or(Value::Null)
+    serde_json::json!({ "professions": list })
 }
 pub fn config_build() -> Value {
     let reg = crate::mode::ModeRegistry::load();
@@ -325,7 +325,7 @@ pub fn modes_all() -> Value {
             })
         })
         .collect();
-    serde_json::to_value(modes).unwrap_or(Value::Null)
+    serde_json::json!({ "modes": modes })
 }
 pub fn skills_all() -> Value {
     let skills_dir = dirs::home_dir().map(|h| h.join(".config/autoos/skills"));
@@ -338,7 +338,7 @@ pub fn skills_all() -> Value {
     } else {
         vec![]
     };
-    serde_json::to_value(skills).unwrap_or(Value::Null)
+    serde_json::json!({ "skills": skills })
 }
 pub fn roles_all() -> Value {
     let reg = auto_ai_agent::RoleRegistry::load();
@@ -360,7 +360,7 @@ pub fn roles_all() -> Value {
             })
         })
         .collect();
-    serde_json::to_value(roles).unwrap_or(Value::Null)
+    serde_json::json!({ "roles": roles })
 }
 pub fn role_get(p: &Path<String>) -> Value {
     let reg = auto_ai_agent::RoleRegistry::load();
@@ -638,19 +638,19 @@ pub fn chats_create(s: &State<AppState>, q: Query<crate::auto_generated::server:
                 Some(mode),
                 Some(session.name.clone()),
             );
-            serde_json::to_value(session).unwrap_or(Value::Null)
+            serde_json::json!({ "session": session })
         }
         Err(_) => Value::Null,
     }
 }
 pub fn chats_list(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
-    serde_json::to_value(ws.chats.list()).unwrap_or(Value::Null)
+    serde_json::json!({ "sessions": ws.chats.list() })
 }
 pub fn chats_get(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
     match ws.chats.get(&p.0) {
-        Some(session) => serde_json::to_value(session).unwrap_or(Value::Null),
+        Some(session) => serde_json::json!({ "session": session }),
         None => Value::Null,
     }
 }
@@ -659,7 +659,7 @@ pub fn chats_rename(s: &State<AppState>, q: Query<crate::auto_generated::server:
     match ws.chats.rename(&p.0, &b.name) {
         Ok(Some(session)) => {
             let _ = ws.conversations.rename(&p.0, &b.name);
-            serde_json::to_value(session).unwrap_or(Value::Null)
+            serde_json::json!({ "session": session })
         }
         _ => Value::Null,
     }
@@ -670,13 +670,12 @@ pub fn chats_delete(s: &State<AppState>, q: Query<crate::auto_generated::server:
         let _ = ws.conversations.delete(&p.0);
     }
 }
-pub fn chats_delete_all(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> u32 {
+pub fn chats_delete_all(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
-    let count = ws.chats.list().len() as u32;
     if ws.chats.delete_all().is_ok() {
         ws.conversations.delete_all();
     }
-    count
+    serde_json::json!({ "status": "deleted_all" })
 }
 pub fn chats_message(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>, b: Json<crate::auto_generated::server::ChatMessageBody>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
@@ -713,20 +712,20 @@ pub fn chats_reject(s: &State<AppState>, q: Query<crate::auto_generated::server:
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
     let (id, index) = p.0;
     match ws.chats.reject_spec_change(&id, index as usize) {
-        Ok(Some(session)) => serde_json::to_value(session).unwrap_or(Value::Null),
+        Ok(Some(session)) => serde_json::json!({ "session": session }),
         _ => Value::Null,
     }
 }
 pub fn chats_reject_all(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
     match ws.chats.reject_all_spec_changes(&p.0) {
-        Ok(Some(session)) => serde_json::to_value(session).unwrap_or(Value::Null),
+        Ok(Some(session)) => serde_json::json!({ "session": session }),
         _ => Value::Null,
     }
 }
 pub fn conversations_list(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
-    serde_json::to_value(ws.conversations.list()).unwrap_or(Value::Null)
+    serde_json::json!({ "conversations": ws.conversations.list() })
 }
 pub fn conversations_get(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
@@ -754,12 +753,12 @@ pub fn conv_event_status(_ev: &Value) -> Option<String> { None }
 /// ② workspace 委托(与 specs/chats 同模式):走 s.0.registry 真实逻辑,返回
 /// 完整 metas / Value 供 ag handler 包装,wire 形状与 hw 一致。
 pub fn workspace_list_all(s: &State<AppState>) -> Value {
-    serde_json::to_value(s.0.registry.list()).unwrap_or(Value::Null)
+    serde_json::json!({ "workspaces": s.0.registry.list() })
 }
 pub fn workspace_open_of(s: &State<AppState>, b: Json<crate::auto_generated::server::OpenWorkspaceBody>) -> Value {
     let meta = s.0.registry.open(&b.path);
     s.0.registry.touch(&meta.id);
-    serde_json::to_value(meta).unwrap_or(Value::Null)
+    serde_json::json!({ "workspace": meta })
 }
 pub fn workspace_status_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> Value {
     let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };

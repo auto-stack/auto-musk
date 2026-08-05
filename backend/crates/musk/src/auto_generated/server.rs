@@ -449,7 +449,7 @@ pub async fn specs_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<
 
 pub async fn professions() -> Json<Value> {
     let list = professions_list();
-    return Json(serde_json::json!({ "professions": list }));
+    return Json(list);
 }
 
 pub async fn config_overview() -> Json<Value> {
@@ -459,17 +459,17 @@ pub async fn config_overview() -> Json<Value> {
 
 pub async fn modes_list() -> Json<Value> {
     let list = modes_all();
-    return Json(serde_json::json!({ "modes": list }));
+    return Json(list);
 }
 
 pub async fn skills_list() -> Json<Value> {
     let list = skills_all();
-    return Json(serde_json::json!({ "skills": list }));
+    return Json(list);
 }
 
 pub async fn roles_list() -> Json<Value> {
     let list = roles_all();
-    return Json(serde_json::json!({ "roles": list }));
+    return Json(list);
 }
 
 pub async fn role_detail(p: Path<String>) -> Json<Value> {
@@ -514,22 +514,22 @@ pub async fn app_harness_delete(p: Path<(String, String)>) -> Json<Value> {
 
 pub async fn chat_create(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<ChatCreateBody>) -> Json<Value> {
     let resp = chats_create(&s, q, body);
-    return Json(serde_json::json!({ "session": resp }));
+    return Json(resp);
 }
 
 pub async fn chat_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
     let list = chats_list(&s, q);
-    return Json(serde_json::json!({ "sessions": list }));
+    return Json(list);
 }
 
 pub async fn chat_get(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<Value> {
     let resp = chats_get(&s, q, p);
-    return Json(serde_json::json!({ "session": resp }));
+    return Json(resp);
 }
 
 pub async fn chat_rename(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ChatRenameBody>) -> Json<Value> {
     let resp = chats_rename(&s, q, p, body);
-    return Json(serde_json::json!({ "session": resp }));
+    return Json(resp);
 }
 
 pub async fn chat_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<Deleted> {
@@ -538,8 +538,8 @@ pub async fn chat_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<S
 }
 
 pub async fn chat_delete_all(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
-    let _count = chats_delete_all(&s, q);
-    return Json(serde_json::json!({ "status": "deleted_all" }));
+    let resp = chats_delete_all(&s, q);
+    return Json(resp);
 }
 
 pub async fn chat_message(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ChatMessageBody>) -> Json<Value> {
@@ -554,17 +554,17 @@ pub async fn chat_approve(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<
 
 pub async fn chat_reject(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, u32)>) -> Json<Value> {
     let resp = chats_reject(&s, q, p);
-    return Json(serde_json::json!({ "session": resp }));
+    return Json(resp);
 }
 
 pub async fn chat_reject_all(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<Value> {
     let resp = chats_reject_all(&s, q, p);
-    return Json(serde_json::json!({ "session": resp }));
+    return Json(resp);
 }
 
 pub async fn conversation_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
     let list = conversations_list(&s, q);
-    return Json(serde_json::json!({ "conversations": list }));
+    return Json(list);
 }
 
 pub async fn conversation_get(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuery>) -> Json<Value> {
@@ -584,12 +584,12 @@ pub async fn conversation_rename(s: State<AppState>, q: Query<WorkspaceQuery>, p
 
 pub async fn workspace_list(s: State<AppState>) -> Json<Value> {
     let list = workspace_list_all(&s);
-    return Json(serde_json::json!({ "workspaces": list }));
+    return Json(list);
 }
 
 pub async fn workspace_open(s: State<AppState>, body: Json<OpenWorkspaceBody>) -> Json<Value> {
     let resp = workspace_open_of(&s, body);
-    return Json(serde_json::json!({ "workspace": resp }));
+    return Json(resp);
 }
 
 pub async fn workspace_status(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {

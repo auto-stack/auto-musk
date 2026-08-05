@@ -117,7 +117,7 @@ pub type RoleItem { name str, tier str, model str }
 pub type RoleDetail { name str, tier str, model str, temperature float, system_prompt str }
 
 #[derive(Debug, Deserialize)]
-pub type RoleSaveBody { model Option<str>, tier Option<str>, system_prompt Option<str>, temperature Option<float> }
+pub type RoleSaveBody { model Option<str>, tier Option<str>, system_prompt Option<str>, temperature Option<float>, description Option<str>, inherit Option<str>, allowed_tiers List<str>, skills List<str>, token_budget Option<u64>, max_turns Option<usize>, tools List<str>, soul Option<str> }
 
 #[derive(Debug, Serialize)]
 pub type ConfigOverview { modes List<ModeItem>, professions List<ProfessionItem>, skills List<str> }
@@ -126,13 +126,16 @@ pub type ConfigOverview { modes List<ModeItem>, professions List<ProfessionItem>
 pub type AppConfigResp { daemon_url str, default_mode str }
 
 #[derive(Debug, Deserialize)]
-pub type AppConfigSaveBody { daemon_url Option<str>, default_mode Option<str> }
+pub type AppConfigSaveBody { daemon_url Option<str>, default_mode Option<str>, context_file Option<str>, serve_addr Option<str>, auto_start_daemon Option<bool>, harness HarnessSelection }
+
+#[derive(Debug, Deserialize, Default)]
+pub type HarnessSelection { roles List<str>, skills List<str>, modes List<str> }
 
 #[derive(Debug, Deserialize)]
 pub type HarnessBody { model Option<str>, tier Option<str>, system_prompt Option<str> }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub type AppHarnessSaveBody { model Option<str>, tier Option<str>, system_prompt Option<str>, temperature Option<float> }
+pub type AppHarnessSaveBody { model Option<str>, tier Option<str>, system_prompt Option<str>, temperature Option<float>, description Option<str>, inherit Option<str>, allowed_tiers List<str>, skills List<str>, token_budget Option<u64>, max_turns Option<usize>, tools List<str>, soul Option<str> }
 
 #[derive(Debug, Serialize)]
 pub type WorkflowsResp { workflows List<str> }
@@ -261,42 +264,42 @@ pub fn auth_logout(s State<AppState>, headers HeaderMap) ~Json<StatusOk> {
 // Specs handlers (use ws.specs — extern SpecsStore)
 // ============================================================
 
-fn specs_list(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
+pub fn specs_list(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
     let doc = specs_load(s.view, q)
     return Json(doc)
 }
 
-fn specs_overview(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
+pub fn specs_overview(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
     let overview = specs_overview_of(s.view, q)
     return Json(overview)
 }
 
-fn specs_drift_check(s State<AppState>, q Query<WorkspaceQuery>) ~Json<DriftResult> {
+pub fn specs_drift_check(s State<AppState>, q Query<WorkspaceQuery>) ~Json<DriftResult> {
     let result = specs_drift(s.view, q)
     return Json(result)
 }
 
-fn specs_rebuild_relations(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
+pub fn specs_rebuild_relations(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
     let doc = specs_rebuild(s.view, q)
     return Json(doc)
 }
 
-fn specs_related(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<RelatedInfo> {
+pub fn specs_related(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<RelatedInfo> {
     let info = specs_related_of(s.view, q, p)
     return Json(info)
 }
 
-fn specs_upsert(s State<AppState>, q Query<WorkspaceQuery>, body Json<SpecsUpsertRequest>) ~Json<Value> {
+pub fn specs_upsert(s State<AppState>, q Query<WorkspaceQuery>, body Json<SpecsUpsertRequest>) ~Json<Value> {
     let doc = specs_upsert_of(s.view, q, body)
     return Json(doc)
 }
 
-fn specs_transition(s State<AppState>, q Query<WorkspaceQuery>, body Json<SpecsTransitionRequest>) ~Json<TransitionOk> {
+pub fn specs_transition(s State<AppState>, q Query<WorkspaceQuery>, body Json<SpecsTransitionRequest>) ~Json<TransitionOk> {
     let new_status = specs_transition_of(s.view, q, body)
     return Json(TransitionOk(status: "ok", new_status: new_status))
 }
 
-fn specs_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, str)>) ~Json<Deleted> {
+pub fn specs_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, str)>) ~Json<Deleted> {
     let id = specs_delete_of(s.view, q, p)
     return Json(Deleted(status: "deleted", id: id))
 }
@@ -307,44 +310,44 @@ fn specs_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, str)>) 
 // Meta / professions / config / modes / skills / roles handlers
 // ============================================================
 
-fn professions() ~Json<ProfessionsResp> {
+pub fn professions() ~Json<Value> {
     let list = professions_list()
-    return Json(ProfessionsResp(professions: list))
+    return Json(list)
 }
 
-fn config_overview() ~Json<ConfigOverview> {
+pub fn config_overview() ~Json<Value> {
     let cfg = config_build()
     return Json(cfg)
 }
 
-fn modes_list() ~Json<ModesResp> {
+pub fn modes_list() ~Json<Value> {
     let list = modes_all()
-    return Json(ModesResp(modes: list))
+    return Json(list)
 }
 
-fn skills_list() ~Json<SkillsResp> {
+pub fn skills_list() ~Json<Value> {
     let list = skills_all()
-    return Json(SkillsResp(skills: list))
+    return Json(list)
 }
 
-fn roles_list() ~Json<RolesResp> {
+pub fn roles_list() ~Json<Value> {
     let list = roles_all()
-    return Json(RolesResp(roles: list))
+    return Json(list)
 }
 
-fn role_detail(p Path<str>) ~Json<RoleDetail> {
+pub fn role_detail(p Path<str>) ~Json<Value> {
     let detail = role_get(p.view)
     return Json(detail)
 }
 
-fn role_save(p Path<str>, body Json<RoleSaveBody>) ~Json<Saved> {
-    role_save_of(p.view, body)
-    return Json(Saved(status: "saved", name: path_inner(p.view)))
+pub fn role_save(p Path<str>, body Json<RoleSaveBody>) ~Json<Value> {
+    let resp = role_save_of(p.view, body)
+    return Json(resp)
 }
 
-fn role_delete(p Path<str>) ~Json<Deleted> {
-    role_delete_of(p.view)
-    return Json(Deleted(status: "deleted", id: path_inner(p.view)))
+pub fn role_delete(p Path<str>) ~Json<Value> {
+    let resp = role_delete_of(p.view)
+    return Json(resp)
 }
 
 
@@ -352,31 +355,29 @@ fn role_delete(p Path<str>) ~Json<Deleted> {
 // App config / harness handlers
 // ============================================================
 
-fn app_config_get() ~Json<AppConfigResp> {
+pub fn app_config_get() ~Json<Value> {
     let cfg = app_config_load()
     return Json(cfg)
 }
 
-fn app_config_save(body Json<AppConfigSaveBody>) ~Json<AppConfigResp> {
+pub fn app_config_save(body Json<AppConfigSaveBody>) ~Json<Value> {
     let cfg = app_config_write(body)
     return Json(cfg)
 }
 
-fn app_harness_list(p Path<str>) ~Json<Value> {
+pub fn app_harness_list(p Path<str>) ~Json<Value> {
     let result = harness_list(p.view)
     return Json(result)
 }
 
-fn app_harness_save(p Path<(str, str)>, body Json<AppHarnessSaveBody>) ~Json<Saved> {
-    harness_save(p.view, body)
-    let name str = harness_name_from_path(p.view)
-    return Json(Saved(status: "saved", name: name))
+pub fn app_harness_save(p Path<(str, str)>, body Json<AppHarnessSaveBody>) ~Json<Value> {
+    let resp = harness_save(p.view, body)
+    return Json(resp)
 }
 
-fn app_harness_delete(p Path<(str, str)>) ~Json<Deleted> {
-    harness_delete(p.view)
-    let name str = harness_name_from_path(p.view)
-    return Json(Deleted(status: "deleted", id: name))
+pub fn app_harness_delete(p Path<(str, str)>) ~Json<Value> {
+    let resp = harness_delete(p.view)
+    return Json(resp)
 }
 
 
@@ -384,52 +385,52 @@ fn app_harness_delete(p Path<(str, str)>) ~Json<Deleted> {
 // Chats handlers (ws.chats + ws.conversations double-write)
 // ============================================================
 
-fn chat_create(s State<AppState>, q Query<WorkspaceQuery>, body Json<ChatCreateBody>) ~Json<SessionResp> {
+pub fn chat_create(s State<AppState>, q Query<WorkspaceQuery>, body Json<ChatCreateBody>) ~Json<Value> {
     let resp = chats_create(s.view, q, body)
     return Json(resp)
 }
 
-fn chat_list(s State<AppState>, q Query<WorkspaceQuery>) ~Json<SessionsResp> {
+pub fn chat_list(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
     let list = chats_list(s.view, q)
-    return Json(SessionsResp(sessions: list))
+    return Json(list)
 }
 
-fn chat_get(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<SessionResp> {
+pub fn chat_get(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<Value> {
     let resp = chats_get(s.view, q, p)
     return Json(resp)
 }
 
-fn chat_rename(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ChatRenameBody>) ~Json<SessionResp> {
+pub fn chat_rename(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ChatRenameBody>) ~Json<Value> {
     let resp = chats_rename(s.view, q, p, body)
     return Json(resp)
 }
 
-fn chat_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<Deleted> {
+pub fn chat_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<Deleted> {
     chats_delete(s.view, q, p.view)
     return Json(Deleted(status: "deleted", id: path_inner(p.view)))
 }
 
-fn chat_delete_all(s State<AppState>, q Query<WorkspaceQuery>) ~Json<DeletedAll> {
-    let count = chats_delete_all(s.view, q)
-    return Json(DeletedAll(status: "deleted", count: count))
+pub fn chat_delete_all(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
+    let resp = chats_delete_all(s.view, q)
+    return Json(resp)
 }
 
-fn chat_message(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ChatMessageBody>) ~Json<QueuedResp> {
-    chats_message(s.view, q, p, body)
-    return Json(QueuedResp(status: "queued"))
+pub fn chat_message(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ChatMessageBody>) ~Json<Value> {
+    let resp = chats_message(s.view, q, p, body)
+    return Json(resp)
 }
 
-fn chat_approve(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, uint)>) ~Json<ApproveResp> {
-    let applied = chats_approve(s.view, q, p)
-    return Json(ApproveResp(status: "ok", applied: applied))
+pub fn chat_approve(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, uint)>) ~Json<Value> {
+    let resp = chats_approve(s.view, q, p)
+    return Json(resp)
 }
 
-fn chat_reject(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, uint)>) ~Json<SessionResp> {
+pub fn chat_reject(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, uint)>) ~Json<Value> {
     let resp = chats_reject(s.view, q, p)
     return Json(resp)
 }
 
-fn chat_reject_all(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<SessionResp> {
+pub fn chat_reject_all(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<Value> {
     let resp = chats_reject_all(s.view, q, p)
     return Json(resp)
 }
@@ -439,22 +440,22 @@ fn chat_reject_all(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Jso
 // Conversations handlers
 // ============================================================
 
-fn conversation_list(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
+pub fn conversation_list(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
     let list = conversations_list(s.view, q)
     return Json(list)
 }
 
-fn conversation_get(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Json<Value> {
+pub fn conversation_get(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Json<Value> {
     let conv = conversations_get(s.view, q, p)
     return Json(conv)
 }
 
-fn conversation_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<Deleted> {
+pub fn conversation_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<Deleted> {
     conversations_delete(s.view, q, p.view)
     return Json(Deleted(status: "deleted", id: path_inner(p.view)))
 }
 
-fn conversation_rename(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ConversationTitleBody>) ~Json<Value> {
+pub fn conversation_rename(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ConversationTitleBody>) ~Json<Value> {
     let conv = conversations_rename(s.view, q, p, body)
     return Json(conv)
 }
@@ -464,29 +465,29 @@ fn conversation_rename(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, 
 // Workspace handlers
 // ============================================================
 
-fn workspace_list(s State<AppState>) ~Json<WorkspacesResp> {
+pub fn workspace_list(s State<AppState>) ~Json<Value> {
     let list = workspace_list_all(s.view)
-    return Json(WorkspacesResp(workspaces: list))
+    return Json(list)
 }
 
-fn workspace_open(s State<AppState>, body Json<OpenWorkspaceBody>) ~Json<WorkspaceResp> {
+pub fn workspace_open(s State<AppState>, body Json<OpenWorkspaceBody>) ~Json<Value> {
     let resp = workspace_open_of(s.view, body)
     return Json(resp)
 }
 
-fn workspace_status(s State<AppState>, q Query<WorkspaceQuery>) ~Json<WorkspaceStatusResp> {
+pub fn workspace_status(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
     let resp = workspace_status_of(s.view, q)
     return Json(resp)
 }
 
-fn workspace_browse(q Query<BrowseQuery>) ~Json<BrowseResp> {
-    let list = workspace_browse_of(q.view)
-    return Json(BrowseResp(entries: list))
+pub fn workspace_browse(q Query<BrowseQuery>) ~Json<Value> {
+    let resp = workspace_browse_of(q.view)
+    return Json(resp)
 }
 
-fn workspace_initialize(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Initialized> {
-    workspace_initialize_of(s.view, q)
-    return Json(Initialized(status: "initialized"))
+pub fn workspace_initialize(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
+    let resp = workspace_initialize_of(s.view, q)
+    return Json(resp)
 }
 
 

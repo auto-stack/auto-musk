@@ -37,8 +37,8 @@ fn modes_all() Value {}
 fn skills_all() Value {}
 fn roles_all() Value {}
 fn role_get(_p @T) Value {}
-fn role_save_of(_p @T, _b Value) {}
-fn role_delete_of(_p @T) {}
+fn role_save_of(_p @T, _b Value) Value {}
+fn role_delete_of(_p @T) Value {}
 fn role_name(_r Value) str {}
 fn role_system_prompt(_r @T) str {}
 fn role_model(_r Value) str {}
@@ -54,17 +54,17 @@ fn app_config_load() Value {}
 fn app_config_write(_b Value) Value {}
 fn app_config_effective_daemon_url(_c Value) str {}
 fn harness_list(_p @T) Value {}
-fn harness_save(_p @T, _b Value) {}
-fn harness_delete(_p @T) {}
+fn harness_save(_p @T, _b Value) Value {}
+fn harness_delete(_p @T) Value {}
 fn harness_name_from_path(_p @T) str {}
 fn chats_create(_s @T, _q Value, _b Value) Value {}
 fn chats_list(_s @T, _q Value) Value {}
 fn chats_get(_s @T, _q Value, _p Value) Value {}
 fn chats_rename(_s @T, _q Value, _p Value, _b Value) Value {}
 fn chats_delete(_s @T, _q Value, _p @T) {}
-fn chats_delete_all(_s @T, _q Value) int {}
-fn chats_message(_s @T, _q Value, _p Value, _b Value) {}
-fn chats_approve(_s @T, _q Value, _p Value) bool {}
+fn chats_delete_all(_s @T, _q Value) Value {}
+fn chats_message(_s @T, _q Value, _p Value, _b Value) Value {}
+fn chats_approve(_s @T, _q Value, _p Value) Value {}
 fn chats_reject(_s @T, _q Value, _p Value) Value {}
 fn chats_reject_all(_s @T, _q Value, _p Value) Value {}
 fn conversations_list(_s @T, _q Value) Value {}
@@ -80,7 +80,7 @@ fn workspace_list_all(_s @T) Value {}
 fn workspace_open_of(_s @T, _b Value) Value {}
 fn workspace_status_of(_s @T, _q Value) Value {}
 fn workspace_browse_of(_q @T) Value {}
-fn workspace_initialize_of(_s @T, _q Value) {}
+fn workspace_initialize_of(_s @T, _q Value) Value {}
 fn workflows_builtin_names() Value {}
 fn wf_run(_s @T, _q Value, _b Value) Value {}
 fn wf_run_with_progress(_s @T, _q Value, _b Value, _sink Value) {}
