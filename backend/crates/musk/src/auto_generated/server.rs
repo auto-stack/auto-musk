@@ -51,11 +51,19 @@ pub struct LoginRequest {
     pub password: String,
 }
 
+/// Wire 形状与手写版对齐:{ token, user: { username, role } }。
+/// C 阶段:ag server 的 UserInfo 自包含镜像(role 为字符串,序列化与 hw 的
+/// Role enum 同名 —— "Admin"/"Developer"/"Viewer")。
+#[derive(Debug, Serialize)]
+pub struct UserInfo {
+    pub username: String,
+    pub role: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
     pub token: String,
-    pub username: String,
-    pub role: String,
+    pub user: UserInfo,
 }
 
 #[derive(Debug, Deserialize)]
@@ -338,22 +346,25 @@ async fn health() -> Json<StatusOk> {
     return Json(StatusOk { status: "ok".to_string() });
 }
 
-async fn auth_login(s: State<AppState>, body: Json<LoginRequest>) -> Json<LoginResponse> {
+pub async fn auth_login(s: State<AppState>, body: Json<LoginRequest>) -> Json<LoginResponse> {
+
 
     let username: String = body.username.clone();
-    let role: String = auth_login_role(&s, username.clone(), body.password.clone());
-    let token: String = auth_login_token(&s, username.clone(), body.password.clone());
-    return Json(LoginResponse { token: token.to_string(), username: username.to_string(), role: role.to_string() });
+    let pair = auth_login_result(&s, username.clone(), body.password.clone());
+    let token: String = pair.0.clone();
+    let role: String = pair.1.clone();
+    return Json(LoginResponse { token: token.to_string(), user: UserInfo { username: username.to_string(), role: role.to_string() } });
 }
 
-async fn auth_me(s: State<AppState>, headers: HeaderMap) -> Json<LoginResponse> {
+pub async fn auth_me(s: State<AppState>, headers: HeaderMap) -> Json<UserInfo> {
+
     let token: String = auth_token_from_headers(&s, headers);
     let username: String = auth_username_from_token(&s, &token);
     let role: String = auth_role_from_token(&s, &token);
-    return Json(LoginResponse { token: token.to_string(), username: username.to_string(), role: role.to_string() });
+    return Json(UserInfo { username: username.to_string(), role: role.to_string() });
 }
 
-async fn auth_logout(s: State<AppState>, headers: HeaderMap) -> Json<StatusOk> {
+pub async fn auth_logout(s: State<AppState>, headers: HeaderMap) -> Json<StatusOk> {
     auth_logout_token(&s, headers);
     return Json(StatusOk { status: "logged out".to_string() });
 }

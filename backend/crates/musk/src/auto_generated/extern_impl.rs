@@ -60,13 +60,50 @@ pub const spawn_relay_schema: &str = r#"{"type":"object","properties":{"task":{"
 pub const dispatch_schema: &str = r#"{"type":"object","properties":{"task":{"type":"string"},"to":{"type":"string"}},"required":["task","to"]}"#;
 pub const bring_in_schema: &str = r#"{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}"#;
 
-pub fn auth_login_role<T>(_s: &T, _u: String, _p: String) -> String { "admin".into() }
-pub fn auth_login_token<T>(_s: &T, _u: String, _p: String) -> String { "stub".into() }
-pub fn auth_token_from_headers<T>(_s: &T, _h: axum::http::HeaderMap) -> String { String::new() }
-pub fn auth_username_from_token<T>(_s: &T, _t: &str) -> String { "admin".into() }
-pub fn auth_role_from_token<T>(_s: &T, _t: &str) -> String { "admin".into() }
-pub fn auth_logout_token<T>(_s: &T, _h: axum::http::HeaderMap) {}
-pub fn auth_header_token(_h: axum::http::HeaderMap) -> Option<String> { None }
+// C 阶段:auth 真实委托(走 AppState.auth —— a2r 转译 AuthStore, 见 ①)。
+// 单次 login 返回 (token, role), 避免 split 版两次 login 产生两个 session。
+pub fn auth_login_result(s: &State<AppState>, u: String, p: String) -> (String, String) {
+    match s.0.auth.login(&u, &p) {
+        Some(ses) => {
+            let role = s
+                .0
+                .auth
+                .session_user(&ses.token)
+                .map(|u| u.role.to_string())
+                .unwrap_or_default();
+            (ses.token, role)
+        }
+        None => (String::new(), String::new()),
+    }
+}
+pub fn auth_token_from_headers(_s: &State<AppState>, h: axum::http::HeaderMap) -> String {
+    bearer_from(&h).unwrap_or_default()
+}
+pub fn auth_username_from_token(s: &State<AppState>, t: &str) -> String {
+    s.0.auth.session_user(t).map(|u| u.username).unwrap_or_default()
+}
+pub fn auth_role_from_token(s: &State<AppState>, t: &str) -> String {
+    s.0.auth.session_user(t).map(|u| u.role.to_string()).unwrap_or_default()
+}
+pub fn auth_logout_token(s: &State<AppState>, h: axum::http::HeaderMap) {
+    if let Some(t) = bearer_from(&h) {
+        s.0.auth.logout(&t);
+    }
+}
+pub fn auth_header_token(h: axum::http::HeaderMap) -> Option<String> {
+    bearer_from(&h)
+}
+
+/// Extract a bearer token from `Authorization: Bearer <token>`.
+fn bearer_from(headers: &axum::http::HeaderMap) -> Option<String> {
+    let h = headers.get("authorization")?.to_str().ok()?;
+    let t = h.strip_prefix("Bearer ")?.trim();
+    if t.is_empty() {
+        None
+    } else {
+        Some(t.to_string())
+    }
+}
 pub fn specs_load<T,U>(_s: &T, _q: U) -> Value { Value::Null }
 pub fn specs_overview_of<T,U>(_s: &T, _q: U) -> Value { Value::Null }
 pub fn specs_drift<T,U>(_s: &T, _q: U) -> DriftResult { DriftResult { memory_version: 0, disk_version: 0, drifted: false } }

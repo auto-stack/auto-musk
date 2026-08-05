@@ -55,8 +55,14 @@ pub type Saved { status str, name str }
 #[derive(Debug, Deserialize)]
 pub type LoginRequest { username str, password str }
 
+/// Wire 形状与手写版对齐:{ token, user: { username, role } }。
+/// C 阶段:ag server 的 UserInfo 自包含镜像(role 为字符串,序列化与 hw 的
+/// Role enum 同名 —— "Admin"/"Developer"/"Viewer")。
 #[derive(Debug, Serialize)]
-pub type LoginResponse { token str, username str, role str }
+pub type UserInfo { username str, role str }
+
+#[derive(Debug, Serialize)]
+pub type LoginResponse { token str, user UserInfo }
 
 #[derive(Debug, Deserialize)]
 pub type SpecsUpsertRequest { section str, item SpecItemPayload }
@@ -216,22 +222,25 @@ fn health() ~Json<StatusOk> {
 // Auth handlers (use state.auth — extern AuthStore methods)
 // ============================================================
 
-fn auth_login(s State<AppState>, body Json<LoginRequest>) ~Json<LoginResponse> {
-    // state.auth.login / session_user are extern (hand-written AuthStore)
+pub fn auth_login(s State<AppState>, body Json<LoginRequest>) ~Json<LoginResponse> {
+    // 单次 login(auth_login_result 返回 (token, role)),避免 split 版两次 login
+    // 产生两个不同 session(role 查 session#1、token 是 session#2 → me() 失配)。
     let username str = body.username.clone()
-    let role str = auth_login_role(s.view, username.clone(), body.password.clone())
-    let token str = auth_login_token(s.view, username.clone(), body.password.clone())
-    return Json(LoginResponse(token: token, username: username, role: role))
+    let pair = auth_login_result(s.view, username.clone(), body.password.clone())
+    let token str = pair[0]
+    let role str = pair[1]
+    return Json(LoginResponse(token: token, user: UserInfo(username: username, role: role)))
 }
 
-fn auth_me(s State<AppState>, headers HeaderMap) ~Json<LoginResponse> {
+pub fn auth_me(s State<AppState>, headers HeaderMap) ~Json<UserInfo> {
+    // 与手写版一致:只返回 user(不含 token 包装)。
     let token str = auth_token_from_headers(s.view, headers)
     let username str = auth_username_from_token(s.view, token.view)
     let role str = auth_role_from_token(s.view, token.view)
-    return Json(LoginResponse(token: token, username: username, role: role))
+    return Json(UserInfo(username: username, role: role))
 }
 
-fn auth_logout(s State<AppState>, headers HeaderMap) ~Json<StatusOk> {
+pub fn auth_logout(s State<AppState>, headers HeaderMap) ~Json<StatusOk> {
     auth_logout_token(s.view, headers)
     return Json(StatusOk(status: "logged out"))
 }

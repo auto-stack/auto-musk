@@ -2218,9 +2218,14 @@ mod tests {
     }
 
     fn tmp_auth() -> Arc<crate::auto_generated::auth::AuthStore> {
+        // 唯一路径(时间戳 + 自增),避免并行测试共用同一 users.json 竞态。
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         let path = std::env::temp_dir().join(format!(
-            "musk_server_auth_test_{}.json",
-            std::process::id()
+            "musk_server_auth_test_{}_{}.json",
+            std::process::id(),
+            n
         ));
         let _ = std::fs::remove_file(&path);
         Arc::new(crate::auto_generated::auth::AuthStore::new(path))
@@ -2424,5 +2429,92 @@ mod tests {
         assert!(crate::relay::feature_dev::require_builtin("feature-dev").is_ok());
         // Custom .at paths are retired with the old workflow parser.
         assert!(crate::relay::feature_dev::require_builtin("workflows/custom.at").is_err());
+    }
+
+    /// Phase C (计划 018 §11 C2):a2r 转译的 auth handler 栈经真实委托
+    /// (ag::AuthStore) 产生真实行为 —— login 返回真实 session token,
+    /// me 解析真实用户,logout 使 session 失效。wire 形状与手写版一致
+    /// ({token, user:{username, role}} / me→{username, role})。
+    /// 注:ag handler 无 HTTP 状态码模型(§11 C3 边界),无效凭据返回空数据
+    /// 而非 401 —— 由手写版保持 401,生产接线待 error-status 模型。
+    #[tokio::test]
+    async fn ag_auth_handlers_produce_real_behavior() {
+        use axum::body::Body;
+        use crate::auto_generated::server as ag_server;
+        use tower::ServiceExt;
+
+        let app = axum::Router::new()
+            .route("/api/auth/login", axum::routing::post(ag_server::auth_login))
+            .route("/api/auth/me", axum::routing::get(ag_server::auth_me))
+            .route("/api/auth/logout", axum::routing::post(ag_server::auth_logout))
+            .with_state(tmp_state());
+
+        // login: real session token + real user (default admin).
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/auth/login")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"username":"admin","password":"admin"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), axum::http::StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let token = json["token"].as_str().expect("real token").to_string();
+        assert!(!token.is_empty());
+        assert_eq!(json["user"]["username"], "admin");
+        assert_eq!(json["user"]["role"], "Admin");
+
+        // me: resolves the real user from the token.
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("GET")
+                    .uri("/api/auth/me")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["username"], "admin");
+        assert_eq!(json["role"], "Admin");
+
+        // logout: session invalidated → me resolves empty user (no 401 model).
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/auth/logout")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), axum::http::StatusCode::OK);
+        let resp = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("GET")
+                    .uri("/api/auth/me")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["username"], "");
     }
 }
