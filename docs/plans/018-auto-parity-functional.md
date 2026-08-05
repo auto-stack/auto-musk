@@ -360,3 +360,21 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
 
 ### 已完成的接线（滚动更新）
 - 2026-08-05：本路线图写入计划；开始 ①。
+
+### ②③④ 实测阻塞(2026-08-05,已停止推进,待决策)
+- **② workspace stores 级联**:specs/chats/wiki 在 `WorkspaceStores`(`src/workspace.rs:38`),
+  被 6 模块 41 处引用(chats→specs、spec_tools→specs、conversation→chats)。swap store 类型
+  会波及整个模块图,不是 auth 那样的局限改动。
+- **② ag store API 与手写版不一致(parity 缺口)**:`ag::SpecsStore::load()` 返回 `SpecsDocument`
+  (无 Result)、`save(&self, doc)` 按值 —— 手写版返回 `std::io::Result<SpecsDocument>`、
+  `save(&self, &doc)`。手写 specs handler `match ws.specs.load() { Ok/Err }` 依赖 Result。
+  parity_specs 7 个测试只覆盖数据模型/状态机,**未覆盖 store IO 签名**。
+- **③④ a2r codegen drift(s vs s.view)**:当前 a2r 重转译 server.at 产出 `auth_login_role(s, ...)`
+  (无 `&`),已提交产物是 `&s`;新输出与 extern_impl `&T` 签名不编译。根因:plan 014 文档化的
+  `.view` 借用标记约定(a2r-13)未被 server.at 遵守 —— server.at 有 0 处 `.view`、32 处裸 `s,`
+  extern 调用。旧 a2r 会自动加 `&`,当前 a2r 遵循约定不再自动加。
+  **修法**:server.at 的 extern 调用补 `s.view`(~90 处)+ 修 LoginResponse DTO + extern_impl 委托
+  + router 合并 —— 大手术,且影响当前可用 server。
+- **结论**:① 是唯一已闭环的接线切片。②③④ 需先决策:
+  要么"先对齐 ag store API"(② 的大工作),要么"server.at .view 手术 + DTO parity + extern_impl
+  委托 + router 合并"(③④ 的大工作)。两者都是多 session 级别,建议作为下一个独立计划里程碑。
