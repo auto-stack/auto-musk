@@ -35,19 +35,19 @@ pub fn build_agent_from_mode(mode: AgentMode, client: Arc<dyn Client>) -> Result
     let owned2 = owned.with_extra_prompt(&mode.extra_system_prompt);
     let mut agent = Agent::new(owned2, client);
     let all_tools: Vec<(String, Arc<dyn Tool>)> = vec![("read_file".to_string(), Arc::new(ReadFile::new())), ("write_file".to_string(), Arc::new(WriteFile::new())), ("edit_file".to_string(), Arc::new(EditFile::new())), ("batch_replace".to_string(), Arc::new(BatchReplace::new())), ("search".to_string(), Arc::new(Search::new())), ("list_dir".to_string(), Arc::new(ListDir::new())), ("list_symbols".to_string(), Arc::new(ListSymbols::new())), ("glob".to_string(), Arc::new(Glob::new())), ("run_command".to_string(), Arc::new(RunCommand::new())), ("read_specs".to_string(), Arc::new(ReadSpecs::new())), ("list_specs".to_string(), Arc::new(ListSpecs::new())), ("write_spec".to_string(), Arc::new(WriteSpec::new())), ("update_spec".to_string(), Arc::new(UpdateSpec::new())), ("write_goals".to_string(), Arc::new(WriteGoals::new()))];
-    for pair in all_tools {
+    for pair in &all_tools {
         let tool_name = pair.0.clone();
         let tool = pair.1.clone();
         if (mode.tools.len() as i32) == 0 {
-            agent_register_shared(&agent, tool)
+            agent_register_shared(&mut agent, tool)
         } else {
             if mode_tools_contains(&mode, &tool_name) {
-                agent_register_shared(&agent, tool);
+                agent_register_shared(&mut agent, tool);
             }        }
 
     }
     if mode.skills {
-        agent_register_skill_tool(&agent);
+        agent_register_skill_tool(&mut agent);
     }
     if (mode.context_file.len() as i32) > 0 {
         agent = agent_with_context_file(agent, &mode.context_file)
@@ -61,18 +61,18 @@ pub fn build_agent_from_mode(mode: AgentMode, client: Arc<dyn Client>) -> Result
 }
 
 pub fn build_agent_with_context(mode: AgentMode, client: Arc<dyn Client>, ctx: Option<ToolContext>) -> Result<Agent, String> {
-    let agent = build_agent_from_mode(mode.clone(), client.clone()).unwrap();
+    let mut agent = build_agent_from_mode(mode.clone(), client.clone()).unwrap();
     match ctx {
         Some(c) => {
             let orch: Vec<(String, Arc<dyn Tool>)> = vec![("spawn_relay".to_string(), Arc::new(SpawnRelay::new(c.clone()))), ("dispatch".to_string(), Arc::new(Dispatch::new(c.clone()))), ("bring_in".to_string(), Arc::new(BringIn::new(c)))];
-            for pair in orch {
+            for pair in &orch {
                 let tool_name = pair.0.clone();
                 let tool = pair.1.clone();
                 if (mode.tools.len() as i32) == 0 {
-                    agent_register_shared(&agent, tool)
+                    agent_register_shared(&mut agent, tool)
                 } else {
                     if mode_tools_contains(&mode, &tool_name) {
-                        agent_register_shared(&agent, tool);
+                        agent_register_shared(&mut agent, tool);
                     }                }
 
             }
@@ -99,7 +99,7 @@ fn resolve_role(spec_input: &str) -> Result<Arc<dyn Role>, String> {
     match r {
         Ok(role) => return Ok(role),
         Err(e) => return Err(e.to_string()),
-    };
+    }
 }
 
 fn find_context_file() -> Option<String> {

@@ -348,7 +348,7 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
 |---|---|---|
 | ① | **auth 接线**：extern_impl 的 auth 7 个 stub 换真实委托（走 `s.auth`）；ag router 的 `/api/auth/*` 3 路由接入 serve() | `musk serve` 后 login/me/logout 由转译 handler 服务，行为与手写版一致（curl 验证） |
 | ② | **specs/wiki/chats 数据层接线**：extern_impl 对应 stub 换真实委托（走 `s.registry` 的 workspace stores）；ag router 的 specs/workspace/chats 路由接入 | 各端点真实 CRUD 返回，与手写版一致。**✅ specs/chats/workspace 已完成(2026-08-05, 22 stub 委托 + 23 路由接入)** |
-| ③ | **extern_impl 剩余 stub 全部真实委托**（config/modes/skills/roles/app-config/harness/conversations/relay/drive/agent/ctx） | 全部端点有真实行为；fake 常量清零。**🔧 进行中(2026-08-05):config 页 6 路由 + conversations 3 路由 + app-config 2 路由 + harness 2 路由已委托;剩余 relay/drive/agent/ctx(🔴 handler 背书)** |
+| ③ | **extern_impl 剩余 stub 全部真实委托**（config/modes/skills/roles/app-config/harness/conversations/relay/drive/agent/ctx） | 全部端点有真实行为；fake 常量清零。**✅ 已闭环(2026-08-05):config 页 6 路由 + conversations 3 路由 + app-config 2 路由 + harness 2 路由 + agent/ctx 簇 17 stub + relay_driver/factory 委托;drive/relay 编排簇 9 stub 为硬墙(见 C1 ③ relay 段)** |
 | ④ | **auto_generated::server 整体接入**：ag build_router（38 路由）作为主 router；7 个 🔴 流式/daemon handler + wiki + 静态文件路由与手写 router 合并 | 全服务端由转译 handler 驱动；原有 45 路由功能不丢。**✅ 已闭环(2026-08-05):serve() 改以 ag build_router() 为主 router(pub + 补 specs_delete 路由),🔴 路由(run/run_stream/workflow_run/workflow_run_stream/settings_link/chat_stream/conversation_stream)+ files + relay/task_plan/wiki 合并;hw health/workflows 死代码移除;组合冒烟测试 production_router_composition_serves_core_endpoints 通过,305 项测试全绿** |
 
 ### 手写边界（接线阶段保持手写）
@@ -617,6 +617,36 @@ C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
   序列化 + app_harness_dir 扫描)和 relay/drive/agent/ctx(🔴 流式 handler 背书
   stub,涉及 relay 编排引擎/agent 构建)——挂起,待后续切片。
 
+### C1 ③ relay/agent/ctx 委托 + parity(2026-08-05)✅
+- **范围结论**:relay/drive/agent/ctx extern 只支撑编译但休眠的镜像模块
+  (server_serve/server_stream/auto_lib/relay_driver/orch_tools),活引擎是手写
+  src/relay/*。auto_lib 是混合镜像(直接 use hw 工具/orch 类型)。委托零运行时风险。
+- **lib.rs**:resolve_role/find_context_file 改 pub(crate),抽出 find_ctx_upward。
+- **driver.rs**:MuskAgentFactory pub(供 extern factory_build_agent + parity 构造)。
+- **auto_lib .view/.mut 手术**:register_shared/skill_tool 需 &mut → 调用点补
+  `.mut`(agent_register_shared(agent.mut,...))+ var agent;其余 extern 调用补
+  `.view`。re-transpile 后与旧产物差异仅为 &mut + 等价 for 借用(文档化)。
+- **extern_impl 委托 17 stub**:agent 簇(register_shared/skill_tool/
+  with_context_file/with_history/build_agent_with_context/mode_tools_contains)+
+  role 解析簇(registry_resolve/load_builtin_role/read_at_file/resolve_role)+
+  context 簇(find_context_file/find_ctx_upward/current_dir/ctx_is_some/
+  ctx_unwrap)+ relay_driver 路径(handoff_render/factory_build_agent)+
+  drive_clear_root。
+- **relay_driver.at**:MuskAgentFactory + build_agent 加 pub(parity 访问)。
+- **验收**:tests/parity_relay.rs 5 项 —— parity_builtin_flows_match(FlowSpec
+  wire 相等)、parity_profession_registry_matches_hw_semantics(hw 数据 seed 喂 ag
+  registry + wire round-trip + get/can_handoff/needs_approval/register)、
+  parity_build_agent_from_mode_registers_same_tools(ag auto_lib vs hw,工具集
+  相等,覆盖全部 agent 簇委托)、parity_factory_build_agent_matches_hw_factory、
+  parity_relay_driver_factory_build_agent(带/不带 handoff)。310 项测试全绿。
+- **硬墙边界(未委托,文档化)**:drive/relay 编排簇 9 stub —— relay_advance/
+  publish/step_context/submit_error + drive_set_root/accumulated/finalize_output/
+  submit_handoff/handle_stream_event + agent_run_stream_with_sink。原因:转译
+  drive_loop/run_step 的 extern 只收 (ws_id, run_id) 字符串(无 state 注入),
+  且 DriveStreamSink::on_event(i32) 丢 Delta 文本 —— 忠实委托需 server_serve.at
+  事件管道重构(sink 签名改 Value + state 透传),非"委托"能解决。orch_*/serve_*/
+  stream_* 簇同理(死镜像 + 手写边界)。
+
 ### C1 ③ app-config + harness 接线(2026-08-05)✅
 - **app-config 2 路由委托**:load(读 MuskAppConfig → {stored, effective})/
   write(ag AppConfigSaveBody 扩为 hw 全字段 daemon_url/default_mode/context_file/
@@ -630,3 +660,6 @@ C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
   app-config + harness list 读端点(写端点会碰用户真实配置,不测);
   205 lib + parity 全过。
 - **③ 剩余**:relay/drive/agent/ctx(🔴 流式 handler 背书 stub)——挂起。
+  **✅ 已闭环(2026-08-05,见上"C1 ③ relay/agent/ctx 委托 + parity"):agent/ctx
+  簇 17 stub + relay_driver/factory 委托 + parity_relay 5 项;drive/relay 编排
+  簇 9 stub 为硬墙(需 server_serve.at 事件管道重构),文档化为下个边界。**

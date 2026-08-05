@@ -822,7 +822,9 @@ pub fn orch_spawn_relay(_t: String, _a: Value) -> String { "(stub)".into() }
 pub fn orch_dispatch(_t: String, _to: String) -> String { "(stub)".into() }
 pub fn orch_bring_in(_q: String) -> String { "(stub)".into() }
 pub fn drive_set_root(_w: &str) {}
-pub fn drive_clear_root() {}
+pub fn drive_clear_root() {
+    crate::tool_safety::clear_current_root();
+}
 pub fn relay_advance(_w: &str, _r: &str) -> Value { Value::Null }
 pub fn relay_publish(_r: &str, _v: &Value) {}
 pub fn advance_is_none(_r: &Value) -> bool { true }
@@ -830,29 +832,92 @@ pub fn advance_kind(_r: &Value) -> String { "completed".into() }
 pub fn advance_role_id(_r: &Value) -> String { String::new() }
 pub fn relay_submit_error(_r: &str, _r2: &str, _e: &Result<String, String>) {}
 pub fn relay_step_context(_w: &str, _r: &str) -> String { String::new() }
-pub async fn factory_build_agent<T>(_s: &T, _w: &str, _r: &str, _r2: &str) -> Agent {
-    Agent::new(StubRole, Arc::new(NoDaemonClient) as Arc<dyn Client>)
+/// ③ 委托:factory_build_agent — 构造 hw `relay::driver::MuskAgentFactory` 并
+/// build_agent(role_id, 无 handoff;handoff 注入在转译 run_step 里由
+/// handoff_render/agent_with_history 承担)。失败回退 StubRole + 日志。
+pub async fn factory_build_agent(s: &Arc<AppState>, w: &str, r: &str, r2: &str) -> Agent {
+    let factory = crate::relay::driver::MuskAgentFactory {
+        state: s.clone(),
+        workspace_id: w.to_string(),
+        run_id: r.to_string(),
+    };
+    match factory.build_agent(r2, None) {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::warn!("factory_build_agent delegation failed: {e}");
+            Agent::new(StubRole, s.client.clone())
+        }
+    }
 }
 pub fn drive_accumulated(_w: &str, _r: &str) -> String { String::new() }
 pub fn drive_finalize_output(_o: String, _r: &Value) -> String { _o }
 pub fn drive_submit_handoff(_w: &str, _r: &str, _r2: &str, _o: &str, _v: &Value) {}
 pub fn drive_handle_stream_event(_w: &str, _r: &str, _r2: &str, _e: i32) {}
-pub fn agent_register_shared(_a: &Agent, _t: Arc<dyn Tool>) {}
-pub fn agent_register_skill_tool(_a: &Agent) {}
-pub fn agent_with_context_file(_a: Agent, _p: &str) -> Agent { _a }
-pub fn agent_with_history(_a: Agent, _h: &str) -> Agent { _a }
-pub fn build_agent_with_context(_m: AgentMode, _c: Arc<dyn Client>, _ctx: Option<ToolContext>) -> Agent { Agent::new(StubRole, _c) }
-pub fn mode_tools_contains(_m: &AgentMode, _n: &str) -> bool { true }
-pub fn resolve_role(_s: String) -> Result<Arc<dyn Role>, String> { Err("stub".into()) }
-pub fn registry_resolve<T>(_r: T, _s: &str) -> Option<Arc<dyn Role>> { None }
-pub fn load_builtin_role(_s: &str) -> Option<Arc<dyn Role>> { None }
-pub fn read_at_file(_s: &str) -> String { String::new() }
-pub fn find_context_file() -> Option<String> { None }
-pub fn find_ctx_upward(_c: &str) -> Option<String> { None }
-pub fn current_dir() -> String { ".".into() }
-pub fn ctx_is_some<T>(_c: &T) -> bool { false }
-pub fn ctx_unwrap(_c: Option<String>) -> String { String::new() }
-pub fn handoff_render(_h: String) -> String { String::new() }
+/// ③ 委托(agent/ctx 簇):auto_lib 镜像的真实 agent 构建 —— 与 hw
+/// `build_agent_from_mode/build_agent_with_context`(src/lib.rs) 同路径。
+pub fn agent_register_shared(a: &mut Agent, t: Arc<dyn Tool>) {
+    a.register_shared(t);
+}
+pub fn agent_register_skill_tool(a: &mut Agent) {
+    if let Some(skills_dir) = dirs::home_dir().map(|h| h.join(".config/autoos/skills")) {
+        let registry = auto_ai_agent::SkillRegistry::scan(&skills_dir);
+        if !registry.is_empty() {
+            a.register_skill_tool(auto_ai_agent::SkillTool::new(std::sync::Arc::new(registry)));
+        }
+    }
+}
+pub fn agent_with_context_file(a: Agent, p: &str) -> Agent {
+    a.with_context_file(std::path::Path::new(p))
+}
+pub fn agent_with_history(a: Agent, h: &str) -> Agent {
+    a.with_history(vec![("user".to_string(), h.to_string())])
+}
+pub fn build_agent_with_context(m: AgentMode, c: Arc<dyn Client>, ctx: Option<ToolContext>) -> Agent {
+    match crate::build_agent_with_context(&m, c.clone(), ctx) {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::warn!("build_agent_with_context delegation failed: {e}");
+            Agent::new(StubRole, c)
+        }
+    }
+}
+pub fn mode_tools_contains(m: &AgentMode, n: &str) -> bool {
+    m.tools.is_empty() || m.tools.iter().any(|t| t == n)
+}
+pub fn resolve_role(s: String) -> Result<Arc<dyn Role>, String> {
+    crate::resolve_role(&s)
+}
+pub fn registry_resolve(r: auto_ai_agent::RoleRegistry, s: &str) -> Option<Arc<dyn Role>> {
+    r.resolve_role(s)
+}
+pub fn load_builtin_role(s: &str) -> Option<Arc<dyn Role>> {
+    auto_ai_agent::load_builtin(s)
+}
+pub fn read_at_file(s: &str) -> String {
+    std::fs::read_to_string(s).unwrap_or_default()
+}
+pub fn find_context_file() -> Option<String> {
+    crate::find_context_file().map(|p| p.to_string_lossy().into_owned())
+}
+pub fn find_ctx_upward(c: &str) -> Option<String> {
+    crate::find_ctx_upward(std::path::Path::new(c)).map(|p| p.to_string_lossy().into_owned())
+}
+pub fn current_dir() -> String {
+    std::env::current_dir()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| ".".into())
+}
+pub fn ctx_is_some(c: &Option<String>) -> bool {
+    c.is_some()
+}
+pub fn ctx_unwrap(c: Option<String>) -> String {
+    c.unwrap_or_default()
+}
+pub fn handoff_render(h: String) -> String {
+    serde_json::from_str::<crate::relay::HandoffDocument>(&h)
+        .map(|d| d.render())
+        .unwrap_or_default()
+}
 pub async fn agent_run<T,U,V>(_s: &T, _q: U, _b: V) -> RunResponse { RunResponse { output: String::new(), tool_calls: vec![] } }
 pub async fn chat_run_stream<T,U,V,W>(_s: &T, _q: U, _p: V, _sink: W) {}
 pub async fn agent_run_stream<T,U,V,W>(_s: &T, _q: U, _b: V, _sink: W) {}

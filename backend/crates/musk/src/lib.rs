@@ -259,7 +259,8 @@ pub fn build_agent_with_context(
 /// Resolve a role by spec. Order: a user Role from the RoleRegistry
 /// (`.at` in ~/.config/autoos/roles), then a built-in name, then a literal
 /// `.at` file path. (Plan 004 adds the RoleRegistry-first lookup.)
-fn resolve_role(spec: &str) -> Result<Arc<dyn Role>, String> {
+/// `pub(crate)`: delegated by the a2r extern_impl `resolve_role` stub.
+pub(crate) fn resolve_role(spec: &str) -> Result<Arc<dyn Role>, String> {
     // 1. User role from the on-disk registry.
     let registry = auto_ai_agent::RoleRegistry::load();
     if let Some(p) = registry.resolve_role(spec) {
@@ -275,11 +276,11 @@ fn resolve_role(spec: &str) -> Result<Arc<dyn Role>, String> {
     auto_ai_agent::load_role(&content).map_err(|e| format!("parse '{spec}': {e}"))
 }
 
-/// Search upward from CWD for `.musk.md`, then `CLAUDE.md`. Returns the first
-/// found path, or None.
-fn find_context_file() -> Option<std::path::PathBuf> {
-    let cwd = std::env::current_dir().ok()?;
-    for dir in cwd.ancestors() {
+/// Search upward from `start` for `.musk.md`, then `CLAUDE.md`. Returns the
+/// first found path, or None. Shared by `find_context_file` and the a2r
+/// extern_impl delegation (`find_ctx_upward`).
+pub(crate) fn find_ctx_upward(start: &std::path::Path) -> Option<std::path::PathBuf> {
+    for dir in start.ancestors() {
         for name in [".musk.md", "CLAUDE.md"] {
             let candidate = dir.join(name);
             if candidate.is_file() {
@@ -288,6 +289,14 @@ fn find_context_file() -> Option<std::path::PathBuf> {
         }
     }
     None
+}
+
+/// Search upward from CWD for `.musk.md`, then `CLAUDE.md`. Returns the first
+/// found path, or None. `pub(crate)`: delegated by the a2r extern_impl
+/// `find_context_file` stub.
+pub(crate) fn find_context_file() -> Option<std::path::PathBuf> {
+    let cwd = std::env::current_dir().ok()?;
+    find_ctx_upward(&cwd)
 }
 
 #[cfg(test)]

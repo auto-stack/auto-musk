@@ -13,14 +13,14 @@ trait AgentFactory {
 /// relay_driver.at — MuskAgentFactory + AgentFactory impl (relay/driver.rs).
 /// drive_run/drive_loop/run_step（async 闭包 + Mutex）保留手写。
 #[derive(Clone)]
-struct MuskAgentFactory {
+pub struct MuskAgentFactory {
     pub state: Arc<AppState>,
     pub workspace_id: String,
     pub run_id: String,
 }
 
 impl MuskAgentFactory {
-    fn build_agent(&self, role_id: &str, handoff: Option<String>) -> Result<Agent, String> {
+    pub fn build_agent(&self, role_id: &str, handoff: Option<String>) -> Result<Agent, String> {
         let mode = AgentMode { name: format!("{}{}", "relay-", role_id), description: "".to_string(), role: role_id.to_string(), skills: false, tools: vec![], workflow: None, context_file: "".to_string(), extra_system_prompt: "".to_string() };
         let tool_ctx = ToolContext { state: self.state.clone(), workspace_id: self.workspace_id.clone(), parent_conversation_id: self.run_id.clone() };
         let agent = build_agent_with_context(mode, self.state.client.clone(), Some(tool_ctx));
@@ -34,6 +34,6 @@ impl MuskAgentFactory {
                 return Ok(agent);
             },
             None => return Ok(agent),
-        };
+        }
     }
 }

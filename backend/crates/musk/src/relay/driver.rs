@@ -35,10 +35,12 @@ use crate::server::AppState;
 ///   (`spawn_relay`, `dispatch`, `bring_in`)
 /// - Workspace-scoped file safety
 /// - Musk's full tool set (spec tools, skills, etc.)
-struct MuskAgentFactory {
-    state: Arc<AppState>,
-    workspace_id: String,
-    run_id: String,
+/// `pub`: constructible by the a2r extern_impl `factory_build_agent` stub and
+/// the parity_relay tests (Plan 018 §11 ③ delegation).
+pub struct MuskAgentFactory {
+    pub state: Arc<AppState>,
+    pub workspace_id: String,
+    pub run_id: String,
 }
 
 impl AgentFactory for MuskAgentFactory {

@@ -14,15 +14,16 @@ spec AgentFactory {
 
 // MuskAgentFactory — relay 步骤的 agent 工厂
 // Arc<AppState> 不实现 Debug/Eq/Ord，故只 derive Clone
+// pub: parity_relay 测试 + extern_impl factory_build_agent 委托要访问
 #[derive(Clone)]
-type MuskAgentFactory {
-    state Arc<AppState>
-    workspace_id str
-    run_id str
+pub type MuskAgentFactory {
+    pub state Arc<AppState>
+    pub workspace_id str
+    pub run_id str
 }
 
 ext MuskAgentFactory {
-    fn build_agent(role_id str, handoff Option<str>) Result<Agent, str> {
+    pub fn build_agent(role_id str, handoff Option<str>) Result<Agent, str> {
         let mode = AgentMode(
             name: "relay-" + role_id,
             description: "",
@@ -43,7 +44,7 @@ ext MuskAgentFactory {
             Some(h) -> {
                 let prior = handoff_render(h)
                 if prior.len() > 0 {
-                    let agent2 = agent_with_history(agent, prior)
+                    let agent2 = agent_with_history(agent, prior.view)
                     return Ok(agent2)
                 }
                 return Ok(agent)

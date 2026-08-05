@@ -12,14 +12,14 @@ type OwnedRole {
     prompt str
 
     pub static fn new(inner Arc<dyn Role>) OwnedRole {
-        let p = role_system_prompt(inner)
+        let p = role_system_prompt(inner.view)
         return OwnedRole(inner: inner, extra_prompt: None, prompt: p)
     }
 
     pub fn with_extra_prompt(extra str) OwnedRole {
         var p = self.prompt.clone()
         if extra.trim().len() > 0 {
-            p = role_system_prompt(self.inner)
+            p = role_system_prompt(self.inner.clone().view)
             p = p + "\n\n" + extra
         }
         return OwnedRole(inner: self.inner, extra_prompt: self.extra_prompt, prompt: p)
@@ -54,29 +54,29 @@ pub fn build_agent_from_mode(mode AgentMode, client Arc<dyn Client>) Result<Agen
         let tool_name = pair[0]
         let tool = pair[1]
         if mode.tools.len() == 0 {
-            agent_register_shared(agent, tool)
+            agent_register_shared(agent.mut, tool)
         } else {
-            if mode_tools_contains(mode, tool_name) {
-                agent_register_shared(agent, tool)
+            if mode_tools_contains(mode.view, tool_name.view) {
+                agent_register_shared(agent.mut, tool)
             }
         }
     }
     if mode.skills {
-        agent_register_skill_tool(agent)
+        agent_register_skill_tool(agent.mut)
     }
     if mode.context_file.len() > 0 {
-        agent = agent_with_context_file(agent, mode.context_file)
+        agent = agent_with_context_file(agent, mode.context_file.view)
     } else {
         let ctx = find_context_file()
-        if ctx_is_some(ctx) {
-            agent = agent_with_context_file(agent, ctx_unwrap(ctx))
+        if ctx_is_some(ctx.view) {
+            agent = agent_with_context_file(agent, ctx_unwrap(ctx).view)
         }
     }
     return Ok(agent)
 }
 
 pub fn build_agent_with_context(mode AgentMode, client Arc<dyn Client>, ctx Option<ToolContext>) Result<Agent, str> {
-    let agent = build_agent_from_mode(mode, client).unwrap()
+    var agent = build_agent_from_mode(mode, client).unwrap()
     is ctx {
         Some(c) -> {
             let orch List<(str, Arc<dyn Tool>)> = [
@@ -88,10 +88,10 @@ pub fn build_agent_with_context(mode AgentMode, client Arc<dyn Client>, ctx Opti
                 let tool_name = pair[0]
                 let tool = pair[1]
                 if mode.tools.len() == 0 {
-                    agent_register_shared(agent, tool)
+                    agent_register_shared(agent.mut, tool)
                 } else {
-                    if mode_tools_contains(mode, tool_name) {
-                        agent_register_shared(agent, tool)
+                    if mode_tools_contains(mode.view, tool_name.view) {
+                        agent_register_shared(agent.mut, tool)
                     }
                 }
             }
@@ -123,5 +123,5 @@ fn resolve_role(spec_input str) Result<Arc<dyn Role>, str> {
 
 fn find_context_file() Option<str> {
     let cwd = current_dir()
-    return find_ctx_upward(cwd)
+    return find_ctx_upward(cwd.view)
 }
