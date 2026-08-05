@@ -210,6 +210,17 @@ pub struct AppConfigResp {
 pub struct AppConfigSaveBody {
     pub daemon_url: Option<String>,
     pub default_mode: Option<String>,
+    pub context_file: Option<String>,
+    pub serve_addr: Option<String>,
+    pub auto_start_daemon: Option<bool>,
+    pub harness: HarnessSelection,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct HarnessSelection {
+    pub roles: Vec<String>,
+    pub skills: Vec<String>,
+    pub modes: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -225,6 +236,14 @@ pub struct AppHarnessSaveBody {
     pub tier: Option<String>,
     pub system_prompt: Option<String>,
     pub temperature: Option<f64>,
+    pub description: Option<String>,
+    pub inherit: Option<String>,
+    pub allowed_tiers: Vec<String>,
+    pub skills: Vec<String>,
+    pub token_budget: Option<u64>,
+    pub max_turns: Option<usize>,
+    pub tools: Vec<String>,
+    pub soul: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -468,31 +487,29 @@ pub async fn role_delete(p: Path<String>) -> Json<Value> {
     return Json(resp);
 }
 
-async fn app_config_get() -> Json<AppConfigResp> {
+pub async fn app_config_get() -> Json<Value> {
     let cfg = app_config_load();
     return Json(cfg);
 }
 
-async fn app_config_save(body: Json<AppConfigSaveBody>) -> Json<AppConfigResp> {
+pub async fn app_config_save(body: Json<AppConfigSaveBody>) -> Json<Value> {
     let cfg = app_config_write(body);
     return Json(cfg);
 }
 
-async fn app_harness_list(p: Path<String>) -> Json<Value> {
+pub async fn app_harness_list(p: Path<String>) -> Json<Value> {
     let result = harness_list(&p);
     return Json(result);
 }
 
-async fn app_harness_save(p: Path<(String, String)>, body: Json<AppHarnessSaveBody>) -> Json<Saved> {
-    harness_save(&p, body);
-    let name: String = harness_name_from_path(&p);
-    return Json(Saved { status: "saved".to_string(), name: name.to_string() });
+pub async fn app_harness_save(p: Path<(String, String)>, body: Json<AppHarnessSaveBody>) -> Json<Value> {
+    let resp = harness_save(&p, body);
+    return Json(resp);
 }
 
-async fn app_harness_delete(p: Path<(String, String)>) -> Json<Deleted> {
-    harness_delete(&p);
-    let name: String = harness_name_from_path(&p);
-    return Json(Deleted { status: "deleted".to_string(), id: name.to_string() });
+pub async fn app_harness_delete(p: Path<(String, String)>) -> Json<Value> {
+    let resp = harness_delete(&p);
+    return Json(resp);
 }
 
 pub async fn chat_create(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<ChatCreateBody>) -> Json<Value> {

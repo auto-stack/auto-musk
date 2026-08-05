@@ -150,13 +150,13 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         // Plan 004: Agent Roles — list / detail / save / delete (③ 转译 handler 驱动)。
         .route("/api/roles", get(crate::auto_generated::server::roles_list))
         .route("/api/roles/{name}", get(crate::auto_generated::server::role_detail).put(crate::auto_generated::server::role_save).delete(crate::auto_generated::server::role_delete))
-        // App runtime config (musk): how it connects to the daemon, default mode, etc.
-        .route("/api/app-config", get(app_config_get).put(app_config_save))
+        // App runtime config (musk): ③ 转译 handler 驱动。
+        .route("/api/app-config", get(crate::auto_generated::server::app_config_get).put(crate::auto_generated::server::app_config_save))
         // Service registry proxy: musk → aaid → ensure os-config → return URL.
         .route("/api/settings-link", post(settings_link))
-        // App harness (Design 005): merged view of OS-level (inherit) + app-level (custom).
-        .route("/api/app-harness/{kind}", get(app_harness_list))
-        .route("/api/app-harness/{kind}/{name}", axum::routing::put(app_harness_save).delete(app_harness_delete))
+        // App harness (Design 005): ③ 转译 handler 驱动。
+        .route("/api/app-harness/{kind}", get(crate::auto_generated::server::app_harness_list))
+        .route("/api/app-harness/{kind}/{name}", axum::routing::put(crate::auto_generated::server::app_harness_save).delete(crate::auto_generated::server::app_harness_delete))
         // Chats (Plan 008): persistent multi-turn sessions (② 转译 handler 驱动)。
         .route("/api/chats/sessions", get(crate::auto_generated::server::chat_list).delete(crate::auto_generated::server::chat_delete_all))
         .route("/api/chats/session", post(crate::auto_generated::server::chat_create))
@@ -244,66 +244,6 @@ pub struct LoginResponse {
 // "which capabilities it inherits".
 
 use crate::app_config::{musk_config_path, HarnessSelection, MuskAppConfig};
-
-/// `GET /api/app-config` — the persisted config + the effective (merged) values.
-async fn app_config_get() -> impl IntoResponse {
-    let cfg = MuskAppConfig::load();
-    Json(json!({
-        "stored": cfg,
-        "effective": cfg.effective(),
-    }))
-}
-
-/// `PUT /api/app-config` body.
-#[derive(Debug, Deserialize)]
-struct AppConfigSaveBody {
-    daemon_url: Option<String>,
-    default_mode: Option<String>,
-    context_file: Option<String>,
-    serve_addr: Option<String>,
-    auto_start_daemon: Option<bool>,
-    #[serde(default)]
-    harness: HarnessBody,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct HarnessBody {
-    #[serde(default)]
-    roles: Vec<String>,
-    #[serde(default)]
-    skills: Vec<String>,
-    #[serde(default)]
-    modes: Vec<String>,
-}
-
-/// `PUT /api/app-config` — persist the config to ~/.config/autoos/apps/musk/config.at.
-async fn app_config_save(Json(body): Json<AppConfigSaveBody>) -> impl IntoResponse {
-    let cfg = MuskAppConfig {
-        daemon_url: body.daemon_url,
-        default_mode: body.default_mode,
-        context_file: body.context_file,
-        serve_addr: body.serve_addr,
-        auto_start_daemon: body.auto_start_daemon,
-        harness: HarnessSelection {
-            roles: body.harness.roles,
-            skills: body.harness.skills,
-            modes: body.harness.modes,
-        },
-    };
-    let path = match musk_config_path() {
-        Some(p) => p,
-        None => return (StatusCode::INTERNAL_SERVER_ERROR, "cannot determine home dir".to_string()).into_response(),
-    };
-    if let Err(e) = std::fs::create_dir_all(path.parent().unwrap_or(std::path::Path::new("."))) {
-        return (StatusCode::INTERNAL_SERVER_ERROR, format!("mkdir: {e}")).into_response();
-    }
-    let src = cfg.to_at_source();
-    if let Err(e) = std::fs::write(&path, &src) {
-        return (StatusCode::INTERNAL_SERVER_ERROR, format!("write: {e}")).into_response();
-    }
-    Json(json!({"status": "saved", "path": path.display().to_string(), "effective": cfg.effective()})).into_response()
-}
-
 /// `POST /api/settings-link` — proxy to aaid's service registry to ensure
 /// auto-os-config is running, then return its URL. The frontend uses this to
 /// implement the "Open System Settings" deep-link (musk → aaid → os-config).
@@ -618,88 +558,11 @@ fn stream_event_to_json(ev: &auto_ai_agent::StreamEvent, id: Option<&str>) -> se
 // harnesses (scanned from apps/musk/harness/<kind>/).
 
 /// The app-level harness dir: `~/.config/autoos/apps/musk/harness/<kind>/`.
-fn app_harness_dir(kind: &str) -> Option<std::path::PathBuf> {
+pub(crate) fn app_harness_dir(kind: &str) -> Option<std::path::PathBuf> {
     dirs::home_dir().map(|h| h.join(format!(".config/autoos/apps/musk/harness/{kind}")))
 }
-
-/// `GET /api/app-harness/{kind}` — merged OS-available + app-custom view.
-///
-/// Returns `{ os_available: [...], app_custom: [...] }` where each item has
-/// `name`, `description`, `is_builtin`, and `selected` (for os_available, based
-/// on the app config's harness reference list).
-async fn app_harness_list(axum::extract::Path(kind): axum::extract::Path<String>) -> Response {
-    let cfg = crate::app_config::MuskAppConfig::load();
-    let selected_list: &[String] = match kind.as_str() {
-        "roles" => &cfg.harness.roles,
-        "skills" => &cfg.harness.skills,
-        "modes" => &cfg.harness.modes,
-        _ => return (StatusCode::BAD_REQUEST, format!("unknown kind '{kind}'")).into_response(),
-    };
-
-    // OS-level list (reuse existing endpoints' data sources).
-    let os_available: Vec<serde_json::Value> = match kind.as_str() {
-        "roles" => {
-            let reg = auto_ai_agent::RoleRegistry::load();
-            reg.list().iter().map(|r| {
-                json!({
-                    "name": r.name,
-                    "description": r.description,
-                    "tier": format!("{:?}", r.tier).to_lowercase(),
-                    "is_builtin": r.is_builtin,
-                    "selected": selected_list.contains(&r.name),
-                })
-            }).collect()
-        }
-        "skills" => {
-            let skills_dir = dirs::home_dir().map(|h| h.join(".config/autoos/skills"));
-            if let Some(dir) = skills_dir {
-                let reg = auto_ai_agent::SkillRegistry::scan(&dir);
-                reg.descriptions().iter().map(|(name, desc)| {
-                    json!({
-                        "name": name,
-                        "description": desc,
-                        "is_builtin": false,
-                        "selected": selected_list.contains(name),
-                    })
-                }).collect()
-            } else {
-                vec![]
-            }
-        }
-        "modes" => {
-            let reg = crate::mode::ModeRegistry::load();
-            reg.names().iter().filter_map(|n| {
-                reg.get(n).map(|m| json!({
-                    "name": m.name,
-                    "description": m.description,
-                    "is_builtin": false,
-                    "selected": selected_list.contains(&m.name),
-                }))
-            }).collect()
-        }
-        _ => vec![],
-    };
-
-    // App-level custom: scan apps/musk/harness/<kind>/.
-    let app_custom: Vec<serde_json::Value> = if let Some(dir) = app_harness_dir(&kind) {
-        match kind.as_str() {
-            "roles" => scan_app_roles(&dir),
-            "skills" => scan_app_skills(&dir),
-            "modes" => scan_app_modes(&dir),
-            _ => vec![],
-        }
-    } else {
-        vec![]
-    };
-
-    Json(json!({
-        "os_available": os_available,
-        "app_custom": app_custom,
-    })).into_response()
-}
-
 /// Scan `dir` for app-level custom roles (*.at files).
-fn scan_app_roles(dir: &std::path::Path) -> Vec<serde_json::Value> {
+pub(crate) fn scan_app_roles(dir: &std::path::Path) -> Vec<serde_json::Value> {
     let mut out = Vec::new();
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
@@ -725,7 +588,7 @@ fn scan_app_roles(dir: &std::path::Path) -> Vec<serde_json::Value> {
 }
 
 /// Scan `dir` for app-level custom skills (<name>/SKILL.md).
-fn scan_app_skills(dir: &std::path::Path) -> Vec<serde_json::Value> {
+pub(crate) fn scan_app_skills(dir: &std::path::Path) -> Vec<serde_json::Value> {
     let reg = auto_ai_agent::SkillRegistry::scan(dir);
     reg.descriptions().iter().map(|(name, desc)| {
         json!({ "name": name, "description": desc, "is_builtin": false })
@@ -733,7 +596,7 @@ fn scan_app_skills(dir: &std::path::Path) -> Vec<serde_json::Value> {
 }
 
 /// Scan `dir` for app-level custom modes (*.at files).
-fn scan_app_modes(dir: &std::path::Path) -> Vec<serde_json::Value> {
+pub(crate) fn scan_app_modes(dir: &std::path::Path) -> Vec<serde_json::Value> {
     let mut out = Vec::new();
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
@@ -754,103 +617,6 @@ fn scan_app_modes(dir: &std::path::Path) -> Vec<serde_json::Value> {
     }
     out
 }
-
-/// `PUT /api/app-harness/{kind}/{name}` body — app-level custom role/mode creation.
-#[derive(Debug, Deserialize)]
-struct AppHarnessSaveBody {
-    description: Option<String>,
-    #[serde(default)]
-    tier: Option<String>,
-    #[serde(default)]
-    allowed_tiers: Vec<String>,
-    #[serde(default)]
-    skills: Vec<String>,
-    token_budget: Option<u64>,
-    temperature: Option<f64>,
-    max_turns: Option<usize>,
-    inherit: Option<String>,
-    #[serde(default)]
-    tools: Vec<String>,
-    model: Option<String>,
-    #[serde(default)]
-    soul: Option<String>,
-}
-
-/// `PUT /api/app-harness/{kind}/{name}` — create/update an app-level custom harness.
-async fn app_harness_save(
-    axum::extract::Path((kind, name)): axum::extract::Path<(String, String)>,
-    Json(body): Json<AppHarnessSaveBody>,
-) -> Response {
-    match kind.as_str() {
-        "roles" => {
-            let cfg = auto_ai_agent::RoleConfig {
-                name: Some(name.clone()),
-                description: body.description,
-                inherit: body.inherit,
-                model: body.model,
-                model_tier: body.tier.as_deref().and_then(auto_ai_agent::parse_tier_field),
-                temperature: body.temperature,
-                max_turns: body.max_turns,
-                allowed_tiers: if body.allowed_tiers.is_empty() {
-                    None
-                } else {
-                    Some(body.allowed_tiers.iter().filter_map(|s| auto_ai_agent::parse_tier_field(s)).collect())
-                },
-                skills: if body.skills.is_empty() { None } else { Some(body.skills) },
-                token_budget: body.token_budget,
-                tools: if body.tools.is_empty() { None } else { Some(body.tools) },
-                soul_file: None,
-                system_prompt: None,
-                system_prompt_append: None,
-                tools_append: None,
-                memory_limit: None,
-            };
-            let dir = match app_harness_dir("roles") {
-                Some(d) => d,
-                None => return (StatusCode::INTERNAL_SERVER_ERROR, "no home dir").into_response(),
-            };
-            if let Err(e) = std::fs::create_dir_all(&dir) {
-                return (StatusCode::INTERNAL_SERVER_ERROR, format!("mkdir: {e}")).into_response();
-            }
-            // Write sidecar soul if provided.
-            if let Some(md) = &body.soul {
-                let soul_path = dir.join(format!("{name}.soul.md"));
-                if let Err(e) = std::fs::write(&soul_path, md) {
-                    return (StatusCode::INTERNAL_SERVER_ERROR, format!("write soul: {e}")).into_response();
-                }
-            }
-            let src = auto_ai_agent::serialize_at_role(&cfg);
-            let at_path = dir.join(format!("{name}.at"));
-            if let Err(e) = std::fs::write(&at_path, &src) {
-                return (StatusCode::INTERNAL_SERVER_ERROR, format!("write: {e}")).into_response();
-            }
-            Json(json!({"status": "saved", "kind": kind, "name": name, "path": at_path.display().to_string()})).into_response()
-        }
-        _ => (StatusCode::BAD_REQUEST, format!("kind '{kind}' not yet supported for app custom")).into_response(),
-    }
-}
-
-/// `DELETE /api/app-harness/{kind}/{name}` — delete an app-level custom harness.
-async fn app_harness_delete(
-    axum::extract::Path((kind, name)): axum::extract::Path<(String, String)>,
-) -> Response {
-    let dir = match app_harness_dir(&kind) {
-        Some(d) => d,
-        None => return (StatusCode::INTERNAL_SERVER_ERROR, "no home dir").into_response(),
-    };
-    let at_path = dir.join(format!("{name}.at"));
-    let soul_path = dir.join(format!("{name}.soul.md"));
-    let existed = at_path.exists();
-    if existed {
-        let _ = std::fs::remove_file(&at_path);
-    }
-    let _ = std::fs::remove_file(&soul_path);
-    if !existed {
-        return (StatusCode::NOT_FOUND, format!("{kind} '{name}' not found")).into_response();
-    }
-    Json(json!({"status": "deleted", "kind": kind, "name": name})).into_response()
-}
-
 // ── Chats endpoints (Plan 008) ──────────────────────────────────────────────
 /// `GET /api/chats/session/{id}/stream` — run the last queued user message as
 /// an agent turn, streaming SSE events (delta/tool/done/error). On completion,
@@ -1854,6 +1620,48 @@ mod tests {
         let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
         let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(v["status"], "deleted");
+    }
+
+    /// ③ app-config + harness 接线验收(只测读端点;save 会写用户真实
+    /// ~/.config/autoos 配置,不在此测)。
+    #[tokio::test]
+    async fn app_config_endpoints_run_on_transpiled_handlers() {
+        use axum::body::Body;
+        use crate::auto_generated::server as ag_server;
+        use tower::ServiceExt;
+
+        let app = axum::Router::new()
+            .route("/api/app-config", axum::routing::get(ag_server::app_config_get))
+            .route("/api/app-harness/{kind}", axum::routing::get(ag_server::app_harness_list))
+            .with_state(tmp_state());
+
+        // app-config → {stored, effective} 形状。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("GET")
+                .uri("/api/app-config")
+                .body(Body::empty())
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(v["stored"].is_object(), "stored config expected");
+        assert!(v["effective"].is_object(), "effective config expected");
+
+        // harness list (roles kind) → {os_available, app_custom} 形状。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("GET")
+                .uri("/api/app-harness/roles")
+                .body(Body::empty())
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(v["os_available"].is_array(), "os_available expected");
+        assert!(v["app_custom"].is_array(), "app_custom expected");
     }
 
     #[tokio::test]

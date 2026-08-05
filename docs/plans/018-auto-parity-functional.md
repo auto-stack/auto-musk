@@ -348,7 +348,7 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
 |---|---|---|
 | ① | **auth 接线**：extern_impl 的 auth 7 个 stub 换真实委托（走 `s.auth`）；ag router 的 `/api/auth/*` 3 路由接入 serve() | `musk serve` 后 login/me/logout 由转译 handler 服务，行为与手写版一致（curl 验证） |
 | ② | **specs/wiki/chats 数据层接线**：extern_impl 对应 stub 换真实委托（走 `s.registry` 的 workspace stores）；ag router 的 specs/workspace/chats 路由接入 | 各端点真实 CRUD 返回，与手写版一致。**✅ specs/chats/workspace 已完成(2026-08-05, 22 stub 委托 + 23 路由接入)** |
-| ③ | **extern_impl 剩余 stub 全部真实委托**（config/modes/skills/roles/app-config/harness/conversations/relay/drive/agent/ctx） | 全部端点有真实行为；fake 常量清零。**🔧 进行中(2026-08-05):config 页 6 路由 + conversations 3 路由已委托;剩余 app-config/harness + relay/drive/agent/ctx(🔴 handler 背书)** |
+| ③ | **extern_impl 剩余 stub 全部真实委托**（config/modes/skills/roles/app-config/harness/conversations/relay/drive/agent/ctx） | 全部端点有真实行为；fake 常量清零。**🔧 进行中(2026-08-05):config 页 6 路由 + conversations 3 路由 + app-config 2 路由 + harness 2 路由已委托;剩余 relay/drive/agent/ctx(🔴 handler 背书)** |
 | ④ | **auto_generated::server 整体接入**：ag build_router（36 路由）作为主 router；7 个 🔴 流式/daemon handler + wiki + 静态文件路由与手写 router 合并 | 全服务端由转译 handler 驱动；原有 45 路由功能不丢 |
 
 ### 手写边界（接线阶段保持手写）
@@ -611,3 +611,17 @@ C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
 - **③ 剩余**:app-config + harness(需 MuskAppConfig 全字段/HarnessSelection
   序列化 + app_harness_dir 扫描)和 relay/drive/agent/ctx(🔴 流式 handler 背书
   stub,涉及 relay 编排引擎/agent 构建)——挂起,待后续切片。
+
+### C1 ③ app-config + harness 接线(2026-08-05)✅
+- **app-config 2 路由委托**:load(读 MuskAppConfig → {stored, effective})/
+  write(ag AppConfigSaveBody 扩为 hw 全字段 daemon_url/default_mode/context_file/
+  serve_addr/auto_start_daemon/harness{roles,skills,modes} → 写 config.at)。
+- **harness 2 路由委托**:list(读 MuskAppConfig harness 选中项 + os_available +
+  app_custom 两级)/ save+delete(roles kind 写/删 app 级 .at 角色 + soul)。
+  server.rs 的 app_harness_dir/scan_app_* 辅助改 pub(crate) 供 extern 复用。
+- serve() 接入 4 路由(/api/app-config + /api/app-harness/{kind}|/{kind}/{name});
+  删除 hw 死 handlers 5 个 + DTO 3 个(234 行)。
+- **验收**:集成测试 app_config_endpoints_run_on_transpiled_handlers 覆盖
+  app-config + harness list 读端点(写端点会碰用户真实配置,不测);
+  205 lib + parity 全过。
+- **③ 剩余**:relay/drive/agent/ctx(🔴 流式 handler 背书 stub)——挂起。

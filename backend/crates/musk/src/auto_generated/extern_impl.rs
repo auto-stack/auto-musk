@@ -441,13 +441,184 @@ pub fn role_memory_limit<T>(_r: T) -> Option<u32> { None }
 pub fn role_allowed_tiers<T>(_r: T) -> Vec<ModelTier> { vec![] }
 pub fn role_token_budget<T>(_r: T) -> Option<u64> { None }
 pub fn role_skills<T>(_r: T) -> Vec<String> { vec![] }
-pub fn app_config_load() -> AppConfigResp { AppConfigResp { daemon_url: String::new(), default_mode: String::new() } }
-pub fn app_config_write<T>(_b: T) -> AppConfigResp { AppConfigResp { daemon_url: String::new(), default_mode: String::new() } }
+/// ③ 委托:app-config + harness 走真实 MuskAppConfig / RoleRegistry /
+/// SkillRegistry / ModeRegistry + app harness 目录扫描,返回 hw wire 形状。
+pub fn app_config_load() -> Value {
+    let cfg = crate::app_config::MuskAppConfig::load();
+    serde_json::json!({ "stored": cfg, "effective": cfg.effective() })
+}
+pub fn app_config_write(b: Json<crate::auto_generated::server::AppConfigSaveBody>) -> Value {
+    use crate::app_config::{musk_config_path, HarnessSelection, MuskAppConfig};
+    let cfg = MuskAppConfig {
+        daemon_url: b.daemon_url.clone(),
+        default_mode: b.default_mode.clone(),
+        context_file: b.context_file.clone(),
+        serve_addr: b.serve_addr.clone(),
+        auto_start_daemon: b.auto_start_daemon,
+        harness: HarnessSelection {
+            roles: b.harness.roles.clone(),
+            skills: b.harness.skills.clone(),
+            modes: b.harness.modes.clone(),
+        },
+    };
+    let path = match musk_config_path() {
+        Some(p) => p,
+        None => return Value::Null,
+    };
+    if let Err(_e) = std::fs::create_dir_all(path.parent().unwrap_or(std::path::Path::new("."))) {
+        return Value::Null;
+    }
+    let src = cfg.to_at_source();
+    if let Err(_e) = std::fs::write(&path, &src) {
+        return Value::Null;
+    }
+    serde_json::json!({
+        "status": "saved",
+        "path": path.display().to_string(),
+        "effective": cfg.effective(),
+    })
+}
 pub fn app_config_effective_daemon_url<T>(_c: T) -> String { "http://127.0.0.1:17654".into() }
-pub fn harness_list<T>(_p: &T) -> Value { Value::Null }
-pub fn harness_save<T,U>(_p: &T, _b: U) {}
-pub fn harness_delete<T>(_p: &T) {}
-pub fn harness_name_from_path<T>(_p: &T) -> String { String::new() }
+pub fn harness_list(p: &Path<String>) -> Value {
+    let kind = p.0.clone();
+    let cfg = crate::app_config::MuskAppConfig::load();
+    let selected_list: &[String] = match kind.as_str() {
+        "roles" => &cfg.harness.roles,
+        "skills" => &cfg.harness.skills,
+        "modes" => &cfg.harness.modes,
+        _ => return Value::Null,
+    };
+    let os_available: Vec<serde_json::Value> = match kind.as_str() {
+        "roles" => {
+            let reg = auto_ai_agent::RoleRegistry::load();
+            reg.list().iter().map(|r| {
+                serde_json::json!({
+                    "name": r.name,
+                    "description": r.description,
+                    "tier": format!("{:?}", r.tier).to_lowercase(),
+                    "is_builtin": r.is_builtin,
+                    "selected": selected_list.contains(&r.name),
+                })
+            }).collect()
+        }
+        "skills" => {
+            let skills_dir = dirs::home_dir().map(|h| h.join(".config/autoos/skills"));
+            if let Some(dir) = skills_dir {
+                let reg = auto_ai_agent::SkillRegistry::scan(&dir);
+                reg.descriptions().iter().map(|(name, desc)| {
+                    serde_json::json!({
+                        "name": name,
+                        "description": desc,
+                        "is_builtin": false,
+                        "selected": selected_list.contains(name),
+                    })
+                }).collect()
+            } else {
+                vec![]
+            }
+        }
+        "modes" => {
+            let reg = crate::mode::ModeRegistry::load();
+            reg.names().iter().filter_map(|n| {
+                reg.get(n).map(|m| {
+                    serde_json::json!({
+                        "name": m.name,
+                        "description": m.description,
+                        "is_builtin": false,
+                        "selected": selected_list.contains(&m.name),
+                    })
+                })
+            }).collect()
+        }
+        _ => vec![],
+    };
+    let app_custom: Vec<serde_json::Value> = if let Some(dir) = crate::server::app_harness_dir(&kind) {
+        match kind.as_str() {
+            "roles" => crate::server::scan_app_roles(&dir),
+            "skills" => crate::server::scan_app_skills(&dir),
+            "modes" => crate::server::scan_app_modes(&dir),
+            _ => vec![],
+        }
+    } else {
+        vec![]
+    };
+    serde_json::json!({ "os_available": os_available, "app_custom": app_custom })
+}
+pub fn harness_save(p: &Path<(String, String)>, b: Json<crate::auto_generated::server::AppHarnessSaveBody>) -> Value {
+    let (kind, name) = p.0.clone();
+    match kind.as_str() {
+        "roles" => {
+            let cfg = auto_ai_agent::RoleConfig {
+                name: Some(name.clone()),
+                description: b.description.clone(),
+                inherit: b.inherit.clone(),
+                model: b.model.clone(),
+                model_tier: b.tier.as_deref().and_then(auto_ai_agent::parse_tier_field),
+                temperature: b.temperature,
+                max_turns: b.max_turns,
+                allowed_tiers: if b.allowed_tiers.is_empty() {
+                    None
+                } else {
+                    Some(b.allowed_tiers.iter().filter_map(|s| auto_ai_agent::parse_tier_field(s)).collect())
+                },
+                skills: if b.skills.is_empty() { None } else { Some(b.skills.clone()) },
+                token_budget: b.token_budget,
+                tools: if b.tools.is_empty() { None } else { Some(b.tools.clone()) },
+                soul_file: None,
+                system_prompt: None,
+                system_prompt_append: None,
+                tools_append: None,
+                memory_limit: None,
+            };
+            let dir = match crate::server::app_harness_dir("roles") {
+                Some(d) => d,
+                None => return Value::Null,
+            };
+            if std::fs::create_dir_all(&dir).is_err() {
+                return Value::Null;
+            }
+            if let Some(md) = &b.soul {
+                let soul_path = dir.join(format!("{name}.soul.md"));
+                if std::fs::write(&soul_path, md).is_err() {
+                    return Value::Null;
+                }
+            }
+            let src = auto_ai_agent::serialize_at_role(&cfg);
+            let at_path = dir.join(format!("{name}.at"));
+            if std::fs::write(&at_path, &src).is_err() {
+                return Value::Null;
+            }
+            serde_json::json!({
+                "status": "saved",
+                "kind": kind,
+                "name": name,
+                "path": at_path.display().to_string(),
+            })
+        }
+        _ => Value::Null,
+    }
+}
+pub fn harness_delete(p: &Path<(String, String)>) -> Value {
+    let (kind, name) = p.0.clone();
+    let dir = match crate::server::app_harness_dir(&kind) {
+        Some(d) => d,
+        None => return Value::Null,
+    };
+    let at_path = dir.join(format!("{name}.at"));
+    let soul_path = dir.join(format!("{name}.soul.md"));
+    let existed = at_path.exists();
+    if existed {
+        let _ = std::fs::remove_file(&at_path);
+    }
+    let _ = std::fs::remove_file(&soul_path);
+    if !existed {
+        return Value::Null;
+    }
+    serde_json::json!({ "status": "deleted", "kind": kind, "name": name })
+}
+pub fn harness_name_from_path(p: &Path<(String, String)>) -> String {
+    p.0 .1.clone()
+}
 // C1 重新评估(plan 018 §11 ②):specs/chats 委托路径 —— extern_impl 从泛型
 // fake stub 改为走 `s.0.registry` 的真实 workspace stores(与 auth 委托同模式)。
 // chats 返回完整 session 的 Value(与 hw 的 `{"session": {...}}` wire 形状一致);
