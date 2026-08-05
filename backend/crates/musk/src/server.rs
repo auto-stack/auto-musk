@@ -22,14 +22,13 @@ use std::sync::Arc;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, patch, post};
-use axum::{Json, Router};
+use axum::routing::{get, post};
+use axum::Json;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use auto_ai_agent::{builtin_names, load_builtin, load_role, Client, Role};
+use auto_ai_agent::{load_builtin, load_role, Client, Role};
 
-use crate::build_agent_from_mode;
 use crate::workspace::WorkspaceQuery;
 
 /// Guess a Content-Type from a file extension (mirrors `wiki::guess_mime` but
@@ -123,69 +122,23 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .allow_headers(tower_http::cors::Any)
         .allow_origin(tower_http::cors::Any);
 
-    let app = Router::new()
-        .route("/api/health", get(health))
-        .route("/api/professions", get(crate::auto_generated::server::professions))
+    // ④ 整体接入(plan 018 §11):转译的 ag build_router(38 路由)作为主 router。
+    // 剩余的 🔴 路由(流式/daemon: run/run_stream/workflow_run/workflow_run_stream/
+    // settings_link/chat_stream/conversation_stream)+ workspace_file + relay/task_plan/
+    // wiki 合并 + 静态文件/CORS/serve 层由这里的手写外壳补充。
+    let app = crate::auto_generated::server::build_router()
+        // 🔴 daemon/SSE handlers stay hand-written (reqwest/SSE/extractor plumbing).
         .route("/api/run", post(run))
         .route("/api/run/stream", post(run_stream_handler))
-        .route("/api/workflows", get(workflows))
         .route("/api/workflow/run", post(workflow_run))
         .route("/api/workflow/run/stream", post(workflow_run_stream))
-        .route("/api/auth/login", post(crate::auto_generated::server::auth_login))
-        .route("/api/auth/me", get(crate::auto_generated::server::auth_me))
-        .route("/api/auth/logout", post(crate::auto_generated::server::auth_logout))
-        // ② 接线:specs/chats 端点由转译 handler 服务(经 extern_impl 委托到
-        // 真实 hw workspace stores)。stream 端点(7 个 🔴)保持手写。
-        .route("/api/specs", get(crate::auto_generated::server::specs_list))
-        .route("/api/specs/item", post(crate::auto_generated::server::specs_upsert))
-        .route("/api/specs/transition", post(crate::auto_generated::server::specs_transition))
-        .route("/api/specs/item/{section}/{id}", axum::routing::delete(crate::auto_generated::server::specs_delete))
-        .route("/api/specs/overview", get(crate::auto_generated::server::specs_overview))
-        .route("/api/specs/drift-check", post(crate::auto_generated::server::specs_drift_check))
-        .route("/api/specs/rebuild-relations", post(crate::auto_generated::server::specs_rebuild_relations))
-        .route("/api/specs/related/{item_id}", get(crate::auto_generated::server::specs_related))
-        .route("/api/config", get(crate::auto_generated::server::config_overview))
-        .route("/api/modes", get(crate::auto_generated::server::modes_list))
-        .route("/api/skills", get(crate::auto_generated::server::skills_list))
-        // Plan 004: Agent Roles — list / detail / save / delete (③ 转译 handler 驱动)。
-        .route("/api/roles", get(crate::auto_generated::server::roles_list))
-        .route("/api/roles/{name}", get(crate::auto_generated::server::role_detail).put(crate::auto_generated::server::role_save).delete(crate::auto_generated::server::role_delete))
-        // App runtime config (musk): ③ 转译 handler 驱动。
-        .route("/api/app-config", get(crate::auto_generated::server::app_config_get).put(crate::auto_generated::server::app_config_save))
-        // Service registry proxy: musk → aaid → ensure os-config → return URL.
         .route("/api/settings-link", post(settings_link))
-        // App harness (Design 005): ③ 转译 handler 驱动。
-        .route("/api/app-harness/{kind}", get(crate::auto_generated::server::app_harness_list))
-        .route("/api/app-harness/{kind}/{name}", axum::routing::put(crate::auto_generated::server::app_harness_save).delete(crate::auto_generated::server::app_harness_delete))
-        // Chats (Plan 008): persistent multi-turn sessions (② 转译 handler 驱动)。
-        .route("/api/chats/sessions", get(crate::auto_generated::server::chat_list).delete(crate::auto_generated::server::chat_delete_all))
-        .route("/api/chats/session", post(crate::auto_generated::server::chat_create))
-        .route(
-            "/api/chats/session/{id}",
-            get(crate::auto_generated::server::chat_get)
-                .patch(crate::auto_generated::server::chat_rename)
-                .delete(crate::auto_generated::server::chat_delete),
-        )
-        .route("/api/chats/session/{id}/message", post(crate::auto_generated::server::chat_message))
         .route("/api/chats/session/{id}/stream", get(chat_stream))
-        .route("/api/chats/session/{id}/approve/{index}", post(crate::auto_generated::server::chat_approve))
-        .route("/api/chats/session/{id}/reject/{index}", post(crate::auto_generated::server::chat_reject))
-        .route("/api/chats/session/{id}/reject-all", post(crate::auto_generated::server::chat_reject_all))
-        // Conversations (unified chat + flow): ③ 转译 handler 驱动;stream 保持手写。
-        .route("/api/conversations", get(crate::auto_generated::server::conversation_list))
-        .route(
-            "/api/conversations/{id}",
-            get(crate::auto_generated::server::conversation_get).delete(crate::auto_generated::server::conversation_delete),
-        )
-        .route("/api/conversations/{id}/title", patch(crate::auto_generated::server::conversation_rename))
         .route("/api/conversations/{id}/stream", get(conversation_stream))
-        // Workspace management (recent / open / status / browse / initialize) —
-        // ② 接线:由转译 handler 服务(经 extern_impl 委托到真实 registry)。
-        .route("/api/workspace/list", get(crate::auto_generated::server::workspace_list))
-        .route("/api/workspace/open", post(crate::auto_generated::server::workspace_open))
-        .route("/api/workspace/status", get(crate::auto_generated::server::workspace_status))
-        .route("/api/workspace/browse", get(crate::auto_generated::server::workspace_browse))
-        .route("/api/workspace/initialize", post(crate::auto_generated::server::workspace_initialize))
+        // Workspace file serving (for display_image tool): serves any file
+        // inside a workspace's root so generated artifacts (e.g. PNG charts)
+        // can be rendered inline in the chat via a URL.
+        .route("/api/files/{workspace_id}/{*path}", get(workspace_file))
         // Relay (Flows) orchestration engine (P2a + P2b.1): runs/flows/professions
         // + the pipeline state machine. Full background driver arrives in P2b.2.
         .merge(crate::relay::api::relay_routes())
@@ -193,10 +146,6 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .merge(crate::relay::api::task_plan_routes())
         // Wiki knowledge base (Phase 4): markdown pages + raw resource tree.
         .merge(crate::wiki::wiki_routes())
-        // Workspace file serving (for display_image tool): serves any file
-        // inside a workspace's root so generated artifacts (e.g. PNG charts)
-        // can be rendered inline in the chat via a URL.
-        .route("/api/files/{workspace_id}/{*path}", get(workspace_file))
         // Serve config-page.js + any other static assets at the root.
         .fallback_service(static_service)
         .layer(cors)
@@ -206,10 +155,6 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
     tracing::info!("musk server listening on http://{addr}");
     axum::serve(listener, app).await?;
     Ok(())
-}
-
-async fn health() -> impl IntoResponse {
-    Json(json!({"status": "ok"}))
 }
 
 // ── Auth endpoints ──────────────────────────────────────────────────────────
@@ -874,11 +819,6 @@ async fn conversation_stream(
 }
 
 // ── Workflow endpoints ─────────────────────────────────────────────────────
-
-/// `GET /api/workflows` — list built-in workflows.
-async fn workflows() -> impl IntoResponse {
-    Json(json!({"workflows": crate::relay::feature_dev::builtin_names()}))
-}
 
 /// `POST /api/workflow/run` request.
 #[derive(Debug, Deserialize)]
@@ -1837,5 +1777,72 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), axum::http::StatusCode::UNAUTHORIZED);
+    }
+
+    /// ④ 整体接入(plan 018 §11):真实 serve() 的 router 组合 —— ag build_router
+    /// (38 路由) 作为主 router + 🔴 流式/daemon 路由 + relay/task_plan/wiki 合并。
+    /// axum 在构造期对重复路由 panic —— 本测试保证组合无冲突,且转译端点实际可服务。
+    #[tokio::test]
+    async fn production_router_composition_serves_core_endpoints() {
+        use axum::body::Body;
+        use tower::ServiceExt;
+
+        let app = crate::auto_generated::server::build_router()
+            .route("/api/run", axum::routing::post(run))
+            .route("/api/run/stream", axum::routing::post(run_stream_handler))
+            .route("/api/workflow/run", axum::routing::post(workflow_run))
+            .route("/api/workflow/run/stream", axum::routing::post(workflow_run_stream))
+            .route("/api/settings-link", axum::routing::post(settings_link))
+            .route("/api/chats/session/{id}/stream", axum::routing::get(chat_stream))
+            .route("/api/conversations/{id}/stream", axum::routing::get(conversation_stream))
+            .route("/api/files/{workspace_id}/{*path}", axum::routing::get(workspace_file))
+            .merge(crate::relay::api::relay_routes())
+            .merge(crate::relay::api::task_plan_routes())
+            .merge(crate::wiki::wiki_routes())
+            .with_state(tmp_state());
+
+        // 转译端点由主 router 服务:health + workflows(ag workflows → 与 hw 同形状)。
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("GET")
+                    .uri("/api/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), axum::http::StatusCode::OK);
+
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("GET")
+                    .uri("/api/workflows")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), axum::http::StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["workflows"][0], "feature-dev");
+
+        // specs delete 路由(serve() 原有、④ 时补进 ag build_router)可被命中。
+        let resp = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("DELETE")
+                    .uri("/api/specs/item/no-such-section/no-such-item")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        // 委托删除不存在的 item → 仍 200(空 id),路由存在即验证通过。
+        assert_eq!(resp.status(), axum::http::StatusCode::OK);
     }
 }

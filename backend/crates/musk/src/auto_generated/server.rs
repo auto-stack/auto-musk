@@ -612,7 +612,7 @@ async fn workflows() -> Json<WorkflowsResp> {
     return Json(WorkflowsResp { workflows: list });
 }
 
-fn build_router() -> Router<AppState> {
+pub fn build_router() -> Router<AppState> {
     let mut app = Router::new();
     app = app.route("/api/health", get(health));
     app = app.route("/api/professions", get(professions));
@@ -623,6 +623,7 @@ fn build_router() -> Router<AppState> {
     app = app.route("/api/specs", get(specs_list));
     app = app.route("/api/specs/item", post(specs_upsert));
     app = app.route("/api/specs/transition", post(specs_transition));
+    app = app.route("/api/specs/item/{section}/{id}", delete(specs_delete));
     app = app.route("/api/specs/overview", get(specs_overview));
     app = app.route("/api/specs/drift-check", post(specs_drift_check));
     app = app.route("/api/specs/rebuild-relations", post(specs_rebuild_relations));

@@ -504,9 +504,11 @@ fn workflows() ~Json<WorkflowsResp> {
 // ============================================================
 // Router assembly — all 🟡 routes wired; 🔴 routes (run/stream/chat_stream/
 // conversation_stream/workflow_run/settings_link) stay hand-written in serve()
+// which calls build_router() below as the main router, then .route()s the 🔴
+// ones + .merge(relay/task_plan/wiki) + fallback_service + cors + with_state.
 // ============================================================
 
-fn build_router() Router<AppState> {
+pub fn build_router() Router<AppState> {
     var app = Router.new()
     app = app.route("/api/health", get(health))
     app = app.route("/api/professions", get(professions))
@@ -517,6 +519,7 @@ fn build_router() Router<AppState> {
     app = app.route("/api/specs", get(specs_list))
     app = app.route("/api/specs/item", post(specs_upsert))
     app = app.route("/api/specs/transition", post(specs_transition))
+    app = app.route("/api/specs/item/{section}/{id}", delete(specs_delete))
     app = app.route("/api/specs/overview", get(specs_overview))
     app = app.route("/api/specs/drift-check", post(specs_drift_check))
     app = app.route("/api/specs/rebuild-relations", post(specs_rebuild_relations))

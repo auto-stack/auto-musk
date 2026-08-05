@@ -349,7 +349,7 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
 | ① | **auth 接线**：extern_impl 的 auth 7 个 stub 换真实委托（走 `s.auth`）；ag router 的 `/api/auth/*` 3 路由接入 serve() | `musk serve` 后 login/me/logout 由转译 handler 服务，行为与手写版一致（curl 验证） |
 | ② | **specs/wiki/chats 数据层接线**：extern_impl 对应 stub 换真实委托（走 `s.registry` 的 workspace stores）；ag router 的 specs/workspace/chats 路由接入 | 各端点真实 CRUD 返回，与手写版一致。**✅ specs/chats/workspace 已完成(2026-08-05, 22 stub 委托 + 23 路由接入)** |
 | ③ | **extern_impl 剩余 stub 全部真实委托**（config/modes/skills/roles/app-config/harness/conversations/relay/drive/agent/ctx） | 全部端点有真实行为；fake 常量清零。**🔧 进行中(2026-08-05):config 页 6 路由 + conversations 3 路由 + app-config 2 路由 + harness 2 路由已委托;剩余 relay/drive/agent/ctx(🔴 handler 背书)** |
-| ④ | **auto_generated::server 整体接入**：ag build_router（36 路由）作为主 router；7 个 🔴 流式/daemon handler + wiki + 静态文件路由与手写 router 合并 | 全服务端由转译 handler 驱动；原有 45 路由功能不丢 |
+| ④ | **auto_generated::server 整体接入**：ag build_router（38 路由）作为主 router；7 个 🔴 流式/daemon handler + wiki + 静态文件路由与手写 router 合并 | 全服务端由转译 handler 驱动；原有 45 路由功能不丢。**✅ 已闭环(2026-08-05):serve() 改以 ag build_router() 为主 router(pub + 补 specs_delete 路由),🔴 路由(run/run_stream/workflow_run/workflow_run_stream/settings_link/chat_stream/conversation_stream)+ files + relay/task_plan/wiki 合并;hw health/workflows 死代码移除;组合冒烟测试 production_router_composition_serves_core_endpoints 通过,305 项测试全绿** |
 
 ### 手写边界（接线阶段保持手写）
 - **数据 store**：auth/specs/chats/wiki 等 store 本体保持手写（ag/hw store 类型不相同的镜像；
