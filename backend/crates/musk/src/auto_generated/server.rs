@@ -4,6 +4,7 @@ use super::extern_impl::*;
 use axum::Router;
 use axum::routing::{get, post, delete, put, patch};
 use axum::Json;
+use axum::response::Response;
 use axum::extract::{State, Path, Query};
 use axum::http::HeaderMap;
 use serde::{Serialize, Deserialize};
@@ -346,22 +347,32 @@ async fn health() -> Json<StatusOk> {
     return Json(StatusOk { status: "ok".to_string() });
 }
 
-pub async fn auth_login(s: State<AppState>, body: Json<LoginRequest>) -> Json<LoginResponse> {
+pub async fn auth_login(s: State<AppState>, body: Json<LoginRequest>) -> Response {
+
 
 
     let username: String = body.username.clone();
     let pair = auth_login_result(&s, username.clone(), body.password.clone());
     let token: String = pair.0.clone();
     let role: String = pair.1.clone();
-    return Json(LoginResponse { token: token.to_string(), user: UserInfo { username: username.to_string(), role: role.to_string() } });
+    if (token.len() as i32) > 0 {
+        return ok_response(LoginResponse { token: token.to_string(), user: UserInfo { username: username.to_string(), role: role.to_string() } });
+    }
+    return err_response("invalid credentials", 401);
 }
 
-pub async fn auth_me(s: State<AppState>, headers: HeaderMap) -> Json<UserInfo> {
+pub async fn auth_me(s: State<AppState>, headers: HeaderMap) -> Response {
 
     let token: String = auth_token_from_headers(&s, headers);
+    if (token.len() as i32) == 0 {
+        return err_response("missing Authorization header", 401);
+    }
     let username: String = auth_username_from_token(&s, &token);
+    if (username.len() as i32) == 0 {
+        return err_response("invalid or expired session", 401);
+    }
     let role: String = auth_role_from_token(&s, &token);
-    return Json(UserInfo { username: username.to_string(), role: role.to_string() });
+    return ok_response(UserInfo { username: username.to_string(), role: role.to_string() });
 }
 
 pub async fn auth_logout(s: State<AppState>, headers: HeaderMap) -> Json<StatusOk> {

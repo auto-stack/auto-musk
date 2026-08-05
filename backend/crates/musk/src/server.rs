@@ -58,23 +58,10 @@ fn guess_mime_from_path(path: &std::path::Path) -> &'static str {
 #[derive(Clone)]
 pub struct AppState {
     pub client: Arc<dyn Client>,
-    // 接线运行(计划 018 §11 ①):auth 数据层换用 a2r 转译版 AuthStore。
-    // 行为等价(parity_auth 8 测试背书);响应 DTO 仍是手写版,通过 to_hw_user 转换。
+    // 接线运行(计划 018 §11):auth 数据层是 a2r 转译版 AuthStore(①);
+    // auth 端点由 a2r 转译 handler 服务(C2/C3),手写 auth handler 已删除。
     pub auth: Arc<crate::auto_generated::auth::AuthStore>,
     pub registry: Arc<crate::workspace::WorkspaceRegistry>,
-}
-
-/// Convert a transpiled UserInfo to the hand-written shape (same wire format).
-fn to_hw_user(u: crate::auto_generated::auth::UserInfo) -> crate::auth::UserInfo {
-    use crate::auto_generated::auth::Role as AgRole;
-    crate::auth::UserInfo {
-        username: u.username,
-        role: match u.role {
-            AgRole::Admin => crate::auth::Role::Admin,
-            AgRole::Developer => crate::auth::Role::Developer,
-            AgRole::Viewer => crate::auth::Role::Viewer,
-        },
-    }
 }
 
 /// Run the HTTP server on the given address (default `127.0.0.1:8080`).
@@ -144,9 +131,9 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/workflows", get(workflows))
         .route("/api/workflow/run", post(workflow_run))
         .route("/api/workflow/run/stream", post(workflow_run_stream))
-        .route("/api/auth/login", post(auth_login))
-        .route("/api/auth/me", get(auth_me))
-        .route("/api/auth/logout", post(auth_logout))
+        .route("/api/auth/login", post(crate::auto_generated::server::auth_login))
+        .route("/api/auth/me", get(crate::auto_generated::server::auth_me))
+        .route("/api/auth/logout", post(crate::auto_generated::server::auth_logout))
         .route("/api/specs", get(specs_list))
         .route("/api/specs/item", post(specs_upsert))
         .route("/api/specs/transition", post(specs_transition))
@@ -236,82 +223,11 @@ pub struct LoginResponse {
     pub user: crate::auth::UserInfo,
 }
 
-/// `POST /api/auth/login` — verify credentials, return a bearer token.
-async fn auth_login(
-    State(state): State<AppState>,
-    Json(req): Json<LoginRequest>,
-) -> impl IntoResponse {
-    match state.auth.login(&req.username, &req.password) {
-        Some(session) => {
-            let user = state
-                .auth
-                .session_user(&session.token)
-                .expect("session just created");
-            Json(LoginResponse {
-                token: session.token,
-                user: to_hw_user(user),
-            })
-            .into_response()
-        }
-        None => (
-            StatusCode::UNAUTHORIZED,
-            Json(ApiError {
-                error: "invalid credentials".into(),
-            }),
-        )
-            .into_response(),
-    }
-}
-
-/// `GET /api/auth/me` — resolve the bearer token to the user, else 401.
-async fn auth_me(
-    State(state): State<AppState>,
-    headers: axum::http::HeaderMap,
-) -> impl IntoResponse {
-    match bearer_token(&headers) {
-        Some(token) => match state.auth.session_user(&token) {
-            Some(user) => Json(to_hw_user(user)).into_response(),
-            None => (
-                StatusCode::UNAUTHORIZED,
-                Json(ApiError {
-                    error: "invalid or expired session".into(),
-                }),
-            )
-                .into_response(),
-        },
-        None => (
-            StatusCode::UNAUTHORIZED,
-            Json(ApiError {
-                error: "missing Authorization header".into(),
-            }),
-        )
-            .into_response(),
-    }
-}
-
-/// `POST /api/auth/logout` — invalidate the bearer session.
-async fn auth_logout(
-    State(state): State<AppState>,
-    headers: axum::http::HeaderMap,
-) -> impl IntoResponse {
-    if let Some(token) = bearer_token(&headers) {
-        state.auth.logout(&token);
-    }
-    Json(json!({"status": "logged out"}))
-}
-
-/// Extract a bearer token from `Authorization: Bearer <token>`.
-fn bearer_token(headers: &axum::http::HeaderMap) -> Option<String> {
-    let h = headers.get("authorization")?.to_str().ok()?;
-    let t = h.strip_prefix("Bearer ")?.trim();
-    if t.is_empty() {
-        None
-    } else {
-        Some(t.to_string())
-    }
-}
+// ── Auth endpoints (Phase C: 完全由 a2r 转译 handler 服务,见
+//    auto_generated::server::auth_login/auth_me/auth_logout —— 原手写版已删除) ──
 
 // ── Spec Ledger endpoints ───────────────────────────────────────────────────
+
 
 /// `GET /api/specs` — return the full spec document (all sections + items).
 async fn specs_list(
@@ -2255,12 +2171,13 @@ mod tests {
     #[tokio::test]
     async fn auth_endpoints_run_on_transpiled_store() {
         use axum::body::Body;
+        use crate::auto_generated::server as ag_server;
         use tower::ServiceExt;
 
         let app = axum::Router::new()
-            .route("/api/auth/login", axum::routing::post(auth_login))
-            .route("/api/auth/me", axum::routing::get(auth_me))
-            .route("/api/auth/logout", axum::routing::post(auth_logout))
+            .route("/api/auth/login", axum::routing::post(ag_server::auth_login))
+            .route("/api/auth/me", axum::routing::get(ag_server::auth_me))
+            .route("/api/auth/logout", axum::routing::post(ag_server::auth_logout))
             .with_state(tmp_state());
 
         // login with the default admin (created by ensure_default_admin).
@@ -2282,6 +2199,21 @@ mod tests {
         let token = json["token"].as_str().expect("login returns token").to_string();
         assert_eq!(json["user"]["username"], "admin");
         assert_eq!(json["user"]["role"], "Admin");
+
+        // Bad credentials → 401 (C3 状态码模型,与手写版一致)。
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/auth/login")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"username":"admin","password":"wrong"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), axum::http::StatusCode::UNAUTHORIZED);
 
         // me with the bearer token resolves the user from the transpiled store.
         let resp = app
@@ -2488,7 +2420,7 @@ mod tests {
         assert_eq!(json["username"], "admin");
         assert_eq!(json["role"], "Admin");
 
-        // logout: session invalidated → me resolves empty user (no 401 model).
+        // logout: session invalidated → me returns 401 (C3 状态码模型)。
         let resp = app
             .clone()
             .oneshot(
@@ -2513,8 +2445,6 @@ mod tests {
             )
             .await
             .unwrap();
-        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(json["username"], "");
+        assert_eq!(resp.status(), axum::http::StatusCode::UNAUTHORIZED);
     }
 }

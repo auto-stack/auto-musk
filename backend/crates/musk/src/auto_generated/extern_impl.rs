@@ -27,13 +27,24 @@ pub use auto_ai_agent::orchestration::*;
 use super::server::{
     DriftResult, RelatedInfo, ProfessionItem, ModeItem, RoleItem, RoleDetail,
     ConfigOverview, AppConfigResp, WorkspaceMeta, WorkspaceResp, WorkspaceStatusResp,
-    BrowseEntry, SessionResp, SessionSummary,
+    BrowseEntry, SessionResp, SessionSummary, ApiError,
 };
 use super::server_stream::{
     WorkflowRunResponse, WorkflowEventDto, SseEventDto, RunResponse,
 };
 
 pub fn parse_json(s: &str) -> Value { serde_json::from_str(s).unwrap_or(Value::Null) }
+
+// Phase C(计划 018 §12 C3):ag server 的状态码模型 —— handler 返回 ~Response,
+// 经这两个 helper 构建带状态码的响应(补齐"状态码在外壳层处理"的缺失)。
+pub fn ok_response<T: serde::Serialize>(v: T) -> axum::response::Response {
+    axum::Json(v).into_response()
+}
+pub fn err_response(msg: &str, code: u16) -> axum::response::Response {
+    let status = axum::http::StatusCode::from_u16(code)
+        .unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+    (status, axum::Json(ApiError { error: msg.to_string() })).into_response()
+}
 pub fn value_get_str(v: &Value, k: &str) -> String { v.get(k).and_then(|s| s.as_str()).unwrap_or("").to_string() }
 pub fn value_get_bool(v: &Value, k: &str) -> bool { v.get(k).and_then(|b| b.as_bool()).unwrap_or(false) }
 pub fn value_get_array(v: &Value, k: &str) -> Value { v.get(k).cloned().unwrap_or(Value::Array(vec![])) }

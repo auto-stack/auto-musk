@@ -16,6 +16,7 @@
 use.rust axum::Router
 use.rust axum::routing::{get, post, delete, put, patch}
 use.rust axum::Json
+use.rust axum::response::Response
 use.rust axum::extract::{State, Path, Query}
 use.rust axum::http::HeaderMap
 use.rust serde::{Serialize, Deserialize}
@@ -222,22 +223,32 @@ fn health() ~Json<StatusOk> {
 // Auth handlers (use state.auth — extern AuthStore methods)
 // ============================================================
 
-pub fn auth_login(s State<AppState>, body Json<LoginRequest>) ~Json<LoginResponse> {
+pub fn auth_login(s State<AppState>, body Json<LoginRequest>) ~Response {
     // 单次 login(auth_login_result 返回 (token, role)),避免 split 版两次 login
     // 产生两个不同 session(role 查 session#1、token 是 session#2 → me() 失配)。
+    // C3 状态码模型:失败返回 401(经 err_response),与手写版一致。
     let username str = body.username.clone()
     let pair = auth_login_result(s.view, username.clone(), body.password.clone())
     let token str = pair[0]
     let role str = pair[1]
-    return Json(LoginResponse(token: token, user: UserInfo(username: username, role: role)))
+    if token.len() > 0u {
+        return ok_response(LoginResponse(token: token, user: UserInfo(username: username, role: role)))
+    }
+    return err_response("invalid credentials", 401u)
 }
 
-pub fn auth_me(s State<AppState>, headers HeaderMap) ~Json<UserInfo> {
-    // 与手写版一致:只返回 user(不含 token 包装)。
+pub fn auth_me(s State<AppState>, headers HeaderMap) ~Response {
+    // 与手写版一致:只返回 user;缺 token / 失效 session → 401。
     let token str = auth_token_from_headers(s.view, headers)
+    if token.len() == 0u {
+        return err_response("missing Authorization header", 401u)
+    }
     let username str = auth_username_from_token(s.view, token.view)
+    if username.len() == 0u {
+        return err_response("invalid or expired session", 401u)
+    }
     let role str = auth_role_from_token(s.view, token.view)
-    return Json(UserInfo(username: username, role: role))
+    return ok_response(UserInfo(username: username, role: role))
 }
 
 pub fn auth_logout(s State<AppState>, headers HeaderMap) ~Json<StatusOk> {
