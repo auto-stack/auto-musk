@@ -553,10 +553,28 @@ pub fn chats_reject_all(s: &State<AppState>, q: Query<crate::auto_generated::ser
         _ => Value::Null,
     }
 }
-pub fn conversations_list<T,U>(_s: &T, _q: U) -> Value { Value::Null }
-pub fn conversations_get<T,U,V>(_s: &T, _q: U, _p: V) -> Value { Value::Null }
-pub fn conversations_delete<T,U,V>(_s: &T, _q: U, _p: &V) {}
-pub fn conversations_rename<T,U,V,W>(_s: &T, _q: U, _p: V, _b: W) -> Value { Value::Null }
+pub fn conversations_list(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    serde_json::to_value(ws.conversations.list()).unwrap_or(Value::Null)
+}
+pub fn conversations_get(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    match ws.conversations.get(&p.0) {
+        Some(conv) => serde_json::to_value(conv).unwrap_or(Value::Null),
+        None => Value::Null,
+    }
+}
+pub fn conversations_delete(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: &Path<String>) {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    let _ = ws.conversations.delete(&p.0);
+}
+pub fn conversations_rename(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>, b: Json<crate::auto_generated::server::ConversationTitleBody>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    match ws.conversations.rename(&p.0, &b.title) {
+        Some(conv) => serde_json::to_value(conv).unwrap_or(Value::Null),
+        None => Value::Null,
+    }
+}
 pub fn conversations_subscribe<T,U>(_s: &T, _q: U) -> Value { Value::Null }
 pub fn conv_event_matches(_ev: &Value, _id: &str) -> bool { false }
 pub fn conv_event_id(_ev: &Value) -> String { String::new() }

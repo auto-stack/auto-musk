@@ -171,14 +171,13 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/chats/session/{id}/approve/{index}", post(crate::auto_generated::server::chat_approve))
         .route("/api/chats/session/{id}/reject/{index}", post(crate::auto_generated::server::chat_reject))
         .route("/api/chats/session/{id}/reject-all", post(crate::auto_generated::server::chat_reject_all))
-        // Conversations (unified chat + flow): direct ConversationStore reads
-        // + an SSE stream of real-time turn/status events.
-        .route("/api/conversations", get(conversation_list))
+        // Conversations (unified chat + flow): ③ 转译 handler 驱动;stream 保持手写。
+        .route("/api/conversations", get(crate::auto_generated::server::conversation_list))
         .route(
             "/api/conversations/{id}",
-            get(conversation_get).delete(conversation_delete),
+            get(crate::auto_generated::server::conversation_get).delete(crate::auto_generated::server::conversation_delete),
         )
-        .route("/api/conversations/{id}/title", patch(conversation_rename))
+        .route("/api/conversations/{id}/title", patch(crate::auto_generated::server::conversation_rename))
         .route("/api/conversations/{id}/stream", get(conversation_stream))
         // Workspace management (recent / open / status / browse / initialize) —
         // ② 接线:由转译 handler 服务(经 extern_impl 委托到真实 registry)。
@@ -1069,75 +1068,6 @@ async fn workspace_file(
     ([(axum::http::header::CONTENT_TYPE, mime)], data).into_response()
 }
 // ── Conversation endpoints (unified chat + flow) ────────────────────────────
-
-/// `GET /api/conversations?workspace=<id>` — list all conversations.
-async fn conversation_list(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    Json(json!({ "conversations": ws.conversations.list() }))
-}
-
-/// `GET /api/conversations/{id}?workspace=<id>` — get conversation with all turns.
-async fn conversation_get(
-    State(state): State<AppState>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-    Query(q): Query<WorkspaceQuery>,
-) -> Response {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    match ws.conversations.get(&id) {
-        Some(conv) => Json(conv).into_response(),
-        None => (
-            StatusCode::NOT_FOUND,
-            format!("conversation '{id}' not found"),
-        )
-            .into_response(),
-    }
-}
-
-/// `DELETE /api/conversations/{id}?workspace=<id>`
-async fn conversation_delete(
-    State(state): State<AppState>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-    Query(q): Query<WorkspaceQuery>,
-) -> Response {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    if ws.conversations.delete(&id) {
-        Json(json!({"status": "deleted", "id": id})).into_response()
-    } else {
-        (
-            StatusCode::NOT_FOUND,
-            format!("conversation '{id}' not found"),
-        )
-            .into_response()
-    }
-}
-
-/// `PATCH /api/conversations/{id}/title?workspace=<id>` body.
-#[derive(Deserialize)]
-struct ConversationTitleBody {
-    title: String,
-}
-
-/// `PATCH /api/conversations/{id}/title?workspace=<id>` — rename a conversation.
-async fn conversation_rename(
-    State(state): State<AppState>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-    Query(q): Query<WorkspaceQuery>,
-    Json(body): Json<ConversationTitleBody>,
-) -> Response {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    match ws.conversations.rename(&id, &body.title) {
-        Some(conv) => Json(conv).into_response(),
-        None => (
-            StatusCode::NOT_FOUND,
-            format!("conversation '{id}' not found"),
-        )
-            .into_response(),
-    }
-}
-
 /// `GET /api/conversations/{id}/stream?workspace=<id>` — SSE stream of
 /// conversation events (appended turns + status changes). Events from other
 /// conversations are filtered out client-side here.
@@ -1836,6 +1766,94 @@ mod tests {
         let roles = v["roles"].as_array().unwrap();
         assert!(!roles.is_empty(), "builtin roles expected");
         assert!(roles[0]["name"].is_string());
+    }
+
+    /// ③ conversations 接线验收:list/get/rename/delete 由转译 handler 服务
+    /// (经 extern_impl 委托到 workspace ConversationStore)。
+    #[tokio::test]
+    async fn conversations_endpoints_run_on_transpiled_handlers() {
+        use axum::body::Body;
+        use crate::auto_generated::server as ag_server;
+        use tower::ServiceExt;
+
+        let app = axum::Router::new()
+            .route("/api/chats/session", axum::routing::post(ag_server::chat_create))
+            .route("/api/conversations", axum::routing::get(ag_server::conversation_list))
+            .route(
+                "/api/conversations/{id}",
+                axum::routing::get(ag_server::conversation_get).delete(ag_server::conversation_delete),
+            )
+            .route("/api/conversations/{id}/title", axum::routing::patch(ag_server::conversation_rename))
+            .with_state(tmp_state());
+
+        // 建 chat session(双写 conversation,id 相同)。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/api/chats/session")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"mode":"superpowers"}"#))
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let session_id = v["session"]["id"].as_str().unwrap().to_string();
+
+        // list → 该 conversation 出现。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("GET")
+                .uri("/api/conversations")
+                .body(Body::empty())
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let convs = v["conversations"].as_array().unwrap();
+        assert_eq!(convs.len(), 1);
+        assert_eq!(convs[0]["id"], session_id);
+
+        // get → 完整 conversation。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("GET")
+                .uri(format!("/api/conversations/{session_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["id"], session_id);
+
+        // rename → 标题更新。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("PATCH")
+                .uri(format!("/api/conversations/{session_id}/title"))
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"title":"renamed"}"#))
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["title"], "renamed");
+
+        // delete → 删除。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("DELETE")
+                .uri(format!("/api/conversations/{session_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["status"], "deleted");
     }
 
     #[tokio::test]

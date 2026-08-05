@@ -348,7 +348,7 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
 |---|---|---|
 | ① | **auth 接线**：extern_impl 的 auth 7 个 stub 换真实委托（走 `s.auth`）；ag router 的 `/api/auth/*` 3 路由接入 serve() | `musk serve` 后 login/me/logout 由转译 handler 服务，行为与手写版一致（curl 验证） |
 | ② | **specs/wiki/chats 数据层接线**：extern_impl 对应 stub 换真实委托（走 `s.registry` 的 workspace stores）；ag router 的 specs/workspace/chats 路由接入 | 各端点真实 CRUD 返回，与手写版一致。**✅ specs/chats/workspace 已完成(2026-08-05, 22 stub 委托 + 23 路由接入)** |
-| ③ | **extern_impl 剩余 stub 全部真实委托**（config/modes/skills/roles/app-config/harness/conversations/relay/drive/agent/ctx） | 全部端点有真实行为；fake 常量清零 |
+| ③ | **extern_impl 剩余 stub 全部真实委托**（config/modes/skills/roles/app-config/harness/conversations/relay/drive/agent/ctx） | 全部端点有真实行为；fake 常量清零。**🔧 进行中(2026-08-05):config 页 6 路由 + conversations 3 路由已委托;剩余 app-config/harness + relay/drive/agent/ctx(🔴 handler 背书)** |
 | ④ | **auto_generated::server 整体接入**：ag build_router（36 路由）作为主 router；7 个 🔴 流式/daemon handler + wiki + 静态文件路由与手写 router 合并 | 全服务端由转译 handler 驱动；原有 45 路由功能不丢 |
 
 ### 手写边界（接线阶段保持手写）
@@ -365,6 +365,8 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
   ag specs 8 路由 / chats 10 路由接入 serve()（详见 §12 C1 ② 接线）。
 - 2026-08-05：② workspace 路由闭环 —— 5 个 extern stub 委托 + 5 路由接入。
   ② 全部完成（22 stub 委托 + 23 路由，详见 §12 C1）。
+- 2026-08-05：③ config 页 + conversations 接线 —— professions/config/modes/
+  skills/roles 6 路由 + conversations 3 路由接入（详见 §12 C1 ③ 接线）。
 
 ### ②③④ 实测阻塞(2026-08-05,已停止推进,待决策)
 - **② workspace stores 级联**:specs/chats/wiki 在 `WorkspaceStores`(`src/workspace.rs:38`),
@@ -591,3 +593,21 @@ C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
 - **验收**:集成测试 `server::tests::workspace_endpoints_run_on_transpiled_handlers`
   覆盖 list/open/status/browse/initialize 全链路,与 hw 行为一致。
 - 至此 ②(specs/chats/workspace)闭环:22 个 extern stub 委托 + 23 路由接入。
+
+### C1 ③ config 页 + conversations 接线(2026-08-05)🔧 部分
+- **config 页 6 路由委托**:
+  - professions/config/modes/skills(读真实 ModeRegistry/SkillRegistry/builtin
+    professions,返回 hw wire 形状)
+  - roles(roles_all/role_get 读 RoleRegistry;role_save_of/role_delete_of 读写,
+    ag RoleSaveBody 扩为 hw 全字段 description/inherit/allowed_tiers/skills/
+    token_budget/max_turns/tools/soul)
+- **conversations 3 路由委托**:list/get/rename/delete 走 workspace
+  ConversationStore(chat_create 双写保证 conversation 与 session 联动)。
+- serve() 接入 9 路由(/api/professions|config|modes|skills|roles|roles/{name} +
+  /api/conversations|{id}|{id}/title);删除 hw 死 handlers 12 个 + DTO 2 个
+  (308 行)。stream 端点保持手写。
+- **验收**:集成测试 config_endpoints_run_on_transpiled_handlers +
+  conversations_endpoints_run_on_transpiled_handlers;204 lib + parity 全过。
+- **③ 剩余**:app-config + harness(需 MuskAppConfig 全字段/HarnessSelection
+  序列化 + app_harness_dir 扫描)和 relay/drive/agent/ctx(🔴 流式 handler 背书
+  stub,涉及 relay 编排引擎/agent 构建)——挂起,待后续切片。

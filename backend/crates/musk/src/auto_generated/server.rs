@@ -545,22 +545,22 @@ pub async fn chat_reject_all(s: State<AppState>, q: Query<WorkspaceQuery>, p: Pa
     return Json(serde_json::json!({ "session": resp }));
 }
 
-async fn conversation_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
+pub async fn conversation_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
     let list = conversations_list(&s, q);
-    return Json(list);
+    return Json(serde_json::json!({ "conversations": list }));
 }
 
-async fn conversation_get(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuery>) -> Json<Value> {
+pub async fn conversation_get(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuery>) -> Json<Value> {
     let conv = conversations_get(&s, q, p);
     return Json(conv);
 }
 
-async fn conversation_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<Deleted> {
+pub async fn conversation_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<Deleted> {
     conversations_delete(&s, q, &p);
     return Json(Deleted { status: "deleted".to_string(), id: path_inner(&p).to_string() });
 }
 
-async fn conversation_rename(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ConversationTitleBody>) -> Json<Value> {
+pub async fn conversation_rename(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ConversationTitleBody>) -> Json<Value> {
     let conv = conversations_rename(&s, q, p, body);
     return Json(conv);
 }
