@@ -4,13 +4,14 @@
 /// - HandoffStore (data_dir + Mutex cache) + save/load/resolve_path -> Auto
 /// - save_from_run 依赖 crate::relay::store::RunStore (use.rust 上游类型) -> Auto
 ///
-/// a2r 惯用法注记(本轮探测确认):
-/// - tuple-key `HashMap<(String,String,String), _>` 不可用(insert 误加
-///   .to_string() tuple 无 Display / get 缺 &) -> 字符串拼接 key 变通
-///   (cache 是私有字段,行为等价,计划 §0 允许实现细节不同)
+/// a2r 惯用法注记(§14 W1/W2/W4 闭环后更新):
+/// - tuple-key `HashMap<(str,str,str), _>` 已可用(§14 W1: insert 不再加
+///   .to_string() / get 注入 &)——恢复 hw 同构的 tuple key,去字符串拼接变通
+/// - Mutex guard 在 `is guard.get(k) { None -> {} }` 后自动 drop(§14 W2),
+///   同 fn 二次 lock 不死锁——去 cache_get/cache_put 辅助 fn 变通
+/// - 多级 join 链已正确发射(§14 W4 确认)——恢复链式写法,去分步绑定变通
 /// - `impl Into<PathBuf>` -> PathBuf 参数 (C6 已知退化)
 /// - Result 链式 .ok()/.map_err -> is 匹配逐层展开
-/// - `if let Some(parent) = path.parent()` -> is 匹配
 
 use.rust std::sync::Mutex
 use.rust std::collections::HashMap
@@ -25,9 +26,8 @@ use.rust auto_ai_agent::orchestration::HandoffDocument
 #[derive(Debug)]
 pub type HandoffStore {
     data_dir PathBuf
-    /// Optional in-memory cache keyed by "tp/phase/run" (string key — a2r
-    /// tuple-key 缺陷见文件头注记; hw 用 (String,String,String) tuple)。
-    cache Mutex<HashMap<str, HandoffDocument>>
+    /// In-memory cache keyed by (task_plan_id, phase, run) — hw 同构 tuple key.
+    cache Mutex<HashMap<(str, str, str), HandoffDocument>>
 }
 
 ext HandoffStore {
@@ -41,19 +41,14 @@ ext HandoffStore {
 
     /// Directory where handoffs are persisted for a given task plan.
     fn handoffs_dir(task_plan_id str) PathBuf {
-        // NOTE: 多级 join 链在 a2r 里会被拆成无效果的 self.join(...) 语句,
-        // 需分步绑定中间变量(实测确认)。
-        let a PathBuf = self.data_dir.join("task_plans")
-        let b PathBuf = a.join(".handoffs")
-        let c PathBuf = b.join(task_plan_id)
-        return c
+        let dir PathBuf = self.data_dir.join("task_plans").join(".handoffs").join(task_plan_id)
+        return dir
     }
 
     /// File path for a specific handoff.
     fn handoff_path(task_plan_id str, phase str, run str) PathBuf {
         let dir PathBuf = self.handoffs_dir(task_plan_id)
-        let a PathBuf = dir.join(phase)
-        let path PathBuf = a.join(run + ".json")
+        let path PathBuf = dir.join(phase).join(run + ".json")
         return path
     }
 
@@ -84,20 +79,18 @@ ext HandoffStore {
             }
         }
 
-        let key str = task_plan_id + "/" + phase + "/" + run
-        let _ bool = cache_put(self.cache, key.view, handoff.clone())
+        let key = (task_plan_id.to_string(), phase.to_string(), run.to_string())
+        var guard = self.cache.lock().unwrap()
+        let _ Option<HandoffDocument> = guard.insert(key, handoff.clone())
         return Ok(true)
     }
 
     /// Load a handoff from cache or disk.
     pub fn load(task_plan_id str, phase str, run str) Option<HandoffDocument> {
-        let key str = task_plan_id + "/" + phase + "/" + run
-        // NOTE: cache 查询/写入抽成独立辅助 fn —— a2r 的 match 生成 `None => {}`
-        // 分支不会释放第一次 lock 的 guard(不像 hw 的 if-let NLL), 若在同一
-        // fn 内二次 lock 会 Mutex 死锁。辅助 fn 返回后 guard 作用域结束自动 drop。
-        let cached Option<HandoffDocument> = cache_get(self.cache, key.view)
-        is cached {
-            Some(doc) -> return Some(doc),
+        let key = (task_plan_id.to_string(), phase.to_string(), run.to_string())
+        var guard = self.cache.lock().unwrap()
+        is guard.get(key) {
+            Some(doc) -> return Some(doc.clone()),
             None -> {}
         }
         let path PathBuf = self.handoff_path(task_plan_id, phase, run)
@@ -109,7 +102,8 @@ ext HandoffStore {
                 is doc_opt {
                     None -> return None,
                     Some(doc) -> {
-                        let _ bool = cache_put(self.cache, key.view, doc.clone())
+                        var guard2 = self.cache.lock().unwrap()
+                        let _ Option<HandoffDocument> = guard2.insert(key, doc.clone())
                         return Some(doc)
                     }
                 }
@@ -166,21 +160,4 @@ fn parse_handoff(content str) Option<HandoffDocument> {
         Ok(doc) -> return Some(doc),
         Err(_) -> return None
     }
-}
-
-/// Lock + read a cache entry. Guard drops at fn exit (avoids Mutex deadlock
-/// from a2r's match-keeping-lock — see load() note).
-fn cache_get(cache @Mutex<HashMap<str, HandoffDocument>>, key str) Option<HandoffDocument> {
-    var guard = cache.lock().unwrap()
-    is guard.get(key) {
-        Some(doc) -> return Some(doc.clone()),
-        None -> return None
-    }
-}
-
-/// Lock + insert a cache entry.
-fn cache_put(cache @Mutex<HashMap<str, HandoffDocument>>, key str, doc HandoffDocument) bool {
-    var guard = cache.lock().unwrap()
-    let _ Option<HandoffDocument> = guard.insert(key, doc)
-    return true
 }
