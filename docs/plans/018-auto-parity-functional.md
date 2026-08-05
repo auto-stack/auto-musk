@@ -455,3 +455,15 @@ C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
   LHS 误加 `.clone()`,深 codegen 路径)+ `*doc = new_doc` 整体重赋值 —— 后续
   切片的 dogfooding 目标。
 - worktree 分支 `c11-inplace-mut`,待完整后合并 master。
+
+### C1 a2r-11 完整(2026-08-05, 已合并 master `9e9e0748`)✅
+- **五项能力全落地**(worktree `c11-inplace-mut` → merge):
+  1. `mut p T` 参数 → `p: &mut T`
+  2. 调用点传 `&mut arg`
+  3. 简单字段就地改 `doc.field = v`
+  4. **索引元素就地改** `doc.items[i].field = v`(assign_lhs_depth 标记跳过 LHS `.clone()`;
+     顺带修复 3 个 matrix golden 的 no-op bug —— 旧产物写 clone)
+  5. **整体重赋值** `*doc = new_doc`(deref-assign)
+- golden 301 通过 0 失败。
+- **下一步(C1 继续)**:用 a2r-11 对齐 ag store 写方法签名
+  (`upsert_item(mut doc Doc, ...)` → `&mut doc`),解除 store API 分歧。
