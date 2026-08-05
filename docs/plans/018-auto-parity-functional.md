@@ -286,7 +286,7 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
 |---|---|---|
 | 1 — specs | ✅ | 7/7 parity 测试通过；enum pub + display_title emoji 修复 |
 | 0 — a2r 改进 | 🔶 C1 ✅ + C4/C5 ✅(无需改) + C6 推迟 + C7b ✅ + C8 ✅ + **C9 ✅** | C1 for 借用遍历(`e2c94535`)；C4 serde 属性是 .at 遗漏；C7b tag 构造丢值(`94418cda`)；C8 const 支持(`e01f0f84`)；C9 types_are_compatible 容器类型 + 连带 codegen 修复（见 §10） |
-| 2 — 已移植模块 | ✅ 8/8 有 parity 测试 | specs 7 ✅ / app_config 7 ✅ / chats 9 ✅ / auth 8 ✅ / tool_safety 7 ✅ / conversation 10 ✅ / mode 4 ✅ / **wiki 11 ✅** |
+| 2 — 已移植模块 | ✅ 8/8 有 parity 测试 | specs 12 ✅ / app_config **6** ✅(2026-08-05 修正,env 竞态两测合并后为 6) / chats 17 ✅ / auth 8 ✅ / tool_safety 7 ✅ / conversation 10 ✅ / mode 4 ✅ / **wiki 11 ✅** / relay 5 ✅ |
 | 3 — 缺失模块 | 🔶 wiki 试点 ✅（§10） | parser/registry 改判为边界（探索实测）；task_plan 3.3 待续 |
 | 4 — 复杂模块 | ⬜ 待启动 | 视 Phase 0 成果 |
 
@@ -663,3 +663,57 @@ C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
   **✅ 已闭环(2026-08-05,见上"C1 ③ relay/agent/ctx 委托 + parity"):agent/ctx
   簇 17 stub + relay_driver/factory 委托 + parity_relay 5 项;drive/relay 编排
   簇 9 stub 为硬墙(需 server_serve.at 事件管道重构),文档化为下个边界。**
+
+---
+
+## 13. 复审问题清单(2026-08-05)🔧 修复中
+
+全量复审(审计 agent + 人工验证)发现的问题,按优先级记录;修复进度见每项 ✅。
+
+### A. Live 路径真 bug(WORKAROUND 产生错误行为)
+
+| # | 问题 | 位置 | 影响 | 状态 |
+|---|---|---|---|---|
+| A1 | `path_inner` 返回空串,`chat_delete`/`conversation_delete` 的响应 id 永远 `""` | extern_impl.rs:962 | `DELETE /api/chats/session/{id}` 与 `/api/conversations/{id}` wire 错误(hw 返回真实 id)。测试只断言 status 未断言 id,漏网 | ✅ 修复 |
+| A2 | `random_hex` 用单个 u64 零填充 → auth salt(16)/session token(32)只有 64-bit 熵 | extern_impl.rs:53 | **安全回归**:生产 auth 端点(ag AuthStore)token/salt 可预测;hw 用 fill_bytes 全随机 | ✅ 修复 |
+| A3 | 错误语义全量回归:28 个委托函数出错返回 `Value::Null`/空串,handler 一律 `Json<Value>` → **200+null/空 body**(hw 4xx/5xx+错误 DTO) | extern_impl 各委托 + server.at handlers | chat_get 不存在→200 null(hw 404);specs_transition 失败→200 `{"new_status":""}`;role_save 失败→200 null。§11 C3 状态码模型只修了 auth 切片 | ✅ 修复(to_response 模型) |
+| A4 | `chats_delete_all` 吞失败:delete_all 失败也返回 200 `{"status":"deleted_all"}`(hw 500) | extern_impl.rs:673 | 写失败被静默 | ✅ 修复 |
+
+### B. 文档/计划出入(遗漏)
+
+| # | 计划声称 | 实际 | 状态 |
+|---|---|---|---|
+| B1 | parity_app_config 7/7(§9 进度表,行 289) | 6(env 竞态两测合并后未更新计数;§9 历史记录行 307 为合并前快照,保留) | ✅ 修正 |
+| B2 | lib 测试计数 189/199/201/204/205(各处验收记录) | 这些是各提交时点的历史计数(准确);当前总数 311 | ✅ 已核实为历史记录,无需改 |
+| B3 | ③ 验收"fake 常量清零"标 ✅ | **未达成**:extern_impl 151 个函数中 68 个仍为 fake stub — 2 个 live(A1 path_inner、workflows_builtin_names 硬编码)、56 个 dormant-only、10 个零调用 | 🔶 记录;live 2 个已修(path_inner 修复;workflows_builtin_names 硬编码当前值与 hw 一致,留作待办) |
+
+### C. 休眠镜像潜在雷(若接线会 panic/垃圾,当前不可达)
+
+| # | 问题 | 位置 | 状态 |
+|---|---|---|---|
+| C1 | `serve_init_state` `unimplemented!()`(dormant server_serve 的 serve()) | extern_impl.rs:927 | 🔶 文档化(休眠) |
+| C2 | tools.rs 9 个 stub 返回 `"(stub)…"` 且绕过路径安全/审批(dormant auto_generated::tools) | extern_impl.rs:935-947 | 🔶 文档化(休眠) |
+| C3 | server_stream/server_serve 假管道:mpsc 永不投递、relay_advance→Null、advance_kind→"completed" | extern_impl.rs:824-855,949-956 | 🔶 文档化(休眠,与 drive/relay 硬墙同源) |
+| C4 | TreeNode file 节点 size/modified=None(dormant auto_generated::wiki) | auto_generated/wiki.rs:371,381 | 🔶 已在 §10 文档化 |
+| C5 | `new_id(12)` 16 vs 24 hex(dormant ag chats) | extern_impl.rs:52 | ✅ 随 A2 修复 |
+
+### D. 已解决/非问题(复审确认,无需处理)
+
+- chats SpecChange 镜像已移除,直接引用真实 `crate::auto_generated::specs` 类型,SpecStatus 23 变体全量共享。
+- `workflows_builtin_names` 硬编码 `["feature-dev"]` 与 hw 当前一致(仅未来新增 workflow 时漂移)。
+- 其余 dormant 镜像(orch_tools/server_stream/server_serve/relay_*)为 014/015 设计内的"等价镜像",非缺陷。
+
+### E. 测试覆盖缺口
+
+| # | 缺口 | 状态 |
+|---|---|---|
+| E1 | HTTP 层无测试:`/api/run*`、`/api/settings-link`、`/api/chats/session/{id}/stream`、`/api/conversations/{id}/stream`、`/api/files/*`、全部 `/api/forge/*` | 🔶 记录(🔴 手写 handler + forge 独立,待补) |
+| E2 | 错误路径无断言:无任何 404/500 断言(仅 auth 401) | ✅ A3 修复后补 delete id + 404 断言 |
+| E3 | `production_router_composition` 对不存在的 specs item 断言"200 空 id"——固化 A1 bug 行为 | ✅ 修正为 404 断言 |
+
+### 修复实施(2026-08-05, 与 §13 同 session)
+
+- **A1/A2/A4 + A3 extern 层**:extern_impl.rs — `path_inner` 改 `&Path<String> → p.0.clone()`;`random_hex`/`new_id` 改 `fill_bytes` 全随机(hw 同语义);`specs_drift/related_of/transition_of/delete_of` 与 `chats_delete/conversations_delete/chats_delete_all` 改返回 `Value`(错误 → `Value::Null`,成功返回完整 wire 形状 DTO);新增 `to_response(v, msg, code)` helper(`Value::Null` = 错误 → `err_response`;否则 `ok_response`)。
+- **A3 handler 层**:server.at 30 个 handler 改 `~Json<Value>` → `~Response`,body 改 `return to_response(extern(...), "msg", code)`(错误码:404 not-found / 400 校验写 / 500 加载 IO)。re-transpile 后 diff 仅预期变化。
+- **E2/E3 测试**:`delegated_endpoints_return_http_errors`(chat get/delete 不存在 → 404,workspace status 不存在 → 404);delete 集成测试补 `id` 断言(chat + conversation);`production_router_composition` 的 specs delete 断言改 404。
+- **验收**:311 项测试全绿(207 lib + parity 各套件 + 新错误语义测试)。

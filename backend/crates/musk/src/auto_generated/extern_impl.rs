@@ -45,12 +45,29 @@ pub fn err_response(msg: &str, code: u16) -> axum::response::Response {
         .unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
     (status, axum::Json(ApiError { error: msg.to_string() })).into_response()
 }
+/// 复审 A3:委托函数约定 `Value::Null` = 错误。handler 统一经此 helper 转成
+/// `err_response(msg, code)`;成功值直接 ok_response。修复"错误 → 200+null"回归。
+pub fn to_response(v: Value, msg: &str, code: u16) -> axum::response::Response {
+    if v.is_null() {
+        err_response(msg, code)
+    } else {
+        ok_response(v)
+    }
+}
 pub fn value_get_str(v: &Value, k: &str) -> String { v.get(k).and_then(|s| s.as_str()).unwrap_or("").to_string() }
 pub fn value_get_bool(v: &Value, k: &str) -> bool { v.get(k).and_then(|b| b.as_bool()).unwrap_or(false) }
 pub fn value_get_array(v: &Value, k: &str) -> Value { v.get(k).cloned().unwrap_or(Value::Array(vec![])) }
 pub fn null_value() -> Value { Value::Null }
-pub fn new_id(_: u32) -> String { format!("{:016x}", rand::random::<u64>()) }
-pub fn random_hex(n: u32) -> String { format!("{:0width$x}", rand::random::<u64>(), width = (n as usize) * 2) }
+pub fn new_id(n: u32) -> String { random_hex(n) }
+pub fn random_hex(n: u32) -> String {
+    // 复审 A2: 旧实现用单个 u64 零填充(只有 64-bit 熵,高位可预测)。改为
+    // fill_bytes 全随机,与 hw src/auth.rs::random_hex / src/chats.rs::new_id
+    // (rand::thread_rng().fill_bytes) 语义一致。
+    use rand::RngCore;
+    let mut buf = vec![0u8; n as usize];
+    rand::thread_rng().fill_bytes(&mut buf);
+    hex::encode(buf)
+}
 pub fn hash_password(p: &str, s: &str) -> String { use sha2::Digest; let mut h = sha2::Sha256::new(); h.update(s.as_bytes()); h.update(p.as_bytes()); hex::encode(h.finalize()) }
 
 pub const read_file_schema: &str = r#"{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}"#;
@@ -139,18 +156,21 @@ pub fn specs_overview_of(s: &State<AppState>, q: Query<crate::auto_generated::se
     }
 }
 /// ② 委托:drift = load + drift_check(与 hw specs_drift_check 一致)。
-pub fn specs_drift(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> DriftResult {
+/// 复审 A3:错误 → `Value::Null`(handler 经 to_response 转 500),不再返回
+/// 全零 DriftResult(那会被当成"无漂移")。
+pub fn specs_drift(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
     match ws.specs.load() {
         Ok(doc) => match ws.specs.drift_check(&doc) {
-            Ok((disk_version, drifted)) => DriftResult {
+            Ok((disk_version, drifted)) => serde_json::to_value(DriftResult {
                 memory_version: doc.version,
                 disk_version,
                 drifted,
-            },
-            Err(_) => DriftResult { memory_version: doc.version, disk_version: 0, drifted: false },
+            })
+            .unwrap_or(Value::Null),
+            Err(_) => Value::Null,
         },
-        Err(_) => DriftResult { memory_version: 0, disk_version: 0, drifted: false },
+        Err(_) => Value::Null,
     }
 }
 /// ② 委托:rebuild = load + rebuild + derive + save + 返回 doc(与 hw 一致)。
@@ -168,7 +188,8 @@ pub fn specs_rebuild(s: &State<AppState>, q: Query<crate::auto_generated::server
     serde_json::to_value(doc).unwrap_or(Value::Null)
 }
 /// ② 委托:related = load + rebuild + 找 item 返回 depends_on/related(与 hw 一致)。
-pub fn specs_related_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>) -> RelatedInfo {
+/// 复审 A3:错误 → `Value::Null`(handler 经 to_response 转 404)。
+pub fn specs_related_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
     let item_id = p.0.clone();
     match ws.specs.load() {
@@ -176,16 +197,17 @@ pub fn specs_related_of(s: &State<AppState>, q: Query<crate::auto_generated::ser
             doc.rebuild_relations();
             for section in &doc.sections {
                 if let Some(item) = section.items.iter().find(|i| i.id == item_id) {
-                    return RelatedInfo {
+                    return serde_json::to_value(RelatedInfo {
                         item_id,
                         depends_on: item.depends_on.clone(),
                         related: item.related.clone(),
-                    };
+                    })
+                    .unwrap_or(Value::Null);
                 }
             }
-            RelatedInfo { item_id, depends_on: vec![], related: vec![] }
+            Value::Null
         }
-        Err(_) => RelatedInfo { item_id, depends_on: vec![], related: vec![] },
+        Err(_) => Value::Null,
     }
 }
 /// ② 委托:upsert = load + upsert_item + save + 返回 doc。ag 请求体字段是
@@ -209,36 +231,46 @@ pub fn specs_upsert_of(s: &State<AppState>, q: Query<crate::auto_generated::serv
         Err(_) => Value::Null,
     }
 }
-/// ② 委托:transition = load + transition_item + save + 返回 new_status 字符串。
-pub fn specs_transition_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, b: Json<crate::auto_generated::server::SpecsTransitionRequest>) -> String {
+/// ② 委托:transition = load + transition_item + save + 返回 TransitionOk wire 形状。
+/// 复审 A3:错误 → `Value::Null`(handler 经 to_response 转 400)。
+pub fn specs_transition_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, b: Json<crate::auto_generated::server::SpecsTransitionRequest>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
     let new_status = crate::specs::SpecStatus::from_str_lossy(&b.new_status);
     let mut doc = match ws.specs.load() {
         Ok(d) => d,
-        Err(_) => return String::new(),
+        Err(_) => return Value::Null,
     };
     match ws.specs.transition_item(&mut doc, &b.section, &b.item_id, new_status) {
         Ok(_) => {
             let _ = ws.specs.save(&doc);
-            b.new_status.clone()
+            serde_json::to_value(crate::auto_generated::server::TransitionOk {
+                status: "ok".to_string(),
+                new_status: b.new_status.clone(),
+            })
+            .unwrap_or(Value::Null)
         }
-        Err(_) => String::new(),
+        Err(_) => Value::Null,
     }
 }
-/// ② 委托:delete = load + delete_item + save + 返回 item_id 字符串。
-pub fn specs_delete_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<(String, String)>) -> String {
+/// ② 委托:delete = load + delete_item + save + 返回 Deleted wire 形状。
+/// 复审 A3:错误 → `Value::Null`(handler 经 to_response 转 404)。
+pub fn specs_delete_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<(String, String)>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
     let (section_id, item_id) = p.0;
     let mut doc = match ws.specs.load() {
         Ok(d) => d,
-        Err(_) => return String::new(),
+        Err(_) => return Value::Null,
     };
     match ws.specs.delete_item(&mut doc, &section_id, &item_id) {
         Ok(true) => {
             let _ = ws.specs.save(&doc);
-            item_id
+            serde_json::to_value(crate::auto_generated::server::Deleted {
+                status: "deleted".to_string(),
+                id: item_id,
+            })
+            .unwrap_or(Value::Null)
         }
-        Ok(false) | Err(_) => String::new(),
+        Ok(false) | Err(_) => Value::Null,
     }
 }
 pub fn specs_read(_s: String) -> String { String::new() }
@@ -664,18 +696,27 @@ pub fn chats_rename(s: &State<AppState>, q: Query<crate::auto_generated::server:
         _ => Value::Null,
     }
 }
-pub fn chats_delete(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: &Path<String>) {
+pub fn chats_delete(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: &Path<String>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
     if ws.chats.delete(&p.0).unwrap_or(false) {
         let _ = ws.conversations.delete(&p.0);
+        serde_json::to_value(crate::auto_generated::server::Deleted {
+            status: "deleted".to_string(),
+            id: p.0.clone(),
+        })
+        .unwrap_or(Value::Null)
+    } else {
+        Value::Null
     }
 }
 pub fn chats_delete_all(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
     if ws.chats.delete_all().is_ok() {
         ws.conversations.delete_all();
+        serde_json::json!({ "status": "deleted_all" })
+    } else {
+        Value::Null
     }
-    serde_json::json!({ "status": "deleted_all" })
 }
 pub fn chats_message(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>, b: Json<crate::auto_generated::server::ChatMessageBody>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
@@ -734,9 +775,17 @@ pub fn conversations_get(s: &State<AppState>, q: Query<crate::auto_generated::se
         None => Value::Null,
     }
 }
-pub fn conversations_delete(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: &Path<String>) {
+pub fn conversations_delete(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: &Path<String>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
-    let _ = ws.conversations.delete(&p.0);
+    if ws.conversations.delete(&p.0) {
+        serde_json::to_value(crate::auto_generated::server::Deleted {
+            status: "deleted".to_string(),
+            id: p.0.clone(),
+        })
+        .unwrap_or(Value::Null)
+    } else {
+        Value::Null
+    }
 }
 pub fn conversations_rename(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>, b: Json<crate::auto_generated::server::ConversationTitleBody>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
@@ -959,7 +1008,7 @@ pub fn broadcast_recv(_r: &Value) -> impl std::future::Future<Output = Option<Va
 pub fn sse_event(name: &str, dto: Value) -> Event {
     Event::default().event(name).json_data(dto).unwrap_or_else(|_| Event::default())
 }
-pub fn path_inner<T>(p: &T) -> String { String::new() }
+pub fn path_inner(p: &Path<String>) -> String { p.0.clone() }
 pub fn json_response<T: serde::Serialize>(_d: T) -> Response { Response::default() }
 pub fn error_response<T: serde::Serialize>(_c: u16, _d: T) -> Response { Response::default() }
 pub fn atomic_bool_false() -> Arc<std::sync::atomic::AtomicBool> { Arc::new(std::sync::atomic::AtomicBool::new(false)) }

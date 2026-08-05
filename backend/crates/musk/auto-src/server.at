@@ -264,44 +264,36 @@ pub fn auth_logout(s State<AppState>, headers HeaderMap) ~Json<StatusOk> {
 // Specs handlers (use ws.specs — extern SpecsStore)
 // ============================================================
 
-pub fn specs_list(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
-    let doc = specs_load(s.view, q)
-    return Json(doc)
+pub fn specs_list(s State<AppState>, q Query<WorkspaceQuery>) ~Response {
+    return to_response(specs_load(s.view, q), "failed to load specs", 500u)
 }
 
-pub fn specs_overview(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
-    let overview = specs_overview_of(s.view, q)
-    return Json(overview)
+pub fn specs_overview(s State<AppState>, q Query<WorkspaceQuery>) ~Response {
+    return to_response(specs_overview_of(s.view, q), "failed to build overview", 500u)
 }
 
-pub fn specs_drift_check(s State<AppState>, q Query<WorkspaceQuery>) ~Json<DriftResult> {
-    let result = specs_drift(s.view, q)
-    return Json(result)
+pub fn specs_drift_check(s State<AppState>, q Query<WorkspaceQuery>) ~Response {
+    return to_response(specs_drift(s.view, q), "drift check failed", 500u)
 }
 
-pub fn specs_rebuild_relations(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
-    let doc = specs_rebuild(s.view, q)
-    return Json(doc)
+pub fn specs_rebuild_relations(s State<AppState>, q Query<WorkspaceQuery>) ~Response {
+    return to_response(specs_rebuild(s.view, q), "rebuild failed", 500u)
 }
 
-pub fn specs_related(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<RelatedInfo> {
-    let info = specs_related_of(s.view, q, p)
-    return Json(info)
+pub fn specs_related(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Response {
+    return to_response(specs_related_of(s.view, q, p), "item not found", 404u)
 }
 
-pub fn specs_upsert(s State<AppState>, q Query<WorkspaceQuery>, body Json<SpecsUpsertRequest>) ~Json<Value> {
-    let doc = specs_upsert_of(s.view, q, body)
-    return Json(doc)
+pub fn specs_upsert(s State<AppState>, q Query<WorkspaceQuery>, body Json<SpecsUpsertRequest>) ~Response {
+    return to_response(specs_upsert_of(s.view, q, body), "upsert failed", 400u)
 }
 
-pub fn specs_transition(s State<AppState>, q Query<WorkspaceQuery>, body Json<SpecsTransitionRequest>) ~Json<TransitionOk> {
-    let new_status = specs_transition_of(s.view, q, body)
-    return Json(TransitionOk(status: "ok", new_status: new_status))
+pub fn specs_transition(s State<AppState>, q Query<WorkspaceQuery>, body Json<SpecsTransitionRequest>) ~Response {
+    return to_response(specs_transition_of(s.view, q, body), "transition failed", 400u)
 }
 
-pub fn specs_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, str)>) ~Json<Deleted> {
-    let id = specs_delete_of(s.view, q, p)
-    return Json(Deleted(status: "deleted", id: id))
+pub fn specs_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, str)>) ~Response {
+    return to_response(specs_delete_of(s.view, q, p), "item not found", 404u)
 }
 
 // specs store accessors — extern (hand-written SpecsStore in server.rs)
@@ -335,19 +327,16 @@ pub fn roles_list() ~Json<Value> {
     return Json(list)
 }
 
-pub fn role_detail(p Path<str>) ~Json<Value> {
-    let detail = role_get(p.view)
-    return Json(detail)
+pub fn role_detail(p Path<str>) ~Response {
+    return to_response(role_get(p.view), "role not found", 404u)
 }
 
-pub fn role_save(p Path<str>, body Json<RoleSaveBody>) ~Json<Value> {
-    let resp = role_save_of(p.view, body)
-    return Json(resp)
+pub fn role_save(p Path<str>, body Json<RoleSaveBody>) ~Response {
+    return to_response(role_save_of(p.view, body), "failed to save role", 400u)
 }
 
-pub fn role_delete(p Path<str>) ~Json<Value> {
-    let resp = role_delete_of(p.view)
-    return Json(resp)
+pub fn role_delete(p Path<str>) ~Response {
+    return to_response(role_delete_of(p.view), "failed to delete role", 404u)
 }
 
 
@@ -360,24 +349,20 @@ pub fn app_config_get() ~Json<Value> {
     return Json(cfg)
 }
 
-pub fn app_config_save(body Json<AppConfigSaveBody>) ~Json<Value> {
-    let cfg = app_config_write(body)
-    return Json(cfg)
+pub fn app_config_save(body Json<AppConfigSaveBody>) ~Response {
+    return to_response(app_config_write(body), "failed to save app config", 500u)
 }
 
-pub fn app_harness_list(p Path<str>) ~Json<Value> {
-    let result = harness_list(p.view)
-    return Json(result)
+pub fn app_harness_list(p Path<str>) ~Response {
+    return to_response(harness_list(p.view), "unknown harness kind", 404u)
 }
 
-pub fn app_harness_save(p Path<(str, str)>, body Json<AppHarnessSaveBody>) ~Json<Value> {
-    let resp = harness_save(p.view, body)
-    return Json(resp)
+pub fn app_harness_save(p Path<(str, str)>, body Json<AppHarnessSaveBody>) ~Response {
+    return to_response(harness_save(p.view, body), "failed to save harness item", 500u)
 }
 
-pub fn app_harness_delete(p Path<(str, str)>) ~Json<Value> {
-    let resp = harness_delete(p.view)
-    return Json(resp)
+pub fn app_harness_delete(p Path<(str, str)>) ~Response {
+    return to_response(harness_delete(p.view), "harness item not found", 404u)
 }
 
 
@@ -385,9 +370,8 @@ pub fn app_harness_delete(p Path<(str, str)>) ~Json<Value> {
 // Chats handlers (ws.chats + ws.conversations double-write)
 // ============================================================
 
-pub fn chat_create(s State<AppState>, q Query<WorkspaceQuery>, body Json<ChatCreateBody>) ~Json<Value> {
-    let resp = chats_create(s.view, q, body)
-    return Json(resp)
+pub fn chat_create(s State<AppState>, q Query<WorkspaceQuery>, body Json<ChatCreateBody>) ~Response {
+    return to_response(chats_create(s.view, q, body), "failed to create session", 500u)
 }
 
 pub fn chat_list(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
@@ -395,44 +379,36 @@ pub fn chat_list(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
     return Json(list)
 }
 
-pub fn chat_get(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<Value> {
-    let resp = chats_get(s.view, q, p)
-    return Json(resp)
+pub fn chat_get(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Response {
+    return to_response(chats_get(s.view, q, p), "session not found", 404u)
 }
 
-pub fn chat_rename(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ChatRenameBody>) ~Json<Value> {
-    let resp = chats_rename(s.view, q, p, body)
-    return Json(resp)
+pub fn chat_rename(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ChatRenameBody>) ~Response {
+    return to_response(chats_rename(s.view, q, p, body), "session not found", 404u)
 }
 
-pub fn chat_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<Deleted> {
-    chats_delete(s.view, q, p.view)
-    return Json(Deleted(status: "deleted", id: path_inner(p.view)))
+pub fn chat_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Response {
+    return to_response(chats_delete(s.view, q, p.view), "session not found", 404u)
 }
 
-pub fn chat_delete_all(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
-    let resp = chats_delete_all(s.view, q)
-    return Json(resp)
+pub fn chat_delete_all(s State<AppState>, q Query<WorkspaceQuery>) ~Response {
+    return to_response(chats_delete_all(s.view, q), "failed to delete all sessions", 500u)
 }
 
-pub fn chat_message(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ChatMessageBody>) ~Json<Value> {
-    let resp = chats_message(s.view, q, p, body)
-    return Json(resp)
+pub fn chat_message(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ChatMessageBody>) ~Response {
+    return to_response(chats_message(s.view, q, p, body), "session not found", 404u)
 }
 
-pub fn chat_approve(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, uint)>) ~Json<Value> {
-    let resp = chats_approve(s.view, q, p)
-    return Json(resp)
+pub fn chat_approve(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, uint)>) ~Response {
+    return to_response(chats_approve(s.view, q, p), "session or change not found", 404u)
 }
 
-pub fn chat_reject(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, uint)>) ~Json<Value> {
-    let resp = chats_reject(s.view, q, p)
-    return Json(resp)
+pub fn chat_reject(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, uint)>) ~Response {
+    return to_response(chats_reject(s.view, q, p), "session not found", 404u)
 }
 
-pub fn chat_reject_all(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<Value> {
-    let resp = chats_reject_all(s.view, q, p)
-    return Json(resp)
+pub fn chat_reject_all(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Response {
+    return to_response(chats_reject_all(s.view, q, p), "session not found", 404u)
 }
 
 
@@ -445,19 +421,16 @@ pub fn conversation_list(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value
     return Json(list)
 }
 
-pub fn conversation_get(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Json<Value> {
-    let conv = conversations_get(s.view, q, p)
-    return Json(conv)
+pub fn conversation_get(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Response {
+    return to_response(conversations_get(s.view, q, p), "conversation not found", 404u)
 }
 
-pub fn conversation_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Json<Deleted> {
-    conversations_delete(s.view, q, p.view)
-    return Json(Deleted(status: "deleted", id: path_inner(p.view)))
+pub fn conversation_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Response {
+    return to_response(conversations_delete(s.view, q, p.view), "conversation not found", 404u)
 }
 
-pub fn conversation_rename(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ConversationTitleBody>) ~Json<Value> {
-    let conv = conversations_rename(s.view, q, p, body)
-    return Json(conv)
+pub fn conversation_rename(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ConversationTitleBody>) ~Response {
+    return to_response(conversations_rename(s.view, q, p, body), "conversation not found", 404u)
 }
 
 
@@ -470,14 +443,12 @@ pub fn workspace_list(s State<AppState>) ~Json<Value> {
     return Json(list)
 }
 
-pub fn workspace_open(s State<AppState>, body Json<OpenWorkspaceBody>) ~Json<Value> {
-    let resp = workspace_open_of(s.view, body)
-    return Json(resp)
+pub fn workspace_open(s State<AppState>, body Json<OpenWorkspaceBody>) ~Response {
+    return to_response(workspace_open_of(s.view, body), "failed to open workspace", 500u)
 }
 
-pub fn workspace_status(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
-    let resp = workspace_status_of(s.view, q)
-    return Json(resp)
+pub fn workspace_status(s State<AppState>, q Query<WorkspaceQuery>) ~Response {
+    return to_response(workspace_status_of(s.view, q), "workspace not found", 404u)
 }
 
 pub fn workspace_browse(q Query<BrowseQuery>) ~Json<Value> {
@@ -485,9 +456,8 @@ pub fn workspace_browse(q Query<BrowseQuery>) ~Json<Value> {
     return Json(resp)
 }
 
-pub fn workspace_initialize(s State<AppState>, q Query<WorkspaceQuery>) ~Json<Value> {
-    let resp = workspace_initialize_of(s.view, q)
-    return Json(resp)
+pub fn workspace_initialize(s State<AppState>, q Query<WorkspaceQuery>) ~Response {
+    return to_response(workspace_initialize_of(s.view, q), "failed to initialize workspace", 500u)
 }
 
 

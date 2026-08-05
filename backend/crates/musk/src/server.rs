@@ -1310,6 +1310,8 @@ mod tests {
         let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
         let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(v["status"], "deleted");
+        // 复审 A1:删除响应返回真实 id(此前 path_inner 空串 → id="")。
+        assert_eq!(v["id"], session_id, "delete response carries the real session id");
     }
 
     /// ② workspace 路由接线验收:workspace list/open/status/browse/initialize
@@ -1560,6 +1562,8 @@ mod tests {
         let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
         let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(v["status"], "deleted");
+        // 复审 A1:删除响应返回真实 id(此前 path_inner 空串 → id="")。
+        assert_eq!(v["id"], session_id, "delete response carries the real conversation id");
     }
 
     /// ③ app-config + harness 接线验收(只测读端点;save 会写用户真实
@@ -1832,6 +1836,7 @@ mod tests {
         assert_eq!(v["workflows"][0], "feature-dev");
 
         // specs delete 路由(serve() 原有、④ 时补进 ag build_router)可被命中。
+        // 复审 A3:不存在的 item → 404(此前错误语义回归返回 200+空 id)。
         let resp = app
             .oneshot(
                 axum::http::Request::builder()
@@ -1842,7 +1847,63 @@ mod tests {
             )
             .await
             .unwrap();
-        // 委托删除不存在的 item → 仍 200(空 id),路由存在即验证通过。
-        assert_eq!(resp.status(), axum::http::StatusCode::OK);
+        assert_eq!(
+            resp.status(),
+            axum::http::StatusCode::NOT_FOUND,
+            "deleting a non-existent spec item returns 404 (A3 error semantics)"
+        );
+    }
+
+    /// 复审 A3:委托端点错误语义 —— 不存在/失败返回 4xx(此前错误回归为 200+null)。
+    #[tokio::test]
+    async fn delegated_endpoints_return_http_errors() {
+        use axum::body::Body;
+        use crate::auto_generated::server as ag_server;
+        use tower::ServiceExt;
+
+        let app = axum::Router::new()
+            .route(
+                "/api/chats/session/{id}",
+                axum::routing::get(ag_server::chat_get).delete(ag_server::chat_delete),
+            )
+            .route(
+                "/api/specs/item/{section}/{id}",
+                axum::routing::delete(ag_server::specs_delete),
+            )
+            .route("/api/workspace/status", axum::routing::get(ag_server::workspace_status))
+            .with_state(tmp_state());
+
+        // 不存在的 chat:get/delete → 404(hw 语义;此前 200 null / 200 空 id)。
+        for (method, uri) in [
+            ("GET", "/api/chats/session/no-such"),
+            ("DELETE", "/api/chats/session/no-such"),
+        ] {
+            let resp = app
+                .clone()
+                .oneshot(
+                    axum::http::Request::builder()
+                        .method(method)
+                        .uri(uri)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(resp.status(), axum::http::StatusCode::NOT_FOUND, "{method} {uri}");
+        }
+
+        // 不存在的 workspace → status 404。
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("GET")
+                    .uri("/api/workspace/status?workspace=no-such")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), axum::http::StatusCode::NOT_FOUND);
     }
 }

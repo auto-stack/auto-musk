@@ -24,8 +24,8 @@ fn specs_drift(_s @T, _q Value) Value {}
 fn specs_rebuild(_s @T, _q Value) Value {}
 fn specs_related_of(_s @T, _q Value, _p Value) Value {}
 fn specs_upsert_of(_s @T, _q Value, _b Value) Value {}
-fn specs_transition_of(_s @T, _q Value, _b Value) str {}
-fn specs_delete_of(_s @T, _q Value, _p Value) str {}
+fn specs_transition_of(_s @T, _q Value, _b Value) Value {}
+fn specs_delete_of(_s @T, _q Value, _p Value) Value {}
 fn specs_read(_s str) str {}
 fn specs_list() str {}
 fn specs_write(_s str, _c str) str {}
@@ -61,7 +61,7 @@ fn chats_create(_s @T, _q Value, _b Value) Value {}
 fn chats_list(_s @T, _q Value) Value {}
 fn chats_get(_s @T, _q Value, _p Value) Value {}
 fn chats_rename(_s @T, _q Value, _p Value, _b Value) Value {}
-fn chats_delete(_s @T, _q Value, _p @T) {}
+fn chats_delete(_s @T, _q Value, _p @T) Value {}
 fn chats_delete_all(_s @T, _q Value) Value {}
 fn chats_message(_s @T, _q Value, _p Value, _b Value) Value {}
 fn chats_approve(_s @T, _q Value, _p Value) Value {}
@@ -69,7 +69,7 @@ fn chats_reject(_s @T, _q Value, _p Value) Value {}
 fn chats_reject_all(_s @T, _q Value, _p Value) Value {}
 fn conversations_list(_s @T, _q Value) Value {}
 fn conversations_get(_s @T, _q Value, _p Value) Value {}
-fn conversations_delete(_s @T, _q Value, _p @T) {}
+fn conversations_delete(_s @T, _q Value, _p @T) Value {}
 fn conversations_rename(_s @T, _q Value, _p Value, _b Value) Value {}
 fn conversations_subscribe(_s @T, _q Value) Value {}
 fn conv_event_matches(_ev @T, _id @str) bool {}

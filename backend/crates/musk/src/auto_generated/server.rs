@@ -407,44 +407,36 @@ pub async fn auth_logout(s: State<AppState>, headers: HeaderMap) -> Json<StatusO
     return Json(StatusOk { status: "logged out".to_string() });
 }
 
-pub async fn specs_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
-    let doc = specs_load(&s, q);
-    return Json(doc);
+pub async fn specs_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Response {
+    return to_response(specs_load(&s, q), "failed to load specs", 500);
 }
 
-pub async fn specs_overview(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
-    let overview = specs_overview_of(&s, q);
-    return Json(overview);
+pub async fn specs_overview(s: State<AppState>, q: Query<WorkspaceQuery>) -> Response {
+    return to_response(specs_overview_of(&s, q), "failed to build overview", 500);
 }
 
-pub async fn specs_drift_check(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<DriftResult> {
-    let result = specs_drift(&s, q);
-    return Json(result);
+pub async fn specs_drift_check(s: State<AppState>, q: Query<WorkspaceQuery>) -> Response {
+    return to_response(specs_drift(&s, q), "drift check failed", 500);
 }
 
-pub async fn specs_rebuild_relations(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
-    let doc = specs_rebuild(&s, q);
-    return Json(doc);
+pub async fn specs_rebuild_relations(s: State<AppState>, q: Query<WorkspaceQuery>) -> Response {
+    return to_response(specs_rebuild(&s, q), "rebuild failed", 500);
 }
 
-pub async fn specs_related(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<RelatedInfo> {
-    let info = specs_related_of(&s, q, p);
-    return Json(info);
+pub async fn specs_related(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Response {
+    return to_response(specs_related_of(&s, q, p), "item not found", 404);
 }
 
-pub async fn specs_upsert(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<SpecsUpsertRequest>) -> Json<Value> {
-    let doc = specs_upsert_of(&s, q, body);
-    return Json(doc);
+pub async fn specs_upsert(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<SpecsUpsertRequest>) -> Response {
+    return to_response(specs_upsert_of(&s, q, body), "upsert failed", 400);
 }
 
-pub async fn specs_transition(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<SpecsTransitionRequest>) -> Json<TransitionOk> {
-    let new_status = specs_transition_of(&s, q, body);
-    return Json(TransitionOk { status: "ok".to_string(), new_status: new_status.to_string() });
+pub async fn specs_transition(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<SpecsTransitionRequest>) -> Response {
+    return to_response(specs_transition_of(&s, q, body), "transition failed", 400);
 }
 
-pub async fn specs_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, String)>) -> Json<Deleted> {
-    let id = specs_delete_of(&s, q, p);
-    return Json(Deleted { status: "deleted".to_string(), id: id.to_string() });
+pub async fn specs_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, String)>) -> Response {
+    return to_response(specs_delete_of(&s, q, p), "item not found", 404);
 }
 
 pub async fn professions() -> Json<Value> {
@@ -472,19 +464,16 @@ pub async fn roles_list() -> Json<Value> {
     return Json(list);
 }
 
-pub async fn role_detail(p: Path<String>) -> Json<Value> {
-    let detail = role_get(&p);
-    return Json(detail);
+pub async fn role_detail(p: Path<String>) -> Response {
+    return to_response(role_get(&p), "role not found", 404);
 }
 
-pub async fn role_save(p: Path<String>, body: Json<RoleSaveBody>) -> Json<Value> {
-    let resp = role_save_of(&p, body);
-    return Json(resp);
+pub async fn role_save(p: Path<String>, body: Json<RoleSaveBody>) -> Response {
+    return to_response(role_save_of(&p, body), "failed to save role", 400);
 }
 
-pub async fn role_delete(p: Path<String>) -> Json<Value> {
-    let resp = role_delete_of(&p);
-    return Json(resp);
+pub async fn role_delete(p: Path<String>) -> Response {
+    return to_response(role_delete_of(&p), "failed to delete role", 404);
 }
 
 pub async fn app_config_get() -> Json<Value> {
@@ -492,29 +481,24 @@ pub async fn app_config_get() -> Json<Value> {
     return Json(cfg);
 }
 
-pub async fn app_config_save(body: Json<AppConfigSaveBody>) -> Json<Value> {
-    let cfg = app_config_write(body);
-    return Json(cfg);
+pub async fn app_config_save(body: Json<AppConfigSaveBody>) -> Response {
+    return to_response(app_config_write(body), "failed to save app config", 500);
 }
 
-pub async fn app_harness_list(p: Path<String>) -> Json<Value> {
-    let result = harness_list(&p);
-    return Json(result);
+pub async fn app_harness_list(p: Path<String>) -> Response {
+    return to_response(harness_list(&p), "unknown harness kind", 404);
 }
 
-pub async fn app_harness_save(p: Path<(String, String)>, body: Json<AppHarnessSaveBody>) -> Json<Value> {
-    let resp = harness_save(&p, body);
-    return Json(resp);
+pub async fn app_harness_save(p: Path<(String, String)>, body: Json<AppHarnessSaveBody>) -> Response {
+    return to_response(harness_save(&p, body), "failed to save harness item", 500);
 }
 
-pub async fn app_harness_delete(p: Path<(String, String)>) -> Json<Value> {
-    let resp = harness_delete(&p);
-    return Json(resp);
+pub async fn app_harness_delete(p: Path<(String, String)>) -> Response {
+    return to_response(harness_delete(&p), "harness item not found", 404);
 }
 
-pub async fn chat_create(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<ChatCreateBody>) -> Json<Value> {
-    let resp = chats_create(&s, q, body);
-    return Json(resp);
+pub async fn chat_create(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<ChatCreateBody>) -> Response {
+    return to_response(chats_create(&s, q, body), "failed to create session", 500);
 }
 
 pub async fn chat_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
@@ -522,44 +506,36 @@ pub async fn chat_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Val
     return Json(list);
 }
 
-pub async fn chat_get(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<Value> {
-    let resp = chats_get(&s, q, p);
-    return Json(resp);
+pub async fn chat_get(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Response {
+    return to_response(chats_get(&s, q, p), "session not found", 404);
 }
 
-pub async fn chat_rename(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ChatRenameBody>) -> Json<Value> {
-    let resp = chats_rename(&s, q, p, body);
-    return Json(resp);
+pub async fn chat_rename(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ChatRenameBody>) -> Response {
+    return to_response(chats_rename(&s, q, p, body), "session not found", 404);
 }
 
-pub async fn chat_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<Deleted> {
-    chats_delete(&s, q, &p);
-    return Json(Deleted { status: "deleted".to_string(), id: path_inner(&p).to_string() });
+pub async fn chat_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Response {
+    return to_response(chats_delete(&s, q, &p), "session not found", 404);
 }
 
-pub async fn chat_delete_all(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
-    let resp = chats_delete_all(&s, q);
-    return Json(resp);
+pub async fn chat_delete_all(s: State<AppState>, q: Query<WorkspaceQuery>) -> Response {
+    return to_response(chats_delete_all(&s, q), "failed to delete all sessions", 500);
 }
 
-pub async fn chat_message(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ChatMessageBody>) -> Json<Value> {
-    let resp = chats_message(&s, q, p, body);
-    return Json(resp);
+pub async fn chat_message(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ChatMessageBody>) -> Response {
+    return to_response(chats_message(&s, q, p, body), "session not found", 404);
 }
 
-pub async fn chat_approve(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, u32)>) -> Json<Value> {
-    let resp = chats_approve(&s, q, p);
-    return Json(resp);
+pub async fn chat_approve(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, u32)>) -> Response {
+    return to_response(chats_approve(&s, q, p), "session or change not found", 404);
 }
 
-pub async fn chat_reject(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, u32)>) -> Json<Value> {
-    let resp = chats_reject(&s, q, p);
-    return Json(resp);
+pub async fn chat_reject(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, u32)>) -> Response {
+    return to_response(chats_reject(&s, q, p), "session not found", 404);
 }
 
-pub async fn chat_reject_all(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<Value> {
-    let resp = chats_reject_all(&s, q, p);
-    return Json(resp);
+pub async fn chat_reject_all(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Response {
+    return to_response(chats_reject_all(&s, q, p), "session not found", 404);
 }
 
 pub async fn conversation_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
@@ -567,19 +543,16 @@ pub async fn conversation_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> 
     return Json(list);
 }
 
-pub async fn conversation_get(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuery>) -> Json<Value> {
-    let conv = conversations_get(&s, q, p);
-    return Json(conv);
+pub async fn conversation_get(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuery>) -> Response {
+    return to_response(conversations_get(&s, q, p), "conversation not found", 404);
 }
 
-pub async fn conversation_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<Deleted> {
-    conversations_delete(&s, q, &p);
-    return Json(Deleted { status: "deleted".to_string(), id: path_inner(&p).to_string() });
+pub async fn conversation_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Response {
+    return to_response(conversations_delete(&s, q, &p), "conversation not found", 404);
 }
 
-pub async fn conversation_rename(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ConversationTitleBody>) -> Json<Value> {
-    let conv = conversations_rename(&s, q, p, body);
-    return Json(conv);
+pub async fn conversation_rename(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ConversationTitleBody>) -> Response {
+    return to_response(conversations_rename(&s, q, p, body), "conversation not found", 404);
 }
 
 pub async fn workspace_list(s: State<AppState>) -> Json<Value> {
@@ -587,14 +560,12 @@ pub async fn workspace_list(s: State<AppState>) -> Json<Value> {
     return Json(list);
 }
 
-pub async fn workspace_open(s: State<AppState>, body: Json<OpenWorkspaceBody>) -> Json<Value> {
-    let resp = workspace_open_of(&s, body);
-    return Json(resp);
+pub async fn workspace_open(s: State<AppState>, body: Json<OpenWorkspaceBody>) -> Response {
+    return to_response(workspace_open_of(&s, body), "failed to open workspace", 500);
 }
 
-pub async fn workspace_status(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
-    let resp = workspace_status_of(&s, q);
-    return Json(resp);
+pub async fn workspace_status(s: State<AppState>, q: Query<WorkspaceQuery>) -> Response {
+    return to_response(workspace_status_of(&s, q), "workspace not found", 404);
 }
 
 pub async fn workspace_browse(q: Query<BrowseQuery>) -> Json<Value> {
@@ -602,9 +573,8 @@ pub async fn workspace_browse(q: Query<BrowseQuery>) -> Json<Value> {
     return Json(resp);
 }
 
-pub async fn workspace_initialize(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
-    let resp = workspace_initialize_of(&s, q);
-    return Json(resp);
+pub async fn workspace_initialize(s: State<AppState>, q: Query<WorkspaceQuery>) -> Response {
+    return to_response(workspace_initialize_of(&s, q), "failed to initialize workspace", 500);
 }
 
 async fn workflows() -> Json<WorkflowsResp> {
