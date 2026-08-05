@@ -446,3 +446,12 @@ C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
   手写 auth handlers 删除。
 - 测试:真实 token + wire 形状 + bad-credentials→401 + logout→401。
 - **C3 主要阻塞已清除**(auth 切片);其余端点(specs/workspace/chats)同模式扩展。
+
+### C1 a2r-11 进度(2026-08-05, worktree `c11-inplace-mut`)
+- ✅ **基础切片**(worktree commit `19123312`):`mut p T` 参数 → `&mut T`;
+  调用点传 `&mut arg`(不再 `.clone()`);简单字段就地赋值直接发射。
+  golden 301 通过 0 失败。
+- ⬜ **剩余**:索引元素就地改(`doc.items[i].field = v` —— `.get()` 转换在赋值
+  LHS 误加 `.clone()`,深 codegen 路径)+ `*doc = new_doc` 整体重赋值 —— 后续
+  切片的 dogfooding 目标。
+- worktree 分支 `c11-inplace-mut`,待完整后合并 master。
