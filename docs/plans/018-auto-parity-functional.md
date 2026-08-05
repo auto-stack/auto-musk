@@ -6,6 +6,7 @@
 > **仓库**：auto-musk（`backend/crates/musk/`）+ auto-lang（a2r 转译器）。
 > **目标**：让 Auto(.at) 版本经 a2r 转译产出的 Rust，在**公共 API 签名**和**运行行为**上与手写 Rust 一致（单测等价），全模块覆盖。接线运行作为后续独立计划。
 > **战略定位**：本计划是 **Auto 语言的 dogfooding 工程**——在真实的 Auto/Rust 项目实践中发现 a2r 的不足，逐项改进转译器，推动 Auto 真正成为 Rust 生态的开发语言。a2r 限制不是"既定约束"，而是**要消灭的对象**。
+> **Phase 3 进度**：wiki 试点 ✅（§10）+ task_plan 3.3 ✅（§10.5，2026-08-05，17/17 parity）。
 
 ---
 
@@ -55,6 +56,7 @@ a2r 转译器的改进不是次要任务，而是本计划的**核心驱动力**
 | 限制 | 状态 | 实测结果 |
 |---|---|---|
 | **a2r-11 可变借用遍历** | 🔶 部分（已闭环） | `for mut x in coll` → 仍报错 "'mut' is not supported"；但索引就地改已修好——`self.items[i].field = v` → 产物不再写 clone（a2r-11 完整版，见 §12）。剩余缺口：for 循环遍历集合时的可变借用迭代、方法参数 `&mut` 发射（a2r-11 基础切片漏了 ext 方法分支，C1 store 对齐时补齐） |
+| **a2r-10 HashMap<K,Vec<V>>（C3）** | ✅ 已闭环（2026-08-05） | `HashMap<String, Vec<String>>` 的 `insert`/`get` 已正确发射（task_plan detect_cycle 实证）。剩余调用点细节：`.get()` 返回 `Option<&Vec>` 需 `is` 直接匹配不可标注类型；split 结果 a2r 强制标 `Vec<String>`（实为 `Vec<&str>`）→ 无标注 `let parts = ...` 变通 |
 | **async trait impl** | ✅ 可用 | `spec Tool { fn execute() ~Result<str,E> }` → 正确生成 `#[async_trait] async fn`（Plan 380 P5 成果） |
 | **async 泛型闭包 `F: Fn->Fut`** | ❌ 硬墙 | `where F Fn(Req) -> Fut` → 报错 "Expected end of statement, got Fn"；`async fn` 自由函数也不被识别。task_plan_engine::execute 必须留手写边界 |
 | **pub enum** | ✅ 可用 | `pub enum Color` → 正确生成 `pub enum Color`（plan 014 遗漏未加 pub） |
@@ -122,7 +124,7 @@ use musk::auto_generated::specs as ag;    // a2r-transpiled
 |---|---|---|---|---|---|
 | C1 | a2r-11 可变借用遍历（`for x in coll` 不加 `&`） | 巨大（所有集合遍历场景） | ✅ 完成（2026-08-04） | `e2c94535` | specs.at 去掉 15 处 `.clone()` 变通；7/7 parity 通过 |
 | C2 | async 泛型闭包 `F: Fn->Fut` | 大（task_plan_engine::execute） | ⬜ 待启动 | — | execute 留手写边界 |
-| C3 | HashMap<K,Vec<V>> 方法调用（a2r-10） | 中（detect_cycle 等） | ⬜ 待启动 | — | task_plan 可用标准写法 |
+| C3 | HashMap<K,Vec<V>> 方法调用（a2r-10） | 中（detect_cycle 等） | ✅ 完成（2026-08-05，随 task_plan 3.3） | 无需改 a2r（insert/get 已可用） | task_plan.at detect_cycle 用 HashMap 标准写法；parity 17/17 通过 |
 | C4 | serde 属性透传（default/rename/skip/alias） | 大（全模块向后兼容） | ✅ 确认非 a2r 限制（2026-08-04） | 无需改 a2r | app_config.at 补 10 处 default + Default derive；chats.at 补 ToolCall status/id + 7 处 serde 属性 |
 | C5 | enum Default derive + `#[default]` | 中（config 类） | ✅ 已验证可用 | 无需改 a2r | Default derive 透传正常（C4 中验证） |
 | C6 | str 所有权推断（`impl Into<String>`） | 大（全模块构造函数） | ⏸️ 推迟到接线阶段 | 无需改 a2r | `&str` 签名行为等价；owned String 传入差异仅在接线运行时出现 |
@@ -181,7 +183,7 @@ if is_borrowable { sink.body.write(b"&")?; }
 |---|---|---|---|
 | 3.1 | task_plan_parser.rs (137行) | **已改判 ~5%（边界）** | auto_atom/auto_val 上游 crate API |
 | 3.2 | task_plan_registry.rs (306行) | **已改判 ~30%（边界）** | include_str! + auto_atom + 文件 IO |
-| 3.3 | task_plan.rs (513行) | ~80% | a2r-10（detect_cycle） |
+| 3.3 | task_plan.rs (513行) | **✅ 已闭环（2026-08-05）** | 阻塞已清除：a2r-10 HashMap<K,Vec<V>> insert/get 可用 + auto_val 上游类型可用 + a2r 修 #[default] 透传/InvalidType seed |
 | 3.4 | wiki.rs (847行) | **✅ 数据层+读路径已闭环（试点）** | axum/async 手写边界 |
 | 3.5 | handoff_store.rs (193行) | ~60% | a2r-10/11（Mutex tuple-key） |
 | 3.6 | task_plan_engine.rs (672行) | ~40% | **async 泛型闭包（硬墙）** |
@@ -257,6 +259,67 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
 （load/list_pages/get_page/search + _manifest 优先）+ tree builders（walk/build/strip + 排序）。
 
 
+## 10.5 Phase 3.3 — task_plan.rs 移植 ✅ 闭环（2026-08-05）
+
+### 移植范围
+`auto-src/task_plan.at`，对齐 hw `relay/task_plan.rs`：
+- **数据模型**：TaskPlan / Phase / RunRef / TaskMode / PhaseMode（serde wire 完全对齐）
+- **builder**：new / add_phase / with_mode / depends_on / add_run / with_input /
+  with_input_from / with_context / with_mode_override
+- **validate / detect_cycle / dfs**：重复 phase/run 名、未知依赖、环（含自环）、
+  handoff path 语法（split 三段 + handoff/output 第三段）
+- **Atom 解析**：`impl TryFrom<Node>` → `static fn from_node`（a2r 无法表达 trait
+  impl，行为等价）
+
+### 阻塞清除实录（重要：计划的 a2r-10 阻塞已不存在）
+计划 §6 预估 task_plan ~80% 可移植、阻塞为 a2r-10（detect_cycle HashMap）。实测：
+- **a2r-10 HashMap<K,Vec<V>> 已可用**：`graph.insert(...)` / `is graph.get(...)` 正确
+  发射（无需 specs.at 的 List 线性变通）。
+- **auto_val/auto_atom 上游类型已可用**：`use.rust auto_val::{Kid, Node, Value}` /
+  `use.rust auto_atom::{AtomError, AtomResult}` 均可转译（mode.at 注释里的旧结论
+  "a2r 无法 import 上游 crate 类型" 已过时）。`node.kids_iter()` / `Kid.Node(child)`
+  匹配 / `AtomError::ValidationError(..)` 构造 / `Result<_, AtomError>` 返回全部可行。
+
+### 联动 a2r 修复（auto-lang，2 commit）
+1. **C11 prescan fn_mut_params（`dfa7bd05`，并行 session 已并入）**：prescan 注册
+   `mut p T` 参数标志，覆盖"函数声明在调用者之后"场景（task_plan 的 dfs 在文件底部）。
+   修前调用点发 `visited.clone()`（E0308），修后 `&mut visited`。
+2. **`&T` 参数去 clone（`dfa7bd05` 同批）**：`needs_ref_borrow` 加入 `needs_clone`
+   排除条件——修前 `dfs(..., &graph.clone(), ...)`（多余 clone），修后 `&graph`。
+3. **scalar enum `#[default]` 变体透传（`75ff834b`）**：变体级 attrs 此前被静默
+   丢弃 → `#[derive(Default)]` 无 `#[default]` 变体 → E0665。现在按 `item.attrs`
+   发射 `#[default]`（TaskMode/PhaseMode 用 `TaskMode.default()`）。
+4. **AtomError::InvalidType struct-variant seed（`75ff834b`）**：`InvalidType{expected,
+   found}` 注册到 `seed_known_struct_enum_variants` → .at 构造发射 struct 语法
+   `AtomError::InvalidType { expected, found }` 而非 tuple（E0599）。
+
+### 已知简化（文档化）
+- **TryFrom<Node> trait impl → static fn from_node**：a2r 无 trait impl 语法。
+  parity 分别调 hw `TaskPlan::try_from(node)` 与 ag `TaskPlan::from_node(node)`
+  比较行为（含错误字符串逐字一致）。
+- **`graph.get()` 返回 `Option<&Vec>`**：.at 用 `is graph.get(node)` 直接匹配，
+  不可标注 `Option<List<str>>`（类型不匹配 E0308）。
+- **`split` 结果类型**：a2r 对 `let parts List<str> = path.split(".")` 强制标
+  `Vec<String>`（实为 `Vec<&str>`）→ 无标注 `let parts = ...`（Rust 推断 `Vec<&str>`，
+  `parts[i]` 与字面量比较直接成立）。
+- **str 参数与 owned String 区分**：`&str` 参数（dfs 的 node）直接传 `contains(node)`；
+  owned String 字段赋值用 `.to_string()`（`Some(input.to_string())`）。
+
+### 验收
+- `tests/parity_task_plan.rs` **17/17 通过**：TaskMode/PhaseMode wire + default +
+  TaskPlan/RunRef builder wire + validate 全错误路径（重复/未知依赖/环/自环/路径
+  语法，错误字符串与 hw 逐字一致）+ from_node 全字段/默认值/错误语义。
+- **re-transpile 零 drift**：`trans --path task_plan.at rust` 后 diff auto_generated
+  = 0（仅约定 `use super::extern_impl::*;` 前缀）。
+- 全量：207 lib + 全部 parity 套件 + tool_atoms 23 + 集成测试，14 套件全绿。
+
+### 3.5/3.6 展望
+- **handoff_store.rs（~60%）**：Mutex<HashMap<(String,String,String), HandoffDocument>>
+  tuple-key + fs + serde_json。a2r-10/11 对 Mutex tuple-key 的可行性待测。
+- **task_plan_engine.rs（~40%）**：async 泛型闭包 `F: Fn->Fut` 是 a2r 硬墙（§1），
+  留手写边界。
+
+
 ## 8. 附录：API 差距清单（6 模块，探索汇总）
 
 ### 系统性差距模式（跨模块）
@@ -287,7 +350,7 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
 | 1 — specs | ✅ | 7/7 parity 测试通过；enum pub + display_title emoji 修复 |
 | 0 — a2r 改进 | 🔶 C1 ✅ + C4/C5 ✅(无需改) + C6 推迟 + C7b ✅ + C8 ✅ + **C9 ✅** | C1 for 借用遍历(`e2c94535`)；C4 serde 属性是 .at 遗漏；C7b tag 构造丢值(`94418cda`)；C8 const 支持(`e01f0f84`)；C9 types_are_compatible 容器类型 + 连带 codegen 修复（见 §10） |
 | 2 — 已移植模块 | ✅ 8/8 有 parity 测试 | specs 12 ✅ / app_config **6** ✅(2026-08-05 修正,env 竞态两测合并后为 6) / chats 17 ✅ / auth 8 ✅ / tool_safety 7 ✅ / conversation 10 ✅ / mode 4 ✅ / **wiki 11 ✅** / relay 5 ✅ |
-| 3 — 缺失模块 | 🔶 wiki 试点 ✅（§10） | parser/registry 改判为边界（探索实测）；task_plan 3.3 待续 |
+| 3 — 缺失模块 | ✅ wiki 试点 ✅（§10）+ **task_plan 3.3 ✅（2026-08-05，17/17 parity）** | parser/registry 改判为边界（探索实测）；handoff_store 3.5 / engine 3.6 待续 |
 | 4 — 复杂模块 | ⬜ 待启动 | 视 Phase 0 成果 |
 
 ### Phase 2 各模块详情
