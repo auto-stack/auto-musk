@@ -382,6 +382,11 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
   extern 调用。旧 a2r 会自动加 `&`,当前 a2r 遵循约定不再自动加。
   **修法**:server.at 的 extern 调用补 `s.view`(~90 处)+ 修 LoginResponse DTO + extern_impl 委托
   + router 合并 —— 大手术,且影响当前可用 server。
+  **✅ 已闭环(2026-08-05, 750aeb1)**:server.at 补 44 处 `.view` 标记 + 15 个 handler body 统一
+  `let resp = extern(); return Json(resp)`(extern 负责 Value 包装)+ DTO 扩容(RoleSaveBody 12 字段 /
+  AppConfigSaveBody+HarnessSelection / AppHarnessSaveBody)+ extern_sigs.at 8 处过期返回类型 → Value。
+  **验证:re-transpile(trans --path server.at rust -o + nativeize)后 diff auto_generated/server.rs = 0**,
+  hand-edit drift 清零,生成产物完全可由 server.at 复现。304 项测试全绿。
 - **结论**:① 是唯一已闭环的接线切片。②③④ 需先决策:
   要么"先对齐 ag store API"(② 的大工作),要么"server.at .view 手术 + DTO parity + extern_impl
   委托 + router 合并"(③④ 的大工作)。两者都是多 session 级别,建议作为下一个独立计划里程碑。
