@@ -1,0 +1,186 @@
+/// handoff_store.at — Cross-run handoff storage (relay/handoff_store.rs) — Plan 018 Phase 3.5。
+///
+/// Ported from backend/crates/musk/src/relay/handoff_store.rs. Scope:
+/// - HandoffStore (data_dir + Mutex cache) + save/load/resolve_path -> Auto
+/// - save_from_run 依赖 crate::relay::store::RunStore (use.rust 上游类型) -> Auto
+///
+/// a2r 惯用法注记(本轮探测确认):
+/// - tuple-key `HashMap<(String,String,String), _>` 不可用(insert 误加
+///   .to_string() tuple 无 Display / get 缺 &) -> 字符串拼接 key 变通
+///   (cache 是私有字段,行为等价,计划 §0 允许实现细节不同)
+/// - `impl Into<PathBuf>` -> PathBuf 参数 (C6 已知退化)
+/// - Result 链式 .ok()/.map_err -> is 匹配逐层展开
+/// - `if let Some(parent) = path.parent()` -> is 匹配
+
+use.rust std::sync::Mutex
+use.rust std::collections::HashMap
+use.rust std::path::{Path, PathBuf}
+use.rust std::fs
+use.rust serde_json::{to_string_pretty, from_str, to_value}
+use.rust serde_json::Value
+use.rust crate::relay::store::RunStore
+use.rust auto_ai_agent::orchestration::HandoffDocument
+
+/// Persist and query handoffs across TaskPlan runs.
+#[derive(Debug)]
+pub type HandoffStore {
+    data_dir PathBuf
+    /// Optional in-memory cache keyed by "tp/phase/run" (string key — a2r
+    /// tuple-key 缺陷见文件头注记; hw 用 (String,String,String) tuple)。
+    cache Mutex<HashMap<str, HandoffDocument>>
+}
+
+ext HandoffStore {
+    /// Create a store rooted at the workspace data directory.
+    pub static fn new(data_dir PathBuf) HandoffStore {
+        HandoffStore(
+            data_dir: data_dir,
+            cache: Mutex.new(HashMap.new())
+        )
+    }
+
+    /// Directory where handoffs are persisted for a given task plan.
+    fn handoffs_dir(task_plan_id str) PathBuf {
+        // NOTE: 多级 join 链在 a2r 里会被拆成无效果的 self.join(...) 语句,
+        // 需分步绑定中间变量(实测确认)。
+        let a PathBuf = self.data_dir.join("task_plans")
+        let b PathBuf = a.join(".handoffs")
+        let c PathBuf = b.join(task_plan_id)
+        return c
+    }
+
+    /// File path for a specific handoff.
+    fn handoff_path(task_plan_id str, phase str, run str) PathBuf {
+        let dir PathBuf = self.handoffs_dir(task_plan_id)
+        let a PathBuf = dir.join(phase)
+        let path PathBuf = a.join(run + ".json")
+        return path
+    }
+
+    /// Save a handoff to disk and cache. Ok(true) on success (hw: Result<(), String>
+    /// — a2r 无法表达 unit 类型,用 bool 载荷承载,与 task_plan/specs 同约定)。
+    pub fn save(task_plan_id str, phase str, run str, handoff HandoffDocument) Result<bool, str> {
+        let path PathBuf = self.handoff_path(task_plan_id, phase, run)
+        is path.parent() {
+            Some(parent) -> {
+                let mkdir_result = fs.create_dir_all(parent)
+                is mkdir_result {
+                    Err(e) -> return Err("failed to create handoff dir: " + e.to_string()),
+                    Ok(_) -> {}
+                }
+            }
+            None -> {}
+        }
+        let json_result = to_string_pretty(handoff.view)
+        is json_result {
+            Err(e) -> return Err("failed to serialize handoff: " + e.to_string()),
+            Ok(json) -> {
+                // NOTE: nativeize 把 a2r_std::fs::write → std::fs::write(...).is_ok()
+                // (bool), 所以不能 is 匹配 Err/Ok —— 直接判断 bool。
+                let write_ok bool = fs.write(path, json)
+                if write_ok == false {
+                    return Err("failed to write handoff")
+                }
+            }
+        }
+
+        let key str = task_plan_id + "/" + phase + "/" + run
+        let _ bool = cache_put(self.cache, key.view, handoff.clone())
+        return Ok(true)
+    }
+
+    /// Load a handoff from cache or disk.
+    pub fn load(task_plan_id str, phase str, run str) Option<HandoffDocument> {
+        let key str = task_plan_id + "/" + phase + "/" + run
+        // NOTE: cache 查询/写入抽成独立辅助 fn —— a2r 的 match 生成 `None => {}`
+        // 分支不会释放第一次 lock 的 guard(不像 hw 的 if-let NLL), 若在同一
+        // fn 内二次 lock 会 Mutex 死锁。辅助 fn 返回后 guard 作用域结束自动 drop。
+        let cached Option<HandoffDocument> = cache_get(self.cache, key.view)
+        is cached {
+            Some(doc) -> return Some(doc),
+            None -> {}
+        }
+        let path PathBuf = self.handoff_path(task_plan_id, phase, run)
+        let content_result = fs.read_to_string(path)
+        is content_result {
+            Err(_) -> return None,
+            Ok(content) -> {
+                let doc_opt Option<HandoffDocument> = parse_handoff(content)
+                is doc_opt {
+                    None -> return None,
+                    Some(doc) -> {
+                        let _ bool = cache_put(self.cache, key.view, doc.clone())
+                        return Some(doc)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Resolve a path like `task_plan_id.phase.run.handoff.field` to a JSON value.
+    pub fn resolve_path(path str) Option<Value> {
+        let parts = path.split(".")
+        if parts.len() < 5 || parts[3] != "handoff" {
+            return None
+        }
+        let task_plan_id = parts[0]
+        let phase = parts[1]
+        let run = parts[2]
+        let handoff_opt Option<HandoffDocument> = self.load(task_plan_id, phase, run)
+        is handoff_opt {
+            None -> return None,
+            Some(handoff) -> {
+                let doc_json_result = to_value(handoff.view)
+                is doc_json_result {
+                    Err(_) -> return None,
+                    Ok(doc_json) -> {
+                        var value = doc_json
+                        for i in 4..parts.len() {
+                            is value.get(parts[i].view) {
+                                Some(v) -> value = v.clone(),
+                                None -> return None
+                            }
+                        }
+                        return Some(value.clone())
+                    }
+                }
+            }
+        }
+    }
+
+    /// Collect the final handoff from a completed relay run and save it.
+    pub fn save_from_run(store @RunStore, task_plan_id str, phase str, run_name str, run_id str) Option<HandoffDocument> {
+        let handoff_opt Option<HandoffDocument> = store.last_handoff(run_id.view)
+        is handoff_opt {
+            Some(h) -> return Some(h.clone()),
+            None -> return None
+        }
+    }
+}
+
+/// Parse handoff JSON text. (独立辅助 fn — a2r 对 from_str 的返回类型推断在
+/// Option 返回上下文中不可靠, 用显式返回类型驱动; 同 wiki parse_manifest 模式。)
+fn parse_handoff(content str) Option<HandoffDocument> {
+    let pr = from_str(content)
+    is pr {
+        Ok(doc) -> return Some(doc),
+        Err(_) -> return None
+    }
+}
+
+/// Lock + read a cache entry. Guard drops at fn exit (avoids Mutex deadlock
+/// from a2r's match-keeping-lock — see load() note).
+fn cache_get(cache @Mutex<HashMap<str, HandoffDocument>>, key str) Option<HandoffDocument> {
+    var guard = cache.lock().unwrap()
+    is guard.get(key) {
+        Some(doc) -> return Some(doc.clone()),
+        None -> return None
+    }
+}
+
+/// Lock + insert a cache entry.
+fn cache_put(cache @Mutex<HashMap<str, HandoffDocument>>, key str, doc HandoffDocument) bool {
+    var guard = cache.lock().unwrap()
+    let _ Option<HandoffDocument> = guard.insert(key, doc)
+    return true
+}
