@@ -10,6 +10,7 @@ use std::fs;
 use std::time::{SystemTime, Duration};
 use serde_json::{to_string_pretty, from_slice};
 use serde_json::Value;
+use crate::auto_generated::specs::{SpecChange, SpecItem, SpecsDocument, SpecsSection, SpecsStore};
 
 /// chats.at — ported from backend/crates/musk/src/chats.rs.
 /// 
@@ -19,46 +20,15 @@ use serde_json::Value;
 /// - new_id (rand) -> hand-written Rust (rand crate API, like auth.rs)
 /// - ChatStore IO (load/save) -> Auto (specs.rs pattern: .view + serde_json)
 /// 
-/// Cross-module type: crate::specs::SpecChange is re-declared here (self-
-/// contained .at; the real SpecChange lives in specs.at/specs.rs).
+/// Cross-module types: 自 C1(approve_spec_change 移植)起,SpecChange/SpecStatus/
+/// SpecItem/SpecsDocument/SpecsSection/SpecsStore 直接引用真实
+/// crate::auto_generated::specs(不再 self-contained mirror —— mirror 只有
+/// Empty/Draft 两个 SpecStatus,无法支撑 approve 的完整状态机)。ChatSession 与
+/// hw 一样携带 Vec<crate::specs::SpecChange>。
 fn now_sec() -> u64 {
     let now = SystemTime::now();
     let elapsed = now.elapsed().unwrap();
     return elapsed.as_secs();
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SpecChange {
-    pub section_id: String,
-    pub item_id: String,
-    pub title: Option<String>,
-    pub content: Option<String>,
-    pub status: Option<SpecStatus>,
-    pub reason: String,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum SpecStatus {
-    Empty = 1,
-    Draft = 3,
-}
-
-impl std::fmt::Display for SpecStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            SpecStatus::Empty => write!(f, "Empty"),
-            SpecStatus::Draft => write!(f, "Draft"),
-        }
-    }
-}
-impl SpecStatus {
-    pub fn from_id(id: &str) -> Self {
-        match id {
-            "Empty" | "empty" => SpecStatus::Empty,
-            "Draft" | "draft" => SpecStatus::Draft,
-            _ => SpecStatus::Empty
-        }
-    }
 }
 
 /// Who produced a message.
@@ -236,6 +206,62 @@ pub struct ChatSessionSummary {
 /// `k String` 为 owned 参数(Auto str 参数会映射成 &str;String 经 use.rust)。
 fn map_insert(mut m: &mut HashMap<String, ChatSession>, k: String, v: ChatSession) {
     let old: Option<ChatSession> = m.insert(k.to_string(), v.clone());
+}
+
+/// Apply one SpecChange to a specs doc via the ag specs store (mirror of hw
+/// apply_spec_change), 返回更新后的 doc 供调用方保存。跨模块调用标记:
+/// - `.mut` → `&mut d`(a2r 的 fn_mut_params 只注册当前转译单元,对
+/// crate::auto_generated::specs 的方法不注入 &mut;且 `mut p T` 参数发射
+/// `p: &mut T` 缺 `mut` 绑定,`&mut p` 重借会 E0596 —— 所以按值收 doc +
+/// `var d` 本地可变绑定,文档化 a2r 缺口)
+/// - `.view` → `&field`(&str 参数;未知 callee 不自动 borrow owned String)
+fn apply_spec_change_to_doc(doc: SpecsDocument, store: SpecsStore, change: SpecChange) -> Result<SpecsDocument, String> {
+    let mut d: SpecsDocument = doc.clone();
+    match change.status {
+        Some(st) => {
+            let r: Result<bool, String> = store.transition_item(&mut d, &change.section_id, &change.item_id, st);
+            match r {
+                Ok(ok) => return Ok(d),
+                Err(e) => return Err(e),
+            };
+        },
+        None => {
+            
+
+            let mut existing: Option<SpecItem> = None;
+            for s in &d.sections {
+                if s.id == change.section_id {
+                    for it in &s.items {
+                        if it.id == change.item_id {
+                            existing = Some(it.clone())
+                        }
+                    }
+                }
+            }
+            let mut item: SpecItem = SpecItem::new(&change.item_id.as_str(), "");
+            match existing {
+                Some(e) => item = e,
+                None => {},
+            };
+            match change.title {
+                Some(t) => item.title = t.clone(),
+                None => {},
+            };
+            match change.content {
+                Some(c) => item.content = c.clone(),
+                None => {},
+            };
+            if (item.title.len() as i32) == 0 {
+                if (item.content.len() as i32) == 0 {
+                    item.title = "(empty)".to_string()
+                }            }
+            let r: Result<bool, String> = store.upsert_item(&mut d, &change.section_id, item);
+            match r {
+                Ok(ok) => return Ok(d),
+                Err(e) => return Err(e),
+            };
+        },
+    }
 }
 
 /// JSON-file-backed store of chat sessions, keyed by session id.
@@ -481,6 +507,76 @@ impl ChatStore {
                 updated.updated_at = now_sec();
                 map_insert(&mut updated_map, updated.id.clone(), updated.clone());
                 target = Some(updated)
+            } else {
+                map_insert(&mut updated_map, s.id.clone(), s.clone())
+            }
+
+        }
+        if found == false {
+            return Err(format!("{}{}", format!("{}{}", "session '", id), "' not found"));
+        }
+        if self.save_map(updated_map) == false {
+            return Err("write failed".into());
+        }
+        return Ok(target);
+    }
+    pub fn approve_spec_change(&self, id: &str, index: u32, specs: SpecsStore) -> Result<Option<(SpecChange, ChatSession)>, String> {
+        let mut map: HashMap<String, ChatSession> = self.load_map();
+        let mut target: Option<(SpecChange, ChatSession)> = None;
+        let mut found: bool = false;
+        let mut updated_map: HashMap<String, ChatSession> = HashMap::new();
+        for s in map.values() {
+            if s.id == id {
+                found = true;
+                if index >= ((s.pending_spec_changes.len() as i32) as u32) {
+                    return Err("pending change index out of range".into());
+                }                
+
+                let mut pending: Vec<SpecChange> = vec![];
+                let mut change_at: Option<SpecChange> = None;
+                let mut i: u32 = 0 as u32;
+                for c in s.pending_spec_changes.clone() {
+                    if i == index {
+                        change_at = Some(c.clone())
+                    } else {
+                        pending.push(c.clone())
+                    }
+
+                    i = i + 1;
+                }
+                let mut change: SpecChange = SpecChange { section_id: "".to_string(), item_id: "".to_string(), title: None, content: None, status: None, reason: "".to_string() };
+                match change_at {
+                    Some(c) => change = c,
+                    None => {},
+                };
+                
+
+                let doc_result: Result<SpecsDocument, String> = specs.load();
+                match doc_result {
+                    Ok(d) => {
+                        let mut doc: SpecsDocument = d;
+                        let apply_result: Result<SpecsDocument, String> = apply_spec_change_to_doc(doc.clone(), specs.clone(), change.clone());
+                        match apply_result {
+                            Ok(updated_doc) => {
+                                let save_result: Result<String, String> = specs.save(updated_doc);
+                                match save_result {
+                                    Ok(so) => {},
+                                    Err(se) => return Err(se),
+                                };
+                            },
+                            Err(ae) => return Err(ae),
+                        };
+                    },
+                    Err(e) => return Err(e),
+                };
+                
+
+                let mut updated: ChatSession = s.clone();
+                updated.pending_spec_changes = pending;
+                updated.updated_at = now_sec();
+                map_insert(&mut updated_map, updated.id.clone(), updated.clone());
+                let pair = (change.clone(), updated.clone());
+                target = Some(pair)
             } else {
                 map_insert(&mut updated_map, s.id.clone(), s.clone())
             }

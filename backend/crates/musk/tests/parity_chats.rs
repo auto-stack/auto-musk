@@ -233,7 +233,7 @@ fn parity_chat_session_wire_format() {
         }],
         created_at: 100,
         updated_at: 200,
-        pending_spec_changes: vec![ag::SpecChange {
+        pending_spec_changes: vec![musk::auto_generated::specs::SpecChange {
             section_id: "goals".into(),
             item_id: "G1".into(),
             title: Some("new goal".into()),
@@ -540,7 +540,7 @@ fn parity_store_queue_and_reject_spec_change() {
         status: None,
         reason: "agent proposal".into(),
     };
-    let ag_change = ag::SpecChange {
+    let ag_change = musk::auto_generated::specs::SpecChange {
         section_id: "goals".into(),
         item_id: "G1".into(),
         title: Some("new goal".into()),
@@ -595,7 +595,7 @@ fn parity_store_reject_all_spec_changes() {
         ag_store
             .queue_spec_change(
                 &ag_s.id,
-                ag::SpecChange {
+                musk::auto_generated::specs::SpecChange {
                     section_id: "goals".into(),
                     item_id: format!("G{i}"),
                     title: None,
@@ -619,4 +619,165 @@ fn parity_store_reject_all_spec_changes() {
     // Missing session → Err on both.
     assert!(hw_store.reject_all_spec_changes("ghost").is_err());
     assert!(ag_store.reject_all_spec_changes("ghost").is_err());
+}
+
+/// approve_spec_change 对齐:第 11 个方法(本切片完成)。
+/// 状态迁移路径 + upsert 路径 + 错误路径,两边逐一比对。
+#[test]
+fn parity_store_approve_spec_change() {
+    let hw_dir = tempfile::tempdir().unwrap();
+    let ag_dir = tempfile::tempdir().unwrap();
+    let hw_store = hw::ChatStore::at(hw_dir.path().join("chats.json"));
+    let ag_store = ag::ChatStore::at(ag_dir.path().join("chats.json"));
+    let hw_specs = musk::specs::SpecsStore::new(hw_dir.path().join("specs.json"));
+    let ag_specs = musk::auto_generated::specs::SpecsStore::new(ag_dir.path().join("specs.json"));
+
+    // Seed a goal at Empty in both spec docs.
+    let mut hw_doc = hw_specs.load().unwrap();
+    hw_specs
+        .upsert_item(&mut hw_doc, "goals", musk::specs::SpecItem::new("G1", "g"))
+        .unwrap();
+    hw_specs.save(&hw_doc).unwrap();
+    let mut ag_doc = ag_specs.load().unwrap();
+    ag_specs
+        .upsert_item(&mut ag_doc, "goals", musk::auto_generated::specs::SpecItem::new("G1", "g"))
+        .unwrap();
+    ag_specs.save(ag_doc.clone()).unwrap();
+
+    let hw_s = hw_store.create("superpowers", None).unwrap();
+    let ag_s = ag_store.create("superpowers", None).unwrap();
+
+    // ── status-transition path: queue Empty -> Proposed (legal for Goals) ──
+    hw_store
+        .queue_spec_change(
+            &hw_s.id,
+            musk::specs::SpecChange {
+                section_id: "goals".into(),
+                item_id: "G1".into(),
+                title: None,
+                content: None,
+                status: Some(musk::specs::SpecStatus::Proposed),
+                reason: "advance".into(),
+            },
+        )
+        .unwrap();
+    ag_store
+        .queue_spec_change(
+            &ag_s.id,
+            musk::auto_generated::specs::SpecChange {
+                section_id: "goals".into(),
+                item_id: "G1".into(),
+                title: None,
+                content: None,
+                status: Some(musk::auto_generated::specs::SpecStatus::Proposed),
+                reason: "advance".into(),
+            },
+        )
+        .unwrap();
+
+    let (hw_change, hw_session) = hw_store
+        .approve_spec_change(&hw_s.id, 0, &hw_specs)
+        .unwrap()
+        .unwrap();
+    let (ag_change, ag_session) = ag_store
+        .approve_spec_change(&ag_s.id, 0, ag_specs.clone())
+        .unwrap()
+        .unwrap();
+    assert_eq!(hw_change.item_id, "G1");
+    assert_eq!(ag_change.item_id, "G1");
+    assert_eq!(hw_change.section_id, ag_change.section_id);
+    assert!(hw_session.pending_spec_changes.is_empty(), "hw queue must drain");
+    assert!(ag_session.pending_spec_changes.is_empty(), "ag queue must drain");
+
+    // The status landed in the spec doc on both.
+    let hw_doc = hw_specs.load().unwrap();
+    let ag_doc = ag_specs.load().unwrap();
+    let hw_g = hw_doc
+        .sections
+        .iter()
+        .find(|x| x.id == "goals")
+        .unwrap()
+        .items
+        .iter()
+        .find(|i| i.id == "G1")
+        .unwrap();
+    let ag_g = ag_doc
+        .sections
+        .iter()
+        .find(|x| x.id == "goals")
+        .unwrap()
+        .items
+        .iter()
+        .find(|i| i.id == "G1")
+        .unwrap();
+    assert_eq!(hw_g.status.to_str(), "proposed");
+    assert_eq!(ag_g.status.to_str(), "proposed");
+
+    // ── upsert path: title-only change lands in the doc ──
+    hw_store
+        .queue_spec_change(
+            &hw_s.id,
+            musk::specs::SpecChange {
+                section_id: "goals".into(),
+                item_id: "G1".into(),
+                title: Some("approved goal".into()),
+                content: None,
+                status: None,
+                reason: "agent proposal".into(),
+            },
+        )
+        .unwrap();
+    ag_store
+        .queue_spec_change(
+            &ag_s.id,
+            musk::auto_generated::specs::SpecChange {
+                section_id: "goals".into(),
+                item_id: "G1".into(),
+                title: Some("approved goal".into()),
+                content: None,
+                status: None,
+                reason: "agent proposal".into(),
+            },
+        )
+        .unwrap();
+    hw_store.approve_spec_change(&hw_s.id, 0, &hw_specs).unwrap().unwrap();
+    ag_store
+        .approve_spec_change(&ag_s.id, 0, ag_specs.clone())
+        .unwrap()
+        .unwrap();
+
+    let hw_doc2 = hw_specs.load().unwrap();
+    let ag_doc2 = ag_specs.load().unwrap();
+    let hw_g2 = hw_doc2
+        .sections
+        .iter()
+        .find(|x| x.id == "goals")
+        .unwrap()
+        .items
+        .iter()
+        .find(|i| i.id == "G1")
+        .unwrap();
+    let ag_g2 = ag_doc2
+        .sections
+        .iter()
+        .find(|x| x.id == "goals")
+        .unwrap()
+        .items
+        .iter()
+        .find(|i| i.id == "G1")
+        .unwrap();
+    assert_eq!(hw_g2.title, "approved goal");
+    assert_eq!(ag_g2.title, "approved goal");
+
+    // ── error paths ──
+    // Out-of-range index → Err on both.
+    assert!(hw_store.approve_spec_change(&hw_s.id, 5, &hw_specs).is_err());
+    assert!(ag_store
+        .approve_spec_change(&ag_s.id, 5, ag_specs.clone())
+        .is_err());
+    // Missing session → Err on both.
+    assert!(hw_store.approve_spec_change("ghost", 0, &hw_specs).is_err());
+    assert!(ag_store
+        .approve_spec_change("ghost", 0, ag_specs.clone())
+        .is_err());
 }

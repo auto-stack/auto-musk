@@ -6,8 +6,11 @@
 /// - new_id (rand) -> hand-written Rust (rand crate API, like auth.rs)
 /// - ChatStore IO (load/save) -> Auto (specs.rs pattern: .view + serde_json)
 ///
-/// Cross-module type: crate::specs::SpecChange is re-declared here (self-
-/// contained .at; the real SpecChange lives in specs.at/specs.rs).
+/// Cross-module types: 自 C1(approve_spec_change 移植)起,SpecChange/SpecStatus/
+/// SpecItem/SpecsDocument/SpecsSection/SpecsStore 直接引用真实
+/// crate::auto_generated::specs(不再 self-contained mirror —— mirror 只有
+/// Empty/Draft 两个 SpecStatus,无法支撑 approve 的完整状态机)。ChatSession 与
+/// hw 一样携带 Vec<crate::specs::SpecChange>。
 
 use.rust serde::{Serialize, Deserialize}
 use.rust std::collections::HashMap
@@ -15,34 +18,12 @@ use.rust std::path::PathBuf
 use.rust std::fs
 use.rust std::time::{SystemTime, Duration}
 use.rust serde_json::{to_string_pretty, from_slice}
+use.rust crate::auto_generated::specs::{SpecChange, SpecItem, SpecsDocument, SpecsSection, SpecsStore}
 
 fn now_sec() u64 {
     let now = SystemTime.now()
     let elapsed = now.elapsed().unwrap()
     return elapsed.as_secs()
-}
-
-// ============================================================
-// Cross-module: SpecChange (mirrors specs.at; crate::specs::SpecChange)
-// ============================================================
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub type SpecChange {
-    section_id str
-    item_id str
-    title Option<str>
-    content Option<str>
-    status Option<SpecStatus>
-    reason str
-}
-
-// SpecStatus is reused from specs; re-declared as an opaque placeholder here.
-// (Only the variant set matters for serde round-trip; the real impl is in
-// specs.at. We declare it as a scalar enum so ChatSession serializes.)
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub enum SpecStatus {
-    Empty = 1
-    Draft = 3
 }
 
 // ============================================================
@@ -243,6 +224,62 @@ ext ChatSession {
 /// `k String` 为 owned 参数(Auto str 参数会映射成 &str;String 经 use.rust)。
 fn map_insert(mut m HashMap<str, ChatSession>, k String, v ChatSession) void {
     let old Option<ChatSession> = m.insert(k, v)
+}
+
+/// Apply one SpecChange to a specs doc via the ag specs store (mirror of hw
+/// apply_spec_change), 返回更新后的 doc 供调用方保存。跨模块调用标记:
+/// - `.mut` → `&mut d`(a2r 的 fn_mut_params 只注册当前转译单元,对
+///   crate::auto_generated::specs 的方法不注入 &mut;且 `mut p T` 参数发射
+///   `p: &mut T` 缺 `mut` 绑定,`&mut p` 重借会 E0596 —— 所以按值收 doc +
+///   `var d` 本地可变绑定,文档化 a2r 缺口)
+/// - `.view` → `&field`(&str 参数;未知 callee 不自动 borrow owned String)
+fn apply_spec_change_to_doc(doc SpecsDocument, store SpecsStore, change SpecChange) Result<SpecsDocument, str> {
+    var d SpecsDocument = doc
+    is change.status {
+        Some(st) -> {
+            let r Result<bool, str> = store.transition_item(d.mut, change.section_id.view, change.item_id.view, st)
+            is r {
+                Ok(ok) -> return Ok(d),
+                Err(e) -> return Err(e)
+            }
+        },
+        None -> {
+            // 找 existing item(线性查找,s 是 &SpecsSection)
+            var existing Option<SpecItem> = None
+            for s in d.sections {
+                if s.id == change.section_id {
+                    for it in s.items {
+                        if it.id == change.item_id {
+                            existing = Some(it.clone())
+                        }
+                    }
+                }
+            }
+            var item SpecItem = SpecItem.new(change.item_id.view, "")
+            is existing {
+                Some(e) -> { item = e },
+                None -> {}
+            }
+            is change.title {
+                Some(t) -> { item.title = t.clone() },
+                None -> {}
+            }
+            is change.content {
+                Some(c) -> { item.content = c.clone() },
+                None -> {}
+            }
+            if item.title.len() == 0 {
+                if item.content.len() == 0 {
+                    item.title = "(empty)".to_string()
+                }
+            }
+            let r Result<bool, str> = store.upsert_item(d.mut, change.section_id.view, item)
+            is r {
+                Ok(ok) -> return Ok(d),
+                Err(e) -> return Err(e)
+            }
+        }
+    }
 }
 
 // ============================================================
@@ -536,9 +573,75 @@ ext ChatStore {
         return Ok(target)
     }
 
-    // NOTE: approve_spec_change(id, index, specs) 挂起 —— 它要把 SpecChange
-    // 应用进真实 specs 文档(transition_item/upsert_item 的 `&mut doc` 参数)。
-    // a2r 跨模块不注入 `&mut`(fn_mut_params 只在当前转译单元内注册;extern_sigs
-    // 的 @T 只表达 &T)。挂起选项:① C2 extern_impl 委托(apply 交给手写)②
-    // auto-lang 跨模块签名解析(worktree)。queue/reject 系列不涉及跨模块,已移植。
+    /// Approve the spec change at `index`: apply it to the specs doc (upsert
+    /// or status transition via the ag specs store), then remove it from the
+    /// pending queue. Returns the applied change + updated session, or Err if
+    /// session/index not found. 残差: hw 取 `&SpecsStore`,a2r 无法表达 & 方法
+    /// 参数 —— by-value + clone,文档化。
+    pub fn approve_spec_change(id str, index uint, specs SpecsStore) Result<Option<(SpecChange, ChatSession)>, str> {
+        var map HashMap<str, ChatSession> = self.load_map()
+        var target Option<(SpecChange, ChatSession)> = None
+        var found bool = false
+        var updated_map HashMap<str, ChatSession> = HashMap.new()
+        for s in map.values() {
+            if s.id == id {
+                found = true
+                if index >= s.pending_spec_changes.len() as uint {
+                    return Err("pending change index out of range")
+                }
+                // 提取 index 处的 change + 重建 pending 列表
+                var pending List<SpecChange> = []
+                var change_at Option<SpecChange> = None
+                var i uint = 0
+                for c in s.pending_spec_changes.clone() {
+                    if i == index {
+                        change_at = Some(c.clone())
+                    } else {
+                        pending.push(c)
+                    }
+                    i = i + 1u
+                }
+                var change SpecChange = SpecChange(section_id: "", item_id: "", title: None, content: None, status: None, reason: "")
+                is change_at {
+                    Some(c) -> { change = c },
+                    None -> {}
+                }
+                // 应用进 specs 文档(specs 走 clone —— 后面还要 specs.save(doc))
+                let doc_result Result<SpecsDocument, str> = specs.load()
+                is doc_result {
+                    Ok(d) -> {
+                        var doc SpecsDocument = d
+                        let apply_result Result<SpecsDocument, str> = apply_spec_change_to_doc(doc, specs.clone(), change.clone())
+                        is apply_result {
+                            Ok(updated_doc) -> {
+                                let save_result Result<str, str> = specs.save(updated_doc)
+                                is save_result {
+                                    Ok(so) -> {},
+                                    Err(se) -> return Err(se)
+                                }
+                            },
+                            Err(ae) -> return Err(ae)
+                        }
+                    },
+                    Err(e) -> return Err(e)
+                }
+                // 重建 session(去掉已批准的 change)+ 保存 chats
+                var updated ChatSession = s.clone()
+                updated.pending_spec_changes = pending
+                updated.updated_at = now_sec()
+                map_insert(updated_map, updated.id.clone(), updated.clone())
+                let pair = (change.clone(), updated.clone())
+                target = Some(pair)
+            } else {
+                map_insert(updated_map, s.id.clone(), s.clone())
+            }
+        }
+        if found == false {
+            return Err("session '" + id + "' not found")
+        }
+        if self.save_map(updated_map) == false {
+            return Err("write failed")
+        }
+        return Ok(target)
+    }
 }

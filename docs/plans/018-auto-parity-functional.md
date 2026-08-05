@@ -434,9 +434,8 @@ C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
 - **a2r-11 就地修改 ⛔→🔧(auto-lang worktree)**:
   ag store 写方法(upsert/transition/delete)被迫函数式返回新 doc,hw 用 `&mut doc`
   就地改。修复:a2r 支持 `&mut` 参数 + 集合元素就地修改(重大特性,worktree 开发)。
-- **chats 缺 11 个 CRUD 方法 🔧(10/11 完成,2026-08-05)**:ag ChatStore 已补
-  create/list/get/rename/delete/delete_all/append_message/queue/reject/reject_all;
-  approve_spec_change 挂起(跨模块 &mut 调用 ag specs store,见 §12 C1)。
+- **chats 缺 11 个 CRUD 方法 ✅(2026-08-05)**:ag ChatStore 11 个方法全部移植
+  (含 approve_spec_change,见 §12 C1)。
 - **workspace stores 41 处级联 🔶(重新评估)**:
   C2 extern_impl 委托路径若成立,store swap 可能非必需 —— 级联作为最后手段,
   优先走"ag handler 委托 + 状态码模型"的完整接线。
@@ -497,17 +496,22 @@ C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
   (`section 'x' not found` / `item 'x' not found in 'y'`)。
 - a2r golden 303 通过 0 失败;musk 全套测试通过(199 lib + 各 parity 套件)。
 
-### C1 chats CRUD 移植(2026-08-05)🔧 10/11
-- **ag ChatStore 补 10 个 CRUD 方法**:create/list/get/rename/delete/delete_all/
-  append_message/queue_spec_change/reject_spec_change/reject_all_spec_changes,
-  基于 load_map/save_map + `HashMap<str, ChatSession>` 的 values() 线性查找 +
-  insert 重建 map 模式(不碰 HashMap.remove/contains_key —— a2r-10 对 String key
-  缺 `&`)。
+### C1 chats CRUD 移植(2026-08-05)✅ 11/11
+- **ag ChatStore 补 11 个 CRUD 方法**:create/list/get/rename/delete/delete_all/
+  append_message/queue_spec_change/reject_spec_change/reject_all_spec_changes/
+  approve_spec_change,基于 load_map/save_map + `HashMap<str, ChatSession>` 的
+  values() 线性查找 + insert 重建 map 模式(不碰 HashMap.remove/contains_key ——
+  a2r-10 对 String key 缺 `&`)。
 - **list 手动稳定插入排序**(降序 by updated_at;a2r List 无闭包 sort_by)。
-- **approve_spec_change 挂起**:它要把 SpecChange 应用进真实 specs 文档
-  (transition_item/upsert_item 的 `&mut doc`),而 a2r 跨模块不注入 `&mut`
-  (fn_mut_params 只在当前转译单元注册;extern_sigs 的 @T 只表达 &T)。挂起选项:
-  ① C2 extern_impl 委托(apply 交手写)② auto-lang 跨模块签名解析(worktree)。
+- **approve_spec_change(第 11 个)**:chats.at 去掉 mirror SpecChange/SpecStatus,
+  直接引用真实 `crate::auto_generated::specs` 类型(ChatSession 与 hw 一样携带
+  `Vec<crate::specs::SpecChange>`)。spec 应用走 ag specs store 的
+  transition_item/upsert_item(刚对齐的 `&mut doc` 签名)——跨模块调用用显式标记:
+  - `.mut` → `&mut doc`(a2r 的 fn_mut_params 只注册当前转译单元,对
+    crate::auto_generated::specs 的方法不注入 &mut)
+  - `.view` → `&field`(&str 参数;未知 callee 不自动 borrow owned String)
+  - **a2r 缺口**:`mut p T` 参数发射 `p: &mut T` 缺 `mut` 绑定,`&mut p` 重借
+    E0596 → apply 辅助按值收 doc + `var d` 本地可变绑定,返回更新后的 doc。
 - **顺带发现 3 个 a2r codegen 缺口(均有 .at 变通 + 文档)**:
   1. `.append(...)` 无条件重映射为 `.push_str(...)`(String 方法表,对 struct
      receiver 误伤)→ ag ChatSession 方法命名 `push_message`。
@@ -515,8 +519,8 @@ C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
      漏成尾类型 → `map_insert` 辅助(绑定结果到 let,返回 void)。
   3. `fix_result_none_unit` 把字面 `Ok(None)` 无条件改 `Ok(())`(破坏
      `Result<Option<T>, _>` 返回)→ not-found 分支写 `return Ok(target)`。
-- parity:新增 7 个 store CRUD 对齐测试(create+get / list 结构+排序 / rename
+- parity:新增 8 个 store CRUD 对齐测试(create+get / list 结构+排序 / rename
   持久化 / delete+delete_all / append_message 自动命名+持久化 / queue+reject /
-  reject_all);parity_chats 16/16 通过。
+  reject_all / approve 状态迁移+upsert+错误路径);parity_chats 17/17 通过。
 - 残差:ag id 为 extern new_id stub 产 16 位 hex(hw new_id(12) 为 24 位)——extern
   stub 既有差异,非本移植引入;parity 只比结构不比 id。
