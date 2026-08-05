@@ -411,3 +411,38 @@ C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
   行为保真的生产接线(C3)待 a2r/server.at 支持 handler 错误状态码 —— 新的 dogfooding 目标。
 - **C1 现状**:auth 已接线(①);specs/wiki/chats 受 workspace stores 41 处级联 + a2r-11
   写方法 + chats 缺 11 个 CRUD 方法阻塞(见 §11 ②③④ 实测阻塞)。
+
+---
+
+## 12. Phase C 阻塞修复（2026-08-05 起）
+
+> 目标:清除 C1/C3 的阻塞,让"Auto 版跑起来"继续推进。
+
+### C3 — ag server 无 HTTP 状态码模型 ⛔→🔧
+- **现象**:ag handler 一律 `~Json<T>`,无法表达 401/500(设计注释:"错误也用 DTO,
+  状态码在外壳层处理",但外壳层从未实现)。
+- **修复方案(实测可行,auto-musk 单侧,无需 a2r)**:
+  1. extern_impl 加 `ok_response<T: Serialize>(v) -> Response` +
+     `err_response(msg: &str, code: u16) -> Response`(构建 `(StatusCode, Json(ApiError))`)。
+  2. server.at handler 返回 `~Response`,成功 `ok_response(LoginResponse(...))`,
+     失败 `err_response("invalid credentials", 401u)`。a2r 已验证可表达 `~Response`。
+  3. 修完 auth_login/auth_me(401 语义保真)后,把 ag auth 路由接入 serve()
+     (替换手写 auth handler)→ 行为保真的生产接线成立。
+
+### C1 — 数据层 swap 三阻塞
+- **a2r-11 就地修改 ⛔→🔧(auto-lang worktree)**:
+  ag store 写方法(upsert/transition/delete)被迫函数式返回新 doc,hw 用 `&mut doc`
+  就地改。修复:a2r 支持 `&mut` 参数 + 集合元素就地修改(重大特性,worktree 开发)。
+- **chats 缺 11 个 CRUD 方法 ⛔→🔧(auto-musk)**:
+  chats.at 移植 ChatStore 的 create/list/get/append_message/summary 等(仿 specs.at)。
+- **workspace stores 41 处级联 🔶(重新评估)**:
+  C2 extern_impl 委托路径若成立,store swap 可能非必需 —— 级联作为最后手段,
+  优先走"ag handler 委托 + 状态码模型"的完整接线。
+
+### C3 完成状态(2026-08-05)✅
+- extern_impl `ok_response`/`err_response` helper 落地(auth 401 保真)。
+- server.at auth_login/auth_me 返 `~Response`,失败 401。
+- serve() 接入 ag auth 路由,**生产 auth 端点完全转译**(handler+DTO+store),
+  手写 auth handlers 删除。
+- 测试:真实 token + wire 形状 + bad-credentials→401 + logout→401。
+- **C3 主要阻塞已清除**(auth 切片);其余端点(specs/workspace/chats)同模式扩展。
