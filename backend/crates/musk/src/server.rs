@@ -125,7 +125,7 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
 
     let app = Router::new()
         .route("/api/health", get(health))
-        .route("/api/professions", get(professions))
+        .route("/api/professions", get(crate::auto_generated::server::professions))
         .route("/api/run", post(run))
         .route("/api/run/stream", post(run_stream_handler))
         .route("/api/workflows", get(workflows))
@@ -144,12 +144,12 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/specs/drift-check", post(crate::auto_generated::server::specs_drift_check))
         .route("/api/specs/rebuild-relations", post(crate::auto_generated::server::specs_rebuild_relations))
         .route("/api/specs/related/{item_id}", get(crate::auto_generated::server::specs_related))
-        .route("/api/config", get(config_overview))
-        .route("/api/modes", get(modes_list))
-        .route("/api/skills", get(skills_list))
-        // Plan 004: Agent Roles — list / detail / save / delete.
-        .route("/api/roles", get(roles_list))
-        .route("/api/roles/{name}", get(role_detail).put(role_save).delete(role_delete))
+        .route("/api/config", get(crate::auto_generated::server::config_overview))
+        .route("/api/modes", get(crate::auto_generated::server::modes_list))
+        .route("/api/skills", get(crate::auto_generated::server::skills_list))
+        // Plan 004: Agent Roles — list / detail / save / delete (③ 转译 handler 驱动)。
+        .route("/api/roles", get(crate::auto_generated::server::roles_list))
+        .route("/api/roles/{name}", get(crate::auto_generated::server::role_detail).put(crate::auto_generated::server::role_save).delete(crate::auto_generated::server::role_delete))
         // App runtime config (musk): how it connects to the daemon, default mode, etc.
         .route("/api/app-config", get(app_config_get).put(app_config_save))
         // Service registry proxy: musk → aaid → ensure os-config → return URL.
@@ -231,249 +231,10 @@ pub struct LoginResponse {
 //    auto_generated::server::auth_login/auth_me/auth_logout —— 原手写版已删除) ──
 
 // ── Spec Ledger endpoints ───────────────────────────────────────────────────
-
-async fn professions() -> impl IntoResponse {
-    let list: Vec<serde_json::Value> = builtin_names()
-        .iter()
-        .filter_map(|name| {
-            load_builtin(name).map(|p| {
-                json!({
-                    "name": name,
-                    "tier": format!("{:?}", p.model_tier()).to_lowercase(),
-                    "model": p.model(),
-                    "temperature": p.temperature(),
-                    "max_turns": p.max_turns(),
-                })
-            })
-        })
-        .collect();
-    Json(json!({"professions": list}))
-}
-
 // ── Wiki (Flows) ── relay routes now live in `crate::relay::api`. ──────────
 
 // ── Config page endpoints ───────────────────────────────────────────────────
-
-/// `GET /api/config` — combined overview of modes, professions, skills.
-async fn config_overview() -> impl IntoResponse {
-    let reg = crate::mode::ModeRegistry::load();
-    let modes: Vec<serde_json::Value> = reg
-        .names()
-        .iter()
-        .filter_map(|n| {
-            reg.get(n).map(|m| {
-                json!({
-                    "name": m.name,
-                    "description": m.description,
-                    "role": m.role,
-                    "skills": m.skills,
-                    "tool_count": m.tools.len(),
-                })
-            })
-        })
-        .collect();
-
-    let profs: Vec<serde_json::Value> = auto_ai_agent::builtin_names()
-        .iter()
-        .filter_map(|name| {
-            auto_ai_agent::load_builtin(name).map(|p| {
-                json!({
-                    "name": name,
-                    "tier": format!("{:?}", p.model_tier()).to_lowercase(),
-                    "temperature": p.temperature(),
-                    "max_turns": p.max_turns(),
-                })
-            })
-        })
-        .collect();
-
-    let skills_dir = dirs::home_dir().map(|h| h.join(".config/autoos/skills"));
-    let skills: Vec<serde_json::Value> = if let Some(dir) = skills_dir {
-        let reg = std::sync::Arc::new(auto_ai_agent::SkillRegistry::scan(&dir));
-        reg.descriptions()
-            .iter()
-            .map(|(name, desc)| json!({ "name": name, "description": desc }))
-            .collect()
-    } else {
-        vec![]
-    };
-
-    Json(json!({ "modes": modes, "professions": profs, "skills": skills }))
-}
-
-/// `GET /api/modes` — list all agent modes.
-async fn modes_list() -> impl IntoResponse {
-    let reg = crate::mode::ModeRegistry::load();
-    let modes: Vec<serde_json::Value> = reg
-        .names()
-        .iter()
-        .filter_map(|n| {
-            reg.get(n).map(|m| {
-                json!({
-                    "name": m.name,
-                    "description": m.description,
-                    "role": m.role,
-                    "skills": m.skills,
-                    "tool_count": m.tools.len(),
-                })
-            })
-        })
-        .collect();
-    Json(json!({ "modes": modes }))
-}
-
-/// `GET /api/skills` — list all configured skills.
-async fn skills_list() -> impl IntoResponse {
-    let skills_dir = dirs::home_dir().map(|h| h.join(".config/autoos/skills"));
-    let skills: Vec<serde_json::Value> = if let Some(dir) = skills_dir {
-        let reg = std::sync::Arc::new(auto_ai_agent::SkillRegistry::scan(&dir));
-        reg.descriptions()
-            .iter()
-            .map(|(name, desc)| json!({ "name": name, "description": desc }))
-            .collect()
-    } else {
-        vec![]
-    };
-    Json(json!({ "skills": skills }))
-}
-
 // ── Plan 004: Agent Roles endpoints ─────────────────────────────────────────
-
-/// `GET /api/roles` — list all roles (built-in + user). Built-ins are flagged.
-async fn roles_list() -> impl IntoResponse {
-    let reg = auto_ai_agent::RoleRegistry::load();
-    let roles: Vec<serde_json::Value> = reg
-        .list()
-        .iter()
-        .map(|r| {
-            json!({
-                "name": r.name,
-                "description": r.description,
-                "tier": format!("{:?}", r.tier).to_lowercase(),
-                "allowed_tiers": r.allowed_tiers.iter()
-                    .map(|t| format!("{:?}", t).to_lowercase())
-                    .collect::<Vec<_>>(),
-                "skills": r.skills,
-                "skill_count": r.skills.len(),
-                "token_budget": r.token_budget,
-                "is_builtin": r.is_builtin,
-            })
-        })
-        .collect();
-    Json(json!({ "roles": roles }))
-}
-
-/// `GET /api/roles/{name}` — full detail of one role, including the Soul md.
-async fn role_detail(axum::extract::Path(name): axum::extract::Path<String>) -> impl IntoResponse {
-    let reg = auto_ai_agent::RoleRegistry::load();
-    match reg.get(&name) {
-        Some(d) => {
-            let cfg = &d.config;
-            Json(json!({
-                "name": d.summary.name,
-                "description": d.summary.description,
-                "tier": format!("{:?}", d.summary.tier).to_lowercase(),
-                "allowed_tiers": d.summary.allowed_tiers.iter()
-                    .map(|t| format!("{:?}", t).to_lowercase())
-                    .collect::<Vec<_>>(),
-                "skills": d.summary.skills,
-                "token_budget": d.summary.token_budget,
-                "is_builtin": d.summary.is_builtin,
-                "soul": d.soul,
-                "soul_from_file": d.soul_from_file,
-                "temperature": cfg.temperature,
-                "max_turns": cfg.max_turns,
-                "inherit": cfg.inherit,
-                "tools": cfg.tools.clone().unwrap_or_default(),
-                "model": cfg.model,
-                "soul_file": cfg.soul_file,
-            }))
-            .into_response()
-        }
-        None => (StatusCode::NOT_FOUND, format!("role '{name}' not found")).into_response(),
-    }
-}
-
-/// `PUT /api/roles/{name}` body.
-#[derive(Debug, Deserialize)]
-struct RoleSaveBody {
-    description: Option<String>,
-    #[serde(default)]
-    tier: Option<String>,
-    #[serde(default)]
-    allowed_tiers: Vec<String>,
-    #[serde(default)]
-    skills: Vec<String>,
-    token_budget: Option<u64>,
-    temperature: Option<f64>,
-    max_turns: Option<usize>,
-    inherit: Option<String>,
-    #[serde(default)]
-    tools: Vec<String>,
-    model: Option<String>,
-    /// The Soul markdown body. When Some, written to the sidecar .soul.md.
-    #[serde(default)]
-    soul: Option<String>,
-}
-
-/// `PUT /api/roles/{name}` — create or overwrite a user role.
-async fn role_save(
-    axum::extract::Path(name): axum::extract::Path<String>,
-    Json(body): Json<RoleSaveBody>,
-) -> impl IntoResponse {
-    use auto_ai_agent::{parse_tier_field, RoleConfig};
-    let cfg = RoleConfig {
-        name: Some(name.clone()),
-        description: body.description,
-        inherit: body.inherit,
-        model: body.model,
-        model_tier: body.tier.as_deref().and_then(parse_tier_field),
-        temperature: body.temperature,
-        max_turns: body.max_turns,
-        allowed_tiers: if body.allowed_tiers.is_empty() {
-            None
-        } else {
-            Some(body.allowed_tiers.iter().filter_map(|s| parse_tier_field(s)).collect())
-        },
-        skills: if body.skills.is_empty() { None } else { Some(body.skills) },
-        token_budget: body.token_budget,
-        tools: if body.tools.is_empty() { None } else { Some(body.tools) },
-        soul_file: None, // set by save() when soul is provided
-        system_prompt: None,
-        system_prompt_append: None,
-        tools_append: None,
-        memory_limit: None,
-    };
-    let reg = auto_ai_agent::RoleRegistry::load();
-    match reg.save(&name, cfg, body.soul.as_deref()) {
-        Ok(_) => Json(json!({"status": "saved", "name": name})).into_response(),
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            format!("failed to save role '{name}': {e}"),
-        )
-            .into_response(),
-    }
-}
-
-/// `DELETE /api/roles/{name}` — delete a user role (built-ins: 403).
-async fn role_delete(axum::extract::Path(name): axum::extract::Path<String>) -> impl IntoResponse {
-    let reg = auto_ai_agent::RoleRegistry::load();
-    match reg.delete(&name) {
-        Ok(_) => Json(json!({"status": "deleted", "name": name})).into_response(),
-        Err(e) => {
-            // Built-in roles → 403; not-found → 404; else 400.
-            let code = if e.to_string().contains("built-in") {
-                StatusCode::FORBIDDEN
-            } else if e.to_string().contains("not found") {
-                StatusCode::NOT_FOUND
-            } else {
-                StatusCode::BAD_REQUEST
-            };
-            (code, e.to_string()).into_response()
-        }
-    }
-}
-
 // ── App runtime config (musk) ───────────────────────────────────────────────
 //
 // ── App runtime config (musk) ───────────────────────────────────────────────
@@ -2011,6 +1772,70 @@ mod tests {
         assert_eq!(v["workspace"], default_id);
 
         let _ = std::fs::remove_dir_all(&open_path);
+    }
+
+    /// ③ config 页接线验收:professions/config/modes/skills/roles 读端点由转译
+    /// handler 服务(经 extern_impl 委托到真实 registry),wire 与 hw 一致。
+    /// (role save/delete 会写用户真实 ~/.config/autoos/roles —— 不在此测。)
+    #[tokio::test]
+    async fn config_endpoints_run_on_transpiled_handlers() {
+        use axum::body::Body;
+        use crate::auto_generated::server as ag_server;
+        use tower::ServiceExt;
+
+        let app = axum::Router::new()
+            .route("/api/professions", axum::routing::get(ag_server::professions))
+            .route("/api/config", axum::routing::get(ag_server::config_overview))
+            .route("/api/modes", axum::routing::get(ag_server::modes_list))
+            .route("/api/skills", axum::routing::get(ag_server::skills_list))
+            .route("/api/roles", axum::routing::get(ag_server::roles_list))
+            .with_state(tmp_state());
+
+        let get = |uri: String| {
+            let app = app.clone();
+            async move {
+                let resp = app
+                    .oneshot(
+                        axum::http::Request::builder()
+                            .method("GET")
+                            .uri(uri)
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap();
+                assert_eq!(resp.status(), 200, "GET should be 200");
+                let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+                serde_json::from_slice::<serde_json::Value>(&body).unwrap()
+            }
+        };
+
+        // professions:builtin 有数据,每项含 name/tier/model。
+        let v = get("/api/professions".to_string()).await;
+        let profs = v["professions"].as_array().unwrap();
+        assert!(!profs.is_empty(), "builtin professions expected");
+        assert!(profs[0]["name"].is_string());
+        assert!(profs[0]["tier"].is_string());
+
+        // modes:数组形状(空与否取决于用户配置)。
+        let v = get("/api/modes".to_string()).await;
+        assert!(v["modes"].is_array());
+
+        // skills:数组形状。
+        let v = get("/api/skills".to_string()).await;
+        assert!(v["skills"].is_array());
+
+        // config:三个键齐全。
+        let v = get("/api/config".to_string()).await;
+        assert!(v["modes"].is_array());
+        assert!(v["professions"].is_array());
+        assert!(v["skills"].is_array());
+
+        // roles:builtin 有数据,每项含 name/tier/is_builtin。
+        let v = get("/api/roles".to_string()).await;
+        let roles = v["roles"].as_array().unwrap();
+        assert!(!roles.is_empty(), "builtin roles expected");
+        assert!(roles[0]["name"].is_string());
     }
 
     #[tokio::test]

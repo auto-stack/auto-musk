@@ -246,14 +246,190 @@ pub fn specs_list() -> String { String::new() }
 pub fn specs_write(_s: String, _c: String) -> String { "ok".into() }
 pub fn specs_update(_a: String, _s: String, _v: Value) -> String { "ok".into() }
 pub fn specs_write_goals(_g: String) -> String { "ok".into() }
-pub fn professions_list() -> Vec<ProfessionItem> { vec![] }
-pub fn config_build() -> ConfigOverview { ConfigOverview { modes: vec![], professions: vec![], skills: vec![] } }
-pub fn modes_all() -> Vec<ModeItem> { vec![] }
-pub fn skills_all() -> Vec<String> { vec![] }
-pub fn roles_all() -> Vec<RoleItem> { vec![] }
-pub fn role_get<T>(_p: &T) -> RoleDetail { RoleDetail { name: String::new(), tier: String::new(), model: String::new(), temperature: 0.7, system_prompt: String::new() } }
-pub fn role_save_of<T,U>(_p: &T, _b: U) {}
-pub fn role_delete_of<T>(_p: &T) {}
+/// ③ 委托(config 页):professions/config/modes/skills/roles 走真实 registry,
+/// 返回 hw wire 形状的 Value。
+pub fn professions_list() -> Value {
+    let list: Vec<serde_json::Value> = auto_ai_agent::builtin_names()
+        .iter()
+        .filter_map(|name| {
+            auto_ai_agent::load_builtin(name).map(|p| {
+                serde_json::json!({
+                    "name": name,
+                    "tier": format!("{:?}", p.model_tier()).to_lowercase(),
+                    "model": p.model(),
+                    "temperature": p.temperature(),
+                    "max_turns": p.max_turns(),
+                })
+            })
+        })
+        .collect();
+    serde_json::to_value(list).unwrap_or(Value::Null)
+}
+pub fn config_build() -> Value {
+    let reg = crate::mode::ModeRegistry::load();
+    let modes: Vec<serde_json::Value> = reg
+        .names()
+        .iter()
+        .filter_map(|n| {
+            reg.get(n).map(|m| {
+                serde_json::json!({
+                    "name": m.name,
+                    "description": m.description,
+                    "role": m.role,
+                    "skills": m.skills,
+                    "tool_count": m.tools.len(),
+                })
+            })
+        })
+        .collect();
+    let profs: Vec<serde_json::Value> = auto_ai_agent::builtin_names()
+        .iter()
+        .filter_map(|name| {
+            auto_ai_agent::load_builtin(name).map(|p| {
+                serde_json::json!({
+                    "name": name,
+                    "tier": format!("{:?}", p.model_tier()).to_lowercase(),
+                    "temperature": p.temperature(),
+                    "max_turns": p.max_turns(),
+                })
+            })
+        })
+        .collect();
+    let skills_dir = dirs::home_dir().map(|h| h.join(".config/autoos/skills"));
+    let skills: Vec<serde_json::Value> = if let Some(dir) = skills_dir {
+        let sreg = std::sync::Arc::new(auto_ai_agent::SkillRegistry::scan(&dir));
+        sreg.descriptions()
+            .iter()
+            .map(|(name, desc)| serde_json::json!({ "name": name, "description": desc }))
+            .collect()
+    } else {
+        vec![]
+    };
+    serde_json::to_value(serde_json::json!({ "modes": modes, "professions": profs, "skills": skills }))
+        .unwrap_or(Value::Null)
+}
+pub fn modes_all() -> Value {
+    let reg = crate::mode::ModeRegistry::load();
+    let modes: Vec<serde_json::Value> = reg
+        .names()
+        .iter()
+        .filter_map(|n| {
+            reg.get(n).map(|m| {
+                serde_json::json!({
+                    "name": m.name,
+                    "description": m.description,
+                    "role": m.role,
+                    "skills": m.skills,
+                    "tool_count": m.tools.len(),
+                })
+            })
+        })
+        .collect();
+    serde_json::to_value(modes).unwrap_or(Value::Null)
+}
+pub fn skills_all() -> Value {
+    let skills_dir = dirs::home_dir().map(|h| h.join(".config/autoos/skills"));
+    let skills: Vec<serde_json::Value> = if let Some(dir) = skills_dir {
+        let reg = std::sync::Arc::new(auto_ai_agent::SkillRegistry::scan(&dir));
+        reg.descriptions()
+            .iter()
+            .map(|(name, desc)| serde_json::json!({ "name": name, "description": desc }))
+            .collect()
+    } else {
+        vec![]
+    };
+    serde_json::to_value(skills).unwrap_or(Value::Null)
+}
+pub fn roles_all() -> Value {
+    let reg = auto_ai_agent::RoleRegistry::load();
+    let roles: Vec<serde_json::Value> = reg
+        .list()
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "name": r.name,
+                "description": r.description,
+                "tier": format!("{:?}", r.tier).to_lowercase(),
+                "allowed_tiers": r.allowed_tiers.iter()
+                    .map(|t| format!("{:?}", t).to_lowercase())
+                    .collect::<Vec<_>>(),
+                "skills": r.skills,
+                "skill_count": r.skills.len(),
+                "token_budget": r.token_budget,
+                "is_builtin": r.is_builtin,
+            })
+        })
+        .collect();
+    serde_json::to_value(roles).unwrap_or(Value::Null)
+}
+pub fn role_get(p: &Path<String>) -> Value {
+    let reg = auto_ai_agent::RoleRegistry::load();
+    match reg.get(&p.0) {
+        Some(d) => {
+            let cfg = &d.config;
+            serde_json::to_value(serde_json::json!({
+                "name": d.summary.name,
+                "description": d.summary.description,
+                "tier": format!("{:?}", d.summary.tier).to_lowercase(),
+                "allowed_tiers": d.summary.allowed_tiers.iter()
+                    .map(|t| format!("{:?}", t).to_lowercase())
+                    .collect::<Vec<_>>(),
+                "skills": d.summary.skills,
+                "token_budget": d.summary.token_budget,
+                "is_builtin": d.summary.is_builtin,
+                "soul": d.soul,
+                "soul_from_file": d.soul_from_file,
+                "temperature": cfg.temperature,
+                "max_turns": cfg.max_turns,
+                "inherit": cfg.inherit,
+                "tools": cfg.tools.clone().unwrap_or_default(),
+                "model": cfg.model,
+                "soul_file": cfg.soul_file,
+            }))
+            .unwrap_or(Value::Null)
+        }
+        None => Value::Null,
+    }
+}
+pub fn role_save_of(p: &Path<String>, b: Json<crate::auto_generated::server::RoleSaveBody>) -> Value {
+    use auto_ai_agent::{parse_tier_field, RoleConfig};
+    let cfg = RoleConfig {
+        name: Some(p.0.clone()),
+        description: b.description.clone(),
+        inherit: b.inherit.clone(),
+        model: b.model.clone(),
+        model_tier: b.tier.as_deref().and_then(parse_tier_field),
+        temperature: b.temperature,
+        max_turns: b.max_turns,
+        allowed_tiers: if b.allowed_tiers.is_empty() {
+            None
+        } else {
+            Some(b.allowed_tiers.iter().filter_map(|s| parse_tier_field(s)).collect())
+        },
+        skills: if b.skills.is_empty() { None } else { Some(b.skills.clone()) },
+        token_budget: b.token_budget,
+        tools: if b.tools.is_empty() { None } else { Some(b.tools.clone()) },
+        soul_file: None,
+        system_prompt: b.system_prompt.clone(),
+        system_prompt_append: None,
+        tools_append: None,
+        memory_limit: None,
+    };
+    let reg = auto_ai_agent::RoleRegistry::load();
+    match reg.save(&p.0, cfg, b.soul.as_deref()) {
+        Ok(_) => serde_json::to_value(serde_json::json!({ "status": "saved", "name": p.0 }))
+            .unwrap_or(Value::Null),
+        Err(_) => Value::Null,
+    }
+}
+pub fn role_delete_of(p: &Path<String>) -> Value {
+    let reg = auto_ai_agent::RoleRegistry::load();
+    match reg.delete(&p.0) {
+        Ok(_) => serde_json::to_value(serde_json::json!({ "status": "deleted", "name": p.0 }))
+            .unwrap_or(Value::Null),
+        Err(_) => Value::Null,
+    }
+}
 pub fn role_name<T>(_r: T) -> String { String::new() }
 pub fn role_system_prompt<T>(_r: &T) -> String { String::new() }
 pub fn role_model<T>(_r: T) -> String { String::new() }

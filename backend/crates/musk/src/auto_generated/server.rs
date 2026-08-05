@@ -183,6 +183,14 @@ pub struct RoleSaveBody {
     pub tier: Option<String>,
     pub system_prompt: Option<String>,
     pub temperature: Option<f64>,
+    pub description: Option<String>,
+    pub inherit: Option<String>,
+    pub allowed_tiers: Vec<String>,
+    pub skills: Vec<String>,
+    pub token_budget: Option<u64>,
+    pub max_turns: Option<usize>,
+    pub tools: Vec<String>,
+    pub soul: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -420,44 +428,44 @@ pub async fn specs_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<
     return Json(Deleted { status: "deleted".to_string(), id: id.to_string() });
 }
 
-async fn professions() -> Json<ProfessionsResp> {
+pub async fn professions() -> Json<Value> {
     let list = professions_list();
-    return Json(ProfessionsResp { professions: list });
+    return Json(serde_json::json!({ "professions": list }));
 }
 
-async fn config_overview() -> Json<ConfigOverview> {
+pub async fn config_overview() -> Json<Value> {
     let cfg = config_build();
     return Json(cfg);
 }
 
-async fn modes_list() -> Json<ModesResp> {
+pub async fn modes_list() -> Json<Value> {
     let list = modes_all();
-    return Json(ModesResp { modes: list });
+    return Json(serde_json::json!({ "modes": list }));
 }
 
-async fn skills_list() -> Json<SkillsResp> {
+pub async fn skills_list() -> Json<Value> {
     let list = skills_all();
-    return Json(SkillsResp { skills: list });
+    return Json(serde_json::json!({ "skills": list }));
 }
 
-async fn roles_list() -> Json<RolesResp> {
+pub async fn roles_list() -> Json<Value> {
     let list = roles_all();
-    return Json(RolesResp { roles: list });
+    return Json(serde_json::json!({ "roles": list }));
 }
 
-async fn role_detail(p: Path<String>) -> Json<RoleDetail> {
+pub async fn role_detail(p: Path<String>) -> Json<Value> {
     let detail = role_get(&p);
     return Json(detail);
 }
 
-async fn role_save(p: Path<String>, body: Json<RoleSaveBody>) -> Json<Saved> {
-    role_save_of(&p, body);
-    return Json(Saved { status: "saved".to_string(), name: path_inner(&p).to_string() });
+pub async fn role_save(p: Path<String>, body: Json<RoleSaveBody>) -> Json<Value> {
+    let resp = role_save_of(&p, body);
+    return Json(resp);
 }
 
-async fn role_delete(p: Path<String>) -> Json<Deleted> {
-    role_delete_of(&p);
-    return Json(Deleted { status: "deleted".to_string(), id: path_inner(&p).to_string() });
+pub async fn role_delete(p: Path<String>) -> Json<Value> {
+    let resp = role_delete_of(&p);
+    return Json(resp);
 }
 
 async fn app_config_get() -> Json<AppConfigResp> {
