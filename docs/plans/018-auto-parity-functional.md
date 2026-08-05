@@ -6,7 +6,7 @@
 > **仓库**：auto-musk（`backend/crates/musk/`）+ auto-lang（a2r 转译器）。
 > **目标**：让 Auto(.at) 版本经 a2r 转译产出的 Rust，在**公共 API 签名**和**运行行为**上与手写 Rust 一致（单测等价），全模块覆盖。接线运行作为后续独立计划。
 > **战略定位**：本计划是 **Auto 语言的 dogfooding 工程**——在真实的 Auto/Rust 项目实践中发现 a2r 的不足，逐项改进转译器，推动 Auto 真正成为 Rust 生态的开发语言。a2r 限制不是"既定约束"，而是**要消灭的对象**。
-> **Phase 3 进度**：wiki 试点 ✅（§10）+ task_plan 3.3 ✅（§10.5，2026-08-05，17/17 parity）。
+> **Phase 3 进度**：wiki 试点 ✅（§10）+ task_plan 3.3 ✅（§10.5）+ handoff_store 3.5 ✅（§10.6，2026-08-05）。
 
 ---
 
@@ -185,8 +185,8 @@ if is_borrowable { sink.body.write(b"&")?; }
 | 3.2 | task_plan_registry.rs (306行) | **已改判 ~30%（边界）** | include_str! + auto_atom + 文件 IO |
 | 3.3 | task_plan.rs (513行) | **✅ 已闭环（2026-08-05）** | 阻塞已清除：a2r-10 HashMap<K,Vec<V>> insert/get 可用 + auto_val 上游类型可用 + a2r 修 #[default] 透传/InvalidType seed |
 | 3.4 | wiki.rs (847行) | **✅ 数据层+读路径已闭环（试点）** | axum/async 手写边界 |
-| 3.5 | handoff_store.rs (193行) | ~60% | a2r-10/11（Mutex tuple-key） |
-| 3.6 | task_plan_engine.rs (672行) | ~40% | **async 泛型闭包（硬墙）** |
+| 3.5 | handoff_store.rs (193行) | **✅ 已闭环（2026-08-05，7/7 parity）** | tuple-key 改判为字符串 key 变通（见 §10.6） |
+| 3.6 | task_plan_engine.rs (672行) | ~40% | **async 泛型闭包（硬墙，2026-08-05 复测确认）** |
 
 task_plan_engine 的 execute/run_one（async 泛型闭包 `F: Fn->Fut`）**确认是 a2r 硬墙**（§1 实测），留手写边界。
 
@@ -313,11 +313,72 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
   = 0（仅约定 `use super::extern_impl::*;` 前缀）。
 - 全量：207 lib + 全部 parity 套件 + tool_atoms 23 + 集成测试，14 套件全绿。
 
-### 3.5/3.6 展望
-- **handoff_store.rs（~60%）**：Mutex<HashMap<(String,String,String), HandoffDocument>>
-  tuple-key + fs + serde_json。a2r-10/11 对 Mutex tuple-key 的可行性待测。
-- **task_plan_engine.rs（~40%）**：async 泛型闭包 `F: Fn->Fut` 是 a2r 硬墙（§1），
-  留手写边界。
+### 3.5/3.6 实况（2026-08-05 更新）
+- **handoff_store 3.5 ✅ 已闭环**（见 §10.6，7/7 parity）。
+- **task_plan_engine 3.6 ⛔ 维持手写边界**：async 泛型闭包 `F: Fn->Fut` 复测
+  仍为 a2r 解析错误（`Expected end of statement, got Fn`，§1 硬墙确认）。核心
+  execute/run_one 依赖注入 executor 无法表达；可移植部分（new/validate）还依赖
+  uuidish（rand）/broadcast（SSE）/get_builtin_flow——均为手写边界，整体移植
+  价值低，维持计划原判断（C2）。
+
+
+## 10.6 Phase 3.5 — handoff_store.rs 移植 ✅ 闭环（2026-08-05）
+
+### 移植范围
+`auto-src/handoff_store.at`，对齐 hw `relay/handoff_store.rs`：
+- **数据模型**：HandoffStore（data_dir + Mutex cache）
+- **save / load**：fs create_dir_all + to_string_pretty + write / read_to_string
+  + from_str + cache 读写
+- **resolve_path**：split('.') 分段校验（≥5 段 + 第 4 段 "handoff"）+ to_value
+  + Value 嵌套 get
+- **save_from_run**：use.rust 引用真实 `crate::relay::store::RunStore`
+  （`@RunStore` → `&RunStore`，`last_handoff` 跨模块调用）
+
+### 阻塞改判（计划 §6 预估 ~60%，阻塞 a2r-10/11 Mutex tuple-key）
+- **tuple-key 实测确认缺陷**：`HashMap<(String,String,String), _>` 的
+  `insert(key)` 误加 `.to_string()`（tuple 无 Display，E0277）+ `get(key)` 缺 `&`。
+  → **字符串拼接 key 变通**（`"tp/phase/run"`）。cache 是私有字段，行为等价，
+  计划 §0 允许实现细节不同（hw tuple vs ag string key）。
+- **fs / serde_json / PathBuf join 均可用**（wiki 先例 + 本模块实证）；
+  `impl Into<PathBuf>` → PathBuf 参数（C6 已知退化）。
+
+### 死锁修复（a2r match 不释放 guard）
+- **现象**：`load()` 首次 `self.cache.lock()` 的 guard 在 `is {... None -> {} }`
+  匹配后**仍持锁**（a2r 的 match 生成 `None => {},` 不像 hw 的 if-let 靠 NLL
+  释放），随后 `guard2 = self.cache.lock()` 二次加锁 → **Mutex 死锁**
+  （parity_load_after_reload_from_disk 挂起 >60s）。
+- **修复**：cache 读写抽成独立辅助 fn `cache_get`/`cache_put`（`@Mutex<HashMap<..>>`
+  引用参数），guard 在 fn 退出时作用域结束自动 drop，锁释放。
+- **验证**：7/7 parity 通过（含跨实例磁盘重载）。
+
+### 联动 a2r 修复（auto-lang 工作树，待并行 session 合并）
+- **`&self.field` 传 `@T` 参数误加 self-dot `.clone()`**：`arg()` 对
+  `self.dot` 表达式无条件加 `.clone()` → `&self.cache.clone()`（Mutex 无
+  Clone，E0599）。修复：call-site 在 `needs_ref_borrow`（`&` 已注入）且参数是
+  Dot 表达式时直接发射 expr 跳过 clone。golden 316 无回归。
+
+### 已知简化（文档化）
+- `save` 返回 `Result<bool, String>`（hw: `Result<(), String>` — a2r 无法表达
+  unit 类型，bool 载荷承载，与 task_plan/specs 同约定）。
+- 错误信息：`failed to write handoff` 无 io 详情（nativeize 把 fs::write 桥接
+  成 `.is_ok()` bool，丢失错误对象）；create_dir_all/serialize 错误仍带详情。
+- 多级 PathBuf join 链（`.join().join().join()`）被 a2r 拆成无效果语句 → 分步
+  绑定中间变量。
+
+### 验收
+- `tests/parity_handoff_store.rs` **7/7 通过**：save/load + 跨实例磁盘重载 +
+  resolve_path 全字段（summary/token_usage.cumulative）/缺失字段/非 handoff 段/
+  短路径，与 hw wire 逐字一致。
+- **re-transpile 零 drift**；a2r golden 316 无回归；全量 15 套件全绿。
+
+### Phase 4 评估（2026-08-05，记录待后续）
+- server 已在 §11 ④ 接线闭环。tools/spec_tools/orch_tools 的 ag 镜像是
+  **简化 dormant**：description 文本（hw "Read the full UTF-8..." vs ag
+  "Read file contents"）与 schema 详细度均不同，execute 依赖 extern stub
+  （§13 C2 "(stub)…"）。三文件 re-transpile 均有 drift（旧产物带 `&`，当前
+  a2r 遵循 `.view` 约定）——需 .view 手术 + 元数据对齐才是 full parity。
+  因 dormant 不接线（§13 B3 文档化"设计内的等价镜像，非缺陷"），收益低，
+  留待后续接线计划处理。
 
 
 ## 8. 附录：API 差距清单（6 模块，探索汇总）
@@ -350,8 +411,8 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
 | 1 — specs | ✅ | 7/7 parity 测试通过；enum pub + display_title emoji 修复 |
 | 0 — a2r 改进 | 🔶 C1 ✅ + C4/C5 ✅(无需改) + C6 推迟 + C7b ✅ + C8 ✅ + **C9 ✅** | C1 for 借用遍历(`e2c94535`)；C4 serde 属性是 .at 遗漏；C7b tag 构造丢值(`94418cda`)；C8 const 支持(`e01f0f84`)；C9 types_are_compatible 容器类型 + 连带 codegen 修复（见 §10） |
 | 2 — 已移植模块 | ✅ 8/8 有 parity 测试 | specs 12 ✅ / app_config **6** ✅(2026-08-05 修正,env 竞态两测合并后为 6) / chats 17 ✅ / auth 8 ✅ / tool_safety 7 ✅ / conversation 10 ✅ / mode 4 ✅ / **wiki 11 ✅** / relay 5 ✅ |
-| 3 — 缺失模块 | ✅ wiki 试点 ✅（§10）+ **task_plan 3.3 ✅（2026-08-05，17/17 parity）** | parser/registry 改判为边界（探索实测）；handoff_store 3.5 / engine 3.6 待续 |
-| 4 — 复杂模块 | ⬜ 待启动 | 视 Phase 0 成果 |
+| 3 — 缺失模块 | ✅ wiki 试点 ✅（§10）+ **task_plan 3.3 ✅（2026-08-05，17/17 parity）** + **handoff_store 3.5 ✅（2026-08-05，7/7 parity）** | parser/registry 改判为边界（探索实测）；engine 3.6 为 async 硬墙维持手写边界 |
+| 4 — 复杂模块 | 🔶 评估完成（2026-08-05） | server 已接线闭环（§11 ④）；tools/spec_tools/orch_tools 为简化 dormant 镜像（description/schema 与 hw 有文本差异 + execute 依赖 stub），§13 C2/B3 已文档化；full parity 需 .view 手术 + 元数据对齐，待后续接线计划 |
 
 ### Phase 2 各模块详情
 
