@@ -54,13 +54,13 @@ a2r 转译器的改进不是次要任务，而是本计划的**核心驱动力**
 
 | 限制 | 状态 | 实测结果 |
 |---|---|---|
-| **a2r-11 可变借用遍历** | ⚠️ 仍存在 | `for mut x in coll` → 报错 "'mut' is not supported"；索引遍历 `self.items[i].field = v` → 产物 `.clone().field = v`（写进 clone，无效）。**变通有效**：构建新集合 + `self.field = new_list` 整体重赋值 |
+| **a2r-11 可变借用遍历** | 🔶 部分（已闭环） | `for mut x in coll` → 仍报错 "'mut' is not supported"；但索引就地改已修好——`self.items[i].field = v` → 产物不再写 clone（a2r-11 完整版，见 §12）。剩余缺口：for 循环遍历集合时的可变借用迭代、方法参数 `&mut` 发射（a2r-11 基础切片漏了 ext 方法分支，C1 store 对齐时补齐） |
 | **async trait impl** | ✅ 可用 | `spec Tool { fn execute() ~Result<str,E> }` → 正确生成 `#[async_trait] async fn`（Plan 380 P5 成果） |
 | **async 泛型闭包 `F: Fn->Fut`** | ❌ 硬墙 | `where F Fn(Req) -> Fut` → 报错 "Expected end of statement, got Fn"；`async fn` 自由函数也不被识别。task_plan_engine::execute 必须留手写边界 |
 | **pub enum** | ✅ 可用 | `pub enum Color` → 正确生成 `pub enum Color`（plan 014 遗漏未加 pub） |
 
 **结论**：
-- a2r-11 变通写法（plan 014 确立）仍是最优解，无需立即改 a2r。
+- a2r-11 已大幅推进：索引元素就地改 + 方法 `&mut` 参数已落地（§12）；剩余 `for mut x` 遍历缺口仍有变通（构建新集合 + 整体重赋值）。
 - async 泛型闭包是无法绕开的硬墙——含此模式的代码（task_plan_engine::execute/run_one）留手写。
 - 很多"API 差距"实为 .at 源码遗漏（如 enum 缺 pub、display_title 缺 emoji），修 .at 即可，无需动 a2r。
 
@@ -390,7 +390,8 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
 - **a2r 类型系统边界(记录)**:`Result<(), str>`(unit 类型)不可表达 → save 用
   Result<str,str> 形状;io::Error 不可表达 → load 错误为 String;io::ErrorKind 不可
   区分 → load 兜底对所有读错误生效(与 hw NotFound 语义一致,其它为残差);
-  `&mut doc` 就地改(a2r-11) → upsert/transition/delete 保持函数式返回新 doc。
+  `&mut doc` 就地改(a2r-11) → upsert/transition/delete 已对齐 `&mut doc`
+  (见 §12 C1 store 写方法对齐;残差仅 unit 载荷 → bool)。
 
 ### C — 接线运行新 Phase(2026-08-05 起,置于 A/B 之后)
 C 不再作为独立计划,并入本计划作为新 Phase。内容即本 §11 路线图的 ②③④:
@@ -467,3 +468,30 @@ C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
 - golden 301 通过 0 失败。
 - **下一步(C1 继续)**:用 a2r-11 对齐 ag store 写方法签名
   (`upsert_item(mut doc Doc, ...)` → `&mut doc`),解除 store API 分歧。
+
+### C1 store 写方法对齐(2026-08-05, 已合并 master `46337958`)✅
+- **specs.at 写方法 `&mut doc` 化**(worktree `c1-store-mut-param` → merge):
+  upsert_item/transition_item/delete_item 从"by-value doc + Option<SpecsDocument>
+  返回新 doc"改为 `mut doc SpecsDocument`(`&mut SpecsDocument`)就地改,
+  签名与 hw 同构:
+  - hw: `upsert(&self, doc: &mut Doc, ...) -> Result<(), String>`
+  - ag: `upsert(&self, mut doc: &mut Doc, ...) -> Result<bool, String>`
+  - delete 两边都是 `Result<bool, String>`(removed 语义完全同构)。
+  - **残差**:a2r 无法表达 unit 类型(`Result<(), str>` unit parse error,且
+    `Ok(())` 无法解析/`Ok(null)` 会卡死 transpiler)—— upsert/transition 用
+    bool 载荷承载成功语义,文档化。
+- **顺带发现并修复 2 个 auto-lang 缺口**:
+  1. **方法参数 `&mut` 发射缺失**:a2r-11 基础切片只在"自由函数/static"分支补了
+     `ParamMode::Mut → &mut T`;**ext-block 方法参数分支漏了**(发射 `mut p: T`
+     by-value)。→ 方法分支补齐,新增回归测试 `test_a2r_method_mut_param_emits_mut_ref`。
+  2. **fix_residual_error_box 嵌套括号 Bug**:旧 regex 只匹配一层括号,字符串
+     concat 生成的嵌套 `format!(...)` 残留在 `Err(Box::new(...))` 里,破坏
+     `Result<_, String>`(E0308 Box<String> vs String)。→ 改为平衡括号扫描,
+     新增回归测试 `test_a2r_err_concat_no_box_residual`。
+- 就地修改用**索引 LHS 赋值**(`doc.sections[idx].items[idx] = x` 跳过 LHS
+  `.clone()`,写真实元素);append 走"克隆列表 + 整体字段重赋值"(索引上的
+  `.push()` 会落在 `.clone()` 临时值,no-op)。
+- parity:新增 3 个写方法对齐测试(upsert 替换不重复 / transition 校验+Done
+  设置 completed_at / delete true→false),错误字符串与 hw 逐字一致
+  (`section 'x' not found` / `item 'x' not found in 'y'`)。
+- a2r golden 303 通过 0 失败;musk 全套测试通过(199 lib + 各 parity 套件)。

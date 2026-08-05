@@ -272,3 +272,170 @@ fn parity_specs_store_load_corrupt_errors() {
     let ag_store = ag::SpecsStore::new(ag_path);
     assert!(ag_store.load().is_err());
 }
+
+// ──────────────────────────────────────────────────────────
+// SpecsStore write-methods parity (C1: &mut doc 对齐后)
+// upsert/transition/delete 就地改 doc 且签名与 hw 同构:
+//   hw: upsert(&self, doc: &mut Doc, ...) -> Result<(), String>
+//   ag: upsert(&self, mut doc: &mut Doc, ...) -> Result<bool, String>
+//   delete 两边都是 Result<bool, String>(removed 语义完全同构)。
+// ──────────────────────────────────────────────────────────
+
+/// Run the same write scenario on both stores and compare observable state.
+fn assert_upsert_parity() {
+    // Hand-written
+    let hw_store = hw::SpecsStore::new(tempfile::tempdir().unwrap().path().join("hw.json"));
+    let mut hw_doc = hw::SpecsDocument::new("t");
+    // Auto-generated
+    let ag_store = ag::SpecsStore::new(tempfile::tempdir().unwrap().path().join("ag.json"));
+    let mut ag_doc = ag::SpecsDocument::new("t");
+
+    // new item upsert → both have 1 item, version 1
+    hw_store
+        .upsert_item(&mut hw_doc, "goals", hw::SpecItem::new("G1", "goal"))
+        .unwrap();
+    ag_store
+        .upsert_item(&mut ag_doc, "goals", ag::SpecItem::new("G1", "goal"))
+        .unwrap();
+    assert_eq!(hw_doc.version, 1);
+    assert_eq!(ag_doc.version, 1);
+    assert_eq!(hw_doc.sections[0].items.len(), 1);
+    assert_eq!(ag_doc.sections[0].items.len(), 1);
+
+    // same-id upsert → replaces (no duplicate), title updated
+    hw_store
+        .upsert_item(&mut hw_doc, "goals", hw::SpecItem::new("G1", "new title"))
+        .unwrap();
+    ag_store
+        .upsert_item(&mut ag_doc, "goals", ag::SpecItem::new("G1", "new title"))
+        .unwrap();
+    assert_eq!(hw_doc.sections[0].items.len(), 1, "hw: replace must not duplicate");
+    assert_eq!(ag_doc.sections[0].items.len(), 1, "ag: replace must not duplicate");
+    assert_eq!(hw_doc.sections[0].items[0].title, "new title");
+    assert_eq!(ag_doc.sections[0].items[0].title, "new title");
+    assert_eq!(hw_doc.version, 2);
+    assert_eq!(ag_doc.version, 2);
+
+    // unknown section → both Err (error string identical)
+    let hw_err = hw_store
+        .upsert_item(&mut hw_doc, "nonexistent", hw::SpecItem::new("X1", "x"))
+        .unwrap_err();
+    let ag_err = ag_store
+        .upsert_item(&mut ag_doc, "nonexistent", ag::SpecItem::new("X1", "x"))
+        .unwrap_err();
+    assert!(hw_err.contains("not found"));
+    assert!(ag_err.contains("not found"));
+    assert_eq!(hw_err, ag_err, "section-not-found error strings must match");
+}
+
+#[test]
+fn parity_store_upsert_in_place() {
+    assert_upsert_parity();
+}
+
+/// Transition parity: valid transitions advance both; invalid → Err on both;
+/// Done sets completed_at on both.
+#[test]
+fn parity_store_transition_in_place() {
+    let hw_store = hw::SpecsStore::new(tempfile::tempdir().unwrap().path().join("hw.json"));
+    let mut hw_doc = hw::SpecsDocument::new("t");
+    let ag_store = ag::SpecsStore::new(tempfile::tempdir().unwrap().path().join("ag.json"));
+    let mut ag_doc = ag::SpecsDocument::new("t");
+
+    hw_store
+        .upsert_item(&mut hw_doc, "goals", hw::SpecItem::new("G1", "g"))
+        .unwrap();
+    ag_store
+        .upsert_item(&mut ag_doc, "goals", ag::SpecItem::new("G1", "g"))
+        .unwrap();
+
+    // Valid: Empty -> Proposed (both ok)
+    hw_store
+        .transition_item(&mut hw_doc, "goals", "G1", hw::SpecStatus::Proposed)
+        .unwrap();
+    ag_store
+        .transition_item(&mut ag_doc, "goals", "G1", ag::SpecStatus::Proposed)
+        .unwrap();
+    assert_eq!(hw_doc.sections[0].items[0].status.to_str(), "proposed");
+    assert_eq!(ag_doc.sections[0].items[0].status.to_str(), "proposed");
+
+    // Invalid: Proposed -> Done (skips the Goals machine) → both Err
+    let hw_err = hw_store
+        .transition_item(&mut hw_doc, "goals", "G1", hw::SpecStatus::Done)
+        .unwrap_err();
+    let ag_err = ag_store
+        .transition_item(&mut ag_doc, "goals", "G1", ag::SpecStatus::Done)
+        .unwrap_err();
+    assert!(hw_err.contains("invalid"));
+    assert!(ag_err.contains("invalid"));
+
+    // Unknown item → both Err with identical message
+    let hw_err2 = hw_store
+        .transition_item(&mut hw_doc, "goals", "NOPE", hw::SpecStatus::Proposed)
+        .unwrap_err();
+    let ag_err2 = ag_store
+        .transition_item(&mut ag_doc, "goals", "NOPE", ag::SpecStatus::Proposed)
+        .unwrap_err();
+    assert_eq!(hw_err2, ag_err2, "item-not-found error strings must match");
+
+    // Walk the Goals machine to Done → completed_at set on both.
+    let hw_chain: Vec<hw::SpecStatus> = vec![
+        hw::SpecStatus::Analysed,
+        hw::SpecStatus::Approved,
+        hw::SpecStatus::InProgress,
+        hw::SpecStatus::Implemented,
+        hw::SpecStatus::Verified,
+        hw::SpecStatus::Done,
+    ];
+    let ag_chain: Vec<ag::SpecStatus> = vec![
+        ag::SpecStatus::Analysed,
+        ag::SpecStatus::Approved,
+        ag::SpecStatus::InProgress,
+        ag::SpecStatus::Implemented,
+        ag::SpecStatus::Verified,
+        ag::SpecStatus::Done,
+    ];
+    for s in hw_chain {
+        hw_store
+            .transition_item(&mut hw_doc, "goals", "G1", s)
+            .unwrap();
+    }
+    for s in ag_chain {
+        ag_store
+            .transition_item(&mut ag_doc, "goals", "G1", s)
+            .unwrap();
+    }
+    assert_eq!(hw_doc.sections[0].items[0].status.to_str(), "done");
+    assert_eq!(ag_doc.sections[0].items[0].status.to_str(), "done");
+    assert!(hw_doc.sections[0].items[0].completed_at.is_some());
+    assert!(ag_doc.sections[0].items[0].completed_at.is_some());
+}
+
+/// Delete parity: first delete returns true (removed), second returns false
+/// (already gone); both agree on the final empty item list.
+#[test]
+fn parity_store_delete_in_place() {
+    let hw_store = hw::SpecsStore::new(tempfile::tempdir().unwrap().path().join("hw.json"));
+    let mut hw_doc = hw::SpecsDocument::new("t");
+    let ag_store = ag::SpecsStore::new(tempfile::tempdir().unwrap().path().join("ag.json"));
+    let mut ag_doc = ag::SpecsDocument::new("t");
+
+    hw_store
+        .upsert_item(&mut hw_doc, "goals", hw::SpecItem::new("G1", "g"))
+        .unwrap();
+    ag_store
+        .upsert_item(&mut ag_doc, "goals", ag::SpecItem::new("G1", "g"))
+        .unwrap();
+
+    assert!(hw_store.delete_item(&mut hw_doc, "goals", "G1").unwrap());
+    assert!(ag_store.delete_item(&mut ag_doc, "goals", "G1").unwrap());
+    assert!(!hw_store.delete_item(&mut hw_doc, "goals", "G1").unwrap());
+    assert!(!ag_store.delete_item(&mut ag_doc, "goals", "G1").unwrap());
+    assert!(hw_doc.sections[0].items.is_empty());
+    assert!(ag_doc.sections[0].items.is_empty());
+
+    // Unknown section → both Err with identical message.
+    let hw_err = hw_store.delete_item(&mut hw_doc, "nope", "G1").unwrap_err();
+    let ag_err = ag_store.delete_item(&mut ag_doc, "nope", "G1").unwrap_err();
+    assert_eq!(hw_err, ag_err, "delete section-not-found error strings must match");
+}

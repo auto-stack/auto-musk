@@ -815,126 +815,117 @@ impl SpecsStore {
             Err(e) => return Err(e.to_string()),
         }
     }
-    pub fn upsert_item(&self, doc: SpecsDocument, section_id: &str, item: SpecItem) -> Option<SpecsDocument> {
+    pub fn upsert_item(&self, mut doc: &mut SpecsDocument, section_id: &str, item: SpecItem) -> Result<bool, String> {
+        let mut section_idx: i32 = 0;
         let mut section_found: bool = false;
-        let mut new_sections: Vec<SpecsSection> = vec![];
-        for s in &doc.sections {
-            if s.id == section_id {
-                section_found = true;
-                
-
-                let mut item_found: bool = false;
-                let mut new_items: Vec<SpecItem> = vec![];
-                for existing in &s.items {
-                    if existing.id == item.id {
-                        item_found = true;
-                        new_items.push(item.clone())
-                    } else {
-                        new_items.push(existing.clone())
-                    }
-
-                }
-                if item_found == false {
-                    new_items.push(item.clone());
-                }                let now: u64 = now_sec();
-                let updated_section: SpecsSection = SpecsSection { id: s.id.clone().to_string(), section_type: s.section_type, title: s.title.clone().to_string(), items: new_items, status: s.status, content: s.content.clone().to_string(), depends_on: s.depends_on.clone(), last_modified: now, last_verified: s.last_verified.clone() };
-                new_sections.push(updated_section.clone())
-            } else {
-                new_sections.push(s.clone())
+        for i in 0..(doc.sections.len() as i32) {
+            if doc.sections[(i) as usize].clone().id == section_id {
+                section_idx = i;
+                section_found = true
             }
-
         }
         if section_found == false {
-            return None;
+            return Err(format!("{}{}", format!("{}{}", "section '", section_id), "' not found"));
+        }
+        let mut item_idx: i32 = 0;
+        let mut item_found: bool = false;
+        for i in 0..(doc.sections[(section_idx) as usize].clone().items.len() as i32) {
+            if doc.sections[(section_idx) as usize].clone().items[(i) as usize].clone().id == item.id {
+                item_idx = i;
+                item_found = true
+            }
+        }
+        if item_found {
+            
+
+            doc.sections[(section_idx) as usize].items[(item_idx) as usize] = item.clone()
+        } else {
+            
+
+
+            let mut new_items: Vec<SpecItem> = doc.sections[(section_idx) as usize].clone().items.clone();
+            new_items.push(item.clone());
+            doc.sections[(section_idx) as usize].items = new_items
         }
 
-        let mut new_doc: SpecsDocument = SpecsDocument { project: doc.project.clone().to_string(), version: doc.version + 1, sections: new_sections };
-        new_doc.rebuild_relations();
-        new_doc.derive_statuses();
-        return Some(new_doc);
+        let now: u64 = now_sec();
+        doc.sections[(section_idx) as usize].last_modified = now;
+        doc.version = doc.version + 1;
+        doc.rebuild_relations();
+        doc.derive_statuses();
+        return Ok(true);
     }
-    pub fn transition_item(&self, doc: SpecsDocument, section_id: &str, item_id: &str, new_status: SpecStatus) -> Option<SpecsDocument> {
+    pub fn transition_item(&self, mut doc: &mut SpecsDocument, section_id: &str, item_id: &str, new_status: SpecStatus) -> Result<bool, String> {
+        let mut section_idx: i32 = 0;
         let mut section_found: bool = false;
-        let mut new_sections: Vec<SpecsSection> = vec![];
-        let mut transition_ok: bool = false;
-        for s in &doc.sections {
-            if s.id == section_id {
-                section_found = true;
-                let cfg: SectionConfig = SectionConfig::for_type(s.section_type);
-                let mut new_items: Vec<SpecItem> = vec![];
-                for it in &s.items {
-                    if it.id == item_id {
-                        if cfg.can_transition(it.status, new_status) {
-                            transition_ok = true;
-                            let now: u64 = now_sec();
-                            let mut completed: Option<u64> = it.completed_at.clone();
-                            if new_status == SpecStatus::Done {
-                                completed = Some(now)
-                            }                            let updated: SpecItem = SpecItem { id: it.id.clone().to_string(), title: it.title.clone().to_string(), content: it.content.clone().to_string(), status: new_status, depends_on: it.depends_on.clone(), related: it.related.clone(), priority: it.priority.clone(), assignee: it.assignee.clone(), test_file: it.test_file.clone(), file: it.file.clone(), milestone: it.milestone.clone(), module: it.module.clone(), tags: it.tags.clone(), created_at: it.created_at, modified_at: now, completed_at: completed };
-                            new_items.push(updated.clone())
-                        } else {
-                            new_items.push(it.clone())
-                        }
-                    } else {
-                        new_items.push(it.clone())
-                    }
-
-                }
-                let now: u64 = now_sec();
-                let updated_section: SpecsSection = SpecsSection { id: s.id.clone().to_string(), section_type: s.section_type, title: s.title.clone().to_string(), items: new_items, status: s.status, content: s.content.clone().to_string(), depends_on: s.depends_on.clone(), last_modified: now, last_verified: s.last_verified.clone() };
-                new_sections.push(updated_section.clone())
-            } else {
-                new_sections.push(s.clone())
+        for i in 0..(doc.sections.len() as i32) {
+            if doc.sections[(i) as usize].clone().id == section_id {
+                section_idx = i;
+                section_found = true
             }
-
         }
         if section_found == false {
-            return None;
+            return Err(format!("{}{}", format!("{}{}", "section '", section_id), "' not found"));
         }
-        if transition_ok == false {
-            return None;
+        let mut item_idx: i32 = 0;
+        let mut item_found: bool = false;
+        for i in 0..(doc.sections[(section_idx) as usize].clone().items.len() as i32) {
+            if doc.sections[(section_idx) as usize].clone().items[(i) as usize].clone().id == item_id {
+                item_idx = i;
+                item_found = true
+            }
         }
-        let new_doc: SpecsDocument = SpecsDocument { project: doc.project.clone().to_string(), version: doc.version + 1, sections: new_sections };
-        return Some(new_doc);
+        if item_found == false {
+            return Err(format!("{}{}", format!("{}{}", format!("{}{}", format!("{}{}", "item '", item_id), "' not found in '"), section_id), "'"));
+        }
+        let cfg: SectionConfig = SectionConfig::for_type(doc.sections[(section_idx) as usize].clone().section_type);
+        if cfg.can_transition(doc.sections[(section_idx) as usize].clone().items[(item_idx) as usize].clone().status, new_status) == false {
+            return Err("invalid status transition".into());
+        }
+        let now: u64 = now_sec();
+        let mut completed: Option<u64> = doc.sections[(section_idx) as usize].clone().items[(item_idx) as usize].clone().completed_at.clone();
+        if new_status == SpecStatus::Done {
+            completed = Some(now)
+        }
+
+        let updated: SpecItem = SpecItem { id: doc.sections[(section_idx) as usize].clone().items[(item_idx) as usize].clone().id.clone().to_string(), title: doc.sections[(section_idx) as usize].clone().items[(item_idx) as usize].clone().title.clone().to_string(), content: doc.sections[(section_idx) as usize].clone().items[(item_idx) as usize].clone().content.clone().to_string(), status: new_status, depends_on: doc.sections[(section_idx) as usize].clone().items[(item_idx) as usize].clone().depends_on.clone(), related: doc.sections[(section_idx) as usize].clone().items[(item_idx) as usize].clone().related.clone(), priority: doc.sections[(section_idx) as usize].clone().items[(item_idx) as usize].clone().priority.clone(), assignee: doc.sections[(section_idx) as usize].clone().items[(item_idx) as usize].clone().assignee.clone(), test_file: doc.sections[(section_idx) as usize].clone().items[(item_idx) as usize].clone().test_file.clone(), file: doc.sections[(section_idx) as usize].clone().items[(item_idx) as usize].clone().file.clone(), milestone: doc.sections[(section_idx) as usize].clone().items[(item_idx) as usize].clone().milestone.clone(), module: doc.sections[(section_idx) as usize].clone().items[(item_idx) as usize].clone().module.clone(), tags: doc.sections[(section_idx) as usize].clone().items[(item_idx) as usize].clone().tags.clone(), created_at: doc.sections[(section_idx) as usize].clone().items[(item_idx) as usize].clone().created_at, modified_at: now, completed_at: completed };
+        doc.sections[(section_idx) as usize].items[(item_idx) as usize] = updated;
+        doc.sections[(section_idx) as usize].last_modified = now;
+        doc.version = doc.version + 1;
+        return Ok(true);
     }
-    pub fn delete_item(&self, doc: SpecsDocument, section_id: &str, item_id: &str) -> Option<SpecsDocument> {
+    pub fn delete_item(&self, mut doc: &mut SpecsDocument, section_id: &str, item_id: &str) -> Result<bool, String> {
+        let mut section_idx: i32 = 0;
         let mut section_found: bool = false;
+        for i in 0..(doc.sections.len() as i32) {
+            if doc.sections[(i) as usize].clone().id == section_id {
+                section_idx = i;
+                section_found = true
+            }
+        }
+        if section_found == false {
+            return Err(format!("{}{}", format!("{}{}", "section '", section_id), "' not found"));
+        }
         let mut any_removed: bool = false;
-        let mut new_sections: Vec<SpecsSection> = vec![];
-        for s in &doc.sections {
-            if s.id == section_id {
-                section_found = true;
-                let mut new_items: Vec<SpecItem> = vec![];
-                for it in &s.items {
-                    if it.id == item_id {
-                        any_removed = true
-                    } else {
-                        new_items.push(it.clone())
-                    }
-
-                }
-                if any_removed {
-                    let now: u64 = now_sec();
-                    let updated_section: SpecsSection = SpecsSection { id: s.id.clone().to_string(), section_type: s.section_type, title: s.title.clone().to_string(), items: new_items, status: s.status, content: s.content.clone().to_string(), depends_on: s.depends_on.clone(), last_modified: now, last_verified: s.last_verified.clone() };
-                    new_sections.push(updated_section.clone())
-                } else {
-                    new_sections.push(s.clone())
-                }
+        let mut new_items: Vec<SpecItem> = vec![];
+        for i in 0..(doc.sections[(section_idx) as usize].clone().items.len() as i32) {
+            if doc.sections[(section_idx) as usize].clone().items[(i) as usize].clone().id == item_id {
+                any_removed = true
             } else {
-                new_sections.push(s.clone())
+                new_items.push(doc.sections[(section_idx) as usize].clone().items[(i) as usize].clone().clone())
             }
 
-        }
-        if section_found == false {
-            return None;
         }
         if any_removed == false {
-            return None;
+            return Ok(false);
         }
-        let mut new_doc: SpecsDocument = SpecsDocument { project: doc.project.clone().to_string(), version: doc.version + 1, sections: new_sections };
-        new_doc.rebuild_relations();
-        new_doc.derive_statuses();
-        return Some(new_doc);
+        let now: u64 = now_sec();
+        doc.sections[(section_idx) as usize].items = new_items;
+        doc.sections[(section_idx) as usize].last_modified = now;
+        doc.version = doc.version + 1;
+        doc.rebuild_relations();
+        doc.derive_statuses();
+        return Ok(true);
     }
     pub fn drift_check(&self, doc: SpecsDocument) -> Result<(u64, bool), String> {
         let load_result = self.load();
@@ -957,13 +948,17 @@ impl SpecsStore {
 /// Persist the document.
 /// Upsert an item into a section, bumping the document version. Creates
 /// the item if item.id is new, replaces it otherwise. Rebuilds relations.
-/// a2r-11: returns the updated doc (whole-field rebuild) instead of
-/// mutating in place; returns Option to signal section-not-found (None).
-/// Transition an item's status (validates via per-section state machine).
-/// Returns Option<SpecsDocument> — None if section/item not found OR the
-/// transition is invalid for that section type.
-/// Delete an item. Returns (updated_doc, removed) — removed is true if the
-/// item existed. Rebuilds relations on success.
+/// C1 (a2r-11): `mut doc SpecsDocument` → `doc: &mut SpecsDocument`, mutates
+/// the caller doc in place (was by-value + Option<SpecsDocument> return —
+/// store API 分歧). Ok(true) on success; Err if the section doesn't exist.
+/// 残差: hw 返回 Result-unit(String) 类型,a2r 无法表达 unit 类型(unit parse
+/// error),用 bool 载荷承载成功语义(delete_item 返回 removed,与 hw 完全同构)。
+/// Transition an item's status (validates via the per-section state machine).
+/// C1: in-place (was Option<SpecsDocument>). Ok(true) on success; Err if
+/// section/item not found or the transition is invalid for that section type.
+/// Delete an item. Ok(true) if it existed (and was removed); Ok(false) if
+/// the item wasn't present. Rebuilds relations on removal. Err if the
+/// section doesn't exist. C1: in-place — 与 hw 同签名 Result<bool, String>。
 /// Drift check: compare in-memory doc against disk. Returns (disk_version,
 /// drifted) — drifted is true if disk version differs.
 /// Project name from the store file stem (matches hw load's NotFound fallback).

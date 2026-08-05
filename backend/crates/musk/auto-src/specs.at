@@ -968,177 +968,143 @@ ext SpecsStore {
 
     /// Upsert an item into a section, bumping the document version. Creates
     /// the item if item.id is new, replaces it otherwise. Rebuilds relations.
-    /// a2r-11: returns the updated doc (whole-field rebuild) instead of
-    /// mutating in place; returns Option to signal section-not-found (None).
-    pub fn upsert_item(doc SpecsDocument, section_id str, item SpecItem) Option<SpecsDocument> {
+    /// C1 (a2r-11): `mut doc SpecsDocument` → `doc: &mut SpecsDocument`, mutates
+    /// the caller doc in place (was by-value + Option<SpecsDocument> return —
+    /// store API 分歧). Ok(true) on success; Err if the section doesn't exist.
+    /// 残差: hw 返回 Result-unit(String) 类型,a2r 无法表达 unit 类型(unit parse
+    /// error),用 bool 载荷承载成功语义(delete_item 返回 removed,与 hw 完全同构)。
+    pub fn upsert_item(mut doc SpecsDocument, section_id str, item SpecItem) Result<bool, str> {
+        var section_idx int = 0
         var section_found bool = false
-        var new_sections List<SpecsSection> = []
-        for s in doc.sections {
-            if s.id == section_id {
+        for i in 0..doc.sections.len() {
+            if doc.sections[i].id == section_id {
+                section_idx = i
                 section_found = true
-                // build new items list: replace if id matches, else append
-                var item_found bool = false
-                var new_items List<SpecItem> = []
-                for existing in s.items {
-                    if existing.id == item.id {
-                        item_found = true
-                        new_items.push(item.clone())
-                    } else {
-                        new_items.push(existing)
-                    }
-                }
-                if item_found == false {
-                    new_items.push(item.clone())
-                }
-                let now u64 = now_sec()
-                let updated_section SpecsSection = SpecsSection(
-                    id: s.id.clone(),
-                    section_type: s.section_type,
-                    title: s.title.clone(),
-                    items: new_items,
-                    status: s.status,
-                    content: s.content.clone(),
-                    depends_on: s.depends_on.clone(),
-                    last_modified: now,
-                    last_verified: s.last_verified.clone()
-                )
-                new_sections.push(updated_section)
-            } else {
-                new_sections.push(s)
             }
         }
         if section_found == false {
-            return None
+            return Err("section '" + section_id + "' not found")
         }
-        // rebuild new doc with bumped version + rebuilt relations + derived
-        var new_doc SpecsDocument = SpecsDocument(project: doc.project.clone(), version: doc.version + 1u, sections: new_sections)
-        new_doc.rebuild_relations()
-        new_doc.derive_statuses()
-        return Some(new_doc)
+        var item_idx int = 0
+        var item_found bool = false
+        for i in 0..doc.sections[section_idx].items.len() {
+            if doc.sections[section_idx].items[i].id == item.id {
+                item_idx = i
+                item_found = true
+            }
+        }
+        if item_found {
+            // 索引 LHS 赋值跳过 .clone()(a2r-11)——写真实元素,就地替换
+            doc.sections[section_idx].items[item_idx] = item.clone()
+        } else {
+            // 追加: 索引上的 .push() 会落在 .clone() 临时值上(no-op)——改为
+            // 克隆列表追加后整体字段重赋值(仍是就地写回真实元素)
+            var new_items List<SpecItem> = doc.sections[section_idx].items.clone()
+            new_items.push(item.clone())
+            doc.sections[section_idx].items = new_items
+        }
+        let now u64 = now_sec()
+        doc.sections[section_idx].last_modified = now
+        doc.version = doc.version + 1u
+        doc.rebuild_relations()
+        doc.derive_statuses()
+        return Ok(true)
     }
 
-    /// Transition an item's status (validates via per-section state machine).
-    /// Returns Option<SpecsDocument> — None if section/item not found OR the
-    /// transition is invalid for that section type.
-    pub fn transition_item(doc SpecsDocument, section_id str, item_id str, new_status SpecStatus) Option<SpecsDocument> {
+    /// Transition an item's status (validates via the per-section state machine).
+    /// C1: in-place (was Option<SpecsDocument>). Ok(true) on success; Err if
+    /// section/item not found or the transition is invalid for that section type.
+    pub fn transition_item(mut doc SpecsDocument, section_id str, item_id str, new_status SpecStatus) Result<bool, str> {
+        var section_idx int = 0
         var section_found bool = false
-        var new_sections List<SpecsSection> = []
-        var transition_ok bool = false
-        for s in doc.sections {
-            if s.id == section_id {
+        for i in 0..doc.sections.len() {
+            if doc.sections[i].id == section_id {
+                section_idx = i
                 section_found = true
-                let cfg SectionConfig = SectionConfig.for_type(s.section_type)
-                var new_items List<SpecItem> = []
-                for it in s.items {
-                    if it.id == item_id {
-                        if cfg.can_transition(it.status, new_status) {
-                            transition_ok = true
-                            let now u64 = now_sec()
-                            var completed Option<u64> = it.completed_at.clone()
-                            if new_status == SpecStatus.Done {
-                                completed = Some(now)
-                            }
-                            let updated SpecItem = SpecItem(
-                                id: it.id.clone(),
-                                title: it.title.clone(),
-                                content: it.content.clone(),
-                                status: new_status,
-                                depends_on: it.depends_on.clone(),
-                                related: it.related.clone(),
-                                priority: it.priority.clone(),
-                                assignee: it.assignee.clone(),
-                                test_file: it.test_file.clone(),
-                                file: it.file.clone(),
-                                milestone: it.milestone.clone(),
-                                module: it.module.clone(),
-                                tags: it.tags.clone(),
-                                created_at: it.created_at,
-                                modified_at: now,
-                                completed_at: completed
-                            )
-                            new_items.push(updated)
-                        } else {
-                            new_items.push(it)
-                        }
-                    } else {
-                        new_items.push(it)
-                    }
-                }
-                let now u64 = now_sec()
-                let updated_section SpecsSection = SpecsSection(
-                    id: s.id.clone(),
-                    section_type: s.section_type,
-                    title: s.title.clone(),
-                    items: new_items,
-                    status: s.status,
-                    content: s.content.clone(),
-                    depends_on: s.depends_on.clone(),
-                    last_modified: now,
-                    last_verified: s.last_verified.clone()
-                )
-                new_sections.push(updated_section)
-            } else {
-                new_sections.push(s)
             }
         }
         if section_found == false {
-            return None
+            return Err("section '" + section_id + "' not found")
         }
-        if transition_ok == false {
-            return None
+        var item_idx int = 0
+        var item_found bool = false
+        for i in 0..doc.sections[section_idx].items.len() {
+            if doc.sections[section_idx].items[i].id == item_id {
+                item_idx = i
+                item_found = true
+            }
         }
-        let new_doc SpecsDocument = SpecsDocument(project: doc.project.clone(), version: doc.version + 1u, sections: new_sections)
-        return Some(new_doc)
+        if item_found == false {
+            return Err("item '" + item_id + "' not found in '" + section_id + "'")
+        }
+        let cfg SectionConfig = SectionConfig.for_type(doc.sections[section_idx].section_type)
+        if cfg.can_transition(doc.sections[section_idx].items[item_idx].status, new_status) == false {
+            return Err("invalid status transition")
+        }
+        let now u64 = now_sec()
+        var completed Option<u64> = doc.sections[section_idx].items[item_idx].completed_at.clone()
+        if new_status == SpecStatus.Done {
+            completed = Some(now)
+        }
+        // 整 item 拷贝 + 索引 LHS 赋值就地写回(a2r-11)
+        let updated SpecItem = SpecItem(
+            id: doc.sections[section_idx].items[item_idx].id.clone(),
+            title: doc.sections[section_idx].items[item_idx].title.clone(),
+            content: doc.sections[section_idx].items[item_idx].content.clone(),
+            status: new_status,
+            depends_on: doc.sections[section_idx].items[item_idx].depends_on.clone(),
+            related: doc.sections[section_idx].items[item_idx].related.clone(),
+            priority: doc.sections[section_idx].items[item_idx].priority.clone(),
+            assignee: doc.sections[section_idx].items[item_idx].assignee.clone(),
+            test_file: doc.sections[section_idx].items[item_idx].test_file.clone(),
+            file: doc.sections[section_idx].items[item_idx].file.clone(),
+            milestone: doc.sections[section_idx].items[item_idx].milestone.clone(),
+            module: doc.sections[section_idx].items[item_idx].module.clone(),
+            tags: doc.sections[section_idx].items[item_idx].tags.clone(),
+            created_at: doc.sections[section_idx].items[item_idx].created_at,
+            modified_at: now,
+            completed_at: completed
+        )
+        doc.sections[section_idx].items[item_idx] = updated
+        doc.sections[section_idx].last_modified = now
+        doc.version = doc.version + 1u
+        return Ok(true)
     }
 
-    /// Delete an item. Returns (updated_doc, removed) — removed is true if the
-    /// item existed. Rebuilds relations on success.
-    pub fn delete_item(doc SpecsDocument, section_id str, item_id str) Option<SpecsDocument> {
+    /// Delete an item. Ok(true) if it existed (and was removed); Ok(false) if
+    /// the item wasn't present. Rebuilds relations on removal. Err if the
+    /// section doesn't exist. C1: in-place — 与 hw 同签名 Result<bool, String>。
+    pub fn delete_item(mut doc SpecsDocument, section_id str, item_id str) Result<bool, str> {
+        var section_idx int = 0
         var section_found bool = false
+        for i in 0..doc.sections.len() {
+            if doc.sections[i].id == section_id {
+                section_idx = i
+                section_found = true
+            }
+        }
+        if section_found == false {
+            return Err("section '" + section_id + "' not found")
+        }
         var any_removed bool = false
-        var new_sections List<SpecsSection> = []
-        for s in doc.sections {
-            if s.id == section_id {
-                section_found = true
-                var new_items List<SpecItem> = []
-                for it in s.items {
-                    if it.id == item_id {
-                        any_removed = true
-                    } else {
-                        new_items.push(it)
-                    }
-                }
-                if any_removed {
-                    let now u64 = now_sec()
-                    let updated_section SpecsSection = SpecsSection(
-                        id: s.id.clone(),
-                        section_type: s.section_type,
-                        title: s.title.clone(),
-                        items: new_items,
-                        status: s.status,
-                        content: s.content.clone(),
-                        depends_on: s.depends_on.clone(),
-                        last_modified: now,
-                        last_verified: s.last_verified.clone()
-                    )
-                    new_sections.push(updated_section)
-                } else {
-                    new_sections.push(s)
-                }
+        var new_items List<SpecItem> = []
+        for i in 0..doc.sections[section_idx].items.len() {
+            if doc.sections[section_idx].items[i].id == item_id {
+                any_removed = true
             } else {
-                new_sections.push(s)
+                new_items.push(doc.sections[section_idx].items[i].clone())
             }
-        }
-        if section_found == false {
-            return None
         }
         if any_removed == false {
-            return None
+            return Ok(false)
         }
-        var new_doc SpecsDocument = SpecsDocument(project: doc.project.clone(), version: doc.version + 1u, sections: new_sections)
-        new_doc.rebuild_relations()
-        new_doc.derive_statuses()
-        return Some(new_doc)
+        let now u64 = now_sec()
+        doc.sections[section_idx].items = new_items
+        doc.sections[section_idx].last_modified = now
+        doc.version = doc.version + 1u
+        doc.rebuild_relations()
+        doc.derive_statuses()
+        return Ok(true)
     }
 
     /// Drift check: compare in-memory doc against disk. Returns (disk_version,
