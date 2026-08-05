@@ -380,42 +380,42 @@ pub async fn auth_logout(s: State<AppState>, headers: HeaderMap) -> Json<StatusO
     return Json(StatusOk { status: "logged out".to_string() });
 }
 
-async fn specs_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
+pub async fn specs_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
     let doc = specs_load(&s, q);
     return Json(doc);
 }
 
-async fn specs_overview(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
+pub async fn specs_overview(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
     let overview = specs_overview_of(&s, q);
     return Json(overview);
 }
 
-async fn specs_drift_check(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<DriftResult> {
+pub async fn specs_drift_check(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<DriftResult> {
     let result = specs_drift(&s, q);
     return Json(result);
 }
 
-async fn specs_rebuild_relations(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
+pub async fn specs_rebuild_relations(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
     let doc = specs_rebuild(&s, q);
     return Json(doc);
 }
 
-async fn specs_related(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<RelatedInfo> {
+pub async fn specs_related(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<RelatedInfo> {
     let info = specs_related_of(&s, q, p);
     return Json(info);
 }
 
-async fn specs_upsert(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<SpecsUpsertRequest>) -> Json<Value> {
+pub async fn specs_upsert(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<SpecsUpsertRequest>) -> Json<Value> {
     let doc = specs_upsert_of(&s, q, body);
     return Json(doc);
 }
 
-async fn specs_transition(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<SpecsTransitionRequest>) -> Json<TransitionOk> {
+pub async fn specs_transition(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<SpecsTransitionRequest>) -> Json<TransitionOk> {
     let new_status = specs_transition_of(&s, q, body);
     return Json(TransitionOk { status: "ok".to_string(), new_status: new_status.to_string() });
 }
 
-async fn specs_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, String)>) -> Json<Deleted> {
+pub async fn specs_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, String)>) -> Json<Deleted> {
     let id = specs_delete_of(&s, q, p);
     return Json(Deleted { status: "deleted".to_string(), id: id.to_string() });
 }
@@ -487,54 +487,54 @@ async fn app_harness_delete(p: Path<(String, String)>) -> Json<Deleted> {
     return Json(Deleted { status: "deleted".to_string(), id: name.to_string() });
 }
 
-async fn chat_create(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<ChatCreateBody>) -> Json<SessionResp> {
+pub async fn chat_create(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<ChatCreateBody>) -> Json<Value> {
     let resp = chats_create(&s, q, body);
-    return Json(resp);
+    return Json(serde_json::json!({ "session": resp }));
 }
 
-async fn chat_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<SessionsResp> {
+pub async fn chat_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
     let list = chats_list(&s, q);
-    return Json(SessionsResp { sessions: list });
+    return Json(serde_json::json!({ "sessions": list }));
 }
 
-async fn chat_get(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<SessionResp> {
+pub async fn chat_get(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<Value> {
     let resp = chats_get(&s, q, p);
-    return Json(resp);
+    return Json(serde_json::json!({ "session": resp }));
 }
 
-async fn chat_rename(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ChatRenameBody>) -> Json<SessionResp> {
+pub async fn chat_rename(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ChatRenameBody>) -> Json<Value> {
     let resp = chats_rename(&s, q, p, body);
-    return Json(resp);
+    return Json(serde_json::json!({ "session": resp }));
 }
 
-async fn chat_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<Deleted> {
+pub async fn chat_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<Deleted> {
     chats_delete(&s, q, &p);
     return Json(Deleted { status: "deleted".to_string(), id: path_inner(&p).to_string() });
 }
 
-async fn chat_delete_all(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<DeletedAll> {
-    let count = chats_delete_all(&s, q);
-    return Json(DeletedAll { status: "deleted".to_string(), count: count });
+pub async fn chat_delete_all(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
+    let _count = chats_delete_all(&s, q);
+    return Json(serde_json::json!({ "status": "deleted_all" }));
 }
 
-async fn chat_message(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ChatMessageBody>) -> Json<QueuedResp> {
-    chats_message(&s, q, p, body);
-    return Json(QueuedResp { status: "queued".to_string() });
+pub async fn chat_message(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ChatMessageBody>) -> Json<Value> {
+    let resp = chats_message(&s, q, p, body);
+    return Json(resp);
 }
 
-async fn chat_approve(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, u32)>) -> Json<ApproveResp> {
-    let applied = chats_approve(&s, q, p);
-    return Json(ApproveResp { status: "ok".to_string(), applied: applied });
+pub async fn chat_approve(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, u32)>) -> Json<Value> {
+    let resp = chats_approve(&s, q, p);
+    return Json(resp);
 }
 
-async fn chat_reject(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, u32)>) -> Json<SessionResp> {
+pub async fn chat_reject(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, u32)>) -> Json<Value> {
     let resp = chats_reject(&s, q, p);
-    return Json(resp);
+    return Json(serde_json::json!({ "session": resp }));
 }
 
-async fn chat_reject_all(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<SessionResp> {
+pub async fn chat_reject_all(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Json<Value> {
     let resp = chats_reject_all(&s, q, p);
-    return Json(resp);
+    return Json(serde_json::json!({ "session": resp }));
 }
 
 async fn conversation_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {

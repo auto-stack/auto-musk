@@ -134,14 +134,16 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/auth/login", post(crate::auto_generated::server::auth_login))
         .route("/api/auth/me", get(crate::auto_generated::server::auth_me))
         .route("/api/auth/logout", post(crate::auto_generated::server::auth_logout))
-        .route("/api/specs", get(specs_list))
-        .route("/api/specs/item", post(specs_upsert))
-        .route("/api/specs/transition", post(specs_transition))
-        .route("/api/specs/item/{section}/{id}", axum::routing::delete(specs_delete))
-        .route("/api/specs/overview", get(specs_overview))
-        .route("/api/specs/drift-check", post(specs_drift_check))
-        .route("/api/specs/rebuild-relations", post(specs_rebuild_relations))
-        .route("/api/specs/related/{item_id}", get(specs_related))
+        // ② 接线:specs/chats 端点由转译 handler 服务(经 extern_impl 委托到
+        // 真实 hw workspace stores)。stream 端点(7 个 🔴)保持手写。
+        .route("/api/specs", get(crate::auto_generated::server::specs_list))
+        .route("/api/specs/item", post(crate::auto_generated::server::specs_upsert))
+        .route("/api/specs/transition", post(crate::auto_generated::server::specs_transition))
+        .route("/api/specs/item/{section}/{id}", axum::routing::delete(crate::auto_generated::server::specs_delete))
+        .route("/api/specs/overview", get(crate::auto_generated::server::specs_overview))
+        .route("/api/specs/drift-check", post(crate::auto_generated::server::specs_drift_check))
+        .route("/api/specs/rebuild-relations", post(crate::auto_generated::server::specs_rebuild_relations))
+        .route("/api/specs/related/{item_id}", get(crate::auto_generated::server::specs_related))
         .route("/api/config", get(config_overview))
         .route("/api/modes", get(modes_list))
         .route("/api/skills", get(skills_list))
@@ -155,18 +157,20 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         // App harness (Design 005): merged view of OS-level (inherit) + app-level (custom).
         .route("/api/app-harness/{kind}", get(app_harness_list))
         .route("/api/app-harness/{kind}/{name}", axum::routing::put(app_harness_save).delete(app_harness_delete))
-        // Chats (Plan 008): persistent multi-turn sessions.
-        .route("/api/chats/sessions", get(chat_list).delete(chat_delete_all))
-        .route("/api/chats/session", post(chat_create))
+        // Chats (Plan 008): persistent multi-turn sessions (② 转译 handler 驱动)。
+        .route("/api/chats/sessions", get(crate::auto_generated::server::chat_list).delete(crate::auto_generated::server::chat_delete_all))
+        .route("/api/chats/session", post(crate::auto_generated::server::chat_create))
         .route(
             "/api/chats/session/{id}",
-            get(chat_get).patch(chat_rename).delete(chat_delete),
+            get(crate::auto_generated::server::chat_get)
+                .patch(crate::auto_generated::server::chat_rename)
+                .delete(crate::auto_generated::server::chat_delete),
         )
-        .route("/api/chats/session/{id}/message", post(chat_message))
+        .route("/api/chats/session/{id}/message", post(crate::auto_generated::server::chat_message))
         .route("/api/chats/session/{id}/stream", get(chat_stream))
-        .route("/api/chats/session/{id}/approve/{index}", post(chat_approve))
-        .route("/api/chats/session/{id}/reject/{index}", post(chat_reject))
-        .route("/api/chats/session/{id}/reject-all", post(chat_reject_all))
+        .route("/api/chats/session/{id}/approve/{index}", post(crate::auto_generated::server::chat_approve))
+        .route("/api/chats/session/{id}/reject/{index}", post(crate::auto_generated::server::chat_reject))
+        .route("/api/chats/session/{id}/reject-all", post(crate::auto_generated::server::chat_reject_all))
         // Conversations (unified chat + flow): direct ConversationStore reads
         // + an SSE stream of real-time turn/status events.
         .route("/api/conversations", get(conversation_list))
@@ -227,263 +231,6 @@ pub struct LoginResponse {
 //    auto_generated::server::auth_login/auth_me/auth_logout —— 原手写版已删除) ──
 
 // ── Spec Ledger endpoints ───────────────────────────────────────────────────
-
-
-/// `GET /api/specs` — return the full spec document (all sections + items).
-async fn specs_list(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    match ws.specs.load() {
-        Ok(doc) => Json(doc).into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiError { error: format!("load specs: {e}") }),
-        )
-            .into_response(),
-    }
-}
-
-/// `GET /api/specs/overview` — aggregate per-section summary (counts + status dist).
-async fn specs_overview(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    match ws.specs.load() {
-        Ok(doc) => {
-            // relations + derived statuses reflect the freshest view
-            let mut doc = doc;
-            doc.rebuild_relations();
-            doc.derive_statuses();
-            Json(doc.overview()).into_response()
-        }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiError { error: format!("load specs: {e}") }),
-        )
-            .into_response(),
-    }
-}
-
-/// `POST /api/specs/drift-check` — compare in-memory vs disk version.
-async fn specs_drift_check(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    match ws.specs.load() {
-        Ok(doc) => match ws.specs.drift_check(&doc) {
-            Ok((disk_version, drifted)) => Json(serde_json::json!({
-                "memory_version": doc.version,
-                "disk_version": disk_version,
-                "drifted": drifted,
-            }))
-            .into_response(),
-            Err(e) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError { error: e }),
-            )
-                .into_response(),
-        },
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiError { error: format!("load specs: {e}") }),
-        )
-            .into_response(),
-    }
-}
-
-/// `POST /api/specs/rebuild-relations` — recompute all `related` reverse-links.
-async fn specs_rebuild_relations(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    let mut doc = match ws.specs.load() {
-        Ok(d) => d,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError { error: format!("load: {e}") }),
-            )
-                .into_response()
-        }
-    };
-    doc.rebuild_relations();
-    doc.derive_statuses();
-    if let Err(e) = ws.specs.save(&doc) {
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiError { error: format!("save: {e}") }),
-        )
-            .into_response();
-    }
-    Json(doc).into_response()
-}
-
-/// `GET /api/specs/related/{item_id}` — the related (reverse-link) ids of an item.
-async fn specs_related(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-    axum::extract::Path(item_id): axum::extract::Path<String>,
-) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    match ws.specs.load() {
-        Ok(mut doc) => {
-            doc.rebuild_relations();
-            for section in &doc.sections {
-                if let Some(item) = section.items.iter().find(|i| i.id == item_id) {
-                    return Json(serde_json::json!({
-                        "item_id": item_id,
-                        "depends_on": item.depends_on,
-                        "related": item.related,
-                    }))
-                    .into_response();
-                }
-            }
-            (
-                StatusCode::NOT_FOUND,
-                Json(ApiError { error: format!("item '{item_id}' not found") }),
-            )
-                .into_response()
-        }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiError { error: format!("load: {e}") }),
-        )
-            .into_response(),
-    }
-}
-
-/// `POST /api/specs/item` — create or update a spec item.
-#[derive(Debug, Deserialize)]
-pub struct SpecsUpsertRequest {
-    pub section_id: String,
-    pub item: crate::specs::SpecItem,
-}
-
-async fn specs_upsert(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-    Json(req): Json<SpecsUpsertRequest>,
-) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    let mut doc = match ws.specs.load() {
-        Ok(d) => d,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError { error: format!("load: {e}") }),
-            )
-                .into_response()
-        }
-    };
-    match ws
-        .specs
-        .upsert_item(&mut doc, &req.section_id, req.item)
-    {
-        Ok(_) => match ws.specs.save(&doc) {
-            Ok(_) => Json(&doc).into_response(),
-            Err(e) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError { error: format!("save: {e}") }),
-            )
-                .into_response(),
-        },
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            Json(ApiError { error: e }),
-        )
-            .into_response(),
-    }
-}
-
-/// `POST /api/specs/transition` — change an item's status (validated by the
-/// state machine).
-#[derive(Debug, Deserialize)]
-pub struct SpecsTransitionRequest {
-    pub section_id: String,
-    pub item_id: String,
-    pub new_status: String,
-}
-
-async fn specs_transition(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-    Json(req): Json<SpecsTransitionRequest>,
-) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    let new_status = crate::specs::SpecStatus::from_str_lossy(&req.new_status);
-    let mut doc = match ws.specs.load() {
-        Ok(d) => d,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError { error: format!("load: {e}") }),
-            )
-                .into_response()
-        }
-    };
-    match ws
-        .specs
-        .transition_item(&mut doc, &req.section_id, &req.item_id, new_status)
-    {
-        Ok(_) => match ws.specs.save(&doc) {
-            Ok(_) => Json(json!({"status": "ok", "new_status": req.new_status})).into_response(),
-            Err(e) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError { error: format!("save: {e}") }),
-            )
-                .into_response(),
-        },
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            Json(ApiError { error: e }),
-        )
-            .into_response(),
-    }
-}
-
-/// `DELETE /api/specs/item/:section/:id` — remove a spec item.
-async fn specs_delete(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-    axum::extract::Path((section_id, item_id)): axum::extract::Path<(String, String)>,
-) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    let mut doc = match ws.specs.load() {
-        Ok(d) => d,
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError { error: format!("load: {e}") }),
-            )
-                .into_response()
-        }
-    };
-    match ws.specs.delete_item(&mut doc, &section_id, &item_id) {
-        Ok(true) => match ws.specs.save(&doc) {
-            Ok(_) => Json(json!({"status": "deleted"})).into_response(),
-            Err(e) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError { error: format!("save: {e}") }),
-            )
-                .into_response(),
-        },
-        Ok(false) => (
-            StatusCode::NOT_FOUND,
-            Json(ApiError { error: "item not found".into() }),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::BAD_REQUEST,
-            Json(ApiError { error: e }),
-        )
-            .into_response(),
-    }
-}
 
 async fn professions() -> impl IntoResponse {
     let list: Vec<serde_json::Value> = builtin_names()
@@ -1345,165 +1092,6 @@ async fn app_harness_delete(
 }
 
 // ── Chats endpoints (Plan 008) ──────────────────────────────────────────────
-
-/// `POST /api/chats/session` body.
-#[derive(Debug, Deserialize)]
-struct ChatCreateBody {
-    /// Mode for the session (defaults to "superpowers").
-    #[serde(default = "default_mode")]
-    mode: String,
-}
-
-/// `POST /api/chats/session` — create a new (empty) chat session.
-async fn chat_create(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-    Json(body): Json<ChatCreateBody>,
-) -> impl IntoResponse {
-    let ws_id = q.id_or_default(&state.registry);
-    let ws = state.registry.get(&ws_id);
-    match ws.chats.create(&body.mode, Some(ws_id.clone())) {
-        Ok(session) => {
-            // Dual-write: create a matching conversation with the SAME id so the
-            // two stores stay linked. Failure here is non-fatal — the ChatStore
-            // is the source of truth for the /api/chats surface.
-            let _ = ws.conversations.create_with_id(
-                session.id.clone(),
-                crate::conversation::ConversationKind::Chat,
-                ws_id.clone(),
-                crate::conversation::Driver::Human,
-                Some(body.mode.clone()),
-                Some(session.name.clone()),
-            );
-            Json(json!({"session": session})).into_response()
-        }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("create: {e}")).into_response(),
-    }
-}
-
-/// `GET /api/chats/sessions` — list all sessions (summaries).
-async fn chat_list(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    Json(json!({"sessions": ws.chats.list()}))
-}
-
-/// `GET /api/chats/session/{id}` — full session with all messages.
-async fn chat_get(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    match ws.chats.get(&id) {
-        Some(session) => Json(json!({"session": session})).into_response(),
-        None => (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response(),
-    }
-}
-
-/// `PATCH /api/chats/session/{id}` body.
-#[derive(Debug, Deserialize)]
-struct ChatRenameBody {
-    name: String,
-}
-
-/// `PATCH /api/chats/session/{id}` — rename a session.
-async fn chat_rename(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-    Json(body): Json<ChatRenameBody>,
-) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    match ws.chats.rename(&id, &body.name) {
-        Ok(Some(session)) => {
-            // Dual-write: keep the conversation title in sync.
-            let _ = ws.conversations.rename(&id, &body.name);
-            Json(json!({"session": session})).into_response()
-        }
-        Ok(None) => (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("rename: {e}")).into_response(),
-    }
-}
-
-/// `DELETE /api/chats/session/{id}` — delete one session.
-async fn chat_delete(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    match ws.chats.delete(&id) {
-        Ok(true) => {
-            // Dual-write: delete the matching conversation (ignore missing).
-            let _ = ws.conversations.delete(&id);
-            Json(json!({"status": "deleted", "id": id})).into_response()
-        }
-        Ok(false) => (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("delete: {e}")).into_response(),
-    }
-}
-
-/// `DELETE /api/chats/sessions` — delete all sessions.
-async fn chat_delete_all(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    match ws.chats.delete_all() {
-        Ok(_) => {
-            // Dual-write: clear all conversations too.
-            ws.conversations.delete_all();
-            Json(json!({"status": "deleted_all"})).into_response()
-        }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("delete_all: {e}")).into_response(),
-    }
-}
-
-/// `POST /api/chats/session/{id}/message` body.
-#[derive(Debug, Deserialize)]
-struct ChatMessageBody {
-    content: String,
-}
-
-/// `POST /api/chats/session/{id}/message` — append the user's message and run
-/// one agent turn (non-streaming). Returns the assistant reply + tool calls.
-/// For streaming, the client calls `GET /api/chats/session/{id}/stream` after.
-///
-/// NOTE: in the streaming flow the client POSTs the message here (persisting
-/// the user turn) then opens the SSE stream, which runs the turn and appends
-/// the assistant message on completion. To avoid double-runs, this endpoint
-/// only persists the user message + returns it; the actual agent run happens
-/// in `chat_stream`. (Kept as a distinct endpoint so persistence and streaming
-/// are cleanly separated.)
-async fn chat_message(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-    Json(body): Json<ChatMessageBody>,
-) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    let msg = crate::chats::ChatMessage::user(body.content);
-    match ws.chats.append_message(&id, msg.clone()) {
-        Ok(Some(session)) => {
-            // Dual-write: mirror the user message as a turn in the conversation.
-            let seq_base = ws
-                .conversations
-                .get(&id)
-                .map(|c| c.turns.len())
-                .unwrap_or(0);
-            for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
-                let _ = ws.conversations.append_turn(&id, turn);
-            }
-            Json(json!({"session": session, "queued": msg})).into_response()
-        }
-        Ok(None) => (StatusCode::NOT_FOUND, format!("session '{id}' not found")).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("append: {e}")).into_response(),
-    }
-}
-
 /// `GET /api/chats/session/{id}/stream` — run the last queued user message as
 /// an agent turn, streaming SSE events (delta/tool/done/error). On completion,
 /// the assistant reply (+ tool calls) is persisted to the session.
@@ -1693,55 +1281,6 @@ async fn chat_stream(
 }
 
 // ── Spec-change approval endpoints (Plan 009 P1b) ──────────────────────────
-
-/// `POST /api/chats/session/{id}/approve/{index}` — apply the pending spec
-/// change at `index` to the Spec Ledger, then remove it from the queue.
-async fn chat_approve(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-    axum::extract::Path((id, index)): axum::extract::Path<(String, usize)>,
-) -> Response {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    match ws.chats.approve_spec_change(&id, index, &ws.specs) {
-        Ok(Some((change, session))) => Json(json!({
-            "applied": change,
-            "session": session,
-        }))
-        .into_response(),
-        Ok(None) => (StatusCode::NOT_FOUND, "session not found").into_response(),
-        Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
-    }
-}
-
-/// `POST /api/chats/session/{id}/reject/{index}` — discard the pending spec
-/// change at `index` without applying it.
-async fn chat_reject(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-    axum::extract::Path((id, index)): axum::extract::Path<(String, usize)>,
-) -> Response {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    match ws.chats.reject_spec_change(&id, index) {
-        Ok(Some(session)) => Json(json!({ "session": session })).into_response(),
-        Ok(None) => (StatusCode::NOT_FOUND, "session not found").into_response(),
-        Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
-    }
-}
-
-/// `POST /api/chats/session/{id}/reject-all` — discard all pending spec changes.
-async fn chat_reject_all(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-) -> Response {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    match ws.chats.reject_all_spec_changes(&id) {
-        Ok(Some(session)) => Json(json!({ "session": session })).into_response(),
-        Ok(None) => (StatusCode::NOT_FOUND, "session not found").into_response(),
-        Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
-    }
-}
-
 // ── Workspace management endpoints ──────────────────────────────────────────
 
 /// `GET /api/workspace/list` — recent workspaces.
@@ -2300,6 +1839,175 @@ mod tests {
         assert_eq!(goals.items.len(), 1);
         assert_eq!(goals.items[0].id, "G1");
         assert_eq!(goals.items[0].title, "goal");
+    }
+
+    /// ② 接线验收:specs/chats 端点由转译 handler(经 extern_impl 委托到真实
+    /// workspace stores)服务 —— 与 hw 手写版行为一致的真实 CRUD。
+    #[tokio::test]
+    async fn specs_chats_endpoints_run_on_transpiled_handlers() {
+        use axum::body::Body;
+        use crate::auto_generated::server as ag_server;
+        use tower::ServiceExt;
+
+        let app = axum::Router::new()
+            .route("/api/specs", axum::routing::get(ag_server::specs_list))
+            .route("/api/specs/item", axum::routing::post(ag_server::specs_upsert))
+            .route("/api/specs/transition", axum::routing::post(ag_server::specs_transition))
+            .route(
+                "/api/specs/item/{section}/{id}",
+                axum::routing::delete(ag_server::specs_delete),
+            )
+            .route("/api/specs/overview", axum::routing::get(ag_server::specs_overview))
+            .route("/api/chats/sessions", axum::routing::get(ag_server::chat_list))
+            .route("/api/chats/session", axum::routing::post(ag_server::chat_create))
+            .route(
+                "/api/chats/session/{id}",
+                axum::routing::get(ag_server::chat_get)
+                    .patch(ag_server::chat_rename)
+                    .delete(ag_server::chat_delete),
+            )
+            .route("/api/chats/session/{id}/message", axum::routing::post(ag_server::chat_message))
+            .with_state(tmp_state());
+
+        // ── specs: upsert → 真实 doc 持久化,list 可读回 ──
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/api/specs/item")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"section":"goals","item":{"id":"G1","title":"goal","content":"body","status":"empty"}}"#,
+                ))
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let doc: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(doc["sections"][0]["items"][0]["id"], "G1");
+
+        // GET /api/specs returns the persisted doc (via specs_load 委托)。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("GET")
+                .uri("/api/specs")
+                .body(Body::empty())
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let doc: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(doc["sections"][0]["items"][0]["id"], "G1");
+
+        // specs transition: Empty → Proposed(Goals 合法)真实落库。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/api/specs/transition")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"section":"goals","item_id":"G1","new_status":"proposed"}"#))
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["new_status"], "proposed");
+
+        // specs overview 返回各 section 的聚合。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("GET")
+                .uri("/api/specs/overview")
+                .body(Body::empty())
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["sections"].as_array().map(|a| a.len()).unwrap_or(0), 7);
+
+        // ── chats: create → {"session": {...}},list/get 可读回 ──
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/api/chats/session")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"mode":"superpowers"}"#))
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let session_id = v["session"]["id"].as_str().expect("create returns session").to_string();
+        assert_eq!(v["session"]["mode"], "superpowers");
+
+        // append message → 会话消息数 +1。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri(format!("/api/chats/session/{session_id}/message"))
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"content":"List the files"}"#))
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["session"]["messages"].as_array().map(|a| a.len()).unwrap_or(0), 1);
+        assert_eq!(v["queued"]["content"], "List the files");
+
+        // list 返回该 session 的 summary。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("GET")
+                .uri("/api/chats/sessions")
+                .body(Body::empty())
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let sessions = v["sessions"].as_array().unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0]["id"], session_id);
+
+        // get 返回完整 session。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("GET")
+                .uri(format!("/api/chats/session/{session_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["session"]["id"], session_id);
+
+        // rename + delete。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("PATCH")
+                .uri(format!("/api/chats/session/{session_id}"))
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"name":"renamed"}"#))
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["session"]["name"], "renamed");
+
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("DELETE")
+                .uri(format!("/api/chats/session/{session_id}"))
+                .body(Body::empty())
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["status"], "deleted");
     }
 
     #[tokio::test]

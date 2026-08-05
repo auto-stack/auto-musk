@@ -347,7 +347,7 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
 | # | 内容 | 验收 |
 |---|---|---|
 | ① | **auth 接线**：extern_impl 的 auth 7 个 stub 换真实委托（走 `s.auth`）；ag router 的 `/api/auth/*` 3 路由接入 serve() | `musk serve` 后 login/me/logout 由转译 handler 服务，行为与手写版一致（curl 验证） |
-| ② | **specs/wiki/chats 数据层接线**：extern_impl 对应 stub 换真实委托（走 `s.registry` 的 workspace stores）；ag router 的 specs/workspace/chats 路由接入 | 各端点真实 CRUD 返回，与手写版一致 |
+| ② | **specs/wiki/chats 数据层接线**：extern_impl 对应 stub 换真实委托（走 `s.registry` 的 workspace stores）；ag router 的 specs/workspace/chats 路由接入 | 各端点真实 CRUD 返回，与手写版一致。**✅ specs/chats 已完成(2026-08-05, 17 stub 委托 + 18 路由接入);workspace 路由见 ③/单独工作项** |
 | ③ | **extern_impl 剩余 stub 全部真实委托**（config/modes/skills/roles/app-config/harness/conversations/relay/drive/agent/ctx） | 全部端点有真实行为；fake 常量清零 |
 | ④ | **auto_generated::server 整体接入**：ag build_router（36 路由）作为主 router；7 个 🔴 流式/daemon handler + wiki + 静态文件路由与手写 router 合并 | 全服务端由转译 handler 驱动；原有 45 路由功能不丢 |
 
@@ -360,6 +360,9 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
 
 ### 已完成的接线（滚动更新）
 - 2026-08-05：本路线图写入计划；开始 ①。
+- 2026-08-05：① auth 接线闭环（serve() 接 ag auth 3 路由，手写 handlers 删除）。
+- 2026-08-05：② specs/chats 数据层接线闭环 —— 17 个 extern stub 真实委托 +
+  ag specs 8 路由 / chats 10 路由接入 serve()（详见 §12 C1 ② 接线）。
 
 ### ②③④ 实测阻塞(2026-08-05,已停止推进,待决策)
 - **② workspace stores 级联**:specs/chats/wiki 在 `WorkspaceStores`(`src/workspace.rs:38`),
@@ -397,6 +400,9 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
 - **② 剩余工作(委托路径)**:其余 ~17 个 specs/chats extern stub 逐个改具体签名
   + hw store → ag DTO/Value 转换 + ag router 的 specs/chats 路由接入 serve()。
   每 stub 一个 PoC 同款改动,可增量验收。
+- **② 完整接线(2026-08-05)✅**:17 个 specs/chats extern stub 全部真实委托
+  (走 `s.0.registry` 的 hw stores),ag server 的 specs 8 路由 + chats 10 路由
+  接入 serve()(stream 端点保持手写)。详见 §12。
 - **C1 的意义**:specs store `&mut doc` 对齐 + chats CRUD 11/11,让委托可选的
   "swap 到底层 ag store"路径也接近就绪(非必需,但留作未来 dogfooding)。
 
@@ -545,3 +551,27 @@ C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
   reject_all / approve 状态迁移+upsert+错误路径);parity_chats 17/17 通过。
 - 残差:ag id 为 extern new_id stub 产 16 位 hex(hw new_id(12) 为 24 位)——extern
   stub 既有差异,非本移植引入;parity 只比结构不比 id。
+
+### C1 ② specs/chats 数据层接线(2026-08-05)✅
+- **17 个 extern stub 真实委托**(走 `s.0.registry` 的 hw workspace stores,与
+  auth 委托同模式):
+  - specs 8 个:load(先前的 PoC)/ overview(load+rebuild+derive+overview)/
+    drift / rebuild+save / related / upsert(ag 请求体 `{section,item{id,title,
+    content,status}}` → hw SpecItem 转换)/ transition / delete。
+  - chats 10 个:create(含 conversation 双写)/ list / get / rename(含双写)/
+    delete(含双写)/ delete_all / message(append+双写 turns,返回
+    `{"session","queued"}`)/ approve(经 hw approve_spec_change 应用进 specs doc)/
+    reject / reject_all。
+- **wire 形状与 hw 一致**:chats 响应改回 `{"session": {...}}` / `{"sessions": [...]}`
+  (ag DTO 原为简化版 {id,name,mode});specs 的 DriftResult/RelatedInfo/TransitionOk/
+  Deleted 本就与 hw 同构。
+- **serve() 接入**:ag specs 8 路由 + chats 10 路由替换 hw handlers;`chat_stream`
+  (7 个 🔴 之一)保持手写。**hw 的 18 个 specs/chats handlers + 5 个请求 DTO 删除**
+  (死代码,465 行)。
+- **手改 auto_generated/server.rs(文档化 drift)**:18 个 handler 加 `pub` +
+  chats handler 返回形态改 wire 兼容。根因:当前 a2r 重转译 server.at 有
+  s vs s.view drift(见 §11 ②③④),不能靠 re-transpile,只能手改生成产物;
+  server.at 仍是规范源(待 .view 手术后可重新转译)。
+- **验收**:集成测试 `server::tests::specs_chats_endpoints_run_on_transpiled_handlers`
+  覆盖 specs upsert/list/transition/overview + chats create/message/list/get/
+  rename/delete 全链路真实 CRUD,与 hw 行为一致。全套 201 lib + parity 通过。

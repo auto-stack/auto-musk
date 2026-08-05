@@ -120,20 +120,127 @@ fn bearer_from(headers: &axum::http::HeaderMap) -> Option<String> {
 // 同模式),证明"换 store 类型(41 处级联)"非必需。调用点仍由 extern_sigs.at
 // 的 `@T` 驱动 `&s`;此处签名改为具体类型(手写 impl,可任意定)。
 pub fn specs_load(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> Value {
-    let id = q.workspace.clone().unwrap_or_default();
-    let ws = s.0.registry.get(&id);
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
     match ws.specs.load() {
         Ok(doc) => serde_json::to_value(doc).unwrap_or(Value::Null),
         Err(_) => Value::Null,
     }
 }
-pub fn specs_overview_of<T,U>(_s: &T, _q: U) -> Value { Value::Null }
-pub fn specs_drift<T,U>(_s: &T, _q: U) -> DriftResult { DriftResult { memory_version: 0, disk_version: 0, drifted: false } }
-pub fn specs_rebuild<T,U>(_s: &T, _q: U) -> Value { Value::Null }
-pub fn specs_related_of<T,U,V>(_s: &T, _q: U, _p: V) -> RelatedInfo { RelatedInfo { item_id: String::new(), depends_on: vec![], related: vec![] } }
-pub fn specs_upsert_of<T,U,V>(_s: &T, _q: U, _b: V) -> Value { Value::Null }
-pub fn specs_transition_of<T,U,V>(_s: &T, _q: U, _b: V) -> String { "done".into() }
-pub fn specs_delete_of<T,U,V>(_s: &T, _q: U, _p: V) -> String { String::new() }
+/// ② 委托:overview = load + rebuild + derive + doc.overview()(与 hw specs_overview 一致)。
+pub fn specs_overview_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    match ws.specs.load() {
+        Ok(mut doc) => {
+            doc.rebuild_relations();
+            doc.derive_statuses();
+            serde_json::to_value(doc.overview()).unwrap_or(Value::Null)
+        }
+        Err(_) => Value::Null,
+    }
+}
+/// ② 委托:drift = load + drift_check(与 hw specs_drift_check 一致)。
+pub fn specs_drift(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> DriftResult {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    match ws.specs.load() {
+        Ok(doc) => match ws.specs.drift_check(&doc) {
+            Ok((disk_version, drifted)) => DriftResult {
+                memory_version: doc.version,
+                disk_version,
+                drifted,
+            },
+            Err(_) => DriftResult { memory_version: doc.version, disk_version: 0, drifted: false },
+        },
+        Err(_) => DriftResult { memory_version: 0, disk_version: 0, drifted: false },
+    }
+}
+/// ② 委托:rebuild = load + rebuild + derive + save + 返回 doc(与 hw 一致)。
+pub fn specs_rebuild(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    let mut doc = match ws.specs.load() {
+        Ok(d) => d,
+        Err(_) => return Value::Null,
+    };
+    doc.rebuild_relations();
+    doc.derive_statuses();
+    if ws.specs.save(&doc).is_err() {
+        return Value::Null;
+    }
+    serde_json::to_value(doc).unwrap_or(Value::Null)
+}
+/// ② 委托:related = load + rebuild + 找 item 返回 depends_on/related(与 hw 一致)。
+pub fn specs_related_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>) -> RelatedInfo {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    let item_id = p.0.clone();
+    match ws.specs.load() {
+        Ok(mut doc) => {
+            doc.rebuild_relations();
+            for section in &doc.sections {
+                if let Some(item) = section.items.iter().find(|i| i.id == item_id) {
+                    return RelatedInfo {
+                        item_id,
+                        depends_on: item.depends_on.clone(),
+                        related: item.related.clone(),
+                    };
+                }
+            }
+            RelatedInfo { item_id, depends_on: vec![], related: vec![] }
+        }
+        Err(_) => RelatedInfo { item_id, depends_on: vec![], related: vec![] },
+    }
+}
+/// ② 委托:upsert = load + upsert_item + save + 返回 doc。ag 请求体字段是
+/// section / item{id,title,content,status}(简化版),转换为 hw SpecItem。
+pub fn specs_upsert_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, b: Json<crate::auto_generated::server::SpecsUpsertRequest>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    let mut doc = match ws.specs.load() {
+        Ok(d) => d,
+        Err(_) => return Value::Null,
+    };
+    let mut item = crate::specs::SpecItem::new(b.item.id.clone(), b.item.title.clone());
+    item.content = b.item.content.clone();
+    item.status = crate::specs::SpecStatus::from_str_lossy(&b.item.status);
+    match ws.specs.upsert_item(&mut doc, &b.section, item) {
+        Ok(_) => {
+            if ws.specs.save(&doc).is_err() {
+                return Value::Null;
+            }
+            serde_json::to_value(doc).unwrap_or(Value::Null)
+        }
+        Err(_) => Value::Null,
+    }
+}
+/// ② 委托:transition = load + transition_item + save + 返回 new_status 字符串。
+pub fn specs_transition_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, b: Json<crate::auto_generated::server::SpecsTransitionRequest>) -> String {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    let new_status = crate::specs::SpecStatus::from_str_lossy(&b.new_status);
+    let mut doc = match ws.specs.load() {
+        Ok(d) => d,
+        Err(_) => return String::new(),
+    };
+    match ws.specs.transition_item(&mut doc, &b.section, &b.item_id, new_status) {
+        Ok(_) => {
+            let _ = ws.specs.save(&doc);
+            b.new_status.clone()
+        }
+        Err(_) => String::new(),
+    }
+}
+/// ② 委托:delete = load + delete_item + save + 返回 item_id 字符串。
+pub fn specs_delete_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<(String, String)>) -> String {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    let (section_id, item_id) = p.0;
+    let mut doc = match ws.specs.load() {
+        Ok(d) => d,
+        Err(_) => return String::new(),
+    };
+    match ws.specs.delete_item(&mut doc, &section_id, &item_id) {
+        Ok(true) => {
+            let _ = ws.specs.save(&doc);
+            item_id
+        }
+        Ok(false) | Err(_) => String::new(),
+    }
+}
 pub fn specs_read(_s: String) -> String { String::new() }
 pub fn specs_list() -> String { String::new() }
 pub fn specs_write(_s: String, _c: String) -> String { "ok".into() }
@@ -165,16 +272,111 @@ pub fn harness_list<T>(_p: &T) -> Value { Value::Null }
 pub fn harness_save<T,U>(_p: &T, _b: U) {}
 pub fn harness_delete<T>(_p: &T) {}
 pub fn harness_name_from_path<T>(_p: &T) -> String { String::new() }
-pub fn chats_create<T,U,V>(_s: &T, _q: U, _b: V) -> SessionResp { SessionResp { id: String::new(), name: String::new(), mode: String::new() } }
-pub fn chats_list<T,U>(_s: &T, _q: U) -> Vec<SessionSummary> { vec![] }
-pub fn chats_get<T,U,V>(_s: &T, _q: U, _p: V) -> SessionResp { SessionResp { id: String::new(), name: String::new(), mode: String::new() } }
-pub fn chats_rename<T,U,V,W>(_s: &T, _q: U, _p: V, _b: W) -> SessionResp { SessionResp { id: String::new(), name: String::new(), mode: String::new() } }
-pub fn chats_delete<T,U,V>(_s: &T, _q: U, _p: &V) {}
-pub fn chats_delete_all<T,U>(_s: &T, _q: U) -> u32 { 0 }
-pub fn chats_message<T,U,V,W>(_s: &T, _q: U, _p: V, _b: W) {}
-pub fn chats_approve<T,U,V>(_s: &T, _q: U, _p: V) -> bool { true }
-pub fn chats_reject<T,U,V>(_s: &T, _q: U, _p: V) -> SessionResp { SessionResp { id: String::new(), name: String::new(), mode: String::new() } }
-pub fn chats_reject_all<T,U,V>(_s: &T, _q: U, _p: V) -> SessionResp { SessionResp { id: String::new(), name: String::new(), mode: String::new() } }
+// C1 重新评估(plan 018 §11 ②):specs/chats 委托路径 —— extern_impl 从泛型
+// fake stub 改为走 `s.0.registry` 的真实 workspace stores(与 auth 委托同模式)。
+// chats 返回完整 session 的 Value(与 hw 的 `{"session": {...}}` wire 形状一致);
+// ag server 的 handler 负责包装(session/sessions 键)。conversation 双写与 hw
+// 一致(create/rename/delete/message),保证两个 store 保持链接。
+pub fn chats_create(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, b: Json<crate::auto_generated::server::ChatCreateBody>) -> Value {
+    let ws_id = q.workspace.clone().unwrap_or_default();
+    let ws = s.0.registry.get(&ws_id);
+    let mode = b.mode.clone().unwrap_or_else(|| "superpowers".into());
+    match ws.chats.create(&mode, Some(ws_id.clone())) {
+        Ok(session) => {
+            let _ = ws.conversations.create_with_id(
+                session.id.clone(),
+                crate::conversation::ConversationKind::Chat,
+                ws_id.clone(),
+                crate::conversation::Driver::Human,
+                Some(mode),
+                Some(session.name.clone()),
+            );
+            serde_json::to_value(session).unwrap_or(Value::Null)
+        }
+        Err(_) => Value::Null,
+    }
+}
+pub fn chats_list(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    serde_json::to_value(ws.chats.list()).unwrap_or(Value::Null)
+}
+pub fn chats_get(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    match ws.chats.get(&p.0) {
+        Some(session) => serde_json::to_value(session).unwrap_or(Value::Null),
+        None => Value::Null,
+    }
+}
+pub fn chats_rename(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>, b: Json<crate::auto_generated::server::ChatRenameBody>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    match ws.chats.rename(&p.0, &b.name) {
+        Ok(Some(session)) => {
+            let _ = ws.conversations.rename(&p.0, &b.name);
+            serde_json::to_value(session).unwrap_or(Value::Null)
+        }
+        _ => Value::Null,
+    }
+}
+pub fn chats_delete(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: &Path<String>) {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    if ws.chats.delete(&p.0).unwrap_or(false) {
+        let _ = ws.conversations.delete(&p.0);
+    }
+}
+pub fn chats_delete_all(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> u32 {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    let count = ws.chats.list().len() as u32;
+    if ws.chats.delete_all().is_ok() {
+        ws.conversations.delete_all();
+    }
+    count
+}
+pub fn chats_message(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>, b: Json<crate::auto_generated::server::ChatMessageBody>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    let msg = crate::chats::ChatMessage::user(b.content.clone());
+    match ws.chats.append_message(&p.0, msg.clone()) {
+        Ok(Some(session)) => {
+            let seq_base = ws
+                .conversations
+                .get(&p.0)
+                .map(|c| c.turns.len())
+                .unwrap_or(0);
+            for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
+                let _ = ws.conversations.append_turn(&p.0, turn);
+            }
+            serde_json::to_value(serde_json::json!({ "session": session, "queued": msg }))
+                .unwrap_or(Value::Null)
+        }
+        _ => Value::Null,
+    }
+}
+pub fn chats_approve(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<(String, u32)>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    let (id, index) = p.0;
+    match ws.chats.approve_spec_change(&id, index as usize, &ws.specs) {
+        Ok(Some((change, session))) => serde_json::to_value(serde_json::json!({
+            "applied": change,
+            "session": session,
+        }))
+        .unwrap_or(Value::Null),
+        _ => Value::Null,
+    }
+}
+pub fn chats_reject(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<(String, u32)>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    let (id, index) = p.0;
+    match ws.chats.reject_spec_change(&id, index as usize) {
+        Ok(Some(session)) => serde_json::to_value(session).unwrap_or(Value::Null),
+        _ => Value::Null,
+    }
+}
+pub fn chats_reject_all(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    match ws.chats.reject_all_spec_changes(&p.0) {
+        Ok(Some(session)) => serde_json::to_value(session).unwrap_or(Value::Null),
+        _ => Value::Null,
+    }
+}
 pub fn conversations_list<T,U>(_s: &T, _q: U) -> Value { Value::Null }
 pub fn conversations_get<T,U,V>(_s: &T, _q: U, _p: V) -> Value { Value::Null }
 pub fn conversations_delete<T,U,V>(_s: &T, _q: U, _p: &V) {}
