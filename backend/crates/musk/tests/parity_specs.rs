@@ -220,3 +220,55 @@ fn parity_derive_does_not_force_invalid_transition() {
     // Both should be "empty" (no forcing)
     assert_eq!(hw_doc.sections[0].items[0].status.to_str(), "empty");
 }
+
+// ──────────────────────────────────────────────────────────
+// SpecsStore IO parity (B 阶段: load/save/drift_check 签名对齐后)
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn parity_specs_store_save_load_roundtrip() {
+    let hw_dir = tempfile::tempdir().unwrap();
+    let ag_dir = tempfile::tempdir().unwrap();
+    let hw_path = hw_dir.path().join("specs.json");
+    let ag_path = ag_dir.path().join("specs.json");
+    let hw_store = hw::SpecsStore::new(hw_path.clone());
+    let ag_store = ag::SpecsStore::new(ag_path);
+
+    // Missing file → both load a fresh empty doc (NotFound fallback persists it).
+    let hw_doc = hw_store.load().unwrap();
+    let ag_doc = ag_store.load().unwrap();
+    assert_eq!(hw_doc.project, ag_doc.project);
+    assert_eq!(hw_doc.version, ag_doc.version);
+    assert_eq!(hw_doc.sections.len(), ag_doc.sections.len());
+
+    // Save + reload round-trip on both.
+    hw_store.save(&hw_doc).unwrap();
+    let hw_rt = hw_store.load().unwrap();
+    ag_store.save(ag_doc.clone()).unwrap();
+    let ag_rt = ag_store.load().unwrap();
+    assert_eq!(hw_rt.project, ag_rt.project);
+    assert_eq!(hw_rt.version, ag_rt.version);
+    assert_eq!(hw_rt.sections.len(), ag_rt.sections.len());
+
+    // drift_check on the just-persisted doc: not drifted on either side.
+    let (_, hw_drifted) = hw_store.drift_check(&hw_rt).unwrap();
+    let (_, ag_drifted) = ag_store.drift_check(ag_rt.clone()).unwrap();
+    assert_eq!(hw_drifted, ag_drifted);
+    assert!(!hw_drifted);
+}
+
+#[test]
+fn parity_specs_store_load_corrupt_errors() {
+    // Corrupt JSON → Err on both (B 阶段把 ag load 从"回退空 doc"对齐为 Err)。
+    let hw_dir = tempfile::tempdir().unwrap();
+    let ag_dir = tempfile::tempdir().unwrap();
+    let hw_path = hw_dir.path().join("specs.json");
+    std::fs::write(&hw_path, "not json{{").unwrap();
+    let hw_store = hw::SpecsStore::new(hw_path.clone());
+    assert!(hw_store.load().is_err());
+
+    let ag_path = ag_dir.path().join("specs.json");
+    std::fs::write(&ag_path, "not json{{").unwrap();
+    let ag_store = ag::SpecsStore::new(ag_path);
+    assert!(ag_store.load().is_err());
+}

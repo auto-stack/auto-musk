@@ -911,27 +911,31 @@ ext SpecsStore {
     /// need explicit `use.rust serde_json::{fn}` then bare `fn(...)` (not
     /// `serde_json.fn` — that becomes a value access, E0423). Result types
     /// left unannotated so a2r infers them, unwrapped via is-match.
-    pub fn load() SpecsDocument {
+    pub fn load() Result<SpecsDocument, str> {
         let read_result = fs.read(self.path.clone())
         is read_result {
             Ok(bytes) -> {
                 let parse_result = from_slice(bytes.view)
                 is parse_result {
-                    Ok(doc) -> return doc,
-                    Err(e) -> return SpecsDocument.new("project")
+                    Ok(doc) -> return Ok(doc),
+                    Err(e) -> return Err(e.to_string())
                 }
             },
             Err(e) -> {
-                // NotFound or other error -> create + persist empty doc
-                let doc SpecsDocument = SpecsDocument.new("project")
-                self.save(doc.clone())
-                return doc
+                // 读错误:创建空 doc 落盘返回(与 hw 的 NotFound 兜底语义一致;
+                // 其它读错误 hw 返回 Err —— a2r 无法区分 io::ErrorKind, 文档化残差)
+                let doc SpecsDocument = SpecsDocument.new(project_name(self.path.clone()))
+                is self.save(doc.clone()) {
+                    Ok(s) -> {},
+                    Err(se) -> {}
+                }
+                return Ok(doc)
             }
         }
     }
 
     /// Persist the document.
-    pub fn save(doc SpecsDocument) void {
+    pub fn save(doc SpecsDocument) Result<str, str> {
         // ensure parent dir exists.
         let parent = self.path.parent()
         is parent {
@@ -939,7 +943,7 @@ ext SpecsStore {
                 let mkdir_result = fs.create_dir_all(p.clone())
                 is mkdir_result {
                     Ok(ok) -> {},
-                    Err(e) -> {}
+                    Err(e) -> return Err(e.to_string())
                 }
             },
             None -> {}
@@ -951,10 +955,14 @@ ext SpecsStore {
         is json_result {
             Ok(json) -> {
                 // a2r maps fs.write to a2r_std::fs::write which returns bool
-                // (not std::fs::write's Result); just call it, ignore outcome.
-                fs.write(self.path.clone(), json)
+                // (not std::fs::write's Result); surface it as the Result shape.
+                let ok bool = fs.write(self.path.clone(), json)
+                if ok == false {
+                    return Err("write failed")
+                }
+                return Ok("ok")
             },
-            Err(e) -> {}
+            Err(e) -> return Err(e.to_string())
         }
     }
 
@@ -1135,9 +1143,32 @@ ext SpecsStore {
 
     /// Drift check: compare in-memory doc against disk. Returns (disk_version,
     /// drifted) — drifted is true if disk version differs.
-    pub fn drift_check(doc SpecsDocument) Option<(u64, bool)> {
-        let disk SpecsDocument = self.load()
-        let drifted bool = disk.version != doc.version
-        return Some((disk.version, drifted))
+    pub fn drift_check(doc SpecsDocument) Result<(u64, bool), str> {
+        let load_result = self.load()
+        is load_result {
+            Ok(disk) -> {
+                let drifted bool = disk.version != doc.version
+                return Ok((disk.version, drifted))
+            },
+            Err(e) -> return Err(e)
+        }
     }
+}
+
+/// Project name from the store file stem (matches hw load's NotFound fallback).
+/// a2r 可表达 file_stem/to_str 链;hw 的 unwrap_or("project") 用 is 匹配展开。
+fn project_name(path PathBuf) str {
+    var name str = "project"
+    let stem_opt = path.file_stem()
+    is stem_opt {
+        Some(s) -> {
+            let s_str = s.to_str()
+            is s_str {
+                Some(t) -> { name = t.to_string() },
+                None -> {}
+            }
+        },
+        None -> {}
+    }
+    return name
 }

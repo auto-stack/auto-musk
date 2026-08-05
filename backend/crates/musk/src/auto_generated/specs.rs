@@ -761,26 +761,30 @@ impl SpecsStore {
     pub fn new(path: PathBuf) -> SpecsStore {
         return SpecsStore { path: path };
     }
-    pub fn load(&self) -> SpecsDocument {
+    pub fn load(&self) -> Result<SpecsDocument, String> {
         let read_result = fs::read(self.path.clone());
         match read_result {
             Ok(bytes) => {
                 let parse_result = from_slice(&bytes);
                 match parse_result {
-                    Ok(doc) => return doc,
-                    Err(e) => return SpecsDocument::new("project"),
+                    Ok(doc) => return Ok(doc),
+                    Err(e) => return Err(e.to_string()),
                 };
             },
             Err(e) => {
                 
 
-                let doc: SpecsDocument = SpecsDocument::new("project");
-                self.save(doc.clone());
-                return doc;
+
+                let doc: SpecsDocument = SpecsDocument::new(project_name(self.path.clone()).as_str());
+                match self.save(doc.clone()) {
+                    Ok(s) => {},
+                    Err(se) => {},
+                };
+                return Ok(doc);
             },
         }
     }
-    pub fn save(&self, doc: SpecsDocument) {
+    pub fn save(&self, doc: SpecsDocument) -> Result<String, String> {
 
         let parent = self.path.parent();
         match parent {
@@ -788,7 +792,7 @@ impl SpecsStore {
                 let mkdir_result = fs::create_dir_all(p.clone());
                 match mkdir_result {
                     Ok(ok) => {},
-                    Err(e) => {},
+                    Err(e) => return Err(e.to_string()),
                 };
             },
             None => {},
@@ -802,10 +806,14 @@ impl SpecsStore {
                 
 
 
-                std::fs::write(self.path.to_str().unwrap(), json.as_str()).is_ok();
+                let ok: bool = std::fs::write(self.path.to_str().unwrap(), json.as_str()).is_ok();
+                if ok == false {
+                    return Err("write failed".into());
+                }
+                return Ok("ok".to_string());
             },
-            Err(e) => {},
-        };
+            Err(e) => return Err(e.to_string()),
+        }
     }
     pub fn upsert_item(&self, doc: SpecsDocument, section_id: &str, item: SpecItem) -> Option<SpecsDocument> {
         let mut section_found: bool = false;
@@ -928,9 +936,50 @@ impl SpecsStore {
         new_doc.derive_statuses();
         return Some(new_doc);
     }
-    pub fn drift_check(&self, doc: SpecsDocument) -> Option<(u64, bool)> {
-        let disk: SpecsDocument = self.load();
-        let drifted: bool = disk.version != doc.version;
-        return Some((disk.version, drifted));
+    pub fn drift_check(&self, doc: SpecsDocument) -> Result<(u64, bool), String> {
+        let load_result = self.load();
+        match load_result {
+            Ok(disk) => {
+                let drifted: bool = disk.version != doc.version;
+                return Ok((disk.version, drifted));
+            },
+            Err(e) => return Err(e),
+        }
     }
+}
+
+/// Open (or create) a store at path.
+/// Load the document; create an empty one (persisted) if absent.
+/// a2r-13: .view marks a borrow (&) for &T params. serde_json fn calls
+/// need explicit `use.rust serde_json::{fn}` then bare `fn(...)` (not
+/// `serde_json.fn` — that becomes a value access, E0423). Result types
+/// left unannotated so a2r infers them, unwrapped via is-match.
+/// Persist the document.
+/// Upsert an item into a section, bumping the document version. Creates
+/// the item if item.id is new, replaces it otherwise. Rebuilds relations.
+/// a2r-11: returns the updated doc (whole-field rebuild) instead of
+/// mutating in place; returns Option to signal section-not-found (None).
+/// Transition an item's status (validates via per-section state machine).
+/// Returns Option<SpecsDocument> — None if section/item not found OR the
+/// transition is invalid for that section type.
+/// Delete an item. Returns (updated_doc, removed) — removed is true if the
+/// item existed. Rebuilds relations on success.
+/// Drift check: compare in-memory doc against disk. Returns (disk_version,
+/// drifted) — drifted is true if disk version differs.
+/// Project name from the store file stem (matches hw load's NotFound fallback).
+/// a2r 可表达 file_stem/to_str 链;hw 的 unwrap_or("project") 用 is 匹配展开。
+fn project_name(path: PathBuf) -> String {
+    let mut name: String = "project".to_string();
+    let stem_opt = path.file_stem();
+    match stem_opt {
+        Some(s) => {
+            let s_str = s.to_str();
+            match s_str {
+                Some(t) => name = t.to_string(),
+                None => {},
+            };
+        },
+        None => {},
+    };
+    return name;
 }
