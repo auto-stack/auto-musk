@@ -134,7 +134,10 @@ impl HandoffStore {
     pub fn save_from_run(&self, store: &RunStore, task_plan_id: &str, phase: &str, run_name: &str, run_id: &str) -> Option<HandoffDocument> {
         let handoff_opt: Option<HandoffDocument> = store.last_handoff(&run_id);
         match handoff_opt {
-            Some(h) => return Some(h.clone()),
+            Some(h) => {
+                let _save_result: Result<bool, String> = self.save(task_plan_id, phase, run_name, h.clone());
+                return Some(h);
+            },
             None => return None,
         }
     }
@@ -149,6 +152,8 @@ impl HandoffStore {
 /// Load a handoff from cache or disk.
 /// Resolve a path like `task_plan_id.phase.run.handoff.field` to a JSON value.
 /// Collect the final handoff from a completed relay run and save it.
+/// 对齐 hw: load → self.save 持久化 → 返回。save 失败不阻断
+/// (hw 记 tracing::warn! 后继续; a2r 无 tracing, 静默忽略错误仍返回 handoff)。
 /// Parse handoff JSON text. (独立辅助 fn — a2r 对 from_str 的返回类型推断在
 /// Option 返回上下文中不可靠, 用显式返回类型驱动; 同 wiki parse_manifest 模式。)
 fn parse_handoff(content: &str) -> Option<HandoffDocument> {

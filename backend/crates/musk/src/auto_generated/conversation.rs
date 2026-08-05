@@ -15,8 +15,7 @@ use serde_json::Value;
 /// Cross-module: ChatMessage/Role (from chats.rs) + RunEvent (from relay/store.rs)
 /// re-declared here (self-contained; serde-compatible mirrors).
 fn now_secs() -> u64 {
-    let now = SystemTime::now();
-    let elapsed = now.elapsed().unwrap();
+    let elapsed = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default();
     return elapsed.as_secs();
 }
 

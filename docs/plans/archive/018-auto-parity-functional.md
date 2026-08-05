@@ -1,6 +1,7 @@
 # 018 — Auto 化功能一致性计划（Functional Parity）
 
-> **状态**：实施计划。Phase 1（specs 模块）✅ 完成（2026-08-04，7/7 parity 测试通过）。
+> **状态**：✅ COMPLETE（2026-08-06 归档）。Phase 1-4 全闭环 + 接线运行（§11 ①-④）+ 复审（§13 A 类 bug 全修）+ a2r dogfooding（§14 R1-R4/W1-W4 全合入 master）。311 项测试全绿，11 个 parity 套件（104 测试）行为等价。
+> **归档复审**（plan-archiver Step 2.5）：发现 2 项 🟡 一致性遗漏 + 6 项 🟢 已知限制 + 3 项 📋 未来增强，详见 `KNOWN-DEBT-AND-RISKS.md`。无 🔴 高风险。
 > **前置**：Plan 014（Auto 后端移植，已归档）+ Plan 015（合并编译清零，已归档）。
 > **基线**：v0.3.0（2026-08-04）。
 > **仓库**：auto-musk（`backend/crates/musk/`）+ auto-lang（a2r 转译器）。

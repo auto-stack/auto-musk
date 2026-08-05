@@ -325,7 +325,7 @@ impl SpecsDocument {
     pub fn rebuild_relations(&mut self) {
         let mut known: HashSet<String> = all_ids(self.clone());
 
-        let mut reverse: Vec<ReverseEntry> = vec![];
+        let mut reverse: HashMap<String, Vec<String>> = HashMap::new();
 
         for section in &self.sections {
             for item in &section.items {
@@ -336,28 +336,19 @@ impl SpecsDocument {
                 }
                 forwards.sort();
                 
-
-
                 for target in forwards.clone() {
-                    let mut updated_reverse: Vec<ReverseEntry> = vec![];
-                    let mut target_found: bool = false;
-                    for e in reverse.clone() {
-                        if e.target_id == target {
-                            target_found = true;
-                            let mut more: Vec<String> = e.referrers.clone();
-                            more.push(item.id.clone());
-                            let updated: ReverseEntry = ReverseEntry { target_id: e.target_id.clone().to_string(), referrers: more };
-                            updated_reverse.push(updated.clone())
-                        } else {
-                            updated_reverse.push(e.clone())
-                        }
-
-                    }
-                    if target_found == false {
-                        let entry: ReverseEntry = ReverseEntry { target_id: target.clone().to_string(), referrers: vec![item.id.clone()] };
-                        updated_reverse.push(entry.clone());
-                    }
-                    reverse = updated_reverse;
+                    match reverse.get(&target) {
+                        Some(v) => {
+                            let mut updated: Vec<String> = v.clone();
+                            updated.push(item.id.clone());
+                            reverse.insert(target.to_string(), updated);
+                        },
+                        None => {
+                            let mut fresh: Vec<String> = vec![];
+                            fresh.push(item.id.clone());
+                            reverse.insert(target.to_string(), fresh);
+                        },
+                    };
                 }
             }
         }
@@ -370,11 +361,10 @@ impl SpecsDocument {
             for item in &section.items {
                 
                 let mut new_related: Vec<String> = vec![];
-                for e in reverse.clone() {
-                    if e.target_id == item.id {
-                        new_related = e.referrers.clone()
-                    }
-                }
+                match reverse.get(&item.id) {
+                    Some(v) => new_related = v.clone(),
+                    None => {},
+                };
                 new_related.sort();
                 
                 let mut deduped: Vec<String> = vec![];
@@ -628,7 +618,7 @@ fn all_ids(doc: SpecsDocument) -> HashSet<String> {
     let mut set: HashSet<String> = HashSet::new();
     for section in &doc.sections {
         for item in &section.items {
-            set.insert(item.id.clone().to_string());
+            set.insert(item.id.clone());
         }
     }
     return set;
@@ -645,24 +635,6 @@ fn scan_refs(text: &str, known: HashSet<String>) -> Vec<String> {
     }
     refs.sort();
     return refs;
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct ReverseEntry {
-    pub target_id: String,
-    pub referrers: Vec<String>,
-}
-
-/// Linear lookup: find or create the ReverseEntry for target_id in the list.
-/// (replaces HashMap.entry(); a2r-10 blocks HashMap on composite generics.)
-fn upsert_reverse(entries: Vec<ReverseEntry>, target_id: &str) -> ReverseEntry {
-    for e in entries.clone() {
-        if e.target_id == target_id {
-            return e;
-        }
-    }
-    let fresh: ReverseEntry = ReverseEntry { target_id: target_id.clone().to_string(), referrers: vec![] };
-    return fresh;
 }
 
 /// Rebuild every item's derived `related` field (reverse-links).

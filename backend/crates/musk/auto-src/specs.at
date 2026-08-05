@@ -417,29 +417,11 @@ fn scan_refs(text str, known HashSet<str>) List<str> {
     return refs
 }
 
-// NOTE: rebuild_relations() originally used HashMap<String, Vec<String>> to
-// accumulate reverse edges. a2r-10 mishandles composite-generic HashMap method
-// calls (insert injects .to_string() on Vec values; remove/contains_key omit &
-// on String keys). Workaround: use a List<ReverseEntry> (target_id + referrers)
-// with linear lookup instead of HashMap. Plus a2r-11 workaround (whole-field
-// reassign instead of in-place item.related mutation).
-
-type ReverseEntry {
-    target_id str
-    referrers List<str>
-}
-
-/// Linear lookup: find or create the ReverseEntry for target_id in the list.
-/// (replaces HashMap.entry(); a2r-10 blocks HashMap on composite generics.)
-fn upsert_reverse(entries List<ReverseEntry>, target_id str) ReverseEntry {
-    for e in entries.clone() {
-        if e.target_id == target_id {
-            return e
-        }
-    }
-    let fresh ReverseEntry = ReverseEntry(target_id: target_id.clone(), referrers: [])
-    return fresh
-}
+// rebuild_relations() — reverse edge map. Originally used List<ReverseEntry>
+// + linear lookup (a2r-10 workaround). That workaround is now lifted: a2r
+// handles HashMap<str, List<str>> insert/get correctly (verified via task_plan
+// detect_cycle + the parser fix in auto-lang d15728d8/d896d263), so we use the
+// hw-isomorphic HashMap directly.
 
 ext SpecsDocument {
     /// Rebuild every item's derived `related` field (reverse-links).
@@ -447,8 +429,8 @@ ext SpecsDocument {
     /// B's related list gains A. After scan, each related list is sorted+deduped.
     pub mut fn rebuild_relations() void {
         var known HashSet<str> = all_ids(self.clone())
-        // reverse edges, accumulated as a List (NOT HashMap — a2r-10)
-        var reverse List<ReverseEntry> = []
+        // reverse edges: target_id -> referrer ids (hw 同构 HashMap)
+        var reverse HashMap<str, List<str>> = HashMap.new()
 
         for section in self.sections {
             for item in section.items {
@@ -459,43 +441,34 @@ ext SpecsDocument {
                 }
                 forwards.sort()
                 // record reverse edge: for each target, referrer=item.id.
-                // a2r-11: can't mutate an element yielded by `for e in list`;
-                // rebuild the reverse list with an updated entry instead.
                 for target in forwards.clone() {
-                    var updated_reverse List<ReverseEntry> = []
-                    var target_found bool = false
-                    for e in reverse.clone() {
-                        if e.target_id == target {
-                            target_found = true
-                            var more List<str> = e.referrers.clone()
-                            more.push(item.id.clone())
-                            let updated ReverseEntry = ReverseEntry(target_id: e.target_id.clone(), referrers: more)
-                            updated_reverse.push(updated)
-                        } else {
-                            updated_reverse.push(e)
+                    is reverse.get(target) {
+                        Some(v) -> {
+                            var updated List<str> = v.clone()
+                            updated.push(item.id.clone())
+                            reverse.insert(target.to_string(), updated)
+                        }
+                        None -> {
+                            var fresh List<str> = []
+                            fresh.push(item.id.clone())
+                            reverse.insert(target.to_string(), fresh)
                         }
                     }
-                    if target_found == false {
-                        let entry ReverseEntry = ReverseEntry(target_id: target.clone(), referrers: [item.id.clone()])
-                        updated_reverse.push(entry)
-                    }
-                    reverse = updated_reverse
                 }
             }
         }
 
-        // Build new sections with updated related fields (whole-field reassign,
-        // per a2r-11 workaround).
+        // Build new sections with updated related fields (whole-field reassign
+        // per a2r-11; section/item structs have no in-place field mutation).
         var new_sections List<SpecsSection> = []
         for section in self.sections {
             var new_items List<SpecItem> = []
             for item in section.items {
-                // find reverse entry for this item's id
+                // reverse referrers for this item's id (hw: reverse.remove)
                 var new_related List<str> = []
-                for e in reverse.clone() {
-                    if e.target_id == item.id {
-                        new_related = e.referrers.clone()
-                    }
+                is reverse.get(item.id) {
+                    Some(v) -> new_related = v.clone(),
+                    None -> {}
                 }
                 new_related.sort()
                 // dedup (simple: rebuild without consecutive dups after sort)

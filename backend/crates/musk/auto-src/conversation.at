@@ -14,8 +14,7 @@ use.rust std::time::{SystemTime, Duration}
 use.rust serde_json::Value
 
 fn now_secs() u64 {
-    let now = SystemTime.now()
-    let elapsed = now.elapsed().unwrap()
+    let elapsed = SystemTime.now().duration_since(SystemTime.UNIX_EPOCH).unwrap_or_default()
     return elapsed.as_secs()
 }
 

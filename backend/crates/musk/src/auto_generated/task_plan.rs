@@ -126,7 +126,7 @@ impl TaskPlan {
             if phase_names.contains(&phase.name.clone()) {
                 return Err(AtomError::ValidationError(format!("{}{}", format!("{}{}", "duplicate phase name '", phase.name), "'")));
             }
-            let _: bool = phase_names.insert(phase.name.clone().to_string());
+            let _: bool = phase_names.insert(phase.name.clone());
         }
 
         for phase in self.phases.clone() {
@@ -135,7 +135,7 @@ impl TaskPlan {
                 if run_names.contains(&run.name.clone()) {
                     return Err(AtomError::ValidationError(format!("{}{}", format!("{}{}", format!("{}{}", format!("{}{}", "duplicate run name '", run.name), "' in phase '"), phase.name), "'")));
                 }
-                let _: bool = run_names.insert(run.name.clone().to_string());
+                let _: bool = run_names.insert(run.name.clone());
             }
             
             for dependency in phase.depends_on.clone() {
@@ -169,7 +169,7 @@ impl TaskPlan {
     pub fn detect_cycle(&self) -> bool {
         let mut graph: HashMap<String, Vec<String>> = HashMap::new();
         for phase in self.phases.clone() {
-            graph.insert(phase.name.clone().to_string(), phase.depends_on.clone());
+            graph.insert(phase.name.clone(), phase.depends_on.clone());
         }
         let mut visited: HashSet<String> = HashSet::new();
         let mut stack: HashSet<String> = HashSet::new();
