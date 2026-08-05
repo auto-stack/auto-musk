@@ -207,7 +207,10 @@ ext ChatSession {
 
     /// Append a message + bump updated_at. Auto-names from first user msg.
     /// a2r-11: build new messages list + whole-field reassign.
-    pub mut fn append(msg ChatMessage) void {
+    /// 命名 `push_message`(非 hw 的 `append`):a2r 的 String 方法重映射表把
+    /// `.append(...)` 无条件改写为 `.push_str(...)`(对 struct receiver 也误伤),
+    /// 文档化 a2r 缺口。行为与 hw append 完全一致。
+    pub mut fn push_message(msg ChatMessage) void {
         var new_messages List<ChatMessage> = self.messages.clone()
         new_messages.push(msg)
         var new_name str = self.name.clone()
@@ -231,6 +234,15 @@ ext ChatSession {
         self.updated_at = now_sec()
         self.name = new_name
     }
+}
+
+/// Insert a session into the map. Returns void so calls are safe as block
+/// tails: `HashMap::insert` returns `Option<V>`, and a2r omits the trailing
+/// `;` on if/else branch tails — a bare insert tail would leak `Option<V>`
+/// as the branch type (E0308). Documented a2r codegen gap.
+/// `k String` 为 owned 参数(Auto str 参数会映射成 &str;String 经 use.rust)。
+fn map_insert(mut m HashMap<str, ChatSession>, k String, v ChatSession) void {
+    let old Option<ChatSession> = m.insert(k, v)
 }
 
 // ============================================================
@@ -286,11 +298,247 @@ ext ChatStore {
             Err(e) -> return false
         }
     }
-}
+    /// Create + persist a new session; return it.
+    /// C1: hw 签名 io::Result<ChatSession>(io::Error 不可表达 → Result<ChatSession,
+    /// str>,文档化残差);session.id 由 new_id() 手写生成。
+    pub fn create(mode str, workspace_id Option<str>) Result<ChatSession, str> {
+        let session ChatSession = ChatSession.new(mode, workspace_id)
+        var map HashMap<str, ChatSession> = self.load_map()
+        map_insert(map, session.id.clone(), session.clone())
+        if self.save_map(map) == false {
+            return Err("write failed")
+        }
+        return Ok(session)
+    }
 
-// NOTE: new_id (rand::thread_rng) stays hand-written in chats.rs (rand crate
-// API, like auth.rs hash_password). The ChatStore CRUD methods (create/get/
-// list/update/delete/approve_spec_change/reject_spec_change) build on
-// load_map/save_map above and would port with the same whole-map-rebuild
-// pattern as specs.rs SpecsStore CRUD; omitted here for size but the IO
-// primitives are in place.
+    /// List all sessions as summaries, newest first (by updated_at desc).
+    /// hw 用 sort_by(|a, b| b.updated_at.cmp(&a.updated_at)) —— a2r List 无闭包
+    /// sort_by;手动稳定插入排序(降序;同刻保持原序,与 hw 稳定序一致)。
+    pub fn list() List<ChatSessionSummary> {
+        var map HashMap<str, ChatSession> = self.load_map()
+        var summaries List<ChatSessionSummary> = []
+        for s in map.values() {
+            summaries.push(s.summary())
+        }
+        var sorted List<ChatSessionSummary> = []
+        for s in summaries.clone() {
+            var inserted bool = false
+            var new_list List<ChatSessionSummary> = []
+            for e in sorted.clone() {
+                if inserted == false {
+                    if s.updated_at > e.updated_at {
+                        new_list.push(s.clone())
+                        inserted = true
+                    }
+                }
+                new_list.push(e)
+            }
+            if inserted == false {
+                new_list.push(s.clone())
+            }
+            sorted = new_list
+        }
+        return sorted
+    }
+
+    /// Get one full session by id (no persistence side effect, like hw's
+    /// load_map().remove(id) — the map isn't saved back).
+    pub fn get(id str) Option<ChatSession> {
+        var map HashMap<str, ChatSession> = self.load_map()
+        var found Option<ChatSession> = None
+        for s in map.values() {
+            if s.id == id {
+                found = Some(s.clone())
+            }
+        }
+        return found
+    }
+
+    /// Rename a session. Ok(Some(updated)) if found; Ok(None) if not.
+    /// not-found 分支写 `return Ok(target)`(target 此刻为 None)而非字面
+    /// `Ok(None)`——a2r 的 fix_result_none_unit 会把字面 `Ok(None)` 无条件改写成
+    /// `Ok(())`(破坏 Result<Option<T>, _> 的返回类型),文档化 a2r 缺口。
+    pub fn rename(id str, name str) Result<Option<ChatSession>, str> {
+        var map HashMap<str, ChatSession> = self.load_map()
+        var target Option<ChatSession> = None
+        var found bool = false
+        var updated_map HashMap<str, ChatSession> = HashMap.new()
+        for s in map.values() {
+            if s.id == id {
+                found = true
+                var renamed ChatSession = s.clone()
+                renamed.name = name.to_string()
+                renamed.updated_at = now_sec()
+                map_insert(updated_map, renamed.id.clone(), renamed.clone())
+                target = Some(renamed)
+            } else {
+                map_insert(updated_map, s.id.clone(), s.clone())
+            }
+        }
+        if found == false {
+            return Ok(target)
+        }
+        if self.save_map(updated_map) == false {
+            return Err("write failed")
+        }
+        return Ok(target)
+    }
+
+    /// Delete one session; return whether it existed.
+    pub fn delete(id str) Result<bool, str> {
+        var map HashMap<str, ChatSession> = self.load_map()
+        var existed bool = false
+        var updated_map HashMap<str, ChatSession> = HashMap.new()
+        for s in map.values() {
+            if s.id == id {
+                existed = true
+            } else {
+                map_insert(updated_map, s.id.clone(), s.clone())
+            }
+        }
+        if existed == false {
+            return Ok(false)
+        }
+        if self.save_map(updated_map) == false {
+            return Err("write failed")
+        }
+        return Ok(true)
+    }
+
+    /// Delete all sessions.
+    pub fn delete_all() Result<bool, str> {
+        var empty HashMap<str, ChatSession> = HashMap.new()
+        if self.save_map(empty) == false {
+            return Err("write failed")
+        }
+        return Ok(true)
+    }
+
+    /// Append a message to a session and persist. Ok(Some(updated)) or
+    /// Ok(None) if the id wasn't found.
+    pub fn append_message(id str, msg ChatMessage) Result<Option<ChatSession>, str> {
+        var map HashMap<str, ChatSession> = self.load_map()
+        var target Option<ChatSession> = None
+        var found bool = false
+        var updated_map HashMap<str, ChatSession> = HashMap.new()
+        for s in map.values() {
+            if s.id == id {
+                found = true
+                var updated ChatSession = s.clone()
+                updated.push_message(msg.clone())
+                map_insert(updated_map, updated.id.clone(), updated.clone())
+                target = Some(updated)
+            } else {
+                map_insert(updated_map, s.id.clone(), s.clone())
+            }
+        }
+        if found == false {
+            return Ok(target)
+        }
+        if self.save_map(updated_map) == false {
+            return Err("write failed")
+        }
+        return Ok(target)
+    }
+
+    /// Queue a spec change proposed by the agent (not yet applied). Returns
+    /// the updated session, or Ok(None) if the id wasn't found.
+    pub fn queue_spec_change(id str, change SpecChange) Result<Option<ChatSession>, str> {
+        var map HashMap<str, ChatSession> = self.load_map()
+        var target Option<ChatSession> = None
+        var found bool = false
+        var updated_map HashMap<str, ChatSession> = HashMap.new()
+        for s in map.values() {
+            if s.id == id {
+                found = true
+                var updated ChatSession = s.clone()
+                updated.pending_spec_changes.push(change.clone())
+                updated.updated_at = now_sec()
+                map_insert(updated_map, updated.id.clone(), updated.clone())
+                target = Some(updated)
+            } else {
+                map_insert(updated_map, s.id.clone(), s.clone())
+            }
+        }
+        if found == false {
+            return Ok(target)
+        }
+        if self.save_map(updated_map) == false {
+            return Err("write failed")
+        }
+        return Ok(target)
+    }
+
+    /// Reject (discard) the spec change at `index` without applying it.
+    /// Err if session not found OR index out of range (hw 同语义)。
+    pub fn reject_spec_change(id str, index uint) Result<Option<ChatSession>, str> {
+        var map HashMap<str, ChatSession> = self.load_map()
+        var target Option<ChatSession> = None
+        var found bool = false
+        var updated_map HashMap<str, ChatSession> = HashMap.new()
+        for s in map.values() {
+            if s.id == id {
+                found = true
+                if index >= s.pending_spec_changes.len() as uint {
+                    return Err("pending change index out of range")
+                }
+                // rebuild pending list without index
+                var new_pending List<SpecChange> = []
+                var i uint = 0
+                for c in s.pending_spec_changes.clone() {
+                    if i != index {
+                        new_pending.push(c)
+                    }
+                    i = i + 1u
+                }
+                var updated ChatSession = s.clone()
+                updated.pending_spec_changes = new_pending
+                updated.updated_at = now_sec()
+                map_insert(updated_map, updated.id.clone(), updated.clone())
+                target = Some(updated)
+            } else {
+                map_insert(updated_map, s.id.clone(), s.clone())
+            }
+        }
+        if found == false {
+            return Err("session '" + id + "' not found")
+        }
+        if self.save_map(updated_map) == false {
+            return Err("write failed")
+        }
+        return Ok(target)
+    }
+
+    /// Reject all pending spec changes for a session.
+    pub fn reject_all_spec_changes(id str) Result<Option<ChatSession>, str> {
+        var map HashMap<str, ChatSession> = self.load_map()
+        var target Option<ChatSession> = None
+        var found bool = false
+        var updated_map HashMap<str, ChatSession> = HashMap.new()
+        for s in map.values() {
+            if s.id == id {
+                found = true
+                var updated ChatSession = s.clone()
+                updated.pending_spec_changes = []
+                updated.updated_at = now_sec()
+                map_insert(updated_map, updated.id.clone(), updated.clone())
+                target = Some(updated)
+            } else {
+                map_insert(updated_map, s.id.clone(), s.clone())
+            }
+        }
+        if found == false {
+            return Err("session '" + id + "' not found")
+        }
+        if self.save_map(updated_map) == false {
+            return Err("write failed")
+        }
+        return Ok(target)
+    }
+
+    // NOTE: approve_spec_change(id, index, specs) 挂起 —— 它要把 SpecChange
+    // 应用进真实 specs 文档(transition_item/upsert_item 的 `&mut doc` 参数)。
+    // a2r 跨模块不注入 `&mut`(fn_mut_params 只在当前转译单元内注册;extern_sigs
+    // 的 @T 只表达 &T)。挂起选项:① C2 extern_impl 委托(apply 交给手写)②
+    // auto-lang 跨模块签名解析(worktree)。queue/reject 系列不涉及跨模块,已移植。
+}

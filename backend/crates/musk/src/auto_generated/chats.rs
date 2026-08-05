@@ -184,7 +184,7 @@ impl ChatSession {
         let result: ChatSessionSummary = ChatSessionSummary { id: self.id.clone().to_string(), name: self.name.clone().to_string(), mode: self.mode.clone().to_string(), message_count: ((self.messages.len() as i32) as u32), preview: preview.to_string(), updated_at: self.updated_at.clone() };
         return result;
     }
-    pub fn append(&mut self, msg: ChatMessage) {
+    pub fn push_message(&mut self, msg: ChatMessage) {
         let mut new_messages: Vec<ChatMessage> = self.messages.clone();
         new_messages.push(msg.clone());
         let mut new_name: String = self.name.clone();
@@ -226,6 +226,18 @@ pub struct ChatSessionSummary {
 /// reverse for-loop + a simple substring truncation.
 /// Append a message + bump updated_at. Auto-names from first user msg.
 /// a2r-11: build new messages list + whole-field reassign.
+/// 命名 `push_message`(非 hw 的 `append`):a2r 的 String 方法重映射表把
+/// `.append(...)` 无条件改写为 `.push_str(...)`(对 struct receiver 也误伤),
+/// 文档化 a2r 缺口。行为与 hw append 完全一致。
+/// Insert a session into the map. Returns void so calls are safe as block
+/// tails: `HashMap::insert` returns `Option<V>`, and a2r omits the trailing
+/// `;` on if/else branch tails — a bare insert tail would leak `Option<V>`
+/// as the branch type (E0308). Documented a2r codegen gap.
+/// `k String` 为 owned 参数(Auto str 参数会映射成 &str;String 经 use.rust)。
+fn map_insert(mut m: &mut HashMap<String, ChatSession>, k: String, v: ChatSession) {
+    let old: Option<ChatSession> = m.insert(k.to_string(), v.clone());
+}
+
 /// JSON-file-backed store of chat sessions, keyed by session id.
 #[derive(Clone, Debug)]
 pub struct ChatStore {
@@ -269,5 +281,217 @@ impl ChatStore {
             },
             Err(e) => return false,
         }
+    }
+    pub fn create(&self, mode: &str, workspace_id: Option<String>) -> Result<ChatSession, String> {
+        let session: ChatSession = ChatSession::new(mode, workspace_id);
+        let mut map: HashMap<String, ChatSession> = self.load_map();
+        map_insert(&mut map, session.id.clone(), session.clone());
+        if self.save_map(map) == false {
+            return Err("write failed".into());
+        }
+        return Ok(session);
+    }
+    pub fn list(&self) -> Vec<ChatSessionSummary> {
+        let mut map: HashMap<String, ChatSession> = self.load_map();
+        let mut summaries: Vec<ChatSessionSummary> = vec![];
+        for s in map.values() {
+            summaries.push(s.summary());
+        }
+        let mut sorted: Vec<ChatSessionSummary> = vec![];
+        for s in summaries.clone() {
+            let mut inserted: bool = false;
+            let mut new_list: Vec<ChatSessionSummary> = vec![];
+            for e in sorted.clone() {
+                if inserted == false {
+                    if s.updated_at > e.updated_at {
+                        new_list.push(s.clone());
+                        inserted = true
+                    }                }
+                new_list.push(e.clone());
+            }
+            if inserted == false {
+                new_list.push(s.clone());
+            }
+            sorted = new_list;
+        }
+        return sorted;
+    }
+    pub fn get(&self, id: &str) -> Option<ChatSession> {
+        let mut map: HashMap<String, ChatSession> = self.load_map();
+        let mut found: Option<ChatSession> = None;
+        for s in map.values() {
+            if s.id == id {
+                found = Some(s.clone())
+            }
+        }
+        return found;
+    }
+    pub fn rename(&self, id: &str, mut name: &str) -> Result<Option<ChatSession>, String> {
+        let mut map: HashMap<String, ChatSession> = self.load_map();
+        let mut target: Option<ChatSession> = None;
+        let mut found: bool = false;
+        let mut updated_map: HashMap<String, ChatSession> = HashMap::new();
+        for s in map.values() {
+            if s.id == id {
+                found = true;
+                let mut renamed: ChatSession = s.clone();
+                renamed.name = name.to_string();
+                renamed.updated_at = now_sec();
+                map_insert(&mut updated_map, renamed.id.clone(), renamed.clone());
+                target = Some(renamed)
+            } else {
+                map_insert(&mut updated_map, s.id.clone(), s.clone())
+            }
+
+        }
+        if found == false {
+            return Ok(target);
+        }
+        if self.save_map(updated_map) == false {
+            return Err("write failed".into());
+        }
+        return Ok(target);
+    }
+    pub fn delete(&self, id: &str) -> Result<bool, String> {
+        let mut map: HashMap<String, ChatSession> = self.load_map();
+        let mut existed: bool = false;
+        let mut updated_map: HashMap<String, ChatSession> = HashMap::new();
+        for s in map.values() {
+            if s.id == id {
+                existed = true
+            } else {
+                map_insert(&mut updated_map, s.id.clone(), s.clone())
+            }
+
+        }
+        if existed == false {
+            return Ok(false);
+        }
+        if self.save_map(updated_map) == false {
+            return Err("write failed".into());
+        }
+        return Ok(true);
+    }
+    pub fn delete_all(&self) -> Result<bool, String> {
+        let mut empty: HashMap<String, ChatSession> = HashMap::new();
+        if self.save_map(empty) == false {
+            return Err("write failed".into());
+        }
+        return Ok(true);
+    }
+    pub fn append_message(&self, id: &str, msg: ChatMessage) -> Result<Option<ChatSession>, String> {
+        let mut map: HashMap<String, ChatSession> = self.load_map();
+        let mut target: Option<ChatSession> = None;
+        let mut found: bool = false;
+        let mut updated_map: HashMap<String, ChatSession> = HashMap::new();
+        for s in map.values() {
+            if s.id == id {
+                found = true;
+                let mut updated: ChatSession = s.clone();
+                updated.push_message(msg.clone());
+                map_insert(&mut updated_map, updated.id.clone(), updated.clone());
+                target = Some(updated)
+            } else {
+                map_insert(&mut updated_map, s.id.clone(), s.clone())
+            }
+
+        }
+        if found == false {
+            return Ok(target);
+        }
+        if self.save_map(updated_map) == false {
+            return Err("write failed".into());
+        }
+        return Ok(target);
+    }
+    pub fn queue_spec_change(&self, id: &str, change: SpecChange) -> Result<Option<ChatSession>, String> {
+        let mut map: HashMap<String, ChatSession> = self.load_map();
+        let mut target: Option<ChatSession> = None;
+        let mut found: bool = false;
+        let mut updated_map: HashMap<String, ChatSession> = HashMap::new();
+        for s in map.values() {
+            if s.id == id {
+                found = true;
+                let mut updated: ChatSession = s.clone();
+                updated.pending_spec_changes.push(change.clone());
+                updated.updated_at = now_sec();
+                map_insert(&mut updated_map, updated.id.clone(), updated.clone());
+                target = Some(updated)
+            } else {
+                map_insert(&mut updated_map, s.id.clone(), s.clone())
+            }
+
+        }
+        if found == false {
+            return Ok(target);
+        }
+        if self.save_map(updated_map) == false {
+            return Err("write failed".into());
+        }
+        return Ok(target);
+    }
+    pub fn reject_spec_change(&self, id: &str, index: u32) -> Result<Option<ChatSession>, String> {
+        let mut map: HashMap<String, ChatSession> = self.load_map();
+        let mut target: Option<ChatSession> = None;
+        let mut found: bool = false;
+        let mut updated_map: HashMap<String, ChatSession> = HashMap::new();
+        for s in map.values() {
+            if s.id == id {
+                found = true;
+                if index >= ((s.pending_spec_changes.len() as i32) as u32) {
+                    return Err("pending change index out of range".into());
+                }                
+
+                let mut new_pending: Vec<SpecChange> = vec![];
+                let mut i: u32 = 0 as u32;
+                for c in s.pending_spec_changes.clone() {
+                    if i != index {
+                        new_pending.push(c.clone());
+                    }
+                    i = i + 1;
+                }
+                let mut updated: ChatSession = s.clone();
+                updated.pending_spec_changes = new_pending;
+                updated.updated_at = now_sec();
+                map_insert(&mut updated_map, updated.id.clone(), updated.clone());
+                target = Some(updated)
+            } else {
+                map_insert(&mut updated_map, s.id.clone(), s.clone())
+            }
+
+        }
+        if found == false {
+            return Err(format!("{}{}", format!("{}{}", "session '", id), "' not found"));
+        }
+        if self.save_map(updated_map) == false {
+            return Err("write failed".into());
+        }
+        return Ok(target);
+    }
+    pub fn reject_all_spec_changes(&self, id: &str) -> Result<Option<ChatSession>, String> {
+        let mut map: HashMap<String, ChatSession> = self.load_map();
+        let mut target: Option<ChatSession> = None;
+        let mut found: bool = false;
+        let mut updated_map: HashMap<String, ChatSession> = HashMap::new();
+        for s in map.values() {
+            if s.id == id {
+                found = true;
+                let mut updated: ChatSession = s.clone();
+                updated.pending_spec_changes = vec![];
+                updated.updated_at = now_sec();
+                map_insert(&mut updated_map, updated.id.clone(), updated.clone());
+                target = Some(updated)
+            } else {
+                map_insert(&mut updated_map, s.id.clone(), s.clone())
+            }
+
+        }
+        if found == false {
+            return Err(format!("{}{}", format!("{}{}", "session '", id), "' not found"));
+        }
+        if self.save_map(updated_map) == false {
+            return Err("write failed".into());
+        }
+        return Ok(target);
     }
 }
