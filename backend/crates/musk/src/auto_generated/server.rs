@@ -348,7 +348,7 @@ async fn auth_login(s: State<AppState>, body: Json<LoginRequest>) -> Json<LoginR
 
 async fn auth_me(s: State<AppState>, headers: HeaderMap) -> Json<LoginResponse> {
     let token: String = auth_token_from_headers(&s, headers);
-    let username: String = auth_username_from_token(&s, &token.clone());
+    let username: String = auth_username_from_token(&s, &token);
     let role: String = auth_role_from_token(&s, &token);
     return Json(LoginResponse { token: token.to_string(), username: username.to_string(), role: role.to_string() });
 }
