@@ -28,6 +28,7 @@ pub mod server;
 pub mod server_serve;
 pub mod server_stream;
 pub mod spec_tools;
+pub mod task_plan;
 pub mod specs;
 pub mod tool_context;
 pub mod tool_safety;

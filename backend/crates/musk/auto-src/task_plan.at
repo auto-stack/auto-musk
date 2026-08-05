@@ -1,0 +1,621 @@
+/// task_plan.at — TaskPlan data model (relay/task_plan.rs) — Plan 018 Phase 3.3。
+///
+/// Ported from backend/crates/musk/src/relay/task_plan.rs. Scope:
+/// - 数据模型 (TaskPlan/Phase/RunRef/TaskMode/PhaseMode) + builder + validate
+///   + detect_cycle/dfs -> Auto
+/// - Atom 解析 (impl TryFrom<Node>) -> Auto static fn from_node 形态
+///   (a2r 无法表达 trait impl; 行为等价)
+///
+/// a2r 惯用法注记:
+/// - `impl TryFrom<Node>` trait impl 不支持 -> `static fn from_node`
+/// - HashMap<String, Vec<String>> 的 insert/get 已可用 (C3 闭环)
+/// - 枚举 Default: `#[default]` 被丢弃但 derive(Default) 生效
+
+use.rust std::collections::{HashMap, HashSet}
+use.rust auto_atom::{AtomError, AtomResult}
+use.rust auto_val::{Kid, Node, Value}
+use.rust serde::{Serialize, Deserialize}
+
+// ============================================================
+// TaskMode — execution mode for a plan or run
+// ============================================================
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskMode {
+    #[default]
+    Gsd
+    Check
+}
+
+ext TaskMode {
+    pub fn as_str() str {
+        is self {
+            TaskMode.Gsd -> return "gsd",
+            TaskMode.Check -> return "check"
+        }
+    }
+
+    pub static fn from_str(s str) Option<TaskMode> {
+        is s {
+            "gsd" -> return Some(TaskMode.Gsd),
+            "check" -> return Some(TaskMode.Check),
+            _ -> return None
+        }
+    }
+}
+
+// ============================================================
+// PhaseMode — execution mode within a phase
+// ============================================================
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PhaseMode {
+    #[default]
+    Serial
+    Parallel
+}
+
+ext PhaseMode {
+    pub fn as_str() str {
+        is self {
+            PhaseMode.Serial -> return "serial",
+            PhaseMode.Parallel -> return "parallel"
+        }
+    }
+
+    pub static fn from_str(s str) Option<PhaseMode> {
+        is s {
+            "serial" -> return Some(PhaseMode.Serial),
+            "parallel" -> return Some(PhaseMode.Parallel),
+            _ -> return None
+        }
+    }
+}
+
+// ============================================================
+// Data model
+// ============================================================
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type TaskPlan {
+    id str
+    version uint
+    title Option<str>
+    description Option<str>
+    default_mode TaskMode
+    phases List<Phase>
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type Phase {
+    name str
+    mode PhaseMode
+    depends_on List<str>
+    runs List<RunRef>
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub type RunRef {
+    name str
+    flow_id str
+    input Option<str>
+    input_from List<str>
+    context Option<str>
+    mode_override Option<TaskMode>
+}
+
+// ============================================================
+// Builders
+// ============================================================
+
+ext TaskPlan {
+    /// Create a new empty TaskPlan.
+    pub static fn new(id str) TaskPlan {
+        TaskPlan(
+            id: id,
+            version: 1u,
+            title: None,
+            description: None,
+            default_mode: TaskMode.default(),
+            phases: []
+        )
+    }
+
+    /// Add a phase to the plan.
+    pub fn add_phase(phase Phase) TaskPlan {
+        var result TaskPlan = self.clone()
+        result.phases.push(phase)
+        return result
+    }
+
+    /// Validate the plan structure.
+    pub fn validate() Result<bool, AtomError> {
+        var phase_names HashSet<str> = HashSet.new()
+        for phase in self.phases.clone() {
+            if phase_names.contains(phase.name.clone()) {
+                return Err(AtomError.ValidationError("duplicate phase name '" + phase.name + "'"))
+            }
+            let _ bool = phase_names.insert(phase.name.clone())
+        }
+
+        for phase in self.phases.clone() {
+            var run_names HashSet<str> = HashSet.new()
+            for run in phase.runs.clone() {
+                if run_names.contains(run.name.clone()) {
+                    return Err(AtomError.ValidationError("duplicate run name '" + run.name + "' in phase '" + phase.name + "'"))
+                }
+                let _ bool = run_names.insert(run.name.clone())
+            }
+
+            for dependency in phase.depends_on.clone() {
+                if phase_names.contains(dependency.clone()) == false {
+                    return Err(AtomError.ValidationError("phase '" + phase.name + "' depends on unknown phase '" + dependency + "'"))
+                }
+            }
+        }
+
+        // Check for dependency cycles.
+        let cycle bool = self.detect_cycle()
+        if cycle {
+            return Err(AtomError.ValidationError("dependency cycle detected between phases"))
+        }
+
+        // Validate input_from path syntax.
+        for phase in self.phases.clone() {
+            for run in phase.runs.clone() {
+                for path in run.input_from.clone() {
+                    let path_result Result<bool, AtomError> = validate_handoff_path(path.view)
+                    is path_result {
+                        Err(e) -> return Err(e),
+                        Ok(_) -> {}
+                    }
+                }
+            }
+        }
+
+        return Ok(true)
+    }
+
+    fn detect_cycle() bool {
+        var graph HashMap<str, List<str>> = HashMap.new()
+        for phase in self.phases.clone() {
+            graph.insert(phase.name.clone(), phase.depends_on.clone())
+        }
+        var visited HashSet<str> = HashSet.new()
+        var stack HashSet<str> = HashSet.new()
+        for phase in self.phases.clone() {
+            if visited.contains(phase.name.clone()) == false {
+                let has_cycle bool = dfs(phase.name.view, graph, visited, stack)
+                if has_cycle {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+}
+
+ext Phase {
+    pub static fn new(name str) Phase {
+        Phase(
+            name: name,
+            mode: PhaseMode.default(),
+            depends_on: [],
+            runs: []
+        )
+    }
+
+    pub fn with_mode(mode PhaseMode) Phase {
+        var result Phase = self.clone()
+        result.mode = mode
+        return result
+    }
+
+    pub fn depends_on(names List<str>) Phase {
+        var result Phase = self.clone()
+        result.depends_on = names
+        return result
+    }
+
+    pub fn add_run(run RunRef) Phase {
+        var result Phase = self.clone()
+        result.runs.push(run)
+        return result
+    }
+}
+
+ext RunRef {
+    pub static fn new(name str, flow_id str) RunRef {
+        RunRef(
+            name: name,
+            flow_id: flow_id,
+            input: None,
+            input_from: [],
+            context: None,
+            mode_override: None
+        )
+    }
+
+    pub fn with_input(input str) RunRef {
+        var result RunRef = self.clone()
+        result.input = Some(input.to_string())
+        return result
+    }
+
+    pub fn with_input_from(paths List<str>) RunRef {
+        var result RunRef = self.clone()
+        result.input_from = paths
+        return result
+    }
+
+    pub fn with_context(context str) RunRef {
+        var result RunRef = self.clone()
+        result.context = Some(context.to_string())
+        return result
+    }
+
+    pub fn with_mode_override(mode TaskMode) RunRef {
+        var result RunRef = self.clone()
+        result.mode_override = Some(mode)
+        return result
+    }
+}
+
+// ============================================================
+// Atom 解析 (impl TryFrom<Node> 的 static fn 等价形态)
+// ============================================================
+
+ext TaskPlan {
+    /// Convert a parsed Atom node into a `TaskPlan` (hw: `TryFrom<Node>`).
+    pub static fn from_node(node Node) Result<TaskPlan, AtomError> {
+        if node.name != "task_plan" {
+            return Err(AtomError.ValidationError("expected root node 'task_plan', found '" + node.name + "'"))
+        }
+
+        let id str = require_string_prop(node.clone(), "id")
+        var version uint = 1u
+        let version_prop Option<Value> = prop(node.clone(), "version")
+        is version_prop {
+            Some(v) -> {
+                let vr Result<uint, AtomError> = value_as_u32(v)
+                is vr {
+                    Ok(n) -> version = n,
+                    Err(e) -> return Err(e)
+                }
+            }
+            None -> {}
+        }
+        var title Option<str> = None
+        let title_prop Option<Value> = prop(node.clone(), "title")
+        is title_prop {
+            Some(v) -> {
+                let tr Result<str, AtomError> = value_as_string(v)
+                is tr {
+                    Ok(s) -> title = Some(s),
+                    Err(e) -> return Err(e)
+                }
+            }
+            None -> {}
+        }
+        var description Option<str> = None
+        let desc_prop Option<Value> = prop(node.clone(), "description")
+        is desc_prop {
+            Some(v) -> {
+                let dr Result<str, AtomError> = value_as_string(v)
+                is dr {
+                    Ok(s) -> description = Some(s),
+                    Err(e) -> return Err(e)
+                }
+            }
+            None -> {}
+        }
+        var default_mode TaskMode = TaskMode.default()
+        let dm_prop Option<Value> = prop(node.clone(), "default_mode")
+        is dm_prop {
+            Some(v) -> {
+                let mr Result<TaskMode, AtomError> = value_as_task_mode(v)
+                is mr {
+                    Ok(m) -> default_mode = m,
+                    Err(e) -> return Err(e)
+                }
+            }
+            None -> {}
+        }
+
+        var phases List<Phase> = []
+        for (_key, kid) in node.kids_iter() {
+            is kid {
+                Kid.Node(child) -> {
+                    if child.name == "phase" {
+                        let phase_result Result<Phase, AtomError> = Phase.from_node(child.as_ref().clone())
+                        is phase_result {
+                            Ok(p) -> phases.push(p),
+                            Err(e) -> return Err(e)
+                        }
+                    }
+                }
+                _ -> {}
+            }
+        }
+
+        let plan TaskPlan = TaskPlan(
+            id: id,
+            version: version,
+            title: title,
+            description: description,
+            default_mode: default_mode,
+            phases: phases
+        )
+        let valid Result<bool, AtomError> = plan.validate()
+        is valid {
+            Err(e) -> return Err(e),
+            Ok(_) -> {}
+        }
+        return Ok(plan)
+    }
+}
+
+ext Phase {
+    pub static fn from_node(node Node) Result<Phase, AtomError> {
+        if node.name != "phase" {
+            return Err(AtomError.ValidationError("expected node 'phase', found '" + node.name + "'"))
+        }
+
+        let name str = require_string_prop(node.clone(), "name")
+        var mode PhaseMode = PhaseMode.default()
+        let mode_prop Option<Value> = prop(node.clone(), "mode")
+        is mode_prop {
+            Some(v) -> {
+                let mr Result<PhaseMode, AtomError> = value_as_phase_mode(v)
+                is mr {
+                    Ok(m) -> mode = m,
+                    Err(e) -> return Err(e)
+                }
+            }
+            None -> {}
+        }
+        var depends_on List<str> = []
+        let deps_prop Option<Value> = prop(node.clone(), "depends_on")
+        is deps_prop {
+            Some(v) -> {
+                let dr Result<List<str>, AtomError> = value_as_string_list(v)
+                is dr {
+                    Ok(l) -> depends_on = l,
+                    Err(e) -> return Err(e)
+                }
+            }
+            None -> {}
+        }
+
+        var runs List<RunRef> = []
+        for (_key, kid) in node.kids_iter() {
+            is kid {
+                Kid.Node(child) -> {
+                    if child.name == "run" {
+                        let run_result Result<RunRef, AtomError> = RunRef.from_node(child.as_ref().clone())
+                        is run_result {
+                            Ok(r) -> runs.push(r),
+                            Err(e) -> return Err(e)
+                        }
+                    }
+                }
+                _ -> {}
+            }
+        }
+
+        return Ok(Phase(
+            name: name,
+            mode: mode,
+            depends_on: depends_on,
+            runs: runs
+        ))
+    }
+}
+
+ext RunRef {
+    pub static fn from_node(node Node) Result<RunRef, AtomError> {
+        if node.name != "run" {
+            return Err(AtomError.ValidationError("expected node 'run', found '" + node.name + "'"))
+        }
+
+        let name str = require_string_prop(node.clone(), "name")
+        let flow_id str = require_string_prop(node.clone(), "flow_id")
+        var input Option<str> = None
+        let input_prop Option<Value> = prop(node.clone(), "input")
+        is input_prop {
+            Some(v) -> {
+                let ir Result<str, AtomError> = value_as_string(v)
+                is ir {
+                    Ok(s) -> input = Some(s),
+                    Err(e) -> return Err(e)
+                }
+            }
+            None -> {}
+        }
+        var input_from List<str> = []
+        let if_prop Option<Value> = prop(node.clone(), "input_from")
+        is if_prop {
+            Some(v) -> {
+                let ir Result<List<str>, AtomError> = value_as_string_list(v)
+                is ir {
+                    Ok(l) -> input_from = l,
+                    Err(e) -> return Err(e)
+                }
+            }
+            None -> {}
+        }
+        var context Option<str> = None
+        let ctx_prop Option<Value> = prop(node.clone(), "context")
+        is ctx_prop {
+            Some(v) -> {
+                let cr Result<str, AtomError> = value_as_string(v)
+                is cr {
+                    Ok(s) -> context = Some(s),
+                    Err(e) -> return Err(e)
+                }
+            }
+            None -> {}
+        }
+        var mode_override Option<TaskMode> = None
+        let mo_prop Option<Value> = prop(node.clone(), "mode_override")
+        is mo_prop {
+            Some(v) -> {
+                let mr Result<TaskMode, AtomError> = value_as_task_mode(v)
+                is mr {
+                    Ok(m) -> mode_override = Some(m),
+                    Err(e) -> return Err(e)
+                }
+            }
+            None -> {}
+        }
+
+        return Ok(RunRef(
+            name: name,
+            flow_id: flow_id,
+            input: input,
+            input_from: input_from,
+            context: context,
+            mode_override: mode_override
+        ))
+    }
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+
+fn dfs(
+    node str,
+    graph @HashMap<str, List<str>>,
+    mut visited HashSet<str>,
+    mut stack HashSet<str>,
+) bool {
+    if stack.contains(node) {
+        return true
+    }
+    if visited.contains(node) {
+        return false
+    }
+    let _ bool = visited.insert(node.to_string())
+    let _ bool = stack.insert(node.to_string())
+
+    // graph.get() returns Option<&Vec<String>> — match directly, don't annotate.
+    is graph.get(node) {
+        Some(deps) -> {
+            for dependency in deps.clone() {
+                let has_cycle bool = dfs(dependency, graph, visited, stack)
+                if has_cycle {
+                    return true
+                }
+            }
+        }
+        None -> {}
+    }
+
+    stack.remove(node)
+    return false
+}
+
+fn prop(node Node, key str) Option<Value> {
+    let v Value = node.get_prop_of(key)
+    is v {
+        Value.Nil -> return None,
+        _ -> return Some(v)
+    }
+}
+
+fn require_string_prop(node Node, key str) str {
+    let p Option<Value> = prop(node.clone(), key)
+    is p {
+        Some(v) -> {
+            let r Result<str, AtomError> = value_as_string(v)
+            is r {
+                Ok(s) -> return s,
+                Err(_) -> return ""
+            }
+        }
+        None -> return ""
+    }
+}
+
+fn value_as_string(value Value) Result<str, AtomError> {
+    is value {
+        Value.Str(s) -> return Ok(s.to_string()),
+        Value.Node(n) -> return Ok(n.id().to_string()),
+        _ -> return Err(AtomError.InvalidType("String", format!("{:?}", value)))
+    }
+}
+
+fn value_as_u32(value Value) Result<uint, AtomError> {
+    is value {
+        Value.Int(i) -> return Ok(i as uint),
+        Value.Uint(u) -> return Ok(u),
+        _ -> return Err(AtomError.InvalidType("Integer", format!("{:?}", value)))
+    }
+}
+
+fn value_as_string_list(value Value) Result<List<str>, AtomError> {
+    is value {
+        Value.Array(arr) -> {
+            var out List<str> = []
+            for item in arr.values.clone() {
+                let r Result<str, AtomError> = value_as_string(item)
+                is r {
+                    Ok(s) -> out.push(s),
+                    Err(e) -> return Err(e)
+                }
+            }
+            return Ok(out)
+        }
+        Value.Str(s) -> {
+            let out List<str> = [s.to_string()]
+            return Ok(out)
+        }
+        _ -> return Err(AtomError.InvalidType("String or Array of Strings", format!("{:?}", value)))
+    }
+}
+
+fn value_as_task_mode(value Value) Result<TaskMode, AtomError> {
+    let s Result<str, AtomError> = value_as_string(value)
+    is s {
+        Ok(str_val) -> {
+            let m Option<TaskMode> = TaskMode.from_str(str_val.view)
+            is m {
+                Some(tm) -> return Ok(tm),
+                None -> return Err(AtomError.ValidationError("invalid task mode '" + str_val + "', expected 'gsd' or 'check'"))
+            }
+        }
+        Err(e) -> return Err(e)
+    }
+}
+
+fn value_as_phase_mode(value Value) Result<PhaseMode, AtomError> {
+    let s Result<str, AtomError> = value_as_string(value)
+    is s {
+        Ok(str_val) -> {
+            let m Option<PhaseMode> = PhaseMode.from_str(str_val.view)
+            is m {
+                Some(pm) -> return Ok(pm),
+                None -> return Err(AtomError.ValidationError("invalid phase mode '" + str_val + "', expected 'serial' or 'parallel'"))
+            }
+        }
+        Err(e) -> return Err(e)
+    }
+}
+
+/// Validate a handoff path like `phase.run.handoff.field`.
+fn validate_handoff_path(path str) Result<bool, AtomError> {
+    // NOTE: `let parts = ...` 不加类型标注 —— a2r 对 split 结果强制标注
+    // Vec<String>, 但 Rust 的 split().collect() 实际是 Vec<&str>(E0308)。
+    // 无标注时 Rust 推断 Vec<&str>, parts[i] 是 &str, 与字面量比较直接成立。
+    let parts = path.split(".")
+    if parts.len() < 3 {
+        return Err(AtomError.ValidationError("input_from path '" + path + "' must have at least 3 segments (phase.run.field)"))
+    }
+    if parts[2] != "handoff" && parts[2] != "output" {
+        return Err(AtomError.ValidationError("input_from path '" + path + "' must use 'handoff' or 'output' as third segment"))
+    }
+    return Ok(true)
+}
