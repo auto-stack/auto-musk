@@ -397,3 +397,17 @@ C 不再作为独立计划,并入本计划作为新 Phase。内容即本 §11 �
 C1 数据层接线(specs/wiki/chats 读路径 swap,chats 需先移植 CRUD)
 C2 extern_impl stub → 真实委托(auth 7 个已可做,基于 A 的 .view 修复)
 C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
+
+### C 阶段完成状态(2026-08-05)
+- **C2-auth ✅(首个垂直切片)**:extern_impl auth 7 个 stub → 真实委托(走 AppState.auth,
+  即 ① 的 ag AuthStore);修 ag auth_login 双重登录缺陷(split 版两次 login 产生两个
+  session → role 查 session#1、token 是 session#2 失配 → 合并为 auth_login_result 返回
+  (token, role));LoginResponse DTO → {token, user: UserInfo}(对齐手写 wire);
+  auth_me → 返回 UserInfo 形状(对齐 hw);三个 handler pub。
+- **测试**:`ag_auth_handlers_produce_real_behavior` —— 转译 handler 栈经真实委托产生
+  真实行为(login 真实 token → me 真实用户 → logout 失效)。
+- **C3 边界(文档化)**:ag server **无 HTTP 状态码模型**(设计:错误用 DTO、状态码在外壳层
+  处理)。ag handler 无法表达 401/500 → 生产接线 auth_login 的 401 会回归为 200+空数据。
+  行为保真的生产接线(C3)待 a2r/server.at 支持 handler 错误状态码 —— 新的 dogfooding 目标。
+- **C1 现状**:auth 已接线(①);specs/wiki/chats 受 workspace stores 41 处级联 + a2r-11
+  写方法 + chats 缺 11 个 CRUD 方法阻塞(见 §11 ②③④ 实测阻塞)。
