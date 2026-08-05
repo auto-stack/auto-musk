@@ -378,3 +378,22 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
 - **结论**:① 是唯一已闭环的接线切片。②③④ 需先决策:
   要么"先对齐 ag store API"(② 的大工作),要么"server.at .view 手术 + DTO parity + extern_impl
   委托 + router 合并"(③④ 的大工作)。两者都是多 session 级别,建议作为下一个独立计划里程碑。
+
+### B 阶段完成状态(2026-08-05)
+- **specs ✅ 对齐闭环**:ag SpecsStore load/save/drift_check → Result 签名 + project_name 修复
+  (hw 用文件 stem 兜底,ag 硬编码 "project" —— 真 parity 缺口,已修)+ parity_specs 2 个
+  store IO 测试(往返/drift_check/corrupt→Err)。
+- **chats ⬜**:ag ChatStore 缺 11 个 CRUD 方法(create/list/get/append_message 手写),
+  "对齐"= 先移植方法,非签名微调 —— 单独工作项。
+- **wiki 🔶**:读路径已对齐;写路径(create/update/delete/save_manifest)因 a2r parser
+  bug 推迟(见 §10)。
+- **a2r 类型系统边界(记录)**:`Result<(), str>`(unit 类型)不可表达 → save 用
+  Result<str,str> 形状;io::Error 不可表达 → load 错误为 String;io::ErrorKind 不可
+  区分 → load 兜底对所有读错误生效(与 hw NotFound 语义一致,其它为残差);
+  `&mut doc` 就地改(a2r-11) → upsert/transition/delete 保持函数式返回新 doc。
+
+### C — 接线运行新 Phase(2026-08-05 起,置于 A/B 之后)
+C 不再作为独立计划,并入本计划作为新 Phase。内容即本 §11 路线图的 ②③④:
+C1 数据层接线(specs/wiki/chats 读路径 swap,chats 需先移植 CRUD)
+C2 extern_impl stub → 真实委托(auth 7 个已可做,基于 A 的 .view 修复)
+C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
