@@ -386,11 +386,71 @@ pub fn conv_event_matches(_ev: &Value, _id: &str) -> bool { false }
 pub fn conv_event_id(_ev: &Value) -> String { String::new() }
 pub fn conv_event_turn(_ev: &Value) -> Option<String> { None }
 pub fn conv_event_status(_ev: &Value) -> Option<String> { None }
-pub fn workspace_list_all<T>(_s: &T) -> Vec<WorkspaceMeta> { vec![] }
-pub fn workspace_open_of<T,U>(_s: &T, _b: U) -> WorkspaceResp { WorkspaceResp { id: String::new(), name: String::new() } }
-pub fn workspace_status_of<T,U>(_s: &T, _q: U) -> WorkspaceStatusResp { WorkspaceStatusResp { id: String::new(), empty: true } }
-pub fn workspace_browse_of<T>(_q: &T) -> Vec<BrowseEntry> { vec![] }
-pub fn workspace_initialize_of<T,U>(_s: &T, _q: U) {}
+/// ② workspace 委托(与 specs/chats 同模式):走 s.0.registry 真实逻辑,返回
+/// 完整 metas / Value 供 ag handler 包装,wire 形状与 hw 一致。
+pub fn workspace_list_all(s: &State<AppState>) -> Value {
+    serde_json::to_value(s.0.registry.list()).unwrap_or(Value::Null)
+}
+pub fn workspace_open_of(s: &State<AppState>, b: Json<crate::auto_generated::server::OpenWorkspaceBody>) -> Value {
+    let meta = s.0.registry.open(&b.path);
+    s.0.registry.touch(&meta.id);
+    serde_json::to_value(meta).unwrap_or(Value::Null)
+}
+pub fn workspace_status_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> Value {
+    let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };
+    let ws_id = hw_q.id_or_default(&s.0.registry);
+    let mut meta = s.0.registry.list().into_iter().find(|m| m.id == ws_id);
+    match meta.as_mut() {
+        Some(m) => {
+            m.is_empty = crate::workspace::is_workspace_empty(std::path::Path::new(&m.path));
+            serde_json::to_value(serde_json::json!({
+                "workspace": m,
+                "root_exists": std::path::Path::new(&m.path).exists(),
+            }))
+            .unwrap_or(Value::Null)
+        }
+        None => Value::Null,
+    }
+}
+pub fn workspace_browse_of(q: &Query<crate::auto_generated::server::BrowseQuery>) -> Value {
+    let base = match &q.path {
+        Some(p) if !p.is_empty() => p.clone(),
+        _ => ".".to_string(),
+    };
+    let mut entries: Vec<serde_json::Value> = Vec::new();
+    if let Ok(dir) = std::fs::read_dir(&base) {
+        for e in dir.flatten() {
+            if e.path().is_dir() {
+                let name = e.file_name().to_string_lossy().to_string();
+                if !name.starts_with('.') {
+                    entries.push(serde_json::json!({
+                        "name": name,
+                        "path": e.path().to_string_lossy().to_string(),
+                    }));
+                }
+            }
+        }
+    }
+    let parent = std::path::Path::new(&base)
+        .parent()
+        .map(|p| p.to_string_lossy().to_string());
+    serde_json::to_value(serde_json::json!({ "entries": entries, "parent": parent }))
+        .unwrap_or(Value::Null)
+}
+pub fn workspace_initialize_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> Value {
+    let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };
+    let ws_id = hw_q.id_or_default(&s.0.registry);
+    let ws = s.0.registry.get(&ws_id);
+    let marker = ws.root.join(".autoos").join("initialized");
+    match std::fs::write(&marker, b"1") {
+        Ok(_) => serde_json::to_value(serde_json::json!({
+            "status": "initialized",
+            "workspace": ws_id,
+        }))
+        .unwrap_or(Value::Null),
+        Err(_) => Value::Null,
+    }
+}
 pub fn workflows_builtin_names() -> Vec<String> { vec!["feature-dev".into()] }
 pub async fn wf_run<T,U,V>(_s: &T, _q: U, _b: V) -> WorkflowRunResponse { WorkflowRunResponse { steps: std::collections::HashMap::new(), outputs: std::collections::HashMap::new() } }
 pub async fn wf_run_with_progress<T,U,V,W>(_s: &T, _q: U, _b: V, _sink: W) {}

@@ -557,29 +557,29 @@ async fn conversation_rename(s: State<AppState>, q: Query<WorkspaceQuery>, p: Pa
     return Json(conv);
 }
 
-async fn workspace_list(s: State<AppState>) -> Json<WorkspacesResp> {
+pub async fn workspace_list(s: State<AppState>) -> Json<Value> {
     let list = workspace_list_all(&s);
-    return Json(WorkspacesResp { workspaces: list });
+    return Json(serde_json::json!({ "workspaces": list }));
 }
 
-async fn workspace_open(s: State<AppState>, body: Json<OpenWorkspaceBody>) -> Json<WorkspaceResp> {
+pub async fn workspace_open(s: State<AppState>, body: Json<OpenWorkspaceBody>) -> Json<Value> {
     let resp = workspace_open_of(&s, body);
-    return Json(resp);
+    return Json(serde_json::json!({ "workspace": resp }));
 }
 
-async fn workspace_status(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<WorkspaceStatusResp> {
+pub async fn workspace_status(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
     let resp = workspace_status_of(&s, q);
     return Json(resp);
 }
 
-async fn workspace_browse(q: Query<BrowseQuery>) -> Json<BrowseResp> {
-    let list = workspace_browse_of(&q);
-    return Json(BrowseResp { entries: list });
+pub async fn workspace_browse(q: Query<BrowseQuery>) -> Json<Value> {
+    let resp = workspace_browse_of(&q);
+    return Json(resp);
 }
 
-async fn workspace_initialize(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Initialized> {
-    workspace_initialize_of(&s, q);
-    return Json(Initialized { status: "initialized".to_string() });
+pub async fn workspace_initialize(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
+    let resp = workspace_initialize_of(&s, q);
+    return Json(resp);
 }
 
 async fn workflows() -> Json<WorkflowsResp> {

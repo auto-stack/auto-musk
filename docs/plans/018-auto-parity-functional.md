@@ -347,7 +347,7 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
 | # | 内容 | 验收 |
 |---|---|---|
 | ① | **auth 接线**：extern_impl 的 auth 7 个 stub 换真实委托（走 `s.auth`）；ag router 的 `/api/auth/*` 3 路由接入 serve() | `musk serve` 后 login/me/logout 由转译 handler 服务，行为与手写版一致（curl 验证） |
-| ② | **specs/wiki/chats 数据层接线**：extern_impl 对应 stub 换真实委托（走 `s.registry` 的 workspace stores）；ag router 的 specs/workspace/chats 路由接入 | 各端点真实 CRUD 返回，与手写版一致。**✅ specs/chats 已完成(2026-08-05, 17 stub 委托 + 18 路由接入);workspace 路由见 ③/单独工作项** |
+| ② | **specs/wiki/chats 数据层接线**：extern_impl 对应 stub 换真实委托（走 `s.registry` 的 workspace stores）；ag router 的 specs/workspace/chats 路由接入 | 各端点真实 CRUD 返回，与手写版一致。**✅ specs/chats/workspace 已完成(2026-08-05, 22 stub 委托 + 23 路由接入)** |
 | ③ | **extern_impl 剩余 stub 全部真实委托**（config/modes/skills/roles/app-config/harness/conversations/relay/drive/agent/ctx） | 全部端点有真实行为；fake 常量清零 |
 | ④ | **auto_generated::server 整体接入**：ag build_router（36 路由）作为主 router；7 个 🔴 流式/daemon handler + wiki + 静态文件路由与手写 router 合并 | 全服务端由转译 handler 驱动；原有 45 路由功能不丢 |
 
@@ -363,6 +363,8 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
 - 2026-08-05：① auth 接线闭环（serve() 接 ag auth 3 路由，手写 handlers 删除）。
 - 2026-08-05：② specs/chats 数据层接线闭环 —— 17 个 extern stub 真实委托 +
   ag specs 8 路由 / chats 10 路由接入 serve()（详见 §12 C1 ② 接线）。
+- 2026-08-05：② workspace 路由闭环 —— 5 个 extern stub 委托 + 5 路由接入。
+  ② 全部完成（22 stub 委托 + 23 路由，详见 §12 C1）。
 
 ### ②③④ 实测阻塞(2026-08-05,已停止推进,待决策)
 - **② workspace stores 级联**:specs/chats/wiki 在 `WorkspaceStores`(`src/workspace.rs:38`),
@@ -575,3 +577,17 @@ C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
 - **验收**:集成测试 `server::tests::specs_chats_endpoints_run_on_transpiled_handlers`
   覆盖 specs upsert/list/transition/overview + chats create/message/list/get/
   rename/delete 全链路真实 CRUD,与 hw 行为一致。全套 201 lib + parity 通过。
+
+### C1 ② workspace 路由接线(2026-08-05)✅
+- **5 个 extern stub 真实委托**(走 `s.0.registry` 真实 registry):
+  list(完整 metas,含 last_opened/is_empty)/ open(canonicalize+touch)/ status
+  (live is_empty 重查 + root_exists)/ browse(目录遍历,隐藏 dotfiles)/ initialize
+  (写 .autoos/initialized 标记)。
+- **wire 形状与 hw 一致**:`{"workspaces": [...]}` / `{"workspace": meta}` /
+  `{"workspace", "root_exists"}` / `{"entries", "parent"}` / `{"status",
+  "workspace"}`。ag DTO 原为简化版(id/name/empty 等),handlers 手改返回 Value。
+- **serve() 接入**:workspace 5 路由替换 hw handlers;删除 hw 死 handlers 5 个 +
+  DTO 2 个(95 行)。
+- **验收**:集成测试 `server::tests::workspace_endpoints_run_on_transpiled_handlers`
+  覆盖 list/open/status/browse/initialize 全链路,与 hw 行为一致。
+- 至此 ②(specs/chats/workspace)闭环:22 个 extern stub 委托 + 23 路由接入。

@@ -180,13 +180,13 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         )
         .route("/api/conversations/{id}/title", patch(conversation_rename))
         .route("/api/conversations/{id}/stream", get(conversation_stream))
-        // Workspace management (recent / open / status / browse) — operate on
-        // the registry itself, not per-workspace stores.
-        .route("/api/workspace/list", get(workspace_list))
-        .route("/api/workspace/open", post(workspace_open))
-        .route("/api/workspace/status", get(workspace_status))
-        .route("/api/workspace/browse", get(workspace_browse))
-        .route("/api/workspace/initialize", post(workspace_initialize))
+        // Workspace management (recent / open / status / browse / initialize) —
+        // ② 接线:由转译 handler 服务(经 extern_impl 委托到真实 registry)。
+        .route("/api/workspace/list", get(crate::auto_generated::server::workspace_list))
+        .route("/api/workspace/open", post(crate::auto_generated::server::workspace_open))
+        .route("/api/workspace/status", get(crate::auto_generated::server::workspace_status))
+        .route("/api/workspace/browse", get(crate::auto_generated::server::workspace_browse))
+        .route("/api/workspace/initialize", post(crate::auto_generated::server::workspace_initialize))
         // Relay (Flows) orchestration engine (P2a + P2b.1): runs/flows/professions
         // + the pipeline state machine. Full background driver arrives in P2b.2.
         .merge(crate::relay::api::relay_routes())
@@ -1282,84 +1282,6 @@ async fn chat_stream(
 
 // ── Spec-change approval endpoints (Plan 009 P1b) ──────────────────────────
 // ── Workspace management endpoints ──────────────────────────────────────────
-
-/// `GET /api/workspace/list` — recent workspaces.
-async fn workspace_list(State(state): State<AppState>) -> impl IntoResponse {
-    Json(json!({ "workspaces": state.registry.list() }))
-}
-
-/// `POST /api/workspace/open` body.
-#[derive(Deserialize)]
-struct OpenWorkspaceBody {
-    path: String,
-}
-
-/// `POST /api/workspace/open` — open/reuse a workspace by path.
-async fn workspace_open(
-    State(state): State<AppState>,
-    Json(body): Json<OpenWorkspaceBody>,
-) -> impl IntoResponse {
-    let meta = state.registry.open(&body.path);
-    state.registry.touch(&meta.id);
-    Json(json!({ "workspace": meta }))
-}
-
-/// `GET /api/workspace/status?workspace=<id>` — current workspace meta + whether
-/// its root still exists on disk.
-async fn workspace_status(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-) -> Response {
-    let ws_id = q.id_or_default(&state.registry);
-    let mut meta = state.registry.list().into_iter().find(|m| m.id == ws_id);
-    match meta.as_mut() {
-        Some(m) => {
-            // Re-check emptiness live (the dir may have gained files since open).
-            m.is_empty = crate::workspace::is_workspace_empty(std::path::Path::new(&m.path));
-            Json(json!({
-                "workspace": m,
-                "root_exists": std::path::Path::new(&m.path).exists(),
-            }))
-            .into_response()
-        }
-        None => (StatusCode::NOT_FOUND, "workspace not found").into_response(),
-    }
-}
-
-/// `GET /api/workspace/browse?path=<dir>` — list child directories (for the
-/// picker). Hides dotfiles. Returns `parent` for the "up one level" affordance.
-#[derive(Deserialize)]
-struct BrowseQuery {
-    #[serde(default)]
-    path: String,
-}
-
-async fn workspace_browse(Query(q): Query<BrowseQuery>) -> impl IntoResponse {
-    let base = if q.path.is_empty() {
-        ".".to_string()
-    } else {
-        q.path.clone()
-    };
-    let mut entries: Vec<serde_json::Value> = Vec::new();
-    if let Ok(dir) = std::fs::read_dir(&base) {
-        for e in dir.flatten() {
-            if e.path().is_dir() {
-                let name = e.file_name().to_string_lossy().to_string();
-                if !name.starts_with('.') {
-                    entries.push(json!({
-                        "name": name,
-                        "path": e.path().to_string_lossy().to_string(),
-                    }));
-                }
-            }
-        }
-    }
-    let parent = std::path::Path::new(&base)
-        .parent()
-        .map(|p| p.to_string_lossy().to_string());
-    Json(json!({ "entries": entries, "parent": parent }))
-}
-
 /// `GET /api/files/{workspace_id}/{*path}` — serve a file from inside a
 /// workspace's root. Used by the `display_image` tool so generated artifacts
 /// (e.g. a PNG chart) can be rendered inline in the chat via a URL. The path
@@ -1385,23 +1307,6 @@ async fn workspace_file(
     let mime = guess_mime_from_path(&canonical);
     ([(axum::http::header::CONTENT_TYPE, mime)], data).into_response()
 }
-
-/// `POST /api/workspace/initialize?workspace=<id>` — mark a workspace as
-/// initialized (drops `.autoos/initialized`). Called by the frontend after
-/// the onboarding dialog completes, so the dialog won't re-appear on re-open.
-async fn workspace_initialize(
-    State(state): State<AppState>,
-    Query(q): Query<WorkspaceQuery>,
-) -> Response {
-    let ws_id = q.id_or_default(&state.registry);
-    let ws = state.registry.get(&ws_id);
-    let marker = ws.root.join(".autoos").join("initialized");
-    match std::fs::write(&marker, b"1") {
-        Ok(_) => Json(json!({ "status": "initialized", "workspace": ws_id })).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("write marker: {e}")).into_response(),
-    }
-}
-
 // ── Conversation endpoints (unified chat + flow) ────────────────────────────
 
 /// `GET /api/conversations?workspace=<id>` — list all conversations.
@@ -2008,6 +1913,104 @@ mod tests {
         let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
         let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(v["status"], "deleted");
+    }
+
+    /// ② workspace 路由接线验收:workspace list/open/status/browse/initialize
+    /// 由转译 handler 服务(经 extern_impl 委托到真实 registry),wire 与 hw 一致。
+    #[tokio::test]
+    async fn workspace_endpoints_run_on_transpiled_handlers() {
+        use axum::body::Body;
+        use crate::auto_generated::server as ag_server;
+        use tower::ServiceExt;
+
+        let state = tmp_state();
+        let app = axum::Router::new()
+            .route("/api/workspace/list", axum::routing::get(ag_server::workspace_list))
+            .route("/api/workspace/open", axum::routing::post(ag_server::workspace_open))
+            .route("/api/workspace/status", axum::routing::get(ag_server::workspace_status))
+            .route("/api/workspace/browse", axum::routing::get(ag_server::workspace_browse))
+            .route("/api/workspace/initialize", axum::routing::post(ag_server::workspace_initialize))
+            .with_state(state);
+
+        // list → 默认 workspace 已 seed,含完整 meta(last_opened/is_empty)。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("GET")
+                .uri("/api/workspace/list")
+                .body(Body::empty())
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let wss = v["workspaces"].as_array().unwrap();
+        assert_eq!(wss.len(), 1);
+        assert!(wss[0]["id"].is_string());
+        assert!(wss[0]["path"].is_string());
+        let default_id = wss[0]["id"].as_str().unwrap().to_string();
+
+        // open 一个已有路径 → {"workspace": {meta}}。
+        let open_path = std::env::temp_dir().join("musk-open-test").to_string_lossy().to_string();
+        std::fs::create_dir_all(&open_path).unwrap();
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/api/workspace/open")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::json!({ "path": open_path }).to_string()))
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(v["workspace"]["id"].is_string());
+        // registry.open 会 canonicalize(Windows 上有 \\?\ 前缀),按 canonical 比较。
+        let canonical = std::fs::canonicalize(&open_path).unwrap();
+        assert_eq!(v["workspace"]["path"], canonical.to_string_lossy().to_string());
+
+        // status → {"workspace", "root_exists"}。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("GET")
+                .uri("/api/workspace/status")
+                .body(Body::empty())
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["workspace"]["id"], default_id);
+        assert!(v["root_exists"].is_boolean());
+
+        // browse → {"entries", "parent"}(默认 workspace 根里有 .autoos)。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("GET")
+                .uri("/api/workspace/browse")
+                .body(Body::empty())
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(v["entries"].is_array());
+        assert!(v["parent"].is_null() || v["parent"].is_string());
+
+        // initialize → 写 .autoos/initialized 标记。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/api/workspace/initialize")
+                .body(Body::empty())
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["status"], "initialized");
+        assert_eq!(v["workspace"], default_id);
+
+        let _ = std::fs::remove_dir_all(&open_path);
     }
 
     #[tokio::test]
