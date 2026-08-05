@@ -329,3 +329,34 @@ Option/Result/Tuple 逐元素 + 缺失原语自等（Byte/USize/U64/I64）。
     List+find_meta 线性查找（HashMap.get() 借用不可靠）；WikiSource 不 derive(Default)（E0665）。
   - 写路径（create_page/update_page/delete_page/save_manifest）因 a2r parser 状态 bug 推迟，留作后续闭环。
   - 顺带：重生 3 个 impl-prefix 遗留陈旧 golden（`rand_custom`×2 + `log_custom`，上一轮修复漏网）。
+
+---
+
+## 11. 接线运行（2026-08-05 启动）— 让 Auto 版真正跑起来
+
+> 计划 018 §0 声明"接线运行作为后续独立计划"。本阶段把它落地。
+> **前置评估（2026-08-05 实测）**：`auto_generated/` 26 个模块全量编译、但**运行时零引用**
+> （`src/` 非生成代码无任何 `auto_generated::*` 调用；`src/main.rs:161` 跑手写 `server::serve`）。
+> extern_impl 150 个辅助函数中 ~100 个是 fake stub（`auth_login_role`→"admin"、`specs_load`→`Null`），
+> 若直接接入会返回假数据。**架构事实**：ag server handler 引用的是**手写 AppState/store**，
+> extern_impl 就是设计好的桥 —— 接线正解是"extern_impl 真实委托 + ag router 接入"，而非换 store
+> 类型（ag/hw store 是类型不相同的镜像，换 store 会引发 DTO 类型级联，代价大且非架构本意）。
+
+### 路线图（4 步，每步可独立验收）
+
+| # | 内容 | 验收 |
+|---|---|---|
+| ① | **auth 接线**：extern_impl 的 auth 7 个 stub 换真实委托（走 `s.auth`）；ag router 的 `/api/auth/*` 3 路由接入 serve() | `musk serve` 后 login/me/logout 由转译 handler 服务，行为与手写版一致（curl 验证） |
+| ② | **specs/wiki/chats 数据层接线**：extern_impl 对应 stub 换真实委托（走 `s.registry` 的 workspace stores）；ag router 的 specs/workspace/chats 路由接入 | 各端点真实 CRUD 返回，与手写版一致 |
+| ③ | **extern_impl 剩余 stub 全部真实委托**（config/modes/skills/roles/app-config/harness/conversations/relay/drive/agent/ctx） | 全部端点有真实行为；fake 常量清零 |
+| ④ | **auto_generated::server 整体接入**：ag build_router（36 路由）作为主 router；7 个 🔴 流式/daemon handler + wiki + 静态文件路由与手写 router 合并 | 全服务端由转译 handler 驱动；原有 45 路由功能不丢 |
+
+### 手写边界（接线阶段保持手写）
+- **数据 store**：auth/specs/chats/wiki 等 store 本体保持手写（ag/hw store 类型不相同的镜像；
+  换 store 需 a2r 支持类型同一性 —— 后续独立 dogfooding 目标）。
+- **7 个 🔴 handler**（run/run_stream/chat_stream/conversation_stream/workflow_run/
+  workflow_run_stream/settings_link）：async 泛型闭包/reqwest/SSE 硬墙。
+- **serve() 外壳**（静态文件/CORS/TcpListener/axum::serve）。
+
+### 已完成的接线（滚动更新）
+- 2026-08-05：本路线图写入计划；开始 ①。

@@ -51,3 +51,5 @@ tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 # 副作用工具测试串行(chdir 全局状态,不能并行)
 serial_test = "3"
+# 接线运行冒烟测试:Router::oneshot 发真实 HTTP 请求
+tower = { version = "0.5", features = ["util"] }

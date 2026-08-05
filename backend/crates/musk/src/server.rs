@@ -58,8 +58,23 @@ fn guess_mime_from_path(path: &std::path::Path) -> &'static str {
 #[derive(Clone)]
 pub struct AppState {
     pub client: Arc<dyn Client>,
-    pub auth: Arc<crate::auth::AuthStore>,
+    // 接线运行(计划 018 §11 ①):auth 数据层换用 a2r 转译版 AuthStore。
+    // 行为等价(parity_auth 8 测试背书);响应 DTO 仍是手写版,通过 to_hw_user 转换。
+    pub auth: Arc<crate::auto_generated::auth::AuthStore>,
     pub registry: Arc<crate::workspace::WorkspaceRegistry>,
+}
+
+/// Convert a transpiled UserInfo to the hand-written shape (same wire format).
+fn to_hw_user(u: crate::auto_generated::auth::UserInfo) -> crate::auth::UserInfo {
+    use crate::auto_generated::auth::Role as AgRole;
+    crate::auth::UserInfo {
+        username: u.username,
+        role: match u.role {
+            AgRole::Admin => crate::auth::Role::Admin,
+            AgRole::Developer => crate::auth::Role::Developer,
+            AgRole::Viewer => crate::auth::Role::Viewer,
+        },
+    }
 }
 
 /// Run the HTTP server on the given address (default `127.0.0.1:8080`).
@@ -76,7 +91,7 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
     registry.migrate_global_data(&config_dir);
     let state = AppState {
         client,
-        auth: Arc::new(crate::auth::AuthStore::new(users_path)),
+        auth: Arc::new(crate::auto_generated::auth::AuthStore::new(users_path)),
         registry: Arc::new(registry),
     };
 
@@ -234,7 +249,7 @@ async fn auth_login(
                 .expect("session just created");
             Json(LoginResponse {
                 token: session.token,
-                user,
+                user: to_hw_user(user),
             })
             .into_response()
         }
@@ -255,7 +270,7 @@ async fn auth_me(
 ) -> impl IntoResponse {
     match bearer_token(&headers) {
         Some(token) => match state.auth.session_user(&token) {
-            Some(user) => Json(user).into_response(),
+            Some(user) => Json(to_hw_user(user)).into_response(),
             None => (
                 StatusCode::UNAUTHORIZED,
                 Json(ApiError {
@@ -2202,13 +2217,13 @@ mod tests {
         }
     }
 
-    fn tmp_auth() -> Arc<crate::auth::AuthStore> {
+    fn tmp_auth() -> Arc<crate::auto_generated::auth::AuthStore> {
         let path = std::env::temp_dir().join(format!(
             "musk_server_auth_test_{}.json",
             std::process::id()
         ));
         let _ = std::fs::remove_file(&path);
-        Arc::new(crate::auth::AuthStore::new(path))
+        Arc::new(crate::auto_generated::auth::AuthStore::new(path))
     }
 
     fn tmp_state() -> AppState {
@@ -2227,6 +2242,86 @@ mod tests {
             auth: tmp_auth(),
             registry: Arc::new(registry),
         }
+    }
+
+    /// 接线运行(计划 018 §11 ①):真实 HTTP 请求打到 auth 端点,数据层是 a2r
+    /// 转译的 ag::AuthStore(真 sha2 哈希 + 文件持久化 + Mutex sessions)。
+    /// 断言 wire 形状与手写版一致:{ token, user: { username, role } }。
+    #[tokio::test]
+    async fn auth_endpoints_run_on_transpiled_store() {
+        use axum::body::Body;
+        use tower::ServiceExt;
+
+        let app = axum::Router::new()
+            .route("/api/auth/login", axum::routing::post(auth_login))
+            .route("/api/auth/me", axum::routing::get(auth_me))
+            .route("/api/auth/logout", axum::routing::post(auth_logout))
+            .with_state(tmp_state());
+
+        // login with the default admin (created by ensure_default_admin).
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/auth/login")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"username":"admin","password":"admin"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), axum::http::StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let token = json["token"].as_str().expect("login returns token").to_string();
+        assert_eq!(json["user"]["username"], "admin");
+        assert_eq!(json["user"]["role"], "Admin");
+
+        // me with the bearer token resolves the user from the transpiled store.
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("GET")
+                    .uri("/api/auth/me")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), axum::http::StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["role"], "Admin");
+
+        // logout invalidates the session → me is 401 afterwards.
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/auth/logout")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), axum::http::StatusCode::OK);
+        let resp = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("GET")
+                    .uri("/api/auth/me")
+                    .header("authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), axum::http::StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]
