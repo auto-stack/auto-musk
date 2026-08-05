@@ -7,6 +7,7 @@
 > **目标**：让 Auto(.at) 版本经 a2r 转译产出的 Rust，在**公共 API 签名**和**运行行为**上与手写 Rust 一致（单测等价），全模块覆盖。接线运行作为后续独立计划。
 > **战略定位**：本计划是 **Auto 语言的 dogfooding 工程**——在真实的 Auto/Rust 项目实践中发现 a2r 的不足，逐项改进转译器，推动 Auto 真正成为 Rust 生态的开发语言。a2r 限制不是"既定约束"，而是**要消灭的对象**。
 > **Phase 3 进度**：wiki 试点 ✅（§10）+ task_plan 3.3 ✅（§10.5）+ handoff_store 3.5 ✅（§10.6，2026-08-05）。
+> **a2r 缺陷**：本轮 dogfooding 发现 4 项已修（§10.5 R1-R4）+ 4 项待 worktree 修复（§14 W1-W4）。
 
 ---
 
@@ -841,3 +842,53 @@ C3 ag server build_router 接入(main.rs,含 DTO parity 修复)
 - **A3 handler 层**:server.at 30 个 handler 改 `~Json<Value>` → `~Response`,body 改 `return to_response(extern(...), "msg", code)`(错误码:404 not-found / 400 校验写 / 500 加载 IO)。re-transpile 后 diff 仅预期变化。
 - **E2/E3 测试**:`delegated_endpoints_return_http_errors`(chat get/delete 不存在 → 404,workspace status 不存在 → 404);delete 集成测试补 `id` 断言(chat + conversation);`production_router_composition` 的 specs delete 断言改 404。
 - **验收**:311 项测试全绿(207 lib + parity 各套件 + 新错误语义测试)。
+
+---
+
+## 14. a2r 缺陷清单（Phase 3.3/3.5 dogfooding 发现，待 worktree 修复）🔧
+
+> 本轮 Phase 3.3（task_plan）+ Phase 3.5（handoff_store）移植在 auto-lang 发现/验证的
+> a2r 转译器缺陷全集。按状态分组：✅ 已修复（已合入 master 或已提交）、🔶 已修未提交、
+> ⬜ 待修复（当前用 .at 变通，计划以 auto-lang worktree 方式实施修复）。
+> **修复工作流**：auto-lang 新建 worktree 分支 → 逐项修复 + 最小复现样例 + golden 回归
+> → 合并 master → 回 auto-musk 去变通（重转译 + parity 验证）。
+
+### 已修复（前两轮已合入 master / 已提交，完整记录见 §10.5）
+
+| ID | 缺陷 | 修复 commit | 说明 |
+|---|---|---|---|
+| R1 | C11 prescan 缺 `fn_mut_params` | `dfa7bd05`（已合入） | `mut p T` 参数在调用点先于声明时，mut 标志查不到 → 发 `visited.clone()` 而非 `&mut visited`（E0308）。prescan 补注册（Stmt::Fn + TypeDecl methods 两分支）。 |
+| R2 | `&T` 参数多余 clone | `dfa7bd05`（已合入） | `needs_clone` 未排除 `needs_ref_borrow` → `dfs(..., &graph.clone(), ...)`。加 `&& !needs_ref_borrow`。 |
+| R3 | scalar enum `#[default]` 变体透传 | `75ff834b`（已提交） | 变体级 attrs 被静默丢弃 → `#[derive(Default)]` 无 `#[default]` 变体 → E0665。按 `item.attrs` 发射 `#[{}]`。 |
+| R4 | `AtomError::InvalidType` struct-variant seed | `75ff834b`（已提交） | `.at` 构造 `AtomError.InvalidType(...)` 发 tuple 语法（E0599）。注册到 `seed_known_struct_enum_variants` → struct 语法。 |
+
+### 待 worktree 修复（本轮 handoff_store 新增，当前 .at 变通）
+
+| ID | 缺陷 | 位置 | 现象 | 当前变通 | 修复方案（worktree） |
+|---|---|---|---|---|---|
+| **W1** | tuple-key `HashMap<(String,String,String),_>` 方法调用 | 调用点 insert/get 参数处理 | `insert(key)` 误加 `.to_string()`（tuple 无 Display，E0277）；`get(key)` 缺 `&` | 字符串拼接 key `"tp/phase/run"` | insert/get 对 tuple 参数的正确发射：insert 的 `.to_string()` 仅对 str 键；get 注入 `&` |
+| **W2** | Mutex 二次 lock 死锁 | `is` 匹配生成的 match 分支 | `is guard.get(k) { None -> {} }` 后 guard 仍持锁（a2r match 不像 hw if-let 靠 NLL 释放），同一 fn 内二次 `lock()` → 死锁 | cache 读写抽独立辅助 fn（guard 在 fn 退出时 drop） | `is` 匹配的 None 分支后若 guard 不再使用，发射 `drop(guard)` 或改用 if-let 结构 |
+| **W3** | `&self.field` 传 `@T` 参数误加 self-dot `.clone()` | `arg()` 的 `is_self_dot` 逻辑 | `cache_get(self.cache, ...)` → `&self.cache.clone()`（Mutex 无 Clone，E0599） | 已修在 auto-lang 工作树（`needs_ref_borrow && Dot` → 直接 expr），golden 316 无回归 | **🔶 已修未提交**（与并行 session Plan 389 改动同文件交织，待合并） |
+| **W4** | 多级 PathBuf join 链拆成无效果语句 | 链式方法调用 | `self.data_dir.join("a").join("b").join("c")` → 拆成 `self.join("a"); self.join("b"); ...`（不拼接，返回未变 dir） | 分步绑定中间变量（`let a = ...; let b = a.join(...)`） | 链式 `.join()` 调用保持链式发射，或正确累积 receiver |
+
+### 变通使用中（不改 a2r，文档化即可）
+
+| ID | 现象 | 变通 | 备注 |
+|---|---|---|---|
+| **C1** | `impl TryFrom<Node>` trait impl 不可表达 | `static fn from_node` | a2r 无 trait impl 语法；parity 分别调 hw `try_from` / ag `from_node` 比行为 |
+| **C2** | `graph.get()` 返回 `Option<&Vec>` | `is graph.get(node)` 直接匹配，不标注类型 | 标注 `Option<List<str>>` → E0308 |
+| **C3** | `split` 结果类型标注 `Vec<String>`（实为 `Vec<&str>`） | `let parts = path.split(".")` 不加标注 | Rust 推断 `Vec<&str>`，`parts[i]` 与字面量比较直接成立 |
+| **C4** | `from_str` 返回类型在 Option 上下文推断不可靠 | 抽辅助 fn（显式返回类型驱动） | 同 wiki parse_manifest 模式 |
+| **C5** | `fs::write` nativeize 成 `.is_ok()` bool 丢错误详情 | `if write_ok == false { return Err(...) }` | nativeize 桥接设计；错误详情丢失（见 §10.6 已知简化） |
+
+### worktree 实施计划（auto-lang）
+
+1. **分支**：`worktree/a2r-phase35-fixes`（基于 master）
+2. **W3 先合入**（已修未提交）：与 Plan 389 改动分开提交，golden 316 回归
+3. **W1/W2/W4 逐项**：每个缺陷一个 commit + 最小复现样例（.at → 期望 Rust）
+   + 回归测试（仿 `test_a2r_method_mut_param_emits_mut_ref` 模式）
+4. **合并 master** 后回 auto-musk：
+   - handoff_store.at 去变通（tuple-key 恢复、死锁辅助 fn 简化、join 链恢复链式）
+   - task_plan.at 若有可去变通点同步
+   - 重转译 + 全量 parity 验证
+5. **验收**：a2r golden 全过 + auto-musk 全量 15 套件全绿
