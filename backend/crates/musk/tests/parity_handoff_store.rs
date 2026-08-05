@@ -4,8 +4,8 @@
 //! Scope: HandoffStore (data_dir + Mutex cache) save / load / resolve_path /
 //! save_from_run. Known deviations:
 //! - `new` takes `PathBuf` (hw: `impl Into<PathBuf>`, C6 已知退化).
-//! - `save` returns `Result<bool, String>` (hw: `Result<(), String>` — a2r 无法
-//!   表达 unit 类型, bool 载荷承载).
+//! - `save` returns `Result<(), String>` (Plan 391 D5 闭环: a2r 现支持 unit 类型,
+//!   对齐 hw; 此前用 Result<bool, String> bool 载荷承载).
 //! - cache key 两边均为 `(String, String, String)` tuple (§14 W1 闭环后 ag 恢复
 //!   hw 同构 tuple key, 去字符串拼接变通).
 
@@ -54,7 +54,7 @@ fn parity_save_and_load_handoff() {
     let ag_handoff = HandoffDocument::new("coder", "tester");
 
     hw_store.save("tp", "phase", "run", &hw_handoff).unwrap();
-    assert!(ag_store.save("tp", "phase", "run", ag_handoff).unwrap());
+    ag_store.save("tp", "phase", "run", ag_handoff).unwrap();
 
     let hw_loaded = hw_store.load("tp", "phase", "run").unwrap();
     let ag_loaded = ag_store.load("tp", "phase", "run").unwrap();
@@ -84,7 +84,7 @@ fn parity_load_after_reload_from_disk() {
         let store = ag::HandoffStore::new(dir.path().to_path_buf());
         assert!(store
             .save("tp", "phase", "run", HandoffDocument::new("coder", "tester"))
-            .unwrap());
+            .is_ok());
     }
     let store2 = ag::HandoffStore::new(dir.path().to_path_buf());
     let loaded = store2.load("tp", "phase", "run").unwrap();
@@ -132,7 +132,7 @@ fn parity_resolve_path_missing_field_returns_none() {
     let store = ag::HandoffStore::new(dir.path().to_path_buf());
     assert!(store
         .save("tp", "phase", "run", HandoffDocument::new("coder", "tester"))
-        .unwrap());
+        .is_ok());
     // Field that doesn't exist in the handoff JSON.
     assert!(store
         .resolve_path("tp.phase.run.handoff.no_such_field")

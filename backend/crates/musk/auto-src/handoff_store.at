@@ -52,9 +52,9 @@ ext HandoffStore {
         return path
     }
 
-    /// Save a handoff to disk and cache. Ok(true) on success (hw: Result<(), String>
-    /// — a2r 无法表达 unit 类型,用 bool 载荷承载,与 task_plan/specs 同约定)。
-    pub fn save(task_plan_id str, phase str, run str, handoff HandoffDocument) Result<bool, str> {
+    /// Save a handoff to disk and cache. Returns Ok(()) on success, aligned with
+    /// hw `Result<(), String>` (Plan 391 D5 闭环: a2r 现支持 unit 类型)。
+    pub fn save(task_plan_id str, phase str, run str, handoff HandoffDocument) Result<(), str> {
         let path PathBuf = self.handoff_path(task_plan_id, phase, run)
         is path.parent() {
             Some(parent) -> {
@@ -82,7 +82,7 @@ ext HandoffStore {
         let key = (task_plan_id.to_string(), phase.to_string(), run.to_string())
         var guard = self.cache.lock().unwrap()
         let _ Option<HandoffDocument> = guard.insert(key, handoff.clone())
-        return Ok(true)
+        return Ok(())
     }
 
     /// Load a handoff from cache or disk.
@@ -149,7 +149,7 @@ ext HandoffStore {
         let handoff_opt Option<HandoffDocument> = store.last_handoff(run_id.view)
         is handoff_opt {
             Some(h) -> {
-                let _save_result Result<bool, str> = self.save(task_plan_id, phase, run_name, h.clone())
+                let _save_result Result<(), str> = self.save(task_plan_id, phase, run_name, h.clone())
                 return Some(h)
             }
             None -> return None

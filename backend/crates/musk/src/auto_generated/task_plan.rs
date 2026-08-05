@@ -450,7 +450,9 @@ fn dfs(node: &str, graph: &HashMap<String, Vec<String>>, mut visited: &mut HashS
     let _: bool = stack.insert(node.to_string());
 
 
-    match graph.get(node) {
+
+    let deps_opt: Option<&Vec<String>> = graph.get(node);
+    match deps_opt {
         Some(deps) => {
             for dependency in deps.clone() {
                 let has_cycle: bool = dfs(dependency.as_str(), &graph, &mut visited, &mut stack);
@@ -555,7 +557,6 @@ fn value_as_phase_mode(value: Value) -> Result<PhaseMode, AtomError> {
 
 /// Validate a handoff path like `phase.run.handoff.field`.
 fn validate_handoff_path(path: &str) -> Result<bool, AtomError> {
-
 
 
     let parts = path.split(".").collect::<Vec<_>>();

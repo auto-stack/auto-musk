@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::fs;
+use std::fs::DirEntry;
 use serde::{Serialize, Deserialize};
 use serde_json::{to_string_pretty, from_str};
 use serde_json::Value;
@@ -343,6 +344,22 @@ fn insert_sorted(list: Vec<TreeNode>, item: TreeNode) -> Vec<TreeNode> {
     return result;
 }
 
+/// 构建目录树(文件夹在前, 字母序)。
+/// Plan 391 D1: extract file size as Option<u64> from a DirEntry's metadata.
+/// 独立辅助 fn —— store 路径的 `let sz u64 = m.len()` 抑制 as i32 cast,
+/// 使 size 能喂 Option<u64>(is 分支体内多语句的 let 会被 a2r 压缩丢变量,
+/// 故抽成 fn)。modified 暂不取(duration_since 方法链, 留 None)。
+fn file_size(entry: &DirEntry) -> Option<u64> {
+    let meta_opt = entry.metadata();
+    match meta_opt {
+        Ok(m) => {
+            let sz: u64 = m.len();
+            return Some(sz);
+        },
+        Err(_) => return None,
+    }
+}
+
 pub fn build_tree(root: PathBuf, prefix: &str) -> Vec<TreeNode> {
     let mut entries: Vec<TreeNode> = vec![];
     let dir_res = fs::read_dir(root);
@@ -377,8 +394,8 @@ pub fn build_tree(root: PathBuf, prefix: &str) -> Vec<TreeNode> {
 
 
 
-
-                    let node: TreeNode = TreeNode { name: name.to_string(), path: path.to_string(), node_type: "file".to_string(), children: None, size: None, modified: None };
+                    let size_opt: Option<u64> = file_size(&entry);
+                    let node: TreeNode = TreeNode { name: name.to_string(), path: path.to_string(), node_type: "file".to_string(), children: None, size: size_opt, modified: None };
                     entries = insert_sorted(entries, node.clone())
                 }
 

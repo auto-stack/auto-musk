@@ -46,7 +46,7 @@ impl HandoffStore {
         let path: PathBuf = dir.join(phase).join(format!("{}{}", run, ".json"));
         return path;
     }
-    pub fn save(&self, task_plan_id: &str, phase: &str, run: &str, handoff: HandoffDocument) -> Result<bool, String> {
+    pub fn save(&self, task_plan_id: &str, phase: &str, run: &str, handoff: HandoffDocument) -> Result<(), String> {
         let path: PathBuf = self.handoff_path(task_plan_id, phase, run);
         match path.parent() {
             Some(parent) => {
@@ -75,7 +75,7 @@ impl HandoffStore {
         let key = (task_plan_id.to_string(), phase.to_string(), run.to_string());
         let mut guard = self.cache.lock().unwrap();
         let _: Option<HandoffDocument> = guard.insert(key, handoff.clone());
-        return Ok(true);
+        return Ok(());
     }
     pub fn load(&self, task_plan_id: &str, phase: &str, run: &str) -> Option<HandoffDocument> {
         let key = (task_plan_id.to_string(), phase.to_string(), run.to_string());
@@ -135,7 +135,7 @@ impl HandoffStore {
         let handoff_opt: Option<HandoffDocument> = store.last_handoff(&run_id);
         match handoff_opt {
             Some(h) => {
-                let _save_result: Result<bool, String> = self.save(task_plan_id, phase, run_name, h.clone());
+                let _save_result: Result<(), String> = self.save(task_plan_id, phase, run_name, h.clone());
                 return Some(h);
             },
             None => return None,
@@ -147,8 +147,8 @@ impl HandoffStore {
 /// Create a store rooted at the workspace data directory.
 /// Directory where handoffs are persisted for a given task plan.
 /// File path for a specific handoff.
-/// Save a handoff to disk and cache. Ok(true) on success (hw: Result<(), String>
-/// — a2r 无法表达 unit 类型,用 bool 载荷承载,与 task_plan/specs 同约定)。
+/// Save a handoff to disk and cache. Returns Ok(()) on success, aligned with
+/// hw `Result<(), String>` (Plan 391 D5 闭环: a2r 现支持 unit 类型)。
 /// Load a handoff from cache or disk.
 /// Resolve a path like `task_plan_id.phase.run.handoff.field` to a JSON value.
 /// Collect the final handoff from a completed relay run and save it.

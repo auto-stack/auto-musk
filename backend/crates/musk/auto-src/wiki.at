@@ -18,6 +18,7 @@ use.rust std::collections::HashMap
 use.rust std::path::{Path, PathBuf}
 use.rust std::sync::Mutex
 use.rust std::fs
+use.rust std::fs::DirEntry
 use.rust serde::{Serialize, Deserialize}
 use.rust serde_json::{to_string_pretty, from_str}
 use.rust std::time::{SystemTime, Duration}
@@ -196,7 +197,7 @@ ext WikiStore {
                                 created_at: updated_at,
                                 updated_at: updated_at
                             )
-                            guard.insert(slug, page)
+                            guard.insert(slug.to_string(), page)
                         },
                         Err(e) -> {}
                     }
@@ -357,6 +358,21 @@ fn insert_sorted(list List<TreeNode>, item TreeNode) List<TreeNode> {
 }
 
 /// 构建目录树(文件夹在前, 字母序)。
+/// Plan 391 D1: extract file size as Option<u64> from a DirEntry's metadata.
+/// 独立辅助 fn —— store 路径的 `let sz u64 = m.len()` 抑制 as i32 cast,
+/// 使 size 能喂 Option<u64>(is 分支体内多语句的 let 会被 a2r 压缩丢变量,
+/// 故抽成 fn)。modified 暂不取(duration_since 方法链, 留 None)。
+fn file_size(entry @DirEntry) Option<u64> {
+    let meta_opt = entry.metadata()
+    is meta_opt {
+        Ok(m) -> {
+            let sz u64 = m.len()
+            return Some(sz)
+        }
+        Err(_) -> return None
+    }
+}
+
 pub fn build_tree(root PathBuf, prefix str) List<TreeNode> {
     var entries List<TreeNode> = []
     let dir_res = fs.read_dir(root)
@@ -392,18 +408,18 @@ pub fn build_tree(root PathBuf, prefix str) List<TreeNode> {
                     )
                     entries = insert_sorted(entries, node)
                 } else {
-                    // NOTE: size/modified are deliberately None here. The
-                    // hand-written build_tree enriches them from fs::Metadata,
-                    // but a2r's Auto int model casts `.len()` to i32 (C9 codegen
-                    // limitation) which can't feed an Option<u64> size. Kept as
-                    // a documented parity reduction; tree structure/ordering is
-                    // the functional surface the parity tests assert.
+                    // Plan 391 D1 闭环: file 节点 size 从 fs::Metadata.len() 取真实值。
+                    // 此前 a2r 的 Auto int 模型把 .len() 强转 as i32(无法喂 Option<u64>),
+                    // 迫使 size=None。D1 修复后, 辅助 fn file_size 内的 let sz u64 = m.len()
+                    // (store 路径) 抑制 cast, 可取真实值。
+                    // modified 涉及 duration_since(UNIX_EPOCH) 方法链, 暂留 None(文档化)。
+                    let size_opt Option<u64> = file_size(entry)
                     let node TreeNode = TreeNode(
                         name: name,
                         path: path,
                         node_type: "file",
                         children: None,
-                        size: None,
+                        size: size_opt,
                         modified: None
                     )
                     entries = insert_sorted(entries, node)

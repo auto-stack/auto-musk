@@ -501,8 +501,10 @@ fn dfs(
     let _ bool = visited.insert(node.to_string())
     let _ bool = stack.insert(node.to_string())
 
-    // graph.get() returns Option<&Vec<String>> — match directly, don't annotate.
-    is graph.get(node) {
+    // Plan 391 D2 闭环: graph.get() 返回 Option<&Vec>, 现可标注类型
+    // (a2r 在 init 是 .get() 时把 Option<T> 标注改写为 Option<&T>)。
+    let deps_opt Option<List<str>> = graph.get(node)
+    is deps_opt {
         Some(deps) -> {
             for dependency in deps.clone() {
                 let has_cycle bool = dfs(dependency, graph, visited, stack)
@@ -607,10 +609,9 @@ fn value_as_phase_mode(value Value) Result<PhaseMode, AtomError> {
 
 /// Validate a handoff path like `phase.run.handoff.field`.
 fn validate_handoff_path(path str) Result<bool, AtomError> {
-    // NOTE: `let parts = ...` 不加类型标注 —— a2r 对 split 结果强制标注
-    // Vec<String>, 但 Rust 的 split().collect() 实际是 Vec<&str>(E0308)。
-    // 无标注时 Rust 推断 Vec<&str>, parts[i] 是 &str, 与字面量比较直接成立。
-    let parts = path.split(".")
+    // Plan 391 D3 闭环: a2r 现对 List<str> + split() 跳过强制标注
+    // (让 Rust 推断 Vec<&str>, 而非强制 Vec<String> 触发 E0308)。
+    let parts List<str> = path.split(".")
     if parts.len() < 3 {
         return Err(AtomError.ValidationError("input_from path '" + path + "' must have at least 3 segments (phase.run.field)"))
     }
