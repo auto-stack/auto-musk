@@ -1,6 +1,6 @@
 # 019 — 接线运行深化：流式 handler 切换到 Auto 驱动
 
-> **状态**：✅ 完成（2026-08-06）。Phase 0-4 全闭环 + 状态码模型补齐 + §6.1 流式即时错误→400 闭环。6 个 handler 全部切到 ag，全量 226 lib 测试 + 集成测试全绿。§6.2/6.3 登记备忘（低优先级/与 hw 等价非缺陷）。
+> **状态**：✅ 完成（2026-08-06）。Phase 0-4 全闭环 + 状态码模型补齐 + §6.1 流式即时错误→400 + §6.2 broadcast 连接泄漏根治。6 个 handler 全部切到 ag，全量 228 lib 测试 + 集成测试全绿。§6.3 登记备忘（与 hw 等价非缺陷）。
 > **前置**：Plan 018（已归档，§11 接线运行 ①-④ 已完成，本计划是 §11 标记的"后续独立计划"）。
 > **仓库**：auto-musk（`backend/crates/musk/`）。Phase 1a 重新转译用到 auto-lang worktree（构建 `auto.exe`）。
 > **目标**：把 serve() 的 6 个 🔴 流式/daemon handler 从手写 Rust 切换到 `auto_generated::server_stream` 的转译 handler，让整个服务端（除 settings_link + serve 外壳）由 Auto 驱动。
@@ -20,6 +20,7 @@
 - ✅ **架构调整**：mpsc channel 由 extern side-table 持有，handler 把 **tx 句柄直传 extern**（去掉 named sink struct 中转）。extern 在 run 结束后 `close_channel`（移除 pair → 唯一 Sender 析构 → channel 关闭），SSE 流在 `mpsc_recv` 得 None 时 `break` 终止——与 hw 的 `while let Some(v) = rx.recv().await` 终止语义一致，避免流永不结束。
 - ✅ **验收**：6 个 ag handler 契约/等价性测试（`ag_run_stream_produces_sse_events` / `ag_workflow_run_stream_emits_step_events` / `ag_chat_stream_persists_and_streams` / `ag_conversation_stream_filters_events` / `ag_run_unknown_mode_returns_400` / `ag_workflow_run_invalid_workflow_returns_400`）+ 全量 222 lib 测试 + 集成测试全绿。
 - ✅ **§6.1 流式即时错误→400**（2026-08-06）：`run_stream_handler`/`workflow_run_stream` 在 `mpsc_channel()` 前前置 `mode_exists`/`workflow_exists` 校验（与 hw fail-fast 一致），坏 spec → 400 JSON（不再 200 SSE + error 帧）。契约测试 `ag_run_stream_bad_mode_returns_400` + `ag_workflow_run_stream_invalid_workflow_returns_400`。全量 226 lib 测试全绿。
+- ✅ **§6.2 broadcast 连接泄漏根治**（2026-08-06）：`conversations_subscribe` 返回 `BroadcastSub`（rx 包 `Arc<Mutex<Option<Receiver>>>`），被 `conv_event_stream` owned → stream drop（客户端断开）→ Arc 归零 → rx 析构。不再用 registry 存 receiver。`conversation_id` 存进 sub 避免 `&str` 流参数（E0700）。测试 `broadcast_sub_drop_reclaims_receiver` + `conversation_stream_drop_reclaims_receiver` 断言 receiver_count 回落。
 
 ---
 
@@ -158,7 +159,7 @@ Plan 018 §11 完成了接线运行 ①-④（auth/specs/chats/workspace/config/
 
 ---
 
-## 6. 后续修复方向（§6.1 已闭环；§6.2/6.3 登记备忘）
+## 6. 后续修复方向（§6.1 + §6.2 已闭环；§6.3 登记备忘）
 
 以下 3 条为切换后暴露的限制，均已在 `KNOWN-DEBT-AND-RISKS.md` 🟢 已知限制表登记。
 
@@ -170,14 +171,15 @@ Plan 018 §11 完成了接线运行 ①-④（auth/specs/chats/workspace/config/
   - `server_stream.at` 的两个流式 handler 在 `mpsc_channel()` 前调校验，失败 `return err_response(...)`。重新转译零 drift。
 - **验收**：契约测试 `ag_run_stream_bad_mode_returns_400` + `ag_workflow_run_stream_invalid_workflow_returns_400`（断言 400 JSON + error 字段，与 hw 等价）。全量 226 lib 测试全绿。
 
-### 6.2 登记备忘：conversation_stream 的 broadcast Receiver 连接泄漏
+### 6.2 ✅ 已闭环：conversation_stream 的 broadcast Receiver 连接泄漏（2026-08-06）
 
-- **现状**：`conversations_subscribe` 把 `broadcast::Receiver` 存 side-table（Value 存 i64 id），`broadcast_recv` 每次收事件 remove + re-insert、Closed 时不再 re-insert（条目回收）。但**客户端断开时**（非 channel 关闭），SSE 流 future 被 axum drop，`broadcast_recv` 卡在 `rx.recv().await` 的 future 也随之 drop → owned `rx` 析构。残留的是"被 remove 但卡在 future 里"的 receiver，随 future drop 回收。实际泄漏面：断开瞬间到 future drop 之间的短暂存活 + 极端情况下 future 未及时 drop 的 receiver。事件量小、每连接开销 ~百字节，活跃 watcher 数有限，影响可接受。
-- **修复方向**（低优先级，建议在有明确内存压力或活跃连接规模上升时处理）：
-  1. extern 返回一个带 Drop 清理的作用域句柄（句柄析构时移除条目），前提是句柄被 .at 流持有；
-  2. 将来 a2r 支持流式资源守卫（连接断开感知）；
-  3. 接受现状并记录。
-- **优先级**：低。
+- **现状（已修复）**：此前 `conversations_subscribe` 把 `broadcast::Receiver` 存 side-table registry（Value 存 i64 id），客户端在事件间隙断开时 `conv_event_stream` 被 drop、不再调 `broadcast_recv` → registry 条目永不回收（每连接一条，累积）。
+- **根治方案**：引入 `BroadcastSub` struct（`use.rust`，a2r 透传），rx 包进 `Arc<Mutex<Option<Receiver>>>`，`BroadcastSub` 持有 Arc。`conv_event_stream(sub: BroadcastSub)` 把 sub（clone）move 进 `async_stream::stream!` 块 → stream drop（正常关闭或客户端断开）→ sub clone drop → **Arc 引用归零 → rx 析构**。**不再用 registry 存 broadcast receiver**，rx 所有权完全由 Arc 引用计数管理（与 hw `BroadcastStream::new(rx)` 把 rx owned 在 stream 里同语义）。
+- **工程细节**：
+  - `conversation_id`（请求 path）存进 `BroadcastSub`（owned），`conv_event_stream(sub)` 单参数——避免 `&str` 流参数触发 `impl Stream` 生命周期捕获（E0700）。`sub_matches_conv(sub, ev)` 用 sub 内的 id 过滤。
+  - `BroadcastSub` 实现 `Clone`（a2r 对非 Copy 类型传参自动 `.clone()`，clone 只增 Arc 计数）。
+  - `conversations_subscribe` 接收 conversation_id 参数。
+- **验收**：`broadcast_sub_drop_reclaims_receiver`（单元）+ `conversation_stream_drop_reclaims_receiver`（HTTP 层，模拟客户端断开），断言 `ConversationStore::receiver_count` 在 stream drop 后回落到基线。全量 228 lib 测试全绿。
 
 ### 6.3 登记备忘：mpsc channel 缓冲 64 条丢帧（与 hw 等价，非缺陷）
 

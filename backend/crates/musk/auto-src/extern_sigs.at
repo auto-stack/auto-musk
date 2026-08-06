@@ -71,7 +71,11 @@ fn conversations_list(_s @T, _q Value) Value {}
 fn conversations_get(_s @T, _q Value, _p Value) Value {}
 fn conversations_delete(_s @T, _q Value, _p @T) Value {}
 fn conversations_rename(_s @T, _q Value, _p Value, _b Value) Value {}
-fn conversations_subscribe(_s @T, _q Value) Value {}
+// §6.2: conversations_subscribe 返回 BroadcastSub(被 stream owned, drop 时清理),
+// 携带 conversation_id(过滤用)。broadcast_recv 借用 &BroadcastSub(@T)。
+// sub_matches_conv 用 sub 内的 conversation_id 与事件比较(避免 &str 流参数)。
+fn conversations_subscribe(_s @T, _q Value, _id @str) BroadcastSub {}
+fn sub_matches_conv(_sub @T, _ev @T) bool {}
 fn conv_event_matches(_ev @T, _id @str) bool {}
 fn conv_event_id(_ev @T) str {}
 fn conv_event_turn(_ev @T) Value {}

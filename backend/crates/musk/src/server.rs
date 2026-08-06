@@ -2545,6 +2545,88 @@ mod tests {
         );
     }
 
+    /// §6.2 验收:BroadcastSub drop → broadcast receiver 析构(receiver_count 回落)。
+    /// 直接测 extern 层:subscribe 后 receiver_count +1,drop BroadcastSub 后回到基线。
+    #[tokio::test]
+    async fn broadcast_sub_drop_reclaims_receiver() {
+        use crate::auto_generated::extern_impl::conversations_subscribe;
+        let state = tmp_state();
+        let ws = state.registry.get("");
+        let before = ws.conversations.receiver_count();
+        let q = axum::extract::Query(crate::auto_generated::server_stream::WorkspaceQuery { workspace: None });
+        let s = axum::extract::State(state.clone());
+        {
+            let _sub = conversations_subscribe(&s, q, "some-conv-id");
+            // subscribe 后 receiver_count +1(rx 活跃)。
+            assert_eq!(
+                ws.conversations.receiver_count(),
+                before + 1,
+                "subscribe 注册一个 receiver"
+            );
+            // _sub 离开作用域 → drop → rx 析构 → receiver_count 回落。
+        }
+        assert_eq!(
+            ws.conversations.receiver_count(),
+            before,
+            "BroadcastSub drop 后 receiver 回收,无累积泄漏"
+        );
+    }
+
+    /// §6.2 验收:HTTP 层 —— conversation_stream 的 SSE stream drop(模拟客户端
+    /// 断开)后,broadcast receiver 回收(receiver_count 回落)。打开流 → 取 body
+    /// stream → drop body stream(模拟断开)→ receiver_count 回到基线。
+    #[tokio::test]
+    async fn conversation_stream_drop_reclaims_receiver() {
+        use axum::body::Body;
+        use tower::ServiceExt;
+        use crate::auto_generated::server_stream as ag;
+        let state = tmp_state();
+        let ws = state.registry.get("");
+        let conv = ws.conversations.create(
+            crate::conversation::ConversationKind::Chat,
+            String::new(),
+            crate::conversation::Driver::Human,
+            Some("superpowers".into()),
+            Some("t".into()),
+        );
+        let before = ws.conversations.receiver_count();
+        let app = axum::Router::new()
+            .route(
+                "/api/conversations/{id}/stream",
+                axum::routing::get(ag::conversation_stream),
+            )
+            .with_state(state);
+        let resp = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("GET")
+                    .uri(&format!("/api/conversations/{}/stream", conv.id))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        // SSE 响应已建立 → conv_event_stream 持有 sub(clone)→ rx 活跃。
+        // 注:oneshot 返回后 handler future drop,但其 sub 已 clone 进 stream
+        // (在 Response body 里),receiver_count 保持 +1。
+        assert_eq!(
+            ws.conversations.receiver_count(),
+            before + 1,
+            "stream 建立后 receiver 活跃(+1)"
+        );
+        // 模拟客户端断开:drop body stream(Sse + conv_event_stream + sub clone 析构)。
+        let body = resp.into_body().into_data_stream();
+        drop(body);
+        // yield 一下让 Drop 生效。
+        tokio::task::yield_now().await;
+        assert_eq!(
+            ws.conversations.receiver_count(),
+            before,
+            "客户端断开(stream drop)后 receiver 回收,无累积泄漏"
+        );
+    }
+
     /// ag SseEventDto 的 tool_call/tool_result 序列化必须与 hw
     /// `stream_event_to_json` 完全一致(name/arguments + tc-{n} id + status),
     /// 且 stream_event_map 可无损回读(MockClient 不产工具事件,此处直接锚定

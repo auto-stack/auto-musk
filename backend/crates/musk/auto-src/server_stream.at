@@ -207,22 +207,25 @@ pub type RunRequest { task str, mode Option<str> }
 // ============================================================
 
 pub fn conversation_stream(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Response {
-    let rx = conversations_subscribe(s.view, q)
+    // §6.2:sub(BroadcastSub)被 conv_event_stream move 进 stream,stream drop →
+    // BroadcastSub::drop → 回收 registry lease 条目(根治连接泄漏)。
+    // conversation_id 存进 sub(避免 &str 参数触发 impl Stream 生命周期捕获 E0700)。
     let id = path_inner(p.view)
-    let stream = conv_event_stream(rx, id)
+    let sub = conversations_subscribe(s.view, q, id.view)
+    let stream = conv_event_stream(sub)
     var sse = Sse.new(stream)
     return sse.keep_alive(KeepAlive.new()).into_response()
 }
 
-fn conv_event_stream(rx Value, id str) ~Stream<Result<Event, Infallible>> {
+fn conv_event_stream(sub BroadcastSub) ~Stream<Result<Event, Infallible>> {
     while true {
-        let msg = broadcast_recv(rx.view).await
+        let msg = broadcast_recv(sub.view).await
         if msg_is_none(msg.view) {
             // broadcast 已关闭 → 流终止
             break
         } else {
             let ev = msg_unwrap(msg)
-            if conv_event_matches(ev.view, id) {
+            if sub_matches_conv(sub.view, ev.view) {
                 let dto = ConvEventDto(conversation_id: conv_event_id(ev.view), turn: conv_event_turn(ev.view), status: conv_event_status(ev.view))
                 let event = sse_event("conversation_event", to_value(dto).unwrap())
                 yield Ok(event)

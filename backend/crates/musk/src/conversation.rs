@@ -507,6 +507,12 @@ impl ConversationStore {
         self.event_tx.subscribe()
     }
 
+    /// Number of active broadcast receivers (Plan 019 §6.2 测试用:验证
+    /// conversation_stream 的 SSE stream drop 后订阅确实回收,无累积泄漏)。
+    pub fn receiver_count(&self) -> usize {
+        self.event_tx.receiver_count()
+    }
+
     /// Create a new conversation. Returns the created Conversation.
     pub fn create(
         &self,

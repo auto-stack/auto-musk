@@ -846,13 +846,44 @@ pub fn conversations_rename(s: &State<AppState>, q: Query<crate::auto_generated:
     }
 }
 /// Plan 019 Phase 2:conversation_stream 真实化 —— broadcast::Receiver 存
+/// Plan 019 §6.2:被 `conv_event_stream` owned 的 broadcast 订阅句柄。
+///
+/// **根治连接泄漏** —— 此前 broadcast::Receiver 存 side-table(Value 存 i64 id),
+/// 客户端在事件间隙断开时 conv_event_stream 被 drop、不再调 broadcast_recv →
+/// registry 条目永不回收(每连接一条,累积)。
+///
+/// 现改为:rx 包进 `Arc<Mutex<Option<Receiver>>>`,`BroadcastSub` 持有 Arc。
+/// `conv_event_stream` 把 `BroadcastSub`(clone)move 进 `async_stream::stream!` 块
+/// → stream drop(正常关闭或客户端断开)→ BroadcastSub clone drop → Arc 引用归零
+/// → rx 析构。**不再用 registry 存 broadcast receiver**,rx 所有权完全由
+/// BroadcastSub 的 Arc 引用计数管理(与 hw `BroadcastStream::new(rx)` 同语义)。
+pub struct BroadcastSub {
+    inner: Arc<Mutex<Option<tokio::sync::broadcast::Receiver<crate::conversation::ConversationEvent>>>>,
+    /// 此订阅关注的 conversation_id(过滤用,来自请求 path)。存 owned String
+    /// 避免把 &str 借用带进 ~Stream 函数参数(触发 impl Stream 生命周期捕获 E0700)。
+    conversation_id: String,
+}
+// Clone:a2r 对非 Copy 类型传参会自动加 .clone()(见 conv_event_stream 调用点)。
+// clone 只是 Arc 计数 +1 —— Arc 归零时 rx 析构,无需手动清理 registry。
+impl Clone for BroadcastSub {
+    fn clone(&self) -> Self {
+        BroadcastSub { inner: self.inner.clone(), conversation_id: self.conversation_id.clone() }
+    }
+}
+
 /// side-table(Value 存 i64 id),字段提取走 ConversationEvent 序列化 Value。
-pub fn conversations_subscribe(s: &State<AppState>, q: Query<StreamWorkspaceQuery>) -> Value {
+pub fn conversations_subscribe(s: &State<AppState>, q: Query<StreamWorkspaceQuery>, conversation_id: &str) -> BroadcastSub {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
     let rx = ws.conversations.subscribe();
-    let id = next_handle_id();
-    HANDLES.lock().unwrap().insert(id, Box::new(rx));
-    serde_json::json!(id)
+    BroadcastSub {
+        inner: Arc::new(Mutex::new(Some(rx))),
+        conversation_id: conversation_id.to_string(),
+    }
+}
+/// §6.2:用 sub 内的 conversation_id 过滤事件(等价 hw filter_map 的
+/// `ev.conversation_id == id`,但 id owned 在 sub 里,避免 &str 流参数)。
+pub fn sub_matches_conv(sub: &BroadcastSub, ev: &Value) -> bool {
+    ev.get("conversation_id").and_then(|v| v.as_str()) == Some(sub.conversation_id.as_str())
 }
 pub fn conv_event_matches(ev: &Value, id: &str) -> bool {
     ev.get("conversation_id").and_then(|v| v.as_str()) == Some(id)
@@ -1600,27 +1631,15 @@ pub async fn mpsc_recv(r: &Value) -> Option<Value> {
 }
 pub fn msg_is_none(m: &Option<Value>) -> bool { m.is_none() }
 pub fn msg_unwrap(m: Option<Value>) -> Value { m.unwrap_or(Value::Null) }
-/// Plan 019 Phase 2: broadcast_recv —— 从 side-table 取 Receiver 收一条
-/// ConversationEvent(序列化为 hw wire 形状 Value)。Lagged 跳过积压继续流
-/// (hw BroadcastStream 语义),Closed 返回 None 让 .at 的 break 终止流。
-pub async fn broadcast_recv(r: &Value) -> Option<Value> {
-    let id = match r.as_i64() {
-        Some(i) => i,
-        None => return None,
-    };
-    let mut rx = {
-        let mut handles = HANDLES.lock().unwrap();
-        match handles.remove(&id) {
-            Some(b) => match b.downcast::<tokio::sync::broadcast::Receiver<crate::conversation::ConversationEvent>>() {
-                Ok(rx) => *rx,
-                Err(b) => {
-                    handles.insert(id, b);
-                    return None;
-                }
-            },
-            None => return None,
-        }
-    };
+/// Plan 019 Phase 2 + §6.2: broadcast_recv —— 从 `BroadcastSub` 借出 Receiver
+/// 收一条 ConversationEvent(序列化为 hw wire 形状 Value)。Lagged 跳过积压继续
+/// 流(hw BroadcastStream 语义),Closed 返回 None 让 .at 的 break 终止流。
+///
+/// rx 不再走 side-table 的 remove/insert 来回搬动,而是锁 `BroadcastSub` 的
+/// Arc<Mutex<Option<Receiver>>>:take 出来 recv,Ok 后 put 回;Closed 后不 put 回
+/// (rx 析构)。`BroadcastSub` 随 stream drop 时统一清理 lease 条目(见 Drop)。
+pub async fn broadcast_recv(sub: &BroadcastSub) -> Option<Value> {
+    let mut rx = sub.inner.lock().unwrap().take()?;
     loop {
         match rx.recv().await {
             Ok(ev) => {
@@ -1629,10 +1648,11 @@ pub async fn broadcast_recv(r: &Value) -> Option<Value> {
                     "turn": ev.turn,
                     "status": ev.status,
                 });
-                HANDLES.lock().unwrap().insert(id, Box::new(rx));
+                sub.inner.lock().unwrap().replace(rx);
                 return Some(value);
             }
             Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+            // Closed:不 put 回(让 rx 析构);sub drop 时移除 lease 条目。
             Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
         }
     }

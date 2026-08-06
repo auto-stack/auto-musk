@@ -178,23 +178,26 @@ pub struct RunRequest {
 }
 
 pub async fn conversation_stream(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuery>) -> Response {
-    let rx = conversations_subscribe(&s, q);
+
+
+
     let id = path_inner(&p);
-    let stream = conv_event_stream(rx, id);
+    let sub = conversations_subscribe(&s, q, &id);
+    let stream = conv_event_stream(sub.clone());
     let mut sse = Sse::new(stream);
     return sse.keep_alive(KeepAlive::new()).into_response();
 }
 
-fn conv_event_stream(rx: Value, id: String) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
+fn conv_event_stream(sub: BroadcastSub) -> impl futures::Stream<Item = Result<Event, Infallible>> { async_stream::stream! {{
     loop {
-        let msg = broadcast_recv(&rx).await;
+        let msg = broadcast_recv(&sub).await;
         if msg_is_none(&msg) {
             
 
             break;
         } else {
             let ev = msg_unwrap(msg);
-            if conv_event_matches(&ev, &id) {
+            if sub_matches_conv(&sub, &ev) {
                 let dto = ConvEventDto { conversation_id: conv_event_id(&ev).to_string(), turn: conv_event_turn(&ev), status: conv_event_status(&ev) };
                 let event = sse_event("conversation_event", to_value(dto).unwrap());
                 yield Ok(event);
