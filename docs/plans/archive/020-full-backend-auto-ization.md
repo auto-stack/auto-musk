@@ -1,6 +1,6 @@
 # 020 — 全后端 Auto 化：Relay/Forge + TaskPlan + Wiki + settings_link 接入 Auto 驱动
 
-> **状态**：🟡 进行中（Phase A-F 闭环；Phase G/H 重开闭合 relay_driver 核心循环 + TaskPlan 执行内核，2026-08-06）。
+> **状态**：✅ 完成（2026-08-06 启动；Phase A-H 全闭环。Phase G/H 重开闭合 relay_driver 核心循环 + TaskPlan 执行内核,2026-08-06/07)。
 > **前置**：Plan 018（已归档，parity 全闭环）+ Plan 019（已归档，6 个 🔴 流式/daemon handler 接线）。
 > **仓库**：auto-musk（`backend/crates/musk/`）+ auto-lang（a2r 转译器，构建 `auto.exe`）。
 > **目标**：把**剩余未 Auto 化**的后端子系统（Relay/Forge 编排、TaskPlan、Wiki、settings_link）全部移植到 Auto(.at)，经 a2r 生成 Rust 编译运行；serve() 所有业务端点切到 ag handler；Auto 版行为与手写 Rust 原版一致（parity + HTTP 等价测试）。
