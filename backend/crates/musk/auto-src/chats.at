@@ -367,9 +367,7 @@ ext ChatStore {
     }
 
     /// Rename a session. Ok(Some(updated)) if found; Ok(None) if not.
-    /// not-found 分支写 `return Ok(target)`(target 此刻为 None)而非字面
-    /// `Ok(None)`——a2r 的 fix_result_none_unit 会把字面 `Ok(None)` 无条件改写成
-    /// `Ok(())`(破坏 Result<Option<T>, _> 的返回类型),文档化 a2r 缺口。
+    /// not-found 分支返回明确的 Ok(None)(Plan 393 E2 闭环后 a2r 不再误改)。
     pub fn rename(id str, name str) Result<Option<ChatSession>, str> {
         var map HashMap<str, ChatSession> = self.load_map()
         var target Option<ChatSession> = None
@@ -388,7 +386,7 @@ ext ChatStore {
             }
         }
         if found == false {
-            return Ok(target)
+            return Ok(None)
         }
         if self.save_map(updated_map) == false {
             return Err("write failed")
@@ -445,7 +443,7 @@ ext ChatStore {
             }
         }
         if found == false {
-            return Ok(target)
+            return Ok(None)
         }
         if self.save_map(updated_map) == false {
             return Err("write failed")
@@ -473,7 +471,7 @@ ext ChatStore {
             }
         }
         if found == false {
-            return Ok(target)
+            return Ok(None)
         }
         if self.save_map(updated_map) == false {
             return Err("write failed")

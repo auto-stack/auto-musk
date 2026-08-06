@@ -346,7 +346,7 @@ impl ChatStore {
 
         }
         if found == false {
-            return Ok(target);
+            return Ok(None);
         }
         if self.save_map(updated_map) == false {
             return Err("write failed".into());
@@ -398,7 +398,7 @@ impl ChatStore {
 
         }
         if found == false {
-            return Ok(target);
+            return Ok(None);
         }
         if self.save_map(updated_map) == false {
             return Err("write failed".into());
@@ -424,7 +424,7 @@ impl ChatStore {
 
         }
         if found == false {
-            return Ok(target);
+            return Ok(None);
         }
         if self.save_map(updated_map) == false {
             return Err("write failed".into());
