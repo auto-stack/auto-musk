@@ -191,7 +191,7 @@ ext ChatSession {
     /// 命名 `push_message`(非 hw 的 `append`):a2r 的方法分发对 struct receiver
     /// 的 .append 仍误重映射为 .push_str(Plan 392 E1 待续,a2r 方法分发路径深)。
     /// 行为与 hw append 完全一致。
-    pub mut fn push_message(msg ChatMessage) void {
+    pub mut fn append(msg ChatMessage) void {
         var new_messages List<ChatMessage> = self.messages.clone()
         new_messages.push(msg)
         var new_name str = self.name.clone()
@@ -217,14 +217,6 @@ ext ChatSession {
     }
 }
 
-/// Insert a session into the map. Returns void so calls are safe as block
-/// tails: `HashMap::insert` returns `Option<V>`, and a2r omits the trailing
-/// `;` on if/else branch tails — a bare insert tail would leak `Option<V>`
-/// as the branch type (E0308). Documented a2r codegen gap.
-/// `k String` 为 owned 参数(Auto str 参数会映射成 &str;String 经 use.rust)。
-fn map_insert(mut m HashMap<str, ChatSession>, k String, v ChatSession) void {
-    let old Option<ChatSession> = m.insert(k, v)
-}
 
 /// Apply one SpecChange to a specs doc via the ag specs store (mirror of hw
 /// apply_spec_change), 返回更新后的 doc 供调用方保存。跨模块调用标记:
@@ -341,7 +333,7 @@ ext ChatStore {
     pub fn create(mode str, workspace_id Option<str>) Result<ChatSession, str> {
         let session ChatSession = ChatSession.new(mode, workspace_id)
         var map HashMap<str, ChatSession> = self.load_map()
-        map_insert(map, session.id.clone(), session.clone())
+        map.insert(session.id.clone(), session.clone())
         if self.save_map(map) == false {
             return Err("write failed")
         }
@@ -389,10 +381,10 @@ ext ChatStore {
                 var renamed ChatSession = s.clone()
                 renamed.name = name.to_string()
                 renamed.updated_at = now_sec()
-                map_insert(updated_map, renamed.id.clone(), renamed.clone())
+                updated_map.insert(renamed.id.clone(), renamed.clone())
                 target = Some(renamed)
             } else {
-                map_insert(updated_map, s.id.clone(), s.clone())
+                updated_map.insert(s.id.clone(), s.clone())
             }
         }
         if found == false {
@@ -413,7 +405,7 @@ ext ChatStore {
             if s.id == id {
                 existed = true
             } else {
-                map_insert(updated_map, s.id.clone(), s.clone())
+                updated_map.insert(s.id.clone(), s.clone())
             }
         }
         if existed == false {
@@ -445,11 +437,11 @@ ext ChatStore {
             if s.id == id {
                 found = true
                 var updated ChatSession = s.clone()
-                updated.push_message(msg.clone())
-                map_insert(updated_map, updated.id.clone(), updated.clone())
+                updated.append(msg.clone())
+                updated_map.insert(updated.id.clone(), updated.clone())
                 target = Some(updated)
             } else {
-                map_insert(updated_map, s.id.clone(), s.clone())
+                updated_map.insert(s.id.clone(), s.clone())
             }
         }
         if found == false {
@@ -474,10 +466,10 @@ ext ChatStore {
                 var updated ChatSession = s.clone()
                 updated.pending_spec_changes.push(change.clone())
                 updated.updated_at = now_sec()
-                map_insert(updated_map, updated.id.clone(), updated.clone())
+                updated_map.insert(updated.id.clone(), updated.clone())
                 target = Some(updated)
             } else {
-                map_insert(updated_map, s.id.clone(), s.clone())
+                updated_map.insert(s.id.clone(), s.clone())
             }
         }
         if found == false {
@@ -514,10 +506,10 @@ ext ChatStore {
                 var updated ChatSession = s.clone()
                 updated.pending_spec_changes = new_pending
                 updated.updated_at = now_sec()
-                map_insert(updated_map, updated.id.clone(), updated.clone())
+                updated_map.insert(updated.id.clone(), updated.clone())
                 target = Some(updated)
             } else {
-                map_insert(updated_map, s.id.clone(), s.clone())
+                updated_map.insert(s.id.clone(), s.clone())
             }
         }
         if found == false {
@@ -541,10 +533,10 @@ ext ChatStore {
                 var updated ChatSession = s.clone()
                 updated.pending_spec_changes = []
                 updated.updated_at = now_sec()
-                map_insert(updated_map, updated.id.clone(), updated.clone())
+                updated_map.insert(updated.id.clone(), updated.clone())
                 target = Some(updated)
             } else {
-                map_insert(updated_map, s.id.clone(), s.clone())
+                updated_map.insert(s.id.clone(), s.clone())
             }
         }
         if found == false {
@@ -612,11 +604,11 @@ ext ChatStore {
                 var updated ChatSession = s.clone()
                 updated.pending_spec_changes = pending
                 updated.updated_at = now_sec()
-                map_insert(updated_map, updated.id.clone(), updated.clone())
+                updated_map.insert(updated.id.clone(), updated.clone())
                 let pair = (change.clone(), updated.clone())
                 target = Some(pair)
             } else {
-                map_insert(updated_map, s.id.clone(), s.clone())
+                updated_map.insert(s.id.clone(), s.clone())
             }
         }
         if found == false {

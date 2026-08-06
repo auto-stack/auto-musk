@@ -290,7 +290,7 @@ fn parity_session_append_and_summary() {
     assert_eq!(hw_s.name, ag_s.name, "both start as 'New chat'");
 
     hw_s.append(hw::ChatMessage::user("List the files in this dir"));
-    ag_s.push_message(ag::ChatMessage::user("List the files in this dir"));
+    ag_s.append(ag::ChatMessage::user("List the files in this dir"));
     assert_eq!(hw_s.messages.len(), ag_s.messages.len());
     assert_eq!(hw_s.name, ag_s.name, "auto-name from first user message");
     assert_eq!(hw_s.name, "List the files in this dir");
@@ -299,8 +299,8 @@ fn parity_session_append_and_summary() {
     // A second user message becomes the preview; assistant msgs don't.
     hw_s.append(hw::ChatMessage::assistant("Let me look."));
     hw_s.append(hw::ChatMessage::user("Second question"));
-    ag_s.push_message(ag::ChatMessage::assistant("Let me look."));
-    ag_s.push_message(ag::ChatMessage::user("Second question"));
+    ag_s.append(ag::ChatMessage::assistant("Let me look."));
+    ag_s.append(ag::ChatMessage::user("Second question"));
     assert_eq!(hw_s.summary().preview, ag_s.summary().preview);
     assert_eq!(hw_s.summary().preview, "Second question");
     assert_eq!(hw_s.summary().message_count, ag_s.summary().message_count as usize);
@@ -313,7 +313,7 @@ fn parity_summary_preview_truncates_to_80() {
     let mut hw_s = hw::ChatSession::new("x", None);
     hw_s.append(hw::ChatMessage::user(long.clone()));
     let mut ag_s = ag::ChatSession::new("x", None);
-    ag_s.push_message(ag::ChatMessage::user(&long));
+    ag_s.append(ag::ChatMessage::user(&long));
 
     let hw_preview = hw_s.summary().preview;
     let ag_preview = ag_s.summary().preview;
@@ -329,7 +329,7 @@ fn parity_autoname_truncates_to_40() {
     let mut hw_s = hw::ChatSession::new("x", None);
     hw_s.append(hw::ChatMessage::user(long_name.clone()));
     let mut ag_s = ag::ChatSession::new("x", None);
-    ag_s.push_message(ag::ChatMessage::user(&long_name));
+    ag_s.append(ag::ChatMessage::user(&long_name));
 
     assert_eq!(hw_s.name, ag_s.name);
     assert_eq!(hw_s.name, "b".repeat(40));

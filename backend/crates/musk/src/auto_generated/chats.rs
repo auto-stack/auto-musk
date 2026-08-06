@@ -133,14 +133,14 @@ impl ChatSession {
         let mut done: bool = false;
         while done == false {
             if i < 0 {
-                done = true
+                done = true;
             } else {
                 let mut m = self.messages[(i) as usize].clone();
                 if m.role == Role::User {
                     preview = m.content.clone();
-                    done = true
+                    done = true;
                 } else {
-                    i = i - 1
+                    i = i - 1;
                 }
             }
 
@@ -149,12 +149,12 @@ impl ChatSession {
 
 
         if (preview.len() as i32) > 80 {
-            preview = format!("{}{}", &preview[0 as usize..80 as usize], "…")
+            preview = format!("{}{}", &preview[0 as usize..80 as usize], "…");
         }
         let result: ChatSessionSummary = ChatSessionSummary { id: self.id.clone().to_string(), name: self.name.clone().to_string(), mode: self.mode.clone().to_string(), message_count: ((self.messages.len() as i32) as u32), preview: preview.to_string(), updated_at: self.updated_at.clone() };
         return result;
     }
-    pub fn push_message(&mut self, msg: ChatMessage) {
+    pub fn append(&mut self, msg: ChatMessage) {
         let mut new_messages: Vec<ChatMessage> = self.messages.clone();
         new_messages.push(msg.clone());
         let mut new_name: String = self.name.clone();
@@ -167,9 +167,9 @@ impl ChatSession {
                     if m.role == Role::User {
                         let mut nm: String = m.content.clone();
                         if (nm.len() as i32) > 40 {
-                            nm = format!("{}{}", &nm[0 as usize..40 as usize], "")
+                            nm = format!("{}{}", &nm[0 as usize..40 as usize], "");
                         }                        new_name = format!("{}{}", nm.trim().to_string(), "");
-                        found = true
+                        found = true;
                     }                }
             }
         }
@@ -199,15 +199,6 @@ pub struct ChatSessionSummary {
 /// 命名 `push_message`(非 hw 的 `append`):a2r 的方法分发对 struct receiver
 /// 的 .append 仍误重映射为 .push_str(Plan 392 E1 待续,a2r 方法分发路径深)。
 /// 行为与 hw append 完全一致。
-/// Insert a session into the map. Returns void so calls are safe as block
-/// tails: `HashMap::insert` returns `Option<V>`, and a2r omits the trailing
-/// `;` on if/else branch tails — a bare insert tail would leak `Option<V>`
-/// as the branch type (E0308). Documented a2r codegen gap.
-/// `k String` 为 owned 参数(Auto str 参数会映射成 &str;String 经 use.rust)。
-fn map_insert(mut m: &mut HashMap<String, ChatSession>, k: String, v: ChatSession) {
-    let old: Option<ChatSession> = m.insert(k, v.clone());
-}
-
 /// Apply one SpecChange to a specs doc via the ag specs store (mirror of hw
 /// apply_spec_change), 返回更新后的 doc 供调用方保存。跨模块调用标记:
 /// - `.mut` → `&mut d`(a2r 的 fn_mut_params 只注册当前转译单元,对
@@ -233,7 +224,7 @@ fn apply_spec_change_to_doc(doc: SpecsDocument, store: SpecsStore, change: SpecC
                 if s.id == change.section_id {
                     for it in &s.items {
                         if it.id == change.item_id {
-                            existing = Some(it.clone())
+                            existing = Some(it.clone());
                         }
                     }
                 }
@@ -253,7 +244,7 @@ fn apply_spec_change_to_doc(doc: SpecsDocument, store: SpecsStore, change: SpecC
             };
             if (item.title.len() as i32) == 0 {
                 if (item.content.len() as i32) == 0 {
-                    item.title = "(empty)".to_string()
+                    item.title = "(empty)".to_string();
                 }            }
             let r: Result<bool, String> = store.upsert_item(&mut d, &change.section_id, item);
             match r {
@@ -311,7 +302,7 @@ impl ChatStore {
     pub fn create(&self, mode: &str, workspace_id: Option<String>) -> Result<ChatSession, String> {
         let session: ChatSession = ChatSession::new(mode, workspace_id);
         let mut map: HashMap<String, ChatSession> = self.load_map();
-        map_insert(&mut map, session.id.clone(), session.clone());
+        map.insert(session.id.clone(), session.clone());
         if self.save_map(map) == false {
             return Err("write failed".into());
         }
@@ -331,7 +322,7 @@ impl ChatStore {
         let mut found: Option<ChatSession> = None;
         for s in map.values() {
             if s.id == id {
-                found = Some(s.clone())
+                found = Some(s.clone());
             }
         }
         return found;
@@ -347,10 +338,10 @@ impl ChatStore {
                 let mut renamed: ChatSession = s.clone();
                 renamed.name = name.to_string();
                 renamed.updated_at = now_sec();
-                map_insert(&mut updated_map, renamed.id.clone(), renamed.clone());
-                target = Some(renamed)
+                updated_map.insert(renamed.id.clone(), renamed.clone());
+                target = Some(renamed);
             } else {
-                map_insert(&mut updated_map, s.id.clone(), s.clone())
+                updated_map.insert(s.id.clone(), s.clone());
             }
 
         }
@@ -368,9 +359,9 @@ impl ChatStore {
         let mut updated_map: HashMap<String, ChatSession> = HashMap::new();
         for s in map.values() {
             if s.id == id {
-                existed = true
+                existed = true;
             } else {
-                map_insert(&mut updated_map, s.id.clone(), s.clone())
+                updated_map.insert(s.id.clone(), s.clone());
             }
 
         }
@@ -398,11 +389,11 @@ impl ChatStore {
             if s.id == id {
                 found = true;
                 let mut updated: ChatSession = s.clone();
-                updated.push_message(msg.clone());
-                map_insert(&mut updated_map, updated.id.clone(), updated.clone());
-                target = Some(updated)
+                updated.append(msg.clone());
+                updated_map.insert(updated.id.clone(), updated.clone());
+                target = Some(updated);
             } else {
-                map_insert(&mut updated_map, s.id.clone(), s.clone())
+                updated_map.insert(s.id.clone(), s.clone());
             }
 
         }
@@ -425,10 +416,10 @@ impl ChatStore {
                 let mut updated: ChatSession = s.clone();
                 updated.pending_spec_changes.push(change.clone());
                 updated.updated_at = now_sec();
-                map_insert(&mut updated_map, updated.id.clone(), updated.clone());
-                target = Some(updated)
+                updated_map.insert(updated.id.clone(), updated.clone());
+                target = Some(updated);
             } else {
-                map_insert(&mut updated_map, s.id.clone(), s.clone())
+                updated_map.insert(s.id.clone(), s.clone());
             }
 
         }
@@ -463,10 +454,10 @@ impl ChatStore {
                 let mut updated: ChatSession = s.clone();
                 updated.pending_spec_changes = new_pending;
                 updated.updated_at = now_sec();
-                map_insert(&mut updated_map, updated.id.clone(), updated.clone());
-                target = Some(updated)
+                updated_map.insert(updated.id.clone(), updated.clone());
+                target = Some(updated);
             } else {
-                map_insert(&mut updated_map, s.id.clone(), s.clone())
+                updated_map.insert(s.id.clone(), s.clone());
             }
 
         }
@@ -489,10 +480,10 @@ impl ChatStore {
                 let mut updated: ChatSession = s.clone();
                 updated.pending_spec_changes = vec![];
                 updated.updated_at = now_sec();
-                map_insert(&mut updated_map, updated.id.clone(), updated.clone());
-                target = Some(updated)
+                updated_map.insert(updated.id.clone(), updated.clone());
+                target = Some(updated);
             } else {
-                map_insert(&mut updated_map, s.id.clone(), s.clone())
+                updated_map.insert(s.id.clone(), s.clone());
             }
 
         }
@@ -521,9 +512,9 @@ impl ChatStore {
                 let mut i: u32 = 0 as u32;
                 for c in s.pending_spec_changes.clone() {
                     if i == index {
-                        change_at = Some(c.clone())
+                        change_at = Some(c.clone());
                     } else {
-                        pending.push(c.clone())
+                        pending.push(c.clone());
                     }
 
                     i = i + 1;
@@ -558,11 +549,11 @@ impl ChatStore {
                 let mut updated: ChatSession = s.clone();
                 updated.pending_spec_changes = pending;
                 updated.updated_at = now_sec();
-                map_insert(&mut updated_map, updated.id.clone(), updated.clone());
+                updated_map.insert(updated.id.clone(), updated.clone());
                 let pair = (change.clone(), updated.clone());
-                target = Some(pair)
+                target = Some(pair);
             } else {
-                map_insert(&mut updated_map, s.id.clone(), s.clone())
+                updated_map.insert(s.id.clone(), s.clone());
             }
 
         }
