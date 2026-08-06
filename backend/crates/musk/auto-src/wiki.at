@@ -129,7 +129,8 @@ ext WikiStore {
         guard.clear()
 
         // manifest: _manifest.json 优先, 回退 manifest.json。
-        // (a2r HashMap.get() 借用规则对 `&str` 键不可靠, 用 List + 线性查找)
+        // manifest 是 list(WikiManifest.pages: Vec<WikiPageMeta>), 用 List +
+        // find_meta 线性查找是数据结构决定(非 HashMap.get 变通 — 之前注释误归因)。
         var metas List<WikiPageMeta> = []
         let r1 = fs.read_to_string(self.wiki_dir.join("_manifest.json"))
         is r1 {
@@ -266,7 +267,7 @@ fn parse_manifest(content str) Result<WikiManifest, str> {
     }
 }
 
-/// 在 manifest 元数据列表里线性查找 slug(a2r HashMap.get() 借用不可靠)。
+/// 在 manifest 元数据列表里线性查找 slug(manifest 是 Vec<WikiPageMeta>,非 HashMap)。
 fn find_meta(metas List<WikiPageMeta>, slug str) Option<WikiPageMeta> {
     for m in metas {
         if m.slug == slug {

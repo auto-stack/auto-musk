@@ -141,6 +141,7 @@ impl WikiStore {
 
 
 
+
         let mut metas: Vec<WikiPageMeta> = vec![];
         let r1 = std::fs::read_to_string(self.wiki_dir.join("_manifest.json"));
         match r1 {
@@ -256,7 +257,7 @@ fn parse_manifest(content: &str) -> Result<WikiManifest, String> {
     }
 }
 
-/// 在 manifest 元数据列表里线性查找 slug(a2r HashMap.get() 借用不可靠)。
+/// 在 manifest 元数据列表里线性查找 slug(manifest 是 Vec<WikiPageMeta>,非 HashMap)。
 fn find_meta(metas: Vec<WikiPageMeta>, slug: &str) -> Option<WikiPageMeta> {
     for m in &metas {
         if m.slug == slug {

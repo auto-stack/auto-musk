@@ -188,9 +188,9 @@ ext ChatSession {
 
     /// Append a message + bump updated_at. Auto-names from first user msg.
     /// a2r-11: build new messages list + whole-field reassign.
-    /// 命名 `push_message`(非 hw 的 `append`):a2r 的 String 方法重映射表把
-    /// `.append(...)` 无条件改写为 `.push_str(...)`(对 struct receiver 也误伤),
-    /// 文档化 a2r 缺口。行为与 hw append 完全一致。
+    /// 命名 `push_message`(非 hw 的 `append`):a2r 的方法分发对 struct receiver
+    /// 的 .append 仍误重映射为 .push_str(Plan 392 E1 待续,a2r 方法分发路径深)。
+    /// 行为与 hw append 完全一致。
     pub mut fn push_message(msg ChatMessage) void {
         var new_messages List<ChatMessage> = self.messages.clone()
         new_messages.push(msg)
@@ -349,33 +349,16 @@ ext ChatStore {
     }
 
     /// List all sessions as summaries, newest first (by updated_at desc).
-    /// hw 用 sort_by(|a, b| b.updated_at.cmp(&a.updated_at)) —— a2r List 无闭包
-    /// sort_by;手动稳定插入排序(降序;同刻保持原序,与 hw 稳定序一致)。
+    /// Plan 392 E4 闭环: a2r 现支持 sort_by(闭包), 对齐 hw 的
+    /// sort_by(|a, b| b.updated_at.cmp(&a.updated_at))。
     pub fn list() List<ChatSessionSummary> {
         var map HashMap<str, ChatSession> = self.load_map()
         var summaries List<ChatSessionSummary> = []
         for s in map.values() {
             summaries.push(s.summary())
         }
-        var sorted List<ChatSessionSummary> = []
-        for s in summaries.clone() {
-            var inserted bool = false
-            var new_list List<ChatSessionSummary> = []
-            for e in sorted.clone() {
-                if inserted == false {
-                    if s.updated_at > e.updated_at {
-                        new_list.push(s.clone())
-                        inserted = true
-                    }
-                }
-                new_list.push(e)
-            }
-            if inserted == false {
-                new_list.push(s.clone())
-            }
-            sorted = new_list
-        }
-        return sorted
+        summaries.sort_by((a, b) => b.updated_at.cmp(a.updated_at.view))
+        return summaries
     }
 
     /// Get one full session by id (no persistence side effect, like hw's

@@ -196,16 +196,16 @@ pub struct ChatSessionSummary {
 /// reverse for-loop + a simple substring truncation.
 /// Append a message + bump updated_at. Auto-names from first user msg.
 /// a2r-11: build new messages list + whole-field reassign.
-/// 命名 `push_message`(非 hw 的 `append`):a2r 的 String 方法重映射表把
-/// `.append(...)` 无条件改写为 `.push_str(...)`(对 struct receiver 也误伤),
-/// 文档化 a2r 缺口。行为与 hw append 完全一致。
+/// 命名 `push_message`(非 hw 的 `append`):a2r 的方法分发对 struct receiver
+/// 的 .append 仍误重映射为 .push_str(Plan 392 E1 待续,a2r 方法分发路径深)。
+/// 行为与 hw append 完全一致。
 /// Insert a session into the map. Returns void so calls are safe as block
 /// tails: `HashMap::insert` returns `Option<V>`, and a2r omits the trailing
 /// `;` on if/else branch tails — a bare insert tail would leak `Option<V>`
 /// as the branch type (E0308). Documented a2r codegen gap.
 /// `k String` 为 owned 参数(Auto str 参数会映射成 &str;String 经 use.rust)。
 fn map_insert(mut m: &mut HashMap<String, ChatSession>, k: String, v: ChatSession) {
-    let old: Option<ChatSession> = m.insert(k.to_string(), v.clone());
+    let old: Option<ChatSession> = m.insert(k, v.clone());
 }
 
 /// Apply one SpecChange to a specs doc via the ag specs store (mirror of hw
@@ -323,24 +323,8 @@ impl ChatStore {
         for s in map.values() {
             summaries.push(s.summary());
         }
-        let mut sorted: Vec<ChatSessionSummary> = vec![];
-        for s in summaries.clone() {
-            let mut inserted: bool = false;
-            let mut new_list: Vec<ChatSessionSummary> = vec![];
-            for e in sorted.clone() {
-                if inserted == false {
-                    if s.updated_at > e.updated_at {
-                        new_list.push(s.clone());
-                        inserted = true
-                    }                }
-                new_list.push(e.clone());
-            }
-            if inserted == false {
-                new_list.push(s.clone());
-            }
-            sorted = new_list;
-        }
-        return sorted;
+        summaries.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        return summaries;
     }
     pub fn get(&self, id: &str) -> Option<ChatSession> {
         let mut map: HashMap<String, ChatSession> = self.load_map();
