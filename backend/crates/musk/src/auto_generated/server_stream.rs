@@ -57,7 +57,7 @@ pub enum SseEventDto {
 #[derive(Debug, Serialize)]
 pub struct ToolCallOut {
     pub tool: String,
-    pub args: String,
+    pub args: Value,
     pub result: String,
 }
 
@@ -84,7 +84,7 @@ fn workflow_event_to_dto(ev: Option<Value>) -> WorkflowEventDto {
     return workflow_event_map(ev);
 }
 
-async fn workflow_run(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<WorkflowRunRequest>) -> Json<WorkflowRunResponse> {
+pub async fn workflow_run(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<WorkflowRunRequest>) -> Json<WorkflowRunResponse> {
     let resp = wf_run(&s, q, body).await;
     return Json(resp);
 }
@@ -109,7 +109,7 @@ fn workflow_sse_stream(rx: Value) -> impl futures::Stream<Item = Result<Event, I
         } else {
             let dto = workflow_event_to_dto(msg.clone());
             let event = sse_event("workflow", to_value(dto).unwrap());
-            yield Ok(event)
+            yield Ok(event);
         }
 
     }
@@ -128,7 +128,7 @@ struct WorkflowStreamSink {
 impl StreamSink for WorkflowStreamSink {
     fn on_event(&self, ev: Option<Value>) {
         let dto = workflow_event_to_dto(ev.clone());
-        mpsc_try_send(&self.tx.clone(), to_value(dto).unwrap());
+        mpsc_try_send(&self.tx, to_value(dto).unwrap());
     }
 }
 
@@ -152,7 +152,7 @@ fn run_sse_stream(rx: Value) -> impl futures::Stream<Item = Result<Event, Infall
         } else {
             let dto = stream_event_to_dto(msg.clone());
             let event = sse_event("run", to_value(dto).unwrap());
-            yield Ok(event)
+            yield Ok(event);
         }
 
     }
@@ -166,7 +166,7 @@ struct RunStreamSink {
 impl StreamSink for RunStreamSink {
     fn on_event(&self, ev: Option<Value>) {
         let dto = stream_event_to_dto(ev.clone());
-        mpsc_try_send(&self.tx.clone(), to_value(dto).unwrap());
+        mpsc_try_send(&self.tx, to_value(dto).unwrap());
     }
 }
 
@@ -199,7 +199,7 @@ fn conv_event_stream(rx: Value, id: String) -> impl futures::Stream<Item = Resul
             if conv_event_matches(&ev, &id) {
                 let dto = ConvEventDto { conversation_id: conv_event_id(&ev).to_string(), turn: conv_event_turn(&ev), status: conv_event_status(&ev) };
                 let event = sse_event("conversation_event", to_value(dto).unwrap());
-                yield Ok(event)
+                yield Ok(event);
             }        }
 
     }
@@ -212,7 +212,7 @@ pub struct ConvEventDto {
     pub status: Option<String>,
 }
 
-async fn run(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<RunRequest>) -> Json<RunResponse> {
+pub async fn run(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<RunRequest>) -> Json<RunResponse> {
     let resp = agent_run(&s, q, body).await;
     return Json(resp);
 }
@@ -220,6 +220,7 @@ async fn run(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<RunRequest
 #[derive(Debug, Serialize)]
 pub struct RunResponse {
     pub output: String,
+    pub turns: i32,
     pub tool_calls: Vec<ToolCallOut>,
 }
 
@@ -243,7 +244,7 @@ fn chat_sse_stream(rx: Value) -> impl futures::Stream<Item = Result<Event, Infal
         } else {
             let dto = stream_event_to_dto(msg.clone());
             let event = sse_event("chat", to_value(dto).unwrap());
-            yield Ok(event)
+            yield Ok(event);
         }
 
     }
@@ -257,6 +258,6 @@ struct ChatStreamSink {
 impl StreamSink for ChatStreamSink {
     fn on_event(&self, ev: Option<Value>) {
         let dto = stream_event_to_dto(ev.clone());
-        mpsc_try_send(&self.tx.clone(), to_value(dto).unwrap());
+        mpsc_try_send(&self.tx, to_value(dto).unwrap());
     }
 }

@@ -54,7 +54,7 @@ pub tag SseEventDto {
 }
 
 #[derive(Debug, Serialize)]
-pub type ToolCallOut { tool str, args str, result str }
+pub type ToolCallOut { tool str, args Value, result str }
 
 #[derive(Debug, Deserialize)]
 pub type WorkspaceQuery { workspace Option<str> }
@@ -92,8 +92,8 @@ fn workflow_event_to_dto(ev Option<Value>) WorkflowEventDto {
 // POST /api/workflow/run (concrete Result return)
 // ============================================================
 
-fn workflow_run(s State<AppState>, q Query<WorkspaceQuery>, body Json<WorkflowRunRequest>) ~Json<WorkflowRunResponse> {
-    let resp = wf_run(s, q, body).await
+pub fn workflow_run(s State<AppState>, q Query<WorkspaceQuery>, body Json<WorkflowRunRequest>) ~Json<WorkflowRunResponse> {
+    let resp = wf_run(s.view, q, body).await
     return Json(resp)
 }
 
@@ -106,10 +106,10 @@ fn workflow_run(s State<AppState>, q Query<WorkspaceQuery>, body Json<WorkflowRu
 
 fn workflow_run_stream(s State<AppState>, q Query<WorkspaceQuery>, body Json<WorkflowRunRequest>) ~Response {
     let ch = mpsc_channel()
-    let tx = mpsc_sender(ch)
-    let rx = mpsc_receiver(ch)
+    let tx = mpsc_sender(ch.view)
+    let rx = mpsc_receiver(ch.view)
     let sink = WorkflowStreamSink(tx: tx)
-    wf_run_with_progress(s, q, body, Arc.new(sink)).await
+    wf_run_with_progress(s.view, q, body, Arc.new(sink)).await
     let stream = workflow_sse_stream(rx)
     var sse = Sse.new(stream)
     return sse.keep_alive(KeepAlive.new()).into_response()
@@ -117,8 +117,8 @@ fn workflow_run_stream(s State<AppState>, q Query<WorkspaceQuery>, body Json<Wor
 
 fn workflow_sse_stream(rx Value) ~Stream<Result<Event, Infallible>> {
     while true {
-        let msg = mpsc_recv(rx).await
-        if msg_is_none(msg) {
+        let msg = mpsc_recv(rx.view).await
+        if msg_is_none(msg.view) {
             // channel closed
         } else {
             let dto = workflow_event_to_dto(msg)
@@ -139,7 +139,7 @@ type WorkflowStreamSink as StreamSink {
 
     fn on_event(ev Option<Value>) {
         let dto = workflow_event_to_dto(ev)
-        mpsc_try_send(self.tx, to_value(dto).unwrap())
+        mpsc_try_send(self.tx.view, to_value(dto).unwrap())
     }
 }
 
@@ -154,10 +154,10 @@ type WorkflowStreamSink as StreamSink {
 
 fn run_stream_handler(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunRequest>) ~Response {
     let ch = mpsc_channel()
-    let tx = mpsc_sender(ch)
-    let rx = mpsc_receiver(ch)
+    let tx = mpsc_sender(ch.view)
+    let rx = mpsc_receiver(ch.view)
     let sink = RunStreamSink(tx: tx)
-    agent_run_stream(s, q, body, Arc.new(sink)).await
+    agent_run_stream(s.view, q, body, Arc.new(sink)).await
     let stream = run_sse_stream(rx)
     var sse = Sse.new(stream)
     return sse.keep_alive(KeepAlive.new()).into_response()
@@ -165,8 +165,8 @@ fn run_stream_handler(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunR
 
 fn run_sse_stream(rx Value) ~Stream<Result<Event, Infallible>> {
     while true {
-        let msg = mpsc_recv(rx).await
-        if msg_is_none(msg) {
+        let msg = mpsc_recv(rx.view).await
+        if msg_is_none(msg.view) {
             // channel closed
         } else {
             let dto = stream_event_to_dto(msg)
@@ -181,7 +181,7 @@ type RunStreamSink as StreamSink {
 
     fn on_event(ev Option<Value>) {
         let dto = stream_event_to_dto(ev)
-        mpsc_try_send(self.tx, to_value(dto).unwrap())
+        mpsc_try_send(self.tx.view, to_value(dto).unwrap())
     }
 }
 
@@ -201,8 +201,8 @@ pub type RunRequest { task str, mode Option<str> }
 // ============================================================
 
 fn conversation_stream(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Response {
-    let rx = conversations_subscribe(s, q)
-    let id = path_inner(p)
+    let rx = conversations_subscribe(s.view, q)
+    let id = path_inner(p.view)
     let stream = conv_event_stream(rx, id)
     var sse = Sse.new(stream)
     return sse.keep_alive(KeepAlive.new()).into_response()
@@ -210,13 +210,13 @@ fn conversation_stream(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) 
 
 fn conv_event_stream(rx Value, id str) ~Stream<Result<Event, Infallible>> {
     while true {
-        let msg = broadcast_recv(rx).await
-        if msg_is_none(msg) {
+        let msg = broadcast_recv(rx.view).await
+        if msg_is_none(msg.view) {
             // lagged or closed
         } else {
             let ev = msg_unwrap(msg)
-            if conv_event_matches(ev, id) {
-                let dto = ConvEventDto(conversation_id: conv_event_id(ev), turn: conv_event_turn(ev), status: conv_event_status(ev))
+            if conv_event_matches(ev.view, id) {
+                let dto = ConvEventDto(conversation_id: conv_event_id(ev.view), turn: conv_event_turn(ev.view), status: conv_event_status(ev.view))
                 let event = sse_event("conversation_event", to_value(dto).unwrap())
                 yield Ok(event)
             }
@@ -233,13 +233,13 @@ pub type ConvEventDto { conversation_id str, turn Option<str>, status Option<str
 // POST /api/run
 // ============================================================
 
-fn run(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunRequest>) ~Json<RunResponse> {
-    let resp = agent_run(s, q, body).await
+pub fn run(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunRequest>) ~Json<RunResponse> {
+    let resp = agent_run(s.view, q, body).await
     return Json(resp)
 }
 
 #[derive(Debug, Serialize)]
-pub type RunResponse { output str, tool_calls List<ToolCallOut> }
+pub type RunResponse { output str, turns int, tool_calls List<ToolCallOut> }
 
 
 // ============================================================
@@ -249,10 +249,10 @@ pub type RunResponse { output str, tool_calls List<ToolCallOut> }
 
 fn chat_stream(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Response {
     let ch = mpsc_channel()
-    let tx = mpsc_sender(ch)
-    let rx = mpsc_receiver(ch)
+    let tx = mpsc_sender(ch.view)
+    let rx = mpsc_receiver(ch.view)
     let sink = ChatStreamSink(tx: tx)
-    chat_run_stream(s, q, p, Arc.new(sink)).await
+    chat_run_stream(s.view, q, p, Arc.new(sink)).await
     let stream = chat_sse_stream(rx)
     var sse = Sse.new(stream)
     return sse.keep_alive(KeepAlive.new()).into_response()
@@ -260,8 +260,8 @@ fn chat_stream(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Respons
 
 fn chat_sse_stream(rx Value) ~Stream<Result<Event, Infallible>> {
     while true {
-        let msg = mpsc_recv(rx).await
-        if msg_is_none(msg) {
+        let msg = mpsc_recv(rx.view).await
+        if msg_is_none(msg.view) {
             // closed
         } else {
             let dto = stream_event_to_dto(msg)
@@ -276,7 +276,7 @@ type ChatStreamSink as StreamSink {
 
     fn on_event(ev Option<Value>) {
         let dto = stream_event_to_dto(ev)
-        mpsc_try_send(self.tx, to_value(dto).unwrap())
+        mpsc_try_send(self.tx.view, to_value(dto).unwrap())
     }
 }
 

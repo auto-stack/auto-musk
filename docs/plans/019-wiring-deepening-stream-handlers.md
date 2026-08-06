@@ -1,9 +1,19 @@
 # 019 — 接线运行深化：流式 handler 切换到 Auto 驱动
 
-> **状态**：实施计划。Phase 0-4 待启动。
+> **状态**：实施中。**Phase 0+1 已完成（2026-08-06）**，Phase 2-4 待续（独立计划）。
 > **前置**：Plan 018（已归档，§11 接线运行 ①-④ 已完成，本计划是 §11 标记的"后续独立计划"）。
-> **仓库**：auto-musk（`backend/crates/musk/`），纯 auto-musk 侧工作，不涉及 auto-lang。
+> **仓库**：auto-musk（`backend/crates/musk/`）。Phase 1a 重新转译用到 auto-lang worktree（构建 `auto.exe`）。
 > **目标**：把 serve() 的 6 个 🔴 流式/daemon handler 从手写 Rust 切换到 `auto_generated::server_stream` 的转译 handler，让整个服务端（除 settings_link + serve 外壳）由 Auto 驱动。
+
+## 实施进度（2026-08-06 更新）
+
+- ✅ **Phase 0a**：`sse_event` 根因修复 —— extern_impl.rs 的 `sse_event` 去掉 `.event(name)`，产出 raw `data:` 帧（与 hw 一致）。**这是计划文档遗漏的第 5 个 wire 形状回归点**：前端只用 `EventSource.onmessage`，按 SSE 协议带 `event:` 行的消息不进 onmessage，ag 给每帧加 event 行会导致前端完全收不到流。根因不在 a2r/Auto 语言，在手写 extern 的 `sse_event` 实现。经 axum 0.8.9 源码验证。
+- ✅ **Phase 0b**：契约金标准测试（7 项）—— `stream_event_to_json` wire 形状（name/arguments + tc-{n} id 配对 + turns）、`WorkflowStreamEvent` snake_case tag、`sse_event` 无 event 行、HTTP 层 status/Content-Type。
+- ✅ **Phase 1a**：DTO 修正（`RunResponse.turns` + `ToolCallOut.args: Value`）+ **`server_stream.at` 全量 `.view` 借用标记补齐**（根因：移植时遗漏 `.view`，导致 extern 调用点未注入 `&`，之前靠手修产物）。重新转译零 drift（无手修）。
+- ✅ **Phase 1b**：extern 真实化 `wf_run`（→ feature_dev::run）+ `agent_run`（→ build_agent_from_mode + agent.run）。
+- ✅ **Phase 1c**：serve() 切换 `/api/run` + `/api/workflow/run` 到 ag handler。
+- ✅ **Phase 1d**：ag handler 等价性测试（`ag_workflow_run_produces_real_steps_and_outputs` + `ag_run_produces_output_turns_tool_calls`）。全量 216 lib 测试 + 集成测试全绿。
+- ⏳ **Phase 2-4**：4 个流式 handler（conversation_stream / workflow_run_stream / run_stream_handler / chat_stream）。`sse_event` 根因已修复扫清最大障碍。需要 side-table 基础设施（mpsc/broadcast 类型擦除）+ sink 桥接 + 持久化，留作后续独立计划。
 
 ---
 

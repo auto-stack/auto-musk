@@ -31,6 +31,7 @@ use super::server::{
 };
 use super::server_stream::{
     WorkflowRunResponse, WorkflowEventDto, SseEventDto, RunResponse,
+    WorkflowRunRequest, RunRequest, WorkspaceQuery as StreamWorkspaceQuery,
 };
 
 pub fn parse_json(s: &str) -> Value { serde_json::from_str(s).unwrap_or(Value::Null) }
@@ -865,7 +866,42 @@ pub fn workspace_initialize_of(s: &State<AppState>, q: Query<crate::auto_generat
     }
 }
 pub fn workflows_builtin_names() -> Vec<String> { vec!["feature-dev".into()] }
-pub async fn wf_run<T,U,V>(_s: &T, _q: U, _b: V) -> WorkflowRunResponse { WorkflowRunResponse { steps: std::collections::HashMap::new(), outputs: std::collections::HashMap::new() } }
+/// Plan 019 Phase 1b:真实化 wf_run —— 与 hw `workflow_run`(src/server.rs:841)
+/// 同路径:require_builtin 校验 + feature_dev::run + DTO 映射。
+///
+/// 注意:ag handler 返回 `~Json<WorkflowRunResponse>`(无状态码模型),所以
+/// require_builtin 失败 / run 失败时返回空 response + log(不抛 400/500)。
+/// hw 的 400 错误路径由 `contract_run_http_bad_mode_returns_400` 类测试在 hw 侧
+/// 锚定;ag 侧的错误码等价性留作 KNOWN-DEBT(与 Plan 018 已切换端点同模式)。
+pub async fn wf_run(
+    s: &State<AppState>,
+    q: Query<StreamWorkspaceQuery>,
+    b: Json<WorkflowRunRequest>,
+) -> WorkflowRunResponse {
+    if let Err(e) = crate::relay::feature_dev::require_builtin(&b.workflow) {
+        tracing::warn!("wf_run: invalid workflow '{}': {e}", b.workflow);
+        return WorkflowRunResponse {
+            steps: std::collections::HashMap::new(),
+            outputs: std::collections::HashMap::new(),
+        };
+    }
+    let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };
+    let ws_id = hw_q.id_or_default(&s.0.registry);
+    let ws = s.0.registry.get(&ws_id);
+    match crate::relay::feature_dev::run(&s.0, &ws, &b.task).await {
+        Ok(r) => WorkflowRunResponse {
+            steps: r.steps,
+            outputs: r.outputs,
+        },
+        Err(e) => {
+            tracing::error!("wf_run: feature_dev::run failed: {e}");
+            WorkflowRunResponse {
+                steps: std::collections::HashMap::new(),
+                outputs: std::collections::HashMap::new(),
+            }
+        }
+    }
+}
 pub async fn wf_run_with_progress<T,U,V,W>(_s: &T, _q: U, _b: V, _sink: W) {}
 pub fn orch_spawn_relay(_t: String, _a: Value) -> String { "(stub)".into() }
 pub fn orch_dispatch(_t: String, _to: String) -> String { "(stub)".into() }
@@ -967,7 +1003,74 @@ pub fn handoff_render(h: String) -> String {
         .map(|d| d.render())
         .unwrap_or_default()
 }
-pub async fn agent_run<T,U,V>(_s: &T, _q: U, _b: V) -> RunResponse { RunResponse { output: String::new(), tool_calls: vec![] } }
+/// Plan 019 Phase 1b:真实化 agent_run —— 与 hw `run_inner`(src/server.rs:280)
+/// 同路径:ModeRegistry::load + get(mode) + build_agent_from_mode + agent.run +
+/// AgentResult → RunResponse 映射(含 turns + tool_calls)。
+///
+/// ag 的 RunRequest.mode 是 Option<String>(hw 是 String + serde default)。
+/// None 时回退 "superpowers"(与 hw default_mode 一致)。错误时返回空 RunResponse
+/// + log(无状态码模型;hw 的 400/500 路径由测试在 hw 侧锚定,ag 等价性见
+/// KNOWN-DEBT)。
+pub async fn agent_run(
+    s: &State<AppState>,
+    _q: Query<StreamWorkspaceQuery>,
+    b: Json<RunRequest>,
+) -> RunResponse {
+    let mode_name = b.mode.clone().unwrap_or_else(|| "superpowers".into());
+    let reg = crate::mode::ModeRegistry::load();
+    let mode = match reg.get(&mode_name).cloned() {
+        Some(m) => m,
+        None => {
+            tracing::warn!(
+                "agent_run: unknown mode '{}'; available: {}",
+                mode_name,
+                reg.names().join(", ")
+            );
+            return RunResponse {
+                output: String::new(),
+                turns: 0,
+                tool_calls: vec![],
+            };
+        }
+    };
+    let mut agent = match crate::build_agent_from_mode(&mode, s.0.client.clone()) {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::warn!("agent_run: build agent: {e}");
+            return RunResponse {
+                output: String::new(),
+                turns: 0,
+                tool_calls: vec![],
+            };
+        }
+    };
+    match agent.run(&b.task).await {
+        Ok(result) => {
+            let tool_calls = result
+                .tool_calls
+                .iter()
+                .map(|tc| super::server_stream::ToolCallOut {
+                    tool: tc.tool.clone(),
+                    args: tc.args.clone(),
+                    result: tc.result.clone(),
+                })
+                .collect();
+            RunResponse {
+                output: result.output,
+                turns: result.turns as i32,
+                tool_calls,
+            }
+        }
+        Err(e) => {
+            tracing::warn!("agent_run: agent failed: {e}");
+            RunResponse {
+                output: String::new(),
+                turns: 0,
+                tool_calls: vec![],
+            }
+        }
+    }
+}
 pub async fn chat_run_stream<T,U,V,W>(_s: &T, _q: U, _p: V, _sink: W) {}
 pub async fn agent_run_stream<T,U,V,W>(_s: &T, _q: U, _b: V, _sink: W) {}
 pub fn agent_run_stream_with_sink<W: Send + Sync + 'static>(_a: Agent, _t: String, _sink: Arc<W>, _c: Arc<std::sync::atomic::AtomicBool>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Value, String>> + Send>> {
@@ -1005,8 +1108,16 @@ pub fn msg_unwrap(m: Option<Value>) -> Value { m.unwrap_or(Value::Null) }
 pub fn broadcast_recv(_r: &Value) -> impl std::future::Future<Output = Option<Value>> { async { None } }
 /// Plan 384 S1: build an axum SSE Event from a serializable DTO + event name,
 /// unwrapping the inner json_data Result so callers can `yield event` directly.
-pub fn sse_event(name: &str, dto: Value) -> Event {
-    Event::default().event(name).json_data(dto).unwrap_or_else(|_| Event::default())
+///
+/// Plan 019 Phase 0a: **根因修复** —— 不调用 `.event(name)`。前端 `EventSource`
+/// 只挂 `onmessage`,而按 SSE 协议**带 `event:` 行的消息不进 `onmessage`**(被
+/// 路由到 `addEventListener("<name>")` 通道,前端未注册)。hw 的 run/chat/workflow
+/// stream 是 raw `data:` 格式(无 event 行,server.rs:437/741/929),ag 必须对齐。
+/// 经 axum 0.8.9 `sse.rs` 源码验证:`Event::default().json_data(v)` 产出纯
+/// `data: {json}\n\n` 帧;`.event(name)` 才会追加 `event:` 行。保留 `name` 参数
+/// 以维持签名稳定(.at 调用点 `sse_event("run", ...)` 与 a2r 透传均零改动)。
+pub fn sse_event(_name: &str, dto: Value) -> Event {
+    Event::default().json_data(dto).unwrap_or_else(|_| Event::default())
 }
 pub fn path_inner(p: &Path<String>) -> String { p.0.clone() }
 pub fn json_response<T: serde::Serialize>(_d: T) -> Response { Response::default() }

@@ -123,14 +123,16 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .allow_origin(tower_http::cors::Any);
 
     // ④ 整体接入(plan 018 §11):转译的 ag build_router(38 路由)作为主 router。
-    // 剩余的 🔴 路由(流式/daemon: run/run_stream/workflow_run/workflow_run_stream/
-    // settings_link/chat_stream/conversation_stream)+ workspace_file + relay/task_plan/
+    // Plan 019 Phase 1c:/api/run + /api/workflow/run 切到 ag handler
+    // (server_stream::run / workflow_run,经 extern_impl 真实委托)。
+    // 剩余的 🔴 路由(流式: run_stream/workflow_run_stream/chat_stream/
+    // conversation_stream + settings_link)+ workspace_file + relay/task_plan/
     // wiki 合并 + 静态文件/CORS/serve 层由这里的手写外壳补充。
     let app = crate::auto_generated::server::build_router()
-        // 🔴 daemon/SSE handlers stay hand-written (reqwest/SSE/extractor plumbing).
-        .route("/api/run", post(run))
+        // daemon/SSE handlers stay hand-written (reqwest/SSE/extractor plumbing).
+        .route("/api/run", post(crate::auto_generated::server_stream::run))
         .route("/api/run/stream", post(run_stream_handler))
-        .route("/api/workflow/run", post(workflow_run))
+        .route("/api/workflow/run", post(crate::auto_generated::server_stream::workflow_run))
         .route("/api/workflow/run/stream", post(workflow_run_stream))
         .route("/api/settings-link", post(settings_link))
         .route("/api/chats/session/{id}/stream", get(chat_stream))
@@ -1905,5 +1907,290 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), axum::http::StatusCode::NOT_FOUND);
+    }
+
+    // ── Plan 019 Phase 0b: 流式/daemon handler 契约金标准 ───────────────────
+    //
+    // 这些测试锚定切换到 ag handler 前后都必须成立的 wire 形状契约。它们是
+    // "行为等价金标准":先在 hw 行为上写绿,切换后继续跑,任何回归都会被抓到。
+    //
+    // 三类契约:
+    //   (1) stream_event_to_json —— run/chat stream 的 SSE JSON 形状
+    //       (字段名 name/arguments + tc-{n} id 配对 + done.turns + cancelled)
+    //   (2) WorkflowStreamEvent 序列化 —— workflow stream 的 {"type":...} snake_case
+    //   (3) sse_event —— ag 侧 SSE 帧格式必须无 event 行(前端 onmessage 才能收到)
+
+    /// (1a) `stream_event_to_json` 的 ToolStart/Tool 用 `tc-{n}` id 配对,
+    /// 字段名是 `name`/`arguments`(不是 `tool`/`args`)。前端按此渲染 tool 卡片。
+    #[test]
+    fn contract_stream_event_tool_pairing_uses_name_arguments_and_tc_id() {
+        use auto_ai_agent::{StreamEvent, ToolCallRecord};
+        // ToolStart → tool_call, id 由调用方分配( hw 用 tc_counter/tc_stack)。
+        let start = StreamEvent::ToolStart {
+            tool: "read_file".into(),
+            args: json!({"path": "/tmp/x"}),
+        };
+        let v = stream_event_to_json(&start, Some("tc-1"));
+        assert_eq!(v["type"], "tool_call", "ToolStart → type=tool_call");
+        assert_eq!(v["id"], "tc-1", "id 透传 tc-N");
+        assert_eq!(v["name"], "read_file", "字段名是 name(非 tool)");
+        assert_eq!(v["arguments"]["path"], "/tmp/x", "字段名是 arguments(非 args)");
+
+        // Tool → tool_result, 复用同一 id, 多了 result + status=success。
+        let tool = StreamEvent::Tool {
+            tool: "read_file".into(),
+            args: json!({"path": "/tmp/x"}),
+            result: "ok".into(),
+        };
+        let v = stream_event_to_json(&tool, Some("tc-1"));
+        assert_eq!(v["type"], "tool_result", "Tool → type=tool_result");
+        assert_eq!(v["id"], "tc-1", "result 复用 start 的 id");
+        assert_eq!(v["name"], "read_file");
+        assert_eq!(v["arguments"]["path"], "/tmp/x");
+        assert_eq!(v["result"], "ok");
+        assert_eq!(v["status"], "success");
+    }
+
+    /// (1b) Delta/Warning/Error 走 `type` 字段,无 id(只有 tool 事件配对)。
+    #[test]
+    fn contract_stream_event_text_variants_have_no_id() {
+        use auto_ai_agent::StreamEvent;
+        let delta = StreamEvent::Delta { text: "hi".into() };
+        let v = stream_event_to_json(&delta, None);
+        assert_eq!(v["type"], "delta");
+        assert_eq!(v["text"], "hi");
+        assert!(v.get("id").is_none(), "delta 无 id");
+
+        let warn = StreamEvent::Warning { text: "cap".into() };
+        let v = stream_event_to_json(&warn, None);
+        assert_eq!(v["type"], "warning");
+        assert_eq!(v["text"], "cap");
+
+        let err = StreamEvent::Error { message: "boom".into() };
+        let v = stream_event_to_json(&err, None);
+        assert_eq!(v["type"], "error");
+        assert_eq!(v["message"], "boom");
+    }
+
+    /// (1c) Done/Cancelled 携带 output + turns + tool_calls(每条用 name/arguments)。
+    /// 这是 RunResponse.turns 的流式对应物 —— 前端靠 turns 显示迭代次数。
+    #[test]
+    fn contract_stream_event_done_carries_turns_and_tool_calls() {
+        use auto_ai_agent::{AgentResult, StreamEvent, ToolCallRecord};
+        let result = AgentResult {
+            output: "answer".into(),
+            turns: 3,
+            tool_calls: vec![ToolCallRecord {
+                tool: "read_file".into(),
+                args: json!({"path": "/a"}),
+                result: "r".into(),
+            }],
+            total_tokens: 0,
+        };
+        let done = StreamEvent::Done { result };
+        let v = stream_event_to_json(&done, None);
+        assert_eq!(v["type"], "done");
+        assert_eq!(v["output"], "answer");
+        assert_eq!(v["turns"], 3, "done 携带 turns(前端依赖)");
+        assert_eq!(v["tool_calls"][0]["name"], "read_file");
+        assert_eq!(v["tool_calls"][0]["arguments"]["path"], "/a");
+        assert_eq!(v["tool_calls"][0]["result"], "r");
+
+        // Cancelled 同形(除 type 外)。
+        let cancelled = StreamEvent::Cancelled {
+            result: AgentResult {
+                output: "partial".into(),
+                turns: 1,
+                tool_calls: vec![],
+                total_tokens: 0,
+            },
+        };
+        let v = stream_event_to_json(&cancelled, None);
+        assert_eq!(v["type"], "cancelled");
+        assert_eq!(v["output"], "partial");
+        assert_eq!(v["turns"], 1);
+    }
+
+    /// (2) WorkflowStreamEvent 序列化为 `{"type":"step_start",...}` snake_case
+    /// —— 前端按 type 字段路由 workflow 事件。ag 的 WorkflowEventDto 必须对齐。
+    #[test]
+    fn contract_workflow_stream_event_serializes_to_snake_case_tag() {
+        use crate::relay::feature_dev::WorkflowStreamEvent;
+        let ev = WorkflowStreamEvent::StepStart {
+            step_id: "architect".into(),
+            role: "architect".into(),
+            input: "task".into(),
+        };
+        let v = serde_json::to_value(&ev).unwrap();
+        assert_eq!(v["type"], "step_start", "serde tag=type, snake_case");
+        assert_eq!(v["step_id"], "architect");
+        assert_eq!(v["role"], "architect");
+        assert_eq!(v["input"], "task");
+
+        let ev = WorkflowStreamEvent::StepSkipped { step_id: "reviewer".into() };
+        let v = serde_json::to_value(&ev).unwrap();
+        assert_eq!(v["type"], "step_skipped");
+
+        let ev = WorkflowStreamEvent::Finished {
+            steps: std::collections::HashMap::from([("architect".into(), "out".into())]),
+            outputs: std::collections::HashMap::new(),
+        };
+        let v = serde_json::to_value(&ev).unwrap();
+        assert_eq!(v["type"], "finished");
+        assert_eq!(v["steps"]["architect"], "out");
+    }
+
+    /// (3) **根因修复金标准** —— ag 的 sse_event 产出的帧必须无 `event:` 行。
+    /// 前端只用 EventSource.onmessage;按 SSE 协议带 event 行的消息不进 onmessage。
+    /// axum Event 经 Sse 包装序列化后,无 event 名的帧只有 `data: {json}\n\n`。
+    #[tokio::test]
+    async fn contract_sse_event_frame_has_no_event_line() {
+        use crate::auto_generated::extern_impl::sse_event;
+        use axum::response::sse::{KeepAlive, Sse};
+        // sse_event 的第一个参数(name)现在被忽略 —— 无论传什么,帧都不含 event 行。
+        let event = sse_event("run", json!({"type": "delta", "text": "hi"}));
+        // 用含单个 event 的 stream 构造 Sse,经 IntoResponse 读 body 字节。
+        let stream = async_stream::stream! { yield Ok::<_, std::convert::Infallible>(event) };
+        let sse = Sse::new(stream).keep_alive(KeepAlive::new());
+        let resp = sse.into_response();
+        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        let frame = String::from_utf8(bytes.to_vec()).unwrap();
+        assert!(
+            !frame.contains("event:"),
+            "sse_event 帧不得含 event: 行(否则前端 onmessage 收不到): {frame}"
+        );
+        assert!(
+            frame.contains("data:"),
+            "sse_event 帧必须有 data: 行: {frame}"
+        );
+    }
+
+    /// (4a) HTTP 层契约:POST /api/workflow/run 成功 → 200 + application/json,
+    /// body 含 steps/outputs(hw 金标准)。切换到 ag handler 后必须等价。
+    #[tokio::test]
+    async fn contract_workflow_run_http_returns_json() {
+        use axum::body::Body;
+        use tower::ServiceExt;
+        let app = axum::Router::new()
+            .route("/api/workflow/run", axum::routing::post(workflow_run))
+            .with_state(tmp_state());
+        let resp = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/workflow/run")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"task":"implement binary search","workflow":"feature-dev"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get("content-type").unwrap(),
+            "application/json"
+        );
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(v["steps"].is_object(), "workflow/run body 含 steps");
+        assert!(v["outputs"].is_object(), "workflow/run body 含 outputs");
+    }
+
+    /// (4b) HTTP 层契约:POST /api/run 用未知 mode → 400 + 错误形状。
+    /// 切换到 ag handler 后必须保持错误路径(或登记 KNOWN-DEBT)。
+    #[tokio::test]
+    async fn contract_run_http_bad_mode_returns_400() {
+        use axum::body::Body;
+        use tower::ServiceExt;
+        let app = axum::Router::new()
+            .route("/api/run", axum::routing::post(run))
+            .with_state(tmp_state());
+        let resp = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/run")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"task":"x","mode":"no-such-mode"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(v["error"].is_string(), "错误 body 含 error 字段");
+    }
+
+    // ── Plan 019 Phase 1d: ag handler 等价性验收 ───────────────────────────
+    //
+    // 切换到 ag server_stream handler 后,这两条路由由转译 handler(经 extern_impl
+    // 真实委托)服务。这里断言 ag handler 产出与 hw 等价的 wire 形状 ——
+    // /api/workflow/run 的 steps/outputs + /api/run 的 output/turns/tool_calls。
+
+    /// ag workflow_run(经 extern wf_run → feature_dev::run)产出与 hw 等价的
+    /// steps/outputs(MultiClient 每个 step 答 "mock answer")。
+    #[tokio::test]
+    async fn ag_workflow_run_produces_real_steps_and_outputs() {
+        use axum::body::Body;
+        use tower::ServiceExt;
+        use crate::auto_generated::server_stream as ag;
+        let app = axum::Router::new()
+            .route("/api/workflow/run", axum::routing::post(ag::workflow_run))
+            .with_state(tmp_state());
+        let resp = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/workflow/run")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"task":"implement binary search","workflow":"feature-dev"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        // 与 hw workflow_run_end_to_end_runs_four_steps 同断言:4 step + outputs。
+        assert_eq!(v["steps"].as_object().unwrap().len(), 4, "ag 产出 4 steps");
+        assert_eq!(v["steps"]["architect"], "mock answer");
+        assert_eq!(v["steps"]["reviewer"], "mock answer");
+        assert_eq!(v["outputs"]["design"], "mock answer");
+        assert!(v["outputs"].as_object().unwrap().len() >= 2, "ag 产出 outputs");
+    }
+
+    /// ag run(经 extern agent_run → build_agent + agent.run)产出与 hw 等价的
+    /// output + turns + tool_calls。MockClient 答 "mock answer",无 tool 调用,
+    /// 跑 1 turn。
+    #[tokio::test]
+    async fn ag_run_produces_output_turns_tool_calls() {
+        use axum::body::Body;
+        use tower::ServiceExt;
+        use crate::auto_generated::server_stream as ag;
+        let app = axum::Router::new()
+            .route("/api/run", axum::routing::post(ag::run))
+            .with_state(tmp_state());
+        let resp = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/run")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"task":"say hello","mode":"superpowers"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(v["output"], "mock answer", "ag run output");
+        assert_eq!(v["turns"], 1, "ag run turns(与 hw run_endpoint_returns_result 一致)");
+        assert!(v["tool_calls"].is_array(), "ag run tool_calls 是数组");
     }
 }
