@@ -3,7 +3,13 @@
 /// 之前判为 🔴 的 6 个 daemon/SSE handler，经 Plan 380 P1-dyn(Arc<dyn T>) +
 /// Plan 321(async_stream ~Stream+yield) 后重新评估为可移植。本文件移植它们。
 ///
-/// 流式 handler 的 dyn Fn 闭包 → named sink struct（Arc<dyn StreamSink>，P1-dyn）。
+/// Plan 019 Phase 2-4:流式 handler 的 mpsc channel 由 extern side-table
+/// 持有,handler 直接传递 tx 句柄给 extern(不再经 named sink struct 中转,
+/// 便于 extern 在 run 结束后关闭 channel 让 SSE 流自然终止)。所有 SSE 流的
+/// while 循环在 channel 关闭(None)时 break——与 hw 的
+/// `while let Some(v) = rx.recv().await` 终止语义一致(前端靠 onerror 收尾)。
+/// run/workflow_run 两个非流式 handler 改用 ~Response + 错误包络(经
+/// resp_is_err/resp_err_message/resp_err_code),补齐 hw 的 400/500 状态码。
 use.rust axum::extract::{Query, Path, State}
 /// json!() 宏 → DTO。impl IntoResponse → concrete Response/Result。
 
@@ -32,8 +38,10 @@ pub type WorkflowRunRequest { task str, workflow str }
 #[derive(Debug, Serialize)]
 pub type WorkflowRunResponse { steps HashMap<str, str>, outputs HashMap<str, str> }
 
-// WorkflowEvent DTO (replaces workflow_event_to_json's json!() every branch)
-#[derive(Debug, Serialize)]
+// WorkflowEvent DTO — wire 形状与 hw WorkflowStreamEvent 一致:
+// `{"type":"step_start",...}` snake_case tag(Plan 019 Phase 3 修正)。
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub tag WorkflowEventDto {
     StepStart { step_id str, role str, input str }
     StepDone { step_id str, output str }
@@ -41,25 +49,30 @@ pub tag WorkflowEventDto {
     Finished { steps HashMap<str, str>, outputs HashMap<str, str> }
 }
 
-// StreamEvent DTO (replaces stream_event_to_json's json!() every branch)
-#[derive(Debug, Serialize)]
+// StreamEvent DTO — wire 形状与 hw stream_event_to_json 一致(Plan 019
+// Phase 4 修正):tool_call/tool_result 用 name/arguments 字段名 + tc-{n}
+// id 配对;thinking 变体在 DTO 内。转译器不支持 tag 变体的字段级 serde
+// 属性,因此字段直接命名为 wire 名(name/arguments/thinking)。
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub tag SseEventDto {
     Delta { text str }
-    ToolStart { tool str, args str }
-    Tool { tool str, args str, result str }
+    Thinking { thinking str }
+    ToolCall { id Option<str>, name str, arguments Value }
+    ToolResult { id Option<str>, name str, arguments Value, result str, status str }
     Warning { text str }
     Done { output str, turns int, tool_calls List<ToolCallOut> }
-    Cancelled
+    Cancelled { output str, turns int, tool_calls List<ToolCallOut> }
     Error { message str }
 }
 
-#[derive(Debug, Serialize)]
-pub type ToolCallOut { tool str, args Value, result str }
+#[derive(Debug, Serialize, Deserialize)]
+pub type ToolCallOut { name str, arguments Value, result str }
 
 #[derive(Debug, Deserialize)]
 pub type WorkspaceQuery { workspace Option<str> }
 
-// mpsc channel pair (tx/rx as opaque Value)
+// mpsc channel pair (tx/rx as opaque Value — side-table handle id)
 #[derive(Clone)]
 pub type Channel { tx Value, rx Value }
 
@@ -89,12 +102,15 @@ fn workflow_event_to_dto(ev Option<Value>) WorkflowEventDto {
 
 // ============================================================
 // workflow_run — 🟢 最干净的 daemon handler
-// POST /api/workflow/run (concrete Result return)
+// POST /api/workflow/run (Plan 019 Phase 2-4: ~Response + 错误包络)
 // ============================================================
 
-pub fn workflow_run(s State<AppState>, q Query<WorkspaceQuery>, body Json<WorkflowRunRequest>) ~Json<WorkflowRunResponse> {
+pub fn workflow_run(s State<AppState>, q Query<WorkspaceQuery>, body Json<WorkflowRunRequest>) ~Response {
     let resp = wf_run(s.view, q, body).await
-    return Json(resp)
+    if resp_is_err(resp.view) {
+        return err_response(resp_err_message(resp.view), resp_err_code(resp.view))
+    }
+    return ok_response(resp)
 }
 
 // extern: serve 侧提供的 workflow 执行（构建 Agent + wf.run().await + DTO 映射）
@@ -104,12 +120,17 @@ pub fn workflow_run(s State<AppState>, q Query<WorkspaceQuery>, body Json<Workfl
 // POST /api/workflow/run/stream
 // ============================================================
 
-fn workflow_run_stream(s State<AppState>, q Query<WorkspaceQuery>, body Json<WorkflowRunRequest>) ~Response {
+pub fn workflow_run_stream(s State<AppState>, q Query<WorkspaceQuery>, body Json<WorkflowRunRequest>) ~Response {
+    // §6.1: 前置 workflow 校验(与 hw 一致)——坏 spec 在建 channel / 提交 SSE 前
+    // 直接 400 JSON,避免提交后才发 error 帧(HTTP 200)的回归。
+    let check = workflow_exists(body.workflow.view)
+    if resp_is_err(check.view) {
+        return err_response(resp_err_message(check.view), resp_err_code(check.view))
+    }
     let ch = mpsc_channel()
     let tx = mpsc_sender(ch.view)
     let rx = mpsc_receiver(ch.view)
-    let sink = WorkflowStreamSink(tx: tx)
-    wf_run_with_progress(s.view, q, body, Arc.new(sink)).await
+    wf_run_with_progress(s.view, q, body, tx).await
     let stream = workflow_sse_stream(rx)
     var sse = Sse.new(stream)
     return sse.keep_alive(KeepAlive.new()).into_response()
@@ -119,27 +140,13 @@ fn workflow_sse_stream(rx Value) ~Stream<Result<Event, Infallible>> {
     while true {
         let msg = mpsc_recv(rx.view).await
         if msg_is_none(msg.view) {
-            // channel closed
+            // channel closed → 流终止(与 hw while-let 语义一致)
+            break
         } else {
             let dto = workflow_event_to_dto(msg)
             let event = sse_event("workflow", to_value(dto).unwrap())
             yield Ok(event)
         }
-    }
-}
-
-// StreamSink for workflow events (replaces dyn Fn closure)
-spec StreamSink {
-
-    fn on_event(ev Option<Value>)
-}
-
-type WorkflowStreamSink as StreamSink {
-    tx Value
-
-    fn on_event(ev Option<Value>) {
-        let dto = workflow_event_to_dto(ev)
-        mpsc_try_send(self.tx.view, to_value(dto).unwrap())
     }
 }
 
@@ -152,12 +159,19 @@ type WorkflowStreamSink as StreamSink {
 // POST /api/run/stream
 // ============================================================
 
-fn run_stream_handler(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunRequest>) ~Response {
+pub fn run_stream_handler(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunRequest>) ~Response {
+    // §6.1: 前置 mode 校验(与 hw run_stream_handler 一致)——坏 mode 在建 channel /
+    // 提交 SSE 前直接 400 JSON,避免提交后才发 error 帧(HTTP 200)的回归。
+    // None mode → "superpowers"(hw default_mode 一致)。
+    let mode_name = body.mode.clone().unwrap_or("superpowers".to_string())
+    let check = mode_exists(mode_name.view)
+    if resp_is_err(check.view) {
+        return err_response(resp_err_message(check.view), resp_err_code(check.view))
+    }
     let ch = mpsc_channel()
     let tx = mpsc_sender(ch.view)
     let rx = mpsc_receiver(ch.view)
-    let sink = RunStreamSink(tx: tx)
-    agent_run_stream(s.view, q, body, Arc.new(sink)).await
+    agent_run_stream(s.view, q, body, tx).await
     let stream = run_sse_stream(rx)
     var sse = Sse.new(stream)
     return sse.keep_alive(KeepAlive.new()).into_response()
@@ -167,21 +181,13 @@ fn run_sse_stream(rx Value) ~Stream<Result<Event, Infallible>> {
     while true {
         let msg = mpsc_recv(rx.view).await
         if msg_is_none(msg.view) {
-            // channel closed
+            // channel closed → 流终止
+            break
         } else {
             let dto = stream_event_to_dto(msg)
             let event = sse_event("run", to_value(dto).unwrap())
             yield Ok(event)
         }
-    }
-}
-
-type RunStreamSink as StreamSink {
-    tx Value
-
-    fn on_event(ev Option<Value>) {
-        let dto = stream_event_to_dto(ev)
-        mpsc_try_send(self.tx.view, to_value(dto).unwrap())
     }
 }
 
@@ -200,7 +206,7 @@ pub type RunRequest { task str, mode Option<str> }
 // GET /api/conversations/{id}/stream
 // ============================================================
 
-fn conversation_stream(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Response {
+pub fn conversation_stream(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Response {
     let rx = conversations_subscribe(s.view, q)
     let id = path_inner(p.view)
     let stream = conv_event_stream(rx, id)
@@ -212,7 +218,8 @@ fn conv_event_stream(rx Value, id str) ~Stream<Result<Event, Infallible>> {
     while true {
         let msg = broadcast_recv(rx.view).await
         if msg_is_none(msg.view) {
-            // lagged or closed
+            // broadcast 已关闭 → 流终止
+            break
         } else {
             let ev = msg_unwrap(msg)
             if conv_event_matches(ev.view, id) {
@@ -224,18 +231,23 @@ fn conv_event_stream(rx Value, id str) ~Stream<Result<Event, Infallible>> {
     }
 }
 
+// ConvEventDto.turn 携带完整 Turn 结构(Option<Value>),与 hw 的
+// `"turn": ev.turn` 序列化一致(Plan 019 Phase 2 修正)。
 #[derive(Debug, Serialize)]
-pub type ConvEventDto { conversation_id str, turn Option<str>, status Option<str> }
+pub type ConvEventDto { conversation_id str, turn Option<Value>, status Option<str> }
 
 
 // ============================================================
 // run / run_inner — 🟡 daemon handler (non-stream)
-// POST /api/run
+// POST /api/run (Plan 019 Phase 2-4: ~Response + 错误包络)
 // ============================================================
 
-pub fn run(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunRequest>) ~Json<RunResponse> {
+pub fn run(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunRequest>) ~Response {
     let resp = agent_run(s.view, q, body).await
-    return Json(resp)
+    if resp_is_err(resp.view) {
+        return err_response(resp_err_message(resp.view), resp_err_code(resp.view))
+    }
+    return ok_response(resp)
 }
 
 #[derive(Debug, Serialize)]
@@ -247,12 +259,11 @@ pub type RunResponse { output str, turns int, tool_calls List<ToolCallOut> }
 // GET /api/chats/session/{id}/stream
 // ============================================================
 
-fn chat_stream(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Response {
+pub fn chat_stream(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Response {
     let ch = mpsc_channel()
     let tx = mpsc_sender(ch.view)
     let rx = mpsc_receiver(ch.view)
-    let sink = ChatStreamSink(tx: tx)
-    chat_run_stream(s.view, q, p, Arc.new(sink)).await
+    chat_run_stream(s.view, q, p, tx).await
     let stream = chat_sse_stream(rx)
     var sse = Sse.new(stream)
     return sse.keep_alive(KeepAlive.new()).into_response()
@@ -262,7 +273,8 @@ fn chat_sse_stream(rx Value) ~Stream<Result<Event, Infallible>> {
     while true {
         let msg = mpsc_recv(rx.view).await
         if msg_is_none(msg.view) {
-            // closed
+            // channel closed → 流终止
+            break
         } else {
             let dto = stream_event_to_dto(msg)
             let event = sse_event("chat", to_value(dto).unwrap())
@@ -270,15 +282,5 @@ fn chat_sse_stream(rx Value) ~Stream<Result<Event, Infallible>> {
         }
     }
 }
-
-type ChatStreamSink as StreamSink {
-    tx Value
-
-    fn on_event(ev Option<Value>) {
-        let dto = stream_event_to_dto(ev)
-        mpsc_try_send(self.tx.view, to_value(dto).unwrap())
-    }
-}
-
 
 

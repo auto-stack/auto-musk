@@ -3,6 +3,9 @@
 
 use serde_json::Value;
 use std::sync::Arc;
+use std::any::Any;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicI64, Ordering};
 use axum::extract::{State, Query, Path};
 use axum::response::{Response, IntoResponse};
 use axum::response::sse::{Event, KeepAlive, Sse};
@@ -32,7 +35,35 @@ use super::server::{
 use super::server_stream::{
     WorkflowRunResponse, WorkflowEventDto, SseEventDto, RunResponse,
     WorkflowRunRequest, RunRequest, WorkspaceQuery as StreamWorkspaceQuery,
+    ToolCallOut as StreamToolCallOut,
 };
+
+// ── Plan 019 Phase 2-4: side-table 基础设施 ────────────────────────────────
+// 类型擦除墙:mpsc/broadcast 的 tx/rx 句柄以 i64 id 存进全局注册表,Value 只存
+// id(数字或 {"pair": id})。run 结束后 extern 移除 pair 条目让唯一 Sender 析构
+// → channel 关闭 → SSE 流侧 mpsc_recv 得 None → .at 的 break 终止流
+// (与 hw 的 `while let Some(v) = rx.recv().await` 语义一致)。
+static HANDLES: std::sync::LazyLock<Mutex<std::collections::HashMap<i64, Box<dyn Any + Send>>>> =
+    std::sync::LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
+static NEXT_ID: AtomicI64 = AtomicI64::new(1);
+
+fn next_handle_id() -> i64 {
+    NEXT_ID.fetch_add(1, Ordering::Relaxed)
+}
+
+struct ChannelPair {
+    tx: tokio::sync::mpsc::Sender<Value>,
+    rx: Option<tokio::sync::mpsc::Receiver<Value>>,
+}
+
+/// 移除 channel pair(析构唯一的 Sender)→ channel 关闭 → 流侧 recv 得 None。
+fn close_channel(tx: &Value) {
+    let pair_id = match tx.get("pair").and_then(|v| v.as_i64()) {
+        Some(i) => i,
+        None => return,
+    };
+    HANDLES.lock().unwrap().remove(&pair_id);
+}
 
 pub fn parse_json(s: &str) -> Value { serde_json::from_str(s).unwrap_or(Value::Null) }
 
@@ -41,10 +72,29 @@ pub fn parse_json(s: &str) -> Value { serde_json::from_str(s).unwrap_or(Value::N
 pub fn ok_response<T: serde::Serialize>(v: T) -> axum::response::Response {
     axum::Json(v).into_response()
 }
-pub fn err_response(msg: &str, code: u16) -> axum::response::Response {
+pub fn err_response(msg: impl Into<String>, code: u16) -> axum::response::Response {
     let status = axum::http::StatusCode::from_u16(code)
         .unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
-    (status, axum::Json(ApiError { error: msg.to_string() })).into_response()
+    (status, axum::Json(ApiError { error: msg.into() })).into_response()
+}
+/// Plan 019 Phase 2-4:非流式 handler 的 4xx/5xx 区分 —— 委托 extern 返回
+/// `{"error":{"code":N,"message":...}}` 包络;handler 经这三个 helper 转
+/// err_response / ok_response(hw run/workflow_run 的 400/500 等价)。
+pub fn resp_is_err(v: &Value) -> bool {
+    v.get("error").map_or(false, |e| e.is_object())
+}
+pub fn resp_err_code(v: &Value) -> u16 {
+    v.get("error")
+        .and_then(|e| e.get("code"))
+        .and_then(|c| c.as_u64())
+        .unwrap_or(500) as u16
+}
+pub fn resp_err_message(v: &Value) -> String {
+    v.get("error")
+        .and_then(|e| e.get("message"))
+        .and_then(|m| m.as_str())
+        .unwrap_or("request failed")
+        .to_string()
 }
 /// 复审 A3:委托函数约定 `Value::Null` = 错误。handler 统一经此 helper 转成
 /// `err_response(msg, code)`;成功值直接 ok_response。修复"错误 → 200+null"回归。
@@ -795,11 +845,32 @@ pub fn conversations_rename(s: &State<AppState>, q: Query<crate::auto_generated:
         None => Value::Null,
     }
 }
-pub fn conversations_subscribe<T,U>(_s: &T, _q: U) -> Value { Value::Null }
-pub fn conv_event_matches(_ev: &Value, _id: &str) -> bool { false }
-pub fn conv_event_id(_ev: &Value) -> String { String::new() }
-pub fn conv_event_turn(_ev: &Value) -> Option<String> { None }
-pub fn conv_event_status(_ev: &Value) -> Option<String> { None }
+/// Plan 019 Phase 2:conversation_stream 真实化 —— broadcast::Receiver 存
+/// side-table(Value 存 i64 id),字段提取走 ConversationEvent 序列化 Value。
+pub fn conversations_subscribe(s: &State<AppState>, q: Query<StreamWorkspaceQuery>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    let rx = ws.conversations.subscribe();
+    let id = next_handle_id();
+    HANDLES.lock().unwrap().insert(id, Box::new(rx));
+    serde_json::json!(id)
+}
+pub fn conv_event_matches(ev: &Value, id: &str) -> bool {
+    ev.get("conversation_id").and_then(|v| v.as_str()) == Some(id)
+}
+pub fn conv_event_id(ev: &Value) -> String {
+    ev.get("conversation_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string()
+}
+pub fn conv_event_turn(ev: &Value) -> Option<Value> {
+    ev.get("turn").cloned()
+}
+pub fn conv_event_status(ev: &Value) -> Option<String> {
+    ev.get("status")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
 /// ② workspace 委托(与 specs/chats 同模式):走 s.0.registry 真实逻辑,返回
 /// 完整 metas / Value 供 ag handler 包装,wire 形状与 hw 一致。
 pub fn workspace_list_all(s: &State<AppState>) -> Value {
@@ -866,43 +937,88 @@ pub fn workspace_initialize_of(s: &State<AppState>, q: Query<crate::auto_generat
     }
 }
 pub fn workflows_builtin_names() -> Vec<String> { vec!["feature-dev".into()] }
-/// Plan 019 Phase 1b:真实化 wf_run —— 与 hw `workflow_run`(src/server.rs:841)
+/// Plan 019 Phase 1b+2-4:真实化 wf_run —— 与 hw `workflow_run`(src/server.rs:841)
 /// 同路径:require_builtin 校验 + feature_dev::run + DTO 映射。
 ///
-/// 注意:ag handler 返回 `~Json<WorkflowRunResponse>`(无状态码模型),所以
-/// require_builtin 失败 / run 失败时返回空 response + log(不抛 400/500)。
-/// hw 的 400 错误路径由 `contract_run_http_bad_mode_returns_400` 类测试在 hw 侧
-/// 锚定;ag 侧的错误码等价性留作 KNOWN-DEBT(与 Plan 018 已切换端点同模式)。
+/// Plan 019 Phase 2-4 状态码模型:返回 Value + 错误包络
+/// (`{"error":{"code","message"}}`),handler 经 resp_is_err/err_response 转
+/// 400(坏 workflow) / 500(run 失败),与 hw 的 400/500 等价。
 pub async fn wf_run(
     s: &State<AppState>,
     q: Query<StreamWorkspaceQuery>,
     b: Json<WorkflowRunRequest>,
-) -> WorkflowRunResponse {
+) -> Value {
     if let Err(e) = crate::relay::feature_dev::require_builtin(&b.workflow) {
-        tracing::warn!("wf_run: invalid workflow '{}': {e}", b.workflow);
-        return WorkflowRunResponse {
-            steps: std::collections::HashMap::new(),
-            outputs: std::collections::HashMap::new(),
-        };
+        return serde_json::json!({"error": {"code": 400, "message": format!("invalid workflow '{}': {e}", b.workflow)}});
     }
     let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };
     let ws_id = hw_q.id_or_default(&s.0.registry);
     let ws = s.0.registry.get(&ws_id);
     match crate::relay::feature_dev::run(&s.0, &ws, &b.task).await {
-        Ok(r) => WorkflowRunResponse {
+        Ok(r) => serde_json::to_value(WorkflowRunResponse {
             steps: r.steps,
             outputs: r.outputs,
-        },
-        Err(e) => {
-            tracing::error!("wf_run: feature_dev::run failed: {e}");
-            WorkflowRunResponse {
-                steps: std::collections::HashMap::new(),
-                outputs: std::collections::HashMap::new(),
-            }
-        }
+        })
+        .unwrap_or(Value::Null),
+        Err(e) => serde_json::json!({"error": {"code": 500, "message": format!("workflow failed: {e}")}}),
     }
 }
-pub async fn wf_run_with_progress<T,U,V,W>(_s: &T, _q: U, _b: V, _sink: W) {}
+/// Plan 019 §6.1:流式 handler 前置校验 —— mode/workflow 在建 mpsc channel 前
+/// 校验,坏 spec 直接 400(与 hw run_stream_handler / workflow_run_stream 等价),
+/// 避免提交 SSE 响应后才发 error 帧(HTTP 200)的回归。
+///
+/// 约定:校验通过返回 `Value::Null`(resp_is_err=false,非错误);失败返回
+/// `{"error":{"code":400,"message":...}}`(复用 resp_is_err/resp_err_* helper)。
+pub fn workflow_exists(name: &str) -> Value {
+    if let Err(e) = crate::relay::feature_dev::require_builtin(name) {
+        return serde_json::json!({"error": {"code": 400, "message": format!("invalid workflow '{}': {e}", name)}});
+    }
+    Value::Null
+}
+pub fn mode_exists(name: &str) -> Value {
+    let reg = crate::mode::ModeRegistry::load();
+    if reg.get(name).is_none() {
+        return serde_json::json!({"error": {"code": 400, "message": format!("unknown mode '{}'; available: {}", name, reg.names().join(", "))}});
+    }
+    Value::Null
+}
+/// Plan 019 Phase 3:workflow_run_stream 真实化 —— sink 桥接:把 hw 强类型
+/// WorkflowStreamEvent 序列化成 Value 喂给 mpsc(tx 句柄),run 结束关闭 channel
+/// 让 SSE 流终止。与 hw `workflow_run_stream`(server.rs:885)同路径。
+pub async fn wf_run_with_progress(
+    s: &State<AppState>,
+    q: Query<StreamWorkspaceQuery>,
+    b: Json<WorkflowRunRequest>,
+    tx: Value,
+) {
+    if let Err(e) = crate::relay::feature_dev::require_builtin(&b.workflow) {
+        mpsc_try_send(&tx, serde_json::json!({"type":"error","message": format!("invalid workflow '{}': {e}", b.workflow)}));
+        close_channel(&tx);
+        return;
+    }
+    let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };
+    let ws_id = hw_q.id_or_default(&s.0.registry);
+    let ws = s.0.registry.get(&ws_id);
+    let state = s.0.clone();
+    let task = b.task.clone();
+    let tx2 = tx.clone();
+    tokio::spawn(async move {
+        crate::tool_safety::set_current_root(ws.root.clone());
+        let tx3 = tx2.clone();
+        let on_event: Arc<dyn Fn(crate::relay::feature_dev::WorkflowStreamEvent) + Send + Sync> =
+            Arc::new(move |ev| {
+                let v = serde_json::to_value(&ev).unwrap_or(Value::Null);
+                mpsc_try_send(&tx3, v);
+            });
+        if let Err(e) =
+            crate::relay::feature_dev::run_stream(&state, &ws, &task, on_event).await
+        {
+            tracing::error!("workflow stream failed: {e}");
+        }
+        crate::tool_safety::clear_current_root();
+        close_channel(&tx2);
+    });
+}
 pub fn orch_spawn_relay(_t: String, _a: Value) -> String { "(stub)".into() }
 pub fn orch_dispatch(_t: String, _to: String) -> String { "(stub)".into() }
 pub fn orch_bring_in(_q: String) -> String { "(stub)".into() }
@@ -1003,45 +1119,31 @@ pub fn handoff_render(h: String) -> String {
         .map(|d| d.render())
         .unwrap_or_default()
 }
-/// Plan 019 Phase 1b:真实化 agent_run —— 与 hw `run_inner`(src/server.rs:280)
+/// Plan 019 Phase 1b+2-4:真实化 agent_run —— 与 hw `run_inner`(src/server.rs:280)
 /// 同路径:ModeRegistry::load + get(mode) + build_agent_from_mode + agent.run +
 /// AgentResult → RunResponse 映射(含 turns + tool_calls)。
 ///
-/// ag 的 RunRequest.mode 是 Option<String>(hw 是 String + serde default)。
-/// None 时回退 "superpowers"(与 hw default_mode 一致)。错误时返回空 RunResponse
-/// + log(无状态码模型;hw 的 400/500 路径由测试在 hw 侧锚定,ag 等价性见
-/// KNOWN-DEBT)。
+/// Plan 019 Phase 2-4 状态码模型:返回 Value + 错误包络,handler 经
+/// resp_is_err/err_response 转 400(未知 mode) / 500(build/run 失败),与 hw 等价。
+/// ag 的 RunRequest.mode 是 Option<String>(hw 是 String + serde default),
+/// None 时回退 "superpowers"(与 hw default_mode 一致)。
 pub async fn agent_run(
     s: &State<AppState>,
     _q: Query<StreamWorkspaceQuery>,
     b: Json<RunRequest>,
-) -> RunResponse {
+) -> Value {
     let mode_name = b.mode.clone().unwrap_or_else(|| "superpowers".into());
     let reg = crate::mode::ModeRegistry::load();
     let mode = match reg.get(&mode_name).cloned() {
         Some(m) => m,
         None => {
-            tracing::warn!(
-                "agent_run: unknown mode '{}'; available: {}",
-                mode_name,
-                reg.names().join(", ")
-            );
-            return RunResponse {
-                output: String::new(),
-                turns: 0,
-                tool_calls: vec![],
-            };
+            return serde_json::json!({"error": {"code": 400, "message": format!("unknown mode '{}'; available: {}", mode_name, reg.names().join(", "))}});
         }
     };
     let mut agent = match crate::build_agent_from_mode(&mode, s.0.client.clone()) {
         Ok(a) => a,
         Err(e) => {
-            tracing::warn!("agent_run: build agent: {e}");
-            return RunResponse {
-                output: String::new(),
-                turns: 0,
-                tool_calls: vec![],
-            };
+            return serde_json::json!({"error": {"code": 500, "message": format!("build agent: {e}")}});
         }
     };
     match agent.run(&b.task).await {
@@ -1049,30 +1151,347 @@ pub async fn agent_run(
             let tool_calls = result
                 .tool_calls
                 .iter()
-                .map(|tc| super::server_stream::ToolCallOut {
-                    tool: tc.tool.clone(),
-                    args: tc.args.clone(),
+                .map(|tc| StreamToolCallOut {
+                    name: tc.tool.clone(),
+                    arguments: tc.args.clone(),
                     result: tc.result.clone(),
                 })
                 .collect();
-            RunResponse {
+            serde_json::to_value(RunResponse {
                 output: result.output,
                 turns: result.turns as i32,
                 tool_calls,
-            }
+            })
+            .unwrap_or(Value::Null)
         }
         Err(e) => {
-            tracing::warn!("agent_run: agent failed: {e}");
-            RunResponse {
-                output: String::new(),
-                turns: 0,
-                tool_calls: vec![],
-            }
+            serde_json::json!({"error": {"code": 500, "message": format!("agent failed: {e}")}})
         }
     }
 }
-pub async fn chat_run_stream<T,U,V,W>(_s: &T, _q: U, _p: V, _sink: W) {}
-pub async fn agent_run_stream<T,U,V,W>(_s: &T, _q: U, _b: V, _sink: W) {}
+/// Plan 019 Phase 4:run_stream_handler 真实化 —— 与 hw `run_stream_handler`
+/// (server.rs:358)同路径:build_agent + agent.run_stream + on_event 闭包复刻
+/// tc_counter/tc_stack id 配对 + StreamEvent → SseEventDto(经 stream_event_map
+/// 无损回读)→ 喂给 mpsc。run 结束关闭 channel 让 SSE 流终止。
+pub async fn agent_run_stream(
+    s: &State<AppState>,
+    q: Query<StreamWorkspaceQuery>,
+    b: Json<RunRequest>,
+    tx: Value,
+) {
+    let mode_name = b.mode.clone().unwrap_or_else(|| "superpowers".into());
+    let reg = crate::mode::ModeRegistry::load();
+    let mode = match reg.get(&mode_name).cloned() {
+        Some(m) => m,
+        None => {
+            mpsc_try_send(&tx, serde_json::json!({"type":"error","message": format!("unknown mode '{}'; available: {}", mode_name, reg.names().join(", "))}));
+            close_channel(&tx);
+            return;
+        }
+    };
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    let ws_root = ws.root.clone();
+    let client = s.0.client.clone();
+    let task = b.task.clone();
+    let tx2 = tx.clone();
+    tokio::spawn(async move {
+        crate::tool_safety::set_current_root(ws_root.clone());
+        let mut agent = match crate::build_agent_from_mode(&mode, client) {
+            Ok(a) => a,
+            Err(e) => {
+                crate::tool_safety::clear_current_root();
+                mpsc_try_send(&tx2, serde_json::json!({"type":"error","message": format!("build agent: {e}")}));
+                close_channel(&tx2);
+                return;
+            }
+        };
+        let tx3 = tx2.clone();
+        let tc_counter = std::sync::Arc::new(std::sync::Mutex::new(0usize));
+        let tc_stack: std::sync::Arc<std::sync::Mutex<Vec<String>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let on_event: Arc<dyn Fn(auto_ai_agent::StreamEvent) + Send + Sync> =
+            Arc::new(move |ev| {
+                use auto_ai_agent::StreamEvent;
+                let id = match &ev {
+                    StreamEvent::ToolStart { .. } => {
+                        let n = { let mut c = tc_counter.lock().unwrap(); *c += 1; *c };
+                        let id = format!("tc-{n}");
+                        tc_stack.lock().unwrap().push(id.clone());
+                        Some(id)
+                    }
+                    StreamEvent::Tool { .. } => tc_stack.lock().unwrap().pop(),
+                    _ => None,
+                };
+                let dto: SseEventDto = match &ev {
+                    StreamEvent::Delta { text } => SseEventDto::Delta { text: text.clone() },
+                    StreamEvent::Thinking { text } => {
+                        SseEventDto::Thinking { thinking: text.clone() }
+                    }
+                    StreamEvent::ToolStart { tool, args } => SseEventDto::ToolCall {
+                        id: id.clone(),
+                        name: tool.clone(),
+                        arguments: args.clone(),
+                    },
+                    StreamEvent::Tool { tool, args, result } => SseEventDto::ToolResult {
+                        id: id.clone(),
+                        name: tool.clone(),
+                        arguments: args.clone(),
+                        result: result.clone(),
+                        status: "success".into(),
+                    },
+                    StreamEvent::Warning { text } => SseEventDto::Warning { text: text.clone() },
+                    StreamEvent::Done { result } => SseEventDto::Done {
+                        output: result.output.clone(),
+                        turns: result.turns as i32,
+                        tool_calls: result
+                            .tool_calls
+                            .iter()
+                            .map(|tc| StreamToolCallOut {
+                                name: tc.tool.clone(),
+                                arguments: tc.args.clone(),
+                                result: tc.result.clone(),
+                            })
+                            .collect(),
+                    },
+                    StreamEvent::Cancelled { result } => SseEventDto::Cancelled {
+                        output: result.output.clone(),
+                        turns: result.turns as i32,
+                        tool_calls: result
+                            .tool_calls
+                            .iter()
+                            .map(|tc| StreamToolCallOut {
+                                name: tc.tool.clone(),
+                                arguments: tc.args.clone(),
+                                result: tc.result.clone(),
+                            })
+                            .collect(),
+                    },
+                    StreamEvent::Error { message } => {
+                        SseEventDto::Error { message: message.clone() }
+                    }
+                };
+                let value = serde_json::to_value(&dto).unwrap_or(Value::Null);
+                mpsc_try_send(&tx3, value);
+            });
+        let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        if let Err(e) = agent.run_stream(&task, on_event, cancel).await {
+            mpsc_try_send(&tx2, serde_json::json!({"type":"error","message": format!("{e}")}));
+        }
+        crate::tool_safety::clear_current_root();
+        close_channel(&tx2);
+    });
+}
+/// Plan 019 Phase 4:chat_stream 真实化 —— 与 hw `chat_stream`(server.rs:575)
+/// 同路径:session + history + build_agent_with_context + run_stream + 完成后
+/// 持久化(append_message + 双写 conversation turns)。持久化在 extern 内直接做
+/// (它知道 session_id),不依赖 sink 回调。
+pub async fn chat_run_stream(
+    s: &State<AppState>,
+    q: Query<StreamWorkspaceQuery>,
+    p: Path<String>,
+    tx: Value,
+) {
+    let ws_id = q.workspace.clone().unwrap_or_default();
+    let ws = s.0.registry.get(&ws_id);
+    let session_id = p.0.clone();
+    let session = match ws.chats.get(&session_id) {
+        Some(sess) => sess,
+        None => {
+            mpsc_try_send(&tx, serde_json::json!({"type":"error","message": format!("session '{session_id}' not found")}));
+            close_channel(&tx);
+            return;
+        }
+    };
+    let mode = session.mode.clone();
+    // The user message to run = the last user turn in history.
+    let user_msg =
+        match session.messages.iter().rev().find(|m| m.role == crate::chats::Role::User) {
+            Some(m) => m.content.clone(),
+            None => {
+                mpsc_try_send(&tx, serde_json::json!({"type":"error","message":"no user message to run"}));
+                close_channel(&tx);
+                return;
+            }
+        };
+    // Build (role, content) history pairs for prior turns (exclude the last
+    // user message — that's the one we're about to run).
+    let mut history: Vec<(String, String)> = Vec::new();
+    let mut seen_last_user = false;
+    for m in session.messages.iter().rev() {
+        if !seen_last_user && m.role == crate::chats::Role::User {
+            seen_last_user = true;
+            continue; // skip the message we're running now
+        }
+        let role = match m.role {
+            crate::chats::Role::User => "user",
+            crate::chats::Role::Assistant => "assistant",
+            crate::chats::Role::Tool => continue, // tool observations aren't plain turns
+        };
+        history.push((role.to_string(), m.content.clone()));
+    }
+    history.reverse(); // chronological order for the agent
+
+    // Resolve the session's mode to an AgentMode (built-in or user .at).
+    let mode_reg = crate::mode::ModeRegistry::load();
+    let agent_mode = match mode_reg.get(&mode).cloned() {
+        Some(m) => m,
+        None => mode_reg.get("superpowers").cloned().unwrap_or_else(|| {
+            crate::mode::AgentMode {
+                name: "superpowers".into(),
+                description: String::new(),
+                role: "coder".into(),
+                skills: true,
+                tools: vec![],
+                workflow: None,
+                context_file: String::new(),
+                extra_system_prompt: String::new(),
+            }
+        }),
+    };
+
+    let client = s.0.client.clone();
+    let chats = ws.chats.clone();
+    let conversations = ws.conversations.clone();
+    let ws_root = ws.root.clone();
+    let state_for_ctx = std::sync::Arc::new(s.0.clone());
+    let tx2 = tx.clone();
+    tokio::spawn(async move {
+        crate::tool_safety::set_current_root(ws_root.clone());
+        // Build agent with orchestration tool context (spawn_relay, dispatch).
+        let tool_ctx = crate::tool_context::ToolContext {
+            state: state_for_ctx.clone(),
+            workspace_id: ws_id.clone(),
+            parent_conversation_id: session_id.clone(),
+        };
+        let mut agent = match crate::build_agent_with_context(&agent_mode, client, Some(tool_ctx)) {
+            Ok(a) => a,
+            Err(e) => {
+                crate::tool_safety::clear_current_root();
+                mpsc_try_send(&tx2, serde_json::json!({"type":"error","message": format!("build agent: {e}")}));
+                close_channel(&tx2);
+                return;
+            }
+        };
+        // Pre-load the conversation history so the agent has context.
+        agent = agent.with_history(history);
+
+        // Accumulate the streamed text + tool calls to persist on completion.
+        let accumulated = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+        let tool_calls: std::sync::Arc<std::sync::Mutex<Vec<crate::chats::ToolCall>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let tx3 = tx2.clone();
+        let acc2 = accumulated.clone();
+        let tc2 = tool_calls.clone();
+        let tc_counter = std::sync::Arc::new(std::sync::Mutex::new(0usize));
+        let tc_stack: std::sync::Arc<std::sync::Mutex<Vec<String>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let on_event: Arc<dyn Fn(auto_ai_agent::StreamEvent) + Send + Sync> =
+            Arc::new(move |ev| {
+                use auto_ai_agent::StreamEvent;
+                let id = match &ev {
+                    StreamEvent::ToolStart { .. } => {
+                        let n = { let mut c = tc_counter.lock().unwrap(); *c += 1; *c };
+                        let id = format!("tc-{n}");
+                        tc_stack.lock().unwrap().push(id.clone());
+                        Some(id)
+                    }
+                    StreamEvent::Tool { .. } => tc_stack.lock().unwrap().pop(),
+                    _ => None,
+                };
+                let dto: SseEventDto = match &ev {
+                    StreamEvent::Delta { text } => SseEventDto::Delta { text: text.clone() },
+                    StreamEvent::Thinking { text } => {
+                        SseEventDto::Thinking { thinking: text.clone() }
+                    }
+                    StreamEvent::ToolStart { tool, args } => SseEventDto::ToolCall {
+                        id: id.clone(),
+                        name: tool.clone(),
+                        arguments: args.clone(),
+                    },
+                    StreamEvent::Tool { tool, args, result } => SseEventDto::ToolResult {
+                        id: id.clone(),
+                        name: tool.clone(),
+                        arguments: args.clone(),
+                        result: result.clone(),
+                        status: "success".into(),
+                    },
+                    StreamEvent::Warning { text } => SseEventDto::Warning { text: text.clone() },
+                    StreamEvent::Done { result } => SseEventDto::Done {
+                        output: result.output.clone(),
+                        turns: result.turns as i32,
+                        tool_calls: result
+                            .tool_calls
+                            .iter()
+                            .map(|tc| StreamToolCallOut {
+                                name: tc.tool.clone(),
+                                arguments: tc.args.clone(),
+                                result: tc.result.clone(),
+                            })
+                            .collect(),
+                    },
+                    StreamEvent::Cancelled { result } => SseEventDto::Cancelled {
+                        output: result.output.clone(),
+                        turns: result.turns as i32,
+                        tool_calls: result
+                            .tool_calls
+                            .iter()
+                            .map(|tc| StreamToolCallOut {
+                                name: tc.tool.clone(),
+                                arguments: tc.args.clone(),
+                                result: tc.result.clone(),
+                            })
+                            .collect(),
+                    },
+                    StreamEvent::Error { message } => {
+                        SseEventDto::Error { message: message.clone() }
+                    }
+                };
+                let value = serde_json::to_value(&dto).unwrap_or(Value::Null);
+                // capture for persistence
+                if let Some(text) = value.get("text").and_then(|t| t.as_str()) {
+                    acc2.lock().unwrap().push_str(text);
+                }
+                if value.get("type").and_then(|t| t.as_str()) == Some("tool_result") {
+                    let tool = value.get("name").and_then(|t| t.as_str()).unwrap_or("").to_string();
+                    let args = value.get("arguments").cloned().unwrap_or(Value::Null);
+                    let result = value.get("result").and_then(|t| t.as_str()).unwrap_or("").to_string();
+                    tc2.lock().unwrap().push(crate::chats::ToolCall {
+                        tool, args, result,
+                        status: String::from("success"),
+                        id: id.unwrap_or_default(),
+                    });
+                }
+                mpsc_try_send(&tx3, value);
+            });
+        // No cancellation endpoint yet — the run flag is never set.
+        let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        match agent.run_stream(&user_msg, on_event, cancel).await {
+            Ok(_) => {
+                // Persist the assistant reply + tool calls.
+                let text = std::mem::take(&mut *accumulated.lock().unwrap());
+                let tcs = std::mem::take(&mut *tool_calls.lock().unwrap());
+                let mut msg = crate::chats::ChatMessage::assistant(text);
+                msg.tool_calls = tcs;
+                let _ = chats.append_message(&session_id, msg.clone());
+                // Dual-write: mirror the assistant message (+ tool calls) into
+                // the conversation as turns.
+                let seq_base = conversations
+                    .get(&session_id)
+                    .map(|c| c.turns.len())
+                    .unwrap_or(0);
+                for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
+                    let _ = conversations.append_turn(&session_id, turn);
+                }
+            }
+            Err(e) => {
+                mpsc_try_send(&tx2, serde_json::json!({"type":"error","message": format!("{e}")}));
+            }
+        }
+        crate::tool_safety::clear_current_root();
+        close_channel(&tx2);
+    });
+}
+/// server_serve(休眠镜像)仍在调用 —— 保持 stub(该模块未接线)。
 pub fn agent_run_stream_with_sink<W: Send + Sync + 'static>(_a: Agent, _t: String, _sink: Arc<W>, _c: Arc<std::sync::atomic::AtomicBool>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Value, String>> + Send>> {
     Box::pin(async { Ok(Value::Null) })
 }
@@ -1081,8 +1500,21 @@ pub fn serve_build_static() -> () {}
 pub fn serve_build_cors() -> () {}
 pub fn serve_build_app(_s: AppState, _st: (), _c: ()) -> () {}
 pub async fn serve_listen(_a: &str, _app: ()) {}
-pub fn stream_event_map(_e: Option<Value>) -> SseEventDto { SseEventDto::Cancelled }
-pub fn workflow_event_map(_e: Option<Value>) -> WorkflowEventDto { WorkflowEventDto::StepSkipped { step_id: String::new() } }
+pub fn stream_event_map(e: Option<Value>) -> SseEventDto {
+    match e {
+        Some(v) => serde_json::from_value(v)
+            .unwrap_or_else(|_| SseEventDto::Error { message: "malformed stream event".into() }),
+        None => SseEventDto::Error { message: String::new() },
+    }
+}
+pub fn workflow_event_map(e: Option<Value>) -> WorkflowEventDto {
+    match e {
+        Some(v) => serde_json::from_value(v).unwrap_or_else(|_| WorkflowEventDto::StepSkipped {
+            step_id: String::new(),
+        }),
+        None => WorkflowEventDto::StepSkipped { step_id: String::new() },
+    }
+}
 pub fn step_err_is_err(e: &Result<String, String>) -> bool { e.is_err() }
 pub fn resolve_within_project(p: &str) -> String { p.to_string() }
 pub fn write_file_do(p: &str, c: &str) { let _ = std::fs::write(p, c); }
@@ -1098,14 +1530,113 @@ pub fn list_directory(p: &str) -> String { format!("(stub) {}", p) }
 pub fn list_symbols_in(p: &str) -> String { format!("(stub) {}", p) }
 pub fn glob_files(p: &str) -> String { format!("(stub) {}", p) }
 pub fn http_post_json(_u: &str) -> impl std::future::Future<Output = Result<Value, String>> { async { Ok(Value::Null) } }
-pub fn mpsc_channel() -> Value { Value::Null }
-pub fn mpsc_sender(_ch: &Value) -> Value { Value::Null }
-pub fn mpsc_receiver(_ch: &Value) -> Value { Value::Null }
-pub fn mpsc_try_send(_t: &Value, _m: Value) {}
-pub async fn mpsc_recv(_r: &Value) -> Option<Value> { None }
+/// Plan 019 Phase 3/4: mpsc side-table —— channel pair 存注册表(Value 存
+/// i64 id),tx 句柄是 `{"pair": id}` 指针(不 clone Sender,保证 run 结束后
+/// close_channel 移除 pair 即可让 channel 关闭 → 流 break 终止)。
+pub fn mpsc_channel() -> Value {
+    let (tx, rx) = tokio::sync::mpsc::channel::<Value>(64);
+    let id = next_handle_id();
+    HANDLES.lock().unwrap().insert(id, Box::new(ChannelPair { tx, rx: Some(rx) }));
+    serde_json::json!(id)
+}
+pub fn mpsc_sender(ch: &Value) -> Value {
+    match ch.as_i64() {
+        Some(pair_id) => serde_json::json!({ "pair": pair_id }),
+        None => Value::Null,
+    }
+}
+pub fn mpsc_receiver(ch: &Value) -> Value {
+    let pair_id = match ch.as_i64() {
+        Some(i) => i,
+        None => return Value::Null,
+    };
+    let mut handles = HANDLES.lock().unwrap();
+    let rx = match handles
+        .get_mut(&pair_id)
+        .and_then(|b| b.downcast_mut::<ChannelPair>())
+        .and_then(|p| p.rx.take())
+    {
+        Some(rx) => rx,
+        None => return Value::Null,
+    };
+    let id = next_handle_id();
+    handles.insert(id, Box::new(rx));
+    serde_json::json!(id)
+}
+pub fn mpsc_try_send(t: &Value, m: Value) {
+    let pair_id = match t.get("pair").and_then(|v| v.as_i64()) {
+        Some(i) => i,
+        None => return,
+    };
+    let handles = HANDLES.lock().unwrap();
+    if let Some(pair) = handles.get(&pair_id).and_then(|b| b.downcast_ref::<ChannelPair>()) {
+        let _ = pair.tx.try_send(m);
+    }
+}
+pub async fn mpsc_recv(r: &Value) -> Option<Value> {
+    let id = match r.as_i64() {
+        Some(i) => i,
+        None => return None,
+    };
+    let mut rx = {
+        let mut handles = HANDLES.lock().unwrap();
+        match handles.remove(&id) {
+            Some(b) => match b.downcast::<tokio::sync::mpsc::Receiver<Value>>() {
+                Ok(rx) => *rx,
+                Err(b) => {
+                    handles.insert(id, b);
+                    return None;
+                }
+            },
+            None => return None,
+        }
+    };
+    let result = rx.recv().await;
+    if result.is_some() {
+        HANDLES.lock().unwrap().insert(id, Box::new(rx));
+    }
+    // None → channel closed:不重新入表,stream 侧 break 后句柄即回收。
+    result
+}
 pub fn msg_is_none(m: &Option<Value>) -> bool { m.is_none() }
 pub fn msg_unwrap(m: Option<Value>) -> Value { m.unwrap_or(Value::Null) }
-pub fn broadcast_recv(_r: &Value) -> impl std::future::Future<Output = Option<Value>> { async { None } }
+/// Plan 019 Phase 2: broadcast_recv —— 从 side-table 取 Receiver 收一条
+/// ConversationEvent(序列化为 hw wire 形状 Value)。Lagged 跳过积压继续流
+/// (hw BroadcastStream 语义),Closed 返回 None 让 .at 的 break 终止流。
+pub async fn broadcast_recv(r: &Value) -> Option<Value> {
+    let id = match r.as_i64() {
+        Some(i) => i,
+        None => return None,
+    };
+    let mut rx = {
+        let mut handles = HANDLES.lock().unwrap();
+        match handles.remove(&id) {
+            Some(b) => match b.downcast::<tokio::sync::broadcast::Receiver<crate::conversation::ConversationEvent>>() {
+                Ok(rx) => *rx,
+                Err(b) => {
+                    handles.insert(id, b);
+                    return None;
+                }
+            },
+            None => return None,
+        }
+    };
+    loop {
+        match rx.recv().await {
+            Ok(ev) => {
+                let value = serde_json::json!({
+                    "conversation_id": ev.conversation_id,
+                    "turn": ev.turn,
+                    "status": ev.status,
+                });
+                HANDLES.lock().unwrap().insert(id, Box::new(rx));
+                return Some(value);
+            }
+            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+            Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
+        }
+    }
+}
 /// Plan 384 S1: build an axum SSE Event from a serializable DTO + event name,
 /// unwrapping the inner json_data Result so callers can `yield event` directly.
 ///

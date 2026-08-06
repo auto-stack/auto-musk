@@ -84,6 +84,11 @@ fn workspace_initialize_of(_s @T, _q Value) Value {}
 fn workflows_builtin_names() Value {}
 fn wf_run(_s @T, _q Value, _b Value) Value {}
 fn wf_run_with_progress(_s @T, _q Value, _b Value, _sink Value) {}
+// Plan 019 §6.1: 流式 handler 前置校验(坏 mode/workflow → 400,与 hw 等价)。
+// 成功返回 Null(无错误),失败返回 {"error":{"code":400,"message":...}};
+// handler 经 resp_is_err 判定。name 是 @str(引用)。
+fn workflow_exists(name @str) Value {}
+fn mode_exists(name @str) Value {}
 fn orch_spawn_relay(_t str, _a Value) str {}
 fn orch_dispatch(_t str, _to str) str {}
 fn orch_bring_in(_q str) str {}

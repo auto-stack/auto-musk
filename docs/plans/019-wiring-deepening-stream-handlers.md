@@ -1,6 +1,6 @@
 # 019 — 接线运行深化：流式 handler 切换到 Auto 驱动
 
-> **状态**：实施中。**Phase 0+1 已完成（2026-08-06）**，Phase 2-4 待续（独立计划）。
+> **状态**：✅ 完成（2026-08-06）。Phase 0-4 全闭环 + 状态码模型补齐 + §6.1 流式即时错误→400 闭环。6 个 handler 全部切到 ag，全量 226 lib 测试 + 集成测试全绿。§6.2/6.3 登记备忘（低优先级/与 hw 等价非缺陷）。
 > **前置**：Plan 018（已归档，§11 接线运行 ①-④ 已完成，本计划是 §11 标记的"后续独立计划"）。
 > **仓库**：auto-musk（`backend/crates/musk/`）。Phase 1a 重新转译用到 auto-lang worktree（构建 `auto.exe`）。
 > **目标**：把 serve() 的 6 个 🔴 流式/daemon handler 从手写 Rust 切换到 `auto_generated::server_stream` 的转译 handler，让整个服务端（除 settings_link + serve 外壳）由 Auto 驱动。
@@ -12,8 +12,14 @@
 - ✅ **Phase 1a**：DTO 修正（`RunResponse.turns` + `ToolCallOut.args: Value`）+ **`server_stream.at` 全量 `.view` 借用标记补齐**（根因：移植时遗漏 `.view`，导致 extern 调用点未注入 `&`，之前靠手修产物）。重新转译零 drift（无手修）。
 - ✅ **Phase 1b**：extern 真实化 `wf_run`（→ feature_dev::run）+ `agent_run`（→ build_agent_from_mode + agent.run）。
 - ✅ **Phase 1c**：serve() 切换 `/api/run` + `/api/workflow/run` 到 ag handler。
-- ✅ **Phase 1d**：ag handler 等价性测试（`ag_workflow_run_produces_real_steps_and_outputs` + `ag_run_produces_output_turns_tool_calls`）。全量 216 lib 测试 + 集成测试全绿。
-- ⏳ **Phase 2-4**：4 个流式 handler（conversation_stream / workflow_run_stream / run_stream_handler / chat_stream）。`sse_event` 根因已修复扫清最大障碍。需要 side-table 基础设施（mpsc/broadcast 类型擦除）+ sink 桥接 + 持久化，留作后续独立计划。
+- ✅ **Phase 1d**：ag handler 等价性测试（`ag_workflow_run_produces_real_steps_and_outputs` + `ag_run_produces_output_turns_tool_calls`）。
+- ✅ **Phase 2**（conversation_stream）：`conversations_subscribe`（broadcast::Receiver 进 side-table）+ `broadcast_recv`（Lagged 跳过续流 / Closed 终止）+ `conv_event_*` 字段提取；`ConvEventDto.turn` → `Option<Value>`（完整 Turn 序列化，与 hw 一致）。
+- ✅ **Phase 3**（workflow_run_stream）：mpsc side-table（`mpsc_channel`/`sender`/`receiver`/`try_send`/`recv`，Value 存 i64 id / `{"pair": id}`）；`WorkflowEventDto` 加 `#[serde(tag="type", rename_all="snake_case")]` + Deserialize（`workflow_event_map` 经 `from_value` 无损回读）；`wf_run_with_progress` → `feature_dev::run_stream` + 事件喂 mpsc。
+- ✅ **Phase 4**（run_stream_handler + chat_stream）：`agent_run_stream` → build_agent + `agent.run_stream` + 闭包内复刻 **tc_counter/tc_stack id 配对** + `SseEventDto`（变体改名 `ToolCall`/`ToolResult` 得 wire 的 `tool_call`/`tool_result`，字段直接命名 `name`/`arguments`，补 `Thinking`/`status`/`Cancelled` 字段）；`chat_run_stream` → session/history/build_agent_with_context + run_stream + 完成后 `append_message` + 双写 conversation turns。
+- ✅ **状态码模型**（KNOWN-DEBT 019 项）：`run`/`workflow_run` 从 `~Json<T>` 改 `~Response` + 错误包络（`wf_run`/`agent_run` 返回 `{"error":{"code","message"}}`，handler 经 `resp_is_err`/`resp_err_message`/`resp_err_code` → `err_response`）。坏 mode / 坏 workflow → 400，build/run 失败 → 500，与 hw 等价。
+- ✅ **架构调整**：mpsc channel 由 extern side-table 持有，handler 把 **tx 句柄直传 extern**（去掉 named sink struct 中转）。extern 在 run 结束后 `close_channel`（移除 pair → 唯一 Sender 析构 → channel 关闭），SSE 流在 `mpsc_recv` 得 None 时 `break` 终止——与 hw 的 `while let Some(v) = rx.recv().await` 终止语义一致，避免流永不结束。
+- ✅ **验收**：6 个 ag handler 契约/等价性测试（`ag_run_stream_produces_sse_events` / `ag_workflow_run_stream_emits_step_events` / `ag_chat_stream_persists_and_streams` / `ag_conversation_stream_filters_events` / `ag_run_unknown_mode_returns_400` / `ag_workflow_run_invalid_workflow_returns_400`）+ 全量 222 lib 测试 + 集成测试全绿。
+- ✅ **§6.1 流式即时错误→400**（2026-08-06）：`run_stream_handler`/`workflow_run_stream` 在 `mpsc_channel()` 前前置 `mode_exists`/`workflow_exists` 校验（与 hw fail-fast 一致），坏 spec → 400 JSON（不再 200 SSE + error 帧）。契约测试 `ag_run_stream_bad_mode_returns_400` + `ag_workflow_run_stream_invalid_workflow_returns_400`。全量 226 lib 测试全绿。
 
 ---
 
@@ -31,7 +37,7 @@ Plan 018 §11 完成了接线运行 ①-④（auth/specs/chats/workspace/config/
 
 ## 1. 现状（2026-08-06 调研确认）
 
-### server_stream.at 已移植的 handler（6 个）
+### server_stream.at 已移植的 handler（6 个，全部已接线）
 
 | handler | .at 行 | SSE? | 接线难度 |
 |---|---|---|---|
@@ -42,28 +48,28 @@ Plan 018 §11 完成了接线运行 ①-④（auth/specs/chats/workspace/config/
 | run_stream_handler | 155 | 是（mpsc+Sse） | 🔴 |
 | chat_stream | 250 | 是（mpsc+Sse） | 🔴 |
 
-### extern_impl 的 fake stub（13 个需真实化）
+### extern_impl 的 fake stub（13 个，Phase 2-4 已全部真实化 ✅）
 
-| extern | 行 | fake 返回 | 真实化目标 |
-|---|---|---|---|
-| mpsc_channel/sender/receiver/try_send/recv | 998-1002 | Null/空 | tokio mpsc（side-table 类型擦除） |
-| broadcast_recv | 1005 | None | broadcast::Receiver（side-table） |
-| conversations_subscribe | 797 | Null | ws.conversations.subscribe() |
-| conv_event_matches/id/turn/status | 798-801 | false/空 | ConversationEvent 字段提取 |
-| workflow_event_map | 982 | StepSkipped | WorkflowStreamEvent→WorkflowEventDto |
-| stream_event_map | 981 | Cancelled | StreamEvent→SseEventDto（含 id 配对） |
-| wf_run | 868 | 空 HashMap | relay::feature_dev::run |
-| wf_run_with_progress | 869 | 空 | relay::feature_dev::run_stream |
-| agent_run | 970 | 空 RunResponse | build_agent_from_mode + agent.run |
-| agent_run_stream | 972 | 空 | build_agent + agent.run_stream + sink 适配 |
-| chat_run_stream | 971 | 空 | session/history/build + run_stream + 持久化 |
+| extern | 真实化状态 |
+|---|---|
+| mpsc_channel/sender/receiver/try_send/recv | ✅ tokio mpsc side-table（Value 存 i64 id / `{"pair": id}`，不 clone Sender） |
+| broadcast_recv | ✅ broadcast::Receiver side-table（Lagged 跳过续流，Closed → None 终止） |
+| conversations_subscribe | ✅ ws.conversations.subscribe() → side-table |
+| conv_event_matches/id/turn/status | ✅ ConversationEvent 序列化 Value 字段提取 |
+| workflow_event_map | ✅ `from_value::<WorkflowEventDto>`（无损回读） |
+| stream_event_map | ✅ `from_value::<SseEventDto>`（无损回读） |
+| wf_run | ✅ feature_dev::run + 错误包络（400/500） |
+| wf_run_with_progress | ✅ feature_dev::run_stream + 事件喂 mpsc |
+| agent_run | ✅ build_agent_from_mode + agent.run + 错误包络（400/500） |
+| agent_run_stream | ✅ build_agent + agent.run_stream + tc id 配对 + DTO |
+| chat_run_stream | ✅ session/history/build + run_stream + 持久化 |
 
-### 4 个 wire 形状回归点
+### 4 个 wire 形状回归点（Phase 2-4 已全部修复 ✅）
 
-1. `SseEventDto` 字段名 `tool/args` vs hw `name/arguments`（run_stream/chat_stream）
-2. `WorkflowEventDto` 无 `#[serde(tag="type")]` vs hw `WorkflowStreamEvent` 有（workflow_run_stream）
-3. `ConvEventDto.turn: Option<String>` vs hw 完整 Turn 结构（conversation_stream）
-4. `RunResponse` 缺 `turns` 字段（run）
+1. `SseEventDto` 字段名 `tool/args` vs hw `name/arguments`（run_stream/chat_stream）——变体改名为 `ToolCall`/`ToolResult`（snake_case 得 `tool_call`/`tool_result`），字段直接命名 `name`/`arguments`；补 `Thinking` 变体 + `ToolResult.status` + `Cancelled` 载荷
+2. `WorkflowEventDto` 无 `#[serde(tag="type")]` vs hw `WorkflowStreamEvent` 有（workflow_run_stream）——补 `#[serde(tag="type", rename_all="snake_case")]` + Deserialize
+3. `ConvEventDto.turn: Option<String>` vs hw 完整 Turn 结构（conversation_stream）——改 `Option<Value>` 序列化完整 Turn
+4. `RunResponse` 缺 `turns` 字段（run）——Phase 1a 已修
 
 ---
 
@@ -116,15 +122,17 @@ Plan 018 §11 完成了接线运行 ①-④（auth/specs/chats/workspace/config/
 
 ## 3. 关键架构决策
 
-1. **side-table 方案**（类型擦除墙）：extern_impl 维护 `static HANDLE_REGISTRY: Mutex<HashMap<i64, Box<dyn Any + Send>>>`，mpsc/broadcast 的 tx/rx/Receiver 存这里，Value 只存 i64 id。不改 .at 产物类型。
+1. **side-table 方案**（类型擦除墙）：extern_impl 维护 `static HANDLES: LazyLock<Mutex<HashMap<i64, Box<dyn Any + Send>>>>`，mpsc 的 channel pair / receiver 与 broadcast::Receiver 存这里，Value 只存 i64 id（tx 句柄是 `{"pair": id}` 指针）。不改 .at 产物类型。
 
-2. **DTO 修正**：改 server_stream.at 的 DTO 定义对齐 hw wire 格式，重新转译。4 个回归点逐一修。
+2. **DTO 修正**：改 server_stream.at 的 DTO 定义对齐 hw wire 格式，重新转译。4 个回归点逐一修。**转译器不支持 tag 变体字段级 serde 属性**——`SseEventDto` 通过改变体/字段命名（`ToolCall`/`ToolResult` + `name`/`arguments`）而非 rename 属性达成 wire 形状。
 
-3. **sink 桥接**：extern 内建适配闭包，把 hw 强类型事件（StreamEvent/WorkflowStreamEvent）转成 Value 喂给 ag sink.on_event。id 配对 + stream_event_to_json 逻辑搬进 extern。
+3. **tx 直传替代 sink 桥接**（实施时的工程修正）：handler 把 mpsc `tx` 句柄直接传给 extern（去掉 named sink struct 中转）。好处：① extern 在 run 结束后 `close_channel`（移除 pair → 唯一 Sender 析构 → channel 关闭）→ 流侧 `mpsc_recv` 得 None → `.at` 的 break 终止流，与 hw 的 `while let Some` 终止语义一致（避免流永不结束挂死前端）；② 无需把私有 sink 类型 `pub` 化 + `Arc<dyn StreamSink>` 强制转换。原计划"extern 把事件喂给 sink.on_event"的语义不变（事件仍经 DTO 无损回读喂进 mpsc）。
 
 4. **chat_stream 持久化**：在 chat_run_stream extern 内直接做（它知道 session_id），不依赖 sink 回调。
 
-5. **settings_link 不切换**（reqwest::blocking 无法转译）。
+5. **状态码模型**：`run`/`workflow_run` 改 `~Response` + 错误包络（extern 返回 `{"error":{"code","message"}}`，handler 经 `resp_is_err`/`resp_err_message`/`resp_err_code` 转 `err_response`），坏 mode/workflow → 400、build/run 失败 → 500，与 hw 等价。
+
+6. **settings_link 不切换**（reqwest::blocking 无法转译）。
 
 ---
 
@@ -140,9 +148,38 @@ Plan 018 §11 完成了接线运行 ①-④（auth/specs/chats/workspace/config/
 
 ---
 
-## 5. 风险
+## 5. 风险（已消解）
 
-- 🔴 wire 形状回归（前端断）→ 契约测试金标准兜底
-- 🔴 类型擦除墙 → side-table 方案
-- 🟡 a2r 可能有新转译限制（DTO 修正后）→ 逐个处理，必要时开 auto-lang follow-up
-- 🟡 SSE 传输格式差异（axum::Sse 多 event: 行）→ 前端验证
+- 🔴 wire 形状回归（前端断）→ 契约测试金标准兜底 ✅（4 个回归点全部修复 + ag 流式测试断言 wire 形状）
+- 🔴 类型擦除墙 → side-table 方案 ✅
+- 🔴 流终止/挂死 → 实施时引入 tx 直传 + close_channel + .at break（测试断言流可终止）
+- 🟡 a2r 转译限制（DTO 修正后）→ 发现"tag 变体字段级 serde 属性"不支持，改命名绕行；`break`/`~Response` 均验证可转译
+- 🟡 SSE 传输格式差异（axum::Sse 多 event: 行）→ Phase 0a 根因修复（sse_event 去 `.event(name)`）✅
+
+---
+
+## 6. 后续修复方向（§6.1 已闭环；§6.2/6.3 登记备忘）
+
+以下 3 条为切换后暴露的限制，均已在 `KNOWN-DEBT-AND-RISKS.md` 🟢 已知限制表登记。
+
+### 6.1 ✅ 已闭环：ag 流式 handler 即时错误 → 400（2026-08-06）
+
+- **现状（已修复）**：`run_stream_handler`/`workflow_run_stream` 现在在 `mpsc_channel()` **之前**前置 `mode_exists` / `workflow_exists` 校验（与 hw `run_stream_handler` 的 "Resolve the mode up front so we can fail fast"、`workflow_run_stream` 的 `require_builtin` 前置一致）。坏 mode / 坏 workflow → `err_response(msg, 400u)`（400 JSON），不再提交 SSE 后才发 error 帧。
+- **实现**：
+  - `extern_sigs.at` + `extern_impl.rs` 加 `mode_exists(name @str)` / `workflow_exists(name @str)`（成功返回 `Value::Null`，失败返回 `{"error":{"code":400,"message":...}}`，复用 `resp_is_err`/`resp_err_*` helper）。
+  - `server_stream.at` 的两个流式 handler 在 `mpsc_channel()` 前调校验，失败 `return err_response(...)`。重新转译零 drift。
+- **验收**：契约测试 `ag_run_stream_bad_mode_returns_400` + `ag_workflow_run_stream_invalid_workflow_returns_400`（断言 400 JSON + error 字段，与 hw 等价）。全量 226 lib 测试全绿。
+
+### 6.2 登记备忘：conversation_stream 的 broadcast Receiver 连接泄漏
+
+- **现状**：`conversations_subscribe` 把 `broadcast::Receiver` 存 side-table（Value 存 i64 id），`broadcast_recv` 每次收事件 remove + re-insert、Closed 时不再 re-insert（条目回收）。但**客户端断开时**（非 channel 关闭），SSE 流 future 被 axum drop，`broadcast_recv` 卡在 `rx.recv().await` 的 future 也随之 drop → owned `rx` 析构。残留的是"被 remove 但卡在 future 里"的 receiver，随 future drop 回收。实际泄漏面：断开瞬间到 future drop 之间的短暂存活 + 极端情况下 future 未及时 drop 的 receiver。事件量小、每连接开销 ~百字节，活跃 watcher 数有限，影响可接受。
+- **修复方向**（低优先级，建议在有明确内存压力或活跃连接规模上升时处理）：
+  1. extern 返回一个带 Drop 清理的作用域句柄（句柄析构时移除条目），前提是句柄被 .at 流持有；
+  2. 将来 a2r 支持流式资源守卫（连接断开感知）；
+  3. 接受现状并记录。
+- **优先级**：低。
+
+### 6.3 登记备忘：mpsc channel 缓冲 64 条丢帧（与 hw 等价，非缺陷）
+
+- **现状**：`mpsc_channel` 缓冲 64 条（`extern_impl.rs:1537` `tokio::sync::mpsc::channel::<Value>(64)`），流建立前爆发超过 64 事件时 `try_send` 静默丢帧。**与 hw 完全等价**（hw 三个 handler 同样 `mpsc::channel::<Value>(64)` + `try_send`，`server.rs:367/618/904`），非缺陷、无需修复，仅登记备忘。
+- **如未来增强**：增大缓冲或 `try_send` 失败降级 `send`（阻塞）——但会偏离 hw 语义，不建议。

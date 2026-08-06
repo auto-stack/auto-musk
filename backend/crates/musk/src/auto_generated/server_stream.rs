@@ -19,7 +19,13 @@ use crate::tools::{ReadFile, WriteFile, RunCommand};
 /// 之前判为 🔴 的 6 个 daemon/SSE handler，经 Plan 380 P1-dyn(Arc<dyn T>) +
 /// Plan 321(async_stream ~Stream+yield) 后重新评估为可移植。本文件移植它们。
 /// 
-/// 流式 handler 的 dyn Fn 闭包 → named sink struct（Arc<dyn StreamSink>，P1-dyn）。
+/// Plan 019 Phase 2-4:流式 handler 的 mpsc channel 由 extern side-table
+/// 持有,handler 直接传递 tx 句柄给 extern(不再经 named sink struct 中转,
+/// 便于 extern 在 run 结束后关闭 channel 让 SSE 流自然终止)。所有 SSE 流的
+/// while 循环在 channel 关闭(None)时 break——与 hw 的
+/// `while let Some(v) = rx.recv().await` 终止语义一致(前端靠 onerror 收尾)。
+/// run/workflow_run 两个非流式 handler 改用 ~Response + 错误包络(经
+/// resp_is_err/resp_err_message/resp_err_code),补齐 hw 的 400/500 状态码。
 /// json!() 宏 → DTO。impl IntoResponse → concrete Response/Result。
 #[derive(Debug, Deserialize)]
 pub struct WorkflowRunRequest {
@@ -33,7 +39,8 @@ pub struct WorkflowRunResponse {
     pub outputs: HashMap<String, String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum WorkflowEventDto {
     StepStart { step_id: String, role: String, input: String },
     StepDone { step_id: String, output: String },
@@ -42,22 +49,24 @@ pub enum WorkflowEventDto {
 }
 
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum SseEventDto {
     Delta { text: String },
-    ToolStart { tool: String, args: String },
-    Tool { tool: String, args: String, result: String },
+    Thinking { thinking: String },
+    ToolCall { id: Option<String>, name: String, arguments: Value },
+    ToolResult { id: Option<String>, name: String, arguments: Value, result: String, status: String },
     Warning { text: String },
     Done { output: String, turns: i32, tool_calls: Vec<ToolCallOut> },
-    Cancelled,
+    Cancelled { output: String, turns: i32, tool_calls: Vec<ToolCallOut> },
     Error { message: String },
 }
 
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ToolCallOut {
-    pub tool: String,
-    pub args: Value,
+    pub name: String,
+    pub arguments: Value,
     pub result: String,
 }
 
@@ -84,17 +93,25 @@ fn workflow_event_to_dto(ev: Option<Value>) -> WorkflowEventDto {
     return workflow_event_map(ev);
 }
 
-pub async fn workflow_run(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<WorkflowRunRequest>) -> Json<WorkflowRunResponse> {
+pub async fn workflow_run(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<WorkflowRunRequest>) -> Response {
     let resp = wf_run(&s, q, body).await;
-    return Json(resp);
+    if resp_is_err(&resp) {
+        return err_response(resp_err_message(&resp), resp_err_code(&resp));
+    }
+    return ok_response(resp);
 }
 
-async fn workflow_run_stream(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<WorkflowRunRequest>) -> Response {
+pub async fn workflow_run_stream(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<WorkflowRunRequest>) -> Response {
+
+
+    let check = workflow_exists(&body.workflow);
+    if resp_is_err(&check) {
+        return err_response(resp_err_message(&check), resp_err_code(&check));
+    }
     let ch = mpsc_channel();
     let tx = mpsc_sender(&ch);
     let rx = mpsc_receiver(&ch);
-    let sink = WorkflowStreamSink { tx: tx };
-    wf_run_with_progress(&s, q, body, Arc::new(sink)).await;
+    wf_run_with_progress(&s, q, body, tx).await;
     let stream = workflow_sse_stream(rx.clone());
     let mut sse = Sse::new(stream);
     return sse.keep_alive(KeepAlive::new()).into_response();
@@ -106,6 +123,7 @@ fn workflow_sse_stream(rx: Value) -> impl futures::Stream<Item = Result<Event, I
         if msg_is_none(&msg) {
             
 
+            break;
         } else {
             let dto = workflow_event_to_dto(msg.clone());
             let event = sse_event("workflow", to_value(dto).unwrap());
@@ -115,29 +133,19 @@ fn workflow_sse_stream(rx: Value) -> impl futures::Stream<Item = Result<Event, I
     }
 } } }
 
-trait StreamSink {
-    fn on_event(&self, ev: Option<Value>);
-}
+pub async fn run_stream_handler(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<RunRequest>) -> Response {
 
 
-#[derive(Clone, Debug, PartialEq)]
-struct WorkflowStreamSink {
-    pub tx: Value,
-}
 
-impl StreamSink for WorkflowStreamSink {
-    fn on_event(&self, ev: Option<Value>) {
-        let dto = workflow_event_to_dto(ev.clone());
-        mpsc_try_send(&self.tx, to_value(dto).unwrap());
+    let mode_name = body.mode.clone().unwrap_or("superpowers".to_string());
+    let check = mode_exists(&mode_name);
+    if resp_is_err(&check) {
+        return err_response(resp_err_message(&check), resp_err_code(&check));
     }
-}
-
-async fn run_stream_handler(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<RunRequest>) -> Response {
     let ch = mpsc_channel();
     let tx = mpsc_sender(&ch);
     let rx = mpsc_receiver(&ch);
-    let sink = RunStreamSink { tx: tx };
-    agent_run_stream(&s, q, body, Arc::new(sink)).await;
+    agent_run_stream(&s, q, body, tx).await;
     let stream = run_sse_stream(rx.clone());
     let mut sse = Sse::new(stream);
     return sse.keep_alive(KeepAlive::new()).into_response();
@@ -149,6 +157,7 @@ fn run_sse_stream(rx: Value) -> impl futures::Stream<Item = Result<Event, Infall
         if msg_is_none(&msg) {
             
 
+            break;
         } else {
             let dto = stream_event_to_dto(msg.clone());
             let event = sse_event("run", to_value(dto).unwrap());
@@ -157,18 +166,6 @@ fn run_sse_stream(rx: Value) -> impl futures::Stream<Item = Result<Event, Infall
 
     }
 } } }
-
-#[derive(Clone, Debug, PartialEq)]
-struct RunStreamSink {
-    pub tx: Value,
-}
-
-impl StreamSink for RunStreamSink {
-    fn on_event(&self, ev: Option<Value>) {
-        let dto = stream_event_to_dto(ev.clone());
-        mpsc_try_send(&self.tx, to_value(dto).unwrap());
-    }
-}
 
 fn stream_event_to_dto(ev: Option<Value>) -> SseEventDto {
     return stream_event_map(ev);
@@ -180,7 +177,7 @@ pub struct RunRequest {
     pub mode: Option<String>,
 }
 
-async fn conversation_stream(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuery>) -> Response {
+pub async fn conversation_stream(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuery>) -> Response {
     let rx = conversations_subscribe(&s, q);
     let id = path_inner(&p);
     let stream = conv_event_stream(rx, id);
@@ -194,6 +191,7 @@ fn conv_event_stream(rx: Value, id: String) -> impl futures::Stream<Item = Resul
         if msg_is_none(&msg) {
             
 
+            break;
         } else {
             let ev = msg_unwrap(msg);
             if conv_event_matches(&ev, &id) {
@@ -208,13 +206,16 @@ fn conv_event_stream(rx: Value, id: String) -> impl futures::Stream<Item = Resul
 #[derive(Debug, Serialize)]
 pub struct ConvEventDto {
     pub conversation_id: String,
-    pub turn: Option<String>,
+    pub turn: Option<Value>,
     pub status: Option<String>,
 }
 
-pub async fn run(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<RunRequest>) -> Json<RunResponse> {
+pub async fn run(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<RunRequest>) -> Response {
     let resp = agent_run(&s, q, body).await;
-    return Json(resp);
+    if resp_is_err(&resp) {
+        return err_response(resp_err_message(&resp), resp_err_code(&resp));
+    }
+    return ok_response(resp);
 }
 
 #[derive(Debug, Serialize)]
@@ -224,12 +225,11 @@ pub struct RunResponse {
     pub tool_calls: Vec<ToolCallOut>,
 }
 
-async fn chat_stream(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuery>) -> Response {
+pub async fn chat_stream(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuery>) -> Response {
     let ch = mpsc_channel();
     let tx = mpsc_sender(&ch);
     let rx = mpsc_receiver(&ch);
-    let sink = ChatStreamSink { tx: tx };
-    chat_run_stream(&s, q, p, Arc::new(sink)).await;
+    chat_run_stream(&s, q, p, tx).await;
     let stream = chat_sse_stream(rx.clone());
     let mut sse = Sse::new(stream);
     return sse.keep_alive(KeepAlive::new()).into_response();
@@ -241,6 +241,7 @@ fn chat_sse_stream(rx: Value) -> impl futures::Stream<Item = Result<Event, Infal
         if msg_is_none(&msg) {
             
 
+            break;
         } else {
             let dto = stream_event_to_dto(msg.clone());
             let event = sse_event("chat", to_value(dto).unwrap());
@@ -249,15 +250,3 @@ fn chat_sse_stream(rx: Value) -> impl futures::Stream<Item = Result<Event, Infal
 
     }
 } } }
-
-#[derive(Clone, Debug, PartialEq)]
-struct ChatStreamSink {
-    pub tx: Value,
-}
-
-impl StreamSink for ChatStreamSink {
-    fn on_event(&self, ev: Option<Value>) {
-        let dto = stream_event_to_dto(ev.clone());
-        mpsc_try_send(&self.tx, to_value(dto).unwrap());
-    }
-}
