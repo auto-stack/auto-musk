@@ -157,6 +157,12 @@ fn validate_path(path: &str) -> Result<(), (StatusCode, String)> {
     Ok(())
 }
 
+/// `pub(crate)`: 供 a2r `extern_impl`(wiki_raw_file / raw_upload)复用同一套
+/// 路径校验 + MIME 判定,避免复制两份语义。
+pub(crate) fn validate_path_pub(path: &str) -> Result<(), (StatusCode, String)> {
+    validate_path(path)
+}
+
 // ─── Wiki Store ──────────────────────────────────────────────────────────────
 
 /// Single-project wiki store. `wiki_dir` holds page `.md` files + a
@@ -383,8 +389,8 @@ fn walk_md_files(root: &std::path::Path, prefix: &str) -> Result<Vec<String>, St
 
 // ─── MIME Helper ─────────────────────────────────────────────────────────────
 
-fn guess_mime(path: &std::path::Path) -> &'static str {
-    match path.extension().and_then(|e| e.to_str()) {
+/// `pub(crate)`: 供 a2r `extern_impl` 的 raw_file 复用 MIME 判定。
+pub(crate) fn guess_mime(path: &std::path::Path) -> &'static str {    match path.extension().and_then(|e| e.to_str()) {
         Some("md") => "text/markdown",
         Some("txt") => "text/plain",
         Some("pdf") => "application/pdf",

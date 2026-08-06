@@ -1,6 +1,6 @@
 # 020 — 全后端 Auto 化：Relay/Forge + TaskPlan + Wiki + settings_link 接入 Auto 驱动
 
-> **状态**：🔨 实施中（2026-08-06 启动；Phase A/B/C 已闭环，Phase D/E/F 待续）。
+> **状态**：✅ 完成（2026-08-06 启动；Phase A/B/C/D/E/F 全闭环）。
 > **前置**：Plan 018（已归档，parity 全闭环）+ Plan 019（已归档，6 个 🔴 流式/daemon handler 接线）。
 > **仓库**：auto-musk（`backend/crates/musk/`）+ auto-lang（a2r 转译器，构建 `auto.exe`）。
 > **目标**：把**剩余未 Auto 化**的后端子系统（Relay/Forge 编排、TaskPlan、Wiki、settings_link）全部移植到 Auto(.at)，经 a2r 生成 Rust 编译运行；serve() 所有业务端点切到 ag handler；Auto 版行为与手写 Rust 原版一致（parity + HTTP 等价测试）。
@@ -16,10 +16,24 @@
 | **Phase B1** | `task_plan_engine.at` 全移植（类型 + 迭代 DFS topological_order + execute 全 Auto 化，executor 用 pub spec TaskPlanExecutor trait） | `685e49a` | parity_task_plan_engine 6 项绿（serial/parallel/failure/input_from 端到端） |
 | **Phase B2** | `task_plan_parser.at` + `task_plan_registry.at` 移植；**修 task_plan.at 既有 parity 漏洞**（require_string_prop 缺失/类型错应报错而非返回 ""） | `eaf5f81` | parity_task_plan_parser_registry 9 项绿；既有 parity_task_plan 17 项保持 |
 | **Phase C** | `wiki.at` WRITE 路径补全（create/update/delete/save_manifest）；嵌套臂内 guard 死锁 → cache_insert 独立锁 helper | `d0849fc` | parity_wiki_write 5 项绿；既有 parity_wiki 11 项保持 |
+| **Phase D1** | `relay_api.at` 全移植：13 个 relay handler（list/start/get/delete/title/advance/handoff/gate/rerun/events-SSE/professions/souls/flows）+ 6 个 task_plan handler（list/get/create/delete/start/events-SSE）+ 2 router | ⏳ 本次 | parity_relay_api 4 项绿（hw vs ag 双 router 对照：状态码 + wire 形状；含 SSE content-type、400/404 文本 body、multipart 无） |
+| **Phase D2** | `wiki.at` HTTP 层补全：12 个 handler（tree/raw_tree/pages/page CRUD/search/upload/file/delete/mkdir）+ `wiki_routes()` router；tree 构建走 .at 内 build_tree + strip_md_extensions | ⏳ 本次 | parity_wiki_http 3 项绿（wiki CRUD + raw 文件系统 + multipart upload 逐键等价；modified mtime 分歧已在 parity_wiki 文档化） |
+| **Phase E** | `settings_link` Auto 化：`server_stream.at` 加 settings_link handler（~Response + 错误包络）；extern `settings_link_do` 封装 reqwest::blocking（spawn_blocking + Client.post + json 解析） | ⏳ 本次 | parity_settings_link 1 项绿（shape 契约：200↔running+url / 500↔error+message） |
+| **Phase F** | serve() 接线：relay/task_plan/wiki 合并 + settings_link 路由全切 ag handler；hw settings_link 删除；`wf_run`/`wf_run_with_progress`/`workflow_exists` extern 从委托 hw feature_dev 改调 ag 版（引擎全链路 Auto）；生产 router 组合测试同步 | ⏳ 本次 | 全量 403 测试绿（24 个测试二进制 0 失败）；4 个改动模块 re-transpile 零 drift |
 
-**累计**：26 个新 parity 测试全绿，全量 394 测试无回归；6 个 .at 模块 re-transpile 零 drift。
+**累计**：403 测试全绿（lib 228 + 集成 175）；6 个 .at 模块改动 re-transpile 零 drift。
 
-**已习得 a2r 约束**（跨模块通用）：
+**Phase D/E/F 新习得 a2r 约束**（在既有清单基础上追加）：
+- `~Response` 需 `use.rust axum::response::Response` 才会发射具体 `Response` 类型；缺省时 a2r 发射 `impl Response`（axum 不接受，编译失败）。
+- a2r 对 Json body 的 Option 字段 `is body.field` match 不自动 clone（跨 Deref move E0507）——需显式 `.clone()`。
+- `text_response` 参数：a2r 对字符串字面拼接注入 `.as_str()`，对 fn 调用返回 String 直接传值 → extern 用 `impl Into<String>` 兼容两类调用点。
+- a2r `use.rust` 不支持 `as` 别名；`std::path::Path` 与 `axum::extract::Path` 重名时需在数据层放弃 `std::path::Path` 导入（该类型未被使用）。
+- spec trait 无 supertrait 语法（无法声明 Send+Sync）→ `Arc<dyn TaskPlanExecutor>` 非 Send，不能直接 tokio::spawn；用独立线程 + current-thread runtime block_on（future 不跨线程）。
+- hw relay/api.rs 的 400/404 是**纯文本 body**（`(StatusCode, String)`），ag 需 `text_response` 而非 `err_response`（JSON）。
+- `relay_store.at` StartRunRequest.steps 缺 `#[serde(default)]`（hw 有）→ 缺省请求体 422；补 default 对齐。
+- 服务真实环境有用户 config.at 的 daemon_url 优先于 `AAID_URL` → settings_link 测试用 shape 契约而非精确 URL。
+
+**既有 a2r 约束清单**（Phase A/B/C 习得，保持）：
 - Auto 关键字避让：`spec`/`dep`/`task`/`var` 不能作变量/参数名（字段名可）。
 - `is` 臂的 wildcard 绑定（`other ->`）只能用于表达式臂；block 臂内调用绑定值失败。
 - 嵌套在 is 臂内的 `is guard.get` 不发射 `drop(guard)` → 同 Mutex 二次 lock 死锁（抽独立锁作用域 helper）。
@@ -28,7 +42,7 @@
 - `~Result<T, str>` 返回 → 自动 async fn；对 `~Result` 局部 fn 调用自动加 `.await`（勿手写双 await）；spec trait 方法调用需手写 `.await`。
 - a2r 类型表把 auto-ai-agent 枚举建模为 tuple 变体，运行时 rust-ref 是 struct 变体 → nativeize 模式重写（(3b) AdvanceResult）。
 
-**待续**：Phase D（Relay/Wiki HTTP 层 .at 移植）、Phase E（settings_link）、Phase F（serve() 接线 + 全量验收）。
+**残留 hw（本计划范围外，同 Plan 019 理由）**：静态文件服务 / CORS / TcpListener / `axum::serve` 外壳、`workspace_file`（纯文件 I/O 服务端点）。serve() 业务端点 100% 由 ag handler 服务。
 
 ---
 

@@ -126,28 +126,31 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
     // Plan 019:6 个 🔴 daemon/SSE handler 全部切到 ag server_stream
     // (Phase 1c 非流式 run/workflow_run + Phase 2-4 流式 run_stream/
     // workflow_run_stream/chat_stream/conversation_stream,均经 extern_impl
-    // 真实委托)。仅剩 settings_link + workspace_file + relay/task_plan/
-    // wiki 合并 + 静态文件/CORS/serve 层由这里的手写外壳补充。
+    // 真实委托)。
+    // Plan 020 Phase F:settings_link + relay/task_plan/wiki 合并全部切到 ag
+    // handler(auto_generated::server_stream / relay_api / wiki)。唯一残留 hw:
+    // workspace_file(纯文件 I/O 服务端点)+ 静态文件/CORS/serve 外壳。
     let app = crate::auto_generated::server::build_router()
         // daemon/SSE handlers — all served by transpiled server_stream handlers.
         .route("/api/run", post(crate::auto_generated::server_stream::run))
         .route("/api/run/stream", post(crate::auto_generated::server_stream::run_stream_handler))
         .route("/api/workflow/run", post(crate::auto_generated::server_stream::workflow_run))
         .route("/api/workflow/run/stream", post(crate::auto_generated::server_stream::workflow_run_stream))
-        .route("/api/settings-link", post(settings_link))
+        // settings_link(Plan 020 Phase E):ag server_stream handler + extern
+        // settings_link_do(reqwest::blocking 封装)。
+        .route("/api/settings-link", post(crate::auto_generated::server_stream::settings_link))
         .route("/api/chats/session/{id}/stream", get(crate::auto_generated::server_stream::chat_stream))
         .route("/api/conversations/{id}/stream", get(crate::auto_generated::server_stream::conversation_stream))
         // Workspace file serving (for display_image tool): serves any file
         // inside a workspace's root so generated artifacts (e.g. PNG charts)
         // can be rendered inline in the chat via a URL.
         .route("/api/files/{workspace_id}/{*path}", get(workspace_file))
-        // Relay (Flows) orchestration engine (P2a + P2b.1): runs/flows/professions
-        // + the pipeline state machine. Full background driver arrives in P2b.2.
-        .merge(crate::relay::api::relay_routes())
-        // TaskPlan orchestration (Plan 009 P2b.7): multi-relay DAG plans.
-        .merge(crate::relay::api::task_plan_routes())
-        // Wiki knowledge base (Phase 4): markdown pages + raw resource tree.
-        .merge(crate::wiki::wiki_routes())
+        // Relay (Flows) orchestration engine — ag relay_api handlers(Plan 020 Phase D)。
+        .merge(crate::auto_generated::relay_api::relay_routes())
+        // TaskPlan orchestration (Plan 009 P2b.7) — ag relay_api handlers。
+        .merge(crate::auto_generated::relay_api::task_plan_routes())
+        // Wiki knowledge base (Phase 4) — ag wiki handlers(Plan 020 Phase D)。
+        .merge(crate::auto_generated::wiki::wiki_routes())
         // Serve config-page.js + any other static assets at the root.
         .fallback_service(static_service)
         .layer(cors)
@@ -190,56 +193,9 @@ pub struct LoginResponse {
 // Per the unified-Harness design, app config is "how this app runs", not
 // "which capabilities it inherits".
 
-use crate::app_config::{musk_config_path, HarnessSelection, MuskAppConfig};
-/// `POST /api/settings-link` — proxy to aaid's service registry to ensure
-/// auto-os-config is running, then return its URL. The frontend uses this to
-/// implement the "Open System Settings" deep-link (musk → aaid → os-config).
-async fn settings_link() -> axum::response::Response {
-    let cfg = crate::app_config::MuskAppConfig::load();
-    let daemon_url = cfg.effective_daemon_url();
-    let ensure_url = format!("{}/v1/services/os-config/ensure", daemon_url);
-
-    let result = tokio::task::spawn_blocking(move || {
-        let client = reqwest::blocking::Client::builder()
-            .timeout(std::time::Duration::from_secs(20))
-            .build()
-            .map_err(|e| format!("http client: {e}"))?;
-        client
-            .post(&ensure_url)
-            .send()
-            .map_err(|e| format!("aaid unreachable: {e}"))?
-            .json::<serde_json::Value>()
-            .map_err(|e| format!("parse aaid response: {e}"))
-    })
-    .await;
-
-    match result {
-        Ok(Ok(val)) => {
-            let status = val.get("status").and_then(|s| s.as_str()).unwrap_or("error");
-            let url = val.get("url").and_then(|u| u.as_str()).unwrap_or("");
-            if status == "running" && !url.is_empty() {
-                Json(json!({"status": "running", "url": url})).into_response()
-            } else {
-                let err = val.get("error").and_then(|e| e.as_str()).unwrap_or("unknown");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"status": "error", "error": err})),
-                )
-                    .into_response()
-            }
-        }
-        Ok(Err(e)) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"status": "error", "error": e})),
-        )
-            .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"status": "error", "error": format!("internal: {e}")})),
-        )
-            .into_response(),
-    }
-}
+// NOTE: `POST /api/settings-link`(Plan 020 Phase E)已 Auto 化 —— 由
+// auto_generated::server_stream::settings_link 服务(extern settings_link_do
+// 封装 reqwest::blocking),serve() 路由已切换;原手写 handler 已删除。
 
 /// `POST /api/run` request body.
 #[derive(Debug, Deserialize)]
@@ -1801,13 +1757,15 @@ mod tests {
             .route("/api/run/stream", axum::routing::post(ag::run_stream_handler))
             .route("/api/workflow/run", axum::routing::post(ag::workflow_run))
             .route("/api/workflow/run/stream", axum::routing::post(ag::workflow_run_stream))
-            .route("/api/settings-link", axum::routing::post(settings_link))
+            .route("/api/settings-link", axum::routing::post(ag::settings_link))
             .route("/api/chats/session/{id}/stream", axum::routing::get(ag::chat_stream))
             .route("/api/conversations/{id}/stream", axum::routing::get(ag::conversation_stream))
             .route("/api/files/{workspace_id}/{*path}", axum::routing::get(workspace_file))
-            .merge(crate::relay::api::relay_routes())
-            .merge(crate::relay::api::task_plan_routes())
-            .merge(crate::wiki::wiki_routes())
+            // Plan 020 Phase F:relay/task_plan/wiki 合并全部切到 ag handler
+            // (与 serve() 一致)。
+            .merge(crate::auto_generated::relay_api::relay_routes())
+            .merge(crate::auto_generated::relay_api::task_plan_routes())
+            .merge(crate::auto_generated::wiki::wiki_routes())
             .with_state(tmp_state());
 
         // 转译端点由主 router 服务:health + workflows(ag workflows → 与 hw 同形状)。

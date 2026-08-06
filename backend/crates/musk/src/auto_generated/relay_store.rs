@@ -152,10 +152,12 @@ pub struct RunMetadata {
 }
 
 /// Request body for POST /api/forge/relay/runs.
+/// `steps` 带 #[serde(default)] 对齐 hw store.rs:212(缺省请求体可省略 steps)。
 #[derive(Clone, Debug, Deserialize)]
 pub struct StartRunRequest {
     pub run_id: Option<String>,
     pub flow_id: Option<String>,
+    #[serde(default)]
     pub steps: Vec<StartRunStep>,
     pub task: Option<String>,
 }

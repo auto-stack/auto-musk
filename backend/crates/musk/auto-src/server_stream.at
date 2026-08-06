@@ -287,3 +287,30 @@ fn chat_sse_stream(rx Value) ~Stream<Result<Event, Infallible>> {
 }
 
 
+
+// ============================================================
+// settings_link — Plan 020 Phase E Auto 化
+// POST /api/settings-link (hw server.rs:197)
+// ============================================================
+// 策略:handler 骨架在 .at(~Response + 错误包络);reqwest::blocking + spawn_blocking
+// 经 extern settings_link_do 封装(返回完整 Value:成功 {"status":"running",
+// "url":…},错误 {"status":"error","error":…})。200/500 状态码在 .at 侧决定。
+
+#[derive(Debug, Serialize)]
+pub type SettingsOkResp { status str, url str }
+
+#[derive(Debug, Serialize)]
+pub type SettingsErrResp { status str, error str }
+
+/// POST /api/settings-link — proxy to aaid's service registry to ensure
+/// auto-os-config is running, then return its URL。
+pub fn settings_link() ~Response {
+    let resp Value = settings_link_do().await
+    let status str = value_get_str(resp.view, "status")
+    if status == "running" {
+        let url str = value_get_str(resp.view, "url")
+        return ok_response(SettingsOkResp(status: status, url: url))
+    }
+    let err str = value_get_str(resp.view, "error")
+    return err_json_response(SettingsErrResp(status: status, error: err), 500)
+}

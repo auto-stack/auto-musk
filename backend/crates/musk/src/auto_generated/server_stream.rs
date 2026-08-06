@@ -253,3 +253,26 @@ fn chat_sse_stream(rx: Value) -> impl futures::Stream<Item = Result<Event, Infal
 
     }
 } } }
+
+#[derive(Debug, Serialize)]
+pub struct SettingsOkResp {
+    pub status: String,
+    pub url: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SettingsErrResp {
+    pub status: String,
+    pub error: String,
+}
+
+pub async fn settings_link() -> Response {
+    let resp: Value = settings_link_do().await;
+    let status: String = value_get_str(&resp, "status");
+    if status == "running" {
+        let url: String = value_get_str(&resp, "url");
+        return ok_response(SettingsOkResp { status: status.to_string(), url: url.to_string() });
+    }
+    let err: String = value_get_str(&resp, "error");
+    return err_json_response(SettingsErrResp { status: status.to_string(), error: err.to_string() }, 500);
+}

@@ -15,7 +15,9 @@
 /// - TreeNode size/modified: file 节点省略 metadata(见 build_tree 内注记)
 
 use.rust std::collections::HashMap
-use.rust std::path::{Path, PathBuf}
+// 仅 PathBuf(std::path::Path 与 axum::extract::Path 重名,a2r 不支持 use-as 别名,
+// 故不导入 std::path::Path —— 该类型未被数据层使用)。
+use.rust std::path::PathBuf
 use.rust std::sync::Mutex
 use.rust std::fs
 use.rust std::fs::DirEntry
@@ -603,3 +605,248 @@ pub fn strip_md_extensions(nodes List<TreeNode>) List<TreeNode> {
     }
     return result
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// HTTP 层(Plan 020 Phase D;对齐 hw wiki.rs 459-716 行)
+// ═══════════════════════════════════════════════════════════════════
+//
+// 策略(018/019 已固化):handler 全部 Auto(extractor + ~Response + 错误包络);
+// ws.wiki 访问 / fs 副作用 / Multipart 经 extern 委托。树构建走 .at 内的
+// build_tree + strip_md_extensions(hw 语义已由 parity_wiki 验证)。
+// 错误响应与 hw 逐字对齐:validate_path 失败 → text "Invalid path" 400;
+// create 冲突 → text 409;update/delete 缺失 → text 404;raw 内部错 → text 500。
+// 204 成功响应(hw `StatusCode::NO_CONTENT`)→ empty_response。
+
+use.rust axum::Router
+use.rust axum::routing::{get, post, put, delete}
+use.rust axum::extract::{Query, Path, State, Multipart, DefaultBodyLimit}
+use.rust axum::Json
+use.rust axum::response::Response
+use.rust serde_json::Value
+use.rust crate::server::AppState
+
+#[derive(Debug, Deserialize)]
+pub type WorkspaceQuery { workspace Option<str> }
+
+// ─── API DTOs(对齐 hw wiki.rs 408-457) ─────────────────────────────────────
+
+#[derive(Serialize)]
+pub type WikiListResponse { pages List<Value> }
+
+#[derive(Serialize)]
+pub type WikiPageResponse { page Value }
+
+#[derive(Deserialize)]
+pub type CreatePageRequest {
+    slug str
+    title str
+    content str
+    #[serde(default)]
+    source_type WikiSource
+    #[serde(default)]
+    tags List<str>
+}
+
+#[derive(Deserialize)]
+pub type UpdatePageRequest {
+    content str
+    title Option<str>
+    tags Option<List<str>>
+}
+
+#[derive(Deserialize)]
+pub type SearchRequest { query str }
+
+#[derive(Serialize)]
+pub type SearchResponse { results List<Value> }
+
+#[derive(Deserialize)]
+pub type MkdirRequest { path str }
+
+#[derive(Deserialize)]
+pub type UploadQuery {
+    #[serde(default)]
+    prefix str
+    #[serde(default)]
+    workspace Option<str>
+}
+
+// ─── Path validation(hw validate_path:拒绝 .. / 绝对路径) ─────────────────
+
+/// hw validate_path 的等价 bool 版:true = 非法路径。
+fn path_invalid(path str) bool {
+    if path.contains("..") {
+        return true
+    }
+    if path.starts_with("/") {
+        return true
+    }
+    if path.starts_with("\\") {
+        return true
+    }
+    return false
+}
+
+// ─── Wiki handlers ─────────────────────────────────────────────────────────
+
+/// GET /api/forge/wiki/{project}/tree — wiki 页面目录树(去 .md 后缀)。
+pub fn wiki_tree(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Response {
+    let wiki_dir PathBuf = ws_wiki_dir(s.view, q)
+    let tree List<TreeNode> = build_tree(wiki_dir, "")
+    let stripped List<TreeNode> = strip_md_extensions(tree)
+    return ok_response(stripped)
+}
+
+/// GET /api/forge/raw/{project}/tree — raw 资源目录树(真实文件名)。
+pub fn raw_tree(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Response {
+    let raw_dir PathBuf = ws_raw_dir(s.view, q)
+    let _ = fs.create_dir_all(raw_dir.clone())
+    let tree List<TreeNode> = build_tree(raw_dir, "")
+    return ok_response(tree)
+}
+
+/// GET /api/forge/wiki/{project}/pages — list all page metadata。
+pub fn list_pages(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Response {
+    let resp Value = ws_wiki_list(s.view, q)
+    return ok_response(resp)
+}
+
+/// GET /api/forge/wiki/{project}/page/{*slug} — read a single page。
+pub fn get_page(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, str)>) ~Response {
+    let slug str = path_second(p.view)
+    if path_invalid(slug.view) {
+        return text_response("Invalid path", 400)
+    }
+    let page Value = ws_wiki_get(s.view, q, slug.view)
+    if value_is_null(page.view) {
+        return empty_response(404)
+    }
+    return ok_response(WikiPageResponse(page: page))
+}
+
+/// POST /api/forge/wiki/{project}/pages — create a new page。
+pub fn create_page(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<CreatePageRequest>) ~Response {
+    let slug str = body.slug.clone()
+    if path_invalid(slug.view) {
+        return text_response("Invalid path", 400)
+    }
+    let resp Value = ws_wiki_create(s.view, q, body)
+    if resp_is_err(resp.view) {
+        return text_response(resp_err_message(resp.view), resp_err_code(resp.view))
+    }
+    return ok_response(WikiPageResponse(page: resp))
+}
+
+/// PUT /api/forge/wiki/{project}/page/{*slug} — update page content/meta。
+pub fn update_page(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, str)>, body Json<UpdatePageRequest>) ~Response {
+    let slug str = path_second(p.view)
+    if path_invalid(slug.view) {
+        return text_response("Invalid path", 400)
+    }
+    let title Option<str> = body.title.clone()
+    let tags Option<List<str>> = body.tags.clone()
+    let resp Value = ws_wiki_update(s.view, q, slug.view, body.content.view, title, tags)
+    if resp_is_err(resp.view) {
+        return text_response(resp_err_message(resp.view), resp_err_code(resp.view))
+    }
+    return ok_response(WikiPageResponse(page: resp))
+}
+
+/// DELETE /api/forge/wiki/{project}/page/{*slug} — delete a page。
+pub fn delete_page(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, str)>) ~Response {
+    let slug str = path_second(p.view)
+    if path_invalid(slug.view) {
+        return text_response("Invalid path", 400)
+    }
+    let resp Value = ws_wiki_delete(s.view, q, slug.view)
+    if resp_is_err(resp.view) {
+        return text_response(resp_err_message(resp.view), resp_err_code(resp.view))
+    }
+    return empty_response(204)
+}
+
+/// POST /api/forge/wiki/{project}/search — full-text search across pages。
+pub fn search(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<SearchRequest>) ~Response {
+    let resp Value = ws_wiki_search(s.view, q, body.query.view)
+    return ok_response(resp)
+}
+
+// ─── Raw handlers ──────────────────────────────────────────────────────────
+
+/// POST /api/forge/raw/{project}/upload?prefix= — multipart upload。
+pub fn raw_upload(s State<AppState>, p Path<str>, q Query<UploadQuery>, m Multipart) ~Response {
+    let prefix str = q.prefix.clone()
+    if prefix.len() > 0u {
+        if path_invalid(prefix.view) {
+            return text_response("Invalid path", 400)
+        }
+    }
+    let resp Value = wiki_raw_upload(s.view, q, prefix.view, m).await
+    if resp_is_err(resp.view) {
+        return text_response(resp_err_message(resp.view), resp_err_code(resp.view))
+    }
+    return ok_response(resp)
+}
+
+/// GET /api/forge/raw/{project}/file/{*path} — serve a raw file by path。
+/// extern 直接构造 Response(文件字节 + Content-Type;404 空响应)。
+pub fn raw_file(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, str)>) ~Response {
+    let path str = path_second(p.view)
+    if path_invalid(path.view) {
+        return text_response("Invalid path", 400)
+    }
+    return wiki_raw_file(s.view, q, path.view)
+}
+
+/// DELETE /api/forge/raw/{project}/file/{*path} — delete a raw file or folder。
+pub fn raw_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<(str, str)>) ~Response {
+    let path str = path_second(p.view)
+    if path_invalid(path.view) {
+        return text_response("Invalid path", 400)
+    }
+    let resp Value = wiki_raw_delete(s.view, q, path.view)
+    if resp_is_err(resp.view) {
+        return text_response(resp_err_message(resp.view), resp_err_code(resp.view))
+    }
+    return empty_response(204)
+}
+
+/// POST /api/forge/raw/{project}/mkdir — create a folder (recursively)。
+pub fn raw_mkdir(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<MkdirRequest>) ~Response {
+    let req_path str = body.path.clone()
+    if path_invalid(req_path.view) {
+        return text_response("Invalid path", 400)
+    }
+    let resp Value = wiki_raw_mkdir(s.view, q, req_path.view)
+    if resp_is_err(resp.view) {
+        return text_response(resp_err_message(resp.view), resp_err_code(resp.view))
+    }
+    return empty_response(204)
+}
+
+// ─── Router ────────────────────────────────────────────────────────────────
+
+/// All wiki/raw routes。Routes use the full `/api/forge/...` paths the frontend
+/// 
+/// (useWiki.ts) hardcodes, so this is `.merge`-ed into the main router without
+/// any prefix(与 hw wiki.rs wiki_routes 完全一致)。
+pub fn wiki_routes() Router<AppState> {
+    var app = Router.new()
+    app = app.route("/api/forge/wiki/{project}/tree", get(wiki_tree))
+    app = app.route("/api/forge/wiki/{project}/pages", get(list_pages).post(create_page))
+    app = app.route("/api/forge/wiki/{project}/search", post(search))
+    app = app.route("/api/forge/wiki/{project}/page/{*slug}", get(get_page).put(update_page).delete(delete_page))
+    app = app.route("/api/forge/raw/{project}/tree", get(raw_tree))
+    app = app.route("/api/forge/raw/{project}/upload", post(raw_upload).layer(DefaultBodyLimit.max(52428800)))
+    app = app.route("/api/forge/raw/{project}/mkdir", post(raw_mkdir))
+    app = app.route("/api/forge/raw/{project}/file/{*path}", get(raw_file).delete(raw_delete))
+    return app
+}
+
+// NOTE: 以下均为 extern(真实实现在 auto_generated::extern_impl + hw wiki.rs):
+// ws_wiki_dir / ws_raw_dir / ws_wiki_list / ws_wiki_get / ws_wiki_create /
+// ws_wiki_update / ws_wiki_delete / ws_wiki_search / wiki_raw_upload /
+// wiki_raw_file / wiki_raw_delete / wiki_raw_mkdir / path_second /
+// ok_response / text_response / empty_response / resp_is_err /
+// resp_err_message / resp_err_code / value_is_null。
+// `let _ = fs.create_dir_all(...)` 的 Result 丢弃在 .at 内直译(hw 同款)。

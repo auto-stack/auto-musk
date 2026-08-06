@@ -1,12 +1,41 @@
-/// relay_api.at — ported from backend/crates/musk/src/relay/api.rs (DTO layer).
+/// relay_api.at — ported from backend/crates/musk/src/relay/api.rs (full HTTP layer,
+/// Plan 020 Phase D: 13 relay + 6 task_plan handlers + 2 routers)。
 ///
-/// Relay REST API DTOs. Strategy (plan 014 mixed):
-/// - 5 DTO structs (L34-86) -> Auto (pure Deserialize data)
-/// - bus() (OnceLock + broadcast) + publish() + all handlers (async + extractor
-///   + impl Trait Sse) + relay_routes() -> hand-written Rust (a2r blind spots)
-
+/// Strategy (plan 014 mixed + 019 SSE precedent):
+/// - 全部 handler -> Auto(State/Query/Path/Json extractor + ~Response + 错误包络)。
+/// - Store/registry/driver/bus 访问 -> extern 委托(018/019 已固化的模式):
+///   ws.relay / ws.task_plans / ProfessionRegistry::load / builtin_flows 由 extern
+///   封装返回序列化 Value;成功/404/400 状态码在 .at 侧决定(hw 等价)。
+/// - run_events / task_plan_events SSE -> 019 server_stream 同 recipe:
+///   extern 订阅 bus(RelaySub 持有 Receiver + run_id 过滤),.at ~Stream 循环
+///   recv + sse_named_event(带 event 名,对齐 hw `.event(...)`)。
+/// - advance_run / resolve_gate 的 tokio::spawn(drive_run) -> extern
+///   (Arc + spawn 是 a2r 盲区;spawn 后返回当前 snapshot,与 hw 语义一致)。
+/// - start_task_plan_run 的 engine + spawn -> extern(Arc<dyn TaskPlanExecutor>
+///   闭包适配 hw drive_task_plan_run 是 a2r 盲区)。
+///
+/// a2r 习得沿用:
+/// - extern 的 @T/@str 参数调用点不写 .view(自动注入 &);本地 fn 的 str 参数
+///   生成 &str,跨模块调用需 .view。
+/// - is 臂 block 内绑定 Some(v) 可用;Auto 关键字避让(spec/dep/task/var)。
+use.rust axum::Router
+use.rust axum::routing::{get, post, delete, put, patch}
+use.rust axum::extract::{Query, Path, State}
+use.rust axum::Json
+use.rust axum::response::Response
+use.rust axum::response::IntoResponse
+use.rust axum::response::sse::{Event, KeepAlive, Sse}
+use.rust std::convert::Infallible
 use.rust serde::{Serialize, Deserialize}
 use.rust serde_json::Value
+use.rust serde_json::to_value
+use.rust crate::server::AppState
+// StartRunRequest/StartRunStep 跨模块复用(relay_store.at 已有同 wire 类型)。
+use.rust crate::auto_generated::relay_store::StartRunRequest
+
+// ============================================================
+// DTOs
+// ============================================================
 
 /// An event on the relay broadcast bus (the SSE payload).
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -21,6 +50,7 @@ pub type BusEvent {
 #[derive(Debug, Deserialize)]
 pub type ResolveGateBody {
     decision str
+    #[serde(default)]
     feedback Option<str>
 }
 
@@ -39,9 +69,317 @@ pub type ListRunsQuery {
     project_path Option<str>
 }
 
-// NOTE: bus() (static BUS: OnceLock<broadcast::Sender<BusEvent>>) + publish()/
-// publish_internal() + publish_advance_result() (match上游 AdvanceResult) +
-// all handlers (list_runs/start_run/get_run/delete_run/update_title/advance_run/
-// submit_handoff/resolve_gate/rerun_run/list_professions/list_souls/list_flows,
-// 全是 async fn + State/Path/Query/Json extractor + impl IntoResponse/Sse) +
-// relay_routes() (axum Router 装配) stay hand-written in relay/api.rs.
+#[derive(Debug, Deserialize)]
+pub type CreateTaskPlanBody {
+    atom str
+}
+
+#[derive(Debug, Deserialize)]
+pub type StartTaskPlanRunBody {
+    initial_input str
+}
+
+#[derive(Debug, Deserialize)]
+pub type WorkspaceQuery { workspace Option<str> }
+
+// ─── Response DTOs ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub type DeletedResp { status str, id str }
+
+#[derive(Debug, Serialize)]
+pub type SoulsResp { souls List<Value> }
+
+#[derive(Debug, Serialize)]
+pub type RegisteredResp { task_plan_registered bool, id str, phase_count uint, run_count uint }
+
+#[derive(Debug, Serialize)]
+pub type StartedResp { instance_id str, task_plan_id str, status str }
+
+#[derive(Debug, Serialize)]
+pub type DeletedPlanResp { deleted str }
+
+/// SSE 单帧 payload — run_events 的 `{"event_type", "payload"}` 包装
+/// (hw json! 逐键等价;run_id 由订阅端过滤,不进 wire)。
+#[derive(Debug, Serialize)]
+pub type RunEventFrame { event_type str, payload Value }
+
+// ============================================================
+// SSE stream helpers (019 recipe: extern 订阅 + .at 循环)
+// ============================================================
+
+/// GET /api/forge/relay/runs/{run_id}/events — SSE 流(run 事件,按 run_id 过滤)。
+pub fn run_events(p Path<str>) ~Response {
+    let run_id str = path_inner(p.view)
+    let sub = relay_bus_subscribe(run_id.view)
+    let stream = run_events_stream(sub)
+    var sse = Sse.new(stream)
+    return sse.keep_alive(KeepAlive.new()).into_response()
+}
+
+fn run_events_stream(sub RelaySub) ~Stream<Result<Event, Infallible>> {
+    while true {
+        let msg = relay_sub_recv(sub.view).await
+        if msg_is_none(msg.view) {
+            // bus 已关闭 → 流终止(hw BroadcastStream Closed 语义)
+            break
+        } else {
+            let ev = msg_unwrap(msg)
+            let ev_type str = value_get_str(ev.view, "event_type")
+            let payload Value = value_get(ev.view, "payload")
+            let frame = RunEventFrame(event_type: ev_type, payload: payload)
+            let event = sse_named_event("run_event", to_value(frame).unwrap())
+            yield Ok(event)
+        }
+    }
+}
+
+// ============================================================
+// Relay handlers
+// ============================================================
+
+/// GET /api/forge/relay/runs — list all runs (newest first)。
+/// useRelay.loadRuns 容忍 {runs:[...]} 或裸数组;extern 返回 {runs:[...]} 包装体。
+pub fn list_runs(s State<AppState>, q Query<WorkspaceQuery>) ~Response {
+    let runs Value = relay_runs_list(s.view, q)
+    return ok_response(runs)
+}
+
+/// POST /api/forge/relay/runs — start a run(extern 内部 start_run + 合成
+/// relay_update 广播,返回 {run_id, state})。
+pub fn start_run(s State<AppState>, q Query<WorkspaceQuery>, body Json<StartRunRequest>) ~Response {
+    let resp Value = relay_start_run(s.view, q, body)
+    return ok_response(resp)
+}
+
+/// GET /api/forge/relay/runs/{run_id} — detailed run state。
+pub fn get_run(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Response {
+    let run_id str = path_inner(p.view)
+    let state Value = relay_run_get(s.view, q, run_id.view)
+    if value_is_null(state.view) {
+        return text_response("run '" + run_id + "' not found", 404)
+    }
+    return ok_response(state)
+}
+
+/// DELETE /api/forge/relay/runs/{run_id} — delete a run。
+pub fn delete_run(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Response {
+    let run_id str = path_inner(p.view)
+    if relay_run_delete(s.view, q, run_id.view) {
+        return ok_response(DeletedResp(status: "deleted", id: run_id))
+    }
+    return text_response("run '" + run_id + "' not found", 404)
+}
+
+/// PATCH /api/forge/relay/runs/{run_id}/title — rename a run。
+pub fn update_title(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>, body Json<UpdateTitleBody>) ~Response {
+    let run_id str = path_inner(p.view)
+    let state Value = relay_run_set_title(s.view, q, run_id.view, body.title.view)
+    if value_is_null(state.view) {
+        return text_response("run '" + run_id + "' not found", 404)
+    }
+    return ok_response(state)
+}
+
+/// POST /api/forge/relay/runs/{run_id}/advance — kick off the background driver。
+/// 已 running 的 run 是 no-op(直接返回 snapshot);extern 负责 is_running 检查
+/// + tokio::spawn(drive_run),返回当前 run state。
+pub fn advance_run(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Response {
+    let run_id str = path_inner(p.view)
+    let state Value = relay_run_advance(s.view, q, run_id.view)
+    if value_is_null(state.view) {
+        return text_response("run '" + run_id + "' not found", 404)
+    }
+    return ok_response(state)
+}
+
+/// POST /api/forge/relay/runs/{run_id}/handoff — submit a handoff directly。
+/// extern 解析 HandoffDocument(400 invalid handoff,纯文本 hw 等价) + submit +
+/// publish_advance_result。
+pub fn submit_handoff(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>, body Json<SubmitHandoffBody>) ~Response {
+    let run_id str = path_inner(p.view)
+    let resp Value = relay_submit_handoff(s.view, q, run_id.view, body.handoff.view)
+    if resp_is_err(resp.view) {
+        return text_response(resp_err_message(resp.view), resp_err_code(resp.view))
+    }
+    if value_is_null(resp.view) {
+        return text_response("run '" + run_id + "' not found", 404)
+    }
+    return ok_response(resp)
+}
+
+/// POST /api/forge/relay/runs/{run_id}/gate — resolve a pending gate。
+/// 决策字符串合法性在 .at 校验(hw 400 等价);extern 负责 resolve + publish +
+/// ExecuteStep 时 resume driver。
+pub fn resolve_gate(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>, body Json<ResolveGateBody>) ~Response {
+    let run_id str = path_inner(p.view)
+    let decision str = body.decision.clone()
+    if decision != "approve" {
+        if decision != "edit" {
+            if decision != "reject" {
+                return text_response("unknown gate decision '" + decision + "' (want approve|reject|edit)", 400)
+            }
+        }
+    }
+    var feedback str = ""
+    // 显式 .clone():a2r 对 Json body 的 Option 字段 match 不自动加 clone(跨
+    // Deref move 会 E0507)。
+    is body.feedback.clone() {
+        Some(f) -> feedback = f,
+        None -> {}
+    }
+    let resp Value = relay_resolve_gate(s.view, q, run_id.view, decision.view, feedback.view)
+    if value_is_null(resp.view) {
+        return text_response("run '" + run_id + "' not found", 404)
+    }
+    return ok_response(resp)
+}
+
+/// POST /api/forge/relay/runs/{run_id}/rerun — rerun from the failed step。
+pub fn rerun_run(s State<AppState>, p Path<str>, q Query<WorkspaceQuery>) ~Response {
+    let run_id str = path_inner(p.view)
+    let state Value = relay_rerun(s.view, q, run_id.view)
+    if value_is_null(state.view) {
+        return text_response("run '" + run_id + "' not found", 404)
+    }
+    return ok_response(state)
+}
+
+/// GET /api/forge/relay/professions — list professions。
+pub fn list_professions() ~Response {
+    return ok_response(relay_professions_list())
+}
+
+/// GET /api/forge/relay/souls — list souls(empty in P2b.1;soul.rs comes later)。
+pub fn list_souls() ~Response {
+    var souls List<Value> = []
+    return ok_response(SoulsResp(souls: souls))
+}
+
+/// GET /api/forge/relay/flows — list built-in flows。
+pub fn list_flows() ~Response {
+    return ok_response(relay_flows_list())
+}
+
+// ============================================================
+// TaskPlan handlers (Plan 009 P2b.7)
+// ============================================================
+
+/// GET /api/forge/relay/task_plans — list all registered TaskPlans。
+pub fn list_task_plans(s State<AppState>, q Query<WorkspaceQuery>) ~Response {
+    let plans Value = relay_task_plans_list(s.view, q)
+    return ok_response(plans)
+}
+
+/// GET /api/forge/relay/task_plans/{id} — one TaskPlan detail。
+pub fn get_task_plan(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Response {
+    let plan_id str = path_inner(p.view)
+    let plan Value = relay_task_plan_get(s.view, q, plan_id.view)
+    if value_is_null(plan.view) {
+        return text_response("task_plan '" + plan_id + "' not found", 404)
+    }
+    return ok_response(plan)
+}
+
+/// POST /api/forge/relay/task_plans — register a TaskPlan from Atom source。
+/// extern 返回 {task_plan_registered,...} 或 {"error":{code:400,message}} 包络;
+/// 错误转纯文本 body(与 hw `format!("register failed: {e}")` 等价)。
+pub fn create_task_plan(s State<AppState>, q Query<WorkspaceQuery>, body Json<CreateTaskPlanBody>) ~Response {
+    let resp Value = relay_task_plan_register(s.view, q, body.atom.view)
+    if resp_is_err(resp.view) {
+        return text_response(resp_err_message(resp.view), resp_err_code(resp.view))
+    }
+    return ok_response(resp)
+}
+
+/// DELETE /api/forge/relay/task_plans/{id} — delete a user TaskPlan
+/// (built-ins cannot be removed → 400,hw 等价)。
+pub fn delete_task_plan(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Response {
+    let plan_id str = path_inner(p.view)
+    if relay_task_plan_delete(s.view, q, plan_id.view) {
+        return ok_response(DeletedPlanResp(deleted: plan_id))
+    }
+    return text_response("cannot remove '" + plan_id + "' (not found or built-in)", 400)
+}
+
+/// POST /api/forge/relay/task_plans/{id}/runs — start a TaskPlan instance。
+/// extern:registry get(404) + engine new/validate(400) + spawn(后台执行)。
+/// 400 转纯文本 body(与 hw `format!("plan invalid: {e}")` 等价)。
+pub fn start_task_plan_run(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<StartTaskPlanRunBody>) ~Response {
+    let plan_id str = path_inner(p.view)
+    let resp Value = relay_task_plan_start(s.view, q, plan_id.view, body.initial_input.view)
+    if resp_is_err(resp.view) {
+        return text_response(resp_err_message(resp.view), resp_err_code(resp.view))
+    }
+    if value_is_null(resp.view) {
+        return text_response("task_plan '" + plan_id + "' not found", 404)
+    }
+    return ok_response(resp)
+}
+
+/// GET /api/forge/relay/task_plans/{instance_id}/events — SSE stream of
+/// TaskPlan lifecycle events (reuses the run-event bus)。
+pub fn task_plan_events(p Path<str>) ~Response {
+    let instance_id str = path_inner(p.view)
+    let sub = relay_bus_subscribe(instance_id.view)
+    let stream = task_plan_events_stream(sub)
+    var sse = Sse.new(stream)
+    return sse.keep_alive(KeepAlive.new()).into_response()
+}
+
+fn task_plan_events_stream(sub RelaySub) ~Stream<Result<Event, Infallible>> {
+    while true {
+        let msg = relay_sub_recv(sub.view).await
+        if msg_is_none(msg.view) {
+            break
+        } else {
+            let ev = msg_unwrap(msg)
+            let ev_type str = value_get_str(ev.view, "event_type")
+            let payload Value = value_get(ev.view, "payload")
+            // hw: event 名 = event_type,data = 裸 payload(不包 event_type)。
+            let event = sse_named_event(ev_type.view, payload)
+            yield Ok(event)
+        }
+    }
+}
+
+// ============================================================
+// Routers — paths match useRelay.ts exactly;`.merge`-ed into the
+// main router without a prefix(与 hw relay/api.rs 完全一致)。
+// ============================================================
+
+pub fn relay_routes() Router<AppState> {
+    var app = Router.new()
+    app = app.route("/api/forge/relay/runs", get(list_runs).post(start_run))
+    app = app.route("/api/forge/relay/runs/{run_id}", get(get_run).delete(delete_run))
+    app = app.route("/api/forge/relay/runs/{run_id}/title", patch(update_title))
+    app = app.route("/api/forge/relay/runs/{run_id}/advance", post(advance_run))
+    app = app.route("/api/forge/relay/runs/{run_id}/rerun", post(rerun_run))
+    app = app.route("/api/forge/relay/runs/{run_id}/handoff", post(submit_handoff))
+    app = app.route("/api/forge/relay/runs/{run_id}/gate", post(resolve_gate))
+    app = app.route("/api/forge/relay/runs/{run_id}/events", get(run_events))
+    app = app.route("/api/forge/relay/professions", get(list_professions))
+    app = app.route("/api/forge/relay/souls", get(list_souls))
+    app = app.route("/api/forge/relay/flows", get(list_flows))
+    return app
+}
+
+pub fn task_plan_routes() Router<AppState> {
+    var app = Router.new()
+    app = app.route("/api/forge/relay/task_plans", get(list_task_plans).post(create_task_plan))
+    app = app.route("/api/forge/relay/task_plans/{id}", get(get_task_plan).delete(delete_task_plan))
+    app = app.route("/api/forge/relay/task_plans/{id}/runs", post(start_task_plan_run))
+    app = app.route("/api/forge/relay/task_plans/{instance_id}/events", get(task_plan_events))
+    return app
+}
+
+// NOTE: RelaySub(不透明 extern 类型,持有 broadcast Receiver + run_id 过滤)、
+// relay_bus_subscribe / relay_sub_recv / relay_runs_list / relay_start_run /
+// relay_run_get / relay_run_delete / relay_run_set_title / relay_run_advance /
+// relay_submit_handoff / relay_resolve_gate / relay_rerun / relay_professions_list /
+// relay_flows_list / relay_task_plans_list / relay_task_plan_get /
+// relay_task_plan_register / relay_task_plan_delete / relay_task_plan_start /
+// value_get / value_get_str / value_is_null / sse_named_event / text_response /
+// ok_response / err_response / resp_is_err / resp_err_code / resp_err_message /
+// path_inner / msg_is_none / msg_unwrap
+// 均为 extern(真实实现在 auto_generated::extern_impl + hw relay/api.rs)。

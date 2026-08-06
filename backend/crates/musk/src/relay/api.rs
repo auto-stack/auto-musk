@@ -32,16 +32,23 @@ use crate::workspace::WorkspaceQuery;
 // subscribers. Each event is tagged with its run_id so subscribers filter.
 
 #[derive(Clone)]
-struct BusEvent {
-    run_id: String,
-    event_type: String,
-    payload: serde_json::Value,
+pub(crate) struct BusEvent {
+    pub(crate) run_id: String,
+    pub(crate) event_type: String,
+    pub(crate) payload: serde_json::Value,
 }
 
 fn bus() -> &'static tokio::sync::broadcast::Sender<BusEvent> {
     static BUS: std::sync::OnceLock<tokio::sync::broadcast::Sender<BusEvent>> =
         std::sync::OnceLock::new();
     BUS.get_or_init(|| tokio::sync::broadcast::channel(256).0)
+}
+
+/// Accessor for the SSE bus — used by the a2r `extern_impl` glue
+/// (`relay_bus_subscribe` / `relay_sub_recv`) so the transpiled relay_api
+/// handlers subscribe to the same process-wide channel as `publish`.
+pub(crate) fn relay_bus() -> &'static tokio::sync::broadcast::Sender<BusEvent> {
+    bus()
 }
 
 fn publish_internal(run_id: &str, event: &RunEvent) {

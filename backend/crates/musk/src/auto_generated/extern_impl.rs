@@ -979,13 +979,14 @@ pub async fn wf_run(
     q: Query<StreamWorkspaceQuery>,
     b: Json<WorkflowRunRequest>,
 ) -> Value {
-    if let Err(e) = crate::relay::feature_dev::require_builtin(&b.workflow) {
+    if let Err(e) = crate::auto_generated::feature_dev::require_builtin(&b.workflow) {
         return serde_json::json!({"error": {"code": 400, "message": format!("invalid workflow '{}': {e}", b.workflow)}});
     }
     let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };
     let ws_id = hw_q.id_or_default(&s.0.registry);
     let ws = s.0.registry.get(&ws_id);
-    match crate::relay::feature_dev::run(&s.0, &ws, &b.task).await {
+    // Plan 020 Phase F:引擎切到 ag feature_dev(parity_feature_dev 端到端 9 项绿)。
+    match crate::auto_generated::feature_dev::run(s.0.clone(), ws.clone(), &b.task).await {
         Ok(r) => serde_json::to_value(WorkflowRunResponse {
             steps: r.steps,
             outputs: r.outputs,
@@ -1001,7 +1002,7 @@ pub async fn wf_run(
 /// 约定:校验通过返回 `Value::Null`(resp_is_err=false,非错误);失败返回
 /// `{"error":{"code":400,"message":...}}`(复用 resp_is_err/resp_err_* helper)。
 pub fn workflow_exists(name: &str) -> Value {
-    if let Err(e) = crate::relay::feature_dev::require_builtin(name) {
+    if let Err(e) = crate::auto_generated::feature_dev::require_builtin(name) {
         return serde_json::json!({"error": {"code": 400, "message": format!("invalid workflow '{}': {e}", name)}});
     }
     Value::Null
@@ -1013,16 +1014,17 @@ pub fn mode_exists(name: &str) -> Value {
     }
     Value::Null
 }
-/// Plan 019 Phase 3:workflow_run_stream 真实化 —— sink 桥接:把 hw 强类型
-/// WorkflowStreamEvent 序列化成 Value 喂给 mpsc(tx 句柄),run 结束关闭 channel
-/// 让 SSE 流终止。与 hw `workflow_run_stream`(server.rs:885)同路径。
+/// Plan 019 Phase 3:workflow_run_stream 真实化 —— sink 桥接:把 ag feature_dev
+/// 的 stream 事件喂给 mpsc(tx 句柄),run 结束关闭 channel 让 SSE 流终止。
+/// Plan 020 Phase F:引擎切到 ag feature_dev(run_with_emit 内部负责 tool-root
+/// 限定 + Finished 事件 + 清理,与 hw run_stream 同序)。
 pub async fn wf_run_with_progress(
     s: &State<AppState>,
     q: Query<StreamWorkspaceQuery>,
     b: Json<WorkflowRunRequest>,
     tx: Value,
 ) {
-    if let Err(e) = crate::relay::feature_dev::require_builtin(&b.workflow) {
+    if let Err(e) = crate::auto_generated::feature_dev::require_builtin(&b.workflow) {
         mpsc_try_send(&tx, serde_json::json!({"type":"error","message": format!("invalid workflow '{}': {e}", b.workflow)}));
         close_channel(&tx);
         return;
@@ -1034,19 +1036,14 @@ pub async fn wf_run_with_progress(
     let task = b.task.clone();
     let tx2 = tx.clone();
     tokio::spawn(async move {
-        crate::tool_safety::set_current_root(ws.root.clone());
-        let tx3 = tx2.clone();
-        let on_event: Arc<dyn Fn(crate::relay::feature_dev::WorkflowStreamEvent) + Send + Sync> =
-            Arc::new(move |ev| {
-                let v = serde_json::to_value(&ev).unwrap_or(Value::Null);
-                mpsc_try_send(&tx3, v);
-            });
+        // run_with_emit 内部 feature_dev_set_root(ag extern)→ 同 tool_safety 线程
+        // 局部;结束前 clear(与 hw drive_run 的 set/clear 对称)。
         if let Err(e) =
-            crate::relay::feature_dev::run_stream(&state, &ws, &task, on_event).await
+            crate::auto_generated::feature_dev::run_with_emit(state, ws, &task, tx2.clone()).await
         {
             tracing::error!("workflow stream failed: {e}");
         }
-        crate::tool_safety::clear_current_root();
+        // run 结束 → 关闭 channel,让 SSE 流侧 mpsc_recv 得 None → break 终止。
         close_channel(&tx2);
     });
 }
@@ -1768,4 +1765,680 @@ pub fn wiki_ensure_parent(path: std::path::PathBuf) {
 /// Plan 020 Phase C (wiki.at): 删除页面 .md 文件。
 pub fn wiki_delete_file(path: std::path::PathBuf) {
     let _ = std::fs::remove_file(path);
+}
+
+// ── Plan 020 Phase D: relay_api.at HTTP 层委托 ─────────────────────────────
+// relay 的 store/driver/bus 访问经 extern 委托到 hw(crate::relay::*);成功值
+// 返回序列化 Value,未找到返回 Value::Null,业务错误返回 {"error":{code,message}}
+// 包络(.at handler 经 resp_is_err / value_is_null 转 400/404)。
+
+/// 解析 ?workspace= 并取对应 workspace 的 stores(hw `q.id_or_default` 等价)。
+fn relay_ws(s: &State<AppState>, q: &Query<crate::auto_generated::relay_api::WorkspaceQuery>) -> Arc<WorkspaceStores> {
+    let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };
+    let ws_id = hw_q.id_or_default(&s.0.registry);
+    s.0.registry.get(&ws_id)
+}
+
+pub fn relay_runs_list(s: &State<AppState>, q: Query<crate::auto_generated::relay_api::WorkspaceQuery>) -> Value {
+    let ws = relay_ws(s, &q);
+    serde_json::json!({ "runs": ws.relay.list() })
+}
+
+pub fn relay_start_run(
+    s: &State<AppState>,
+    q: Query<crate::auto_generated::relay_api::WorkspaceQuery>,
+    b: Json<crate::auto_generated::relay_store::StartRunRequest>,
+) -> Value {
+    let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };
+    let ws_id = hw_q.id_or_default(&s.0.registry);
+    let ws = s.0.registry.get(&ws_id);
+    // ag StartRunRequest → hw StartRunRequest(字段一一映射;GateType 枚举互转)。
+    let hw_req = crate::relay::store::StartRunRequest {
+        run_id: b.0.run_id.clone(),
+        flow_id: b.0.flow_id.clone(),
+        steps: b
+            .0
+            .steps
+            .iter()
+            .map(|s| crate::relay::store::StartRunStep {
+                id: s.id.clone(),
+                role_id: s.role_id.clone(),
+                gate: s.gate.map(|g| match g {
+                    crate::auto_generated::relay_store::GateType::Auto => crate::relay::GateType::Auto,
+                    crate::auto_generated::relay_store::GateType::Human => crate::relay::GateType::Human,
+                }),
+            })
+            .collect(),
+        task: b.0.task.clone(),
+    };
+    let (run_id, run_state) = ws.relay.start_run(&hw_req, Some(ws_id.clone()));
+    // 合成 relay_update,让任何存活订阅者刷新(hw api.rs start_run 同款)。
+    crate::relay::api::publish(
+        &run_id,
+        &crate::relay::store::RunEvent::RelayUpdate {
+            timestamp: relay_now_secs(),
+            step_id: String::new(),
+            role_id: String::new(),
+            status: "idle".into(),
+        },
+    );
+    serde_json::json!({ "run_id": run_id, "state": run_state })
+}
+
+fn relay_now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+pub fn relay_run_get(s: &State<AppState>, q: Query<crate::auto_generated::relay_api::WorkspaceQuery>, r: &str) -> Value {
+    let ws = relay_ws(s, &q);
+    match ws.relay.get(r) {
+        Some(state) => serde_json::to_value(&state).unwrap_or(Value::Null),
+        None => Value::Null,
+    }
+}
+
+pub fn relay_run_delete(s: &State<AppState>, q: Query<crate::auto_generated::relay_api::WorkspaceQuery>, r: &str) -> bool {
+    relay_ws(s, &q).relay.delete(r)
+}
+
+pub fn relay_run_set_title(s: &State<AppState>, q: Query<crate::auto_generated::relay_api::WorkspaceQuery>, r: &str, t: &str) -> Value {
+    match relay_ws(s, &q).relay.set_title(r, t) {
+        Some(state) => serde_json::to_value(&state).unwrap_or(Value::Null),
+        None => Value::Null,
+    }
+}
+
+pub fn relay_run_advance(s: &State<AppState>, q: Query<crate::auto_generated::relay_api::WorkspaceQuery>, r: &str) -> Value {
+    let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };
+    let ws_id = hw_q.id_or_default(&s.0.registry);
+    let ws = s.0.registry.get(&ws_id);
+    // Guard:已 running 的 run 不启动第二个 driver(hw api.rs:191-196)。
+    if ws.relay.is_running(r) {
+        return match ws.relay.get(r) {
+            Some(sn) => serde_json::to_value(&sn).unwrap_or(Value::Null),
+            None => Value::Null,
+        };
+    }
+    // spawn 后台 driver(hw api.rs:199-203):推进 + 每步 agent 流式运行 +
+    // 停在 human gate / 终态。返回立即 snapshot。
+    let state_arc = Arc::new(s.0.clone());
+    let run_id_clone = r.to_string();
+    tokio::spawn(async move {
+        crate::relay::driver::drive_run(state_arc, ws_id, run_id_clone).await;
+    });
+    match ws.relay.get(r) {
+        Some(sn) => serde_json::to_value(&sn).unwrap_or(Value::Null),
+        None => Value::Null,
+    }
+}
+
+pub fn relay_submit_handoff(
+    s: &State<AppState>,
+    q: Query<crate::auto_generated::relay_api::WorkspaceQuery>,
+    r: &str,
+    h: &Value,
+) -> Value {
+    let handoff: crate::relay::HandoffDocument = match serde_json::from_value(h.clone()) {
+        Ok(hd) => hd,
+        Err(e) => {
+            return serde_json::json!({"error": {"code": 400, "message": format!("invalid handoff: {e}")}})
+        }
+    };
+    let ws = relay_ws(s, &q);
+    match ws.relay.submit_handoff(r, handoff) {
+        Some((result, state)) => {
+            crate::relay::api::publish_advance_result(r, &result);
+            serde_json::to_value(&state).unwrap_or(Value::Null)
+        }
+        None => Value::Null,
+    }
+}
+
+pub fn relay_resolve_gate(
+    s: &State<AppState>,
+    q: Query<crate::auto_generated::relay_api::WorkspaceQuery>,
+    r: &str,
+    d: &str,
+    f: &str,
+) -> Value {
+    let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };
+    let ws_id = hw_q.id_or_default(&s.0.registry);
+    let ws = s.0.registry.get(&ws_id);
+    // .at 侧已校验 decision ∈ {approve, edit, reject};此处只做映射 + reject 反馈。
+    let decision = match d {
+        "approve" | "edit" => crate::relay::GateDecision::Approve,
+        "reject" => crate::relay::GateDecision::Reject { feedback: f.to_string() },
+        _ => {
+            return serde_json::json!({"error": {"code": 400, "message": format!("unknown gate decision '{d}' (want approve|reject|edit)")}})
+        }
+    };
+    match ws.relay.resolve_gate(r, decision) {
+        Some((result, run_state)) => {
+            crate::relay::api::publish_advance_result(r, &result);
+            // ExecuteStep → resume 后台 driver(继续到下一 gate / 终态)。
+            if matches!(result, crate::relay::AdvanceResult::ExecuteStep { .. }) {
+                let state_arc = Arc::new(s.0.clone());
+                let run_id_clone = r.to_string();
+                tokio::spawn(async move {
+                    crate::relay::driver::drive_run(state_arc, ws_id, run_id_clone).await;
+                });
+            }
+            serde_json::to_value(&run_state).unwrap_or(Value::Null)
+        }
+        None => Value::Null,
+    }
+}
+
+pub fn relay_rerun(s: &State<AppState>, q: Query<crate::auto_generated::relay_api::WorkspaceQuery>, r: &str) -> Value {
+    match relay_ws(s, &q).relay.rerun(r) {
+        Some(state) => serde_json::to_value(&state).unwrap_or(Value::Null),
+        None => Value::Null,
+    }
+}
+
+pub fn relay_professions_list() -> Value {
+    let reg = crate::relay::profession::ProfessionRegistry::load();
+    serde_json::json!({ "professions": reg.list() })
+}
+
+pub fn relay_flows_list() -> Value {
+    let flows: Vec<serde_json::Value> = crate::relay::builtin_flows()
+        .into_iter()
+        .map(|f| {
+            serde_json::json!({
+                "id": f.id,
+                "steps": f.steps.iter().map(|s| {
+                    serde_json::json!({
+                        "id": s.id,
+                        "role_id": s.role_id,
+                        "gate": match s.gate {
+                            crate::relay::GateType::Auto => "auto",
+                            crate::relay::GateType::Human => "human",
+                        },
+                    })
+                }).collect::<Vec<_>>(),
+            })
+        })
+        .collect();
+    serde_json::json!({ "flows": flows })
+}
+
+// ── relay SSE bus (RelaySub) ────────────────────────────────────────────────
+// 与 BroadcastSub 同 pattern:rx 包进 Arc<Mutex<Option<Receiver>>>;stream drop
+// → Arc 归零 → rx 析构。relay_sub_recv 在 extern 内按 run_id 过滤(hw
+// BroadcastStream::filter_map 语义),Closed 返回 None 让 .at 的 break 终止流。
+
+pub struct RelaySub {
+    inner: Arc<Mutex<Option<tokio::sync::broadcast::Receiver<crate::relay::api::BusEvent>>>>,
+    run_id: String,
+}
+impl Clone for RelaySub {
+    fn clone(&self) -> Self {
+        RelaySub { inner: self.inner.clone(), run_id: self.run_id.clone() }
+    }
+}
+
+pub fn relay_bus_subscribe(run_id: &str) -> RelaySub {
+    let rx = crate::relay::api::relay_bus().subscribe();
+    RelaySub { inner: Arc::new(Mutex::new(Some(rx))), run_id: run_id.to_string() }
+}
+
+pub async fn relay_sub_recv(sub: &RelaySub) -> Option<Value> {
+    let mut rx = sub.inner.lock().unwrap().take()?;
+    loop {
+        match rx.recv().await {
+            Ok(ev) => {
+                if ev.run_id != sub.run_id {
+                    continue;
+                }
+                let value = serde_json::json!({
+                    "run_id": ev.run_id,
+                    "event_type": ev.event_type,
+                    "payload": ev.payload,
+                });
+                sub.inner.lock().unwrap().replace(rx);
+                return Some(value);
+            }
+            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+            // Closed:不 put 回(让 rx 析构);sub drop 时 Arc 归零回收。
+            Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
+        }
+    }
+}
+
+/// 带 event 名的 SSE 帧(hw relay api.rs 的 `.event(...)`)。run_events /
+/// task_plan_events 的 event 名供前端 EventSource addEventListener 路由。
+/// 与 server_stream 的 sse_event(无 event 名,019 根因修复后的 raw data 帧)
+/// 各司其职 —— hw relay 两个 SSE handler 确实带 event 名。
+pub fn sse_named_event(name: &str, dto: Value) -> Event {
+    Event::default().event(name).json_data(dto).unwrap_or_else(|_| Event::default())
+}
+
+// ── TaskPlan registry/engine HTTP 层委托 ───────────────────────────────────
+
+pub fn relay_task_plans_list(s: &State<AppState>, q: Query<crate::auto_generated::relay_api::WorkspaceQuery>) -> Value {
+    let ws = relay_ws(s, &q);
+    let summaries = ws.task_plans.lock().unwrap().list();
+    serde_json::json!({ "task_plans": summaries })
+}
+
+pub fn relay_task_plan_get(s: &State<AppState>, q: Query<crate::auto_generated::relay_api::WorkspaceQuery>, id: &str) -> Value {
+    let ws = relay_ws(s, &q);
+    let reg = ws.task_plans.lock().unwrap();
+    match reg.get(id) {
+        Some(plan) => serde_json::to_value(&plan).unwrap_or(Value::Null),
+        None => Value::Null,
+    }
+}
+
+pub fn relay_task_plan_register(s: &State<AppState>, q: Query<crate::auto_generated::relay_api::WorkspaceQuery>, atom: &str) -> Value {
+    let ws = relay_ws(s, &q);
+    let mut reg = ws.task_plans.lock().unwrap();
+    match reg.register(atom) {
+        Ok(plan) => {
+            let phase_count = plan.phases.len();
+            let run_count = plan.phases.iter().map(|p| p.runs.len()).sum::<usize>();
+            serde_json::json!({
+                "task_plan_registered": true,
+                "id": plan.id,
+                "phase_count": phase_count,
+                "run_count": run_count,
+            })
+        }
+        Err(e) => {
+            serde_json::json!({"error": {"code": 400, "message": format!("register failed: {e}")}})
+        }
+    }
+}
+
+pub fn relay_task_plan_delete(s: &State<AppState>, q: Query<crate::auto_generated::relay_api::WorkspaceQuery>, id: &str) -> bool {
+    let ws = relay_ws(s, &q);
+    let mut reg = ws.task_plans.lock().unwrap();
+    reg.remove(id).is_some()
+}
+
+/// 启动 TaskPlan 实例:registry get(404) → engine new/validate(400) →
+/// tokio::spawn 背景执行(DriveTaskPlanExecutor 桥接 hw drive_task_plan_run)。
+pub fn relay_task_plan_start(
+    s: &State<AppState>,
+    q: Query<crate::auto_generated::relay_api::WorkspaceQuery>,
+    id: &str,
+    input: &str,
+) -> Value {
+    let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };
+    let ws_id = hw_q.id_or_default(&s.0.registry);
+    let plan = {
+        let ws = s.0.registry.get(&ws_id);
+        let reg = ws.task_plans.lock().unwrap();
+        match reg.get(id) {
+            Some(p) => p,
+            None => return Value::Null,
+        }
+    };
+    // hw TaskPlan → ag TaskPlan(serde 往返;wire 一致已由 parity_task_plan 验证)。
+    let ag_plan: crate::auto_generated::task_plan::TaskPlan =
+        match serde_json::from_value(serde_json::to_value(&plan).unwrap_or(Value::Null)) {
+            Ok(p) => p,
+            Err(e) => {
+                return serde_json::json!({"error": {"code": 400, "message": format!("plan invalid: {e}")}})
+            }
+        };
+    let mut engine = crate::auto_generated::task_plan_engine::TaskPlanEngine::new(ag_plan, input);
+    if let Err(e) = engine.validate() {
+        return serde_json::json!({"error": {"code": 400, "message": format!("plan invalid: {e}")}});
+    }
+    let instance_id = engine.instance_id.clone();
+    let handoffs = s.0.registry.get(&ws_id).handoffs.clone();
+    let state_clone = s.0.clone();
+    // ag `TaskPlanExecutor` trait 无 Send+Sync bound(a2r spec 不支持 supertrait)
+    // → 生成的 execute future 非 Send,不能直接 tokio::spawn。改用独立线程 +
+    // current-thread runtime:future 在同一线程创建并 block_on,全程不跨线程,
+    // 闭包捕获的 engine/handoffs/state 均为 Send。行为与 hw 的 tokio::spawn
+    // 等价(后台执行,HTTP 立即返回)。
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(async move {
+            let ctx = crate::auto_generated::task_plan_engine::TaskPlanContext {
+                state: state_clone,
+                workspace_id: ws_id,
+            };
+            let executor = DriveTaskPlanExecutor { ctx: ctx.clone() };
+            // ag execute 按值收 HandoffStore(hw 是 &);clone 共享 data_dir,磁盘读取等价。
+            if let Err(e) = engine.execute((*handoffs).clone(), Arc::new(executor)).await {
+                tracing::error!("TaskPlan instance failed: {e}");
+            }
+        });
+    });
+    serde_json::json!({ "instance_id": instance_id, "task_plan_id": id, "status": "started" })
+}
+
+/// ag TaskPlanExecutor 适配器:把 hw `drive_task_plan_run(&ctx, req)` 包装成
+/// ag `TaskPlanExecutor::run`(hw start_task_plan_run 闭包 `|req|` 的等价)。
+struct DriveTaskPlanExecutor {
+    ctx: crate::auto_generated::task_plan_engine::TaskPlanContext,
+}
+
+#[async_trait::async_trait]
+impl crate::auto_generated::task_plan_engine::TaskPlanExecutor for DriveTaskPlanExecutor {
+    async fn run(
+        &self,
+        req: crate::auto_generated::task_plan_engine::RunRequest,
+    ) -> Result<crate::auto_generated::task_plan_engine::RunExecutionResult, String> {
+        // ag RunRequest → hw RunRequest(字段一一映射;ag 用 task_text,hw 用 task)。
+        let hw_ctx = crate::relay::task_plan_engine::TaskPlanContext {
+            state: self.ctx.state.clone(),
+            workspace_id: self.ctx.workspace_id.clone(),
+        };
+        let hw_req = crate::relay::task_plan_engine::RunRequest {
+            task_plan_id: req.task_plan_id,
+            phase_name: req.phase_name,
+            phase_index: req.phase_index as usize,
+            run_ref: to_hw_run_ref(&req.run_ref),
+            run_id: req.run_id,
+            parent_run_id: req.parent_run_id,
+            root_run_id: req.root_run_id,
+            task: req.task_text,
+            mode: to_hw_task_mode(req.mode),
+        };
+        match crate::relay::task_plan_engine::drive_task_plan_run(&hw_ctx, hw_req).await {
+            Ok(r) => Ok(crate::auto_generated::task_plan_engine::RunExecutionResult {
+                run_id: r.run_id,
+                status: r.status,
+                handoff: r.handoff,
+                error: r.error,
+            }),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+fn to_hw_run_ref(r: &crate::auto_generated::task_plan::RunRef) -> crate::relay::task_plan::RunRef {
+    crate::relay::task_plan::RunRef {
+        name: r.name.clone(),
+        flow_id: r.flow_id.clone(),
+        input: r.input.clone(),
+        input_from: r.input_from.clone(),
+        context: r.context.clone(),
+        mode_override: r.mode_override.map(to_hw_task_mode),
+    }
+}
+
+fn to_hw_task_mode(m: crate::auto_generated::task_plan::TaskMode) -> crate::relay::task_plan::TaskMode {
+    match m {
+        crate::auto_generated::task_plan::TaskMode::Gsd => crate::relay::task_plan::TaskMode::Gsd,
+        crate::auto_generated::task_plan::TaskMode::Check => crate::relay::task_plan::TaskMode::Check,
+    }
+}
+
+// ── Phase D 通用 helpers ────────────────────────────────────────────────────
+pub fn value_get(v: &Value, k: &str) -> Value {
+    v.get(k).cloned().unwrap_or(Value::Null)
+}
+pub fn value_is_null(v: &Value) -> bool {
+    v.is_null()
+}
+/// hw relay 404/400 的纯文本响应(`(StatusCode, String).into_response()`)。
+/// `impl Into<String>` 兼容两类调用点:a2r 对字符串字面拼接注入 `.as_str()`(传
+/// `&str`),对 fn 调用返回 String 直接传值。
+pub fn text_response(msg: impl Into<String>, code: u16) -> axum::response::Response {
+    let status = axum::http::StatusCode::from_u16(code)
+        .unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+    (status, msg.into()).into_response()
+}
+
+/// 无 body 的状态码响应(hw `StatusCode::NO_CONTENT` 等)。
+pub fn empty_response(code: u16) -> axum::response::Response {
+    axum::http::StatusCode::from_u16(code)
+        .unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+        .into_response()
+}
+
+// ── Plan 020 Phase D: wiki.at HTTP 层委托 ──────────────────────────────────
+// ws.wiki 访问经 extern 委托;成功值返回序列化 Value,未找到/错误返回
+// {"error":{code,message}} 包络(.at handler 转 text_response / empty_response)。
+// `load()` 折叠进各读/写 extern(hw 每个 handler 先 load 再操作,语义等价)。
+
+impl Default for crate::auto_generated::wiki::WikiSource {
+    /// 对齐 hw `impl Default for WikiSource { Custom }`(CreatePageRequest 的
+    /// `#[serde(default)] source_type` 需要;a2r 不 derive Default)。
+    fn default() -> Self {
+        crate::auto_generated::wiki::WikiSource::Custom
+    }
+}
+
+fn wiki_ws(s: &State<AppState>, q: &Query<crate::auto_generated::wiki::WorkspaceQuery>) -> Arc<WorkspaceStores> {
+    let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };
+    let ws_id = hw_q.id_or_default(&s.0.registry);
+    s.0.registry.get(&ws_id)
+}
+
+pub fn ws_wiki_dir(s: &State<AppState>, q: Query<crate::auto_generated::wiki::WorkspaceQuery>) -> std::path::PathBuf {
+    wiki_ws(s, &q).wiki.wiki_dir.clone()
+}
+pub fn ws_raw_dir(s: &State<AppState>, q: Query<crate::auto_generated::wiki::WorkspaceQuery>) -> std::path::PathBuf {
+    wiki_ws(s, &q).wiki.raw_dir.clone()
+}
+
+pub fn ws_wiki_list(s: &State<AppState>, q: Query<crate::auto_generated::wiki::WorkspaceQuery>) -> Value {
+    let ws = wiki_ws(s, &q);
+    ws.wiki.load();
+    serde_json::json!({ "pages": ws.wiki.list_pages() })
+}
+
+pub fn ws_wiki_get(s: &State<AppState>, q: Query<crate::auto_generated::wiki::WorkspaceQuery>, slug: &str) -> Value {
+    let ws = wiki_ws(s, &q);
+    ws.wiki.load();
+    match ws.wiki.get_page(slug) {
+        Some(page) => serde_json::to_value(&page).unwrap_or(Value::Null),
+        None => Value::Null,
+    }
+}
+
+pub fn ws_wiki_create(
+    s: &State<AppState>,
+    q: Query<crate::auto_generated::wiki::WorkspaceQuery>,
+    b: Json<crate::auto_generated::wiki::CreatePageRequest>,
+) -> Value {
+    let ws = wiki_ws(s, &q);
+    ws.wiki.load();
+    let page = crate::wiki::WikiPage {
+        slug: b.0.slug,
+        title: b.0.title,
+        content: b.0.content,
+        source_type: to_hw_wiki_source(b.0.source_type),
+        tags: b.0.tags,
+        version: 0,
+        created_at: 0,
+        updated_at: 0,
+    };
+    match ws.wiki.create_page(page) {
+        Ok(p) => serde_json::to_value(&p).unwrap_or(Value::Null),
+        Err(e) => serde_json::json!({"error": {"code": 409, "message": e}}),
+    }
+}
+
+pub fn ws_wiki_update(
+    s: &State<AppState>,
+    q: Query<crate::auto_generated::wiki::WorkspaceQuery>,
+    slug: &str,
+    content: &str,
+    title: Option<String>,
+    tags: Option<Vec<String>>,
+) -> Value {
+    let ws = wiki_ws(s, &q);
+    ws.wiki.load();
+    match ws.wiki.update_page(slug, content.to_string(), title, tags) {
+        Ok(p) => serde_json::to_value(&p).unwrap_or(Value::Null),
+        Err(e) => serde_json::json!({"error": {"code": 404, "message": e}}),
+    }
+}
+
+pub fn ws_wiki_delete(s: &State<AppState>, q: Query<crate::auto_generated::wiki::WorkspaceQuery>, slug: &str) -> Value {
+    let ws = wiki_ws(s, &q);
+    ws.wiki.load();
+    match ws.wiki.delete_page(slug) {
+        Ok(()) => Value::Null,
+        Err(e) => serde_json::json!({"error": {"code": 404, "message": e}}),
+    }
+}
+
+pub fn ws_wiki_search(s: &State<AppState>, q: Query<crate::auto_generated::wiki::WorkspaceQuery>, query: &str) -> Value {
+    let ws = wiki_ws(s, &q);
+    ws.wiki.load();
+    serde_json::json!({ "results": ws.wiki.search(query) })
+}
+
+/// raw_upload:Multipart 透传(hw raw_upload 逐字段处理)。
+pub async fn wiki_raw_upload(
+    s: &State<AppState>,
+    q: Query<crate::auto_generated::wiki::UploadQuery>,
+    prefix: &str,
+    mut multipart: axum::extract::Multipart,
+) -> Value {
+    // hw:workspace query(默认 default workspace)+ raw_dir。
+    let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };
+    let ws_id = hw_q.id_or_default(&s.0.registry);
+    let raw_dir = s.0.registry.get(&ws_id).wiki.raw_dir.clone();
+
+    let mut uploaded: Vec<String> = Vec::new();
+    loop {
+        let next = multipart.next_field().await;
+        match next {
+            Ok(Some(field)) => {
+                let filename = field.file_name().unwrap_or("unnamed").to_string();
+                if crate::wiki::validate_path_pub(&filename).is_err() {
+                    return serde_json::json!({"error": {"code": 400, "message": "Invalid path"}});
+                }
+                let data = match field.bytes().await {
+                    Ok(d) => d,
+                    Err(e) => {
+                        return serde_json::json!({"error": {"code": 400, "message": e.to_string()}})
+                    }
+                };
+                let target_dir = if prefix.is_empty() {
+                    raw_dir.clone()
+                } else {
+                    raw_dir.join(prefix)
+                };
+                let _ = std::fs::create_dir_all(&target_dir);
+                let file_path = target_dir.join(&filename);
+                if let Err(e) = std::fs::write(&file_path, &data) {
+                    return serde_json::json!({"error": {"code": 500, "message": e.to_string()}});
+                }
+                let relative = if prefix.is_empty() {
+                    filename.clone()
+                } else {
+                    format!("{}/{}", prefix, filename)
+                };
+                uploaded.push(relative);
+            }
+            Ok(None) => break,
+            Err(e) => {
+                return serde_json::json!({"error": {"code": 400, "message": e.to_string()}})
+            }
+        }
+    }
+    serde_json::json!({ "uploaded": uploaded })
+}
+
+/// raw_file:直接构造 `(Content-Type, bytes)` 响应(hw raw_file 同款)。
+pub fn wiki_raw_file(s: &State<AppState>, q: Query<crate::auto_generated::wiki::WorkspaceQuery>, path: &str) -> axum::response::Response {
+    let ws = wiki_ws(s, &q);
+    let file_path = ws.wiki.raw_dir.join(path);
+    let data = match std::fs::read(&file_path) {
+        Ok(d) => d,
+        Err(_) => return axum::http::StatusCode::NOT_FOUND.into_response(),
+    };
+    let mime = crate::wiki::guess_mime(&file_path);
+    ([(axum::http::header::CONTENT_TYPE, mime)], data).into_response()
+}
+
+pub fn wiki_raw_delete(s: &State<AppState>, q: Query<crate::auto_generated::wiki::WorkspaceQuery>, path: &str) -> Value {
+    let ws = wiki_ws(s, &q);
+    let file_path = ws.wiki.raw_dir.join(path);
+    if !file_path.exists() {
+        return serde_json::json!({"error": {"code": 404, "message": "Not found"}});
+    }
+    let res = if file_path.is_dir() {
+        std::fs::remove_dir_all(&file_path)
+    } else {
+        std::fs::remove_file(&file_path)
+    };
+    match res {
+        Ok(_) => Value::Null,
+        Err(e) => serde_json::json!({"error": {"code": 500, "message": e.to_string()}}),
+    }
+}
+
+pub fn wiki_raw_mkdir(s: &State<AppState>, q: Query<crate::auto_generated::wiki::WorkspaceQuery>, path: &str) -> Value {
+    let ws = wiki_ws(s, &q);
+    let target = ws.wiki.raw_dir.join(path);
+    match std::fs::create_dir_all(&target) {
+        Ok(_) => Value::Null,
+        Err(e) => serde_json::json!({"error": {"code": 500, "message": e.to_string()}}),
+    }
+}
+
+/// Path<(String, String)> 的第二段(hw `Path((_project, slug))` 的 slug)。
+pub fn path_second(p: &Path<(String, String)>) -> String {
+    p.0 .1.clone()
+}
+
+fn to_hw_wiki_source(s: crate::auto_generated::wiki::WikiSource) -> crate::wiki::WikiSource {
+    match s {
+        crate::auto_generated::wiki::WikiSource::Manual => crate::wiki::WikiSource::Manual,
+        crate::auto_generated::wiki::WikiSource::Guide => crate::wiki::WikiSource::Guide,
+        crate::auto_generated::wiki::WikiSource::ApiRef => crate::wiki::WikiSource::ApiRef,
+        crate::auto_generated::wiki::WikiSource::Custom => crate::wiki::WikiSource::Custom,
+    }
+}
+
+// ── Plan 020 Phase E: settings_link Auto 化 ────────────────────────────────
+// reqwest::blocking + spawn_blocking 封装(hw server.rs settings_link 同路径)。
+// 返回完整 Value:.at handler 依 status 字段决定 200/500。
+
+pub async fn settings_link_do() -> Value {
+    let cfg = crate::app_config::MuskAppConfig::load();
+    let daemon_url = cfg.effective_daemon_url();
+    let ensure_url = format!("{}/v1/services/os-config/ensure", daemon_url);
+
+    let result = tokio::task::spawn_blocking(move || {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(20))
+            .build()
+            .map_err(|e| format!("http client: {e}"))?;
+        client
+            .post(&ensure_url)
+            .send()
+            .map_err(|e| format!("aaid unreachable: {e}"))?
+            .json::<serde_json::Value>()
+            .map_err(|e| format!("parse aaid response: {e}"))
+    })
+    .await;
+
+    match result {
+        Ok(Ok(val)) => {
+            let status = val.get("status").and_then(|s| s.as_str()).unwrap_or("error");
+            let url = val.get("url").and_then(|u| u.as_str()).unwrap_or("");
+            if status == "running" && !url.is_empty() {
+                serde_json::json!({ "status": "running", "url": url })
+            } else {
+                let err = val.get("error").and_then(|e| e.as_str()).unwrap_or("unknown");
+                serde_json::json!({ "status": "error", "error": err })
+            }
+        }
+        Ok(Err(e)) => serde_json::json!({ "status": "error", "error": e }),
+        Err(e) => serde_json::json!({ "status": "error", "error": format!("internal: {e}") }),
+    }
+}
+
+/// hw `(StatusCode, Json({...}))` 的 JSON 错误响应(settings_link 的
+/// `{"status":"error","error":…}` 形状;区别于 ApiError 的 err_response)。
+pub fn err_json_response<T: serde::Serialize>(v: T, code: u16) -> axum::response::Response {
+    let status = axum::http::StatusCode::from_u16(code)
+        .unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+    (status, axum::Json(v)).into_response()
 }

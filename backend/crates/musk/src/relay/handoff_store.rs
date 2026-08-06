@@ -26,6 +26,15 @@ pub struct HandoffStore {
     cache: std::sync::Mutex<HashMap<(String, String, String), HandoffDocument>>,
 }
 
+impl Clone for HandoffStore {
+    fn clone(&self) -> Self {
+        HandoffStore {
+            data_dir: self.data_dir.clone(),
+            cache: std::sync::Mutex::new(self.cache.lock().unwrap().clone()),
+        }
+    }
+}
+
 impl HandoffStore {
     /// Create a store rooted at the workspace data directory (e.g. `<root>/.autoos`).
     pub fn new(data_dir: impl Into<PathBuf>) -> Self {

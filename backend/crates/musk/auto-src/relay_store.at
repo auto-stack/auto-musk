@@ -146,10 +146,12 @@ pub type RunMetadata {
 }
 
 /// Request body for POST /api/forge/relay/runs.
+/// `steps` 带 #[serde(default)] 对齐 hw store.rs:212(缺省请求体可省略 steps)。
 #[derive(Clone, Debug, Deserialize)]
 pub type StartRunRequest {
     run_id Option<str>
     flow_id Option<str>
+    #[serde(default)]
     steps List<StartRunStep>
     task Option<str>
 }

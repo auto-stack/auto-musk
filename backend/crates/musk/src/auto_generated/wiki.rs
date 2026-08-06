@@ -4,7 +4,7 @@ use super::extern_impl::*;
 // a2r Standard Library (from crate)
 #[allow(unused_imports)]
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::fs;
 use std::fs::DirEntry;
@@ -12,6 +12,13 @@ use serde::{Serialize, Deserialize};
 use serde_json::{to_string_pretty, from_str};
 use serde_json::Value;
 use std::time::{SystemTime, Duration};
+use axum::Router;
+use axum::routing::{get, post, put, delete};
+use axum::extract::{Query, Path, State, Multipart, DefaultBodyLimit};
+use axum::Json;
+use axum::response::Response;
+
+use crate::server::AppState;
 /// wiki.at — Wiki Knowledge Layer 数据层 + 纯 CRUD (Plan 018 Phase 3 试点)。
 /// 
 /// Ported from backend/crates/musk/src/wiki.rs, flattened to the portable
@@ -545,4 +552,207 @@ pub fn strip_md_extensions(nodes: Vec<TreeNode>) -> Vec<TreeNode> {
         result.push(TreeNode { name: name.to_string(), path: path.to_string(), node_type: node.node_type.clone().to_string(), children: children, size: node.size, modified: node.modified });
     }
     return result;
+}
+
+/// 递归去掉 .md 扩展名 — 构建新列表(避免 a2r-11 可变借用遍历)。
+#[derive(Debug, Deserialize)]
+pub struct WorkspaceQuery {
+    pub workspace: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct WikiListResponse {
+    pub pages: Vec<Value>,
+}
+
+#[derive(Serialize)]
+pub struct WikiPageResponse {
+    pub page: Value,
+}
+
+#[derive(Deserialize)]
+pub struct CreatePageRequest {
+    pub slug: String,
+    pub title: String,
+    pub content: String,
+    #[serde(default)]
+    pub source_type: WikiSource,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+#[derive(Deserialize)]
+pub struct UpdatePageRequest {
+    pub content: String,
+    pub title: Option<String>,
+    pub tags: Option<Vec<String>>,
+}
+
+#[derive(Deserialize)]
+pub struct SearchRequest {
+    pub query: String,
+}
+
+#[derive(Serialize)]
+pub struct SearchResponse {
+    pub results: Vec<Value>,
+}
+
+#[derive(Deserialize)]
+pub struct MkdirRequest {
+    pub path: String,
+}
+
+#[derive(Deserialize)]
+pub struct UploadQuery {
+    #[serde(default)]
+    pub prefix: String,
+    #[serde(default)]
+    pub workspace: Option<String>,
+}
+
+/// hw validate_path 的等价 bool 版:true = 非法路径。
+fn path_invalid(path: &str) -> bool {
+    if path.contains("..") {
+        return true;
+    }
+    if path.starts_with("/") {
+        return true;
+    }
+    if path.starts_with("\\") {
+        return true;
+    }
+    return false;
+}
+
+pub async fn wiki_tree(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Response {
+    let wiki_dir: PathBuf = ws_wiki_dir(&s, q);
+    let tree: Vec<TreeNode> = build_tree(wiki_dir.clone(), "");
+    let stripped: Vec<TreeNode> = strip_md_extensions(tree);
+    return ok_response(stripped);
+}
+
+pub async fn raw_tree(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Response {
+    let raw_dir: PathBuf = ws_raw_dir(&s, q);
+    let _ = fs::create_dir_all(raw_dir.clone());
+    let tree: Vec<TreeNode> = build_tree(raw_dir.clone(), "");
+    return ok_response(tree);
+}
+
+pub async fn list_pages(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Response {
+    let resp: Value = ws_wiki_list(&s, q);
+    return ok_response(resp);
+}
+
+pub async fn get_page(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, String)>) -> Response {
+    let slug: String = path_second(&p);
+    if path_invalid(&slug) {
+        return text_response("Invalid path", 400);
+    }
+    let page: Value = ws_wiki_get(&s, q, &slug);
+    if value_is_null(&page) {
+        return empty_response(404);
+    }
+    return ok_response(WikiPageResponse { page: page });
+}
+
+pub async fn create_page(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<CreatePageRequest>) -> Response {
+    let slug: String = body.slug.clone();
+    if path_invalid(&slug) {
+        return text_response("Invalid path", 400);
+    }
+    let resp: Value = ws_wiki_create(&s, q, body);
+    if resp_is_err(&resp) {
+        return text_response(resp_err_message(&resp), resp_err_code(&resp));
+    }
+    return ok_response(WikiPageResponse { page: resp });
+}
+
+pub async fn update_page(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, String)>, body: Json<UpdatePageRequest>) -> Response {
+    let slug: String = path_second(&p);
+    if path_invalid(&slug) {
+        return text_response("Invalid path", 400);
+    }
+    let title: Option<String> = body.title.clone();
+    let tags: Option<Vec<String>> = body.tags.clone();
+    let resp: Value = ws_wiki_update(&s, q, &slug, &body.content, title, tags);
+    if resp_is_err(&resp) {
+        return text_response(resp_err_message(&resp), resp_err_code(&resp));
+    }
+    return ok_response(WikiPageResponse { page: resp });
+}
+
+pub async fn delete_page(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, String)>) -> Response {
+    let slug: String = path_second(&p);
+    if path_invalid(&slug) {
+        return text_response("Invalid path", 400);
+    }
+    let resp: Value = ws_wiki_delete(&s, q, &slug);
+    if resp_is_err(&resp) {
+        return text_response(resp_err_message(&resp), resp_err_code(&resp));
+    }
+    return empty_response(204);
+}
+
+pub async fn search(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<SearchRequest>) -> Response {
+    let resp: Value = ws_wiki_search(&s, q, &body.query);
+    return ok_response(resp);
+}
+
+pub async fn raw_upload(s: State<AppState>, p: Path<String>, q: Query<UploadQuery>, m: Multipart) -> Response {
+    let prefix: String = q.prefix.clone();
+    if (prefix.len() as i32) > 0 {
+        if path_invalid(&prefix) {
+            return text_response("Invalid path", 400);
+        }    }
+    let resp: Value = wiki_raw_upload(&s, q, &prefix, m).await;
+    if resp_is_err(&resp) {
+        return text_response(resp_err_message(&resp), resp_err_code(&resp));
+    }
+    return ok_response(resp);
+}
+
+pub async fn raw_file(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, String)>) -> Response {
+    let path: String = path_second(&p);
+    if path_invalid(&path) {
+        return text_response("Invalid path", 400);
+    }
+    return wiki_raw_file(&s, q, &path);
+}
+
+pub async fn raw_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, String)>) -> Response {
+    let path: String = path_second(&p);
+    if path_invalid(&path) {
+        return text_response("Invalid path", 400);
+    }
+    let resp: Value = wiki_raw_delete(&s, q, &path);
+    if resp_is_err(&resp) {
+        return text_response(resp_err_message(&resp), resp_err_code(&resp));
+    }
+    return empty_response(204);
+}
+
+pub async fn raw_mkdir(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<MkdirRequest>) -> Response {
+    let req_path: String = body.path.clone();
+    if path_invalid(&req_path) {
+        return text_response("Invalid path", 400);
+    }
+    let resp: Value = wiki_raw_mkdir(&s, q, &req_path);
+    if resp_is_err(&resp) {
+        return text_response(resp_err_message(&resp), resp_err_code(&resp));
+    }
+    return empty_response(204);
+}
+
+pub fn wiki_routes() -> Router<AppState> {
+    let mut app = Router::new();
+    app = app.route("/api/forge/wiki/{project}/tree", get(wiki_tree));
+    app = app.route("/api/forge/wiki/{project}/pages", get(list_pages).post(create_page));
+    app = app.route("/api/forge/wiki/{project}/search", post(search));
+    app = app.route("/api/forge/wiki/{project}/page/{*slug}", get(get_page).put(update_page).delete(delete_page));
+    app = app.route("/api/forge/raw/{project}/tree", get(raw_tree));
+    app = app.route("/api/forge/raw/{project}/upload", post(raw_upload).layer(DefaultBodyLimit::max(52428800)));
+    app = app.route("/api/forge/raw/{project}/mkdir", post(raw_mkdir));
+    app = app.route("/api/forge/raw/{project}/file/{*path}", get(raw_file).delete(raw_delete));
+    return app;
 }

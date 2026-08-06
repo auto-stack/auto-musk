@@ -113,6 +113,51 @@ fn task_plan_delete_file(path PathBuf) {}
 fn task_plan_write_atom(path PathBuf, content str) bool {}
 fn path_extension_str(path PathBuf) str {}
 fn task_plan_read_file(path PathBuf) Result<str, str> {}
+// Plan 020 Phase D (relay_api.at): relay store/driver/bus/flows + task_plan
+// registry/engine HTTP 层委托。RelaySub 为不透明 extern 类型(持有 broadcast
+// Receiver + run_id 过滤)。sse_named_event 带 event 名(对齐 hw `.event(...)`)。
+fn relay_runs_list(_s @T, _q Value) Value {}
+fn relay_start_run(_s @T, _q Value, _b Value) Value {}
+fn relay_run_get(_s @T, _q Value, _r @str) Value {}
+fn relay_run_delete(_s @T, _q Value, _r @str) bool {}
+fn relay_run_set_title(_s @T, _q Value, _r @str, _t @str) Value {}
+fn relay_run_advance(_s @T, _q Value, _r @str) Value {}
+fn relay_submit_handoff(_s @T, _q Value, _r @str, _h @T) Value {}
+fn relay_resolve_gate(_s @T, _q Value, _r @str, _d @str, _f @str) Value {}
+fn relay_rerun(_s @T, _q Value, _r @str) Value {}
+fn relay_professions_list() Value {}
+fn relay_flows_list() Value {}
+fn relay_bus_subscribe(_r @str) RelaySub {}
+fn relay_sub_recv(_sub @T) Value {}
+fn relay_task_plans_list(_s @T, _q Value) Value {}
+fn relay_task_plan_get(_s @T, _q Value, _id @str) Value {}
+fn relay_task_plan_register(_s @T, _q Value, _atom @str) Value {}
+fn relay_task_plan_delete(_s @T, _q Value, _id @str) bool {}
+fn relay_task_plan_start(_s @T, _q Value, _id @str, _input @str) Value {}
+fn value_get(_v @T, _k @str) Value {}
+fn value_is_null(_v @T) bool {}
+fn sse_named_event(_n @str, _d Value) Event {}
+fn text_response(_m str, _c uint) Response {}
+// Plan 020 Phase D (wiki.at): wiki/raw HTTP 层委托。Multipart 为 axum 不透明
+// extractor(经 .at handler 透传给 extern)。
+fn ws_wiki_dir(_s @T, _q Value) PathBuf {}
+fn ws_raw_dir(_s @T, _q Value) PathBuf {}
+fn ws_wiki_list(_s @T, _q Value) Value {}
+fn ws_wiki_get(_s @T, _q Value, _slug @str) Value {}
+fn ws_wiki_create(_s @T, _q Value, _b Value) Value {}
+fn ws_wiki_update(_s @T, _q Value, _slug @str, _c @str, _title Value, _tags Value) Value {}
+fn ws_wiki_delete(_s @T, _q Value, _slug @str) Value {}
+fn ws_wiki_search(_s @T, _q Value, _query @str) Value {}
+fn wiki_raw_upload(_s @T, _q Value, _prefix @str, _m Multipart) Value {}
+fn wiki_raw_file(_s @T, _q Value, _path @str) Response {}
+fn wiki_raw_delete(_s @T, _q Value, _path @str) Value {}
+fn wiki_raw_mkdir(_s @T, _q Value, _path @str) Value {}
+fn path_second(_p @T) str {}
+fn empty_response(_c uint) Response {}
+// Plan 020 Phase E (settings_link):reqwest::blocking 封装 + JSON 错误响应
+// (hw 的 `(StatusCode, Json({"status":"error","error":…}))` 形状)。
+fn settings_link_do() Value {}
+fn err_json_response(_d Value, _c uint) Response {}
 // Plan 020 Phase C (wiki.at): 页面写盘 / 父目录 / 删除。
 fn wiki_write_page(path PathBuf, content str) Result<(), str> {}
 fn wiki_ensure_parent(path PathBuf) {}
