@@ -16,7 +16,7 @@
 | **Phase B2** | wiki modified:wiki.at file_modified 辅助 fn(modified().ok()→duration_since→let secs u64=as_secs 抑制 cast);build_tree file 节点取真实 mtime | `b23b3be` | parity_wiki_http 逐键比对(含 modified);a2r cast 抑制成功,无需降级 |
 | **Phase C1** | workspace 端点:parity_workspace_endpoints(chats DELETE-all / specs drift / rebuild / related) | `91c2239` | 4 项绿;经 workspace,tmp_state 隔离 |
 | **Phase C2** | config 端点:musk musk_config_path/app_harness_dir + auto-ai roles_dir 加 AUTOOS_HOME env 覆盖;parity_config_endpoints(role/app-config/harness save→delete 往返,#[serial] 串行) | `cfbf25a` | 3 项绿;auto-ai worktree(auto-musk-021 前缀)合并后清理 |
-| **Phase D** | 休眠镜像记录为未来待做:Plan §8 注明留待理由(本地 trait Tool 不兼容 / 缺工具 / descriptions 缩 / 需跨 auto-lang / 收益为零) | `⏳ 本次` | KNOWN-DEBT 第 40 行更新;不实施 |
+| **Phase D** | 休眠镜像记录为未来待做:Plan §8 注明留待理由(本地 trait Tool 不兼容 / 缺工具 / descriptions 缩 / 需跨 auto-lang / 收益为零) | `92b60fd` | KNOWN-DEBT 第 40 行更新;不实施 |
 
 **累计**:420 测试全绿(413 基线 + 5 files + 4 workspace + 3 config - 重复);KNOWN-DEBT 第 27/28 行(AAID_URL/wiki modified)标记已修复,第 40 行(休眠镜像)+ 41 行(HTTP 测试缺口)更新。
 
