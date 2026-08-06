@@ -1,11 +1,24 @@
 # 021 — Auto 后端"严格 100%":残留 hw 端点 + 行为差异 + 测试盲区闭环
 
-> **状态**:🟡 进行中(2026-08-07 启动)。
+> **状态**:✅ 完成（2026-08-07 启动;Phase A-D 全闭环）。
 > **前置**:Plan 020(已归档,业务端点 100% ag handler;Phase G/H 闭合 relay_driver 核心循环 + TaskPlan 执行内核)。
 > **仓库**:auto-musk(`backend/crates/musk/`)+ 可能的 auto-ai(Phase C2 的 RoleRegistry)+ 可能的 auto-lang(wiki modified 降级时的 D7 follow-up)。
 > **目标**:闭合 Plan 020 审查发现的 4 类"未达严格 100%"残留,使后端在**代码层 ag/hw 等价 + 全端点测试覆盖**两个维度达到 100%。
 
 ---
+
+## 0. 实施日志(2026-08-07)
+
+| 阶段 | 内容 | 提交 | 验收 |
+|---|---|---|---|
+| **Phase A** | `/api/files` ag 化:server.at workspace_file handler + extern workspace_file_do(委托 hw 逻辑 + 复用 wiki::guess_mime);删 hw workspace_file + guess_mime_from_path;路由切 build_router | `b23b3be` | parity_files 5 项绿(文本/图片/子目录 200 + 404 + 越界 403);serve() 业务端点 100% ag |
+| **Phase B1** | AAID_URL env:app_config.at effective_daemon_url 补 env::var("AAID_URL").ok()(与 hw file<env<default 一致) | `b23b3be` | parity_app_config 两侧行为一致(set AAID_URL → 都读 env) |
+| **Phase B2** | wiki modified:wiki.at file_modified 辅助 fn(modified().ok()→duration_since→let secs u64=as_secs 抑制 cast);build_tree file 节点取真实 mtime | `b23b3be` | parity_wiki_http 逐键比对(含 modified);a2r cast 抑制成功,无需降级 |
+| **Phase C1** | workspace 端点:parity_workspace_endpoints(chats DELETE-all / specs drift / rebuild / related) | `91c2239` | 4 项绿;经 workspace,tmp_state 隔离 |
+| **Phase C2** | config 端点:musk musk_config_path/app_harness_dir + auto-ai roles_dir 加 AUTOOS_HOME env 覆盖;parity_config_endpoints(role/app-config/harness save→delete 往返,#[serial] 串行) | `cfbf25a` | 3 项绿;auto-ai worktree(auto-musk-021 前缀)合并后清理 |
+| **Phase D** | 休眠镜像记录为未来待做:Plan §8 注明留待理由(本地 trait Tool 不兼容 / 缺工具 / descriptions 缩 / 需跨 auto-lang / 收益为零) | `⏳ 本次` | KNOWN-DEBT 第 40 行更新;不实施 |
+
+**累计**:420 测试全绿(413 基线 + 5 files + 4 workspace + 3 config - 重复);KNOWN-DEBT 第 27/28 行(AAID_URL/wiki modified)标记已修复,第 40 行(休眠镜像)+ 41 行(HTTP 测试缺口)更新。
 
 ## 0. 为什么需要本计划
 
