@@ -105,7 +105,9 @@ pub type RunSummary {
     cumulative_tokens u64
     created_at u64
     updated_at u64
+    #[serde(skip_serializing_if = "Option::is_none")]
     title Option<str>
+    #[serde(skip_serializing_if = "Option::is_none")]
     task Option<str>
 }
 
@@ -126,13 +128,21 @@ pub type GateState {
     since u64
 }
 
-/// Run metadata (title/task/origin/workspace).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// Run metadata (title/task/origin/workspace + TaskPlan tracing)。对齐 hw
+/// store.rs 全字段(wire parity;hw 各字段 #[serde(default)] 对 Option 冗余,
+/// a2r Option 默认 None 等价)。
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub type RunMetadata {
     title Option<str>
     initial_task Option<str>
     originating_chat_session Option<str>
     workspace_id Option<str>
+    task_plan_id Option<str>
+    task_run_name Option<str>
+    phase_name Option<str>
+    phase_index Option<uint>
+    parent_run_id Option<str>
+    root_run_id Option<str>
 }
 
 /// Request body for POST /api/forge/relay/runs.

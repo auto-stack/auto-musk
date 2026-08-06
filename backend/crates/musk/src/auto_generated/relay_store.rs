@@ -89,7 +89,7 @@ impl RunEvent {
             RunEvent::TurnError { .. } => return "turn_error".to_string(),
             RunEvent::TurnBudgetWarning { .. } => return "turn_budget_warning".to_string(),
             RunEvent::TurnBudgetExceeded { .. } => return "turn_budget_exceeded".to_string(),
-        };
+        }
     }
 }
 
@@ -111,7 +111,9 @@ pub struct RunSummary {
     pub cumulative_tokens: u64,
     pub created_at: u64,
     pub updated_at: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub task: Option<String>,
 }
 
@@ -132,13 +134,21 @@ pub struct GateState {
     pub since: u64,
 }
 
-/// Run metadata (title/task/origin/workspace).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// Run metadata (title/task/origin/workspace + TaskPlan tracing)。对齐 hw
+/// store.rs 全字段(wire parity;hw 各字段 #[serde(default)] 对 Option 冗余,
+/// a2r Option 默认 None 等价)。
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct RunMetadata {
     pub title: Option<String>,
     pub initial_task: Option<String>,
     pub originating_chat_session: Option<String>,
     pub workspace_id: Option<String>,
+    pub task_plan_id: Option<String>,
+    pub task_run_name: Option<String>,
+    pub phase_name: Option<String>,
+    pub phase_index: Option<u32>,
+    pub parent_run_id: Option<String>,
+    pub root_run_id: Option<String>,
 }
 
 /// Request body for POST /api/forge/relay/runs.
