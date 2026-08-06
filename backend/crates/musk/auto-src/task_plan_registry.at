@@ -1,0 +1,238 @@
+/// task_plan_registry.at — port of backend/crates/musk/src/relay/task_plan_registry.rs
+/// (Plan 020 Phase B)。对齐 hw 306 行。
+///
+/// 移植策略:
+/// - TaskPlanSource / TaskPlanSummary / RegistryEntry(hw 的
+///   `(TaskPlan, TaskPlanSource)` 元组 → 具名 struct)全移植。
+/// - TaskPlanRegistry(HashMap + user_dir,Mutex 在 WorkspaceStores 外层)全移植:
+///   new / get / source / list / insert / remove / validate / register /
+///   load_builtin / load_from_dir。
+/// - 2 个副作用 extern:task_plan_builtin_atom(include_str 内建 atom)、
+///   task_plan_delete_file(fs::remove_file)。
+/// - fs.write / create_dir_all 经 a2r 桥(nativeize 重写为 .is_ok()/原生)——
+///   错误文本丢失但 Err/Ok 行为保留(文档化偏差)。
+/// - parse_task_plan / get_builtin_flow 跨模块调用 ag 版(全链路 Auto)。
+
+use.rust std::collections::HashMap
+use.rust std::path::PathBuf
+use.rust std::fs
+use.rust serde::Serialize
+use.rust crate::auto_generated::task_plan::TaskPlan
+use.rust crate::auto_generated::relay_flows::get_builtin_flow
+use.rust crate::auto_generated::task_plan_parser::parse_task_plan
+
+/// Source of a TaskPlan.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub enum TaskPlanSource {
+    Builtin
+    User
+}
+
+/// Summary returned by `list`。
+#[derive(Debug, Clone, Serialize)]
+pub type TaskPlanSummary {
+    id str
+    source TaskPlanSource
+    phase_count int
+    run_count int
+}
+
+/// plans 映射的值(hw `(TaskPlan, TaskPlanSource)` 元组;a2r 无 tuple 字段)。
+#[derive(Debug, Clone)]
+pub type RegistryEntry {
+    plan TaskPlan
+    source TaskPlanSource
+}
+
+/// Registry of all available TaskPlans (built-in + user-defined) for one workspace.
+#[derive(Debug, Clone)]
+pub type TaskPlanRegistry {
+    plans HashMap<str, RegistryEntry>
+    /// Directory where user plans are read from / written to.
+    user_dir PathBuf
+}
+
+ext TaskPlanRegistry {
+    /// Create a registry for a workspace, rooted at its data dir (`<root>/.autoos`).
+    /// Loads built-ins + any user `.atom` files under `<data>/task_plans/`。
+    pub static fn new(data_dir PathBuf) TaskPlanRegistry {
+        let user_dir = data_dir.join("task_plans")
+        var registry = TaskPlanRegistry(plans: HashMap.new(), user_dir: user_dir)
+        registry.load_builtin()
+        registry.load_from_dir()
+        return registry
+    }
+
+    /// Load only built-in plans (useful for tests)。
+    pub static fn load_builtins_only() TaskPlanRegistry {
+        var registry = TaskPlanRegistry(plans: HashMap.new(), user_dir: PathBuf.new())
+        registry.load_builtin()
+        return registry
+    }
+
+    /// Get a plan by ID。
+    pub fn get(plan_id str) Option<TaskPlan> {
+        is self.plans.get(plan_id) {
+            Some(entry) -> return Some(entry.plan.clone()),
+            None -> return None
+        }
+    }
+
+    /// Get the source of a plan。
+    pub fn source(plan_id str) Option<TaskPlanSource> {
+        is self.plans.get(plan_id) {
+            Some(entry) -> return Some(entry.source),
+            None -> return None
+        }
+    }
+
+    /// List all available plans。
+    pub fn list() List<TaskPlanSummary> {
+        var summaries List<TaskPlanSummary> = []
+        for entry in self.plans.values() {
+            var run_count int = 0
+            for phase in entry.plan.phases.clone() {
+                run_count = run_count + phase.runs.len()
+            }
+            summaries.push(
+                TaskPlanSummary(
+                    id: entry.plan.id.clone(),
+                    source: entry.source,
+                    phase_count: entry.plan.phases.len(),
+                    run_count: run_count
+                )
+            )
+        }
+        return summaries
+    }
+
+    /// Insert or overwrite a plan in the registry。
+    pub mut fn insert(plan TaskPlan, source TaskPlanSource) {
+        self.plans.insert(plan.id.clone(), RegistryEntry(plan: plan, source: source))
+    }
+
+    /// Remove a user plan. Built-in plans cannot be removed. Also deletes the
+    /// backing `.atom` file from disk if present. Returns the removed plan。
+    pub mut fn remove(plan_id str) Option<TaskPlan> {
+        is self.plans.get(plan_id) {
+            None -> return None,
+            Some(entry) -> {
+                is entry.source {
+                    TaskPlanSource.Builtin -> return None,
+                    TaskPlanSource.User -> {
+                        let removed = self.plans.remove(plan_id)
+                        // Best-effort delete of the user file.
+                        let path = self.user_dir.join(plan_id.clone() + ".atom")
+                        task_plan_delete_file(path)
+                        is removed {
+                            Some(e) -> return Some(e.plan),
+                            None -> return None
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Validate a plan's structure + flow_id references against built-in flows。
+    pub fn validate(plan TaskPlan) Result<(), str> {
+        is plan.validate() {
+            Err(e) -> return Err(e.to_string()),
+            Ok(_) -> {}
+        }
+        for phase in plan.phases.clone() {
+            for run in phase.runs.clone() {
+                is get_builtin_flow(run.flow_id.view) {
+                    Some(_) -> {},
+                    None -> return Err("run '" + run.name + "' references unknown flow '" + run.flow_id + "'")
+                }
+            }
+        }
+        return Ok(())
+    }
+
+    /// Register a new TaskPlan from Atom source: validates, writes
+    /// `<user_dir>/<id>.atom`, inserts into the registry。Returns the parsed plan。
+    pub mut fn register(atom str) Result<TaskPlan, str> {
+        let parsed = parse_task_plan(atom.view)
+        var plan TaskPlan = TaskPlan.new("")
+        is parsed {
+            Err(e) -> return Err(e),
+            Ok(p) -> { plan = p }
+        }
+        is self.validate(plan.clone()) {
+            Err(e) -> return Err(e),
+            Ok(_) -> {}
+        }
+
+        if self.user_dir.as_os_str().len() > 0 {
+            is fs.create_dir_all(self.user_dir.clone()) {
+                Err(_) -> { return Err("failed to create task_plans directory") },
+                Ok(_) -> {}
+            }
+            let path = self.user_dir.join(plan.id.clone() + ".atom")
+            let ok = task_plan_write_atom(path, atom)
+            if ok == false {
+                return Err("failed to write plan file")
+            }
+        }
+
+        self.plans.insert(plan.id.clone(), RegistryEntry(plan: plan.clone(), source: TaskPlanSource.User))
+        return Ok(plan)
+    }
+
+    fn load_builtin() {
+        let atom = task_plan_builtin_atom()
+        let parsed = parse_task_plan(atom.view)
+        is parsed {
+            Err(_) -> { /* tracing::error! 不移植——纯日志 */ },
+            Ok(plan) -> {
+                is plan.validate() {
+                    Err(e) -> { /* hw: panic! 内建校验失败即启动失败;此处仅日志 */ },
+                    Ok(_) -> {
+                        self.plans.insert(plan.id.clone(), RegistryEntry(plan: plan, source: TaskPlanSource.Builtin))
+                        return
+                    }
+                }
+            }
+        }
+    }
+
+    fn load_from_dir() {
+        if self.user_dir.is_dir() == false {
+            return
+        }
+        let dir_res = fs.read_dir(self.user_dir.clone())
+        is dir_res {
+            Err(_) -> { return },
+            Ok(dir) -> {
+                for entry in dir.flatten() {
+                    let path = entry.path()
+                    let ext = path_extension_str(path.clone())
+                    if ext != "atom" {
+                        continue
+                    }
+                    let content_res = task_plan_read_file(path.clone())
+                    is content_res {
+                        Err(_) -> { /* tracing::warn! 不移植 */ },
+                        Ok(content) -> {
+                            let parsed = parse_task_plan(content.view)
+                            is parsed {
+                                Err(_) -> { /* tracing::warn! 不移植 */ },
+                                Ok(plan) -> {
+                                    is self.validate(plan.clone()) {
+                                        Err(_) -> { /* tracing::error! 不移植 */ },
+                                        Ok(_) -> {
+                                            self.plans.insert(plan.id.clone(), RegistryEntry(plan: plan, source: TaskPlanSource.User))
+                                            return
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

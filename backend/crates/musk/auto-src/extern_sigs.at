@@ -106,6 +106,13 @@ fn agent_error_msg(e @T) str {}
 fn task_plan_uuidish() str {}
 fn task_plan_broadcast(_i @str, _t @str, _p Value) {}
 fn handoff_resolve_path(_s @T, _p @str) Option<str> {}
+// Plan 020 Phase B (parser/registry): Atom 调试文本 / 内建 atom / 文件删除。
+fn atom_debug_value(_a @T) str {}
+fn task_plan_builtin_atom() str {}
+fn task_plan_delete_file(path PathBuf) {}
+fn task_plan_write_atom(path PathBuf, content str) bool {}
+fn path_extension_str(path PathBuf) str {}
+fn task_plan_read_file(path PathBuf) Result<str, str> {}
 fn relay_advance(_w @str, _r @str) Value {}
 fn relay_publish(_r @str, _v @T) {}
 fn advance_is_none(_r @T) bool {}

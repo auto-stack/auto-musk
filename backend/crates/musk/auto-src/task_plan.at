@@ -274,7 +274,12 @@ ext TaskPlan {
             return Err(AtomError.ValidationError("expected root node 'task_plan', found '" + node.name + "'"))
         }
 
-        let id str = require_string_prop(node.clone(), "id")
+        let id_r Result<str, AtomError> = require_string_prop(node.clone(), "id")
+        var id str = ""
+        is id_r {
+            Err(e) -> return Err(e),
+            Ok(v) -> { id = v }
+        }
         var version uint = 1u
         let version_prop Option<Value> = prop(node.clone(), "version")
         is version_prop {
@@ -363,7 +368,12 @@ ext Phase {
             return Err(AtomError.ValidationError("expected node 'phase', found '" + node.name + "'"))
         }
 
-        let name str = require_string_prop(node.clone(), "name")
+        let name_r Result<str, AtomError> = require_string_prop(node.clone(), "name")
+        var name str = ""
+        is name_r {
+            Err(e) -> return Err(e),
+            Ok(v) -> { name = v }
+        }
         var mode PhaseMode = PhaseMode.default()
         let mode_prop Option<Value> = prop(node.clone(), "mode")
         is mode_prop {
@@ -420,8 +430,18 @@ ext RunRef {
             return Err(AtomError.ValidationError("expected node 'run', found '" + node.name + "'"))
         }
 
-        let name str = require_string_prop(node.clone(), "name")
-        let flow_id str = require_string_prop(node.clone(), "flow_id")
+        let name_r Result<str, AtomError> = require_string_prop(node.clone(), "name")
+        var name str = ""
+        is name_r {
+            Err(e) -> return Err(e),
+            Ok(v) -> { name = v }
+        }
+        let flow_id_r Result<str, AtomError> = require_string_prop(node.clone(), "flow_id")
+        var flow_id str = ""
+        is flow_id_r {
+            Err(e) -> return Err(e),
+            Ok(v) -> { flow_id = v }
+        }
         var input Option<str> = None
         let input_prop Option<Value> = prop(node.clone(), "input")
         is input_prop {
@@ -528,17 +548,11 @@ fn prop(node Node, key str) Option<Value> {
     }
 }
 
-fn require_string_prop(node Node, key str) str {
+fn require_string_prop(node Node, key str) Result<str, AtomError> {
     let p Option<Value> = prop(node.clone(), key)
     is p {
-        Some(v) -> {
-            let r Result<str, AtomError> = value_as_string(v)
-            is r {
-                Ok(s) -> return s,
-                Err(_) -> return ""
-            }
-        }
-        None -> return ""
+        Some(v) -> return value_as_string(v),
+        None -> return Err(AtomError.MissingField(key.to_string()))
     }
 }
 

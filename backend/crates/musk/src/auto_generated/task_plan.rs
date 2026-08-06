@@ -187,7 +187,12 @@ impl TaskPlan {
             return Err(AtomError::ValidationError(format!("{}{}", format!("{}{}", "expected root node 'task_plan', found '", node.name), "'")));
         }
 
-        let id: String = require_string_prop(node.clone(), "id");
+        let id_r: Result<String, AtomError> = require_string_prop(node.clone(), "id");
+        let mut id: String = "".to_string();
+        match id_r {
+            Err(e) => return Err(e),
+            Ok(v) => id = v,
+        };
         let mut version: u32 = 1;
         let version_prop: Option<Value> = prop(node.clone(), "version");
         match version_prop {
@@ -295,7 +300,12 @@ impl Phase {
             return Err(AtomError::ValidationError(format!("{}{}", format!("{}{}", "expected node 'phase', found '", node.name), "'")));
         }
 
-        let name: String = require_string_prop(node.clone(), "name");
+        let name_r: Result<String, AtomError> = require_string_prop(node.clone(), "name");
+        let mut name: String = "".to_string();
+        match name_r {
+            Err(e) => return Err(e),
+            Ok(v) => name = v,
+        };
         let mut mode: PhaseMode = PhaseMode::default();
         let mode_prop: Option<Value> = prop(node.clone(), "mode");
         match mode_prop {
@@ -380,8 +390,18 @@ impl RunRef {
             return Err(AtomError::ValidationError(format!("{}{}", format!("{}{}", "expected node 'run', found '", node.name), "'")));
         }
 
-        let name: String = require_string_prop(node.clone(), "name");
-        let flow_id: String = require_string_prop(node.clone(), "flow_id");
+        let name_r: Result<String, AtomError> = require_string_prop(node.clone(), "name");
+        let mut name: String = "".to_string();
+        match name_r {
+            Err(e) => return Err(e),
+            Ok(v) => name = v,
+        };
+        let flow_id_r: Result<String, AtomError> = require_string_prop(node.clone(), "flow_id");
+        let mut flow_id: String = "".to_string();
+        match flow_id_r {
+            Err(e) => return Err(e),
+            Ok(v) => flow_id = v,
+        };
         let mut input: Option<String> = None;
         let input_prop: Option<Value> = prop(node.clone(), "input");
         match input_prop {
@@ -476,17 +496,11 @@ fn prop(node: Node, key: &str) -> Option<Value> {
     }
 }
 
-fn require_string_prop(node: Node, key: &str) -> String {
+fn require_string_prop(node: Node, key: &str) -> Result<String, AtomError> {
     let p: Option<Value> = prop(node.clone(), key);
     match p {
-        Some(v) => {
-            let r: Result<String, AtomError> = value_as_string(v.clone());
-            match r {
-                Ok(s) => return s,
-                Err(_) => return "".to_string(),
-            };
-        },
-        None => return "".to_string(),
+        Some(v) => return value_as_string(v.clone()),
+        None => return Err(AtomError::MissingField(key.to_string())),
     }
 }
 

@@ -1,0 +1,32 @@
+/// task_plan_parser.at — port of backend/crates/musk/src/relay/task_plan_parser.rs
+/// (Plan 020 Phase B)。对齐 hw 137 行。
+///
+/// 移植策略:
+/// - AtomParser::parse + Atom::Node 匹配可直译(a2r 对 auto_atom 外部类型
+///   `Atom::Node(node)` tuple 模式 + `other` 兜底绑定生成正确 match)。
+/// - AtomError Display(e.to_string()) 直译;非 Node 的 InvalidType 报错文本
+///   经 extern atom_debug_value(Atom.to_value() 的 {:?}) 组装。
+/// - TaskPlan::try_from(node) → 跨模块调用 auto_generated::task_plan::from_node。
+
+use.rust auto_atom::{Atom, AtomParser}
+use.rust auto_val::Node
+use.rust crate::auto_generated::task_plan::TaskPlan
+
+/// Parse Atom text into a `TaskPlan`(hw parse_task_plan)。
+pub fn parse_task_plan(input str) Result<TaskPlan, str> {
+    let parsed = AtomParser.parse(input.view)
+    is parsed {
+        Err(e) -> return Err(e.to_string()),
+        Ok(atom) -> {
+            is atom {
+                Atom.Node(node) -> {
+                    is TaskPlan.from_node(node) {
+                        Err(e) -> return Err(e.to_string()),
+                        Ok(plan) -> return Ok(plan)
+                    }
+                },
+                _ -> return Err("invalid type: expected Node, found " + atom_debug_value(atom))
+            }
+        }
+    }
+}

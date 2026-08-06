@@ -1119,6 +1119,20 @@ pub fn task_plan_broadcast(instance_id: &str, event_type: &str, payload: Value) 
 pub fn handoff_resolve_path(store: &crate::relay::handoff_store::HandoffStore, path: &str) -> Option<String> {
     store.resolve_path(path).map(|v| v.to_string())
 }
+/// Plan 020 Phase B (task_plan_parser.at): `Atom::to_value()` 的 `{:?}` 调试
+/// 文本——组装 hw 的非 Node InvalidType 报错("found {:?}")。
+pub fn atom_debug_value(atom: &auto_atom::Atom) -> String {
+    format!("{:?}", atom.clone().to_value())
+}
+/// Plan 020 Phase B (task_plan_registry.at): 内建 deferred-decompose atom
+/// (hw include_str!)。
+pub fn task_plan_builtin_atom() -> String {
+    include_str!("../relay/task_plans/builtin/deferred-decompose.atom").to_string()
+}
+/// Plan 020 Phase B (task_plan_registry.at): 删除用户 plan 的 .atom 文件。
+pub fn task_plan_delete_file(path: std::path::PathBuf) {
+    let _ = std::fs::remove_file(path);
+}
 /// ③ 委托(agent/ctx 簇):auto_lib 镜像的真实 agent 构建 —— 与 hw
 /// `build_agent_from_mode/build_agent_with_context`(src/lib.rs) 同路径。
 pub fn agent_register_shared(a: &mut Agent, t: Arc<dyn Tool>) {
@@ -1722,4 +1736,20 @@ struct StubRole;
 impl Role for StubRole {
     fn name(&self) -> &str { "stub" }
     fn system_prompt(&self) -> &str { "" }
+}
+/// Plan 020 Phase B (task_plan_registry.at): 写用户 plan 的 .atom 文件
+/// (std::fs::write 的 bool 包装;hw map_err 的错误文本经 a2r 桥丢失,
+/// 保留 Err/Ok 行为)。
+pub fn task_plan_write_atom(path: std::path::PathBuf, content: &str) -> bool {
+    std::fs::write(path, content).is_ok()
+}
+/// Plan 020 Phase B (task_plan_registry.at): 文件扩展名(hw
+/// `path.extension().and_then(|e| e.to_str()).unwrap_or("")`)。
+pub fn path_extension_str(path: std::path::PathBuf) -> String {
+    path.extension().and_then(|e| e.to_str()).unwrap_or("").to_string()
+}
+/// Plan 020 Phase B (task_plan_registry.at): 读用户 plan 文件
+/// (std::fs::read_to_string 的 Result 包装)。
+pub fn task_plan_read_file(path: std::path::PathBuf) -> Result<String, String> {
+    std::fs::read_to_string(path).map_err(|e| e.to_string())
 }
