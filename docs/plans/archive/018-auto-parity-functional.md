@@ -2,6 +2,7 @@
 
 > **状态**：✅ COMPLETE（2026-08-06 归档）。Phase 1-4 全闭环 + 接线运行（§11 ①-④）+ 复审（§13 A 类 bug 全修）+ a2r dogfooding（§14 R1-R4/W1-W4 全合入 master）。311 项测试全绿，11 个 parity 套件（104 测试）行为等价。
 > **归档复审**（plan-archiver Step 2.5）：发现 2 项 🟡 一致性遗漏 + 6 项 🟢 已知限制 + 3 项 📋 未来增强，详见 `KNOWN-DEBT-AND-RISKS.md`。无 🔴 高风险。
+> **后续闭环**（Plan 391/392/393，2026-08-06）：归档复审登记的 a2r 限制经三个后续计划全部修复——391 闭环 D1-D6（len 强转/HashMap get 借用/split 标注/env 方法链/Result unit/impl 清晰错误）；392 闭环 E4/E5（sort_by/误归因修正）；393 闭环 E1/E2/E3（append 过宽重映射/Ok(None) 误改/if 分支尾漏 ;）。auto-musk 侧对应变通（specs/handoff/task_plan/wiki/chats）全部去除，parity 全绿。剩余 debt 均为设计决策或接线工程（详见 KNOWN-DEBT-AND-RISKS.md）。
 > **前置**：Plan 014（Auto 后端移植，已归档）+ Plan 015（合并编译清零，已归档）。
 > **基线**：v0.3.0（2026-08-04）。
 > **仓库**：auto-musk（`backend/crates/musk/`）+ auto-lang（a2r 转译器）。
