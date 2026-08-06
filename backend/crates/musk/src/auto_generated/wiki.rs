@@ -241,6 +241,119 @@ impl WikiStore {
         }
         return result;
     }
+    pub fn create_page(&self, page: WikiPage) -> Result<WikiPage, String> {
+        let mut guard = self.pages.lock().unwrap();
+        match guard.get(&page.slug) {
+            Some(_) => return Err(format!("{}{}", format!("{}{}", "Page '", page.slug), "' already exists")),
+            None => {},
+        };
+        drop(guard);
+        let now_t = now();
+        let mut new_page: WikiPage = WikiPage { slug: page.slug.clone().to_string(), title: page.title.clone().to_string(), content: page.content.clone().to_string(), source_type: page.source_type, tags: page.tags.clone(), version: 1, created_at: now_t, updated_at: now_t };
+        let page_path = self.wiki_dir.join(format!("{}{}", new_page.slug.clone(), ".md"));
+        wiki_ensure_parent(page_path.clone());
+        match wiki_write_page(page_path, &new_page.content) {
+            Err(e) => return Err(e),
+            Ok(_) => {},
+        };
+        let mut guard2 = self.pages.lock().unwrap();
+        let _: Option<WikiPage> = guard2.insert(new_page.slug.clone(), new_page.clone());
+        match guard2.get(&new_page.slug) {
+            Some(_) => {},
+            None => {},
+        };
+        drop(guard2);
+        self.save_manifest();
+        return Ok(new_page);
+    }
+    pub fn update_page(&self, slug: &str, mut content: &str, mut title: Option<String>, mut tags: Option<Vec<String>>) -> Result<WikiPage, String> {
+        let mut guard = self.pages.lock().unwrap();
+        let mut existing: Option<WikiPage> = None;
+        match guard.get(slug) {
+            None => return Err(format!("{}{}", format!("{}{}", "Page '", slug), "' not found")),
+            Some(p) => existing = Some(p.clone()),
+        };
+        drop(guard);
+
+        match existing {
+            None => return Err(format!("{}{}", format!("{}{}", "Page '", slug), "' not found")),
+            Some(page) => {
+                let mut new_page: WikiPage = page.clone();
+                new_page.content = content.to_string();
+                match title {
+                    Some(t) => new_page.title = t,
+                    None => {},
+                };
+                match tags {
+                    Some(t2) => new_page.tags = t2,
+                    None => {},
+                };
+                new_page.version = new_page.version + 1;
+                new_page.updated_at = now();
+                let page_path = self.wiki_dir.join(format!("{}{}", new_page.slug.clone(), ".md"));
+                wiki_ensure_parent(page_path.clone());
+                match wiki_write_page(page_path, &new_page.content) {
+                    Err(e) => return Err(e),
+                    Ok(_) => {},
+                };
+                
+
+
+                self.cache_insert(new_page.clone());
+                self.save_manifest();
+                return Ok(new_page);
+            },
+        }
+    }
+    pub fn cache_insert(&self, page: WikiPage) {
+        let mut guard = self.pages.lock().unwrap();
+        let _: Option<WikiPage> = guard.insert(page.slug.clone(), page.clone());
+    }
+    pub fn delete_page(&self, slug: &str) -> Result<(), String> {
+        let mut guard = self.pages.lock().unwrap();
+        match guard.get(slug) {
+            None => return Err(format!("{}{}", format!("{}{}", "Page '", slug), "' not found")),
+            Some(_) => {},
+        };
+        drop(guard);
+        let mut guard2 = self.pages.lock().unwrap();
+        let removed = guard2.remove(slug);
+        match removed {
+            None => return Err(format!("{}{}", format!("{}{}", "Page '", slug), "' not found")),
+            Some(_) => {},
+        };
+        let page_path = self.wiki_dir.join(format!("{}{}", slug.clone(), ".md"));
+        if page_path.exists() {
+            wiki_delete_file(page_path.clone());
+        }
+        match guard2.get(slug) {
+            Some(_) => {},
+            None => {},
+        };
+        drop(guard2);
+        self.save_manifest();
+        return Ok(());
+    }
+    pub fn save_manifest(&self) {
+        let mut metas: Vec<WikiPageMeta> = vec![];
+        let mut guard = self.pages.lock().unwrap();
+        for pair in guard.iter() {
+            let p = pair.1.clone();
+            metas.push(WikiPageMeta { slug: p.slug.clone().to_string(), title: p.title.clone().to_string(), source_type: p.source_type, tags: p.tags.clone(), version: p.version, updated_at: p.updated_at });
+        }
+        let manifest: WikiManifest = WikiManifest { pages: metas };
+        let json_res = to_string_pretty(&manifest);
+        match json_res {
+            Ok(json) => {
+                let path = self.wiki_dir.join("_manifest.json");
+                match wiki_write_page(path, &json) {
+                    Ok(_) => {},
+                    Err(_) => {},
+                };
+            },
+            Err(_) => {},
+        };
+    }
 }
 
 /// 从磁盘加载(或刷新)页面缓存: 读 manifest 元数据 + 每个 .md 内容。
@@ -248,6 +361,11 @@ impl WikiStore {
 /// 列出所有页面元数据。
 /// 取单个页面(克隆)。
 /// 全文搜索(content/title 含 query, 不区分大小写)。
+/// 创建页面:盖时间戳/版本 → 写 .md → 缓存 + manifest。
+/// 更新页面内容/标题/标签, 版本 +1, 写 .md + manifest。
+/// 缓存插入(独立锁作用域;供 write 路径在嵌套臂内调用)。
+/// 删除页面: 移除缓存 + 删 .md + manifest。
+/// 把所有页面元数据写成 _manifest.json(hw save_manifest; 最佳努力)。
 /// 解析 manifest 文本为 WikiManifest。
 fn parse_manifest(content: &str) -> Result<WikiManifest, String> {
     let pr = from_str(content);
@@ -286,7 +404,7 @@ pub fn walk_md_files(root: PathBuf, prefix: &str) -> Result<Vec<String>, String>
                 }
                 let mut path: String = name.clone();
                 if (prefix.len() as i32) > 0 {
-                    path = format!("{}{}", format!("{}{}", prefix, "/"), name)
+                    path = format!("{}{}", format!("{}{}", prefix, "/"), name);
                 }
                 let is_dir = entry.path().is_dir();
                 if is_dir {
@@ -335,7 +453,7 @@ fn insert_sorted(list: Vec<TreeNode>, item: TreeNode) -> Vec<TreeNode> {
         if inserted == false {
             if comes_first(item.clone(), e.clone()) {
                 result.push(item.clone());
-                inserted = true
+                inserted = true;
             }        }
         result.push(e.clone());
     }
@@ -380,14 +498,14 @@ pub fn build_tree(root: PathBuf, prefix: &str) -> Vec<TreeNode> {
                 }
                 let mut path: String = name.clone();
                 if (prefix.len() as i32) > 0 {
-                    path = format!("{}{}", format!("{}{}", prefix, "/"), name)
+                    path = format!("{}{}", format!("{}{}", prefix, "/"), name);
                 }
                 let entry_path = entry.path();
                 let is_dir = entry_path.is_dir();
                 if is_dir {
                     let children = build_tree(entry_path.clone(), path.as_str());
                     let node: TreeNode = TreeNode { name: name.to_string(), path: path.to_string(), node_type: "folder".to_string(), children: Some(children), size: None, modified: None };
-                    entries = insert_sorted(entries, node.clone())
+                    entries = insert_sorted(entries, node.clone());
                 } else {
                     
 
@@ -397,7 +515,7 @@ pub fn build_tree(root: PathBuf, prefix: &str) -> Vec<TreeNode> {
 
                     let size_opt: Option<u64> = file_size(&entry);
                     let node: TreeNode = TreeNode { name: name.to_string(), path: path.to_string(), node_type: "file".to_string(), children: None, size: size_opt, modified: None };
-                    entries = insert_sorted(entries, node.clone())
+                    entries = insert_sorted(entries, node.clone());
                 }
 
             }
@@ -414,7 +532,7 @@ pub fn strip_md_extensions(nodes: Vec<TreeNode>) -> Vec<TreeNode> {
         if node.node_type == "file" {
             if name.ends_with(".md") {
                 name = name.trim_end_matches(".md").to_string();
-                path = path.trim_end_matches(".md").to_string()
+                path = path.trim_end_matches(".md").to_string();
             }        }
         let mut children: Option<Vec<TreeNode>> = node.children.clone();
         match children {

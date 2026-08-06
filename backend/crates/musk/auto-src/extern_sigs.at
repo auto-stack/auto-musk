@@ -113,6 +113,10 @@ fn task_plan_delete_file(path PathBuf) {}
 fn task_plan_write_atom(path PathBuf, content str) bool {}
 fn path_extension_str(path PathBuf) str {}
 fn task_plan_read_file(path PathBuf) Result<str, str> {}
+// Plan 020 Phase C (wiki.at): 页面写盘 / 父目录 / 删除。
+fn wiki_write_page(path PathBuf, content str) Result<(), str> {}
+fn wiki_ensure_parent(path PathBuf) {}
+fn wiki_delete_file(path PathBuf) {}
 fn relay_advance(_w @str, _r @str) Value {}
 fn relay_publish(_r @str, _v @T) {}
 fn advance_is_none(_r @T) bool {}

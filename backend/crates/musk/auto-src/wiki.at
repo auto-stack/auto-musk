@@ -252,6 +252,147 @@ ext WikiStore {
         }
         return result
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // WRITE 路径(Plan 020 Phase C 补全;对齐 hw wiki.rs 247-338 行)
+    // ═══════════════════════════════════════════════════════════════════
+    //
+    // a2r 惯用法:Mutex guard 在 `is guard.get(...)` 后自动 drop(§14 W2),
+    // 故「检查 → 落盘 → 再锁缓存」跨两次锁——hw 持锁全程,单测/行为等价
+    // (并发窗口差异文档化)。
+
+    /// 创建页面:盖时间戳/版本 → 写 .md → 缓存 + manifest。
+    pub fn create_page(page WikiPage) Result<WikiPage, str> {
+        var guard = self.pages.lock().unwrap()
+        is guard.get(page.slug.view) {
+            Some(_) -> return Err("Page '" + page.slug + "' already exists"),
+            None -> {}
+        }
+        let now_t = now()
+        var new_page WikiPage = WikiPage(
+            slug: page.slug.clone(),
+            title: page.title.clone(),
+            content: page.content.clone(),
+            source_type: page.source_type,
+            tags: page.tags.clone(),
+            version: 1,
+            created_at: now_t,
+            updated_at: now_t
+        )
+        let page_path = self.wiki_dir.join(new_page.slug.clone() + ".md")
+        wiki_ensure_parent(page_path.clone())
+        is wiki_write_page(page_path, new_page.content.view) {
+            Err(e) -> return Err(e),
+            Ok(_) -> {}
+        }
+        var guard2 = self.pages.lock().unwrap()
+        let _ Option<WikiPage> = guard2.insert(new_page.slug.clone(), new_page.clone())
+        is guard2.get(new_page.slug.view) {
+            Some(_) -> {},
+            None -> {}
+        }
+        self.save_manifest()
+        return Ok(new_page)
+    }
+
+    /// 更新页面内容/标题/标签, 版本 +1, 写 .md + manifest。
+    pub fn update_page(slug str, content str, title Option<str>, tags Option<List<str>>) Result<WikiPage, str> {
+        var guard = self.pages.lock().unwrap()
+        var existing Option<WikiPage> = None
+        is guard.get(slug) {
+            None -> return Err("Page '" + slug + "' not found"),
+            Some(p) -> { existing = Some(p.clone()) }
+        }
+        // guard 自动 drop(§14 W2)后才可二次 lock
+        is existing {
+            None -> return Err("Page '" + slug + "' not found"),
+            Some(page) -> {
+                var new_page WikiPage = page.clone()
+                new_page.content = content.to_string()
+                is title {
+                    Some(t) -> { new_page.title = t },
+                    None -> {}
+                }
+                is tags {
+                    Some(t2) -> { new_page.tags = t2 },
+                    None -> {}
+                }
+                new_page.version = new_page.version + 1
+                new_page.updated_at = now()
+                let page_path = self.wiki_dir.join(new_page.slug.clone() + ".md")
+                wiki_ensure_parent(page_path.clone())
+                is wiki_write_page(page_path, new_page.content.view) {
+                    Err(e) -> return Err(e),
+                    Ok(_) -> {}
+                }
+                // 缓存插入走独立锁作用域 helper(a2r 在嵌套臂内的
+                // `is guard.get` 不发射 drop(guard)→ 二次 lock 死锁)。
+                self.cache_insert(new_page.clone())
+                self.save_manifest()
+                return Ok(new_page)
+            }
+        }
+    }
+
+    /// 缓存插入(独立锁作用域;供 write 路径在嵌套臂内调用)。
+    fn cache_insert(page WikiPage) {
+        var guard = self.pages.lock().unwrap()
+        let _ Option<WikiPage> = guard.insert(page.slug.clone(), page.clone())
+    }
+
+    /// 删除页面: 移除缓存 + 删 .md + manifest。
+    pub fn delete_page(slug str) Result<(), str> {
+        var guard = self.pages.lock().unwrap()
+        is guard.get(slug) {
+            None -> return Err("Page '" + slug + "' not found"),
+            Some(_) -> {}
+        }
+        var guard2 = self.pages.lock().unwrap()
+        let removed = guard2.remove(slug)
+        is removed {
+            None -> return Err("Page '" + slug + "' not found"),
+            Some(_) -> {}
+        }
+        let page_path = self.wiki_dir.join(slug.clone() + ".md")
+        if page_path.exists() {
+            wiki_delete_file(page_path.clone())
+        }
+        is guard2.get(slug) {
+            Some(_) -> {},
+            None -> {}
+        }
+        self.save_manifest()
+        return Ok(())
+    }
+
+    /// 把所有页面元数据写成 _manifest.json(hw save_manifest; 最佳努力)。
+    fn save_manifest() {
+        var metas List<WikiPageMeta> = []
+        var guard = self.pages.lock().unwrap()
+        for pair in guard.iter() {
+            let p = pair[1]
+            metas.push(WikiPageMeta(
+                slug: p.slug.clone(),
+                title: p.title.clone(),
+                source_type: p.source_type,
+                tags: p.tags.clone(),
+                version: p.version,
+                updated_at: p.updated_at
+            ))
+        }
+        let manifest WikiManifest = WikiManifest(pages: metas)
+        let json_res = to_string_pretty(manifest.view)
+        is json_res {
+            Ok(json) -> {
+                let path = self.wiki_dir.join("_manifest.json")
+                is wiki_write_page(path, json.view) {
+                    Ok(_) -> {},
+                    Err(_) -> {}
+                }
+            },
+            Err(_) -> {}
+        }
+    }
 }
 
 // ============================================================

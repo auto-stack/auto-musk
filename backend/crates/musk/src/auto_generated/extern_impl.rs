@@ -1753,3 +1753,19 @@ pub fn path_extension_str(path: std::path::PathBuf) -> String {
 pub fn task_plan_read_file(path: std::path::PathBuf) -> Result<String, String> {
     std::fs::read_to_string(path).map_err(|e| e.to_string())
 }
+/// Plan 020 Phase C (wiki.at): 写 wiki 页面 .md / _manifest.json(hw
+/// `std::fs::write(...).map_err(|e| format!("Failed to write page: {}", e))`)。
+pub fn wiki_write_page(path: std::path::PathBuf, content: &str) -> Result<(), String> {
+    std::fs::write(path, content).map_err(|e| format!("Failed to write page: {}", e))
+}
+/// Plan 020 Phase C (wiki.at): 确保页面父目录存在(hw `if let Some(parent) =
+/// page_path.parent() { let _ = fs::create_dir_all(parent); }`)。
+pub fn wiki_ensure_parent(path: std::path::PathBuf) {
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+}
+/// Plan 020 Phase C (wiki.at): 删除页面 .md 文件。
+pub fn wiki_delete_file(path: std::path::PathBuf) {
+    let _ = std::fs::remove_file(path);
+}
