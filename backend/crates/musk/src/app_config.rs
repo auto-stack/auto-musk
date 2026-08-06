@@ -12,7 +12,16 @@
 use serde::{Deserialize, Serialize};
 
 /// Path: `~/.config/autoos/apps/musk/config.at`.
+///
+/// Plan 021 C2: honors the `AUTOOS_HOME` env var when set, so tests can redirect
+/// app-config I/O away from the real `~/.config/autoos`. Precedence:
+/// `AUTOOS_HOME` env > `~/.config/autoos`. Default (no env) unchanged.
 pub fn musk_config_path() -> Option<std::path::PathBuf> {
+    if let Ok(custom) = std::env::var("AUTOOS_HOME") {
+        if !custom.is_empty() {
+            return Some(std::path::PathBuf::from(custom).join("apps/musk/config.at"));
+        }
+    }
     dirs::home_dir().map(|h| h.join(".config/autoos/apps/musk/config.at"))
 }
 

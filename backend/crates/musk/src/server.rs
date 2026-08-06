@@ -439,7 +439,16 @@ fn stream_event_to_json(ev: &auto_ai_agent::StreamEvent, id: Option<&str>) -> se
 // harnesses (scanned from apps/musk/harness/<kind>/).
 
 /// The app-level harness dir: `~/.config/autoos/apps/musk/harness/<kind>/`.
+///
+/// Plan 021 C2: honors the `AUTOOS_HOME` env var when set, so tests can redirect
+/// harness I/O away from the real `~/.config/autoos`. Precedence:
+/// `AUTOOS_HOME` env > `~/.config/autoos`. Default (no env) unchanged.
 pub(crate) fn app_harness_dir(kind: &str) -> Option<std::path::PathBuf> {
+    if let Ok(custom) = std::env::var("AUTOOS_HOME") {
+        if !custom.is_empty() {
+            return Some(std::path::PathBuf::from(custom).join(format!("apps/musk/harness/{kind}")));
+        }
+    }
     dirs::home_dir().map(|h| h.join(format!(".config/autoos/apps/musk/harness/{kind}")))
 }
 /// Scan `dir` for app-level custom roles (*.at files).
