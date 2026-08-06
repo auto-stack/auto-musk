@@ -119,7 +119,7 @@ pub fn flow() -> FlowSpec {
 
 /// Outcome of a feature-dev run — the same shape the old `WorkflowResult`
 /// exposed (`/api/workflow/run` response contract).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct FeatureDevResult {
     /// Each step id → its textual output (skipped steps are absent).
     pub steps: HashMap<String, String>,
@@ -292,7 +292,8 @@ async fn drive(
 /// Replace `$var` references in `template` with values from `vars`. Unknown
 /// vars are left as-is so a missing dependency surfaces visibly. (Port of the
 /// old `WorkflowContext::substitute`.)
-fn substitute(template: &str, vars: &HashMap<String, String>) -> String {
+/// `pub`: exercised by parity_feature_dev (ag substitute parity).
+pub fn substitute(template: &str, vars: &HashMap<String, String>) -> String {
     let mut out = String::with_capacity(template.len());
     let bytes = template.as_bytes();
     let mut i = 0;
@@ -342,7 +343,8 @@ fn utf8_len_at(bytes: &[u8], idx: usize) -> usize {
 /// Evaluate a step condition (port of the old `evaluate_condition`):
 /// `$var` → true iff non-empty; `$var.contains("lit")` → substring check.
 /// Unknown shapes fail open (run the step).
-fn eval_condition(expr: &str, vars: &HashMap<String, String>) -> bool {
+/// `pub`: exercised by parity_feature_dev (ag eval_condition parity).
+pub fn eval_condition(expr: &str, vars: &HashMap<String, String>) -> bool {
     let expr = expr.trim();
     if let Some(rest) = expr.strip_prefix('$') {
         if let Some(paren) = rest.find(".contains(") {

@@ -98,6 +98,10 @@ fn orch_dispatch(_t str, _to str) str {}
 fn orch_bring_in(_q str) str {}
 fn drive_set_root(_w @str) {}
 fn drive_clear_root() {}
+// Plan 020 Phase A (feature_dev.at): tool-root confinement + AgentError → str。
+fn feature_dev_set_root(root PathBuf) {}
+fn feature_dev_clear_root() {}
+fn agent_error_msg(e @T) str {}
 fn relay_advance(_w @str, _r @str) Value {}
 fn relay_publish(_r @str, _v @T) {}
 fn advance_is_none(_r @T) bool {}

@@ -13,6 +13,7 @@ pub mod app_config;
 pub mod auth;
 pub mod chats;
 pub mod conversation;
+pub mod feature_dev;
 pub mod handoff_store;
 pub mod hello;
 pub mod auto_lib;

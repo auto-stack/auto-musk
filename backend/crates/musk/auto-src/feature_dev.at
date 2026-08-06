@@ -1,0 +1,431 @@
+/// feature_dev.at — port of backend/crates/musk/src/relay/feature_dev.rs
+/// (Plan 020 Phase A: Relay 引擎层 .at 移植)。对齐 hw 409 行。
+///
+/// 移植策略:
+/// - 纯逻辑全移植:builtin_names / require_builtin / flow / step_spec /
+///   substitute / eval_condition / now_secs + StepSpec / FeatureDevResult /
+///   WorkflowStreamEvent 类型。
+/// - drive loop 移植:PipelineEngine / FlowSpec / FlowStep / HandoffDocument /
+///   AdvanceResult 是 auto_ai_agent 的 Auto 类型,可直接驱动;Agent::run 也是
+///   Auto 方法。仅 3 个副作用 extern:feature_dev_set_root /
+///   feature_dev_clear_root(tool_safety)、agent_error_msg(AgentError → str)。
+///   Agent 构建直接调用 auto_generated::auto_lib::build_agent_from_mode
+///   (全链路 Auto,不绕 hw)。
+/// - run_stream 的 on_event 闭包 + tokio::spawn Auto 无法表达 → drive 接收
+///   emit 句柄(Option<mpsc sender>),stream 事件经既有 extern mpsc_try_send
+///   发送;非流式 run() 传 None。hw run_stream 的 spawn 桥接放 extern
+///   (Phase F 接线)。
+///
+/// 与 hw 的行为差异(均已文档化):
+/// - tracing::info!/warn!(skip 日志 / 未识别 condition)不移植——纯日志,无行为。
+/// - substitute 用 split("$") 等价实现(hw 是字节扫描)——对 `$` 语义逐项等价
+///   (含 `$` 后接非标识符、`$$`、多字节字符),不移植 utf8_len_at。
+/// - eval_condition 的引号剥离用 replace 替代 trim_matches——对未测试的
+///   双端多层引号边界不完全等价,测试形态(pass/fail 裸字面量)等价。
+
+use.rust std::collections::HashMap
+use.rust std::sync::Arc
+use.rust std::path::PathBuf
+use.rust std::time::SystemTime
+use.rust serde::Serialize
+use.rust serde_json::Value
+use.rust serde_json::to_value
+use.rust auto_ai_agent::orchestration::{AdvanceResult, FlowSpec, FlowStep, HandoffDocument, PipelineEngine}
+use.rust crate::server::AppState
+use.rust crate::workspace::WorkspaceStores
+use.rust crate::mode::AgentMode
+use.rust crate::auto_generated::auto_lib::build_agent_from_mode
+
+// ============================================================
+// Step spec 数据(hw FEATURE_DEV_STEPS 常量表)
+// ============================================================
+
+/// The tool whitelist for every feature-dev step — the old `shared_tools()`
+/// set (read/write/run). Matches the original workflow's tool exposure.
+fn step_tools() List<str> {
+    return ["read_file", "write_file", "run_command"]
+}
+
+/// One step of the feature-dev workflow (hw `StepSpec`, &'static str → str)。
+#[derive(Clone, Debug)]
+pub type StepSpec {
+    step_id str
+    /// The profession this step runs (musk role id).
+    profession str
+    /// Per-step input template; `$var` refs are substituted from prior outputs.
+    input_template str
+    /// The output variable this step's result is stored under (e.g. `$design`).
+    output_var str
+    /// Optional skip condition (`$var` non-empty, or `$var.contains("...")`).
+    condition Option<str>
+}
+
+/// Port of `backend/crates/musk/workflows/feature-dev.at` (architect → coder →
+/// tester → reviewer), verbatim prompt templates.
+fn feature_dev_steps() List<StepSpec> {
+    return [
+        StepSpec(
+            step_id: "architect",
+            profession: "architect",
+            input_template: "Design a plan for the following task. Output only the plan.\n\nTask:\n$user_request",
+            output_var: "$design",
+            condition: None
+        ),
+        StepSpec(
+            step_id: "coder",
+            profession: "coder",
+            input_template: "Implement the following plan using the available tools (read_file/write_file/run_command). Write real code.\n\nPlan:\n$design",
+            output_var: "$code",
+            condition: None
+        ),
+        StepSpec(
+            step_id: "tester",
+            profession: "tester",
+            input_template: "Write and run tests for the implementation described below. Use run_command to execute them. Report pass/fail.\n\nImplementation:\n$code",
+            output_var: "$test_report",
+            condition: None
+        ),
+        StepSpec(
+            step_id: "reviewer",
+            profession: "reviewer",
+            input_template: "Review the implementation and test results. List issues, or confirm approval.\n\nImplementation:\n$code\n\nTests:\n$test_report",
+            output_var: "$review",
+            // Review only if the tests actually ran (skip if tester produced nothing).
+            condition: Some("$test_report")
+        )
+    ]
+}
+
+fn step_spec(step_id str) Option<StepSpec> {
+    for s in feature_dev_steps() {
+        if s.step_id == step_id {
+            return Some(s)
+        }
+    }
+    return None
+}
+
+// ============================================================
+// 类型 + 纯逻辑
+// ============================================================
+
+/// All built-in workflow names.
+pub fn builtin_names() List<str> {
+    return ["feature-dev"]
+}
+
+/// Validate a workflow spec: only the built-in name is accepted. Custom
+/// `.at` workflow files are no longer supported (the old parser is retired).
+pub fn require_builtin(workflow str) Result<(), str> {
+    for name in builtin_names() {
+        if name == workflow {
+            return Ok(())
+        }
+    }
+    return Err("unknown workflow '" + workflow + "' (built-ins: feature-dev) — custom .at workflows are retired")
+}
+
+/// The linear FlowSpec PipelineEngine drives for feature-dev.
+pub fn flow() FlowSpec {
+    var f = FlowSpec.new("feature-dev")
+    for s in feature_dev_steps() {
+        let step = FlowStep.new(s.step_id, s.profession)
+        f.add_step(step)
+    }
+    return f
+}
+
+/// Outcome of a feature-dev run — the same shape the old `WorkflowResult`
+/// exposed (`/api/workflow/run` response contract)。
+#[derive(Clone, Debug, Serialize)]
+pub type FeatureDevResult {
+    /// Each step id → its textual output (skipped steps are absent).
+    steps HashMap<str, str>
+    /// Each output variable (no `$`) → its value.
+    outputs HashMap<str, str>
+    /// Total tokens consumed across all steps (与 hw 同型 u64)。
+    total_tokens u64
+}
+
+ext FeatureDevResult {
+    pub static fn default() FeatureDevResult {
+        return FeatureDevResult(steps: HashMap.new(), outputs: HashMap.new(), total_tokens: 0)
+    }
+}
+
+/// Step-level progress events — byte-for-byte the old `WorkflowEvent` SSE
+/// shapes (`{"type":...}`), so existing consumers are unaffected.
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub tag WorkflowStreamEvent {
+    StepStart { step_id str, role str, input str }
+    StepDone { step_id str, output str }
+    StepSkipped { step_id str }
+    Finished { steps HashMap<str, str>, outputs HashMap<str, str> }
+}
+
+/// Seconds since the UNIX epoch (hw now_secs; wiki.at 同款实现)。
+fn now_secs() u64 {
+    let elapsed = SystemTime.now().duration_since(SystemTime.UNIX_EPOCH).unwrap_or_default()
+    return elapsed.as_secs()
+}
+
+// ============================================================
+// substitute / eval_condition(纯字符串逻辑,split 等价实现)
+// ============================================================
+
+/// Scan leading `[A-Za-z0-9_]` chars; return [name, remainder].
+///
+/// NOTE: 用 starts_with 逐字符扫描而非 per-byte slicing——hw 是字节扫描
+/// (is_ascii_alphanumeric),而 a2r 的 substring(i, i+1) 生成 `&s[i..i+1]`,
+/// 对多字节 UTF-8 字符(如 'é')会 panic(char boundary)。starts_with 是安全
+/// 的 UTF-8 查找;命中 1 字符后 substring(1, len) 必在 char boundary。
+fn take_identifier(s str) List<str> {
+    var name str = ""
+    var rest str = s.to_string()
+    let alphabet List<str> = [
+        "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+        "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
+        "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+        "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "_"
+    ]
+    var done bool = false
+    while !done {
+        var matched bool = false
+        for c in alphabet.clone() {
+            if rest.starts_with(c) {
+                name = name + c
+                let c_len = c.len()
+                let r_len = rest.len()
+                rest = rest.substring(c_len, r_len).to_string()
+                matched = true
+                break
+            }
+        }
+        if !matched {
+            done = true
+        }
+    }
+    return [name, rest]
+}
+
+/// Replace `$var` references in `template` with values from `vars`. Unknown
+/// vars are left as-is so a missing dependency surfaces visibly. (hw 字节扫描
+/// 的 split("$") 等价实现——`$` 后接非标识符 / `$$` / 多字节字符逐项等价。)
+pub fn substitute(template str, vars HashMap<str, str>) str {
+    var out str = ""
+    let parts List<str> = template.split("$")
+    var first bool = true
+    for part in parts.clone() {
+        // split 产生 &str 元素;转 owned 以便拼接/传参。
+        let part_owned = part.to_string()
+        if first {
+            out = part_owned
+            first = false
+        } else {
+            let scanned = take_identifier(part_owned.view)
+            let name str = scanned[0]
+            let remainder str = scanned[1]
+            if name.len() == 0 {
+                // `$` 后接非标识符(或串尾)→ 原样保留 `$`
+                out = out + "$" + part_owned
+            } else {
+                is vars.get(name.view) {
+                    Some(val) -> { out = out + val + remainder },
+                    None -> { out = out + "$" + name + remainder }
+                }
+            }
+        }
+    }
+    return out
+}
+
+/// Evaluate a step condition (port of the old `evaluate_condition`):
+/// `$var` → true iff non-empty; `$var.contains("lit")` → substring check.
+/// Unknown shapes fail open (run the step).
+pub fn eval_condition(expr str, vars HashMap<str, str>) bool {
+    let trimmed = expr.trim()
+    if trimmed.starts_with("$") == false {
+        return true
+    }
+    let total int = trimmed.len()
+    let rest = trimmed.substring(1, total)
+    // `.contains(...)` form:`$var.contains("lit")` / `$var.contains(lit)`
+    let parts List<str> = rest.split(".contains(")
+    if parts.len() == 2 {
+        let lit_parts List<str> = parts[1].split(")")
+        if lit_parts.len() == 2 {
+            var literal str = lit_parts[0].trim()
+            literal = literal.replace("\"", "")
+            literal = literal.replace("'", "")
+            let var_name = parts[0].to_string()
+            is vars.get(var_name.view) {
+                Some(v) -> return v.contains(literal),
+                None -> return false
+            }
+        }
+    }
+    // Bare-var form:`$var` → true iff non-empty.
+    is vars.get(rest) {
+        Some(v) -> return v.len() > 0,
+        None -> return false
+    }
+}
+
+// ============================================================
+// drive loop(引擎驱动,全 Auto;PipelineEngine/Agent 为 Auto 类型)
+// ============================================================
+
+/// Run feature-dev to completion (non-streaming)。
+pub fn run(state AppState, ws Arc<WorkspaceStores>, task_text str) ~Result<FeatureDevResult, str> {
+    return drive(state, ws, task_text, None)
+}
+
+/// Streaming 变体:emit 为 mpsc sender 句柄(Value),事件经 mpsc_try_send 发出。
+/// hw run_stream 的 on_event 闭包 + tokio::spawn 由 extern 桥接(Phase F)。
+pub fn run_with_emit(state AppState, ws Arc<WorkspaceStores>, task_text str, emit Value) ~Result<FeatureDevResult, str> {
+    return drive(state, ws, task_text, Some(emit))
+}
+
+/// 发出一个 stream 事件(emit 为 None 时 no-op——非流式路径)。
+fn emit_event(emit Option<Value>, ev WorkflowStreamEvent) {
+    is emit {
+        Some(tx) -> {
+            let v = to_value(ev).unwrap()
+            mpsc_try_send(tx, v)
+        },
+        None -> {}
+    }
+}
+
+/// The shared drive loop(hw `drive`;`on_event` → emit 句柄)。
+/// - `done` 标志替代 hw 的 `break Ok(result)`(a2r 无 break-value);成功后
+///   在清理 tool root 之后再 emit Finished(与 hw 顺序一致)。
+fn drive(state AppState, ws Arc<WorkspaceStores>, task_text str, emit Option<Value>) ~Result<FeatureDevResult, str> {
+    // Confine this run's file-tool operations to the workspace root.
+    feature_dev_set_root(ws.root.clone())
+
+    let n u64 = now_secs()
+    let run_id = f"workflow-feature-dev-${n}"
+    var engine = PipelineEngine.new(flow(), run_id)
+
+    // Shared output map (key without `$`), seeded with the user request.
+    var vars HashMap<str, str> = HashMap.new()
+    vars.insert("user_request", task_text.to_string())
+
+    var result = FeatureDevResult.default()
+    var drive_result Result<FeatureDevResult, str> = Ok(result.clone())
+    var done bool = false
+    while !done {
+        let ar = engine.advance()
+        is ar {
+            AdvanceResult.ExecuteStep(step_id, role_id) -> {
+                is step_spec(step_id.view) {
+                    None -> {
+                        drive_result = Err("feature-dev: unknown step '" + step_id + "'")
+                        done = true
+                    },
+                    Some(s) -> {
+                        // Condition skip (old `condition : "$test_report"` semantics).
+                        var skip bool = false
+                        is s.condition.clone() {
+                            Some(cond) -> {
+                                if eval_condition(cond, vars.clone()) == false {
+                                    skip = true
+                                }
+                            },
+                            None -> {}
+                        }
+                        if skip {
+                            emit_event(emit.clone(), WorkflowStreamEvent.StepSkipped(step_id: step_id.clone()))
+                            // The engine has no skip primitive — submit an empty
+                            // handoff so it routes to the next step. The step is
+                            // NOT recorded in the result (old behavior: skipped
+                            // steps are absent).
+                            let h = HandoffDocument.new(role_id.view, "")
+                            let r2 = engine.submit_handoff(h)
+                            is r2 {
+                                AdvanceResult.Completed -> { drive_result = Ok(result.clone()); done = true },
+                                AdvanceResult.Failed(e) -> { drive_result = Err(e); done = true },
+                                AdvanceResult.Paused(sid, reason) -> { drive_result = Err("paused at '" + sid + "': " + reason); done = true },
+                                _ -> {}
+                            }
+                        } else {
+                            let input = substitute(s.input_template.view, vars.clone())
+                            emit_event(emit.clone(), WorkflowStreamEvent.StepStart(step_id: step_id.clone(), role: role_id.clone(), input: input.clone()))
+
+                            // Build a fresh agent for this step (same builder the relay
+                            // driver uses; tool whitelist matches the old shared_tools()).
+                            let mode = AgentMode(
+                                name: "workflow-" + step_id,
+                                description: "",
+                                role: role_id.clone(),
+                                skills: false,
+                                tools: step_tools(),
+                                workflow: None,
+                                context_file: "",
+                                extra_system_prompt: ""
+                            )
+                            is build_agent_from_mode(mode, state.client.clone()) {
+                                Err(e) -> {
+                                    drive_result = Err("build agent '" + role_id + "': " + e)
+                                    done = true
+                                },
+                                Ok(agent0) -> {
+                                    var agent = agent0
+                                    let run_result = agent.run(input.view).await
+                                    is run_result {
+                                        Err(e2) -> {
+                                            drive_result = Err("agent '" + step_id + "' failed: " + agent_error_msg(e2))
+                                            done = true
+                                        },
+                                        Ok(ar2) -> {
+                                            let output = ar2.output
+                                            emit_event(emit.clone(), WorkflowStreamEvent.StepDone(step_id: step_id.clone(), output: output.clone()))
+
+                                            // Record into the shared output map + result.
+                                            result.steps.insert(step_id.clone(), output.clone())
+                                            let key = s.output_var.replace("$", "")
+                                            vars.insert(key.clone(), output.clone())
+                                            result.outputs.insert(key, output.clone())
+                                            result.total_tokens = result.total_tokens + ar2.total_tokens
+
+                                            // Handoff carries the full output (empty `to` = "engine
+                                            // decides" — the engine fills the expected next role).
+                                            var h = HandoffDocument.new(role_id.view, "")
+                                            h.summary = output
+                                            h.token_usage.step_tokens = ar2.total_tokens
+
+                                            let r3 = engine.submit_handoff(h)
+                                            is r3 {
+                                                AdvanceResult.Completed -> { drive_result = Ok(result.clone()); done = true },
+                                                AdvanceResult.Failed(e3) -> { drive_result = Err(e3); done = true },
+                                                AdvanceResult.Paused(sid2, reason2) -> { drive_result = Err("paused at '" + sid2 + "': " + reason2); done = true },
+                                                _ -> {}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            AdvanceResult.Completed -> { drive_result = Ok(result.clone()); done = true }
+            AdvanceResult.Failed(e) -> { drive_result = Err(e); done = true }
+            AdvanceResult.Paused(sid, reason) -> { drive_result = Err("paused at '" + sid + "': " + reason); done = true }
+            AdvanceResult.WaitForHuman(sid) -> { drive_result = Err("unexpected human gate in feature-dev"); done = true }
+        }
+    }
+
+    feature_dev_clear_root()
+
+    is drive_result {
+        Err(e) -> return Err(e),
+        Ok(final_result) -> {
+            emit_event(emit.clone(), WorkflowStreamEvent.Finished(steps: final_result.steps.clone(), outputs: final_result.outputs.clone()))
+            return Ok(final_result)
+        }
+    }
+}

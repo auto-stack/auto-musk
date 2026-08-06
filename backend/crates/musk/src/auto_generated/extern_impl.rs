@@ -1085,6 +1085,19 @@ pub fn drive_accumulated(_w: &str, _r: &str) -> String { String::new() }
 pub fn drive_finalize_output(_o: String, _r: &Value) -> String { _o }
 pub fn drive_submit_handoff(_w: &str, _r: &str, _r2: &str, _o: &str, _v: &Value) {}
 pub fn drive_handle_stream_event(_w: &str, _r: &str, _r2: &str, _e: i32) {}
+/// Plan 020 Phase A (feature_dev.at): tool-root confinement for a feature-dev
+/// run — delegates to the same `tool_safety` thread-local hw module.
+pub fn feature_dev_set_root(root: std::path::PathBuf) {
+    crate::tool_safety::set_current_root(root);
+}
+pub fn feature_dev_clear_root() {
+    crate::tool_safety::clear_current_root();
+}
+/// Plan 020 Phase A (feature_dev.at): AgentError → message string (the drive
+/// loop's `agent '{step}' failed: {e}` error path; AgentError impls Display).
+pub fn agent_error_msg(e: &auto_ai_agent::AgentError) -> String {
+    e.to_string()
+}
 /// ③ 委托(agent/ctx 簇):auto_lib 镜像的真实 agent 构建 —— 与 hw
 /// `build_agent_from_mode/build_agent_with_context`(src/lib.rs) 同路径。
 pub fn agent_register_shared(a: &mut Agent, t: Arc<dyn Tool>) {

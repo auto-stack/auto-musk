@@ -129,6 +129,13 @@ $src =~ s/^use a2r_std;\s*\n//gm;
 $src =~ s/^use a2r_std::\*;\s*\n//gm;
 $src =~ s/^use a2r_std::\w+(?:::\w+)?;\s*\n//gm;
 
+# Plan 020 (feature_dev.at): a2r resolves Agent::run's `~Result<AgentResult,
+# AgentError>` and injects `use crate::error::AgentError;` assuming the file
+# lives in auto-ai-agent. In musk (where the module is transpiled) that path
+# doesn't exist (E0432); the generated code never names AgentError explicitly
+# (only extern agent_error_msg handles it), so the import is dropped.
+$src =~ s/^use crate::error::AgentError;\s*\n//gm;
+
 # Inject/fix extern_impl glob import so the .a2r.rs can call the glue-layer
 # stubs (value_get_str, parse_json, specs_load, etc.) that live in
 # extern_impl.rs. Use `super::` because every transpiled product lives in the
@@ -189,6 +196,15 @@ $src =~ s/conv_event_stream\(rx\.clone\(\), id\.as_str\(\)\)/conv_event_stream(r
 $src =~ s/conv_event_matches\((&ev), id\)/conv_event_matches($1, \&id)/g;
 # (3) ExitRouting::Loop tuple-ctor → struct-ctor (upstream uses named fields).
 $src =~ s/ExitRouting::Loop\("([^"]*)",\s*(\d+)\)/ExitRouting::Loop { target_step_id: "$1".to_string(), max_iterations: $2 }/g;
+
+# (3b) Plan 020 (feature_dev.at): AdvanceResult match patterns — a2r's type
+# table (from auto-ai-agent .at sources) models tuple variants, but the runtime
+# crate (rust-ref) declares struct variants → rewrite match patterns to the
+# struct form (step_id/role_id/error/reason field names from rust-ref).
+$src =~ s/AdvanceResult::ExecuteStep\((\w+), (\w+)\)/AdvanceResult::ExecuteStep { step_id: $1, role_id: $2 }/g;
+$src =~ s/AdvanceResult::WaitForHuman\((\w+)\)/AdvanceResult::WaitForHuman { step_id: $1 }/g;
+$src =~ s/AdvanceResult::Failed\((\w+)\)/AdvanceResult::Failed { error: $1 }/g;
+$src =~ s/AdvanceResult::Paused\((\w+), (\w+)\)/AdvanceResult::Paused { step_id: $1, reason: $2 }/g;
 
 # (4) OwnedRole needs `impl auto_ai_agent::Role` (delegates to inner Arc<dyn Role>).
 # Auto's str→String is incompatible with Role's &str returns, so this is injected
