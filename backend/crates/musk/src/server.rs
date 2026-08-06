@@ -33,23 +33,6 @@ use crate::workspace::WorkspaceQuery;
 
 /// Guess a Content-Type from a file extension (mirrors `wiki::guess_mime` but
 /// local to the server module so the `/api/files` endpoint stays self-contained).
-fn guess_mime_from_path(path: &std::path::Path) -> &'static str {
-    match path.extension().and_then(|e| e.to_str()) {
-        Some("png") => "image/png",
-        Some("jpg") | Some("jpeg") => "image/jpeg",
-        Some("gif") => "image/gif",
-        Some("svg") => "image/svg+xml",
-        Some("webp") => "image/webp",
-        Some("bmp") => "image/bmp",
-        Some("md") => "text/markdown",
-        Some("txt") => "text/plain",
-        Some("json") => "application/json",
-        Some("html") => "text/html",
-        Some("js") => "application/javascript",
-        Some("css") => "text/css",
-        _ => "application/octet-stream",
-    }
-}
 
 /// Shared server state: a client that talks to the daemon, the auth store,
 /// and the workspace registry (which resolves per-workspace specs/chats/wiki/
@@ -127,9 +110,8 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
     // (Phase 1c 非流式 run/workflow_run + Phase 2-4 流式 run_stream/
     // workflow_run_stream/chat_stream/conversation_stream,均经 extern_impl
     // 真实委托)。
-    // Plan 020 Phase F:settings_link + relay/task_plan/wiki 合并全部切到 ag
-    // handler(auto_generated::server_stream / relay_api / wiki)。唯一残留 hw:
-    // workspace_file(纯文件 I/O 服务端点)+ 静态文件/CORS/serve 外壳。
+    // Plan 020 Phase F + Plan 021 Phase A:所有业务端点(含 /api/files 文件服务)
+    // 全部由 ag handler 服务。唯一残留 hw:静态文件/CORS/serve 外壳。
     let app = crate::auto_generated::server::build_router()
         // daemon/SSE handlers — all served by transpiled server_stream handlers.
         .route("/api/run", post(crate::auto_generated::server_stream::run))
@@ -141,10 +123,6 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .route("/api/settings-link", post(crate::auto_generated::server_stream::settings_link))
         .route("/api/chats/session/{id}/stream", get(crate::auto_generated::server_stream::chat_stream))
         .route("/api/conversations/{id}/stream", get(crate::auto_generated::server_stream::conversation_stream))
-        // Workspace file serving (for display_image tool): serves any file
-        // inside a workspace's root so generated artifacts (e.g. PNG charts)
-        // can be rendered inline in the chat via a URL.
-        .route("/api/files/{workspace_id}/{*path}", get(workspace_file))
         // Relay (Flows) orchestration engine — ag relay_api handlers(Plan 020 Phase D)。
         .merge(crate::auto_generated::relay_api::relay_routes())
         // TaskPlan orchestration (Plan 009 P2b.7) — ag relay_api handlers。
@@ -711,31 +689,6 @@ async fn chat_stream(
 
 // ── Spec-change approval endpoints (Plan 009 P1b) ──────────────────────────
 // ── Workspace management endpoints ──────────────────────────────────────────
-/// `GET /api/files/{workspace_id}/{*path}` — serve a file from inside a
-/// workspace's root. Used by the `display_image` tool so generated artifacts
-/// (e.g. a PNG chart) can be rendered inline in the chat via a URL. The path
-/// is confined to the workspace root via canonicalize.
-async fn workspace_file(
-    State(state): State<AppState>,
-    Path((workspace_id, path)): Path<(String, String)>,
-) -> Response {
-    let ws = state.registry.get(&workspace_id);
-    // Confine the requested path to the workspace root.
-    let candidate = ws.root.join(&path);
-    let canonical = match std::fs::canonicalize(&candidate) {
-        Ok(c) => c,
-        Err(_) => return StatusCode::NOT_FOUND.into_response(),
-    };
-    if canonical != ws.root && !canonical.starts_with(&ws.root) {
-        return StatusCode::FORBIDDEN.into_response();
-    }
-    let data = match std::fs::read(&canonical) {
-        Ok(d) => d,
-        Err(_) => return StatusCode::NOT_FOUND.into_response(),
-    };
-    let mime = guess_mime_from_path(&canonical);
-    ([(axum::http::header::CONTENT_TYPE, mime)], data).into_response()
-}
 // ── Conversation endpoints (unified chat + flow) ────────────────────────────
 /// `GET /api/conversations/{id}/stream?workspace=<id>` — SSE stream of
 /// conversation events (appended turns + status changes). Events from other
@@ -1760,7 +1713,8 @@ mod tests {
             .route("/api/settings-link", axum::routing::post(ag::settings_link))
             .route("/api/chats/session/{id}/stream", axum::routing::get(ag::chat_stream))
             .route("/api/conversations/{id}/stream", axum::routing::get(ag::conversation_stream))
-            .route("/api/files/{workspace_id}/{*path}", axum::routing::get(workspace_file))
+            // Plan 021 Phase A:/api/files 现由 build_router() 内的 ag workspace_file
+            // 服务(不再单独 .route)。
             // Plan 020 Phase F:relay/task_plan/wiki 合并全部切到 ag handler
             // (与 serve() 一致)。
             .merge(crate::auto_generated::relay_api::relay_routes())

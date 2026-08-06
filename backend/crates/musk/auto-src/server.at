@@ -478,11 +478,23 @@ fn workflows() ~Json<WorkflowsResp> {
 // ones + .merge(relay/task_plan/wiki) + fallback_service + cors + with_state.
 // ============================================================
 
+// ============================================================
+// Plan 021 Phase A: /api/files/{workspace_id}/{*path} — workspace 文件服务
+// (display_image 工具生成的内联图片 URL)。纯文件 I/O:canonicalize 沙箱(防越界)
+// + fs::read + guess_mime。逻辑 < 30 行无业务逻辑,经 extern 委托 hw 同路径
+// (复用 crate::wiki::guess_mime)。替代 hw server.rs:718 workspace_file。
+// ============================================================
+pub fn workspace_file(s State<AppState>, p Path<(str, str)>) ~Response {
+    return workspace_file_do(s.view, p)
+}
+
+
 pub fn build_router() Router<AppState> {
     var app = Router.new()
     app = app.route("/api/health", get(health))
     app = app.route("/api/professions", get(professions))
     app = app.route("/api/workflows", get(workflows))
+    app = app.route("/api/files/{workspace_id}/{*path}", get(workspace_file))
     app = app.route("/api/auth/login", post(auth_login))
     app = app.route("/api/auth/me", get(auth_me))
     app = app.route("/api/auth/logout", post(auth_logout))

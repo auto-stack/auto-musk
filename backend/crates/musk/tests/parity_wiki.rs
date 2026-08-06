@@ -9,11 +9,10 @@
 //! it was removed from `wiki.at` while chasing an a2r parser state bug, and
 //! the axum routes are hand-written boundaries anyway.
 //!
-//! Known deviation: `build_tree` in the ag module sets file-node `size` /
-//! `modified` to `None`. The hand-written builder enriches them from
-//! `fs::Metadata`, but a2r's Auto int model casts `.len()` to i32 (C9 codegen
-//! limitation) which can't feed an `Option<u64>` size. Tree structure /
-//! ordering / stripping — the functional surface — is asserted here.
+//! Plan 021 Phase B2: `build_tree` in the ag module now enriches file-node
+//! `size` / `modified` from `fs::Metadata` (file_size/file_modified helpers
+//! suppress the i32 cast via store-path `let u64`). Tree structure / ordering /
+//! stripping + size + modified are all asserted here and in parity_wiki_http.
 
 use musk::wiki as hw;                 // hand-written
 use musk::auto_generated::wiki as ag; // a2r-transpiled Auto

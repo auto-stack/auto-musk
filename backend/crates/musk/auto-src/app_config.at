@@ -7,6 +7,7 @@
 /// - apply_to_env / apply_app_config (env mutation) -> hand-written Rust
 
 use.rust serde::{Serialize, Deserialize}
+use.rust std::env
 
 // ============================================================
 // Config structs
@@ -41,11 +42,18 @@ pub type MuskAppConfig {
 }
 
 ext MuskAppConfig {
-    /// Effective daemon URL (configured or default).
+    /// Effective daemon URL, merging: file < env `AAID_URL` < compiled default.
+    /// (与 hw app_config.rs:150 一致;Plan 021 Phase B1 闭合原 env 覆盖缺失。)
     pub fn effective_daemon_url() str {
-        is self.daemon_url {
-            Some(url) -> return url.clone(),
-            None -> return "http://127.0.0.1:17654"
+        is self.daemon_url.clone() {
+            Some(url) -> return url,
+            None -> {
+                let env_opt Option<str> = env::var("AAID_URL").ok()
+                is env_opt {
+                    Some(u) -> return u,
+                    None -> return "http://127.0.0.1:17654"
+                }
+            }
         }
     }
 

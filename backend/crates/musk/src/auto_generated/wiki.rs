@@ -486,6 +486,33 @@ fn file_size(entry: &DirEntry) -> Option<u64> {
     }
 }
 
+/// Plan 021 Phase B2: extract file mtime as Option<u64> (secs since UNIX_EPOCH).
+/// 仿 file_size 抽 fn(store 路径);modified() → Result<SystemTime>,ok() →
+/// Option<SystemTime>,duration_since(UNIX_EPOCH).ok() → Option<Duration>,
+/// 显式 let secs u64 = dur.as_secs() 抑制 cast。闭合 KNOWN-DEBT 第 28 行(原恒 None)。
+fn file_modified(entry: &DirEntry) -> Option<u64> {
+    let meta_opt = entry.metadata();
+    match meta_opt {
+        Ok(m) => {
+            let mod_opt = m.modified().ok();
+            match mod_opt {
+                Some(t) => {
+                    let dur_opt = t.duration_since(SystemTime::UNIX_EPOCH).ok();
+                    match dur_opt {
+                        Some(d) => {
+                            let secs: u64 = d.as_secs();
+                            return Some(secs);
+                        },
+                        None => return None,
+                    };
+                },
+                None => return None,
+            };
+        },
+        Err(_) => return None,
+    }
+}
+
 pub fn build_tree(root: PathBuf, prefix: &str) -> Vec<TreeNode> {
     let mut entries: Vec<TreeNode> = vec![];
     let dir_res = fs::read_dir(root);
@@ -518,10 +545,9 @@ pub fn build_tree(root: PathBuf, prefix: &str) -> Vec<TreeNode> {
 
 
 
-
-
                     let size_opt: Option<u64> = file_size(&entry);
-                    let node: TreeNode = TreeNode { name: name.to_string(), path: path.to_string(), node_type: "file".to_string(), children: None, size: size_opt, modified: None };
+                    let mod_opt: Option<u64> = file_modified(&entry);
+                    let node: TreeNode = TreeNode { name: name.to_string(), path: path.to_string(), node_type: "file".to_string(), children: None, size: size_opt, modified: mod_opt };
                     entries = insert_sorted(entries, node.clone());
                 }
 

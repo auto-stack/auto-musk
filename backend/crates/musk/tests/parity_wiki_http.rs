@@ -184,15 +184,10 @@ async fn wiki_crud_hw_vs_ag() {
     assert_eq!(b_hw["results"].as_array().unwrap().len(), 1);
     assert_eq!(b_hw["results"][0]["slug"], "intro");
 
-    // tree → 去 .md 后缀的页面节点(hw 带 modified mtime;ag 留 None —— 已文档化
-    // 分歧(parity_wiki L13),比较前从 hw 侧剔除 modified)。
-    let (_, mut b_hw) = send(&hw, "GET", "/api/forge/wiki/proj/tree", None).await;
+    // tree → 去 .md 后缀的页面节点。Plan 021 Phase B2 后 ag file_modified 也取
+    // 真实 mtime,与 hw 一致 —— 两侧逐键比对(含 modified)。
+    let (_, b_hw) = send(&hw, "GET", "/api/forge/wiki/proj/tree", None).await;
     let (_, b_ag) = send(&ag, "GET", "/api/forge/wiki/proj/tree", None).await;
-    for node in b_hw.as_array_mut().unwrap() {
-        if let Some(obj) = node.as_object_mut() {
-            obj.remove("modified");
-        }
-    }
     assert_eq!(b_hw, b_ag, "tree parity after create");
     assert_eq!(b_hw[0]["name"], "intro");
     assert_eq!(b_hw[0]["type"], "file");

@@ -582,11 +582,16 @@ async fn workflows() -> Json<WorkflowsResp> {
     return Json(WorkflowsResp { workflows: list });
 }
 
+pub async fn workspace_file(s: State<AppState>, p: Path<(String, String)>) -> Response {
+    return workspace_file_do(&s, p);
+}
+
 pub fn build_router() -> Router<AppState> {
     let mut app = Router::new();
     app = app.route("/api/health", get(health));
     app = app.route("/api/professions", get(professions));
     app = app.route("/api/workflows", get(workflows));
+    app = app.route("/api/files/{workspace_id}/{*path}", get(workspace_file));
     app = app.route("/api/auth/login", post(auth_login));
     app = app.route("/api/auth/me", get(auth_me));
     app = app.route("/api/auth/logout", post(auth_logout));

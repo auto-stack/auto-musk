@@ -159,6 +159,9 @@ fn ws_wiki_delete(_s @T, _q Value, _slug @str) Value {}
 fn ws_wiki_search(_s @T, _q Value, _query @str) Value {}
 fn wiki_raw_upload(_s @T, _q Value, _prefix @str, _m Multipart) Value {}
 fn wiki_raw_file(_s @T, _q Value, _path @str) Response {}
+// Plan 021 Phase A (server.at workspace_file): workspace 文件服务(canonicalize 沙箱
+// + fs::read + wiki::guess_mime)。p 是 axum Path<(String,String)>,extern 内解构。
+fn workspace_file_do(_s @T, _p @T) Response {}
 fn wiki_raw_delete(_s @T, _q Value, _path @str) Value {}
 fn wiki_raw_mkdir(_s @T, _q Value, _path @str) Value {}
 fn path_second(_p @T) str {}

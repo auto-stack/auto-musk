@@ -152,20 +152,18 @@ fn parity_effective_daemon_url() {
     );
     assert_eq!(hw::MuskAppConfig::default().effective_daemon_url(), "http://127.0.0.1:17654");
 
-    // Documented divergence — the transpiled `effective_daemon_url` skips the
-    // `AAID_URL` env override (a2r can't express `env::var(...).ok()`; env access
-    // is a plan-014 hand-written boundary). This pins the *current* behavior of
-    // each side; if a future dogfooding loop closes the gap, it should change here.
+    // Plan 021 Phase B1: AAID_URL env override now merged on BOTH sides
+    // (a2r 391 D4 made env::var(...).ok() parse; app_config.at wires it in).
+    // The gap documented in the original version of this test is closed.
     std::env::set_var("AAID_URL", "http://env:9999");
-    // Hand-written merges env AAID_URL into the effective URL...
+    // Both hand-written and transpiled now merge env AAID_URL into the URL.
     assert_eq!(
         hw::MuskAppConfig::default().effective_daemon_url(),
         "http://env:9999",
     );
-    // ...the transpiled version falls straight back to the compiled default.
     assert_eq!(
         ag::MuskAppConfig::default().effective_daemon_url(),
-        "http://127.0.0.1:17654",
+        "http://env:9999",
     );
     std::env::remove_var("AAID_URL");
 }

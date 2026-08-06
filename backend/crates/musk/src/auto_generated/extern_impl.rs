@@ -2516,6 +2516,30 @@ pub fn wiki_raw_file(s: &State<AppState>, q: Query<crate::auto_generated::wiki::
     ([(axum::http::header::CONTENT_TYPE, mime)], data).into_response()
 }
 
+/// Plan 021 Phase A: /api/files/{workspace_id}/{*path} — serve a file from the
+/// workspace root (display_image tool's inline-URL target). Confines the path to
+/// the workspace root via canonicalize + starts_with (FORBIDDEN on escape),
+/// reads bytes (NOT_FOUND on err), returns with Content-Type from
+/// wiki::guess_mime. Replaces hw server.rs:718 workspace_file.
+pub fn workspace_file_do(s: &State<AppState>, p: axum::extract::Path<(String, String)>) -> axum::response::Response {
+    let (workspace_id, path) = p.0;
+    let ws = s.registry.get(&workspace_id);
+    let candidate = ws.root.join(&path);
+    let canonical = match std::fs::canonicalize(&candidate) {
+        Ok(c) => c,
+        Err(_) => return axum::http::StatusCode::NOT_FOUND.into_response(),
+    };
+    if canonical != ws.root && !canonical.starts_with(&ws.root) {
+        return axum::http::StatusCode::FORBIDDEN.into_response();
+    }
+    let data = match std::fs::read(&canonical) {
+        Ok(d) => d,
+        Err(_) => return axum::http::StatusCode::NOT_FOUND.into_response(),
+    };
+    let mime = crate::wiki::guess_mime(&canonical);
+    ([(axum::http::header::CONTENT_TYPE, mime)], data).into_response()
+}
+
 pub fn wiki_raw_delete(s: &State<AppState>, q: Query<crate::auto_generated::wiki::WorkspaceQuery>, path: &str) -> Value {
     let ws = wiki_ws(s, &q);
     let file_path = ws.wiki.raw_dir.join(path);
