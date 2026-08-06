@@ -1,9 +1,34 @@
 # 020 — 全后端 Auto 化：Relay/Forge + TaskPlan + Wiki + settings_link 接入 Auto 驱动
 
-> **状态**：📋 规划（2026-08-06）。待实施。
+> **状态**：🔨 实施中（2026-08-06 启动；Phase A/B/C 已闭环，Phase D/E/F 待续）。
 > **前置**：Plan 018（已归档，parity 全闭环）+ Plan 019（已归档，6 个 🔴 流式/daemon handler 接线）。
 > **仓库**：auto-musk（`backend/crates/musk/`）+ auto-lang（a2r 转译器，构建 `auto.exe`）。
 > **目标**：把**剩余未 Auto 化**的后端子系统（Relay/Forge 编排、TaskPlan、Wiki、settings_link）全部移植到 Auto(.at)，经 a2r 生成 Rust 编译运行；serve() 所有业务端点切到 ag handler；Auto 版行为与手写 Rust 原版一致（parity + HTTP 等价测试）。
+
+---
+
+## 0. 实施日志（2026-08-06）
+
+| 阶段 | 内容 | 提交 | 验收 |
+|---|---|---|---|
+| **Phase A1** | `feature_dev.at` 全移植（纯逻辑 + drive loop，PipelineEngine/Agent 直驱，3 个 extern） | `2630980` | parity_feature_dev 9 项绿（含 run()/run_with_emit 端到端行为等价） |
+| **Phase A2** | `relay_store.at` 补全（RunMetadata 11 字段 + skip_serializing_if 修 wire 分歧）；relay_driver 既有 parity 保持 | `ba4f1ac` | parity_relay_store 7 项绿 |
+| **Phase B1** | `task_plan_engine.at` 全移植（类型 + 迭代 DFS topological_order + execute 全 Auto 化，executor 用 pub spec TaskPlanExecutor trait） | `685e49a` | parity_task_plan_engine 6 项绿（serial/parallel/failure/input_from 端到端） |
+| **Phase B2** | `task_plan_parser.at` + `task_plan_registry.at` 移植；**修 task_plan.at 既有 parity 漏洞**（require_string_prop 缺失/类型错应报错而非返回 ""） | `eaf5f81` | parity_task_plan_parser_registry 9 项绿；既有 parity_task_plan 17 项保持 |
+| **Phase C** | `wiki.at` WRITE 路径补全（create/update/delete/save_manifest）；嵌套臂内 guard 死锁 → cache_insert 独立锁 helper | `d0849fc` | parity_wiki_write 5 项绿；既有 parity_wiki 11 项保持 |
+
+**累计**：26 个新 parity 测试全绿，全量 394 测试无回归；6 个 .at 模块 re-transpile 零 drift。
+
+**已习得 a2r 约束**（跨模块通用）：
+- Auto 关键字避让：`spec`/`dep`/`task`/`var` 不能作变量/参数名（字段名可）。
+- `is` 臂的 wildcard 绑定（`other ->`）只能用于表达式臂；block 臂内调用绑定值失败。
+- 嵌套在 is 臂内的 `is guard.get` 不发射 `drop(guard)` → 同 Mutex 二次 lock 死锁（抽独立锁作用域 helper）。
+- 循环变量直接作"嵌套调用实参的字面量字段"→ 类型推断错位（预绑定 local）。
+- 局部 fn 的 `str` 参数生成 `&str`；跨模块调用需 `.view`（`&x`），extern `@T`/`@str` 参数**不要**再写 `.view`（会双引用）。
+- `~Result<T, str>` 返回 → 自动 async fn；对 `~Result` 局部 fn 调用自动加 `.await`（勿手写双 await）；spec trait 方法调用需手写 `.await`。
+- a2r 类型表把 auto-ai-agent 枚举建模为 tuple 变体，运行时 rust-ref 是 struct 变体 → nativeize 模式重写（(3b) AdvanceResult）。
+
+**待续**：Phase D（Relay/Wiki HTTP 层 .at 移植）、Phase E（settings_link）、Phase F（serve() 接线 + 全量验收）。
 
 ---
 
