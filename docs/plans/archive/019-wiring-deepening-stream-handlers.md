@@ -1,6 +1,7 @@
 # 019 — 接线运行深化：流式 handler 切换到 Auto 驱动
 
-> **状态**：✅ 完成（2026-08-06）。Phase 0-4 全闭环 + 状态码模型补齐 + §6.1 流式即时错误→400 + §6.2 broadcast 连接泄漏根治。6 个 handler 全部切到 ag，全量 228 lib 测试 + 集成测试全绿。§6.3 登记备忘（与 hw 等价非缺陷）。
+> **状态**：✅ COMPLETE（2026-08-06 归档）。Phase 0-4 全闭环 + 状态码模型补齐 + §6.1 流式即时错误→400 + §6.2 broadcast 连接泄漏根治。6 个 handler 全部切到 ag，全量 228 lib 测试 + 集成测试全绿。§6.3 登记备忘（与 hw 等价非缺陷）。
+> **归档复审**（plan-archiver Step 2.5）：切换后暴露 3 项限制——§6.1（流式 handler 即时错误→400）与 §6.2（conversation_stream broadcast Receiver 连接泄漏）已随本计划闭环并配契约测试；§6.3（mpsc 缓冲 64 丢帧）与 hw 完全等价、非缺陷、仅登记备忘。均见 `KNOWN-DEBT-AND-RISKS.md` 🟢 已知限制表。无 🔴 高风险。
 > **前置**：Plan 018（已归档，§11 接线运行 ①-④ 已完成，本计划是 §11 标记的"后续独立计划"）。
 > **仓库**：auto-musk（`backend/crates/musk/`）。Phase 1a 重新转译用到 auto-lang worktree（构建 `auto.exe`）。
 > **目标**：把 serve() 的 6 个 🔴 流式/daemon handler 从手写 Rust 切换到 `auto_generated::server_stream` 的转译 handler，让整个服务端（除 settings_link + serve 外壳）由 Auto 驱动。
