@@ -418,7 +418,7 @@ impl TaskPlanEngine {
         }
     }
 
-    fn topological_order(&self) -> Result<Vec<String>, String> {
+    pub fn topological_order(&self) -> Result<Vec<String>, String> {
         let mut visited = HashSet::new();
         let mut stack = HashSet::new();
         let mut order = Vec::new();

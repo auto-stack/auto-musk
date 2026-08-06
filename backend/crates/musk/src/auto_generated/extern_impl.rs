@@ -1098,6 +1098,27 @@ pub fn feature_dev_clear_root() {
 pub fn agent_error_msg(e: &auto_ai_agent::AgentError) -> String {
     e.to_string()
 }
+/// Plan 020 Phase B (task_plan_engine.at): cheap unique-ish id (hw uuidish —
+/// subsec-nanos in hex, `format!("{:x}", nanos)`; a2r can't hex-format).
+pub fn task_plan_uuidish() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    format!("{:x}", nanos)
+}
+/// Plan 020 Phase B (task_plan_engine.at): broadcast a task-plan event on the
+/// shared relay SSE bus (hw `relay::api::publish_task_plan_event`).
+pub fn task_plan_broadcast(instance_id: &str, event_type: &str, payload: Value) {
+    crate::relay::api::publish_task_plan_event(instance_id, event_type, payload);
+}
+/// Plan 020 Phase B (task_plan_engine.at): resolve a `handoff.path.to.value`
+/// reference from the HandoffStore; stringified with serde_json Display
+/// (compact JSON) — identical to hw `format!("{}", value)`.
+pub fn handoff_resolve_path(store: &crate::relay::handoff_store::HandoffStore, path: &str) -> Option<String> {
+    store.resolve_path(path).map(|v| v.to_string())
+}
 /// ③ 委托(agent/ctx 簇):auto_lib 镜像的真实 agent 构建 —— 与 hw
 /// `build_agent_from_mode/build_agent_with_context`(src/lib.rs) 同路径。
 pub fn agent_register_shared(a: &mut Agent, t: Arc<dyn Tool>) {

@@ -102,6 +102,10 @@ fn drive_clear_root() {}
 fn feature_dev_set_root(root PathBuf) {}
 fn feature_dev_clear_root() {}
 fn agent_error_msg(e @T) str {}
+// Plan 020 Phase B (task_plan_engine.at): uuidish / SSE broadcast / handoff 读取。
+fn task_plan_uuidish() str {}
+fn task_plan_broadcast(_i @str, _t @str, _p Value) {}
+fn handoff_resolve_path(_s @T, _p @str) Option<str> {}
 fn relay_advance(_w @str, _r @str) Value {}
 fn relay_publish(_r @str, _v @T) {}
 fn advance_is_none(_r @T) bool {}
