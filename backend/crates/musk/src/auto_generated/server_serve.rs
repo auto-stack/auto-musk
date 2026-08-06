@@ -34,7 +34,7 @@ async fn settings_link() -> Response {
     let cfg = app_config_load();
     let daemon_url = app_config_effective_daemon_url(cfg);
     let ensure_url: String = format!("{}{}", daemon_url, "/v1/services/os-config/ensure");
-    let result = http_post_json(&ensure_url.as_str()).await;
+    let result = http_post_json(ensure_url.as_str()).await;
     match result {
         Ok(val) => {
             let status = value_get_str(&val, "status");
@@ -47,71 +47,5 @@ async fn settings_link() -> Response {
             return error_response(500, SettingsLinkErr { status: "error".to_string(), error: error_val.to_string() });
         },
         Err(e) => return error_response(502, SettingsLinkErr { status: "error".to_string(), error: e.to_string() }),
-    };
-}
-
-async fn drive_run(state: Arc<AppState>, ws_id: &str, run_id: &str) -> () {
-    drive_set_root(ws_id);
-    drive_loop(state.clone(), ws_id, run_id).await;
-    drive_clear_root()
-}
-
-async fn drive_loop(state: Arc<AppState>, ws_id: &str, run_id: &str) -> () {
-    loop {
-        let result = relay_advance(ws_id, run_id);
-        if advance_is_none(&result) {
-            return;
-        }
-        relay_publish(run_id, &result);
-        match advance_kind(&result).as_str() {
-            "execute" => {
-                let role_id = advance_role_id(&result);
-                let step_err = run_step(state.clone(), ws_id, run_id, role_id.as_str()).await;
-                if step_err_is_err(&step_err) {
-                    relay_submit_error(run_id, &role_id, &step_err);
-                }
-            },
-            "wait" => return,
-            "completed" => return,
-            "failed" => return,
-            "paused" => return,
-            _ => {},
-        };
-    }
-}
-
-async fn run_step(state: Arc<AppState>, ws_id: &str, run_id: &str, role_id: &str) -> Result<String, String> {
-    let task_input = relay_step_context(ws_id, run_id);
-    let agent = factory_build_agent(&state, ws_id, run_id, role_id).await;
-    let sink = DriveStreamSink { ws_id: ws_id.to_string(), run_id: run_id.to_string(), role_id: role_id.to_string() };
-    let cancel = atomic_bool_false();
-    let result = agent_run_stream_with_sink(agent, task_input, Arc::new(sink), cancel).await;
-    match result {
-        Ok(r) => {
-            let output = drive_accumulated(ws_id, run_id);
-            let final_output = drive_finalize_output(output, &r);
-            drive_submit_handoff(ws_id, run_id, role_id, &final_output, &r);
-            return Ok(final_output);
-        },
-        Err(e) => return Err(e),
-    };
-}
-
-trait DriveSink {
-    fn on_event(&self, ev: i32);
-}
-
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct DriveStreamSink {
-    pub ws_id: String,
-    pub run_id: String,
-    pub role_id: String,
-}
-
-impl DriveSink for DriveStreamSink {
-    fn on_event(&self, ev: i32) {
-
-        drive_handle_stream_event(&self.ws_id.clone(), &self.run_id.clone(), &self.role_id.clone(), ev);
     }
 }

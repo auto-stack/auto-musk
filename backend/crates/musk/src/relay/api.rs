@@ -206,7 +206,9 @@ async fn advance_run(
     let state_arc = Arc::new(state.clone());
     let run_id_clone = run_id.clone();
     tokio::spawn(async move {
-        crate::relay::driver::drive_run(state_arc, ws_id, run_id_clone).await;
+        // Plan 020 Phase G: switched to the transpiled ag drive_run (parity with
+        // hw proven by parity_relay_driver); returns Result<bool,String> (ignored).
+        let _ = crate::auto_generated::relay_driver::drive_run(state_arc, &ws_id, &run_id_clone).await;
     });
     // Return the current (pre-drive or just-advanced) snapshot.
     match ws.relay.get(&run_id) {
@@ -269,7 +271,9 @@ async fn resolve_gate(
                 let state_arc = Arc::new(state.clone());
                 let run_id_clone = run_id.clone();
                 tokio::spawn(async move {
-                    crate::relay::driver::drive_run(state_arc, ws_id, run_id_clone).await;
+                    // Plan 020 Phase G: switched to the transpiled ag drive_run (parity with
+        // hw proven by parity_relay_driver); returns Result<bool,String> (ignored).
+        let _ = crate::auto_generated::relay_driver::drive_run(state_arc, &ws_id, &run_id_clone).await;
                 });
             }
             Json(run_state).into_response()

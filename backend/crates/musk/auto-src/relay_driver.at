@@ -1,11 +1,14 @@
-/// relay_driver.at — MuskAgentFactory + AgentFactory impl (relay/driver.rs).
-/// drive_run/drive_loop/run_step（async 闭包 + Mutex）保留手写。
+/// relay_driver.at — MuskAgentFactory + AgentFactory impl (relay/driver.rs)
+/// + drive_run/drive_loop/run_step (Plan 020 Phase G: 从 server_serve.at 搬入并激活,
+///   依赖 extern 真实化)。async 闘包捕获的 StreamEvent 处理经 DriveSink sink 模式
+///   转给 extern(完整复刻 hw 8 分支 match);advance/handoff/publish 经 extern 委托 hw store。
 
 use.rust std::sync::Arc
 use.rust crate::server::AppState
 use.rust crate::tool_context::ToolContext
 use.rust crate::mode::AgentMode
 use.rust auto_ai_agent::orchestration::AgentFactory
+use.rust serde_json::Value
 
 // AgentFactory spec（上游 orchestration trait）
 spec AgentFactory {
@@ -54,6 +57,99 @@ ext MuskAgentFactory {
     }
 }
 
-// NOTE: drive_run/drive_loop/run_step（async + 闭包捕获 + Mutex + StreamEvent
-// 匹配）保留手写在 relay/driver.rs。MuskAgentFactory 的 build_agent 在此移植。
+// ── Driver entry points (Plan 020 Phase G,从 server_serve.at 搬入并重写) ───
+// drive_run/drive_loop/run_step: hw driver.rs 的转译版。参照 feature_dev.at 的
+// `done` 标志 + ~Result 返回模式(a2r 无 ~void 提前 return —— `return None` 在 ()
+// fn 不编译;while-true + return 也无法表达)。控制流/done 标志/sink 模式/8 分支
+// StreamEvent match 全部经 extern 委托 hw store(完整行为等价)。advance 的
+// (AdvanceResult, RunState) 元组在 ag 侧用 Value 不透明承载,extern 侧反序列化。
+// 注:对 ~Result 局部 fn 调用 a2r 自动加 .await(勿手写);extern async 调用需手写 .await。
+
+// 驱动入口:set tool root → drive_loop → clear(对称清理,与 hw drive_run 同)。
+// 返回 bool(true=已推进到终态/停车;始终如此,仅为满足 a2r 非 void 返回)。
+// pub: parity_relay_driver 测试调用。
+pub fn drive_run(state Arc<AppState>, ws_id str, run_id str) ~Result<bool, str> {
+    drive_set_root(state.view, ws_id)
+    let _ = drive_loop(state, ws_id, run_id)
+    drive_clear_root()
+    return Ok(true)
+}
+
+
+// 核心编排循环:hw drive_loop 的 done-标志 版。advance → publish → match;
+// execute 分支跑 run_step(失败 → relay_submit_error 构造 [agent error] handoff);
+// wait/completed/failed/paused → done=true(等价 hw 的 return)。
+fn drive_loop(state Arc<AppState>, ws_id str, run_id str) ~Result<bool, str> {
+    var done bool = false
+    while !done {
+        let result = relay_advance(state.view, ws_id, run_id)
+        if advance_is_none(result.view) {
+            done = true
+        } else {
+            relay_publish(run_id, result.view)
+            let kind = advance_kind(result.view)
+            if kind == "execute" {
+                let role_id = advance_role_id(result.view)
+                let step_err = run_step(state.clone(), ws_id, run_id, role_id.view)
+                if step_err_is_err(step_err.view) {
+                    relay_submit_error(state.view, ws_id, run_id, role_id.view, step_err.view)
+                }
+            } else {
+                // wait/completed/failed/paused:与 hw 一致,停车退出循环。
+                done = true
+            }
+        }
+    }
+    return Ok(true)
+}
+
+
+// 单步 agent 执行:hw run_step 的转译版。factory_build_agent(注入 last_handoff)
+// → agent.run_stream(DriveStreamSink 承接 8 分支 StreamEvent → push_event + 累加)
+// → finalize output(fallback AgentResult.output)→ submit_handoff(构造 HandoffDocument,
+// step_tokens = total/2)。返回 final_output(Err 则驱动循环构造 error handoff)。
+fn run_step(state Arc<AppState>, ws_id str, run_id str, role_id str) ~Result<str, str> {
+    let task_input = relay_step_context(state.view, ws_id, run_id)
+    let agent = factory_build_agent(state.view, ws_id, run_id, role_id).await
+    let sink = DriveStreamSink(state: state.clone(), ws_id: ws_id, run_id: run_id, role_id: role_id)
+    let cancel = atomic_bool_false()
+    let result = agent_run_stream_with_sink(agent, task_input, Arc.new(sink), cancel).await
+    is result {
+        Ok(r) -> {
+            let output = drive_accumulated(state.view, ws_id, run_id)
+            let final_output = drive_finalize_output(output.view, r.view)
+            drive_submit_handoff(state.view, ws_id, run_id, role_id, final_output.view, r.view)
+            return Ok(final_output)
+        },
+        Err(e) -> {
+            return Err(e)
+        }
+    }
+}
+
+
+// DriveSink:hw Arc<dyn Fn(StreamEvent)> 闭包的 ag 等价。每个 StreamEvent 经
+// DriveStreamSink.on_event 转给 extern drive_handle_stream_event(完整 8 分支 match:
+// Delta/Thinking/ToolStart/Tool/Warning/Done/Error/Cancelled → push_event + accumulate)。
+// ev 用 Value(StreamEvent 的 serde 表示)——ag 不建模枚举,extern 侧反序列化。
+// state 字段:drive_handle_stream_event 需访问 registry,push_event 需 ws,sink 携带
+// state 引用(与 hw 闘包捕获 store 同理)。
+pub spec DriveSink {
+    fn on_event(ev Value)
+}
+
+// Arc<AppState> 不实现 Debug/Eq/Ord，故只 derive Clone(同 MuskAgentFactory)。
+#[derive(Clone)]
+pub type DriveStreamSink as DriveSink {
+    state Arc<AppState>
+    ws_id str
+    run_id str
+    role_id str
+}
+
+ext DriveStreamSink {
+    fn on_event(ev Value) {
+        drive_handle_stream_event(self.state.view, self.ws_id.view, self.run_id.view, self.role_id.view, ev)
+    }
+}
 

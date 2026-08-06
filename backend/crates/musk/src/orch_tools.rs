@@ -112,7 +112,8 @@ impl Tool for SpawnRelay {
         let ws_id = self.ctx.workspace_id.clone();
         let run_id_clone = run_id.clone();
         tokio::spawn(async move {
-            crate::relay::driver::drive_run(state, ws_id, run_id_clone).await;
+            // Plan 020 Phase G: switched to the transpiled ag drive_run.
+            let _ = crate::auto_generated::relay_driver::drive_run(state, &ws_id, &run_id_clone).await;
         });
 
         // 5. Wait for the run to reach a terminal state (poll every 2s, up to 15 min).

@@ -484,10 +484,11 @@ pub async fn drive_task_plan_run(
     let (_run_id, _state) = ws.relay.start_run(&start_req, Some(ctx.workspace_id.clone()));
 
     // Drive the run to a terminal state using musk's background driver.
-    crate::relay::driver::drive_run(
+    // Plan 020 Phase G: switched to the transpiled ag drive_run (returns Result).
+    let _ = crate::auto_generated::relay_driver::drive_run(
         Arc::new(ctx.state.clone()),
-        ctx.workspace_id.clone(),
-        req.run_id.clone(),
+        &ctx.workspace_id,
+        &req.run_id,
     )
     .await;
 

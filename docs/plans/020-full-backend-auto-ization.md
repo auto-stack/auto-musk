@@ -1,6 +1,6 @@
 # 020 — 全后端 Auto 化：Relay/Forge + TaskPlan + Wiki + settings_link 接入 Auto 驱动
 
-> **状态**：✅ 完成（2026-08-06 启动；Phase A/B/C/D/E/F 全闭环）。
+> **状态**：🟡 进行中（Phase A-F 闭环；Phase G/H 重开闭合 relay_driver 核心循环 + TaskPlan 执行内核，2026-08-06）。
 > **前置**：Plan 018（已归档，parity 全闭环）+ Plan 019（已归档，6 个 🔴 流式/daemon handler 接线）。
 > **仓库**：auto-musk（`backend/crates/musk/`）+ auto-lang（a2r 转译器，构建 `auto.exe`）。
 > **目标**：把**剩余未 Auto 化**的后端子系统（Relay/Forge 编排、TaskPlan、Wiki、settings_link）全部移植到 Auto(.at)，经 a2r 生成 Rust 编译运行；serve() 所有业务端点切到 ag handler；Auto 版行为与手写 Rust 原版一致（parity + HTTP 等价测试）。
@@ -20,8 +20,10 @@
 | **Phase D2** | `wiki.at` HTTP 层补全：12 个 handler（tree/raw_tree/pages/page CRUD/search/upload/file/delete/mkdir）+ `wiki_routes()` router；tree 构建走 .at 内 build_tree + strip_md_extensions | `eb039fd` | parity_wiki_http 3 项绿（wiki CRUD + raw 文件系统 + multipart upload 逐键等价；modified mtime 分歧已在 parity_wiki 文档化） |
 | **Phase E** | `settings_link` Auto 化：`server_stream.at` 加 settings_link handler（~Response + 错误包络）；extern `settings_link_do` 封装 reqwest::blocking（spawn_blocking + Client.post + json 解析） | `eb039fd` | parity_settings_link 1 项绿（shape 契约：200↔running+url / 500↔error+message） |
 | **Phase F** | serve() 接线：relay/task_plan/wiki 合并 + settings_link 路由全切 ag handler；hw settings_link 删除；`wf_run`/`wf_run_with_progress`/`workflow_exists` extern 从委托 hw feature_dev 改调 ag 版（引擎全链路 Auto）；生产 router 组合测试同步 | `eb039fd` | 全量 403 测试绿（24 个测试二进制 0 失败）；4 个改动模块 re-transpile 零 drift |
+| **Phase G** | relay_driver 核心循环 ag 化：drive_run/drive_loop/run_step 从 server_serve.at 搬入 relay_driver.at(done-标志 + ~Result 模式替代 hw 的 loop+return;async 闘包→DriveSink sink);13 个 drive_* extern 真实化(对照 hw driver.rs + store.rs;StreamEvent 8 分支 match);6 处调用点全切 ag drive_run(跨 ag/hw serde Value 往返依赖上游 AdvanceResult/StreamEvent/AgentResult/ToolCallRecord 的 Serialize/Deserialize,HEAD 已具备) | `⏳ 本次` | parity_relay_driver 4 项绿(simple 流程完成 / design 流程 human-gate 停车 / agent error handoff / event_type tags);全量 408 测试绿 |
+| **Phase H** | TaskPlan 执行内核 ag 化:task_plan_engine.at 新增 RelayTaskPlanExecutor(start_run + 复用 G 的 ag drive_run + 读 status/handoff,替代 hw drive_task_plan_run);删 hw 透传壳 DriveTaskPlanExecutor + to_hw_run_ref + to_hw_task_mode;relay_task_plan_start 切 ag executor | `⏳ 本次` | parity_task_plan_execute 2 项绿(单 run kernel RunExecutionResult 逐键等价 + 引擎 execute 注入 ag executor 2-phase serial 完成);全量 408 测试绿 |
 
-**累计**：403 测试全绿（lib 228 + 集成 175）；6 个 .at 模块改动 re-transpile 零 drift。
+**累计**：408 测试全绿（lib 228 + 集成 180);Phase G relay_driver.at re-transpile 零 drift;Phase H task_plan_engine.at 新增块零 drift(既有块有 a2r 版本漂移,见 KNOWN-DEBT)。
 
 **Phase D/E/F 新习得 a2r 约束**（在既有清单基础上追加）：
 - `~Response` 需 `use.rust axum::response::Response` 才会发射具体 `Response` 类型；缺省时 a2r 发射 `impl Response`（axum 不接受，编译失败）。
@@ -33,6 +35,16 @@
 - `relay_store.at` StartRunRequest.steps 缺 `#[serde(default)]`（hw 有）→ 缺省请求体 422；补 default 对齐。
 - 服务真实环境有用户 config.at 的 daemon_url 优先于 `AAID_URL` → settings_link 测试用 shape 契约而非精确 URL。
 
+**Phase G/H 新习得 a2r 约束**（在既有清单基础上追加）：
+- a2r 无 `~void` 提前 return(`return` 在 () fn 发射成 `return None`,不编译);hw 的 `while true { match { ... return } }` 控制流必须改写成 `var done = false; while !done { ...; done = true }` + `~Result<T, str>` 返回(feature_dev.at 的 done-标志 范式)。
+- 对 `~Result`/`~void` 局部 fn 调用 a2r 自动加 `.await`(勿手写双 await);extern async 调用需手写 `.await`。
+- `@T`(`&T`)/`@str`(`&String`)参数:a2r 对**字符串字面量**注入 `.as_str()`,对 **fn 调用返回的 String** 直接传值(不借)——这类实参在 .at 调用点需显式 `.view`(`&x`)才能借出;struct 字段访问(self.field)a2r 自动 `.clone()`(String),也需 `.view` 才能借。
+- 普通函数参数 `ws_id str` 生成 `&str`(借用),不是 owned String;extern impl 用 `&str` 收(与 `@str`→`&String` 区别)。
+- `pub type X as Trait` 声明 X 实现 Trait(a2r 在 type 声明里指定,非 `ext X as Trait`);`ext X { fn method }` 定义方法,async trait 方法自动 `#[async_trait]`(impl 块也需 `#[async_trait]`)。
+- 含 `Arc<AppState>` 字段的 struct(`DriveStreamSink`/`MuskAgentFactory`/`RelayTaskPlanExecutor`)不能 derive `Debug/Eq/Ord`(AppState 未实现),用 `#[derive(Clone)]` 覆盖默认 5 derive。
+- `Arc<X>` 指针:Deref 一次 `&*arc` 得 `&X`;DriveSink::on_event 经 `&*sink` 调(DriveStreamSink 实现 DriveSink,Arc<DriveStreamSink> 不实现)。
+- 跨 ag/hw 边界的 serde Value 往返依赖上游 `AdvanceResult`/`StreamEvent`/`AgentResult`/`ToolCallRecord` 的 Serialize/Deserialize —— 这四个类型在 auto-ai-agent HEAD **已具备** derive(无需改 auto-ai);开发期一次陈旧缓存报"缺 Serialize",clean rebuild 后消失。
+
 **既有 a2r 约束清单**（Phase A/B/C 习得，保持）：
 - Auto 关键字避让：`spec`/`dep`/`task`/`var` 不能作变量/参数名（字段名可）。
 - `is` 臂的 wildcard 绑定（`other ->`）只能用于表达式臂；block 臂内调用绑定值失败。
@@ -42,7 +54,7 @@
 - `~Result<T, str>` 返回 → 自动 async fn；对 `~Result` 局部 fn 调用自动加 `.await`（勿手写双 await）；spec trait 方法调用需手写 `.await`。
 - a2r 类型表把 auto-ai-agent 枚举建模为 tuple 变体，运行时 rust-ref 是 struct 变体 → nativeize 模式重写（(3b) AdvanceResult）。
 
-**残留 hw（本计划范围外，同 Plan 019 理由）**：静态文件服务 / CORS / TcpListener / `axum::serve` 外壳、`workspace_file`（纯文件 I/O 服务端点）。serve() 业务端点 100% 由 ag handler 服务。
+**残留 hw（本计划范围外，同 Plan 019 理由）**：静态文件服务 / CORS / TcpListener / `axum::serve` 外壳、`workspace_file`（纯文件 I/O 服务端点）。Phase G/H 闭环后 serve() 业务端点(含 relay 编排驱动 + TaskPlan 执行内核)100% 由 ag handler/驱动服务。
 
 ---
 
@@ -136,6 +148,26 @@ ag build_router（37 路由）
 - **接线迁移**：019 中 `wf_run`/`agent_run`/`wf_run_with_progress` extern 从委托 hw `feature_dev` 改为调用 ag 版（引擎 Auto 化后全链路 Auto）。
 - **验收**：serve() 只剩外壳 hw；全量 lib + parity + HTTP 等价测试全绿；`auto.exe trans` 产物零 drift。
 
+### Phase G：relay_driver 核心循环 ag 化（drive_run/drive_loop/run_step）
+
+> 重开理由：Phase A-F 闭环审查发现 relay 编排循环(drive_run/drive_loop/run_step,hw driver.rs ~210 行)在 §0 注释为"a2r 盲区保留手写",但实际仍 100% hw —— 6 处调用点(api.rs/extern_impl.rs/orch_tools.rs/task_plan_engine.rs)直接调 hw。本阶段把它真正 ag 化。
+
+- 从 `server_serve.at`(休眠镜像,已有 95% 正确骨架)把 drive_run/drive_loop/run_step 搬到 `relay_driver.at`(与 MuskAgentFactory 同模块);hw 的 `while true { match { return } }` 改写成 `done` 标志 + `~Result` 返回(feature_dev.at 范式;§0 约束:`~void` 提前 return 不编译)。
+- 真实化 13 个 drive_* extern stub(对照 hw driver.rs + store.rs):relay_advance(serde 序列化 AdvanceResult)/advance_kind/role_id/relay_publish/relay_submit_error/relay_step_context/drive_accumulated(side-table 替代 hw 局部 Arc<Mutex>)/drive_finalize_output/drive_submit_handoff(含 TurnComplete)/drive_handle_stream_event(8 分支 StreamEvent match);agent_run_stream_with_sink(DriveSink 桥接);factory_build_agent 补 last_handoff 注入。
+- 上游 auto-ai-agent rust-ref 的 AdvanceResult/StreamEvent/AgentResult/ToolCallRecord 的 Serialize/Deserialize 在 HEAD 已具备(无需改 auto-ai;开发期陈旧缓存曾误报缺失)。
+- 6 处调用点全切 ag `crate::auto_generated::relay_driver::drive_run`(签名保持不变)。
+- **验收**：parity_relay_driver 4 项绿(simple 流程完成 + 事件序列 / design 流程 human-gate 停车 / agent error → error handoff / RunEvent tags);全量测试无回归。
+
+### Phase H：TaskPlan 执行内核 ag 化（drive_task_plan_run）
+
+> 重开理由:Phase F 把 wf_run 切了 ag feature_dev,但 TaskPlan 的单 run 执行内核 `drive_task_plan_run` 仍由 hand-written `DriveTaskPlanExecutor` 透传 hw(含 to_hw_run_ref/to_hw_task_mode 双向类型翻译)。本阶段把内核 ag 化。
+
+- `task_plan_engine.at` 新增 `RelayTaskPlanExecutor`(pub type as TaskPlanExecutor):run 方法用全 Auto 表达 hw drive_task_plan_run 的 5 步(start_run → 复用 Phase G 的 ag drive_run → 读 run status → 组装 RunExecutionResult)。
+- 新增 3 个 store 访问 extern(task_plan_start_run/task_plan_run_status/task_plan_last_handoff)+ drive_run 跨模块 extern 包装。
+- 删除 hw 透传壳:DriveTaskPlanExecutor + to_hw_run_ref + to_hw_task_mode;relay_task_plan_start 的 executor 切 ag RelayTaskPlanExecutor。
+- **保留 spawn 路径**(独立线程 + current-thread runtime):a2r spec 无 Send+Sync supertrait(见 C 类登记),spawn 无法变 tokio::spawn —— 已知限制,行为等价,非阻塞。
+- **验收**：parity_task_plan_execute 2 项绿(单 run kernel RunExecutionResult 逐键等价 + 引擎 execute 注入 ag executor 完成 2-phase serial);全量测试无回归。
+
 ---
 
 ## 4. 关键架构决策
@@ -176,3 +208,5 @@ ag build_router（37 路由）
 | M3（Phase D） | Relay/Wiki/TaskPlan HTTP 层移植 | HTTP 等价测试全绿 |
 | M4（Phase E） | settings_link Auto 化 | 契约测试全绿 |
 | M5（Phase F） | serve() 全接线 | serve() 只剩外壳 hw；全量测试全绿；产物零 drift |
+| M6（Phase G） | relay_driver 核心循环 ag 化 | parity_relay_driver 4 项绿;6 处调用点全切 ag |
+| M7（Phase H） | TaskPlan 执行内核 ag 化 | parity_task_plan_execute 2 项绿;删 hw 透传壳 |

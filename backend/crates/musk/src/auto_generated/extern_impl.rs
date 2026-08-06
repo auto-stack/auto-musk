@@ -1050,27 +1050,99 @@ pub async fn wf_run_with_progress(
 pub fn orch_spawn_relay(_t: String, _a: Value) -> String { "(stub)".into() }
 pub fn orch_dispatch(_t: String, _to: String) -> String { "(stub)".into() }
 pub fn orch_bring_in(_q: String) -> String { "(stub)".into() }
-pub fn drive_set_root(_w: &str) {}
+/// Per-(workspace,run) accumulated Delta text — the ag equivalent of hw
+/// run_step's local `Arc<Mutex<String>>` (which the on_event closure fills and
+/// run_step drains). The ag sink crosses an extern boundary, so it can't share a
+/// local; this side-table mirrors the same lifetime (a run is single-driver).
+static RELAY_ACC: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<(String, String), String>>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+
+pub fn drive_set_root(s: &Arc<AppState>, w: &str) {
+    // hw drive_run: set tool root to the workspace root before driving, so file
+    // tools are confined (same tool_safety thread-local as feature_dev).
+    let ws = s.registry.get(w);
+    crate::tool_safety::set_current_root(ws.root.clone());
+}
 pub fn drive_clear_root() {
     crate::tool_safety::clear_current_root();
 }
-pub fn relay_advance(_w: &str, _r: &str) -> Value { Value::Null }
-pub fn relay_publish(_r: &str, _v: &Value) {}
-pub fn advance_is_none(_r: &Value) -> bool { true }
-pub fn advance_kind(_r: &Value) -> String { "completed".into() }
-pub fn advance_role_id(_r: &Value) -> String { String::new() }
-pub fn relay_submit_error(_r: &str, _r2: &str, _e: &Result<String, String>) {}
-pub fn relay_step_context(_w: &str, _r: &str) -> String { String::new() }
+/// Plan 020 Phase G (relay_driver.at): serialize the `Option<AdvanceResult>`
+/// from `ws.relay.advance(run_id)`. None → Null (advance_is_none true);
+/// Some(ar) → serde Value of the AdvanceResult (externally-tagged enum, so the
+/// tag string — "ExecuteStep"/"WaitForHuman"/"Completed"/"Failed"/"Paused" — is
+/// the object key, used by advance_kind/advance_role_id).
+pub fn relay_advance(s: &Arc<AppState>, w: &str, r: &str) -> Value {
+    let ws = s.registry.get(w);
+    match ws.relay.advance(r) {
+        None => Value::Null,
+        Some((ar, _state)) => serde_json::to_value(&ar).unwrap_or(Value::Null),
+    }
+}
+/// hw `relay::api::publish_advance_result`: maps the AdvanceResult to a RunEvent
+/// (StepStarted/GateWaiting/RunCompleted/RunFailed/RelayUpdate) and broadcasts it
+/// on the relay SSE bus. `v` is the serde Value produced by relay_advance.
+pub fn relay_publish(r: &str, v: &Value) {
+    if let Ok(ar) = serde_json::from_value::<crate::relay::AdvanceResult>(v.clone()) {
+        crate::relay::api::publish_advance_result(r, &ar);
+    }
+}
+/// None when relay_advance returned Null (run vanished mid-drive).
+pub fn advance_is_none(r: &Value) -> bool { r.is_null() }
+/// Tag of the externally-tagged AdvanceResult enum (lowercased to the drive_loop
+/// match arms: "execute"/"wait"/"completed"/"failed"/"paused"). Unknown → "".
+pub fn advance_kind(r: &Value) -> String {
+    match r.as_object().and_then(|o| o.keys().next()) {
+        Some(k) => match k.as_str() {
+            "ExecuteStep" => "execute",
+            "WaitForHuman" => "wait",
+            "Completed" => "completed",
+            "Failed" => "failed",
+            "Paused" => "paused",
+            _ => "",
+        }.to_string(),
+        None => String::new(),
+    }
+}
+/// role_id from ExecuteStep variant (empty for other variants — drive_loop only
+/// reads it in the "execute" branch).
+pub fn advance_role_id(r: &Value) -> String {
+    r.get("ExecuteStep")
+        .and_then(|v| v.get("role_id"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string()
+}
+/// hw driver.rs ExecuteStep error path: wrap the agent error in a HandoffDocument
+/// whose summary is `[agent error] {e}` and submit_handoff (the engine routes to
+/// the next step / fails the run). `e` is the Err side of run_step's Result.
+pub fn relay_submit_error(s: &Arc<AppState>, w: &str, r: &str, role_id: &str, e: &Result<String, String>) {
+    if let Err(msg) = e {
+        let ws = s.registry.get(w);
+        let mut h = auto_ai_agent::orchestration::HandoffDocument::new(role_id, "");
+        h.summary = format!("[agent error] {msg}");
+        let _ = ws.relay.submit_handoff(r, h);
+    }
+}
+/// hw `ws.relay.step_context(run_id)` → the task string for the agent (fallback
+/// "Continue the relay pipeline." when no initial task, matching hw driver.rs:165).
+pub fn relay_step_context(s: &Arc<AppState>, w: &str, r: &str) -> String {
+    let ws = s.registry.get(w);
+    ws.relay.step_context(r)
+        .map(|(task, _prior_md)| task)
+        .unwrap_or_else(|| "Continue the relay pipeline.".to_string())
+}
 /// ③ 委托:factory_build_agent — 构造 hw `relay::driver::MuskAgentFactory` 并
-/// build_agent(role_id, 无 handoff;handoff 注入在转译 run_step 里由
-/// handoff_render/agent_with_history 承担)。失败回退 StubRole + 日志。
+/// build_agent(role_id, last_handoff 注入 — 与 hw run_step:173-174 一致:把上一
+/// 步 handoff render 成 prior_md 注入 agent history)。失败回退 StubRole + 日志。
 pub async fn factory_build_agent(s: &Arc<AppState>, w: &str, r: &str, r2: &str) -> Agent {
     let factory = crate::relay::driver::MuskAgentFactory {
         state: s.clone(),
         workspace_id: w.to_string(),
         run_id: r.to_string(),
     };
-    match factory.build_agent(r2, None) {
+    let ws = s.registry.get(w);
+    let prior_handoff = ws.relay.last_handoff(r);
+    match factory.build_agent(r2, prior_handoff.as_ref()) {
         Ok(a) => a,
         Err(e) => {
             tracing::warn!("factory_build_agent delegation failed: {e}");
@@ -1078,10 +1150,105 @@ pub async fn factory_build_agent(s: &Arc<AppState>, w: &str, r: &str, r2: &str) 
         }
     }
 }
-pub fn drive_accumulated(_w: &str, _r: &str) -> String { String::new() }
-pub fn drive_finalize_output(_o: String, _r: &Value) -> String { _o }
-pub fn drive_submit_handoff(_w: &str, _r: &str, _r2: &str, _o: &str, _v: &Value) {}
-pub fn drive_handle_stream_event(_w: &str, _r: &str, _r2: &str, _e: i32) {}
+/// Drain the accumulated Delta output for this run/turn (hw run_step:253 takes it
+/// out of the Arc<Mutex<String>> the on_event closure filled). Clears the slot.
+pub fn drive_accumulated(_s: &Arc<AppState>, w: &str, r: &str) -> String {
+    let mut acc = RELAY_ACC.lock().unwrap();
+    acc.remove(&(w.to_string(), r.to_string())).unwrap_or_default()
+}
+/// hw run_step:254-258: if accumulated output is blank, fall back to the agent's
+/// final AgentResult.output. `v` is the serde Value of AgentResult from
+/// agent_run_stream_with_sink.
+pub fn drive_finalize_output(o: &str, v: &Value) -> String {
+    if o.trim().is_empty() {
+        v.get("output").and_then(|x| x.as_str()).unwrap_or("").to_string()
+    } else {
+        o.to_string()
+    }
+}
+/// hw run_step:270-282: wrap final_output in a HandoffDocument (from=role_id,
+/// to=next_profession, summary=final_output, step_tokens = total_tokens/2) and
+/// submit_handoff (engine routes to next step + publishes StepCompleted/TokenSpend).
+/// `v` is the AgentResult Value (carries total_tokens).
+pub fn drive_submit_handoff(s: &Arc<AppState>, w: &str, r: &str, role_id: &str, output: &str, v: &Value) {
+    let ws = s.registry.get(w);
+    // hw run_step:261-267: TurnComplete event before the handoff submit.
+    ws.relay.push_event(r, crate::relay::store::RunEvent::TurnComplete {
+        timestamp: now_secs(),
+        role_id: role_id.to_string(),
+    });
+    let next_profession = ws.relay.next_profession(r).unwrap_or_default();
+    let mut handoff = auto_ai_agent::orchestration::HandoffDocument::new(role_id, &next_profession);
+    handoff.summary = output.to_string();
+    let total = v.get("total_tokens").and_then(|x| x.as_u64()).unwrap_or(0);
+    handoff.token_usage.step_tokens = total / 2;
+    let _ = ws.relay.submit_handoff(r, handoff);
+}
+/// hw run_step on_event closure (driver.rs:183-244): match the 8 StreamEvent
+/// variants and push corresponding RunEvents into the store + accumulate Delta
+/// text. `e` is the serde Value of StreamEvent (by value — a2r `Value` param).
+/// Delta/Cancelled accumulate into the side-table read by drive_accumulated;
+/// Tool pushes TurnToolCall+TurnToolResult.
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+pub fn drive_handle_stream_event(s: &Arc<AppState>, w: &str, r: &str, role_id: &str, e: Value) {
+    use auto_ai_agent::StreamEvent;
+    let ws = s.registry.get(w);
+    let now = now_secs();
+    match serde_json::from_value::<StreamEvent>(e) {
+        Ok(StreamEvent::Delta { text }) => {
+            ws.relay.push_event(r, crate::relay::store::RunEvent::TurnDelta {
+                timestamp: now,
+                role_id: role_id.to_string(),
+                text: text.clone(),
+            });
+            let mut acc = RELAY_ACC.lock().unwrap();
+            acc.entry((w.to_string(), r.to_string())).or_default().push_str(&text);
+        }
+        Ok(StreamEvent::ToolStart { .. }) => {
+            // Nothing to persist yet (the Tool event follows with the result);
+            // kept for state-tracking parity with hw driver.rs:196-199.
+        }
+        Ok(StreamEvent::Tool { tool, args, result }) => {
+            ws.relay.push_event(r, crate::relay::store::RunEvent::TurnToolCall {
+                timestamp: now,
+                role_id: role_id.to_string(),
+                tool_id: String::new(),
+                tool_name: tool.clone(),
+                arguments: args.clone(),
+            });
+            ws.relay.push_event(r, crate::relay::store::RunEvent::TurnToolResult {
+                timestamp: now,
+                role_id: role_id.to_string(),
+                tool_id: String::new(),
+                result: result.clone(),
+            });
+        }
+        Ok(StreamEvent::Warning { text }) => {
+            tracing::warn!("relay turn warning: {text}");
+        }
+        Ok(StreamEvent::Thinking { text }) => {
+            tracing::debug!("relay thinking: {}…", &text[..text.len().min(60)]);
+        }
+        Ok(StreamEvent::Done { .. }) | Ok(StreamEvent::Error { .. }) => {
+            // Handled via the return value of agent_run_stream_with_sink.
+        }
+        Ok(StreamEvent::Cancelled { result }) => {
+            // The driver never sets the cancel flag; belt-and-braces so partial
+            // output still lands (hw driver.rs:237-242).
+            let mut acc = RELAY_ACC.lock().unwrap();
+            acc.entry((w.to_string(), r.to_string())).or_default().push_str(&result.output);
+            tracing::warn!("relay turn cancelled (unexpected)");
+        }
+        Err(err) => {
+            tracing::warn!("drive_handle_stream_event: malformed StreamEvent: {err}");
+        }
+    }
+}
 /// Plan 020 Phase A (feature_dev.at): tool-root confinement for a feature-dev
 /// run — delegates to the same `tool_safety` thread-local hw module.
 pub fn feature_dev_set_root(root: std::path::PathBuf) {
@@ -1115,6 +1282,36 @@ pub fn task_plan_broadcast(instance_id: &str, event_type: &str, payload: Value) 
 /// (compact JSON) — identical to hw `format!("{}", value)`.
 pub fn handoff_resolve_path(store: &crate::relay::handoff_store::HandoffStore, path: &str) -> Option<String> {
     store.resolve_path(path).map(|v| v.to_string())
+}
+/// Plan 020 Phase H: ag drive_run 跨模块调用包装(task_plan_engine.at → relay_driver)。
+/// 委托 ag relay_driver::drive_run(Phase G 产物);Result 丢弃(ag executor 不检查
+/// drive_run 的 bool 返回,与 hw drive_task_plan_run 不检查 drive_run 的 () 一致)。
+pub async fn drive_run(s: &Arc<AppState>, w: &str, r: &str) -> bool {
+    crate::auto_generated::relay_driver::drive_run(s.clone(), w, r)
+        .await
+        .is_ok()
+}
+/// Plan 020 Phase H: ws.relay.start_run(extern 内部构造 StartRunRequest 字面量,
+/// a2r 不能跨 crate 构造 hw struct)。等价 hw drive_task_plan_run:478-484。
+pub fn task_plan_start_run(s: &Arc<AppState>, w: &str, r: &str, f: &str, t: &str) {
+    let ws = s.registry.get(w);
+    let req = crate::relay::store::StartRunRequest {
+        run_id: Some(r.to_string()),
+        flow_id: Some(f.to_string()),
+        steps: Vec::new(),
+        task: Some(t.to_string()),
+    };
+    ws.relay.start_run(&req, Some(w.to_string()));
+}
+/// Plan 020 Phase H: ws.relay.get(run_id).map(|s| s.status)(等价 hw:494-495)。
+pub fn task_plan_run_status(s: &Arc<AppState>, w: &str, r: &str) -> Option<String> {
+    let ws = s.registry.get(w);
+    ws.relay.get(r).map(|s| s.status)
+}
+/// Plan 020 Phase H: ws.relay.last_handoff(run_id)(等价 hw:505)。
+pub fn task_plan_last_handoff(s: &Arc<AppState>, w: &str, r: &str) -> Option<auto_ai_agent::orchestration::HandoffDocument> {
+    let ws = s.registry.get(w);
+    ws.relay.last_handoff(r)
 }
 /// Plan 020 Phase B (task_plan_parser.at): `Atom::to_value()` 的 `{:?}` 调试
 /// 文本——组装 hw 的非 Node InvalidType 报错("found {:?}")。
@@ -1567,9 +1764,27 @@ pub async fn chat_run_stream(
         close_channel(&tx2);
     });
 }
-/// server_serve(休眠镜像)仍在调用 —— 保持 stub(该模块未接线)。
-pub fn agent_run_stream_with_sink<W: Send + Sync + 'static>(_a: Agent, _t: String, _sink: Arc<W>, _c: Arc<std::sync::atomic::AtomicBool>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Value, String>> + Send>> {
-    Box::pin(async { Ok(Value::Null) })
+/// Plan 020 Phase G (relay_driver.at run_step): bridge agent.run_stream's
+/// `Arc<dyn Fn(StreamEvent)>` callback to the ag `DriveStreamSink` (which forwards
+/// each event to drive_handle_stream_event via its on_event(Value)). Serializes
+/// each StreamEvent to a serde Value, calls sink.on_event, then runs the agent.
+/// Returns the AgentResult serialized to Value (output/turns/tool_calls/total_tokens).
+pub fn agent_run_stream_with_sink(mut a: Agent, t: String, sink: Arc<crate::auto_generated::relay_driver::DriveStreamSink>, c: Arc<std::sync::atomic::AtomicBool>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Value, String>> + Send>> {
+    Box::pin(async move {
+        let on_event: Arc<dyn Fn(auto_ai_agent::StreamEvent) + Send + Sync> = Arc::new(move |ev| {
+            // Serialize the StreamEvent and forward to the sink (which calls
+            // drive_handle_stream_event → 8-branch match → push_event + accumulate).
+            if let Ok(v) = serde_json::to_value(&ev) {
+                // sink is Arc<DriveStreamSink>; deref to the DriveStreamSink which
+                // implements DriveSink.
+                crate::auto_generated::relay_driver::DriveSink::on_event(&*sink, v);
+            }
+        });
+        match a.run_stream(&t, on_event, c).await {
+            Ok(result) => serde_json::to_value(&result).map_err(|e| format!("agent: {e}")),
+            Err(e) => Err(format!("agent: {e}")),
+        }
+    })
 }
 pub fn serve_init_state(_c: Arc<dyn Client>) -> AppState { unimplemented!("serve_init_state") }
 pub fn serve_build_static() -> () {}
@@ -1867,7 +2082,7 @@ pub fn relay_run_advance(s: &State<AppState>, q: Query<crate::auto_generated::re
     let state_arc = Arc::new(s.0.clone());
     let run_id_clone = r.to_string();
     tokio::spawn(async move {
-        crate::relay::driver::drive_run(state_arc, ws_id, run_id_clone).await;
+        let _ = crate::auto_generated::relay_driver::drive_run(state_arc, &ws_id, &run_id_clone).await;
     });
     match ws.relay.get(r) {
         Some(sn) => serde_json::to_value(&sn).unwrap_or(Value::Null),
@@ -1923,7 +2138,7 @@ pub fn relay_resolve_gate(
                 let state_arc = Arc::new(s.0.clone());
                 let run_id_clone = r.to_string();
                 tokio::spawn(async move {
-                    crate::relay::driver::drive_run(state_arc, ws_id, run_id_clone).await;
+                    let _ = crate::auto_generated::relay_driver::drive_run(state_arc, &ws_id, &run_id_clone).await;
                 });
             }
             serde_json::to_value(&run_state).unwrap_or(Value::Null)
@@ -2105,7 +2320,10 @@ pub fn relay_task_plan_start(
                 state: state_clone,
                 workspace_id: ws_id,
             };
-            let executor = DriveTaskPlanExecutor { ctx: ctx.clone() };
+            // Plan 020 Phase H: executor 从透传 hw drive_task_plan_run 的壳
+            // (DriveTaskPlanExecutor) 切换为 ag 版 RelayTaskPlanExecutor
+            // (start_run + ag drive_run + 读 status/handoff,全 Auto 表达)。
+            let executor = crate::auto_generated::task_plan_engine::RelayTaskPlanExecutor { ctx: ctx.clone() };
             // ag execute 按值收 HandoffStore(hw 是 &);clone 共享 data_dir,磁盘读取等价。
             if let Err(e) = engine.execute((*handoffs).clone(), Arc::new(executor)).await {
                 tracing::error!("TaskPlan instance failed: {e}");
@@ -2113,64 +2331,6 @@ pub fn relay_task_plan_start(
         });
     });
     serde_json::json!({ "instance_id": instance_id, "task_plan_id": id, "status": "started" })
-}
-
-/// ag TaskPlanExecutor 适配器:把 hw `drive_task_plan_run(&ctx, req)` 包装成
-/// ag `TaskPlanExecutor::run`(hw start_task_plan_run 闭包 `|req|` 的等价)。
-struct DriveTaskPlanExecutor {
-    ctx: crate::auto_generated::task_plan_engine::TaskPlanContext,
-}
-
-#[async_trait::async_trait]
-impl crate::auto_generated::task_plan_engine::TaskPlanExecutor for DriveTaskPlanExecutor {
-    async fn run(
-        &self,
-        req: crate::auto_generated::task_plan_engine::RunRequest,
-    ) -> Result<crate::auto_generated::task_plan_engine::RunExecutionResult, String> {
-        // ag RunRequest → hw RunRequest(字段一一映射;ag 用 task_text,hw 用 task)。
-        let hw_ctx = crate::relay::task_plan_engine::TaskPlanContext {
-            state: self.ctx.state.clone(),
-            workspace_id: self.ctx.workspace_id.clone(),
-        };
-        let hw_req = crate::relay::task_plan_engine::RunRequest {
-            task_plan_id: req.task_plan_id,
-            phase_name: req.phase_name,
-            phase_index: req.phase_index as usize,
-            run_ref: to_hw_run_ref(&req.run_ref),
-            run_id: req.run_id,
-            parent_run_id: req.parent_run_id,
-            root_run_id: req.root_run_id,
-            task: req.task_text,
-            mode: to_hw_task_mode(req.mode),
-        };
-        match crate::relay::task_plan_engine::drive_task_plan_run(&hw_ctx, hw_req).await {
-            Ok(r) => Ok(crate::auto_generated::task_plan_engine::RunExecutionResult {
-                run_id: r.run_id,
-                status: r.status,
-                handoff: r.handoff,
-                error: r.error,
-            }),
-            Err(e) => Err(e),
-        }
-    }
-}
-
-fn to_hw_run_ref(r: &crate::auto_generated::task_plan::RunRef) -> crate::relay::task_plan::RunRef {
-    crate::relay::task_plan::RunRef {
-        name: r.name.clone(),
-        flow_id: r.flow_id.clone(),
-        input: r.input.clone(),
-        input_from: r.input_from.clone(),
-        context: r.context.clone(),
-        mode_override: r.mode_override.map(to_hw_task_mode),
-    }
-}
-
-fn to_hw_task_mode(m: crate::auto_generated::task_plan::TaskMode) -> crate::relay::task_plan::TaskMode {
-    match m {
-        crate::auto_generated::task_plan::TaskMode::Gsd => crate::relay::task_plan::TaskMode::Gsd,
-        crate::auto_generated::task_plan::TaskMode::Check => crate::relay::task_plan::TaskMode::Check,
-    }
 }
 
 // ── Phase D 通用 helpers ────────────────────────────────────────────────────

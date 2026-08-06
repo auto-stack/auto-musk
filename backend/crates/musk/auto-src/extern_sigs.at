@@ -96,8 +96,10 @@ fn mode_exists(name @str) Value {}
 fn orch_spawn_relay(_t str, _a Value) str {}
 fn orch_dispatch(_t str, _to str) str {}
 fn orch_bring_in(_q str) str {}
-fn drive_set_root(_w @str) {}
+fn drive_set_root(_s @T, _w str) {}
 fn drive_clear_root() {}
+// Plan 020 Phase G (relay_driver.at): drive_run/drive_loop/run_step 的依赖 extern。
+// drive_set_root/clear_root 在此(原 server_serve 段,与 settings_link serve 外壳同段);
 // Plan 020 Phase A (feature_dev.at): tool-root confinement + AgentError → str。
 fn feature_dev_set_root(root PathBuf) {}
 fn feature_dev_clear_root() {}
@@ -106,6 +108,13 @@ fn agent_error_msg(e @T) str {}
 fn task_plan_uuidish() str {}
 fn task_plan_broadcast(_i @str, _t @str, _p Value) {}
 fn handoff_resolve_path(_s @T, _p @str) Option<str> {}
+// Plan 020 Phase H (task_plan_engine.at RelayTaskPlanExecutor): single-run
+// 执行内核的 store 访问 extern + ag drive_run 跨模块调用包装。drive_run 委托
+// ag relay_driver::drive_run(Phase G 产物);其余三个委托 hw ws.relay.*。
+fn drive_run(_s @T, _w str, _r str) bool {}
+fn task_plan_start_run(_s @T, _w str, _r str, _f str, _t str) {}
+fn task_plan_run_status(_s @T, _w str, _r str) Option<str> {}
+fn task_plan_last_handoff(_s @T, _w str, _r str) Option<HandoffDocument> {}
 // Plan 020 Phase B (parser/registry): Atom 调试文本 / 内建 atom / 文件删除。
 fn atom_debug_value(_a @T) str {}
 fn task_plan_builtin_atom() str {}
@@ -162,18 +171,20 @@ fn err_json_response(_d Value, _c uint) Response {}
 fn wiki_write_page(path PathBuf, content str) Result<(), str> {}
 fn wiki_ensure_parent(path PathBuf) {}
 fn wiki_delete_file(path PathBuf) {}
-fn relay_advance(_w @str, _r @str) Value {}
-fn relay_publish(_r @str, _v @T) {}
+fn relay_advance(_s @T, _w str, _r str) Value {}
+fn relay_publish(_r str, _v @T) {}
 fn advance_is_none(_r @T) bool {}
 fn advance_kind(_r @T) str {}
 fn advance_role_id(_r @T) str {}
-fn relay_submit_error(_r @str, _r2 @str, _e @T) {}
-fn relay_step_context(_w @str, _r @str) str {}
-fn factory_build_agent(_s @T, _w @str, _r @str, _r2 @str) Value {}
-fn drive_accumulated(_w @str, _r @str) str {}
+fn relay_submit_error(_s @T, _w str, _r str, _r2 str, _e @T) {}
+fn relay_step_context(_s @T, _w str, _r str) str {}
+fn factory_build_agent(_s @T, _w str, _r str, _r2 str) Value {}
+fn drive_accumulated(_s @T, _w str, _r str) str {}
 fn drive_finalize_output(_o str, _r @T) str {}
-fn drive_submit_handoff(_w @str, _r @str, _r2 @str, _o @str, _v @T) {}
-fn drive_handle_stream_event(_w @str, _r @str, _r2 @str, _e int) {}
+fn drive_submit_handoff(_s @T, _w str, _r str, _r2 str, _o str, _v @T) {}
+fn drive_handle_stream_event(_s @T, _w str, _r str, _r2 str, _e Value) {}
+// Note: on_event passes self.ws_id.clone() etc (String); a2r emits them by value,
+// so the impl takes String for w/r/role_id (not &str) to match the call site.
 fn agent_register_shared(_a @T, _t Value) {}
 fn agent_register_skill_tool(_a @T) {}
 fn agent_with_context_file(_a Value, _p @str) Value {}

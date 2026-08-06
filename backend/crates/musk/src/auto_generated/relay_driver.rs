@@ -5,13 +5,16 @@ use std::sync::Arc;
 use crate::server::AppState;
 use crate::tool_context::ToolContext;
 use crate::mode::AgentMode;
+use serde_json::Value;
 trait AgentFactory {
     fn build_agent(&self, role_id: &str, handoff: Option<String>) -> Result<Agent, String>;
 }
 
 
-/// relay_driver.at — MuskAgentFactory + AgentFactory impl (relay/driver.rs).
-/// drive_run/drive_loop/run_step（async 闭包 + Mutex）保留手写。
+/// relay_driver.at — MuskAgentFactory + AgentFactory impl (relay/driver.rs)
+/// + drive_run/drive_loop/run_step (Plan 020 Phase G: 从 server_serve.at 搬入并激活,
+/// 依赖 extern 真实化)。async 闘包捕获的 StreamEvent 处理经 DriveSink sink 模式
+/// 转给 extern(完整复刻 hw 8 分支 match);advance/handoff/publish 经 extern 委托 hw store。
 #[derive(Clone)]
 pub struct MuskAgentFactory {
     pub state: Arc<AppState>,
@@ -35,5 +38,73 @@ impl MuskAgentFactory {
             },
             None => return Ok(agent),
         }
+    }
+}
+
+pub async fn drive_run(state: Arc<AppState>, ws_id: &str, run_id: &str) -> Result<bool, String> {
+    drive_set_root(&state, ws_id);
+    let _ = drive_loop(state.clone(), ws_id, run_id).await;
+    drive_clear_root();
+    return Ok(true);
+}
+
+async fn drive_loop(state: Arc<AppState>, ws_id: &str, run_id: &str) -> Result<bool, String> {
+    let mut done: bool = false;
+    while !(done) {
+        let result = relay_advance(&state, ws_id, run_id);
+        if advance_is_none(&result) {
+            done = true;
+        } else {
+            relay_publish(run_id, &result);
+            let kind = advance_kind(&result);
+            if kind == "execute" {
+                let role_id = advance_role_id(&result);
+                let step_err = run_step(state.clone(), ws_id, run_id, &role_id).await;
+                if step_err_is_err(&step_err) {
+                    relay_submit_error(&state, ws_id, run_id, &role_id, &step_err);
+                }            } else {
+                
+
+                done = true;
+            }
+        }
+
+    }
+    return Ok(true);
+}
+
+async fn run_step(state: Arc<AppState>, ws_id: &str, run_id: &str, role_id: &str) -> Result<String, String> {
+    let task_input = relay_step_context(&state, ws_id, run_id);
+    let agent = factory_build_agent(&state, ws_id, run_id, role_id).await;
+    let sink = DriveStreamSink { state: state.clone(), ws_id: ws_id.to_string(), run_id: run_id.to_string(), role_id: role_id.to_string() };
+    let cancel = atomic_bool_false();
+    let result = agent_run_stream_with_sink(agent, task_input, Arc::new(sink), cancel).await;
+    match result {
+        Ok(r) => {
+            let output = drive_accumulated(&state, ws_id, run_id);
+            let final_output = drive_finalize_output(&output, &r);
+            drive_submit_handoff(&state, ws_id, run_id, role_id, &final_output, &r);
+            return Ok(final_output);
+        },
+        Err(e) => return Err(e),
+    }
+}
+
+pub trait DriveSink {
+    fn on_event(&self, ev: Value);
+}
+
+
+#[derive(Clone)]
+pub struct DriveStreamSink {
+    pub state: Arc<AppState>,
+    pub ws_id: String,
+    pub run_id: String,
+    pub role_id: String,
+}
+
+impl DriveSink for DriveStreamSink {
+    fn on_event(&self, ev: Value) {
+        drive_handle_stream_event(&self.state, &self.ws_id, &self.run_id, &self.role_id, ev);
     }
 }

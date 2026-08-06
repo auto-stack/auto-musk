@@ -480,3 +480,45 @@ fn phase_mode_str(mode: PhaseMode) -> String {
         PhaseMode::Parallel => return "parallel".to_string(),
     }
 }
+
+// ============================================================
+// Plan 020 Phase H — RelayTaskPlanExecutor: ag 版单 run 执行内核
+// (替代 hand-written DriveTaskPlanExecutor 透传 hw drive_task_plan_run)。
+// 5 步顺序逻辑(等价 hw task_plan_engine.rs:472-513):start_run → drive_run
+// (复用 Phase G 的 ag drive_run)→ 读 run status → 组装 RunExecutionResult。
+// ============================================================
+
+/// 携带 ctx 的 ag executor(字段对齐 hw TaskPlanContext)。声明为实现
+/// TaskPlanExecutor;run 方法把 drive_task_plan_run 全在 ag 表达(经 extern
+/// 委托 hw store + ag drive_run)。
+#[derive(Clone)]
+pub struct RelayTaskPlanExecutor {
+    pub ctx: TaskPlanContext,
+}
+
+#[async_trait::async_trait]
+impl TaskPlanExecutor for RelayTaskPlanExecutor {
+    async fn run(&self, req: RunRequest) -> Result<RunExecutionResult, String> {
+        // ctx.state is owned AppState; externs take &Arc<AppState> — wrap once.
+        let state: std::sync::Arc<crate::server::AppState> = std::sync::Arc::new(self.ctx.state.clone());
+        // 1. start_run:在 run store 注册一个 relay run(flow_id 来自 run_ref)。
+        task_plan_start_run(&state, &self.ctx.workspace_id, &req.run_id, &req.run_ref.flow_id, &req.task_text);
+        // 2. drive_run:复用 Phase G 的 ag drive_run(推进到终态)。
+        let _ = drive_run(&state, &self.ctx.workspace_id, &req.run_id).await;
+        // 3. 读回 run status;丢失则报错(hw:496-497)。
+        let status_opt = task_plan_run_status(&state, &self.ctx.workspace_id, &req.run_id);
+        match status_opt {
+            None => return Err(format!("run {} disappeared after execution", req.run_id)),
+            Some(status) => {
+                // 4. status==completed → error=None;否则 error=Some(...)。
+                let mut error_msg: Option<String> = None;
+                if status != "completed" {
+                    error_msg = Some(format!("run ended with status '{}'", status));
+                }
+                // 5. 读回 handoff;组装 RunExecutionResult(hw:505-513)。
+                let handoff = task_plan_last_handoff(&state, &self.ctx.workspace_id, &req.run_id);
+                return Ok(RunExecutionResult { run_id: req.run_id.to_string(), status: status.to_string(), handoff, error: error_msg });
+            }
+        }
+    }
+}
