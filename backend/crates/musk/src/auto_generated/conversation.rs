@@ -277,14 +277,7 @@ pub fn chat_message_to_turns(mut msg: ChatMessage, seq_base: u32) -> Vec<Turn> {
 
 
 
-
-    let mut has_main_turn: bool = false;
-    if (msg.content.len() as i32) > 0 {
-        has_main_turn = true
-    }
-    if (msg.tool_calls.len() as i32) == 0 {
-        has_main_turn = true
-    }
+    let mut has_main_turn: bool = (msg.content.len() as i32) > 0 || (msg.tool_calls.len() as i32) == 0;
     if has_main_turn {
         let mut to_field: Option<String> = None;
         if msg.role == Role::User {

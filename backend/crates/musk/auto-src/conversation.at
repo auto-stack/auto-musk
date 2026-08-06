@@ -229,15 +229,8 @@ pub fn chat_message_to_turns(msg ChatMessage, seq_base uint) List<Turn> {
     var turns List<Turn> = []
 
     // main message turn. 原版条件: !content.is_empty() || tool_calls.is_empty()
-    // (空内容且无工具调用也推一条消息 turn)。Auto 无 `||`/`or`，用两个 if
-    // 累积布尔量表达同一逻辑（实测 a2r 可转译嵌套 if）。
-    var has_main_turn bool = false
-    if msg.content.len() > 0u {
-        has_main_turn = true
-    }
-    if msg.tool_calls.len() == 0u {
-        has_main_turn = true
-    }
+    // (空内容且无工具调用也推一条消息 turn)。
+    var has_main_turn bool = msg.content.len() > 0u || msg.tool_calls.len() == 0u
     if has_main_turn {
         var to_field Option<str> = None
         if msg.role == Role.User {
