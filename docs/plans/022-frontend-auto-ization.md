@@ -11,7 +11,7 @@
 
 | 阶段 | 内容 | 提交 | 验收 |
 |---|---|---|---|
-| **Phase 0** | 工具链就绪 + 桥接演示：清理 gen 孤儿；建 `src/front/app.at` 最小计数器 widget；`auto build --gen-only` 生成 vue 工程通过；`pnpm install + build` 产出 dist（index.js 82.78KB）；web/ 基线 `vite build` 通过 | _待提交_ | ✅ 生成工程可构建；⚠️ 发现 web/ 既有 `vue-tsc` 类型错误（见 §9） |
+| **Phase 0** | 工具链就绪 + 桥接演示：清理 gen 孤儿；建 `src/front/app.at` 最小计数器 widget；`auto build --gen-only` 生成 vue 工程通过；`pnpm install + build` 产出 dist（index.js 82.78KB）；web/ 基线 `vite build` 通过 | `7ced2b9` | ✅ 生成工程可构建；⚠️ 发现 web/ 既有 `vue-tsc` 类型错误（见 §9） |
 | **Phase 1** | 生成器扩展：SSE 多事件 discriminator | _待填_ | _待填_ |
 | **Phase 2** | 生成器扩展：i18n 原生支持 | _待填_ | _待填_ |
 | **Phase 3** | 生成器扩展：markdown/mermaid tag + a2vue golden | _待填_ | _待填_ |
