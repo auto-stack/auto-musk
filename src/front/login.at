@@ -1,0 +1,115 @@
+// login.at — 登录/注册页（对应 web/src/views/LoginView.vue）
+//
+// LoginView.vue 核心：表单(username/password) + 登录/注册切换 + error 显示。
+// 206 行(含 scoped CSS)。
+//
+// Plan 022 Phase 4 设计：纯 store 驱动（Elm 架构）——LoginPage 只调
+// store.Login/store.Register，store.authenticated 变化自动驱动 App.vue 的
+// auth guard v-if 切换。不需要 auth-success 事件回调（比原生更简洁）。
+
+use store: AuthStore
+
+widget LoginPage {
+    msg Msg {
+        Submit,
+        ToggleMode,
+        UsernameChanged,
+        PasswordChanged,
+    }
+
+    model {
+        var username str = ""
+        var password str = ""
+        var register_mode bool = false
+    }
+
+    view {
+        col {
+            style: "login-view"
+            col {
+                style: "login-card"
+                // 品牌
+                row {
+                    style: "login-brand"
+                    text "🔥" { style: "text-2xl" }
+                    h1 "AutoForge" { style: "text-2xl font-bold" }
+                }
+                // 表单
+                col {
+                    style: "login-form"
+                    col {
+                        style: "form-group"
+                        label "Username"
+                        input {
+                            value: .username
+                            oninput: .UsernameChanged
+                            placeholder: "Enter username"
+                            style: "form-input"
+                        }
+                    }
+                    col {
+                        style: "form-group"
+                        label "Password"
+                        input {
+                            value: .password
+                            oninput: .PasswordChanged
+                            placeholder: "Enter password"
+                            style: "form-input"
+                        }
+                    }
+                    // 错误显示
+                    if store.error != "" {
+                        text store.error { style: "login-error" }
+                    }
+                    // 提交按钮（loading 时禁用，文本随模式切换）
+                    button {
+                        onclick: .Submit
+                        style: "login-button"
+                        if store.loading {
+                            text "Loading..."
+                        } else if .register_mode {
+                            text "Register"
+                        } else {
+                            text "Login"
+                        }
+                    }
+                }
+                // 切换 登录/注册 模式
+                col {
+                    style: "login-footer"
+                    button {
+                        onclick: .ToggleMode
+                        style: "toggle-mode"
+                        if .register_mode {
+                            text "Already have an account?"
+                        } else {
+                            text "No account? Register"
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    on {
+        // v-model 语义 marker handler（U5）。
+        .UsernameChanged -> { .username = .username }
+        .PasswordChanged -> { .password = .password }
+
+        // ToggleMode: 切换登录/注册，清空 error。
+        .ToggleMode -> {
+            .register_mode = !.register_mode
+            store.SetError("")
+        }
+
+        // Submit: 根据 register_mode 调 store.Login 或 store.Register。
+        // 成功后 store.authenticated 自动变 true → App.vue 的 v-if 切换（无需回调）。
+        .Submit -> {
+            if .register_mode {
+                store.Register(.username, .password)
+            } else {
+                store.Login(.username, .password)
+            }
+        }
+    }
+}

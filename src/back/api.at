@@ -1,0 +1,315 @@
+// api.at — auto-musk 前端 API 契约（Plan 022 Phase 1 demo）
+//
+// 这些端点后端已用 Rust axum 实现。此处的 #[api] 声明仅用于：
+//   1. codegen 生成前端 api.ts 客户端
+//   2. ~Stream<T> 触发 SSE codegen（store composable 自动接线 EventSource）
+//
+// pub type / pub tag 定义从 web/src/types/*.ts 1:1 映射。
+// Plan 022 Phase 4 起会逐步补全全部端点；本文件当前仅含 Phase 1 SSE 验证所需。
+
+// SseEventDto — forge 聊天流事件（wire 形状与后端 server_stream.at 一致）。
+// #[serde(tag = "type", rename_all = "snake_case")] 使每个变体在 wire 上
+// 用 {"type": "<snake_case_name>", ...} 表示。codegen 据此生成 data.type 路由。
+#[serde(tag = "type", rename_all = "snake_case")]
+pub tag SseEventDto {
+    Delta { text str }
+    Thinking { thinking str }
+    ToolCall { id Option<str>, name str, arguments Value }
+    ToolResult { id Option<str>, name str, arguments Value, result str, status str }
+    Done { output str, turns int }
+    Error { message str }
+}
+
+// Forge 聊天流端点（后端 server_stream.at 的 chat_sse_stream 对应的 HTTP 路由）。
+// ~Stream<SseEventDto> 触发 SSE codegen。
+#[api(method = "GET", path = "/api/chats/session/{id}/stream")]
+pub fn chat_stream(id str) ~Stream<SseEventDto> {
+    return None
+}
+
+// ============================================================
+// Auth API (Phase 4) — 对应 useAuth.ts 的 /api/auth/* 调用。
+// 后端已用 Rust axum 实现；此处 #[api] 仅服务前端 api.ts codegen。
+// ============================================================
+
+// 认证后的用户信息（对应 useAuth._user 的形状）。
+pub type AuthUser = {
+    user_id: int,
+    username: str,
+    roles: []str,
+    permissions: []str,
+}
+
+// login/register 的响应 wire 形状（后端 /api/auth/{login,register} 返回）。
+// 注意：响应里 token + user_id/username/roles 平铺，permissions 需再调 me() 取。
+pub type AuthResponse = {
+    token: str,
+    user_id: int,
+    username: str,
+    roles: []str,
+}
+
+// login 请求体。
+pub type LoginRequest = {
+    username: str,
+    password: str,
+}
+
+#[api(method = "POST", path = "/api/auth/login")]
+pub fn auth_login(username str, password str) AuthResponse {
+    return None
+}
+
+#[api(method = "POST", path = "/api/auth/register")]
+pub fn auth_register(username str, password str) AuthResponse {
+    return None
+}
+
+#[api(method = "GET", path = "/api/auth/me")]
+pub fn auth_me() AuthUser {
+    return None
+}
+
+#[api(method = "POST", path = "/api/auth/logout")]
+pub fn auth_logout() {
+    return None
+}
+
+// ============================================================
+// Specs API (Phase 5) — 对应 useSpecs.ts 的 /api/specs/* 调用。
+// 后端已用 Rust axum 实现；此处 #[api] 仅服务前端 api.ts codegen。
+// 类型从 web/src/types/specs.ts 1:1 映射。
+// ============================================================
+
+// SpecItem — 一个 spec 条目（goal/architecture/.../report 之一）。
+// 大量可选字段（depends_on/related/priority/...）对应各类 section 的元数据。
+pub type SpecItem = {
+    id: str,
+    title: str,
+    content: str,
+    status: str,
+    depends_on: []str,
+    related: []str,
+    priority: str,
+    assignee: str,
+    test_file: str,
+    file: str,
+    milestone: str,
+    module: str,
+    tags: []str,
+    created_at: int,
+    modified_at: int,
+    completed_at: int,
+}
+
+// SpecsSection — 一类 section（goals/architecture/designs/plans/tests/reviews/reports）。
+pub type SpecsSection = {
+    id: str,
+    section_type: str,
+    title: str,
+    items: []SpecItem,
+    status: str,
+    content: str,
+    depends_on: []str,
+    last_modified: int,
+    last_verified: int,
+}
+
+// SpecsDocument — 整个 spec 文档（project + version + sections）。
+pub type SpecsDocument = {
+    project: str,
+    version: int,
+    sections: []SpecsSection,
+}
+
+// SpecsOverview — GET /api/specs/overview 返回的结构（含 section 摘要）。
+pub type SpecsOverviewSection = {
+    id: str,
+    title: str,
+    item_count: int,
+    status: str,
+}
+pub type SpecsOverview = {
+    project: str,
+    version: int,
+    total_items: int,
+    sections: []SpecsOverviewSection,
+}
+
+#[api(method = "GET", path = "/api/specs")]
+pub fn specs_list() SpecsDocument {
+    return None
+}
+
+#[api(method = "GET", path = "/api/specs/overview")]
+pub fn specs_overview() SpecsOverview {
+    return None
+}
+
+#[api(method = "POST", path = "/api/specs/item")]
+pub fn specs_save_item(section_id str, item SpecItem) {
+    return None
+}
+
+#[api(method = "DELETE", path = "/api/specs/item/{section_id}/{id}")]
+pub fn specs_delete_item(section_id str, id str) {
+    return None
+}
+
+#[api(method = "POST", path = "/api/specs/rebuild-relations")]
+pub fn specs_rebuild_relations() SpecsDocument {
+    return None
+}
+
+#[api(method = "GET", path = "/api/specs/related/{id}")]
+pub fn specs_related(id str) {
+    return None
+}
+
+#[api(method = "GET", path = "/api/specs/drift-check")]
+pub fn specs_drift_check() {
+    return None
+}
+
+
+
+// ============================================================
+// Wiki API (Phase 6) — 对应 useWiki.ts 的 /api/forge/wiki/* 调用。
+// 类型从 web/src/types/wiki.ts 映射。
+// ============================================================
+
+pub type WikiPage = {
+    slug: str,
+    title: str,
+    content: str,
+    source_type: str,
+    tags: []str,
+    version: int,
+    created_at: int,
+    updated_at: int,
+}
+
+pub type WikiPageMeta = {
+    slug: str,
+    title: str,
+    source_type: str,
+    tags: []str,
+    version: int,
+    updated_at: int,
+}
+
+pub type TreeNode = {
+    name: str,
+    path: str,
+    type: str,
+    children: []TreeNode,
+    size: int,
+    modified: int,
+}
+
+#[api(method = "GET", path = "/api/forge/wiki/pages")]
+pub fn wiki_list_pages() []WikiPageMeta {
+    return None
+}
+
+#[api(method = "GET", path = "/api/forge/wiki/page/{slug}")]
+pub fn wiki_get_page(slug str) WikiPage {
+    return None
+}
+
+#[api(method = "POST", path = "/api/forge/wiki/page")]
+pub fn wiki_create_page(slug str, title str, content str, source_type str, tags []str) WikiPage {
+    return None
+}
+
+#[api(method = "PUT", path = "/api/forge/wiki/page/{slug}")]
+pub fn wiki_update_page(slug str, content str, title str, tags []str) WikiPage {
+    return None
+}
+
+#[api(method = "DELETE", path = "/api/forge/wiki/page/{slug}")]
+pub fn wiki_delete_page(slug str) {
+    return None
+}
+
+#[api(method = "GET", path = "/api/forge/wiki/search")]
+pub fn wiki_search(q str) []WikiPageMeta {
+    return None
+}
+
+#[api(method = "GET", path = "/api/forge/wiki/tree")]
+pub fn wiki_tree() []TreeNode {
+    return None
+}
+
+#[api(method = "GET", path = "/api/forge/raw/tree")]
+pub fn wiki_raw_tree() []TreeNode {
+    return None
+}
+
+// ============================================================
+// Chats/Forge API (Phase 7) — 对应 useForge.ts 的 /api/chats/* 调用。
+// 类型从 web/src/types/forge.ts 映射。
+// ============================================================
+
+pub type ForgeMessage = {
+    id: str,
+    role: str,
+    content: str,
+    timestamp: int,
+    tool_calls: []str,
+    profession_id: str,
+    thinking: str,
+}
+
+pub type ForgeSession = {
+    id: str,
+    project_path: str,
+    status: str,
+    phase: str,
+    messages: []ForgeMessage,
+    active_profession: str,
+}
+
+pub type ForgeSessionSummary = {
+    id: str,
+    name: str,
+    preview: str,
+    message_count: int,
+    last_activity: int,
+}
+
+#[api(method = "GET", path = "/api/chats/sessions")]
+pub fn chats_list_sessions() []ForgeSessionSummary {
+    return None
+}
+
+#[api(method = "POST", path = "/api/chats/session")]
+pub fn chats_create_session(project_path str) ForgeSession {
+    return None
+}
+
+#[api(method = "GET", path = "/api/chats/session/{id}")]
+pub fn chats_get_session(id str) ForgeSession {
+    return None
+}
+
+#[api(method = "DELETE", path = "/api/chats/session/{id}")]
+pub fn chats_delete_session(id str) {
+    return None
+}
+
+#[api(method = "DELETE", path = "/api/chats/sessions")]
+pub fn chats_delete_all_sessions() {
+    return None
+}
+
+#[api(method = "POST", path = "/api/chats/session/{id}/rename")]
+pub fn chats_rename_session(id str, name str) {
+    return None
+}
+
+#[api(method = "POST", path = "/api/chats/session/{id}/message")]
+pub fn chats_send_message(id str, content str, profession_id str) {
+    return None
+}

@@ -1,0 +1,77 @@
+// forge_store.at — Forge 聊天状态 store（对应 useForge.ts）
+//
+// Phase 7: 极简状态层。复杂逻辑（SSE 消费、消息构造、事件分发）全部在
+// forge_stream.ts 逃生舱里，store 只管状态 + 简单调用，避开 codegen 对 store
+// handler 复杂控制流（嵌套 if/return/结构体字面量）的 parser 边界。
+
+use back.api: chats_list_sessions, chats_create_session, chats_get_session, chats_send_message
+
+store ForgeStore {
+    model {
+        var session_id str = ""
+        var messages []Value = []
+        var session_list []Value = []
+        var loading bool = false
+        var error str = ""
+        var streaming bool = false
+        var current_draft str = ""
+        var thinking str = ""
+        var workspace str = ""
+        var token str = ""
+        // Phase 7c: errand/relay/task_plan 内联卡片状态（逃生舱 forge_stream.ts 直操作）
+        var errands Value = {}
+        var relays Value = {}
+        var task_plans Value = {}
+    }
+
+    msg Msg {
+        Init,
+        LoadSessionList,
+        NewSession,
+        StreamStarted(str),
+        Send(str),
+        StopStream,
+        SetThinking(str),
+        FinalizeDraft,
+        SetError(str),
+    }
+
+    on {
+        .Init -> {
+            let ws = localStorage.getItem("musk_workspace");
+            .workspace = ws;
+            let tk = localStorage.getItem("musk_jwt");
+            .token = tk;
+            LoadSessionList()
+        }
+
+        .LoadSessionList -> {
+            let list = chats_list_sessions();
+            .session_list = list
+        }
+
+        .NewSession -> {
+            let s = chats_create_session(.workspace);
+            .session_id = s.id;
+            let list = chats_list_sessions();
+            .session_list = list
+        }
+
+        .StreamStarted(sid) -> { .session_id = sid }
+
+        .Send(content) -> {
+            .current_draft = "";
+            .thinking = "";
+            chats_send_message(.session_id, content, "");
+            .streaming = true
+        }
+
+        .StopStream -> {
+            .streaming = false
+        }
+
+        .SetThinking(text) -> { .thinking = text }
+        .FinalizeDraft -> { .streaming = false }
+        .SetError(msg) -> { .error = msg; .streaming = false }
+    }
+}

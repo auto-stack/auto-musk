@@ -1,0 +1,93 @@
+// specs_store.at — Spec Ledger 状态 store（对应 web/src/composables/useSpecs.ts）
+//
+// 单例 store：document/isLoading/error + loadDocument/saveSection/
+// rebuildRelations/findItemById。依赖 auth_fetch 拦截器（App.Init 设置）。
+//
+// Plan 022 Phase 5: SpecsView 的数据层。
+
+use back.api: specs_list, specs_overview, specs_save_item, specs_delete_item, specs_rebuild_relations
+
+store SpecsStore {
+    model {
+        // 整个 spec 文档（None = 未加载）。
+        var document Option<SpecsDocument> = None
+        var loading bool = false
+        var error str = ""
+        // overview 缓存（markdown 形式，由 LoadOverview 合成）。
+        var overview str = ""
+        var overview_loaded bool = false
+    }
+
+    msg Msg {
+        Init,
+        LoadDocument,
+        LoadOverview,
+        SaveItem(str, SpecItem),
+        DeleteItem(str, str),
+        RebuildRelations,
+        SetError(str),
+    }
+
+    computed {
+        // sections 列表（document 为 None 时返回空）。
+        // U8: computed 保持简单；handler 需 .value。
+        section_count => .document.value.len()
+    }
+
+    on {
+        // Init: 加载 document（SpecsView 挂载时调用）。
+        .Init -> {
+            LoadDocument()
+        }
+
+        // LoadDocument: GET /api/specs 拉整个文档。
+        .LoadDocument -> {
+            .loading = true
+            .error = ""
+            let doc = specs_list()
+            .loading = false
+            if doc != None {
+                .document = doc
+            }
+        }
+
+        // LoadOverview: GET /api/specs/overview 合成 markdown 摘要。
+        .LoadOverview -> {
+            let ov = specs_overview()
+            if ov != None {
+                let lines = "#" + ov.project + " (v" + ov.version + ", " + ov.total_items + " items)\n"
+                .overview = lines
+                .overview_loaded = true
+            }
+        }
+
+        // SaveItem(section_id, item): POST /api/specs/item upsert 一个条目。
+        .SaveItem(section_id, item) -> {
+            .error = ""
+            specs_save_item(section_id, item)
+            if .error == "" {
+                LoadDocument()
+            }
+        }
+
+        // DeleteItem(section_id, id): DELETE /api/specs/item/{section}/{id}。
+        .DeleteItem(section_id, id) -> {
+            .error = ""
+            specs_delete_item(section_id, id)
+            if .error == "" {
+                LoadDocument()
+            }
+        }
+
+        // RebuildRelations: POST /api/specs/rebuild-relations 重建关系图。
+        .RebuildRelations -> {
+            .error = ""
+            let doc = specs_rebuild_relations()
+            if doc != None {
+                .document = doc
+            }
+        }
+
+        .SetError(msg) -> { .error = msg }
+    }
+}

@@ -9,3 +9,12 @@ version: "0.1.0"
 scene: "ui"
 render: "vue"
 api: "rust"
+
+// Plan 022 Phase 2: i18n (vue-i18n) — locale files copied to src/locales/
+// and wired into createI18n in main.ts. Phase 4 will point at the full
+// web/src/i18n/locales/{en,zh}.json (366 keys); Phase 2 demo uses a subset.
+i18n: ["src/front/i18n/en.json", "src/front/i18n/zh.json"]
+
+// Plan 022 Phase 6: markdown rendering (markstream-vue) for WikiView/SpecsView.
+// (Phase 3 auto-detection is best-effort; declare explicitly for reliability.)
+npm_deps: ["markstream-vue@0.0.14-beta.8"]

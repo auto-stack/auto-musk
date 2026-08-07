@@ -1,0 +1,79 @@
+// app.at — auto-musk 前端入口根 widget（Plan 022 Phase 5 骨架）
+//
+// 对应 web/src/App.vue。auth guard + view rail + view 切换。
+// 注意: 字段名用 current_view 而非 view（view 是 AutoUI 保留关键字）。
+
+use store: AuthStore
+use login: LoginPage
+use specs_view: SpecsView
+use wiki_view: WikiView
+use chats_view: ChatsView
+
+widget App {
+    use {
+        fn: setupAuthFetch from "src/front/setup_auth_fetch.ts"
+    }
+
+    msg Msg {
+        Init,
+        ShowChats,
+        ShowSpecs,
+        ShowWiki,
+    }
+
+    model {
+        // 当前视图（chats/specs/wiki）。不用 view（保留字）。
+        var current_view str = "chats"
+    }
+
+    view {
+        if store.authenticated.value != true {
+            LoginPage
+        } else {
+            row {
+                style: "musk-app"
+                // view rail
+                col {
+                    style: "view-rail"
+                    text "Auto Musk" { style: "rail-brand" }
+                    col {
+                        style: "rail-tabs"
+                        button {
+                            onclick: .ShowChats
+                            style: "rail-tab"
+                            text "Chat"
+                        }
+                        button {
+                            onclick: .ShowSpecs
+                            style: "rail-tab"
+                            text "Specs"
+                        }
+                        button {
+                            onclick: .ShowWiki
+                            style: "rail-tab"
+                            text "Wiki"
+                        }
+                    }
+                }
+                // view main（v-if 切换视图）
+                col {
+                    style: "view-main"
+                    if .current_view == "specs" {
+                        SpecsView
+                    } else if .current_view == "wiki" {
+                        WikiView
+                    } else {
+                        ChatsView
+                    }
+                }
+            }
+        }
+    }
+
+    on {
+        .Init -> { setupAuthFetch(); store.Init() }
+        .ShowChats -> { .current_view = "chats" }
+        .ShowSpecs -> { .current_view = "specs" }
+        .ShowWiki -> { .current_view = "wiki" }
+    }
+}
