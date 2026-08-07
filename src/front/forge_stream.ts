@@ -45,6 +45,20 @@ export interface ForgeStreamEvent {
   // task plan fields
   instance_id?: string
   task_plan_id?: string
+  // gate fields (gate_reached). 注：title 复用 relay fields 的 title?。
+  gate_id?: string
+  profession?: string
+  section_id?: string
+  // run_completed fields
+  goals_met?: string
+  tests_pass?: string
+  drift_detected?: string
+  cost?: string
+  confidence?: 'High' | 'Medium' | 'Low'
+  deliverables?: string[]
+  // agent_handoff fields
+  from_profession?: string
+  to_profession?: string
 }
 
 let currentEs: EventSource | null = null
@@ -264,7 +278,53 @@ function handleForgeEvent(event: ForgeStreamEvent): void {
     return
   }
 
-  // 未识别事件（turn_start/phase_change/agent_handoff/gate_reached/run_completed 等）
+  // ─── 会话状态事件（7.3 续） ─────────────────────────────────────────────
+  if (t === 'turn_start') {
+    // 每轮新建 assistant 气泡并设置 profession_id（7c 的 ensureAssistantMsg
+    // 不传 profession，导致 profession badge 永远缺失——此处修复）。
+    ensureAssistantMsg(event.profession_id)
+    return
+  }
+  if (t === 'phase_change' && event.phase) {
+    _store.session_phase.value = event.phase
+    return
+  }
+  if (t === 'agent_handoff' && event.to_profession) {
+    _store.active_profession.value = event.to_profession
+    return
+  }
+
+  // ─── gate 事件（7.3 续）→ GateCard ──────────────────────────────────────
+  if (t === 'gate_reached') {
+    const gateId = event.gate_id || `${event.run_id || ''}-${event.step_id || ''}`
+    if (gateId) {
+      _store.current_gate.value = {
+        gate_id: gateId,
+        run_id: event.run_id || '',
+        profession: event.profession || '',
+        title: event.title || '',
+        section_id: event.section_id || '',
+        since: Date.now(),
+      }
+    }
+    return
+  }
+
+  // ─── run_completed 事件（7.3 续）→ ReportCard ───────────────────────────
+  if (t === 'run_completed') {
+    _store.report_data.value = {
+      runId: event.run_id || '',
+      goalsMet: event.goals_met || '',
+      testsPass: event.tests_pass || '',
+      driftDetected: event.drift_detected || '',
+      cost: event.cost || '',
+      confidence: event.confidence || 'Medium',
+      deliverables: event.deliverables || [],
+    }
+    return
+  }
+
+  // 未识别事件
   console.log('[forge stream]', t)
 }
 
@@ -282,9 +342,9 @@ function currentAssistantMsg(): any | null {
 /**
  * Ensure there is a "current" assistant message to accumulate deltas/tool_calls
  * into. If the last message isn't an assistant message, push a fresh one.
- * Mirrors useForge.ts ensureAssistantMsg.
+ * Mirrors useForge.ts ensureAssistantMsg. profession_id 来自 turn_start 事件。
  */
-function ensureAssistantMsg(): any {
+function ensureAssistantMsg(profession_id?: string): any {
   const msgs = _store.messages.value as any[]
   let last = msgs && msgs.length ? msgs[msgs.length - 1] : null
   if (!last || last.role !== 'assistant') {
@@ -294,8 +354,12 @@ function ensureAssistantMsg(): any {
       content: '',
       timestamp: Date.now(),
       tool_calls: [],
+      profession_id: profession_id || '',
     }
     _store.messages.value.push(last)
+  } else if (profession_id && !last.profession_id) {
+    // 回填 turn_start 带来的 profession_id（若已有消息未设）。
+    last.profession_id = profession_id
   }
   return last
 }

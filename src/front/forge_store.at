@@ -22,18 +22,27 @@ store ForgeStore {
         var errands Value = {}
         var relays Value = {}
         var task_plans Value = {}
+        // Phase 7.3 续: session 审批态 + gate + report（forge_stream 回写 + LoadSession 回写）
+        var session_status str = "idle"
+        var session_phase str = "intake"
+        var active_profession str = ""
+        var pending_spec_changes []Value = []
+        var current_gate Value = null
+        var report_data Value = null
     }
 
     msg Msg {
         Init,
         LoadSessionList,
         NewSession,
+        SwitchSession(str),
         StreamStarted(str),
         Send(str),
         StopStream,
         SetThinking(str),
         FinalizeDraft,
         SetError(str),
+        ClearGate,
     }
 
     on {
@@ -57,6 +66,17 @@ store ForgeStore {
             .session_list = list
         }
 
+        // SwitchSession: 切换 + 回写 session 详情（status/phase/pending_spec_changes/messages）。
+        // Phase 7.3 续：补齐 7a 缺失的 SwitchSession（widget 调 store.SwitchSession 但原 store 无定义）。
+        .SwitchSession(id) -> {
+            .session_id = id;
+            let s = chats_get_session(id);
+            .messages = s.messages;
+            .session_status = s.status;
+            .session_phase = s.phase;
+            .pending_spec_changes = s.pending_spec_changes
+        }
+
         .StreamStarted(sid) -> { .session_id = sid }
 
         .Send(content) -> {
@@ -73,5 +93,8 @@ store ForgeStore {
         .SetThinking(text) -> { .thinking = text }
         .FinalizeDraft -> { .streaming = false }
         .SetError(msg) -> { .error = msg; .streaming = false }
+
+        // ClearGate: 用户批准/拒绝 spec 变更后清审批门状态（7.3）。
+        .ClearGate -> { .current_gate = None }
     }
 }

@@ -269,6 +269,16 @@ pub type ForgeSession = {
     phase: str,
     messages: []ForgeMessage,
     active_profession: str,
+    pending_spec_changes: []SpecChange,
+}
+
+// spec 变更项（对应 web/src/types/forge.ts SpecChange，GateCard 的 changes prop）。
+pub type SpecChange = {
+    section_id: str,
+    old_content: str,
+    new_content: str,
+    old_status: str,
+    new_status: str,
 }
 
 pub type ForgeSessionSummary = {
