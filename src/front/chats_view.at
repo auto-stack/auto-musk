@@ -169,7 +169,7 @@ widget ChatsView {
     on {
         .Init -> { store.Init() }
 
-        .NewSession -> { store.CreateSession() }
+        .NewSession -> { store.NewSession() }
 
         .SelectSession(id) -> { store.SwitchSession(id) }
 
