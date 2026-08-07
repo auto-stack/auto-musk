@@ -1,36 +1,41 @@
 // specs_view.at — Spec Ledger 视图（对应 web/src/views/SpecsView.vue）
 //
-// SpecsView.vue 1396 行：左侧 section-nav（7 类 section + overview + module
-// accordion + 搜索）+ 右侧主内容（当前 section 的 item 列表 + detail 编辑）。
-//
-// Plan 022 Phase 5a: 先做核心骨架——section-nav（7 类导航 + overview）+
-// 主内容区（当前 section 的 item 列表）。CRUD 编辑/module accordion/搜索/
-// gate 审批/detail 编辑留 Phase 5b。
+// Phase 5a: section-nav 7 类导航 + overview + item 列表
+// Phase 5b: item CRUD（新建/编辑/删除）+ 编辑面板 + 工具函数逃生舱
 
 use store: SpecsStore
 
 widget SpecsView {
+    use {
+        fn: getNextId, getDefaultStatus from "src/front/utils/itemTemplates.ts"
+    }
+
     msg Msg {
         Init,
         SelectSection(str),
         ToggleOverview,
         SelectItem(str),
+        AddItem,
+        StartEditItem(str),
+        CancelEdit,
+        SaveEditItem,
+        DeleteItem(str),
+        EditTitleChanged,
+        EditContentChanged,
     }
 
     model {
         // 7 类 section（对应 SectionType）。
-        var sections List<str> = ["goals", "architecture", "designs", "plans", "tests", "reviews", "reports"]
+        var section_types List<str> = ["goals", "architecture", "designs", "plans", "tests", "reviews", "reports"]
         var active_section str = "goals"
         var show_overview bool = true
         var active_item_id Option<str> = None
         var nav_collapsed bool = false
-    }
-
-    computed {
-        // 当前 section 的标题（i18n key 形式，Phase 5b 接 t()）。
-        active_title => .active_section
-        // section_count 留 Phase 5b（依赖 document.value.sections.len()，
-        // 当前 document 是 Option，computed 保持简单）。
+        // 编辑面板状态
+        var editing_item_id Option<str> = None
+        var edit_title str = ""
+        var edit_content str = ""
+        var edit_status str = "draft"
     }
 
     view {
@@ -39,20 +44,18 @@ widget SpecsView {
             // 左侧 section-nav
             col {
                 style: if .nav_collapsed { "section-nav collapsed" } else { "section-nav" }
-                // 标题
                 row {
                     style: "section-nav-header"
                     text "Specs" { style: "section-nav-title" }
                 }
-                // Overview 条目
                 button {
                     onclick: .ToggleOverview
                     style: if .show_overview { "overview-entry active" } else { "overview-entry" }
                     text "Overview"
                 }
-                // 7 类 section 导航
-                for section in .sections {
+                for section in .section_types {
                     button {
+                        key: .section
                         onclick: .SelectSection(.section)
                         style: if .section == .active_section {
                             "section-nav-item active"
@@ -67,7 +70,6 @@ widget SpecsView {
             col {
                 style: "specs-main"
                 if .show_overview {
-                    // Overview 内容（markdown 摘要）
                     col {
                         style: "overview-content"
                         h2 "Overview" { style: "text-xl font-bold mb-4" }
@@ -78,28 +80,53 @@ widget SpecsView {
                         }
                     }
                 } else {
-                    // 当前 section 的 item 列表
                     col {
                         style: "section-content"
                         row {
                             style: "section-header"
                             h2 .active_section { style: "text-xl font-bold" }
+                            button {
+                                onclick: .AddItem
+                                style: "add-btn"
+                                text "+ Add Item"
+                            }
                         }
                         if .store.document.value != None {
                             for section in .store.document.value.sections {
+                                key: .section.id
                                 if .section.section_type == .active_section {
                                     for item in .section.items {
-                                        button {
-                                            onclick: .SelectItem(.item.id)
+                                        col {
+                                            key: .item.id
                                             style: if .item.id == .active_item_id {
                                                 "spec-item-row active"
                                             } else {
                                                 "spec-item-row"
                                             }
-                                            col {
-                                                style: "spec-item-main"
-                                                text .item.title { style: "spec-item-title" }
-                                                text .item.status { style: "spec-item-status" }
+                                            button {
+                                                onclick: .SelectItem(.item.id)
+                                                style: "spec-item-btn"
+                                                row {
+                                                    style: "spec-item-main"
+                                                    text .item.title { style: "spec-item-title" }
+                                                    text .item.status { style: "spec-item-status" }
+                                                }
+                                            }
+                                            // 编辑/删除按钮（选中时显示）
+                                            if .item.id == .active_item_id {
+                                                row {
+                                                    style: "spec-item-actions"
+                                                    button {
+                                                        onclick: .StartEditItem(.item.id)
+                                                        style: "action-btn"
+                                                        text "Edit"
+                                                    }
+                                                    button {
+                                                        onclick: .DeleteItem(.item.id)
+                                                        style: "action-btn danger"
+                                                        text "Delete"
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -108,6 +135,53 @@ widget SpecsView {
                         } else {
                             text "No document loaded"
                         }
+                        // 编辑面板（editing_item_id 非 None 时显示）
+                        if .editing_item_id != None {
+                            col {
+                                style: "edit-panel"
+                                h3 "Edit Item" { style: "text-lg font-bold mb-2" }
+                                col {
+                                    style: "form-group"
+                                    label "Title"
+                                    input {
+                                        value: .edit_title
+                                        oninput: .EditTitleChanged
+                                        style: "form-input"
+                                    }
+                                }
+                                col {
+                                    style: "form-group"
+                                    label "Status"
+                                    input {
+                                        value: .edit_status
+                                        oninput: .EditContentChanged
+                                        style: "form-input"
+                                    }
+                                }
+                                col {
+                                    style: "form-group"
+                                    label "Content"
+                                    textarea {
+                                        value: .edit_content
+                                        oninput: .EditContentChanged
+                                        style: "form-input content-input"
+                                    }
+                                }
+                                row {
+                                    style: "edit-actions"
+                                    button {
+                                        onclick: .SaveEditItem
+                                        style: "save-btn"
+                                        text "Save"
+                                    }
+                                    button {
+                                        onclick: .CancelEdit
+                                        style: "cancel-btn"
+                                        text "Cancel"
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -115,26 +189,76 @@ widget SpecsView {
     }
 
     on {
-        // Init: 加载 document + overview。
         .Init -> {
-            store.Init()
+            store.Init();
             store.LoadOverview()
         }
 
-        // SelectSection(section): 切换 active section，关闭 overview。
         .SelectSection(section) -> {
-            .active_section = section
+            .active_section = section;
             .show_overview = false
         }
 
-        // ToggleOverview: 切换 overview 显示。
-        .ToggleOverview -> {
-            .show_overview = !.show_overview
+        .ToggleOverview -> { .show_overview = !.show_overview }
+
+        .SelectItem(id) -> { .active_item_id = id }
+
+        // AddItem: 用 getNextId/getDefaultStatus 创建新 item，进入编辑。
+        .AddItem -> {
+            let new_id = getNextId(.active_section, []);
+            .edit_title = "New " + .active_section;
+            .edit_content = "";
+            .edit_status = getDefaultStatus(.active_section);
+            .editing_item_id = new_id;
+            .active_item_id = new_id
         }
 
-        // SelectItem(id): 选中一个 item（Phase 5b 打开 detail 编辑）。
-        .SelectItem(id) -> {
-            .active_item_id = id
+        // StartEditItem(id): 加载现有 item 到编辑面板。
+        .StartEditItem(id) -> {
+            .editing_item_id = id;
+            .edit_title = id;
+            .edit_content = "";
+            .edit_status = "draft"
         }
+
+        .CancelEdit -> {
+            .editing_item_id = None
+        }
+
+        // SaveEditItem: 保存编辑（新建或更新）。
+        .SaveEditItem -> {
+            if .editing_item_id != None {
+                let item = SpecItem {
+                    id: .editing_item_id,
+                    title: .edit_title,
+                    content: .edit_content,
+                    status: .edit_status,
+                    depends_on: [],
+                    related: [],
+                    priority: "",
+                    assignee: "",
+                    test_file: "",
+                    file: "",
+                    milestone: "",
+                    module: "",
+                    tags: [],
+                    created_at: 0,
+                    modified_at: 0,
+                    completed_at: 0,
+                };
+                store.SaveItem(.active_section, item);
+                .editing_item_id = None
+            }
+        }
+
+        // DeleteItem(id): 删除 item。
+        .DeleteItem(id) -> {
+            store.DeleteItem(.active_section, id);
+            .active_item_id = None
+        }
+
+        // v-model marker handlers（U5）。
+        .EditTitleChanged -> { .edit_title = .edit_title }
+        .EditContentChanged -> { .edit_status = .edit_status }
     }
 }
