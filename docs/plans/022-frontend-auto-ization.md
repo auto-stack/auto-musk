@@ -158,6 +158,7 @@
 - 可能的逃生舱点（useStreamingDocument 等）及理由
 
 | **Phase 6a** | WikiView 数据层 + 视图骨架。`wiki_store.at`（loadPages/loadPage/createPage/updatePage/deletePage/search/loadTree/loadRawTree）；`wiki_view.at`（wiki-nav pages 列表 + 主内容区：创建表单/编辑/markdown 渲染）；api.at 加 wiki 端点 + WikiPage/WikiPageMeta/TreeNode 类型；app.at 接入 WikiView（wiki tab）；pac.at 加 markstream-vue npm_dep。vue-tsc + vite build 全绿（4 components）。**修复**：markdown 组件名 MarkdownStream→MarkdownRender（auto-lang df5c2e37）；store 局部变量遮蔽（pages→loaded）；markstream-vue 依赖声明 | `auto-lang df5c2e37` | ✅ 4 components 构建通过；markdown 渲染接入 |
+| **Phase 7a** | ChatsView 数据层 + 视图骨架。`forge_store.at`（session/messages/sessionList + send/stop）；`chats_view.at`（session 列表 + 消息列表 + 流式 draft + 输入框 + 发送）；`forge_stream.ts`（SSE 消费逃生舱）；api.at 加 chats 端点 + Forge 类型。vue-tsc + vite build 全绿（5 components, 4 stores）。**发现 codegen 关键限制**：store 不支持 use 块（SSE 逃生舱移 widget 层）、store handler 不能传 msg 名作回调、复杂控制流 parser 边界 → 用逃生舱绕开。SSE 事件→store 回写留 7b | _待提交_ | ✅ 5 components 构建通过 |
 | **Phase 5c** | SpecsView 细化（搜索/module accordion/7类category卡片）——低优先级，移除无效 key 避免多余 div，剩余 R006 警告不阻塞 | `782da1f` | ⚠️ 留后续迭代 |
 
 ## 7.5 auto-lang 分支整合（2026-08-07）

@@ -7,6 +7,7 @@ use store: AuthStore
 use login: LoginPage
 use specs_view: SpecsView
 use wiki_view: WikiView
+use chats_view: ChatsView
 
 widget App {
     use {
@@ -62,7 +63,7 @@ widget App {
                     } else if .current_view == "wiki" {
                         WikiView
                     } else {
-                        text "ChatsView (Phase 7)"
+                        ChatsView
                     }
                 }
             }

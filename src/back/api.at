@@ -246,3 +246,70 @@ pub fn wiki_tree() []TreeNode {
 pub fn wiki_raw_tree() []TreeNode {
     return None
 }
+
+// ============================================================
+// Chats/Forge API (Phase 7) — 对应 useForge.ts 的 /api/chats/* 调用。
+// 类型从 web/src/types/forge.ts 映射。
+// ============================================================
+
+pub type ForgeMessage = {
+    id: str,
+    role: str,
+    content: str,
+    timestamp: int,
+    tool_calls: []str,
+    profession_id: str,
+    thinking: str,
+}
+
+pub type ForgeSession = {
+    id: str,
+    project_path: str,
+    status: str,
+    phase: str,
+    messages: []ForgeMessage,
+    active_profession: str,
+}
+
+pub type ForgeSessionSummary = {
+    id: str,
+    name: str,
+    preview: str,
+    message_count: int,
+    last_activity: int,
+}
+
+#[api(method = "GET", path = "/api/chats/sessions")]
+pub fn chats_list_sessions() []ForgeSessionSummary {
+    return None
+}
+
+#[api(method = "POST", path = "/api/chats/session")]
+pub fn chats_create_session(project_path str) ForgeSession {
+    return None
+}
+
+#[api(method = "GET", path = "/api/chats/session/{id}")]
+pub fn chats_get_session(id str) ForgeSession {
+    return None
+}
+
+#[api(method = "DELETE", path = "/api/chats/session/{id}")]
+pub fn chats_delete_session(id str) {
+    return None
+}
+
+#[api(method = "DELETE", path = "/api/chats/sessions")]
+pub fn chats_delete_all_sessions() {
+    return None
+}
+
+#[api(method = "POST", path = "/api/chats/session/{id}/rename")]
+pub fn chats_rename_session(id str, name str) {
+    return None
+}
+
+#[api(method = "POST", path = "/api/chats/session/{id}/message")]
+pub fn chats_send_message(id str, content str, profession_id str) {
+    return None
+}

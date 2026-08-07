@@ -1,0 +1,151 @@
+// chats_view.at — Forge 聊天视图（对应 web/src/views/ChatsView.vue）
+//
+// ChatsView.vue 2767 行：session-sidebar + chats-body(header/canvas/input-bar)。
+// Phase 7a: 骨架——session 列表 + 消息列表 + 输入框 + 发送 + 流式 draft。
+// 流式 markdown/mention/errand/relay 内联卡片留 7b。
+
+use store: ForgeStore
+
+widget ChatsView {
+    msg Msg {
+        Init,
+        NewSession,
+        SelectSession(str),
+        SendInput,
+        InputChanged,
+        StopStream,
+    }
+
+    model {
+        var input str = ""
+        var sidebar_collapsed bool = false
+    }
+
+    view {
+        row {
+            style: "chats-view"
+            // Session Sidebar
+            col {
+                style: if .sidebar_collapsed { "session-sidebar collapsed" } else { "session-sidebar" }
+                row {
+                    style: "sidebar-header"
+                    text "Sessions" { style: "sidebar-title" }
+                    button {
+                        onclick: .NewSession
+                        style: "sidebar-new-btn"
+                        text "+ New"
+                    }
+                }
+                col {
+                    style: "session-list"
+                    for s in .store.session_list {
+                        button {
+                            key: .s.id
+                            onclick: .SelectSession(.s.id)
+                            style: if .store.session.value != None {
+                                if .s.id == .store.session.value.id {
+                                    "session-item active"
+                                } else {
+                                    "session-item"
+                                }
+                            } else {
+                                "session-item"
+                            }
+                            col {
+                                style: "session-preview"
+                                text .s.name { style: "session-name" }
+                                text f"${.s.message_count} msgs" { style: "session-count" }
+                            }
+                        }
+                    }
+                }
+            }
+            // Main Chat Area
+            col {
+                style: "chats-body"
+                // header
+                row {
+                    style: "chats-header"
+                    if .store.session.value != None {
+                        text .store.session.value.id { style: "chats-title" }
+                    } else {
+                        text "No session" { style: "chats-title" }
+                    }
+                }
+                // canvas（消息列表 + 流式 draft）
+                col {
+                    style: "chats-canvas"
+                    for msg in .store.messages {
+                        col {
+                            key: .msg.id
+                            style: if .msg.role == "user" { "msg user-msg" } else { "msg assistant-msg" }
+                            text .msg.content { style: "msg-content" }
+                        }
+                    }
+                    // 流式 draft（streaming 时显示）
+                    if .store.streaming {
+                        if .store.thinking != "" {
+                            text .store.thinking { style: "msg-thinking" }
+                        }
+                        if .store.current_draft != "" {
+                            col {
+                                style: "msg assistant-msg draft"
+                                markdown {
+                                    content: .store.current_draft
+                                    style: "msg-content"
+                                }
+                            }
+                        }
+                    }
+                    if .store.error != "" {
+                        text .store.error { style: "msg-error" }
+                    }
+                }
+                // input bar
+                row {
+                    style: "input-bar"
+                    textarea {
+                        value: .input
+                        oninput: .InputChanged
+                        placeholder: "Type a message..."
+                        style: "msg-input"
+                    }
+                    if .store.streaming {
+                        button {
+                            onclick: .StopStream
+                            style: "send-btn stop"
+                            text "Stop"
+                        }
+                    } else {
+                        button {
+                            onclick: .SendInput
+                            style: "send-btn"
+                            text "Send"
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    on {
+        .Init -> { store.Init() }
+
+        .NewSession -> { store.CreateSession() }
+
+        .SelectSession(id) -> { store.SwitchSession(id) }
+
+        // InputChanged: v-model marker（U5）。
+        .InputChanged -> { .input = .input }
+
+        // SendInput: 发送输入框内容，清空。
+        .SendInput -> {
+            if .input.trim() != "" {
+                store.Send(.input);
+                .input = ""
+            }
+        }
+
+        .StopStream -> { store.StopStream() }
+    }
+}
