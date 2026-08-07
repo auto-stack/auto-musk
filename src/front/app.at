@@ -1,37 +1,77 @@
-// app.at — auto-musk 前端入口根 widget（Plan 022 Phase 4 骨架）
+// app.at — auto-musk 前端入口根 widget（Plan 022 Phase 5 骨架）
 //
-// 对应 web/src/App.vue。Phase 4 先做 auth guard：
-//   未登录 → LoginPage；登录后 → 主应用占位（view 切换留 Phase 5-7）。
-// App.vue 的 Ctrl+1/2/3 + view rail + OnboardingDialog 留待后续 Phase。
-//
-// 设计：纯 store 驱动——LoginPage 调 store.Login，store.authenticated 变化
-// 自动驱动本组件 v-if 切换（无需 auth-success 事件）。
+// 对应 web/src/App.vue。auth guard + view rail + view 切换。
+// 注意: 字段名用 current_view 而非 view（view 是 AutoUI 保留关键字）。
 
 use store: AuthStore
 use login: LoginPage
+use specs_view: SpecsView
 
 widget App {
+    use {
+        fn: setupAuthFetch from "src/front/setup_auth_fetch.ts"
+    }
+
     msg Msg {
         Init,
+        ShowChats,
+        ShowSpecs,
+        ShowWiki,
+    }
+
+    model {
+        // 当前视图（chats/specs/wiki）。不用 view（保留字）。
+        var current_view str = "chats"
     }
 
     view {
-        // auth guard：未认证显示 LoginPage，认证后显示主应用占位。
         if store.authenticated.value != true {
             LoginPage
         } else {
-            col {
+            row {
                 style: "musk-app"
-                text f"Logged in as ${store.user.value.username}" {
-                    style: "p-4"
+                // view rail
+                col {
+                    style: "view-rail"
+                    text "Auto Musk" { style: "rail-brand" }
+                    col {
+                        style: "rail-tabs"
+                        button {
+                            onclick: .ShowChats
+                            style: "rail-tab"
+                            text "Chat"
+                        }
+                        button {
+                            onclick: .ShowSpecs
+                            style: "rail-tab"
+                            text "Specs"
+                        }
+                        button {
+                            onclick: .ShowWiki
+                            style: "rail-tab"
+                            text "Wiki"
+                        }
+                    }
                 }
-                // Phase 5-7 会在此插入 view rail + ChatsView/SpecsView/WikiView。
+                // view main（v-if 切换视图）
+                col {
+                    style: "view-main"
+                    if .current_view == "specs" {
+                        SpecsView
+                    } else if .current_view == "wiki" {
+                        text "WikiView (Phase 6)"
+                    } else {
+                        text "ChatsView (Phase 7)"
+                    }
+                }
             }
         }
     }
 
     on {
-        // Init: App 挂载时从 localStorage 恢复 auth 状态。
-        .Init -> { store.Init() }
+        .Init -> { setupAuthFetch(); store.Init() }
+        .ShowChats -> { .current_view = "chats" }
+        .ShowSpecs -> { .current_view = "specs" }
+        .ShowWiki -> { .current_view = "wiki" }
     }
 }

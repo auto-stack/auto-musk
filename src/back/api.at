@@ -75,3 +75,100 @@ pub fn auth_logout() {
     return None
 }
 
+// ============================================================
+// Specs API (Phase 5) — 对应 useSpecs.ts 的 /api/specs/* 调用。
+// 后端已用 Rust axum 实现；此处 #[api] 仅服务前端 api.ts codegen。
+// 类型从 web/src/types/specs.ts 1:1 映射。
+// ============================================================
+
+// SpecItem — 一个 spec 条目（goal/architecture/.../report 之一）。
+// 大量可选字段（depends_on/related/priority/...）对应各类 section 的元数据。
+pub type SpecItem = {
+    id: str,
+    title: str,
+    content: str,
+    status: str,
+    depends_on: []str,
+    related: []str,
+    priority: str,
+    assignee: str,
+    test_file: str,
+    file: str,
+    milestone: str,
+    module: str,
+    tags: []str,
+    created_at: int,
+    modified_at: int,
+    completed_at: int,
+}
+
+// SpecsSection — 一类 section（goals/architecture/designs/plans/tests/reviews/reports）。
+pub type SpecsSection = {
+    id: str,
+    section_type: str,
+    title: str,
+    items: []SpecItem,
+    status: str,
+    content: str,
+    depends_on: []str,
+    last_modified: int,
+    last_verified: int,
+}
+
+// SpecsDocument — 整个 spec 文档（project + version + sections）。
+pub type SpecsDocument = {
+    project: str,
+    version: int,
+    sections: []SpecsSection,
+}
+
+// SpecsOverview — GET /api/specs/overview 返回的结构（含 section 摘要）。
+pub type SpecsOverviewSection = {
+    id: str,
+    title: str,
+    item_count: int,
+    status: str,
+}
+pub type SpecsOverview = {
+    project: str,
+    version: int,
+    total_items: int,
+    sections: []SpecsOverviewSection,
+}
+
+#[api(method = "GET", path = "/api/specs")]
+pub fn specs_list() SpecsDocument {
+    return None
+}
+
+#[api(method = "GET", path = "/api/specs/overview")]
+pub fn specs_overview() SpecsOverview {
+    return None
+}
+
+#[api(method = "POST", path = "/api/specs/item")]
+pub fn specs_save_item(section_id str, item SpecItem) {
+    return None
+}
+
+#[api(method = "DELETE", path = "/api/specs/item/{section_id}/{id}")]
+pub fn specs_delete_item(section_id str, id str) {
+    return None
+}
+
+#[api(method = "POST", path = "/api/specs/rebuild-relations")]
+pub fn specs_rebuild_relations() SpecsDocument {
+    return None
+}
+
+#[api(method = "GET", path = "/api/specs/related/{id}")]
+pub fn specs_related(id str) {
+    return None
+}
+
+#[api(method = "GET", path = "/api/specs/drift-check")]
+pub fn specs_drift_check() {
+    return None
+}
+
+
