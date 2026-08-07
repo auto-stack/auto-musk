@@ -159,7 +159,8 @@
 
 | **Phase 6a** | WikiView 数据层 + 视图骨架。`wiki_store.at`（loadPages/loadPage/createPage/updatePage/deletePage/search/loadTree/loadRawTree）；`wiki_view.at`（wiki-nav pages 列表 + 主内容区：创建表单/编辑/markdown 渲染）；api.at 加 wiki 端点 + WikiPage/WikiPageMeta/TreeNode 类型；app.at 接入 WikiView（wiki tab）；pac.at 加 markstream-vue npm_dep。vue-tsc + vite build 全绿（4 components）。**修复**：markdown 组件名 MarkdownStream→MarkdownRender（auto-lang df5c2e37）；store 局部变量遮蔽（pages→loaded）；markstream-vue 依赖声明 | `auto-lang df5c2e37` | ✅ 4 components 构建通过；markdown 渲染接入 |
 | **Phase 7a** | ChatsView 数据层 + 视图骨架。`forge_store.at`（session/messages/sessionList + send/stop）；`chats_view.at`（session 列表 + 消息列表 + 流式 draft + 输入框 + 发送）；`forge_stream.ts`（SSE 消费逃生舱）；api.at 加 chats 端点 + Forge 类型。vue-tsc + vite build 全绿（5 components, 4 stores）。**发现 codegen 关键限制**：store 不支持 use 块（SSE 逃生舱移 widget 层）、store handler 不能传 msg 名作回调、复杂控制流 parser 边界 → 用逃生舱绕开。SSE 事件→store 回写留 7b | _见 7b_ | ✅ 5 components 构建通过 |
-| **Phase 7b** | ChatsView SSE 回写机制 + 流式渲染。forge_stream.ts import `useForgeStoreStore()` singleton，SSE onmessage 直接操作 store ref（current_draft/thinking/streaming/error），处理核心事件（delta 追加/thinking/tool_call/tool_result/done/error）。chats_view widget 加 `use { fn: startForgeStream }`，Send 时启动 SSE。**绕开"store 不能传回调"限制**：用 store singleton ref 直接操作（store 模块级 ref 虽不 export，但 useForgeStoreStore() 返回同一份 singleton）。vue-tsc + vite build 全绿 | _待提交_ | ✅ SSE 回写 + 流式 markdown 渲染构建通过 |
+| **Phase 7b** | ChatsView SSE 回写机制 + 流式渲染。forge_stream.ts import `useForgeStoreStore()` singleton，SSE onmessage 直接操作 store ref（current_draft/thinking/streaming/error），处理核心事件（delta 追加/thinking/tool_call/tool_result/done/error）。chats_view widget 加 `use { fn: startForgeStream }`，Send 时启动 SSE。**绕开"store 不能传回调"限制**：用 store singleton ref 直接操作（store 模块级 ref 虽不 export，但 useForgeStoreStore() 返回同一份 singleton）。vue-tsc + vite build 全绿 | `1dc360d` | ✅ SSE 回写 + 流式 markdown 渲染构建通过 |
+| **Phase 7c** | ChatsView mention + errand/relay/task_plan 内联卡片 + §10 根治。①**数据层**：forge_store.at 加 errands/relays/task_plans 三个 Value ref；forge_stream.ts 补全 errand_*(5)/relay_*(4)/task_plan_spawned(1) 共 10 事件回写（1:1 移植 useForge.ts:362-433）+ 修正 7b tool_call 回写（真正累积到消息 tool_calls 数组，7b 只拼文本）+ ensureAssistantMsg/currentAssistantMsg 追踪当前 assistant 消息。②**逃生舱组件**（7 个 .vue + forge_helpers.ts）：ErrandCard/RelayCard/TaskPlanCard/GenericToolCard 4 类卡片 + MentionInput（v-html backdrop + MentionDropdown 键盘导航 + 命令解析）+ MentionDropdown/AgentAvatar（精简版，去 useAgentConfigs）。③**chats_view.at 重构**：use{component} 引入 5 卡片 + MentionInput；消息列表 role 分支（assistant→markdown/user→text）+ tool_calls 用 for+if-else-if 编排 dispatch/spawn_relay/task_plan/通用 4 类；输入框替换为 MentionInput。④**auto-lang §10 根治**（`60294454`）：移除 lexer.rs 的 markdown raw-string 特殊捕获（根因：把 `{ content: .x }` 吞成 opaque string，content prop 从未走 prop 解析）；vue.rs generate_shadcn_attrs 加 markdown 分支（content→:content 绑定）；a2vue golden 002_markdown。**关键发现**：codegen ext 复制只看 use 块不递归逃生舱内部相对 import（MentionDropdown/AgentAvatar/forge_helpers 需在 use 块声明触发复制）。vue-tsc + vite build 全绿；auto-lang `cargo test` 2876 passed/22 failed（22 均为既有，0 回归） | `1ff0f81`/`897a72f`/`c65fe9b` + auto-lang `60294454` | ✅ mention + 3 类卡片 + §10 根治，构建通过 |
 | **Phase 5c** | SpecsView 细化（搜索/module accordion/7类category卡片）——低优先级，移除无效 key 避免多余 div，剩余 R006 警告不阻塞 | `782da1f` | ⚠️ 留后续迭代 |
 
 ## 7.5 auto-lang 分支整合（2026-08-07）
@@ -200,12 +201,12 @@ worktree 全部清理（plan012-a/b/c + label-class + plan398）。
 
 **建议**：口径 (a)——parity 以"vite build 产物 + 视觉/行为一致"为准，类型严格度不作为 parity 硬门槛（与原生对齐）。本条在 Phase 4 首次 parity 比对时最终确认。
 
-## 10. Phase 3 发现：markdown tag 的 props 映射待完善（Phase 7 深入）
+## 10. Phase 3 发现：markdown tag 的 props 映射 ~~待完善（Phase 7 深入）~~ ✅ 已修复（Phase 7c）
 
 **现象**（2026-08-07 端到端验证）：`markdown { content: "...", style: "..." }` 生成的 `<MarkdownStream>` 标签能正确识别 + 导入 markstream-vue + 自动加 npm 依赖，但 **props 没有正确转成 Vue 属性绑定**——Aura prop 语法（`content: "..."`）被原样输出到标签内，而非 `content="..."` / `:content="..."`。
 
-**根因**：widget registry 注册 markdown 时 `props: HashMap::new()`（空映射），codegen 对无映射的自定义 widget props 走了通用路径，但该路径对 builtin tag 的处理不完整。
+**根因**（Phase 7c 重新定位，原根因判断有误）：**不是** registry 的 `props: HashMap::new()` 空映射，而是 `lexer.rs identifier_or_special_block` 有一段 markdown 专属的 raw-string 捕获——遇到 `markdown {` 就把整个 brace 体吞成一个 opaque string token，导致 `content: .x` 从未进入标准 prop 解析路径。
 
-**影响**：markdown tag 的**机制**（识别/import/npm依赖）已工作，但**实际渲染**需 props 映射完善。
+**影响**：~~markdown tag 的**机制**（识别/import/npm依赖）已工作，但**实际渲染**需 props 映射完善。~~ 已无影响（Phase 7c 修复后 `markdown { content: .x }` 正确生成 `<MarkdownRender :content="x">`）。
 
-**处置**：留待 Phase 7（ChatsView 实际用 markdown 渲染流式内容）时深入调优 props 映射。届时配合 a2vue golden 测试（Phase 3 建立）确定性验证。不阻塞 Phase 4-6（那些视图主要用表单/列表，非 markdown）。
+**处置**：✅ **Phase 7c 已根治**（auto-lang `60294454`）：①移除 lexer.rs 的 markdown raw-string 特殊捕获，`markdown` 现为普通 ident，`{ content: .x }` 走标准 view-node prop 路径；②vue.rs `generate_shadcn_attrs` 加 `"markdown"` 分支（content→`:content` 绑定 / 字面量 `content`，镜像 autodown_editor）；③a2vue golden `002_markdown`（input.at + input.expected.vue）确定性验证。`cargo test` 2876 passed / 22 failed（22 均为 master 既有，0 回归）。
