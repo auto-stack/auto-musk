@@ -13,7 +13,7 @@
 |---|---|---|---|
 | **Phase 0** | 工具链就绪 + 桥接演示：清理 gen 孤儿；建 `src/front/app.at` 最小计数器 widget；`auto build --gen-only` 生成 vue 工程通过；`pnpm install + build` 产出 dist（index.js 82.78KB）；web/ 基线 `vite build` 通过 | `7ced2b9` | ✅ 生成工程可构建；⚠️ 发现 web/ 既有 `vue-tsc` 类型错误（见 §9） |
 | **Phase 1** | 生成器扩展：SSE 多事件 discriminator。`StreamEndpoint` 加 `discriminator`+`variants`；`resolve_stream_variants` 解析 `#[serde(tag="type",rename_all="snake_case")] pub tag`（嵌套 braces 配平）；vue.rs 数据驱动 if-chain + 多端点 per-path guard；legacy fallback 保留；26 单测绿；auto-musk forge `SseEventDto`(6变体)端到端验证生成 `data.type` dispatch 正确 | `auto-lang 45361b10` | ✅ cargo test 全绿；demo 6 变体全捕获 |
-| **Phase 2** | 生成器扩展：i18n 原生支持 | _待填_ | _待填_ |
+| **Phase 2** | 生成器扩展：i18n 工程级原生支持。`I18nConfig`+`parse_i18n`(true/单路径/数组)；`VueProject.i18n`+`copy_locale_files`；`generate_package_json` 加 vue-i18n；`generate_main_ts` 注入 createI18n+import locales+app.use(i18n)（重构 router 分支为统一 app 构造）；18 vue 单测绿（含 7 新增 i18n）；端到端验证 pac.at `i18n:[en,zh]` 生成正确（package.json/src/locales/main.ts）。widget 级文本 `t('key')` 替换留待 Phase 4 按需设计 | `auto-lang f0b9735e` | ✅ 工程级 i18n 注入验证通过 |
 | **Phase 3** | 生成器扩展：markdown/mermaid tag + a2vue golden | _待填_ | _待填_ |
 | **Phase 4** | .at 骨架 + LoginView 最小 parity 闭环 | _待填_ | _待填_ |
 | **Phase 5** | store 全量（19 composable → store）+ SpecsView | _待填_ | _待填_ |
