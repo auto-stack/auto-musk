@@ -1,6 +1,6 @@
 # 022 — auto-musk 前端 Auto 化（web/ SPA → AutoUI）
 
-> **状态**：🟡 进行中（2026-08-07 启动）。
+> **状态**：🟢 核心目标达成（4 视图 Auto 化 + 流式机制 + 生成器扩展 + §10 根治 + 两 codegen 限制修复）。剩余：§7.6 全量 parity 闭环（C 类专项）+ B 类外部依赖项（relay/gate/agent-config 接线），见 §8。
 > **前置**：Plan 020/021（后端业务端点 100% ag + 严格 parity 闭环，方法论来源）；auto-lang 的 a2vue codegen（examples/ui/015-notes 基准）。
 > **仓库**：auto-musk（`web/` + 新建 `src/front/` + `src/back/api.at`）+ auto-lang（codegen 三处扩展：SSE 多事件 / i18n / markdown-mermaid tag）。
 > **目标**：为 `web/` 主 SPA（~1.85 万行 Vue3+TS）创建 AutoUI `.at` 源，使 `auto build` 生成的 vue 工程在**功能/交互/外观**上与原生 `web/` 达到**行为+视觉一致**（对标后端 parity 标准）。一致性口径选定**纯 AutoUI 原生表达**——遇 codegen 缺口优先扩展生成器。
@@ -20,8 +20,8 @@
 | **Phase 4** | .at 骨架 + LoginView 生成构建闭环。`src/front/{app,auth_store,login}.at` + `src/back/api.at`(auth 端点+AuthUser/AuthResponse 类型)；app.at auth guard(v-if authenticated)；auth_store 单例(login/register/me/logout + localStorage)；LoginPage 表单(username/password + 登录/注册切换)；纯 store 驱动(无 emit callback,比原生简洁)。`vue-tsc && vite build` 全绿产出 dist。**修复 2 个 codegen bug**(auto-lang 4fc26bbe)：SSE 全局接线按 api_imports 过滤(AuthStore 不再误接 chat_stream) + store 自调用语法(bare Me()) | `auto-lang 4fc26bbe` | ✅ 生成工程 vue-tsc+vite build 通过 |
 | **Phase 5a** | SpecsView 骨架 + specs 数据层。`specs_store.at`（loadDocument/loadOverview/saveItem/deleteItem/rebuildRelations）；`src/back/api.at` 加 specs 端点 + SpecItem/SpecsSection/SpecsDocument 类型；`specs_view.at`（section-nav 7 类导航 + overview + item 列表）；app.at 加 view rail（chats/specs/wiki 切换）；`setup_auth_fetch.ts`（fetch 拦截器逃生舱，注入 musk_jwt + workspace）。vue-tsc + vite build 全绿。**解决多个语法/codegen 问题**：`view` 保留字不能做字段名（改 current_view）、handler 多语句需分号、SSE 过滤（Phase 4 修复）+ store 自调用（bare Me()） | `1c410e1` | ✅ 生成工程构建通过；3 components |
 | **Phase 5b** | SpecsView CRUD + 编辑面板。`use { fn }` 引入 itemTemplates 工具（getNextId/getDefaultStatus，逃生舱）；AddItem/StartEditItem/SaveEditItem/DeleteItem/CancelEdit msg + handler；编辑面板（title/status/content input + textarea）；v-for `key:` 修复（U24）。src/front/utils/（itemTemplates + categorySummary 复制，去 @/types 依赖）。vue-tsc + vite build 全绿。剩余：搜索过滤、module accordion、7 类 category 卡片细化（留后续） | _待提交_ | ✅ CRUD + 编辑面板构建通过 |
-| **Phase 6** | WikiView | _待填_ | _待填_ |
-| **Phase 7** | ChatsView（最难）+ 全量 parity 闭环 + 文档归档 | _待填_ | _待填_ |
+| **Phase 6** | ~~WikiView~~ → 拆分为 Phase 6a（见下） | — | — |
+| **Phase 7** | ~~ChatsView（最难）+ 全量 parity 闭环 + 文档归档~~ → 拆分为 7a/7b/7c/7.3续/7.4（见下）；§7.6 parity 闭环 + §7.7 README 归档见 §8 后续项 | — | — |
 
 ---
 
@@ -163,6 +163,8 @@
 | **Phase 7c** | ChatsView mention + errand/relay/task_plan 内联卡片 + §10 根治。①**数据层**：forge_store.at 加 errands/relays/task_plans 三个 Value ref；forge_stream.ts 补全 errand_*(5)/relay_*(4)/task_plan_spawned(1) 共 10 事件回写（1:1 移植 useForge.ts:362-433）+ 修正 7b tool_call 回写（真正累积到消息 tool_calls 数组，7b 只拼文本）+ ensureAssistantMsg/currentAssistantMsg 追踪当前 assistant 消息。②**逃生舱组件**（7 个 .vue + forge_helpers.ts）：ErrandCard/RelayCard/TaskPlanCard/GenericToolCard 4 类卡片 + MentionInput（v-html backdrop + MentionDropdown 键盘导航 + 命令解析）+ MentionDropdown/AgentAvatar（精简版，去 useAgentConfigs）。③**chats_view.at 重构**：use{component} 引入 5 卡片 + MentionInput；消息列表 role 分支（assistant→markdown/user→text）+ tool_calls 用 for+if-else-if 编排 dispatch/spawn_relay/task_plan/通用 4 类；输入框替换为 MentionInput。④**auto-lang §10 根治**（`60294454`）：移除 lexer.rs 的 markdown raw-string 特殊捕获（根因：把 `{ content: .x }` 吞成 opaque string，content prop 从未走 prop 解析）；vue.rs generate_shadcn_attrs 加 markdown 分支（content→:content 绑定）；a2vue golden 002_markdown。**关键发现**：codegen ext 复制只看 use 块不递归逃生舱内部相对 import（MentionDropdown/AgentAvatar/forge_helpers 需在 use 块声明触发复制）。vue-tsc + vite build 全绿；auto-lang `cargo test` 2876 passed/22 failed（22 均为既有，0 回归） | `1ff0f81`/`897a72f`/`c65fe9b` + auto-lang `60294454` | ✅ mention + 3 类卡片 + §10 根治，构建通过 |
 | **Phase 5c** | SpecsView 细化（搜索/module accordion/7类category卡片）——低优先级，移除无效 key 避免多余 div，剩余 R006 警告不阻塞 | `782da1f` | ⚠️ 留后续迭代 |
 | **Phase 7.3 续** | §7.3 八组件清单剩 4 个补齐 + SecretaryMessage 留后。①**数据层**（`94ebc82`）：forge_store 加 6 ref（session_status/session_phase/active_profession/pending_spec_changes/current_gate/report_data）+ 补 SwitchSession handler（调 chats_get_session 回写，修复 7a 遗留：widget 调 store.SwitchSession 但 store 无定义）+ ClearGate；forge_stream 补 5 事件（turn_start 传 profession_id 修复 badge 缺失/phase_change/agent_handoff/gate_reached→current_gate/run_completed→report_data snake→camel）；api.at ForgeSession 加 pending_spec_changes + SpecChange 类型；修复 chats_view.at 的 store.CreateSession→NewSession 缺陷。②**逃生舱组件**（`405127f`）：StreamingRenderer 整包（useStreamingDocument 199行 + StreamingTable 92行 + StreamingRenderer 60行，增量 JSON 解析）+ ReportCard + QuestionnaireCard（类型自包含）+ GateCard（SpecChange 自包含，内态全自管）+ questionnaire.ts（questionnaireFor 纯函数，JSON/free-text/markdown 表格三段式解析）。③**chats_view.at 接入**（`4f8dff6`）：assistant 消息 + 流式 draft 换 StreamingRenderer 增量解析；GateCard(current_gate!=null)/ReportCard(report_data!=null) 顶部条件渲染；QuestionnaireMessage 包装组件（规避 .at props 不支持 fn 调用——getQuestions(.msg) 被 codegen 丢弃成 null）；ApproveGate/RejectGate/OnQuestionnaireSubmit handler。**codegen 新发现**：组件 props 绑定不支持 fn 调用表达式（降级为包装组件）；composable 声明会自动调用一次（改用 fn 声明触发复制）。vue-tsc + vite build 全绿 | `94ebc82`/`405127f`/`4f8dff6` | ✅ 4 组件补齐；SecretaryMessage 留后（KNOWN-DEBT） |
+| **codegen 限制修复** | auto-lang worktree `plan-022/escape-hatch-codegen-fixes`（`64fb5e4d`，已合 master `68d0ac59`）。①**限制1 props fn 调用**：`expr_to_vue_bound_value` 加 `Expr::Call` 分支，`Component { prop: getQuestions(.msg) }` 现生成 `:prop="getQuestions(msg)"`（非 null）；a2vue golden 003_fn_call_prop。auto-musk 去掉 QuestionnaireMessage 包装组件（直接用 QuestionnaireCard + getQuestions fn 调用）。②**限制2 composable 带参**：use-block 语法扩展 `composable: useX(.arg) from "..."`（ExtImport 加 call_args + parser 解析 `(args)` + vue.rs 生成 `const x = useX(arg)`，空 args 仍 `useX()` 向后兼容）；单元测试 test_composable_with_args。cargo test 2879 passed/21 failed（基线 2877/21，+2 新测试，0 回归） | auto-lang `64fb5e4d` + auto-musk `edeb439` | ✅ 两个 codegen 限制根治 |
+| **Phase 7.4** | user 消息 @mention 高亮（§7.4 输入框部分的补全）。`UserMessage.vue` 逃生舱（v-html=renderMentions，.at 无 v-html tag）+ chats_view.at user 分支 `text .msg.content` → `UserMessage { content: .msg.content }`。至此 §7.4 @mention 输入框（7c）+ user 消息高亮（本 phase）均完成；`/relay`/`/superpower`/`/spec1` 命令解析仍透传未路由（B 类依赖 useRelay，见 §8） | _本提交_ | ✅ user mention 高亮完成 |
 
 ## 7.5 auto-lang 分支整合（2026-08-07）
 
@@ -181,9 +183,22 @@ worktree 全部清理（plan012-a/b/c + label-class + plan398）。
 
 ## 8. 后续待做（本计划不实施）
 
+### B 类：阻塞于外部依赖（需后端/其他层接线，非本 plan 范围）
+
+- **RelayCard 完整交互**：当前为状态展示版（run_id/flow/status/steps/summary）。需接 `useRelay` 的 `subscribeToRun`（实时日志订阅）/`resolveGate`（审批）/`startRun`+`advanceRun`（命令启动）。`/relay`/`/superpower`/`/spec1` 命令解析当前在 MentionInput 透传原始文本（未路由到 startRun）。完整交互待 relay 后端接线计划补齐。
+- **SecretaryMessage + GateCard approve/reject 真实 API**：§7.3 八组件清单中 SecretaryMessage 未移植（依赖 `useGateInbox` 完整状态机：resolve/snooze/promoteNext/dismiss）。GateCard 的 approve/reject 当前只清 current_gate（UI 响应），真实 API（`/api/chats/session/{id}/approve/0` + `/reject-all`，relay gate `/api/forge/relay/runs/{id}/gate`）未接。
+- **professionOptions 动态化**：当前 `forge_helpers.ts` 的 `DEFAULT_PROFESSIONS` 硬编码 9 个职业，因 `useAgentConfigs` 是空 stub。待 Harness agent-config 层接线后改为动态拉取。
+
+### C 类：需专项投入（本 plan 范围内但工作量较大）
+
+- **§7.6 全量 parity 闭环**：逐视图（Login/Chats/Specs/Wiki）截图/DOM/交互比对，零 drift 验证，端到端冒烟（参照 015-notes acceptance.atd，可选）。需运行时验证环境。
+- **§7.7 README 前端章节更新**：本 plan 的前端 Auto 化成果（4 视图 + 流式机制 + 生成器扩展）需写入项目 README。
+
+### 其他（低优先级）
+
 - `frontend/`（配置远程页面）Auto 化（已确认本次仅 web/）
 - 逃生舱特性的渐进原生化（若 KNOWN-DEBT 登记）
-- a2vue golden 测试全量覆盖（Phase 3 起步）
+- a2vue golden 测试全量覆盖（Phase 3 起步，目前 001 counter / 002 markdown / 003 fn_call_prop）
 
 ## 9. Phase 0 发现：web/ 既有 vue-tsc 类型错误（影响验收口径）
 
