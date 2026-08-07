@@ -38,6 +38,8 @@ widget ChatsView {
         fn: useStreamingDocument from "src/front/composables/useStreamingDocument.ts"
         // Phase 7.4：UserMessage（user 消息 @mention 高亮，v-html 逃生舱）。
         component: UserMessage from "src/front/components/UserMessage.vue"
+        // B 类批1：useAgentConfigs（动态 profession 列表，替代 DEFAULT_PROFESSIONS 硬编码）。
+        composable: useAgentConfigs from "src/front/composables/useAgentConfigs.ts"
     }
 
     msg Msg {
@@ -211,7 +213,10 @@ widget ChatsView {
     }
 
     on {
-        .Init -> { store.Init() }
+        .Init -> {
+            store.Init();
+            agentConfigs.loadConfigs()
+        }
 
         .NewSession -> { store.NewSession() }
 
