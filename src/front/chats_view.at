@@ -30,9 +30,8 @@ widget ChatsView {
         component: StreamingRenderer from "src/front/components/StreamingRenderer.vue"
         component: ReportCard from "src/front/components/ReportCard.vue"
         component: QuestionnaireCard from "src/front/components/QuestionnaireCard.vue"
-        // QuestionnaireMessage 包装 QuestionnaireCard（.at 的 props 绑定不支持
-        // fn 调用，故把 questionnaireFor 解析移入逃生舱，.at 只传 msg）。
-        component: QuestionnaireMessage from "src/front/components/QuestionnaireMessage.vue"
+        // Phase 7.3 续 codegen 限制1 修复后：直接用 QuestionnaireCard + getQuestions fn 调用
+        // （不再需要 QuestionnaireMessage 包装组件）。
         component: GateCard from "src/front/components/GateCard.vue"
         // StreamingTable/useStreamingDocument 是 StreamingRenderer 的内部依赖，声明触发复制。
         component: StreamingTable from "src/front/components/StreamingTable.vue"
@@ -143,12 +142,13 @@ widget ChatsView {
                                 text .msg.thinking { style: "msg-thinking" }
                             }
                             // 问卷卡片（assistant 消息内含问卷时显示，7.3。
-                            // 用 QuestionnaireMessage 包装组件——.at props 绑定
-                            // 不支持 fn 调用，故解析在逃生舱内完成，这里只传 msg）
+                            // codegen 限制1 修复后直接用 getQuestions fn 调用绑定）
                             if .msg.role == "assistant" {
-                                QuestionnaireMessage {
-                                    msg: .msg
-                                    onsubmit: .OnQuestionnaireSubmit($event)
+                                if hasQuestionnaire(.msg) {
+                                    QuestionnaireCard {
+                                        questions: getQuestions(.msg)
+                                        onsubmit: .OnQuestionnaireSubmit($event)
+                                    }
                                 }
                             }
                             // tool_calls 内联卡片（if-else-if 编排 4 类）
