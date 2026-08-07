@@ -1,0 +1,45 @@
+// app.at — auto-musk 前端 AutoUI 入口（Plan 022 Phase 0 桥接演示）
+//
+// 这是 Phase 0 的最小可运行 widget，用于验证工作区 `auto build` 工具链通畅。
+// 后续 Phase 4 起会扩展为：auth guard + view 切换壳（对应原生 App.vue）。
+// 参照 examples/ui/001-helloworld + SKILL.md 的 widget App 模板。
+
+widget App {
+    msg Msg { Inc, Dec, Reset }
+
+    model { var count int = 0 }
+    computed { doubled => .count * 2 }
+
+    view {
+        col {
+            style: "p-4 space-y-2 items-center min-h-screen justify-center"
+            h1 "auto-musk (AutoUI bridge)" {
+                style: "text-2xl font-bold text-[#6CB0DD]"
+            }
+            text f"Count: ${.count} (x2 = ${.doubled})" {
+                style: "text-gray-600"
+            }
+            row {
+                style: "gap-2"
+                button "-" {
+                    onclick: .Dec
+                    style: "px-3 py-1 bg-red-500 text-white rounded"
+                }
+                button "+" {
+                    onclick: .Inc
+                    style: "px-3 py-1 bg-green-500 text-white rounded"
+                }
+                button "reset" {
+                    onclick: .Reset
+                    style: "px-3 py-1 bg-gray-500 text-white rounded"
+                }
+            }
+        }
+    }
+
+    on {
+        .Inc   -> { .count = .count + 1 }
+        .Dec   -> { .count = .count - 1 }
+        .Reset -> { .count = 0 }
+    }
+}
