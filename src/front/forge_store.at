@@ -42,6 +42,7 @@ store ForgeStore {
         SetThinking(str),
         FinalizeDraft,
         SetError(str),
+        ClearGate,
     }
 
     on {
@@ -92,5 +93,8 @@ store ForgeStore {
         .SetThinking(text) -> { .thinking = text }
         .FinalizeDraft -> { .streaming = false }
         .SetError(msg) -> { .error = msg; .streaming = false }
+
+        // ClearGate: 用户批准/拒绝 spec 变更后清审批门状态（7.3）。
+        .ClearGate -> { .current_gate = None }
     }
 }
