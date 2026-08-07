@@ -13,9 +13,11 @@ use store: ForgeStore
 widget ChatsView {
     use {
         fn: startForgeStream, stopForgeStream from "src/front/forge_stream.ts"
+        // B 类批3：/relay//superpower//spec1 命令路由（逃生舱 fn，同步检测+异步执行）。
+        fn: handleRelayCommand from "src/front/relay_commands.ts"
         // forge_helpers 是逃生舱卡片组件的内部依赖，声明 renderMentions 仅为触发 ext 复制
         // （codegen ext 复制只看 use 块，不递归逃生舱组件的相对 import）。
-        fn: renderMentions from "src/front/forge_helpers.ts"
+        fn: renderMentions, extractRunId from "src/front/forge_helpers.ts"
         // questionnaire 解析纯函数（QuestionnaireCard 的数据源）。
         fn: getQuestions, hasQuestionnaire from "src/front/questionnaire.ts"
         component: MentionInput from "src/front/components/MentionInput.vue"
@@ -23,9 +25,14 @@ widget ChatsView {
         component: MentionDropdown from "src/front/components/MentionDropdown.vue"
         component: AgentAvatar from "src/front/components/AgentAvatar.vue"
         component: ErrandCard from "src/front/components/ErrandCard.vue"
-        component: RelayCard from "src/front/components/RelayCard.vue"
+        // B 类批3：RelayCard 状态展示版 → RelayRunBox 完整交互（subscribeToRun 日志 + resolveGate 审批）。
+        component: RelayRunBox from "src/front/components/RelayRunBox.vue"
         component: TaskPlanCard from "src/front/components/TaskPlanCard.vue"
         component: GenericToolCard from "src/front/components/GenericToolCard.vue"
+        // B 类批3：useRelay/useEventRouter/useGateInbox（relay 完整链路 + gate 事件路由）。
+        composable: useRelay from "src/front/composables/useRelay.ts"
+        composable: useEventRouter from "src/front/composables/useEventRouter.ts"
+        composable: useGateInbox from "src/front/composables/useGateInbox.ts"
         // Phase 7.3 续：StreamingRenderer/ReportCard/QuestionnaireCard/GateCard。
         component: StreamingRenderer from "src/front/components/StreamingRenderer.vue"
         component: ReportCard from "src/front/components/ReportCard.vue"
@@ -166,9 +173,8 @@ widget ChatsView {
                                         errands: .store.errands
                                     }
                                 } else if .tc.name == "spawn_relay" {
-                                    RelayCard {
-                                        tc: .tc
-                                        relays: .store.relays
+                                    RelayRunBox {
+                                        runId: extractRunId(.tc)
                                     }
                                 } else if .tc.name == "task_plan" {
                                     TaskPlanCard {
@@ -222,12 +228,16 @@ widget ChatsView {
 
         .SelectSession(id) -> { store.SwitchSession(id) }
 
-        // SendInput(text): MentionInput 的 onsubmit 回调，发送文本 + 启动 SSE 流。
+        // SendInput(text): MentionInput 的 onsubmit 回调。先检测 /relay//superpower//spec1
+        // 命令（handleRelayCommand 返回 true 表示已处理），否则走普通发送 + SSE 流。
         .SendInput(text) -> {
             if .text.trim() != "" {
-                store.Send(.text);
+                let handled = handleRelayCommand(.text);
                 .input = "";
-                startForgeStream(.store.session_id.value, .store.workspace.value, .store.token.value)
+                if !handled {
+                    store.Send(.text);
+                    startForgeStream(.store.session_id.value, .store.workspace.value, .store.token.value)
+                }
             }
         }
 
