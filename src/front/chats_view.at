@@ -40,6 +40,10 @@ widget ChatsView {
         // Phase 7.3 续 codegen 限制1 修复后：直接用 QuestionnaireCard + getQuestions fn 调用
         // （不再需要 QuestionnaireMessage 包装组件）。
         component: GateCard from "src/front/components/GateCard.vue"
+        // B 类批4：SecretaryMessageWrapper（包装 SecretaryMessage，规避 composable
+        // facade ref 解包限制；内部用 useGateInbox.currentSecretary 驱动）。
+        component: SecretaryMessageWrapper from "src/front/components/SecretaryMessageWrapper.vue"
+        component: SecretaryMessage from "src/front/components/SecretaryMessage.vue"
         // StreamingTable/useStreamingDocument 是 StreamingRenderer 的内部依赖，声明触发复制。
         component: StreamingTable from "src/front/components/StreamingTable.vue"
         fn: useStreamingDocument from "src/front/composables/useStreamingDocument.ts"
@@ -57,6 +61,9 @@ widget ChatsView {
         StopStream,
         ApproveGate,
         RejectGate,
+        SecretaryApprove,
+        SecretaryReject,
+        SecretarySnooze,
         OnQuestionnaireSubmit(str),
     }
 
@@ -116,9 +123,16 @@ widget ChatsView {
                         text "No session" { style: "chats-title" }
                     }
                 }
-                // canvas（GateCard/ReportCard + 消息列表 + 流式 draft）
+                // canvas（SecretaryMessage/GateCard/ReportCard + 消息列表 + 流式 draft）
                 col {
                     style: "chats-canvas"
+                    // SecretaryMessageWrapper：gate_reached 触发 useGateInbox.registerGate →
+                    // currentSecretary 驱动审批消息条（B 类批4。wrapper 内部 v-if gate 控制显隐）。
+                    SecretaryMessageWrapper {
+                        onapprove: .SecretaryApprove
+                        onreject: .SecretaryReject
+                        onsnooze: .SecretarySnooze
+                    }
                     // GateCard：gate_reached 事件触发，显示待审批 spec 变更（7.3）
                     if .store.current_gate != None {
                         GateCard {
@@ -247,17 +261,21 @@ widget ChatsView {
             store.StopStream()
         }
 
-        // ApproveGate: 用户批准 spec 变更。清 current_gate（UI 响应）。
-        // 注：真实的 /api/chats/session/{id}/approve/0 调用与 SecretaryMessage 的
-        // approve/reject API 接线同批，登记 KNOWN-DEBT 留后。
+        // B 类批4：ApproveGate/RejectGate 调真实 API（store.ApproveGate/RejectGate
+        // 内部调 chats_approve/chats_reject_all + 清 current_gate）。
         .ApproveGate -> {
-            store.ClearGate()
+            store.ApproveGate()
         }
 
-        // RejectGate: 用户拒绝 spec 变更。清 current_gate。
         .RejectGate -> {
-            store.ClearGate()
+            store.RejectGate()
         }
+
+        // B 类批4：SecretaryMessage 审批按钮。wrapper 内部已调 useGateInbox.resolveGate/
+        // dismissSecretary（本地态），widget handler 留作未来真实 API 接入点。
+        .SecretaryApprove -> { store.ApproveGate() }
+        .SecretaryReject -> { store.RejectGate() }
+        .SecretarySnooze -> { store.ClearGate() }
 
         // OnQuestionnaireSubmit(answers): 问卷提交，把答案作为用户消息发回 + 启动 SSE。
         .OnQuestionnaireSubmit(answers) -> {

@@ -12,6 +12,8 @@
 // (store 的模块级 ref 不 export，但 useForgeStoreStore() 返回同一份 singleton)，
 // 在 SSE onmessage 里操作其 ref，绕开 store 不能传回调的限制。
 import { useForgeStoreStore } from '@/stores/useForgeStoreStore'
+// B 类批4：gate_reached 同时路由到 useGateInbox（驱动 SecretaryMessage）。
+import { useGateInbox } from './composables/useGateInbox'
 
 const _store = useForgeStoreStore()
 
@@ -294,7 +296,7 @@ function handleForgeEvent(event: ForgeStreamEvent): void {
     return
   }
 
-  // ─── gate 事件（7.3 续）→ GateCard ──────────────────────────────────────
+  // ─── gate 事件（7.3 续）→ GateCard + SecretaryMessage（B 类批4）─────────
   if (t === 'gate_reached') {
     const gateId = event.gate_id || `${event.run_id || ''}-${event.step_id || ''}`
     if (gateId) {
@@ -305,6 +307,20 @@ function handleForgeEvent(event: ForgeStreamEvent): void {
         title: event.title || '',
         section_id: event.section_id || '',
         since: Date.now(),
+      }
+      // B 类批4：同时路由到 useGateInbox（驱动 SecretaryMessage 审批消息条）。
+      try {
+        const { registerGate } = useGateInbox()
+        registerGate({
+          gateId,
+          runId: event.run_id || '',
+          profession: event.profession || 'unknown',
+          title: event.title || `${event.profession || 'agent'} needs approval`,
+          sectionId: event.section_id || '',
+          since: Date.now(),
+        })
+      } catch {
+        // useGateInbox 不可用时静默（GateCard 仍由 current_gate 驱动）
       }
     }
     return
