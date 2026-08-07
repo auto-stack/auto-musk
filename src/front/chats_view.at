@@ -2,21 +2,35 @@
 //
 // ChatsView.vue 2767 行：session-sidebar + chats-body(header/canvas/input-bar)。
 // Phase 7a: 骨架——session 列表 + 消息列表 + 输入框 + 发送 + 流式 draft。
-// 流式 markdown/mention/errand/relay 内联卡片留 7b。
+// Phase 7b: SSE 回写 + 流式 markdown draft。
+// Phase 7c: mention + errand/relay/task_plan 内联卡片。
+//   - 消息列表按 role 分支（user/assistant），tool_calls 用 if-else-if 编排 4 类卡片。
+//   - 输入框替换为 MentionInput 逃生舱（v-html backdrop 无法 .at 表达）。
+//   - 卡片走 use{component} 逃生舱（@click toggle 无法 .at 表达）。
 
 use store: ForgeStore
 
 widget ChatsView {
     use {
         fn: startForgeStream, stopForgeStream from "src/front/forge_stream.ts"
+        // forge_helpers 是逃生舱卡片组件的内部依赖，声明 renderMentions 仅为触发 ext 复制
+        // （codegen ext 复制只看 use 块，不递归逃生舱组件的相对 import）。
+        fn: renderMentions from "src/front/forge_helpers.ts"
+        component: MentionInput from "src/front/components/MentionInput.vue"
+        // MentionDropdown/AgentAvatar 是 MentionInput 的内部依赖，同理声明触发复制。
+        component: MentionDropdown from "src/front/components/MentionDropdown.vue"
+        component: AgentAvatar from "src/front/components/AgentAvatar.vue"
+        component: ErrandCard from "src/front/components/ErrandCard.vue"
+        component: RelayCard from "src/front/components/RelayCard.vue"
+        component: TaskPlanCard from "src/front/components/TaskPlanCard.vue"
+        component: GenericToolCard from "src/front/components/GenericToolCard.vue"
     }
 
     msg Msg {
         Init,
         NewSession,
         SelectSession(str),
-        SendInput,
-        InputChanged,
+        SendInput(str),
         StopStream,
     }
 
@@ -83,7 +97,44 @@ widget ChatsView {
                         col {
                             key: .msg.id
                             style: if .msg.role == "user" { "msg user-msg" } else { "msg assistant-msg" }
-                            text .msg.content { style: "msg-content" }
+                            // 内容按 role 分支
+                            if .msg.role == "assistant" {
+                                if .msg.content != "" {
+                                    markdown {
+                                        content: .msg.content
+                                        style: "msg-content"
+                                    }
+                                }
+                            } else {
+                                text .msg.content { style: "msg-content" }
+                            }
+                            // thinking 块
+                            if .msg.thinking != "" {
+                                text .msg.thinking { style: "msg-thinking" }
+                            }
+                            // tool_calls 内联卡片（if-else-if 编排 4 类）
+                            for tc in .msg.tool_calls {
+                                if .tc.name == "dispatch" {
+                                    ErrandCard {
+                                        tc: .tc
+                                        errands: .store.errands
+                                    }
+                                } else if .tc.name == "spawn_relay" {
+                                    RelayCard {
+                                        tc: .tc
+                                        relays: .store.relays
+                                    }
+                                } else if .tc.name == "task_plan" {
+                                    TaskPlanCard {
+                                        tc: .tc
+                                        taskPlans: .store.task_plans
+                                    }
+                                } else {
+                                    GenericToolCard {
+                                        tc: .tc
+                                    }
+                                }
+                            }
                         }
                     }
                     // 流式 draft（streaming 时显示）
@@ -105,28 +156,11 @@ widget ChatsView {
                         text .store.error { style: "msg-error" }
                     }
                 }
-                // input bar
-                row {
-                    style: "input-bar"
-                    textarea {
-                        value: .input
-                        oninput: .InputChanged
-                        placeholder: "Type a message..."
-                        style: "msg-input"
-                    }
-                    if .store.streaming {
-                        button {
-                            onclick: .StopStream
-                            style: "send-btn stop"
-                            text "Stop"
-                        }
-                    } else {
-                        button {
-                            onclick: .SendInput
-                            style: "send-btn"
-                            text "Send"
-                        }
-                    }
+                // input bar（MentionInput 逃生舱；onsend/oncancel 避开原生 submit/stop 名）
+                MentionInput {
+                    disabled: .store.streaming
+                    onsend: .SendInput($event)
+                    oncancel: .StopStream
                 }
             }
         }
@@ -139,13 +173,10 @@ widget ChatsView {
 
         .SelectSession(id) -> { store.SwitchSession(id) }
 
-        // InputChanged: v-model marker（U5）。
-        .InputChanged -> { .input = .input }
-
-        // SendInput: 发送输入框内容，清空 + 启动 SSE 流。
-        .SendInput -> {
-            if .input.trim() != "" {
-                store.Send(.input);
+        // SendInput(text): MentionInput 的 onsubmit 回调，发送文本 + 启动 SSE 流。
+        .SendInput(text) -> {
+            if .text.trim() != "" {
+                store.Send(.text);
                 .input = "";
                 startForgeStream(.store.session_id.value, .store.workspace.value, .store.token.value)
             }

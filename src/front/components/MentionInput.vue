@@ -30,7 +30,7 @@
         <button
           v-if="disabled"
           class="send-btn stop"
-          @click="$emit('stop')"
+          @click="$emit('cancel')"
         >
           ■
         </button>
@@ -64,14 +64,19 @@ import {
   buildMentionNames,
 } from '../forge_helpers'
 
+interface ProfessionOption {
+  id: string
+  name: string
+}
+
 const props = defineProps<{
   disabled?: boolean
-  professions?: { id: string; name: string }[]
+  professions?: ProfessionOption[]
 }>()
 
 const emit = defineEmits<{
-  submit: [text: string]
-  stop: []
+  send: [text: string]
+  cancel: []
 }>()
 
 const text = ref('')
@@ -158,7 +163,7 @@ function submitText() {
   if (!t) return
   text.value = ''
   mentionVisible.value = false
-  emit('submit', t)
+  emit('send', t)
 }
 </script>
 
