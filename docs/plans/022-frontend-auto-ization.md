@@ -1,6 +1,6 @@
 # 022 — auto-musk 前端 Auto 化（web/ SPA → AutoUI）
 
-> **状态**：🟢 核心目标达成（4 视图 Auto 化 + 流式机制 + 生成器扩展 + §10 根治 + 两 codegen 限制修复）。剩余：§7.6 全量 parity 闭环（C 类专项）+ B 类外部依赖项（relay/gate/agent-config 接线），见 §8。
+> **状态**：🟢 核心目标达成（4 视图 Auto 化 + 流式机制 + 生成器扩展 + §10 根治 + 两 codegen 限制修复 + api.ts 路径参数插值修复 + §7.6 静态 parity 盘点）。剩余：B 类外部依赖项（relay/gate/agent-config 接线）+ C 类运行时视觉/行为 parity（需 dev server 环境），见 §8 / §11。
 > **前置**：Plan 020/021（后端业务端点 100% ag + 严格 parity 闭环，方法论来源）；auto-lang 的 a2vue codegen（examples/ui/015-notes 基准）。
 > **仓库**：auto-musk（`web/` + 新建 `src/front/` + `src/back/api.at`）+ auto-lang（codegen 三处扩展：SSE 多事件 / i18n / markdown-mermaid tag）。
 > **目标**：为 `web/` 主 SPA（~1.85 万行 Vue3+TS）创建 AutoUI `.at` 源，使 `auto build` 生成的 vue 工程在**功能/交互/外观**上与原生 `web/` 达到**行为+视觉一致**（对标后端 parity 标准）。一致性口径选定**纯 AutoUI 原生表达**——遇 codegen 缺口优先扩展生成器。
@@ -164,7 +164,8 @@
 | **Phase 5c** | SpecsView 细化（搜索/module accordion/7类category卡片）——低优先级，移除无效 key 避免多余 div，剩余 R006 警告不阻塞 | `782da1f` | ⚠️ 留后续迭代 |
 | **Phase 7.3 续** | §7.3 八组件清单剩 4 个补齐 + SecretaryMessage 留后。①**数据层**（`94ebc82`）：forge_store 加 6 ref（session_status/session_phase/active_profession/pending_spec_changes/current_gate/report_data）+ 补 SwitchSession handler（调 chats_get_session 回写，修复 7a 遗留：widget 调 store.SwitchSession 但 store 无定义）+ ClearGate；forge_stream 补 5 事件（turn_start 传 profession_id 修复 badge 缺失/phase_change/agent_handoff/gate_reached→current_gate/run_completed→report_data snake→camel）；api.at ForgeSession 加 pending_spec_changes + SpecChange 类型；修复 chats_view.at 的 store.CreateSession→NewSession 缺陷。②**逃生舱组件**（`405127f`）：StreamingRenderer 整包（useStreamingDocument 199行 + StreamingTable 92行 + StreamingRenderer 60行，增量 JSON 解析）+ ReportCard + QuestionnaireCard（类型自包含）+ GateCard（SpecChange 自包含，内态全自管）+ questionnaire.ts（questionnaireFor 纯函数，JSON/free-text/markdown 表格三段式解析）。③**chats_view.at 接入**（`4f8dff6`）：assistant 消息 + 流式 draft 换 StreamingRenderer 增量解析；GateCard(current_gate!=null)/ReportCard(report_data!=null) 顶部条件渲染；QuestionnaireMessage 包装组件（规避 .at props 不支持 fn 调用——getQuestions(.msg) 被 codegen 丢弃成 null）；ApproveGate/RejectGate/OnQuestionnaireSubmit handler。**codegen 新发现**：组件 props 绑定不支持 fn 调用表达式（降级为包装组件）；composable 声明会自动调用一次（改用 fn 声明触发复制）。vue-tsc + vite build 全绿 | `94ebc82`/`405127f`/`4f8dff6` | ✅ 4 组件补齐；SecretaryMessage 留后（KNOWN-DEBT） |
 | **codegen 限制修复** | auto-lang worktree `plan-022/escape-hatch-codegen-fixes`（`64fb5e4d`，已合 master `68d0ac59`）。①**限制1 props fn 调用**：`expr_to_vue_bound_value` 加 `Expr::Call` 分支，`Component { prop: getQuestions(.msg) }` 现生成 `:prop="getQuestions(msg)"`（非 null）；a2vue golden 003_fn_call_prop。auto-musk 去掉 QuestionnaireMessage 包装组件（直接用 QuestionnaireCard + getQuestions fn 调用）。②**限制2 composable 带参**：use-block 语法扩展 `composable: useX(.arg) from "..."`（ExtImport 加 call_args + parser 解析 `(args)` + vue.rs 生成 `const x = useX(arg)`，空 args 仍 `useX()` 向后兼容）；单元测试 test_composable_with_args。cargo test 2879 passed/21 failed（基线 2877/21，+2 新测试，0 回归） | auto-lang `64fb5e4d` + auto-musk `edeb439` | ✅ 两个 codegen 限制根治 |
-| **Phase 7.4** | user 消息 @mention 高亮（§7.4 输入框部分的补全）。`UserMessage.vue` 逃生舱（v-html=renderMentions，.at 无 v-html tag）+ chats_view.at user 分支 `text .msg.content` → `UserMessage { content: .msg.content }`。至此 §7.4 @mention 输入框（7c）+ user 消息高亮（本 phase）均完成；`/relay`/`/superpower`/`/spec1` 命令解析仍透传未路由（B 类依赖 useRelay，见 §8） | _本提交_ | ✅ user mention 高亮完成 |
+| **Phase 7.4** | user 消息 @mention 高亮（§7.4 输入框部分的补全）。`UserMessage.vue` 逃生舱（v-html=renderMentions，.at 无 v-html tag）+ chats_view.at user 分支 `text .msg.content` → `UserMessage { content: .msg.content }`。至此 §7.4 @mention 输入框（7c）+ user 消息高亮（本 phase）均完成；`/relay`/`/superpower`/`/spec1` 命令解析仍透传未路由（B 类依赖 useRelay，见 §8） | `e7f8831` | ✅ user mention 高亮完成 |
+| **§7.6 静态 parity** | ①**api.ts 路径参数插值修复**（auto-lang `26d988c5`）：generate_fetch_function 支持 `{param}` 格式（axum 0.7+/URI Template，原仅支持 `:param`）——修复 10 个端点（specs_delete_item/wiki_*/chats_*）的 fetch URL 字面量 `{id}`/`{slug}` 未插值导致运行时 404；按路径实际格式不重叠替换（避免 `${id}` 二次替换成 `$${id}`）；测试 brace + colon 双格式。②**静态结构 parity 盘点**（见 §11）：API 契约 ✅完整 / 视图⚠️骨架覆盖 / store⚠️4+19 / 路由⚠️3/4 / 逃生舱组件✅9+14。残留 drift：视图体量（架构差异非缺陷）/ Specs 子系统细化（§5c）/ URL 路由（useViewState）——均非功能阻塞 | auto-lang `26d988c5` | ✅ api.ts 10 端点修复 + parity 矩阵归档 |
 
 ## 7.5 auto-lang 分支整合（2026-08-07）
 
@@ -226,3 +227,31 @@ worktree 全部清理（plan012-a/b/c + label-class + plan398）。
 **影响**：~~markdown tag 的**机制**（识别/import/npm依赖）已工作，但**实际渲染**需 props 映射完善。~~ 已无影响（Phase 7c 修复后 `markdown { content: .x }` 正确生成 `<MarkdownRender :content="x">`）。
 
 **处置**：✅ **Phase 7c 已根治**（auto-lang `60294454`）：①移除 lexer.rs 的 markdown raw-string 特殊捕获，`markdown` 现为普通 ident，`{ content: .x }` 走标准 view-node prop 路径；②vue.rs `generate_shadcn_attrs` 加 `"markdown"` 分支（content→`:content` 绑定 / 字面量 `content`，镜像 autodown_editor）；③a2vue golden `002_markdown`（input.at + input.expected.vue）确定性验证。`cargo test` 2876 passed / 22 failed（22 均为 master 既有，0 回归）。
+
+## 11. Phase 7.6 静态结构 parity 盘点（2026-08-07）
+
+静态文件对比（无运行时），对照生成工程 `gen/front/vue/` vs 原生 `web/`。
+
+### parity 矩阵
+
+| 维度 | 覆盖状态 | 说明 |
+|---|---|---|
+| **API 契约** | ✅ 完整 | gen api.ts ↔ api.at 28/28 端点 1:1 对应；路径参数插值 bug 已修（见下） |
+| **视图层** | ⚠️ 部分 | 行数覆盖：LoginPage 48% / WikiView 23% / SpecsView 15% / ChatsView 7%。生成视图是"codegen 骨架 + 逃生舱组件"架构，交互细节外包给逃生舱 |
+| **store 层** | ⚠️ 部分 | 4/19 composable 有 store（useForge/useAuth/useSpecs/useWiki）。其余为逃生舱直操作（forge_stream）或 B 类未接线（useRelay/useGateInbox 等） |
+| **路由** | ⚠️ 部分 | 3/4 视图可达（chats/specs/wiki）。无 URL 路由（用裸 ref，原生有 useViewState + history + popstate）；RelayView 缺失（B 类） |
+| **逃生舱组件** | ✅ 良好 | 14 个 ext 组件，9 个有原生同名对应；5 个为 codegen 友好拆分（原生内联） |
+
+### ✅ 本 phase 修复的 parity bug
+
+**api.ts 路径参数插值**（auto-lang `26d988c5`）：`generate_fetch_function` 假设路径参数为 `:param` 格式，对 `{param}`（axum 0.7+/URI Template，auto-musk api.at 用的格式）原样输出字面量。影响 10 个端点（specs_delete_item/wiki_get_page/wiki_update_page/wiki_delete_page/chats_get_session/chats_delete_session/chats_rename_session/chats_send_message/chats_session_stream/specs_related）——生成的 fetch URL 含 `{id}`/`{slug}` 字面量，运行时 404。修复：同时支持 `:param` 和 `{param}`，按路径实际格式不重叠替换为 `${param}`。测试：test_generate_fetch_function_brace_path_param + _colon_path_param（向后兼容）。
+
+### 残留结构性 drift（非 B 类外部依赖）
+
+1. **视图体量**：生成视图行数远小于原生（ChatsView 183 vs 2767 行）。这是架构差异（逃生舱拆分），非缺陷——交互逻辑在 14 个逃生舱组件 + forge_stream/helpers 里。深度 parity 需逐交互点比对（C 类专项）。
+2. **Specs 子系统细化**（§5c 范围）：category 卡片（8）/detail（6）/editors（5）/StatusBadge/RelationsPanel/TreeView 等未生成——属 Phase 5c 低优先级细化。
+3. **URL 路由能力**：useViewState（URL 同步/history/popstate/快捷键）未做，gen 用裸 ref 切换。属交互增强，非功能阻塞。
+
+### parity 验收口径（沿用 §9 口径 a）
+
+parity 以"vite build 产物 + 视觉/行为一致"为准，类型严格度不作硬门槛（原生 web/ 的 vue-tsc 自身约 12 处错误，见 §9）。生成工程 vue-tsc + vite build 全绿即达"可构建"标准；逐视图视觉/行为 parity 留作 C 类运行时专项（需 dev server + 截图比对环境）。
