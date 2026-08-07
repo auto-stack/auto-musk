@@ -1,45 +1,37 @@
-// app.at — auto-musk 前端 AutoUI 入口（Plan 022 Phase 0 桥接演示）
+// app.at — auto-musk 前端入口根 widget（Plan 022 Phase 4 骨架）
 //
-// 这是 Phase 0 的最小可运行 widget，用于验证工作区 `auto build` 工具链通畅。
-// 后续 Phase 4 起会扩展为：auth guard + view 切换壳（对应原生 App.vue）。
-// 参照 examples/ui/001-helloworld + SKILL.md 的 widget App 模板。
+// 对应 web/src/App.vue。Phase 4 先做 auth guard：
+//   未登录 → LoginPage；登录后 → 主应用占位（view 切换留 Phase 5-7）。
+// App.vue 的 Ctrl+1/2/3 + view rail + OnboardingDialog 留待后续 Phase。
+//
+// 设计：纯 store 驱动——LoginPage 调 store.Login，store.authenticated 变化
+// 自动驱动本组件 v-if 切换（无需 auth-success 事件）。
+
+use store: AuthStore
+use login: LoginPage
 
 widget App {
-    msg Msg { Inc, Dec, Reset }
-
-    model { var count int = 0 }
-    computed { doubled => .count * 2 }
+    msg Msg {
+        Init,
+    }
 
     view {
-        col {
-            style: "p-4 space-y-2 items-center min-h-screen justify-center"
-            h1 "auto-musk (AutoUI bridge)" {
-                style: "text-2xl font-bold text-[#6CB0DD]"
-            }
-            text f"Count: ${.count} (x2 = ${.doubled})" {
-                style: "text-gray-600"
-            }
-            row {
-                style: "gap-2"
-                button "-" {
-                    onclick: .Dec
-                    style: "px-3 py-1 bg-red-500 text-white rounded"
+        // auth guard：未认证显示 LoginPage，认证后显示主应用占位。
+        if store.authenticated.value != true {
+            LoginPage
+        } else {
+            col {
+                style: "musk-app"
+                text f"Logged in as ${store.user.value.username}" {
+                    style: "p-4"
                 }
-                button "+" {
-                    onclick: .Inc
-                    style: "px-3 py-1 bg-green-500 text-white rounded"
-                }
-                button "reset" {
-                    onclick: .Reset
-                    style: "px-3 py-1 bg-gray-500 text-white rounded"
-                }
+                // Phase 5-7 会在此插入 view rail + ChatsView/SpecsView/WikiView。
             }
         }
     }
 
     on {
-        .Inc   -> { .count = .count + 1 }
-        .Dec   -> { .count = .count - 1 }
-        .Reset -> { .count = 0 }
+        // Init: App 挂载时从 localStorage 恢复 auth 状态。
+        .Init -> { store.Init() }
     }
 }

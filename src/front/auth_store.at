@@ -1,0 +1,112 @@
+// auth_store.at — 认证状态 store（对应 web/src/composables/useAuth.ts）
+//
+// 单例 store：token/user/loading/error + login/register/me/logout。
+// token 持久化到 localStorage('musk_jwt')，user 到 localStorage('musk_user')。
+// 对应 useAuth.ts 的 _token/_user/_loading/_error 单例 ref + computed isAuthenticated。
+//
+// Plan 022 Phase 4: 覆盖 LoginView 所需的认证状态 + 动作。
+
+use back.api: auth_login, auth_register, auth_me
+
+store AuthStore {
+    model {
+        // 从 localStorage 恢复 token（null = 未登录）。
+        var token Option<str> = None
+        // 从 localStorage 恢复 user（缓存）。
+        var user Option<AuthUser> = None
+        var loading bool = false
+        var error str = ""
+    }
+
+    msg Msg {
+        Init,
+        Login(str, str),
+        Register(str, str),
+        Me,
+        Logout,
+        SetError(str),
+    }
+
+    computed {
+        // isAuthenticated = token 非空 且 user 非空。
+        // 注意 U8: computed 保持简单（handler 需 .value）。
+        authenticated => .token != None
+    }
+
+    on {
+        // Init: 从 localStorage 恢复 token/user（App 挂载时调用）。
+        .Init -> {
+            let saved_token = localStorage.getItem("musk_jwt")
+            if saved_token != None {
+                .token = saved_token
+            }
+            let saved_user = localStorage.getItem("musk_user")
+            if saved_user != None {
+                .user = saved_user
+            }
+        }
+
+        // Login(username, password): 调 auth_login，成功则存 token/user 并拉 me()。
+        .Login(username, password) -> {
+            .loading = true
+            .error = ""
+            let resp = auth_login(username, password)
+            .loading = false
+            if resp != None {
+                .token = resp.token
+                .user = AuthUser {
+                    user_id: resp.user_id,
+                    username: resp.username,
+                    roles: resp.roles,
+                    permissions: [],
+                }
+                localStorage.setItem("musk_jwt", resp.token)
+                localStorage.setItem("musk_user", .user)
+                Me()
+            }
+        }
+
+        // Register(username, password): 调 auth_register，同 login 流程。
+        .Register(username, password) -> {
+            .loading = true
+            .error = ""
+            let resp = auth_register(username, password)
+            .loading = false
+            if resp != None {
+                .token = resp.token
+                .user = AuthUser {
+                    user_id: resp.user_id,
+                    username: resp.username,
+                    roles: resp.roles,
+                    permissions: [],
+                }
+                localStorage.setItem("musk_jwt", resp.token)
+                localStorage.setItem("musk_user", .user)
+                Me()
+            }
+        }
+
+        // Me: 拉 /api/auth/me 获取完整 permissions；失败则 logout。
+        .Me -> {
+            if .token == None { return None }
+            let me = auth_me()
+            if me == None {
+                Logout()
+            } else {
+                .user = me
+                localStorage.setItem("musk_user", .user)
+            }
+        }
+
+        // Logout: 清空状态 + localStorage。
+        .Logout -> {
+            .token = None
+            .user = None
+            .error = ""
+            localStorage.removeItem("musk_jwt")
+            localStorage.removeItem("musk_user")
+        }
+
+        .SetError(msg) -> { .error = msg }
+    }
+}

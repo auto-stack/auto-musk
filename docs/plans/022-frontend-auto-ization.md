@@ -17,7 +17,7 @@
 | **Phase 3** | 生成器扩展：markdown/mermaid 内置 tag + a2vue golden 测试基建。`BackendMapping.npm_package` 字段；`register_rich_text_widgets`（Markdown→MarkdownStream/markstream-vue，Mermaid→mermaid）；`detect_npm_packages_from_code` 扫生成代码 import 自动补 package.json 依赖；端到端验证 `markdown {}` 生成 MarkdownStream + 自动加 markstream-vue。**a2vue golden 基建**：`test_a2vue` helper（仿 test_a2ark）+ 001_counter case golden 基线，填补 vue codegen 无 golden 测试的长期缺口。4 npm 检测 + 1 a2vue golden 测试绿 | `auto-lang d14c3283` | ✅ markdown tag 端到端；golden 机制可用 |
 
 > **里程碑 M1–M3 达成（2026-08-07）**：三个 codegen 缺口（SSE 多事件 / i18n / markdown-mermaid）全部扩展完成 + 单测/golden 覆盖。auto-lang 三个工作分支（sse-multi-event 45361b10 / i18n-support f0b9735e / markdown-mermaid-tag d14c3283）可合并。下一步进入纯 auto-musk 的 .at 编写阶段（Phase 4-7）。
-| **Phase 4** | .at 骨架 + LoginView 最小 parity 闭环 | _待填_ | _待填_ |
+| **Phase 4** | .at 骨架 + LoginView 生成构建闭环。`src/front/{app,auth_store,login}.at` + `src/back/api.at`(auth 端点+AuthUser/AuthResponse 类型)；app.at auth guard(v-if authenticated)；auth_store 单例(login/register/me/logout + localStorage)；LoginPage 表单(username/password + 登录/注册切换)；纯 store 驱动(无 emit callback,比原生简洁)。`vue-tsc && vite build` 全绿产出 dist。**修复 2 个 codegen bug**(auto-lang 4fc26bbe)：SSE 全局接线按 api_imports 过滤(AuthStore 不再误接 chat_stream) + store 自调用语法(bare Me()) | `auto-lang 4fc26bbe` | ✅ 生成工程 vue-tsc+vite build 通过 |
 | **Phase 5** | store 全量（19 composable → store）+ SpecsView | _待填_ | _待填_ |
 | **Phase 6** | WikiView | _待填_ | _待填_ |
 | **Phase 7** | ChatsView（最难）+ 全量 parity 闭环 + 文档归档 | _待填_ | _待填_ |
