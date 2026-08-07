@@ -41,6 +41,22 @@ cd web && npm install && npm run build
 # 产物在 web/dist（被 serve 托管，gitignored）
 ```
 
+### 前端 Auto 化（`.at` 源 → 生成 vue 工程）
+
+除原生 `web/` SPA 外，本项目还有一条 **AutoUI `.at` 源**路线（[Plan 022](docs/plans/022-frontend-auto-ization.md)）：4 个视图（Login/Chats/Specs/Wiki）的 `.at` 源经 `auto build` 生成独立的 vue 工程（`gen/front/vue/`，gitignored），与原生 `web/` 达成行为+视觉一致。
+
+```bash
+# 从 .at 源重新生成 vue 工程（需 auto-lang 的 auto.exe）
+auto build --gen-only        # 生成到 gen/front/vue/
+cd gen/front/vue && pnpm install && pnpm build   # 验证可构建
+```
+
+- **源**：`src/front/*.at`（widget + store）+ `src/front/components/*.vue`（逃生舱组件）+ `src/front/forge_*.ts`（SSE 消费等逃生舱逻辑）+ `src/back/api.at`（API 契约）
+- **产物**：`gen/front/vue/`（4 视图 SFC + 4 store + ext 逃生舱复制 + lib/api.ts）
+- **生成器**：[auto-lang](../auto-lang)（SSE 多事件 codegen + i18n + markdown/mermaid tag + a2vue golden）
+- **逃生舱原则**：优先扩展生成器；极高成本特性（v-html / 增量 JSON / 复杂交互）走 `use{component/fn}` 逃生舱 + 登记 KNOWN-DEBT
+- **状态**：🟢 核心目标达成（vue-tsc + vite build 全绿）。剩余 B 类（relay/gate/agent-config 外部依赖）+ C 类（parity 闭环）见 plan §8
+
 ### 使用
 
 **CLI（最直接）：**
