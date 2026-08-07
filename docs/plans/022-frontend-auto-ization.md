@@ -156,6 +156,21 @@
 - RelayView（1599 行）死代码不转译
 - 可能的逃生舱点（useStreamingDocument 等）及理由
 
+## 7.5 auto-lang 分支整合（2026-08-07）
+
+Phase 0-5a 期间在 auto-lang 形成了两条并行 Plan 022 分支：
+- `plan-musk-022/sse-multi-event`（后端 SSE + 017-chat playwright 验证）
+- `plan-musk-022/markdown-mermaid-tag`（i18n + markdown/mermaid + golden + SSE 过滤）
+
+已整合到单一分支 `plan-musk-022/sse-multi-event`（cherry-pick markdown-mermaid-tag 的 i18n/markdown/golden/SSE过滤）：
+- `0e3aad9d` Phase 4 SSE 过滤
+- `d18e230f` Phase 3 markdown/mermaid + golden
+- `8fcfdea5` Phase 2 i18n
+
+旧的 markdown-mermaid-tag / i18n-support 分支已删除（工作已整合）。
+worktree 全部清理（plan012-a/b/c + label-class + plan398）。
+整合后 Phase 5a 验证仍通过（3 components，vue-tsc+vite build 绿）。
+
 ## 8. 后续待做（本计划不实施）
 
 - `frontend/`（配置远程页面）Auto 化（已确认本次仅 web/）
