@@ -4,7 +4,7 @@
 // forge_stream.ts 逃生舱里，store 只管状态 + 简单调用，避开 codegen 对 store
 // handler 复杂控制流（嵌套 if/return/结构体字面量）的 parser 边界。
 
-use back.api: chats_list_sessions, chats_create_session, chats_get_session, chats_send_message
+use back.api: chats_list_sessions, chats_create_session, chats_get_session, chats_send_message, chats_approve, chats_reject_all
 
 store ForgeStore {
     model {
@@ -43,6 +43,8 @@ store ForgeStore {
         FinalizeDraft,
         SetError(str),
         ClearGate,
+        ApproveGate,
+        RejectGate,
     }
 
     on {
@@ -96,5 +98,15 @@ store ForgeStore {
 
         // ClearGate: 用户批准/拒绝 spec 变更后清审批门状态（7.3）。
         .ClearGate -> { .current_gate = None }
+
+        // B 类批4：ApproveGate/RejectGate 调真实 API + 清审批门。
+        .ApproveGate -> {
+            chats_approve(.session_id, 0);
+            .current_gate = None
+        }
+        .RejectGate -> {
+            chats_reject_all(.session_id);
+            .current_gate = None
+        }
     }
 }

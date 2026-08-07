@@ -58,11 +58,15 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
 import MentionDropdown from './MentionDropdown.vue'
+import { useAgentConfigs } from '../composables/useAgentConfigs'
 import {
   DEFAULT_PROFESSIONS,
   renderInputMentions,
   buildMentionNames,
 } from '../forge_helpers'
+
+// B 类批1：动态 profession 列表（useAgentConfigs singleton，App/chats_view Init 时 loadConfigs）。
+const { configs: agentConfigs } = useAgentConfigs()
 
 interface ProfessionOption {
   id: string
@@ -88,9 +92,12 @@ const mentionVisible = ref(false)
 const mentionFilter = ref('')
 const mentionAnchor = ref<DOMRect | null>(null)
 
-const professionsList = computed(() =>
-  props.professions && props.professions.length ? props.professions : DEFAULT_PROFESSIONS,
-)
+const professionsList = computed(() => {
+  if (props.professions && props.professions.length) return props.professions
+  // 动态 profession 列表（loadConfigs 后填充）；未加载时 fallback DEFAULT_PROFESSIONS
+  const dynamic = agentConfigs.value.map((c) => ({ id: c.profession_id || c.id, name: c.name }))
+  return dynamic.length > 0 ? dynamic : DEFAULT_PROFESSIONS
+})
 const mentionNames = computed(() => buildMentionNames(professionsList.value))
 const backdropHtml = computed(() => renderInputMentions(text.value, mentionNames.value))
 

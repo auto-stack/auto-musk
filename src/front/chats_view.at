@@ -13,9 +13,11 @@ use store: ForgeStore
 widget ChatsView {
     use {
         fn: startForgeStream, stopForgeStream from "src/front/forge_stream.ts"
+        // B 类批3：/relay//superpower//spec1 命令路由（逃生舱 fn，同步检测+异步执行）。
+        fn: handleRelayCommand from "src/front/relay_commands.ts"
         // forge_helpers 是逃生舱卡片组件的内部依赖，声明 renderMentions 仅为触发 ext 复制
         // （codegen ext 复制只看 use 块，不递归逃生舱组件的相对 import）。
-        fn: renderMentions from "src/front/forge_helpers.ts"
+        fn: renderMentions, extractRunId from "src/front/forge_helpers.ts"
         // questionnaire 解析纯函数（QuestionnaireCard 的数据源）。
         fn: getQuestions, hasQuestionnaire from "src/front/questionnaire.ts"
         component: MentionInput from "src/front/components/MentionInput.vue"
@@ -23,9 +25,14 @@ widget ChatsView {
         component: MentionDropdown from "src/front/components/MentionDropdown.vue"
         component: AgentAvatar from "src/front/components/AgentAvatar.vue"
         component: ErrandCard from "src/front/components/ErrandCard.vue"
-        component: RelayCard from "src/front/components/RelayCard.vue"
+        // B 类批3：RelayCard 状态展示版 → RelayRunBox 完整交互（subscribeToRun 日志 + resolveGate 审批）。
+        component: RelayRunBox from "src/front/components/RelayRunBox.vue"
         component: TaskPlanCard from "src/front/components/TaskPlanCard.vue"
         component: GenericToolCard from "src/front/components/GenericToolCard.vue"
+        // B 类批3：useRelay/useEventRouter/useGateInbox（relay 完整链路 + gate 事件路由）。
+        composable: useRelay from "src/front/composables/useRelay.ts"
+        composable: useEventRouter from "src/front/composables/useEventRouter.ts"
+        composable: useGateInbox from "src/front/composables/useGateInbox.ts"
         // Phase 7.3 续：StreamingRenderer/ReportCard/QuestionnaireCard/GateCard。
         component: StreamingRenderer from "src/front/components/StreamingRenderer.vue"
         component: ReportCard from "src/front/components/ReportCard.vue"
@@ -33,11 +40,17 @@ widget ChatsView {
         // Phase 7.3 续 codegen 限制1 修复后：直接用 QuestionnaireCard + getQuestions fn 调用
         // （不再需要 QuestionnaireMessage 包装组件）。
         component: GateCard from "src/front/components/GateCard.vue"
+        // B 类批4：SecretaryMessageWrapper（包装 SecretaryMessage，规避 composable
+        // facade ref 解包限制；内部用 useGateInbox.currentSecretary 驱动）。
+        component: SecretaryMessageWrapper from "src/front/components/SecretaryMessageWrapper.vue"
+        component: SecretaryMessage from "src/front/components/SecretaryMessage.vue"
         // StreamingTable/useStreamingDocument 是 StreamingRenderer 的内部依赖，声明触发复制。
         component: StreamingTable from "src/front/components/StreamingTable.vue"
         fn: useStreamingDocument from "src/front/composables/useStreamingDocument.ts"
         // Phase 7.4：UserMessage（user 消息 @mention 高亮，v-html 逃生舱）。
         component: UserMessage from "src/front/components/UserMessage.vue"
+        // B 类批1：useAgentConfigs（动态 profession 列表，替代 DEFAULT_PROFESSIONS 硬编码）。
+        composable: useAgentConfigs from "src/front/composables/useAgentConfigs.ts"
     }
 
     msg Msg {
@@ -48,6 +61,9 @@ widget ChatsView {
         StopStream,
         ApproveGate,
         RejectGate,
+        SecretaryApprove,
+        SecretaryReject,
+        SecretarySnooze,
         OnQuestionnaireSubmit(str),
     }
 
@@ -107,9 +123,16 @@ widget ChatsView {
                         text "No session" { style: "chats-title" }
                     }
                 }
-                // canvas（GateCard/ReportCard + 消息列表 + 流式 draft）
+                // canvas（SecretaryMessage/GateCard/ReportCard + 消息列表 + 流式 draft）
                 col {
                     style: "chats-canvas"
+                    // SecretaryMessageWrapper：gate_reached 触发 useGateInbox.registerGate →
+                    // currentSecretary 驱动审批消息条（B 类批4。wrapper 内部 v-if gate 控制显隐）。
+                    SecretaryMessageWrapper {
+                        onapprove: .SecretaryApprove
+                        onreject: .SecretaryReject
+                        onsnooze: .SecretarySnooze
+                    }
                     // GateCard：gate_reached 事件触发，显示待审批 spec 变更（7.3）
                     if .store.current_gate != None {
                         GateCard {
@@ -164,9 +187,8 @@ widget ChatsView {
                                         errands: .store.errands
                                     }
                                 } else if .tc.name == "spawn_relay" {
-                                    RelayCard {
-                                        tc: .tc
-                                        relays: .store.relays
+                                    RelayRunBox {
+                                        runId: extractRunId(.tc)
                                     }
                                 } else if .tc.name == "task_plan" {
                                     TaskPlanCard {
@@ -211,18 +233,25 @@ widget ChatsView {
     }
 
     on {
-        .Init -> { store.Init() }
+        .Init -> {
+            store.Init();
+            agentConfigs.loadConfigs()
+        }
 
         .NewSession -> { store.NewSession() }
 
         .SelectSession(id) -> { store.SwitchSession(id) }
 
-        // SendInput(text): MentionInput 的 onsubmit 回调，发送文本 + 启动 SSE 流。
+        // SendInput(text): MentionInput 的 onsubmit 回调。先检测 /relay//superpower//spec1
+        // 命令（handleRelayCommand 返回 true 表示已处理），否则走普通发送 + SSE 流。
         .SendInput(text) -> {
             if .text.trim() != "" {
-                store.Send(.text);
+                let handled = handleRelayCommand(.text);
                 .input = "";
-                startForgeStream(.store.session_id.value, .store.workspace.value, .store.token.value)
+                if !handled {
+                    store.Send(.text);
+                    startForgeStream(.store.session_id.value, .store.workspace.value, .store.token.value)
+                }
             }
         }
 
@@ -232,17 +261,21 @@ widget ChatsView {
             store.StopStream()
         }
 
-        // ApproveGate: 用户批准 spec 变更。清 current_gate（UI 响应）。
-        // 注：真实的 /api/chats/session/{id}/approve/0 调用与 SecretaryMessage 的
-        // approve/reject API 接线同批，登记 KNOWN-DEBT 留后。
+        // B 类批4：ApproveGate/RejectGate 调真实 API（store.ApproveGate/RejectGate
+        // 内部调 chats_approve/chats_reject_all + 清 current_gate）。
         .ApproveGate -> {
-            store.ClearGate()
+            store.ApproveGate()
         }
 
-        // RejectGate: 用户拒绝 spec 变更。清 current_gate。
         .RejectGate -> {
-            store.ClearGate()
+            store.RejectGate()
         }
+
+        // B 类批4：SecretaryMessage 审批按钮。wrapper 内部已调 useGateInbox.resolveGate/
+        // dismissSecretary（本地态），widget handler 留作未来真实 API 接入点。
+        .SecretaryApprove -> { store.ApproveGate() }
+        .SecretaryReject -> { store.RejectGate() }
+        .SecretarySnooze -> { store.ClearGate() }
 
         // OnQuestionnaireSubmit(answers): 问卷提交，把答案作为用户消息发回 + 启动 SSE。
         .OnQuestionnaireSubmit(answers) -> {

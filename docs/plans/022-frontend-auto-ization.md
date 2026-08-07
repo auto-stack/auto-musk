@@ -1,6 +1,6 @@
 # 022 — auto-musk 前端 Auto 化（web/ SPA → AutoUI）
 
-> **状态**：🟢 核心目标达成（4 视图 Auto 化 + 流式机制 + 生成器扩展 + §10 根治 + 两 codegen 限制修复 + api.ts 路径参数插值修复 + §7.6 静态 parity 盘点）。剩余：B 类外部依赖项（relay/gate/agent-config 接线）+ C 类运行时视觉/行为 parity（需 dev server 环境），见 §8 / §11。
+> **状态**：🟢 核心目标达成 + B 类前端接线完成（4 视图 Auto 化 + 流式机制 + 生成器扩展 + §10 根治 + 两 codegen 限制修复 + api.ts 路径参数修复 + §7.6 静态 parity + relay/gate/professions 全链路接线）。剩余：C 类运行时视觉/行为 parity（需 dev server 环境），见 §8 / §11。
 > **前置**：Plan 020/021（后端业务端点 100% ag + 严格 parity 闭环，方法论来源）；auto-lang 的 a2vue codegen（examples/ui/015-notes 基准）。
 > **仓库**：auto-musk（`web/` + 新建 `src/front/` + `src/back/api.at`）+ auto-lang（codegen 三处扩展：SSE 多事件 / i18n / markdown-mermaid tag）。
 > **目标**：为 `web/` 主 SPA（~1.85 万行 Vue3+TS）创建 AutoUI `.at` 源，使 `auto build` 生成的 vue 工程在**功能/交互/外观**上与原生 `web/` 达到**行为+视觉一致**（对标后端 parity 标准）。一致性口径选定**纯 AutoUI 原生表达**——遇 codegen 缺口优先扩展生成器。
@@ -166,6 +166,7 @@
 | **codegen 限制修复** | auto-lang worktree `plan-022/escape-hatch-codegen-fixes`（`64fb5e4d`，已合 master `68d0ac59`）。①**限制1 props fn 调用**：`expr_to_vue_bound_value` 加 `Expr::Call` 分支，`Component { prop: getQuestions(.msg) }` 现生成 `:prop="getQuestions(msg)"`（非 null）；a2vue golden 003_fn_call_prop。auto-musk 去掉 QuestionnaireMessage 包装组件（直接用 QuestionnaireCard + getQuestions fn 调用）。②**限制2 composable 带参**：use-block 语法扩展 `composable: useX(.arg) from "..."`（ExtImport 加 call_args + parser 解析 `(args)` + vue.rs 生成 `const x = useX(arg)`，空 args 仍 `useX()` 向后兼容）；单元测试 test_composable_with_args。cargo test 2879 passed/21 failed（基线 2877/21，+2 新测试，0 回归） | auto-lang `64fb5e4d` + auto-musk `edeb439` | ✅ 两个 codegen 限制根治 |
 | **Phase 7.4** | user 消息 @mention 高亮（§7.4 输入框部分的补全）。`UserMessage.vue` 逃生舱（v-html=renderMentions，.at 无 v-html tag）+ chats_view.at user 分支 `text .msg.content` → `UserMessage { content: .msg.content }`。至此 §7.4 @mention 输入框（7c）+ user 消息高亮（本 phase）均完成；`/relay`/`/superpower`/`/spec1` 命令解析仍透传未路由（B 类依赖 useRelay，见 §8） | `e7f8831` | ✅ user mention 高亮完成 |
 | **§7.6 静态 parity** | ①**api.ts 路径参数插值修复**（auto-lang `26d988c5`）：generate_fetch_function 支持 `{param}` 格式（axum 0.7+/URI Template，原仅支持 `:param`）——修复 10 个端点（specs_delete_item/wiki_*/chats_*）的 fetch URL 字面量 `{id}`/`{slug}` 未插值导致运行时 404；按路径实际格式不重叠替换（避免 `${id}` 二次替换成 `$${id}`）；测试 brace + colon 双格式。②**静态结构 parity 盘点**（见 §11）：API 契约 ✅完整 / 视图⚠️骨架覆盖 / store⚠️4+19 / 路由⚠️3/4 / 逃生舱组件✅9+14。残留 drift：视图体量（架构差异非缺陷）/ Specs 子系统细化（§5c）/ URL 路由（useViewState）——均非功能阻塞 | auto-lang `26d988c5` | ✅ api.ts 10 端点修复 + parity 矩阵归档 |
+| **B 类前端接线** | relay/gate/professions 全链路接线（原误判"阻塞于后端"，实为前端 api.at 未声明 + composable 未引入）。①**批1 professionOptions 动态化**：useAgentConfigs 逃生舱调 `/api/forge/relay/professions`（替代空 stub + 硬编码 DEFAULT_PROFESSIONS，保留 fallback）。②**批2 api.at 声明 7 端点**（relay_professions/relay_start_run/relay_get_run/relay_advance_run/relay_resolve_gate/chats_approve/chats_reject_all，返回 any 避 Value 未映射）。③**批3 RelayCard 完整交互**：useRelay/useEventRouter/useGateInbox 逃生舱引入（authFetch→fetch + SSE query token 鉴权 + role_id 对齐后端修正原生 profession_id 误读 bug）；RelayRunBox 替代状态展示版（subscribeToRun 实时日志 + resolveGate 审批）；relay_commands.ts `/relay`//superpower//spec1 命令路由（同步检测+异步执行）。④**批4 SecretaryMessage + GateCard 真实 API**：SecretaryMessage 移植 + SecretaryMessageWrapper（规避 composable facade ref 解包限制）；forge_stream gate_reached 路由到 useGateInbox.registerGate；forge_store ApproveGate/RejectGate handler 调真实 chats_approve/chats_reject_all API | 4 个提交（批1-4） | ✅ B 类全链路接线，构建通过 |
 
 ## 7.5 auto-lang 分支整合（2026-08-07）
 
@@ -184,11 +185,17 @@ worktree 全部清理（plan012-a/b/c + label-class + plan398）。
 
 ## 8. 后续待做（本计划不实施）
 
-### B 类：阻塞于外部依赖（需后端/其他层接线，非本 plan 范围）
+### ~~B 类：阻塞于外部依赖~~ ✅ 已完成（B 类前端接线，2026-08-07）
 
-- **RelayCard 完整交互**：当前为状态展示版（run_id/flow/status/steps/summary）。需接 `useRelay` 的 `subscribeToRun`（实时日志订阅）/`resolveGate`（审批）/`startRun`+`advanceRun`（命令启动）。`/relay`/`/superpower`/`/spec1` 命令解析当前在 MentionInput 透传原始文本（未路由到 startRun）。完整交互待 relay 后端接线计划补齐。
-- **SecretaryMessage + GateCard approve/reject 真实 API**：§7.3 八组件清单中 SecretaryMessage 未移植（依赖 `useGateInbox` 完整状态机：resolve/snooze/promoteNext/dismiss）。GateCard 的 approve/reject 当前只清 current_gate（UI 响应），真实 API（`/api/chats/session/{id}/approve/0` + `/reject-all`，relay gate `/api/forge/relay/runs/{id}/gate`）未接。
-- **professionOptions 动态化**：当前 `forge_helpers.ts` 的 `DEFAULT_PROFESSIONS` 硬编码 9 个职业，因 `useAgentConfigs` 是空 stub。待 Harness agent-config 层接线后改为动态拉取。
+原判断"阻塞于后端未接线"有误——后端 relay/gate/professions 端点全部已实现（`/api/forge/relay/*`、`/api/chats/session/{id}/approve|reject-all`）。实际阻塞是前端 api.at 未声明 + composable 未引入生成工程。已全部接线：
+
+- ✅ **RelayCard 完整交互**：RelayRunBox 替代状态展示版（subscribeToRun 实时日志 SSE + resolveGate 审批）；useRelay 逃生舱引入（authFetch→fetch + SSE query token 鉴权 + role_id 对齐后端，修正原生 profession_id 误读 bug）
+- ✅ **/relay//superpower//spec1 命令路由**：relay_commands.ts 逃生舱（同步检测 + 异步 startRun/advanceRun + 推消息）
+- ✅ **SecretaryMessage + GateCard approve/reject 真实 API**：SecretaryMessage 移植（useGateInbox 状态机引入）；forge_store 加 ApproveGate/RejectGate handler 调 chats_approve/chats_reject_all 真实 API；gate_reached 事件路由到 useGateInbox.registerGate
+- ✅ **professionOptions 动态化**：useAgentConfigs 逃生舱调 `/api/forge/relay/professions`（替代空 stub + DEFAULT_PROFESSIONS 硬编码，保留 fallback）
+- ✅ **api.at 声明 7 个 relay/gate 端点**（relay_professions/relay_start_run/relay_get_run/relay_advance_run/relay_resolve_gate/chats_approve/chats_reject_all）
+
+遗留（非阻塞，登记）：relay SSE events 的 token 路径跟踪（原生读取 `data.tokens_used`，后端实际在 `payload.cumulative`/`step_tokens`）——属原生既有 bug，未复制。
 
 ### C 类：需专项投入（本 plan 范围内但工作量较大）
 
