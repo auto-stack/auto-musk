@@ -14,7 +14,9 @@
 | **Phase 0** | 工具链就绪 + 桥接演示：清理 gen 孤儿；建 `src/front/app.at` 最小计数器 widget；`auto build --gen-only` 生成 vue 工程通过；`pnpm install + build` 产出 dist（index.js 82.78KB）；web/ 基线 `vite build` 通过 | `7ced2b9` | ✅ 生成工程可构建；⚠️ 发现 web/ 既有 `vue-tsc` 类型错误（见 §9） |
 | **Phase 1** | 生成器扩展：SSE 多事件 discriminator。`StreamEndpoint` 加 `discriminator`+`variants`；`resolve_stream_variants` 解析 `#[serde(tag="type",rename_all="snake_case")] pub tag`（嵌套 braces 配平）；vue.rs 数据驱动 if-chain + 多端点 per-path guard；legacy fallback 保留；26 单测绿；auto-musk forge `SseEventDto`(6变体)端到端验证生成 `data.type` dispatch 正确 | `auto-lang 45361b10` | ✅ cargo test 全绿；demo 6 变体全捕获 |
 | **Phase 2** | 生成器扩展：i18n 工程级原生支持。`I18nConfig`+`parse_i18n`(true/单路径/数组)；`VueProject.i18n`+`copy_locale_files`；`generate_package_json` 加 vue-i18n；`generate_main_ts` 注入 createI18n+import locales+app.use(i18n)（重构 router 分支为统一 app 构造）；18 vue 单测绿（含 7 新增 i18n）；端到端验证 pac.at `i18n:[en,zh]` 生成正确（package.json/src/locales/main.ts）。widget 级文本 `t('key')` 替换留待 Phase 4 按需设计 | `auto-lang f0b9735e` | ✅ 工程级 i18n 注入验证通过 |
-| **Phase 3** | 生成器扩展：markdown/mermaid tag + a2vue golden | _待填_ | _待填_ |
+| **Phase 3** | 生成器扩展：markdown/mermaid 内置 tag + a2vue golden 测试基建。`BackendMapping.npm_package` 字段；`register_rich_text_widgets`（Markdown→MarkdownStream/markstream-vue，Mermaid→mermaid）；`detect_npm_packages_from_code` 扫生成代码 import 自动补 package.json 依赖；端到端验证 `markdown {}` 生成 MarkdownStream + 自动加 markstream-vue。**a2vue golden 基建**：`test_a2vue` helper（仿 test_a2ark）+ 001_counter case golden 基线，填补 vue codegen 无 golden 测试的长期缺口。4 npm 检测 + 1 a2vue golden 测试绿 | `auto-lang d14c3283` | ✅ markdown tag 端到端；golden 机制可用 |
+
+> **里程碑 M1–M3 达成（2026-08-07）**：三个 codegen 缺口（SSE 多事件 / i18n / markdown-mermaid）全部扩展完成 + 单测/golden 覆盖。auto-lang 三个工作分支（sse-multi-event 45361b10 / i18n-support f0b9735e / markdown-mermaid-tag d14c3283）可合并。下一步进入纯 auto-musk 的 .at 编写阶段（Phase 4-7）。
 | **Phase 4** | .at 骨架 + LoginView 最小 parity 闭环 | _待填_ | _待填_ |
 | **Phase 5** | store 全量（19 composable → store）+ SpecsView | _待填_ | _待填_ |
 | **Phase 6** | WikiView | _待填_ | _待填_ |
@@ -176,3 +178,13 @@
 - **候选口径**：(a) 生成工程对齐原生（原生 vue-tsc 失败则生成工程也允许跳过类型检查，parity 以 vite build + 视觉/行为为准）；(b) 生成工程要求 vue-tsc 全绿（更严格，需修复或规避原生 TS 错误的对应路径）。
 
 **建议**：口径 (a)——parity 以"vite build 产物 + 视觉/行为一致"为准，类型严格度不作为 parity 硬门槛（与原生对齐）。本条在 Phase 4 首次 parity 比对时最终确认。
+
+## 10. Phase 3 发现：markdown tag 的 props 映射待完善（Phase 7 深入）
+
+**现象**（2026-08-07 端到端验证）：`markdown { content: "...", style: "..." }` 生成的 `<MarkdownStream>` 标签能正确识别 + 导入 markstream-vue + 自动加 npm 依赖，但 **props 没有正确转成 Vue 属性绑定**——Aura prop 语法（`content: "..."`）被原样输出到标签内，而非 `content="..."` / `:content="..."`。
+
+**根因**：widget registry 注册 markdown 时 `props: HashMap::new()`（空映射），codegen 对无映射的自定义 widget props 走了通用路径，但该路径对 builtin tag 的处理不完整。
+
+**影响**：markdown tag 的**机制**（识别/import/npm依赖）已工作，但**实际渲染**需 props 映射完善。
+
+**处置**：留待 Phase 7（ChatsView 实际用 markdown 渲染流式内容）时深入调优 props 映射。届时配合 a2vue golden 测试（Phase 3 建立）确定性验证。不阻塞 Phase 4-6（那些视图主要用表单/列表，非 markdown）。
