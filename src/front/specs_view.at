@@ -93,11 +93,9 @@ widget SpecsView {
                         }
                         if .store.document.value != None {
                             for section in .store.document.value.sections {
-                                key: .section.id
                                 if .section.section_type == .active_section {
                                     for item in .section.items {
                                         col {
-                                            key: .item.id
                                             style: if .item.id == .active_item_id {
                                                 "spec-item-row active"
                                             } else {
