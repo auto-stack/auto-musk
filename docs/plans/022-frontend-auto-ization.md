@@ -157,6 +157,9 @@
 - RelayView（1599 行）死代码不转译
 - 可能的逃生舱点（useStreamingDocument 等）及理由
 
+| **Phase 6a** | WikiView 数据层 + 视图骨架。`wiki_store.at`（loadPages/loadPage/createPage/updatePage/deletePage/search/loadTree/loadRawTree）；`wiki_view.at`（wiki-nav pages 列表 + 主内容区：创建表单/编辑/markdown 渲染）；api.at 加 wiki 端点 + WikiPage/WikiPageMeta/TreeNode 类型；app.at 接入 WikiView（wiki tab）；pac.at 加 markstream-vue npm_dep。vue-tsc + vite build 全绿（4 components）。**修复**：markdown 组件名 MarkdownStream→MarkdownRender（auto-lang df5c2e37）；store 局部变量遮蔽（pages→loaded）；markstream-vue 依赖声明 | `auto-lang df5c2e37` | ✅ 4 components 构建通过；markdown 渲染接入 |
+| **Phase 5c** | SpecsView 细化（搜索/module accordion/7类category卡片）——低优先级，移除无效 key 避免多余 div，剩余 R006 警告不阻塞 | `782da1f` | ⚠️ 留后续迭代 |
+
 ## 7.5 auto-lang 分支整合（2026-08-07）
 
 Phase 0-5a 期间在 auto-lang 形成了两条并行 Plan 022 分支：

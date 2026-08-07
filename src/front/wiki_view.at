@@ -1,0 +1,229 @@
+// wiki_view.at — Wiki 知识库视图（对应 web/src/views/WikiView.vue）
+//
+// WikiView.vue 865 行：wiki-nav(pages tree + raw tree + 搜索) + 主内容区
+// (page 渲染/编辑)。Phase 6a: 骨架——pages 列表 + 当前 page 渲染 + 创建。
+
+use store: WikiStore
+
+widget WikiView {
+    msg Msg {
+        Init,
+        SelectPage(str),
+        StartCreate,
+        CreatePage,
+        CancelCreate,
+        EditPage,
+        SavePage,
+        DeletePage(str),
+        SlugChanged,
+        TitleChanged,
+        ContentChanged,
+    }
+
+    model {
+        var active_slug str = ""
+        var creating bool = false
+        var editing bool = false
+        var new_slug str = ""
+        var new_title str = ""
+        var new_content str = ""
+        var nav_collapsed bool = false
+    }
+
+    view {
+        row {
+            style: "wiki-view"
+            // wiki-nav 侧边栏
+            col {
+                style: if .nav_collapsed { "wiki-nav collapsed" } else { "wiki-nav" }
+                row {
+                    style: "wiki-nav-header"
+                    text "Wiki" { style: "wiki-nav-title" }
+                    button {
+                        onclick: .StartCreate
+                        style: "nav-icon-btn"
+                        text "+ New"
+                    }
+                }
+                // pages 列表
+                col {
+                    style: "wiki-nav-list"
+                    for page in .store.pages {
+                        button {
+                            key: .page.slug
+                            onclick: .SelectPage(.page.slug)
+                            style: if .page.slug == .active_slug {
+                                "wiki-nav-item active"
+                            } else {
+                                "wiki-nav-item"
+                            }
+                            text .page.title
+                        }
+                    }
+                }
+            }
+            // 主内容区
+            col {
+                style: "wiki-main"
+                if .creating {
+                    // 创建新页面表单
+                    col {
+                        style: "wiki-editor"
+                        h2 "New Page" { style: "text-xl font-bold mb-4" }
+                        col {
+                            style: "form-group"
+                            label "Slug"
+                            input {
+                                value: .new_slug
+                                oninput: .SlugChanged
+                                placeholder: "page-slug"
+                                style: "form-input"
+                            }
+                        }
+                        col {
+                            style: "form-group"
+                            label "Title"
+                            input {
+                                value: .new_title
+                                oninput: .TitleChanged
+                                placeholder: "Page Title"
+                                style: "form-input"
+                            }
+                        }
+                        col {
+                            style: "form-group"
+                            label "Content (Markdown)"
+                            textarea {
+                                value: .new_content
+                                oninput: .ContentChanged
+                                placeholder: "# Page content..."
+                                style: "form-input content-input"
+                            }
+                        }
+                        row {
+                            style: "edit-actions"
+                            button {
+                                onclick: .CreatePage
+                                style: "save-btn"
+                                text "Create"
+                            }
+                            button {
+                                onclick: .CancelCreate
+                                style: "cancel-btn"
+                                text "Cancel"
+                            }
+                        }
+                    }
+                } else if .editing {
+                    // 编辑现有页面
+                    col {
+                        style: "wiki-editor"
+                        h2 "Edit Page" { style: "text-xl font-bold mb-4" }
+                        textarea {
+                            value: .new_content
+                            oninput: .ContentChanged
+                            style: "form-input content-input"
+                        }
+                        row {
+                            style: "edit-actions"
+                            button {
+                                onclick: .SavePage
+                                style: "save-btn"
+                                text "Save"
+                            }
+                            button {
+                                onclick: .EditPage
+                                style: "cancel-btn"
+                                text "Cancel"
+                            }
+                        }
+                    }
+                } else if .store.current_page.value != None {
+                    // 渲染当前 page（markdown 内容）
+                    col {
+                        style: "wiki-content"
+                        row {
+                            style: "wiki-content-header"
+                            h2 .store.current_page.value.title { style: "text-xl font-bold" }
+                            row {
+                                style: "wiki-content-actions"
+                                button {
+                                    onclick: .EditPage
+                                    style: "action-btn"
+                                    text "Edit"
+                                }
+                                button {
+                                    onclick: .DeletePage(.active_slug)
+                                    style: "action-btn danger"
+                                    text "Delete"
+                                }
+                            }
+                        }
+                        // markdown 渲染（Phase 3 内置 tag）
+                        markdown {
+                            content: .store.current_page.value.content
+                            style: "wiki-markdown"
+                        }
+                    }
+                } else {
+                    col {
+                        style: "wiki-empty"
+                        text "Select a page or create a new one" { style: "text-muted" }
+                    }
+                }
+            }
+        }
+    }
+
+    on {
+        .Init -> { store.Init() }
+
+        .SelectPage(slug) -> {
+            .active_slug = slug;
+            .creating = false;
+            .editing = false;
+            store.LoadPage(slug)
+        }
+
+        .StartCreate -> {
+            .creating = true;
+            .editing = false;
+            .new_slug = "";
+            .new_title = "";
+            .new_content = ""
+        }
+
+        .CreatePage -> {
+            if .new_slug != "" {
+                store.CreatePage(.new_slug, .new_title, .new_content);
+                .creating = false
+            }
+        }
+
+        .CancelCreate -> { .creating = false }
+
+        .EditPage -> {
+            if .store.current_page.value != None {
+                .editing = true;
+                .new_content = .store.current_page.value.content
+            }
+        }
+
+        .SavePage -> {
+            if .active_slug != "" {
+                store.UpdatePage(.active_slug, .new_content);
+                .editing = false
+            }
+        }
+
+        .DeletePage(slug) -> {
+            store.DeletePage(slug);
+            .active_slug = ""
+        }
+
+        // v-model marker handlers（U5）。
+        .SlugChanged -> { .new_slug = .new_slug }
+        .TitleChanged -> { .new_title = .new_title }
+        .ContentChanged -> { .new_content = .new_content }
+    }
+}

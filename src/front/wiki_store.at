@@ -1,0 +1,114 @@
+// wiki_store.at — Wiki 知识库状态 store（对应 web/src/composables/useWiki.ts）
+//
+// 单例 store：pages/page/tree/raw_tree + CRUD + search。
+// Plan 022 Phase 6: WikiView 的数据层。
+
+use back.api: wiki_list_pages, wiki_get_page, wiki_create_page, wiki_update_page, wiki_delete_page, wiki_search, wiki_tree, wiki_raw_tree
+
+store WikiStore {
+    model {
+        var pages []WikiPageMeta = []
+        var current_page Option<WikiPage> = None
+        var tree []TreeNode = []
+        var raw_tree []TreeNode = []
+        var loading bool = false
+        var error str = ""
+        var search_query str = ""
+        var search_results []WikiPageMeta = []
+    }
+
+    msg Msg {
+        Init,
+        LoadPages,
+        LoadPage(str),
+        CreatePage(str, str, str),
+        UpdatePage(str, str),
+        DeletePage(str),
+        Search(str),
+        LoadTree,
+        LoadRawTree,
+        SetError(str),
+    }
+
+    on {
+        // Init: 加载 pages 列表 + tree。
+        .Init -> {
+            LoadPages();
+            LoadTree()
+        }
+
+        // LoadPages: GET /api/forge/wiki/pages。
+        .LoadPages -> {
+            .loading = true;
+            .error = "";
+            let loaded = wiki_list_pages();
+            .loading = false;
+            .pages = loaded
+        }
+
+        // LoadPage(slug): GET /api/forge/wiki/page/{slug}。
+        .LoadPage(slug) -> {
+            .error = "";
+            let page = wiki_get_page(slug);
+            if page != None {
+                .current_page = page
+            }
+        }
+
+        // CreatePage(slug, title, content): POST 新建页面。
+        .CreatePage(slug, title, content) -> {
+            .error = "";
+            let page = wiki_create_page(slug, title, content, "manual", []);
+            if page != None {
+                .current_page = page;
+                LoadPages()
+            }
+        }
+
+        // UpdatePage(slug, content): PUT 更新页面内容。
+        .UpdatePage(slug, content) -> {
+            .error = "";
+            if .current_page != None {
+                let page = wiki_update_page(slug, content, .current_page.value.title, .current_page.value.tags);
+                if page != None {
+                    .current_page = page
+                }
+            }
+        }
+
+        // DeletePage(slug): DELETE 删除页面。
+        .DeletePage(slug) -> {
+            .error = "";
+            wiki_delete_page(slug);
+            if .error == "" {
+                .current_page = None;
+                LoadPages()
+            }
+        }
+
+        // Search(q): GET /api/forge/wiki/search?q=。
+        .Search(q) -> {
+            .search_query = q;
+            if q != "" {
+                let found = wiki_search(q);
+                .search_results = found
+            } else {
+                .search_results = []
+            }
+        }
+
+        // LoadTree: GET /api/forge/wiki/tree。
+        .LoadTree -> {
+            let loaded_tree = wiki_tree();
+            .tree = loaded_tree
+        }
+
+        // LoadRawTree: GET /api/forge/raw/tree。
+        .LoadRawTree -> {
+            let loaded_raw = wiki_raw_tree();
+            .raw_tree = loaded_raw
+        }
+
+        .SetError(msg) -> { .error = msg }
+    }
+}

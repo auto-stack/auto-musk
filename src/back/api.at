@@ -172,3 +172,77 @@ pub fn specs_drift_check() {
 }
 
 
+
+// ============================================================
+// Wiki API (Phase 6) — 对应 useWiki.ts 的 /api/forge/wiki/* 调用。
+// 类型从 web/src/types/wiki.ts 映射。
+// ============================================================
+
+pub type WikiPage = {
+    slug: str,
+    title: str,
+    content: str,
+    source_type: str,
+    tags: []str,
+    version: int,
+    created_at: int,
+    updated_at: int,
+}
+
+pub type WikiPageMeta = {
+    slug: str,
+    title: str,
+    source_type: str,
+    tags: []str,
+    version: int,
+    updated_at: int,
+}
+
+pub type TreeNode = {
+    name: str,
+    path: str,
+    type: str,
+    children: []TreeNode,
+    size: int,
+    modified: int,
+}
+
+#[api(method = "GET", path = "/api/forge/wiki/pages")]
+pub fn wiki_list_pages() []WikiPageMeta {
+    return None
+}
+
+#[api(method = "GET", path = "/api/forge/wiki/page/{slug}")]
+pub fn wiki_get_page(slug str) WikiPage {
+    return None
+}
+
+#[api(method = "POST", path = "/api/forge/wiki/page")]
+pub fn wiki_create_page(slug str, title str, content str, source_type str, tags []str) WikiPage {
+    return None
+}
+
+#[api(method = "PUT", path = "/api/forge/wiki/page/{slug}")]
+pub fn wiki_update_page(slug str, content str, title str, tags []str) WikiPage {
+    return None
+}
+
+#[api(method = "DELETE", path = "/api/forge/wiki/page/{slug}")]
+pub fn wiki_delete_page(slug str) {
+    return None
+}
+
+#[api(method = "GET", path = "/api/forge/wiki/search")]
+pub fn wiki_search(q str) []WikiPageMeta {
+    return None
+}
+
+#[api(method = "GET", path = "/api/forge/wiki/tree")]
+pub fn wiki_tree() []TreeNode {
+    return None
+}
+
+#[api(method = "GET", path = "/api/forge/raw/tree")]
+pub fn wiki_raw_tree() []TreeNode {
+    return None
+}
