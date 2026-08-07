@@ -7,6 +7,10 @@
 use store: ForgeStore
 
 widget ChatsView {
+    use {
+        fn: startForgeStream, stopForgeStream from "src/front/forge_stream.ts"
+    }
+
     msg Msg {
         Init,
         NewSession,
@@ -138,14 +142,19 @@ widget ChatsView {
         // InputChanged: v-model marker（U5）。
         .InputChanged -> { .input = .input }
 
-        // SendInput: 发送输入框内容，清空。
+        // SendInput: 发送输入框内容，清空 + 启动 SSE 流。
         .SendInput -> {
             if .input.trim() != "" {
                 store.Send(.input);
-                .input = ""
+                .input = "";
+                startForgeStream(.store.session_id.value, .store.workspace.value, .store.token.value)
             }
         }
 
-        .StopStream -> { store.StopStream() }
+        // StopStream: 停止 SSE 流。
+        .StopStream -> {
+            stopForgeStream();
+            store.StopStream()
+        }
     }
 }

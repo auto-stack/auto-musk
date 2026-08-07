@@ -1,11 +1,16 @@
 // forge_stream.ts — Forge 聊天流 SSE 消费（对应 useForge.ts 的 streamResponse）
 //
-// Plan 022 Phase 7: forge 流有 20+ 事件类型，共享单 JSON 结构（type discriminator
-// + 可选字段），不是 enum 每变体独立结构。Phase 1 的自动 SSE dispatch 按变体→
-// 独立 action 设计，不适合这里。故用逃生舱手动消费 SSE，把事件回调给 store。
-//
-// 用法（forge_store 的 Init/Send 后调用）:
-//   startForgeStream(sessionId, workspace, token, (event) => { store action })
+// Plan 022 Phase 7b: forge 流 20+ 事件共享单结构（type discriminator）。
+// 回写机制：直接 import store 的模块级 ref（singleton），在 SSE onmessage 里
+// 操作 current_draft/messages/thinking/streaming/error，绕开 store 不能传回调
+// 的限制。widget 通过 reactive(useForgeStoreStore()) 自动响应 ref 变化。
+
+// Plan 022 Phase 7b: 直接调 useForgeStoreStore() 拿 singleton store 对象
+// (store 的模块级 ref 不 export，但 useForgeStoreStore() 返回同一份 singleton)，
+// 在 SSE onmessage 里操作其 ref，绕开 store 不能传回调的限制。
+import { useForgeStoreStore } from '@/stores/useForgeStoreStore'
+
+const _store = useForgeStoreStore()
 
 export interface ForgeStreamEvent {
   type: string
@@ -30,12 +35,8 @@ let currentEs: EventSource | null = null
 
 /**
  * Start consuming the forge chat stream for a session. Closes any prior stream.
- *
- * Plan 022 Phase 7a: AutoUI store handlers cannot receive a JS callback fn, so
- * this opens the EventSource and logs events to the console. Phase 7b will wire
- * events back into the store (either via a generated SSE action or a global
- * event bus the widget polls). For now this establishes the SSE connection so
- * the backend side proceeds; UI reaction to streamed chunks comes later.
+ * Events are dispatched directly into the store's singleton refs (current_draft,
+ * thinking, streaming, error), which the widget observes reactively.
  */
 export function startForgeStream(
   sessionId: string,
@@ -54,15 +55,42 @@ export function startForgeStream(
   es.onmessage = (ev) => {
     try {
       const data = JSON.parse(ev.data) as ForgeStreamEvent
-      // Phase 7b TODO: dispatch data into the ForgeStore. For now, log so the
-      // connection is observable and the backend stream is consumed.
-      if (data && data.type) console.log('[forge stream]', data.type, data.text ?? '')
+      if (!data || !data.type) return
+      handleForgeEvent(data)
     } catch {
       // ignore malformed chunks
     }
   }
   es.onerror = () => {
-    console.error('[forge stream] error')
+    _store.error.value = 'stream error'
+    _store.streaming.value = false
+  }
+}
+
+/**
+ * Dispatch a forge stream event into the store's singleton refs.
+ * Phase 7b handles the core event types (delta, thinking, tool_call, done, error).
+ * errand / relay / task_plan events 留 7c (当前只 log)。
+ */
+function handleForgeEvent(event: ForgeStreamEvent): void {
+  const t = event.type
+  if (t === 'delta') {
+    if (event.text) _store.current_draft.value += event.text
+  } else if (t === 'thinking') {
+    if (event.thinking) _store.thinking.value = event.thinking
+  } else if (t === 'tool_call') {
+    if (event.name) _store.current_draft.value += `\n\n[tool: ${event.name}]\n\n`
+  } else if (t === 'tool_result') {
+    if (event.name) _store.current_draft.value += `\n\n[result: ${event.name}]\n\n`
+  } else if (t === 'done') {
+    _store.streaming.value = false
+    stopForgeStream()
+  } else if (t === 'error') {
+    _store.error.value = event.message || 'unknown error'
+    _store.streaming.value = false
+    stopForgeStream()
+  } else {
+    console.log('[forge stream]', t)
   }
 }
 
