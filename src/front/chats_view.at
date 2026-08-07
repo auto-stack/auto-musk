@@ -36,6 +36,8 @@ widget ChatsView {
         // StreamingTable/useStreamingDocument 是 StreamingRenderer 的内部依赖，声明触发复制。
         component: StreamingTable from "src/front/components/StreamingTable.vue"
         fn: useStreamingDocument from "src/front/composables/useStreamingDocument.ts"
+        // Phase 7.4：UserMessage（user 消息 @mention 高亮，v-html 逃生舱）。
+        component: UserMessage from "src/front/components/UserMessage.vue"
     }
 
     msg Msg {
@@ -126,7 +128,8 @@ widget ChatsView {
                         col {
                             key: .msg.id
                             style: if .msg.role == "user" { "msg user-msg" } else { "msg assistant-msg" }
-                            // 内容按 role 分支（7.3：assistant 换 StreamingRenderer 增量解析）
+                            // 内容按 role 分支（assistant→StreamingRenderer 增量解析；
+                            // user→UserMessage v-html @mention 高亮逃生舱，7.3/7.4）
                             if .msg.role == "assistant" {
                                 if .msg.content != "" {
                                     StreamingRenderer {
@@ -135,7 +138,9 @@ widget ChatsView {
                                     }
                                 }
                             } else {
-                                text .msg.content { style: "msg-content" }
+                                UserMessage {
+                                    content: .msg.content
+                                }
                             }
                             // thinking 块
                             if .msg.thinking != "" {
