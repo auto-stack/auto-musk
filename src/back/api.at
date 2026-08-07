@@ -323,3 +323,62 @@ pub fn chats_rename_session(id str, name str) {
 pub fn chats_send_message(id str, content str, profession_id str) {
     return None
 }
+
+// ============================================================
+// Spec approve/reject (B 类批4 — GateCard 真实 API)
+// 后端 server.at:402/410 已实现。
+// ============================================================
+
+#[api(method = "POST", path = "/api/chats/session/{id}/approve/{index}")]
+pub fn chats_approve(id str, index int) any {
+    return None
+}
+
+#[api(method = "POST", path = "/api/chats/session/{id}/reject-all")]
+pub fn chats_reject_all(id str) any {
+    return None
+}
+
+// ============================================================
+// Relay (B 类批2/3 — RelayRunBox 完整交互 + /relay 命令)
+// 后端 relay_api.at 已实现。返回类型用 Value（RunState 结构复杂，避 parser 边界）。
+// relay events SSE 不走 api.at（走逃生舱 EventSource，同 forge_stream 模式）。
+// ============================================================
+
+#[api(method = "GET", path = "/api/forge/relay/professions")]
+pub fn relay_professions() any {
+    return None
+}
+
+// startRun 请求体（flow_id + task + 可选 steps）。
+pub type StartRunRequest = {
+    flow_id: str,
+    task: str,
+    steps: []any,
+}
+
+#[api(method = "POST", path = "/api/forge/relay/runs")]
+pub fn relay_start_run(req StartRunRequest) any {
+    return None
+}
+
+#[api(method = "GET", path = "/api/forge/relay/runs/{run_id}")]
+pub fn relay_get_run(run_id str) any {
+    return None
+}
+
+#[api(method = "POST", path = "/api/forge/relay/runs/{run_id}/advance")]
+pub fn relay_advance_run(run_id str) any {
+    return None
+}
+
+// resolveGate 请求体（decision + 可选 feedback）。
+pub type ResolveGateBody = {
+    decision: str,
+    feedback: str,
+}
+
+#[api(method = "POST", path = "/api/forge/relay/runs/{run_id}/gate")]
+pub fn relay_resolve_gate(run_id str, req ResolveGateBody) any {
+    return None
+}
