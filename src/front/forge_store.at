@@ -18,6 +18,10 @@ store ForgeStore {
         var thinking str = ""
         var workspace str = ""
         var token str = ""
+        // Phase 7c: errand/relay/task_plan 内联卡片状态（逃生舱 forge_stream.ts 直操作）
+        var errands Value = {}
+        var relays Value = {}
+        var task_plans Value = {}
     }
 
     msg Msg {
