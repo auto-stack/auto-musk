@@ -1,0 +1,28 @@
+// api.at — auto-musk 前端 API 契约（Plan 022 Phase 1 demo）
+//
+// 这些端点后端已用 Rust axum 实现。此处的 #[api] 声明仅用于：
+//   1. codegen 生成前端 api.ts 客户端
+//   2. ~Stream<T> 触发 SSE codegen（store composable 自动接线 EventSource）
+//
+// pub type / pub tag 定义从 web/src/types/*.ts 1:1 映射。
+// Plan 022 Phase 4 起会逐步补全全部端点；本文件当前仅含 Phase 1 SSE 验证所需。
+
+// SseEventDto — forge 聊天流事件（wire 形状与后端 server_stream.at 一致）。
+// #[serde(tag = "type", rename_all = "snake_case")] 使每个变体在 wire 上
+// 用 {"type": "<snake_case_name>", ...} 表示。codegen 据此生成 data.type 路由。
+#[serde(tag = "type", rename_all = "snake_case")]
+pub tag SseEventDto {
+    Delta { text str }
+    Thinking { thinking str }
+    ToolCall { id Option<str>, name str, arguments Value }
+    ToolResult { id Option<str>, name str, arguments Value, result str, status str }
+    Done { output str, turns int }
+    Error { message str }
+}
+
+// Forge 聊天流端点（后端 server_stream.at 的 chat_sse_stream 对应的 HTTP 路由）。
+// ~Stream<SseEventDto> 触发 SSE codegen。
+#[api(method = "GET", path = "/api/chats/session/{id}/stream")]
+pub fn chat_stream(id str) ~Stream<SseEventDto> {
+    return None
+}

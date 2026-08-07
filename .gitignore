@@ -7,6 +7,11 @@
 # 目前手写文件还未放入，待 Step 4 接入时再决定跟踪策略。
 gen/
 
+# a2vue codegen by-products (Plan 022): api client + rust backend scaffolding
+# emitted by `auto build` from src/front + src/back .at. Regenerated each build.
+dist/
+examples/
+
 # Node / pnpm
 node_modules/
 .pnpm-store/
