@@ -50,33 +50,37 @@ store ForgeStore {
     on {
         .Init -> {
             let ws = localStorage.getItem("musk_workspace");
-            .workspace = ws;
+            if ws != None {
+                .workspace = ws
+            } else {
+                .workspace = "musk-demo"
+            };
             let tk = localStorage.getItem("musk_jwt");
             .token = tk;
             LoadSessionList()
         }
 
         .LoadSessionList -> {
-            let list = chats_list_sessions();
-            .session_list = list
+            let resp = chats_list_sessions();
+            .session_list = resp.sessions
         }
 
         .NewSession -> {
-            let s = chats_create_session(.workspace);
-            .session_id = s.id;
+            let resp = chats_create_session(.workspace);
+            .session_id = resp.session.id;
             let list = chats_list_sessions();
-            .session_list = list
+            .session_list = list.sessions
         }
 
         // SwitchSession: 切换 + 回写 session 详情（status/phase/pending_spec_changes/messages）。
         // Phase 7.3 续：补齐 7a 缺失的 SwitchSession（widget 调 store.SwitchSession 但原 store 无定义）。
         .SwitchSession(id) -> {
             .session_id = id;
-            let s = chats_get_session(id);
-            .messages = s.messages;
-            .session_status = s.status;
-            .session_phase = s.phase;
-            .pending_spec_changes = s.pending_spec_changes
+            let resp = chats_get_session(id);
+            .messages = resp.session.messages;
+            .session_status = resp.session.status;
+            .session_phase = resp.session.phase;
+            .pending_spec_changes = resp.session.pending_spec_changes
         }
 
         .StreamStarted(sid) -> { .session_id = sid }
@@ -84,7 +88,8 @@ store ForgeStore {
         .Send(content) -> {
             .current_draft = "";
             .thinking = "";
-            chats_send_message(.session_id, content, "");
+            let resp = chats_send_message(.session_id, content, "");
+            .messages = resp.session.messages;
             .streaming = true
         }
 
