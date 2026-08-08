@@ -6,6 +6,10 @@
 use store: WikiStore
 
 widget WikiView {
+    use {
+        fn: ensureWorkspace from "src/front/ensure_workspace.ts"
+    }
+
     msg Msg {
         Init,
         SelectPage(str),
@@ -176,7 +180,10 @@ widget WikiView {
     }
 
     on {
-        .Init -> { store.Init() }
+        .Init -> {
+            ensureWorkspace();
+            store.Init()
+        }
 
         .SelectPage(slug) -> {
             .active_slug = slug;

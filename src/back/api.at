@@ -211,43 +211,43 @@ pub type TreeNode = {
     modified: int,
 }
 
-#[api(method = "GET", path = "/api/forge/wiki/pages")]
-pub fn wiki_list_pages() []WikiPageMeta {
+#[api(method = "GET", path = "/api/forge/wiki/{project}/pages")]
+pub fn wiki_list_pages(project str) any {
     return None
 }
 
-#[api(method = "GET", path = "/api/forge/wiki/page/{slug}")]
-pub fn wiki_get_page(slug str) WikiPage {
+#[api(method = "GET", path = "/api/forge/wiki/{project}/page/{slug}")]
+pub fn wiki_get_page(project str, slug str) any {
     return None
 }
 
-#[api(method = "POST", path = "/api/forge/wiki/page")]
-pub fn wiki_create_page(slug str, title str, content str, source_type str, tags []str) WikiPage {
+#[api(method = "POST", path = "/api/forge/wiki/{project}/pages")]
+pub fn wiki_create_page(project str, slug str, title str, content str, source_type str, tags []str) any {
     return None
 }
 
-#[api(method = "PUT", path = "/api/forge/wiki/page/{slug}")]
-pub fn wiki_update_page(slug str, content str, title str, tags []str) WikiPage {
+#[api(method = "PUT", path = "/api/forge/wiki/{project}/page/{slug}")]
+pub fn wiki_update_page(project str, slug str, content str, title str, tags []str) any {
     return None
 }
 
-#[api(method = "DELETE", path = "/api/forge/wiki/page/{slug}")]
-pub fn wiki_delete_page(slug str) {
+#[api(method = "DELETE", path = "/api/forge/wiki/{project}/page/{slug}")]
+pub fn wiki_delete_page(project str, slug str) {
     return None
 }
 
-#[api(method = "GET", path = "/api/forge/wiki/search")]
-pub fn wiki_search(q str) []WikiPageMeta {
+#[api(method = "POST", path = "/api/forge/wiki/{project}/search")]
+pub fn wiki_search(project str, q str) any {
     return None
 }
 
-#[api(method = "GET", path = "/api/forge/wiki/tree")]
-pub fn wiki_tree() []TreeNode {
+#[api(method = "GET", path = "/api/forge/wiki/{project}/tree")]
+pub fn wiki_tree(project str) any {
     return None
 }
 
-#[api(method = "GET", path = "/api/forge/raw/tree")]
-pub fn wiki_raw_tree() []TreeNode {
+#[api(method = "GET", path = "/api/forge/raw/{project}/tree")]
+pub fn wiki_raw_tree(project str) any {
     return None
 }
 

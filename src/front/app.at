@@ -13,6 +13,7 @@ widget App {
     use {
         fn: setupAuthFetch from "src/front/setup_auth_fetch.ts"
         fn: injectStyles from "src/front/inject_styles.ts"
+        fn: ensureWorkspace from "src/front/ensure_workspace.ts"
     }
 
     msg Msg {
