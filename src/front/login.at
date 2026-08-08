@@ -25,46 +25,46 @@ widget LoginPage {
 
     view {
         col {
-            style: "login-view"
+            style: "min-h-screen items-center justify-center bg-background"
             col {
-                style: "login-card"
+                style: "w-full max-w-sm p-8 bg-card border border-border rounded-xl shadow-lg gap-6"
                 // 品牌
                 row {
-                    style: "login-brand"
+                    style: "items-center gap-3 mb-2"
                     text "🔥" { style: "text-2xl" }
-                    h1 "AutoForge" { style: "text-2xl font-bold" }
+                    h1 "AutoForge" { style: "text-2xl font-bold text-foreground" }
                 }
                 // 表单
                 col {
-                    style: "login-form"
+                    style: "gap-4"
                     col {
-                        style: "form-group"
-                        label "Username"
+                        style: "gap-1"
+                        label "Username" { style: "text-sm font-medium text-muted-foreground" }
                         input {
                             value: .username
                             oninput: .UsernameChanged
                             placeholder: "Enter username"
-                            style: "form-input"
+                            style: "px-2.5 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                         }
                     }
                     col {
-                        style: "form-group"
-                        label "Password"
+                        style: "gap-1"
+                        label "Password" { style: "text-sm font-medium text-muted-foreground" }
                         input {
                             value: .password
                             oninput: .PasswordChanged
                             placeholder: "Enter password"
-                            style: "form-input"
+                            style: "px-2.5 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                         }
                     }
                     // 错误显示
                     if store.error != "" {
-                        text store.error { style: "login-error" }
+                        text store.error { style: "px-3 py-2 rounded-md bg-destructive/10 text-destructive text-sm" }
                     }
                     // 提交按钮（loading 时禁用，文本随模式切换）
                     button {
                         onclick: .Submit
-                        style: "login-button"
+                        style: "py-2.5 px-4 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
                         if store.loading {
                             text "Loading..."
                         } else if .register_mode {
@@ -76,10 +76,10 @@ widget LoginPage {
                 }
                 // 切换 登录/注册 模式
                 col {
-                    style: "login-footer"
+                    style: "mt-1 text-center"
                     button {
                         onclick: .ToggleMode
-                        style: "toggle-mode"
+                        style: "bg-transparent border-none text-primary text-sm underline cursor-pointer hover:opacity-80"
                         if .register_mode {
                             text "Already have an account?"
                         } else {

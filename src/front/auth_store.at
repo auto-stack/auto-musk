@@ -46,7 +46,8 @@ store AuthStore {
             }
         }
 
-        // Login(username, password): 调 auth_login，成功则存 token/user 并拉 me()。
+        // Login(username, password): 调 auth_login，成功则存 token/user。
+        // 后端返回 {token, user:{username, role}}（嵌套 user 对象）。
         .Login(username, password) -> {
             .loading = true
             .error = ""
@@ -55,14 +56,11 @@ store AuthStore {
             if resp != None {
                 .token = resp.token
                 .user = AuthUser {
-                    user_id: resp.user_id,
-                    username: resp.username,
-                    roles: resp.roles,
-                    permissions: [],
+                    username: resp.user.username,
+                    role: resp.user.role,
                 }
                 localStorage.setItem("musk_jwt", resp.token)
                 localStorage.setItem("musk_user", .user)
-                Me()
             }
         }
 
@@ -75,18 +73,15 @@ store AuthStore {
             if resp != None {
                 .token = resp.token
                 .user = AuthUser {
-                    user_id: resp.user_id,
-                    username: resp.username,
-                    roles: resp.roles,
-                    permissions: [],
+                    username: resp.user.username,
+                    role: resp.user.role,
                 }
                 localStorage.setItem("musk_jwt", resp.token)
                 localStorage.setItem("musk_user", .user)
-                Me()
             }
         }
 
-        // Me: 拉 /api/auth/me 获取完整 permissions；失败则 logout。
+        // Me: 拉 /api/auth/me 刷新 user 信息；失败则 logout。
         .Me -> {
             if .token == None { return None }
             let me = auth_me()

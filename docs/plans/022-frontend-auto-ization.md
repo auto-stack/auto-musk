@@ -1,6 +1,6 @@
 # 022 — auto-musk 前端 Auto 化（web/ SPA → AutoUI）
 
-> **状态**：🟢 核心目标达成 + B 类前端接线完成（4 视图 Auto 化 + 流式机制 + 生成器扩展 + §10 根治 + 两 codegen 限制修复 + api.ts 路径参数修复 + §7.6 静态 parity + relay/gate/professions 全链路接线）。剩余：C 类运行时视觉/行为 parity（需 dev server 环境），见 §8 / §11。
+> **状态**：🟢 核心目标达成 + B 类前端接线完成（4 视图 Auto 化 + 流式机制 + 生成器扩展 + §10 根治 + 两 codegen 限制修复 + api.ts 路径参数修复 + §7.6 静态 parity + relay/gate/professions 全链路接线）。剩余：C 类运行时视觉/行为 parity（需 dev server 环境）+ D 类 auto-lang 工具链缺陷（auto run 后端绕过 a2r，见 §8）。
 > **前置**：Plan 020/021（后端业务端点 100% ag + 严格 parity 闭环，方法论来源）；auto-lang 的 a2vue codegen（examples/ui/015-notes 基准）。
 > **仓库**：auto-musk（`web/` + 新建 `src/front/` + `src/back/api.at`）+ auto-lang（codegen 三处扩展：SSE 多事件 / i18n / markdown-mermaid tag）。
 > **目标**：为 `web/` 主 SPA（~1.85 万行 Vue3+TS）创建 AutoUI `.at` 源，使 `auto build` 生成的 vue 工程在**功能/交互/外观**上与原生 `web/` 达到**行为+视觉一致**（对标后端 parity 标准）。一致性口径选定**纯 AutoUI 原生表达**——遇 codegen 缺口优先扩展生成器。
@@ -201,6 +201,21 @@ worktree 全部清理（plan012-a/b/c + label-class + plan398）。
 
 - **§7.6 全量 parity 闭环**：逐视图（Login/Chats/Specs/Wiki）截图/DOM/交互比对，零 drift 验证，端到端冒烟（参照 015-notes acceptance.atd，可选）。需运行时验证环境。
 - **§7.7 README 前端章节更新**：本 plan 的前端 Auto 化成果（4 视图 + 流式机制 + 生成器扩展）需写入项目 README。
+
+### D 类：auto run 无法一键拉起全栈（auto-lang 工具链缺陷，2026-08-08 发现）
+
+**现象**：`auto run` 在本工程会卡在 Step 5（后端启动）——它从 `src/back/api.at` 生成的桩后端 `examples/rust-workspace/auto-musk-back/` 有 90 个编译错误（所有类型坍缩成 `AuthUser`、`type` 字段名未转义等）。
+
+**根因（实测确认，非推断）**：`auto run`/`auto build` 生成 Rust 后端时，`api.at → api.rs` 走的是 `crates/auto-man/src/api_gen.rs:generate_api_rs`（`:1081`），这是一个**手写 CRUD 模板字符串拼接器**——它只读 `#[api]` 签名 + `pub type`，套 `Arc<Mutex<Vec<T>>>` + `db.lock()` 模板，**完全绕过 `trans/rust.rs` 的 a2r 核心转译器**。
+
+证据链：
+- **同一函数两种产物**（`auth_login`）：`auto trans rust`（真 a2r）产物 `backend/crates/musk/src/auto_generated/server.rs` 完整保留 `State<AppState>` 参数 + `auth_login_result(...)` 函数体 + token 判断逻辑；而 `auto run` 的 `api_gen` 产物 `examples/.../api.rs` 把它套成 `State<Db>` + `db.lock()` + push `AuthUser`（CRUD 模板，函数体逻辑全丢）。
+- **`use.rust` 处理分裂**：实测在 `api.at` 加 `use.rust std::collections::HashMap`，`auto build` 生成的 `api.rs` 里 `HashMap=0`（丢弃）；同样语句放进 `db.at`，生成的 `db.rs` 里 `use std::collections::HashMap;` 完整保留。根因：`api_gen.rs:301-325` 的 `transpile_db_to_rs` 调用了 `transpile_rust`（a2r 核心），但 `generate_api_rs`（`:622`/`:1081`）零 a2r 调用。
+- **`target.rs:618/789` 证明 a2r 核心能转译任意 `.at`**（含 `use.rust`/复杂函数体）——能力一直在，只是 `auto run` 的后端路径没调用它。
+
+**影响**：`auto run` 无法一键拉起 auto-musk 全栈（前端生成 ✅，后端 ❌）。当前可用「`musk serve` 真后端（`backend/crates/musk/auto-src/` 经 `auto trans` 转译 + `cargo build`）+ 前端 dev server（`gen/front/vue/` vite，proxy → :8080）」双服务方式运行（见本文件末尾"运行方式"）。
+
+**解法（auto-lang 侧，未实施）**：让 `generate_rust_server`（`api_gen.rs:565`）对 `api.at`（及所有 `back/*.at`）调用 `transpile_rust`（a2r 核心），而非手写 CRUD 模板。参考 `target.rs:789` 的 `transpile_rust_project_multi` 多文件模式 + `db.at` 已有的 `transpile_db_to_rs` 先例。这是跨 auto-lang 仓库的工具链改动，需立项专项计划。
 
 ### 其他（低优先级）
 
