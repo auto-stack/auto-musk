@@ -73,8 +73,8 @@ widget SpecsView {
                     col {
                         style: "overview-content"
                         h2 "Overview" { style: "text-xl font-bold mb-4" }
-                        if .store.overview.value != "" {
-                            text .store.overview.value
+                        if .store.overview != "" {
+                            text .store.overview
                         } else {
                             text "Loading overview..."
                         }
@@ -91,8 +91,8 @@ widget SpecsView {
                                 text "+ Add Item"
                             }
                         }
-                        if .store.document.value != None {
-                            for section in .store.document.value.sections {
+                        if .store.document != None {
+                            for section in .store.document.sections {
                                 if .section.section_type == .active_section {
                                     for item in .section.items {
                                         col {

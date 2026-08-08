@@ -12,6 +12,8 @@ use chats_view: ChatsView
 widget App {
     use {
         fn: setupAuthFetch from "src/front/setup_auth_fetch.ts"
+        fn: injectStyles from "src/front/inject_styles.ts"
+        fn: ensureWorkspace from "src/front/ensure_workspace.ts"
     }
 
     msg Msg {
@@ -27,37 +29,37 @@ widget App {
     }
 
     view {
-        if store.authenticated.value != true {
+        if store.authenticated != true {
             LoginPage
         } else {
             row {
-                style: "musk-app"
-                // view rail
+                style: "h-screen w-full"
+                // view rail（侧边导航栏）
                 col {
-                    style: "view-rail"
-                    text "Auto Musk" { style: "rail-brand" }
+                    style: "w-48 shrink-0 bg-card border-r border-border gap-3 p-3"
+                    text "Auto Musk" { style: "text-base font-bold text-foreground px-2 py-1" }
                     col {
-                        style: "rail-tabs"
+                        style: "gap-1"
                         button {
                             onclick: .ShowChats
-                            style: "rail-tab"
+                            style: "w-full text-left px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors bg-transparent border-none cursor-pointer"
                             text "Chat"
                         }
                         button {
                             onclick: .ShowSpecs
-                            style: "rail-tab"
+                            style: "w-full text-left px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors bg-transparent border-none cursor-pointer"
                             text "Specs"
                         }
                         button {
                             onclick: .ShowWiki
-                            style: "rail-tab"
+                            style: "w-full text-left px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors bg-transparent border-none cursor-pointer"
                             text "Wiki"
                         }
                     }
                 }
                 // view main（v-if 切换视图）
                 col {
-                    style: "view-main"
+                    style: "flex-1 min-h-0 min-w-0 overflow-hidden"
                     if .current_view == "specs" {
                         SpecsView
                     } else if .current_view == "wiki" {
@@ -71,7 +73,7 @@ widget App {
     }
 
     on {
-        .Init -> { setupAuthFetch(); store.Init() }
+        .Init -> { injectStyles(); setupAuthFetch(); store.Init() }
         .ShowChats -> { .current_view = "chats" }
         .ShowSpecs -> { .current_view = "specs" }
         .ShowWiki -> { .current_view = "wiki" }

@@ -6,6 +6,10 @@
 use store: WikiStore
 
 widget WikiView {
+    use {
+        fn: ensureWorkspace from "src/front/ensure_workspace.ts"
+    }
+
     msg Msg {
         Init,
         SelectPage(str),
@@ -138,13 +142,13 @@ widget WikiView {
                             }
                         }
                     }
-                } else if .store.current_page.value != None {
+                } else if .store.current_page != None {
                     // 渲染当前 page（markdown 内容）
                     col {
                         style: "wiki-content"
                         row {
                             style: "wiki-content-header"
-                            h2 .store.current_page.value.title { style: "text-xl font-bold" }
+                            h2 .store.current_page.title { style: "text-xl font-bold" }
                             row {
                                 style: "wiki-content-actions"
                                 button {
@@ -161,7 +165,7 @@ widget WikiView {
                         }
                         // markdown 渲染（Phase 3 内置 tag）
                         markdown {
-                            content: .store.current_page.value.content
+                            content: .store.current_page.content
                             style: "wiki-markdown"
                         }
                     }
@@ -176,7 +180,10 @@ widget WikiView {
     }
 
     on {
-        .Init -> { store.Init() }
+        .Init -> {
+            ensureWorkspace();
+            store.Init()
+        }
 
         .SelectPage(slug) -> {
             .active_slug = slug;
@@ -203,9 +210,9 @@ widget WikiView {
         .CancelCreate -> { .creating = false }
 
         .EditPage -> {
-            if .store.current_page.value != None {
+            if .store.current_page != None {
                 .editing = true;
-                .new_content = .store.current_page.value.content
+                .new_content = .store.current_page.content
             }
         }
 

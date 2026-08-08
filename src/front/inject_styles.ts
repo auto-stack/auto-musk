@@ -1,0 +1,141 @@
+// inject_styles.ts — 全局布局样式注入（Plan 022 C 类 parity）
+//
+// AutoUI 生成的组件 <style> 为空，自定义语义 class（chats-view/session-list/
+// chats-canvas/msg-* 等）无对应 CSS。原生 web/ 把这些放在各组件 <style scoped>。
+// 这里集中注入全局样式，对齐原生视觉。
+//
+// 逃生舱说明：AutoUI .at 无法表达 scoped CSS，用 use { fn } 在 App.Init 注入。
+
+const STYLES = `
+/* ── ChatsView 布局 ── */
+.chats-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
+.chats-view > div:first-child {
+  width: 220px; flex-shrink: 0; display: flex; flex-direction: column;
+  border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
+}
+.sidebar-header {
+  display: flex; align-items: center; gap: 0.35rem;
+  padding: 0.75rem 1rem; flex-shrink: 0; height: 48px;
+}
+.sidebar-title { flex: 1; font-size: 0.85rem; font-weight: 600; color: hsl(var(--muted-foreground)); line-height: 1; }
+.sidebar-new-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 26px; padding: 0 0.5rem; font-size: 0.75rem;
+  border: 1px solid hsl(var(--border)); border-radius: 6px;
+  background: transparent; color: hsl(var(--foreground)); cursor: pointer;
+}
+.sidebar-new-btn:hover { background: hsl(var(--accent)); }
+.session-list { flex: 1; overflow-y: auto; padding: 0 0.5rem; }
+.session-item {
+  display: block; width: 100%; text-align: left;
+  padding: 0.5rem 0.6rem; margin-bottom: 2px; border: none; border-radius: 6px;
+  background: transparent; cursor: pointer;
+}
+.session-item:hover { background: hsl(var(--accent)); }
+.session-item.active { background: hsl(var(--accent)); }
+.session-preview { display: flex; flex-direction: column; gap: 2px; }
+.session-name { font-size: 0.85rem; color: hsl(var(--foreground)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-count { font-size: 0.72rem; color: hsl(var(--muted-foreground)); }
+
+.chats-body { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.chats-header {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.6rem 1rem; height: 48px; flex-shrink: 0;
+  border-bottom: 1px solid hsl(var(--border)); background: hsl(var(--card));
+}
+.chats-title { font-size: 0.95rem; font-weight: 600; color: hsl(var(--foreground)); }
+.chats-canvas { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+
+/* 消息样式 */
+.msg { max-width: 80%; padding: 0.6rem 0.9rem; border-radius: 10px; font-size: 0.9rem; line-height: 1.5; }
+.msg.assistant-msg { align-self: flex-start; background: hsl(var(--card)); border: 1px solid hsl(var(--border)); }
+.msg.user-msg { align-self: flex-end; background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+.msg-thinking { font-size: 0.8rem; color: hsl(var(--muted-foreground)); font-style: italic; padding: 0.25rem 0.5rem; }
+.msg-error { color: hsl(var(--destructive)); font-size: 0.85rem; padding: 0.25rem 0.5rem; }
+
+/* ── SpecsView 布局 ── */
+.specs-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
+.specs-view > div:first-child {
+  width: 200px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.25rem;
+  padding: 0.75rem 0.5rem; border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
+  overflow-y: auto;
+}
+.section-nav-header { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.75rem; flex-shrink: 0; }
+.section-nav-title { font-size: 0.95rem; font-weight: 700; color: hsl(var(--foreground)); }
+.overview-entry {
+  display: block; width: 100%; text-align: left;
+  padding: 0.4rem 0.75rem; border: none; border-radius: 6px; font-size: 0.85rem;
+  background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer;
+}
+.overview-entry:hover { background: hsl(var(--accent)); }
+.overview-entry.active { background: hsl(var(--accent)); color: hsl(var(--foreground)); font-weight: 500; }
+.section-nav-item {
+  display: block; width: 100%; text-align: left;
+  padding: 0.4rem 0.75rem; border: none; border-radius: 6px; font-size: 0.85rem;
+  background: transparent; color: hsl(var(--foreground)); cursor: pointer;
+}
+.section-nav-item:hover { background: hsl(var(--accent)); }
+.section-nav-item.active { background: hsl(var(--accent)); font-weight: 500; }
+.specs-main { flex: 1; overflow-y: auto; padding: 1.25rem; display: flex; flex-direction: column; }
+.overview-content { font-size: 0.9rem; line-height: 1.6; color: hsl(var(--foreground)); }
+.section-content { margin-bottom: 1rem; }
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
+.spec-item-btn { display: block; width: 100%; text-align: left; padding: 0.6rem 0.75rem; border: 1px solid hsl(var(--border)); border-radius: 8px; margin-bottom: 0.4rem; background: hsl(var(--card)); cursor: pointer; }
+.spec-item-btn:hover { border-color: hsl(var(--primary)); }
+.spec-item-main { display: flex; align-items: center; gap: 0.5rem; }
+.spec-item-title { font-weight: 500; font-size: 0.88rem; flex: 1; color: hsl(var(--foreground)); }
+.spec-item-status { font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+.spec-item-actions { display: flex; gap: 0.25rem; }
+
+/* 编辑面板 */
+.edit-panel { padding: 1rem; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--card)); margin-bottom: 1rem; }
+.form-group { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.75rem; }
+.form-group label { font-size: 0.82rem; font-weight: 500; color: hsl(var(--muted-foreground)); }
+.form-input { padding: 0.5rem 0.65rem; border: 1px solid hsl(var(--border)); border-radius: 6px; background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 0.88rem; }
+.form-input:focus { outline: none; border-color: hsl(var(--primary)); }
+.content-input { min-height: 120px; resize: vertical; font-family: monospace; }
+.edit-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+.add-btn, .save-btn, .cancel-btn, .action-btn {
+  padding: 0.4rem 0.85rem; border: 1px solid hsl(var(--border)); border-radius: 6px; font-size: 0.82rem; cursor: pointer; background: hsl(var(--card)); color: hsl(var(--foreground));
+}
+.add-btn:hover, .save-btn:hover { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-color: hsl(var(--primary)); }
+.cancel-btn:hover, .action-btn:hover { background: hsl(var(--accent)); }
+.action-btn.danger { color: hsl(var(--destructive)); }
+.action-btn.danger:hover { background: hsl(var(--destructive) / 0.1); }
+
+/* ── WikiView 布局 ── */
+.wiki-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
+.wiki-view > div:first-child {
+  width: 240px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.25rem;
+  padding: 0.75rem 0.5rem; border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
+  overflow-y: auto;
+}
+.wiki-nav-header { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; flex-shrink: 0; }
+.wiki-nav-title { font-size: 0.95rem; font-weight: 700; color: hsl(var(--foreground)); }
+.nav-icon-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid hsl(var(--border)); border-radius: 6px; background: transparent; cursor: pointer; color: hsl(var(--foreground)); font-size: 1rem; }
+.nav-icon-btn:hover { background: hsl(var(--accent)); }
+.wiki-nav-list { flex: 1; overflow-y: auto; }
+.wiki-nav-item {
+  display: block; width: 100%; text-align: left;
+  padding: 0.4rem 0.75rem; border: none; border-radius: 6px; font-size: 0.85rem;
+  background: transparent; color: hsl(var(--foreground)); cursor: pointer;
+}
+.wiki-nav-item:hover { background: hsl(var(--accent)); }
+.wiki-nav-item.active { background: hsl(var(--accent)); font-weight: 500; }
+.wiki-main { flex: 1; overflow-y: auto; padding: 1.25rem; display: flex; flex-direction: column; }
+.wiki-content-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+.wiki-content-actions { display: flex; gap: 0.25rem; }
+.wiki-content { font-size: 0.9rem; line-height: 1.6; color: hsl(var(--foreground)); }
+.wiki-markdown { font-size: 0.9rem; line-height: 1.6; }
+.wiki-editor { padding: 1rem; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--card)); }
+.wiki-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: hsl(var(--muted-foreground)); gap: 0.5rem; text-align: center; }
+.text-muted { color: hsl(var(--muted-foreground)); }
+`
+
+export function injectStyles(): void {
+  if (document.getElementById('musk-global-styles')) return
+  const style = document.createElement('style')
+  style.id = 'musk-global-styles'
+  style.textContent = STYLES
+  document.head.appendChild(style)
+}

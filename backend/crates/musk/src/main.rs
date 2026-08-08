@@ -61,8 +61,8 @@ enum Cmd {
 
     /// Start the HTTP API server (for the Vue frontend).
     Serve {
-        /// Address to listen on.
-        #[arg(long, default_value = "127.0.0.1:8080")]
+        /// Address to listen on. Also reads MUSK_SERVE_ADDR env var.
+        #[arg(long, default_value = "127.0.0.1:8080", env = "MUSK_SERVE_ADDR")]
         addr: String,
 
         /// Working directory to serve from (becomes the default workspace root).

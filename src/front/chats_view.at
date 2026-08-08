@@ -93,8 +93,8 @@ widget ChatsView {
                         button {
                             key: .s.id
                             onclick: .SelectSession(.s.id)
-                            style: if .store.session.value != None {
-                                if .s.id == .store.session.value.id {
+                            style: if .store.session_id != "" {
+                                if .s.id == .store.session_id {
                                     "session-item active"
                                 } else {
                                     "session-item"
@@ -117,8 +117,8 @@ widget ChatsView {
                 // header
                 row {
                     style: "chats-header"
-                    if .store.session.value != None {
-                        text .store.session.value.id { style: "chats-title" }
+                    if .store.session_id != "" {
+                        text .store.session_id { style: "chats-title" }
                     } else {
                         text "No session" { style: "chats-title" }
                     }
@@ -250,7 +250,7 @@ widget ChatsView {
                 .input = "";
                 if !handled {
                     store.Send(.text);
-                    startForgeStream(.store.session_id.value, .store.workspace.value, .store.token.value)
+                    startForgeStream(.store.session_id, .store.workspace, .store.token)
                 }
             }
         }
@@ -280,7 +280,7 @@ widget ChatsView {
         // OnQuestionnaireSubmit(answers): 问卷提交，把答案作为用户消息发回 + 启动 SSE。
         .OnQuestionnaireSubmit(answers) -> {
             store.Send(.answers);
-            startForgeStream(.store.session_id.value, .store.workspace.value, .store.token.value)
+            startForgeStream(.store.session_id, .store.workspace, .store.token)
         }
     }
 }

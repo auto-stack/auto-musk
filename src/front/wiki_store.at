@@ -7,14 +7,15 @@ use back.api: wiki_list_pages, wiki_get_page, wiki_create_page, wiki_update_page
 
 store WikiStore {
     model {
-        var pages []WikiPageMeta = []
-        var current_page Option<WikiPage> = None
-        var tree []TreeNode = []
-        var raw_tree []TreeNode = []
+        var pages []Value = []
+        var current_page Value = null
+        var tree []Value = []
+        var raw_tree []Value = []
         var loading bool = false
         var error str = ""
         var search_query str = ""
-        var search_results []WikiPageMeta = []
+        var search_results []Value = []
+        var workspace str = ""
     }
 
     msg Msg {
@@ -31,36 +32,42 @@ store WikiStore {
     }
 
     on {
-        // Init: 加载 pages 列表 + tree。
+        // Init: 从 localStorage 读 workspace（为空则用默认值），加载 pages + tree。
         .Init -> {
+            let ws = localStorage.getItem("musk_workspace");
+            if ws != None {
+                .workspace = ws
+            } else {
+                .workspace = "musk-demo"
+            };
             LoadPages();
             LoadTree()
         }
 
-        // LoadPages: GET /api/forge/wiki/pages。
+        // LoadPages: GET /api/forge/wiki/{project}/pages。后端返回 {pages:[...]}。
         .LoadPages -> {
             .loading = true;
             .error = "";
-            let loaded = wiki_list_pages();
+            let resp = wiki_list_pages(.workspace);
             .loading = false;
-            .pages = loaded
+            .pages = resp.pages
         }
 
-        // LoadPage(slug): GET /api/forge/wiki/page/{slug}。
+        // LoadPage(slug): GET /api/forge/wiki/{project}/page/{slug}。后端返回 {page:{...}}。
         .LoadPage(slug) -> {
             .error = "";
-            let page = wiki_get_page(slug);
-            if page != None {
-                .current_page = page
+            let resp = wiki_get_page(.workspace, slug);
+            if resp != None {
+                .current_page = resp.page
             }
         }
 
-        // CreatePage(slug, title, content): POST 新建页面。
+        // CreatePage(slug, title, content): POST 新建页面。后端返回 {page:{...}}。
         .CreatePage(slug, title, content) -> {
             .error = "";
-            let page = wiki_create_page(slug, title, content, "manual", []);
-            if page != None {
-                .current_page = page;
+            let resp = wiki_create_page(.workspace, slug, title, content, "manual", []);
+            if resp != None {
+                .current_page = resp.page;
                 LoadPages()
             }
         }
@@ -68,10 +75,10 @@ store WikiStore {
         // UpdatePage(slug, content): PUT 更新页面内容。
         .UpdatePage(slug, content) -> {
             .error = "";
-            if .current_page != None {
-                let page = wiki_update_page(slug, content, .current_page.value.title, .current_page.value.tags);
-                if page != None {
-                    .current_page = page
+            if .current_page != null {
+                let resp = wiki_update_page(.workspace, slug, content, .current_page.title, .current_page.tags);
+                if resp != None {
+                    .current_page = resp.page
                 }
             }
         }
@@ -79,34 +86,34 @@ store WikiStore {
         // DeletePage(slug): DELETE 删除页面。
         .DeletePage(slug) -> {
             .error = "";
-            wiki_delete_page(slug);
+            wiki_delete_page(.workspace, slug);
             if .error == "" {
-                .current_page = None;
+                .current_page = null;
                 LoadPages()
             }
         }
 
-        // Search(q): GET /api/forge/wiki/search?q=。
+        // Search(q): POST /api/forge/wiki/{project}/search。
         .Search(q) -> {
             .search_query = q;
             if q != "" {
-                let found = wiki_search(q);
-                .search_results = found
+                let resp = wiki_search(.workspace, q);
+                .search_results = resp.results
             } else {
                 .search_results = []
             }
         }
 
-        // LoadTree: GET /api/forge/wiki/tree。
+        // LoadTree: GET /api/forge/wiki/{project}/tree。
         .LoadTree -> {
-            let loaded_tree = wiki_tree();
-            .tree = loaded_tree
+            let resp = wiki_tree(.workspace);
+            .tree = resp
         }
 
-        // LoadRawTree: GET /api/forge/raw/tree。
+        // LoadRawTree: GET /api/forge/raw/{project}/tree。
         .LoadRawTree -> {
-            let loaded_raw = wiki_raw_tree();
-            .raw_tree = loaded_raw
+            let resp = wiki_raw_tree(.workspace);
+            .raw_tree = resp
         }
 
         .SetError(msg) -> { .error = msg }
