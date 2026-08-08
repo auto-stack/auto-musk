@@ -93,12 +93,8 @@ widget ChatsView {
                         button {
                             key: .s.id
                             onclick: .SelectSession(.s.id)
-                            style: if .store.session_id != "" {
-                                if .s.id == .store.session_id {
-                                    "session-item active"
-                                } else {
-                                    "session-item"
-                                }
+                            style: if .s.id == .store.session_id {
+                                "session-item active"
                             } else {
                                 "session-item"
                             }
