@@ -170,7 +170,7 @@ pub fn specs_related(id str) {
     return None
 }
 
-#[api(method = "GET", path = "/api/specs/drift-check")]
+#[api(method = "POST", path = "/api/specs/drift-check")]
 pub fn specs_drift_check() {
     return None
 }
@@ -318,7 +318,7 @@ pub fn chats_delete_all_sessions() {
     return None
 }
 
-#[api(method = "POST", path = "/api/chats/session/{id}/rename")]
+#[api(method = "PATCH", path = "/api/chats/session/{id}")]
 pub fn chats_rename_session(id str, name str) {
     return None
 }
