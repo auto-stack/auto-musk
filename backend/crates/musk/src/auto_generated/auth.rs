@@ -209,6 +209,20 @@ impl AuthStore {
         guard.insert(token.clone().to_string(), username.clone().to_string());
         return Some(Session { token: token.to_string(), username: username.clone().to_string() });
     }
+    pub fn register(&self, username: &str, password: &str) -> Option<Session> {
+        let users: Vec<User> = self.load_users();
+        for u in &users {
+            if u.username == username {
+                return None;
+            }
+        }
+        let salt: String = random_hex(16);
+        let hash: String = hash_password(password, &salt);
+        let mut all: Vec<User> = users.clone();
+        all.push(User { username: username.to_string(), role: Role::Developer, password_hash: hash, salt: salt });
+        let _ok: bool = self.save_users(all);
+        return self.login(username, password);
+    }
     pub fn session_user(&self, token: &str) -> Option<UserInfo> {
         let mut guard = self.sessions.lock().unwrap();
         match guard.get(token) {

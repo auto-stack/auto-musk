@@ -155,6 +155,20 @@ pub fn auth_login_result(s: &State<AppState>, u: String, p: String) -> (String, 
         None => (String::new(), String::new()),
     }
 }
+pub fn auth_register_result(s: &State<AppState>, u: String, p: String) -> (String, String) {
+    match s.0.auth.register(&u, &p) {
+        Some(ses) => {
+            let role = s
+                .0
+                .auth
+                .session_user(&ses.token)
+                .map(|u| u.role.to_string())
+                .unwrap_or_default();
+            (ses.token, role)
+        }
+        None => (String::new(), String::new()),
+    }
+}
 pub fn auth_token_from_headers(_s: &State<AppState>, h: axum::http::HeaderMap) -> String {
     bearer_from(&h).unwrap_or_default()
 }

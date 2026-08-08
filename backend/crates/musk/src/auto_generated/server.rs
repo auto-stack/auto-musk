@@ -382,20 +382,32 @@ pub async fn auth_login(s: State<AppState>, body: Json<LoginRequest>) -> Respons
     let pair = auth_login_result(&s, username.clone(), body.password.clone());
     let token: String = pair.0.clone();
     let role: String = pair.1.clone();
-    if (token.len() as i32) > 0 {
+    if (token.len() as i64) > 0 {
         return ok_response(LoginResponse { token: token.to_string(), user: UserInfo { username: username.to_string(), role: role.to_string() } });
     }
     return err_response("invalid credentials", 401);
 }
 
+pub async fn auth_register(s: State<AppState>, body: Json<LoginRequest>) -> Response {
+
+    let username: String = body.username.clone();
+    let pair = auth_register_result(&s, username.clone(), body.password.clone());
+    let token: String = pair.0.clone();
+    let role: String = pair.1.clone();
+    if (token.len() as i64) > 0 {
+        return ok_response(LoginResponse { token: token.to_string(), user: UserInfo { username: username.to_string(), role: role.to_string() } });
+    }
+    return err_response("username already exists", 409);
+}
+
 pub async fn auth_me(s: State<AppState>, headers: HeaderMap) -> Response {
 
     let token: String = auth_token_from_headers(&s, headers);
-    if (token.len() as i32) == 0 {
+    if (token.len() as i64) == 0 {
         return err_response("missing Authorization header", 401);
     }
     let username: String = auth_username_from_token(&s, &token);
-    if (username.len() as i32) == 0 {
+    if (username.len() as i64) == 0 {
         return err_response("invalid or expired session", 401);
     }
     let role: String = auth_role_from_token(&s, &token);
@@ -593,6 +605,7 @@ pub fn build_router() -> Router<AppState> {
     app = app.route("/api/workflows", get(workflows));
     app = app.route("/api/files/{workspace_id}/{*path}", get(workspace_file));
     app = app.route("/api/auth/login", post(auth_login));
+    app = app.route("/api/auth/register", post(auth_register));
     app = app.route("/api/auth/me", get(auth_me));
     app = app.route("/api/auth/logout", post(auth_logout));
     app = app.route("/api/specs", get(specs_list));

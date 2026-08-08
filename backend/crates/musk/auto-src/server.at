@@ -240,6 +240,18 @@ pub fn auth_login(s State<AppState>, body Json<LoginRequest>) ~Response {
     return err_response("invalid credentials", 401u)
 }
 
+pub fn auth_register(s State<AppState>, body Json<LoginRequest>) ~Response {
+    // register: 创建新用户(Developer 角色) + 自动登录。失败(用户名已存在)→ 409。
+    let username str = body.username.clone()
+    let pair = auth_register_result(s.view, username.clone(), body.password.clone())
+    let token str = pair[0]
+    let role str = pair[1]
+    if token.len() > 0u {
+        return ok_response(LoginResponse(token: token, user: UserInfo(username: username, role: role)))
+    }
+    return err_response("username already exists", 409u)
+}
+
 pub fn auth_me(s State<AppState>, headers HeaderMap) ~Response {
     // 与手写版一致:只返回 user;缺 token / 失效 session → 401。
     let token str = auth_token_from_headers(s.view, headers)
@@ -496,6 +508,7 @@ pub fn build_router() Router<AppState> {
     app = app.route("/api/workflows", get(workflows))
     app = app.route("/api/files/{workspace_id}/{*path}", get(workspace_file))
     app = app.route("/api/auth/login", post(auth_login))
+    app = app.route("/api/auth/register", post(auth_register))
     app = app.route("/api/auth/me", get(auth_me))
     app = app.route("/api/auth/logout", post(auth_logout))
     app = app.route("/api/specs", get(specs_list))

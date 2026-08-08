@@ -157,6 +157,28 @@ impl AuthStore {
         })
     }
 
+    /// Register a new user; on success create a session + return its token.
+    /// Returns None if the username already exists or persistence fails.
+    /// New users get the Developer role by default.
+    pub fn register(&self, username: &str, password: &str) -> Option<Session> {
+        let mut users = self.load_users().ok()?;
+        // Reject if username already taken.
+        if users.iter().any(|u| u.username == username) {
+            return None;
+        }
+        let salt = random_hex(16);
+        let hash = hash_password(password, &salt);
+        users.push(User {
+            username: username.to_string(),
+            role: Role::Developer,
+            password_hash: hash,
+            salt,
+        });
+        self.save_users(&users).ok()?;
+        // Auto-login the new user.
+        self.login(username, password)
+    }
+
     /// Look up the user for a session token (None if unknown/expired).
     pub fn session_user(&self, token: &str) -> Option<UserInfo> {
         let username = self.sessions.lock().unwrap().get(token)?.clone();
