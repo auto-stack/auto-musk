@@ -39,7 +39,7 @@ widget App {
                     style: "w-48 shrink-0 bg-card border-r border-border gap-3 p-3"
                     col {
                         style: "px-2 py-1 gap-0"
-                        text "Auto Musk" { style: "text-base font-bold text-foreground" }
+                        text "Auto Musk" { style: "text-base font-bold text-primary" }
                         text "v0.1.0" { style: "text-xs text-muted-foreground" }
                     }
                     col {
