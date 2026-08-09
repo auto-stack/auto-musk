@@ -132,35 +132,57 @@ const STYLES = `
 .msg-thinking { font-size: 0.82rem; color: hsl(var(--muted-foreground)); font-style: italic; padding: 0.25rem 0.5rem; align-self: flex-start; max-width: 100%; }
 .msg-error { color: hsl(var(--destructive)); font-size: 0.88rem; padding: 0.5rem 0.75rem; background: hsl(var(--destructive) / 0.08); border-radius: 8px; align-self: flex-start; max-width: 100%; }
 
-/* ── 输入区（对齐原生版 .input-compose + .send-btn）── */
+/* ── 输入区（对齐原生版 .input-compose + .send-btn）──
+   DOM: .chats-input-bar > .input-inner > .input-row(flex) > [.input-compose(block,fixed px), button.send-btn]
+   问题：.input-compose 被设成 block+固定px宽度，textarea 被设成 inline-block+固定px宽度。
+   修复：让 .input-compose 在 flex 行内 flex:1 自适应；textarea width:100% block。 */
+.input-row { display: flex !important; align-items: flex-end; gap: 0.4rem; width: 100%; }
 .input-compose {
+  flex: 1 1 auto !important;          /* 在 .input-row 内填满剩余空间 */
+  min-width: 0 !important;            /* 允许收缩（flex 子项防溢出） */
+  width: auto !important;             /* 覆盖 codegen 注入的固定 px */
+  display: flex !important;           /* 让内部 textarea 自适应 */
+  align-items: center;
   background: hsl(var(--muted-foreground) / 0.04) !important;
   border: 1px solid hsl(var(--primary) / 0.15) !important;
   border-radius: 20px !important;
   padding: 4px 8px !important;
 }
-/* textarea 自身去边框（靠容器的边框+圆角） */
+/* .input-backdrop（@mention v-html 高亮层）：原生版透明背景+无边框，
+   纯粹只是 mention 高亮覆盖层。Auto 版 scoped style 给了灰底+灰边+6px圆角，
+   叠加在外层紫色圆角 .input-compose 上造成"双层"视觉混乱——清零。 */
+.input-backdrop {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+/* textarea 自身去边框（靠容器的边框+圆角），block+100% 宽自适应 */
 .input-compose textarea,
 .chats-input {
+  display: block !important;
+  width: 100% !important;
   border: none !important; border-radius: 0 !important; background: transparent !important;
   font-size: 0.95rem; resize: none; outline: none;
 }
 .chats-input:focus { outline: none; box-shadow: none; }
-/* input-row（textarea + send 按钮的 flex 行） */
-.input-row { display: flex; align-items: flex-end; gap: 0.4rem; }
 /* Send 按钮：圆形 + 紫色底 + 白字（对齐原生版 .send-btn） */
 .input-row button[class*="send"],
 .input-compose button[type="submit"],
-.input-compose button:last-child {
-  width: 36px; height: 36px; border-radius: 50% !important;
+.input-compose button:last-child,
+.send-btn {
+  width: 36px !important; height: 36px !important;
+  min-width: 36px !important;
+  border-radius: 50% !important;
   background: hsl(var(--primary)) !important; color: hsl(var(--primary-foreground)) !important;
   border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
   font-size: 1.1rem; flex-shrink: 0; transition: opacity 0.15s;
 }
 .input-row button[class*="send"]:hover,
-.input-compose button:last-child:hover { opacity: 0.85; }
+.input-compose button:last-child:hover,
+.send-btn:hover { opacity: 0.85; }
 .input-row button[class*="send"]:disabled,
-.input-compose button:last-child:disabled { opacity: 0.4; cursor: not-allowed; }
+.input-compose button:last-child:disabled,
+.send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ── SpecsView 布局 ── */
 .specs-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }

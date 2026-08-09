@@ -20,7 +20,7 @@
             ref="textareaRef"
             v-model="text"
             class="chats-input"
-            placeholder="描述你想构建的内容... (Enter 发送, @ 呼出 agent, /relay//superpower//spec1 命令)"
+            placeholder="描述你想构建的内容... (Enter 发送, @ 呼出 agent, /relay /superpower /spec1 命令)"
             :disabled="disabled"
             @input="handleInput"
             @keydown="handleKeydown"
