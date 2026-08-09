@@ -75,8 +75,28 @@ export function startForgeStream(
   sessionId: string,
   workspace: string | null,
   token: string | null,
+  userContent?: string,
 ): void {
   stopForgeStream()
+  // 乐观插入 user 消息（立即显示，不等 API 返回）。
+  // store.Send 和 startForgeStream 并发执行（SendInput 不 await）；
+  // 如果只靠 resp.session.messages 更新，user 消息会延迟出现。
+  if (userContent && userContent.trim()) {
+    const msgs = _store.messages.value as any[]
+    const userMsg = {
+      id: `u-${Date.now()}`,
+      role: 'user',
+      content: userContent,
+      timestamp: Date.now(),
+      thinking: '',
+      tool_calls: [],
+      profession_id: '',
+    }
+    // 避免重复（如果 Send 的 API 已返回并 push 了）
+    if (!msgs.length || msgs[msgs.length - 1].role !== 'user' || msgs[msgs.length - 1].content !== userContent) {
+      _store.messages.value = [...msgs, userMsg]
+    }
+  }
   let path = `/api/chats/session/${encodeURIComponent(sessionId)}/stream`
   const params: string[] = []
   if (workspace) params.push(`workspace=${encodeURIComponent(workspace)}`)

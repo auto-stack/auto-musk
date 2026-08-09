@@ -46,62 +46,72 @@ const STYLES = `
 .chats-title { font-size: 0.95rem; font-weight: 600; color: hsl(var(--foreground)); }
 .chats-canvas { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
 
-/* 消息样式 — 对齐原生 ChatsView.vue 设计：
-   user 消息右对齐 + max-width 85%（无气泡背景，靠对齐区分）
-   assistant 消息左对齐 + 全宽（无气泡背景）
-   文字颜色统一用 --foreground（原生用 --af-fg，Auto 版对应 --foreground）
-   用 :has() 区分消息类型（绕过 codegen 的 class 绑定缺失）*/
+/* 消息样式 — 标准 chat UI（header + 气泡 + 工具栏）
+   对齐原生 ChatsView.vue：每条消息含 header（role + 时间）+ 气泡内容。
+   user 气泡右对齐 + primary 底色，AI 气泡左对齐 + card 底色。 */
 
-/* user 消息：右对齐 + 限制宽度 */
-.chats-canvas > div:has(.user-text) {
-  align-self: flex-end; max-width: 85%;
-}
-.chats-canvas > div:has(.user-text) .user-text {
-  color: hsl(var(--foreground)); white-space: pre-wrap; word-break: break-word; line-height: 1.6; font-size: 0.95rem;
-}
-.chats-canvas > div:has(.user-text) .user-text .inline-mention {
-  font-weight: 600; color: hsl(var(--primary));
-}
+/* 消息行（for 循环容器） */
+.msg-row { display: flex; flex-direction: column; gap: 0.2rem; margin-bottom: 0.6rem; }
+.msg-row-user { align-self: flex-end; max-width: 85%; }
+.msg-row-ai { align-self: flex-start; max-width: 100%; }
 
-/* assistant 消息：左对齐 + 全宽 */
-.chats-canvas > div:has(.streaming-document) {
-  align-self: flex-start; max-width: 100%;
+/* header */
+.msg-header {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0 0.25rem;
 }
-.chats-canvas > div:has(.streaming-document) .streaming-document {
-  color: hsl(var(--foreground)); font-size: 0.95rem; line-height: 1.6;
+.msg-role-badge {
+  font-size: 0.85rem; font-weight: 600;
 }
-.chats-canvas > div:has(.streaming-document) .streaming-document p,
-.chats-canvas > div:has(.streaming-document) .streaming-document li,
-.chats-canvas > div:has(.streaming-document) .streaming-document h1,
-.chats-canvas > div:has(.streaming-document) .streaming-document h2,
-.chats-canvas > div:has(.streaming-document) .streaming-document h3,
-.chats-canvas > div:has(.streaming-document) .streaming-document h4,
-.chats-canvas > div:has(.streaming-document) .streaming-document code,
-.chats-canvas > div:has(.streaming-document) .streaming-document pre,
-.chats-canvas > div:has(.streaming-document) .streaming-document ul,
-.chats-canvas > div:has(.streaming-document) .streaming-document ol,
-.chats-canvas > div:has(.streaming-document) .streaming-document blockquote {
-  color: hsl(var(--foreground));
-}
-.chats-canvas > div:has(.streaming-document) .streaming-document pre {
-  background: hsl(var(--muted)); padding: 0.6rem 0.8rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; margin: 0.5rem 0;
-}
-.chats-canvas > div:has(.streaming-document) .streaming-document code {
-  background: hsl(var(--muted)); padding: 2px 5px; border-radius: 4px; font-size: 0.88rem;
-}
-.chats-canvas > div:has(.streaming-document) .streaming-document pre code {
-  background: transparent; padding: 0;
+/* user 的 header 右对齐 */
+.chats-canvas > div:has(.msg-bubble-user) .msg-header { justify-content: flex-end; }
+.chats-canvas > div:has(.msg-bubble-user) .msg-role-badge { color: hsl(var(--primary)); }
+/* AI 的 header 左对齐 */
+.chats-canvas > div:has(.msg-bubble-ai) .msg-role-badge { color: hsl(var(--muted-foreground)); }
+.msg-time {
+  font-size: 0.72rem; color: hsl(var(--muted-foreground));
 }
 
-/* 流式 draft（正在输入的 assistant 消息） */
+/* 气泡 */
+.msg-bubble {
+  padding: 0.6rem 0.9rem; border-radius: 12px; font-size: 0.92rem; line-height: 1.6; word-break: break-word;
+}
+.msg-bubble-user {
+  background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
+  border-bottom-right-radius: 4px;
+}
+.msg-bubble-user .user-text { color: hsl(var(--primary-foreground)); white-space: pre-wrap; }
+.msg-bubble-user .user-text .inline-mention { color: hsl(var(--primary-foreground)); font-weight: 600; background: hsl(0 0% 100% / 0.15); }
+
+.msg-bubble-ai {
+  background: hsl(var(--card)); border: 1px solid hsl(var(--border)); color: hsl(var(--foreground));
+  border-bottom-left-radius: 4px;
+}
+.msg-bubble-ai .streaming-document { color: hsl(var(--foreground)); }
+.msg-bubble-ai .streaming-document p,
+.msg-bubble-ai .streaming-document li,
+.msg-bubble-ai .streaming-document h1,
+.msg-bubble-ai .streaming-document h2,
+.msg-bubble-ai .streaming-document h3,
+.msg-bubble-ai .streaming-document h4,
+.msg-bubble-ai .streaming-document code,
+.msg-bubble-ai .streaming-document pre,
+.msg-bubble-ai .streaming-document ul,
+.msg-bubble-ai .streaming-document ol,
+.msg-bubble-ai .streaming-document blockquote { color: hsl(var(--foreground)); }
+.msg-bubble-ai .streaming-document pre { background: hsl(var(--muted)); padding: 0.6rem 0.8rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; margin: 0.5rem 0; }
+.msg-bubble-ai .streaming-document code { background: hsl(var(--muted)); padding: 2px 5px; border-radius: 4px; font-size: 0.88rem; }
+.msg-bubble-ai .streaming-document pre code { background: transparent; padding: 0; }
+
+/* 旧版 :has(.user-text)/:has(.streaming-document) 兜底（无气泡包装时） */
+.chats-canvas > div:has(.user-text):not(:has(.msg-bubble-user)) { align-self: flex-end; max-width: 85%; }
+.chats-canvas > div:has(.user-text):not(:has(.msg-bubble-user)) .user-text { color: hsl(var(--foreground)); }
+.chats-canvas > div:has(.streaming-document):not(:has(.msg-bubble-ai)) { align-self: flex-start; max-width: 100%; }
+.chats-canvas > div:has(.streaming-document):not(:has(.msg-bubble-ai)) .streaming-document { color: hsl(var(--foreground)); }
+
+/* 流式 draft + thinking + error */
 .msg.assistant-msg.draft { align-self: flex-start; max-width: 100%; color: hsl(var(--foreground)); }
-
-/* 兜底 .msg class 版 */
-.msg.user-msg { align-self: flex-end; max-width: 85%; }
-.msg.assistant-msg { align-self: flex-start; max-width: 100%; }
-
 .msg-thinking { font-size: 0.82rem; color: hsl(var(--muted-foreground)); font-style: italic; padding: 0.25rem 0.5rem; align-self: flex-start; max-width: 100%; }
-.msg-error { color: hsl(var(--destructive)); font-size: 0.88rem; padding: 0.5rem 0.75rem; align-self: flex-start; max-width: 100%; }
+.msg-error { color: hsl(var(--destructive)); font-size: 0.88rem; padding: 0.5rem 0.75rem; background: hsl(var(--destructive) / 0.08); border-radius: 8px; align-self: flex-start; max-width: 100%; }
 
 /* ── SpecsView 布局 ── */
 .specs-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }

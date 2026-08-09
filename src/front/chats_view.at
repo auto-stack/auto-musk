@@ -146,18 +146,31 @@ widget ChatsView {
                     for msg in .store.messages {
                         col {
                             key: .msg.id
+                            style: "msg-row"
+                            // header: role 名 + 时间
+                            row {
+                                style: "msg-header"
+                                text .msg.role { style: "msg-role-badge" }
+                                text .msg.timestamp { style: "msg-time" }
+                            }
                             // 内容按 role 分支（assistant→StreamingRenderer 增量解析；
                             // user→UserMessage v-html @mention 高亮逃生舱，7.3/7.4）
                             if .msg.role == "assistant" {
                                 if .msg.content != "" {
-                                    StreamingRenderer {
-                                        source: .msg.content
-                                        streaming: false
+                                    col {
+                                        style: "msg-bubble msg-bubble-ai"
+                                        StreamingRenderer {
+                                            source: .msg.content
+                                            streaming: false
+                                        }
                                     }
                                 }
                             } else {
-                                UserMessage {
-                                    content: .msg.content
+                                col {
+                                    style: "msg-bubble msg-bubble-user"
+                                    UserMessage {
+                                        content: .msg.content
+                                    }
                                 }
                             }
                             // thinking 块
@@ -245,7 +258,7 @@ widget ChatsView {
                 .input = "";
                 if !handled {
                     store.Send(.text);
-                    startForgeStream(.store.session_id, .store.workspace, .store.token)
+                    startForgeStream(.store.session_id, .store.workspace, .store.token, .text)
                 }
             }
         }

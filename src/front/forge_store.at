@@ -88,8 +88,11 @@ store ForgeStore {
         .Send(content) -> {
             .current_draft = "";
             .thinking = "";
+            .error = "";
+            // 发送消息到后端。不覆盖 messages（避免和 SSE 回写竞态）——
+            // user 消息由 startForgeStream 在建连前乐观 push（见 forge_stream.ts），
+            // assistant 消息由 SSE delta 事件回写。
             let resp = chats_send_message(.session_id, content, "");
-            .messages = resp.session.messages;
             .streaming = true
         }
 
