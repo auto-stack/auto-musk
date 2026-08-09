@@ -53,7 +53,8 @@ store ForgeStore {
             if ws != None {
                 .workspace = ws
             } else {
-                .workspace = "musk-demo"
+                .workspace = "musk-demo";
+                localStorage.setItem("musk_workspace", "musk-demo")
             };
             let tk = localStorage.getItem("musk_jwt");
             .token = tk;
