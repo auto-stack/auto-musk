@@ -7,6 +7,17 @@
 // 逃生舱说明：AutoUI .at 无法表达 scoped CSS，用 use { fn } 在 App.Init 注入。
 
 const STYLES = `
+/* ── 导航栏 ── */
+.rail-tab {
+  width: 100%; text-align: left; padding: 0.5rem 0.75rem; border-radius: 0.375rem;
+  font-size: 0.875rem; color: hsl(var(--muted-foreground)); background: transparent;
+  border: none; cursor: pointer; transition: all 0.15s;
+}
+.rail-tab:hover { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
+.rail-tab.active {
+  background: hsl(var(--primary) / 0.08); color: hsl(var(--primary)); font-weight: 500;
+}
+
 /* ── ChatsView 布局 ── */
 .chats-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
 .chats-view > div:first-child {
