@@ -1,0 +1,62 @@
+// chat_message.at — ChatMessage view fn（单条聊天消息的可复用 view 片段）
+//
+// 统一消息渲染：header（role + 时间）+ 气泡（user 右对齐/AI 左对齐）+ thinking。
+// 抽象自 ChatsView 的内联 for-msg 循环，让消息展示逻辑可复用、可统一。
+//
+// 用法（在 ChatsView 的 view 块里）：
+//   for msg in .store.messages {
+//       ChatMessage(msg, .store.streaming)
+//   }
+//
+// 渲染规则：
+//   user → 右对齐气泡（primary 底）+ UserMessage 逃生舱（@mention 高亮）
+//   assistant → 左对齐气泡（card 底）+ StreamingRenderer（markdown 渲染）
+//   thinking → 折叠/展开的推理链（仅 assistant）
+//
+// 设计对标：原生 ChatsView.vue 的 .message + .message-content + .thinking-block。
+// tool_calls / questionnaire 不在此 fn 内（需要 store 交互，留在 ChatsView）。
+
+use { component: StreamingRenderer from "src/front/components/StreamingRenderer.vue" }
+use { component: UserMessage from "src/front/components/UserMessage.vue" }
+
+// ChatMessage — 渲染单条消息（header + 气泡 + thinking）。
+// msg: 消息对象（role/content/timestamp/thinking/profession_id）
+// is_streaming: 当前消息是否正在流式输入（控制打字光标）
+view fn ChatMessage(msg: Value, is_streaming: bool) {
+    col {
+        style: if msg.role == "user" { "msg-row msg-row-user" } else { "msg-row msg-row-ai" }
+        // header: 角色标识 + 时间
+        row {
+            style: "msg-header"
+            text msg.role { style: "msg-role-badge" }
+            text msg.timestamp { style: "msg-time" }
+        }
+        // 气泡内容（按 role 分支）
+        if msg.role == "assistant" {
+            col {
+                style: "msg-bubble msg-bubble-ai"
+                if msg.content != "" {
+                    StreamingRenderer {
+                        source: msg.content
+                        streaming: is_streaming
+                    }
+                }
+            }
+        } else {
+            col {
+                style: "msg-bubble msg-bubble-user"
+                UserMessage {
+                    content: msg.content
+                }
+            }
+        }
+        // thinking 推理链（仅 assistant）
+        if msg.thinking != "" {
+            col {
+                style: "msg-thinking-wrap"
+                text "💭 thinking" { style: "msg-thinking-label" }
+                text msg.thinking { style: "msg-thinking-content" }
+            }
+        }
+    }
+}

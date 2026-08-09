@@ -9,6 +9,7 @@
 //   - 卡片走 use{component} 逃生舱（@click toggle 无法 .at 表达）。
 
 use store: ForgeStore
+use chat_message: ChatMessage
 
 widget ChatsView {
     use {
@@ -146,37 +147,8 @@ widget ChatsView {
                     for msg in .store.messages {
                         col {
                             key: .msg.id
-                            style: "msg-row"
-                            // header: role 名 + 时间
-                            row {
-                                style: "msg-header"
-                                text .msg.role { style: "msg-role-badge" }
-                                text .msg.timestamp { style: "msg-time" }
-                            }
-                            // 内容按 role 分支（assistant→StreamingRenderer 增量解析；
-                            // user→UserMessage v-html @mention 高亮逃生舱，7.3/7.4）
-                            if .msg.role == "assistant" {
-                                if .msg.content != "" {
-                                    col {
-                                        style: "msg-bubble msg-bubble-ai"
-                                        StreamingRenderer {
-                                            source: .msg.content
-                                            streaming: false
-                                        }
-                                    }
-                                }
-                            } else {
-                                col {
-                                    style: "msg-bubble msg-bubble-user"
-                                    UserMessage {
-                                        content: .msg.content
-                                    }
-                                }
-                            }
-                            // thinking 块
-                            if .msg.thinking != "" {
-                                text .msg.thinking { style: "msg-thinking" }
-                            }
+                            // ChatMessage view fn 统一渲染 header + 气泡 + thinking
+                            ChatMessage(msg: .msg, is_streaming: false)
                             // 问卷卡片（assistant 消息内含问卷时显示，7.3。
                             // codegen 限制1 修复后直接用 getQuestions fn 调用绑定）
                             if .msg.role == "assistant" {
