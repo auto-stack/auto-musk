@@ -146,7 +146,6 @@ widget ChatsView {
                     for msg in .store.messages {
                         col {
                             key: .msg.id
-                            style: if .msg.role == "user" { "msg user-msg" } else { "msg assistant-msg" }
                             // 内容按 role 分支（assistant→StreamingRenderer 增量解析；
                             // user→UserMessage v-html @mention 高亮逃生舱，7.3/7.4）
                             if .msg.role == "assistant" {
