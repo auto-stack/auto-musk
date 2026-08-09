@@ -37,23 +37,27 @@ widget App {
                 // view rail（侧边导航栏）
                 col {
                     style: "w-48 shrink-0 bg-card border-r border-border gap-3 p-3"
-                    text "Auto Musk" { style: "text-base font-bold text-foreground px-2 py-1" }
+                    col {
+                        style: "px-2 py-1 gap-0"
+                        text "Auto Musk" { style: "text-base font-bold text-foreground" }
+                        text "v0.1.0" { style: "text-xs text-muted-foreground" }
+                    }
                     col {
                         style: "gap-1"
                         button {
                             onclick: .ShowChats
                             style: "w-full text-left px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors bg-transparent border-none cursor-pointer"
-                            text "Chat"
+                            text "聊天"
                         }
                         button {
                             onclick: .ShowSpecs
                             style: "w-full text-left px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors bg-transparent border-none cursor-pointer"
-                            text "Specs"
+                            text "规范"
                         }
                         button {
                             onclick: .ShowWiki
                             style: "w-full text-left px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors bg-transparent border-none cursor-pointer"
-                            text "Wiki"
+                            text "知识库"
                         }
                     }
                 }

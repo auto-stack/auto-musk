@@ -57,6 +57,7 @@ widget ChatsView {
     msg Msg {
         Init,
         NewSession,
+        DeleteAllSessions,
         SelectSession(str),
         SendInput(str),
         StopStream,
@@ -81,11 +82,16 @@ widget ChatsView {
                 style: if .sidebar_collapsed { "session-sidebar collapsed" } else { "session-sidebar" }
                 row {
                     style: "sidebar-header"
-                    text "Sessions" { style: "sidebar-title" }
+                    text "会话" { style: "sidebar-title" }
                     button {
                         onclick: .NewSession
                         style: "sidebar-new-btn"
-                        text "+ New"
+                        text "新建"
+                    }
+                    button {
+                        onclick: .DeleteAllSessions
+                        style: "sidebar-new-btn"
+                        text "🗑"
                     }
                 }
                 col {
@@ -102,7 +108,7 @@ widget ChatsView {
                             col {
                                 style: "session-preview"
                                 text .s.name { style: "session-name" }
-                                text f"${.s.message_count} msgs" { style: "session-count" }
+                                text f"${.s.message_count} 条" { style: "session-count" }
                             }
                         }
                     }
@@ -117,7 +123,7 @@ widget ChatsView {
                     if .store.session_id != "" {
                         text .store.session_id { style: "chats-title" }
                     } else {
-                        text "No session" { style: "chats-title" }
+                        text "无会话" { style: "chats-title" }
                     }
                 }
                 // canvas（SecretaryMessage/GateCard/ReportCard + 消息列表 + 流式 draft）
@@ -219,6 +225,12 @@ widget ChatsView {
         }
 
         .NewSession -> { store.NewSession() }
+
+        .DeleteAllSessions -> {
+            store.session_id = "";
+            store.messages = [];
+            store.LoadSessionList()
+        }
 
         .SelectSession(id) -> { store.SwitchSession(id) }
 
