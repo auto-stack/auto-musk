@@ -132,6 +132,36 @@ const STYLES = `
 .msg-thinking { font-size: 0.82rem; color: hsl(var(--muted-foreground)); font-style: italic; padding: 0.25rem 0.5rem; align-self: flex-start; max-width: 100%; }
 .msg-error { color: hsl(var(--destructive)); font-size: 0.88rem; padding: 0.5rem 0.75rem; background: hsl(var(--destructive) / 0.08); border-radius: 8px; align-self: flex-start; max-width: 100%; }
 
+/* ── 输入区（对齐原生版 .input-compose + .send-btn）── */
+.input-compose {
+  background: hsl(var(--muted-foreground) / 0.04) !important;
+  border: 1px solid hsl(var(--primary) / 0.15) !important;
+  border-radius: 20px !important;
+  padding: 4px 8px !important;
+}
+/* textarea 自身去边框（靠容器的边框+圆角） */
+.input-compose textarea,
+.chats-input {
+  border: none !important; border-radius: 0 !important; background: transparent !important;
+  font-size: 0.95rem; resize: none; outline: none;
+}
+.chats-input:focus { outline: none; box-shadow: none; }
+/* input-row（textarea + send 按钮的 flex 行） */
+.input-row { display: flex; align-items: flex-end; gap: 0.4rem; }
+/* Send 按钮：圆形 + 紫色底 + 白字（对齐原生版 .send-btn） */
+.input-row button[class*="send"],
+.input-compose button[type="submit"],
+.input-compose button:last-child {
+  width: 36px; height: 36px; border-radius: 50% !important;
+  background: hsl(var(--primary)) !important; color: hsl(var(--primary-foreground)) !important;
+  border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; flex-shrink: 0; transition: opacity 0.15s;
+}
+.input-row button[class*="send"]:hover,
+.input-compose button:last-child:hover { opacity: 0.85; }
+.input-row button[class*="send"]:disabled,
+.input-compose button:last-child:disabled { opacity: 0.4; cursor: not-allowed; }
+
 /* ── SpecsView 布局 ── */
 .specs-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
 .specs-view > div:first-child {
