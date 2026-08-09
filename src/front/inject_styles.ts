@@ -46,47 +46,62 @@ const STYLES = `
 .chats-title { font-size: 0.95rem; font-weight: 600; color: hsl(var(--foreground)); }
 .chats-canvas { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
 
-/* 消息样式 — 标准聊天气泡 UI。
-   消息容器是 .chats-canvas > div（for 循环生成的），
-   用 :has() 区分 user（含 .user-text）vs assistant（含 .streaming-document）。 */
-.chats-canvas > div:not(.msg):not([class*="Secretary"]):not([class*="Gate"]):not([class*="Report"]) {
-  max-width: 80%; padding: 0.7rem 1rem; border-radius: 12px; font-size: 0.9rem; line-height: 1.6; word-break: break-word; margin-bottom: 0.25rem;
-}
-/* user 消息气泡（含 UserMessage 的 .user-text） */
+/* 消息样式 — 对齐原生 ChatsView.vue 设计：
+   user 消息右对齐 + max-width 85%（无气泡背景，靠对齐区分）
+   assistant 消息左对齐 + 全宽（无气泡背景）
+   文字颜色统一用 --foreground（原生用 --af-fg，Auto 版对应 --foreground）
+   用 :has() 区分消息类型（绕过 codegen 的 class 绑定缺失）*/
+
+/* user 消息：右对齐 + 限制宽度 */
 .chats-canvas > div:has(.user-text) {
-  align-self: flex-end; background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
-  border-bottom-right-radius: 4px;
+  align-self: flex-end; max-width: 85%;
 }
-.chats-canvas > div:has(.user-text) .user-text { color: hsl(var(--primary-foreground)) !important; }
-.chats-canvas > div:has(.user-text) .user-text .inline-mention { background: hsl(0 0% 100% / 0.2); color: hsl(var(--primary-foreground)); }
-/* assistant 消息气泡（含 StreamingRenderer 的 .streaming-document） */
+.chats-canvas > div:has(.user-text) .user-text {
+  color: hsl(var(--foreground)); white-space: pre-wrap; word-break: break-word; line-height: 1.6; font-size: 0.95rem;
+}
+.chats-canvas > div:has(.user-text) .user-text .inline-mention {
+  font-weight: 600; color: hsl(var(--primary));
+}
+
+/* assistant 消息：左对齐 + 全宽 */
 .chats-canvas > div:has(.streaming-document) {
-  align-self: flex-start; background: hsl(var(--card)); border: 1px solid hsl(var(--border));
-  color: hsl(var(--foreground)); border-bottom-left-radius: 4px;
+  align-self: flex-start; max-width: 100%;
 }
-.chats-canvas > div:has(.streaming-document) .streaming-document { color: hsl(var(--foreground)); }
+.chats-canvas > div:has(.streaming-document) .streaming-document {
+  color: hsl(var(--foreground)); font-size: 0.95rem; line-height: 1.6;
+}
 .chats-canvas > div:has(.streaming-document) .streaming-document p,
 .chats-canvas > div:has(.streaming-document) .streaming-document li,
 .chats-canvas > div:has(.streaming-document) .streaming-document h1,
 .chats-canvas > div:has(.streaming-document) .streaming-document h2,
 .chats-canvas > div:has(.streaming-document) .streaming-document h3,
+.chats-canvas > div:has(.streaming-document) .streaming-document h4,
 .chats-canvas > div:has(.streaming-document) .streaming-document code,
-.chats-canvas > div:has(.streaming-document) .streaming-document pre { color: hsl(var(--foreground)); }
-.chats-canvas > div:has(.streaming-document) .streaming-document pre {
-  background: hsl(var(--muted)); padding: 0.6rem; border-radius: 6px; overflow-x: auto; font-size: 0.82rem;
+.chats-canvas > div:has(.streaming-document) .streaming-document pre,
+.chats-canvas > div:has(.streaming-document) .streaming-document ul,
+.chats-canvas > div:has(.streaming-document) .streaming-document ol,
+.chats-canvas > div:has(.streaming-document) .streaming-document blockquote {
+  color: hsl(var(--foreground));
 }
-.chats-canvas > div:has(.streaming-document) .streaming-document code { background: hsl(var(--muted)); padding: 2px 5px; border-radius: 4px; font-size: 0.85rem; }
+.chats-canvas > div:has(.streaming-document) .streaming-document pre {
+  background: hsl(var(--muted)); padding: 0.6rem 0.8rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; margin: 0.5rem 0;
+}
+.chats-canvas > div:has(.streaming-document) .streaming-document code {
+  background: hsl(var(--muted)); padding: 2px 5px; border-radius: 4px; font-size: 0.88rem;
+}
+.chats-canvas > div:has(.streaming-document) .streaming-document pre code {
+  background: transparent; padding: 0;
+}
 
-/* 兜底：.msg class 版本（如果 codegen 修复后能生成动态 class）*/
-.msg { max-width: 80%; padding: 0.7rem 1rem; border-radius: 12px; font-size: 0.9rem; line-height: 1.6; word-break: break-word; }
-.msg.assistant-msg { align-self: flex-start; background: hsl(var(--card)); border: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); border-bottom-left-radius: 4px; }
-.msg.user-msg { align-self: flex-end; background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-bottom-right-radius: 4px; }
-.msg.user-msg .user-text { color: hsl(var(--primary-foreground)) !important; }
-.msg.assistant-msg .streaming-document { color: hsl(var(--foreground)); }
-.msg.assistant-msg.draft { border-color: hsl(var(--primary) / 0.3); }
+/* 流式 draft（正在输入的 assistant 消息） */
+.msg.assistant-msg.draft { align-self: flex-start; max-width: 100%; color: hsl(var(--foreground)); }
 
-.msg-thinking { font-size: 0.8rem; color: hsl(var(--muted-foreground)); font-style: italic; padding: 0.25rem 0.75rem; align-self: flex-start; max-width: 80%; }
-.msg-error { color: hsl(var(--destructive)); font-size: 0.85rem; padding: 0.5rem 0.75rem; background: hsl(var(--destructive) / 0.08); border-radius: 8px; align-self: flex-start; max-width: 80%; }
+/* 兜底 .msg class 版 */
+.msg.user-msg { align-self: flex-end; max-width: 85%; }
+.msg.assistant-msg { align-self: flex-start; max-width: 100%; }
+
+.msg-thinking { font-size: 0.82rem; color: hsl(var(--muted-foreground)); font-style: italic; padding: 0.25rem 0.5rem; align-self: flex-start; max-width: 100%; }
+.msg-error { color: hsl(var(--destructive)); font-size: 0.88rem; padding: 0.5rem 0.75rem; align-self: flex-start; max-width: 100%; }
 
 /* ── SpecsView 布局 ── */
 .specs-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }

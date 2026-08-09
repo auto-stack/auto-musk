@@ -21,7 +21,7 @@ const html = computed(() => renderMentions(props.content))
 
 <style scoped>
 .user-text {
-  color: var(--af-fg, hsl(220 14% 10%));
+  color: inherit;
   line-height: 1.5;
   word-break: break-word;
 }
