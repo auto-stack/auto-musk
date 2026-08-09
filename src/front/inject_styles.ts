@@ -33,6 +33,14 @@ const STYLES = `
 }
 .session-item:hover { background: hsl(var(--accent)); }
 .session-item.active { background: hsl(var(--accent)); }
+.session-item { position: relative; }
+.session-delete-btn {
+  position: absolute; right: 0.4rem; top: 50%; transform: translateY(-50%);
+  display: none; cursor: pointer; font-size: 0.85rem; opacity: 0.6;
+  background: transparent; border: none; padding: 0.2rem;
+}
+.session-item:hover .session-delete-btn { display: flex; align-items: center; }
+.session-delete-btn:hover { opacity: 1; color: hsl(var(--destructive)); }
 .session-preview { display: flex; flex-direction: column; gap: 2px; }
 .session-name { font-size: 0.85rem; color: hsl(var(--foreground)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .session-count { font-size: 0.72rem; color: hsl(var(--muted-foreground)); }
