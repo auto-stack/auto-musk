@@ -7,6 +7,64 @@
 // 逃生舱说明：AutoUI .at 无法表达 scoped CSS，用 use { fn } 在 App.Init 注入。
 
 const STYLES = `
+/* ── 主题变量覆盖（对齐原版 theme.css，Plan 022 视觉对齐）──
+   codegen 生成的 index.css 用 shadcn 默认值（primary 近黑），
+   这里覆盖为原版的品牌紫色体系 + af-* 语义别名层 + 滚动条。 */
+:root {
+  --primary: 238 55% 58%;
+  --primary-foreground: 0 0% 100%;
+  --foreground: 220 15% 20%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 15% 20%;
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 220 15% 20%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 46%;
+  --accent: 220 14% 96%;
+  --accent-foreground: 220 15% 20%;
+  --destructive: 0 72% 51%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 238 55% 58%;
+  --radius: 0.5rem;
+  /* af-* 语义别名（原版组件逃生舱 CSS 用这些） */
+  --af-bg: hsl(var(--background));
+  --af-fg: hsl(var(--foreground));
+  --af-card: hsl(var(--card));
+  --af-muted: hsl(var(--muted-foreground));
+  --af-border: hsl(var(--border));
+  --af-input: hsl(var(--input));
+  --af-primary: hsl(var(--primary));
+  --af-primary-fg: hsl(var(--primary-foreground));
+  --af-primary-soft: hsl(var(--primary) / 0.08);
+  --af-secondary: hsl(var(--secondary));
+}
+.dark {
+  --background: 220 15% 8%;
+  --foreground: 220 10% 92%;
+  --card: 220 15% 10%;
+  --card-foreground: 220 10% 92%;
+  --primary: 238 55% 62%;
+  --primary-foreground: 220 15% 8%;
+  --secondary: 220 12% 16%;
+  --secondary-foreground: 220 10% 92%;
+  --muted: 220 12% 16%;
+  --muted-foreground: 220 9% 58%;
+  --accent: 220 12% 16%;
+  --accent-foreground: 220 10% 92%;
+  --destructive: 0 62% 45%;
+  --border: 220 12% 18%;
+  --input: 220 12% 18%;
+  --ring: 238 55% 62%;
+}
+/* 滚动条（对齐原版） */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.35); }
+/* 全局链接色 */
+a { color: hsl(var(--primary)); }
+
 /* ── 导航栏 ── */
 .rail-tab {
   width: 100%; text-align: left; padding: 0.5rem 0.75rem; border-radius: 0.375rem;
