@@ -84,7 +84,9 @@ component NavSidebar {
 2. 重新 `auto build` 后三视图视觉与现 CSS 对齐版一致（headless Chromium 逐项比对 top/height/border 联通）；
 3. 样式单一真源：改一处 header 规则三视图同步生效，无 `!important` 兜底。
 
-**依赖**：需 P2 支持组件插槽/子组件差异（或先以逃生舱 + props 差异实现，再渐进原生化）。**不阻塞** Plan 022 当前功能。
+**依赖**：需 **auto-lang Plan 408**（`view fn → 独立 Vue 组件合成`，2026-08-10 立项）支持组件插槽/子组件差异（或先以逃生舱 + props 差异实现，再渐进原生化）。**不阻塞** Plan 022 当前功能。
+
+> **2026-08-10 调研更新**：auto-lang 侧已确认——view fn 的**内联展开**已有（374 修复已移植 Vue 路径，`api.rs:406-411` 注册 + vue.rs 测试），但**独立 SFC 合成缺失**（vue.rs 无此路径）。已立项 **Plan 408**（auto-lang `docs/plans/408-view-fn-vue-component-synthesis.md`）专门补此缺口。本计划（含 §3.1 共用组件收敛）依赖 408 完成后推进。
 
 ## 4. 风险与降级
 
