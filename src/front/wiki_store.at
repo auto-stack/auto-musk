@@ -3,7 +3,7 @@
 // 单例 store：pages/page/tree/raw_tree + CRUD + search。
 // Plan 022 Phase 6: WikiView 的数据层。
 
-use back.api: wiki_list_pages, wiki_get_page, wiki_create_page, wiki_update_page, wiki_delete_page, wiki_search, wiki_tree, wiki_raw_tree
+use back.api: wiki_list_pages, wiki_get_page, wiki_create_page, wiki_update_page, wiki_delete_page, wiki_search, wiki_tree, wiki_raw_tree, wiki_raw_delete_file, wiki_raw_mkdir
 
 store WikiStore {
     model {
@@ -16,6 +16,10 @@ store WikiStore {
         var search_query str = ""
         var search_results []Value = []
         var workspace str = ""
+        // raw 操作状态（Plan 022 遗留：DropZone 完整闭环）。
+        // active_raw_path = 当前选中的 raw 文件节点 path（viewing-raw 预览用）。
+        var active_raw_path str = ""
+        var upload_progress Value = null
     }
 
     msg Msg {
@@ -28,6 +32,11 @@ store WikiStore {
         Search(str),
         LoadTree,
         LoadRawTree,
+        UploadRawFiles,
+        DeleteRawFile(str),
+        CreateRawFolder(str),
+        SelectRawFile(str),
+        SetUploadProgress(Value),
         SetError(str),
     }
 
@@ -116,6 +125,42 @@ store WikiStore {
             let resp = wiki_raw_tree(.workspace);
             .raw_tree = resp
         }
+
+        // DeleteRawFile(path): DELETE /api/forge/raw/{project}/file/{path}。
+        // 删除成功后刷新 raw tree。对齐原版 useWiki.ts:197-208 deleteRawFile。
+        .DeleteRawFile(path) -> {
+            wiki_raw_delete_file(.workspace, path);
+            if .error == "" {
+                if .active_raw_path == path {
+                    .active_raw_path = ""
+                };
+                LoadRawTree()
+            }
+        }
+
+        // CreateRawFolder(path): POST /api/forge/raw/{project}/mkdir。
+        // 创建成功后刷新 raw tree。对齐原版 useWiki.ts:210-223 createRawFolder。
+        .CreateRawFolder(path) -> {
+            wiki_raw_mkdir(.workspace, path);
+            if .error == "" {
+                LoadRawTree()
+            }
+        }
+
+        // UploadRawFiles: 上传完成信号（WikiNav DropZone 上传成功后 emit 'uploaded'
+        // → wiki_view.at → 此处刷新 raw tree）。上传本身走逃生舱 raw_upload.ts XHR。
+        .UploadRawFiles -> {
+            .upload_progress = null;
+            LoadRawTree()
+        }
+
+        // SelectRawFile(path): 记录当前选中的 raw 文件（viewing-raw 预览）。
+        // 对齐原版 WikiView.vue:364-374 selectRawNode（文本读取在 view 层逃生舱）。
+        .SelectRawFile(path) -> {
+            .active_raw_path = path
+        }
+
+        .SetUploadProgress(p) -> { .upload_progress = p }
 
         .SetError(msg) -> { .error = msg }
     }

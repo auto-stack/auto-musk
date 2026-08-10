@@ -251,6 +251,44 @@ pub fn wiki_raw_tree(project str) any {
     return None
 }
 
+// raw 上传/新建文件夹/文件读取/删除（Plan 022 遗留：DropZone 完整闭环）。
+// 后端端点已实现（auto-src/wiki.at raw_upload/raw_mkdir/raw_file/raw_delete），
+// 此处 #[api] 仅补前端 api.ts 契约，使生成前端能调用 raw 操作。
+#[api(method = "POST", path = "/api/forge/raw/{project}/upload")]
+pub fn wiki_raw_upload(project str) any {
+    return None
+}
+
+#[api(method = "POST", path = "/api/forge/raw/{project}/mkdir")]
+pub fn wiki_raw_mkdir(project str, path str) any {
+    return None
+}
+
+#[api(method = "GET", path = "/api/forge/raw/{project}/file/{path}")]
+pub fn wiki_raw_file(project str, path str) any {
+    return None
+}
+
+#[api(method = "DELETE", path = "/api/forge/raw/{project}/file/{path}")]
+pub fn wiki_raw_delete_file(project str, path str) any {
+    return None
+}
+
+// ============================================================
+// Forge mode (Plan 022 遗留 — useForgeMode 后端持久化)
+// 后端 server.at 已实现 GET/PUT /api/forge/mode（config.at 持久化 gsd/check）。
+// ============================================================
+
+#[api(method = "GET", path = "/api/forge/mode")]
+pub fn forge_mode_get() any {
+    return None
+}
+
+#[api(method = "PUT", path = "/api/forge/mode")]
+pub fn forge_mode_set(mode str) any {
+    return None
+}
+
 // ============================================================
 // Chats/Forge API (Phase 7) — 对应 useForge.ts 的 /api/chats/* 调用。
 // 类型从 web/src/types/forge.ts 映射。

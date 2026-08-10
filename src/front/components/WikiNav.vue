@@ -4,6 +4,9 @@
 
   简化：原版用 TreeView 递归组件，这里用扁平列表（后端树节点无 children）。
   保留：可折叠 section + 图标 + 搜索过滤 + 空状态 + 新建按钮。
+  Plan 022 遗留（raw DropZone 完整闭环）：Raw section 增加
+  DropZone（拖拽上传 + 进度条）、FolderPlus 新建文件夹、raw 文件删除按钮。
+  上传用逃生舱 raw_upload.ts（XHR FormData + 进度），成功后 emit 'uploaded'。
 -->
 <template>
   <div class="wiki-nav" :class="{ collapsed: collapsed }">
@@ -34,8 +37,26 @@
           <component :is="rawExpanded ? ChevronDown : ChevronRight" :size="12" />
           <FolderInput :size="13" />
           <span class="tree-section-title">{{ t('wiki.raw') }}</span>
+          <button class="nav-icon-btn" @click.stop="$emit('new-folder')" :title="t('wiki.newFolder')">
+            <FolderPlus :size="13" />
+          </button>
         </div>
         <div v-if="rawExpanded" class="tree-section-body">
+          <!-- DropZone：拖拽上传 raw 文件（对齐原版 WikiView.vue:37 + DropZone.vue） -->
+          <div
+            class="drop-zone"
+            :class="{ active: isDragging }"
+            @dragenter.prevent="isDragging = true"
+            @dragover.prevent
+            @dragleave.prevent="isDragging = false"
+            @drop.prevent="handleDrop"
+          >
+            <UploadCloud :size="14" />
+            <span class="drop-text">{{ isDragging ? 'Drop files here' : 'Drag files to upload' }}</span>
+            <div v-if="uploadProgress !== null" class="progress-bar">
+              <div class="progress-fill" :style="{ width: uploadProgress + '%' }" />
+            </div>
+          </div>
           <button
             v-for="node in filteredRawTree"
             :key="node.path"
@@ -45,6 +66,13 @@
           >
             <FileIcon :size="12" />
             <span class="tree-item-name">{{ node.name }}</span>
+            <button
+              class="tree-item-del"
+              :title="t('common.delete')"
+              @click.stop="$emit('delete-raw', node.path)"
+            >
+              <Trash2 :size="12" />
+            </button>
           </button>
           <div v-if="filteredRawTree.length === 0" class="tree-empty">
             <FileText :size="14" />
@@ -85,9 +113,11 @@
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  Plus, PanelLeft, Search, BookOpen, FolderInput,
+  Plus, PanelLeft, Search, BookOpen, FolderInput, FolderPlus, UploadCloud, Trash2,
   ChevronDown, ChevronRight, FileText, File as FileIcon,
 } from 'lucide-vue-next'
+// Plan 022 遗留：raw 上传逃生舱（XHR FormData + 进度，对齐 useWiki.ts:160-195）。
+import { uploadRawFiles, type RawUploadProgress } from '../raw_upload'
 
 const { t } = useI18n()
 
@@ -104,18 +134,24 @@ const props = defineProps<{
   rawTree: TreeNode[]
   activeWikiPath?: string
   activeRawPath?: string
+  workspace?: string
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   'new-page': []
   'select-wiki': [path: string]
   'select-raw': [path: string]
+  'delete-raw': [path: string]
+  'new-folder': []
+  'uploaded': []
 }>()
 
 const collapsed = ref(false)
 const query = ref('')
 const rawExpanded = ref(true)
 const wikiExpanded = ref(true)
+const isDragging = ref(false)
+const uploadProgress = ref<number | null>(null)
 
 const filteredWikiTree = computed(() => {
   if (!query.value) return props.wikiTree || []
@@ -128,6 +164,24 @@ const filteredRawTree = computed(() => {
   const q = query.value.toLowerCase()
   return (props.rawTree || []).filter(n => n.name.toLowerCase().includes(q))
 })
+
+async function handleDrop(e: DragEvent) {
+  isDragging.value = false
+  const files = Array.from(e.dataTransfer?.files ?? [])
+  if (files.length === 0) return
+  const ws = props.workspace || 'musk-demo'
+  try {
+    await uploadRawFiles(ws, files, '', (p: RawUploadProgress) => {
+      uploadProgress.value = p.percent
+    })
+    uploadProgress.value = null
+    emit('uploaded')
+  } catch (err) {
+    uploadProgress.value = null
+    // eslint-disable-next-line no-console
+    console.error('Raw upload failed:', err)
+  }
+}
 </script>
 
 <style scoped>
@@ -182,9 +236,33 @@ const filteredRawTree = computed(() => {
 }
 .tree-item:hover { background: hsl(var(--accent)); }
 .tree-item.active { background: hsl(var(--primary) / 0.08); color: hsl(var(--primary)); }
-.tree-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.tree-item-del {
+  display: none; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border: none; border-radius: 4px;
+  background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer; padding: 0;
+}
+.tree-item:hover .tree-item-del { display: flex; }
+.tree-item-del:hover { background: hsl(var(--destructive) / 0.12); color: hsl(var(--destructive)); }
 .tree-empty {
   display: flex; align-items: center; gap: 0.4rem;
   padding: 0.5rem; color: hsl(var(--muted-foreground)); font-size: 0.75rem;
 }
+/* DropZone（对齐原版 web/src/components/DropZone.vue） */
+.drop-zone {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.3rem; padding: 0.5rem; margin: 0.25rem 0.25rem 0.5rem;
+  border: 1px dashed hsl(var(--border)); border-radius: 6px;
+  color: hsl(var(--muted-foreground)); transition: all 0.15s; cursor: pointer;
+}
+.drop-zone.active {
+  border-color: hsl(var(--primary)); background: hsl(var(--primary) / 0.04);
+  color: hsl(var(--primary));
+}
+.drop-text { font-size: 0.72rem; }
+.progress-bar {
+  width: 100%; height: 3px; background: hsl(var(--muted-foreground) / 0.1);
+  border-radius: 2px; overflow: hidden;
+}
+.progress-fill { height: 100%; background: hsl(var(--primary)); transition: width 0.2s; }
 </style>

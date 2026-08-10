@@ -31,6 +31,9 @@ pub type MuskAppConfig {
     daemon_url Option<str>
     #[serde(default)]
     default_mode Option<str>
+    /// Forge 执行模式 "gsd"/"check"(Plan 022 遗留:useForgeMode 后端持久化)。
+    #[serde(default)]
+    forge_mode Option<str>
     #[serde(default)]
     context_file Option<str>
     #[serde(default)]
@@ -62,6 +65,19 @@ ext MuskAppConfig {
         is self.default_mode {
             Some(mode) -> return mode.clone(),
             None -> return "superpowers"
+        }
+    }
+
+    /// Effective forge execution mode ("gsd" default; only "check" flips).
+    pub fn effective_forge_mode() str {
+        is self.forge_mode.clone() {
+            Some(mode) -> {
+                if mode == "check" {
+                    return "check"
+                };
+                return "gsd"
+            },
+            None -> return "gsd"
         }
     }
 

@@ -549,6 +549,7 @@ pub fn app_config_write(b: Json<crate::auto_generated::server::AppConfigSaveBody
     let cfg = MuskAppConfig {
         daemon_url: b.daemon_url.clone(),
         default_mode: b.default_mode.clone(),
+        forge_mode: b.forge_mode.clone(),
         context_file: b.context_file.clone(),
         serve_addr: b.serve_addr.clone(),
         auto_start_daemon: b.auto_start_daemon,
@@ -576,6 +577,36 @@ pub fn app_config_write(b: Json<crate::auto_generated::server::AppConfigSaveBody
     })
 }
 pub fn app_config_effective_daemon_url<T>(_c: T) -> String { "http://127.0.0.1:17654".into() }
+/// Forge 执行模式（Plan 022 遗留）:读 MuskAppConfig.forge_mode 的 effective 值。
+pub fn forge_mode_load() -> Value {
+    let cfg = crate::app_config::MuskAppConfig::load();
+    serde_json::json!({ "mode": cfg.effective_forge_mode() })
+}
+/// Forge 执行模式写:校验 gsd/check 后写入 config.at(仅覆盖 forge_mode 字段,
+/// 其余字段保留——load 现有配置→改 forge_mode→to_at_source 整写)。
+pub fn forge_mode_write(b: Json<crate::auto_generated::server::ForgeModeBody>) -> Value {
+    use crate::app_config::{musk_config_path, MuskAppConfig};
+    let mode = b.mode.clone();
+    if mode != "gsd" && mode != "check" {
+        return Value::Null; // 非法 mode → to_response 走 500 错误路径
+    }
+    let mut cfg = MuskAppConfig::load();
+    cfg.forge_mode = Some(mode);
+    let path = match musk_config_path() {
+        Some(p) => p,
+        None => return Value::Null,
+    };
+    if let Err(_e) = std::fs::create_dir_all(path.parent().unwrap_or(std::path::Path::new("."))) {
+        return Value::Null;
+    }
+    if let Err(_e) = std::fs::write(&path, cfg.to_at_source()) {
+        return Value::Null;
+    }
+    serde_json::json!({
+        "status": "saved",
+        "mode": cfg.effective_forge_mode(),
+    })
+}
 pub fn harness_list(p: &Path<String>) -> Value {
     let kind = p.0.clone();
     let cfg = crate::app_config::MuskAppConfig::load();

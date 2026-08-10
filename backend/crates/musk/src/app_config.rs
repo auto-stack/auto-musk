@@ -36,6 +36,11 @@ pub struct MuskAppConfig {
     /// Default mode for `musk run` / `musk chat` (default "superpowers").
     #[serde(default)]
     pub default_mode: Option<String>,
+    /// Forge 执行模式: "gsd"（仅目标门暂停）或 "check"（每个门都暂停）。
+    /// Plan 022 遗留: useForgeMode 前端调用 GET/PUT /api/forge/mode 读写此字段。
+    /// 默认 "gsd"(与前端 useForgeMode.ts localStorage 默认一致)。
+    #[serde(default)]
+    pub forge_mode: Option<String>,
     /// Context file musk auto-loads (`.musk.md` / `CLAUDE.md`), or explicit.
     #[serde(default)]
     pub context_file: Option<String>,
@@ -62,6 +67,8 @@ struct ScalarBody {
     daemon_url: Option<String>,
     #[serde(default)]
     default_mode: Option<String>,
+    #[serde(default)]
+    forge_mode: Option<String>,
     #[serde(default)]
     context_file: Option<String>,
     #[serde(default)]
@@ -111,6 +118,7 @@ impl MuskAppConfig {
         Some(Self {
             daemon_url: body.daemon_url,
             default_mode: body.default_mode,
+            forge_mode: body.forge_mode,
             context_file: body.context_file,
             serve_addr: body.serve_addr,
             auto_start_daemon: body.auto_start_daemon,
@@ -127,6 +135,9 @@ impl MuskAppConfig {
         }
         if let Some(v) = &self.default_mode {
             node.set_prop("default_mode", Value::str(v.as_str()));
+        }
+        if let Some(v) = &self.forge_mode {
+            node.set_prop("forge_mode", Value::str(v.as_str()));
         }
         if let Some(v) = &self.context_file {
             node.set_prop("context_file", Value::str(v.as_str()));
@@ -170,12 +181,22 @@ impl MuskAppConfig {
             .unwrap_or_else(|| "superpowers".into())
     }
 
+    /// The effective forge execution mode ("gsd" if unset — 与前端 useForgeMode
+    /// localStorage 默认一致;仅接受 "gsd"/"check").
+    pub fn effective_forge_mode(&self) -> String {
+        match self.forge_mode.as_deref() {
+            Some("check") => "check".into(),
+            _ => "gsd".into(),
+        }
+    }
+
     /// Merge env-var / compiled defaults for the *effective* values reported
     /// to the UI (so the page shows what's actually in use, not just the file).
     pub fn effective(&self) -> serde_json::Value {
         serde_json::json!({
             "daemon_url": self.effective_daemon_url(),
             "default_mode": self.effective_default_mode(),
+            "forge_mode": self.effective_forge_mode(),
             "context_file": self.context_file.clone().unwrap_or_else(|| "auto (.musk.md / CLAUDE.md)".into()),
             "serve_addr": self.serve_addr.clone().unwrap_or_else(|| "127.0.0.1:8080".into()),
             "auto_start_daemon": self.auto_start_daemon.unwrap_or(true),
@@ -257,6 +278,7 @@ mod tests {
         let cfg = MuskAppConfig {
             daemon_url: Some("http://example:17654".into()),
             default_mode: Some("coding".into()),
+            forge_mode: Some("check".into()),
             auto_start_daemon: Some(false),
             ..Default::default()
         };
@@ -265,7 +287,24 @@ mod tests {
         let reparsed = MuskAppConfig::parse_from_at(&src).expect("must reparse");
         assert_eq!(reparsed.daemon_url.as_deref(), Some("http://example:17654"));
         assert_eq!(reparsed.default_mode.as_deref(), Some("coding"));
+        assert_eq!(reparsed.forge_mode.as_deref(), Some("check"));
         assert_eq!(reparsed.auto_start_daemon, Some(false));
+    }
+
+    #[test]
+    fn effective_forge_mode_defaults_and_validates() {
+        // 默认 gsd;仅 "check" 切 check;非法值回落 gsd。
+        assert_eq!(MuskAppConfig::default().effective_forge_mode(), "gsd");
+        let cfg = MuskAppConfig {
+            forge_mode: Some("check".into()),
+            ..Default::default()
+        };
+        assert_eq!(cfg.effective_forge_mode(), "check");
+        let cfg = MuskAppConfig {
+            forge_mode: Some("bogus".into()),
+            ..Default::default()
+        };
+        assert_eq!(cfg.effective_forge_mode(), "gsd");
     }
 
     #[test]

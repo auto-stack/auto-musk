@@ -29,6 +29,8 @@ pub struct MuskAppConfig {
     #[serde(default)]
     pub default_mode: Option<String>,
     #[serde(default)]
+    pub forge_mode: Option<String>,
+    #[serde(default)]
     pub context_file: Option<String>,
     #[serde(default)]
     pub serve_addr: Option<String>,
@@ -55,6 +57,17 @@ impl MuskAppConfig {
         match self.default_mode.clone() {
             Some(mode) => return mode.clone(),
             None => return "superpowers".to_string(),
+        }
+    }
+    pub fn effective_forge_mode(&self) -> String {
+        match self.forge_mode.clone() {
+            Some(mode) => {
+                if mode == "check" {
+                    return "check".to_string();
+                }
+                return "gsd".to_string();
+            },
+            None => return "gsd".to_string(),
         }
     }
     pub fn effective_serve_addr(&self) -> String {

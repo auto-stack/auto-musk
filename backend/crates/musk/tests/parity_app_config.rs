@@ -25,6 +25,7 @@ fn full_config_hw() -> hw::MuskAppConfig {
     hw::MuskAppConfig {
         daemon_url: Some("http://example:17654".into()),
         default_mode: Some("coding".into()),
+        forge_mode: Some("check".into()),
         context_file: Some(".musk.md".into()),
         serve_addr: Some("127.0.0.1:9999".into()),
         auto_start_daemon: Some(false),
@@ -40,6 +41,7 @@ fn full_config_ag() -> ag::MuskAppConfig {
     ag::MuskAppConfig {
         daemon_url: Some("http://example:17654".into()),
         default_mode: Some("coding".into()),
+        forge_mode: Some("check".into()),
         context_file: Some(".musk.md".into()),
         serve_addr: Some("127.0.0.1:9999".into()),
         auto_start_daemon: Some(false),

@@ -8,8 +8,12 @@ use store: WikiStore
 widget WikiView {
     use {
         fn: ensureWorkspace from "src/front/ensure_workspace.ts"
+        // raw_upload 是逃生舱组件的内部依赖（WikiNav DropZone + RawPreview），
+        // 声明仅为触发 ext 复制（codegen ext 复制只看 use 块，不递归逃生舱组件的相对 import）。
+        fn: uploadRawFiles, rawFileUrl, loadRawFileText from "src/front/raw_upload.ts"
         composable: useT from "src/front/composables/useT.ts"
         component: WikiNav from "src/front/components/WikiNav.vue"
+        component: RawPreview from "src/front/components/RawPreview.vue"
     }
 
     msg Msg {
@@ -24,6 +28,14 @@ widget WikiView {
         SlugChanged,
         TitleChanged,
         ContentChanged,
+        SelectRawNode(str),
+        HandleRawUploaded,
+        DeleteRawFile(str),
+        StartNewFolder,
+        FolderPathChanged,
+        CreateFolder,
+        CancelNewFolder,
+        ClearRaw,
     }
 
     model {
@@ -34,18 +46,28 @@ widget WikiView {
         var new_title str = ""
         var new_content str = ""
         var nav_collapsed bool = false
+        // raw 交互状态（Plan 022 遗留：DropZone 完整闭环）。
+        var viewing_raw bool = false
+        var creating_folder bool = false
+        var new_folder_path str = ""
     }
 
     view {
         row {
             style: "wiki-view"
-            // WikiNav 组件（双树 + 搜索 + 图标，对齐原版）
+            // WikiNav 组件（双树 + 搜索 + 图标 + DropZone 上传，对齐原版）
             WikiNav {
                 wikiTree: .store.tree
                 rawTree: .store.raw_tree
                 activeWikiPath: .active_slug
+                activeRawPath: .store.active_raw_path
+                workspace: .store.workspace
                 onNewPage: .StartCreate
                 onSelectWiki: .SelectPage($event)
+                onSelectRaw: .SelectRawNode($event)
+                onDeleteRaw: .DeleteRawFile($event)
+                onNewFolder: .StartNewFolder
+                onUploaded: .HandleRawUploaded
             }
             // 主内容区
             col {
@@ -123,6 +145,60 @@ widget WikiView {
                             }
                         }
                     }
+                } else if .creating_folder {
+                    // 新建文件夹表单（对齐原版 WikiView.vue:190-205 new-folder 分支）
+                    col {
+                        style: "wiki-editor"
+                        col {
+                            style: "form-group"
+                            label "Folder Path"
+                            input {
+                                value: .new_folder_path
+                                oninput: .FolderPathChanged
+                                placeholder: "datasheets/stm32"
+                                style: "form-input"
+                            }
+                        }
+                        row {
+                            style: "edit-actions"
+                            button {
+                                onclick: .CreateFolder
+                                style: "save-btn"
+                                text t("common.create")
+                            }
+                            button {
+                                onclick: .CancelNewFolder
+                                style: "cancel-btn"
+                                text t("common.cancel")
+                            }
+                        }
+                    }
+                } else if .viewing_raw && .store.active_raw_path != "" {
+                    // raw 文件预览（对齐原版 viewing-raw 分支：img/pdf/文本/下载）
+                    col {
+                        style: "wiki-raw"
+                        row {
+                            style: "wiki-content-header"
+                            h2 .store.active_raw_path { style: "text-xl font-bold" }
+                            row {
+                                style: "wiki-content-actions"
+                                button {
+                                    onclick: .DeleteRawFile(.store.active_raw_path)
+                                    style: "action-btn danger"
+                                    text t("common.delete")
+                                }
+                                button {
+                                    onclick: .ClearRaw
+                                    style: "action-btn"
+                                    text t("common.cancel")
+                                }
+                            }
+                        }
+                        RawPreview {
+                            workspace: .store.workspace
+                            path: .store.active_raw_path
+                        }
+                    }
                 } else if .store.current_page != None {
                     // 渲染当前 page（markdown 内容）
                     col {
@@ -170,12 +246,16 @@ widget WikiView {
             .active_slug = slug;
             .creating = false;
             .editing = false;
+            .viewing_raw = false;
+            .creating_folder = false;
             store.LoadPage(slug)
         }
 
         .StartCreate -> {
             .creating = true;
             .editing = false;
+            .viewing_raw = false;
+            .creating_folder = false;
             .new_slug = "";
             .new_title = "";
             .new_content = ""
@@ -202,11 +282,60 @@ widget WikiView {
                 store.UpdatePage(.active_slug, .new_content);
                 .editing = false
             }
-        }
-
-        .DeletePage(slug) -> {
+        }        .DeletePage(slug) -> {
             store.DeletePage(slug);
             .active_slug = ""
+        }
+
+        // ─── raw 交互（Plan 022 遗留：DropZone 完整闭环）───
+        // SelectRawNode(path): 点击 raw 文件 → 记录选中 + 进入预览态。
+        // 对齐原版 WikiView.vue:364-374 selectRawNode（type!=='file' return；
+        // 文本内容读取在 RawPreview 逃生舱内做）。
+        .SelectRawNode(path) -> {
+            .creating = false;
+            .editing = false;
+            .creating_folder = false;
+            .viewing_raw = true;
+            store.SelectRawFile(path)
+        }
+
+        // HandleRawUploaded: WikiNav DropZone 上传成功 → 刷新 raw tree。
+        .HandleRawUploaded -> {
+            store.UploadRawFiles()
+        }
+
+        // DeleteRawFile(path): 删除 raw 文件 → 退出预览态。
+        .DeleteRawFile(path) -> {
+            store.DeleteRawFile(path);
+            .viewing_raw = false
+        }
+
+        // StartNewFolder: 显示新建文件夹表单。
+        .StartNewFolder -> {
+            .creating = false;
+            .editing = false;
+            .viewing_raw = false;
+            .creating_folder = true;
+            .new_folder_path = ""
+        }
+
+        .FolderPathChanged -> { .new_folder_path = .new_folder_path }
+
+        // CreateFolder: 创建文件夹 → 刷新 tree + 退出表单。
+        .CreateFolder -> {
+            if .new_folder_path != "" {
+                store.CreateRawFolder(.new_folder_path);
+                .creating_folder = false;
+                .new_folder_path = ""
+            }
+        }
+
+        .CancelNewFolder -> { .creating_folder = false }
+
+        // ClearRaw: 退出 raw 预览。
+        .ClearRaw -> {
+            .viewing_raw = false;
+            store.SelectRawFile("")
         }
 
         // v-model marker handlers（U5）。

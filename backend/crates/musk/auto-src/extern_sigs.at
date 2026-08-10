@@ -53,6 +53,8 @@ fn role_skills(_r Value) Value {}
 fn app_config_load() Value {}
 fn app_config_write(_b Value) Value {}
 fn app_config_effective_daemon_url(_c Value) str {}
+fn forge_mode_load() Value {}
+fn forge_mode_write(_b Value) Value {}
 fn harness_list(_p @T) Value {}
 fn harness_save(_p @T, _b Value) Value {}
 fn harness_delete(_p @T) Value {}

@@ -126,7 +126,11 @@ pub type ConfigOverview { modes List<ModeItem>, professions List<ProfessionItem>
 pub type AppConfigResp { daemon_url str, default_mode str }
 
 #[derive(Debug, Deserialize)]
-pub type AppConfigSaveBody { daemon_url Option<str>, default_mode Option<str>, context_file Option<str>, serve_addr Option<str>, auto_start_daemon Option<bool>, harness HarnessSelection }
+pub type AppConfigSaveBody { daemon_url Option<str>, default_mode Option<str>, forge_mode Option<str>, context_file Option<str>, serve_addr Option<str>, auto_start_daemon Option<bool>, harness HarnessSelection }
+
+// Forge 执行模式（Plan 022 遗留:useForgeMode 后端持久化 "gsd"/"check"）。
+#[derive(Debug, Deserialize)]
+pub type ForgeModeBody { mode str }
 
 #[derive(Debug, Deserialize, Default)]
 pub type HarnessSelection { roles List<str>, skills List<str>, modes List<str> }
@@ -365,6 +369,17 @@ pub fn app_config_save(body Json<AppConfigSaveBody>) ~Response {
     return to_response(app_config_write(body), "failed to save app config", 500u)
 }
 
+// Forge 执行模式端点（Plan 022 遗留:useForgeMode 后端持久化）。
+// GET 读当前 mode(默认 gsd),PUT 写 mode(校验 gsd/check)。
+pub fn forge_mode_get() ~Json<Value> {
+    let cfg = forge_mode_load()
+    return Json(cfg)
+}
+
+pub fn forge_mode_set(body Json<ForgeModeBody>) ~Response {
+    return to_response(forge_mode_write(body), "failed to save forge mode", 500u)
+}
+
 pub fn app_harness_list(p Path<str>) ~Response {
     return to_response(harness_list(p.view), "unknown harness kind", 404u)
 }
@@ -525,6 +540,7 @@ pub fn build_router() Router<AppState> {
     app = app.route("/api/roles", get(roles_list))
     app = app.route("/api/roles/{name}", get(role_detail).put(role_save).delete(role_delete))
     app = app.route("/api/app-config", get(app_config_get).put(app_config_save))
+    app = app.route("/api/forge/mode", get(forge_mode_get).put(forge_mode_set))
     app = app.route("/api/app-harness/{kind}", get(app_harness_list))
     app = app.route("/api/app-harness/{kind}/{name}", put(app_harness_save).delete(app_harness_delete))
     app = app.route("/api/chats/sessions", get(chat_list).delete(chat_delete_all))

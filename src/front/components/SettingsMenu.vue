@@ -2,8 +2,9 @@
   SettingsMenu.vue — 设置菜单（逃生舱组件，Plan 022 视觉对齐）
   精简移植自原版 web/src/components/SettingsMenu.vue。
 
-  含四个分区：强调色 / 外观（light/dark/auto）/ 语言（EN/中文）/ AutoOS 设置链接。
-  去掉 useForgeMode（GSD/Check，后端无对应端点）。
+  含五个分区：Forge 模式（GSD/Check）/ 强调色 / 外观（light/dark/auto）/ 语言（EN/中文）/ AutoOS 设置链接。
+  Plan 022 遗留：恢复 useForgeMode（GSD/Check）——原版是纯前端 localStorage，这里改为
+  调后端 GET/PUT /api/forge/mode（config.at 持久化，api.at 声明 forge_mode_get/set）。
 -->
 <template>
   <div ref="menuRef" class="settings-menu-wrapper">
@@ -17,6 +18,29 @@
     </button>
     <transition name="fade">
       <div v-if="isOpen" class="settings-panel">
+        <!-- Mode Section (GSD/Check — 后端持久化) -->
+        <div class="settings-section">
+          <div class="settings-section-title">{{ t('settings.mode') }}</div>
+          <div class="mode-toggle">
+            <button
+              class="mode-btn"
+              :class="{ active: forgeMode === 'gsd' }"
+              :title="t('settings.modeGsdTitle')"
+              @click="setForgeMode('gsd')"
+            >
+              GSD
+            </button>
+            <button
+              class="mode-btn"
+              :class="{ active: forgeMode === 'check' }"
+              :title="t('settings.modeCheckTitle')"
+              @click="setForgeMode('check')"
+            >
+              Check
+            </button>
+          </div>
+        </div>
+
         <!-- Accent Section -->
         <div class="settings-section">
           <div class="settings-section-title">{{ t('settings.accent') }}</div>
@@ -98,6 +122,8 @@ import { useI18n } from 'vue-i18n'
 import { Settings, Check, Sun, Moon, Monitor, ExternalLink } from 'lucide-vue-next'
 import { useTheme } from '../composables/useTheme'
 import { useAccentColor } from '../composables/useAccentColor'
+// Plan 022 遗留：useForgeMode 后端持久化 — 调 GET/PUT /api/forge/mode。
+import { forge_mode_get, forge_mode_set } from '@/lib/api'
 
 const { t, locale } = useI18n()
 const { mode: themeMode, setMode } = useTheme()
@@ -106,11 +132,33 @@ const { current: accentCurrent, setAccent, options: accentOptions } = useAccentC
 const isOpen = ref(false)
 const menuRef = ref<HTMLDivElement>()
 const currentLocale = ref(locale.value)
+// forge 执行模式（gsd/check，后端 config.at 持久化；初始 gsd）。
+const forgeMode = ref<'gsd' | 'check'>('gsd')
 
 function changeLocale(l: string) {
   locale.value = l
   currentLocale.value = l
   localStorage.setItem('musk-language', l)
+}
+
+async function setForgeMode(val: 'gsd' | 'check') {
+  forgeMode.value = val
+  try {
+    await forge_mode_set(val)
+  } catch {
+    // 写失败静默回退（保持本地显示，下次打开重新读取后端值）
+  }
+}
+
+async function loadForgeMode() {
+  try {
+    const resp = await forge_mode_get()
+    if (resp && (resp.mode === 'gsd' || resp.mode === 'check')) {
+      forgeMode.value = resp.mode
+    }
+  } catch {
+    // 后端不可达时保留默认 gsd
+  }
 }
 
 const autoOsError = ref('')
@@ -151,6 +199,8 @@ onMounted(() => {
     locale.value = savedLang
     currentLocale.value = savedLang
   }
+  // Plan 022 遗留：加载后端持久化的 forge 模式
+  loadForgeMode()
 })
 onUnmounted(() => document.removeEventListener('click', onDocClick))
 </script>
@@ -207,6 +257,30 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
   letter-spacing: 0.04em;
   margin-bottom: 0.4rem;
   padding: 0 0.3rem;
+}
+/* Mode toggle (GSD/Check — 对齐原版 SettingsMenu.vue:242-265) */
+.mode-toggle {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0 0.3rem;
+}
+.mode-btn {
+  flex: 1;
+  padding: 0.3rem 0;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(var(--foreground));
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.mode-btn:hover { background: hsl(var(--accent)); }
+.mode-btn.active {
+  background: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
 }
 /* Accent swatches */
 .accent-swatches {

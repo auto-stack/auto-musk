@@ -210,10 +210,16 @@ pub struct AppConfigResp {
 pub struct AppConfigSaveBody {
     pub daemon_url: Option<String>,
     pub default_mode: Option<String>,
+    pub forge_mode: Option<String>,
     pub context_file: Option<String>,
     pub serve_addr: Option<String>,
     pub auto_start_daemon: Option<bool>,
     pub harness: HarnessSelection,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ForgeModeBody {
+    pub mode: String,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -497,6 +503,15 @@ pub async fn app_config_save(body: Json<AppConfigSaveBody>) -> Response {
     return to_response(app_config_write(body), "failed to save app config", 500);
 }
 
+pub async fn forge_mode_get() -> Json<Value> {
+    let cfg = forge_mode_load();
+    return Json(cfg);
+}
+
+pub async fn forge_mode_set(body: Json<ForgeModeBody>) -> Response {
+    return to_response(forge_mode_write(body), "failed to save forge mode", 500);
+}
+
 pub async fn app_harness_list(p: Path<String>) -> Response {
     return to_response(harness_list(&p), "unknown harness kind", 404);
 }
@@ -622,6 +637,7 @@ pub fn build_router() -> Router<AppState> {
     app = app.route("/api/roles", get(roles_list));
     app = app.route("/api/roles/{name}", get(role_detail).put(role_save).delete(role_delete));
     app = app.route("/api/app-config", get(app_config_get).put(app_config_save));
+    app = app.route("/api/forge/mode", get(forge_mode_get).put(forge_mode_set));
     app = app.route("/api/app-harness/{kind}", get(app_harness_list));
     app = app.route("/api/app-harness/{kind}/{name}", put(app_harness_save).delete(app_harness_delete));
     app = app.route("/api/chats/sessions", get(chat_list).delete(chat_delete_all));
