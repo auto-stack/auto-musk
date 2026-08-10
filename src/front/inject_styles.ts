@@ -7,6 +7,10 @@
 // 逃生舱说明：AutoUI .at 无法表达 scoped CSS，用 use { fn } 在 App.Init 注入。
 
 const STYLES = `
+/* ── 字体（Noto Sans SC）── */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
+body, button, input, textarea, select { font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
 /* ── 主题变量覆盖（对齐原版 theme.css，Plan 022 视觉对齐）──
    codegen 生成的 index.css 用 shadcn 默认值（primary 近黑），
    这里覆盖为原版的品牌紫色体系 + af-* 语义别名层 + 滚动条。 */
@@ -104,13 +108,14 @@ a { color: hsl(var(--primary)); }
   border-bottom: 1px solid hsl(var(--border)) !important;
   display: flex !important; align-items: center; flex-shrink: 0;
 }
-/* 标题统一为大写灰标签风格（对齐原版 sidebar-title / section-nav-title 等） */
-.sidebar-title, .section-nav-title, .wiki-nav-title {
-  font-size: 0.8rem !important;
-  font-weight: 500 !important;
-  color: hsl(var(--muted-foreground)) !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.04em !important;
+/* 标题统一为 Noto Sans SC bold 风格（覆盖各视图分散定义） */
+.sidebar-title, .section-nav-title, .wiki-nav-title, .chats-title {
+  font-family: 'Noto Sans SC', sans-serif !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  color: hsl(var(--foreground)) !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
 }
 
 /* ── 导航栏 ── */
