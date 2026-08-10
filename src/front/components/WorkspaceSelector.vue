@@ -41,8 +41,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { Folder, ChevronUp, ChevronDown, X } from 'lucide-vue-next'
+import { workspace_list, workspace_status } from '@/lib/api'
 
-/** WorkspaceMeta（与原生版 useProject 对齐，精简字段） */
+/** WorkspaceMeta（与 api.ts WorkspaceMeta 对齐） */
 interface WorkspaceMeta {
   id: string
   path: string
@@ -54,16 +55,9 @@ const open = ref(false)
 const current = ref<WorkspaceMeta | null>(null)
 const recent = ref<WorkspaceMeta[]>([])
 
-function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('musk_jwt') || ''
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-
 async function loadRecent() {
   try {
-    const resp = await fetch('/api/workspace/list', { headers: authHeaders() })
-    if (!resp.ok) return
-    const data = await resp.json()
+    const data = await workspace_list()
     recent.value = data.workspaces || []
     // 同步当前 workspace 元信息
     const wid = localStorage.getItem('musk_workspace') || ''
@@ -79,12 +73,8 @@ async function loadStatus() {
   const wid = localStorage.getItem('musk_workspace') || ''
   if (!wid) return
   try {
-    const resp = await fetch(`/api/workspace/status?workspace=${encodeURIComponent(wid)}`, {
-      headers: authHeaders(),
-    })
-    if (!resp.ok) return
-    const data = await resp.json()
-    current.value = data.workspace || data
+    const data = await workspace_status(wid)
+    current.value = data.workspace || (data as any)
   } catch {
     // 静默失败
   }

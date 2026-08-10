@@ -386,3 +386,63 @@ pub type ResolveGateBody = {
 pub fn relay_resolve_gate(run_id str, req ResolveGateBody) any {
     return None
 }
+
+// ============================================================
+// Workspace API (Plan 022 后续) — 工作区选择器所需端点。
+// 后端 server.at 已实现（workspace_list/open/status/browse/initialize）。
+// wire 格式参照 web/src/composables/useProject.ts 的实际调用。
+// ============================================================
+
+// 工作区元信息（对应 useProject 的 WorkspaceMeta）。
+pub type WorkspaceMeta = {
+    id: str,
+    path: str,
+    name: str,
+    is_empty: bool,
+}
+
+// GET /api/workspace/list 响应。
+pub type WorkspaceListResponse = {
+    workspaces: []WorkspaceMeta,
+}
+
+// GET /api/workspace/status 响应。
+pub type WorkspaceStatusResponse = {
+    workspace: WorkspaceMeta,
+}
+
+// GET /api/workspace/browse 响应条目。
+pub type BrowseEntry = {
+    name: str,
+    path: str,
+}
+
+// GET /api/workspace/browse 响应。
+pub type BrowseResponse = {
+    entries: []BrowseEntry,
+}
+
+// POST /api/workspace/open 请求体。
+pub type OpenWorkspaceBody = {
+    path: str,
+}
+
+#[api(method = "GET", path = "/api/workspace/list")]
+pub fn workspace_list() WorkspaceListResponse {
+    return None
+}
+
+#[api(method = "GET", path = "/api/workspace/status")]
+pub fn workspace_status(workspace str) WorkspaceStatusResponse {
+    return None
+}
+
+#[api(method = "POST", path = "/api/workspace/open")]
+pub fn workspace_open(req OpenWorkspaceBody) WorkspaceMeta {
+    return None
+}
+
+#[api(method = "GET", path = "/api/workspace/browse")]
+pub fn workspace_browse(path str) BrowseResponse {
+    return None
+}
