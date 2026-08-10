@@ -372,8 +372,8 @@ a { color: hsl(var(--primary)); }
 .specs-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
 .specs-view > div:first-child {
   width: 200px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.25rem;
-  /* header 贴顶全宽（原版 .section-nav 无 padding，header 自带 padding） */
-  padding: 0 0 0.75rem; border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
+  /* 容器结构与 ChatsView 二级导航一致：无 padding，header 贴顶全宽 border-bottom */
+  padding: 0; border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
   overflow-y: auto;
 }
 .section-nav-header { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.75rem; flex-shrink: 0; }
@@ -423,8 +423,8 @@ a { color: hsl(var(--primary)); }
 .wiki-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
 .wiki-view > div:first-child {
   width: 240px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.25rem;
-  /* header 贴顶全宽（原版 .wiki-nav 无 padding，WikiNav 自身 header 48px 全宽） */
-  padding: 0 0 0.75rem; border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
+  /* 容器结构与 ChatsView 二级导航一致：无 padding，header 贴顶全宽 border-bottom */
+  padding: 0; border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
   overflow-y: auto;
 }
 .wiki-nav-header { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; flex-shrink: 0; }
