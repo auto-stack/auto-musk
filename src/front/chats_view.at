@@ -53,6 +53,8 @@ widget ChatsView {
         component: UserMessage from "src/front/components/UserMessage.vue"
         // Plan 022-B：ChatMessage 独立组件（统一消息渲染，接 msg + is_streaming props）。
         component: ChatMessage from "src/front/components/ChatMessage.vue"
+        // SessionInfo：会话信息 tooltip（Chat ID 复制 + 消息数 + token 消耗）。
+        component: SessionInfo from "src/front/components/SessionInfo.vue"
         // B 类批1：useAgentConfigs（动态 profession 列表，替代 DEFAULT_PROFESSIONS 硬编码）。
         composable: useAgentConfigs from "src/front/composables/useAgentConfigs.ts"
         // Plan 407：lucide 图标（toolbar emoji→图标）+ i18n t()（text 节点本地化）。
@@ -155,14 +157,10 @@ widget ChatsView {
                             placeholder: t("chat.searchPlaceholder")
                         }
                     }
-                    // 右侧 info icon（对齐原版 .header-actions .session-info-btn）
+                    // 右侧 SessionInfo 组件（info icon + tooltip，对齐原版）
                     div {
                         style: "header-actions"
-                        button {
-                            style: "session-info-btn"
-                            title: t("chat.sessionInfo")
-                            Info { size: 15 }
-                        }
+                        SessionInfo
                     }
                 }
                 // canvas（SecretaryMessage/GateCard/ReportCard + 消息列表 + 流式 draft）
