@@ -1,7 +1,7 @@
 <!--
   MentionInput.vue — @mention 输入框（逃生舱，完整版）
   Plan 022 Phase 7c: 封装 textarea + v-html backdrop + MentionDropdown（键盘导航）+
-  /relay//superpower//spec1 命令解析。emit submit(text)/stop。
+  /relay /superpower /spec1 命令解析。emit submit(text)/stop。
 
   走逃生舱的理由（plan 7c 探索结论）：.at 无法表达 v-html backdrop（mention 高亮
   视觉核心），且牵连 ref+keydown+5 交互函数，整体封装内聚度最高。
@@ -20,7 +20,7 @@
             ref="textareaRef"
             v-model="text"
             class="chats-input"
-            placeholder="描述你想构建的内容... (Enter 发送, @ 呼出 agent, /relay /superpower /spec1 命令)"
+            :placeholder="t('chat.inputPlaceholder')"
             :disabled="disabled"
             @input="handleInput"
             @keydown="handleKeydown"
@@ -57,6 +57,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import MentionDropdown from './MentionDropdown.vue'
 import { useAgentConfigs } from '../composables/useAgentConfigs'
 import {
@@ -67,6 +68,7 @@ import {
 
 // B 类批1：动态 profession 列表（useAgentConfigs singleton，App/chats_view Init 时 loadConfigs）。
 const { configs: agentConfigs } = useAgentConfigs()
+const { t } = useI18n()
 
 interface ProfessionOption {
   id: string
