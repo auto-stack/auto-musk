@@ -93,7 +93,8 @@ a { color: hsl(var(--primary)); }
 
 /* ── header 统一分隔线 + 高度 + 标题样式（对齐原版）── */
 .app-header {
-  height: 48px; border-bottom: 1px solid hsl(var(--border));
+  height: 48px !important; padding: 0 1rem !important;
+  border-bottom: 1px solid hsl(var(--border));
   display: flex; align-items: center; flex-shrink: 0;
 }
 .sidebar-header, .section-nav-header, .wiki-nav-header, .chats-header {
@@ -177,6 +178,15 @@ a { color: hsl(var(--primary)); }
   border-bottom: 1px solid hsl(var(--border)); background: hsl(var(--card));
 }
 .chats-title { font-size: 0.85rem; font-weight: 500; color: hsl(var(--muted-foreground)); text-transform: uppercase; letter-spacing: 0.04em; }
+/* header 三段布局：标题左 / 搜索中 / 操作右 */
+.header-title-row { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
+.header-actions { display: flex; align-items: center; gap: 0.3rem; flex-shrink: 0; }
+.session-info-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border: none; border-radius: 6px;
+  background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer;
+}
+.session-info-btn:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
 /* 搜索框（对齐原版 .header-search） */
 .header-search {
   display: flex; align-items: center; gap: 0.35rem;

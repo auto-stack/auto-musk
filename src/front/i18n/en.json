@@ -29,7 +29,9 @@
     "create": "Create"
   },
   "chat": {
+    "title": "Chat",
     "sessions": "Sessions",
+    "sessionInfo": "Session info",
     "newSession": "New session",
     "deleteSession": "Delete session",
     "deleteAllSessions": "Delete all sessions",

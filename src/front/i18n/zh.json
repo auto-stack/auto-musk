@@ -29,7 +29,9 @@
     "create": "创建"
   },
   "chat": {
+    "title": "聊天",
     "sessions": "会话",
+    "sessionInfo": "会话信息",
     "newSession": "新建会话",
     "deleteSession": "删除会话",
     "deleteAllSessions": "删除全部会话",

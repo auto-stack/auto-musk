@@ -58,7 +58,7 @@ widget ChatsView {
         // Plan 407：lucide 图标（toolbar emoji→图标）+ i18n t()（text 节点本地化）。
         // Plan 407 parser 增强后，组件可作 button 子节点、t() 可作 text primary prop。
         // t 走 composable 包装 useT（const t = useT()，见 app.at 注释）。
-        component: Plus, Trash2, Search from "lucide-vue-next"
+        component: Plus, Trash2, Search, Info from "lucide-vue-next"
         composable: useT from "src/front/composables/useT.ts"
     }
 
@@ -140,10 +140,10 @@ widget ChatsView {
                 // header
                 row {
                     style: "chats-header"
-                    if .store.session_id != "" {
-                        text .store.session_id { style: "chats-title" }
-                    } else {
-                        text t("chat.noSessions") { style: "chats-title" }
+                    // 标题（固定 t('chat.title')，对齐原版）
+                    div {
+                        style: "header-title-row"
+                        text t("chat.title") { style: "chats-title" }
                     }
                     // 搜索框（居中，对齐原版 .header-search）
                     div {
@@ -153,6 +153,15 @@ widget ChatsView {
                             style: "search-input"
                             value: .chat_search
                             placeholder: t("chat.searchPlaceholder")
+                        }
+                    }
+                    // 右侧 info icon（对齐原版 .header-actions .session-info-btn）
+                    div {
+                        style: "header-actions"
+                        button {
+                            style: "session-info-btn"
+                            title: t("chat.sessionInfo")
+                            Info { size: 15 }
                         }
                     }
                 }
