@@ -13,7 +13,7 @@
     <!-- header: 角色标识 + 时间 -->
     <div class="msg-header">
       <span class="msg-role-badge">{{ msg.role === 'assistant' ? '🤖 AI' : '🧑 You' }}</span>
-      <span class="msg-time">{{ msg.timestamp ? new Date(msg.timestamp * 1000).toLocaleTimeString() : '' }}</span>
+      <span class="msg-time">{{ msg.created_at ? new Date(msg.created_at * 1000).toLocaleTimeString() : '' }}</span>
     </div>
     <!-- 气泡内容（按 role 分支） -->
     <template v-if="msg.role === 'assistant'">
@@ -39,7 +39,7 @@ export interface ChatMsg {
   id?: string | number
   role: string
   content: string
-  timestamp?: number
+  created_at?: number
   thinking?: string
 }
 
