@@ -116,12 +116,12 @@ Auto 版的样式体系与原版完全不同（shadcn 默认变量 + 空的 `<st
 |---|---|---|---|
 | ~~api.ts 类型声明不匹配~~ | api.at 加 SessionListResponse/SessionDetailResponse 包装层类型。vue-tsc 0 错 + pnpm build 通过。 | ✅ `f6a1c55` |
 | ~~搜索框输入绑定~~ | useChatSearch composable（reactive 包装）+ oninput handler + filteredMessages computed。搜 "3" → 过滤到 1 条 ✓ | ✅ `bc0d3e2` |
-| view fn → 独立组件 codegen | auto-lang view fn 设计为"内联展开宏"（Plan 367），ChatMessage 因 `use{component}` 引用跳过内联。当前用逃生舱 .vue 组件绕过。 | 后续 |
-| WikiNav 简化版 | 原版用 TreeView 递归组件（后端树节点有 children 层级），Auto 版用扁平列表。 | 后续 |
-| WikiNav raw 区功能 | 原版 raw 区有 DropZone 拖拽上传 + 新建文件夹。 | 后续 |
-| 搜索框 Ctrl+Shift+S 快捷键 | 原版有，Auto 版暂未做。 | 后续 |
-| useForgeMode（GSD/Check） | 后端无对应逻辑。 | 后续 |
-| AutoOS 设置链接 | 后端无 /api/settings-link 端点。 | 后续 |
+| ~~Ctrl+Shift+S/N 快捷键~~ | useKeyboardShortcuts composable（Ctrl+Shift+S 聚焦搜索 / Ctrl+Shift+N 新建会话） | ✅ `4ef3273` |
+| ~~AutoOS 设置链接~~ | SettingsMenu 第四分区（POST /api/settings-link，端点存在，aaid 不可达时显示错误） | ✅ `31e1ea9` |
+| view fn → 独立组件 codegen | auto-lang view fn 设计为"内联展开宏"（Plan 367），ChatMessage 因 `use{component}` 引用跳过内联。当前用逃生舱 .vue 组件绕过。 | 后续（auto-lang 大工程） |
+| WikiNav 递归 | 后端树节点扁平（无 children），不需要递归。 | ✅ 无需求 |
+| WikiNav raw DropZone | 后端无 raw upload 端点（只有 GET /api/files 读文件）。原版调的 /api/forge/raw/{project}/upload 在后端不存在。 | ❌ 后端缺失 |
+| useForgeMode（GSD/Check） | 后端无 /api/forge/mode 端点（404）。 | ❌ 后端缺失 |
 
 ---
 
