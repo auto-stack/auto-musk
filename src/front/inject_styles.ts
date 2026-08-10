@@ -330,7 +330,7 @@ a { color: hsl(var(--primary)); }
   border: none !important; border-radius: 0 !important; background: transparent !important;
   font-size: 0.95rem; resize: none; outline: none;
 }
-.chats-input:focus { outline: none; box-shadow: none; }
+.chats-input:focus { outline: none !important; box-shadow: none !important; border: none !important; }
 /* Send 按钮：圆形 + 紫色底 + 白字（对齐原生版 .send-btn） */
 .input-row button[class*="send"],
 .input-compose button[type="submit"],
