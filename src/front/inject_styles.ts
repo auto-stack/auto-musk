@@ -17,6 +17,8 @@ const STYLES = `
 .rail-tab.active {
   background: hsl(var(--primary) / 0.08); color: hsl(var(--primary)); font-weight: 500;
 }
+/* rail-footer：导航栏底部（WorkspaceSelector 占位，推到最下） */
+.rail-footer { margin-top: auto; }
 
 /* ── ChatsView 布局 ── */
 .chats-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
