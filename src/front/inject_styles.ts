@@ -109,11 +109,14 @@ a { color: hsl(var(--primary)); }
   display: flex !important; align-items: center; flex-shrink: 0;
 }
 /* 内容页 title 与导航 header 高度统一（原版 content-header 48px + border-bottom） */
+/* 对齐原版 .section-editor(无 padding) + .content-header(贴顶全宽自带宽) 架构：
+   .specs-main/.wiki-main 去 padding，header 贴顶全宽自带水平 padding，内容容器单独 padding。 */
 .section-header, .wiki-content-header {
   height: 48px;
   flex-shrink: 0;
   border-bottom: 1px solid hsl(var(--border));
   display: flex; align-items: center;
+  padding: 0 1.25rem;
 }
 /* 标题统一为 Noto Sans SC bold 风格（覆盖各视图分散定义） */
 .sidebar-title, .section-nav-title, .wiki-nav-title, .chats-title {
@@ -369,7 +372,8 @@ a { color: hsl(var(--primary)); }
 .specs-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
 .specs-view > div:first-child {
   width: 200px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.25rem;
-  padding: 0.75rem 0.5rem; border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
+  /* header 贴顶全宽（原版 .section-nav 无 padding，header 自带 padding） */
+  padding: 0 0 0.75rem; border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
   overflow-y: auto;
 }
 .section-nav-header { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.75rem; flex-shrink: 0; }
@@ -388,10 +392,10 @@ a { color: hsl(var(--primary)); }
 }
 .section-nav-item:hover { background: hsl(var(--accent)); }
 .section-nav-item.active { background: hsl(var(--accent)); font-weight: 500; }
-.specs-main { flex: 1; overflow-y: auto; padding: 1.25rem; display: flex; flex-direction: column; }
-.overview-content { font-size: 0.9rem; line-height: 1.6; color: hsl(var(--foreground)); }
-.section-content { margin-bottom: 1rem; }
-.section-header { display: flex; align-items: center; justify-content: space-between; }
+.specs-main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+.overview-content { padding: 1.25rem; font-size: 0.9rem; line-height: 1.6; color: hsl(var(--foreground)); }
+.section-content { margin-bottom: 1rem; padding: 0 1.25rem 1.25rem; }
+.section-header { display: flex; align-items: center; justify-content: space-between; margin: 0 -1.25rem 0.5rem; }
 .spec-item-btn { display: block; width: 100%; text-align: left; padding: 0.6rem 0.75rem; border: 1px solid hsl(var(--border)); border-radius: 8px; margin-bottom: 0.4rem; background: hsl(var(--card)); cursor: pointer; }
 .spec-item-btn:hover { border-color: hsl(var(--primary)); }
 .spec-item-main { display: flex; align-items: center; gap: 0.5rem; }
@@ -419,7 +423,8 @@ a { color: hsl(var(--primary)); }
 .wiki-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
 .wiki-view > div:first-child {
   width: 240px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.25rem;
-  padding: 0.75rem 0.5rem; border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
+  /* header 贴顶全宽（原版 .wiki-nav 无 padding，WikiNav 自身 header 48px 全宽） */
+  padding: 0 0 0.75rem; border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
   overflow-y: auto;
 }
 .wiki-nav-header { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; flex-shrink: 0; }
@@ -434,12 +439,13 @@ a { color: hsl(var(--primary)); }
 }
 .wiki-nav-item:hover { background: hsl(var(--accent)); }
 .wiki-nav-item.active { background: hsl(var(--accent)); font-weight: 500; }
-.wiki-main { flex: 1; overflow-y: auto; padding: 1.25rem; display: flex; flex-direction: column; }
-.wiki-content-header { display: flex; align-items: center; justify-content: space-between; }
+.wiki-main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+.wiki-content-header { display: flex; align-items: center; justify-content: space-between; margin: 0 -1.25rem 0.5rem; }
 .wiki-content-actions { display: flex; gap: 0.25rem; }
-.wiki-content { font-size: 0.9rem; line-height: 1.6; color: hsl(var(--foreground)); }
+.wiki-content { padding: 0 1.25rem 1.25rem; font-size: 0.9rem; line-height: 1.6; color: hsl(var(--foreground)); }
+.wiki-raw { padding: 0 1.25rem 1.25rem; }
 .wiki-markdown { font-size: 0.9rem; line-height: 1.6; }
-.wiki-editor { padding: 1rem; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--card)); }
+.wiki-editor { margin: 1.25rem; padding: 1rem; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--card)); }
 .wiki-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: hsl(var(--muted-foreground)); gap: 0.5rem; text-align: center; }
 .text-muted { color: hsl(var(--muted-foreground)); }
 `
