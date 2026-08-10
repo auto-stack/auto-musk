@@ -9,7 +9,6 @@
 //   - 卡片走 use{component} 逃生舱（@click toggle 无法 .at 表达）。
 
 use store: ForgeStore
-use chat_message: ChatMessage
 // #4 回流：会话删除按钮所需的 API 函数。
 use back.api: chats_delete_session, chats_delete_all_sessions
 
@@ -52,6 +51,8 @@ widget ChatsView {
         fn: useStreamingDocument from "src/front/composables/useStreamingDocument.ts"
         // Phase 7.4：UserMessage（user 消息 @mention 高亮，v-html 逃生舱）。
         component: UserMessage from "src/front/components/UserMessage.vue"
+        // Plan 022-B：ChatMessage 独立组件（统一消息渲染，接 msg + is_streaming props）。
+        component: ChatMessage from "src/front/components/ChatMessage.vue"
         // B 类批1：useAgentConfigs（动态 profession 列表，替代 DEFAULT_PROFESSIONS 硬编码）。
         composable: useAgentConfigs from "src/front/composables/useAgentConfigs.ts"
         // Plan 407：lucide 图标（toolbar emoji→图标）+ i18n t()（text 节点本地化）。
@@ -171,8 +172,11 @@ widget ChatsView {
                     for msg in .store.messages {
                         col {
                             key: .msg.id
-                            // ChatMessage view fn 统一渲染 header + 气泡 + thinking
-                            ChatMessage(msg: .msg, is_streaming: false)
+                            // ChatMessage 独立组件渲染 header + 气泡 + thinking
+                            ChatMessage {
+                                msg: .msg
+                                is_streaming: false
+                            }
                             // 问卷卡片（assistant 消息内含问卷时显示，7.3。
                             // codegen 限制1 修复后直接用 getQuestions fn 调用绑定）
                             if .msg.role == "assistant" {
