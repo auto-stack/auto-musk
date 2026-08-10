@@ -52,6 +52,11 @@ widget ChatsView {
         component: UserMessage from "src/front/components/UserMessage.vue"
         // B 类批1：useAgentConfigs（动态 profession 列表，替代 DEFAULT_PROFESSIONS 硬编码）。
         composable: useAgentConfigs from "src/front/composables/useAgentConfigs.ts"
+        // Plan 407：lucide 图标（toolbar emoji→图标）+ i18n t()（text 节点本地化）。
+        // Plan 407 parser 增强后，组件可作 button 子节点、t() 可作 text primary prop。
+        // t 走 composable 包装 useT（const t = useT()，见 app.at 注释）。
+        component: Plus, Trash2 from "lucide-vue-next"
+        composable: useT from "src/front/composables/useT.ts"
     }
 
     msg Msg {
@@ -82,18 +87,19 @@ widget ChatsView {
                 style: if .sidebar_collapsed { "session-sidebar collapsed" } else { "session-sidebar" }
                 row {
                     style: "sidebar-header"
-                    text "会话" { style: "sidebar-title" }
-                    // KNOWN-DEBT(codegen): .at 不支持 lucide 图标组件作子节点，
-                    // codegen 后在 .vue 手动改为 <Plus :size=14 />（见 inject_styles 注释）。
+                    text t("chat.sessions") { style: "sidebar-title" }
+                    // Plan 407：lucide 图标作 button 子节点（parser 增强后原生支持）。
                     button {
                         onclick: .NewSession
                         style: "sidebar-new-btn"
-                        text "+"
+                        title: t("chat.newSession")
+                        Plus { size: 14 }
                     }
                     button {
                         onclick: .DeleteAllSessions
                         style: "sidebar-new-btn"
-                        text "×"
+                        title: t("chat.deleteAllSessions")
+                        Trash2 { size: 14 }
                     }
                 }
                 col {
@@ -110,7 +116,7 @@ widget ChatsView {
                             col {
                                 style: "session-preview"
                                 text .s.name { style: "session-name" }
-                                text f"${.s.message_count} 条" { style: "session-count" }
+                                text t("chat.msgs", { count: .s.message_count }) { style: "session-count" }
                             }
                         }
                     }
@@ -125,7 +131,7 @@ widget ChatsView {
                     if .store.session_id != "" {
                         text .store.session_id { style: "chats-title" }
                     } else {
-                        text "无会话" { style: "chats-title" }
+                        text t("chat.noSessions") { style: "chats-title" }
                     }
                 }
                 // canvas（SecretaryMessage/GateCard/ReportCard + 消息列表 + 流式 draft）

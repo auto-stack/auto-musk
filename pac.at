@@ -10,10 +10,10 @@ scene: "ui"
 render: "vue"
 api: "rust"
 
-// Plan 022 Phase 2: i18n (vue-i18n) — locale files copied to src/locales/
-// and wired into createI18n in main.ts. Phase 4 will point at the full
-// web/src/i18n/locales/{en,zh}.json (366 keys); Phase 2 demo uses a subset.
-i18n: ["src/front/i18n/en.json", "src/front/i18n/zh.json"]
+// Plan 022 Phase 2 + Plan 407: i18n (vue-i18n) — locale files copied to src/locales/
+// and wired into createI18n in main.ts. default_locale = 第一个文件 stem（zh 在前→中文默认）。
+// Plan 407 扩充了 nav/chat/app key，配合 .at text t() 表达式实现完整 i18n。
+i18n: ["src/front/i18n/zh.json", "src/front/i18n/en.json"]
 
 // Plan 022 Phase 6: markdown rendering (markstream-vue) for WikiView/SpecsView.
 // (Phase 3 auto-detection is best-effort; declare explicitly for reliability.)

@@ -1,4 +1,25 @@
 {
-  "app": { "title": "auto-musk" },
-  "counter": { "label": "Count" }
+  "app": {
+    "title": "auto-musk",
+    "brandName": "Auto Musk",
+    "version": "v0.1.0"
+  },
+  "nav": {
+    "chat": "Chat",
+    "specs": "Specs",
+    "wiki": "Wiki"
+  },
+  "counter": {
+    "label": "Count"
+  },
+  "chat": {
+    "sessions": "Sessions",
+    "newSession": "New session",
+    "deleteSession": "Delete session",
+    "deleteAllSessions": "Delete all sessions",
+    "noSessions": "No session",
+    "inputPlaceholder": "Describe what you want to build... (Enter to send, @ for agent, /relay /superpower /spec1 commands)",
+    "searchPlaceholder": "Search messages…",
+    "msgs": "{count} msgs"
+  }
 }
