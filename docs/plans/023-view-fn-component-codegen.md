@@ -48,7 +48,43 @@ Plan 022 实现中，ChatsView 的消息渲染（ChatMessage）及其子卡片�
 | **P2** | 转译器：`view fn` 解析 + AuraWidget 合成 + Vue 组件生成（或响应式片段）；单测 + golden | `cargo test -p auto-lang` 绿 |
 | **P3** | auto-musk 试点：以最简组件（如 UserMessage/mention 高亮）替换逃生舱验证能力 | 生成工程构建 + 行为 parity |
 | **P4** | 全量迁移：ChatMessage 及其子组件、forge_helpers/relay_commands/questionnaire 逃生舱 TS | 逃生舱清零（或登记残留）+ 零 drift |
-| **P5** | 文档归档：KNOWN-DEBT 更新 + 022 §8 后续项闭环 | 归档 |
+| **P5** | **跨视图共用组件收敛**（2026-08-10 登记）：三个二级导航 + 三个内容标题栏收敛为共用组件（见 §3.1） | 三视图共用组件，样式零漂移 |
+| **P6** | 文档归档：KNOWN-DEBT 更新 + 022 §8 后续项闭环 | 归档 |
+
+## 3.1 后续项登记：跨视图共用组件收敛（2026-08-10）
+
+**背景**：Plan 022 的三个视图二级导航（聊天的 `.sidebar-header`、规范的 `.section-nav-header`、知识库的 `.wiki-nav-header`）和三个内容标题栏（`.chats-header`/`.section-header`/`.wiki-content-header`）目前是**各自独立组件 + CSS 统一**——已在 inject_styles.ts 通过统一规则实现视觉对齐（48px 贴顶全宽 border，headless Chromium 实测三视图 top=0/h=48/border 联通），但**结构层未共用**：
+
+- 聊天：`chats_view.at` 生成的 session 列表 + `.sidebar-header`
+- 规范：`specs_view.at` 生成的 section 导航 + `.section-nav-header`
+- 知识库：`WikiNav.vue`（逃生舱）+ `.wiki-nav-header`
+
+三处样式各自定义，未来某处微调仍可能再次漂移（当前靠 `inject_styles.ts` 的统一规则 + `!important` 压制）。
+
+**目标**：依赖 P2 的 `view fn`/组件能力，抽象一个共用 `NavSidebar`（header + 列表骨架 + 折叠态）和共用 `ContentHeader`（标题 + 操作区插槽），三个视图以 `.at` 声明复用：
+
+```auto
+// 伪代码示意
+component NavSidebar {
+    msg { ToggleCollapse }
+    model { var collapsed bool = false }
+    view {
+        col {
+            // header（48px 贴顶全宽 border）
+            row { style: "nav-sidebar-header" ... }
+            // 列表骨架由各视图注入
+            slot: "list"
+        }
+    }
+}
+```
+
+**验收**：
+1. 三视图二级导航/内容标题栏改用一个 `.at` 组件（或一个逃生舱 + 三处复用），删除 inject_styles 中针对三个 header 的分散 `!important` 覆盖；
+2. 重新 `auto build` 后三视图视觉与现 CSS 对齐版一致（headless Chromium 逐项比对 top/height/border 联通）；
+3. 样式单一真源：改一处 header 规则三视图同步生效，无 `!important` 兜底。
+
+**依赖**：需 P2 支持组件插槽/子组件差异（或先以逃生舱 + props 差异实现，再渐进原生化）。**不阻塞** Plan 022 当前功能。
 
 ## 4. 风险与降级
 
@@ -63,4 +99,7 @@ Plan 022 实现中，ChatsView 的消息渲染（ChatMessage）及其子卡片�
 
 - **不阻塞**：Plan 022 已用逃生舱达成功能 parity，本计划是"逃生舱渐进原生化"的大工程。
 - **执行方**：auto-lang 仓库（独立 repo，`D:\autostack\auto-lang`）；auto-musk 仅作为验证与迁移对象。
+- **迁移对象**（按优先级）：
+  1. ChatMessage 及其子卡片、逃生舱 TS（§3 P3/P4）——功能/交互 parity 的纯原生化；
+  2. **三视图二级导航 + 内容标题栏共用组件收敛**（§3.1 P5）——消除三处 `!important` 兜底的 CSS 漂移风险，样式单一真源。
 - **状态追踪**：本文件驻留 auto-musk `docs/plans/`，实施在 auto-lang 侧开分支，完成后再回填本文件日志。
