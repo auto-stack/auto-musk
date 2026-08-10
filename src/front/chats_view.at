@@ -10,6 +10,8 @@
 
 use store: ForgeStore
 use chat_message: ChatMessage
+// #4 回流：会话删除按钮所需的 API 函数。
+use back.api: chats_delete_session, chats_delete_all_sessions
 
 widget ChatsView {
     use {
@@ -62,6 +64,7 @@ widget ChatsView {
     msg Msg {
         Init,
         NewSession,
+        DeleteSession(str),
         DeleteAllSessions,
         SelectSession(str),
         SendInput(str),
@@ -117,6 +120,13 @@ widget ChatsView {
                                 style: "session-preview"
                                 text .s.name { style: "session-name" }
                                 text t("chat.msgs", { count: .s.message_count }) { style: "session-count" }
+                            }
+                            // #4 回流：会话项 hover 删除按钮（Trash2 图标 + onclick.stop 阻止冒泡）
+                            span {
+                                style: "session-delete-btn"
+                                onclick.stop: .DeleteSession(.s.id)
+                                title: t("chat.deleteSession")
+                                Trash2 { size: 12 }
                             }
                         }
                     }
@@ -234,7 +244,13 @@ widget ChatsView {
 
         .NewSession -> { store.NewSession() }
 
+        .DeleteSession(id) -> {
+            chats_delete_session(id);
+            store.LoadSessionList()
+        }
+
         .DeleteAllSessions -> {
+            chats_delete_all_sessions();
             store.session_id = "";
             store.messages = [];
             store.LoadSessionList()
