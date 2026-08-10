@@ -12,6 +12,15 @@
   "counter": {
     "label": "Count"
   },
+  "settings": {
+    "title": "Settings",
+    "accent": "Accent",
+    "theme": "Theme",
+    "language": "Language",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System"
+  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",

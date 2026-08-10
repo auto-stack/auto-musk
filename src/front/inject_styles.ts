@@ -75,8 +75,17 @@ a { color: hsl(var(--primary)); }
 .rail-tab.active {
   background: hsl(var(--primary) / 0.08); color: hsl(var(--primary)); font-weight: 500;
 }
-/* rail-footer：导航栏底部（WorkspaceSelector 占位，推到最下） */
-.rail-footer { margin-top: auto; }
+/* rail-footer：导航栏底部（WorkspaceSelector + SettingsMenu 并排） */
+.rail-footer {
+  margin-top: auto;
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0 0.3rem;
+}
+/* WorkspaceSelector 填满剩余空间，SettingsMenu 固定宽度 */
+.rail-footer .workspace-selector { flex: 1; min-width: 0; }
 
 /* ── ChatsView 布局 ── */
 .chats-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
