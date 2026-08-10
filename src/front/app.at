@@ -18,6 +18,9 @@ widget App {
         // t 走 composable 包装（vue-i18n 的 t 是 useI18n() 解构返回值，非静态导出）。
         // codegen: import { useT } + const t = useT()（去 use 前缀小写得变量名 t）。
         composable: useT from "src/front/composables/useT.ts"
+        // Plan 022 视觉对齐：主题 + 强调色切换 composable。
+        composable: useTheme from "src/front/composables/useTheme.ts"
+        composable: useAccentColor from "src/front/composables/useAccentColor.ts"
         component: WorkspaceSelector from "src/front/components/WorkspaceSelector.vue"
     }
 
