@@ -83,15 +83,17 @@ widget ChatsView {
                 row {
                     style: "sidebar-header"
                     text "会话" { style: "sidebar-title" }
+                    // KNOWN-DEBT(codegen): .at 不支持 lucide 图标组件作子节点，
+                    // codegen 后在 .vue 手动改为 <Plus :size=14 />（见 inject_styles 注释）。
                     button {
                         onclick: .NewSession
                         style: "sidebar-new-btn"
-                        text "新建"
+                        text "+"
                     }
                     button {
                         onclick: .DeleteAllSessions
                         style: "sidebar-new-btn"
-                        text "🗑"
+                        text "×"
                     }
                 }
                 col {
