@@ -92,6 +92,10 @@ a { color: hsl(var(--primary)); }
 }
 
 /* ── header 统一分隔线 + 高度 + 标题样式（对齐原版）── */
+.app-header {
+  height: 48px; border-bottom: 1px solid hsl(var(--border));
+  display: flex; align-items: center; flex-shrink: 0;
+}
 .sidebar-header, .section-nav-header, .wiki-nav-header, .chats-header {
   height: 48px !important;
   border-bottom: 1px solid hsl(var(--border)) !important;

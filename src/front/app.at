@@ -47,8 +47,8 @@ widget App {
                 // Plan 407：text 节点 t() 化 + WorkspaceSelector 逃生舱接入（原生支持）。
                 col {
                     style: "w-48 shrink-0 bg-card border-r border-border gap-3 p-3 h-full"
-                    col {
-                        style: "px-2 py-1 gap-0"
+                    row {
+                        style: "app-header px-2 py-1 gap-2 items-baseline"
                         text t("app.brandName") { style: "text-base font-bold text-primary" }
                         text t("app.version") { style: "text-xs text-muted-foreground" }
                     }

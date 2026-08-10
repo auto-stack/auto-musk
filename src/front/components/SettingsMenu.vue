@@ -155,7 +155,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
 .settings-panel {
   position: absolute;
   bottom: 100%;
-  right: 0;
+  left: 0;
   margin-bottom: 8px;
   min-width: 220px;
   background: hsl(var(--card));
