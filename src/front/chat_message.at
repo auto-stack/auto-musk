@@ -15,9 +15,19 @@
 //
 // 设计对标：原生 ChatsView.vue 的 .message + .message-content + .thinking-block。
 // tool_calls / questionnaire 不在此 fn 内（需要 store 交互，留在 ChatsView）。
+//
+// Plan 407 修复：parser 不支持顶层 use{} + view fn（无 widget）的结构，
+// 加 widget 外壳包装 use 块（参照 Plan 043 view fn 范式）。
 
-use { component: StreamingRenderer from "src/front/components/StreamingRenderer.vue" }
-use { component: UserMessage from "src/front/components/UserMessage.vue" }
+widget ChatMessageHost {
+    use {
+        component: StreamingRenderer from "src/front/components/StreamingRenderer.vue"
+        component: UserMessage from "src/front/components/UserMessage.vue"
+    }
+    model { var _unused int = 0 }
+    view { col { text "host" } }
+    on { }
+}
 
 // ChatMessage — 渲染单条消息（header + 气泡 + thinking）。
 // msg: 消息对象（role/content/timestamp/thinking/profession_id）
