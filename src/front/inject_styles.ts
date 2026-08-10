@@ -108,6 +108,13 @@ a { color: hsl(var(--primary)); }
   border-bottom: 1px solid hsl(var(--border)) !important;
   display: flex !important; align-items: center; flex-shrink: 0;
 }
+/* 内容页 title 与导航 header 高度统一（原版 content-header 48px + border-bottom） */
+.section-header, .wiki-content-header {
+  height: 48px;
+  flex-shrink: 0;
+  border-bottom: 1px solid hsl(var(--border));
+  display: flex; align-items: center;
+}
 /* 标题统一为 Noto Sans SC bold 风格（覆盖各视图分散定义） */
 .sidebar-title, .section-nav-title, .wiki-nav-title, .chats-title {
   font-family: 'Noto Sans SC', sans-serif !important;
@@ -384,7 +391,7 @@ a { color: hsl(var(--primary)); }
 .specs-main { flex: 1; overflow-y: auto; padding: 1.25rem; display: flex; flex-direction: column; }
 .overview-content { font-size: 0.9rem; line-height: 1.6; color: hsl(var(--foreground)); }
 .section-content { margin-bottom: 1rem; }
-.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
+.section-header { display: flex; align-items: center; justify-content: space-between; }
 .spec-item-btn { display: block; width: 100%; text-align: left; padding: 0.6rem 0.75rem; border: 1px solid hsl(var(--border)); border-radius: 8px; margin-bottom: 0.4rem; background: hsl(var(--card)); cursor: pointer; }
 .spec-item-btn:hover { border-color: hsl(var(--primary)); }
 .spec-item-main { display: flex; align-items: center; gap: 0.5rem; }
@@ -428,7 +435,7 @@ a { color: hsl(var(--primary)); }
 .wiki-nav-item:hover { background: hsl(var(--accent)); }
 .wiki-nav-item.active { background: hsl(var(--accent)); font-weight: 500; }
 .wiki-main { flex: 1; overflow-y: auto; padding: 1.25rem; display: flex; flex-direction: column; }
-.wiki-content-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+.wiki-content-header { display: flex; align-items: center; justify-content: space-between; }
 .wiki-content-actions { display: flex; gap: 0.25rem; }
 .wiki-content { font-size: 0.9rem; line-height: 1.6; color: hsl(var(--foreground)); }
 .wiki-markdown { font-size: 0.9rem; line-height: 1.6; }

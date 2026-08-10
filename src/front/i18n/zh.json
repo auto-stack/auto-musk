@@ -58,6 +58,7 @@
   "wiki": {
     "title": "知识库",
     "newPage": "新建页面",
+    "newFolder": "新建文件夹",
     "toggleSidebar": "切换侧栏",
     "raw": "原始文件",
     "searchPlaceholder": "搜索页面…",

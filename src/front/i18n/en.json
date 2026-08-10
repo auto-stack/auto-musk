@@ -58,6 +58,7 @@
   "wiki": {
     "title": "Wiki",
     "newPage": "New page",
+    "newFolder": "New folder",
     "toggleSidebar": "Toggle sidebar",
     "raw": "Raw files",
     "searchPlaceholder": "Search pages…",
