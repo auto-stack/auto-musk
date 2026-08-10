@@ -65,6 +65,47 @@ const STYLES = `
 /* 全局链接色 */
 a { color: hsl(var(--primary)); }
 
+/* ── 三列渐变背景层次（对齐原版视觉层次）──
+   第一列（view-rail App 侧边栏）：最深的浅灰（secondary）
+   第二列（各视图 sub-nav）：中间层（card 偏灰）
+   第三列（main panel）：白底（background）
+   深色模式对应三档深色。 */
+/* 第一列：App.vue 侧边栏（bg-card Tailwind class → 覆盖） */
+.flex.flex-row.h-screen > div:first-child {
+  background: hsl(var(--secondary)) !important;
+}
+/* 第二列：各视图的 sub-nav（session-sidebar / section-nav / wiki-nav） */
+.chats-view > div:first-child,
+.specs-view > div:first-child,
+.wiki-view > div:first-child {
+  background: hsl(var(--card)) !important;
+}
+/* 第三列：main panel 保持 background 默认白/深 */
+/* 深色模式三列对应 */
+.dark .flex.flex-row.h-screen > div:first-child {
+  background: hsl(220 15% 8%) !important;
+}
+.dark .chats-view > div:first-child,
+.dark .specs-view > div:first-child,
+.dark .wiki-view > div:first-child {
+  background: hsl(220 15% 10%) !important;
+}
+
+/* ── header 统一分隔线 + 高度 + 标题样式（对齐原版）── */
+.sidebar-header, .section-nav-header, .wiki-nav-header, .chats-header {
+  height: 48px !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+  display: flex !important; align-items: center; flex-shrink: 0;
+}
+/* 标题统一为大写灰标签风格（对齐原版 sidebar-title / section-nav-title 等） */
+.sidebar-title, .section-nav-title, .wiki-nav-title {
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+  color: hsl(var(--muted-foreground)) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+}
+
 /* ── 导航栏 ── */
 .rail-tab {
   width: 100%; text-align: left; padding: 0.5rem 0.75rem; border-radius: 0.375rem;
