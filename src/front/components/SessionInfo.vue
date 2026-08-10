@@ -36,13 +36,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Info, Copy, CopyCheck } from 'lucide-vue-next'
 import { useForgeStoreStore } from '@/stores/useForgeStoreStore'
 
 const { t } = useI18n()
-const store = useForgeStoreStore()
+const store = reactive(useForgeStoreStore())
 
 const open = ref(false)
 const copied = ref(false)
