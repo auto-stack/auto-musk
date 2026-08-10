@@ -62,11 +62,14 @@ widget ChatsView {
         // t 走 composable 包装 useT（const t = useT()，见 app.at 注释）。
         component: Plus, Trash2, Search, Info from "lucide-vue-next"
         composable: useT from "src/front/composables/useT.ts"
+        // 技术债 #2：消息搜索过滤（search ref + filteredMessages computed）
+        composable: useChatSearch from "src/front/composables/useChatSearch.ts"
     }
 
     msg Msg {
         Init,
         NewSession,
+        OnSearchInput(str),
         DeleteSession(str),
         DeleteAllSessions,
         SelectSession(str),
@@ -153,7 +156,8 @@ widget ChatsView {
                         Search { size: 13 }
                         input {
                             style: "search-input"
-                            value: .chat_search
+                            value: .chatSearch.search
+                            oninput: .OnSearchInput($event)
                             placeholder: t("chat.searchPlaceholder")
                         }
                     }
@@ -187,7 +191,7 @@ widget ChatsView {
                             report: .store.report_data
                         }
                     }
-                    for msg in .store.messages {
+                    for msg in .chatSearch.filteredMessages {
                         col {
                             key: .msg.id
                             // ChatMessage 独立组件渲染 header + 气泡 + thinking
@@ -263,6 +267,8 @@ widget ChatsView {
             store.Init();
             agentConfigs.loadConfigs()
         }
+
+        .OnSearchInput(val) -> { chatSearch.search = val.target.value }
 
         .NewSession -> { store.NewSession() }
 
