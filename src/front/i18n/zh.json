@@ -25,7 +25,7 @@
     "deleteSession": "删除会话",
     "deleteAllSessions": "删除全部会话",
     "noSessions": "无会话",
-    "inputPlaceholder": "描述你想构建的内容... (Enter 发送, @ 呼出 agent, /relay /superpower /spec1 命令)",
+    "inputPlaceholder": "描述你想构建的内容... (Enter 发送, {'@'} 呼出 agent, /relay /superpower /spec1 命令)",
     "searchPlaceholder": "搜索消息…",
     "msgs": "{count} 条"
   },

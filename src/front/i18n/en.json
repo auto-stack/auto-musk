@@ -25,7 +25,7 @@
     "deleteSession": "Delete session",
     "deleteAllSessions": "Delete all sessions",
     "noSessions": "No session",
-    "inputPlaceholder": "Describe what you want to build... (Enter to send, @ for agent, /relay /superpower /spec1 commands)",
+    "inputPlaceholder": "Describe what you want to build... (Enter to send, {'@'} for agent, /relay /superpower /spec1 commands)",
     "searchPlaceholder": "Search messages…",
     "msgs": "{count} msgs"
   },
