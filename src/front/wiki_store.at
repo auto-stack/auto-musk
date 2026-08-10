@@ -41,7 +41,8 @@ store WikiStore {
                 .workspace = "musk-demo"
             };
             LoadPages();
-            LoadTree()
+            LoadTree();
+            LoadRawTree()
         }
 
         // LoadPages: GET /api/forge/wiki/{project}/pages。后端返回 {pages:[...]}。

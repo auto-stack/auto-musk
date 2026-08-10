@@ -9,6 +9,7 @@ widget WikiView {
     use {
         fn: ensureWorkspace from "src/front/ensure_workspace.ts"
         composable: useT from "src/front/composables/useT.ts"
+        component: WikiNav from "src/front/components/WikiNav.vue"
     }
 
     msg Msg {
@@ -38,34 +39,13 @@ widget WikiView {
     view {
         row {
             style: "wiki-view"
-            // wiki-nav 侧边栏
-            col {
-                style: if .nav_collapsed { "wiki-nav collapsed" } else { "wiki-nav" }
-                row {
-                    style: "wiki-nav-header"
-                    text t("wiki.title") { style: "wiki-nav-title" }
-                    button {
-                        onclick: .StartCreate
-                        style: "nav-icon-btn"
-                        text t("wiki.newPage")
-                    }
-                }
-                // pages 列表
-                col {
-                    style: "wiki-nav-list"
-                    for page in .store.pages {
-                        button {
-                            key: .page.slug
-                            onclick: .SelectPage(.page.slug)
-                            style: if .page.slug == .active_slug {
-                                "wiki-nav-item active"
-                            } else {
-                                "wiki-nav-item"
-                            }
-                            text .page.title
-                        }
-                    }
-                }
+            // WikiNav 组件（双树 + 搜索 + 图标，对齐原版）
+            WikiNav {
+                wikiTree: .store.tree
+                rawTree: .store.raw_tree
+                activeWikiPath: .active_slug
+                onNewPage: .StartCreate
+                onSelectWiki: .SelectPage($event)
             }
             // 主内容区
             col {

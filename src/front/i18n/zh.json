@@ -53,7 +53,11 @@
   },
   "wiki": {
     "title": "知识库",
-    "newPage": "+ 新建",
+    "newPage": "新建页面",
+    "toggleSidebar": "切换侧栏",
+    "raw": "原始文件",
+    "searchPlaceholder": "搜索页面…",
+    "noPages": "暂无页面",
     "slugPlaceholder": "page-slug",
     "titlePlaceholder": "页面标题",
     "contentPlaceholder": "# 页面内容...",
