@@ -94,6 +94,8 @@ a { color: hsl(var(--primary)); }
 /* ── header 统一分隔线 + 高度 + 标题样式（对齐原版）── */
 .app-header {
   height: 48px !important; padding: 0 1rem !important;
+  /* 负 margin 抵消父容器 px-3(12px) 左右 padding，让 border 撑满宽度 */
+  margin-left: -0.75rem; margin-right: -0.75rem;
   border-bottom: 1px solid hsl(var(--border));
   display: flex; align-items: center; flex-shrink: 0;
 }

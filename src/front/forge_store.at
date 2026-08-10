@@ -61,9 +61,17 @@ store ForgeStore {
             LoadSessionList()
         }
 
+        // LoadSessionList: 加载列表后，如无选中会话，自动选第一个 + 加载消息。
         .LoadSessionList -> {
             let resp = chats_list_sessions();
-            .session_list = resp.sessions
+            .session_list = resp.sessions;
+            if .session_id == "" {
+                if .session_list.length > 0 {
+                    .session_id = .session_list[0].id;
+                    let detail = chats_get_session(.session_id);
+                    .messages = detail.session.messages
+                }
+            }
         }
 
         .NewSession -> {
