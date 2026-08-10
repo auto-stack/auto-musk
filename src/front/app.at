@@ -23,6 +23,8 @@ widget App {
         composable: useAccentColor from "src/front/composables/useAccentColor.ts"
         component: WorkspaceSelector from "src/front/components/WorkspaceSelector.vue"
         component: SettingsMenu from "src/front/components/SettingsMenu.vue"
+        // 导航图标（lucide）
+        component: MessageSquare, Scroll, BookOpen from "lucide-vue-next"
     }
 
     msg Msg {
@@ -61,6 +63,7 @@ widget App {
                             } else {
                                 "rail-tab"
                             }
+                            MessageSquare { size: 16 }
                             text t("nav.chat")
                         }
                         button {
@@ -70,6 +73,7 @@ widget App {
                             } else {
                                 "rail-tab"
                             }
+                            Scroll { size: 16 }
                             text t("nav.specs")
                         }
                         button {
@@ -79,6 +83,7 @@ widget App {
                             } else {
                                 "rail-tab"
                             }
+                            BookOpen { size: 16 }
                             text t("nav.wiki")
                         }
                     }
