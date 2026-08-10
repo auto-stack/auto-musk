@@ -8,6 +8,7 @@ use store: SpecsStore
 widget SpecsView {
     use {
         fn: getNextId, getDefaultStatus from "src/front/utils/itemTemplates.ts"
+        composable: useT from "src/front/composables/useT.ts"
     }
 
     msg Msg {
@@ -46,12 +47,12 @@ widget SpecsView {
                 style: if .nav_collapsed { "section-nav collapsed" } else { "section-nav" }
                 row {
                     style: "section-nav-header"
-                    text "Specs" { style: "section-nav-title" }
+                    text t("specs.title") { style: "section-nav-title" }
                 }
                 button {
                     onclick: .ToggleOverview
                     style: if .show_overview { "overview-entry active" } else { "overview-entry" }
-                    text "Overview"
+                    text t("specs.overview")
                 }
                 for section in .section_types {
                     button {
@@ -76,7 +77,7 @@ widget SpecsView {
                         if .store.overview != "" {
                             text .store.overview
                         } else {
-                            text "Loading overview..."
+                            text t("specs.loading")
                         }
                     }
                 } else {
@@ -88,7 +89,7 @@ widget SpecsView {
                             button {
                                 onclick: .AddItem
                                 style: "add-btn"
-                                text "+ Add Item"
+                                text t("specs.addItem")
                             }
                         }
                         if .store.document != None {
@@ -117,12 +118,12 @@ widget SpecsView {
                                                     button {
                                                         onclick: .StartEditItem(.item.id)
                                                         style: "action-btn"
-                                                        text "Edit"
+                                                        text t("common.edit")
                                                     }
                                                     button {
                                                         onclick: .DeleteItem(.item.id)
                                                         style: "action-btn danger"
-                                                        text "Delete"
+                                                        text t("common.delete")
                                                     }
                                                 }
                                             }
@@ -131,7 +132,7 @@ widget SpecsView {
                                 }
                             }
                         } else {
-                            text "No document loaded"
+                            text t("specs.noDoc")
                         }
                         // 编辑面板（editing_item_id 非 None 时显示）
                         if .editing_item_id != None {
@@ -170,12 +171,12 @@ widget SpecsView {
                                     button {
                                         onclick: .SaveEditItem
                                         style: "save-btn"
-                                        text "Save"
+                                        text t("common.save")
                                     }
                                     button {
                                         onclick: .CancelEdit
                                         style: "cancel-btn"
-                                        text "Cancel"
+                                        text t("common.cancel")
                                     }
                                 }
                             }

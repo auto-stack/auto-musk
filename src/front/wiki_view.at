@@ -8,6 +8,7 @@ use store: WikiStore
 widget WikiView {
     use {
         fn: ensureWorkspace from "src/front/ensure_workspace.ts"
+        composable: useT from "src/front/composables/useT.ts"
     }
 
     msg Msg {
@@ -42,11 +43,11 @@ widget WikiView {
                 style: if .nav_collapsed { "wiki-nav collapsed" } else { "wiki-nav" }
                 row {
                     style: "wiki-nav-header"
-                    text "Wiki" { style: "wiki-nav-title" }
+                    text t("wiki.title") { style: "wiki-nav-title" }
                     button {
                         onclick: .StartCreate
                         style: "nav-icon-btn"
-                        text "+ New"
+                        text t("wiki.newPage")
                     }
                 }
                 // pages 列表
@@ -80,7 +81,7 @@ widget WikiView {
                             input {
                                 value: .new_slug
                                 oninput: .SlugChanged
-                                placeholder: "page-slug"
+                                placeholder: t("wiki.slugPlaceholder")
                                 style: "form-input"
                             }
                         }
@@ -90,7 +91,7 @@ widget WikiView {
                             input {
                                 value: .new_title
                                 oninput: .TitleChanged
-                                placeholder: "Page Title"
+                                placeholder: t("wiki.titlePlaceholder")
                                 style: "form-input"
                             }
                         }
@@ -100,7 +101,7 @@ widget WikiView {
                             textarea {
                                 value: .new_content
                                 oninput: .ContentChanged
-                                placeholder: "# Page content..."
+                                placeholder: t("wiki.contentPlaceholder")
                                 style: "form-input content-input"
                             }
                         }
@@ -109,12 +110,12 @@ widget WikiView {
                             button {
                                 onclick: .CreatePage
                                 style: "save-btn"
-                                text "Create"
+                                text t("wiki.create")
                             }
                             button {
                                 onclick: .CancelCreate
                                 style: "cancel-btn"
-                                text "Cancel"
+                                text t("common.cancel")
                             }
                         }
                     }
@@ -133,12 +134,12 @@ widget WikiView {
                             button {
                                 onclick: .SavePage
                                 style: "save-btn"
-                                text "Save"
+                                text t("common.save")
                             }
                             button {
                                 onclick: .EditPage
                                 style: "cancel-btn"
-                                text "Cancel"
+                                text t("common.cancel")
                             }
                         }
                     }
@@ -154,12 +155,12 @@ widget WikiView {
                                 button {
                                     onclick: .EditPage
                                     style: "action-btn"
-                                    text "Edit"
+                                    text t("wiki.edit")
                                 }
                                 button {
                                     onclick: .DeletePage(.active_slug)
                                     style: "action-btn danger"
-                                    text "Delete"
+                                    text t("wiki.delete")
                                 }
                             }
                         }
@@ -172,7 +173,7 @@ widget WikiView {
                 } else {
                     col {
                         style: "wiki-empty"
-                        text "Select a page or create a new one" { style: "text-muted" }
+                        text t("wiki.selectPage") { style: "text-muted" }
                     }
                 }
             }

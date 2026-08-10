@@ -12,6 +12,13 @@
   "counter": {
     "label": "Count"
   },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "create": "Create"
+  },
   "chat": {
     "sessions": "Sessions",
     "newSession": "New session",
@@ -21,5 +28,23 @@
     "inputPlaceholder": "Describe what you want to build... (Enter to send, @ for agent, /relay /superpower /spec1 commands)",
     "searchPlaceholder": "Search messages…",
     "msgs": "{count} msgs"
+  },
+  "specs": {
+    "title": "Specs",
+    "overview": "Overview",
+    "loading": "Loading specs…",
+    "addItem": "+ Add Item",
+    "noDoc": "No document loaded"
+  },
+  "wiki": {
+    "title": "Wiki",
+    "newPage": "+ New",
+    "slugPlaceholder": "page-slug",
+    "titlePlaceholder": "Page Title",
+    "contentPlaceholder": "# Page content...",
+    "create": "Create",
+    "edit": "Edit",
+    "delete": "Delete",
+    "selectPage": "Select a page or create a new one"
   }
 }
