@@ -293,18 +293,26 @@ pub type ForgeSessionSummary = {
     last_activity: int,
 }
 
+// 后端实际返回有包装层：{sessions:[...]} / {session:{...}}
+pub type SessionListResponse = {
+    sessions: []ForgeSessionSummary,
+}
+pub type SessionDetailResponse = {
+    session: ForgeSession,
+}
+
 #[api(method = "GET", path = "/api/chats/sessions")]
-pub fn chats_list_sessions() []ForgeSessionSummary {
+pub fn chats_list_sessions() SessionListResponse {
     return None
 }
 
 #[api(method = "POST", path = "/api/chats/session")]
-pub fn chats_create_session(project_path str) ForgeSession {
+pub fn chats_create_session(project_path str) SessionDetailResponse {
     return None
 }
 
 #[api(method = "GET", path = "/api/chats/session/{id}")]
-pub fn chats_get_session(id str) ForgeSession {
+pub fn chats_get_session(id str) SessionDetailResponse {
     return None
 }
 
