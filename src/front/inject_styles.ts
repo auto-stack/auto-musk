@@ -168,11 +168,30 @@ a { color: hsl(var(--primary)); }
 
 .chats-body { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .chats-header {
-  display: flex; align-items: center; gap: 0.5rem;
+  display: flex; align-items: center; justify-content: space-between;
   padding: 0.6rem 1rem; height: 48px; flex-shrink: 0;
   border-bottom: 1px solid hsl(var(--border)); background: hsl(var(--card));
 }
-.chats-title { font-size: 0.95rem; font-weight: 600; color: hsl(var(--foreground)); }
+.chats-title { font-size: 0.85rem; font-weight: 500; color: hsl(var(--muted-foreground)); text-transform: uppercase; letter-spacing: 0.04em; }
+/* 搜索框（对齐原版 .header-search） */
+.header-search {
+  display: flex; align-items: center; gap: 0.35rem;
+  max-width: 320px; flex: 0 1 320px;
+  padding: 0.35rem 0.75rem;
+  background: hsl(var(--muted-foreground) / 0.06);
+  border: 1px solid hsl(var(--muted-foreground) / 0.12);
+  border-radius: 6px;
+  color: hsl(var(--muted-foreground));
+}
+.header-search:focus-within {
+  border-color: hsl(var(--primary) / 0.35);
+}
+.header-search svg { flex-shrink: 0; }
+.search-input {
+  border: none !important; background: transparent !important; outline: none !important;
+  font-size: 0.82rem; color: hsl(var(--foreground)); width: 100%;
+}
+.search-input::placeholder { color: hsl(var(--muted-foreground)); }
 .chats-canvas { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
 
 /* 消息样式 — 标准 chat UI（header + 气泡 + 工具栏）
