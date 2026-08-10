@@ -160,7 +160,11 @@ a { color: hsl(var(--primary)); }
   background: transparent; cursor: pointer;
 }
 .session-item:hover { background: hsl(var(--accent)); }
-.session-item.active { background: hsl(var(--accent)); }
+.session-item.active {
+  background: hsl(var(--primary) / 0.08);
+  color: hsl(var(--primary));
+}
+.session-item.active .session-name { font-weight: 500; color: hsl(var(--primary)); }
 .session-item { position: relative; }
 .session-delete-btn {
   position: absolute; right: 0.4rem; top: 50%; transform: translateY(-50%);
