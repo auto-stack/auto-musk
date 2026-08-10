@@ -2,8 +2,8 @@
   SettingsMenu.vue — 设置菜单（逃生舱组件，Plan 022 视觉对齐）
   精简移植自原版 web/src/components/SettingsMenu.vue。
 
-  含三个分区：强调色 / 外观（light/dark/auto）/ 语言（EN/中文）。
-  去掉 useForgeMode（GSD/Check，后端无对应）和 AutoOS 设置链接（无端点）。
+  含四个分区：强调色 / 外观（light/dark/auto）/ 语言（EN/中文）/ AutoOS 设置链接。
+  去掉 useForgeMode（GSD/Check，后端无对应端点）。
 -->
 <template>
   <div ref="menuRef" class="settings-menu-wrapper">
@@ -77,6 +77,16 @@
             </button>
           </div>
         </div>
+
+        <!-- AutoOS Settings deep-link -->
+        <div class="settings-section">
+          <div class="settings-section-title">AutoOS</div>
+          <button class="deep-link-btn" @click="openAutoOsConfig">
+            <ExternalLink :size="14" />
+            <span>{{ t('settings.openSystemSettings') }}</span>
+          </button>
+          <div v-if="autoOsError" class="deep-link-error">{{ autoOsError }}</div>
+        </div>
       </div>
     </transition>
   </div>
@@ -85,7 +95,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Settings, Check, Sun, Moon, Monitor } from 'lucide-vue-next'
+import { Settings, Check, Sun, Moon, Monitor, ExternalLink } from 'lucide-vue-next'
 import { useTheme } from '../composables/useTheme'
 import { useAccentColor } from '../composables/useAccentColor'
 
@@ -101,6 +111,24 @@ function changeLocale(l: string) {
   locale.value = l
   currentLocale.value = l
   localStorage.setItem('musk-language', l)
+}
+
+const autoOsError = ref('')
+
+async function openAutoOsConfig() {
+  isOpen.value = false
+  autoOsError.value = ''
+  try {
+    const resp = await fetch('/api/settings-link', { method: 'POST' })
+    const data = await resp.json()
+    if (data.status === 'running' && data.url) {
+      window.open(data.url + '/#ai-musk', '_blank')
+    } else {
+      autoOsError.value = data.error || 'Service not available'
+    }
+  } catch (e: any) {
+    autoOsError.value = e.message || 'Could not reach settings service'
+  }
 }
 
 const themeOptions = computed(() => [
@@ -244,6 +272,21 @@ onUnmounted(() => document.removeEventListener('click', onDocClick))
 .lang-code { font-weight: 700; min-width: 1.5rem; }
 .lang-name { flex: 1; }
 .language-option .check { margin-left: auto; }
+/* AutoOS deep-link */
+.deep-link-btn {
+  display: flex; align-items: center; gap: 0.5rem;
+  width: 100%; padding: 0.35rem 0.5rem;
+  border: 1px solid hsl(var(--border)); border-radius: 6px;
+  background: transparent; color: hsl(var(--foreground));
+  font-size: 0.78rem; cursor: pointer; text-align: left;
+  transition: background 0.15s;
+}
+.deep-link-btn:hover { background: hsl(var(--accent)); }
+.deep-link-error {
+  margin-top: 0.3rem; padding: 0.2rem 0.5rem;
+  font-size: 0.7rem; color: hsl(var(--destructive));
+  background: hsl(var(--destructive) / 0.08); border-radius: 4px;
+}
 /* Transition */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.15s, transform 0.15s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(4px); }

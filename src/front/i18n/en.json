@@ -19,7 +19,8 @@
     "language": "Language",
     "themeLight": "Light",
     "themeDark": "Dark",
-    "themeSystem": "System"
+    "themeSystem": "System",
+    "openSystemSettings": "Open System Settings"
   },
   "common": {
     "save": "Save",

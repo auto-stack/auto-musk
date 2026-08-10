@@ -19,7 +19,8 @@
     "language": "语言",
     "themeLight": "浅色",
     "themeDark": "深色",
-    "themeSystem": "跟随系统"
+    "themeSystem": "跟随系统",
+    "openSystemSettings": "打开系统设置"
   },
   "common": {
     "save": "保存",
