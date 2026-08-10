@@ -246,6 +246,17 @@ a { color: hsl(var(--primary)); }
    DOM: .chats-input-bar > .input-inner > .input-row(flex) > [.input-compose(block,fixed px), button.send-btn]
    问题：.input-compose 被设成 block+固定px宽度，textarea 被设成 inline-block+固定px宽度。
    修复：让 .input-compose 在 flex 行内 flex:1 自适应；textarea width:100% block。 */
+/* .chats-input-bar：原生版透明无 border-top（融入背景），Auto 版 scoped 有白底+border-top */
+.chats-input-bar {
+  background: transparent !important;
+  border-top: none !important;
+}
+/* .input-inner：原生版居中限宽 */
+.input-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  width: 100%;
+}
 .input-row { display: flex !important; align-items: flex-end; gap: 0.4rem; width: 100%; }
 .input-compose {
   flex: 1 1 auto !important;          /* 在 .input-row 内填满剩余空间 */
@@ -257,6 +268,12 @@ a { color: hsl(var(--primary)); }
   border: 1px solid hsl(var(--primary) / 0.15) !important;
   border-radius: 20px !important;
   padding: 4px 8px !important;
+  min-height: 80px !important;   /* 原版最小高度 */
+}
+/* focus 时边框+光环（对齐原版 :focus-within） */
+.input-compose:focus-within {
+  border-color: hsl(var(--primary) / 0.45) !important;
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.08) !important;
 }
 /* .input-backdrop（@mention v-html 高亮层）：原生版透明背景+无边框，
    纯粹只是 mention 高亮覆盖层。Auto 版 scoped style 给了灰底+灰边+6px圆角，
@@ -283,10 +300,12 @@ a { color: hsl(var(--primary)); }
   width: 36px !important; height: 36px !important;
   min-width: 36px !important;
   border-radius: 50% !important;
-  background: hsl(var(--primary)) !important; color: hsl(var(--primary-foreground)) !important;
+  background: linear-gradient(135deg, var(--vp-c-brand-1, hsl(var(--primary))), var(--vp-c-brand-2, hsl(var(--primary) / 0.85))) !important;
+  color: #fff !important;
   border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
-  font-size: 1.1rem; flex-shrink: 0; transition: opacity 0.15s;
+  font-size: 1.1rem; flex-shrink: 0; transition: opacity 0.15s, transform 0.1s;
 }
+.send-btn:active { transform: scale(0.95); }
 .input-row button[class*="send"]:hover,
 .input-compose button:last-child:hover,
 .send-btn:hover { opacity: 0.85; }

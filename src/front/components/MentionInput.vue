@@ -32,7 +32,7 @@
           class="send-btn stop"
           @click="$emit('cancel')"
         >
-          ■
+          <Square :size="16" />
         </button>
         <button
           v-else
@@ -40,7 +40,7 @@
           :disabled="!text.trim()"
           @click="submitText"
         >
-          ➤
+          <Send :size="16" />
         </button>
       </div>
       <MentionDropdown
@@ -58,6 +58,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { Send, Square } from 'lucide-vue-next'
 import MentionDropdown from './MentionDropdown.vue'
 import { useAgentConfigs } from '../composables/useAgentConfigs'
 import {
