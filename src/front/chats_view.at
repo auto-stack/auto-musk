@@ -49,8 +49,10 @@ widget ChatsView {
         // StreamingTable/useStreamingDocument 是 StreamingRenderer 的内部依赖，声明触发复制。
         component: StreamingTable from "src/front/components/StreamingTable.vue"
         fn: useStreamingDocument from "src/front/composables/useStreamingDocument.ts"
-        // Phase 7.4：UserMessage（user 消息 @mention 高亮，v-html 逃生舱）。
-        component: UserMessage from "src/front/components/UserMessage.vue"
+        // Phase 7.4→Plan 023 P3：UserMessage 已原生化为 component fn
+        // （src/front/user_message.at），逃生舱 .vue 已删除。
+        // ChatMessage.vue 改用 @/components/UserMessage.vue 引用生成版。
+        // forge_helpers 仍需声明（component fn 的 use{fn} 依赖 + 其他逃生舱卡片）。
         // Plan 022-B：ChatMessage 独立组件（统一消息渲染，接 msg + is_streaming props）。
         component: ChatMessage from "src/front/components/ChatMessage.vue"
         // SessionInfo：会话信息 tooltip（Chat ID 复制 + 消息数 + token 消耗）。

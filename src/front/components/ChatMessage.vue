@@ -33,7 +33,7 @@
 
 <script setup lang="ts">
 import StreamingRenderer from './StreamingRenderer.vue'
-import UserMessage from './UserMessage.vue'
+import UserMessage from '@/components/UserMessage.vue'
 
 export interface ChatMsg {
   id?: string | number

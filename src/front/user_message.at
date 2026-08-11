@@ -1,0 +1,26 @@
+// user_message.at — UserMessage 组件（Plan 023 P3 首试：逃生舱原生化）
+//
+// 对标 src/front/components/UserMessage.vue（逃生舱）。
+// 原生化动机：Plan 022 Phase 7.4 因 ".at 无法表达 v-html" 封逃生舱；
+// 现 codegen 已原生支持 html: prop → v-html（Plan 012 P2 gap 22）+
+// component fn（Plan 408 P1-P6），可脱离逃生舱。
+//
+// renderMentions（@mention 高亮，HTML 转义 + @word 包 span）仍在
+// forge_helpers.ts——它是纯正则替换，.at 无正则能力，保留为逃生舱 fn
+// 经 use { fn } 引入（Plan 408 P5 缺陷 5 修复后支持）。
+//
+// 样式：逃生舱 scoped（color/line-height/word-break + .inline-mention 高亮）
+// 由 inject_styles.ts 全局兜底——component fn 不支持 scoped CSS。
+
+component fn UserMessage(content: str) {
+    use {
+        fn: renderMentions from "src/front/forge_helpers.ts"
+    }
+    computed {
+        html => renderMentions(.content)
+    }
+    div {
+        html: .html
+        style: "user-text"
+    }
+}

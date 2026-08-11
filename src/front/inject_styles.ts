@@ -263,6 +263,13 @@ a { color: hsl(var(--primary)); }
   background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
   border-bottom-right-radius: 4px;
 }
+/* .user-text 基础排版 + @mention 高亮（Plan 023 P3：原逃生舱 UserMessage.vue
+   scoped 样式的全局兜底——component fn 不支持 scoped CSS）。 */
+.user-text { color: inherit; line-height: 1.5; word-break: break-word; }
+.user-text .inline-mention {
+  background: hsl(220 90% 56% / 0.12); color: hsl(220 90% 56%);
+  border-radius: 3px; padding: 0 0.2rem; font-weight: 500;
+}
 .msg-bubble-user .user-text { color: hsl(var(--primary-foreground)); white-space: pre-wrap; }
 .msg-bubble-user .user-text .inline-mention { color: hsl(var(--primary-foreground)); font-weight: 600; background: hsl(0 0% 100% / 0.15); }
 

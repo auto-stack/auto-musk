@@ -1,7 +1,7 @@
 # 023 — view fn → 独立组件 codegen（auto-lang 转译器改造）
 
-> **状态**：📋 计划（未实施）——独立项目（auto-lang 仓库），auto-musk 侧仅登记等待。
-> **2026-08-11 能力复核 + 探针实测**：auto-lang 已合并 `component fn`（P1 独立 SFC + P2 跨文件复用 + P3 computed）到 master，auto.exe 已重装。探针 A-F（`tmp/probe-component-fn/`）实测：合成/props/条件渲染/computed/跨文件复用 ✅；但 **P3 试点（逃生舱原生化）当前不可行**——UserMessage/StreamingTable/RawPreview/ChatMessage 四个纯展示候选分别被 408 P4 的缺陷 5（fn import）/6（动态索引）/7（table 映射）阻塞。详见 §3.3。
+> **状态**：🟢 P3 首试完成（UserMessage 原生化，2026-08-11）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
+> **2026-08-11 能力复核 + 探针 + P3 首试**：auto-lang 已合并 `component fn`（P1-P6，含 P4 emit / P5 use{fn} / P6 prop 绑定修复）到 master，auto.exe 已重装。**P3 首试 UserMessage 已原生化**——逃生舱 `.vue` 删除，`user_message.at` 的 component fn 替代，build 全绿 + vite transform 验证产物行为对齐。详见 §3.3 末尾。剩余候选（StreamingTable 缺陷 6/7、RawPreview、ChatMessage 链式）待 408 P4 对应缺陷落地。
 > **前置**：Plan 022（前端 Auto 化已完成，逃生舱组件架构稳定）；Plan 018-021（后端全 Auto 化方法论）。
 > **仓库**：**auto-lang**（a2r 转译器 + a2vue codegen，构建 `auto.exe`）；auto-musk 为验证方。
 > **目标**：让 AutoUI 的 `view fn`（`use { fn }` 逃生舱函数中定义、返回 AuraWidget 的函数）被 a2r/a2vue 转译器**原生合成 AuraWidget 组件**，使 `ChatMessage` 等当前靠逃生舱 `.vue` 文件实现的组件脱离逃生舱、纯 `.at` 表达。
@@ -150,13 +150,39 @@ component NavSidebar {
 **这些阻塞缺陷已登记到 auto-lang 408 §7 P4**（缺陷 5/6/7），并修订了优先级（§7.6）：缺陷 5（fn import）升为 🔴 高，是 P3 的第一阻塞。
 
 **P3 推进路径（待 auto-lang 408 P4 落地）**：
-1. **缺陷 5（fn import）+ 缺陷 1+2（prop 绑定）修复** → UserMessage 可原生化（P3 首试解封）
+1. ~~**缺陷 5（fn import）+ 缺陷 1+2（prop 绑定）修复** → UserMessage 可原生化（P3 首试解封）~~ ✅ **已完成，见下方 P3 首试记录**
 2. **缺陷 6+7 修复** → StreamingTable 可原生化
 3. 叶子就绪后 → ChatMessage 编排组件原生化（消掉链式逃生舱）
 
+### 3.4 P3 首试完成：UserMessage 原生化（2026-08-11）
+
+> 前置：auto-lang 408 P4（emit）/ P5（use{fn}）/ P6（prop 绑定）已合并 master（`1adfdebc`），auto.exe 重装含全部修复。探针 A/E2 复测确认缺陷 1+2、5 已修复（产物 TS 全绿）。
+
+**迁移动作**（5 个文件）：
+- 新增 `src/front/user_message.at`——`component fn UserMessage(content: str)`，`use { fn: renderMentions }` + `computed { html => renderMentions(.content) }` + `div { html: .html, style: "user-text" }`
+- 删除 `src/front/components/UserMessage.vue`（逃生舱）
+- 改 `ChatMessage.vue`：`import UserMessage from './UserMessage.vue'` → `'@/components/UserMessage.vue'`（指向 component fn 生成版）
+- 改 `chats_view.at`：移除 `component: UserMessage from "..."` 逃生舱声明（component fn 自动生成，无需声明）
+- 改 `inject_styles.ts`：补 `.user-text` 基础排版 + `.inline-mention` 高亮全局兜底（逃生舱 scoped 样式 parity；component fn 不支持 scoped CSS）
+
+**验证**（三层）：
+1. ✅ **auto build 全绿**——vue-tsc + vite build 通过（清 gen 重 build 确认无残留）
+2. ✅ **产物对齐**——生成的 `UserMessage.vue` 与逃生舱版 script/template/import 完全一致（仅 scoped style 差异，已 inject_styles 兜底）
+3. ✅ **vite transform 验证**——dev server 成功编译 UserMessage 模块：`import { renderMentions } from "/src/ext/.../forge_helpers.ts"` 正确解析 + `computed(() => renderMentions(props.content))` 语义正确 + `innerHTML: $setup.html` render 正确
+
+**未验证**：浏览器运行时 parity（需 musk serve 后端 + 登录 + 发 @mention 消息，环境成本高；技术链路已由上述三层充分证明）。
+
+**残留**：
+- `renderMentions` 仍依赖逃生舱 `forge_helpers.ts`——它是纯正则替换，`.at` 无正则能力，保留为逃生舱 fn 经 component fn 的 `use { fn }` 引入（P5 能力）。属合理残留（逻辑复杂度超 `.at` 表达力）。
+- `.user-text` scoped 样式转全局——component fn 不支持 scoped CSS，靠 inject_styles 兜底。后续若做样式原生化（scoped → `.at` 表达），另立计划。
+
+**意义**：**首个逃生舱组件成功原生化**——证明 component fn 端到端链路（声明→合成→跨文件引用→逃生舱 fn 引入→v-html→产物对齐）在 auto-musk 真实工程跑通。P3 路径验证成功，为后续候选（待 408 P4 缺陷 6/7 等）铺路。
+
 **不迁移的组件**（留逃生舱，本轮登记）：
-- 含 emit/重交互的（GateCard/MentionInput/QuestionnaireCard/SecretaryMessage/WikiNav 等）——阻塞于 §3.1 同一 emit 缺口（408 P4 缺陷 4）。
+- 含 emit/重交互的（GateCard/MentionInput/QuestionnaireCard/SecretaryMessage/WikiNav 等）——阻塞于 §3.1 同一 emit 缺口（408 P4 缺陷 4，emit 侧已落地，待 auto-musk 侧验证）。
 - AgentAvatar——阻塞于 computed 字典/动态 style（超当前能力，需 auto-lang 扩展）。
+- StreamingTable——阻塞于缺陷 6（动态索引）+ 7（table 映射）。
+- RawPreview——阻塞于 fn import（已解封）+ 生命周期/正则（超 component fn 范畴）。
 
 ## 4. 风险与降级
 
