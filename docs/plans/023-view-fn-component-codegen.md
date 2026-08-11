@@ -1,7 +1,7 @@
 # 023 — view fn → 独立组件 codegen（auto-lang 转译器改造）
 
 > **状态**：📋 计划（未实施）——独立项目（auto-lang 仓库），auto-musk 侧仅登记等待。
-> **2026-08-11 能力复核 + 探针实测**：auto-lang 已合并 `component fn`（P1 独立 SFC + P2 跨文件复用 + P3 computed）到 master，auto.exe 已重装。探针（`tmp/probe-component-fn/`）实测：合成/props/条件渲染/computed/跨文件复用 ✅；字面量 prop 绑定 + 内部 button 调用 prop 作 handler 有 codegen 缺陷。§3.1 共用组件收敛的核心障碍是"子组件内部按钮触发外部回调"不工作（需 emit）。详见 §3.1 末尾。
+> **2026-08-11 能力复核 + 探针实测**：auto-lang 已合并 `component fn`（P1 独立 SFC + P2 跨文件复用 + P3 computed）到 master，auto.exe 已重装。探针 A-F（`tmp/probe-component-fn/`）实测：合成/props/条件渲染/computed/跨文件复用 ✅；但 **P3 试点（逃生舱原生化）当前不可行**——UserMessage/StreamingTable/RawPreview/ChatMessage 四个纯展示候选分别被 408 P4 的缺陷 5（fn import）/6（动态索引）/7（table 映射）阻塞。详见 §3.3。
 > **前置**：Plan 022（前端 Auto 化已完成，逃生舱组件架构稳定）；Plan 018-021（后端全 Auto 化方法论）。
 > **仓库**：**auto-lang**（a2r 转译器 + a2vue codegen，构建 `auto.exe`）；auto-musk 为验证方。
 > **目标**：让 AutoUI 的 `view fn`（`use { fn }` 逃生舱函数中定义、返回 AuraWidget 的函数）被 a2r/a2vue 转译器**原生合成 AuraWidget 组件**，使 `ChatMessage` 等当前靠逃生舱 `.vue` 文件实现的组件脱离逃生舱、纯 `.at` 表达。
@@ -138,18 +138,24 @@ component NavSidebar {
 | **StreamingRenderer.vue** | ? | 3 | markstream-vue 渲染 + 流式增量 | 🥉 依赖 npm 包，流式逻辑复杂 |
 | **AgentAvatar.vue** | ? | 7 | professionColors 字典 + char hash + 5 computed | ❌ 408 §6.3 已判定超能力（字典/动态 style 对象） |
 
-**P3 试点建议路径**（叶子优先，渐进原生化）：
+**P3 试点实测结论（2026-08-11，探针 E2/F 验证）**：**当前不可行**——四个纯展示候选都被 auto-lang 408 P4 的 codegen 缺陷阻塞，无一首试可用：
 
-1. **UserMessage** 作首试——验证 `component fn` + `html:` prop + computed（renderMentions 内联或留逃生舱 fn）的最小闭环。它独立、叶子、依赖已支持。
-2. 逐个原生化其他纯展示叶子（RawPreview/StreamingRenderer/StreamingTable）。
-3. ChatMessage 编排组件在叶子就绪后原生化（消掉链式逃生舱）。
+| 候选 | 阻塞缺陷 | 探针 |
+|---|---|---|
+| **UserMessage** | **缺陷 5**：component fn 不支持 `use { fn }`——computed 调 renderMentions 生成悬空标识符（TS2304） | E2 |
+| **StreamingTable** | **缺陷 6**：动态索引 `.row[.col]` 生成错位（`<span>{{row}}</span><div>{{col}}</div>`）；**缺陷 7**：原生 `table` 标签被映射成 shadcn Table | F |
+| **RawPreview** | 缺陷 5（fn import：rawFileUrl/loadRawFileText）+ onMounted/watch 生命周期 + 正则（超 component fn 范畴） | — |
+| **ChatMessage** | 链式依赖（UserMessage + StreamingRenderer 均未原生化，无法单独迁移） | — |
 
-**需先修复的 codegen 缺陷**（§3.2 第 3 点，阻塞或影响 P3 质量）：
-- 字面量 prop 绑定（bool 双花括号 / str 未引号）——若试点组件的字面量 prop 会触发，需先在 auto-lang 修。
-- `self.` 前缀错绑——变量 prop 在同文件合成场景触发（探针 A/B/D 均中招，跨文件复用探针 C 反而干净）。
+**这些阻塞缺陷已登记到 auto-lang 408 §7 P4**（缺陷 5/6/7），并修订了优先级（§7.6）：缺陷 5（fn import）升为 🔴 高，是 P3 的第一阻塞。
 
-**不迁移的组件**（本轮登记，留逃生舱）：
-- 含 emit/重交互的（GateCard/MentionInput/QuestionnaireCard/SecretaryMessage/WikiNav 等）——阻塞于 §3.1 同一 emit 缺口。
+**P3 推进路径（待 auto-lang 408 P4 落地）**：
+1. **缺陷 5（fn import）+ 缺陷 1+2（prop 绑定）修复** → UserMessage 可原生化（P3 首试解封）
+2. **缺陷 6+7 修复** → StreamingTable 可原生化
+3. 叶子就绪后 → ChatMessage 编排组件原生化（消掉链式逃生舱）
+
+**不迁移的组件**（留逃生舱，本轮登记）：
+- 含 emit/重交互的（GateCard/MentionInput/QuestionnaireCard/SecretaryMessage/WikiNav 等）——阻塞于 §3.1 同一 emit 缺口（408 P4 缺陷 4）。
 - AgentAvatar——阻塞于 computed 字典/动态 style（超当前能力，需 auto-lang 扩展）。
 
 ## 4. 风险与降级
