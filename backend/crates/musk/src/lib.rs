@@ -12,6 +12,8 @@ pub mod relay;
 pub mod server;
 pub mod spec_tools;
 pub mod specs;
+pub mod plans;
+pub mod plan_merge;
 pub mod tool_context;
 pub mod tool_safety;
 pub mod tool_test;

@@ -222,8 +222,8 @@ pub fn default_professions() -> Vec<Profession> {
             id: "planner".into(),
             name: "Planner".into(),
             phase: ForgePhase::Planning,
-            owned_sections: vec![Plans],
-            readable_sections: vec![Goals, Architecture, Designs, Plans, Tests],
+            owned_sections: vec![],
+            readable_sections: vec![Goals, Architecture, Designs, Tests],
             allowed_tools: into_tools([
                 "read_specs",
                 "list_specs",
@@ -245,7 +245,7 @@ pub fn default_professions() -> Vec<Profession> {
             name: "Tester".into(),
             phase: ForgePhase::Planning,
             owned_sections: vec![Tests],
-            readable_sections: vec![Goals, Designs, Plans, Tests],
+            readable_sections: vec![Goals, Designs, Tests],
             allowed_tools: into_tools([
                 "read_specs",
                 "list_specs",
@@ -270,7 +270,7 @@ pub fn default_professions() -> Vec<Profession> {
             name: "Coder".into(),
             phase: ForgePhase::Execution,
             owned_sections: vec![],
-            readable_sections: vec![Plans, Designs, Tests],
+            readable_sections: vec![Designs, Tests],
             allowed_tools: into_tools([
                 "read_file",
                 "write_file",
@@ -294,7 +294,7 @@ pub fn default_professions() -> Vec<Profession> {
             name: "Reviewer".into(),
             phase: ForgePhase::Verification,
             owned_sections: vec![Reviews],
-            readable_sections: vec![Goals, Architecture, Designs, Plans, Tests, Reviews, Reports],
+            readable_sections: vec![Goals, Architecture, Designs, Tests, Reviews, Reports],
             allowed_tools: into_tools([
                 "read_file",
                 "write_file",
@@ -320,7 +320,7 @@ pub fn default_professions() -> Vec<Profession> {
             phase: ForgePhase::Report,
             owned_sections: vec![Reports],
             readable_sections: vec![
-                Goals, Architecture, Designs, Plans, Tests, Reviews, Reports,
+                Goals, Architecture, Designs, Tests, Reviews, Reports,
             ],
             allowed_tools: into_tools([
                 "read_file",
@@ -343,7 +343,7 @@ pub fn default_professions() -> Vec<Profession> {
             name: "Gofer".into(),
             phase: ForgePhase::Errand,
             owned_sections: vec![],
-            readable_sections: vec![Goals, Architecture, Designs, Plans, Tests],
+            readable_sections: vec![Goals, Architecture, Designs, Tests],
             allowed_tools: into_tools([
                 "run_command",
                 "read_file",
@@ -365,9 +365,9 @@ pub fn default_professions() -> Vec<Profession> {
             id: "super-advisor".into(),
             name: "Super Advisor".into(),
             phase: ForgePhase::Planning,
-            owned_sections: vec![Goals, Architecture, Designs, Plans, Tests],
+            owned_sections: vec![Goals, Architecture, Designs, Tests],
             readable_sections: vec![
-                Goals, Architecture, Designs, Plans, Tests, Reviews, Reports,
+                Goals, Architecture, Designs, Tests, Reviews, Reports,
             ],
             allowed_tools: into_tools([
                 "read_specs",
@@ -393,7 +393,7 @@ pub fn default_professions() -> Vec<Profession> {
             name: "Super Coder".into(),
             phase: ForgePhase::Execution,
             owned_sections: vec![],
-            readable_sections: vec![Goals, Architecture, Designs, Plans, Tests],
+            readable_sections: vec![Goals, Architecture, Designs, Tests],
             allowed_tools: into_tools([
                 "read_file",
                 "write_file",
@@ -418,7 +418,7 @@ pub fn default_professions() -> Vec<Profession> {
             phase: ForgePhase::Report,
             owned_sections: vec![Reviews, Reports],
             readable_sections: vec![
-                Goals, Architecture, Designs, Plans, Tests, Reviews, Reports,
+                Goals, Architecture, Designs, Tests, Reviews, Reports,
             ],
             allowed_tools: into_tools([
                 "read_file",

@@ -25,7 +25,6 @@ pub enum SectionType {
     Goals = 1
     Architecture = 2
     Designs = 3
-    Plans = 4
     Tests = 5
     Reviews = 6
     Reports = 7

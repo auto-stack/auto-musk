@@ -247,7 +247,6 @@ import { ITEM_TEMPLATES, getDefaultStatus, getNextId } from '@/utils/itemTemplat
 import GoalsTable from '@/components/category/GoalsTable.vue'
 import ArchitectureCards from '@/components/category/ArchitectureCards.vue'
 import DesignCards from '@/components/category/DesignCards.vue'
-import PlanCards from '@/components/category/PlanCards.vue'
 import TestsCards from '@/components/category/TestsCards.vue'
 import ReviewCards from '@/components/category/ReviewCards.vue'
 import ReportCards from '@/components/category/ReportCards.vue'
@@ -296,7 +295,6 @@ const DEFAULT_SECTIONS: SpecsSection[] = [
   { id: 'goals', section_type: 'goals', title: '🎯 Goals', items: [], content: '', status: 'empty', last_modified: Date.now() },
   { id: 'architecture', section_type: 'architecture', title: '🏗️ Architecture', items: [], content: '', status: 'empty', last_modified: Date.now() },
   { id: 'designs', section_type: 'designs', title: '🎨 Designs', items: [], content: '', status: 'empty', last_modified: Date.now() },
-  { id: 'plans', section_type: 'plans', title: '📅 Plans', items: [], content: '', status: 'empty', last_modified: Date.now() },
   { id: 'tests', section_type: 'tests', title: '🧪 Tests', items: [], content: '', status: 'empty', last_modified: Date.now() },
   { id: 'reviews', section_type: 'reviews', title: '📝 Reviews', items: [], content: '', status: 'empty', last_modified: Date.now() },
   { id: 'reports', section_type: 'reports', title: '📊 Reports', items: [], content: '', status: 'empty', last_modified: Date.now() },
@@ -355,7 +353,7 @@ const moduleTree = computed(() => {
       typeMap.set(section.id, (typeMap.get(section.id) || 0) + 1)
     }
   }
-  const typeOrder = ['goals', 'architecture', 'designs', 'plans', 'tests', 'reviews', 'reports']
+  const typeOrder = ['goals', 'architecture', 'designs', 'tests', 'reviews', 'reports']
   const result = []
   for (const [modName, typeMap] of tree) {
     const types = []
@@ -410,7 +408,6 @@ const categoryComponent = computed(() => {
     case 'goals': return GoalsTable
     case 'architecture': return ArchitectureCards
     case 'designs': return DesignCards
-    case 'plans': return PlanCards
     case 'tests': return TestsCards
     case 'reviews': return ReviewCards
     case 'reports': return ReportCards

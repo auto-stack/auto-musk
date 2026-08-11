@@ -39,7 +39,6 @@ pub enum SectionType {
     Goals = 1
     Architecture = 2
     Designs = 3
-    Plans = 4
     Tests = 5
     Reviews = 6
     Reports = 7
@@ -54,7 +53,6 @@ ext SectionType {
             SectionType.Goals -> return "goals",
             SectionType.Architecture -> return "architecture",
             SectionType.Designs -> return "designs",
-            SectionType.Plans -> return "plans",
             SectionType.Tests -> return "tests",
             SectionType.Reviews -> return "reviews",
             SectionType.Reports -> return "reports"
@@ -67,7 +65,6 @@ ext SectionType {
             SectionType.Goals -> return "🎯 Goals",
             SectionType.Architecture -> return "🏗️ Architecture",
             SectionType.Designs -> return "🎨 Designs",
-            SectionType.Plans -> return "📋 Plans",
             SectionType.Tests -> return "🧪 Tests",
             SectionType.Reviews -> return "🔍 Reviews",
             SectionType.Reports -> return "📊 Reports"
@@ -285,7 +282,6 @@ ext SpecsDocument {
                 SpecsSection.new(SectionType.Goals),
                 SpecsSection.new(SectionType.Architecture),
                 SpecsSection.new(SectionType.Designs),
-                SpecsSection.new(SectionType.Plans),
                 SpecsSection.new(SectionType.Tests),
                 SpecsSection.new(SectionType.Reviews),
                 SpecsSection.new(SectionType.Reports)
@@ -332,11 +328,6 @@ ext SectionConfig {
             ),
             SectionType.Architecture -> return SectionConfig.for_arch_designs(st),
             SectionType.Designs -> return SectionConfig.for_arch_designs(st),
-            SectionType.Plans -> return SectionConfig(
-                section_type: st,
-                allowed_statuses: [SpecStatus.Empty, SpecStatus.Draft, SpecStatus.Approved, SpecStatus.InProgress, SpecStatus.Done, SpecStatus.Obsolete],
-                allowed_transitions: [(SpecStatus.Empty, SpecStatus.Draft), (SpecStatus.Draft, SpecStatus.Approved), (SpecStatus.Approved, SpecStatus.InProgress), (SpecStatus.InProgress, SpecStatus.Done), (SpecStatus.Done, SpecStatus.Obsolete)]
-            ),
             SectionType.Tests -> return SectionConfig(
                 section_type: st,
                 allowed_statuses: [SpecStatus.Empty, SpecStatus.Draft, SpecStatus.Implemented, SpecStatus.Done, SpecStatus.Verified, SpecStatus.Blocked],
@@ -582,7 +573,6 @@ fn section_complete_status(st SectionType) SpecStatus {
         SectionType.Goals -> return SpecStatus.Archived,
         SectionType.Architecture -> return SpecStatus.Approved,
         SectionType.Designs -> return SpecStatus.Approved,
-        SectionType.Plans -> return SpecStatus.Done,
         SectionType.Tests -> return SpecStatus.Verified,
         SectionType.Reviews -> return SpecStatus.Published,
         SectionType.Reports -> return SpecStatus.Published
@@ -641,19 +631,9 @@ ext SpecsDocument {
                     let forwards List<str> = item.depends_on.clone()
                     var related_plans_all_done bool = true
                     var has_any_plan bool = false
-                    for rid in forwards.clone() {
-                        is find_snap(snap.clone(), rid) {
-                            Some(x) -> {
-                                if x.section_type == SectionType.Plans {
-                                    has_any_plan = true
-                                    if x.status != SpecStatus.Done {
-                                        related_plans_all_done = false
-                                    }
-                                }
-                            },
-                            None -> {}
-                        }
-                    }
+                    // PLAN-024: plans section removed (now in docs/plans/,
+                    // PlansStore). has_any_plan stays false → Rule 1 below
+                    // never fires.
 
                     // Rule 1: Goal -> Implemented
                     if has_any_plan {

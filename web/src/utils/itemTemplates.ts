@@ -28,13 +28,6 @@ export const ITEM_TEMPLATES: Record<string, string> = {
 **Test File:** 
 `,
 
-  plans: `## Phase 1: <Phase Name>
-
-- [ ] <task 1>
-- [ ] <task 2>
-- [ ] <task 3>
-`,
-
   architecture: `**Decision:** <What architectural decision is being made?>
 
 **Rationale:** <Why this approach? What alternatives were considered?>
@@ -100,7 +93,6 @@ export function getDefaultStatus(sectionType: string): Status {
     case 'goals': return 'proposed'
     case 'architecture': return 'draft'
     case 'designs': return 'draft'
-    case 'plans': return 'draft'
     case 'tests': return 'draft'
     case 'reviews': return 'draft'
     case 'reports': return 'draft'
@@ -111,7 +103,7 @@ export function getDefaultStatus(sectionType: string): Status {
 
 export function getNextId(sectionType: string, existingIds: string[]): string {
   const prefixMap: Record<string, string> = {
-    goals: 'G', architecture: 'A', designs: 'D', plans: 'P',
+    goals: 'G', architecture: 'A', designs: 'D',
     tests: 'T', reviews: 'V', reports: 'R',
   }
   const prefix = prefixMap[sectionType] || sectionType.charAt(0).toUpperCase()

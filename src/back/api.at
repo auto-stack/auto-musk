@@ -106,7 +106,7 @@ pub type SpecItem = {
     completed_at: int,
 }
 
-// SpecsSection — 一类 section（goals/architecture/designs/plans/tests/reviews/reports）。
+// SpecsSection — 一类 section（goals/architecture/designs/tests/reviews/reports）。
 pub type SpecsSection = {
     id: str,
     section_type: str,

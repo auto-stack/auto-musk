@@ -43,7 +43,6 @@ const SECTION_STATUSES: Record<SectionType, Status[]> = {
   goals: ['empty', 'proposed', 'draft', 'under_review', 'approved', 'in_progress', 'implemented', 'verified', 'done', 'archived', 'rejected'],
   architecture: ['empty', 'draft', 'under_review', 'approved', 'superseded', 'outdated'],
   designs: ['empty', 'draft', 'under_review', 'approved', 'superseded', 'outdated'],
-  plans: ['empty', 'draft', 'approved', 'in_progress', 'done', 'obsolete'],
   tests: ['empty', 'draft', 'implemented', 'done', 'verified', 'blocked'],
   reviews: ['empty', 'draft', 'published'],
   reports: ['empty', 'draft', 'published'],

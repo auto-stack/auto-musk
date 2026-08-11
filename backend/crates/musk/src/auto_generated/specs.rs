@@ -39,7 +39,6 @@ pub enum SectionType {
     Goals = 1,
     Architecture = 2,
     Designs = 3,
-    Plans = 4,
     Tests = 5,
     Reviews = 6,
     Reports = 7,
@@ -51,7 +50,6 @@ impl std::fmt::Display for SectionType {
             SectionType::Goals => write!(f, "Goals"),
             SectionType::Architecture => write!(f, "Architecture"),
             SectionType::Designs => write!(f, "Designs"),
-            SectionType::Plans => write!(f, "Plans"),
             SectionType::Tests => write!(f, "Tests"),
             SectionType::Reviews => write!(f, "Reviews"),
             SectionType::Reports => write!(f, "Reports"),
@@ -64,7 +62,6 @@ impl SectionType {
             "Goals" | "goals" => SectionType::Goals,
             "Architecture" | "architecture" => SectionType::Architecture,
             "Designs" | "designs" => SectionType::Designs,
-            "Plans" | "plans" => SectionType::Plans,
             "Tests" | "tests" => SectionType::Tests,
             "Reviews" | "reviews" => SectionType::Reviews,
             "Reports" | "reports" => SectionType::Reports,
@@ -79,7 +76,6 @@ impl SectionType {
             SectionType::Goals => return "goals".to_string(),
             SectionType::Architecture => return "architecture".to_string(),
             SectionType::Designs => return "designs".to_string(),
-            SectionType::Plans => return "plans".to_string(),
             SectionType::Tests => return "tests".to_string(),
             SectionType::Reviews => return "reviews".to_string(),
             SectionType::Reports => return "reports".to_string(),
@@ -90,7 +86,6 @@ impl SectionType {
             SectionType::Goals => return "🎯 Goals".to_string(),
             SectionType::Architecture => return "🏗️ Architecture".to_string(),
             SectionType::Designs => return "🎨 Designs".to_string(),
-            SectionType::Plans => return "📋 Plans".to_string(),
             SectionType::Tests => return "🧪 Tests".to_string(),
             SectionType::Reviews => return "🔍 Reviews".to_string(),
             SectionType::Reports => return "📊 Reports".to_string(),
@@ -320,7 +315,7 @@ pub struct SpecsDocument {
 
 impl SpecsDocument {
     pub fn new(project: &str) -> SpecsDocument {
-        return SpecsDocument { project: project.clone().to_string(), version: 0, sections: vec![SpecsSection::new(SectionType::Goals), SpecsSection::new(SectionType::Architecture), SpecsSection::new(SectionType::Designs), SpecsSection::new(SectionType::Plans), SpecsSection::new(SectionType::Tests), SpecsSection::new(SectionType::Reviews), SpecsSection::new(SectionType::Reports)] };
+        return SpecsDocument { project: project.clone().to_string(), version: 0, sections: vec![SpecsSection::new(SectionType::Goals), SpecsSection::new(SectionType::Architecture), SpecsSection::new(SectionType::Designs), SpecsSection::new(SectionType::Tests), SpecsSection::new(SectionType::Reviews), SpecsSection::new(SectionType::Reports)] };
     }
     pub fn rebuild_relations(&mut self) {
         let mut known: HashSet<String> = all_ids(self.clone());
@@ -411,18 +406,9 @@ impl SpecsDocument {
                     let forwards: Vec<String> = item.depends_on.clone();
                     let mut related_plans_all_done: bool = true;
                     let mut has_any_plan: bool = false;
-                    for rid in forwards.clone() {
-                        match find_snap(snap.clone(), rid.as_str()) {
-                            Some(x) => {
-                                if x.section_type == SectionType::Plans {
-                                    has_any_plan = true;
-                                    if x.status != SpecStatus::Done {
-                                        related_plans_all_done = false
-                                    }                                }
-                            },
-                            None => {},
-                        };
-                    }
+                    // PLAN-024: plans section removed (plans now live in
+                    // docs/plans/, PlansStore). has_any_plan stays false → the
+                    // Goal auto-Implemented rule below never fires.
                     
 
 
@@ -582,7 +568,6 @@ impl SectionConfig {
             SectionType::Goals => return SectionConfig { section_type: st, allowed_statuses: vec![SpecStatus::Empty, SpecStatus::Proposed, SpecStatus::Analysed, SpecStatus::Approved, SpecStatus::InProgress, SpecStatus::Implemented, SpecStatus::Verified, SpecStatus::Done, SpecStatus::Archived], allowed_transitions: vec![(SpecStatus::Empty, SpecStatus::Proposed), (SpecStatus::Proposed, SpecStatus::Analysed), (SpecStatus::Analysed, SpecStatus::Approved), (SpecStatus::Approved, SpecStatus::InProgress), (SpecStatus::InProgress, SpecStatus::Implemented), (SpecStatus::Implemented, SpecStatus::Verified), (SpecStatus::Verified, SpecStatus::Done), (SpecStatus::Done, SpecStatus::Archived), (SpecStatus::InProgress, SpecStatus::Archived)] },
             SectionType::Architecture => return SectionConfig::for_arch_designs(st),
             SectionType::Designs => return SectionConfig::for_arch_designs(st),
-            SectionType::Plans => return SectionConfig { section_type: st, allowed_statuses: vec![SpecStatus::Empty, SpecStatus::Draft, SpecStatus::Approved, SpecStatus::InProgress, SpecStatus::Done, SpecStatus::Obsolete], allowed_transitions: vec![(SpecStatus::Empty, SpecStatus::Draft), (SpecStatus::Draft, SpecStatus::Approved), (SpecStatus::Approved, SpecStatus::InProgress), (SpecStatus::InProgress, SpecStatus::Done), (SpecStatus::Done, SpecStatus::Obsolete)] },
             SectionType::Tests => return SectionConfig { section_type: st, allowed_statuses: vec![SpecStatus::Empty, SpecStatus::Draft, SpecStatus::Implemented, SpecStatus::Done, SpecStatus::Verified, SpecStatus::Blocked], allowed_transitions: vec![(SpecStatus::Empty, SpecStatus::Draft), (SpecStatus::Draft, SpecStatus::Implemented), (SpecStatus::Implemented, SpecStatus::Done), (SpecStatus::Done, SpecStatus::Verified), (SpecStatus::Implemented, SpecStatus::Blocked), (SpecStatus::Blocked, SpecStatus::Implemented)] },
             SectionType::Reviews => return SectionConfig::for_reviews_reports(st),
             SectionType::Reports => return SectionConfig::for_reviews_reports(st),
@@ -692,7 +677,6 @@ fn section_complete_status(st: SectionType) -> SpecStatus {
         SectionType::Goals => return SpecStatus::Archived,
         SectionType::Architecture => return SpecStatus::Approved,
         SectionType::Designs => return SpecStatus::Approved,
-        SectionType::Plans => return SpecStatus::Done,
         SectionType::Tests => return SpecStatus::Verified,
         SectionType::Reviews => return SpecStatus::Published,
         SectionType::Reports => return SpecStatus::Published,

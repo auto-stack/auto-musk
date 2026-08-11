@@ -29,8 +29,8 @@ widget SpecsView {
     }
 
     model {
-        // 7 类 section（对应 SectionType）。
-        var section_types List<str> = ["goals", "architecture", "designs", "plans", "tests", "reviews", "reports"]
+        // 6 类 section（对应 SectionType；PLAN-024 移除 plans）。
+        var section_types List<str> = ["goals", "architecture", "designs", "tests", "reviews", "reports"]
         var active_section str = "goals"
         var show_overview bool = true
         var active_item_id Option<str> = None

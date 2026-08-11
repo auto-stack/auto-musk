@@ -129,6 +129,9 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .merge(crate::auto_generated::relay_api::task_plan_routes())
         // Wiki knowledge base (Phase 4) — ag wiki handlers(Plan 020 Phase D)。
         .merge(crate::auto_generated::wiki::wiki_routes())
+        // Plans (PLAN-024) — hw escape-hatch routes; ag track deferred
+        // (a2r transpiler drift — see plans.rs §"HTTP routes" + KNOWN-DEBT).
+        .merge(crate::plans::plans_routes())
         // Serve config-page.js + any other static assets at the root.
         .fallback_service(static_service)
         .layer(cors)
@@ -1145,7 +1148,7 @@ mod tests {
         assert_eq!(resp.status(), 200);
         let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
         let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(v["sections"].as_array().map(|a| a.len()).unwrap_or(0), 7);
+        assert_eq!(v["sections"].as_array().map(|a| a.len()).unwrap_or(0), 6);
 
         // ── chats: create → {"session": {...}},list/get 可读回 ──
         let resp = app.clone().oneshot(

@@ -532,17 +532,17 @@ mod tests {
         let w = WriteSpec::with_store(store.clone());
         let out = w
             .execute(&json!({
-                "section_id": "plans",
-                "content": "## P1 First plan\nDo the thing\n## P2 Second\nOther\n"
+                "section_id": "tests",
+                "content": "## T1 First test\nDo the thing\n## T2 Second\nOther\n"
             }))
             .await
             .unwrap();
         assert!(out.contains("wrote 2 items"));
 
         let r = ReadSpecs::with_store(store);
-        let out = r.execute(&json!({ "section_id": "plans" })).await.unwrap();
-        assert!(out.contains("P1"));
-        assert!(out.contains("First plan"));
+        let out = r.execute(&json!({ "section_id": "tests" })).await.unwrap();
+        assert!(out.contains("T1"));
+        assert!(out.contains("First test"));
         assert!(out.contains("Do the thing"));
     }
 

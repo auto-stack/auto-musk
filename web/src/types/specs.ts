@@ -2,7 +2,6 @@ export type SectionType =
   | 'goals'
   | 'architecture'
   | 'designs'
-  | 'plans'
   | 'tests'
   | 'reviews'
   | 'reports'

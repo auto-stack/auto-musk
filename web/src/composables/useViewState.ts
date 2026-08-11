@@ -5,11 +5,12 @@ import { ref } from 'vue'
  */
 export type ViewId =
   | 'chats'
+  | 'plans'
   | 'specs'
   | 'wiki'
 
 const VALID_VIEW_IDS: Set<ViewId> = new Set([
-  'chats', 'specs', 'wiki',
+  'chats', 'plans', 'specs', 'wiki',
 ])
 
 const DEFAULT_VIEW: ViewId = 'chats'

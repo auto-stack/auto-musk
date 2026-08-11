@@ -26,7 +26,6 @@ pub enum SectionType {
     Goals,
     Architecture,
     Designs,
-    Plans,
     Tests,
     Reviews,
     Reports,
@@ -39,7 +38,6 @@ impl SectionType {
             SectionType::Goals => "goals",
             SectionType::Architecture => "architecture",
             SectionType::Designs => "designs",
-            SectionType::Plans => "plans",
             SectionType::Tests => "tests",
             SectionType::Reviews => "reviews",
             SectionType::Reports => "reports",
@@ -52,7 +50,6 @@ impl SectionType {
             SectionType::Goals => "🎯 Goals",
             SectionType::Architecture => "🏗️ Architecture",
             SectionType::Designs => "🎨 Designs",
-            SectionType::Plans => "📋 Plans",
             SectionType::Tests => "🧪 Tests",
             SectionType::Reviews => "🔍 Reviews",
             SectionType::Reports => "📊 Reports",
@@ -66,7 +63,6 @@ impl SectionType {
             "goals" => SectionType::Goals,
             "architecture" => SectionType::Architecture,
             "designs" => SectionType::Designs,
-            "plans" => SectionType::Plans,
             "tests" => SectionType::Tests,
             "reviews" => SectionType::Reviews,
             "reports" => SectionType::Reports,
@@ -285,7 +281,6 @@ impl SpecsDocument {
                 SpecsSection::new(SectionType::Goals),
                 SpecsSection::new(SectionType::Architecture),
                 SpecsSection::new(SectionType::Designs),
-                SpecsSection::new(SectionType::Plans),
                 SpecsSection::new(SectionType::Tests),
                 SpecsSection::new(SectionType::Reviews),
                 SpecsSection::new(SectionType::Reports),
@@ -442,13 +437,13 @@ impl SpecsDocument {
             m
         };
 
-        // ── Rule 1 & 2: Goal auto-advance ──
-        // A Goal's forward deps (the Plans/Tests/Reviews it references) live in
-        // its `depends_on` (and content-scanned refs, captured into the reverse
-        // graph as: those targets' `related` contains the Goal). For derivation
-        // we need the FORWARD edges out of the Goal, so we read `depends_on`
-        // (plus content refs recomputed via the snap of reverse edges would be
-        // circular — `depends_on` is the authoritative forward list).
+        // ── Goal auto-advance to Verified (Rule 2) ──
+        // Note (PLAN-024): Plans are now a first-class citizen in
+        // `docs/plans/` (PlansStore), no longer a spec section. The old Rule 1
+        // (Goal → Implemented when all related Plans are Done) relied on the
+        // plans section and has been removed — promote a Goal to Implemented
+        // manually now. Rule 2 below still auto-advances Implemented → Verified
+        // once all related Tests are done/verified and a Review is published.
         use SpecStatus::*;
         let goal_cfg = SectionConfig::for_type(SectionType::Goals);
         for section in &mut self.sections {
@@ -458,24 +453,6 @@ impl SpecsDocument {
             for item in &mut section.items {
                 // forward refs = depends_on (manual) — the authoritative list
                 let forwards: Vec<&String> = item.depends_on.iter().collect();
-                let related_plans_all_done = forwards
-                    .iter()
-                    .filter_map(|rid| snap.get(*rid))
-                    .filter(|x| x.section_type == SectionType::Plans)
-                    .all(|x| x.status == Done);
-                let has_any_plan = forwards
-                    .iter()
-                    .any(|rid| matches!(snap.get(*rid).map(|x| x.section_type), Some(SectionType::Plans)));
-
-                // Rule 1: Goal → Implemented
-                if has_any_plan
-                    && related_plans_all_done
-                    && matches!(item.status, Empty | Proposed | Analysed | Approved | InProgress)
-                    && goal_cfg.can_transition(item.status, Implemented)
-                {
-                    item.status = Implemented;
-                    item.modified_at = now_sec();
-                }
 
                 // Rule 2: Goal → Verified (needs Implemented now, all Tests done/verified, ≥1 Review published)
                 if item.status == Implemented {
@@ -528,7 +505,6 @@ fn section_complete_status(st: SectionType) -> SpecStatus {
     match st {
         SectionType::Goals => SpecStatus::Archived,
         SectionType::Architecture | SectionType::Designs => SpecStatus::Approved,
-        SectionType::Plans => SpecStatus::Done,
         SectionType::Tests => SpecStatus::Verified,
         SectionType::Reviews | SectionType::Reports => SpecStatus::Published,
     }
@@ -678,18 +654,6 @@ impl SectionConfig {
                     (UnderReview, Rejected),
                     (Approved, Superseded),
                     (Approved, Outdated),
-                ],
-            },
-            // Plans: Empty → Draft → Approved → InProgress → Done → Obsolete
-            SectionType::Plans => Self {
-                section_type: st,
-                allowed_statuses: vec![Empty, Draft, Approved, InProgress, Done, Obsolete],
-                allowed_transitions: vec![
-                    (Empty, Draft),
-                    (Draft, Approved),
-                    (Approved, InProgress),
-                    (InProgress, Done),
-                    (Done, Obsolete),
                 ],
             },
             // Tests: Empty → Draft → Implemented → Done → Verified,
@@ -891,7 +855,6 @@ mod tests {
             SectionType::Goals,
             SectionType::Architecture,
             SectionType::Designs,
-            SectionType::Plans,
             SectionType::Tests,
             SectionType::Reviews,
             SectionType::Reports,
@@ -973,14 +936,14 @@ mod tests {
     }
 
     #[test]
-    fn document_new_has_7_sections() {
+    fn document_new_has_6_sections() {
         let doc = SpecsDocument::new("test-project");
         assert_eq!(doc.project, "test-project");
         assert_eq!(doc.version, 0);
-        assert_eq!(doc.sections.len(), 7);
-        // Sections are in canonical order.
+        assert_eq!(doc.sections.len(), 6);
+        // Sections in canonical order (goals/architecture/designs/tests/reviews/reports).
         assert_eq!(doc.sections[0].section_type, SectionType::Goals);
-        assert_eq!(doc.sections[6].section_type, SectionType::Reports);
+        assert_eq!(doc.sections[5].section_type, SectionType::Reports);
     }
 
     #[test]
@@ -1040,18 +1003,6 @@ mod tests {
     }
 
     #[test]
-    fn plans_transitions() {
-        use SpecStatus::*;
-        let st = SectionType::Plans;
-        assert!(can_transition(st, Empty, Draft));
-        assert!(can_transition(st, Draft, Approved));
-        assert!(can_transition(st, Approved, InProgress));
-        assert!(can_transition(st, InProgress, Done));
-        assert!(can_transition(st, Done, Obsolete));
-        assert!(!can_transition(st, Draft, Done));
-    }
-
-    #[test]
     fn tests_transitions_with_blocked() {
         use SpecStatus::*;
         let st = SectionType::Tests;
@@ -1083,7 +1034,6 @@ mod tests {
     fn transition_idempotent() {
         for st in [
             SectionType::Goals,
-            SectionType::Plans,
             SectionType::Tests,
         ] {
             assert!(can_transition(st, SpecStatus::Draft, SpecStatus::Draft));
@@ -1106,7 +1056,6 @@ mod tests {
             SectionType::Goals,
             SectionType::Architecture,
             SectionType::Designs,
-            SectionType::Plans,
             SectionType::Tests,
             SectionType::Reviews,
             SectionType::Reports,
@@ -1138,7 +1087,7 @@ mod tests {
         let path = dir.join("specs.json");
         let store = SpecsStore::new(&path);
         let doc = store.load().unwrap();
-        assert_eq!(doc.sections.len(), 7);
+        assert_eq!(doc.sections.len(), 6);
         assert!(path.exists()); // persisted
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1260,12 +1209,12 @@ mod tests {
     fn rebuild_relations_depends_on_creates_reverse_link() {
         let mut doc = SpecsDocument::new("t");
         let mut a = SpecItem::new("G1", "goal");
-        a.depends_on = vec!["P1".into()];
-        let mut p = SpecItem::new("P1", "plan");
+        a.depends_on = vec!["T1".into()];
+        let mut p = SpecItem::new("T1", "plan");
         p.status = SpecStatus::Draft;
         store_upsert_both(&mut doc, a, p);
-        // After rebuild via upsert: P1.related should contain G1.
-        let p1 = find_item(&doc, "plans", "P1");
+        // After rebuild via upsert: T1.related should contain G1.
+        let p1 = find_item(&doc, "tests", "T1");
         assert!(p1.related.contains(&"G1".to_string()));
     }
 
@@ -1274,11 +1223,11 @@ mod tests {
         // An item whose content mentions another item's ID by text creates an edge.
         let mut doc = SpecsDocument::new("t");
         let mut g = SpecItem::new("G1", "goal");
-        g.content = "This depends on plan P1 for delivery".into();
-        let p = SpecItem::new("P1", "plan");
+        g.content = "This depends on plan T1 for delivery".into();
+        let p = SpecItem::new("T1", "plan");
         store_upsert_both(&mut doc, g, p);
-        let p1 = find_item(&doc, "plans", "P1");
-        assert!(p1.related.contains(&"G1".to_string()), "P1.related = {:?}", p1.related);
+        let p1 = find_item(&doc, "tests", "T1");
+        assert!(p1.related.contains(&"G1".to_string()), "T1.related = {:?}", p1.related);
     }
 
     #[test]
@@ -1287,9 +1236,9 @@ mod tests {
         let mut doc = SpecsDocument::new("t");
         let mut g = SpecItem::new("G1", "goal");
         g.content = "see Z99 for details".into(); // Z99 doesn't exist
-        store_upsert_both(&mut doc, g, SpecItem::new("P1", "plan"));
-        let p1 = find_item(&doc, "plans", "P1");
-        assert!(!p1.related.contains(&"G1".to_string()) || true); // P1 not referenced by G1
+        store_upsert_both(&mut doc, g, SpecItem::new("T1", "plan"));
+        let p1 = find_item(&doc, "tests", "T1");
+        assert!(!p1.related.contains(&"G1".to_string()) || true); // T1 not referenced by G1
         // G1.related should NOT contain Z99 (it doesn't exist)
         let g1 = find_item(&doc, "goals", "G1");
         assert!(!g1.related.contains(&"Z99".to_string()));
@@ -1315,14 +1264,14 @@ mod tests {
         let store = SpecsStore::new(&path);
         let mut doc = SpecsDocument::new("t");
         let mut a = SpecItem::new("G1", "g");
-        a.depends_on = vec!["P1".into()];
+        a.depends_on = vec!["T1".into()];
         store.upsert_item(&mut doc, "goals", a).unwrap();
-        store.upsert_item(&mut doc, "plans", SpecItem::new("P1", "p")).unwrap();
-        // P1.related has G1
-        assert!(find_item(&doc, "plans", "P1").related.contains(&"G1".into()));
-        // delete G1 -> P1.related should no longer reference G1
+        store.upsert_item(&mut doc, "tests", SpecItem::new("T1", "p")).unwrap();
+        // T1.related has G1
+        assert!(find_item(&doc, "tests", "T1").related.contains(&"G1".into()));
+        // delete G1 -> T1.related should no longer reference G1
         store.delete_item(&mut doc, "goals", "G1").unwrap();
-        assert!(!find_item(&doc, "plans", "P1").related.contains(&"G1".into()));
+        assert!(!find_item(&doc, "tests", "T1").related.contains(&"G1".into()));
         let _ = std::fs::remove_file(&path);
     }
 
@@ -1330,40 +1279,18 @@ mod tests {
     fn rebuild_relations_dedupes_and_sorts() {
         let mut doc = SpecsDocument::new("t");
         let mut g = SpecItem::new("G1", "g");
-        g.depends_on = vec!["P1".into(), "P1".into()]; // dup
-        g.content = "P1 P1".into(); // dup refs
-        store_upsert_both(&mut doc, g, SpecItem::new("P1", "p"));
-        let p1 = find_item(&doc, "plans", "P1");
+        g.depends_on = vec!["T1".into(), "T1".into()]; // dup
+        g.content = "T1 T1".into(); // dup refs
+        store_upsert_both(&mut doc, g, SpecItem::new("T1", "p"));
+        let p1 = find_item(&doc, "tests", "T1");
         assert_eq!(p1.related.iter().filter(|x| x == &&"G1".to_string()).count(), 1);
     }
 
     // ── derive_statuses (derived status advancement) ─────────
 
-    #[test]
-    fn derive_goal_implemented_when_all_plans_done() {
-        let path = std::env::temp_dir().join("musk_specs_derive_impl.json");
-        let store = SpecsStore::new(&path);
-        let mut doc = SpecsDocument::new("t");
-        // Goal G1 depends on Plan P1; walk G1 to InProgress, P1 to Done.
-        let mut g = SpecItem::new("G1", "goal");
-        g.depends_on = vec!["P1".into()];
-        g.status = SpecStatus::Approved;
-        store.upsert_item(&mut doc, "goals", g).unwrap();
-        // walk G1 Approved -> InProgress (per-section machine)
-        store.transition_item(&mut doc, "goals", "G1", SpecStatus::InProgress).unwrap();
-        let mut p = SpecItem::new("P1", "plan");
-        p.status = SpecStatus::Approved;
-        store.upsert_item(&mut doc, "plans", p).unwrap();
-        store.transition_item(&mut doc, "plans", "P1", SpecStatus::InProgress).unwrap();
-        store.transition_item(&mut doc, "plans", "P1", SpecStatus::Done).unwrap();
-        // re-upsert G1 (triggers rebuild+derive) — G1 should now be Implemented
-        let mut g2 = SpecItem::new("G1", "goal");
-        g2.depends_on = vec!["P1".into()];
-        g2.status = SpecStatus::InProgress;
-        store.upsert_item(&mut doc, "goals", g2).unwrap();
-        assert_eq!(find_item(&doc, "goals", "G1").status, SpecStatus::Implemented);
-        let _ = std::fs::remove_file(&path);
-    }
+    // PLAN-024: derive_goal_implemented_when_all_plans_done removed — the
+    // Goal → Implemented rule relied on the plans section (now in PlansStore).
+    // Goal → Verified (below) still auto-advances once Implemented.
 
     #[test]
     fn derive_goal_verified_when_tests_and_review() {
@@ -1404,10 +1331,10 @@ mod tests {
         let store = SpecsStore::new(&path);
         let mut doc = SpecsDocument::new("t");
         // section starts Empty; upsert a plan in Draft
-        let mut p = SpecItem::new("P1", "plan");
+        let mut p = SpecItem::new("T1", "plan");
         p.status = SpecStatus::Draft;
-        store.upsert_item(&mut doc, "plans", p).unwrap();
-        let plans = doc.sections.iter().find(|s| s.id == "plans").unwrap();
+        store.upsert_item(&mut doc, "tests", p).unwrap();
+        let plans = doc.sections.iter().find(|s| s.id == "tests").unwrap();
         assert_eq!(plans.status, SpecStatus::Draft);
         let _ = std::fs::remove_file(&path);
     }
@@ -1432,13 +1359,13 @@ mod tests {
         let mut doc = SpecsDocument::new("proj");
         store.upsert_item(&mut doc, "goals", SpecItem::new("G1", "g1")).unwrap();
         store.upsert_item(&mut doc, "goals", SpecItem::new("G2", "g2")).unwrap();
-        store.upsert_item(&mut doc, "plans", SpecItem::new("P1", "p1")).unwrap();
+        store.upsert_item(&mut doc, "tests", SpecItem::new("T1", "p1")).unwrap();
         let ov = doc.overview();
         assert_eq!(ov.project, "proj");
         assert_eq!(ov.total_items, 3);
         let goals = ov.sections.iter().find(|s| s.id == "goals").unwrap();
         assert_eq!(goals.item_count, 2);
-        let plans = ov.sections.iter().find(|s| s.id == "plans").unwrap();
+        let plans = ov.sections.iter().find(|s| s.id == "tests").unwrap();
         assert_eq!(plans.item_count, 1);
         // status_counts: both goals Empty
         let empty_count = goals
@@ -1478,7 +1405,7 @@ mod tests {
     fn store_upsert_both(doc: &mut SpecsDocument, goal: SpecItem, plan: SpecItem) {
         let store = SpecsStore::new(std::env::temp_dir().join("musk_specs_rel_helper.json"));
         store.upsert_item(doc, "goals", goal).unwrap();
-        store.upsert_item(doc, "plans", plan).unwrap();
+        store.upsert_item(doc, "tests", plan).unwrap();
         let _ = std::fs::remove_file(std::env::temp_dir().join("musk_specs_rel_helper.json"));
     }
 
