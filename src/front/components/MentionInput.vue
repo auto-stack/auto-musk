@@ -44,28 +44,32 @@
         </button>
       </div>
       <MentionDropdown
-        ref="mentionRef"
         :professions="professionsList"
         :visible="mentionVisible"
         :filter="mentionFilter"
         :anchor-rect="mentionAnchor"
+        :active-index="mentionIndex"
         @select="handleMentionSelect"
+        @hover="onMentionHover"
       />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Send, Square } from 'lucide-vue-next'
-import MentionDropdown from './MentionDropdown.vue'
+import MentionDropdown from '@/components/MentionDropdown.vue'
 import { useAgentConfigs } from '../composables/useAgentConfigs'
 import {
   DEFAULT_PROFESSIONS,
   renderInputMentions,
   buildMentionNames,
 } from '../forge_helpers'
+// Plan 023 队列 B3：键盘导航状态上移到本组件（component fn 不支持 expose），
+// 复用 mention_helpers 的过滤/clamp/findIndex。
+import { mentionFiltered, mentionClampIndex, mentionIndexOf } from '../mention_helpers'
 
 // B 类批1：动态 profession 列表（useAgentConfigs singleton，App/chats_view Init 时 loadConfigs）。
 const { configs: agentConfigs } = useAgentConfigs()
@@ -88,12 +92,17 @@ const emit = defineEmits<{
 
 const text = ref('')
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
-const mentionRef = ref<InstanceType<typeof MentionDropdown> | null>(null)
 
-// @mention state
+// @mention state（键盘导航状态在本组件管理——dropdown 为纯渲染组件）
 const mentionVisible = ref(false)
 const mentionFilter = ref('')
 const mentionAnchor = ref<DOMRect | null>(null)
+const mentionIndex = ref(0)
+
+// 与 dropdown 的 filtered 同源（同 helper 同输入 → 同输出）
+const mentionFilteredList = computed(() =>
+  mentionFiltered(professionsList.value, mentionFilter.value),
+)
 
 const professionsList = computed(() => {
   if (props.professions && props.professions.length) return props.professions
@@ -149,21 +158,32 @@ function handleMentionSelect(id: string) {
 }
 
 function handleKeydown(e: KeyboardEvent) {
-  if (!mentionVisible.value || !mentionRef.value?.hasItems()) return
+  // Plan 023 队列 B3：MentionDropdown 为纯渲染组件，键盘导航状态在本组件管理。
+  if (!mentionVisible.value || mentionFilteredList.value.length === 0) return
   if (e.key === 'ArrowDown') {
     e.preventDefault()
-    mentionRef.value.moveDown()
+    mentionIndex.value = mentionClampIndex(mentionIndex.value + 1, mentionFilteredList.value.length)
   } else if (e.key === 'ArrowUp') {
     e.preventDefault()
-    mentionRef.value.moveUp()
+    mentionIndex.value = mentionClampIndex(mentionIndex.value - 1, mentionFilteredList.value.length)
   } else if (e.key === 'Enter' || e.key === 'Tab') {
     e.preventDefault()
-    const id = mentionRef.value.currentId()
+    const id = mentionFilteredList.value[mentionIndex.value]?.id
     if (id) handleMentionSelect(id)
   } else if (e.key === 'Escape') {
     mentionVisible.value = false
   }
 }
+
+// dropdown hover（emit id）→ 定位索引
+function onMentionHover(id: string) {
+  mentionIndex.value = mentionIndexOf(mentionFilteredList.value, id)
+}
+
+// 隐藏或过滤变化时重置高亮索引
+watch([mentionVisible, mentionFilter], () => {
+  mentionIndex.value = 0
+})
 
 /** 发送文本。命令解析（/relay//superpower//spec1）需 startRun（useRelay 未接线），
  *  本 phase 透传原始文本给父组件（父走 store.Send + startForgeStream）；

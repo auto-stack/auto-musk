@@ -840,6 +840,23 @@ a { color: hsl(var(--primary)); }
 .reject-btn { background: transparent; color: var(--af-fg, hsl(220 14% 10%)); border: 1px solid var(--af-border, hsl(220 13% 91%)); }
 .review-btn { background: hsl(220 14% 50% / 0.08); color: var(--af-fg, hsl(220 14% 10%)); border: 1px solid var(--af-border, hsl(220 13% 91%)); }
 .approve-btn:hover, .reject-btn:hover, .review-btn:hover { opacity: 0.85; }
+
+/* ── MentionDropdown（Plan 023 队列 B3 原生化：逃生舱 scoped 转全局兜底）── */
+.mention-dropdown {
+  min-width: 180px; max-height: 220px; overflow-y: auto;
+  background: var(--af-card, #fff); border: 1px solid var(--af-border, hsl(220 13% 91%));
+  border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); padding: 4px; z-index: 200;
+}
+.mention-item {
+  display: flex; align-items: center; gap: 0.5rem; width: 100%;
+  padding: 6px 10px; border: none; border-radius: 5px; background: transparent;
+  color: var(--af-fg, hsl(220 14% 10%)); font-size: 0.88rem; cursor: pointer; text-align: left;
+  transition: background 0.1s;
+}
+.mention-item:hover, .mention-item.active { background: hsl(var(--primary, 220 90% 56%) / 0.08); }
+.mention-item.active { color: var(--af-primary, hsl(220 90% 56%)); }
+.mention-name { font-weight: 600; font-family: monospace; }
+.mention-label { color: var(--af-muted, hsl(220 9% 46%)); font-size: 0.83rem; }
 `
 
 export function injectStyles(): void {

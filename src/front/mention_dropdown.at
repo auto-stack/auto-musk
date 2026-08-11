@@ -1,0 +1,61 @@
+// mention_dropdown.at — MentionDropdown 组件（Plan 023 队列 B3：emit 逃生舱原生化）
+//
+// 对标 src/front/components/MentionDropdown.vue（逃生舱，已删除）。
+//
+// 设计调整：component fn 不支持 expose 块（仅 widget 支持，codegen 缺口已登记），
+// 键盘导航状态（index/filtered）上移到父组件 MentionInput（逃生舱）：
+//   - 父组件用 mentionFiltered/mentionClampIndex/mentionIndexOf（mention_helpers）
+//     管理 mentionIndex，传 activeIndex prop 给本组件
+//   - 本组件纯渲染 + emit：select(id) / hover(id)
+//
+// 其他转换：
+//   - filter+includes + DOMRect 位置对象 → mention_helpers.ts fn
+//   - active class 用 activeId（filtered[activeIndex].id）对比，避免 for 索引变量
+//   - teleport 用花括号 props 形式（`teleport (to:...)` 与 ident+LParen fn-call
+//     检测冲突）
+//
+// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.mention-dropdown 等）。
+
+component fn MentionDropdown(professions: obj, visible: bool, filter: str, anchorRect: obj, activeIndex: int) {
+    use {
+        fn: mentionFiltered, mentionPosition, mentionCurrentId from "src/front/mention_helpers.ts"
+        component: AgentAvatar
+    }
+    computed {
+        filtered => mentionFiltered(.professions, .filter)
+        position => mentionPosition(.anchorRect)
+        activeId => mentionCurrentId(.filtered, .activeIndex)
+    }
+    msg Msg { select(str), hover }
+    on {
+        .select(id) -> {}
+        .hover(id) -> {}
+    }
+    teleport {
+        to: "body"
+        if .visible && .filtered.len > 0 {
+            div {
+                class: "mention-dropdown"
+                style: .position
+                for prof in .filtered {
+                    button {
+                        key: .prof.id
+                        onclick: .select(.prof.id)
+                        onmouseenter: .hover(.prof.id)
+                        class: if .activeId == .prof.id { "mention-item active" } else { "mention-item" }
+                        AgentAvatar { professionId: .prof.id, name: .prof.name, size: "sm" }
+                        span {
+                            style: "mention-name"
+                            text "@"
+                            text .prof.id
+                        }
+                        span {
+                            style: "mention-label"
+                            text .prof.name
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
