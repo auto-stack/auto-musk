@@ -3,12 +3,14 @@
 > **给执行 agent**：本文档是 Plan 023（view fn → 独立组件 codegen）剩余工作的执行指引。读完本文 + 023 主文档（`docs/plans/023-view-fn-component-codegen.md`）即可开始。
 >
 > **生成时间**：2026-08-11。**作者**：上一轮迁移 agent（已完成 8 个逃生舱）。
+>
+> **更新（2026-08-11 P3 完成轮）**：auto-lang §10.7/§10.4 修复后，**队列 A/B 全部完成（20/21 逃生舱原生化）**，仅剩 StreamingRenderer（队列 C，永久逃生舱 KNOWN-DEBT）。本文件的执行队列已全部落地，仅 §3.1（队列 D）留待下轮。
 
 ---
 
 ## 0. 一句话现状
 
-Plan 023 的 P2（转译器能力，auto-lang 408 P1-P12）已完成；P3（逃生舱原生化试点）已迁移 **8/21** 个逃生舱，迁移模式成熟。剩余 13 个受阻于 auto-lang 408 §10.7（async handler，待修）+ composable（§10.4 降级方案）+ 复杂交互。**§10.7 解封后，本文档队列 A 可立即推进。**
+Plan 023 的 P2（转译器能力，auto-lang 408 P1-P12）已完成；P3（逃生舱原生化试点）已迁移 **20/21** 个逃生舱。剩余 1 个（StreamingRenderer）为永久逃生舱（流式增量 JSON composable + 动态 component :is + v-bind 展开超 component fn 能力边界）。**§3.1（跨视图共用组件收敛）已解封**（component fn slot P11 已支持 + WikiNav 已原生），留待下轮做视觉 parity 验证。
 
 ---
 
@@ -163,7 +165,7 @@ powershell -Command "Copy-Item -Force target/release/auto.exe C:\Users\zhaop\.ca
 
 ---
 
-## 8. 已迁移清单（8 个，供参考）
+## 8. 已迁移清单（20 个，供参考）
 
 | # | 组件 | .at 文件 | 验证能力 | commit |
 |---|---|---|---|---|
@@ -174,7 +176,21 @@ powershell -Command "Copy-Item -Force target/release/auto.exe C:\Users\zhaop\.ca
 | 5 | ChatMessage | chat_message.at | 编排（component fn + 逃生舱 + fn 混合） | a6e78d1 |
 | 6 | StreamingTable | streaming_table.at | P7 动态索引 + P8 table 标签 | 75374d4 |
 | 7 | AgentAvatar | agent_avatar.at | P12 缺陷 9（动态 style + class） | (P12 批) |
-| 8 | ReportCard | report_card.at | P4/P10 emit 重交互 | (本批) |
+| 8 | ReportCard | report_card.at | P4/P10 emit 重交互 | (P12 批) |
+| 9 | RawPreview | raw_preview.at | §10.7 async + props 前缀 | d598ced |
+| 10 | WorkspaceSelector | workspace_selector.at | async lifecycle + 宿主全局 | ec5465d |
+| 11 | RelayRunBox | relay_run_box.at | composable facade refs + async | 86f872f |
+| 12 | SettingsMenu | settings_menu.at | 3 composable facade + async | 7fa6790 |
+| 13 | QuestionnaireCard | questionnaire_card.at | emit 负载 + 动态键记录 + 受控输入 | c184dc8 |
+| 14 | GateCard | gate_card.at | emit 负载 + watch init | 875815a |
+| 15 | MentionDropdown | mention_dropdown.at | teleport + emit + 键盘状态上移 | bd93276 |
+| 16 | SecretaryMessage | secretary_message.at | 小写 emit 负载 | c8b4163 |
+| 17 | MentionInput | mention_input.at | v-html + v-model + keydown 修饰符 | f5c3c7b |
+| 18 | WikiNav | wiki_nav.at | DropZone 拖拽 + 上传进度共享 ref | 00e3d12 |
+| 19 | SecretaryMessageWrapper | secretary_message_wrapper.at | §10.4 facade refs | 7932e67 |
+| 20 | SessionInfo | session_info.at | use store: in component fn | fc8fb0f |
+
+**剩余逃生舱**（1 个，永久 KNOWN-DEBT）：StreamingRenderer（useStreamingDocument 需 Ref 参数 + 动态 component :is + v-bind 展开）。
 
 ---
 
@@ -216,9 +232,23 @@ A: 有 vite dev server 在跑。`pkill -f vite` 后 `rm -rf gen`，或 `auto cle
 |---|---|---|
 | 1-8（P4-P10 续） | ✅ 全修 | 已迁移 8 个 |
 | 9（动态 style，P12） | ✅ 修 | AgentAvatar ✅ |
-| watch 块（P12 §10.2） | ✅ 修 | RawPreview（待 §10.7） |
-| 宿主全局（P12 §10.3） | ✅ 修 | SessionInfo（待 composable） |
-| composable facade ref（§10.4） | ⏳ 降级（fn 包装） | SecretaryMessageWrapper 等 |
-| **§10.7 async handler + props 访问** | ❌ **待修** | RawPreview/RelayRunBox/SettingsMenu/WikiNav/WorkspaceSelector |
+| watch 块（P12 §10.2） | ✅ 修 | RawPreview ✅ |
+| 宿主全局（P12 §10.3） | ✅ 修 | SessionInfo/RawPreview ✅ |
+| composable facade ref（§10.4） | ✅ 修（正式） | SecretaryMessageWrapper/SessionInfo/RelayRunBox ✅ |
+| **§10.7 async handler + props 访问** | ✅ **已修（`1d32f9a3`）** | 队列 A 全部 ✅（RawPreview/WorkspaceSelector/RelayRunBox/SettingsMenu） |
 
-**§10.7 是当前唯一硬阻塞**——修了之后队列 A 全部可推进。
+**§10.7 修复后剩余全部原生化**：队列 A 4 个 + 队列 B 6 个 + Wrapper/SessionInfo 2 个 = 12 个新迁移（累计 20/21）。仅 StreamingRenderer 保留为永久逃生舱。
+
+### 本轮新发现的 codegen 缺口（2026-08-11，auto-musk 已绕过，auto-lang 待修）
+
+| # | 缺口 | 现象 | auto-musk 绕过模式 |
+|---|---|---|---|
+| 1 | convert_condition `.len→.length` 双展开 | view 级 if 的 `.length` → `lengthgth`（`.length` 含子串 `.len`） | view-if 用 `.len`；computed/handler 用 `.length`（ts_adapter 仅方法形式转 `.len`，字段透传） |
+| 2 | component fn 不支持 `expose` 块 | MentionDropdown 键盘导航 API（moveUp/currentId/hasItems）无法暴露 | 键盘状态上移父组件（MentionInput 逃生舱管理 index/filtered，dropdown 纯渲染） |
+| 3 | handler body 连续多个 `try` 解析失败 | `.Init` 内两个 try → "Expected end of statement, got Try" | helper 内部 try/catch 吞错（不抛异常），.at 免 try |
+| 4 | 动态键 v-model 不生成 | `value: .answers[q.id]`（Index 值）不触发 v-model 优化 → 单向 :value + 空 handler | 受控组件：`value:` + `oninput: .X(.key, $event)` + eventInputValue 提取 |
+| 5 | msg 多参变体 emit 类型只取首参 | `SelectSingle(str,str)` → `[string]` 但 auto-emit 传 2 参 | msg 变体不声明 payload，on-block 参数驱动 emit 类型（fallback `[any,...]`） |
+| 6 | `.at` 无可选 props | `name: str = ""` 解析通过但 defineProps 仍必填 | 调用方传 `""` + helper/computed 兜底 |
+| 7 | `link` 标签 → shadcn router-link | 非原生 `<a>`（href/style/text 错乱 + 引 vue-router） | v-html 兜底（rawDownloadHtml helper，含 path 转义） |
+| 8 | view 级 if 不支持索引/多参 fn 调用 | `if gateExpanded(.a, .b)` / `if .expanded[sid]` 解析失败 | helper 扁平化（gateWithExpanded → `_expanded` 字段） |
+| 9 | `teleport (to:)` 括号形式冲突 | ident+LParen 被当 fn-call primary prop | `teleport { to: "body", ... }` 花括号 props 形式 |

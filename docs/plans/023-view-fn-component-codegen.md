@@ -1,7 +1,7 @@
 # 023 — view fn → 独立组件 codegen（auto-lang 转译器改造）
 
-> **状态**：🟢 P3 推进中（8 个逃生舱原生化，含 ChatMessage 消息编排 + AgentAvatar 动态 style + ReportCard emit 重交互，2026-08-11）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
-> **2026-08-11 P12 解封 + emit 验证**：auto-lang 408 P12（缺陷 9 动态 style + watch + 宿主全局）已修复。**已原生化 8 个逃生舱**：UserMessage、ErrandCard、TaskPlanCard、GenericToolCard、ChatMessage、StreamingTable、AgentAvatar（P12 缺陷 9）、ReportCard（P4/P10 emit）。剩余候选阻塞于 §10.7（async handler）+ composable + 复杂交互。详见 §3.4/§3.5。
+> **状态**：🟢 P3 基本完成（**20/21 逃生舱原生化**，2026-08-11 §10.7 解封后批量迁移）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
+> **2026-08-11 P3 完成轮**：auto-lang 408 §10.7（async handler + on/watch body props 访问）+ §10.4（composable facade ref）修复后，队列 A（async 类 4 个）+ 队列 B（emit 重交互 6 个）+ B 续（Wrapper/SessionInfo）全部迁移。**20 个逃生舱原生化，仅剩 StreamingRenderer（流式增量 JSON）为永久逃生舱（KNOWN-DEBT）**。详见 §3.6。
 > **前置**：Plan 022（前端 Auto 化已完成，逃生舱组件架构稳定）；Plan 018-021（后端全 Auto 化方法论）。
 > **仓库**：**auto-lang**（a2r 转译器 + a2vue codegen，构建 `auto.exe`）；auto-musk 为验证方。
 > **目标**：让 AutoUI 的 `view fn`（`use { fn }` 逃生舱函数中定义、返回 AuraWidget 的函数）被 a2r/a2vue 转译器**原生合成 AuraWidget 组件**，使 `ChatMessage` 等当前靠逃生舱 `.vue` 文件实现的组件脱离逃生舱、纯 `.at` 表达。
@@ -236,6 +236,53 @@ component NavSidebar {
 - **emit 重交互（emit 已支持 P4，但交互复杂度高）**：RelayRunBox（subscribeToRun 日志 + resolveGate 审批）、ReportCard/GateCard/SecretaryMessage/MentionInput/MentionDropdown/WikiNav/QuestionnaireCard/SettingsMenu/WorkspaceSelector。
 
 **P3 阶段结论**：消息渲染链的核心 6 个逃生舱已原生化（能力边界内的都做了）。剩余组件普遍需要 auto-lang 补：缺陷 9（动态 style）、composable 解构/方法调用、生命周期 DOM API。这些是更深的 codegen 能力，待 auto-lang 扩展后推进。
+
+### 3.6 P3 完成轮：§10.7 解封后批量迁移（2026-08-11，20/21 逃生舱原生化）
+
+> auto-lang 408 §10.7（async handler + props 前缀）+ §10.4（composable facade ref）合并 master（`1d32f9a3`）后，auto.exe 重建（Copy-Item 到 `~/.cargo/bin`）。交接文档（023-handoff.md）队列 A/B 全部可推进。
+
+**本轮迁移清单**（12 个新迁移，累计 20/21）：
+
+| # | 组件 | .at 文件 | 本轮验证能力 | commit |
+|---|---|---|---|---|
+| 9 | RawPreview | raw_preview.at | §10.7 async（on .Init/watch .await + try/catch）+ props 前缀；iframe/link 无映射 → v-html 兜底 | d598ced |
+| 10 | WorkspaceSelector | workspace_selector.at | async lifecycle + localStorage/location 宿主全局 | ec5465d |
+| 11 | RelayRunBox | relay_run_box.at | composable facade refs（runs/currentRun .value）+ async approve/reject + 订阅闭包存模块 Map | 86f872f |
+| 12 | SettingsMenu | settings_menu.at | 3 个 composable facade + async + 显式 key 抑制 v-for 自动 key | 7fa6790 |
+| 13 | QuestionnaireCard | questionnaire_card.at | emit 带负载（小写 submit）+ 动态键记录 + 受控输入（$event） | c184dc8 |
+| 14 | GateCard | gate_card.at | emit 负载（approve+editedSpecs）+ watch init + Set→obj | 875815a |
+| 15 | MentionDropdown | mention_dropdown.at | teleport + emit + 键盘状态上移（component fn 无 expose） | bd93276 |
+| 16 | SecretaryMessage | secretary_message.at | 小写 emit 负载 + Date 格式化 | c8b4163 |
+| 17 | MentionInput | mention_input.at | v-html backdrop + v-model + keydown 修饰符 + @mention 检测 | f5c3c7b |
+| 18 | WikiNav | wiki_nav.at | DropZone 拖拽 + 上传进度共享 ref + 6 个小写 emit | 00e3d12 |
+| 19 | SecretaryMessageWrapper | secretary_message_wrapper.at | §10.4 facade refs 正式修复验证 | 7932e67 |
+| 20 | SessionInfo | session_info.at | `use store:` in component fn + 宿主全局 + 共享 ref | fc8fb0f |
+
+**关键模式沉淀**（新增/强化）：
+- **async 操作**：on .Init / watch 内 `.await` + try/catch（helpers 内部吞错则 .at 免 try——规避"handler 内连续 try 解析失败"缺陷）
+- **受控输入**：动态键 v-model 缺口（`value:` 仅 Ident/Dot 触发 v-model，Index 不触发）→ `value:` + `oninput: .X(.key, $event)` 显式更新（eventInputValue helper 提取 `e.target.value`）
+- **composable 共享 ref**：进度/复制态等回调闭包状态 → helper 内模块级 ref，component fn 的 computed 读取
+- **emit 命名**：父 `.at` 绑定 `onXxx` → 子 emit 全小写（`onSelectWiki` → `@selectwiki` → emit('selectwiki')）；msg 变体不声明 payload，on-block 参数驱动 emit 类型（多参变体 Vue 路径只取首参）
+- **`.len` vs `.length`**：view 级 if 用 `.len`（convert_condition `.len→.length` 替换对 `.length` 双展开成 `lengthgth`）；computed/handler 用 `.length`（ts_adapter 仅方法形式转 `.len`）
+
+**已登记 codegen 缺口**（auto-lang 侧待修，auto-musk 已用模式绕过，详见 023-handoff.md 附录）：
+1. convert_condition `.len`→`.length` 对 `.length` 双展开（`lengthgth`）
+2. component fn 不支持 `expose` 块（键盘导航状态被迫上移父组件）
+3. handler body 连续多个 `try` 语句解析失败
+4. 动态键 v-model 不生成（Index 值不触发 v-model 优化）
+5. msg 多参变体 emit 类型只取首参（用 on-block 参数 fallback）
+6. `.at` 无可选 props（defineProps 仍必填，调用方传 `""`）
+7. `link` 标签 → shadcn router-link（非原生 `<a>`，v-html 兜底）
+8. view 级 if 不支持索引表达式/多参 fn 调用（helper 扁平化）
+9. `teleport (to:)` 括号形式与 ident+LParen fn-call 检测冲突（花括号 props 形式）
+
+**已知行为差异**（逃生舱 scoped 转全局 + 能力边界，均登记）：
+- 自动滚底（RelayRunBox watch+template ref）、外部点击关闭（SettingsMenu/SessionInfo）、fade 过渡、approveBtn 自动聚焦、mention 插入实时 selectionStart（input 时捕获）、review-in-specs 事件名连字符（改 camelCase）
+- StreamingRenderer：**保留永久逃生舱**（useStreamingDocument 需 Ref 参数 + 动态 component :is + v-bind 展开，均为 component fn 能力边界，登记 KNOWN-DEBT）
+
+**剩余工作**：
+- **§3.1（P5 共用组件收敛）**：component fn slot（P11）已支持 + WikiNav 已原生（原降级顾虑消除）——解封，但需视觉 parity 验证（headless Chromium 逐项比对），留待下轮
+- **P6 归档**：KNOWN-DEBT 已登记（StreamingRenderer + 行为差异），022 §8 后续项闭环
 
 ## 4. 风险与降级
 
