@@ -4,8 +4,10 @@
 // （带进度回调），用 use { fn } 引入逃生舱。对齐原版 web/src/composables/useWiki.ts:160-195：
 // multipart FormData + XMLHttpRequest + upload progress。
 //
-// 上传成功由调用方（WikiNav.vue emit 'uploaded' → wiki_view.at → store.LoadRawTree()）
+// 上传成功由调用方（WikiNav emit 'uploaded' → wiki_view.at → store.LoadRawTree()）
 // 刷新 raw tree，与逃生舱组件模式一致（见 forge_stream.ts）。
+
+import { ref } from 'vue'
 
 const RAW_BASE = '/api/forge/raw'
 
@@ -110,4 +112,32 @@ export function rawDownloadHtml(fileUrl: string, path: string): string {
   const esc = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
   return `<a href="${esc(fileUrl)}" download class="download-link">${esc(path)}</a>`
+}
+
+// ─── WikiNav DropZone 上传（Plan 023 队列 B6）───
+
+/** 上传进度（模块级共享 ref，component fn 的 computed 读取以驱动进度条）。 */
+export const rawUploadProgress = ref<number | null>(null)
+
+/**
+ * DropZone 拖拽上传（对齐原 WikiNav handleDrop）：files 从 drag 事件读，
+ * 进度写 rawUploadProgress，成功返回 true（component fn 的 uploaded handler
+ * auto-emit 触发父视图刷新 raw tree）。
+ */
+export async function wikiUploadDrop(workspace: string, e: any): Promise<boolean> {
+  const files: File[] = Array.from(e?.dataTransfer?.files ?? []) as File[]
+  if (files.length === 0) return false
+  const ws = workspace || 'musk-demo'
+  try {
+    await uploadRawFiles(ws, files, '', (p) => {
+      rawUploadProgress.value = p.percent
+    })
+    rawUploadProgress.value = null
+    return true
+  } catch (err) {
+    rawUploadProgress.value = null
+    // eslint-disable-next-line no-console
+    console.error('Raw upload failed:', err)
+    return false
+  }
 }
