@@ -26,7 +26,7 @@ widget ChatsView {
         // MentionDropdown/AgentAvatar 是 MentionInput 的内部依赖，同理声明触发复制。
         component: MentionDropdown from "src/front/components/MentionDropdown.vue"
         component: AgentAvatar from "src/front/components/AgentAvatar.vue"
-        component: ErrandCard from "src/front/components/ErrandCard.vue"
+        // Plan 023 P3：ErrandCard 已原生化为 component fn（src/front/errand_card.at），逃生舱 .vue 已删除。
         // B 类批3：RelayCard 状态展示版 → RelayRunBox 完整交互（subscribeToRun 日志 + resolveGate 审批）。
         component: RelayRunBox from "src/front/components/RelayRunBox.vue"
         component: TaskPlanCard from "src/front/components/TaskPlanCard.vue"

@@ -1,0 +1,93 @@
+// errand_card.at — ErrandCard 组件（Plan 023 P3 续：逃生舱原生化）
+//
+// 对标 src/front/components/ErrandCard.vue（逃生舱）。
+// 原生化动机：Plan 022 Phase 7c 因 ".at 无法表达 @click toggle" 封逃生舱；
+// 现 Plan 408 P4（model/on/emit）+ P5（use{fn}）+ P6（prop 绑定）
+//   + P7（动态索引）+ P9（computed 三元 + .value unwrap）全落地，可脱离逃生舱。
+//
+// 关键转换：
+//   - expanded ref → model + on toggle（P4）
+//   - task/errandStatus → computed 调 getErrandTask/getErrandState（P5 use{fn}）
+//   - computed 互相引用（status 依赖 errandStatus/hasState）—— P9 修复 .value unwrap
+//   - errandStatus?.field || default → if != None 分支（.at 无 ?.，用 computed 派生）
+//   - 行内三元/拼接 → 全部提到 computed（避免 view body 行内 if 与属性 {} 歧义）
+//
+// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.errand-* 规则，见末尾追加）。
+
+component fn ErrandCard(tc: obj, errands: obj) {
+    use {
+        fn: getErrandTask, getErrandState from "src/front/forge_helpers.ts"
+    }
+    computed {
+        task => getErrandTask(.tc)
+        errandStatus => getErrandState(.errands, .tc)
+        hasState => .errandStatus != None
+        status => if .hasState { .errandStatus.status } else { "running" }
+        chevron => if .expanded { "▲" } else { "▼" }
+        hasToken => if .hasState { .errandStatus.token_usage != "" } else { false }
+        tokenText => if .hasState { .errandStatus.token_usage + " tok" } else { "" }
+        hasContent => if .hasState { .errandStatus.content != "" } else { false }
+        contentText => if .hasState { .errandStatus.content } else { "" }
+        hasToolCalls => if .hasState { .errandStatus.tool_calls != None } else { false }
+        toolCallsList => if .hasState { .errandStatus.tool_calls } else { [] }
+        hasResult => if .hasState { .errandStatus.result != "" } else { false }
+        resultText => if .hasState { .errandStatus.result } else { "" }
+        showResult => if .hasResult { .status != "running" } else { false }
+    }
+    msg Msg { Toggle }
+    model { var expanded bool = false }
+    on {
+        .Toggle -> { .expanded = !.expanded }
+    }
+    col {
+        class: if .status == "completed" { "errand-card completed" } else { if .status == "failed" { "errand-card failed" } else { "errand-card running" } }
+        // header（click toggle）
+        row {
+            onclick: .Toggle
+            style: "errand-header"
+            text "🔍" { style: "errand-icon" }
+            text "Errand: " { style: "errand-name-prefix" }
+            text .task { style: "errand-name" }
+            text .status { class: if .status == "completed" { "errand-status completed" } else { if .status == "failed" { "errand-status failed" } else { "errand-status running" } } }
+            if .hasToken {
+                text .tokenText { style: "errand-cost" }
+            }
+            text .chevron { style: "tool-chevron" }
+        }
+        // body（展开时）
+        if .expanded {
+            col {
+                style: "errand-body"
+                text .task { style: "errand-task" }
+                if .hasContent {
+                    text .contentText { style: "errand-content" }
+                }
+                if .hasToolCalls {
+                    col {
+                        style: "errand-tool-calls"
+                        for etc in .toolCallsList {
+                            col {
+                                style: "errand-sub-tool"
+                                row {
+                                    style: "errand-sub-tool-header"
+                                    text .etc.name { style: "errand-sub-tool-name" }
+                                    text .etc.status { class: if .etc.status == "completed" { "errand-sub-tool-status completed" } else { if .etc.status == "failed" { "errand-sub-tool-status failed" } else { "errand-sub-tool-status running" } } }
+                                }
+                                if .etc.result != "" {
+                                    text .etc.result { style: "errand-sub-tool-result" }
+                                }
+                            }
+                        }
+                    }
+                }
+                if .showResult {
+                    col {
+                        style: "errand-result"
+                        text "Result" { style: "errand-result-label" }
+                        text .resultText { style: "errand-result-text" }
+                    }
+                }
+            }
+        }
+    }
+}

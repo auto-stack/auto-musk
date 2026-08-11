@@ -304,6 +304,34 @@ a { color: hsl(var(--primary)); }
 .msg-thinking { font-size: 0.82rem; color: hsl(var(--muted-foreground)); font-style: italic; padding: 0.25rem 0.5rem; align-self: flex-start; max-width: 100%; }
 .msg-error { color: hsl(var(--destructive)); font-size: 0.88rem; padding: 0.5rem 0.75rem; background: hsl(var(--destructive) / 0.08); border-radius: 8px; align-self: flex-start; max-width: 100%; }
 
+/* ── ErrandCard（Plan 023 P3：原逃生舱 scoped 样式全局兜底）── */
+.errand-card { border: 1px solid hsl(var(--border)); border-radius: 8px; margin: 0.5rem 0; overflow: hidden; background: hsl(38 92% 50% / 0.03); }
+.errand-header { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.82rem; }
+.errand-header:hover { background: hsl(38 92% 50% / 0.06); }
+.errand-icon { font-size: 0.9rem; }
+.errand-name-prefix { font-weight: 500; }
+.errand-name { font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.errand-status { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; }
+.errand-status.running { background: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); }
+.errand-status.completed { background: hsl(142 71% 45% / 0.15); color: hsl(142 71% 45%); }
+.errand-status.failed { background: hsl(var(--destructive) / 0.15); color: hsl(var(--destructive)); }
+.errand-cost { font-size: 0.7rem; color: hsl(var(--muted-foreground)); }
+.errand-body { padding: 0.5rem 0.75rem; border-top: 1px solid hsl(var(--border)); }
+.errand-task { font-size: 0.8rem; margin-bottom: 0.3rem; color: hsl(var(--foreground)); }
+.errand-content { font-size: 0.78rem; white-space: pre-wrap; margin: 0.3rem 0; max-height: 300px; overflow-y: auto; }
+.errand-tool-calls { margin-top: 0.4rem; }
+.errand-sub-tool { padding: 0.2rem 0; border-left: 2px solid hsl(var(--border)); padding-left: 0.6rem; margin: 0.2rem 0; }
+.errand-sub-tool-header { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; }
+.errand-sub-tool-name { font-family: monospace; color: hsl(var(--muted-foreground)); }
+.errand-sub-tool-status { font-size: 0.68rem; padding: 0.05rem 0.3rem; border-radius: 3px; }
+.errand-sub-tool-status.running { background: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); }
+.errand-sub-tool-status.completed { background: hsl(142 71% 45% / 0.15); color: hsl(142 71% 45%); }
+.errand-sub-tool-status.failed { background: hsl(var(--destructive) / 0.15); color: hsl(var(--destructive)); }
+.errand-sub-tool-result { font-size: 0.72rem; white-space: pre-wrap; margin: 0.2rem 0; max-height: 150px; overflow-y: auto; }
+.errand-result { margin-top: 0.5rem; }
+.errand-result-label { font-size: 0.72rem; color: hsl(var(--muted-foreground)); margin-bottom: 0.2rem; }
+.errand-result-text { font-size: 0.78rem; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+
 /* ── 输入区（对齐原生版 .input-compose + .send-btn）──
    DOM: .chats-input-bar > .input-inner > .input-row(flex) > [.input-compose(block,fixed px), button.send-btn]
    问题：.input-compose 被设成 block+固定px宽度，textarea 被设成 inline-block+固定px宽度。

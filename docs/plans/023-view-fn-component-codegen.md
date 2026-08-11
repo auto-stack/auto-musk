@@ -1,7 +1,7 @@
 # 023 — view fn → 独立组件 codegen（auto-lang 转译器改造）
 
-> **状态**：🟢 P3 首试完成（UserMessage 原生化，2026-08-11）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
-> **2026-08-11 能力复核 + 探针 + P3 首试**：auto-lang 已合并 `component fn`（P1-P6，含 P4 emit / P5 use{fn} / P6 prop 绑定修复）到 master，auto.exe 已重装。**P3 首试 UserMessage 已原生化**——逃生舱 `.vue` 删除，`user_message.at` 的 component fn 替代，build 全绿 + vite transform 验证产物行为对齐。详见 §3.3 末尾。剩余候选（StreamingTable 缺陷 6/7、RawPreview、ChatMessage 链式）待 408 P4 对应缺陷落地。
+> **状态**：🟢 P3 推进中（UserMessage + ErrandCard 原生化，2026-08-11）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
+> **2026-08-11 能力复核 + 探针 + P3 迁移**：auto-lang 已合并 `component fn`（P1-P9，含 P4 emit/model、P5 use{fn}、P6 prop 绑定、P7 动态索引、P8 table 标签、P9 computed 三元+.value unwrap）到 master，auto.exe 已重装。**已原生化 2 个逃生舱**：UserMessage（纯展示）、ErrandCard（有状态 toggle + computed 互引）。剩余候选（TaskPlanCard/GenericToolCard 等同类卡片）能力已就绪，可批量推进。详见 §3.4/§3.5。
 > **前置**：Plan 022（前端 Auto 化已完成，逃生舱组件架构稳定）；Plan 018-021（后端全 Auto 化方法论）。
 > **仓库**：**auto-lang**（a2r 转译器 + a2vue codegen，构建 `auto.exe`）；auto-musk 为验证方。
 > **目标**：让 AutoUI 的 `view fn`（`use { fn }` 逃生舱函数中定义、返回 AuraWidget 的函数）被 a2r/a2vue 转译器**原生合成 AuraWidget 组件**，使 `ChatMessage` 等当前靠逃生舱 `.vue` 文件实现的组件脱离逃生舱、纯 `.at` 表达。
@@ -178,25 +178,33 @@ component NavSidebar {
 
 **意义**：**首个逃生舱组件成功原生化**——证明 component fn 端到端链路（声明→合成→跨文件引用→逃生舱 fn 引入→v-html→产物对齐）在 auto-musk 真实工程跑通。P3 路径验证成功，为后续候选（待 408 P4 缺陷 6/7 等）铺路。
 
-### 3.5 P3 续：P4 model/emit 验证 + ErrandCard 尝试（2026-08-11）
+### 3.5 P3 续：P4-P9 全修复 + ErrandCard 原生化（2026-08-11）
 
-> 408 P4（emit+model+on）/ P5（use{fn}）/ P6（prop 绑定）全修复后，component fn 能力边界扩展到"有状态交互组件"。本轮验证此能力并尝试第二个候选。
+> 408 P4-P9 全部落地后（emit/model、use{fn}、prop 绑定、动态索引、table 标签、computed 三元+.value unwrap），component fn 能力覆盖"有状态交互 + 派生状态"组件。
 
-**探针 G（P4 model/emit/on 验证）** ✅：`component fn Collapsible { msg/model/on + onclick }` 生成正确的 `defineEmits` + `ref<boolean>` + handler mutate + emit + `@click`。**结论：component fn 支持有状态交互组件（内部 toggle + 向上 emit）**——这解锁了 §3.1 共用折叠组件 + 所有"展开/折叠"类卡片。
+**探针 G（P4 model/emit/on 验证）** ✅：`component fn Collapsible { msg/model/on + onclick }` 生成正确的 `defineEmits` + `ref<boolean>` + handler mutate + emit + `@click`。**结论：component fn 支持有状态交互组件（内部 toggle + 向上 emit）**。
 
-**ErrandCard 迁移尝试** ⏸️ 暂缓：受阻于两个叠加的 codegen 缺陷（已登记 auto-lang 408 §7.8）：
-- **缺陷 8（computed 互相引用未 unwrap `.value`）**：`computed { a => ...; b => .a.field }` 生成 `b = computed(() => a.field)`（漏 `.value`）→ TS2339。影响所有"computed 引用 computed"的有派生状态组件。
-- **关联：类型收窄缺口**：`if getErrandState(...) != None { getErrandState(...).field }` 绕过缺陷 8 时触发 `Object is possibly null`（TS2531）——`.at` 的 `!= None` 不收窄同表达式后续调用的类型。
-- UserMessage 没中招（单一 computed，不引用其他 computed）；ErrandCard 因有派生状态（status/hasContent/... 都从 errandStatus 派生）而中招。
+**缺陷 8 修复确认** ✅（P9）：`computed { a => ...; b => .a.field }` 现正确生成 `b = computed(() => a.value.field)`——字段访问位置的 `.value` unwrap 已修，同时 if 表达式转三元（缺陷 3）。
 
-**下一个候选判定**：在缺陷 8 修复前，**只能迁移"单一 computed 不引用其他 computed"的纯展示组件**。剩余候选（ErrandCard/TaskPlanCard/GenericToolCard 等卡片）普遍有派生状态，均阻塞于缺陷 8。待 auto-lang 修缺陷 8（+ 类型收窄）后，这些卡片可批量迁移。
+**ErrandCard 迁移完成** ✅（第 2 个原生化逃生舱）：
+- 新增 `src/front/errand_card.at`——component fn 含 model toggle + 14 个 computed（互相引用，派生 errandStatus 字段）+ for 循环 + 多层 if
+- 删除 `src/front/components/ErrandCard.vue`（逃生舱）
+- `chats_view.at` 移除逃生舱声明
+- `inject_styles.ts` 补 errand-* 全局样式（scoped parity）
+- 验证：auto build 全绿 + vite transform 确认 computed `.value` + import + 运行时编译正确
 
-**不迁移的组件**（留逃生舱，本轮登记）：
-- 含 emit/重交互的（GateCard/MentionInput/QuestionnaireCard/SecretaryMessage/WikiNav 等）——阻塞于 §3.1 同一 emit 缺口（408 P4 缺陷 4，emit 侧已落地，待 auto-musk 侧验证）。
-- AgentAvatar——阻塞于 computed 字典/动态 style（超当前能力，需 auto-lang 扩展）。
-- StreamingTable——阻塞于缺陷 6（动态索引）+ 7（table 映射）。
-- ErrandCard/TaskPlanCard/GenericToolCard 等有派生状态卡片——阻塞于缺陷 8（computed `.value`）。
-- RawPreview——阻塞于 fn import（已解封）+ 生命周期/正则（超 component fn 范畴）。
+**关键技术点（迁移经验）**：
+- **动态 class**：.at 的 `style:`/`class:` 对**静态字符串**生成 `class="..."`，对**if 表达式**生成 `:class="cond ? a : b"`，但对**拼接/变量**生成 `:style="..."`（语义错——class 名被当 inline CSS）。**迁移要点：动态 class 必须用行内 if 表达式（非拼接）**，否则生成 `:style` 失效。ErrandCard 的 status class 用嵌套 if（`if == "completed" {...} else { if == "failed" {...} else {...} }`）正确生成 `:class`。
+- **行内 if + 属性 `{}` 歧义**：`text if .cond { "▲" } else { "▼" } { style: "x" }` 解析失败（if 块的 `{}` 与属性 `{}` 冲突）。**迁移要点：行内 if 提到 computed**。
+- **`?.` 可选链**：.at 无 `?.`，用 `if != None` 分支 + computed 派生替代。
+
+**剩余候选（能力已就绪，可批量推进）**：TaskPlanCard / GenericToolCard（与 ErrandCard 同类，有状态 toggle + computed 互引 + fn 依赖）。
+
+**仍阻塞的组件**：
+- StreamingTable——缺陷 6（动态索引）+ 7（table 映射）已修复（P7/P8），现可迁移（待推进）。
+- AgentAvatar——computed 字典/动态 style 对象（超 component fn 范畴，需 .at 语言层扩展）。
+- 含 emit/重交互的复杂组件（GateCard/MentionInput/WikiNav 等）——emit 已支持（P4），但交互复杂度高，逐个评估。
+- RawPreview——fn import 已解封，但 onMounted/watch 生命周期 + 正则超 component fn 范畴。
 
 ## 4. 风险与降级
 
