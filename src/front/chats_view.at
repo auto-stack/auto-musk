@@ -46,8 +46,9 @@ widget ChatsView {
         // facade ref 解包限制；内部用 useGateInbox.currentSecretary 驱动）。
         component: SecretaryMessageWrapper from "src/front/components/SecretaryMessageWrapper.vue"
         component: SecretaryMessage from "src/front/components/SecretaryMessage.vue"
-        // StreamingTable/useStreamingDocument 是 StreamingRenderer 的内部依赖，声明触发复制。
-        component: StreamingTable from "src/front/components/StreamingTable.vue"
+        // Plan 023 P3：StreamingTable 已原生化为 component fn（src/front/streaming_table.at），
+        // StreamingRenderer.vue 改用 @/components/StreamingTable.vue 引用生成版。
+        // useStreamingDocument 仍是 StreamingRenderer 的内部依赖，声明触发复制。
         fn: useStreamingDocument from "src/front/composables/useStreamingDocument.ts"
         // Phase 7.4→Plan 023 P3：UserMessage 已原生化为 component fn
         // （src/front/user_message.at），逃生舱 .vue 已删除。

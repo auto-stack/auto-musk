@@ -375,6 +375,18 @@ a { color: hsl(var(--primary)); }
 .tool-section-title { font-size: 0.72rem; color: hsl(var(--muted-foreground)); margin-bottom: 0.2rem; text-transform: uppercase; letter-spacing: 0.05em; }
 .tool-code, .tool-result { font-size: 0.75rem; white-space: pre-wrap; background: hsl(var(--muted) / 0.5); padding: 0.4rem; border-radius: 4px; max-height: 300px; overflow-y: auto; font-family: monospace; }
 
+/* ── StreamingTable（Plan 023 P3：原逃生舱 scoped 样式全局兜底）──
+   codegen 给 th/td 注入 Tailwind class（border/px-4/py-2），用 !important 覆盖对齐原版。 */
+.streaming-table { margin: 0.5rem 0; overflow-x: auto; }
+.streaming-table table { border-collapse: collapse; width: 100%; font-size: 0.93rem; }
+.streaming-table th, .streaming-table td { border: 1px solid hsl(var(--border)) !important; padding: 0.4rem 0.6rem !important; text-align: left; }
+.streaming-table th { background: hsl(var(--card)); font-weight: 600; color: hsl(var(--foreground)); }
+.streaming-table td { color: hsl(var(--foreground)); }
+.streaming-table tbody tr:nth-child(even) { background: hsl(var(--muted) / 0.5); }
+.streaming-table .loading-row td { color: hsl(var(--muted-foreground)); font-style: italic; text-align: center; }
+.streaming-table .loading-dots::after { content: ''; animation: st-dots 1.4s infinite both; }
+@keyframes st-dots { 0%, 80%, 100% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } }
+
 /* ── 输入区（对齐原生版 .input-compose + .send-btn）──
    DOM: .chats-input-bar > .input-inner > .input-row(flex) > [.input-compose(block,fixed px), button.send-btn]
    问题：.input-compose 被设成 block+固定px宽度，textarea 被设成 inline-block+固定px宽度。

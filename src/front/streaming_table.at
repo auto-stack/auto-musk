@@ -1,0 +1,55 @@
+// streaming_table.at — StreamingTable 组件（Plan 023 P3 续：逃生舱原生化）
+//
+// 对标 src/front/components/StreamingTable.vue（逃生舱）。
+// Plan 022 因 table 标签被 codegen 映射成 shadcn Table + 动态索引 row[col]
+// 不支持而封逃生舱；现 408 P7（动态索引）+ P8（table 标签保持原生）已修。
+//
+// 关键转换：
+//   - withDefaults 可选 props → computed if != None 兜底（.at 无 withDefaults）
+//   - row[col] ?? '' → .row[.col]（P7 动态索引；undefined 渲染为空，等价 ?? ''）
+//   - Math.max(1, length) → colspan computed（.at 无 Math API）
+//   - table/thead/tbody/tr/th/td → P8 保持原生 HTML（不再映射 shadcn Table）
+//
+// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.streaming-table 等）。
+
+component fn StreamingTable(columns: []str, rows: []obj, final: bool) {
+    computed {
+        hasColumns => .columns != None
+        safeColumns => if .hasColumns { .columns } else { [] }
+        hasRows => .rows != None
+        safeRows => if .hasRows { .rows } else { [] }
+        colCount => if .hasColumns { .columns.length } else { 0 }
+        colspan => if .colCount > 0 { .colCount } else { 1 }
+        showLoading => !.final
+    }
+    col {
+        class: if .final { "streaming-table final" } else { "streaming-table" }
+        table {
+            thead {
+                tr {
+                    for col in .safeColumns {
+                        th { text .col }
+                    }
+                }
+            }
+            tbody {
+                for row in .safeRows {
+                    tr {
+                        for col in .safeColumns {
+                            td { text .row[.col] }
+                        }
+                    }
+                }
+                if .showLoading {
+                    tr {
+                        style: "loading-row"
+                        td {
+                            colspan: .colspan
+                            text "Loading" { style: "loading-dots" }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -32,7 +32,7 @@
 import { computed } from 'vue'
 import { MarkdownRender } from 'markstream-vue'
 import { useStreamingDocument } from '../composables/useStreamingDocument'
-import StreamingTable from './StreamingTable.vue'
+import StreamingTable from '@/components/StreamingTable.vue'
 
 const props = defineProps<{
   source: string

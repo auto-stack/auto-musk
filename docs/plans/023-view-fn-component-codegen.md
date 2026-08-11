@@ -1,7 +1,7 @@
 # 023 — view fn → 独立组件 codegen（auto-lang 转译器改造）
 
-> **状态**：🟢 P3 推进中（5 个逃生舱原生化，含 ChatMessage 消息编排核心，2026-08-11）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
-> **2026-08-11 能力复核 + 探针 + P3 迁移**：auto-lang 已合并 `component fn`（P1-P9）到 master，auto.exe 已重装。**已原生化 5 个逃生舱**：UserMessage、ErrandCard、TaskPlanCard、GenericToolCard、**ChatMessage（消息渲染编排核心，依赖 UserMessage 已原生 + StreamingRenderer 逃生舱）**。迁移模式成熟。详见 §3.4/§3.5。
+> **状态**：🟢 P3 推进中（6 个逃生舱原生化，含 ChatMessage 消息编排核心，2026-08-11）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
+> **2026-08-11 能力复核 + 探针 + P3 迁移**：auto-lang 已合并 `component fn`（P1-P9）到 master，auto.exe 已重装。**已原生化 6 个逃生舱**：UserMessage、ErrandCard、TaskPlanCard、GenericToolCard、ChatMessage（消息编排核心）、StreamingTable（验证 P7 动态索引 + P8 table 标签）。迁移模式成熟。详见 §3.4/§3.5。
 > **前置**：Plan 022（前端 Auto 化已完成，逃生舱组件架构稳定）；Plan 018-021（后端全 Auto 化方法论）。
 > **仓库**：**auto-lang**（a2r 转译器 + a2vue codegen，构建 `auto.exe`）；auto-musk 为验证方。
 > **目标**：让 AutoUI 的 `view fn`（`use { fn }` 逃生舱函数中定义、返回 AuraWidget 的函数）被 a2r/a2vue 转译器**原生合成 AuraWidget 组件**，使 `ChatMessage` 等当前靠逃生舱 `.vue` 文件实现的组件脱离逃生舱、纯 `.at` 表达。
@@ -215,6 +215,8 @@ component NavSidebar {
 - 验证：component fn 的 use 块同时引用 component fn（UserMessage 无 from）+ 逃生舱（StreamingRenderer from）+ fn（msgTimeLabel）——三类依赖混合，全通
 - 样式零补：msg-row/msg-bubble 等本就在 inject_styles 全局（Plan 022 消息样式区）
 - **意义**：ChatMessage 是 Plan 022-B 因 view fn 内联不生效而封的核心逃生舱，现 component fn 解决了该问题。消息渲染逃生舱从 6 个降至 2 个（StreamingRenderer 流式 + RelayRunBox 重交互）。
+
+**StreamingTable 迁移完成** ✅（第 6 个原生化逃生舱）：验证 P7（动态索引 `row[col]`）+ P8（table/thead/tbody/tr/th/td 保持原生 HTML，非 shadcn Table）两个修复在真实迁移里工作。StreamingRenderer（逃生舱）改 import 指向生成版。另发现 codegen 给原生 table 元素注入 Tailwind class（`border px-4 py-2`），inject_styles 用 `!important` 覆盖。
 
 **仍阻塞的组件**：
 
