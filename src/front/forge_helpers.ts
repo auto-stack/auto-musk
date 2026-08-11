@@ -151,6 +151,39 @@ export function msgTimeLabel(createdAt: number | undefined): string {
   return new Date(createdAt * 1000).toLocaleTimeString()
 }
 
+/** AgentAvatar 渲染数据（Plan 023 P3：component fn 无字典/charCodeAt/charAt，
+ *  颜色映射 + initials + title 放 fn 承载）。 */
+export function agentAvatarData(professionId: string, name?: string, size?: string): {
+  bg: string; text: string; initials: string; title: string; sizeClass: string
+} {
+  const professionColors: Record<string, { h: number; s: number; l: number }> = {
+    assistant:  { h: 25,  s: 80, l: 48 },
+    advisor:    { h: 270, s: 60, l: 52 },
+    architect:  { h: 205, s: 70, l: 50 },
+    planner:    { h: 145, s: 65, l: 38 },
+    coder:      { h: 340, s: 75, l: 52 },
+    tester:     { h: 45,  s: 90, l: 42 },
+    reviewer:   { h: 170, s: 65, l: 38 },
+    documenter: { h: 220, s: 65, l: 52 },
+    gofer:      { h: 160, s: 65, l: 42 },
+  }
+  let c = professionColors[professionId]
+  if (!c) {
+    let hash = 0
+    for (let i = 0; i < professionId.length; i++) {
+      hash = professionId.charCodeAt(i) + ((hash << 5) - hash)
+    }
+    c = { h: Math.abs(hash) % 360, s: 60, l: 48 }
+  }
+  const bg = `hsl(${c.h} ${c.s}% ${c.l}%)`
+  const text = c.l > 55 ? 'hsl(220 15% 12%)' : '#fff'
+  const source = (name && name.trim()) || professionId
+  const initials = source.charAt(0).toUpperCase()
+  const title = name ? `${name} (${professionId})` : professionId
+  const sizeClass = size || 'md'
+  return { bg, text, initials, title, sizeClass }
+}
+
 export function getToolSummary(tc: ToolCallLike): ToolSeg[] {
   const args = tc.arguments ?? {}
   const segs: ToolSeg[] = []

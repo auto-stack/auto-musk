@@ -8,7 +8,7 @@
     tabindex="0"
   >
     <div class="secretary-header">
-      <AgentAvatar :profession-id="gate.profession" size="md" />
+      <AgentAvatar :profession-id="gate.profession" :name="''" size="md" />
       <div class="secretary-info">
         <div class="secretary-title">{{ gate.title }}</div>
         <div class="secretary-meta">
@@ -53,7 +53,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Check, X, Clock, Eye } from 'lucide-vue-next'
-import AgentAvatar from './AgentAvatar.vue'
+import AgentAvatar from '@/components/AgentAvatar.vue'
 import type { PendingGate } from '../composables/useGateInbox'
 
 interface Props {

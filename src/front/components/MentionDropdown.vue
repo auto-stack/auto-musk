@@ -24,7 +24,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import AgentAvatar from './AgentAvatar.vue'
+import AgentAvatar from '@/components/AgentAvatar.vue'
 
 export interface ProfessionOption {
   id: string

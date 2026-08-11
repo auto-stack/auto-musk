@@ -387,6 +387,17 @@ a { color: hsl(var(--primary)); }
 .streaming-table .loading-dots::after { content: ''; animation: st-dots 1.4s infinite both; }
 @keyframes st-dots { 0%, 80%, 100% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } }
 
+/* ── AgentAvatar（Plan 023 P3：原逃生舱 scoped 样式全局兜底）── */
+.agent-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; border-radius: 50%; font-weight: 600; line-height: 1;
+  user-select: none; font-family: system-ui, -apple-system, sans-serif; overflow: hidden;
+}
+.agent-avatar.xs { width: 18px; height: 18px; font-size: 0.65rem; }
+.agent-avatar.sm { width: 30px; height: 30px; font-size: 0.9rem; }
+.agent-avatar.md { width: 28px; height: 28px; font-size: 1rem; }
+.agent-avatar.lg { width: 48px; height: 48px; font-size: 1.4rem; }
+
 /* ── 输入区（对齐原生版 .input-compose + .send-btn）──
    DOM: .chats-input-bar > .input-inner > .input-row(flex) > [.input-compose(block,fixed px), button.send-btn]
    问题：.input-compose 被设成 block+固定px宽度，textarea 被设成 inline-block+固定px宽度。

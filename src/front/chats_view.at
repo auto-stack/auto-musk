@@ -23,9 +23,10 @@ widget ChatsView {
         // questionnaire 解析纯函数（QuestionnaireCard 的数据源）。
         fn: getQuestions, hasQuestionnaire from "src/front/questionnaire.ts"
         component: MentionInput from "src/front/components/MentionInput.vue"
-        // MentionDropdown/AgentAvatar 是 MentionInput 的内部依赖，同理声明触发复制。
+        // MentionDropdown 是 MentionInput 的内部依赖，声明触发复制。
         component: MentionDropdown from "src/front/components/MentionDropdown.vue"
-        component: AgentAvatar from "src/front/components/AgentAvatar.vue"
+        // Plan 023 P3：AgentAvatar 已原生化为 component fn（src/front/agent_avatar.at），
+        // MentionDropdown.vue + SecretaryMessage.vue 改用 @/components/AgentAvatar.vue 引用生成版。
         // Plan 023 P3：ErrandCard 已原生化为 component fn（src/front/errand_card.at），逃生舱 .vue 已删除。
         // B 类批3：RelayCard 状态展示版 → RelayRunBox 完整交互（subscribeToRun 日志 + resolveGate 审批）。
         component: RelayRunBox from "src/front/components/RelayRunBox.vue"

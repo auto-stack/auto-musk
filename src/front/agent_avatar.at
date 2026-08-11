@@ -1,0 +1,35 @@
+// agent_avatar.at — AgentAvatar 组件（Plan 023 P3 续：逃生舱原生化）
+//
+// 对标 src/front/components/AgentAvatar.vue（逃生舱）。
+// 408 §6.3 曾判定 AgentAvatar "含 computed 超当前能力"（字典 + charCodeAt hash）；
+// 现用 forge_helpers fn 承载颜色映射 + hash（.at 无字典/charCodeAt），
+// component fn 只做 props + 调 fn + 渲染。
+//
+// 关键转换（P12 缺陷 9 修复后）：
+//   - professionColors 字典 + charCodeAt hash → agentAvatarData fn
+//   - 动态 inline style（background/color 拼接）+ 动态 class（size 嵌套 if）共存
+//     → P12 缺陷 9 修复：extract_classes 返回独立 style 通道，不再泄漏到 class
+//   - size class（4 值）→ 嵌套 if 表达式（生成 :class）
+//   - initials/title（charAt + toUpperCase）→ fn
+//
+// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.agent-avatar 等）。
+
+component fn AgentAvatar(professionId: str, name: str, size: str) {
+    use {
+        fn: agentAvatarData from "src/front/forge_helpers.ts"
+    }
+    computed {
+        data => agentAvatarData(.professionId, .name, .size)
+        bg => .data.bg
+        text => .data.text
+        initials => .data.initials
+        title => .data.title
+        sizeClass => .data.sizeClass
+    }
+    span {
+        class: if .sizeClass == "xs" { "agent-avatar xs" } else { if .sizeClass == "sm" { "agent-avatar sm" } else { if .sizeClass == "lg" { "agent-avatar lg" } else { "agent-avatar md" } } }
+        style: "background: " + .bg + "; color: " + .text
+        title: .title
+        text .initials
+    }
+}
