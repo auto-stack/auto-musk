@@ -178,10 +178,24 @@ component NavSidebar {
 
 **意义**：**首个逃生舱组件成功原生化**——证明 component fn 端到端链路（声明→合成→跨文件引用→逃生舱 fn 引入→v-html→产物对齐）在 auto-musk 真实工程跑通。P3 路径验证成功，为后续候选（待 408 P4 缺陷 6/7 等）铺路。
 
+### 3.5 P3 续：P4 model/emit 验证 + ErrandCard 尝试（2026-08-11）
+
+> 408 P4（emit+model+on）/ P5（use{fn}）/ P6（prop 绑定）全修复后，component fn 能力边界扩展到"有状态交互组件"。本轮验证此能力并尝试第二个候选。
+
+**探针 G（P4 model/emit/on 验证）** ✅：`component fn Collapsible { msg/model/on + onclick }` 生成正确的 `defineEmits` + `ref<boolean>` + handler mutate + emit + `@click`。**结论：component fn 支持有状态交互组件（内部 toggle + 向上 emit）**——这解锁了 §3.1 共用折叠组件 + 所有"展开/折叠"类卡片。
+
+**ErrandCard 迁移尝试** ⏸️ 暂缓：受阻于两个叠加的 codegen 缺陷（已登记 auto-lang 408 §7.8）：
+- **缺陷 8（computed 互相引用未 unwrap `.value`）**：`computed { a => ...; b => .a.field }` 生成 `b = computed(() => a.field)`（漏 `.value`）→ TS2339。影响所有"computed 引用 computed"的有派生状态组件。
+- **关联：类型收窄缺口**：`if getErrandState(...) != None { getErrandState(...).field }` 绕过缺陷 8 时触发 `Object is possibly null`（TS2531）——`.at` 的 `!= None` 不收窄同表达式后续调用的类型。
+- UserMessage 没中招（单一 computed，不引用其他 computed）；ErrandCard 因有派生状态（status/hasContent/... 都从 errandStatus 派生）而中招。
+
+**下一个候选判定**：在缺陷 8 修复前，**只能迁移"单一 computed 不引用其他 computed"的纯展示组件**。剩余候选（ErrandCard/TaskPlanCard/GenericToolCard 等卡片）普遍有派生状态，均阻塞于缺陷 8。待 auto-lang 修缺陷 8（+ 类型收窄）后，这些卡片可批量迁移。
+
 **不迁移的组件**（留逃生舱，本轮登记）：
 - 含 emit/重交互的（GateCard/MentionInput/QuestionnaireCard/SecretaryMessage/WikiNav 等）——阻塞于 §3.1 同一 emit 缺口（408 P4 缺陷 4，emit 侧已落地，待 auto-musk 侧验证）。
 - AgentAvatar——阻塞于 computed 字典/动态 style（超当前能力，需 auto-lang 扩展）。
 - StreamingTable——阻塞于缺陷 6（动态索引）+ 7（table 映射）。
+- ErrandCard/TaskPlanCard/GenericToolCard 等有派生状态卡片——阻塞于缺陷 8（computed `.value`）。
 - RawPreview——阻塞于 fn import（已解封）+ 生命周期/正则（超 component fn 范畴）。
 
 ## 4. 风险与降级
