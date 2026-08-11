@@ -53,8 +53,10 @@ widget ChatsView {
         // （src/front/user_message.at），逃生舱 .vue 已删除。
         // ChatMessage.vue 改用 @/components/UserMessage.vue 引用生成版。
         // forge_helpers 仍需声明（component fn 的 use{fn} 依赖 + 其他逃生舱卡片）。
-        // Plan 022-B：ChatMessage 独立组件（统一消息渲染，接 msg + is_streaming props）。
-        component: ChatMessage from "src/front/components/ChatMessage.vue"
+        // Plan 022-B→Plan 023 P3：ChatMessage 已原生化为 component fn
+        // （src/front/chat_message.at），逃生舱 .vue 已删除。
+        // 依赖 UserMessage（已原生）+ StreamingRenderer（逃生舱）+ msgTimeLabel fn。
+        component: ChatMessage
         // SessionInfo：会话信息 tooltip（Chat ID 复制 + 消息数 + token 消耗）。
         component: SessionInfo from "src/front/components/SessionInfo.vue"
         // B 类批1：useAgentConfigs（动态 profession 列表，替代 DEFAULT_PROFESSIONS 硬编码）。

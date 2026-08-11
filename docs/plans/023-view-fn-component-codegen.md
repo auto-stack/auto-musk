@@ -1,7 +1,7 @@
 # 023 — view fn → 独立组件 codegen（auto-lang 转译器改造）
 
-> **状态**：🟢 P3 推进中（UserMessage + ErrandCard + TaskPlanCard + GenericToolCard 原生化，2026-08-11）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
-> **2026-08-11 能力复核 + 探针 + P3 迁移**：auto-lang 已合并 `component fn`（P1-P9）到 master，auto.exe 已重装。**已原生化 4 个逃生舱**（消息渲染链的 3 个工具卡片 + UserMessage），迁移模式成熟。剩余复杂组件（含 emit/生命周期/字典）逐个评估。详见 §3.4/§3.5。
+> **状态**：🟢 P3 推进中（5 个逃生舱原生化，含 ChatMessage 消息编排核心，2026-08-11）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
+> **2026-08-11 能力复核 + 探针 + P3 迁移**：auto-lang 已合并 `component fn`（P1-P9）到 master，auto.exe 已重装。**已原生化 5 个逃生舱**：UserMessage、ErrandCard、TaskPlanCard、GenericToolCard、**ChatMessage（消息渲染编排核心，依赖 UserMessage 已原生 + StreamingRenderer 逃生舱）**。迁移模式成熟。详见 §3.4/§3.5。
 > **前置**：Plan 022（前端 Auto 化已完成，逃生舱组件架构稳定）；Plan 018-021（后端全 Auto 化方法论）。
 > **仓库**：**auto-lang**（a2r 转译器 + a2vue codegen，构建 `auto.exe`）；auto-musk 为验证方。
 > **目标**：让 AutoUI 的 `view fn`（`use { fn }` 逃生舱函数中定义、返回 AuraWidget 的函数）被 a2r/a2vue 转译器**原生合成 AuraWidget 组件**，使 `ChatMessage` 等当前靠逃生舱 `.vue` 文件实现的组件脱离逃生舱、纯 `.at` 表达。
@@ -207,7 +207,14 @@ component NavSidebar {
 
 **GenericToolCard 迁移完成** ✅（第 4 个原生化逃生舱）：一次成功，无新缺陷。沿用前两个卡片的模式 + 新增 `toolArgsJson(tc)` fn（包装 `JSON.stringify`——.at 无宿主 API）。验证：循环变量字段的嵌套 if class（seg.type）不受缺陷 8 嵌套残留影响（循环变量非 computed）。
 
-**消息渲染链进展**：ChatsView 的 tool_calls 编排里，4 类卡片的 3 类（ErrandCard/TaskPlanCard/GenericToolCard）已原生化；剩 RelayRunBox（含 subscribeToRun 日志 + resolveGate 审批，重交互）。加上 UserMessage，消息渲染逃生舱从 5 个降至 1 个（RelayRunBox）+ ChatMessage（编排，依赖未原生化的 StreamingRenderer）。
+**消息渲染链进展**：ChatsView 的 tool_calls 编排里，4 类卡片的 3 类（ErrandCard/TaskPlanCard/GenericToolCard）已原生化；剩 RelayRunBox（含 subscribeToRun 日志 + resolveGate 审批，重交互）。
+
+**ChatMessage 迁移完成** ✅（第 5 个原生化逃生舱，消息渲染编排核心）：
+- component fn ChatMessage 编排 role 分支（user/assistant）+ 子组件（UserMessage 已原生 / StreamingRenderer 逃生舱）+ thinking/error
+- 新增 `msgTimeLabel` fn（时间格式化——.at 无 Date API）
+- 验证：component fn 的 use 块同时引用 component fn（UserMessage 无 from）+ 逃生舱（StreamingRenderer from）+ fn（msgTimeLabel）——三类依赖混合，全通
+- 样式零补：msg-row/msg-bubble 等本就在 inject_styles 全局（Plan 022 消息样式区）
+- **意义**：ChatMessage 是 Plan 022-B 因 view fn 内联不生效而封的核心逃生舱，现 component fn 解决了该问题。消息渲染逃生舱从 6 个降至 2 个（StreamingRenderer 流式 + RelayRunBox 重交互）。
 
 **仍阻塞的组件**：
 

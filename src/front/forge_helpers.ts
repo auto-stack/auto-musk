@@ -145,6 +145,12 @@ export function toolArgsJson(tc: ToolCallLike): string {
   return JSON.stringify(tc.arguments, null, 2)
 }
 
+/** 消息时间格式化（Plan 023 P3：component fn 无宿主 Date API，放 fn 承载）。 */
+export function msgTimeLabel(createdAt: number | undefined): string {
+  if (!createdAt) return ''
+  return new Date(createdAt * 1000).toLocaleTimeString()
+}
+
 export function getToolSummary(tc: ToolCallLike): ToolSeg[] {
   const args = tc.arguments ?? {}
   const segs: ToolSeg[] = []

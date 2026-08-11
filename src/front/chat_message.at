@@ -1,17 +1,69 @@
-// chat_message.at — 已废弃（Plan 022-B 改用逃生舱组件）
+// chat_message.at — ChatMessage 组件（Plan 023 P3 续：逃生舱原生化）
 //
-// ChatMessage 原设计为 view fn（内联展开），但在 ChatsView 通过
-// use{component} 引用时 extract.rs 把它当外部组件跳过 VIEW_FRAGMENTS
-// 查找，导致内联不生效，只生成空 <ChatMessage /> 标签。
+// 对标 src/front/components/ChatMessage.vue（逃生舱，Plan 022-B）。
+// Plan 022-B 因 view fn 内联展开在 use{component} 引用时不生效而封逃生舱；
+// 现 component fn（Plan 408）解决此问题——ChatMessage 作为独立 component fn。
 //
-// 改为 src/front/components/ChatMessage.vue 逃生舱组件（和
-// StreamingRenderer/UserMessage 同级），ChatsView 通过
-// use { component: ChatMessage } 引用，调用时传 msg + is_streaming props。
+// 依赖：
+//   - UserMessage（已原生化为 component fn，use{component} 无 from 引用）
+//   - StreamingRenderer（仍逃生舱，use{component from "..."} 引用）
+//   - msgTimeLabel fn（时间格式化，.at 无 Date API）
 //
-// 本文件保留为空壳（避免 codegen 扫描不到文件报错）。
+// 关键转换：
+//   - new Date(created_at * 1000).toLocaleTimeString() → msgTimeLabel fn
+//   - role 分支（user/assistant）→ if/else + computed
+//   - thinking/error 可选字段 → has* computed
 
-widget ChatMessageDeprecated {
-    model { var _unused int = 0 }
-    view { col { text "deprecated" } }
-    on { }
+component fn ChatMessage(msg: obj, is_streaming: bool) {
+    use {
+        component: UserMessage
+        component: StreamingRenderer from "src/front/components/StreamingRenderer.vue"
+        fn: msgTimeLabel from "src/front/forge_helpers.ts"
+    }
+    computed {
+        role => .msg.role
+        isUser => .role == "user"
+        rowClass => if .isUser { "msg-row msg-row-user" } else { "msg-row msg-row-ai" }
+        badge => if .isUser { "🧑 You" } else { "🤖 AI" }
+        hasContent => .msg.content != ""
+        content => .msg.content
+        time => msgTimeLabel(.msg.created_at)
+        hasTime => .time != ""
+        hasThinking => .msg.thinking != ""
+        thinkingText => if .hasThinking { .msg.thinking } else { "" }
+        hasError => .msg.error != ""
+        errorText => if .hasError { .msg.error } else { "" }
+    }
+    col {
+        class: .rowClass
+        // header: 角色标识 + 时间
+        row {
+            style: "msg-header"
+            text .badge { style: "msg-role-badge" }
+            if .hasTime {
+                text .time { style: "msg-time" }
+            }
+        }
+        // 气泡内容（按 role 分支）
+        if .isUser {
+            col {
+                style: "msg-bubble msg-bubble-user"
+                UserMessage(content: .content)
+            }
+        } else {
+            if .hasContent {
+                col {
+                    style: "msg-bubble msg-bubble-ai"
+                    StreamingRenderer(source: .content, streaming: .is_streaming)
+                }
+            }
+        }
+        // thinking 推理链（仅 assistant）
+        if .hasThinking {
+            text .thinkingText { style: "msg-thinking" }
+        }
+        if .hasError {
+            text .errorText { style: "msg-error" }
+        }
+    }
 }
