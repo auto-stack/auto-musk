@@ -22,7 +22,9 @@ widget ChatsView {
         fn: renderMentions, extractRunId from "src/front/forge_helpers.ts"
         // questionnaire 解析纯函数（QuestionnaireCard 的数据源）。
         fn: getQuestions, hasQuestionnaire from "src/front/questionnaire.ts"
-        component: MentionInput from "src/front/components/MentionInput.vue"
+        // Plan 023 队列 B5：MentionInput 已原生化为 component fn（src/front/mention_input.at），
+        // 逃生舱 .vue 已删除（v-html backdrop 已原生 + MentionDropdown 已原生）。
+        component: MentionInput
         // mention_helpers 是 MentionDropdown component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
         fn: mentionFiltered, mentionPosition, mentionCurrentId, mentionClampIndex, mentionIndexOf from "src/front/mention_helpers.ts"
         // Plan 023 队列 B3：MentionDropdown 已原生化为 component fn（src/front/mention_dropdown.at），
@@ -283,6 +285,9 @@ widget ChatsView {
                 // input bar（MentionInput 逃生舱；onsend/oncancel 避开原生 submit/stop 名）
                 MentionInput {
                     disabled: .store.streaming
+                    // .at 无可选 props：professions 必填，传空串走 helper 兜底
+                    // （props.professions > 动态 configs > DEFAULT_PROFESSIONS）。
+                    professions: ""
                     onsend: .SendInput($event)
                     oncancel: .StopStream
                 }
