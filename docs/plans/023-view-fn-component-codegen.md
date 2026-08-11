@@ -1,7 +1,7 @@
 # 023 — view fn → 独立组件 codegen（auto-lang 转译器改造）
 
-> **状态**：🟢 P3 推进中（UserMessage + ErrandCard 原生化，2026-08-11）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
-> **2026-08-11 能力复核 + 探针 + P3 迁移**：auto-lang 已合并 `component fn`（P1-P9，含 P4 emit/model、P5 use{fn}、P6 prop 绑定、P7 动态索引、P8 table 标签、P9 computed 三元+.value unwrap）到 master，auto.exe 已重装。**已原生化 2 个逃生舱**：UserMessage（纯展示）、ErrandCard（有状态 toggle + computed 互引）。剩余候选（TaskPlanCard/GenericToolCard 等同类卡片）能力已就绪，可批量推进。详见 §3.4/§3.5。
+> **状态**：🟢 P3 推进中（UserMessage + ErrandCard + TaskPlanCard 原生化，2026-08-11）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
+> **2026-08-11 能力复核 + 探针 + P3 迁移**：auto-lang 已合并 `component fn`（P1-P9）到 master，auto.exe 已重装。**已原生化 3 个逃生舱**：UserMessage（纯展示）、ErrandCard（有状态 toggle + computed 互引）、TaskPlanCard（同上 + fn 绕过字典映射）。剩余同类卡片（GenericToolCard）可继续推进。详见 §3.4/§3.5。
 > **前置**：Plan 022（前端 Auto 化已完成，逃生舱组件架构稳定）；Plan 018-021（后端全 Auto 化方法论）。
 > **仓库**：**auto-lang**（a2r 转译器 + a2vue codegen，构建 `auto.exe`）；auto-musk 为验证方。
 > **目标**：让 AutoUI 的 `view fn`（`use { fn }` 逃生舱函数中定义、返回 AuraWidget 的函数）被 a2r/a2vue 转译器**原生合成 AuraWidget 组件**，使 `ChatMessage` 等当前靠逃生舱 `.vue` 文件实现的组件脱离逃生舱、纯 `.at` 表达。
@@ -198,7 +198,16 @@ component NavSidebar {
 - **行内 if + 属性 `{}` 歧义**：`text if .cond { "▲" } else { "▼" } { style: "x" }` 解析失败（if 块的 `{}` 与属性 `{}` 冲突）。**迁移要点：行内 if 提到 computed**。
 - **`?.` 可选链**：.at 无 `?.`，用 `if != None` 分支 + computed 派生替代。
 
-**剩余候选（能力已就绪，可批量推进）**：TaskPlanCard / GenericToolCard（与 ErrandCard 同类，有状态 toggle + computed 互引 + fn 依赖）。
+**剩余候选（能力已就绪，可批量推进）**：~~TaskPlanCard~~ / GenericToolCard（与 ErrandCard 同类，有状态 toggle + computed 互引 + fn 依赖）。
+
+**TaskPlanCard 迁移完成** ✅（第 3 个原生化逃生舱）：沿用 ErrandCard 模式 + 新增两个绕过：
+- **字典映射 → forge_helpers fn**：TaskPlanCard 的 statusLabel 用 `Record<string,string>` 字典（.at 无字典字面量）。新增 `taskPlanStatusLabel(status)` fn（forge_helpers.ts），component fn 调用。**模式：.at 无法表达的映射/查找逻辑放 forge_helpers fn，component fn 调用**。
+- **缺陷 8 嵌套残留**：`statusLabel => if .status == "a" {...} else { if .status == "b" {...} ... }`（嵌套 if 引用 computed）生成时，**第一层 if 的 computed 引用加了 `.value`，但嵌套深层（2+层）漏加**（`status.value === 'a'` ✅ → `status == 'b'` ❌）。已登记 auto-lang 408 §7.8。绕过：用 fn（上一点）消除嵌套 if。
+- 另发现两个 .at parser 陷阱（已规避）：`text .phasesCount + " phases"`（text 节点拼接表达式）解析失败 → 提 phasesLabel computed；`text .plan.task_plan_id`（computed 字段的下划线字段直接 template 访问）解析失败 → 提 taskPlanId computed。**迁移要点：template text 节点只用简单变量引用**。
+
+**GenericToolCard**（下一个候选）：与 ErrandCard/TaskPlanCard 同类，但含 `JSON.stringify(arguments)` + getToolSummary fn——JSON.stringify 是宿主 API，待验证。
+
+**仍阻塞的组件**：
 
 **仍阻塞的组件**：
 - StreamingTable——缺陷 6（动态索引）+ 7（table 映射）已修复（P7/P8），现可迁移（待推进）。

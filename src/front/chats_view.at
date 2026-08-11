@@ -29,7 +29,7 @@ widget ChatsView {
         // Plan 023 P3：ErrandCard 已原生化为 component fn（src/front/errand_card.at），逃生舱 .vue 已删除。
         // B 类批3：RelayCard 状态展示版 → RelayRunBox 完整交互（subscribeToRun 日志 + resolveGate 审批）。
         component: RelayRunBox from "src/front/components/RelayRunBox.vue"
-        component: TaskPlanCard from "src/front/components/TaskPlanCard.vue"
+        // Plan 023 P3：TaskPlanCard 已原生化为 component fn（src/front/task_plan_card.at），逃生舱 .vue 已删除。
         component: GenericToolCard from "src/front/components/GenericToolCard.vue"
         // B 类批3：useRelay/useEventRouter/useGateInbox（relay 完整链路 + gate 事件路由）。
         composable: useRelay from "src/front/composables/useRelay.ts"

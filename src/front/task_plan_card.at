@@ -1,0 +1,93 @@
+// task_plan_card.at — TaskPlanCard 组件（Plan 023 P3 续：逃生舱原生化）
+//
+// 对标 src/front/components/TaskPlanCard.vue（逃生舱）。
+// 沿用 ErrandCard 验证过的迁移模式（408 P4-P9 全落地）。
+//
+// 迁移要点（ErrandCard 沉淀）：
+//   - template text 节点只用简单变量引用（无拼接/行内 if/链式字段，否则 parser 陷阱）
+//   - 动态 class 用嵌套 if 表达式（生成 :class）；拼接会生成 :style 失效
+//   - computed 字段的子字段访问提到独立 computed（如 plan.id → taskId computed）
+//
+// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.task-plan-card 等）。
+
+component fn TaskPlanCard(tc: obj, taskPlans: obj) {
+    use {
+        fn: getTaskPlan, taskPlanStatusLabel from "src/front/forge_helpers.ts"
+    }
+    computed {
+        plan => getTaskPlan(.taskPlans, .tc)
+        hasPlan => .plan != None
+        status => if .hasPlan { .plan.status } else { "idle" }
+        statusLabel => taskPlanStatusLabel(.status)
+        chevron => if .expanded { "▲" } else { "▼" }
+        hasPhases => if .hasPlan { .plan.phases != None } else { false }
+        phasesList => if .hasPlan { .plan.phases } else { [] }
+        phasesLabel => if .hasPhases { .plan.phases.length + " phases" } else { "" }
+        hasTaskPlanId => if .hasPlan { .plan.task_plan_id != "" } else { false }
+        taskPlanId => if .hasPlan { .plan.task_plan_id } else { "" }
+        hasInstanceId => if .hasPlan { .plan.instance_id != "" } else { false }
+        instanceId => if .hasPlan { .plan.instance_id } else { "" }
+    }
+    msg Msg { Toggle }
+    model { var expanded bool = false }
+    on {
+        .Toggle -> { .expanded = !.expanded }
+    }
+    col {
+        class: if .status == "completed" { "task-plan-card completed" } else { if .status == "failed" { "task-plan-card failed" } else { "task-plan-card running" } }
+        row {
+            onclick: .Toggle
+            style: "tp-header"
+            text "📋" { style: "tp-icon" }
+            text "Task Plan" { style: "tp-title" }
+            text .statusLabel { class: if .status == "completed" { "tp-status completed" } else { if .status == "failed" { "tp-status failed" } else { "tp-status running" } } }
+            if .hasPhases {
+                text .phasesLabel { style: "tp-progress" }
+            }
+            text .chevron { style: "tool-chevron" }
+        }
+        if .expanded {
+            col {
+                style: "tp-body"
+                if .hasTaskPlanId {
+                    row {
+                        style: "tp-field"
+                        text "Plan:" { style: "tp-field-label" }
+                        text .taskPlanId { style: "tp-field-value" }
+                    }
+                }
+                if .hasInstanceId {
+                    row {
+                        style: "tp-field"
+                        text "Instance:" { style: "tp-field-label" }
+                        text .instanceId { style: "tp-field-value" }
+                    }
+                }
+                if .hasPhases {
+                    col {
+                        style: "tp-phases"
+                        for ph in .phasesList {
+                            row {
+                                class: if .ph.status == "completed" { "tp-phase completed" } else { if .ph.status == "failed" { "tp-phase failed" } else { "tp-phase running" } }
+                                if .ph.status == "completed" {
+                                    text "✓" { style: "tp-phase-icon" }
+                                } else if .ph.status == "running" {
+                                    text "▶" { style: "tp-phase-icon" }
+                                } else if .ph.status == "failed" {
+                                    text "✗" { style: "tp-phase-icon" }
+                                } else {
+                                    text "○" { style: "tp-phase-icon" }
+                                }
+                                text .ph.phase { style: "tp-phase-name" }
+                                text .ph.status { style: "tp-phase-status" }
+                            }
+                        }
+                    }
+                }
+                if !.hasPlan {
+                    text "等待 task plan 数据…" { style: "tp-empty" }
+                }
+            }
+        }
+    }
+}

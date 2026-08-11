@@ -332,6 +332,28 @@ a { color: hsl(var(--primary)); }
 .errand-result-label { font-size: 0.72rem; color: hsl(var(--muted-foreground)); margin-bottom: 0.2rem; }
 .errand-result-text { font-size: 0.78rem; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
 
+/* ── TaskPlanCard（Plan 023 P3：原逃生舱 scoped 样式全局兜底）── */
+.task-plan-card { border: 1px solid hsl(var(--border)); border-radius: 8px; margin: 0.5rem 0; overflow: hidden; background: hsl(280 60% 96% / 0.4); }
+.tp-header { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.82rem; }
+.tp-header:hover { background: hsl(280 60% 96% / 0.7); }
+.tp-icon { font-size: 0.9rem; }
+.tp-title { font-weight: 500; flex: 1; }
+.tp-status { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; }
+.tp-status.running, .tp-status.started { background: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); }
+.tp-status.completed { background: hsl(142 71% 45% / 0.15); color: hsl(142 71% 45%); }
+.tp-status.failed { background: hsl(var(--destructive) / 0.15); color: hsl(var(--destructive)); }
+.tp-progress { font-size: 0.72rem; color: hsl(var(--muted-foreground)); }
+.tp-body { padding: 0.5rem 0.75rem; border-top: 1px solid hsl(var(--border)); font-size: 0.8rem; }
+.tp-field { display: flex; gap: 0.4rem; margin: 0.2rem 0; }
+.tp-field-label { color: hsl(var(--muted-foreground)); min-width: 60px; }
+.tp-field-value { font-family: monospace; font-size: 0.75rem; }
+.tp-phases { margin: 0.4rem 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.tp-phase { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; padding: 0.15rem 0; }
+.tp-phase-icon { font-size: 0.75rem; }
+.tp-phase-name { flex: 1; color: hsl(var(--foreground)); }
+.tp-phase-status { font-size: 0.68rem; color: hsl(var(--muted-foreground)); }
+.tp-empty { font-size: 0.78rem; color: hsl(var(--muted-foreground)); font-style: italic; }
+
 /* ── 输入区（对齐原生版 .input-compose + .send-btn）──
    DOM: .chats-input-bar > .input-inner > .input-row(flex) > [.input-compose(block,fixed px), button.send-btn]
    问题：.input-compose 被设成 block+固定px宽度，textarea 被设成 inline-block+固定px宽度。

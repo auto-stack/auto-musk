@@ -113,6 +113,15 @@ export function getRelayStatus(
 
 // ─── Task plan helpers ───────────────────────────────────────────────────────
 
+/** task_plan status 中文 label（Plan 023 P3：component fn 嵌套 if 引用 computed
+ *  触发缺陷 8 嵌套残留，用 fn 绕过——字典映射在 .at 无表达，fn 内部承载）。 */
+export function taskPlanStatusLabel(status: string): string {
+  const map: Record<string, string> = {
+    started: '启动中', running: '运行中', completed: '已完成', failed: '失败', idle: '就绪',
+  }
+  return map[status] ?? status
+}
+
 export function getTaskPlan(
   taskPlans: RecordMap<TaskPlanState>,
   tc: ToolCallLike,
