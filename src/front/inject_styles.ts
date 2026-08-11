@@ -607,6 +607,30 @@ a { color: hsl(var(--primary)); }
 .drop-text { font-size: 0.72rem; }
 .progress-bar { width: 100%; height: 3px; background: hsl(var(--muted-foreground) / 0.1); border-radius: 2px; overflow: hidden; }
 .progress-fill { height: 100%; background: hsl(var(--primary)); transition: width 0.2s; }
+/* ── SessionInfo（Plan 023 队列 B 续原生化：逃生舱 scoped 转全局兜底）── */
+.session-info-wrapper { position: relative; }
+.session-info-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border: none; border-radius: 6px;
+  background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer;
+}
+.session-info-btn:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+.session-info-tooltip {
+  position: absolute; top: calc(100% + 0.5rem); right: 0; min-width: 280px;
+  background: hsl(var(--background)); border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem; padding: 0.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 100; display: flex; flex-direction: column; gap: 0.5rem;
+}
+.session-info-row { display: flex; align-items: center; gap: 0.5rem; }
+.session-info-label { font-size: 0.75rem; color: hsl(var(--muted-foreground)); min-width: 5rem; }
+.session-info-value { font-size: 0.82rem; color: hsl(var(--foreground)); flex: 1; }
+.session-info-id { font-family: monospace; font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-info-copy {
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border: none; border-radius: 4px;
+  background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer; flex-shrink: 0;
+}
+.session-info-copy:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
 .wiki-nav-item {
   display: block; width: 100%; text-align: left;
   padding: 0.4rem 0.75rem; border: none; border-radius: 6px; font-size: 0.85rem;

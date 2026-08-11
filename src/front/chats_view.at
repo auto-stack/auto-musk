@@ -79,8 +79,11 @@ widget ChatsView {
         // （src/front/chat_message.at），逃生舱 .vue 已删除。
         // 依赖 UserMessage（已原生）+ StreamingRenderer（逃生舱）+ msgTimeLabel fn。
         component: ChatMessage
-        // SessionInfo：会话信息 tooltip（Chat ID 复制 + 消息数 + token 消耗）。
-        component: SessionInfo from "src/front/components/SessionInfo.vue"
+        // session_info_helpers 是 SessionInfo component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
+        fn: sessionTokenCost, sessionCopyId, sessionCopied, sessionMessageCount from "src/front/session_info_helpers.ts"
+        // Plan 023 队列 B 续：SessionInfo 已原生化为 component fn（src/front/session_info.at，
+        // store + 宿主全局），逃生舱 .vue 已删除。
+        component: SessionInfo
         // B 类批1：useAgentConfigs（动态 profession 列表，替代 DEFAULT_PROFESSIONS 硬编码）。
         composable: useAgentConfigs from "src/front/composables/useAgentConfigs.ts"
         // Plan 407：lucide 图标（toolbar emoji→图标）+ i18n t()（text 节点本地化）。

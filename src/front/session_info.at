@@ -1,0 +1,77 @@
+// session_info.at — SessionInfo 组件（Plan 023 队列 B 续：store + 宿主全局 逃生舱原生化）
+//
+// 对标 src/front/components/SessionInfo.vue（逃生舱，已删除）。
+//
+// 关键转换：
+//   - store 访问（session_id/messages/errands）→ use store: ForgeStore
+//   - errands 遍历求和 + clipboard + setTimeout 回调闭包 → session_info_helpers.ts fn
+//     （copy 完成态用共享 ref sessionCopied，computed 读取）
+//   - document 点击外部关闭 + wrapperRef template ref → 舍弃（同 SettingsMenu，
+//     info 按钮再次点击关闭，登记轻微差异）
+//   - @click.stop 舍弃（无外部关闭逻辑，无冒泡需求）
+//
+// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.session-info-* 等）。
+
+use store: ForgeStore
+
+component fn SessionInfo() {
+    use {
+        component: Info, Copy, CopyCheck from "lucide-vue-next"
+        fn: sessionTokenCost, sessionCopyId, sessionCopied, sessionMessageCount from "src/front/session_info_helpers.ts"
+        composable: useI18n refs: [locale] from "vue-i18n"
+    }
+    computed {
+        sessionId => .store.session_id
+        messageCount => sessionMessageCount(.store.messages)
+        tokenCost => sessionTokenCost(.store.errands)
+        copied => sessionCopied.value
+    }
+    msg Msg { Toggle, CopyId }
+    model { var open bool = false }
+    on {
+        .Toggle -> { .open = !.open }
+        .CopyId -> { sessionCopyId(.sessionId) }
+    }
+    div {
+        style: "session-info-wrapper"
+        button {
+            onclick: .Toggle
+            style: "session-info-btn"
+            title: i18n.t("chat.sessionInfo")
+            Info { size: 15 }
+        }
+        if .open {
+            div {
+                style: "session-info-tooltip"
+                div {
+                    style: "session-info-row"
+                    span { style: "session-info-label", text i18n.t("chat.chatId") }
+                    code {
+                        style: "session-info-value session-info-id"
+                        text if .sessionId != "" { .sessionId } else { "—" }
+                    }
+                    button {
+                        onclick: .CopyId
+                        style: "session-info-copy"
+                        title: i18n.t("chat.copyChatId")
+                        if .copied {
+                            CopyCheck { size: 12 }
+                        } else {
+                            Copy { size: 12 }
+                        }
+                    }
+                }
+                div {
+                    style: "session-info-row"
+                    span { style: "session-info-label", text i18n.t("chat.messages") }
+                    span { style: "session-info-value", text .messageCount }
+                }
+                div {
+                    style: "session-info-row"
+                    span { style: "session-info-label", text i18n.t("chat.tokenCost") }
+                    span { style: "session-info-value", text .tokenCost }
+                }
+            }
+        }
+    }
+}
