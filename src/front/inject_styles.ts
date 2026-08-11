@@ -354,6 +354,27 @@ a { color: hsl(var(--primary)); }
 .tp-phase-status { font-size: 0.68rem; color: hsl(var(--muted-foreground)); }
 .tp-empty { font-size: 0.78rem; color: hsl(var(--muted-foreground)); font-style: italic; }
 
+/* ── GenericToolCard（Plan 023 P3：原逃生舱 scoped 样式全局兜底）── */
+.tool-card { border: 1px solid hsl(var(--border)); border-radius: 8px; margin: 0.5rem 0; overflow: hidden; }
+.tool-header { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.82rem; }
+.tool-header:hover { background: hsl(var(--accent)); }
+.tool-icon { font-size: 0.9rem; }
+.tool-name { font-weight: 500; font-family: monospace; }
+.tool-seg { font-size: 0.75rem; color: hsl(var(--muted-foreground)); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seg-path { color: hsl(190 80% 40%); font-family: monospace; }
+.seg-pattern { color: hsl(280 60% 45%); }
+.seg-desc { color: hsl(var(--foreground)); }
+.seg-loc { color: hsl(var(--muted-foreground)); font-family: monospace; }
+.tool-status { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; margin-left: auto; }
+.tool-status.running { background: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); }
+.tool-status.completed { background: hsl(142 71% 45% / 0.15); color: hsl(142 71% 45%); }
+.tool-status.failed { background: hsl(var(--destructive) / 0.15); color: hsl(var(--destructive)); }
+.tool-chevron { font-size: 0.7rem; color: hsl(var(--muted-foreground)); }
+.tool-body { padding: 0.5rem 0.75rem; border-top: 1px solid hsl(var(--border)); }
+.tool-section { margin: 0.3rem 0; }
+.tool-section-title { font-size: 0.72rem; color: hsl(var(--muted-foreground)); margin-bottom: 0.2rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.tool-code, .tool-result { font-size: 0.75rem; white-space: pre-wrap; background: hsl(var(--muted) / 0.5); padding: 0.4rem; border-radius: 4px; max-height: 300px; overflow-y: auto; font-family: monospace; }
+
 /* ── 输入区（对齐原生版 .input-compose + .send-btn）──
    DOM: .chats-input-bar > .input-inner > .input-row(flex) > [.input-compose(block,fixed px), button.send-btn]
    问题：.input-compose 被设成 block+固定px宽度，textarea 被设成 inline-block+固定px宽度。

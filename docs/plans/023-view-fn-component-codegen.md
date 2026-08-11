@@ -1,7 +1,7 @@
 # 023 — view fn → 独立组件 codegen（auto-lang 转译器改造）
 
-> **状态**：🟢 P3 推进中（UserMessage + ErrandCard + TaskPlanCard 原生化，2026-08-11）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
-> **2026-08-11 能力复核 + 探针 + P3 迁移**：auto-lang 已合并 `component fn`（P1-P9）到 master，auto.exe 已重装。**已原生化 3 个逃生舱**：UserMessage（纯展示）、ErrandCard（有状态 toggle + computed 互引）、TaskPlanCard（同上 + fn 绕过字典映射）。剩余同类卡片（GenericToolCard）可继续推进。详见 §3.4/§3.5。
+> **状态**：🟢 P3 推进中（UserMessage + ErrandCard + TaskPlanCard + GenericToolCard 原生化，2026-08-11）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
+> **2026-08-11 能力复核 + 探针 + P3 迁移**：auto-lang 已合并 `component fn`（P1-P9）到 master，auto.exe 已重装。**已原生化 4 个逃生舱**（消息渲染链的 3 个工具卡片 + UserMessage），迁移模式成熟。剩余复杂组件（含 emit/生命周期/字典）逐个评估。详见 §3.4/§3.5。
 > **前置**：Plan 022（前端 Auto 化已完成，逃生舱组件架构稳定）；Plan 018-021（后端全 Auto 化方法论）。
 > **仓库**：**auto-lang**（a2r 转译器 + a2vue codegen，构建 `auto.exe`）；auto-musk 为验证方。
 > **目标**：让 AutoUI 的 `view fn`（`use { fn }` 逃生舱函数中定义、返回 AuraWidget 的函数）被 a2r/a2vue 转译器**原生合成 AuraWidget 组件**，使 `ChatMessage` 等当前靠逃生舱 `.vue` 文件实现的组件脱离逃生舱、纯 `.at` 表达。
@@ -205,7 +205,9 @@ component NavSidebar {
 - **缺陷 8 嵌套残留**：`statusLabel => if .status == "a" {...} else { if .status == "b" {...} ... }`（嵌套 if 引用 computed）生成时，**第一层 if 的 computed 引用加了 `.value`，但嵌套深层（2+层）漏加**（`status.value === 'a'` ✅ → `status == 'b'` ❌）。已登记 auto-lang 408 §7.8。绕过：用 fn（上一点）消除嵌套 if。
 - 另发现两个 .at parser 陷阱（已规避）：`text .phasesCount + " phases"`（text 节点拼接表达式）解析失败 → 提 phasesLabel computed；`text .plan.task_plan_id`（computed 字段的下划线字段直接 template 访问）解析失败 → 提 taskPlanId computed。**迁移要点：template text 节点只用简单变量引用**。
 
-**GenericToolCard**（下一个候选）：与 ErrandCard/TaskPlanCard 同类，但含 `JSON.stringify(arguments)` + getToolSummary fn——JSON.stringify 是宿主 API，待验证。
+**GenericToolCard 迁移完成** ✅（第 4 个原生化逃生舱）：一次成功，无新缺陷。沿用前两个卡片的模式 + 新增 `toolArgsJson(tc)` fn（包装 `JSON.stringify`——.at 无宿主 API）。验证：循环变量字段的嵌套 if class（seg.type）不受缺陷 8 嵌套残留影响（循环变量非 computed）。
+
+**消息渲染链进展**：ChatsView 的 tool_calls 编排里，4 类卡片的 3 类（ErrandCard/TaskPlanCard/GenericToolCard）已原生化；剩 RelayRunBox（含 subscribeToRun 日志 + resolveGate 审批，重交互）。加上 UserMessage，消息渲染逃生舱从 5 个降至 1 个（RelayRunBox）+ ChatMessage（编排，依赖未原生化的 StreamingRenderer）。
 
 **仍阻塞的组件**：
 

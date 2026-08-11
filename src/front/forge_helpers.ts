@@ -139,6 +139,12 @@ export interface ToolSeg {
 }
 
 /** 提取工具调用的摘要段（path/pattern/desc），用于通用卡片 header 显示。 */
+/** 工具参数 JSON 格式化（Plan 023 P3：component fn 无宿主 API JSON.stringify，
+ *  放 fn 承载）。 */
+export function toolArgsJson(tc: ToolCallLike): string {
+  return JSON.stringify(tc.arguments, null, 2)
+}
+
 export function getToolSummary(tc: ToolCallLike): ToolSeg[] {
   const args = tc.arguments ?? {}
   const segs: ToolSeg[] = []
