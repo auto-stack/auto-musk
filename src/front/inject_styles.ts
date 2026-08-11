@@ -735,6 +735,55 @@ a { color: hsl(var(--primary)); }
   margin-top: 0.3rem; padding: 0.2rem 0.5rem; font-size: 0.7rem;
   color: hsl(var(--destructive)); background: hsl(var(--destructive) / 0.08); border-radius: 4px;
 }
+
+/* ── QuestionnaireCard（Plan 023 队列 B1 原生化：逃生舱 scoped 转全局兜底）── */
+.questionnaire-card {
+  background: hsl(var(--primary) / 0.04); border: 1px solid hsl(var(--primary) / 0.15);
+  border-radius: 10px; padding: 0.75rem 1rem; margin-top: 0.5rem;
+  display: flex; flex-direction: column; gap: 0.75rem;
+}
+.q-header { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-weight: 600; color: var(--af-primary); }
+.q-item { display: flex; flex-direction: column; gap: 0.35rem; }
+.q-text { font-size: 0.88rem; font-weight: 500; color: var(--af-fg); line-height: 1.4; }
+.q-options { display: flex; flex-direction: column; gap: 0.15rem; }
+.q-option {
+  display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.5rem;
+  border: none; border-radius: 6px; background: transparent; cursor: pointer;
+  transition: background 0.1s; font-size: 0.85rem; color: var(--af-fg); text-align: left; width: 100%;
+}
+.q-option:hover { background: hsl(var(--primary) / 0.06); }
+.q-option.checked { background: hsl(var(--primary) / 0.08); }
+.q-check {
+  width: 14px; height: 14px; border: 2px solid var(--af-border); border-radius: 50%;
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+}
+.q-check.square { border-radius: 4px; }
+.q-option.checked .q-check { border-color: var(--af-primary); background: var(--af-primary); }
+.q-option.checked .q-check::after {
+  content: ''; width: 5px; height: 5px; border-radius: 50%; background: #fff;
+}
+.q-option.checked .q-check.square::after {
+  width: 6px; height: 3px; border-radius: 0; background: transparent;
+  border-left: 2px solid #fff; border-bottom: 2px solid #fff;
+  transform: rotate(-45deg); margin-bottom: 1px;
+}
+.q-label { line-height: 1.3; }
+.q-text-input input, .q-other-input {
+  width: 100%; padding: 0.4rem 0.6rem; border: 1px solid var(--af-border); border-radius: 6px;
+  background: var(--af-bg); color: var(--af-fg); font-size: 0.85rem; outline: none; transition: border-color 0.15s;
+}
+.q-text-input input:focus, .q-other-input:focus { border-color: var(--af-primary); }
+.q-other-row { display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.5rem; font-size: 0.85rem; color: var(--af-fg); }
+.q-other-label { flex-shrink: 0; color: var(--af-muted); }
+.q-other-input { flex: 1; min-width: 0; }
+.q-submit {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem;
+  align-self: flex-start; padding: 0.4rem 0.8rem; border: none; border-radius: 6px;
+  background: var(--af-primary); color: #fff; font-size: 0.82rem; font-weight: 500;
+  cursor: pointer; transition: opacity 0.15s;
+}
+.q-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.q-submit:hover:not(:disabled) { opacity: 0.9; }
 `
 
 export function injectStyles(): void {

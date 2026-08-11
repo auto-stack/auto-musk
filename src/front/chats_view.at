@@ -42,7 +42,11 @@ widget ChatsView {
         // Phase 7.3 续：StreamingRenderer/ReportCard/QuestionnaireCard/GateCard。
         component: StreamingRenderer from "src/front/components/StreamingRenderer.vue"
         // Plan 023 P3：ReportCard 已原生化为 component fn（src/front/report_card.at），逃生舱 .vue 已删除。
-        component: QuestionnaireCard from "src/front/components/QuestionnaireCard.vue"
+        // questionnaire_helpers 是 QuestionnaireCard component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
+        fn: questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder from "src/front/questionnaire_helpers.ts"
+        // Plan 023 队列 B1：QuestionnaireCard 已原生化为 component fn（src/front/questionnaire_card.at），
+        // 逃生舱 .vue 已删除。
+        component: QuestionnaireCard
         // Phase 7.3 续 codegen 限制1 修复后：直接用 QuestionnaireCard + getQuestions fn 调用
         // （不再需要 QuestionnaireMessage 包装组件）。
         component: GateCard from "src/front/components/GateCard.vue"
