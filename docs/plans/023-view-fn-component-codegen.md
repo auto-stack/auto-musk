@@ -1,7 +1,7 @@
 # 023 — view fn → 独立组件 codegen（auto-lang 转译器改造）
 
-> **状态**：🟢 P3 基本完成（**20/21 逃生舱原生化**，2026-08-11 §10.7 解封后批量迁移）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
-> **2026-08-11 P3 完成轮**：auto-lang 408 §10.7（async handler + on/watch body props 访问）+ §10.4（composable facade ref）修复后，队列 A（async 类 4 个）+ 队列 B（emit 重交互 6 个）+ B 续（Wrapper/SessionInfo）全部迁移。**20 个逃生舱原生化，仅剩 StreamingRenderer（流式增量 JSON）为永久逃生舱（KNOWN-DEBT）**。详见 §3.6。
+> **状态**：🟢 P3/P5 完成（**20/21 逃生舱原生化 + §3.1 共用组件收敛**，2026-08-11）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
+> **2026-08-11 P3/P5 完成轮**：auto-lang 408 §10.7（async handler + on/watch body props 访问）+ §10.4（composable facade ref）修复后，队列 A（async 类 4 个）+ 队列 B（emit 重交互 6 个）+ B 续（Wrapper/SessionInfo）全部迁移；§3.1 共用 NavSidebar/ContentHeader 收敛完成。**20 个逃生舱原生化，仅剩 StreamingRenderer（流式增量 JSON）为永久逃生舱（KNOWN-DEBT）**。详见 §3.6。
 > **前置**：Plan 022（前端 Auto 化已完成，逃生舱组件架构稳定）；Plan 018-021（后端全 Auto 化方法论）。
 > **仓库**：**auto-lang**（a2r 转译器 + a2vue codegen，构建 `auto.exe`）；auto-musk 为验证方。
 > **目标**：让 AutoUI 的 `view fn`（`use { fn }` 逃生舱函数中定义、返回 AuraWidget 的函数）被 a2r/a2vue 转译器**原生合成 AuraWidget 组件**，使 `ChatMessage` 等当前靠逃生舱 `.vue` 文件实现的组件脱离逃生舱、纯 `.at` 表达。
@@ -49,8 +49,8 @@ Plan 022 实现中，ChatsView 的消息渲染（ChatMessage）及其子卡片�
 | **P2** | ✅ 转译器：`view fn` 解析 + AuraWidget 合成 + Vue 组件生成（或响应式片段）；单测 + golden | `cargo test -p auto-lang` 绿 |
 | **P3** | ✅ auto-musk 试点：以最简组件（如 UserMessage/mention 高亮）替换逃生舱验证能力 | 生成工程构建 + 行为 parity |
 | **P4** | ✅ 全量迁移：ChatMessage 及其子组件、forge_helpers/relay_commands/questionnaire 逃生舱 TS | 逃生舱清零（或登记残留）+ 零 drift——**20/21 清零，StreamingRenderer 登记 KNOWN-DEBT 残留** |
-| **P5** | ⏳ **跨视图共用组件收敛**（2026-08-10 登记）：三个二级导航 + 三个内容标题栏收敛为共用组件（见 §3.1）。**已解封**（component fn slot P11 + WikiNav 原生），留待下轮（需视觉 parity 验证） | 三视图共用组件，样式零漂移 |
-| **P6** | ✅ 文档归档准备：KNOWN-DEBT 更新（StreamingRenderer + 8 项行为差异）+ 022 §8 后续项闭环 | 归档（§3.1 完成后） |
+| **P5** | ✅ **跨视图共用组件收敛**（2026-08-10 登记 → 2026-08-11 完成）：三个二级导航 + 三个内容标题栏收敛为共用组件（见 §3.1）——`NavSidebar`/`ContentHeader` component fn（slot P11）+ 三视图接入 + CSS 单一真源（无 `!important` 兜底） | 三视图共用组件，样式零漂移 |
+| **P6** | ⏳ 文档归档：KNOWN-DEBT 更新（StreamingRenderer + 8 项行为差异）+ 022 §8 后续项闭环 | 归档（headless Chromium 视觉验证后） |
 
 ## 3.1 后续项登记：跨视图共用组件收敛（2026-08-10）
 
@@ -84,6 +84,8 @@ component NavSidebar {
 1. 三视图二级导航/内容标题栏改用一个 `.at` 组件（或一个逃生舱 + 三处复用），删除 inject_styles 中针对三个 header 的分散 `!important` 覆盖；
 2. 重新 `auto build` 后三视图视觉与现 CSS 对齐版一致（headless Chromium 逐项比对 top/height/border 联通）；
 3. 样式单一真源：改一处 header 规则三视图同步生效，无 `!important` 兜底。
+
+> **2026-08-11 §3.1 完成（代码侧）**：`NavSidebar`（nav_sidebar.at，header 48px 贴顶全宽 + actions/list slot + 折叠态 prop）+ `ContentHeader`（content_header.at，标题 + middle/actions slot）已实现，三视图接入（chats/specs 侧栏 + 三处内容标题栏 + WikiNav 外壳）。inject_styles 删除分散 header 规则 + `!important` 覆盖（0 残留），`.nav-sidebar-header`/`.content-header` 为单一真源。**auto build 全绿 + 产物结构验证**。headless Chromium 逐项视觉比对留待运行时验证（需后端 + 登录，环境成本高，登记）。
 
 **依赖**：需 **auto-lang Plan 408**（`view fn → 独立 Vue 组件合成`，2026-08-10 立项）支持组件插槽/子组件差异（或先以逃生舱 + props 差异实现，再渐进原生化）。**不阻塞** Plan 022 当前功能。
 

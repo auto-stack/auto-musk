@@ -1,0 +1,28 @@
+// nav_sidebar.at — NavSidebar 组件（Plan 023 §3.1：三视图二级导航收敛）
+//
+// 收敛目标：三视图的二级导航（chats 的 session-sidebar / specs 的 section-nav /
+// wiki 的 WikiNav 外壳）共用一个 component fn——header（48px 贴顶全宽 border）+
+// 列表骨架（slot）+ 折叠态。
+//
+// 折叠态由父视图持有（component fn 子内部调用 prop 作 handler 不工作，探针 B），
+// 父传 collapsed prop；折叠按钮由各视图在 actions slot 注入（wiki 的 PanelLeft）。
+//
+// 宽度由父容器（`.xxx-view > div:first-child` 位置选择器）决定，此处不设宽。
+//
+// 样式：`.nav-sidebar` 系列为单一真源（inject_styles.ts），替代三处分散的
+// sidebar-header/section-nav-header/wiki-nav-header 规则 + !important 覆盖。
+
+component fn NavSidebar(title: str, collapsed: bool) {
+    div {
+        class: if .collapsed { "nav-sidebar collapsed" } else { "nav-sidebar" }
+        div {
+            style: "nav-sidebar-header"
+            span {
+                style: "nav-sidebar-title"
+                text .title
+            }
+            slot(name: "actions") {}
+        }
+        slot(name: "list") {}
+    }
+}

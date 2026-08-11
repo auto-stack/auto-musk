@@ -20,6 +20,8 @@ component fn WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRaw
         fn: wikiFilterTree from "src/front/wiki_helpers.ts"
         fn: wikiUploadDrop, rawUploadProgress from "src/front/raw_upload.ts"
         composable: useI18n refs: [locale] from "vue-i18n"
+        // Plan 023 §3.1：共用 NavSidebar（wiki 导航外壳收敛）。
+        component: NavSidebar
     }
     computed {
         filteredWikiTree => wikiFilterTree(.wikiTree, .query)
@@ -56,15 +58,10 @@ component fn WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRaw
             wikiUploadDrop(.workspace, e).await
         }
     }
-    div {
-        class: if .collapsed { "wiki-nav collapsed" } else { "wiki-nav" }
-        // header
-        div {
-            style: "wiki-nav-header"
-            span {
-                style: "wiki-nav-title"
-                text i18n.t("wiki.title")
-            }
+    NavSidebar {
+        title: i18n.t("wiki.title")
+        collapsed: .collapsed
+        slot(name: "actions") {
             div {
                 style: "wiki-nav-actions"
                 button {
@@ -81,22 +78,23 @@ component fn WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRaw
                 }
             }
         }
-        // 搜索框
-        div {
-            style: "wiki-search"
-            Search { size: 13 }
-            input {
-                value: .query
-                oninput: .QueryChanged
-                type: "text"
-                style: "wiki-search-input"
-                placeholder: i18n.t("wiki.searchPlaceholder")
-            }
-        }
-        // tree list
-        if !.collapsed {
+        slot(name: "list") {
+            // 搜索框
             div {
-                style: "wiki-nav-list"
+                style: "wiki-search"
+                Search { size: 13 }
+                input {
+                    value: .query
+                    oninput: .QueryChanged
+                    type: "text"
+                    style: "wiki-search-input"
+                    placeholder: i18n.t("wiki.searchPlaceholder")
+                }
+            }
+            // tree list
+            if !.collapsed {
+                div {
+                    style: "wiki-nav-list"
                 // ── Raw section ──
                 div {
                     style: "tree-section"
@@ -209,4 +207,5 @@ component fn WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRaw
             }
         }
     }
+}
 }

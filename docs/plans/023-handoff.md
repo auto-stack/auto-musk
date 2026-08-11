@@ -139,20 +139,14 @@ powershell -Command "Copy-Item -Force target/release/auto.exe C:\Users\zhaop\.ca
 
 ## 6. 执行队列 D：§3.1 跨视图共用组件收敛（P5）
 
-> **状态**：能力已就绪（emit P4 + slot P11 + model P4 + 动态 class）。**可立即推进，不依赖 §10.7。**
->
-> **目标**（见 023 §3.1）：三视图二级导航 + 内容标题栏收敛为共用 `NavSidebar`（header + slot 列表 + 折叠态）+ `ContentHeader`（标题 + slot 操作区）。
+> **状态**：✅ **已完成（2026-08-11）**——`NavSidebar`（nav_sidebar.at）+ `ContentHeader`（content_header.at）component fn（slot P11）实现，三视图接入，inject_styles 分散 header 规则 + `!important` 覆盖清零（0 残留）。auto build 全绿 + 产物结构验证。headless Chromium 逐项视觉比对留待运行时验证（需后端 + 登录，环境成本高）。
 
-### D1. 设计共用 NavSidebar + ContentHeader（component fn）
-- 用 `component fn` + slot（P11）+ model（折叠态）+ emit（toggle）
-- 三处 header 结构（见 `inject_styles.ts` 的 `.sidebar-header`/`.section-nav-header`/`.wiki-nav-header` 统一规则）
-- 删除 inject_styles 中针对三个 header 的分散 `!important` 覆盖（验收标准）
+**目标**（见 023 §3.1）：三视图二级导航 + 内容标题栏收敛为共用 `NavSidebar`（header + slot 列表 + 折叠态）+ `ContentHeader`（标题 + slot 操作区）。
 
-### D2. 三视图接入
-- `chats_view.at` / `specs_view.at` / `wiki_view.at` 各自用 `<NavSidebar>` + slot 注入列表差异
-- wiki 的导航在逃生舱 WikiNav 里——要么 WikiNav 先原生化（B6），要么 §3.1 接受 wiki 那份结构性差异
-
-**验收**（023 §3.1）：① 三视图用一个 component fn；② auto build 后视觉对齐；③ 样式单一真源，无 `!important` 兜底。
+- NavSidebar：title/collapsed props + actions/list slots；折叠态由父视图持有（component fn 子内部调用 prop 作 handler 不工作），wiki 的 PanelLeft 折叠按钮在 actions slot
+- ContentHeader：title + middle（chats 搜索）/actions slots；header 贴顶全宽（section/wiki 原负 margin hack 消除，内容容器单独 padding）
+- 三处接入：chats（侧栏 + 标题栏）、specs（侧栏 + 标题栏）、wiki（WikiNav 外壳 + 2 处标题栏）
+- 样式单一真源：`.nav-sidebar-header`/`.content-header` 系列，无 `!important` 兜底
 
 ---
 

@@ -20,6 +20,8 @@ widget WikiView {
         // Plan 023 队列 A1：RawPreview 已原生化为 component fn（src/front/raw_preview.at），
         // 逃生舱 .vue 已删除。跨文件引用（无 from）。
         component: RawPreview
+        // Plan 023 §3.1：共用 ContentHeader（内容标题栏收敛）。
+        component: ContentHeader
     }
 
     msg Msg {
@@ -181,12 +183,12 @@ widget WikiView {
                     }
                 } else if .viewing_raw && .store.active_raw_path != "" {
                     // raw 文件预览（对齐原版 viewing-raw 分支：img/pdf/文本/下载）
-                    col {
-                        style: "wiki-raw"
-                        row {
-                            style: "wiki-content-header"
-                            h2 .store.active_raw_path { style: "text-xl font-bold" }
-                            row {
+                    // Plan 023 §3.1：ContentHeader 贴顶全宽（wiki-main 无 padding），
+                    // 内容容器 wiki-raw 单独 padding。
+                    ContentHeader {
+                        title: .store.active_raw_path
+                        slot(name: "actions") {
+                            div {
                                 style: "wiki-content-actions"
                                 button {
                                     onclick: .DeleteRawFile(.store.active_raw_path)
@@ -200,6 +202,9 @@ widget WikiView {
                                 }
                             }
                         }
+                    }
+                    col {
+                        style: "wiki-raw"
                         RawPreview {
                             workspace: .store.workspace
                             path: .store.active_raw_path
@@ -207,12 +212,11 @@ widget WikiView {
                     }
                 } else if .store.current_page != None {
                     // 渲染当前 page（markdown 内容）
-                    col {
-                        style: "wiki-content"
-                        row {
-                            style: "wiki-content-header"
-                            h2 .store.current_page.title { style: "text-xl font-bold" }
-                            row {
+                    // Plan 023 §3.1：ContentHeader 贴顶全宽，内容容器 wiki-content 单独 padding。
+                    ContentHeader {
+                        title: .store.current_page.title
+                        slot(name: "actions") {
+                            div {
                                 style: "wiki-content-actions"
                                 button {
                                     onclick: .EditPage
@@ -226,6 +230,9 @@ widget WikiView {
                                 }
                             }
                         }
+                    }
+                    col {
+                        style: "wiki-content"
                         // markdown 渲染（Phase 3 内置 tag）
                         markdown {
                             content: .store.current_page.content

@@ -95,7 +95,9 @@ a { color: hsl(var(--primary)); }
   background: hsl(220 15% 10%) !important;
 }
 
-/* ── header 统一分隔线 + 高度 + 标题样式（对齐原版）── */
+/* ── 共用 NavSidebar + ContentHeader（Plan 023 §3.1 单一真源）──
+   替代三视图分散的 sidebar-header/section-nav-header/wiki-nav-header/chats-header/
+   section-header/wiki-content-header 规则 + !important 覆盖。 */
 .app-header {
   height: 48px !important; padding: 0 1rem !important;
   /* 负 margin 抵消父容器 px-3(12px) 左右 padding，让 border 撑满宽度 */
@@ -103,30 +105,33 @@ a { color: hsl(var(--primary)); }
   border-bottom: 1px solid hsl(var(--border));
   display: flex; align-items: center; flex-shrink: 0;
 }
-.sidebar-header, .section-nav-header, .wiki-nav-header, .chats-header {
-  height: 48px !important;
-  border-bottom: 1px solid hsl(var(--border)) !important;
-  display: flex !important; align-items: center; flex-shrink: 0;
+/* NavSidebar：二级导航外壳（header 48px 贴顶全宽 border + list slot） */
+.nav-sidebar {
+  display: flex; flex-direction: column; height: 100%; flex-shrink: 0;
+  overflow: hidden;
 }
-/* 内容页 title 与导航 header 高度统一（原版 content-header 48px + border-bottom） */
-/* 对齐原版 .section-editor(无 padding) + .content-header(贴顶全宽自带宽) 架构：
-   .specs-main/.wiki-main 去 padding，header 贴顶全宽自带水平 padding，内容容器单独 padding。 */
-.section-header, .wiki-content-header {
-  height: 48px;
-  flex-shrink: 0;
+.nav-sidebar.collapsed { width: 48px; }
+.nav-sidebar-header {
+  display: flex; align-items: center; gap: 0.4rem;
+  padding: 0.5rem 0.75rem; flex-shrink: 0; height: 48px;
   border-bottom: 1px solid hsl(var(--border));
-  display: flex; align-items: center;
-  padding: 0 1.25rem;
 }
-/* 标题统一为 Noto Sans SC bold 风格（覆盖各视图分散定义） */
-.sidebar-title, .section-nav-title, .wiki-nav-title, .chats-title {
-  font-family: 'Noto Sans SC', sans-serif !important;
-  font-size: 1rem !important;
-  font-weight: 700 !important;
-  color: hsl(var(--foreground)) !important;
-  text-transform: none !important;
-  letter-spacing: normal !important;
+.nav-sidebar-title {
+  flex: 1; font-family: 'Noto Sans SC', sans-serif;
+  font-size: 1rem; font-weight: 700; color: hsl(var(--foreground));
 }
+/* ContentHeader：内容标题栏（贴顶全宽 48px border，title + middle + actions） */
+.content-header {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 48px; flex-shrink: 0; padding: 0 1.25rem;
+  border-bottom: 1px solid hsl(var(--border)); background: hsl(var(--card));
+}
+.content-header-title {
+  font-size: 1.25rem; font-weight: 700; color: hsl(var(--foreground));
+  flex-shrink: 0;
+}
+.content-header-middle { flex: 1; min-width: 0; display: flex; justify-content: center; }
+.content-header-actions { display: flex; align-items: center; gap: 0.3rem; flex-shrink: 0; }
 
 /* ── 导航栏 ── */
 .rail-tab {
@@ -154,14 +159,9 @@ a { color: hsl(var(--primary)); }
 /* ── ChatsView 布局 ── */
 .chats-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
 .chats-view > div:first-child {
-  width: 220px; flex-shrink: 0; display: flex; flex-direction: column;
+  width: 220px; flex-shrink: 0;
   border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
 }
-.sidebar-header {
-  display: flex; align-items: center; gap: 0.35rem;
-  padding: 0.75rem 1rem; flex-shrink: 0; height: 48px;
-}
-.sidebar-title { flex: 1; font-size: 0.85rem; font-weight: 600; color: hsl(var(--muted-foreground)); line-height: 1; }
 .sidebar-new-btn {
   display: inline-flex; align-items: center; justify-content: center;
   height: 26px; padding: 0 0.5rem; font-size: 0.75rem;
@@ -194,14 +194,7 @@ a { color: hsl(var(--primary)); }
 .session-count { font-size: 0.72rem; color: hsl(var(--muted-foreground)); }
 
 .chats-body { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-.chats-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0.6rem 1rem; height: 48px; flex-shrink: 0;
-  border-bottom: 1px solid hsl(var(--border)); background: hsl(var(--card));
-}
-.chats-title { font-size: 0.85rem; font-weight: 500; color: hsl(var(--muted-foreground)); text-transform: uppercase; letter-spacing: 0.04em; }
 /* header 三段布局：标题左 / 搜索中 / 操作右 */
-.header-title-row { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
 .header-actions { display: flex; align-items: center; gap: 0.3rem; flex-shrink: 0; }
 .session-info-btn {
   display: flex; align-items: center; justify-content: center;
@@ -496,13 +489,14 @@ a { color: hsl(var(--primary)); }
 /* ── SpecsView 布局 ── */
 .specs-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
 .specs-view > div:first-child {
-  width: 200px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.25rem;
-  /* 容器结构与 ChatsView 二级导航一致：无 padding，header 贴顶全宽 border-bottom */
-  padding: 0; border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
-  overflow-y: auto;
+  width: 200px; flex-shrink: 0;
+  /* 布局（flex column + header + list）由共用 NavSidebar 承担 */
+  border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
 }
-.section-nav-header { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.75rem; flex-shrink: 0; }
-.section-nav-title { font-size: 0.95rem; font-weight: 700; color: hsl(var(--foreground)); }
+.section-nav-list {
+  flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.25rem;
+  padding: 0 0.25rem;
+}
 .overview-entry {
   display: block; width: 100%; text-align: left;
   padding: 0.4rem 0.75rem; border: none; border-radius: 6px; font-size: 0.85rem;
@@ -520,7 +514,6 @@ a { color: hsl(var(--primary)); }
 .specs-main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
 .overview-content { padding: 1.25rem; font-size: 0.9rem; line-height: 1.6; color: hsl(var(--foreground)); }
 .section-content { margin-bottom: 1rem; padding: 0 1.25rem 1.25rem; }
-.section-header { display: flex; align-items: center; justify-content: space-between; margin: 0 -1.25rem 0.5rem; }
 .spec-item-btn { display: block; width: 100%; text-align: left; padding: 0.6rem 0.75rem; border: 1px solid hsl(var(--border)); border-radius: 8px; margin-bottom: 0.4rem; background: hsl(var(--card)); cursor: pointer; }
 .spec-item-btn:hover { border-color: hsl(var(--primary)); }
 .spec-item-main { display: flex; align-items: center; gap: 0.5rem; }
@@ -547,19 +540,14 @@ a { color: hsl(var(--primary)); }
 /* ── WikiView 布局 ── */
 .wiki-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
 .wiki-view > div:first-child {
-  width: 240px; flex-shrink: 0; display: flex; flex-direction: column; gap: 0.25rem;
-  /* 容器结构与 ChatsView 二级导航一致：无 padding，header 贴顶全宽 border-bottom */
-  padding: 0; border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
-  overflow-y: auto;
+  width: 240px; flex-shrink: 0;
+  /* 布局（flex column + header + list）由共用 NavSidebar 承担 */
+  border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
 }
-.wiki-nav-header { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; flex-shrink: 0; }
-.wiki-nav-title { font-size: 0.95rem; font-weight: 700; color: hsl(var(--foreground)); }
 .nav-icon-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid hsl(var(--border)); border-radius: 6px; background: transparent; cursor: pointer; color: hsl(var(--foreground)); font-size: 1rem; }
 .nav-icon-btn:hover { background: hsl(var(--accent)); }
 .wiki-nav-list { flex: 1; overflow-y: auto; }
 /* ── WikiNav 树/搜索/DropZone（Plan 023 队列 B6 原生化：逃生舱 scoped 转全局兜底）── */
-.wiki-nav { display: flex; flex-direction: column; height: 100%; }
-.wiki-nav.collapsed { width: 48px; }
 .wiki-search {
   display: flex; align-items: center; gap: 0.35rem;
   margin: 0.5rem 0.5rem; padding: 0.3rem 0.6rem;
@@ -639,7 +627,6 @@ a { color: hsl(var(--primary)); }
 .wiki-nav-item:hover { background: hsl(var(--accent)); }
 .wiki-nav-item.active { background: hsl(var(--accent)); font-weight: 500; }
 .wiki-main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
-.wiki-content-header { display: flex; align-items: center; justify-content: space-between; margin: 0 -1.25rem 0.5rem; }
 .wiki-content-actions { display: flex; gap: 0.25rem; }
 .wiki-content { padding: 0 1.25rem 1.25rem; font-size: 0.9rem; line-height: 1.6; color: hsl(var(--foreground)); }
 .wiki-raw { padding: 0 1.25rem 1.25rem; }

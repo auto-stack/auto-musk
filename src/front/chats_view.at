@@ -25,6 +25,9 @@ widget ChatsView {
         // Plan 023 队列 B5：MentionInput 已原生化为 component fn（src/front/mention_input.at），
         // 逃生舱 .vue 已删除（v-html backdrop 已原生 + MentionDropdown 已原生）。
         component: MentionInput
+        // Plan 023 §3.1：共用 NavSidebar + ContentHeader（三视图二级导航/内容标题栏收敛）。
+        component: NavSidebar
+        component: ContentHeader
         // mention_helpers 是 MentionDropdown component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
         fn: mentionFiltered, mentionPosition, mentionCurrentId, mentionClampIndex, mentionIndexOf from "src/front/mention_helpers.ts"
         // Plan 023 队列 B3：MentionDropdown 已原生化为 component fn（src/front/mention_dropdown.at），
@@ -123,12 +126,11 @@ widget ChatsView {
     view {
         row {
             style: "chats-view"
-            // Session Sidebar
-            col {
-                style: if .sidebar_collapsed { "session-sidebar collapsed" } else { "session-sidebar" }
-                row {
-                    style: "sidebar-header"
-                    text t("chat.sessions") { style: "sidebar-title" }
+            // Session Sidebar（Plan 023 §3.1：共用 NavSidebar——header + list slot）
+            NavSidebar {
+                title: t("chat.sessions")
+                collapsed: .sidebar_collapsed
+                slot(name: "actions") {
                     // Plan 407：lucide 图标作 button 子节点（parser 增强后原生支持）。
                     button {
                         onclick: .NewSession
@@ -143,28 +145,30 @@ widget ChatsView {
                         Trash2 { size: 14 }
                     }
                 }
-                col {
-                    style: "session-list"
-                    for s in .store.session_list {
-                        button {
-                            key: .s.id
-                            onclick: .SelectSession(.s.id)
-                            style: if .s.id == .store.session_id {
-                                "session-item active"
-                            } else {
-                                "session-item"
-                            }
-                            col {
-                                style: "session-preview"
-                                text .s.name { style: "session-name" }
-                                text t("chat.msgs", { count: .s.message_count }) { style: "session-count" }
-                            }
-                            // #4 回流：会话项 hover 删除按钮（Trash2 图标 + onclick.stop 阻止冒泡）
-                            span {
-                                style: "session-delete-btn"
-                                onclick.stop: .DeleteSession(.s.id)
-                                title: t("chat.deleteSession")
-                                Trash2 { size: 12 }
+                slot(name: "list") {
+                    col {
+                        style: "session-list"
+                        for s in .store.session_list {
+                            button {
+                                key: .s.id
+                                onclick: .SelectSession(.s.id)
+                                style: if .s.id == .store.session_id {
+                                    "session-item active"
+                                } else {
+                                    "session-item"
+                                }
+                                col {
+                                    style: "session-preview"
+                                    text .s.name { style: "session-name" }
+                                    text t("chat.msgs", { count: .s.message_count }) { style: "session-count" }
+                                }
+                                // #4 回流：会话项 hover 删除按钮（Trash2 图标 + onclick.stop 阻止冒泡）
+                                span {
+                                    style: "session-delete-btn"
+                                    onclick.stop: .DeleteSession(.s.id)
+                                    title: t("chat.deleteSession")
+                                    Trash2 { size: 12 }
+                                }
                             }
                         }
                     }
@@ -173,29 +177,28 @@ widget ChatsView {
             // Main Chat Area
             col {
                 style: "chats-body"
-                // header
-                row {
-                    style: "chats-header"
-                    // 标题（固定 t('chat.title')，对齐原版）
-                    div {
-                        style: "header-title-row"
-                        text t("chat.title") { style: "chats-title" }
-                    }
-                    // 搜索框（居中，对齐原版 .header-search）
-                    div {
-                        style: "header-search"
-                        Search { size: 13 }
-                        input {
-                            style: "search-input"
-                            value: .chatSearch.search
-                            oninput: .OnSearchInput($event)
-                            placeholder: t("chat.searchPlaceholder")
+                // header（Plan 023 §3.1：共用 ContentHeader——标题 + middle 搜索 + actions）
+                ContentHeader {
+                    title: t("chat.title")
+                    slot(name: "middle") {
+                        // 搜索框（居中，对齐原版 .header-search）
+                        div {
+                            style: "header-search"
+                            Search { size: 13 }
+                            input {
+                                style: "search-input"
+                                value: .chatSearch.search
+                                oninput: .OnSearchInput($event)
+                                placeholder: t("chat.searchPlaceholder")
+                            }
                         }
                     }
-                    // 右侧 SessionInfo 组件（info icon + tooltip，对齐原版）
-                    div {
-                        style: "header-actions"
-                        SessionInfo
+                    slot(name: "actions") {
+                        // 右侧 SessionInfo 组件（info icon + tooltip，对齐原版）
+                        div {
+                            style: "header-actions"
+                            SessionInfo
+                        }
                     }
                 }
                 // canvas（SecretaryMessage/GateCard/ReportCard + 消息列表 + 流式 draft）

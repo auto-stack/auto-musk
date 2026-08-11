@@ -9,6 +9,9 @@ widget SpecsView {
     use {
         fn: getNextId, getDefaultStatus from "src/front/utils/itemTemplates.ts"
         composable: useT from "src/front/composables/useT.ts"
+        // Plan 023 §3.1：共用 NavSidebar + ContentHeader。
+        component: NavSidebar
+        component: ContentHeader
     }
 
     msg Msg {
@@ -42,28 +45,30 @@ widget SpecsView {
     view {
         row {
             style: "specs-view"
-            // 左侧 section-nav
-            col {
-                style: if .nav_collapsed { "section-nav collapsed" } else { "section-nav" }
-                row {
-                    style: "section-nav-header"
-                    text t("specs.title") { style: "section-nav-title" }
-                }
-                button {
-                    onclick: .ToggleOverview
-                    style: if .show_overview { "overview-entry active" } else { "overview-entry" }
-                    text t("specs.overview")
-                }
-                for section in .section_types {
-                    button {
-                        key: .section
-                        onclick: .SelectSection(.section)
-                        style: if .section == .active_section {
-                            "section-nav-item active"
-                        } else {
-                            "section-nav-item"
+            // 左侧 section-nav（Plan 023 §3.1：共用 NavSidebar——header + list slot）
+            NavSidebar {
+                title: t("specs.title")
+                collapsed: .nav_collapsed
+                slot(name: "list") {
+                    col {
+                        style: "section-nav-list"
+                        button {
+                            onclick: .ToggleOverview
+                            style: if .show_overview { "overview-entry active" } else { "overview-entry" }
+                            text t("specs.overview")
                         }
-                        text .section
+                        for section in .section_types {
+                            button {
+                                key: .section
+                                onclick: .SelectSection(.section)
+                                style: if .section == .active_section {
+                                    "section-nav-item active"
+                                } else {
+                                    "section-nav-item"
+                                }
+                                text .section
+                            }
+                        }
                     }
                 }
             }
@@ -81,17 +86,20 @@ widget SpecsView {
                         }
                     }
                 } else {
-                    col {
-                        style: "section-content"
-                        row {
-                            style: "section-header"
-                            h2 .active_section { style: "text-xl font-bold" }
+                    // Plan 023 §3.1：ContentHeader 贴顶全宽（specs-main 无 padding），
+                    // 内容容器 section-content 单独 padding（原负 margin hack 消除）。
+                    ContentHeader {
+                        title: .active_section
+                        slot(name: "actions") {
                             button {
                                 onclick: .AddItem
                                 style: "add-btn"
                                 text t("specs.addItem")
                             }
                         }
+                    }
+                    col {
+                        style: "section-content"
                         if .store.document != None {
                             for section in .store.document.sections {
                                 if .section.section_type == .active_section {
