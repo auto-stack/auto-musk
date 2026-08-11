@@ -664,6 +664,77 @@ a { color: hsl(var(--primary)); }
 .gate-btn.approve { background: hsl(142 71% 45%); color: #fff; border-color: transparent; }
 .gate-btn.reject { background: hsl(var(--af-error) / 0.1); color: hsl(var(--af-error)); }
 .gate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── SettingsMenu（Plan 023 队列 A4 原生化：逃生舱 scoped 转全局兜底）── */
+.settings-menu-wrapper { position: relative; }
+.settings-trigger {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border: none; border-radius: 6px;
+  background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer;
+  transition: all 0.15s;
+}
+.settings-trigger:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+.settings-trigger.open { background: hsl(var(--accent)); color: hsl(var(--primary)); }
+.settings-panel {
+  position: absolute; bottom: 100%; left: 0; margin-bottom: 8px; min-width: 220px;
+  background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); padding: 0.6rem; z-index: 100;
+}
+.settings-section { padding: 0.4rem 0; }
+.settings-section + .settings-section { border-top: 1px solid hsl(var(--border)); }
+.settings-section-title {
+  font-size: 0.7rem; font-weight: 600; color: hsl(var(--muted-foreground));
+  text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.4rem; padding: 0 0.3rem;
+}
+.mode-toggle { display: flex; gap: 0.35rem; padding: 0 0.3rem; }
+.mode-btn {
+  flex: 1; padding: 0.3rem 0; border: 1px solid hsl(var(--border)); border-radius: 6px;
+  background: transparent; color: hsl(var(--foreground)); font-size: 0.78rem; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+}
+.mode-btn:hover { background: hsl(var(--accent)); }
+.mode-btn.active { background: hsl(var(--primary)); border-color: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+.accent-swatches { display: flex; gap: 0.5rem; padding: 0 0.3rem; }
+.accent-swatch {
+  width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: #fff; transition: transform 0.1s;
+}
+.accent-swatch:hover { transform: scale(1.1); }
+.accent-swatch.active { border-color: hsl(var(--foreground)); }
+.theme-options { display: flex; flex-direction: column; gap: 2px; }
+.theme-option {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem;
+  border: none; border-radius: 6px; background: transparent; color: hsl(var(--foreground));
+  font-size: 0.82rem; cursor: pointer; text-align: left; width: 100%;
+}
+.theme-option:hover { background: hsl(var(--accent)); }
+.theme-option.active { background: hsl(var(--primary) / 0.08); color: hsl(var(--primary)); }
+.theme-option .check { margin-left: auto; }
+.theme-option-label { flex: 1; }
+.language-options { display: flex; flex-direction: column; gap: 2px; }
+.language-option {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem;
+  border: none; border-radius: 6px; background: transparent; color: hsl(var(--foreground));
+  font-size: 0.82rem; cursor: pointer; text-align: left; width: 100%;
+}
+.language-option:hover { background: hsl(var(--accent)); }
+.language-option.active { background: hsl(var(--primary) / 0.08); color: hsl(var(--primary)); }
+.lang-code { font-weight: 700; min-width: 1.5rem; }
+.lang-name { flex: 1; }
+.language-option .check { margin-left: auto; }
+.deep-link-btn {
+  display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.35rem 0.5rem;
+  border: 1px solid hsl(var(--border)); border-radius: 6px; background: transparent;
+  color: hsl(var(--foreground)); font-size: 0.78rem; cursor: pointer; text-align: left;
+  transition: background 0.15s;
+}
+.deep-link-btn:hover { background: hsl(var(--accent)); }
+.deep-link-label { flex: 1; }
+.deep-link-error {
+  margin-top: 0.3rem; padding: 0.2rem 0.5rem; font-size: 0.7rem;
+  color: hsl(var(--destructive)); background: hsl(var(--destructive) / 0.08); border-radius: 4px;
+}
 `
 
 export function injectStyles(): void {

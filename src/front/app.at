@@ -27,7 +27,11 @@ widget App {
         // Plan 023 队列 A2：WorkspaceSelector 已原生化为 component fn
         // （src/front/workspace_selector.at），逃生舱 .vue 已删除。跨文件引用（无 from）。
         component: WorkspaceSelector
-        component: SettingsMenu from "src/front/components/SettingsMenu.vue"
+        // settings_helpers 是 SettingsMenu component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
+        fn: settingsInitLocale, settingsChangeLocale, settingsLoadForgeMode, settingsSetForgeMode, settingsOpenAutoOs from "src/front/settings_helpers.ts"
+        // Plan 023 队列 A4：SettingsMenu 已原生化为 component fn（src/front/settings_menu.at），
+        // 逃生舱 .vue 已删除。跨文件引用（无 from）。
+        component: SettingsMenu
         // 导航图标（lucide）
         component: MessageSquare, Scroll, BookOpen from "lucide-vue-next"
     }

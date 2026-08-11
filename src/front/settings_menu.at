@@ -1,0 +1,226 @@
+// settings_menu.at — SettingsMenu 组件（Plan 023 队列 A4：最复杂 async 逃生舱原生化）
+//
+// 对标 src/front/components/SettingsMenu.vue（逃生舱，已删除）。
+// 验证 §10.7 async handler（SetForgeMode/OpenAutoOs .await）+ §10.4 composable
+// facade refs（mode/current/locale 自动 .value）+ §10.3 宿主全局。
+//
+// 关键转换：
+//   - useI18n/useTheme/useAccentColor → composable facade（refs 标注 ref 字段）
+//   - 语言切换/forge mode/autoos 深链 → settings_helpers.ts fn（.at 无法表达
+//     composable ref 赋值 + fetch 链式 + window.open）
+//   - themeOptions computed 数组（含 lucide 图标）→ 静态渲染 3 个按钮
+//   - document 点击外部关闭 + menuRef template ref + <transition> → 舍弃
+//     （trigger 再次点击关闭；无 fade 动画——登记轻微差异）
+//   - accent 动态 style（per-item brand1）→ style: 字符串拼接（P12 缺陷 9）
+//
+// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.settings-* 等）。
+
+component fn SettingsMenu() {
+    use {
+        component: Settings, Check, Sun, Moon, Monitor, ExternalLink from "lucide-vue-next"
+        fn: settingsInitLocale, settingsChangeLocale, settingsLoadForgeMode, settingsSetForgeMode, settingsOpenAutoOs from "src/front/settings_helpers.ts"
+        composable: useI18n refs: [locale] from "vue-i18n"
+        composable: useTheme refs: [mode] from "src/front/composables/useTheme.ts"
+        composable: useAccentColor refs: [current] from "src/front/composables/useAccentColor.ts"
+    }
+    computed {
+        accentCurrent => accentColor.current
+        themeMode => theme.mode
+        isLocaleEn => .currentLocale == "en"
+        isLocaleZh => .currentLocale == "zh"
+    }
+    msg Msg { Toggle, SetForgeGSD, SetForgeCheck, SetAccent(str), SetThemeLight, SetThemeDark, SetThemeAuto, ChangeLocale(str), OpenAutoOs }
+    model {
+        var isOpen bool = false
+        var currentLocale str = ""
+        var forgeMode str = "gsd"
+        var autoOsError str = ""
+    }
+    on {
+        .Init -> {
+            .currentLocale = settingsInitLocale();
+            .forgeMode = settingsLoadForgeMode().await
+        }
+        .Toggle -> { .isOpen = !.isOpen }
+        .SetForgeGSD -> {
+            .forgeMode = "gsd";
+            settingsSetForgeMode("gsd").await
+        }
+        .SetForgeCheck -> {
+            .forgeMode = "check";
+            settingsSetForgeMode("check").await
+        }
+        .SetAccent(name) -> { accentColor.setAccent(name) }
+        .SetThemeLight -> { theme.setMode("light") }
+        .SetThemeDark -> { theme.setMode("dark") }
+        .SetThemeAuto -> { theme.setMode("auto") }
+        .ChangeLocale(l) -> {
+            settingsChangeLocale(l);
+            .currentLocale = l
+        }
+        .OpenAutoOs -> {
+            .isOpen = false;
+            .autoOsError = "";
+            .autoOsError = settingsOpenAutoOs().await
+        }
+    }
+    div {
+        style: "settings-menu-wrapper"
+        button {
+            onclick: .Toggle
+            class: if .isOpen { "settings-trigger open" } else { "settings-trigger" }
+            title: i18n.t("settings.title")
+            Settings { size: 16 }
+        }
+        if .isOpen {
+            div {
+                style: "settings-panel"
+                // ── Mode Section（GSD/Check，后端持久化）──
+                div {
+                    style: "settings-section"
+                    div {
+                        style: "settings-section-title"
+                        text i18n.t("settings.mode")
+                    }
+                    div {
+                        style: "mode-toggle"
+                        button {
+                            onclick: .SetForgeGSD
+                            class: if .forgeMode == "gsd" { "mode-btn active" } else { "mode-btn" }
+                            title: i18n.t("settings.modeGsdTitle")
+                            text "GSD"
+                        }
+                        button {
+                            onclick: .SetForgeCheck
+                            class: if .forgeMode == "check" { "mode-btn active" } else { "mode-btn" }
+                            title: i18n.t("settings.modeCheckTitle")
+                            text "Check"
+                        }
+                    }
+                }
+                // ── Accent Section ──
+                div {
+                    style: "settings-section"
+                    div {
+                        style: "settings-section-title"
+                        text i18n.t("settings.accent")
+                    }
+                    div {
+                        style: "accent-swatches"
+                        for opt in accentColor.options {
+                            button {
+                                onclick: .SetAccent(.opt.name)
+                                key: .opt.name
+                                class: if .accentCurrent == .opt.name { "accent-swatch active" } else { "accent-swatch" }
+                                style: "background: " + .opt.brand1
+                                title: .opt.label
+                                if .accentCurrent == .opt.name {
+                                    Check { size: 12, key: .opt.name }
+                                }
+                            }
+                        }
+                    }
+                }
+                // ── Theme Section ──
+                div {
+                    style: "settings-section"
+                    div {
+                        style: "settings-section-title"
+                        text i18n.t("settings.theme")
+                    }
+                    div {
+                        style: "theme-options"
+                        button {
+                            onclick: .SetThemeLight
+                            class: if .themeMode == "light" { "theme-option active" } else { "theme-option" }
+                            Sun { size: 14 }
+                            span {
+                                style: "theme-option-label"
+                                text i18n.t("settings.themeLight")
+                            }
+                            if .themeMode == "light" {
+                                Check { size: 12, class: "check" }
+                            }
+                        }
+                        button {
+                            onclick: .SetThemeDark
+                            class: if .themeMode == "dark" { "theme-option active" } else { "theme-option" }
+                            Moon { size: 14 }
+                            span {
+                                style: "theme-option-label"
+                                text i18n.t("settings.themeDark")
+                            }
+                            if .themeMode == "dark" {
+                                Check { size: 12, class: "check" }
+                            }
+                        }
+                        button {
+                            onclick: .SetThemeAuto
+                            class: if .themeMode == "auto" { "theme-option active" } else { "theme-option" }
+                            Monitor { size: 14 }
+                            span {
+                                style: "theme-option-label"
+                                text i18n.t("settings.themeSystem")
+                            }
+                            if .themeMode == "auto" {
+                                Check { size: 12, class: "check" }
+                            }
+                        }
+                    }
+                }
+                // ── Language Section ──
+                div {
+                    style: "settings-section"
+                    div {
+                        style: "settings-section-title"
+                        text i18n.t("settings.language")
+                    }
+                    div {
+                        style: "language-options"
+                        button {
+                            onclick: .ChangeLocale("en")
+                            class: if .isLocaleEn { "language-option active" } else { "language-option" }
+                            span { style: "lang-code", text "EN" }
+                            span { style: "lang-name", text "English" }
+                            if .isLocaleEn {
+                                Check { size: 12, class: "check" }
+                            }
+                        }
+                        button {
+                            onclick: .ChangeLocale("zh")
+                            class: if .isLocaleZh { "language-option active" } else { "language-option" }
+                            span { style: "lang-code", text "中" }
+                            span { style: "lang-name", text "中文" }
+                            if .isLocaleZh {
+                                Check { size: 12, class: "check" }
+                            }
+                        }
+                    }
+                }
+                // ── AutoOS Settings deep-link ──
+                div {
+                    style: "settings-section"
+                    div {
+                        style: "settings-section-title"
+                        text "AutoOS"
+                    }
+                    button {
+                        onclick: .OpenAutoOs
+                        style: "deep-link-btn"
+                        ExternalLink { size: 14 }
+                        span {
+                            style: "deep-link-label"
+                            text i18n.t("settings.openSystemSettings")
+                        }
+                    }
+                    if .autoOsError != "" {
+                        div {
+                            style: "deep-link-error"
+                            text .autoOsError
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
