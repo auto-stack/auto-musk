@@ -1,6 +1,7 @@
 # 023 — view fn → 独立组件 codegen（auto-lang 转译器改造）
 
 > **状态**：📋 计划（未实施）——独立项目（auto-lang 仓库），auto-musk 侧仅登记等待。
+> **2026-08-11 能力复核 + 探针实测**：auto-lang 已合并 `component fn`（P1 独立 SFC + P2 跨文件复用 + P3 computed）到 master，auto.exe 已重装。探针（`tmp/probe-component-fn/`）实测：合成/props/条件渲染/computed/跨文件复用 ✅；字面量 prop 绑定 + 内部 button 调用 prop 作 handler 有 codegen 缺陷。§3.1 共用组件收敛的核心障碍是"子组件内部按钮触发外部回调"不工作（需 emit）。详见 §3.1 末尾。
 > **前置**：Plan 022（前端 Auto 化已完成，逃生舱组件架构稳定）；Plan 018-021（后端全 Auto 化方法论）。
 > **仓库**：**auto-lang**（a2r 转译器 + a2vue codegen，构建 `auto.exe`）；auto-musk 为验证方。
 > **目标**：让 AutoUI 的 `view fn`（`use { fn }` 逃生舱函数中定义、返回 AuraWidget 的函数）被 a2r/a2vue 转译器**原生合成 AuraWidget 组件**，使 `ChatMessage` 等当前靠逃生舱 `.vue` 文件实现的组件脱离逃生舱、纯 `.at` 表达。
@@ -87,6 +88,69 @@ component NavSidebar {
 **依赖**：需 **auto-lang Plan 408**（`view fn → 独立 Vue 组件合成`，2026-08-10 立项）支持组件插槽/子组件差异（或先以逃生舱 + props 差异实现，再渐进原生化）。**不阻塞** Plan 022 当前功能。
 
 > **2026-08-10 调研更新**：auto-lang 侧已确认——view fn 的**内联展开**已有（374 修复已移植 Vue 路径，`api.rs:406-411` 注册 + vue.rs 测试），但**独立 SFC 合成缺失**（vue.rs 无此路径）。已立项 **Plan 408**（auto-lang `docs/plans/408-view-fn-vue-component-synthesis.md`）专门补此缺口。本计划（含 §3.1 共用组件收敛）依赖 408 完成后推进。
+
+> **2026-08-11 能力复核**（auto-lang `plan-408` 分支实测）：408 的 `component fn`（与 `view fn` 二分的新关键字）已落地 **P1 同文件独立 SFC 合成** + **P2 跨文件 `use { component: X }`（无 from）复用**——有 golden（`test/a2vue/007_component_fn/`）+ e2e（`plan408_tests.rs`）覆盖。能力边界：✅ props（params→defineProps）/ ✅ 条件渲染（`if` 分支，支撑方案 B 差异）；❌ **computed**（硬编码 `Vec::new()`）/ ❌ **msg/emit** / ❌ **slot**。
+>
+> **§3.1（共用组件收敛）现状判定**：408 文档 §6.3 末句自判"§3.1 需 emit + slot，依赖 Task 2，排期更靠后"。本轮按此不强行推进 §3.1——降级到 props+条件渲染会劣化 WikiNav 逃生舱（含搜索/折叠/DropZone emit 交互），不值得。
+>
+> **工具链状态**：`plan-408` 分支未合并 auto-lang master，`~/.cargo/bin/auto.exe`（master 构建，md5 = `target/release/auto.exe`）**不含** `component fn`。auto-musk 侧要用该能力，需先把 plan-408 合并 master + `cargo install` 重装（跨仓库操作，待授权）。
+>
+> **本轮（023 auto-musk 侧）范围**：仅文档收敛（本段落 + 状态行）。实质代码迁移（P3 试点 / §3.1 收敛）待 ① 工具链含 `component fn`、② 408 Task 2（emit/slot）就绪后推进。
+
+### 3.2 component fn 能力探针实测（2026-08-11）
+
+> 前置已就绪：auto-lang 已合并 plan-408（P1+P2+P3，master `c12b407e`），`cargo install` 重装 `auto.exe`（含 `component fn`）。探针工程：`tmp/probe-component-fn/`（隔离，不入主源码）。
+
+**探针矩阵**（4 个场景，逐个 `auto build` + 检查生成 SFC 的 TS 正确性）：
+
+| # | 场景 | 结论 | 证据 |
+|---|---|---|---|
+| **A** | 基础合成：`component fn Card(title,active)` + widget `<Card/>` + `if` 条件渲染 | ✅ 合成机制 OK；⚠️ 字面量 prop 绑定有缺陷 | `Card.vue` 正确（defineProps + if 分支 style）；App.vue 调用点 `:active="{{ true }}"`（双花括号语法错）、`:title="second"`（字符串字面量未引号被当变量） |
+| **B** | callback/event 透传：`component fn NavItem(label,onselect:msg)`，内部 `button { onclick: onselect }` | ⚠️ 父→子 event 透传 OK；❌ 子内部调用 prop 作 handler 不工作 | 父 App.vue：`onselect: .Clicked` → `@select="Clicked"` ✅；但子 NavItem.vue 把 `onselect` 当本地未定义 handler，生成空函数 `ononselect(){// TODO: handler not defined}`，prop 未被当可调用引用 |
+| **C** | 跨文件复用：`lib.at` 定义 `component fn SharedCard`，`app.at` `use { component: SharedCard }`（无 from）引用 | ✅✅✅ 完全可用，零 TS 错误 | `SharedCard.vue` 正确合成；App.vue 正确 `import` + `<SharedCard :title="heading"/>`；构建全绿 |
+| **D** | computed 块：`component fn Badge(count)` 内 `computed { label => ...; doubled => ... }` | ✅ 基本可用 | Badge.vue 正确 `import { computed }` + `const label = computed(...)`；template 正确 `{{ label }}`；⚠️ `if` 表达式被包多余 IIFE |
+
+**关键结论**：
+
+1. **✅ component fn 核心机制（合成 + props + 条件渲染 + computed + 跨文件复用）可用**——P3 试点（最简逃生舱组件原生化）的路径打通，可挑无交互的纯展示组件先行。
+
+2. **❌ §3.1 共用组件收敛的核心障碍仍在**：共用 `NavSidebar` 需要"内部按钮点击 → 触发外部传入的回调"（子组件内部 `onclick: <prop>`），探针 B 证实此模式**不工作**（prop 未被当 handler，生成空函数）。这等价于缺 emit——§3.1 阻塞于此，与 408 文档 §6.3 自判一致。
+
+3. **⚠️ 3 个 codegen 缺陷**（非阻塞 P3，但需登记/修复）：
+   - **字面量 prop 绑定**：bool → `:active="{{ true }}"`（双花括号）；str → `:title="second"`（未引号当变量）。影响所有字面量 prop 透传。
+   - **`self.` 前缀错绑**：变量 prop 在某些场景生成 `:title=" self .heading"`，引用不存在的 `self`（跨文件复用场景反而不中招，生成干净的 `:title="heading"`）。
+   - **computed `if` 表达式 IIFE 包装**：`computed(() => (() => {...})())`，能跑但多余。
+
+**P3 试点可行性判定**：✅ 可行。挑一个**纯展示、无 click 回调、无 emit**的逃生舱组件（不含 AgentAvatar 的 computed 颜色逻辑——虽然 computed 已支持，但字典+char hash fallback 超当前能力）。候选评估见 §3.3。
+
+**§3.1（P5 共用组件收敛）判定**：❌ 继续阻塞，依赖 auto-lang 补"子组件内部 button onclick 调用 prop 作 handler"（本质是 emit/事件透传，408 Task 2 范畴）。
+
+### 3.3 P3 试点候选评估（2026-08-11）
+
+> 基于 §3.2 探针结论（核心机制可用 + 字面量 prop/self 前缀缺陷 + 子内部回调不工作），扫描 21 个逃生舱 `.vue` 组件，按"纯展示（click/input=0, emit=0）"筛选 P3 首选。
+
+**纯展示候选**（4 个，按推荐度）：
+
+| 组件 | 行数 | computed | 可原生化的关键依赖 | 评估 |
+|---|---|---|---|---|
+| **ChatMessage.vue** | 50 | 0 | StreamingRenderer + UserMessage（链式逃生舱） | 🥇 最简（computed=0），但链式依赖未原生化——需先原生化 UserMessage/StreamingRenderer，或先做叶子组件 |
+| **UserMessage.vue** | 35 | 1 | `v-html`（codegen 已支持 `html:` prop）+ `renderMentions`（逃生舱 TS） | 🥈 叶子组件，v-html 已支持；残留 renderMentions TS（HTML 转义+@高亮）需逃生舱 fn 或内联 |
+| **StreamingRenderer.vue** | ? | 3 | markstream-vue 渲染 + 流式增量 | 🥉 依赖 npm 包，流式逻辑复杂 |
+| **AgentAvatar.vue** | ? | 7 | professionColors 字典 + char hash + 5 computed | ❌ 408 §6.3 已判定超能力（字典/动态 style 对象） |
+
+**P3 试点建议路径**（叶子优先，渐进原生化）：
+
+1. **UserMessage** 作首试——验证 `component fn` + `html:` prop + computed（renderMentions 内联或留逃生舱 fn）的最小闭环。它独立、叶子、依赖已支持。
+2. 逐个原生化其他纯展示叶子（RawPreview/StreamingRenderer/StreamingTable）。
+3. ChatMessage 编排组件在叶子就绪后原生化（消掉链式逃生舱）。
+
+**需先修复的 codegen 缺陷**（§3.2 第 3 点，阻塞或影响 P3 质量）：
+- 字面量 prop 绑定（bool 双花括号 / str 未引号）——若试点组件的字面量 prop 会触发，需先在 auto-lang 修。
+- `self.` 前缀错绑——变量 prop 在同文件合成场景触发（探针 A/B/D 均中招，跨文件复用探针 C 反而干净）。
+
+**不迁移的组件**（本轮登记，留逃生舱）：
+- 含 emit/重交互的（GateCard/MentionInput/QuestionnaireCard/SecretaryMessage/WikiNav 等）——阻塞于 §3.1 同一 emit 缺口。
+- AgentAvatar——阻塞于 computed 字典/动态 style（超当前能力，需 auto-lang 扩展）。
 
 ## 4. 风险与降级
 
