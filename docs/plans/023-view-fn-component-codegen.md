@@ -45,12 +45,12 @@ Plan 022 实现中，ChatsView 的消息渲染（ChatMessage）及其子卡片�
 
 | 阶段 | 内容 | 验收 |
 |---|---|---|
-| **P1** | auto-lang 调研：`view fn` 语法设计（与 `use { fn }` 的关系）、`api.rs` 合成 AuraWidget 的最小改动、a2vue golden 基建扩展 | 探针结论 + 设计文档 |
-| **P2** | 转译器：`view fn` 解析 + AuraWidget 合成 + Vue 组件生成（或响应式片段）；单测 + golden | `cargo test -p auto-lang` 绿 |
-| **P3** | auto-musk 试点：以最简组件（如 UserMessage/mention 高亮）替换逃生舱验证能力 | 生成工程构建 + 行为 parity |
-| **P4** | 全量迁移：ChatMessage 及其子组件、forge_helpers/relay_commands/questionnaire 逃生舱 TS | 逃生舱清零（或登记残留）+ 零 drift |
-| **P5** | **跨视图共用组件收敛**（2026-08-10 登记）：三个二级导航 + 三个内容标题栏收敛为共用组件（见 §3.1） | 三视图共用组件，样式零漂移 |
-| **P6** | 文档归档：KNOWN-DEBT 更新 + 022 §8 后续项闭环 | 归档 |
+| **P1** | ✅ auto-lang 调研：`view fn` 语法设计（与 `use { fn }` 的关系）、`api.rs` 合成 AuraWidget 的最小改动、a2vue golden 基建扩展 | 探针结论 + 设计文档 |
+| **P2** | ✅ 转译器：`view fn` 解析 + AuraWidget 合成 + Vue 组件生成（或响应式片段）；单测 + golden | `cargo test -p auto-lang` 绿 |
+| **P3** | ✅ auto-musk 试点：以最简组件（如 UserMessage/mention 高亮）替换逃生舱验证能力 | 生成工程构建 + 行为 parity |
+| **P4** | ✅ 全量迁移：ChatMessage 及其子组件、forge_helpers/relay_commands/questionnaire 逃生舱 TS | 逃生舱清零（或登记残留）+ 零 drift——**20/21 清零，StreamingRenderer 登记 KNOWN-DEBT 残留** |
+| **P5** | ⏳ **跨视图共用组件收敛**（2026-08-10 登记）：三个二级导航 + 三个内容标题栏收敛为共用组件（见 §3.1）。**已解封**（component fn slot P11 + WikiNav 原生），留待下轮（需视觉 parity 验证） | 三视图共用组件，样式零漂移 |
+| **P6** | ✅ 文档归档准备：KNOWN-DEBT 更新（StreamingRenderer + 8 项行为差异）+ 022 §8 后续项闭环 | 归档（§3.1 完成后） |
 
 ## 3.1 后续项登记：跨视图共用组件收敛（2026-08-10）
 
