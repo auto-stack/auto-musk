@@ -1,0 +1,181 @@
+// relay_run_box.at — RelayRunBox 组件（Plan 023 队列 A3：async + composable 逃生舱原生化）
+//
+// 对标 src/front/components/RelayRunBox.vue（逃生舱，已删除）。
+// 验证 §10.7 async handler（approve/reject .await）+ §10.4 composable facade
+// refs 标注（runs/currentRun 访问自动 .value）。
+//
+// 关键转换：
+//   - useRelay composable → use { composable: useRelay refs: [runs, currentRun] }
+//   - 订阅闭包（unsubscribe 存模块 Map）+ 数组 find + 字典映射 → relay_run_helpers.ts fn
+//   - onMounted loadRun → on .Init；onUnmounted 取消订阅 → .Destroy
+//   - watch 自动滚底 + template ref → 舍弃（日志面板仍可手动滚动，登记轻微差异）
+//   - 7 分支 entry type → if-else-if + || + relayEntryClass fn（避免超长嵌套 if）
+//
+// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.relay-box 等）。
+
+component fn RelayRunBox(runId: str) {
+    use {
+        component: ChevronDown, ChevronRight, Orbit, Wrench from "lucide-vue-next"
+        fn: relayRunSubscribe, relayRunUnsubscribe, relayRunLoad, relayRunApprove, relayRunReject, relaySessionLogFor, relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass from "src/front/relay_run_helpers.ts"
+        composable: useRelay refs: [runs, currentRun] from "src/front/composables/useRelay.ts"
+    }
+    computed {
+        run => relayFindRun(relay.runs, relay.currentRun, .runId)
+        hasRun => .run != None
+        status => if .run != None { .run.status } else { "idle" }
+        statusClass => relayStatusClass(.status)
+        statusLabel => relayStatusLabel(.status)
+        titleText => relayRunTitle(.run, .runId)
+        progressCur => if .hasRun { .run.current_step } else { 0 }
+        progressTotal => if .hasRun { .run.total_steps } else { 0 }
+        waitingGate => relayWaitingGate(.run)
+        hasWaitingGate => .waitingGate != None
+        gateStepId => if .hasWaitingGate { .waitingGate.step_id } else { "" }
+        logEntries => relaySessionLogFor(.runId)
+    }
+    msg Msg { Toggle, Approve, Reject }
+    model {
+        var expanded bool = false
+        var gateBusy bool = false
+        var subscribed bool = false
+    }
+    on {
+        .Init -> { relayRunLoad(.runId) }
+        .Destroy -> { relayRunUnsubscribe(.runId) }
+        .Toggle -> {
+            .expanded = !.expanded;
+            if .expanded {
+                if !.subscribed {
+                    relayRunSubscribe(.runId);
+                    .subscribed = true
+                }
+            }
+        }
+        .Approve -> {
+            .gateBusy = true;
+            relayRunApprove(.runId).await;
+            .gateBusy = false
+        }
+        .Reject -> {
+            .gateBusy = true;
+            relayRunReject(.runId).await;
+            .gateBusy = false
+        }
+    }
+    div {
+        class: if .statusClass == "completed" { "relay-box status-completed" } else { if .statusClass == "failed" { "relay-box status-failed" } else { if .statusClass == "gate" { "relay-box status-gate" } else { "relay-box status-running" } } }
+        // header（click toggle）
+        row {
+            onclick: .Toggle
+            style: "box-header"
+            if .expanded {
+                ChevronDown { size: 14 }
+            } else {
+                ChevronRight { size: 14 }
+            }
+            Orbit { size: 14 }
+            span {
+                style: "box-title"
+                text .titleText
+            }
+            if .hasRun {
+                span {
+                    style: "box-progress"
+                    text .progressCur
+                    text "/"
+                    text .progressTotal
+                }
+            }
+            span {
+                class: if .statusClass == "completed" { "badge-completed" } else { if .statusClass == "failed" { "badge-failed" } else { if .statusClass == "gate" { "badge-gate" } else { "badge-running" } } }
+                text .statusLabel
+            }
+        }
+        // body（展开时）
+        if .expanded {
+            div {
+                style: "box-body"
+                div {
+                    style: "log-entries"
+                    for entry in .logEntries {
+                        div {
+                            class: relayEntryClass(.entry.type)
+                            if .entry.type == "text" {
+                                span {
+                                    style: "entry-prof"
+                                    text relayProfessionIcon(.entry.profession_id)
+                                }
+                                span {
+                                    style: "entry-text"
+                                    text .entry.content
+                                }
+                            } else if .entry.type == "tool" || .entry.type == "tool_call" {
+                                div {
+                                    style: "entry-tool"
+                                    Wrench { size: 12 }
+                                    span {
+                                        style: "tool-name"
+                                        text .entry.tool_name
+                                    }
+                                }
+                            } else if .entry.type == "step_started" {
+                                div {
+                                    style: "entry-step"
+                                    text "▶ "
+                                    text .entry.content
+                                }
+                            } else if .entry.type == "step_completed" {
+                                div {
+                                    style: "entry-step done"
+                                    text "✓ "
+                                    text .entry.content
+                                }
+                            } else if .entry.type == "gate_waiting" {
+                                div {
+                                    style: "entry-gate"
+                                    text "⏸️ "
+                                    text .entry.content
+                                }
+                            } else if .entry.type == "error" {
+                                div {
+                                    style: "entry-error"
+                                    text "❌ "
+                                    text .entry.content
+                                }
+                            } else if .entry.type == "run_completed" {
+                                div {
+                                    style: "entry-done"
+                                    text "✅ "
+                                    text .entry.content
+                                }
+                            }
+                        }
+                    }
+                }
+                // inline gate 审批（对齐原 gate-actions）
+                if .hasWaitingGate {
+                    div {
+                        style: "gate-actions"
+                        span {
+                            style: "gate-prompt"
+                            text "等待审批："
+                            text .gateStepId
+                        }
+                        button {
+                            onclick: .Approve
+                            style: "gate-btn approve"
+                            disabled: .gateBusy
+                            text "批准"
+                        }
+                        button {
+                            onclick: .Reject
+                            style: "gate-btn reject"
+                            disabled: .gateBusy
+                            text "拒绝"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

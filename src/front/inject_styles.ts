@@ -621,6 +621,49 @@ a { color: hsl(var(--primary)); }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ws-empty { padding: 0.5rem; text-align: center; font-size: 0.72rem; color: hsl(var(--muted-foreground)); }
+
+/* ── RelayRunBox（Plan 023 队列 A3 原生化：逃生舱 scoped 转全局兜底）── */
+.relay-box {
+  border: 1px solid var(--af-border); border-radius: 8px; margin: 0.5rem 0;
+  overflow: hidden; background: hsl(var(--muted-foreground) / 0.03);
+}
+.status-running { border-left: 3px solid hsl(var(--primary)); }
+.status-completed { border-left: 3px solid hsl(142 71% 45%); }
+.status-failed { border-left: 3px solid hsl(var(--af-error)); }
+.status-gate { border-left: 3px solid hsl(38 92% 50%); }
+.box-header {
+  display: flex; align-items: center; gap: 0.4rem;
+  padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.82rem; color: var(--af-fg);
+}
+.box-header:hover { background: hsl(var(--muted-foreground) / 0.06); }
+.box-title { font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.box-progress { font-size: 0.72rem; color: var(--af-muted); }
+.box-status { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; }
+.badge-running { background: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); }
+.badge-completed { background: hsl(142 71% 45% / 0.15); color: hsl(142 71% 45%); }
+.badge-failed { background: hsl(var(--af-error) / 0.15); color: hsl(var(--af-error)); }
+.badge-gate { background: hsl(38 92% 50% / 0.15); color: hsl(38 92% 50%); }
+.box-body { padding: 0.5rem 0.75rem; border-top: 1px solid var(--af-border); }
+.log-entries { max-height: 400px; overflow-y: auto; font-size: 0.78rem; line-height: 1.5; }
+.log-entry { padding: 0.15rem 0; }
+.entry-prof { margin-right: 0.3rem; }
+.entry-text { color: var(--af-fg); }
+.entry-tool { display: flex; align-items: center; gap: 0.3rem; color: var(--af-muted); padding-left: 1rem; }
+.tool-name { font-family: monospace; font-size: 0.74rem; }
+.entry-step { color: var(--af-muted); font-size: 0.75rem; padding: 0.2rem 0; }
+.entry-step.done { color: hsl(142 71% 45%); }
+.entry-gate { color: hsl(38 92% 50%); padding: 0.3rem 0; font-weight: 500; }
+.entry-error { color: hsl(var(--af-error)); }
+.entry-done { color: hsl(142 71% 45%); font-weight: 500; padding: 0.3rem 0; }
+.gate-actions {
+  display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0;
+  border-top: 1px solid var(--af-border); margin-top: 0.5rem;
+}
+.gate-prompt { font-size: 0.78rem; color: hsl(38 92% 50%); flex: 1; }
+.gate-btn { padding: 0.25rem 0.8rem; border-radius: 4px; border: 1px solid var(--af-border); cursor: pointer; font-size: 0.78rem; }
+.gate-btn.approve { background: hsl(142 71% 45%); color: #fff; border-color: transparent; }
+.gate-btn.reject { background: hsl(var(--af-error) / 0.1); color: hsl(var(--af-error)); }
+.gate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 `
 
 export function injectStyles(): void {

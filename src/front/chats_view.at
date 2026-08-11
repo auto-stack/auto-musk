@@ -28,8 +28,11 @@ widget ChatsView {
         // Plan 023 P3：AgentAvatar 已原生化为 component fn（src/front/agent_avatar.at），
         // MentionDropdown.vue + SecretaryMessage.vue 改用 @/components/AgentAvatar.vue 引用生成版。
         // Plan 023 P3：ErrandCard 已原生化为 component fn（src/front/errand_card.at），逃生舱 .vue 已删除。
-        // B 类批3：RelayCard 状态展示版 → RelayRunBox 完整交互（subscribeToRun 日志 + resolveGate 审批）。
-        component: RelayRunBox from "src/front/components/RelayRunBox.vue"
+        // relay_run_helpers 是 RelayRunBox component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
+        fn: relayRunSubscribe, relayRunUnsubscribe, relayRunLoad, relayRunApprove, relayRunReject, relaySessionLogFor, relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass from "src/front/relay_run_helpers.ts"
+        // Plan 023 队列 A3：RelayRunBox 已原生化为 component fn（src/front/relay_run_box.at），
+        // 逃生舱 .vue 已删除（subscribeToRun 日志 + resolveGate 审批）。
+        component: RelayRunBox
         // Plan 023 P3：TaskPlanCard 已原生化为 component fn（src/front/task_plan_card.at），逃生舱 .vue 已删除。
         // Plan 023 P3：GenericToolCard 已原生化为 component fn（src/front/generic_tool_card.at），逃生舱 .vue 已删除。
         // B 类批3：useRelay/useEventRouter/useGateInbox（relay 完整链路 + gate 事件路由）。
