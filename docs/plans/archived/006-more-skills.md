@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-006
+status: merged
+feature_name: more-skills
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 006 — 更多技能移植(D,优先级中低)
 
 ## Status: COMPLETE

@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-011
+status: merged
+feature_name: workspace-multi-directory
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 011 — Workspace Multi-Directory Implementation Plan
 
 ## Status: COMPLETE

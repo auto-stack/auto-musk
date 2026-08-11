@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-018
+status: merged
+feature_name: auto-parity-functional
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 018 — Auto 化功能一致性计划（Functional Parity）
 
 > **状态**：✅ COMPLETE（2026-08-06 归档）。Phase 1-4 全闭环 + 接线运行（§11 ①-④）+ 复审（§13 A 类 bug 全修）+ a2r dogfooding（§14 R1-R4/W1-W4 全合入 master）。311 项测试全绿，11 个 parity 套件（104 测试）行为等价。

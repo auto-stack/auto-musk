@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-022
+status: merged
+feature_name: frontend-auto-ization
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 022 — auto-musk 前端 Auto 化（web/ SPA → AutoUI）
 
 > **状态**：🟢 核心目标达成 + B 类前端接线完成（4 视图 Auto 化 + 流式机制 + 生成器扩展 + §10 根治 + 两 codegen 限制修复 + api.ts 路径参数修复 + §7.6 静态 parity + relay/gate/professions 全链路接线 + **raw DropZone 完整闭环** + **/api/forge/mode 后端 + useForgeMode 恢复**）。剩余：C 类运行时视觉/行为 parity（需 dev server 环境）+ D 类 auto-lang 工具链缺陷（auto run 后端绕过 a2r，见 §8）。

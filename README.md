@@ -43,7 +43,7 @@ cd web && npm install && npm run build
 
 ### 前端 Auto 化（`.at` 源 → 生成 vue 工程）
 
-除原生 `web/` SPA 外，本项目还有一条 **AutoUI `.at` 源**路线（[Plan 022](docs/plans/022-frontend-auto-ization.md)）：4 个视图（Login/Chats/Specs/Wiki）的 `.at` 源经 `auto build` 生成独立的 vue 工程（`gen/front/vue/`，gitignored），与原生 `web/` 达成行为+视觉一致。
+除原生 `web/` SPA 外，本项目还有一条 **AutoUI `.at` 源**路线（[Plan 022](docs/plans/022-frontend-auto-ization.md)）：5 个视图（Login/Chats/Plans/Specs/Wiki）的 `.at` 源经 `auto build` 生成独立的 vue 工程（`gen/front/vue/`，gitignored），与原生 `web/` 达成行为+视觉一致。
 
 ```bash
 # 从 .at 源重新生成 vue 工程（需 auto-lang 的 auto.exe）
@@ -97,9 +97,10 @@ cd web && npm run dev      # → http://localhost:3000
 ## 主要能力
 
 - **Forge 聊天**：多轮会话（ConversationStore / jsonl 持久化）+ SSE 流式 + 工具调用展示 + spec 变更审批队列（approve/reject/reject-all）
-- **Spec Ledger**：7 类 spec section、per-section 状态机、关系图（rebuild_relations）、派生状态（derive_statuses）、overview/drift-check、LLM 经工具读写 + 审批队列
+- **Spec Ledger**：6 类 spec section（goals/architecture/designs/tests/reviews/reports；PLAN-024 移除 plans，Plan 升级为独立一等公民）、per-section 状态机、关系图（rebuild_relations）、派生状态（derive_statuses）、overview/drift-check、LLM 经工具读写 + 审批队列
 - **Relay 引擎**：消费 `auto-ai-agent::orchestration`；`spawn_relay` + `bring_in` 编排工具；relay run 后台驱动 + 事件流；运行 dual-write 进 conversations，前端 ChatsView 内联渲染（RelayRunBox）
 - **Wiki**：WikiStore（CRUD + 树形导航 + 全文检索）+ `/api/wiki` + `/api/raw` + WikiView 前端
+- **Plan（PLAN-024）**：Plan 一等公民（`docs/plans/NNN-*.md` + YAML frontmatter 状态机 drafting→executing→execution_done→review_done→merged）+ PlansView 一级导航（聊天/计划/规范/知识库）+ Plan→Spec merge 沉淀（`/api/plans/*`，复审通过后拆解进 Spec 6 区并归档）
 - **工具集**：read/write/edit/search/list_dir/list_symbols/glob/batch_replace/run_command + 5 个 spec 工具 + 编排工具
 - **技能库**：brainstorming / writing-plans / executing-plans / TDD / systematic-debugging / requesting-code-review / verification-before-completion
 - **配置体系**：mode（superpower/basic/coding/review）、agent roles（Nicole/Cody/Ash...）、app runtime config、三种工作模式（superpower + relay flows + bring_in）

@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-005
+status: merged
+feature_name: streaming-chat
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 005 — 流式 `musk chat`(A,优先级第二)
 
 ## Status: COMPLETE

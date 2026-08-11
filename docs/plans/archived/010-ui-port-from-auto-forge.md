@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-010
+status: merged
+feature_name: ui-port-from-auto-forge
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 010 — UI 重构：移植 auto-forge 前端（Chats/Specs/Wikis/Flows）
 
 ## Status: COMPLETE

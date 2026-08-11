@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-009
+status: merged
+feature_name: parity-roadmap-vs-auto-forge
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 009 — auto-musk vs auto-forge 功能补全计划（Parity Roadmap）
 
 > **状态**：✅ **核心功能 100% 落地**（2026-08-04 核对代码 + 复跑单测 **189 passed; 0 failed**）。P0/P1a/P1b/P2a/P2b(全)/P2c(全)/P3a 均已实施。P2b.3 checkpoint 回滚与 P3b MCP 层经评估**降级为按需 Backlog**(理由见文末「剩余工作」)。

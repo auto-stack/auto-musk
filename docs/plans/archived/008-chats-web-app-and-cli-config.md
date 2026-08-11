@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-008
+status: merged
+feature_name: chats-web-app-and-cli-config
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 008 — auto-musk Chats Web 应用 + CLI 配置接通
 
 ## Status: COMPLETE

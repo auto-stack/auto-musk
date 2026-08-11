@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-015
+status: merged
+feature_name: merge-compile-zero
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 015 — 合并编译错误清零（153→0）+ a2r 问题清单
 
 ## Status: COMPLETE

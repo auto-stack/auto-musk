@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-002
+status: merged
+feature_name: frontend-framework-plan
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 002 — auto-musk 前端工程框架计划（优先前端，后端占位）
 
 > **状态**：前端框架计划（基于 015-notes 唯一权威全栈样本）

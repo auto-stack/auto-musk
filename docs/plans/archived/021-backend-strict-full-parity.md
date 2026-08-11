@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-021
+status: merged
+feature_name: backend-strict-full-parity
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 021 — Auto 后端"严格 100%":残留 hw 端点 + 行为差异 + 测试盲区闭环
 
 > **状态**:✅ 完成（2026-08-07 启动;Phase A-D 全闭环）。

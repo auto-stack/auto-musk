@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-023
+status: merged
+feature_name: view-fn-component-codegen
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 023 — view fn → 独立组件 codegen（auto-lang 转译器改造）
 
 > **状态**：🟢 P3/P5 完成（**20/21 逃生舱原生化 + §3.1 共用组件收敛**，2026-08-11）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。

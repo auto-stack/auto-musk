@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-020
+status: merged
+feature_name: full-backend-auto-ization
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 020 — 全后端 Auto 化：Relay/Forge + TaskPlan + Wiki + settings_link 接入 Auto 驱动
 
 > **状态**：✅ 完成（2026-08-06 启动；Phase A-H 全闭环。Phase G/H 重开闭合 relay_driver 核心循环 + TaskPlan 执行内核,2026-08-06/07)。

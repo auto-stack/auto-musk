@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-003
+status: merged
+feature_name: musk-mvp-rust-backend
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 003 — auto-musk MVP:Rust 后端 + 单 agent + 基础工具
 
 ## Status: COMPLETE

@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-013
+status: merged
+feature_name: unified-workflow-phase2
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 013 — 后端数据模型统一 Phase 2: Conversation/Turn/ConversationStore
 
 ## Status: COMPLETE

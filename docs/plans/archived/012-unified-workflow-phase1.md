@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-012
+status: merged
+feature_name: unified-workflow-phase1
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 012 — UI 统一 Phase 1: Relay Box in Chat 实施计划
 
 ## Status: COMPLETE

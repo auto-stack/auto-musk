@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-007
+status: merged
+feature_name: a2vm-pnpm-fix-tracking
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 007 — a2vm pnpm fix PR review/合并(E,优先级最低)
 
 ## Status: SUPERSEDED / CLOSED

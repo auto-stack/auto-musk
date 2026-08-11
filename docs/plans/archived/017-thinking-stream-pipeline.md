@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-017
+status: merged
+feature_name: thinking-stream-pipeline
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # Plan 017 — Thinking(推理过程)流式链路打通
 
 ## Status: COMPLETE

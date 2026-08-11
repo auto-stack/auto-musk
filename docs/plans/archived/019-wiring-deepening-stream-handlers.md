@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-019
+status: merged
+feature_name: wiring-deepening-stream-handlers
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 019 — 接线运行深化：流式 handler 切换到 Auto 驱动
 
 > **状态**：✅ COMPLETE（2026-08-06 归档）。Phase 0-4 全闭环 + 状态码模型补齐 + §6.1 流式即时错误→400 + §6.2 broadcast 连接泄漏根治。6 个 handler 全部切到 ag，全量 228 lib 测试 + 集成测试全绿。§6.3 登记备忘（与 hw 等价非缺陷）。

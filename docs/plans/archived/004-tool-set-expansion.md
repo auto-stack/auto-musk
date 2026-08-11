@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-004
+status: merged
+feature_name: tool-set-expansion
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 004 — 工具集补全(B,优先级最高)
 
 ## Status: COMPLETE

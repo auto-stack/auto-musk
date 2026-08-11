@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-001
+status: merged
+feature_name: auto-forge-migration-super-plan
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 001 — auto-musk 总计划（Super Plan）
 
 > **状态**：高层总纲。每个阶段的详细实施计划由对应的 `00x-*.md` 单独建立。

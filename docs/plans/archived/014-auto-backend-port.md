@@ -1,3 +1,12 @@
+---
+plan_id: PLAN-014
+status: merged
+feature_name: auto-backend-port
+created_at: 2026-01-01T00:00:00Z
+updated_at: 2026-01-01T00:00:00Z
+
+---
+
 # 014 — auto-musk 后端的 Auto 语言版本（a2r 转译可回 Rust）
 
 > **状态**：✅ **完成**（2026-08-01 移植完成；合并编译 0 错误见 015；Plan 384 阶段二达成全量自动转译 0 产物手改，见 015 §后续）。
