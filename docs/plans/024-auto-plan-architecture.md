@@ -433,6 +433,19 @@ merge(plan: &PlanFile, specs_doc: &mut SpecsDocument) -> MergeResult
 
 **分类：A（all complete，含计划内绕道）** —— 7 任务全部完成验证。唯一绕道是任务 3 `/api/plans` 走 hw 路由（计划 §3.6 允许的逃生舱，a2r 转译器漂移所致，待对齐后切回 ag 轨）。状态 → `execution_done`，待复审。
 
+### Skill 层补齐（2026-08-12，PLAN-024 任务外追加）
+
+PLAN-024 任务 1-7 实现了"数据/API/UI 基础设施"，但 008 §6 设计的 4 个 `/auto-plan:*` 工作流 skill 未纳入任务范围（plan 文档假设它们存在，实际缺失——执行时 agent 用通用能力替代）。现已补齐于 `.zcode/skills/`：
+
+| skill | 职责 | 参考 |
+|:---|:---|:---|
+| `auto-plan-new` | 创建计划（算序号 + 读 spec 骨架 + frontmatter） | superpowers writing-plans + spec-kit specify |
+| `auto-plan-work` | 执行计划（唯一上下文 + 逐步 + 状态流转） | superpowers executing-plans |
+| `auto-plan-review` | 复审（验收标准 + 补 spec 元数据 + review_done） | finish-plan + verification-before-completion |
+| `auto-plan-merge` | 沉淀（门禁 review_done + Plan→Spec + 归档） | archive-plan + spec-kit proposal→specs |
+
+每个 SKILL.md 含 frontmatter（description 只写"何时用"，避 CSO 陷阱）+ State gate + Process + Rules + Checklist，交叉引用上下游 skill（new→work→review→merge）。
+
 ---
 
 *本文件为 PLAN-024，格式遵循设计文档 008（Auto-Plan 核心契约）。*
