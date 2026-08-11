@@ -1,0 +1,106 @@
+// plans_store.at — Plans 状态 store（对应 web/src/composables/usePlans.ts）
+//
+// 单例 store：plans/current/loading/error + LoadPlans/LoadPlan/CreatePlan/
+// UpdatePlan/TransitionPlan/ArchivePlan/MergePlan。
+// PLAN-024 任务6：Auto 轨 plans 数据层。
+
+use back.api: plans_list, plans_get, plans_create, plans_update, plans_transition, plans_archive, plans_merge
+
+store PlansStore {
+    model {
+        // plan 列表（按 seq 升序）。
+        var plans List<PlanFile> = []
+        // 当前选中的 plan（None = 未选中）。
+        var current Option<PlanFile> = None
+        var loading bool = false
+        var error str = ""
+    }
+
+    msg Msg {
+        Init,
+        LoadPlans,
+        LoadPlan(int),
+        CreatePlan(str),
+        UpdatePlan(int, str),
+        TransitionPlan(int, str),
+        ArchivePlan(int),
+        MergePlan(int),
+        SetError(str),
+    }
+
+    on {
+        // Init: 加载 plans 列表（PlansView 挂载时调用）。
+        .Init -> {
+            LoadPlans()
+        }
+
+        // LoadPlans: GET /api/plans 拉活跃 plan 列表。
+        .LoadPlans -> {
+            .loading = true;
+            .error = "";
+            let resp = plans_list();
+            .loading = false;
+            if resp != None {
+                .plans = resp.plans
+            }
+        }
+
+        // LoadPlan(seq): GET /api/plans/{seq} 读单个 plan。
+        .LoadPlan(seq) -> {
+            .error = "";
+            let plan = plans_get(seq);
+            if plan != None {
+                .current = plan
+            }
+        }
+
+        // CreatePlan(feature_name): POST /api/plans 新建。
+        .CreatePlan(feature_name) -> {
+            .error = "";
+            let plan = plans_create(feature_name, "");
+            if plan != None {
+                LoadPlans()
+            }
+        }
+
+        // UpdatePlan(seq, content): PUT /api/plans/{seq} 更新正文。
+        .UpdatePlan(seq, content) -> {
+            .error = "";
+            let plan = plans_update(seq, content);
+            if plan != None {
+                .current = plan
+            }
+        }
+
+        // TransitionPlan(seq, status): POST /api/plans/{seq}/transition。
+        .TransitionPlan(seq, status) -> {
+            .error = "";
+            let plan = plans_transition(seq, status);
+            if plan != None {
+                .current = plan;
+                LoadPlans()
+            }
+        }
+
+        // ArchivePlan(seq): POST /api/plans/{seq}/archive。
+        .ArchivePlan(seq) -> {
+            .error = "";
+            let plan = plans_archive(seq);
+            if plan != None {
+                .current = plan;
+                LoadPlans()
+            }
+        }
+
+        // MergePlan(seq): POST /api/plans/{seq}/merge 沉淀到 Spec。
+        .MergePlan(seq) -> {
+            .error = "";
+            let result = plans_merge(seq);
+            if result != None {
+                LoadPlans()
+            }
+        }
+
+        .SetError(msg) -> { .error = msg }
+    }
+}

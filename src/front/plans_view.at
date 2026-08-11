@@ -1,0 +1,239 @@
+// plans_view.at — Plans 视图（对应 web/src/views/PlansView.vue）
+//
+// PLAN-024 任务6：plan 列表 + 详情 + 状态流转 + merge 沉淀。
+// MVP：text 纯文本渲染 content（无 markdown），不含归档开关（plans_list 活跃）。
+
+use store: PlansStore
+
+widget PlansView {
+    use {
+        composable: useT from "src/front/composables/useT.ts"
+        // Plan 023 §3.1：共用 NavSidebar + ContentHeader。
+        component: NavSidebar
+        component: ContentHeader
+    }
+
+    msg Msg {
+        Init,
+        SelectPlan(int),
+        StartCreate,
+        ConfirmCreate,
+        CancelCreate,
+        StartEdit,
+        CancelEdit,
+        SaveEdit,
+        ArchiveCurrent,
+        MergeCurrent,
+        TransitionTo(str),
+        CreateNameChanged,
+        EditContentChanged,
+    }
+
+    model {
+        var selected_seq Option<int> = None
+        var creating bool = false
+        var new_name str = ""
+        var editing bool = false
+        var edit_content str = ""
+    }
+
+    view {
+        col {
+            style: "plans-root"
+        row {
+            style: "plans-view"
+            // 左侧 plan 列表
+            NavSidebar {
+                title: t("plans.title")
+                collapsed: false
+                slot(name: "list") {
+                    col {
+                        style: "plans-nav-list"
+                        button {
+                            onclick: .StartCreate
+                            style: "add-btn"
+                            text t("plans.newPlan")
+                        }
+                        if .store.loading {
+                            text t("plans.loading")
+                        } else {
+                            for plan in .store.plans {
+                                button {
+                                    key: .plan.seq
+                                    onclick: .SelectPlan(.plan.seq)
+                                    style: if .plan.seq == .selected_seq {
+                                        "plan-item active"
+                                    } else {
+                                        "plan-item"
+                                    }
+                                    text .plan.id
+                                    text " — "
+                                    text .plan.feature_name
+                                    text " ["
+                                    text .plan.status
+                                    text "]"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // 右侧主内容区
+            col {
+                style: "plans-main"
+                if .store.current != None {
+                    ContentHeader {
+                        title: .store.current.id
+                        slot(name: "actions") {
+                            button {
+                                onclick: .StartEdit
+                                style: "action-btn"
+                                text t("plans.edit")
+                            }
+                            button {
+                                onclick: .ArchiveCurrent
+                                style: "action-btn"
+                                text t("plans.archive")
+                            }
+                            if .store.current.status == "review_done" {
+                                button {
+                                    onclick: .MergeCurrent
+                                    style: "action-btn primary"
+                                    text t("plans.mergeToSpec")
+                                }
+                            }
+                        }
+                    }
+                    col {
+                        style: "plan-content"
+                        if .editing {
+                            textarea {
+                                value: .edit_content
+                                oninput: .EditContentChanged
+                                style: "edit-textarea"
+                            }
+                            row {
+                                style: "edit-actions"
+                                button {
+                                    onclick: .SaveEdit
+                                    style: "save-btn"
+                                    text t("plans.save")
+                                }
+                                button {
+                                    onclick: .CancelEdit
+                                    style: "cancel-btn"
+                                    text t("plans.cancel")
+                                }
+                            }
+                        } else {
+                            text .store.current.content
+                        }
+                    }
+                } else {
+                    col {
+                        style: "plans-empty"
+                        text t("plans.selectPlan")
+                    }
+                }
+            }
+        }
+        // 新建 plan 对话框
+        if .creating {
+            col {
+                style: "modal-overlay"
+                col {
+                    style: "modal"
+                    h3 t("plans.newPlan") {}
+                    label t("plans.featureName")
+                    input {
+                        value: .new_name
+                        oninput: .CreateNameChanged
+                        style: "form-input"
+                    }
+                    row {
+                        style: "modal-actions"
+                        button {
+                            onclick: .ConfirmCreate
+                            style: "save-btn"
+                            text t("plans.create")
+                        }
+                        button {
+                            onclick: .CancelCreate
+                            style: "cancel-btn"
+                            text t("plans.cancel")
+                        }
+                    }
+                }
+            }
+        }
+        }
+    }
+
+    on {
+        .Init -> {
+            store.Init()
+        }
+
+        .SelectPlan(seq) -> {
+            .selected_seq = seq;
+            .editing = false;
+            store.LoadPlan(seq)
+        }
+
+        .StartCreate -> {
+            .new_name = "";
+            .creating = true
+        }
+
+        .ConfirmCreate -> {
+            if .new_name != "" {
+                store.CreatePlan(.new_name);
+                .creating = false
+            }
+        }
+
+        .CancelCreate -> {
+            .creating = false
+        }
+
+        .StartEdit -> {
+            if .store.current != None {
+                .edit_content = .store.current.content;
+                .editing = true
+            }
+        }
+
+        .CancelEdit -> {
+            .editing = false
+        }
+
+        .SaveEdit -> {
+            if .store.current != None {
+                store.UpdatePlan(.store.current.seq, .edit_content);
+                .editing = false
+            }
+        }
+
+        .ArchiveCurrent -> {
+            if .store.current != None {
+                store.ArchivePlan(.store.current.seq)
+            }
+        }
+
+        .MergeCurrent -> {
+            if .store.current != None {
+                store.MergePlan(.store.current.seq)
+            }
+        }
+
+        .TransitionTo(status) -> {
+            if .store.current != None {
+                store.TransitionPlan(.store.current.seq, status)
+            }
+        }
+
+        // v-model marker handlers（U5）
+        .CreateNameChanged -> { .new_name = .new_name }
+        .EditContentChanged -> { .edit_content = .edit_content }
+    }
+}

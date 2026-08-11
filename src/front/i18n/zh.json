@@ -6,6 +6,7 @@
   },
   "nav": {
     "chat": "聊天",
+    "plans": "计划",
     "specs": "规范",
     "wiki": "知识库"
   },
@@ -54,6 +55,19 @@
     "loading": "加载规范中…",
     "addItem": "+ 添加项目",
     "noDoc": "未加载文档"
+  },
+  "plans": {
+    "title": "计划",
+    "loading": "加载计划中…",
+    "empty": "还没有计划",
+    "selectPlan": "从侧栏选择一个计划",
+    "newPlan": "新建计划",
+    "featureName": "功能名称",
+    "edit": "编辑",
+    "save": "保存",
+    "cancel": "取消",
+    "archive": "归档",
+    "mergeToSpec": "沉淀到 Spec"
   },
   "wiki": {
     "title": "知识库",

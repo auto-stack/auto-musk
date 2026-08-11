@@ -8,6 +8,7 @@ use login: LoginPage
 use specs_view: SpecsView
 use wiki_view: WikiView
 use chats_view: ChatsView
+use plans_view: PlansView
 
 widget App {
     use {
@@ -33,12 +34,13 @@ widget App {
         // 逃生舱 .vue 已删除。跨文件引用（无 from）。
         component: SettingsMenu
         // 导航图标（lucide）
-        component: MessageSquare, Scroll, BookOpen from "lucide-vue-next"
+        component: MessageSquare, ListTodo, Scroll, BookOpen from "lucide-vue-next"
     }
 
     msg Msg {
         Init,
         ShowChats,
+        ShowPlans,
         ShowSpecs,
         ShowWiki,
     }
@@ -76,6 +78,16 @@ widget App {
                             text t("nav.chat")
                         }
                         button {
+                            onclick: .ShowPlans
+                            style: if .current_view == "plans" {
+                                "rail-tab active"
+                            } else {
+                                "rail-tab"
+                            }
+                            ListTodo { size: 16 }
+                            text t("nav.plans")
+                        }
+                        button {
                             onclick: .ShowSpecs
                             style: if .current_view == "specs" {
                                 "rail-tab active"
@@ -106,7 +118,9 @@ widget App {
                 // view main（v-if 切换视图）
                 col {
                     style: "flex-1 min-h-0 min-w-0 overflow-hidden"
-                    if .current_view == "specs" {
+                    if .current_view == "plans" {
+                        PlansView
+                    } else if .current_view == "specs" {
                         SpecsView
                     } else if .current_view == "wiki" {
                         WikiView
@@ -121,6 +135,7 @@ widget App {
     on {
         .Init -> { injectStyles(); setupAuthFetch(); store.Init() }
         .ShowChats -> { .current_view = "chats" }
+        .ShowPlans -> { .current_view = "plans" }
         .ShowSpecs -> { .current_view = "specs" }
         .ShowWiki -> { .current_view = "wiki" }
     }

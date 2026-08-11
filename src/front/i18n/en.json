@@ -6,6 +6,7 @@
   },
   "nav": {
     "chat": "Chat",
+    "plans": "Plans",
     "specs": "Specs",
     "wiki": "Wiki"
   },
@@ -54,6 +55,19 @@
     "loading": "Loading specs…",
     "addItem": "+ Add Item",
     "noDoc": "No document loaded"
+  },
+  "plans": {
+    "title": "Plans",
+    "loading": "Loading plans…",
+    "empty": "No plans yet",
+    "selectPlan": "Select a plan from the sidebar",
+    "newPlan": "New Plan",
+    "featureName": "Feature name",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "archive": "Archive",
+    "mergeToSpec": "Merge to Spec"
   },
   "wiki": {
     "title": "Wiki",

@@ -178,6 +178,76 @@ pub fn specs_drift_check() {
 
 
 // ============================================================
+// Plans API (PLAN-024) — 对应 usePlans.ts 的 /api/plans/* 调用。
+// 后端 hw 路由（plans.rs plans_routes，§3.6 逃生舱）；此处 #[api] 仅服务
+// 前端 api.ts codegen。plans_list 无参（活跃 plans；归档开关后续迭代）。
+// ============================================================
+
+// PlanFile — 一个 plan 文件（NNN-*.md + frontmatter）。
+pub type PlanFile = {
+    id: str,
+    seq: int,
+    filename: str,
+    status: str,
+    feature_name: str,
+    title: str,
+    archived: bool,
+    content: str,
+    created_at: str,
+    updated_at: str,
+    path: str,
+}
+
+// PlansListResponse — GET /api/plans 返回。
+pub type PlansListResponse = {
+    plans: []PlanFile,
+}
+
+// MergeResult — POST /api/plans/{seq}/merge 返回。
+pub type MergeResult = {
+    plan_id: str,
+    sections_touched: []str,
+    items_created: int,
+}
+
+#[api(method = "GET", path = "/api/plans")]
+pub fn plans_list() PlansListResponse {
+    return None
+}
+
+#[api(method = "GET", path = "/api/plans/{seq}")]
+pub fn plans_get(seq int) PlanFile {
+    return None
+}
+
+#[api(method = "POST", path = "/api/plans")]
+pub fn plans_create(feature_name str, content str) PlanFile {
+    return None
+}
+
+#[api(method = "PUT", path = "/api/plans/{seq}")]
+pub fn plans_update(seq int, content str) PlanFile {
+    return None
+}
+
+#[api(method = "POST", path = "/api/plans/{seq}/transition")]
+pub fn plans_transition(seq int, status str) PlanFile {
+    return None
+}
+
+#[api(method = "POST", path = "/api/plans/{seq}/archive")]
+pub fn plans_archive(seq int) PlanFile {
+    return None
+}
+
+#[api(method = "POST", path = "/api/plans/{seq}/merge")]
+pub fn plans_merge(seq int) MergeResult {
+    return None
+}
+
+
+
+// ============================================================
 // Wiki API (Phase 6) — 对应 useWiki.ts 的 /api/forge/wiki/* 调用。
 // 类型从 web/src/types/wiki.ts 映射。
 // ============================================================
