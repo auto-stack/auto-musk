@@ -18,7 +18,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import SecretaryMessage from './SecretaryMessage.vue'
+// Plan 023 队列 B4：SecretaryMessage 已原生化为 component fn，指向生成版。
+import SecretaryMessage from '@/components/SecretaryMessage.vue'
 import { useGateInbox } from '../composables/useGateInbox'
 
 defineEmits<{

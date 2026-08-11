@@ -60,7 +60,11 @@ widget ChatsView {
         // B 类批4：SecretaryMessageWrapper（包装 SecretaryMessage，规避 composable
         // facade ref 解包限制；内部用 useGateInbox.currentSecretary 驱动）。
         component: SecretaryMessageWrapper from "src/front/components/SecretaryMessageWrapper.vue"
-        component: SecretaryMessage from "src/front/components/SecretaryMessage.vue"
+        // secretary_helpers 是 SecretaryMessage component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
+        fn: secretaryFormatElapsed from "src/front/secretary_helpers.ts"
+        // Plan 023 队列 B4：SecretaryMessage 已原生化为 component fn（src/front/secretary_message.at），
+        // 逃生舱 .vue 已删除（SecretaryMessageWrapper.vue 改用 @/components/SecretaryMessage.vue 引用生成版）。
+        component: SecretaryMessage
         // Plan 023 P3：StreamingTable 已原生化为 component fn（src/front/streaming_table.at），
         // StreamingRenderer.vue 改用 @/components/StreamingTable.vue 引用生成版。
         // useStreamingDocument 仍是 StreamingRenderer 的内部依赖，声明触发复制。

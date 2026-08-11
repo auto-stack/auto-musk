@@ -857,6 +857,39 @@ a { color: hsl(var(--primary)); }
 .mention-item.active { color: var(--af-primary, hsl(220 90% 56%)); }
 .mention-name { font-weight: 600; font-family: monospace; }
 .mention-label { color: var(--af-muted, hsl(220 9% 46%)); font-size: 0.83rem; }
+
+/* ── SecretaryMessage（Plan 023 队列 B4 原生化：逃生舱 scoped 转全局兜底）── */
+.secretary-message {
+  display: flex; flex-direction: column; gap: 0.5rem;
+  padding: 0.6rem 0.8rem; border-radius: 10px;
+  border: 1px solid hsl(var(--primary) / 0.2); background: hsl(var(--primary) / 0.04);
+  margin: 0.5rem 0; transition: opacity 0.3s, transform 0.3s;
+}
+.secretary-message.dismissed { opacity: 0; transform: translateX(20px); pointer-events: none; }
+.secretary-header { display: flex; align-items: flex-start; gap: 0.5rem; }
+.secretary-info { flex: 1; min-width: 0; }
+.secretary-title { font-size: 0.93rem; font-weight: 500; color: var(--af-fg); line-height: 1.3; }
+.secretary-meta { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.15rem; }
+.secretary-profession { font-size: 0.78rem; padding: 0.1rem 0.35rem; border-radius: 4px; background: hsl(var(--primary) / 0.1); color: var(--af-primary); font-weight: 500; }
+.secretary-waiting { font-size: 0.78rem; color: var(--af-muted); }
+.secretary-dismiss {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; background: transparent; border: none; border-radius: 4px;
+  color: var(--af-muted); cursor: pointer; transition: all 0.15s; flex-shrink: 0;
+}
+.secretary-dismiss:hover { background: hsl(var(--muted-foreground) / 0.08); color: var(--af-fg); }
+.secretary-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.secretary-btn {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  padding: 0.3rem 0.6rem; border: none; border-radius: 5px;
+  font-size: 0.83rem; font-weight: 500; cursor: pointer; transition: opacity 0.15s;
+}
+.secretary-btn.approve { background: hsl(142 70% 45% / 0.15); color: hsl(142 70% 35%); }
+.secretary-btn.reject { background: hsl(0 70% 45% / 0.1); color: hsl(0 70% 45%); }
+.secretary-btn.snooze { background: hsl(38 90% 50% / 0.1); color: hsl(38 80% 40%); }
+.secretary-btn.review { background: hsl(var(--muted-foreground) / 0.08); color: var(--af-fg); }
+.secretary-btn:hover { opacity: 0.85; }
+.secretary-queue { font-size: 0.78rem; color: var(--af-muted); padding-top: 0.2rem; }
 `
 
 export function injectStyles(): void {
