@@ -306,3 +306,10 @@ export function resolveMention(
   const match = professions.find((c) => c.name.toLowerCase() === lower)
   return match?.id
 }
+
+/** ReportCard confidence class（Plan 023 P3：.at 无 toLowerCase + 默认值）。 */
+export function reportConfidenceClass(confidence: string | undefined): string {
+  const c = (confidence || 'Medium').toLowerCase()
+  return 'report-confidence ' + c
+}
+

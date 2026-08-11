@@ -38,7 +38,7 @@ widget ChatsView {
         composable: useGateInbox from "src/front/composables/useGateInbox.ts"
         // Phase 7.3 续：StreamingRenderer/ReportCard/QuestionnaireCard/GateCard。
         component: StreamingRenderer from "src/front/components/StreamingRenderer.vue"
-        component: ReportCard from "src/front/components/ReportCard.vue"
+        // Plan 023 P3：ReportCard 已原生化为 component fn（src/front/report_card.at），逃生舱 .vue 已删除。
         component: QuestionnaireCard from "src/front/components/QuestionnaireCard.vue"
         // Phase 7.3 续 codegen 限制1 修复后：直接用 QuestionnaireCard + getQuestions fn 调用
         // （不再需要 QuestionnaireMessage 包装组件）。

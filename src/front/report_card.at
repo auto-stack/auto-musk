@@ -1,0 +1,118 @@
+// report_card.at — ReportCard 组件（Plan 023 P3 续：逃生舱原生化）
+//
+// 对标 src/front/components/ReportCard.vue（逃生舱）。
+// 验证 P4/P10 emit（msg → defineEmits + handler auto-emit）在重交互组件的效果。
+//
+// 关键转换：
+//   - expanded toggle → model + on（P4）
+//   - $emit('view-full'/'download'/'open-files') → msg + emit（P4/P10）
+//   - @click.stop（action 阻止冒泡到 header toggle）→ onclick.stop
+//   - (confidence || 'medium').toLowerCase() → reportConfidenceClass fn
+//   - {collapsed: !expanded} 对象 class → 嵌套 if 表达式
+//   - report.xxx 字段访问 → 直接（report 是 props，简单字段名）
+//
+// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.report-card 等）。
+
+component fn ReportCard(report: obj) {
+    use {
+        component: ChevronDown, ChevronUp, FileText, Download, FolderOpen from "lucide-vue-next"
+        fn: reportConfidenceClass from "src/front/forge_helpers.ts"
+    }
+    computed {
+        runId => .report.runId
+        goalsMet => .report.goalsMet
+        testsPass => .report.testsPass
+        driftDetected => .report.driftDetected
+        cost => .report.cost
+        confidenceClass => reportConfidenceClass(.report.confidence)
+        confidenceLabel => .report.confidence
+        hasDeliverables => if .report.deliverables != None { .report.deliverables.length > 0 } else { false }
+        deliverables => if .report.deliverables != None { .report.deliverables } else { [] }
+        hasDrift => .driftDetected != "None"
+        cardClass => if .expanded { "report-card" } else { "report-card collapsed" }
+    }
+    msg Msg { Toggle, ViewFull, DownloadReport, OpenFiles }
+    model { var expanded bool = false }
+    on {
+        .Toggle -> { .expanded = !.expanded }
+    }
+    col {
+        class: .cardClass
+        // header（click toggle）
+        row {
+            onclick: .Toggle
+            style: "report-header"
+            text "✅" { style: "report-status" }
+            text "Relay Complete — Report " { style: "report-title-prefix" }
+            text .runId { style: "report-title" }
+            text .confidenceLabel { class: .confidenceClass }
+            if .expanded {
+                ChevronUp { size: 14, style: "report-chevron" }
+            } else {
+                ChevronDown { size: 14, style: "report-chevron" }
+            }
+        }
+        // body（展开时）
+        if .expanded {
+            col {
+                style: "report-body"
+                // metrics
+                col {
+                    style: "report-metrics"
+                    row {
+                        style: "metric-row"
+                        text "Goals Met" { style: "metric-label" }
+                        text .goalsMet { style: "metric-value" }
+                    }
+                    row {
+                        style: "metric-row"
+                        text "Tests Pass" { style: "metric-label" }
+                        text .testsPass { style: "metric-value" }
+                    }
+                    row {
+                        style: "metric-row"
+                        text "Drift Detected" { style: "metric-label" }
+                        text .driftDetected { class: if .hasDrift { "metric-value drift" } else { "metric-value" } }
+                    }
+                    row {
+                        style: "metric-row"
+                        text "Cost" { style: "metric-label" }
+                        text .cost { style: "metric-value" }
+                    }
+                }
+                // deliverables
+                if .hasDeliverables {
+                    col {
+                        style: "report-deliverables"
+                        text "Deliverables" { style: "section-title" }
+                        for d in .deliverables {
+                            text .d { style: "deliverable-item" }
+                        }
+                    }
+                }
+                // actions
+                row {
+                    style: "report-actions"
+                    button {
+                        onclick.stop: .ViewFull
+                        style: "report-btn"
+                        FileText { size: 13 }
+                        text "View Full Report"
+                    }
+                    button {
+                        onclick.stop: .DownloadReport
+                        style: "report-btn"
+                        Download { size: 13 }
+                        text "Download Markdown"
+                    }
+                    button {
+                        onclick.stop: .OpenFiles
+                        style: "report-btn"
+                        FolderOpen { size: 13 }
+                        text "Open Changed Files"
+                    }
+                }
+            }
+        }
+    }
+}

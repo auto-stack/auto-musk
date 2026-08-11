@@ -1,7 +1,7 @@
 # 023 — view fn → 独立组件 codegen（auto-lang 转译器改造）
 
-> **状态**：🟢 P3 推进中（7 个逃生舱原生化，含 ChatMessage 消息编排核心 + AgentAvatar 动态 style，2026-08-11）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
-> **2026-08-11 P12 解封**：auto-lang 408 P12（缺陷 9 动态 style + watch + 宿主全局）已修复。**已原生化 7 个逃生舱**：UserMessage、ErrandCard、TaskPlanCard、GenericToolCard、ChatMessage、StreamingTable、**AgentAvatar（验证 P12 缺陷 9：动态 style + class 共存）**。剩余候选（RawPreview/SessionInfo）依赖 watch + 宿主全局 + composable facade，可继续推进。详见 §3.4/§3.5。
+> **状态**：🟢 P3 推进中（8 个逃生舱原生化，含 ChatMessage 消息编排 + AgentAvatar 动态 style + ReportCard emit 重交互，2026-08-11）——独立项目（auto-lang 仓库）转译器侧，auto-musk 为迁移验证方。
+> **2026-08-11 P12 解封 + emit 验证**：auto-lang 408 P12（缺陷 9 动态 style + watch + 宿主全局）已修复。**已原生化 8 个逃生舱**：UserMessage、ErrandCard、TaskPlanCard、GenericToolCard、ChatMessage、StreamingTable、AgentAvatar（P12 缺陷 9）、ReportCard（P4/P10 emit）。剩余候选阻塞于 §10.7（async handler）+ composable + 复杂交互。详见 §3.4/§3.5。
 > **前置**：Plan 022（前端 Auto 化已完成，逃生舱组件架构稳定）；Plan 018-021（后端全 Auto 化方法论）。
 > **仓库**：**auto-lang**（a2r 转译器 + a2vue codegen，构建 `auto.exe`）；auto-musk 为验证方。
 > **目标**：让 AutoUI 的 `view fn`（`use { fn }` 逃生舱函数中定义、返回 AuraWidget 的函数）被 a2r/a2vue 转译器**原生合成 AuraWidget 组件**，使 `ChatMessage` 等当前靠逃生舱 `.vue` 文件实现的组件脱离逃生舱、纯 `.at` 表达。
@@ -223,6 +223,10 @@ component NavSidebar {
 - **P12 缺陷 9 验证**：动态 inline style（`style: "background: "+.bg+"; color: "+.text`）+ 动态 class（`class: if .size=="xs"{...}`）**共存**——生成独立 `:style` + `:class`，无 `__style__` 泄漏。这是缺陷 9 的精确修复场景。
 - 两个逃生舱引用者（MentionDropdown + SecretaryMessage）改 import 指向生成版；SecretaryMessage 调用补 `:name="''"`（PendingGate 无 name 字段，fn 内部 fallback professionId）。
 - 发现 .at 默认参数 `name: str = ""` 解析通过但**不生成可选 props**（defineProps 仍标必填）——登记为后续缺口。
+
+**ReportCard 迁移完成** ✅（第 8 个原生化逃生舱，验证 P4/P10 emit）：无 computed，但含 emit（view-full/download/open-files）+ click toggle。验证 msg→defineEmits + handler auto-emit + `onclick.stop`（阻止冒泡）在真实重交互组件工作。一个命名陷阱：msg variant `Download` 与 lucide 图标 `Download` 冲突（import 与本地 function 同名）→ 改名 `DownloadReport` 规避。`reportConfidenceClass` fn 包装 toLowerCase + 默认值。
+
+**RawPreview 尝试** ⏸️ 暂缓：P12 的 watch + 宿主全局已解锁，但迁移暴露 §10.7 两个新缺口（已登记 auto-lang 408）：(A) on/watch handler body 含 `.await` 时未生成 `async () =>`（TS1308）；(B) on/watch body 内 props 字段访问未加 `props.` 前缀（TS2304）。这两个阻塞所有"async 操作 + model 更新"组件，待 auto-lang 修。
 
 **仍阻塞的组件**（剩余 15 个逃生舱，按阻塞原因分组，2026-08-11 评估）：
 

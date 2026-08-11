@@ -398,6 +398,30 @@ a { color: hsl(var(--primary)); }
 .agent-avatar.md { width: 28px; height: 28px; font-size: 1rem; }
 .agent-avatar.lg { width: 48px; height: 48px; font-size: 1.4rem; }
 
+/* ── ReportCard（Plan 023 P3：原逃生舱 scoped 样式全局兜底）── */
+.report-card { border: 1px solid hsl(142 70% 45% / 0.25); border-radius: 10px; background: hsl(142 70% 45% / 0.04); margin: 0.5rem 0; overflow: hidden; transition: all 0.2s; }
+.report-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.8rem; cursor: pointer; user-select: none; }
+.report-header:hover { background: hsl(142 70% 45% / 0.06); }
+.report-status { font-size: 1rem; flex-shrink: 0; }
+.report-title-prefix, .report-title { flex: 1; font-size: 0.93rem; font-weight: 500; color: hsl(var(--foreground)); }
+.report-confidence { font-size: 0.73rem; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 500; text-transform: uppercase; }
+.report-confidence.high { background: hsl(142 70% 45% / 0.15); color: hsl(142 70% 35%); }
+.report-confidence.medium { background: hsl(38 90% 50% / 0.15); color: hsl(38 80% 40%); }
+.report-confidence.low { background: hsl(0 70% 50% / 0.15); color: hsl(0 70% 45%); }
+.report-chevron { color: hsl(var(--muted-foreground)); flex-shrink: 0; }
+.report-body { padding: 0.5rem 0.8rem 0.75rem; border-top: 1px solid hsl(142 70% 45% / 0.15); display: flex; flex-direction: column; gap: 0.6rem; }
+.report-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+.metric-row { display: flex; justify-content: space-between; align-items: center; padding: 0.3rem 0.4rem; background: hsl(220 14% 50% / 0.04); border-radius: 5px; font-size: 0.83rem; }
+.metric-label { color: hsl(var(--muted-foreground)); }
+.metric-value { font-weight: 500; color: hsl(var(--foreground)); }
+.metric-value.drift { color: hsl(var(--destructive)); }
+.report-deliverables .section-title, .section-title { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; color: hsl(var(--muted-foreground)); letter-spacing: 0.03em; margin-bottom: 0.2rem; }
+.report-deliverables { font-size: 0.88rem; color: hsl(var(--foreground)); line-height: 1.5; }
+.deliverable-item { margin: 0.1rem 0; }
+.report-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.report-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.6rem; border: 1px solid hsl(var(--border)); border-radius: 5px; background: transparent; color: hsl(var(--foreground)); font-size: 0.83rem; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+.report-btn:hover { background: hsl(220 14% 50% / 0.06); border-color: hsl(var(--primary) / 0.3); }
+
 /* ── 输入区（对齐原生版 .input-compose + .send-btn）──
    DOM: .chats-input-bar > .input-inner > .input-row(flex) > [.input-compose(block,fixed px), button.send-btn]
    问题：.input-compose 被设成 block+固定px宽度，textarea 被设成 inline-block+固定px宽度。
