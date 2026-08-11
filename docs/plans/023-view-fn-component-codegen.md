@@ -218,13 +218,14 @@ component NavSidebar {
 
 **StreamingTable 迁移完成** ✅（第 6 个原生化逃生舱）：验证 P7（动态索引 `row[col]`）+ P8（table/thead/tbody/tr/th/td 保持原生 HTML，非 shadcn Table）两个修复在真实迁移里工作。StreamingRenderer（逃生舱）改 import 指向生成版。另发现 codegen 给原生 table 元素注入 Tailwind class（`border px-4 py-2`），inject_styles 用 `!important` 覆盖。
 
-**仍阻塞的组件**：
+**仍阻塞的组件**（剩余 15 个逃生舱，按阻塞原因分组，2026-08-11 评估）：
 
-**仍阻塞的组件**：
-- StreamingTable——缺陷 6（动态索引）+ 7（table 映射）已修复（P7/P8），现可迁移（待推进）。
-- AgentAvatar——computed 字典/动态 style 对象（超 component fn 范畴，需 .at 语言层扩展）。
-- 含 emit/重交互的复杂组件（GateCard/MentionInput/WikiNav 等）——emit 已支持（P4），但交互复杂度高，逐个评估。
-- RawPreview——fn import 已解封，但 onMounted/watch 生命周期 + 正则超 component fn 范畴。
+- **动态 inline style（缺陷 9，待 auto-lang 修）**：AgentAvatar（hsl 颜色按 professionId）。
+- **composable 解构 + 生命周期 DOM（超 component fn 范畴）**：SessionInfo（useI18n + reactive(store) + document.addEventListener + navigator.clipboard + template ref）、SecretaryMessageWrapper（useGateInbox 解构 + resolveGate 方法调用）、RawPreview（onMounted/watch + 正则）。
+- **流式增量 JSON（Plan 022 标记难纯原生）**：StreamingRenderer（useStreamingDocument composable + 增量解析）。
+- **emit 重交互（emit 已支持 P4，但交互复杂度高）**：RelayRunBox（subscribeToRun 日志 + resolveGate 审批）、ReportCard/GateCard/SecretaryMessage/MentionInput/MentionDropdown/WikiNav/QuestionnaireCard/SettingsMenu/WorkspaceSelector。
+
+**P3 阶段结论**：消息渲染链的核心 6 个逃生舱已原生化（能力边界内的都做了）。剩余组件普遍需要 auto-lang 补：缺陷 9（动态 style）、composable 解构/方法调用、生命周期 DOM API。这些是更深的 codegen 能力，待 auto-lang 扩展后推进。
 
 ## 4. 风险与降级
 
