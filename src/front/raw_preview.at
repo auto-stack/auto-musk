@@ -1,0 +1,70 @@
+// raw_preview.at — RawPreview 组件（Plan 023 队列 A1：async 逃生舱原生化）
+//
+// 对标 src/front/components/RawPreview.vue（逃生舱，已删除）。
+// 验证 auto-lang 408 §10.7 两个修复：
+//   - async handler：on/watch body 含 .await → 生成 async () =>（onMounted(async () => ...)）
+//   - handler body props 访问：.workspace/.path → props.workspace/props.path
+//
+// 关键转换：
+//   - 正则文件类型判断 → rawFileKind fn（raw_upload.ts，.at 无正则能力）
+//   - async load（fetch 文本）→ on .Init + watch .path 内 loadRawFileText(...).await
+//     + try/catch（读取失败置空，对齐原版 load()）
+//   - iframe 无原生标签映射、link 标签 → shadcn router-link（非原生 <a>）→
+//     两者都用 html: prop（v-html）兜底，HTML 字符串生成放 raw_upload.ts fn
+//     （rawIframeHtml/rawDownloadHtml，含 path HTML 转义）
+//   - MarkdownRender → use { component }（markstream-vue 第三方包）
+//
+// 注意块顺序：use → computed → msg → model → watch → on → view body（严格）。
+//
+// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.raw-preview 等）。
+
+component fn RawPreview(workspace: str, path: str) {
+    use {
+        fn: rawFileUrl, loadRawFileText, rawFileKind, rawIframeHtml, rawDownloadHtml from "src/front/raw_upload.ts"
+        component: MarkdownRender from "markstream-vue"
+        component: FileIcon from "lucide-vue-next"
+    }
+    computed {
+        fileUrl => rawFileUrl(.workspace, .path)
+        kind => rawFileKind(.path)
+        isImage => .kind == "image"
+        isPdf => .kind == "pdf"
+        isText => .kind == "text"
+        iframeHtml => rawIframeHtml(.fileUrl)
+        downloadHtml => rawDownloadHtml(.fileUrl, .path)
+    }
+    model { var textContent str = "" }
+    watch {
+        .path -> {
+            if .isText {
+                try { .textContent = loadRawFileText(.workspace, .path).await } catch (e) { .textContent = "" }
+            }
+        }
+    }
+    on {
+        .Init -> {
+            if .isText {
+                try { .textContent = loadRawFileText(.workspace, .path).await } catch (e) { .textContent = "" }
+            }
+        }
+    }
+    div {
+        style: "raw-preview"
+        if .isImage {
+            img { src: .fileUrl, style: "raw-preview-img" }
+        } else if .isPdf {
+            div { html: .iframeHtml }
+        } else if .isText {
+            div {
+                style: "raw-preview-text"
+                MarkdownRender { content: .textContent }
+            }
+        } else {
+            div {
+                style: "raw-download"
+                FileIcon { size: 24 }
+                div { html: .downloadHtml }
+            }
+        }
+    }
+}

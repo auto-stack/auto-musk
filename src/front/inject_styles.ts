@@ -573,6 +573,17 @@ a { color: hsl(var(--primary)); }
 .wiki-editor { margin: 1.25rem; padding: 1rem; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--card)); }
 .wiki-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: hsl(var(--muted-foreground)); gap: 0.5rem; text-align: center; }
 .text-muted { color: hsl(var(--muted-foreground)); }
+
+/* ── RawPreview（Plan 023 队列 A1 原生化：逃生舱 scoped 转全局兜底）── */
+.raw-preview { padding: 1rem; }
+.raw-preview-img { max-width: 100%; max-height: 60vh; border-radius: 6px; }
+.raw-preview-pdf { width: 100%; height: 70vh; border: none; border-radius: 6px; }
+.raw-preview-text { font-size: 0.875rem; }
+.raw-download {
+  display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  padding: 2rem; color: hsl(var(--muted-foreground));
+}
+.download-link { color: hsl(var(--primary)); text-decoration: underline; }
 `
 
 export function injectStyles(): void {
