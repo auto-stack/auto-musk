@@ -1,0 +1,126 @@
+// gate_card.at — GateCard 组件（Plan 023 队列 B2：emit + lifecycle 逃生舱原生化）
+//
+// 对标 src/front/components/GateCard.vue（逃生舱，已删除）。
+// 验证 emit 带负载（approve + editedSpecs → 父组件 onapprove）+ watch（changes
+// 初始化 editedSpecs）+ §10.7。
+//
+// 关键转换：
+//   - expandedDiffs Set<string> → model obj（expanded[sid]，.at 无 Set）
+//   - editedSpecs 动态键记录 → 受控 textarea（value: + oninput(.sid, $event)，
+//     动态键 v-model 缺口同 B1）
+//   - watch changes → .editedSpecs = gateInitEditedSpecs(...)（helper 合并缺失键）
+//   - title/profession 可选 props（.at 无可选 props）→ 必填声明 + chats_view
+//     传 "" + titleText 兜底 computed
+//   - approveBtnRef 自动聚焦（template ref）→ 舍弃（登记轻微差异）
+//
+// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.gate-card 等）。
+
+component fn GateCard(title: str, profession: str, changes: obj) {
+    use {
+        component: Check, X, Eye, ChevronDown, ChevronUp from "lucide-vue-next"
+        fn: gateToggleExpanded, gateWithExpanded, gateInitEditedSpecs, gateTitleText from "src/front/gate_helpers.ts"
+        fn: eventInputValue from "src/front/questionnaire_helpers.ts"
+    }
+    computed {
+        titleText => gateTitleText(.title)
+        hasChanges => .changes != None && .changes.length > 0
+        reviewLabel => if .isReviewing { "Hide" } else { "Review" }
+        diffList => gateWithExpanded(.changes, .expanded)
+    }
+    msg Msg { ToggleDiff, ToggleReview, EditedChanged, approve, reject }
+    model {
+        var expanded obj = {}
+        var editedSpecs obj = {}
+        var isReviewing bool = false
+    }
+    watch {
+        .changes -> { .editedSpecs = gateInitEditedSpecs(.changes, .editedSpecs) }
+    }
+    on {
+        .Init -> { .editedSpecs = gateInitEditedSpecs(.changes, .editedSpecs) }
+        .ToggleDiff(sid) -> { .expanded[sid] = gateToggleExpanded(.expanded, sid) }
+        .ToggleReview -> { .isReviewing = !.isReviewing }
+        .EditedChanged(sid, e) -> { .editedSpecs[sid] = eventInputValue(e) }
+        .approve(specs) -> {}
+        .reject -> {}
+    }
+    div {
+        style: "gate-card"
+        div {
+            style: "gate-card-header"
+            span { style: "gate-icon", text "🔒" }
+            span { style: "gate-title", text .titleText }
+            if .profession != "" {
+                span { style: "gate-profession", text .profession }
+            }
+        }
+        if .hasChanges {
+            div {
+                style: "gate-diff-list"
+                for change in .diffList {
+                    div {
+                        key: .change.section_id
+                        style: "diff-card"
+                        div {
+                            onclick: .ToggleDiff(.change.section_id)
+                            style: "diff-header"
+                            span { style: "diff-title", text .change.section_id }
+                            span {
+                                class: if .change.new_status == "approved" { "diff-status approved" } else { "diff-status" }
+                                text .change.old_status
+                                text " → "
+                                text .change.new_status
+                            }
+                            if .change._expanded {
+                                ChevronUp { size: 14, class: "diff-chevron" }
+                            } else {
+                                ChevronDown { size: 14, class: "diff-chevron" }
+                            }
+                        }
+                        if .change._expanded {
+                            div {
+                                style: "diff-body"
+                                div {
+                                    style: "diff-side"
+                                    div { style: "diff-label", text "Before" }
+                                    pre { style: "diff-content old", text .change.old_content }
+                                }
+                                div {
+                                    style: "diff-side"
+                                    div { style: "diff-label", text "After" }
+                                    textarea {
+                                        rows: "6"
+                                        style: "diff-editor"
+                                        value: .editedSpecs[change.section_id]
+                                        oninput: .EditedChanged(.change.section_id, $event)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        div {
+            style: "gate-actions"
+            button {
+                onclick: .approve(.editedSpecs)
+                style: "approve-btn"
+                Check { size: 14 }
+                text "Approve & Execute"
+            }
+            button {
+                onclick: .reject
+                style: "reject-btn"
+                X { size: 14 }
+                text "Reject & Redraft"
+            }
+            button {
+                onclick: .ToggleReview
+                style: "review-btn"
+                Eye { size: 14 }
+                text .reviewLabel
+            }
+        }
+    }
+}
