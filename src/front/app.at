@@ -21,7 +21,12 @@ widget App {
         // Plan 022 视觉对齐：主题 + 强调色切换 composable。
         composable: useTheme from "src/front/composables/useTheme.ts"
         composable: useAccentColor from "src/front/composables/useAccentColor.ts"
-        component: WorkspaceSelector from "src/front/components/WorkspaceSelector.vue"
+        // workspace_helpers 是 WorkspaceSelector component fn 的 use{fn} 依赖，
+        // 声明仅为触发 ext 复制（codegen ext 复制只看 use 块，不看 component fn 的 use{fn}）。
+        fn: loadRecentWorkspaces, loadCurrentWorkspace, findWorkspace from "src/front/workspace_helpers.ts"
+        // Plan 023 队列 A2：WorkspaceSelector 已原生化为 component fn
+        // （src/front/workspace_selector.at），逃生舱 .vue 已删除。跨文件引用（无 from）。
+        component: WorkspaceSelector
         component: SettingsMenu from "src/front/components/SettingsMenu.vue"
         // 导航图标（lucide）
         component: MessageSquare, Scroll, BookOpen from "lucide-vue-next"

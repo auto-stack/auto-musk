@@ -1,0 +1,113 @@
+// workspace_selector.at — WorkspaceSelector 组件（Plan 023 队列 A2：async + lifecycle 逃生舱原生化）
+//
+// 对标 src/front/components/WorkspaceSelector.vue（逃生舱，已删除）。
+// 验证 §10.7 async handler（on .Init + .Toggle 内 .await）+ 宿主全局
+// （localStorage/location，§10.3 白名单）。
+//
+// 关键转换：
+//   - async 数据拉取（workspace_list/workspace_status + localStorage + find）
+//     → workspace_helpers.ts fn（.at 无宿主 API 链式 + 数组 find）
+//   - onMounted → on .Init（§10.7 async handler）
+//   - toggle/choose/close → msg + model + on
+//   - location.reload() 宿主全局直呼
+//   - 动态 active class → 行内 if 表达式
+//
+// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.ws-btn 等）。
+
+component fn WorkspaceSelector() {
+    use {
+        component: Folder, ChevronUp, ChevronDown, X from "lucide-vue-next"
+        fn: loadRecentWorkspaces, loadCurrentWorkspace, findWorkspace from "src/front/workspace_helpers.ts"
+    }
+    computed {
+        currentName => if .current != None { .current.name } else { "选择工作目录" }
+        currentTitle => if .current != None { .current.path } else { "选择工作目录" }
+        hasCurrent => .current != None
+        showEmpty => .recent.length == 0
+    }
+    msg Msg { Toggle, Choose(str), Close }
+    model {
+        var open bool = false
+        var current obj = None
+        var recent obj = []
+    }
+    on {
+        .Init -> {
+            // helpers 内部自带 try/catch（失败返回 []/null），.at 侧无需再包 try。
+            .recent = loadRecentWorkspaces().await;
+            .current = loadCurrentWorkspace().await
+        }
+        .Toggle -> {
+            .open = !.open;
+            if .open {
+                if .recent.length == 0 {
+                    .recent = loadRecentWorkspaces().await
+                }
+            }
+        }
+        .Choose(id) -> {
+            localStorage.setItem("musk_workspace", id);
+            .current = findWorkspace(.recent, id);
+            .open = false;
+            location.reload()
+        }
+        .Close -> { .open = false }
+    }
+    div {
+        style: "workspace-selector"
+        button {
+            onclick: .Toggle
+            style: "ws-btn"
+            title: .currentTitle
+            Folder { size: 14 }
+            span {
+                style: "ws-name"
+                text .currentName
+            }
+            if .open {
+                ChevronUp { size: 12 }
+            } else {
+                ChevronDown { size: 12 }
+            }
+        }
+        if .open {
+            div {
+                style: "ws-panel"
+                div {
+                    style: "ws-panel-header"
+                    span "切换 Workspace"
+                    button {
+                        onclick: .Close
+                        style: "ws-close"
+                        X { size: 12 }
+                    }
+                }
+                div {
+                    style: "ws-section-label"
+                    text "最近打开"
+                }
+                for w in .recent {
+                    button {
+                        onclick: .Choose(w.id)
+                        class: if .hasCurrent && .current.id == w.id { "ws-item active" } else { "ws-item" }
+                        Folder { size: 13 }
+                        span {
+                            style: "ws-item-name"
+                            text .w.name
+                        }
+                        span {
+                            style: "ws-item-path"
+                            text .w.path
+                        }
+                    }
+                }
+                if .showEmpty {
+                    div {
+                        style: "ws-empty"
+                        text "暂无工作区"
+                    }
+                }
+            }
+        }
+    }
+}

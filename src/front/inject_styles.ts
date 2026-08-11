@@ -584,6 +584,43 @@ a { color: hsl(var(--primary)); }
   padding: 2rem; color: hsl(var(--muted-foreground));
 }
 .download-link { color: hsl(var(--primary)); text-decoration: underline; }
+
+/* ── WorkspaceSelector（Plan 023 队列 A2 原生化：逃生舱 scoped 转全局兜底）── */
+.workspace-selector { position: relative; margin-top: auto; }
+.ws-btn {
+  display: flex; align-items: center; gap: 0.35rem; width: 100%;
+  padding: 0.35rem 0.5rem; border: 1px solid hsl(var(--border)); border-radius: 6px;
+  background: transparent; color: hsl(var(--foreground)); font-size: 0.75rem; cursor: pointer;
+  transition: background 0.15s;
+}
+.ws-btn:hover { background: hsl(var(--accent)); }
+.ws-name { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-panel {
+  position: absolute; bottom: 100%; left: 0; right: 0; margin-bottom: 4px;
+  background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); padding: 0.5rem; z-index: 50;
+  max-height: 320px; overflow-y: auto;
+}
+.ws-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 0.75rem; font-weight: 600; color: hsl(var(--muted-foreground)); margin-bottom: 0.4rem;
+}
+.ws-close { border: none; background: transparent; cursor: pointer; color: hsl(var(--muted-foreground)); padding: 2px; }
+.ws-close:hover { color: hsl(var(--foreground)); }
+.ws-section-label { font-size: 0.7rem; color: hsl(var(--muted-foreground)); padding: 0.2rem 0.3rem; }
+.ws-item {
+  display: flex; align-items: center; gap: 0.35rem; width: 100%;
+  padding: 0.35rem 0.4rem; border: none; border-radius: 4px; background: transparent;
+  cursor: pointer; font-size: 0.75rem; text-align: left;
+}
+.ws-item:hover { background: hsl(var(--accent)); }
+.ws-item.active { background: hsl(var(--primary) / 0.1); color: hsl(var(--primary)); }
+.ws-item-name { flex-shrink: 0; font-weight: 500; }
+.ws-item-path {
+  flex: 1; font-size: 0.68rem; color: hsl(var(--muted-foreground));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ws-empty { padding: 0.5rem; text-align: center; font-size: 0.72rem; color: hsl(var(--muted-foreground)); }
 `
 
 export function injectStyles(): void {
