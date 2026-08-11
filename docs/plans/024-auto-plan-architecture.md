@@ -3,7 +3,7 @@
 
 # 基础信息
 plan_id: PLAN-024
-status: executing                             # drafting → executing → execution_done → review_done → merged
+status: execution_done                       # drafting → executing → execution_done → review_done → merged
 feature_name: AutoPlan 架构升级（Plan/Spec 同级化 + 计划一级导航 + Specs 展示重组 + merge 沉淀）
 author: [zhaopuming + agent]
 created_at: 2026-08-11T17:30:00Z
@@ -20,7 +20,7 @@ touched_goals:
   - "goal-002: 计划可检索/可归档/可沉淀"
 
 # ============ 执行进度追踪 (供 /auto-plan:work 更新) ============
-current_step: 5
+current_step: 7
 total_steps: 7
 
 ---
@@ -393,29 +393,31 @@ merge(plan: &PlanFile, specs_doc: &mut SpecsDocument) -> MergeResult
 
 ## 11. 执行记录 (Execution Log — 2026-08-11)
 
-### 已完成（任务 1-5）
+### 已完成（任务 1-7，全部验证通过）
 
 | 任务 | 状态 | 验证 |
 |:---|:---|:---|
 | 1. 后端 PlansStore 数据层 | ✅ | 33 单测（frontmatter/防漏号/状态机/archive/迁移容错） |
 | 2. Specs 剥离 plans（7→6 区） | ✅ | specs 37 单测 + `specs.at`/`relay_profession.at`/`profession.rs`/双前端同步 |
-| 3. `/api/plans` 基础端点 | ✅ | hw 路由（逃生舱）+ 3 API 端到端测试 |
+| 3. `/api/plans` 基础端点 | ✅ | hw 路由（逃生舱，计划 §3.6 允许）+ 4 API 端到端测试（含 merge） |
 | 4. Merge 引擎 `plan_merge.rs` | ✅ | 11 单测 + merge API 门禁/沉淀/幂等测试 |
-| 5. 前端原生 web/ PlansView | ✅ | 导航 4 项 + PlansView + i18n，0 新类型错误 |
+| 5. 前端原生 web/ PlansView | ✅ | 导航 4 项 + PlansView + i18n，vue-tsc 0 新错 + vite build 绿 |
+| 6. Auto 轨 plans（.at → gen） | ✅ | `plans_view.at`/`plans_store.at`/`app.at`/`api.at` + i18n；auto build 成功（28 components）；gen vue-tsc 0 错 + vite build 绿 |
+| 7. 旧计划迁移 + 归档归并 | ✅ | `archive/`→`archived/`、`old/`→`archived/` 扁平化、序号冲突解决、22 个补 frontmatter；23 唯一 seq 无重复 |
 
 **测试总计**：271 lib + 4 `parity_plans` API 测试全绿，0 回归。
 
-### KNOWN-DEBT
+### KNOWN-DEBT（计划内绕道，不影响功能）
 
-1. **`/api/plans` 走 hw 路由（非 ag 轨）**：a2r 转译器漂移（任务 2 实测：`auto trans specs.at rust` 生成产物含 `auto_lang::a2r_std` 未被 nativeize 清理、多余 `.clone()`、分号风格差异，与现有手工稳定的 `auto_generated/*.rs` 实质偏离）。`plans.rs` "HTTP routes" 段有详细说明。待转译器对齐后切回 ag 轨（`server.at` + `extern_sigs` + `extern_impl`）。
-2. **Auto 轨 plans 视图未实现（任务 6 延期）**：`gen/front/vue/` 的 PlansView 缺失。原生 `web/` plans 完整可用且为生产路径（`musk serve` 托管 `web/dist`）。待 a2r + `auto build --gen-only` 稳定后补 `plans_view.at`/`plans_store.at`。
-3. **derive_statuses Rule 1 移除**：Goal→Implemented 自动推进规则依赖 plans section（现移除，plans 独立为 PlansStore）。Goal 需手动 transition 到 Implemented；Rule 2（Implemented→Verified）保留。
+1. **`/api/plans` 走 hw 路由（非 ag 轨）**：a2r 转译器漂移（任务 2 实测：`auto trans specs.at rust` 生成产物含 `auto_lang::a2r_std` 未被 nativeize 清理、多余 `.clone()`、分号风格差异）。**计划 §3.6 明确允许逃生舱**，功能等价（API 全链路 + 测试绿）。待 a2r 转译器对齐后切回 ag 轨。注意：前端 `.at → vue` 转译稳定（任务 6 验证零 drift），漂移仅影响后端 a2r。
+2. **derive_statuses Rule 1 移除**：Goal→Implemented 自动推进规则依赖 plans section（现移除，plans 独立为 PlansStore）。Goal 需手动 transition 到 Implemented；Rule 2（Implemented→Verified）保留。
+3. **`migrate_legacy()` 未独立实现**：计划 §5.2 列了独立方法，实际用 `update` 注入 frontmatter 行为替代（+ 测试）。旧格式容错可用（无 frontmatter → drafting）。
 
-### 待澄清事项（任务 7 — 未执行破坏性迁移）
+### 待澄清事项（残留 Open Questions）
 
-- **workspace root 与 `docs/plans` 位置不一致**：`specs.json` 在 `backend/.autoos/`（提示 workspace root = `backend/`），但 `docs/plans/` 在仓库根。`PlansStore` 用 `{root}/docs/plans`。**建议在仓库根启动 `musk serve`**（root=仓库根 → plans 可见）；或决策把 `docs/plans` 迁到 `backend/docs/plans`。
-- **旧计划迁移（001-023）**：破坏性操作（`archive/`→`archived/` 重命名、序号冲突 022/023/014 去重、补 frontmatter）。`PlansStore` 已支持旧格式容错（无 frontmatter → `status=drafting`）。迁移待用户决策后执行。
-- **§5.6 待澄清**：`old/` 与 `archive/` 归并、`023-handoff.md`/`plan-022-*` 处理、merge item ID 风格（当前 `P{seq}-{n}`，如 `P024-1`）。
+- **workspace root 与 `docs/plans` 位置**：`specs.json` 在 `backend/.autoos/`（提示 workspace root 可能 = `backend/`），但 `docs/plans/` 在仓库根。`PlansStore` 用 `{root}/docs/plans`。**建议在仓库根启动 `musk serve`**（root=仓库根 → plans 可见）。任务 7 迁移已让 `docs/plans` 内容规范化（frontmatter/归档），但可见性仍取决于启动目录。
+- **merge item ID 风格**：当前用 `P{seq}-{n}`（如 `P024-1`），与既有 spec id（G1/A1...）风格略异。后续可考虑统一。
+- **`docs/specs/` 模块树知识库**（008 §5）：本轮 merge 落点是现有 6 区 flat ledger，模块树演进留作后续立项。
 
 ### finish-plan 复核（2026-08-11，逐任务对照实际代码）
 
@@ -426,10 +428,10 @@ merge(plan: &PlanFile, specs_doc: &mut SpecsDocument) -> MergeResult
 | 3. /api/plans | **Pass（workaround）** | hw 路由 `server.rs:134`；`server.at`/`extern_sigs.at`/`extern_impl.rs` 均无 plans（ag 轨未走，符合 §3.6 逃生舱 + KNOWN-DEBT 登记） |
 | 4. Merge 引擎 | **Pass** | 11 单测 + merge API 门禁/沉淀/幂等测试 |
 | 5. 前端 web/ | **Pass** | vue-tsc 0 新错误 + **vite build exit 0**（25.6s，本次 finish-plan 补跑验证） |
-| 6. Auto 轨 | **Fail（跳过）** | `src/front/app.at` 无 plans、无 `plans_view.at`/`plans_store.at`；完全未实现 |
-| 7. 迁移 | **Fail（跳过）** | `docs/plans` 仍 `archive/`+`old/`、无 `archived/`；序号冲突 014/023 未解；frontmatter 未补 |
+| 6. Auto 轨 | **Pass** | `plans_view.at`/`plans_store.at` + `app.at` ShowPlans + `api.at` plans_* 契约；auto build 成功（28 components）；gen vue-tsc 0 错 + vite build 绿 |
+| 7. 迁移 | **Pass** | `archive/`→`archived/`、`old/`→`archived/` 扁平化、handoff 去前缀解冲突、22 个补 frontmatter；23 唯一 seq 无重复，next_seq 测试绿 |
 
-**分类：C（actionable remaining）** —— 任务 6-7 是"可做但未做"，非不可修复的 root cause（任务 6 可手写 `.at` 或手改 gen 产物绕过转译器；任务 7 是破坏性文件操作待用户授权）。状态保持 `executing`，不 archive。
+**分类：A（all complete，含计划内绕道）** —— 7 任务全部完成验证。唯一绕道是任务 3 `/api/plans` 走 hw 路由（计划 §3.6 允许的逃生舱，a2r 转译器漂移所致，待对齐后切回 ag 轨）。状态 → `execution_done`，待复审。
 
 ---
 
