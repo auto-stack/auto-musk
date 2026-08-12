@@ -34,6 +34,48 @@ component fn ChatMessage(msg: obj, is_streaming: bool) {
         hasError => .msg.error != ""
         errorText => if .hasError { .msg.error } else { "" }
     }
+    // PLAN-026 缺陷②: component fn 的 style 块（气泡布局/对齐/宽度）。
+    // 由修复后的生成器 emit 到 SFC <style scoped>。
+    // msg-error / msg-thinking 在 inject_styles.ts（ext）已定义，此处不重复。
+    style {
+.msg-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-width: 85%;
+}
+.msg-row-user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.msg-row-ai {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+.msg-bubble {
+  padding: 0.6rem 0.9rem;
+  border-radius: 0.75rem;
+  word-wrap: break-word;
+  line-height: 1.5;
+}
+.msg-bubble-user {
+  background: hsl(var(--primary) / 0.1);
+  border: 1px solid hsl(var(--primary) / 0.2);
+}
+.msg-bubble-ai {
+  background: hsl(var(--muted-foreground) / 0.05);
+  border: 1px solid hsl(var(--border));
+}
+.msg-role-badge {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+}
+.msg-time {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+    }
     col {
         class: .rowClass
         // header: 角色标识 + 时间
