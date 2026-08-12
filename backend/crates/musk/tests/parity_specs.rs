@@ -24,7 +24,6 @@ fn parity_section_type_as_str() {
         ("goals", hw::SectionType::Goals, ag::SectionType::Goals),
         ("architecture", hw::SectionType::Architecture, ag::SectionType::Architecture),
         ("designs", hw::SectionType::Designs, ag::SectionType::Designs),
-        ("plans", hw::SectionType::Plans, ag::SectionType::Plans),
         ("tests", hw::SectionType::Tests, ag::SectionType::Tests),
         ("reviews", hw::SectionType::Reviews, ag::SectionType::Reviews),
         ("reports", hw::SectionType::Reports, ag::SectionType::Reports),
@@ -136,57 +135,12 @@ fn parity_rebuild_relations_depends_on() {
 // derive_statuses — auto-advance parity (the key behavioral test)
 // ──────────────────────────────────────────────────────────
 
-#[test]
-fn parity_derive_goal_implemented_when_plan_done() {
-    // Scenario mirroring the hand-written unit test
-    // `derive_goal_implemented_when_all_plans_done`:
-    //   Goal at InProgress + Plan at Done → Goal advances to Implemented.
-    // (Note: Goal must be at InProgress for the transition to be legal —
-    //  can_transition(Empty, Implemented) is false in the Goals machine.)
-
-    // Hand-written
-    let mut hw_doc = hw::SpecsDocument::new("t");
-    let mut hw_g = hw::SpecItem::new("G1", "goal");
-    hw_g.depends_on = vec!["P1".into()];
-    hw_g.status = hw::SpecStatus::InProgress;
-    hw_doc.sections[0].items.push(hw_g);
-    let mut hw_p = hw::SpecItem::new("P1", "plan");
-    hw_p.status = hw::SpecStatus::Done;
-    hw_doc.sections[3].items.push(hw_p);
-    hw_doc.rebuild_relations();
-    hw_doc.derive_statuses();
-
-    // Auto-generated
-    let mut ag_doc = ag::SpecsDocument::new("t");
-    let mut ag_g = ag::SpecItem::new("G1", "goal");
-    ag_g.depends_on = vec!["P1".into()];
-    ag_g.status = ag::SpecStatus::InProgress;
-    ag_doc.sections[0].items.push(ag_g);
-    let mut ag_p = ag::SpecItem::new("P1", "plan");
-    ag_p.status = ag::SpecStatus::Done;
-    ag_doc.sections[3].items.push(ag_p);
-    ag_doc.rebuild_relations();
-    ag_doc.derive_statuses();
-
-    let hw_status = hw_doc.sections[0].items[0].status;
-    let ag_status = ag_doc.sections[0].items[0].status;
-
-    assert_eq!(
-        hw_status.to_str(),
-        "implemented",
-        "hand-written: Goal should advance to Implemented"
-    );
-    assert_eq!(
-        ag_status.to_str(),
-        "implemented",
-        "auto_generated: Goal should advance to Implemented"
-    );
-    assert_eq!(
-        hw_status.to_str(),
-        ag_status.to_str(),
-        "derive_statuses disagrees: hw={hw_status:?} ag={ag_status:?}"
-    );
-}
+// NOTE: `parity_derive_goal_implemented_when_plan_done` was removed — it
+// asserted the "Goal → Implemented when all related Plans Done" derive rule,
+// which `specs.rs::derive_statuses` (see comment at specs.rs:443-445)
+// documents as intentionally removed once the `plans` section was dropped
+// from the 6-zone spec. Plan-025 surfaced this stale test after fixing the
+// `SectionType::Plans` compile error above (same plan-018 cleanup root cause).
 
 #[test]
 fn parity_derive_does_not_force_invalid_transition() {

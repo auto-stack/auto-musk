@@ -132,6 +132,9 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         // Plans (PLAN-024) — hw escape-hatch routes; ag track deferred
         // (a2r transpiler drift — see plans.rs §"HTTP routes" + KNOWN-DEBT).
         .merge(crate::plans::plans_routes())
+        // Spec module-tree browser (PLAN-025) — hw escape-hatch reusing
+        // wiki::build_tree; serves docs/specs/ knowledge layer (008 §5).
+        .merge(crate::spec_tree::spec_tree_routes())
         // Serve config-page.js + any other static assets at the root.
         .fallback_service(static_service)
         .layer(cors)

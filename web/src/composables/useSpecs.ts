@@ -4,6 +4,7 @@
 // SpecsView doesn't need changes (the `project` param is accepted but ignored).
 import { ref } from 'vue'
 import type { SpecsDocument, SpecsSection, SpecItem } from '@/types/specs'
+import type { TreeNode } from '@/types/wiki'
 import { authFetch } from './useAuth'
 
 const API = '/api/specs'
@@ -12,6 +13,10 @@ const API = '/api/specs'
 const _document = ref<SpecsDocument | null>(null)
 const _isLoading = ref(false)
 const _error = ref<string | null>(null)
+
+// File-tree mode (PLAN-025): docs/specs/ module-tree browser.
+const _specTree = ref<TreeNode[]>([])
+const _activeSpecFile = ref<{ path: string; content: string } | null>(null)
 
 export function useSpecs() {
   const document = _document
@@ -101,6 +106,38 @@ export function useSpecs() {
     }
   }
 
+  // ─── File-tree mode (PLAN-025: docs/specs/ module tree) ───────────────────
+
+  async function loadSpecTree(): Promise<TreeNode[]> {
+    try {
+      const resp = await authFetch(`${API}/tree`)
+      if (!resp.ok) throw new Error(`spec tree: ${resp.status}`)
+      const tree = (await resp.json()) as TreeNode[]
+      _specTree.value = tree
+      return tree
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : String(e)
+      _specTree.value = []
+      return []
+    }
+  }
+
+  async function loadSpecFile(path: string): Promise<string> {
+    try {
+      // encodeURIComponent keeps sub-paths (e.g. "goals/README.md") as a single
+      // {*path} segment; backend percent-decodes + validates traversal.
+      const resp = await authFetch(`${API}/file/${encodeURIComponent(path)}`)
+      if (!resp.ok) throw new Error(`spec file ${path}: ${resp.status}`)
+      const content = await resp.text()
+      _activeSpecFile.value = { path, content }
+      return content
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : String(e)
+      _activeSpecFile.value = null
+      return ''
+    }
+  }
+
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   function findItemById(id: string): { item: SpecItem; section: SpecsSection } | null {
@@ -123,9 +160,13 @@ export function useSpecs() {
     document,
     isLoading,
     error,
+    specTree: _specTree,
+    activeSpecFile: _activeSpecFile,
     loadDocument,
     loadOverview,
     loadModuleOutline,
+    loadSpecTree,
+    loadSpecFile,
     saveSection,
     saveDocument,
     findItemById,

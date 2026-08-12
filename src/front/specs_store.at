@@ -5,7 +5,7 @@
 //
 // Plan 022 Phase 5: SpecsView 的数据层。
 
-use back.api: specs_list, specs_overview, specs_save_item, specs_delete_item, specs_rebuild_relations
+use back.api: specs_list, specs_overview, specs_save_item, specs_delete_item, specs_rebuild_relations, specs_tree, specs_get_file
 
 store SpecsStore {
     model {
@@ -16,6 +16,11 @@ store SpecsStore {
         // overview 缓存（markdown 形式，由 LoadOverview 合成）。
         var overview str = ""
         var overview_loaded bool = false
+        // PLAN-025: docs/specs/ 文件树模式（扁平渲染；递归留作 KNOWN-DEBT）。
+        var spec_tree List<TreeNode> = []
+        var active_spec_file_path Option<str> = None
+        var active_spec_file_content str = ""
+        var spec_tree_loaded bool = false
     }
 
     msg Msg {
@@ -26,6 +31,8 @@ store SpecsStore {
         DeleteItem(str, str),
         RebuildRelations,
         SetError(str),
+        LoadSpecTree,
+        LoadSpecFile(str),
     }
 
     computed {
@@ -89,5 +96,18 @@ store SpecsStore {
         }
 
         .SetError(msg) -> { .error = msg }
+
+        // PLAN-025: 文件树模式 —— 加载 docs/specs/ 树 / 读单文件正文。
+        .LoadSpecTree -> {
+            let tree = specs_tree()
+            .spec_tree = tree
+            .spec_tree_loaded = true
+        }
+
+        .LoadSpecFile(path) -> {
+            let content = specs_get_file(path)
+            .active_spec_file_path = path
+            .active_spec_file_content = content
+        }
     }
 }

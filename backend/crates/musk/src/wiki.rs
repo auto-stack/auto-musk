@@ -83,7 +83,7 @@ pub struct TreeNode {
     pub modified: Option<u64>,
 }
 
-fn build_tree(root: &std::path::Path, prefix: &str) -> Vec<TreeNode> {
+pub(crate) fn build_tree(root: &std::path::Path, prefix: &str) -> Vec<TreeNode> {
     let mut entries: Vec<TreeNode> = Vec::new();
     let Ok(dir) = std::fs::read_dir(root) else {
         return entries;
@@ -136,7 +136,7 @@ fn build_tree(root: &std::path::Path, prefix: &str) -> Vec<TreeNode> {
 
 /// Recursively strip `.md` extensions from file nodes — wiki trees show pages
 /// by slug (no extension), while raw trees keep the real filenames.
-fn strip_md_extensions(nodes: &mut [TreeNode]) {
+pub(crate) fn strip_md_extensions(nodes: &mut [TreeNode]) {
     for node in nodes.iter_mut() {
         if node.node_type == "file" && node.name.ends_with(".md") {
             node.name = node.name.trim_end_matches(".md").to_string();

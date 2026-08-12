@@ -12,6 +12,7 @@ pub mod relay;
 pub mod server;
 pub mod spec_tools;
 pub mod specs;
+pub mod spec_tree;
 pub mod plans;
 pub mod plan_merge;
 pub mod tool_context;

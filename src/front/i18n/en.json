@@ -54,7 +54,11 @@
     "overview": "Overview",
     "loading": "Loading specs…",
     "addItem": "+ Add Item",
-    "noDoc": "No document loaded"
+    "noDoc": "No document loaded",
+    "structuredMode": "🗂 Structured",
+    "fileTreeMode": "📄 File Tree",
+    "emptyTree": "No spec files yet",
+    "selectFile": "Select a file from the tree"
   },
   "plans": {
     "title": "Plans",

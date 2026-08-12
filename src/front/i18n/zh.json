@@ -54,7 +54,11 @@
     "overview": "概览",
     "loading": "加载规范中…",
     "addItem": "+ 添加项目",
-    "noDoc": "未加载文档"
+    "noDoc": "未加载文档",
+    "structuredMode": "🗂 结构化",
+    "fileTreeMode": "📄 文件树",
+    "emptyTree": "还没有 spec 文件",
+    "selectFile": "从树中选择一个文件"
   },
   "plans": {
     "title": "计划",

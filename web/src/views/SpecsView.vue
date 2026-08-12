@@ -1,6 +1,16 @@
 <template>
   <div class="specs-view">
-    <div class="specs-body">
+    <div class="view-mode-toggle">
+      <button class="mode-btn" :class="{ active: viewMode === 'structured' }" @click="setViewMode('structured')">
+        🗂 <span>{{ t('specs.structuredMode') }}</span>
+      </button>
+      <button class="mode-btn" :class="{ active: viewMode === 'tree' }" @click="setViewMode('tree')">
+        📄 <span>{{ t('specs.fileTreeMode') }}</span>
+      </button>
+    </div>
+
+    <!-- Structured 6-zone editor (existing) -->
+    <div class="specs-body" v-if="viewMode === 'structured'">
       <!-- Sidebar -->
       <div class="section-nav" :class="{ collapsed: sectionNavCollapsed }">
         <div class="section-nav-header">
@@ -223,6 +233,34 @@
         </div>
       </div>
     </div>
+
+    <!-- File tree mode (PLAN-025): browse docs/specs/ module tree -->
+    <div class="specs-body specs-filetree" v-else>
+      <div class="filetree-nav">
+        <TreeView
+          v-for="node in specTree"
+          :key="node.path"
+          :node="node"
+          :active-path="activeSpecFile?.path ?? ''"
+          @select="selectSpecNode"
+        />
+        <div v-if="specTree.length === 0" class="filetree-empty">
+          {{ specTreeLoading ? t('specs.loading') : t('specs.emptyTree') }}
+        </div>
+      </div>
+      <div class="section-editor filetree-editor">
+        <div class="editor-pane" v-if="activeSpecFile">
+          <div class="editor-header">
+            <h3>{{ activeSpecFile.path }}</h3>
+          </div>
+          <MarkdownContent :content="activeSpecFile.content" />
+        </div>
+        <div v-else class="editor-empty">
+          <FileText :size="32" />
+          <p>{{ t('specs.selectFile') }}</p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -241,6 +279,7 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import GateBanner from '@/components/GateBanner.vue'
 import GoalDetailModal from '@/components/GoalDetailModal.vue'
 import MarkdownContent from '@/components/MarkdownContent.vue'
+import TreeView from '@/components/TreeView.vue'
 import { ITEM_TEMPLATES, getDefaultStatus, getNextId } from '@/utils/itemTemplates'
 
 // Category components
@@ -254,12 +293,40 @@ import { authFetch } from '../composables/useAuth'
 
 const { t } = useI18n()
 
-const { document, isLoading, error, loadDocument, loadOverview, loadModuleOutline, saveDocument, findItemById, findSectionByItemId, rebuildRelations: apiRebuildRelations } = useSpecs()
+const { document, isLoading, error, specTree, activeSpecFile, loadDocument, loadOverview, loadModuleOutline, loadSpecTree, loadSpecFile, saveDocument, findItemById, findSectionByItemId, rebuildRelations: apiRebuildRelations } = useSpecs()
 const { gates: pendingGates, resolveGate: resolveGateInbox } = useGateInbox()
 const { projectName: activeProjectName } = useProject()
 const viewState = useViewState()
 
 const SPECS_SIDEBAR_KEY = 'autoforge-specs-sidebar-collapsed'
+const SPECS_VIEW_MODE_KEY = 'autoforge-specs-view-mode'
+
+// File-tree mode (PLAN-025): toggle between the structured 6-zone editor and
+// a docs/specs/ file browser. Persisted in localStorage like the sidebar.
+type SpecViewMode = 'structured' | 'tree'
+const viewMode = ref<SpecViewMode>(
+  localStorage.getItem(SPECS_VIEW_MODE_KEY) === 'tree' ? 'tree' : 'structured'
+)
+const specTreeLoaded = ref(false)
+const specTreeLoading = ref(false)
+
+function setViewMode(mode: SpecViewMode) {
+  viewMode.value = mode
+  localStorage.setItem(SPECS_VIEW_MODE_KEY, mode)
+  if (mode === 'tree' && !specTreeLoaded.value && !specTreeLoading.value) {
+    specTreeLoading.value = true
+    loadSpecTree().finally(() => {
+      specTreeLoading.value = false
+      specTreeLoaded.value = true
+    })
+  }
+}
+
+async function selectSpecNode(payload: { path: string; type: string }) {
+  // Folders only expand/collapse inside TreeView; load content on file select.
+  if (payload.type !== 'file') return
+  await loadSpecFile(payload.path)
+}
 
 const activeSection = ref<string>('goals')
 const activeModule = ref<string>('')
@@ -1390,4 +1457,59 @@ watch(project, (newVal) => {
   animation: flash-highlight 1.5s ease-out;
 }
 
+
+/* ─── View-mode toggle + file-tree mode (PLAN-025) ──────────────────────── */
+
+.view-mode-toggle {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--af-border);
+  background: hsl(var(--muted-foreground) / 0.03);
+  flex-shrink: 0;
+}
+
+.mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--af-muted);
+  cursor: pointer;
+  font-size: 0.82rem;
+  line-height: 1;
+}
+
+.mode-btn:hover {
+  background: hsl(var(--muted-foreground) / 0.06);
+  color: var(--af-fg);
+}
+
+.mode-btn.active {
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
+  border-color: hsl(var(--primary) / 0.3);
+}
+
+.filetree-nav {
+  width: 260px;
+  min-width: 260px;
+  overflow-y: auto;
+  padding: 0.5rem;
+  border-right: 1px solid var(--af-border);
+}
+
+.filetree-editor {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.filetree-empty {
+  padding: 1rem 0.5rem;
+  color: var(--af-muted);
+  font-size: 0.85rem;
+}
 </style>

@@ -12,8 +12,10 @@ auto-musk/
 │   └── crates/musk/  lib + bin：tools / specs / chats / server / auth / mode
 ├── web/              独立 Vue3 + TS SPA（Chats + Specs + Login）
 ├── skills/           agent 技能库（brainstorming/writing-plans/...）
-├── docs/plans/       实施计划（001-013）
-└── designs/          设计参考（前端 widget / 三成分拆分 / ...）
+└── docs/
+    ├── plans/        实施计划（NNN-*.md，状态机驱动）
+    ├── designs/      设计参考（前端 widget / 三成分拆分 / ...）
+    └── specs/        Spec 模块树知识库（008 §5；PLAN-025 文件树浏览器）
 ```
 
 ## 前置依赖

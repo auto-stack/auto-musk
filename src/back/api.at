@@ -175,6 +175,19 @@ pub fn specs_drift_check() {
     return None
 }
 
+// PLAN-025: docs/specs/ 文件树浏览器（hw spec_tree_routes；复用 wiki::build_tree）。
+// tree 返回嵌套 TreeNode；file 读正文。后端是 hw 逃生舱，此处 #[api] 仅服务
+// 前端 api.ts codegen。
+#[api(method = "GET", path = "/api/specs/tree")]
+pub fn specs_tree() []TreeNode {
+    return None
+}
+
+#[api(method = "GET", path = "/api/specs/file/{path}")]
+pub fn specs_get_file(path str) str {
+    return None
+}
+
 
 
 // ============================================================

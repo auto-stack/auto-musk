@@ -1,0 +1,3 @@
+# 此目录用于沉淀各模块的 spec/design/tests 长文档
+# 约定：modules/<module>/{spec,design,tests}.md
+# 待 PLAN-025 后续或 /auto-plan:merge 扩展填充。

@@ -142,7 +142,11 @@
     "rebuildLinks": "重建链接",
     "add": "添加{type}",
     "item": "项目",
-    "items": "{count} 个项目"
+    "items": "{count} 个项目",
+    "structuredMode": "结构化",
+    "fileTreeMode": "文件树",
+    "emptyTree": "还没有 spec 文件",
+    "selectFile": "从树中选择一个文件"
   },
   "plans": {
     "title": "计划",

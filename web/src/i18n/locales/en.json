@@ -129,7 +129,11 @@
     "rebuildLinks": "Rebuild Links",
     "add": "Add {type}",
     "item": "Item",
-    "items": "{count} items"
+    "items": "{count} items",
+    "structuredMode": "Structured",
+    "fileTreeMode": "File Tree",
+    "emptyTree": "No spec files yet",
+    "selectFile": "Select a file from the tree"
   },
   "plans": {
     "title": "Plans",
