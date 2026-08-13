@@ -443,6 +443,7 @@ a { color: hsl(var(--primary)); }
 }
 .input-row { display: flex !important; align-items: flex-end; gap: 0.4rem; width: 100%; }
 .input-compose {
+  position: relative !important;      /* 让 .input-backdrop absolute 相对它（高亮层重叠 textarea）*/
   flex: 1 1 auto !important;          /* 在 .input-row 内填满剩余空间 */
   min-width: 0 !important;            /* 允许收缩（flex 子项防溢出） */
   width: auto !important;             /* 覆盖 codegen 注入的固定 px */
@@ -463,9 +464,17 @@ a { color: hsl(var(--primary)); }
    纯粹只是 mention 高亮覆盖层。Auto 版 scoped style 给了灰底+灰边+6px圆角，
    叠加在外层紫色圆角 .input-compose 上造成"双层"视觉混乱——清零。 */
 .input-backdrop {
+  position: absolute !important;
+  top: 0; left: 0; right: 0; bottom: 0;
+  padding: 4px 8px !important;        /* 对齐 textarea（与 input-compose padding 一致）*/
   background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
+  pointer-events: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: hsl(var(--foreground));
 }
 /* textarea 自身去边框（靠容器的边框+圆角），block+100% 宽自适应 */
 .input-compose textarea,
@@ -474,6 +483,10 @@ a { color: hsl(var(--primary)); }
   width: 100% !important;
   border: none !important; border-radius: 0 !important; background: transparent !important;
   font-size: 0.95rem; resize: none; outline: none;
+  color: transparent !important;       /* 文字透明：只 caret 可见，文字由 backdrop 高亮层显示 */
+  caret-color: hsl(var(--foreground));
+  position: relative;
+  z-index: 1;
 }
 .chats-input:focus { outline: none !important; box-shadow: none !important; border: none !important; }
 /* Send 按钮：圆形 + 紫色底 + 白字（对齐原生版 .send-btn） */
@@ -693,6 +706,37 @@ a { color: hsl(var(--primary)); }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ws-empty { padding: 0.5rem; text-align: center; font-size: 0.72rem; color: hsl(var(--muted-foreground)); }
+/* browse 选目录（打开其他文件夹）—— 对齐 web WorkspaceSelector scoped 样式 */
+.ws-divider { height: 1px; background: hsl(var(--border)); margin: 0.4rem 0; }
+.ws-input {
+  width: 100%; box-sizing: border-box; background: hsl(var(--background));
+  border: 1px solid hsl(var(--border)); border-radius: 4px;
+  padding: 0.35rem 0.5rem; color: hsl(var(--foreground)); font-size: 0.8rem;
+}
+.ws-suggest { max-height: 120px; overflow-y: auto; }
+.ws-suggest-item {
+  display: block; width: 100%; background: none; border: none;
+  padding: 0.3rem 0.5rem; text-align: left; cursor: pointer;
+  color: hsl(var(--foreground)); font-size: 0.78rem; border-radius: 4px;
+}
+.ws-suggest-item:hover { background: hsl(var(--muted-foreground) / 0.08); }
+.ws-open-btn {
+  display: flex; align-items: center; gap: 0.4rem; width: 100%; justify-content: center;
+  margin-top: 0.4rem; background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
+  border: none; border-radius: 4px; padding: 0.4rem; cursor: pointer; font-size: 0.82rem;
+}
+.ws-open-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* AI 思考中等待指示（streaming 但 draft 还没开始）—— pulse 动画 */
+.thinking-dots {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.85rem;
+  padding: 0.5rem 0.75rem;
+  animation: thinking-pulse 1.5s ease-in-out infinite;
+}
+@keyframes thinking-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
 
 /* ── RelayRunBox（Plan 023 队列 A3 原生化：逃生舱 scoped 转全局兜底）── */
 .relay-box {

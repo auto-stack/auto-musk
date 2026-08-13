@@ -194,7 +194,7 @@ export function getToolSummary(tc: ToolCallLike): ToolSeg[] {
   const pattern = (args.pattern as string) || ''
   const query = (args.query as string) || ''
   const task = (args.task as string) || ''
-  const command = (args.command as string) || ''
+  const command = (args.command as string) || (args.cmd as string) || ''
   const limit = args.limit as number | undefined
   const offset = args.offset as number | undefined
 

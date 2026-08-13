@@ -282,6 +282,12 @@ widget ChatsView {
                                     streaming: .store.streaming
                                 }
                             }
+                        } else {
+                            // AI 思考中：draft 尚未开始流式，显示等待指示（pulse 动画）
+                            col {
+                                style: "msg assistant-msg thinking-dots"
+                                text "AI 思考中..."
+                            }
                         }
                     }
                     if .store.error != "" {

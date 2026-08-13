@@ -16,8 +16,8 @@
 
 component fn WorkspaceSelector() {
     use {
-        component: Folder, ChevronUp, ChevronDown, X from "lucide-vue-next"
-        fn: loadRecentWorkspaces, loadCurrentWorkspace, findWorkspace from "src/front/workspace_helpers.ts"
+        component: Folder, FolderOpen, ChevronUp, ChevronDown, X from "lucide-vue-next"
+        fn: loadRecentWorkspaces, loadCurrentWorkspace, findWorkspace, browseWorkspace, openWorkspace from "src/front/workspace_helpers.ts"
     }
     computed {
         currentName => if .current != None { .current.name } else { "选择工作目录" }
@@ -25,11 +25,13 @@ component fn WorkspaceSelector() {
         hasCurrent => .current != None
         showEmpty => .recent.length == 0
     }
-    msg Msg { Toggle, Choose(str), Close }
+    msg Msg { Toggle, Choose(str), Close, OnBrowseInput, OpenCustom, SelectSuggestion(str) }
     model {
         var open bool = false
         var current obj = None
         var recent obj = []
+        var custom_path str = ""
+        var suggestions obj = []
     }
     on {
         .Init -> {
@@ -52,6 +54,31 @@ component fn WorkspaceSelector() {
             location.reload()
         }
         .Close -> { .open = false }
+
+        // browse：输入含路径分隔符时实时建议子目录
+        .OnBrowseInput -> {
+            .suggestions = browseWorkspace(.custom_path).await
+        }
+
+        // 选建议项 → 填入 custom_path
+        .SelectSuggestion(path) -> {
+            .custom_path = path;
+            .suggestions = []
+        }
+
+        // 打开自定义路径（后端注册为新 workspace + reload 切换）
+        .OpenCustom -> {
+            if .custom_path != "" {
+                let meta = openWorkspace(.custom_path).await;
+                if meta != None {
+                    .current = meta;
+                    .open = false;
+                    .custom_path = "";
+                    .suggestions = [];
+                    location.reload()
+                }
+            }
+        }
     }
     div {
         style: "workspace-selector"
@@ -106,6 +133,36 @@ component fn WorkspaceSelector() {
                         style: "ws-empty"
                         text "暂无工作区"
                     }
+                }
+                // 打开其他文件夹（browse 选目录）
+                div { style: "ws-divider" }
+                div {
+                    style: "ws-section-label"
+                    text "打开其他文件夹"
+                }
+                input {
+                    value: .custom_path
+                    oninput: .OnBrowseInput
+                    placeholder: "D:\\path\\to\\project"
+                    style: "ws-input"
+                }
+                if .suggestions.length > 0 {
+                    div {
+                        style: "ws-suggest"
+                        for s in .suggestions {
+                            button {
+                                onclick: .SelectSuggestion(.s.path)
+                                style: "ws-suggest-item"
+                                text .s.name
+                            }
+                        }
+                    }
+                }
+                button {
+                    onclick: .OpenCustom
+                    style: "ws-open-btn"
+                    FolderOpen { size: 13 }
+                    text "打开"
                 }
             }
         }
