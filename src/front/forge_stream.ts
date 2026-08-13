@@ -182,9 +182,16 @@ function handleForgeEvent(event: ForgeStreamEvent): void {
         }
       }
       if (call) {
-        ;(call as any).result = event.result ?? ''
+        const result = event.result ?? ''
+        ;(call as any).result = result
+        // PLAN-027 ①: 嗅探 result 标记识别 error（后端 SSE status 恒 success，
+        // 但 outcome 含 [security denied]/[tool error] 标记）。
+        // 用 completed/failed 对齐 generic_tool_card 的 status 样式。
         ;(call as any).status =
-          event.status === 'error' ? 'error' : 'success'
+          event.status === 'error'
+          || result.startsWith('[security denied')
+          || result.startsWith('[tool error')
+            ? 'failed' : 'completed'
       }
     }
     return

@@ -148,6 +148,29 @@ pub fn is_within_project(path: &str) -> bool {
     resolve_within_project(path).is_ok()
 }
 
+/// PLAN-027 ③: 校验 `run_command` 的 cmd 文本里的路径参数也在 workspace 内
+/// （堵 run_command 绕过 path confinement 的安全漏洞）。
+///
+/// 简易实现：按空白拆 token，对"看起来像路径"的 token（含分隔符 / `..`
+/// / `~`）调 `resolve_within_project` 校验。**局限**：不解析引号
+/// （`"my dir"/x` 会被拆错），不覆盖 `$(...)`/反引号里的动态路径 ——
+/// 这些留待后续切 Ash shell（Design 004）时统一处理。
+pub fn confine_command_paths(cmd: &str) -> Result<(), String> {
+    for token in cmd.split_whitespace() {
+        if token.starts_with('-') { continue; }  // 跳过 flag（-x / --foo）
+        let looks_like_path = token.contains('/')
+            || token.contains('\\')
+            || token.contains("..")
+            || token.starts_with("./")
+            || token.starts_with('~');
+        if !looks_like_path { continue; }
+        resolve_within_project(token).map_err(|e| {
+            format!("run_command path argument '{token}': {e}")
+        })?;
+    }
+    Ok(())
+}
+
 // ── run_command classification ──────────────────────────────────────────────
 
 /// The safety tier of a shell command.
@@ -332,5 +355,40 @@ mod tests {
         // Just ensure it doesn't panic and returns *some* root.
         clear_current_root();
         let _ = project_root();
+    }
+
+    /// PLAN-027 ③: run_command 的路径参数 confinement（堵 cat/type 绕过读 workspace 外）
+    #[test]
+    fn confine_command_paths_rejects_outside() {
+        let tmp = std::env::temp_dir().join(format!(
+            "musk-ts-cmd-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("local.txt"), "ok").unwrap();
+
+        set_current_root(tmp.clone());
+
+        // 绝对路径越界 → 拒绝（Windows: C:/Windows/win.ini；Linux: /etc/passwd）
+        let outside = if cfg!(windows) { "C:/Windows/win.ini" } else { "/etc/passwd" };
+        let err = confine_command_paths(&format!("cat {outside}"));
+        assert!(err.is_err(), "cat {outside} should be rejected");
+        assert!(err.unwrap_err().contains("outside the project root"));
+
+        // `..` 穿越 → 拒绝（跨平台分隔符）
+        let traversal = if cfg!(windows) { "type ..\\..\\secret" } else { "cat ../../secret" };
+        assert!(confine_command_paths(traversal).is_err(), "traversal should be rejected");
+
+        // workspace 内相对路径 → 允许
+        assert!(confine_command_paths("cat local.txt").is_ok(), "local.txt should be allowed");
+        // 无路径参数的命令 → 允许
+        assert!(confine_command_paths("cargo build").is_ok(), "cargo build should be allowed");
+        // flag 不误判（-la 不当路径）
+        assert!(confine_command_paths("ls -la").is_ok(), "ls -la should be allowed");
+
+        clear_current_root();
     }
 }

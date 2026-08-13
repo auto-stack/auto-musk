@@ -233,7 +233,8 @@ export function useForge() {
     // distinct event variant.
     function isErrorResult(result: string): boolean {
       if (!result) return false
-      return result.startsWith('[tool error:')
+      return result.startsWith('[security denied')
+        || result.startsWith('[tool error:')
         || /^Error:/.test(result)
         || /command not found/i.test(result)
         || /cannot find (the )?file/i.test(result)

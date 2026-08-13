@@ -8,6 +8,21 @@ use async_trait::async_trait;
 use auto_ai_agent::{Tool, ToolError};
 use serde_json::{json, Value};
 
+/// PLAN-027 ①: path 越界错误 → 结构化 `SecurityDenied`（让 driver/前端识别
+/// kind 并友好播报）。其他 path 错误（IO 等）仍走 `Exec`（纯字符串）。
+fn map_path_error(e: String) -> ToolError {
+    if e.contains("outside the project root") {
+        ToolError::SecurityDenied {
+            kind: "path_confined".into(),
+            path: String::new(),
+            root: crate::tool_safety::project_root().display().to_string(),
+            hint: "AI 只能读写当前 workspace 内的文件；workspace 外的配置请让用户手动提供。".into(),
+        }
+    } else {
+        ToolError::Exec(e)
+    }
+}
+
 /// 读取文件内容(UTF-8 文本)。
 pub struct ReadFile;
 impl ReadFile { pub fn new() -> Self { Self } }
@@ -35,7 +50,7 @@ impl Tool for ReadFile {
             .ok_or_else(|| ToolError::Args("missing 'path' argument".into()))?;
         // Path confinement (Design 004): reject paths outside project root.
         let resolved = crate::tool_safety::resolve_within_project(path)
-            .map_err(|e| ToolError::Exec(e))?;
+            .map_err(map_path_error)?;
         std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))
     }
@@ -74,7 +89,7 @@ impl Tool for WriteFile {
 
         // Path confinement (Design 004).
         let resolved = crate::tool_safety::resolve_within_project(path)
-            .map_err(|e| ToolError::Exec(e))?;
+            .map_err(map_path_error)?;
 
         // Auto-create parent directories.
         if let Some(parent) = resolved.parent() {
@@ -138,10 +153,16 @@ impl Tool for RunCommand {
             }
         }
 
+        // PLAN-027 ③: run_command 也受 workspace path confinement（堵 cat/type
+        // 白名单放行 + 不设 cwd 导致能绕过读 workspace 外文件的安全漏洞）。
+        crate::tool_safety::confine_command_paths(cmd)
+            .map_err(ToolError::Exec)?;
+        let root = crate::tool_safety::project_root();
+
         let output = if cfg!(windows) {
-            std::process::Command::new("cmd").args(["/C", cmd]).output()
+            std::process::Command::new("cmd").args(["/C", cmd]).current_dir(&root).output()
         } else {
-            std::process::Command::new("sh").args(["-c", cmd]).output()
+            std::process::Command::new("sh").args(["-c", cmd]).current_dir(&root).output()
         }
         .map_err(|e| ToolError::Exec(format!("spawn '{cmd}': {e}")))?;
 
@@ -202,7 +223,7 @@ impl Tool for EditFile {
 
         // Path confinement (Design 004).
         let resolved = crate::tool_safety::resolve_within_project(path)
-            .map_err(|e| ToolError::Exec(e))?;
+            .map_err(map_path_error)?;
 
         let content = std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
@@ -258,7 +279,7 @@ impl Tool for Search {
 
         // Path confinement (Design 004): constrain search to project root.
         let resolved = crate::tool_safety::resolve_within_project(raw_path)
-            .map_err(|e| ToolError::Exec(e))?;
+            .map_err(map_path_error)?;
         let path = resolved.to_string_lossy().to_string();
 
         // Prefer ripgrep if available (faster, respects .gitignore); else grep.
@@ -325,7 +346,7 @@ impl Tool for ListDir {
         let raw_path = args["path"].as_str().unwrap_or(".");
         // Path confinement (Design 004).
         let path = crate::tool_safety::resolve_within_project(raw_path)
-            .map_err(|e| ToolError::Exec(e))?;
+            .map_err(map_path_error)?;
         let entries = std::fs::read_dir(&path)
             .map_err(|e| ToolError::Exec(format!("list '{raw_path}': {e}")))?;
 
@@ -387,7 +408,7 @@ impl Tool for ListSymbols {
             .ok_or_else(|| ToolError::Args("missing 'path'".into()))?;
         // Path confinement (Design 004).
         let resolved = crate::tool_safety::resolve_within_project(path)
-            .map_err(|e| ToolError::Exec(e))?;
+            .map_err(map_path_error)?;
         let content = std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
 
@@ -456,7 +477,7 @@ impl Tool for Glob {
         let raw_base = args["path"].as_str().unwrap_or(".");
         // Path confinement (Design 004): constrain glob base to project root.
         let base = crate::tool_safety::resolve_within_project(raw_base)
-            .map_err(|e| ToolError::Exec(e))?;
+            .map_err(map_path_error)?;
         let base_str = base.to_string_lossy().to_string();
         let full_pattern = if pattern.starts_with('/') || pattern.contains(':') {
             // absolute or has a drive letter — use as-is
@@ -533,7 +554,7 @@ impl Tool for BatchReplace {
 
         // Path confinement (Design 004).
         let resolved = crate::tool_safety::resolve_within_project(path)
-            .map_err(|e| ToolError::Exec(e))?;
+            .map_err(map_path_error)?;
 
         let mut content = std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
