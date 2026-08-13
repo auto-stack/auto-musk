@@ -11,6 +11,8 @@ widget PlansView {
         // Plan 023 §3.1：共用 NavSidebar + ContentHeader。
         component: NavSidebar
         component: ContentHeader
+        // 新建计划按钮的 + icon（lucide）
+        component: Plus from "lucide-vue-next"
     }
 
     msg Msg {
