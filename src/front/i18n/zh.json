@@ -5,10 +5,10 @@
     "version": "v0.1.0"
   },
   "nav": {
-    "chat": "聊天",
+    "chat": "会话",
     "plans": "计划",
     "specs": "规范",
-    "wiki": "知识库"
+    "wiki": "知识"
   },
   "counter": {
     "label": "计数"

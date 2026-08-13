@@ -48,23 +48,7 @@ widget SpecsView {
     }
 
     view {
-        col {
-            style: "specs-view-wrap"
-            // PLAN-025: 视图模式 toggle（structured | tree）
-            row {
-                style: "view-mode-toggle"
-                button {
-                    onclick: .EnterStructuredMode
-                    class: if .view_mode == "structured" { "mode-btn active" } else { "mode-btn" }
-                    text t("specs.structuredMode")
-                }
-                button {
-                    onclick: .EnterTreeMode
-                    class: if .view_mode == "tree" { "mode-btn active" } else { "mode-btn" }
-                    text t("specs.fileTreeMode")
-                }
-            }
-            if .view_mode == "structured" {
+        if .view_mode == "structured" {
         row {
             style: "specs-view"
             // 左侧 section-nav（Plan 023 §3.1：共用 NavSidebar——header + list slot）
@@ -112,6 +96,21 @@ widget SpecsView {
                     // 内容容器 section-content 单独 padding（原负 margin hack 消除）。
                     ContentHeader {
                         title: .active_section
+                        slot(name: "middle") {
+                            row {
+                                style: "view-mode-toggle"
+                                button {
+                                    onclick: .EnterStructuredMode
+                                    class: if .view_mode == "structured" { "mode-btn active" } else { "mode-btn" }
+                                    text t("specs.structuredMode")
+                                }
+                                button {
+                                    onclick: .EnterTreeMode
+                                    class: if .view_mode == "tree" { "mode-btn active" } else { "mode-btn" }
+                                    text t("specs.fileTreeMode")
+                                }
+                            }
+                        }
                         slot(name: "actions") {
                             button {
                                 onclick: .AddItem
@@ -218,7 +217,7 @@ widget SpecsView {
         } else {
             // PLAN-025 §10: 扁平文件树渲染（递归留作 KNOWN-DEBT）
             row {
-                style: "specs-filetree"
+                style: "specs-view"
                 col {
                     style: "filetree-nav"
                     for node in .store.spec_tree {
@@ -231,15 +230,35 @@ widget SpecsView {
                     }
                 }
                 col {
-                    style: "filetree-editor"
-                    if .store.active_spec_file_content != "" {
-                        text .store.active_spec_file_content
-                    } else {
-                        text t("specs.selectFile")
+                    style: "specs-main"
+                    ContentHeader {
+                        title: t("specs.fileTreeMode")
+                        slot(name: "middle") {
+                            row {
+                                style: "view-mode-toggle"
+                                button {
+                                    onclick: .EnterStructuredMode
+                                    class: if .view_mode == "structured" { "mode-btn active" } else { "mode-btn" }
+                                    text t("specs.structuredMode")
+                                }
+                                button {
+                                    onclick: .EnterTreeMode
+                                    class: if .view_mode == "tree" { "mode-btn active" } else { "mode-btn" }
+                                    text t("specs.fileTreeMode")
+                                }
+                            }
+                        }
+                    }
+                    col {
+                        style: "filetree-editor"
+                        if .store.active_spec_file_content != "" {
+                            text .store.active_spec_file_content
+                        } else {
+                            text t("specs.selectFile")
+                        }
                     }
                 }
             }
-        }
         }
     }
 

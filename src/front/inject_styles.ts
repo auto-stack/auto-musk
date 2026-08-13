@@ -80,6 +80,7 @@ a { color: hsl(var(--primary)); }
 }
 /* 第二列：各视图的 sub-nav（session-sidebar / section-nav / wiki-nav） */
 .chats-view > div:first-child,
+.plans-view > div:first-child,
 .specs-view > div:first-child,
 .wiki-view > div:first-child {
   background: hsl(var(--card)) !important;
@@ -90,6 +91,7 @@ a { color: hsl(var(--primary)); }
   background: hsl(220 15% 8%) !important;
 }
 .dark .chats-view > div:first-child,
+.dark .plans-view > div:first-child,
 .dark .specs-view > div:first-child,
 .dark .wiki-view > div:first-child {
   background: hsl(220 15% 10%) !important;
@@ -138,7 +140,7 @@ a { color: hsl(var(--primary)); }
   width: 100%; text-align: left; padding: 0.5rem 0.75rem; border-radius: 0.375rem;
   font-size: 0.875rem; color: hsl(var(--muted-foreground)); background: transparent;
   border: none; cursor: pointer; transition: all 0.15s;
-  display: flex; align-items: center; gap: 0.5rem;
+  display: flex; align-items: center; justify-content: flex-start; gap: 0.5rem;
 }
 .rail-tab:hover { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
 .rail-tab.active {
@@ -194,6 +196,15 @@ a { color: hsl(var(--primary)); }
 .session-count { font-size: 0.72rem; color: hsl(var(--muted-foreground)); }
 
 .chats-body { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+
+/* ── PlansView 布局（PLAN-026 续：对齐 ChatsView，补此前缺失的 CSS）── */
+.plans-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.plans-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
+.plans-view > div:first-child {
+  width: 220px; flex-shrink: 0;
+  border-right: 1px solid hsl(var(--border)); background: hsl(var(--card));
+}
+.plans-main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 /* header 三段布局：标题左 / 搜索中 / 操作右 */
 .header-actions { display: flex; align-items: center; gap: 0.3rem; flex-shrink: 0; }
 .session-info-btn {

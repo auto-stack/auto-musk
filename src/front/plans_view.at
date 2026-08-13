@@ -46,14 +46,17 @@ widget PlansView {
             NavSidebar {
                 title: t("plans.title")
                 collapsed: false
+                slot(name: "actions") {
+                    button {
+                        onclick: .StartCreate
+                        style: "sidebar-new-btn"
+                        title: t("plans.newPlan")
+                        Plus { size: 14 }
+                    }
+                }
                 slot(name: "list") {
                     col {
                         style: "plans-nav-list"
-                        button {
-                            onclick: .StartCreate
-                            style: "add-btn"
-                            text t("plans.newPlan")
-                        }
                         if .store.loading {
                             text t("plans.loading")
                         } else {

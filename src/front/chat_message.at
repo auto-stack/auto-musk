@@ -34,9 +34,12 @@ component fn ChatMessage(msg: obj, is_streaming: bool) {
         hasError => .msg.error != ""
         errorText => if .hasError { .msg.error } else { "" }
     }
-    // PLAN-026 缺陷②: component fn 的 style 块（气泡布局/对齐/宽度）。
-    // 由修复后的生成器 emit 到 SFC <style scoped>。
-    // msg-error / msg-thinking 在 inject_styles.ts（ext）已定义，此处不重复。
+    // PLAN-026 缺陷②: component fn 的 style 块。只补 inject_styles 未覆盖的布局
+    //（AI 气泡限宽 85%；inject_styles 默认 .msg-row-ai max-width:100%）。
+    // ⚠️ 不要重复定义 .msg-bubble/.msg-bubble-user/.msg-bubble-ai —— inject_styles
+    // 已含完整气泡颜色（紫底白字 user / card 底 foreground ai）。component fn 的
+    // <style scoped> 无法跨组件选 .user-text，重复 msg-bubble 会和 inject_styles
+    // 的 color 冲突（scoped background 赢 + 全局 color 留 → 淡底错色文字不可读）。
     style {
 .msg-row {
   display: flex;
@@ -51,29 +54,7 @@ component fn ChatMessage(msg: obj, is_streaming: bool) {
 .msg-row-ai {
   align-self: flex-start;
   align-items: flex-start;
-}
-.msg-bubble {
-  padding: 0.6rem 0.9rem;
-  border-radius: 0.75rem;
-  word-wrap: break-word;
-  line-height: 1.5;
-}
-.msg-bubble-user {
-  background: hsl(var(--primary) / 0.1);
-  border: 1px solid hsl(var(--primary) / 0.2);
-}
-.msg-bubble-ai {
-  background: hsl(var(--muted-foreground) / 0.05);
-  border: 1px solid hsl(var(--border));
-}
-.msg-role-badge {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: hsl(var(--muted-foreground));
-}
-.msg-time {
-  font-size: 0.75rem;
-  color: hsl(var(--muted-foreground));
+  max-width: 85%;
 }
     }
     col {
