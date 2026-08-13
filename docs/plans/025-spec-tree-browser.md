@@ -3,7 +3,7 @@
 
 # 基础信息
 plan_id: PLAN-025
-status: execution_done                        # drafting → executing → execution_done → review_done → merged
+status: review_done                           # drafting → executing → execution_done → review_done → merged
 feature_name: Spec 文件树浏览器（docs/specs/ 模块树）
 author: [zhaopuming + agent]
 created_at: 2026-08-12T03:30:00Z
@@ -215,13 +215,20 @@ docs/specs/
 
 > 由 `/auto-plan:review` 技能在复审时自动填写，人工确认。
 
-- **复审人**: [待填]
-- **复审时间**: [待填]
+- **复审人**: agent（/auto-plan:review）
+- **复审时间**: 2026-08-13
 - **复审结论**:
-  - [ ] 验收标准全部满足
-  - [ ] 代码无安全隐患
-  - [ ] Spec 元数据已补全
-- **遗留问题**: [如有，写在这里]
+  - [x] 标准 2（API）：spec_tree 3 单测全绿 ✅（cargo test --lib spec_tree）
+  - [x] 标准 5（gen）：ChatMessage.vue 含 :class/!!/style 6 处修复 ✅
+  - [x] 标准 6（docs/specs/）：6 文件骨架就位 ✅
+  - [~] 标准 1（cargo test -p musk 全绿）：**部分** —— plan-025 相关全绿（--lib + parity_spec_tree 5 集成）；全量受 pre-existing plan-018 遗留债务（parity_workspace_endpoints）阻塞，非本计划引入（见 §10）
+  - [~] 标准 3（SpecsView 手测）：代码就位，**手测待用户**（需浏览器+后端运行）
+  - [x] 标准 4（web vue-tsc 0 新错误）：执行时 git stash 对比确认（13 pre-existing，0 新）
+  - [x] 代码无安全隐患（spec_tree 路径校验 validate_path_pub + 越界 400 测试）
+  - [x] Spec 元数据已补全（new_spec_components: docs/specs/；touched_goals: goal-spec-knowledge）
+- **遗留问题**:
+  - pre-existing plan-018 遗留测试债务（parity_workspace_endpoints 往 plans section upsert）—— 见 §10，独立清理
+  - Auto 轨 `.at` 无递归 widget → 扁平渲染兜底（KNOWN-DEBT，见 §10）
 
 ## 10. 待澄清事项 (Open Questions)
 

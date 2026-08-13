@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-026
-status: execution_done         # drafting → executing → execution_done → review_done → merged
+status: review_done            # drafting → executing → execution_done → review_done → merged
 feature_name: auto-lang codegen 三缺陷修复（gen chat 渲染：动态 class / 组件 style / != undefined）
 author: [zhaopuming + agent]
 created_at: 2026-08-12T08:30:00Z
