@@ -1,15 +1,48 @@
-# 项目概览
+# auto-musk 项目概览
 
-> Spec 模块树知识库入口（008 §5）。本骨架由 PLAN-025 建立。
+> 本 spec 基于 2026-08-14 全量代码扫描（后端 Rust + 双前端 + codegen），从代码提炼而非从文档推导。
 
-auto-musk —— AI 辅助的"自动栈"开发环境。本文件作为 spec 知识沉淀层的总览占位，
-后续由 `/auto-plan:merge` 或人工逐步填充。
+## 定位
 
-## 知识库结构
+auto-musk 是 Forge 继任者——Rust 后端的 AI 编码 agent。既是 CLI（`musk run/chat`）也是 HTTP 服务（`musk serve` :8080），经 auto-ai-daemon（aaid）代理调 LLM，工具在进程内本地执行。
 
-- `00-overview.md` —— 项目概览（本文件）
-- `01-architecture.md` —— 全局架构
-- `goals/` —— 目标（goals）相关知识
-- `modules/` —— 各模块的 spec / design / tests 长文档
-- `reviews/` —— 复审记录
-- `index.json` —— 机读索引（版本 + 模块/目标清单）
+## 关键能力
+
+1. **Agent 运行**：基于 `auto-ai-agent` 的 ReAct 循环（一次性 / 流式 SSE），9 基础工具 + 5 spec 工具 + 5 编排工具，path confinement 安全沙箱。
+2. **Spec 双落点**：结构化 ledger（`.autoos/specs.json` 6 区 + 状态机）+ 文件树知识层（`docs/specs/`，本目录）。
+3. **Plans 动态执行**：`docs/plans/NNN-*.md` 文件树，5 态状态机（drafting→executing→execution_done→review_done→merged），merge 沉淀到 Spec。
+4. **Relay 编排**：PipelineEngine 流水线 + TaskPlan DAG + 子会话（spawn_relay/dispatch/bring_in）。
+5. **双前端 parity**：原生 `web/`（Vue3 手写 SPA）+ Auto 轨 `.at` 源（`src/front/*.at` → `auto build` → `gen/front/vue/`）。
+
+## 架构总览
+
+```
+auto-ai（LLM 层）               auto-lang（codegen 工具）
+  aaid daemon :17654              auto build（.at → Vue SFC + Rust）
+       ↑                               ↑
+       |                          auto-musk（主项目）
+  musk serve :8080 ←── backend/crates/musk（Rust axum）
+       |                               ↑
+       ├── web/ :3333（原生 Vue3 手写 SPA）
+       └── gen/front/vue/ :3334（Auto 轨 .at 生成）
+```
+
+## workspace 数据隔离
+
+每个工作区数据落 `{root}/.autoos/`：specs.json / chats.json / conversations/ / relay/ / wiki/ / raw/ / handoffs/ / task_plans/。Plans 例外落 `{root}/docs/plans/`。全局索引在 `~/.config/autoos/workspaces.json`。
+
+## 关键依赖
+
+| 依赖 | 路径 | 职责 |
+|---|---|---|
+| auto-ai-agent | `../auto-ai/crates/auto-ai-agent` | ReAct loop + ToolError + StreamEvent + Role/Skill |
+| auto-ai-client | `../auto-ai/crates/auto-ai-client` | aaid daemon 连接（HTTP） |
+| auto-atom / auto-val | `../auto-lang/crates/auto-atom` | .at 解析 + 值系统 |
+| axum 0.8 | crates.io | HTTP + multipart + SSE |
+| auto build | `auto-lang/crates/auto` | .at → Vue/Rust codegen |
+
+## 配置
+
+- `~/.config/autoos/apps/musk/config.at`：daemon_url / default_mode / serve_addr（运行时单源真相）
+- `~/.config/autoos/ai-daemon.at`：aaid 监听 + provider/model 配置
+- `~/.config/autoos/workspaces.json`：workspace 索引 + default

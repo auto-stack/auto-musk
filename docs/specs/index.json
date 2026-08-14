@@ -1,6 +1,17 @@
 {
-  "version": "1.0",
-  "updated_at": "2026-08-12T04:00:00Z",
-  "modules": [],
-  "goals": []
+  "version": "2.0",
+  "updated_at": "2026-08-14T00:00:00Z",
+  "based_on": "full code scan 2026-08-14 (backend Rust + dual frontend + codegen)",
+  "spec_files": [
+    "00-overview.md",
+    "01-architecture.md",
+    "goals/README.md"
+  ],
+  "goals": [
+    "goal-agent",
+    "goal-spec-knowledge",
+    "goal-relay",
+    "goal-frontend-parity",
+    "goal-security"
+  ]
 }
