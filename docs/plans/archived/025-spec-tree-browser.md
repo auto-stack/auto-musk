@@ -3,7 +3,7 @@
 
 # 基础信息
 plan_id: PLAN-025
-status: review_done                           # drafting → executing → execution_done → review_done → merged
+status: merged
 feature_name: Spec 文件树浏览器（docs/specs/ 模块树）
 author: [zhaopuming + agent]
 created_at: 2026-08-12T03:30:00Z

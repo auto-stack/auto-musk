@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-027
-status: review_done            # drafting → executing → execution_done → review_done → merged
+status: merged
 feature_name: tool 错误体验 + 安全一致性（结构化错误 / driver 短路 / run_command confinement）
 author: [zhaopuming + agent]
 created_at: 2026-08-13T08:30:00Z
