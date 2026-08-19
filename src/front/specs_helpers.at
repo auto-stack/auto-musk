@@ -1,0 +1,51 @@
+// specs_helpers.at — Specs 视图条目 ID/状态工具（单一真源，
+// 替代 utils/itemTemplates.ts）
+//
+// Plan 029 T3：仅迁 SpecsView 消费中的两个 fn。ITEM_TEMPLATES 常量在
+// Auto 轨无消费方，不迁（原生轨 web/src/utils/itemTemplates.ts 自持）。
+//
+// 对拍要点（与原 TS 逐函数对齐）：
+//   - getNextId 兼容旧格式（G1）与新格式（Module-G1）；用 Regex.match
+//     （F4）捕获尾部数字，省略原 isNaN 检查——NaN 参与大小比较恒为 false，
+//     与 `!isNaN(num) && num > maxNum` 行为等价。
+//   - .at 字符串里正则反斜杠双写（"\\d" → 生成 JS '\d'）。
+
+/** 新建条目的初始状态（goals → proposed，其余 draft）。 */
+fn spec_default_status(section_type str) str {
+    if section_type == "goals" {
+        return "proposed"
+    }
+    return "draft"
+}
+
+/** 下一个条目 ID：prefix + 现有最大序号 + 1。 */
+fn spec_next_id(section_type str, existing_ids []str) str {
+    let prefix_map map = { "goals": "G", "architecture": "A", "designs": "D", "plans": "P", "tests": "T", "reviews": "V", "reports": "R" }
+    let prefix = prefix_map[section_type] ?? section_type.char_at(0).to_upper()
+    let max_num = 0
+    for id in existing_ids {
+        // Regex pattern 必须是字面量（拼接表达式不被 F4 转译）——prefix 经
+        // 捕获组取出后手动比较。旧格式 G12：首字母 + 纯数字。
+        let m = Regex.match(id, "^([A-Za-z])(\\d+)$")
+        if m.length > 1 {
+            if m[1] == prefix {
+                let num = m[2].to_int()
+                if num > max_num {
+                    max_num = num
+                }
+            }
+        } else {
+            // 新格式 Module-G12：-prefix + 数字结尾
+            let m2 = Regex.match(id, "-([A-Za-z])(\\d+)$")
+            if m2.length > 1 {
+                if m2[1] == prefix {
+                    let num2 = m2[2].to_int()
+                    if num2 > max_num {
+                        max_num = num2
+                    }
+                }
+            }
+        }
+    }
+    return prefix + (max_num + 1).to_string()
+}

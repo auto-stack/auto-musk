@@ -11,8 +11,6 @@ widget WikiView {
         // raw_upload 是 WikiNav component fn 的 use{fn} 依赖（上传 + 进度共享 ref），
         // 声明仅为触发 ext 复制（codegen ext 复制只看 use 块，不看 component fn 的 use{fn}）。
         fn: uploadRawFiles, rawFileUrl, loadRawFileText, rawFileKind, wikiUploadDrop, rawUploadProgress from "src/front/raw_upload.ts"
-        // wiki_helpers 是 WikiNav component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
-        fn: wikiFilterTree from "src/front/wiki_helpers.ts"
         composable: useT from "src/front/composables/useT.ts"
         // Plan 023 队列 B6：WikiNav 已原生化为 component fn（src/front/wiki_nav.at），
         // 逃生舱 .vue 已删除（DropZone 拖拽上传 + 双树 + 搜索）。

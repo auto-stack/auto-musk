@@ -10,22 +10,22 @@
 //     （.at 无法存回调闭包；进度条 computed 读取共享 ref）
 //   - drop handler 命名 uploaded（auto-emit 同名触发父刷新——失败时也会触发，
 //     父刷新幂等，登记轻微差异）
-//   - 树过滤 → wiki_helpers.ts fn；动态 component :is → if/else 图标切换
+//   - 树过滤 → wiki_helpers.at fn 模块；动态 component :is → if/else 图标切换
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.wiki-nav 等）。
 
 component fn WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: str, workspace: str) {
     use {
         component: Plus, PanelLeft, Search, BookOpen, FolderInput, FolderPlus, UploadCloud, Trash2, ChevronDown, ChevronRight, FileText, File from "lucide-vue-next"
-        fn: wikiFilterTree from "src/front/wiki_helpers.ts"
+        fn: wiki_filter_tree from "src/front/wiki_helpers.at"
         fn: wikiUploadDrop, rawUploadProgress from "src/front/raw_upload.ts"
         composable: useI18n refs: [locale] from "vue-i18n"
         // Plan 023 §3.1：共用 NavSidebar（wiki 导航外壳收敛）。
         component: NavSidebar
     }
     computed {
-        filteredWikiTree => wikiFilterTree(.wikiTree, .query)
-        filteredRawTree => wikiFilterTree(.rawTree, .query)
+        filteredWikiTree => wiki_filter_tree(.wikiTree, .query)
+        filteredRawTree => wiki_filter_tree(.rawTree, .query)
         uploadProgress => rawUploadProgress.value
         isUploading => .uploadProgress != None
         rawEmpty => .filteredRawTree.length == 0

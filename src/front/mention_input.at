@@ -19,16 +19,16 @@ component fn MentionInput(disabled: bool, professions: obj) {
         component: Send, Square from "lucide-vue-next"
         composable: useAgentConfigs refs: [configs] from "src/front/composables/useAgentConfigs.ts"
         composable: useI18n refs: [locale] from "vue-i18n"
-        fn: renderInputMentions, buildMentionNames from "src/front/mention_helpers.ts"
-        fn: mentionFiltered, mentionClampIndex, mentionIndexOf, mentionKeyAction, mentionDetectFilter, mentionDetectAnchor, mentionDetectVisible, mentionDetectPos, mentionInsert, mentionCanSend, mentionTrim, mentionProfessionsList, mentionCurrentId from "src/front/mention_helpers.ts"
+        fn: render_input_mentions, build_mention_names from "src/front/mention_helpers.at"
+        fn: mention_filtered, mention_clamp_index, mention_index_of, mention_key_action, mention_detect_filter, mention_detect_anchor, mention_detect_visible, mention_detect_pos, mention_insert, mention_can_send, mention_trim, mention_professions_list, mention_current_id from "src/front/mention_helpers.at"
         component: MentionDropdown
     }
     computed {
-        professionsList => mentionProfessionsList(.professions, agentConfigs.configs)
-        mentionNames => buildMentionNames(.professionsList)
-        backdropHtml => renderInputMentions(.text, .mentionNames)
-        canSend => mentionCanSend(.text)
-        mentionFilteredList => mentionFiltered(.professionsList, .mentionFilter)
+        professionsList => mention_professions_list(.professions, agentConfigs.configs)
+        mentionNames => build_mention_names(.professionsList)
+        backdropHtml => render_input_mentions(.text, .mentionNames)
+        canSend => mention_can_send(.text)
+        mentionFilteredList => mention_filtered(.professionsList, .mentionFilter)
         hasMentionItems => .mentionFilteredList.length > 0
     }
     msg Msg { Input, Keydown, Select, Hover, send(str), cancel }
@@ -42,32 +42,32 @@ component fn MentionInput(disabled: bool, professions: obj) {
     }
     on {
         .Input(e) -> {
-            .mentionFilter = mentionDetectFilter(e);
-            .mentionAnchor = mentionDetectAnchor(e);
-            .mentionVisible = mentionDetectVisible(e);
-            .mentionPos = mentionDetectPos(e)
+            .mentionFilter = mention_detect_filter(e);
+            .mentionAnchor = mention_detect_anchor(e);
+            .mentionVisible = mention_detect_visible(e);
+            .mentionPos = mention_detect_pos(e)
         }
         .Keydown(e) -> {
             if .mentionVisible {
                 if .hasMentionItems {
-                    if mentionKeyAction(e) == "ArrowDown" {
-                        .mentionIndex = mentionClampIndex(.mentionIndex + 1, .mentionFilteredList.length)
-                    } else if mentionKeyAction(e) == "ArrowUp" {
-                        .mentionIndex = mentionClampIndex(.mentionIndex - 1, .mentionFilteredList.length)
-                    } else if mentionKeyAction(e) == "Enter" || mentionKeyAction(e) == "Tab" {
-                        .text = mentionInsert(.professionsList, mentionCurrentId(.mentionFilteredList, .mentionIndex), .text, .mentionPos);
+                    if mention_key_action(e) == "ArrowDown" {
+                        .mentionIndex = mention_clamp_index(.mentionIndex + 1, .mentionFilteredList.length)
+                    } else if mention_key_action(e) == "ArrowUp" {
+                        .mentionIndex = mention_clamp_index(.mentionIndex - 1, .mentionFilteredList.length)
+                    } else if mention_key_action(e) == "Enter" || mention_key_action(e) == "Tab" {
+                        .text = mention_insert(.professionsList, mention_current_id(.mentionFilteredList, .mentionIndex), .text, .mentionPos);
                         .mentionVisible = false
-                    } else if mentionKeyAction(e) == "Escape" {
+                    } else if mention_key_action(e) == "Escape" {
                         .mentionVisible = false
                     }
                 }
             }
         }
         .Select(id) -> {
-            .text = mentionInsert(.professionsList, id, .text, .mentionPos);
+            .text = mention_insert(.professionsList, id, .text, .mentionPos);
             .mentionVisible = false
         }
-        .Hover(id) -> { .mentionIndex = mentionIndexOf(.mentionFilteredList, id) }
+        .Hover(id) -> { .mentionIndex = mention_index_of(.mentionFilteredList, id) }
         .send(t) -> {
             if t != "" {
                 .text = "";
@@ -93,7 +93,7 @@ component fn MentionInput(disabled: bool, professions: obj) {
                         value: .text
                         oninput: .Input($event)
                         onkeydown: .Keydown($event)
-                        onkeydown.enter.exact.prevent: .send(mentionTrim(.text))
+                        onkeydown.enter.exact.prevent: .send(mention_trim(.text))
                         placeholder: i18n.t("chat.inputPlaceholder")
                         disabled: .disabled
                     }
@@ -106,7 +106,7 @@ component fn MentionInput(disabled: bool, professions: obj) {
                     }
                 } else {
                     button {
-                        onclick: .send(mentionTrim(.text))
+                        onclick: .send(mention_trim(.text))
                         style: "send-btn"
                         disabled: !.canSend
                         Send { size: 16 }

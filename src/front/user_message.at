@@ -5,7 +5,7 @@
 // 现 codegen 已原生支持 html: prop → v-html（Plan 012 P2 gap 22）+
 // component fn（Plan 408 P1-P6），可脱离逃生舱。
 //
-// renderMentions（@mention 高亮，HTML 转义 + @word 包 span）仍在
+// render_mentions_default（@mention 高亮，HTML 转义 + @word 包 span，mention_helpers.at）
 // forge_helpers.ts——它是纯正则替换，.at 无正则能力，保留为逃生舱 fn
 // 经 use { fn } 引入（Plan 408 P5 缺陷 5 修复后支持）。
 //
@@ -14,10 +14,10 @@
 
 component fn UserMessage(content: str) {
     use {
-        fn: renderMentions from "src/front/mention_helpers.ts"
+        fn: render_mentions_default from "src/front/mention_helpers.at"
     }
     computed {
-        html => renderMentions(.content)
+        html => render_mentions_default(.content)
     }
     div {
         html: .html

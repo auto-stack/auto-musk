@@ -5,8 +5,8 @@
 // 行为与 forge_helpers.ts 逐函数对齐（demo 会话 fixture 对拍验证）。
 //
 // 未迁移（mention 域，回调式 replace 超出 F4 子集，归后续 G-对话壳/输入组）：
-//   DEFAULT_PROFESSIONS / buildMentionNames / renderMentions /
-//   renderInputMentions / resolveMention → 仍在 mention_helpers.ts。
+//   mention 域已由 mention_helpers.at 承载（Plan 029 T8）。原遗留：
+//   （DEFAULT_PROFESSIONS/renderMentions 等曾在 mention_helpers.ts。）
 
 // ─── Task plan helpers ───────────────────────────────────────────────────────
 

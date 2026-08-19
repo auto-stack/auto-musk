@@ -1,0 +1,20 @@
+// wiki_helpers.at — WikiNav 树过滤逻辑（单一真源，替代 wiki_helpers.ts）
+//
+// Plan 029 T4：filter + toLowerCase + includes 已可原生表达
+// （.contains → includes、.to_lower → toLowerCase 映射）。
+
+/** 按 query 过滤树节点（name 大小写不敏感 contains；空 query 返回全量）。 */
+fn wiki_filter_tree(nodes []Value, query str) []Value {
+    let src = nodes ?? []
+    // 空 query（含 undefined/null——宽松 == None 覆盖）返回全量，对齐原 !query。
+    if query == "" || query == None {
+        return src
+    }
+    let out = []
+    for n in src {
+        if n.name.to_lower().contains(query.to_lower()) {
+            out.push(n)
+        }
+    }
+    return out
+}

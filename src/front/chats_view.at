@@ -16,11 +16,9 @@ widget ChatsView {
     use {
                 // B 类批3：/relay//superpower//spec1 命令路由（逃生舱 fn，同步检测+异步执行）。
         fn: handleRelayCommand from "src/front/relay_commands.ts"
-        // forge_helpers 是逃生舱卡片组件的内部依赖，声明 renderMentions 仅为触发 ext 复制
         // （codegen ext 复制只看 use 块，不递归逃生舱组件的相对 import）。
         fn: extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.at"
         fn: chatSearchFilter, chatLastMessageId from "src/front/forge_helpers.at"
-        fn: renderMentions from "src/front/mention_helpers.ts"
         // questionnaire 解析纯函数（QuestionnaireCard 的数据源）。
         fn: getQuestions, hasQuestionnaire from "src/front/questionnaire.at"
         // Plan 023 队列 B5：MentionInput 已原生化为 component fn（src/front/mention_input.at），
@@ -50,16 +48,12 @@ widget ChatsView {
         component: QuestionnaireCard
         // Phase 7.3 续 codegen 限制1 修复后：直接用 QuestionnaireCard + getQuestions fn 调用
         // （不再需要 QuestionnaireMessage 包装组件）。
-        // gate_helpers 是 GateCard component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
-        fn: gateToggleExpanded, gateWithExpanded, gateInitEditedSpecs, gateTitleText from "src/front/gate_helpers.ts"
         // Plan 023 队列 B2：GateCard 已原生化为 component fn（src/front/gate_card.at），
         // 逃生舱 .vue 已删除。
         component: GateCard
         // B 类批4→Plan 023 队列 B 续：SecretaryMessageWrapper 已原生化为 component fn
         // （src/front/secretary_message_wrapper.at，§10.4 facade refs 修复后），逃生舱 .vue 已删除。
         component: SecretaryMessageWrapper
-        // secretary_helpers 是 SecretaryMessage component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
-        fn: secretaryFormatElapsed from "src/front/secretary_helpers.ts"
         // Plan 023 队列 B4：SecretaryMessage 已原生化为 component fn（src/front/secretary_message.at），
         // 逃生舱 .vue 已删除（SecretaryMessageWrapper.vue 改用 @/components/SecretaryMessage.vue 引用生成版）。
         component: SecretaryMessage
@@ -73,8 +67,6 @@ widget ChatsView {
         // （src/front/chat_message.at），逃生舱 .vue 已删除。
         // 依赖 UserMessage（已原生）+ StreamingRenderer（逃生舱）+ msgTimeLabel fn。
         component: ChatMessage
-        // session_info_helpers 是 SessionInfo component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
-        fn: sessionTokenCost, sessionCopyId, sessionCopied, sessionMessageCount from "src/front/session_info_helpers.ts"
         // Plan 023 队列 B 续：SessionInfo 已原生化为 component fn（src/front/session_info.at，
         // store + 宿主全局），逃生舱 .vue 已删除。
         component: SessionInfo

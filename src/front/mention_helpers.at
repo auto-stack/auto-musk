@@ -1,0 +1,264 @@
+// mention_helpers.at — MentionInput/MentionDropdown 过滤/定位/输入逻辑
+// （单一真源，替代 mention_helpers.ts）
+//
+// Plan 029 T8。原文件的三大不可表达点及等价改写：
+//   1) 回调式 regex replace（renderMentions）超出 F4 子集 → 手写 @word
+//      扫描器（for-condition while 循环 + char_at 逐字符，\w = [A-Za-z0-9_]）；
+//   2) Map（buildMentionNames）→ dict，键加 "k_" 前缀——裸 \w 键（如
+//      "constructor"）会命中 Object.prototype 原型链；
+//   3) lastIndexOf 无映射 → 手写反向扫描 mention_last_at。
+// resolveMention 在 Auto 轨无消费方，不迁。
+// window.innerHeight / el.getBoundingClientRect() 为未知全局，passthrough 原样生成。
+
+/** 默认职业列表（props 未传且 configs 为空时的兜底）。 */
+fn mention_default_professions() []Value {
+    return [
+        { "id": "assistant", "name": "Assistant Agent" },
+        { "id": "advisor", "name": "Advisor" },
+        { "id": "architect", "name": "Architect" },
+        { "id": "planner", "name": "Planner" },
+        { "id": "coder", "name": "Coder" },
+        { "id": "tester", "name": "Tester" },
+        { "id": "reviewer", "name": "Reviewer" },
+        { "id": "documenter", "name": "Documenter" },
+        { "id": "gofer", "name": "Gofer" },
+    ]
+}
+
+/** id/name（小写）→ 显示名映射（键加 k_ 前缀防原型链命中）。 */
+fn build_mention_names(professions []Value) obj {
+    let names map = {}
+    for p in (professions ?? []) {
+        names["k_" + p.id.to_lower()] = p.name
+        names["k_" + p.name.to_lower()] = p.name
+    }
+    return names
+}
+
+/** \w 字符判断（[A-Za-z0-9_]）。 */
+fn mention_is_word_char(c str) bool {
+    if c >= "0" && c <= "9" {
+        return true
+    }
+    if c >= "a" && c <= "z" {
+        return true
+    }
+    if c >= "A" && c <= "Z" {
+        return true
+    }
+    if c == "_" {
+        return true
+    }
+    return false
+}
+
+/** 转义 HTML，然后把 @mention 包成高亮 span（手写扫描，等价 /@(\w+)/g 回调）。 */
+fn render_mentions(text str, names obj) str {
+    let escaped = Regex.replace(Regex.replace(Regex.replace(text, "&", "&amp;", "g"), "<", "&lt;", "g"), ">", "&gt;", "g")
+    let out = ""
+    let i = 0
+    let n = escaped.length
+    for i < n {
+        if escaped.char_at(i) == "@" {
+            let j = i + 1
+            let word = ""
+            for j < n {
+                let c = escaped.char_at(j)
+                if mention_is_word_char(c) {
+                    word = word + c
+                    j = j + 1
+                } else {
+                    break
+                }
+            }
+            // 正则 \w+ 至少 1 字符才命中；word 为空串时按字面 @ 处理。
+            if word != "" {
+                let display = names["k_" + word.to_lower()]
+                if display != None && display != "" {
+                    out = out + "<span class=\"inline-mention\">@" + display + "</span>"
+                    i = j
+                } else {
+                    out = out + "@"
+                    i = i + 1
+                }
+            } else {
+                out = out + "@"
+                i = i + 1
+            }
+        } else {
+            out = out + escaped.char_at(i)
+            i = i + 1
+        }
+    }
+    return out
+}
+
+/** renderMentions 的默认职业版本（原 TS 默认参数）。 */
+fn render_mentions_default(text str) str {
+    return render_mentions(text, build_mention_names(mention_default_professions()))
+}
+
+/** 同 render_mentions，但末尾加换行（输入框 backdrop 用）。 */
+fn render_input_mentions(text str, names obj) str {
+    if text == "" || text == None {
+        return ""
+    }
+    return render_mentions(text, names) + "\n"
+}
+
+/** 按 filter 过滤 professions（id/name 大小写不敏感 contains）。 */
+fn mention_filtered(professions []Value, filter str) []Value {
+    let f = (filter ?? "").to_lower()
+    let out = []
+    for p in (professions ?? []) {
+        let pid = (p.id ?? "").to_lower()
+        let pname = (p.name ?? "").to_lower()
+        if pid.contains(f) || pname.contains(f) {
+            out.push(p)
+        }
+    }
+    return out
+}
+
+/** 锚点定位（anchorRect 为空返回 {}；window.innerHeight passthrough）。 */
+fn mention_position(anchor_rect obj) obj {
+    if anchor_rect == None {
+        return {}
+    }
+    let bottom_px = (window.innerHeight - anchor_rect.top + 4).to_string() + "px"
+    return { "position": "fixed", "left": anchor_rect.left.to_string() + "px", "bottom": bottom_px }
+}
+
+/** 当前高亮项 id（filtered[index]?.id，无则空串）。 */
+fn mention_current_id(filtered []Value, index int) str {
+    let p = filtered[index]
+    if p == None {
+        return ""
+    }
+    return p.id ?? ""
+}
+
+/** 键盘导航索引 clamp（moveUp/moveDown 共用）。 */
+fn mention_clamp_index(index int, len int) int {
+    if len <= 0 {
+        return 0
+    }
+    return Math.max(0, Math.min(index, len - 1))
+}
+
+/** 鼠标 hover 按 id 定位索引（首个匹配，无则 0）。 */
+fn mention_index_of(filtered []Value, id str) int {
+    let i = 0
+    for p in filtered {
+        if p.id == id {
+            return i
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+/** 发送按钮可用性（文本非空白）。 */
+fn mention_can_send(text str) bool {
+    return mention_trim(text) != ""
+}
+
+/** trim。 */
+fn mention_trim(text str) str {
+    return text.trim()
+}
+
+/** 按键名（e?.key || ''）。 */
+fn mention_key_action(e obj) str {
+    if e == None {
+        return ""
+    }
+    return e.key ?? ""
+}
+
+/** professions 列表兜底（props.professions > 动态 configs > 默认列表）。 */
+fn mention_professions_list(prop_prof []Value, configs []Value) []Value {
+    if prop_prof != None {
+        if prop_prof.length > 0 {
+            return prop_prof
+        }
+    }
+    let out = []
+    for c in (configs ?? []) {
+        out.push({ "id": c.profession_id ?? c.id, "name": c.name })
+    }
+    if out.length > 0 {
+        return out
+    }
+    return mention_default_professions()
+}
+
+/** s 中最后一个 @ 的下标（无则 -1；替代无映射的 lastIndexOf）。 */
+fn mention_last_at(s str) int {
+    let i = s.length - 1
+    for i >= 0 {
+        if s.char_at(i) == "@" {
+            return i
+        }
+        i = i - 1
+    }
+    return -1
+}
+
+/** @mention 检测（光标前找 @ → 行首/空白后 → @后无空格 → 记录 filter/anchor/visible/pos）。 */
+fn mention_detect(e obj) obj {
+    let el = e.target
+    let val = el.value ?? ""
+    let pos = el.selectionStart ?? val.length
+    let before = val.sub(0, pos)
+    let at_idx = mention_last_at(before)
+    if at_idx >= 0 {
+        let char_before = ""
+        if at_idx > 0 {
+            char_before = val.char_at(at_idx - 1)
+        }
+        if char_before == "" || Regex.test(char_before, "\\s") {
+            let after_at = before.sub(at_idx + 1)
+            if after_at.contains(" ") {
+                return { "filter": "", "anchor": None, "visible": false, "pos": pos }
+            }
+            return { "filter": after_at, "anchor": el.getBoundingClientRect(), "visible": true, "pos": pos }
+        }
+    }
+    return { "filter": "", "anchor": None, "visible": false, "pos": pos }
+}
+
+fn mention_detect_filter(e obj) str {
+    return mention_detect(e).filter
+}
+
+fn mention_detect_anchor(e obj) obj {
+    return mention_detect(e).anchor
+}
+
+fn mention_detect_visible(e obj) bool {
+    return mention_detect(e).visible
+}
+
+fn mention_detect_pos(e obj) int {
+    return mention_detect(e).pos
+}
+
+/** 插入 mention 文本（@ 位置前插 @name + 保留光标后文本）。 */
+fn mention_insert(professions []Value, id str, val str, pos int) str {
+    let name = id
+    for p in professions {
+        if p.id == id {
+            name = p.name
+            break
+        }
+    }
+    let before = val.sub(0, pos)
+    let at_idx = mention_last_at(before)
+    if at_idx >= 0 {
+        let part1 = val.sub(0, at_idx)
+        let part2 = val.sub(pos)
+        return part1 + "@" + name + " " + part2
+    }
+    return "@" + name + " " + val
+}

@@ -18,13 +18,13 @@
 
 component fn MentionDropdown(professions: obj, visible: bool, filter: str, anchorRect: obj, activeIndex: int) {
     use {
-        fn: mentionFiltered, mentionPosition, mentionCurrentId from "src/front/mention_helpers.ts"
+        fn: mention_filtered, mention_position, mention_current_id from "src/front/mention_helpers.at"
         component: AgentAvatar
     }
     computed {
-        filtered => mentionFiltered(.professions, .filter)
-        position => mentionPosition(.anchorRect)
-        activeId => mentionCurrentId(.filtered, .activeIndex)
+        filtered => mention_filtered(.professions, .filter)
+        position => mention_position(.anchorRect)
+        activeId => mention_current_id(.filtered, .activeIndex)
     }
     msg Msg { select(str), hover }
     on {

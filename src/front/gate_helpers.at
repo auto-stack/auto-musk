@@ -1,0 +1,48 @@
+// gate_helpers.at — GateCard 审批门数据逻辑（单一真源，替代 gate_helpers.ts）
+//
+// Plan 029 T6：F1 dict 字面量 + P7 动态索引（读写 obj[key]）后可原生表达。
+// 两处等价改写：
+//   - 原 `{ ...c, _expanded }` spread → SpecChange 字段固定（5 字段，api.at
+//     类型），显式重建等价对象；
+//   - 原 `!(sid in result)` 键存在性 → `result[sid] == None`（edited 值为
+//     非空字符串，缺失键与空值不区分，行为等价）。
+// gateExpanded 在 Auto 轨无消费方（023 版本遗留），不迁。
+
+/** toggle 展开态（返回新值）。 */
+fn gate_toggle_expanded(expanded obj, sid str) bool {
+    if expanded[sid] {
+        return false
+    }
+    return true
+}
+
+/** 把展开态扁平化到每个 change 的 _expanded 字段（模板 if 只支持字段访问）。 */
+fn gate_with_expanded(changes []Value, expanded obj) []Value {
+    let out = []
+    for c in (changes ?? []) {
+        let open = false
+        if expanded[c.section_id] {
+            open = true
+        }
+        out.push({ "section_id": c.section_id, "old_content": c.old_content, "new_content": c.new_content, "old_status": c.old_status, "new_status": c.new_status, "_expanded": open })
+    }
+    return out
+}
+
+/** 初始化 editedSpecs：为缺失的 section_id 填入 new_content（就地合并后返回）。 */
+fn gate_init_edited_specs(changes []Value, edited obj) obj {
+    for c in (changes ?? []) {
+        if edited[c.section_id] == None {
+            edited[c.section_id] = c.new_content
+        }
+    }
+    return edited
+}
+
+/** title 兜底（对齐 withDefaults 默认文案）。 */
+fn gate_title_text(title str) str {
+    if title == "" || title == None {
+        return "Spec drafted. Review the proposed changes below."
+    }
+    return title
+}

@@ -1,8 +1,8 @@
-// session_info_helpers.ts — SessionInfo 数据/宿主 API 逻辑逃生舱（Plan 023 队列 B 续）
+// session_info_helpers.ts — SessionInfo 剪贴板逻辑逃生舱（仅剩 copy 部分）
 //
-// 对标 src/front/components/SessionInfo.vue（逃生舱，已删除）。
-// .at 无法表达：errands 对象遍历求和、navigator.clipboard + setTimeout 回调闭包
-// （copy 完成态用共享 ref）。放逃生舱 fn。
+// Plan 029 T7：token 求和/消息计数已迁 session_info_helpers.at（单一真源）。
+// 本文件仅保留 navigator.clipboard + setTimeout 回调闭包（copy 完成态共享
+// ref），待 Phase C（T21）dom.copy 落地后并入 .at 并删除本文件。
 
 import { ref } from 'vue'
 
@@ -18,20 +18,4 @@ export function sessionCopyId(sessionId: string): void {
       sessionCopied.value = false
     }, 2000)
   })
-}
-
-/** errands 对象 token_usage 求和（对齐原 tokenCost）。 */
-export function sessionTokenCost(errands: any): number {
-  let total = 0
-  if (errands && typeof errands === 'object') {
-    for (const key in errands) {
-      total += (errands as any)[key]?.token_usage || 0
-    }
-  }
-  return total
-}
-
-/** messages 数量兜底（?.length || 0）。 */
-export function sessionMessageCount(messages: any): number {
-  return messages?.length || 0
 }

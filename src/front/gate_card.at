@@ -18,14 +18,14 @@
 component fn GateCard(title: str, profession: str, changes: obj) {
     use {
         component: Check, X, Eye, ChevronDown, ChevronUp from "lucide-vue-next"
-        fn: gateToggleExpanded, gateWithExpanded, gateInitEditedSpecs, gateTitleText from "src/front/gate_helpers.ts"
+        fn: gate_toggle_expanded, gate_with_expanded, gate_init_edited_specs, gate_title_text from "src/front/gate_helpers.at"
         fn: eventInputValue from "src/front/questionnaire_helpers.at"
     }
     computed {
-        titleText => gateTitleText(.title)
+        titleText => gate_title_text(.title)
         hasChanges => .changes != None && .changes.length > 0
         reviewLabel => if .isReviewing { "Hide" } else { "Review" }
-        diffList => gateWithExpanded(.changes, .expanded)
+        diffList => gate_with_expanded(.changes, .expanded)
     }
     msg Msg { ToggleDiff, ToggleReview, EditedChanged, approve, reject }
     model {
@@ -34,11 +34,11 @@ component fn GateCard(title: str, profession: str, changes: obj) {
         var isReviewing bool = false
     }
     watch {
-        .changes -> { .editedSpecs = gateInitEditedSpecs(.changes, .editedSpecs) }
+        .changes -> { .editedSpecs = gate_init_edited_specs(.changes, .editedSpecs) }
     }
     on {
-        .Init -> { .editedSpecs = gateInitEditedSpecs(.changes, .editedSpecs) }
-        .ToggleDiff(sid) -> { .expanded[sid] = gateToggleExpanded(.expanded, sid) }
+        .Init -> { .editedSpecs = gate_init_edited_specs(.changes, .editedSpecs) }
+        .ToggleDiff(sid) -> { .expanded[sid] = gate_toggle_expanded(.expanded, sid) }
         .ToggleReview -> { .isReviewing = !.isReviewing }
         .EditedChanged(sid, e) -> { .editedSpecs[sid] = eventInputValue(e) }
         .approve(specs) -> {}

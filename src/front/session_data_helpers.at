@@ -1,0 +1,34 @@
+// session_data_helpers.at — SessionInfo 数据逻辑（单一真源，替代
+// session_info_helpers.ts 的数据部分）
+//
+// Plan 029 T7：token 求和与消息计数先行原生化；clipboard 复制
+// （sessionCopyId/sessionCopied）依赖 dom，Phase C（T21）迁移后并入
+// 本文件并删除残余 .ts（届时 ext 目标不再撞名）。
+//
+// 等价改写：原 `for key in errands` → Object.keys + for-of（obj 直接
+// for-of 不可迭代；Object.keys 为未知全局，经 passthrough 原样生成）。
+
+/** errands 对象 token_usage 求和（对齐原 tokenCost；数据域为 number）。 */
+fn session_token_cost(errands obj) int {
+    let total = 0
+    if errands != None {
+        let keys = Object.keys(errands)
+        for k in keys {
+            let e = errands[k]
+            if e != None {
+                total = total + (e.token_usage ?? 0)
+            }
+        }
+    }
+    return total
+}
+
+/** messages 数量兜底（?.length || 0）。 */
+fn session_message_count(messages obj) int {
+    // 先判 None 再取 length——直接 messages.length ?? 0 在 undefined 上
+    // 先抛 TypeError（可选链不等价）。
+    if messages == None {
+        return 0
+    }
+    return messages.length ?? 0
+}

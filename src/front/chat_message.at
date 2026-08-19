@@ -18,7 +18,6 @@ component fn ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj
         component: UserMessage, ThinkBlock, ToolBlock
         component: Markdown from "platform:markdown"
         fn: msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens from "src/front/forge_helpers.at"
-        fn: renderMentions from "src/front/mention_helpers.ts"
     }
     computed {
         role => .msg.role

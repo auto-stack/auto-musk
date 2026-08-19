@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 0
+current_step: 9
 total_steps: 22
 ---
 
@@ -221,29 +221,29 @@ v-html 等)。`.at` 组件 style 块生成 `<style scoped>`(Plan 028 已验证:�
 
 ### Phase A:纯函数 helper(7 任务)
 
-- [ ] **T1** worktree 初始化:`git worktree add ../auto-musk-wt029 -b wt/029-A main`;
+- [x] **T1** worktree 初始化:`git worktree add ../auto-musk-wt029 -b wt/029-A main`;
   `cmd //c mklink /J gen\front\vue\node_modules <main>\gen\front\vue\node_modules`。
   验证:`cd ../auto-musk-wt029 && git branch --show-current` = wt/029-A。
-- [ ] **T2** 删除 `src/front/utils/categorySummary.ts`(0 引用)。
+- [x] **T2** 删除 `src/front/utils/categorySummary.ts`(0 引用)。
   验证:`grep -rn categorySummary src/front gen/front/vue/src --include=*.at --include=*.ts | grep -v node_modules` 为空。
-- [ ] **T3** `src/front/utils/itemTemplates.ts` → 新建 `src/front/specs_helpers.at`
+- [x] **T3** `src/front/utils/itemTemplates.ts` → 新建 `src/front/specs_helpers.at`
   (ITEM_TEMPLATES dict + spec_default_status + spec_next_id fn);
   `src/front/specs_view.at` use 块改引 `.at`;删除原 .ts。
   验证:auto build --gen-only 后 gen ext 下有 specs_helpers.ts 且 specs_view 引用它;
   node 对拍 getNextId("goal", ["G1","G2"]) == "G3"。
-- [ ] **T4** `src/front/wiki_helpers.ts` → 并入 `src/front/wiki_store.at` fn 段
+- [x] **T4** `src/front/wiki_helpers.ts` → 并入 `src/front/wiki_store.at` fn 段
   (wiki_filter_tree);wiki_nav.at/wiki_view.at 改引;删原 .ts。
   验证:对拍 wikiFilterTree(树, "query") 两版一致;vue-tsc 0 错误。
-- [ ] **T5** `src/front/secretary_helpers.ts` → `src/front/secretary_helpers.at`;
+- [x] **T5** `src/front/secretary_helpers.ts` → `src/front/secretary_helpers.at`;
   secretary_message.at/secretary_message_wrapper.at 改引;删原 .ts。
   验证:对拍 secretaryFormatElapsed(Date.now()-x) 各分支。
-- [ ] **T6** `src/front/gate_helpers.ts` → `src/front/gate_helpers.at`;
+- [x] **T6** `src/front/gate_helpers.ts` → `src/front/gate_helpers.at`;
   gate_card.at/app.at 改引;删原 .ts。验证:对拍 gate_toggle/gate_with_expanded。
-- [ ] **T7** `src/front/session_info_helpers.ts` 求和部分 → `src/front/session_info_helpers.at`
+- [x] **T7** `src/front/session_info_helpers.ts` 求和部分 → `src/front/session_info_helpers.at`
   (session_token_cost);session_info.at/chats_view.at 改引(仅该 fn);
   copy 部分暂留原 .ts(C5 处理后删除)。
   验证:对拍 sessionTokenCost({a:{token_usage:5},b:{token_usage:7}})==12。
-- [ ] **T8** `src/front/mention_helpers.ts` → `src/front/mention_helpers.at`(16 fn +
+- [x] **T8** `src/front/mention_helpers.ts` → `src/front/mention_helpers.at`(16 fn +
   DEFAULT_PROFESSIONS);6 个消费 .at 改引(含 forge_helpers.at);删原 .ts。
   验证:对拍 renderMentions("hi @Agent x")/mention_insert 等 ≥8 个用例;vue-tsc。
 - [ ] **T9** Phase A 验证 + 合并:vue-tsc + vite build + 浏览器冒烟(聊天 mention
