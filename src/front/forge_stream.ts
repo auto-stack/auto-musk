@@ -136,12 +136,13 @@ export function startForgeStream(
 function handleForgeEvent(event: ForgeStreamEvent): void {
   const t = event.type
 
-  // ─── 核心事件（7b 引入，7c 修正 tool_call 累积） ─────────────────────────
+  // ─── 核心事件（7b 引入，7c 修正 tool_call 累积；有序 blocks 模型） ────────
   if (t === 'delta') {
     if (event.text) {
       const msg = ensureAssistantMsg()
       msg.content += event.text
       _store.current_draft.value += event.text
+      appendBlockText(msg, 'text', event.text)
     }
     return
   }
@@ -150,6 +151,7 @@ function handleForgeEvent(event: ForgeStreamEvent): void {
       const msg = ensureAssistantMsg()
       msg.thinking = (msg.thinking || '') + event.thinking
       _store.thinking.value = msg.thinking
+      appendBlockText(msg, 'thinking', event.thinking)
     }
     return
   }
@@ -163,6 +165,9 @@ function handleForgeEvent(event: ForgeStreamEvent): void {
     }
     msg.tool_calls = msg.tool_calls ?? []
     msg.tool_calls.push(call)
+    // 工具块按到达顺序插入 blocks（tool_result 经引用原地更新同一块）。
+    msg.blocks = msg.blocks ?? []
+    msg.blocks.push({ kind: 'tool', tc: call })
     return
   }
   if (t === 'tool_result') {
@@ -192,6 +197,7 @@ function handleForgeEvent(event: ForgeStreamEvent): void {
           || result.startsWith('[security denied')
           || result.startsWith('[tool error')
             ? 'failed' : 'completed'
+        // blocks 里的 tool 块持有同一 tc 引用，无需再找。
       }
     }
     return
@@ -372,6 +378,21 @@ function handleForgeEvent(event: ForgeStreamEvent): void {
 }
 
 /**
+ * Append streamed text/thinking to the message's ordered blocks: contiguous
+ * chunks of the same kind merge into one block; a kind switch opens a new
+ * block, so text → thinking → tool → text renders in arrival order.
+ */
+function appendBlockText(msg: any, kind: 'text' | 'thinking', text: string): void {
+  msg.blocks = msg.blocks ?? []
+  const last = msg.blocks[msg.blocks.length - 1]
+  if (last && last.kind === kind && typeof last.text === 'string') {
+    last.text += text
+  } else {
+    msg.blocks.push({ kind, text })
+  }
+}
+
+/**
  * Get the current (last) assistant message, or null if the last message
  * isn't an assistant message. Used by tool_result to update an existing call.
  */
@@ -395,8 +416,10 @@ function ensureAssistantMsg(profession_id?: string): any {
       id: `a-${Date.now()}`,
       role: 'assistant',
       content: '',
+      thinking: '',
       timestamp: Date.now(),
       tool_calls: [],
+      blocks: [],
       profession_id: profession_id || '',
     }
     _store.messages.value.push(last)

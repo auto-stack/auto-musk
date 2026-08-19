@@ -4,6 +4,10 @@
 // GenericToolCard/MentionInput 等 .vue 组件 import。从 web/ 移植，去掉对
 // useForge/useAgentConfigs 的 composable 依赖（状态经 props 传入）。
 
+// messageDisplayBlocks 需要 stripQuestionnaire（questionnaire.ts 无反向依赖，无环）。
+// 显式 .ts 扩展：vite 与 node（type stripping）都能解析。
+import { stripQuestionnaire } from './questionnaire.ts'
+
 /** 工具调用信息（对应 web/src/types/tool.ts 的 ToolCallInfo，宽松版）。 */
 export interface ToolCallLike {
   id: string
@@ -240,6 +244,97 @@ export function langFromPath(path: unknown): string {
     md: 'markdown', sql: 'sql',
   }
   return map[ext] || ext || ''
+}
+
+// ─── Message blocks（有序 block 渲染模型） ────────────────────────────────────
+
+/** assistant 回复的有序块：文本 / 思考 / 工具调用按到达顺序排列。 */
+export interface MessageBlock {
+  kind: 'text' | 'thinking' | 'tool'
+  text?: string
+  tc?: ToolCallLike
+}
+
+/**
+ * 取消息的有序 blocks（展示用）：messageBlocks 基础上，text 块经
+ * stripQuestionnaire 剥离问卷 JSON（问卷由 QuestionnaireCard 呈现，避免
+ * 气泡裸显 JSON 重复），剥离后为空的 text 块（纯问卷消息）直接移除。
+ * .at 侧以 computed 调用（多参 fn 在 if 条件中不可用，收敛于此）。
+ */
+export function messageDisplayBlocks(msg: any, streaming: boolean): MessageBlock[] {
+  const out: MessageBlock[] = []
+  for (const b of messageBlocks(msg)) {
+    if (b.kind === 'text') {
+      const stripped = stripQuestionnaire(b.text || '', streaming)
+      if (stripped !== '') out.push({ kind: 'text', text: stripped })
+    } else {
+      out.push(b)
+    }
+  }
+  return out
+}
+
+/**
+ * 取消息的有序 blocks。流式中的消息由 forge_stream 维护 msg.blocks（保序）；
+ * 重载的历史消息无 blocks，则从持久化字段合成（thinking → text → tools）。
+ * 持久化 tool 状态（success/error/缺省）规范化为卡片使用的 completed/failed
+ * —— 否则历史工具卡永远显示 running。
+ */
+export function messageBlocks(msg: any): MessageBlock[] {
+  if (Array.isArray(msg?.blocks)) return msg.blocks as MessageBlock[]
+  const out: MessageBlock[] = []
+  if (msg?.thinking) out.push({ kind: 'thinking', text: msg.thinking })
+  if (msg?.content) out.push({ kind: 'text', text: msg.content })
+  for (const raw of msg?.tool_calls || []) {
+    const status =
+      raw.status === 'error' || raw.status === 'failed'
+        ? 'failed'
+        : raw.status === 'running'
+          ? raw.status
+          : 'completed'
+    out.push({ kind: 'tool', tc: { ...raw, status } })
+  }
+  return out
+}
+
+/**
+ * 粗略 token 估算（显示用）：CJK 字符 ≈ 0.9 token/字，其余 ≈ 4 字符/token。
+ */
+export function estimateTokens(text: string | undefined): number {
+  if (!text) return 0
+  let cjk = 0
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i)
+    if ((c >= 0x4e00 && c <= 0x9fff) || (c >= 0x3040 && c <= 0x30ff) || (c >= 0xac00 && c <= 0xd7af)) cjk++
+  }
+  return Math.max(1, Math.round(cjk * 0.9 + (text.length - cjk) / 4))
+}
+
+/** ThinkBlock 头部 label（.at 无字符串模板，承载于此）。 */
+export function thinkLabel(tokens: number, streaming: boolean): string {
+  return streaming ? `思考中 · ${tokens} tokens` : `已思考 · ${tokens} tokens`
+}
+
+/** 只有流式中的最后一个文本块显示打字光标（is_streaming × 是末块 × 文本块）。 */
+export function isBlockStreaming(
+  isStreaming: boolean,
+  blocks: MessageBlock[],
+  block: MessageBlock,
+): boolean {
+  if (!isStreaming) return false
+  const last = blocks[blocks.length - 1]
+  return !!last && last === block && block.kind === 'text'
+}
+
+/** 该消息是否正处于流式接收中（最后一条 assistant 消息 × store.streaming）。 */
+export function isMsgStreaming(
+  streaming: boolean,
+  messages: any[],
+  msg: any,
+): boolean {
+  if (!streaming || !messages?.length) return false
+  const last = messages[messages.length - 1]
+  return last?.id === msg?.id && last?.role === 'assistant'
 }
 
 // ─── Mention helpers ─────────────────────────────────────────────────────────

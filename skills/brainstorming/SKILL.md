@@ -13,7 +13,24 @@ You are about to start creative work. **Do not write or edit any code yet.** Fir
 
 2. **Ask clarifying questions — one at a time.** Surface the most important unknown first; wait for the answer before asking the next. Prefer 1-3 sharp questions over a wall of text.
 
-3. **Propose 2-3 approaches.** Briefly compare trade-offs (simplicity vs. performance vs. extensibility). Let the user choose.
+   **Always ask via the structured questionnaire format** so the chat UI renders clickable options instead of making the user type. End your message with a fenced JSON block:
+
+   `````text
+   ```json
+   {"type": "questionnaire", "questions": [
+     {"id": "q1", "text": "目标用户和场景是什么？", "type": "single", "options": ["小团队内部知识库", "实时协作白板", "个人笔记+轻量分享"], "otherLabel": "其他：", "optional": false},
+     {"id": "q2", "text": "需要哪些必选能力？（可多选）", "type": "multiple", "options": ["富文本编辑", "全文搜索", "权限管理"], "optional": true}
+   ]}
+   ```
+   ````
+
+   Rules for the questionnaire block:
+   - `type`: `"single"` (radio) | `"multiple"` (checkbox) | `"text"` (free input — use only when options are truly impossible).
+   - Provide 2-5 concrete, mutually exclusive options; add `otherLabel` when a custom answer is plausible.
+   - Mark secondary questions `"optional": true`. The user submits answers with one click; they arrive back as `Q1: …; Q2: …`.
+   - Keep the prose before the block short — the questions themselves carry the context.
+
+3. **Propose 2-3 approaches.** Briefly compare trade-offs (simplicity vs. performance vs. extensibility). Let the user choose — this is also a good place to use a `"single"`-type questionnaire block with the approaches as options.
 
 4. **Draft the design.** Once the approach is chosen, write a short design doc covering: goal, the approach, key files/changes, and open questions. Save it to `docs/specs/<topic>-design.md` using `write_file`.
 

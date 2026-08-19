@@ -611,13 +611,15 @@ async fn chat_stream(
         // Pre-load the conversation history so the agent has context.
         agent = agent.with_history(history_for_agent);
 
-        // Accumulate the streamed text + tool calls to persist on completion.
+        // Accumulate the streamed text + thinking + tool calls to persist on completion.
         let accumulated = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+        let thinking_acc = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
         let tool_calls: std::sync::Arc<std::sync::Mutex<Vec<crate::chats::ToolCall>>> =
             std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         // tx is moved into the on_event closure; keep a clone for the error path.
         let tx_err = tx.clone();
         let acc2 = accumulated.clone();
+        let think2 = thinking_acc.clone();
         let tc2 = tool_calls.clone();
         // Tool-call id pairing: ToolStart has no shared id with Tool, so we hand
         // out a sequential id on ToolStart and re-use it for the matching Tool.
@@ -645,6 +647,9 @@ async fn chat_stream(
                 if let Some(text) = value.get("text").and_then(|t| t.as_str()) {
                     acc2.lock().unwrap().push_str(text);
                 }
+                if let Some(text) = value.get("thinking").and_then(|t| t.as_str()) {
+                    think2.lock().unwrap().push_str(text);
+                }
                 if value.get("type").and_then(|t| t.as_str()) == Some("tool_result") {
                     let tool = value.get("name").and_then(|t| t.as_str()).unwrap_or("").to_string();
                     let args = value.get("arguments").cloned().unwrap_or(json!(null));
@@ -661,10 +666,12 @@ async fn chat_stream(
         let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
         match agent.run_stream(&user_msg, on_event, cancel).await {
             Ok(_) => {
-                // Persist the assistant reply + tool calls.
+                // Persist the assistant reply + thinking + tool calls.
                 let text = std::mem::take(&mut *accumulated.lock().unwrap());
+                let thinking = std::mem::take(&mut *thinking_acc.lock().unwrap());
                 let tcs = std::mem::take(&mut *tool_calls.lock().unwrap());
                 let mut msg = crate::chats::ChatMessage::assistant(text);
+                msg.thinking = thinking;
                 msg.tool_calls = tcs;
                 let _ = chats.append_message(&session_id, msg.clone());
                 // Dual-write: mirror the assistant message (+ tool calls) into

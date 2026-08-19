@@ -19,7 +19,7 @@ widget ChatsView {
         fn: handleRelayCommand from "src/front/relay_commands.ts"
         // forge_helpers 是逃生舱卡片组件的内部依赖，声明 renderMentions 仅为触发 ext 复制
         // （codegen ext 复制只看 use 块，不递归逃生舱组件的相对 import）。
-        fn: renderMentions, extractRunId from "src/front/forge_helpers.ts"
+        fn: renderMentions, extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.ts"
         // questionnaire 解析纯函数（QuestionnaireCard 的数据源）。
         fn: getQuestions, hasQuestionnaire from "src/front/questionnaire.ts"
         // Plan 023 队列 B5：MentionInput 已原生化为 component fn（src/front/mention_input.at），
@@ -230,60 +230,37 @@ widget ChatsView {
                     for msg in .chatSearch.filteredMessages {
                         col {
                             key: .msg.id
-                            // ChatMessage 独立组件渲染 header + 气泡 + thinking
+                            // ChatMessage 独立组件：有序 block 流（文本/思考/工具），
+                            // 工具卡随 block 内联渲染（不再后置循环）。
                             ChatMessage {
                                 msg: .msg
-                                is_streaming: false
+                                is_streaming: isMsgStreaming(.store.streaming, .store.messages, .msg)
+                                errands: .store.errands
+                                relays: .store.relays
+                                task_plans: .store.task_plans
                             }
-                            // 问卷卡片（assistant 消息内含问卷时显示，7.3。
-                            // codegen 限制1 修复后直接用 getQuestions fn 调用绑定）
+                            // 问卷卡片（专门的提问 block）：解析 assistant 消息里的
+                            // 问卷 JSON/问题列表渲染为可选项表单。仅随最新一条消息
+                            // 显示（lastMessageId 来自 useChatSearch composable，
+                            // .at if 条件不支持多参 fn）——已回答的旧问题不再常驻表单。
                             if .msg.role == "assistant" {
                                 if hasQuestionnaire(.msg) {
-                                    QuestionnaireCard {
-                                        questions: getQuestions(.msg)
-                                        onsubmit: .OnQuestionnaireSubmit($event)
-                                    }
-                                }
-                            }
-                            // tool_calls 内联卡片（if-else-if 编排 4 类）
-                            for tc in .msg.tool_calls {
-                                if .tc.name == "dispatch" {
-                                    ErrandCard {
-                                        tc: .tc
-                                        errands: .store.errands
-                                    }
-                                } else if .tc.name == "spawn_relay" {
-                                    RelayRunBox {
-                                        runId: extractRunId(.tc)
-                                    }
-                                } else if .tc.name == "task_plan" {
-                                    TaskPlanCard {
-                                        tc: .tc
-                                        taskPlans: .store.task_plans
-                                    }
-                                } else {
-                                    GenericToolCard {
-                                        tc: .tc
+                                    if .msg.id == .chatSearch.lastMessageId {
+                                        QuestionnaireCard {
+                                            questions: getQuestions(.msg)
+                                            onsubmit: .OnQuestionnaireSubmit($event)
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                    // 流式 draft（streaming 时显示，7.3 换 StreamingRenderer 增量解析）
+                    // 流式等待指示：内容本身由 forge_stream 回写进 assistant 消息
+                    // （messages 循环里的 ChatMessage 气泡），不在此重复渲染
+                    // current_draft——此前 draft 区和气泡双写导致 AI 回复显示两遍。
+                    // 仅在首个 delta/thinking 到达前显示等待指示（pulse 动画）。
                     if .store.streaming {
-                        if .store.thinking != "" {
-                            text .store.thinking { style: "msg-thinking" }
-                        }
-                        if .store.current_draft != "" {
-                            col {
-                                style: "msg assistant-msg draft"
-                                StreamingRenderer {
-                                    source: .store.current_draft
-                                    streaming: .store.streaming
-                                }
-                            }
-                        } else {
-                            // AI 思考中：draft 尚未开始流式，显示等待指示（pulse 动画）
+                        if .store.current_draft == "" && .store.thinking == "" {
                             col {
                                 style: "msg assistant-msg thinking-dots"
                                 text "AI 思考中..."
@@ -366,10 +343,14 @@ widget ChatsView {
         .SecretaryReject -> { store.RejectGate() }
         .SecretarySnooze -> { store.ClearGate() }
 
-        // OnQuestionnaireSubmit(answers): 问卷提交，把答案作为用户消息发回 + 启动 SSE。
-        .OnQuestionnaireSubmit(answers) -> {
-            store.Send(.answers);
-            startForgeStream(.store.session_id, .store.workspace, .store.token)
+        // OnQuestionnaireSubmit(text): 问卷提交。载荷已是格式化文本
+        // （QuestionnaireCard 内 formatQuestionnaireAnswers："Q1: A; Q2: B"），
+        // 直接作为用户消息发回 + 乐观插入 + 启动 SSE。
+        .OnQuestionnaireSubmit(text) -> {
+            if .text != "" {
+                store.Send(.text);
+                startForgeStream(.store.session_id, .store.workspace, .store.token, .text)
+            }
         }
     }
 }

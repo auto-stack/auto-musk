@@ -1,45 +1,42 @@
-// chat_message.at — ChatMessage 组件（Plan 023 P3 续：逃生舱原生化）
+// chat_message.at — ChatMessage 组件（有序 block 渲染模型）
 //
-// 对标 src/front/components/ChatMessage.vue（逃生舱，Plan 022-B）。
-// Plan 022-B 因 view fn 内联展开在 use{component} 引用时不生效而封逃生舱；
-// 现 component fn（Plan 408）解决此问题——ChatMessage 作为独立 component fn。
+// assistant 回复不再「整段文本 + 尾部 thinking + 后置工具卡」，而是按
+// 到达顺序渲染 block 流：文本块（气泡）/ ThinkBlock（默认折叠，token 数，
+// 展开滚动 + 最大高度）/ ToolBlock（tool-use 卡片）。已显示的块不会删除。
 //
 // 依赖：
-//   - UserMessage（已原生化为 component fn，use{component} 无 from 引用）
-//   - StreamingRenderer（仍逃生舱，use{component from "..."} 引用）
-//   - msgTimeLabel fn（时间格式化，.at 无 Date API）
+//   - UserMessage / ThinkBlock / ToolBlock（本项目 component fn）
+//   - StreamingRenderer（逃生舱，use{component from "..."} 引用）
+//   - messageBlocks / isBlockStreaming / isMsgStreaming / estimateTokens /
+//     msgTimeLabel fn（forge_helpers.ts；.at 无 Date/数组推导等宿主 API）
 //
-// 关键转换：
-//   - new Date(created_at * 1000).toLocaleTimeString() → msgTimeLabel fn
-//   - role 分支（user/assistant）→ if/else + computed
-//   - thinking/error 可选字段 → has* computed
+// 历史/重载消息无 msg.blocks 时，messageBlocks 从持久化字段合成
+// （thinking → text → tool_calls），保证渲染模型统一。
 
-component fn ChatMessage(msg: obj, is_streaming: bool) {
+component fn ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj) {
     use {
-        component: UserMessage
+        component: UserMessage, ThinkBlock, ToolBlock
         component: StreamingRenderer from "src/front/components/StreamingRenderer.vue"
-        fn: msgTimeLabel from "src/front/forge_helpers.ts"
+        fn: msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens from "src/front/forge_helpers.ts"
     }
     computed {
         role => .msg.role
         isUser => .role == "user"
         rowClass => if .isUser { "msg-row msg-row-user" } else { "msg-row msg-row-ai" }
         badge => if .isUser { "🧑 You" } else { "🤖 AI" }
-        hasContent => .msg.content != ""
-        content => .msg.content
+        userContent => .msg.content
+        // 展示用 blocks：text 已剥离问卷 JSON（问卷由 QuestionnaireCard 呈现），
+        // 纯问卷消息的空 text 块已移除。多参 fn 收敛在 helper（.at if 条件不支持）。
+        blocks => messageDisplayBlocks(.msg, .is_streaming)
         time => msgTimeLabel(.msg.created_at)
         hasTime => .time != ""
-        hasThinking => .msg.thinking != ""
-        thinkingText => if .hasThinking { .msg.thinking } else { "" }
         hasError => .msg.error != ""
         errorText => if .hasError { .msg.error } else { "" }
     }
     // PLAN-026 缺陷②: component fn 的 style 块。只补 inject_styles 未覆盖的布局
     //（AI 气泡限宽 85%；inject_styles 默认 .msg-row-ai max-width:100%）。
     // ⚠️ 不要重复定义 .msg-bubble/.msg-bubble-user/.msg-bubble-ai —— inject_styles
-    // 已含完整气泡颜色（紫底白字 user / card 底 foreground ai）。component fn 的
-    // <style scoped> 无法跨组件选 .user-text，重复 msg-bubble 会和 inject_styles
-    // 的 color 冲突（scoped background 赢 + 全局 color 留 → 淡底错色文字不可读）。
+    // 已含完整气泡颜色。重复会和 inject_styles 的 color 冲突（淡底错色文字不可读）。
     style {
 .msg-row {
   display: flex;
@@ -67,23 +64,28 @@ component fn ChatMessage(msg: obj, is_streaming: bool) {
                 text .time { style: "msg-time" }
             }
         }
-        // 气泡内容（按 role 分支）
+        // 内容（按 role 分支）
         if .isUser {
             col {
                 style: "msg-bubble msg-bubble-user"
-                UserMessage(content: .content)
+                UserMessage(content: .userContent)
             }
         } else {
-            if .hasContent {
-                col {
-                    style: "msg-bubble msg-bubble-ai"
-                    StreamingRenderer(source: .content, streaming: .is_streaming)
+            // 有序 block 流：文本 / 思考 / 工具按到达顺序，块不删除。
+            // text 块已在 computed（messageDisplayBlocks）里剥离问卷 JSON 并
+            // 过滤空块——纯问卷消息不出气泡，问卷本体由 QuestionnaireCard 呈现。
+            for block in .blocks {
+                if .block.kind == "text" {
+                    col {
+                        style: "msg-bubble msg-bubble-ai"
+                        StreamingRenderer(source: .block.text, streaming: isBlockStreaming(.is_streaming, .blocks, .block))
+                    }
+                } else if .block.kind == "thinking" {
+                    ThinkBlock(text: .block.text, tokens: estimateTokens(.block.text), streaming: .is_streaming)
+                } else {
+                    ToolBlock(tc: .block.tc, errands: .errands, relays: .relays, task_plans: .task_plans)
                 }
             }
-        }
-        // thinking 推理链（仅 assistant）
-        if .hasThinking {
-            text .thinkingText { style: "msg-thinking" }
         }
         if .hasError {
             text .errorText { style: "msg-error" }

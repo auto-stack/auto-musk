@@ -16,10 +16,13 @@
 component fn QuestionnaireCard(questions: obj) {
     use {
         component: HelpCircle, Send from "lucide-vue-next"
-        fn: questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder, eventInputValue from "src/front/questionnaire_helpers.ts"
+        fn: questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder, eventInputValue, formatQuestionnaireAnswers from "src/front/questionnaire_helpers.ts"
     }
     computed {
         canSubmit => questionnaireCanSubmit(.questions, .answers)
+        // 提交载荷：格式化后的可读文本（"Q1: A; Q2: B"），父组件直接作为
+        // user 消息发送——而非裸 answers 对象（对话历史不可读）。
+        submitText => formatQuestionnaireAnswers(.questions, .answers)
     }
     // 注意：msg 变体不声明 payload——多参变体的 emit 类型在 Vue 路径只取第一个参数
     // （codegen 注释：multi-param variants are a Rust-backend feature）。让 on-block
@@ -124,7 +127,7 @@ component fn QuestionnaireCard(questions: obj) {
             }
         }
         button {
-            onclick: .submit(.answers)
+            onclick: .submit(.submitText)
             style: "q-submit"
             disabled: !.canSubmit
             Send { size: 13 }

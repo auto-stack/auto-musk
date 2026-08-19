@@ -48,3 +48,26 @@ export function questionnairePlaceholder(q: any, fallback: string): string {
 export function eventInputValue(e: any): string {
   return e?.target?.value ?? ''
 }
+
+/**
+ * 把 answers 记录格式化为可读文本（对齐原生 ChatsView.onQuestionnaireSubmit）：
+ * "Q1: 选项A; Q2: 选项B, Other: 补充"。作为下一条 user 消息发送，
+ * 让对话历史自然可读（而非裸 answers 对象）。
+ */
+export function formatQuestionnaireAnswers(questions: any[], answers: any): string {
+  const parts: string[] = []
+  for (let idx = 0; idx < (questions || []).length; idx++) {
+    const q = questions[idx]
+    const answer = answers[q.id]
+    const other = answers[`${q.id}__other`]
+    const qNum = `Q${idx + 1}`
+    if (Array.isArray(answer) && answer.length > 0) {
+      parts.push(`${qNum}: ${answer.join(', ')}${other ? `, Other: ${other}` : ''}`)
+    } else if (answer && String(answer).trim() !== '') {
+      parts.push(`${qNum}: ${answer}${other ? `, Other: ${other}` : ''}`)
+    } else if (other) {
+      parts.push(`${qNum}: Other: ${other}`)
+    }
+  }
+  return parts.join('; ')
+}

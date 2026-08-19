@@ -62,7 +62,7 @@ export function questionnaireFor(msg: MsgLike): QuestionnaireResult | undefined 
     return text.replace(/\*\*/g, '').trim()
   }
 
-  // Pass 1: scan for parent questions followed by child bullet options
+  // Pass 1: scan for parent questions followed by child bullet/numbered options
   let i = 0
   while (i < lines.length) {
     const line = lines[i].trim()
@@ -77,8 +77,9 @@ export function questionnaireFor(msg: MsgLike): QuestionnaireResult | undefined 
       let j = i + 1
       while (j < lines.length) {
         const nextLine = lines[j]
-        if (isBullet(nextLine)) {
-          const optText = stripMarkdown(nextLine.replace(/^\s*(?:[-*•])\s+/, '').trim())
+        // 选项行：圆点（-/*/•）或编号（1./2./3.）——模型两种都会用
+        if (isBullet(nextLine) || isNumbered(nextLine)) {
+          const optText = stripMarkdown(nextLine.replace(/^\s*(?:[-*•]|\d+\.)\s+/, '').trim())
           if (optText) childOptions.push(optText)
           j++
         } else if (nextLine.trim() === '') { j++ } else { break }
@@ -172,4 +173,47 @@ export function hasQuestionnaire(msg: MsgLike): boolean {
 /** 便捷取值：消息的 questions 数组（无则空数组）。供 .at 绑定用。 */
 export function getQuestions(msg: MsgLike): Question[] {
   return questionnaireFor(msg)?.questions ?? []
+}
+
+/**
+ * 从展示文本中剥离问卷 JSON 代码块（完整闭合的），避免文本气泡里
+ * 裸显 JSON + 下方问卷卡重复。流式期间（streaming=true）还剥离尾部
+ * 未闭合的 ```json 问卷块（JSON 还在生成中，先隐藏避免闪烁）。
+ */
+export function stripQuestionnaire(text: string, streaming: boolean): string {
+  if (!text) return text
+  let out = text.replace(/```json\s*\n\{[\s\S]*?"type"\s*:\s*"questionnaire"[\s\S]*?\}\s*\n\s*```/g, '')
+  if (streaming) {
+    const tail = out.lastIndexOf('```json')
+    if (tail !== -1 && out.indexOf('```', tail + 3) === -1) {
+      const head = out.slice(0, tail)
+      // 只有当未闭合块看起来是问卷开头时才隐藏（容差：已产出片段含 questionnaire 字样）
+      if (head.length === 0 || /\n\s*$/.test(head)) {
+        const partial = out.slice(tail)
+        if (/questionnaire|"questions"/.test(partial) || partial.length <= 40) out = head
+      }
+    }
+  }
+  return out.trimEnd()
+}
+
+/**
+ * 文本块的展示源：剥离问卷 JSON 后的 block.text（可能为空串——
+ * 纯问卷消息的文本气泡应隐藏，ChatMessage 以空串判断跳过）。
+ */
+export function blockDisplayText(block: { kind: string; text?: string }, streaming: boolean): string {
+  const t = typeof block?.text === 'string' ? block.text : ''
+  return stripQuestionnaire(t, streaming)
+}
+
+/** 该消息是否为消息列表的最后一条（问卷卡只随最新一条消息显示）。 */
+export function isLastMessage(messages: any[], msg: any): boolean {
+  if (!messages?.length) return false
+  return messages[messages.length - 1]?.id === msg?.id
+}
+
+/** 最后一条消息的 id（.at 的 if 条件不支持多参 fn，取单参计算后用 == 比较）。 */
+export function lastMessageId(messages: any[]): string {
+  if (!messages?.length) return ''
+  return messages[messages.length - 1]?.id ?? ''
 }

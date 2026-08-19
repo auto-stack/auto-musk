@@ -1006,6 +1006,33 @@ a { color: hsl(var(--primary)); }
 .secretary-btn.review { background: hsl(var(--muted-foreground) / 0.08); color: var(--af-fg); }
 .secretary-btn:hover { opacity: 0.85; }
 .secretary-queue { font-size: 0.78rem; color: var(--af-muted); padding-top: 0.2rem; }
+
+/* ThinkBlock（有序 block 渲染模型）：默认折叠只显示 token 数；
+   展开后内容区滚动 + 最大高度。 */
+.think-block {
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--muted) / 0.4);
+  max-width: 100%;
+  overflow: hidden;
+}
+.think-header {
+  display: flex; align-items: center; gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem; color: hsl(var(--muted-foreground));
+  cursor: pointer; user-select: none;
+}
+.think-header:hover { background: hsl(var(--muted) / 0.5); }
+.think-content {
+  margin: 0; padding: 0.55rem 0.75rem;
+  font-size: 0.78rem; line-height: 1.5;
+  font-family: inherit;
+  white-space: pre-wrap; word-break: break-word;
+  color: hsl(var(--muted-foreground));
+  max-height: 240px;
+  overflow-y: auto;
+  border-top: 1px solid hsl(var(--border));
+}
 `
 
 export function injectStyles(): void {

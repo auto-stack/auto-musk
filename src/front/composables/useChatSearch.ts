@@ -24,10 +24,18 @@ export function useChatSearch() {
     })
   })
 
+  // 过滤后最后一条消息的 id（问卷卡只随最新一条消息显示。
+  // .at 的 if 条件不支持多参 fn，经 composable 暴露单值用 == 比较）。
+  const lastMessageId = computed(() => {
+    const msgs = filteredMessages.value || []
+    return msgs.length ? (msgs[msgs.length - 1]?.id ?? '') : ''
+  })
+
   // 包装成 reactive 对象——模板访问 .search / .filteredMessages 时
   // 自动解包 ref/computed，无需 .value
   return reactive({
     search,
     filteredMessages,
+    lastMessageId,
   })
 }

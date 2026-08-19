@@ -1,0 +1,38 @@
+// tool_block.at — ToolBlock 组件（有序 block 渲染模型）
+//
+// 单个工具调用的 tool-use block：按工具名分发到对应卡片
+// （dispatch→ErrandCard / spawn_relay→RelayRunBox / task_plan→TaskPlanCard /
+//   其余→GenericToolCard），与 chats_view 原后置循环同一套分发，只是
+// 现在作为有序 block 内联在消息流里（保序、不后置）。
+
+component fn ToolBlock(tc: obj, errands: obj, relays: obj, task_plans: obj) {
+    use {
+        component: ErrandCard, RelayRunBox, TaskPlanCard, GenericToolCard
+        fn: extractRunId from "src/front/forge_helpers.ts"
+    }
+    computed {
+        name => .tc.name
+    }
+    col {
+        style: "tool-block-slot"
+        if .name == "dispatch" {
+            ErrandCard {
+                tc: .tc
+                errands: .errands
+            }
+        } else if .name == "spawn_relay" {
+            RelayRunBox {
+                runId: extractRunId(.tc)
+            }
+        } else if .name == "task_plan" {
+            TaskPlanCard {
+                tc: .tc
+                taskPlans: .task_plans
+            }
+        } else {
+            GenericToolCard {
+                tc: .tc
+            }
+        }
+    }
+}

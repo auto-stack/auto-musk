@@ -1,0 +1,33 @@
+// think_block.at — ThinkBlock 组件（有序 block 渲染模型）
+//
+// 思考内容折叠块：默认收起，只显示 💭 + token 数；点击展开后显示思考全文
+// （滚动条 + 最大高度，样式在 inject_styles.ts 的 .think-* 全局兜底）。
+// streaming 时 token 数实时增长。
+
+component fn ThinkBlock(text: str, tokens: int, streaming: bool) {
+    use {
+        fn: thinkLabel from "src/front/forge_helpers.ts"
+    }
+    msg Msg { Toggle }
+    model {
+        var expanded bool = false
+    }
+    on {
+        .Toggle -> { .expanded = !.expanded }
+    }
+    col {
+        class: if .expanded { "think-block expanded" } else { "think-block" }
+        row {
+            onclick: .Toggle
+            style: "think-header"
+            text "💭"
+            text thinkLabel(.tokens, .streaming)
+        }
+        if .expanded {
+            pre {
+                style: "think-content"
+                text .text
+            }
+        }
+    }
+}

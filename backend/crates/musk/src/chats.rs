@@ -65,6 +65,10 @@ pub struct ChatMessage {
     pub id: String,
     pub role: Role,
     pub content: String,
+    /// Reasoning trace streamed before/alongside the text (assistant only).
+    /// Persisted so the frontend ThinkBlock survives a page reload.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub thinking: String,
     /// Tool calls made during this (assistant) message, if any.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_calls: Vec<ToolCall>,
@@ -77,6 +81,7 @@ impl ChatMessage {
             id: new_id(8),
             role: Role::User,
             content: content.into(),
+            thinking: String::new(),
             tool_calls: Vec::new(),
             created_at: now_sec(),
         }
@@ -86,6 +91,7 @@ impl ChatMessage {
             id: new_id(8),
             role: Role::Assistant,
             content: content.into(),
+            thinking: String::new(),
             tool_calls: Vec::new(),
             created_at: now_sec(),
         }
