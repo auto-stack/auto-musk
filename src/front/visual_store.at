@@ -10,12 +10,14 @@
 // listener 无法表达，仅在 Init/SetMode 时读一次（刷新后生效）。
 
 /** 应用主题模式（auto 跟随系统偏好）。 */
-fn visual_apply_theme(mode str) {
+fn visual_apply_theme(m str) {
+    // 参数名避开 store state 同名（store 内联路径会把同名标识符当 state ref
+    // 生成 .value）。
     let is_dark = false
-    if mode == "dark" {
+    if m == "dark" {
         is_dark = true
     }
-    if mode == "auto" {
+    if m == "auto" {
         if dom.prefers_dark() {
             is_dark = true
         }
