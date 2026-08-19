@@ -43,11 +43,13 @@ impl Tool for SpawnRelay {
     }
 
     fn description(&self) -> &str {
-        "Start a relay flow (multi-agent pipeline). Use for complex tasks that \
-         need multiple specialists (advisor → architect → coder → tester → \
-         reviewer). Args: flow_id (optional, default='default'), task (required, \
-         a one-sentence description of what to accomplish). Returns the flow's \
-         final output summary."
+        "Start a relay flow (multi-agent pipeline) in the background. Use for \
+         complex tasks that need multiple specialists (advisor → architect → \
+         coder → tester → reviewer). Args: flow_id (optional, default='default'), \
+         task (required, a one-sentence description of what to accomplish). \
+         Returns {run_id, status:'started'} immediately — the flow keeps running \
+         (pausing at human gates); do NOT wait or poll for its completion, just \
+         tell the user the run has started and where to follow/approve it."
     }
 
     fn parameters(&self) -> Value {
@@ -116,59 +118,52 @@ impl Tool for SpawnRelay {
             let _ = crate::auto_generated::relay_driver::drive_run(state, &ws_id, &run_id_clone).await;
         });
 
-        // 5. Wait for the run to reach a terminal state (poll every 2s, up to 15 min).
-        let timeout_secs = 900u64;
-        let poll_interval = std::time::Duration::from_secs(2);
-        let start = std::time::Instant::now();
-        loop {
-            if start.elapsed().as_secs() > timeout_secs {
-                // Update child conversation status.
-                ws.conversations.set_status(
-                    &child.id,
-                    ConversationStatus::Failed {
-                        error: "Timed out waiting for relay to complete".into(),
-                    },
-                );
-                return Err(ToolError::Exec(format!(
-                    "spawn_relay: timed out after {}s waiting for run {}",
-                    timeout_secs, run_id
-                )));
-            }
-
-            let status = ws.relay.status(&run_id);
-            match status.as_deref() {
-                Some("completed") => {
-                    ws.conversations
-                        .set_status(&child.id, ConversationStatus::Completed);
-                    break;
+        // 5. Detached watcher: mirror the run's terminal status onto the child
+        //    conversation (data hygiene only — it never blocks the tool result).
+        //    Human gates can wait arbitrarily long, so there is no short timeout;
+        //    the watcher just exits when the run reaches a terminal state.
+        {
+            let ws = ws.clone();
+            let child_id = child.id.clone();
+            let run_id_clone = run_id.clone();
+            tokio::spawn(async move {
+                let poll_interval = std::time::Duration::from_secs(2);
+                loop {
+                    let status = ws.relay.status(&run_id_clone);
+                    match status.as_deref() {
+                        Some("completed") => {
+                            ws.conversations
+                                .set_status(&child_id, ConversationStatus::Completed);
+                            break;
+                        }
+                        Some("failed") => {
+                            ws.conversations.set_status(
+                                &child_id,
+                                ConversationStatus::Failed {
+                                    error: "Relay flow failed".into(),
+                                },
+                            );
+                            break;
+                        }
+                        _ => {} // still running / waiting_gate / paused — keep watching
+                    }
+                    tokio::time::sleep(poll_interval).await;
                 }
-                Some("failed") => {
-                    ws.conversations.set_status(
-                        &child.id,
-                        ConversationStatus::Failed {
-                            error: "Relay flow failed".into(),
-                        },
-                    );
-                    break;
-                }
-                _ => {} // still running / waiting_gate / paused — keep waiting
-            }
-            tokio::time::sleep(poll_interval).await;
+            });
         }
 
-        // 6. Return summary.
-        let final_state = ws.relay.get(&run_id);
-        let summary = final_state
-            .as_ref()
-            .map(|s| {
-                format!(
-                    "Relay flow '{}' completed. Status: {}. Steps: {}/{}. Tokens: {}.",
-                    flow_id, s.status, s.current_step, s.total_steps, s.cumulative_tokens
-                )
-            })
-            .unwrap_or_else(|| format!("Relay flow '{}' finished.", flow_id));
-
-        Ok(summary)
+        // 6. Return the run handle immediately. spawn_relay is async by design:
+        //    blocking the chat stream until the flow finishes deadlocks whenever
+        //    a step has a human gate (the run sits in waiting_for_human while
+        //    the poll loop here ignores it, and the chat SSE shows nothing).
+        //    The JSON shape feeds the frontend's extractRunId (result.run_id).
+        Ok(json!({
+            "run_id": run_id,
+            "flow_id": flow_id,
+            "status": "started",
+            "detail": "relay run started in the background; it advances until the first human gate. Track it via GET /api/forge/relay/runs/{run_id} (or the chat run box) and approve gates via POST /api/forge/relay/runs/{run_id}/gate",
+        })
+        .to_string())
     }
 }
 

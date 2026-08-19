@@ -232,9 +232,13 @@ pub fn build_agent_from_mode(
 }
 
 /// Like [`build_agent_from_mode`], but also registers orchestration tools
-/// (`spawn_relay`, `dispatch`) when a [`tool_context::ToolContext`] is provided
+/// (`dispatch`, `bring_in`) when a [`tool_context::ToolContext`] is provided
 /// and the mode's tool whitelist allows them. Used by chat_stream and the relay
 /// driver to give agents the ability to spawn sub-conversations.
+///
+/// `spawn_relay` is intentionally NOT registered: the new architecture has no
+/// relay mode. The relay engine/API remain for legacy runs, but chat agents
+/// must not see (and thus pick) the tool.
 pub fn build_agent_with_context(
     mode: &crate::mode::AgentMode,
     client: Arc<dyn auto_ai_agent::Client>,
@@ -243,7 +247,6 @@ pub fn build_agent_with_context(
     let mut agent = build_agent_from_mode(mode, client)?;
     if let Some(ctx) = ctx {
         let orch_tools: Vec<(&str, Arc<dyn auto_ai_agent::Tool>)> = vec![
-            ("spawn_relay", Arc::new(crate::orch_tools::SpawnRelay::new(ctx.clone()))),
             ("dispatch", Arc::new(crate::orch_tools::Dispatch::new(ctx.clone()))),
             ("bring_in", Arc::new(crate::orch_tools::BringIn::new(ctx.clone()))),
             ("spawn_task_plan", Arc::new(crate::orch_tools::SpawnTaskPlan::new(ctx.clone()))),
