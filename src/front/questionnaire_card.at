@@ -16,7 +16,7 @@
 component fn QuestionnaireCard(questions: obj) {
     use {
         component: HelpCircle, Send from "lucide-vue-next"
-        fn: questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder, eventInputValue, formatQuestionnaireAnswers from "src/front/questionnaire_helpers.ts"
+        fn: questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder, eventInputValue, formatQuestionnaireAnswers from "src/front/questionnaire_helpers.at"
     }
     computed {
         canSubmit => questionnaireCanSubmit(.questions, .answers)

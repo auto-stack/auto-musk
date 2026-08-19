@@ -1,0 +1,325 @@
+// forge_helpers.at — Forge 卡片渲染纯函数（单一真源，替代 forge_helpers.ts）
+//
+// Plan 028 T9/T10（M1）：逃生舱纯函数迁回 .at。依赖 F1（字典字面量 + 索引
+// + ?? 兜底）、F3（JSON/Date.format/Math/char_code_at/split）、F4（Regex）。
+// 行为与 forge_helpers.ts 逐函数对齐（demo 会话 fixture 对拍验证）。
+//
+// 未迁移（mention 域，回调式 replace 超出 F4 子集，归后续 G-对话壳/输入组）：
+//   DEFAULT_PROFESSIONS / buildMentionNames / renderMentions /
+//   renderInputMentions / resolveMention → 仍在 mention_helpers.ts。
+
+// ─── Task plan helpers ───────────────────────────────────────────────────────
+
+/** task_plan status 中文 label（F1 字典 + 缺键 ?? 兜底）。 */
+fn taskPlanStatusLabel(status str) str {
+    let labels map = { "started": "启动中", "running": "运行中", "completed": "已完成", "failed": "失败", "idle": "就绪" }
+    return labels[status] ?? status
+}
+
+fn getTaskPlan(taskPlans obj, tc obj) obj {
+    let args = tc.arguments ?? {}
+    let instanceId = args.instance_id ?? ""
+    if instanceId == "" { return None }
+    return taskPlans[instanceId] ?? None
+}
+
+// ─── Errand helpers ──────────────────────────────────────────────────────────
+
+/** 按 tool_call_id 在 errands record 里查 errand 状态。 */
+fn getErrandByToolCallId(errands obj, toolCallId str) obj {
+    let found = Object.values(errands).find(e => e.tool_call_id == toolCallId)
+    return found ?? None
+}
+
+fn getErrandTask(tc obj) str {
+    let a = tc.arguments ?? {}
+    return a.task || "Research task"
+}
+
+fn getErrandState(errands obj, tc obj) obj {
+    return getErrandByToolCallId(errands, tc.id)
+}
+
+fn getErrandContent(errands obj, tc obj) str {
+    let e = getErrandState(errands, tc)
+    if e == None { return "" }
+    return e.content ?? ""
+}
+
+fn getErrandToolCalls(errands obj, tc obj) obj {
+    let e = getErrandState(errands, tc)
+    if e == None { return [] }
+    return e.tool_calls ?? []
+}
+
+// ─── Relay helpers ───────────────────────────────────────────────────────────
+
+/** 从 tool_call 的 arguments.run_id 或 result JSON 里提取 run_id。 */
+fn extractRunId(tc obj) str {
+    try {
+        let a = tc.arguments ?? {}
+        if a.run_id != None { return a.run_id }
+        if tc.result != None {
+            if tc.result != "" {
+                let result = JSON.parse(tc.result)
+                if result.run_id != None { return result.run_id }
+            }
+        }
+        return ""
+    } catch {
+        return ""
+    }
+}
+
+fn getRelayStatus(relays obj, tc obj) obj {
+    let runId = extractRunId(tc)
+    if runId == "" { return None }
+    return relays[runId] ?? None
+}
+
+// ─── Generic tool card helpers ───────────────────────────────────────────────
+
+/** 工具参数 JSON 格式化（F3 JSON.stringify 直通）。 */
+fn toolArgsJson(tc obj) str {
+    return JSON.stringify(tc.arguments, null, 2)
+}
+
+/** 消息时间格式化（F3 Date.format → toLocaleTimeString）。 */
+fn msgTimeLabel(createdAt int) str {
+    if createdAt == 0 { return "" }
+    return Date.format(createdAt * 1000, "HH:mm:ss")
+}
+
+/** AgentAvatar 渲染数据（F1 字典（对象值）+ F3 char_code_at hash）。 */
+fn agentAvatarData(professionId str, name str, size str) obj {
+    let professionColors map = {
+        "assistant": { "h": 25, "s": 80, "l": 48 },
+        "advisor": { "h": 270, "s": 60, "l": 52 },
+        "architect": { "h": 205, "s": 70, "l": 50 },
+        "planner": { "h": 145, "s": 65, "l": 38 },
+        "coder": { "h": 340, "s": 75, "l": 52 },
+        "tester": { "h": 45, "s": 90, "l": 42 },
+        "reviewer": { "h": 170, "s": 65, "l": 38 },
+        "documenter": { "h": 220, "s": 65, "l": 52 },
+        "gofer": { "h": 160, "s": 65, "l": 42 }
+    }
+    let c = professionColors[professionId]
+    if c == None {
+        let hash = 0
+        for ch in professionId {
+            // (hash << 5) - hash == hash*31（Math.imul 保持 32 位回绕语义）
+            hash = ch.char_code_at(0) + Math.imul(hash, 31)
+        }
+        c = { "h": Math.abs(hash) % 360, "s": 60, "l": 48 }
+    }
+    let bg = "hsl(" + c.h + " " + c.s + "% " + c.l + "%)"
+    let text = ""
+    if c.l > 55 {
+        text = "hsl(220 15% 12%)"
+    } else {
+        text = "#fff"
+    }
+    let source = name.trim()
+    if source == "" { source = professionId }
+    let initials = source.char_at(0).to_upper()
+    let title = ""
+    if name != "" {
+        title = name + " (" + professionId + ")"
+    } else {
+        title = professionId
+    }
+    let sizeClass = size
+    if sizeClass == "" { sizeClass = "md" }
+    return { bg: bg, text: text, initials: initials, title: title, sizeClass: sizeClass }
+}
+
+/** 提取工具调用的摘要段（path/pattern/desc），用于通用卡片 header 显示。 */
+fn getToolSummary(tc obj) obj {
+    let segs list = []
+    let args = tc.arguments ?? {}
+
+    let path = args.path ?? ""
+    let slug = args.slug ?? ""
+    let sectionId = args.section_id ?? ""
+    let pattern = args.pattern ?? ""
+    let query = args.query ?? ""
+    let task = args.task ?? ""
+    let command = args.command ?? ""
+    if command == "" { command = args.cmd ?? "" }
+    let limit = args.limit
+    let offset = args.offset
+
+    if path != "" {
+        segs.push({ type: "path", text: path })
+        if limit != None || offset != None {
+            segs.push({ type: "loc", text: ":" + (limit ?? "") + ":" + (offset ?? "") })
+        }
+    }
+    if slug != "" { segs.push({ type: "path", text: slug }) }
+    if sectionId != "" { segs.push({ type: "path", text: sectionId }) }
+    if pattern != "" {
+        let s = pattern
+        if pattern.length > 60 { s = pattern.substring(0, 57) + "…" }
+        segs.push({ type: "pattern", text: "\"" + s + "\"" })
+    }
+    if query != "" {
+        let s2 = query
+        if query.length > 60 { s2 = query.substring(0, 57) + "…" }
+        segs.push({ type: "pattern", text: "\"" + s2 + "\"" })
+    }
+    if task != "" && segs.length == 0 {
+        let s3 = task
+        if task.length > 60 { s3 = task.substring(0, 57) + "…" }
+        segs.push({ type: "desc", text: s3 })
+    }
+    if command != "" && segs.length == 0 {
+        let s4 = command
+        if command.length > 80 { s4 = command.substring(0, 77) + "…" }
+        segs.push({ type: "desc", text: s4 })
+    }
+    return segs
+}
+
+// ─── Message blocks（有序 block 渲染模型，T10） ──────────────────────────────
+
+/** 从展示文本中剥离问卷 JSON 代码块（含流式未闭合块隐藏）。
+ * 历史上在 questionnaire.ts，唯一消费方 messageDisplayBlocks 在本文件。 */
+fn stripQuestionnaire(text str, streaming bool) str {
+    if text == "" { return text }
+    let out = Regex.replace(text, "```json\\s*\\n\\{[\\s\\S]*?\"type\"\\s*:\\s*\"questionnaire\"[\\s\\S]*?\\}\\s*\\n\\s*```", "", "g")
+    if streaming {
+        let tail = out.lastIndexOf("```json")
+        if tail != -1 {
+            if out.indexOf("```", tail + 3) == -1 {
+                let head = out.substring(0, tail)
+                // 只有当未闭合块看起来是问卷开头时才隐藏（行尾容差）
+                if head.length == 0 || Regex.test(head, "\\n\\s*$") {
+                    let partial = out.substring(tail)
+                    if Regex.test(partial, "questionnaire|\"questions\"") || partial.length <= 40 {
+                        out = head
+                    }
+                }
+            }
+        }
+    }
+    return out.trimEnd()
+}
+
+/**
+ * 取消息的有序 blocks。流式中的消息由流消费方维护 msg.blocks（保序）；
+ * 重载的历史消息无 blocks，则从持久化字段合成（thinking → text → tools）。
+ * 持久化 tool 状态规范化为 completed/failed/running。
+ */
+fn messageBlocks(msg obj) obj {
+    if Array.isArray(msg.blocks) { return msg.blocks }
+    let out list = []
+    if msg.thinking != None { out.push({ kind: "thinking", text: msg.thinking }) }
+    if msg.content != None {
+        if msg.content != "" { out.push({ kind: "text", text: msg.content }) }
+    }
+    let toolCalls = msg.tool_calls ?? []
+    for raw in toolCalls {
+        let status = "completed"
+        if raw.status == "error" || raw.status == "failed" {
+            status = "failed"
+        } else {
+            if raw.status == "running" { status = "running" }
+        }
+        raw.status = status
+        out.push({ kind: "tool", tc: raw })
+    }
+    return out
+}
+
+/**
+ * 取消息的有序 blocks（展示用）：text 块经 stripQuestionnaire 剥离问卷
+ * JSON，剥离后为空的 text 块（纯问卷消息）直接移除。
+ */
+fn messageDisplayBlocks(msg obj, streaming bool) obj {
+    let out list = []
+    for b in messageBlocks(msg) {
+        if b.kind == "text" {
+            let stripped = stripQuestionnaire(b.text ?? "", streaming)
+            if stripped != "" { out.push({ kind: "text", text: stripped }) }
+        } else {
+            out.push(b)
+        }
+    }
+    return out
+}
+
+/**
+ * 粗略 token 估算（显示用）：CJK 字符 ≈ 0.9 token/字，其余 ≈ 4 字符/token。
+ */
+fn estimateTokens(text str) int {
+    if text == None { return 0 }
+    if text == "" { return 0 }
+    let cjk = 0
+    for c in text {
+        let code = c.char_code_at(0)
+        if (code >= 19968 && code <= 40959) || (code >= 12352 && code <= 12543) || (code >= 44032 && code <= 55215) {
+            cjk = cjk + 1
+        }
+    }
+    let nonCjk = text.length - cjk
+    // ×0.25 而非 /4：a2ts 对 `/` 注入 Math.trunc（int 除语义）会破坏四舍五入
+    return Math.max(1, Math.round(cjk * 0.9 + nonCjk * 0.25))
+}
+
+/** ThinkBlock 头部 label。 */
+fn thinkLabel(tokens int, streaming bool) str {
+    if streaming {
+        return "思考中 · " + tokens + " tokens"
+    } else {
+        return "已思考 · " + tokens + " tokens"
+    }
+}
+
+/** 只有流式中的最后一个文本块显示打字光标（is_streaming × 是末块 × 文本块）。 */
+fn isBlockStreaming(isStreaming bool, blocks obj, block obj) bool {
+    if isStreaming == false { return false }
+    let last = blocks[blocks.length - 1]
+    return last == block && block.kind == "text"
+}
+
+/** 该消息是否正处于流式接收中（最后一条 assistant 消息 × streaming）。 */
+fn isMsgStreaming(streaming bool, messages obj, msg obj) bool {
+    if streaming == false { return false }
+    if messages == None { return false }
+    if messages.length == 0 { return false }
+    let last = messages[messages.length - 1]
+    return last.id == msg.id && last.role == "assistant"
+}
+
+// ─── ReportCard helper ───────────────────────────────────────────────────────
+
+/** ReportCard confidence class。 */
+fn reportConfidenceClass(confidence str) str {
+    let v = confidence || "Medium"
+    let c = v.to_lower()
+    return "report-confidence " + c
+}
+
+// ─── Chat 搜索过滤（Plan 028 T15，原 useChatSearch composable）──────────────
+
+/** 按关键字过滤消息（content/role 大小写不敏感包含；空查询原样返回）。 */
+fn chatSearchFilter(messages obj, q str) obj {
+    if q == None { return messages }
+    if q.trim() == "" { return messages }
+    let query = q.to_lower()
+    let out list = []
+    for m in messages {
+        let content = (m.content ?? "").to_lower()
+        let role = (m.role ?? "").to_lower()
+        if content.includes(query) || role.includes(query) { out.push(m) }
+    }
+    return out
+}
+
+/** 过滤后最后一条消息 id（问卷卡只随最新一条消息显示）。 */
+fn chatLastMessageId(messages obj) str {
+    if messages == None { return "" }
+    if messages.length == 0 { return "" }
+    let last = messages[messages.length - 1]
+    return last.id ?? ""
+}

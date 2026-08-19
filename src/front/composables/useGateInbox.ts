@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 export interface PendingGate {
   gateId: string
@@ -19,6 +19,33 @@ function promoteNext() {
   _currentSecretary.value = next ?? null
 }
 
+// Plan 028 T14：gate_reached→registerGate 的路由原在 forge_stream.ts（逃生舱
+// 直调）。forge_stream 原生化后，这里 watch store.current_gate 驱动
+// SecretaryMessage 审批条（GateCard 仍由 current_gate 直接驱动）。
+function _registerGate(gate: Omit<PendingGate, 'status'>) {
+  const existing = _gates.value.find((g) => g.gateId === gate.gateId)
+  if (existing) return
+  const newGate: PendingGate = { ...gate, status: 'pending' }
+  _gates.value.push(newGate)
+  if (!_currentSecretary.value) {
+    _currentSecretary.value = newGate
+  }
+}
+
+import { useForgeStoreStore } from '@/stores/useForgeStoreStore'
+const _forge = useForgeStoreStore()
+watch(_forge.current_gate, (gate: any) => {
+  if (!gate || !gate.gate_id) return
+  _registerGate({
+    gateId: gate.gate_id,
+    runId: gate.run_id ?? '',
+    profession: gate.profession || 'unknown',
+    title: gate.title || (gate.profession || 'agent') + ' needs approval',
+    sectionId: gate.section_id ?? '',
+    since: gate.since ?? Date.now(),
+  })
+})
+
 export function useGateInbox() {
   const gates = _gates
   const currentSecretary = _currentSecretary
@@ -26,13 +53,7 @@ export function useGateInbox() {
   const hasPending = computed(() => badgeCount.value > 0)
 
   function registerGate(gate: Omit<PendingGate, 'status'>) {
-    const existing = _gates.value.find((g) => g.gateId === gate.gateId)
-    if (existing) return
-    const newGate: PendingGate = { ...gate, status: 'pending' }
-    _gates.value.push(newGate)
-    if (!_currentSecretary.value) {
-      _currentSecretary.value = newGate
-    }
+    _registerGate(gate)
   }
 
   function resolveGate(gateId: string, decision: 'approved' | 'rejected') {

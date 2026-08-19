@@ -14,30 +14,27 @@ use back.api: chats_delete_session, chats_delete_all_sessions
 
 widget ChatsView {
     use {
-        fn: startForgeStream, stopForgeStream from "src/front/forge_stream.ts"
-        // B 类批3：/relay//superpower//spec1 命令路由（逃生舱 fn，同步检测+异步执行）。
+                // B 类批3：/relay//superpower//spec1 命令路由（逃生舱 fn，同步检测+异步执行）。
         fn: handleRelayCommand from "src/front/relay_commands.ts"
         // forge_helpers 是逃生舱卡片组件的内部依赖，声明 renderMentions 仅为触发 ext 复制
         // （codegen ext 复制只看 use 块，不递归逃生舱组件的相对 import）。
-        fn: renderMentions, extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.ts"
+        fn: extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.at"
+        fn: chatSearchFilter, chatLastMessageId from "src/front/forge_helpers.at"
+        fn: renderMentions from "src/front/mention_helpers.ts"
         // questionnaire 解析纯函数（QuestionnaireCard 的数据源）。
-        fn: getQuestions, hasQuestionnaire from "src/front/questionnaire.ts"
+        fn: getQuestions, hasQuestionnaire from "src/front/questionnaire.at"
         // Plan 023 队列 B5：MentionInput 已原生化为 component fn（src/front/mention_input.at），
         // 逃生舱 .vue 已删除（v-html backdrop 已原生 + MentionDropdown 已原生）。
         component: MentionInput
         // Plan 023 §3.1：共用 NavSidebar + ContentHeader（三视图二级导航/内容标题栏收敛）。
         component: NavSidebar
         component: ContentHeader
-        // mention_helpers 是 MentionDropdown component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
-        fn: mentionFiltered, mentionPosition, mentionCurrentId, mentionClampIndex, mentionIndexOf from "src/front/mention_helpers.ts"
         // Plan 023 队列 B3：MentionDropdown 已原生化为 component fn（src/front/mention_dropdown.at），
         // 逃生舱 .vue 已删除（MentionInput.vue 改用 @/components/MentionDropdown.vue 引用生成版）。
         component: MentionDropdown
         // Plan 023 P3：AgentAvatar 已原生化为 component fn（src/front/agent_avatar.at），
         // MentionDropdown.vue + SecretaryMessage.vue 改用 @/components/AgentAvatar.vue 引用生成版。
         // Plan 023 P3：ErrandCard 已原生化为 component fn（src/front/errand_card.at），逃生舱 .vue 已删除。
-        // relay_run_helpers 是 RelayRunBox component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
-        fn: relayRunSubscribe, relayRunUnsubscribe, relayRunLoad, relayRunApprove, relayRunReject, relaySessionLogFor, relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass from "src/front/relay_run_helpers.ts"
         // Plan 023 队列 A3：RelayRunBox 已原生化为 component fn（src/front/relay_run_box.at），
         // 逃生舱 .vue 已删除（subscribeToRun 日志 + resolveGate 审批）。
         component: RelayRunBox
@@ -51,7 +48,7 @@ widget ChatsView {
         component: StreamingRenderer from "src/front/components/StreamingRenderer.vue"
         // Plan 023 P3：ReportCard 已原生化为 component fn（src/front/report_card.at），逃生舱 .vue 已删除。
         // questionnaire_helpers 是 QuestionnaireCard component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
-        fn: questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder from "src/front/questionnaire_helpers.ts"
+        fn: questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder from "src/front/questionnaire_helpers.at"
         // Plan 023 队列 B1：QuestionnaireCard 已原生化为 component fn（src/front/questionnaire_card.at），
         // 逃生舱 .vue 已删除。
         component: QuestionnaireCard
@@ -98,7 +95,6 @@ widget ChatsView {
         component: Plus, Trash2, Search, Info from "lucide-vue-next"
         composable: useT from "src/front/composables/useT.ts"
         // 技术债 #2：消息搜索过滤（search ref + filteredMessages computed）
-        composable: useChatSearch from "src/front/composables/useChatSearch.ts"
         // 技术债：键盘快捷键（Ctrl+Shift+S 聚焦搜索 / Ctrl+Shift+N 新建会话）
         composable: useKeyboardShortcuts from "src/front/composables/useKeyboardShortcuts.ts"
     }
@@ -124,6 +120,12 @@ widget ChatsView {
         var input str = ""
         var sidebar_collapsed bool = false
         var chat_search str = ""
+    }
+
+    // Plan 028 T15：搜索过滤（原 useChatSearch composable → F2 多参 fn 直调）
+    computed {
+        filteredMessages => chatSearchFilter(.store.messages, .chat_search)
+        lastMsgId => chatLastMessageId(.filteredMessages)
     }
 
     view {
@@ -190,7 +192,7 @@ widget ChatsView {
                             Search { size: 13 }
                             input {
                                 style: "search-input"
-                                value: .chatSearch.search
+                                value: .chat_search
                                 oninput: .OnSearchInput($event)
                                 placeholder: t("chat.searchPlaceholder")
                             }
@@ -230,7 +232,7 @@ widget ChatsView {
                             report: .store.report_data
                         }
                     }
-                    for msg in .chatSearch.filteredMessages {
+                    for msg in .filteredMessages {
                         col {
                             key: .msg.id
                             // ChatMessage 独立组件：有序 block 流（文本/思考/工具），
@@ -248,7 +250,7 @@ widget ChatsView {
                             // .at if 条件不支持多参 fn）——已回答的旧问题不再常驻表单。
                             if .msg.role == "assistant" {
                                 if hasQuestionnaire(.msg) {
-                                    if .msg.id == .chatSearch.lastMessageId {
+                                    if .msg.id == .lastMsgId {
                                         QuestionnaireCard {
                                             questions: getQuestions(.msg)
                                             onsubmit: .OnQuestionnaireSubmit($event)
@@ -293,7 +295,7 @@ widget ChatsView {
             agentConfigs.loadConfigs()
         }
 
-        .OnSearchInput(val) -> { chatSearch.search = val.target.value }
+        .OnSearchInput(val) -> { .chat_search = val.target.value }
 
         .NewSession -> { store.NewSession() }
 
@@ -319,14 +321,13 @@ widget ChatsView {
                 .input = "";
                 if !handled {
                     store.Send(.text);
-                    startForgeStream(.store.session_id, .store.workspace, .store.token, .text)
+                    store.StartStream(.store.session_id, .store.workspace, .store.token, .text)
                 }
             }
         }
 
         // StopStream: 停止 SSE 流。
         .StopStream -> {
-            stopForgeStream();
             store.StopStream()
         }
 
@@ -352,7 +353,7 @@ widget ChatsView {
         .OnQuestionnaireSubmit(text) -> {
             if .text != "" {
                 store.Send(.text);
-                startForgeStream(.store.session_id, .store.workspace, .store.token, .text)
+                store.StartStream(.store.session_id, .store.workspace, .store.token, .text)
             }
         }
     }

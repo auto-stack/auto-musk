@@ -29,6 +29,8 @@ store ForgeStore {
         var pending_spec_changes []Value = []
         var current_gate Value = null
         var report_data Value = null
+        // Plan 028 T14：SSE 流句柄（Sse.open/close 平台协议，替代 forge_stream.ts）
+        var stream_es Value = null
     }
 
     msg Msg {
@@ -45,6 +47,10 @@ store ForgeStore {
         ClearGate,
         ApproveGate,
         RejectGate,
+        // Plan 028 T14：SSE 流生命周期（替代 forge_stream.ts 的 start/stopForgeStream）
+        StartStream(str, str, str, str),
+        StopStream,
+        OnStreamEvent(Value),
     }
 
     on {
@@ -57,7 +63,7 @@ store ForgeStore {
                 localStorage.setItem("musk_workspace", "musk-demo")
             };
             let tk = localStorage.getItem("musk_jwt");
-            .token = tk;
+            .token = tk ?? "";
             LoadSessionList()
         }
 
@@ -121,5 +127,310 @@ store ForgeStore {
             chats_reject_all(.session_id);
             .current_gate = None
         }
+
+        // ─── Plan 028 T14：SSE 流消费（原 forge_stream.ts；F8 Sse.open/close + 消息分发）───
+        .StartStream(sid0, ws0, tk0, userContent) -> {
+            .StopStream()
+            // 乐观插入 user 消息（不等 API 返回；与 Send 并发执行）
+            if userContent.trim() != "" {
+                let msgs = .messages
+                let dup = false
+                if msgs.length > 0 {
+                    if msgs[msgs.length - 1].role == "user" {
+                        if msgs[msgs.length - 1].content == userContent { dup = true }
+                    }
+                }
+                if dup == false {
+                    let uid = "u-" + Date.now()
+                    let now0 = Date.now()
+                    .messages.push({ id: uid, role: "user", content: userContent, timestamp: now0, thinking: "", tool_calls: [], profession_id: "" })
+                }
+            }
+            let path0 = "/api/chats/session/" + encodeURIComponent(sid0) + "/stream"
+            let qs = ""
+            if ws0 != "" { qs = "?workspace=" + encodeURIComponent(ws0) }
+            if tk0 != "" {
+                if qs == "" {
+                    qs = "?token=" + encodeURIComponent(tk0)
+                } else {
+                    qs = qs + "&token=" + encodeURIComponent(tk0)
+                }
+            }
+            // 防御：record 初值兜底（历史 codegen 曾把 {} 生成 null）
+            if .errands == None { .errands = {} }
+            if .relays == None { .relays = {} }
+            if .task_plans == None { .task_plans = {} }
+            .stream_es = Sse.open(path0 + qs, .OnStreamEvent)
+        }
+
+        .StopStream -> {
+            .stream_es = Sse.close(.stream_es)
+ }
+
+        // forge 流事件 → blocks/卡片状态回写（对应 forge_stream.ts handleForgeEvent；
+        // 平台层已 JSON 预解析——直接按 ev.type 分支，零样板）
+        .OnStreamEvent(ev) -> {
+            if ev == None { return }
+            if ev.type == None { return }
+
+            if ev.type == "delta" {
+                if ev.text != None {
+                    if ev.text != "" {
+                        let msg = ensureAssistantMsg("")
+                        msg.content = msg.content + ev.text
+                        .current_draft = .current_draft + ev.text
+                        let _ab = appendBlockText(msg, "text", ev.text)
+                    }
+                }
+                return
+            }
+            if ev.type == "thinking" {
+                if ev.thinking != None {
+                    if ev.thinking != "" {
+                        let msg2 = ensureAssistantMsg("")
+                        let th = msg2.thinking ?? ""
+                        msg2.thinking = th + ev.thinking
+                        .thinking = msg2.thinking
+                        let _ab = appendBlockText(msg2, "thinking", ev.thinking)
+                    }
+                }
+                return
+            }
+            if ev.type == "tool_call" {
+                let msg3 = ensureAssistantMsg("")
+                let callId = ev.id ?? ""
+                if callId == "" { callId = "tc-" + Date.now() }
+                let callName = ev.name ?? "unknown"
+                let callArgs = ev.arguments ?? {}
+                msg3.tool_calls.push({ id: callId, name: callName, arguments: callArgs, status: "running" })
+                let lastIdx = msg3.tool_calls.length - 1
+                msg3.blocks.push({ kind: "tool", tc: msg3.tool_calls[lastIdx] })
+                return
+            }
+            if ev.type == "tool_result" {
+                let msg4 = currentAssistantMsg()
+                if msg4 != None {
+                    let calls = msg4.tool_calls
+                    let call = None
+                    if ev.id != None {
+                        let i = 0
+                        while i < calls.length {
+                            if calls[i].id == ev.id { call = calls[i] }
+                            i = i + 1
+                        }
+                    }
+                    if call == None {
+                        let j = calls.length - 1
+                        while j >= 0 {
+                            let c = calls[j]
+                            if c.status == "running" {
+                                if ev.name == None { call = c } else { if c.name == ev.name { call = c } }
+                            }
+                            j = j - 1
+                        }
+                    }
+                    if call != None {
+                        let result = ev.result ?? ""
+                        call.result = result
+                        // 嗅探 result 标记识别 error（对齐 generic_tool_card 样式）
+                        let failed = false
+                        if ev.status == "error" { failed = true }
+                        if result.starts_with("[security denied") { failed = true }
+                        if result.starts_with("[tool error") { failed = true }
+                        if failed { call.status = "failed" } else { call.status = "completed" }
+                    }
+                }
+                return
+            }
+            if ev.type == "done" {
+                .streaming = false
+                .StopStream()
+                return
+            }
+            if ev.type == "error" {
+                .error = ev.message ?? "unknown error"
+                .streaming = false
+                .StopStream()
+                return
+            }
+
+            // ─── errand 事件 ───
+            if ev.type == "errand_start" {
+                if ev.errand_id != None {
+                    .errands[ev.errand_id] = { errand_id: ev.errand_id, profession_id: ev.profession_id ?? "gofer", tool_call_id: ev.tool_call_id ?? "", task: ev.task ?? "", content: "", tool_calls: [], status: "running" }
+                }
+                return
+            }
+            if ev.type == "errand_delta" {
+                if ev.errand_id != None {
+                    if ev.text != None {
+                        let e0 = .errands[ev.errand_id]
+                        if e0 != None { e0.content = e0.content + ev.text }
+                    }
+                }
+                return
+            }
+            if ev.type == "errand_tool_call" {
+                if ev.errand_id != None {
+                    let e1 = .errands[ev.errand_id]
+                    if e1 != None {
+                        let tcid = ev.id ?? ""
+                        if tcid == "" { tcid = "etc-" + Date.now() }
+                        e1.tool_calls.push({ id: tcid, name: ev.name ?? "unknown", arguments: ev.arguments ?? {}, status: "running" })
+                    }
+                }
+                return
+            }
+            if ev.type == "errand_tool_result" {
+                if ev.errand_id != None {
+                    let e2 = .errands[ev.errand_id]
+                    if e2 != None {
+                        let tcs = e2.tool_calls
+                        let k = 0
+                        while k < tcs.length {
+                            if tcs[k].id == ev.id {
+                                tcs[k].result = ev.result ?? ""
+                                tcs[k].status = "success"
+                            }
+                            k = k + 1
+                        }
+                    }
+                }
+                return
+            }
+            if ev.type == "errand_complete" {
+                if ev.errand_id != None {
+                    let e3 = .errands[ev.errand_id]
+                    if e3 != None {
+                        e3.status = ev.status ?? "completed"
+                        let r0 = ev.result ?? ""
+                        if r0 == "" { r0 = e3.content }
+                        e3.result = r0
+                        e3.token_usage = ev.token_usage
+                    }
+                }
+                return
+            }
+
+            // ─── relay 事件 ───
+            if ev.type == "relay_spawned" {
+                if ev.run_id != None {
+                    .relays[ev.run_id] = { run_id: ev.run_id, flow_id: ev.flow_id ?? "standard", status: "started", steps: [], title: ev.title }
+                }
+                return
+            }
+            if ev.type == "relay_update" {
+                if ev.run_id != None {
+                    let r1 = .relays[ev.run_id]
+                    if r1 != None {
+                        r1.steps.push({ step_id: ev.step_id ?? "", profession_id: ev.profession_id ?? "" })
+                        r1.status = "running"
+                    }
+                }
+                return
+            }
+            if ev.type == "relay_gate_waiting" {
+                if ev.run_id != None {
+                    let r2 = .relays[ev.run_id]
+                    if r2 != None { r2.status = "gate_waiting" }
+                }
+                return
+            }
+            if ev.type == "relay_complete" {
+                if ev.run_id != None {
+                    let r3 = .relays[ev.run_id]
+                    if r3 != None {
+                        if ev.status == "failed" { r3.status = "failed" } else { r3.status = "completed" }
+                        r3.summary = ev.summary ?? ""
+                        r3.tokens_used = ev.tokens_used ?? 0
+                    }
+                }
+                return
+            }
+
+            // ─── task_plan 事件 ───
+            if ev.type == "task_plan_spawned" {
+                if ev.instance_id != None {
+                    .task_plans[ev.instance_id] = { instance_id: ev.instance_id, task_plan_id: ev.task_plan_id ?? "", status: "started", phases: [] }
+                }
+                return
+            }
+
+            // ─── 会话状态事件 ───
+            if ev.type == "turn_start" {
+                let p0 = ev.profession_id ?? ""
+                let _ea = ensureAssistantMsg(p0)
+                return
+            }
+            if ev.type == "phase_change" {
+                if ev.phase != None { .session_phase = ev.phase }
+                return
+            }
+            if ev.type == "agent_handoff" {
+                if ev.to_profession != None { .active_profession = ev.to_profession }
+                return
+            }
+
+            // ─── gate / run_completed 事件（SecretaryMessage 由 chats_view watch current_gate 驱动）───
+            if ev.type == "gate_reached" {
+                let gateId = ev.gate_id ?? ""
+                if gateId == "" { gateId = (ev.run_id ?? "") + "-" + (ev.step_id ?? "") }
+                if gateId != "" {
+                    .current_gate = { gate_id: gateId, run_id: ev.run_id ?? "", profession: ev.profession ?? "", title: ev.title ?? "", section_id: ev.section_id ?? "", since: Date.now() }
+                }
+                return
+            }
+            if ev.type == "run_completed" {
+                .report_data = { runId: ev.run_id ?? "", goalsMet: ev.goals_met ?? "", testsPass: ev.tests_pass ?? "", driftDetected: ev.drift_detected ?? "", cost: ev.cost ?? "", confidence: ev.confidence ?? "Medium", deliverables: ev.deliverables ?? [] }
+                return
+            }
+            console.log("[forge stream]", ev.type)
+        }
     }
+}
+
+// ─── Plan 028 T14：流消费模块 fn（原 forge_stream.ts 的累积/查找逻辑）───
+
+/** 追加流式 text/thinking 到消息有序 blocks：同类连续块合并，异类开新块。 */
+fn appendBlockText(msg Value, kind str, text str) {
+    if msg.blocks == None { msg.blocks = [] }
+    let blocks = msg.blocks
+    let last = blocks[blocks.length - 1]
+    if last != None {
+        if last.kind == kind {
+            if last.text != None {
+                last.text = last.text + text
+                return
+            }
+        }
+    }
+    blocks.push({ kind: kind, text: text })
+}
+
+/** 当前（末条）assistant 消息；末条非 assistant 返回 None。 */
+fn currentAssistantMsg() Value {
+    let msgs = .messages
+    if msgs.length == 0 { return None }
+    let last = msgs[msgs.length - 1]
+    if last.role == "assistant" { return last }
+    return None
+}
+
+/** 确保「当前」assistant 消息存在（无则新建 push）；profession_id 来自 turn_start。 */
+fn ensureAssistantMsg(professionId str) Value {
+    let msgs = .messages
+    let last = None
+    if msgs.length > 0 {
+        let l0 = msgs[msgs.length - 1]
+        if l0.role == "assistant" { last = l0 }
+    }
+    if last == None {
+        let fresh = { id: "a-" + Date.now(), role: "assistant", content: "", thinking: "", timestamp: Date.now(), tool_calls: [], blocks: [], profession_id: professionId }
+        .messages.push(fresh)
+        return fresh
+    }
+    if professionId != "" {
+        if last.profession_id == None { last.profession_id = professionId }
+    }
+    return last
 }

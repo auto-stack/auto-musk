@@ -16,7 +16,7 @@
 component fn ReportCard(report: obj) {
     use {
         component: ChevronDown, ChevronUp, FileText, Download, FolderOpen from "lucide-vue-next"
-        fn: reportConfidenceClass from "src/front/forge_helpers.ts"
+        fn: reportConfidenceClass from "src/front/forge_helpers.at"
     }
     computed {
         runId => .report.runId

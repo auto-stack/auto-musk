@@ -16,7 +16,7 @@
 
 component fn AgentAvatar(professionId: str, name: str, size: str) {
     use {
-        fn: agentAvatarData from "src/front/forge_helpers.ts"
+        fn: agentAvatarData from "src/front/forge_helpers.at"
     }
     computed {
         data => agentAvatarData(.professionId, .name, .size)

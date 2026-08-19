@@ -12,7 +12,7 @@
 
 component fn TaskPlanCard(tc: obj, taskPlans: obj) {
     use {
-        fn: getTaskPlan, taskPlanStatusLabel from "src/front/forge_helpers.ts"
+        fn: getTaskPlan, taskPlanStatusLabel from "src/front/forge_helpers.at"
     }
     computed {
         plan => getTaskPlan(.taskPlans, .tc)

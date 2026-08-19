@@ -1,0 +1,98 @@
+// questionnaire_helpers.at — QuestionnaireCard 答案记录逻辑（单一真源，
+// 替代 questionnaire_helpers.ts）
+//
+// Plan 028 T12（M3）：F1 字典 + F5 Index v-model 承载 answers 动态键后，
+// 全部答案逻辑可原生化。行为与旧 TS 逐函数对齐。
+
+/** 单选是否选中（answers[qid] === opt）。 */
+fn questionnaireSingleChecked(answers obj, qid str, opt str) bool {
+    return answers[qid] == opt
+}
+
+/** 多选是否选中（answers[qid] 数组 includes opt）。 */
+fn questionnaireMultiChecked(answers obj, qid str, opt str) bool {
+    let cur = answers[qid] ?? []
+    return cur.includes(opt)
+}
+
+/** 多选 toggle：opt 已在则移除，否则追加（返回新数组）。 */
+fn questionnaireToggleAnswer(answers obj, qid str, opt str) obj {
+    let cur = answers[qid] ?? []
+    if cur.includes(opt) {
+        return cur.filter(x => x != opt)
+    }
+    let out = []
+    for c in cur { out.push(c) }
+    out.push(opt)
+    return out
+}
+
+/** other 输入框的答案键（qid + '__other'）。 */
+fn questionnaireOtherKey(qid str) str {
+    return qid + "__other"
+}
+
+/** 是否可提交：所有非 optional 问题都有答案。 */
+fn questionnaireCanSubmit(questions obj, answers obj) bool {
+    for q in questions {
+        if q.optional { continue }
+        let ans = answers[q.id]
+        if q.type == "multiple" {
+            let arr = ans ?? []
+            if arr.length == 0 { return false }
+        } else {
+            if ans == None { return false }
+            if String(ans).trim() == "" { return false }
+        }
+    }
+    return true
+}
+
+/** placeholder 兜底。 */
+fn questionnairePlaceholder(q obj, fallback str) str {
+    return q.placeholder || fallback
+}
+
+/** 从 input 事件提取当前值。 */
+fn eventInputValue(e obj) str {
+    let t = e.target
+    if t == None { return "" }
+    return t.value ?? ""
+}
+
+/**
+ * 把 answers 记录格式化为可读文本："Q1: 选项A; Q2: 选项B, Other: 补充"。
+ */
+fn formatQuestionnaireAnswers(questions obj, answers obj) str {
+    if questions == None { return "" }
+    let parts list = []
+    let idx = 0
+    while idx < questions.length {
+        let q = questions[idx]
+        let answer = answers[q.id]
+        let other = answers[questionnaireOtherKey(q.id)]
+        let n = idx + 1
+        let qNum = "Q" + n
+        if Array.isArray(answer) {
+            if answer.length > 0 {
+                let seg = qNum + ": " + answer.join(", ")
+                if other != None { seg = seg + ", Other: " + other }
+                parts.push(seg)
+            }
+        } else {
+            if answer != None {
+                if String(answer).trim() != "" {
+                    let seg2 = qNum + ": " + answer
+                    if other != None { seg2 = seg2 + ", Other: " + other }
+                    parts.push(seg2)
+                } else {
+                    if other != None { parts.push(qNum + ": Other: " + other) }
+                }
+            } else {
+                if other != None { parts.push(qNum + ": Other: " + other) }
+            }
+        }
+        idx = idx + 1
+    }
+    return parts.join("; ")
+}

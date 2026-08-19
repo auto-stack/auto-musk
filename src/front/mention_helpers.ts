@@ -4,7 +4,73 @@
 // .at 无法表达：filter+includes、DOMRect 位置对象构造（window 宿主）、findIndex、
 // @mention 检测（regex/slice/lastIndexOf）、插入文本拼接、DEFAULT_PROFESSIONS 兜底。
 
-import { DEFAULT_PROFESSIONS } from './forge_helpers'
+// Plan 028 T9: forge_helpers.ts 已原生化（forge_helpers.at）。mention 域
+// （DEFAULT_PROFESSIONS/buildMentionNames/renderMentions/renderInputMentions/
+// resolveMention）依赖回调式正则 replace，超出 F4 可移植子集，就近留在本文件
+// （归后续 G-对话壳/输入组立项迁移）。
+
+/** 默认职业列表（useAgentConfigs 当前是空 stub，故内置）。 */
+export const DEFAULT_PROFESSIONS: { id: string; name: string }[] = [
+  { id: 'assistant', name: 'Assistant Agent' },
+  { id: 'advisor', name: 'Advisor' },
+  { id: 'architect', name: 'Architect' },
+  { id: 'planner', name: 'Planner' },
+  { id: 'coder', name: 'Coder' },
+  { id: 'tester', name: 'Tester' },
+  { id: 'reviewer', name: 'Reviewer' },
+  { id: 'documenter', name: 'Documenter' },
+  { id: 'gofer', name: 'Gofer' },
+]
+
+/** id → 显示名映射（用于 @mention 高亮）。 */
+export function buildMentionNames(
+  professions: { id: string; name: string }[] = DEFAULT_PROFESSIONS,
+): Map<string, string> {
+  const names = new Map<string, string>()
+  for (const p of professions) {
+    names.set(p.id.toLowerCase(), p.name)
+    names.set(p.name.toLowerCase(), p.name)
+  }
+  return names
+}
+
+/** 转义 HTML，然后把 @mention 包成高亮 span。 */
+export function renderMentions(
+  text: string,
+  names: Map<string, string> = buildMentionNames(),
+): string {
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  return escaped.replace(/@(\w+)/g, (match, name: string) => {
+    const displayName = names.get(name.toLowerCase())
+    if (displayName) {
+      return `<span class="inline-mention">@${displayName}</span>`
+    }
+    return match
+  })
+}
+
+/** 同 renderMentions，但末尾加换行（输入框 backdrop 用）。 */
+export function renderInputMentions(
+  text: string,
+  names?: Map<string, string>,
+): string {
+  if (!text) return ''
+  return renderMentions(text, names) + '\n'
+}
+
+/** 把 @mention 词解析为 profession_id。 */
+export function resolveMention(
+  word: string,
+  professions: { id: string; name: string }[] = DEFAULT_PROFESSIONS,
+): string | undefined {
+  const lower = word.toLowerCase()
+  if (professions.some((c) => c.id.toLowerCase() === lower)) return lower
+  const match = professions.find((c) => c.name.toLowerCase() === lower)
+  return match?.id
+}
 
 /** 按 filter 过滤 professions（id/name 大小写不敏感 contains，对齐原 filtered）。 */
 export function mentionFiltered(professions: any[], filter: string): any[] {

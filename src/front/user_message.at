@@ -14,7 +14,7 @@
 
 component fn UserMessage(content: str) {
     use {
-        fn: renderMentions from "src/front/forge_helpers.ts"
+        fn: renderMentions from "src/front/mention_helpers.ts"
     }
     computed {
         html => renderMentions(.content)

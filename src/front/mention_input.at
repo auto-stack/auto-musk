@@ -19,7 +19,7 @@ component fn MentionInput(disabled: bool, professions: obj) {
         component: Send, Square from "lucide-vue-next"
         composable: useAgentConfigs refs: [configs] from "src/front/composables/useAgentConfigs.ts"
         composable: useI18n refs: [locale] from "vue-i18n"
-        fn: renderInputMentions, buildMentionNames from "src/front/forge_helpers.ts"
+        fn: renderInputMentions, buildMentionNames from "src/front/mention_helpers.ts"
         fn: mentionFiltered, mentionClampIndex, mentionIndexOf, mentionKeyAction, mentionDetectFilter, mentionDetectAnchor, mentionDetectVisible, mentionDetectPos, mentionInsert, mentionCanSend, mentionTrim, mentionProfessionsList, mentionCurrentId from "src/front/mention_helpers.ts"
         component: MentionDropdown
     }

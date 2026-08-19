@@ -15,7 +15,7 @@
 
 component fn GenericToolCard(tc: obj) {
     use {
-        fn: getToolSummary, toolArgsJson from "src/front/forge_helpers.ts"
+        fn: getToolSummary, toolArgsJson from "src/front/forge_helpers.at"
     }
     computed {
         name => .tc.name

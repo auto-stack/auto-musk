@@ -16,7 +16,7 @@
 
 component fn ErrandCard(tc: obj, errands: obj) {
     use {
-        fn: getErrandTask, getErrandState from "src/front/forge_helpers.ts"
+        fn: getErrandTask, getErrandState from "src/front/forge_helpers.at"
     }
     computed {
         task => getErrandTask(.tc)

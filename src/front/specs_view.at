@@ -47,8 +47,15 @@ widget SpecsView {
         var edit_status str = "draft"
     }
 
+    // Plan 028 T9：模板内联 `view_mode == "…"` 三元会被 vue-tsc 流窄化，
+    // 兄弟节点的反向比较报 TS2367 —— 收敛为 computed 布尔。
+    computed {
+        structuredMode => .view_mode == "structured"
+        treeMode => .view_mode == "tree"
+    }
+
     view {
-        if .view_mode == "structured" {
+        if .structuredMode {
         row {
             style: "specs-view"
             // 左侧 section-nav（Plan 023 §3.1：共用 NavSidebar——header + list slot）
@@ -101,12 +108,12 @@ widget SpecsView {
                                 style: "view-mode-toggle"
                                 button {
                                     onclick: .EnterStructuredMode
-                                    class: if .view_mode == "structured" { "mode-btn active" } else { "mode-btn" }
+                                    class: if .structuredMode { "mode-btn active" } else { "mode-btn" }
                                     text t("specs.structuredMode")
                                 }
                                 button {
                                     onclick: .EnterTreeMode
-                                    class: if .view_mode == "tree" { "mode-btn active" } else { "mode-btn" }
+                                    class: if .treeMode { "mode-btn active" } else { "mode-btn" }
                                     text t("specs.fileTreeMode")
                                 }
                             }
@@ -238,12 +245,12 @@ widget SpecsView {
                                 style: "view-mode-toggle"
                                 button {
                                     onclick: .EnterStructuredMode
-                                    class: if .view_mode == "structured" { "mode-btn active" } else { "mode-btn" }
+                                    class: if .structuredMode { "mode-btn active" } else { "mode-btn" }
                                     text t("specs.structuredMode")
                                 }
                                 button {
                                     onclick: .EnterTreeMode
-                                    class: if .view_mode == "tree" { "mode-btn active" } else { "mode-btn" }
+                                    class: if .treeMode { "mode-btn active" } else { "mode-btn" }
                                     text t("specs.fileTreeMode")
                                 }
                             }

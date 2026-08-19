@@ -19,7 +19,7 @@ component fn GateCard(title: str, profession: str, changes: obj) {
     use {
         component: Check, X, Eye, ChevronDown, ChevronUp from "lucide-vue-next"
         fn: gateToggleExpanded, gateWithExpanded, gateInitEditedSpecs, gateTitleText from "src/front/gate_helpers.ts"
-        fn: eventInputValue from "src/front/questionnaire_helpers.ts"
+        fn: eventInputValue from "src/front/questionnaire_helpers.at"
     }
     computed {
         titleText => gateTitleText(.title)

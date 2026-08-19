@@ -16,7 +16,8 @@
 component fn RelayRunBox(runId: str) {
     use {
         component: ChevronDown, ChevronRight, Orbit, Wrench from "lucide-vue-next"
-        fn: relayRunSubscribe, relayRunUnsubscribe, relayRunLoad, relayRunApprove, relayRunReject, relaySessionLogFor, relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass from "src/front/relay_run_helpers.ts"
+        fn: relayRunSubscribe, relayRunUnsubscribe, relayRunLoad, relayRunApprove, relayRunReject, relaySessionLogFor from "src/front/relay_stream_helpers.ts"
+        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass from "src/front/relay_run_helpers.at"
         composable: useRelay refs: [runs, currentRun] from "src/front/composables/useRelay.ts"
     }
     computed {

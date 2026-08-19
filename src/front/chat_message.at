@@ -17,7 +17,8 @@ component fn ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj
     use {
         component: UserMessage, ThinkBlock, ToolBlock
         component: StreamingRenderer from "src/front/components/StreamingRenderer.vue"
-        fn: msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens from "src/front/forge_helpers.ts"
+        fn: msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens from "src/front/forge_helpers.at"
+        fn: renderMentions from "src/front/mention_helpers.ts"
     }
     computed {
         role => .msg.role

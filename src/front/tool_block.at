@@ -8,7 +8,7 @@
 component fn ToolBlock(tc: obj, errands: obj, relays: obj, task_plans: obj) {
     use {
         component: ErrandCard, RelayRunBox, TaskPlanCard, GenericToolCard
-        fn: extractRunId from "src/front/forge_helpers.ts"
+        fn: extractRunId from "src/front/forge_helpers.at"
     }
     computed {
         name => .tc.name

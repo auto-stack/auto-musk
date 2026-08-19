@@ -6,7 +6,7 @@
 
 component fn ThinkBlock(text: str, tokens: int, streaming: bool) {
     use {
-        fn: thinkLabel from "src/front/forge_helpers.ts"
+        fn: thinkLabel from "src/front/forge_helpers.at"
     }
     computed {
         // 折叠/展开指示,与 GenericToolCard 的 ▼/▲ 同款
