@@ -26,6 +26,13 @@ component fn AgentAvatar(professionId: str, name: str, size: str) {
         title => .data.title
         sizeClass => .data.sizeClass
     }
+    style {
+.agent-avatar.xs { width: 18px; height: 18px; font-size: 0.65rem; }
+.agent-avatar.sm { width: 30px; height: 30px; font-size: 0.9rem; }
+.agent-avatar.md { width: 28px; height: 28px; font-size: 1rem; }
+.agent-avatar.lg { width: 48px; height: 48px; font-size: 1.4rem; }
+    }
+
     span {
         class: if .sizeClass == "xs" { "agent-avatar xs" } else { if .sizeClass == "sm" { "agent-avatar sm" } else { if .sizeClass == "lg" { "agent-avatar lg" } else { "agent-avatar md" } } }
         style: "background: " + .bg + "; color: " + .text

@@ -57,3 +57,8 @@ fn relayWaitingGate(run obj) obj {
 fn relayEntryClass(entryType str) str {
     return "log-entry entry-" + entryType
 }
+
+/** run 的会话日志条目（无则空数组）。 */
+fn relaySessionLogFor(logs obj, runId str) obj {
+    return logs[runId] ?? []
+}

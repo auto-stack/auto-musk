@@ -19,6 +19,27 @@ component fn ThinkBlock(text: str, tokens: int, streaming: bool) {
     on {
         .Toggle -> { .expanded = !.expanded }
     }
+    style {
+.think-header {
+  display: flex; align-items: center; gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem; color: hsl(var(--muted-foreground));
+  cursor: pointer; user-select: none;
+}
+.think-header:hover { background: hsl(var(--muted) / 0.5); }
+.think-header .tool-chevron { margin-left: auto; }
+.think-content {
+  margin: 0; padding: 0.55rem 0.75rem;
+  font-size: 0.78rem; line-height: 1.5;
+  font-family: inherit;
+  white-space: pre-wrap; word-break: break-word;
+  color: hsl(var(--muted-foreground));
+  max-height: 240px;
+  overflow-y: auto;
+  border-top: 1px solid hsl(var(--border));
+}
+    }
+
     col {
         class: if .expanded { "think-block expanded" } else { "think-block" }
         row {

@@ -1,0 +1,434 @@
+// relay_store.at — Relay 运行状态 store（单一真源，替代 useRelay.ts + useEventRouter.ts）
+//
+// Plan 028 T16（M6）：F8 平台协议（Http.get/post/patch/delete + Sse.open/close）
+// + F3 JSON/Date 承载。原 useRelay.ts 的 fetch/SSE 逻辑逐路径对齐：
+//   - runs 列表加载排序 + 失效 current_run 清理
+//   - loadRun 详情 + 持久化 events → 会话日志重建 + per-profession tokens
+//   - startRun/advanceRun/rerunRun/resolveGate/submitHandoff/deleteRun/updateRunTitle
+//   - subscribeToRun：SSE（query token/workspace 鉴权）→ OnRelayEvent
+//     （live_log + session_logs 累积合并 + tokens 累计 + 事件触发的自动刷新）
+// 原 useEventRouter.handleEvent 的有效路由（gate_reached/gate_resolved →
+// useGateInbox）经 gate_signal 模型字段中转；setEventCallbacks 从无调用方，死代码不迁。
+
+store RelayStore {
+    model {
+        var runs []Value = []
+        var current_run Value = None
+        var professions []Value = []
+        var souls []Value = []
+        var loading bool = false
+        var error str = ""
+        var live_log []Value = []
+        var profession_tokens Value = {}
+        // runId → 会话日志条目数组
+        var session_logs Value = {}
+        // runId → SSE 订阅句柄（Sse.open 产物；close 经 Sse.close）
+        var relay_subs Value = {}
+        // relay gate 事件中转信号（useGateInbox watch 消费：{kind: reached|resolved, ...}）
+        var gate_signal Value = None
+    }
+
+    msg Msg {
+        LoadProfessions,
+        LoadSouls,
+        LoadRuns(str),
+        LoadRun(str),
+        StartRun(obj),
+        AdvanceRun(str),
+        RerunRun(str),
+        ResolveGate(str, str, str),
+        SubmitHandoff(str, obj),
+        DeleteRun(str),
+        UpdateRunTitle(str, str),
+        Subscribe(str),
+        Unsubscribe(str),
+        OnRelayEvent(Value),
+    }
+
+    on {
+        .LoadProfessions -> {
+            try {
+                let r = Http.get("/api/forge/relay/professions")
+                .professions = r.professions ?? []
+            } catch {
+                .error = "load professions failed"
+            }
+        }
+
+        .LoadSouls -> {
+            try {
+                let r0 = Http.get("/api/forge/relay/souls")
+                .souls = r0.souls ?? []
+            } catch {
+                .error = "load souls failed"
+            }
+        }
+
+        .LoadRuns(projectPath) -> {
+            try {
+                let q = ""
+                if projectPath != "" { q = "?project_path=" + encodeURIComponent(projectPath) }
+                let raw = Http.get("/api/forge/relay/runs" + q)
+                let data = raw
+                if raw.runs != None { data = raw.runs }
+                // 按更新时间倒序
+                data.sort((a, b) => b.updated_at - a.updated_at)
+                .runs = data
+                // 失效 current_run 清理（列表已无此 run）
+                if .current_run != None {
+                    let cid = .current_run.run_id
+                    let still = data.find(r => r.run_id == cid)
+                    if still == None { .current_run = None }
+                }
+            } catch {
+                .error = "load runs failed"
+                .runs = []
+            }
+        }
+
+        .LoadRun(runId) -> {
+            try {
+                let data = Http.get("/api/forge/relay/runs/" + encodeURIComponent(runId))
+                if data.run_id == None {
+                    // 404/异常响应体：清理并报错（对齐旧实现的 404 分支）
+                    .current_run = None
+                    .session_logs[runId] = None
+                    .error = "load run failed"
+                } else {
+                    .current_run = data
+                    if data.events != None {
+                        if data.events.length > 0 {
+                            .session_logs[runId] = relayEventsToSessionLog(runId, data.events)
+                        }
+                    }
+                    if data.profession_tokens != None {
+                        .profession_tokens = data.profession_tokens
+                    }
+                }
+            } catch {
+                .error = "load run failed"
+            }
+        }
+
+        .StartRun(req) -> {
+            .loading = true
+            .error = ""
+            let runId = None
+            try {
+                let data = Http.post("/api/forge/relay/runs", req)
+                .current_run = data.state
+                let rid = data.run_id ?? ""
+                .LoadRuns("")
+                .loading = false
+                return rid
+            } catch {
+                .error = "start run failed"
+                .loading = false
+                return ""
+            }
+        }
+
+        .AdvanceRun(runId) -> {
+            try {
+                Http.post("/api/forge/relay/runs/" + encodeURIComponent(runId) + "/advance", {})
+                .LoadRun(runId)
+            } catch {
+                .error = "advance run failed"
+            }
+        }
+
+        .RerunRun(runId) -> {
+            try {
+                Http.post("/api/forge/relay/runs/" + encodeURIComponent(runId) + "/rerun", {})
+                .LoadRun(runId)
+            } catch {
+                .error = "rerun run failed"
+            }
+        }
+
+        .ResolveGate(runId, decision, feedback) -> {
+            try {
+                let body map = { decision: decision }
+                if feedback != "" { body.feedback = feedback }
+                Http.post("/api/forge/relay/runs/" + encodeURIComponent(runId) + "/gate", body)
+                .LoadRun(runId)
+            } catch {
+                .error = "resolve gate failed"
+            }
+        }
+
+        .SubmitHandoff(runId, handoff) -> {
+            try {
+                Http.post("/api/forge/relay/runs/" + encodeURIComponent(runId) + "/handoff", { handoff: handoff })
+                .LoadRun(runId)
+            } catch {
+                .error = "submit handoff failed"
+            }
+        }
+
+        .DeleteRun(runId) -> {
+            try {
+                Http.delete("/api/forge/relay/runs/" + encodeURIComponent(runId))
+                if .current_run != None {
+                    if .current_run.run_id == runId {
+                        .current_run = None
+                        .session_logs[runId] = None
+                    }
+                }
+                .LoadRuns("")
+            } catch {
+                .error = "delete run failed"
+            }
+        }
+
+        .UpdateRunTitle(runId, title) -> {
+            try {
+                let updated = Http.patch("/api/forge/relay/runs/" + encodeURIComponent(runId) + "/title", { title: title })
+                if .current_run != None {
+                    if .current_run.run_id == runId { .current_run = updated }
+                }
+                .LoadRuns("")
+            } catch {
+                .error = "update title failed"
+            }
+        }
+
+        .Subscribe(runId) -> {
+            if .relay_subs[runId] != None { return }
+            if .session_logs[runId] == None { .session_logs[runId] = [] }
+            // EventSource 不能设 header：token/workspace 走 query 参数鉴权
+            let qs = ""
+            let ws = localStorage.getItem("musk_workspace")
+            if ws != None { qs = "?workspace=" + encodeURIComponent(ws) }
+            let tk = localStorage.getItem("musk_jwt")
+            if tk != None {
+                if qs == "" {
+                    qs = "?token=" + encodeURIComponent(tk)
+                } else {
+                    qs = qs + "&token=" + encodeURIComponent(tk)
+                }
+            }
+            .relay_subs[runId] = Sse.open("/api/forge/relay/runs/" + encodeURIComponent(runId) + "/events" + qs, .OnRelayEvent, runId)
+        }
+
+        .Unsubscribe(runId) -> {
+            .relay_subs[runId] = Sse.close(.relay_subs[runId])
+        }
+
+        // relay SSE 事件 → 会话日志/live_log/tokens/自动刷新（对应旧 subscribeToRun
+        // 的 onmessage 体 + useEventRouter.run_completed 分支；runId 经 __ctx 注入）
+        .OnRelayEvent(ev) -> {
+            if ev == None { return }
+            let runId = ev.__ctx
+            if runId == None { return }
+            if .session_logs[runId] == None { .session_logs[runId] = [] }
+            let et = ev.event_type
+            let p = ev.payload ?? {}
+            // 后端 RunEvent 用 role_id（relay_store.at 后端侧），兼容 profession_id
+            let prof = p.role_id ?? p.profession_id ?? "unknown"
+            let time = relayNowTime()
+
+            // ─── live_log ───
+            if et == "handoff_submitted" {
+                let hp = ev.profession_id ?? ev.from_profession ?? "unknown"
+                let ht = ev.to_profession ?? "next"
+                .live_log.push({ time: time, profession: hp, action: "Handoff to " + ht })
+            }
+            if et == "step_advanced" {
+                let sp = ev.profession_id ?? "system"
+                .live_log.push({ time: time, profession: sp, action: "Step advanced: " + (ev.step_id ?? "") })
+            }
+
+            // ─── session_logs 累积（相邻同类文本/思考合并；tool_result 并入 tool_call）───
+            let log = .session_logs[runId]
+
+            // turn_delta / turn_thinking：相邻同类同职业合并，否则新条目
+            if et == "turn_delta" {
+                if relayMergeLast(log, "text", prof, p.text ?? "") == false {
+                    log.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "text", content: p.text ?? "" })
+                }
+            }
+            if et == "turn_thinking" {
+                if relayMergeLast(log, "thinking", prof, p.thinking ?? "") == false {
+                    log.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "thinking", content: p.thinking ?? "" })
+                }
+            }
+            if et == "turn_tool_call" {
+                log.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "tool_call", content: "", tool_name: p.tool_name, tool_id: p.tool_id, arguments: p.arguments })
+            }
+            if et == "turn_tool_result" {
+                let last2 = log[log.length - 1]
+                if last2 != None {
+                    if last2.type == "tool_call" {
+                        if last2.tool_id == p.tool_id {
+                            last2.type = "tool"
+                            last2.result = p.result ?? ""
+                        } else {
+                            log.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "tool_result", content: p.result ?? "", tool_id: p.tool_id })
+                        }
+                    } else {
+                        log.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "tool_result", content: p.result ?? "", tool_id: p.tool_id })
+                    }
+                } else {
+                    log.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "tool_result", content: p.result ?? "", tool_id: p.tool_id })
+                }
+            }
+            if et == "turn_complete" {
+                log.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "complete", content: "Turn completed" })
+            }
+            if et == "turn_error" {
+                log.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "error", content: p.message ?? "Unknown error" })
+            }
+            if et == "turn_budget_warning" {
+                let rem = p.remaining ?? 0
+                log.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "budget_warning", content: "Budget warning: " + rem + " tokens remaining", remaining: p.remaining })
+            }
+            if et == "turn_budget_exceeded" {
+                log.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "budget_exceeded", content: "Budget exceeded — turn stopped" })
+            }
+            // ─── 步骤生命周期事件 ───
+            if et == "step_started" {
+                let sp2 = p.profession_id ?? "system"
+                let sid2 = p.step_id ?? ""
+                log.push({ id: relayMakeId(runId), time: time, profession_id: sp2, type: "step_started", content: "Step \"" + sid2 + "\" started" })
+            }
+            if et == "step_completed" {
+                let sp3 = p.profession_id ?? "system"
+                let sid3 = p.step_id ?? ""
+                log.push({ id: relayMakeId(runId), time: time, profession_id: sp3, type: "step_completed", content: "Step \"" + sid3 + "\" completed" })
+            }
+            if et == "gate_waiting" {
+                let sp4 = p.profession_id ?? "system"
+                log.push({ id: relayMakeId(runId), time: time, profession_id: sp4, type: "gate_waiting", content: "Waiting for human gate approval" })
+            }
+            if et == "run_completed" {
+                log.push({ id: relayMakeId(runId), time: time, profession_id: "system", type: "run_completed", content: "Run completed successfully" })
+            }
+            if et == "run_failed" {
+                log.push({ id: relayMakeId(runId), time: time, profession_id: "system", type: "run_failed", content: p.error ?? "Run failed" })
+            }
+
+            // ─── per-profession tokens 累计 ───
+            if ev.tokens_used != None {
+                if ev.profession_id != None {
+                    let prev = .profession_tokens[ev.profession_id] ?? 0
+                    .profession_tokens[ev.profession_id] = prev + ev.tokens_used
+                }
+            }
+
+            // ─── gate 事件中转（useGateInbox watch gate_signal 消费）───
+            if et == "gate_reached" {
+                let gid = ev.gate_id ?? ""
+                if gid == "" { gid = runId + "-" + (ev.step_id ?? "") }
+                let gprof = ev.profession ?? "unknown"
+                let gtitle = ev.title ?? ""
+                if gtitle == "" { gtitle = (ev.profession_id ?? "agent") + " needs approval" }
+                .gate_signal = { kind: "reached", gate_id: gid, run_id: runId, profession: gprof, title: gtitle, section_id: ev.section_id ?? "" }
+            }
+            if et == "gate_resolved" {
+                let gid2 = ev.gate_id ?? ""
+                if gid2 == "" { gid2 = runId + "-" + (ev.step_id ?? "") }
+                .gate_signal = { kind: "resolved", gate_id: gid2, decision: ev.decision ?? "approved" }
+            }
+
+            // ─── 事件触发自动刷新 ───
+            if et == "run_started" { .LoadRun(runId) }
+            if et == "step_started" { .LoadRun(runId) }
+            if et == "step_advanced" { .LoadRun(runId) }
+            if et == "handoff_submitted" { .LoadRun(runId) }
+            if et == "gate_resolved" { .LoadRun(runId) }
+            if et == "run_title_updated" { .LoadRun(runId) }
+            if et == "run_completed" {
+                if .current_run != None {
+                    if .current_run.run_id == runId { .LoadRun(runId) }
+                }
+            }
+        }
+    }
+}
+
+// ─── 模块 fn（纯逻辑，对应旧 useRelay 内部 helper）──────────────────────────
+
+/** 会话日志条目 id：runId-时间-随机段。 */
+fn relayMakeId(runId str) str {
+    return runId + "-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7)
+}
+
+/** 当前时刻 HH:mm:ss。 */
+fn relayNowTime() str {
+    return Date.format(Date.now(), "HH:mm:ss")
+}
+
+/** 秒级时间戳 → HH:mm:ss。 */
+fn relayFormatTimestamp(ts int) str {
+    return Date.format(ts * 1000, "HH:mm:ss")
+}
+
+/** 末条为 (type, profession_id) 时拼接 text 返回 true；否则 false。 */
+fn relayMergeLast(log Value, ty str, prof str, text str) bool {
+    if log.length == 0 { return false }
+    let last = log[log.length - 1]
+    if last == None { return false }
+    if last.type == ty {
+        if last.profession_id == prof {
+            last.content = last.content + text
+            return true
+        }
+    }
+    return false
+}
+
+/** 持久化 events → 会话日志（历史 run 重建，对应旧 eventsToSessionLog）。 */
+fn relayEventsToSessionLog(runId str, events Value) Value {
+    let result list = []
+    for ev in events {
+        let time = relayNowTime()
+        if ev.timestamp != None { time = relayFormatTimestamp(ev.timestamp) }
+        let prof = ev.role_id ?? ev.profession_id ?? "unknown"
+
+        if ev.type == "turn_delta" {
+            if relayMergeLast(result, "text", prof, ev.text ?? "") == false {
+                result.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "text", content: ev.text ?? "" })
+            }
+        }
+        if ev.type == "turn_thinking" {
+            if relayMergeLast(result, "thinking", prof, ev.thinking ?? "") == false {
+                result.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "thinking", content: ev.thinking ?? "" })
+            }
+        }
+        if ev.type == "turn_tool_call" {
+            result.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "tool_call", content: "", tool_name: ev.tool_name, tool_id: ev.tool_id, arguments: ev.arguments })
+        }
+        if ev.type == "turn_tool_result" {
+            let last = result[result.length - 1]
+            if last != None {
+                if last.type == "tool_call" {
+                    if last.tool_id == ev.tool_id {
+                        last.type = "tool"
+                        last.result = ev.result ?? ""
+                    } else {
+                        result.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "tool_result", content: ev.result ?? "", tool_id: ev.tool_id })
+                    }
+                } else {
+                    result.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "tool_result", content: ev.result ?? "", tool_id: ev.tool_id })
+                }
+            } else {
+                result.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "tool_result", content: ev.result ?? "", tool_id: ev.tool_id })
+            }
+        }
+        if ev.type == "turn_complete" {
+            result.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "complete", content: "Turn completed" })
+        }
+        if ev.type == "turn_error" {
+            result.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "error", content: ev.message ?? "Unknown error" })
+        }
+        if ev.type == "turn_budget_warning" {
+            let rem = ev.remaining ?? 0
+            result.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "budget_warning", content: "Budget warning: " + rem + " tokens remaining", remaining: ev.remaining })
+        }
+        if ev.type == "turn_budget_exceeded" {
+            result.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "budget_exceeded", content: "Budget exceeded — turn stopped" })
+        }
+    }
+    return result
+}

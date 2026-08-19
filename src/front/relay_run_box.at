@@ -13,15 +13,15 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.relay-box 等）。
 
+use store: RelayStore
+
 component fn RelayRunBox(runId: str) {
     use {
         component: ChevronDown, ChevronRight, Orbit, Wrench from "lucide-vue-next"
-        fn: relayRunSubscribe, relayRunUnsubscribe, relayRunLoad, relayRunApprove, relayRunReject, relaySessionLogFor from "src/front/relay_stream_helpers.ts"
-        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass from "src/front/relay_run_helpers.at"
-        composable: useRelay refs: [runs, currentRun] from "src/front/composables/useRelay.ts"
+        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor from "src/front/relay_run_helpers.at"
     }
     computed {
-        run => relayFindRun(relay.runs, relay.currentRun, .runId)
+        run => relayFindRun(store.runs, store.current_run, .runId)
         hasRun => .run != None
         status => if .run != None { .run.status } else { "idle" }
         statusClass => relayStatusClass(.status)
@@ -32,7 +32,7 @@ component fn RelayRunBox(runId: str) {
         waitingGate => relayWaitingGate(.run)
         hasWaitingGate => .waitingGate != None
         gateStepId => if .hasWaitingGate { .waitingGate.step_id } else { "" }
-        logEntries => relaySessionLogFor(.runId)
+        logEntries => relaySessionLogFor(store.session_logs, .runId)
     }
     msg Msg { Toggle, Approve, Reject }
     model {
@@ -44,36 +44,56 @@ component fn RelayRunBox(runId: str) {
         // Init：拉取 run 详情；若正等待人工审批则自动展开 + 订阅事件流
         // （需要用户交互的块不能默认折叠）。
         .Init -> {
-            relayRunLoad(.runId).await;
+            store.LoadRun(.runId);
             if .waitingGate != None {
                 .expanded = true;
                 if !.subscribed {
-                    relayRunSubscribe(.runId);
+                    store.Subscribe(.runId);
                     .subscribed = true
                 }
             }
         }
-        .Destroy -> { relayRunUnsubscribe(.runId) }
+        .Destroy -> { store.Unsubscribe(.runId) }
         .Toggle -> {
             .expanded = !.expanded;
             if .expanded {
                 if !.subscribed {
-                    relayRunSubscribe(.runId);
+                    store.Subscribe(.runId);
                     .subscribed = true
                 }
             }
         }
         .Approve -> {
             .gateBusy = true;
-            relayRunApprove(.runId).await;
+            store.ResolveGate(.runId, "approve", "");
             .gateBusy = false
         }
         .Reject -> {
             .gateBusy = true;
-            relayRunReject(.runId).await;
+            store.ResolveGate(.runId, "reject", "需要修改");
             .gateBusy = false
         }
     }
+    style {
+.box-header {
+  display: flex; align-items: center; gap: 0.4rem;
+  padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.82rem; color: var(--af-fg);
+}
+.box-header:hover { background: hsl(var(--muted-foreground) / 0.06); }
+.box-title { font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.box-progress { font-size: 0.72rem; color: var(--af-muted); }
+.box-status { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; }
+.box-body { padding: 0.5rem 0.75rem; border-top: 1px solid var(--af-border); }
+.entry-prof { margin-right: 0.3rem; }
+.entry-text { color: var(--af-fg); }
+.entry-tool { display: flex; align-items: center; gap: 0.3rem; color: var(--af-muted); padding-left: 1rem; }
+.entry-step { color: var(--af-muted); font-size: 0.75rem; padding: 0.2rem 0; }
+.entry-step.done { color: hsl(142 71% 45%); }
+.entry-gate { color: hsl(38 92% 50%); padding: 0.3rem 0; font-weight: 500; }
+.entry-error { color: hsl(var(--af-error)); }
+.entry-done { color: hsl(142 71% 45%); font-weight: 500; padding: 0.3rem 0; }
+    }
+
     div {
         class: if .statusClass == "completed" { "relay-box status-completed" } else { if .statusClass == "failed" { "relay-box status-failed" } else { if .statusClass == "gate" { "relay-box status-gate" } else { "relay-box status-running" } } }
         // header（click toggle）

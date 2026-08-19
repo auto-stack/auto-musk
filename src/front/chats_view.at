@@ -41,11 +41,7 @@ widget ChatsView {
         // Plan 023 P3：TaskPlanCard 已原生化为 component fn（src/front/task_plan_card.at），逃生舱 .vue 已删除。
         // Plan 023 P3：GenericToolCard 已原生化为 component fn（src/front/generic_tool_card.at），逃生舱 .vue 已删除。
         // B 类批3：useRelay/useEventRouter/useGateInbox（relay 完整链路 + gate 事件路由）。
-        composable: useRelay from "src/front/composables/useRelay.ts"
-        composable: useEventRouter from "src/front/composables/useEventRouter.ts"
         composable: useGateInbox from "src/front/composables/useGateInbox.ts"
-        // Phase 7.3 续：StreamingRenderer/ReportCard/QuestionnaireCard/GateCard。
-        component: StreamingRenderer from "src/front/components/StreamingRenderer.vue"
         // Plan 023 P3：ReportCard 已原生化为 component fn（src/front/report_card.at），逃生舱 .vue 已删除。
         // questionnaire_helpers 是 QuestionnaireCard component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
         fn: questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder from "src/front/questionnaire_helpers.at"
@@ -69,11 +65,6 @@ widget ChatsView {
         component: SecretaryMessage
         // Plan 023 P3：StreamingTable 已原生化为 component fn（src/front/streaming_table.at），
         // StreamingRenderer.vue 改用 @/components/StreamingTable.vue 引用生成版。
-        // useStreamingDocument 仍是 StreamingRenderer 的内部依赖，声明触发复制。
-        fn: useStreamingDocument from "src/front/composables/useStreamingDocument.ts"
-        // PrismCodeBlock 是 StreamingRenderer 内 setCustomComponents 注册的
-        // code_block 高亮组件（相对 import），声明触发 ext 复制。
-        component: PrismCodeBlock from "src/front/components/PrismCodeBlock.vue"
         // Phase 7.4→Plan 023 P3：UserMessage 已原生化为 component fn
         // （src/front/user_message.at），逃生舱 .vue 已删除。
         // ChatMessage.vue 改用 @/components/UserMessage.vue 引用生成版。

@@ -73,7 +73,6 @@ body, button, input, textarea, select { font-family: 'Noto Sans SC', -apple-syst
 ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.35); }
 /* 全局链接色 */
 a { color: hsl(var(--primary)); }
-
 /* ── 三列渐变背景层次（对齐原版视觉层次）──
    第一列（view-rail App 侧边栏）：最深的浅灰（secondary）
    第二列（各视图 sub-nav）：中间层（card 偏灰）
@@ -101,7 +100,6 @@ a { color: hsl(var(--primary)); }
 .dark .wiki-view > div:first-child {
   background: hsl(220 15% 10%) !important;
 }
-
 /* ── 共用 NavSidebar + ContentHeader（Plan 023 §3.1 单一真源）──
    替代三视图分散的 sidebar-header/section-nav-header/wiki-nav-header/chats-header/
    section-header/wiki-content-header 规则 + !important 覆盖。 */
@@ -139,7 +137,6 @@ a { color: hsl(var(--primary)); }
 }
 .content-header-middle { flex: 1; min-width: 0; display: flex; justify-content: center; }
 .content-header-actions { display: flex; align-items: center; gap: 0.3rem; flex-shrink: 0; }
-
 /* ── 导航栏 ── */
 .rail-tab {
   width: 100%; text-align: left; padding: 0.5rem 0.75rem; border-radius: 0.375rem;
@@ -162,7 +159,6 @@ a { color: hsl(var(--primary)); }
 }
 /* WorkspaceSelector 填满剩余空间，SettingsMenu 固定宽度 */
 .rail-footer .workspace-selector { flex: 1; min-width: 0; }
-
 /* ── ChatsView 布局 ── */
 .chats-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
 .chats-view > div:first-child {
@@ -199,9 +195,7 @@ a { color: hsl(var(--primary)); }
 .session-preview { display: flex; flex-direction: column; gap: 2px; }
 .session-name { font-size: 0.85rem; color: hsl(var(--foreground)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .session-count { font-size: 0.72rem; color: hsl(var(--muted-foreground)); }
-
 .chats-body { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-
 /* ── PlansView 布局（PLAN-026 续：对齐 ChatsView，补此前缺失的 CSS）── */
 .plans-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 .plans-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
@@ -238,177 +232,55 @@ a { color: hsl(var(--primary)); }
 }
 .search-input::placeholder { color: hsl(var(--muted-foreground)); }
 .chats-canvas { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 1.4rem; }
-
 /* 消息样式 — 标准 chat UI（header + 气泡 + 工具栏）
    对齐原生 ChatsView.vue：每条消息含 header（role + 时间）+ 气泡内容。
    user 气泡右对齐 + primary 底色，AI 气泡左对齐 + card 底色。 */
 
 /* 消息行（for 循环容器） */
 .msg-row { display: flex; flex-direction: column; gap: 0.2rem; margin-bottom: 0.6rem; }
-.msg-row-user { align-self: flex-end; max-width: 85%; }
-.msg-row-ai { align-self: flex-start; max-width: 100%; }
-
 /* header */
 .msg-header {
   display: flex; align-items: center; gap: 0.5rem; padding: 0 0.25rem;
-}
-.msg-role-badge {
-  font-size: 0.85rem; font-weight: 600;
 }
 /* user 的 header 右对齐 */
 .chats-canvas > div:has(.msg-bubble-user) .msg-header { justify-content: flex-end; }
 .chats-canvas > div:has(.msg-bubble-user) .msg-role-badge { color: hsl(var(--primary)); }
 /* AI 的 header 左对齐 */
 .chats-canvas > div:has(.msg-bubble-ai) .msg-role-badge { color: hsl(var(--muted-foreground)); }
-.msg-time {
-  font-size: 0.72rem; color: hsl(var(--muted-foreground));
-}
-
 /* 气泡 */
 .msg-bubble {
   padding: 0.6rem 0.9rem; border-radius: 12px; font-size: 0.92rem; line-height: 1.6; word-break: break-word;
 }
-.msg-bubble-user {
-  background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
-  border-bottom-right-radius: 4px;
-}
 /* .user-text 基础排版 + @mention 高亮（Plan 023 P3：原逃生舱 UserMessage.vue
    scoped 样式的全局兜底——component fn 不支持 scoped CSS）。 */
 .user-text { color: inherit; line-height: 1.5; word-break: break-word; }
-.user-text .inline-mention {
-  background: hsl(220 90% 56% / 0.12); color: hsl(220 90% 56%);
-  border-radius: 3px; padding: 0 0.2rem; font-weight: 500;
-}
-.msg-bubble-user .user-text { color: hsl(var(--primary-foreground)); white-space: pre-wrap; }
-.msg-bubble-user .user-text .inline-mention { color: hsl(var(--primary-foreground)); font-weight: 600; background: hsl(0 0% 100% / 0.15); }
-
-.msg-bubble-ai {
-  /* 无边框正文（Claude 风格）：AI 回复文本不设气泡边界/底色/圆角，
-     整条回复由 .msg-row-ai 的上下边界框定；思考/工具等特殊块内嵌其中。 */
-  background: transparent; border: none; color: hsl(var(--foreground));
-  border-radius: 0; padding: 0.05rem 0.15rem;
-}
-.msg-bubble-ai .streaming-document { color: hsl(var(--foreground)); }
-.msg-bubble-ai .streaming-document p,
-.msg-bubble-ai .streaming-document li,
-.msg-bubble-ai .streaming-document h1,
-.msg-bubble-ai .streaming-document h2,
-.msg-bubble-ai .streaming-document h3,
-.msg-bubble-ai .streaming-document h4,
-.msg-bubble-ai .streaming-document code,
-.msg-bubble-ai .streaming-document pre,
-.msg-bubble-ai .streaming-document ul,
-.msg-bubble-ai .streaming-document ol,
-.msg-bubble-ai .streaming-document blockquote { color: hsl(var(--foreground)); }
-.msg-bubble-ai .streaming-document pre { background: hsl(var(--muted)); padding: 0.6rem 0.8rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; margin: 0.5rem 0; }
-.msg-bubble-ai .streaming-document code { background: hsl(var(--muted)); padding: 2px 5px; border-radius: 4px; font-size: 0.88rem; }
-.msg-bubble-ai .streaming-document pre code { background: transparent; padding: 0; }
-
 /* 旧版 :has(.user-text)/:has(.streaming-document) 兜底（无气泡包装时） */
 .chats-canvas > div:has(.user-text):not(:has(.msg-bubble-user)) { align-self: flex-end; max-width: 85%; }
 .chats-canvas > div:has(.user-text):not(:has(.msg-bubble-user)) .user-text { color: hsl(var(--foreground)); }
 .chats-canvas > div:has(.streaming-document):not(:has(.msg-bubble-ai)) { align-self: flex-start; max-width: 100%; }
 .chats-canvas > div:has(.streaming-document):not(:has(.msg-bubble-ai)) .streaming-document { color: hsl(var(--foreground)); }
-
 /* 流式 draft + thinking + error */
 .msg.assistant-msg.draft { align-self: flex-start; max-width: 100%; color: hsl(var(--foreground)); }
-.msg-thinking { font-size: 0.82rem; color: hsl(var(--muted-foreground)); font-style: italic; padding: 0.25rem 0.5rem; align-self: flex-start; max-width: 100%; }
-.msg-error { color: hsl(var(--destructive)); font-size: 0.88rem; padding: 0.5rem 0.75rem; background: hsl(var(--destructive) / 0.08); border-radius: 8px; align-self: flex-start; max-width: 100%; }
-
 /* ── ErrandCard（Plan 023 P3：原逃生舱 scoped 样式全局兜底）── */
 .errand-card { border: 1px solid hsl(var(--border)); border-radius: 8px; margin: 0; overflow: hidden; background: hsl(38 92% 50% / 0.03); width: 100%; }
-.errand-header { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.82rem; }
-.errand-header:hover { background: hsl(38 92% 50% / 0.06); }
-.errand-icon { font-size: 0.9rem; }
-.errand-name-prefix { font-weight: 500; }
-.errand-name { font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.errand-status { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; }
-.errand-status.running { background: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); }
-.errand-status.completed { background: hsl(142 71% 45% / 0.15); color: hsl(142 71% 45%); }
-.errand-status.failed { background: hsl(var(--destructive) / 0.15); color: hsl(var(--destructive)); }
-.errand-cost { font-size: 0.7rem; color: hsl(var(--muted-foreground)); }
-.errand-body { padding: 0.5rem 0.75rem; border-top: 1px solid hsl(var(--border)); }
-.errand-task { font-size: 0.8rem; margin-bottom: 0.3rem; color: hsl(var(--foreground)); }
-.errand-content { font-size: 0.78rem; white-space: pre-wrap; margin: 0.3rem 0; max-height: 300px; overflow-y: auto; }
-.errand-tool-calls { margin-top: 0.4rem; }
-.errand-sub-tool { padding: 0.2rem 0; border-left: 2px solid hsl(var(--border)); padding-left: 0.6rem; margin: 0.2rem 0; }
-.errand-sub-tool-header { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; }
-.errand-sub-tool-name { font-family: monospace; color: hsl(var(--muted-foreground)); }
-.errand-sub-tool-status { font-size: 0.68rem; padding: 0.05rem 0.3rem; border-radius: 3px; }
-.errand-sub-tool-status.running { background: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); }
-.errand-sub-tool-status.completed { background: hsl(142 71% 45% / 0.15); color: hsl(142 71% 45%); }
-.errand-sub-tool-status.failed { background: hsl(var(--destructive) / 0.15); color: hsl(var(--destructive)); }
-.errand-sub-tool-result { font-size: 0.72rem; white-space: pre-wrap; margin: 0.2rem 0; max-height: 150px; overflow-y: auto; }
-.errand-result { margin-top: 0.5rem; }
-.errand-result-label { font-size: 0.72rem; color: hsl(var(--muted-foreground)); margin-bottom: 0.2rem; }
-.errand-result-text { font-size: 0.78rem; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
-
 /* ── TaskPlanCard（Plan 023 P3：原逃生舱 scoped 样式全局兜底）── */
 .task-plan-card { border: 1px solid hsl(var(--border)); border-radius: 8px; margin: 0; overflow: hidden; background: hsl(280 60% 96% / 0.4); width: 100%; }
-.tp-header { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.82rem; }
-.tp-header:hover { background: hsl(280 60% 96% / 0.7); }
-.tp-icon { font-size: 0.9rem; }
-.tp-title { font-weight: 500; flex: 1; }
-.tp-status { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; }
-.tp-status.running, .tp-status.started { background: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); }
-.tp-status.completed { background: hsl(142 71% 45% / 0.15); color: hsl(142 71% 45%); }
-.tp-status.failed { background: hsl(var(--destructive) / 0.15); color: hsl(var(--destructive)); }
-.tp-progress { font-size: 0.72rem; color: hsl(var(--muted-foreground)); }
-.tp-body { padding: 0.5rem 0.75rem; border-top: 1px solid hsl(var(--border)); font-size: 0.8rem; }
-.tp-field { display: flex; gap: 0.4rem; margin: 0.2rem 0; }
-.tp-field-label { color: hsl(var(--muted-foreground)); min-width: 60px; }
-.tp-field-value { font-family: monospace; font-size: 0.75rem; }
-.tp-phases { margin: 0.4rem 0; display: flex; flex-direction: column; gap: 0.2rem; }
-.tp-phase { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; padding: 0.15rem 0; }
-.tp-phase-icon { font-size: 0.75rem; }
-.tp-phase-name { flex: 1; color: hsl(var(--foreground)); }
-.tp-phase-status { font-size: 0.68rem; color: hsl(var(--muted-foreground)); }
-.tp-empty { font-size: 0.78rem; color: hsl(var(--muted-foreground)); font-style: italic; }
-
 /* ── GenericToolCard（Plan 023 P3：原逃生舱 scoped 样式全局兜底）── */
 .tool-card { border: 1px solid hsl(var(--border)); border-radius: 8px; margin: 0; overflow: hidden; width: 100%; }
-.tool-header { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.82rem; }
-.tool-header:hover { background: hsl(var(--accent)); }
-.tool-icon { font-size: 0.9rem; }
-.tool-name { font-weight: 500; font-family: monospace; }
-.tool-seg { font-size: 0.75rem; color: hsl(var(--muted-foreground)); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .seg-path { color: hsl(190 80% 40%); font-family: monospace; }
 .seg-pattern { color: hsl(280 60% 45%); }
 .seg-desc { color: hsl(var(--foreground)); }
 .seg-loc { color: hsl(var(--muted-foreground)); font-family: monospace; }
-.tool-status { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; margin-left: auto; }
-.tool-status.running { background: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); }
-.tool-status.completed { background: hsl(142 71% 45% / 0.15); color: hsl(142 71% 45%); }
-.tool-status.failed { background: hsl(var(--destructive) / 0.15); color: hsl(var(--destructive)); }
-.tool-chevron { font-size: 0.7rem; color: hsl(var(--muted-foreground)); }
-.tool-body { padding: 0.5rem 0.75rem; border-top: 1px solid hsl(var(--border)); }
-.tool-section { margin: 0.3rem 0; }
-.tool-section-title { font-size: 0.72rem; color: hsl(var(--muted-foreground)); margin-bottom: 0.2rem; text-transform: uppercase; letter-spacing: 0.05em; }
-.tool-code, .tool-result { font-size: 0.75rem; white-space: pre-wrap; background: hsl(var(--muted) / 0.5); padding: 0.4rem; border-radius: 4px; max-height: 300px; overflow-y: auto; font-family: monospace; }
-
 /* ── StreamingTable（Plan 023 P3：原逃生舱 scoped 样式全局兜底）──
    codegen 给 th/td 注入 Tailwind class（border/px-4/py-2），用 !important 覆盖对齐原版。 */
 .streaming-table { margin: 0.5rem 0; overflow-x: auto; }
-.streaming-table table { border-collapse: collapse; width: 100%; font-size: 0.93rem; }
-.streaming-table th, .streaming-table td { border: 1px solid hsl(var(--border)) !important; padding: 0.4rem 0.6rem !important; text-align: left; }
-.streaming-table th { background: hsl(var(--card)); font-weight: 600; color: hsl(var(--foreground)); }
-.streaming-table td { color: hsl(var(--foreground)); }
-.streaming-table tbody tr:nth-child(even) { background: hsl(var(--muted) / 0.5); }
-.streaming-table .loading-row td { color: hsl(var(--muted-foreground)); font-style: italic; text-align: center; }
-.streaming-table .loading-dots::after { content: ''; animation: st-dots 1.4s infinite both; }
 @keyframes st-dots { 0%, 80%, 100% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } }
-
 /* ── AgentAvatar（Plan 023 P3：原逃生舱 scoped 样式全局兜底）── */
 .agent-avatar {
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0; border-radius: 50%; font-weight: 600; line-height: 1;
   user-select: none; font-family: system-ui, -apple-system, sans-serif; overflow: hidden;
 }
-.agent-avatar.xs { width: 18px; height: 18px; font-size: 0.65rem; }
-.agent-avatar.sm { width: 30px; height: 30px; font-size: 0.9rem; }
-.agent-avatar.md { width: 28px; height: 28px; font-size: 1rem; }
-.agent-avatar.lg { width: 48px; height: 48px; font-size: 1.4rem; }
-
 /* ── ReportCard（Plan 023 P3：原逃生舱 scoped 样式全局兜底）── */
 .report-card { border: 1px solid hsl(142 70% 45% / 0.25); border-radius: 10px; background: hsl(142 70% 45% / 0.04); margin: 0.5rem 0; overflow: hidden; transition: all 0.2s; }
 .report-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.8rem; cursor: pointer; user-select: none; }
@@ -432,7 +304,6 @@ a { color: hsl(var(--primary)); }
 .report-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .report-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.6rem; border: 1px solid hsl(var(--border)); border-radius: 5px; background: transparent; color: hsl(var(--foreground)); font-size: 0.83rem; font-weight: 500; cursor: pointer; transition: all 0.15s; }
 .report-btn:hover { background: hsl(220 14% 50% / 0.06); border-color: hsl(var(--primary) / 0.3); }
-
 /* ── 输入区（对齐原生版 .input-compose + .send-btn）──
    DOM: .chats-input-bar > .input-inner > .input-row(flex) > [.input-compose(block,fixed px), button.send-btn]
    问题：.input-compose 被设成 block+固定px宽度，textarea 被设成 inline-block+固定px宽度。
@@ -516,7 +387,6 @@ a { color: hsl(var(--primary)); }
 .input-row button[class*="send"]:disabled,
 .input-compose button:last-child:disabled,
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
 /* ── SpecsView 布局 ── */
 .specs-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
 .specs-view > div:first-child {
@@ -551,7 +421,6 @@ a { color: hsl(var(--primary)); }
 .spec-item-title { font-weight: 500; font-size: 0.88rem; flex: 1; color: hsl(var(--foreground)); }
 .spec-item-status { font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
 .spec-item-actions { display: flex; gap: 0.25rem; }
-
 /* 编辑面板 */
 .edit-panel { padding: 1rem; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--card)); margin-bottom: 1rem; }
 .form-group { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.75rem; }
@@ -567,7 +436,6 @@ a { color: hsl(var(--primary)); }
 .cancel-btn:hover, .action-btn:hover { background: hsl(var(--accent)); }
 .action-btn.danger { color: hsl(var(--destructive)); }
 .action-btn.danger:hover { background: hsl(var(--destructive) / 0.1); }
-
 /* ── WikiView 布局 ── */
 .wiki-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
 .wiki-view > div:first-child {
@@ -665,7 +533,6 @@ a { color: hsl(var(--primary)); }
 .wiki-editor { margin: 1.25rem; padding: 1rem; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--card)); }
 .wiki-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: hsl(var(--muted-foreground)); gap: 0.5rem; text-align: center; }
 .text-muted { color: hsl(var(--muted-foreground)); }
-
 /* ── RawPreview（Plan 023 队列 A1 原生化：逃生舱 scoped 转全局兜底）── */
 .raw-preview { padding: 1rem; }
 .raw-preview-img { max-width: 100%; max-height: 60vh; border-radius: 6px; }
@@ -676,7 +543,6 @@ a { color: hsl(var(--primary)); }
   padding: 2rem; color: hsl(var(--muted-foreground));
 }
 .download-link { color: hsl(var(--primary)); text-decoration: underline; }
-
 /* ── WorkspaceSelector（Plan 023 队列 A2 原生化：逃生舱 scoped 转全局兜底）── */
 .workspace-selector { position: relative; margin-top: auto; }
 .ws-btn {
@@ -744,7 +610,6 @@ a { color: hsl(var(--primary)); }
   0%, 100% { opacity: 0.35; }
   50% { opacity: 1; }
 }
-
 /* ── RelayRunBox（Plan 023 队列 A3 原生化：逃生舱 scoped 转全局兜底）── */
 .relay-box {
   border: 1px solid var(--af-border); border-radius: 8px; margin: 0; width: 100%;
@@ -754,30 +619,12 @@ a { color: hsl(var(--primary)); }
 .status-completed { border-left: 3px solid hsl(142 71% 45%); }
 .status-failed { border-left: 3px solid hsl(var(--af-error)); }
 .status-gate { border-left: 3px solid hsl(38 92% 50%); }
-.box-header {
-  display: flex; align-items: center; gap: 0.4rem;
-  padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.82rem; color: var(--af-fg);
-}
-.box-header:hover { background: hsl(var(--muted-foreground) / 0.06); }
-.box-title { font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.box-progress { font-size: 0.72rem; color: var(--af-muted); }
-.box-status { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; }
 .badge-running { background: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); }
 .badge-completed { background: hsl(142 71% 45% / 0.15); color: hsl(142 71% 45%); }
 .badge-failed { background: hsl(var(--af-error) / 0.15); color: hsl(var(--af-error)); }
 .badge-gate { background: hsl(38 92% 50% / 0.15); color: hsl(38 92% 50%); }
-.box-body { padding: 0.5rem 0.75rem; border-top: 1px solid var(--af-border); }
 .log-entries { max-height: 400px; overflow-y: auto; font-size: 0.78rem; line-height: 1.5; }
 .log-entry { padding: 0.15rem 0; }
-.entry-prof { margin-right: 0.3rem; }
-.entry-text { color: var(--af-fg); }
-.entry-tool { display: flex; align-items: center; gap: 0.3rem; color: var(--af-muted); padding-left: 1rem; }
-.tool-name { font-family: monospace; font-size: 0.74rem; }
-.entry-step { color: var(--af-muted); font-size: 0.75rem; padding: 0.2rem 0; }
-.entry-step.done { color: hsl(142 71% 45%); }
-.entry-gate { color: hsl(38 92% 50%); padding: 0.3rem 0; font-weight: 500; }
-.entry-error { color: hsl(var(--af-error)); }
-.entry-done { color: hsl(142 71% 45%); font-weight: 500; padding: 0.3rem 0; }
 .gate-actions {
   display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0;
   border-top: 1px solid var(--af-border); margin-top: 0.5rem;
@@ -787,7 +634,6 @@ a { color: hsl(var(--primary)); }
 .gate-btn.approve { background: hsl(142 71% 45%); color: #fff; border-color: transparent; }
 .gate-btn.reject { background: hsl(var(--af-error) / 0.1); color: hsl(var(--af-error)); }
 .gate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
 /* ── SettingsMenu（Plan 023 队列 A4 原生化：逃生舱 scoped 转全局兜底）── */
 .settings-menu-wrapper { position: relative; }
 .settings-trigger {
@@ -858,56 +704,12 @@ a { color: hsl(var(--primary)); }
   margin-top: 0.3rem; padding: 0.2rem 0.5rem; font-size: 0.7rem;
   color: hsl(var(--destructive)); background: hsl(var(--destructive) / 0.08); border-radius: 4px;
 }
-
 /* ── QuestionnaireCard（Plan 023 队列 B1 原生化：逃生舱 scoped 转全局兜底）── */
 .questionnaire-card {
   background: hsl(var(--primary) / 0.04); border: 1px solid hsl(var(--primary) / 0.15);
   border-radius: 10px; padding: 0.75rem 1rem; margin-top: 0.55rem; width: 100%; box-sizing: border-box;
   display: flex; flex-direction: column; gap: 0.75rem;
 }
-.q-header { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-weight: 600; color: var(--af-primary); }
-.q-item { display: flex; flex-direction: column; gap: 0.35rem; }
-.q-text { font-size: 0.88rem; font-weight: 500; color: var(--af-fg); line-height: 1.4; }
-.q-options { display: flex; flex-direction: column; gap: 0.15rem; padding-left: 1.1rem; align-items: stretch; }
-.q-option {
-  display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.5rem;
-  border: none; border-radius: 6px; background: transparent; cursor: pointer;
-  transition: background 0.1s; font-size: 0.85rem; color: var(--af-fg); text-align: left; width: 100%; justify-content: flex-start;
-}
-.q-option:hover { background: hsl(var(--primary) / 0.06); }
-.q-option.checked { background: hsl(var(--primary) / 0.08); }
-.q-check {
-  width: 14px; height: 14px; border: 2px solid var(--af-border); border-radius: 50%;
-  flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s;
-}
-.q-check.square { border-radius: 4px; }
-.q-option.checked .q-check { border-color: var(--af-primary); background: var(--af-primary); }
-.q-option.checked .q-check::after {
-  content: ''; width: 5px; height: 5px; border-radius: 50%; background: #fff;
-}
-.q-option.checked .q-check.square::after {
-  width: 6px; height: 3px; border-radius: 0; background: transparent;
-  border-left: 2px solid #fff; border-bottom: 2px solid #fff;
-  transform: rotate(-45deg); margin-bottom: 1px;
-}
-.q-label { line-height: 1.3; }
-.q-text-input input, .q-other-input {
-  width: 100%; padding: 0.4rem 0.6rem; border: 1px solid var(--af-border); border-radius: 6px;
-  background: var(--af-bg); color: var(--af-fg); font-size: 0.85rem; outline: none; transition: border-color 0.15s;
-}
-.q-text-input input:focus, .q-other-input:focus { border-color: var(--af-primary); }
-.q-other-row { display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.5rem; font-size: 0.85rem; color: var(--af-fg); }
-.q-other-label { flex-shrink: 0; color: var(--af-muted); }
-.q-other-input { flex: 1; min-width: 0; }
-.q-submit {
-  display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem;
-  align-self: flex-start; padding: 0.4rem 0.8rem; border: none; border-radius: 6px;
-  background: var(--af-primary); color: #fff; font-size: 0.82rem; font-weight: 500;
-  cursor: pointer; transition: opacity 0.15s;
-}
-.q-submit:disabled { opacity: 0.5; cursor: not-allowed; }
-.q-submit:hover:not(:disabled) { opacity: 0.9; }
-
 /* ── GateCard（Plan 023 队列 B2 原生化：逃生舱 scoped 转全局兜底）── */
 .gate-card {
   display: flex; flex-direction: column; gap: 0.6rem;
@@ -963,7 +765,6 @@ a { color: hsl(var(--primary)); }
 .reject-btn { background: transparent; color: var(--af-fg, hsl(220 14% 10%)); border: 1px solid var(--af-border, hsl(220 13% 91%)); }
 .review-btn { background: hsl(220 14% 50% / 0.08); color: var(--af-fg, hsl(220 14% 10%)); border: 1px solid var(--af-border, hsl(220 13% 91%)); }
 .approve-btn:hover, .reject-btn:hover, .review-btn:hover { opacity: 0.85; }
-
 /* ── MentionDropdown（Plan 023 队列 B3 原生化：逃生舱 scoped 转全局兜底）── */
 .mention-dropdown {
   min-width: 180px; max-height: 220px; overflow-y: auto;
@@ -980,7 +781,6 @@ a { color: hsl(var(--primary)); }
 .mention-item.active { color: var(--af-primary, hsl(220 90% 56%)); }
 .mention-name { font-weight: 600; font-family: monospace; }
 .mention-label { color: var(--af-muted, hsl(220 9% 46%)); font-size: 0.83rem; }
-
 /* ── SecretaryMessage（Plan 023 队列 B4 原生化：逃生舱 scoped 转全局兜底）── */
 .secretary-message {
   display: flex; flex-direction: column; gap: 0.5rem;
@@ -1013,7 +813,6 @@ a { color: hsl(var(--primary)); }
 .secretary-btn.review { background: hsl(var(--muted-foreground) / 0.08); color: var(--af-fg); }
 .secretary-btn:hover { opacity: 0.85; }
 .secretary-queue { font-size: 0.78rem; color: var(--af-muted); padding-top: 0.2rem; }
-
 /* ThinkBlock（有序 block 渲染模型）：默认折叠只显示 token 数；
    展开后内容区滚动 + 最大高度。 */
 .think-block {
@@ -1024,28 +823,9 @@ a { color: hsl(var(--primary)); }
   max-width: 100%;
   overflow: hidden;
 }
-.think-header {
-  display: flex; align-items: center; gap: 0.35rem;
-  padding: 0.35rem 0.65rem;
-  font-size: 0.78rem; color: hsl(var(--muted-foreground));
-  cursor: pointer; user-select: none;
-}
-.think-header:hover { background: hsl(var(--muted) / 0.5); }
-.think-header .tool-chevron { margin-left: auto; }
-
 /* ── Markdown 表格补充：斑马线背景（markstream index.css 已含边框/表头底色） ── */
 .markstream-vue .table-node tbody tr:nth-child(even) td {
   background: hsl(var(--ms-muted) / 0.55);
-}
-.think-content {
-  margin: 0; padding: 0.55rem 0.75rem;
-  font-size: 0.78rem; line-height: 1.5;
-  font-family: inherit;
-  white-space: pre-wrap; word-break: break-word;
-  color: hsl(var(--muted-foreground));
-  max-height: 240px;
-  overflow-y: auto;
-  border-top: 1px solid hsl(var(--border));
 }
 `
 

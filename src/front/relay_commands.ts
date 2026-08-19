@@ -4,7 +4,7 @@
 // 消息（复杂控制流，.at handler 撞 parser 边界），故封逃生舱 fn。
 // 返回 true = 命令已处理（父组件不再走普通发送）；false = 非命令，普通发送。
 
-import { useRelay } from './composables/useRelay'
+import { useRelayStoreStore } from '@/stores/useRelayStoreStore'
 import { useForgeStoreStore } from '@/stores/useForgeStoreStore'
 
 /**
@@ -57,12 +57,12 @@ async function runRelay(
   flow: string,
   detail: string,
 ): Promise<boolean> {
-  const { startRun, advanceRun } = useRelay()
+  const { StartRun, AdvanceRun } = useRelayStoreStore()
   const store = useForgeStoreStore()
   try {
-    const runId = await startRun(req)
+    const runId = await StartRun(req)
     if (runId) {
-      await advanceRun(runId)
+      await AdvanceRun(runId)
       // 推一条 assistant 提示消息（参照原生 sendMessage 的消息格式）
       store.messages.value.push({
         id: `${flow}-${runId}`,

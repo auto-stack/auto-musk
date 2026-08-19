@@ -16,7 +16,7 @@
 component fn ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj) {
     use {
         component: UserMessage, ThinkBlock, ToolBlock
-        component: StreamingRenderer from "src/front/components/StreamingRenderer.vue"
+        component: Markdown from "platform:markdown"
         fn: msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens from "src/front/forge_helpers.at"
         fn: renderMentions from "src/front/mention_helpers.ts"
     }
@@ -65,6 +65,45 @@ component fn ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj
   border-top: 1px solid hsl(var(--border) / 0.6);
   border-bottom: 1px solid hsl(var(--border) / 0.6);
 }
+.msg-role-badge {
+  font-size: 0.85rem; font-weight: 600;
+}
+.msg-time {
+  font-size: 0.72rem; color: hsl(var(--muted-foreground));
+}
+.msg-bubble-user {
+  background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
+  border-bottom-right-radius: 4px;
+}
+.user-text .inline-mention {
+  background: hsl(220 90% 56% / 0.12); color: hsl(220 90% 56%);
+  border-radius: 3px; padding: 0 0.2rem; font-weight: 500;
+}
+.msg-bubble-user .user-text { color: hsl(var(--primary-foreground)); white-space: pre-wrap; }
+.msg-bubble-user .user-text .inline-mention { color: hsl(var(--primary-foreground)); font-weight: 600; background: hsl(0 0% 100% / 0.15); }
+.msg-bubble-ai {
+  /* 无边框正文（Claude 风格）：AI 回复文本不设气泡边界/底色/圆角，
+     整条回复由 .msg-row-ai 的上下边界框定；思考/工具等特殊块内嵌其中。 */
+  background: transparent; border: none; color: hsl(var(--foreground));
+  border-radius: 0; padding: 0.05rem 0.15rem;
+}
+.msg-bubble-ai .streaming-document { color: hsl(var(--foreground)); }
+.msg-bubble-ai .streaming-document p,
+.msg-bubble-ai .streaming-document li,
+.msg-bubble-ai .streaming-document h1,
+.msg-bubble-ai .streaming-document h2,
+.msg-bubble-ai .streaming-document h3,
+.msg-bubble-ai .streaming-document h4,
+.msg-bubble-ai .streaming-document code,
+.msg-bubble-ai .streaming-document pre,
+.msg-bubble-ai .streaming-document ul,
+.msg-bubble-ai .streaming-document ol,
+.msg-bubble-ai .streaming-document blockquote { color: hsl(var(--foreground)); }
+.msg-bubble-ai .streaming-document pre { background: hsl(var(--muted)); padding: 0.6rem 0.8rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; margin: 0.5rem 0; }
+.msg-bubble-ai .streaming-document code { background: hsl(var(--muted)); padding: 2px 5px; border-radius: 4px; font-size: 0.88rem; }
+.msg-bubble-ai .streaming-document pre code { background: transparent; padding: 0; }
+.msg-thinking { font-size: 0.82rem; color: hsl(var(--muted-foreground)); font-style: italic; padding: 0.25rem 0.5rem; align-self: flex-start; max-width: 100%; }
+.msg-error { color: hsl(var(--destructive)); font-size: 0.88rem; padding: 0.5rem 0.75rem; background: hsl(var(--destructive) / 0.08); border-radius: 8px; align-self: flex-start; max-width: 100%; }
     }
     col {
         class: .rowClass
@@ -94,7 +133,7 @@ component fn ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj
                     if .block.kind == "text" {
                         col {
                             style: "msg-bubble msg-bubble-ai"
-                            StreamingRenderer(source: .block.text, streaming: isBlockStreaming(.is_streaming, .blocks, .block))
+                            Markdown(source: .block.text, streaming: isBlockStreaming(.is_streaming, .blocks, .block))
                         }
                     } else if .block.kind == "thinking" {
                         ThinkBlock(text: .block.text, tokens: estimateTokens(.block.text), streaming: .is_streaming)

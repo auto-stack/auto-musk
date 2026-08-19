@@ -22,6 +22,16 @@ function promoteNext() {
 // Plan 028 T14：gate_reached→registerGate 的路由原在 forge_stream.ts（逃生舱
 // 直调）。forge_stream 原生化后，这里 watch store.current_gate 驱动
 // SecretaryMessage 审批条（GateCard 仍由 current_gate 直接驱动）。
+function _resolveGate(gateId: string, decision: 'approved' | 'rejected') {
+  const gate = _gates.value.find((g) => g.gateId === gateId)
+  if (gate) {
+    gate.status = decision
+  }
+  if (_currentSecretary.value?.gateId === gateId) {
+    promoteNext()
+  }
+}
+
 function _registerGate(gate: Omit<PendingGate, 'status'>) {
   const existing = _gates.value.find((g) => g.gateId === gate.gateId)
   if (existing) return
@@ -33,6 +43,7 @@ function _registerGate(gate: Omit<PendingGate, 'status'>) {
 }
 
 import { useForgeStoreStore } from '@/stores/useForgeStoreStore'
+import { useRelayStoreStore } from '@/stores/useRelayStoreStore'
 const _forge = useForgeStoreStore()
 watch(_forge.current_gate, (gate: any) => {
   if (!gate || !gate.gate_id) return
@@ -46,6 +57,25 @@ watch(_forge.current_gate, (gate: any) => {
   })
 })
 
+// Plan 028 T16：relay SSE 的 gate_reached/gate_resolved 经 relay_store.gate_signal
+// 中转（原 useEventRouter.handleEvent 的有效路由，setEventCallbacks 分支无调用方不迁）。
+const _relay = useRelayStoreStore()
+watch(_relay.gate_signal, (sig: any) => {
+  if (!sig || !sig.gate_id) return
+  if (sig.kind === 'reached') {
+    _registerGate({
+      gateId: sig.gate_id,
+      runId: sig.run_id ?? '',
+      profession: sig.profession || 'unknown',
+      title: sig.title || (sig.profession || 'agent') + ' needs approval',
+      sectionId: sig.section_id ?? '',
+      since: Date.now(),
+    })
+  } else if (sig.kind === 'resolved') {
+    _resolveGate(sig.gate_id, sig.decision === 'rejected' ? 'rejected' : 'approved')
+  }
+})
+
 export function useGateInbox() {
   const gates = _gates
   const currentSecretary = _currentSecretary
@@ -57,13 +87,7 @@ export function useGateInbox() {
   }
 
   function resolveGate(gateId: string, decision: 'approved' | 'rejected') {
-    const gate = _gates.value.find((g) => g.gateId === gateId)
-    if (gate) {
-      gate.status = decision
-    }
-    if (_currentSecretary.value?.gateId === gateId) {
-      promoteNext()
-    }
+    _resolveGate(gateId, decision)
   }
 
   function dismissSecretary() {

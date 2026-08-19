@@ -22,6 +22,16 @@ component fn StreamingTable(columns: []str, rows: []obj, final: bool) {
         colspan => if .colCount > 0 { .colCount } else { 1 }
         showLoading => !.final
     }
+    style {
+.streaming-table table { border-collapse: collapse; width: 100%; font-size: 0.93rem; }
+.streaming-table th, .streaming-table td { border: 1px solid hsl(var(--border)) !important; padding: 0.4rem 0.6rem !important; text-align: left; }
+.streaming-table th { background: hsl(var(--card)); font-weight: 600; color: hsl(var(--foreground)); }
+.streaming-table td { color: hsl(var(--foreground)); }
+.streaming-table tbody tr:nth-child(even) { background: hsl(var(--muted) / 0.5); }
+.streaming-table .loading-row td { color: hsl(var(--muted-foreground)); font-style: italic; text-align: center; }
+.streaming-table .loading-dots::after { content: ''; animation: st-dots 1.4s infinite both; }
+    }
+
     col {
         class: if .final { "streaming-table final" } else { "streaming-table" }
         table {
