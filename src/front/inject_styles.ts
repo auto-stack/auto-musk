@@ -232,7 +232,7 @@ a { color: hsl(var(--primary)); }
   font-size: 0.82rem; color: hsl(var(--foreground)); width: 100%;
 }
 .search-input::placeholder { color: hsl(var(--muted-foreground)); }
-.chats-canvas { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem; }
+.chats-canvas { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 1.4rem; }
 
 /* 消息样式 — 标准 chat UI（header + 气泡 + 工具栏）
    对齐原生 ChatsView.vue：每条消息含 header（role + 时间）+ 气泡内容。

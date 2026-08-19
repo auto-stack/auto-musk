@@ -33,10 +33,10 @@ component fn ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj
         hasError => .msg.error != ""
         errorText => if .hasError { .msg.error } else { "" }
     }
-    // PLAN-026 缺陷②: component fn 的 style 块。AI 回复采用"无边框正文 + 整体
-    // 上下边界"布局（Claude 风格）：文本块透明无气泡（inject_styles 侧改），
-    // 思考/工具等特殊块以内嵌卡片形式呈现；块间统一 gap；align-items: stretch
-    // 让各折叠块标题栏统一宽度。
+    // PLAN-026 缺陷②: component fn 的 style 块。AI 回复采用"无边框正文 + 内容区
+    // 上下边界"布局（Claude 风格）：标题栏（icon/time）在框线上方，hairline 只
+    // 框 block 区；文本块透明无气泡（inject_styles 侧改），思考/工具等特殊块以
+    // "内嵌"卡片呈现；块间统一 gap；align-items: stretch 让折叠块标题栏等宽。
     // ⚠️ 不要重复定义 .msg-bubble/.msg-bubble-user/.msg-bubble-ai —— inject_styles
     // 已含完整气泡颜色（AI 侧改为透明）。
     style {
@@ -54,6 +54,11 @@ component fn ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj
   align-self: stretch;
   align-items: stretch;
   max-width: 100%;
+  gap: 0.3rem;
+}
+.msg-blocks {
+  display: flex;
+  flex-direction: column;
   gap: 0.55rem;
   padding: 0.7rem 0.2rem;
   border-top: 1px solid hsl(var(--border) / 0.6);
@@ -77,19 +82,24 @@ component fn ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj
                 UserMessage(content: .userContent)
             }
         } else {
-            // 有序 block 流：文本 / 思考 / 工具按到达顺序，块不删除。
-            // text 块已在 computed（messageDisplayBlocks）里剥离问卷 JSON 并
-            // 过滤空块——纯问卷消息不出气泡，问卷本体由 QuestionnaireCard 呈现。
-            for block in .blocks {
-                if .block.kind == "text" {
-                    col {
-                        style: "msg-bubble msg-bubble-ai"
-                        StreamingRenderer(source: .block.text, streaming: isBlockStreaming(.is_streaming, .blocks, .block))
+            // 内容区容器（msg-blocks）：上下 hairline 只框 block 区，标题栏
+            // （icon/time）留在框线上方。
+            col {
+                style: "msg-blocks"
+                // 有序 block 流：文本 / 思考 / 工具按到达顺序，块不删除。
+                // text 块已在 computed（messageDisplayBlocks）里剥离问卷 JSON 并
+                // 过滤空块——纯问卷消息不出气泡，问卷本体由 QuestionnaireCard 呈现。
+                for block in .blocks {
+                    if .block.kind == "text" {
+                        col {
+                            style: "msg-bubble msg-bubble-ai"
+                            StreamingRenderer(source: .block.text, streaming: isBlockStreaming(.is_streaming, .blocks, .block))
+                        }
+                    } else if .block.kind == "thinking" {
+                        ThinkBlock(text: .block.text, tokens: estimateTokens(.block.text), streaming: .is_streaming)
+                    } else {
+                        ToolBlock(tc: .block.tc, errands: .errands, relays: .relays, task_plans: .task_plans)
                     }
-                } else if .block.kind == "thinking" {
-                    ThinkBlock(text: .block.text, tokens: estimateTokens(.block.text), streaming: .is_streaming)
-                } else {
-                    ToolBlock(tc: .block.tc, errands: .errands, relays: .relays, task_plans: .task_plans)
                 }
             }
         }
