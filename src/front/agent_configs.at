@@ -1,0 +1,40 @@
+// agent_configs.at — Agent 职业配置 store（单一真源，替代
+// composables/useAgentConfigs.ts）
+//
+// Plan 029 T11：Http.get（F8）承载 professions 拉取 + filter/map 映射。
+// 原 getById/getByProfession/list 在 Auto 轨无消费方，不迁。
+// 拉取失败保持现有列表（AgentAvatar 走 HSL fallback，MentionInput 走
+// 默认列表）——catch 体仅占位（.at 空块需至少一条语句）。
+
+store AgentConfigs {
+    model {
+        var configs []Value = []
+    }
+
+    msg Msg {
+        Init,
+    }
+
+    on {
+        .Init -> {
+            try {
+                let data = Http.get("/api/forge/relay/professions")
+                let profs = data.professions ?? []
+                let out = []
+                for p in profs {
+                    if p != None {
+                        if p.id != None {
+                            if p.name != None {
+                                out.push({ "id": p.id, "name": p.name, "profession": p.id, "profession_id": p.id, "is_default": true })
+                            }
+                        }
+                    }
+                }
+                .configs = out
+            } catch {
+                // 失败静默：保留现有 configs（对齐原 catch {}）
+                .configs = .configs
+            }
+        }
+    }
+}

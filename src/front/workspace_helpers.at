@@ -1,0 +1,107 @@
+// workspace_helpers.at — WorkspaceSelector 数据逻辑 + ensure_workspace
+// （单一真源，替代 workspace_helpers.ts + ensure_workspace.ts）
+//
+// Plan 029 T13：Http.get/post（F8，fetch 拦截器自动注入 jwt+workspace）+
+// storage 内建（localStorage）+ 手写 find（.at 无数组 find）。
+// 全部静默失败路径与原版一致（列表空/None 兜底）。
+// workspace_status 的 id 走 ?workspace= 查询参数（对齐后端 WorkspaceQuery）。
+
+/** 拉取最近打开的工作区列表（静默失败返回 []）。 */
+fn ws_load_recent() []Value {
+    try {
+        let data = Http.get("/api/workspace/list")
+        return data.workspaces ?? []
+    } catch {
+        return []
+    }
+}
+
+/** 当前工作区元信息（localStorage wid + status；无/失败返回 None）。 */
+fn ws_load_current() Value {
+    let wid = storage.get("musk_workspace") ?? ""
+    if wid == "" {
+        return None
+    }
+    try {
+        let data = Http.get("/api/workspace/status?workspace=" + encodeURIComponent(wid))
+        if data.workspace != None {
+            return data.workspace
+        }
+        return data
+    } catch {
+        return None
+    }
+}
+
+/** 从最近列表按 id 找工作区（无则 None）。 */
+fn ws_find(recent []Value, id str) Value {
+    for w in recent {
+        if w.id == id {
+            return w
+        }
+    }
+    return None
+}
+
+/** 浏览目录条目（仅当 path 含路径分隔符时查询，避免根目录长列表）。 */
+fn ws_browse(path str) []Value {
+    let has_sep = false
+    if path.contains("/") {
+        has_sep = true
+    }
+    if path.contains("\\") {
+        has_sep = true
+    }
+    if has_sep == false {
+        return []
+    }
+    try {
+        let data = Http.get("/api/workspace/browse?path=" + encodeURIComponent(path))
+        return data.entries ?? []
+    } catch {
+        return []
+    }
+}
+
+/** 打开/切换到指定路径的 workspace（失败返回 None）。 */
+fn ws_open(path str) Value {
+    try {
+        return Http.post("/api/workspace/open", { "path": path })
+    } catch {
+        return None
+    }
+}
+
+/** App Init 时确保有默认 workspace（localStorage 无则选第一个非空项）。 */
+fn ensure_workspace() {
+    let existing = storage.get("musk_workspace") ?? ""
+    if existing != "" {
+        return
+    }
+    let token = storage.get("musk_jwt") ?? ""
+    if token == "" {
+        return
+    }
+    try {
+        let data = Http.get("/api/workspace/list")
+        let workspaces = data.workspaces ?? []
+        let chosen = None
+        for w in workspaces {
+            if w.is_empty == false {
+                chosen = w
+                break
+            }
+        }
+        if chosen == None {
+            if workspaces.length > 0 {
+                chosen = workspaces[0]
+            }
+        }
+        if chosen != None {
+            storage.set("musk_workspace", chosen.id)
+        }
+    } catch {
+        // 静默失败——workspace 不是阻塞项（原 catch {}）
+        return
+    }
+}

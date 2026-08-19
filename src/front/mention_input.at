@@ -14,24 +14,25 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.chats-input-bar 等）。
 
+use store: AgentConfigs
+
 component fn MentionInput(disabled: bool, professions: obj) {
     use {
         component: Send, Square from "lucide-vue-next"
-        composable: useAgentConfigs refs: [configs] from "src/front/composables/useAgentConfigs.ts"
         composable: useI18n refs: [locale] from "vue-i18n"
         fn: render_input_mentions, build_mention_names from "src/front/mention_helpers.at"
         fn: mention_filtered, mention_clamp_index, mention_index_of, mention_key_action, mention_detect_filter, mention_detect_anchor, mention_detect_visible, mention_detect_pos, mention_insert, mention_can_send, mention_trim, mention_professions_list, mention_current_id from "src/front/mention_helpers.at"
         component: MentionDropdown
     }
     computed {
-        professionsList => mention_professions_list(.professions, agentConfigs.configs)
+        professionsList => mention_professions_list(.professions, .store.configs)
         mentionNames => build_mention_names(.professionsList)
         backdropHtml => render_input_mentions(.text, .mentionNames)
         canSend => mention_can_send(.text)
         mentionFilteredList => mention_filtered(.professionsList, .mentionFilter)
         hasMentionItems => .mentionFilteredList.length > 0
     }
-    msg Msg { Input, Keydown, Select, Hover, send(str), cancel }
+    msg Msg { Init, Input, Keydown, Select, Hover, send(str), cancel }
     model {
         var text str = ""
         var mentionVisible bool = false
@@ -41,6 +42,8 @@ component fn MentionInput(disabled: bool, professions: obj) {
         var mentionPos int = 0
     }
     on {
+        .Init -> { store.Init() }
+
         .Input(e) -> {
             .mentionFilter = mention_detect_filter(e);
             .mentionAnchor = mention_detect_anchor(e);

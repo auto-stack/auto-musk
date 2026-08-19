@@ -17,7 +17,7 @@
 component fn WorkspaceSelector() {
     use {
         component: Folder, FolderOpen, ChevronUp, ChevronDown, X from "lucide-vue-next"
-        fn: loadRecentWorkspaces, loadCurrentWorkspace, findWorkspace, browseWorkspace, openWorkspace from "src/front/workspace_helpers.ts"
+        fn: ws_load_recent, ws_load_current, ws_find, ws_browse, ws_open from "src/front/workspace_helpers.at"
     }
     computed {
         currentName => if .current != None { .current.name } else { "选择工作目录" }
@@ -36,20 +36,20 @@ component fn WorkspaceSelector() {
     on {
         .Init -> {
             // helpers 内部自带 try/catch（失败返回 []/null），.at 侧无需再包 try。
-            .recent = loadRecentWorkspaces().await;
-            .current = loadCurrentWorkspace().await
+            .recent = ws_load_recent().await;
+            .current = ws_load_current().await
         }
         .Toggle -> {
             .open = !.open;
             if .open {
                 if .recent.length == 0 {
-                    .recent = loadRecentWorkspaces().await
+                    .recent = ws_load_recent().await
                 }
             }
         }
         .Choose(id) -> {
             localStorage.setItem("musk_workspace", id);
-            .current = findWorkspace(.recent, id);
+            .current = ws_find(.recent, id);
             .open = false;
             location.reload()
         }
@@ -57,7 +57,7 @@ component fn WorkspaceSelector() {
 
         // browse：输入含路径分隔符时实时建议子目录
         .OnBrowseInput -> {
-            .suggestions = browseWorkspace(.custom_path).await
+            .suggestions = ws_browse(.custom_path).await
         }
 
         // 选建议项 → 填入 custom_path
@@ -69,7 +69,7 @@ component fn WorkspaceSelector() {
         // 打开自定义路径（后端注册为新 workspace + reload 切换）
         .OpenCustom -> {
             if .custom_path != "" {
-                let meta = openWorkspace(.custom_path).await;
+                let meta = ws_open(.custom_path).await;
                 if meta != None {
                     .current = meta;
                     .open = false;

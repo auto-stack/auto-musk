@@ -1,0 +1,41 @@
+// settings_forge_helpers.at — SettingsMenu forge 模式逻辑（单一真源，
+// 替代 settings_helpers.ts 的 forge_mode 部分）
+//
+// Plan 029 T15：Http.get/put（F8）承载 forge 模式读写（fetch 拦截器注入
+// 鉴权）。语言切换（useI18n locale 写）与 AutoOS 深链（window.open）依赖
+// 宿主 API，留残余 settings_helpers.ts 待 Phase C（T21）处理。
+//
+// 写法注意：fn 模块 parser 不支持 try 块内嵌 if 里的 return（Plan 022
+// 已知边界）——改为变量累积 + 尾部单点 return。
+
+/** 加载后端持久化的 forge 模式（gsd/check）；不可达/非法回退 'gsd'。 */
+fn settings_load_forge_mode() str {
+    let mode = "gsd"
+    try {
+        let resp = Http.get("/api/forge/mode")
+        if resp != None {
+            if resp.mode == "gsd" {
+                mode = resp.mode
+            } else {
+                if resp.mode == "check" {
+                    mode = resp.mode
+                }
+            }
+        }
+    } catch {
+        // 后端不可达时保留默认 gsd（空块需占位语句）
+        let _ignore = 0
+    }
+    return mode
+}
+
+/** 持久化 forge 模式（写失败静默，保持本地显示）。 */
+fn settings_set_forge_mode(val str) {
+    try {
+        // PUT /api/forge/mode 收 Json<ForgeModeBody>（{mode}）——非 query 参数。
+        Http.put("/api/forge/mode", { "mode": val })
+    } catch {
+        // 写失败静默回退（下次打开重新读取后端值；空块需占位语句）
+        let _ignore = 0
+    }
+}

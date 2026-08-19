@@ -1,13 +1,10 @@
-// settings_helpers.ts — SettingsMenu 数据/宿主 API 逻辑逃生舱（Plan 023 队列 A4）
+// settings_helpers.ts — SettingsMenu 宿主 API 逃生舱（仅剩 i18n/window 部分）
 //
-// 对标 src/front/components/SettingsMenu.vue（逃生舱，已删除）。
-// .at 无法表达：useI18n().locale.value 赋值（composable ref 写）、fetch 链式
-// （fetch → json → 字段分支）、window.open、forge_mode API 调用。放逃生舱 fn。
-//
-// forge_mode_get/set 来自生成的 @/lib/api（src/back/api.at codegen）。
+// Plan 029 T15：forge 模式读写已迁 settings_helpers.at（单一真源）。
+// 本文件仅保留 useI18n().locale 赋值与 window.open（宿主库/DOM API 边界），
+// 待 Phase C（T21）评估 dom.* 后并入或永久登记（D 组）。
 
 import { useI18n } from 'vue-i18n'
-import { forge_mode_get, forge_mode_set } from '@/lib/api'
 
 /**
  * 初始化语言：恢复 localStorage 保存的语言（对齐原 onMounted 恢复逻辑）。
@@ -27,31 +24,6 @@ export function settingsInitLocale(): string {
 export function settingsChangeLocale(l: string): void {
   useI18n().locale.value = l
   localStorage.setItem('musk-language', l)
-}
-
-/**
- * 加载后端持久化的 forge 模式（gsd/check，对齐原 loadForgeMode）。
- * 后端不可达或响应非法时回退默认 'gsd'（不抛异常）。
- */
-export async function settingsLoadForgeMode(): Promise<string> {
-  try {
-    const resp = await forge_mode_get()
-    if (resp && (resp.mode === 'gsd' || resp.mode === 'check')) {
-      return resp.mode
-    }
-  } catch {
-    // 后端不可达时保留默认 gsd
-  }
-  return 'gsd'
-}
-
-/** 持久化 forge 模式（写失败静默，保持本地显示——对齐原 setForgeMode）。 */
-export async function settingsSetForgeMode(val: string): Promise<void> {
-  try {
-    await forge_mode_set(val)
-  } catch {
-    // 写失败静默回退（保持本地显示，下次打开重新读取后端值）
-  }
 }
 
 /**

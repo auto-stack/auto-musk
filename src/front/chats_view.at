@@ -15,7 +15,8 @@ use back.api: chats_delete_session, chats_delete_all_sessions
 widget ChatsView {
     use {
                 // B 类批3：/relay//superpower//spec1 命令路由（逃生舱 fn，同步检测+异步执行）。
-        fn: handleRelayCommand from "src/front/relay_commands.ts"
+        fn: relay_command_match from "src/front/relay_commands.at"
+        fn: runRelayCommand from "src/front/composables/relay_command_runner.ts"
         // （codegen ext 复制只看 use 块，不递归逃生舱组件的相对 import）。
         fn: extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.at"
         fn: chatSearchFilter, chatLastMessageId from "src/front/forge_helpers.at"
@@ -38,8 +39,6 @@ widget ChatsView {
         component: RelayRunBox
         // Plan 023 P3：TaskPlanCard 已原生化为 component fn（src/front/task_plan_card.at），逃生舱 .vue 已删除。
         // Plan 023 P3：GenericToolCard 已原生化为 component fn（src/front/generic_tool_card.at），逃生舱 .vue 已删除。
-        // B 类批3：useRelay/useEventRouter/useGateInbox（relay 完整链路 + gate 事件路由）。
-        composable: useGateInbox from "src/front/composables/useGateInbox.ts"
         // Plan 023 P3：ReportCard 已原生化为 component fn（src/front/report_card.at），逃生舱 .vue 已删除。
         // questionnaire_helpers 是 QuestionnaireCard component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
         fn: questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder from "src/front/questionnaire_helpers.at"
@@ -70,8 +69,6 @@ widget ChatsView {
         // Plan 023 队列 B 续：SessionInfo 已原生化为 component fn（src/front/session_info.at，
         // store + 宿主全局），逃生舱 .vue 已删除。
         component: SessionInfo
-        // B 类批1：useAgentConfigs（动态 profession 列表，替代 DEFAULT_PROFESSIONS 硬编码）。
-        composable: useAgentConfigs from "src/front/composables/useAgentConfigs.ts"
         // Plan 407：lucide 图标（toolbar emoji→图标）+ i18n t()（text 节点本地化）。
         // Plan 407 parser 增强后，组件可作 button 子节点、t() 可作 text primary prop。
         // t 走 composable 包装 useT（const t = useT()，见 app.at 注释）。
@@ -275,7 +272,7 @@ widget ChatsView {
     on {
         .Init -> {
             store.Init();
-            agentConfigs.loadConfigs()
+            // AgentConfigs 由 MentionInput 挂载时 Init（ professions 拉取）。
         }
 
         .OnSearchInput(val) -> { .chat_search = val.target.value }
@@ -297,14 +294,17 @@ widget ChatsView {
         .SelectSession(id) -> { store.SwitchSession(id) }
 
         // SendInput(text): MentionInput 的 onsubmit 回调。先检测 /relay//superpower//spec1
-        // 命令（handleRelayCommand 返回 true 表示已处理），否则走普通发送 + SSE 流。
+        // 命令（relay_command_match 非 None 表示已处理，runner 接线执行），
+        // 否则走普通发送 + SSE 流。
         .SendInput(text) -> {
             if .text.trim() != "" {
-                let handled = handleRelayCommand(.text);
+                let cmd = relay_command_match(.text);
                 .input = "";
-                if !handled {
+                if cmd == None {
                     store.Send(.text);
                     store.StartStream(.store.session_id, .store.workspace, .store.token, .text)
+                } else {
+                    runRelayCommand(cmd)
                 }
             }
         }

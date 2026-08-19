@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 9
+current_step: 16
 total_steps: 22
 ---
 
@@ -252,19 +252,19 @@ v-html 等)。`.at` 组件 style 块生成 `<style scoped>`(Plan 028 已验证:�
 
 ### Phase B:store/HTTP 型(5 任务)
 
-- [ ] **T10** worktree 续期:`git worktree add ../auto-musk-wt029 -b wt/029-B main`(同 T1 链接)。
-- [ ] **T11** useAgentConfigs → `src/front/agent_configs.at`(store:configs 列表 +
+- [x] **T10** worktree 续期:`git worktree add ../auto-musk-wt029 -b wt/029-B main`(同 T1 链接)。
+- [x] **T11** useAgentConfigs → `src/front/agent_configs.at`(store:configs 列表 +
   Init action Http.get professions);mention_input.at 改 `use store:`;删原 .ts。
   验证:浏览器 mention 下拉列出 professions(/api/forge/relay/professions)。
-- [ ] **T12** useGateInbox → `src/front/gate_inbox.at`(store:pending + register/
+- [x] **T12** useGateInbox → `src/front/gate_inbox.at`(store:pending + register/
   resolve;relay_store.at gate_signal 路由改调 gate_inbox action);chats_view.at
   改引;删原 .ts。验证:浏览器 gate 场景(待审批 run)横幅出现。
-- [ ] **T13** workspace_helpers + ensure_workspace → `src/front/workspace_helpers.at`;
+- [x] **T13** workspace_helpers + ensure_workspace → `src/front/workspace_helpers.at`;
   workspace_selector.at/wiki_view.at/app.at 改引;删原 2 个 .ts。
   验证:浏览器工作区下拉加载最近列表 + 状态。
-- [ ] **T14** relay_commands → `src/front/relay_commands.at`(受单 store 限制允许
+- [x] **T14** relay_commands → `src/front/relay_commands.at`(受单 store 限制允许
   拆分或降级保留并登记);chats_view.at 改引。验证:浏览器发 "/relay demo" 命令路由。
-- [ ] **T15** settings_helpers → `src/front/settings_helpers.at`(forge_mode 经 Http;
+- [x] **T15** settings_helpers → `src/front/settings_helpers.at`(forge_mode 经 Http;
   locale/open_url 留 C);app.at/settings_menu.at 部分改引。
   验证:设置菜单 forge_mode 读写后端。
 - [ ] **T16** Phase B 验证 + 合并(同 T9 流程;冒烟加:gate 横幅/工作区下拉/relay 命令/设置)。

@@ -18,7 +18,8 @@
 component fn SettingsMenu() {
     use {
         component: Settings, Check, Sun, Moon, Monitor, ExternalLink from "lucide-vue-next"
-        fn: settingsInitLocale, settingsChangeLocale, settingsLoadForgeMode, settingsSetForgeMode, settingsOpenAutoOs from "src/front/settings_helpers.ts"
+        fn: settings_load_forge_mode, settings_set_forge_mode from "src/front/settings_forge_helpers.at"
+        fn: settingsInitLocale, settingsChangeLocale, settingsOpenAutoOs from "src/front/settings_helpers.ts"
         composable: useI18n refs: [locale] from "vue-i18n"
         composable: useTheme refs: [mode] from "src/front/composables/useTheme.ts"
         composable: useAccentColor refs: [current] from "src/front/composables/useAccentColor.ts"
@@ -39,16 +40,16 @@ component fn SettingsMenu() {
     on {
         .Init -> {
             .currentLocale = settingsInitLocale();
-            .forgeMode = settingsLoadForgeMode().await
+            .forgeMode = settings_load_forge_mode().await
         }
         .Toggle -> { .isOpen = !.isOpen }
         .SetForgeGSD -> {
             .forgeMode = "gsd";
-            settingsSetForgeMode("gsd").await
+            settings_set_forge_mode("gsd").await
         }
         .SetForgeCheck -> {
             .forgeMode = "check";
-            settingsSetForgeMode("check").await
+            settings_set_forge_mode("check").await
         }
         .SetAccent(name) -> { accentColor.setAccent(name) }
         .SetThemeLight -> { theme.setMode("light") }

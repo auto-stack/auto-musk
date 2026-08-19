@@ -14,7 +14,7 @@ widget App {
     use {
         fn: setupAuthFetch from "src/front/setup_auth_fetch.ts"
         fn: injectStyles from "src/front/inject_styles.ts"
-        fn: ensureWorkspace from "src/front/ensure_workspace.ts"
+        fn: ensure_workspace from "src/front/workspace_helpers.at"
         // Plan 407：i18n t() + WorkspaceSelector 接入（parser 增强后原生支持）。
         // t 走 composable 包装（vue-i18n 的 t 是 useI18n() 解构返回值，非静态导出）。
         // codegen: import { useT } + const t = useT()（去 use 前缀小写得变量名 t）。
@@ -22,14 +22,12 @@ widget App {
         // Plan 022 视觉对齐：主题 + 强调色切换 composable。
         composable: useTheme from "src/front/composables/useTheme.ts"
         composable: useAccentColor from "src/front/composables/useAccentColor.ts"
-        // workspace_helpers 是 WorkspaceSelector component fn 的 use{fn} 依赖，
+        // Plan 029 T12：跨 store 审批门路由桥（gate_inbox.at 的 D 组接线层）。
+        composable: useGateRouter from "src/front/composables/gate_router.ts"
         // 声明仅为触发 ext 复制（codegen ext 复制只看 use 块，不看 component fn 的 use{fn}）。
-        fn: loadRecentWorkspaces, loadCurrentWorkspace, findWorkspace from "src/front/workspace_helpers.ts"
         // Plan 023 队列 A2：WorkspaceSelector 已原生化为 component fn
         // （src/front/workspace_selector.at），逃生舱 .vue 已删除。跨文件引用（无 from）。
         component: WorkspaceSelector
-        // settings_helpers 是 SettingsMenu component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
-        fn: settingsInitLocale, settingsChangeLocale, settingsLoadForgeMode, settingsSetForgeMode, settingsOpenAutoOs from "src/front/settings_helpers.ts"
         // Plan 023 队列 A4：SettingsMenu 已原生化为 component fn（src/front/settings_menu.at），
         // 逃生舱 .vue 已删除。跨文件引用（无 from）。
         component: SettingsMenu

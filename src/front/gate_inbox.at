@@ -1,0 +1,117 @@
+// gate_inbox.at — 审批门收件箱 store（单一真源，替代 useGateInbox.ts 的
+// 状态与逻辑部分）
+//
+// Plan 029 T12：队列/当前审批条/六个动作全部原生化（F1 dict + 列表操作 +
+// 模块 fn 共享 promote 逻辑）。跨 store 的 watch 路由（forge.current_gate /
+// relay.gate_signal → Register/Resolve）受 v1「单 store per file」限制，
+// 留 30 行纯接线桥 composables/gate_router.ts（无状态无逻辑，D 组登记），
+// 由 app.at 以 composable 挂载——待 auto-lang 放开多 store 后可原生化。
+
+/** pending 门计数（badge）。 */
+fn gate_pending_count(gates []Value) int {
+    let n = 0
+    for g in gates {
+        if g.status == "pending" {
+            n = n + 1
+        }
+    }
+    return n
+}
+
+/** 下一个 pending 门（无则 None）。 */
+fn gate_promote_next(gates []Value) Value {
+    for g in gates {
+        if g.status == "pending" {
+            return g
+        }
+    }
+    return None
+}
+
+store GateInbox {
+    model {
+        var gates []Value = []
+        var current_secretary Value = None
+    }
+
+    msg Msg {
+        Register(Value),
+        Resolve(str, str),
+        Dismiss,
+        Snooze(str),
+        WakeSnoozed,
+        ClearResolved,
+    }
+
+    on {
+        .Register(gate) -> {
+            for g in .gates {
+                if g.gateId == gate.gateId {
+                    return
+                }
+            }
+            .gates.push({ "gateId": gate.gateId, "runId": gate.runId, "profession": gate.profession, "title": gate.title, "sectionId": gate.sectionId, "since": gate.since, "status": "pending" })
+            if .current_secretary == None {
+                .current_secretary = gate_promote_next(.gates)
+            }
+        }
+
+        .Resolve(gate_id, decision) -> {
+            for g in .gates {
+                if g.gateId == gate_id {
+                    g.status = decision
+                }
+            }
+            if .current_secretary != None {
+                if .current_secretary.gateId == gate_id {
+                    .current_secretary = gate_promote_next(.gates)
+                }
+            }
+        }
+
+        .Dismiss -> {
+            .current_secretary = gate_promote_next(.gates)
+        }
+
+        .Snooze(gate_id) -> {
+            for g in .gates {
+                if g.gateId == gate_id {
+                    g.status = "snoozed"
+                }
+            }
+            if .current_secretary != None {
+                if .current_secretary.gateId == gate_id {
+                    .current_secretary = gate_promote_next(.gates)
+                }
+            }
+        }
+
+        .WakeSnoozed -> {
+            for g in .gates {
+                if g.status == "snoozed" {
+                    g.status = "pending"
+                }
+            }
+            if .current_secretary == None {
+                .current_secretary = gate_promote_next(.gates)
+            }
+        }
+
+        .ClearResolved -> {
+            let keep = []
+            for g in .gates {
+                if g.status != "approved" {
+                    if g.status != "rejected" {
+                        keep.push(g)
+                    }
+                }
+            }
+            .gates = keep
+            if .current_secretary != None {
+                if .current_secretary.status == "approved" || .current_secretary.status == "rejected" {
+                    .current_secretary = gate_promote_next(.gates)
+                }
+            }
+        }
+    }
+}

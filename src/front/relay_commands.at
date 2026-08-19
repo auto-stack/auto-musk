@@ -1,0 +1,39 @@
+// relay_commands.at — /relay //superpower //spec1 命令解析（单一真源，
+// 替代 relay_commands.ts 的解析部分）
+//
+// Plan 029 T14：前缀解析 + 参数提取 + 启动文案全部原生化（starts_with/
+// sub/trim 映射已有）。执行部分（RelayStore.StartRun/AdvanceRun + Forge
+// 消息推送）跨两个 store，受 v1「单 store per file」限制，留极小接线桥
+// composables/relay_command_runner.ts（与 gate_router.ts 同类，D 组登记）。
+//
+// 返回 {flow, task, emoji, detail, steps} 命令描述；非命令返回 None。
+
+/** 匹配命令前缀并剥出任务文本（无此前缀返回 ""）。 */
+fn relay_strip_prefix(trimmed str, prefix str) str {
+    if trimmed.starts_with(prefix) {
+        return trimmed.sub(prefix.length).trim()
+    }
+    return ""
+}
+
+/** 命令解析：/relay <goal> | /superpower <task> | /spec1 <goal>。 */
+fn relay_command_match(text str) Value {
+    let trimmed = text.trim()
+
+    let goal = relay_strip_prefix(trimmed, "/relay ")
+    if goal != "" {
+        return { "flow": "default", "task": goal, "emoji": "🚀", "detail": "Advisor → Architect → Planner → Tester → Coder → Reviewer → Documenter 正在自动接力执行。", "steps": None }
+    }
+
+    let task = relay_strip_prefix(trimmed, "/superpower ")
+    if task != "" {
+        return { "flow": "superpower", "task": task, "emoji": "⚡", "detail": "流程：Brainstorm → Plan → Execute → Review。点击下方的 Run 卡片查看实时进度。", "steps": None }
+    }
+
+    let goal2 = relay_strip_prefix(trimmed, "/spec1 ")
+    if goal2 != "" {
+        return { "flow": "simple", "task": goal2, "emoji": "🎯", "detail": "Advisor 正在分析并尝试写出 Goals。此 Run 只执行 Advisor 一步。", "steps": [{ "id": "discover", "profession_id": "advisor" }] }
+    }
+
+    return None
+}
