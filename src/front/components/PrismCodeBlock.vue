@@ -14,7 +14,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import Prism from 'prismjs'
-// 默认 bundle 已含 markup/css/clike/javascript；按依赖顺序补常用语言
+// 默认 bundle 已含 markup/css/clike/javascript；按依赖顺序补常用语言。
+// prism-c 必须先于 prism-cpp（cpp = extend('c')）；依赖顺序此前由旧模块图的
+// 加载次序隐式满足，平台挂载（platform/）后图序改变而暴露，故显式声明。
 import 'prismjs/components/prism-rust'
 import 'prismjs/components/prism-typescript'
 import 'prismjs/components/prism-javascript'
@@ -26,6 +28,7 @@ import 'prismjs/components/prism-yaml'
 import 'prismjs/components/prism-toml'
 import 'prismjs/components/prism-sql'
 import 'prismjs/components/prism-java'
+import 'prismjs/components/prism-c'
 import 'prismjs/components/prism-cpp'
 import 'prismjs/components/prism-go'
 
