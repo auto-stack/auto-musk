@@ -1,0 +1,38 @@
+// raw_helpers.at — Raw 文件预览纯函数（单一真源，替代 raw_upload.ts 的
+// 纯函数部分）
+//
+// Plan 029 T21：文件类型判断（Regex.test 字面量 pattern）/URL 构造/
+// iframe 与下载链接 HTML 迁入。留 raw_upload.ts（D 组登记）：
+//   - loadRawFileText（fetch .text()——Http.* 只展开 .json()）
+//   - uploadRawFiles/wikiUploadDrop/rawUploadProgress（XHR FormData 进度）
+
+/** raw 文件 URL（workspace/path 双 encodeURIComponent）。 */
+fn raw_file_url(workspace str, path str) str {
+    return "/api/workspace/" + encodeURIComponent(workspace) + "/file/" + encodeURIComponent(path)
+}
+
+/** 文件类型判断（image/pdf/text/other，扩展名大小写不敏感）。 */
+fn raw_file_kind(path str) str {
+    if Regex.test(path, "\\.(png|jpe?g|gif|svg|webp|bmp|ico)$", "i") {
+        return "image"
+    }
+    if Regex.test(path, "\\.pdf$", "i") {
+        return "pdf"
+    }
+    if Regex.test(path, "\\.(md|txt|csv|json|xml|yaml|yml|html|css|js|ts|rs|toml|sh|bat|py)$", "i") {
+        return "text"
+    }
+    return "other"
+}
+
+/** PDF iframe HTML。 */
+fn raw_iframe_html(file_url str) str {
+    return "<iframe src=\"" + file_url + "\" class=\"raw-preview-pdf\"></iframe>"
+}
+
+/** 下载链接 HTML（URL/path HTML 转义）。 */
+fn raw_download_html(file_url str, path str) str {
+    let esc_url = file_url.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    let esc_path = path.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return "<a href=\"" + esc_url + "\" download class=\"download-link\">" + esc_path + "</a>"
+}

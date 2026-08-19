@@ -39,3 +39,29 @@ fn settings_set_forge_mode(val str) {
         let _ignore = 0
     }
 }
+
+/** 打开 AutoOS 设置深链（POST /api/settings-link + dom.open_url）。
+ *  返回错误消息（成功返回空串）。 */
+fn settings_open_autoos() str {
+    try {
+        let data = Http.post("/api/settings-link", {})
+        if data != None {
+            if data.status == "running" {
+                if data.url != None {
+                    if data.url != "" {
+                        dom.open_url(data.url + "/#ai-musk")
+                        return ""
+                    }
+                }
+            }
+            if data.error != None {
+                if data.error != "" {
+                    return data.error
+                }
+            }
+        }
+        return "Service not available"
+    } catch {
+        return "Could not reach settings service"
+    }
+}

@@ -1,13 +1,9 @@
-// useT.ts — vue-i18n 的 t 函数 composable 包装（Plan 407）
+// useT.ts — vue-i18n 宿主库桥（D 组永久保留）
 //
-// 背景：vue-i18n 的 t 是 useI18n() 的解构返回值，不是直接导出的函数。
-// AutoUI 的 composable 机制生成 `const t = useT()`（非解构），
-// 所以这里包装一层：useT() 内部调 useI18n() 并返回 t 函数，
-// 让 .at 里 `fn: t from "src/front/composables/useT.ts"` 生成的
-// `import { t } from '...'` + 在模板里 {{ t('key') }} 能正确工作。
-//
-// 注意：t 必须在 setup 上下文调用（useI18n 要求），所以 useT 也只能在
-// 组件 setup 顶层调用——这和 composable 约定一致。
+// Plan 407：t 是 useI18n() 解构返回值，非静态导出——本桥包装一层供
+// .at 的 `composable: useT` / `fn: t` 声明消费。
+// Plan 029 T21：settings_helpers.ts 的语言切换并入（useI18n().locale.value
+// 赋值是宿主库 ref 写，.at 无法表达——待澄清#2 的既定结论）。
 
 import { useI18n } from 'vue-i18n'
 
@@ -17,8 +13,19 @@ export function useT() {
   return t
 }
 
-// 也默认导出 t 的工厂，供 fn import 模式使用。
-// AutoUI `fn: t from "..."` 生成 `import { t } from '...'`，
-// 但 t 是 useI18n 的返回值（运行时绑定），无法静态导出。
-// 所以这里导出一个占位——实际使用需走 composable 声明。
-export default useT
+/** 初始化语言：恢复 localStorage 保存的语言，返回生效 locale（en/zh）。 */
+export function settingsInitLocale(): string {
+  const saved = localStorage.getItem('musk-language')
+  const current = useI18n().locale.value
+  if (saved && saved !== current) {
+    useI18n().locale.value = saved
+    return saved
+  }
+  return current
+}
+
+/** 切换语言：设置 vue-i18n locale + localStorage 持久化。 */
+export function settingsChangeLocale(l: string): void {
+  useI18n().locale.value = l
+  localStorage.setItem('musk-language', l)
+}

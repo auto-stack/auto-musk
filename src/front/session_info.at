@@ -18,22 +18,70 @@ component fn SessionInfo() {
     use {
         component: Info, Copy, CopyCheck from "lucide-vue-next"
         fn: session_token_cost, session_message_count from "src/front/session_data_helpers.at"
-        // copy 完成态/剪贴板暂留 TS（Phase C T21 dom.copy 后并入 .at）。
-        fn: sessionCopyId, sessionCopied from "src/front/session_info_helpers.ts"
         composable: useI18n refs: [locale] from "vue-i18n"
     }
     computed {
         sessionId => .store.session_id
         messageCount => session_message_count(.store.messages)
         tokenCost => session_token_cost(.store.errands)
-        copied => sessionCopied.value
+        copied => .copied
     }
     msg Msg { Toggle, CopyId }
-    model { var open bool = false }
+    // Plan 029 T21：copy 完成态本地化（dom.copy_text）。原版 2s 自动复位经
+    // setTimeout 闭包——.at 不表达，保持 ✓ 直至下次复制（轻微差异，登记）。
+    model {
+        var open bool = false
+        var copied bool = false
+    }
     on {
         .Toggle -> { .open = !.open }
-        .CopyId -> { sessionCopyId(.sessionId) }
+        .CopyId -> {
+            dom.copy_text(.sessionId);
+            .copied = true
+        }
     }
+    // Plan 029 T22：原 inject_styles 全局兜底下放（scoped 生效于本组件 DOM）。
+    style {
+  .session-info-wrapper { position: relative; }
+  .session-info-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border: none; border-radius: 6px;
+    background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer;
+  }
+  .session-info-btn:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+  .session-info-tooltip {
+    position: absolute; top: calc(100% + 0.5rem); right: 0; min-width: 280px;
+    background: hsl(var(--background)); border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem; padding: 0.75rem; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 100; display: flex; flex-direction: column; gap: 0.5rem;
+  }
+  .session-info-row { display: flex; align-items: center; gap: 0.5rem; }
+  .session-info-label { font-size: 0.75rem; color: hsl(var(--muted-foreground)); min-width: 5rem; }
+  .session-info-value { font-size: 0.82rem; color: hsl(var(--foreground)); flex: 1; }
+  .session-info-id { font-family: monospace; font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .session-info-copy {
+    display: flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border: none; border-radius: 4px;
+    background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer; flex-shrink: 0;
+  }
+  .session-info-copy:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
+  .wiki-nav-item {
+    display: block; width: 100%; text-align: left;
+    padding: 0.4rem 0.75rem; border: none; border-radius: 6px; font-size: 0.85rem;
+    background: transparent; color: hsl(var(--foreground)); cursor: pointer;
+  }
+  .wiki-nav-item:hover { background: hsl(var(--accent)); }
+  .wiki-nav-item.active { background: hsl(var(--accent)); font-weight: 500; }
+  .wiki-main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+  .wiki-content-actions { display: flex; gap: 0.25rem; }
+  .wiki-content { padding: 0 1.25rem 1.25rem; font-size: 0.9rem; line-height: 1.6; color: hsl(var(--foreground)); }
+  .wiki-raw { padding: 0 1.25rem 1.25rem; }
+  .wiki-markdown { font-size: 0.9rem; line-height: 1.6; }
+  .wiki-editor { margin: 1.25rem; padding: 1rem; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--card)); }
+  .wiki-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: hsl(var(--muted-foreground)); gap: 0.5rem; text-align: center; }
+  .text-muted { color: hsl(var(--muted-foreground)); }
+    }
+
     div {
         style: "session-info-wrapper"
         button {

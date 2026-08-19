@@ -19,9 +19,6 @@ widget App {
         // t 走 composable 包装（vue-i18n 的 t 是 useI18n() 解构返回值，非静态导出）。
         // codegen: import { useT } + const t = useT()（去 use 前缀小写得变量名 t）。
         composable: useT from "src/front/composables/useT.ts"
-        // Plan 022 视觉对齐：主题 + 强调色切换 composable。
-        composable: useTheme from "src/front/composables/useTheme.ts"
-        composable: useAccentColor from "src/front/composables/useAccentColor.ts"
         // Plan 029 T12：跨 store 审批门路由桥（gate_inbox.at 的 D 组接线层）。
         composable: useGateRouter from "src/front/composables/gate_router.ts"
         // 声明仅为触发 ext 复制（codegen ext 复制只看 use 块，不看 component fn 的 use{fn}）。
@@ -41,6 +38,7 @@ widget App {
         ShowPlans,
         ShowSpecs,
         ShowWiki,
+        GlobalKeydown,
     }
 
     model {
@@ -54,6 +52,8 @@ widget App {
         } else {
             row {
                 style: "h-screen w-full"
+                // Plan 029 T20：全局快捷键挂视图根（见 .GlobalKeydown）。
+                onkeydown: .GlobalKeydown($event)
                 // view rail（侧边导航栏）
                 // Plan 407：text 节点 t() 化 + WorkspaceSelector 逃生舱接入（原生支持）。
                 col {
@@ -133,6 +133,23 @@ widget App {
     on {
         .Init -> { injectStyles(); setupAuthFetch(); store.Init() }
         .ShowChats -> { .current_view = "chats" }
+        // Plan 029 T20：全局快捷键（原 useKeyboardShortcuts composable）。
+        // Ctrl/Cmd+Shift+S 聚焦搜索框；Ctrl/Cmd+Shift+N 点新建会话按钮。
+        // 监听挂在视图根元素（document 级监听不可表达——焦点需在应用内，
+        // 实际等价：快捷键的目标元素都在应用内）。
+        .GlobalKeydown(e) -> {
+            if (e.ctrlKey || e.metaKey) && e.shiftKey {
+                if e.key.to_lower() == "s" {
+                    e.preventDefault();
+                    dom.focus_first(".search-input")
+                } else {
+                    if e.key.to_lower() == "n" {
+                        e.preventDefault();
+                        dom.click_first(".sidebar-new-btn")
+                    }
+                }
+            }
+        }
         .ShowPlans -> { .current_view = "plans" }
         .ShowSpecs -> { .current_view = "specs" }
         .ShowWiki -> { .current_view = "wiki" }

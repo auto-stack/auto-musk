@@ -44,6 +44,64 @@ component fn GateCard(title: str, profession: str, changes: obj) {
         .approve(specs) -> {}
         .reject -> {}
     }
+    // Plan 029 T22：原 inject_styles 全局兜底下放（scoped 生效于本组件 DOM）。
+    style {
+  .gate-card {
+    display: flex; flex-direction: column; gap: 0.6rem;
+    padding: 0.75rem 1.25rem; border-top: 1px solid var(--af-border, hsl(220 13% 91%));
+    flex-shrink: 0; background: hsl(220 14% 50% / 0.02);
+  }
+  .gate-card-header { display: flex; align-items: center; gap: 0.5rem; font-size: 0.93rem; color: var(--af-fg, hsl(220 14% 10%)); }
+  .gate-icon { font-size: 1.18rem; }
+  .gate-title { flex: 1; }
+  .gate-profession {
+    font-size: 0.78rem; padding: 0.15rem 0.4rem; border-radius: 4px;
+    background: hsl(220 90% 56% / 0.08); color: hsl(220 90% 56%); font-weight: 500;
+  }
+  .gate-diff-list { display: flex; flex-direction: column; gap: 0.35rem; max-height: 300px; overflow-y: auto; }
+  .diff-card { border: 1px solid var(--af-border, hsl(220 13% 91%)); border-radius: 8px; overflow: hidden; }
+  .diff-header {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.4rem 0.6rem; cursor: pointer; user-select: none;
+  }
+  .diff-header:hover { background: hsl(220 14% 50% / 0.03); }
+  .diff-title { font-size: 0.88rem; font-weight: 500; color: var(--af-fg, hsl(220 14% 10%)); text-transform: capitalize; flex: 1; }
+  .diff-status { font-size: 0.73rem; font-weight: 500; color: hsl(38 92% 50%); }
+  .diff-status.approved { color: hsl(142 71% 45%); }
+  .diff-chevron { color: var(--af-muted, hsl(220 9% 46%)); }
+  .diff-body {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;
+    padding: 0.5rem 0.6rem; background: hsl(220 14% 50% / 0.02); border-top: 1px solid var(--af-border, hsl(220 13% 91%));
+  }
+  .diff-side { display: flex; flex-direction: column; gap: 0.2rem; }
+  .diff-label { font-size: 0.73rem; font-weight: 500; text-transform: uppercase; color: var(--af-muted, hsl(220 9% 46%)); letter-spacing: 0.02em; }
+  .diff-content {
+    font-size: 0.83rem; font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    background: var(--af-bg, #fff); border: 1px solid var(--af-border, hsl(220 13% 91%));
+    border-radius: 4px; padding: 0.35rem; overflow-x: auto;
+    white-space: pre-wrap; word-break: break-word;
+    color: var(--af-fg, hsl(220 14% 10%)); margin: 0;
+  }
+  .diff-content.old { color: var(--af-muted, hsl(220 9% 46%)); }
+  .diff-editor {
+    font-size: 0.83rem; font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    background: var(--af-bg, #fff); border: 1px solid var(--af-border, hsl(220 13% 91%));
+    border-radius: 4px; padding: 0.35rem; color: var(--af-fg, hsl(220 14% 10%));
+    resize: vertical; outline: none; width: 100%; box-sizing: border-box;
+  }
+  .diff-editor:focus { border-color: hsl(220 90% 56% / 0.4); }
+  .gate-actions { display: flex; gap: 0.5rem; }
+  .approve-btn, .reject-btn, .review-btn {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.4rem 0.9rem; border: none; border-radius: 6px;
+    font-size: 0.88rem; font-weight: 500; cursor: pointer; transition: opacity 0.15s;
+  }
+  .approve-btn { background: hsl(142 71% 45%); color: #fff; }
+  .reject-btn { background: transparent; color: var(--af-fg, hsl(220 14% 10%)); border: 1px solid var(--af-border, hsl(220 13% 91%)); }
+  .review-btn { background: hsl(220 14% 50% / 0.08); color: var(--af-fg, hsl(220 14% 10%)); border: 1px solid var(--af-border, hsl(220 13% 91%)); }
+  .approve-btn:hover, .reject-btn:hover, .review-btn:hover { opacity: 0.85; }
+    }
+
     div {
         style: "gate-card"
         div {

@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 16
+current_step: 23
 total_steps: 22
 ---
 
@@ -271,21 +271,21 @@ v-html 等)。`.at` 组件 style 块生成 `<style scoped>`(Plan 028 已验证:�
 
 ### Phase C:dom API + 主题/快捷键/样式(7 任务)
 
-- [ ] **T17** auto-lang `dom` builtin(5 API + 单测);`cargo build --release --bin auto`
+- [x] **T17** auto-lang `dom` builtin(5 API + 单测);`cargo build --release --bin auto`
   + Copy-Item ~/.cargo/bin/auto.exe;auto-lang 仓库提交(用户侧合并惯例)。
   验证:auto-lang 单测过;手写最小 .at 片段 transpile 含 classList.toggle。
-- [ ] **T18** worktree 续期(wt/029-C);useTheme → `src/front/theme_store.at`
+- [x] **T18** worktree 续期(wt/029-C);useTheme → `src/front/theme_store.at`
   (storage + dom.toggle_class);app.at 改引;删原 .ts。
   验证:浏览器切换 dark/light 持久化(reload 后保持)。
-- [ ] **T19** useAccentColor → `src/front/accent_store.at`(dom.set_css_var ×N +
+- [x] **T19** useAccentColor → `src/front/accent_store.at`(dom.set_css_var ×N +
   storage);app.at 改引;删原 .ts。验证:五色切换 --primary 生效。
-- [ ] **T20** useKeyboardShortcuts → app.at on 块(event.listen keydown +
+- [x] **T20** useKeyboardShortcuts → app.at on 块(event.listen keydown +
   dom.focus_first);删原 .ts。验证:Ctrl+Shift+S 聚焦搜索框。
-- [ ] **T21** session copy + settings 剩余 + raw_upload 纯函数部分迁移
+- [x] **T21** session copy + settings 剩余 + raw_upload 纯函数部分迁移
   (dom.copy/dom.open_url;rawFileKind 等 → raw_helpers.at;上传留);
   删 session_info_helpers.ts/settings_helpers.ts 残余/raw_upload 瘦身。
   验证:session copy 按钮 ✓ 变化;raw 预览 iframe/下载链接正常。
-- [ ] **T22** inject_styles 分组下放:14 个单组件组迁对应 .at style 块(逐组迁移,
+- [x] **T22** inject_styles 分组下放:14 个单组件组迁对应 .at style 块(逐组迁移,
   注意 028 教训:样式必须放渲染元素所在组件);inject_styles.ts 瘦身(<150 行)。
   验证:全视图视觉冒烟对比截图(迁移前后逐视图 diff)。
 - [ ] **T23** Phase C 验证 + 合并 + 收尾:全量冒烟;KNOWN-DEBT 登记 D 组 6 文件

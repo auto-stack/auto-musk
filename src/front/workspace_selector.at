@@ -80,6 +80,76 @@ component fn WorkspaceSelector() {
             }
         }
     }
+    // Plan 029 T22：原 inject_styles 全局兜底下放（scoped 生效于本组件 DOM）。
+    style {
+  .workspace-selector { position: relative; margin-top: auto; }
+  .ws-btn {
+    display: flex; align-items: center; gap: 0.35rem; width: 100%;
+    padding: 0.35rem 0.5rem; border: 1px solid hsl(var(--border)); border-radius: 6px;
+    background: transparent; color: hsl(var(--foreground)); font-size: 0.75rem; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .ws-btn:hover { background: hsl(var(--accent)); }
+  .ws-name { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws-panel {
+    position: absolute; bottom: 100%; left: 0; right: 0; margin-bottom: 4px;
+    background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); padding: 0.5rem; z-index: 50;
+    max-height: 320px; overflow-y: auto;
+  }
+  .ws-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 0.75rem; font-weight: 600; color: hsl(var(--muted-foreground)); margin-bottom: 0.4rem;
+  }
+  .ws-close { border: none; background: transparent; cursor: pointer; color: hsl(var(--muted-foreground)); padding: 2px; }
+  .ws-close:hover { color: hsl(var(--foreground)); }
+  .ws-section-label { font-size: 0.7rem; color: hsl(var(--muted-foreground)); padding: 0.2rem 0.3rem; }
+  .ws-item {
+    display: flex; align-items: center; gap: 0.35rem; width: 100%;
+    padding: 0.35rem 0.4rem; border: none; border-radius: 4px; background: transparent;
+    cursor: pointer; font-size: 0.75rem; text-align: left;
+  }
+  .ws-item:hover { background: hsl(var(--accent)); }
+  .ws-item.active { background: hsl(var(--primary) / 0.1); color: hsl(var(--primary)); }
+  .ws-item-name { flex-shrink: 0; font-weight: 500; }
+  .ws-item-path {
+    flex: 1; font-size: 0.68rem; color: hsl(var(--muted-foreground));
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .ws-empty { padding: 0.5rem; text-align: center; font-size: 0.72rem; color: hsl(var(--muted-foreground)); }
+  /* browse 选目录（打开其他文件夹）—— 对齐 web WorkspaceSelector scoped 样式 */
+  .ws-divider { height: 1px; background: hsl(var(--border)); margin: 0.4rem 0; }
+  .ws-input {
+    width: 100%; box-sizing: border-box; background: hsl(var(--background));
+    border: 1px solid hsl(var(--border)); border-radius: 4px;
+    padding: 0.35rem 0.5rem; color: hsl(var(--foreground)); font-size: 0.8rem;
+  }
+  .ws-suggest { max-height: 120px; overflow-y: auto; }
+  .ws-suggest-item {
+    display: block; width: 100%; background: none; border: none;
+    padding: 0.3rem 0.5rem; text-align: left; cursor: pointer;
+    color: hsl(var(--foreground)); font-size: 0.78rem; border-radius: 4px;
+  }
+  .ws-suggest-item:hover { background: hsl(var(--muted-foreground) / 0.08); }
+  .ws-open-btn {
+    display: flex; align-items: center; gap: 0.4rem; width: 100%; justify-content: center;
+    margin-top: 0.4rem; background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
+    border: none; border-radius: 4px; padding: 0.4rem; cursor: pointer; font-size: 0.82rem;
+  }
+  .ws-open-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* AI 思考中等待指示（streaming 但 draft 还没开始）—— pulse 动画 */
+  .thinking-dots {
+    color: hsl(var(--muted-foreground));
+    font-size: 0.85rem;
+    padding: 0.5rem 0.75rem;
+    animation: thinking-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes thinking-pulse {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 1; }
+  }
+    }
+
     div {
         style: "workspace-selector"
         button {

@@ -65,6 +65,7 @@ component fn ErrandCard(tc: obj, errands: obj) {
 .errand-result { margin-top: 0.5rem; }
 .errand-result-label { font-size: 0.72rem; color: hsl(var(--muted-foreground)); margin-bottom: 0.2rem; }
 .errand-result-text { font-size: 0.78rem; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+.errand-card { border: 1px solid hsl(var(--border)); border-radius: 8px; margin: 0; overflow: hidden; background: hsl(38 92% 50% / 0.03); width: 100%; }
     }
 
     col {

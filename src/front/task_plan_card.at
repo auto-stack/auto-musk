@@ -53,6 +53,7 @@ component fn TaskPlanCard(tc: obj, taskPlans: obj) {
 .tp-phase-name { flex: 1; color: hsl(var(--foreground)); }
 .tp-phase-status { font-size: 0.68rem; color: hsl(var(--muted-foreground)); }
 .tp-empty { font-size: 0.78rem; color: hsl(var(--muted-foreground)); font-style: italic; }
+.task-plan-card { border: 1px solid hsl(var(--border)); border-radius: 8px; margin: 0; overflow: hidden; background: hsl(280 60% 96% / 0.4); width: 100%; }
     }
 
     col {

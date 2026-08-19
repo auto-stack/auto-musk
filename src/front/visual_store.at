@@ -1,0 +1,90 @@
+// visual_store.at — 主题 + 强调色 store（单一真源，替代
+// composables/useTheme.ts + composables/useAccentColor.ts）
+//
+// Plan 029 T18/T19：两者均为"视觉设置"单例，合并为一个 store（v1 单 store
+// per file 限制下，settings_menu 需同时读写两者；启动 Init 由常驻导航栏的
+// SettingsMenu 挂载触发——对齐原 composable 的 onMounted 自初始化）。
+// storage 内建（持久化）+ dom.set_dark/prefers_dark/set_css_var（T17）承载。
+//
+// 与原版的行为差异（登记）：auto 模式下系统偏好变化的 matchMedia change
+// listener 无法表达，仅在 Init/SetMode 时读一次（刷新后生效）。
+
+/** 应用主题模式（auto 跟随系统偏好）。 */
+fn visual_apply_theme(mode str) {
+    let is_dark = false
+    if mode == "dark" {
+        is_dark = true
+    }
+    if mode == "auto" {
+        if dom.prefers_dark() {
+            is_dark = true
+        }
+    }
+    dom.set_dark(is_dark)
+}
+
+/** 色板表（label + 5 个 CSS 变量值）。 */
+fn visual_palettes() obj {
+    return {
+        "indigo": { "name": "indigo", "label": "Indigo", "brand1": "#6366f1", "brand2": "#818cf8", "brand3": "#4f46e5", "brandSoft": "rgba(99, 102, 241, 0.14)", "primaryHsl": "239 84% 67%" },
+        "coral": { "name": "coral", "label": "Coral", "brand1": "#e85d75", "brand2": "#f08090", "brand3": "#c9445e", "brandSoft": "rgba(232, 93, 117, 0.14)", "primaryHsl": "350 75% 64%" },
+        "ocean": { "name": "ocean", "label": "Ocean", "brand1": "#3b82f6", "brand2": "#60a5fa", "brand3": "#2563eb", "brandSoft": "rgba(59, 130, 246, 0.14)", "primaryHsl": "217 91% 60%" },
+        "sage": { "name": "sage", "label": "Sage", "brand1": "#10b981", "brand2": "#34d399", "brand3": "#059669", "brandSoft": "rgba(16, 185, 129, 0.14)", "primaryHsl": "160 84% 39%" },
+        "amber": { "name": "amber", "label": "Amber", "brand1": "#f59e0b", "brand2": "#fbbf24", "brand3": "#d97706", "brandSoft": "rgba(245, 158, 11, 0.14)", "primaryHsl": "38 92% 50%" },
+    }
+}
+
+/** 色板选项列表（固定顺序，供设置菜单渲染）。 */
+fn visual_accent_options() []Value {
+    let all = visual_palettes()
+    return [all.indigo, all.coral, all.ocean, all.sage, all.amber]
+}
+
+/** 应用色板（写 5 个 CSS 变量）。 */
+fn visual_apply_accent(name str) {
+    let p = visual_palettes()[name]
+    dom.set_css_var("--vp-c-brand-1", p.brand1)
+    dom.set_css_var("--vp-c-brand-2", p.brand2)
+    dom.set_css_var("--vp-c-brand-3", p.brand3)
+    dom.set_css_var("--vp-c-brand-soft", p.brandSoft)
+    dom.set_css_var("--primary", p.primaryHsl)
+}
+
+store VisualStore {
+    model {
+        var mode str = "auto"
+        var accent str = "indigo"
+    }
+
+    msg Msg {
+        Init,
+        SetMode(str),
+        SetAccent(str),
+    }
+
+    on {
+        .Init -> {
+            .mode = storage.get("musk-theme") ?? "auto"
+            visual_apply_theme(.mode)
+            let stored_accent = storage.get("musk-accent-color") ?? "indigo"
+            let initial = "indigo"
+            if visual_palettes()[stored_accent] != None {
+                initial = stored_accent
+            }
+            .accent = initial
+            visual_apply_accent(initial)
+        }
+
+        .SetMode(next) -> {
+            .mode = next
+            storage.set("musk-theme", next)
+            visual_apply_theme(next)
+        }
+
+        .SetAccent(name) -> {
+            .accent = name
+            storage.set("musk-accent-color", name)
+            visual_apply_accent(name)
+        }
+    }
+}

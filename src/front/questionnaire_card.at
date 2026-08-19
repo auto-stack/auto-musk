@@ -81,6 +81,11 @@ component fn QuestionnaireCard(questions: obj) {
 }
 .q-submit:disabled { opacity: 0.5; cursor: not-allowed; }
 .q-submit:hover:not(:disabled) { opacity: 0.9; }
+.questionnaire-card {
+  background: hsl(var(--primary) / 0.04); border: 1px solid hsl(var(--primary) / 0.15);
+  border-radius: 10px; padding: 0.75rem 1rem; margin-top: 0.55rem; width: 100%; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 0.75rem;
+}
     }
 
     div {

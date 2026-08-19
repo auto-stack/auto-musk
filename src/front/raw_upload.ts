@@ -66,9 +66,6 @@ export function uploadRawFiles(
  * GET /api/forge/raw/{project}/file/{path} — raw 文件 URL（预览/下载链接）。
  * 对齐原版 useWiki.ts:156-158 rawFileUrl。
  */
-export function rawFileUrl(workspace: string, path: string): string {
-  return `${RAW_BASE}/${encodeURIComponent(workspace)}/file/${encodeURIComponent(path)}`
-}
 
 /**
  * GET /api/forge/raw/{project}/file/{path} — 读取文本 raw 文件内容。
@@ -88,31 +85,17 @@ export async function loadRawFileText(workspace: string, path: string): Promise<
  * 对齐 RawPreview.vue 原 isImage/isPdf/isText 正则（.at 无正则能力，放逃生舱 fn，
  * component fn 经 use { fn } 引入——Plan 023 队列 A 模式）。
  */
-export function rawFileKind(path: string): 'image' | 'pdf' | 'text' | 'other' {
-  if (/\.(png|jpe?g|gif|svg|webp|bmp|ico)$/i.test(path)) return 'image'
-  if (/\.pdf$/i.test(path)) return 'pdf'
-  if (/\.(md|txt|csv|json|xml|yaml|yml|html|css|js|ts|rs|toml|sh|bat|py)$/i.test(path)) return 'text'
-  return 'other'
-}
 
 /**
  * iframe 预览 HTML（.at 无 iframe 标签映射，Plan 023 队列 A1 用 v-html 兜底）。
  * fileUrl 已 encodeURIComponent，无引号注入风险。
  */
-export function rawIframeHtml(fileUrl: string): string {
-  return `<iframe src="${fileUrl}" class="raw-preview-pdf"></iframe>`
-}
 
 /**
  * 下载链接 HTML（<a download>）。.at 的 link 标签 → codegen 映射成 shadcn
  * router-link（不是原生 <a>），Plan 023 队列 A1 用 v-html 兜底。
  * path 是用户输入的文件名，需 HTML 转义。
  */
-export function rawDownloadHtml(fileUrl: string, path: string): string {
-  const esc = (s: string) =>
-    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-  return `<a href="${esc(fileUrl)}" download class="download-link">${esc(path)}</a>`
-}
 
 // ─── WikiNav DropZone 上传（Plan 023 队列 B6）───
 

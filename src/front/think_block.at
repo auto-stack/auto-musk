@@ -20,6 +20,14 @@ component fn ThinkBlock(text: str, tokens: int, streaming: bool) {
         .Toggle -> { .expanded = !.expanded }
     }
     style {
+.think-block {
+  width: 100%; box-sizing: border-box;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--muted) / 0.4);
+  max-width: 100%;
+  overflow: hidden;
+}
 .think-header {
   display: flex; align-items: center; gap: 0.35rem;
   padding: 0.35rem 0.65rem;

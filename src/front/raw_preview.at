@@ -20,18 +20,19 @@
 
 component fn RawPreview(workspace: str, path: str) {
     use {
-        fn: rawFileUrl, loadRawFileText, rawFileKind, rawIframeHtml, rawDownloadHtml from "src/front/raw_upload.ts"
+        fn: raw_file_url, raw_file_kind, raw_iframe_html, raw_download_html from "src/front/raw_helpers.at"
+        fn: loadRawFileText from "src/front/raw_upload.ts"
         component: MarkdownRender from "markstream-vue"
         component: FileIcon from "lucide-vue-next"
     }
     computed {
-        fileUrl => rawFileUrl(.workspace, .path)
-        kind => rawFileKind(.path)
+        fileUrl => raw_file_url(.workspace, .path)
+        kind => raw_file_kind(.path)
         isImage => .kind == "image"
         isPdf => .kind == "pdf"
         isText => .kind == "text"
-        iframeHtml => rawIframeHtml(.fileUrl)
-        downloadHtml => rawDownloadHtml(.fileUrl, .path)
+        iframeHtml => raw_iframe_html(.fileUrl)
+        downloadHtml => raw_download_html(.fileUrl, .path)
     }
     model { var textContent str = "" }
     watch {
@@ -48,6 +49,19 @@ component fn RawPreview(workspace: str, path: str) {
             }
         }
     }
+    // Plan 029 T22：原 inject_styles 全局兜底下放（scoped 生效于本组件 DOM）。
+    style {
+  .raw-preview { padding: 1rem; }
+  .raw-preview-img { max-width: 100%; max-height: 60vh; border-radius: 6px; }
+  .raw-preview-pdf { width: 100%; height: 70vh; border: none; border-radius: 6px; }
+  .raw-preview-text { font-size: 0.875rem; }
+  .raw-download {
+    display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+    padding: 2rem; color: hsl(var(--muted-foreground));
+  }
+  .download-link { color: hsl(var(--primary)); text-decoration: underline; }
+    }
+
     div {
         style: "raw-preview"
         if .isImage {
