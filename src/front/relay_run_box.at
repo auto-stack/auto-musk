@@ -40,7 +40,18 @@ component fn RelayRunBox(runId: str) {
         var subscribed bool = false
     }
     on {
-        .Init -> { relayRunLoad(.runId) }
+        // Init：拉取 run 详情；若正等待人工审批则自动展开 + 订阅事件流
+        // （需要用户交互的块不能默认折叠）。
+        .Init -> {
+            relayRunLoad(.runId).await;
+            if .waitingGate != None {
+                .expanded = true;
+                if !.subscribed {
+                    relayRunSubscribe(.runId);
+                    .subscribed = true
+                }
+            }
+        }
         .Destroy -> { relayRunUnsubscribe(.runId) }
         .Toggle -> {
             .expanded = !.expanded;
