@@ -8,6 +8,10 @@ component fn ThinkBlock(text: str, tokens: int, streaming: bool) {
     use {
         fn: thinkLabel from "src/front/forge_helpers.ts"
     }
+    computed {
+        // 折叠/展开指示,与 GenericToolCard 的 ▼/▲ 同款
+        chevron => if .expanded { "▲" } else { "▼" }
+    }
     msg Msg { Toggle }
     model {
         var expanded bool = false
@@ -22,6 +26,10 @@ component fn ThinkBlock(text: str, tokens: int, streaming: bool) {
             style: "think-header"
             text "💭"
             text thinkLabel(.tokens, .streaming)
+            span {
+                style: "tool-chevron"
+                text .chevron
+            }
         }
         if .expanded {
             pre {

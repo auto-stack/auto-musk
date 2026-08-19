@@ -1026,6 +1026,7 @@ a { color: hsl(var(--primary)); }
   cursor: pointer; user-select: none;
 }
 .think-header:hover { background: hsl(var(--muted) / 0.5); }
+.think-header .tool-chevron { margin-left: auto; }
 .think-content {
   margin: 0; padding: 0.55rem 0.75rem;
   font-size: 0.78rem; line-height: 1.5;
