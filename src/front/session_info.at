@@ -24,20 +24,20 @@ component fn SessionInfo() {
         sessionId => .store.session_id
         messageCount => session_message_count(.store.messages)
         tokenCost => session_token_cost(.store.errands)
-        copied => .copied
+        copied => .copy_done
     }
     msg Msg { Toggle, CopyId }
     // Plan 029 T21：copy 完成态本地化（dom.copy_text）。原版 2s 自动复位经
     // setTimeout 闭包——.at 不表达，保持 ✓ 直至下次复制（轻微差异，登记）。
     model {
         var open bool = false
-        var copied bool = false
+        var copy_done bool = false
     }
     on {
         .Toggle -> { .open = !.open }
         .CopyId -> {
             dom.copy_text(.sessionId);
-            .copied = true
+            .copy_done = true
         }
     }
     // Plan 029 T22：原 inject_styles 全局兜底下放（scoped 生效于本组件 DOM）。

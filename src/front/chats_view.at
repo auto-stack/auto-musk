@@ -76,7 +76,6 @@ widget ChatsView {
         composable: useT from "src/front/composables/useT.ts"
         // 技术债 #2：消息搜索过滤（search ref + filteredMessages computed）
         // 技术债：键盘快捷键（Ctrl+Shift+S 聚焦搜索 / Ctrl+Shift+N 新建会话）
-        composable: useKeyboardShortcuts from "src/front/composables/useKeyboardShortcuts.ts"
     }
 
     msg Msg {

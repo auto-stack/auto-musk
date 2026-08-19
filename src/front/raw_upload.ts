@@ -8,6 +8,7 @@
 // 刷新 raw tree，与逃生舱组件模式一致（见 forge_stream.ts）。
 
 import { ref } from 'vue'
+import { raw_file_url } from './raw_helpers'
 
 const RAW_BASE = '/api/forge/raw'
 
@@ -73,7 +74,7 @@ export function uploadRawFiles(
  * 二进制文件请用 rawFileUrl 直接预览（img/pdf/download）。
  */
 export async function loadRawFileText(workspace: string, path: string): Promise<string> {
-  const resp = await fetch(rawFileUrl(workspace, path), {
+  const resp = await fetch(raw_file_url(workspace, path), {
     headers: { 'Content-Type': 'text/plain' },
   })
   if (!resp.ok) throw new Error(`Failed to load raw file: ${resp.status}`)

@@ -29,6 +29,8 @@ component fn SettingsMenu() {
     computed {
         accentCurrent => .store.accent
         themeMode => .store.mode
+        // view 的 for-range 不支持直接调 fn——经 computed 中转。
+        accentOptions => visual_accent_options()
         isLocaleEn => .currentLocale == "en"
         isLocaleZh => .currentLocale == "zh"
     }
@@ -186,7 +188,7 @@ component fn SettingsMenu() {
                     }
                     div {
                         style: "accent-swatches"
-                        for opt in visual_accent_options() {
+                        for opt in .accentOptions {
                             button {
                                 onclick: .SetAccent(.opt.name)
                                 key: .opt.name
