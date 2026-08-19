@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-029
-status: executing
+status: execution_done
 feature_name: 前端 TS 逃生舱清零(分组迁移)
 author: [zhaopuming]
 created_at: 2026-08-19T22:30:00+08:00
@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 23
+current_step: 23 # all done
 total_steps: 22
 ---
 
@@ -288,7 +288,7 @@ v-html 等)。`.at` 组件 style 块生成 `<style scoped>`(Plan 028 已验证:�
 - [x] **T22** inject_styles 分组下放:14 个单组件组迁对应 .at style 块(逐组迁移,
   注意 028 教训:样式必须放渲染元素所在组件);inject_styles.ts 瘦身(<150 行)。
   验证:全视图视觉冒烟对比截图(迁移前后逐视图 diff)。
-- [ ] **T23** Phase C 验证 + 合并 + 收尾:全量冒烟;KNOWN-DEBT 登记 D 组 6 文件
+- [x] **T23** Phase C 验证 + 合并 + 收尾:全量冒烟;KNOWN-DEBT 登记 D 组 6 文件
   (+B4 降级项若有);`docs/specs/00-overview.md` 双前端 parity 节更新逃生舱清单;
   合并 push。
 
