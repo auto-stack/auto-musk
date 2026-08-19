@@ -13,23 +13,9 @@ component fn ToolBlock(tc: obj, errands: obj, relays: obj, task_plans: obj) {
     computed {
         name => .tc.name
     }
-    style {
-.tool-header { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.75rem; cursor: pointer; font-size: 0.82rem; }
-.tool-header:hover { background: hsl(var(--accent)); }
-.tool-icon { font-size: 0.9rem; }
-.tool-name { font-weight: 500; font-family: monospace; }
-.tool-seg { font-size: 0.75rem; color: hsl(var(--muted-foreground)); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tool-status { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; margin-left: auto; }
-.tool-status.running { background: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); }
-.tool-status.completed { background: hsl(142 71% 45% / 0.15); color: hsl(142 71% 45%); }
-.tool-status.failed { background: hsl(var(--destructive) / 0.15); color: hsl(var(--destructive)); }
-.tool-chevron { font-size: 0.7rem; color: hsl(var(--muted-foreground)); }
-.tool-body { padding: 0.5rem 0.75rem; border-top: 1px solid hsl(var(--border)); }
-.tool-section { margin: 0.3rem 0; }
-.tool-section-title { font-size: 0.72rem; color: hsl(var(--muted-foreground)); margin-bottom: 0.2rem; text-transform: uppercase; letter-spacing: 0.05em; }
-.tool-code, .tool-result { font-size: 0.75rem; white-space: pre-wrap; background: hsl(var(--muted) / 0.5); padding: 0.4rem; border-radius: 4px; max-height: 300px; overflow-y: auto; font-family: monospace; }
-.tool-name { font-family: monospace; font-size: 0.74rem; }
-    }
+    // 注意：.tool-* 样式不放这里。本组件只做分发，卡片元素由子组件渲染，
+    // 而组件 style 块是 scoped 的，打不到子组件 DOM（曾因此整组规则失效）。
+    // 样式的唯一落点：generic_tool_card.at（.tool-*）/ 各卡片自己的 style 块。
 
     col {
         style: "tool-block-slot"

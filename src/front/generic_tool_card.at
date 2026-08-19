@@ -16,6 +16,7 @@
 component fn GenericToolCard(tc: obj) {
     use {
         fn: getToolSummary, toolArgsJson from "src/front/forge_helpers.at"
+        component: Markdown from "platform:markdown"
     }
     computed {
         name => .tc.name
@@ -33,6 +34,32 @@ component fn GenericToolCard(tc: obj) {
     on {
         .Toggle -> { .expanded = !.expanded }
     }
+    // 样式必须放本组件的 style 块（scoped）：元素在 GenericToolCard 自己的
+    // 模板里。此前放在 ToolBlock（父组件）的 style 块，scoped 打不到子组件
+    // 元素，整组规则失效（行高细/icon 不右对齐/文字不居中的直接原因）。
+    // 取值对齐原生 web/src/views/ChatsView.vue 的 .tool-* 基准。
+    style {
+.tool-card { border: 1px solid hsl(var(--border)); border-radius: 8px; margin: 0; overflow: hidden; width: 100%; background: transparent; }
+.tool-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; cursor: pointer; user-select: none; }
+.tool-header:hover { background: hsl(var(--muted-foreground) / 0.04); }
+.tool-icon { font-size: 0.93rem; line-height: 1; flex-shrink: 0; }
+.tool-name { font-size: 0.83rem; font-weight: 500; color: hsl(var(--foreground)); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-seg { font-size: 0.78rem; font-weight: 500; font-family: 'Geist Mono', 'Fira Code', monospace; flex-shrink: 0; }
+.tool-seg.seg-path { color: hsl(190 80% 40%); }
+.tool-seg.seg-loc { color: hsl(var(--muted-foreground)); }
+.tool-seg.seg-pattern { color: hsl(280 60% 45%); }
+.tool-seg.seg-desc { color: hsl(var(--foreground)); }
+.tool-status { font-size: 0.73rem; font-weight: 500; flex-shrink: 0; }
+.tool-status.running { color: hsl(210 90% 52%); }
+.tool-status.completed { color: hsl(142 71% 40%); }
+.tool-status.failed { color: hsl(var(--destructive)); }
+.tool-chevron { font-size: 0.7rem; color: hsl(var(--muted-foreground)); flex-shrink: 0; }
+.tool-body { border-top: 1px solid hsl(var(--border)); padding: 0.5rem 0.6rem; }
+.tool-section { margin-bottom: 0.4rem; }
+.tool-section:last-child { margin-bottom: 0; }
+.tool-section-title { font-size: 0.73rem; font-weight: 500; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-bottom: 0.2rem; letter-spacing: 0.02em; }
+.tool-code { font-size: 0.83rem; color: hsl(var(--muted-foreground)); background: hsl(var(--muted-foreground) / 0.04); padding: 0.35rem 0.5rem; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; font-family: 'Geist Mono', 'Fira Code', monospace; margin: 0; }
+    }
     col {
         class: if .status == "completed" { "tool-card completed" } else { if .status == "failed" { "tool-card failed" } else { "tool-card running" } }
         // header（click toggle）
@@ -47,20 +74,24 @@ component fn GenericToolCard(tc: obj) {
             text .status { class: if .status == "completed" { "tool-status completed" } else { if .status == "failed" { "tool-status failed" } else { "tool-status running" } } }
             text .chevron { style: "tool-chevron" }
         }
-        // body（展开时）
+        // body（展开时）——Result 走 Markdown 渲染（与原生 MarkdownRender 一致，
+        // 内容里的代码/表格带高亮），Arguments 保持 JSON pre。
         if .expanded {
             col {
                 style: "tool-body"
                 col {
                     style: "tool-section"
                     text "Arguments" { style: "tool-section-title" }
-                    text .argsJson { style: "tool-code" }
+                    pre {
+                        style: "tool-code"
+                        text .argsJson
+                    }
                 }
                 if .hasResult {
                     col {
                         style: "tool-section"
                         text "Result" { style: "tool-section-title" }
-                        text .resultText { style: "tool-result" }
+                        Markdown(source: .resultText, streaming: false)
                     }
                 }
             }

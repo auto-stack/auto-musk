@@ -60,7 +60,9 @@ component fn ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj
 .msg-blocks {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  /* 块间节奏：gap 0.4 + 前块尾部 margin 0.35（如 streaming-table）= 0.75rem，
+     与 markdown 流内 代码块 0.4 + 表格 0.35 = 0.75rem 对齐，块内外一致。 */
+  gap: 0.4rem;
   padding: 0.7rem 0.2rem;
   border-top: 1px solid hsl(var(--border) / 0.6);
   border-bottom: 1px solid hsl(var(--border) / 0.6);
@@ -88,20 +90,9 @@ component fn ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj
   border-radius: 0; padding: 0.05rem 0.15rem;
 }
 .msg-bubble-ai .streaming-document { color: hsl(var(--foreground)); }
-.msg-bubble-ai .streaming-document p,
-.msg-bubble-ai .streaming-document li,
-.msg-bubble-ai .streaming-document h1,
-.msg-bubble-ai .streaming-document h2,
-.msg-bubble-ai .streaming-document h3,
-.msg-bubble-ai .streaming-document h4,
-.msg-bubble-ai .streaming-document code,
-.msg-bubble-ai .streaming-document pre,
-.msg-bubble-ai .streaming-document ul,
-.msg-bubble-ai .streaming-document ol,
-.msg-bubble-ai .streaming-document blockquote { color: hsl(var(--foreground)); }
-.msg-bubble-ai .streaming-document pre { background: hsl(var(--muted)); padding: 0.6rem 0.8rem; border-radius: 6px; overflow-x: auto; font-size: 0.85rem; margin: 0.5rem 0; }
-.msg-bubble-ai .streaming-document code { background: hsl(var(--muted)); padding: 2px 5px; border-radius: 4px; font-size: 0.88rem; }
-.msg-bubble-ai .streaming-document pre code { background: transparent; padding: 0; }
+/* ⚠️ 不要在这里写 .streaming-document p/pre/code 等深层的规则——本组件 style
+   块是 scoped 的，属性只落在子组件根节点，深层元素永远匹配不到（此前那组
+   pre/code 规则整组失效）。代码块样式唯一落点：PrismCodeBlock.vue。 */
 .msg-thinking { font-size: 0.82rem; color: hsl(var(--muted-foreground)); font-style: italic; padding: 0.25rem 0.5rem; align-self: flex-start; max-width: 100%; }
 .msg-error { color: hsl(var(--destructive)); font-size: 0.88rem; padding: 0.5rem 0.75rem; background: hsl(var(--destructive) / 0.08); border-radius: 8px; align-self: flex-start; max-width: 100%; }
     }

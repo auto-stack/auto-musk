@@ -265,15 +265,12 @@ a { color: hsl(var(--primary)); }
 .errand-card { border: 1px solid hsl(var(--border)); border-radius: 8px; margin: 0; overflow: hidden; background: hsl(38 92% 50% / 0.03); width: 100%; }
 /* ── TaskPlanCard（Plan 023 P3：原逃生舱 scoped 样式全局兜底）── */
 .task-plan-card { border: 1px solid hsl(var(--border)); border-radius: 8px; margin: 0; overflow: hidden; background: hsl(280 60% 96% / 0.4); width: 100%; }
-/* ── GenericToolCard（Plan 023 P3：原逃生舱 scoped 样式全局兜底）── */
-.tool-card { border: 1px solid hsl(var(--border)); border-radius: 8px; margin: 0; overflow: hidden; width: 100%; }
-.seg-path { color: hsl(190 80% 40%); font-family: monospace; }
-.seg-pattern { color: hsl(280 60% 45%); }
-.seg-desc { color: hsl(var(--foreground)); }
-.seg-loc { color: hsl(var(--muted-foreground)); font-family: monospace; }
-/* ── StreamingTable（Plan 023 P3：原逃生舱 scoped 样式全局兜底）──
-   codegen 给 th/td 注入 Tailwind class（border/px-4/py-2），用 !important 覆盖对齐原版。 */
-.streaming-table { margin: 0.5rem 0; overflow-x: auto; }
+/* ── GenericToolCard（Plan 023 P3）──
+   .tool-card 框架 + .seg-* 颜色已迁至 generic_tool_card.at 的组件 style 块
+   （scoped 打得到自己的 DOM，且与 .tool-* 其余规则同源）。此处不再保留。 */
+/* ── StreamingTable（Plan 023 P3）──
+   .streaming-table 外距已迁至 streaming_table.at 组件 style 块（0.35rem，
+   统一块间距节奏）；此处仅保留 scoped 块外的 keyframes。 */
 @keyframes st-dots { 0%, 80%, 100% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } }
 /* ── AgentAvatar（Plan 023 P3：原逃生舱 scoped 样式全局兜底）── */
 .agent-avatar {

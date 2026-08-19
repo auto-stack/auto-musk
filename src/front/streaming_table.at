@@ -23,6 +23,9 @@ component fn StreamingTable(columns: []str, rows: []obj, final: bool) {
         showLoading => !.final
     }
     style {
+/* 外距参与统一 block 节奏：代码块 0.4 + 表格 0.35 = 块间距 0.4 + 表格 0.35
+   （两侧均 0.75rem），与 .msg-blocks 的 gap 协同（见 chat_message.at）。 */
+.streaming-table { margin: 0.35rem 0; overflow-x: auto; }
 .streaming-table table { border-collapse: collapse; width: 100%; font-size: 0.93rem; }
 .streaming-table th, .streaming-table td { border: 1px solid hsl(var(--border)) !important; padding: 0.4rem 0.6rem !important; text-align: left; }
 .streaming-table th { background: hsl(var(--card)); font-weight: 600; color: hsl(var(--foreground)); }
