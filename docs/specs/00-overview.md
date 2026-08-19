@@ -12,7 +12,7 @@ auto-musk 是 Forge 继任者——Rust 后端的 AI 编码 agent。既是 CLI�
 2. **Spec 双落点**：结构化 ledger（`.autoos/specs.json` 6 区 + 状态机）+ 文件树知识层（`docs/specs/`，本目录）。
 3. **Plans 动态执行**：`docs/plans/NNN-*.md` 文件树，5 态状态机（drafting→executing→execution_done→review_done→merged），merge 沉淀到 Spec。
 4. **Relay 编排**：PipelineEngine 流水线 + TaskPlan DAG + 子会话（spawn_relay/dispatch/bring_in）。
-5. **双前端 parity**：原生 `web/`（Vue3 手写 SPA）+ Auto 轨 `.at` 源（`src/front/*.at` → `auto build` → `gen/front/vue/`）。
+5. **双前端 parity**：原生 `web/`（Vue3 手写 SPA）+ Auto 轨 `.at` 源（`src/front/*.at` → `auto build` → `gen/front/vue/`）。Block 组件组已全量原生化（Plan 028）：纯函数/SSE/HTTP/样式以 .at 为单一真源，平台强依赖（markdown 渲染/SSE/HTTP）经平台协议声明（`platform:markdown`、`Sse.*`、`Http.*`），同源 .at 未来可直接复用于 VM/Rust 后端。
 
 ## 架构总览
 

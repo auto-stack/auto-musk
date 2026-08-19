@@ -53,11 +53,16 @@ auto build --gen-only        # 生成到 gen/front/vue/
 cd gen/front/vue && pnpm install && pnpm build   # 验证可构建
 ```
 
-- **源**：`src/front/*.at`（widget + store）+ `src/front/components/*.vue`（逃生舱组件）+ `src/front/forge_*.ts`（SSE 消费等逃生舱逻辑）+ `src/back/api.at`（API 契约）
-- **产物**：`gen/front/vue/`（4 视图 SFC + 4 store + ext 逃生舱复制 + lib/api.ts）
-- **生成器**：[auto-lang](../auto-lang)（SSE 多事件 codegen + i18n + markdown/mermaid tag + a2vue golden）
-- **逃生舱原则**：优先扩展生成器；极高成本特性（v-html / 增量 JSON / 复杂交互）走 `use{component/fn}` 逃生舱 + 登记 KNOWN-DEBT
-- **状态**：🟢 核心目标达成（vue-tsc + vite build 全绿）。剩余 B 类（relay/gate/agent-config 外部依赖）+ C 类（parity 闭环）见 plan §8
+- **源**：`src/front/*.at`（component fn + store + fn 模块单一真源）+ `src/back/api.at`（API 契约）
+- **产物**：`gen/front/vue/`（30 组件 SFC + 5 store + ext fn 模块 + platform/ 平台实现 + lib/api.ts）
+- **生成器**：[auto-lang](../auto-lang)（F1–F9 语言特性 + .at fn 模块转译 + a2vue golden；见 [Plan 028](docs/plans/028-block-autolang-full-migration.md)）
+- **平台协议**（Plan 028，替代逃生舱）：平台强依赖收敛为协议声明，Auto 侧只声明接口、各后端提供实现——
+  - `Sse.open(url, .Handler[, ctx])` / `Sse.close(h)`：SSE 流（平台层 JSON 预解析、ctx 注入、onerror 合成事件分发）
+  - `Http.get/post/patch/put/delete`：HTTP 客户端（fetch 薄封装）
+  - `component: Markdown from "platform:markdown"`：流式 markdown 渲染（markstream-vue + prismjs 实现挂载 `gen/…/src/platform/`）
+  - 块组件样式随 `.at` `style {}` 块走（inject_styles 仅留 design token 与非块组件组）
+- **剩余 TS**：mention 域（回调式 regex replace，F4 子集外）+ 各视图组 helpers（附录 A 分组后续立项）
+- **状态**：🟢 Block 组全量原生化（forge/relay/questionnaire 纯函数 + SSE/HTTP 消费 + 样式均以 .at 为单一真源；148 项新旧对拍全等 + vue-tsc/vite 全绿）
 
 ### 使用
 

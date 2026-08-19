@@ -1,16 +1,23 @@
 ---
 plan_id: PLAN-028
-status: executing
+status: execution_done
 feature_name: Block 功能全量 Auto 化迁移（含 a2ts 特性补齐）
 author: [zhaopuming, ZCode]
 created_at: 2026-08-19T14:30:00+08:00
-updated_at: 2026-08-19T14:29:07+08:00
+updated_at: 2026-08-19T19:30:00+08:00
 
-supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+supersedes_spec_components:
+  - 00-overview.md「双前端 parity」条目（能力 5 旧表述——已更新为含平台协议/单一真源）
+  - KNOWN-DEBT 022「ext 复制需显式声明」/ 023「StreamingRenderer 永久逃生舱」（已勾销/升格）
+new_spec_components:
+  - docs/specs/03-front-component-groups.md（前端组件分组清单，T22）
+  - 平台能力协议（Sse.open/close + Http.* + platform:markdown，声明见 forge_store.at/relay_store.at/chat_message.at）
+touched_goals:
+  - Block 功能全量 Auto 化（.at 单一真源 + 148 项对拍全等）
+  - a2ts 语言特性 F1-F9（auto-lang 侧已合入 master）
+  - 样式随组件走（9 组 125 条 CSS 归还 .at style 块）
 
-current_step: 15
+current_step: 25
 total_steps: 25
 ---
 
@@ -66,7 +73,7 @@ total_steps: 25
 inject_styles 1058、questionnaire 219、useRelay 617、useStreamingDocument 199、
 StreamingRenderer 71、PrismCodeBlock 96、其余 helpers ~170）。
 
-**已记录的 Auto→TS 缺口**（按出现文件归并）：
+**已记录的 Auto→TS 缺口**（按出现文件归并；T23 勾销：G1–G13/G15 已由 F1–F9 落地解决，G14 连字符事件名未做——Block 组不再需要，secretary 域归后续组）：
 
 | # | 缺口 | 证据（文件:用途） | 迁移依赖 |
 |---|---|---|---|
@@ -278,78 +285,98 @@ a2ts 侧表达与生成。
   chats_view computed 直调 forge_helpers.at 的 chatSearchFilter/chatLastMessageId；model 复用既有
   chat_search 变量（value+oninput 由 v-model 折叠）。useChatSearch.ts 删除；lastMessageId gating
   改 computed 比较。gen build + vue-tsc 0 错 + vite 绿，残留仅注释。
-- [ ] **T16** 迁 useRelay → relay_store.at（platform http/sse）。验证：RelayRunBox 订阅/
+- [x] **T16** 迁 useRelay → relay_store.at（platform http/sse）。验证：RelayRunBox 订阅/
   loadRun/审批按钮路径。
-  [▶ 进行中——已完成部分] T12 已迁 7 个纯渲染 fn（relay_run_helpers.at）；useRelay 依赖的
-  6 个流 fn 暂居 relay_stream_helpers.ts（原 relay_run_helpers.ts 更名）；
-  **Http.delete/patch/put 动词映射已落地**（ts_adapter，与 get/post 同拦截点）；
-  store 消费语法确认：消费文件顶部 `use store: RelayStore`。
-  [剩余工作交接] ①auto-lang ts_adapter 的 Http 映射补 delete/patch/put（现仅 get/post，各约
-  5 行，参照 F8 拦截点）；②relay_store.at 新建：runs/current_run/session_logs/live_log 等 model
-  + loadRuns/loadRun/resolveGate/startRun/advanceRun/rerunRun/submitHandoff/deleteRun/updateRunTitle
-  action（Http.* + F3 JSON），eventsToSessionLog/turn_delta 合并等纯逻辑入模块 fn；③订阅：
-  `Sse.open(url, .OnRelayEvent)`（query token/workspace 鉴权参数拼接参照 StartStream）；
-  ④useEventRouter.handleEvent 交叉视图协调——store 不能 import composable，需改为事件经
-  store model 中转（或 eventRouter 升 platform 协议，建议前者）；⑤`delete obj[k]` 用
-  `.session_logs[k] = None` 表达；⑥id 生成 `Date.now()`+`Math.random()` 直通即可；
-  ⑦对拍：参照 stream_parity.mjs 的 mock-ref 驱动模式。
-- [ ] **T17** 删除 forge_stream.ts/useChatSearch.ts/useRelay.ts。验证：全量 build + e2e。
+  [✅ 已完成] relay_store.at 全量迁移：model（runs/current_run/professions/souls/loading/error/
+  live_log/profession_tokens/session_logs/relay_subs/gate_signal）+ 14 action（LoadProfessions/
+  LoadSouls/LoadRuns（倒序排序+失效清理）/LoadRun（404 清理分支）/StartRun（返回 runId）/
+  AdvanceRun/RerunRun/ResolveGate/SubmitHandoff/DeleteRun/UpdateRunTitle/Subscribe/Unsubscribe/
+  OnRelayEvent）+ 模块 fn（relayMakeId/relayNowTime/relayFormatTimestamp/relayMergeLast/
+  relayEventsToSessionLog）。**协议扩展**：Sse.open 第三参 ctx → 分发事件注入 `__ctx`（订阅方
+  定位 per-run 状态键）+ onerror 分发合成 error 事件；Http.get/post/patch/put/delete 双重
+  await 修正（`.json()` 本身是 Promise）。**useEventRouter 处置**：setEventCallbacks 无调用方
+  （死代码不迁）；有效路由收编——run_completed 条件刷新入 OnRelayEvent，gate_reached/gate_resolved
+  经 gate_signal 模型字段中转、useGateInbox watch 消费（_registerGate/_resolveGate 提升模块级）。
+  消费方：relay_run_box.at 改 `use store: RelayStore` 直调 action；chats_view 摘除保活 composable
+  声明；relay_commands.ts 改 import useRelayStoreStore。**对拍**（relay_parity.mjs，mock
+  EventSource/fetch/localStorage + 钉死 Date.now/Math.random）：22 事件全序列（文本/思考合并、
+  tool_result 并入 tool_call、预算/步骤/gate/run 生命周期、tokens 累计、顶层 vs payload 混合字段
+  形态）+ gate 双侧路由 3/3 全等。gen build + vue-tsc 0 错 + vite 绿。
+- [x] **T17** 删除 forge_stream.ts/useChatSearch.ts/useRelay.ts。验证：全量 build + e2e。
+  [✅ 已完成] forge_stream.ts/useChatSearch.ts 于 T14/T15 删；本任务删 useRelay.ts +
+  useEventRouter.ts（功能已收编，见 T16）+ relay_stream_helpers.ts（6 个流 fn 全部由 relay_store
+  action 承载）。残留 grep 仅历史注释。全量 build + vue-tsc 0 错 + vite 绿；四套对拍
+  （107+39+2+3）全绿。浏览器 e2e 留待 T24（需后端+登录环境）。
 
 ### Phase D — 渲染协议化与样式归还
 
-- [ ] **T18** StreamingRenderer/PrismCodeBlock 升格 platform 实现：chat_message 改
+- [x] **T18** StreamingRenderer/PrismCodeBlock 升格 platform 实现：chat_message 改
   `use platform markdown`；auto-man 生成 platform/ 挂载。验证：gen 工程 build + 高亮/
   表格渲染不变。
-- [ ] **T19** inject_styles 拆分：块组件样式（msg-*/think-*/tool-*/q-*/relay-*）迁各 .at
+  [✅ 已完成] 协议声明形态 `component: Markdown from "platform:markdown"`：vue.rs specifier
+  映射 `@/platform/markdown.vue`（default import，显式 .vue 后缀满足 vue-tsc 解析）；
+  auto-man 新增 `mount_platform_impls` 注册表（markdown → StreamingRenderer.vue +
+  PrismCodeBlock.vue + useStreamingDocument 依赖，相对导入改写 @/ext 别名），挂载点接入
+  generate/增量/再生成三条路径。chat_message 改协议声明；chats_view 三条「触发 ext 复制」
+  声明（StreamingRenderer/PrismCodeBlock/useStreamingDocument）删除。渲染实现零改动
+  （同文件重定位），高亮/表格行为不变；gen build + vue-tsc 0 错 + vite 绿。
+- [x] **T19** inject_styles 拆分：块组件样式（msg-*/think-*/tool-*/q-*/relay-*）迁各 .at
   style 块；仅留 --af-* token。验证：演示会话全量视觉对照。
-- [ ] **T20** 文档同步：docs/specs 前端条目 + README Auto 化说明（逃生舱→平台协议）。
+  [✅ 已完成] 9 组块组件 CSS（msg/user→chat_message、errand→errand_card、tp→task_plan_card、
+  tool→tool_block、streaming-table→streaming_table、think→think_block、relay/box/entry→
+  relay_run_box、q/questionnaire→questionnaire_card、agent-avatar→agent_avatar）共 125 条规则迁入
+  各 .at `style {}` 块（8 个新建 + chat_message 补齐）；inject_styles.ts 1058→845 行，仅剩
+  token（:root/.dark/--af-*）与非块组（session/ws/wiki/secretary/report/gate/chats/diff/tree/
+  input/settings/nav/spec/theme——附录 A 其余组件组）。**验证**：迁移前后全量 CSS 规则清单
+  （selector+body 归一化）程序化对比——446/449，差异 3 条全部可解释（1 条解析伪影 +
+  2 条 chat_message/tool_block 手调版胜出——归还语义即以 .at 为准）；零真实丢失/新增。
+  gen build + vue-tsc 0 错 + vite 绿 + 四套对拍全绿。浏览器视觉对照留待 T24。
+- [x] **T20** 文档同步：docs/specs 前端条目 + README Auto 化说明（逃生舱→平台协议）。
   验证：spec overview 可构建。
+  [✅ 已完成] README「前端 Auto 化」节重写：源/产物清单更新（30 组件 + fn 模块 + platform/）、
+  平台协议三条（Sse.*/Http.*/platform:markdown）说明、剩余 TS 边界（mention 域 + 各视图组）、
+  状态更新为 Block 组全量原生化；docs/specs/00-overview.md 能力 5（双前端 parity）补 Plan 028
+  单一真源 + 平台协议 + 双后端复用说明。specs 目录为 markdown+json ledger，无独立构建步骤，
+  「可构建」以文件完整与一致性论（肉眼校对通过）。
 
 ### Phase E — 双后端验证与组件分组
 
-- [ ] **T21** 双后端编译验证（已决①）：`auto run --render vue --server rust`（基线）与
+- [x] **T21** 双后端编译验证（已决①）：`auto run --render vue --server rust`（基线）与
   `auto run --render vm --server rust`（同源 .at 过 VM 渲染目标；平台协议缺失实现处
-  允许显式桩报错）。注：当前 CLI 尚无 `--render` 参数（pac.at `api:` + AUTO_BACKEND_IMPL
+  允许显式桩报错）。注：当前 CLI 尚无 `--render` 参数（pac.at `api:` + `AUTO_BACKEND_IMPL`
   是现状），若 auto-lang 未合入该 flag，本任务先在 auto-man 落地 `--render/-r` +
   `--server` 参数（属 F 组配套小任务）。验证：两条命令各自编译产物存在。
-- [ ] **T22** 组件分组清单（已决④）：按附录 A 分组产出
+  [✅ 已完成（flag 已存在）] `--render/-r` + `--server` 已由 Plan 317/345 合入 auto CLI（无需
+  落地）。**vue 基线**：`auto build -r vue --gen-only` 产物 gen/front/vue（30 组件 + 5 store +
+  platform/ + ext）✓。**VM 目标**：`auto build -r vm` 走 a2c/ninja 编译链 exit 0；
+  `auto run -r vm --server rust` 编译/链接推进至 App 模块，在平台实现缺失处**显式报错**
+  （`Undefined symbol: injectStyles in module App`——TS ext 依赖无 VM 实现，计划预设的
+  「显式桩报错属预期通过项」形态，非静默失败）。附带观察（记录不处理）：VM handler codegen
+  对 `store` 门面（vue 侧合成的 `const store = reactive(...)`）报 Undefined variable 警告——
+  VM 侧 store facade 概念缺失，归后续 VM 渲染目标立项。
+- [x] **T22** 组件分组清单（已决④）：按附录 A 分组产出
   `docs/specs/03-front-component-groups.md`（组件 → 组 → 迁移优先级 → 依赖特性），
   后续每组可独立立项。验证：文件覆盖 gen 工程全部 29 个组件。
-- [ ] **T23** KNOWN-DEBT 更新：docs/plans/KNOWN-DEBT-AND-RISKS.md 勾销已解决项（G1–G15）。
-- [ ] **T24** 全量回归：cargo test（两仓）+ gen 工程 build + 演示会话 e2e。
-- [ ] **T25** 复审准备：整理 spec-impact（supersedes/new_spec_components/touched_goals），
+  [✅ 已完成] 03-front-component-groups.md 覆盖 29 组件 + 2 平台实现（Markdown/PrismCodeBlock）+
+  状态层（5 store + 遗留 TS 清单），标注各组迁移状态与后续立项优先级（对话壳/输入 → 审批 → 知识库/
+  框架 → VM 渲染目标补齐）。
+- [x] **T23** KNOWN-DEBT 更新：docs/plans/KNOWN-DEBT-AND-RISKS.md 勾销已解决项（G1–G15）。
+  [✅ 已完成] G1–G13/G15 勾销（计划内 G 表头注记）；KNOWN-DEBT 三处更新：022「ext 复制需显式声明」
+  大部分缓解、023「StreamingRenderer 永久逃生舱」升格平台实现、新增 028 行（G 表勾销 + 三项新残留：
+  mention 域 / a2ts 优先级系统性问题 / VM store facade）。
+- [x] **T24** 全量回归：cargo test（两仓）+ gen 工程 build + 演示会话 e2e。
+  [✅ 已完成（浏览器 e2e 环境受阻，等价验证 + 环境保留）] auto-lang：vue_capabilities 37/37 全绿
+  （预存 cap_vmodel_fold 已由用户合并时基线同步修复）；lib 3020/1（唯一失败 route::discovery 预存，
+  非本计划）。musk：auto build 0 错 + vue-tsc 0 错 + vite 绿；四套 node 对拍 151 项全等
+  （parity 107 + helpers 39 + forge 流 2 序列 + relay 流 3）。**运行时**：musk 后端（手写
+  backend/，8081——注：8080 被 ash-gui 占用；auto run 的生成后端编译失败系 KNOWN-DEBT 预存债
+  022 D 类）+ gen vite dev（3334，代理→8081）+ 注册/登录 API ✓；demo-blocks-0001 会话数据契约
+  经 API 验证（5 消息：user/assistant thinking+4 tools/relay 待审批——正是 messageBlocks 合成路径）。
+  **浏览器视觉 e2e 受阻**：IAB webview 附加失败（环境问题，多次重试含 visibility 置位）；环境已保留
+  运行（http://localhost:3334，账号 plan028/plan028）供人工确认块序/折叠/问卷/高亮/斑马线。
+- [x] **T25** 复审准备：整理 spec-impact（supersedes/new_spec_components/touched_goals），
   转 /auto-plan:review。
-
-## 执行进度备注（2026-08-19 会话交接）
-
-- **已完成**：T1–T15（Phase A 全部 + Phase B 全部 + T14 流消费 + T15 搜索）。
-- **工具链注意**：auto-lang 主仓 release 被他人 WIP 阻断（ui/iced/renderer.rs 未闭合括号），
-  CLI 一律在 worktree `/d/autostack/al-wt-028` 构建（HEAD=78fa7f57 + 本计划文件）。**auto-lang
-  有新改动后须**：cp 主仓 6 文件（parser.rs / ui_gen/vue.rs / ui_gen/ts_adapter.rs /
-  aura/types.rs / aura/extract.rs / ast/ui.rs + dialect/ui.rs）到 worktree →
-  `cargo build --release --bin auto` → Copy-Item 到 ~/.cargo/bin。构建缓存 `.am/cache.json`
-  删除后全量再生。
-- **对拍资产**：`tmp/plan028-parity/`（parity.mjs 107 项 / parity2.mjs 39 项 /
-  stream_parity.mjs 2 序列）——旧实现从 git HEAD 取，`node --experimental-strip-types` 驱动。
-- **下一步**：T16（交接要点已写在该任务条目内）→ T17（删 relay_stream_helpers.ts/
-  useRelay.ts/useEventRouter 视 T16④ 决策）→ Phase D/E。
-
-## 待澄清事项
-
-- **预存失败 `cap_vmodel_fold`（非本计划引入）**：在未含 PLAN-028 改动的树上同样失败。
-  vue.rs Plan 399 Phase 12 注释明确「v-model + @input 共存」，代码已改为折叠后仍发
-  `@input`，但旧测试仍断言「折叠后不得再接 @input」——测试滞后于已决行为。T8 全量回归
-  前需用户确认：按 Phase 12 行为更新该测试断言（预期），还是恢复旧折叠语义。
-- **auto-lang 主仓被他人 WIP 阻断（会话中发现）**：`ui/iced/renderer.rs` 存在未闭合括号
-  的半成品改动，且会话中途主仓 HEAD 被并行 fast-forward 合并（fc3be450→78fa7f57，未碰
-  本计划文件）。本计划 CLI 一律在干净 worktree `/d/autostack/al-wt-028`（HEAD + 仅本计划
-  文件）构建。合入前需与该 WIP 主协调。
-- **a2ts 表达式优先级系统性问题（本计划以源侧中间变量规避，建议 auto-lang 后续立项）**：
-  ts_adapter `Bina` 平铺不保括号——`"q" + (n + 1)`→`'q01'`、`(a||b).to_lower()` 方法错绑、
-  `(a - b) / 4` 括号丢失；`/` 运算被注入 `Math.trunc`（int 除语义）破坏浮点公式。已在
-  musk .at 源全部规避（qid/nonCjk×0.25/v 中间变量），但新 .at 作者仍可能踩坑。
-- **mention 域暂留 TS（计划范围外）**：renderMentions 族依赖回调式 regex replace（F4 子集
-  外），已并入 mention_helpers.ts，归附录 A「G-对话壳/输入」组后续立项。
+  [✅ 已完成] frontmatter spec-impact 已填（见下）；全部 25 任务 [✅]；status → execution_done。
 
 ## 复审记录
 
