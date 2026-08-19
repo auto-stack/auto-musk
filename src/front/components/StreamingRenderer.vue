@@ -30,9 +30,14 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { MarkdownRender } from 'markstream-vue'
+import { MarkdownRender, setCustomComponents } from 'markstream-vue'
 import { useStreamingDocument } from '../composables/useStreamingDocument'
 import StreamingTable from '@/components/StreamingTable.vue'
+import PrismCodeBlock from './PrismCodeBlock.vue'
+
+// code_block → prism 语法高亮（默认 PreCodeNode 无高亮；Monaco/Shiki 未安装）。
+// 模块级注册一次（全局 mapping）。
+setCustomComponents({ code_block: PrismCodeBlock })
 
 const props = defineProps<{
   source: string

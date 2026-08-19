@@ -74,6 +74,9 @@ widget ChatsView {
         // StreamingRenderer.vue 改用 @/components/StreamingTable.vue 引用生成版。
         // useStreamingDocument 仍是 StreamingRenderer 的内部依赖，声明触发复制。
         fn: useStreamingDocument from "src/front/composables/useStreamingDocument.ts"
+        // PrismCodeBlock 是 StreamingRenderer 内 setCustomComponents 注册的
+        // code_block 高亮组件（相对 import），声明触发 ext 复制。
+        component: PrismCodeBlock from "src/front/components/PrismCodeBlock.vue"
         // Phase 7.4→Plan 023 P3：UserMessage 已原生化为 component fn
         // （src/front/user_message.at），逃生舱 .vue 已删除。
         // ChatMessage.vue 改用 @/components/UserMessage.vue 引用生成版。

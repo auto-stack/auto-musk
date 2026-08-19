@@ -6,6 +6,11 @@
 //
 // 逃生舱说明：AutoUI .at 无法表达 scoped CSS，用 use { fn } 在 App.Init 注入。
 
+// markstream-vue 渲染器样式（表格边框/表头背景/行内代码配色等 design token）。
+// 原生 web/ 在 main.ts 引入；gen 工程的 main.ts 由 codegen 生成不可改，
+// 故在此引入（模块加载即注入，效果等价）。
+import 'markstream-vue/index.css'
+
 const STYLES = `
 /* ── 字体（Noto Sans SC）── */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
@@ -1027,6 +1032,11 @@ a { color: hsl(var(--primary)); }
 }
 .think-header:hover { background: hsl(var(--muted) / 0.5); }
 .think-header .tool-chevron { margin-left: auto; }
+
+/* ── Markdown 表格补充：斑马线背景（markstream index.css 已含边框/表头底色） ── */
+.markstream-vue .table-node tbody tr:nth-child(even) td {
+  background: hsl(var(--ms-muted) / 0.55);
+}
 .think-content {
   margin: 0; padding: 0.55rem 0.75rem;
   font-size: 0.78rem; line-height: 1.5;
