@@ -103,13 +103,13 @@ component fn SettingsMenu() {
   .mode-btn:hover { background: hsl(var(--accent)); }
   .mode-btn.active { background: hsl(var(--primary)); border-color: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
   .accent-swatches { display: flex; gap: 0.5rem; padding: 0 0.3rem; }
-  .accent-swatch {
+  .accent-swatches > button {
     width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent;
     cursor: pointer; display: flex; align-items: center; justify-content: center;
-    color: #fff; transition: transform 0.1s;
+    color: #fff; transition: transform 0.1s; padding: 0; min-width: 24px;
   }
-  .accent-swatch:hover { transform: scale(1.1); }
-  .accent-swatch.active { border-color: hsl(var(--foreground)); }
+  .accent-swatches > button:hover { transform: scale(1.1); }
+  .accent-swatches > button:has(svg) { border-color: hsl(var(--foreground)); }
   .theme-options { display: flex; flex-direction: column; gap: 2px; }
   .theme-option {
     display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.5rem;
@@ -189,12 +189,14 @@ component fn SettingsMenu() {
                     div {
                         style: "accent-swatches"
                         for opt in .accentOptions {
+                            // 注:shadcn Button 映射会丢弃动态 class/title
+                            // (codegen 缺口,登记 auto-lang 债务)——样式改走
+                            // .accent-swatches>button 容器选择器,选中态用
+                            // :has(svg)(Check 图标存在即选中)。
                             button {
                                 onclick: .SetAccent(.opt.name)
                                 key: .opt.name
-                                class: if .accentCurrent == .opt.name { "accent-swatch active" } else { "accent-swatch" }
                                 style: "background: " + .opt.brand1
-                                title: .opt.label
                                 if .accentCurrent == .opt.name {
                                     Check { size: 12, key: .opt.name }
                                 }
