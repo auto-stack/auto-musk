@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-028
-status: execution_done
+status: review_done
 feature_name: Block 功能全量 Auto 化迁移（含 a2ts 特性补齐）
 author: [zhaopuming, ZCode]
 created_at: 2026-08-19T14:30:00+08:00
@@ -379,6 +379,20 @@ a2ts 侧表达与生成。
   [✅ 已完成] frontmatter spec-impact 已填（见下）；全部 25 任务 [✅]；status → execution_done。
 
 ## 复审记录
+
+- **复审人**:ZCode(auto-plan:review)· **时间**:2026-08-20 · **结论**:✅ review_done
+
+| 验收标准 | 判定 | 证据 |
+|---|---|---|
+| 1. Block 相关 TS 仅剩平台实现两件套 | ✅ pass | `ls src/front/components/` = StreamingRenderer.vue + PrismCodeBlock.vue;forge_stream/useChatSearch/useRelay.ts 等已删(relay_command_runner 引用的是 .at 生成的 pinia store,非逃生舱) |
+| 2. auto build + vue-tsc + vite build 全绿 | ✅ pass | 复审当日重验:build 0 错 / vue-tsc 0 错 / vite ✓(node_modules 意外损坏后 pnpm 重装备注见下) |
+| 3. 演示会话 e2e 与迁移前一致 | ✅ pass | 复审会话内多次浏览器实测:💭已思考·67 tokens/代码块工具栏(复制/折叠)/表格斑马线/问卷卡 DOM 全在,截图佐证 |
+| 4. vue_capabilities 新增 ≥10 golden 零回归 | ✅ pass | `cargo test --test vue_capabilities` 40/40 通过;lib 侧 vue 相关 217/217 |
+| 5. 同源 .at 经 VM/Rust 后端编译/缺失显式报错 | ✅ pass | 执行期 T21 双轨验证记录;mount_platform_impls 注册表在位(crates/auto-man/src/vue.rs) |
+
+**复审发现(非阻塞,已处置)**:
+1. 计划完结后暴露 4 个视觉回归(Thinking 块消失/工具卡样式失效/代码块白条/块间距),根因后端二进制过期 + scoped 样式打不到子组件 + CSS 选择器笔误——已修复(5850c0d)。启示:e2e 快照应覆盖「样式生效性」而非仅 DOM 存在性。
+2. node_modules 曾因 worktree 清理穿透 junction 部分损坏(复审中 pnpm install 恢复,构建链复验全绿)——worktree 含 junction 时应先摘链再删。
 
 （待 /auto-plan:review 填写）
 

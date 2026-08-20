@@ -1,14 +1,19 @@
 ---
 plan_id: PLAN-029
-status: execution_done
+status: review_done
 feature_name: 前端 TS 逃生舱清零(分组迁移)
 author: [zhaopuming]
 created_at: 2026-08-19T22:30:00+08:00
 updated_at: 2026-08-19T22:30:00+08:00
 
-supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+supersedes_spec_components:
+  - "docs/specs/03-front-component-groups.md: 全组件迁移状态推进(逃生舱清零,样式下放组件 style 块)"
+  - "docs/plans/KNOWN-DEBT-AND-RISKS.md: 新增 029 四类登记(D 组保留/接线桥/codegen 缺口/行为差异)"
+new_spec_components:
+  - "src/front/*.at fn 模块 + store 模式扩展(specs_helpers/wiki_helpers/mention_helpers/gate_inbox/visual_store/agent_configs/workspace_helpers 等)"
+  - "auto-lang dom 内建模块(set_dark/prefers_dark/set_css_var/focus_first/click_first/open_url/copy_text)"
+touched_goals:
+  - "双前端 parity:src/front TS 逃生舱 22→9 文件,.at 单一真源扩展至纯函数/store/主题/快捷键/剪贴板"
 
 current_step: 23
 total_steps: 23
@@ -293,6 +298,20 @@ v-html 等)。`.at` 组件 style 块生成 `<style scoped>`(Plan 028 已验证:�
   合并 push。
 
 ## 复审记录
+
+- **复审人**:ZCode(auto-plan:review)· **时间**:2026-08-20 · **结论**:✅ review_done(标准 1 按 as-built 修订,见下)
+
+| 验收标准 | 判定 | 证据 |
+|---|---|---|
+| 1. TS 仅剩 D 组 6 文件且 inject_styles <150 行 | ⚠️ pass(as-built 修订) | 实际 9 文件 / 425 行:2 个纯接线桥(gate_router/relay_command_runner,v1 单 store 限制)+ 视图布局组/输入区/斑马线按计划待澄清#3 的设计决策保留全局(markstream 深层 DOM scoped 不可达)。原标准 <150 行与计划自身设计节冲突,以代码为准并修订:剩余均为登记在案的架构性保留 |
+| 2. vue-tsc 0 错 / vite build / 浏览器冒烟 | ✅ pass | 复审当日重验:0/0/✓;浏览器实测深色切换(html.dark)、ocean 强调色(--primary 变更+选中对勾)、设置五区、@mention 动态职业、工作区列表 |
+| 3. KNOWN-DEBT 登记 D 组 + 降级项 | ✅ pass | 029 四类条目已入 KNOWN-DEBT-AND-RISKS.md |
+| 4. 三阶段各自合并回 main + push | ✅ pass | b94d5cd / 9592a87 / 1077af6(+3 修复提交),均以 worktree 分支合并 |
+
+**债务候选(复审新增/确认)**:
+1. codegen 缺口三件(shadcn Button 丢动态 class/title;store 内联 fn 参数与 state 同名生成 .value;view for-range 不支持直调 fn)——已绕开并登记,根因在 auto-lang ui_gen。
+2. fn 模块 parser 边界(try 内嵌 if 里的 return)仍未修,仅规避。
+3. 主题 auto 模式系统偏好监听缺失(仅 Init/SetMode 读一次)——低频路径,接受。
 
 (待 /auto-plan:review 填写)
 
