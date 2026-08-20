@@ -10,8 +10,8 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 23 # all done
-total_steps: 22
+current_step: 23
+total_steps: 23
 ---
 
 # [PLAN-029] 前端 TS 逃生舱清零(分组迁移)
@@ -246,7 +246,7 @@ v-html 等)。`.at` 组件 style 块生成 `<style scoped>`(Plan 028 已验证:�
 - [x] **T8** `src/front/mention_helpers.ts` → `src/front/mention_helpers.at`(16 fn +
   DEFAULT_PROFESSIONS);6 个消费 .at 改引(含 forge_helpers.at);删原 .ts。
   验证:对拍 renderMentions("hi @Agent x")/mention_insert 等 ≥8 个用例;vue-tsc。
-- [ ] **T9** Phase A 验证 + 合并:vue-tsc + vite build + 浏览器冒烟(聊天 mention
+- [x] **T9** Phase A 验证 + 合并:vue-tsc + vite build + 浏览器冒烟(聊天 mention
   下拉/@高亮/gate 卡/session token 数);`git checkout main && git merge wt/029-A &&
   git push`;重建主仓 gen(`auto build --gen-only`)+ 提交产物验证。
 
@@ -267,7 +267,7 @@ v-html 等)。`.at` 组件 style 块生成 `<style scoped>`(Plan 028 已验证:�
 - [x] **T15** settings_helpers → `src/front/settings_helpers.at`(forge_mode 经 Http;
   locale/open_url 留 C);app.at/settings_menu.at 部分改引。
   验证:设置菜单 forge_mode 读写后端。
-- [ ] **T16** Phase B 验证 + 合并(同 T9 流程;冒烟加:gate 横幅/工作区下拉/relay 命令/设置)。
+- [x] **T16** Phase B 验证 + 合并(同 T9 流程;冒烟加:gate 横幅/工作区下拉/relay 命令/设置)。
 
 ### Phase C:dom API + 主题/快捷键/样式(7 任务)
 
