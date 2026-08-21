@@ -71,10 +71,12 @@ async function loadRunHistory(runId: string): Promise<RunHistory | null> {
             tool_name: t.tool?.name ?? '', arguments: t.tool?.args ?? undefined, result: '',
           })
         } else if (k === 'tool_result') {
-          // 并入最近一个 tool 条目（展开态显示结果）
+          // 并入最近一个 tool 条目（展开态显示结果）。结果字段双兼容：
+          // 新版镜像写 t.content；旧版会话写 t.tool.result（content 空）。
+          const res = String(t.content ?? '') || String(t.tool?.result ?? '')
           for (let j = entries.length - 1; j >= 0; j--) {
             if (entries[j].type === 'tool_call' || entries[j].type === 'tool') {
-              entries[j].result = t.content ?? ''
+              entries[j].result = res
               entries[j].type = 'tool'
               break
             }

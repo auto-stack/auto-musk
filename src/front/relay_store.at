@@ -408,7 +408,15 @@ fn relayHistoryFromConversation(conv Value) Value {
                     }
                 }
                 if lastTool != None {
-                    lastTool.result = (t.content ?? "")
+                    // 结果字段双兼容：新版镜像写 t.content；旧版会话写
+                    // t.tool.result（content 空）——否则回放工具卡结果全空
+                    var gres str = t.content ?? ""
+                    if gres == "" {
+                        if t.tool != None {
+                            gres = t.tool.result ?? ""
+                        }
+                    }
+                    lastTool.result = gres
                     lastTool.type = "tool"
                 }
             } else if k == "gate" {
