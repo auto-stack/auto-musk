@@ -57,6 +57,38 @@ fn relayClipText(s str, n int) str {
     return s
 }
 
+
+/** 收起态预览：run 内最新一个变化的一行摘要（工具→名称+目标；文本→尾部）。 */
+fn relayLatestPreview(entries Value) str {
+    let list = entries ?? []
+    var i int = list.length - 1
+    while i >= 0 {
+        let e = list[i]
+        let ty = e.type ?? ""
+        if ty == "tool" || ty == "tool_call" {
+            let target = relayToolTarget(e)
+            if target != "" {
+                return "🔧 " + (e.tool_name ?? "") + " — " + target
+            }
+            return "🔧 " + (e.tool_name ?? "")
+        }
+        let c = e.content ?? ""
+        if c != "" {
+            if ty == "step_started" || ty == "step_completed" { return c }
+            if ty == "gate_waiting" { return "⏸ " + c }
+            if ty == "run_completed" { return "✅ " + c }
+            if ty == "error" { return "❌ " + c }
+            // 流式文本/思考：取尾部
+            if c.length > 80 {
+                return "…" + c.substring(c.length - 80, 80)
+            }
+            return c
+        }
+        i = i - 1
+    }
+    return ""
+}
+
 /** 职业→图标。 */
 fn relayProfessionIcon(id str) str {
     let icons map = {

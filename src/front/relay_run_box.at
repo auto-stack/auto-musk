@@ -18,7 +18,7 @@ use store: RelayStore
 component fn RelayRunBox(runId: str) {
     use {
         component: ChevronDown, ChevronRight, Orbit, Wrench from "lucide-vue-next"
-        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget from "src/front/relay_run_helpers.at"
+        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget, relayLatestPreview from "src/front/relay_run_helpers.at"
     }
     computed {
         run => relayFindRun(store.runs, store.current_run, .runId)
@@ -37,6 +37,10 @@ component fn RelayRunBox(runId: str) {
         hasWaitingGate => .waitingGate != None
         gateStepId => if .hasWaitingGate { .waitingGate.step_id } else { "" }
         logEntries => if .hasRun || .hasHistory == false { relaySessionLogFor(store.session_logs, .runId) } else { .history.entries }
+        // 运行中（实时 run 且状态 running）→ 图标旋转
+        isLiveRunning => .hasRun && .status == "running"
+        // 收起态预览：run 内最新一个变化（gate 时由审批条接管）
+        latestPreview => relayLatestPreview(.logEntries)
     }
     msg Msg { Toggle, ToggleEntry(Value), Approve, Reject }
     model {
@@ -111,6 +115,21 @@ component fn RelayRunBox(runId: str) {
 .tool-args { background: hsl(0 0% 96%); }
 .tool-result { background: hsl(140 30% 96%); border-top: 1px dashed var(--af-border); }
 .gate-strip { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem; border-top: 1px dashed hsl(38 92% 50%); background: hsl(38 92% 50% / 0.06); }
+@keyframes rb-spin { to { transform: rotate(360deg); } }
+.run-icon.spinning { animation: rb-spin 1.2s linear infinite; }
+@keyframes rb-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+.live-preview {
+  display: flex; align-items: center; gap: 0.45rem; padding: 0.32rem 0.75rem;
+  border-top: 1px solid var(--af-border); background: hsl(var(--primary) / 0.03);
+}
+.live-preview-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  background: hsl(var(--primary)); animation: rb-pulse 1.4s ease-in-out infinite;
+}
+.live-preview-text {
+  flex: 1; font-size: 0.74rem; color: var(--af-fg-secondary, #777);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .gate-strip-prompt { flex: 1; font-size: 0.78rem; color: hsl(38 60% 35%); }
 .entry-step { color: var(--af-muted); font-size: 0.75rem; padding: 0.2rem 0; }
 .entry-step.done { color: hsl(142 71% 45%); }
@@ -156,7 +175,11 @@ component fn RelayRunBox(runId: str) {
             } else {
                 ChevronRight { size: 14 }
             }
-            Orbit { size: 14 }
+            // 运行态：图标旋转（正在执行的活性指示）
+            Orbit {
+                size: 14,
+                class: if .isLiveRunning { "run-icon spinning" } else { "run-icon" }
+            }
             span {
                 style: "box-title"
                 text .titleText
@@ -174,9 +197,9 @@ component fn RelayRunBox(runId: str) {
                 text .statusLabel
             }
         }
-        // 收起态审批条：停靠 gate 且未展开时，标题栏正下方内联审批
-        //（不自动展开长日志、无滚动跳变；展开后由底部完整审批区接管）
-        if .hasWaitingGate && .expanded == false {
+        // 收起态：停靠 gate → 审批条；否则 → 最新动态预览小框（一行）
+        //（预览/审批随 SSE 事件自动更新，无需点开）
+        if .expanded == false && .hasWaitingGate {
             div {
                 style: "gate-strip"
                 span {
@@ -192,6 +215,18 @@ component fn RelayRunBox(runId: str) {
                     style: "gate-btn reject"
                     onclick: .Reject
                     text "拒绝"
+                }
+            }
+        }
+        if .expanded == false && .hasWaitingGate == false && .missing == false {
+            div {
+                style: "live-preview"
+                span {
+                    style: "live-preview-dot"
+                }
+                span {
+                    style: "live-preview-text"
+                    text .latestPreview
                 }
             }
         }

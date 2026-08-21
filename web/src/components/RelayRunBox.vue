@@ -3,10 +3,17 @@
     <!-- Collapsed header -->
     <div class="box-header" @click="toggle">
       <component :is="expanded ? ChevronDown : ChevronRight" :size="14" />
-      <Orbit :size="14" />
+      <Orbit :size="14" :class="{ spinning: isLiveRunning }" />
       <span class="box-title">{{ boxTitle }}</span>
       <span class="box-progress" v-if="run">{{ run.current_step }}/{{ run.total_steps }}</span>
       <span class="box-status" :class="`badge-${statusClass}`">{{ statusLabel }}</span>
+    </div>
+
+    <!-- 收起态最新动态预览：一行展示 run 内最新一个变化（随 SSE 自动更新；
+         停靠审批时由审批条接管） -->
+    <div v-if="!expanded && !waitingGate && !missing && latestPreview" class="live-preview">
+      <span class="live-preview-dot"></span>
+      <span class="live-preview-text">{{ latestPreview }}</span>
     </div>
 
     <!-- 收起态审批条：停靠人工 gate 且未展开时，标题栏下方直接内联审批
@@ -144,6 +151,31 @@ const logEntries = computed(() =>
 
 const waitingGate = computed(() => run.value?.waiting_for_gate ?? null)
 
+// 运行中（实时 run 且状态 running）→ 图标旋转的活性指示
+const isLiveRunning = computed(
+  () => run.value != null && !historyMode.value && run.value.status === 'running'
+)
+
+/** 收起态预览：最新一个变化的一行摘要（工具→名称+目标；文本→尾部）。 */
+const latestPreview = computed(() => {
+  const entries = logEntries.value
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const e = entries[i] as any
+    if (e.type === 'tool' || e.type === 'tool_call') {
+      const t = toolTarget(e)
+      return `🔧 ${e.tool_name ?? ''}${t ? ' — ' + t : ''}`
+    }
+    const c = e.content ?? ''
+    if (!c) continue
+    if (e.type === 'step_started' || e.type === 'step_completed') return c
+    if (e.type === 'gate_waiting') return `⏸ ${c}`
+    if (e.type === 'run_completed') return `✅ ${c}`
+    if (e.type === 'error') return `❌ ${c}`
+    return c.length > 80 ? '…' + c.slice(-80) : c
+  }
+  return ''
+})
+
 /** 工具条目的操作目标（与聊天侧工具卡的展示口径一致）。 */
 function toolTarget(entry: any): string {
   const a = entry.arguments || {}
@@ -237,6 +269,22 @@ onUnmounted(() => {
   background: hsl(38 92% 50% / 0.06);
 }
 .gate-strip-prompt { flex: 1; font-size: 0.78rem; color: hsl(38 60% 35%); }
+
+@keyframes rb-spin { to { transform: rotate(360deg); } }
+.spinning { animation: rb-spin 1.2s linear infinite; }
+@keyframes rb-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+.live-preview {
+  display: flex; align-items: center; gap: 0.45rem; padding: 0.32rem 0.75rem;
+  border-top: 1px solid var(--af-border); background: hsl(var(--primary) / 0.03);
+}
+.live-preview-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  background: hsl(var(--primary)); animation: rb-pulse 1.4s ease-in-out infinite;
+}
+.live-preview-text {
+  flex: 1; font-size: 0.74rem; color: var(--af-fg-secondary, #777);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 /* 工具条目卡片（与聊天侧工具卡同款交互：默认收起/显示目标/点击展开） */
 .entry-tool-card { border: 1px solid var(--af-border); border-radius: 6px; overflow: hidden; }
