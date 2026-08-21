@@ -24,6 +24,9 @@ store RelayStore {
         var profession_tokens Value = {}
         // runId → 会话日志条目数组
         var session_logs Value = {}
+        // runId → 历史回放（run 内存态被 serve 重启清空后，从持久化 Flow
+        // 会话重建的只读视图：{status,title,entries}）
+        var run_histories Value = {}
         // runId → SSE 订阅句柄（Sse.open 产物；close 经 Sse.close）
         var relay_subs Value = {}
         // relay gate 事件中转信号（useGateInbox watch 消费：{kind: reached|resolved, ...}）
@@ -33,6 +36,7 @@ store RelayStore {
     msg Msg {
         LoadRuns(str),
         LoadRun(str),
+        LoadRunHistory(str),
         StartRun(obj),
         AdvanceRun(str),
         ResolveGate(str, str, str),
@@ -61,6 +65,19 @@ store RelayStore {
             } catch {
                 .error = "load runs failed"
                 .runs = []
+            }
+        }
+
+        // 历史回放：run 不在内存（服务重启/历史消息）时，从持久化 Flow 会话
+        // （= run 日志唯一归档，D7）重建只读视图。无会话（已删）保持空 → UI 失效态。
+        .LoadRunHistory(runId) -> {
+            try {
+                let data = Http.get("/api/conversations/" + encodeURIComponent(runId))
+                if data.id != None {
+                    .run_histories[runId] = relayHistoryFromConversation(data)
+                }
+            } catch {
+                // 无会话或网络异常 → 不写历史，保持失效态
             }
         }
 
@@ -312,6 +329,74 @@ fn relayMergeLast(log Value, ty str, prof str, text str) bool {
 }
 
 /** 持久化 events → 会话日志（历史 run 重建，对应旧 eventsToSessionLog）。 */
+fn relayHistoryFromConversation(conv Value) Value {
+    // run 历史回放重建：turns（流式 message 按来源合并）→ 回放条目；
+    // 状态从 system turns 推导（conversation.status 对 REST 启动的 run 不可靠）。
+    var entries List<Value> = []
+    var bufProf str = ""
+    var bufText str = ""
+    var sawCompleted bool = false
+    var sawFailed bool = false
+    let turns = conv.turns ?? []
+    var i int = 0
+    while i < turns.length {
+        let t = turns[i]
+        let k = t.kind ?? ""
+        if k == "message" {
+            let prof = t.from ?? "unknown"
+            if prof == bufProf {
+                bufText = bufText + (t.content ?? "")
+            } else {
+                if bufText != "" {
+                    entries.push({ id: "h" + entries.length, profession_id: bufProf, type: "text", content: bufText })
+                }
+                bufProf = prof
+                bufText = t.content ?? ""
+            }
+        } else {
+            if bufText != "" {
+                entries.push({ id: "h" + entries.length, profession_id: bufProf, type: "text", content: bufText })
+                bufText = ""
+                bufProf = ""
+            }
+            if k == "tool_call" {
+                var tname str = ""
+                if t.tool != None {
+                    tname = t.tool.name ?? ""
+                }
+                entries.push({ id: "h" + entries.length, profession_id: t.from ?? "unknown", type: "tool_call", content: "", tool_name: tname })
+            } else if k == "gate" {
+                entries.push({ id: "h" + entries.length, profession_id: "system", type: "gate_waiting", content: "等待人工审批" })
+            } else if k == "system" {
+                let c = t.content ?? ""
+                if c.starts_with("Step '") {
+                    if c.contains(" completed") {
+                        entries.push({ id: "h" + entries.length, profession_id: "system", type: "step_completed", content: c })
+                    } else if c.contains(" started") {
+                        entries.push({ id: "h" + entries.length, profession_id: "system", type: "step_started", content: c })
+                    }
+                } else if c.contains("Flow completed") {
+                    sawCompleted = true
+                    entries.push({ id: "h" + entries.length, profession_id: "system", type: "run_completed", content: "Run 已完成（历史回放）" })
+                } else if c.contains("failed") {
+                    sawFailed = true
+                    entries.push({ id: "h" + entries.length, profession_id: "system", type: "error", content: c })
+                }
+            }
+        }
+        i = i + 1
+    }
+    if bufText != "" {
+        entries.push({ id: "h" + entries.length, profession_id: bufProf, type: "text", content: bufText })
+    }
+
+    var status str = "interrupted"
+    if sawCompleted { status = "completed" }
+    if sawFailed && sawCompleted == false { status = "failed" }
+    if (conv.status ?? "") == "failed" { status = "failed" }
+    return { status: status, title: conv.title ?? "", entries: entries }
+}
+
 fn relayEventsToSessionLog(runId str, events Value) Value {
     let result list = []
     for ev in events {

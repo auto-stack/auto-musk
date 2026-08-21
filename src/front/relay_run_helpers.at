@@ -4,20 +4,22 @@
 // 订阅/加载/审批 6 个 useRelay 依赖 fn 仍在 relay_run_helpers.ts —— 待 T16
 // relay_store.at（F8 平台协议）落地后并入。
 
-/** 在当前 run 或 runs 列表里找 run（currentRun 优先 + find 兜底）。 */
+/** 在当前 run 或 runs 列表里找 run（currentRun 优先 + find 兜底；
+ * 严格按 runId 匹配——找不到返回 None（历史回放/失效态由调用方处理）。 */
 fn relayFindRun(runs obj, currentRun obj, runId str) obj {
     if currentRun != None {
         if currentRun.run_id == runId { return currentRun }
     }
     let found = runs.find(r => r.run_id == runId)
-    return found ?? currentRun
+    return found ?? None
 }
 
 /** 状态→中文标签。 */
 fn relayStatusLabel(status str) str {
     let labels map = {
         "running": "运行中", "completed": "已完成", "failed": "失败",
-        "waiting_approval": "待审批", "idle": "就绪", "paused": "已暂停"
+        "waiting_approval": "待审批", "idle": "就绪", "paused": "已暂停",
+        "interrupted": "已中断"
     }
     let out = labels[status] ?? status
     if out == None { return "..." }
@@ -29,8 +31,9 @@ fn relayStatusClass(status str) str {
     if status == "completed" { return "completed" }
     if status == "failed" { return "failed" }
     if status == "waiting_approval" { return "gate" }
-    // 试用修复：run 失效（serve 重启清空内存态）
+    // 试用修复：run 失效（serve 重启清空内存态）/ 历史回放的已中断态
     if status == "missing" { return "missing" }
+    if status == "interrupted" { return "missing" }
     return "running"
 }
 

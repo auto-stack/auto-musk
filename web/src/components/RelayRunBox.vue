@@ -4,7 +4,7 @@
     <div class="box-header" @click="toggle">
       <component :is="expanded ? ChevronDown : ChevronRight" :size="14" />
       <Orbit :size="14" />
-      <span class="box-title">{{ run?.title || runId }}</span>
+      <span class="box-title">{{ boxTitle }}</span>
       <span class="box-progress" v-if="run">{{ run.current_step }}/{{ run.total_steps }}</span>
       <span class="box-status" :class="`badge-${statusClass}`">{{ statusLabel }}</span>
     </div>
@@ -63,7 +63,8 @@ import { useRelay } from '@/composables/useRelay'
 
 const props = defineProps<{ runId: string }>()
 
-const { runs, currentRun, loadRun, subscribeToRun, resolveGate, sessionLogFor } = useRelay()
+const { runs, currentRun, loadRun, loadRunHistory, subscribeToRun, resolveGate, sessionLogFor } = useRelay()
+import type { RunHistory } from '@/composables/useRelay'
 
 const expanded = ref(false)
 const gateBusy = ref(false)
@@ -72,18 +73,26 @@ let unsubscribe: (() => void) | null = null
 
 // Find this run: check currentRun first, then search runs list.
 // （修复：原 `?? currentRun.value` 兜底会错拿无关 run；严格按 runId 匹配，
-// 找不到就是 missing——例如历史消息引用的 run 已随 serve 重启清空。）
+// 找不到就走历史回放/失效态——例如历史消息引用的 run 已随 serve 重启清空。）
 const run = computed(() => {
   if (currentRun.value?.run_id === props.runId) return currentRun.value
   return runs.value.find(r => r.run_id === props.runId) as any ?? null
 })
 
-// 首次加载完成后仍找不到 → 失效态（run 是内存态，服务重启即清空）。
+// 历史回放（PLAN-030 试用反馈）：run 内存态被清空后，从持久化 run 日志
+// （Flow 会话，id=run_id）重建只读视图——run 块由此获得持久性。
+const history = ref<RunHistory | null>(null)
 const loaded = ref(false)
-const missing = computed(() => loaded.value && run.value == null)
+const missing = computed(() => loaded.value && run.value == null && history.value == null)
+const historyMode = computed(() => loaded.value && run.value == null && history.value != null)
 
 const statusClass = computed(() => {
   if (missing.value) return 'missing'
+  if (historyMode.value) {
+    if (history.value!.status === 'completed') return 'completed'
+    if (history.value!.status === 'failed') return 'failed'
+    return 'missing' // interrupted
+  }
   const s = run.value?.status ?? 'idle'
   if (s === 'completed') return 'completed'
   if (s === 'failed') return 'failed'
@@ -93,6 +102,10 @@ const statusClass = computed(() => {
 
 const statusLabel = computed(() => {
   if (missing.value) return '已失效'
+  if (historyMode.value) {
+    const m: Record<string, string> = { completed: '已完成', failed: '失败', interrupted: '已中断' }
+    return (m[history.value!.status] ?? '已中断') + '（历史）'
+  }
   const map: Record<string, string> = {
     running: '运行中', completed: '已完成', failed: '失败',
     waiting_approval: '待审批', idle: '就绪', paused: '已暂停',
@@ -100,7 +113,11 @@ const statusLabel = computed(() => {
   return map[run.value?.status ?? 'idle'] ?? run.value?.status ?? '...'
 })
 
-const logEntries = computed(() => sessionLogFor(props.runId))
+const boxTitle = computed(() => run.value?.title || history.value?.title || props.runId)
+
+const logEntries = computed(() =>
+  historyMode.value ? history.value!.entries : sessionLogFor(props.runId)
+)
 
 function toggle() {
   expanded.value = !expanded.value
@@ -136,9 +153,10 @@ watch(logEntries, async () => {
   }
 }, { deep: true })
 
-// Load run data on mount
+// Load run data on mount；内存 run 不在 → 回退到持久化 run 日志（Flow 会话）
 onMounted(async () => {
   await loadRun(props.runId)
+  if (!run.value) history.value = await loadRunHistory(props.runId)
   loaded.value = true
 })
 

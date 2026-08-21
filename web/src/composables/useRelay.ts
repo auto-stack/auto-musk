@@ -21,6 +21,76 @@ function sessionLogFor(runId: string): SessionLogEntry[] {
   return _sessionLogs.value[runId] ?? []
 }
 
+export interface RunHistory {
+  title: string
+  status: 'completed' | 'failed' | 'interrupted'
+  entries: SessionLogEntry[]
+}
+
+/**
+ * Run 历史回放（PLAN-030 试用反馈）：run 是内存态、serve 重启即清空，
+ * 但 run 日志持久化在 Flow 会话（id=run_id）里。内存 run 不在时从会话
+ * turns 重建只读视图：流式 message 按来源合并、system turns 推导终态。
+ */
+async function loadRunHistory(runId: string): Promise<RunHistory | null> {
+  try {
+    const resp = await authFetch(`/api/conversations/${runId}`)
+    if (!resp.ok) return null
+    const conv = await resp.json()
+    const entries: SessionLogEntry[] = []
+    let bufProf = ''
+    let bufText = ''
+    let sawCompleted = false
+    let sawFailed = false
+    const flush = () => {
+      if (bufText) {
+        entries.push({ id: `h${entries.length}`, time: '', profession_id: bufProf || 'unknown', type: 'text', content: bufText })
+        bufProf = ''
+        bufText = ''
+      }
+    }
+    for (const t of conv.turns ?? []) {
+      const k = t.kind ?? ''
+      if (k === 'message') {
+        const prof = t.from ?? 'unknown'
+        if (prof === bufProf) bufText += t.content ?? ''
+        else {
+          flush()
+          bufProf = prof
+          bufText = t.content ?? ''
+        }
+      } else {
+        flush()
+        if (k === 'tool_call') {
+          entries.push({ id: `h${entries.length}`, time: '', profession_id: t.from ?? 'unknown', type: 'tool_call', content: '', tool_name: t.tool?.name ?? '' })
+        } else if (k === 'gate') {
+          entries.push({ id: `h${entries.length}`, time: '', profession_id: 'system', type: 'gate_waiting', content: '等待人工审批' })
+        } else if (k === 'system') {
+          const c = t.content ?? ''
+          if (c.startsWith("Step '") && c.includes(' completed')) {
+            entries.push({ id: `h${entries.length}`, time: '', profession_id: 'system', type: 'step_completed', content: c })
+          } else if (c.startsWith("Step '") && c.includes(' started')) {
+            entries.push({ id: `h${entries.length}`, time: '', profession_id: 'system', type: 'step_started', content: c })
+          } else if (c.includes('Flow completed')) {
+            sawCompleted = true
+            entries.push({ id: `h${entries.length}`, time: '', profession_id: 'system', type: 'run_completed', content: 'Run 已完成（历史回放）' })
+          } else if (c.includes('failed')) {
+            sawFailed = true
+            entries.push({ id: `h${entries.length}`, time: '', profession_id: 'system', type: 'error', content: c })
+          }
+        }
+      }
+    }
+    flush()
+    let status: RunHistory['status'] = 'interrupted'
+    if (sawCompleted) status = 'completed'
+    else if (sawFailed || conv.status === 'failed') status = 'failed'
+    return { title: conv.title ?? '', status, entries }
+  } catch {
+    return null
+  }
+}
+
 export interface SessionLogEntry {
   id: string
   time: string
@@ -500,6 +570,7 @@ export function useRelay() {
     loading,
     error,
     loadRun,
+    loadRunHistory,
     startRun,
     advanceRun,
     resolveGate,

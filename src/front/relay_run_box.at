@@ -23,17 +23,20 @@ component fn RelayRunBox(runId: str) {
     computed {
         run => relayFindRun(store.runs, store.current_run, .runId)
         hasRun => .run != None
-        // 试用修复：找不到 run（serve 重启清空内存态）→ missing 失效态
-        status => if .run != None { .run.status } else { "missing" }
+        // 历史回放：run 内存态被清空后，从持久化 run 日志（Flow 会话）重建
+        history => store.run_histories[.runId] ?? None
+        hasHistory => .history != None
+        // 试用修复：run 与历史均无 → missing 失效态
+        status => if .run != None { .run.status } else { if .history != None { .history.status } else { "missing" } }
         statusClass => relayStatusClass(.status)
-        statusLabel => if .status == "missing" { "已失效" } else { relayStatusLabel(.status) }
-        titleText => relayRunTitle(.run, .runId)
+        statusLabel => if .run != None { relayStatusLabel(.status) } else { if .history != None { relayStatusLabel(.status) + "（历史）" } else { "已失效" } }
+        titleText => if .hasRun { relayRunTitle(.run, .runId) } else { if .history != None { .history.title } else { .runId } }
         progressCur => if .hasRun { .run.current_step } else { 0 }
         progressTotal => if .hasRun { .run.total_steps } else { 0 }
         waitingGate => relayWaitingGate(.run)
         hasWaitingGate => .waitingGate != None
         gateStepId => if .hasWaitingGate { .waitingGate.step_id } else { "" }
-        logEntries => relaySessionLogFor(store.session_logs, .runId)
+        logEntries => if .hasRun || .hasHistory == false { relaySessionLogFor(store.session_logs, .runId) } else { .history.entries }
     }
     msg Msg { Toggle, Approve, Reject }
     model {
@@ -46,6 +49,7 @@ component fn RelayRunBox(runId: str) {
         // （需要用户交互的块不能默认折叠）。
         .Init -> {
             store.LoadRun(.runId);
+            store.LoadRunHistory(.runId);
             if .waitingGate != None {
                 .expanded = true;
                 if !.subscribed {
@@ -154,8 +158,9 @@ component fn RelayRunBox(runId: str) {
         if .expanded {
             div {
                 style: "box-body"
-                // 试用修复：run 失效（serve 重启清空内存态）时展示提示而非空日志
-                if .run == None {
+                // 试用修复：run 与历史均无（已删除/从未存在）才提示失效；
+                // 有历史时 logEntries 已切到回放条目，正常渲染日志。
+                if .run == None && .hasHistory == false {
                     div {
                         style: "missing-note"
                         text "⚠️ Run 已失效（run 为内存态，服务重启后清空；活动日志见对应会话记录）。重新发送需求即可续跑——计划文件会幂等复用。"
