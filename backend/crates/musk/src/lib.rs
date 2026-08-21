@@ -178,15 +178,15 @@ pub fn build_agent_from_mode(
     // 2. Register tools filtered by the mode's whitelist.
     //    Empty whitelist = register all base tools.
     let all_tools: Vec<(&str, Arc<dyn auto_ai_agent::Tool>)> = vec![
-        ("read_file", Arc::new(tools::ReadFile)),
-        ("write_file", Arc::new(tools::WriteFile)),
-        ("edit_file", Arc::new(tools::EditFile)),
-        ("batch_replace", Arc::new(tools::BatchReplace)),
-        ("search", Arc::new(tools::Search)),
-        ("list_dir", Arc::new(tools::ListDir)),
-        ("list_symbols", Arc::new(tools::ListSymbols)),
-        ("glob", Arc::new(tools::Glob)),
-        ("run_command", Arc::new(tools::RunCommand)),
+        ("read_file", Arc::new(tools::ReadFile::new())),
+        ("write_file", Arc::new(tools::WriteFile::new())),
+        ("edit_file", Arc::new(tools::EditFile::new())),
+        ("batch_replace", Arc::new(tools::BatchReplace::new())),
+        ("search", Arc::new(tools::Search::new())),
+        ("list_dir", Arc::new(tools::ListDir::new())),
+        ("list_symbols", Arc::new(tools::ListSymbols::new())),
+        ("glob", Arc::new(tools::Glob::new())),
+        ("run_command", Arc::new(tools::RunCommand::new())),
         // Spec tools (Plan 009 P1a): read/write the Spec Ledger.
         ("read_specs", Arc::new(spec_tools::ReadSpecs::new())),
         ("list_specs", Arc::new(spec_tools::ListSpecs::new())),
@@ -265,6 +265,27 @@ pub fn build_agent_with_context(
             ("merge_plan", Arc::new(crate::plan_tools::MergePlan::from_ctx(&ctx))),
         ];
         for (name, tool) in &orch_tools {
+            if mode.tools.is_empty() || mode.tools.iter().any(|t| t == name) {
+                agent.register_shared(tool.clone());
+            }
+        }
+        // PLAN-030 复审修复：文件/命令工具覆盖注册为注入式 workspace root
+        // （thread-local root 在 tokio 线程迁移下失效，曾致相对路径回落进程
+        //   CWD、文件写穿 workspace 边界——E2E 实证）。
+        let ws_root: std::sync::Arc<std::path::PathBuf> =
+            std::sync::Arc::new(ctx.state.registry.get(&ctx.workspace_id).root.clone());
+        let scoped_file_tools: Vec<(&str, Arc<dyn auto_ai_agent::Tool>)> = vec![
+            ("read_file", Arc::new(crate::tools::ReadFile::with_root(ws_root.clone()))),
+            ("write_file", Arc::new(crate::tools::WriteFile::with_root(ws_root.clone()))),
+            ("edit_file", Arc::new(crate::tools::EditFile::with_root(ws_root.clone()))),
+            ("batch_replace", Arc::new(crate::tools::BatchReplace::with_root(ws_root.clone()))),
+            ("search", Arc::new(crate::tools::Search::with_root(ws_root.clone()))),
+            ("list_dir", Arc::new(crate::tools::ListDir::with_root(ws_root.clone()))),
+            ("list_symbols", Arc::new(crate::tools::ListSymbols::with_root(ws_root.clone()))),
+            ("glob", Arc::new(crate::tools::Glob::with_root(ws_root.clone()))),
+            ("run_command", Arc::new(crate::tools::RunCommand::with_root(ws_root.clone()))),
+        ];
+        for (name, tool) in &scoped_file_tools {
             if mode.tools.is_empty() || mode.tools.iter().any(|t| t == name) {
                 agent.register_shared(tool.clone());
             }

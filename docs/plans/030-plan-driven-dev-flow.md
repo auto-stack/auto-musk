@@ -4,7 +4,7 @@ status: review_done
 feature_name: 基于 Plan 的 Agent 开发流程（取代 spec 流水线）
 author: [zhaopuming]
 created_at: 2026-08-21T10:30:00+08:00
-updated_at: 2026-08-21T13:10:00+08:00
+updated_at: 2026-08-21T13:55:00+08:00
 
 # Leave these EMPTY here — /auto-plan:review fills them:
 supersedes_spec_components:
@@ -463,6 +463,7 @@ plan（无序号无 frontmatter）；relay 侧 `superpower` flow 是 4 步 3 角
 2. **A5 模板遵从缺口**——已硬化模板措辞（硬性要求 + 空值需说明原因）。
 3. **既有测试/类型债（原 Q6/Q7）**——按「不保留 workaround」原则全部真修而非登记：4 个测试失败 + 12 个 vue-tsc 错误，全套 0 失败。
 4. 非阻塞观察（不改代码）：document 相位 merge 后的收尾（模块树判断）耗时约数分钟属 LLM 行为；run 状态查询需读 run.status 字段而非 JSON 首个 status（前端已正确处理）。
+5. **E2E#1 收尾时发现文件越界写（安全缺陷，当场真修）**：`backend/notes/e2e-smoke.md`、`backend/docs/specs/README.md` 被 musk-demo workspace 的 agent 写穿到 backend/——根因是 tool_safety 的 CURRENT_ROOT 为 thread-local，tokio 线程迁移后失效、相对路径回落进程 CWD。修复：`resolve_scoped` + 9 个文件/命令工具注入式 `with_root`（随 agent 实例传播，与执行线程无关），`build_agent_with_context` 注册路径全部注入 workspace root；新增 with_root 回归单测；**E2E#3 运行时证明**：仓库零越界文件、musk-demo 内 plan 归档+7 item 沉淀+目标文件正确、run completed。仓库内两处污染物已清除。
 
 ### 待澄清事项处置
 

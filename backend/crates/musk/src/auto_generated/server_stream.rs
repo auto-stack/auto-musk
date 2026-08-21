@@ -83,9 +83,9 @@ pub struct Channel {
 
 fn shared_tools() -> Vec<Arc<dyn Tool>> {
     let mut tools: Vec<Arc<dyn Tool>> = vec![];
-    tools.push(Arc::new(ReadFile {}));
-    tools.push(Arc::new(WriteFile {}));
-    tools.push(Arc::new(RunCommand {}));
+    tools.push(Arc::new(ReadFile::new()));
+    tools.push(Arc::new(WriteFile::new()));
+    tools.push(Arc::new(RunCommand::new()));
     return tools;
 }
 

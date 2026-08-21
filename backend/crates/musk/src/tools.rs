@@ -24,9 +24,18 @@ fn map_path_error(e: String) -> ToolError {
 }
 
 /// 读取文件内容(UTF-8 文本)。
-pub struct ReadFile;
-impl ReadFile { pub fn new() -> Self { Self } }
+pub struct ReadFile {
+    /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
+    /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
+    /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
+    root: Option<std::sync::Arc<std::path::PathBuf>>,
+}
 
+impl ReadFile {
+    pub fn new() -> Self { Self { root: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
+    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+}
 #[async_trait]
 impl Tool for ReadFile {
     fn name(&self) -> &str {
@@ -49,7 +58,7 @@ impl Tool for ReadFile {
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'path' argument".into()))?;
         // Path confinement (Design 004): reject paths outside project root.
-        let resolved = crate::tool_safety::resolve_within_project(path)
+        let resolved = crate::tool_safety::resolve_scoped(path, self.scope())
             .map_err(map_path_error)?;
         std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))
@@ -57,9 +66,18 @@ impl Tool for ReadFile {
 }
 
 /// 写入文件(覆盖已存在文件;自动创建父目录)。
-pub struct WriteFile;
-impl WriteFile { pub fn new() -> Self { Self } }
+pub struct WriteFile {
+    /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
+    /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
+    /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
+    root: Option<std::sync::Arc<std::path::PathBuf>>,
+}
 
+impl WriteFile {
+    pub fn new() -> Self { Self { root: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
+    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+}
 #[async_trait]
 impl Tool for WriteFile {
     fn name(&self) -> &str {
@@ -88,7 +106,7 @@ impl Tool for WriteFile {
             .ok_or_else(|| ToolError::Args("missing 'content' argument".into()))?;
 
         // Path confinement (Design 004).
-        let resolved = crate::tool_safety::resolve_within_project(path)
+        let resolved = crate::tool_safety::resolve_scoped(path, self.scope())
             .map_err(map_path_error)?;
 
         // Auto-create parent directories.
@@ -107,9 +125,18 @@ impl Tool for WriteFile {
 /// 安全分级(Design 004):白名单命令直接执行;其他命令返回 PAUSED 状态
 /// 提醒用户确认。设 `force: true` 可跳过白名单检查(用户 approve 后)。
 /// 未来 run_command 后端将换为 Ash,由 Ash 的逐命令沙箱接管安全。
-pub struct RunCommand;
-impl RunCommand { pub fn new() -> Self { Self } }
+pub struct RunCommand {
+    /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
+    /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
+    /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
+    root: Option<std::sync::Arc<std::path::PathBuf>>,
+}
 
+impl RunCommand {
+    pub fn new() -> Self { Self { root: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
+    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+}
 #[async_trait]
 impl Tool for RunCommand {
     fn name(&self) -> &str {
@@ -157,7 +184,10 @@ impl Tool for RunCommand {
         // 白名单放行 + 不设 cwd 导致能绕过读 workspace 外文件的安全漏洞）。
         crate::tool_safety::confine_command_paths(cmd)
             .map_err(ToolError::Exec)?;
-        let root = crate::tool_safety::project_root();
+        let root = self
+            .scope()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(crate::tool_safety::project_root);
 
         let output = if cfg!(windows) {
             std::process::Command::new("cmd").args(["/C", cmd]).current_dir(&root).output()
@@ -186,9 +216,18 @@ impl Tool for RunCommand {
 /// 精确字符串替换:把文件中 `old_string` 替换为 `new_string`。
 /// 要求 `old_string` 在文件中唯一,否则报错(避免歧义替换)。
 /// 比 WriteFile 安全(不覆盖整个文件),是 executing-plans 的核心工具。
-pub struct EditFile;
-impl EditFile { pub fn new() -> Self { Self } }
+pub struct EditFile {
+    /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
+    /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
+    /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
+    root: Option<std::sync::Arc<std::path::PathBuf>>,
+}
 
+impl EditFile {
+    pub fn new() -> Self { Self { root: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
+    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+}
 #[async_trait]
 impl Tool for EditFile {
     fn name(&self) -> &str {
@@ -222,7 +261,7 @@ impl Tool for EditFile {
             .ok_or_else(|| ToolError::Args("missing 'new_string'".into()))?;
 
         // Path confinement (Design 004).
-        let resolved = crate::tool_safety::resolve_within_project(path)
+        let resolved = crate::tool_safety::resolve_scoped(path, self.scope())
             .map_err(map_path_error)?;
 
         let content = std::fs::read_to_string(&resolved)
@@ -248,9 +287,18 @@ impl Tool for EditFile {
 
 /// 内容搜索(grep/rg):在文件树里搜 pattern,返回匹配的行。
 /// 用 rg(若可用)否则 fallback 到 grep -rn。
-pub struct Search;
-impl Search { pub fn new() -> Self { Self } }
+pub struct Search {
+    /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
+    /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
+    /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
+    root: Option<std::sync::Arc<std::path::PathBuf>>,
+}
 
+impl Search {
+    pub fn new() -> Self { Self { root: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
+    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+}
 #[async_trait]
 impl Tool for Search {
     fn name(&self) -> &str {
@@ -278,7 +326,7 @@ impl Tool for Search {
         let raw_path = args["path"].as_str().unwrap_or(".");
 
         // Path confinement (Design 004): constrain search to project root.
-        let resolved = crate::tool_safety::resolve_within_project(raw_path)
+        let resolved = crate::tool_safety::resolve_scoped(raw_path, self.scope())
             .map_err(map_path_error)?;
         let path = resolved.to_string_lossy().to_string();
 
@@ -322,9 +370,18 @@ impl Tool for Search {
 
 /// 目录列表:列出目录内容,返回结构化的 [{name, is_dir, size}]。
 /// 比 run_command ls 更适合 agent 消费(JSON 而非原始 shell 输出)。
-pub struct ListDir;
-impl ListDir { pub fn new() -> Self { Self } }
+pub struct ListDir {
+    /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
+    /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
+    /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
+    root: Option<std::sync::Arc<std::path::PathBuf>>,
+}
 
+impl ListDir {
+    pub fn new() -> Self { Self { root: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
+    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+}
 #[async_trait]
 impl Tool for ListDir {
     fn name(&self) -> &str {
@@ -345,7 +402,7 @@ impl Tool for ListDir {
     async fn execute(&self, args: &Value) -> Result<String, ToolError> {
         let raw_path = args["path"].as_str().unwrap_or(".");
         // Path confinement (Design 004).
-        let path = crate::tool_safety::resolve_within_project(raw_path)
+        let path = crate::tool_safety::resolve_scoped(raw_path, self.scope())
             .map_err(map_path_error)?;
         let entries = std::fs::read_dir(&path)
             .map_err(|e| ToolError::Exec(format!("list '{raw_path}': {e}")))?;
@@ -380,9 +437,18 @@ impl Tool for ListDir {
 
 /// 文件符号大纲:扫描 Rust/TS 文件的 pub fn/struct/enum/mod 等定义行。
 /// 不引入 tree-sitter,用轻量正则。看结构不用读全文。
-pub struct ListSymbols;
-impl ListSymbols { pub fn new() -> Self { Self } }
+pub struct ListSymbols {
+    /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
+    /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
+    /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
+    root: Option<std::sync::Arc<std::path::PathBuf>>,
+}
 
+impl ListSymbols {
+    pub fn new() -> Self { Self { root: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
+    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+}
 #[async_trait]
 impl Tool for ListSymbols {
     fn name(&self) -> &str {
@@ -407,7 +473,7 @@ impl Tool for ListSymbols {
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'path'".into()))?;
         // Path confinement (Design 004).
-        let resolved = crate::tool_safety::resolve_within_project(path)
+        let resolved = crate::tool_safety::resolve_scoped(path, self.scope())
             .map_err(map_path_error)?;
         let content = std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
@@ -448,9 +514,18 @@ impl Tool for ListSymbols {
 
 /// 文件名模式匹配:用 glob 找文件(如 **/*.rs, **/test_*)。
 /// 比 search(内容)和 list_dir(单层)更适合"找某类文件"。
-pub struct Glob;
-impl Glob { pub fn new() -> Self { Self } }
+pub struct Glob {
+    /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
+    /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
+    /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
+    root: Option<std::sync::Arc<std::path::PathBuf>>,
+}
 
+impl Glob {
+    pub fn new() -> Self { Self { root: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
+    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+}
 #[async_trait]
 impl Tool for Glob {
     fn name(&self) -> &str {
@@ -476,7 +551,7 @@ impl Tool for Glob {
             .ok_or_else(|| ToolError::Args("missing 'pattern'".into()))?;
         let raw_base = args["path"].as_str().unwrap_or(".");
         // Path confinement (Design 004): constrain glob base to project root.
-        let base = crate::tool_safety::resolve_within_project(raw_base)
+        let base = crate::tool_safety::resolve_scoped(raw_base, self.scope())
             .map_err(map_path_error)?;
         let base_str = base.to_string_lossy().to_string();
         let full_pattern = if pattern.starts_with('/') || pattern.contains(':') {
@@ -511,9 +586,18 @@ impl Tool for Glob {
 
 /// 多处批量替换:在一个文件里一次性做多处 edit_file 风格的替换。
 /// 每个替换要求 old 唯一;任一不唯一则全部不执行(原子性)。
-pub struct BatchReplace;
-impl BatchReplace { pub fn new() -> Self { Self } }
+pub struct BatchReplace {
+    /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
+    /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
+    /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
+    root: Option<std::sync::Arc<std::path::PathBuf>>,
+}
 
+impl BatchReplace {
+    pub fn new() -> Self { Self { root: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
+    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+}
 #[async_trait]
 impl Tool for BatchReplace {
     fn name(&self) -> &str {
@@ -553,7 +637,7 @@ impl Tool for BatchReplace {
             .ok_or_else(|| ToolError::Args("missing 'replacements' array".into()))?;
 
         // Path confinement (Design 004).
-        let resolved = crate::tool_safety::resolve_within_project(path)
+        let resolved = crate::tool_safety::resolve_scoped(path, self.scope())
             .map_err(map_path_error)?;
 
         let mut content = std::fs::read_to_string(&resolved)
@@ -635,7 +719,10 @@ impl Tool for DisplayImage {
             .ok_or_else(|| ToolError::Args("missing 'path' argument".into()))?;
 
         // Confine + canonicalize (same guard as read_file).
-        let resolved = crate::tool_safety::resolve_within_project(path)
+        let resolved = crate::tool_safety::resolve_scoped(
+                path,
+                Some(&self.ctx.state.registry.get(&self.ctx.workspace_id).root),
+            )
             .map_err(ToolError::Exec)?;
 
         // Accept only image extensions.
@@ -690,7 +777,7 @@ mod tests {
     #[tokio::test]
     async fn read_file_reads_existing() {
         init_root();
-        let t = ReadFile;
+        let t = ReadFile::new();
         // The crate's own Cargo.toml lives inside the project root.
         let out = t
             .execute(&json!({"path": "Cargo.toml"}))
@@ -701,14 +788,45 @@ mod tests {
 
     #[tokio::test]
     async fn read_file_missing_errors() {
-        let t = ReadFile;
+        let t = ReadFile::new();
         let err = t.execute(&json!({"path": "definitely_nonexistent.xyz"})).await;
         assert!(err.is_err());
     }
 
+    /// PLAN-030 复审回归：注入式 root 下，相对路径必须落在注入的 workspace
+    /// 根内——即使当前线程/CWD 完全不同（tokio 线程迁移场景的确定性等价）。
+    #[tokio::test]
+    async fn with_root_scopes_relative_paths_to_injected_root() {
+        let dir = std::env::temp_dir().join(format!(
+            "musk-scope-root-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let root = std::sync::Arc::new(dir.clone());
+        let w = WriteFile::with_root(root);
+        w.execute(&json!({"path": "notes/scoped.md", "content": "scoped"}))
+            .await
+            .unwrap();
+        assert!(dir.join("notes/scoped.md").exists(), "written inside injected root");
+        // 进程 CWD（crate 目录）下不应出现同名文件
+        assert!(!std::path::Path::new("notes/scoped.md").exists(), "must NOT escape to CWD");
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // 越界仍被拒绝：注入 root 外的绝对路径
+        let outside = std::env::temp_dir().join("musk-scope-outside.md");
+        let w2 = WriteFile::with_root(std::sync::Arc::new(dir.clone()));
+        let err = w2
+            .execute(&json!({"path": outside.to_string_lossy(), "content": "x"}))
+            .await;
+        assert!(err.is_err(), "absolute path outside injected root rejected");
+    }
+
     #[tokio::test]
     async fn read_file_missing_path_arg_errors() {
-        let t = ReadFile;
+        let t = ReadFile::new();
         let err = t.execute(&json!({})).await.unwrap_err();
         assert!(matches!(err, ToolError::Args(_)));
     }
@@ -716,8 +834,8 @@ mod tests {
     #[tokio::test]
     async fn write_file_then_read_back() {
         init_root();
-        let t_write = WriteFile;
-        let t_read = ReadFile;
+        let t_write = WriteFile::new();
+        let t_read = ReadFile::new();
         let path = std::path::PathBuf::from(".test-tmp/musk_tool_test_write.txt");
         let p = path.to_string_lossy().to_string();
 
@@ -733,7 +851,7 @@ mod tests {
     #[tokio::test]
     async fn write_file_creates_parent_dirs() {
         init_root();
-        let t = WriteFile;
+        let t = WriteFile::new();
         let dir = std::path::PathBuf::from(".test-tmp/musk_tool_test_subdir");
         let path = dir.join("nested/deep/file.txt");
         let p = path.to_string_lossy().to_string();
@@ -747,7 +865,7 @@ mod tests {
 
     #[tokio::test]
     async fn run_command_echo() {
-        let t = RunCommand;
+        let t = RunCommand::new();
         // `echo` works on both Windows (cmd /C echo) and Unix (sh -c echo).
         let out = t.execute(&json!({"cmd": "echo musk_test_token"})).await.unwrap();
         assert!(out.contains("musk_test_token"));
@@ -755,7 +873,7 @@ mod tests {
 
     #[tokio::test]
     async fn run_command_missing_cmd_arg_errors() {
-        let t = RunCommand;
+        let t = RunCommand::new();
         let err = t.execute(&json!({})).await.unwrap_err();
         assert!(matches!(err, ToolError::Args(_)));
     }
@@ -768,7 +886,7 @@ mod tests {
         let path = std::path::PathBuf::from(".test-tmp/musk_edit_test_unique.txt");
         std::fs::write(&path, "alpha\nbeta\ngamma\n").unwrap();
         let p = path.to_string_lossy().to_string();
-        let out = EditFile
+        let out = EditFile::new()
             .execute(&json!({"path": p, "old_string": "beta", "new_string": "BETA"}))
             .await
             .unwrap();
@@ -786,7 +904,7 @@ mod tests {
         std::fs::create_dir_all(".test-tmp").unwrap();
         std::fs::write(&path, "alpha\n").unwrap();
         let p = path.to_string_lossy().to_string();
-        let err = EditFile
+        let err = EditFile::new()
             .execute(&json!({"path": p, "old_string": "zzz", "new_string": "x"}))
             .await
             .unwrap_err();
@@ -800,7 +918,7 @@ mod tests {
         let path = std::path::PathBuf::from(".test-tmp/musk_edit_test_ambig.txt");
         std::fs::write(&path, "dup\ndup\n").unwrap();
         let p = path.to_string_lossy().to_string();
-        let err = EditFile
+        let err = EditFile::new()
             .execute(&json!({"path": p, "old_string": "dup", "new_string": "x"}))
             .await
             .unwrap_err();
@@ -817,7 +935,7 @@ mod tests {
     async fn search_finds_pattern() {
         init_root();
         // Search the crate's own lib.rs for a known string.
-        let out = Search
+        let out = Search::new()
             .execute(&json!({"pattern": "pub mod", "path": "src/lib.rs"}))
             .await
             .unwrap();
@@ -828,7 +946,7 @@ mod tests {
     #[tokio::test]
     async fn search_no_match_returns_empty_marker() {
         init_root();
-        let out = Search
+        let out = Search::new()
             .execute(&json!({"pattern": "zzz_definitely_not_here_xyz", "path": "src/lib.rs"}))
             .await
             .unwrap();
@@ -840,7 +958,7 @@ mod tests {
     #[tokio::test]
     async fn list_dir_lists_files() {
         init_root();
-        let out = ListDir.execute(&json!({"path": "src"})).await.unwrap();
+        let out = ListDir::new().execute(&json!({"path": "src"})).await.unwrap();
         // src/ contains tools.rs, lib.rs, main.rs, etc.
         assert!(out.contains("tools.rs"));
         assert!(out.contains("lib.rs"));
@@ -848,7 +966,7 @@ mod tests {
 
     #[tokio::test]
     async fn list_dir_missing_errors() {
-        let err = ListDir
+        let err = ListDir::new()
             .execute(&json!({"path": "nonexistent_dir_xyz"}))
             .await;
         assert!(err.is_err());
@@ -860,7 +978,7 @@ mod tests {
         let dir = std::path::PathBuf::from(".test-tmp/musk_listdir_empty_test");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let out = ListDir
+        let out = ListDir::new()
             .execute(&json!({"path": dir.to_string_lossy().to_string()}))
             .await
             .unwrap();
@@ -873,7 +991,7 @@ mod tests {
     #[tokio::test]
     async fn list_symbols_finds_rust_structs() {
         init_root();
-        let out = ListSymbols
+        let out = ListSymbols::new()
             .execute(&json!({"path": "src/tools.rs"}))
             .await
             .unwrap();
@@ -884,7 +1002,7 @@ mod tests {
 
     #[tokio::test]
     async fn list_symbols_missing_file_errors() {
-        let err = ListSymbols
+        let err = ListSymbols::new()
             .execute(&json!({"path": "nonexistent.rs"}))
             .await;
         assert!(err.is_err());
@@ -895,7 +1013,7 @@ mod tests {
     #[tokio::test]
     async fn glob_finds_rust_files() {
         init_root();
-        let out = Glob
+        let out = Glob::new()
             .execute(&json!({"pattern": "**/*.rs", "path": "src"}))
             .await
             .unwrap();
@@ -906,7 +1024,7 @@ mod tests {
     #[tokio::test]
     async fn glob_no_match() {
         init_root();
-        let out = Glob
+        let out = Glob::new()
             .execute(&json!({"pattern": "**/*.nonexistent", "path": "src"}))
             .await
             .unwrap();
@@ -921,7 +1039,7 @@ mod tests {
         let path = std::path::PathBuf::from(".test-tmp/musk_batch_test.txt");
         std::fs::write(&path, "aaa\nbbb\nccc\n").unwrap();
         let p = path.to_string_lossy().to_string();
-        let out = BatchReplace
+        let out = BatchReplace::new()
             .execute(&json!({
                 "path": p,
                 "replacements": [
@@ -942,7 +1060,7 @@ mod tests {
         let path = std::path::PathBuf::from(".test-tmp/musk_batch_atomic.txt");
         std::fs::write(&path, "dup\ndup\nunique\n").unwrap();
         let p = path.to_string_lossy().to_string();
-        let err = BatchReplace
+        let err = BatchReplace::new()
             .execute(&json!({
                 "path": p,
                 "replacements": [
@@ -969,7 +1087,7 @@ mod tests {
         std::fs::create_dir_all(".test-tmp").unwrap();
         std::fs::write(&path, "keep\n").unwrap();
         let p = path.to_string_lossy().to_string();
-        let err = BatchReplace
+        let err = BatchReplace::new()
             .execute(&json!({
                 "path": p,
                 "replacements": [

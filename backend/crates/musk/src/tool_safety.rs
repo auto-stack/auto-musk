@@ -88,7 +88,17 @@ pub fn project_root() -> PathBuf {
 /// - Absolute paths outside root → rejected
 /// - Symlinks → canonicalize follows them, so a link pointing outside is caught
 pub fn resolve_within_project(path: &str) -> Result<PathBuf, String> {
-    let root = project_root();
+    resolve_scoped(path, None)
+}
+
+/// PLAN-030 复审修复：带注入式 scoped root 的路径解析。thread-local 的
+/// CURRENT_ROOT 在 tokio 线程迁移下失效（E2E 实证：相对路径回落到进程
+/// CWD，文件写穿 workspace 边界）——server/relay 注册的工具实例注入
+/// workspace root，解析不再依赖执行线程。
+pub fn resolve_scoped(path: &str, scoped_root: Option<&Path>) -> Result<PathBuf, String> {
+    let root = scoped_root
+        .map(|r| std::fs::canonicalize(r).unwrap_or_else(|_| r.to_path_buf()))
+        .unwrap_or_else(project_root);
     let raw = Path::new(path);
 
     // If relative, resolve against project root.
