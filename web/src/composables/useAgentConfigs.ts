@@ -11,6 +11,12 @@ export interface AgentConfig {
   id: string
   name: string
   profession: string
+  // PLAN-030 复审修复：消费者（ChatsView/AgentAvatar）实际读取的字段
+  // 显式声明，避免 index signature 的 unknown 传播成类型错误。
+  profession_id: string
+  is_default: boolean
+  avatar_url?: string
+  soul_id?: string
   [key: string]: unknown
 }
 

@@ -54,7 +54,7 @@ pub fn phase_task(
 2. 若需求模糊、缺关键约束：列出澄清问题（编号、一次问全），然后**停止**，不要开始写计划。用户会在审批门用「拒绝 + 反馈」回答你，届时重跑本相位。\n\
 3. 需求清晰则用 `create_plan` 写完整计划，正文章节**必须带编号**（merge 引擎按编号映射沉淀）：\n\
    `## 0. 变更摘要` / `## 1. 目标` / `## 2. 架构方案` / `## 3. 技术栈` / `## 4. 需求分析与背景调查` / `## 5. 详细设计（含关键代码示例）` / `## 6. 测试设计` / `## 7. 验收标准（checkbox，逐条可独立验证）` / `## 8. 执行步骤（原子任务：精确文件路径 + 操作 + 验证命令；禁止 TBD/TODO）` / `## 9. 复审记录（留空）` / `## 10. 待澄清事项（留空）`\n\
-4. 写完自审一遍：章节齐全、任务原子、验证命令真实可跑、frontmatter 完整。\n\
+4. 写完自审一遍：章节齐全、任务原子、验证命令真实可跑、frontmatter 完整——**必须含 `current_step: 0` 与 `total_steps`（= §8 任务数）**。\n\
 5. 最终输出必须以单独一行结尾（驱动器解析它路由后续相位）：\n\
    `PLAN_FILE: docs/plans/NNN-slug.md`\n"
         ),
@@ -75,7 +75,11 @@ Trust the code, not the checkboxes：\n\n\
 1. `read_plan` 载入计划，逐条重验 `## 7. 验收标准`——对照实际代码与真实命令输出（记录 pass/partial/fail + `file:line` 证据）。绿勾是主张，不是证据。\n\
 2. 检查执行丢项、workaround、行为偏差——登记为债务候选。\n\
 3. 用 `update_plan` 填写 `## 9. 复审记录`（复审人 / 时间 / 逐标准判定表 / 债务候选）。\n\
-4. 用 `update_plan` 填 frontmatter 的 spec-impact 三字段：`supersedes_spec_components` / `new_spec_components` / `touched_goals`（merge 相位会逐字消费，宁可保守勿空泛）。\n\
+4. 用 `update_plan` 填 frontmatter 的 spec-impact 三字段（E2E 实测易漏，
+   **硬性要求**）：`supersedes_spec_components` / `new_spec_components` /
+   `touched_goals` 必须给出具体条目列表；确实无关联时保留 `[]` 并在
+   `## 9.` 中写明原因。同时核对 `total_steps` 与 §8 任务数一致、
+   `current_step` 反映实际进度（merge 相位会逐字消费这些字段）。\n\
 5. 全部通过 → `transition_plan` 到 `review_done`；有不通过 → `transition_plan` 回 `executing`，并在输出中列明缺口与建议（run 会正常结束，用户决定是否重开续跑修复）。\n"
         ),
         "document" => format!(

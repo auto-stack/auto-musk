@@ -1,14 +1,24 @@
 ---
 plan_id: PLAN-030
-status: execution_done
+status: review_done
 feature_name: 基于 Plan 的 Agent 开发流程（取代 spec 流水线）
 author: [zhaopuming]
 created_at: 2026-08-21T10:30:00+08:00
-updated_at: 2026-08-21T12:20:00+08:00
+updated_at: 2026-08-21T13:10:00+08:00
 
 # Leave these EMPTY here — /auto-plan:review fills them:
-supersedes_spec_components: []
-new_spec_components: []
+supersedes_spec_components:
+  - "relay/spec-driven pipeline: default/relay 7 角色流水线降级 deprecated（代码保留对拍），canonical 开发流程改为 plan 驱动四相位"
+  - "relay 存储: RunStore 磁盘持久化移除（转 in-memory），conversation（Flow 会话）成为 run 日志唯一归档；relay 独立界面移除"
+  - "spec 工具存储域: spec_tools 5 工具在 server/relay 场景从 home 目录默认改为 workspace 域（build_agent_with_context 覆盖注册）"
+new_spec_components:
+  - "plan flow: 4 步全 plan-dev 单角色相位流（plan→execute[Human gate=计划确认]→review→document），flows.rs + auto_generated 双轨"
+  - "plan-dev 角色: auto-ai-agent builtin（Max/0.3/120 turns，双轨 rust-ref+.at）+ musk profession（6 区管辖/自 handoff）"
+  - "plan 工具集: list_plans/read_plan/create_plan/update_plan/transition_plan/merge_plan（plan_tools.rs，workspace 域；merge 核心抽 plans::merge_plan_stores）"
+  - "相位任务模板 + PLAN_FILE 标记协议: relay/plan_flow.rs 四段模板，driver 提取 PLAN_FILE 存 run.context，step_context 组装注入"
+  - "plan_merge 无编号中文标题兼容: canonical 前缀映射（028/029 风格 plan 可沉淀）"
+  - "SpecsStore legacy 7 区容忍: SectionType #[serde(other)] Unknown + load 过滤（含单测）"
+  - "spawn_relay 会话唯一化: 先 start_run，父 ToolCall child_conversation 直指 run-id 唯一 Flow 会话"
 touched_goals: []
 
 current_step: 16
@@ -425,7 +435,38 @@ plan（无序号无 frontmatter）；relay 侧 `superpower` flow 是 4 步 3 角
 
 ## 9. 复审记录
 
-（review 相位填写：复审人/时间/逐标准判定/债务候选。）
+**复审人**：/auto-plan:review（ZCode，GLM）｜**时间**：2026-08-21 13:10 (+08:00)｜**结论**：**通过 → review_done**
+
+复审方法：逐条对照实际代码 diff 重验 + 全量测试重跑 + **两次真实 E2E**（musk-demo 沙箱 workspace，aaid 实调，plan flow 全程跑通：plan 产出→gate 批准→execute 建文件验证→review 逐标准复审→document merge 沉淀归档，run completed 4/4，全程 1775 tokens）。
+
+### 逐标准判定
+
+| # | 判定 | 证据 |
+|---|------|------|
+| A1 | pass | flows 单测（4 步全 plan-dev/仅 execute 前 Human gate）+ E2E run steps 实测一致 |
+| A2 | pass | E2E 两次真实产出合规 plan（frontmatter/编号章节 0-10/原子任务+验证命令/验收 checkbox）；幂等复用检查（list_plans 先行）实测执行 |
+| A3 | pass | extract_plan_file 单测 + E2E 后续相位经 read_plan 正确定位执行 |
+| A4 | pass | E2E 全链 drafting→executing→execution_done→review_done→merged 实测推进 + transition 工具单测（非法迁移附合法集） |
+| A5 | pass（复审中硬化） | E2E 复审记录优质（逐标准判定表+file:line 级证据+workaround 检查）；**发现**：spec-impact 三字段与 total_steps 漏填 → review/plan 相位模板已硬化为硬性要求（plan_flow.rs），plan_flow 9 测试绿 |
+| A6 | pass（复审中修复） | **E2E#1 暴露 3 个真缺陷并全部真修**：①legacy 7 区 specs.json 使 `SpecsStore::load` 反序列化硬失败 → `#[serde(other)] Unknown`+load 过滤+单测；②spec 工具落 home 目录与 workspace UI 错位 → 5 工具 from_ctx workspace 化覆盖注册；③修复后 **E2E#2 验证**：merge_plan 7 个 P001-x item 精确落 6 区、plan 归档、legacy 文件重写为 6 区 |
+| A7 | pass | flows.rs DEPRECATED 注释 + soul NORMAL/PLAN FLOW 二分 + spawn_relay/resolve_flow 默认 plan（代码 diff） |
+| A8 | pass | ChatsView.vue + relay_commands.at 双轨 flow_id="plan"（代码 diff + vite build 绿） |
+| A9 | pass（复审中修复） | **既有 4 个测试失败真修**（tools×2 改根内路径避开 SecurityDenied 分支；workspace_endpoints×2 去已删 plans 区改 designs）→ musk 30 目标 **0 失败**；**web 12 个既有 vue-tsc 错误真修**（AutoDownEditor 按 permissive 意图实现——顺带修复编辑框渲染为空的运行时 bug；AgentConfig 显式字段；vitest devDep）→ `npm run build` 全绿；release/debug 构建绿；auto-ai-agent 101 绿 |
+| A10 | pass | README「主要能力」+.musk.md「开发流程」节 |
+| A11 | pass | RelayView.vue 删除 grep 零残留；useRelay 收敛 9 导出；relay_store.at 退役 6 消息；vite build 绿 |
+| A12 | pass | RunStore in-memory（runs_are_in_memory_only_after_reload 单测）；`.autoos/relay/` 无新文件；E2E conversation 759 turns 完整回放全部活动 |
+| A13 | pass | 冒烟 + 两次 E2E 均验证：恰好一个 id=run_id 的 Flow 会话，无壳会话冗余 |
+
+### 复审发现与处置（无保留 workaround）
+
+1. **E2E#1 document 相位错误终态**（merged 未归档/沉淀落 home 错仓）——根因即 A6 的 ①②，已修复并以 E2E#2 验证通过；顺带清理了 home specs.json 中误写的 5 个 P1-x 项。
+2. **A5 模板遵从缺口**——已硬化模板措辞（硬性要求 + 空值需说明原因）。
+3. **既有测试/类型债（原 Q6/Q7）**——按「不保留 workaround」原则全部真修而非登记：4 个测试失败 + 12 个 vue-tsc 错误，全套 0 失败。
+4. 非阻塞观察（不改代码）：document 相位 merge 后的收尾（模块树判断）耗时约数分钟属 LLM 行为；run 状态查询需读 run.status 字段而非 JSON 首个 status（前端已正确处理）。
+
+### 待澄清事项处置
+
+Q5 保持开放（run 跨重启恢复，暂无需求）；**Q6/Q7/Q9 已通过复审真修/E2E 验证关闭**；Q8 运维备注保留（8080 被 ash-gui-auto-back 占用，serve 在 8090）。
 
 ## 10. 待澄清事项
 
@@ -445,18 +486,16 @@ plan（无序号无 frontmatter）；relay 侧 `superpower` flow 是 4 步 3 角
 - **Q5（2026-08-21，需求补充时登记）** run 跨重启恢复（重启后 run 列表/续跑）是否
   需要？v1 采 D7（RunStore in-memory，重启丢 run、日志在 conversation）；若确需恢复
   再立项引擎态持久化方案。
-- **Q6（2026-08-21，T16 执行时登记——既有失败，非本 plan 引入，stash 基线已验证）**
+- **Q6（已关闭：复审真修——tools×2 改根内路径、workspace_endpoints×2 去 plans 区；全套 0 失败）** 原：既有失败，stash 基线验证
   `tools::tests::{edit_file_errors_when_not_found, batch_replace_atomic_on_missing}` 与
   `parity_workspace_endpoints::{specs_rebuild_relations_succeeds,
   specs_related_returns_depends_and_related}` 4 个测试在干净基线即红（断言 ToolError
   类型 / specs upsert 500）；本 plan 顺带修复了 parity_conversation/parity_chats 的
   `thinking` 字段编译破损，这 4 个留待独立立项修复。
-- **Q7（2026-08-21，T16 执行时登记——既有问题）** web/ 轨 `vue-tsc -b` 有 12 个既有
+- **Q7（已关闭：复审真修——AutoDownEditor permissive 化（含运行时空编辑框 bug 修复）/AgentConfig 显式字段/vitest devDep；npm run build 全绿）** 原：既有问题 web/ 轨 `vue-tsc -b` 有 12 个既有
   类型错误（category 组件/WikiView/ChatsView/vitest 模块缺失），`npm run build` 因此
   失败；本 plan 改动经对比零新增且消掉 RelayView 的 1 个。修 web 类型债独立立项。
 - **Q8（2026-08-21，T16 执行时登记）** 运维备注：8080 端口被无关进程
   `ash-gui-auto-back.exe` 占用，冒烟期间 musk serve 改用 127.0.0.1:8090（后台运行中）；
   原 debug 版 serve（PID 20036）为解锁构建已停止。
-- **Q9（2026-08-21，T16 执行时登记）** A2/A5 的 LLM 运行时行为（plan 相位实际产出质量、
-  review 相位复审质量）依赖 aaid 真实调用，本轮仅做接线冒烟（不推进不耗 token）；
-  首个真实 plan flow 全程跑通留待 review 相位或用户实测。
+- **Q9（已关闭：复审完成两次真实 E2E——aaid 实调全程跑通 completed 4/4，A2/A5/A6/A13 均获运行时证据；顺带发现并修复 3 个缺陷）**

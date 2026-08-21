@@ -12,6 +12,15 @@ use auto_ai_agent::{Tool, ToolError};
 use serde_json::{json, Value};
 
 use crate::specs::{SpecItem, SpecStatus, SpecsStore};
+use crate::tool_context::ToolContext;
+
+/// Resolve the workspace-scoped SpecsStore from a tool context (PLAN-030
+/// 复审修复：spec 工具在 server/relay 场景必须落 workspace 的
+/// `{root}/.autoos/specs.json`，而非 home 目录默认——否则 agent 写入与
+/// UI/审批队列（workspace store）错位，互相不可见）。
+fn ws_specs_of(ctx: &ToolContext) -> Arc<SpecsStore> {
+    ctx.state.registry.get(&ctx.workspace_id).specs.clone()
+}
 
 /// The default spec-store path (matches server.rs AppState::specs).
 fn default_store() -> Arc<SpecsStore> {
@@ -34,6 +43,10 @@ impl ReadSpecs {
     }
     pub fn with_store(store: Arc<SpecsStore>) -> Self {
         Self { store }
+    }
+    /// Workspace-scoped constructor（PLAN-030 复审修复，见 `ws_specs_of`）。
+    pub fn from_ctx(ctx: &ToolContext) -> Self {
+        Self { store: ws_specs_of(ctx) }
     }
 }
 
@@ -117,6 +130,10 @@ impl ListSpecs {
     pub fn with_store(store: Arc<SpecsStore>) -> Self {
         Self { store }
     }
+    /// Workspace-scoped constructor（PLAN-030 复审修复，见 `ws_specs_of`）。
+    pub fn from_ctx(ctx: &ToolContext) -> Self {
+        Self { store: ws_specs_of(ctx) }
+    }
 }
 
 #[async_trait]
@@ -164,6 +181,10 @@ impl UpdateSpec {
     }
     pub fn with_store(store: Arc<SpecsStore>) -> Self {
         Self { store }
+    }
+    /// Workspace-scoped constructor（PLAN-030 复审修复，见 `ws_specs_of`）。
+    pub fn from_ctx(ctx: &ToolContext) -> Self {
+        Self { store: ws_specs_of(ctx) }
     }
 }
 
@@ -274,6 +295,10 @@ impl WriteSpec {
     pub fn with_store(store: Arc<SpecsStore>) -> Self {
         Self { store }
     }
+    /// Workspace-scoped constructor（PLAN-030 复审修复，见 `ws_specs_of`）。
+    pub fn from_ctx(ctx: &ToolContext) -> Self {
+        Self { store: ws_specs_of(ctx) }
+    }
 }
 
 #[async_trait]
@@ -368,6 +393,10 @@ impl WriteGoals {
     }
     pub fn with_store(store: Arc<SpecsStore>) -> Self {
         Self { store }
+    }
+    /// Workspace-scoped constructor（PLAN-030 复审修复，见 `ws_specs_of`）。
+    pub fn from_ctx(ctx: &ToolContext) -> Self {
+        Self { store: ws_specs_of(ctx) }
     }
 }
 

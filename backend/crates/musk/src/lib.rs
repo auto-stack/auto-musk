@@ -269,6 +269,21 @@ pub fn build_agent_with_context(
                 agent.register_shared(tool.clone());
             }
         }
+        // PLAN-030 复审修复：在 server/relay 场景把 5 个 spec 工具覆盖注册为
+        // workspace 域（默认注册是 home 目录 store，agent 写入与 UI/审批队列
+        // 互不可见）。register_shared 后写覆盖同名工具。
+        let ws_spec_tools: Vec<(&str, Arc<dyn auto_ai_agent::Tool>)> = vec![
+            ("read_specs", Arc::new(crate::spec_tools::ReadSpecs::from_ctx(&ctx))),
+            ("list_specs", Arc::new(crate::spec_tools::ListSpecs::from_ctx(&ctx))),
+            ("write_spec", Arc::new(crate::spec_tools::WriteSpec::from_ctx(&ctx))),
+            ("update_spec", Arc::new(crate::spec_tools::UpdateSpec::from_ctx(&ctx))),
+            ("write_goals", Arc::new(crate::spec_tools::WriteGoals::from_ctx(&ctx))),
+        ];
+        for (name, tool) in &ws_spec_tools {
+            if mode.tools.is_empty() || mode.tools.iter().any(|t| t == name) {
+                agent.register_shared(tool.clone());
+            }
+        }
     }
     Ok(agent)
 }

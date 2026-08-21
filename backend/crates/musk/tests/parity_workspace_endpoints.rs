@@ -144,17 +144,19 @@ async fn specs_drift_check_returns_shape() {
 async fn specs_rebuild_relations_succeeds() {
     let state = tmp_state();
     let app = ag_app(state);
-    // G1 (goal) + P1 (plan depends_on G1) → rebuild populates G1.related = [P1].
+    // G1 (goal) + D1 (design depends_on G1) → rebuild populates G1.related = [D1].
+    // (PLAN-030 复审修复：原用例写 7 区时代的 "plans" 区——PLAN-024 已删该区，
+    // upsert 400；改用现存 designs 区，反向链接意图不变。)
     upsert_spec(&app, "goals", "G1", "empty", &[]).await;
-    upsert_spec(&app, "plans", "P1", "proposed", &["G1"]).await;
+    upsert_spec(&app, "designs", "D1", "proposed", &["G1"]).await;
     let (s, _v) = send(&app, "POST", "/api/specs/rebuild-relations", None).await;
     assert_eq!(s, StatusCode::OK, "rebuild-relations → 200");
-    // After rebuild, G1.related should contain P1 (reverse link).
+    // After rebuild, G1.related should contain D1 (reverse link).
     let (_, related) = send(&app, "GET", "/api/specs/related/G1", None).await;
     let related_list = related["related"].as_array();
     assert!(
-        related_list.map(|a| a.iter().any(|x| x == "P1")).unwrap_or(false),
-        "G1.related contains P1 after rebuild; got {related}"
+        related_list.map(|a| a.iter().any(|x| x == "D1")).unwrap_or(false),
+        "G1.related contains D1 after rebuild; got {related}"
     );
 }
 
@@ -165,16 +167,17 @@ async fn specs_related_returns_depends_and_related() {
     let state = tmp_state();
     let app = ag_app(state);
     upsert_spec(&app, "goals", "G1", "empty", &[]).await;
-    upsert_spec(&app, "plans", "P1", "proposed", &["G1"]).await;
-    // P1's content mentions G1 → after rebuild G1.related gains P1 (reverse link).
-    // Query G1's related: should contain P1.
+    // (PLAN-030 复审修复：同上，"plans" 区已删，改用 designs 区。)
+    upsert_spec(&app, "designs", "D1", "proposed", &["G1"]).await;
+    // D1's content mentions G1 → after rebuild G1.related gains D1 (reverse link).
+    // Query G1's related: should contain D1.
     let (s, v) = send(&app, "GET", "/api/specs/related/G1", None).await;
     assert_eq!(s, StatusCode::OK, "related → 200");
     // Shape: { item_id, depends_on, related }.
     assert_eq!(v["item_id"], "G1");
     let related_list = v["related"].as_array();
     assert!(
-        related_list.map(|a| a.iter().any(|x| x == "P1")).unwrap_or(false),
-        "G1.related contains P1 (reverse link from content ref); got {v}"
+        related_list.map(|a| a.iter().any(|x| x == "D1")).unwrap_or(false),
+        "G1.related contains D1 (reverse link from content ref); got {v}"
     );
 }

@@ -779,7 +779,11 @@ mod tests {
 
     #[tokio::test]
     async fn edit_file_errors_when_not_found() {
-        let path = std::env::temp_dir().join("musk_edit_test_missing.txt");
+        // PLAN-030 复审修复：改用根内路径——temp 绝对路径会先触发 path
+        // confinement 的 SecurityDenied，测不到 old_string 未命中分支。
+        init_root();
+        let path = std::path::PathBuf::from(".test-tmp/musk_edit_test_missing.txt");
+        std::fs::create_dir_all(".test-tmp").unwrap();
         std::fs::write(&path, "alpha\n").unwrap();
         let p = path.to_string_lossy().to_string();
         let err = EditFile
@@ -959,7 +963,10 @@ mod tests {
 
     #[tokio::test]
     async fn batch_replace_atomic_on_missing() {
-        let path = std::env::temp_dir().join("musk_batch_missing.txt");
+        // PLAN-030 复审修复：同上，根内路径避开 SecurityDenied 分支。
+        init_root();
+        let path = std::path::PathBuf::from(".test-tmp/musk_batch_missing.txt");
+        std::fs::create_dir_all(".test-tmp").unwrap();
         std::fs::write(&path, "keep\n").unwrap();
         let p = path.to_string_lossy().to_string();
         let err = BatchReplace

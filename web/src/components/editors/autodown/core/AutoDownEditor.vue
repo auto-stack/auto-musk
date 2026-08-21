@@ -3,7 +3,10 @@
      handlers (onLinkClick/onCancel/onSave). The stub accepts all of them via a
      permissive interface and renders a plain textarea so they compile + work. -->
 <script setup lang="ts">
-defineProps<{ modelValue: string; placeholder?: string }>()
+// PLAN-030 复审修复：按头注释自述的 permissive 意图实现——同时接受
+// v-model(modelValue) 与旧式 content 绑定（7 处调用点仍用 content；
+// 此前 modelValue 必填导致调用点类型错 + 运行时编辑框为空）。
+defineProps<{ modelValue?: string; content?: string; placeholder?: string }>()
 defineEmits<{
   'update:modelValue': [value: string]
   linkClick: [link: string]
@@ -13,7 +16,7 @@ defineEmits<{
 </script>
 <template>
   <textarea
-    :value="modelValue"
+    :value="modelValue ?? content ?? ''"
     class="autodown-stub"
     :placeholder="placeholder || 'Edit content...'"
     @input="$emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"

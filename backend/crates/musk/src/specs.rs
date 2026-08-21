@@ -29,6 +29,12 @@ pub enum SectionType {
     Tests,
     Reviews,
     Reports,
+    /// Legacy/unknown section kinds (e.g. the PLAN-024-removed `Plans`).
+    /// Tolerated on load (`#[serde(other)]`) and filtered out before use —
+    /// a legacy 7-section specs.json must not brick `SpecsStore::load()`
+    /// (PLAN-030 复审修复). Never written back.
+    #[serde(other)]
+    Unknown,
 }
 
 impl SectionType {
@@ -41,6 +47,7 @@ impl SectionType {
             SectionType::Tests => "tests",
             SectionType::Reviews => "reviews",
             SectionType::Reports => "reports",
+            SectionType::Unknown => "unknown",
         }
     }
 
@@ -53,6 +60,7 @@ impl SectionType {
             SectionType::Tests => "🧪 Tests",
             SectionType::Reviews => "🔍 Reviews",
             SectionType::Reports => "📊 Reports",
+            SectionType::Unknown => "❔ Unknown",
         }
     }
 
@@ -507,6 +515,7 @@ fn section_complete_status(st: SectionType) -> SpecStatus {
         SectionType::Architecture | SectionType::Designs => SpecStatus::Approved,
         SectionType::Tests => SpecStatus::Verified,
         SectionType::Reviews | SectionType::Reports => SpecStatus::Published,
+        SectionType::Unknown => SpecStatus::Empty,
     }
 }
 
@@ -679,6 +688,14 @@ impl SectionConfig {
                 allowed_statuses: vec![Empty, Draft, Published],
                 allowed_transitions: vec![(Empty, Draft), (Draft, Published)],
             },
+            // Legacy/unknown sections never reach a state machine in practice
+            // (load() filters them out); a degenerate machine keeps matches
+            // exhaustive.
+            SectionType::Unknown => Self {
+                section_type: st,
+                allowed_statuses: vec![Empty],
+                allowed_transitions: vec![],
+            },
         }
     }
 
@@ -737,9 +754,17 @@ impl SpecsStore {
     /// Load the document; create an empty one (persisted) if absent.
     pub fn load(&self) -> std::io::Result<SpecsDocument> {
         match std::fs::read(&self.path) {
-            Ok(bytes) => serde_json::from_slice(&bytes).map_err(|e| {
-                std::io::Error::new(std::io::ErrorKind::InvalidData, e)
-            }),
+            Ok(bytes) => {
+                let mut doc: SpecsDocument = serde_json::from_slice(&bytes).map_err(|e| {
+                    std::io::Error::new(std::io::ErrorKind::InvalidData, e)
+                })?;
+                // Legacy repair (PLAN-030 复审修复)：7 区时代的 specs.json 含
+                // 已删除的 section（如 plans）——`#[serde(other)]` 把它们解析成
+                // Unknown，这里直接滤掉，避免 load 硬失败 & 旧区回写。
+                doc.sections
+                    .retain(|s| s.section_type != SectionType::Unknown);
+                Ok(doc)
+            }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 let doc = SpecsDocument::new(
                     self.path
@@ -848,6 +873,41 @@ impl SpecsStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// PLAN-030 复审修复：7 区时代遗留的 specs.json（含已删除的 Plans
+    /// section）必须能 load——Unknown 容忍 + 滤除，save 后不再回写旧区。
+    #[test]
+    fn load_tolerates_legacy_seven_section_file() {
+        let dir = std::env::temp_dir().join(format!(
+            "musk-specs-legacy-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("specs.json");
+        let legacy = r#"{
+            "project": "legacy",
+            "version": 0,
+            "sections": [
+                {"id": "goals", "section_type": "Goals", "title": "G", "items": [], "status": "Empty", "content": "", "depends_on": [], "last_modified": 1, "last_verified": null},
+                {"id": "plans", "section_type": "Plans", "title": "P", "items": [], "status": "Empty", "content": "", "depends_on": [], "last_modified": 1, "last_verified": null}
+            ]
+        }"#;
+        std::fs::write(&path, legacy).unwrap();
+        let store = SpecsStore::new(path.clone());
+        let doc = store.load().expect("legacy 7-section file must load");
+        assert_eq!(
+            doc.sections.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+            vec!["goals"],
+            "legacy Plans section dropped"
+        );
+        store.save(&doc).unwrap();
+        let round: SpecsDocument =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert!(round.sections.iter().all(|s| s.id != "plans"));
+    }
 
     #[test]
     fn section_type_roundtrip() {
