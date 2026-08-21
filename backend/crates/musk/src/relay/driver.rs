@@ -118,12 +118,11 @@ async fn drive_loop(
             } => {
                 // 2. Run the agent for this step (outside the store lock).
                 if let Err(e) = run_step(state, ws, run_id, &role_id).await {
-                    // Agent build/run failure → fail the run with a handoff carrying the error.
+                    // Agent build/run failure → 置败停车（PLAN-030 试用修复：
+                    // 原先错误被当 handoff 提交并级联到后续相位空转）。
                     tracing::error!("drive_run: step agent failed for {run_id}: {e}");
-                    let mut h = HandoffDocument::new(&role_id, "");
-                    h.summary = format!("[agent error] {e}");
-                    let _ = ws.relay.submit_handoff(run_id, h);
-                    continue;
+                    let _ = ws.relay.fail_run(run_id, &format!("[agent error] {e}"));
+                    return;
                 }
                 // 3. The agent step submitted its own handoff inside run_step;
                 //    loop back to advance the next step.

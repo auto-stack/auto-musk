@@ -697,6 +697,29 @@ impl RunStore {
         }
     }
 
+    /// PLAN-030 试用修复：显式置败。agent 运行错误时 driver 调用——原先错误
+    /// 被包装成 handoff 提交、引擎照常路由到下一相位（execute 挂了 review/
+    /// document 空转出假完成）。置 Failed 终态并广播 RunFailed。
+    pub fn fail_run(&self, run_id: &str, error: &str) -> Option<crate::relay::AdvanceResult> {
+        let now = now_secs();
+        let (result, appended) = {
+            let mut runs = self.runs.lock().unwrap();
+            let entry = runs.get_mut(run_id)?;
+            entry.updated_at = now;
+            let result = entry.engine.fail(error.to_string());
+            let appended = vec![RunEvent::RunFailed {
+                timestamp: now,
+                error: error.to_string(),
+            }];
+            (result, appended)
+        };
+        for ev in &appended {
+            self.push_event(run_id, ev.clone());
+        }
+        crate::relay::api::publish_advance_result(run_id, &result);
+        Some(result)
+    }
+
     /// The profession of the step *after* the current one (for handoff `to`).
     /// Called by the driver before submit_handoff.
     pub fn next_profession(&self, run_id: &str) -> Option<String> {

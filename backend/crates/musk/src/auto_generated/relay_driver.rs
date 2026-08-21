@@ -61,8 +61,11 @@ async fn drive_loop(state: Arc<AppState>, ws_id: &str, run_id: &str) -> Result<b
                 let role_id = advance_role_id(&result);
                 let step_err = run_step(state.clone(), ws_id, run_id, &role_id).await;
                 if step_err_is_err(&step_err) {
+                    // PLAN-030 试用修复：置败并停车，不级联后续相位
                     relay_submit_error(&state, ws_id, run_id, &role_id, &step_err);
-                }            } else {
+                    done = true;
+                }
+            } else {
                 
 
                 done = true;

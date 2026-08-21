@@ -1163,12 +1163,12 @@ pub fn advance_role_id(r: &Value) -> String {
 /// hw driver.rs ExecuteStep error path: wrap the agent error in a HandoffDocument
 /// whose summary is `[agent error] {e}` and submit_handoff (the engine routes to
 /// the next step / fails the run). `e` is the Err side of run_step's Result.
-pub fn relay_submit_error(s: &Arc<AppState>, w: &str, r: &str, role_id: &str, e: &Result<String, String>) {
+pub fn relay_submit_error(s: &Arc<AppState>, w: &str, r: &str, _role_id: &str, e: &Result<String, String>) {
+    // PLAN-030 试用修复：agent 错误 → 显式置败（原 submit_handoff 会级联到
+    // 后续相位空转出假完成），与 hw driver 的 fail_run 路径一致。
     if let Err(msg) = e {
         let ws = s.registry.get(w);
-        let mut h = auto_ai_agent::orchestration::HandoffDocument::new(role_id, "");
-        h.summary = format!("[agent error] {msg}");
-        let _ = ws.relay.submit_handoff(r, h);
+        let _ = ws.relay.fail_run(r, &format!("[agent error] {msg}"));
     }
 }
 /// hw `ws.relay.step_context(run_id)` → the task string for the agent (fallback
