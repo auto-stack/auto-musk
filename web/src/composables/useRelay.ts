@@ -551,7 +551,9 @@ export function useRelay() {
           _professionTokens.value[data.profession_id] = prev + (data.tokens_used as number)
         }
         // Auto-refresh run state on relevant events
-        if (['run_started', 'step_started', 'step_advanced', 'handoff_submitted', 'gate_resolved', 'run_title_updated'].includes(data.event_type)) {
+        // PLAN-030 试用修复：对齐 RunEvent 真实枚举——原列表含不存在的事件名，
+        // gate_waiting/run_failed/run_completed 缺席，停靠/完成/失败从不刷新。
+        if (['step_started', 'step_completed', 'gate_waiting', 'gate_resolved', 'run_failed', 'run_completed'].includes(data.event_type)) {
           loadRun(runId)
         }
       } catch {

@@ -121,8 +121,10 @@ const logEntries = computed(() =>
 
 function toggle() {
   expanded.value = !expanded.value
-  if (expanded.value && !unsubscribe) {
-    unsubscribe = subscribeToRun(props.runId)
+  if (expanded.value) {
+    // 展开即重拉最新状态（审批按钮/进度不滞留旧快照）
+    loadRun(props.runId)
+    if (!unsubscribe) unsubscribe = subscribeToRun(props.runId)
   }
 }
 
@@ -154,10 +156,18 @@ watch(logEntries, async () => {
 }, { deep: true })
 
 // Load run data on mount；内存 run 不在 → 回退到持久化 run 日志（Flow 会话）
+// 试用修复：挂载即订阅 SSE——折叠态也要收状态事件（停靠审批/完成/失败），
+// 否则除页面手刷外状态永不更新。
 onMounted(async () => {
   await loadRun(props.runId)
   if (!run.value) history.value = await loadRunHistory(props.runId)
   loaded.value = true
+  if (!unsubscribe) unsubscribe = subscribeToRun(props.runId)
+})
+
+// 停靠人工审批时自动展开（需要用户交互的块不能默认折叠）
+watch(() => run.value?.waiting_for_gate, (g) => {
+  if (g) expanded.value = true
 })
 
 onUnmounted(() => {

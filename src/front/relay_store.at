@@ -282,17 +282,15 @@ store RelayStore {
             }
 
             // ─── 事件触发自动刷新 ───
-            if et == "run_started" { .LoadRun(runId) }
+            // PLAN-030 试用修复：对齐 RunEvent 真实枚举——原列表里 run_started/
+            // step_advanced/handoff_submitted/run_title_updated 并非真实事件名，
+            // 且 gate_waiting/run_failed 缺席：run 停靠审批/失败时 UI 从不刷新。
             if et == "step_started" { .LoadRun(runId) }
-            if et == "step_advanced" { .LoadRun(runId) }
-            if et == "handoff_submitted" { .LoadRun(runId) }
+            if et == "step_completed" { .LoadRun(runId) }
+            if et == "gate_waiting" { .LoadRun(runId) }
             if et == "gate_resolved" { .LoadRun(runId) }
-            if et == "run_title_updated" { .LoadRun(runId) }
-            if et == "run_completed" {
-                if .current_run != None {
-                    if .current_run.run_id == runId { .LoadRun(runId) }
-                }
-            }
+            if et == "run_failed" { .LoadRun(runId) }
+            if et == "run_completed" { .LoadRun(runId) }
         }
     }
 }

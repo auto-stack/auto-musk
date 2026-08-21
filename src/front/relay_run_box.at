@@ -48,20 +48,26 @@ component fn RelayRunBox(runId: str) {
         // Init：拉取 run 详情；若正等待人工审批则自动展开 + 订阅事件流
         // （需要用户交互的块不能默认折叠）。
         .Init -> {
+            // 试用修复：挂载即订阅 + 拉取（原 Init 只 LoadRun、仅在"已可见的
+            // gate"才订阅——mount 时 run 未加载完，条件永假，折叠态收不到任何
+            // 事件，停靠/完成/失败状态全靠手刷页面）。
             store.LoadRun(.runId);
             store.LoadRunHistory(.runId);
+            if !.subscribed {
+                store.Subscribe(.runId);
+                .subscribed = true
+            }
             if .waitingGate != None {
-                .expanded = true;
-                if !.subscribed {
-                    store.Subscribe(.runId);
-                    .subscribed = true
-                }
+                .expanded = true
             }
         }
         .Destroy -> { store.Unsubscribe(.runId) }
         .Toggle -> {
             .expanded = !.expanded;
             if .expanded {
+                // 试用修复：展开即重拉最新状态（原只订阅不刷新，展开看到的
+                // 仍是挂载时的旧快照——审批按钮/进度不出现）。
+                store.LoadRun(.runId);
                 if !.subscribed {
                     store.Subscribe(.runId);
                     .subscribed = true
