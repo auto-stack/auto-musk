@@ -106,29 +106,22 @@
               </div>
             </div>
           </template>
-          <!-- 阶段 Log 行：[icon] [类型·着色] [阶段名] [动作] [短尾线]。
-               step_completed 携带 handoff 摘要 → 可展开块 -->
+          <!-- 阶段块（统一虚线边框）：标题栏 = 阶段 Log 行；有详情 → 最右
+               箭头 + 展开子窗，无详情 → 无箭头 -->
           <template v-else-if="PHASE_TYPES.has(entry.type)">
-              <div v-if="phaseDetail(entry.type, entry.content)" class="ph-block">
+            <div class="ph-block">
               <div :class="phaseClass(entry.type)" class="ph-block-head" @click="entry._expanded = !entry._expanded">
                 <span class="ph-icon">{{ phaseIcon(entry.type) }}</span>
                 <span class="ph-kind">{{ phaseKind(entry.type) }}</span>
                 <span v-if="phaseText(entry.type, entry.content)" class="ph-name">{{ phaseText(entry.type, entry.content) }}</span>
                 <span class="ph-action">{{ phaseAction(entry.type) }}</span>
+                <span v-if="phaseText(entry.type, entry.content) && (entry.type === 'run_failed' || entry.type === 'error')" class="ph-err-text">{{ phaseText(entry.type, entry.content) }}</span>
                 <span class="ph-tail"></span>
-                <component :is="entry._expanded ? ChevronUp : ChevronDown" :size="12" class="tool-chevron" />
+                <component v-if="phaseDetail(entry.type, entry.content)" :is="entry._expanded ? ChevronUp : ChevronDown" :size="12" class="tool-chevron" />
               </div>
-              <div v-if="entry._expanded" class="ph-detail">
+              <div v-if="entry._expanded && phaseDetail(entry.type, entry.content)" class="ph-detail">
                 <StreamingRenderer :source="phaseDetail(entry.type, entry.content)" :streaming="false" />
               </div>
-            </div>
-            <div v-else :class="phaseClass(entry.type)">
-              <span class="ph-icon">{{ phaseIcon(entry.type) }}</span>
-              <span class="ph-kind">{{ phaseKind(entry.type) }}</span>
-              <span v-if="phaseText(entry.type, entry.content)" class="ph-name">{{ phaseText(entry.type, entry.content) }}</span>
-              <span class="ph-action">{{ phaseAction(entry.type) }}</span>
-              <span v-if="phaseText(entry.type, entry.content) && (entry.type === 'run_failed' || entry.type === 'error')" class="ph-err-text">{{ phaseText(entry.type, entry.content) }}</span>
-              <span class="ph-tail"></span>
             </div>
           </template>
         </div>
@@ -417,6 +410,10 @@ function phaseText(ty: string, content: string): string {
     const id = stepIdOf(content ?? '')
     return STEP_LABELS[id] ?? id
   }
+  if (ty === 'gate_waiting') {
+    const id = stepIdOf(content ?? '')
+    return id ? (STEP_LABELS[id] ?? id) : ''
+  }
   if (ty === 'run_failed' || ty === 'error') {
     const c = String(content ?? '')
     return c.length > 60 ? c.slice(0, 59) + '…' : c
@@ -424,14 +421,22 @@ function phaseText(ty: string, content: string): string {
   return ''
 }
 
-/** step_completed 的 content 是 'Step "x" completed: <handoff 摘要>' ——
- *  抽取冒号后的摘要做阶段块的展开详情。 */
+/** 阶段块可展开详情：step_completed 冒号后 handoff 摘要；gate 审批点
+ *  确定性说明（标题栏已示阶段名）。 */
 function phaseDetail(ty: string, content: string): string {
-  if (ty !== 'step_completed') return ''
-  const marker = 'completed:'
-  const i = String(content ?? '').indexOf(marker)
-  if (i === -1) return ''
-  return String(content).slice(i + marker.length).trim()
+  if (ty === 'step_completed') {
+    const marker = 'completed:'
+    const i = String(content ?? '').indexOf(marker)
+    if (i === -1) return ''
+    return String(content).slice(i + marker.length).trim()
+  }
+  if (ty === 'gate_waiting') {
+    const id = stepIdOf(content ?? '')
+    if (!id) return ''
+    const label = STEP_LABELS[id] ?? id
+    return `阶段「${label}」开始前的人工审批点：批准后流程继续执行；拒绝将附修改意见回到该阶段。`
+  }
+  return ''
 }
 
 /** 文档读取型工具（📄 图标 + 结果 Markdown 子窗，字号小一号）。 */
@@ -633,8 +638,11 @@ onUnmounted(() => {
 .badge-gate { background: hsl(38 92% 50% / 0.15); color: hsl(38 92% 50%); }
 
 .box-body { padding: 0.5rem 0.75rem; border-top: 1px solid var(--af-border); }
-.log-entries { max-height: 400px; overflow-y: auto; font-size: 0.78rem; line-height: 1.5; }
-.log-entry { padding: 0.15rem 0; }
+/* 日志区统一节奏：容器 gap 0.45rem 管所有块间距——文本/阶段/工具块一致 */
+.log-entries { max-height: 400px; overflow-y: auto; font-size: 0.78rem; line-height: 1.5; display: flex; flex-direction: column; gap: 0.45rem; }
+.log-entry { padding: 0; }
+.log-entry :first-child { margin-top: 0; }
+.log-entry :last-child { margin-bottom: 0; }
 .entry-prof { margin-right: 0.3rem; }
 /* 展开态正文：Markdown 全宽（与工具块左对齐，无图标前缀）。
    字号比 chat 正文（1rem）小一号（0.875rem）——markstream 用
@@ -652,7 +660,7 @@ onUnmounted(() => {
   display: inline-flex; align-items: center; justify-content: center;
 }
 /* 阶段 Log 行：[icon] [类型·着色] [阶段名] [动作] [短尾线]（左对齐 log 风格） */
-.phase-line { display: flex; align-items: center; gap: 0.4rem; margin: 0.35rem 0 0.2rem; font-size: 0.75rem; }
+.phase-line { display: flex; align-items: center; gap: 0.4rem; margin: 0; font-size: 0.75rem; }
 .phase-line .ph-icon {
   width: 14px; height: 14px; flex-shrink: 0; font-size: 0.74rem; line-height: 1;
   display: inline-flex; align-items: center; justify-content: center;
@@ -690,7 +698,7 @@ onUnmounted(() => {
 }
 /* PLAN_FILE 并入文档块头部做标题 chip；内容字号比 Run 普通文档小一号 */
 .plan-file-row { display: none; }
-.doc-block { border: 1px solid var(--af-border); border-radius: 8px; margin: 0.3rem 0; overflow: hidden; background: hsl(var(--muted-foreground) / 0.02); }
+.doc-block { border: 1px solid var(--af-border); border-radius: 8px; margin: 0; overflow: hidden; background: hsl(var(--muted-foreground) / 0.02); }
 .doc-head { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.6rem; cursor: pointer; font-size: 0.8rem; }
 .doc-head:hover { background: hsl(var(--muted-foreground) / 0.05); }
 .doc-file-chip {
@@ -701,7 +709,7 @@ onUnmounted(() => {
 .doc-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--af-fg); }
 .doc-body { border-top: 1px solid var(--af-border); padding: 0.45rem 0.6rem; font-size: 0.72rem; max-height: 420px; overflow-y: auto; }
 /* 阶段详情子窗（step_completed 的 handoff 摘要）——与文档块同小字号 */
-.ph-block { border: 1px dashed var(--af-border); border-radius: 6px; margin: 0.25rem 0; overflow: hidden; }
+.ph-block { border: 1px dashed var(--af-border); border-radius: 6px; margin: 0; overflow: hidden; }
 .ph-block-head { padding: 0.3rem 0.45rem; margin: 0; cursor: pointer; }
 .ph-block-head:hover { background: hsl(var(--muted-foreground) / 0.04); }
 .ph-detail { border-top: 1px dashed var(--af-border); padding: 0.45rem 0.6rem; font-size: 0.72rem; max-height: 360px; overflow-y: auto; }

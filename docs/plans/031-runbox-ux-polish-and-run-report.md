@@ -194,6 +194,16 @@ ReportCard（PPT 风格），并向**父 chat 会话**追加总结消息（此�
 - T28 Run 内 Markdown 正文字号 0.875rem（chat 1rem 小一号，经
   --ms-text-body 变量控制 markstream 正文基数）。
 
+## 2f. 批次七（阶段块统一/审批内容/间距节奏，试用反馈）
+
+- T29 阶段块统一：所有阶段条目（开始/完成/审批/Run/失败）统一虚线边框块
+  （ph-block）；有详情 → 最右箭头 + 展开 Markdown 子窗；无详情 → 无箭头。
+- T30 审批块内容：live/回放双路径 gate 内容可解析化（Gate 'step' waiting
+  同构）→ 标题栏显示审批的阶段名（如 计划执行）；详情为审批点确定性说明。
+  附带修复：.at fn 模块注释含 */ 序列会提前闭合文档注释（step_*/gate）。
+- T31 间距节奏统一：log-entries 容器 gap 0.45rem 统一管所有块间距，
+  块自身 margin/padding 归零（此前文本块上下过宽、阶段/工具块过窄）。
+
 ## 5. 执行步骤（批次五）
 
 - [x] d1. T19-T24 双轨实现 + codegen + web dist 重建。

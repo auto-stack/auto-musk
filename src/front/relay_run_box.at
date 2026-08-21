@@ -131,7 +131,7 @@ component fn RelayRunBox(runId: str) {
 .box-status { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; }
 .box-body { padding: 0.5rem 0.75rem; border-top: 1px solid var(--af-border); }
 .entry-prof { margin-right: 0.3rem; }
-.entry-tool-card { border: 1px solid var(--af-border); border-radius: 6px; overflow: hidden; margin: 0.15rem 0; }
+.entry-tool-card { border: 1px solid var(--af-border); border-radius: 6px; overflow: hidden; margin: 0; }
 .entry-tool-head { display: flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.5rem; cursor: pointer; font-size: 0.75rem; }
 .entry-tool-head .tool-target { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(190 80% 35%); font-family: monospace; }
 .tool-chevron { color: #999; }
@@ -159,7 +159,7 @@ component fn RelayRunBox(runId: str) {
 }
 /* 阶段 Log 行：[icon] [类型·着色] [阶段名] [动作] [短尾线]（左对齐 log 风格，
    替代居中分割线——信息量优先） */
-.phase-line { display: flex; align-items: center; gap: 0.4rem; margin: 0.35rem 0 0.2rem; font-size: 0.75rem; }
+.phase-line { display: flex; align-items: center; gap: 0.4rem; margin: 0; font-size: 0.75rem; }
 .phase-line .ph-icon {
   width: 14px; height: 14px; flex-shrink: 0; font-size: 0.74rem; line-height: 1;
   display: inline-flex; align-items: center; justify-content: center;
@@ -197,7 +197,7 @@ component fn RelayRunBox(runId: str) {
 }
 /* 长文本/计划文档 → 折叠文档块（Markdown 文件 Block）；PLAN_FILE 路径
    并入头部做标题 chip。内容字号比 Run 普通文档小一号（0.72rem） */
-.doc-block { border: 1px solid var(--af-border); border-radius: 8px; margin: 0.3rem 0; overflow: hidden; background: hsl(var(--muted-foreground) / 0.02); }
+.doc-block { border: 1px solid var(--af-border); border-radius: 8px; margin: 0; overflow: hidden; background: hsl(var(--muted-foreground) / 0.02); }
 .doc-head { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.6rem; cursor: pointer; font-size: 0.8rem; }
 .doc-head:hover { background: hsl(var(--muted-foreground) / 0.05); }
 .doc-file-chip {
@@ -208,7 +208,7 @@ component fn RelayRunBox(runId: str) {
 .doc-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--af-fg); }
 .doc-body { border-top: 1px solid var(--af-border); padding: 0.45rem 0.6rem; font-size: 0.72rem; max-height: 420px; overflow-y: auto; }
 /* 阶段详情子窗（step_completed 的 handoff 摘要）——与文档块同小字号 */
-.ph-block { border: 1px dashed var(--af-border); border-radius: 6px; margin: 0.25rem 0; overflow: hidden; }
+.ph-block { border: 1px dashed var(--af-border); border-radius: 6px; margin: 0; overflow: hidden; }
 .ph-block-head { padding: 0.3rem 0.45rem; margin: 0; cursor: pointer; }
 .ph-block-head:hover { background: hsl(var(--muted-foreground) / 0.04); }
 .ph-detail { border-top: 1px dashed var(--af-border); padding: 0.45rem 0.6rem; font-size: 0.72rem; max-height: 360px; overflow-y: auto; }
@@ -319,8 +319,13 @@ component fn RelayRunBox(runId: str) {
 .badge-completed { background: hsl(142 71% 45% / 0.15); color: hsl(142 71% 45%); }
 .badge-failed { background: hsl(var(--af-error) / 0.15); color: hsl(var(--af-error)); }
 .badge-gate { background: hsl(38 92% 50% / 0.15); color: hsl(38 92% 50%); }
-.log-entries { max-height: 400px; overflow-y: auto; font-size: 0.78rem; line-height: 1.5; }
-.log-entry { padding: 0.15rem 0; }
+/* 日志区统一节奏：容器 gap 0.45rem 管所有块间距——文本/阶段/工具块一致
+   （此前 .log-entry padding + markdown 自带 p margin 叠加，文本块上下
+   显得过宽而阶段/工具块过窄）。块自身 margin 全部归零。 */
+.log-entries { max-height: 400px; overflow-y: auto; font-size: 0.78rem; line-height: 1.5; display: flex; flex-direction: column; gap: 0.45rem; }
+.log-entry { padding: 0; }
+.log-entry :first-child { margin-top: 0; }
+.log-entry :last-child { margin-bottom: 0; }
 .gate-actions {
   display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0;
   border-top: 1px solid var(--af-border); margin-top: 0.5rem;
@@ -578,39 +583,16 @@ component fn RelayRunBox(runId: str) {
                                     }
                                 }
                             } else if .entry.type == "step_started" || .entry.type == "step_completed" || .entry.type == "gate_waiting" || .entry.type == "run_completed" || .entry.type == "run_failed" || .entry.type == "error" {
-                                // 阶段 Log 行：[icon] [类型·着色] [阶段名] [动作] [短尾线]。
-                                // step_completed 携带 handoff 摘要 → 可展开块
-                                //（标题栏即 log 行，详情子窗 Markdown 小字号）。
-                                if relayPhaseDetail(.entry.type, .entry.content) != "" {
-                                    div {
-                                        style: "ph-block"
-                                        row {
-                                            class: relayPhaseClass(.entry.type)
-                                            style: "ph-block-head"
-                                            onclick: .ToggleEntry(.entry)
-                                            span { style: "ph-icon", text relayPhaseIcon(.entry.type) }
-                                            span { style: "ph-kind", text relayPhaseKind(.entry.type) }
-                                            if relayPhaseText(.entry.type, .entry.content) != "" {
-                                                span { style: "ph-name", text relayPhaseText(.entry.type, .entry.content) }
-                                            }
-                                            span { style: "ph-action", text relayPhaseAction(.entry.type) }
-                                            span { style: "ph-tail" }
-                                            if .entry._expanded == true {
-                                                ChevronUp { size: 12, style: "tool-chevron" }
-                                            } else {
-                                                ChevronDown { size: 12, style: "tool-chevron" }
-                                            }
-                                        }
-                                        if .entry._expanded == true {
-                                            div {
-                                                style: "ph-detail"
-                                                Markdown(source: relayPhaseDetail(.entry.type, .entry.content), streaming: false)
-                                            }
-                                        }
-                                    }
-                                } else {
+                                // 阶段块（统一虚线边框）：标题栏 = 阶段 Log 行
+                                //（[icon][类型·着色][阶段名][动作][短尾线]）；
+                                // 有详情 → 最右箭头 + 展开子窗（Markdown 小字号），
+                                // 无详情 → 无箭头不可展开。
+                                div {
+                                    style: "ph-block"
                                     row {
                                         class: relayPhaseClass(.entry.type)
+                                        style: "ph-block-head"
+                                        onclick: .ToggleEntry(.entry)
                                         span { style: "ph-icon", text relayPhaseIcon(.entry.type) }
                                         span { style: "ph-kind", text relayPhaseKind(.entry.type) }
                                         if relayPhaseText(.entry.type, .entry.content) != "" {
@@ -623,6 +605,21 @@ component fn RelayRunBox(runId: str) {
                                             }
                                         }
                                         span { style: "ph-tail" }
+                                        if relayPhaseDetail(.entry.type, .entry.content) != "" {
+                                            if .entry._expanded == true {
+                                                ChevronUp { size: 12, style: "tool-chevron" }
+                                            } else {
+                                                ChevronDown { size: 12, style: "tool-chevron" }
+                                            }
+                                        }
+                                    }
+                                    if .entry._expanded == true {
+                                        if relayPhaseDetail(.entry.type, .entry.content) != "" {
+                                            div {
+                                                style: "ph-detail"
+                                                Markdown(source: relayPhaseDetail(.entry.type, .entry.content), streaming: false)
+                                            }
+                                        }
                                     }
                                 }
                             }

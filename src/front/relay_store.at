@@ -268,7 +268,10 @@ store RelayStore {
             }
             if et == "gate_waiting" {
                 let sp4 = p.profession_id ?? "system"
-                log.push({ id: relayMakeId(runId), time: time, profession_id: sp4, type: "gate_waiting", content: "Waiting for human gate approval" })
+                let gs4 = p.step_id ?? ""
+                // 审批标题可解析化（与 Step 'x' 同构）——阶段块标题栏显示
+                // "审批 · 计划执行 · 等待"而非泛化英文
+                log.push({ id: relayMakeId(runId), time: time, profession_id: sp4, type: "gate_waiting", content: "Gate '" + gs4 + "' waiting" })
             }
             if et == "run_completed" {
                 log.push({ id: relayMakeId(runId), time: time, profession_id: "system", type: "run_completed", content: "Run completed successfully" })
@@ -409,7 +412,18 @@ fn relayHistoryFromConversation(conv Value) Value {
                     lastTool.type = "tool"
                 }
             } else if k == "gate" {
-                entries.push({ id: "h" + entries.length, profession_id: "system", type: "gate_waiting", content: "等待人工审批" })
+                // 审批标题可解析化：step_id 优先取 GateRecord，兜底从
+                // "Waiting for gate approval: execute" 尾段抽取
+                var gs str = ""
+                if t.gate != None {
+                    gs = t.gate.step_id ?? ""
+                }
+                if gs == "" {
+                    let gc = t.content ?? ""
+                    let ci = gc.indexOf(":")
+                    if ci != -1 { gs = gc.substring(ci + 1).trim() }
+                }
+                entries.push({ id: "h" + entries.length, profession_id: "system", type: "gate_waiting", content: "Gate '" + gs + "' waiting" })
             } else if k == "system" {
                 let c = t.content ?? ""
                 if c.starts_with("Step '") {

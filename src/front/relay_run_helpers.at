@@ -208,25 +208,38 @@ fn relayPhaseClass(ty str) str {
     return "phase-line ph-step"
 }
 
-/** 阶段行文本：step_* 显示阶段名；错误显示摘要；其余空。 */
+/** 阶段行文本：step 与 gate 类型用阶段名（Gate 与 Step 同构解析）；错误显示摘要。 */
 fn relayPhaseText(ty str, content str) str {
     if ty == "step_started" || ty == "step_completed" {
         return relayStepLabel(relayStepIdOf(content))
+    }
+    if ty == "gate_waiting" {
+        let gid = relayStepIdOf(content)
+        if gid != "" { return relayStepLabel(gid) }
+        return ""
     }
     if ty == "run_failed" || ty == "error" { return relayClipText(content, 60) }
     return ""
 }
 
-/** 阶段行可展开详情：step_completed 的 content 是
- * 'Step "x" completed: <handoff 摘要>' —— 抽取冒号后的摘要做展开内容；
- * 其余类型无详情（返回 ""）。 */
+/** 阶段块可展开详情：
+ *  - step_completed：'Step "x" completed: <handoff 摘要>' 冒号后摘要；
+ *  - gate_waiting：审批点的确定性说明（标题栏已示阶段名）；
+ *  其余类型无详情（返回 ""）。 */
 fn relayPhaseDetail(ty str, content str) str {
-    if ty != "step_completed" { return "" }
-    let marker = "completed:"
-    let i = content.indexOf(marker)
-    if i == -1 { return "" }
-    let rest = content.substring(i + marker.length)
-    return rest.trim()
+    if ty == "step_completed" {
+        let marker = "completed:"
+        let i = content.indexOf(marker)
+        if i == -1 { return "" }
+        return content.substring(i + marker.length).trim()
+    }
+    if ty == "gate_waiting" {
+        let gid = relayStepIdOf(content)
+        if gid == "" { return "" }
+        let glabel = relayStepLabel(gid)
+        return "阶段「" + glabel + "」开始前的人工审批点：批准后流程继续执行；拒绝将附修改意见回到该阶段。"
+    }
+    return ""
 }
 
 /** 收起态预览行的阶段/终态条目 → 与 Run 内阶段块标题栏同构的紧凑行

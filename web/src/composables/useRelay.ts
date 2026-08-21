@@ -80,7 +80,14 @@ async function loadRunHistory(runId: string): Promise<RunHistory | null> {
             }
           }
         } else if (k === 'gate') {
-          entries.push({ id: `h${entries.length}`, time: '', profession_id: 'system', type: 'gate_waiting', content: '等待人工审批' })
+          // 审批标题可解析化：step_id 优先取 GateRecord，兜底从
+          // "Waiting for gate approval: execute" 冒号后抽取
+          let gs = t.gate?.step_id ?? ''
+          if (!gs) {
+            const ci = String(t.content ?? '').indexOf(':')
+            if (ci !== -1) gs = String(t.content).slice(ci + 1).trim()
+          }
+          entries.push({ id: `h${entries.length}`, time: '', profession_id: 'system', type: 'gate_waiting', content: `Gate '${gs}' waiting` })
         } else if (k === 'system') {
           const c = t.content ?? ''
           if (c.startsWith("Step '") && c.includes(' completed')) {
@@ -548,7 +555,8 @@ export function useRelay() {
             time,
             profession_id: data.payload?.profession_id || 'system',
             type: 'gate_waiting',
-            content: `Waiting for human gate approval`,
+            // 审批标题可解析化（与 Step 同构）——阶段块标题栏显示审批的阶段名
+            content: `Gate '${data.payload?.step_id ?? ''}' waiting`,
           })
         }
         if (data.event_type === 'run_completed') {
