@@ -309,6 +309,15 @@ fn reportConfidenceClass(confidence str) str {
     return "report-confidence " + c
 }
 
+/** 秒 → 可读时长（"42s" / "3m 07s"）——RunReport hero/指标格用。 */
+fn reportDurationLabel(s int) str {
+    if s < 60 { return s + "s" }
+    let m int = Math.floor(s / 60)
+    let r int = s % 60
+    if r < 10 { return m + "m 0" + r + "s" }
+    return m + "m " + r + "s"
+}
+
 // ─── Chat 搜索过滤（Plan 028 T15，原 useChatSearch composable）──────────────
 
 /** 按关键字过滤消息（content/role 大小写不敏感包含；空查询原样返回）。 */

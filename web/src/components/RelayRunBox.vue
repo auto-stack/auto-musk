@@ -2,8 +2,7 @@
   <div class="relay-box" :class="`status-${statusClass}`">
     <!-- Collapsed header -->
     <div class="box-header" @click="toggle">
-      <component :is="expanded ? ChevronDown : ChevronRight" :size="14" />
-      <Orbit :size="14" :class="{ spinning: isLiveRunning }" />
+      <Orbit :size="14" :class="{ spinning: isLiveRunning }" class="run-icon" />
       <span class="box-title">{{ boxTitle }}</span>
       <!-- 进度区：1-based 徽标 + 迷你分段条；hover 弹出步骤清单
            （4 步各是什么、当前在哪——不占独立行） -->
@@ -20,14 +19,21 @@
         </div>
       </div>
       <span class="box-status" :class="`badge-${statusClass}`">{{ statusLabel }}</span>
+      <!-- 折叠 UI 与其它 Block 统一：右侧上下箭头（ChevronDown=收起/Up=展开） -->
+      <component :is="expanded ? ChevronUp : ChevronDown" :size="14" class="head-chevron" />
     </div>
 
     <!-- 收起态最新动态预览（最多 3 行；流式文本时为其尾部 3 行）。
-         高度与审批条近似，随 SSE 自动更新；停靠审批时由审批条接管 -->
-    <div v-if="!expanded && !waitingGate && !missing && previewLines.length" class="live-preview">
+         行内排版对齐 Block 头（工具名/目标分色）；停靠审批时由审批条接管 -->
+    <div v-if="!expanded && !waitingGate && !missing && previewRows.length" class="live-preview">
       <span :class="dotClass"></span>
       <div class="live-preview-lines">
-        <div v-for="(line, i) in previewLines" :key="i" class="preview-line">{{ line }}</div>
+        <div v-for="(row, i) in previewRows" :key="i" class="preview-line">
+          <span class="preview-mark">{{ row.mark }}</span>
+          <span v-if="row.name" class="preview-tool-name">{{ row.name }}</span>
+          <span v-if="row.target" class="preview-tool-target">{{ row.target }}</span>
+          <span v-if="row.text" :class="row.text_class">{{ row.text }}</span>
+        </div>
       </div>
     </div>
 
@@ -49,8 +55,17 @@
       <div v-else class="log-entries" ref="logRef">
         <div v-for="entry in logEntries" :key="entry.id" class="log-entry" :class="`entry-${entry.type}`">
           <template v-if="entry.type === 'text'">
-            <span class="entry-prof">{{ professionIcon(entry.profession_id) }}</span>
-            <span class="entry-text">{{ entry.content }}</span>
+            <!-- 与 chat 一致：AutoDown/Markdown 渲染（纯文本是"⚙️+纯文本"观感根因） -->
+            <div class="entry-text-row">
+              <span class="entry-prof">{{ professionIcon(entry.profession_id) }}</span>
+              <div class="entry-md">
+                <StreamingRenderer :source="entry.content" :streaming="false" />
+              </div>
+            </div>
+          </template>
+          <template v-else-if="entry.type === 'thinking'">
+            <!-- 思考条目：muted 斜体（此前无分支不渲染） -->
+            <div class="entry-thinking">{{ entry.content }}</div>
           </template>
           <!-- 工具条目：与聊天侧工具卡一致——默认收起、显示操作目标、
                点右侧图标展开参数与结果 -->
@@ -107,6 +122,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { ChevronDown, ChevronRight, ChevronUp, Orbit, Wrench } from 'lucide-vue-next'
+import StreamingRenderer from '@/components/StreamingRenderer.vue'
 import { useRelay } from '@/composables/useRelay'
 
 const props = defineProps<{ runId: string }>()
@@ -215,10 +231,9 @@ const stepViews = computed(() => {
 })
 
 // 收起态预览（最多 3 行，旧→新）：最新为流式文本/思考时取其尾部 3 行；
-// 否则取最近 3 条动态各一行。高度由此与审批条近似。
-const previewLines = computed<string[]>(() => {
+// 否则取最近 3 条动态。行内排版对齐 Block 头（工具名/目标分色）。
+const previewRows = computed<any[]>(() => {
   const entries = logEntries.value as any[]
-  // 找最新一条可展示 entry（工具或带内容）
   let latest: any = null
   for (let i = entries.length - 1; i >= 0; i--) {
     const e = entries[i]
@@ -227,12 +242,12 @@ const previewLines = computed<string[]>(() => {
   if (!latest) return []
   if (latest.type === 'text' || latest.type === 'thinking') {
     const lines = String(latest.content ?? '').split('\n').filter((l) => l !== '').slice(-3)
-    return lines.map((l) => (l.length > 100 ? '…' + l.slice(-100) : l))
+    return lines.map((l) => ({ mark: '', name: '', target: '', text: l.length > 100 ? '…' + l.slice(-100) : l, text_class: 'preview-text' }))
   }
-  const items: string[] = []
+  const items: any[] = []
   for (let i = entries.length - 1; i >= 0 && items.length < 3; i--) {
-    const line = entryPreviewLine(entries[i])
-    if (line) items.push(line)
+    const row = entryPreviewRow(entries[i])
+    if (row) items.push(row)
   }
   return items.reverse()
 })
@@ -243,21 +258,22 @@ const dotClass = computed(() =>
   isLiveRunning.value ? 'live-preview-dot live' : `live-preview-dot dot-${statusClass.value}`
 )
 
-/** 单条日志 → 预览行文本（无可展示内容返回空串）。 */
-function entryPreviewLine(e: any): string {
+/** 单条日志 → 预览行对象（无可展示内容返回 null）。
+ *  工具行 name+target 分色——对齐 Block 头 tool-name/tool-target 口径。 */
+function entryPreviewRow(e: any): any | null {
   if (e.type === 'tool' || e.type === 'tool_call') {
-    const t = toolTarget(e)
-    return `🔧 ${e.tool_name ?? ''}${t ? ' — ' + t : ''}`
+    return { mark: '🔧', name: e.tool_name ?? '', target: toolTarget(e), text: '', text_class: '' }
   }
   const c = e.content ?? ''
-  if (!c) return ''
-  if (e.type === 'step_started' || e.type === 'step_completed') return c
-  if (e.type === 'gate_waiting') return `⏸ ${c}`
-  if (e.type === 'run_completed') return `✅ ${c}`
-  if (e.type === 'run_failed' || e.type === 'error') return `❌ ${c}`
-  if (e.type === 'complete' || e.type === 'budget_warning' || e.type === 'budget_exceeded') return ''
-  if (e.type === 'thinking') return `💭 ${c.length > 90 ? '…' + c.slice(-90) : c}`
-  return c.length > 90 ? '…' + c.slice(-90) : c
+  if (!c) return null
+  if (e.type === 'step_started') return { mark: '▶', name: '', target: '', text: c, text_class: 'preview-text' }
+  if (e.type === 'step_completed') return { mark: '✓', name: '', target: '', text: c, text_class: 'preview-ok' }
+  if (e.type === 'gate_waiting') return { mark: '⏸', name: '', target: '', text: c, text_class: 'preview-warn' }
+  if (e.type === 'run_completed') return { mark: '✅', name: '', target: '', text: c, text_class: 'preview-ok' }
+  if (e.type === 'run_failed' || e.type === 'error') return { mark: '❌', name: '', target: '', text: c, text_class: 'preview-err' }
+  if (e.type === 'complete' || e.type === 'budget_warning' || e.type === 'budget_exceeded') return null
+  if (e.type === 'thinking') return { mark: '💭', name: '', target: '', text: c.length > 90 ? '…' + c.slice(-90) : c, text_class: 'preview-text' }
+  return { mark: '', name: '', target: '', text: c.length > 100 ? '…' + c.slice(-100) : c, text_class: 'preview-text' }
 }
 
 /** 工具条目的操作目标（与聊天侧工具卡的展示口径一致）。 */
@@ -304,6 +320,7 @@ function professionIcon(id: string): string {
   const map: Record<string, string> = {
     assistant: '📥', advisor: '💡', architect: '🏗️', planner: '📝',
     coder: '💻', tester: '🧪', reviewer: '🔍', documenter: '📚',
+    'plan-dev': '📝',
   }
   return map[id] ?? '⚙️'
 }
@@ -392,25 +409,41 @@ onUnmounted(() => {
 
 @keyframes rb-spin { to { transform: rotate(360deg); } }
 .spinning { animation: rb-spin 1.2s linear infinite; }
+/* Orbit 身份图标：主题色（此前黑色） */
+.run-icon { color: hsl(var(--primary)); }
+.head-chevron { color: var(--af-muted); flex-shrink: 0; }
 @keyframes rb-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+/* 预览条 v2：圆点对齐末行（flex-end + 末行居中边距），行距 0.2rem */
 .live-preview {
-  display: flex; align-items: flex-start; gap: 0.45rem; padding: 0.3rem 0.75rem;
+  display: flex; align-items: flex-end; gap: 0.5rem;
+  padding: 0.32rem 0.75rem 0.38rem;
   border-top: 1px solid var(--af-border); background: hsl(var(--primary) / 0.03);
 }
 .live-preview-dot {
   width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-  margin-top: 0.42rem; background: var(--af-muted, #999);
+  margin-bottom: 0.36rem; background: var(--af-muted, #999);
 }
 /* 仅运行中脉动；终态常亮（失败红/完成绿/gate 琥珀/失效灰） */
 .live-preview-dot.live { background: hsl(var(--primary)); animation: rb-pulse 1.4s ease-in-out infinite; }
 .live-preview-dot.dot-gate { background: hsl(38 92% 50%); }
 .live-preview-dot.dot-failed { background: hsl(var(--af-error)); }
 .live-preview-dot.dot-completed { background: hsl(142 71% 45%); }
-.live-preview-lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.08rem; }
-.preview-line {
-  font-size: 0.74rem; line-height: 1.35; color: var(--af-fg-secondary, #777);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.live-preview-lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+/* 预览行：排版对齐 Block 头（工具名 500/前景色 + 目标 青色 monospace） */
+.preview-line { display: flex; align-items: center; gap: 0.35rem; min-width: 0; font-size: 0.74rem; line-height: 1.45; }
+.preview-mark { width: 1.1em; flex-shrink: 0; font-size: 0.72rem; }
+.preview-tool-name { flex-shrink: 0; font-weight: 500; color: var(--af-fg); }
+.preview-tool-target {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: hsl(190 80% 40%); font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.72rem;
 }
+.preview-text {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--af-fg-secondary, #777);
+}
+.preview-err { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(var(--af-error)); }
+.preview-ok { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(142 71% 45%); }
+.preview-warn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(38 60% 35%); }
 
 /* 工具条目卡片（与聊天侧工具卡同款交互：默认收起/显示目标/点击展开） */
 .entry-tool-card { border: 1px solid var(--af-border); border-radius: 6px; overflow: hidden; }
@@ -452,7 +485,14 @@ onUnmounted(() => {
 .log-entries { max-height: 400px; overflow-y: auto; font-size: 0.78rem; line-height: 1.5; }
 .log-entry { padding: 0.15rem 0; }
 .entry-prof { margin-right: 0.3rem; }
-.entry-text { color: var(--af-fg); }
+/* 展开态文本行：职业图标 + Markdown（AutoDown） */
+.entry-text-row { display: flex; align-items: flex-start; gap: 0.3rem; padding: 0.15rem 0; }
+.entry-text-row .entry-prof { flex-shrink: 0; margin-right: 0; }
+.entry-md { flex: 1; min-width: 0; }
+.entry-thinking {
+  color: var(--af-muted); font-style: italic; font-size: 0.78rem;
+  padding: 0.15rem 0; white-space: pre-wrap; word-break: break-word;
+}
 .entry-tool { display: flex; align-items: center; gap: 0.3rem; color: var(--af-muted); padding-left: 1rem; }
 .tool-name { font-family: monospace; font-size: 0.74rem; }
 .entry-step { color: var(--af-muted); font-size: 0.75rem; padding: 0.2rem 0; }

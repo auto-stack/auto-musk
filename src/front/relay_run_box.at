@@ -17,8 +17,10 @@ use store: RelayStore
 
 component fn RelayRunBox(runId: str) {
     use {
-        component: ChevronDown, ChevronRight, Orbit, Wrench from "lucide-vue-next"
-        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget, relayPreviewLines, relayStepViews, relayBadgePos from "src/front/relay_run_helpers.at"
+        component: ChevronDown, ChevronUp, Orbit, Wrench from "lucide-vue-next"
+        component: ReportCard
+        component: Markdown from "platform:markdown"
+        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget, relayPreviewLines, relayStepViews, relayBadgePos, relayReportView from "src/front/relay_run_helpers.at"
     }
     computed {
         run => relayFindRun(store.runs, store.current_run, .runId)
@@ -52,6 +54,9 @@ component fn RelayRunBox(runId: str) {
         isTerminal => .statusClass == "failed" || .statusClass == "completed" || .statusClass == "missing"
         // 收起态预览（最多 3 行）：run 内最新变化；gate 时由审批条接管
         previewLines => relayPreviewLines(.logEntries)
+        // run 完成报告（completed 载荷；store.run_reports 或 LoadRun 回扫注入）
+        report => store.run_reports[.runId] ?? None
+        reportView => if .report != None { relayReportView(.report) } else { None }
         // 预览圆点：仅运行中脉动；gate 琥珀/失败红/完成绿/失效灰（终态常亮
         // 表示"停在这里"，不再闪烁误导）
         dotClass => if .isLiveRunning { "live-preview-dot live" } else { "live-preview-dot dot-" + .statusClass }
@@ -119,7 +124,6 @@ component fn RelayRunBox(runId: str) {
 .box-status { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; }
 .box-body { padding: 0.5rem 0.75rem; border-top: 1px solid var(--af-border); }
 .entry-prof { margin-right: 0.3rem; }
-.entry-text { color: var(--af-fg); }
 .entry-tool-card { border: 1px solid var(--af-border); border-radius: 6px; overflow: hidden; margin: 0.15rem 0; }
 .entry-tool-head { display: flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.5rem; cursor: pointer; font-size: 0.75rem; }
 .entry-tool-head .tool-target { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(190 80% 35%); font-family: monospace; }
@@ -130,15 +134,28 @@ component fn RelayRunBox(runId: str) {
 .tool-result { background: hsl(140 30% 96%); border-top: 1px dashed var(--af-border); }
 .gate-strip { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem; border-top: 1px dashed hsl(38 92% 50%); background: hsl(38 92% 50% / 0.06); }
 @keyframes rb-spin { to { transform: rotate(360deg); } }
+.run-icon { color: hsl(var(--primary)); }
 .run-icon.spinning { animation: rb-spin 1.2s linear infinite; }
+.head-chevron { color: var(--af-muted); flex-shrink: 0; }
+/* 展开态文本行：职业图标 + Markdown（AutoDown） */
+.entry-text-row { display: flex; align-items: flex-start; gap: 0.3rem; padding: 0.15rem 0; }
+.entry-text-row .entry-prof { flex-shrink: 0; }
+.entry-md { flex: 1; min-width: 0; }
+.entry-thinking {
+  color: var(--af-muted); font-style: italic; font-size: 0.78rem;
+  padding: 0.15rem 0; white-space: pre-wrap; word-break: break-word;
+}
+.run-report-slot { margin-top: 0.5rem; }
 @keyframes rb-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+/* 预览条 v2：圆点对齐末行（flex-end + 末行居中边距），行距 0.2rem */
 .live-preview {
-  display: flex; align-items: flex-start; gap: 0.45rem; padding: 0.3rem 0.75rem;
+  display: flex; align-items: flex-end; gap: 0.5rem;
+  padding: 0.32rem 0.75rem 0.38rem;
   border-top: 1px solid var(--af-border); background: hsl(var(--primary) / 0.03);
 }
 .live-preview-dot {
   width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-  margin-top: 0.42rem; background: var(--af-muted, #999);
+  margin-bottom: 0.36rem; background: var(--af-muted, #999);
 }
 /* 仅运行中脉动；终态常亮（失败红/完成绿/gate 琥珀/失效灰）——
    失败后圆点仍在闪烁会让用户误以为命令还在跑 */
@@ -146,11 +163,23 @@ component fn RelayRunBox(runId: str) {
 .live-preview-dot.dot-gate { background: hsl(38 92% 50%); }
 .live-preview-dot.dot-failed { background: hsl(var(--af-error)); }
 .live-preview-dot.dot-completed { background: hsl(142 71% 45%); }
-.live-preview-lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.08rem; }
-.preview-line {
-  font-size: 0.74rem; line-height: 1.35; color: var(--af-fg-secondary, #777);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.live-preview-lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+/* 预览行：排版对齐 Block 头（工具名 500/前景色 + 目标 青色 monospace），
+   但不做标题栏底色 */
+.preview-line { display: flex; align-items: center; gap: 0.35rem; min-width: 0; font-size: 0.74rem; line-height: 1.45; }
+.preview-mark { width: 1.1em; flex-shrink: 0; font-size: 0.72rem; }
+.preview-tool-name { flex-shrink: 0; font-weight: 500; color: var(--af-fg); }
+.preview-tool-target {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: hsl(190 80% 40%); font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.72rem;
 }
+.preview-text {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--af-fg-secondary, #777);
+}
+.preview-err { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(var(--af-error)); }
+.preview-ok { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(142 71% 45%); }
+.preview-warn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(38 60% 35%); }
 .gate-strip-prompt { flex: 1; font-size: 0.78rem; color: hsl(38 60% 35%); }
 .entry-step { color: var(--af-muted); font-size: 0.75rem; padding: 0.2rem 0; }
 .entry-step.done { color: hsl(142 71% 45%); }
@@ -222,16 +251,11 @@ component fn RelayRunBox(runId: str) {
 
     div {
         class: if .statusClass == "completed" { "relay-box status-completed" } else { if .statusClass == "failed" { "relay-box status-failed" } else { if .statusClass == "gate" { "relay-box status-gate" } else { if .statusClass == "missing" { "relay-box status-missing" } else { "relay-box status-running" } } } }
-        // header（click toggle）
+        // header（click toggle）——折叠 UI 与其它 Block 统一：右侧上下箭头
+        //（ChevronDown=收起 / ChevronUp=展开），Orbit 身份图标留左（主题色）
         row {
             onclick: .Toggle
             style: "box-header"
-            if .expanded {
-                ChevronDown { size: 14 }
-            } else {
-                ChevronRight { size: 14 }
-            }
-            // 运行态：图标旋转（正在执行的活性指示）
             Orbit {
                 size: 14,
                 class: if .isLiveRunning { "run-icon spinning" } else { "run-icon" }
@@ -273,6 +297,11 @@ component fn RelayRunBox(runId: str) {
                 class: if .statusClass == "completed" { "badge-completed" } else { if .statusClass == "failed" { "badge-failed" } else { if .statusClass == "gate" { "badge-gate" } else { if .statusClass == "missing" { "badge-missing" } else { "badge-running" } } } }
                 text .statusLabel
             }
+            if .expanded {
+                ChevronUp { size: 14, style: "head-chevron" }
+            } else {
+                ChevronDown { size: 14, style: "head-chevron" }
+            }
         }
         // 收起态：停靠 gate → 审批条；否则 → 最新动态预览（最多 3 行；
         // 流式文本时为其尾部 3 行）。高度与审批条近似，随 SSE 自动更新。
@@ -303,10 +332,31 @@ component fn RelayRunBox(runId: str) {
                 }
                 div {
                     style: "live-preview-lines"
-                    for line in .previewLines {
+                    for row in .previewLines {
                         div {
                             style: "preview-line"
-                            text line
+                            span {
+                                style: "preview-mark"
+                                text row.mark
+                            }
+                            if row.name != "" {
+                                span {
+                                    style: "preview-tool-name"
+                                    text row.name
+                                }
+                            }
+                            if row.target != "" {
+                                span {
+                                    style: "preview-tool-target"
+                                    text row.target
+                                }
+                            }
+                            if row.text != "" {
+                                span {
+                                    class: row.text_class
+                                    text row.text
+                                }
+                            }
                         }
                     }
                 }
@@ -330,12 +380,23 @@ component fn RelayRunBox(runId: str) {
                         div {
                             class: relayEntryClass(.entry.type)
                             if .entry.type == "text" {
-                                span {
-                                    style: "entry-prof"
-                                    text relayProfessionIcon(.entry.profession_id)
+                                // 与 chat 一致：AutoDown/Markdown 渲染（纯文本
+                                // span 是"⚙️+纯文本"观感的根因）
+                                div {
+                                    style: "entry-text-row"
+                                    span {
+                                        style: "entry-prof"
+                                        text relayProfessionIcon(.entry.profession_id)
+                                    }
+                                    div {
+                                        style: "entry-md"
+                                        Markdown(source: .entry.content, streaming: false)
+                                    }
                                 }
-                                span {
-                                    style: "entry-text"
+                            } else if .entry.type == "thinking" {
+                                // 思考条目：muted 斜体（此前无分支不渲染）
+                                div {
+                                    style: "entry-thinking"
                                     text .entry.content
                                 }
                             } else if .entry.type == "tool" || .entry.type == "tool_call" {
@@ -415,6 +476,14 @@ component fn RelayRunBox(runId: str) {
                                 }
                             }
                         }
+                    }
+                }
+                // run 完成报告（PLAN-031 T5）：PPT 风格 ReportBlock 内嵌于
+                // RunBox 底部（gen 轨位置；web 轨由 ChatsView 全局位承接）
+                if .reportView != None {
+                    div {
+                        style: "run-report-slot"
+                        ReportCard { report: .reportView }
                     }
                 }
                 // inline gate 审批（对齐原 gate-actions）

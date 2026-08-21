@@ -25,7 +25,14 @@ pub enum RunEvent {
     StepCompleted { #[serde(default)] timestamp: u64, step_id: String, handoff_summary: String },
     GateWaiting { #[serde(default)] timestamp: u64, step_id: String, gate: String },
     GateResolved { #[serde(default)] timestamp: u64, step_id: String, decision: String },
-    RunCompleted { #[serde(default)] timestamp: u64 },
+    /// PLAN-031 T5: carries the deterministic run report so the frontend
+    /// ReportCard (web global slot / gen RunBox embed) lights up on completion.
+    RunCompleted {
+        #[serde(default)]
+        timestamp: u64,
+        #[serde(default)]
+        report: RunReportPayload,
+    },
     RunFailed { #[serde(default)] timestamp: u64, error: String },
     TokenSpend { #[serde(default)] timestamp: u64, cumulative: u64, step_tokens: u64 },
     RelayUpdate {
@@ -55,6 +62,88 @@ pub enum RunEvent {
     TurnBudgetExceeded { #[serde(default)] timestamp: u64, role_id: String },
 }
 
+/// Deterministic run report assembled at completion (PLAN-031 T5).
+/// Field names match the frontend ReportCard mapping (`onReport` in web
+/// ChatsView reads snake_case keys; gen track maps via `relayReportView`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct RunReportPayload {
+    #[serde(default)]
+    pub run_id: String,
+    #[serde(default)]
+    pub title: String,
+    /// Markdown summary — the document-phase handoff summary (LLM prose).
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub goals_met: String,
+    #[serde(default)]
+    pub tests_pass: String,
+    #[serde(default)]
+    pub drift_detected: String,
+    #[serde(default)]
+    pub cost: String,
+    #[serde(default)]
+    pub confidence: String,
+    #[serde(default)]
+    pub deliverables: Vec<String>,
+    #[serde(default)]
+    pub files_changed: Vec<String>,
+    #[serde(default)]
+    pub tool_calls: u64,
+    #[serde(default)]
+    pub duration_s: u64,
+    #[serde(default)]
+    pub completed_steps: u32,
+    #[serde(default)]
+    pub total_steps: u32,
+}
+
+/// Assemble the run report from the run entry (no extra LLM call — the
+/// document-phase handoff summary is the prose; metrics come from events).
+fn build_run_report(entry: &RunEntry) -> RunReportPayload {
+    let total = entry.engine.flow.steps.len() as u32;
+    let completed = entry.engine.step_history.len() as u32;
+    // 变更文件：write/edit 类工具调用目标（去重保序）
+    let mut files: Vec<String> = Vec::new();
+    let mut tool_calls: u64 = 0;
+    for ev in &entry.events {
+        if let RunEvent::TurnToolCall { tool_name, arguments, .. } = ev {
+            tool_calls += 1;
+            if matches!(tool_name.as_str(), "write_file" | "edit_file" | "apply_patch" | "replace") {
+                if let Some(path) = arguments.get("path").and_then(|v| v.as_str()) {
+                    let p = path.to_string();
+                    if !p.is_empty() && !files.contains(&p) {
+                        files.push(p);
+                    }
+                }
+            }
+        }
+    }
+    let summary = entry
+        .engine
+        .step_history
+        .last()
+        .and_then(|r| r.handoff.as_ref().map(|h| h.summary.clone()))
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "Run completed successfully.".to_string());
+    RunReportPayload {
+        run_id: entry.run_id.clone(),
+        title: entry.metadata.title.clone().unwrap_or_default(),
+        summary,
+        goals_met: format!("{}/{}", completed, total),
+        tests_pass: format!("{}", tool_calls),
+        drift_detected: "None".into(),
+        cost: entry.engine.cumulative_tokens.to_string(),
+        confidence: "High".into(),
+        deliverables: files.clone(),
+        files_changed: files,
+        tool_calls,
+        duration_s: entry.updated_at.saturating_sub(entry.created_at),
+        completed_steps: completed,
+        total_steps: total,
+    }
+}
+
 impl RunEvent {
     pub fn timestamp(&self) -> u64 {
         match self {
@@ -62,7 +151,7 @@ impl RunEvent {
             | RunEvent::StepCompleted { timestamp, .. }
             | RunEvent::GateWaiting { timestamp, .. }
             | RunEvent::GateResolved { timestamp, .. }
-            | RunEvent::RunCompleted { timestamp }
+            | RunEvent::RunCompleted { timestamp, .. }
             | RunEvent::RunFailed { timestamp, .. }
             | RunEvent::TokenSpend { timestamp, .. }
             | RunEvent::RelayUpdate { timestamp, .. }
@@ -435,7 +524,10 @@ impl RunStore {
                     });
                 }
                 crate::relay::AdvanceResult::Completed => {
-                    appended.push(RunEvent::RunCompleted { timestamp: now });
+                    appended.push(RunEvent::RunCompleted {
+                        timestamp: now,
+                        report: build_run_report(entry),
+                    });
                 }
                 crate::relay::AdvanceResult::Failed { error } => {
                     appended.push(RunEvent::RunFailed {
@@ -496,7 +588,10 @@ impl RunStore {
             }
             match &result {
                 crate::relay::AdvanceResult::Completed => {
-                    appended.push(RunEvent::RunCompleted { timestamp: now });
+                    appended.push(RunEvent::RunCompleted {
+                        timestamp: now,
+                        report: build_run_report(entry),
+                    });
                 }
                 crate::relay::AdvanceResult::Failed { error, .. } => {
                     appended.push(RunEvent::RunFailed {
@@ -550,7 +645,10 @@ impl RunStore {
                     });
                 }
                 crate::relay::AdvanceResult::Completed => {
-                    appended.push(RunEvent::RunCompleted { timestamp: now });
+                    appended.push(RunEvent::RunCompleted {
+                        timestamp: now,
+                        report: build_run_report(entry),
+                    });
                 }
                 _ => {}
             }
@@ -641,6 +739,17 @@ impl RunStore {
     pub fn status(&self, run_id: &str) -> Option<String> {
         let runs = self.runs.lock().unwrap();
         runs.get(run_id).map(|e| e.engine.status.to_status_str())
+    }
+
+    /// PLAN-031 T5: the completion report carried on the last RunCompleted
+    /// event (watchers / SSE publishers re-read it instead of rebuilding).
+    pub fn run_report(&self, run_id: &str) -> Option<RunReportPayload> {
+        let runs = self.runs.lock().unwrap();
+        let entry = runs.get(run_id)?;
+        entry.events.iter().rev().find_map(|ev| match ev {
+            RunEvent::RunCompleted { report, .. } => Some(report.clone()),
+            _ => None,
+        })
     }
 
     /// Which workspace this run belongs to (for orchestration tool context).

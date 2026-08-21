@@ -27,6 +27,8 @@ store RelayStore {
         // runId → 历史回放（run 内存态被 serve 重启清空后，从持久化 Flow
         // 会话重建的只读视图：{status,title,entries}）
         var run_histories Value = {}
+        // runId → 完成报告（run_completed 事件载荷；PLAN-031 T5）
+        var run_reports Value = {}
         // runId → SSE 订阅句柄（Sse.open 产物；close 经 Sse.close）
         var relay_subs Value = {}
         // relay gate 事件中转信号（useGateInbox watch 消费：{kind: reached|resolved, ...}）
@@ -94,6 +96,19 @@ store RelayStore {
                     if data.events != None {
                         if data.events.length > 0 {
                             .session_logs[runId] = relayEventsToSessionLog(runId, data.events)
+                        }
+                        // 回扫 run_completed 报告载荷（刷新/重启后恢复 ReportBlock）
+                        var ri int = data.events.length - 1
+                        while ri >= 0 {
+                            let rev = data.events[ri]
+                            if rev.type == "run_completed" {
+                                if rev.report != None {
+                                    .run_reports[runId] = rev.report
+                                }
+                                ri = -1
+                            } else {
+                                ri = ri - 1
+                            }
                         }
                     }
                     if data.profession_tokens != None {
@@ -257,6 +272,10 @@ store RelayStore {
             }
             if et == "run_completed" {
                 log.push({ id: relayMakeId(runId), time: time, profession_id: "system", type: "run_completed", content: "Run completed successfully" })
+                // 完成报告载荷（PLAN-031 T5）——RunBox 内嵌 ReportCard 数据源
+                if p.report != None {
+                    .run_reports[runId] = p.report
+                }
             }
             if et == "run_failed" {
                 log.push({ id: relayMakeId(runId), time: time, profession_id: "system", type: "run_failed", content: p.error ?? "Run failed" })

@@ -58,33 +58,29 @@ fn relayClipText(s str, n int) str {
 }
 
 
-/** 单条日志 → 预览行文本（无可展示内容返回 ""；工具→名称+目标；文本→尾部）。 */
-fn relayEntryPreviewLine(e Value) str {
+/** 单条日志 → 预览行对象 {mark, name, target, text, text_class}
+ *（工具行 name+target 分色——对齐 Block 头 tool-name/tool-target 口径；
+ *  无可展示内容返回 None）。 */
+fn relayEntryPreviewRow(e Value) Value {
     let ty = e.type ?? ""
     if ty == "tool" || ty == "tool_call" {
-        let target = relayToolTarget(e)
-        if target != "" {
-            return "🔧 " + (e.tool_name ?? "") + " — " + target
-        }
-        return "🔧 " + (e.tool_name ?? "")
+        return { mark: "🔧", name: e.tool_name ?? "", target: relayToolTarget(e), text: "", text_class: "" }
     }
     let c = e.content ?? ""
-    if c == "" { return "" }
-    if ty == "step_started" || ty == "step_completed" { return c }
-    if ty == "gate_waiting" { return "⏸ " + c }
-    if ty == "run_completed" { return "✅ " + c }
-    if ty == "run_failed" || ty == "error" { return "❌ " + c }
+    if c == "" { return None }
+    if ty == "step_started" { return { mark: "▶", name: "", target: "", text: c, text_class: "preview-text" } }
+    if ty == "step_completed" { return { mark: "✓", name: "", target: "", text: c, text_class: "preview-ok" } }
+    if ty == "gate_waiting" { return { mark: "⏸", name: "", target: "", text: c, text_class: "preview-warn" } }
+    if ty == "run_completed" { return { mark: "✅", name: "", target: "", text: c, text_class: "preview-ok" } }
+    if ty == "run_failed" || ty == "error" { return { mark: "❌", name: "", target: "", text: c, text_class: "preview-err" } }
     // turn 级噪音不进预览
-    if ty == "complete" || ty == "budget_warning" || ty == "budget_exceeded" { return "" }
-    if ty == "thinking" { return "💭 " + relayClipText(c, 90) }
-    if c.length > 90 {
-        return "…" + c.substring(c.length - 90)
-    }
-    return c
+    if ty == "complete" || ty == "budget_warning" || ty == "budget_exceeded" { return None }
+    if ty == "thinking" { return { mark: "💭", name: "", target: "", text: relayClipText(c, 90), text_class: "preview-text" } }
+    return { mark: "", name: "", target: "", text: relayClipText(c, 100), text_class: "preview-text" }
 }
 
 /** 收起态预览行（最多 3 行，旧→新排列）：最新为流式文本/思考时取其尾部 3 行；
- * 否则取最近 3 条动态各一行。高度由此与审批条近似。 */
+ * 否则取最近 3 条动态各一行。行对象结构见 relayEntryPreviewRow。 */
 fn relayPreviewLines(entries Value) Value {
     let list = entries ?? []
     let out list = []
@@ -120,9 +116,9 @@ fn relayPreviewLines(entries Value) Value {
         while k >= 0 {
             let ln = tail[k]
             if ln.length > 100 {
-                out.push("…" + ln.substring(ln.length - 100))
+                out.push({ mark: "", name: "", target: "", text: "…" + ln.substring(ln.length - 100), text_class: "preview-text" })
             } else {
-                out.push(ln)
+                out.push({ mark: "", name: "", target: "", text: ln, text_class: "preview-text" })
             }
             k = k - 1
         }
@@ -132,9 +128,9 @@ fn relayPreviewLines(entries Value) Value {
     let items list = []
     var m int = list.length - 1
     while m >= 0 {
-        let line = relayEntryPreviewLine(list[m])
-        if line != "" {
-            items.push(line)
+        let row = relayEntryPreviewRow(list[m])
+        if row != None {
+            items.push(row)
             if items.length >= 3 { m = -1 } else { m = m - 1 }
         } else {
             m = m - 1
@@ -211,9 +207,28 @@ fn relayStepViews(steps Value, current int, status str) Value {
 fn relayProfessionIcon(id str) str {
     let icons map = {
         "assistant": "📥", "advisor": "💡", "architect": "🏗️", "planner": "📝",
-        "coder": "💻", "tester": "🧪", "reviewer": "🔍", "documenter": "📚"
+        "coder": "💻", "tester": "🧪", "reviewer": "🔍", "documenter": "📚",
+        "plan-dev": "📝"
     }
     return icons[id] ?? "⚙️"
+}
+
+/** run_completed 载荷（snake_case）→ ReportCard props（camelCase + 默认值）。 */
+fn relayReportView(r Value) Value {
+    return {
+        runId: r.run_id ?? "",
+        title: r.title ?? "",
+        summary: r.summary ?? "",
+        goalsMet: r.goals_met ?? "—",
+        testsPass: r.tests_pass ?? "—",
+        driftDetected: r.drift_detected ?? "None",
+        cost: r.cost ?? "—",
+        confidence: r.confidence ?? "Medium",
+        deliverables: r.deliverables ?? [],
+        filesChanged: r.files_changed ?? [],
+        toolCalls: r.tool_calls ?? 0,
+        durationS: r.duration_s ?? 0
+    }
 }
 
 /** run?.title || runId。 */

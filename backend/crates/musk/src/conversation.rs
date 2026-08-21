@@ -1328,7 +1328,7 @@ mod tests {
             timestamp: 0,
             error: "boom".into(),
         };
-        let completed = crate::relay::store::RunEvent::RunCompleted { timestamp: 0 };
+        let completed = crate::relay::store::RunEvent::RunCompleted { timestamp: 0, report: Default::default() };
         let f = run_event_to_turns(&failed, 0);
         assert_eq!(f.len(), 1);
         assert_eq!(f[0].kind, TurnKind::System);

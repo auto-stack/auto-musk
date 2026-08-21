@@ -122,9 +122,13 @@ impl Tool for SpawnRelay {
         //    conversation (data hygiene only — it never blocks the tool result).
         //    Human gates can wait arbitrarily long, so there is no short timeout;
         //    the watcher just exits when the run reaches a terminal state.
+        //    PLAN-031 T4: on completion, also append the run summary as an
+        //    assistant message turn to the PARENT chat conversation — the chat
+        //    previously never got any closing text after a run finished.
         {
             let ws = ws.clone();
             let run_id_clone = run_id.clone();
+            let parent_conv_id = self.ctx.parent_conversation_id.clone();
             tokio::spawn(async move {
                 let poll_interval = std::time::Duration::from_secs(2);
                 loop {
@@ -133,6 +137,7 @@ impl Tool for SpawnRelay {
                         Some("completed") => {
                             ws.conversations
                                 .set_status(&run_id_clone, ConversationStatus::Completed);
+                            append_run_summary_to_parent(&ws, &run_id_clone, &parent_conv_id);
                             break;
                         }
                         Some("failed") => {
@@ -436,6 +441,52 @@ impl Tool for BringIn {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 /// Build a ToolCall Turn that links parent → child conversation.
+/// PLAN-031 T4: append the completed run's summary as an assistant message
+/// turn in the parent chat conversation — the chat previously never got any
+/// closing text after a run finished (spawn_relay is detached by design).
+/// Single-shot by the watcher's break-on-terminal semantics.
+fn append_run_summary_to_parent(
+    ws: &crate::workspace::WorkspaceStores,
+    run_id: &str,
+    parent_conv_id: &str,
+) {
+    let Some(rep) = ws.relay.run_report(run_id) else { return };
+    let duration = if rep.duration_s >= 60 {
+        format!("{}m {:02}s", rep.duration_s / 60, rep.duration_s % 60)
+    } else {
+        format!("{}s", rep.duration_s)
+    };
+    let files = if rep.files_changed.is_empty() {
+        String::new()
+    } else {
+        format!("\n\n**变更文件**：{}", rep.files_changed.join("、"))
+    };
+    let content = format!(
+        "✅ **Run 已完成**：{}\n\n{}\n\n- 步骤：{} ｜ 工具调用：{} ｜ 令牌：{} ｜ 用时：{}{}",
+        if rep.title.is_empty() { run_id.to_string() } else { rep.title.clone() },
+        rep.summary,
+        rep.goals_met,
+        rep.tool_calls,
+        rep.cost,
+        duration,
+        files
+    );
+    let turn = Turn {
+        id: conversation::new_id(8),
+        seq: 0, // Will be overwritten by append_turn
+        from: "assistant".into(),
+        to: None,
+        kind: TurnKind::Message,
+        content,
+        tool: None,
+        gate: None,
+        child_conversation: Some(run_id.into()),
+        tokens: None,
+        timestamp: conversation::now_secs(),
+    };
+    ws.conversations.append_turn(parent_conv_id, turn);
+}
+
 fn build_toolcall_turn(tool_name: &str, args: &Value, child_id: &str) -> Turn {
     Turn {
         id: conversation::new_id(8),

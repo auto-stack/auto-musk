@@ -57,7 +57,9 @@ pub enum RunEvent {
     StepCompleted { timestamp: u64, step_id: String, handoff_summary: String },
     GateWaiting { timestamp: u64, step_id: String, gate: String },
     GateResolved { timestamp: u64, step_id: String, decision: String },
-    RunCompleted { timestamp: u64 },
+    // PLAN-031 T5: report payload (hw store::RunReportPayload — wire parity
+    // with the handwritten enum; #[serde(default)] keeps old events loadable).
+    RunCompleted { timestamp: u64, #[serde(default)] report: crate::relay::store::RunReportPayload },
     RunFailed { timestamp: u64, error: String },
     TokenSpend { timestamp: u64, cumulative: u64, step_tokens: u64 },
     RelayUpdate { timestamp: u64, step_id: String, role_id: String, status: String },

@@ -22,7 +22,7 @@ use tokio_stream::StreamExt;
 use crate::relay::HandoffDocument;
 use crate::relay::{AdvanceResult, GateDecision};
 use crate::relay::profession::ProfessionRegistry;
-use crate::relay::store::{RunEvent, RunState, RunStore, StartRunRequest};
+use crate::relay::store::{RunEvent, RunReportPayload, RunState, RunStore, StartRunRequest};
 use crate::server::AppState;
 use crate::workspace::WorkspaceQuery;
 
@@ -233,7 +233,7 @@ async fn submit_handoff(
     };
     match ws.relay.submit_handoff(&run_id, handoff) {
         Some((result, state)) => {
-            publish_advance_result(&run_id, &result);
+            publish_advance_result_with_report(&run_id, &result, ws.relay.run_report(&run_id));
             Json(state).into_response()
         }
         None => (StatusCode::NOT_FOUND, format!("run '{run_id}' not found")).into_response(),
@@ -264,7 +264,7 @@ async fn resolve_gate(
     };
     match ws.relay.resolve_gate(&run_id, decision) {
         Some((result, run_state)) => {
-            publish_advance_result(&run_id, &result);
+            publish_advance_result_with_report(&run_id, &result, ws.relay.run_report(&run_id));
             // PLAN-030 试用修复：GateResolved 事件也进 SSE 总线（原先只落
             // run.events/会话镜像，前端 gate_resolved 触发器收不到）。
             if let crate::relay::AdvanceResult::ExecuteStep { step_id, .. } = &result {
@@ -374,6 +374,16 @@ fn now_secs() -> u64 {
 }
 
 pub fn publish_advance_result(run_id: &str, result: &AdvanceResult) {
+    publish_advance_result_with_report(run_id, result, None)
+}
+
+/// PLAN-031 T5: completion frames carry the run report so the frontend
+/// ReportCard lights up straight from SSE (no detail refetch needed).
+pub fn publish_advance_result_with_report(
+    run_id: &str,
+    result: &AdvanceResult,
+    report: Option<RunReportPayload>,
+) {
     let now = now_secs();
     match result {
         AdvanceResult::ExecuteStep { step_id, role_id, .. } => {
@@ -391,7 +401,10 @@ pub fn publish_advance_result(run_id: &str, result: &AdvanceResult) {
             });
         }
         AdvanceResult::Completed => {
-            publish(run_id, &RunEvent::RunCompleted { timestamp: now });
+            publish(run_id, &RunEvent::RunCompleted {
+                timestamp: now,
+                report: report.unwrap_or_default(),
+            });
         }
         AdvanceResult::Failed { error } => {
             publish(run_id, &RunEvent::RunFailed {

@@ -55,7 +55,7 @@ async fn drive_loop(state: Arc<AppState>, ws_id: &str, run_id: &str) -> Result<b
         if advance_is_none(&result) {
             done = true;
         } else {
-            relay_publish(run_id, &result);
+            relay_publish(&state, ws_id, run_id, &result);
             let kind = advance_kind(&result);
             if kind == "execute" {
                 let role_id = advance_role_id(&result);

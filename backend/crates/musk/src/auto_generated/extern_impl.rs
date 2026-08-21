@@ -1129,9 +1129,13 @@ pub fn relay_advance(s: &Arc<AppState>, w: &str, r: &str) -> Value {
 /// hw `relay::api::publish_advance_result`: maps the AdvanceResult to a RunEvent
 /// (StepStarted/GateWaiting/RunCompleted/RunFailed/RelayUpdate) and broadcasts it
 /// on the relay SSE bus. `v` is the serde Value produced by relay_advance.
-pub fn relay_publish(r: &str, v: &Value) {
+/// PLAN-031 T5: completion frames carry the run report (re-read from the store —
+/// relay_advance has already appended the RunCompleted event with the payload).
+pub fn relay_publish(state: &Arc<AppState>, ws_id: &str, r: &str, v: &Value) {
     if let Ok(ar) = serde_json::from_value::<crate::relay::AdvanceResult>(v.clone()) {
-        crate::relay::api::publish_advance_result(r, &ar);
+        let ws = state.registry.get(ws_id);
+        let report = ws.relay.run_report(r);
+        crate::relay::api::publish_advance_result_with_report(r, &ar, report);
     }
 }
 /// None when relay_advance returned Null (run vanished mid-drive).
@@ -2160,7 +2164,7 @@ pub fn relay_submit_handoff(
     let ws = relay_ws(s, &q);
     match ws.relay.submit_handoff(r, handoff) {
         Some((result, state)) => {
-            crate::relay::api::publish_advance_result(r, &result);
+            crate::relay::api::publish_advance_result_with_report(r, &result, ws.relay.run_report(r));
             serde_json::to_value(&state).unwrap_or(Value::Null)
         }
         None => Value::Null,
@@ -2187,7 +2191,7 @@ pub fn relay_resolve_gate(
     };
     match ws.relay.resolve_gate(r, decision) {
         Some((result, run_state)) => {
-            crate::relay::api::publish_advance_result(r, &result);
+            crate::relay::api::publish_advance_result_with_report(r, &result, ws.relay.run_report(r));
             // ExecuteStep → resume 后台 driver(继续到下一 gate / 终态)。
             if matches!(result, crate::relay::AdvanceResult::ExecuteStep { .. }) {
                 let state_arc = Arc::new(s.0.clone());

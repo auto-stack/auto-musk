@@ -17,15 +17,15 @@ use auto_ai_agent::Tool; // for direct .execute() calls in run_command tests
 /// cheap zero-field unit structs).
 fn make_tool(name: &str) -> Option<Box<dyn auto_ai_agent::Tool>> {
     match name {
-        "read_file" => Some(Box::new(ReadFile)),
-        "write_file" => Some(Box::new(WriteFile)),
-        "edit_file" => Some(Box::new(EditFile)),
-        "batch_replace" => Some(Box::new(BatchReplace)),
-        "search" => Some(Box::new(Search)),
-        "list_dir" => Some(Box::new(ListDir)),
-        "list_symbols" => Some(Box::new(ListSymbols)),
-        "glob" => Some(Box::new(Glob)),
-        "run_command" => Some(Box::new(RunCommand)),
+        "read_file" => Some(Box::new(ReadFile::new())),
+        "write_file" => Some(Box::new(WriteFile::new())),
+        "edit_file" => Some(Box::new(EditFile::new())),
+        "batch_replace" => Some(Box::new(BatchReplace::new())),
+        "search" => Some(Box::new(Search::new())),
+        "list_dir" => Some(Box::new(ListDir::new())),
+        "list_symbols" => Some(Box::new(ListSymbols::new())),
+        "glob" => Some(Box::new(Glob::new())),
+        "run_command" => Some(Box::new(RunCommand::new())),
         _ => None,
     }
 }
@@ -495,7 +495,7 @@ async fn run_command_whitelist_passes() {
 #[tokio::test]
 #[serial_test::serial]
 async fn run_command_unknown_returns_paused() {
-    let t = RunCommand;
+    let t = RunCommand::new();
     let result = t.execute(&json!({"cmd":"some-unknown-binary --flag"})).await.unwrap();
     assert!(result.contains("PAUSED"), "unknown command should return PAUSED, got: {result}");
     assert!(result.contains("not on the whitelist"), "should explain why: {result}");
@@ -504,7 +504,7 @@ async fn run_command_unknown_returns_paused() {
 #[tokio::test]
 #[serial_test::serial]
 async fn run_command_dangerous_returns_paused() {
-    let t = RunCommand;
+    let t = RunCommand::new();
     let result = t.execute(&json!({"cmd":"rm -rf /"})).await.unwrap();
     assert!(result.contains("PAUSED"), "dangerous command should return PAUSED, got: {result}");
     assert!(result.contains("dangerous pattern"), "should warn about danger: {result}");
@@ -513,7 +513,7 @@ async fn run_command_dangerous_returns_paused() {
 #[tokio::test]
 #[serial_test::serial]
 async fn run_command_force_overrides_pause() {
-    let t = RunCommand;
+    let t = RunCommand::new();
     let result = t.execute(&json!({"cmd":"echo forced","force":true})).await.unwrap();
     assert!(result.contains("forced"), "force should execute the command, got: {result}");
     assert!(!result.contains("PAUSED"), "force should not PAUSE: {result}");

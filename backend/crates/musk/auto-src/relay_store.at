@@ -45,6 +45,9 @@ pub tag RunEvent {
     StepCompleted { timestamp u64, step_id str, handoff_summary str }
     GateWaiting { timestamp u64, step_id str, gate str }
     GateResolved { timestamp u64, step_id str, decision str }
+    // PLAN-031 T5: 手补 report 字段(crate::relay::store::RunReportPayload,
+    // 与 hw 枚举 wire parity)——.at 无法表达外部类型,重生成后需手工补回
+    // (parity_relay_store 测试会在编译期拦住遗漏)。
     RunCompleted { timestamp u64 }
     RunFailed { timestamp u64, error str }
     TokenSpend { timestamp u64, cumulative u64, step_tokens u64 }

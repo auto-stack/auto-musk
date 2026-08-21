@@ -1,56 +1,64 @@
 <template>
+  <!-- PLAN-031 T5：PPT 风格 Run 工作汇总（hero 渐变头 → 摘要 AutoDown →
+       指标格 → 交付物 chips → 操作行）。默认展开——终态报告是给客户看的结果 -->
   <div class="report-card" :class="{ collapsed: !expanded }">
-    <div class="report-header" @click="expanded = !expanded">
+    <div class="report-hero" @click="expanded = !expanded">
       <span class="report-status">✅</span>
-      <span class="report-title">Relay Complete — Report {{ report.runId }}</span>
-      <span class="report-confidence" :class="report.confidence.toLowerCase()">
-        {{ report.confidence }}
-      </span>
+      <div class="report-title-block">
+        <span class="report-title">{{ title }}</span>
+        <span class="report-subtitle">{{ report.runId }}</span>
+      </div>
+      <span class="report-duration">{{ durationLabel }}</span>
+      <span class="report-confidence" :class="confidence.toLowerCase()">{{ report.confidence }}</span>
       <ChevronDown v-if="!expanded" :size="14" class="report-chevron" />
       <ChevronUp v-else :size="14" class="report-chevron" />
     </div>
 
     <div v-if="expanded" class="report-body">
+      <!-- 摘要：AutoDown/Markdown（PPT 内容页） -->
+      <div v-if="report.summary" class="report-summary">
+        <StreamingRenderer :source="report.summary" :streaming="false" />
+      </div>
+
+      <!-- 指标格：PPT 数据页 -->
       <div class="report-metrics">
-        <div class="metric-row">
-          <span class="metric-label">Goals Met</span>
+        <div class="metric-cell">
           <span class="metric-value">{{ report.goalsMet }}</span>
+          <span class="metric-label">步骤完成</span>
         </div>
-        <div class="metric-row">
-          <span class="metric-label">Tests Pass</span>
-          <span class="metric-value">{{ report.testsPass }}</span>
+        <div class="metric-cell">
+          <span class="metric-value">{{ report.toolCalls }}</span>
+          <span class="metric-label">工具调用</span>
         </div>
-        <div class="metric-row">
-          <span class="metric-label">Drift Detected</span>
-          <span class="metric-value" :class="{ drift: report.driftDetected !== 'None' }">
-            {{ report.driftDetected }}
-          </span>
-        </div>
-        <div class="metric-row">
-          <span class="metric-label">Cost</span>
+        <div class="metric-cell">
           <span class="metric-value">{{ report.cost }}</span>
+          <span class="metric-label">令牌消耗</span>
+        </div>
+        <div class="metric-cell">
+          <span class="metric-value">{{ durationLabel }}</span>
+          <span class="metric-label">总用时</span>
         </div>
       </div>
 
-      <div v-if="report.deliverables.length > 0" class="report-deliverables">
+      <div v-if="report.deliverables?.length" class="report-deliverables">
         <div class="section-title">Deliverables</div>
-        <ul>
-          <li v-for="(d, i) in report.deliverables" :key="i">{{ d }}</li>
-        </ul>
+        <div class="deliverable-chips">
+          <span v-for="(d, i) in report.deliverables" :key="i" class="deliverable-chip">{{ d }}</span>
+        </div>
       </div>
 
       <div class="report-actions">
         <button class="report-btn" @click.stop="$emit('view-full')">
           <FileText :size="13" />
-          View Full Report
+          查看完整报告
         </button>
         <button class="report-btn" @click.stop="$emit('download')">
           <Download :size="13" />
-          Download Markdown
+          下载 Markdown
         </button>
         <button class="report-btn" @click.stop="$emit('open-files')">
           <FolderOpen :size="13" />
-          Open Changed Files
+          打开变更文件
         </button>
       </div>
     </div>
@@ -58,24 +66,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { ChevronDown, ChevronUp, FileText, Download, FolderOpen } from 'lucide-vue-next'
+import StreamingRenderer from '@/components/StreamingRenderer.vue'
 
 export interface ReportData {
   runId: string
+  title?: string
+  summary?: string
   goalsMet: string
   testsPass: string
   driftDetected: string
   cost: string
   confidence: 'High' | 'Medium' | 'Low'
   deliverables: string[]
+  filesChanged?: string[]
+  toolCalls?: number
+  durationS?: number
 }
 
-interface Props {
-  report: ReportData
-}
-
-defineProps<Props>()
+const props = defineProps<{ report: ReportData }>()
 
 defineEmits<{
   (e: 'view-full'): void
@@ -83,153 +93,100 @@ defineEmits<{
   (e: 'open-files'): void
 }>()
 
-const expanded = ref(false)
+const expanded = ref(true)
+
+const title = computed(() => props.report.title || 'Run 工作汇总')
+
+const durationLabel = computed(() => {
+  const s = props.report.durationS ?? 0
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  const r = s % 60
+  return `${m}m ${String(r).padStart(2, '0')}s`
+})
+
+const confidence = computed(() => props.report.confidence || 'Medium')
 </script>
 
 <style scoped>
 .report-card {
-  border: 1px solid hsl(142 70% 45% / 0.25);
-  border-radius: 10px;
-  background: hsl(142 70% 45% / 0.04);
+  border: 1px solid hsl(142 70% 45% / 0.3);
+  border-radius: 12px;
+  background: hsl(0 0% 100%);
   margin: 0.5rem 0;
   overflow: hidden;
-  transition: all 0.2s;
+  box-shadow: 0 2px 10px hsl(142 70% 30% / 0.06);
 }
-
-.report-header {
+/* hero：PPT 封面式渐变头 */
+.report-hero {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 0.8rem;
+  gap: 0.65rem;
+  padding: 0.75rem 0.9rem;
   cursor: pointer;
   user-select: none;
+  background: linear-gradient(135deg, hsl(142 70% 45% / 0.14), hsl(174 60% 45% / 0.06) 55%, transparent);
+  border-bottom: 1px solid hsl(142 70% 45% / 0.15);
 }
-
-.report-header:hover {
-  background: hsl(142 70% 45% / 0.06);
+.report-hero:hover {
+  background: linear-gradient(135deg, hsl(142 70% 45% / 0.2), hsl(174 60% 45% / 0.08) 55%, transparent);
 }
-
-.report-status {
-  font-size: 1rem;
-  flex-shrink: 0;
-}
-
+.report-status { font-size: 1.25rem; flex-shrink: 0; }
+.report-title-block { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
 .report-title {
-  flex: 1;
-  font-size: 0.93rem;
-  font-weight: 500;
-  color: var(--af-fg);
+  font-size: 0.95rem; font-weight: 600; color: var(--af-fg);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-
+.report-subtitle {
+  font-size: 0.72rem; color: var(--af-muted);
+  font-family: 'Geist Mono', 'Fira Code', monospace;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.report-duration {
+  font-size: 0.7rem; padding: 0.14rem 0.45rem; border-radius: 999px; font-weight: 500;
+  flex-shrink: 0; background: hsl(220 15% 50% / 0.1); color: var(--af-muted);
+}
 .report-confidence {
-  font-size: 0.73rem;
-  padding: 0.15rem 0.4rem;
-  border-radius: 4px;
-  font-weight: 500;
-  text-transform: uppercase;
+  font-size: 0.7rem; padding: 0.14rem 0.45rem; border-radius: 999px;
+  font-weight: 500; flex-shrink: 0; text-transform: uppercase;
 }
+.report-confidence.high { background: hsl(142 70% 45% / 0.15); color: hsl(142 70% 35%); }
+.report-confidence.medium { background: hsl(38 90% 50% / 0.15); color: hsl(38 80% 40%); }
+.report-confidence.low { background: hsl(0 70% 50% / 0.15); color: hsl(0 70% 45%); }
+.report-chevron { color: var(--af-muted); flex-shrink: 0; }
 
-.report-confidence.high {
-  background: hsl(142 70% 45% / 0.15);
-  color: hsl(142 70% 35%);
+.report-body { padding: 0.65rem 0.9rem 0.8rem; display: flex; flex-direction: column; gap: 0.65rem; }
+/* 摘要：AutoDown/Markdown（PPT 内容页） */
+.report-summary { font-size: 0.88rem; line-height: 1.6; color: var(--af-fg); }
+/* 指标格：PPT 数据页 */
+.report-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
+.metric-cell {
+  display: flex; flex-direction: column; gap: 0.1rem;
+  padding: 0.45rem 0.5rem; background: hsl(220 14% 50% / 0.05); border-radius: 8px;
 }
-
-.report-confidence.medium {
-  background: hsl(38 90% 50% / 0.15);
-  color: hsl(38 80% 40%);
-}
-
-.report-confidence.low {
-  background: hsl(0 70% 50% / 0.15);
-  color: hsl(0 70% 45%);
-}
-
-.report-chevron {
-  color: var(--af-muted);
-  flex-shrink: 0;
-}
-
-.report-body {
-  padding: 0.5rem 0.8rem 0.75rem;
-  border-top: 1px solid hsl(142 70% 45% / 0.15);
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.report-metrics {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.4rem;
-}
-
-.metric-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.3rem 0.4rem;
-  background: hsl(var(--muted-foreground) / 0.04);
-  border-radius: 5px;
-  font-size: 0.83rem;
-}
-
-.metric-label {
-  color: var(--af-muted);
-}
-
-.metric-value {
-  font-weight: 500;
-  color: var(--af-fg);
-}
-
-.metric-value.drift {
-  color: hsl(var(--af-error));
-}
-
+.metric-value { font-size: 1.02rem; font-weight: 600; color: hsl(142 70% 38%); }
+.metric-label { font-size: 0.7rem; color: var(--af-muted); }
+/* 交付物 chips */
 .section-title {
-  font-size: 0.78rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--af-muted);
-  letter-spacing: 0.03em;
-  margin-bottom: 0.2rem;
+  font-size: 0.73rem; font-weight: 600; text-transform: uppercase;
+  color: var(--af-muted); letter-spacing: 0.03em; margin-bottom: 0.25rem;
 }
-
-.report-deliverables ul {
-  margin: 0;
-  padding-left: 1.1rem;
-  font-size: 0.88rem;
-  color: var(--af-fg);
-  line-height: 1.5;
+.deliverable-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.deliverable-chip {
+  font-size: 0.73rem; padding: 0.18rem 0.5rem; border-radius: 5px;
+  background: hsl(190 80% 45% / 0.08); color: hsl(190 80% 32%);
+  border: 1px solid hsl(190 80% 45% / 0.2);
+  font-family: 'Geist Mono', 'Fira Code', monospace;
 }
-
-.report-deliverables li {
-  margin: 0.1rem 0;
-}
-
 .report-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  display: flex; flex-wrap: wrap; gap: 0.35rem;
+  border-top: 1px solid hsl(var(--af-border) / 0.6); padding-top: 0.55rem;
 }
-
 .report-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.35rem 0.6rem;
-  border: 1px solid var(--af-border);
-  border-radius: 5px;
-  background: transparent;
-  color: var(--af-fg);
-  font-size: 0.83rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.32rem 0.6rem; border: 1px solid var(--af-border); border-radius: 5px;
+  background: transparent; color: var(--af-fg); font-size: 0.8rem; font-weight: 500;
+  cursor: pointer; transition: all 0.15s;
 }
-
-.report-btn:hover {
-  background: hsl(var(--muted-foreground) / 0.06);
-  border-color: hsl(var(--primary) / 0.3);
-}
+.report-btn:hover { background: hsl(220 14% 50% / 0.06); border-color: hsl(var(--primary) / 0.3); }
 </style>

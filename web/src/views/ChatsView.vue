@@ -1218,11 +1218,20 @@ function onViewFullReport() {
 
 function onDownloadReport() {
   if (!reportData.value) return
-  const blob = new Blob([`# Report ${reportData.value.runId}\n\n`], { type: 'text/markdown' })
+  const r = reportData.value
+  const md = [
+    `# ${r.title || `Run 工作汇总 — ${r.runId}`}`,
+    '',
+    r.summary || '',
+    '',
+    `- 步骤：${r.goalsMet} ｜ 工具调用：${r.toolCalls ?? 0} ｜ 令牌：${r.cost} ｜ 用时：${r.durationS ?? 0}s`,
+    r.filesChanged?.length ? `- 变更文件：${r.filesChanged.join('、')}` : '',
+  ].filter(Boolean).join('\n')
+  const blob = new Blob([md], { type: 'text/markdown' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `report-${reportData.value.runId}.md`
+  a.download = `report-${r.runId}.md`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -1297,14 +1306,20 @@ onMounted(async () => {
   // Wire report callback from event router
   setEventCallbacks({
     onReport: (payload) => {
+      const p = payload as Record<string, any>
       reportData.value = {
-        runId: (payload.run_id as string) || 'unknown',
-        goalsMet: (payload.goals_met as string) || '—',
-        testsPass: (payload.tests_pass as string) || '—',
-        driftDetected: (payload.drift_detected as string) || 'None',
-        cost: (payload.cost as string) || '—',
-        confidence: (payload.confidence as 'High' | 'Medium' | 'Low') || 'Medium',
-        deliverables: (payload.deliverables as string[]) || [],
+        runId: (p.run_id as string) || 'unknown',
+        title: (p.title as string) || '',
+        summary: (p.summary as string) || '',
+        goalsMet: (p.goals_met as string) || '—',
+        testsPass: (p.tests_pass as string) || '—',
+        driftDetected: (p.drift_detected as string) || 'None',
+        cost: (p.cost as string) || '—',
+        confidence: (p.confidence as 'High' | 'Medium' | 'Low') || 'Medium',
+        deliverables: (p.deliverables as string[]) || [],
+        filesChanged: (p.files_changed as string[]) || [],
+        toolCalls: (p.tool_calls as number) || 0,
+        durationS: (p.duration_s as number) || 0,
       }
     },
   })

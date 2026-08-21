@@ -237,7 +237,7 @@ fn parity_run_event_type_tags_match() {
             RunEvent::StepCompleted { timestamp: now, step_id: "s".into(), handoff_summary: "h".into() },
             "step_completed",
         ),
-        (RunEvent::RunCompleted { timestamp: now }, "run_completed"),
+        (RunEvent::RunCompleted { timestamp: now, report: Default::default() }, "run_completed"),
         (
             RunEvent::TurnDelta { timestamp: now, role_id: "r".into(), text: "t".into() },
             "turn_delta",

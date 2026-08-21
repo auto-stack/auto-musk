@@ -1,76 +1,90 @@
-// report_card.at — ReportCard 组件（Plan 023 P3 续：逃生舱原生化）
+// report_card.at — ReportCard 组件（PLAN-031 T5：PPT 风格 Run 工作汇总）
 //
-// 对标 src/front/components/ReportCard.vue（逃生舱）。
-// 验证 P4/P10 emit（msg → defineEmits + handler auto-emit）在重交互组件的效果。
-//
-// 关键转换：
-//   - expanded toggle → model + on（P4）
-//   - $emit('view-full'/'download'/'open-files') → msg + emit（P4/P10）
-//   - @click.stop（action 阻止冒泡到 header toggle）→ onclick.stop
-//   - (confidence || 'medium').toLowerCase() → reportConfidenceClass fn
-//   - {collapsed: !expanded} 对象 class → 嵌套 if 表达式
-//   - report.xxx 字段访问 → 直接（report 是 props，简单字段名）
-//
-// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.report-card 等）。
+// 数据源：run_completed 事件载荷（snake_case）→ relayReportView 映射为
+// camelCase props（web 轨由 ChatsView onReport 同口径映射）。
+// 呈现分层：hero（渐变头：标题/状态/置信/用时）→ 摘要（AutoDown/Markdown）→
+// 指标格（步骤/工具调用/令牌/用时）→ 交付物 chips → 操作行。
+// 默认展开（终态报告是"给客户看的结果"，不是可折叠日志）。
 
 component fn ReportCard(report: obj) {
     use {
         component: ChevronDown, ChevronUp, FileText, Download, FolderOpen from "lucide-vue-next"
-        fn: reportConfidenceClass from "src/front/forge_helpers.at"
+        component: Markdown from "platform:markdown"
+        fn: reportConfidenceClass, reportDurationLabel from "src/front/forge_helpers.at"
     }
     computed {
-        runId => .report.runId
-        goalsMet => .report.goalsMet
-        testsPass => .report.testsPass
-        driftDetected => .report.driftDetected
-        cost => .report.cost
+        runId => .report.runId ?? ""
+        title => if .report.title != "" { .report.title } else { "Run 工作汇总" }
+        summary => .report.summary ?? ""
+        hasSummary => .summary != ""
+        goalsMet => .report.goalsMet ?? "—"
+        toolCalls => .report.toolCalls ?? 0
+        cost => .report.cost ?? "—"
         confidenceClass => reportConfidenceClass(.report.confidence)
-        confidenceLabel => .report.confidence
+        confidenceLabel => .report.confidence ?? "Medium"
+        durationLabel => reportDurationLabel(.report.durationS ?? 0)
         hasDeliverables => if .report.deliverables != None { .report.deliverables.length > 0 } else { false }
         deliverables => if .report.deliverables != None { .report.deliverables } else { [] }
-        hasDrift => .driftDetected != "None"
         cardClass => if .expanded { "report-card" } else { "report-card collapsed" }
     }
     msg Msg { Toggle, ViewFull, DownloadReport, OpenFiles }
-    model { var expanded bool = false }
+    model { var expanded bool = true }
     on {
         .Toggle -> { .expanded = !.expanded }
     }
-    // Plan 029 T22：原 inject_styles 全局兜底下放（scoped 生效于本组件 DOM）。
     style {
-  .report-card { border: 1px solid hsl(142 70% 45% / 0.25); border-radius: 10px; background: hsl(142 70% 45% / 0.04); margin: 0.5rem 0; overflow: hidden; transition: all 0.2s; }
-  .report-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.8rem; cursor: pointer; user-select: none; }
-  .report-header:hover { background: hsl(142 70% 45% / 0.06); }
-  .report-status { font-size: 1rem; flex-shrink: 0; }
-  .report-title-prefix, .report-title { flex: 1; font-size: 0.93rem; font-weight: 500; color: hsl(var(--foreground)); }
-  .report-confidence { font-size: 0.73rem; padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 500; text-transform: uppercase; }
+  .report-card { border: 1px solid hsl(142 70% 45% / 0.3); border-radius: 12px; background: hsl(0 0% 100%); margin: 0.5rem 0; overflow: hidden; box-shadow: 0 2px 10px hsl(142 70% 30% / 0.06); }
+  /* hero：PPT 封面式渐变头 */
+  .report-hero {
+    display: flex; align-items: center; gap: 0.65rem; padding: 0.75rem 0.9rem; cursor: pointer; user-select: none;
+    background: linear-gradient(135deg, hsl(142 70% 45% / 0.14), hsl(174 60% 45% / 0.06) 55%, transparent);
+    border-bottom: 1px solid hsl(142 70% 45% / 0.15);
+  }
+  .report-hero:hover { background: linear-gradient(135deg, hsl(142 70% 45% / 0.2), hsl(174 60% 45% / 0.08) 55%, transparent); }
+  .report-status { font-size: 1.25rem; flex-shrink: 0; }
+  .report-title-block { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+  .report-title { font-size: 0.95rem; font-weight: 600; color: hsl(var(--foreground)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .report-subtitle { font-size: 0.72rem; color: hsl(var(--muted-foreground)); font-family: 'Geist Mono', 'Fira Code', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .report-confidence { font-size: 0.7rem; padding: 0.14rem 0.45rem; border-radius: 999px; font-weight: 500; flex-shrink: 0; text-transform: uppercase; }
   .report-confidence.high { background: hsl(142 70% 45% / 0.15); color: hsl(142 70% 35%); }
   .report-confidence.medium { background: hsl(38 90% 50% / 0.15); color: hsl(38 80% 40%); }
   .report-confidence.low { background: hsl(0 70% 50% / 0.15); color: hsl(0 70% 45%); }
+  .report-duration { font-size: 0.7rem; padding: 0.14rem 0.45rem; border-radius: 999px; font-weight: 500; flex-shrink: 0; background: hsl(220 15% 50% / 0.1); color: hsl(var(--muted-foreground)); }
   .report-chevron { color: hsl(var(--muted-foreground)); flex-shrink: 0; }
-  .report-body { padding: 0.5rem 0.8rem 0.75rem; border-top: 1px solid hsl(142 70% 45% / 0.15); display: flex; flex-direction: column; gap: 0.6rem; }
-  .report-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
-  .metric-row { display: flex; justify-content: space-between; align-items: center; padding: 0.3rem 0.4rem; background: hsl(220 14% 50% / 0.04); border-radius: 5px; font-size: 0.83rem; }
-  .metric-label { color: hsl(var(--muted-foreground)); }
-  .metric-value { font-weight: 500; color: hsl(var(--foreground)); }
-  .metric-value.drift { color: hsl(var(--destructive)); }
-  .report-deliverables .section-title, .section-title { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; color: hsl(var(--muted-foreground)); letter-spacing: 0.03em; margin-bottom: 0.2rem; }
-  .report-deliverables { font-size: 0.88rem; color: hsl(var(--foreground)); line-height: 1.5; }
-  .deliverable-item { margin: 0.1rem 0; }
-  .report-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-  .report-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.6rem; border: 1px solid hsl(var(--border)); border-radius: 5px; background: transparent; color: hsl(var(--foreground)); font-size: 0.83rem; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+  .report-body { padding: 0.65rem 0.9rem 0.8rem; display: flex; flex-direction: column; gap: 0.65rem; }
+  /* 摘要：AutoDown/Markdown（PPT 内容页） */
+  .report-summary { font-size: 0.88rem; line-height: 1.6; color: hsl(var(--foreground)); }
+  /* 指标格：PPT 数据页 */
+  .report-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
+  .metric-cell { display: flex; flex-direction: column; gap: 0.1rem; padding: 0.45rem 0.5rem; background: hsl(220 14% 50% / 0.05); border-radius: 8px; }
+  .metric-value { font-size: 1.02rem; font-weight: 600; color: hsl(142 70% 38%); }
+  .metric-label { font-size: 0.7rem; color: hsl(var(--muted-foreground)); }
+  /* 交付物 chips */
+  .section-title { font-size: 0.73rem; font-weight: 600; text-transform: uppercase; color: hsl(var(--muted-foreground)); letter-spacing: 0.03em; margin-bottom: 0.25rem; }
+  .deliverable-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .deliverable-chip {
+    font-size: 0.73rem; padding: 0.18rem 0.5rem; border-radius: 5px;
+    background: hsl(190 80% 45% / 0.08); color: hsl(190 80% 32%);
+    border: 1px solid hsl(190 80% 45% / 0.2); font-family: 'Geist Mono', 'Fira Code', monospace;
+  }
+  .report-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; border-top: 1px solid hsl(var(--border) / 0.6); padding-top: 0.55rem; }
+  .report-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.32rem 0.6rem; border: 1px solid hsl(var(--border)); border-radius: 5px; background: transparent; color: hsl(var(--foreground)); font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.15s; }
   .report-btn:hover { background: hsl(220 14% 50% / 0.06); border-color: hsl(var(--primary) / 0.3); }
     }
 
     col {
         class: .cardClass
-        // header（click toggle）
+        // hero（click toggle）——PPT 封面：✅ + 标题 + runId + 置信/用时 chips
         row {
             onclick: .Toggle
-            style: "report-header"
+            style: "report-hero"
             text "✅" { style: "report-status" }
-            text "Relay Complete — Report " { style: "report-title-prefix" }
-            text .runId { style: "report-title" }
+            col {
+                style: "report-title-block"
+                text .title { style: "report-title" }
+                text .runId { style: "report-subtitle" }
+            }
+            text .durationLabel { style: "report-duration" }
             text .confidenceLabel { class: .confidenceClass }
             if .expanded {
                 ChevronUp { size: 14, style: "report-chevron" }
@@ -78,64 +92,70 @@ component fn ReportCard(report: obj) {
                 ChevronDown { size: 14, style: "report-chevron" }
             }
         }
-        // body（展开时）
+        // body（展开时）：摘要 → 指标 → 交付物 → 操作
         if .expanded {
             col {
                 style: "report-body"
-                // metrics
-                col {
-                    style: "report-metrics"
-                    row {
-                        style: "metric-row"
-                        text "Goals Met" { style: "metric-label" }
-                        text .goalsMet { style: "metric-value" }
-                    }
-                    row {
-                        style: "metric-row"
-                        text "Tests Pass" { style: "metric-label" }
-                        text .testsPass { style: "metric-value" }
-                    }
-                    row {
-                        style: "metric-row"
-                        text "Drift Detected" { style: "metric-label" }
-                        text .driftDetected { class: if .hasDrift { "metric-value drift" } else { "metric-value" } }
-                    }
-                    row {
-                        style: "metric-row"
-                        text "Cost" { style: "metric-label" }
-                        text .cost { style: "metric-value" }
+                if .hasSummary {
+                    col {
+                        style: "report-summary"
+                        Markdown(source: .summary, streaming: false)
                     }
                 }
-                // deliverables
+                col {
+                    style: "report-metrics"
+                    col {
+                        style: "metric-cell"
+                        text .goalsMet { style: "metric-value" }
+                        text "步骤完成" { style: "metric-label" }
+                    }
+                    col {
+                        style: "metric-cell"
+                        text .toolCalls { style: "metric-value" }
+                        text "工具调用" { style: "metric-label" }
+                    }
+                    col {
+                        style: "metric-cell"
+                        text .cost { style: "metric-value" }
+                        text "令牌消耗" { style: "metric-label" }
+                    }
+                    col {
+                        style: "metric-cell"
+                        text .durationLabel { style: "metric-value" }
+                        text "总用时" { style: "metric-label" }
+                    }
+                }
                 if .hasDeliverables {
                     col {
                         style: "report-deliverables"
                         text "Deliverables" { style: "section-title" }
-                        for d in .deliverables {
-                            text .d { style: "deliverable-item" }
+                        row {
+                            style: "deliverable-chips"
+                            for d in .deliverables {
+                                text .d { style: "deliverable-chip" }
+                            }
                         }
                     }
                 }
-                // actions
                 row {
                     style: "report-actions"
                     button {
                         onclick.stop: .ViewFull
                         style: "report-btn"
                         FileText { size: 13 }
-                        text "View Full Report"
+                        text "查看完整报告"
                     }
                     button {
                         onclick.stop: .DownloadReport
                         style: "report-btn"
                         Download { size: 13 }
-                        text "Download Markdown"
+                        text "下载 Markdown"
                     }
                     button {
                         onclick.stop: .OpenFiles
                         style: "report-btn"
                         FolderOpen { size: 13 }
-                        text "Open Changed Files"
+                        text "打开变更文件"
                     }
                 }
             }
