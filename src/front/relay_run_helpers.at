@@ -58,35 +58,153 @@ fn relayClipText(s str, n int) str {
 }
 
 
-/** 收起态预览：run 内最新一个变化的一行摘要（工具→名称+目标；文本→尾部）。 */
-fn relayLatestPreview(entries Value) str {
+/** 单条日志 → 预览行文本（无可展示内容返回 ""；工具→名称+目标；文本→尾部）。 */
+fn relayEntryPreviewLine(e Value) str {
+    let ty = e.type ?? ""
+    if ty == "tool" || ty == "tool_call" {
+        let target = relayToolTarget(e)
+        if target != "" {
+            return "🔧 " + (e.tool_name ?? "") + " — " + target
+        }
+        return "🔧 " + (e.tool_name ?? "")
+    }
+    let c = e.content ?? ""
+    if c == "" { return "" }
+    if ty == "step_started" || ty == "step_completed" { return c }
+    if ty == "gate_waiting" { return "⏸ " + c }
+    if ty == "run_completed" { return "✅ " + c }
+    if ty == "run_failed" || ty == "error" { return "❌ " + c }
+    // turn 级噪音不进预览
+    if ty == "complete" || ty == "budget_warning" || ty == "budget_exceeded" { return "" }
+    if ty == "thinking" { return "💭 " + relayClipText(c, 90) }
+    if c.length > 90 {
+        return "…" + c.substring(c.length - 90, 90)
+    }
+    return c
+}
+
+/** 收起态预览行（最多 3 行，旧→新排列）：最新为流式文本/思考时取其尾部 3 行；
+ * 否则取最近 3 条动态各一行。高度由此与审批条近似。 */
+fn relayPreviewLines(entries Value) Value {
     let list = entries ?? []
+    let out list = []
+    // 找最新一条可展示 entry（工具或带内容）
+    var latest Value = None
     var i int = list.length - 1
     while i >= 0 {
-        let e = list[i]
-        let ty = e.type ?? ""
-        if ty == "tool" || ty == "tool_call" {
-            let target = relayToolTarget(e)
-            if target != "" {
-                return "🔧 " + (e.tool_name ?? "") + " — " + target
-            }
-            return "🔧 " + (e.tool_name ?? "")
+        let ty = list[i].type ?? ""
+        let c = list[i].content ?? ""
+        if ty == "tool" || ty == "tool_call" || c != "" {
+            latest = list[i]
+            i = -1
+        } else {
+            i = i - 1
         }
-        let c = e.content ?? ""
-        if c != "" {
-            if ty == "step_started" || ty == "step_completed" { return c }
-            if ty == "gate_waiting" { return "⏸ " + c }
-            if ty == "run_completed" { return "✅ " + c }
-            if ty == "error" { return "❌ " + c }
-            // 流式文本/思考：取尾部
-            if c.length > 80 {
-                return "…" + c.substring(c.length - 80, 80)
-            }
-            return c
-        }
-        i = i - 1
     }
-    return ""
+    if latest == None { return out }
+    let lty = latest.type ?? ""
+    if lty == "text" || lty == "thinking" {
+        // 流式文本：尾部 3 个非空行
+        let lines = (latest.content ?? "").split("\n")
+        let tail list = []
+        var j int = lines.length - 1
+        while j >= 0 {
+            if lines[j] != "" {
+                tail.push(lines[j])
+                if tail.length >= 3 { j = -1 } else { j = j - 1 }
+            } else {
+                j = j - 1
+            }
+        }
+        var k int = tail.length - 1
+        while k >= 0 {
+            let ln = tail[k]
+            if ln.length > 100 {
+                out.push("…" + ln.substring(ln.length - 100, 100))
+            } else {
+                out.push(ln)
+            }
+            k = k - 1
+        }
+        return out
+    }
+    // 其它：最近 3 条动态
+    let items list = []
+    var m int = list.length - 1
+    while m >= 0 {
+        let line = relayEntryPreviewLine(list[m])
+        if line != "" {
+            items.push(line)
+            if items.length >= 3 { m = -1 } else { m = m - 1 }
+        } else {
+            m = m - 1
+        }
+    }
+    var n int = items.length - 1
+    while n >= 0 {
+        out.push(items[n])
+        n = n - 1
+    }
+    return out
+}
+
+/** 步骤 id → 中文标签（进度悬浮列表用）。 */
+fn relayStepLabel(id str) str {
+    let labels map = {
+        "plan": "方案", "execute": "执行", "review": "审查", "document": "文档"
+    }
+    return labels[id] ?? id
+}
+
+/** 徽标显示的 1-based 步骤位置（后端 current_step 是 0-based"即将执行"索引；
+ * 完成态钉在 total，避免越界显示 total+1）。 */
+fn relayBadgePos(cur int, total int, status str) int {
+    if total <= 0 { return 0 }
+    if status == "completed" { return total }
+    if cur + 1 > total { return total }
+    return cur + 1
+}
+
+/** run.steps → 进度视图行（悬浮列表 + 迷你分段条共用）：
+ * {label, mark, seg_class, mark_class}——class 串在 fn 里拼好，
+ * 模板只做字段绑定。失败 run 的当前步后端标 pending，这里按 status 修正为 ✗。 */
+fn relayStepViews(steps Value, current int, status str) Value {
+    let out list = []
+    var idx int = 0
+    for st in (steps ?? []) {
+        var cls str = "pending"
+        var mark str = "○"
+        if idx < current {
+            cls = "done"
+            mark = "✓"
+        }
+        if idx == current {
+            if status == "completed" {
+                cls = "done"
+                mark = "✓"
+            }
+            if status == "running" {
+                cls = "active"
+                mark = "▶"
+            }
+            if status == "waiting_approval" {
+                cls = "gate"
+                mark = "⏸"
+            }
+            if status == "failed" {
+                cls = "failed"
+                mark = "✗"
+            }
+        }
+        out.push({
+            label: relayStepLabel(st.id ?? ""),
+            mark: mark,
+            seg_class: "seg " + cls,
+            mark_class: "pop-mark " + cls
+        })
+        idx = idx + 1
+    }
+    return out
 }
 
 /** 职业→图标。 */

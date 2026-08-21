@@ -18,7 +18,7 @@ use store: RelayStore
 component fn RelayRunBox(runId: str) {
     use {
         component: ChevronDown, ChevronRight, Orbit, Wrench from "lucide-vue-next"
-        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget, relayLatestPreview from "src/front/relay_run_helpers.at"
+        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget, relayPreviewLines, relayStepViews, relayBadgePos from "src/front/relay_run_helpers.at"
     }
     computed {
         run => relayFindRun(store.runs, store.current_run, .runId)
@@ -33,14 +33,28 @@ component fn RelayRunBox(runId: str) {
         titleText => if .hasRun { relayRunTitle(.run, .runId) } else { if .history != None { .history.title } else { .runId } }
         progressCur => if .hasRun { .run.current_step } else { 0 }
         progressTotal => if .hasRun { .run.total_steps } else { 0 }
+        steps => if .run != None { .run.steps ?? [] } else { [] }
+        // 进度视图（悬浮列表 + 迷你分段条）：失败 run 的当前步按 status 修正为 ✗
+        stepViews => relayStepViews(.steps, .progressCur, .status)
+        // 徽标 1-based 位置（current_step 是 0-based"即将执行"索引，直接展示会
+        // 把第 2 步显示成 1/4）
+        badgePos => relayBadgePos(.progressCur, .progressTotal, .status)
         waitingGate => relayWaitingGate(.run)
         hasWaitingGate => .waitingGate != None
         gateStepId => if .hasWaitingGate { .waitingGate.step_id } else { "" }
         logEntries => if .hasRun || .hasHistory == false { relaySessionLogFor(store.session_logs, .runId) } else { .history.entries }
+        // run 与历史均无 → missing 失效态（此前模板引用了未定义的 .missing，
+        // 生成码 undefined==false 恒假——收起态预览条在 gen 轨从未显示过的暗 bug）
+        isMissing => .hasRun == false && .hasHistory == false
         // 运行中（实时 run 且状态 running）→ 图标旋转
         isLiveRunning => .hasRun && .status == "running"
-        // 收起态预览：run 内最新一个变化（gate 时由审批条接管）
-        latestPreview => relayLatestPreview(.logEntries)
+        // 终态：失败/完成/失效——此时不再显示任何"进行中"指示
+        isTerminal => .statusClass == "failed" || .statusClass == "completed" || .statusClass == "missing"
+        // 收起态预览（最多 3 行）：run 内最新变化；gate 时由审批条接管
+        previewLines => relayPreviewLines(.logEntries)
+        // 预览圆点：仅运行中脉动；gate 琥珀/失败红/完成绿/失效灰（终态常亮
+        // 表示"停在这里"，不再闪烁误导）
+        dotClass => if .isLiveRunning { "live-preview-dot live" } else { "live-preview-dot dot-" + .statusClass }
     }
     msg Msg { Toggle, ToggleEntry(Value), Approve, Reject }
     model {
@@ -119,15 +133,22 @@ component fn RelayRunBox(runId: str) {
 .run-icon.spinning { animation: rb-spin 1.2s linear infinite; }
 @keyframes rb-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 .live-preview {
-  display: flex; align-items: center; gap: 0.45rem; padding: 0.32rem 0.75rem;
+  display: flex; align-items: flex-start; gap: 0.45rem; padding: 0.3rem 0.75rem;
   border-top: 1px solid var(--af-border); background: hsl(var(--primary) / 0.03);
 }
 .live-preview-dot {
   width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-  background: hsl(var(--primary)); animation: rb-pulse 1.4s ease-in-out infinite;
+  margin-top: 0.42rem; background: var(--af-muted, #999);
 }
-.live-preview-text {
-  flex: 1; font-size: 0.74rem; color: var(--af-fg-secondary, #777);
+/* 仅运行中脉动；终态常亮（失败红/完成绿/gate 琥珀/失效灰）——
+   失败后圆点仍在闪烁会让用户误以为命令还在跑 */
+.live-preview-dot.live { background: hsl(var(--primary)); animation: rb-pulse 1.4s ease-in-out infinite; }
+.live-preview-dot.dot-gate { background: hsl(38 92% 50%); }
+.live-preview-dot.dot-failed { background: hsl(var(--af-error)); }
+.live-preview-dot.dot-completed { background: hsl(142 71% 45%); }
+.live-preview-lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.08rem; }
+.preview-line {
+  font-size: 0.74rem; line-height: 1.35; color: var(--af-fg-secondary, #777);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .gate-strip-prompt { flex: 1; font-size: 0.78rem; color: hsl(38 60% 35%); }
@@ -138,8 +159,43 @@ component fn RelayRunBox(runId: str) {
 .entry-done { color: hsl(142 71% 45%); font-weight: 500; padding: 0.3rem 0; }
 .relay-box {
   border: 1px solid var(--af-border); border-radius: 8px; margin: 0; width: 100%;
-  overflow: hidden; background: hsl(var(--muted-foreground) / 0.03);
+  overflow: visible; background: hsl(var(--muted-foreground) / 0.03);
 }
+/* overflow 改 visible（进度悬浮列表要伸出盒外）；子元素圆角补位防溢角 */
+.relay-box > :first-child { border-radius: 8px 8px 0 0; }
+.relay-box > :last-child { border-radius: 0 0 8px 8px; }
+.relay-box > :only-child { border-radius: 8px; }
+/* 工具卡全宽（左右边缘齐平，与聊天侧工具卡同款；行级 flex 会把它收缩成
+   内容宽度——"长短不一"的根因） */
+.entry-tool { display: block; padding-left: 0; }
+.tool-interrupted {
+  flex-shrink: 0; font-size: 0.68rem; color: hsl(var(--af-error));
+  border: 1px solid hsl(var(--af-error) / 0.35); border-radius: 3px;
+  padding: 0 0.25rem;
+}
+/* 进度区：徽标 + 迷你分段条；hover 悬浮步骤清单（CSS-only） */
+.progress-wrap { position: relative; display: flex; align-items: center; gap: 0.3rem; cursor: help; }
+.progress-segs { display: flex; gap: 2px; }
+.progress-segs .seg { width: 10px; height: 4px; border-radius: 2px; background: hsl(var(--af-border)); }
+.progress-segs .seg.done { background: hsl(142 71% 45%); }
+.progress-segs .seg.active { background: hsl(var(--primary)); animation: rb-pulse 1.4s ease-in-out infinite; }
+.progress-segs .seg.gate { background: hsl(38 92% 50%); }
+.progress-segs .seg.failed { background: hsl(var(--af-error)); }
+.progress-pop {
+  display: none; position: absolute; top: 100%; right: 0; margin-top: 4px;
+  background: var(--af-bg, #fff); border: 1px solid var(--af-border);
+  border-radius: 6px; padding: 0.4rem 0.6rem; min-width: 128px; z-index: 30;
+  box-shadow: 0 4px 12px hsl(0 0% 0% / 0.12);
+}
+.progress-wrap:hover .progress-pop { display: block; }
+.pop-row { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; padding: 0.1rem 0; }
+.pop-mark { width: 1em; flex-shrink: 0; text-align: center; }
+.pop-mark.done { color: hsl(142 71% 45%); }
+.pop-mark.active { color: hsl(var(--primary)); }
+.pop-mark.gate { color: hsl(38 92% 50%); }
+.pop-mark.failed { color: hsl(var(--af-error)); }
+.pop-mark.pending { color: var(--af-muted); }
+.pop-label { color: var(--af-fg); white-space: nowrap; }
 .status-running { border-left: 3px solid hsl(var(--primary)); }
 .status-completed { border-left: 3px solid hsl(142 71% 45%); }
 .status-failed { border-left: 3px solid hsl(var(--af-error)); }
@@ -185,11 +241,32 @@ component fn RelayRunBox(runId: str) {
                 text .titleText
             }
             if .hasRun {
-                span {
-                    style: "box-progress"
-                    text .progressCur
-                    text "/"
-                    text .progressTotal
+                // 进度区：徽标(1-based) + 迷你分段条；hover 弹出步骤清单
+                //（4 步各是什么、当前在哪——方案 b+a 混合，不占独立行）
+                div {
+                    style: "progress-wrap"
+                    span {
+                        style: "box-progress"
+                        text .badgePos
+                        text "/"
+                        text .progressTotal
+                    }
+                    div {
+                        style: "progress-segs"
+                        for sv in .stepViews {
+                            span { class: .sv.seg_class }
+                        }
+                    }
+                    div {
+                        style: "progress-pop"
+                        for sv in .stepViews {
+                            div {
+                                style: "pop-row"
+                                span { class: .sv.mark_class, text .sv.mark }
+                                span { style: "pop-label", text .sv.label }
+                            }
+                        }
+                    }
                 }
             }
             span {
@@ -197,8 +274,8 @@ component fn RelayRunBox(runId: str) {
                 text .statusLabel
             }
         }
-        // 收起态：停靠 gate → 审批条；否则 → 最新动态预览小框（一行）
-        //（预览/审批随 SSE 事件自动更新，无需点开）
+        // 收起态：停靠 gate → 审批条；否则 → 最新动态预览（最多 3 行；
+        // 流式文本时为其尾部 3 行）。高度与审批条近似，随 SSE 自动更新。
         if .expanded == false && .hasWaitingGate {
             div {
                 style: "gate-strip"
@@ -218,15 +295,20 @@ component fn RelayRunBox(runId: str) {
                 }
             }
         }
-        if .expanded == false && .hasWaitingGate == false && .missing == false {
+        if .expanded == false && .hasWaitingGate == false && .isMissing == false {
             div {
                 style: "live-preview"
                 span {
-                    style: "live-preview-dot"
+                    class: .dotClass
                 }
-                span {
-                    style: "live-preview-text"
-                    text .latestPreview
+                div {
+                    style: "live-preview-lines"
+                    for line in .previewLines {
+                        div {
+                            style: "preview-line"
+                            text line
+                        }
+                    }
                 }
             }
         }
@@ -272,6 +354,14 @@ component fn RelayRunBox(runId: str) {
                                         span {
                                             style: "tool-target"
                                             text relayToolTarget(.entry)
+                                        }
+                                        // 终态下仍无结果的工具调用 → 标记中断
+                                        //（此前收起态一直留"进行中"观感，误导）
+                                        if .entry.type == "tool_call" && .isTerminal {
+                                            span {
+                                                style: "tool-interrupted"
+                                                text "已中断"
+                                            }
                                         }
                                         ChevronDown { size: 12, style: "tool-chevron" }
                                     }

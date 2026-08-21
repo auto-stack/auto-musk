@@ -471,6 +471,24 @@ fn relayEventsToSessionLog(runId str, events Value) Value {
         if ev.type == "turn_budget_exceeded" {
             result.push({ id: relayMakeId(runId), time: time, profession_id: prof, type: "budget_exceeded", content: "Budget exceeded — turn stopped" })
         }
+        // ─── 步骤/门禁/run 生命周期（持久化 events 同样携带；此前只映射
+        // turn_* —— 刷新重建的日志丢失 step/gate/失败行，收起态预览与
+        // 失败原因在重载后消失）。字段形状与 SSE 路径对齐（顶层平铺）。───
+        if ev.type == "step_started" {
+            result.push({ id: relayMakeId(runId), time: time, profession_id: ev.role_id ?? "system", type: "step_started", content: "Step \"" + (ev.step_id ?? "") + "\" started" })
+        }
+        if ev.type == "step_completed" {
+            result.push({ id: relayMakeId(runId), time: time, profession_id: ev.role_id ?? "system", type: "step_completed", content: "Step \"" + (ev.step_id ?? "") + "\" completed" })
+        }
+        if ev.type == "gate_waiting" {
+            result.push({ id: relayMakeId(runId), time: time, profession_id: "system", type: "gate_waiting", content: "Waiting for human gate approval" })
+        }
+        if ev.type == "run_completed" {
+            result.push({ id: relayMakeId(runId), time: time, profession_id: "system", type: "run_completed", content: "Run completed successfully" })
+        }
+        if ev.type == "run_failed" {
+            result.push({ id: relayMakeId(runId), time: time, profession_id: "system", type: "run_failed", content: ev.error ?? "Run failed" })
+        }
     }
     return result
 }

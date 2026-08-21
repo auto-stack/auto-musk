@@ -5,15 +5,30 @@
       <component :is="expanded ? ChevronDown : ChevronRight" :size="14" />
       <Orbit :size="14" :class="{ spinning: isLiveRunning }" />
       <span class="box-title">{{ boxTitle }}</span>
-      <span class="box-progress" v-if="run">{{ run.current_step }}/{{ run.total_steps }}</span>
+      <!-- 进度区：1-based 徽标 + 迷你分段条；hover 弹出步骤清单
+           （4 步各是什么、当前在哪——不占独立行） -->
+      <div v-if="run" class="progress-wrap">
+        <span class="box-progress">{{ badgePos }}/{{ run.total_steps }}</span>
+        <div class="progress-segs">
+          <span v-for="sv in stepViews" :key="sv.label" :class="sv.seg_class"></span>
+        </div>
+        <div class="progress-pop">
+          <div v-for="sv in stepViews" :key="'pop-' + sv.label" class="pop-row">
+            <span :class="sv.mark_class">{{ sv.mark }}</span>
+            <span class="pop-label">{{ sv.label }}</span>
+          </div>
+        </div>
+      </div>
       <span class="box-status" :class="`badge-${statusClass}`">{{ statusLabel }}</span>
     </div>
 
-    <!-- 收起态最新动态预览：一行展示 run 内最新一个变化（随 SSE 自动更新；
-         停靠审批时由审批条接管） -->
-    <div v-if="!expanded && !waitingGate && !missing && latestPreview" class="live-preview">
-      <span class="live-preview-dot"></span>
-      <span class="live-preview-text">{{ latestPreview }}</span>
+    <!-- 收起态最新动态预览（最多 3 行；流式文本时为其尾部 3 行）。
+         高度与审批条近似，随 SSE 自动更新；停靠审批时由审批条接管 -->
+    <div v-if="!expanded && !waitingGate && !missing && previewLines.length" class="live-preview">
+      <span :class="dotClass"></span>
+      <div class="live-preview-lines">
+        <div v-for="(line, i) in previewLines" :key="i" class="preview-line">{{ line }}</div>
+      </div>
     </div>
 
     <!-- 收起态审批条：停靠人工 gate 且未展开时，标题栏下方直接内联审批
@@ -45,7 +60,10 @@
                 <Wrench :size="12" />
                 <span class="tool-name">{{ entry.tool_name }}</span>
                 <span class="tool-target">{{ toolTarget(entry) }}</span>
-                <span v-if="entry.type === 'tool_call'" class="tool-pending">…</span>
+                <!-- 终态下仍无结果的工具调用 → 标记中断（此前收起态一直
+                     留"进行中"观感，误导） -->
+                <span v-if="entry.type === 'tool_call' && isTerminal" class="tool-interrupted">已中断</span>
+                <span v-else-if="entry.type === 'tool_call'" class="tool-pending">…</span>
                 <component
                   :is="entry._expanded ? ChevronUp : ChevronDown"
                   :size="12"
@@ -156,25 +174,91 @@ const isLiveRunning = computed(
   () => run.value != null && !historyMode.value && run.value.status === 'running'
 )
 
-/** 收起态预览：最新一个变化的一行摘要（工具→名称+目标；文本→尾部）。 */
-const latestPreview = computed(() => {
-  const entries = logEntries.value
-  for (let i = entries.length - 1; i >= 0; i--) {
-    const e = entries[i] as any
-    if (e.type === 'tool' || e.type === 'tool_call') {
-      const t = toolTarget(e)
-      return `🔧 ${e.tool_name ?? ''}${t ? ' — ' + t : ''}`
-    }
-    const c = e.content ?? ''
-    if (!c) continue
-    if (e.type === 'step_started' || e.type === 'step_completed') return c
-    if (e.type === 'gate_waiting') return `⏸ ${c}`
-    if (e.type === 'run_completed') return `✅ ${c}`
-    if (e.type === 'error') return `❌ ${c}`
-    return c.length > 80 ? '…' + c.slice(-80) : c
-  }
-  return ''
+// 终态：失败/完成/失效——不再显示任何"进行中"指示
+const isTerminal = computed(
+  () => statusClass.value === 'failed' || statusClass.value === 'completed' || statusClass.value === 'missing'
+)
+
+// 徽标 1-based 位置（后端 current_step 是 0-based"即将执行"索引，直接展示
+// 会把第 2 步显示成 1/4；完成态钉在 total 防越界）
+const badgePos = computed(() => {
+  const total = run.value?.total_steps ?? 0
+  if (total <= 0) return 0
+  if (run.value!.status === 'completed') return total
+  return Math.min((run.value?.current_step ?? 0) + 1, total)
 })
+
+// 步骤 id → 中文标签（进度悬浮列表用）
+function stepLabel(id: string): string {
+  const m: Record<string, string> = { plan: '方案', execute: '执行', review: '审查', document: '文档' }
+  return m[id] ?? id
+}
+
+// run.steps → 进度视图行（悬浮列表 + 迷你分段条共用）。失败 run 的当前步
+// 后端标 pending，这里按 run status 修正为 ✗。
+const stepViews = computed(() => {
+  const steps: any[] = run.value?.steps ?? []
+  const cur = run.value?.current_step ?? 0
+  const st = run.value?.status ?? ''
+  return steps.map((s, idx) => {
+    let cls = 'pending'
+    let mark = '○'
+    if (idx < cur) { cls = 'done'; mark = '✓' }
+    if (idx === cur) {
+      if (st === 'completed') { cls = 'done'; mark = '✓' }
+      if (st === 'running') { cls = 'active'; mark = '▶' }
+      if (st === 'waiting_approval') { cls = 'gate'; mark = '⏸' }
+      if (st === 'failed') { cls = 'failed'; mark = '✗' }
+    }
+    return { label: stepLabel(s.id ?? ''), mark, seg_class: 'seg ' + cls, mark_class: 'pop-mark ' + cls }
+  })
+})
+
+// 收起态预览（最多 3 行，旧→新）：最新为流式文本/思考时取其尾部 3 行；
+// 否则取最近 3 条动态各一行。高度由此与审批条近似。
+const previewLines = computed<string[]>(() => {
+  const entries = logEntries.value as any[]
+  // 找最新一条可展示 entry（工具或带内容）
+  let latest: any = null
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const e = entries[i]
+    if (e.type === 'tool' || e.type === 'tool_call' || (e.content ?? '') !== '') { latest = e; break }
+  }
+  if (!latest) return []
+  if (latest.type === 'text' || latest.type === 'thinking') {
+    const lines = String(latest.content ?? '').split('\n').filter((l) => l !== '').slice(-3)
+    return lines.map((l) => (l.length > 100 ? '…' + l.slice(-100) : l))
+  }
+  const items: string[] = []
+  for (let i = entries.length - 1; i >= 0 && items.length < 3; i--) {
+    const line = entryPreviewLine(entries[i])
+    if (line) items.push(line)
+  }
+  return items.reverse()
+})
+
+// 预览圆点：仅运行中脉动；gate 琥珀/失败红/完成绿/失效灰——终态常亮
+// （失败后圆点仍在闪烁会让用户误以为命令还在跑）
+const dotClass = computed(() =>
+  isLiveRunning.value ? 'live-preview-dot live' : `live-preview-dot dot-${statusClass.value}`
+)
+
+/** 单条日志 → 预览行文本（无可展示内容返回空串）。 */
+function entryPreviewLine(e: any): string {
+  if (e.type === 'tool' || e.type === 'tool_call') {
+    const t = toolTarget(e)
+    return `🔧 ${e.tool_name ?? ''}${t ? ' — ' + t : ''}`
+  }
+  const c = e.content ?? ''
+  if (!c) return ''
+  if (e.type === 'step_started' || e.type === 'step_completed') return c
+  if (e.type === 'gate_waiting') return `⏸ ${c}`
+  if (e.type === 'run_completed') return `✅ ${c}`
+  if (e.type === 'run_failed' || e.type === 'error') return `❌ ${c}`
+  if (e.type === 'complete' || e.type === 'budget_warning' || e.type === 'budget_exceeded') return ''
+  if (e.type === 'thinking') return `💭 ${c.length > 90 ? '…' + c.slice(-90) : c}`
+  return c.length > 90 ? '…' + c.slice(-90) : c
+}
 
 /** 工具条目的操作目标（与聊天侧工具卡的展示口径一致）。 */
 function toolTarget(entry: any): string {
@@ -252,9 +336,45 @@ onUnmounted(() => {
   border: 1px solid var(--af-border);
   border-radius: 8px;
   margin: 0.5rem 0;
-  overflow: hidden;
+  overflow: visible;
   background: hsl(var(--muted-foreground) / 0.03);
 }
+/* overflow 改 visible（进度悬浮列表要伸出盒外）；子元素圆角补位防溢角 */
+.relay-box > :first-child { border-radius: 8px 8px 0 0; }
+.relay-box > :last-child { border-radius: 0 0 8px 8px; }
+.relay-box > :only-child { border-radius: 8px; }
+/* 工具卡全宽（左右边缘齐平，与聊天侧工具卡同款）——行级 flex 会把它收缩
+   成内容宽度，正是收起态"长短不一"的根因 */
+.entry-tool { display: block; padding-left: 0; }
+.tool-interrupted {
+  flex-shrink: 0; font-size: 0.68rem; color: hsl(var(--af-error));
+  border: 1px solid hsl(var(--af-error) / 0.35); border-radius: 3px;
+  padding: 0 0.25rem;
+}
+
+/* 进度区：1-based 徽标 + 迷你分段条；hover 悬浮步骤清单（CSS-only） */
+.progress-wrap { position: relative; display: flex; align-items: center; gap: 0.3rem; cursor: help; }
+.progress-segs { display: flex; gap: 2px; }
+.progress-segs .seg { width: 10px; height: 4px; border-radius: 2px; background: hsl(var(--af-border)); }
+.progress-segs .seg.done { background: hsl(142 71% 45%); }
+.progress-segs .seg.active { background: hsl(var(--primary)); animation: rb-pulse 1.4s ease-in-out infinite; }
+.progress-segs .seg.gate { background: hsl(38 92% 50%); }
+.progress-segs .seg.failed { background: hsl(var(--af-error)); }
+.progress-pop {
+  display: none; position: absolute; top: 100%; right: 0; margin-top: 4px;
+  background: var(--af-bg, #fff); border: 1px solid var(--af-border);
+  border-radius: 6px; padding: 0.4rem 0.6rem; min-width: 128px; z-index: 30;
+  box-shadow: 0 4px 12px hsl(0 0% 0% / 0.12);
+}
+.progress-wrap:hover .progress-pop { display: block; }
+.pop-row { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; padding: 0.1rem 0; }
+.pop-mark { width: 1em; flex-shrink: 0; text-align: center; }
+.pop-mark.done { color: hsl(142 71% 45%); }
+.pop-mark.active { color: hsl(var(--primary)); }
+.pop-mark.gate { color: hsl(38 92% 50%); }
+.pop-mark.failed { color: hsl(var(--af-error)); }
+.pop-mark.pending { color: var(--af-muted); }
+.pop-label { color: var(--af-fg); white-space: nowrap; }
 .status-running { border-left: 3px solid hsl(var(--primary)); }
 .status-completed { border-left: 3px solid hsl(142 71% 45%); }
 .status-failed { border-left: 3px solid hsl(var(--af-error)); }
@@ -274,15 +394,21 @@ onUnmounted(() => {
 .spinning { animation: rb-spin 1.2s linear infinite; }
 @keyframes rb-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 .live-preview {
-  display: flex; align-items: center; gap: 0.45rem; padding: 0.32rem 0.75rem;
+  display: flex; align-items: flex-start; gap: 0.45rem; padding: 0.3rem 0.75rem;
   border-top: 1px solid var(--af-border); background: hsl(var(--primary) / 0.03);
 }
 .live-preview-dot {
   width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-  background: hsl(var(--primary)); animation: rb-pulse 1.4s ease-in-out infinite;
+  margin-top: 0.42rem; background: var(--af-muted, #999);
 }
-.live-preview-text {
-  flex: 1; font-size: 0.74rem; color: var(--af-fg-secondary, #777);
+/* 仅运行中脉动；终态常亮（失败红/完成绿/gate 琥珀/失效灰） */
+.live-preview-dot.live { background: hsl(var(--primary)); animation: rb-pulse 1.4s ease-in-out infinite; }
+.live-preview-dot.dot-gate { background: hsl(38 92% 50%); }
+.live-preview-dot.dot-failed { background: hsl(var(--af-error)); }
+.live-preview-dot.dot-completed { background: hsl(142 71% 45%); }
+.live-preview-lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.08rem; }
+.preview-line {
+  font-size: 0.74rem; line-height: 1.35; color: var(--af-fg-secondary, #777);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
