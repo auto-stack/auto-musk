@@ -58,29 +58,9 @@ fn relayClipText(s str, n int) str {
 }
 
 
-/** 单条日志 → 预览行对象 {mark, name, target, text, text_class}
- *（工具行 name+target 分色——对齐 Block 头 tool-name/tool-target 口径；
- *  无可展示内容返回 None）。 */
-fn relayEntryPreviewRow(e Value) Value {
-    let ty = e.type ?? ""
-    if ty == "tool" || ty == "tool_call" {
-        return { mark: "🔧", name: e.tool_name ?? "", target: relayToolTarget(e), text: "", text_class: "" }
-    }
-    let c = e.content ?? ""
-    if c == "" { return None }
-    if ty == "step_started" { return { mark: "▶", name: "", target: "", text: c, text_class: "preview-text" } }
-    if ty == "step_completed" { return { mark: "✓", name: "", target: "", text: c, text_class: "preview-ok" } }
-    if ty == "gate_waiting" { return { mark: "⏸", name: "", target: "", text: c, text_class: "preview-warn" } }
-    if ty == "run_completed" { return { mark: "✅", name: "", target: "", text: c, text_class: "preview-ok" } }
-    if ty == "run_failed" || ty == "error" { return { mark: "❌", name: "", target: "", text: c, text_class: "preview-err" } }
-    // turn 级噪音不进预览
-    if ty == "complete" || ty == "budget_warning" || ty == "budget_exceeded" { return None }
-    if ty == "thinking" { return { mark: "💭", name: "", target: "", text: relayClipText(c, 90), text_class: "preview-text" } }
-    return { mark: "", name: "", target: "", text: relayClipText(c, 100), text_class: "preview-text" }
-}
-
 /** 收起态预览行（最多 3 行，旧→新排列）：最新为流式文本/思考时取其尾部 3 行；
- * 否则取最近 3 条动态各一行。行对象结构见 relayEntryPreviewRow。 */
+ * 否则取最近 3 条动态各一行。行对象结构见 relayEntryPreviewRow（定义于
+ * 阶段 Log 行一节，与阶段行共用中文标签口径）。 */
 fn relayPreviewLines(entries Value) Value {
     let list = entries ?? []
     let out list = []
@@ -147,7 +127,7 @@ fn relayPreviewLines(entries Value) Value {
 /** 步骤 id → 中文标签（进度悬浮列表用）。 */
 fn relayStepLabel(id str) str {
     let labels map = {
-        "plan": "方案", "execute": "执行", "review": "审查", "document": "文档"
+        "plan": "方案制定", "execute": "计划执行", "review": "审查验收", "document": "文档沉淀"
     }
     return labels[id] ?? id
 }
@@ -221,6 +201,47 @@ fn relayPhaseText(ty str, content str) str {
     }
     if ty == "run_failed" || ty == "error" { return relayClipText(content, 60) }
     return ""
+}
+
+/** 阶段行可展开详情：step_completed 的 content 是
+ * 'Step "x" completed: <handoff 摘要>' —— 抽取冒号后的摘要做展开内容；
+ * 其余类型无详情（返回 ""）。 */
+fn relayPhaseDetail(ty str, content str) str {
+    if ty != "step_completed" { return "" }
+    let marker = "completed:"
+    let i = content.indexOf(marker)
+    if i == -1 { return "" }
+    let rest = content.substring(i + marker.length)
+    return rest.trim()
+}
+
+/** 收起态预览行的阶段/终态条目 → 紧凑标题行（中文阶段名+动作，不带详情）。 */
+fn relayEntryPreviewRow(e Value) Value {
+    let ty = e.type ?? ""
+    if ty == "tool" || ty == "tool_call" {
+        return { mark: "🔧", name: e.tool_name ?? "", target: relayToolTarget(e), text: "", text_class: "" }
+    }
+    let c = e.content ?? ""
+    if ty == "step_started" {
+        return { mark: "▶", name: "", target: "", text: relayPhaseText(ty, c) + " 开始", text_class: "preview-text" }
+    }
+    if ty == "step_completed" {
+        return { mark: "✓", name: "", target: "", text: relayPhaseText(ty, c) + " 完成", text_class: "preview-ok" }
+    }
+    if ty == "gate_waiting" {
+        return { mark: "⏸", name: "", target: "", text: "等待审批", text_class: "preview-warn" }
+    }
+    if ty == "run_completed" {
+        return { mark: "✅", name: "", target: "", text: "Run 完成", text_class: "preview-ok" }
+    }
+    if ty == "run_failed" || ty == "error" {
+        return { mark: "❌", name: "", target: "", text: relayClipText(c, 70), text_class: "preview-err" }
+    }
+    // turn 级噪音不进预览
+    if ty == "complete" || ty == "budget_warning" || ty == "budget_exceeded" { return None }
+    if c == "" { return None }
+    if ty == "thinking" { return { mark: "💭", name: "", target: "", text: relayClipText(c, 90), text_class: "preview-text" } }
+    return { mark: "", name: "", target: "", text: relayClipText(c, 100), text_class: "preview-text" }
 }
 
 /** 工具卡是否为"文档读取型"（📄 图标 + 结果按 Markdown 展示于展开子窗，

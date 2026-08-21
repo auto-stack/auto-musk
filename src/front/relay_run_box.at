@@ -17,10 +17,10 @@ use store: RelayStore
 
 component fn RelayRunBox(runId: str) {
     use {
-        component: ChevronDown, ChevronUp, Orbit, Wrench from "lucide-vue-next"
+        component: ChevronDown, ChevronUp, Orbit, Wrench, FileText from "lucide-vue-next"
         component: ReportCard
         component: Markdown from "platform:markdown"
-        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget, relayPreviewLines, relayStepViews, relayBadgePos, relayReportView, relayTextPlanFile, relayTextBody, relayIsDoc, relayDocTitle, relayPhaseKind, relayPhaseAction, relayPhaseIcon, relayPhaseClass, relayPhaseText, relayToolIsDocKind from "src/front/relay_run_helpers.at"
+        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget, relayPreviewLines, relayStepViews, relayBadgePos, relayReportView, relayTextPlanFile, relayTextBody, relayIsDoc, relayDocTitle, relayPhaseKind, relayPhaseAction, relayPhaseIcon, relayPhaseClass, relayPhaseText, relayPhaseDetail, relayToolIsDocKind from "src/front/relay_run_helpers.at"
     }
     computed {
         run => relayFindRun(store.runs, store.current_run, .runId)
@@ -146,10 +146,20 @@ component fn RelayRunBox(runId: str) {
 .head-chevron { color: var(--af-muted); flex-shrink: 0; }
 /* 展开态正文：Markdown 全宽（与工具块左对齐，无图标前缀） */
 .entry-md { width: 100%; min-width: 0; }
+/* 统一 Block 头图标盒：所有块（工具卡/阶段行/文档块/预览行）的头部 icon
+   同尺寸（14×14 盒内 12px 图标/emoji）且垂直居中——消除 read_plan/阶段/
+   Run 完成 icon 高低不齐 */
+.blk-icon {
+  width: 14px; height: 14px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
 /* 阶段 Log 行：[icon] [类型·着色] [阶段名] [动作] [短尾线]（左对齐 log 风格，
    替代居中分割线——信息量优先） */
 .phase-line { display: flex; align-items: center; gap: 0.4rem; margin: 0.35rem 0 0.2rem; font-size: 0.75rem; }
-.phase-line .ph-icon { flex-shrink: 0; font-size: 0.78rem; }
+.phase-line .ph-icon {
+  width: 14px; height: 14px; flex-shrink: 0; font-size: 0.74rem; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+}
 .phase-line .ph-kind {
   flex-shrink: 0; font-weight: 600; font-size: 0.7rem; letter-spacing: 0.05em;
   padding: 0.02rem 0.35rem; border-radius: 3px;
@@ -181,21 +191,24 @@ component fn RelayRunBox(runId: str) {
   background: hsl(140 30% 97%); border-top: 1px dashed var(--af-border);
   max-height: 360px; overflow-y: auto;
 }
-.tool-icon { font-size: 0.85rem; line-height: 1; flex-shrink: 0; }
-/* PLAN_FILE 行 → 独立文件 chip */
-.plan-file-row { display: flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0; font-size: 0.78rem; }
-.plan-file-chip {
-  font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.74rem;
-  color: hsl(190 80% 32%); background: hsl(190 80% 45% / 0.08);
-  border: 1px solid hsl(190 80% 45% / 0.25); border-radius: 5px; padding: 0.14rem 0.5rem;
-}
-/* 长文本/计划文档 → 折叠文档块（Markdown 文件 Block） */
+/* 长文本/计划文档 → 折叠文档块（Markdown 文件 Block）；PLAN_FILE 路径
+   并入头部做标题 chip。内容字号比 Run 普通文档小一号（0.72rem） */
 .doc-block { border: 1px solid var(--af-border); border-radius: 8px; margin: 0.3rem 0; overflow: hidden; background: hsl(var(--muted-foreground) / 0.02); }
 .doc-head { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.6rem; cursor: pointer; font-size: 0.8rem; }
 .doc-head:hover { background: hsl(var(--muted-foreground) / 0.05); }
-.doc-icon { flex-shrink: 0; }
+.doc-file-chip {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.74rem;
+  color: hsl(190 80% 32%); background: hsl(190 80% 45% / 0.08);
+  border: 1px solid hsl(190 80% 45% / 0.25); border-radius: 5px; padding: 0.1rem 0.45rem;
+}
 .doc-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--af-fg); }
-.doc-body { border-top: 1px solid var(--af-border); padding: 0.5rem 0.7rem; font-size: 0.85rem; max-height: 420px; overflow-y: auto; }
+.doc-body { border-top: 1px solid var(--af-border); padding: 0.45rem 0.6rem; font-size: 0.72rem; max-height: 420px; overflow-y: auto; }
+/* 阶段详情子窗（step_completed 的 handoff 摘要）——与文档块同小字号 */
+.ph-block { border: 1px dashed var(--af-border); border-radius: 6px; margin: 0.25rem 0; overflow: hidden; }
+.ph-block-head { padding: 0.3rem 0.45rem; margin: 0; cursor: pointer; }
+.ph-block-head:hover { background: hsl(var(--muted-foreground) / 0.04); }
+.ph-detail { border-top: 1px dashed var(--af-border); padding: 0.45rem 0.6rem; font-size: 0.72rem; max-height: 360px; overflow-y: auto; }
 .entry-thinking {
   color: var(--af-muted); font-style: italic; font-size: 0.78rem;
   padding: 0.15rem 0; white-space: pre-wrap; word-break: break-word;
@@ -222,7 +235,10 @@ component fn RelayRunBox(runId: str) {
 /* 预览行：排版对齐 Block 头（工具名 500/前景色 + 目标 青色 monospace），
    但不做标题栏底色 */
 .preview-line { display: flex; align-items: center; gap: 0.35rem; min-width: 0; font-size: 0.74rem; line-height: 1.45; }
-.preview-mark { width: 1.1em; flex-shrink: 0; font-size: 0.72rem; }
+.preview-mark {
+  width: 14px; height: 14px; flex-shrink: 0; font-size: 0.72rem; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+}
 .preview-tool-name { flex-shrink: 0; font-weight: 500; color: var(--af-fg); }
 .preview-tool-target {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -437,27 +453,28 @@ component fn RelayRunBox(runId: str) {
                             if .entry.type == "text" {
                                 // 与 chat 一致：AutoDown/Markdown 渲染，全宽
                                 // 与工具块左对齐（不再加职业图标——单独占行且
-                                // 缩进正文）。PLAN_FILE 行/长文本 → 折叠文档块。
-                                if relayTextPlanFile(.entry.content) != "" {
-                                    div {
-                                        style: "plan-file-row"
-                                        text "📄 "
-                                        span {
-                                            style: "plan-file-chip"
-                                            text relayTextPlanFile(.entry.content)
-                                        }
-                                    }
-                                }
+                                // 缩进正文）。PLAN_FILE 行/长文本 → 折叠文档块
+                                //（PLAN_FILE 路径并入头部标题，不再单独成行）。
                                 if relayIsDoc(.entry.content) {
                                     div {
                                         style: "doc-block"
                                         row {
                                             onclick: .ToggleDoc(.entry)
                                             style: "doc-head"
-                                            text "📄" { style: "doc-icon" }
                                             span {
-                                                style: "doc-title"
-                                                text relayDocTitle(.entry.content)
+                                                style: "blk-icon"
+                                                FileText { size: 12 }
+                                            }
+                                            if relayTextPlanFile(.entry.content) != "" {
+                                                span {
+                                                    style: "doc-file-chip"
+                                                    text relayTextPlanFile(.entry.content)
+                                                }
+                                            } else {
+                                                span {
+                                                    style: "doc-title"
+                                                    text relayDocTitle(.entry.content)
+                                                }
                                             }
                                             if .entry._docOpen == true {
                                                 ChevronUp { size: 12, style: "tool-chevron" }
@@ -496,10 +513,13 @@ component fn RelayRunBox(runId: str) {
                                     div {
                                         style: "entry-tool-head"
                                         onclick: .ToggleEntry(.entry)
-                                        if relayToolIsDocKind(.entry) {
-                                            text "📄" { style: "tool-icon" }
-                                        } else {
-                                            Wrench { size: 12 }
+                                        span {
+                                            style: "blk-icon"
+                                            if relayToolIsDocKind(.entry) {
+                                                FileText { size: 12 }
+                                            } else {
+                                                Wrench { size: 12 }
+                                            }
                                         }
                                         span {
                                             style: "tool-name"
@@ -546,21 +566,52 @@ component fn RelayRunBox(runId: str) {
                                     }
                                 }
                             } else if .entry.type == "step_started" || .entry.type == "step_completed" || .entry.type == "gate_waiting" || .entry.type == "run_completed" || .entry.type == "run_failed" || .entry.type == "error" {
-                                // 阶段 Log 行：[icon] [类型·着色] [阶段名] [动作] [短尾线]
-                                row {
-                                    class: relayPhaseClass(.entry.type)
-                                    span { style: "ph-icon", text relayPhaseIcon(.entry.type) }
-                                    span { style: "ph-kind", text relayPhaseKind(.entry.type) }
-                                    if relayPhaseText(.entry.type, .entry.content) != "" {
-                                        span { style: "ph-name", text relayPhaseText(.entry.type, .entry.content) }
-                                    }
-                                    span { style: "ph-action", text relayPhaseAction(.entry.type) }
-                                    if relayPhaseText(.entry.type, .entry.content) != "" {
-                                        if .entry.type == "run_failed" || .entry.type == "error" {
-                                            span { style: "ph-err-text", text relayPhaseText(.entry.type, .entry.content) }
+                                // 阶段 Log 行：[icon] [类型·着色] [阶段名] [动作] [短尾线]。
+                                // step_completed 携带 handoff 摘要 → 可展开块
+                                //（标题栏即 log 行，详情子窗 Markdown 小字号）。
+                                if relayPhaseDetail(.entry.type, .entry.content) != "" {
+                                    div {
+                                        style: "ph-block"
+                                        row {
+                                            class: relayPhaseClass(.entry.type)
+                                            style: "ph-block-head"
+                                            onclick: .ToggleEntry(.entry)
+                                            span { style: "ph-icon", text relayPhaseIcon(.entry.type) }
+                                            span { style: "ph-kind", text relayPhaseKind(.entry.type) }
+                                            if relayPhaseText(.entry.type, .entry.content) != "" {
+                                                span { style: "ph-name", text relayPhaseText(.entry.type, .entry.content) }
+                                            }
+                                            span { style: "ph-action", text relayPhaseAction(.entry.type) }
+                                            span { style: "ph-tail" }
+                                            if .entry._expanded == true {
+                                                ChevronUp { size: 12, style: "tool-chevron" }
+                                            } else {
+                                                ChevronDown { size: 12, style: "tool-chevron" }
+                                            }
+                                        }
+                                        if .entry._expanded == true {
+                                            div {
+                                                style: "ph-detail"
+                                                Markdown(source: relayPhaseDetail(.entry.type, .entry.content), streaming: false)
+                                            }
                                         }
                                     }
-                                    span { style: "ph-tail" }
+                                } else {
+                                    row {
+                                        class: relayPhaseClass(.entry.type)
+                                        span { style: "ph-icon", text relayPhaseIcon(.entry.type) }
+                                        span { style: "ph-kind", text relayPhaseKind(.entry.type) }
+                                        if relayPhaseText(.entry.type, .entry.content) != "" {
+                                            span { style: "ph-name", text relayPhaseText(.entry.type, .entry.content) }
+                                        }
+                                        span { style: "ph-action", text relayPhaseAction(.entry.type) }
+                                        if .entry.type == "run_failed" || .entry.type == "error" {
+                                            if relayPhaseText(.entry.type, .entry.content) != "" {
+                                                span { style: "ph-err-text", text relayPhaseText(.entry.type, .entry.content) }
+                                            }
+                                        }
+                                        span { style: "ph-tail" }
+                                    }
                                 }
                             }
                         }

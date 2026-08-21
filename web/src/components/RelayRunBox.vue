@@ -55,15 +55,13 @@
       <div v-else class="log-entries" ref="logRef">
         <div v-for="entry in logEntries" :key="entry.id" class="log-entry" :class="`entry-${entry.type}`">
           <template v-if="entry.type === 'text'">
-            <!-- 与 chat 一致：AutoDown/Markdown 渲染，全宽与工具块左对齐（不再
-                 加职业图标——单独占行且缩进正文）。PLAN_FILE 行/长文本 → 折叠文档块 -->
-            <div v-if="textPlanFile(entry.content)" class="plan-file-row">
-              📄 <span class="plan-file-chip">{{ textPlanFile(entry.content) }}</span>
-            </div>
+            <!-- 与 chat 一致：AutoDown/Markdown 渲染，全宽与工具块左对齐。
+                 PLAN_FILE 行/长文本 → 折叠文档块（路径并入头部做标题 chip） -->
             <div v-if="isDoc(entry.content)" class="doc-block">
               <div class="doc-head" @click="entry._docOpen = !entry._docOpen">
-                <span class="doc-icon">📄</span>
-                <span class="doc-title">{{ docTitle(entry.content) }}</span>
+                <span class="blk-icon"><FileText :size="12" /></span>
+                <span v-if="textPlanFile(entry.content)" class="doc-file-chip">{{ textPlanFile(entry.content) }}</span>
+                <span v-else class="doc-title">{{ docTitle(entry.content) }}</span>
                 <component :is="entry._docOpen ? ChevronUp : ChevronDown" :size="12" class="tool-chevron" />
               </div>
               <div v-if="entry._docOpen" class="doc-body">
@@ -83,8 +81,10 @@
           <template v-else-if="entry.type === 'tool' || entry.type === 'tool_call'">
             <div class="entry-tool-card">
               <div class="entry-tool-head" @click="entry._expanded = !entry._expanded">
-                <span v-if="toolIsDocKind(entry)" class="tool-icon">📄</span>
-                <Wrench v-else :size="12" />
+                <span class="blk-icon">
+                  <FileText v-if="toolIsDocKind(entry)" :size="12" />
+                  <Wrench v-else :size="12" />
+                </span>
                 <span class="tool-name">{{ entry.tool_name }}</span>
                 <span class="tool-target">{{ toolTarget(entry) }}</span>
                 <!-- 终态下仍无结果的工具调用 → 标记中断（此前收起态一直
@@ -106,9 +106,23 @@
               </div>
             </div>
           </template>
-          <!-- 阶段 Log 行：[icon] [类型·着色] [阶段名] [动作] [短尾线] -->
+          <!-- 阶段 Log 行：[icon] [类型·着色] [阶段名] [动作] [短尾线]。
+               step_completed 携带 handoff 摘要 → 可展开块 -->
           <template v-else-if="PHASE_TYPES.has(entry.type)">
-            <div :class="phaseClass(entry.type)">
+              <div v-if="phaseDetail(entry.type, entry.content)" class="ph-block">
+              <div :class="phaseClass(entry.type)" class="ph-block-head" @click="entry._expanded = !entry._expanded">
+                <span class="ph-icon">{{ phaseIcon(entry.type) }}</span>
+                <span class="ph-kind">{{ phaseKind(entry.type) }}</span>
+                <span v-if="phaseText(entry.type, entry.content)" class="ph-name">{{ phaseText(entry.type, entry.content) }}</span>
+                <span class="ph-action">{{ phaseAction(entry.type) }}</span>
+                <span class="ph-tail"></span>
+                <component :is="entry._expanded ? ChevronUp : ChevronDown" :size="12" class="tool-chevron" />
+              </div>
+              <div v-if="entry._expanded" class="ph-detail">
+                <StreamingRenderer :source="phaseDetail(entry.type, entry.content)" :streaming="false" />
+              </div>
+            </div>
+            <div v-else :class="phaseClass(entry.type)">
               <span class="ph-icon">{{ phaseIcon(entry.type) }}</span>
               <span class="ph-kind">{{ phaseKind(entry.type) }}</span>
               <span v-if="phaseText(entry.type, entry.content)" class="ph-name">{{ phaseText(entry.type, entry.content) }}</span>
@@ -132,7 +146,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { ChevronDown, ChevronRight, ChevronUp, Orbit, Wrench } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, ChevronUp, Orbit, Wrench, FileText } from 'lucide-vue-next'
 import StreamingRenderer from '@/components/StreamingRenderer.vue'
 import { useRelay } from '@/composables/useRelay'
 
@@ -269,20 +283,20 @@ const dotClass = computed(() =>
   isLiveRunning.value ? 'live-preview-dot live' : `live-preview-dot dot-${statusClass.value}`
 )
 
-/** 单条日志 → 预览行对象（无可展示内容返回 null）。
- *  工具行 name+target 分色——对齐 Block 头 tool-name/tool-target 口径。 */
+/** 单条日志 → 预览行对象（无可展示内容返回 null）。阶段/终态条目用紧凑
+ *  中文标题行（阶段全名+动作），不携带详情——收起态预览不比展开态复杂。 */
 function entryPreviewRow(e: any): any | null {
   if (e.type === 'tool' || e.type === 'tool_call') {
     return { mark: '🔧', name: e.tool_name ?? '', target: toolTarget(e), text: '', text_class: '' }
   }
   const c = e.content ?? ''
-  if (!c) return null
-  if (e.type === 'step_started') return { mark: '▶', name: '', target: '', text: c, text_class: 'preview-text' }
-  if (e.type === 'step_completed') return { mark: '✓', name: '', target: '', text: c, text_class: 'preview-ok' }
-  if (e.type === 'gate_waiting') return { mark: '⏸', name: '', target: '', text: c, text_class: 'preview-warn' }
-  if (e.type === 'run_completed') return { mark: '✅', name: '', target: '', text: c, text_class: 'preview-ok' }
-  if (e.type === 'run_failed' || e.type === 'error') return { mark: '❌', name: '', target: '', text: c, text_class: 'preview-err' }
+  if (e.type === 'step_started') return { mark: '▶', name: '', target: '', text: `${phaseText(e.type, c)} 开始`, text_class: 'preview-text' }
+  if (e.type === 'step_completed') return { mark: '✓', name: '', target: '', text: `${phaseText(e.type, c)} 完成`, text_class: 'preview-ok' }
+  if (e.type === 'gate_waiting') return { mark: '⏸', name: '', target: '', text: '等待审批', text_class: 'preview-warn' }
+  if (e.type === 'run_completed') return { mark: '✅', name: '', target: '', text: 'Run 完成', text_class: 'preview-ok' }
+  if (e.type === 'run_failed' || e.type === 'error') return { mark: '❌', name: '', target: '', text: String(c).length > 70 ? String(c).slice(0, 69) + '…' : String(c), text_class: 'preview-err' }
   if (e.type === 'complete' || e.type === 'budget_warning' || e.type === 'budget_exceeded') return null
+  if (!c) return null
   if (e.type === 'thinking') return { mark: '💭', name: '', target: '', text: c.length > 90 ? '…' + c.slice(-90) : c, text_class: 'preview-text' }
   return { mark: '', name: '', target: '', text: c.length > 100 ? '…' + c.slice(-100) : c, text_class: 'preview-text' }
 }
@@ -355,7 +369,7 @@ function stepIdOf(content: string): string {
   return b === -1 ? rest : rest.slice(0, b)
 }
 
-const STEP_LABELS: Record<string, string> = { plan: '方案', execute: '执行', review: '审查', document: '文档' }
+const STEP_LABELS: Record<string, string> = { plan: '方案制定', execute: '计划执行', review: '审查验收', document: '文档沉淀' }
 
 // ─── 阶段 Log 行（[icon][类型·着色][阶段名][动作][短尾线]）──────────────────
 const PHASE_TYPES = new Set(['step_started', 'step_completed', 'gate_waiting', 'run_completed', 'run_failed', 'error'])
@@ -402,6 +416,16 @@ function phaseText(ty: string, content: string): string {
     return c.length > 60 ? c.slice(0, 59) + '…' : c
   }
   return ''
+}
+
+/** step_completed 的 content 是 'Step "x" completed: <handoff 摘要>' ——
+ *  抽取冒号后的摘要做阶段块的展开详情。 */
+function phaseDetail(ty: string, content: string): string {
+  if (ty !== 'step_completed') return ''
+  const marker = 'completed:'
+  const i = String(content ?? '').indexOf(marker)
+  if (i === -1) return ''
+  return String(content).slice(i + marker.length).trim()
 }
 
 /** 文档读取型工具（📄 图标 + 结果 Markdown 子窗，字号小一号）。 */
@@ -540,7 +564,10 @@ onUnmounted(() => {
 .live-preview-lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
 /* 预览行：排版对齐 Block 头（工具名 500/前景色 + 目标 青色 monospace） */
 .preview-line { display: flex; align-items: center; gap: 0.35rem; min-width: 0; font-size: 0.74rem; line-height: 1.45; }
-.preview-mark { width: 1.1em; flex-shrink: 0; font-size: 0.72rem; }
+.preview-mark {
+  width: 14px; height: 14px; flex-shrink: 0; font-size: 0.72rem; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+}
 .preview-tool-name { flex-shrink: 0; font-weight: 500; color: var(--af-fg); }
 .preview-tool-target {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -600,9 +627,17 @@ onUnmounted(() => {
   color: var(--af-muted); font-style: italic; font-size: 0.78rem;
   padding: 0.15rem 0; white-space: pre-wrap; word-break: break-word;
 }
+/* 统一 Block 头图标盒：所有块的头部 icon 同尺寸（14×14 盒内 12px）且垂直居中 */
+.blk-icon {
+  width: 14px; height: 14px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
 /* 阶段 Log 行：[icon] [类型·着色] [阶段名] [动作] [短尾线]（左对齐 log 风格） */
 .phase-line { display: flex; align-items: center; gap: 0.4rem; margin: 0.35rem 0 0.2rem; font-size: 0.75rem; }
-.phase-line .ph-icon { flex-shrink: 0; font-size: 0.78rem; }
+.phase-line .ph-icon {
+  width: 14px; height: 14px; flex-shrink: 0; font-size: 0.74rem; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+}
 .phase-line .ph-kind {
   flex-shrink: 0; font-weight: 600; font-size: 0.7rem; letter-spacing: 0.05em;
   padding: 0.02rem 0.35rem; border-radius: 3px;
@@ -634,21 +669,24 @@ onUnmounted(() => {
   background: hsl(140 30% 97%); border-top: 1px dashed var(--af-border);
   max-height: 360px; overflow-y: auto;
 }
-.tool-icon { font-size: 0.85rem; line-height: 1; flex-shrink: 0; }
-/* PLAN_FILE 行 → 独立文件 chip */
-.plan-file-row { display: flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0; font-size: 0.78rem; }
-.plan-file-chip {
-  font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.74rem;
-  color: hsl(190 80% 32%); background: hsl(190 80% 45% / 0.08);
-  border: 1px solid hsl(190 80% 45% / 0.25); border-radius: 5px; padding: 0.14rem 0.5rem;
-}
-/* 长文本/计划文档 → 折叠文档块（Markdown 文件 Block） */
+/* PLAN_FILE 并入文档块头部做标题 chip；内容字号比 Run 普通文档小一号 */
+.plan-file-row { display: none; }
 .doc-block { border: 1px solid var(--af-border); border-radius: 8px; margin: 0.3rem 0; overflow: hidden; background: hsl(var(--muted-foreground) / 0.02); }
 .doc-head { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.6rem; cursor: pointer; font-size: 0.8rem; }
 .doc-head:hover { background: hsl(var(--muted-foreground) / 0.05); }
-.doc-icon { flex-shrink: 0; }
+.doc-file-chip {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.74rem;
+  color: hsl(190 80% 32%); background: hsl(190 80% 45% / 0.08);
+  border: 1px solid hsl(190 80% 45% / 0.25); border-radius: 5px; padding: 0.1rem 0.45rem;
+}
 .doc-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--af-fg); }
-.doc-body { border-top: 1px solid var(--af-border); padding: 0.5rem 0.7rem; font-size: 0.85rem; max-height: 420px; overflow-y: auto; }
+.doc-body { border-top: 1px solid var(--af-border); padding: 0.45rem 0.6rem; font-size: 0.72rem; max-height: 420px; overflow-y: auto; }
+/* 阶段详情子窗（step_completed 的 handoff 摘要）——与文档块同小字号 */
+.ph-block { border: 1px dashed var(--af-border); border-radius: 6px; margin: 0.25rem 0; overflow: hidden; }
+.ph-block-head { padding: 0.3rem 0.45rem; margin: 0; cursor: pointer; }
+.ph-block-head:hover { background: hsl(var(--muted-foreground) / 0.04); }
+.ph-detail { border-top: 1px dashed var(--af-border); padding: 0.45rem 0.6rem; font-size: 0.72rem; max-height: 360px; overflow-y: auto; }
 .tool-name { font-family: monospace; font-size: 0.74rem; }
 .entry-step { color: var(--af-muted); font-size: 0.75rem; padding: 0.2rem 0; }
 .entry-step.done { color: hsl(142 71% 45%); }

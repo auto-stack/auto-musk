@@ -166,6 +166,28 @@ ReportCard（PPT 风格），并向**父 chat 会话**追加总结消息（此�
 ### T18 边界
 - 反馈第 5 点在消息中被截断未收到——待用户补充后另行处理。
 
+## 2d. 批次五（阶段语义/块合并/图标统一，试用反馈截图×2）
+
+- T19 阶段全名：方案制定/计划执行/审查验收/文档沉淀（进度悬浮与阶段行共用）。
+- T20 read_plan 后的 PLAN_FILE 行 + 文档块两块合一：PLAN_FILE 路径并入
+  文档块头部做标题 chip（青色 mono），不再单独成行。
+- T21 图标统一：所有 Block 头部 icon 走统一 14×14 图标盒（12px lucide
+  /emoji 居中）——工具卡（Wrench/FileText）、阶段行（▶✓⏸✅✗）、文档块
+  （FileText）、预览行 mark 全部对齐；read_plan 文档型 icon 由 emoji 📄
+  改 lucide FileText（与 Wrench 像素级同基线）。
+- T22 文档块内容字号 0.85→0.72rem（比 Run 普通文档小一号）；阶段详情
+  子窗同 0.72rem。
+- T23 阶段详情可展开：step_completed 的 content 携带 handoff 摘要
+  （'Step "x" completed: <摘要>'）→ 阶段块化（log 行作标题栏 + 展开
+  Markdown 摘要子窗）。
+- T24 收起态预览紧凑化：阶段/终态条目只显示"阶段全名+动作"中文标题行
+  （`✓ 计划执行 完成`），不带英文原文与详情——预览不比展开态复杂。
+
+## 5. 执行步骤（批次五）
+
+- [x] d1. T19-T24 双轨实现 + codegen + web dist 重建。
+- [x] d2. 提交。
+
 ## 5. 执行步骤（批次四）
 
 - [x] c1. T15-T17 双轨实现 + codegen + web dist 重建。
