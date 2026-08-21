@@ -144,8 +144,12 @@ component fn RelayRunBox(runId: str) {
 .run-icon { color: hsl(var(--primary)); }
 .run-icon.spinning { animation: rb-spin 1.2s linear infinite; }
 .head-chevron { color: var(--af-muted); flex-shrink: 0; }
-/* 展开态正文：Markdown 全宽（与工具块左对齐，无图标前缀） */
-.entry-md { width: 100%; min-width: 0; }
+/* 展开态正文：Markdown 全宽（与工具块左对齐，无图标前缀）。
+   字号比 chat 正文（1rem）小一号（0.875rem）——markstream 用
+   --ms-text-body 变量控制正文基数 */
+.entry-md {
+  width: 100%; min-width: 0; font-size: 0.875rem; --ms-text-body: 0.875rem;
+}
 /* 统一 Block 头图标盒：所有块（工具卡/阶段行/文档块/预览行）的头部 icon
    同尺寸（14×14 盒内 12px 图标/emoji）且垂直居中——消除 read_plan/阶段/
    Run 完成 icon 高低不齐 */
@@ -199,8 +203,7 @@ component fn RelayRunBox(runId: str) {
 .doc-file-chip {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.74rem;
-  color: hsl(190 80% 32%); background: hsl(190 80% 45% / 0.08);
-  border: 1px solid hsl(190 80% 45% / 0.25); border-radius: 5px; padding: 0.1rem 0.45rem;
+  color: hsl(190 80% 32%);
 }
 .doc-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--af-fg); }
 .doc-body { border-top: 1px solid var(--af-border); padding: 0.45rem 0.6rem; font-size: 0.72rem; max-height: 420px; overflow-y: auto; }
@@ -239,6 +242,15 @@ component fn RelayRunBox(runId: str) {
   width: 14px; height: 14px; flex-shrink: 0; font-size: 0.72rem; line-height: 1;
   display: inline-flex; align-items: center; justify-content: center;
 }
+/* 阶段 mark/动作着色——与 Run 内阶段块标题栏同色系 */
+.preview-mark.pm-info { color: hsl(var(--primary)); }
+.preview-mark.pm-ok { color: hsl(142 71% 45%); }
+.preview-mark.pm-warn { color: hsl(38 92% 50%); }
+.preview-mark.pm-err { color: hsl(var(--af-error)); }
+.preview-act-info { color: hsl(var(--primary)); font-weight: 500; }
+.preview-act-ok { color: hsl(142 71% 45%); font-weight: 500; }
+.preview-act-warn { color: hsl(38 60% 35%); font-weight: 500; }
+.preview-act-err { color: hsl(var(--af-error)); font-weight: 500; }
 .preview-tool-name { flex-shrink: 0; font-weight: 500; color: var(--af-fg); }
 .preview-tool-target {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -407,7 +419,7 @@ component fn RelayRunBox(runId: str) {
                         div {
                             style: "preview-line"
                             span {
-                                style: "preview-mark"
+                                class: if row.mark_class != "" { "preview-mark " + row.mark_class } else { "preview-mark" }
                                 text row.mark
                             }
                             if row.name != "" {

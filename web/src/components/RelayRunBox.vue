@@ -29,7 +29,7 @@
       <span :class="dotClass"></span>
       <div class="live-preview-lines">
         <div v-for="(row, i) in previewRows" :key="i" class="preview-line">
-          <span class="preview-mark">{{ row.mark }}</span>
+          <span class="preview-mark" :class="row.mark_class">{{ row.mark }}</span>
           <span v-if="row.name" class="preview-tool-name">{{ row.name }}</span>
           <span v-if="row.target" class="preview-tool-target">{{ row.target }}</span>
           <span v-if="row.text" :class="row.text_class">{{ row.text }}</span>
@@ -283,22 +283,22 @@ const dotClass = computed(() =>
   isLiveRunning.value ? 'live-preview-dot live' : `live-preview-dot dot-${statusClass.value}`
 )
 
-/** 单条日志 → 预览行对象（无可展示内容返回 null）。阶段/终态条目用紧凑
- *  中文标题行（阶段全名+动作），不携带详情——收起态预览不比展开态复杂。 */
+/** 单条日志 → 预览行对象（无可展示内容返回 null）。阶段/终态条目与 Run 内
+ *  阶段块标题栏同构（着色 mark + 阶段名 + 着色动作），不携带详情。 */
 function entryPreviewRow(e: any): any | null {
   if (e.type === 'tool' || e.type === 'tool_call') {
-    return { mark: '🔧', name: e.tool_name ?? '', target: toolTarget(e), text: '', text_class: '' }
+    return { mark: '🔧', mark_class: '', name: e.tool_name ?? '', target: toolTarget(e), text: '', text_class: '' }
   }
   const c = e.content ?? ''
-  if (e.type === 'step_started') return { mark: '▶', name: '', target: '', text: `${phaseText(e.type, c)} 开始`, text_class: 'preview-text' }
-  if (e.type === 'step_completed') return { mark: '✓', name: '', target: '', text: `${phaseText(e.type, c)} 完成`, text_class: 'preview-ok' }
-  if (e.type === 'gate_waiting') return { mark: '⏸', name: '', target: '', text: '等待审批', text_class: 'preview-warn' }
-  if (e.type === 'run_completed') return { mark: '✅', name: '', target: '', text: 'Run 完成', text_class: 'preview-ok' }
-  if (e.type === 'run_failed' || e.type === 'error') return { mark: '❌', name: '', target: '', text: String(c).length > 70 ? String(c).slice(0, 69) + '…' : String(c), text_class: 'preview-err' }
+  if (e.type === 'step_started') return { mark: '▶', mark_class: 'pm-info', name: phaseText(e.type, c), target: '', text: '开始', text_class: 'preview-act-info' }
+  if (e.type === 'step_completed') return { mark: '✓', mark_class: 'pm-ok', name: phaseText(e.type, c), target: '', text: '完成', text_class: 'preview-act-ok' }
+  if (e.type === 'gate_waiting') return { mark: '⏸', mark_class: 'pm-warn', name: '', target: '', text: '等待审批', text_class: 'preview-act-warn' }
+  if (e.type === 'run_completed') return { mark: '✅', mark_class: 'pm-ok', name: 'Run', target: '', text: '完成', text_class: 'preview-act-ok' }
+  if (e.type === 'run_failed' || e.type === 'error') return { mark: '❌', mark_class: 'pm-err', name: '', target: '', text: String(c).length > 70 ? String(c).slice(0, 69) + '…' : String(c), text_class: 'preview-act-err' }
   if (e.type === 'complete' || e.type === 'budget_warning' || e.type === 'budget_exceeded') return null
   if (!c) return null
-  if (e.type === 'thinking') return { mark: '💭', name: '', target: '', text: c.length > 90 ? '…' + c.slice(-90) : c, text_class: 'preview-text' }
-  return { mark: '', name: '', target: '', text: c.length > 100 ? '…' + c.slice(-100) : c, text_class: 'preview-text' }
+  if (e.type === 'thinking') return { mark: '💭', mark_class: '', name: '', target: '', text: c.length > 90 ? '…' + c.slice(-90) : c, text_class: 'preview-text' }
+  return { mark: '', mark_class: '', name: '', target: '', text: c.length > 100 ? '…' + c.slice(-100) : c, text_class: 'preview-text' }
 }
 
 /** 工具条目的操作目标（与聊天侧工具卡的展示口径一致）。 */
@@ -360,13 +360,19 @@ watch(() => logEntries.value.length, async () => {
   }
 })
 
-/** 'Step "xxx" started/completed' → 中文阶段名（分割线标签）。 */
+/** 'Step "xxx"' / "Step 'xxx'" → xxx（双引号=SSE 实时路径，单引号=会话回放路径）。 */
 function stepIdOf(content: string): string {
-  const a = content.indexOf('"')
-  if (a === -1) return ''
-  const rest = content.slice(a + 1)
-  const b = rest.indexOf('"')
-  return b === -1 ? rest : rest.slice(0, b)
+  const c = String(content ?? '')
+  const dq = c.indexOf('"')
+  const sq = c.indexOf("'")
+  let start = -1
+  let q = '"'
+  if (dq !== -1) { start = dq; q = '"' }
+  if (sq !== -1 && (start === -1 || sq < start)) { start = sq; q = "'" }
+  if (start === -1) return ''
+  const rest = c.slice(start + 1)
+  const e = rest.indexOf(q)
+  return e === -1 ? rest : rest.slice(0, e)
 }
 
 const STEP_LABELS: Record<string, string> = { plan: '方案制定', execute: '计划执行', review: '审查验收', document: '文档沉淀' }
@@ -568,6 +574,15 @@ onUnmounted(() => {
   width: 14px; height: 14px; flex-shrink: 0; font-size: 0.72rem; line-height: 1;
   display: inline-flex; align-items: center; justify-content: center;
 }
+/* 阶段 mark/动作着色——与 Run 内阶段块标题栏同色系 */
+.preview-mark.pm-info { color: hsl(var(--primary)); }
+.preview-mark.pm-ok { color: hsl(142 71% 45%); }
+.preview-mark.pm-warn { color: hsl(38 92% 50%); }
+.preview-mark.pm-err { color: hsl(var(--af-error)); }
+.preview-act-info { color: hsl(var(--primary)); font-weight: 500; }
+.preview-act-ok { color: hsl(142 71% 45%); font-weight: 500; }
+.preview-act-warn { color: hsl(38 60% 35%); font-weight: 500; }
+.preview-act-err { color: hsl(var(--af-error)); font-weight: 500; }
 .preview-tool-name { flex-shrink: 0; font-weight: 500; color: var(--af-fg); }
 .preview-tool-target {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -621,8 +636,12 @@ onUnmounted(() => {
 .log-entries { max-height: 400px; overflow-y: auto; font-size: 0.78rem; line-height: 1.5; }
 .log-entry { padding: 0.15rem 0; }
 .entry-prof { margin-right: 0.3rem; }
-/* 展开态正文：Markdown 全宽（与工具块左对齐，无图标前缀） */
-.entry-md { width: 100%; min-width: 0; }
+/* 展开态正文：Markdown 全宽（与工具块左对齐，无图标前缀）。
+   字号比 chat 正文（1rem）小一号（0.875rem）——markstream 用
+   --ms-text-body 变量控制正文基数 */
+.entry-md {
+  width: 100%; min-width: 0; font-size: 0.875rem; --ms-text-body: 0.875rem;
+}
 .entry-thinking {
   color: var(--af-muted); font-style: italic; font-size: 0.78rem;
   padding: 0.15rem 0; white-space: pre-wrap; word-break: break-word;
@@ -677,8 +696,7 @@ onUnmounted(() => {
 .doc-file-chip {
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.74rem;
-  color: hsl(190 80% 32%); background: hsl(190 80% 45% / 0.08);
-  border: 1px solid hsl(190 80% 45% / 0.25); border-radius: 5px; padding: 0.1rem 0.45rem;
+  color: hsl(190 80% 32%);
 }
 .doc-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--af-fg); }
 .doc-body { border-top: 1px solid var(--af-border); padding: 0.45rem 0.6rem; font-size: 0.72rem; max-height: 420px; overflow-y: auto; }
