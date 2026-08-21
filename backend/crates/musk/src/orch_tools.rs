@@ -58,7 +58,7 @@ impl Tool for SpawnRelay {
             "properties": {
                 "flow_id": {
                     "type": "string",
-                    "description": "Flow template id (default, simple). Defaults to 'default'."
+                    "description": "Flow template id. Defaults to 'plan' (plan-driven dev flow; deprecated: default/relay, simple, superpower)."
                 },
                 "task": {
                     "type": "string",
@@ -70,7 +70,8 @@ impl Tool for SpawnRelay {
     }
 
     async fn execute(&self, args: &Value) -> Result<String, ToolError> {
-        let flow_id = args["flow_id"].as_str().unwrap_or("default").to_string();
+        // PLAN-030 §5.5: default flow is the plan-driven dev flow.
+        let flow_id = args["flow_id"].as_str().unwrap_or("plan").to_string();
         let task = args["task"]
             .as_str()
             .unwrap_or("")
@@ -81,25 +82,9 @@ impl Tool for SpawnRelay {
 
         let ws = self.ctx.state.registry.get(&self.ctx.workspace_id);
 
-        // 1. Create child conversation.
-        let child = ws.conversations.create(
-            ConversationKind::Flow,
-            self.ctx.workspace_id.clone(),
-            Driver::Flow { flow_id: flow_id.clone() },
-            None,
-            Some(task.clone()),
-        );
-
-        // 2. Record parent Turn linking to child.
-        let parent_turn = build_toolcall_turn(
-            "spawn_relay",
-            args,
-            &child.id,
-        );
-        ws.conversations
-            .append_turn(&self.ctx.parent_conversation_id, parent_turn);
-
-        // 3. Start the relay run (reuses RunStore + driver).
+        // 1. Start the relay run FIRST. PLAN-030 T9 (会话唯一化): start_run's
+        //    dual-write link creates the single Flow conversation sharing the
+        //    run's id — no separate shell conversation anymore.
         let req = StartRunRequest {
             run_id: None,
             flow_id: Some(flow_id.clone()),
@@ -109,7 +94,17 @@ impl Tool for SpawnRelay {
         let (run_id, _initial_state) =
             ws.relay.start_run(&req, Some(self.ctx.workspace_id.clone()));
 
-        // 4. Spawn the driver.
+        // 2. Record parent Turn linking to the run conversation (same id as
+        //    the run — the run's durable log home).
+        let parent_turn = build_toolcall_turn(
+            "spawn_relay",
+            args,
+            &run_id,
+        );
+        ws.conversations
+            .append_turn(&self.ctx.parent_conversation_id, parent_turn);
+
+        // 3. Spawn the driver.
         let state = self.ctx.state.clone();
         let ws_id = self.ctx.workspace_id.clone();
         let run_id_clone = run_id.clone();
@@ -118,13 +113,12 @@ impl Tool for SpawnRelay {
             let _ = crate::auto_generated::relay_driver::drive_run(state, &ws_id, &run_id_clone).await;
         });
 
-        // 5. Detached watcher: mirror the run's terminal status onto the child
+        // 4. Detached watcher: mirror the run's terminal status onto the run
         //    conversation (data hygiene only — it never blocks the tool result).
         //    Human gates can wait arbitrarily long, so there is no short timeout;
         //    the watcher just exits when the run reaches a terminal state.
         {
             let ws = ws.clone();
-            let child_id = child.id.clone();
             let run_id_clone = run_id.clone();
             tokio::spawn(async move {
                 let poll_interval = std::time::Duration::from_secs(2);
@@ -133,12 +127,12 @@ impl Tool for SpawnRelay {
                     match status.as_deref() {
                         Some("completed") => {
                             ws.conversations
-                                .set_status(&child_id, ConversationStatus::Completed);
+                                .set_status(&run_id_clone, ConversationStatus::Completed);
                             break;
                         }
                         Some("failed") => {
                             ws.conversations.set_status(
-                                &child_id,
+                                &run_id_clone,
                                 ConversationStatus::Failed {
                                     error: "Relay flow failed".into(),
                                 },

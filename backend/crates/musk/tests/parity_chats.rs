@@ -146,6 +146,7 @@ fn parity_chat_message_wire_format() {
         content: "using tool".into(),
         tool_calls: vec![hw_tc],
         created_at: 50,
+        thinking: String::new(),
     };
     let ag_msg = ag::ChatMessage {
         id: "m1".into(),
@@ -167,6 +168,7 @@ fn parity_chat_message_wire_format() {
         content: "plain".into(),
         tool_calls: vec![],
         created_at: 51,
+        thinking: String::new(),
     };
     let ag_empty = ag::ChatMessage {
         id: "m2".into(),
@@ -207,6 +209,7 @@ fn parity_chat_session_wire_format() {
             content: "hi".into(),
             tool_calls: vec![hw_tc],
             created_at: 100,
+            thinking: String::new(),
         }],
         created_at: 100,
         updated_at: 200,

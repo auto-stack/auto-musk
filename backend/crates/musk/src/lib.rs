@@ -15,6 +15,7 @@ pub mod specs;
 pub mod spec_tree;
 pub mod plans;
 pub mod plan_merge;
+pub mod plan_tools;
 pub mod tool_context;
 pub mod tool_safety;
 pub mod tool_test;
@@ -232,13 +233,13 @@ pub fn build_agent_from_mode(
 }
 
 /// Like [`build_agent_from_mode`], but also registers orchestration tools
-/// (`dispatch`, `bring_in`) when a [`tool_context::ToolContext`] is provided
-/// and the mode's tool whitelist allows them. Used by chat_stream and the relay
-/// driver to give agents the ability to spawn sub-conversations.
+/// (`spawn_relay`, `dispatch`, `bring_in`) when a [`tool_context::ToolContext`]
+/// is provided and the mode's tool whitelist allows them. Used by chat_stream
+/// and the relay driver to give agents the ability to spawn sub-conversations.
 ///
-/// `spawn_relay` is intentionally NOT registered: the new architecture has no
-/// relay mode. The relay engine/API remain for legacy runs, but chat agents
-/// must not see (and thus pick) the tool.
+/// PLAN-030 §5.5: `spawn_relay` is back for chat agents — it is the entry
+/// point into the plan-driven dev flow (`flow_id="plan"`), which replaces the
+/// old spec-driven relay pipelines as the canonical escalation path.
 pub fn build_agent_with_context(
     mode: &crate::mode::AgentMode,
     client: Arc<dyn auto_ai_agent::Client>,
@@ -246,12 +247,22 @@ pub fn build_agent_with_context(
 ) -> Result<auto_ai_agent::Agent, String> {
     let mut agent = build_agent_from_mode(mode, client)?;
     if let Some(ctx) = ctx {
+        // PLAN-030 T3: plan tools are workspace-scoped (docs/plans/), so they
+        // need the ToolContext — registered alongside the orchestration tools
+        // here (chat agents + relay step agents both build through this path).
         let orch_tools: Vec<(&str, Arc<dyn auto_ai_agent::Tool>)> = vec![
+            ("spawn_relay", Arc::new(crate::orch_tools::SpawnRelay::new(ctx.clone()))),
             ("dispatch", Arc::new(crate::orch_tools::Dispatch::new(ctx.clone()))),
             ("bring_in", Arc::new(crate::orch_tools::BringIn::new(ctx.clone()))),
             ("spawn_task_plan", Arc::new(crate::orch_tools::SpawnTaskPlan::new(ctx.clone()))),
             ("display_image", Arc::new(crate::tools::DisplayImage::new(ctx.clone()))),
-            ("register_task_plan", Arc::new(crate::orch_tools::RegisterTaskPlan::new(ctx))),
+            ("register_task_plan", Arc::new(crate::orch_tools::RegisterTaskPlan::new(ctx.clone()))),
+            ("list_plans", Arc::new(crate::plan_tools::ListPlans::from_ctx(&ctx))),
+            ("read_plan", Arc::new(crate::plan_tools::ReadPlan::from_ctx(&ctx))),
+            ("create_plan", Arc::new(crate::plan_tools::CreatePlan::from_ctx(&ctx))),
+            ("update_plan", Arc::new(crate::plan_tools::UpdatePlan::from_ctx(&ctx))),
+            ("transition_plan", Arc::new(crate::plan_tools::TransitionPlan::from_ctx(&ctx))),
+            ("merge_plan", Arc::new(crate::plan_tools::MergePlan::from_ctx(&ctx))),
         ];
         for (name, tool) in &orch_tools {
             if mode.tools.is_empty() || mode.tools.iter().any(|t| t == name) {

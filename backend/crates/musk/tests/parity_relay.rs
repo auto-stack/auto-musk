@@ -200,8 +200,9 @@ async fn parity_factory_build_agent_matches_hw_factory() {
 
     assert_eq!(tool_set(&ag_agent), tool_set(&hw_agent), "factory-built agents match");
     assert!(
-        !tool_set(&ag_agent).contains("spawn_relay"),
-        "spawn_relay is no longer auto-registered: the new architecture has no relay mode"
+        tool_set(&ag_agent).contains("spawn_relay"),
+        "PLAN-030: spawn_relay is registered again — it is the entry point into \
+         the plan-driven dev flow (flow_id=\"plan\")"
     );
 }
 

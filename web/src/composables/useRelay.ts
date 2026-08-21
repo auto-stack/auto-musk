@@ -1,14 +1,16 @@
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useEventRouter, type SSEEvent } from './useEventRouter'
 import { authFetch } from './useAuth'
 
 const API_BASE = '/api/forge/relay'
 
 // ─── Singleton state ────────────────────────────────────────────────────────
+// PLAN-030 T12: converged to the chat-inline surface (RelayRunBox + slash
+// commands + event router). RelayView-only members (professions/souls
+// browsers, rerun/handoff/delete/rename, run-list progress computeds) are
+// retired along with the standalone relay view.
 const _runs = ref<RunSummary[]>([])
 const _currentRun = ref<RunState | null>(null)
-const _professions = ref<ProfessionDto[]>([])
-const _souls = ref<SoulDto[]>([])
 const _loading = ref(false)
 const _error = ref<string | null>(null)
 const _liveLog = ref<Array<{ time: string; profession: string; action: string }>>([])
@@ -136,49 +138,8 @@ export interface StartRunRequest {
 export function useRelay() {
   const runs = _runs
   const currentRun = _currentRun
-  const professions = _professions
-  const souls = _souls
   const loading = _loading
   const error = _error
-
-  const hasActiveGate = computed(() => currentRun.value?.waiting_for_gate != null)
-  const runProgress = computed(() => {
-    if (!currentRun.value || currentRun.value.total_steps === 0) return 0
-    return Math.round((currentRun.value.current_step / currentRun.value.total_steps) * 100)
-  })
-  const budgetUsedPercent = computed(() => {
-    if (!currentRun.value || currentRun.value.budget_limit === 0) return 0
-    const used = currentRun.value.budget_limit - currentRun.value.budget_remaining
-    return Math.round((used / currentRun.value.budget_limit) * 100)
-  })
-  const liveLog = _liveLog
-  const professionTokens = _professionTokens
-  const sessionLog = computed(() => {
-    const id = _currentRun.value?.run_id
-    return id ? _sessionLogs.value[id] ?? [] : []
-  })
-
-  async function loadProfessions() {
-    try {
-      const resp = await authFetch(`${API_BASE}/professions`)
-      if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
-      const data = await resp.json()
-      professions.value = data.professions
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e)
-    }
-  }
-
-  async function loadSouls() {
-    try {
-      const resp = await authFetch(`${API_BASE}/souls`)
-      if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
-      const data = await resp.json()
-      souls.value = data.souls
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e)
-    }
-  }
 
   async function loadRuns(projectPath?: string) {
     try {
@@ -311,16 +272,6 @@ export function useRelay() {
     }
   }
 
-  async function rerunRun(runId: string) {
-    try {
-      const resp = await authFetch(`${API_BASE}/runs/${runId}/rerun`, { method: 'POST' })
-      if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
-      await loadRun(runId)
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e)
-    }
-  }
-
   async function resolveGate(runId: string, decision: 'approve' | 'reject' | 'edit', feedback?: string) {
     try {
       const body: any = { decision }
@@ -348,39 +299,6 @@ export function useRelay() {
       await loadRun(runId)
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)
-    }
-  }
-
-  async function deleteRun(runId: string) {
-    try {
-      const resp = await authFetch(`${API_BASE}/runs/${runId}`, { method: 'DELETE' })
-      if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
-      if (currentRun.value?.run_id === runId) {
-        currentRun.value = null
-        delete _sessionLogs.value[runId]
-      }
-      await loadRuns()
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e)
-    }
-  }
-
-  async function updateRunTitle(runId: string, title: string) {
-    try {
-      const resp = await authFetch(`${API_BASE}/runs/${runId}/title`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title }),
-      })
-      if (!resp.ok) throw new Error(`Failed: ${resp.status}`)
-      const updated = await resp.json()
-      if (currentRun.value?.run_id === runId) {
-        currentRun.value = updated
-      }
-      await loadRuns()
-    } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e)
-      throw e
     }
   }
 
@@ -579,28 +497,13 @@ export function useRelay() {
   return {
     runs,
     currentRun,
-    professions,
-    souls,
     loading,
     error,
-    hasActiveGate,
-    runProgress,
-    budgetUsedPercent,
-    liveLog,
-    professionTokens,
-    loadProfessions,
-    loadSouls,
-    loadRuns,
     loadRun,
     startRun,
     advanceRun,
-    rerunRun,
     resolveGate,
-    submitHandoff,
     subscribeToRun,
-    deleteRun,
-    updateRunTitle,
-    sessionLog,
     sessionLogFor,
   }
 }

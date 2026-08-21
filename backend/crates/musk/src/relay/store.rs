@@ -165,6 +165,11 @@ pub struct RunEntry {
     pub events: Vec<RunEvent>,
     #[serde(default)]
     pub metadata: RunMetadata,
+    /// PLAN-030: per-run context vars for phase-task-template substitution
+    /// (e.g. `plan_file`, stashed by the driver from the plan phase's
+    /// `PLAN_FILE:` marker).
+    #[serde(default)]
+    pub context: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -233,15 +238,22 @@ pub fn resolve_flow(req: &StartRunRequest) -> FlowSpec {
         }
         return flow;
     }
-    let id = req.flow_id.as_deref().unwrap_or("default");
+    // PLAN-030 §5.5: the canonical flow is "plan" (deprecated spec-driven
+    // pipelines stay addressable by explicit id).
+    let id = req.flow_id.as_deref().unwrap_or("plan");
     crate::relay::get_builtin_flow(id)
-        .unwrap_or_else(|| crate::relay::get_builtin_flow("default").unwrap())
+        .unwrap_or_else(|| crate::relay::get_builtin_flow("plan").unwrap())
 }
 
-/// The run store: in-memory map keyed by run_id, with disk persistence.
+/// The run store: in-memory run registry (PLAN-030 D7).
+///
+/// Runs are **not** persisted to disk anymore: the driver never resumes
+/// across restarts (tokio::spawn'd drives are not respawned), and the
+/// conversation dual-write below is the run's sole durable log. The
+/// constructor keeps the `dir` parameter for API compatibility; legacy files
+/// under the old relay dir are left untouched on disk.
 pub struct RunStore {
     runs: Mutex<HashMap<String, RunEntry>>,
-    dir: PathBuf,
     /// Optional dual-write target: when linked, run events are mirrored as
     /// `Turn`s into a Conversation sharing the run's id. Linked by
     /// `WorkspaceStores::new` after both stores are constructed.
@@ -249,17 +261,13 @@ pub struct RunStore {
 }
 
 impl RunStore {
-    /// Create a store rooted at `dir` (e.g. `~/.config/autoos/relay`), loading
-    /// any persisted runs from disk.
-    pub fn new(dir: PathBuf) -> Self {
-        let _ = std::fs::create_dir_all(&dir);
-        let store = Self {
+    /// Create an empty in-memory store. `dir` is accepted (and ignored) for
+    /// call-site compatibility with the old persisted layout.
+    pub fn new(_dir: PathBuf) -> Self {
+        Self {
             runs: Mutex::new(HashMap::new()),
-            dir,
             conversations: Mutex::new(None),
-        };
-        store.load_all();
-        store
+        }
     }
 
     /// Link a `ConversationStore` so relay events are dual-written as turns
@@ -274,34 +282,8 @@ impl RunStore {
         Self::new(dir)
     }
 
-    fn load_all(&self) {
-        let Ok(entries) = std::fs::read_dir(&self.dir) else {
-            return;
-        };
-        let mut runs = self.runs.lock().unwrap();
-        for entry in entries.flatten() {
-            let path = entry.path().join("run.json");
-            if let Ok(content) = std::fs::read_to_string(&path) {
-                if let Ok(entry) = serde_json::from_str::<RunEntry>(&content) {
-                    runs.insert(entry.run_id.clone(), entry);
-                }
-            }
-        }
-    }
 
-    fn save_run(&self, entry: &RunEntry) {
-        let dir = self.dir.join(&entry.run_id);
-        if std::fs::create_dir_all(&dir).is_err() {
-            return;
-        }
-        if let Ok(json) = serde_json::to_string_pretty(entry) {
-            let _ = std::fs::write(dir.join("run.json"), json);
-        }
-    }
 
-    fn delete_run_disk(&self, run_id: &str) {
-        let _ = std::fs::remove_dir_all(self.dir.join(run_id));
-    }
 
     /// Start a new run. Returns `(run_id, RunState)`.
     pub fn start_run(
@@ -335,8 +317,8 @@ impl RunStore {
                 parent_run_id: None,
                 root_run_id: None,
             },
+            context: HashMap::new(),
         };
-        self.save_run(&entry);
         let state = build_run_state(&entry);
         self.runs.lock().unwrap().insert(run_id.clone(), entry);
         // Dual-write: mirror the run as a Flow conversation sharing the run id.
@@ -400,7 +382,6 @@ impl RunStore {
             let mut runs = self.runs.lock().unwrap();
             let removed = runs.remove(run_id).is_some();
             if removed {
-                self.delete_run_disk(run_id);
             }
             removed
         };
@@ -418,7 +399,6 @@ impl RunStore {
         entry.metadata.title = Some(title.to_string());
         entry.updated_at = now_secs();
         let state = build_run_state(entry);
-        self.save_run(entry);
         Some(state)
     }
 
@@ -469,8 +449,7 @@ impl RunStore {
                 entry.events.push(ev.clone());
             }
             let state = build_run_state(entry);
-            self.save_run(entry);
-            Some((result, state))
+                Some((result, state))
         }?;
         // Dual-write the appended events to the linked conversation (if any),
         // outside the runs lock.
@@ -531,8 +510,7 @@ impl RunStore {
                 entry.events.push(ev.clone());
             }
             let state = build_run_state(entry);
-            self.save_run(entry);
-            Some((result, state))
+                Some((result, state))
         }?;
         self.mirror_events(run_id, &appended);
         Some((result, state))
@@ -580,8 +558,7 @@ impl RunStore {
                 entry.events.push(ev.clone());
             }
             let state = build_run_state(entry);
-            self.save_run(entry);
-            Some((result, state))
+                Some((result, state))
         }?;
         self.mirror_events(run_id, &appended);
         Some((result, state))
@@ -594,7 +571,6 @@ impl RunStore {
         entry.engine.rerun();
         entry.updated_at = now_secs();
         let state = build_run_state(entry);
-        self.save_run(entry);
         Some(state)
     }
 
@@ -675,14 +651,33 @@ impl RunStore {
 
     /// Snapshot the initial task + prior handoff markdown for the driver.
     /// (Read-only; the driver calls this before running the agent.)
+    ///
+    /// PLAN-030: for the `plan` flow, the task is the phase template for the
+    /// step about to run (with `{plan_file}` substituted from the run
+    /// context) instead of the raw initial task; other flows keep the legacy
+    /// behavior.
     pub fn step_context(&self, run_id: &str) -> Option<(String, String)> {
         let runs = self.runs.lock().unwrap();
         let entry = runs.get(run_id)?;
-        let task = entry
+        let initial_task = entry
             .metadata
             .initial_task
             .clone()
             .unwrap_or_else(|| "Continue the relay pipeline.".into());
+        let step_id = entry
+            .engine
+            .flow
+            .steps
+            .get(entry.engine.current_step)
+            .map(|s| s.id.clone())
+            .unwrap_or_default();
+        let task = super::plan_flow::phase_task(
+            &entry.engine.flow.id,
+            &step_id,
+            &initial_task,
+            &entry.context,
+        )
+        .unwrap_or(initial_task);
         let prior_md = entry
             .engine
             .step_history
@@ -690,6 +685,16 @@ impl RunStore {
             .and_then(|r| r.handoff.as_ref().map(|h| h.render()))
             .unwrap_or_default();
         Some((task, prior_md))
+    }
+
+    /// Stash a context var on a run (PLAN-030: the driver stores the
+    /// `PLAN_FILE:` marker extracted from the plan phase output here).
+    pub fn set_context_var(&self, run_id: &str, key: &str, value: &str) {
+        let mut runs = self.runs.lock().unwrap();
+        if let Some(entry) = runs.get_mut(run_id) {
+            entry.context.insert(key.to_string(), value.to_string());
+            entry.updated_at = now_secs();
+        }
     }
 
     /// The profession of the step *after* the current one (for handoff `to`).
@@ -873,6 +878,54 @@ mod tests {
         h
     }
 
+    /// PLAN-030 §6.4: plan flow 的 step_context 返回相位模板（含需求）；
+    /// set_context_var 后 execute 相位模板完成 {plan_file} 替换；非 plan
+    /// flow 保持旧行为（raw initial task）。
+    #[test]
+    fn step_context_uses_phase_templates_for_plan_flow() {
+        let store = tmp_store();
+        let (id, _state) = store.start_run(
+            &StartRunRequest {
+                run_id: None,
+                flow_id: Some("plan".into()),
+                steps: Vec::new(),
+                task: Some("做一个登录功能".into()),
+            },
+            None,
+        );
+        // 第一步 = plan 相位：任务为模板而非裸需求
+        let (task, _) = store.step_context(&id).unwrap();
+        assert!(task.contains("做一个登录功能"));
+        assert!(task.contains("需求整理与计划撰写"));
+        assert!(!task.starts_with("做一个登录功能"), "not the raw task");
+
+        // 上下文变量注入后，execute 相位模板替换 {plan_file}
+        store.set_context_var(&id, "plan_file", "docs/plans/031-login.md");
+        store.advance(&id);
+        let _ = store.submit_handoff(&id, handoff("plan-dev"));
+        // gate（execute 前 Human）未批准时 current_step 已指向 execute
+        let (task, _) = store.step_context(&id).unwrap();
+        assert!(task.contains("按计划实施"));
+        assert!(task.contains("docs/plans/031-login.md"));
+        assert!(!task.contains("{plan_file}"));
+    }
+
+    #[test]
+    fn step_context_legacy_flow_unchanged() {
+        let store = tmp_store();
+        let (id, _) = store.start_run(
+            &StartRunRequest {
+                run_id: None,
+                flow_id: Some("simple".into()),
+                steps: Vec::new(),
+                task: Some("裸任务文本".into()),
+            },
+            None,
+        );
+        let (task, _) = store.step_context(&id).unwrap();
+        assert_eq!(task, "裸任务文本");
+    }
+
     #[test]
     fn start_get_list_delete() {
         let store = tmp_store();
@@ -916,7 +969,10 @@ mod tests {
     }
 
     #[test]
-    fn persists_across_reload() {
+    fn runs_are_in_memory_only_after_reload() {
+        // PLAN-030 D7: RunStore no longer persists — a fresh store over the
+        // same dir starts empty; the durable log lives in the linked
+        // conversation (dual-write), not on the relay dir.
         let dir = std::env::temp_dir().join(format!(
             "musk-relay-persist-{}",
             std::time::SystemTime::now()
@@ -935,9 +991,9 @@ mod tests {
             );
             id
         };
-        // A fresh store over the same dir reloads the run.
+        // A fresh store over the same dir is empty (no disk reload).
         let store2 = RunStore::at(dir);
-        assert!(store2.get(&id).is_some(), "run should persist across reload");
+        assert!(store2.get(&id).is_none(), "runs must NOT persist to disk");
     }
 
     impl Default for StartRunRequest {

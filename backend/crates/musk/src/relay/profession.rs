@@ -437,6 +437,44 @@ pub fn default_professions() -> Vec<Profession> {
             max_turns: 100,
             token_budget: 15_000_000,
         },
+        // ─── Plan-driven profession (PLAN-030: 单角色四相位流程) ────────────────
+        // One agent plays Advisor/Coder/Reviewer/Documenter across the plan
+        // flow's four phases; the plan file is the full handoff artifact, so
+        // handoff_to lists itself (sequential same-role steps).
+        Profession {
+            id: "plan-dev".into(),
+            name: "Plan-Driven Developer".into(),
+            phase: ForgePhase::Execution,
+            owned_sections: vec![
+                Goals, Architecture, Designs, Tests, Reviews, Reports,
+            ],
+            readable_sections: vec![
+                Goals, Architecture, Designs, Tests, Reviews, Reports,
+            ],
+            allowed_tools: into_tools([
+                "read_file",
+                "write_file",
+                "edit_file",
+                "batch_replace",
+                "search",
+                "list_dir",
+                "run_command",
+                "read_specs",
+                "list_specs",
+                "update_spec",
+                "list_plans",
+                "read_plan",
+                "create_plan",
+                "update_plan",
+                "transition_plan",
+                "merge_plan",
+            ]),
+            handoff_to: into_list(["plan-dev"]),
+            approval_gates: vec![],
+            dispatchable_to: into_list(["gofer"]),
+            max_turns: 120,
+            token_budget: 20_000_000,
+        },
     ]
 }
 
@@ -467,6 +505,13 @@ mod tests {
         ] {
             assert!(reg.get(id).is_some(), "missing profession {id}");
         }
+        // PLAN-030: plan-dev present, owns all 6 sections, self-handoff chain.
+        let plan_dev = reg.get("plan-dev").expect("missing profession plan-dev");
+        assert_eq!(plan_dev.owned_sections.len(), 6);
+        assert!(reg.can_handoff("plan-dev", "plan-dev"));
+        assert!(!reg.needs_approval("plan-dev", "plan-dev"));
+        assert!(plan_dev.allowed_tools.contains(&"merge_plan".to_string()));
+        assert_eq!(plan_dev.max_turns, 120);
         // Core handoff chain.
         assert!(reg.can_handoff("assistant", "advisor"));
         assert!(reg.can_handoff("advisor", "architect"));

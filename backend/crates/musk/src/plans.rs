@@ -519,6 +519,32 @@ fn default_template(id: &str, feature_name: &str) -> String {
     )
 }
 
+/// merge 核心（HTTP handler 与 plan_tools::MergePlan 共用，PLAN-030 T2）：
+/// 门禁 review_done → `plan_to_items` 拆解 → upsert 进 specs doc → save →
+/// transition(Merged) → archive（移入 archived/）。返回触及的 section + item 数。
+pub fn merge_plan_stores(
+    plans: &PlansStore,
+    specs: &crate::specs::SpecsStore,
+    seq: u32,
+) -> Result<crate::plan_merge::MergeResult, String> {
+    let plan = plans
+        .get(seq)
+        .ok_or_else(|| format!("plan {:03} not found", seq))?;
+    if plan.status != PlanStatus::ReviewDone {
+        return Err(format!(
+            "plan {:03} is {:?}, must be review_done to merge",
+            seq, plan.status
+        ));
+    }
+    let (items, result) = crate::plan_merge::plan_to_items(&plan);
+    let mut doc = specs.load().map_err(|e| e.to_string())?;
+    crate::plan_merge::upsert_items_into_doc(&mut doc, items);
+    specs.save(&doc).map_err(|e| e.to_string())?;
+    plans.transition(seq, PlanStatus::Merged)?;
+    plans.archive(seq)?;
+    Ok(result)
+}
+
 // ============================================================
 // HTTP routes (hw escape hatch — PLAN-024 §3.6)
 //
@@ -656,38 +682,16 @@ async fn plans_merge(
     AxumPath(seq): AxumPath<u32>,
 ) -> Result<Json<crate::plan_merge::MergeResult>, (StatusCode, String)> {
     let ws = state.registry.get(&q.workspace.id_or_default(&state.registry));
-    let plan = ws
-        .plans
-        .get(seq)
-        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("plan {:03} not found", seq)))?;
-    // 门禁：必须 review_done
-    if plan.status != PlanStatus::ReviewDone {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            format!(
-                "plan {:03} is {:?}, must be review_done to merge",
-                seq, plan.status
-            ),
-        ));
-    }
-    // 提取 items + upsert 进 specs doc + save
-    let (items, result) = crate::plan_merge::plan_to_items(&plan);
-    let mut doc = ws
-        .specs
-        .load()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    crate::plan_merge::upsert_items_into_doc(&mut doc, items);
-    ws.specs
-        .save(&doc)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    // transition → Merged，然后 archive（移入 archived/）
-    ws.plans
-        .transition(seq, PlanStatus::Merged)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
-    ws.plans
-        .archive(seq)
-        .map_err(|e| (StatusCode::NOT_FOUND, e))?;
-    Ok(Json(result))
+    merge_plan_stores(&ws.plans, &ws.specs, seq)
+        .map(Json)
+        .map_err(|e| {
+            let code = if e.contains("not found") {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::BAD_REQUEST
+            };
+            (code, e)
+        })
 }
 
 /// All `/api/plans/*` routes. Merged into the main router in `server::serve()`.

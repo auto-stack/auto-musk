@@ -22,7 +22,7 @@ fn relay_command_match(text str) Value {
 
     let goal = relay_strip_prefix(trimmed, "/relay ")
     if goal != "" {
-        return { "flow": "default", "task": goal, "emoji": "🚀", "detail": "Advisor → Architect → Planner → Tester → Coder → Reviewer → Documenter 正在自动接力执行。", "steps": None }
+        return { "flow": "plan", "task": goal, "emoji": "🚀", "detail": "Plan → Execute（需确认计划）→ Review → Document，全程由 plan-dev 单角色以计划文件为事实源执行。", "steps": None }
     }
 
     let task = relay_strip_prefix(trimmed, "/superpower ")

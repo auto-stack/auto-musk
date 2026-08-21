@@ -4,12 +4,41 @@
 
 use auto_ai_agent::orchestration::{ExitRouting, FlowSpec, FlowStep, GateType};
 
-/// Build the built-in flows: default (legacy), simple, superpower, relay.
+/// Build the built-in flows: plan (PLAN-030 canonical), simple, superpower,
+/// plus the deprecated spec-driven pipelines (default/relay, kept for
+/// comparison runs).
 pub fn builtin_flows() -> Vec<FlowSpec> {
-    vec![default_flow(), simple_flow(), superpower_flow(), relay_flow()]
+    vec![
+        plan_flow(),
+        default_flow(),
+        simple_flow(),
+        superpower_flow(),
+        relay_flow(),
+    ]
 }
 
-/// The canonical spec-driven pipeline. advisor→architect carries a human gate.
+/// Plan-driven dev flow — 单角色四相位，计划文件为交接载体（PLAN-030）。
+///
+/// All four steps run as the SAME profession (`plan-dev`): role/soul/model
+/// tier/toolset never change, so there is no persona handoff. Phase behavior
+/// comes from the musk-side phase task templates (`relay/plan_flow.rs`)
+/// injected in `step_context`; the plan file (located via the `PLAN_FILE:`
+/// marker the driver extracts) is the full inter-phase context. The Human
+/// gate before `execute` is the plan-confirmation checkpoint (superpowers
+/// present-for-confirmation discipline).
+fn plan_flow() -> FlowSpec {
+    use GateType::*;
+    let mut flow = FlowSpec::new("plan");
+    flow.add_step(FlowStep::new("plan", "plan-dev"));
+    flow.add_step(FlowStep::new("execute", "plan-dev").with_gate(Human));
+    flow.add_step(FlowStep::new("review", "plan-dev"));
+    flow.add_step(FlowStep::new("document", "plan-dev"));
+    flow
+}
+
+/// DEPRECATED (PLAN-030): the 7-role spec-driven pipeline. Kept for
+/// comparison runs; the canonical flow is now `plan`. advisor→architect
+/// carries a human gate.
 fn default_flow() -> FlowSpec {
     use ExitRouting::*;
     use GateType::*;
@@ -40,6 +69,8 @@ fn superpower_flow() -> FlowSpec {
     flow
 }
 
+/// DEPRECATED (PLAN-030): the 7-role spec-driven relay pipeline. Kept for
+/// comparison runs; the canonical flow is now `plan`.
 fn relay_flow() -> FlowSpec {
     use GateType::*;
     let mut flow = FlowSpec::new("relay");
@@ -56,4 +87,34 @@ fn relay_flow() -> FlowSpec {
 /// Look up a built-in flow by id.
 pub fn get_builtin_flow(id: &str) -> Option<FlowSpec> {
     builtin_flows().into_iter().find(|f| f.id == id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// PLAN-030 A1: the plan flow is 4 steps, all `plan-dev`, with a single
+    /// Human gate before `execute` (plan-confirmation checkpoint).
+    #[test]
+    fn plan_flow_is_four_same_role_steps_with_one_human_gate() {
+        let flow = get_builtin_flow("plan").expect("plan flow registered");
+        assert_eq!(flow.steps.len(), 4);
+        let ids: Vec<&str> = flow.steps.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids, vec!["plan", "execute", "review", "document"]);
+        for s in &flow.steps {
+            assert_eq!(s.role_id, "plan-dev", "step {} role", s.id);
+        }
+        assert_eq!(flow.steps[0].gate, GateType::Auto);
+        assert_eq!(flow.steps[1].gate, GateType::Human);
+        assert_eq!(flow.steps[2].gate, GateType::Auto);
+        assert_eq!(flow.steps[3].gate, GateType::Auto);
+    }
+
+    #[test]
+    fn plan_flow_is_first_registered() {
+        // resolve_flow's fallback chain ends at "default"; ensure "plan" is
+        // addressable by id and present in the builtin list.
+        assert!(builtin_flows().iter().any(|f| f.id == "plan"));
+        assert!(get_builtin_flow("default").is_some(), "deprecated default kept");
+    }
 }

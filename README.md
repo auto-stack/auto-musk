@@ -105,12 +105,13 @@ cd web && npm run dev      # → http://localhost:3000
 
 - **Forge 聊天**：多轮会话（ConversationStore / jsonl 持久化）+ SSE 流式 + 工具调用展示 + spec 变更审批队列（approve/reject/reject-all）
 - **Spec Ledger**：6 类 spec section（goals/architecture/designs/tests/reviews/reports；PLAN-024 移除 plans，Plan 升级为独立一等公民）、per-section 状态机、关系图（rebuild_relations）、派生状态（derive_statuses）、overview/drift-check、LLM 经工具读写 + 审批队列
-- **Relay 引擎**：消费 `auto-ai-agent::orchestration`；`spawn_relay` + `bring_in` 编排工具；relay run 后台驱动 + 事件流；运行 dual-write 进 conversations，前端 ChatsView 内联渲染（RelayRunBox）
+- **Relay 引擎**：消费 `auto-ai-agent::orchestration`；`spawn_relay` + `bring_in` 编排工具；relay run 后台驱动 + 事件流；运行日志归档进 conversation（Flow 会话），前端 ChatsView 内联渲染（RelayRunBox）；独立 RelayView 已移除（PLAN-030）
 - **Wiki**：WikiStore（CRUD + 树形导航 + 全文检索）+ `/api/wiki` + `/api/raw` + WikiView 前端
 - **Plan（PLAN-024）**：Plan 一等公民（`docs/plans/NNN-*.md` + YAML frontmatter 状态机 drafting→executing→execution_done→review_done→merged）+ PlansView 一级导航（聊天/计划/规范/知识库）+ Plan→Spec merge 沉淀（`/api/plans/*`，复审通过后拆解进 Spec 6 区并归档）
 - **工具集**：read/write/edit/search/list_dir/list_symbols/glob/batch_replace/run_command + 5 个 spec 工具 + 编排工具
-- **技能库**：brainstorming / writing-plans / executing-plans / TDD / systematic-debugging / requesting-code-review / verification-before-completion
-- **配置体系**：mode（superpower/basic/coding/review）、agent roles（Nicole/Cody/Ash...）、app runtime config、三种工作模式（superpower + relay flows + bring_in）
+- **技能库**：plan-driven-development（PLAN-030 契约技能）/ brainstorming / writing-plans / executing-plans / TDD / systematic-debugging / requesting-code-review / verification-before-completion
+- **配置体系**：mode（superpower/basic/coding/review）、agent roles（Nicole/Ash/plan-dev...）、app runtime config、三种工作模式（superpower + relay flows + bring_in）
+- **Plan 驱动开发流程（PLAN-030，canonical）**：`plan` flow 四相位（plan → execute[Human gate=计划确认] → review → document）全部由单角色 `plan-dev` 执行，以 `docs/plans/NNN-*.md` 计划文件为全量交接载体（driver 提取 `PLAN_FILE:` 标记路由后续相位），document 相位经 `merge_plan` 沉淀 Spec 6 区并更新 docs/specs 模块树。assistant 初筛：简单任务 chat 直做，复杂任务 `spawn_relay(flow_id="plan")`。旧 7 角色 spec 流水线（default/relay flow）标记 deprecated 保留对拍
 
 ## 状态与计划
 

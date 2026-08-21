@@ -343,6 +343,7 @@ fn hw_msg(id: &str, role: musk::chats::Role, content: &str, tool_calls: Vec<musk
         content: content.into(),
         tool_calls,
         created_at,
+        thinking: String::new(),
     }
 }
 

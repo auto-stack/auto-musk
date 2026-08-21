@@ -3,6 +3,12 @@ name: writing-plans
 description: Use when you have an approved design or requirements for a multi-step task, before touching code. Produces a bite-sized, file-mapped implementation plan that the executing-plans skill then carries out.
 ---
 
+
+> **Plan-driven note (PLAN-030):** the canonical plan format is now the
+> numbered-section plan file with the PLAN status machine — see the
+> `plan-driven-development` skill. Use `create_plan` to assign the sequence
+> number instead of hand-picking one.
+
 # Writing Plans
 
 Turn an approved design (or requirements) into a concrete, bite-sized implementation plan. **Do not implement yet** — this skill only writes the plan.

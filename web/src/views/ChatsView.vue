@@ -1091,11 +1091,12 @@ async function sendMessage() {
   mentionVisible.value = false
 
   // ─── Quick Relay shortcut: /relay <goal> ──────────────────────────────
+  // PLAN-030: the plan-driven dev flow is the canonical pipeline.
   if (text.startsWith('/relay ')) {
     const goal = text.slice('/relay '.length).trim()
     if (!goal) return
     const runId = await startRun({
-      flow_id: 'default',
+      flow_id: 'plan',
       task: goal,
     })
     if (runId) {
@@ -1104,7 +1105,7 @@ async function sendMessage() {
       messages.value.push({
         id: `relay-${runId}`,
         role: 'assistant',
-        content: `🚀 **Relay 工作流已启动**\n\n**目标**: ${goal}\n**Run ID**: \`${runId}\`\n**Flow**: default\n\nAdvisor → Architect → Planner → Tester → Coder → Reviewer → Documenter 正在自动接力执行。点击下方的 Run 卡片可查看实时进度。`,
+        content: `🚀 **Plan 工作流已启动**\n\n**目标**: ${goal}\n**Run ID**: \`${runId}\`\n**Flow**: plan\n\nPlan → Execute（需确认计划）→ Review → Document，全程由 plan-dev 单角色以计划文件为事实源执行。点击下方的 Run 卡片可查看实时进度。`,
         timestamp: Date.now(),
         profession_id: 'assistant',
       })

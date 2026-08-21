@@ -3,6 +3,12 @@ name: brainstorming
 description: You MUST use this before any creative work — adding a feature, building a component, or changing behavior. Explores intent, requirements, and design with the user before any code is written.
 ---
 
+
+> **Plan-driven note (PLAN-030):** for feature work, prefer folding the
+> brainstorm outcome into a numbered plan file (`docs/plans/NNN-*.md`) via the
+> `plan-driven-development` skill / `create_plan` tool, instead of writing a
+> separate design doc.
+
 # Brainstorming
 
 You are about to start creative work. **Do not write or edit any code yet.** First explore the user's intent and the design space with them.

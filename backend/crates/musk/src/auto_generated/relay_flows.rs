@@ -3,7 +3,18 @@ use super::extern_impl::*;
 
 use auto_ai_agent::orchestration::{ExitRouting, FlowSpec, FlowStep, GateType};
 pub fn builtin_flows() -> Vec<FlowSpec> {
-    return vec![default_flow(), simple_flow(), superpower_flow(), relay_flow()];
+    return vec![plan_flow(), default_flow(), simple_flow(), superpower_flow(), relay_flow()];
+}
+
+/// Plan-driven dev flow — 单角色四相位，计划文件为交接载体（PLAN-030；
+/// 与 hw relay/flows.rs 的 plan_flow 保持 parity）。
+fn plan_flow() -> FlowSpec {
+    let mut flow = FlowSpec::new("plan");
+    flow.add_step(FlowStep::new("plan", "plan-dev"));
+    flow.add_step(FlowStep::new("execute", "plan-dev").with_gate(GateType::Human));
+    flow.add_step(FlowStep::new("review", "plan-dev"));
+    flow.add_step(FlowStep::new("document", "plan-dev"));
+    return flow;
 }
 
 /// relay_flows.at — ported from backend/crates/musk/src/relay/flows.rs (full).

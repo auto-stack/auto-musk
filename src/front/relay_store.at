@@ -1,5 +1,9 @@
 // relay_store.at — Relay 运行状态 store（单一真源，替代 useRelay.ts + useEventRouter.ts）
 //
+// Plan 030 T12：随 RelayView 移除收敛到 chat 内联面——退役 LoadProfessions/
+// LoadSouls/RerunRun/SubmitHandoff/DeleteRun/UpdateRunTitle 及 professions/
+// souls 状态（与 useRelay.ts 修剪保持 parity）。
+//
 // Plan 028 T16（M6）：F8 平台协议（Http.get/post/patch/delete + Sse.open/close）
 // + F3 JSON/Date 承载。原 useRelay.ts 的 fetch/SSE 逻辑逐路径对齐：
 //   - runs 列表加载排序 + 失效 current_run 清理
@@ -14,8 +18,6 @@ store RelayStore {
     model {
         var runs []Value = []
         var current_run Value = None
-        var professions []Value = []
-        var souls []Value = []
         var loading bool = false
         var error str = ""
         var live_log []Value = []
@@ -29,41 +31,17 @@ store RelayStore {
     }
 
     msg Msg {
-        LoadProfessions,
-        LoadSouls,
         LoadRuns(str),
         LoadRun(str),
         StartRun(obj),
         AdvanceRun(str),
-        RerunRun(str),
         ResolveGate(str, str, str),
-        SubmitHandoff(str, obj),
-        DeleteRun(str),
-        UpdateRunTitle(str, str),
         Subscribe(str),
         Unsubscribe(str),
         OnRelayEvent(Value),
     }
 
     on {
-        .LoadProfessions -> {
-            try {
-                let r = Http.get("/api/forge/relay/professions")
-                .professions = r.professions ?? []
-            } catch {
-                .error = "load professions failed"
-            }
-        }
-
-        .LoadSouls -> {
-            try {
-                let r0 = Http.get("/api/forge/relay/souls")
-                .souls = r0.souls ?? []
-            } catch {
-                .error = "load souls failed"
-            }
-        }
-
         .LoadRuns(projectPath) -> {
             try {
                 let q = ""
@@ -137,15 +115,6 @@ store RelayStore {
             }
         }
 
-        .RerunRun(runId) -> {
-            try {
-                Http.post("/api/forge/relay/runs/" + encodeURIComponent(runId) + "/rerun", {})
-                .LoadRun(runId)
-            } catch {
-                .error = "rerun run failed"
-            }
-        }
-
         .ResolveGate(runId, decision, feedback) -> {
             try {
                 let body map = { decision: decision }
@@ -154,42 +123,6 @@ store RelayStore {
                 .LoadRun(runId)
             } catch {
                 .error = "resolve gate failed"
-            }
-        }
-
-        .SubmitHandoff(runId, handoff) -> {
-            try {
-                Http.post("/api/forge/relay/runs/" + encodeURIComponent(runId) + "/handoff", { handoff: handoff })
-                .LoadRun(runId)
-            } catch {
-                .error = "submit handoff failed"
-            }
-        }
-
-        .DeleteRun(runId) -> {
-            try {
-                Http.delete("/api/forge/relay/runs/" + encodeURIComponent(runId))
-                if .current_run != None {
-                    if .current_run.run_id == runId {
-                        .current_run = None
-                        .session_logs[runId] = None
-                    }
-                }
-                .LoadRuns("")
-            } catch {
-                .error = "delete run failed"
-            }
-        }
-
-        .UpdateRunTitle(runId, title) -> {
-            try {
-                let updated = Http.patch("/api/forge/relay/runs/" + encodeURIComponent(runId) + "/title", { title: title })
-                if .current_run != None {
-                    if .current_run.run_id == runId { .current_run = updated }
-                }
-                .LoadRuns("")
-            } catch {
-                .error = "update title failed"
             }
         }
 
