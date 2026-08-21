@@ -78,7 +78,7 @@ fn relayEntryPreviewLine(e Value) str {
     if ty == "complete" || ty == "budget_warning" || ty == "budget_exceeded" { return "" }
     if ty == "thinking" { return "💭 " + relayClipText(c, 90) }
     if c.length > 90 {
-        return "…" + c.substring(c.length - 90, 90)
+        return "…" + c.substring(c.length - 90)
     }
     return c
 }
@@ -120,7 +120,7 @@ fn relayPreviewLines(entries Value) Value {
         while k >= 0 {
             let ln = tail[k]
             if ln.length > 100 {
-                out.push("…" + ln.substring(ln.length - 100, 100))
+                out.push("…" + ln.substring(ln.length - 100))
             } else {
                 out.push(ln)
             }
