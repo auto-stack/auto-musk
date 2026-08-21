@@ -251,8 +251,10 @@
                     />
                   </div>
                 </div>
-                <!-- Spawn Relay inline -->
-                <div v-else-if="tc.name === 'spawn_relay'" class="relay-inline">
+                <!-- Spawn Relay inline（守卫：镜像路径的 -tc 展开 turn 既无
+                     child_conversation 也无 result.run_id——extractRunId 为空时
+                     不渲染，否则出现永久的空 Run 块） -->
+                <div v-else-if="tc.name === 'spawn_relay' && extractRunId(tc)" class="relay-inline">
                   <RelayRunBox :run-id="extractRunId(tc)" />
                 </div>
                 <!-- Dispatch / Errand card -->

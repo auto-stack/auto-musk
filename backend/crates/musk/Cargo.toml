@@ -28,6 +28,7 @@ tower-http = { version = "0.6", features = ["cors", "fs"] }
 # SSE streaming for the relay events endpoint (api.rs).
 tokio-stream = { version = "0.1", features = ["sync"] }
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 async-stream = "0.3"
 futures = "0.3"
 # Auth (MVP: SHA-256 password hashing + random session tokens)

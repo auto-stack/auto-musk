@@ -24,7 +24,9 @@ component fn ToolBlock(tc: obj, errands: obj, relays: obj, task_plans: obj) {
                 tc: .tc
                 errands: .errands
             }
-        } else if .name == "spawn_relay" {
+        } else if .name == "spawn_relay" && extractRunId(.tc) != "" {
+            // 试用修复：镜像路径的 -tc 展开 turn 无 child/result.run_id，
+            // 空值不渲染 RunBox（否则出现永久空块）；落 GenericToolCard。
             RelayRunBox {
                 runId: extractRunId(.tc)
             }

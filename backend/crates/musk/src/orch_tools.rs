@@ -108,9 +108,14 @@ impl Tool for SpawnRelay {
         let state = self.ctx.state.clone();
         let ws_id = self.ctx.workspace_id.clone();
         let run_id_clone = run_id.clone();
+        tracing::info!(
+            "spawn_relay: spawning background driver for {} (flow={}, ws={})",
+            run_id, flow_id, ws_id
+        );
         tokio::spawn(async move {
             // Plan 020 Phase G: switched to the transpiled ag drive_run.
             let _ = crate::auto_generated::relay_driver::drive_run(state, &ws_id, &run_id_clone).await;
+            tracing::info!("spawn_relay: driver finished for {}", run_id_clone);
         });
 
         // 4. Detached watcher: mirror the run's terminal status onto the run

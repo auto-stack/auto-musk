@@ -1117,6 +1117,9 @@ pub fn drive_clear_root() {
 /// tag string — "ExecuteStep"/"WaitForHuman"/"Completed"/"Failed"/"Paused" — is
 /// the object key, used by advance_kind/advance_role_id).
 pub fn relay_advance(s: &Arc<AppState>, w: &str, r: &str) -> Value {
+    // PLAN-030 试用诊断线：曾出现 spawn_relay 派生的 driver 任务静默未推进
+    // run（同路径另一次却正常）——serve 此前无日志无法定位，此线保证复发可诊。
+    tracing::info!("relay_advance ws={w} run={r}");
     let ws = s.registry.get(w);
     match ws.relay.advance(r) {
         None => Value::Null,
