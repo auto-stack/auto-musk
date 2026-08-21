@@ -4,7 +4,7 @@ status: drafting
 feature_name: 基于 Plan 的 Agent 开发流程（取代 spec 流水线）
 author: [zhaopuming]
 created_at: 2026-08-21T10:30:00+08:00
-updated_at: 2026-08-21T11:05:00+08:00
+updated_at: 2026-08-21T11:40:00+08:00
 
 # Leave these EMPTY here — /auto-plan:review fills them:
 supersedes_spec_components: []
@@ -142,6 +142,10 @@ plan 状态不是自己期望的进入态时，先读 plan 对齐状态再行动
 
 ### 2.7 chat 统一展示与日志归一（2026-08-21 需求补充）
 
+- **数据模型（chat 与 run 的关系）**：ChatSession（用户对话线程）1→N Run——一个 chat
+  可发生多次独立子 run（连续多个需求、复审不过重开续跑、TaskPlan 并行编排），
+  **chat id 与 run id 不合并**；Run ↔ Flow Conversation 1:1 **同 id**（run 的持久化身，
+  D7 后唯一持久身份）。「统一」发生在 run↔conversation 层，不在 chat↔run 层。
 - **UI**：RelayRunBox 内联渲染（含 gate 批准/拒绝按钮）就是 flow 的唯一界面；删除
   `web/src/views/RelayView.vue`（已无路由/引用的死代码）；`useRelay.ts` 收敛到
   RelayRunBox 与斜杠命令所需（startRun/advanceRun/resolveGate/subscribeToRun），退役仅
@@ -200,7 +204,8 @@ Spec ledger（`backend/.autoos/specs.json`）目前是空壳（仅 G1 test 测�
 5. **relay 展示/存储遗留**：`RelayView.vue` 已无路由引用（PLAN-024 导航改四项后成死
    代码，`.at` 轨五视图亦无此视图）；run 日志双落（`.autoos/relay/run-*` 磁盘 +
    conversation 镜像 dual-write），与「chat 内联展示 + 日志归 conversation」的新设计
-   （2026-08-21 需求补充）不一致，需收敛为 conversation 唯一归档。
+   （2026-08-21 需求补充）不一致，需收敛为 conversation 唯一归档；且 chat 内
+   `spawn_relay` 存在**双会话冗余**（§5.7）。
 
 ### 4.4 superpowers 双轨现状
 
@@ -291,6 +296,12 @@ plan（无序号无 frontmatter）；relay 侧 `superpower` flow 是 4 步 3 角
   relay_store.at` 同步函数面 parity。
 - `relay/store.rs`：`save_run` 落盘与启动加载移除（in-memory 化）；`backend/
   .autoos/relay/` 既有文件留档不动、不再新增。
+- `orch_tools.rs` spawn_relay **会话唯一化**：现状先 `conversations.create()`（生成
+  独立 id）挂父链接、再 `start_run`（又建 run-id 同名会话）→ 每 run 双会话，父
+  ToolCall 的 `child_conversation` 指向只镜像终态的「壳」会话，真正的日志却落在
+  run-id 会话。改为先确定 run_id（预生成或先 start_run 取回），仅 `create_with_id
+  (run_id)` 建一个会话，父链接与终态 watcher 均指向它——与 REST 直启路径
+  （`create_conversation_for_run` 已用 run-id）一致。
 - relay API：runs list 端点保留但 UI 退役；SSE/gate/advance/rerun 不动。
 
 ## 6. 测试设计
@@ -328,6 +339,8 @@ plan（无序号无 frontmatter）；relay 侧 `superpower` flow 是 4 步 3 角
   斜杠命令所需函数面（.at 轨 parity）
 - [ ] A12 relay 日志唯一归档 conversation：`.autoos/relay/` 停写（无新文件），Flow
   conversation 可回放全部 run 活动（含 gate 与相位推进）
+- [ ] A13 chat 内 spawn 的 run 仅有一个 Flow 会话且 id=run_id：父 ToolCall 的
+  child_conversation 直指该会话，run 全部活动日志在其中（无壳会话冗余）
 
 ## 8. 执行步骤
 
@@ -365,8 +378,9 @@ plan（无序号无 frontmatter）；relay 侧 `superpower` flow 是 4 步 3 角
   模板含 PLAN_FILE 协议/状态机动作/验收重验关键词）
 - [ ] **T9** `backend/crates/musk/src/relay/store.rs`：日志归一——`save_run` 落盘与启动
   加载移除（RunStore 转 in-memory，见 D7），`.autoos/relay/` 停写；conversation
-  dual-write 保持为唯一持久日志。验证：`cargo test -p musk relay` + 手查
-  `.autoos/relay/` 无新文件
+  dual-write 保持为唯一持久日志；`orch_tools.rs` spawn_relay 会话唯一化（§5.7：
+  run-id 会话为唯一 Flow 会话，`child_conversation` 直指）。验证：`cargo test -p musk
+  relay orch_tools` + 手查 `.autoos/relay/` 无新文件
 
 **D 组：路由切换、前端归一与清理**
 
