@@ -11,8 +11,12 @@
 
     <!-- Expanded body -->
     <div v-if="expanded" class="box-body">
+      <!-- Run 不存在（服务重启清空内存 run / 已删除）的失效态 -->
+      <div v-if="missing" class="missing-note">
+        ⚠️ Run 已失效（run 为内存态，服务重启后清空；活动日志见对应会话记录）。重新发送需求即可续跑——计划文件会幂等复用。
+      </div>
       <!-- Session log entries -->
-      <div class="log-entries" ref="logRef">
+      <div v-else class="log-entries" ref="logRef">
         <div v-for="entry in logEntries" :key="entry.id" class="log-entry" :class="`entry-${entry.type}`">
           <template v-if="entry.type === 'text'">
             <span class="entry-prof">{{ professionIcon(entry.profession_id) }}</span>
@@ -67,12 +71,19 @@ const logRef = ref<HTMLElement | null>(null)
 let unsubscribe: (() => void) | null = null
 
 // Find this run: check currentRun first, then search runs list.
+// （修复：原 `?? currentRun.value` 兜底会错拿无关 run；严格按 runId 匹配，
+// 找不到就是 missing——例如历史消息引用的 run 已随 serve 重启清空。）
 const run = computed(() => {
   if (currentRun.value?.run_id === props.runId) return currentRun.value
-  return runs.value.find(r => r.run_id === props.runId) as any ?? currentRun.value
+  return runs.value.find(r => r.run_id === props.runId) as any ?? null
 })
 
+// 首次加载完成后仍找不到 → 失效态（run 是内存态，服务重启即清空）。
+const loaded = ref(false)
+const missing = computed(() => loaded.value && run.value == null)
+
 const statusClass = computed(() => {
+  if (missing.value) return 'missing'
   const s = run.value?.status ?? 'idle'
   if (s === 'completed') return 'completed'
   if (s === 'failed') return 'failed'
@@ -81,6 +92,7 @@ const statusClass = computed(() => {
 })
 
 const statusLabel = computed(() => {
+  if (missing.value) return '已失效'
   const map: Record<string, string> = {
     running: '运行中', completed: '已完成', failed: '失败',
     waiting_approval: '待审批', idle: '就绪', paused: '已暂停',
@@ -125,8 +137,9 @@ watch(logEntries, async () => {
 }, { deep: true })
 
 // Load run data on mount
-onMounted(() => {
-  loadRun(props.runId)
+onMounted(async () => {
+  await loadRun(props.runId)
+  loaded.value = true
 })
 
 onUnmounted(() => {
@@ -146,6 +159,9 @@ onUnmounted(() => {
 .status-completed { border-left: 3px solid hsl(142 71% 45%); }
 .status-failed { border-left: 3px solid hsl(var(--af-error)); }
 .status-gate { border-left: 3px solid hsl(38 92% 50%); }
+.status-missing { border-left: 3px solid hsl(var(--af-border)); opacity: 0.75; }
+.missing-note { padding: 0.5rem 0.75rem; font-size: 0.78rem; color: var(--af-fg-secondary, #888); }
+.badge-missing { background: hsl(var(--af-border)); color: hsl(var(--af-fg)); }
 
 .box-header {
   display: flex; align-items: center; gap: 0.4rem;

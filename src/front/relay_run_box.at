@@ -23,9 +23,10 @@ component fn RelayRunBox(runId: str) {
     computed {
         run => relayFindRun(store.runs, store.current_run, .runId)
         hasRun => .run != None
-        status => if .run != None { .run.status } else { "idle" }
+        // 试用修复：找不到 run（serve 重启清空内存态）→ missing 失效态
+        status => if .run != None { .run.status } else { "missing" }
         statusClass => relayStatusClass(.status)
-        statusLabel => relayStatusLabel(.status)
+        statusLabel => if .status == "missing" { "已失效" } else { relayStatusLabel(.status) }
         titleText => relayRunTitle(.run, .runId)
         progressCur => if .hasRun { .run.current_step } else { 0 }
         progressTotal => if .hasRun { .run.total_steps } else { 0 }
@@ -100,6 +101,9 @@ component fn RelayRunBox(runId: str) {
 .status-completed { border-left: 3px solid hsl(142 71% 45%); }
 .status-failed { border-left: 3px solid hsl(var(--af-error)); }
 .status-gate { border-left: 3px solid hsl(38 92% 50%); }
+.status-missing { border-left: 3px solid hsl(var(--af-border)); opacity: 0.75; }
+.missing-note { padding: 0.5rem 0.75rem; font-size: 0.78rem; }
+.badge-missing { background: hsl(var(--af-border)); }
 .badge-running { background: hsl(var(--primary) / 0.15); color: hsl(var(--primary)); }
 .badge-completed { background: hsl(142 71% 45% / 0.15); color: hsl(142 71% 45%); }
 .badge-failed { background: hsl(var(--af-error) / 0.15); color: hsl(var(--af-error)); }
@@ -118,7 +122,7 @@ component fn RelayRunBox(runId: str) {
     }
 
     div {
-        class: if .statusClass == "completed" { "relay-box status-completed" } else { if .statusClass == "failed" { "relay-box status-failed" } else { if .statusClass == "gate" { "relay-box status-gate" } else { "relay-box status-running" } } }
+        class: if .statusClass == "completed" { "relay-box status-completed" } else { if .statusClass == "failed" { "relay-box status-failed" } else { if .statusClass == "gate" { "relay-box status-gate" } else { if .statusClass == "missing" { "relay-box status-missing" } else { "relay-box status-running" } } } }
         // header（click toggle）
         row {
             onclick: .Toggle
@@ -142,7 +146,7 @@ component fn RelayRunBox(runId: str) {
                 }
             }
             span {
-                class: if .statusClass == "completed" { "badge-completed" } else { if .statusClass == "failed" { "badge-failed" } else { if .statusClass == "gate" { "badge-gate" } else { "badge-running" } } }
+                class: if .statusClass == "completed" { "badge-completed" } else { if .statusClass == "failed" { "badge-failed" } else { if .statusClass == "gate" { "badge-gate" } else { if .statusClass == "missing" { "badge-missing" } else { "badge-running" } } } }
                 text .statusLabel
             }
         }
@@ -150,6 +154,13 @@ component fn RelayRunBox(runId: str) {
         if .expanded {
             div {
                 style: "box-body"
+                // 试用修复：run 失效（serve 重启清空内存态）时展示提示而非空日志
+                if .run == None {
+                    div {
+                        style: "missing-note"
+                        text "⚠️ Run 已失效（run 为内存态，服务重启后清空；活动日志见对应会话记录）。重新发送需求即可续跑——计划文件会幂等复用。"
+                    }
+                }
                 div {
                     style: "log-entries"
                     for entry in .logEntries {

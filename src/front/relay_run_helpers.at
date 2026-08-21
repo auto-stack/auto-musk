@@ -29,6 +29,8 @@ fn relayStatusClass(status str) str {
     if status == "completed" { return "completed" }
     if status == "failed" { return "failed" }
     if status == "waiting_approval" { return "gate" }
+    // 试用修复：run 失效（serve 重启清空内存态）
+    if status == "missing" { return "missing" }
     return "running"
 }
 
