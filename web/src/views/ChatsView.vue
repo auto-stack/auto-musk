@@ -1090,10 +1090,15 @@ async function sendMessage() {
   inputText.value = ''
   mentionVisible.value = false
 
-  // ─── Quick Relay shortcut: /relay <goal> ──────────────────────────────
-  // PLAN-030: the plan-driven dev flow is the canonical pipeline.
-  if (text.startsWith('/relay ')) {
-    const goal = text.slice('/relay '.length).trim()
+  // ─── Plan flow shortcut: /plan <requirement> ──────────────────────────
+  // PLAN-030 的 canonical 入口。`/relay` 为旧名别名（回执提示更名）。
+  const planPrefix = text.startsWith('/plan ')
+    ? '/plan '
+    : text.startsWith('/relay ')
+      ? '/relay '
+      : null
+  if (planPrefix) {
+    const goal = text.slice(planPrefix.length).trim()
     if (!goal) return
     const runId = await startRun({
       flow_id: 'plan',
@@ -1102,10 +1107,11 @@ async function sendMessage() {
     if (runId) {
       // Kick off the background driver so the flow actually runs.
       await advanceRun(runId)
+      const renameHint = planPrefix === '/relay ' ? '\n\n> 💡 `/relay` 已更名为 `/plan`。' : ''
       messages.value.push({
-        id: `relay-${runId}`,
+        id: `plan-${runId}`,
         role: 'assistant',
-        content: `🚀 **Plan 工作流已启动**\n\n**目标**: ${goal}\n**Run ID**: \`${runId}\`\n**Flow**: plan\n\nPlan → Execute（需确认计划）→ Review → Document，全程由 plan-dev 单角色以计划文件为事实源执行。点击下方的 Run 卡片可查看实时进度。`,
+        content: `🚀 **Plan 工作流已启动**\n\n**目标**: ${goal}\n**Run ID**: \`${runId}\`\n**Flow**: plan\n\nPlan → Execute（需确认计划）→ Review → Document，全程由 plan-dev 单角色以计划文件为事实源执行。点击下方的 Run 卡片可查看实时进度。${renameHint}`,
         timestamp: Date.now(),
         profession_id: 'assistant',
       })

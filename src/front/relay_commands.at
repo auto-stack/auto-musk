@@ -1,5 +1,8 @@
-// relay_commands.at — /relay //superpower //spec1 命令解析（单一真源，
+// relay_commands.at — /plan //superpower //spec1 命令解析（单一真源，
 // 替代 relay_commands.ts 的解析部分）
+//
+// Plan 030：/plan <需求> 是 plan flow 的 canonical 入口；/relay 为旧名
+// 别名（等价解析，回执提示更名）。
 //
 // Plan 029 T14：前缀解析 + 参数提取 + 启动文案全部原生化（starts_with/
 // sub/trim 映射已有）。执行部分（RelayStore.StartRun/AdvanceRun + Forge
@@ -16,11 +19,14 @@ fn relay_strip_prefix(trimmed str, prefix str) str {
     return ""
 }
 
-/** 命令解析：/relay <goal> | /superpower <task> | /spec1 <goal>。 */
+/** 命令解析：/plan <需求>（别名 /relay）| /superpower <task> | /spec1 <goal>。 */
 fn relay_command_match(text str) Value {
     let trimmed = text.trim()
 
-    let goal = relay_strip_prefix(trimmed, "/relay ")
+    let goal = relay_strip_prefix(trimmed, "/plan ")
+    if goal == "" {
+        goal = relay_strip_prefix(trimmed, "/relay ")
+    }
     if goal != "" {
         return { "flow": "plan", "task": goal, "emoji": "🚀", "detail": "Plan → Execute（需确认计划）→ Review → Document，全程由 plan-dev 单角色以计划文件为事实源执行。", "steps": None }
     }
