@@ -20,7 +20,7 @@ component fn RelayRunBox(runId: str) {
         component: ChevronDown, ChevronUp, Orbit, Wrench from "lucide-vue-next"
         component: ReportCard
         component: Markdown from "platform:markdown"
-        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget, relayPreviewLines, relayStepViews, relayBadgePos, relayReportView, relayDividerLabel, relayTextPlanFile, relayTextBody, relayIsDoc, relayDocTitle from "src/front/relay_run_helpers.at"
+        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget, relayPreviewLines, relayStepViews, relayBadgePos, relayReportView, relayTextPlanFile, relayTextBody, relayIsDoc, relayDocTitle, relayPhaseKind, relayPhaseAction, relayPhaseIcon, relayPhaseClass, relayPhaseText, relayToolIsDocKind from "src/front/relay_run_helpers.at"
     }
     computed {
         run => relayFindRun(store.runs, store.current_run, .runId)
@@ -146,23 +146,42 @@ component fn RelayRunBox(runId: str) {
 .head-chevron { color: var(--af-muted); flex-shrink: 0; }
 /* 展开态正文：Markdown 全宽（与工具块左对齐，无图标前缀） */
 .entry-md { width: 100%; min-width: 0; }
-/* 阶段分割线：── ▶ 方案 ──（醒目的相位边界） */
-.step-divider {
-  display: flex; align-items: center; gap: 0.45rem;
-  margin: 0.5rem 0 0.3rem; color: var(--af-muted); font-size: 0.75rem;
+/* 阶段 Log 行：[icon] [类型·着色] [阶段名] [动作] [短尾线]（左对齐 log 风格，
+   替代居中分割线——信息量优先） */
+.phase-line { display: flex; align-items: center; gap: 0.4rem; margin: 0.35rem 0 0.2rem; font-size: 0.75rem; }
+.phase-line .ph-icon { flex-shrink: 0; font-size: 0.78rem; }
+.phase-line .ph-kind {
+  flex-shrink: 0; font-weight: 600; font-size: 0.7rem; letter-spacing: 0.05em;
+  padding: 0.02rem 0.35rem; border-radius: 3px;
 }
-.step-divider::before, .step-divider::after {
-  content: ""; flex: 1; height: 1px; background: var(--af-border);
+.phase-line .ph-name { flex-shrink: 0; font-weight: 500; color: var(--af-fg); }
+.phase-line .ph-action { flex-shrink: 0; font-weight: 500; }
+.phase-line .ph-err-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.phase-line .ph-tail { flex: 1; max-width: 2.2rem; height: 1px; border-bottom: 1px dashed currentColor; opacity: 0.4; margin-left: 0.3rem; }
+/* 类型着色：阶段蓝 / 审批琥珀 / 完成绿 / 失败红 */
+.phase-line.ph-step { color: var(--af-muted); }
+.phase-line.ph-step .ph-icon, .phase-line.ph-step .ph-action { color: hsl(var(--primary)); }
+.phase-line.ph-step .ph-kind { background: hsl(var(--primary) / 0.12); color: hsl(var(--primary)); }
+.phase-line.ph-step.done { color: var(--af-muted); }
+.phase-line.ph-step.done .ph-icon, .phase-line.ph-step.done .ph-action { color: hsl(142 71% 45%); }
+.phase-line.ph-step.done .ph-kind { background: hsl(142 71% 45% / 0.12); color: hsl(142 71% 45%); }
+.phase-line.ph-gate { color: var(--af-muted); }
+.phase-line.ph-gate .ph-icon, .phase-line.ph-gate .ph-action { color: hsl(38 92% 50%); }
+.phase-line.ph-gate .ph-kind { background: hsl(38 92% 50% / 0.15); color: hsl(38 80% 40%); }
+.phase-line.ph-done { color: var(--af-muted); }
+.phase-line.ph-done .ph-icon, .phase-line.ph-done .ph-action { color: hsl(142 71% 45%); }
+.phase-line.ph-done .ph-kind { background: hsl(142 71% 45% / 0.12); color: hsl(142 71% 45%); }
+.phase-line.ph-fail { color: var(--af-muted); }
+.phase-line.ph-fail .ph-icon, .phase-line.ph-fail .ph-action { color: hsl(var(--af-error)); }
+.phase-line.ph-fail .ph-kind { background: hsl(var(--af-error) / 0.12); color: hsl(var(--af-error)); }
+.phase-line.ph-fail .ph-err-text { color: hsl(var(--af-error)); }
+/* 工具文档型结果子窗：Markdown 渲染，比 Run 普通文档（0.85rem）小一号 */
+.tool-doc-body {
+  padding: 0.4rem 0.55rem; font-size: 0.78rem; line-height: 1.5;
+  background: hsl(140 30% 97%); border-top: 1px dashed var(--af-border);
+  max-height: 360px; overflow-y: auto;
 }
-.step-divider .sd-mark { flex-shrink: 0; font-size: 0.78rem; }
-.step-divider .sd-label { flex-shrink: 0; font-weight: 500; letter-spacing: 0.04em; }
-.step-divider.done { color: hsl(142 71% 45%); }
-.step-divider.done::before, .step-divider.done::after { background: hsl(142 71% 45% / 0.35); }
-.step-divider.warn { color: hsl(38 60% 35%); }
-.step-divider.warn::before, .step-divider.warn::after { background: hsl(38 92% 50% / 0.4); }
-.step-divider.err { color: hsl(var(--af-error)); }
-.step-divider.err::before, .step-divider.err::after { background: hsl(var(--af-error) / 0.3); }
-.step-divider.err .sd-label { max-width: 88%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-icon { font-size: 0.85rem; line-height: 1; flex-shrink: 0; }
 /* PLAN_FILE 行 → 独立文件 chip */
 .plan-file-row { display: flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0; font-size: 0.78rem; }
 .plan-file-chip {
@@ -469,13 +488,19 @@ component fn RelayRunBox(runId: str) {
                                 }
                             } else if .entry.type == "tool" || .entry.type == "tool_call" {
                                 // 与聊天侧工具卡一致：默认收起、显示操作目标、
-                                // 点击头部展开参数与结果（展示态存 _expanded）
+                                // 点击头部展开参数与结果（展示态存 _expanded）。
+                                // 文档读取型（read_plan 等/结果长）：📄 图标 +
+                                // 结果按 Markdown 渲染于子窗（字号小一号）。
                                 div {
                                     style: "entry-tool-card"
                                     div {
                                         style: "entry-tool-head"
                                         onclick: .ToggleEntry(.entry)
-                                        Wrench { size: 12 }
+                                        if relayToolIsDocKind(.entry) {
+                                            text "📄" { style: "tool-icon" }
+                                        } else {
+                                            Wrench { size: 12 }
+                                        }
                                         span {
                                             style: "tool-name"
                                             text .entry.tool_name
@@ -504,50 +529,38 @@ component fn RelayRunBox(runId: str) {
                                                 }
                                             }
                                             if .entry.result != None && .entry.result != "" {
-                                                pre {
-                                                    style: "tool-result"
-                                                    text .entry.result
+                                                if relayToolIsDocKind(.entry) {
+                                                    // 文档型结果：Markdown 子窗（比 Run 普通文档小一号）
+                                                    div {
+                                                        style: "tool-doc-body"
+                                                        Markdown(source: .entry.result, streaming: false)
+                                                    }
+                                                } else {
+                                                    pre {
+                                                        style: "tool-result"
+                                                        text .entry.result
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
-                            } else if .entry.type == "step_started" {
-                                // 阶段分割线：── ▶ 方案 ──
+                            } else if .entry.type == "step_started" || .entry.type == "step_completed" || .entry.type == "gate_waiting" || .entry.type == "run_completed" || .entry.type == "run_failed" || .entry.type == "error" {
+                                // 阶段 Log 行：[icon] [类型·着色] [阶段名] [动作] [短尾线]
                                 row {
-                                    class: "step-divider"
-                                    span { style: "sd-mark", text "▶ " }
-                                    span { style: "sd-label", text relayDividerLabel("step_started", .entry.content) }
-                                }
-                            } else if .entry.type == "step_completed" {
-                                row {
-                                    class: "step-divider done"
-                                    span { style: "sd-mark", text "✓ " }
-                                    span { style: "sd-label", text relayDividerLabel("step_completed", .entry.content) }
-                                }
-                            } else if .entry.type == "gate_waiting" {
-                                row {
-                                    class: "step-divider warn"
-                                    span { style: "sd-mark", text "⏸ " }
-                                    span { style: "sd-label", text relayDividerLabel("gate_waiting", .entry.content) }
-                                }
-                            } else if .entry.type == "error" {
-                                row {
-                                    class: "step-divider err"
-                                    span { style: "sd-mark", text "✗ " }
-                                    span { style: "sd-label", text relayDividerLabel("error", .entry.content) }
-                                }
-                            } else if .entry.type == "run_completed" {
-                                row {
-                                    class: "step-divider done"
-                                    span { style: "sd-mark", text "✅ " }
-                                    span { style: "sd-label", text relayDividerLabel("run_completed", .entry.content) }
-                                }
-                            } else if .entry.type == "run_failed" {
-                                row {
-                                    class: "step-divider err"
-                                    span { style: "sd-mark", text "❌ " }
-                                    span { style: "sd-label", text relayDividerLabel("run_failed", .entry.content) }
+                                    class: relayPhaseClass(.entry.type)
+                                    span { style: "ph-icon", text relayPhaseIcon(.entry.type) }
+                                    span { style: "ph-kind", text relayPhaseKind(.entry.type) }
+                                    if relayPhaseText(.entry.type, .entry.content) != "" {
+                                        span { style: "ph-name", text relayPhaseText(.entry.type, .entry.content) }
+                                    }
+                                    span { style: "ph-action", text relayPhaseAction(.entry.type) }
+                                    if relayPhaseText(.entry.type, .entry.content) != "" {
+                                        if .entry.type == "run_failed" || .entry.type == "error" {
+                                            span { style: "ph-err-text", text relayPhaseText(.entry.type, .entry.content) }
+                                        }
+                                    }
+                                    span { style: "ph-tail" }
                                 }
                             }
                         }

@@ -174,6 +174,66 @@ fn relayDividerLabel(ty str, content str) str {
     return relayClipText(content, 70)
 }
 
+// ─── 阶段 Log 行（PLAN-031 批次四：[icon][类型·着色][阶段名][动作][短尾线]）───
+
+/** entry.type → 阶段行类型标签（阶段/审批/Run）。 */
+fn relayPhaseKind(ty str) str {
+    if ty == "step_started" || ty == "step_completed" { return "阶段" }
+    if ty == "gate_waiting" { return "审批" }
+    if ty == "run_completed" { return "Run" }
+    return "事件"
+}
+
+/** entry.type → 动作词（开始/完成/等待/失败）。 */
+fn relayPhaseAction(ty str) str {
+    if ty == "step_started" { return "开始" }
+    if ty == "step_completed" { return "完成" }
+    if ty == "gate_waiting" { return "等待" }
+    if ty == "run_completed" { return "完成" }
+    if ty == "run_failed" { return "失败" }
+    return "记录"
+}
+
+/** entry.type → 阶段行 icon。 */
+fn relayPhaseIcon(ty str) str {
+    if ty == "step_started" { return "▶" }
+    if ty == "step_completed" { return "✓" }
+    if ty == "gate_waiting" { return "⏸" }
+    if ty == "run_completed" { return "✅" }
+    if ty == "run_failed" { return "✗" }
+    return "•"
+}
+
+/** 阶段行配色 class：phase-line + ph-{kind}（类型着色：阶段蓝/审批琥珀/完成绿/失败红）。 */
+fn relayPhaseClass(ty str) str {
+    if ty == "step_started" { return "phase-line ph-step" }
+    if ty == "step_completed" { return "phase-line ph-step done" }
+    if ty == "gate_waiting" { return "phase-line ph-gate" }
+    if ty == "run_completed" { return "phase-line ph-done" }
+    if ty == "run_failed" || ty == "error" { return "phase-line ph-fail" }
+    return "phase-line ph-step"
+}
+
+/** 阶段行文本：step_* 显示阶段名；错误显示摘要；其余空。 */
+fn relayPhaseText(ty str, content str) str {
+    if ty == "step_started" || ty == "step_completed" {
+        return relayStepLabel(relayStepIdOf(content))
+    }
+    if ty == "run_failed" || ty == "error" { return relayClipText(content, 60) }
+    return ""
+}
+
+/** 工具卡是否为"文档读取型"（📄 图标 + 结果按 Markdown 展示于展开子窗，
+ * 字号小一号）：读类工具或结果较长。 */
+fn relayToolIsDocKind(entry Value) bool {
+    let n = entry.tool_name ?? ""
+    if n == "read_plan" || n == "read_file" || n == "list_plans" || n == "get_plan" {
+        return true
+    }
+    let r = entry.result ?? ""
+    return r.length > 400
+}
+
 /** 文本条目 → 文档块视图：PLAN_FILE 行抽为独立文件 chip；正文 ≥600 字符
  * 或含 PLAN_FILE → 折叠文档块（头部标题=首个 # 标题，展开渲染 Markdown）。 */
 fn relayTextPlanFile(content str) str {
