@@ -152,6 +152,76 @@ fn relayStepLabel(id str) str {
     return labels[id] ?? id
 }
 
+/** 'Step "xxx" started/completed' → xxx（分割线标签用）。 */
+fn relayStepIdOf(content str) str {
+    let a = content.indexOf("\"")
+    if a == -1 { return "" }
+    let rest = content.substring(a + 1)
+    let b = rest.indexOf("\"")
+    if b == -1 { return rest }
+    return rest.substring(0, b)
+}
+
+/** 分割线标签（阶段/门禁/终态统一口径）：step_* 用中文阶段名。 */
+fn relayDividerLabel(ty str, content str) str {
+    if ty == "step_started" || ty == "step_completed" {
+        let sid = relayStepIdOf(content)
+        return relayStepLabel(sid)
+    }
+    if ty == "gate_waiting" { return "等待审批" }
+    if ty == "run_completed" { return "Run 完成" }
+    if ty == "run_failed" || ty == "error" { return relayClipText(content, 70) }
+    return relayClipText(content, 70)
+}
+
+/** 文本条目 → 文档块视图：PLAN_FILE 行抽为独立文件 chip；正文 ≥600 字符
+ * 或含 PLAN_FILE → 折叠文档块（头部标题=首个 # 标题，展开渲染 Markdown）。 */
+fn relayTextPlanFile(content str) str {
+    let lines = content.split("\n")
+    var i int = 0
+    while i < lines.length {
+        if lines[i].trim().starts_with("PLAN_FILE:") {
+            return lines[i].trim().substring(10).trim()
+        }
+        i = i + 1
+    }
+    return ""
+}
+
+fn relayTextBody(content str) str {
+    let lines = content.split("\n")
+    var body str = ""
+    var i int = 0
+    while i < lines.length {
+        if lines[i].trim().starts_with("PLAN_FILE:") == false {
+            body = body + lines[i] + "\n"
+        }
+        i = i + 1
+    }
+    if body == "\n" { return "" }
+    if body.length > 0 { return body.substring(0, body.length - 1) }
+    return body
+}
+
+fn relayIsDoc(content str) bool {
+    if relayTextPlanFile(content) != "" { return true }
+    return relayTextBody(content).length > 600
+}
+
+fn relayDocTitle(content str) str {
+    let lines = content.split("\n")
+    var i int = 0
+    while i < lines.length {
+        let ln = lines[i].trim()
+        if ln.starts_with("# ") {
+            let t = ln.substring(2).trim()
+            if t != "" { return relayClipText(t, 56) }
+        }
+        i = i + 1
+    }
+    return "文档"
+}
+
 /** 徽标显示的 1-based 步骤位置（后端 current_step 是 0-based"即将执行"索引；
  * 完成态钉在 total，避免越界显示 total+1）。 */
 fn relayBadgePos(cur int, total int, status str) int {

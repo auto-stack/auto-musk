@@ -108,7 +108,51 @@ ReportCard（PPT 风格），并向**父 chat 会话**追加总结消息（此�
 - Report v1 摘要取 document 相位 handoff 摘要（LLM 产物），无独立"漂亮报告"
   生成调用——PPT 化交给前端呈现层；v2 再考虑专用报告生成相位。
 
-## 5. 执行步骤
+## 2b. 批次三（历史回放修复 + 阶段可视化，试用反馈截图×2）
+
+### T8 回放重建 web 轨补齐（反馈 1/3：已中断误显 + 目标消失）
+- 根因：web `loadRunHistory` 的 tool_call 条目**不带 arguments、不合并
+  tool_result**（.at 轨有、web 漏）——目标列空 + 条目恒为 `tool_call` 型，
+  终态下全部误显"已中断"。补齐与 .at 同口径。
+
+### T9 展开点击跳滚修复（反馈 2）
+- 根因：web `watch(logEntries, {deep:true})` 在 `_expanded` 变更时也触发
+  自动滚底——展开内容被滚出视口，表现为"没打开+跳到最后一段"。
+  改为仅监听条目**长度**变化。
+
+### T10 文本行去图标 + 全宽对齐（反馈 4）
+- 去掉 📝 职业图标（单独占行）；Markdown 全宽，与工具块左对齐。
+
+### T11 阶段分割线（反馈 7）
+- step_started/completed/gate_waiting/run_completed/run_failed/error 改为
+  分割线风格：`── ▶ 方案 ──`（::before/::after 横线 + 中文阶段名，完成绿/
+  门禁琥珀/失败红）。'Step "x" started' 解析 → relayStepIdOf + relayStepLabel。
+
+### T12 PLAN_FILE/长文本 → 折叠文档块（反馈 5）
+- PLAN_FILE 行抽为独立文件 chip（📄 + mono 青色路径）；
+  正文 ≥600 字符或含 PLAN_FILE → 折叠 Markdown 文档块（头部 📄+首个 #
+  标题，默认收起，展开渲染 AutoDown）。
+
+### T13 RunCompleted 重复追加修复（反馈 6："Run 已完成"×2）
+- 后端根因：driver 循环在 submit_handoff 返回 Completed 后的下一轮
+  advance 对已 Completed 的 run 再次追加 RunCompleted（会话双写
+  "Flow completed"×2 实证）。advance() 加终态幂等守卫；
+  双轨回放转换器加 sawCompleted 去重防御；标签去"（历史回放）"尾巴。
+
+### T14 附带
+- parity_relay_driver 过时断言修正（PLAN-030 置败停车改造遗留：期望
+  error→handoff，现行 error→fail_run；按现行语义断言 RunFailed 事件标记）。
+
+## 5. 执行步骤（批次三）
+
+- [x] b1. 根因定位（会话 turns 解剖 + 双轨转换器对照 + "Flow completed"×2 实证）。
+- [x] b2. T8-T12 前端（.at + web 双轨）+ codegen + web dist 重建。
+- [x] b3. T13 后端 advance 终态守卫 + T14 测试修正；cargo test 全绿（31 组）。
+- [x] b4. 真实会话数据模拟验证：25/25 工具合并（不再误显中断）、12 条带
+       操作目标、run_completed 恰 1 条。
+- [x] b5. musk 重建重启（8090）+ 提交。
+
+## 5x. 执行步骤（批次一/二）
 
 - [x] 1. 侦察：ReportCard 双轨现状（onReport 路由在、无发射方）、spawn_relay
        watcher、RunEvent 枚举、Turn/append_turn、originating_chat_session（未填充→

@@ -62,7 +62,23 @@ async function loadRunHistory(runId: string): Promise<RunHistory | null> {
       } else {
         flush()
         if (k === 'tool_call') {
-          entries.push({ id: `h${entries.length}`, time: '', profession_id: t.from ?? 'unknown', type: 'tool_call', content: '', tool_name: t.tool?.name ?? '' })
+          // PLAN-031 T8: 与 .at 轨同口径——带 arguments（操作目标展示用），
+          // 结果由紧随的 tool_result turn 配对合并。此前两者都缺：目标列空白、
+          // 条目永远是 tool_call 型（终态下全部误显"已中断"）。
+          entries.push({
+            id: `h${entries.length}`, time: '', profession_id: t.from ?? 'unknown',
+            type: 'tool_call', content: '',
+            tool_name: t.tool?.name ?? '', arguments: t.tool?.args ?? undefined, result: '',
+          })
+        } else if (k === 'tool_result') {
+          // 并入最近一个 tool 条目（展开态显示结果）
+          for (let j = entries.length - 1; j >= 0; j--) {
+            if (entries[j].type === 'tool_call' || entries[j].type === 'tool') {
+              entries[j].result = t.content ?? ''
+              entries[j].type = 'tool'
+              break
+            }
+          }
         } else if (k === 'gate') {
           entries.push({ id: `h${entries.length}`, time: '', profession_id: 'system', type: 'gate_waiting', content: '等待人工审批' })
         } else if (k === 'system') {
@@ -72,8 +88,12 @@ async function loadRunHistory(runId: string): Promise<RunHistory | null> {
           } else if (c.startsWith("Step '") && c.includes(' started')) {
             entries.push({ id: `h${entries.length}`, time: '', profession_id: 'system', type: 'step_started', content: c })
           } else if (c.includes('Flow completed')) {
-            sawCompleted = true
-            entries.push({ id: `h${entries.length}`, time: '', profession_id: 'system', type: 'run_completed', content: 'Run 已完成（历史回放）' })
+            // T13: 后端曾双写 RunCompleted（advance 终态重复追加已修），
+            // 回放侧仍去重防御
+            if (!sawCompleted) {
+              sawCompleted = true
+              entries.push({ id: `h${entries.length}`, time: '', profession_id: 'system', type: 'run_completed', content: 'Run 已完成' })
+            }
           } else if (c.includes('failed')) {
             sawFailed = true
             entries.push({ id: `h${entries.length}`, time: '', profession_id: 'system', type: 'error', content: c })
@@ -97,6 +117,8 @@ export interface SessionLogEntry {
   profession_id: string
   /** 展示态（RunBox 内工具条目的收起/展开），非协议字段 */
   _expanded?: boolean
+  /** 展示态（长文本/计划文档块的收起/展开），非协议字段 */
+  _docOpen?: boolean
   step_id?: string
   type: 'text' | 'thinking' | 'tool_call' | 'tool_result' | 'tool' | 'complete' | 'error' | 'budget_warning' | 'budget_exceeded' | 'step_started' | 'step_completed' | 'gate_waiting' | 'run_completed' | 'run_failed'
   content: string

@@ -55,12 +55,23 @@
       <div v-else class="log-entries" ref="logRef">
         <div v-for="entry in logEntries" :key="entry.id" class="log-entry" :class="`entry-${entry.type}`">
           <template v-if="entry.type === 'text'">
-            <!-- 与 chat 一致：AutoDown/Markdown 渲染（纯文本是"⚙️+纯文本"观感根因） -->
-            <div class="entry-text-row">
-              <span class="entry-prof">{{ professionIcon(entry.profession_id) }}</span>
-              <div class="entry-md">
-                <StreamingRenderer :source="entry.content" :streaming="false" />
+            <!-- 与 chat 一致：AutoDown/Markdown 渲染，全宽与工具块左对齐（不再
+                 加职业图标——单独占行且缩进正文）。PLAN_FILE 行/长文本 → 折叠文档块 -->
+            <div v-if="textPlanFile(entry.content)" class="plan-file-row">
+              📄 <span class="plan-file-chip">{{ textPlanFile(entry.content) }}</span>
+            </div>
+            <div v-if="isDoc(entry.content)" class="doc-block">
+              <div class="doc-head" @click="entry._docOpen = !entry._docOpen">
+                <span class="doc-icon">📄</span>
+                <span class="doc-title">{{ docTitle(entry.content) }}</span>
+                <component :is="entry._docOpen ? ChevronUp : ChevronDown" :size="12" class="tool-chevron" />
               </div>
+              <div v-if="entry._docOpen" class="doc-body">
+                <StreamingRenderer :source="textBody(entry.content)" :streaming="false" />
+              </div>
+            </div>
+            <div v-else-if="textBody(entry.content)" class="entry-md">
+              <StreamingRenderer :source="textBody(entry.content)" :streaming="false" />
             </div>
           </template>
           <template v-else-if="entry.type === 'thinking'">
@@ -92,19 +103,23 @@
             </div>
           </template>
           <template v-else-if="entry.type === 'step_started'">
-            <div class="entry-step">▶ {{ entry.content }}</div>
+            <!-- 阶段分割线：── ▶ 方案 ── -->
+            <div class="step-divider"><span class="sd-mark">▶</span><span class="sd-label">{{ dividerLabel(entry) }}</span></div>
           </template>
           <template v-else-if="entry.type === 'step_completed'">
-            <div class="entry-step done">✓ {{ entry.content }}</div>
+            <div class="step-divider done"><span class="sd-mark">✓</span><span class="sd-label">{{ dividerLabel(entry) }}</span></div>
           </template>
           <template v-else-if="entry.type === 'gate_waiting'">
-            <div class="entry-gate">⏸️ {{ entry.content }}</div>
+            <div class="step-divider warn"><span class="sd-mark">⏸</span><span class="sd-label">等待审批</span></div>
           </template>
           <template v-else-if="entry.type === 'error'">
-            <div class="entry-error">❌ {{ entry.content }}</div>
+            <div class="step-divider err"><span class="sd-mark">✗</span><span class="sd-label">{{ dividerLabel(entry) }}</span></div>
           </template>
           <template v-else-if="entry.type === 'run_completed'">
-            <div class="entry-done">✅ {{ entry.content }}</div>
+            <div class="step-divider done"><span class="sd-mark">✅</span><span class="sd-label">Run 完成</span></div>
+          </template>
+          <template v-else-if="entry.type === 'run_failed'">
+            <div class="step-divider err"><span class="sd-mark">❌</span><span class="sd-label">{{ dividerLabel(entry) }}</span></div>
           </template>
         </div>
       </div>
@@ -325,13 +340,66 @@ function professionIcon(id: string): string {
   return map[id] ?? '⚙️'
 }
 
-// Auto-scroll log to bottom on new entries
-watch(logEntries, async () => {
+// Auto-scroll log to bottom on NEW entries only. 试用修复：原 {deep: true}
+// 在点击工具条目展开（_expanded 变更）时也触发滚底——展开内容被滚出视口，
+// 表现为"点了没展开、跳到最后一段"。仅监听长度变化。
+watch(() => logEntries.value.length, async () => {
   if (expanded.value) {
     await nextTick()
     logRef.value?.scrollTo({ top: logRef.value.scrollHeight, behavior: 'smooth' })
   }
-}, { deep: true })
+})
+
+/** 'Step "xxx" started/completed' → 中文阶段名（分割线标签）。 */
+function stepIdOf(content: string): string {
+  const a = content.indexOf('"')
+  if (a === -1) return ''
+  const rest = content.slice(a + 1)
+  const b = rest.indexOf('"')
+  return b === -1 ? rest : rest.slice(0, b)
+}
+
+const STEP_LABELS: Record<string, string> = { plan: '方案', execute: '执行', review: '审查', document: '文档' }
+
+function dividerLabel(entry: any): string {
+  if (entry.type === 'step_started' || entry.type === 'step_completed') {
+    return STEP_LABELS[stepIdOf(entry.content ?? '')] ?? stepIdOf(entry.content ?? '')
+  }
+  const c = String(entry.content ?? '')
+  const clip = (s: string) => (s.length > 70 ? s.slice(0, 69) + '…' : s)
+  return clip(c)
+}
+
+/** 文本条目 → 文档块视图：PLAN_FILE 行抽为独立文件 chip；正文 ≥600 字符
+ *  或含 PLAN_FILE → 折叠文档块（头部标题=首个 # 标题，展开渲染 Markdown）。 */
+function textPlanFile(content: string): string {
+  for (const ln of String(content ?? '').split('\n')) {
+    if (ln.trim().startsWith('PLAN_FILE:')) return ln.trim().slice('PLAN_FILE:'.length).trim()
+  }
+  return ''
+}
+
+function textBody(content: string): string {
+  return String(content ?? '')
+    .split('\n')
+    .filter((ln) => !ln.trim().startsWith('PLAN_FILE:'))
+    .join('\n')
+}
+
+function isDoc(content: string): boolean {
+  return textPlanFile(content) !== '' || textBody(content).length > 600
+}
+
+function docTitle(content: string): string {
+  for (const ln of String(content ?? '').split('\n')) {
+    const t = ln.trim()
+    if (t.startsWith('# ')) {
+      const title = t.slice(2).trim()
+      if (title) return title.length > 56 ? title.slice(0, 55) + '…' : title
+    }
+  }
+  return '文档'
+}
 
 // Load run data on mount；内存 run 不在 → 回退到持久化 run 日志（Flow 会话）
 // 试用修复：挂载即订阅 SSE——折叠态也要收状态事件（停靠审批/完成/失败）。
@@ -485,14 +553,43 @@ onUnmounted(() => {
 .log-entries { max-height: 400px; overflow-y: auto; font-size: 0.78rem; line-height: 1.5; }
 .log-entry { padding: 0.15rem 0; }
 .entry-prof { margin-right: 0.3rem; }
-/* 展开态文本行：职业图标 + Markdown（AutoDown） */
-.entry-text-row { display: flex; align-items: flex-start; gap: 0.3rem; padding: 0.15rem 0; }
-.entry-text-row .entry-prof { flex-shrink: 0; margin-right: 0; }
-.entry-md { flex: 1; min-width: 0; }
+/* 展开态正文：Markdown 全宽（与工具块左对齐，无图标前缀） */
+.entry-md { width: 100%; min-width: 0; }
 .entry-thinking {
   color: var(--af-muted); font-style: italic; font-size: 0.78rem;
   padding: 0.15rem 0; white-space: pre-wrap; word-break: break-word;
 }
+/* 阶段分割线：── ▶ 方案 ──（醒目的相位边界） */
+.step-divider {
+  display: flex; align-items: center; gap: 0.45rem;
+  margin: 0.5rem 0 0.3rem; color: var(--af-muted); font-size: 0.75rem;
+}
+.step-divider::before, .step-divider::after {
+  content: ""; flex: 1; height: 1px; background: var(--af-border);
+}
+.step-divider .sd-mark { flex-shrink: 0; font-size: 0.78rem; }
+.step-divider .sd-label { flex-shrink: 0; font-weight: 500; letter-spacing: 0.04em; }
+.step-divider.done { color: hsl(142 71% 45%); }
+.step-divider.done::before, .step-divider.done::after { background: hsl(142 71% 45% / 0.35); }
+.step-divider.warn { color: hsl(38 60% 35%); }
+.step-divider.warn::before, .step-divider.warn::after { background: hsl(38 92% 50% / 0.4); }
+.step-divider.err { color: hsl(var(--af-error)); }
+.step-divider.err::before, .step-divider.err::after { background: hsl(var(--af-error) / 0.3); }
+.step-divider.err .sd-label { max-width: 88%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* PLAN_FILE 行 → 独立文件 chip */
+.plan-file-row { display: flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0; font-size: 0.78rem; }
+.plan-file-chip {
+  font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.74rem;
+  color: hsl(190 80% 32%); background: hsl(190 80% 45% / 0.08);
+  border: 1px solid hsl(190 80% 45% / 0.25); border-radius: 5px; padding: 0.14rem 0.5rem;
+}
+/* 长文本/计划文档 → 折叠文档块（Markdown 文件 Block） */
+.doc-block { border: 1px solid var(--af-border); border-radius: 8px; margin: 0.3rem 0; overflow: hidden; background: hsl(var(--muted-foreground) / 0.02); }
+.doc-head { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.6rem; cursor: pointer; font-size: 0.8rem; }
+.doc-head:hover { background: hsl(var(--muted-foreground) / 0.05); }
+.doc-icon { flex-shrink: 0; }
+.doc-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--af-fg); }
+.doc-body { border-top: 1px solid var(--af-border); padding: 0.5rem 0.7rem; font-size: 0.85rem; max-height: 420px; overflow-y: auto; }
 .entry-tool { display: flex; align-items: center; gap: 0.3rem; color: var(--af-muted); padding-left: 1rem; }
 .tool-name { font-family: monospace; font-size: 0.74rem; }
 .entry-step { color: var(--af-muted); font-size: 0.75rem; padding: 0.2rem 0; }

@@ -208,16 +208,21 @@ async fn parity_drive_run_agent_error_submits_error_handoff() {
 
     let (hw_status, hw_handoffs) = run_summary(&hw_state, &ws_id, "run-hw-fail");
     let (ag_status, ag_handoffs) = run_summary(&ag_state, &ws_id, "run-ag-fail");
-    // Both sides fail the run on agent error (hw driver.rs:120-127 path).
+    // Both sides fail the run on agent error (PLAN-030 置败停车：error →
+    // fail_run 直接置败，不再级联后续相位；不再提交 error handoff）。
     assert_eq!(ag_status, hw_status, "status parity on agent error");
+    assert_eq!(ag_status, "failed", "agent error fails the run");
     assert_eq!(ag_handoffs, hw_handoffs, "error-handoff summaries parity");
-    // The error handoff carries the `[agent error] ...` marker.
-    assert!(
-        ag_handoffs
-            .iter()
-            .any(|s| s.starts_with("[agent error]")),
-        "error handoff carries the [agent error] marker"
-    );
+    // The failure is recorded as a RunFailed event carrying the marker.
+    let ws = ag_state.registry.get(&ws_id);
+    let rs = ws.relay.get("run-ag-fail").expect("run gone");
+    let marker = rs.events.iter().any(|e| match e {
+        musk::relay::store::RunEvent::RunFailed { error, .. } => {
+            error.starts_with("[agent error]")
+        }
+        _ => false,
+    });
+    assert!(marker, "RunFailed event carries the [agent error] marker");
 }
 
 // ── parity: event_type() wire tags are stable across hw/ag ───────────────────

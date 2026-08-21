@@ -499,6 +499,13 @@ impl RunStore {
         let (result, state) = {
             let mut runs = self.runs.lock().unwrap();
             let entry = runs.get_mut(run_id)?;
+            // PLAN-031 T13: 终态防重复——已完成 run 再次 advance（driver 循环
+            // submit_handoff 返回 Completed 后的下一轮）曾二次追加 RunCompleted
+            // （"Flow completed" 双写、报告重复推送的直接根因）。幂等返回。
+            if matches!(entry.engine.status, PipelineStatus::Completed) {
+                let state = build_run_state(entry);
+                return Some((crate::relay::AdvanceResult::Completed, state));
+            }
             let result = entry.engine.advance();
             let now = now_secs();
             entry.updated_at = now;

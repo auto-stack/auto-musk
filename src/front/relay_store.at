@@ -419,8 +419,12 @@ fn relayHistoryFromConversation(conv Value) Value {
                         entries.push({ id: "h" + entries.length, profession_id: "system", type: "step_started", content: c })
                     }
                 } else if c.contains("Flow completed") {
-                    sawCompleted = true
-                    entries.push({ id: "h" + entries.length, profession_id: "system", type: "run_completed", content: "Run 已完成（历史回放）" })
+                    // T13: 后端曾双写 RunCompleted（advance 终态重复追加已修），
+                    // 回放侧去重防御
+                    if sawCompleted == false {
+                        sawCompleted = true
+                        entries.push({ id: "h" + entries.length, profession_id: "system", type: "run_completed", content: "Run 已完成" })
+                    }
                 } else if c.contains("failed") {
                     sawFailed = true
                     entries.push({ id: "h" + entries.length, profession_id: "system", type: "error", content: c })
