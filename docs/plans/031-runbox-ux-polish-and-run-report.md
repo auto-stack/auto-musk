@@ -114,10 +114,14 @@ ReportCard（PPT 风格），并向**父 chat 会话**追加总结消息（此�
        watcher、RunEvent 枚举、Turn/append_turn、originating_chat_session（未填充→
        用 ctx 捕获父会话）。
 - [x] 2. 本计划文档。
-- [ ] 3. T1+T2+T3 前端（.at 源 + web 手写镜像）。
-- [ ] 4. T5 后端（RunReport + 三追加点 + 访问器）+ T4 watcher 回流。
-- [ ] 5. ReportCard PPT 升级（web 手写 + report_card.at）+ gen 激活接线
+- [x] 3. T1+T2+T3 前端（.at 源 + web 手写镜像）。
+- [x] 4. T5 后端（RunReport + 三追加点 + 访问器）+ T4 watcher 回流。
+- [x] 5. ReportCard PPT 升级（web 手写 + report_card.at）+ gen 激活接线
        （store run_reports + RunBox 内嵌）。
-- [ ] 6. codegen + web dist 重建 + musk 重建重启。
-- [ ] 7. E2E（真实小 run 全流程）+ cargo test。
-- [ ] 8. 提交并更新本文件状态。
+- [x] 6. codegen + web dist 重建 + musk 重建重启（8090）。
+- [x] 7. E2E（真实小 run 全流程）+ cargo test（294+ 绿，含 tool_atoms 预存
+       编译损坏顺手修复）。E2E 实证：4/4 步骤完成，run_completed 事件与 SSE
+       实时帧均携带完整报告载荷（标题/摘要=文档相位 handoff/25 工具调用/
+       2784 令牌/168s/2 个变更文件）。**T4（父 chat 总结 turn）为代码审读
+       级验证**——REST E2E 无父会话，待用户下次 chat 发起 run 自然验证。
+- [x] 8. 提交并更新本文件状态。
