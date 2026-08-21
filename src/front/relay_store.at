@@ -113,7 +113,9 @@ store RelayStore {
                 let data = Http.post("/api/forge/relay/runs", req)
                 .current_run = data.state
                 let rid = data.run_id ?? ""
-                .LoadRuns("")
+                // codegen 修复：前一行 let 的 RHS 会被下一行 `.x()` 续链
+                //（曾生成 (data.run_id ?? '').LoadRuns('') → TypeError 被 catch 吞掉）
+                if rid != "" { .LoadRuns("") }
                 .loading = false
                 return rid
             } catch {
@@ -126,7 +128,7 @@ store RelayStore {
         .AdvanceRun(runId) -> {
             try {
                 Http.post("/api/forge/relay/runs/" + encodeURIComponent(runId) + "/advance", {})
-                .LoadRun(runId)
+                if runId != "" { .LoadRun(runId) }
             } catch {
                 .error = "advance run failed"
             }
@@ -137,7 +139,9 @@ store RelayStore {
                 let body map = { decision: decision }
                 if feedback != "" { body.feedback = feedback }
                 Http.post("/api/forge/relay/runs/" + encodeURIComponent(runId) + "/gate", body)
-                .LoadRun(runId)
+                // codegen 修复：原 `.LoadRun` 续链到 Http.post 结果上（批准后
+                // 刷新被吞——用户点批准无任何反馈的直接根因）
+                if runId != "" { .LoadRun(runId) }
             } catch {
                 .error = "resolve gate failed"
             }

@@ -265,6 +265,16 @@ async fn resolve_gate(
     match ws.relay.resolve_gate(&run_id, decision) {
         Some((result, run_state)) => {
             publish_advance_result(&run_id, &result);
+            // PLAN-030 试用修复：GateResolved 事件也进 SSE 总线（原先只落
+            // run.events/会话镜像，前端 gate_resolved 触发器收不到）。
+            if let crate::relay::AdvanceResult::ExecuteStep { step_id, .. } = &result {
+                let gate_ev = RunEvent::GateResolved {
+                    timestamp: now_secs(),
+                    step_id: step_id.clone(),
+                    decision: body.decision.clone(),
+                };
+                publish_internal(&run_id, &gate_ev);
+            }
             // After resolving a gate, resume the background driver so the run
             // continues autonomously to the next gate / terminal state.
             if matches!(result, AdvanceResult::ExecuteStep { .. }) {
@@ -304,8 +314,9 @@ async fn run_events(Path(run_id): Path<String>) -> Sse<impl Stream<Item = Result
             _ => None,
         })
         .map(|ev| {
+            // PLAN-030 试用修复：未命名事件（默认 message）——具名事件不会被
+            // EventSource.onmessage 收到，RunBox 实时更新全链路失效。
             Ok(Event::default()
-                .event("run_event")
                 .json_data(serde_json::json!({
                     "event_type": ev.event_type,
                     "payload": ev.payload,
@@ -544,9 +555,12 @@ async fn task_plan_events(
             _ => None,
         })
         .map(|ev| {
+            // 同 run_events：未命名事件（onmessage 兼容），类型并入 data。
             Ok(Event::default()
-                .event(ev.event_type.clone())
-                .json_data(ev.payload.clone())
+                .json_data(serde_json::json!({
+                    "event_type": ev.event_type,
+                    "payload": ev.payload,
+                }))
                 .unwrap_or_else(|_| Event::default()))
         });
     Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)))

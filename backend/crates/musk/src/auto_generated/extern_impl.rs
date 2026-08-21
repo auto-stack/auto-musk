@@ -2286,6 +2286,13 @@ pub async fn relay_sub_recv(sub: &RelaySub) -> Option<Value> {
 pub fn sse_named_event(name: &str, dto: Value) -> Event {
     Event::default().event(name).json_data(dto).unwrap_or_else(|_| Event::default())
 }
+/// 未命名 SSE 帧（默认 message 事件，EventSource.onmessage 兼容）。
+/// PLAN-030 试用修复：relay 两个 SSE（run/task_plan）原用具名帧——
+/// onmessage 收不到，RunBox 实时更新全链路失效（与 019 chat 根因同款）。
+pub fn sse_plain_event(dto: Value) -> Event {
+    Event::default().json_data(dto).unwrap_or_else(|_| Event::default())
+}
+
 
 // ── TaskPlan registry/engine HTTP 层委托 ───────────────────────────────────
 

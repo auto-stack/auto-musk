@@ -139,7 +139,9 @@ fn run_events_stream(sub: RelaySub) -> impl futures::Stream<Item = Result<Event,
             let ev_type: String = value_get_str(&ev, "event_type");
             let payload: Value = value_get(&ev, "payload");
             let frame = RunEventFrame { event_type: ev_type.to_string(), payload: payload };
-            let event = sse_named_event("run_event", to_value(frame).unwrap());
+            // PLAN-030 试用修复：未命名事件（onmessage 兼容）——具名事件
+            // EventSource.onmessage 收不到，RunBox 实时更新全链路失效。
+            let event = sse_plain_event(to_value(frame).unwrap());
             yield Ok(event);
         }
 
@@ -340,7 +342,9 @@ fn task_plan_events_stream(sub: RelaySub) -> impl futures::Stream<Item = Result<
             let payload: Value = value_get(&ev, "payload");
             
 
-            let event = sse_named_event(&ev_type, payload);
+            // PLAN-030 试用修复：未命名帧（onmessage 兼容），类型并入 data
+            let frame = RunEventFrame { event_type: ev_type.to_string(), payload: payload };
+            let event = sse_plain_event(to_value(frame).unwrap());
             yield Ok(event);
         }
 

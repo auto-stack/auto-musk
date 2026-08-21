@@ -736,7 +736,8 @@ async fn conversation_stream(
         .map(|ev| {
             Ok::<_, Infallible>(
                 Event::default()
-                    .event("conversation_event")
+                    // PLAN-030 试用修复：未命名事件（onmessage 兼容；具名
+                    // conversation_event 同样不会被 onmessage 收到）
                     .json_data(serde_json::json!({
                         "conversation_id": ev.conversation_id,
                         "turn": ev.turn,
