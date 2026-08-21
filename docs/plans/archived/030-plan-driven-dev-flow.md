@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-030
-status: review_done
+status: merged
 feature_name: 基于 Plan 的 Agent 开发流程（取代 spec 流水线）
 author: [zhaopuming]
 created_at: 2026-08-21T10:30:00+08:00
-updated_at: 2026-08-21T13:55:00+08:00
+updated_at: 2026-08-21T14:20:00+08:00
 
 # Leave these EMPTY here — /auto-plan:review fills them:
 supersedes_spec_components:
