@@ -95,6 +95,8 @@ export interface SessionLogEntry {
   id: string
   time: string
   profession_id: string
+  /** 展示态（RunBox 内工具条目的收起/展开），非协议字段 */
+  _expanded?: boolean
   step_id?: string
   type: 'text' | 'thinking' | 'tool_call' | 'tool_result' | 'tool' | 'complete' | 'error' | 'budget_warning' | 'budget_exceeded' | 'step_started' | 'step_completed' | 'gate_waiting' | 'run_completed' | 'run_failed'
   content: string

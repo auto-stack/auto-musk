@@ -9,6 +9,14 @@
       <span class="box-status" :class="`badge-${statusClass}`">{{ statusLabel }}</span>
     </div>
 
+    <!-- 收起态审批条：停靠人工 gate 且未展开时，标题栏下方直接内联审批
+         （不自动展开长日志、不产生滚动跳变——展开后由底部完整审批区接管） -->
+    <div v-if="waitingGate && !expanded && !missing" class="gate-strip" @click.stop>
+      <span class="gate-strip-prompt">⏸ 等待审批：{{ waitingGate.step_id }}</span>
+      <button class="gate-btn approve" @click="approve" :disabled="gateBusy">批准</button>
+      <button class="gate-btn reject" @click="reject" :disabled="gateBusy">拒绝</button>
+    </div>
+
     <!-- Expanded body -->
     <div v-if="expanded" class="box-body">
       <!-- Run 不存在（服务重启清空内存 run / 已删除）的失效态 -->
@@ -22,10 +30,25 @@
             <span class="entry-prof">{{ professionIcon(entry.profession_id) }}</span>
             <span class="entry-text">{{ entry.content }}</span>
           </template>
+          <!-- 工具条目：与聊天侧工具卡一致——默认收起、显示操作目标、
+               点右侧图标展开参数与结果 -->
           <template v-else-if="entry.type === 'tool' || entry.type === 'tool_call'">
-            <div class="entry-tool">
-              <Wrench :size="12" />
-              <span class="tool-name">{{ entry.tool_name }}</span>
+            <div class="entry-tool-card">
+              <div class="entry-tool-head" @click="entry._expanded = !entry._expanded">
+                <Wrench :size="12" />
+                <span class="tool-name">{{ entry.tool_name }}</span>
+                <span class="tool-target">{{ toolTarget(entry) }}</span>
+                <span v-if="entry.type === 'tool_call'" class="tool-pending">…</span>
+                <component
+                  :is="entry._expanded ? ChevronUp : ChevronDown"
+                  :size="12"
+                  class="tool-chevron"
+                />
+              </div>
+              <div v-if="entry._expanded" class="entry-tool-body">
+                <pre v-if="entry.arguments" class="tool-args">{{ prettyArgs(entry.arguments) }}</pre>
+                <pre v-if="entry.result" class="tool-result">{{ entry.result }}</pre>
+              </div>
             </div>
           </template>
           <template v-else-if="entry.type === 'step_started'">
@@ -46,7 +69,7 @@
         </div>
       </div>
 
-      <!-- Inline gate actions -->
+      <!-- Inline gate actions（展开态） -->
       <div v-if="run?.waiting_for_gate" class="gate-actions">
         <span class="gate-prompt">等待审批：{{ run.waiting_for_gate.step_id }}</span>
         <button class="gate-btn approve" @click="approve" :disabled="gateBusy">批准</button>
@@ -58,7 +81,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { ChevronDown, ChevronRight, Orbit, Wrench } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, ChevronUp, Orbit, Wrench } from 'lucide-vue-next'
 import { useRelay } from '@/composables/useRelay'
 
 const props = defineProps<{ runId: string }>()
@@ -119,6 +142,28 @@ const logEntries = computed(() =>
   historyMode.value ? history.value!.entries : sessionLogFor(props.runId)
 )
 
+const waitingGate = computed(() => run.value?.waiting_for_gate ?? null)
+
+/** 工具条目的操作目标（与聊天侧工具卡的展示口径一致）。 */
+function toolTarget(entry: any): string {
+  const a = entry.arguments || {}
+  const clip = (s: string, n = 60) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
+  if (a.path) return clip(String(a.path))
+  if (a.cmd) return clip(String(a.cmd))
+  if (a.seq != null) return `plan ${String(a.seq).padStart(3, '0')}`
+  if (a.section_id) return String(a.section_id)
+  if (a.task) return clip(String(a.task))
+  if (a.query) return clip(String(a.query))
+  if (a.pattern) return clip(String(a.pattern))
+  return ''
+}
+
+function prettyArgs(args: any): string {
+  if (args == null) return ''
+  if (typeof args === 'string') return args
+  try { return JSON.stringify(args, null, 2) } catch { return String(args) }
+}
+
 function toggle() {
   expanded.value = !expanded.value
   if (expanded.value) {
@@ -156,18 +201,13 @@ watch(logEntries, async () => {
 }, { deep: true })
 
 // Load run data on mount；内存 run 不在 → 回退到持久化 run 日志（Flow 会话）
-// 试用修复：挂载即订阅 SSE——折叠态也要收状态事件（停靠审批/完成/失败），
-// 否则除页面手刷外状态永不更新。
+// 试用修复：挂载即订阅 SSE——折叠态也要收状态事件（停靠审批/完成/失败）。
+// gate 到达不自动展开：收起态由标题下方内联审批条承接（无滚动跳变）。
 onMounted(async () => {
   await loadRun(props.runId)
   if (!run.value) history.value = await loadRunHistory(props.runId)
   loaded.value = true
   if (!unsubscribe) unsubscribe = subscribeToRun(props.runId)
-})
-
-// 停靠人工审批时自动展开（需要用户交互的块不能默认折叠）
-watch(() => run.value?.waiting_for_gate, (g) => {
-  if (g) expanded.value = true
 })
 
 onUnmounted(() => {
@@ -189,6 +229,35 @@ onUnmounted(() => {
 .status-gate { border-left: 3px solid hsl(38 92% 50%); }
 .status-missing { border-left: 3px solid hsl(var(--af-border)); opacity: 0.75; }
 .missing-note { padding: 0.5rem 0.75rem; font-size: 0.78rem; color: var(--af-fg-secondary, #888); }
+
+/* 收起态审批条：停靠 gate 且未展开时，标题栏正下方的内联审批 */
+.gate-strip {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.4rem 0.75rem; border-top: 1px dashed hsl(38 92% 50%);
+  background: hsl(38 92% 50% / 0.06);
+}
+.gate-strip-prompt { flex: 1; font-size: 0.78rem; color: hsl(38 60% 35%); }
+
+/* 工具条目卡片（与聊天侧工具卡同款交互：默认收起/显示目标/点击展开） */
+.entry-tool-card { border: 1px solid var(--af-border); border-radius: 6px; overflow: hidden; }
+.entry-tool-head {
+  display: flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.5rem;
+  cursor: pointer; font-size: 0.75rem; background: hsl(var(--af-bg-secondary, 0 0% 97%));
+}
+.entry-tool-head .tool-name { font-weight: 500; }
+.entry-tool-head .tool-target {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: hsl(190 80% 35%); font-family: monospace;
+}
+.entry-tool-head .tool-pending { color: #999; }
+.tool-chevron { color: #999; flex-shrink: 0; }
+.entry-tool-body { border-top: 1px solid var(--af-border); }
+.entry-tool-body pre {
+  margin: 0; padding: 0.4rem 0.5rem; font-size: 0.72rem; line-height: 1.4;
+  white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow-y: auto;
+}
+.entry-tool-body .tool-args { background: hsl(0 0% 96%); }
+.entry-tool-body .tool-result { background: hsl(140 30% 96%); border-top: 1px dashed var(--af-border); }
 .badge-missing { background: hsl(var(--af-border)); color: hsl(var(--af-fg)); }
 
 .box-header {

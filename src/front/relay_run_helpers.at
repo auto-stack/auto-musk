@@ -37,6 +37,26 @@ fn relayStatusClass(status str) str {
     return "running"
 }
 
+
+/** 工具条目的操作目标（与聊天侧工具卡口径一致：path/cmd/seq/section/task…）。 */
+fn relayToolTarget(entry obj) str {
+    let a = entry.arguments ?? {}
+    if a.path != None { return relayClipText(a.path, 60) }
+    if a.cmd != None { return relayClipText(a.cmd, 60) }
+    if a.seq != None { return "plan " + a.seq }
+    if a.section_id != None { return a.section_id }
+    if a.query != None { return relayClipText(a.query, 60) }
+    if a.pattern != None { return relayClipText(a.pattern, 60) }
+    return ""
+}
+
+fn relayClipText(s str, n int) str {
+    if s.length > n {
+        return s.substring(0, n - 1) + "…"
+    }
+    return s
+}
+
 /** 职业→图标。 */
 fn relayProfessionIcon(id str) str {
     let icons map = {

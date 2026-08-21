@@ -18,7 +18,7 @@ use store: RelayStore
 component fn RelayRunBox(runId: str) {
     use {
         component: ChevronDown, ChevronRight, Orbit, Wrench from "lucide-vue-next"
-        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor from "src/front/relay_run_helpers.at"
+        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget from "src/front/relay_run_helpers.at"
     }
     computed {
         run => relayFindRun(store.runs, store.current_run, .runId)
@@ -38,7 +38,7 @@ component fn RelayRunBox(runId: str) {
         gateStepId => if .hasWaitingGate { .waitingGate.step_id } else { "" }
         logEntries => if .hasRun || .hasHistory == false { relaySessionLogFor(store.session_logs, .runId) } else { .history.entries }
     }
-    msg Msg { Toggle, Approve, Reject }
+    msg Msg { Toggle, ToggleEntry(Value), Approve, Reject }
     model {
         var expanded bool = false
         var gateBusy bool = false
@@ -57,11 +57,16 @@ component fn RelayRunBox(runId: str) {
                 store.Subscribe(.runId);
                 .subscribed = true
             }
-            if .waitingGate != None {
-                .expanded = true
-            }
+            // gate 到达不自动展开：收起态由标题下方内联审批条承接（无滚动跳变）
         }
         .Destroy -> { store.Unsubscribe(.runId) }
+        .ToggleEntry(entry) -> {
+            if entry._expanded == true {
+                entry._expanded = false
+            } else {
+                entry._expanded = true
+            }
+        }
         .Toggle -> {
             .expanded = !.expanded;
             if .expanded {
@@ -97,7 +102,16 @@ component fn RelayRunBox(runId: str) {
 .box-body { padding: 0.5rem 0.75rem; border-top: 1px solid var(--af-border); }
 .entry-prof { margin-right: 0.3rem; }
 .entry-text { color: var(--af-fg); }
-.entry-tool { display: flex; align-items: center; gap: 0.3rem; color: var(--af-muted); padding-left: 1rem; }
+.entry-tool-card { border: 1px solid var(--af-border); border-radius: 6px; overflow: hidden; margin: 0.15rem 0; }
+.entry-tool-head { display: flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.5rem; cursor: pointer; font-size: 0.75rem; }
+.entry-tool-head .tool-target { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: hsl(190 80% 35%); font-family: monospace; }
+.tool-chevron { color: #999; }
+.entry-tool-body { border-top: 1px solid var(--af-border); }
+.entry-tool-body pre { margin: 0; padding: 0.4rem 0.5rem; font-size: 0.72rem; white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow-y: auto; }
+.tool-args { background: hsl(0 0% 96%); }
+.tool-result { background: hsl(140 30% 96%); border-top: 1px dashed var(--af-border); }
+.gate-strip { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem; border-top: 1px dashed hsl(38 92% 50%); background: hsl(38 92% 50% / 0.06); }
+.gate-strip-prompt { flex: 1; font-size: 0.78rem; color: hsl(38 60% 35%); }
 .entry-step { color: var(--af-muted); font-size: 0.75rem; padding: 0.2rem 0; }
 .entry-step.done { color: hsl(142 71% 45%); }
 .entry-gate { color: hsl(38 92% 50%); padding: 0.3rem 0; font-weight: 500; }
@@ -160,6 +174,27 @@ component fn RelayRunBox(runId: str) {
                 text .statusLabel
             }
         }
+        // 收起态审批条：停靠 gate 且未展开时，标题栏正下方内联审批
+        //（不自动展开长日志、无滚动跳变；展开后由底部完整审批区接管）
+        if .hasWaitingGate && .expanded == false {
+            div {
+                style: "gate-strip"
+                span {
+                    style: "gate-strip-prompt"
+                    text "⏸ 等待审批：" + .gateStepId
+                }
+                button {
+                    style: "gate-btn approve"
+                    onclick: .Approve
+                    text "批准"
+                }
+                button {
+                    style: "gate-btn reject"
+                    onclick: .Reject
+                    text "拒绝"
+                }
+            }
+        }
         // body（展开时）
         if .expanded {
             div {
@@ -187,12 +222,40 @@ component fn RelayRunBox(runId: str) {
                                     text .entry.content
                                 }
                             } else if .entry.type == "tool" || .entry.type == "tool_call" {
+                                // 与聊天侧工具卡一致：默认收起、显示操作目标、
+                                // 点击头部展开参数与结果（展示态存 _expanded）
                                 div {
-                                    style: "entry-tool"
-                                    Wrench { size: 12 }
-                                    span {
-                                        style: "tool-name"
-                                        text .entry.tool_name
+                                    style: "entry-tool-card"
+                                    div {
+                                        style: "entry-tool-head"
+                                        onclick: .ToggleEntry(.entry)
+                                        Wrench { size: 12 }
+                                        span {
+                                            style: "tool-name"
+                                            text .entry.tool_name
+                                        }
+                                        span {
+                                            style: "tool-target"
+                                            text relayToolTarget(.entry)
+                                        }
+                                        ChevronDown { size: 12, style: "tool-chevron" }
+                                    }
+                                    if .entry._expanded == true {
+                                        div {
+                                            style: "entry-tool-body"
+                                            if .entry.arguments != None {
+                                                pre {
+                                                    style: "tool-args"
+                                                    text JSON.stringify(.entry.arguments, null, 2)
+                                                }
+                                            }
+                                            if .entry.result != None && .entry.result != "" {
+                                                pre {
+                                                    style: "tool-result"
+                                                    text .entry.result
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             } else if .entry.type == "step_started" {

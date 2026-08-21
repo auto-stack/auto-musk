@@ -362,7 +362,29 @@ fn relayHistoryFromConversation(conv Value) Value {
                 if t.tool != None {
                     tname = t.tool.name ?? ""
                 }
-                entries.push({ id: "h" + entries.length, profession_id: t.from ?? "unknown", type: "tool_call", content: "", tool_name: tname })
+                // 与聊天侧一致：带 arguments（操作目标展示用），结果由紧随的
+                // tool_result 配对合并（支撑 RunBox 工具卡展开）。
+                let targs Value = None
+                if t.tool != None {
+                    targs = t.tool.args ?? None
+                }
+                entries.push({ id: "h" + entries.length, profession_id: t.from ?? "unknown", type: "tool_call", content: "", tool_name: tname, arguments: targs, result: "" })
+            } else if k == "tool_result" {
+                // 并入最近一个 tool 条目（展开态显示结果）
+                var lastTool Value = None
+                var j int = entries.length - 1
+                while j >= 0 {
+                    if entries[j].type == "tool_call" || entries[j].type == "tool" {
+                        lastTool = entries[j]
+                        j = -1
+                    } else {
+                        j = j - 1
+                    }
+                }
+                if lastTool != None {
+                    lastTool.result = (t.content ?? "")
+                    lastTool.type = "tool"
+                }
             } else if k == "gate" {
                 entries.push({ id: "h" + entries.length, profession_id: "system", type: "gate_waiting", content: "等待人工审批" })
             } else if k == "system" {
