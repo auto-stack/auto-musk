@@ -237,13 +237,22 @@ fn messageBlocks(msg obj) obj {
  */
 fn messageDisplayBlocks(msg obj, streaming bool) obj {
     let out list = []
+    let tools list = []
     for b in messageBlocks(msg) {
         if b.kind == "text" {
             let stripped = stripQuestionnaire(b.text ?? "", streaming)
             if stripped != "" { out.push({ kind: "text", text: stripped }) }
-        } else {
+        } else if b.kind == "thinking" {
             out.push(b)
+        } else {
+            tools.push(b)
         }
+    }
+    // 展示顺序统一：文字/思考在前、工具块在后——与持久化重载的渲染口径
+    // 一致。修复：实时流里工具先到（spawn_relay）、说明文字后流完时，Run
+    // 窗口与说明顺序颠倒（刷新后又反过来）。分区对实时/重载同时生效。
+    for t in tools {
+        out.push(t)
     }
     return out
 }
