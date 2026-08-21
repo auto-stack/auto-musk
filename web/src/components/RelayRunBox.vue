@@ -76,19 +76,20 @@
             <!-- 思考条目：muted 斜体（此前无分支不渲染） -->
             <div class="entry-thinking">{{ entry.content }}</div>
           </template>
-          <!-- 与聊天侧工具卡一致：默认收起、显示操作目标、点击展开。
-               文档读取型（read_plan 等/结果长）：📄 图标 + 结果 Markdown 子窗（小一号） -->
+          <!-- 工具块：默认收起、标题=图标+显示名+操作目标。展开按 kind 分形态
+               （cmd 终端块/diff 左右对照/write 写入内容/file 读取内容+范围
+               chips/listing 文件浏览/doc 文档 Markdown/generic） -->
           <template v-else-if="entry.type === 'tool' || entry.type === 'tool_call'">
             <div class="entry-tool-card">
               <div class="entry-tool-head" @click="entry._expanded = !entry._expanded">
                 <span class="blk-icon">
-                  <FileText v-if="toolIsDocKind(entry)" :size="12" />
+                  <Terminal v-if="toolView(entry).kind === 'cmd'" :size="12" />
+                  <FileText v-else-if="['doc', 'file', 'listing'].includes(toolView(entry).kind)" :size="12" />
                   <Wrench v-else :size="12" />
                 </span>
-                <span class="tool-name">{{ entry.tool_name }}</span>
+                <span class="tool-name">{{ toolDisplayName(entry.tool_name ?? '') }}</span>
                 <span class="tool-target">{{ toolTarget(entry) }}</span>
-                <!-- 终态下仍无结果的工具调用 → 标记中断（此前收起态一直
-                     留"进行中"观感，误导） -->
+                <!-- 终态下仍无结果的工具调用 → 标记中断 -->
                 <span v-if="entry.type === 'tool_call' && isTerminal" class="tool-interrupted">已中断</span>
                 <span v-else-if="entry.type === 'tool_call'" class="tool-pending">…</span>
                 <component
@@ -97,12 +98,68 @@
                   class="tool-chevron"
                 />
               </div>
-              <div v-if="entry._expanded" class="entry-tool-body">
-                <pre v-if="entry.arguments" class="tool-args">{{ prettyArgs(entry.arguments) }}</pre>
-                <div v-if="entry.result && toolIsDocKind(entry)" class="tool-doc-body">
-                  <StreamingRenderer :source="entry.result" :streaming="false" />
+              <div v-if="entry._expanded">
+                <!-- cmd：终端块 + 参数 chips + 输出 -->
+                <div v-if="toolView(entry).kind === 'cmd'" class="entry-tool-body">
+                  <pre class="tv-cmd">$ {{ toolView(entry).cmd }}</pre>
+                  <div v-if="toolView(entry).force" class="tv-chiprow">
+                    <span class="tv-chip">force</span>
+                  </div>
+                  <pre v-if="entry.result" class="tool-result">{{ entry.result }}</pre>
                 </div>
-                <pre v-else-if="entry.result" class="tool-result">{{ entry.result }}</pre>
+                <!-- diff：路径 + 左右对照（类 git diff） -->
+                <div v-else-if="toolView(entry).kind === 'diff'" class="entry-tool-body">
+                  <div class="tv-chiprow"><span class="tv-chip tv-chip-path">{{ toolView(entry).path }}</span></div>
+                  <div class="tv-diff">
+                    <div class="tv-diff-col tv-old">
+                      <span class="tv-diff-label">旧</span>
+                      <pre class="tv-diff-pre">{{ toolView(entry).old_s }}</pre>
+                    </div>
+                    <div class="tv-diff-col tv-new">
+                      <span class="tv-diff-label">新</span>
+                      <pre class="tv-diff-pre">{{ toolView(entry).new_s }}</pre>
+                    </div>
+                  </div>
+                </div>
+                <!-- write：路径 + 写入内容（代码块） -->
+                <div v-else-if="toolView(entry).kind === 'write'" class="entry-tool-body">
+                  <div class="tv-chiprow"><span class="tv-chip tv-chip-path">{{ toolView(entry).path }}</span></div>
+                  <div class="tool-doc-body">
+                    <StreamingRenderer :source="fenced(langOf(toolView(entry).path), toolView(entry).content)" :streaming="false" />
+                  </div>
+                </div>
+                <!-- file：范围 chips + 读取内容（代码块） -->
+                <div v-else-if="toolView(entry).kind === 'file'" class="entry-tool-body">
+                  <div class="tv-chiprow">
+                    <span class="tv-chip tv-chip-path">{{ toolView(entry).path }}</span>
+                    <span v-for="(ch, ci) in toolView(entry).chips" :key="ci" class="tv-chip">{{ ch.label }}</span>
+                  </div>
+                  <div v-if="entry.result" class="tool-doc-body">
+                    <StreamingRenderer :source="fenced(langOf(toolView(entry).path), entry.result)" :streaming="false" />
+                  </div>
+                </div>
+                <!-- listing：文件浏览清单 -->
+                <div v-else-if="toolView(entry).kind === 'listing'" class="entry-tool-body">
+                  <div v-if="toolView(entry).path" class="tv-chiprow">
+                    <span class="tv-chip tv-chip-path">{{ toolView(entry).path }}</span>
+                  </div>
+                  <div class="tv-list">
+                    <div v-for="(it, ii) in toolView(entry).items" :key="ii" class="tv-item">
+                      <span class="tv-item-icon">{{ it.is_dir ? '📁' : '📄' }}</span>
+                      <span class="tv-item-name">{{ it.name }}</span>
+                      <span v-if="it.size" class="tv-item-size">{{ it.size }}</span>
+                    </div>
+                  </div>
+                </div>
+                <!-- doc：文档 Markdown（小一号） -->
+                <div v-else-if="toolView(entry).kind === 'doc'" class="tool-doc-body">
+                  <StreamingRenderer :source="entry.result ?? ''" :streaming="false" />
+                </div>
+                <!-- generic：参数 JSON + 结果 -->
+                <div v-else class="entry-tool-body">
+                  <pre v-if="entry.arguments" class="tool-args">{{ prettyArgs(entry.arguments) }}</pre>
+                  <pre v-if="entry.result" class="tool-result">{{ entry.result }}</pre>
+                </div>
               </div>
             </div>
           </template>
@@ -139,7 +196,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { ChevronDown, ChevronRight, ChevronUp, Orbit, Wrench, FileText } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, ChevronUp, Orbit, Wrench, FileText, Terminal } from 'lucide-vue-next'
 import StreamingRenderer from '@/components/StreamingRenderer.vue'
 import { useRelay } from '@/composables/useRelay'
 
@@ -439,6 +496,93 @@ function phaseDetail(ty: string, content: string): string {
   return ''
 }
 
+/** 工具显示名（run_command/shell → cmd）。 */
+function toolDisplayName(name: string): string {
+  if (name === 'run_command' || name === 'shell') return 'cmd'
+  return name
+}
+
+/** 路径 → 代码块语言。 */
+function langOf(path: string): string {
+  const ext = String(path ?? '').split('.').pop() ?? ''
+  const m: Record<string, string> = {
+    rs: 'rust', ts: 'typescript', vue: 'vue', js: 'javascript', json: 'json',
+    md: 'markdown', css: 'css', html: 'html', py: 'python', sh: 'shell',
+    ps1: 'shell', toml: 'toml', yaml: 'yaml', yml: 'yaml',
+  }
+  return m[ext.toLowerCase()] ?? ''
+}
+
+function fenced(lang: string, content: string): string {
+  return `\`\`\`${lang}\n${content}\n\`\`\``
+}
+
+/** list_dir/glob 结果 → 文件浏览清单条目。 */
+function parseListing(result: string): Array<{ is_dir: boolean; name: string; size: string }> {
+  const out: Array<{ is_dir: boolean; name: string; size: string }> = []
+  for (const raw of String(result ?? '').split('\n')) {
+    const ln = raw.trim()
+    if (!ln) continue
+    if (ln.includes(' <dir>')) {
+      out.push({ is_dir: true, name: ln.slice(0, -6), size: '' })
+    } else {
+      const ci = ln.indexOf(' <file ')
+      if (ci !== -1) {
+        let size = ln.slice(ci + 7)
+        if (size.endsWith('>')) size = size.slice(0, -1)
+        out.push({ is_dir: false, name: ln.slice(0, ci), size })
+      } else {
+        out.push({ is_dir: false, name: ln, size: '' })
+      }
+    }
+  }
+  return out
+}
+
+/** 工具条目 → 展开视图（按工具类型分形态）。 */
+interface ToolView {
+  kind: 'cmd' | 'diff' | 'write' | 'file' | 'listing' | 'doc' | 'generic'
+  cmd: string
+  force: boolean
+  path: string
+  old_s: string
+  new_s: string
+  content: string
+  result: string
+  chips: Array<{ label: string }>
+  items: Array<{ is_dir: boolean; name: string; size: string }>
+}
+
+function toolView(entry: any): ToolView {
+  const n = entry.tool_name ?? ''
+  const a = entry.arguments ?? {}
+  const r = String(entry.result ?? '')
+  const base: ToolView = { kind: 'generic', cmd: '', force: false, path: '', old_s: '', new_s: '', content: '', result: r, chips: [], items: [] }
+  if (n === 'run_command' || n === 'shell') {
+    return { ...base, kind: 'cmd', cmd: String(a.cmd ?? a.command ?? ''), force: a.force === true }
+  }
+  if ((n === 'edit_file' || n === 'update_file' || n === 'replace') && a.old_string != null) {
+    return { ...base, kind: 'diff', path: String(a.path ?? ''), old_s: String(a.old_string ?? ''), new_s: String(a.new_string ?? '') }
+  }
+  if (n === 'write_file') {
+    return { ...base, kind: 'write', path: String(a.path ?? ''), content: String(a.content ?? '') }
+  }
+  if (n === 'read_file') {
+    const chips: Array<{ label: string }> = []
+    for (const k of ['offset', 'limit', 'start', 'end', 'line', 'lines', 'from', 'to', 'anchor', 'until']) {
+      if (a[k] != null) chips.push({ label: `${k}: ${a[k]}` })
+    }
+    return { ...base, kind: 'file', path: String(a.path ?? ''), chips }
+  }
+  if (n === 'list_dir' || n === 'glob') {
+    return { ...base, kind: 'listing', path: String(a.path ?? a.pattern ?? ''), items: parseListing(r) }
+  }
+  if (toolIsDocKind(entry)) {
+    return { ...base, kind: 'doc' }
+  }
+  return base
+}
+
 /** 文档读取型工具（📄 图标 + 结果 Markdown 子窗，字号小一号）。 */
 function toolIsDocKind(entry: any): boolean {
   const n = entry.tool_name ?? ''
@@ -639,7 +783,7 @@ onUnmounted(() => {
 
 .box-body { padding: 0.5rem 0.75rem; border-top: 1px solid var(--af-border); }
 /* 日志区统一节奏：容器 gap 0.45rem 管所有块间距——文本/阶段/工具块一致 */
-.log-entries { max-height: 400px; overflow-y: auto; font-size: 0.78rem; line-height: 1.5; display: flex; flex-direction: column; gap: 0.45rem; }
+.log-entries { max-height: 400px; overflow-y: auto; font-size: 0.78rem; line-height: 1.5; display: flex; flex-direction: column; gap: 0.7rem; }
 .log-entry { padding: 0; }
 .log-entry :first-child { margin-top: 0; }
 .log-entry :last-child { margin-bottom: 0; }
@@ -690,6 +834,42 @@ onUnmounted(() => {
 .phase-line.ph-fail .ph-icon, .phase-line.ph-fail .ph-action { color: hsl(var(--af-error)); }
 .phase-line.ph-fail .ph-kind { background: hsl(var(--af-error) / 0.12); color: hsl(var(--af-error)); }
 .phase-line.ph-fail .ph-err-text { color: hsl(var(--af-error)); }
+/* ── 工具展开视图（批次八）────────────────────────────────────── */
+.tv-cmd {
+  margin: 0; padding: 0.45rem 0.6rem; border-radius: 6px;
+  background: hsl(215 28% 10%); color: hsl(210 18% 92%);
+  font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.76rem;
+  white-space: pre-wrap; word-break: break-all; line-height: 1.5;
+}
+.tv-chiprow { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0.35rem 0.55rem; }
+.tv-chip {
+  font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.7rem;
+  color: var(--af-muted); background: hsl(var(--muted-foreground) / 0.06);
+  border-radius: 4px; padding: 0.06rem 0.4rem;
+}
+.tv-chip-path { color: hsl(190 80% 32%); background: hsl(190 80% 45% / 0.08); }
+.tv-diff { display: grid; grid-template-columns: 1fr 1fr; }
+.tv-diff-col { min-width: 0; overflow: hidden; }
+.tv-diff-label {
+  display: block; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.05em;
+  padding: 0.18rem 0.55rem 0;
+}
+.tv-old { background: hsl(0 70% 50% / 0.05); }
+.tv-old .tv-diff-label { color: hsl(0 70% 45%); }
+.tv-new { background: hsl(142 70% 45% / 0.06); border-left: 1px solid var(--af-border); }
+.tv-new .tv-diff-label { color: hsl(142 71% 40%); }
+.tv-diff-pre {
+  margin: 0.15rem 0 0; padding: 0.3rem 0.55rem 0.45rem;
+  font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.72rem; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto;
+  color: var(--af-fg);
+}
+.tv-list { display: flex; flex-direction: column; padding: 0.25rem 0.45rem 0.4rem; max-height: 300px; overflow-y: auto; }
+.tv-item { display: flex; align-items: center; gap: 0.4rem; padding: 0.14rem 0.3rem; border-radius: 4px; }
+.tv-item:hover { background: hsl(var(--muted-foreground) / 0.05); }
+.tv-item-icon { flex-shrink: 0; font-size: 0.82rem; }
+.tv-item-name { font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.74rem; color: var(--af-fg); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tv-item-size { margin-left: auto; flex-shrink: 0; font-size: 0.68rem; color: var(--af-muted); font-family: 'Geist Mono', 'Fira Code', monospace; }
 /* 工具文档型结果子窗：Markdown 渲染，比 Run 普通文档（0.85rem）小一号 */
 .tool-doc-body {
   padding: 0.4rem 0.55rem; font-size: 0.78rem; line-height: 1.5;

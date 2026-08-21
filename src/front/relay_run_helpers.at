@@ -283,6 +283,108 @@ fn relayToolIsDocKind(entry Value) bool {
     return r.length > 400
 }
 
+// ─── 工具展开视图（PLAN-031 批次八：按工具类型分形态展示）─────────────────
+
+/** 工具显示名（run_command/shell → cmd）。 */
+fn relayToolDisplayName(name str) str {
+    if name == "run_command" || name == "shell" { return "cmd" }
+    return name
+}
+
+/** 路径 → 代码块语言（fenced markdown 高亮用）。 */
+fn relayLangOf(path str) str {
+    if path.ends_with(".rs") { return "rust" }
+    if path.ends_with(".ts") { return "typescript" }
+    if path.ends_with(".vue") { return "vue" }
+    if path.ends_with(".js") { return "javascript" }
+    if path.ends_with(".json") { return "json" }
+    if path.ends_with(".md") { return "markdown" }
+    if path.ends_with(".css") { return "css" }
+    if path.ends_with(".html") { return "html" }
+    if path.ends_with(".py") { return "python" }
+    if path.ends_with(".sh") || path.ends_with(".ps1") { return "shell" }
+    if path.ends_with(".toml") { return "toml" }
+    if path.ends_with(".yaml") || path.ends_with(".yml") { return "yaml" }
+    return ""
+}
+
+/** list_dir（"name <dir>"/"name <file NB>"）/ glob（裸路径）结果 →
+ * 文件浏览清单条目 [{is_dir, name, size}]。 */
+fn relayParseListing(result str) Value {
+    let out list = []
+    let lines = result.split("\n")
+    var i int = 0
+    while i < lines.length {
+        let ln = lines[i].trim()
+        if ln != "" {
+            if ln.contains(" <dir>") {
+                out.push({ is_dir: true, name: ln.substring(0, ln.length - 6), size: "" })
+            } else {
+                if ln.contains(" <file ") {
+                    let ci = ln.indexOf(" <file ")
+                    let name = ln.substring(0, ci)
+                    let sz = ln.substring(ci + 7)
+                    if sz.ends_with(">") { sz = sz.substring(0, sz.length - 1) }
+                    out.push({ is_dir: false, name: name, size: sz })
+                } else {
+                    out.push({ is_dir: false, name: ln, size: "" })
+                }
+            }
+        }
+        i = i + 1
+    }
+    return out
+}
+
+/** 工具条目 → 展开视图（统一键集，模板按 kind 分支）：
+ *  cmd（终端块）/ diff（左右对照）/ write（写入内容）/ file（读取内容+
+ *  参数 chips）/ listing（文件浏览）/ doc（文档 Markdown）/ generic。 */
+fn relayToolView(entry Value) Value {
+    let n = entry.tool_name ?? ""
+    let a = entry.arguments ?? {}
+    let r = entry.result ?? ""
+    if n == "run_command" || n == "shell" {
+        return { kind: "cmd", cmd: a.cmd ?? a.command ?? "", force: a.force == true, path: "", old_s: "", new_s: "", content: "", body: "", items: [], chips: [], result: r }
+    }
+    if n == "edit_file" || n == "update_file" || n == "replace" {
+        if a.old_string != None {
+            return { kind: "diff", cmd: "", force: false, path: a.path ?? "", old_s: a.old_string ?? "", new_s: a.new_string ?? "", content: "", body: "", items: [], chips: [], result: r }
+        }
+    }
+    if n == "write_file" {
+        return { kind: "write", cmd: "", force: false, path: a.path ?? "", old_s: "", new_s: "", content: a.content ?? "", body: "", items: [], chips: [], result: r }
+    }
+    if n == "read_file" {
+        // 参数里除 path 外的读取范围类参数 → chips（行号/起止等）
+        let chips list = []
+        var ks list = ["offset", "limit", "start", "end", "line", "lines", "from", "to", "anchor", "until"]
+        var ki int = 0
+        while ki < ks.length {
+            let k = ks[ki]
+            if a[k] != None { chips.push({ label: k + ": " + a[k] }) }
+            ki = ki + 1
+        }
+        return { kind: "file", cmd: "", force: false, path: a.path ?? "", old_s: "", new_s: "", content: "", body: r, items: [], chips: chips, result: r }
+    }
+    if n == "list_dir" || n == "glob" {
+        let base = a.path ?? ""
+        if base == "" { base = a.pattern ?? "" }
+        return { kind: "listing", cmd: "", force: false, path: base, old_s: "", new_s: "", content: "", body: "", items: relayParseListing(r), chips: [], result: r }
+    }
+    if relayToolIsDocKind(entry) {
+        return { kind: "doc", cmd: "", force: false, path: "", old_s: "", new_s: "", content: "", body: r, items: [], chips: [], result: r }
+    }
+    return { kind: "generic", cmd: "", force: false, path: "", old_s: "", new_s: "", content: "", body: "", items: [], chips: [], result: r }
+}
+
+/** fenced 代码块文本（Markdown 渲染高亮）。 */
+fn relayFenced(lang str, content str) str {
+    if lang == "" {
+        return "```\n" + content + "\n```"
+    }
+    return "```" + lang + "\n" + content + "\n```"
+}
+
 /** 文本条目 → 文档块视图：PLAN_FILE 行抽为独立文件 chip；正文 ≥600 字符
  * 或含 PLAN_FILE → 折叠文档块（头部标题=首个 # 标题，展开渲染 Markdown）。 */
 fn relayTextPlanFile(content str) str {
@@ -430,4 +532,54 @@ fn relayEntryClass(entryType str) str {
 /** run 的会话日志条目（无则空数组）。 */
 fn relaySessionLogFor(logs obj, runId str) obj {
     return logs[runId] ?? []
+}
+
+// ─── 工具视图访问器（模板调用实参必须带字段访问——裸变量实参解析失败，
+//     故全部走 (tool_name, arguments, result) 字段形参）───
+
+fn relayTVKind(n str, a Value, r str) str { return relayToolView({ tool_name: n, arguments: a, result: r }).kind }
+fn relayTVCmdOf(a Value) str {
+    if a == None { return "" }
+    return a.cmd ?? a.command ?? ""
+}
+fn relayTVForceOf(a Value) bool {
+    if a == None { return false }
+    return a.force == true
+}
+fn relayTVPathOf(a Value) str {
+    if a == None { return "" }
+    let p = a.path ?? ""
+    if p != "" { return p }
+    return a.pattern ?? ""
+}
+fn relayTVOldOf(a Value) str {
+    if a == None { return "" }
+    return a.old_string ?? ""
+}
+fn relayTVNewOf(a Value) str {
+    if a == None { return "" }
+    return a.new_string ?? ""
+}
+fn relayTVContentOf(a Value) str {
+    if a == None { return "" }
+    return a.content ?? ""
+}
+
+fn relayToolView3(n str, a Value, r str) Value {
+    return relayToolView({ tool_name: n, arguments: a, result: r })
+}
+
+/** 模板 text 位不支持"字符串 + fn 调用"——终端行与代码块包装。 */
+fn relayTVCmdLine(a Value) str {
+    return "$ " + relayTVCmdOf(a)
+}
+
+/** write_file：args → fenced 代码块（语言按路径推断）。 */
+fn relayWriteFence(a Value) str {
+    return relayFenced(relayLangOf(relayTVPathOf(a)), relayTVContentOf(a))
+}
+
+/** read_file：args+result → fenced 代码块。 */
+fn relayFileFence(a Value, r str) str {
+    return relayFenced(relayLangOf(relayTVPathOf(a)), r)
 }

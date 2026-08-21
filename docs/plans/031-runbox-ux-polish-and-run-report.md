@@ -204,6 +204,26 @@ ReportCard（PPT 风格），并向**父 chat 会话**追加总结消息（此�
 - T31 间距节奏统一：log-entries 容器 gap 0.45rem 统一管所有块间距，
   块自身 margin/padding 归零（此前文本块上下过宽、阶段/工具块过窄）。
 
+## 2g. 批次八（工具展开视图系统 + 间距放宽，试用反馈）
+
+- T32 块间距 0.45→0.7rem（+4px）。
+- T33 工具展开视图系统（relayToolView 按 kind 分形态，双轨）：
+  - cmd（run_command→显示名"cmd"）：终端块（$ + 命令，深底亮字）+ force
+    chip + 输出；
+  - diff（edit_file/update_file/replace）：路径 chip + 左右对照（旧红/新绿，
+    类 git diff）；
+  - write（write_file）：路径 chip + 写入内容 fenced 代码块（语言按扩展名）；
+  - file（read_file）：路径 + 读取范围 chips（offset/limit/lines 等）+
+    内容 fenced 代码块（只展示读取到的部分）；
+  - listing（list_dir/glob）：文件浏览器清单（📁/📄 + 名称 + 尺寸右对齐，
+    解析 "name <dir>"/"name <file NB>"/裸路径三种形态）；
+  - doc（read_plan 等）：结果 Markdown（参数 JSON 不再展示——"seq: 2"噪音）；
+  - generic：参数 JSON + 结果（原样）。
+- T34 .at 模板语法陷阱记录（批次八踩坑，后续规避）：① text 属性不支持
+  "字符串 + fn 调用"（须包装单 fn）；② fn 调用实参必须带字段访问（裸变量
+  实参解析失败）；③ for-in 迭代源只支持成员链；④ 循环变量使用必须带字段；
+  ⑤ 文档注释含 */ 序列会提前闭合。
+
 ## 5. 执行步骤（批次五）
 
 - [x] d1. T19-T24 双轨实现 + codegen + web dist 重建。
