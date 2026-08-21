@@ -4,7 +4,7 @@ status: drafting
 feature_name: 基于 Plan 的 Agent 开发流程（取代 spec 流水线）
 author: [zhaopuming]
 created_at: 2026-08-21T10:30:00+08:00
-updated_at: 2026-08-21T10:30:00+08:00
+updated_at: 2026-08-21T11:05:00+08:00
 
 # Leave these EMPTY here — /auto-plan:review fills them:
 supersedes_spec_components: []
@@ -12,7 +12,7 @@ new_spec_components: []
 touched_goals: []
 
 current_step: 0
-total_steps: 14
+total_steps: 16
 ---
 
 # [PLAN-030] 基于 Plan 的 Agent 开发流程（取代 spec 流水线）
@@ -33,6 +33,11 @@ flow 标记 deprecated（代码保留、默认路由切换）。
 配套地基修复：`plan_merge.rs` 章节提取兼容无编号中文标题（028/029 风格 plan 目前
 merge 提取不到任何章节）；新增 agent 工具模块 `plan_tools.rs`（6 个 plan 工具）。
 
+展示与存储同步归一（2026-08-21 需求补充）：取消 relay 独立界面——RelayView.vue 已是
+无引用死代码（PLAN-024 导航改四项后遗留），本轮删除；flow 活动全部在 Chats 内联展示
+（RelayRunBox，已有能力）。relay 日志不再单独落盘（`.autoos/relay/` run 文件停写，
+RunStore 转 in-memory），现有 conversation dual-write 升级为**唯一持久日志**（Flow 会话）。
+
 ## 1. 目标
 
 1. **消灭交接损耗**：旧流程 7 个角色各带独立 Soul/上下文，每步交接靠
@@ -46,6 +51,8 @@ merge 提取不到任何章节）；新增 agent 工具模块 `plan_tools.rs`（
 4. **Assistant 轻量初筛**：简单需求 assistant 在 chat 内直接完成（现有 NORMAL 路由），
    复杂需求才引入 plan flow（用户需求描述第 2 步的「本地 Agent」= Nicole Mid 档）。
 5. 旧 spec 流水线（default/relay flow）退出默认路由，不再作为 canonical pipeline。
+6. **界面与日志归一**：无独立 relay 界面，flow 活动在 Chats 内联展示；conversation 是
+   flow 日志的唯一持久归档（不再单独落盘）。
 
 ## 2. 架构方案
 
@@ -128,6 +135,25 @@ plan 状态不是自己期望的进入态时，先读 plan 对齐状态再行动
   flow 保留但不再是主路径。
 - **D6 旧管线不删代码**：`default`/`relay` flow 加 deprecated 注释并退出默认路由；
   professions 注册表保留（@mention/dispatch/bring_in 仍用）。
+- **D7 日志归一、RunStore 转 in-memory**：`.autoos/relay/` 的 per-run 磁盘文件停写，
+  RunStore 仅保内存态（引擎状态 + 进程内事件缓存），持久日志由现有 conversation
+  dual-write 升级为唯一归档（Flow 会话）。理由：driver 本就不跨重启恢复（tokio::spawn
+  的 drive 不 respawn），磁盘 run 文件重启发后也无人推进；历史查看由 conversation 承担。
+
+### 2.7 chat 统一展示与日志归一（2026-08-21 需求补充）
+
+- **UI**：RelayRunBox 内联渲染（含 gate 批准/拒绝按钮）就是 flow 的唯一界面；删除
+  `web/src/views/RelayView.vue`（已无路由/引用的死代码）；`useRelay.ts` 收敛到
+  RelayRunBox 与斜杠命令所需（startRun/advanceRun/resolveGate/subscribeToRun），退役仅
+  RelayView 使用的 loadRuns/任务计划列表等。
+- **存储**：RunStore 停写 `.autoos/relay/`（D7）；conversation（Flow 会话，id=run_id，
+  现有 dual-write 机制）成为唯一持久日志，历史回放/查看全走 conversation。
+- **API**：`GET /runs`（list）UI 不再消费，端点保留（API 兼容），历史场景改由 Flow
+  conversation 查询承担；SSE `/runs/{id}/events` 与 gate/advance/rerun 端点原样保留
+  （RelayRunBox 依赖）。
+- **.at 轨**：五视图（Login/Chats/Plans/Specs/Wiki）本无 RelayView 等价物
+  （relay_run_box/relay_commands 均为 chat 内联件），仅需随 useRelay 收敛同步
+  `relay_store.at` 函数面 parity。
 
 ## 3. 技术栈
 
@@ -171,6 +197,10 @@ Spec ledger（`backend/.autoos/specs.json`）目前是空壳（仅 G1 test 测�
    （§5.1）。
 4. ledger 残留 7 区旧结构（plans 区）：PLAN-024 收敛 6 区后 `backend/.autoos/specs.json`
    未迁移——顺手清理（删除空 plans section）。
+5. **relay 展示/存储遗留**：`RelayView.vue` 已无路由引用（PLAN-024 导航改四项后成死
+   代码，`.at` 轨五视图亦无此视图）；run 日志双落（`.autoos/relay/run-*` 磁盘 +
+   conversation 镜像 dual-write），与「chat 内联展示 + 日志归 conversation」的新设计
+   （2026-08-21 需求补充）不一致，需收敛为 conversation 唯一归档。
 
 ### 4.4 superpowers 双轨现状
 
@@ -237,7 +267,8 @@ plan（无序号无 frontmatter）；relay 侧 `superpower` flow 是 4 步 3 角
   jsonl 兼容）；`step_context(run_id)` 改为：若 flow 为 plan → task = 模板（替换
   `{plan_file}`）+ 初始需求附注；否则维持旧行为。
 - `driver.rs run_step`：步骤完成后正则提取 `PLAN_FILE:` 存 `run.context["plan_file"]`。
-- 事件流/审批 UI/会话 dual-write 均不变。
+- 事件流/审批 UI 不变；会话 dual-write 升级为唯一持久日志（`.autoos/relay/` 停写，
+  RunStore 转 in-memory，见 D7/§2.7）。
 
 ### 5.5 路由切换与弃用
 
@@ -254,6 +285,14 @@ plan（无序号无 frontmatter）；relay 侧 `superpower` flow 是 4 步 3 角
 共用契约）：plan 文件格式（编号章节+frontmatter 状态机）、四相位纪律、PLAN_FILE 输出
 协议。brainstorming/writing-plans 旧技能头部加一行指引改用新契约。
 
+### 5.7 前端与日志归一落地
+
+- 删除 `web/src/views/RelayView.vue`；`useRelay.ts` 收敛（§2.7 UI 项）；`src/front/
+  relay_store.at` 同步函数面 parity。
+- `relay/store.rs`：`save_run` 落盘与启动加载移除（in-memory 化）；`backend/
+  .autoos/relay/` 既有文件留档不动、不再新增。
+- relay API：runs list 端点保留但 UI 退役；SSE/gate/advance/rerun 不动。
+
 ## 6. 测试设计
 
 1. `plan_merge` 无编号标题：`## 变更摘要`/`## 0. 变更摘要` 双格式都能提取并映射正确
@@ -269,6 +308,9 @@ plan（无序号无 frontmatter）；relay 侧 `superpower` flow 是 4 步 3 角
 6. 既有 `tests/parity_plans.rs`/relay store 测试全绿（无回归）。
 7. 冒烟（需 aaid）：`musk serve` → POST `/api/forge/relay/runs {flow_id:"plan"}` →
    事件流断言 StepStarted(plan/plan-dev) → gate 停车 → approve → 后续相位推进。
+8. 日志归一：启动 run 并推进若干事件后断言 `.autoos/relay/` 无新文件、对应 Flow
+   conversation 含全部活动 turns；重启后 runs 内存清空而 conversation 日志仍在
+   （持久性归 conversation）。
 
 ## 7. 验收标准
 
@@ -282,6 +324,10 @@ plan（无序号无 frontmatter）；relay 侧 `superpower` flow 是 4 步 3 角
 - [ ] A8 `/relay` 斜杠命令默认走 plan flow（web/ 与 .at 双轨一致）
 - [ ] A9 `cargo test --workspace` 全绿；`cargo build --release` 成功；web 构建绿
 - [ ] A10 README「主要能力」+ `.musk.md` 描述新流程，旧流程标注已弃用
+- [ ] A11 RelayView.vue 已删除、web 构建绿、无残留引用；useRelay 仅保留 RelayRunBox/
+  斜杠命令所需函数面（.at 轨 parity）
+- [ ] A12 relay 日志唯一归档 conversation：`.autoos/relay/` 停写（无新文件），Flow
+  conversation 可回放全部 run 活动（含 gate 与相位推进）
 
 ## 8. 执行步骤
 
@@ -317,25 +363,36 @@ plan（无序号无 frontmatter）；relay 侧 `superpower` flow 是 4 步 3 角
 - [ ] **T8** 新建 `backend/crates/musk/src/relay/plan_flow.rs`：四段相位模板常量 +
   `phase_task_template()`（§5.3 全文落码）。验证：`cargo test -p musk plan_flow`（断言
   模板含 PLAN_FILE 协议/状态机动作/验收重验关键词）
+- [ ] **T9** `backend/crates/musk/src/relay/store.rs`：日志归一——`save_run` 落盘与启动
+  加载移除（RunStore 转 in-memory，见 D7），`.autoos/relay/` 停写；conversation
+  dual-write 保持为唯一持久日志。验证：`cargo test -p musk relay` + 手查
+  `.autoos/relay/` 无新文件
 
-**D 组：路由切换与双轨前端**
+**D 组：路由切换、前端归一与清理**
 
-- [ ] **T9** `D:\autostack\auto-ai\crates\auto-ai-agent\src\resources\souls\assistant.md`：
+- [ ] **T10** `D:\autostack\auto-ai\crates\auto-ai-agent\src\resources\souls\assistant.md`：
   Task Routing 的 RELAY/SUPERPOWERS 分流目标改 plan flow；简单任务 chat 直做的表述
-  保留。验证：文件 diff 评审（soul 为 prompt 资源，运行效果靠 T14 冒烟）
-- [ ] **T10** `web/src/views/ChatsView.vue`：`/relay` 命令默认 flow_id `"default"`→
+  保留。验证：文件 diff 评审（soul 为 prompt 资源，运行效果靠 T16 冒烟）
+- [ ] **T11** `web/src/views/ChatsView.vue`：`/relay` 命令默认 flow_id `"default"`→
   `"plan"`；`src/front/` 对应 `.at` 源同步（parity）。验证：`cd web && npm run build`
-- [ ] **T11** `backend/.autoos/specs.json`：删除残留的空 `plans` section（7 区→6 区
+- [ ] **T12** 删除 `web/src/views/RelayView.vue`（死代码）；`web/src/composables/
+  useRelay.ts` 收敛（退役仅 RelayView 使用的 loadRuns/任务计划列表；保留 startRun/
+  advanceRun/resolveGate/subscribeToRun）；`src/front/relay_store.at` 同步函数面
+  parity。验证：`cd web && npm run build` + `grep -r RelayView web/src src/front` 无
+  残留
+- [ ] **T13** `backend/.autoos/specs.json`：删除残留的空 `plans` section（7 区→6 区
   迁移遗漏清理）。验证：`cargo test -p musk specs` + 前端 SpecsView 冒烟
 
 **E 组：技能、文档与全量验证**
 
-- [ ] **T12** 新建 `skills/plan-driven-development/SKILL.md`（§5.6）；旧
+- [ ] **T14** 新建 `skills/plan-driven-development/SKILL.md`（§5.6）；旧
   brainstorming/writing-plans 技能头加指引。验证：文件存在 + README 引用
-- [ ] **T13** `README.md`「主要能力」+ `.musk.md`：新流程描述（旧 spec 流水线标注
-  deprecated，指向本 plan）。验证：读文件确认
-- [ ] **T14** 全量回归：`cargo test --workspace` + `cargo build --release` + web 构建；
-  有 aaid 时冒烟 §6.7（serve → 起 plan run → 断言相位与 gate）。验证：命令输出全绿
+- [ ] **T15** `README.md`「主要能力」+ `.musk.md`：新流程描述（旧 spec 流水线标注
+  deprecated，指向本 plan）；补「flow 在 chat 内联、日志归 conversation、relay 独立
+  界面已移除」。验证：读文件确认
+- [ ] **T16** 全量回归：`cargo test --workspace` + `cargo build --release` + web 构建；
+  有 aaid 时冒烟 §6.7/§6.8（serve → 起 plan run → 断言相位与 gate；`.autoos/relay/`
+  无新文件、conversation 有完整日志）。验证：命令输出全绿
 
 ## 9. 复审记录
 
@@ -356,3 +413,6 @@ plan（无序号无 frontmatter）；relay 侧 `superpower` flow 是 4 步 3 角
 - **Q4（2026-08-21，创建时登记）** `FlowStep.task_template` 字段跨仓通用化（auto-ai
   orchestration）与 musk-local 模板函数（D1/§2.3 现方案）的取舍，待第二个使用相位的
   flow 出现时复盘。
+- **Q5（2026-08-21，需求补充时登记）** run 跨重启恢复（重启后 run 列表/续跑）是否
+  需要？v1 采 D7（RunStore in-memory，重启丢 run、日志在 conversation）；若确需恢复
+  再立项引擎态持久化方案。
