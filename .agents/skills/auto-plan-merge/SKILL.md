@@ -114,7 +114,7 @@ the plan now lives.
   (the plan was reviewed; the spec is the materialized view). But only touch the
   items this plan generated — leave unrelated spec items alone.
 - **Idempotent.** Re-merging the same plan must not duplicate items (stable `P<seq>-<n>` ids).
-- **Always archive + set `archived`.** A archived plan leaves `docs/plans/` for `archived/`.
+- **Always archive + set `archived`.** An archived plan leaves `docs/plans/` for `archived/`.
 - **Defer to specialists.** After merge, if the repo keeps plan indices/reports,
   the broader `/archive-plan` skill handles index updates; this skill does not
   reimplement that.

@@ -710,8 +710,8 @@ async fn plans_archive(
         })
 }
 
-/// `POST /api/plans/{seq}/merge` — 沉淀到 Spec（门禁 review_done → 拆解进 6 区
-/// → transition Merged → archive）。返回触及的 section + item 数。
+/// `POST /api/plans/{seq}/merge` — 沉淀到 Spec（门禁 reviewed → 拆解进 6 区
+/// → `move_to_archived` 置 archived + 移档）。返回触及的 section + item 数。
 async fn plans_merge(
     State(state): State<AppState>,
     Query(q): Query<PlansQuery>,

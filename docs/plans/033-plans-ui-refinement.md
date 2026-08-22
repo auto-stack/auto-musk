@@ -1,13 +1,20 @@
 ---
 plan_id: PLAN-033
-status: execution_done
+status: reviewed
 feature_name: 计划模块 UI/UX 改进（过滤/状态/徽标/归档语义/MetaBlock）
 author: [zhaopuming]
 created_at: 2026-08-22T10:40:25+08:00
-updated_at: 2026-08-22T13:15:00+08:00
+updated_at: 2026-08-22T14:05:00+08:00
 
-supersedes_spec_components: []
-new_spec_components: []
+supersedes_spec_components:
+  - "backend/crates/musk/src/plans.rs: PlanStatus 状态机与 archive 语义重定义（reviewed/archived 单一终态）"
+  - "web/src/views/PlansView.vue: 计划页过滤/头部/操作区重构（下拉过滤+转移按钮组+归档沉淀互斥）"
+  - "web/src/types/plans.ts: 前端状态模型与状态机对齐（ALLOWED_TRANSITIONS/planStatusKey）"
+  - "docs/designs/008-auto-plan.md: §7.2 状态机修订（reviewed 经 merge 进 archived 单一终态）"
+  - ".agents/skills/auto-plan-*: 状态名与终态流程文案同步"
+new_spec_components:
+  - "web/src/components/plan/PlanMetaBlock.vue: 计划 frontmatter 元数据折叠概要/展开表格组件"
+  - "web/src/utils/frontmatter.ts: 轻量 frontmatter 解析器（含 7 项单测）"
 touched_goals: []
 
 current_step: 12
@@ -170,7 +177,38 @@ drafting ──→ executing ──→ execution_done ──→ reviewed ──�
 
 ## 复审记录
 
-（待 /auto-plan:review 填写）
+- **复审人**：zhaopuming（ZCode 会话）· 2026-08-22T14:05+08:00
+- **方式**：git diff 8a0b170..7da3b6e 逐文件核对 + 全部验收标准在合并后 main 上重跑（cargo 全量用隔离 target：用户 musk.exe 进程占用默认 target；vue-tsc 0 错误；vitest 22/24）。
+
+### 逐条验收判定
+
+1. 过滤下拉/默认进行中/记忆 — **pass**（PlansView.vue:10,139,245 + T12 E2E 1/9 步）
+2. 全栈 reviewed/archived + 旧值映射 + grep 无残留 — **pass（复审修正后）**：兼容映射 plans.rs:61-62 及单测 L780-781 为允许项；复审抓出并修正 2 处文档级残留（见下"复审修正"）
+3. 中文模式全中文/无冗余下拉与标签 — **pass（代码级）**：徽标 t(planStatusKey)（PlanStatusBadge.vue:16）；alert/confirm 全走 t()（PlansView.vue:215,225,228）；视觉验证受 W2 限制
+4. 归档/沉淀互斥 + 后端拒绝 reviewed 归档 — **pass**（parity plans_archive_reviewed_rejected 400 + merge 引导 + T12 E2E 5）
+5. 两路径归档后 status==archived 且文件在 archived/ — **pass**（move_to_archived plans.rs:520 + 单测 + T12 E2E 7/8）
+6. 正文无黑体块 + MetaBlock 折叠/展开 — **pass（代码+单测级）**（PlansView.vue:163 + frontmatter 7 单测；视觉受 W2 限制）
+7. 三套验证全绿 — **pass（带存量债务 D1/D2）**：cargo 全绿（隔离 target）；vue-tsc 0；vitest 2 失败为存量（合并前主仓同败，与本计划无关）
+
+### Workaround 清单（本次复审重点）
+
+- **W1 设计内偏差（已记录）**：`move_to_archived`（plans.rs:520）直写 status 而不经 `can_transition`——计划 D1 文本"transition(Archived)+rename"与"状态机去掉 reviewed→archived 边"自相矛盾，实现取后者语义。风险：未来 transition() 若增加副作用（事件/钩子），终态路径不触发。改进方向：显式建模"系统迁移"（force 参数或独立类型）。
+- **W2 验证受限**：内置浏览器 webview 无法挂载，渲染层（MetaBlock 布局/徽标中文/按钮组换行）仅代码+单测证据，无人眼/截图验证。建议：起服务人工过目（约 5 分钟）。
+- **W3 过程隔离缺口（暴露产品改进点）**：`serve()` 的 registry/auth 路径硬编码 `~/.config/autoos`（server.rs:53-58），Windows 下 dirs 忽略 HOME/USERPROFILE，`AUTOOS_HOME` 仅覆盖 harness 目录（server.rs:453）。冒烟退而借用真实 backend 工作区，沉淀误写 specs.json 后手术式移除 3 条（真实 P030 数据完整）。改进建议：registry/auth 路径接入 AUTOOS_HOME（约一行），未来冒烟可完全隔离。
+- **W4 存量债务（非本计划引入）**：vitest 2 失败——D1 brandName 断言仍期望旧品牌 AutoForge（现为 Auto Musk）；D2 setLocale 测试缺 DOM environment。验收标准 7 字面"全绿"以"存量无关"豁免，如实记债。
+- **W5 接受的权衡**：旧值兼容映射永久生效（from_str_lossy 永远接受 review_done/merged）；未知状态仍静默落 Drafting（存量行为）。typo 容错空间略增。
+- **W7 轻微（记录）**：存量"状态与位置不一致"数据（status=archived 但文件在 active）会出现在"进行中"列表并顶"已归档"徽标；点"归档"自愈。未做专门 UI 处理。
+- **W8 infra 约束（记录）**：worktree 必须放 D:/autostack 一级目录（`../../../../auto-ai` 相对路径依赖），无法用仓库 .worktrees/ 约定。可考虑 cargo [patch] 化解。
+- **W9 运维提醒**：用户运行中的 musk.exe（旧二进制）需重启才具备新状态语义；亦导致本次复审 cargo 默认 target 被锁，改用隔离 target 验证。
+
+### 复审修正（docs-only，随本复审提交）
+
+- plans.rs:713-714 merge handler 注释残留旧名（review_done / transition Merged）→ 更正为 reviewed / move_to_archived。
+- auto-plan-merge/SKILL.md:117 盲替换语法损伤 "A archived" → "An archived"。
+
+### 结论
+
+7/7 验收通过（2/3/6/7 带注释），无阻断性债务 → **status: reviewed**，可进入 /auto-plan:merge。
 
 ### 执行期补记（T12）
 
