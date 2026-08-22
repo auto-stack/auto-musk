@@ -57,6 +57,9 @@ component fn RelayRunBox(runId: str) {
         // run 完成报告（completed 载荷；store.run_reports 或 LoadRun 回扫注入）
         report => store.run_reports[.runId] ?? None
         reportView => if .report != None { relayReportView(.report) } else { None }
+        // PLAN-032: 汇报报告元数据/HTML（deck 层）——事件双通道 + 拉取缓存
+        reportMeta => store.run_report_meta[.runId] ?? None
+        reportHtml => store.run_report_html[.runId] ?? ""
         // 预览圆点：仅运行中脉动；gate 琥珀/失败红/完成绿/失效灰（终态常亮
         // 表示"停在这里"，不再闪烁误导）
         dotClass => if .isLiveRunning { "live-preview-dot live" } else { "live-preview-dot dot-" + .statusClass }
@@ -76,6 +79,7 @@ component fn RelayRunBox(runId: str) {
             // 事件，停靠/完成/失败状态全靠手刷页面）。
             store.LoadRun(.runId);
             store.LoadRunHistory(.runId);
+            store.FetchReport(.runId);
             if !.subscribed {
                 store.Subscribe(.runId);
                 .subscribed = true
@@ -839,7 +843,7 @@ component fn RelayRunBox(runId: str) {
                 if .reportView != None {
                     div {
                         style: "run-report-slot"
-                        ReportCard { report: .reportView }
+                        ReportCard { report: .reportView, deckMeta: .reportMeta, deckHtml: .reportHtml }
                     }
                 }
                 // inline gate 审批（对齐原 gate-actions）

@@ -136,6 +136,7 @@ fn parity_run_metadata_wire() {
     // Full 11-field metadata (TaskPlan tracing) wire parity.
     let hw_full = hw::RunMetadata {
         title: Some("t".into()),
+        report: None,
         initial_task: Some("task".into()),
         originating_chat_session: Some("chat-1".into()),
         workspace_id: Some("ws".into()),
@@ -148,6 +149,7 @@ fn parity_run_metadata_wire() {
     };
     let ag_full = ag::RunMetadata {
         title: Some("t".into()),
+        report: None,
         initial_task: Some("task".into()),
         originating_chat_session: Some("chat-1".into()),
         workspace_id: Some("ws".into()),
@@ -174,6 +176,7 @@ fn parity_run_event_wire_and_event_type() {
         hw::RunEvent::GateWaiting { timestamp: 3, step_id: "s".into(), gate: "human".into() },
         hw::RunEvent::GateResolved { timestamp: 4, step_id: "s".into(), decision: "approve".into() },
         hw::RunEvent::RunCompleted { timestamp: 5, report: Default::default() },
+        hw::RunEvent::ReportEmitted { timestamp: 16, format: "html".into(), title: "t".into(), path: "p".into() },
         hw::RunEvent::RunFailed { timestamp: 6, error: "boom".into() },
         hw::RunEvent::TokenSpend { timestamp: 7, cumulative: 10, step_tokens: 3 },
         hw::RunEvent::RelayUpdate { timestamp: 8, step_id: "s".into(), role_id: "r".into(), status: "running".into() },
@@ -191,6 +194,7 @@ fn parity_run_event_wire_and_event_type() {
         ag::RunEvent::GateWaiting { timestamp: 3, step_id: "s".into(), gate: "human".into() },
         ag::RunEvent::GateResolved { timestamp: 4, step_id: "s".into(), decision: "approve".into() },
         ag::RunEvent::RunCompleted { timestamp: 5, report: Default::default() },
+        ag::RunEvent::ReportEmitted { timestamp: 16, format: "html".into(), title: "t".into(), path: "p".into() },
         ag::RunEvent::RunFailed { timestamp: 6, error: "boom".into() },
         ag::RunEvent::TokenSpend { timestamp: 7, cumulative: 10, step_tokens: 3 },
         ag::RunEvent::RelayUpdate { timestamp: 8, step_id: "s".into(), role_id: "r".into(), status: "running".into() },
@@ -202,8 +206,8 @@ fn parity_run_event_wire_and_event_type() {
         ag::RunEvent::TurnBudgetWarning { timestamp: 14, role_id: "r".into(), remaining: 5 },
         ag::RunEvent::TurnBudgetExceeded { timestamp: 15, role_id: "r".into() },
     ];
-    assert_eq!(hw_events.len(), 15, "15 hw variants");
-    assert_eq!(ag_events.len(), hw_events.len(), "15 ag variants");
+    assert_eq!(hw_events.len(), 16, "16 hw variants");
+    assert_eq!(ag_events.len(), hw_events.len(), "16 ag variants");
 
     for (i, (hw_ev, ag_ev)) in hw_events.iter().zip(ag_events.iter()).enumerate() {
         assert_eq!(

@@ -158,6 +158,25 @@ pub async fn start_run(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<
     return ok_response(resp);
 }
 
+/// GET /api/forge/relay/runs/{run_id}/report — PLAN-032: 汇报报告 HTML 全文。
+pub async fn run_report_html(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuery>) -> Response {
+    let run_id: String = path_inner(&p);
+    let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };
+    let ws_id = hw_q.id_or_default(&s.0.registry);
+    let ws = s.0.registry.get(&ws_id);
+    match ws.relay.report_meta(&run_id) {
+        None => text_response(format!("run '{}' has no report", run_id), 404),
+        Some(meta) => match std::fs::read_to_string(ws.root.join(&meta.path)) {
+            Ok(html) => (
+                [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
+                html,
+            )
+                .into_response(),
+            Err(e) => text_response(format!("report file missing: {} ({})", meta.path, e), 404),
+        },
+    }
+}
+
 pub async fn get_run(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuery>) -> Response {
     let run_id: String = path_inner(&p);
     let state: Value = relay_run_get(&s, q, &run_id);
@@ -361,6 +380,7 @@ pub fn relay_routes() -> Router<AppState> {
     app = app.route("/api/forge/relay/runs/{run_id}/handoff", post(submit_handoff));
     app = app.route("/api/forge/relay/runs/{run_id}/gate", post(resolve_gate));
     app = app.route("/api/forge/relay/runs/{run_id}/events", get(run_events));
+    app = app.route("/api/forge/relay/runs/{run_id}/report", get(run_report_html));
     app = app.route("/api/forge/relay/professions", get(list_professions));
     app = app.route("/api/forge/relay/souls", get(list_souls));
     app = app.route("/api/forge/relay/flows", get(list_flows));

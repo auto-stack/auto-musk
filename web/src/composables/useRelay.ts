@@ -114,7 +114,8 @@ async function loadRunHistory(runId: string): Promise<RunHistory | null> {
     let status: RunHistory['status'] = 'interrupted'
     if (sawCompleted) status = 'completed'
     else if (sawFailed || conv.status === 'failed') status = 'failed'
-    return { title: conv.title ?? '', status, entries }
+  
+  return { title: conv.title ?? '', status, entries }
   } catch {
     return null
   }
@@ -237,6 +238,26 @@ export interface StartRunRequest {
 }
 
 // ─── Composable ─────────────────────────────────────────────────────────────
+
+// PLAN-032: 汇报报告 HTML 缓存（runId → html 全文；deck 层数据源）。
+const _reportHtml = new Map<string, string>()
+
+  /** PLAN-032: 拉取 run 汇报报告 HTML 全文（带缓存；404/未生成返回 null）。 */
+async function fetchRunReport(runId: string): Promise<string | null> {
+  const cached = _reportHtml.get(runId)
+  if (cached != null) return cached
+  try {
+    const ws = localStorage.getItem('musk_workspace')
+    const qs = ws ? `?workspace=${encodeURIComponent(ws)}` : ''
+    const resp = await authFetch(`${API_BASE}/runs/${runId}/report${qs}`)
+    if (!resp.ok) return null
+    const html = await resp.text()
+    if (html) _reportHtml.set(runId, html)
+    return html || null
+  } catch {
+    return null
+  }
+}
 
 export function useRelay() {
   const runs = _runs
@@ -607,6 +628,7 @@ export function useRelay() {
     error,
     loadRun,
     loadRunHistory,
+    fetchRunReport,
     startRun,
     advanceRun,
     resolveGate,

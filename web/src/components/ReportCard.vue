@@ -40,6 +40,18 @@
         </div>
       </div>
 
+      <!-- PLAN-032 deck 层：PPT 风格汇报预览（sandbox iframe，无脚本无同源） -->
+      <div v-if="report.report && reportHtml" class="deck-wrap">
+        <div class="deck-head">
+          <span class="deck-title">📊 {{ report.report.title || 'Run 汇报报告' }}</span>
+          <button class="report-btn" @click.stop="openDeck">
+            <Maximize2 :size="13" />
+            新窗口打开
+          </button>
+        </div>
+        <iframe class="deck-frame" sandbox="" :srcdoc="reportHtml"></iframe>
+      </div>
+
       <div v-if="report.deliverables?.length" class="report-deliverables">
         <div class="section-title">Deliverables</div>
         <div class="deliverable-chips">
@@ -66,9 +78,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { ChevronDown, ChevronUp, FileText, Download, FolderOpen } from 'lucide-vue-next'
+import { ref, computed, watch } from 'vue'
+import { ChevronDown, ChevronUp, FileText, Download, FolderOpen, Maximize2 } from 'lucide-vue-next'
 import StreamingRenderer from '@/components/StreamingRenderer.vue'
+import { useRelay } from '@/composables/useRelay'
 
 export interface ReportData {
   runId: string
@@ -83,9 +96,34 @@ export interface ReportData {
   filesChanged?: string[]
   toolCalls?: number
   durationS?: number
+  /** PLAN-032: 汇报报告元数据（deck 层数据源；None=未生成）。 */
+  report?: { format: string; title: string; path: string }
 }
 
 const props = defineProps<{ report: ReportData }>()
+
+const { fetchRunReport } = useRelay()
+
+// PLAN-032: 报告元数据存在时拉取 HTML 全文（useRelay 内缓存）
+const reportHtml = ref<string | null>(null)
+watch(
+  () => props.report.report?.path,
+  async (path) => {
+    reportHtml.value = null
+    if (path && props.report.runId) {
+      reportHtml.value = await fetchRunReport(props.report.runId)
+    }
+  },
+  { immediate: true },
+)
+
+function openDeck() {
+  if (!reportHtml.value) return
+  const blob = new Blob([reportHtml.value], { type: 'text/html' })
+  const url = URL.createObjectURL(blob)
+  window.open(url, '_blank')
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
 
 defineEmits<{
   (e: 'view-full'): void
@@ -177,6 +215,14 @@ const confidence = computed(() => props.report.confidence || 'Medium')
   background: hsl(190 80% 45% / 0.08); color: hsl(190 80% 32%);
   border: 1px solid hsl(190 80% 45% / 0.2);
   font-family: 'Geist Mono', 'Fira Code', monospace;
+}
+/* PLAN-032 deck 层：16:9 沙箱预览 */
+.deck-wrap { display: flex; flex-direction: column; gap: 0.35rem; }
+.deck-head { display: flex; align-items: center; gap: 0.5rem; }
+.deck-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; font-weight: 600; color: var(--af-fg); }
+.deck-frame {
+  width: 100%; aspect-ratio: 16 / 9; border: 1px solid var(--af-border);
+  border-radius: 8px; background: #fff;
 }
 .report-actions {
   display: flex; flex-wrap: wrap; gap: 0.35rem;

@@ -153,6 +153,32 @@ async fn get_run(
     }
 }
 
+/// `GET /api/forge/relay/runs/{run_id}/report` — PLAN-032: 汇报报告 HTML
+/// 全文（text/html；无报告 404）。元数据经 run 详情/事件携带，内容本体走此端点。
+async fn run_report_html(
+    State(state): State<AppState>,
+    Path(run_id): Path<String>,
+    Query(q): Query<WorkspaceQuery>,
+) -> Response {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    let Some(meta) = ws.relay.report_meta(&run_id) else {
+        return (StatusCode::NOT_FOUND, format!("run '{run_id}' has no report")).into_response();
+    };
+    let path = ws.root.join(&meta.path);
+    match std::fs::read_to_string(&path) {
+        Ok(html) => (
+            [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
+            html,
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::NOT_FOUND,
+            format!("report file missing: {} ({e})", meta.path),
+        )
+            .into_response(),
+    }
+}
+
 /// `DELETE /api/forge/relay/runs/{run_id}` — delete a run.
 async fn delete_run(
     State(state): State<AppState>,
@@ -596,6 +622,7 @@ pub fn relay_routes() -> Router<AppState> {
         .route("/api/forge/relay/runs/{run_id}/handoff", post(submit_handoff))
         .route("/api/forge/relay/runs/{run_id}/gate", post(resolve_gate))
         .route("/api/forge/relay/runs/{run_id}/events", get(run_events))
+        .route("/api/forge/relay/runs/{run_id}/report", get(run_report_html))
         .route("/api/forge/relay/professions", get(list_professions))
         .route("/api/forge/relay/souls", get(list_souls))
         .route("/api/forge/relay/flows", get(list_flows))

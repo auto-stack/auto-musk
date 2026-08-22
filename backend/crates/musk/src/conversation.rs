@@ -391,6 +391,9 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
             });
             seq += 1;
         }
+        RunEvent::ReportEmitted { title, format, .. } => {
+            push_system!("system".into(), format!("汇报报告已生成：{title}（{format}）"));
+        }
         RunEvent::RunCompleted { .. } => {
             push_system!("system".into(), "Flow completed".into());
         }

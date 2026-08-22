@@ -29,6 +29,11 @@ store RelayStore {
         var run_histories Value = {}
         // runId → 完成报告（run_completed 事件载荷；PLAN-031 T5）
         var run_reports Value = {}
+        // runId → 汇报报告元数据 {format,title,path}（PLAN-032：report_emitted
+        // 事件 / run_completed 载荷双通道写入）
+        var run_report_meta Value = {}
+        // runId → 汇报报告 HTML 全文（FetchReport 拉取缓存；deck 层数据源）
+        var run_report_html Value = {}
         // runId → SSE 订阅句柄（Sse.open 产物；close 经 Sse.close）
         var relay_subs Value = {}
         // relay gate 事件中转信号（useGateInbox watch 消费：{kind: reached|resolved, ...}）
@@ -44,6 +49,7 @@ store RelayStore {
         ResolveGate(str, str, str),
         Subscribe(str),
         Unsubscribe(str),
+        FetchReport(str),
         OnRelayEvent(Value),
     }
 
@@ -104,10 +110,24 @@ store RelayStore {
                             if rev.type == "run_completed" {
                                 if rev.report != None {
                                     .run_reports[runId] = rev.report
+                                    if rev.report.report != None {
+                                        .run_report_meta[runId] = rev.report.report
+                                    }
                                 }
                                 ri = -1
                             } else {
                                 ri = ri - 1
+                            }
+                        }
+                        // 回扫 report_emitted 元数据（document 相位先于完成事件）
+                        var rj int = data.events.length - 1
+                        while rj >= 0 {
+                            let revj = data.events[rj]
+                            if revj.type == "report_emitted" {
+                                .run_report_meta[runId] = { format: revj.format ?? "html", title: revj.title ?? "", path: revj.path ?? "" }
+                                rj = -1
+                            } else {
+                                rj = rj - 1
                             }
                         }
                     }
@@ -182,6 +202,24 @@ store RelayStore {
 
         .Unsubscribe(runId) -> {
             .relay_subs[runId] = Sse.close(.relay_subs[runId])
+        }
+
+        // PLAN-032: 拉取汇报报告 HTML 全文（幂等缓存；deck 层数据源）
+        .FetchReport(runId) -> {
+            if .run_report_html[runId] != None { return }
+            let meta = .run_report_meta[runId]
+            if meta == None { return }
+            try {
+                let qs = ""
+                let ws = localStorage.getItem("musk_workspace")
+                if ws != None { qs = "?workspace=" + encodeURIComponent(ws) }
+                let html = Http.get("/api/forge/relay/runs/" + encodeURIComponent(runId) + "/report" + qs)
+                if html != None {
+                    if html != "" { .run_report_html[runId] = html }
+                }
+            } catch {
+                // 404/网络异常 → 保持空，ReportCard 不渲染 deck 层
+            }
         }
 
         // relay SSE 事件 → 会话日志/live_log/tokens/自动刷新（对应旧 subscribeToRun
@@ -278,7 +316,15 @@ store RelayStore {
                 // 完成报告载荷（PLAN-031 T5）——RunBox 内嵌 ReportCard 数据源
                 if p.report != None {
                     .run_reports[runId] = p.report
+                    if p.report.report != None {
+                        .run_report_meta[runId] = p.report.report
+                    }
                 }
+            }
+            // PLAN-032: 汇报报告元数据（document 相位先于 run_completed 到达）
+            if et == "report_emitted" {
+                .run_report_meta[runId] = { format: p.format ?? "html", title: p.title ?? "", path: p.path ?? "" }
+                .FetchReport(runId)
             }
             if et == "run_failed" {
                 log.push({ id: relayMakeId(runId), time: time, profession_id: "system", type: "run_failed", content: p.error ?? "Run failed" })

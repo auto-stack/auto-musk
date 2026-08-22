@@ -60,6 +60,9 @@ pub enum RunEvent {
     // PLAN-031 T5: report payload (hw store::RunReportPayload — wire parity
     // with the handwritten enum; #[serde(default)] keeps old events loadable).
     RunCompleted { timestamp: u64, #[serde(default)] report: crate::relay::store::RunReportPayload },
+    // PLAN-032 手补：ReportEmitted 与 hw 枚举 wire parity（crate::relay::store
+    // 同款；.at 无法表达外部类型，重生成后需手工补回——parity 测试编译期拦截）。
+    ReportEmitted { timestamp: u64, #[serde(default)] format: String, #[serde(default)] title: String, #[serde(default)] path: String },
     RunFailed { timestamp: u64, error: String },
     TokenSpend { timestamp: u64, cumulative: u64, step_tokens: u64 },
     RelayUpdate { timestamp: u64, step_id: String, role_id: String, status: String },
@@ -81,6 +84,7 @@ impl RunEvent {
             RunEvent::GateWaiting { .. } => return "gate_waiting".to_string(),
             RunEvent::GateResolved { .. } => return "gate_resolved".to_string(),
             RunEvent::RunCompleted { .. } => return "run_completed".to_string(),
+            RunEvent::ReportEmitted { .. } => return "report_emitted".to_string(),
             RunEvent::RunFailed { .. } => return "run_failed".to_string(),
             RunEvent::TokenSpend { .. } => return "token_spend".to_string(),
             RunEvent::RelayUpdate { .. } => return "relay_update".to_string(),
@@ -145,6 +149,10 @@ pub struct RunMetadata {
     pub initial_task: Option<String>,
     pub originating_chat_session: Option<String>,
     pub workspace_id: Option<String>,
+    // PLAN-032 手补：汇报报告元数据（crate::relay::store::ReportMeta；.at 无法
+    // 表达外部类型，重生成后需手工补回——parity 编译期拦截）。
+    #[serde(default)]
+    pub report: Option<crate::relay::store::ReportMeta>,
     pub task_plan_id: Option<String>,
     pub task_run_name: Option<String>,
     pub phase_name: Option<String>,

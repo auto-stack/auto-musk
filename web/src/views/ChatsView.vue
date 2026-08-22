@@ -1320,6 +1320,7 @@ onMounted(async () => {
         filesChanged: (p.files_changed as string[]) || [],
         toolCalls: (p.tool_calls as number) || 0,
         durationS: (p.duration_s as number) || 0,
+        report: p.report ?? undefined,
       }
     },
   })

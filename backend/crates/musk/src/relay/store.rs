@@ -33,6 +33,19 @@ pub enum RunEvent {
         #[serde(default)]
         report: RunReportPayload,
     },
+    /// PLAN-032: document 相位 emit_report 工具落盘后追加——前端 deck 层
+    /// 的实时/回放数据源（内容本体经 /runs/{id}/report 端点拉取，事件只带元数据）。
+    ReportEmitted {
+        #[serde(default)]
+        timestamp: u64,
+        #[serde(default)]
+        format: String,
+        #[serde(default)]
+        title: String,
+        /// 相对 workspace 根的报告 html 路径。
+        #[serde(default)]
+        path: String,
+    },
     RunFailed { #[serde(default)] timestamp: u64, error: String },
     TokenSpend { #[serde(default)] timestamp: u64, cumulative: u64, step_tokens: u64 },
     RelayUpdate {
@@ -60,6 +73,19 @@ pub enum RunEvent {
     TurnError { #[serde(default)] timestamp: u64, role_id: String, message: String },
     TurnBudgetWarning { #[serde(default)] timestamp: u64, role_id: String, remaining: u64 },
     TurnBudgetExceeded { #[serde(default)] timestamp: u64, role_id: String },
+}
+
+/// PLAN-032: 汇报报告元数据（emit_report 工具产物登记；本体文件在
+/// workspace `.autoos/reports/{run_id}/`，事件/载荷只携带元数据）。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct ReportMeta {
+    #[serde(default)]
+    pub format: String,
+    #[serde(default)]
+    pub title: String,
+    /// 相对 workspace 根的 report.html 路径。
+    #[serde(default)]
+    pub path: String,
 }
 
 /// Deterministic run report assembled at completion (PLAN-031 T5).
@@ -96,6 +122,9 @@ pub struct RunReportPayload {
     pub completed_steps: u32,
     #[serde(default)]
     pub total_steps: u32,
+    /// PLAN-032: 汇报报告元数据（deck 层数据源；None=未生成）。
+    #[serde(default)]
+    pub report: Option<ReportMeta>,
 }
 
 /// Assemble the run report from the run entry (no extra LLM call — the
@@ -141,6 +170,7 @@ fn build_run_report(entry: &RunEntry) -> RunReportPayload {
         duration_s: entry.updated_at.saturating_sub(entry.created_at),
         completed_steps: completed,
         total_steps: total,
+        report: entry.metadata.report.clone(),
     }
 }
 
@@ -153,6 +183,7 @@ impl RunEvent {
             | RunEvent::GateResolved { timestamp, .. }
             | RunEvent::RunCompleted { timestamp, .. }
             | RunEvent::RunFailed { timestamp, .. }
+            | RunEvent::ReportEmitted { timestamp, .. }
             | RunEvent::TokenSpend { timestamp, .. }
             | RunEvent::RelayUpdate { timestamp, .. }
             | RunEvent::TurnDelta { timestamp, .. }
@@ -173,6 +204,7 @@ impl RunEvent {
             RunEvent::GateWaiting { .. } => "gate_waiting",
             RunEvent::GateResolved { .. } => "gate_resolved",
             RunEvent::RunCompleted { .. } => "run_completed",
+            RunEvent::ReportEmitted { .. } => "report_emitted",
             RunEvent::RunFailed { .. } => "run_failed",
             RunEvent::TokenSpend { .. } => "token_spend",
             RunEvent::RelayUpdate { .. } => "relay_update",
@@ -273,6 +305,9 @@ pub struct RunMetadata {
     #[serde(default)]
     pub workspace_id: Option<String>,
     // ── TaskPlan tracing (Plan 009 P2b.7) ───────────────────────────────────
+    /// PLAN-032: 汇报报告元数据（emit_report 登记处）。
+    #[serde(default)]
+    pub report: Option<ReportMeta>,
     /// When this run belongs to a TaskPlan, the plan's id.
     #[serde(default)]
     pub task_plan_id: Option<String>,
@@ -398,6 +433,7 @@ impl RunStore {
                 title: req.task.as_ref().map(|t| truncate_title(t)),
                 initial_task: req.task.clone(),
                 originating_chat_session: None,
+                report: None,
                 workspace_id,
                 task_plan_id: None,
                 task_run_name: None,
@@ -757,6 +793,34 @@ impl RunStore {
             RunEvent::RunCompleted { report, .. } => Some(report.clone()),
             _ => None,
         })
+    }
+
+    /// PLAN-032: emit_report 工具登记报告元数据（幂等覆盖）+ 追加事件
+    /// （持久化 run.events + 会话镜像 + SSE 广播）。
+    pub fn append_report(&self, run_id: &str, meta: ReportMeta) -> Option<()> {
+        let ev = {
+            let mut runs = self.runs.lock().unwrap();
+            let entry = runs.get_mut(run_id)?;
+            entry.metadata.report = Some(meta.clone());
+            entry.updated_at = now_secs();
+            let ev = RunEvent::ReportEmitted {
+                timestamp: now_secs(),
+                format: meta.format.clone(),
+                title: meta.title.clone(),
+                path: meta.path.clone(),
+            };
+            entry.events.push(ev.clone());
+            ev
+        };
+        self.mirror_events(run_id, &[ev.clone()]);
+        crate::relay::api::publish(run_id, &ev);
+        Some(())
+    }
+
+    /// PLAN-032: 报告元数据（None=未生成）。
+    pub fn report_meta(&self, run_id: &str) -> Option<ReportMeta> {
+        let runs = self.runs.lock().unwrap();
+        runs.get(run_id).and_then(|e| e.metadata.report.clone())
     }
 
     /// Which workspace this run belongs to (for orchestration tool context).

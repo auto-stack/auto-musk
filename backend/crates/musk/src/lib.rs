@@ -14,6 +14,7 @@ pub mod spec_tools;
 pub mod specs;
 pub mod spec_tree;
 pub mod plans;
+pub mod report_tools;
 pub mod plan_merge;
 pub mod plan_tools;
 pub mod tool_context;
@@ -263,6 +264,7 @@ pub fn build_agent_with_context(
             ("update_plan", Arc::new(crate::plan_tools::UpdatePlan::from_ctx(&ctx))),
             ("transition_plan", Arc::new(crate::plan_tools::TransitionPlan::from_ctx(&ctx))),
             ("merge_plan", Arc::new(crate::plan_tools::MergePlan::from_ctx(&ctx))),
+            ("emit_report", Arc::new(crate::report_tools::EmitReport::from_ctx(&ctx))),
         ];
         for (name, tool) in &orch_tools {
             if mode.tools.is_empty() || mode.tools.iter().any(|t| t == name) {

@@ -6,10 +6,11 @@
 // 指标格（步骤/工具调用/令牌/用时）→ 交付物 chips → 操作行。
 // 默认展开（终态报告是"给客户看的结果"，不是可折叠日志）。
 
-component fn ReportCard(report: obj) {
+component fn ReportCard(report: obj, deckMeta: obj, deckHtml: str) {
     use {
         component: ChevronDown, ChevronUp, FileText, Download, FolderOpen from "lucide-vue-next"
         component: Markdown from "platform:markdown"
+        component: Deck from "platform:deck"
         fn: reportConfidenceClass, reportDurationLabel from "src/front/forge_helpers.at"
     }
     computed {
@@ -26,6 +27,9 @@ component fn ReportCard(report: obj) {
         hasDeliverables => if .report.deliverables != None { .report.deliverables.length > 0 } else { false }
         deliverables => if .report.deliverables != None { .report.deliverables } else { [] }
         cardClass => if .expanded { "report-card" } else { "report-card collapsed" }
+        // PLAN-032 deck 层：汇报报告元数据 + HTML 缓存
+        hasDeck => .deckMeta != None && .deckHtml != ""
+        deckTitle => if .deckMeta != None { .deckMeta.title ?? "" } else { "" }
     }
     msg Msg { Toggle, ViewFull, DownloadReport, OpenFiles }
     model { var expanded bool = true }
@@ -68,6 +72,10 @@ component fn ReportCard(report: obj) {
     border: 1px solid hsl(190 80% 45% / 0.2); font-family: 'Geist Mono', 'Fira Code', monospace;
   }
   .report-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; border-top: 1px solid hsl(var(--border) / 0.6); padding-top: 0.55rem; }
+  /* PLAN-032 deck 层：16:9 沙箱预览（无脚本无同源） */
+  .deck-wrap { display: flex; flex-direction: column; gap: 0.35rem; }
+  .deck-head { display: flex; align-items: center; gap: 0.5rem; }
+  .deck-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; font-weight: 600; color: hsl(var(--foreground)); }
   .report-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.32rem 0.6rem; border: 1px solid hsl(var(--border)); border-radius: 5px; background: transparent; color: hsl(var(--foreground)); font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.15s; }
   .report-btn:hover { background: hsl(220 14% 50% / 0.06); border-color: hsl(var(--primary) / 0.3); }
     }
@@ -123,6 +131,16 @@ component fn ReportCard(report: obj) {
                         style: "metric-cell"
                         text .durationLabel { style: "metric-value" }
                         text "总用时" { style: "metric-label" }
+                    }
+                }
+                if .hasDeck {
+                    col {
+                        style: "deck-wrap"
+                        row {
+                            style: "deck-head"
+                            span { style: "deck-title", text "📊 " + .deckTitle }
+                        }
+                        Deck { srcdoc: .deckHtml }
                     }
                 }
                 if .hasDeliverables {
