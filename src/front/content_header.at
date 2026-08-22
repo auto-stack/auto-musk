@@ -10,17 +10,19 @@
 // 样式：`.content-header` 系列为单一真源（inject_styles.ts），替代分散的
 // chats-header/section-header/wiki-content-header 规则 + !important 覆盖。
 
-component fn ContentHeader(title: str) {
-    div {
-        style: "content-header"
-        span {
-            style: "content-header-title"
-            text .title
-        }
+widget ContentHeader(title: str) {
+    view {
         div {
-            style: "content-header-middle"
-            slot(name: "middle") {}
+            style: "content-header"
+            span {
+                style: "content-header-title"
+                text .title
+            }
+            div {
+                style: "content-header-middle"
+                slot(name: "middle") {}
+            }
+            slot(name: "actions") {}
         }
-        slot(name: "actions") {}
     }
 }

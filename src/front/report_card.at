@@ -15,7 +15,7 @@ use.web component Markdown from "platform:markdown"
 use.web component Deck from "src/platform/deck.vue"
 use.web reportConfidenceClass, reportDurationLabel from "src/front/forge_helpers.at"
 
-component fn ReportCard(report: obj, deckMeta: obj = None, deckHtml: str = "") {
+widget ReportCard(report: obj, deckMeta: obj = None, deckHtml: str = "") {
     computed {
         runId => .report.runId ?? ""
         title => if .report.title != "" { .report.title } else { "Run 工作汇总" }
@@ -83,100 +83,102 @@ component fn ReportCard(report: obj, deckMeta: obj = None, deckHtml: str = "") {
   .report-btn:hover { background: hsl(220 14% 50% / 0.06); border-color: hsl(var(--primary) / 0.3); }
     }
 
-    col {
-        class: .cardClass
-        // hero（click toggle）——PPT 封面：✅ + 标题 + runId + 置信/用时 chips
-        row {
-            onclick: .Toggle
-            style: "report-hero"
-            text "✅" { style: "report-status" }
-            col {
-                style: "report-title-block"
-                text .title { style: "report-title" }
-                text .runId { style: "report-subtitle" }
-            }
-            text .durationLabel { style: "report-duration" }
-            text .confidenceLabel { class: .confidenceClass }
-            if .expanded {
-                ChevronUp { size: 14, style: "report-chevron" }
-            } else {
-                ChevronDown { size: 14, style: "report-chevron" }
-            }
-        }
-        // body（展开时）：摘要 → 指标 → 交付物 → 操作
-        if .expanded {
-            col {
-                style: "report-body"
-                if .hasSummary {
-                    col {
-                        style: "report-summary"
-                        Markdown(source: .summary, streaming: false)
-                    }
-                }
+    view {
+        col {
+            class: .cardClass
+            // hero（click toggle）——PPT 封面：✅ + 标题 + runId + 置信/用时 chips
+            row {
+                onclick: .Toggle
+                style: "report-hero"
+                text "✅" { style: "report-status" }
                 col {
-                    style: "report-metrics"
-                    col {
-                        style: "metric-cell"
-                        text .goalsMet { style: "metric-value" }
-                        text "步骤完成" { style: "metric-label" }
-                    }
-                    col {
-                        style: "metric-cell"
-                        text .toolCalls { style: "metric-value" }
-                        text "工具调用" { style: "metric-label" }
-                    }
-                    col {
-                        style: "metric-cell"
-                        text .cost { style: "metric-value" }
-                        text "令牌消耗" { style: "metric-label" }
-                    }
-                    col {
-                        style: "metric-cell"
-                        text .durationLabel { style: "metric-value" }
-                        text "总用时" { style: "metric-label" }
-                    }
+                    style: "report-title-block"
+                    text .title { style: "report-title" }
+                    text .runId { style: "report-subtitle" }
                 }
-                if .hasDeck {
-                    col {
-                        style: "deck-wrap"
-                        row {
-                            style: "deck-head"
-                            span { style: "deck-title", text "📊 " + .deckTitle }
+                text .durationLabel { style: "report-duration" }
+                text .confidenceLabel { class: .confidenceClass }
+                if .expanded {
+                    ChevronUp { size: 14, style: "report-chevron" }
+                } else {
+                    ChevronDown { size: 14, style: "report-chevron" }
+                }
+            }
+            // body（展开时）：摘要 → 指标 → 交付物 → 操作
+            if .expanded {
+                col {
+                    style: "report-body"
+                    if .hasSummary {
+                        col {
+                            style: "report-summary"
+                            Markdown(source: .summary, streaming: false)
                         }
-                        Deck { srcdoc: .deckHtml }
                     }
-                }
-                if .hasDeliverables {
                     col {
-                        style: "report-deliverables"
-                        text "Deliverables" { style: "section-title" }
-                        row {
-                            style: "deliverable-chips"
-                            for d in .deliverables {
-                                text .d { style: "deliverable-chip" }
+                        style: "report-metrics"
+                        col {
+                            style: "metric-cell"
+                            text .goalsMet { style: "metric-value" }
+                            text "步骤完成" { style: "metric-label" }
+                        }
+                        col {
+                            style: "metric-cell"
+                            text .toolCalls { style: "metric-value" }
+                            text "工具调用" { style: "metric-label" }
+                        }
+                        col {
+                            style: "metric-cell"
+                            text .cost { style: "metric-value" }
+                            text "令牌消耗" { style: "metric-label" }
+                        }
+                        col {
+                            style: "metric-cell"
+                            text .durationLabel { style: "metric-value" }
+                            text "总用时" { style: "metric-label" }
+                        }
+                    }
+                    if .hasDeck {
+                        col {
+                            style: "deck-wrap"
+                            row {
+                                style: "deck-head"
+                                span { style: "deck-title", text "📊 " + .deckTitle }
+                            }
+                            Deck { srcdoc: .deckHtml }
+                        }
+                    }
+                    if .hasDeliverables {
+                        col {
+                            style: "report-deliverables"
+                            text "Deliverables" { style: "section-title" }
+                            row {
+                                style: "deliverable-chips"
+                                for d in .deliverables {
+                                    text .d { style: "deliverable-chip" }
+                                }
                             }
                         }
                     }
-                }
-                row {
-                    style: "report-actions"
-                    button {
-                        onclick.stop: .ViewFull
-                        style: "report-btn"
-                        FileText { size: 13 }
-                        text "查看完整报告"
-                    }
-                    button {
-                        onclick.stop: .DownloadReport
-                        style: "report-btn"
-                        Download { size: 13 }
-                        text "下载 Markdown"
-                    }
-                    button {
-                        onclick.stop: .OpenFiles
-                        style: "report-btn"
-                        FolderOpen { size: 13 }
-                        text "打开变更文件"
+                    row {
+                        style: "report-actions"
+                        button {
+                            onclick.stop: .ViewFull
+                            style: "report-btn"
+                            FileText { size: 13 }
+                            text "查看完整报告"
+                        }
+                        button {
+                            onclick.stop: .DownloadReport
+                            style: "report-btn"
+                            Download { size: 13 }
+                            text "下载 Markdown"
+                        }
+                        button {
+                            onclick.stop: .OpenFiles
+                            style: "report-btn"
+                            FolderOpen { size: 13 }
+                            text "打开变更文件"
+                        }
                     }
                 }
             }

@@ -22,7 +22,7 @@ use.web composable useI18n refs: [locale] from "vue-i18n"
 use.web render_input_mentions, build_mention_names from "src/front/mention_helpers.at"
 use.web mention_filtered, mention_clamp_index, mention_index_of, mention_key_action, mention_detect_filter, mention_detect_anchor, mention_detect_visible, mention_detect_pos, mention_insert, mention_can_send, mention_trim, mention_professions_list, mention_current_id from "src/front/mention_helpers.at"
 
-component fn MentionInput(disabled: bool, professions: obj) {
+widget MentionInput(disabled: bool, professions: obj) {
     use {
         component: MentionDropdown
     }
@@ -81,51 +81,53 @@ component fn MentionInput(disabled: bool, professions: obj) {
         }
         .cancel -> {}
     }
-    div {
-        style: "chats-input-bar"
+    view {
         div {
-            style: "input-inner"
+            style: "chats-input-bar"
             div {
-                style: "input-row"
+                style: "input-inner"
                 div {
-                    style: "input-compose"
+                    style: "input-row"
                     div {
-                        style: "input-backdrop"
-                        html: .backdropHtml
+                        style: "input-compose"
+                        div {
+                            style: "input-backdrop"
+                            html: .backdropHtml
+                        }
+                        textarea {
+                            style: "chats-input"
+                            value: .text
+                            oninput: .Input($event)
+                            onkeydown: .Keydown($event)
+                            onkeydown.enter.exact.prevent: .send(mention_trim(.text))
+                            placeholder: i18n.t("chat.inputPlaceholder")
+                            disabled: .disabled
+                        }
                     }
-                    textarea {
-                        style: "chats-input"
-                        value: .text
-                        oninput: .Input($event)
-                        onkeydown: .Keydown($event)
-                        onkeydown.enter.exact.prevent: .send(mention_trim(.text))
-                        placeholder: i18n.t("chat.inputPlaceholder")
-                        disabled: .disabled
+                    if .disabled {
+                        button {
+                            onclick: .cancel
+                            style: "send-btn stop"
+                            Square { size: 16 }
+                        }
+                    } else {
+                        button {
+                            onclick: .send(mention_trim(.text))
+                            style: "send-btn"
+                            disabled: !.canSend
+                            Send { size: 16 }
+                        }
                     }
                 }
-                if .disabled {
-                    button {
-                        onclick: .cancel
-                        style: "send-btn stop"
-                        Square { size: 16 }
-                    }
-                } else {
-                    button {
-                        onclick: .send(mention_trim(.text))
-                        style: "send-btn"
-                        disabled: !.canSend
-                        Send { size: 16 }
-                    }
+                MentionDropdown {
+                    professions: .professionsList
+                    visible: .mentionVisible
+                    filter: .mentionFilter
+                    anchorRect: .mentionAnchor
+                    activeIndex: .mentionIndex
+                    onselect: .Select($event)
+                    onhover: .Hover($event)
                 }
-            }
-            MentionDropdown {
-                professions: .professionsList
-                visible: .mentionVisible
-                filter: .mentionFilter
-                anchorRect: .mentionAnchor
-                activeIndex: .mentionIndex
-                onselect: .Select($event)
-                onhover: .Hover($event)
             }
         }
     }

@@ -24,7 +24,7 @@ use.web settingsInitLocale, settingsChangeLocale from "src/front/composables/use
 use.web composable useI18n refs: [locale] from "vue-i18n"
 use.web visual_accent_options from "src/front/visual_store.at"
 
-component fn SettingsMenu() {
+widget SettingsMenu() {
     computed {
         accentCurrent => .store.accent
         themeMode => .store.mode
@@ -144,161 +144,163 @@ component fn SettingsMenu() {
   }
     }
 
-    div {
-        style: "settings-menu-wrapper"
-        button {
-            onclick: .Toggle
-            class: if .isOpen { "settings-trigger open" } else { "settings-trigger" }
-            title: i18n.t("settings.title")
-            Settings { size: 16 }
-        }
-        if .isOpen {
-            div {
-                style: "settings-panel"
-                // ── Mode Section（GSD/Check，后端持久化）──
+    view {
+        div {
+            style: "settings-menu-wrapper"
+            button {
+                onclick: .Toggle
+                class: if .isOpen { "settings-trigger open" } else { "settings-trigger" }
+                title: i18n.t("settings.title")
+                Settings { size: 16 }
+            }
+            if .isOpen {
                 div {
-                    style: "settings-section"
+                    style: "settings-panel"
+                    // ── Mode Section（GSD/Check，后端持久化）──
                     div {
-                        style: "settings-section-title"
-                        text i18n.t("settings.mode")
-                    }
-                    div {
-                        style: "mode-toggle"
-                        button {
-                            onclick: .SetForgeGSD
-                            class: if .forgeMode == "gsd" { "mode-btn active" } else { "mode-btn" }
-                            title: i18n.t("settings.modeGsdTitle")
-                            text "GSD"
+                        style: "settings-section"
+                        div {
+                            style: "settings-section-title"
+                            text i18n.t("settings.mode")
                         }
-                        button {
-                            onclick: .SetForgeCheck
-                            class: if .forgeMode == "check" { "mode-btn active" } else { "mode-btn" }
-                            title: i18n.t("settings.modeCheckTitle")
-                            text "Check"
-                        }
-                    }
-                }
-                // ── Accent Section ──
-                div {
-                    style: "settings-section"
-                    div {
-                        style: "settings-section-title"
-                        text i18n.t("settings.accent")
-                    }
-                    div {
-                        style: "accent-swatches"
-                        for opt in .accentOptions {
-                            // 注:shadcn Button 映射会丢弃动态 class/title
-                            // (codegen 缺口,登记 auto-lang 债务)——样式改走
-                            // .accent-swatches>button 容器选择器,选中态用
-                            // :has(svg)(Check 图标存在即选中)。
+                        div {
+                            style: "mode-toggle"
                             button {
-                                onclick: .SetAccent(.opt.name)
-                                key: .opt.name
-                                style: "background: " + .opt.brand1
-                                if .accentCurrent == .opt.name {
-                                    Check { size: 12, key: .opt.name }
+                                onclick: .SetForgeGSD
+                                class: if .forgeMode == "gsd" { "mode-btn active" } else { "mode-btn" }
+                                title: i18n.t("settings.modeGsdTitle")
+                                text "GSD"
+                            }
+                            button {
+                                onclick: .SetForgeCheck
+                                class: if .forgeMode == "check" { "mode-btn active" } else { "mode-btn" }
+                                title: i18n.t("settings.modeCheckTitle")
+                                text "Check"
+                            }
+                        }
+                    }
+                    // ── Accent Section ──
+                    div {
+                        style: "settings-section"
+                        div {
+                            style: "settings-section-title"
+                            text i18n.t("settings.accent")
+                        }
+                        div {
+                            style: "accent-swatches"
+                            for opt in .accentOptions {
+                                // 注:shadcn Button 映射会丢弃动态 class/title
+                                // (codegen 缺口,登记 auto-lang 债务)——样式改走
+                                // .accent-swatches>button 容器选择器,选中态用
+                                // :has(svg)(Check 图标存在即选中)。
+                                button {
+                                    onclick: .SetAccent(.opt.name)
+                                    key: .opt.name
+                                    style: "background: " + .opt.brand1
+                                    if .accentCurrent == .opt.name {
+                                        Check { size: 12, key: .opt.name }
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                // ── Theme Section ──
-                div {
-                    style: "settings-section"
+                    // ── Theme Section ──
                     div {
-                        style: "settings-section-title"
-                        text i18n.t("settings.theme")
-                    }
-                    div {
-                        style: "theme-options"
-                        button {
-                            onclick: .SetThemeLight
-                            class: if .themeMode == "light" { "theme-option active" } else { "theme-option" }
-                            Sun { size: 14 }
-                            span {
-                                style: "theme-option-label"
-                                text i18n.t("settings.themeLight")
-                            }
-                            if .themeMode == "light" {
-                                Check { size: 12, class: "check" }
-                            }
-                        }
-                        button {
-                            onclick: .SetThemeDark
-                            class: if .themeMode == "dark" { "theme-option active" } else { "theme-option" }
-                            Moon { size: 14 }
-                            span {
-                                style: "theme-option-label"
-                                text i18n.t("settings.themeDark")
-                            }
-                            if .themeMode == "dark" {
-                                Check { size: 12, class: "check" }
-                            }
-                        }
-                        button {
-                            onclick: .SetThemeAuto
-                            class: if .themeMode == "auto" { "theme-option active" } else { "theme-option" }
-                            Monitor { size: 14 }
-                            span {
-                                style: "theme-option-label"
-                                text i18n.t("settings.themeSystem")
-                            }
-                            if .themeMode == "auto" {
-                                Check { size: 12, class: "check" }
-                            }
-                        }
-                    }
-                }
-                // ── Language Section ──
-                div {
-                    style: "settings-section"
-                    div {
-                        style: "settings-section-title"
-                        text i18n.t("settings.language")
-                    }
-                    div {
-                        style: "language-options"
-                        button {
-                            onclick: .ChangeLocale("en")
-                            class: if .isLocaleEn { "language-option active" } else { "language-option" }
-                            span { style: "lang-code", text "EN" }
-                            span { style: "lang-name", text "English" }
-                            if .isLocaleEn {
-                                Check { size: 12, class: "check" }
-                            }
-                        }
-                        button {
-                            onclick: .ChangeLocale("zh")
-                            class: if .isLocaleZh { "language-option active" } else { "language-option" }
-                            span { style: "lang-code", text "中" }
-                            span { style: "lang-name", text "中文" }
-                            if .isLocaleZh {
-                                Check { size: 12, class: "check" }
-                            }
-                        }
-                    }
-                }
-                // ── AutoOS Settings deep-link ──
-                div {
-                    style: "settings-section"
-                    div {
-                        style: "settings-section-title"
-                        text "AutoOS"
-                    }
-                    button {
-                        onclick: .OpenAutoOs
-                        style: "deep-link-btn"
-                        ExternalLink { size: 14 }
-                        span {
-                            style: "deep-link-label"
-                            text i18n.t("settings.openSystemSettings")
-                        }
-                    }
-                    if .autoOsError != "" {
+                        style: "settings-section"
                         div {
-                            style: "deep-link-error"
-                            text .autoOsError
+                            style: "settings-section-title"
+                            text i18n.t("settings.theme")
+                        }
+                        div {
+                            style: "theme-options"
+                            button {
+                                onclick: .SetThemeLight
+                                class: if .themeMode == "light" { "theme-option active" } else { "theme-option" }
+                                Sun { size: 14 }
+                                span {
+                                    style: "theme-option-label"
+                                    text i18n.t("settings.themeLight")
+                                }
+                                if .themeMode == "light" {
+                                    Check { size: 12, class: "check" }
+                                }
+                            }
+                            button {
+                                onclick: .SetThemeDark
+                                class: if .themeMode == "dark" { "theme-option active" } else { "theme-option" }
+                                Moon { size: 14 }
+                                span {
+                                    style: "theme-option-label"
+                                    text i18n.t("settings.themeDark")
+                                }
+                                if .themeMode == "dark" {
+                                    Check { size: 12, class: "check" }
+                                }
+                            }
+                            button {
+                                onclick: .SetThemeAuto
+                                class: if .themeMode == "auto" { "theme-option active" } else { "theme-option" }
+                                Monitor { size: 14 }
+                                span {
+                                    style: "theme-option-label"
+                                    text i18n.t("settings.themeSystem")
+                                }
+                                if .themeMode == "auto" {
+                                    Check { size: 12, class: "check" }
+                                }
+                            }
+                        }
+                    }
+                    // ── Language Section ──
+                    div {
+                        style: "settings-section"
+                        div {
+                            style: "settings-section-title"
+                            text i18n.t("settings.language")
+                        }
+                        div {
+                            style: "language-options"
+                            button {
+                                onclick: .ChangeLocale("en")
+                                class: if .isLocaleEn { "language-option active" } else { "language-option" }
+                                span { style: "lang-code", text "EN" }
+                                span { style: "lang-name", text "English" }
+                                if .isLocaleEn {
+                                    Check { size: 12, class: "check" }
+                                }
+                            }
+                            button {
+                                onclick: .ChangeLocale("zh")
+                                class: if .isLocaleZh { "language-option active" } else { "language-option" }
+                                span { style: "lang-code", text "中" }
+                                span { style: "lang-name", text "中文" }
+                                if .isLocaleZh {
+                                    Check { size: 12, class: "check" }
+                                }
+                            }
+                        }
+                    }
+                    // ── AutoOS Settings deep-link ──
+                    div {
+                        style: "settings-section"
+                        div {
+                            style: "settings-section-title"
+                            text "AutoOS"
+                        }
+                        button {
+                            onclick: .OpenAutoOs
+                            style: "deep-link-btn"
+                            ExternalLink { size: 14 }
+                            span {
+                                style: "deep-link-label"
+                                text i18n.t("settings.openSystemSettings")
+                            }
+                        }
+                        if .autoOsError != "" {
+                            div {
+                                style: "deep-link-error"
+                                text .autoOsError
+                            }
                         }
                     }
                 }

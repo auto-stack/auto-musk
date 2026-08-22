@@ -18,7 +18,7 @@
 use.web component Folder, FolderOpen, ChevronUp, ChevronDown, X from "lucide-vue-next"
 use.web ws_load_recent, ws_load_current, ws_find, ws_browse, ws_open from "src/front/workspace_helpers.at"
 
-component fn WorkspaceSelector() {
+widget WorkspaceSelector() {
     computed {
         currentName => if .current != None { .current.name } else { "选择工作目录" }
         currentTitle => if .current != None { .current.path } else { "选择工作目录" }
@@ -150,89 +150,91 @@ component fn WorkspaceSelector() {
   }
     }
 
-    div {
-        style: "workspace-selector"
-        button {
-            onclick: .Toggle
-            style: "ws-btn"
-            title: .currentTitle
-            Folder { size: 14 }
-            span {
-                style: "ws-name"
-                text .currentName
+    view {
+        div {
+            style: "workspace-selector"
+            button {
+                onclick: .Toggle
+                style: "ws-btn"
+                title: .currentTitle
+                Folder { size: 14 }
+                span {
+                    style: "ws-name"
+                    text .currentName
+                }
+                if .open {
+                    ChevronUp { size: 12 }
+                } else {
+                    ChevronDown { size: 12 }
+                }
             }
             if .open {
-                ChevronUp { size: 12 }
-            } else {
-                ChevronDown { size: 12 }
-            }
-        }
-        if .open {
-            div {
-                style: "ws-panel"
                 div {
-                    style: "ws-panel-header"
-                    span "切换 Workspace"
-                    button {
-                        onclick: .Close
-                        style: "ws-close"
-                        X { size: 12 }
-                    }
-                }
-                div {
-                    style: "ws-section-label"
-                    text "最近打开"
-                }
-                for w in .recent {
-                    button {
-                        onclick: .Choose(w.id)
-                        class: if .hasCurrent && .current.id == w.id { "ws-item active" } else { "ws-item" }
-                        Folder { size: 13 }
-                        span {
-                            style: "ws-item-name"
-                            text .w.name
-                        }
-                        span {
-                            style: "ws-item-path"
-                            text .w.path
+                    style: "ws-panel"
+                    div {
+                        style: "ws-panel-header"
+                        span "切换 Workspace"
+                        button {
+                            onclick: .Close
+                            style: "ws-close"
+                            X { size: 12 }
                         }
                     }
-                }
-                if .showEmpty {
                     div {
-                        style: "ws-empty"
-                        text "暂无工作区"
+                        style: "ws-section-label"
+                        text "最近打开"
                     }
-                }
-                // 打开其他文件夹（browse 选目录）
-                div { style: "ws-divider" }
-                div {
-                    style: "ws-section-label"
-                    text "打开其他文件夹"
-                }
-                input {
-                    value: .custom_path
-                    oninput: .OnBrowseInput
-                    placeholder: "D:\\path\\to\\project"
-                    style: "ws-input"
-                }
-                if .suggestions.length > 0 {
-                    div {
-                        style: "ws-suggest"
-                        for s in .suggestions {
-                            button {
-                                onclick: .SelectSuggestion(.s.path)
-                                style: "ws-suggest-item"
-                                text .s.name
+                    for w in .recent {
+                        button {
+                            onclick: .Choose(w.id)
+                            class: if .hasCurrent && .current.id == w.id { "ws-item active" } else { "ws-item" }
+                            Folder { size: 13 }
+                            span {
+                                style: "ws-item-name"
+                                text .w.name
+                            }
+                            span {
+                                style: "ws-item-path"
+                                text .w.path
                             }
                         }
                     }
-                }
-                button {
-                    onclick: .OpenCustom
-                    style: "ws-open-btn"
-                    FolderOpen { size: 13 }
-                    text "打开"
+                    if .showEmpty {
+                        div {
+                            style: "ws-empty"
+                            text "暂无工作区"
+                        }
+                    }
+                    // 打开其他文件夹（browse 选目录）
+                    div { style: "ws-divider" }
+                    div {
+                        style: "ws-section-label"
+                        text "打开其他文件夹"
+                    }
+                    input {
+                        value: .custom_path
+                        oninput: .OnBrowseInput
+                        placeholder: "D:\\path\\to\\project"
+                        style: "ws-input"
+                    }
+                    if .suggestions.length > 0 {
+                        div {
+                            style: "ws-suggest"
+                            for s in .suggestions {
+                                button {
+                                    onclick: .SelectSuggestion(.s.path)
+                                    style: "ws-suggest-item"
+                                    text .s.name
+                                }
+                            }
+                        }
+                    }
+                    button {
+                        onclick: .OpenCustom
+                        style: "ws-open-btn"
+                        FolderOpen { size: 13 }
+                        text "打开"
+                    }
                 }
             }
         }

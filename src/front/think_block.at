@@ -7,7 +7,7 @@
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web thinkLabel from "src/front/forge_helpers.at"
 
-component fn ThinkBlock(text: str, tokens: int, streaming: bool) {
+widget ThinkBlock(text: str, tokens: int, streaming: bool) {
     computed {
         // 折叠/展开指示,与 GenericToolCard 的 ▼/▲ 同款
         chevron => if .expanded { "▲" } else { "▼" }
@@ -48,23 +48,25 @@ component fn ThinkBlock(text: str, tokens: int, streaming: bool) {
 }
     }
 
-    col {
-        class: if .expanded { "think-block expanded" } else { "think-block" }
-        row {
-            onclick: .Toggle
-            style: "think-header"
-            text "💭"
-            text thinkLabel(.tokens, .streaming)
-            span {
-                style: "tool-chevron"
-                text .chevron
+    view {
+        col {
+            class: if .expanded { "think-block expanded" } else { "think-block" }
+            row {
+                onclick: .Toggle
+                style: "think-header"
+                text "💭"
+                text thinkLabel(.tokens, .streaming)
+                span {
+                    style: "tool-chevron"
+                    text .chevron
+                }
             }
-        }
-        if .expanded {
-            pre {
-                style: "think-content"
-                text .text
+            if .expanded {
+                pre {
+                    style: "think-content"
+                    text .text
+                }
             }
         }
     }
-}
+    }

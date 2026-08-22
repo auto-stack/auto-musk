@@ -13,7 +13,7 @@
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web getTaskPlan, taskPlanStatusLabel from "src/front/forge_helpers.at"
 
-component fn TaskPlanCard(tc: obj, taskPlans: obj) {
+widget TaskPlanCard(tc: obj, taskPlans: obj) {
     computed {
         plan => getTaskPlan(.taskPlans, .tc)
         hasPlan => .plan != None
@@ -56,59 +56,61 @@ component fn TaskPlanCard(tc: obj, taskPlans: obj) {
 .task-plan-card { border: 1px solid hsl(var(--border)); border-radius: 8px; margin: 0; overflow: hidden; background: hsl(280 60% 96% / 0.4); width: 100%; }
     }
 
-    col {
-        class: if .status == "completed" { "task-plan-card completed" } else { if .status == "failed" { "task-plan-card failed" } else { "task-plan-card running" } }
-        row {
-            onclick: .Toggle
-            style: "tp-header"
-            text "📋" { style: "tp-icon" }
-            text "Task Plan" { style: "tp-title" }
-            text .statusLabel { class: if .status == "completed" { "tp-status completed" } else { if .status == "failed" { "tp-status failed" } else { "tp-status running" } } }
-            if .hasPhases {
-                text .phasesLabel { style: "tp-progress" }
-            }
-            text .chevron { style: "tool-chevron" }
-        }
-        if .expanded {
-            col {
-                style: "tp-body"
-                if .hasTaskPlanId {
-                    row {
-                        style: "tp-field"
-                        text "Plan:" { style: "tp-field-label" }
-                        text .taskPlanId { style: "tp-field-value" }
-                    }
-                }
-                if .hasInstanceId {
-                    row {
-                        style: "tp-field"
-                        text "Instance:" { style: "tp-field-label" }
-                        text .instanceId { style: "tp-field-value" }
-                    }
-                }
+    view {
+        col {
+            class: if .status == "completed" { "task-plan-card completed" } else { if .status == "failed" { "task-plan-card failed" } else { "task-plan-card running" } }
+            row {
+                onclick: .Toggle
+                style: "tp-header"
+                text "📋" { style: "tp-icon" }
+                text "Task Plan" { style: "tp-title" }
+                text .statusLabel { class: if .status == "completed" { "tp-status completed" } else { if .status == "failed" { "tp-status failed" } else { "tp-status running" } } }
                 if .hasPhases {
-                    col {
-                        style: "tp-phases"
-                        for ph in .phasesList {
-                            row {
-                                class: if .ph.status == "completed" { "tp-phase completed" } else { if .ph.status == "failed" { "tp-phase failed" } else { "tp-phase running" } }
-                                if .ph.status == "completed" {
-                                    text "✓" { style: "tp-phase-icon" }
-                                } else if .ph.status == "running" {
-                                    text "▶" { style: "tp-phase-icon" }
-                                } else if .ph.status == "failed" {
-                                    text "✗" { style: "tp-phase-icon" }
-                                } else {
-                                    text "○" { style: "tp-phase-icon" }
+                    text .phasesLabel { style: "tp-progress" }
+                }
+                text .chevron { style: "tool-chevron" }
+            }
+            if .expanded {
+                col {
+                    style: "tp-body"
+                    if .hasTaskPlanId {
+                        row {
+                            style: "tp-field"
+                            text "Plan:" { style: "tp-field-label" }
+                            text .taskPlanId { style: "tp-field-value" }
+                        }
+                    }
+                    if .hasInstanceId {
+                        row {
+                            style: "tp-field"
+                            text "Instance:" { style: "tp-field-label" }
+                            text .instanceId { style: "tp-field-value" }
+                        }
+                    }
+                    if .hasPhases {
+                        col {
+                            style: "tp-phases"
+                            for ph in .phasesList {
+                                row {
+                                    class: if .ph.status == "completed" { "tp-phase completed" } else { if .ph.status == "failed" { "tp-phase failed" } else { "tp-phase running" } }
+                                    if .ph.status == "completed" {
+                                        text "✓" { style: "tp-phase-icon" }
+                                    } else if .ph.status == "running" {
+                                        text "▶" { style: "tp-phase-icon" }
+                                    } else if .ph.status == "failed" {
+                                        text "✗" { style: "tp-phase-icon" }
+                                    } else {
+                                        text "○" { style: "tp-phase-icon" }
+                                    }
+                                    text .ph.phase { style: "tp-phase-name" }
+                                    text .ph.status { style: "tp-phase-status" }
                                 }
-                                text .ph.phase { style: "tp-phase-name" }
-                                text .ph.status { style: "tp-phase-status" }
                             }
                         }
                     }
-                }
-                if !.hasPlan {
-                    text "等待 task plan 数据…" { style: "tp-empty" }
+                    if !.hasPlan {
+                        text "等待 task plan 数据…" { style: "tp-empty" }
+                    }
                 }
             }
         }

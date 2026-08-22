@@ -20,7 +20,7 @@ use.web wiki_filter_tree from "src/front/wiki_helpers.at"
 use.web wikiUploadDrop, rawUploadProgress from "src/front/raw_upload.ts"
 use.web composable useI18n refs: [locale] from "vue-i18n"
 
-component fn WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: str, workspace: str) {
+widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: str, workspace: str) {
     use {
         component: NavSidebar
     }
@@ -110,147 +110,149 @@ component fn WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRaw
   .progress-fill { height: 100%; background: hsl(var(--primary)); transition: width 0.2s; }
     }
 
-    NavSidebar {
-        title: i18n.t("wiki.title")
-        collapsed: .collapsed
-        slot(name: "actions") {
-            div {
-                style: "wiki-nav-actions"
-                button {
-                    onclick: .newpage
-                    style: "nav-icon-btn"
-                    title: i18n.t("wiki.newPage")
-                    Plus { size: 14 }
-                }
-                button {
-                    onclick: .ToggleCollapsed
-                    style: "nav-icon-btn"
-                    title: i18n.t("wiki.toggleSidebar")
-                    PanelLeft { size: 14 }
-                }
-            }
-        }
-        slot(name: "list") {
-            // 搜索框
-            div {
-                style: "wiki-search"
-                Search { size: 13 }
-                input {
-                    value: .query
-                    oninput: .QueryChanged
-                    type: "text"
-                    style: "wiki-search-input"
-                    placeholder: i18n.t("wiki.searchPlaceholder")
-                }
-            }
-            // tree list
-            if !.collapsed {
+    view {
+        NavSidebar {
+            title: i18n.t("wiki.title")
+            collapsed: .collapsed
+            slot(name: "actions") {
                 div {
-                    style: "wiki-nav-list"
-                // ── Raw section ──
-                div {
-                    style: "tree-section"
-                    div {
-                        onclick: .ToggleRaw
-                        style: "tree-section-header"
-                        if .rawExpanded {
-                            ChevronDown { size: 12 }
-                        } else {
-                            ChevronRight { size: 12 }
-                        }
-                        FolderInput { size: 13 }
-                        span {
-                            style: "tree-section-title"
-                            text i18n.t("wiki.raw")
-                        }
-                        button {
-                            onclick.stop: .newfolder
-                            style: "nav-icon-btn"
-                            title: i18n.t("wiki.newFolder")
-                            FolderPlus { size: 13 }
-                        }
+                    style: "wiki-nav-actions"
+                    button {
+                        onclick: .newpage
+                        style: "nav-icon-btn"
+                        title: i18n.t("wiki.newPage")
+                        Plus { size: 14 }
                     }
-                    if .rawExpanded {
+                    button {
+                        onclick: .ToggleCollapsed
+                        style: "nav-icon-btn"
+                        title: i18n.t("wiki.toggleSidebar")
+                        PanelLeft { size: 14 }
+                    }
+                }
+            }
+            slot(name: "list") {
+                // 搜索框
+                div {
+                    style: "wiki-search"
+                    Search { size: 13 }
+                    input {
+                        value: .query
+                        oninput: .QueryChanged
+                        type: "text"
+                        style: "wiki-search-input"
+                        placeholder: i18n.t("wiki.searchPlaceholder")
+                    }
+                }
+                // tree list
+                if !.collapsed {
+                    div {
+                        style: "wiki-nav-list"
+                    // ── Raw section ──
+                    div {
+                        style: "tree-section"
                         div {
-                            style: "tree-section-body"
-                            // DropZone
+                            onclick: .ToggleRaw
+                            style: "tree-section-header"
+                            if .rawExpanded {
+                                ChevronDown { size: 12 }
+                            } else {
+                                ChevronRight { size: 12 }
+                            }
+                            FolderInput { size: 13 }
+                            span {
+                                style: "tree-section-title"
+                                text i18n.t("wiki.raw")
+                            }
+                            button {
+                                onclick.stop: .newfolder
+                                style: "nav-icon-btn"
+                                title: i18n.t("wiki.newFolder")
+                                FolderPlus { size: 13 }
+                            }
+                        }
+                        if .rawExpanded {
                             div {
-                                class: if .isDragging { "drop-zone active" } else { "drop-zone" }
-                                ondragenter.prevent: .DragEnter
-                                ondragover.prevent: .DragOver
-                                ondragleave.prevent: .DragLeave
-                                ondrop.prevent: .uploaded($event)
-                                UploadCloud { size: 14 }
-                                span { style: "drop-text", text .dropText }
-                                if .isUploading {
-                                    div {
-                                        style: "progress-bar"
+                                style: "tree-section-body"
+                                // DropZone
+                                div {
+                                    class: if .isDragging { "drop-zone active" } else { "drop-zone" }
+                                    ondragenter.prevent: .DragEnter
+                                    ondragover.prevent: .DragOver
+                                    ondragleave.prevent: .DragLeave
+                                    ondrop.prevent: .uploaded($event)
+                                    UploadCloud { size: 14 }
+                                    span { style: "drop-text", text .dropText }
+                                    if .isUploading {
                                         div {
-                                            class: "progress-fill"
-                                            style: "width: " + .uploadProgress + "%"
+                                            style: "progress-bar"
+                                            div {
+                                                class: "progress-fill"
+                                                style: "width: " + .uploadProgress + "%"
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            for node in .filteredRawTree {
-                                button {
-                                    onclick: .selectraw(.node.path)
-                                    key: .node.path
-                                    class: if .activeRawPath == .node.path { "tree-item active" } else { "tree-item" }
-                                    File { size: 12 }
-                                    span { style: "tree-item-name", text .node.name }
+                                for node in .filteredRawTree {
                                     button {
-                                        onclick.stop: .deleteraw(.node.path)
-                                        style: "tree-item-del"
-                                        title: i18n.t("common.delete")
-                                        Trash2 { size: 12 }
+                                        onclick: .selectraw(.node.path)
+                                        key: .node.path
+                                        class: if .activeRawPath == .node.path { "tree-item active" } else { "tree-item" }
+                                        File { size: 12 }
+                                        span { style: "tree-item-name", text .node.name }
+                                        button {
+                                            onclick.stop: .deleteraw(.node.path)
+                                            style: "tree-item-del"
+                                            title: i18n.t("common.delete")
+                                            Trash2 { size: 12 }
+                                        }
+                                    }
+                                }
+                                if .rawEmpty {
+                                    div {
+                                        style: "tree-empty"
+                                        FileText { size: 14 }
+                                        span { text i18n.t("wiki.noPages") }
                                     }
                                 }
                             }
-                            if .rawEmpty {
-                                div {
-                                    style: "tree-empty"
-                                    FileText { size: 14 }
-                                    span { text i18n.t("wiki.noPages") }
-                                }
-                            }
                         }
                     }
-                }
-                // ── Wiki section ──
-                div {
-                    style: "tree-section"
+                    // ── Wiki section ──
                     div {
-                        onclick: .ToggleWiki
-                        style: "tree-section-header"
-                        if .wikiExpanded {
-                            ChevronDown { size: 12 }
-                        } else {
-                            ChevronRight { size: 12 }
-                        }
-                        BookOpen { size: 13 }
-                        span {
-                            style: "tree-section-title"
-                            text i18n.t("wiki.title")
-                        }
-                    }
-                    if .wikiExpanded {
+                        style: "tree-section"
                         div {
-                            style: "tree-section-body"
-                            for node in .filteredWikiTree {
-                                button {
-                                    onclick: .selectwiki(.node.path)
-                                    key: .node.path
-                                    class: if .activeWikiPath == .node.path { "tree-item active" } else { "tree-item" }
-                                    FileText { size: 12 }
-                                    span { style: "tree-item-name", text .node.name }
-                                }
+                            onclick: .ToggleWiki
+                            style: "tree-section-header"
+                            if .wikiExpanded {
+                                ChevronDown { size: 12 }
+                            } else {
+                                ChevronRight { size: 12 }
                             }
-                            if .wikiEmpty {
-                                div {
-                                    style: "tree-empty"
-                                    FileText { size: 14 }
-                                    span { text i18n.t("wiki.noPages") }
+                            BookOpen { size: 13 }
+                            span {
+                                style: "tree-section-title"
+                                text i18n.t("wiki.title")
+                            }
+                        }
+                        if .wikiExpanded {
+                            div {
+                                style: "tree-section-body"
+                                for node in .filteredWikiTree {
+                                    button {
+                                        onclick: .selectwiki(.node.path)
+                                        key: .node.path
+                                        class: if .activeWikiPath == .node.path { "tree-item active" } else { "tree-item" }
+                                        FileText { size: 12 }
+                                        span { style: "tree-item-name", text .node.name }
+                                    }
+                                }
+                                if .wikiEmpty {
+                                    div {
+                                        style: "tree-empty"
+                                        FileText { size: 14 }
+                                        span { text i18n.t("wiki.noPages") }
+                                    }
                                 }
                             }
                         }

@@ -20,7 +20,7 @@ use.web component ChevronDown, ChevronUp, Orbit, Wrench, FileText, Terminal from
 use.web component Markdown from "platform:markdown"
 use.web relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget, relayPreviewLines, relayStepViews, relayBadgePos, relayReportView, relayTextPlanFile, relayTextBody, relayIsDoc, relayDocTitle, relayPhaseKind, relayPhaseAction, relayPhaseIcon, relayPhaseClass, relayPhaseText, relayPhaseDetail, relayToolIsDocKind, relayToolDisplayName, relayLangOf, relayFenced, relayTVKind, relayTVCmdOf, relayTVCmdLine, relayTVForceOf, relayTVPathOf, relayTVOldOf, relayTVNewOf, relayTVContentOf, relayWriteFence, relayFileFence, relayToolView3, relayCmdResultClass, relayCmdResultText from "src/front/relay_run_helpers.at"
 
-component fn RelayRunBox(runId: str) {
+widget RelayRunBox(runId: str) {
     use {
         component: ReportCard
     }
@@ -393,299 +393,262 @@ component fn RelayRunBox(runId: str) {
 .gate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     }
 
-    div {
-        class: if .statusClass == "completed" { "relay-box status-completed" } else { if .statusClass == "failed" { "relay-box status-failed" } else { if .statusClass == "gate" { "relay-box status-gate" } else { if .statusClass == "missing" { "relay-box status-missing" } else { "relay-box status-running" } } } }
-        // header（click toggle）——折叠 UI 与其它 Block 统一：右侧上下箭头
-        //（ChevronDown=收起 / ChevronUp=展开），Orbit 身份图标留左（主题色）
-        row {
-            onclick: .Toggle
-            style: "box-header"
-            Orbit {
-                size: 14,
-                class: if .isLiveRunning { "run-icon spinning" } else { "run-icon" }
+    view {
+        div {
+            class: if .statusClass == "completed" { "relay-box status-completed" } else { if .statusClass == "failed" { "relay-box status-failed" } else { if .statusClass == "gate" { "relay-box status-gate" } else { if .statusClass == "missing" { "relay-box status-missing" } else { "relay-box status-running" } } } }
+            // header（click toggle）——折叠 UI 与其它 Block 统一：右侧上下箭头
+            //（ChevronDown=收起 / ChevronUp=展开），Orbit 身份图标留左（主题色）
+            row {
+                onclick: .Toggle
+                style: "box-header"
+                Orbit {
+                    size: 14,
+                    class: if .isLiveRunning { "run-icon spinning" } else { "run-icon" }
+                }
+                span {
+                    style: "box-title"
+                    text .titleText
+                }
+                if .hasRun {
+                    // 进度区：徽标(1-based) + 迷你分段条；hover 弹出步骤清单
+                    //（4 步各是什么、当前在哪——方案 b+a 混合，不占独立行）
+                    div {
+                        style: "progress-wrap"
+                        span {
+                            style: "box-progress"
+                            text .badgePos
+                            text "/"
+                            text .progressTotal
+                        }
+                        div {
+                            style: "progress-segs"
+                            for sv in .stepViews {
+                                span { class: .sv.seg_class }
+                            }
+                        }
+                        div {
+                            style: "progress-pop"
+                            for sv in .stepViews {
+                                div {
+                                    style: "pop-row"
+                                    span { class: .sv.mark_class, text .sv.mark }
+                                    span { style: "pop-label", text .sv.label }
+                                }
+                            }
+                        }
+                    }
+                }
+                span {
+                    class: if .statusClass == "completed" { "badge-completed" } else { if .statusClass == "failed" { "badge-failed" } else { if .statusClass == "gate" { "badge-gate" } else { if .statusClass == "missing" { "badge-missing" } else { "badge-running" } } } }
+                    text .statusLabel
+                }
+                if .expanded {
+                    ChevronUp { size: 14, style: "head-chevron" }
+                } else {
+                    ChevronDown { size: 14, style: "head-chevron" }
+                }
             }
-            span {
-                style: "box-title"
-                text .titleText
-            }
-            if .hasRun {
-                // 进度区：徽标(1-based) + 迷你分段条；hover 弹出步骤清单
-                //（4 步各是什么、当前在哪——方案 b+a 混合，不占独立行）
+            // 收起态：停靠 gate → 审批条；否则 → 最新动态预览（最多 3 行；
+            // 流式文本时为其尾部 3 行）。高度与审批条近似，随 SSE 自动更新。
+            if .expanded == false && .hasWaitingGate {
                 div {
-                    style: "progress-wrap"
+                    style: "gate-strip"
                     span {
-                        style: "box-progress"
-                        text .badgePos
-                        text "/"
-                        text .progressTotal
+                        style: "gate-strip-prompt"
+                        text "⏸ 等待审批：" + .gateStepId
+                    }
+                    button {
+                        style: "gate-btn approve"
+                        onclick: .Approve
+                        text "批准"
+                    }
+                    button {
+                        style: "gate-btn reject"
+                        onclick: .Reject
+                        text "拒绝"
+                    }
+                }
+            }
+            if .expanded == false && .hasWaitingGate == false && .isMissing == false {
+                div {
+                    style: "live-preview"
+                    span {
+                        class: .dotClass
                     }
                     div {
-                        style: "progress-segs"
-                        for sv in .stepViews {
-                            span { class: .sv.seg_class }
-                        }
-                    }
-                    div {
-                        style: "progress-pop"
-                        for sv in .stepViews {
+                        style: "live-preview-lines"
+                        for row in .previewLines {
                             div {
-                                style: "pop-row"
-                                span { class: .sv.mark_class, text .sv.mark }
-                                span { style: "pop-label", text .sv.label }
+                                style: "preview-line"
+                                span {
+                                    class: if row.mark_class != "" { "preview-mark " + row.mark_class } else { "preview-mark" }
+                                    text row.mark
+                                }
+                                if row.name != "" {
+                                    span {
+                                        style: "preview-tool-name"
+                                        text row.name
+                                    }
+                                }
+                                if row.target != "" {
+                                    span {
+                                        style: "preview-tool-target"
+                                        text row.target
+                                    }
+                                }
+                                if row.text != "" {
+                                    span {
+                                        class: row.text_class
+                                        text row.text
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
-            span {
-                class: if .statusClass == "completed" { "badge-completed" } else { if .statusClass == "failed" { "badge-failed" } else { if .statusClass == "gate" { "badge-gate" } else { if .statusClass == "missing" { "badge-missing" } else { "badge-running" } } } }
-                text .statusLabel
-            }
+            // body（展开时）
             if .expanded {
-                ChevronUp { size: 14, style: "head-chevron" }
-            } else {
-                ChevronDown { size: 14, style: "head-chevron" }
-            }
-        }
-        // 收起态：停靠 gate → 审批条；否则 → 最新动态预览（最多 3 行；
-        // 流式文本时为其尾部 3 行）。高度与审批条近似，随 SSE 自动更新。
-        if .expanded == false && .hasWaitingGate {
-            div {
-                style: "gate-strip"
-                span {
-                    style: "gate-strip-prompt"
-                    text "⏸ 等待审批：" + .gateStepId
-                }
-                button {
-                    style: "gate-btn approve"
-                    onclick: .Approve
-                    text "批准"
-                }
-                button {
-                    style: "gate-btn reject"
-                    onclick: .Reject
-                    text "拒绝"
-                }
-            }
-        }
-        if .expanded == false && .hasWaitingGate == false && .isMissing == false {
-            div {
-                style: "live-preview"
-                span {
-                    class: .dotClass
-                }
                 div {
-                    style: "live-preview-lines"
-                    for row in .previewLines {
+                    style: "box-body"
+                    // 试用修复：run 与历史均无（已删除/从未存在）才提示失效；
+                    // 有历史时 logEntries 已切到回放条目，正常渲染日志。
+                    if .run == None && .hasHistory == false {
                         div {
-                            style: "preview-line"
-                            span {
-                                class: if row.mark_class != "" { "preview-mark " + row.mark_class } else { "preview-mark" }
-                                text row.mark
-                            }
-                            if row.name != "" {
-                                span {
-                                    style: "preview-tool-name"
-                                    text row.name
-                                }
-                            }
-                            if row.target != "" {
-                                span {
-                                    style: "preview-tool-target"
-                                    text row.target
-                                }
-                            }
-                            if row.text != "" {
-                                span {
-                                    class: row.text_class
-                                    text row.text
-                                }
-                            }
+                            style: "missing-note"
+                            text "⚠️ Run 已失效（run 为内存态，服务重启后清空；活动日志见对应会话记录）。重新发送需求即可续跑——计划文件会幂等复用。"
                         }
                     }
-                }
-            }
-        }
-        // body（展开时）
-        if .expanded {
-            div {
-                style: "box-body"
-                // 试用修复：run 与历史均无（已删除/从未存在）才提示失效；
-                // 有历史时 logEntries 已切到回放条目，正常渲染日志。
-                if .run == None && .hasHistory == false {
                     div {
-                        style: "missing-note"
-                        text "⚠️ Run 已失效（run 为内存态，服务重启后清空；活动日志见对应会话记录）。重新发送需求即可续跑——计划文件会幂等复用。"
-                    }
-                }
-                div {
-                    style: "log-entries"
-                    for entry in .logEntries {
-                        div {
-                            class: relayEntryClass(.entry.type)
-                                                        if .entry.type == "text" {
-                                // 与 chat 一致：AutoDown/Markdown 渲染，全宽与工具块左对齐。
-                                // PLAN_FILE 行/长文本 → 折叠文档块（路径并入头部做标题 chip）。
-                                if relayIsDoc(.entry.content) {
-                                    div {
-                                        style: "doc-block"
-                                        row {
-                                            onclick: .ToggleDoc(.entry)
-                                            style: "doc-head"
-                                            span {
-                                                style: "blk-icon"
-                                                FileText { size: 12 }
-                                            }
-                                            if relayTextPlanFile(.entry.content) != "" {
+                        style: "log-entries"
+                        for entry in .logEntries {
+                            div {
+                                class: relayEntryClass(.entry.type)
+                                                            if .entry.type == "text" {
+                                    // 与 chat 一致：AutoDown/Markdown 渲染，全宽与工具块左对齐。
+                                    // PLAN_FILE 行/长文本 → 折叠文档块（路径并入头部做标题 chip）。
+                                    if relayIsDoc(.entry.content) {
+                                        div {
+                                            style: "doc-block"
+                                            row {
+                                                onclick: .ToggleDoc(.entry)
+                                                style: "doc-head"
                                                 span {
-                                                    style: "doc-file-chip"
-                                                    text relayTextPlanFile(.entry.content)
+                                                    style: "blk-icon"
+                                                    FileText { size: 12 }
                                                 }
-                                            } else {
-                                                span {
-                                                    style: "doc-title"
-                                                    text relayDocTitle(.entry.content)
+                                                if relayTextPlanFile(.entry.content) != "" {
+                                                    span {
+                                                        style: "doc-file-chip"
+                                                        text relayTextPlanFile(.entry.content)
+                                                    }
+                                                } else {
+                                                    span {
+                                                        style: "doc-title"
+                                                        text relayDocTitle(.entry.content)
+                                                    }
+                                                }
+                                                if .entry._docOpen == true {
+                                                    ChevronUp { size: 12, style: "tool-chevron" }
+                                                } else {
+                                                    ChevronDown { size: 12, style: "tool-chevron" }
                                                 }
                                             }
                                             if .entry._docOpen == true {
-                                                ChevronUp { size: 12, style: "tool-chevron" }
-                                            } else {
-                                                ChevronDown { size: 12, style: "tool-chevron" }
+                                                div {
+                                                    style: "doc-body"
+                                                    Markdown(source: relayTextBody(.entry.content), streaming: false)
+                                                }
                                             }
                                         }
-                                        if .entry._docOpen == true {
+                                    } else {
+                                        if relayTextBody(.entry.content) != "" {
                                             div {
-                                                style: "doc-body"
+                                                style: "entry-md"
                                                 Markdown(source: relayTextBody(.entry.content), streaming: false)
                                             }
                                         }
                                     }
-                                } else {
-                                    if relayTextBody(.entry.content) != "" {
-                                        div {
-                                            style: "entry-md"
-                                            Markdown(source: relayTextBody(.entry.content), streaming: false)
-                                        }
-                                    }
-                                }
-                            } else if .entry.type == "thinking" {
-                                // 思考条目：muted 斜体（此前无分支不渲染）
-                                div {
-                                    style: "entry-thinking"
-                                    text .entry.content
-                                }
-                            } else if .entry.type == "tool" || .entry.type == "tool_call" {
-                                // 工具块：默认收起、标题=图标+显示名+操作目标。
-                                // 展开按 kind 分形态（cmd 终端块/diff 左右对照/
-                                // write 写入内容/file 读取内容+范围 chips/
-                                // listing 文件浏览/doc 文档 Markdown/generic）。
-                                div {
-                                    style: "entry-tool-card"
+                                } else if .entry.type == "thinking" {
+                                    // 思考条目：muted 斜体（此前无分支不渲染）
                                     div {
-                                        style: "entry-tool-head"
-                                        onclick: .ToggleEntry(.entry)
-                                        span {
-                                            style: "blk-icon"
-                                            if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "cmd" {
-                                                Terminal { size: 12 }
-                                            } else {
-                                                if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "doc" {
-                                                    FileText { size: 12 }
+                                        style: "entry-thinking"
+                                        text .entry.content
+                                    }
+                                } else if .entry.type == "tool" || .entry.type == "tool_call" {
+                                    // 工具块：默认收起、标题=图标+显示名+操作目标。
+                                    // 展开按 kind 分形态（cmd 终端块/diff 左右对照/
+                                    // write 写入内容/file 读取内容+范围 chips/
+                                    // listing 文件浏览/doc 文档 Markdown/generic）。
+                                    div {
+                                        style: "entry-tool-card"
+                                        div {
+                                            style: "entry-tool-head"
+                                            onclick: .ToggleEntry(.entry)
+                                            span {
+                                                style: "blk-icon"
+                                                if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "cmd" {
+                                                    Terminal { size: 12 }
                                                 } else {
-                                                    if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "file" {
+                                                    if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "doc" {
                                                         FileText { size: 12 }
                                                     } else {
-                                                        if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "listing" {
+                                                        if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "file" {
                                                             FileText { size: 12 }
                                                         } else {
-                                                            Wrench { size: 12 }
+                                                            if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "listing" {
+                                                                FileText { size: 12 }
+                                                            } else {
+                                                                Wrench { size: 12 }
+                                                            }
                                                         }
                                                     }
                                                 }
                                             }
-                                        }
-                                        span {
-                                            style: "tool-name"
-                                            text relayToolDisplayName(.entry.tool_name)
-                                        }
-                                        span {
-                                            style: "tool-target"
-                                            text relayToolTarget(.entry)
-                                        }
-                                        if .entry.type == "tool_call" && .isTerminal {
                                             span {
-                                                style: "tool-interrupted"
-                                                text "已中断"
+                                                style: "tool-name"
+                                                text relayToolDisplayName(.entry.tool_name)
                                             }
+                                            span {
+                                                style: "tool-target"
+                                                text relayToolTarget(.entry)
+                                            }
+                                            if .entry.type == "tool_call" && .isTerminal {
+                                                span {
+                                                    style: "tool-interrupted"
+                                                    text "已中断"
+                                                }
+                                            }
+                                            ChevronDown { size: 12, style: "tool-chevron" }
                                         }
-                                        ChevronDown { size: 12, style: "tool-chevron" }
-                                    }
-                                    if .entry._expanded == true {
-                                        // ── cmd：终端块 + 参数 chips + 输出 ──
-                                        if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "cmd" {
-                                            div {
-                                                style: "entry-tool-body"
-                                                pre {
-                                                    style: "tv-cmd"
-                                                    text relayTVCmdLine(.entry.arguments)
-                                                }
-                                                if relayTVForceOf(.entry.arguments) {
-                                                    row {
-                                                        style: "tv-chiprow"
-                                                        span {
-                                                            style: "tv-chip"
-                                                            text "force"
-                                                        }
-                                                    }
-                                                }
-                                                if .entry.result != "" {
-                                                    pre {
-                                                        class: relayCmdResultClass(.entry.result)
-                                                        text relayCmdResultText(.entry.result)
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            // ── diff：路径 + 左右对照（类 git diff）──
-                                            if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "diff" {
+                                        if .entry._expanded == true {
+                                            // ── cmd：终端块 + 参数 chips + 输出 ──
+                                            if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "cmd" {
                                                 div {
                                                     style: "entry-tool-body"
-                                                    row {
-                                                        style: "tv-chiprow"
-                                                        span {
-                                                            style: "tv-chip tv-chip-path"
-                                                            text relayTVPathOf(.entry.arguments)
+                                                    pre {
+                                                        style: "tv-cmd"
+                                                        text relayTVCmdLine(.entry.arguments)
+                                                    }
+                                                    if relayTVForceOf(.entry.arguments) {
+                                                        row {
+                                                            style: "tv-chiprow"
+                                                            span {
+                                                                style: "tv-chip"
+                                                                text "force"
+                                                            }
                                                         }
                                                     }
-                                                    div {
-                                                        style: "tv-diff"
-                                                        div {
-                                                            style: "tv-diff-col tv-old"
-                                                            span {
-                                                                style: "tv-diff-label"
-                                                                text "旧"
-                                                            }
-                                                            pre {
-                                                                style: "tv-diff-pre"
-                                                                text relayTVOldOf(.entry.arguments)
-                                                            }
-                                                        }
-                                                        div {
-                                                            style: "tv-diff-col tv-new"
-                                                            span {
-                                                                style: "tv-diff-label"
-                                                                text "新"
-                                                            }
-                                                            pre {
-                                                                style: "tv-diff-pre"
-                                                                text relayTVNewOf(.entry.arguments)
-                                                            }
+                                                    if .entry.result != "" {
+                                                        pre {
+                                                            class: relayCmdResultClass(.entry.result)
+                                                            text relayCmdResultText(.entry.result)
                                                         }
                                                     }
                                                 }
                                             } else {
-                                                // ── write：路径 + 写入内容（代码块）──
-                                                if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "write" {
+                                                // ── diff：路径 + 左右对照（类 git diff）──
+                                                if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "diff" {
                                                     div {
                                                         style: "entry-tool-body"
                                                         row {
@@ -696,13 +659,34 @@ component fn RelayRunBox(runId: str) {
                                                             }
                                                         }
                                                         div {
-                                                            style: "tool-doc-body"
-                                                            Markdown(source: relayWriteFence(.entry.arguments), streaming: false)
+                                                            style: "tv-diff"
+                                                            div {
+                                                                style: "tv-diff-col tv-old"
+                                                                span {
+                                                                    style: "tv-diff-label"
+                                                                    text "旧"
+                                                                }
+                                                                pre {
+                                                                    style: "tv-diff-pre"
+                                                                    text relayTVOldOf(.entry.arguments)
+                                                                }
+                                                            }
+                                                            div {
+                                                                style: "tv-diff-col tv-new"
+                                                                span {
+                                                                    style: "tv-diff-label"
+                                                                    text "新"
+                                                                }
+                                                                pre {
+                                                                    style: "tv-diff-pre"
+                                                                    text relayTVNewOf(.entry.arguments)
+                                                                }
+                                                            }
                                                         }
                                                     }
                                                 } else {
-                                                    // ── file：范围 chips + 读取内容（代码块）──
-                                                    if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "file" {
+                                                    // ── write：路径 + 写入内容（代码块）──
+                                                    if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "write" {
                                                         div {
                                                             style: "entry-tool-body"
                                                             row {
@@ -711,84 +695,102 @@ component fn RelayRunBox(runId: str) {
                                                                     style: "tv-chip tv-chip-path"
                                                                     text relayTVPathOf(.entry.arguments)
                                                                 }
-                                                                for ch in .entry._tv.chips {
-                                                                    span {
-                                                                        style: "tv-chip"
-                                                                        text ch.label
-                                                                    }
-                                                                }
                                                             }
                                                             div {
                                                                 style: "tool-doc-body"
-                                                                Markdown(source: relayFileFence(.entry.arguments, .entry.result), streaming: false)
+                                                                Markdown(source: relayWriteFence(.entry.arguments), streaming: false)
                                                             }
                                                         }
                                                     } else {
-                                                        // ── listing：文件浏览清单 ──
-                                                        if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "listing" {
+                                                        // ── file：范围 chips + 读取内容（代码块）──
+                                                        if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "file" {
                                                             div {
                                                                 style: "entry-tool-body"
-                                                                if relayTVPathOf(.entry.arguments) != "" {
-                                                                    row {
-                                                                        style: "tv-chiprow"
+                                                                row {
+                                                                    style: "tv-chiprow"
+                                                                    span {
+                                                                        style: "tv-chip tv-chip-path"
+                                                                        text relayTVPathOf(.entry.arguments)
+                                                                    }
+                                                                    for ch in .entry._tv.chips {
                                                                         span {
-                                                                            style: "tv-chip tv-chip-path"
-                                                                            text relayTVPathOf(.entry.arguments)
+                                                                            style: "tv-chip"
+                                                                            text ch.label
                                                                         }
                                                                     }
                                                                 }
                                                                 div {
-                                                                    style: "tv-list"
-                                                                    for it in .entry._tv.items {
-                                                                        row {
-                                                                            style: "tv-item"
-                                                                            if it.is_dir {
-                                                                                span {
-                                                                                    style: "tv-item-icon"
-                                                                                    text "📁"
-                                                                                }
-                                                                            } else {
-                                                                                span {
-                                                                                    style: "tv-item-icon"
-                                                                                    text "📄"
-                                                                                }
-                                                                            }
-                                                                            span {
-                                                                                style: "tv-item-name"
-                                                                                text it.name
-                                                                            }
-                                                                            if it.size != "" {
-                                                                                span {
-                                                                                    style: "tv-item-size"
-                                                                                    text it.size
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                    }
+                                                                    style: "tool-doc-body"
+                                                                    Markdown(source: relayFileFence(.entry.arguments, .entry.result), streaming: false)
                                                                 }
                                                             }
                                                         } else {
-                                                            // ── doc：文档 Markdown（小一号）──
-                                                            if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "doc" {
-                                                                div {
-                                                                    style: "tool-doc-body"
-                                                                    Markdown(source: .entry.result, streaming: false)
-                                                                }
-                                                            } else {
-                                                                // ── generic：参数 JSON + 结果 ──
+                                                            // ── listing：文件浏览清单 ──
+                                                            if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "listing" {
                                                                 div {
                                                                     style: "entry-tool-body"
-                                                                    if .entry.arguments != None {
-                                                                        pre {
-                                                                            style: "tool-args"
-                                                                            text JSON.stringify(.entry.arguments, null, 2)
+                                                                    if relayTVPathOf(.entry.arguments) != "" {
+                                                                        row {
+                                                                            style: "tv-chiprow"
+                                                                            span {
+                                                                                style: "tv-chip tv-chip-path"
+                                                                                text relayTVPathOf(.entry.arguments)
+                                                                            }
                                                                         }
                                                                     }
-                                                                    if .entry.result != None {
-                                                                        if .entry.result != "" {
+                                                                    div {
+                                                                        style: "tv-list"
+                                                                        for it in .entry._tv.items {
+                                                                            row {
+                                                                                style: "tv-item"
+                                                                                if it.is_dir {
+                                                                                    span {
+                                                                                        style: "tv-item-icon"
+                                                                                        text "📁"
+                                                                                    }
+                                                                                } else {
+                                                                                    span {
+                                                                                        style: "tv-item-icon"
+                                                                                        text "📄"
+                                                                                    }
+                                                                                }
+                                                                                span {
+                                                                                    style: "tv-item-name"
+                                                                                    text it.name
+                                                                                }
+                                                                                if it.size != "" {
+                                                                                    span {
+                                                                                        style: "tv-item-size"
+                                                                                        text it.size
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            } else {
+                                                                // ── doc：文档 Markdown（小一号）──
+                                                                if relayTVKind(.entry.tool_name, .entry.arguments, .entry.result) == "doc" {
+                                                                    div {
+                                                                        style: "tool-doc-body"
+                                                                        Markdown(source: .entry.result, streaming: false)
+                                                                    }
+                                                                } else {
+                                                                    // ── generic：参数 JSON + 结果 ──
+                                                                    div {
+                                                                        style: "entry-tool-body"
+                                                                        if .entry.arguments != None {
                                                                             pre {
-                                                                                style: "tool-result"
-                                                                                text .entry.result
+                                                                                style: "tool-args"
+                                                                                text JSON.stringify(.entry.arguments, null, 2)
+                                                                            }
+                                                                        }
+                                                                        if .entry.result != None {
+                                                                            if .entry.result != "" {
+                                                                                pre {
+                                                                                    style: "tool-result"
+                                                                                    text .entry.result
+                                                                                }
                                                                             }
                                                                         }
                                                                     }
@@ -800,43 +802,43 @@ component fn RelayRunBox(runId: str) {
                                             }
                                         }
                                     }
-                                }
-} else if .entry.type == "step_started" || .entry.type == "step_completed" || .entry.type == "gate_waiting" || .entry.type == "run_completed" || .entry.type == "run_failed" || .entry.type == "error" {
-                                // 阶段块（统一虚线边框）：标题栏 = 阶段 Log 行
-                                //（[icon][类型·着色][阶段名][动作][短尾线]）；
-                                // 有详情 → 最右箭头 + 展开子窗（Markdown 小字号），
-                                // 无详情 → 无箭头不可展开。
-                                div {
-                                    style: "ph-block"
-                                    row {
-                                        class: relayPhaseClass(.entry.type)
-                                        style: "ph-block-head"
-                                        onclick: .ToggleEntry(.entry)
-                                        span { style: "ph-icon", text relayPhaseIcon(.entry.type) }
-                                        span { style: "ph-kind", text relayPhaseKind(.entry.type) }
-                                        if relayPhaseText(.entry.type, .entry.content) != "" {
-                                            span { style: "ph-name", text relayPhaseText(.entry.type, .entry.content) }
-                                        }
-                                        span { style: "ph-action", text relayPhaseAction(.entry.type) }
-                                        if .entry.type == "run_failed" || .entry.type == "error" {
+    } else if .entry.type == "step_started" || .entry.type == "step_completed" || .entry.type == "gate_waiting" || .entry.type == "run_completed" || .entry.type == "run_failed" || .entry.type == "error" {
+                                    // 阶段块（统一虚线边框）：标题栏 = 阶段 Log 行
+                                    //（[icon][类型·着色][阶段名][动作][短尾线]）；
+                                    // 有详情 → 最右箭头 + 展开子窗（Markdown 小字号），
+                                    // 无详情 → 无箭头不可展开。
+                                    div {
+                                        style: "ph-block"
+                                        row {
+                                            class: relayPhaseClass(.entry.type)
+                                            style: "ph-block-head"
+                                            onclick: .ToggleEntry(.entry)
+                                            span { style: "ph-icon", text relayPhaseIcon(.entry.type) }
+                                            span { style: "ph-kind", text relayPhaseKind(.entry.type) }
                                             if relayPhaseText(.entry.type, .entry.content) != "" {
-                                                span { style: "ph-err-text", text relayPhaseText(.entry.type, .entry.content) }
+                                                span { style: "ph-name", text relayPhaseText(.entry.type, .entry.content) }
+                                            }
+                                            span { style: "ph-action", text relayPhaseAction(.entry.type) }
+                                            if .entry.type == "run_failed" || .entry.type == "error" {
+                                                if relayPhaseText(.entry.type, .entry.content) != "" {
+                                                    span { style: "ph-err-text", text relayPhaseText(.entry.type, .entry.content) }
+                                                }
+                                            }
+                                            span { style: "ph-tail" }
+                                            if relayPhaseDetail(.entry.type, .entry.content) != "" {
+                                                if .entry._expanded == true {
+                                                    ChevronUp { size: 12, style: "tool-chevron" }
+                                                } else {
+                                                    ChevronDown { size: 12, style: "tool-chevron" }
+                                                }
                                             }
                                         }
-                                        span { style: "ph-tail" }
-                                        if relayPhaseDetail(.entry.type, .entry.content) != "" {
-                                            if .entry._expanded == true {
-                                                ChevronUp { size: 12, style: "tool-chevron" }
-                                            } else {
-                                                ChevronDown { size: 12, style: "tool-chevron" }
-                                            }
-                                        }
-                                    }
-                                    if .entry._expanded == true {
-                                        if relayPhaseDetail(.entry.type, .entry.content) != "" {
-                                            div {
-                                                style: "ph-detail"
-                                                Markdown(source: relayPhaseDetail(.entry.type, .entry.content), streaming: false)
+                                        if .entry._expanded == true {
+                                            if relayPhaseDetail(.entry.type, .entry.content) != "" {
+                                                div {
+                                                    style: "ph-detail"
+                                                    Markdown(source: relayPhaseDetail(.entry.type, .entry.content), streaming: false)
+                                                }
                                             }
                                         }
                                     }
@@ -844,35 +846,35 @@ component fn RelayRunBox(runId: str) {
                             }
                         }
                     }
-                }
-                // run 完成报告（PLAN-031 T5）：PPT 风格 ReportBlock 内嵌于
-                // RunBox 底部（gen 轨位置；web 轨由 ChatsView 全局位承接）
-                if .reportView != None {
-                    div {
-                        style: "run-report-slot"
-                        ReportCard { report: .reportView, deckMeta: .reportMeta, deckHtml: .reportHtml }
+                    // run 完成报告（PLAN-031 T5）：PPT 风格 ReportBlock 内嵌于
+                    // RunBox 底部（gen 轨位置；web 轨由 ChatsView 全局位承接）
+                    if .reportView != None {
+                        div {
+                            style: "run-report-slot"
+                            ReportCard { report: .reportView, deckMeta: .reportMeta, deckHtml: .reportHtml }
+                        }
                     }
-                }
-                // inline gate 审批（对齐原 gate-actions）
-                if .hasWaitingGate {
-                    div {
-                        style: "gate-actions"
-                        span {
-                            style: "gate-prompt"
-                            text "等待审批："
-                            text .gateStepId
-                        }
-                        button {
-                            onclick: .Approve
-                            style: "gate-btn approve"
-                            disabled: .gateBusy
-                            text "批准"
-                        }
-                        button {
-                            onclick: .Reject
-                            style: "gate-btn reject"
-                            disabled: .gateBusy
-                            text "拒绝"
+                    // inline gate 审批（对齐原 gate-actions）
+                    if .hasWaitingGate {
+                        div {
+                            style: "gate-actions"
+                            span {
+                                style: "gate-prompt"
+                                text "等待审批："
+                                text .gateStepId
+                            }
+                            button {
+                                onclick: .Approve
+                                style: "gate-btn approve"
+                                disabled: .gateBusy
+                                text "批准"
+                            }
+                            button {
+                                onclick: .Reject
+                                style: "gate-btn reject"
+                                disabled: .gateBusy
+                                text "拒绝"
+                            }
                         }
                     }
                 }

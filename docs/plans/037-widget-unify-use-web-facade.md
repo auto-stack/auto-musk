@@ -244,18 +244,30 @@ T9-T12 完成:`scripts/migrate_use_web.py` 机械转换 25 文件 29 块——�
 
 ### Phase 4 — musk component fn → widget(用户步骤 4)
 
-- [ ] **T13** 试点定样板:`think_block.at` 单文件迁移(`component fn X(p) { blocks…
+- [x] **T13** 试点定样板:`think_block.at` 单文件迁移(`component fn X(p) { blocks…
   body }` → `widget X(p) { blocks… view { body } }`),按 T2 规则表核对父侧绑定,
   产物 diff 对拍。验证:`auto build` + gen 产物手查。
-- [ ] **T14** 批次 A(叶子渲染):agent_avatar/user_message/content_header/report_card/
+- [x] **T14** 批次 A(叶子渲染):agent_avatar/user_message/content_header/report_card/
   questionnaire_card/secretary_message/streaming_table + think_block 复核。验证:
   `auto build`。
-- [ ] **T15** 批次 B(卡片组):generic_tool_card/errand_card/task_plan_card/gate_card/
+- [x] **T15** 批次 B(卡片组):generic_tool_card/errand_card/task_plan_card/gate_card/
   tool_block/raw_preview。验证:`auto build`。
-- [ ] **T16** 批次 C(输入/导航/复杂):mention_dropdown/mention_input/nav_sidebar/
+- [x] **T16** 批次 C(输入/导航/复杂):mention_dropdown/mention_input/nav_sidebar/
   wiki_nav/workspace_selector/settings_menu/session_info/relay_run_box/chat_message/
   secretary_message_wrapper + 断言 `grep -rn "component fn" src/front/` 零命中。
   验证:`auto build` + `cargo test -p musk` + vitest 基线。
+
+### Phase 4 完成(2026-08-22)
+
+T13-T16 完成:24 个 component fn 全部迁移为 widget(`scripts/migrate_widget.py`
+机械转换:改名 + view 体包裹;试点 ThinkBlock 产物逐字节相同;转换器多行注释
+lookahead bug 修复后 3 个伤件重转)。收口:`grep component fn` 零命中;`auto build`
+全绿;`cargo test -p musk` 绿;web vitest 基线不变。
+
+顺带修:auto_type_to_ts_type/is_builtin_type_name 补 `obj`/`list` 内建映射
+(component fn 提取曾擦为 any,widget 路径直映射后暴露 TS2305)。
+
+**widget 现为 musk 唯一 UI 单元**(6 页面 + 24 子组件,共 30 个 widget)。
 
 ### Phase 5 — use.web 抽 facade(用户步骤 5)
 

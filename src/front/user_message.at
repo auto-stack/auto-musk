@@ -15,12 +15,14 @@
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web render_mentions_default from "src/front/mention_helpers.at"
 
-component fn UserMessage(content: str) {
+widget UserMessage(content: str) {
     computed {
         html => render_mentions_default(.content)
     }
-    div {
-        html: .html
-        style: "user-text"
+    view {
+        div {
+            html: .html
+            style: "user-text"
+        }
     }
 }

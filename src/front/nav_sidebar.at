@@ -12,17 +12,19 @@
 // 样式：`.nav-sidebar` 系列为单一真源（inject_styles.ts），替代三处分散的
 // sidebar-header/section-nav-header/wiki-nav-header 规则 + !important 覆盖。
 
-component fn NavSidebar(title: str, collapsed: bool) {
-    div {
-        class: if .collapsed { "nav-sidebar collapsed" } else { "nav-sidebar" }
+widget NavSidebar(title: str, collapsed: bool) {
+    view {
         div {
-            style: "nav-sidebar-header"
-            span {
-                style: "nav-sidebar-title"
-                text .title
+            class: if .collapsed { "nav-sidebar collapsed" } else { "nav-sidebar" }
+            div {
+                style: "nav-sidebar-header"
+                span {
+                    style: "nav-sidebar-title"
+                    text .title
+                }
+                slot(name: "actions") {}
             }
-            slot(name: "actions") {}
+            slot(name: "list") {}
         }
-        slot(name: "list") {}
     }
 }
