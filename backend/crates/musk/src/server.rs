@@ -545,6 +545,14 @@ async fn chat_stream(
         }
     };
 
+    // PLAN-034 修正：`/auto-plan:merge <PLAN-NNN>` 斜杠指令短路——不经 LLM，
+    // 按原生 spawn_relay 语义启动 plan-merge run 并挂到本会话（助手消息 +
+    // tool call turn 持久化），Run 卡片渲染与刷新持久化与原生路径一致。
+    if let Some(plan_id) = parse_plan_merge_command(&user_msg) {
+        let ws_id = q.id_or_default(&state.registry);
+        return plan_merge_shortcut(state, ws, ws_id, id, plan_id).await;
+    }
+
     // Build (role, content) history pairs for prior turns (exclude the last
     // user message — that's the one we're about to run).
     let mut history: Vec<(String, String)> = Vec::new();
@@ -700,6 +708,113 @@ async fn chat_stream(
         }
     };
 
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "text/event-stream")
+        .header("Cache-Control", "no-cache")
+        .header("Connection", "keep-alive")
+        .body(Body::from_stream(stream))
+        .unwrap()
+}
+
+/// PLAN-034 修正：解析 `/auto-plan:merge <PLAN-NNN|NNN>` 指令，返回规范化
+/// 的 `PLAN-NNN` 编号；不匹配返回 None（走正常 LLM 轮次）。
+fn parse_plan_merge_command(text: &str) -> Option<String> {
+    let re = regex::Regex::new(r"(?i)^/auto-plan:merge\s+(PLAN-\d{1,3}|\d{1,3})\b").ok()?;
+    let m = re.captures(text.trim())?;
+    let raw = m.get(1)?.as_str();
+    if raw.chars().all(|c| c.is_ascii_digit()) {
+        let n: u32 = raw.parse().ok()?;
+        Some(format!("PLAN-{n:03}"))
+    } else {
+        Some(raw.to_uppercase())
+    }
+}
+
+/// PLAN-034 修正：`/auto-plan:merge` 的服务端短路执行——不经 LLM，按原生
+/// `spawn_relay` 语义（orch_tools.rs）启动 plan-merge run：
+/// 1. `relay.start_run`（flow=plan-merge，任务含 PLAN 编号）；
+/// 2. 持久化助手消息（含 spawn_relay tool call——Run 卡片的渲染来源）并
+///    双写 conversation turns（与 chat_stream 正常完成路径一致）；
+/// 3. 后台起 run 驱动；SSE 回 delta + relay_spawned + done。
+async fn plan_merge_shortcut(
+    state: AppState,
+    ws: std::sync::Arc<crate::workspace::WorkspaceStores>,
+    ws_id: String,
+    session_id: String,
+    plan_id: String,
+) -> Response {
+    use axum::body::Body;
+
+    let task = format!("沉淀 {plan_id} 到 Spec 知识库");
+    let req = crate::relay::store::StartRunRequest {
+        run_id: None,
+        flow_id: Some("plan-merge".into()),
+        steps: Vec::new(),
+        task: Some(task.clone()),
+    };
+    let (run_id, _initial) = ws.relay.start_run(&req, Some(ws_id.clone()));
+
+    // 持久化助手消息 + tool call（Run 卡片来源），双写 conversation turns。
+    let args = serde_json::json!({
+        "flow_id": "plan-merge",
+        "task": task,
+        "run_id": run_id,
+    });
+    let tc = crate::chats::ToolCall {
+        tool: "spawn_relay".into(),
+        args,
+        result: format!("{{\"run_id\":\"{run_id}\",\"status\":\"started\"}}"),
+        status: "success".into(),
+        id: "tc-1".into(),
+    };
+    let summary = format!(
+        "📦 **智能沉淀已启动**（{plan_id}）\n\nRun `{run_id}`（flow: plan-merge）：\
+`merge_plan` 机械沉淀（幂等）→ 按 spec-impact 更新 `docs/specs/` 模块树 → \
+`emit_report` 生成 HTML 报告。"
+    );
+    let mut msg = crate::chats::ChatMessage::assistant(summary.clone());
+    msg.tool_calls = vec![tc];
+    let _ = ws.chats.append_message(&session_id, msg.clone());
+    let seq_base = ws
+        .conversations
+        .get(&session_id)
+        .map(|c| c.turns.len())
+        .unwrap_or(0);
+    for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
+        let _ = ws.conversations.append_turn(&session_id, turn);
+    }
+
+    // 后台驱动 run（同 spawn_relay）。
+    let state2 = Arc::new(state.clone());
+    let ws_id2 = ws_id.clone();
+    let rid = run_id.clone();
+    tracing::info!("plan-merge shortcut: driver for {} (session={})", rid, session_id);
+    tokio::spawn(async move {
+        let _ = crate::auto_generated::relay_driver::drive_run(state2, &ws_id2, &rid).await;
+    });
+
+    // SSE：delta（实时文本，前端本地渲染）+ relay_spawned（Run 面板）+ done。
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<serde_json::Value>(16);
+    tokio::spawn(async move {
+        let _ = tx
+            .send(serde_json::json!({"type": "delta", "text": summary}))
+            .await;
+        let _ = tx
+            .send(serde_json::json!({
+                "type": "relay_spawned",
+                "run_id": run_id,
+                "flow_id": "plan-merge",
+            }))
+            .await;
+        let _ = tx.send(serde_json::json!({"type": "done"})).await;
+    });
+
+    let stream = async_stream::stream! {
+        while let Some(value) = rx.recv().await {
+            yield Ok::<_, std::convert::Infallible>(format!("data: {value}\n\n"));
+        }
+    };
     Response::builder()
         .status(StatusCode::OK)
         .header("Content-Type", "text/event-stream")
@@ -1046,6 +1161,26 @@ mod tests {
         let resp = run_inner(state, req).await.unwrap();
         assert_eq!(resp.output, "mock answer");
         assert_eq!(resp.turns, 1);
+    }
+
+    /// PLAN-034 修正：`/auto-plan:merge` 指令解析（编号规范化 + 不误匹配）。
+    #[test]
+    fn parse_plan_merge_command_variants() {
+        assert_eq!(
+            parse_plan_merge_command("/auto-plan:merge PLAN-007").as_deref(),
+            Some("PLAN-007")
+        );
+        assert_eq!(
+            parse_plan_merge_command("/auto-plan:merge 7").as_deref(),
+            Some("PLAN-007")
+        );
+        assert_eq!(
+            parse_plan_merge_command("  /auto-plan:merge plan-012 请沉淀").as_deref(),
+            Some("PLAN-012")
+        );
+        assert_eq!(parse_plan_merge_command("普通消息"), None);
+        assert_eq!(parse_plan_merge_command("/plan merge PLAN-007"), None);
+        assert_eq!(parse_plan_merge_command("/auto-plan:merge"), None);
     }
 
     /// C1 重新评估 PoC(plan 018 §11 ②):extern_impl 的 specs_load 走

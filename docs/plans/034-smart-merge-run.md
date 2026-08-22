@@ -4,14 +4,14 @@ status: execution_done
 feature_name: 智能沉淀闭环——计划页按钮触发 Chats 会话式 AI 沉淀 run
 author: [zhaopuming]
 created_at: 2026-08-22T13:32:09+08:00
-updated_at: 2026-08-22T14:35:00+08:00
+updated_at: 2026-08-22T15:20:00+08:00
 
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 7
-total_steps: 7
+current_step: 8
+total_steps: 8
 ---
 
 # [PLAN-034] 智能沉淀闭环：`/auto-plan:merge` 会话式 AI 沉淀 run
@@ -134,3 +134,7 @@ if (mergeMatch) {
 
 1. run 完成后是否需要自动跳回计划页/列表刷新提示——当前设计留在会话内看报告，由用户手动返回。
 2. `/auto-plan:merge` 是否需要支持无参数形式（在会话里手动输入时从上下文推断计划）——当前要求显式 PLAN 编号。
+
+### 修正轮（T8，用户走查反馈）
+
+用户实测发现：按钮触发的 run 不显示 Run 卡片、刷新后会话为空。根因：前端斜杠分支直接 HTTP 启动 run，绕过了会话（无 tool-call turn 持久化、无事件入流）——**存量缺陷**（/plan、/superpower、/spec1 同样如此），PLAN-034 首次暴露。修正：移除客户端拦截，指令作为普通用户消息发送，由 `chat_stream` 服务端短路（`parse_plan_merge_command` + `plan_merge_shortcut`）按原生 spawn_relay 语义执行（start_run + 助手消息含 tool call 持久化 + 双写 conversation + 后台驱动 + SSE delta/relay_spawned/done），零 LLM 调用。

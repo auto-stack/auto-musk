@@ -1175,27 +1175,9 @@ async function sendMessage() {
     return
   }
 
-  // ─── Smart deposit shortcut: /auto-plan:merge <PLAN-NNN> ─────────────
-  // PLAN-034：计划页"沉淀到 Spec"按钮注入的指令——启动 plan-merge 单相位
-  // 智能沉淀 run（merge_plan 机械沉淀 → 更新 docs/specs 模块树 → emit_report）。
-  const mergeMatch = text.match(/^\/auto-plan:merge\s+(PLAN-\d{1,3}|\d{1,3})\b/)
-  if (mergeMatch) {
-    const raw = mergeMatch[1]
-    const planId = /^\d+$/.test(raw) ? `PLAN-${raw.padStart(3, '0')}` : raw.toUpperCase()
-    const task = `沉淀 ${planId} 到 Spec 知识库`
-    const runId = await startRun({ flow_id: 'plan-merge', task })
-    if (runId) {
-      await advanceRun(runId)
-      messages.value.push({
-        id: `plan-merge-${runId}`,
-        role: 'assistant',
-        content: `📦 **智能沉淀已启动**\n\n**计划**: ${planId}\n**Run ID**: \`${runId}\`\n**Flow**: plan-merge\n\nmerge_plan 机械沉淀（幂等）→ 按 spec-impact 更新 \`docs/specs/\` 模块树 → \`emit_report\` 生成 HTML 报告。点击下方的 Run 卡片可查看实时进度。`,
-        timestamp: Date.now(),
-        profession_id: 'assistant',
-      })
-    }
-    return
-  }
+  // `/auto-plan:merge <PLAN-NNN>` 不在客户端拦截——正常作为用户消息发送，
+  // 由后端 chat_stream 的服务端短路处理（run 挂到会话，Run 卡片与刷新
+  // 持久化与原生 spawn_relay 路径一致；PLAN-034 修正）。
 
   // Extract profession_id from the first @mention in text for routing,
   // but keep the full text (including @mention) as the message content
