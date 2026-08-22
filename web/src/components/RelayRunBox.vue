@@ -184,6 +184,9 @@
         </div>
       </div>
 
+      <!-- PLAN-032: 汇报报告卡（展开体底部；gen 同位） -->
+      <ReportCard v-if="expanded && reportCardData" :report="reportCardData" />
+
       <!-- Inline gate actions（展开态） -->
       <div v-if="run?.waiting_for_gate" class="gate-actions">
         <span class="gate-prompt">等待审批：{{ run.waiting_for_gate.step_id }}</span>
@@ -198,11 +201,12 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { ChevronDown, ChevronRight, ChevronUp, Orbit, Wrench, FileText, Terminal } from 'lucide-vue-next'
 import StreamingRenderer from '@/components/StreamingRenderer.vue'
+import ReportCard from '@/components/ReportCard.vue'
 import { useRelay } from '@/composables/useRelay'
 
 const props = defineProps<{ runId: string }>()
 
-const { runs, currentRun, loadRun, loadRunHistory, subscribeToRun, resolveGate, sessionLogFor } = useRelay()
+const { runs, currentRun, loadRun, loadRunHistory, subscribeToRun, resolveGate, sessionLogFor, runReports } = useRelay()
 import type { RunHistory } from '@/composables/useRelay'
 
 const expanded = ref(false)
@@ -325,6 +329,25 @@ const previewRows = computed<any[]>(() => {
     if (row) items.push(row)
   }
   return items.reverse()
+})
+
+// PLAN-032: 汇报报告卡（web 与 gen 同位：展开体底部）。元数据双通道
+// （SSE 载荷 / 会话回放），内容经 /runs/{id}/report（磁盘回退，重启耐久）。
+const reportCardData = computed(() => {
+  const meta = runReports.value[props.runId]
+  if (!meta) return null
+  return {
+    runId: props.runId,
+    title: meta.title || '',
+    summary: '',
+    goalsMet: '—',
+    testsPass: '—',
+    driftDetected: 'None',
+    cost: '—',
+    confidence: 'Medium' as const,
+    deliverables: [],
+    report: meta,
+  }
 })
 
 // 预览圆点：仅运行中脉动；gate 琥珀/失败红/完成绿/失效灰——终态常亮

@@ -164,7 +164,13 @@ pub async fn run_report_html(s: State<AppState>, p: Path<String>, q: Query<Works
     let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };
     let ws_id = hw_q.id_or_default(&s.0.registry);
     let ws = s.0.registry.get(&ws_id);
-    match ws.relay.report_meta(&run_id) {
+    // 元数据优先；重启后 run 清空 → 磁盘确定性路径回退（hw 同款）。
+    let fallback = crate::relay::store::ReportMeta {
+        format: "html".into(),
+        title: String::new(),
+        path: format!(".autoos/reports/{}/report.html", run_id),
+    };
+    match Some(ws.relay.report_meta(&run_id).unwrap_or(fallback)) {
         None => text_response(format!("run '{}' has no report", run_id), 404),
         Some(meta) => match std::fs::read_to_string(ws.root.join(&meta.path)) {
             Ok(html) => (

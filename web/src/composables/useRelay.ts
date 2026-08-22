@@ -25,6 +25,8 @@ export interface RunHistory {
   title: string
   status: 'completed' | 'failed' | 'interrupted'
   entries: SessionLogEntry[]
+  /** PLAN-032: 汇报报告元数据（会话镜像 system turn 提取；重启回放恢复）。 */
+  report?: { format: string; title: string; path: string }
 }
 
 /**
@@ -114,8 +116,24 @@ async function loadRunHistory(runId: string): Promise<RunHistory | null> {
     let status: RunHistory['status'] = 'interrupted'
     if (sawCompleted) status = 'completed'
     else if (sawFailed || conv.status === 'failed') status = 'failed'
+    // PLAN-032: 会话镜像 system turn「汇报报告已生成：T（F，path：P）」→ 元数据
+    let report: RunHistory['report']
+    for (const t of conv.turns ?? []) {
+      const c = String(t.content ?? '')
+      const m = c.match(/汇报报告已生成：(.+?)（(.+?)，path：(.+?)）/)
+      if (m) report = { format: m[2], title: m[1], path: m[3] }
+    }
+    if (report) {
+      _reportMeta.value[runId] = report
+    } else if (sawCompleted) {
+      // 兜底：旧格式镜像 turn（PLAN-032 前无 path）→ 试拉一次（端点有磁盘
+      // 回退）；有内容即构造元数据（title 取会话标题）。
+      void fetchRunReport(runId).then((html) => {
+        if (html) _reportMeta.value[runId] = { format: 'html', title: conv.title ?? '', path: '' }
+      })
+    }
   
-  return { title: conv.title ?? '', status, entries }
+  return { title: conv.title ?? '', status, entries, report }
   } catch {
     return null
   }
@@ -241,6 +259,8 @@ export interface StartRunRequest {
 
 // PLAN-032: 汇报报告 HTML 缓存（runId → html 全文；deck 层数据源）。
 const _reportHtml = new Map<string, string>()
+// PLAN-032: 报告元数据（runId → {format,title,path}；SSE 载荷与会话回放双通道）。
+const _reportMeta = ref<Record<string, { format: string; title: string; path: string }>>({})
 
   /** PLAN-032: 拉取 run 汇报报告 HTML 全文（带缓存；404/未生成返回 null）。 */
 async function fetchRunReport(runId: string): Promise<string | null> {
@@ -582,6 +602,9 @@ export function useRelay() {
             content: `Gate '${data.payload?.step_id ?? ''}' waiting`,
           })
         }
+        if (data.event_type === 'run_completed' && data.payload?.report) {
+          _reportMeta.value[runId] = data.payload.report
+        }
         if (data.event_type === 'run_completed') {
           _sessionLogs.value[runId].push({
             id: `${runId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -629,6 +652,7 @@ export function useRelay() {
     loadRun,
     loadRunHistory,
     fetchRunReport,
+    runReports: _reportMeta,
     startRun,
     advanceRun,
     resolveGate,

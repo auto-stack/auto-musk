@@ -82,7 +82,12 @@ store RelayStore {
             try {
                 let data = Http.get("/api/conversations/" + encodeURIComponent(runId))
                 if data.id != None {
-                    .run_histories[runId] = relayHistoryFromConversation(data)
+                    let hv = relayHistoryFromConversation(data)
+                    .run_histories[runId] = hv
+                    if hv.report != None {
+                        .run_report_meta[runId] = hv.report
+                        .FetchReport(runId)
+                    }
                 }
             } catch {
                 // 无会话或网络异常 → 不写历史，保持失效态
@@ -509,7 +514,36 @@ fn relayHistoryFromConversation(conv Value) Value {
     if sawCompleted { status = "completed" }
     if sawFailed && sawCompleted == false { status = "failed" }
     if (conv.status ?? "") == "failed" { status = "failed" }
-    return { status: status, title: conv.title ?? "", entries: entries }
+    // PLAN-032: 会话镜像 system turn「汇报报告已生成：T（F，path：P）」→ 元数据
+    var repFmt str = ""
+    var repTitle str = ""
+    var repPath str = ""
+    var ti int = 0
+    let turs = conv.turns ?? []
+    while ti < turs.length {
+        let tc = turs[ti].content ?? ""
+        if tc.starts_with("汇报报告已生成：") {
+            let body = tc.substring(9)
+            let pa = body.indexOf("（")
+            let pb = body.indexOf("，path：")
+            let pc = body.lastIndexOf("）")
+            if pa != -1 && pb != -1 {
+                repTitle = body.substring(0, pa)
+                repFmt = body.substring(pa + 1, pb - pa - 1)
+                if pc > pb {
+                    repPath = body.substring(pb + 7, pc - pb - 7)
+                }
+            }
+            ti = turs.length
+        } else {
+            ti = ti + 1
+        }
+    }
+    var reportMeta Value = None
+    if repPath != "" {
+        reportMeta = { format: repFmt, title: repTitle, path: repPath }
+    }
+    return { status: status, title: conv.title ?? "", entries: entries, report: reportMeta }
 }
 
 fn relayEventsToSessionLog(runId str, events Value) Value {

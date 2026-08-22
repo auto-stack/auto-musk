@@ -161,9 +161,14 @@ async fn run_report_html(
     Query(q): Query<WorkspaceQuery>,
 ) -> Response {
     let ws = state.registry.get(&q.id_or_default(&state.registry));
-    let Some(meta) = ws.relay.report_meta(&run_id) else {
-        return (StatusCode::NOT_FOUND, format!("run '{run_id}' has no report")).into_response();
+    // 元数据优先（内存 run）；重启后 run 清空 → 磁盘确定性路径回退
+    //（.autoos/reports/{run_id}/report.html，验收 #3：重启后报告仍可取）。
+    let fallback = crate::relay::store::ReportMeta {
+        format: "html".into(),
+        title: String::new(),
+        path: format!(".autoos/reports/{run_id}/report.html"),
     };
+    let meta = ws.relay.report_meta(&run_id).unwrap_or(fallback);
     let path = ws.root.join(&meta.path);
     match std::fs::read_to_string(&path) {
         Ok(html) => (
