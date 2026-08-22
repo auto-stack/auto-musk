@@ -449,9 +449,11 @@ onMounted(() => {
 .content-scroll :deep(h2) {
   color: var(--af-primary);
 }
-/* 正文首块不设上 margin（MetaBlock 与首个 H1 之间的空隙来源） */
+/* 正文首块不设上 margin（MetaBlock 与首个标题之间的空隙来源；
+   markstream 的块可能有包装层，覆盖三层嵌套内的首元素链） */
 .content-scroll :deep(.markdown-content > :first-child),
-.content-scroll :deep(.markdown-content > :first-child > :first-child) {
+.content-scroll :deep(.markdown-content > :first-child > :first-child),
+.content-scroll :deep(.markdown-content > :first-child > :first-child > :first-child) {
   margin-top: 0;
 }
 .edit-area {

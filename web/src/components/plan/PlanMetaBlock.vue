@@ -47,7 +47,7 @@ function formatValue(v: FrontmatterValue): string {
 .meta-block {
   border: 1px solid var(--af-border);
   border-radius: 6px;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   overflow: hidden;
 }
 .meta-header {
