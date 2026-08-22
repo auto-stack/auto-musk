@@ -16,9 +16,11 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.mention-dropdown 等）。
 
-component fn MentionDropdown(professions: obj, visible: bool, filter: str, anchorRect: obj, activeIndex: int) {
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web mention_filtered, mention_position, mention_current_id from "src/front/mention_helpers.at"
+
+widget MentionDropdown(professions: obj, visible: bool, filter: str, anchorRect: obj, activeIndex: int) {
     use {
-        fn: mention_filtered, mention_position, mention_current_id from "src/front/mention_helpers.at"
         component: AgentAvatar
     }
     computed {
@@ -50,27 +52,29 @@ component fn MentionDropdown(professions: obj, visible: bool, filter: str, ancho
   .mention-label { color: var(--af-muted, hsl(220 9% 46%)); font-size: 0.83rem; }
     }
 
-    teleport {
-        to: "body"
-        if .visible && .filtered.len > 0 {
-            div {
-                class: "mention-dropdown"
-                style: .position
-                for prof in .filtered {
-                    button {
-                        key: .prof.id
-                        onclick: .select(.prof.id)
-                        onmouseenter: .hover(.prof.id)
-                        class: if .activeId == .prof.id { "mention-item active" } else { "mention-item" }
-                        AgentAvatar { professionId: .prof.id, name: .prof.name, size: "sm" }
-                        span {
-                            style: "mention-name"
-                            text "@"
-                            text .prof.id
-                        }
-                        span {
-                            style: "mention-label"
-                            text .prof.name
+    view {
+        teleport {
+            to: "body"
+            if .visible && .filtered.len > 0 {
+                div {
+                    class: "mention-dropdown"
+                    style: .position
+                    for prof in .filtered {
+                        button {
+                            key: .prof.id
+                            onclick: .select(.prof.id)
+                            onmouseenter: .hover(.prof.id)
+                            class: if .activeId == .prof.id { "mention-item active" } else { "mention-item" }
+                            AgentAvatar { professionId: .prof.id, name: .prof.name, size: "sm" }
+                            span {
+                                style: "mention-name"
+                                text "@"
+                                text .prof.id
+                            }
+                            span {
+                                style: "mention-label"
+                                text .prof.name
+                            }
                         }
                     }
                 }

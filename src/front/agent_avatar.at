@@ -14,10 +14,10 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.agent-avatar 等）。
 
-component fn AgentAvatar(professionId: str, name: str, size: str) {
-    use {
-        fn: agentAvatarData from "src/front/forge_helpers.at"
-    }
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web agentAvatarData from "src/front/forge_helpers.at"
+
+widget AgentAvatar(professionId: str, name: str, size: str) {
     computed {
         data => agentAvatarData(.professionId, .name, .size)
         bg => .data.bg
@@ -38,10 +38,12 @@ component fn AgentAvatar(professionId: str, name: str, size: str) {
 }
     }
 
-    span {
-        class: if .sizeClass == "xs" { "agent-avatar xs" } else { if .sizeClass == "sm" { "agent-avatar sm" } else { if .sizeClass == "lg" { "agent-avatar lg" } else { "agent-avatar md" } } }
-        style: "background: " + .bg + "; color: " + .text
-        title: .title
-        text .initials
+    view {
+        span {
+            class: if .sizeClass == "xs" { "agent-avatar xs" } else { if .sizeClass == "sm" { "agent-avatar sm" } else { if .sizeClass == "lg" { "agent-avatar lg" } else { "agent-avatar md" } } }
+            style: "background: " + .bg + "; color: " + .text
+            title: .title
+            text .initials
+        }
     }
 }

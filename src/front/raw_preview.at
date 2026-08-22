@@ -18,13 +18,13 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.raw-preview 等）。
 
-component fn RawPreview(workspace: str, path: str) {
-    use {
-        fn: raw_file_url, raw_file_kind, raw_iframe_html, raw_download_html from "src/front/raw_helpers.at"
-        fn: loadRawFileText from "src/front/raw_upload.ts"
-        component: MarkdownRender from "markstream-vue"
-        component: FileIcon from "lucide-vue-next"
-    }
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web raw_file_url, raw_file_kind, raw_iframe_html, raw_download_html from "src/front/raw_helpers.at"
+use.web loadRawFileText from "src/front/raw_upload.ts"
+use.web component MarkdownRender from "markstream-vue"
+use.web component FileIcon from "lucide-vue-next"
+
+widget RawPreview(workspace: str, path: str) {
     computed {
         fileUrl => raw_file_url(.workspace, .path)
         kind => raw_file_kind(.path)
@@ -62,22 +62,24 @@ component fn RawPreview(workspace: str, path: str) {
   .download-link { color: hsl(var(--primary)); text-decoration: underline; }
     }
 
-    div {
-        style: "raw-preview"
-        if .isImage {
-            img { src: .fileUrl, style: "raw-preview-img" }
-        } else if .isPdf {
-            div { html: .iframeHtml }
-        } else if .isText {
-            div {
-                style: "raw-preview-text"
-                MarkdownRender { content: .textContent }
-            }
-        } else {
-            div {
-                style: "raw-download"
-                FileIcon { size: 24 }
-                div { html: .downloadHtml }
+    view {
+        div {
+            style: "raw-preview"
+            if .isImage {
+                img { src: .fileUrl, style: "raw-preview-img" }
+            } else if .isPdf {
+                div { html: .iframeHtml }
+            } else if .isText {
+                div {
+                    style: "raw-preview-text"
+                    MarkdownRender { content: .textContent }
+                }
+            } else {
+                div {
+                    style: "raw-download"
+                    FileIcon { size: 24 }
+                    div { html: .downloadHtml }
+                }
             }
         }
     }

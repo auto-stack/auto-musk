@@ -67,14 +67,14 @@ Rust + axum 0.8 HTTP 服务。`lib.rs:5-29` 声明手写模块 + `lib.rs:28` `au
 
 - **widget**：app/chats_view/specs_view/plans_view/wiki_view/login
 - **store**：forge_store/auth_store/specs_store/plans_store/wiki_store
-- **component fn**：nav_sidebar/content_header（§3.1 单一真源）/ wiki_nav/workspace_selector/chat_message/mention_input/generic_tool_card/gate_card/relay_run_box 等 20+
+- **component fn**：~~已退役~~（PLAN-037 Phase 4 全量迁移为 widget，widget 为唯一 UI 单元：6 页面 + 24 子组件）
 - **api.at**：51 个 `#[api]` 契约（codegen → gen/lib/api.ts）
 - **inject_styles.ts**（1017 行）：全局 CSS 兜底（gen 组件 `<style>` 空）
 - **逃生舱**：forge_stream.ts（SSE 消费）/ setup_auth_fetch.ts（fetch monkey-patch）/ forge_helpers.ts / StreamingRenderer.vue
 
 ### codegen 流程
 
-`auto build`（auto-lang）→ `.at` → `gen/front/vue/`（Vue SFC + store composable + api.ts + ext 复制）。shadcn 模式（`VueGenerator::new_shadcn`）。逃生舱经 `use { fn from "..." }` 声明后复制到 `gen/ext/`。
+`auto build`（auto-lang）→ `.at` → `gen/front/vue/`（Vue SFC + store composable + api.ts + ext 复制）。shadcn 模式（`VueGenerator::new_shadcn`）。web 依赖经顶层 `use.web` 语句声明（PLAN-037；use 块为废弃别名）后复制/转译到 `gen/ext/`；非 web 后端遇 `use.web` 显式报错。**跨后端 facade**：`src/front/ports/<域>.web.at` 承载 web 绑定（调用方恒引 `.at` 端口名，构建期按目标解析 `X.<target>.at` adapter，缺源显式报错）。**v-model**：子 widget 的 model 变量 = 双向通道（defineModel 编译），调用点传可写状态槽自动折叠 `v-model:name`，非槽目标硬错误（PLAN-037 Phase 1）。
 
 ## 3. 核心数据流
 

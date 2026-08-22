@@ -13,11 +13,13 @@
 // 历史/重载消息无 msg.blocks 时，messageBlocks 从持久化字段合成
 // （thinking → text → tool_calls），保证渲染模型统一。
 
-component fn ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj) {
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web component Markdown from "platform:markdown"
+use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens from "src/front/forge_helpers.at"
+
+widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj) {
     use {
         component: UserMessage, ThinkBlock, ToolBlock
-        component: Markdown from "platform:markdown"
-        fn: msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens from "src/front/forge_helpers.at"
     }
     computed {
         role => .msg.role
@@ -95,46 +97,48 @@ component fn ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj
 .msg-thinking { font-size: 0.82rem; color: hsl(var(--muted-foreground)); font-style: italic; padding: 0.25rem 0.5rem; align-self: flex-start; max-width: 100%; }
 .msg-error { color: hsl(var(--destructive)); font-size: 0.88rem; padding: 0.5rem 0.75rem; background: hsl(var(--destructive) / 0.08); border-radius: 8px; align-self: flex-start; max-width: 100%; }
     }
-    col {
-        class: .rowClass
-        // header: 角色标识 + 时间
-        row {
-            style: "msg-header"
-            text .badge { style: "msg-role-badge" }
-            if .hasTime {
-                text .time { style: "msg-time" }
+    view {
+        col {
+            class: .rowClass
+            // header: 角色标识 + 时间
+            row {
+                style: "msg-header"
+                text .badge { style: "msg-role-badge" }
+                if .hasTime {
+                    text .time { style: "msg-time" }
+                }
             }
-        }
-        // 内容（按 role 分支）
-        if .isUser {
-            col {
-                style: "msg-bubble msg-bubble-user"
-                UserMessage(content: .userContent)
-            }
-        } else {
-            // 内容区容器（msg-blocks）：上下 hairline 只框 block 区，标题栏
-            // （icon/time）留在框线上方。
-            col {
-                style: "msg-blocks"
-                // 有序 block 流：文本 / 思考 / 工具按到达顺序，块不删除。
-                // text 块已在 computed（messageDisplayBlocks）里剥离问卷 JSON 并
-                // 过滤空块——纯问卷消息不出气泡，问卷本体由 QuestionnaireCard 呈现。
-                for block in .blocks {
-                    if .block.kind == "text" {
-                        col {
-                            style: "msg-bubble msg-bubble-ai"
-                            Markdown(source: .block.text, streaming: isBlockStreaming(.is_streaming, .blocks, .block))
+            // 内容（按 role 分支）
+            if .isUser {
+                col {
+                    style: "msg-bubble msg-bubble-user"
+                    UserMessage(content: .userContent)
+                }
+            } else {
+                // 内容区容器（msg-blocks）：上下 hairline 只框 block 区，标题栏
+                // （icon/time）留在框线上方。
+                col {
+                    style: "msg-blocks"
+                    // 有序 block 流：文本 / 思考 / 工具按到达顺序，块不删除。
+                    // text 块已在 computed（messageDisplayBlocks）里剥离问卷 JSON 并
+                    // 过滤空块——纯问卷消息不出气泡，问卷本体由 QuestionnaireCard 呈现。
+                    for block in .blocks {
+                        if .block.kind == "text" {
+                            col {
+                                style: "msg-bubble msg-bubble-ai"
+                                Markdown(source: .block.text, streaming: isBlockStreaming(.is_streaming, .blocks, .block))
+                            }
+                        } else if .block.kind == "thinking" {
+                            ThinkBlock(text: .block.text, tokens: estimateTokens(.block.text), streaming: .is_streaming)
+                        } else {
+                            ToolBlock(tc: .block.tc, errands: .errands, relays: .relays, task_plans: .task_plans)
                         }
-                    } else if .block.kind == "thinking" {
-                        ThinkBlock(text: .block.text, tokens: estimateTokens(.block.text), streaming: .is_streaming)
-                    } else {
-                        ToolBlock(tc: .block.tc, errands: .errands, relays: .relays, task_plans: .task_plans)
                     }
                 }
             }
-        }
-        if .hasError {
-            text .errorText { style: "msg-error" }
+            if .hasError {
+                text .errorText { style: "msg-error" }
+            }
         }
     }
 }

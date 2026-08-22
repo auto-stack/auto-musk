@@ -13,11 +13,11 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.tool-card 等）。
 
-component fn GenericToolCard(tc: obj) {
-    use {
-        fn: getToolSummary, toolArgsJson from "src/front/forge_helpers.at"
-        component: Markdown from "platform:markdown"
-    }
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web getToolSummary, toolArgsJson from "src/front/forge_helpers.at"
+use.web component Markdown from "platform:markdown"
+
+widget GenericToolCard(tc: obj) {
     computed {
         name => .tc.name
         status => if .tc.status != "" { .tc.status } else { "running" }
@@ -60,38 +60,40 @@ component fn GenericToolCard(tc: obj) {
 .tool-section-title { font-size: 0.73rem; font-weight: 500; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-bottom: 0.2rem; letter-spacing: 0.02em; }
 .tool-code { font-size: 0.83rem; color: hsl(var(--muted-foreground)); background: hsl(var(--muted-foreground) / 0.04); padding: 0.35rem 0.5rem; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; font-family: 'Geist Mono', 'Fira Code', monospace; margin: 0; }
     }
-    col {
-        class: if .status == "completed" { "tool-card completed" } else { if .status == "failed" { "tool-card failed" } else { "tool-card running" } }
-        // header（click toggle）
-        row {
-            onclick: .Toggle
-            style: "tool-header"
-            text "🔧" { style: "tool-icon" }
-            text .name { style: "tool-name" }
-            for seg in .summary {
-                text .seg.text { class: if .seg.type == "path" { "tool-seg seg-path" } else { if .seg.type == "pattern" { "tool-seg seg-pattern" } else { if .seg.type == "desc" { "tool-seg seg-desc" } else { "tool-seg seg-loc" } } } }
-            }
-            text .status { class: if .status == "completed" { "tool-status completed" } else { if .status == "failed" { "tool-status failed" } else { "tool-status running" } } }
-            text .chevron { style: "tool-chevron" }
-        }
-        // body（展开时）——Result 走 Markdown 渲染（与原生 MarkdownRender 一致，
-        // 内容里的代码/表格带高亮），Arguments 保持 JSON pre。
-        if .expanded {
-            col {
-                style: "tool-body"
-                col {
-                    style: "tool-section"
-                    text "Arguments" { style: "tool-section-title" }
-                    pre {
-                        style: "tool-code"
-                        text .argsJson
-                    }
+    view {
+        col {
+            class: if .status == "completed" { "tool-card completed" } else { if .status == "failed" { "tool-card failed" } else { "tool-card running" } }
+            // header（click toggle）
+            row {
+                onclick: .Toggle
+                style: "tool-header"
+                text "🔧" { style: "tool-icon" }
+                text .name { style: "tool-name" }
+                for seg in .summary {
+                    text .seg.text { class: if .seg.type == "path" { "tool-seg seg-path" } else { if .seg.type == "pattern" { "tool-seg seg-pattern" } else { if .seg.type == "desc" { "tool-seg seg-desc" } else { "tool-seg seg-loc" } } } }
                 }
-                if .hasResult {
+                text .status { class: if .status == "completed" { "tool-status completed" } else { if .status == "failed" { "tool-status failed" } else { "tool-status running" } } }
+                text .chevron { style: "tool-chevron" }
+            }
+            // body（展开时）——Result 走 Markdown 渲染（与原生 MarkdownRender 一致，
+            // 内容里的代码/表格带高亮），Arguments 保持 JSON pre。
+            if .expanded {
+                col {
+                    style: "tool-body"
                     col {
                         style: "tool-section"
-                        text "Result" { style: "tool-section-title" }
-                        Markdown(source: .resultText, streaming: false)
+                        text "Arguments" { style: "tool-section-title" }
+                        pre {
+                            style: "tool-code"
+                            text .argsJson
+                        }
+                    }
+                    if .hasResult {
+                        col {
+                            style: "tool-section"
+                            text "Result" { style: "tool-section-title" }
+                            Markdown(source: .resultText, streaming: false)
+                        }
                     }
                 }
             }

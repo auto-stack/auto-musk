@@ -10,26 +10,17 @@ use wiki_view: WikiView
 use chats_view: ChatsView
 use plans_view: PlansView
 
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web platformInjectStyles, platformSetupAuthFetch from "src/front/ports/platform.at"
+use.web ensure_workspace from "src/front/workspace_helpers.at"
+use.web composable useT from "src/front/composables/useT.ts"
+use.web composable useGateRouter from "src/front/composables/gate_router.ts"
+use.web component MessageSquare, ListTodo, Scroll, BookOpen from "lucide-vue-next"
+
 widget App {
     use {
-        fn: setupAuthFetch from "src/front/setup_auth_fetch.ts"
-        fn: injectStyles from "src/front/inject_styles.ts"
-        fn: ensure_workspace from "src/front/workspace_helpers.at"
-        // Plan 407：i18n t() + WorkspaceSelector 接入（parser 增强后原生支持）。
-        // t 走 composable 包装（vue-i18n 的 t 是 useI18n() 解构返回值，非静态导出）。
-        // codegen: import { useT } + const t = useT()（去 use 前缀小写得变量名 t）。
-        composable: useT from "src/front/composables/useT.ts"
-        // Plan 029 T12：跨 store 审批门路由桥（gate_inbox.at 的 D 组接线层）。
-        composable: useGateRouter from "src/front/composables/gate_router.ts"
-        // 声明仅为触发 ext 复制（codegen ext 复制只看 use 块，不看 component fn 的 use{fn}）。
-        // Plan 023 队列 A2：WorkspaceSelector 已原生化为 component fn
-        // （src/front/workspace_selector.at），逃生舱 .vue 已删除。跨文件引用（无 from）。
         component: WorkspaceSelector
-        // Plan 023 队列 A4：SettingsMenu 已原生化为 component fn（src/front/settings_menu.at），
-        // 逃生舱 .vue 已删除。跨文件引用（无 from）。
         component: SettingsMenu
-        // 导航图标（lucide）
-        component: MessageSquare, ListTodo, Scroll, BookOpen from "lucide-vue-next"
     }
 
     msg Msg {
@@ -131,7 +122,7 @@ widget App {
     }
 
     on {
-        .Init -> { injectStyles(); setupAuthFetch(); store.Init() }
+        .Init -> { platformInjectStyles(); platformSetupAuthFetch(); store.Init() }
         .ShowChats -> { .current_view = "chats" }
         // Plan 029 T20：全局快捷键（原 useKeyboardShortcuts composable）。
         // Ctrl/Cmd+Shift+S 聚焦搜索框；Ctrl/Cmd+Shift+N 点新建会话按钮。

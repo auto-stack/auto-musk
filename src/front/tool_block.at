@@ -5,39 +5,43 @@
 //   其余→GenericToolCard），与 chats_view 原后置循环同一套分发，只是
 // 现在作为有序 block 内联在消息流里（保序、不后置）。
 
-component fn ToolBlock(tc: obj, errands: obj, relays: obj, task_plans: obj) {
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web extractRunId from "src/front/forge_helpers.at"
+
+widget ToolBlock(tc: obj, errands: obj, relays: obj, task_plans: obj) {
     use {
         component: ErrandCard, RelayRunBox, TaskPlanCard, GenericToolCard
-        fn: extractRunId from "src/front/forge_helpers.at"
     }
     computed {
         name => .tc.name
     }
-    // 注意：.tool-* 样式不放这里。本组件只做分发，卡片元素由子组件渲染，
-    // 而组件 style 块是 scoped 的，打不到子组件 DOM（曾因此整组规则失效）。
-    // 样式的唯一落点：generic_tool_card.at（.tool-*）/ 各卡片自己的 style 块。
+    view {
+        // 注意：.tool-* 样式不放这里。本组件只做分发，卡片元素由子组件渲染，
+        // 而组件 style 块是 scoped 的，打不到子组件 DOM（曾因此整组规则失效）。
+        // 样式的唯一落点：generic_tool_card.at（.tool-*）/ 各卡片自己的 style 块。
 
-    col {
-        style: "tool-block-slot"
-        if .name == "dispatch" {
-            ErrandCard {
-                tc: .tc
-                errands: .errands
-            }
-        } else if .name == "spawn_relay" && extractRunId(.tc) != "" {
-            // 试用修复：镜像路径的 -tc 展开 turn 无 child/result.run_id，
-            // 空值不渲染 RunBox（否则出现永久空块）；落 GenericToolCard。
-            RelayRunBox {
-                runId: extractRunId(.tc)
-            }
-        } else if .name == "task_plan" {
-            TaskPlanCard {
-                tc: .tc
-                taskPlans: .task_plans
-            }
-        } else {
-            GenericToolCard {
-                tc: .tc
+        col {
+            style: "tool-block-slot"
+            if .name == "dispatch" {
+                ErrandCard {
+                    tc: .tc
+                    errands: .errands
+                }
+            } else if .name == "spawn_relay" && extractRunId(.tc) != "" {
+                // 试用修复：镜像路径的 -tc 展开 turn 无 child/result.run_id，
+                // 空值不渲染 RunBox（否则出现永久空块）；落 GenericToolCard。
+                RelayRunBox {
+                    runId: extractRunId(.tc)
+                }
+            } else if .name == "task_plan" {
+                TaskPlanCard {
+                    tc: .tc
+                    taskPlans: .task_plans
+                }
+            } else {
+                GenericToolCard {
+                    tc: .tc
+                }
             }
         }
     }

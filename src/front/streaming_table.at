@@ -12,7 +12,7 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.streaming-table 等）。
 
-component fn StreamingTable(columns: []str, rows: []obj, final: bool) {
+widget StreamingTable(columns: []str, rows: []obj, final: bool) {
     computed {
         hasColumns => .columns != None
         safeColumns => if .hasColumns { .columns } else { [] }
@@ -35,30 +35,32 @@ component fn StreamingTable(columns: []str, rows: []obj, final: bool) {
 .streaming-table .loading-dots::after { content: ''; animation: st-dots 1.4s infinite both; }
     }
 
-    col {
-        class: if .final { "streaming-table final" } else { "streaming-table" }
-        table {
-            thead {
-                tr {
-                    for col in .safeColumns {
-                        th { text .col }
-                    }
-                }
-            }
-            tbody {
-                for row in .safeRows {
+    view {
+        col {
+            class: if .final { "streaming-table final" } else { "streaming-table" }
+            table {
+                thead {
                     tr {
                         for col in .safeColumns {
-                            td { text .row[.col] }
+                            th { text .col }
                         }
                     }
                 }
-                if .showLoading {
-                    tr {
-                        style: "loading-row"
-                        td {
-                            colspan: .colspan
-                            text "Loading" { style: "loading-dots" }
+                tbody {
+                    for row in .safeRows {
+                        tr {
+                            for col in .safeColumns {
+                                td { text .row[.col] }
+                            }
+                        }
+                    }
+                    if .showLoading {
+                        tr {
+                            style: "loading-row"
+                            td {
+                                colspan: .colspan
+                                text "Loading" { style: "loading-dots" }
+                            }
                         }
                     }
                 }

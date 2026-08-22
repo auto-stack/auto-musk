@@ -12,15 +12,17 @@
 // 样式：逃生舱 scoped（color/line-height/word-break + .inline-mention 高亮）
 // 由 inject_styles.ts 全局兜底——component fn 不支持 scoped CSS。
 
-component fn UserMessage(content: str) {
-    use {
-        fn: render_mentions_default from "src/front/mention_helpers.at"
-    }
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web render_mentions_default from "src/front/mention_helpers.at"
+
+widget UserMessage(content: str) {
     computed {
         html => render_mentions_default(.content)
     }
-    div {
-        html: .html
-        style: "user-text"
+    view {
+        div {
+            html: .html
+            style: "user-text"
+        }
     }
 }

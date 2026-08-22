@@ -13,11 +13,11 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.questionnaire-card 等）。
 
-component fn QuestionnaireCard(questions: obj) {
-    use {
-        component: HelpCircle, Send from "lucide-vue-next"
-        fn: questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder, eventInputValue, formatQuestionnaireAnswers from "src/front/questionnaire_helpers.at"
-    }
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web component HelpCircle, Send from "lucide-vue-next"
+use.web questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder, eventInputValue, formatQuestionnaireAnswers from "src/front/questionnaire_helpers.at"
+
+widget QuestionnaireCard(questions: obj) {
     computed {
         canSubmit => questionnaireCanSubmit(.questions, .answers)
         // 提交载荷：格式化后的可读文本（"Q1: A; Q2: B"），父组件直接作为
@@ -88,100 +88,102 @@ component fn QuestionnaireCard(questions: obj) {
 }
     }
 
-    div {
-        style: "questionnaire-card"
+    view {
         div {
-            style: "q-header"
-            HelpCircle { size: 16 }
-            span "Quick Questions"
-        }
-        for q in .questions {
+            style: "questionnaire-card"
             div {
-                key: .q.id
-                style: "q-item"
+                style: "q-header"
+                HelpCircle { size: 16 }
+                span "Quick Questions"
+            }
+            for q in .questions {
                 div {
-                    style: "q-text"
-                    text "Q"
-                    text .q.text
-                }
-                if .q.type == "single" {
+                    key: .q.id
+                    style: "q-item"
                     div {
-                        style: "q-options"
-                        for opt in .q.options {
-                            button {
-                                onclick: .SelectSingle(.q.id, opt)
-                                key: opt
-                                class: if questionnaireSingleChecked(.answers, .q.id, opt) { "q-option checked" } else { "q-option" }
-                                span { style: "q-check" }
-                                span { style: "q-label", text opt }
-                            }
-                        }
-                        if .q.otherLabel != None {
-                            div {
-                                style: "q-other-row"
-                                span {
-                                    style: "q-other-label"
-                                    text .q.otherLabel
-                                }
-                                input {
-                                    type: "text"
-                                    style: "q-other-input"
-                                    value: .answers[questionnaireOtherKey(.q.id)]
-                                    oninput: .OtherChanged(.q.id, $event)
-                                    placeholder: questionnairePlaceholder(.q, "Type here...")
-                                }
-                            }
-                        }
+                        style: "q-text"
+                        text "Q"
+                        text .q.text
                     }
-                } else if .q.type == "multiple" {
-                    div {
-                        style: "q-options"
-                        for opt in .q.options {
-                            button {
-                                onclick: .SelectMultiple(.q.id, opt)
-                                key: opt
-                                class: if questionnaireMultiChecked(.answers, .q.id, opt) { "q-option checked" } else { "q-option" }
-                                span { style: "q-check square" }
-                                span { style: "q-label", text opt }
-                            }
-                        }
-                        if .q.otherLabel != None {
-                            div {
-                                style: "q-other-row"
-                                span {
-                                    style: "q-other-label"
-                                    text .q.otherLabel
-                                }
-                                input {
-                                    type: "text"
-                                    style: "q-other-input"
-                                    value: .answers[questionnaireOtherKey(.q.id)]
-                                    oninput: .OtherChanged(.q.id, $event)
-                                    placeholder: questionnairePlaceholder(.q, "Type here...")
+                    if .q.type == "single" {
+                        div {
+                            style: "q-options"
+                            for opt in .q.options {
+                                button {
+                                    onclick: .SelectSingle(.q.id, opt)
+                                    key: opt
+                                    class: if questionnaireSingleChecked(.answers, .q.id, opt) { "q-option checked" } else { "q-option" }
+                                    span { style: "q-check" }
+                                    span { style: "q-label", text opt }
                                 }
                             }
+                            if .q.otherLabel != None {
+                                div {
+                                    style: "q-other-row"
+                                    span {
+                                        style: "q-other-label"
+                                        text .q.otherLabel
+                                    }
+                                    input {
+                                        type: "text"
+                                        style: "q-other-input"
+                                        value: .answers[questionnaireOtherKey(.q.id)]
+                                        oninput: .OtherChanged(.q.id, $event)
+                                        placeholder: questionnairePlaceholder(.q, "Type here...")
+                                    }
+                                }
+                            }
                         }
-                    }
-                } else if .q.type == "text" {
-                    div {
-                        style: "q-text-input"
-                        input {
-                            type: "text"
-                            class: "q-text-input-field"
-                            value: .answers[q.id]
-                            oninput: .TextChanged(.q.id, $event)
-                            placeholder: questionnairePlaceholder(.q, "Type your answer...")
+                    } else if .q.type == "multiple" {
+                        div {
+                            style: "q-options"
+                            for opt in .q.options {
+                                button {
+                                    onclick: .SelectMultiple(.q.id, opt)
+                                    key: opt
+                                    class: if questionnaireMultiChecked(.answers, .q.id, opt) { "q-option checked" } else { "q-option" }
+                                    span { style: "q-check square" }
+                                    span { style: "q-label", text opt }
+                                }
+                            }
+                            if .q.otherLabel != None {
+                                div {
+                                    style: "q-other-row"
+                                    span {
+                                        style: "q-other-label"
+                                        text .q.otherLabel
+                                    }
+                                    input {
+                                        type: "text"
+                                        style: "q-other-input"
+                                        value: .answers[questionnaireOtherKey(.q.id)]
+                                        oninput: .OtherChanged(.q.id, $event)
+                                        placeholder: questionnairePlaceholder(.q, "Type here...")
+                                    }
+                                }
+                            }
+                        }
+                    } else if .q.type == "text" {
+                        div {
+                            style: "q-text-input"
+                            input {
+                                type: "text"
+                                class: "q-text-input-field"
+                                value: .answers[q.id]
+                                oninput: .TextChanged(.q.id, $event)
+                                placeholder: questionnairePlaceholder(.q, "Type your answer...")
+                            }
                         }
                     }
                 }
             }
-        }
-        button {
-            onclick: .submit(.submitText)
-            style: "q-submit"
-            disabled: !.canSubmit
-            Send { size: 13 }
-            text "Submit Answers"
+            button {
+                onclick: .submit(.submitText)
+                style: "q-submit"
+                disabled: !.canSubmit
+                Send { size: 13 }
+                text "Submit Answers"
+            }
         }
     }
 }

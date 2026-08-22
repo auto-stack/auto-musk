@@ -5,14 +5,14 @@
 
 use store: PlansStore
 
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web composable useT from "src/front/composables/useT.ts"
+use.web component Plus from "lucide-vue-next"
+
 widget PlansView {
     use {
-        composable: useT from "src/front/composables/useT.ts"
-        // Plan 023 §3.1：共用 NavSidebar + ContentHeader。
         component: NavSidebar
         component: ContentHeader
-        // 新建计划按钮的 + icon（lucide）
-        component: Plus from "lucide-vue-next"
     }
 
     msg Msg {

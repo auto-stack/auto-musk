@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-037
-status: drafting
+status: execution_done
 feature_name: widget 统一 + use.web 生态导入 + 跨后端 facade
 author: [zhaopuming]
 created_at: 2026-08-22
@@ -143,92 +143,224 @@ use.web composable useI18n refs: [locale] from "vue-i18n"
 
 ## 执行步骤
 
+### Phase 0 — 基线修复(musk 存量断裂,2026-08-22 执行中发现)
+
+> **发现**:musk main(8404202)+ auto-lang master(8c0ef9bb)binary 下 `auto build`
+> 已有 **7 个存量 TS 错误**(与 PLAN-037 改动无关,双 binary 对照错误集合完全一致;
+> 系 musk 上次全绿(b84030a)后 auto-lang plan-418 合并造成的工具链漂移)。
+> 本计划不变量(musk 每 Phase 全绿)以此为前提,必须先修。
+> 错误清单(全局 binary 与 plan-037 worktree binary 一致):
+> 1. `ChatsView.vue(204)` TS2345:ReportCard 调用缺 deckMeta/deckHtml props
+> 2. `RelayRunBox.vue(66)` TS2305:api 无 `Value` 导出
+> 3. `RelayRunBox.vue(310/361/376)` TS2339:relayTVCmdLine/relayWriteFence/relayFileFence 不存在
+> 4. `relay_run_helpers.ts(58/68)` TS7034/7005:转译产物隐式 any[] ×2
+
+- [x] **T0a** 修 RelayRunBox 族(错误 2/3):诊断 `Value` 类型映射与 relay fns 的
+  use{fn} 暴露链(疑 plan-418 codegen 漂移)。验证:musk `auto build` 该 4 错清零。
+- [x] **T0b** 修 ChatsView/ReportCard(错误 1):deckMeta/deckHtml 调用点或 props
+  可选化。验证:该错清零。
+- [x] **T0c** 修 relay_run_helpers 转译隐式 any(错误 4):.at 源补类型标注或转译器
+  补 `any[]` 注解。验证:musk `auto build` 全绿(0 错)——**此后 Phase 1-6 的
+  不变量基线成立**。
+
+### Phase 1 完成(2026-08-22)
+
+T1-T5 全部完成,Phase 1 收口验证:649 ui_gen 单测(含新增 model 寻址单测)+ 8 golden
+更新全绿;k3 Phase 4/5/6 canary 全绿;musk `auto build` 全绿零误伤(T4 defineModel 改造
+对全部存量组件零破坏;T5 通道检查未命中任何存量误用)。
+
+关键落地:
+- T4:model 变量 → `defineModel<T>("name", {default})` 无条件编译(未绑定=本地 ref,
+  行为与之前完全一致)。
+- T5:子 model 变量即双向通道。同文件(api.rs)+ 跨文件(auto-man from_workspace
+  预扫描 → ui_build_..._full → with_sub_widget_models)收集;调用点状态槽目标折叠
+  `v-model:key`,表达式/prop/字面量喂通道 = 硬构建错误;子侧 prop/model 同名 = 生成
+  错误;原生 input 裸 value 槽不再静默退化为单向(补齐"input 对 model 槽永远双向"的
+  设计初衷)。
+- 零关键字达成:无需 bind/v-model 修饰词,双向性由"子的 model 变量 × 父的可写状态槽"
+  两端推导。
+
 ### Phase 1 — widget 能力补齐(auto-lang,用户步骤 1)
 
-- [ ] **T1** k3 Phase 4 矩阵:扩展
-  `auto-lang/examples/capability-tests/k3-widget-composition/`(新增 `item_matrix.at.disabled`
+> **工具链约定**:Phase 内对 auto-lang 的改动,验证用 worktree binary
+> `D:/autostack/auto-lang-p037/target/release/auto.exe`(cargo build --release),
+> 不覆盖全局 `~/.cargo/bin/auto.exe`(保留回退版本)。
+
+- [x] **T1** k3 Phase 4 矩阵:扩展
+  `auto-lang/examples/capability-tests/k3-widget-composition/`(新增 `item_matrix.at`
   复活为 widget 版):child widget 内组合 `use{fn}` + `slot` + `computed` + `style` +
   `watch` + `.Init/.Destroy` + msg。逐项开启验证,记录哪项红。验证:`cd k3 目录 && auto build`。
-- [ ] **T2** k3 Phase 5 回调形态等价:同场景验证父侧 `onselect: .X($event)`(component fn
+- [x] **T2** k3 Phase 5 回调形态等价:同场景验证父侧 `onselect: .X($event)`(component fn
   惯用)与 `on_select: .X`(widget 契约)在 **widget 子**上的产物差异,产出迁移规则表
   (Phase 4 的输入)。验证:`auto build` + 产物 diff 记入 README。
-- [ ] **T3** 修 k2 回归:`examples/capability-tests/k2-child-handler-binding` 二选一——
+- [x] **T3** 修 k2 回归:`examples/capability-tests/k2-child-handler-binding` 二选一——
   (a) codegen 补全"回调 prop 无变体"惯用法(defineProps 剔除 + defineEmits 补名)或
   (b) k2 源改为契约惯用法并注明。验证:`cd k2 目录 && auto build` 绿。
-- [ ] **T4** defineModel 编译:`ui_gen/vue.rs` model 变量 → `defineModel<T>()`(未绑定
+- [x] **T4** defineModel 编译:`ui_gen/vue.rs` model 变量 → `defineModel<T>()`(未绑定
   行为不变,存量 widget 回归);单测 `test_widget_model_var_define_model`。验证:
   `cargo test -p auto-lang --lib ui_gen::vue`。
-- [ ] **T5** 调用点 model 寻址:prop 命中子 model 变量 + 状态槽 → `v-model:name`;
+- [x] **T5** 调用点 model 寻址:prop 命中子 model 变量 + 状态槽 → `v-model:name`;
   实现三类编译错误(D1 表);k3 Phase 6(三层链 Parent→Child→Input)落地;golden
   `test/a2vue/011_model_binding/`。验证:`cargo test` + k3 `auto build` + musk 根
   `auto build` 回归。
 
 ### Phase 2 — use.web 语句(auto-lang,用户步骤 2)
 
-- [ ] **T6** parser:`use.web` 语句(D2 语法,默认/component/composable + `refs:`)→
+- [x] **T6** parser:`use.web` 语句(D2 语法,默认/component/composable + `refs:`)→
   ExtImport AST;单测覆盖四形态。验证:`cargo test -p auto-lang --lib`。
-- [ ] **T7** 门控 + 别名:非 web 目标遇 `use.web` 显式报错(仿 use.py 文案);use 块
+- [x] **T7** 门控 + 别名:非 web 目标遇 `use.web` 显式报错(仿 use.py 文案);use 块
   保留别名(双入口单测)。验证:`cargo test -p auto-lang --lib` + musk 根 `auto build`。
-- [ ] **T8** k3 试点:canary 内把一个 use 块改为 `use.web`(证明端到端)。验证:
+- [x] **T8** k3 试点:canary 内把一个 use 块改为 `use.web`(证明端到端)。验证:
   k3 `auto build` 绿 + 产物 import 不变。
+
+### Phase 2 完成(2026-08-22)
+
+T6-T8 全部完成:651 ui_gen 单测(含 use.web 四形态解析单测)+ k3 T8 试点
+(use 块 → 顶层 use.web,产物逐字相同)+ musk 回归全绿(use 块别名生效,存量零影响)。
+
+落地:`use.web NAME from "path"`(默认普通导入)/`use.web component A, B from "..."`
+/`use.web composable X refs: [...] from "..."`;AST `Stmt::UseWeb`(六个 match 补臂);
+parser 与 use.rust/use.py 同族派发;api.rs 把文件级条目挂到文件内全部 widget;
+a2r 两处显式报错("use.web requires the vue render target")。
 
 ### Phase 3 — musk use 块 → use.web(用户步骤 3)
 
-- [ ] **T9** 盘点:`grep -rn "use {" D:/autostack/auto-musk/src/front/*.at` 生成清单
+- [x] **T9** 盘点:`grep -rn "use {" D:/autostack/auto-musk/src/front/*.at` 生成清单
   (按文件×kind 登记进本节回填),定批次。验证:清单写入计划。
-- [ ] **T10** 批次 1:6 个 widget 文件(app/chats_view/plans_view/login/specs_view/
+- [x] **T10** 批次 1:6 个 widget 文件(app/chats_view/plans_view/login/specs_view/
   wiki_view.at)的 use 块 → `use.web`。验证:musk 根 `auto build`。
-- [ ] **T11** 批次 2:component fn 前半(A–M,grep 清单为准)。验证:musk 根 `auto build`。
-- [ ] **T12** 批次 3:component fn 后半(N–Z)+ 断言 `grep -rn "use {" src/front/` 零命中。
+- [x] **T11** 批次 2:component fn 前半(A–M,grep 清单为准)。验证:musk 根 `auto build`。
+- [x] **T12** 批次 3:component fn 后半(N–Z)+ 断言 `grep -rn "use {" src/front/` 零命中。
   验证:`auto build` + `cd web && npx vitest run`(基线 2 失败)。
+
+### Phase 3 完成(2026-08-22)
+
+T9-T12 完成:`scripts/migrate_use_web.py` 机械转换 25 文件 29 块——带 from 的条目
+(fn/component/composable,含 refs)全部提升为顶层 `use.web` 语句;**无 from 的
+`component: X`(跨文件组件引用)保留在原 use 块**(Phase 4 转 widget 后改顶层
+`use alias: X` 消化)。收口:`auto build` 全绿 + web vitest 基线不变(2 存量失败/
+22 过,主检出演示 worktree web/ 无 node_modules 属 checkout 固有)+ 块内 web 条目
+零残留(仅注释提及旧形式)。
 
 ### Phase 4 — musk component fn → widget(用户步骤 4)
 
-- [ ] **T13** 试点定样板:`think_block.at` 单文件迁移(`component fn X(p) { blocks…
+- [x] **T13** 试点定样板:`think_block.at` 单文件迁移(`component fn X(p) { blocks…
   body }` → `widget X(p) { blocks… view { body } }`),按 T2 规则表核对父侧绑定,
   产物 diff 对拍。验证:`auto build` + gen 产物手查。
-- [ ] **T14** 批次 A(叶子渲染):agent_avatar/user_message/content_header/report_card/
+- [x] **T14** 批次 A(叶子渲染):agent_avatar/user_message/content_header/report_card/
   questionnaire_card/secretary_message/streaming_table + think_block 复核。验证:
   `auto build`。
-- [ ] **T15** 批次 B(卡片组):generic_tool_card/errand_card/task_plan_card/gate_card/
+- [x] **T15** 批次 B(卡片组):generic_tool_card/errand_card/task_plan_card/gate_card/
   tool_block/raw_preview。验证:`auto build`。
-- [ ] **T16** 批次 C(输入/导航/复杂):mention_dropdown/mention_input/nav_sidebar/
+- [x] **T16** 批次 C(输入/导航/复杂):mention_dropdown/mention_input/nav_sidebar/
   wiki_nav/workspace_selector/settings_menu/session_info/relay_run_box/chat_message/
   secretary_message_wrapper + 断言 `grep -rn "component fn" src/front/` 零命中。
   验证:`auto build` + `cargo test -p musk` + vitest 基线。
 
+### Phase 4 完成(2026-08-22)
+
+T13-T16 完成:24 个 component fn 全部迁移为 widget(`scripts/migrate_widget.py`
+机械转换:改名 + view 体包裹;试点 ThinkBlock 产物逐字节相同;转换器多行注释
+lookahead bug 修复后 3 个伤件重转)。收口:`grep component fn` 零命中;`auto build`
+全绿;`cargo test -p musk` 绿;web vitest 基线不变。
+
+顺带修:auto_type_to_ts_type/is_builtin_type_name 补 `obj`/`list` 内建映射
+(component fn 提取曾擦为 any,widget 路径直映射后暴露 TS2305)。
+
+**widget 现为 musk 唯一 UI 单元**(6 页面 + 24 子组件,共 30 个 widget)。
+
 ### Phase 5 — use.web 抽 facade(用户步骤 5)
 
-- [ ] **T17** 域盘点:非 `.at` 的 use.web 清单化(stream/styles/auth/composables/
+- [x] **T17** 域盘点:非 `.at` 的 use.web 清单化(stream/styles/auth/composables/
   icons+renderer 五类),定 `src/front/ports/` 目录与命名。验证:清单写入计划。
-- [ ] **T18** stream 域:`ports/stream.at`(端口签名 + `use.web startForgeStream
+- [x] **T18** stream 域:`ports/stream.at`(端口签名 + `use.web startForgeStream
   from "src/front/forge_stream.ts"` + wrapper fn),chats_view 等调用方改 use 端口。
   验证:`auto build`。
-- [ ] **T19** styles+auth 域:`ports/platform.at`(inject_styles/setup_auth_fetch),
+- [x] **T19** styles+auth 域:`ports/platform.at`(inject_styles/setup_auth_fetch),
   app.at 调用面改。验证:`auto build`。
-- [ ] **T20** composables 域:`ports/i18n_router.at`(useT/gate_router/useI18n refs)。
+- [x] **T20** composables 域:`ports/i18n_router.at`(useT/gate_router/useI18n refs)。
   验证:`auto build` + i18n 手工 smoke(切语言)。
-- [ ] **T21** icons/renderer 域:决策落地——调用点保留 `use.web component`(登记
+- [x] **T21** icons/renderer 域:决策落地——调用点保留 `use.web component`(登记
   KNOWN-DEBT)或最小转发机制;`grep -rn "use.web" src/front/ --include="*.at" |
   grep -v ports/` 仅剩已登记项。验证:`auto build`。
 
+### Phase 5 完成(2026-08-22)
+
+T17-T21 完成(域重划按盘点结论):
+- **盘点**:26 处 use.web 已指向 .at 空间(非耦合);真 web 耦合=lucide×14/vue-i18n×4/
+  markdown×4/useT×6/raw_upload×3/platform 工具 ×5/markstream/deck。
+- **域重划**:forge_stream.ts 不走 use.web(TS 侧直连 store 单例,Plan 7b 架构),
+  stream 域归并——relay_command_runner 进 platform 域。
+- **platform 域 facade 落地**:`src/front/ports/platform.at`(use.web 三绑定 +
+  platform* wrapper fn);机制 = fn 模块发射自身导入(auto-lang)+ ext 传递复制;
+  app.at/chats_view 调用面改指 .at 空间。产物验证:@/ext/ports/platform 含 imports
+  + wrappers,调用方只 import .at 路径。
+- **T20 决策**:composables 域留调用点(自动调用+refs 是调用方 setup 机制,fn 包装
+  丢反应性,登记 KNOWN-DEBT 待语言层 composable 符号转发);raw_upload 混居 ref
+  常量同样留调用点。
+- **T21 断言过**:调用面非 .at 目标仅剩白名单(lucide/markstream/platform:markdown/
+  vue-i18n/useT/gate_router/raw_upload/deck.vue,均已登记)。
+
+收口:auto build 全绿 + cargo test 绿 + vitest 基线不变。
+
 ### Phase 6 — 编译期目标门控(auto-lang + musk,用户步骤 6)
 
-- [ ] **T22** auto-lang 门控机制:`.web.at` 后缀文件按 pac `render` 选择参与编译;
+- [x] **T22** auto-lang 门控机制:`.web.at` 后缀文件按 pac `render` 选择参与编译;
   端口在当前目标无 adapter → 构建期显式报错。单测:web 目标选中 / rust 目标跳过并
   在缺 adapter 时报错。验证:`cargo test -p auto-lang --lib`。
-- [ ] **T23** musk stream proof:拆 `ports/stream.at`(纯签名) + `ports/stream.web.at`
+- [x] **T23** musk stream proof:拆 `ports/stream.at`(纯签名) + `ports/stream.web.at`
   (use.web 绑定),调用方不变。验证:musk `auto build` 绿;临时改 pac `render` 触发
   缺 adapter 报错截图/记录后复原。
-- [ ] **T24** 全量收口:`auto build` + `cargo test -p musk` + `cd web && npx vitest run`
+- [x] **T24** 全量收口:`auto build` + `cargo test -p musk` + `cd web && npx vitest run`
   (2 存量失败基线)+ k2/k3 canary 全绿;更新 `docs/specs/01-architecture.md` 的
   .at 源分类(widget 单一单元 / use.web / ports)。
 
 ## 复审记录
 
+### Phase 6 完成(2026-08-22)——全部 24 任务完成,计划 execution_done
+
+- **T22**:`resolve_at_adapter(path, target)`(auto-man)——`X.at` 端口按目标解析
+  同名 `X.<target>.at` adapter(adapter 存在则胜出;两者皆无 → 显式
+  "no source for ext module" 错误)。接入 ext 复制与传递展开两点;单测覆盖
+  adapter-wins/plain-fallback/missing-error 三态。
+- **T23**:musk platform 域拆分 proof——`ports/platform.at` → `ports/platform.web.at`
+  (调用方零改动,仍引 `.at` 端口名),adapter 解析接住,构建绿;负例(挪走
+  adapter)精确报错后复原。
+- **T24**:全量回归——auto-man 221 单测、k2/k3 canary、musk auto build、
+  `cargo test -p musk`、web vitest(基线 2 失败)全过;`docs/specs/01-architecture.md`
+  更新(widget 唯一单元/use.web/ports facade/v-model 契约)。
+
+### 终态摘要
+
+| 维度 | 迁移前 | 迁移后 |
+|---|---|---|
+| UI 单元 | widget(6 页面)+ component fn(24 子组件)双轨 | widget 单轨 30 个 |
+| web 导入 | use 块(组件内,错误后端静默忽略) | 顶层 use.web(a2r 显式报错;块为废弃别名) |
+| web 耦合面 | 散布 25 文件直指 .ts/.vue/npm | 集中 ports/platform.web.at + 登记白名单 |
+| 双向绑定 | 无(手写四件套) | model 变量 = 通道,状态槽自动 v-model,零关键字 |
+| 跨后端 | 无机制 | X.at 端口 + X.<target>.at adapter 文件级门控 |
+
+
+### Phase 0 完成(2026-08-22)
+
+7 个存量错全清 + 顺带修出 4 个更深的问题,musk `auto build` 全绿(优于 main 基线——
+main 本身就是红的,此前被主检出 gen/ 中未跟踪的 deck.vue 掩盖):
+
+1. relay_run_box.at use 清单补 relayTVCmdLine/relayWriteFence/relayFileFence(模板用而未导入)
+2. ReportCard deckMeta/deckHtml 调用点显式传空(Auto 轨从未接 deck 载荷,行为不变)
+3. auto-lang:`Value` 内建类型映射 → any(auto_type_to_ts_type + is_builtin_type_name)
+4. deck.vue 从主检出 gen/ 残留收编为受管源文件 `src/platform/deck.vue`,导入改 ext 路径
+5. relay_run_helpers.at relayPreviewLines 本地变量 `list` 改名 `rows`——规避 parser
+   "类型名被同名本地变量遮蔽后 let 标注丢失"怪癖(最小用例已复现确认为 parser 层问题)
+
+
 (执行中回填)
 
 ## 待澄清事项
+
+5. parser 怪癖:局部变量与类型名同名(如 `let list = ...` 后接 `let out list = []`)
+   会使后者类型标注丢失(探针已复现,见 Phase 0 记录第 5 条)——Phase 0 以改名规避,
+   parser 层修复(类型位置不应走符号解析)另立小计划。
 
 1. component 符号转发(图标/StreamingRenderer 经 ports 引用)——v1 保留调用点直连,
    语言层机制另立计划(T21 决策)。

@@ -15,12 +15,12 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.gate-card 等）。
 
-component fn GateCard(title: str, profession: str, changes: obj) {
-    use {
-        component: Check, X, Eye, ChevronDown, ChevronUp from "lucide-vue-next"
-        fn: gate_toggle_expanded, gate_with_expanded, gate_init_edited_specs, gate_title_text from "src/front/gate_helpers.at"
-        fn: eventInputValue from "src/front/questionnaire_helpers.at"
-    }
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web component Check, X, Eye, ChevronDown, ChevronUp from "lucide-vue-next"
+use.web gate_toggle_expanded, gate_with_expanded, gate_init_edited_specs, gate_title_text from "src/front/gate_helpers.at"
+use.web eventInputValue from "src/front/questionnaire_helpers.at"
+
+widget GateCard(title: str, profession: str, changes: obj) {
     computed {
         titleText => gate_title_text(.title)
         hasChanges => .changes != None && .changes.length > 0
@@ -102,55 +102,57 @@ component fn GateCard(title: str, profession: str, changes: obj) {
   .approve-btn:hover, .reject-btn:hover, .review-btn:hover { opacity: 0.85; }
     }
 
-    div {
-        style: "gate-card"
+    view {
         div {
-            style: "gate-card-header"
-            span { style: "gate-icon", text "🔒" }
-            span { style: "gate-title", text .titleText }
-            if .profession != "" {
-                span { style: "gate-profession", text .profession }
-            }
-        }
-        if .hasChanges {
+            style: "gate-card"
             div {
-                style: "gate-diff-list"
-                for change in .diffList {
-                    div {
-                        key: .change.section_id
-                        style: "diff-card"
+                style: "gate-card-header"
+                span { style: "gate-icon", text "🔒" }
+                span { style: "gate-title", text .titleText }
+                if .profession != "" {
+                    span { style: "gate-profession", text .profession }
+                }
+            }
+            if .hasChanges {
+                div {
+                    style: "gate-diff-list"
+                    for change in .diffList {
                         div {
-                            onclick: .ToggleDiff(.change.section_id)
-                            style: "diff-header"
-                            span { style: "diff-title", text .change.section_id }
-                            span {
-                                class: if .change.new_status == "approved" { "diff-status approved" } else { "diff-status" }
-                                text .change.old_status
-                                text " → "
-                                text .change.new_status
+                            key: .change.section_id
+                            style: "diff-card"
+                            div {
+                                onclick: .ToggleDiff(.change.section_id)
+                                style: "diff-header"
+                                span { style: "diff-title", text .change.section_id }
+                                span {
+                                    class: if .change.new_status == "approved" { "diff-status approved" } else { "diff-status" }
+                                    text .change.old_status
+                                    text " → "
+                                    text .change.new_status
+                                }
+                                if .change._expanded {
+                                    ChevronUp { size: 14, class: "diff-chevron" }
+                                } else {
+                                    ChevronDown { size: 14, class: "diff-chevron" }
+                                }
                             }
                             if .change._expanded {
-                                ChevronUp { size: 14, class: "diff-chevron" }
-                            } else {
-                                ChevronDown { size: 14, class: "diff-chevron" }
-                            }
-                        }
-                        if .change._expanded {
-                            div {
-                                style: "diff-body"
                                 div {
-                                    style: "diff-side"
-                                    div { style: "diff-label", text "Before" }
-                                    pre { style: "diff-content old", text .change.old_content }
-                                }
-                                div {
-                                    style: "diff-side"
-                                    div { style: "diff-label", text "After" }
-                                    textarea {
-                                        rows: "6"
-                                        style: "diff-editor"
-                                        value: .editedSpecs[change.section_id]
-                                        oninput: .EditedChanged(.change.section_id, $event)
+                                    style: "diff-body"
+                                    div {
+                                        style: "diff-side"
+                                        div { style: "diff-label", text "Before" }
+                                        pre { style: "diff-content old", text .change.old_content }
+                                    }
+                                    div {
+                                        style: "diff-side"
+                                        div { style: "diff-label", text "After" }
+                                        textarea {
+                                            rows: "6"
+                                            style: "diff-editor"
+                                            value: .editedSpecs[change.section_id]
+                                            oninput: .EditedChanged(.change.section_id, $event)
+                                        }
                                     }
                                 }
                             }
@@ -158,26 +160,26 @@ component fn GateCard(title: str, profession: str, changes: obj) {
                     }
                 }
             }
-        }
-        div {
-            style: "gate-actions"
-            button {
-                onclick: .approve(.editedSpecs)
-                style: "approve-btn"
-                Check { size: 14 }
-                text "Approve & Execute"
-            }
-            button {
-                onclick: .reject
-                style: "reject-btn"
-                X { size: 14 }
-                text "Reject & Redraft"
-            }
-            button {
-                onclick: .ToggleReview
-                style: "review-btn"
-                Eye { size: 14 }
-                text .reviewLabel
+            div {
+                style: "gate-actions"
+                button {
+                    onclick: .approve(.editedSpecs)
+                    style: "approve-btn"
+                    Check { size: 14 }
+                    text "Approve & Execute"
+                }
+                button {
+                    onclick: .reject
+                    style: "reject-btn"
+                    X { size: 14 }
+                    text "Reject & Redraft"
+                }
+                button {
+                    onclick: .ToggleReview
+                    style: "review-btn"
+                    Eye { size: 14 }
+                    text .reviewLabel
+                }
             }
         }
     }

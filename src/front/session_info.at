@@ -14,12 +14,12 @@
 
 use store: ForgeStore
 
-component fn SessionInfo() {
-    use {
-        component: Info, Copy, CopyCheck from "lucide-vue-next"
-        fn: session_token_cost, session_message_count from "src/front/session_data_helpers.at"
-        composable: useI18n refs: [locale] from "vue-i18n"
-    }
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web component Info, Copy, CopyCheck from "lucide-vue-next"
+use.web session_token_cost, session_message_count from "src/front/session_data_helpers.at"
+use.web composable useI18n refs: [locale] from "vue-i18n"
+
+widget SessionInfo() {
     computed {
         sessionId => .store.session_id
         messageCount => session_message_count(.store.messages)
@@ -82,44 +82,46 @@ component fn SessionInfo() {
   .text-muted { color: hsl(var(--muted-foreground)); }
     }
 
-    div {
-        style: "session-info-wrapper"
-        button {
-            onclick: .Toggle
-            style: "session-info-btn"
-            title: i18n.t("chat.sessionInfo")
-            Info { size: 15 }
-        }
-        if .open {
-            div {
-                style: "session-info-tooltip"
+    view {
+        div {
+            style: "session-info-wrapper"
+            button {
+                onclick: .Toggle
+                style: "session-info-btn"
+                title: i18n.t("chat.sessionInfo")
+                Info { size: 15 }
+            }
+            if .open {
                 div {
-                    style: "session-info-row"
-                    span { style: "session-info-label", text i18n.t("chat.chatId") }
-                    code {
-                        style: "session-info-value session-info-id"
-                        text if .sessionId != "" { .sessionId } else { "—" }
-                    }
-                    button {
-                        onclick: .CopyId
-                        style: "session-info-copy"
-                        title: i18n.t("chat.copyChatId")
-                        if .copied {
-                            CopyCheck { size: 12 }
-                        } else {
-                            Copy { size: 12 }
+                    style: "session-info-tooltip"
+                    div {
+                        style: "session-info-row"
+                        span { style: "session-info-label", text i18n.t("chat.chatId") }
+                        code {
+                            style: "session-info-value session-info-id"
+                            text if .sessionId != "" { .sessionId } else { "—" }
+                        }
+                        button {
+                            onclick: .CopyId
+                            style: "session-info-copy"
+                            title: i18n.t("chat.copyChatId")
+                            if .copied {
+                                CopyCheck { size: 12 }
+                            } else {
+                                Copy { size: 12 }
+                            }
                         }
                     }
-                }
-                div {
-                    style: "session-info-row"
-                    span { style: "session-info-label", text i18n.t("chat.messages") }
-                    span { style: "session-info-value", text .messageCount }
-                }
-                div {
-                    style: "session-info-row"
-                    span { style: "session-info-label", text i18n.t("chat.tokenCost") }
-                    span { style: "session-info-value", text .tokenCost }
+                    div {
+                        style: "session-info-row"
+                        span { style: "session-info-label", text i18n.t("chat.messages") }
+                        span { style: "session-info-value", text .messageCount }
+                    }
+                    div {
+                        style: "session-info-row"
+                        span { style: "session-info-label", text i18n.t("chat.tokenCost") }
+                        span { style: "session-info-value", text .tokenCost }
+                    }
                 }
             }
         }
