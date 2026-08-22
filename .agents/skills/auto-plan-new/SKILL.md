@@ -73,7 +73,7 @@ derived from the feature. Use this frontmatter (008 §4.2):
 ```yaml
 ---
 plan_id: PLAN-NNN              # matches the filename prefix
-status: drafting               # drafting → executing → execution_done → review_done → merged
+status: drafting               # drafting → executing → execution_done → reviewed → archived
 feature_name: <concise name>
 author: [<you>]
 created_at: <ISO now>

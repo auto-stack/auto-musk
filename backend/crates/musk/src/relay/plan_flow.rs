@@ -12,7 +12,7 @@
 //! (008 §6): new (clarify-or-draft, numbered sections, atomic tasks),
 //! work (plan as sole context, tick + verify, blockers to 待澄清事项),
 //! review (trust the code, re-verify acceptance, fill spec-impact), merge
-//! (gate on review_done, deposit, archive).
+//! (gate on reviewed, deposit, archive).
 
 use std::collections::HashMap;
 
@@ -80,12 +80,12 @@ Trust the code, not the checkboxes：\n\n\
    `touched_goals` 必须给出具体条目列表；确实无关联时保留 `[]` 并在
    `## 9.` 中写明原因。同时核对 `total_steps` 与 §8 任务数一致、
    `current_step` 反映实际进度（merge 相位会逐字消费这些字段）。\n\
-5. 全部通过 → `transition_plan` 到 `review_done`；有不通过 → `transition_plan` 回 `executing`，并在输出中列明缺口与建议（run 会正常结束，用户决定是否重开续跑修复）。\n"
+5. 全部通过 → `transition_plan` 到 `reviewed`；有不通过 → `transition_plan` 回 `executing`，并在输出中列明缺口与建议（run 会正常结束，用户决定是否重开续跑修复）。\n"
         ),
         "document" => format!(
             "{requirement}# 任务：知识沉淀（document 相位）\n\n\
 沉淀计划文件：{plan_file}\n\n\
-1. `read_plan` 检查 status 必须是 `review_done`；不是则输出「复审未通过/未完成，跳过沉淀」并结束——**不要强行 merge**。\n\
+1. `read_plan` 检查 status 必须是 `reviewed`；不是则输出「复审未通过/未完成，跳过沉淀」并结束——**不要强行 merge**。\n\
 2. `merge_plan` 把计划按章节映射沉淀进 Spec ledger 6 区（幂等 upsert，`P<seq>-<n>` 稳定 id）。\n\
 3. 按 frontmatter 的 spec-impact 三字段，用文件工具更新 `docs/specs/` 模块树 markdown：改了哪个模块就更新哪个模块文档，新增模块建档，移除的模块标注。\n\
 4. 汇报 `sections_touched` / `items_created` 与 `docs/specs/` 树的具体改动。\n\

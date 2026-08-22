@@ -55,7 +55,7 @@ Superpowers 是一套面向 AI 编程代理的“技能型开发方法学”，�
 - **Plan 是执行手册**：Plan 文件包含精确的文件路径、完整操作和验证命令。
 - **先设计后编码**：未经充分设计和复审，不进入编码阶段。
 - **技能驱动**：通过可组合的 Skills 定义工作流程。
-- **状态门禁**：通过 `drafting → executing → review_done → merged` 状态流转确保质量。
+- **状态门禁**：通过 `drafting → executing → reviewed → archived` 状态流转确保质量。
 
 ### 2.2 借鉴 spec-kit / OpenSpec
 
@@ -153,7 +153,7 @@ Plan 文件采用 **Markdown + YAML Frontmatter** 格式。YAML 元数据区块�
 
 # 基础信息
 plan_id: PLAN-042                            # 3位数字序号，与文件名前缀一致
-status: drafting                             # drafting → executing → review_done → merged
+status: drafting                             # drafting → executing → reviewed → archived
 feature_name: 支持新语法解析
 author: [创建者/Agent]
 created_at: 2026-08-11T10:00:00Z
@@ -462,7 +462,7 @@ specs/
    - `new_spec_components`：哪些新 Spec 需要创建
    - `touched_goals`：关联到哪些 Goals
 4. **记录复审结果**：在 `## 复审记录` 中写入结论。
-5. **更新状态**：复审通过后将 `status` 更新为 `review_done`；不通过则退回修改。
+5. **更新状态**：复审通过后将 `status` 更新为 `reviewed`；不通过则退回修改。
 
 **约束**：
 - 复审不通过时，**阻止**进入合并阶段。
@@ -470,7 +470,7 @@ specs/
 
 ### 6.5 `/auto-plan:merge` —— 合并到 Spec（杀手锏）
 
-**输入**：Plan ID 或文件名（状态必须为 `review_done`）
+**输入**：Plan ID 或文件名（状态必须为 `reviewed`）
 
 **流程**：
 
@@ -483,7 +483,7 @@ specs/
    - **新建 Spec**：使用 Spec 模板创建新文件，填充从 Plan 提取的内容。
 4. **更新索引**：更新 `specs/index.json`，反映模块变更及关联的 Plan ID。
 5. **移动 Plan**：将 Plan 文件从 `docs/plans/` 移动到 `docs/plans/archived/`。
-6. **更新 Plan 状态**：将 `status` 更新为 `merged`。
+6. **更新 Plan 状态**：将 `status` 更新为 `archived`。
 
 **冲突处理策略**：
 - **Plan 优先**：由于 Plan 已经过复审，其内容被视为“已批准”的变更，采用强覆盖策略。
@@ -523,7 +523,7 @@ specs/
 │  ┌─────────────────┐                                                        │
 │  │ /auto-plan:review│ ◄── ① 对照验收标准检查                               │
 │  │  复审           │     ② 补全 Spec 元数据（supersedes_spec_components）│
-│  └─────────────────┘     status: review_done                               │
+│  └─────────────────┘     status: reviewed                               │
 │       │                                                                     │
 │       ▼                                                                     │
 │  ┌─────────────────┐                                                        │
@@ -531,7 +531,7 @@ specs/
 │  │  合并到 Spec    │     ② 更新 specs/（修改/新建）                       │
 │  └─────────────────┘     ③ 更新 index.json                                │
 │       │                    ④ 移动 Plan 到 archived/                       │
-│       │                    ⑤ status: merged                                │
+│       │                    ⑤ status: archived                                │
 │       ▼                                                                     │
 │  ┌─────────────────┐                                                        │
 │  │  ✅ 完成        │     Plan 已执行，Spec 已同步，知识已沉淀               │
@@ -546,7 +546,7 @@ specs/
 drafting ──(/auto-plan:work)──▶ executing ──(全部完成)──▶ execution_done
      │                              │
      │                              ▼
-     └──(/auto-plan:review)──▶ review_done ──(/auto-plan:merge)──▶ merged
+     └──(/auto-plan:review)──▶ reviewed ──(/auto-plan:merge)──▶ archived
                                     │
                                     ▼
                               (不通过)──▶ 返回修改
@@ -564,7 +564,7 @@ drafting ──(/auto-plan:work)──▶ executing ──(全部完成)──�
 - 只有 `merge` 技能会触碰 Spec 知识库。
 - 将 Plan 的“过程式叙事”转化为 Spec 的“结构化知识”。
 - 不影响主开发流程，是“后台任务”。
-- 完成合并后，Plan 进入 `merged` 状态并移至 `archived/` 目录。
+- 完成合并后，Plan 进入 `archived` 状态并移至 `archived/` 目录。
 
 
 ## 八、防漏号机制详解
@@ -607,7 +607,7 @@ drafting ──(/auto-plan:work)──▶ executing ──(全部完成)──�
 | 2-5 分钟任务粒度 | 执行步骤遵循此粒度 |
 | 先设计后编码 | `new` → `work` 流程强制先有设计 |
 | 技能驱动 | 四个核心技能覆盖完整生命周期 |
-| 状态门禁 | `drafting` → `executing` → `review_done` → `merged` |
+| 状态门禁 | `drafting` → `executing` → `reviewed` → `archived` |
 
 ### 9.2 spec-kit / OpenSpec
 

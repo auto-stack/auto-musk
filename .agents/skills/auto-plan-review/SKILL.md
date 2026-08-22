@@ -4,7 +4,7 @@ description: |
   Review a finished plan against its acceptance criteria and the actual code,
   then fill in the spec-impact metadata (supersedes / new_spec_components /
   touched_goals) so /auto-plan:merge knows what to deposit. Sets status to
-  review_done (pass) or sends back to /auto-plan:work (fail). Use when:
+  reviewed (pass) or sends back to /auto-plan:work (fail). Use when:
   (1) User says "review plan N" / "复审 plan N" / "验收 plan" / "check plan N"
   (2) User says "/auto-plan:review" or a plan just reached execution_done
   (3) User wants to verify a plan is truly complete and ready to merge into the spec ledger
@@ -15,7 +15,7 @@ description: |
 # /auto-plan:review — Review a plan for merge-readiness
 
 Re-verify a plan that is *believed* done, fill in the spec-impact metadata that
-`/auto-plan:merge` consumes, and route the plan to `review_done` (pass) or back
+`/auto-plan:merge` consumes, and route the plan to `reviewed` (pass) or back
 to `/auto-plan:work` (fail). One skill, one session, one review pass.
 
 > **Design source:** `docs/designs/008-auto-plan.md` §6.4. This skill is the
@@ -28,8 +28,8 @@ to `/auto-plan:work` (fail). One skill, one session, one review pass.
 `execution_done`; if it is `executing` with all steps marked done, this skill
 will advance it to `execution_done` as the first action.
 
-**State gate:** `execution_done` is the expected entry state. `review_done` or
-`merged` means review already happened — re-review only if the user explicitly
+**State gate:** `execution_done` is the expected entry state. `reviewed` or
+`archived` means review already happened — re-review only if the user explicitly
 asks. `drafting`/`executing` with unfinished steps → refuse and point to
 `/auto-plan:work`.
 
@@ -91,7 +91,7 @@ to upsert. If a field does not apply, leave the list empty rather than guessing.
 Fill `## 复审记录` with: reviewer, time, per-criterion verdicts, any debt
 candidates. Then route:
 
-- **All criteria pass, no blocking debt** → `status: review_done`. Tell the user
+- **All criteria pass, no blocking debt** → `status: reviewed`. Tell the user
   the plan is ready for `/auto-plan:merge`.
 - **Any criterion fails or the plan is not actually complete** → keep status at
   `execution_done` (or roll back to `executing`), list exactly what to fix, and
@@ -101,10 +101,10 @@ candidates. Then route:
 
 - **Verify, don't trust.** A checked box is a claim. Re-run every verification.
 - **Trust code over plan text.** Record divergences in the review record.
-- **Never set `review_done` on unverified work.** Partial → fail the review.
+- **Never set `reviewed` on unverified work.** Partial → fail the review.
 - **Metadata must be precise.** `/auto-plan:merge` reads it verbatim.
-- **Never merge.** This skill stops at `review_done`; merging is `/auto-plan:merge`.
-- **Defer to specialists.** After `review_done`, the broader `/finish-plan` can
+- **Never merge.** This skill stops at `reviewed`; merging is `/auto-plan:merge`.
+- **Defer to specialists.** After `reviewed`, the broader `/finish-plan` can
   run for the generic close-out + archive routing.
 
 ## Checklist
@@ -115,4 +115,4 @@ candidates. Then route:
 - [ ] `supersedes_spec_components` / `new_spec_components` / `touched_goals`
       filled precisely (or left empty if not applicable)
 - [ ] `## 复审记录` written with per-criterion verdicts
-- [ ] Status routed: `review_done` (pass) or back to work with a fix list
+- [ ] Status routed: `reviewed` (pass) or back to work with a fix list

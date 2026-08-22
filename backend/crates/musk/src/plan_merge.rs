@@ -1,6 +1,6 @@
 //! Plan → Spec 合并引擎（PLAN-024 §5.3 / 008 §6.5 落地）。
 //!
-//! 把一个 `review_done` 的 Plan 拆解成知识片段，映射写入 Spec 6 区 ledger
+//! 把一个 `reviewed` 的 Plan 拆解成知识片段，映射写入 Spec 6 区 ledger
 //! 的对应 section（goals/architecture/designs/tests/reviews/reports）。每个
 //! 生成的 [`SpecItem`] 用 `file`（来源 plan 路径）+ `related`（`PLAN-NNN`）
 //! 溯源。
@@ -195,7 +195,7 @@ mod tests {
         let content = "\
 ---
 plan_id: PLAN-042
-status: review_done
+status: reviewed
 feature_name: 新语法解析
 created_at: 2026-08-11T10:00:00Z
 updated_at: 2026-08-11T16:00:00Z

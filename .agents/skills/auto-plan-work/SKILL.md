@@ -26,7 +26,7 @@ literal "执行 Plan N". If omitted, pick the newest `drafting` or `executing`
 plan in `docs/plans/`.
 
 **State gate:** The plan must be `drafting` or `executing`. If it is
-`execution_done` / `review_done` / `merged`, refuse and point the user to the
+`execution_done` / `reviewed` / `archived`, refuse and point the user to the
 right next skill (`/auto-plan:review` for `execution_done`).
 
 ## Process

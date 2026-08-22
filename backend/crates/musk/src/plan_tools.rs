@@ -59,8 +59,8 @@ impl Tool for ListPlans {
     }
     fn description(&self) -> &str {
         "List implementation plans with seq, status (drafting/executing/\
-         execution_done/review_done/merged) and feature name. Set \
-         include_archived=true to also list archived (merged) plans."
+         execution_done/reviewed/archived) and feature name. Set \
+         include_archived=true to also list archived plans."
     }
     fn parameters(&self) -> Value {
         json!({
@@ -68,7 +68,7 @@ impl Tool for ListPlans {
             "properties": {
                 "include_archived": {
                     "type": "boolean",
-                    "description": "also list archived/merged plans (default false)"
+                    "description": "also list archived plans (default false)"
                 }
             }
         })
@@ -265,8 +265,9 @@ impl Tool for UpdatePlan {
 
 // ── transition_plan ─────────────────────────────────────────
 
-/// State-machine transition（drafting→executing→execution_done→review_done→
-/// merged；复审不过可回退；非法迁移报错并附合法目标集）。
+/// State-machine transition（drafting→executing→execution_done→reviewed；
+/// 复审不过可回退）。`archived` 为终态，不经本工具进入——reviewed 沉淀走
+/// `merge_plan`，搁置走 HTTP archive（PLAN-033 单一终态）。
 pub struct TransitionPlan {
     plans: Arc<PlansStore>,
 }
@@ -289,9 +290,11 @@ impl Tool for TransitionPlan {
     }
     fn description(&self) -> &str {
         "Advance a plan's status machine: drafting → executing → \
-         execution_done → review_done → merged (idempotent; review failure \
-         may go back to executing). Illegal transitions are rejected with the \
-         legal target list."
+         execution_done → reviewed (idempotent; review failure may go \
+         back to executing). `archived` is terminal and NOT reachable via \
+         this tool — reviewed plans must use merge_plan (deposit + \
+         archive). Illegal transitions are rejected with the legal \
+         target list."
     }
     fn parameters(&self) -> Value {
         json!({
@@ -300,7 +303,7 @@ impl Tool for TransitionPlan {
                 "seq": { "type": "integer" },
                 "to": {
                     "type": "string",
-                    "enum": ["drafting", "executing", "execution_done", "review_done", "merged"]
+                    "enum": ["drafting", "executing", "execution_done", "reviewed"]
                 }
             },
             "required": ["seq", "to"]
@@ -338,7 +341,7 @@ impl Tool for TransitionPlan {
 
 // ── merge_plan ──────────────────────────────────────────────
 
-/// 沉淀：review_done 门禁 → 拆解进 Spec 6 区 → Merged → archived。
+/// 沉淀：reviewed 门禁 → 拆解进 Spec 6 区 → archived（置终态 + 移档）。
 pub struct MergePlan {
     plans: Arc<PlansStore>,
     specs: Arc<SpecsStore>,
@@ -360,11 +363,11 @@ impl Tool for MergePlan {
         "merge_plan"
     }
     fn description(&self) -> &str {
-        "Deposit a review_done plan into the Spec ledger: extracts mapped \
+        "Deposit a reviewed plan into the Spec ledger: extracts mapped \
          sections (变更摘要→reports, 目标→goals, 架构方案→architecture, \
          详细设计→designs, 测试设计→tests, 验收标准/复审记录→reviews) as \
-         id-stable items, transitions the plan to merged and archives it. \
-         Gate: the plan must be review_done."
+         id-stable items, sets the plan to archived (terminal) and moves \
+         it into archived/. Gate: the plan must be reviewed."
     }
     fn parameters(&self) -> Value {
         json!({
@@ -469,8 +472,8 @@ mod tests {
             .unwrap();
         let t = TransitionPlan::with_store(plans.clone());
 
-        // drafting → merged 非法，报错附合法目标集
-        let err = t.execute(&json!({ "seq": 1, "to": "merged" })).await.unwrap_err();
+        // drafting → archived 非法（终态不经 transition），报错附合法目标集
+        let err = t.execute(&json!({ "seq": 1, "to": "archived" })).await.unwrap_err();
         match err {
             ToolError::Exec(msg) => {
                 assert!(msg.contains("illegal transition"));
@@ -485,7 +488,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn merge_plan_gates_on_review_done_and_deposits() {
+    async fn merge_plan_gates_on_reviewed_and_deposits() {
         let (plans, specs) = tmp_stores();
         CreatePlan::with_store(plans.clone())
             .execute(&json!({ "feature_name": "沉淀演示", "content": BODY }))
@@ -495,11 +498,11 @@ mod tests {
         // drafting 直接 merge → 门禁报错
         let m = MergePlan::with_stores(plans.clone(), specs.clone());
         let err = m.execute(&json!({ "seq": 1 })).await.unwrap_err();
-        assert!(format!("{err:?}").contains("review_done"));
+        assert!(format!("{err:?}").contains("reviewed"));
 
-        // drafting → review_done（跳过执行直接复审，合法路径）
+        // drafting → reviewed（跳过执行直接复审，合法路径）
         TransitionPlan::with_store(plans.clone())
-            .execute(&json!({ "seq": 1, "to": "review_done" }))
+            .execute(&json!({ "seq": 1, "to": "reviewed" }))
             .await
             .unwrap();
 
@@ -516,6 +519,6 @@ mod tests {
         let l = ListPlans::with_store(plans.clone());
         assert_eq!(l.execute(&json!({})).await.unwrap(), "(no plans)");
         let out = l.execute(&json!({ "include_archived": true })).await.unwrap();
-        assert!(out.contains("[merged]"));
+        assert!(out.contains("[archived]"));
     }
 }
