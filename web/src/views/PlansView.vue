@@ -117,6 +117,8 @@ import PlanStatusBadge from '@/components/plan/PlanStatusBadge.vue'
 import PlanMetaBlock from '@/components/plan/PlanMetaBlock.vue'
 import { splitFrontmatter } from '@/utils/frontmatter'
 import { usePlans } from '@/composables/usePlans'
+import { useForge } from '@/composables/useForge'
+import { useViewState } from '@/composables/useViewState'
 
 const { t } = useI18n()
 const {
@@ -128,8 +130,9 @@ const {
   createPlan,
   updatePlan,
   archivePlan,
-  mergePlan,
 } = usePlans()
+const { createSession, pendingMessage } = useForge()
+const { setView } = useViewState()
 
 /** 过滤档位持久化键（与语言键同 autoforge- 前缀风格）。 */
 const FILTER_KEY = 'autoforge-plans-filter'
@@ -201,18 +204,12 @@ async function onArchive() {
 
 async function onMerge() {
   if (!current.value) return
-  if (!confirm(t('plans.mergeConfirm'))) return
-  const result = await mergePlan(current.value.seq)
-  if (result) {
-    alert(
-      t('plans.mergeSuccess', {
-        count: result.items_created,
-        sections: result.sections_touched.length,
-      }),
-    )
-    await refresh()
-    await selectPlan(current.value.seq)
-  }
+  if (!confirm(t('plans.mergeRunConfirm', { id: current.value.id }))) return
+  // PLAN-034 单入口：按钮触发会话式智能沉淀 run（plan-merge 流程），
+  // 不再直连 merge API——机械沉淀降级为 run 内 Agent 的第一步工具调用。
+  await createSession()
+  pendingMessage.value = `/auto-plan:merge ${current.value.id}`
+  setView('chats')
 }
 
 // keep edit body in sync when current plan changes

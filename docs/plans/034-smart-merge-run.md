@@ -4,13 +4,13 @@ status: executing
 feature_name: 智能沉淀闭环——计划页按钮触发 Chats 会话式 AI 沉淀 run
 author: [zhaopuming]
 created_at: 2026-08-22T13:32:09+08:00
-updated_at: 2026-08-22T13:32:09+08:00
+updated_at: 2026-08-22T14:10:00+08:00
 
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 0
+current_step: 5
 total_steps: 7
 ---
 
@@ -113,11 +113,11 @@ if (mergeMatch) {
 
 ## 执行步骤
 
-- [ ] **T1** worktree `auto-musk-wt-034`（分支 plan-034，D:/autostack 一级目录）+ 计划入库置 executing。验证：`git worktree list`。
-- [ ] **T2** `backend/crates/musk/src/relay/flows.rs`：新增 `plan_merge_flow()` 并注册；测试 `plan_merge_flow_is_single_document_step`。验证：`cargo test -p musk flows`。
-- [ ] **T3** `backend/crates/musk/src/relay/plan_flow.rs`：`phase_task` 放行 plan-merge + document 模板前言；测试覆盖。验证：`cargo test -p musk plan_flow`。
-- [ ] **T4** `web/src/composables/useForge.ts`：pendingMessage；`web/src/views/ChatsView.vue`：斜杠分支 + onMounted 消费。验证：`npx vue-tsc --noEmit`。
-- [ ] **T5** `web/src/views/PlansView.vue` + locales：按钮改触发流程（mergeRunConfirm 确认键，zh/en）。验证：`npx vue-tsc --noEmit && npx vitest run`。
+- [x] **T1** worktree `auto-musk-wt-034`（分支 plan-034，D:/autostack 一级目录）+ 计划入库置 executing。验证：`git worktree list`。
+- [x] **T2** `backend/crates/musk/src/relay/flows.rs`：新增 `plan_merge_flow()` 并注册；测试 `plan_merge_flow_is_single_document_step`。验证：`cargo test -p musk flows`。 [✅ 已完成] 4/4 通过（含 plan_merge_flow_is_single_document_step）
+- [x] **T3** `backend/crates/musk/src/relay/plan_flow.rs`：`phase_task` 放行 plan-merge + document 模板前言；测试覆盖。验证：`cargo test -p musk plan_flow`。 [✅ 已完成] 10/10 通过（新测试抓出并修复"plan-merge 误配其它步骤模板"bug——phase_task 现限定 plan-merge 仅 document）
+- [x] **T4** `web/src/composables/useForge.ts`：pendingMessage；`web/src/views/ChatsView.vue`：斜杠分支 + onMounted 消费。验证：`npx vue-tsc --noEmit`。
+- [x] **T5** `web/src/views/PlansView.vue` + locales：按钮改触发流程（mergeRunConfirm 确认键，zh/en）。验证：`npx vue-tsc --noEmit && npx vitest run`。 [✅ 已完成] TSC 0；vitest 22 过（2 存量失败同 PLAN-033 记录）；mergeConfirm/mergeSuccess 键移除、mergeRunConfirm 新增
 - [ ] **T6** 全量回归 + `npm run build` 重建 dist + 合并回 main + 清理 worktree。验证：`cargo test -p musk` EXIT 0 + build 成功。
 - [ ] **T7** 冒烟：重启 musk 服务（新二进制+新 dist），musk-demo 造 reviewed 计划，浏览器走查按钮→会话→run（报告需 daemon）；结果记录本节。
 

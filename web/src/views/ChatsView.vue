@@ -451,6 +451,7 @@ const {
   sessionId,
   needsApproval,
   pendingSpecChanges,
+  pendingMessage,
   resume,
   switchSession,
   clearSession,
@@ -1174,6 +1175,28 @@ async function sendMessage() {
     return
   }
 
+  // ─── Smart deposit shortcut: /auto-plan:merge <PLAN-NNN> ─────────────
+  // PLAN-034：计划页"沉淀到 Spec"按钮注入的指令——启动 plan-merge 单相位
+  // 智能沉淀 run（merge_plan 机械沉淀 → 更新 docs/specs 模块树 → emit_report）。
+  const mergeMatch = text.match(/^\/auto-plan:merge\s+(PLAN-\d{1,3}|\d{1,3})\b/)
+  if (mergeMatch) {
+    const raw = mergeMatch[1]
+    const planId = /^\d+$/.test(raw) ? `PLAN-${raw.padStart(3, '0')}` : raw.toUpperCase()
+    const task = `沉淀 ${planId} 到 Spec 知识库`
+    const runId = await startRun({ flow_id: 'plan-merge', task })
+    if (runId) {
+      await advanceRun(runId)
+      messages.value.push({
+        id: `plan-merge-${runId}`,
+        role: 'assistant',
+        content: `📦 **智能沉淀已启动**\n\n**计划**: ${planId}\n**Run ID**: \`${runId}\`\n**Flow**: plan-merge\n\nmerge_plan 机械沉淀（幂等）→ 按 spec-impact 更新 \`docs/specs/\` 模块树 → \`emit_report\` 生成 HTML 报告。点击下方的 Run 卡片可查看实时进度。`,
+        timestamp: Date.now(),
+        profession_id: 'assistant',
+      })
+    }
+    return
+  }
+
   // Extract profession_id from the first @mention in text for routing,
   // but keep the full text (including @mention) as the message content
   let professionId: string | undefined = targetProfession.value ?? undefined
@@ -1335,6 +1358,15 @@ onMounted(async () => {
   }
   await loadSessionList()
   await loadAgentConfigs()
+
+  // PLAN-034：消费跨视图待发指令（如计划页跳转注入的 /auto-plan:merge）
+  if (pendingMessage.value) {
+    const pending = pendingMessage.value
+    pendingMessage.value = null
+    inputText.value = pending
+    await nextTick()
+    await sendMessage()
+  }
 })
 
 // Reload chat data when the workspace changes

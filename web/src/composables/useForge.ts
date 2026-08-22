@@ -19,6 +19,9 @@ const _resuming = ref(false)
 const _errands = ref<Record<string, ErrandState>>({})
 const _relayRuns = ref<Record<string, import('@/types/forge').RelayRunState>>({})
 const _taskPlans = ref<Record<string, import('@/types/forge').TaskPlanState>>({})
+// PLAN-034：跨视图待发指令（如计划页跳转注入的 /auto-plan:merge PLAN-NNN），
+// ChatsView onMounted 消费后清空。
+const _pendingMessage = ref<string | null>(null)
 
 /** Normalize a backend session-summary record into the shape the frontend
  *  expects. The current backend summary carries {id, name, mode, message_count,
@@ -566,6 +569,7 @@ export function useForge() {
     sessionPhase,
     needsApproval,
     pendingSpecChanges,
+    pendingMessage: _pendingMessage,
     createSession,
     restoreSession,
     switchSession,
