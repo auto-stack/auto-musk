@@ -38,7 +38,12 @@ pub fn phase_task(
     initial_task: &str,
     context: &HashMap<String, String>,
 ) -> Option<String> {
-    if flow_id != "plan" {
+    // plan-merge（PLAN-034）只有 document 模板；plan 四相位全有；其它流程无。
+    if flow_id == "plan-merge" {
+        if step_id != "document" {
+            return None;
+        }
+    } else if flow_id != "plan" {
         return None;
     }
     let requirement = format!("# 需求（用户原话整理）\n{initial_task}\n\n");
@@ -82,8 +87,19 @@ Trust the code, not the checkboxes：\n\n\
    `current_step` 反映实际进度（merge 相位会逐字消费这些字段）。\n\
 5. 全部通过 → `transition_plan` 到 `reviewed`；有不通过 → `transition_plan` 回 `executing`，并在输出中列明缺口与建议（run 会正常结束，用户决定是否重开续跑修复）。\n"
         ),
-        "document" => format!(
-            "{requirement}# 任务：知识沉淀（document 相位）\n\n\
+        "document" => {
+            // PLAN-034：plan-merge 单相位 run 只做沉淀（执行/复审均已完成）
+            let preamble = if flow_id == "plan-merge" {
+                String::from(
+                    "# 任务：智能沉淀（plan-merge 单相位 run）\n\n\
+                     目标计划：见下方需求中的 PLAN 编号（用 `read_plan` 按编号读取）。\n\
+                     本 run 只做沉淀——执行与复审均已完成，不要重做。\n\n",
+                )
+            } else {
+                String::new()
+            };
+            format!(
+            "{preamble}{requirement}# 任务：知识沉淀（document 相位）\n\n\
 沉淀计划文件：{plan_file}\n\n\
 1. `read_plan` 检查 status 必须是 `reviewed`；不是则输出「复审未通过/未完成，跳过沉淀」并结束——**不要强行 merge**。\n\
 2. `merge_plan` 把计划按章节映射沉淀进 Spec ledger 6 区（幂等 upsert，`P<seq>-<n>` 稳定 id）。\n\
@@ -94,7 +110,8 @@ Trust the code, not the checkboxes：\n\n\
 需求与方案 / 各阶段成果（plan/execute/review/document）/ 指标（步骤·工具\
 调用·令牌·时长）/ 交付物清单 / 结尾；视觉基调类 PPT 分节卡片（大标题、\
 留白、16:9 心智）。同时给同结构 markdown 源。\n"
-        ),
+            )
+        }
         _ => return None,
     };
     Some(template)
@@ -125,6 +142,24 @@ mod tests {
     fn phase_task_none_for_other_flows_and_steps() {
         assert!(phase_task("default", "advise", "t", &ctx(None)).is_none());
         assert!(phase_task("plan", "unknown-step", "t", &ctx(None)).is_none());
+    }
+
+    /// PLAN-034：plan-merge 只有 document 模板，且带智能沉淀前言。
+    #[test]
+    fn plan_merge_flow_document_template_has_smart_deposit_preamble() {
+        let t = phase_task("plan-merge", "document", "沉淀 PLAN-007", &ctx(None)).unwrap();
+        assert!(t.contains("PLAN-007"), "requirement (plan id) embedded");
+        assert!(t.contains("智能沉淀"));
+        assert!(t.contains("read_plan"));
+        assert!(t.contains("merge_plan"));
+        assert!(t.contains("emit_report"));
+        assert!(t.contains("不要重做"));
+        // 其余步骤无模板（流程只有 document 一步）
+        assert!(phase_task("plan-merge", "execute", "t", &ctx(None)).is_none());
+        assert!(phase_task("plan-merge", "plan", "t", &ctx(None)).is_none());
+        // plan 流程的 document 模板不带前言（行为不变）
+        let t2 = phase_task("plan", "document", "需求", &ctx(None)).unwrap();
+        assert!(!t2.contains("智能沉淀"));
     }
 
     #[test]

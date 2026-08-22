@@ -4,12 +4,13 @@
 
 use auto_ai_agent::orchestration::{ExitRouting, FlowSpec, FlowStep, GateType};
 
-/// Build the built-in flows: plan (PLAN-030 canonical), simple, superpower,
-/// plus the deprecated spec-driven pipelines (default/relay, kept for
-/// comparison runs).
+/// Build the built-in flows: plan (PLAN-030 canonical), plan-merge
+/// (PLAN-034 smart deposit), simple, superpower, plus the deprecated
+/// spec-driven pipelines (default/relay, kept for comparison runs).
 pub fn builtin_flows() -> Vec<FlowSpec> {
     vec![
         plan_flow(),
+        plan_merge_flow(),
         default_flow(),
         simple_flow(),
         superpower_flow(),
@@ -32,6 +33,16 @@ fn plan_flow() -> FlowSpec {
     flow.add_step(FlowStep::new("plan", "plan-dev"));
     flow.add_step(FlowStep::new("execute", "plan-dev").with_gate(Human));
     flow.add_step(FlowStep::new("review", "plan-dev"));
+    flow.add_step(FlowStep::new("document", "plan-dev"));
+    flow
+}
+
+/// Smart deposit flow（PLAN-034）— 单相位 document，直接沉淀。
+/// 由计划页"沉淀到 Spec"按钮经 Chats `/auto-plan:merge PLAN-NNN` 触发：
+/// Agent 先 `merge_plan`（机械沉淀+归档，幂等）→ 按 spec-impact 更新
+/// `docs/specs/` 模块树 → `emit_report` 生成 HTML 报告（relay run 内合法）。
+fn plan_merge_flow() -> FlowSpec {
+    let mut flow = FlowSpec::new("plan-merge");
     flow.add_step(FlowStep::new("document", "plan-dev"));
     flow
 }
@@ -116,5 +127,15 @@ mod tests {
         // addressable by id and present in the builtin list.
         assert!(builtin_flows().iter().any(|f| f.id == "plan"));
         assert!(get_builtin_flow("default").is_some(), "deprecated default kept");
+    }
+
+    /// PLAN-034: plan-merge 是单步 document 相位、plan-dev 角色、无 gate。
+    #[test]
+    fn plan_merge_flow_is_single_document_step() {
+        let flow = get_builtin_flow("plan-merge").expect("plan-merge flow registered");
+        assert_eq!(flow.steps.len(), 1);
+        assert_eq!(flow.steps[0].id.as_str(), "document");
+        assert_eq!(flow.steps[0].role_id, "plan-dev");
+        assert_eq!(flow.steps[0].gate, GateType::Auto);
     }
 }
