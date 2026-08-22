@@ -1,0 +1,13 @@
+// ports/composables.web.at — Plan 424 T3:composables 域 web facade。
+//
+// 组合式函数与伴生 fn 经本端口 re-export。自动调用(const t = useT())与
+// refs 标注([locale] → .value)是调用方 setup 机制,不随转发移动——
+// 调用方改引本端口后机制照旧,re-export 只换 import 来源,反应性完整
+// 保留(PLAN-037 待澄清 1 关闭)。
+//
+// rust 目标接入时提供 composables.rust.at 同名 adapter。
+
+use.web composable useT from "src/front/composables/useT.ts"
+use.web composable useGateRouter from "src/front/composables/gate_router.ts"
+use.web composable useI18n from "vue-i18n"
+use.web settingsInitLocale, settingsChangeLocale from "src/front/composables/useT.ts"

@@ -15,10 +15,10 @@
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.wiki-nav 等）。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web component Plus, PanelLeft, Search, BookOpen, FolderInput, FolderPlus, UploadCloud, Trash2, ChevronDown, ChevronRight, FileText, File from "lucide-vue-next"
+use.web component Plus, PanelLeft, Search, BookOpen, FolderInput, FolderPlus, UploadCloud, Trash2, ChevronDown, ChevronRight, FileText, File from "src/front/ports/icons.at"
 use.web wiki_filter_tree from "src/front/wiki_helpers.at"
-use.web wikiUploadDrop, rawUploadProgress from "src/front/raw_upload.ts"
-use.web composable useI18n refs: [locale] from "vue-i18n"
+use.web wikiUploadDrop, rawUploadProgress from "src/front/ports/upload.at"
+use.web composable useI18n refs: [locale] from "src/front/ports/composables.at"
 
 widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: str, workspace: str) {
     use {

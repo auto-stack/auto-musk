@@ -15,7 +15,7 @@
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.ws-btn 等）。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web component Folder, FolderOpen, ChevronUp, ChevronDown, X from "lucide-vue-next"
+use.web component Folder, FolderOpen, ChevronUp, ChevronDown, X from "src/front/ports/icons.at"
 use.web ws_load_recent, ws_load_current, ws_find, ws_browse, ws_open from "src/front/workspace_helpers.at"
 
 widget WorkspaceSelector() {

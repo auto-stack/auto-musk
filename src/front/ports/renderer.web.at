@@ -1,0 +1,10 @@
+// ports/renderer.web.at — Plan 424 T3:renderer 域 web facade。
+//
+// 三种渲染逃生舱组件经本端口 re-export:npm(markstream-vue 命名导出)、
+// platform 协议(markdown → @/platform/markdown.vue default export)、
+// 本地 .vue(deck.vue default export——default as 别名由生成侧处理)。
+// 调用方只引 ports/renderer.at,消灭 PLAN-037 白名单的 renderer 域。
+
+use.web component MarkdownRender from "markstream-vue"
+use.web component Markdown from "platform:markdown"
+use.web component Deck from "src/platform/deck.vue"

@@ -20,9 +20,9 @@
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web raw_file_url, raw_file_kind, raw_iframe_html, raw_download_html from "src/front/raw_helpers.at"
-use.web loadRawFileText from "src/front/raw_upload.ts"
-use.web component MarkdownRender from "markstream-vue"
-use.web component FileIcon from "lucide-vue-next"
+use.web loadRawFileText from "src/front/ports/upload.at"
+use.web component MarkdownRender from "src/front/ports/renderer.at"
+use.web component FileIcon from "src/front/ports/icons.at"
 
 widget RawPreview(workspace: str, path: str) {
     computed {

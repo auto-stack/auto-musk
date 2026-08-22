@@ -6,8 +6,8 @@
 use store: PlansStore
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web composable useT from "src/front/composables/useT.ts"
-use.web component Plus from "lucide-vue-next"
+use.web composable useT from "src/front/ports/composables.at"
+use.web component Plus from "src/front/ports/icons.at"
 
 widget PlansView {
     use {

@@ -1,0 +1,7 @@
+// ports/icons.web.at — Plan 424 T3:icons 域 web facade。
+//
+// 全部 lucide 图标经本端口 re-export(`export { X } from 'lucide-vue-next'`);
+// 调用方只引稳定名 ports/icons.at(rust 目标接入时提供同名 adapter 即可),
+// 不再直连 npm 包。消灭 PLAN-037 白名单的 icons 域。
+
+use.web component BookOpen, Check, ChevronDown, ChevronRight, ChevronUp, Clock, Copy, CopyCheck, Download, ExternalLink, Eye, File, FileIcon, FileText, Folder, FolderInput, FolderOpen, FolderPlus, HelpCircle, Info, ListTodo, MessageSquare, Monitor, Moon, Orbit, PanelLeft, Plus, Scroll, Search, Send, Settings, Square, Sun, Terminal, Trash2, UploadCloud, Wrench, X from "lucide-vue-next"

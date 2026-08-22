@@ -14,7 +14,7 @@
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.questionnaire-card 等）。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web component HelpCircle, Send from "lucide-vue-next"
+use.web component HelpCircle, Send from "src/front/ports/icons.at"
 use.web questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder, eventInputValue, formatQuestionnaireAnswers from "src/front/questionnaire_helpers.at"
 
 widget QuestionnaireCard(questions: obj) {

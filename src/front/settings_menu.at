@@ -18,10 +18,10 @@
 use store: VisualStore
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web component Settings, Check, Sun, Moon, Monitor, ExternalLink from "lucide-vue-next"
+use.web component Settings, Check, Sun, Moon, Monitor, ExternalLink from "src/front/ports/icons.at"
 use.web settings_load_forge_mode, settings_set_forge_mode, settings_open_autoos from "src/front/settings_forge_helpers.at"
-use.web settingsInitLocale, settingsChangeLocale from "src/front/composables/useT.ts"
-use.web composable useI18n refs: [locale] from "vue-i18n"
+use.web settingsInitLocale, settingsChangeLocale from "src/front/ports/composables.at"
+use.web composable useI18n refs: [locale] from "src/front/ports/composables.at"
 use.web visual_accent_options from "src/front/visual_store.at"
 
 widget SettingsMenu() {

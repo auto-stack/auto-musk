@@ -7,7 +7,7 @@ use store: SpecsStore
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web spec_next_id, spec_default_status from "src/front/specs_helpers.at"
-use.web composable useT from "src/front/composables/useT.ts"
+use.web composable useT from "src/front/ports/composables.at"
 
 widget SpecsView {
     use {

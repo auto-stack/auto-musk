@@ -10,9 +10,9 @@
 // 无 deck 载荷时 hasDeck=false,deck iframe 不渲染,其余分层不受影响。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web component ChevronDown, ChevronUp, FileText, Download, FolderOpen from "lucide-vue-next"
-use.web component Markdown from "platform:markdown"
-use.web component Deck from "src/platform/deck.vue"
+use.web component ChevronDown, ChevronUp, FileText, Download, FolderOpen from "src/front/ports/icons.at"
+use.web component Markdown from "src/front/ports/renderer.at"
+use.web component Deck from "src/front/ports/renderer.at"
 use.web reportConfidenceClass, reportDurationLabel from "src/front/forge_helpers.at"
 
 widget ReportCard(report: obj, deckMeta: obj = None, deckHtml: str = "") {

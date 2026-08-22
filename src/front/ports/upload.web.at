@@ -1,0 +1,7 @@
+// ports/upload.web.at — Plan 424 T3:upload 域 web facade。
+//
+// raw_upload 的 fn 与 ref 常量混居(rawUploadProgress)——PLAN-037 时
+// fn 包装转发不了常量而留调用点;Plan 424 的 fn re-export 原样转发全部
+// 符号,混居不再是障碍。调用方只引 ports/upload.at。
+
+use.web uploadRawFiles, loadRawFileText, wikiUploadDrop, rawUploadProgress from "src/front/raw_upload.ts"

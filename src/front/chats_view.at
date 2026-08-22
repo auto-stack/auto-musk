@@ -19,8 +19,8 @@ use.web extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel,
 use.web chatSearchFilter, chatLastMessageId from "src/front/forge_helpers.at"
 use.web getQuestions, hasQuestionnaire from "src/front/questionnaire.at"
 use.web questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder from "src/front/questionnaire_helpers.at"
-use.web component Plus, Trash2, Search, Info from "lucide-vue-next"
-use.web composable useT from "src/front/composables/useT.ts"
+use.web component Plus, Trash2, Search, Info from "src/front/ports/icons.at"
+use.web composable useT from "src/front/ports/composables.at"
 
 widget ChatsView {
     use {

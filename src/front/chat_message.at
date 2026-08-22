@@ -14,7 +14,7 @@
 // （thinking → text → tool_calls），保证渲染模型统一。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web component Markdown from "platform:markdown"
+use.web component Markdown from "src/front/ports/renderer.at"
 use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens from "src/front/forge_helpers.at"
 
 widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj) {

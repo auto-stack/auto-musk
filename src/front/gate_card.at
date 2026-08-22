@@ -16,7 +16,7 @@
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.gate-card 等）。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web component Check, X, Eye, ChevronDown, ChevronUp from "lucide-vue-next"
+use.web component Check, X, Eye, ChevronDown, ChevronUp from "src/front/ports/icons.at"
 use.web gate_toggle_expanded, gate_with_expanded, gate_init_edited_specs, gate_title_text from "src/front/gate_helpers.at"
 use.web eventInputValue from "src/front/questionnaire_helpers.at"
 

@@ -13,9 +13,9 @@ use plans_view: PlansView
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web platformInjectStyles, platformSetupAuthFetch from "src/front/ports/platform.at"
 use.web ensure_workspace from "src/front/workspace_helpers.at"
-use.web composable useT from "src/front/composables/useT.ts"
-use.web composable useGateRouter from "src/front/composables/gate_router.ts"
-use.web component MessageSquare, ListTodo, Scroll, BookOpen from "lucide-vue-next"
+use.web composable useT from "src/front/ports/composables.at"
+use.web composable useGateRouter from "src/front/ports/composables.at"
+use.web component MessageSquare, ListTodo, Scroll, BookOpen from "src/front/ports/icons.at"
 
 widget App {
     use {
