@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-037
-status: drafting
+status: executing
 feature_name: widget 统一 + use.web 生态导入 + 跨后端 facade
 author: [zhaopuming]
 created_at: 2026-08-22
