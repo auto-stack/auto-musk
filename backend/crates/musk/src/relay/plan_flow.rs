@@ -151,9 +151,9 @@ mod tests {
         let ex = phase_task("plan", "execute", "t", &ctx(None)).unwrap();
         assert!(ex.contains("`executing`") && ex.contains("`execution_done`"));
         let rv = phase_task("plan", "review", "t", &ctx(None)).unwrap();
-        assert!(rv.contains("`review_done`") && rv.contains("spec-impact"));
+        assert!(rv.contains("`reviewed`") && rv.contains("spec-impact"));
         let dc = phase_task("plan", "document", "t", &ctx(None)).unwrap();
-        assert!(dc.contains("`review_done`") && dc.contains("`merge_plan`"));
+        assert!(dc.contains("`reviewed`") && dc.contains("`merge_plan`"));
     }
 
     #[test]

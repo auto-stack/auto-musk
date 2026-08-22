@@ -4,13 +4,13 @@ status: executing
 feature_name: 计划模块 UI/UX 改进（过滤/状态/徽标/归档语义/MetaBlock）
 author: [zhaopuming]
 created_at: 2026-08-22T10:40:25+08:00
-updated_at: 2026-08-22T12:05:00+08:00
+updated_at: 2026-08-22T12:40:00+08:00
 
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 9
+current_step: 11
 total_steps: 12
 ---
 
@@ -164,8 +164,8 @@ drafting ──→ executing ──→ execution_done ──→ reviewed ──�
 - [x] **T7** `web/src/views/PlansView.vue` + locales：删状态 `<select>`/`statusOptions`/archived 灰标签；加合法目标按钮组（`ALLOWED_TRANSITIONS` + `transitionTo` 文案）；归档/沉淀按 D3 规则互斥；`onArchive` 确认框 i18n（增 `archiveConfirm`）；locales 键改名 `statusReviewed`/`statusArchived`。验证：`npx vue-tsc --noEmit && npx vitest run`。 [✅ 已完成] 删全量状态下拉与 archived 灰标签，转移按钮组+互斥归档/沉淀，vue-tsc 0；vitest 2 个失败为存量（主仓同败：brandName 断言过时+缺 DOM 环境），与本计划无关
 - [x] **T8** 新建 `web/src/utils/frontmatter.ts` + `web/src/utils/__tests__/frontmatter.spec.ts`（D4 规格的五类用例）。验证：`npx vitest run frontmatter`。 [✅ 已完成] TDD 红→绿：7/7 通过（真实 frontmatter/块列表/引号/CRLF/无围栏/正文 --- 不误判/键序）
 - [x] **T9** 新建 `web/src/components/plan/PlanMetaBlock.vue`；`PlansView.vue` 接入 `splitFrontmatter`（MarkdownContent 只喂 body，顶部插 MetaBlock）；locales 增 `metaShow`/`metaHide`。验证：`npx vue-tsc --noEmit && npx vitest run`。 [✅ 已完成] PlanMetaBlock 概要行+展开表格接入，MarkdownContent 只喂 body；vue-tsc 0，vitest 22 过（2 存量失败同前）
-- [ ] **T10** 全量回归：`cargo test -p musk` + `cd web && npx vue-tsc --noEmit && npx vitest run`；`grep -rn "review_done" backend/crates/musk/src web/src .agents/skills docs/designs` 确认仅剩兼容映射与注释允许项。
-- [ ] **T11** 技能/设计文档同步：`.agents/skills/auto-plan-{new,review,merge,work}/SKILL.md`、`docs/designs/008-auto-plan.md` 中状态名与状态机图改为 `reviewed`/`archived`。验证：`grep -rn "review_done\|status: merged\|status: review_done" .agents/skills docs/designs` 为空。
+- [x] **T10** 全量回归：`cargo test -p musk` + `cd web && npx vue-tsc --noEmit && npx vitest run`；`grep -rn "review_done" backend/crates/musk/src web/src .agents/skills docs/designs` 确认仅剩兼容映射与注释允许项。 [✅ 已完成] cargo test -p musk 全绿（297+集成 0 失败，修复 plan_tools 测试/relay 守护测试断言后）；vue-tsc 0；vitest 22 过（2 存量失败同前）；grep 残留=兼容映射+注释
+- [x] **T11** 技能/设计文档同步：`.agents/skills/auto-plan-{new,review,merge,work}/SKILL.md`、`docs/designs/008-auto-plan.md` 中状态名与状态机图改为 `reviewed`/`archived`。验证：`grep -rn "review_done\|status: merged\|status: review_done" .agents/skills docs/designs` 为空。 [✅ 已完成] 4 个技能 SKILL.md + 008 设计文档批量改名；另联动 plan_tools 工具描述/schema enum、relay plan_flow 提示词、auto-ai 仓 soul plan-dev.md（worktree 提交 5d0548b）
 - [ ] **T12** 手动冒烟（按测试设计清单逐项走查，dev server + 后端），结果记录到本节下方。
 
 ## 复审记录
