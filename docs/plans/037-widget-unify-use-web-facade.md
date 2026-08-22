@@ -143,16 +143,40 @@ use.web composable useI18n refs: [locale] from "vue-i18n"
 
 ## 执行步骤
 
+### Phase 0 — 基线修复(musk 存量断裂,2026-08-22 执行中发现)
+
+> **发现**:musk main(8404202)+ auto-lang master(8c0ef9bb)binary 下 `auto build`
+> 已有 **7 个存量 TS 错误**(与 PLAN-037 改动无关,双 binary 对照错误集合完全一致;
+> 系 musk 上次全绿(b84030a)后 auto-lang plan-418 合并造成的工具链漂移)。
+> 本计划不变量(musk 每 Phase 全绿)以此为前提,必须先修。
+> 错误清单(全局 binary 与 plan-037 worktree binary 一致):
+> 1. `ChatsView.vue(204)` TS2345:ReportCard 调用缺 deckMeta/deckHtml props
+> 2. `RelayRunBox.vue(66)` TS2305:api 无 `Value` 导出
+> 3. `RelayRunBox.vue(310/361/376)` TS2339:relayTVCmdLine/relayWriteFence/relayFileFence 不存在
+> 4. `relay_run_helpers.ts(58/68)` TS7034/7005:转译产物隐式 any[] ×2
+
+- [ ] **T0a** 修 RelayRunBox 族(错误 2/3):诊断 `Value` 类型映射与 relay fns 的
+  use{fn} 暴露链(疑 plan-418 codegen 漂移)。验证:musk `auto build` 该 4 错清零。
+- [ ] **T0b** 修 ChatsView/ReportCard(错误 1):deckMeta/deckHtml 调用点或 props
+  可选化。验证:该错清零。
+- [ ] **T0c** 修 relay_run_helpers 转译隐式 any(错误 4):.at 源补类型标注或转译器
+  补 `any[]` 注解。验证:musk `auto build` 全绿(0 错)——**此后 Phase 1-6 的
+  不变量基线成立**。
+
 ### Phase 1 — widget 能力补齐(auto-lang,用户步骤 1)
 
-- [ ] **T1** k3 Phase 4 矩阵:扩展
-  `auto-lang/examples/capability-tests/k3-widget-composition/`(新增 `item_matrix.at.disabled`
+> **工具链约定**:Phase 内对 auto-lang 的改动,验证用 worktree binary
+> `D:/autostack/auto-lang-p037/target/release/auto.exe`(cargo build --release),
+> 不覆盖全局 `~/.cargo/bin/auto.exe`(保留回退版本)。
+
+- [x] **T1** k3 Phase 4 矩阵:扩展
+  `auto-lang/examples/capability-tests/k3-widget-composition/`(新增 `item_matrix.at`
   复活为 widget 版):child widget 内组合 `use{fn}` + `slot` + `computed` + `style` +
   `watch` + `.Init/.Destroy` + msg。逐项开启验证,记录哪项红。验证:`cd k3 目录 && auto build`。
-- [ ] **T2** k3 Phase 5 回调形态等价:同场景验证父侧 `onselect: .X($event)`(component fn
+- [x] **T2** k3 Phase 5 回调形态等价:同场景验证父侧 `onselect: .X($event)`(component fn
   惯用)与 `on_select: .X`(widget 契约)在 **widget 子**上的产物差异,产出迁移规则表
   (Phase 4 的输入)。验证:`auto build` + 产物 diff 记入 README。
-- [ ] **T3** 修 k2 回归:`examples/capability-tests/k2-child-handler-binding` 二选一——
+- [x] **T3** 修 k2 回归:`examples/capability-tests/k2-child-handler-binding` 二选一——
   (a) codegen 补全"回调 prop 无变体"惯用法(defineProps 剔除 + defineEmits 补名)或
   (b) k2 源改为契约惯用法并注明。验证:`cd k2 目录 && auto build` 绿。
 - [ ] **T4** defineModel 编译:`ui_gen/vue.rs` model 变量 → `defineModel<T>()`(未绑定
