@@ -147,14 +147,8 @@
           @review-in-specs="onReviewInSpecs"
         />
 
-        <!-- Terminal report card -->
-        <ReportCard
-          v-if="reportData"
-          :report="reportData"
-          @view-full="onViewFullReport"
-          @download="onDownloadReport"
-          @open-files="onOpenChangedFiles"
-        />
+        <!-- PLAN-034 T9：报告卡不做顶部弹窗——run 完成后由 Agent 消息在
+             对话流末尾携带（刷新持久），见消息循环的 report 工具卡分支。 -->
 
         <div class="chat-inner">
           <div
@@ -262,6 +256,25 @@
                      不渲染，否则出现永久的空 Run 块） -->
                 <div v-else-if="tc.name === 'spawn_relay' && extractRunId(tc)" class="relay-inline">
                   <RelayRunBox :run-id="extractRunId(tc)" />
+                </div>
+                <!-- PLAN-034 T9：内联报告卡（Agent 的"Run 已完成"消息携带，
+                     刷新持久）。含回到 Run 卡片的跳转链接。 -->
+                <div
+                  v-else-if="tc.name === 'report' && tc.arguments?.run_id"
+                  :id="`report-card-${tc.arguments.run_id}`"
+                  class="report-inline"
+                >
+                  <div class="report-jump-row">
+                    <button class="report-jump-link" @click="scrollToEl(`run-card-${tc.arguments.run_id}`)">
+                      ↑ {{ t('chat.backToRun') }}
+                    </button>
+                  </div>
+                  <ReportCard
+                    :report="reportFromToolCall(tc)"
+                    @view-full="onViewFullReport(reportFromToolCall(tc).runId)"
+                    @download="onDownloadReport(reportFromToolCall(tc).runId)"
+                    @open-files="onOpenChangedFiles"
+                  />
                 </div>
                 <!-- Dispatch / Errand card -->
                 <div v-else-if="tc.name === 'dispatch'" class="errand-card" :class="tc.status">
@@ -435,7 +448,6 @@ import SecretaryMessage from '@/components/SecretaryMessage.vue'
 import ReportCard from '@/components/ReportCard.vue'
 import QuestionnaireCard from '@/components/QuestionnaireCard.vue'
 import RelayRunBox from '@/components/RelayRunBox.vue'
-import type { ReportData } from '@/components/ReportCard.vue'
 import type { Question } from '@/components/QuestionnaireCard.vue'
 
 type AnswersMap = Record<string, string | string[]>
@@ -472,7 +484,7 @@ const { projectPath, workspaceId } = useProject()
 const { currentSecretary, badgeCount: gateBadgeCount, resolveGate: resolveGateInbox, snoozeGate } = useGateInbox()
 const { configs: agentConfigs, loadConfigs: loadAgentConfigs } = useAgentConfigs()
 const { startRun, advanceRun } = useRelay()
-const reportData = ref<ReportData | null>(null)
+// PLAN-034 T9：报告数据不再用顶部弹窗 ref——由消息流内联报告卡承载。
 
 // @mention state
 const mentionVisible = ref(false)
@@ -1221,22 +1233,45 @@ function onReviewInSpecs(sectionId: string) {
   alert(`Navigate to specs section: ${sectionId}`)
 }
 
-// ─── Report handlers ────────────────────────────────────────────────────────
+// ─── Report handlers（PLAN-034 T9：内联报告卡） ─────────────────────────────
 
-function onViewFullReport() {
+/** report 工具调用（后端 RunReportPayload JSON）→ ReportCard 数据。 */
+function reportFromToolCall(tc: { name?: string; arguments?: Record<string, any> }) {
+  const p = tc.arguments ?? {}
+  return {
+    runId: (p.run_id as string) || 'unknown',
+    title: (p.title as string) || '',
+    summary: (p.summary as string) || '',
+    goalsMet: (p.goals_met as string) || '—',
+    testsPass: (p.tests_pass as string) || '—',
+    driftDetected: (p.drift_detected as string) || 'None',
+    cost: (p.cost as string) || '—',
+    confidence: (p.confidence as 'High' | 'Medium' | 'Low') || 'Medium',
+    deliverables: (p.deliverables as string[]) || [],
+    filesChanged: (p.files_changed as string[]) || [],
+    toolCalls: (p.tool_calls as number) || 0,
+    durationS: (p.duration_s as number) || 0,
+    report: p.report ?? undefined,
+  }
+}
+
+function scrollToEl(id: string) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
+function onViewFullReport(runId: string) {
   // PLAN-034：打开 run 的完整 HTML 报告（PLAN-032 端点返回自包含单文件）。
-  const runId = reportData.value?.runId
   if (!runId || runId === 'unknown') return
   const wid = workspaceId.value
   const qs = wid ? `?workspace=${encodeURIComponent(wid)}` : ''
   window.open(`/api/forge/relay/runs/${runId}/report${qs}`, '_blank')
 }
 
-function onDownloadReport() {
-  if (!reportData.value) return
-  const r = reportData.value
+function onDownloadReport(runId: string) {
+  if (!runId || runId === 'unknown') return
+  const r = reportDataByRun(runId)
   const md = [
-    `# ${r.title || `Run 工作汇总 — ${r.runId}`}`,
+    `# ${r.title || `Run 工作汇总 — ${runId}`}`,
     '',
     r.summary || '',
     '',
@@ -1247,9 +1282,19 @@ function onDownloadReport() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `report-${r.runId}.md`
+  a.download = `report-${runId}.md`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+/** 从当前消息列表里找 run 的报告数据（下载 markdown 用）。 */
+function reportDataByRun(runId: string) {
+  for (let i = messages.value.length - 1; i >= 0; i--) {
+    const m = messages.value[i] as { tool_calls?: { name?: string; arguments?: Record<string, any> }[] }
+    const tc = m.tool_calls?.find((t) => t.name === 'report' && t.arguments?.run_id === runId)
+    if (tc) return reportFromToolCall(tc as { arguments?: Record<string, any> })
+  }
+  return { runId, title: '', summary: '', goalsMet: '—', testsPass: '—', driftDetected: 'None', cost: '—', confidence: 'Medium' as const, deliverables: [] as string[], filesChanged: [] as string[], toolCalls: 0, durationS: 0 }
 }
 
 function onOpenChangedFiles() {
@@ -1322,25 +1367,36 @@ onMounted(async () => {
   // Wire report callback from event router
   setEventCallbacks({
     onReport: (payload) => {
-      // payload 可能双层嵌套：run 事件 SSE 包 {event_type, payload:{report}}
-      // 或直传事件本体 {report}——统一解包到字段层。
+      // PLAN-034 T9：不做顶部弹窗——run 完成时把报告作为一条 Agent 消息
+      // 追加到对话流末尾（后端 driver 已持久化同款消息，此处仅补实时呈现，
+      // 刷新后由历史加载恢复）。payload 可能双层嵌套，统一解包。
       const raw = payload as Record<string, any>
       const p = (raw.payload?.report ?? raw.payload ?? raw.report ?? raw) as Record<string, any>
-      reportData.value = {
-        runId: (p.run_id as string) || (raw.run_id as string) || 'unknown',
-        title: (p.title as string) || '',
-        summary: (p.summary as string) || '',
-        goalsMet: (p.goals_met as string) || '—',
-        testsPass: (p.tests_pass as string) || '—',
-        driftDetected: (p.drift_detected as string) || 'None',
-        cost: (p.cost as string) || '—',
-        confidence: (p.confidence as 'High' | 'Medium' | 'Low') || 'Medium',
-        deliverables: (p.deliverables as string[]) || [],
-        filesChanged: (p.files_changed as string[]) || [],
-        toolCalls: (p.tool_calls as number) || 0,
-        durationS: (p.duration_s as number) || 0,
-        report: p.report ?? raw.report ?? undefined,
-      }
+      const runId = (p.run_id as string) || (raw.run_id as string) || 'unknown'
+      if (runId === 'unknown') return
+      // 幂等：历史里已有同 run 的报告消息（如刷新后重放）则不重复追加。
+      const exists = messages.value.some(
+        (m) =>
+          (m as { tool_calls?: { name?: string; arguments?: Record<string, any> }[] })
+            .tool_calls?.some((t) => t.name === 'report' && t.arguments?.run_id === runId),
+      )
+      if (exists) return
+      messages.value.push({
+        id: `report-${runId}`,
+        role: 'assistant',
+        content: `✅ **Run 已完成**：${(p.title as string) || runId}\n\n完整报告见下方卡片。`,
+        timestamp: Date.now(),
+        profession_id: 'assistant',
+        tool_calls: [
+          {
+            id: 'report-1',
+            name: 'report',
+            arguments: p,
+            status: 'success',
+          },
+        ],
+      })
+      loadSessionList()
     },
   })
   if (!session.value) {
@@ -2466,6 +2522,29 @@ onUnmounted(() => {
 
 .relay-inline {
   margin-top: 0.15rem;
+}
+
+/* ─── Inline Report Card（PLAN-034 T9：对话流内的报告卡） ─────────────────── */
+
+.report-inline {
+  margin-top: 0.3rem;
+}
+.report-jump-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.2rem;
+}
+.report-jump-link {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px dashed var(--af-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--af-primary);
+  cursor: pointer;
+}
+.report-jump-link:hover {
+  background: hsl(var(--primary) / 0.08);
 }
 
 .typing-dots {

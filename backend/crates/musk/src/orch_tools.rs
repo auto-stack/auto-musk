@@ -93,6 +93,9 @@ impl Tool for SpawnRelay {
         };
         let (run_id, _initial_state) =
             ws.relay.start_run(&req, Some(self.ctx.workspace_id.clone()));
+        // PLAN-034 T9：登记发起会话——driver 完成时把报告消息写回这里。
+        ws.relay
+            .set_context_var(&run_id, "chat_session_id", &self.ctx.parent_conversation_id);
 
         // 2. Record parent Turn linking to the run conversation (same id as
         //    the run — the run's durable log home).

@@ -877,6 +877,14 @@ impl RunStore {
         }
     }
 
+    /// Read a context var（PLAN-034 T9：driver 完成时读 `chat_session_id`
+    /// 以把报告消息写回发起会话）。
+    pub fn context_var(&self, run_id: &str, key: &str) -> Option<String> {
+        let runs = self.runs.lock().unwrap();
+        runs.get(run_id)
+            .and_then(|e| e.context.get(key).cloned())
+    }
+
     /// PLAN-030 试用修复：显式置败。agent 运行错误时 driver 调用——原先错误
     /// 被包装成 handoff 提交、引擎照常路由到下一相位（execute 挂了 review/
     /// document 空转出假完成）。置 Failed 终态并广播 RunFailed。

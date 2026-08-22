@@ -135,6 +135,10 @@ if (mergeMatch) {
 1. run 完成后是否需要自动跳回计划页/列表刷新提示——当前设计留在会话内看报告，由用户手动返回。
 2. `/auto-plan:merge` 是否需要支持无参数形式（在会话里手动输入时从上下文推断计划）——当前要求显式 PLAN 编号。
 
+### T9：报告卡融入对话流（用户 UX 设计）
+
+顶部弹窗与 Run 卡内嵌报告卡均移除——run 完成时 driver 把报告作为助手消息持久化写回发起会话（tool call `report` 携带全量 RunReportPayload；`chat_session_id` context 由短路/spawn_relay 登记），前端在对话流末尾内联渲染报告卡（实时路径由事件路由本地追加，幂等去重），Run 卡尾部留"查看报告↓"跳转链接、报告卡留"回到 Run↑"链接，互链滚动定位。刷新后由历史加载恢复。
+
 ### 修正轮二（T8 补充：ag 轨道落地）
 
 首版误将短路写在 hw `server.rs::chat_stream`——实际路由走 ag 轨道（`extern_impl.rs::chat_run_stream`，经 `SseEventDto` 严格枚举校验）。已迁移：解析器留在 server.rs（pub），短路本体落 extern_impl；SSE 事件改用合法形状（tool_call/tool_result 携带 run_id + delta + 完整 done——`relay_spawned` 不在枚举内）。API 复验：SSE 四事件合法、会话持久化（user+assistant 含 spawn_relay tool_call）、run 完成归档+报告。

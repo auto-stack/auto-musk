@@ -1653,6 +1653,8 @@ pub async fn chat_run_stream(
             task: Some(task.clone()),
         };
         let (run_id, _initial) = ws.relay.start_run(&req, Some(ws_id.clone()));
+        // PLAN-034 T9：登记发起会话——driver 完成时把报告消息写回这里。
+        ws.relay.set_context_var(&run_id, "chat_session_id", &session_id);
         let tc_args = serde_json::json!({
             "flow_id": "plan-merge",
             "task": task,

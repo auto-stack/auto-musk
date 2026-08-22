@@ -135,6 +135,38 @@ async fn drive_loop(
             }
             AdvanceResult::Completed => {
                 tracing::info!("drive_run: {run_id} completed");
+                // PLAN-034 T9：run 完成后把报告作为助手消息写回发起它的
+                // chat 会话——报告卡在对话流内渲染（刷新持久），Run 卡片与
+                // 报告卡互链。`chat_session_id` 由 plan-merge 短路 / spawn_relay
+                // 在启动 run 时写入 context。
+                if let Some(session_id) = ws.relay.context_var(run_id, "chat_session_id") {
+                    if let Some(report) = ws.relay.run_report(run_id) {
+                        let title = if report.title.is_empty() {
+                            run_id.to_string()
+                        } else {
+                            report.title.clone()
+                        };
+                        let mut msg = crate::chats::ChatMessage::assistant(format!(
+                            "✅ **Run 已完成**：{title}\n\n完整报告见下方卡片。"
+                        ));
+                        msg.tool_calls = vec![crate::chats::ToolCall {
+                            tool: "report".into(),
+                            args: serde_json::to_value(&report).unwrap_or_default(),
+                            result: String::new(),
+                            status: "success".into(),
+                            id: "report-1".into(),
+                        }];
+                        let _ = ws.chats.append_message(&session_id, msg.clone());
+                        let seq_base = ws
+                            .conversations
+                            .get(&session_id)
+                            .map(|c| c.turns.len())
+                            .unwrap_or(0);
+                        for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
+                            let _ = ws.conversations.append_turn(&session_id, turn);
+                        }
+                    }
+                }
                 return;
             }
             AdvanceResult::Failed { error } => {

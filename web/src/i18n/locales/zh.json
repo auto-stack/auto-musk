@@ -95,6 +95,8 @@
     "startProject": "开始工程"
   },
   "chat": {
+    "viewReport": "查看报告",
+    "backToRun": "回到 Run 卡片",
     "title": "聊天",
     "sessions": "会话",
     "newSession": "新建会话",

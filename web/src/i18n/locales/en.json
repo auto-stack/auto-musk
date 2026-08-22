@@ -82,6 +82,8 @@
     "startProject": "Start Project"
   },
   "chat": {
+    "viewReport": "View report",
+    "backToRun": "Back to run card",
     "title": "Chat",
     "sessions": "Sessions",
     "newSession": "New session",

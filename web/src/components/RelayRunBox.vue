@@ -1,5 +1,5 @@
 <template>
-  <div class="relay-box" :class="`status-${statusClass}`">
+  <div :id="`run-card-${runId}`" class="relay-box" :class="`status-${statusClass}`">
     <!-- Collapsed header -->
     <div class="box-header" @click="toggle">
       <Orbit :size="14" :class="{ spinning: isLiveRunning }" class="run-icon" />
@@ -184,14 +184,15 @@
         </div>
       </div>
 
-      <!-- PLAN-032: 汇报报告卡（展开体底部；gen 同位） -->
-      <ReportCard
-        v-if="expanded && reportCardData"
-        :report="reportCardData"
-        @view-full="onViewFullReport"
-        @download="onDownloadReport"
-        @open-files="onOpenFiles"
-      />
+      <!-- PLAN-034 T9：报告卡不内嵌于 Run 卡片——run 完成后 Agent 会在对话流
+           末尾发"Run 已完成"消息携带报告卡；此处只留跳转链接。 -->
+      <button
+        v-if="expanded && runReports[runId]"
+        class="report-jump-btn"
+        @click="jumpToReportCard"
+      >
+        📄 {{ t('chat.viewReport') }} ↓
+      </button>
 
       <!-- Inline gate actions（展开态） -->
       <div v-if="run?.waiting_for_gate" class="gate-actions">
@@ -205,14 +206,15 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ChevronDown, ChevronRight, ChevronUp, Orbit, Wrench, FileText, Terminal } from 'lucide-vue-next'
 import StreamingRenderer from '@/components/StreamingRenderer.vue'
-import ReportCard from '@/components/ReportCard.vue'
 import { useRelay } from '@/composables/useRelay'
 
 const props = defineProps<{ runId: string }>()
 
-const { runs, currentRun, loadRun, loadRunHistory, subscribeToRun, resolveGate, sessionLogFor, runReports, fetchRunReport } = useRelay()
+const { runs, currentRun, loadRun, loadRunHistory, subscribeToRun, resolveGate, sessionLogFor, runReports } = useRelay()
+const { t } = useI18n()
 import type { RunHistory } from '@/composables/useRelay'
 
 const expanded = ref(false)
@@ -339,52 +341,12 @@ const previewRows = computed<any[]>(() => {
 
 // PLAN-032: 汇报报告卡（web 与 gen 同位：展开体底部）。元数据双通道
 // （SSE 载荷 / 会话回放），内容经 /runs/{id}/report（磁盘回退，重启耐久）。
-// PLAN-034 修正：SSE 通道的 payload.report 本就是全量字段（summary/指标/
-// deliverables），旧版类型注解把它当 {format,title,path} 瘦对象导致指标
-// 全空——此处映射全量，回放通道（瘦元数据）自动回退默认值。
-const reportCardData = computed(() => {
-  const meta = runReports.value[props.runId] as Record<string, any> | undefined
-  if (!meta) return null
-  return {
-    runId: (meta.run_id as string) || props.runId,
-    title: (meta.title as string) || meta.report?.title || '',
-    summary: (meta.summary as string) || '',
-    goalsMet: (meta.goals_met as string) || '—',
-    testsPass: (meta.tests_pass as string) || '—',
-    driftDetected: (meta.drift_detected as string) || 'None',
-    cost: (meta.cost as string) || '—',
-    confidence: (meta.confidence as 'High' | 'Medium' | 'Low') || 'Medium',
-    deliverables: (meta.deliverables as string[]) || [],
-    filesChanged: (meta.files_changed as string[]) || [],
-    toolCalls: (meta.tool_calls as number) || 0,
-    durationS: (meta.duration_s as number) || 0,
-    report: meta.report ?? meta,
-  }
-})
-
-// PLAN-034 修正：报告操作落地（fetchRunReport 自带 workspace 与磁盘回退）。
-async function onViewFullReport() {
-  const html = await fetchRunReport(props.runId)
-  if (!html) return
-  const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
-  window.open(url, '_blank')
-  setTimeout(() => URL.revokeObjectURL(url), 60_000)
-}
-
-async function onDownloadReport() {
-  const html = await fetchRunReport(props.runId)
-  if (!html) return
-  const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `report-${props.runId}.html`
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 60_000)
-}
-
-function onOpenFiles() {
-  const files = reportCardData.value?.filesChanged ?? []
-  alert(files.length ? `变更文件：\n${files.join('\n')}` : '无变更文件')
+// PLAN-034 T9：报告卡不再内嵌于 Run 卡片——run 完成后 Agent 会在对话流
+// 末尾发"Run 已完成"消息携带报告卡；此处仅提供跳转。
+function jumpToReportCard() {
+  document
+    .getElementById(`report-card-${props.runId}`)
+    ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
 // 预览圆点：仅运行中脉动；gate 琥珀/失败红/完成绿/失效灰——终态常亮
@@ -972,6 +934,19 @@ onUnmounted(() => {
 .entry-gate { color: hsl(38 92% 50%); padding: 0.3rem 0; font-weight: 500; }
 .entry-error { color: hsl(var(--af-error)); }
 .entry-done { color: hsl(142 71% 45%); font-weight: 500; padding: 0.3rem 0; }
+
+/* PLAN-034 T9：跳到对话流内报告卡的链接 */
+.report-jump-btn {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  padding: 0.25rem 0.7rem;
+  border: 1px dashed var(--af-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--af-primary);
+  cursor: pointer;
+}
+.report-jump-btn:hover { background: hsl(var(--primary) / 0.08); }
 
 .gate-actions {
   display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0;
