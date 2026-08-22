@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-037
-status: executing
+status: execution_done
 feature_name: widget 统一 + use.web 生态导入 + 跨后端 facade
 author: [zhaopuming]
 created_at: 2026-08-22
@@ -305,17 +305,41 @@ T17-T21 完成(域重划按盘点结论):
 
 ### Phase 6 — 编译期目标门控(auto-lang + musk,用户步骤 6)
 
-- [ ] **T22** auto-lang 门控机制:`.web.at` 后缀文件按 pac `render` 选择参与编译;
+- [x] **T22** auto-lang 门控机制:`.web.at` 后缀文件按 pac `render` 选择参与编译;
   端口在当前目标无 adapter → 构建期显式报错。单测:web 目标选中 / rust 目标跳过并
   在缺 adapter 时报错。验证:`cargo test -p auto-lang --lib`。
-- [ ] **T23** musk stream proof:拆 `ports/stream.at`(纯签名) + `ports/stream.web.at`
+- [x] **T23** musk stream proof:拆 `ports/stream.at`(纯签名) + `ports/stream.web.at`
   (use.web 绑定),调用方不变。验证:musk `auto build` 绿;临时改 pac `render` 触发
   缺 adapter 报错截图/记录后复原。
-- [ ] **T24** 全量收口:`auto build` + `cargo test -p musk` + `cd web && npx vitest run`
+- [x] **T24** 全量收口:`auto build` + `cargo test -p musk` + `cd web && npx vitest run`
   (2 存量失败基线)+ k2/k3 canary 全绿;更新 `docs/specs/01-architecture.md` 的
   .at 源分类(widget 单一单元 / use.web / ports)。
 
 ## 复审记录
+
+### Phase 6 完成(2026-08-22)——全部 24 任务完成,计划 execution_done
+
+- **T22**:`resolve_at_adapter(path, target)`(auto-man)——`X.at` 端口按目标解析
+  同名 `X.<target>.at` adapter(adapter 存在则胜出;两者皆无 → 显式
+  "no source for ext module" 错误)。接入 ext 复制与传递展开两点;单测覆盖
+  adapter-wins/plain-fallback/missing-error 三态。
+- **T23**:musk platform 域拆分 proof——`ports/platform.at` → `ports/platform.web.at`
+  (调用方零改动,仍引 `.at` 端口名),adapter 解析接住,构建绿;负例(挪走
+  adapter)精确报错后复原。
+- **T24**:全量回归——auto-man 221 单测、k2/k3 canary、musk auto build、
+  `cargo test -p musk`、web vitest(基线 2 失败)全过;`docs/specs/01-architecture.md`
+  更新(widget 唯一单元/use.web/ports facade/v-model 契约)。
+
+### 终态摘要
+
+| 维度 | 迁移前 | 迁移后 |
+|---|---|---|
+| UI 单元 | widget(6 页面)+ component fn(24 子组件)双轨 | widget 单轨 30 个 |
+| web 导入 | use 块(组件内,错误后端静默忽略) | 顶层 use.web(a2r 显式报错;块为废弃别名) |
+| web 耦合面 | 散布 25 文件直指 .ts/.vue/npm | 集中 ports/platform.web.at + 登记白名单 |
+| 双向绑定 | 无(手写四件套) | model 变量 = 通道,状态槽自动 v-model,零关键字 |
+| 跨后端 | 无机制 | X.at 端口 + X.<target>.at adapter 文件级门控 |
+
 
 ### Phase 0 完成(2026-08-22)
 
