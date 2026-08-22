@@ -27,7 +27,7 @@ fn stores_of(ctx: &ToolContext) -> (Arc<PlansStore>, Arc<SpecsStore>) {
 /// All legal next statuses from `status`（transition 报错时的提示用）。
 fn legal_transitions_from(status: PlanStatus) -> Vec<&'static str> {
     use PlanStatus::*;
-    [Drafting, Executing, ExecutionDone, ReviewDone, Merged]
+    [Drafting, Executing, ExecutionDone, Reviewed, Archived]
         .into_iter()
         .filter(|t| PlanStatus::can_transition(status, *t))
         .map(|t| t.as_str())

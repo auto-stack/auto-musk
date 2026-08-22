@@ -7,7 +7,9 @@
 //!
 //! 设计文档：`docs/designs/008-auto-plan.md`（定稿 v1.0）。
 //! 生命周期状态机见 008 §7.2：drafting → executing → execution_done →
-//! review_done → merged；`merge` 由 [`crate::plan_merge`] 负责沉淀进 Spec。
+//! reviewed → archived（PLAN-033 单一终态：reviewed 经 merge 沉淀进 Spec 后
+//! 归档；非 reviewed 计划可直接 archive 搁置）；沉淀由 [`crate::plan_merge`]
+//! 负责。
 
 use crate::specs::now_sec;
 use regex::Regex;
@@ -30,10 +32,11 @@ pub enum PlanStatus {
     Executing,
     /// 步骤全部完成（`execution_done`）。
     ExecutionDone,
-    /// 复审通过，待 merge（`review_done`）。
-    ReviewDone,
-    /// 已 merge 进 Spec 并归档（`merged`，终态）。
-    Merged,
+    /// 复审通过，待 merge（`reviewed`；旧值 `review_done` 兼容读取）。
+    Reviewed,
+    /// 已终局归档（`archived`，终态；reviewed 经 merge 沉淀后进入，或非
+    /// reviewed 计划直接搁置；旧值 `merged` 兼容读取）。
+    Archived,
 }
 
 impl PlanStatus {
@@ -43,44 +46,47 @@ impl PlanStatus {
             PlanStatus::Drafting => "drafting",
             PlanStatus::Executing => "executing",
             PlanStatus::ExecutionDone => "execution_done",
-            PlanStatus::ReviewDone => "review_done",
-            PlanStatus::Merged => "merged",
+            PlanStatus::Reviewed => "reviewed",
+            PlanStatus::Archived => "archived",
         }
     }
 
     /// 解析 frontmatter 字符串；未知值降级为 [`PlanStatus::Drafting`]
-    /// （旧格式 plan 无 frontmatter 时的兜底）。
+    /// （旧格式 plan 无 frontmatter 时的兜底）。`review_done` / `merged` 为
+    /// PLAN-033 改名前的旧值，读取时映射到新枚举（写盘时自愈）。
     pub fn from_str_lossy(s: &str) -> Self {
         match s.trim() {
             "executing" => PlanStatus::Executing,
             "execution_done" => PlanStatus::ExecutionDone,
-            "review_done" => PlanStatus::ReviewDone,
-            "merged" => PlanStatus::Merged,
+            "reviewed" | "review_done" => PlanStatus::Reviewed,
+            "archived" | "merged" => PlanStatus::Archived,
             _ => PlanStatus::Drafting,
         }
     }
 
-    /// 状态机合法迁移校验（008 §7.2）。允许前进 + 审失败回退 + 自身幂等。
+    /// 状态机合法迁移校验（008 §7.2，PLAN-033 修订）。允许前进 + 审失败
+    /// 回退 + 自身幂等。
     ///
     /// 合法路径：
-    /// - `Drafting → Executing | ReviewDone`
+    /// - `Drafting → Executing | Reviewed`
     /// - `Executing → ExecutionDone | Drafting`
-    /// - `ExecutionDone → ReviewDone | Executing`
-    /// - `ReviewDone → Merged | Executing`
-    /// - `Merged` 为终态（仅允许自身）
+    /// - `ExecutionDone → Reviewed | Executing`
+    /// - `Reviewed → Executing`（复审不通过回退）
+    /// - `Archived` 为终态（仅允许自身）。进入终态不经 transition 端点：
+    ///   非 reviewed 计划走 `archive()`（搁置），reviewed 计划走 merge
+    ///   沉淀（[`merge_plan_stores`]），两者共用 `move_to_archived`。
     pub fn can_transition(from: Self, to: Self) -> bool {
         if from == to {
             return true; // 幂等
         }
         match (from, to) {
             (PlanStatus::Drafting, PlanStatus::Executing)
-            | (PlanStatus::Drafting, PlanStatus::ReviewDone)
+            | (PlanStatus::Drafting, PlanStatus::Reviewed)
             | (PlanStatus::Executing, PlanStatus::ExecutionDone)
             | (PlanStatus::Executing, PlanStatus::Drafting)
-            | (PlanStatus::ExecutionDone, PlanStatus::ReviewDone)
+            | (PlanStatus::ExecutionDone, PlanStatus::Reviewed)
             | (PlanStatus::ExecutionDone, PlanStatus::Executing)
-            | (PlanStatus::ReviewDone, PlanStatus::Merged)
-            | (PlanStatus::ReviewDone, PlanStatus::Executing) => true,
+            | (PlanStatus::Reviewed, PlanStatus::Executing) => true,
             _ => false,
         }
     }
@@ -491,14 +497,36 @@ impl PlansStore {
         PlanFile::from_path(&path, &self.plans_dir)
     }
 
-    /// 归档：把活跃 plan 移入 `archived/`（不改 status —— merge 引擎负责
-    /// 先 transition 到 Merged 再 archive）。已是 archived 则原样返回。
+    /// 归档：置 `status: archived` 并移入 `archived/`（PLAN-033 单一终态，
+    /// 状态与位置恒一致）。reviewed 计划拒绝直接归档——必须先 merge 沉淀
+    /// 进 Spec。已是 archived 则原样返回（幂等）。
     pub fn archive(&self, seq: u32) -> Result<PlanFile, String> {
         let pf = self.get(seq).ok_or_else(|| format!("plan {:03} not found", seq))?;
         if pf.archived {
             return Ok(pf);
         }
+        if pf.status == PlanStatus::Reviewed {
+            return Err(format!(
+                "plan {:03} is reviewed; merge it to spec instead of archiving",
+                seq
+            ));
+        }
+        self.move_to_archived(seq)
+    }
+
+    /// 终态漏斗：直接写 `status: archived`（不经 `can_transition`——两条进入
+    /// 路径 archive 搁置 / merge 沉淀都不受手动转移状态机约束）+ 刷新
+    /// updated_at + 移入 `archived/`。调用方须保证计划当前在活跃目录。
+    fn move_to_archived(&self, seq: u32) -> Result<PlanFile, String> {
+        let pf = self.get(seq).ok_or_else(|| format!("plan {:03} not found", seq))?;
+        let body = if pf.status == PlanStatus::Archived {
+            pf.content.clone()
+        } else {
+            set_field(&pf.content, "status", PlanStatus::Archived.as_str())
+        };
+        let body = set_field(&body, "updated_at", &now_iso());
         let src = self.plans_dir.join(&pf.filename);
+        std::fs::write(&src, &body).map_err(|e| format!("failed to write plan: {}", e))?;
         let dst = self.archived_dir.join(&pf.filename);
         if dst.exists() {
             return Err(format!(
@@ -520,8 +548,9 @@ fn default_template(id: &str, feature_name: &str) -> String {
 }
 
 /// merge 核心（HTTP handler 与 plan_tools::MergePlan 共用，PLAN-030 T2）：
-/// 门禁 review_done → `plan_to_items` 拆解 → upsert 进 specs doc → save →
-/// transition(Merged) → archive（移入 archived/）。返回触及的 section + item 数。
+/// 门禁 reviewed → `plan_to_items` 拆解 → upsert 进 specs doc → save →
+/// `move_to_archived`（置 archived + 移入 archived/，单一终态）。
+/// 返回触及的 section + item 数。
 pub fn merge_plan_stores(
     plans: &PlansStore,
     specs: &crate::specs::SpecsStore,
@@ -530,9 +559,9 @@ pub fn merge_plan_stores(
     let plan = plans
         .get(seq)
         .ok_or_else(|| format!("plan {:03} not found", seq))?;
-    if plan.status != PlanStatus::ReviewDone {
+    if plan.status != PlanStatus::Reviewed {
         return Err(format!(
-            "plan {:03} is {:?}, must be review_done to merge",
+            "plan {:03} is {:?}, must be reviewed to merge",
             seq, plan.status
         ));
     }
@@ -540,8 +569,7 @@ pub fn merge_plan_stores(
     let mut doc = specs.load().map_err(|e| e.to_string())?;
     crate::plan_merge::upsert_items_into_doc(&mut doc, items);
     specs.save(&doc).map_err(|e| e.to_string())?;
-    plans.transition(seq, PlanStatus::Merged)?;
-    plans.archive(seq)?;
+    plans.move_to_archived(seq)?;
     Ok(result)
 }
 
@@ -661,7 +689,8 @@ async fn plans_transition(
         .map_err(|e| (StatusCode::BAD_REQUEST, e))
 }
 
-/// `POST /api/plans/{seq}/archive` — move plan into `archived/`.
+/// `POST /api/plans/{seq}/archive` — 置 archived 并移入 `archived/`
+/// （reviewed 计划拒绝：400 提示走 merge 沉淀）。
 async fn plans_archive(
     State(state): State<AppState>,
     Query(q): Query<PlansQuery>,
@@ -671,7 +700,14 @@ async fn plans_archive(
     ws.plans
         .archive(seq)
         .map(Json)
-        .map_err(|e| (StatusCode::NOT_FOUND, e))
+        .map_err(|e| {
+            let code = if e.contains("not found") {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::BAD_REQUEST
+            };
+            (code, e)
+        })
 }
 
 /// `POST /api/plans/{seq}/merge` — 沉淀到 Spec（门禁 review_done → 拆解进 6 区
@@ -725,8 +761,8 @@ mod tests {
             PlanStatus::Drafting,
             PlanStatus::Executing,
             PlanStatus::ExecutionDone,
-            PlanStatus::ReviewDone,
-            PlanStatus::Merged,
+            PlanStatus::Reviewed,
+            PlanStatus::Archived,
         ] {
             assert_eq!(PlanStatus::from_str_lossy(s.as_str()), s);
         }
@@ -739,24 +775,30 @@ mod tests {
     }
 
     #[test]
+    fn legacy_status_strings_map_to_new_enum() {
+        // PLAN-033 改名前的旧值：读取时映射，写盘自愈
+        assert_eq!(PlanStatus::from_str_lossy("review_done"), PlanStatus::Reviewed);
+        assert_eq!(PlanStatus::from_str_lossy("merged"), PlanStatus::Archived);
+    }
+
+    #[test]
     fn state_machine_legal_paths() {
         // 前进
         assert!(PlanStatus::can_transition(PlanStatus::Drafting, PlanStatus::Executing));
         assert!(PlanStatus::can_transition(PlanStatus::Executing, PlanStatus::ExecutionDone));
-        assert!(PlanStatus::can_transition(PlanStatus::ExecutionDone, PlanStatus::ReviewDone));
-        assert!(PlanStatus::can_transition(PlanStatus::ReviewDone, PlanStatus::Merged));
+        assert!(PlanStatus::can_transition(PlanStatus::ExecutionDone, PlanStatus::Reviewed));
         // 跳过执行直接 review
-        assert!(PlanStatus::can_transition(PlanStatus::Drafting, PlanStatus::ReviewDone));
+        assert!(PlanStatus::can_transition(PlanStatus::Drafting, PlanStatus::Reviewed));
         // 回退（复审不通过）
-        assert!(PlanStatus::can_transition(PlanStatus::ReviewDone, PlanStatus::Executing));
+        assert!(PlanStatus::can_transition(PlanStatus::Reviewed, PlanStatus::Executing));
         assert!(PlanStatus::can_transition(PlanStatus::ExecutionDone, PlanStatus::Executing));
         // 幂等
         for s in [
             PlanStatus::Drafting,
             PlanStatus::Executing,
             PlanStatus::ExecutionDone,
-            PlanStatus::ReviewDone,
-            PlanStatus::Merged,
+            PlanStatus::Reviewed,
+            PlanStatus::Archived,
         ] {
             assert!(PlanStatus::can_transition(s, s));
         }
@@ -764,16 +806,17 @@ mod tests {
 
     #[test]
     fn state_machine_illegal_paths() {
-        // merged 是终态
-        assert!(!PlanStatus::can_transition(PlanStatus::Merged, PlanStatus::Drafting));
-        assert!(!PlanStatus::can_transition(PlanStatus::Merged, PlanStatus::ReviewDone));
-        // 不能从 drafting 直接跳到 execution_done / merged
+        // archived 是终态
+        assert!(!PlanStatus::can_transition(PlanStatus::Archived, PlanStatus::Drafting));
+        assert!(!PlanStatus::can_transition(PlanStatus::Archived, PlanStatus::Reviewed));
+        // 不能从 drafting 直接跳到 execution_done / archived
         assert!(!PlanStatus::can_transition(PlanStatus::Drafting, PlanStatus::ExecutionDone));
-        assert!(!PlanStatus::can_transition(PlanStatus::Drafting, PlanStatus::Merged));
-        // 不能从 executing 直接 merged
-        assert!(!PlanStatus::can_transition(PlanStatus::Executing, PlanStatus::Merged));
-        // review_done 不能回 drafting
-        assert!(!PlanStatus::can_transition(PlanStatus::ReviewDone, PlanStatus::Drafting));
+        assert!(!PlanStatus::can_transition(PlanStatus::Drafting, PlanStatus::Archived));
+        // 不能从 executing 直接 archived
+        assert!(!PlanStatus::can_transition(PlanStatus::Executing, PlanStatus::Archived));
+        // reviewed 不能回 drafting，也不能手动进终态（只能 archive 搁置或 merge 沉淀）
+        assert!(!PlanStatus::can_transition(PlanStatus::Reviewed, PlanStatus::Drafting));
+        assert!(!PlanStatus::can_transition(PlanStatus::Reviewed, PlanStatus::Archived));
     }
 
     #[test]
@@ -977,8 +1020,8 @@ mod tests {
     fn transition_illegal_rejected() {
         let (_td, store) = tmp_store();
         store.create("a", "").unwrap();
-        // drafting → merged 非法
-        let err = store.transition(1, PlanStatus::Merged);
+        // drafting → archived 非法（终态不经 transition，走 archive/merge）
+        let err = store.transition(1, PlanStatus::Archived);
         assert!(err.is_err());
         // 状态未变
         assert_eq!(store.get(1).unwrap().status, PlanStatus::Drafting);
@@ -993,17 +1036,30 @@ mod tests {
     }
 
     #[test]
-    fn archive_moves_file() {
+    fn archive_moves_file_and_sets_status() {
         let (_td, store) = tmp_store();
         store.create("a", "").unwrap();
         let pf = store.archive(1).unwrap();
         assert!(pf.archived);
+        assert_eq!(pf.status, PlanStatus::Archived, "归档即终态：状态与位置一致");
         // 源文件不在活跃目录
         assert!(!store.plans_dir.join("001-a.md").exists());
         // 在归档目录
         assert!(store.archived_dir.join("001-a.md").exists());
         // get 仍能找到（含 archived）
         assert!(store.get(1).is_some());
+    }
+
+    #[test]
+    fn archive_rejects_reviewed() {
+        let (_td, store) = tmp_store();
+        store.create("a", "").unwrap();
+        store.transition(1, PlanStatus::Reviewed).unwrap();
+        let err = store.archive(1);
+        assert!(err.is_err(), "reviewed 计划必须走 merge 沉淀，不能直接归档");
+        // 文件未移动、状态未变
+        assert!(store.plans_dir.join("001-a.md").exists());
+        assert_eq!(store.get(1).unwrap().status, PlanStatus::Reviewed);
     }
 
     #[test]

@@ -253,7 +253,7 @@ Rust + nom.
             id: "PLAN-042".into(),
             seq: 42,
             filename: "042-new-syntax.md".into(),
-            status: PlanStatus::ReviewDone,
+            status: PlanStatus::Reviewed,
             feature_name: "新语法解析".into(),
             title: "新语法解析 - 实施计划".into(),
             archived: false,

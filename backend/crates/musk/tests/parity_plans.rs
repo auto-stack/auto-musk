@@ -126,12 +126,12 @@ async fn plans_full_lifecycle() {
     assert_eq!(s, StatusCode::OK);
     assert_eq!(body["status"], "executing");
 
-    // Illegal transition: executing → merged (must skip execution_done/review_done).
+    // Illegal transition: executing → archived (终态不经 transition 端点).
     let (s, _body) = send(
         &a,
         "POST",
         "/api/plans/1/transition",
-        Some(json!({ "status": "merged" })),
+        Some(json!({ "status": "archived" })),
     )
     .await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
@@ -148,10 +148,11 @@ async fn plans_full_lifecycle() {
     assert_eq!(body["id"], "PLAN-001"); // plan_id preserved
     assert!(body["content"].as_str().unwrap().contains("# Updated body"));
 
-    // Archive → archived=true.
+    // Archive → archived=true + status=archived（PLAN-033 单一终态）.
     let (s, body) = send(&a, "POST", "/api/plans/1/archive", None).await;
     assert_eq!(s, StatusCode::OK);
     assert_eq!(body["archived"], true);
+    assert_eq!(body["status"], "archived");
 
     // Default list excludes archived.
     let (s, body) = send(&a, "GET", "/api/plans", None).await;
@@ -272,21 +273,21 @@ async fn plans_merge_gate_and_flow() {
     .await;
     assert_eq!(s, StatusCode::OK);
 
-    // Gate: merge before review_done → 400.
+    // Gate: merge before reviewed → 400.
     let (s, body) = send(&a, "POST", "/api/plans/1/merge", None).await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
     let err_msg = body.as_str().unwrap_or("");
     assert!(
-        err_msg.contains("review_done"),
-        "gate error should mention review_done: {err_msg}"
+        err_msg.contains("reviewed"),
+        "gate error should mention reviewed: {err_msg}"
     );
 
-    // Walk to review_done (drafting → review_done is a legal skip).
+    // Walk to reviewed (drafting → reviewed is a legal skip).
     let (s, _) = send(
         &a,
         "POST",
         "/api/plans/1/transition",
-        Some(json!({ "status": "review_done" })),
+        Some(json!({ "status": "reviewed" })),
     )
     .await;
     assert_eq!(s, StatusCode::OK);
@@ -298,11 +299,11 @@ async fn plans_merge_gate_and_flow() {
     assert!(body["items_created"].as_u64().unwrap() > 0);
     assert!(body["sections_touched"].as_array().unwrap().len() > 0);
 
-    // Plan is now archived + merged.
+    // Plan is now archived + status=archived（沉淀即归档，单一终态）.
     let (_s, body) = send(&a, "GET", "/api/plans?include_archived=true", None).await;
     let plan = &body["plans"][0];
     assert_eq!(plan["archived"], true);
-    assert_eq!(plan["status"], "merged");
+    assert_eq!(plan["status"], "archived");
 
     // Specs ledger now has merged items (read directly via the store).
     let default_id = musk::workspace::WorkspaceQuery::default().id_or_default(&state.registry);
@@ -318,7 +319,44 @@ async fn plans_merge_gate_and_flow() {
     });
     assert!(has_source, "some item should reference the plan file");
 
-    // Idempotent re-merge is rejected (plan now merged, not review_done).
+    // Idempotent re-merge is rejected (plan now archived, not reviewed).
     let (s, _body) = send(&a, "POST", "/api/plans/1/merge", None).await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn plans_archive_reviewed_rejected() {
+    let a = app(tmp_state());
+
+    send(
+        &a,
+        "POST",
+        "/api/plans",
+        Some(json!({ "feature_name": "Reviewed Plan" })),
+    )
+    .await;
+    // drafting → reviewed（合法跳步）
+    let (s, _) = send(
+        &a,
+        "POST",
+        "/api/plans/1/transition",
+        Some(json!({ "status": "reviewed" })),
+    )
+    .await;
+    assert_eq!(s, StatusCode::OK);
+
+    // 直接归档被拒：400 且提示走 merge 沉淀。
+    let (s, body) = send(&a, "POST", "/api/plans/1/archive", None).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    let err_msg = body.as_str().unwrap_or("");
+    assert!(
+        err_msg.contains("merge"),
+        "archive gate should point to merge: {err_msg}"
+    );
+
+    // 计划未移动（默认列表仍可见）、状态仍为 reviewed。
+    let (s, body) = send(&a, "GET", "/api/plans", None).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(body["plans"].as_array().unwrap().len(), 1);
+    assert_eq!(body["plans"][0]["status"], "reviewed");
 }
