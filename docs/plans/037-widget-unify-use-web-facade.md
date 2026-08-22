@@ -358,6 +358,11 @@ main 本身就是红的,此前被主检出 gen/ 中未跟踪的 deck.vue 掩盖)
 
 ## 待澄清事项
 
+> **2026-08-23 立项闭环**:后续项已在 auto-lang 立计划——
+> **Plan 424**(component/composable 端口符号转发,关闭第 1/6 条)、
+> **Plan 425**(component fn 双轨退役 + view 可选化,关闭第 2/3 条)、
+> **Plan 426**(setup 前导槽 + 三相位语义定版,关闭第 3 条)。
+
 5. parser 怪癖:局部变量与类型名同名(如 `let list = ...` 后接 `let out list = []`)
    会使后者类型标注丢失(探针已复现,见 Phase 0 记录第 5 条)——Phase 0 以改名规避,
    parser 层修复(类型位置不应走符号解析)另立小计划。
