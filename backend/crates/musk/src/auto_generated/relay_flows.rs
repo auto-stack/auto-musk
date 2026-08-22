@@ -3,7 +3,7 @@ use super::extern_impl::*;
 
 use auto_ai_agent::orchestration::{ExitRouting, FlowSpec, FlowStep, GateType};
 pub fn builtin_flows() -> Vec<FlowSpec> {
-    return vec![plan_flow(), default_flow(), simple_flow(), superpower_flow(), relay_flow()];
+    return vec![plan_flow(), plan_merge_flow(), default_flow(), simple_flow(), superpower_flow(), relay_flow()];
 }
 
 /// Plan-driven dev flow — 单角色四相位，计划文件为交接载体（PLAN-030；
@@ -13,6 +13,14 @@ fn plan_flow() -> FlowSpec {
     flow.add_step(FlowStep::new("plan", "plan-dev"));
     flow.add_step(FlowStep::new("execute", "plan-dev").with_gate(GateType::Human));
     flow.add_step(FlowStep::new("review", "plan-dev"));
+    flow.add_step(FlowStep::new("document", "plan-dev"));
+    return flow;
+}
+
+/// Smart deposit flow（PLAN-034；与 hw relay/flows.rs 保持 parity）—
+/// 单相位 document，由 Chats `/auto-plan:merge` 触发的智能沉淀 run。
+fn plan_merge_flow() -> FlowSpec {
+    let mut flow = FlowSpec::new("plan-merge");
     flow.add_step(FlowStep::new("document", "plan-dev"));
     return flow;
 }
