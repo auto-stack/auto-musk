@@ -1,16 +1,16 @@
 ---
 plan_id: PLAN-034
-status: executing
+status: execution_done
 feature_name: 智能沉淀闭环——计划页按钮触发 Chats 会话式 AI 沉淀 run
 author: [zhaopuming]
 created_at: 2026-08-22T13:32:09+08:00
-updated_at: 2026-08-22T14:10:00+08:00
+updated_at: 2026-08-22T14:35:00+08:00
 
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 6
+current_step: 7
 total_steps: 7
 ---
 
@@ -119,11 +119,16 @@ if (mergeMatch) {
 - [x] **T4** `web/src/composables/useForge.ts`：pendingMessage；`web/src/views/ChatsView.vue`：斜杠分支 + onMounted 消费。验证：`npx vue-tsc --noEmit`。
 - [x] **T5** `web/src/views/PlansView.vue` + locales：按钮改触发流程（mergeRunConfirm 确认键，zh/en）。验证：`npx vue-tsc --noEmit && npx vitest run`。 [✅ 已完成] TSC 0；vitest 22 过（2 存量失败同 PLAN-033 记录）；mergeConfirm/mergeSuccess 键移除、mergeRunConfirm 新增
 - [x] **T6** 全量回归 + `npm run build` 重建 dist + 合并回 main + 清理 worktree。验证：`cargo test -p musk` EXIT 0 + build 成功。 [✅ 已完成] cargo 全量 0 失败（补同步 ag 转译副本 relay_flows.rs——parity 守护测试抓出双份 builtin_flows 漂移）；worktree build 38.6s 成功
-- [ ] **T7** 冒烟：重启 musk 服务（新二进制+新 dist），musk-demo 造 reviewed 计划，浏览器走查按钮→会话→run（报告需 daemon）；结果记录本节。
+- [x] **T7** 冒烟：重启 musk 服务（新二进制+新 dist），musk-demo 造 reviewed 计划，浏览器走查按钮→会话→run（报告需 daemon）；结果记录本节。 [✅ 已完成] 服务已重启（新二进制+新 dist）；API 冒烟（等价按钮全链路）：musk-demo 造 PLAN-011 reviewed → POST /api/forge/relay/runs {flow_id:plan-merge} → run 走完（194 事件/758 tokens）：Agent 汇报 read_plan 门禁→merge_plan 归档（4 条 P011-* 入 goals/reviews/reports）→ docs/specs/README.md 增模块条目 → report.html+md 生成。浏览器按钮走查留给用户（本环境 webview 不可用）。
 
 ## 复审记录
 
 （待 /auto-plan:review 填写）
+
+### 执行期补记
+
+- parity 守护测试 `parity_builtin_flows_match` 抓出 ag 转译副本（auto_generated/relay_flows.rs）需与 hw 版同步——双份 builtin_flows 是既有架构约束。
+- `phase_task` 首版只放行 flow_id 未限定步骤，新测试抓出 plan-merge 误配 execute/review 模板，已修（plan-merge 仅 document）。
 
 ## 待澄清事项
 
