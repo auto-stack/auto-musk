@@ -368,7 +368,12 @@ main 本身就是红的,此前被主检出 gen/ 中未跟踪的 deck.vue 掩盖)
 > 改引 `*.at`;调用面 use.web 非 .at 目标零命中,下方第 1 条与
 > platform.web.at 头注的 raw_upload 存量(「待澄清 6」)全部关闭。
 > composable 经端口 re-export 后自动调用/refs 机制仍在调用方 setup,
-> 反应性完整保留(Plan 426 将进一步提供 setup 块语法)。
+> 反应性完整保留。
+>
+> **2026-08-23 执行闭环 II**:Plan 425(component fn 糖化为 widget、
+> view 可选化、fragment 双轨删除)与 Plan 426(setup{} 前导槽、
+> 三相位语义定版)均已落地;musk composables 域 9 文件已迁 setup 块
+> 直调(use.web composable kind 降为糖,保留兼容)。下方第 2/3 条关闭。
 
 5. parser 怪癖:局部变量与类型名同名(如 `let list = ...` 后接 `let out list = []`)
    会使后者类型标注丢失(探针已复现,见 Phase 0 记录第 5 条)——Phase 0 以改名规避,
@@ -376,8 +381,9 @@ main 本身就是红的,此前被主检出 gen/ 中未跟踪的 deck.vue 掩盖)
 
 1. ~~component 符号转发(图标/StreamingRenderer 经 ports 引用)~~ **✅ 已关闭
    (Plan 424,2026-08-23)**:ES re-export 转发落地,musk 四端口收口。
-2. auto-lang 的 component fn 双轨(parser/extract/render)退役——本计划只迁 musk 源,
-   语言层保留兼容;退役另立计划。
-3. `view {}` 包裹可选化、setup 前导槽(`.Setup`)、`.Init`(onMounted)语义文档化——
-   均登记为后续设计项,不在本计划。
+2. ~~auto-lang 的 component fn 双轨退役~~ **✅ 已关闭(Plan 425,2026-08-23)**:
+   糖化为 widget + 双轨删除 + view 可选化。
+3. ~~`view {}` 可选化、setup 前导槽、`.Init` 语义文档化~~ **✅ 已关闭(Plan 425/426,
+   2026-08-23)**:view 可选化落地;setup{} 前导槽 + setup/.Init/.Destroy 三相位
+   语义表定版(scenario-dialect spec + syntax.md)。
 4. k2 惯用法(T3)选 codegen 补全还是 canary 改写,执行时按影响面定。
