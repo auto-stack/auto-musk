@@ -62,16 +62,16 @@ fn relayClipText(s str, n int) str {
  * 否则取最近 3 条动态各一行。行对象结构见 relayEntryPreviewRow（定义于
  * 阶段 Log 行一节，与阶段行共用中文标签口径）。 */
 fn relayPreviewLines(entries Value) Value {
-    let list = entries ?? []
+    let rows = entries ?? []
     let out list = []
     // 找最新一条可展示 entry（工具或带内容）
     var latest Value = None
-    var i int = list.length - 1
+    var i int = rows.length - 1
     while i >= 0 {
-        let ty = list[i].type ?? ""
-        let c = list[i].content ?? ""
+        let ty = rows[i].type ?? ""
+        let c = rows[i].content ?? ""
         if ty == "tool" || ty == "tool_call" || c != "" {
-            latest = list[i]
+            latest = rows[i]
             i = -1
         } else {
             i = i - 1
@@ -106,9 +106,9 @@ fn relayPreviewLines(entries Value) Value {
     }
     // 其它：最近 3 条动态
     let items list = []
-    var m int = list.length - 1
+    var m int = rows.length - 1
     while m >= 0 {
-        let row = relayEntryPreviewRow(list[m])
+        let row = relayEntryPreviewRow(rows[m])
         if row != None {
             items.push(row)
             if items.length >= 3 { m = -1 } else { m = m - 1 }

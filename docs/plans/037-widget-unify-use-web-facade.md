@@ -155,11 +155,11 @@ use.web composable useI18n refs: [locale] from "vue-i18n"
 > 3. `RelayRunBox.vue(310/361/376)` TS2339:relayTVCmdLine/relayWriteFence/relayFileFence 不存在
 > 4. `relay_run_helpers.ts(58/68)` TS7034/7005:转译产物隐式 any[] ×2
 
-- [ ] **T0a** 修 RelayRunBox 族(错误 2/3):诊断 `Value` 类型映射与 relay fns 的
+- [x] **T0a** 修 RelayRunBox 族(错误 2/3):诊断 `Value` 类型映射与 relay fns 的
   use{fn} 暴露链(疑 plan-418 codegen 漂移)。验证:musk `auto build` 该 4 错清零。
-- [ ] **T0b** 修 ChatsView/ReportCard(错误 1):deckMeta/deckHtml 调用点或 props
+- [x] **T0b** 修 ChatsView/ReportCard(错误 1):deckMeta/deckHtml 调用点或 props
   可选化。验证:该错清零。
-- [ ] **T0c** 修 relay_run_helpers 转译隐式 any(错误 4):.at 源补类型标注或转译器
+- [x] **T0c** 修 relay_run_helpers 转译隐式 any(错误 4):.at 源补类型标注或转译器
   补 `any[]` 注解。验证:musk `auto build` 全绿(0 错)——**此后 Phase 1-6 的
   不变量基线成立**。
 
@@ -250,9 +250,26 @@ use.web composable useI18n refs: [locale] from "vue-i18n"
 
 ## 复审记录
 
+### Phase 0 完成(2026-08-22)
+
+7 个存量错全清 + 顺带修出 4 个更深的问题,musk `auto build` 全绿(优于 main 基线——
+main 本身就是红的,此前被主检出 gen/ 中未跟踪的 deck.vue 掩盖):
+
+1. relay_run_box.at use 清单补 relayTVCmdLine/relayWriteFence/relayFileFence(模板用而未导入)
+2. ReportCard deckMeta/deckHtml 调用点显式传空(Auto 轨从未接 deck 载荷,行为不变)
+3. auto-lang:`Value` 内建类型映射 → any(auto_type_to_ts_type + is_builtin_type_name)
+4. deck.vue 从主检出 gen/ 残留收编为受管源文件 `src/platform/deck.vue`,导入改 ext 路径
+5. relay_run_helpers.at relayPreviewLines 本地变量 `list` 改名 `rows`——规避 parser
+   "类型名被同名本地变量遮蔽后 let 标注丢失"怪癖(最小用例已复现确认为 parser 层问题)
+
+
 (执行中回填)
 
 ## 待澄清事项
+
+5. parser 怪癖:局部变量与类型名同名(如 `let list = ...` 后接 `let out list = []`)
+   会使后者类型标注丢失(探针已复现,见 Phase 0 记录第 5 条)——Phase 0 以改名规避,
+   parser 层修复(类型位置不应走符号解析)另立小计划。
 
 1. component 符号转发(图标/StreamingRenderer 经 ports 引用)——v1 保留调用点直连,
    语言层机制另立计划(T21 决策)。

@@ -6,11 +6,14 @@
 // 指标格（步骤/工具调用/令牌/用时）→ 交付物 chips → 操作行。
 // 默认展开（终态报告是"给客户看的结果"，不是可折叠日志）。
 
-component fn ReportCard(report: obj, deckMeta: obj, deckHtml: str) {
+// deckMeta/deckHtml 带默认值(PLAN-037 Phase 0):ChatsView 调用点只传 report——
+// 无 deck 载荷时 hasDeck=false,deck iframe 不渲染,其余分层不受影响。
+
+component fn ReportCard(report: obj, deckMeta: obj = None, deckHtml: str = "") {
     use {
         component: ChevronDown, ChevronUp, FileText, Download, FolderOpen from "lucide-vue-next"
         component: Markdown from "platform:markdown"
-        component: Deck from "platform:deck"
+        component: Deck from "src/platform/deck.vue"
         fn: reportConfidenceClass, reportDurationLabel from "src/front/forge_helpers.at"
     }
     computed {

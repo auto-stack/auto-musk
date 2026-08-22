@@ -209,6 +209,8 @@ widget ChatsView {
                     if .store.report_data != None {
                         ReportCard {
                             report: .store.report_data
+                            deckMeta: None
+                            deckHtml: ""
                         }
                     }
                     for msg in .filteredMessages {
