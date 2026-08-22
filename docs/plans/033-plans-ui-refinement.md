@@ -4,13 +4,13 @@ status: executing
 feature_name: 计划模块 UI/UX 改进（过滤/状态/徽标/归档语义/MetaBlock）
 author: [zhaopuming]
 created_at: 2026-08-22T10:40:25+08:00
-updated_at: 2026-08-22T11:00:00+08:00
+updated_at: 2026-08-22T12:05:00+08:00
 
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 0
+current_step: 9
 total_steps: 12
 ---
 
@@ -155,15 +155,15 @@ drafting ──→ executing ──→ execution_done ──→ reviewed ──�
 
 ## 执行步骤
 
-- [ ] **T1** `backend/crates/musk/src/plans.rs`：`PlanStatus` 变体 Rename（`ReviewDone→Reviewed`、`Merged→Archived`），`as_str` 输出 `reviewed`/`archived`，`from_str_lossy` 增加 `merged→Archived`、`review_done→Reviewed` 兼容映射；同步文内所有测试断言。验证：`cargo test -p musk plans`。
-- [ ] **T2** `backend/crates/musk/src/plans.rs`：`can_transition` 换 D1 新表（去掉 reviewed→archived）；提取 `move_to_archived(seq)`（transition(Archived)+rename）；`archive()` 加 reviewed 门禁并改走助手；`merge_plan_stores()` 门禁文案与终态调用改新名。验证：`cargo test -p musk plans`。
-- [ ] **T3** `backend/crates/musk/tests/parity_plans.rs`：期望 payload 状态串与转移用例改为新枚举，补一条"archive reviewed 返回 400"用例。验证：`cargo test -p musk --test parity_plans`。
-- [ ] **T4** `web/src/types/plans.ts`：`PlanStatus` 联合类型改名；新增 `ALLOWED_TRANSITIONS`；`canTransition` 基于表实现（保留 from===to 幂等）；`STATUS_TONE` 键同步；新增并导出 `planStatusKey()`。验证：`cd web && npx vue-tsc --noEmit`。
-- [ ] **T5** `web/src/components/plan/PlanStatusBadge.vue`：标签改 `t(planStatusKey(status))`，删除 `exec_done` hack。验证：`npx vue-tsc --noEmit`。
-- [ ] **T6** `web/src/views/PlansView.vue` + 两个 locales：checkbox 换 `filterMode` 下拉（active/all，默认 active，localStorage 持久化）；删 `includeArchived` 键，增 `filterActive`/`filterAll`。验证：`npx vitest run i18n && npx vue-tsc --noEmit`。
-- [ ] **T7** `web/src/views/PlansView.vue` + locales：删状态 `<select>`/`statusOptions`/archived 灰标签；加合法目标按钮组（`ALLOWED_TRANSITIONS` + `transitionTo` 文案）；归档/沉淀按 D3 规则互斥；`onArchive` 确认框 i18n（增 `archiveConfirm`）；locales 键改名 `statusReviewed`/`statusArchived`。验证：`npx vue-tsc --noEmit && npx vitest run`。
-- [ ] **T8** 新建 `web/src/utils/frontmatter.ts` + `web/src/utils/__tests__/frontmatter.spec.ts`（D4 规格的五类用例）。验证：`npx vitest run frontmatter`。
-- [ ] **T9** 新建 `web/src/components/plan/PlanMetaBlock.vue`；`PlansView.vue` 接入 `splitFrontmatter`（MarkdownContent 只喂 body，顶部插 MetaBlock）；locales 增 `metaShow`/`metaHide`。验证：`npx vue-tsc --noEmit && npx vitest run`。
+- [x] **T1** `backend/crates/musk/src/plans.rs`：`PlanStatus` 变体 Rename（`ReviewDone→Reviewed`、`Merged→Archived`），`as_str` 输出 `reviewed`/`archived`，`from_str_lossy` 增加 `merged→Archived`、`review_done→Reviewed` 兼容映射；同步文内所有测试断言。验证：`cargo test -p musk plans`。 [✅ 已完成] 36 测试通过（含 status_roundtrip 改名、legacy_status_strings_map_to_new_enum）
+- [x] **T2** `backend/crates/musk/src/plans.rs`：`can_transition` 换 D1 新表（去掉 reviewed→archived）；提取 `move_to_archived(seq)`（直接 set_field 写 archived+rename——不经 can_transition，因两条终态路径均不受手动状态机约束，与 D1 表一致）；`archive()` 加 reviewed 门禁并改走助手；`merge_plan_stores()` 门禁文案与终态调用改新名。验证：`cargo test -p musk plans`。 [✅ 已完成] archive_moves_file_and_sets_status / archive_rejects_reviewed / state_machine 新断言全过
+- [x] **T3** `backend/crates/musk/tests/parity_plans.rs`：期望 payload 状态串与转移用例改为新枚举，补一条"archive reviewed 返回 400"用例（另修 plans_archive handler 错误码：非 not-found 一律 400）。验证：`cargo test -p musk --test parity_plans`。 [✅ 已完成] 5 测试通过（含 plans_archive_reviewed_rejected）
+- [x] **T4** `web/src/types/plans.ts`：`PlanStatus` 联合类型改名；新增 `ALLOWED_TRANSITIONS`；`canTransition` 基于表实现（保留 from===to 幂等）；`STATUS_TONE` 键同步；新增并导出 `planStatusKey()`。验证：`cd web && npx vue-tsc --noEmit`。 [✅ 已完成] vue-tsc EXIT 0（ALLOWED_TRANSITIONS/planStatusKey/STATUS_TONE 同步改名）
+- [x] **T5** `web/src/components/plan/PlanStatusBadge.vue`：标签改 `t(planStatusKey(status))`，删除 `exec_done` hack。验证：`npx vue-tsc --noEmit`。 [✅ 已完成] 徽标走 t(planStatusKey)，删 exec_done hack 与 text-transform
+- [x] **T6** `web/src/views/PlansView.vue` + 两个 locales：checkbox 换 `filterMode` 下拉（active/all，默认 active，localStorage 持久化）；删 `includeArchived` 键，增 `filterActive`/`filterAll`。验证：`npx vitest run i18n && npx vue-tsc --noEmit`。 [✅ 已完成] filterMode 下拉+localStorage 持久化，i18n parity 测试通过
+- [x] **T7** `web/src/views/PlansView.vue` + locales：删状态 `<select>`/`statusOptions`/archived 灰标签；加合法目标按钮组（`ALLOWED_TRANSITIONS` + `transitionTo` 文案）；归档/沉淀按 D3 规则互斥；`onArchive` 确认框 i18n（增 `archiveConfirm`）；locales 键改名 `statusReviewed`/`statusArchived`。验证：`npx vue-tsc --noEmit && npx vitest run`。 [✅ 已完成] 删全量状态下拉与 archived 灰标签，转移按钮组+互斥归档/沉淀，vue-tsc 0；vitest 2 个失败为存量（主仓同败：brandName 断言过时+缺 DOM 环境），与本计划无关
+- [x] **T8** 新建 `web/src/utils/frontmatter.ts` + `web/src/utils/__tests__/frontmatter.spec.ts`（D4 规格的五类用例）。验证：`npx vitest run frontmatter`。 [✅ 已完成] TDD 红→绿：7/7 通过（真实 frontmatter/块列表/引号/CRLF/无围栏/正文 --- 不误判/键序）
+- [x] **T9** 新建 `web/src/components/plan/PlanMetaBlock.vue`；`PlansView.vue` 接入 `splitFrontmatter`（MarkdownContent 只喂 body，顶部插 MetaBlock）；locales 增 `metaShow`/`metaHide`。验证：`npx vue-tsc --noEmit && npx vitest run`。 [✅ 已完成] PlanMetaBlock 概要行+展开表格接入，MarkdownContent 只喂 body；vue-tsc 0，vitest 22 过（2 存量失败同前）
 - [ ] **T10** 全量回归：`cargo test -p musk` + `cd web && npx vue-tsc --noEmit && npx vitest run`；`grep -rn "review_done" backend/crates/musk/src web/src .agents/skills docs/designs` 确认仅剩兼容映射与注释允许项。
 - [ ] **T11** 技能/设计文档同步：`.agents/skills/auto-plan-{new,review,merge,work}/SKILL.md`、`docs/designs/008-auto-plan.md` 中状态名与状态机图改为 `reviewed`/`archived`。验证：`grep -rn "review_done\|status: merged\|status: review_done" .agents/skills docs/designs` 为空。
 - [ ] **T12** 手动冒烟（按测试设计清单逐项走查，dev server + 后端），结果记录到本节下方。
