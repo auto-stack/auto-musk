@@ -156,12 +156,15 @@
     "newPlan": "新建计划",
     "featureName": "功能名称",
     "featureNamePlaceholder": "如：新增用户认证",
-    "includeArchived": "包含归档",
+    "filterTitle": "筛选范围",
+    "filterActive": "进行中",
+    "filterAll": "全部",
     "create": "创建",
     "edit": "编辑",
     "save": "保存",
     "cancel": "取消",
     "archive": "归档",
+    "archiveConfirm": "确定归档 {id}？归档后可在\"全部\"筛选中查看。",
     "mergeToSpec": "沉淀到 Spec",
     "mergeConfirm": "把此计划沉淀到 Spec 知识库？各章节将拆解进 6 个 spec 区，然后归档此计划。",
     "mergeSuccess": "已沉淀：{count} 个条目写入 {sections} 个区。",
@@ -170,8 +173,8 @@
     "statusDrafting": "草拟",
     "statusExecuting": "执行中",
     "statusExecutionDone": "执行完成",
-    "statusReviewDone": "复审通过",
-    "statusMerged": "已沉淀"
+    "statusReviewed": "已复审",
+    "statusArchived": "已归档"
   },
   "wiki": {
     "title": "知识库",

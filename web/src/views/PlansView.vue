@@ -7,10 +7,10 @@
           <Plus :size="16" />
         </button>
       </div>
-      <label class="nav-toggle">
-        <input v-model="includeArchived" type="checkbox" @change="refresh" />
-        <span>{{ t('plans.includeArchived') }}</span>
-      </label>
+      <select v-model="filterMode" class="nav-filter" :title="t('plans.filterTitle')">
+        <option value="active">{{ t('plans.filterActive') }}</option>
+        <option value="all">{{ t('plans.filterAll') }}</option>
+      </select>
       <div class="nav-list">
         <div v-if="isLoading" class="nav-empty">{{ t('plans.loading') }}</div>
         <div v-else-if="plans.length === 0" class="nav-empty">{{ t('plans.empty') }}</div>
@@ -37,32 +37,29 @@
           <div class="header-left">
             <span class="plan-id">{{ current.id }}</span>
             <PlanStatusBadge :status="current.status" />
-            <span v-if="current.archived" class="archived-tag">archived</span>
             <span class="plan-feature">{{ current.feature_name }}</span>
           </div>
           <div class="header-actions">
             <template v-if="!editing">
-              <select
-                class="status-select"
-                :value="current.status"
-                :title="t('plans.transitionTo', { status: current.status })"
-                @change="onTransition"
-              >
-                <option
-                  v-for="s in statusOptions"
+              <template v-if="!current.archived">
+                <button
+                  v-for="s in ALLOWED_TRANSITIONS[current.status]"
                   :key="s"
-                  :value="s"
-                  :disabled="!canTransition(current.status, s)"
-                >{{ t(statusKey(s)) }}</option>
-              </select>
+                  class="action-btn transition-btn"
+                  :class="{ rollback: isRollback(current.status, s) }"
+                  @click="onTransition(s)"
+                >{{ t('plans.transitionTo', { status: t(planStatusKey(s)) }) }}</button>
+              </template>
               <button class="action-btn" @click="startEdit">{{ t('plans.edit') }}</button>
+              <!-- PLAN-033 单一终态：reviewed 只显示"沉淀到 Spec"（沉淀即归档）；
+                   非 reviewed 未归档显示"归档"（搁置不沉淀）；两者互斥。 -->
               <button
-                v-if="!current.archived"
+                v-if="!current.archived && current.status !== 'reviewed'"
                 class="action-btn"
                 @click="onArchive"
               >{{ t('plans.archive') }}</button>
               <button
-                v-if="current.status === 'review_done'"
+                v-if="!current.archived && current.status === 'reviewed'"
                 class="action-btn primary"
                 @click="onMerge"
               >{{ t('plans.mergeToSpec') }}</button>
@@ -115,7 +112,7 @@ import { Plus } from 'lucide-vue-next'
 import MarkdownContent from '@/components/MarkdownContent.vue'
 import PlanStatusBadge from '@/components/plan/PlanStatusBadge.vue'
 import { usePlans } from '@/composables/usePlans'
-import { canTransition, type PlanStatus } from '@/types/plans'
+import { ALLOWED_TRANSITIONS, planStatusKey, type PlanStatus } from '@/types/plans'
 
 const { t } = useI18n()
 const {
@@ -131,30 +128,34 @@ const {
   mergePlan,
 } = usePlans()
 
-const includeArchived = ref(false)
+/** 过滤档位持久化键（与语言键同 autoforge- 前缀风格）。 */
+const FILTER_KEY = 'autoforge-plans-filter'
+type FilterMode = 'active' | 'all'
+const filterMode = ref<FilterMode>(
+  localStorage.getItem(FILTER_KEY) === 'all' ? 'all' : 'active',
+)
+
 const selectedSeq = ref<number | null>(null)
 const editing = ref(false)
 const editBody = ref('')
 const creating = ref(false)
 const newName = ref('')
 
-const statusOptions: PlanStatus[] = [
-  'drafting',
-  'executing',
-  'execution_done',
-  'review_done',
-  'merged',
-]
+/** 生命周期序（用于判定转移按钮是否为回退边）。 */
+const STATUS_ORDER: Record<PlanStatus, number> = {
+  drafting: 0,
+  executing: 1,
+  execution_done: 2,
+  reviewed: 3,
+  archived: 4,
+}
 
-/** status → i18n key: 'execution_done' → 'plans.statusExecutionDone' */
-function statusKey(s: PlanStatus): string {
-  const camel = s.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
-    .replace(/^./, (c) => c.toUpperCase())
-  return `plans.status${camel}`
+function isRollback(from: PlanStatus, to: PlanStatus): boolean {
+  return STATUS_ORDER[to] < STATUS_ORDER[from]
 }
 
 async function refresh() {
-  await loadPlans(includeArchived.value)
+  await loadPlans(filterMode.value === 'all')
 }
 
 async function selectPlan(seq: number) {
@@ -195,23 +196,15 @@ async function onSave() {
   if (updated) editing.value = false
 }
 
-async function onTransition(e: Event) {
-  if (!current.value) return
-  const newStatus = (e.target as HTMLSelectElement).value as PlanStatus
-  if (newStatus === current.value.status) return
-  if (!canTransition(current.value.status, newStatus)) {
-    alert(`Illegal transition ${current.value.status} → ${newStatus}`)
-    // reset select to current
-    ;(e.target as HTMLSelectElement).value = current.value.status
-    return
-  }
-  const p = await transitionPlan(current.value.seq, newStatus)
+async function onTransition(target: PlanStatus) {
+  if (!current.value || target === current.value.status) return
+  const p = await transitionPlan(current.value.seq, target)
   if (p) await refresh()
 }
 
 async function onArchive() {
   if (!current.value) return
-  if (!confirm(`Archive ${current.value.id}?`)) return
+  if (!confirm(t('plans.archiveConfirm', { id: current.value.id }))) return
   const p = await archivePlan(current.value.seq)
   if (p) {
     await refresh()
@@ -238,6 +231,12 @@ async function onMerge() {
 // keep edit body in sync when current plan changes
 watch(current, (c) => {
   if (c) editBody.value = c.content
+})
+
+// 过滤档位切换：持久化 + 重新加载列表
+watch(filterMode, (m) => {
+  localStorage.setItem(FILTER_KEY, m)
+  refresh()
 })
 
 onMounted(() => {
@@ -289,17 +288,14 @@ onMounted(() => {
   background: hsl(var(--muted-foreground) / 0.08);
   color: var(--af-fg);
 }
-.nav-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.75rem;
+.nav-filter {
+  margin: 0.5rem 0.75rem;
   font-size: 0.78rem;
-  color: var(--af-muted);
-  cursor: pointer;
-  border-bottom: 1px solid var(--af-border);
-}
-.nav-toggle input {
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--af-border);
+  border-radius: 5px;
+  background: var(--af-bg);
+  color: var(--af-fg);
   cursor: pointer;
 }
 .nav-list {
@@ -394,27 +390,15 @@ onMounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.archived-tag {
-  font-size: 0.68rem;
-  padding: 0.1rem 0.35rem;
-  border-radius: 3px;
-  background: hsl(var(--muted-foreground) / 0.16);
-  color: var(--af-muted);
-  text-transform: lowercase;
-}
 .header-actions {
   display: flex;
   align-items: center;
   gap: 0.4rem;
 }
-.status-select {
-  font-size: 0.78rem;
-  padding: 0.2rem 0.4rem;
-  border: 1px solid var(--af-border);
-  border-radius: 4px;
-  background: var(--af-bg);
-  color: var(--af-fg);
-  cursor: pointer;
+/* 回退边（如 executing → drafting）弱化显示 */
+.transition-btn.rollback {
+  color: var(--af-muted);
+  border-style: dashed;
 }
 .action-btn {
   font-size: 0.78rem;

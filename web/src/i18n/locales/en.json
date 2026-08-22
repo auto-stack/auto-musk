@@ -143,12 +143,15 @@
     "newPlan": "New Plan",
     "featureName": "Feature name",
     "featureNamePlaceholder": "e.g. Add user authentication",
-    "includeArchived": "Include archived",
+    "filterTitle": "Filter scope",
+    "filterActive": "Active",
+    "filterAll": "All",
     "create": "Create",
     "edit": "Edit",
     "save": "Save",
     "cancel": "Cancel",
     "archive": "Archive",
+    "archiveConfirm": "Archive {id}? It remains visible under the \"All\" filter.",
     "mergeToSpec": "Merge to Spec",
     "mergeConfirm": "Merge this plan into the Spec ledger? Sections will be deposited into the 6 spec sections, then the plan is archived.",
     "mergeSuccess": "Merged: {count} items deposited across {sections} sections.",
@@ -157,8 +160,8 @@
     "statusDrafting": "Drafting",
     "statusExecuting": "Executing",
     "statusExecutionDone": "Execution Done",
-    "statusReviewDone": "Review Done",
-    "statusMerged": "Merged"
+    "statusReviewed": "Reviewed",
+    "statusArchived": "Archived"
   },
   "wiki": {
     "title": "Wiki",
