@@ -206,12 +206,22 @@ T1-T5 全部完成,Phase 1 收口验证:649 ui_gen 单测(含新增 model 寻址
 
 ### Phase 2 — use.web 语句(auto-lang,用户步骤 2)
 
-- [ ] **T6** parser:`use.web` 语句(D2 语法,默认/component/composable + `refs:`)→
+- [x] **T6** parser:`use.web` 语句(D2 语法,默认/component/composable + `refs:`)→
   ExtImport AST;单测覆盖四形态。验证:`cargo test -p auto-lang --lib`。
-- [ ] **T7** 门控 + 别名:非 web 目标遇 `use.web` 显式报错(仿 use.py 文案);use 块
+- [x] **T7** 门控 + 别名:非 web 目标遇 `use.web` 显式报错(仿 use.py 文案);use 块
   保留别名(双入口单测)。验证:`cargo test -p auto-lang --lib` + musk 根 `auto build`。
-- [ ] **T8** k3 试点:canary 内把一个 use 块改为 `use.web`(证明端到端)。验证:
+- [x] **T8** k3 试点:canary 内把一个 use 块改为 `use.web`(证明端到端)。验证:
   k3 `auto build` 绿 + 产物 import 不变。
+
+### Phase 2 完成(2026-08-22)
+
+T6-T8 全部完成:651 ui_gen 单测(含 use.web 四形态解析单测)+ k3 T8 试点
+(use 块 → 顶层 use.web,产物逐字相同)+ musk 回归全绿(use 块别名生效,存量零影响)。
+
+落地:`use.web NAME from "path"`(默认普通导入)/`use.web component A, B from "..."`
+/`use.web composable X refs: [...] from "..."`;AST `Stmt::UseWeb`(六个 match 补臂);
+parser 与 use.rust/use.py 同族派发;api.rs 把文件级条目挂到文件内全部 widget;
+a2r 两处显式报错("use.web requires the vue render target")。
 
 ### Phase 3 — musk use 块 → use.web(用户步骤 3)
 
