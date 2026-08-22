@@ -137,7 +137,7 @@ if (mergeMatch) {
 
 ### T9：报告卡融入对话流（用户 UX 设计）
 
-顶部弹窗与 Run 卡内嵌报告卡均移除——run 完成时 driver 把报告作为助手消息持久化写回发起会话（tool call `report` 携带全量 RunReportPayload；`chat_session_id` context 由短路/spawn_relay 登记），前端在对话流末尾内联渲染报告卡（实时路径由事件路由本地追加，幂等去重），Run 卡尾部留"查看报告↓"跳转链接、报告卡留"回到 Run↑"链接，互链滚动定位。刷新后由历史加载恢复。
+顶部弹窗与 Run 卡内嵌报告卡均移除——run 完成时 driver 把报告作为助手消息持久化写回发起会话（tool call `report` 携带全量 RunReportPayload；`chat_session_id` context 由短路/spawn_relay 登记），前端在对话流末尾内联渲染报告卡（实时路径由事件路由本地追加，幂等去重），Run 卡尾部留"查看报告↓"跳转链接、报告卡留"回到 Run↑"链接，互链滚动定位。刷新后由历史加载恢复。补充：完成事件在 submit_handoff 内落库，驱动 Completed 分支不可达——写回钩子最终落在两个 drive_run 的收尾按终态判断（status==completed）；hw/ag 双实现再次同步（relay_driver.rs/extern_impl.rs/driver.rs）。E2E 验证：会话第三条消息为持久化报告消息（report tool call 携带全量 RunReportPayload）。
 
 ### 修正轮二（T8 补充：ag 轨道落地）
 

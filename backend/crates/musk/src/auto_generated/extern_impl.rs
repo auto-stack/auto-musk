@@ -1175,6 +1175,46 @@ pub fn relay_submit_error(s: &Arc<AppState>, w: &str, r: &str, _role_id: &str, e
         let _ = ws.relay.fail_run(r, &format!("[agent error] {msg}"));
     }
 }
+/// PLAN-034 T9：run 完成钩子——把报告作为助手消息写回发起它的 chat 会话
+///（`chat_session_id` 由 plan-merge 短路 / spawn_relay 写入 run context）。
+/// 报告以 tool call `report` 携带全量 RunReportPayload，前端在对话流内
+/// 内联渲染报告卡（刷新持久），与 Run 卡片互链。hw/ag 两个驱动共用。
+pub fn relay_append_report_message_to(
+    ws: &std::sync::Arc<crate::workspace::WorkspaceStores>,
+    run_id: &str,
+) -> () {
+    let Some(session_id) = ws.relay.context_var(run_id, "chat_session_id") else {
+        return;
+    };
+    let Some(report) = ws.relay.run_report(run_id) else {
+        return;
+    };
+    let title = if report.title.is_empty() {
+        run_id.to_string()
+    } else {
+        report.title.clone()
+    };
+    let mut msg = crate::chats::ChatMessage::assistant(format!(
+        "✅ **Run 已完成**：{title}\n\n完整报告见下方卡片。"
+    ));
+    msg.tool_calls = vec![crate::chats::ToolCall {
+        tool: "report".into(),
+        args: serde_json::to_value(&report).unwrap_or_default(),
+        result: String::new(),
+        status: "success".into(),
+        id: "report-1".into(),
+    }];
+    let _ = ws.chats.append_message(&session_id, msg.clone());
+    let seq_base = ws
+        .conversations
+        .get(&session_id)
+        .map(|c| c.turns.len())
+        .unwrap_or(0);
+    for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
+        let _ = ws.conversations.append_turn(&session_id, turn);
+    }
+    tracing::info!("run {run_id}: report message appended to session {session_id}");
+}
 /// hw `ws.relay.step_context(run_id)` → the task string for the agent (fallback
 /// "Continue the relay pipeline." when no initial task, matching hw driver.rs:165).
 pub fn relay_step_context(s: &Arc<AppState>, w: &str, r: &str) -> String {

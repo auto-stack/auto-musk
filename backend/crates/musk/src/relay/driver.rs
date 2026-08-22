@@ -90,6 +90,11 @@ pub async fn drive_run(state: Arc<AppState>, ws_id: String, run_id: String) {
     // Run the drive loop in an inner block so there's a single cleanup point —
     // clear_current_root runs on EVERY exit path (gate/completed/failed/paused).
     drive_loop(&state, &ws, &run_id).await;
+    // PLAN-034 T9：完成事件在 submit_handoff 内已落库——Completed 分支不可
+    // 达，此处按终态判断写回报告消息（gate/failed 不写）。
+    if ws.relay.status(&run_id).as_deref() == Some("completed") {
+        crate::auto_generated::extern_impl::relay_append_report_message_to(&ws, &run_id);
+    }
     crate::tool_safety::clear_current_root();
 }
 
@@ -138,35 +143,10 @@ async fn drive_loop(
                 // PLAN-034 T9：run 完成后把报告作为助手消息写回发起它的
                 // chat 会话——报告卡在对话流内渲染（刷新持久），Run 卡片与
                 // 报告卡互链。`chat_session_id` 由 plan-merge 短路 / spawn_relay
-                // 在启动 run 时写入 context。
-                if let Some(session_id) = ws.relay.context_var(run_id, "chat_session_id") {
-                    if let Some(report) = ws.relay.run_report(run_id) {
-                        let title = if report.title.is_empty() {
-                            run_id.to_string()
-                        } else {
-                            report.title.clone()
-                        };
-                        let mut msg = crate::chats::ChatMessage::assistant(format!(
-                            "✅ **Run 已完成**：{title}\n\n完整报告见下方卡片。"
-                        ));
-                        msg.tool_calls = vec![crate::chats::ToolCall {
-                            tool: "report".into(),
-                            args: serde_json::to_value(&report).unwrap_or_default(),
-                            result: String::new(),
-                            status: "success".into(),
-                            id: "report-1".into(),
-                        }];
-                        let _ = ws.chats.append_message(&session_id, msg.clone());
-                        let seq_base = ws
-                            .conversations
-                            .get(&session_id)
-                            .map(|c| c.turns.len())
-                            .unwrap_or(0);
-                        for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
-                            let _ = ws.conversations.append_turn(&session_id, turn);
-                        }
-                    }
-                }
+                // 在启动 run 时写入 context。（实现在 ag extern_impl，hw/ag
+                // 两个驱动共用；完成事件在 submit_handoff 内落库，此分支通常
+                // 不可达，实际写回在 drive_run 收尾按终态判断。）
+                crate::auto_generated::extern_impl::relay_append_report_message_to(ws, run_id);
                 return;
             }
             AdvanceResult::Failed { error } => {

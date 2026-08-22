@@ -44,6 +44,13 @@ impl MuskAgentFactory {
 pub async fn drive_run(state: Arc<AppState>, ws_id: &str, run_id: &str) -> Result<bool, String> {
     drive_set_root(&state, ws_id);
     let _ = drive_loop(state.clone(), ws_id, run_id).await;
+    // PLAN-034 T9：完成事件在 submit_handoff 内已落库——驱动循环的下一轮
+    // advance 对已完成 run 返回 None 直接退出，Completed 分支不可达；此处
+    // 按终态判断（completed 才写回；gate/failed 不写）。
+    if state.registry.get(ws_id).relay.status(run_id).as_deref() == Some("completed") {
+        let ws = state.registry.get(ws_id);
+        super::extern_impl::relay_append_report_message_to(&ws, run_id);
+    }
     drive_clear_root();
     return Ok(true);
 }
@@ -66,7 +73,13 @@ async fn drive_loop(state: Arc<AppState>, ws_id: &str, run_id: &str) -> Result<b
                     done = true;
                 }
             } else {
-                
+                // PLAN-034 T9：run 完成时把报告作为助手消息写回发起 chat 会话
+                //（chat_session_id 由 plan-merge 短路 / spawn_relay 写入 context；
+                // 报告卡在对话流内渲染，刷新持久，与 Run 卡片互链）。
+                if kind == "completed" {
+                    let ws = state.registry.get(ws_id);
+                    super::extern_impl::relay_append_report_message_to(&ws, run_id);
+                }
 
                 done = true;
             }
