@@ -142,8 +142,9 @@ fn parse_inline_list(s: &str) -> Value {
     Value::Array(split_top_level(inner).iter().map(|i| parse_inline_item(i)).collect())
 }
 
-/// 拆 `.ad` 文档：frontmatter（标量 + 内联数组子集）与正文 body。
-/// 无 frontmatter → 空 object + 全文为 body。
+/// 拆 `.ad` 文档：frontmatter（标量 + 内联/块式数组子集）与正文 body。
+/// 无 frontmatter → 空 object + 全文为 body。块式列表支持：
+/// `key:` 换行后缩进的 `- k: v` 项（项内可多行续写 `k2: v2`）与裸标量项。
 fn parse_ad_frontmatter(content: &str) -> (Value, String) {
     let mut lines = content.lines();
     if lines.next().map(|l| l.trim()) != Some("---") {
@@ -152,31 +153,98 @@ fn parse_ad_frontmatter(content: &str) -> (Value, String) {
     let mut fm = serde_json::Map::new();
     let mut body_lines: Vec<&str> = Vec::new();
     let mut in_fm = true;
-    for line in content.lines().skip(1) {
-        if in_fm {
-            if line.trim() == "---" {
-                in_fm = false;
-                continue;
-            }
-            if line.trim().is_empty() || line.trim_start().starts_with('#') {
-                continue; // 空行/注释
-            }
-            if let Some((k, v)) = line.split_once(':') {
-                let key = k.trim().to_string();
-                let val = v.trim();
-                if !key.is_empty() && !val.is_empty() {
-                    let parsed = if val.starts_with('[') && val.ends_with(']') {
-                        parse_inline_list(val)
-                    } else {
-                        json!(unquote_scalar(val))
-                    };
-                    fm.insert(key, parsed);
-                }
-            }
-        } else {
-            body_lines.push(line);
+    // 块式列表状态
+    let mut list_key: Option<String> = None;
+    let mut list_items: Vec<Value> = Vec::new();
+    let mut cur_item: Option<serde_json::Map<String, Value>> = None;
+    let mut cur_scalar: Option<String> = None;
+
+    fn flush_item(
+        items: &mut Vec<Value>,
+        item: &mut Option<serde_json::Map<String, Value>>,
+        scalar: &mut Option<String>,
+    ) {
+        if let Some(obj) = item.take() {
+            items.push(Value::Object(obj));
+        } else if let Some(s) = scalar.take() {
+            items.push(json!(s));
         }
     }
+    fn flush_list(
+        fm: &mut serde_json::Map<String, Value>,
+        list_key: &mut Option<String>,
+        items: &mut Vec<Value>,
+        item: &mut Option<serde_json::Map<String, Value>>,
+        scalar: &mut Option<String>,
+    ) {
+        flush_item(items, item, scalar);
+        if let Some(k) = list_key.take() {
+            fm.insert(k, Value::Array(std::mem::take(items)));
+        }
+    }
+
+    for line in content.lines().skip(1) {
+        if !in_fm {
+            body_lines.push(line);
+            continue;
+        }
+        if line.trim() == "---" {
+            flush_list(&mut fm, &mut list_key, &mut list_items, &mut cur_item, &mut cur_scalar);
+            in_fm = false;
+            continue;
+        }
+        let t = line.trim();
+        if t.is_empty() || t.starts_with('#') {
+            continue; // 空行/注释
+        }
+        let indent = line.len() - line.trim_start().len();
+        // 列表项：`- k: v` 或 `- 裸标量`
+        if list_key.is_some() && t.starts_with("- ") {
+            flush_item(&mut list_items, &mut cur_item, &mut cur_scalar);
+            let rest = t[2..].trim();
+            if let Some((k, v)) = rest.split_once(':') {
+                let key = unquote_scalar(k);
+                if !key.is_empty() {
+                    let mut obj = serde_json::Map::new();
+                    obj.insert(key, json!(unquote_scalar(v)));
+                    cur_item = Some(obj);
+                    continue;
+                }
+            }
+            cur_scalar = Some(unquote_scalar(rest));
+            continue;
+        }
+        // 项内续写：缩进的非列表行 `k2: v2`
+        if list_key.is_some() && indent > 0 {
+            if let Some((k, v)) = t.split_once(':') {
+                let key = unquote_scalar(k);
+                if !key.is_empty() {
+                    if let Some(obj) = cur_item.as_mut() {
+                        obj.insert(key, json!(unquote_scalar(v)));
+                        continue;
+                    }
+                }
+            }
+        }
+        // 普通键值行（先冲刷上一个块式列表）
+        flush_list(&mut fm, &mut list_key, &mut list_items, &mut cur_item, &mut cur_scalar);
+        if let Some((k, v)) = line.split_once(':') {
+            let key = k.trim().to_string();
+            let val = v.trim();
+            if key.is_empty() {
+                continue;
+            }
+            if val.is_empty() {
+                // 块式列表头：`key:` 后续 `- ` 项
+                list_key = Some(key);
+            } else if val.starts_with('[') && val.ends_with(']') {
+                fm.insert(key, parse_inline_list(val));
+            } else {
+                fm.insert(key, json!(unquote_scalar(val)));
+            }
+        }
+    }
+    flush_list(&mut fm, &mut list_key, &mut list_items, &mut cur_item, &mut cur_scalar);
     // 去掉 body 开头空行
     let body = body_lines
         .iter()
@@ -187,14 +255,24 @@ fn parse_ad_frontmatter(content: &str) -> (Value, String) {
     (Value::Object(fm), body)
 }
 
-/// 校验 `.ad` 报告：title 与正文必填；deliverables 若给出走枚举校验。
+/// 校验 `.ad` 报告：title 必填；body 与 stages 至少其一（主信息走
+/// frontmatter blocks 时正文可为空）；deliverables 若给出走枚举校验。
 fn validate_ad(fm: &Value, body: &str) -> Result<String, String> {
     let title = fm["title"].as_str().unwrap_or("").trim().to_string();
     if title.is_empty() {
         return Err("emit_report: frontmatter 必须含 title".into());
     }
-    if body.trim().is_empty() {
-        return Err("emit_report: 正文（body）不能为空".into());
+    let has_stages = fm["stages"]
+        .as_array()
+        .map(|a| !a.is_empty())
+        .unwrap_or(false);
+    if body.trim().is_empty() && !has_stages {
+        return Err("emit_report: 正文与 stages 至少提供其一（主信息走 frontmatter）".into());
+    }
+    for s in fm["stages"].as_array().cloned().unwrap_or_default() {
+        if s["title"].as_str().unwrap_or("").trim().is_empty() {
+            return Err("emit_report: 每个 stage 必须有 title".into());
+        }
     }
     for d in fm["deliverables"].as_array().cloned().unwrap_or_default() {
         match d["kind"].as_str().unwrap_or("") {
@@ -411,24 +489,86 @@ fn md_to_html(md: &str) -> String {
     out
 }
 
-/// v3 机械渲染 HTML：标题头 + 机械指标四格 + 正文（md_to_html）。
+/// v3 机械渲染 HTML：标题头 + 目标/流程/交付物 blocks（frontmatter 驱动）+
+/// 机械指标四格 + 正文（md_to_html，可选补充）。
 fn render_report_html_v3(title: &str, st: &Value, metrics: &Value, date: &str) -> String {
     let m = |k: &str| esc(metrics[k].as_str().unwrap_or("—"));
-    let body = md_to_html(st["body"].as_str().unwrap_or(""));
+    // 目标/摘要引导
+    let objective = st["objective"]
+        .as_str()
+        .or_else(|| st["summary"].as_str())
+        .unwrap_or("");
+    // 流程方框链（stages）
+    let mut flow = String::new();
+    for (i, s) in st["stages"].as_array().cloned().unwrap_or_default().iter().enumerate() {
+        if i > 0 {
+            flow.push_str("<div style=\"color:#64748b;font-size:20px;align-self:center\">→</div>");
+        }
+        flow.push_str(&format!(
+            "<div style=\"flex:1;min-width:120px;background:#0f172a;border:1px solid #334155;border-radius:12px;padding:12px 14px\"><div style=\"font-size:14px;font-weight:600;color:#93c5fd\">{}</div><div style=\"font-size:12px;color:#94a3b8;margin-top:6px;line-height:1.5\">{}</div></div>",
+            esc(s["title"].as_str().unwrap_or("")),
+            esc(s["outcome"].as_str().unwrap_or(""))
+        ));
+    }
+    let flow_section = if flow.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "<div class=\"slide\"><h2 style=\"font-size:20px;margin:0 0 14px;color:#93c5fd\">实现流程 · 各阶段成果</h2><div style=\"display:flex;gap:8px;flex-wrap:wrap\">{flow}</div></div>"
+        )
+    };
+    // 交付物表
+    let mut dl_rows = String::new();
+    for d in st["deliverables"].as_array().cloned().unwrap_or_default() {
+        let (mark, color) = match d["change"].as_str().unwrap_or("M") {
+            "+" => ("+", "#6ee7b9"),
+            "-" => ("-", "#fca5a5"),
+            _ => ("M", "#93c5fd"),
+        };
+        dl_rows.push_str(&format!(
+            "<tr><td style=\"padding:6px 10px;border-top:1px solid #334155;color:#94a3b8;font-size:12px\">{}</td><td style=\"padding:6px 10px;border-top:1px solid #334155;color:#e2e8f0;font-size:13px\">{}</td><td style=\"padding:6px 10px;border-top:1px solid #334155;color:{color};font-weight:700\">{mark}</td><td style=\"padding:6px 10px;border-top:1px solid #334155;color:#94a3b8;font-size:12px\">{}</td></tr>",
+            esc(d["kind"].as_str().unwrap_or("")),
+            esc(d["name"].as_str().unwrap_or("")),
+            esc(d["detail"].as_str().unwrap_or(""))
+        ));
+    }
+    let dl_section = if dl_rows.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "<div class=\"slide\"><h2 style=\"font-size:20px;margin:0 0 14px;color:#93c5fd\">交付物</h2><table style=\"width:100%;border-collapse:collapse\">{dl_rows}</table></div>"
+        )
+    };
+    // 正文（可选补充）
+    let body_html = md_to_html(st["body"].as_str().unwrap_or(""));
+    let body_section = if body_html.trim().is_empty() {
+        String::new()
+    } else {
+        format!("<div class=\"slide\">{body_html}</div>")
+    };
+    let objective_html = if objective.is_empty() {
+        String::new()
+    } else {
+        format!("<p style=\"font-size:15px;line-height:1.7;color:#cbd5e1;margin:14px 0 0\">{}</p>", esc(objective))
+    };
     format!(
         "<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><title>{}</title><style>body{{font-family:'PingFang SC','Microsoft YaHei',sans-serif;background:#0f172a;color:#e2e8f0;margin:0;padding:24px}}.slide{{max-width:960px;margin:16px auto;padding:32px 40px;background:#1e293b;border-radius:16px}}.metric{{display:flex;gap:12px;margin-top:16px}}.mbox{{flex:1;background:#0f172a;border:1px solid #334155;border-radius:12px;padding:14px;text-align:center}}.mnum{{font-size:24px;font-weight:700;color:#6ee7b9}}.mlab{{font-size:12px;color:#64748b;margin-top:4px}}p{{font-size:15px;line-height:1.7;color:#cbd5e1}}.foot{{text-align:center;color:#475569;font-size:12px;margin:24px 0}}</style></head><body>\
-<div class=\"slide\"><h1 style=\"font-size:30px;margin:0\">{}</h1><div style=\"color:#64748b;font-size:13px\">{}</div>\
-<div class=\"metric\"><div class=\"mbox\"><div class=\"mnum\">{}</div><div class=\"mlab\">步骤完成</div></div><div class=\"mbox\"><div class=\"mnum\">{}</div><div class=\"mlab\">工具调用</div></div><div class=\"mbox\"><div class=\"mnum\">{}</div><div class=\"mlab\">令牌消耗</div></div><div class=\"mbox\"><div class=\"mnum\">{}</div><div class=\"mlab\">总用时</div></div></div></div>\
-<div class=\"slide\">{}</div>\
+<div class=\"slide\"><h1 style=\"font-size:30px;margin:0\">{}</h1><div style=\"color:#64748b;font-size:13px\">{}</div>{}</div>\
+{}\
+<div class=\"slide\"><div class=\"metric\"><div class=\"mbox\"><div class=\"mnum\">{}</div><div class=\"mlab\">步骤完成</div></div><div class=\"mbox\"><div class=\"mnum\">{}</div><div class=\"mlab\">工具调用</div></div><div class=\"mbox\"><div class=\"mnum\">{}</div><div class=\"mlab\">令牌消耗</div></div><div class=\"mbox\"><div class=\"mnum\">{}</div><div class=\"mlab\">总用时</div></div></div></div>\
+{}{}\
 <div class=\"foot\">AutoMusk · AutoDown 报告（机械渲染，指标自动采集）</div></body></html>",
         esc(title),
         esc(title),
         format!("{date} · 机械渲染"),
+        objective_html,
+        flow_section,
         m("goals_met"),
         m("tool_calls"),
         m("cost"),
         m("duration_s"),
-        body,
+        dl_section,
+        body_section,
     )
 }
 
@@ -450,6 +590,37 @@ fn render_report_markdown_v3(title: &str, st: &Value, metrics: &Value) -> String
     if !goals.is_empty() {
         md.push_str(&format!("**关联 Goals**：{}\n\n", goals.join("、")));
     }
+    if let Some(obj) = st["objective"].as_str() {
+        if !obj.is_empty() {
+            md.push_str(&format!("**目标**：{obj}\n\n"));
+        }
+    }
+    let stages = st["stages"].as_array().cloned().unwrap_or_default();
+    if !stages.is_empty() {
+        md.push_str("## 实现流程 · 各阶段成果\n\n");
+        for s in &stages {
+            md.push_str(&format!(
+                "- **{}**：{}\n",
+                s["title"].as_str().unwrap_or(""),
+                s["outcome"].as_str().unwrap_or("")
+            ));
+        }
+        md.push('\n');
+    }
+    let dls = st["deliverables"].as_array().cloned().unwrap_or_default();
+    if !dls.is_empty() {
+        md.push_str("## 交付物\n\n| 类型 | 名称 | 变更 | 说明 |\n|---|---|---|---|\n");
+        for d in dls {
+            md.push_str(&format!(
+                "| {} | {} | {} | {} |\n",
+                d["kind"].as_str().unwrap_or(""),
+                d["name"].as_str().unwrap_or(""),
+                d["change"].as_str().unwrap_or(""),
+                d["detail"].as_str().unwrap_or("")
+            ));
+        }
+        md.push('\n');
+    }
     md.push_str(st["body"].as_str().unwrap_or(""));
     md.push_str(&format!(
         "\n\n## 指标（自动采集）\n\n| 步骤 | 工具调用 | 令牌 | 用时 |\n|---|---|---|---|\n| {} | {} | {} | {}s |\n",
@@ -468,13 +639,14 @@ impl Tool for EmitReport {
     }
 
     fn description(&self) -> &str {
-        "登记本 Run 的汇报报告（PLAN-036：交付 `.ad` 文档——YAML frontmatter + \
-         Markdown 超集正文；版面与指标由系统机械渲染，正文中的指标数字不会被\
-         采信）。frontmatter 键：`title`（必填）、`summary`（一句话摘要）、\
-         `goal_links`（`[{id,label}]` 内联数组，可空）、`deliverables`\
-        （`[{kind:code|spec|doc|file|report, name, change:+|-|M, detail}]` 内联\
-         数组，可空）。正文建议：`## 目标` 一段；`## 实现流程 · 各阶段成果`\
-         有序列表；交付物表格。仅在 relay run 的 document 相位可用。"
+        "登记本 Run 的汇报报告（PLAN-036：交付 `.ad` 文档——**主信息走 \
+         frontmatter**（渲染为卡片 blocks：目标/流程图/交付物 badges），正文\
+         只是可选补充；版面与指标由系统机械渲染，正文中的指标数字不会被\
+         采信）。frontmatter 键：`title`（必填）、`objective`（一句话目标）、\
+         `goal_links`（`[{id,label}]`，可空）、`stages`（`[{title,outcome}]`\
+         流程图各阶段，必填≥1）、`deliverables`（`[{kind:code|spec|doc|file|\
+         report, name, change:+|-|M, detail}]`，可空）。仅在 relay run 的 \
+         document 相位可用。"
     }
 
     fn parameters(&self) -> Value {
@@ -582,6 +754,41 @@ mod tests {
         assert_eq!(dls[0]["kind"], "spec");
         assert_eq!(dls[0]["change"], "M");
         assert!(body.starts_with("## 目标"), "body strips leading blanks; got: {body:?}");
+    }
+
+    #[test]
+    fn parse_ad_block_style_lists() {
+        let ad = "---
+title: T
+objective: 目标一句话
+stages:
+  - title: 门禁校验
+    outcome: reviewed 通过
+  - title: 机械沉淀
+    outcome: 4 条目入 3 区
+goal_links:
+  - id: G1
+    label: 知识库
+tags:
+  - a
+  - b
+---
+
+正文一句。";
+        let (fm, body) = parse_ad_frontmatter(ad);
+        assert_eq!(fm["title"], "T");
+        let stages = fm["stages"].as_array().unwrap();
+        assert_eq!(stages.len(), 2);
+        assert_eq!(stages[0]["title"], "门禁校验");
+        assert_eq!(stages[0]["outcome"], "reviewed 通过");
+        assert_eq!(stages[1]["outcome"], "4 条目入 3 区");
+        let goals = fm["goal_links"].as_array().unwrap();
+        assert_eq!(goals[0]["id"], "G1");
+        assert_eq!(goals[0]["label"], "知识库");
+        let tags = fm["tags"].as_array().unwrap();
+        assert_eq!(tags[0], "a");
+        assert_eq!(tags[1], "b");
+        assert!(body.starts_with("正文一句"));
     }
 
     #[test]

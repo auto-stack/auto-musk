@@ -16,27 +16,11 @@
     </div>
 
     <div v-if="expanded" class="report-body">
-      <!-- ── PLAN-036 `.ad` 模式：正文喂 StreamingRenderer（@autodown 同源）── -->
-      <template v-if="structured?.body">
-        <div class="rb-section">
-          <div v-if="objectiveText" class="rb-objective">{{ objectiveText }}</div>
-          <div v-if="goalLinks.length" class="rb-chips">
-            <button
-              v-for="g in goalLinks"
-              :key="g.id || g.label"
-              class="rb-chip"
-              title="在 Specs 中查看"
-              @click.stop="goSpecs"
-            >{{ g.label || g.id }}</button>
-          </div>
-        </div>
-      </template>
-
-      <!-- ── v2 blocks：目标 + 流程方框链（旧数据回退） ── -->
-      <template v-else-if="structured">
-        <div class="rb-section">
+      <!-- ── blocks（`.ad` frontmatter 或 v2 数据驱动；有任一 block 数据即走卡片 UI）── -->
+      <template v-if="hasBlocks">
+        <div v-if="objectiveText" class="rb-section">
           <div class="rb-label">目标</div>
-          <div class="rb-objective">{{ structured.objective }}</div>
+          <div class="rb-objective">{{ objectiveText }}</div>
           <div v-if="goalLinks.length" class="rb-chips">
             <button
               v-for="g in goalLinks"
@@ -48,7 +32,7 @@
           </div>
         </div>
 
-        <div class="rb-section">
+        <div v-if="stages.length" class="rb-section">
           <div class="rb-label">实现流程 · 各阶段成果</div>
           <div class="rb-flow">
             <template v-for="(s, i) in stages" :key="i">
@@ -88,39 +72,35 @@
           <div class="rb-label">交付物</div>
           <div class="rb-deliverables">
             <template v-for="(d, i) in deliverables" :key="i">
-              <button class="rb-dl" :class="chgClass(d.change)" @click.stop="toggleDl(i)">
+              <button class="rb-dl" :class="chgClass(d.change)" title="点击预览" @click.stop="openPreview(i)">
                 <span class="rb-dl-icon">{{ kindIcon(d.kind) }}</span>
                 <span class="rb-dl-name">{{ d.name }}</span>
                 <span class="rb-dl-chg">{{ d.change }}</span>
               </button>
-              <div v-if="dlExpanded === i && d.detail" class="rb-dl-detail">{{ d.detail }}</div>
             </template>
           </div>
         </div>
-        <!-- PLAN-036：`.ad` 正文（Markdown 超集，StreamingRenderer 渲染） -->
-        <div v-if="structured?.body" class="report-summary ad-body">
-          <StreamingRenderer :source="structured.body" :streaming="false" />
-        </div>
-        <div v-else-if="report.summary" class="report-summary">
-          <StreamingRenderer :source="report.summary" :streaming="false" />
-        </div>
       </template>
-      <!-- 旧数据回退：摘要渲染 -->
-      <div v-else-if="report.summary" class="report-summary">
-        <StreamingRenderer :source="report.summary" :streaming="false" />
+
+      <!-- 正文仅在无任何 block 数据时回退渲染（blocks 已承载主信息，避免重复） -->
+      <div v-if="!hasBlocks" class="report-summary ad-body">
+        <StreamingRenderer :source="(structured?.body || report.summary) || ''" :streaming="false" />
       </div>
 
-      <!-- PLAN-032 deck 层：机械渲染单页 HTML 预览（sandbox iframe） -->
-      <div v-if="report.report && reportHtml" class="deck-wrap">
-        <div class="deck-head">
-          <span class="deck-title">📊 {{ report.report.title || 'Run 汇报报告' }}</span>
-          <button class="report-btn" @click.stop="openDeck">
-            <Maximize2 :size="13" />
-            新窗口打开
-          </button>
+      <!-- 交付物预览弹窗（路径形态尝试取文件内容，否则显示 detail） -->
+      <Teleport to="body">
+        <div v-if="preview" class="rb-preview-overlay" @click.self="closePreview">
+          <div class="rb-preview">
+            <div class="rb-preview-head">
+              <span class="rb-preview-title">{{ preview.name }}</span>
+              <button class="rb-preview-close" @click="closePreview">✕</button>
+            </div>
+            <pre v-if="preview.content" class="rb-preview-content">{{ preview.content }}</pre>
+            <div v-else-if="preview.loading" class="rb-preview-text">加载中…</div>
+            <div v-else class="rb-preview-text">{{ preview.detail || '无详情' }}</div>
+          </div>
         </div>
-        <iframe class="deck-frame" sandbox="" :srcdoc="reportHtml"></iframe>
-      </div>
+      </Teleport>
 
       <div class="report-actions">
         <button class="report-btn" @click.stop="$emit('view-full')">
@@ -141,11 +121,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { ChevronDown, ChevronUp, FileText, Download, FolderOpen, Maximize2 } from 'lucide-vue-next'
+import { ref, computed } from 'vue'
+import { ChevronDown, ChevronUp, FileText, Download, FolderOpen } from 'lucide-vue-next'
 import StreamingRenderer from '@/components/StreamingRenderer.vue'
-import { useRelay } from '@/composables/useRelay'
 import { useViewState } from '@/composables/useViewState'
+import { useProject } from '@/composables/useProject'
 
 export interface ReportData {
   runId: string
@@ -168,29 +148,8 @@ export interface ReportData {
 
 const props = defineProps<{ report: ReportData }>()
 
-const { fetchRunReport } = useRelay()
 const { setView } = useViewState()
-
-// PLAN-032: 报告元数据存在时拉取 HTML 全文（useRelay 内缓存）
-const reportHtml = ref<string | null>(null)
-watch(
-  () => props.report.report?.path,
-  async (path) => {
-    reportHtml.value = null
-    if (path && props.report.runId) {
-      reportHtml.value = await fetchRunReport(props.report.runId)
-    }
-  },
-  { immediate: true },
-)
-
-function openDeck() {
-  if (!reportHtml.value) return
-  const blob = new Blob([reportHtml.value], { type: 'text/html' })
-  const url = URL.createObjectURL(blob)
-  window.open(url, '_blank')
-  setTimeout(() => URL.revokeObjectURL(url), 60_000)
-}
+const { workspaceId } = useProject()
 
 defineEmits<{
   (e: 'view-full'): void
@@ -199,7 +158,6 @@ defineEmits<{
 }>()
 
 const expanded = ref(true)
-const dlExpanded = ref<number | null>(null)
 
 const title = computed(() => props.report.title || 'Run 工作汇总')
 
@@ -218,9 +176,14 @@ const structured = computed(() => props.report.structured ?? null)
 const goalLinks = computed<any[]>(() => structured.value?.goal_links ?? [])
 const stages = computed<any[]>(() => structured.value?.stages ?? [])
 const deliverables = computed<any[]>(() => structured.value?.deliverables ?? [])
-/** PLAN-036：`.ad` 模式的引导句（summary 或 v2 objective）。 */
+/** PLAN-036：`.ad` 模式的引导句（objective 或 summary）。 */
 const objectiveText = computed(
   () => structured.value?.objective || structured.value?.summary || '',
+)
+/** 有任一 block 数据即走卡片 UI；正文仅在无 blocks 时回退渲染（避免重复）。 */
+const hasBlocks = computed(
+  () =>
+    !!(stages.value.length || deliverables.value.length || goalLinks.value.length || objectiveText.value),
 )
 
 function kindIcon(kind: string): string {
@@ -241,11 +204,43 @@ function chgClass(change: string): string {
 }
 
 function toggleDl(i: number) {
-  dlExpanded.value = dlExpanded.value === i ? null : i
+  openPreview(i)
 }
 
 function goSpecs() {
   setView('specs')
+}
+
+// ── 交付物预览弹窗（路径形态尝试取文件内容；否则显示 detail） ──
+const preview = ref<{ name: string; content: string | null; detail: string; loading: boolean } | null>(null)
+
+async function openPreview(i: number) {
+  const d = deliverables.value[i]
+  if (!d) return
+  const name = String(d.name || '')
+  const detail = String(d.detail || '')
+  preview.value = { name, content: null, detail, loading: true }
+  const looksLikePath = name.includes('/') || (name.includes('.') && !name.includes(' '))
+  const wid = workspaceId.value
+  if (looksLikePath && wid) {
+    try {
+      const resp = await fetch(
+        `/api/files/${encodeURIComponent(wid)}/${name.split('/').map(encodeURIComponent).join('/')}`,
+      )
+      if (resp.ok) {
+        const text = await resp.text()
+        preview.value = { name, content: text.slice(0, 80_000), detail, loading: false }
+        return
+      }
+    } catch {
+      // 回退 detail
+    }
+  }
+  preview.value = { name, content: null, detail, loading: false }
+}
+
+function closePreview() {
+  preview.value = null
 }
 </script>
 
@@ -359,7 +354,39 @@ function goSpecs() {
   padding: 0.25rem 0.6rem; border-left: 2px solid var(--af-border); margin-left: 0.4rem;
 }
 
-/* deck 层 */
+/* 交付物预览弹窗 */
+.rb-preview-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: hsl(0 0% 0% / 0.45);
+  display: flex; align-items: center; justify-content: center;
+}
+.rb-preview {
+  width: min(760px, 90vw); max-height: 80vh;
+  display: flex; flex-direction: column;
+  background: var(--af-bg); border: 1px solid var(--af-border); border-radius: 10px;
+  box-shadow: 0 12px 40px hsl(0 0% 0% / 0.3); overflow: hidden;
+}
+.rb-preview-head {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--af-border);
+}
+.rb-preview-title {
+  flex: 1; font-size: 0.85rem; font-weight: 600; color: var(--af-fg);
+  font-family: 'Geist Mono', 'Fira Code', monospace;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rb-preview-close {
+  border: 1px solid var(--af-border); border-radius: 5px; background: transparent;
+  color: var(--af-muted); cursor: pointer; font-size: 0.8rem; padding: 0.15rem 0.45rem;
+}
+.rb-preview-content {
+  margin: 0; padding: 0.8rem 0.9rem; overflow: auto;
+  font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.75rem; line-height: 1.5;
+  color: var(--af-fg); white-space: pre-wrap; word-break: break-all;
+}
+.rb-preview-text { padding: 1rem 0.9rem; font-size: 0.85rem; color: var(--af-muted); line-height: 1.6; }
+
+/* deck 层（已移除模板；样式保留无引用） */
 .deck-wrap { display: flex; flex-direction: column; gap: 0.35rem; }
 .deck-head { display: flex; align-items: center; gap: 0.5rem; }
 .deck-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; font-weight: 600; color: var(--af-fg); }

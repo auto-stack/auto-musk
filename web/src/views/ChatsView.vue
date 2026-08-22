@@ -708,6 +708,20 @@ function handleMentionSelect(id: string) {
   })
 }
 
+/** PLAN-036 修正：页内锚点（#id）点击 → 就地平滑滚动（拦截新窗口打开）。 */
+function handleAnchorClick(e: MouseEvent) {
+  const target = e.target as HTMLElement | null
+  const a = target?.closest?.('a[href^="#"]') as HTMLAnchorElement | null
+  if (!a) return
+  const id = (a.getAttribute('href') || '').slice(1)
+  if (!id) return
+  const el = document.getElementById(id)
+  if (el) {
+    e.preventDefault()
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+}
+
 function handleGlobalKeydown(e: KeyboardEvent) {
   // Ctrl+Shift+N (or Cmd+Shift+N on macOS): Create new session
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'n') {
@@ -1358,6 +1372,9 @@ function regenerate(_msg: typeof messages.value[number]) {
 
 onMounted(async () => {
   window.addEventListener('keydown', handleGlobalKeydown)
+  // PLAN-036 修正：页内锚点链接（如 #run-card-…）就地滚动定位——markdown
+  // 渲染器默认给链接开新窗口，此处拦截 "#" 前缀链接改为平滑滚动。
+  document.addEventListener('click', handleAnchorClick)
 
   // Wire report callback from event router
   setEventCallbacks({
@@ -1421,6 +1438,7 @@ watch(workspaceId, () => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
+  document.removeEventListener('click', handleAnchorClick)
 })
 </script>
 

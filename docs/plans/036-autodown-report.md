@@ -68,6 +68,10 @@ total_steps: 7
 
 （待 /auto-plan:review 填写）
 
+### 修正轮（用户走查反馈，六项）
+
+1. 锚点链接新窗口 → ChatsView 拦截 `#` 前缀链接改平滑滚动；2. 移除 deck iframe 预览；3. 正文与 blocks 重复 → 有 blocks 数据时不渲染正文（回退保留）；4. 交付物 badge 点击 → 预览弹窗（路径形态经 /api/files 取文件内容，否则 detail）；5. 流程图 → frontmatter stages（模板必填）+ 卡片/HTML 双端渲染。**E2E 抓到关键缺口：Agent 实写 YAML 块式列表**（`key:` 换行 `- 项`），解析器扩展支持（含项内多行续写与裸标量项，7/7 测试）。
+
 ## 待澄清事项
 
 1. frontmatter 内联数组子集（无引号值）为 Phase 1 容忍式解析；完整 YAML 依赖待评估 serde_yaml 引入。

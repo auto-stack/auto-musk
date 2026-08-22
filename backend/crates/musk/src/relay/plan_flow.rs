@@ -105,17 +105,18 @@ Trust the code, not the checkboxes：\n\n\
 2. `merge_plan` 把计划按章节映射沉淀进 Spec ledger 6 区（幂等 upsert，`P<seq>-<n>` 稳定 id）。\n\
 3. 按 frontmatter 的 spec-impact 三字段，用文件工具更新 `docs/specs/` 模块树 markdown：改了哪个模块就更新哪个模块文档，新增模块建档，移除的模块标注。\n\
 4. 汇报 `sections_touched` / `items_created` 与 `docs/specs/` 树的具体改动。\n\
-5. `emit_report` 登记汇报报告（PLAN-036：交付 `.ad` 文档——frontmatter + \
-Markdown 正文；版面与指标由系统机械渲染，**不要**自编步骤/令牌/时长数字）。\
+5. `emit_report` 登记汇报报告（PLAN-036：交付 `.ad` 文档——**主信息走 \
+frontmatter（渲染为卡片 blocks：目标/流程图/交付物 badges）**，正文只是\
+可选补充；版面与指标由系统机械渲染，**不要**自编步骤/令牌/时长数字）。\
 `ad` 参数为完整 `.ad` 全文：\n\
    ---\n\
    title: <PLAN-NNN> <feature> 沉淀报告\n\
-   summary: 一句话摘要\n\
+   objective: 一句话目标（取自计划 §1）\n\
    goal_links: [{{id: G1, label: 名称}}]        // 可空\n\
+   stages: [{{title: 门禁校验, outcome: reviewed 通过}}, {{title: 机械沉淀, outcome: 4 条目入 3 区}}]  // 流程图各阶段（必填≥1）\n\
    deliverables: [{{kind: spec, name: 路径, change: M, detail: 说明}}]  // 可空；kind∈code/spec/doc/file/report，change∈+/-/M\n\
    ---\n\
-   正文（Markdown）：`## 目标` 一段；`## 实现流程 · 各阶段成果` 有序列表\
-（每项 **阶段名** — 一句话事实）；交付物表格（类型/名称/变更/说明）。\n"
+   正文（可选补充，一两句即可——主信息已进 frontmatter，避免重复）。\n"
             )
         }
         _ => return None,
