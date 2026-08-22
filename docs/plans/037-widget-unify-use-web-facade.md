@@ -163,6 +163,23 @@ use.web composable useI18n refs: [locale] from "vue-i18n"
   补 `any[]` 注解。验证:musk `auto build` 全绿(0 错)——**此后 Phase 1-6 的
   不变量基线成立**。
 
+### Phase 1 完成(2026-08-22)
+
+T1-T5 全部完成,Phase 1 收口验证:649 ui_gen 单测(含新增 model 寻址单测)+ 8 golden
+更新全绿;k3 Phase 4/5/6 canary 全绿;musk `auto build` 全绿零误伤(T4 defineModel 改造
+对全部存量组件零破坏;T5 通道检查未命中任何存量误用)。
+
+关键落地:
+- T4:model 变量 → `defineModel<T>("name", {default})` 无条件编译(未绑定=本地 ref,
+  行为与之前完全一致)。
+- T5:子 model 变量即双向通道。同文件(api.rs)+ 跨文件(auto-man from_workspace
+  预扫描 → ui_build_..._full → with_sub_widget_models)收集;调用点状态槽目标折叠
+  `v-model:key`,表达式/prop/字面量喂通道 = 硬构建错误;子侧 prop/model 同名 = 生成
+  错误;原生 input 裸 value 槽不再静默退化为单向(补齐"input 对 model 槽永远双向"的
+  设计初衷)。
+- 零关键字达成:无需 bind/v-model 修饰词,双向性由"子的 model 变量 × 父的可写状态槽"
+  两端推导。
+
 ### Phase 1 — widget 能力补齐(auto-lang,用户步骤 1)
 
 > **工具链约定**:Phase 内对 auto-lang 的改动,验证用 worktree binary
@@ -179,10 +196,10 @@ use.web composable useI18n refs: [locale] from "vue-i18n"
 - [x] **T3** 修 k2 回归:`examples/capability-tests/k2-child-handler-binding` 二选一——
   (a) codegen 补全"回调 prop 无变体"惯用法(defineProps 剔除 + defineEmits 补名)或
   (b) k2 源改为契约惯用法并注明。验证:`cd k2 目录 && auto build` 绿。
-- [ ] **T4** defineModel 编译:`ui_gen/vue.rs` model 变量 → `defineModel<T>()`(未绑定
+- [x] **T4** defineModel 编译:`ui_gen/vue.rs` model 变量 → `defineModel<T>()`(未绑定
   行为不变,存量 widget 回归);单测 `test_widget_model_var_define_model`。验证:
   `cargo test -p auto-lang --lib ui_gen::vue`。
-- [ ] **T5** 调用点 model 寻址:prop 命中子 model 变量 + 状态槽 → `v-model:name`;
+- [x] **T5** 调用点 model 寻址:prop 命中子 model 变量 + 状态槽 → `v-model:name`;
   实现三类编译错误(D1 表);k3 Phase 6(三层链 Parent→Child→Input)落地;golden
   `test/a2vue/011_model_binding/`。验证:`cargo test` + k3 `auto build` + musk 根
   `auto build` 回归。
