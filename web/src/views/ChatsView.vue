@@ -166,9 +166,15 @@
           >
             <div class="message-header">
               <AgentAvatar
-                v-if="msg.role === 'assistant' && msg.profession_id"
-                :profession-id="msg.profession_id"
-                :name="agentConfigs.find(c => c.profession_id === msg.profession_id)?.name"
+                v-if="msg.role === 'assistant'"
+                :profession-id="msg.profession_id || 'assistant'"
+                :name="agentConfigs.find(c => c.profession_id === msg.profession_id)?.name ?? (msg.profession_id ? undefined : assistantName)"
+                size="sm"
+              />
+              <AgentAvatar
+                v-else-if="msg.role === 'user'"
+                profession-id="user"
+                name="You"
                 size="sm"
               />
               <span class="role-badge" :class="msg.role">
