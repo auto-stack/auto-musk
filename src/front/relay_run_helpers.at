@@ -569,6 +569,32 @@ fn relayToolView3(n str, a Value, r str) Value {
     return relayToolView({ tool_name: n, arguments: a, result: r })
 }
 
+/** cmd 结果是否为错误：PAUSED 拦截 / 框架 [tool error: ...] / 非零退出码
+ *（RunCommand 对失败命令追加 [exit: N]）。 */
+fn relayCmdIsError(r str) bool {
+    if r.starts_with("PAUSED") { return true }
+    if r.contains("[tool error:") { return true }
+    let i = r.indexOf("[exit: ")
+    if i == -1 { return false }
+    let rest = r.substring(i + 7)
+    let j = rest.indexOf("]")
+    if j == -1 { return false }
+    let code = rest.substring(0, j)
+    return code != "0"
+}
+
+/** cmd 结果块 class：错误态红底红字。 */
+fn relayCmdResultClass(r str) str {
+    if relayCmdIsError(r) { return "tool-result tv-err" }
+    return "tool-result"
+}
+
+/** cmd 结果文本：错误态统一红色 Error: 前缀。 */
+fn relayCmdResultText(r str) str {
+    if relayCmdIsError(r) { return "Error: " + r }
+    return r
+}
+
 /** 模板 text 位不支持"字符串 + fn 调用"——终端行与代码块包装。 */
 fn relayTVCmdLine(a Value) str {
     return "$ " + relayTVCmdOf(a)

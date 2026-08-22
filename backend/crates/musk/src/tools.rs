@@ -209,6 +209,12 @@ impl Tool for RunCommand {
         if result.is_empty() {
             result.push_str("(no output)");
         }
+        // PLAN-031 T36: 非零退出码追加标记——agent 与前端（cmd 结果块红色
+        // Error: 前缀）共同的成功/失败判定信号。
+        if !output.status.success() {
+            result.push_str(&format!("
+[exit: {}]", output.status.code().unwrap_or(-1)));
+        }
         Ok(result)
     }
 }

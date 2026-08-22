@@ -20,7 +20,7 @@ component fn RelayRunBox(runId: str) {
         component: ChevronDown, ChevronUp, Orbit, Wrench, FileText, Terminal from "lucide-vue-next"
         component: ReportCard
         component: Markdown from "platform:markdown"
-        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget, relayPreviewLines, relayStepViews, relayBadgePos, relayReportView, relayTextPlanFile, relayTextBody, relayIsDoc, relayDocTitle, relayPhaseKind, relayPhaseAction, relayPhaseIcon, relayPhaseClass, relayPhaseText, relayPhaseDetail, relayToolIsDocKind, relayToolDisplayName, relayLangOf, relayFenced, relayTVKind, relayTVCmdOf, relayTVForceOf, relayTVPathOf, relayTVOldOf, relayTVNewOf, relayTVContentOf, relayToolView3 from "src/front/relay_run_helpers.at"
+        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget, relayPreviewLines, relayStepViews, relayBadgePos, relayReportView, relayTextPlanFile, relayTextBody, relayIsDoc, relayDocTitle, relayPhaseKind, relayPhaseAction, relayPhaseIcon, relayPhaseClass, relayPhaseText, relayPhaseDetail, relayToolIsDocKind, relayToolDisplayName, relayLangOf, relayFenced, relayTVKind, relayTVCmdOf, relayTVForceOf, relayTVPathOf, relayTVOldOf, relayTVNewOf, relayTVContentOf, relayToolView3, relayCmdResultClass, relayCmdResultText from "src/front/relay_run_helpers.at"
     }
     computed {
         run => relayFindRun(store.runs, store.current_run, .runId)
@@ -208,6 +208,11 @@ component fn RelayRunBox(runId: str) {
 }
 /* 参数/路径 chips */
 .tv-chiprow { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0.35rem 0.55rem; }
+/* cmd 错误结果：红色 Error: 前缀态（整块红系强调） */
+.tool-result.tv-err {
+  color: hsl(var(--af-error)); background: hsl(var(--af-error) / 0.05);
+  border-left: 3px solid hsl(var(--af-error));
+}
 .tv-chip {
   font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.7rem;
   color: var(--af-muted); background: hsl(var(--muted-foreground) / 0.06);
@@ -633,8 +638,8 @@ component fn RelayRunBox(runId: str) {
                                                 }
                                                 if .entry.result != "" {
                                                     pre {
-                                                        style: "tool-result"
-                                                        text .entry.result
+                                                        class: relayCmdResultClass(.entry.result)
+                                                        text relayCmdResultText(.entry.result)
                                                     }
                                                 }
                                             }

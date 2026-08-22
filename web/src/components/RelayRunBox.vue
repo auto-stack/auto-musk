@@ -105,7 +105,7 @@
                   <div v-if="toolView(entry).force" class="tv-chiprow">
                     <span class="tv-chip">force</span>
                   </div>
-                  <pre v-if="entry.result" class="tool-result">{{ entry.result }}</pre>
+                  <pre v-if="entry.result" :class="cmdIsError(entry.result) ? 'tool-result tv-err' : 'tool-result'">{{ cmdIsError(entry.result) ? 'Error: ' + entry.result : entry.result }}</pre>
                 </div>
                 <!-- diff：路径 + 左右对照（类 git diff） -->
                 <div v-else-if="toolView(entry).kind === 'diff'" class="entry-tool-body">
@@ -519,6 +519,14 @@ function phaseDetail(ty: string, content: string): string {
   return ''
 }
 
+/** cmd 结果是否为错误：PAUSED 拦截 / 框架 [tool error: ...] / 非零退出码。 */
+function cmdIsError(r: string): boolean {
+  if (r.startsWith('PAUSED')) return true
+  if (r.includes('[tool error:')) return true
+  const m = r.match(/\[exit: (-?\d+)\]/)
+  return m != null && m[1] !== '0'
+}
+
 /** 工具显示名（run_command/shell → cmd）。 */
 function toolDisplayName(name: string): string {
   if (name === 'run_command' || name === 'shell') return 'cmd'
@@ -865,6 +873,11 @@ onUnmounted(() => {
   white-space: pre-wrap; word-break: break-all; line-height: 1.5;
 }
 .tv-chiprow { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0.35rem 0.55rem; }
+/* cmd 错误结果：红色 Error: 前缀态 */
+.tool-result.tv-err {
+  color: hsl(var(--af-error)); background: hsl(var(--af-error) / 0.05);
+  border-left: 3px solid hsl(var(--af-error));
+}
 .tv-chip {
   font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.7rem;
   color: var(--af-muted); background: hsl(var(--muted-foreground) / 0.06);

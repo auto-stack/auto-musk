@@ -231,6 +231,17 @@ ReportCard（PPT 风格），并向**父 chat 会话**追加总结消息（此�
   全空（read_plan 无文档/cmd 无输出/read_file 无内容等五项反馈同根因）。
   双轨转换器加回退读取；真实会话验证 51/51 结果合并、五形态数据齐备。
 
+## 2i. 批次十（cmd 错误结果红色 Error: 前缀，试用反馈）
+
+- T36 命令错误在结果块统一展示：后端 RunCommand 非零退出码追加
+  `[exit: N]` 标记（此前 stdout/stderr 合并无退出码，成败无信号）；
+  前端（双轨）cmd 结果块错误判定三信号——`PAUSED` 拦截 / 框架
+  `[tool error: ...]` / 非零 `[exit: N]`——命中则整块红系样式并以
+  红色 `Error: ` 前缀呈现。
+- 附带事故与恢复：清理 plan-032 worktree 时 `git worktree remove --force`
+  穿过 web/node_modules junction 清空了主仓依赖（npm install 恢复）——
+  教训：删含 junction 的 worktree 前必须先删 junction。
+
 ## 5. 执行步骤（批次五）
 
 - [x] d1. T19-T24 双轨实现 + codegen + web dist 重建。
