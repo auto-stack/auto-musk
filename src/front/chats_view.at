@@ -14,7 +14,7 @@ use back.api: chats_delete_session, chats_delete_all_sessions
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web relay_command_match from "src/front/relay_commands.at"
-use.web runRelayCommand from "src/front/composables/relay_command_runner.ts"
+use.web platformRunRelayCommand from "src/front/ports/platform.at"
 use.web extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.at"
 use.web chatSearchFilter, chatLastMessageId from "src/front/forge_helpers.at"
 use.web getQuestions, hasQuestionnaire from "src/front/questionnaire.at"
@@ -264,7 +264,7 @@ widget ChatsView {
                     store.Send(.text);
                     store.StartStream(.store.session_id, .store.workspace, .store.token, .text)
                 } else {
-                    runRelayCommand(cmd)
+                    platformRunRelayCommand(cmd)
                 }
             }
         }

@@ -1,0 +1,29 @@
+// ports/platform.at — PLAN-037 Phase 5:平台域 web facade。
+//
+// web 耦合集中点:绑定三个手写 TS 纯调用(inject_styles / setup_auth_fetch /
+// relay_command_runner),以 Auto 空间命名(platform*)转发。调用方只经
+// use.web 引用本文件(.at 路径),不再直接触碰 .ts 路径——rust 目标接入时
+// 只需提供同名实现的 adapter(Phase 6 拆 .web.at)。
+//
+// 留调用点(KNOWN-DEBT,见 PLAN-037 待澄清 1/6):
+//   - composables 域(useT/gate_router/vue-i18n):自动调用 + refs 是调用方
+//     setup 机制,fn 包装会丢反应性,待语言层 composable 符号转发。
+//   - icons/npm 组件(lucide/markstream/platform:markdown/deck.vue):组件
+//     符号转发缺语言机制。
+//   - raw_upload(ref 常量 rawUploadProgress 与 fn 混居,拆分得不偿失)。
+
+use.web injectStyles from "src/front/inject_styles.ts"
+use.web setupAuthFetch from "src/front/setup_auth_fetch.ts"
+use.web runRelayCommand from "src/front/composables/relay_command_runner.ts"
+
+fn platformInjectStyles() {
+    injectStyles()
+}
+
+fn platformSetupAuthFetch() {
+    setupAuthFetch()
+}
+
+fn platformRunRelayCommand(cmd Value) {
+    runRelayCommand(cmd)
+}

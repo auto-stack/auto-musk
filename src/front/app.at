@@ -11,8 +11,7 @@ use chats_view: ChatsView
 use plans_view: PlansView
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web setupAuthFetch from "src/front/setup_auth_fetch.ts"
-use.web injectStyles from "src/front/inject_styles.ts"
+use.web platformInjectStyles, platformSetupAuthFetch from "src/front/ports/platform.at"
 use.web ensure_workspace from "src/front/workspace_helpers.at"
 use.web composable useT from "src/front/composables/useT.ts"
 use.web composable useGateRouter from "src/front/composables/gate_router.ts"
@@ -123,7 +122,7 @@ widget App {
     }
 
     on {
-        .Init -> { injectStyles(); setupAuthFetch(); store.Init() }
+        .Init -> { platformInjectStyles(); platformSetupAuthFetch(); store.Init() }
         .ShowChats -> { .current_view = "chats" }
         // Plan 029 T20：全局快捷键（原 useKeyboardShortcuts composable）。
         // Ctrl/Cmd+Shift+S 聚焦搜索框；Ctrl/Cmd+Shift+N 点新建会话按钮。

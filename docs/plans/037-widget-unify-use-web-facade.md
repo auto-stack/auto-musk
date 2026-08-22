@@ -271,18 +271,37 @@ lookahead bug 修复后 3 个伤件重转)。收口:`grep component fn` 零命�
 
 ### Phase 5 — use.web 抽 facade(用户步骤 5)
 
-- [ ] **T17** 域盘点:非 `.at` 的 use.web 清单化(stream/styles/auth/composables/
+- [x] **T17** 域盘点:非 `.at` 的 use.web 清单化(stream/styles/auth/composables/
   icons+renderer 五类),定 `src/front/ports/` 目录与命名。验证:清单写入计划。
-- [ ] **T18** stream 域:`ports/stream.at`(端口签名 + `use.web startForgeStream
+- [x] **T18** stream 域:`ports/stream.at`(端口签名 + `use.web startForgeStream
   from "src/front/forge_stream.ts"` + wrapper fn),chats_view 等调用方改 use 端口。
   验证:`auto build`。
-- [ ] **T19** styles+auth 域:`ports/platform.at`(inject_styles/setup_auth_fetch),
+- [x] **T19** styles+auth 域:`ports/platform.at`(inject_styles/setup_auth_fetch),
   app.at 调用面改。验证:`auto build`。
-- [ ] **T20** composables 域:`ports/i18n_router.at`(useT/gate_router/useI18n refs)。
+- [x] **T20** composables 域:`ports/i18n_router.at`(useT/gate_router/useI18n refs)。
   验证:`auto build` + i18n 手工 smoke(切语言)。
-- [ ] **T21** icons/renderer 域:决策落地——调用点保留 `use.web component`(登记
+- [x] **T21** icons/renderer 域:决策落地——调用点保留 `use.web component`(登记
   KNOWN-DEBT)或最小转发机制;`grep -rn "use.web" src/front/ --include="*.at" |
   grep -v ports/` 仅剩已登记项。验证:`auto build`。
+
+### Phase 5 完成(2026-08-22)
+
+T17-T21 完成(域重划按盘点结论):
+- **盘点**:26 处 use.web 已指向 .at 空间(非耦合);真 web 耦合=lucide×14/vue-i18n×4/
+  markdown×4/useT×6/raw_upload×3/platform 工具 ×5/markstream/deck。
+- **域重划**:forge_stream.ts 不走 use.web(TS 侧直连 store 单例,Plan 7b 架构),
+  stream 域归并——relay_command_runner 进 platform 域。
+- **platform 域 facade 落地**:`src/front/ports/platform.at`(use.web 三绑定 +
+  platform* wrapper fn);机制 = fn 模块发射自身导入(auto-lang)+ ext 传递复制;
+  app.at/chats_view 调用面改指 .at 空间。产物验证:@/ext/ports/platform 含 imports
+  + wrappers,调用方只 import .at 路径。
+- **T20 决策**:composables 域留调用点(自动调用+refs 是调用方 setup 机制,fn 包装
+  丢反应性,登记 KNOWN-DEBT 待语言层 composable 符号转发);raw_upload 混居 ref
+  常量同样留调用点。
+- **T21 断言过**:调用面非 .at 目标仅剩白名单(lucide/markstream/platform:markdown/
+  vue-i18n/useT/gate_router/raw_upload/deck.vue,均已登记)。
+
+收口:auto build 全绿 + cargo test 绿 + vitest 基线不变。
 
 ### Phase 6 — 编译期目标门控(auto-lang + musk,用户步骤 6)
 
