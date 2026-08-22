@@ -46,27 +46,7 @@
         </div>
       </template>
 
-      <!-- 指标格（v1/v2 共用；数据机械采集） -->
-      <div class="report-metrics">
-        <div class="metric-cell">
-          <span class="metric-value">{{ report.goalsMet }}</span>
-          <span class="metric-label">步骤完成</span>
-        </div>
-        <div class="metric-cell">
-          <span class="metric-value">{{ report.toolCalls }}</span>
-          <span class="metric-label">工具调用</span>
-        </div>
-        <div class="metric-cell">
-          <span class="metric-value">{{ report.cost }}</span>
-          <span class="metric-label">令牌消耗</span>
-        </div>
-        <div class="metric-cell">
-          <span class="metric-value">{{ durationLabel }}</span>
-          <span class="metric-label">总用时</span>
-        </div>
-      </div>
-
-      <!-- ── v2 blocks：交付物 badges（点击展开详情） ── -->
+      <!-- ── 交付物 badges（点击打开预览弹窗） ── -->
       <template v-if="structured">
         <div v-if="deliverables.length" class="rb-section">
           <div class="rb-label">交付物</div>
@@ -82,12 +62,35 @@
         </div>
       </template>
 
+      <!-- 统计（v1/v2 共用；数据机械采集；置于交付物之后） -->
+      <div class="rb-section report-metrics-section">
+        <div class="rb-label">统计</div>
+        <div class="report-metrics">
+          <div class="metric-cell">
+            <span class="metric-value">{{ report.goalsMet }}</span>
+            <span class="metric-label">步骤完成</span>
+          </div>
+          <div class="metric-cell">
+            <span class="metric-value">{{ report.toolCalls }}</span>
+            <span class="metric-label">工具调用</span>
+          </div>
+          <div class="metric-cell">
+            <span class="metric-value">{{ report.cost }}</span>
+            <span class="metric-label">令牌消耗</span>
+          </div>
+          <div class="metric-cell">
+            <span class="metric-value">{{ durationLabel }}</span>
+            <span class="metric-label">总用时</span>
+          </div>
+        </div>
+      </div>
+
       <!-- 正文仅在无任何 block 数据时回退渲染（blocks 已承载主信息，避免重复） -->
       <div v-if="!hasBlocks" class="report-summary ad-body">
         <StreamingRenderer :source="(structured?.body || report.summary) || ''" :streaming="false" />
       </div>
 
-      <!-- 交付物预览弹窗（路径形态尝试取文件内容，否则显示 detail） -->
+      <!-- 交付物预览弹窗（markdown/ad 用 MarkdownContent 渲染；代码围栏高亮） -->
       <Teleport to="body">
         <div v-if="preview" class="rb-preview-overlay" @click.self="closePreview">
           <div class="rb-preview">
@@ -95,7 +98,10 @@
               <span class="rb-preview-title">{{ preview.name }}</span>
               <button class="rb-preview-close" @click="closePreview">✕</button>
             </div>
-            <pre v-if="preview.content" class="rb-preview-content">{{ preview.content }}</pre>
+            <div v-if="preview.content" class="rb-preview-body">
+              <MarkdownContent v-if="previewIsMarkdown" :content="preview.content" />
+              <MarkdownContent v-else :content="fenceFor(preview.name, preview.content)" />
+            </div>
             <div v-else-if="preview.loading" class="rb-preview-text">加载中…</div>
             <div v-else class="rb-preview-text">{{ preview.detail || '无详情' }}</div>
           </div>
@@ -124,6 +130,7 @@
 import { ref, computed } from 'vue'
 import { ChevronDown, ChevronUp, FileText, Download, FolderOpen } from 'lucide-vue-next'
 import StreamingRenderer from '@/components/StreamingRenderer.vue'
+import MarkdownContent from '@/components/MarkdownContent.vue'
 import { useViewState } from '@/composables/useViewState'
 import { useProject } from '@/composables/useProject'
 
@@ -242,10 +249,28 @@ async function openPreview(i: number) {
 function closePreview() {
   preview.value = null
 }
+
+/** 预览内容是否 markdown/ad（决定渲染方式：直接渲染 vs 代码围栏高亮）。 */
+const previewIsMarkdown = computed(() => /\.(md|ad|markdown)$/i.test(preview.value?.name || ''))
+
+/** 代码类文件 → 围栏包裹（借 MarkdownContent/markstream 的语法高亮）。 */
+function fenceFor(name: string, content: string): string {
+  const ext = (name.split('.').pop() || '').toLowerCase()
+  const langMap: Record<string, string> = {
+    rs: 'rust', ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
+    vue: 'vue', py: 'python', json: 'json', yaml: 'yaml', yml: 'yaml', toml: 'toml',
+    sh: 'bash', css: 'css', html: 'html', sql: 'sql',
+  }
+  const lang = langMap[ext] ?? ext ?? ''
+  return '```' + lang + '\n' + content + '\n```'
+}
 </script>
 
 <style scoped>
 .report-card {
+  width: 100%;
+  max-width: none;
+  align-self: stretch;
   border: 1px solid hsl(142 70% 45% / 0.3);
   border-radius: 12px;
   background: hsl(0 0% 100%);
@@ -297,6 +322,7 @@ function closePreview() {
 /* PLAN-036：`.ad` 正文（StreamingRenderer 全宽文档流） */
 .ad-body { width: 100%; }
 /* 指标格 */
+.report-metrics-section { gap: 0.35rem; }
 .report-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
 .metric-cell {
   display: flex; flex-direction: column; gap: 0.1rem;
@@ -379,11 +405,7 @@ function closePreview() {
   border: 1px solid var(--af-border); border-radius: 5px; background: transparent;
   color: var(--af-muted); cursor: pointer; font-size: 0.8rem; padding: 0.15rem 0.45rem;
 }
-.rb-preview-content {
-  margin: 0; padding: 0.8rem 0.9rem; overflow: auto;
-  font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.75rem; line-height: 1.5;
-  color: var(--af-fg); white-space: pre-wrap; word-break: break-all;
-}
+.rb-preview-body { padding: 0.6rem 0.9rem 0.9rem; overflow: auto; font-size: 0.85rem; }
 .rb-preview-text { padding: 1rem 0.9rem; font-size: 0.85rem; color: var(--af-muted); line-height: 1.6; }
 
 /* deck 层（已移除模板；样式保留无引用） */

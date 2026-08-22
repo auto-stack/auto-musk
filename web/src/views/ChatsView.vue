@@ -2544,6 +2544,7 @@ onUnmounted(() => {
 .report-inline {
   margin-top: 0.3rem;
   width: 100%;
+  align-self: stretch;
   box-sizing: border-box;
 }
 .report-inline :deep(.report-card) {
