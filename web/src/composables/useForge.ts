@@ -78,7 +78,14 @@ export function useForge() {
       // Backend returns { session: {...} }; tolerate a bare object too.
       const data: ForgeSession = raw?.session ?? raw
       session.value = data
-      messages.value = data.messages
+      // 历史消息字段对齐：后端 ChatMessage 只有 created_at（无 timestamp，
+      // web 模板读 timestamp → Invalid Date）且无 profession_id（头像 v-if
+      // 失败）。映射补齐 + assistant 兜底 'assistant'（AgentAvatar 默认款）。
+      messages.value = (data.messages ?? []).map((m: any) => ({
+        ...m,
+        timestamp: m.timestamp ?? m.created_at,
+        profession_id: m.profession_id ?? (m.role === 'assistant' ? 'assistant' : undefined),
+      }))
       error.value = null
       localStorage.setItem(STORAGE_KEY, data.id)
       syncSessionUrl(data.id)
@@ -100,7 +107,7 @@ export function useForge() {
       if (!data) throw new Error('Session returned null')
 
       session.value = data
-      messages.value = data.messages
+      messages.value = (data.messages ?? []).map((m: any) => ({ ...m, timestamp: m.timestamp ?? m.created_at, profession_id: m.profession_id ?? (m.role === 'assistant' ? 'assistant' : undefined) }))
       error.value = null
       localStorage.setItem(STORAGE_KEY, data.id)
       syncSessionUrl(data.id)
