@@ -23,9 +23,25 @@
       <component :is="expanded ? ChevronUp : ChevronDown" :size="14" class="head-chevron" />
     </div>
 
+    <!-- PLAN-034 T10：完成后收起态不再滚动动作预览——一行完成态 + 报告跳转 -->
+    <div
+      v-if="!expanded && !waitingGate && !missing && isRunCompletedWithReport"
+      class="live-preview run-done-preview"
+      @click="jumpToReportCard"
+    >
+      <span class="live-preview-dot dot-completed"></span>
+      <div class="live-preview-lines">
+        <div class="preview-line">
+          <span class="preview-mark pm-ok">✅</span>
+          <span class="preview-text">Run 已完成</span>
+          <span class="preview-jump">{{ t('chat.viewReport') }} ↓</span>
+        </div>
+      </div>
+    </div>
+
     <!-- 收起态最新动态预览（最多 3 行；流式文本时为其尾部 3 行）。
          行内排版对齐 Block 头（工具名/目标分色）；停靠审批时由审批条接管 -->
-    <div v-if="!expanded && !waitingGate && !missing && previewRows.length" class="live-preview">
+    <div v-else-if="!expanded && !waitingGate && !missing && previewRows.length" class="live-preview">
       <span :class="dotClass"></span>
       <div class="live-preview-lines">
         <div v-for="(row, i) in previewRows" :key="i" class="preview-line">
@@ -250,6 +266,11 @@ const statusClass = computed(() => {
   if (s === 'waiting_approval') return 'gate'
   return 'running'
 })
+
+/** PLAN-034 T10：完成且已有报告——收起态预览换成"Run 已完成 + 查看报告"。 */
+const isRunCompletedWithReport = computed(
+  () => statusClass.value === 'completed' && !!runReports.value[props.runId],
+)
 
 const statusLabel = computed(() => {
   if (missing.value) return '已失效'
@@ -947,6 +968,11 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .report-jump-btn:hover { background: hsl(var(--primary) / 0.08); }
+
+/* PLAN-034 T10：完成态收起预览（整行可点跳报告） */
+.run-done-preview { cursor: pointer; }
+.run-done-preview:hover .preview-jump { text-decoration: underline; }
+.preview-jump { color: var(--af-primary); font-size: 0.72rem; margin-left: 0.4rem; }
 
 .gate-actions {
   display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0;

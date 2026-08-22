@@ -1194,8 +1194,9 @@ pub fn relay_append_report_message_to(
     } else {
         report.title.clone()
     };
+    // PLAN-034 T10：一句话 + 标题为锚点链接（前端点击回滚到 Run 卡片）。
     let mut msg = crate::chats::ChatMessage::assistant(format!(
-        "✅ **Run 已完成**：{title}\n\n完整报告见下方卡片。"
+        "✅ Run 已完成：[{title}](#run-card-{run_id})，完整报告见下方卡片。"
     ));
     msg.tool_calls = vec![crate::chats::ToolCall {
         tool: "report".into(),

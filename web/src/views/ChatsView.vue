@@ -258,17 +258,12 @@
                   <RelayRunBox :run-id="extractRunId(tc)" />
                 </div>
                 <!-- PLAN-034 T9：内联报告卡（Agent 的"Run 已完成"消息携带，
-                     刷新持久）。含回到 Run 卡片的跳转链接。 -->
+                     刷新持久）。消息标题即回到 Run 卡片的锚点链接。 -->
                 <div
                   v-else-if="tc.name === 'report' && tc.arguments?.run_id"
                   :id="`report-card-${tc.arguments.run_id}`"
                   class="report-inline"
                 >
-                  <div class="report-jump-row">
-                    <button class="report-jump-link" @click="scrollToEl(`run-card-${tc.arguments.run_id}`)">
-                      ↑ {{ t('chat.backToRun') }}
-                    </button>
-                  </div>
                   <ReportCard
                     :report="reportFromToolCall(tc)"
                     @view-full="onViewFullReport(reportFromToolCall(tc).runId)"
@@ -1255,10 +1250,6 @@ function reportFromToolCall(tc: { name?: string; arguments?: Record<string, any>
   }
 }
 
-function scrollToEl(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-}
-
 function onViewFullReport(runId: string) {
   // PLAN-034：打开 run 的完整 HTML 报告（PLAN-032 端点返回自包含单文件）。
   if (!runId || runId === 'unknown') return
@@ -1381,10 +1372,12 @@ onMounted(async () => {
             .tool_calls?.some((t) => t.name === 'report' && t.arguments?.run_id === runId),
       )
       if (exists) return
+      const title = (p.title as string) || runId
       messages.value.push({
         id: `report-${runId}`,
         role: 'assistant',
-        content: `✅ **Run 已完成**：${(p.title as string) || runId}\n\n完整报告见下方卡片。`,
+        // PLAN-034 T10：一句话 + 标题即锚点链接（点回 Run 卡片）
+        content: `✅ Run 已完成：[${title}](#run-card-${runId})，完整报告见下方卡片。`,
         timestamp: Date.now(),
         profession_id: 'assistant',
         tool_calls: [
@@ -2528,23 +2521,12 @@ onUnmounted(() => {
 
 .report-inline {
   margin-top: 0.3rem;
+  width: 100%;
+  box-sizing: border-box;
 }
-.report-jump-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 0.2rem;
-}
-.report-jump-link {
-  font-size: 0.75rem;
-  padding: 0.15rem 0.5rem;
-  border: 1px dashed var(--af-border);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--af-primary);
-  cursor: pointer;
-}
-.report-jump-link:hover {
-  background: hsl(var(--primary) / 0.08);
+.report-inline :deep(.report-card) {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .typing-dots {
