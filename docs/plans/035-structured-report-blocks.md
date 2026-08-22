@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 6
+current_step: 7
 total_steps: 7
 ---
 
@@ -93,7 +93,7 @@ ReportCard body（structured 分支）：目标行（objective + chips）→ 流
 - [x] **T4** `backend/crates/musk/src/relay/plan_flow.rs`：document 模板第 5 步改结构化指令（守护测试同步）。验证：`cargo test -p musk --lib plan_flow`。 [✅ 已完成] 10/10（模板 format! 花括号转义踩坑一次）
 - [x] **T5** `web/src/components/ReportCard.vue`：structured blocks 渲染 + 交付物展开 + Goal chip 跳 Specs。验证：`npx vue-tsc --noEmit`。 [✅ 已完成] EXIT 0（chg-+/chg-- 非法类名已映射 add/del/M）
 - [x] **T6** 全量回归 + `npm run build` + 合并回 main + 清理 worktree。验证：`cargo test -p musk` EXIT 0 + build 成功。 [✅ 已完成] cargo 全量 0 失败；vitest 22 过（2 存量）；build 28.2s
-- [ ] **T7** 部署重启 + E2E（/auto-plan:merge 造 run，验证 structured 报告消息与产物）+ 造走查计划，结果记录本节。
+- [x] **T7** 部署重启 + E2E（/auto-plan:merge 造 run，验证 structured 报告消息与产物）+ 造走查计划，结果记录本节。 [✅ 已完成] 部署重启（8080 曾被 auto-lang 的 ash-gui-auto-back.exe 在重启空档抢占，已清出并说明）；E2E（PLAN-028）：报告消息 structured 齐全（objective/stages/deliverables 带 kind+change），机械指标（1/1、6、290、43s）同源，HTML/MD 机械渲染含全区块；PLAN-029 备好浏览器走查。
 
 ## 复审记录
 
