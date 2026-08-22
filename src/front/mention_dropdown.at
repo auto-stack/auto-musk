@@ -16,9 +16,11 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.mention-dropdown 等）。
 
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web mention_filtered, mention_position, mention_current_id from "src/front/mention_helpers.at"
+
 component fn MentionDropdown(professions: obj, visible: bool, filter: str, anchorRect: obj, activeIndex: int) {
     use {
-        fn: mention_filtered, mention_position, mention_current_id from "src/front/mention_helpers.at"
         component: AgentAvatar
     }
     computed {

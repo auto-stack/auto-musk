@@ -15,12 +15,14 @@
 
 use store: RelayStore
 
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web component ChevronDown, ChevronUp, Orbit, Wrench, FileText, Terminal from "lucide-vue-next"
+use.web component Markdown from "platform:markdown"
+use.web relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget, relayPreviewLines, relayStepViews, relayBadgePos, relayReportView, relayTextPlanFile, relayTextBody, relayIsDoc, relayDocTitle, relayPhaseKind, relayPhaseAction, relayPhaseIcon, relayPhaseClass, relayPhaseText, relayPhaseDetail, relayToolIsDocKind, relayToolDisplayName, relayLangOf, relayFenced, relayTVKind, relayTVCmdOf, relayTVCmdLine, relayTVForceOf, relayTVPathOf, relayTVOldOf, relayTVNewOf, relayTVContentOf, relayWriteFence, relayFileFence, relayToolView3, relayCmdResultClass, relayCmdResultText from "src/front/relay_run_helpers.at"
+
 component fn RelayRunBox(runId: str) {
     use {
-        component: ChevronDown, ChevronUp, Orbit, Wrench, FileText, Terminal from "lucide-vue-next"
         component: ReportCard
-        component: Markdown from "platform:markdown"
-        fn: relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget, relayPreviewLines, relayStepViews, relayBadgePos, relayReportView, relayTextPlanFile, relayTextBody, relayIsDoc, relayDocTitle, relayPhaseKind, relayPhaseAction, relayPhaseIcon, relayPhaseClass, relayPhaseText, relayPhaseDetail, relayToolIsDocKind, relayToolDisplayName, relayLangOf, relayFenced, relayTVKind, relayTVCmdOf, relayTVCmdLine, relayTVForceOf, relayTVPathOf, relayTVOldOf, relayTVNewOf, relayTVContentOf, relayWriteFence, relayFileFence, relayToolView3, relayCmdResultClass, relayCmdResultText from "src/front/relay_run_helpers.at"
     }
     computed {
         run => relayFindRun(store.runs, store.current_run, .runId)

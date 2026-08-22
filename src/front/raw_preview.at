@@ -18,13 +18,13 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.raw-preview 等）。
 
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web raw_file_url, raw_file_kind, raw_iframe_html, raw_download_html from "src/front/raw_helpers.at"
+use.web loadRawFileText from "src/front/raw_upload.ts"
+use.web component MarkdownRender from "markstream-vue"
+use.web component FileIcon from "lucide-vue-next"
+
 component fn RawPreview(workspace: str, path: str) {
-    use {
-        fn: raw_file_url, raw_file_kind, raw_iframe_html, raw_download_html from "src/front/raw_helpers.at"
-        fn: loadRawFileText from "src/front/raw_upload.ts"
-        component: MarkdownRender from "markstream-vue"
-        component: FileIcon from "lucide-vue-next"
-    }
     computed {
         fileUrl => raw_file_url(.workspace, .path)
         kind => raw_file_kind(.path)

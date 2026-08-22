@@ -16,12 +16,14 @@
 
 use store: AgentConfigs
 
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web component Send, Square from "lucide-vue-next"
+use.web composable useI18n refs: [locale] from "vue-i18n"
+use.web render_input_mentions, build_mention_names from "src/front/mention_helpers.at"
+use.web mention_filtered, mention_clamp_index, mention_index_of, mention_key_action, mention_detect_filter, mention_detect_anchor, mention_detect_visible, mention_detect_pos, mention_insert, mention_can_send, mention_trim, mention_professions_list, mention_current_id from "src/front/mention_helpers.at"
+
 component fn MentionInput(disabled: bool, professions: obj) {
     use {
-        component: Send, Square from "lucide-vue-next"
-        composable: useI18n refs: [locale] from "vue-i18n"
-        fn: render_input_mentions, build_mention_names from "src/front/mention_helpers.at"
-        fn: mention_filtered, mention_clamp_index, mention_index_of, mention_key_action, mention_detect_filter, mention_detect_anchor, mention_detect_visible, mention_detect_pos, mention_insert, mention_can_send, mention_trim, mention_professions_list, mention_current_id from "src/front/mention_helpers.at"
         component: MentionDropdown
     }
     computed {

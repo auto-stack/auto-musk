@@ -12,70 +12,29 @@ use store: ForgeStore
 // #4 回流：会话删除按钮所需的 API 函数。
 use back.api: chats_delete_session, chats_delete_all_sessions
 
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web relay_command_match from "src/front/relay_commands.at"
+use.web runRelayCommand from "src/front/composables/relay_command_runner.ts"
+use.web extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.at"
+use.web chatSearchFilter, chatLastMessageId from "src/front/forge_helpers.at"
+use.web getQuestions, hasQuestionnaire from "src/front/questionnaire.at"
+use.web questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder from "src/front/questionnaire_helpers.at"
+use.web component Plus, Trash2, Search, Info from "lucide-vue-next"
+use.web composable useT from "src/front/composables/useT.ts"
+
 widget ChatsView {
     use {
-                // B 类批3：/relay//superpower//spec1 命令路由（逃生舱 fn，同步检测+异步执行）。
-        fn: relay_command_match from "src/front/relay_commands.at"
-        fn: runRelayCommand from "src/front/composables/relay_command_runner.ts"
-        // （codegen ext 复制只看 use 块，不递归逃生舱组件的相对 import）。
-        fn: extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.at"
-        fn: chatSearchFilter, chatLastMessageId from "src/front/forge_helpers.at"
-        // questionnaire 解析纯函数（QuestionnaireCard 的数据源）。
-        fn: getQuestions, hasQuestionnaire from "src/front/questionnaire.at"
-        // Plan 023 队列 B5：MentionInput 已原生化为 component fn（src/front/mention_input.at），
-        // 逃生舱 .vue 已删除（v-html backdrop 已原生 + MentionDropdown 已原生）。
         component: MentionInput
-        // Plan 023 §3.1：共用 NavSidebar + ContentHeader（三视图二级导航/内容标题栏收敛）。
         component: NavSidebar
         component: ContentHeader
-        // Plan 023 队列 B3：MentionDropdown 已原生化为 component fn（src/front/mention_dropdown.at），
-        // 逃生舱 .vue 已删除（MentionInput.vue 改用 @/components/MentionDropdown.vue 引用生成版）。
         component: MentionDropdown
-        // Plan 023 P3：AgentAvatar 已原生化为 component fn（src/front/agent_avatar.at），
-        // MentionDropdown.vue + SecretaryMessage.vue 改用 @/components/AgentAvatar.vue 引用生成版。
-        // Plan 023 P3：ErrandCard 已原生化为 component fn（src/front/errand_card.at），逃生舱 .vue 已删除。
-        // Plan 023 队列 A3：RelayRunBox 已原生化为 component fn（src/front/relay_run_box.at），
-        // 逃生舱 .vue 已删除（subscribeToRun 日志 + resolveGate 审批）。
         component: RelayRunBox
-        // Plan 023 P3：TaskPlanCard 已原生化为 component fn（src/front/task_plan_card.at），逃生舱 .vue 已删除。
-        // Plan 023 P3：GenericToolCard 已原生化为 component fn（src/front/generic_tool_card.at），逃生舱 .vue 已删除。
-        // Plan 023 P3：ReportCard 已原生化为 component fn（src/front/report_card.at），逃生舱 .vue 已删除。
-        // questionnaire_helpers 是 QuestionnaireCard component fn 的 use{fn} 依赖，声明仅为触发 ext 复制。
-        fn: questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder from "src/front/questionnaire_helpers.at"
-        // Plan 023 队列 B1：QuestionnaireCard 已原生化为 component fn（src/front/questionnaire_card.at），
-        // 逃生舱 .vue 已删除。
         component: QuestionnaireCard
-        // Phase 7.3 续 codegen 限制1 修复后：直接用 QuestionnaireCard + getQuestions fn 调用
-        // （不再需要 QuestionnaireMessage 包装组件）。
-        // Plan 023 队列 B2：GateCard 已原生化为 component fn（src/front/gate_card.at），
-        // 逃生舱 .vue 已删除。
         component: GateCard
-        // B 类批4→Plan 023 队列 B 续：SecretaryMessageWrapper 已原生化为 component fn
-        // （src/front/secretary_message_wrapper.at，§10.4 facade refs 修复后），逃生舱 .vue 已删除。
         component: SecretaryMessageWrapper
-        // Plan 023 队列 B4：SecretaryMessage 已原生化为 component fn（src/front/secretary_message.at），
-        // 逃生舱 .vue 已删除（SecretaryMessageWrapper.vue 改用 @/components/SecretaryMessage.vue 引用生成版）。
         component: SecretaryMessage
-        // Plan 023 P3：StreamingTable 已原生化为 component fn（src/front/streaming_table.at），
-        // StreamingRenderer.vue 改用 @/components/StreamingTable.vue 引用生成版。
-        // Phase 7.4→Plan 023 P3：UserMessage 已原生化为 component fn
-        // （src/front/user_message.at），逃生舱 .vue 已删除。
-        // ChatMessage.vue 改用 @/components/UserMessage.vue 引用生成版。
-        // forge_helpers 仍需声明（component fn 的 use{fn} 依赖 + 其他逃生舱卡片）。
-        // Plan 022-B→Plan 023 P3：ChatMessage 已原生化为 component fn
-        // （src/front/chat_message.at），逃生舱 .vue 已删除。
-        // 依赖 UserMessage（已原生）+ StreamingRenderer（逃生舱）+ msgTimeLabel fn。
         component: ChatMessage
-        // Plan 023 队列 B 续：SessionInfo 已原生化为 component fn（src/front/session_info.at，
-        // store + 宿主全局），逃生舱 .vue 已删除。
         component: SessionInfo
-        // Plan 407：lucide 图标（toolbar emoji→图标）+ i18n t()（text 节点本地化）。
-        // Plan 407 parser 增强后，组件可作 button 子节点、t() 可作 text primary prop。
-        // t 走 composable 包装 useT（const t = useT()，见 app.at 注释）。
-        component: Plus, Trash2, Search, Info from "lucide-vue-next"
-        composable: useT from "src/front/composables/useT.ts"
-        // 技术债 #2：消息搜索过滤（search ref + filteredMessages computed）
-        // 技术债：键盘快捷键（Ctrl+Shift+S 聚焦搜索 / Ctrl+Shift+N 新建会话）
     }
 
     msg Msg {

@@ -14,13 +14,14 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.wiki-nav 等）。
 
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web component Plus, PanelLeft, Search, BookOpen, FolderInput, FolderPlus, UploadCloud, Trash2, ChevronDown, ChevronRight, FileText, File from "lucide-vue-next"
+use.web wiki_filter_tree from "src/front/wiki_helpers.at"
+use.web wikiUploadDrop, rawUploadProgress from "src/front/raw_upload.ts"
+use.web composable useI18n refs: [locale] from "vue-i18n"
+
 component fn WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: str, workspace: str) {
     use {
-        component: Plus, PanelLeft, Search, BookOpen, FolderInput, FolderPlus, UploadCloud, Trash2, ChevronDown, ChevronRight, FileText, File from "lucide-vue-next"
-        fn: wiki_filter_tree from "src/front/wiki_helpers.at"
-        fn: wikiUploadDrop, rawUploadProgress from "src/front/raw_upload.ts"
-        composable: useI18n refs: [locale] from "vue-i18n"
-        // Plan 023 §3.1：共用 NavSidebar（wiki 导航外壳收敛）。
         component: NavSidebar
     }
     computed {

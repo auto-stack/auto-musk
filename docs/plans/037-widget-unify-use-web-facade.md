@@ -225,13 +225,22 @@ a2r 两处显式报错("use.web requires the vue render target")。
 
 ### Phase 3 — musk use 块 → use.web(用户步骤 3)
 
-- [ ] **T9** 盘点:`grep -rn "use {" D:/autostack/auto-musk/src/front/*.at` 生成清单
+- [x] **T9** 盘点:`grep -rn "use {" D:/autostack/auto-musk/src/front/*.at` 生成清单
   (按文件×kind 登记进本节回填),定批次。验证:清单写入计划。
-- [ ] **T10** 批次 1:6 个 widget 文件(app/chats_view/plans_view/login/specs_view/
+- [x] **T10** 批次 1:6 个 widget 文件(app/chats_view/plans_view/login/specs_view/
   wiki_view.at)的 use 块 → `use.web`。验证:musk 根 `auto build`。
-- [ ] **T11** 批次 2:component fn 前半(A–M,grep 清单为准)。验证:musk 根 `auto build`。
-- [ ] **T12** 批次 3:component fn 后半(N–Z)+ 断言 `grep -rn "use {" src/front/` 零命中。
+- [x] **T11** 批次 2:component fn 前半(A–M,grep 清单为准)。验证:musk 根 `auto build`。
+- [x] **T12** 批次 3:component fn 后半(N–Z)+ 断言 `grep -rn "use {" src/front/` 零命中。
   验证:`auto build` + `cd web && npx vitest run`(基线 2 失败)。
+
+### Phase 3 完成(2026-08-22)
+
+T9-T12 完成:`scripts/migrate_use_web.py` 机械转换 25 文件 29 块——带 from 的条目
+(fn/component/composable,含 refs)全部提升为顶层 `use.web` 语句;**无 from 的
+`component: X`(跨文件组件引用)保留在原 use 块**(Phase 4 转 widget 后改顶层
+`use alias: X` 消化)。收口:`auto build` 全绿 + web vitest 基线不变(2 存量失败/
+22 过,主检出演示 worktree web/ 无 node_modules 属 checkout 固有)+ 块内 web 条目
+零残留(仅注释提及旧形式)。
 
 ### Phase 4 — musk component fn → widget(用户步骤 4)
 

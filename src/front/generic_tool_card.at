@@ -13,11 +13,11 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.tool-card 等）。
 
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web getToolSummary, toolArgsJson from "src/front/forge_helpers.at"
+use.web component Markdown from "platform:markdown"
+
 component fn GenericToolCard(tc: obj) {
-    use {
-        fn: getToolSummary, toolArgsJson from "src/front/forge_helpers.at"
-        component: Markdown from "platform:markdown"
-    }
     computed {
         name => .tc.name
         status => if .tc.status != "" { .tc.status } else { "running" }

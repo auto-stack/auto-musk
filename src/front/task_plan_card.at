@@ -10,10 +10,10 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.task-plan-card 等）。
 
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web getTaskPlan, taskPlanStatusLabel from "src/front/forge_helpers.at"
+
 component fn TaskPlanCard(tc: obj, taskPlans: obj) {
-    use {
-        fn: getTaskPlan, taskPlanStatusLabel from "src/front/forge_helpers.at"
-    }
     computed {
         plan => getTaskPlan(.taskPlans, .tc)
         hasPlan => .plan != None

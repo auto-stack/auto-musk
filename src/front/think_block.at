@@ -4,10 +4,10 @@
 // （滚动条 + 最大高度，样式在 inject_styles.ts 的 .think-* 全局兜底）。
 // streaming 时 token 数实时增长。
 
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web thinkLabel from "src/front/forge_helpers.at"
+
 component fn ThinkBlock(text: str, tokens: int, streaming: bool) {
-    use {
-        fn: thinkLabel from "src/front/forge_helpers.at"
-    }
     computed {
         // 折叠/展开指示,与 GenericToolCard 的 ▼/▲ 同款
         chevron => if .expanded { "▲" } else { "▼" }

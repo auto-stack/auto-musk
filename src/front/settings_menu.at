@@ -17,15 +17,14 @@
 
 use store: VisualStore
 
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web component Settings, Check, Sun, Moon, Monitor, ExternalLink from "lucide-vue-next"
+use.web settings_load_forge_mode, settings_set_forge_mode, settings_open_autoos from "src/front/settings_forge_helpers.at"
+use.web settingsInitLocale, settingsChangeLocale from "src/front/composables/useT.ts"
+use.web composable useI18n refs: [locale] from "vue-i18n"
+use.web visual_accent_options from "src/front/visual_store.at"
+
 component fn SettingsMenu() {
-    use {
-        component: Settings, Check, Sun, Moon, Monitor, ExternalLink from "lucide-vue-next"
-        fn: settings_load_forge_mode, settings_set_forge_mode, settings_open_autoos from "src/front/settings_forge_helpers.at"
-        // locale 读写经 vue-i18n 桥（useT.ts，D 组）。
-        fn: settingsInitLocale, settingsChangeLocale from "src/front/composables/useT.ts"
-        composable: useI18n refs: [locale] from "vue-i18n"
-        fn: visual_accent_options from "src/front/visual_store.at"
-    }
     computed {
         accentCurrent => .store.accent
         themeMode => .store.mode

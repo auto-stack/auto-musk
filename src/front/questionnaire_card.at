@@ -13,11 +13,11 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.questionnaire-card 等）。
 
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web component HelpCircle, Send from "lucide-vue-next"
+use.web questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder, eventInputValue, formatQuestionnaireAnswers from "src/front/questionnaire_helpers.at"
+
 component fn QuestionnaireCard(questions: obj) {
-    use {
-        component: HelpCircle, Send from "lucide-vue-next"
-        fn: questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder, eventInputValue, formatQuestionnaireAnswers from "src/front/questionnaire_helpers.at"
-    }
     computed {
         canSubmit => questionnaireCanSubmit(.questions, .answers)
         // 提交载荷：格式化后的可读文本（"Q1: A; Q2: B"），父组件直接作为

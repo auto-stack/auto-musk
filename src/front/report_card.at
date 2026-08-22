@@ -9,13 +9,13 @@
 // deckMeta/deckHtml 带默认值(PLAN-037 Phase 0):ChatsView 调用点只传 report——
 // 无 deck 载荷时 hasDeck=false,deck iframe 不渲染,其余分层不受影响。
 
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web component ChevronDown, ChevronUp, FileText, Download, FolderOpen from "lucide-vue-next"
+use.web component Markdown from "platform:markdown"
+use.web component Deck from "src/platform/deck.vue"
+use.web reportConfidenceClass, reportDurationLabel from "src/front/forge_helpers.at"
+
 component fn ReportCard(report: obj, deckMeta: obj = None, deckHtml: str = "") {
-    use {
-        component: ChevronDown, ChevronUp, FileText, Download, FolderOpen from "lucide-vue-next"
-        component: Markdown from "platform:markdown"
-        component: Deck from "src/platform/deck.vue"
-        fn: reportConfidenceClass, reportDurationLabel from "src/front/forge_helpers.at"
-    }
     computed {
         runId => .report.runId ?? ""
         title => if .report.title != "" { .report.title } else { "Run 工作汇总" }

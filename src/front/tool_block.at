@@ -5,10 +5,12 @@
 //   其余→GenericToolCard），与 chats_view 原后置循环同一套分发，只是
 // 现在作为有序 block 内联在消息流里（保序、不后置）。
 
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web extractRunId from "src/front/forge_helpers.at"
+
 component fn ToolBlock(tc: obj, errands: obj, relays: obj, task_plans: obj) {
     use {
         component: ErrandCard, RelayRunBox, TaskPlanCard, GenericToolCard
-        fn: extractRunId from "src/front/forge_helpers.at"
     }
     computed {
         name => .tc.name

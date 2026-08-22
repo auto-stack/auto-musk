@@ -14,10 +14,10 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.errand-* 规则，见末尾追加）。
 
+// PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web getErrandTask, getErrandState from "src/front/forge_helpers.at"
+
 component fn ErrandCard(tc: obj, errands: obj) {
-    use {
-        fn: getErrandTask, getErrandState from "src/front/forge_helpers.at"
-    }
     computed {
         task => getErrandTask(.tc)
         errandStatus => getErrandState(.errands, .tc)
