@@ -1832,7 +1832,9 @@ onUnmounted(() => {
 
 .message.assistant,
 .message.system {
-  align-self: flex-start;
+  /* stretch：占满会话列宽（flex-start 会让消息收缩到内容宽——卡片类
+     tool-call 产物随之缩窄，PLAN-036 修正） */
+  align-self: stretch;
   max-width: 100%;
 }
 
