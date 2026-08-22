@@ -362,13 +362,20 @@ main 本身就是红的,此前被主检出 gen/ 中未跟踪的 deck.vue 掩盖)
 > **Plan 424**(component/composable 端口符号转发,关闭第 1/6 条)、
 > **Plan 425**(component fn 双轨退役 + view 可选化,关闭第 2/3 条)、
 > **Plan 426**(setup 前导槽 + 三相位语义定版,关闭第 3 条)。
+>
+> **2026-08-23 执行闭环**:Plan 424 已落地——musk 新增 ports/icons、
+> ports/renderer、ports/composables、ports/upload 四端口,34 处调用面
+> 改引 `*.at`;调用面 use.web 非 .at 目标零命中,下方第 1 条与
+> platform.web.at 头注的 raw_upload 存量(「待澄清 6」)全部关闭。
+> composable 经端口 re-export 后自动调用/refs 机制仍在调用方 setup,
+> 反应性完整保留(Plan 426 将进一步提供 setup 块语法)。
 
 5. parser 怪癖:局部变量与类型名同名(如 `let list = ...` 后接 `let out list = []`)
    会使后者类型标注丢失(探针已复现,见 Phase 0 记录第 5 条)——Phase 0 以改名规避,
    parser 层修复(类型位置不应走符号解析)另立小计划。
 
-1. component 符号转发(图标/StreamingRenderer 经 ports 引用)——v1 保留调用点直连,
-   语言层机制另立计划(T21 决策)。
+1. ~~component 符号转发(图标/StreamingRenderer 经 ports 引用)~~ **✅ 已关闭
+   (Plan 424,2026-08-23)**:ES re-export 转发落地,musk 四端口收口。
 2. auto-lang 的 component fn 双轨(parser/extract/render)退役——本计划只迁 musk 源,
    语言层保留兼容;退役另立计划。
 3. `view {}` 包裹可选化、setup 前导槽(`.Setup`)、`.Init`(onMounted)语义文档化——
