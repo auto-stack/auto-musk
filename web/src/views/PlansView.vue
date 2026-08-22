@@ -78,7 +78,10 @@
               :placeholder="t('plans.contentPlaceholder')"
             ></textarea>
           </div>
-          <MarkdownContent v-else :content="current.content" />
+          <template v-else>
+            <PlanMetaBlock v-if="parsed" :meta="parsed.meta" />
+            <MarkdownContent :content="parsed ? parsed.body : current.content" />
+          </template>
         </div>
       </template>
     </section>
@@ -106,11 +109,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Plus } from 'lucide-vue-next'
 import MarkdownContent from '@/components/MarkdownContent.vue'
 import PlanStatusBadge from '@/components/plan/PlanStatusBadge.vue'
+import PlanMetaBlock from '@/components/plan/PlanMetaBlock.vue'
+import { splitFrontmatter } from '@/utils/frontmatter'
 import { usePlans } from '@/composables/usePlans'
 import { ALLOWED_TRANSITIONS, planStatusKey, type PlanStatus } from '@/types/plans'
 
@@ -153,6 +158,9 @@ const STATUS_ORDER: Record<PlanStatus, number> = {
 function isRollback(from: PlanStatus, to: PlanStatus): boolean {
   return STATUS_ORDER[to] < STATUS_ORDER[from]
 }
+
+/** 拆出 frontmatter：渲染区只喂正文，meta 交给 PlanMetaBlock（PLAN-033 T9）。 */
+const parsed = computed(() => (current.value ? splitFrontmatter(current.value.content) : null))
 
 async function refresh() {
   await loadPlans(filterMode.value === 'all')

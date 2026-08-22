@@ -174,7 +174,9 @@
     "statusExecuting": "执行中",
     "statusExecutionDone": "执行完成",
     "statusReviewed": "已复审",
-    "statusArchived": "已归档"
+    "statusArchived": "已归档",
+    "metaShow": "展开元数据",
+    "metaHide": "收起元数据"
   },
   "wiki": {
     "title": "知识库",
