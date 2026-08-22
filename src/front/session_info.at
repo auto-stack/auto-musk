@@ -17,9 +17,14 @@ use store: ForgeStore
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web component Info, Copy, CopyCheck from "src/front/ports/icons.at"
 use.web session_token_cost, session_message_count from "src/front/session_data_helpers.at"
-use.web composable useI18n refs: [locale] from "src/front/ports/composables.at"
+use.web useI18n from "src/front/ports/composables.at"
 
 widget SessionInfo() {
+
+    setup {
+        let i18n = useI18n()
+        refs i18n: [locale]
+    }
     computed {
         sessionId => .store.session_id
         messageCount => session_message_count(.store.messages)

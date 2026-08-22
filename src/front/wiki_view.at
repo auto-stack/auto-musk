@@ -9,9 +9,13 @@ use store: WikiStore
 use.web ensure_workspace from "src/front/workspace_helpers.at"
 use.web uploadRawFiles, loadRawFileText, wikiUploadDrop, rawUploadProgress from "src/front/ports/upload.at"
 use.web raw_file_url from "src/front/raw_helpers.at"
-use.web composable useT from "src/front/ports/composables.at"
+use.web useT from "src/front/ports/composables.at"
 
 widget WikiView {
+
+    setup {
+        let t = useT()
+    }
     use {
         component: WikiNav
         component: RawPreview

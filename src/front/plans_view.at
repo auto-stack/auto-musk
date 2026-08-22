@@ -6,10 +6,14 @@
 use store: PlansStore
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web composable useT from "src/front/ports/composables.at"
+use.web useT from "src/front/ports/composables.at"
 use.web component Plus from "src/front/ports/icons.at"
 
 widget PlansView {
+
+    setup {
+        let t = useT()
+    }
     use {
         component: NavSidebar
         component: ContentHeader

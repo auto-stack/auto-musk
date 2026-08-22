@@ -20,9 +20,13 @@ use.web chatSearchFilter, chatLastMessageId from "src/front/forge_helpers.at"
 use.web getQuestions, hasQuestionnaire from "src/front/questionnaire.at"
 use.web questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder from "src/front/questionnaire_helpers.at"
 use.web component Plus, Trash2, Search, Info from "src/front/ports/icons.at"
-use.web composable useT from "src/front/ports/composables.at"
+use.web useT from "src/front/ports/composables.at"
 
 widget ChatsView {
+
+    setup {
+        let t = useT()
+    }
     use {
         component: MentionInput
         component: NavSidebar

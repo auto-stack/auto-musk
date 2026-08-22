@@ -18,9 +18,14 @@
 use.web component Plus, PanelLeft, Search, BookOpen, FolderInput, FolderPlus, UploadCloud, Trash2, ChevronDown, ChevronRight, FileText, File from "src/front/ports/icons.at"
 use.web wiki_filter_tree from "src/front/wiki_helpers.at"
 use.web wikiUploadDrop, rawUploadProgress from "src/front/ports/upload.at"
-use.web composable useI18n refs: [locale] from "src/front/ports/composables.at"
+use.web useI18n from "src/front/ports/composables.at"
 
 widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: str, workspace: str) {
+
+    setup {
+        let i18n = useI18n()
+        refs i18n: [locale]
+    }
     use {
         component: NavSidebar
     }
