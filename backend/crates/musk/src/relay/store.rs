@@ -77,6 +77,9 @@ pub enum RunEvent {
 
 /// PLAN-032: 汇报报告元数据（emit_report 工具产物登记；本体文件在
 /// workspace `.autoos/reports/{run_id}/`，事件/载荷只携带元数据）。
+/// PLAN-035: `structured` 携带 v2 结构化报告数据（目标/关联 Goals/各阶段
+/// 成果/交付物）——HTML/markdown 产物与前端 block 渲染共用同一数据源；
+/// 旧数据无此字段（serde default 兼容）。
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ReportMeta {
     #[serde(default)]
@@ -86,6 +89,9 @@ pub struct ReportMeta {
     /// 相对 workspace 根的 report.html 路径。
     #[serde(default)]
     pub path: String,
+    /// PLAN-035 v2 结构化报告数据（emit_report 入参原样登记）。
+    #[serde(default)]
+    pub structured: Option<serde_json::Value>,
 }
 
 /// Deterministic run report assembled at completion (PLAN-031 T5).
@@ -1071,6 +1077,21 @@ fn uuidish() -> String {
 mod tests {
     use super::*;
     use crate::relay::HandoffDocument;
+
+    /// PLAN-035：ReportMeta 新增 structured 字段——旧 JSON（无该字段）可反
+    /// 序列化，新数据携带结构化报告。
+    #[test]
+    fn report_meta_structured_field_compat() {
+        let legacy: ReportMeta =
+            serde_json::from_str(r#"{"format":"html","title":"t","path":"p"}"#).unwrap();
+        assert_eq!(legacy.title, "t");
+        assert!(legacy.structured.is_none(), "legacy without structured");
+        let v2: ReportMeta = serde_json::from_str(
+            r#"{"format":"html","title":"t","path":"p","structured":{"objective":"目标"}}"#,
+        )
+        .unwrap();
+        assert_eq!(v2.structured.unwrap()["objective"], "目标");
+    }
 
     fn tmp_store() -> RunStore {
         let dir = std::env::temp_dir().join(format!(

@@ -1,16 +1,16 @@
 ---
 plan_id: PLAN-035
-status: executing
+status: execution_done
 feature_name: 结构化报告——emit_report 数据化 + 对话流 block 化渲染
 author: [zhaopuming]
 created_at: 2026-08-22T16:15:00+08:00
-updated_at: 2026-08-22T16:15:00+08:00
+updated_at: 2026-08-22T17:05:00+08:00
 
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 0
+current_step: 6
 total_steps: 7
 ---
 
@@ -87,17 +87,21 @@ ReportCard body（structured 分支）：目标行（objective + chips）→ 流
 
 ## 执行步骤
 
-- [ ] **T1** worktree `auto-musk-wt-035`（分支 plan-035）+ 计划入库 executing。验证：`git worktree list`。
-- [ ] **T2** `backend/crates/musk/src/relay/store.rs`：ReportMeta.structured + 兼容单测。验证：`cargo test -p musk --lib relay::store`。
-- [ ] **T3** `backend/crates/musk/src/report_tools.rs`：v2 schema + render_html/render_markdown + 单测。验证：`cargo test -p musk --lib report_tools`。
-- [ ] **T4** `backend/crates/musk/src/relay/plan_flow.rs`：document 模板第 5 步改结构化指令（守护测试同步）。验证：`cargo test -p musk --lib plan_flow`。
-- [ ] **T5** `web/src/components/ReportCard.vue`：structured blocks 渲染 + 交付物展开 + Goal chip 跳 Specs。验证：`npx vue-tsc --noEmit`。
-- [ ] **T6** 全量回归 + `npm run build` + 合并回 main + 清理 worktree。验证：`cargo test -p musk` EXIT 0 + build 成功。
+- [x] **T1** worktree `auto-musk-wt-035`（分支 plan-035）+ 计划入库 executing。验证：`git worktree list`。 [✅ 已完成] worktree + 提交 8ef7059
+- [x] **T2** `backend/crates/musk/src/relay/store.rs`：ReportMeta.structured + 兼容单测。验证：`cargo test -p musk --lib relay::store`。 [✅ 已完成] 11/11（含 report_meta_structured_field_compat；另修 ag 副本 relay_api.rs 的 ReportMeta 初始化）
+- [x] **T3** `backend/crates/musk/src/report_tools.rs`：v2 schema + render_html/render_markdown + 单测。验证：`cargo test -p musk --lib report_tools`。 [✅ 已完成] 4/4（校验枚举/HTML 全区块+guard/MD 同构）
+- [x] **T4** `backend/crates/musk/src/relay/plan_flow.rs`：document 模板第 5 步改结构化指令（守护测试同步）。验证：`cargo test -p musk --lib plan_flow`。 [✅ 已完成] 10/10（模板 format! 花括号转义踩坑一次）
+- [x] **T5** `web/src/components/ReportCard.vue`：structured blocks 渲染 + 交付物展开 + Goal chip 跳 Specs。验证：`npx vue-tsc --noEmit`。 [✅ 已完成] EXIT 0（chg-+/chg-- 非法类名已映射 add/del/M）
+- [x] **T6** 全量回归 + `npm run build` + 合并回 main + 清理 worktree。验证：`cargo test -p musk` EXIT 0 + build 成功。 [✅ 已完成] cargo 全量 0 失败；vitest 22 过（2 存量）；build 28.2s
 - [ ] **T7** 部署重启 + E2E（/auto-plan:merge 造 run，验证 structured 报告消息与产物）+ 造走查计划，结果记录本节。
 
 ## 复审记录
 
 （待 /auto-plan:review 填写）
+
+### 执行期补记
+
+- ag 转译副本（auto_generated/relay_api.rs）的 ReportMeta 初始化需同步 structured——hw/ag 双实现约束再次生效。
 
 ## 待澄清事项
 

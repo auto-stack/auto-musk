@@ -105,11 +105,15 @@ Trust the code, not the checkboxes：\n\n\
 2. `merge_plan` 把计划按章节映射沉淀进 Spec ledger 6 区（幂等 upsert，`P<seq>-<n>` 稳定 id）。\n\
 3. 按 frontmatter 的 spec-impact 三字段，用文件工具更新 `docs/specs/` 模块树 markdown：改了哪个模块就更新哪个模块文档，新增模块建档，移除的模块标注。\n\
 4. 汇报 `sections_touched` / `items_created` 与 `docs/specs/` 树的具体改动。\n\
-5. `emit_report` 生成本 Run 汇报报告（format=html）：自包含单文件、内联 CSS、\
-**无任何 `<script>`/iframe/外链资源**；分节：封面（标题+日期+run 概要）/\
-需求与方案 / 各阶段成果（plan/execute/review/document）/ 指标（步骤·工具\
-调用·令牌·时长）/ 交付物清单 / 结尾；视觉基调类 PPT 分节卡片（大标题、\
-留白、16:9 心智）。同时给同结构 markdown 源。\n"
+5. `emit_report` 登记结构化汇报报告（PLAN-035 v2：**只交数据，不写 HTML**——\
+版面与指标由系统机械渲染）：\n\
+   - `title`：报告标题（`<PLAN-NNN> <feature> 沉淀报告`）；\n\
+   - `objective`：一句话目标（取自计划 §1）；\n\
+   - `goal_links`：本次触及的 Spec Goal/SubGoal（[{{id,label}}]，无则空数组）；\n\
+   - `stages`：各阶段成果（[{{title,outcome}}]，如 门禁校验/机械沉淀/Spec 树更新/报告——每项一句话事实）；\n\
+   - `deliverables`：交付物（[{{kind:code|spec|doc|file|report, name, change:+|-|M, detail}}]，\
+覆盖变更文件与 specs 树改动）；\n\
+   - `summary`：可选补充。**不要**自编步骤/令牌/时长等指标（系统自动采集）。\n"
             )
         }
         _ => return None,

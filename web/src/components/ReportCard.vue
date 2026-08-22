@@ -1,6 +1,7 @@
 <template>
-  <!-- PLAN-031 T5：PPT 风格 Run 工作汇总（hero 渐变头 → 摘要 AutoDown →
-       指标格 → 交付物 chips → 操作行）。默认展开——终态报告是给客户看的结果 -->
+  <!-- PLAN-031 T5：PPT 风格 Run 工作汇总。PLAN-035 v2：structured 存在时
+       body 渲染原生 blocks（目标+Goal chips / 流程+成果方框链 / 指标格 /
+       交付物 badges+详情展开）；旧数据回退摘要渲染。默认展开。 -->
   <div class="report-card" :class="{ collapsed: !expanded }">
     <div class="report-hero" @click="expanded = !expanded">
       <span class="report-status">✅</span>
@@ -15,12 +16,38 @@
     </div>
 
     <div v-if="expanded" class="report-body">
-      <!-- 摘要：AutoDown/Markdown（PPT 内容页） -->
-      <div v-if="report.summary" class="report-summary">
-        <StreamingRenderer :source="report.summary" :streaming="false" />
-      </div>
+      <!-- ── v2 blocks：目标 + Goal chips ── -->
+      <template v-if="structured">
+        <div class="rb-section">
+          <div class="rb-label">目标</div>
+          <div class="rb-objective">{{ structured.objective }}</div>
+          <div v-if="goalLinks.length" class="rb-chips">
+            <button
+              v-for="g in goalLinks"
+              :key="g.id || g.label"
+              class="rb-chip"
+              title="在 Specs 中查看"
+              @click.stop="goSpecs"
+            >{{ g.label || g.id }}</button>
+          </div>
+        </div>
 
-      <!-- 指标格：PPT 数据页 -->
+        <!-- ── v2 blocks：流程方框链（含各阶段成果） ── -->
+        <div class="rb-section">
+          <div class="rb-label">实现流程 · 各阶段成果</div>
+          <div class="rb-flow">
+            <template v-for="(s, i) in stages" :key="i">
+              <div v-if="i > 0" class="rb-arrow">→</div>
+              <div class="rb-stage">
+                <div class="rb-stage-title">{{ s.title }}</div>
+                <div v-if="s.outcome" class="rb-stage-outcome">{{ s.outcome }}</div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+
+      <!-- 指标格（v1/v2 共用；数据机械采集） -->
       <div class="report-metrics">
         <div class="metric-cell">
           <span class="metric-value">{{ report.goalsMet }}</span>
@@ -40,7 +67,31 @@
         </div>
       </div>
 
-      <!-- PLAN-032 deck 层：PPT 风格汇报预览（sandbox iframe，无脚本无同源） -->
+      <!-- ── v2 blocks：交付物 badges（点击展开详情） ── -->
+      <template v-if="structured">
+        <div v-if="deliverables.length" class="rb-section">
+          <div class="rb-label">交付物</div>
+          <div class="rb-deliverables">
+            <template v-for="(d, i) in deliverables" :key="i">
+              <button class="rb-dl" :class="chgClass(d.change)" @click.stop="toggleDl(i)">
+                <span class="rb-dl-icon">{{ kindIcon(d.kind) }}</span>
+                <span class="rb-dl-name">{{ d.name }}</span>
+                <span class="rb-dl-chg">{{ d.change }}</span>
+              </button>
+              <div v-if="dlExpanded === i && d.detail" class="rb-dl-detail">{{ d.detail }}</div>
+            </template>
+          </div>
+        </div>
+        <div v-if="report.summary" class="report-summary">
+          <StreamingRenderer :source="report.summary" :streaming="false" />
+        </div>
+      </template>
+      <!-- 旧数据回退：摘要渲染 -->
+      <div v-else-if="report.summary" class="report-summary">
+        <StreamingRenderer :source="report.summary" :streaming="false" />
+      </div>
+
+      <!-- PLAN-032 deck 层：机械渲染单页 HTML 预览（sandbox iframe） -->
       <div v-if="report.report && reportHtml" class="deck-wrap">
         <div class="deck-head">
           <span class="deck-title">📊 {{ report.report.title || 'Run 汇报报告' }}</span>
@@ -50,13 +101,6 @@
           </button>
         </div>
         <iframe class="deck-frame" sandbox="" :srcdoc="reportHtml"></iframe>
-      </div>
-
-      <div v-if="report.deliverables?.length" class="report-deliverables">
-        <div class="section-title">Deliverables</div>
-        <div class="deliverable-chips">
-          <span v-for="(d, i) in report.deliverables" :key="i" class="deliverable-chip">{{ d }}</span>
-        </div>
       </div>
 
       <div class="report-actions">
@@ -82,6 +126,7 @@ import { ref, computed, watch } from 'vue'
 import { ChevronDown, ChevronUp, FileText, Download, FolderOpen, Maximize2 } from 'lucide-vue-next'
 import StreamingRenderer from '@/components/StreamingRenderer.vue'
 import { useRelay } from '@/composables/useRelay'
+import { useViewState } from '@/composables/useViewState'
 
 export interface ReportData {
   runId: string
@@ -97,12 +142,15 @@ export interface ReportData {
   toolCalls?: number
   durationS?: number
   /** PLAN-032: 汇报报告元数据（deck 层数据源；None=未生成）。 */
-  report?: { format: string; title: string; path: string }
+  report?: { format: string; title: string; path: string; structured?: Record<string, any> }
+  /** PLAN-035 v2: 结构化报告数据（objective/goal_links/stages/deliverables）。 */
+  structured?: Record<string, any>
 }
 
 const props = defineProps<{ report: ReportData }>()
 
 const { fetchRunReport } = useRelay()
+const { setView } = useViewState()
 
 // PLAN-032: 报告元数据存在时拉取 HTML 全文（useRelay 内缓存）
 const reportHtml = ref<string | null>(null)
@@ -132,6 +180,7 @@ defineEmits<{
 }>()
 
 const expanded = ref(true)
+const dlExpanded = ref<number | null>(null)
 
 const title = computed(() => props.report.title || 'Run 工作汇总')
 
@@ -144,6 +193,37 @@ const durationLabel = computed(() => {
 })
 
 const confidence = computed(() => props.report.confidence || 'Medium')
+
+// ── v2 结构化 blocks ──
+const structured = computed(() => props.report.structured ?? null)
+const goalLinks = computed<any[]>(() => structured.value?.goal_links ?? [])
+const stages = computed<any[]>(() => structured.value?.stages ?? [])
+const deliverables = computed<any[]>(() => structured.value?.deliverables ?? [])
+
+function kindIcon(kind: string): string {
+  switch (kind) {
+    case 'code': return '⌨'
+    case 'spec': return '🧩'
+    case 'doc': return '📝'
+    case 'report': return '📊'
+    default: return '📦'
+  }
+}
+
+/** change（+/-/M）→ 合法 CSS 类后缀。 */
+function chgClass(change: string): string {
+  if (change === '+') return 'chg-add'
+  if (change === '-') return 'chg-del'
+  return 'chg-M'
+}
+
+function toggleDl(i: number) {
+  dlExpanded.value = dlExpanded.value === i ? null : i
+}
+
+function goSpecs() {
+  setView('specs')
+}
 </script>
 
 <style scoped>
@@ -194,9 +274,9 @@ const confidence = computed(() => props.report.confidence || 'Medium')
 .report-chevron { color: var(--af-muted); flex-shrink: 0; }
 
 .report-body { padding: 0.65rem 0.9rem 0.8rem; display: flex; flex-direction: column; gap: 0.65rem; }
-/* 摘要：AutoDown/Markdown（PPT 内容页） */
+/* 摘要 */
 .report-summary { font-size: 0.88rem; line-height: 1.6; color: var(--af-fg); }
-/* 指标格：PPT 数据页 */
+/* 指标格 */
 .report-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
 .metric-cell {
   display: flex; flex-direction: column; gap: 0.1rem;
@@ -204,19 +284,57 @@ const confidence = computed(() => props.report.confidence || 'Medium')
 }
 .metric-value { font-size: 1.02rem; font-weight: 600; color: hsl(142 70% 38%); }
 .metric-label { font-size: 0.7rem; color: var(--af-muted); }
-/* 交付物 chips */
-.section-title {
+
+/* ── v2 blocks ── */
+.rb-section { display: flex; flex-direction: column; gap: 0.3rem; }
+.rb-label {
   font-size: 0.73rem; font-weight: 600; text-transform: uppercase;
-  color: var(--af-muted); letter-spacing: 0.03em; margin-bottom: 0.25rem;
+  color: var(--af-muted); letter-spacing: 0.03em;
 }
-.deliverable-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-.deliverable-chip {
-  font-size: 0.73rem; padding: 0.18rem 0.5rem; border-radius: 5px;
-  background: hsl(190 80% 45% / 0.08); color: hsl(190 80% 32%);
-  border: 1px solid hsl(190 80% 45% / 0.2);
-  font-family: 'Geist Mono', 'Fira Code', monospace;
+.rb-objective { font-size: 0.88rem; line-height: 1.6; color: var(--af-fg); }
+.rb-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.15rem; }
+.rb-chip {
+  font-size: 0.73rem; padding: 0.16rem 0.55rem; border-radius: 999px;
+  background: hsl(160 70% 40% / 0.12); color: hsl(160 70% 28%);
+  border: 1px solid hsl(160 70% 40% / 0.25); cursor: pointer;
 }
-/* PLAN-032 deck 层：16:9 沙箱预览 */
+.rb-chip:hover { background: hsl(160 70% 40% / 0.2); }
+
+.rb-flow { display: flex; align-items: stretch; gap: 0.35rem; flex-wrap: wrap; }
+.rb-arrow { color: var(--af-muted); align-self: center; font-size: 0.9rem; flex-shrink: 0; }
+.rb-stage {
+  flex: 1; min-width: 110px; padding: 0.45rem 0.6rem;
+  border: 1px solid var(--af-border); border-radius: 10px;
+  background: hsl(220 14% 50% / 0.04);
+  display: flex; flex-direction: column; gap: 0.2rem;
+}
+.rb-stage-title { font-size: 0.8rem; font-weight: 600; color: var(--af-primary); }
+.rb-stage-outcome { font-size: 0.72rem; color: var(--af-muted); line-height: 1.45; }
+
+.rb-deliverables { display: flex; flex-direction: column; gap: 0.2rem; }
+.rb-dl {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  align-self: flex-start; max-width: 100%;
+  font-size: 0.78rem; padding: 0.28rem 0.6rem;
+  border: 1px solid var(--af-border); border-radius: 7px;
+  background: hsl(220 14% 50% / 0.04); cursor: pointer;
+}
+.rb-dl:hover { background: hsl(220 14% 50% / 0.09); }
+.rb-dl-name {
+  color: var(--af-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: 'Geist Mono', 'Fira Code', monospace; font-size: 0.74rem;
+}
+.rb-dl-chg { font-weight: 700; flex-shrink: 0; }
+.rb-dl.chg-add .rb-dl-chg { color: hsl(142 70% 38%); }
+.rb-dl.chg-del .rb-dl-chg { color: hsl(0 70% 45%); }
+.rb-dl.chg-M .rb-dl-chg { color: hsl(210 70% 45%); }
+.rb-dl.chg-add { border-color: hsl(142 70% 45% / 0.3); }
+.rb-dl-detail {
+  font-size: 0.74rem; color: var(--af-muted); line-height: 1.5;
+  padding: 0.25rem 0.6rem; border-left: 2px solid var(--af-border); margin-left: 0.4rem;
+}
+
+/* deck 层 */
 .deck-wrap { display: flex; flex-direction: column; gap: 0.35rem; }
 .deck-head { display: flex; align-items: center; gap: 0.5rem; }
 .deck-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; font-weight: 600; color: var(--af-fg); }

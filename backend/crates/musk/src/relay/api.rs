@@ -167,6 +167,7 @@ async fn run_report_html(
         format: "html".into(),
         title: String::new(),
         path: format!(".autoos/reports/{run_id}/report.html"),
+        structured: None,
     };
     let meta = ws.relay.report_meta(&run_id).unwrap_or(fallback);
     let path = ws.root.join(&meta.path);

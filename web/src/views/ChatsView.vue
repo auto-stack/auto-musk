@@ -1247,6 +1247,10 @@ function reportFromToolCall(tc: { name?: string; arguments?: Record<string, any>
     toolCalls: (p.tool_calls as number) || 0,
     durationS: (p.duration_s as number) || 0,
     report: p.report ?? undefined,
+    // PLAN-035 v2：结构化报告数据（ReportMeta.structured 提升）
+    structured: ((p.report as Record<string, any>)?.structured ?? p.structured) as
+      | Record<string, any>
+      | undefined,
   }
 }
 

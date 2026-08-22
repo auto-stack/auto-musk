@@ -169,6 +169,7 @@ pub async fn run_report_html(s: State<AppState>, p: Path<String>, q: Query<Works
         format: "html".into(),
         title: String::new(),
         path: format!(".autoos/reports/{}/report.html", run_id),
+        structured: None,
     };
     match Some(ws.relay.report_meta(&run_id).unwrap_or(fallback)) {
         None => text_response(format!("run '{}' has no report", run_id), 404),
