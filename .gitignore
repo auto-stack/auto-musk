@@ -65,3 +65,4 @@ tmp/
 *.log
 *.err
 .playwright-cli/
+.worktrees/
