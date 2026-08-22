@@ -1638,6 +1638,86 @@ pub async fn chat_run_stream(
                 return;
             }
         };
+
+    // PLAN-034 修正：`/auto-plan:merge <PLAN-NNN>` 斜杠指令短路——不经 LLM，
+    // 按原生 spawn_relay 语义（orch_tools.rs）启动 plan-merge run 并挂到本
+    // 会话：助手消息含 spawn_relay tool call（Run 卡片渲染来源）持久化 +
+    // 双写 conversation turns，刷新不丢；后台起 run 驱动；SSE 回
+    // delta/relay_spawned/done。解析器复用 hw server.rs 的 pub 版。
+    if let Some(plan_id) = crate::server::parse_plan_merge_command(&user_msg) {
+        let task = format!("沉淀 {plan_id} 到 Spec 知识库");
+        let req = crate::relay::store::StartRunRequest {
+            run_id: None,
+            flow_id: Some("plan-merge".into()),
+            steps: Vec::new(),
+            task: Some(task.clone()),
+        };
+        let (run_id, _initial) = ws.relay.start_run(&req, Some(ws_id.clone()));
+        let tc_args = serde_json::json!({
+            "flow_id": "plan-merge",
+            "task": task,
+            "run_id": run_id,
+        });
+        let tc_result = format!("{{\"run_id\":\"{run_id}\",\"status\":\"started\"}}");
+        let tc = crate::chats::ToolCall {
+            tool: "spawn_relay".into(),
+            args: tc_args.clone(),
+            result: tc_result.clone(),
+            status: "success".into(),
+            id: "tc-1".into(),
+        };
+        let summary = format!(
+            "📦 **智能沉淀已启动**（{plan_id}）\n\nRun `{run_id}`（flow: plan-merge）：\
+`merge_plan` 机械沉淀（幂等）→ 按 spec-impact 更新 `docs/specs/` 模块树 → \
+`emit_report` 生成 HTML 报告。"
+        );
+        let mut msg = crate::chats::ChatMessage::assistant(summary.clone());
+        msg.tool_calls = vec![tc];
+        let _ = ws.chats.append_message(&session_id, msg.clone());
+        let seq_base = ws
+            .conversations
+            .get(&session_id)
+            .map(|c| c.turns.len())
+            .unwrap_or(0);
+        for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
+            let _ = ws.conversations.append_turn(&session_id, turn);
+        }
+        let state2 = std::sync::Arc::new(s.0.clone());
+        let ws_id2 = ws_id.clone();
+        let rid = run_id.clone();
+        tracing::info!(
+            "plan-merge shortcut: driver for {} (session={})",
+            rid,
+            session_id
+        );
+        tokio::spawn(async move {
+            let _ = crate::auto_generated::relay_driver::drive_run(state2, &ws_id2, &rid).await;
+        });
+        // SSE（SseEventDto 严格枚举——无 relay_spawned 变体，改用原生
+        // tool_call/tool_result 形状携带 run_id，前端据此实时渲染 Run 卡片）。
+        mpsc_try_send(
+            &tx,
+            serde_json::json!({"type": "tool_call", "id": "tc-1", "name": "spawn_relay", "arguments": tc_args}),
+        );
+        mpsc_try_send(
+            &tx,
+            serde_json::json!({
+                "type": "tool_result", "id": "tc-1", "name": "spawn_relay",
+                "arguments": tc_args, "result": tc_result, "status": "success",
+            }),
+        );
+        mpsc_try_send(&tx, serde_json::json!({"type": "delta", "text": summary}));
+        mpsc_try_send(
+            &tx,
+            serde_json::json!({
+                "type": "done", "output": summary, "turns": 1,
+                "tool_calls": [{"name": "spawn_relay", "arguments": tc_args, "result": tc_result}],
+            }),
+        );
+        close_channel(&tx);
+        return;
+    }
+
     // Build (role, content) history pairs for prior turns (exclude the last
     // user message — that's the one we're about to run).
     let mut history: Vec<(String, String)> = Vec::new();

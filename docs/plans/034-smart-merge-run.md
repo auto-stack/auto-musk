@@ -135,6 +135,10 @@ if (mergeMatch) {
 1. run 完成后是否需要自动跳回计划页/列表刷新提示——当前设计留在会话内看报告，由用户手动返回。
 2. `/auto-plan:merge` 是否需要支持无参数形式（在会话里手动输入时从上下文推断计划）——当前要求显式 PLAN 编号。
 
+### 修正轮二（T8 补充：ag 轨道落地）
+
+首版误将短路写在 hw `server.rs::chat_stream`——实际路由走 ag 轨道（`extern_impl.rs::chat_run_stream`，经 `SseEventDto` 严格枚举校验）。已迁移：解析器留在 server.rs（pub），短路本体落 extern_impl；SSE 事件改用合法形状（tool_call/tool_result 携带 run_id + delta + 完整 done——`relay_spawned` 不在枚举内）。API 复验：SSE 四事件合法、会话持久化（user+assistant 含 spawn_relay tool_call）、run 完成归档+报告。
+
 ### 修正轮（T8，用户走查反馈）
 
 用户实测发现：按钮触发的 run 不显示 Run 卡片、刷新后会话为空。根因：前端斜杠分支直接 HTTP 启动 run，绕过了会话（无 tool-call turn 持久化、无事件入流）——**存量缺陷**（/plan、/superpower、/spec1 同样如此），PLAN-034 首次暴露。修正：移除客户端拦截，指令作为普通用户消息发送，由 `chat_stream` 服务端短路（`parse_plan_merge_command` + `plan_merge_shortcut`）按原生 spawn_relay 语义执行（start_run + 助手消息含 tool call 持久化 + 双写 conversation + 后台驱动 + SSE delta/relay_spawned/done），零 LLM 调用。
