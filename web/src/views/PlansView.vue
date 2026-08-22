@@ -55,7 +55,7 @@
                    非 reviewed 未归档显示"归档"（搁置不沉淀）；两者互斥。 -->
               <button
                 v-if="!current.archived && current.status !== 'reviewed'"
-                class="action-btn"
+                class="action-btn accent"
                 @click="onArchive"
               >{{ t('plans.archive') }}</button>
               <button
@@ -429,6 +429,15 @@ onMounted(() => {
 .action-btn.primary:hover {
   background: hsl(var(--primary) / 0.2);
 }
+/* 归档按钮主题色（弱于 primary，避免与"沉淀到 Spec"抢焦点） */
+.action-btn.accent {
+  background: hsl(var(--primary) / 0.07);
+  border-color: hsl(var(--primary) / 0.35);
+  color: var(--af-primary);
+}
+.action-btn.accent:hover {
+  background: hsl(var(--primary) / 0.15);
+}
 .action-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -437,6 +446,11 @@ onMounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: 1rem 1.25rem;
+}
+/* 计划正文的 H1/H2 用主题色（仅本页，不影响 chat 等其它 Markdown 渲染） */
+.content-scroll :deep(h1),
+.content-scroll :deep(h2) {
+  color: var(--af-primary);
 }
 .edit-area {
   height: 100%;
