@@ -1,16 +1,16 @@
 ---
 plan_id: PLAN-036
-status: executing
+status: execution_done
 feature_name: AutoDown 报告——emit_report 收 .ad 文档 + 现成管线渲染
 author: [zhaopuming]
 created_at: 2026-08-22T18:30:00+08:00
-updated_at: 2026-08-22T18:30:00+08:00
+updated_at: 2026-08-22T19:10:00+08:00
 
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 0
+current_step: 6
 total_steps: 7
 ---
 
@@ -56,12 +56,12 @@ total_steps: 7
 
 ## 执行步骤
 
-- [ ] **T1** worktree `auto-musk-wt-036`（分支 plan-036）+ 计划入库 executing。
-- [ ] **T2** `report_tools.rs`：`parse_ad_frontmatter`（标量+内联数组）+ `.ad` 入参与校验 + 单测。
-- [ ] **T3** `report_tools.rs`：`md_to_html` 最小子集 + `render_report_html_v3`/`_markdown_v3` + 单测。
-- [ ] **T4** `plan_flow.rs` 模板 `.ad` 指令 + 守护测试同步。
-- [ ] **T5** `ReportCard.vue`：body 喂 StreamingRenderer + frontmatter blocks + 回退兼容。
-- [ ] **T6** 全量回归 + build + 合并部署。
+- [x] **T1** worktree `auto-musk-wt-036`（分支 plan-036）+ 计划入库 executing。 [✅] 提交 f85c7a0
+- [x] **T2** `report_tools.rs`：`parse_ad_frontmatter`（标量+内联数组）+ `.ad` 入参与校验 + 单测。 [✅] 6/6（frontmatter 标量+内联数组/无围栏/校验/md_to_html 块型/产物含指标与正文）
+- [x] **T3** `report_tools.rs`：`md_to_html` 最小子集 + `render_report_html_v3`/`_markdown_v3` + 单测。 [✅] 6/6（frontmatter 标量+内联数组/无围栏/校验/md_to_html 块型/产物含指标与正文）
+- [x] **T4** `plan_flow.rs` 模板 `.ad` 指令 + 守护测试同步。 [✅] 10/10
+- [x] **T5** `ReportCard.vue`：body 喂 StreamingRenderer + frontmatter blocks + 回退兼容。 [✅] TSC 0；vitest 22 过（2 存量）
+- [x] **T6** 全量回归 + build + 合并部署。 [✅] cargo 全量 0 失败；build 18.2s
 - [ ] **T7** E2E + 走查计划，结果记录本节。
 
 ## 复审记录

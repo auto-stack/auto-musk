@@ -16,8 +16,24 @@
     </div>
 
     <div v-if="expanded" class="report-body">
-      <!-- ── v2 blocks：目标 + Goal chips ── -->
-      <template v-if="structured">
+      <!-- ── PLAN-036 `.ad` 模式：正文喂 StreamingRenderer（@autodown 同源）── -->
+      <template v-if="structured?.body">
+        <div class="rb-section">
+          <div v-if="objectiveText" class="rb-objective">{{ objectiveText }}</div>
+          <div v-if="goalLinks.length" class="rb-chips">
+            <button
+              v-for="g in goalLinks"
+              :key="g.id || g.label"
+              class="rb-chip"
+              title="在 Specs 中查看"
+              @click.stop="goSpecs"
+            >{{ g.label || g.id }}</button>
+          </div>
+        </div>
+      </template>
+
+      <!-- ── v2 blocks：目标 + 流程方框链（旧数据回退） ── -->
+      <template v-else-if="structured">
         <div class="rb-section">
           <div class="rb-label">目标</div>
           <div class="rb-objective">{{ structured.objective }}</div>
@@ -32,7 +48,6 @@
           </div>
         </div>
 
-        <!-- ── v2 blocks：流程方框链（含各阶段成果） ── -->
         <div class="rb-section">
           <div class="rb-label">实现流程 · 各阶段成果</div>
           <div class="rb-flow">
@@ -82,7 +97,11 @@
             </template>
           </div>
         </div>
-        <div v-if="report.summary" class="report-summary">
+        <!-- PLAN-036：`.ad` 正文（Markdown 超集，StreamingRenderer 渲染） -->
+        <div v-if="structured?.body" class="report-summary ad-body">
+          <StreamingRenderer :source="structured.body" :streaming="false" />
+        </div>
+        <div v-else-if="report.summary" class="report-summary">
           <StreamingRenderer :source="report.summary" :streaming="false" />
         </div>
       </template>
@@ -194,11 +213,15 @@ const durationLabel = computed(() => {
 
 const confidence = computed(() => props.report.confidence || 'Medium')
 
-// ── v2 结构化 blocks ──
+// ── v2/`.ad` 结构化 blocks ──
 const structured = computed(() => props.report.structured ?? null)
 const goalLinks = computed<any[]>(() => structured.value?.goal_links ?? [])
 const stages = computed<any[]>(() => structured.value?.stages ?? [])
 const deliverables = computed<any[]>(() => structured.value?.deliverables ?? [])
+/** PLAN-036：`.ad` 模式的引导句（summary 或 v2 objective）。 */
+const objectiveText = computed(
+  () => structured.value?.objective || structured.value?.summary || '',
+)
 
 function kindIcon(kind: string): string {
   switch (kind) {
@@ -276,6 +299,8 @@ function goSpecs() {
 .report-body { padding: 0.65rem 0.9rem 0.8rem; display: flex; flex-direction: column; gap: 0.65rem; }
 /* 摘要 */
 .report-summary { font-size: 0.88rem; line-height: 1.6; color: var(--af-fg); }
+/* PLAN-036：`.ad` 正文（StreamingRenderer 全宽文档流） */
+.ad-body { width: 100%; }
 /* 指标格 */
 .report-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
 .metric-cell {
