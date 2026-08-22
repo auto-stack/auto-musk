@@ -51,7 +51,8 @@ export function splitFrontmatter(content: string): SplitResult | null {
       meta[currentKey] = stripComment(unquote(rest))
     }
   }
-  return { meta, body: content.slice(m[0].length).replace(/^\r?\n/, '') }
+  // 去掉正文开头的空行（MetaBlock 与首个标题之间的空隙来源之一）
+  return { meta, body: content.slice(m[0].length).replace(/^(?:[ \t]*\r?\n)+/, '') }
 }
 
 /** 去掉成对的包裹引号。 */

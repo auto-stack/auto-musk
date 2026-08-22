@@ -7,10 +7,18 @@
           <Plus :size="16" />
         </button>
       </div>
-      <select v-model="filterMode" class="nav-filter" :title="t('plans.filterTitle')">
-        <option value="active">{{ t('plans.filterActive') }}</option>
-        <option value="all">{{ t('plans.filterAll') }}</option>
-      </select>
+      <div class="nav-filter-group">
+        <button
+          class="filter-btn"
+          :class="{ active: filterMode === 'active' }"
+          @click="filterMode = 'active'"
+        >{{ t('plans.filterActive') }}</button>
+        <button
+          class="filter-btn"
+          :class="{ active: filterMode === 'all' }"
+          @click="filterMode = 'all'"
+        >{{ t('plans.filterAll') }}</button>
+      </div>
       <div class="nav-list">
         <div v-if="isLoading" class="nav-empty">{{ t('plans.loading') }}</div>
         <div v-else-if="plans.length === 0" class="nav-empty">{{ t('plans.empty') }}</div>
@@ -41,15 +49,7 @@
           </div>
           <div class="header-actions">
             <template v-if="!editing">
-              <template v-if="!current.archived">
-                <button
-                  v-for="s in ALLOWED_TRANSITIONS[current.status]"
-                  :key="s"
-                  class="action-btn transition-btn"
-                  :class="{ rollback: isRollback(current.status, s) }"
-                  @click="onTransition(s)"
-                >{{ t('plans.transitionTo', { status: t(planStatusKey(s)) }) }}</button>
-              </template>
+              <!-- 状态转移由 AI Agent（auto-plan 技能/relay plan_flow）驱动，UI 不提供手动转移（PLAN-033 复审后调整） -->
               <button class="action-btn" @click="startEdit">{{ t('plans.edit') }}</button>
               <!-- PLAN-033 单一终态：reviewed 只显示"沉淀到 Spec"（沉淀即归档）；
                    非 reviewed 未归档显示"归档"（搁置不沉淀）；两者互斥。 -->
@@ -117,7 +117,6 @@ import PlanStatusBadge from '@/components/plan/PlanStatusBadge.vue'
 import PlanMetaBlock from '@/components/plan/PlanMetaBlock.vue'
 import { splitFrontmatter } from '@/utils/frontmatter'
 import { usePlans } from '@/composables/usePlans'
-import { ALLOWED_TRANSITIONS, planStatusKey, type PlanStatus } from '@/types/plans'
 
 const { t } = useI18n()
 const {
@@ -128,7 +127,6 @@ const {
   loadPlan,
   createPlan,
   updatePlan,
-  transitionPlan,
   archivePlan,
   mergePlan,
 } = usePlans()
@@ -145,19 +143,6 @@ const editing = ref(false)
 const editBody = ref('')
 const creating = ref(false)
 const newName = ref('')
-
-/** 生命周期序（用于判定转移按钮是否为回退边）。 */
-const STATUS_ORDER: Record<PlanStatus, number> = {
-  drafting: 0,
-  executing: 1,
-  execution_done: 2,
-  reviewed: 3,
-  archived: 4,
-}
-
-function isRollback(from: PlanStatus, to: PlanStatus): boolean {
-  return STATUS_ORDER[to] < STATUS_ORDER[from]
-}
 
 /** 拆出 frontmatter：渲染区只喂正文，meta 交给 PlanMetaBlock（PLAN-033 T9）。 */
 const parsed = computed(() => (current.value ? splitFrontmatter(current.value.content) : null))
@@ -202,12 +187,6 @@ async function onSave() {
   if (!current.value) return
   const updated = await updatePlan(current.value.seq, editBody.value)
   if (updated) editing.value = false
-}
-
-async function onTransition(target: PlanStatus) {
-  if (!current.value || target === current.value.status) return
-  const p = await transitionPlan(current.value.seq, target)
-  if (p) await refresh()
 }
 
 async function onArchive() {
@@ -296,15 +275,38 @@ onMounted(() => {
   background: hsl(var(--muted-foreground) / 0.08);
   color: var(--af-fg);
 }
-.nav-filter {
+.nav-filter-group {
+  display: inline-flex;
   margin: 0.5rem 0.75rem;
+}
+.filter-btn {
   font-size: 0.78rem;
-  padding: 0.25rem 0.4rem;
-  border: 1px solid var(--af-border);
-  border-radius: 5px;
+  padding: 0.25rem 0.65rem;
   background: var(--af-bg);
-  color: var(--af-fg);
+  color: var(--af-muted);
+  border: 1px solid var(--af-border);
   cursor: pointer;
+  white-space: nowrap;
+}
+.filter-btn + .filter-btn {
+  border-left: none;
+}
+.filter-btn:first-child {
+  border-radius: 5px 0 0 5px;
+}
+.filter-btn:last-child {
+  border-radius: 0 5px 5px 0;
+}
+.filter-btn:hover {
+  background: hsl(var(--muted-foreground) / 0.07);
+}
+.filter-btn.active {
+  background: hsl(var(--primary) / 0.12);
+  color: var(--af-primary);
+  border-color: hsl(var(--primary) / 0.4);
+}
+.filter-btn.active + .filter-btn {
+  border-left: 1px solid hsl(var(--primary) / 0.4);
 }
 .nav-list {
   flex: 1;
@@ -403,11 +405,6 @@ onMounted(() => {
   align-items: center;
   gap: 0.4rem;
 }
-/* 回退边（如 executing → drafting）弱化显示 */
-.transition-btn.rollback {
-  color: var(--af-muted);
-  border-style: dashed;
-}
 .action-btn {
   font-size: 0.78rem;
   padding: 0.25rem 0.6rem;
@@ -451,6 +448,11 @@ onMounted(() => {
 .content-scroll :deep(h1),
 .content-scroll :deep(h2) {
   color: var(--af-primary);
+}
+/* 正文首块不设上 margin（MetaBlock 与首个 H1 之间的空隙来源） */
+.content-scroll :deep(.markdown-content > :first-child),
+.content-scroll :deep(.markdown-content > :first-child > :first-child) {
+  margin-top: 0;
 }
 .edit-area {
   height: 100%;

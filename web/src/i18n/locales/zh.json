@@ -156,7 +156,6 @@
     "newPlan": "新建计划",
     "featureName": "功能名称",
     "featureNamePlaceholder": "如：新增用户认证",
-    "filterTitle": "筛选范围",
     "filterActive": "进行中",
     "filterAll": "全部",
     "create": "创建",
@@ -175,6 +174,7 @@
     "statusExecutionDone": "执行完成",
     "statusReviewed": "已复审",
     "statusArchived": "已归档",
+    "metaTitle": "元数据",
     "metaShow": "展开元数据",
     "metaHide": "收起元数据"
   },

@@ -143,7 +143,6 @@
     "newPlan": "New Plan",
     "featureName": "Feature name",
     "featureNamePlaceholder": "e.g. Add user authentication",
-    "filterTitle": "Filter scope",
     "filterActive": "Active",
     "filterAll": "All",
     "create": "Create",
@@ -162,6 +161,7 @@
     "statusExecutionDone": "Execution Done",
     "statusReviewed": "Reviewed",
     "statusArchived": "Archived",
+    "metaTitle": "Metadata",
     "metaShow": "Show metadata",
     "metaHide": "Hide metadata"
   },

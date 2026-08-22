@@ -29,9 +29,9 @@ describe('splitFrontmatter', () => {
     expect(r!.meta['author']).toEqual(['zhaopuming'])
     expect(r!.meta['supersedes_spec_components']).toEqual([])
     expect(r!.meta['current_step']).toBe('3')
-    // body 不含 frontmatter，保留正文
+    // body 不含 frontmatter，保留正文；开头的空行被剥掉（首个标题紧跟渲染顶部）
     expect(r!.body).not.toContain('plan_id')
-    expect(r!.body).toContain('# [PLAN-033] 计划模块 UI/UX 改进')
+    expect(r!.body.startsWith('# [PLAN-033]')).toBe(true)
     expect(r!.body).toContain('正文内容。')
   })
 
