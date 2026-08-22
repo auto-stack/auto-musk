@@ -1224,7 +1224,12 @@ function onReviewInSpecs(sectionId: string) {
 // ─── Report handlers ────────────────────────────────────────────────────────
 
 function onViewFullReport() {
-  alert('View full report in specs')
+  // PLAN-034：打开 run 的完整 HTML 报告（PLAN-032 端点返回自包含单文件）。
+  const runId = reportData.value?.runId
+  if (!runId || runId === 'unknown') return
+  const wid = workspaceId.value
+  const qs = wid ? `?workspace=${encodeURIComponent(wid)}` : ''
+  window.open(`/api/forge/relay/runs/${runId}/report${qs}`, '_blank')
 }
 
 function onDownloadReport() {
@@ -1317,9 +1322,12 @@ onMounted(async () => {
   // Wire report callback from event router
   setEventCallbacks({
     onReport: (payload) => {
-      const p = payload as Record<string, any>
+      // payload 可能双层嵌套：run 事件 SSE 包 {event_type, payload:{report}}
+      // 或直传事件本体 {report}——统一解包到字段层。
+      const raw = payload as Record<string, any>
+      const p = (raw.payload?.report ?? raw.payload ?? raw.report ?? raw) as Record<string, any>
       reportData.value = {
-        runId: (p.run_id as string) || 'unknown',
+        runId: (p.run_id as string) || (raw.run_id as string) || 'unknown',
         title: (p.title as string) || '',
         summary: (p.summary as string) || '',
         goalsMet: (p.goals_met as string) || '—',
@@ -1331,7 +1339,7 @@ onMounted(async () => {
         filesChanged: (p.files_changed as string[]) || [],
         toolCalls: (p.tool_calls as number) || 0,
         durationS: (p.duration_s as number) || 0,
-        report: p.report ?? undefined,
+        report: p.report ?? raw.report ?? undefined,
       }
     },
   })
