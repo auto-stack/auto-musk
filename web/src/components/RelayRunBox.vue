@@ -185,7 +185,13 @@
       </div>
 
       <!-- PLAN-032: 汇报报告卡（展开体底部；gen 同位） -->
-      <ReportCard v-if="expanded && reportCardData" :report="reportCardData" />
+      <ReportCard
+        v-if="expanded && reportCardData"
+        :report="reportCardData"
+        @view-full="onViewFullReport"
+        @download="onDownloadReport"
+        @open-files="onOpenFiles"
+      />
 
       <!-- Inline gate actions（展开态） -->
       <div v-if="run?.waiting_for_gate" class="gate-actions">
@@ -206,7 +212,7 @@ import { useRelay } from '@/composables/useRelay'
 
 const props = defineProps<{ runId: string }>()
 
-const { runs, currentRun, loadRun, loadRunHistory, subscribeToRun, resolveGate, sessionLogFor, runReports } = useRelay()
+const { runs, currentRun, loadRun, loadRunHistory, subscribeToRun, resolveGate, sessionLogFor, runReports, fetchRunReport } = useRelay()
 import type { RunHistory } from '@/composables/useRelay'
 
 const expanded = ref(false)
@@ -333,22 +339,53 @@ const previewRows = computed<any[]>(() => {
 
 // PLAN-032: 汇报报告卡（web 与 gen 同位：展开体底部）。元数据双通道
 // （SSE 载荷 / 会话回放），内容经 /runs/{id}/report（磁盘回退，重启耐久）。
+// PLAN-034 修正：SSE 通道的 payload.report 本就是全量字段（summary/指标/
+// deliverables），旧版类型注解把它当 {format,title,path} 瘦对象导致指标
+// 全空——此处映射全量，回放通道（瘦元数据）自动回退默认值。
 const reportCardData = computed(() => {
-  const meta = runReports.value[props.runId]
+  const meta = runReports.value[props.runId] as Record<string, any> | undefined
   if (!meta) return null
   return {
-    runId: props.runId,
-    title: meta.title || '',
-    summary: '',
-    goalsMet: '—',
-    testsPass: '—',
-    driftDetected: 'None',
-    cost: '—',
-    confidence: 'Medium' as const,
-    deliverables: [],
-    report: meta,
+    runId: (meta.run_id as string) || props.runId,
+    title: (meta.title as string) || meta.report?.title || '',
+    summary: (meta.summary as string) || '',
+    goalsMet: (meta.goals_met as string) || '—',
+    testsPass: (meta.tests_pass as string) || '—',
+    driftDetected: (meta.drift_detected as string) || 'None',
+    cost: (meta.cost as string) || '—',
+    confidence: (meta.confidence as 'High' | 'Medium' | 'Low') || 'Medium',
+    deliverables: (meta.deliverables as string[]) || [],
+    filesChanged: (meta.files_changed as string[]) || [],
+    toolCalls: (meta.tool_calls as number) || 0,
+    durationS: (meta.duration_s as number) || 0,
+    report: meta.report ?? meta,
   }
 })
+
+// PLAN-034 修正：报告操作落地（fetchRunReport 自带 workspace 与磁盘回退）。
+async function onViewFullReport() {
+  const html = await fetchRunReport(props.runId)
+  if (!html) return
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+  window.open(url, '_blank')
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+async function onDownloadReport() {
+  const html = await fetchRunReport(props.runId)
+  if (!html) return
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `report-${props.runId}.html`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
+function onOpenFiles() {
+  const files = reportCardData.value?.filesChanged ?? []
+  alert(files.length ? `变更文件：\n${files.join('\n')}` : '无变更文件')
+}
 
 // 预览圆点：仅运行中脉动；gate 琥珀/失败红/完成绿/失效灰——终态常亮
 // （失败后圆点仍在闪烁会让用户误以为命令还在跑）
