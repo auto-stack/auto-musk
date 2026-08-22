@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 6
+current_step: 7
 total_steps: 7
 ---
 
@@ -62,7 +62,7 @@ total_steps: 7
 - [x] **T4** `plan_flow.rs` 模板 `.ad` 指令 + 守护测试同步。 [✅] 10/10
 - [x] **T5** `ReportCard.vue`：body 喂 StreamingRenderer + frontmatter blocks + 回退兼容。 [✅] TSC 0；vitest 22 过（2 存量）
 - [x] **T6** 全量回归 + build + 合并部署。 [✅] cargo 全量 0 失败；build 18.2s
-- [ ] **T7** E2E + 走查计划，结果记录本节。
+- [x] **T7** E2E + 走查计划，结果记录本节。 [✅] E2E（PLAN-030）：Agent 交合规 .ad（frontmatter：title/summary/deliverables×3 带 kind+change；body 为 Markdown 正文）；structured={title,summary,deliverables,body} 入会话报告消息；机械指标（1/1、9、411、50s）同源注入；report.html/md/ad 三产物落盘（html 含指标格与正文表格）。goal_links Agent 省略（可选键，正常）。浏览器走查留用户。
 
 ## 复审记录
 
