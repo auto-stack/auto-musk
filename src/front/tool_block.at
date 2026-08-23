@@ -7,12 +7,14 @@
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web extractRunId from "src/front/forge_helpers.at"
+use.web relayReportView from "src/front/relay_run_helpers.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
 use errand_card: ErrandCard
 use relay_run_box: RelayRunBox
 use task_plan_card: TaskPlanCard
 use generic_tool_card: GenericToolCard
+use report_card: ReportCard
 
 widget ToolBlock(tc: obj, errands: obj, relays: obj, task_plans: obj) {
     computed {
@@ -40,6 +42,13 @@ widget ToolBlock(tc: obj, errands: obj, relays: obj, task_plans: obj) {
                 TaskPlanCard {
                     tc: .tc
                     taskPlans: .task_plans
+                }
+            } else if .name == "report" {
+                // 历史回放 parity（对齐 web 轨 reportFromToolCall）：report 工具
+                // 调用渲染为 ReportCard 而非 GenericToolCard。实时路径仍走
+                // store.report_data（SSE run_completed）。
+                ReportCard {
+                    report: relayReportView(.tc.arguments)
                 }
             } else {
                 GenericToolCard {
