@@ -1,14 +1,20 @@
 ---
 plan_id: PLAN-039
-status: execution_done
+status: reviewed
 feature_name: 文件工具对齐 pi——edit 吸收 batch_replace（CRLF/BOM/模糊匹配/多重编辑/自愈报错）、read 分页截断、共享截断模块与 String::truncate panic 修复
 author: [zhaopuming]
 created_at: 2026-08-23
 updated_at: 2026-08-23
 
-supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+supersedes_spec_components:
+  - "docs/specs/00-overview.md: 「9 基础工具」计数过时——batch_replace 已删(现 8 基础工具)"
+  - "docs/specs/01-architecture.md: `tools.rs` 行(9 本地工具含 BatchReplace)需改为 8 工具 + 指向 edit_diff/tool_truncate"
+new_spec_components:
+  - "docs/specs/01-architecture.md: 新增 `edit_diff.rs` 行——pi edit-diff.ts 移植(NFKC/智能引号规范化、fuzzy_find 精确优先、行级保留回写、多重编辑非增量匹配+重叠检测、五类自愈报错)"
+  - "docs/specs/01-architecture.md: 新增 `tool_truncate.rs` 行——共享截断模块(truncate_head/tail/line,UTF-8 字符边界安全,修 String::truncate panic)"
+touched_goals:
+  - "goal-agent: 文件工具层 pi parity——edit_file 吸收 batch_replace(edits[] 多编辑/CRLF-BOM 往返/模糊回退/入口垫片)、read_file 分页(2000 行/50KB+续读尾注)、search/run_command 输出封顶"
+  - "goal-security: 修 search 多字节截断 panic(进程崩溃级)+ edit_file per-path 写互斥(丢更新防护)"
 
 current_step: 12
 total_steps: 12
@@ -147,3 +153,37 @@ path confinement 与注入式 root 原样保留在所有新代码路径中；`li
   ToolError>`（无 content/details 分离），故任务 10 走"简短确认 + 三处
   `// PLAN-027 挂接点` 标注"路线（tools.rs:100 / tools.rs:472 / tool_truncate.rs
   TruncationResult 文档）。
+
+## 复审记录
+
+- **复审人**：zhaopuming（/auto-plan:review，2026-08-23）
+- **方法**：不信任已打勾项,全部独立重验——含与 pi 参考实现的**跨实现真实对拍**
+  （node v25.2.1 跑 edit-diff.ts @ a1f955e9f 逐字抽取函数,14 用例输出与
+  musk edit_diff.rs 单测断言逐字比对）。
+
+### 验收标准逐项判定
+
+| # | 标准 | 判定 | 证据 |
+|---|---|---|---|
+| 1 | pi 行为对拍表全绿(8 类边界,模糊命中时未触达行字节不变,二进制断言) | **PASS** | pi 原函数 node 对拍 14 用例输出与 Rust 单测断言**逐字一致**(含 3 个模糊行级保留、5 类报错语义、NFKC 全角);tool_atoms.rs `edit_file_parity_matrix` 11 用例 OkFileEquals 二进制精确断言通过 |
+| 2 | read_file 读 10MB 返回 ≤50KB 且尾注可指导续读 | **PASS** | `cargo test -p musk --lib read_file_10mb_returns_capped` → 1 passed(out < 52_000 且含 `Use offset=2001 to continue.`) |
+| 3 | 中文内容 search 截断不再 panic(多字节边界回归覆盖) | **PASS** | `search_multibyte_truncation_does_not_panic` + `head/tail_multibyte` 3 测试 passed;旧代码 panic 曾在 tools.rs:370 复证后修复 |
+| 4 | batch_replace 移除后全部测试与技能引用更新完毕 | **PASS** | 全仓 grep(backend/skills/docs/designs/.agents,排除归档与标注性说明)0 命中;全量 `cargo test -p musk` 566 passed / 0 failed |
+
+### 债务候选与偏差记录
+
+1. **commit `8a3f011`(auto-ai PLAN-026 依赖漂移适配)**:计划外最小机械适配
+   (6 处 match 臂补齐),行为零变更,恢复 main 可编译;turn 级事件的完整
+   消费(用量统计/前端渲染)需专门计划对齐——留待用户裁定(见待澄清事项)。
+2. **run_command 输出封顶为临时措施**:完整重写(超时/全量落盘)归
+   PLAN-040——计划内设计,非本计划债务。
+3. **报错文案 oldText → old_string**:musk 参数名适配,有意为之(pi 文案
+   语义照抄),非实现漂移。
+4. **大文件截断用例位置**:2500 行/10MB 用例在 tools.rs 单测(编程式
+   fixtures);tool_atoms 静态表承载 8 类编辑边界 + 分页轻量用例——与
+   任务 11"与任务 5 同源 fixtures"(指 8 类编辑边界)一致。
+
+### 结论
+
+4/4 验收标准全过,无阻断性债务 → **status: reviewed**,可进入
+/auto-plan:merge。
