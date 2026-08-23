@@ -402,6 +402,155 @@ async fn run_command_matrix() {
 // ════════════════════════════════════════════════════════════════════════════
 
 // ════════════════════════════════════════════════════════════════════════════
+// edit_file pi 行为对拍表(PLAN-039 T11)——与 src/edit_diff.rs 单测同源的
+// 8 类边界 fixtures,经完整工具链(垫片/BOM 拆分/行尾检测/行级保留/恢复)
+// 用二进制精确断言(OkFileEquals 读原文比对)。
+// ════════════════════════════════════════════════════════════════════════════
+
+fn edit_file_parity_cases() -> Vec<ToolCase> {
+    vec![
+        // 1. CRLF 文件 + LF old_string(模型常态)→ 命中且写回保持 CRLF。
+        ToolCase {
+            name: "parity_crlf_file_lf_oldstring",
+            category: CaseCategory::Normal,
+            fixtures: vec![Fixture::file("a.txt", "alpha\r\nbeta\r\ngamma\r\n")],
+            call: ("edit_file", json!({"path":"a.txt","edits":[{"old_string":"beta","new_string":"BETA"}]})),
+            expect: Expect::OkFileEquals { path: "a.txt", content: "alpha\r\nBETA\r\ngamma\r\n" },
+        },
+        // 2. BOM:匹配前剥、写回恢复。
+        ToolCase {
+            name: "parity_bom_preserved",
+            category: CaseCategory::Normal,
+            fixtures: vec![Fixture::file("a.txt", "\u{FEFF}hello world")],
+            call: ("edit_file", json!({"path":"a.txt","edits":[{"old_string":"world","new_string":"musk"}]})),
+            expect: Expect::OkFileEquals { path: "a.txt", content: "\u{FEFF}hello musk" },
+        },
+        // 3. 智能引号:ASCII old_string 模糊命中;未触达行尾空白字节不变。
+        ToolCase {
+            name: "parity_smart_quotes_untouched_bytes",
+            category: CaseCategory::Normal,
+            fixtures: vec![Fixture::file("a.txt", "keep \n“hello”\ntail  \n")],
+            call: ("edit_file", json!({"path":"a.txt","edits":[{"old_string":"\"hello\"","new_string":"[hi]"}]})),
+            expect: Expect::OkFileEquals { path: "a.txt", content: "keep \n[hi]\ntail  \n" },
+        },
+        // 4. NBSP:特殊空格规范化后命中。
+        ToolCase {
+            name: "parity_nbsp_normalized_to_space",
+            category: CaseCategory::Normal,
+            fixtures: vec![Fixture::file("a.txt", "a\u{00A0}b\nc")],
+            call: ("edit_file", json!({"path":"a.txt","edits":[{"old_string":"a b","new_string":"X"}]})),
+            expect: Expect::OkFileEquals { path: "a.txt", content: "X\nc" },
+        },
+        // 5. 行尾空白差异:模糊命中,触达行从规范化空间重写。
+        ToolCase {
+            name: "parity_trailing_whitespace_fuzzy",
+            category: CaseCategory::Normal,
+            fixtures: vec![Fixture::file("a.txt", "x  \ny")],
+            call: ("edit_file", json!({"path":"a.txt","edits":[{"old_string":"x\ny","new_string":"X\nY"}]})),
+            expect: Expect::OkFileEquals { path: "a.txt", content: "X\nY" },
+        },
+        // 6. 重复出现:规范化空间计数 >1 → 拒绝(pi 歧义报错)。
+        ToolCase {
+            name: "parity_duplicate_rejected",
+            category: CaseCategory::Error,
+            fixtures: vec![Fixture::file("a.txt", "dup\ndup\n")],
+            call: ("edit_file", json!({"path":"a.txt","edits":[{"old_string":"dup","new_string":"x"}]})),
+            expect: Expect::ErrContains("occurrences"),
+        },
+        // 7. 重叠编辑:拒绝且不落盘(原子)。
+        ToolCase {
+            name: "parity_overlap_rejected_atomically",
+            category: CaseCategory::Error,
+            fixtures: vec![Fixture::file("a.txt", "abcdef\n")],
+            call: ("edit_file", json!({"path":"a.txt","edits":[
+                {"old_string":"bcd","new_string":"X"},
+                {"old_string":"def","new_string":"Y"}
+            ]})),
+            expect: Expect::ErrContains("overlap"),
+        },
+        // 8. 模糊命中但原文混排 CRLF:未触达行保留 CRLF 字节,触达行恢复 CRLF。
+        ToolCase {
+            name: "parity_fuzzy_hit_in_crlf_file",
+            category: CaseCategory::Boundary,
+            fixtures: vec![Fixture::file("a.txt", "one\r\n“q”\r\ntwo")],
+            call: ("edit_file", json!({"path":"a.txt","edits":[{"old_string":"\"q\"","new_string":"\"Q\""}]})),
+            expect: Expect::OkFileEquals { path: "a.txt", content: "one\r\n\"Q\"\r\ntwo" },
+        },
+        // 附:多重编辑(替代 batch_replace 的原子多编辑语义)。
+        ToolCase {
+            name: "parity_multi_edits_replaces_batch",
+            category: CaseCategory::Normal,
+            fixtures: vec![Fixture::file("a.txt", "foo bar baz\n")],
+            call: ("edit_file", json!({"path":"a.txt","edits":[
+                {"old_string":"foo","new_string":"FOO"},
+                {"old_string":"baz","new_string":"BAZ"}
+            ]})),
+            expect: Expect::OkFileEquals { path: "a.txt", content: "FOO bar BAZ\n" },
+        },
+        // 附:多重编辑中一条未命中 → 整体拒绝(原子性)。
+        ToolCase {
+            name: "parity_multi_edits_atomic_on_missing",
+            category: CaseCategory::Error,
+            fixtures: vec![Fixture::file("a.txt", "foo\n")],
+            call: ("edit_file", json!({"path":"a.txt","edits":[
+                {"old_string":"foo","new_string":"x"},
+                {"old_string":"zzz","new_string":"y"}
+            ]})),
+            expect: Expect::ErrContains("Could not find edits[1]"),
+        },
+        // 附:入口垫片——模型把 edits 发成 JSON 字符串。
+        ToolCase {
+            name: "parity_edits_json_string_shim",
+            category: CaseCategory::Boundary,
+            fixtures: vec![Fixture::file("a.txt", "aaa bbb\n")],
+            call: ("edit_file", json!({"path":"a.txt","edits":"[{\"old_string\":\"bbb\",\"new_string\":\"BBB\"}]"})),
+            expect: Expect::OkFileEquals { path: "a.txt", content: "aaa BBB\n" },
+        },
+    ]
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn edit_file_parity_matrix() {
+    run_cases(&edit_file_parity_cases(), make_tool).await;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// read_file 分页(pi read.ts 语义;大文件截断用例在 src/tools.rs 单测覆盖)
+// ════════════════════════════════════════════════════════════════════════════
+
+#[tokio::test]
+#[serial_test::serial]
+async fn read_file_paging_matrix() {
+    let lines10 = "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\n";
+    let cases = vec![
+        ToolCase {
+            name: "offset_limit_window_with_note",
+            category: CaseCategory::Normal,
+            fixtures: vec![Fixture::file("a.txt", lines10)],
+            call: ("read_file", json!({"path":"a.txt","offset":3,"limit":4})),
+            // 总行数含末尾换行的空行(pi split 口径 = 11)。
+            expect: Expect::OkExact("l3\nl4\nl5\nl6\n\n[5 more lines in file. Use offset=7 to continue.]"),
+        },
+        ToolCase {
+            name: "offset_out_of_bounds",
+            category: CaseCategory::Error,
+            fixtures: vec![Fixture::file("a.txt", lines10)],
+            call: ("read_file", json!({"path":"a.txt","offset":99})),
+            expect: Expect::ErrContains("beyond end of file"),
+        },
+        ToolCase {
+            name: "read_whole_small_file_unchanged",
+            category: CaseCategory::Normal,
+            fixtures: vec![Fixture::file("a.txt", "hello\nmusk\n")],
+            call: ("read_file", json!({"path":"a.txt"})),
+            expect: Expect::OkExact("hello\nmusk\n"),
+        },
+    ];
+    run_cases(&cases, make_tool).await;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // Security: path confinement (Design 004) — out-of-bounds paths rejected
 // ════════════════════════════════════════════════════════════════════════════
 
