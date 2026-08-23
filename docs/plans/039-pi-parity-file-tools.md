@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-039
-status: drafting
+status: executing
 feature_name: 文件工具对齐 pi——edit 吸收 batch_replace（CRLF/BOM/模糊匹配/多重编辑/自愈报错）、read 分页截断、共享截断模块与 String::truncate panic 修复
 author: [zhaopuming]
 created_at: 2026-08-23
@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 0
+current_step: 1
 total_steps: 12
 ---
 
@@ -100,7 +100,7 @@ path confinement 与注入式 root 原样保留在所有新代码路径中；`li
 
 ## 任务分解（12 步）
 
-1. `tool_truncate.rs`：三函数 + 字符边界安全 + 单测（多字节中文、恰好整行、首行超限）。
+1. `tool_truncate.rs`：三函数 + 字符边界安全 + 单测（多字节中文、恰好整行、首行超限）。[✅ 已完成] 16/16 单测通过（head/tail/line 三函数，多字节边界/整行临界/首行超限全覆盖）；commit `feat(plan-039): T1`
 2. `search` 改用共享模块，删除裸 `truncate`（**修 panic，可单独提前合入**）。
 3. `read_file` offset/limit + 截断 + 续读尾注 + 越界报错；单测。
 4. `tool_truncate` 接入 `run_command` 输出上限（临时措施，完整重写在 PLAN-040）。

@@ -20,6 +20,7 @@ pub mod plan_tools;
 pub mod tool_context;
 pub mod tool_safety;
 pub mod tool_test;
+pub mod tool_truncate;
 pub mod tools;
 pub mod wiki;
 pub mod workspace;

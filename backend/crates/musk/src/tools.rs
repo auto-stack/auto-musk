@@ -363,12 +363,30 @@ impl Tool for Search {
         if result.is_empty() {
             // No matches is a valid, non-error result.
             result.push_str("(no matches)");
+        } else {
+            // PLAN-039 T2: 单行超长先按字符截断(pi grep 行截断,500 字符)。
+            result = result
+                .lines()
+                .map(|l| crate::tool_truncate::truncate_line(
+                    l,
+                    crate::tool_truncate::GREP_MAX_LINE_LENGTH,
+                ))
+                .collect::<Vec<_>>()
+                .join("\n");
         }
-        // Cap output length to avoid flooding the context.
+        // Cap output length to avoid flooding the context. PLAN-039 T2: 走共享
+        // 截断模块——字节切割点永远落在 UTF-8 字符边界(旧的裸
+        // `String::truncate` 在中文等多字节内容下会 panic 掉整个进程),
+        // 且改为尾部保留(与 pi 一致:最深路径的匹配排最后,最有信息量)。
         const MAX_BYTES: usize = 8 * 1024;
-        if result.len() > MAX_BYTES {
-            result.truncate(MAX_BYTES);
-            result.push_str("\n... (truncated, refine your pattern)");
+        let capped = crate::tool_truncate::truncate_tail(
+            &result,
+            crate::tool_truncate::DEFAULT_MAX_LINES,
+            MAX_BYTES,
+        );
+        if capped.truncated {
+            result = capped.content;
+            result.push_str("\n... (output truncated, refine your pattern)");
         }
         Ok(result)
     }
@@ -957,6 +975,28 @@ mod tests {
             .await
             .unwrap();
         assert!(out.contains("(no matches)"));
+    }
+
+    /// PLAN-039 T2 回归:中文内容超过 8KB 截断上限时不得 panic。
+    /// 旧实现 `result.truncate(8192)` 在多字节字符中间切割会直接崩掉
+    /// 整个 musk 进程;新实现走共享截断模块(尾部保留 + 字符边界安全)。
+    #[tokio::test]
+    async fn search_multibyte_truncation_does_not_panic() {
+        init_root();
+        let path = std::path::PathBuf::from(".test-tmp/musk_search_multibyte.txt");
+        std::fs::create_dir_all(".test-tmp").unwrap();
+        // 60 行 × (100 个三字节汉字 + 前缀 + 换行) ≈ 20KB 匹配输出,
+        // 必然触发 8KB 截断;8192 字节边界落在中文字符中间。
+        let line = format!("{}match", "中".repeat(100));
+        let content = std::iter::repeat_n(line + "\n", 60).collect::<String>();
+        std::fs::write(&path, content).unwrap();
+        let out = Search::new()
+            .execute(&json!({"pattern": "match", "path": path.to_string_lossy()}))
+            .await
+            .expect("multibyte truncation must not panic");
+        assert!(out.len() <= 9_000, "output should be capped, got {} bytes", out.len());
+        assert!(out.contains("truncated"), "capped output should carry a truncation note");
+        let _ = std::fs::remove_file(&path);
     }
 
     // ── ListDir ────────────────────────────────────────────────
