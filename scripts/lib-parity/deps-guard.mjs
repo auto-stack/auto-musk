@@ -17,8 +17,9 @@
 //
 // 超白名单 → exit 1 并打印完整清单（CI 可挂）。
 //
-// 过渡区（TRANSITIONAL）：T2 阻塞（计划待澄清 #9）期间,auto-lang 共享模板仍生成
-// codemirror 系死依赖声明与死文件 CodeEditor.vue。守卫放行但单列打印,T2 落定后删除。
+// 过渡区（TRANSITIONAL）：T2 已裁定转责（2026-08-23,选项 (ii)）——auto-lang 442
+// Phase 0 P0-1（依赖按使用裁剪）落地前,共享模板仍生成 codemirror 系死依赖声明与
+// 死文件 CodeEditor.vue 的 import。守卫放行但单列打印,442 P0-1 落地后删除。
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -110,7 +111,7 @@ for (const file of walk(join(ROOT, USE_WEB_DIR))) {
 }
 
 if (transitionalHits.size > 0) {
-  console.warn(`[deps-guard] 过渡放行（T2 阻塞/待澄清 #9,落定后应清零）: ${[...transitionalHits].sort().join(', ')}`);
+  console.warn(`[deps-guard] 过渡放行（待 auto-lang 442 P0-1 落地清零）: ${[...transitionalHits].sort().join(', ')}`);
 }
 
 if (violations.size > 0) {

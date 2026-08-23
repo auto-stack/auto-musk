@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-038
-status: executing
+status: execution_done
 feature_name: 第三方库 Auto 版替换（i18n/icons + 渲染真源切 auto-down + 高亮方案对比）——VM/Rust 目标即插即用
 author: [zhaopuming]
 created_at: 2026-08-23
@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 15
+current_step: 16
 total_steps: 18
 ---
 
@@ -268,11 +268,11 @@ import、src/front 全部 `use.web ... from` 目标。新增第三方依赖 → 
 - [x] **T1** 移除 web/package.json 的 `marked` 与 `@types/marked` 声明（grep 实证
   web/src、gen 源零引用）；验证：`cd web && npm install && npm run build` 绿 +
   `grep -c marked web/package.json` 返回 0。 [✅ 已完成] grep web/src gen src/front 零引用；package.json 两处声明移除；npm install + npm run build 绿（built in 6.57s）；grep -c marked web/package.json = 0（lockfile 剩 4 处为 mermaid 传递依赖，非直依赖）
-- [ ] **T2** 定位 gen/front/vue/package.json 的生成模板（`grep -rl "vue-sonner" --include="*.json" --include="*.ts" --include="*.at" . ../auto-lang` 找模板源），
+- [x] **T2** 定位 gen/front/vue/package.json 的生成模板（`grep -rl "vue-sonner" --include="*.json" --include="*.ts" --include="*.at" . ../auto-lang` 找模板源），
   从模板删除未用依赖：vue-codemirror、@codemirror/*（7 项）、reka-ui、vaul-vue、
   vue-sonner、vee-validate、@vee-validate/zod、zod、embla-carousel-vue、@vueuse/core；
   验证：`auto build --gen-only` 后 `grep -E "codemirror|reka-ui|vue-sonner" gen/front/vue/package.json`
-  零命中，`cd gen/front/vue && pnpm install && pnpm build` 绿。 [⛔ 阻塞→待澄清 #9] 模板源实测在 `../auto-lang/crates/auto-man/src/vue.rs` generate_package_json（非 musk 仓），共享全生态且需 cargo 重编译 `auto` CLI 方可生效；详见待澄清 #9 三选项
+  零命中，`cd gen/front/vue && pnpm install && pnpm build` 绿。 [✅ 已完成（转责,用户裁定选项 (ii)）] 模板源实测在 `../auto-lang/crates/auto-man/src/vue.rs`（共享全生态+需重编译 CLI,见待澄清 #9 三选项）→ 裁定选项 (ii)：auto-lang 侧"按使用裁剪"条件化依赖,已登记为 auto-lang 442 **Phase 0 P0-1**（不 gated 可先行,含特性→依赖映射、双向验收——musk grep 零命中 + widgets-gallery 不回归）；musk 侧 grep 零命中验收随 442 P0-1 落地复核（deps-guard TRANSITIONAL 区届时清零）
 - [x] **T3** 新建 `scripts/lib-parity/deps-guard.mjs`（白名单内置于脚本头部注释块），
   扫描 web/src + gen/front/vue/src 非相对 import 与 src/front 全部 `use.web ... from`
   目标，超白名单即 exit 1 并打印；验证：`node scripts/lib-parity/deps-guard.mjs` exit 0。 [✅ 已完成] 实测 exit 0；codemirror 系 10 包以 TRANSITIONAL 过渡区放行并单列打印（挂 T2 阻塞/待澄清 #9，落定后清零）
@@ -365,20 +365,25 @@ musk T13 端到端验证记录——本计划 T13 证据行即首个记录（ren
 或平台化——已建议 auto-lang 442 承接）;②platform:markdown 的 setCustomComponents
 注册 import（待 008 Phase 3 可选注册 API 落地后改走上游注册口）。
 
-**Phase 收口台账**：Phase 0（T1✓/T2⛔#9/T3✓,web vitest 23 绿——存量 2 例改名
-遗留过时断言已最小修复:brandName 'AutoForge'→'Auto Musk'、DOM 测试加 node 环境守卫
-skipIf）;Phase 1（T4-T7✓,i18n 对拍 156/156）;Phase 2（T8-T10✓,icons 数据对拍
-52/52,渲染层降级登记 KNOWN-DEBT）;Phase 3（T11-T13✓,render-switch 5/5,gen
-vite build 绿——vue-tsc 被 auto-lang 模板存量错拦截,登记 #10）;Phase 4（T15-T16✓,
-14 语言 × 3 方案矩阵,决策 (a) 落档）。
+**Phase 收口台账**：Phase 0（T1✓/T2✓(裁定转责 auto-lang 442 P0-1)/T3✓,web vitest 23 绿
+——存量 2 例改名遗留过时断言已最小修复:brandName 'AutoForge'→'Auto Musk'、DOM 测试
+加 node 环境守卫 skipIf）;Phase 1（T4-T7✓,i18n 对拍 156/156）;Phase 2（T8-T10✓,
+icons 数据对拍 52/52,渲染层降级登记 KNOWN-DEBT）;Phase 3（T11-T13✓,render-switch 5/5,
+gen vite build 绿——vue-tsc 被 auto-lang 模板存量错拦截,裁定归 442 P0-2）;Phase 4
+（T15-T16✓,14 语言 × 3 方案矩阵,决策 (a) 落档）。
+
+**用户裁定补录（2026-08-23）**：待澄清 #9 → 选项 (ii)（auto-lang 按使用裁剪,
+落 442 Phase 0 P0-1,不 gated）;待澄清 #10 → 归 442 Phase 0 P0-2（独立 phase,
+不 gated）。两项裁定后 T2 转责收口,16/16 任务闭环。
 
 **终验（2026-08-23 收口复跑,验收标准逐项）**：①auto build --gen-only exit 0/0 错;
 ②web vitest 23 绿+1 skip;③web npm run build 绿;④deps-guard exit 0（白名单补
 auto-man 脚手架组件库 class-variance-authority/reka-ui——全量 build 按需生成
 gen ui/Button 真实运行面,普查白名单缺口）;⑤i18n 156/156 + icons 52/52 +
 render-switch 5/5 全等;⑥src/front/lib use.web grep 零命中（含注释口径）;⑦验收 4
-之 gen 轨 grep 零命中未达（T2 阻塞,待澄清 #9）;⑧验收 6 之 gen pnpm build
-（vue-tsc）未绿（auto-lang 模板存量错,待澄清 #10;打包链路 vite build 绿）。
+之 gen 轨 grep 零命中 = auto-lang 442 P0-1 验收项（转责,musk 届时复核并清
+TRANSITIONAL 区）;⑧验收 6 之 gen pnpm build（vue-tsc）= 442 P0-2 验收项
+（转责,打包链路 vite build 现已绿）。
 
 **T16 高亮决策登记（2026-08-23,依据 T15 矩阵）**：裁定 **(a) VM 轨 syntect 原生 +
 vue 轨保留 prismjs**。数据支撑（scripts/lib-parity/fixtures/highlight/report.md,
@@ -430,6 +435,9 @@ auto-down 008 Phase 3 承接（katex/mermaid/highlight 可选注册 + 降级）�
    (ii) auto-lang 侧做"按使用裁剪"条件化依赖（属 auto-lang 442 范畴，本计划仅登记需求）；
    (iii) musk 侧后处理脚本在 auto build 后裁剪 gen/front/vue/package.json（musk 范围内
    达成 grep 零命中验收，不动模板，偏离 T2 字面"从模板删除"）。
+   **✅ 已裁定（2026-08-23）**：选项 (ii)——auto-lang 侧"按使用裁剪"条件化依赖，
+   已登记为 auto-lang 442 Phase 0 P0-1（不 gated 可先行,含 musk grep 零命中 +
+   widgets-gallery 不回归双验收）；本计划 T2 据此转责收口。
 10. **[T13 关联] auto-lang CodeEditor 模板存量类型错误**（2026-08-23 执行实测）：
     `auto-man/src/vue.rs:270` 模板生成 `import { setSearchEffect } from
     '@codemirror/search'`——该 API 在 @codemirror/search@6 实际导出面不存在
@@ -439,3 +447,5 @@ auto-down 008 Phase 3 承接（katex/mermaid/highlight 可选注册 + 降级）�
     `pnpm exec vite build`（打包链路,消费 @autodown/vue file: 依赖与全部切换产物）
     全绿；仅 vue-tsc 因该死文件类型错拦截。处置建议归 auto-lang（修模板 import 或
     setSearchQuery 等价改写），修复后 musk 侧 `pnpm build` 应恢复全绿。
+    **✅ 已裁定（2026-08-23）**：归 auto-lang 442 修复——已登记为 442 **Phase 0
+    P0-2**（独立 phase,不 gated 可先行）。
