@@ -17,10 +17,12 @@
 use.web component Markdown from "src/front/ports/renderer.at"
 use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens from "src/front/forge_helpers.at"
 
+// PLAN-037 P1: cross-file component refs (native alias form).
+use user_message: UserMessage
+use think_block: ThinkBlock
+use tool_block: ToolBlock
+
 widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj) {
-    use {
-        component: UserMessage, ThinkBlock, ToolBlock
-    }
     computed {
         role => .msg.role
         isUser => .role == "user"

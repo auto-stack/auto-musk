@@ -11,15 +11,15 @@ use.web uploadRawFiles, loadRawFileText, wikiUploadDrop, rawUploadProgress from 
 use.web raw_file_url from "src/front/raw_helpers.at"
 use.web useT from "src/front/ports/composables.at"
 
+// PLAN-037 P1: cross-file component refs (native alias form).
+use wiki_nav: WikiNav
+use raw_preview: RawPreview
+use content_header: ContentHeader
+
 widget WikiView {
 
     setup {
         let t = useT()
-    }
-    use {
-        component: WikiNav
-        component: RawPreview
-        component: ContentHeader
     }
 
     msg Msg {

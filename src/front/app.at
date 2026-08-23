@@ -17,15 +17,15 @@ use.web useT from "src/front/ports/composables.at"
 use.web useGateRouter from "src/front/ports/composables.at"
 use.web component MessageSquare, ListTodo, Scroll, BookOpen from "src/front/ports/icons.at"
 
+// PLAN-037 P1: cross-file component refs (native alias form).
+use workspace_selector: WorkspaceSelector
+use settings_menu: SettingsMenu
+
 widget App {
 
     setup {
         let t = useT()
         let gateRouter = useGateRouter()
-    }
-    use {
-        component: WorkspaceSelector
-        component: SettingsMenu
     }
 
     msg Msg {

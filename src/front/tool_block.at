@@ -8,10 +8,13 @@
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web extractRunId from "src/front/forge_helpers.at"
 
+// PLAN-037 P1: cross-file component refs (native alias form).
+use errand_card: ErrandCard
+use relay_run_box: RelayRunBox
+use task_plan_card: TaskPlanCard
+use generic_tool_card: GenericToolCard
+
 widget ToolBlock(tc: obj, errands: obj, relays: obj, task_plans: obj) {
-    use {
-        component: ErrandCard, RelayRunBox, TaskPlanCard, GenericToolCard
-    }
     computed {
         name => .tc.name
     }

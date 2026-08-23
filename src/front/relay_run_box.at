@@ -20,10 +20,10 @@ use.web component ChevronDown, ChevronUp, Orbit, Wrench, FileText, Terminal from
 use.web component Markdown from "src/front/ports/renderer.at"
 use.web relayFindRun, relayStatusLabel, relayStatusClass, relayProfessionIcon, relayRunTitle, relayWaitingGate, relayEntryClass, relaySessionLogFor, relayToolTarget, relayPreviewLines, relayStepViews, relayBadgePos, relayReportView, relayTextPlanFile, relayTextBody, relayIsDoc, relayDocTitle, relayPhaseKind, relayPhaseAction, relayPhaseIcon, relayPhaseClass, relayPhaseText, relayPhaseDetail, relayToolIsDocKind, relayToolDisplayName, relayLangOf, relayFenced, relayTVKind, relayTVCmdOf, relayTVCmdLine, relayTVForceOf, relayTVPathOf, relayTVOldOf, relayTVNewOf, relayTVContentOf, relayWriteFence, relayFileFence, relayToolView3, relayCmdResultClass, relayCmdResultText from "src/front/relay_run_helpers.at"
 
+// PLAN-037 P1: cross-file component refs (native alias form).
+use report_card: ReportCard
+
 widget RelayRunBox(runId: str) {
-    use {
-        component: ReportCard
-    }
     computed {
         run => relayFindRun(store.runs, store.current_run, .runId)
         hasRun => .run != None

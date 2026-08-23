@@ -370,14 +370,18 @@ main 本身就是红的,此前被主检出 gen/ 中未跟踪的 deck.vue 掩盖)
 > composable 经端口 re-export 后自动调用/refs 机制仍在调用方 setup,
 > 反应性完整保留。
 >
+> **2026-08-23 P1 收尾**:musk 13 文件的存量 use 块(无 from 组件引用)迁
+> 顶层原生 `use alias: X` 形式(425 糖化后子组件即 widget)——**use 块语法在
+> musk 源码清零**(仅历史注释提及),语言层别名退役条件就绪。
+
 > **2026-08-23 执行闭环 II**:Plan 425(component fn 糖化为 widget、
 > view 可选化、fragment 双轨删除)与 Plan 426(setup{} 前导槽、
 > 三相位语义定版)均已落地;musk composables 域 9 文件已迁 setup 块
 > 直调(use.web composable kind 降为糖,保留兼容)。下方第 2/3 条关闭。
 
-5. parser 怪癖:局部变量与类型名同名(如 `let list = ...` 后接 `let out list = []`)
-   会使后者类型标注丢失(探针已复现,见 Phase 0 记录第 5 条)——Phase 0 以改名规避,
-   parser 层修复(类型位置不应走符号解析)另立小计划。
+5. ~~parser 怪癖:局部变量与类型名同名会使类型标注丢失~~ **已根治**(2026-08-23
+   会话:parser 类型位置移除 InferenceContext 变量表查询,auto-lang `e2162a87`,
+   附回归单测;musk 的 rows 规避已还原回原始 `list` 写法并构建验证,`d26b4c9`)。
 
 1. ~~component 符号转发(图标/StreamingRenderer 经 ports 引用)~~ **✅ 已关闭
    (Plan 424,2026-08-23)**:ES re-export 转发落地,musk 四端口收口。

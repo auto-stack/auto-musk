@@ -9,14 +9,14 @@ use store: SpecsStore
 use.web spec_next_id, spec_default_status from "src/front/specs_helpers.at"
 use.web useT from "src/front/ports/composables.at"
 
+// PLAN-037 P1: cross-file component refs (native alias form).
+use nav_sidebar: NavSidebar
+use content_header: ContentHeader
+
 widget SpecsView {
 
     setup {
         let t = useT()
-    }
-    use {
-        component: NavSidebar
-        component: ContentHeader
     }
 
     msg Msg {

@@ -9,14 +9,14 @@ use store: PlansStore
 use.web useT from "src/front/ports/composables.at"
 use.web component Plus from "src/front/ports/icons.at"
 
+// PLAN-037 P1: cross-file component refs (native alias form).
+use nav_sidebar: NavSidebar
+use content_header: ContentHeader
+
 widget PlansView {
 
     setup {
         let t = useT()
-    }
-    use {
-        component: NavSidebar
-        component: ContentHeader
     }
 
     msg Msg {

@@ -20,14 +20,14 @@ use.web wiki_filter_tree from "src/front/wiki_helpers.at"
 use.web wikiUploadDrop, rawUploadProgress from "src/front/ports/upload.at"
 use.web useI18n from "src/front/ports/composables.at"
 
+// PLAN-037 P1: cross-file component refs (native alias form).
+use nav_sidebar: NavSidebar
+
 widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: str, workspace: str) {
 
     setup {
         let i18n = useI18n()
         refs i18n: [locale]
-    }
-    use {
-        component: NavSidebar
     }
     computed {
         filteredWikiTree => wiki_filter_tree(.wikiTree, .query)

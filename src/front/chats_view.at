@@ -22,23 +22,23 @@ use.web questionnaireSingleChecked, questionnaireMultiChecked, questionnaireTogg
 use.web component Plus, Trash2, Search, Info from "src/front/ports/icons.at"
 use.web useT from "src/front/ports/composables.at"
 
+// PLAN-037 P1: cross-file component refs (native alias form).
+use mention_input: MentionInput
+use nav_sidebar: NavSidebar
+use content_header: ContentHeader
+use mention_dropdown: MentionDropdown
+use relay_run_box: RelayRunBox
+use questionnaire_card: QuestionnaireCard
+use gate_card: GateCard
+use secretary_message_wrapper: SecretaryMessageWrapper
+use secretary_message: SecretaryMessage
+use chat_message: ChatMessage
+use session_info: SessionInfo
+
 widget ChatsView {
 
     setup {
         let t = useT()
-    }
-    use {
-        component: MentionInput
-        component: NavSidebar
-        component: ContentHeader
-        component: MentionDropdown
-        component: RelayRunBox
-        component: QuestionnaireCard
-        component: GateCard
-        component: SecretaryMessageWrapper
-        component: SecretaryMessage
-        component: ChatMessage
-        component: SessionInfo
     }
 
     msg Msg {

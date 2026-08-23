@@ -19,10 +19,10 @@
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web mention_filtered, mention_position, mention_current_id from "src/front/mention_helpers.at"
 
+// PLAN-037 P1: cross-file component refs (native alias form).
+use agent_avatar: AgentAvatar
+
 widget MentionDropdown(professions: obj, visible: bool, filter: str, anchorRect: obj, activeIndex: int) {
-    use {
-        component: AgentAvatar
-    }
     computed {
         filtered => mention_filtered(.professions, .filter)
         position => mention_position(.anchorRect)
