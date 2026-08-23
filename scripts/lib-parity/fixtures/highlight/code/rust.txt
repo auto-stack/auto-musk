@@ -1,0 +1,22 @@
+use syntect::parsing::SyntaxSet;
+
+fn i18n_lookup(messages: &MsgMap, key: &str) -> Option<&str> {
+    let mut cur = messages;
+    for part in key.split('.') {
+        cur = cur.get(part)?;
+    }
+    cur.as_str()
+}
+
+pub struct Catalog {
+    zh: MsgMap,
+    en: MsgMap,
+}
+
+impl Catalog {
+    pub fn t(&self, locale: &str, key: &str, count: i64) -> String {
+        let map = if locale == "zh" { &self.zh } else { &self.en };
+        let raw = i18n_lookup(map, key).unwrap_or(key);
+        raw.replace("{count}", &count.to_string())
+    }
+}

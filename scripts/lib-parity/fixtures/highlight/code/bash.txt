@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+WORKTREE=${1:-../auto-musk-p038}
+
+for f in *.md; do
+  echo "processing $f"
+  grep -c "PLAN" "$f" || true
+done
+
+if [[ -d "$WORKTREE" ]]; then
+  cd "$WORKTREE" && git status --short | head -5
+else
+  echo "missing: $WORKTREE" >&2
+  exit 1
+fi
+
+function cleanup() {
+  rm -rf /tmp/p038-*
+}
+trap cleanup EXIT

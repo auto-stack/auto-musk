@@ -1,0 +1,17 @@
+import { createI18n } from 'vue-i18n'
+
+export interface Catalog {
+  zh: Record<string, unknown>
+  en: Record<string, unknown>
+}
+
+export function i18nT(locale: string, key: string, params: Record<string, unknown> = {}): string {
+  const messages = catalog[locale]
+  if (!messages) return key
+  const leaf = key.split('.').reduce<any>((o, p) => (o == null ? o : o[p]), messages)
+  if (typeof leaf !== 'string') return key
+  return leaf.replace(/\{(\w+)\}/g, (_, name) => String(params[name] ?? ''))
+}
+
+const count = 42 as const
+console.log(`${count} items`)

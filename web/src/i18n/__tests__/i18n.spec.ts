@@ -78,7 +78,8 @@ describe('setLocale', () => {
     expect(store['autoforge-language']).toBe('zh')
   })
 
-  it('setLocale sets document lang attribute', () => {
+  // vitest 默认 node 环境无 DOM;DOM 断言仅在浏览器/DOM 环境下有意义
+  it.skipIf(typeof document === 'undefined')('setLocale sets document lang attribute', () => {
     document.documentElement.setAttribute('lang', 'zh')
     expect(document.documentElement.getAttribute('lang')).toBe('zh')
   })
@@ -156,8 +157,8 @@ describe('translation file parity', () => {
     expect(zh.common.close).toBe('关闭')
   })
 
-  it('brand name stays as AutoForge in both locales', () => {
-    expect(en.app.brandName).toBe('AutoForge')
-    expect(zh.app.brandName).toBe('AutoForge')
+  it('brand name stays as Auto Musk in both locales', () => {
+    expect(en.app.brandName).toBe('Auto Musk')
+    expect(zh.app.brandName).toBe('Auto Musk')
   })
 })

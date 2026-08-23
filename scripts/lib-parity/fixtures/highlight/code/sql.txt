@@ -1,0 +1,11 @@
+SELECT p.plan_id, p.feature_name, p.status, COUNT(t.id) AS task_count
+FROM plans p
+LEFT JOIN tasks t ON t.plan_id = p.plan_id
+WHERE p.created_at >= '2026-08-01'
+  AND p.status IN ('executing', 'execution_done')
+GROUP BY p.plan_id, p.feature_name, p.status
+HAVING COUNT(t.id) > 5
+ORDER BY task_count DESC
+LIMIT 20;
+
+UPDATE plans SET status = 'reviewed' WHERE plan_id = 'PLAN-038';

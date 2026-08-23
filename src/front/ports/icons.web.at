@@ -5,3 +5,6 @@
 // 不再直连 npm 包。消灭 PLAN-037 白名单的 icons 域。
 
 use.web component BookOpen, Check, ChevronDown, ChevronRight, ChevronUp, Clock, Copy, CopyCheck, Download, ExternalLink, Eye, File, FileIcon, FileText, Folder, FolderInput, FolderOpen, FolderPlus, HelpCircle, Info, ListTodo, MessageSquare, Monitor, Moon, Orbit, PanelLeft, Plus, Scroll, Search, Send, Settings, Square, Sun, Terminal, Trash2, UploadCloud, Wrench, X from "lucide-vue-next"
+// PLAN-038 Phase 2: auto-icons 数据层（纯 .at，对拍资产；渲染层降级见 KNOWN-DEBT，
+// svg 节点能力就绪后升格直绑——现阶段运行路径仍走上方 lucide npm 绑定）。
+use.web icons_data from "src/front/lib/icons_data.at"

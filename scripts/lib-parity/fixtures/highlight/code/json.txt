@@ -1,0 +1,13 @@
+{
+  "name": "musk-web",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build"
+  },
+  "dependencies": {
+    "vue": "^3.5.32",
+    "vue-i18n": "^9.14.4"
+  }
+}

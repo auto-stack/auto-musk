@@ -1,0 +1,31 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+type Catalog struct {
+	zh map[string]string
+	en map[string]string
+}
+
+func (c *Catalog) T(locale, key string, params map[string]any) string {
+	messages := c.zh
+	if locale == "en" {
+		messages = c.en
+	}
+	raw, ok := messages[key]
+	if !ok {
+		return key
+	}
+	for name, value := range params {
+		raw = strings.ReplaceAll(raw, "{"+name+"}", fmt.Sprint(value))
+	}
+	return raw
+}
+
+func main() {
+	c := &Catalog{zh: map[string]string{"chat.msgs": "{count} 条"}}
+	fmt.Println(c.T("zh", "chat.msgs", map[string]any{"count": 42}))
+}

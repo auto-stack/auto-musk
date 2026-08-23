@@ -1,0 +1,19 @@
+const fs = require('node:fs')
+
+function walk(dir, out = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, entry.name)
+    if (entry.isDirectory()) walk(p, out)
+    else if (/\.md$/.test(entry.name)) out.push(p)
+  }
+  return out
+}
+
+async function main() {
+  const files = walk('./docs')
+  const total = files.length
+  console.log(`found ${total} files`)
+  await Promise.all(files.map(f => fs.promises.readFile(f, 'utf8')))
+}
+
+main().catch(err => { console.error(err); process.exit(1) })

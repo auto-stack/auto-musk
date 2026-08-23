@@ -1,0 +1,952 @@
+{
+  "generated_at": "2026-08-23T09:12:29.872Z",
+  "source": "vue-i18n@9.14.5",
+  "leaf_keys": {
+    "zh": 72,
+    "en": 72
+  },
+  "cases": [
+    {
+      "locale": "zh",
+      "key": "app.title",
+      "kind": "plain",
+      "expected": "auto-musk"
+    },
+    {
+      "locale": "zh",
+      "key": "app.brandName",
+      "kind": "plain",
+      "expected": "Auto Musk"
+    },
+    {
+      "locale": "zh",
+      "key": "app.version",
+      "kind": "plain",
+      "expected": "v0.1.0"
+    },
+    {
+      "locale": "zh",
+      "key": "nav.chat",
+      "kind": "plain",
+      "expected": "会话"
+    },
+    {
+      "locale": "zh",
+      "key": "nav.plans",
+      "kind": "plain",
+      "expected": "计划"
+    },
+    {
+      "locale": "zh",
+      "key": "nav.specs",
+      "kind": "plain",
+      "expected": "规范"
+    },
+    {
+      "locale": "zh",
+      "key": "nav.wiki",
+      "kind": "plain",
+      "expected": "知识"
+    },
+    {
+      "locale": "zh",
+      "key": "counter.label",
+      "kind": "plain",
+      "expected": "计数"
+    },
+    {
+      "locale": "zh",
+      "key": "settings.title",
+      "kind": "plain",
+      "expected": "设置"
+    },
+    {
+      "locale": "zh",
+      "key": "settings.mode",
+      "kind": "plain",
+      "expected": "模式"
+    },
+    {
+      "locale": "zh",
+      "key": "settings.modeGsdTitle",
+      "kind": "plain",
+      "expected": "GSD 模式：仅在目标门暂停"
+    },
+    {
+      "locale": "zh",
+      "key": "settings.modeCheckTitle",
+      "kind": "plain",
+      "expected": "检查模式：每个门都会暂停"
+    },
+    {
+      "locale": "zh",
+      "key": "settings.accent",
+      "kind": "plain",
+      "expected": "主题色"
+    },
+    {
+      "locale": "zh",
+      "key": "settings.theme",
+      "kind": "plain",
+      "expected": "外观"
+    },
+    {
+      "locale": "zh",
+      "key": "settings.language",
+      "kind": "plain",
+      "expected": "语言"
+    },
+    {
+      "locale": "zh",
+      "key": "settings.themeLight",
+      "kind": "plain",
+      "expected": "浅色"
+    },
+    {
+      "locale": "zh",
+      "key": "settings.themeDark",
+      "kind": "plain",
+      "expected": "深色"
+    },
+    {
+      "locale": "zh",
+      "key": "settings.themeSystem",
+      "kind": "plain",
+      "expected": "跟随系统"
+    },
+    {
+      "locale": "zh",
+      "key": "settings.openSystemSettings",
+      "kind": "plain",
+      "expected": "打开系统设置"
+    },
+    {
+      "locale": "zh",
+      "key": "common.save",
+      "kind": "plain",
+      "expected": "保存"
+    },
+    {
+      "locale": "zh",
+      "key": "common.cancel",
+      "kind": "plain",
+      "expected": "取消"
+    },
+    {
+      "locale": "zh",
+      "key": "common.edit",
+      "kind": "plain",
+      "expected": "编辑"
+    },
+    {
+      "locale": "zh",
+      "key": "common.delete",
+      "kind": "plain",
+      "expected": "删除"
+    },
+    {
+      "locale": "zh",
+      "key": "common.create",
+      "kind": "plain",
+      "expected": "创建"
+    },
+    {
+      "locale": "zh",
+      "key": "chat.title",
+      "kind": "plain",
+      "expected": "聊天"
+    },
+    {
+      "locale": "zh",
+      "key": "chat.sessions",
+      "kind": "plain",
+      "expected": "会话"
+    },
+    {
+      "locale": "zh",
+      "key": "chat.sessionInfo",
+      "kind": "plain",
+      "expected": "会话信息"
+    },
+    {
+      "locale": "zh",
+      "key": "chat.chatId",
+      "kind": "plain",
+      "expected": "聊天 ID"
+    },
+    {
+      "locale": "zh",
+      "key": "chat.copyChatId",
+      "kind": "plain",
+      "expected": "复制聊天 ID"
+    },
+    {
+      "locale": "zh",
+      "key": "chat.messages",
+      "kind": "plain",
+      "expected": "消息"
+    },
+    {
+      "locale": "zh",
+      "key": "chat.tokenCost",
+      "kind": "plain",
+      "expected": "令牌消耗"
+    },
+    {
+      "locale": "zh",
+      "key": "chat.newSession",
+      "kind": "plain",
+      "expected": "新建会话"
+    },
+    {
+      "locale": "zh",
+      "key": "chat.deleteSession",
+      "kind": "plain",
+      "expected": "删除会话"
+    },
+    {
+      "locale": "zh",
+      "key": "chat.deleteAllSessions",
+      "kind": "plain",
+      "expected": "删除全部会话"
+    },
+    {
+      "locale": "zh",
+      "key": "chat.noSessions",
+      "kind": "plain",
+      "expected": "无会话"
+    },
+    {
+      "locale": "zh",
+      "key": "chat.inputPlaceholder",
+      "kind": "plain",
+      "expected": "描述你想构建的内容... (Enter 发送, @ 呼出 agent, /relay /superpower /spec1 命令)"
+    },
+    {
+      "locale": "zh",
+      "key": "chat.searchPlaceholder",
+      "kind": "plain",
+      "expected": "搜索消息…"
+    },
+    {
+      "locale": "zh",
+      "key": "chat.msgs",
+      "kind": "plain",
+      "expected": " 条"
+    },
+    {
+      "locale": "zh",
+      "key": "chat.msgs",
+      "kind": "interp",
+      "params": {
+        "count": 42
+      },
+      "expected": "42 条"
+    },
+    {
+      "locale": "zh",
+      "key": "specs.title",
+      "kind": "plain",
+      "expected": "规范"
+    },
+    {
+      "locale": "zh",
+      "key": "specs.overview",
+      "kind": "plain",
+      "expected": "概览"
+    },
+    {
+      "locale": "zh",
+      "key": "specs.loading",
+      "kind": "plain",
+      "expected": "加载规范中…"
+    },
+    {
+      "locale": "zh",
+      "key": "specs.addItem",
+      "kind": "plain",
+      "expected": "+ 添加项目"
+    },
+    {
+      "locale": "zh",
+      "key": "specs.noDoc",
+      "kind": "plain",
+      "expected": "未加载文档"
+    },
+    {
+      "locale": "zh",
+      "key": "specs.structuredMode",
+      "kind": "plain",
+      "expected": "🗂 结构化"
+    },
+    {
+      "locale": "zh",
+      "key": "specs.fileTreeMode",
+      "kind": "plain",
+      "expected": "📄 文件树"
+    },
+    {
+      "locale": "zh",
+      "key": "specs.emptyTree",
+      "kind": "plain",
+      "expected": "还没有 spec 文件"
+    },
+    {
+      "locale": "zh",
+      "key": "specs.selectFile",
+      "kind": "plain",
+      "expected": "从树中选择一个文件"
+    },
+    {
+      "locale": "zh",
+      "key": "plans.title",
+      "kind": "plain",
+      "expected": "计划"
+    },
+    {
+      "locale": "zh",
+      "key": "plans.loading",
+      "kind": "plain",
+      "expected": "加载计划中…"
+    },
+    {
+      "locale": "zh",
+      "key": "plans.empty",
+      "kind": "plain",
+      "expected": "还没有计划"
+    },
+    {
+      "locale": "zh",
+      "key": "plans.selectPlan",
+      "kind": "plain",
+      "expected": "从侧栏选择一个计划"
+    },
+    {
+      "locale": "zh",
+      "key": "plans.newPlan",
+      "kind": "plain",
+      "expected": "新建计划"
+    },
+    {
+      "locale": "zh",
+      "key": "plans.featureName",
+      "kind": "plain",
+      "expected": "功能名称"
+    },
+    {
+      "locale": "zh",
+      "key": "plans.edit",
+      "kind": "plain",
+      "expected": "编辑"
+    },
+    {
+      "locale": "zh",
+      "key": "plans.save",
+      "kind": "plain",
+      "expected": "保存"
+    },
+    {
+      "locale": "zh",
+      "key": "plans.cancel",
+      "kind": "plain",
+      "expected": "取消"
+    },
+    {
+      "locale": "zh",
+      "key": "plans.archive",
+      "kind": "plain",
+      "expected": "归档"
+    },
+    {
+      "locale": "zh",
+      "key": "plans.mergeToSpec",
+      "kind": "plain",
+      "expected": "沉淀到 Spec"
+    },
+    {
+      "locale": "zh",
+      "key": "wiki.title",
+      "kind": "plain",
+      "expected": "知识库"
+    },
+    {
+      "locale": "zh",
+      "key": "wiki.newPage",
+      "kind": "plain",
+      "expected": "新建页面"
+    },
+    {
+      "locale": "zh",
+      "key": "wiki.newFolder",
+      "kind": "plain",
+      "expected": "新建文件夹"
+    },
+    {
+      "locale": "zh",
+      "key": "wiki.toggleSidebar",
+      "kind": "plain",
+      "expected": "切换侧栏"
+    },
+    {
+      "locale": "zh",
+      "key": "wiki.raw",
+      "kind": "plain",
+      "expected": "原始文件"
+    },
+    {
+      "locale": "zh",
+      "key": "wiki.searchPlaceholder",
+      "kind": "plain",
+      "expected": "搜索页面…"
+    },
+    {
+      "locale": "zh",
+      "key": "wiki.noPages",
+      "kind": "plain",
+      "expected": "暂无页面"
+    },
+    {
+      "locale": "zh",
+      "key": "wiki.slugPlaceholder",
+      "kind": "plain",
+      "expected": "page-slug"
+    },
+    {
+      "locale": "zh",
+      "key": "wiki.titlePlaceholder",
+      "kind": "plain",
+      "expected": "页面标题"
+    },
+    {
+      "locale": "zh",
+      "key": "wiki.contentPlaceholder",
+      "kind": "plain",
+      "expected": "# 页面内容..."
+    },
+    {
+      "locale": "zh",
+      "key": "wiki.create",
+      "kind": "plain",
+      "expected": "创建"
+    },
+    {
+      "locale": "zh",
+      "key": "wiki.edit",
+      "kind": "plain",
+      "expected": "编辑"
+    },
+    {
+      "locale": "zh",
+      "key": "wiki.delete",
+      "kind": "plain",
+      "expected": "删除"
+    },
+    {
+      "locale": "zh",
+      "key": "wiki.selectPage",
+      "kind": "plain",
+      "expected": "选择一个页面或创建新页面"
+    },
+    {
+      "locale": "zh",
+      "key": "app.nonexistent",
+      "kind": "missing",
+      "expected": "app.nonexistent"
+    },
+    {
+      "locale": "zh",
+      "key": "chat.msgs.deep",
+      "kind": "missing",
+      "expected": "chat.msgs.deep"
+    },
+    {
+      "locale": "zh",
+      "key": "totally.missing.key",
+      "kind": "missing",
+      "expected": "totally.missing.key"
+    },
+    {
+      "locale": "zh",
+      "key": "nav",
+      "kind": "missing",
+      "expected": "nav"
+    },
+    {
+      "locale": "zh",
+      "key": "",
+      "kind": "missing",
+      "expected": ""
+    },
+    {
+      "locale": "en",
+      "key": "app.title",
+      "kind": "plain",
+      "expected": "auto-musk"
+    },
+    {
+      "locale": "en",
+      "key": "app.brandName",
+      "kind": "plain",
+      "expected": "Auto Musk"
+    },
+    {
+      "locale": "en",
+      "key": "app.version",
+      "kind": "plain",
+      "expected": "v0.1.0"
+    },
+    {
+      "locale": "en",
+      "key": "nav.chat",
+      "kind": "plain",
+      "expected": "Chat"
+    },
+    {
+      "locale": "en",
+      "key": "nav.plans",
+      "kind": "plain",
+      "expected": "Plans"
+    },
+    {
+      "locale": "en",
+      "key": "nav.specs",
+      "kind": "plain",
+      "expected": "Specs"
+    },
+    {
+      "locale": "en",
+      "key": "nav.wiki",
+      "kind": "plain",
+      "expected": "Wiki"
+    },
+    {
+      "locale": "en",
+      "key": "counter.label",
+      "kind": "plain",
+      "expected": "Count"
+    },
+    {
+      "locale": "en",
+      "key": "settings.title",
+      "kind": "plain",
+      "expected": "Settings"
+    },
+    {
+      "locale": "en",
+      "key": "settings.mode",
+      "kind": "plain",
+      "expected": "Mode"
+    },
+    {
+      "locale": "en",
+      "key": "settings.modeGsdTitle",
+      "kind": "plain",
+      "expected": "GSD mode: only Goal Gate pauses"
+    },
+    {
+      "locale": "en",
+      "key": "settings.modeCheckTitle",
+      "kind": "plain",
+      "expected": "Check mode: every gate pauses"
+    },
+    {
+      "locale": "en",
+      "key": "settings.accent",
+      "kind": "plain",
+      "expected": "Accent"
+    },
+    {
+      "locale": "en",
+      "key": "settings.theme",
+      "kind": "plain",
+      "expected": "Theme"
+    },
+    {
+      "locale": "en",
+      "key": "settings.language",
+      "kind": "plain",
+      "expected": "Language"
+    },
+    {
+      "locale": "en",
+      "key": "settings.themeLight",
+      "kind": "plain",
+      "expected": "Light"
+    },
+    {
+      "locale": "en",
+      "key": "settings.themeDark",
+      "kind": "plain",
+      "expected": "Dark"
+    },
+    {
+      "locale": "en",
+      "key": "settings.themeSystem",
+      "kind": "plain",
+      "expected": "System"
+    },
+    {
+      "locale": "en",
+      "key": "settings.openSystemSettings",
+      "kind": "plain",
+      "expected": "Open System Settings"
+    },
+    {
+      "locale": "en",
+      "key": "common.save",
+      "kind": "plain",
+      "expected": "Save"
+    },
+    {
+      "locale": "en",
+      "key": "common.cancel",
+      "kind": "plain",
+      "expected": "Cancel"
+    },
+    {
+      "locale": "en",
+      "key": "common.edit",
+      "kind": "plain",
+      "expected": "Edit"
+    },
+    {
+      "locale": "en",
+      "key": "common.delete",
+      "kind": "plain",
+      "expected": "Delete"
+    },
+    {
+      "locale": "en",
+      "key": "common.create",
+      "kind": "plain",
+      "expected": "Create"
+    },
+    {
+      "locale": "en",
+      "key": "chat.title",
+      "kind": "plain",
+      "expected": "Chat"
+    },
+    {
+      "locale": "en",
+      "key": "chat.sessions",
+      "kind": "plain",
+      "expected": "Sessions"
+    },
+    {
+      "locale": "en",
+      "key": "chat.sessionInfo",
+      "kind": "plain",
+      "expected": "Session info"
+    },
+    {
+      "locale": "en",
+      "key": "chat.chatId",
+      "kind": "plain",
+      "expected": "Chat ID"
+    },
+    {
+      "locale": "en",
+      "key": "chat.copyChatId",
+      "kind": "plain",
+      "expected": "Copy chat ID"
+    },
+    {
+      "locale": "en",
+      "key": "chat.messages",
+      "kind": "plain",
+      "expected": "Messages"
+    },
+    {
+      "locale": "en",
+      "key": "chat.tokenCost",
+      "kind": "plain",
+      "expected": "Token cost"
+    },
+    {
+      "locale": "en",
+      "key": "chat.newSession",
+      "kind": "plain",
+      "expected": "New session"
+    },
+    {
+      "locale": "en",
+      "key": "chat.deleteSession",
+      "kind": "plain",
+      "expected": "Delete session"
+    },
+    {
+      "locale": "en",
+      "key": "chat.deleteAllSessions",
+      "kind": "plain",
+      "expected": "Delete all sessions"
+    },
+    {
+      "locale": "en",
+      "key": "chat.noSessions",
+      "kind": "plain",
+      "expected": "No session"
+    },
+    {
+      "locale": "en",
+      "key": "chat.inputPlaceholder",
+      "kind": "plain",
+      "expected": "Describe what you want to build... (Enter to send, @ for agent, /relay /superpower /spec1 commands)"
+    },
+    {
+      "locale": "en",
+      "key": "chat.searchPlaceholder",
+      "kind": "plain",
+      "expected": "Search messages…"
+    },
+    {
+      "locale": "en",
+      "key": "chat.msgs",
+      "kind": "plain",
+      "expected": " msgs"
+    },
+    {
+      "locale": "en",
+      "key": "chat.msgs",
+      "kind": "interp",
+      "params": {
+        "count": 42
+      },
+      "expected": "42 msgs"
+    },
+    {
+      "locale": "en",
+      "key": "specs.title",
+      "kind": "plain",
+      "expected": "Specs"
+    },
+    {
+      "locale": "en",
+      "key": "specs.overview",
+      "kind": "plain",
+      "expected": "Overview"
+    },
+    {
+      "locale": "en",
+      "key": "specs.loading",
+      "kind": "plain",
+      "expected": "Loading specs…"
+    },
+    {
+      "locale": "en",
+      "key": "specs.addItem",
+      "kind": "plain",
+      "expected": "+ Add Item"
+    },
+    {
+      "locale": "en",
+      "key": "specs.noDoc",
+      "kind": "plain",
+      "expected": "No document loaded"
+    },
+    {
+      "locale": "en",
+      "key": "specs.structuredMode",
+      "kind": "plain",
+      "expected": "🗂 Structured"
+    },
+    {
+      "locale": "en",
+      "key": "specs.fileTreeMode",
+      "kind": "plain",
+      "expected": "📄 File Tree"
+    },
+    {
+      "locale": "en",
+      "key": "specs.emptyTree",
+      "kind": "plain",
+      "expected": "No spec files yet"
+    },
+    {
+      "locale": "en",
+      "key": "specs.selectFile",
+      "kind": "plain",
+      "expected": "Select a file from the tree"
+    },
+    {
+      "locale": "en",
+      "key": "plans.title",
+      "kind": "plain",
+      "expected": "Plans"
+    },
+    {
+      "locale": "en",
+      "key": "plans.loading",
+      "kind": "plain",
+      "expected": "Loading plans…"
+    },
+    {
+      "locale": "en",
+      "key": "plans.empty",
+      "kind": "plain",
+      "expected": "No plans yet"
+    },
+    {
+      "locale": "en",
+      "key": "plans.selectPlan",
+      "kind": "plain",
+      "expected": "Select a plan from the sidebar"
+    },
+    {
+      "locale": "en",
+      "key": "plans.newPlan",
+      "kind": "plain",
+      "expected": "New Plan"
+    },
+    {
+      "locale": "en",
+      "key": "plans.featureName",
+      "kind": "plain",
+      "expected": "Feature name"
+    },
+    {
+      "locale": "en",
+      "key": "plans.edit",
+      "kind": "plain",
+      "expected": "Edit"
+    },
+    {
+      "locale": "en",
+      "key": "plans.save",
+      "kind": "plain",
+      "expected": "Save"
+    },
+    {
+      "locale": "en",
+      "key": "plans.cancel",
+      "kind": "plain",
+      "expected": "Cancel"
+    },
+    {
+      "locale": "en",
+      "key": "plans.archive",
+      "kind": "plain",
+      "expected": "Archive"
+    },
+    {
+      "locale": "en",
+      "key": "plans.mergeToSpec",
+      "kind": "plain",
+      "expected": "Merge to Spec"
+    },
+    {
+      "locale": "en",
+      "key": "wiki.title",
+      "kind": "plain",
+      "expected": "Wiki"
+    },
+    {
+      "locale": "en",
+      "key": "wiki.newPage",
+      "kind": "plain",
+      "expected": "New page"
+    },
+    {
+      "locale": "en",
+      "key": "wiki.newFolder",
+      "kind": "plain",
+      "expected": "New folder"
+    },
+    {
+      "locale": "en",
+      "key": "wiki.toggleSidebar",
+      "kind": "plain",
+      "expected": "Toggle sidebar"
+    },
+    {
+      "locale": "en",
+      "key": "wiki.raw",
+      "kind": "plain",
+      "expected": "Raw files"
+    },
+    {
+      "locale": "en",
+      "key": "wiki.searchPlaceholder",
+      "kind": "plain",
+      "expected": "Search pages…"
+    },
+    {
+      "locale": "en",
+      "key": "wiki.noPages",
+      "kind": "plain",
+      "expected": "No pages"
+    },
+    {
+      "locale": "en",
+      "key": "wiki.slugPlaceholder",
+      "kind": "plain",
+      "expected": "page-slug"
+    },
+    {
+      "locale": "en",
+      "key": "wiki.titlePlaceholder",
+      "kind": "plain",
+      "expected": "Page Title"
+    },
+    {
+      "locale": "en",
+      "key": "wiki.contentPlaceholder",
+      "kind": "plain",
+      "expected": "# Page content..."
+    },
+    {
+      "locale": "en",
+      "key": "wiki.create",
+      "kind": "plain",
+      "expected": "Create"
+    },
+    {
+      "locale": "en",
+      "key": "wiki.edit",
+      "kind": "plain",
+      "expected": "Edit"
+    },
+    {
+      "locale": "en",
+      "key": "wiki.delete",
+      "kind": "plain",
+      "expected": "Delete"
+    },
+    {
+      "locale": "en",
+      "key": "wiki.selectPage",
+      "kind": "plain",
+      "expected": "Select a page or create a new one"
+    },
+    {
+      "locale": "en",
+      "key": "app.nonexistent",
+      "kind": "missing",
+      "expected": "app.nonexistent"
+    },
+    {
+      "locale": "en",
+      "key": "chat.msgs.deep",
+      "kind": "missing",
+      "expected": "chat.msgs.deep"
+    },
+    {
+      "locale": "en",
+      "key": "totally.missing.key",
+      "kind": "missing",
+      "expected": "totally.missing.key"
+    },
+    {
+      "locale": "en",
+      "key": "nav",
+      "kind": "missing",
+      "expected": "nav"
+    },
+    {
+      "locale": "en",
+      "key": "",
+      "kind": "missing",
+      "expected": ""
+    }
+  ]
+}

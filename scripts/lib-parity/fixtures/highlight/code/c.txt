@@ -1,0 +1,24 @@
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+typedef struct {
+    const char *locale;
+    const char *key;
+} lookup_t;
+
+static const char *fallback_key(const char *key) {
+    return key ? key : "";
+}
+
+int main(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "usage: %s <key>\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+    char buf[256];
+    strncpy(buf, argv[1], sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    printf("%s\n", fallback_key(buf));
+    return 0;
+}

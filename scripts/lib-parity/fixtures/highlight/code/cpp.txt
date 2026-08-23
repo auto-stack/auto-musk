@@ -1,0 +1,25 @@
+#include <string>
+#include <unordered_map>
+#include <optional>
+#include <iostream>
+
+class Catalog {
+public:
+    explicit Catalog(std::unordered_map<std::string, std::string> messages)
+        : messages_(std::move(messages)) {}
+
+    std::optional<std::string> lookup(const std::string &key) const {
+        auto it = messages_.find(key);
+        if (it == messages_.end()) return std::nullopt;
+        return it->second;
+    }
+
+private:
+    std::unordered_map<std::string, std::string> messages_;
+};
+
+int main() {
+    Catalog c({{"chat.msgs", "{count} 条"}});
+    std::cout << c.lookup("chat.msgs").value_or("chat.msgs") << std::endl;
+    return 0;
+}

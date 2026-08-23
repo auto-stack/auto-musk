@@ -1,0 +1,17 @@
+[package]
+name = "highlight-rs"
+version = "0.1.0"
+edition = "2021"
+
+# PLAN-038 T15：syntect/two-face 版本与 feature 对齐 auto-lang/crates/auto-lang
+# 的 Cargo.toml（syntect = "5", two-face = "0.4"，默认 feature/onig）——
+# 与 auto-lang code_editor 同一高亮内核的 scope 对比输出器。
+
+[dependencies]
+syntect = "5"
+two-face = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 2

@@ -1,0 +1,23 @@
+package com.autostack.musk;
+
+import java.util.List;
+import java.util.Map;
+
+public final class Catalog {
+    private final Map<String, Object> zh;
+    private final Map<String, Object> en;
+
+    public Catalog(Map<String, Object> zh, Map<String, Object> en) {
+        this.zh = zh;
+        this.en = en;
+    }
+
+    public String t(String locale, String key, Map<String, Object> params) {
+        Object leaf = lookup("zh".equals(locale) ? zh : en, key);
+        if (!(leaf instanceof String raw)) return key;
+        for (var e : params.entrySet()) {
+            raw = raw.replace("{" + e.getKey() + "}", String.valueOf(e.getValue()));
+        }
+        return raw;
+    }
+}

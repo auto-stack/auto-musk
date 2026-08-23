@@ -10,6 +10,9 @@
 // 原生 web/ 在 main.ts 引入；gen 工程的 main.ts 由 codegen 生成不可改，
 // 故在此引入（模块加载即注入，效果等价）。
 import 'markstream-vue/index.css'
+// PLAN-038 T12: @autodown/vue StreamingRenderer（platform:markdown 实现源）的
+// 增量样式（code 块头/复制按钮/placeholder/katex 等）——上游再导出后必需。
+import '@autodown/vue/style.css'
 
 const STYLES = `
 /* ── 字体（Noto Sans SC）── */

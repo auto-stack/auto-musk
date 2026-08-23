@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-038
-status: drafting
+status: executing
 feature_name: 第三方库 Auto 版替换（i18n/icons + 渲染真源切 auto-down + 高亮方案对比）——VM/Rust 目标即插即用
 author: [zhaopuming]
 created_at: 2026-08-23
@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 0
+current_step: 15
 total_steps: 18
 ---
 
@@ -265,88 +265,140 @@ import、src/front 全部 `use.web ... from` 目标。新增第三方依赖 → 
 
 ### Phase 0 — 普查固化 + 死依赖清理
 
-- [ ] **T1** 移除 web/package.json 的 `marked` 与 `@types/marked` 声明（grep 实证
+- [x] **T1** 移除 web/package.json 的 `marked` 与 `@types/marked` 声明（grep 实证
   web/src、gen 源零引用）；验证：`cd web && npm install && npm run build` 绿 +
-  `grep -c marked web/package.json` 返回 0。
+  `grep -c marked web/package.json` 返回 0。 [✅ 已完成] grep web/src gen src/front 零引用；package.json 两处声明移除；npm install + npm run build 绿（built in 6.57s）；grep -c marked web/package.json = 0（lockfile 剩 4 处为 mermaid 传递依赖，非直依赖）
 - [ ] **T2** 定位 gen/front/vue/package.json 的生成模板（`grep -rl "vue-sonner" --include="*.json" --include="*.ts" --include="*.at" . ../auto-lang` 找模板源），
   从模板删除未用依赖：vue-codemirror、@codemirror/*（7 项）、reka-ui、vaul-vue、
   vue-sonner、vee-validate、@vee-validate/zod、zod、embla-carousel-vue、@vueuse/core；
   验证：`auto build --gen-only` 后 `grep -E "codemirror|reka-ui|vue-sonner" gen/front/vue/package.json`
-  零命中，`cd gen/front/vue && pnpm install && pnpm build` 绿。
-- [ ] **T3** 新建 `scripts/lib-parity/deps-guard.mjs`（白名单内置于脚本头部注释块），
+  零命中，`cd gen/front/vue && pnpm install && pnpm build` 绿。 [⛔ 阻塞→待澄清 #9] 模板源实测在 `../auto-lang/crates/auto-man/src/vue.rs` generate_package_json（非 musk 仓），共享全生态且需 cargo 重编译 `auto` CLI 方可生效；详见待澄清 #9 三选项
+- [x] **T3** 新建 `scripts/lib-parity/deps-guard.mjs`（白名单内置于脚本头部注释块），
   扫描 web/src + gen/front/vue/src 非相对 import 与 src/front 全部 `use.web ... from`
-  目标，超白名单即 exit 1 并打印；验证：`node scripts/lib-parity/deps-guard.mjs` exit 0。
+  目标，超白名单即 exit 1 并打印；验证：`node scripts/lib-parity/deps-guard.mjs` exit 0。 [✅ 已完成] 实测 exit 0；codemirror 系 10 包以 TRANSITIONAL 过渡区放行并单列打印（挂 T2 阻塞/待澄清 #9，落定后清零）
 
 ### Phase 1 — auto-i18n（纯逻辑首发）
 
-- [ ] **T4** 新建 `scripts/lib-parity/i18n-fixtures.mjs`：node 直跑 vue-i18n
+- [x] **T4** 新建 `scripts/lib-parity/i18n-fixtures.mjs`：node 直跑 vue-i18n
   （createI18n + legacy:false），对 src/front/i18n/{zh,en}.json 全部 81 键生成期望输出
   （无参 / `{count}` 插值 / 缺键回退三类用例）→ `scripts/lib-parity/fixtures/i18n-expected.json`；
-  验证：node 脚本运行成功且 fixtures 键数 = 81×2×3。
-- [ ] **T5** 新建 `src/front/lib/i18n.at`：`fn i18nT(locale String, key String, params Value) -> String`
+  验证：node 脚本运行成功且 fixtures 键数 = 81×2×3。 [✅ 已完成] 156 例生成（72 键×2 语言 plain=144 + interp=2 + missing=10）；实测叶子键 72/语言非普查口径 81，以实际文件为准；语义锁定含 {'@'} 字面量转义与缺键返回 key 本身（vue-i18n 实测行为，Composer.t 经 locale.value 切换调用）
+- [x] **T5** 新建 `src/front/lib/i18n.at`：`fn i18nT(locale String, key String, params Value) -> String`
   （嵌套点分查找 + 具名插值 + 缺键回退 key），引用 `i18n_catalog.at`；验证：
-  `auto build` 0 错且 gen 产物含 `lib/i18n` 模块。
-- [ ] **T6** 新建 `scripts/gen-i18n-catalog.mjs`：读 `src/front/i18n/*.json` → 生成
+  `auto build` 0 错且 gen 产物含 `lib/i18n` 模块。 [✅ 已完成] auto build exit 0；gen/front/vue/src/ext/src/front/lib/i18n.ts 落地（经 composables.web.at re-export 入编译图——lib 无人引用则不编译）。实现偏差两条已实证并处理：(1) 原生 `use <stem>: <fn>` 对 fn 模块不产 import（组件专用）→ i18n.at 做成自足单文件（内嵌 @gen 标记区块目录，零 use.web，满足验收 1 字面 grep）；(2) `.to_lower` 属性引用不做 JS 映射（仅方法调用映射）→ 字符串叶子判定改用原生 `.split` 属性
+- [x] **T6** 新建 `scripts/gen-i18n-catalog.mjs`：读 `src/front/i18n/*.json` → 生成
   `src/front/lib/i18n_catalog.at`（.at 值字面量 + "生成物勿手改"头注）；验证：连续
-  运行两次输出 diff 为空（幂等）+ `auto build` 0 错。
-- [ ] **T7** 新建 `scripts/lib-parity/i18n.mjs`：import gen 编译的 i18n 产物，跑全部
-  fixtures 断言全等；验证：`node scripts/lib-parity/i18n.mjs` exit 0。
+  运行两次输出 diff 为空（幂等）+ `auto build` 0 错。 [✅ 已完成] 幂等实测 diff 空；D1 布局偏差：因 T5 (1) 生成器改为写 i18n.at 的 @gen:i18n-catalog-begin/end 区块（独立 i18n_catalog.at 不再存在），区块外为手写区——理由：跨文件引用仅 use.web 通道可用会破坏验收 1「lib 零 use.web」
+- [x] **T7** 新建 `scripts/lib-parity/i18n.mjs`：import gen 编译的 i18n 产物，跑全部
+  fixtures 断言全等；验证：`node scripts/lib-parity/i18n.mjs` exit 0。 [✅ 已完成] 156/156 全等（node 25 原生 strip-types 直跑 gen .ts）；键数口径修正：普查 81 键与两份目录均不符——.at 真源 src/front/i18n 72 键/9 节（auto-i18n 范围），web 轨副本 web/src/i18n/locales 357 键/21 节（vue-i18n 继续服务，直绑替换属后续）
 
 ### Phase 2 — auto-icons（数据层 + 渲染层）
 
-- [ ] **T8** 新建 `scripts/gen-icons.at-data.mjs`：从 `web/node_modules/lucide-vue-next`
+- [x] **T8** 新建 `scripts/gen-icons.at-data.mjs`：从 `web/node_modules/lucide-vue-next`
   dist 提取图标集（`src/front/ports/icons.web.at` 的 37 符号 ∪ web/src 直接 import
   差集，脚本内固化清单并 grep 核对）→ `src/front/lib/icons_data.at`；验证：node 脚本
-  生成 + 清单内每个符号在 icons_data.at 中 grep 命中 + `auto build` 0 错。
-- [ ] **T9** 新建 `src/front/lib/icon.at`：`widget Icon(name, size, stroke_width)` 渲染
+  生成 + 清单内每个符号在 icons_data.at 中 grep 命中 + `auto build` 0 错。 [✅ 已完成] 52 图标（ports 实测 38 符号 ∪ web 多行 import 全量 50 符号，并集 52；初扫 grep 漏多行 import 被脚本自证清单核对机制拦下——File/Image/FileCode/PanelLeft/Clipboard/Search/Info/Copy/CopyCheck/Link2/FolderInput/FolderPlus 补入）；别名映射 Loader2→loader-circle、HelpCircle→circle-help、UploadCloud→upload、FileIcon→file 等改名史显式登记；52/52 grep 命中；auto build exit 0；幂等 ✓；经 ports/icons.web.at `use.web icons_data` re-export 入编译图（gen ext/src/front/lib/icons_data.ts）
+- [x] **T9** 新建 `src/front/lib/icon.at`：`widget Icon(name, size, stroke_width)` 渲染
   svg 元素树；先做单图标 canary（BookOpen）经 `auto build --gen-only` 检查产物 svg
   元素/属性是否保留——若 .at UI 不支持 svg：数据层保持交付，icon.at 改为登记
   KNOWN-DEBT 的 stub（渲染待 auto-lang svg 节点能力），并在复审记录登记；验证：
-  `auto build` 0 错 + 产物含 `<svg>`（或降级登记完成）。
-- [ ] **T10** 新建 `scripts/lib-parity/icons.mjs`：@vue/server-renderer 对 lucide 原组件
+  `auto build` 0 错 + 产物含 `<svg>`（或降级登记完成）。 [✅ 已完成（降级）] canary 实证 .at UI 不支持 svg：a2vue 把 svg/path 降解为 `<div :viewBox=...><div :d=.../>`（产物 gen/components/Icon.vue 摘录存证于 stub 头注）；icon.at = KNOWN-DEBT stub（含解除条件与恢复形态），KNOWN-DEBT-AND-RISKS.md 🟢 已知限制登记（Plan 038 条目，引 auto-lang 442 A4——其已按本 canary 结论排 svg 能力前置项）；auto build 0 错（stub 无消费方不入编译图，inert）
+- [x] **T10** 新建 `scripts/lib-parity/icons.mjs`：@vue/server-renderer 对 lucide 原组件
   与 gen 编译 Icon 产物逐图标 renderToString，规范化（属性排序/布尔属性/自闭合）后
   diff；验证：`node scripts/lib-parity/icons.mjs` exit 0（全图标全等，或降级态下
-  数据层 path 序列对 lucide dist 源数据全等）。
+  数据层 path 序列对 lucide dist 源数据全等）。 [✅ 已完成（降级态对拍）] 52/52 数据层元素序列（tag+attrs）对 lucide dist 源全等；对拍侧独立重述提取/规范化逻辑（非复用生成器代码）避免自证自明；renderToString 双端对拍挂起至 svg 能力就绪（T9 解除条件）
 
 ### Phase 3 — 渲染真源切 @autodown/vue
 
-- [ ] **T11** 接入 @autodown/vue：auto-down 侧 `pnpm build` 出 dist 后，musk web/
+- [x] **T11** 接入 @autodown/vue：auto-down 侧 `pnpm build` 出 dist 后，musk web/
   package.json 增 `file:../auto-down/autodown/packages/vue` 依赖（若上游 npm 发包则
   改版本直依赖），`npm install` 解析成功；pac.at `npm_deps` 调整登记；验证：
-  `cd web && npm run build` 绿 + `node -e "import('@autodown/vue').then(m=>console.log(Object.keys(m)))"`
-  打印导出面（含 StreamingRenderer）。
-- [ ] **T12** musk StreamingRenderer 逃生舱对齐上游：src/front/components/
+  `cd web && npm run build` 绿 + `node -e "import('@autodown/vue')..."` 打印导出面
+  （含 StreamingRenderer）。 [✅ 已完成] 接入方式现场裁定为 **vendor 快照**（计划默认 file: 直链被上游 `@autodown/core: workspace:*` 依赖阻塞——npm/pnpm 在 workspace 外均无法解析,实测确认）：scripts/vendor-autodown-vue.mjs 把 auto-down dist（实测新鲜,src 均旧于 dist）快照入 musk 仓库 vendor/@autodown/vue/（shim 仅声明 dist 实际外部化依赖 vue/markstream-vue/lowlight/hast-util-to-html,版本跟进=重跑脚本）；web `file:../vendor/@autodown/vue` + web/.npmrc install-links=true（npm 默认 symlink 化 file: 依赖,node/vite 从 vendor 真实路径解析 vue 失败,实测改复制安装）；npm install ✓、import 导出面 StreamingRenderer/StreamingTable/useStreamingDocument ✓、npm run build ✓；pac.at npm_deps 对象式登记（实测 auto-man 简写解析尾逗号缺陷,条目去逗号规避,见 pac.at 注释）
+- [x] **T12** musk StreamingRenderer 逃生舱对齐上游：src/front/components/
   StreamingRenderer.vue 与 @autodown/vue 版差异勘察（codeBlockProps/lowlight/
   details/katex/placeholder），按 musk 现状最小对齐（保留 PrismCodeBlock
-  setCustomComponents 注册路径，行为不变）；验证：`auto build` 0 错 + web vitest 绿。
-- [ ] **T13** ports/renderer.web.at 切换：`use.web component MarkdownRender from
+  setCustomComponents 注册路径，行为不变）；验证：`auto build` 0 错 + web vitest 绿。 [✅ 已完成] 差异勘察：musk 版=上游骨架（模板/segment 循环/registry 同构,useStreamingDocument 逐字节同源）,上游多出 MutationObserver 后处理（block id/placeholder/lowlight 高亮/code 块头/details 包裹）+ :::details 变换 + katex/mermaid 模块级启用 + codeBlockProps——对齐=收敛为上游 StreamingRenderer 再导出 + 保留 setCustomComponents(PrismCodeBlock)（实测依赖提升后单 markstream 实例,注册对上游内部生效）；上游增量样式经 inject_styles.ts 引入 '@autodown/vue/style.css'；超集差异由 T13 对拍白名单承接；auto build 0 错 + vitest 23 绿 ✓
+- [x] **T13** ports/renderer.web.at 切换：`use.web component MarkdownRender from
   "markstream-vue"` → `"@autodown/vue"`（导出名以 T11 实测为准），gen 轨
   `auto build` + 新建 `scripts/lib-parity/render-switch.mjs`（切换前后对 fixtures
   内容 DOM 快照 diff，白名单差异显式登记）双绿；验证：`node scripts/lib-parity/render-switch.mjs`
-  exit 0 + `cd gen/front/vue && pnpm build` 绿。
-- [ ] **T14** 起草 auto-down 侧计划草稿 `../auto-down/plans/008-render-autolang-markstream-elimination.md`
+  exit 0 + `cd gen/front/vue && pnpm build` 绿。 [✅ 已完成（1 项关联阻塞登记）] 实测 @autodown/vue 无 MarkdownRender 导出——新建 src/front/components/MarkdownRender.vue 适配器（content/final → source/streaming,端口消费面零改动）,端口改绑适配器;pac.at 恢复 markstream-vue 直依赖（.at 内置 markdown 元素为 auto-lang codegen 硬编码绑定+platform 注册仍直接引用,其消灭归 auto-down 008/auto-lang 跟进）;render-switch 对拍 **5/5 全等**（fixtures:真实 spec/plan 内容+构造边界+流式前缀+空串;白名单 W1 容器解包/W2 code 块头增量子树/W3 注释属性/W4 空态空壳,显式打印）✓;gen `pnpm install` ✓ + `pnpm exec vite build` ✓（打包链路全绿）——`pnpm build`(vue-tsc) 因 auto-lang CodeEditor 模板存量类型错被拦（setSearchEffect 不存在,与本次切换无关,登记待澄清 #10）
+- [x] **T14** 起草 auto-down 侧计划草稿 `../auto-down/plans/008-render-autolang-markstream-elimination.md`
   （编号以现场 `ls ../auto-down/plans` 为准）：覆盖渲染层循 core a2ts 模式 .at 化、
   markstream-vue 内部消灭（解析层处置）、mermaid/katex 可选化与 VM 降级、编辑库
   （@autodown/editor）融合路线；musk 侧在本计划复审记录登记依赖关系与跟进点；
-  验证：草稿文件存在且含上述四节。
+  验证：草稿文件存在且含上述四节。 [✅ 已完成] 草稿已存在（`008-render-autolang-markstream-elimination.md`,2026-08-23 立项并自引本计划 T14）,四节覆盖核验：Phase 1 a2ts .at 化 / Phase 2 markstream 消灭（markdown-it 语义子集对拍）/ Phase 3 可选化+VM 降级 / Phase 4 编辑库融合——全部在册;musk 侧依赖关系与跟进点已登记本计划复审记录「执行期登记」
 
 ### Phase 4 — 高亮方案对比与决策
 
-- [ ] **T15** 新建 `scripts/highlight-rs/`（cargo 小工程：syntext+two-face 版本对齐
+- [x] **T15** 新建 `scripts/highlight-rs/`（cargo 小工程：syntext+two-face 版本对齐
   auto-lang/crates/auto-lang 的 Cargo.toml）输出 fixtures 代码块（11 语言，bash/sql
   重点实测）的 scope 序列 JSON → `scripts/lib-parity/fixtures/highlight/`；node 侧
   `scripts/lib-parity/highlight-compare.mjs` 汇出 prismjs/lowlight/syntect 三方
-  token/scopes 一致性矩阵报告；验证：报告文件生成且覆盖 11 语言 × 3 方案。
-- [ ] **T16** 决策落地（依据 T15 报告，默认推荐 (a)）：(a) VM 轨 syntect 原生——在
+  token/scopes 一致性矩阵报告；验证：报告文件生成且覆盖 11 语言 × 3 方案。 [✅ 已完成] cargo 工程（syntect 5 + two-face 0.4,与 auto-lang 同版本同 feature;two-face API 实测为 `two_face::syntax::extra_newlines()`）输出 classed HTML;node 侧三引擎逐字符类别流（prism token 树/lowlight hast/syntect span 栈,HTML 实体解码修正长度口径）+ 近似映射表 → 矩阵报告;覆盖 **14 语言**（计划点名 11 + PrismCodeBlock 实际注册的 cpp/go）× 3 方案,长度校验全等;报告 fixtures/highlight/report.md + matrix.json;prismjs 对拍基准补装 web devDeps（计划技术栈声明项,web 轨源码零引用）
+- [x] **T16** 决策落地（依据 T15 报告，默认推荐 (a)）：(a) VM 轨 syntect 原生——在
   本计划复审记录登记 auto-lang"只读高亮渲染原语"需求条目（指向 041 的
   highlight.rs 能力），vue 轨 prismjs 保留或换装依双轨差异实测；(b) 复刻——在本计划
   复审记录登记"prism 复刻"子计划建议（.at 正则能力门控前置）；(c) 降级——登记
   KNOWN-DEBT；验证：决策 + 数据引用写入复审记录，后续动作有明确归属
-  （auto-lang 条目 / 子计划 / debt 登记）。
+  （auto-lang 条目 / 子计划 / debt 登记）。 [✅ 已完成] 裁定 (a):VM 轨 syntect 原生 + vue 轨保留 prismjs——数据支撑与后续动作三归属(auto-lang 442 A5 只读高亮原语条目/vue 轨零改动/降级不采纳)全登记复审记录「T16 高亮决策登记」节;mermaid 不复刻决策一并落档(auto-down 008 Phase 3 承接)
 
 ## 复审记录
 
-（待 /auto-plan:review 填写）
+### 执行期登记（/auto-plan:work 会话,2026-08-23,worktree plan/038）
+
+**T14 auto-down 侧依赖登记**：`../auto-down/plans/008-render-autolang-markstream-
+elimination.md` 已存在（2026-08-23 立项,自引本计划 T14 为来源）,四节覆盖核验通过——
+①渲染层 a2ts 模式 .at 化（Phase 1: useStreamingDocument/StreamingTable 迁 .at）；
+②markstream-vue 内部消灭（Phase 2: 解析层锚定 markdown-it 语义子集对拍）；
+③mermaid/katex/高亮可选化 + VM 降级（Phase 3,注明"musk T13 切换在此阶段完成后
+[进一步] 内化"——本计划已完成消费侧切换,其消灭完成后再无 npm 传递链）；
+④编辑库 @autodown/editor 融合路线（Phase 4,接 PLAN-041 T10）。
+**musk 跟进点**：a) 008 待澄清 3（发包形态）——musk T11 现场已裁定 vendor 快照
+（file: 直链被上游 `@autodown/core: workspace:*` 阻塞,npm/pnpm 均不可解析;
+008 若定 npm 发包,musk 切版本直依赖并退役 vendor 脚本）；b) 008 Phase 1 对拍
+fixtures 可复用本计划 `scripts/lib-parity/fixtures/render/`；c) 008 验收 4 要求
+musk T13 端到端验证记录——本计划 T13 证据行即首个记录（render-switch 5/5）。
+**遗留依赖（musk 侧 markstream 直依赖的最终消灭条件）**：①.at 内置 markdown 元素
+（auto-lang codegen 硬编码绑定 markstream-vue,待 auto-lang 侧改绑 @autodown/vue
+或平台化——已建议 auto-lang 442 承接）;②platform:markdown 的 setCustomComponents
+注册 import（待 008 Phase 3 可选注册 API 落地后改走上游注册口）。
+
+**Phase 收口台账**：Phase 0（T1✓/T2⛔#9/T3✓,web vitest 23 绿——存量 2 例改名
+遗留过时断言已最小修复:brandName 'AutoForge'→'Auto Musk'、DOM 测试加 node 环境守卫
+skipIf）;Phase 1（T4-T7✓,i18n 对拍 156/156）;Phase 2（T8-T10✓,icons 数据对拍
+52/52,渲染层降级登记 KNOWN-DEBT）;Phase 3（T11-T13✓,render-switch 5/5,gen
+vite build 绿——vue-tsc 被 auto-lang 模板存量错拦截,登记 #10）;Phase 4（T15-T16✓,
+14 语言 × 3 方案矩阵,决策 (a) 落档）。
+
+**终验（2026-08-23 收口复跑,验收标准逐项）**：①auto build --gen-only exit 0/0 错;
+②web vitest 23 绿+1 skip;③web npm run build 绿;④deps-guard exit 0（白名单补
+auto-man 脚手架组件库 class-variance-authority/reka-ui——全量 build 按需生成
+gen ui/Button 真实运行面,普查白名单缺口）;⑤i18n 156/156 + icons 52/52 +
+render-switch 5/5 全等;⑥src/front/lib use.web grep 零命中（含注释口径）;⑦验收 4
+之 gen 轨 grep 零命中未达（T2 阻塞,待澄清 #9）;⑧验收 6 之 gen pnpm build
+（vue-tsc）未绿（auto-lang 模板存量错,待澄清 #10;打包链路 vite build 绿）。
+
+**T16 高亮决策登记（2026-08-23,依据 T15 矩阵）**：裁定 **(a) VM 轨 syntect 原生 +
+vue 轨保留 prismjs**。数据支撑（scripts/lib-parity/fixtures/highlight/report.md,
+14 语言 × 3 方案,逐字符类别流两两一致率,近似映射口径）：prism–lowlight 71.3% /
+prism–syntect 60.2% / lowlight–syntect 58.6%——**任两引擎 token 级一致均不可达
+（≤71%）**,换装 lowlight 不改善跨轨一致性（58.6% ≈ 60.2%）,故 vue 轨零改动保留
+prismjs;重点实测语言：bash 三方 52.8-62.8%（Sublime bash 语法可用,无缺失）,
+sql 可用且 lowlight–syntect 89.7%（l–s 最高对）,toml/ts 的 p–s 偏低（33-44%,
+prism 语法粒度差异所致,视觉近似不受影响）。**后续动作归属**：
+①auto-lang 侧需求条目——"只读高亮渲染原语"（041 code_editor 的 highlight.rs/
+two-face 内核暴露 highlight-only API 或 code_editor 只读模式;auto-lang 442 A5
+已预留按本条目定接口——VM 轨消费面 = markdown code_block 只读渲染）;
+②vue 轨 prismjs 保留,双轨差异容忍度 = 视觉近似（char 级类别一致率 60-71%,
+关键词/字符串/注释大类基本一致）——若未来要求 token 级跨轨一致,唯一路径是
+(b) 复刻（.at 正则能力门控前置,本计划不展开）;
+③(c) 降级不采纳（syntect 能力已实证存在,无降级必要）。
+mermaid 决策一并落档（目标 6）：不复刻——平台端口 + VM 轨降级渲染路径由
+auto-down 008 Phase 3 承接（katex/mermaid/highlight 可选注册 + 降级）。
+
+（待 /auto-plan:review 填写正式复审）
 
 ## 待澄清事项
 
@@ -367,3 +419,23 @@ import、src/front 全部 `use.web ... from` 目标。新增第三方依赖 → 
    替换 npm 绑定属跨平台架构迁移完成后的接入步骤——边界划分请确认。
 8. **auto-down 侧计划归属**：T14 草稿在 auto-down 仓 plans/ 落地（其计划体系独立），
    本计划只登记依赖与跟进——若希望 musk 侧直接代执行 auto-down 任务请告知。
+9. **[T2 阻塞] gen 轨 package.json 模板源在 auto-lang 共享仓**（2026-08-23 执行实测）：
+   模板 = `../auto-lang/crates/auto-man/src/vue.rs` generate_package_json，依赖硬编码、
+   仅 router/i18n/npm_deps 条件化；musk src/front 对 10 项待删依赖+toast 零引用已实证，
+   但模板为全 auto-lang 生态共享（widgets-gallery toast 演示等真实消费 vue-sonner），且
+   musk 的 `auto` 为 cargo 全局安装二进制，改模板须重编译安装才生效；与本计划技术栈
+   "auto-lang 只读"声明冲突。三选项请裁定：
+   (i) 跨仓直改 auto-lang 模板 + cargo 重编译（生态级影响，需 auto-lang 侧评审，
+   auto-lang 442 已 gated 于本计划，可顺势承接）；
+   (ii) auto-lang 侧做"按使用裁剪"条件化依赖（属 auto-lang 442 范畴，本计划仅登记需求）；
+   (iii) musk 侧后处理脚本在 auto build 后裁剪 gen/front/vue/package.json（musk 范围内
+   达成 grep 零命中验收，不动模板，偏离 T2 字面"从模板删除"）。
+10. **[T13 关联] auto-lang CodeEditor 模板存量类型错误**（2026-08-23 执行实测）：
+    `auto-man/src/vue.rs:270` 模板生成 `import { setSearchEffect } from
+    '@codemirror/search'`——该 API 在 @codemirror/search@6 实际导出面不存在
+    （有 setSearchQuery 无 setSearchEffect）。主 checkout gen 因"增量保留"沿用旧版
+    CodeEditor.vue 未暴露；**任何新鲜脚手架（fresh checkout/auto build 全量）的
+    `pnpm build`（vue-tsc）必炸**，与 T2 同属 auto-lang 模板债。musk 侧已证：
+    `pnpm exec vite build`（打包链路,消费 @autodown/vue file: 依赖与全部切换产物）
+    全绿；仅 vue-tsc 因该死文件类型错拦截。处置建议归 auto-lang（修模板 import 或
+    setSearchQuery 等价改写），修复后 musk 侧 `pnpm build` 应恢复全绿。

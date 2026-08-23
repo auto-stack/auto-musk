@@ -1,0 +1,29 @@
+// icon.at — auto-icons 渲染层 stub（PLAN-038 T9 降级登记）
+//
+// ⛔ 降级原因（T9 canary 实证，2026-08-23）：.at UI 元素集不支持 svg 语义——
+// `svg { viewBox: ..., path { d: ... } }` 经 a2vue 产物为 `<div :viewBox=...>
+// <div :d=.../>`（元素名与属性退化为 div 绑定，SVG 语义丢失，渲染不可用）。
+// 摘录（gen/components/Icon.vue，canary 产物）：
+//     <div class="lucide" :viewBox="'0 0 24 24'" :stroke="'currentColor'" ...>
+//       <div :d="'M12 7v14'" />
+//
+// 解除条件：auto-lang 提供 svg 节点能力（auto-lang Plan 442 A4 已按本 canary
+// 结论登记"svg 节点能力前置项"）。解除后本文件改写为：
+//     widget Icon(name: str, size: Num, stroke_width: Num)
+//       → svg 元素树（数据 = icons_data.at 元素序列 + 渲染层默认属性：
+//         viewBox "0 0 24 24" / fill "none" / stroke "currentColor" /
+//         stroke-width 2 / stroke-linecap "round" / stroke-linejoin "round"）
+// 并恢复 T10 的 @vue/server-renderer renderToString 对拍（对 lucide 原组件全等）。
+//
+// 数据层不受影响：src/front/lib/icons_data.at（52 图标）已交付并入编译图
+// （ports/icons.web.at re-export），对拍 scripts/lib-parity/icons.mjs（降级态：
+// 数据层元素序列对 lucide dist 源全等）。
+//
+// KNOWN-DEBT 登记：docs/plans/KNOWN-DEBT-AND-RISKS.md（Plan 038）。
+
+widget Icon(name: str, size: Num) {
+    view {
+        // 占位：降级态下渲染不可用；保留 widget 骨架供能力就绪后实现
+        span { style: "icon-stub", text .name }
+    }
+}

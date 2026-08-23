@@ -23,6 +23,7 @@ _无。_
 
 | Plan | 描述 | 参考 |
 |---|---|---|
+| 038 | **auto-icons 渲染层降级**（T9 canary 实证 2026-08-23）：.at UI 元素集不支持 svg 语义——`svg`/`path` 经 a2vue 产物退化为 `<div :viewBox=...><div :d=.../>`（SVG 语义丢失，渲染不可用）。数据层不受影响：`src/front/lib/icons_data.at`（52 图标）已交付并入编译图（ports/icons.web.at re-export），`scripts/lib-parity/icons.mjs` 数据对拍全等。解除条件：auto-lang svg 节点能力（auto-lang Plan 442 A4 已按本 canary 结论登记）；解除后实现 Icon widget 并恢复 @vue/server-renderer renderToString 对拍。 | `src/front/lib/icon.at`（stub）/ [442 A4](../../auto-lang/docs/plans/442-cross-platform-closure.md) |
 | 018 | `task_plan.at` C1：`impl TryFrom<Node>` trait impl → `static fn from_node`（Auto 无 trait impl 语法）。**a2r 计划391 D6 已让 `impl Trait for Type` 报清晰错误**（不再静默反转），但 Auto 语言层面的 trait impl 支持仍是未来设计决策。parity 分别调 hw `try_from` / ag `from_node` 比行为。 | `auto-src/task_plan.at:272` / [391 D6](../../auto-lang/docs/plans/391-a2r-parity-debt-from-musk.md) |
 | 018 | ~~`app_config` 的 `AAID_URL` env 覆盖在 a2r 产物中缺失~~ **✅ 已修复（Plan 021 B1，2026-08-07）**：`app_config.at` 的 `effective_daemon_url` 现读 `env::var("AAID_URL").ok()`（与 hw file < env < default 一致；391 D4 让方法链可解析）。`parity_app_config.rs::parity_effective_daemon_url` 断言两侧行为一致。 | `auto-src/app_config.at` |
 | 018 | ~~`wiki.at` TreeNode file 节点 `modified = None`~~ **✅ 已修复（Plan 021 B2，2026-08-07）**：`wiki.at` 新增 `file_modified(entry)` 辅助 fn（`modified().ok() → duration_since(UNIX_EPOCH).ok() → let secs u64 = as_secs()` 抑制 cast）；build_tree file 节点 `modified` 取真实 mtime。`parity_wiki_http` 逐键比对（含 modified）。 | `auto-src/wiki.at` |

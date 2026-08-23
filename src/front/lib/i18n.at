@@ -1,0 +1,306 @@
+// i18n.at — auto-i18n：vue-i18n 语义子集纯 .at 实现（PLAN-038 Phase 1）
+//
+// 语义按 vue-i18n 9 实测锁定（基准 fixtures：scripts/lib-parity/fixtures/i18n-expected.json，
+// 对拍：scripts/lib-parity/i18n.mjs）：
+//   1. 嵌套点分键查找；叶子非字符串（对象/数组）或路径中断 → 返回 key 本身
+//   2. 具名插值 {name}：params 提供则替换为其值的字符串形式，未提供 → 空串
+//   3. 字面量转义 {'x'} → x
+//   4. locale 不在目录 → 返回 key 本身
+//
+// locale 状态（切换/持久化）是宿主职责：vue 轨 = useT 桥，VM 轨 = 迁移侧信号机制。
+// 本模块自足：不引用任何外部模块/生态绑定（验收 1 grep 零命中的字面口径）；
+// 目录数据内嵌于 @gen 标记区块，由 scripts/gen-i18n-catalog.mjs 从
+// src/front/i18n/{zh,en}.json 再生——勿手改区块。
+
+/** [a-zA-Z0-9_] 判断（插值名扫描）。 */
+fn i18n_is_word_char(c str) bool {
+    if c >= "0" && c <= "9" { return true }
+    if c >= "a" && c <= "z" { return true }
+    if c >= "A" && c <= "Z" { return true }
+    if c == "_" { return true }
+    return false
+}
+
+/** 值转字符串（Num 42 → "42"；str 原样）。 */
+fn i18n_to_str(v Value) str {
+    if v == None { return "" }
+    return "" + v
+}
+
+/**
+ * 插值渲染（手写扫描，等价 vue-i18n message 编译器在 musk 使用面的行为）：
+ *   {name}   → params[name]（缺参 → 空串）
+ *   {'lit'}  → lit
+ * 未闭合/未知形态按字面输出。
+ */
+fn i18n_interp(template str, params obj) str {
+    let out = ""
+    let i = 0
+    let n = template.length
+    for i < n {
+        if template.char_at(i) == "{" && i + 1 < n {
+            if template.char_at(i + 1) == "'" {
+                // 字面量 {'x'}
+                let j = i + 2
+                let lit = ""
+                let closed = false
+                for j < n {
+                    let lc = template.char_at(j)
+                    if lc == "'" {
+                        if j + 1 < n && template.char_at(j + 1) == "}" {
+                            closed = true
+                            j = j + 2
+                        } else {
+                            break
+                        }
+                    } else {
+                        lit = lit + lc
+                        j = j + 1
+                    }
+                }
+                if closed {
+                    out = out + lit
+                    i = j
+                } else {
+                    out = out + template.char_at(i)
+                    i = i + 1
+                }
+            } else {
+                // 具名 {name}
+                let j = i + 1
+                let name = ""
+                for j < n {
+                    let wc = template.char_at(j)
+                    if i18n_is_word_char(wc) {
+                        name = name + wc
+                        j = j + 1
+                    } else {
+                        break
+                    }
+                }
+                if name != "" && j < n && template.char_at(j) == "}" {
+                    out = out + i18n_to_str(params[name])
+                    i = j + 1
+                } else {
+                    out = out + template.char_at(i)
+                    i = i + 1
+                }
+            }
+        } else {
+            out = out + template.char_at(i)
+            i = i + 1
+        }
+    }
+    return out
+}
+
+/**
+ * t() 语义子集：嵌套点分查找 → 插值 → 缺键回退 key。
+ * i18nT("zh", "chat.msgs", { "count": 42 }) == "42 条"
+ */
+fn i18nT(locale str, key str, params obj) str {
+    if key == None { return "" }
+    let catalog = i18n_catalog()
+    let messages = catalog[locale]
+    if messages == None { return key }
+    let parts = key.split(".")
+    let cur = messages
+    for p in parts {
+        if cur == None { return key }
+        cur = cur[p]
+    }
+    // 叶子非字符串（None/对象/数组——.split 为 str 原生属性）视为缺键：vue-i18n 返回 key
+    if cur == None || cur.split == None { return key }
+    return i18n_interp(cur, params ?? {})
+}
+
+// @gen:i18n-catalog-begin（生成物勿手改——scripts/gen-i18n-catalog.mjs 再生）
+fn i18n_catalog() map {
+    return {
+        "zh": {
+            "app": {
+                "title": "auto-musk",
+                "brandName": "Auto Musk",
+                "version": "v0.1.0"
+            },
+            "nav": {
+                "chat": "会话",
+                "plans": "计划",
+                "specs": "规范",
+                "wiki": "知识"
+            },
+            "counter": {
+                "label": "计数"
+            },
+            "settings": {
+                "title": "设置",
+                "mode": "模式",
+                "modeGsdTitle": "GSD 模式：仅在目标门暂停",
+                "modeCheckTitle": "检查模式：每个门都会暂停",
+                "accent": "主题色",
+                "theme": "外观",
+                "language": "语言",
+                "themeLight": "浅色",
+                "themeDark": "深色",
+                "themeSystem": "跟随系统",
+                "openSystemSettings": "打开系统设置"
+            },
+            "common": {
+                "save": "保存",
+                "cancel": "取消",
+                "edit": "编辑",
+                "delete": "删除",
+                "create": "创建"
+            },
+            "chat": {
+                "title": "聊天",
+                "sessions": "会话",
+                "sessionInfo": "会话信息",
+                "chatId": "聊天 ID",
+                "copyChatId": "复制聊天 ID",
+                "messages": "消息",
+                "tokenCost": "令牌消耗",
+                "newSession": "新建会话",
+                "deleteSession": "删除会话",
+                "deleteAllSessions": "删除全部会话",
+                "noSessions": "无会话",
+                "inputPlaceholder": "描述你想构建的内容... (Enter 发送, {'@'} 呼出 agent, /relay /superpower /spec1 命令)",
+                "searchPlaceholder": "搜索消息…",
+                "msgs": "{count} 条"
+            },
+            "specs": {
+                "title": "规范",
+                "overview": "概览",
+                "loading": "加载规范中…",
+                "addItem": "+ 添加项目",
+                "noDoc": "未加载文档",
+                "structuredMode": "🗂 结构化",
+                "fileTreeMode": "📄 文件树",
+                "emptyTree": "还没有 spec 文件",
+                "selectFile": "从树中选择一个文件"
+            },
+            "plans": {
+                "title": "计划",
+                "loading": "加载计划中…",
+                "empty": "还没有计划",
+                "selectPlan": "从侧栏选择一个计划",
+                "newPlan": "新建计划",
+                "featureName": "功能名称",
+                "edit": "编辑",
+                "save": "保存",
+                "cancel": "取消",
+                "archive": "归档",
+                "mergeToSpec": "沉淀到 Spec"
+            },
+            "wiki": {
+                "title": "知识库",
+                "newPage": "新建页面",
+                "newFolder": "新建文件夹",
+                "toggleSidebar": "切换侧栏",
+                "raw": "原始文件",
+                "searchPlaceholder": "搜索页面…",
+                "noPages": "暂无页面",
+                "slugPlaceholder": "page-slug",
+                "titlePlaceholder": "页面标题",
+                "contentPlaceholder": "# 页面内容...",
+                "create": "创建",
+                "edit": "编辑",
+                "delete": "删除",
+                "selectPage": "选择一个页面或创建新页面"
+            }
+        },
+        "en": {
+            "app": {
+                "title": "auto-musk",
+                "brandName": "Auto Musk",
+                "version": "v0.1.0"
+            },
+            "nav": {
+                "chat": "Chat",
+                "plans": "Plans",
+                "specs": "Specs",
+                "wiki": "Wiki"
+            },
+            "counter": {
+                "label": "Count"
+            },
+            "settings": {
+                "title": "Settings",
+                "mode": "Mode",
+                "modeGsdTitle": "GSD mode: only Goal Gate pauses",
+                "modeCheckTitle": "Check mode: every gate pauses",
+                "accent": "Accent",
+                "theme": "Theme",
+                "language": "Language",
+                "themeLight": "Light",
+                "themeDark": "Dark",
+                "themeSystem": "System",
+                "openSystemSettings": "Open System Settings"
+            },
+            "common": {
+                "save": "Save",
+                "cancel": "Cancel",
+                "edit": "Edit",
+                "delete": "Delete",
+                "create": "Create"
+            },
+            "chat": {
+                "title": "Chat",
+                "sessions": "Sessions",
+                "sessionInfo": "Session info",
+                "chatId": "Chat ID",
+                "copyChatId": "Copy chat ID",
+                "messages": "Messages",
+                "tokenCost": "Token cost",
+                "newSession": "New session",
+                "deleteSession": "Delete session",
+                "deleteAllSessions": "Delete all sessions",
+                "noSessions": "No session",
+                "inputPlaceholder": "Describe what you want to build... (Enter to send, {'@'} for agent, /relay /superpower /spec1 commands)",
+                "searchPlaceholder": "Search messages…",
+                "msgs": "{count} msgs"
+            },
+            "specs": {
+                "title": "Specs",
+                "overview": "Overview",
+                "loading": "Loading specs…",
+                "addItem": "+ Add Item",
+                "noDoc": "No document loaded",
+                "structuredMode": "🗂 Structured",
+                "fileTreeMode": "📄 File Tree",
+                "emptyTree": "No spec files yet",
+                "selectFile": "Select a file from the tree"
+            },
+            "plans": {
+                "title": "Plans",
+                "loading": "Loading plans…",
+                "empty": "No plans yet",
+                "selectPlan": "Select a plan from the sidebar",
+                "newPlan": "New Plan",
+                "featureName": "Feature name",
+                "edit": "Edit",
+                "save": "Save",
+                "cancel": "Cancel",
+                "archive": "Archive",
+                "mergeToSpec": "Merge to Spec"
+            },
+            "wiki": {
+                "title": "Wiki",
+                "newPage": "New page",
+                "newFolder": "New folder",
+                "toggleSidebar": "Toggle sidebar",
+                "raw": "Raw files",
+                "searchPlaceholder": "Search pages…",
+                "noPages": "No pages",
+                "slugPlaceholder": "page-slug",
+                "titlePlaceholder": "Page Title",
+                "contentPlaceholder": "# Page content...",
+                "create": "Create",
+                "edit": "Edit",
+                "delete": "Delete",
+                "selectPage": "Select a page or create a new one"
+            }
+        },
+    }
+}
+// @gen:i18n-catalog-end

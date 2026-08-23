@@ -1,0 +1,219 @@
+{
+  "summary": {
+    "prism_vs_lowlight": 71.3,
+    "prism_vs_syntect": 60.2,
+    "lowlight_vs_syntect": 58.6
+  },
+  "matrix": {
+    "bash": {
+      "prism_support": true,
+      "lowlight_support": true,
+      "syntect_support": true,
+      "lengths": {
+        "prism": 341,
+        "lowlight": 341,
+        "syntect": 341
+      },
+      "agreement": {
+        "prism_vs_lowlight": 62.8,
+        "prism_vs_syntect": 52.8,
+        "lowlight_vs_syntect": 54.3
+      }
+    },
+    "c": {
+      "prism_support": true,
+      "lowlight_support": true,
+      "syntect_support": true,
+      "lengths": {
+        "prism": 511,
+        "lowlight": 511,
+        "syntect": 511
+      },
+      "agreement": {
+        "prism_vs_lowlight": 65,
+        "prism_vs_syntect": 62.8,
+        "lowlight_vs_syntect": 56
+      }
+    },
+    "cpp": {
+      "prism_support": true,
+      "lowlight_support": true,
+      "syntect_support": true,
+      "lengths": {
+        "prism": 650,
+        "lowlight": 650,
+        "syntect": 650
+      },
+      "agreement": {
+        "prism_vs_lowlight": 74.9,
+        "prism_vs_syntect": 75.5,
+        "lowlight_vs_syntect": 64
+      }
+    },
+    "go": {
+      "prism_support": true,
+      "lowlight_support": true,
+      "syntect_support": true,
+      "lengths": {
+        "prism": 561,
+        "lowlight": 561,
+        "syntect": 561
+      },
+      "agreement": {
+        "prism_vs_lowlight": 70.6,
+        "prism_vs_syntect": 48.1,
+        "lowlight_vs_syntect": 37.1
+      }
+    },
+    "java": {
+      "prism_support": true,
+      "lowlight_support": true,
+      "syntect_support": true,
+      "lengths": {
+        "prism": 672,
+        "lowlight": 672,
+        "syntect": 672
+      },
+      "agreement": {
+        "prism_vs_lowlight": 76.2,
+        "prism_vs_syntect": 77.1,
+        "lowlight_vs_syntect": 65.3
+      }
+    },
+    "javascript": {
+      "prism_support": true,
+      "lowlight_support": true,
+      "syntect_support": true,
+      "lengths": {
+        "prism": 541,
+        "lowlight": 541,
+        "syntect": 541
+      },
+      "agreement": {
+        "prism_vs_lowlight": 60.3,
+        "prism_vs_syntect": 33.3,
+        "lowlight_vs_syntect": 46.6
+      }
+    },
+    "json": {
+      "prism_support": true,
+      "lowlight_support": true,
+      "syntect_support": true,
+      "lengths": {
+        "prism": 218,
+        "lowlight": 218,
+        "syntect": 218
+      },
+      "agreement": {
+        "prism_vs_lowlight": 94,
+        "prism_vs_syntect": 54.6,
+        "lowlight_vs_syntect": 58.7
+      }
+    },
+    "markdown": {
+      "prism_support": true,
+      "lowlight_support": true,
+      "syntect_support": true,
+      "lengths": {
+        "prism": 208,
+        "lowlight": 208,
+        "syntect": 208
+      },
+      "agreement": {
+        "prism_vs_lowlight": 57.2,
+        "prism_vs_syntect": 75.5,
+        "lowlight_vs_syntect": 58.2
+      }
+    },
+    "python": {
+      "prism_support": true,
+      "lowlight_support": true,
+      "syntect_support": true,
+      "lengths": {
+        "prism": 692,
+        "lowlight": 692,
+        "syntect": 692
+      },
+      "agreement": {
+        "prism_vs_lowlight": 84.2,
+        "prism_vs_syntect": 78,
+        "lowlight_vs_syntect": 70.7
+      }
+    },
+    "rust": {
+      "prism_support": true,
+      "lowlight_support": true,
+      "syntect_support": true,
+      "lengths": {
+        "prism": 537,
+        "lowlight": 537,
+        "syntect": 537
+      },
+      "agreement": {
+        "prism_vs_lowlight": 77.8,
+        "prism_vs_syntect": 71.9,
+        "lowlight_vs_syntect": 63.5
+      }
+    },
+    "sql": {
+      "prism_support": true,
+      "lowlight_support": true,
+      "syntect_support": true,
+      "lengths": {
+        "prism": 380,
+        "lowlight": 380,
+        "syntect": 380
+      },
+      "agreement": {
+        "prism_vs_lowlight": 81.6,
+        "prism_vs_syntect": 76.6,
+        "lowlight_vs_syntect": 89.7
+      }
+    },
+    "toml": {
+      "prism_support": true,
+      "lowlight_support": true,
+      "syntect_support": true,
+      "lengths": {
+        "prism": 270,
+        "lowlight": 270,
+        "syntect": 270
+      },
+      "agreement": {
+        "prism_vs_lowlight": 78.1,
+        "prism_vs_syntect": 44.4,
+        "lowlight_vs_syntect": 44.8
+      }
+    },
+    "typescript": {
+      "prism_support": true,
+      "lowlight_support": true,
+      "syntect_support": true,
+      "lengths": {
+        "prism": 556,
+        "lowlight": 556,
+        "syntect": 556
+      },
+      "agreement": {
+        "prism_vs_lowlight": 70.7,
+        "prism_vs_syntect": 40.6,
+        "lowlight_vs_syntect": 44.8
+      }
+    },
+    "yaml": {
+      "prism_support": true,
+      "lowlight_support": true,
+      "syntect_support": true,
+      "lengths": {
+        "prism": 278,
+        "lowlight": 278,
+        "syntect": 278
+      },
+      "agreement": {
+        "prism_vs_lowlight": 45,
+        "prism_vs_syntect": 51.1,
+        "lowlight_vs_syntect": 66.5
+      }
+    }
+  }
+}
