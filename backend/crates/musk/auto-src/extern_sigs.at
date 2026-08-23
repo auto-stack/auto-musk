@@ -221,7 +221,6 @@ fn write_file_do(p @str, c @str) {}
 fn command_needs_approval(c @str) bool {}
 fn run_shell_command(c @str) str {}
 fn edit_file_do(p @str, o @str, n @str) str {}
-fn batch_replace_do(p @str, _r Value) str {}
 fn search_files(p @str) str {}
 fn list_directory(p @str) str {}
 fn list_symbols_in(p @str) str {}

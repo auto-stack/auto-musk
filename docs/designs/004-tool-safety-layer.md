@@ -26,7 +26,7 @@ musk 的 9 个工具直接操作文件系统/执行 shell,**无任何边界**:
 
 ### 3.1 第一层:文件类工具的路径约束(可靠,本次实现)
 
-给 `read_file`/`write_file`/`edit_file`/`batch_replace`/`glob`/`search`/`list_dir`/`list_symbols` 全部加:
+给 `read_file`/`write_file`/`edit_file`/`glob`/`search`/`list_dir`/`list_symbols`(`batch_replace` 已于 PLAN-039 并入 `edit_file`)全部加:
 
 ```
 项目根 = CWD(musk 启动时的工作目录)

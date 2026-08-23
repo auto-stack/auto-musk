@@ -455,7 +455,6 @@ pub fn default_professions() -> Vec<Profession> {
                 "read_file",
                 "write_file",
                 "edit_file",
-                "batch_replace",
                 "search",
                 "list_dir",
                 "run_command",

@@ -4,7 +4,7 @@ mode {
     role : "coder"
     skills : true
     tools : [
-        read_file, write_file, edit_file, batch_replace,
+        read_file, write_file, edit_file,
         search, list_dir, list_symbols, glob,
         run_command, skill
     ]

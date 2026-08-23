@@ -111,28 +111,6 @@ impl Tool for EditFile {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct BatchReplace {}
-
-#[async_trait::async_trait]
-impl Tool for BatchReplace {
-    fn name(&self) -> String {
-        return "batch_replace".to_string();
-    }
-    fn description(&self) -> String {
-        return "Multiple replacements".to_string();
-    }
-    fn parameters(&self) -> Value {
-        return parse_json(&batch_replace_schema);
-    }
-    async fn execute(&self, args: Value) -> Result<String, ToolError> {
-        let path = value_get_str(&args, "path");
-        let replacements = value_get_array(&args, "replacements");
-        let result = batch_replace_do(&path, replacements);
-        return Ok(result);
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
 struct Search {}
 
 #[async_trait::async_trait]

@@ -1,6 +1,6 @@
 use.rust std::sync::Arc
 use.rust auto_ai_agent::{Agent, Client, Tool, SkillRegistry, SkillTool, ModelTier, RoleRegistry, load_builtin, load_role}
-use.rust crate::tools::{ReadFile, WriteFile, EditFile, BatchReplace, Search, ListDir, ListSymbols, Glob, RunCommand}
+use.rust crate::tools::{ReadFile, WriteFile, EditFile, Search, ListDir, ListSymbols, Glob, RunCommand}
 use.rust crate::spec_tools::{ReadSpecs, ListSpecs, WriteSpec, UpdateSpec, WriteGoals}
 use.rust crate::orch_tools::{SpawnRelay, Dispatch, BringIn}
 use.rust crate::tool_context::ToolContext
@@ -38,7 +38,6 @@ pub fn build_agent_from_mode(mode AgentMode, client Arc<dyn Client>) Result<Agen
         ("read_file", Arc.new(ReadFile.new())),
         ("write_file", Arc.new(WriteFile.new())),
         ("edit_file", Arc.new(EditFile.new())),
-        ("batch_replace", Arc.new(BatchReplace.new())),
         ("search", Arc.new(Search.new())),
         ("list_dir", Arc.new(ListDir.new())),
         ("list_symbols", Arc.new(ListSymbols.new())),

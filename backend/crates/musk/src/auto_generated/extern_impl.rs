@@ -125,7 +125,6 @@ pub const read_file_schema: &str = r#"{"type":"object","properties":{"path":{"ty
 pub const write_file_schema: &str = r#"{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}"#;
 pub const run_command_schema: &str = r#"{"type":"object","properties":{"cmd":{"type":"string"},"force":{"type":"boolean"}},"required":["cmd"]}"#;
 pub const edit_file_schema: &str = r#"{"type":"object","properties":{"path":{"type":"string"},"old_string":{"type":"string"},"new_string":{"type":"string"}},"required":["path","old_string","new_string"]}"#;
-pub const batch_replace_schema: &str = r#"{"type":"object","properties":{"path":{"type":"string"},"replacements":{"type":"array"}},"required":["path","replacements"]}"#;
 pub const search_schema: &str = r#"{"type":"object","properties":{"pattern":{"type":"string"}},"required":["pattern"]}"#;
 pub const list_dir_schema: &str = r#"{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}"#;
 pub const list_symbols_schema: &str = r#"{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}"#;
@@ -2011,7 +2010,6 @@ pub fn edit_file_do(p: &str, o: &str, n: &str) -> String {
     let c = std::fs::read_to_string(p).unwrap_or_default();
     let n2 = c.replacen(o, n, 1); let _ = std::fs::write(p, n2); "ok".into()
 }
-pub fn batch_replace_do(p: &str, _r: Value) -> String { format!("(stub) {}", p) }
 pub fn search_files(p: &str) -> String { format!("(stub) {}", p) }
 pub fn list_directory(p: &str) -> String { format!("(stub) {}", p) }
 pub fn list_symbols_in(p: &str) -> String { format!("(stub) {}", p) }

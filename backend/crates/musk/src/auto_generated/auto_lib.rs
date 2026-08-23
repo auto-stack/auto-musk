@@ -3,7 +3,7 @@ use super::extern_impl::*;
 
 use std::sync::Arc;
 use auto_ai_agent::{Agent, Client, Tool, SkillRegistry, SkillTool, ModelTier, RoleRegistry, load_builtin, load_role};
-use crate::tools::{ReadFile, WriteFile, EditFile, BatchReplace, Search, ListDir, ListSymbols, Glob, RunCommand};
+use crate::tools::{ReadFile, WriteFile, EditFile, Search, ListDir, ListSymbols, Glob, RunCommand};
 use crate::spec_tools::{ReadSpecs, ListSpecs, WriteSpec, UpdateSpec, WriteGoals};
 use crate::orch_tools::{SpawnRelay, Dispatch, BringIn};
 use crate::tool_context::ToolContext;
@@ -34,7 +34,7 @@ pub fn build_agent_from_mode(mode: AgentMode, client: Arc<dyn Client>) -> Result
     let owned = OwnedRole::new(role);
     let owned2 = owned.with_extra_prompt(&mode.extra_system_prompt);
     let mut agent = Agent::new(owned2, client);
-    let all_tools: Vec<(String, Arc<dyn Tool>)> = vec![("read_file".to_string(), Arc::new(ReadFile::new())), ("write_file".to_string(), Arc::new(WriteFile::new())), ("edit_file".to_string(), Arc::new(EditFile::new())), ("batch_replace".to_string(), Arc::new(BatchReplace::new())), ("search".to_string(), Arc::new(Search::new())), ("list_dir".to_string(), Arc::new(ListDir::new())), ("list_symbols".to_string(), Arc::new(ListSymbols::new())), ("glob".to_string(), Arc::new(Glob::new())), ("run_command".to_string(), Arc::new(RunCommand::new())), ("read_specs".to_string(), Arc::new(ReadSpecs::new())), ("list_specs".to_string(), Arc::new(ListSpecs::new())), ("write_spec".to_string(), Arc::new(WriteSpec::new())), ("update_spec".to_string(), Arc::new(UpdateSpec::new())), ("write_goals".to_string(), Arc::new(WriteGoals::new()))];
+    let all_tools: Vec<(String, Arc<dyn Tool>)> = vec![("read_file".to_string(), Arc::new(ReadFile::new())), ("write_file".to_string(), Arc::new(WriteFile::new())), ("edit_file".to_string(), Arc::new(EditFile::new())), ("search".to_string(), Arc::new(Search::new())), ("list_dir".to_string(), Arc::new(ListDir::new())), ("list_symbols".to_string(), Arc::new(ListSymbols::new())), ("glob".to_string(), Arc::new(Glob::new())), ("run_command".to_string(), Arc::new(RunCommand::new())), ("read_specs".to_string(), Arc::new(ReadSpecs::new())), ("list_specs".to_string(), Arc::new(ListSpecs::new())), ("write_spec".to_string(), Arc::new(WriteSpec::new())), ("update_spec".to_string(), Arc::new(UpdateSpec::new())), ("write_goals".to_string(), Arc::new(WriteGoals::new()))];
     for pair in &all_tools {
         let tool_name = pair.0.clone();
         let tool = pair.1.clone();

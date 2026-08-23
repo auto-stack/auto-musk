@@ -20,7 +20,6 @@ fn make_tool(name: &str) -> Option<Box<dyn auto_ai_agent::Tool>> {
         "read_file" => Some(Box::new(ReadFile::new())),
         "write_file" => Some(Box::new(WriteFile::new())),
         "edit_file" => Some(Box::new(EditFile::new())),
-        "batch_replace" => Some(Box::new(BatchReplace::new())),
         "search" => Some(Box::new(Search::new())),
         "list_dir" => Some(Box::new(ListDir::new())),
         "list_symbols" => Some(Box::new(ListSymbols::new())),
@@ -398,40 +397,9 @@ async fn run_command_matrix() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// batch_replace — multi-edit
+// batch_replace 已删除(PLAN-039 T7):多编辑语义由 edit_file 的 edits[]
+// 承担,原子性由前置校验(未命中/歧义/重叠在写盘前拒绝)全覆盖。
 // ════════════════════════════════════════════════════════════════════════════
-
-#[tokio::test]
-#[serial_test::serial]
-async fn batch_replace_matrix() {
-    
-    let cases = vec![
-        ToolCase {
-            name: "batch_two_replacements",
-            category: CaseCategory::Normal,
-            fixtures: vec![Fixture::File{path:"a.txt",content:"foo bar baz"}],
-            call: ("batch_replace", json!({
-                "path": "a.txt",
-                "replacements": [
-                    {"old_string":"foo","new_string":"FOO"},
-                    {"old_string":"baz","new_string":"BAZ"}
-                ]
-            })),
-            expect: Expect::OkFileEquals { path: "a.txt", content: "FOO bar BAZ" },
-        },
-        ToolCase {
-            name: "batch_one_not_found_fails",
-            category: CaseCategory::Error,
-            fixtures: vec![Fixture::File{path:"a.txt",content:"foo"}],
-            call: ("batch_replace", json!({
-                "path": "a.txt",
-                "replacements": [{"old_string":"foo","new_string":"x"},{"old_string":"zzz","new_string":"y"}]
-            })),
-            expect: Expect::Err,
-        },
-    ];
-    run_cases(&cases, make_tool).await;
-}
 
 // ════════════════════════════════════════════════════════════════════════════
 // Security: path confinement (Design 004) — out-of-bounds paths rejected

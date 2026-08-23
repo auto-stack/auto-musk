@@ -330,6 +330,8 @@ async fn chat_loop(
             StdArc::new(move |ev| {
                 use auto_ai_agent::StreamEvent;
                 match ev {
+                    // auto-ai PLAN-026 turn 边界事件:CLI 聊天不渲染(覆盖以保穷尽)。
+                    StreamEvent::TurnStart { .. } | StreamEvent::TurnEnd { .. } => {}
                     StreamEvent::Delta { text } => {
                         print!("{text}");
                         let _ = io::stdout().flush();
