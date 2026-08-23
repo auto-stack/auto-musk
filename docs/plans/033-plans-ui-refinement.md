@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-033
-status: reviewed
+status: review_done
 feature_name: 计划模块 UI/UX 改进（过滤/状态/徽标/归档语义/MetaBlock）
 author: [zhaopuming]
 created_at: 2026-08-22T10:40:25+08:00
-updated_at: 2026-08-22T14:05:00+08:00
+updated_at: 2026-08-23T15:12:00+08:00
 
 supersedes_spec_components:
   - "backend/crates/musk/src/plans.rs: PlanStatus 状态机与 archive 语义重定义（reviewed/archived 单一终态）"

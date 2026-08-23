@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-031
-status: executing
+status: execution_done
 feature_name: RunBox 体验细化（批次二）+ Run 完成报告（Report v1）
 author: [zhaopuming]
 created_at: 2026-08-21T21:00:00+08:00
-updated_at: 2026-08-21T21:00:00+08:00
+updated_at: 2026-08-23T15:10:00+08:00
 
 # Leave these EMPTY here — /auto-plan:review fills them:
 supersedes_spec_components: []
@@ -278,3 +278,11 @@ ReportCard（PPT 风格），并向**父 chat 会话**追加总结消息（此�
        2784 令牌/168s/2 个变更文件）。**T4（父 chat 总结 turn）为代码审读
        级验证**——REST E2E 无父会话，待用户下次 chat 发起 run 自然验证。
 - [x] 8. 提交并更新本文件状态。
+
+### finish-plan 复审（2026-08-23，状态字段修正）
+
+全部 17 任务勾选完毕、current_step 8/8、五个批次均收口（含 E2E 实证与 cargo test 绿），
+但 frontmatter `status` 滞留在 `executing`——本次修正为 `execution_done`。
+遗留验证（非阻塞）：T4 父 chat 总结 turn 仍为代码审读级验证，待用户下次从 chat 发起
+run 自然验证（见批次一/二步骤 7 备注）。下一步：/auto-plan:review。
+
