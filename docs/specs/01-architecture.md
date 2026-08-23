@@ -74,7 +74,7 @@ Rust + axum 0.8 HTTP 服务。`lib.rs:5-29` 声明手写模块 + `lib.rs:28` `au
 
 ### codegen 流程
 
-`auto build`（auto-lang）→ `.at` → `gen/front/vue/`（Vue SFC + store composable + api.ts + ext 复制）。shadcn 模式（`VueGenerator::new_shadcn`）。web 依赖经顶层 `use.web` 语句声明（PLAN-037；use 块为废弃别名）后复制/转译到 `gen/ext/`；非 web 后端遇 `use.web` 显式报错。**跨后端 facade**：`src/front/ports/<域>.web.at` 承载 web 绑定（调用方恒引 `.at` 端口名，构建期按目标解析 `X.<target>.at` adapter，缺源显式报错）。**v-model**：子 widget 的 model 变量 = 双向通道（defineModel 编译），调用点传可写状态槽自动折叠 `v-model:name`，非槽目标硬错误（PLAN-037 Phase 1）。
+`auto build`（auto-lang）→ `.at` → `gen/front/vue/`（Vue SFC + store composable + api.ts + ext 复制）。shadcn 模式（`VueGenerator::new_shadcn`）。web 依赖经顶层 `use.web` 语句声明（PLAN-037；use 块为废弃别名）后复制/转译到 `gen/ext/`；非 web 后端遇 `use.web` 显式报错。**跨后端 facade**：`src/front/ports/*.web.at` 五域端口（platform/icons/renderer/composables/upload，Plan 424 扩展至 component/composable 符号 re-export 转发）承载全部 web 绑定——调用面 use.web 恒引 `.at` 端口名，非 `.at` 目标零命中；构建期按目标解析 `X.<target>.at` adapter，缺源显式报错。**v-model**：子 widget 的 model 变量 = 双向通道（defineModel 编译），调用点传可写状态槽自动折叠 `v-model:name`，非槽目标硬错误（PLAN-037 Phase 1）。
 
 ## 3. 核心数据流
 
