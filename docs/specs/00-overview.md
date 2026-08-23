@@ -8,7 +8,7 @@ auto-musk 是 Forge 继任者——Rust 后端的 AI 编码 agent。既是 CLI�
 
 ## 关键能力
 
-1. **Agent 运行**：基于 `auto-ai-agent` 的 ReAct 循环（一次性 / 流式 SSE），9 基础工具 + 5 spec 工具 + 5 编排工具，path confinement 安全沙箱。
+1. **Agent 运行**：基于 `auto-ai-agent` 的 ReAct 循环（一次性 / 流式 SSE），8 基础工具 + 5 spec 工具 + 5 编排工具，path confinement 安全沙箱。文件工具 pi parity（PLAN-039）：edit_file 多编辑/模糊匹配/CRLF-BOM 往返、read_file 分页截断、输出字符边界安全截断。
 2. **Spec 双落点**：结构化 ledger（`.autoos/specs.json` 6 区 + 状态机）+ 文件树知识层（`docs/specs/`，本目录）。
 3. **Plans 动态执行**：`docs/plans/NNN-*.md` 文件树，5 态状态机（drafting→executing→execution_done→review_done→merged），merge 沉淀到 Spec。
 4. **Relay 编排**：PipelineEngine 流水线 + TaskPlan DAG + 子会话（spawn_relay/dispatch/bring_in）。

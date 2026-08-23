@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-039
-status: reviewed
+status: archived
 feature_name: 文件工具对齐 pi——edit 吸收 batch_replace（CRLF/BOM/模糊匹配/多重编辑/自愈报错）、read 分页截断、共享截断模块与 String::truncate panic 修复
 author: [zhaopuming]
 created_at: 2026-08-23

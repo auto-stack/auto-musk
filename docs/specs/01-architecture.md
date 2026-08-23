@@ -15,7 +15,9 @@ Rust + axum 0.8 HTTP 服务。`lib.rs:5-29` 声明手写模块 + `lib.rs:28` `au
 | `plans.rs` | Plan 文件树 + 5 态状态机 + HTTP 路由（hw） | `PlanStatus`(5) / `PlansStore`(create/transition/archive/merge) / `plans_routes()` |
 | `plan_merge.rs` | Plan→Spec 合并（§N→section 映射） | `plan_to_items()` / `upsert_items_into_doc()` |
 | `spec_tree.rs` | docs/specs/ 文件树 API（hw，复用 wiki::build_tree） | `spec_tree_routes()` / `spec_tree` / `spec_file` |
-| `tools.rs` | 9 本地工具 + `map_path_error`(SecurityDenied) | ReadFile/WriteFile/EditFile/Search/ListDir/Glob/RunCommand/BatchReplace/DisplayImage |
+| `tools.rs` | 8 本地工具 + `map_path_error`(SecurityDenied) | ReadFile/WriteFile/EditFile/Search/ListDir/Glob/RunCommand/DisplayImage |
+| `edit_diff.rs` | edit_file 匹配/应用核心（PLAN-039，pi edit-diff.ts 移植） | `normalize_for_fuzzy_match()` / `fuzzy_find_text()` / `apply_edits_to_normalized_content()`（行级保留+重叠检测+五类自愈报错） |
+| `tool_truncate.rs` | 共享截断模块（PLAN-039，字符边界安全） | `truncate_head()/truncate_tail()/truncate_line()` / `TruncationResult` |
 | `tool_safety.rs` | path confinement + run_command 分级 + cmd 路径校验 | `resolve_within_project()` / `project_root()` / `classify_command()` / `confine_command_paths()` |
 | `workspace.rs` | workspace 注册表 + store bundle + 数据迁移 | `WorkspaceRegistry` / `WorkspaceStores` / `WorkspaceQuery` |
 | `chats.rs` | chat session 持久化 + spec-change 审批队列 | `ChatStore` / `ChatSession` / queue_spec_change/approve/reject |
