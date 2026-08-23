@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-039
-status: executing
+status: execution_done
 feature_name: 文件工具对齐 pi——edit 吸收 batch_replace（CRLF/BOM/模糊匹配/多重编辑/自愈报错）、read 分页截断、共享截断模块与 String::truncate panic 修复
 author: [zhaopuming]
 created_at: 2026-08-23
@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 1
+current_step: 12
 total_steps: 12
 ---
 
@@ -101,20 +101,20 @@ path confinement 与注入式 root 原样保留在所有新代码路径中；`li
 ## 任务分解（12 步）
 
 1. `tool_truncate.rs`：三函数 + 字符边界安全 + 单测（多字节中文、恰好整行、首行超限）。[✅ 已完成] 16/16 单测通过（head/tail/line 三函数，多字节边界/整行临界/首行超限全覆盖）；commit `feat(plan-039): T1`
-2. `search` 改用共享模块，删除裸 `truncate`（**修 panic，可单独提前合入**）。
-3. `read_file` offset/limit + 截断 + 续读尾注 + 越界报错；单测。
-4. `tool_truncate` 接入 `run_command` 输出上限（临时措施，完整重写在 PLAN-040）。
+2. `search` 改用共享模块，删除裸 `truncate`（**修 panic，可单独提前合入**）。[✅ 已完成] 旧代码 panic 在 tools.rs:370 复证后改 truncate_tail(8KB,尾部保留)+逐行 500 字符截断;回归测试 `search_multibyte_truncation_does_not_panic` 全绿
+3. `read_file` offset/limit + 截断 + 续读尾注 + 越界报错；单测。[✅ 已完成] 7 新测试全绿(窗口/越界带总行数/2000 行截断尾注/50KB 字节截断尾注/首行超限 sed 逃生/10MB 验收/续读窗口)
+4. `tool_truncate` 接入 `run_command` 输出上限（临时措施，完整重写在 PLAN-040）。[✅ 已完成] truncate_tail 2000 行/50KB+截断提示;测试 `run_command_output_capped_at_50kb`
 5. `edit_diff.rs`（新文件）：规范化表 + `fuzzy_find` + 行级保留应用 + 重叠检测；
    单测用例对照 pi 行为（CRLF、BOM、智能引号、NBSP、行尾空白、重复、重叠、
-   模糊命中但原文混排 CRLF）。
-6. `edit_file` 重写接 `edit_diff.rs` + 入口垫片 + 五类报错；单测。
-7. 删除 `batch_replace`；grep `skills/`、`docs/` 中对其引用并更新（TDD/executing-plans 技能若点名该工具则改写为 `edit_file` 多编辑用法）。
-8. 工具 description 重写：并入用法守则（最小唯一 oldText/邻近合并/多编辑单调用）。
-9. per-path 写互斥加固 + 单测（并发两写同文件）。
+   模糊命中但原文混排 CRLF）。[✅ 已完成] 21/21 单测;新依赖 unicode-normalization 0.1(NFKC)
+6. `edit_file` 重写接 `edit_diff.rs` + 入口垫片 + 五类报错；单测。[✅ 已完成] 13/13 工具级测试(含 CRLF+智能引号混合端到端二进制断言)
+7. 删除 `batch_replace`；grep `skills/`、`docs/` 中对其引用并更新（TDD/executing-plans 技能若点名该工具则改写为 `edit_file` 多编辑用法）。[✅ 已完成] 手写轨(tools/lib/profession/tool_atoms)+.at 轨(auto-src 3 文件+生成物镜像 3 文件)+modes 白名单 2 个+designs 003/004;skills/ 无引用;全仓 grep 干净
+8. 工具 description 重写：并入用法守则（最小唯一 oldText/邻近合并/多编辑单调用）。[✅ 已完成] edit_file(T6)/read_file(T3)/run_command(T8 截断说明)
+9. per-path 写互斥加固 + 单测（并发两写同文件）。[✅ 已完成] DashMap<PathBuf,Arc<Mutex>> 读改写含落盘全段互斥;双 OS 线程测试先真实复现丢更新(锁外写盘 bug)再修复,5 轮稳定
 10. 若 PLAN-027 已落地：返回 `ToolOutput`，diff/truncation 放 details；否则在
-    返回字符串中保留简短确认 + 标注 `// PLAN-027 挂接点`。
-11. `tool_test.rs` 扩充：对拍用例表（与任务 5 同源 fixtures）。
-12. 回归：`cargo test` + 手工冒烟（CRLF 文件编辑、大文件读取分页）。
+    返回字符串中保留简短确认 + 标注 `// PLAN-027 挂接点`。[✅ 已完成] PLAN-027 未落地——tools.rs:100(read_file 截断元数据)+tools.rs:472(edit_file diff)+tool_truncate.rs TruncationResult 三处挂接点标注
+11. `tool_test.rs` 扩充：对拍用例表（与任务 5 同源 fixtures）。[✅ 已完成] tests/tool_atoms.rs 增 8 类对拍+多编辑原子性+垫片+read 分页矩阵,24/24 全绿(大文件截断用例在 tools.rs 单测以编程式 fixtures 覆盖)
+12. 回归：`cargo test` + 手工冒烟（CRLF 文件编辑、大文件读取分页）。[✅ 已完成] cargo test -p musk 全量 563+ 测试 0 失败;CRLF 编辑与 10MB 读取分页由二进制精确断言的自动化用例覆盖(见 T6/T11/T3 证据)
 
 ## 验收标准
 
@@ -132,3 +132,18 @@ path confinement 与注入式 root 原样保留在所有新代码路径中；`li
   确认 relay/plan 工具无交叉引用（任务 7 的 grep 覆盖）。
 - 模糊匹配扩大"模型以为会改但实际匹配到别处"的表面积：pi 的缓解是歧义（>1 次
   即失败）+ 行级保留，我们照搬，不额外放宽。
+
+## 待澄清事项
+
+- **auto-ai PLAN-026 依赖漂移（非本计划范畴，已做最小机械适配）**：开工时发现
+  main 分支本身无法编译——auto-ai 仓库新合入的 PLAN-026 给 `StreamEvent` 增加了
+  `TurnStart`/`TurnEnd` 变体，musk 侧 6 处 match 不再穷尽（relay/driver.rs、
+  server.rs、main.rs、auto_generated 3 处）。本计划以独立 commit
+  `fix(build): auto-ai PLAN-026 依赖漂移适配` 补齐 match 臂（relay store 忽略 /
+  SSE 透传新 type / CLI 不渲染），行为零变更，仅为恢复可编译。turn 级事件的
+  完整消费（用量统计、前端渲染）应由专门计划对齐，复审时请裁定该 commit 的
+  去留（并入本 PR 或拆出先行合入）。
+- **PLAN-027 未落地确认**：auto-ai 的 `Tool` trait 仍返回 `Result<String,
+  ToolError>`（无 content/details 分离），故任务 10 走"简短确认 + 三处
+  `// PLAN-027 挂接点` 标注"路线（tools.rs:100 / tools.rs:472 / tool_truncate.rs
+  TruncationResult 文档）。
