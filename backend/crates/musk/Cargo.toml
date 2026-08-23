@@ -46,6 +46,8 @@ auto-atom = { path = "../../../../auto-lang/crates/auto-atom" }
 auto-val = { path = "../../../../auto-lang/crates/auto-val", features = ["serde"] }
 # temp dir for the tool-test framework (Design 003); also used by chats tests
 tempfile = "3"
+# PLAN-039: edit_file 模糊匹配的 NFKC 规范化(pi edit-diff.ts 同源);纯 Rust 无构建脚本
+unicode-normalization = "0.1"
 
 [dev-dependencies]
 # tools 单元测试用 #[tokio::test]
