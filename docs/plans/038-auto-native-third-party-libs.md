@@ -1,14 +1,17 @@
 ---
 plan_id: PLAN-038
-status: execution_done
+status: reviewed
 feature_name: 第三方库 Auto 版替换（i18n/icons + 渲染真源切 auto-down + 高亮方案对比）——VM/Rust 目标即插即用
 author: [zhaopuming]
 created_at: 2026-08-23
 updated_at: 2026-08-23
 
-supersedes_spec_components: []
+supersedes_spec_components:
+  - "00-overview.md: 关键能力5（双前端 parity）——.at 轨渲染真源（markdown）经 ports/renderer 切 @autodown/vue（vendored 快照）；新增 src/front/lib 纯 Auto 库层（auto-i18n/auto-icons）与 deps-guard 依赖边界守卫"
+  - "03-front-component-groups.md: G-对话 Block·平台实现表——Markdown（platform:markdown）实现由 markstream-vue+useStreamingDocument 改为 @autodown/vue StreamingRenderer 再导出（保留 PrismCodeBlock setCustomComponents 注册）"
 new_spec_components: []
-touched_goals: []
+touched_goals:
+  - "goal-frontend-parity: 第三方库面 .at 单源化（i18n 156/156、icons 数据层 52/52 对拍全等）；渲染真源切 @autodown/vue（render-switch 5/5 白名单外零差异）；依赖白名单守卫（deps-guard）；svg 渲染层降级登记 KNOWN-DEBT（解除条件 auto-lang 442 A4）；高亮/mermaid 跨轨决策落档（(a) syntect 原生+prism 保留/不复刻）"
 
 current_step: 16
 total_steps: 18
@@ -403,7 +406,40 @@ two-face 内核暴露 highlight-only API 或 code_editor 只读模式;auto-lang 
 mermaid 决策一并落档（目标 6）：不复刻——平台端口 + VM 轨降级渲染路径由
 auto-down 008 Phase 3 承接（katex/mermaid/highlight 可选注册 + 降级）。
 
-（待 /auto-plan:review 填写正式复审）
+（正式复审如下；以上执行期登记保留为过程证据。）
+
+### 正式复审（/auto-plan:review,2026-08-23,worktree plan/038 @ 4d6a2a2）
+
+**方式**：7 项验收标准逐条对实际代码重跑（不信已勾选框）；分支 diff main..HEAD
+（2 commits,61 files,+5645/-133）与计划声明一致,无未声明改动。
+
+| # | 验收标准 | 裁定 | 证据（本次复跑） |
+|---|---|---|---|
+| 1 | 纯 .at 实现或降级登记 + lib 零 use.web + 对拍全绿 | **PASS** | grep src/front/lib use.web 零命中;i18n parity 156/156;icons data parity 52/52;svg 降级登记于 KNOWN-DEBT-AND-RISKS（Plan 038 行,引 auto-lang 442 A4） |
+| 2 | ports/renderer 消费 @autodown/vue + 对拍无回归 + pac.at 同步 + auto-down 草稿四节 | **PASS** | 端口绑 src/front/components/MarkdownRender.vue→内部 import @autodown/vue;render-switch 5/5 归一全等（白名单 W1-W4 显式打印）;pac.at npm_deps 对象式双条目;auto-down 008 含 a2ts/markstream 消灭/可选化降级/editor 四节 |
+| 3 | 高亮对比报告落复审记录 + 决策三选一有数据支撑 | **PASS** | report.md+matrix.json 在库（14 语言×3 方案,长度校验全等）;决策 (a) + 数据引用 + 三归属登记于「T16 高亮决策登记」 |
+| 4 | marked 移除 + gen 轨未用依赖清除 | **PASS（后半转责）** | grep marked web/package.json = 0;gen 清理经用户裁定转责 auto-lang 442 P0-1（登记核验 3 处命中,含双向验收）;musk deps-guard TRANSITIONAL 区待其落地清零 |
+| 5 | deps-guard 落地 exit 0 | **PASS** | 复跑 exit 0;codemirror 系过渡放行单列打印并指向 442 P0-1 |
+| 6 | 双轨零回归（auto build+vitest+web build+render-switch） | **PASS（gen vue-tsc 转责）** | auto build --gen-only exit 0/0 错;vitest 23 绿+1 skip;web npm run build 绿;render-switch 5/5;gen pnpm install+vite build 绿——vue-tsc 拦截项经裁定转责 442 P0-2 |
+| 7 | mermaid 不复刻 + 库归属决策经确认并记录 | **PASS** | 两项决策记录于执行期登记;两项执行期阻塞（#9/#10）经用户显式裁定入册;mermaid/库归属按计划推荐默认执行,用户阅执行摘要后指示继续,无异议记录 |
+
+**偏差与数字修正（plan 文本 vs 实测,均已记入任务证据行,无实质漂移）**：i18n 键数
+普查 81 → 实测 .at 真源 72/语言（web 轨副本 357/语言,auto-i18n 以真源为范围）;icons
+并集 ~44 → 实测 52（web 多行 import 初扫漏 12 个,被生成器自证核对机制拦下补全）;
+高亮 11 语言 → 实测 PrismCodeBlock 注册 14 语言（矩阵全覆盖）。
+
+**Debt 候选（均已有归属,非阻塞）**：
+1. icons 渲染层降级（.at UI 无 svg 节点）——KNOWN-DEBT 已登记,解除条件 auto-lang 442 A4;
+2. deps-guard TRANSITIONAL codemirror 放行——442 P0-1 落地清零;
+3. gen vue-tsc（CodeEditor setSearchEffect）——442 P0-2;
+4. auto-man npm_deps 简写解析尾逗号缺陷——musk 侧 pac.at 无逗号规避+注释,可归
+   442 P0-1 顺手修复或忽略（影响面仅对象式 npm_deps 带尾逗号写法）;
+5. .at 内置 markdown 元素硬编码 markstream-vue（auto-lang codegen）——musk 无法
+   端口化,消灭条件见 T14 执行期登记"遗留依赖"条（auto-lang 改绑/auto-down 008
+   Phase 3 注册口）。
+
+**结论**：7/7 PASS（其中 #4 后半、#6 之 gen vue-tsc 为用户裁定转责项,归属与验收
+登记完备）。路由 → **reviewed**,可入 /auto-plan:merge。
 
 ## 待澄清事项
 
