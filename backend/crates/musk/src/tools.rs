@@ -308,9 +308,17 @@ impl Tool for RunCommand {
     }
 }
 
-/// 精确字符串替换:把文件中 `old_string` 替换为 `new_string`。
-/// 要求 `old_string` 在文件中唯一,否则报错(避免歧义替换)。
-/// 比 WriteFile 安全(不覆盖整个文件),是 executing-plans 的核心工具。
+/// 精确文本替换编辑:一次调用做一处或多处目标替换(PLAN-039 T6 重写,
+/// 吸收 `batch_replace`;匹配/应用核心移植 pi `edit-diff.ts`,见
+/// [`crate::edit_diff`])。
+///
+/// - 参数支持 `edits: [{old_string, new_string}]`;旧式顶层
+///   `old_string`/`new_string` 与"edits 发成 JSON 字符串/单对象"的模型
+///   怪癖由入口垫片归一(pi `prepareEditArguments`)。
+/// - 全部 edit 对同一份原始文件匹配(非增量);未命中/歧义/重叠/空
+///   old/无变化五类错误自带下一步指引。
+/// - CRLF/BOM 自动往返;智能引号等 Unicode 差异走规范化空间模糊回退,
+///   未触达行保留原始字节。
 pub struct EditFile {
     /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
     /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
@@ -323,60 +331,122 @@ impl EditFile {
     pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
     fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
 }
+
+/// 入口垫片(pi `prepareEditArguments`):归一模型侧的参数怪癖。
+/// - `edits` 是 JSON 字符串 → 解析为数组(或单对象包一层数组);
+/// - `edits` 是单个编辑对象 → 包成单元素数组;
+/// - 顶层旧式 `old_string`/`new_string` → 追加为一个编辑。
+fn prepare_edit_arguments(args: &Value) -> Value {
+    let mut out = args.clone();
+    match out.get("edits") {
+        Some(Value::String(s)) => {
+            if let Ok(parsed) = serde_json::from_str::<Value>(s) {
+                match parsed {
+                    Value::Array(a) => out["edits"] = Value::Array(a),
+                    obj @ Value::Object(_) => out["edits"] = Value::Array(vec![obj]),
+                    _ => {}
+                }
+            }
+        }
+        Some(obj @ Value::Object(_)) => {
+            out["edits"] = Value::Array(vec![obj.clone()]);
+        }
+        _ => {}
+    }
+    // 旧式顶层参数折叠为一个编辑。
+    let legacy_old = args.get("old_string").and_then(Value::as_str);
+    let legacy_new = args.get("new_string").and_then(Value::as_str);
+    if let (Some(old), Some(new)) = (legacy_old, legacy_new) {
+        let mut edits = out.get("edits").and_then(Value::as_array).cloned().unwrap_or_default();
+        edits.push(json!({"old_string": old, "new_string": new}));
+        out["edits"] = Value::Array(edits);
+    }
+    out
+}
+
 #[async_trait]
 impl Tool for EditFile {
     fn name(&self) -> &str {
         "edit_file"
     }
     fn description(&self) -> &str {
-        "Replace a unique string in a file with a new string. The old_string \
-         must appear exactly once in the file (ambiguous matches error). Use \
-         this for targeted edits instead of rewriting the whole file."
+        "Edit a file using exact text replacement. Pass one or more edits as \
+         edits: [{old_string, new_string}]. Every old_string must match a \
+         unique, non-overlapping region of the original file (all edits match \
+         against the original, not each other's output). If two changes \
+         affect the same block or nearby lines, merge them into one edit. \
+         Keep old_string as small as possible while still unique — do not pad \
+         with large unchanged regions. Prefer one edit_file call with \
+         multiple edits over multiple calls."
     }
     fn parameters(&self) -> Value {
         json!({
             "type": "object",
             "properties": {
                 "path": { "type": "string", "description": "file to edit" },
-                "old_string": { "type": "string", "description": "the exact text to find (must be unique)" },
-                "new_string": { "type": "string", "description": "the replacement text" }
+                "edits": {
+                    "type": "array",
+                    "description": "one or more targeted replacements; each is matched against the original file, not incrementally",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "old_string": { "type": "string", "description": "the exact text to find (must be unique in the file)" },
+                            "new_string": { "type": "string", "description": "the replacement text" }
+                        },
+                        "required": ["old_string", "new_string"]
+                    }
+                },
+                "old_string": { "type": "string", "description": "legacy single-edit form; prefer edits[]" },
+                "new_string": { "type": "string", "description": "legacy single-edit form; prefer edits[]" }
             },
-            "required": ["path", "old_string", "new_string"]
+            "required": ["path"]
         })
     }
     async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+        let args = prepare_edit_arguments(args);
         let path = args["path"]
             .as_str()
-            .ok_or_else(|| ToolError::Args("missing 'path'".into()))?;
-        let old_string = args["old_string"]
-            .as_str()
-            .ok_or_else(|| ToolError::Args("missing 'old_string'".into()))?;
-        let new_string = args["new_string"]
-            .as_str()
-            .ok_or_else(|| ToolError::Args("missing 'new_string'".into()))?;
+            .ok_or_else(|| ToolError::Args("missing 'path'".into()))?
+            .to_string();
+        let edits: Vec<crate::edit_diff::Edit> = args["edits"]
+            .as_array()
+            .filter(|a| !a.is_empty())
+            .ok_or_else(|| {
+                ToolError::Args(
+                    "edit_file requires at least one edit: pass edits: \
+                     [{old_string, new_string}] (or legacy old_string/new_string)"
+                        .into(),
+                )
+            })?
+            .iter()
+            .map(|e| crate::edit_diff::Edit {
+                old_string: e["old_string"].as_str().unwrap_or_default().to_string(),
+                new_string: e["new_string"].as_str().unwrap_or_default().to_string(),
+            })
+            .collect();
 
         // Path confinement (Design 004).
-        let resolved = crate::tool_safety::resolve_scoped(path, self.scope())
+        let resolved = crate::tool_safety::resolve_scoped(&path, self.scope())
             .map_err(map_path_error)?;
 
-        let content = std::fs::read_to_string(&resolved)
+        let raw = std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
-        let count = content.matches(old_string).count();
-        if count == 0 {
-            return Err(ToolError::Exec(format!(
-                "old_string not found in '{path}'"
-            )));
-        }
-        if count > 1 {
-            return Err(ToolError::Exec(format!(
-                "old_string appears {count} times in '{path}'; it must be unique. \
-                 Include more surrounding context to make it unique."
-            )));
-        }
-        let new_content = content.replacen(old_string, new_string, 1);
-        std::fs::write(&resolved, &new_content)
+
+        // BOM/CRLF 往返:匹配在「无 BOM + LF」空间,写回恢复。
+        let (bom, text) = crate::edit_diff::split_bom(&raw);
+        let ending = crate::edit_diff::detect_line_ending(text);
+        let normalized = crate::edit_diff::normalize_to_lf(text);
+        let applied = crate::edit_diff::apply_edits_to_normalized_content(&normalized, &edits, &path)
+            .map_err(ToolError::Exec)?;
+        let final_content = format!(
+            "{bom}{}",
+            crate::edit_diff::restore_line_endings(&applied.new_content, ending)
+        );
+        std::fs::write(&resolved, final_content)
             .map_err(|e| ToolError::Exec(format!("write '{path}': {e}")))?;
-        Ok(format!("edited '{path}' (1 replacement)"))
+        // PLAN-027 挂接点:变更 diff(base_content → new_content)应在
+        // content/details 分离落地后放入 details;当前返回简短确认。
+        Ok(format!("Successfully replaced {} block(s) in '{}'.", edits.len(), path))
     }
 }
 
@@ -1117,7 +1187,7 @@ mod tests {
             .execute(&json!({"path": p, "old_string": "beta", "new_string": "BETA"}))
             .await
             .unwrap();
-        assert!(out.contains("1 replacement"));
+        assert!(out.contains("1 block"), "msg: {out}");
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "alpha\nBETA\ngamma\n");
         let _ = std::fs::remove_file(&path);
     }
@@ -1150,10 +1220,153 @@ mod tests {
             .await
             .unwrap_err();
         match err {
-            ToolError::Exec(msg) => assert!(msg.contains("2 times")),
+            ToolError::Exec(msg) => assert!(msg.contains("2 occurrences"), "msg: {msg}"),
             other => panic!("expected Exec, got {other:?}"),
         }
         let _ = std::fs::remove_file(&path);
+    }
+
+    // ── EditFile 重写(PLAN-039 T6:pi parity——CRLF/BOM/模糊/多重编辑)──
+
+    /// CRLF 文件 + LF 的 old_string(模型常态)必须命中,且写回保持 CRLF。
+    #[tokio::test]
+    async fn edit_file_crlf_roundtrip() {
+        let p = write_fixture(".test-tmp/musk_edit_crlf.txt", "alpha\r\nbeta\r\ngamma\r\n");
+        EditFile::new()
+            .execute(&json!({"path": p, "old_string": "beta", "new_string": "BETA"}))
+            .await
+            .unwrap();
+        assert_eq!(
+            std::fs::read(".test-tmp/musk_edit_crlf.txt").unwrap(),
+            b"alpha\r\nBETA\r\ngamma\r\n".to_vec()
+        );
+    }
+
+    /// BOM 文件:匹配前剥 BOM,写回恢复 BOM。
+    #[tokio::test]
+    async fn edit_file_bom_preserved() {
+        let p = write_fixture(".test-tmp/musk_edit_bom.txt", "\u{FEFF}hello world");
+        EditFile::new()
+            .execute(&json!({"path": p, "old_string": "world", "new_string": "musk"}))
+            .await
+            .unwrap();
+        assert_eq!(std::fs::read_to_string(".test-tmp/musk_edit_bom.txt").unwrap(), "\u{FEFF}hello musk");
+    }
+
+    /// 模糊命中(智能引号):未触达行保留原始字节(含行尾空白)。
+    #[tokio::test]
+    async fn edit_file_smart_quotes_fuzzy_untouched_bytes_kept() {
+        let p = write_fixture(".test-tmp/musk_edit_quotes.txt", "keep \n“hello”\ntail  \n");
+        EditFile::new()
+            .execute(&json!({"path": p, "old_string": "\"hello\"", "new_string": "[hi]"}))
+            .await
+            .unwrap();
+        // 行 1/3 未触达:行尾空白原样;行 2 从规范化空间重写。
+        assert_eq!(
+            std::fs::read_to_string(".test-tmp/musk_edit_quotes.txt").unwrap(),
+            "keep \n[hi]\ntail  \n"
+        );
+    }
+
+    /// 行尾空白差异的模糊命中:触达行被规范化重写。
+    #[tokio::test]
+    async fn edit_file_trailing_whitespace_fuzzy() {
+        let p = write_fixture(".test-tmp/musk_edit_ws.txt", "x  \ny");
+        EditFile::new()
+            .execute(&json!({"path": p, "old_string": "x\ny", "new_string": "X\nY"}))
+            .await
+            .unwrap();
+        assert_eq!(std::fs::read_to_string(".test-tmp/musk_edit_ws.txt").unwrap(), "X\nY");
+    }
+
+    /// 多重编辑:edits[] 数组,全部对原始内容匹配。
+    #[tokio::test]
+    async fn edit_file_multi_edits_array() {
+        let p = write_fixture(".test-tmp/musk_edit_multi.txt", "aaa\nbbb\nccc\n");
+        let out = EditFile::new()
+            .execute(&json!({
+                "path": p,
+                "edits": [
+                    {"old_string": "aaa", "new_string": "AAA"},
+                    {"old_string": "ccc", "new_string": "CCC"}
+                ]
+            }))
+            .await
+            .unwrap();
+        assert!(out.contains("2 block"), "msg: {out}");
+        assert_eq!(std::fs::read_to_string(".test-tmp/musk_edit_multi.txt").unwrap(), "AAA\nbbb\nCCC\n");
+    }
+
+    /// 模型怪癖垫片:edits 发成 JSON 字符串(pi 点名 Opus 4.6 / GLM-5.1)。
+    #[tokio::test]
+    async fn edit_file_edits_as_json_string_shim() {
+        let p = write_fixture(".test-tmp/musk_edit_shim_str.txt", "aaa\nbbb\n");
+        EditFile::new()
+            .execute(&json!({
+                "path": p,
+                "edits": "[{\"old_string\":\"bbb\",\"new_string\":\"BBB\"}]"
+            }))
+            .await
+            .unwrap();
+        assert_eq!(std::fs::read_to_string(".test-tmp/musk_edit_shim_str.txt").unwrap(), "aaa\nBBB\n");
+    }
+
+    /// 模型怪癖垫片:edits 发成单个对象(应为单元素数组)。
+    #[tokio::test]
+    async fn edit_file_edits_single_object_shim() {
+        let p = write_fixture(".test-tmp/musk_edit_shim_obj.txt", "aaa\nbbb\n");
+        EditFile::new()
+            .execute(&json!({
+                "path": p,
+                "edits": {"old_string": "bbb", "new_string": "BBB"}
+            }))
+            .await
+            .unwrap();
+        assert_eq!(std::fs::read_to_string(".test-tmp/musk_edit_shim_obj.txt").unwrap(), "aaa\nBBB\n");
+    }
+
+    /// 重叠编辑:拒绝且文件保持原样(原子性)。
+    #[tokio::test]
+    async fn edit_file_overlap_rejected_atomically() {
+        let p = write_fixture(".test-tmp/musk_edit_overlap.txt", "abcdef\n");
+        let err = EditFile::new()
+            .execute(&json!({
+                "path": p,
+                "edits": [
+                    {"old_string": "bcd", "new_string": "X"},
+                    {"old_string": "def", "new_string": "Y"}
+                ]
+            }))
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("overlap"), "err: {err}");
+        assert_eq!(std::fs::read_to_string(".test-tmp/musk_edit_overlap.txt").unwrap(), "abcdef\n");
+    }
+
+    /// 空 old_string:五类报错之一。
+    #[tokio::test]
+    async fn edit_file_empty_old_rejected() {
+        let p = write_fixture(".test-tmp/musk_edit_empty.txt", "abc\n");
+        let err = EditFile::new()
+            .execute(&json!({"path": p, "edits": [{"old_string": "", "new_string": "x"}]}))
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("must not be empty"), "err: {err}");
+    }
+
+    /// CRLF + 智能引号混合的端到端:模糊命中后 touched 行恢复 CRLF。
+    #[tokio::test]
+    async fn edit_file_crlf_and_fuzzy_mixed() {
+        let p = write_fixture(".test-tmp/musk_edit_mixed.txt", "one\r\n“q”\r\ntwo");
+        EditFile::new()
+            .execute(&json!({"path": p, "old_string": "\"q\"", "new_string": "\"Q\""}))
+            .await
+            .unwrap();
+        // 未触达行字节原样(CRLF);触达行经 restore_line_endings 恢复 CRLF。
+        assert_eq!(
+            std::fs::read(".test-tmp/musk_edit_mixed.txt").unwrap(),
+            b"one\r\n\"Q\"\r\ntwo".to_vec()
+        );
     }
 
     // ── Search ─────────────────────────────────────────────────
