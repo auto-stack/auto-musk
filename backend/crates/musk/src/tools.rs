@@ -42,13 +42,18 @@ impl Tool for ReadFile {
         "read_file"
     }
     fn description(&self) -> &str {
-        "Read the full UTF-8 text contents of a file at the given path."
+        "Read the UTF-8 text contents of a file. Output is truncated to \
+         2000 lines or 50KB (whichever is hit first). Use offset/limit for \
+         large files; when truncated, continue with the offset given in the \
+         trailing note until you have the whole file."
     }
     fn parameters(&self) -> Value {
         json!({
             "type": "object",
             "properties": {
-                "path": { "type": "string", "description": "path to the file to read" }
+                "path": { "type": "string", "description": "path to the file to read" },
+                "offset": { "type": "number", "description": "line number to start reading from (1-indexed)" },
+                "limit": { "type": "number", "description": "maximum number of lines to read" }
             },
             "required": ["path"]
         })
@@ -57,11 +62,78 @@ impl Tool for ReadFile {
         let path = args["path"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'path' argument".into()))?;
+        let offset = args["offset"].as_u64().filter(|o| *o > 0);
+        let limit = args["limit"].as_u64();
         // Path confinement (Design 004): reject paths outside project root.
         let resolved = crate::tool_safety::resolve_scoped(path, self.scope())
             .map_err(map_path_error)?;
-        std::fs::read_to_string(&resolved)
-            .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))
+        let content = std::fs::read_to_string(&resolved)
+            .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
+
+        // PLAN-039 T3 分页(pi read.ts 语义):行切分含末尾换行产生的空行,
+        // 总行数与 offset 越界判定都用这个口径。
+        let all_lines: Vec<&str> = content.split('\n').collect();
+        let total_file_lines = all_lines.len();
+        let start_line = offset.map(|o| (o - 1) as usize).unwrap_or(0);
+        let start_line_display = start_line + 1;
+        if start_line >= all_lines.len() {
+            return Err(ToolError::Exec(format!(
+                "Offset {offset:?} is beyond end of file ({total_file_lines} lines total)"
+            )));
+        }
+        // 用户显式给了 limit 优先;否则交给截断上限决定。
+        let (selected, user_limited_lines): (String, Option<usize>) = match limit {
+            Some(l) => {
+                let end_line = (start_line + l as usize).min(all_lines.len());
+                (
+                    all_lines[start_line..end_line].join("\n"),
+                    Some(end_line - start_line),
+                )
+            }
+            None => (all_lines[start_line..].join("\n"), None),
+        };
+
+        use crate::tool_truncate::{
+            format_size, truncate_head, TruncationResult, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES,
+        };
+        let t: TruncationResult = truncate_head(&selected, DEFAULT_MAX_LINES, DEFAULT_MAX_BYTES);
+        // PLAN-027 挂接点:截断元数据(t.truncated_by / total_lines / …)应在
+        // content/details 分离落地后放入 details;当前以尾注字符串承载。
+        let output = if t.first_line_exceeds_limit {
+            // 首行单独超字节上限:无法给出任何完整行,给 run_command 逃生通道。
+            format!(
+                "[Line {start_line_display} is {}, exceeds {} limit. Use run_command: \
+                 sed -n '{start_line_display}p' {path} | head -c {DEFAULT_MAX_BYTES}]",
+                format_size(all_lines[start_line].len()),
+                format_size(DEFAULT_MAX_BYTES),
+            )
+        } else if t.truncated {
+            let end_line_display = start_line_display + t.output_lines - 1;
+            let next_offset = end_line_display + 1;
+            match t.truncated_by {
+                Some(crate::tool_truncate::TruncatedBy::Lines) => format!(
+                    "{}\n\n[Showing lines {start_line_display}-{end_line_display} of \
+                     {total_file_lines}. Use offset={next_offset} to continue.]",
+                    t.content
+                ),
+                _ => format!(
+                    "{}\n\n[Showing lines {start_line_display}-{end_line_display} of \
+                     {total_file_lines} ({} limit). Use offset={next_offset} to continue.]",
+                    t.content,
+                    format_size(DEFAULT_MAX_BYTES),
+                ),
+            }
+        } else if let Some(n) = user_limited_lines.filter(|n| start_line + n < all_lines.len()) {
+            let remaining = all_lines.len() - (start_line + n);
+            let next_offset = start_line + n + 1;
+            format!(
+                "{content}\n\n[{remaining} more lines in file. Use offset={next_offset} to continue.]",
+                content = t.content
+            )
+        } else {
+            t.content
+        };
+        Ok(output)
     }
 }
 
@@ -815,6 +887,102 @@ mod tests {
         let t = ReadFile::new();
         let err = t.execute(&json!({"path": "definitely_nonexistent.xyz"})).await;
         assert!(err.is_err());
+    }
+
+    // ── ReadFile 分页/截断(PLAN-039 T3,对齐 pi read.ts)────────────
+
+    fn write_fixture(rel: &str, content: &str) -> String {
+        init_root();
+        std::fs::create_dir_all(".test-tmp").unwrap();
+        let path = std::path::PathBuf::from(rel);
+        std::fs::write(&path, content).unwrap();
+        path.to_string_lossy().to_string()
+    }
+
+    #[tokio::test]
+    async fn read_file_offset_limit_window() {
+        let content: String = (1..=10).map(|i| format!("line{i}\n")).collect();
+        let p = write_fixture(".test-tmp/musk_read_paging.txt", &content);
+        let out = ReadFile::new()
+            .execute(&json!({"path": p, "offset": 3, "limit": 4}))
+            .await
+            .unwrap();
+        // 窗口为第 3-6 行;文件还有余量(limit 提前停)→ 续读尾注。
+        // (总行数含末尾换行产生的空行,与 pi split 口径一致 = 11。)
+        assert_eq!(
+            out,
+            "line3\nline4\nline5\nline6\n\n[5 more lines in file. Use offset=7 to continue.]"
+        );
+    }
+
+    #[tokio::test]
+    async fn read_file_offset_out_of_bounds_errors_with_total() {
+        let content: String = (1..=10).map(|i| format!("line{i}\n")).collect();
+        let p = write_fixture(".test-tmp/musk_read_oob.txt", &content);
+        let err = ReadFile::new()
+            .execute(&json!({"path": p, "offset": 99}))
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("beyond end of file"), "msg: {msg}");
+        assert!(msg.contains("11 lines total"), "msg: {msg}");
+    }
+
+    #[tokio::test]
+    async fn read_file_line_truncation_note() {
+        // 2500 行 → 默认 2000 行上限触发,尾注指导续读。
+        let content = (1..=2500).map(|i| format!("l{i}")).collect::<Vec<_>>().join("\n");
+        let p = write_fixture(".test-tmp/musk_read_lines.txt", &content);
+        let out = ReadFile::new().execute(&json!({"path": p})).await.unwrap();
+        assert!(out.contains("[Showing lines 1-2000 of 2500. Use offset=2001 to continue.]"), "out tail: {}", &out[out.len().saturating_sub(120)..]);
+        assert!(out.starts_with("l1\nl2\n"));
+    }
+
+    #[tokio::test]
+    async fn read_file_byte_truncation_note() {
+        // 600 行 × 100B ≈ 60KB(行数在限内)→ 字节上限触发。
+        let content = (0..600).map(|_| "b".repeat(99)).collect::<Vec<_>>().join("\n");
+        let p = write_fixture(".test-tmp/musk_read_bytes.txt", &content);
+        let out = ReadFile::new().execute(&json!({"path": p})).await.unwrap();
+        assert!(out.contains("(50.0KB limit). Use offset="), "out tail: {}", &out[out.len().saturating_sub(160)..]);
+        assert!(out.len() < 52_000, "capped at ~50KB, got {}", out.len());
+    }
+
+    #[tokio::test]
+    async fn read_file_first_line_exceeds_gives_escape_hatch() {
+        // 单行 60KB > 50KB 上限 → 给 run_command sed 逃生提示。
+        let content = "x".repeat(60_000);
+        let p = write_fixture(".test-tmp/musk_read_huge_line.txt", &content);
+        let out = ReadFile::new().execute(&json!({"path": p})).await.unwrap();
+        assert!(out.contains("exceeds 50.0KB limit"), "out: {}", &out[..out.len().min(200)]);
+        assert!(out.contains("run_command"), "must point at run_command escape hatch");
+        assert!(out.contains("sed -n '1p'"), "must give the exact sed command");
+    }
+
+    /// 验收标准:读 10MB 文件返回 ≤50KB 且尾注可指导续读。
+    #[tokio::test]
+    async fn read_file_10mb_returns_capped_output() {
+        // 1M 行 × ~10B ≈ 10MB;远超 2000 行上限。
+        let content = (0..1_000_000).map(|i| format!("data{i:06}")).collect::<Vec<_>>().join("\n");
+        let p = write_fixture(".test-tmp/musk_read_10mb.txt", &content);
+        let out = ReadFile::new().execute(&json!({"path": p})).await.unwrap();
+        assert!(out.len() < 52_000, "10MB read must be capped ≤~50KB, got {}", out.len());
+        assert!(out.contains("Use offset=2001 to continue."));
+        let _ = std::fs::remove_file(&p);
+    }
+
+    #[tokio::test]
+    async fn read_file_offset_continuation_reads_next_window() {
+        // 续读:offset=2001 拿到剩余 500 行,不再有截断尾注。
+        let content = (1..=2500).map(|i| format!("l{i}")).collect::<Vec<_>>().join("\n");
+        let p = write_fixture(".test-tmp/musk_read_cont.txt", &content);
+        let out = ReadFile::new()
+            .execute(&json!({"path": p, "offset": 2001}))
+            .await
+            .unwrap();
+        assert!(out.starts_with("l2001\n"));
+        assert!(out.ends_with("l2500"));
+        assert!(!out.contains("Use offset="), "no further truncation note expected");
     }
 
     /// PLAN-030 复审回归：注入式 root 下，相对路径必须落在注入的 workspace

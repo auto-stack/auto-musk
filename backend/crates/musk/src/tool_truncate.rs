@@ -56,6 +56,17 @@ impl TruncationResult {
     }
 }
 
+/// 字节数的人类可读格式(pi `formatSize`):`58.6KB` / `10.0MB`。
+pub fn format_size(bytes: usize) -> String {
+    if bytes < 1024 {
+        format!("{bytes}B")
+    } else if bytes < 1024 * 1024 {
+        format!("{:.1}KB", bytes as f64 / 1024.0)
+    } else {
+        format!("{:.1}MB", bytes as f64 / (1024.0 * 1024.0))
+    }
+}
+
 /// 行数统计(pi `splitLinesForCounting`):空串为 0 行;末尾换行不计行。
 fn count_lines(content: &str) -> usize {
     if content.is_empty() {
