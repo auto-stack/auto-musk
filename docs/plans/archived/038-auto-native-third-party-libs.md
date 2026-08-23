@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-038
-status: reviewed
+status: archived
 feature_name: 第三方库 Auto 版替换（i18n/icons + 渲染真源切 auto-down + 高亮方案对比）——VM/Rust 目标即插即用
 author: [zhaopuming]
 created_at: 2026-08-23
