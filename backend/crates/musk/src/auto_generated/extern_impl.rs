@@ -1306,6 +1306,8 @@ pub fn drive_handle_stream_event(s: &Arc<AppState>, w: &str, r: &str, role_id: &
             // Nothing to persist yet (the Tool event follows with the result);
             // kept for state-tracking parity with hw driver.rs:196-199.
         }
+        // auto-ai PLAN-026 turn 边界事件:store 不消费,覆盖以保穷尽。
+        Ok(StreamEvent::TurnStart { .. }) | Ok(StreamEvent::TurnEnd { .. }) => {}
         Ok(StreamEvent::Tool { tool, args, result }) => {
             ws.relay.push_event(r, crate::relay::store::RunEvent::TurnToolCall {
                 timestamp: now,
@@ -1589,6 +1591,12 @@ pub async fn agent_run_stream(
                     _ => None,
                 };
                 let dto: SseEventDto = match &ev {
+                    // auto-ai PLAN-026 turn 边界事件:透传为 SSE DTO。
+                    StreamEvent::TurnStart { turn } => SseEventDto::TurnStart { turn: *turn },
+                    StreamEvent::TurnEnd { turn, tool_count, .. } => SseEventDto::TurnEnd {
+                        turn: *turn,
+                        tool_count: *tool_count,
+                    },
                     StreamEvent::Delta { text } => SseEventDto::Delta { text: text.clone() },
                     StreamEvent::Thinking { text } => {
                         SseEventDto::Thinking { thinking: text.clone() }
@@ -1849,6 +1857,12 @@ pub async fn chat_run_stream(
                     _ => None,
                 };
                 let dto: SseEventDto = match &ev {
+                    // auto-ai PLAN-026 turn 边界事件:透传为 SSE DTO。
+                    StreamEvent::TurnStart { turn } => SseEventDto::TurnStart { turn: *turn },
+                    StreamEvent::TurnEnd { turn, tool_count, .. } => SseEventDto::TurnEnd {
+                        turn: *turn,
+                        tool_count: *tool_count,
+                    },
                     StreamEvent::Delta { text } => SseEventDto::Delta { text: text.clone() },
                     StreamEvent::Thinking { text } => {
                         SseEventDto::Thinking { thinking: text.clone() }

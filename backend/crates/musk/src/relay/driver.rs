@@ -208,6 +208,9 @@ async fn run_step(
                 // The Tool event follows with the actual result; nothing to
                 // persist yet (kept for state-tracking parity with server.rs).
             }
+            // auto-ai PLAN-026 新增的 turn 边界事件:relay store 不消费,
+            // 仅覆盖以保持 match 穷尽(完整适配待正式对齐时重做)。
+            StreamEvent::TurnStart { .. } | StreamEvent::TurnEnd { .. } => {}
             StreamEvent::Tool {
                 tool,
                 args,

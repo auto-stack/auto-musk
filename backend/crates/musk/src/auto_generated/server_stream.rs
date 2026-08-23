@@ -52,6 +52,9 @@ pub enum WorkflowEventDto {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SseEventDto {
+    // auto-ai PLAN-026 turn 边界事件(依赖漂移适配:新变体透传,前端忽略未知 type)。
+    TurnStart { turn: u32 },
+    TurnEnd { turn: u32, tool_count: u32 },
     Delta { text: String },
     Thinking { thinking: String },
     ToolCall { id: Option<String>, name: String, arguments: Value },

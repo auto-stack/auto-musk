@@ -401,6 +401,12 @@ fn stream_event_to_json(ev: &auto_ai_agent::StreamEvent, id: Option<&str>) -> se
         match id { Some(s) => json!(s), None => json!(null) }
     };
     match ev {
+        // auto-ai PLAN-026 新增的 turn 边界事件:透传给前端(未知 type 前端
+        // 忽略);完整消费(turn 级用量统计等)待正式对齐时实现。
+        StreamEvent::TurnStart { turn } => json!({"type": "turn_start", "turn": turn}),
+        StreamEvent::TurnEnd { turn, tool_count, .. } => {
+            json!({"type": "turn_end", "turn": turn, "tool_count": tool_count})
+        }
         StreamEvent::Delta { text } => json!({"type": "delta", "text": text}),
         StreamEvent::Thinking { text } => json!({"type": "thinking", "thinking": text}),
         StreamEvent::ToolStart { tool, args } => json!({
