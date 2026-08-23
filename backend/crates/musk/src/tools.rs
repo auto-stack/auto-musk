@@ -218,7 +218,8 @@ impl Tool for RunCommand {
         "Run a shell command and return its combined stdout and stderr. \
          Whitelisted commands (cargo/npm/git status/echo/…) run directly; \
          all others are PAUSED for user approval. Pass \"force\": true to \
-         run a paused command after the user approves it."
+         run a paused command after the user approves it. Output is \
+         truncated to the last 2000 lines or 50KB (whichever is hit first)."
     }
     fn parameters(&self) -> Value {
         json!({
@@ -332,6 +333,26 @@ impl EditFile {
     fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
 }
 
+/// per-path 写互斥(PLAN-039 T9):读-改-写全段按已解析路径串行化。
+/// 当前 ReAct 循环串行执行工具,此为防御性加固(多线程/并发调用下
+/// 防止后写者以陈旧内容覆盖前写者的修改)。
+static PATH_WRITE_LOCKS: std::sync::OnceLock<
+    dashmap::DashMap<std::path::PathBuf, std::sync::Arc<std::sync::Mutex<()>>>,
+> = std::sync::OnceLock::new();
+
+fn with_path_write_lock<T>(path: &std::path::Path, f: impl FnOnce() -> T) -> T {
+    let locks = PATH_WRITE_LOCKS.get_or_init(dashmap::DashMap::new);
+    // entry 持有的分片写锁必须在进入互斥区前释放(独立作用域 clone Arc)。
+    let lock = {
+        locks
+            .entry(path.to_path_buf())
+            .or_insert_with(|| std::sync::Arc::new(std::sync::Mutex::new(())))
+            .clone()
+    };
+    let _guard = lock.lock().unwrap_or_else(|e| e.into_inner());
+    f()
+}
+
 /// 入口垫片(pi `prepareEditArguments`):归一模型侧的参数怪癖。
 /// - `edits` 是 JSON 字符串 → 解析为数组(或单对象包一层数组);
 /// - `edits` 是单个编辑对象 → 包成单元素数组;
@@ -429,24 +450,30 @@ impl Tool for EditFile {
         let resolved = crate::tool_safety::resolve_scoped(&path, self.scope())
             .map_err(map_path_error)?;
 
-        let raw = std::fs::read_to_string(&resolved)
-            .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
+        // per-path 互斥:读-改-写(含落盘)全段串行化(PLAN-039 T9)。
+        let edits_len = edits.len();
+        with_path_write_lock(&resolved, || -> Result<(), ToolError> {
+            let raw = std::fs::read_to_string(&resolved)
+                .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
 
-        // BOM/CRLF 往返:匹配在「无 BOM + LF」空间,写回恢复。
-        let (bom, text) = crate::edit_diff::split_bom(&raw);
-        let ending = crate::edit_diff::detect_line_ending(text);
-        let normalized = crate::edit_diff::normalize_to_lf(text);
-        let applied = crate::edit_diff::apply_edits_to_normalized_content(&normalized, &edits, &path)
-            .map_err(ToolError::Exec)?;
-        let final_content = format!(
-            "{bom}{}",
-            crate::edit_diff::restore_line_endings(&applied.new_content, ending)
-        );
-        std::fs::write(&resolved, final_content)
-            .map_err(|e| ToolError::Exec(format!("write '{path}': {e}")))?;
-        // PLAN-027 挂接点:变更 diff(base_content → new_content)应在
-        // content/details 分离落地后放入 details;当前返回简短确认。
-        Ok(format!("Successfully replaced {} block(s) in '{}'.", edits.len(), path))
+            // BOM/CRLF 往返:匹配在「无 BOM + LF」空间,写回恢复。
+            let (bom, text) = crate::edit_diff::split_bom(&raw);
+            let ending = crate::edit_diff::detect_line_ending(text);
+            let normalized = crate::edit_diff::normalize_to_lf(text);
+            let applied =
+                crate::edit_diff::apply_edits_to_normalized_content(&normalized, &edits, &path)
+                    .map_err(ToolError::Exec)?;
+            let final_content = format!(
+                "{bom}{}",
+                crate::edit_diff::restore_line_endings(&applied.new_content, ending)
+            );
+            std::fs::write(&resolved, final_content)
+                .map_err(|e| ToolError::Exec(format!("write '{path}': {e}")))?;
+            // PLAN-027 挂接点:变更 diff(base_content → new_content)应在
+            // content/details 分离落地后放入 details;当前返回简短确认。
+            Ok(())
+        })?;
+        Ok(format!("Successfully replaced {edits_len} block(s) in '{}'.", path))
     }
 }
 
@@ -1258,6 +1285,45 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.to_string().contains("must not be empty"), "err: {err}");
+    }
+
+    /// PLAN-039 T9:并发两写同文件必须串行化(读-改-写互斥)。
+    /// 用两个 OS 线程(各自独立 runtime)制造真实的读-改-写交错窗口:
+    /// 无互斥时,后写者会以陈旧内容覆盖前写者的修改(丢更新)。
+    #[test]
+    fn edit_file_concurrent_same_path_serialized() {
+        init_root();
+        let path = std::path::PathBuf::from(".test-tmp/musk_edit_concurrent.txt");
+        for round in 0..30 {
+            let content: String = (0..10).map(|i| format!("r{round}-l{i}\n")).collect();
+            std::fs::write(&path, content).unwrap();
+            let p1 = path.to_string_lossy().to_string();
+            let p2 = p1.clone();
+            let head = format!("r{round}-l0");
+            let tail = format!("r{round}-l9");
+            let t1 = std::thread::spawn(move || {
+                futures::executor::block_on(
+                    EditFile::new().execute(
+                        &json!({"path": p1, "edits": [{"old_string": head, "new_string": "A0"}]}),
+                    ),
+                )
+            });
+            let t2 = std::thread::spawn(move || {
+                futures::executor::block_on(
+                    EditFile::new().execute(
+                        &json!({"path": p2, "edits": [{"old_string": tail, "new_string": "Z9"}]}),
+                    ),
+                )
+            });
+            t1.join().unwrap().unwrap();
+            t2.join().unwrap().unwrap();
+            let final_content = std::fs::read_to_string(&path).unwrap();
+            assert!(
+                final_content.contains("A0\n") && final_content.contains("Z9\n"),
+                "round {round}: both edits must survive the concurrent write, got:\n{final_content}"
+            );
+        }
+        let _ = std::fs::remove_file(&path);
     }
 
     /// CRLF + 智能引号混合的端到端:模糊命中后 touched 行恢复 CRLF。

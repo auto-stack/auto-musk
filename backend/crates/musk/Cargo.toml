@@ -48,6 +48,8 @@ auto-val = { path = "../../../../auto-lang/crates/auto-val", features = ["serde"
 tempfile = "3"
 # PLAN-039: edit_file 模糊匹配的 NFKC 规范化(pi edit-diff.ts 同源);纯 Rust 无构建脚本
 unicode-normalization = "0.1"
+# PLAN-039: per-path 写互斥(edit_file 读-改-写串行化);纯 Rust 无构建脚本
+dashmap = "6"
 
 [dev-dependencies]
 # tools 单元测试用 #[tokio::test]
