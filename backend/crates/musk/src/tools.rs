@@ -278,6 +278,23 @@ impl Tool for RunCommand {
             }
             result.push_str(&String::from_utf8_lossy(&output.stderr));
         }
+        // PLAN-039 T4: 输出封顶(2000 行/50KB,尾部保留——错误信息与最终
+        // 结果在输出末尾最有信息量)。临时措施:run_command 的完整重写
+        //(超时/全量落盘/退出码语义)归 PLAN-040。
+        if !result.is_empty() {
+            use crate::tool_truncate::{
+                format_size, truncate_tail, TruncatedBy, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES,
+            };
+            let capped = truncate_tail(&result, DEFAULT_MAX_LINES, DEFAULT_MAX_BYTES);
+            if capped.truncated {
+                let why = if capped.truncated_by == Some(TruncatedBy::Lines) {
+                    format!("showing last {} lines", capped.output_lines)
+                } else {
+                    format!("showing last {}", format_size(capped.content.len()))
+                };
+                result = format!("{}\n\n[Output truncated: {why}]", capped.content);
+            }
+        }
         if result.is_empty() {
             result.push_str("(no output)");
         }
@@ -1068,6 +1085,24 @@ mod tests {
         let t = RunCommand::new();
         let err = t.execute(&json!({})).await.unwrap_err();
         assert!(matches!(err, ToolError::Args(_)));
+    }
+
+    /// PLAN-039 T4: run_command 输出封顶(2000 行/50KB,尾部保留)。
+    /// 完整重写(超时/全量落盘)归 PLAN-040,此处为临时上限。
+    #[tokio::test]
+    async fn run_command_output_capped_at_50kb() {
+        let content = (0..600).map(|_| "y".repeat(99)).collect::<Vec<_>>().join("\r\n");
+        let p = write_fixture(".test-tmp/musk_runcap.txt", &content);
+        let cmd = if cfg!(windows) {
+            // cmd 的 type 把 `/` 当开关前缀,必须用反斜杠路径。
+            format!("type {}", p.replace('/', "\\"))
+        } else {
+            format!("cat {p}")
+        };
+        let out = RunCommand::new().execute(&json!({"cmd": cmd})).await.unwrap();
+        assert!(out.len() < 52_000, "expected capped output, got {} bytes", out.len());
+        assert!(out.contains("[Output truncated"), "capped output should carry a note, tail: {}", &out[out.len().saturating_sub(120)..]);
+        let _ = std::fs::remove_file(&p);
     }
 
     // ── EditFile ───────────────────────────────────────────────
