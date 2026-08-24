@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-042
-status: reviewed
+status: archived
 feature_name: ToolOutput 迁移——修复主线编译断、填真 details（edit diff / read 截断 / run_command 全量输出路径）、事件链透传与前端渲染、PLAN-040 账面清理
 author: [zhaopuming]
 created_at: 2026-08-24
