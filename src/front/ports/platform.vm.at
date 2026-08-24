@@ -1,0 +1,26 @@
+// ports/platform.vm.at — PLAN-442 Phase B1:平台域 VM adapter。
+//
+// web 侧三绑定（inject_styles.ts / setup_auth_fetch.ts /
+// relay_command_runner.ts）均为浏览器概念,VM/iced 目标按验收"显式降级登记"：
+//   - platformInjectStyles:CSS 全局样式注入 → no-op（iced 主题自管）;
+//   - platformSetupAuthFetch:window.fetch monkey-patch 注 Bearer/workspace →
+//     no-op 桩（VM Http 走 native,认证头注入缺口登记 KNOWN-DEBT 442-B）;
+//   - platformRunRelayCommand:跨 RelayStore/ForgeStore 的执行桥（web 侧受
+//     单 store per file 限制的接线）→ 降级为会话 KV 留痕 + 控制台 warn,
+//     完整 VM 实现待多 store 放开后并入（与 web 侧 D 组登记同源）。
+// dom.*/location.reload 已由 auto-lang 442 native 桥承接（2774-2780）,
+// 不在本 adapter 面。
+
+fn platformInjectStyles() {
+    // web-only:全局 CSS 注入。iced 渲染主题由 renderer 自管,空实现。
+}
+
+fn platformSetupAuthFetch() {
+    // web-only:fetch 拦截器。VM Http 经 native 直连,认证注入缺口见头注。
+}
+
+fn platformRunRelayCommand(cmd Value) {
+    // 降级留痕:relay 快捷命令在 VM 轨暂不启动工作流。
+    let flow = cmd["flow"] ?? ""
+    print("relay command skipped on vm target: " + flow)
+}

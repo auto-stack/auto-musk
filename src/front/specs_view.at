@@ -314,11 +314,17 @@ widget SpecsView {
         // SaveEditItem: 保存编辑（新建或更新）。
         .SaveEditItem -> {
             if .editing_item_id != None {
+                // VM 轨:struct 字面量字段值经通用表达式编译,`.x` 的 self 别名
+                // 不在绑定面——状态读取先提升为局部变量(442 B 探针裁定)。
+                let eid = .editing_item_id
+                let etitle = .edit_title
+                let econtent = .edit_content
+                let estatus = .edit_status
                 let item = SpecItem {
-                    id: .editing_item_id,
-                    title: .edit_title,
-                    content: .edit_content,
-                    status: .edit_status,
+                    id: eid,
+                    title: etitle,
+                    content: econtent,
+                    status: estatus,
                     depends_on: [],
                     related: [],
                     priority: "",

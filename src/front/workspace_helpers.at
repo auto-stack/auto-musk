@@ -45,7 +45,7 @@ fn ws_find(recent []Value, id str) Value {
 
 /** 浏览目录条目（仅当 path 含路径分隔符时查询，避免根目录长列表）。 */
 fn ws_browse(path str) []Value {
-    let has_sep = false
+    var has_sep = false
     if path.contains("/") {
         has_sep = true
     }
@@ -85,7 +85,7 @@ fn ensure_workspace() {
     try {
         let data = Http.get("/api/workspace/list")
         let workspaces = data.workspaces ?? []
-        let chosen = None
+        var chosen = None
         for w in workspaces {
             if w.is_empty == false {
                 chosen = w

@@ -29,6 +29,7 @@
 
 | Plan | 描述 | 参考 |
 |---|---|---|
+| 442 | **VM 轨 platform/composables adapter 显式降级**（Phase B，2026-08-25 落地）：`ports/platform.vm.at` 三桩中 setupAuthFetch 为 no-op（web 侧 fetch 拦截器注 Bearer/workspace；VM Http 走 native 直连，认证头注入缺口——VM 后端激活时若走鉴权 API 需补）、platformRunRelayCommand 降级为留痕打印（跨 RelayStore/ForgeStore 接线待多 store 放开，与 web 侧 D 组同源）；`ports/composables.vm.at` 的 useGateRouter no-op（VM 导航走视图状态机）。icons/renderer/upload 三域 VM 目标为视图层组件引用，无 handler 符号面，无需 adapter（严格模式探针实证）。dom/location 全局面由 auto-lang 442 native 桥承接（2774-2779/2784）。 | `src/front/ports/platform.vm.at` / `src/front/ports/composables.vm.at` / [auto-lang 442](../../auto-lang/docs/plans/442-cross-platform-closure.md) |
 | 026 | **手测 :3334 chat 气泡未补**（标准 6/步骤 5.5，当时 gen build 未全绿留待）：核心修复已由 a2vue fixture 008/009/010 + 生成物断言保证，后被 PLAN-028 双轨 148 项对拍 + 031+ 浏览器冒烟实质超越，未单独补验。低优先——可在 041 解冻后的生产切换冒烟（五视图 + 编辑器）时顺带闭。 | `docs/plans/archived/026-codegen-chat-defects.md`（标准 6） |
 | 040 | **DEBT-040-1 前端流式进度 E2E 未执行**：tool_update 流式渲染组件级全绿，但"起 musk serve + 真实 LLM 会话跑长命令人工观察"的端到端冒烟待用户执行。 | 040 计划 §遗留 |
 | 040 | **DEBT-040-2 Windows 进程树终止兜底**：`taskkill /T` 覆盖多数场景；若发现跨控制台分离的漏网进程，按 040 风险节评估 Job Object 兜底。 | 040 计划 §遗留 |

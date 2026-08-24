@@ -13,7 +13,7 @@
 fn visual_apply_theme(m str) {
     // 参数名避开 store state 同名（store 内联路径会把同名标识符当 state ref
     // 生成 .value）。
-    let is_dark = false
+    var is_dark = false
     if m == "dark" {
         is_dark = true
     }
@@ -69,7 +69,7 @@ store VisualStore {
             .mode = storage.get("musk-theme") ?? "auto"
             visual_apply_theme(.mode)
             let stored_accent = storage.get("musk-accent-color") ?? "indigo"
-            let initial = "indigo"
+            var initial = "indigo"
             if visual_palettes()[stored_accent] != None {
                 initial = stored_accent
             }

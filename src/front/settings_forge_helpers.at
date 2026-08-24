@@ -10,7 +10,7 @@
 
 /** 加载后端持久化的 forge 模式（gsd/check）；不可达/非法回退 'gsd'。 */
 fn settings_load_forge_mode() str {
-    let mode = "gsd"
+    var mode = "gsd"
     try {
         let resp = Http.get("/api/forge/mode")
         if resp != None {

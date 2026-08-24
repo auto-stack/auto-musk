@@ -22,7 +22,7 @@ fn spec_default_status(section_type str) str {
 fn spec_next_id(section_type str, existing_ids []str) str {
     let prefix_map map = { "goals": "G", "architecture": "A", "designs": "D", "plans": "P", "tests": "T", "reviews": "V", "reports": "R" }
     let prefix = prefix_map[section_type] ?? section_type.char_at(0).to_upper()
-    let max_num = 0
+    var max_num = 0
     for id in existing_ids {
         // Regex pattern 必须是字面量（拼接表达式不被 F4 转译）——prefix 经
         // 捕获组取出后手动比较。旧格式 G12：首字母 + 纯数字。
