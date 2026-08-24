@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-034
-status: review_done
+status: archived
 feature_name: 智能沉淀闭环——计划页按钮触发 Chats 会话式 AI 沉淀 run
 author: [zhaopuming]
 created_at: 2026-08-22T13:32:09+08:00

@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-028
-status: review_done
+status: archived
 feature_name: Block 功能全量 Auto 化迁移（含 a2ts 特性补齐）
 author: [zhaopuming, ZCode]
 created_at: 2026-08-19T14:30:00+08:00

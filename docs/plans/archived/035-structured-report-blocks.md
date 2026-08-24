@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-035
-status: review_done
+status: archived
 feature_name: 结构化报告——emit_report 数据化 + 对话流 block 化渲染
 author: [zhaopuming]
 created_at: 2026-08-22T16:15:00+08:00

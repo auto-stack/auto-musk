@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-036
-status: review_done
+status: archived
 feature_name: AutoDown 报告——emit_report 收 .ad 文档 + 现成管线渲染
 author: [zhaopuming]
 created_at: 2026-08-22T18:30:00+08:00

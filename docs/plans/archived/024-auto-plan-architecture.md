@@ -3,7 +3,7 @@
 
 # 基础信息
 plan_id: PLAN-024
-status: review_done
+status: archived
 feature_name: AutoPlan 架构升级（Plan/Spec 同级化 + 计划一级导航 + Specs 展示重组 + merge 沉淀）
 author: [zhaopuming + agent]
 created_at: 2026-08-11T17:30:00Z

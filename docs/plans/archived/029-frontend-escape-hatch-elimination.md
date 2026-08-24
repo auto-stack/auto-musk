@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-029
-status: review_done
+status: archived
 feature_name: 前端 TS 逃生舱清零(分组迁移)
 author: [zhaopuming]
 created_at: 2026-08-19T22:30:00+08:00

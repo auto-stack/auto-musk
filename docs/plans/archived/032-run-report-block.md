@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-032
-status: review_done
+status: archived
 feature_name: Run 完成报告（ReportBlock）——document 相位生成 PPT 风格 HTML 汇报
 author: [zhaopuming]
 created_at: 2026-08-22T09:05:00+08:00

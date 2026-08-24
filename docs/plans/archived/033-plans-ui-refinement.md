@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-033
-status: review_done
+status: archived
 feature_name: 计划模块 UI/UX 改进（过滤/状态/徽标/归档语义/MetaBlock）
 author: [zhaopuming]
 created_at: 2026-08-22T10:40:25+08:00

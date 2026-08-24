@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-031
-status: review_done
+status: archived
 feature_name: RunBox 体验细化（批次二）+ Run 完成报告（Report v1）
 author: [zhaopuming]
 created_at: 2026-08-21T21:00:00+08:00
