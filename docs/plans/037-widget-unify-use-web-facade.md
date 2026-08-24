@@ -1,16 +1,22 @@
 ---
 plan_id: PLAN-037
-status: execution_done
+status: review_done
 feature_name: widget 统一 + use.web 生态导入 + 跨后端 facade
 author: [zhaopuming]
 created_at: 2026-08-22
-updated_at: 2026-08-22
+updated_at: 2026-08-24T14:00:00+08:00
 
-supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+supersedes_spec_components:
+  - 00-overview 能力 5 旧表述（component fn/view 双轨 → widget 单轨，01-architecture.md 已同步更新）
+  - KNOWN-DEBT 029 D 组部分条目（useT/vue-i18n 桥与 icons/renderer 逃生舱收口进 ports 五域）
+new_spec_components:
+  - use.web 生态导入语句（use.rust/use.py 家族，块语法退役别名）
+  - ports 五域 facade + X.<target>.at 编译期目标门控（resolve_at_adapter）
+  - v-model 契约（model 变量 = 通道，状态槽自动 v-model，三类编译错误守护）
+touched_goals:
+  - 前端单一真源深化（widget 唯一 UI 单元 30 个；web 耦合集中 ports；VM/Rust 接入机制就绪）
 
-current_step: 0
+current_step: 24
 total_steps: 24
 ---
 
@@ -391,3 +397,13 @@ main 本身就是红的,此前被主检出 gen/ 中未跟踪的 deck.vue 掩盖)
    2026-08-23)**:view 可选化落地;setup{} 前导槽 + setup/.Init/.Destroy 三相位
    语义表定版(scenario-dialect spec + syntax.md)。
 4. k2 惯用法(T3)选 codegen 补全还是 canary 改写,执行时按影响面定。
+
+### /auto-plan:review 正式复审（2026-08-24）
+
+| 验收项 | 判定 | 证据 |
+|---|---|---|
+| 24 任务/6 Phase | pass | 全勾 + 终态摘要表；auto-man 221 单测 + k2/k3 canary + musk auto build 全绿（收口记录在案） |
+| 待澄清 1-6 全关闭 | pass | 经 auto-lang Plan 424/425/426 落地闭环（2026-08-23，计划内登记 + musk 侧 34 处调用面改引 .at 端口）；use 块语法在 musk 源码清零（017c2a4） |
+| 现状复核 | pass | 五域端口文件现存（ports 五件）；auto build 绿（2026-08-24） |
+
+**结论**：review_done。

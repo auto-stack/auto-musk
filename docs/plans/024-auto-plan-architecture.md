@@ -3,11 +3,11 @@
 
 # 基础信息
 plan_id: PLAN-024
-status: execution_done                       # drafting → executing → execution_done → review_done → merged
+status: review_done
 feature_name: AutoPlan 架构升级（Plan/Spec 同级化 + 计划一级导航 + Specs 展示重组 + merge 沉淀）
 author: [zhaopuming + agent]
 created_at: 2026-08-11T17:30:00Z
-updated_at: 2026-08-11T19:00:00Z
+updated_at: 2026-08-24T14:00:00+08:00
 
 # ============ Spec 合并指引 (/auto-plan:merge 时使用) ============
 supersedes_spec_components:
@@ -449,3 +449,13 @@ PLAN-024 任务 1-7 实现了"数据/API/UI 基础设施"，但 008 §6 设计�
 ---
 
 *本文件为 PLAN-024，格式遵循设计文档 008（Auto-Plan 核心契约）。*
+
+### /auto-plan:review 正式复审（2026-08-24）
+
+| 验收项 | 判定 | 证据 |
+|---|---|---|
+| 7 任务逐项 | pass | 沿用计划内 finish-plan 复核（2026-08-11，逐任务 file:line 证据）；本次抽查复核：hw 路由 server.rs:133-134、migrate_legacy 测试 plans.rs:1101、derive_statuses specs.rs:420 |
+| 三条计划内绕道入册 | pass | KNOWN-DEBT 补登于 427481f（2026-08-24） |
+| 验证重跑 | pass(带环境注) | auto build 绿（2026-08-24，修复陈旧 auto 二进制 + 清理模板已废弃的 CodeEditor.vue 死文件后）；cargo test 当前红 = auto-ai 13:14 合入 027/028 的跨仓漂移（conversation/tools 等 6 文件 trait 签名），非本计划缺陷，已单独汇报 |
+
+**结论**：review_done。遗留：a2r 对齐后 /api/plans 切回 ag 轨（已登记）。

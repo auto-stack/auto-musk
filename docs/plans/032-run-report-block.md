@@ -1,15 +1,17 @@
 ---
 plan_id: PLAN-032
-status: execution_done
+status: review_done
 feature_name: Run 完成报告（ReportBlock）——document 相位生成 PPT 风格 HTML 汇报
 author: [zhaopuming]
 created_at: 2026-08-22T09:05:00+08:00
-updated_at: 2026-08-22T09:05:00+08:00
+updated_at: 2026-08-24T14:00:00+08:00
 
 # Leave these EMPTY here — /auto-plan:review fills them:
 supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+new_spec_components:
+  - 报告 deck 预览块（gen platform/deck.vue：16:9 沙箱 iframe，无脚本/无同源/无表单）
+touched_goals:
+  - Run 报告呈现（deck 预览 + 新窗口打开）
 
 current_step: 9
 total_steps: 9
@@ -218,3 +220,13 @@ relay 路由（query token/workspace）。
 
 - deck 层是否需要"全屏放映"模式（v1 仅新窗口打开充当）——待用户试用后定。
 - 报告 md 源是否在 UI 暴露"查看源文件"入口（v1 仅落盘不展示）。
+
+### /auto-plan:review 正式复审（2026-08-24）
+
+| 验收项 | 判定 | 证据 |
+|---|---|---|
+| 任务 1-8 | pass | 全勾；deck.vue 产物现存核验（gen/front/vue/src/platform/deck.vue） |
+| 任务 9 spec 沉淀 | 由 merge 承接 | 本复审即其门；沉淀动作归 /auto-plan:merge |
+| 待澄清 2 项 | v1 范围决策 | 全屏放映（新窗口充当）/查看源文件（仅落盘）——已记录 |
+
+**结论**：review_done。注：034 T9 已将报告呈现重设计为对话流内联（弹窗形态被取代，deck 预览保留）。

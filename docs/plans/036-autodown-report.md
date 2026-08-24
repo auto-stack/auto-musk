@@ -1,14 +1,16 @@
 ---
 plan_id: PLAN-036
-status: execution_done
+status: review_done
 feature_name: AutoDown 报告——emit_report 收 .ad 文档 + 现成管线渲染
 author: [zhaopuming]
 created_at: 2026-08-22T18:30:00+08:00
-updated_at: 2026-08-22T19:10:00+08:00
+updated_at: 2026-08-24T14:00:00+08:00
 
 supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+new_spec_components:
+  - autodown(.ad) 报告源支持（frontmatter 解析 + .ad 报告块渲染）
+touched_goals:
+  - 报告源格式扩展（markdown → autodown 子集）
 
 current_step: 7
 total_steps: 7
@@ -76,3 +78,13 @@ total_steps: 7
 
 1. frontmatter 内联数组子集（无引号值）为 Phase 1 容忍式解析；完整 YAML 依赖待评估 serde_yaml 引入。
 2. `.ad` 高级扩展（callout/双链渲染增强、双链路由）后续迭代。
+
+### /auto-plan:review 正式复审（2026-08-24）
+
+| 验收项 | 判定 | 证据 |
+|---|---|---|
+| 7 任务 | pass | 全勾；报告链产物现存核验 |
+| frontmatter 内联数组 | 已知限制 | 无引号值子集容忍式解析——merge 时补登记册（完整 YAML 待 serde_yaml 评估） |
+| 验证重跑 | pass(带环境注) | 前端绿（2026-08-24）；cargo 红为 auto-ai 漂移，与本计划无关 |
+
+**结论**：review_done。

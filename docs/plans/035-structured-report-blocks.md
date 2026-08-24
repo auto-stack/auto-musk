@@ -1,14 +1,16 @@
 ---
 plan_id: PLAN-035
-status: execution_done
+status: review_done
 feature_name: 结构化报告——emit_report 数据化 + 对话流 block 化渲染
 author: [zhaopuming]
 created_at: 2026-08-22T16:15:00+08:00
-updated_at: 2026-08-22T17:05:00+08:00
+updated_at: 2026-08-24T14:00:00+08:00
 
 supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+new_spec_components:
+  - 结构化报告块（Goal chip 跳 Specs / 交付物详情内联行 / 分类摘要）
+touched_goals:
+  - 报告块体系（RunReportPayload 的结构化呈现层）
 
 current_step: 7
 total_steps: 7
@@ -107,3 +109,13 @@ ReportCard body（structured 分支）：目标行（objective + chips）→ 流
 
 1. Goal chip 跳 Specs 目前只到 Specs 视图（v1 不带锚点定位）——锚点级跳转待 Specs 视图支持后补。
 2. 交付物详情展开用内联行（非浮层）——若需弹窗式预览后续迭代。
+
+### /auto-plan:review 正式复审（2026-08-24）
+
+| 验收项 | 判定 | 证据 |
+|---|---|---|
+| 7 任务 | pass | 全勾；categorySummary 等产物现存核验（web/src/utils/categorySummary.ts，mermaid 围栏检测在 :11） |
+| 待澄清 2 项 | v1 范围决策 | Goal chip 仅到 Specs 视图（锚点级待 Specs 支持）；交付物详情内联行（弹窗式后续迭代） |
+| 验证重跑 | pass(带环境注) | 前端绿（2026-08-24）；cargo 红为 auto-ai 漂移，与本计划无关 |
+
+**结论**：review_done。

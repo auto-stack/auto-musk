@@ -1,15 +1,18 @@
 ---
 plan_id: PLAN-031
-status: execution_done
+status: review_done
 feature_name: RunBox 体验细化（批次二）+ Run 完成报告（Report v1）
 author: [zhaopuming]
 created_at: 2026-08-21T21:00:00+08:00
-updated_at: 2026-08-23T15:10:00+08:00
+updated_at: 2026-08-24T14:00:00+08:00
 
 # Leave these EMPTY here — /auto-plan:review fills them:
 supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+new_spec_components:
+  - RunReport 后端三追加点 + 访问器（RunEvent 载荷）
+  - ReportCard PPT 形态（web 手写 + report_card.at 双轨）+ RunBox 内嵌接线（store run_reports）
+touched_goals:
+  - Run 完成报告（Report v1）端到端：事件载荷→store→卡片呈现
 
 current_step: 8
 total_steps: 8
@@ -286,3 +289,12 @@ ReportCard（PPT 风格），并向**父 chat 会话**追加总结消息（此�
 遗留验证（非阻塞）：T4 父 chat 总结 turn 仍为代码审读级验证，待用户下次从 chat 发起
 run 自然验证（见批次一/二步骤 7 备注）。下一步：/auto-plan:review。
 
+### /auto-plan:review 正式复审（2026-08-24）
+
+| 验收项 | 判定 | 证据 |
+|---|---|---|
+| 17 任务/5 批次 | pass | 全勾 + E2E 实证（run_completed 与 SSE 实时帧携带完整报告载荷：25 工具/2784 令牌/168s）；finish-plan 状态修正记录在前 |
+| T4 父会话总结 turn | partial(非阻塞) | 代码审读级验证，待自然验证（已在计划内备注） |
+| 验证重跑 | pass(带环境注) | 前端面绿（auto build/vitest，2026-08-24）；cargo 红为 auto-ai 027/028 跨仓漂移，与本计划无关 |
+
+**结论**：review_done。

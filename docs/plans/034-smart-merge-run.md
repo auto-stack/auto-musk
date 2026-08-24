@@ -1,14 +1,18 @@
 ---
 plan_id: PLAN-034
-status: execution_done
+status: review_done
 feature_name: 智能沉淀闭环——计划页按钮触发 Chats 会话式 AI 沉淀 run
 author: [zhaopuming]
 created_at: 2026-08-22T13:32:09+08:00
-updated_at: 2026-08-22T15:20:00+08:00
+updated_at: 2026-08-24T14:00:00+08:00
 
-supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+supersedes_spec_components:
+  - PLAN-032 的报告呈现形态（顶部弹窗 + Run 卡内嵌 → 对话流内联报告卡，互链滚动）
+new_spec_components:
+  - /plan 等指令服务端短路（chat_stream parse_plan_merge_command + plan_merge_shortcut，零 LLM 调用，原生 spawn_relay 语义）
+  - 报告卡融入对话流（持久化 assistant 消息 + tool call report 载全量 RunReportPayload + 实时路径幂等去重）
+touched_goals:
+  - 智能合并运行体验（指令→run→报告全链路会话化）
 
 current_step: 8
 total_steps: 8
@@ -146,3 +150,13 @@ if (mergeMatch) {
 ### 修正轮（T8，用户走查反馈）
 
 用户实测发现：按钮触发的 run 不显示 Run 卡片、刷新后会话为空。根因：前端斜杠分支直接 HTTP 启动 run，绕过了会话（无 tool-call turn 持久化、无事件入流）——**存量缺陷**（/plan、/superpower、/spec1 同样如此），PLAN-034 首次暴露。修正：移除客户端拦截，指令作为普通用户消息发送，由 `chat_stream` 服务端短路（`parse_plan_merge_command` + `plan_merge_shortcut`）按原生 spawn_relay 语义执行（start_run + 助手消息含 tool call 持久化 + 双写 conversation + 后台驱动 + SSE delta/relay_spawned/done），零 LLM 调用。
+
+### /auto-plan:review 正式复审（2026-08-24）
+
+| 验收项 | 判定 | 证据 |
+|---|---|---|
+| 7 任务 | pass | 全勾 + 两轮修正记录在案（用户走查反馈修复：按钮触发 run 不显卡/刷新空会话→服务端短路；ag 轨道迁移：extern_impl chat_run_stream + SSE 合法形状） |
+| E2E | pass | 会话第三条消息为持久化报告消息（in-plan 记录） |
+| 验证重跑 | pass(带环境注) | 前端绿（2026-08-24）；cargo 红为 auto-ai 027/028 漂移，与本计划无关 |
+
+**结论**：review_done。待澄清 2 项均为已决设计（留在会话内看报告；merge 需显式编号）。
