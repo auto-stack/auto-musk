@@ -287,7 +287,7 @@ pub fn build_agent_with_context(
             ("list_dir", Arc::new(crate::tools::ListDir::with_root(ws_root.clone()))),
             ("list_symbols", Arc::new(crate::tools::ListSymbols::with_root(ws_root.clone()))),
             ("glob", Arc::new(crate::tools::Glob::with_root(ws_root.clone()))),
-            ("run_command", Arc::new(crate::tools::RunCommand::with_root(ws_root.clone()))),
+            ("run_command", Arc::new(crate::tools::RunCommand::with_root_and_progress(ws_root.clone(), ctx.progress.clone()))),
         ];
         for (name, tool) in &scoped_file_tools {
             if mode.tools.is_empty() || mode.tools.iter().any(|t| t == name) {

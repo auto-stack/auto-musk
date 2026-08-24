@@ -350,16 +350,16 @@ export function useForge() {
               }
             }
           } else if (data.type === 'tool_update') {
-            // PLAN-040 T2: run_command 流式 partial(后端 100ms 节流)——
-            // 追加到当前 assistant 消息里最后一个 running 的同名工具调用;
-            // 找不到匹配调用则丢弃(partial 是易态,结果事件才是权威)。
+            // PLAN-040 T2: run_command 流式 partial(后端 100ms 节流推送的
+            // **当前尾部快照**,非增量)——替换到最后一个 running 的同名工具
+            // 调用;找不到匹配调用则丢弃(partial 是易态,结果事件才是权威)。
             if (assistantMsg) {
               const calls = assistantMsg.tool_calls ?? []
               const name = data.tool_name || 'run_command'
               for (let i = calls.length - 1; i >= 0; i--) {
                 const c = calls[i]
                 if (c.status === 'running' && (c.name === name || (data.id && c.id === data.id))) {
-                  c.partial = (c.partial || '') + (data.partial || '')
+                  c.partial = data.partial || ''
                   break
                 }
               }

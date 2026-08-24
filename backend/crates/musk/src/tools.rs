@@ -197,16 +197,33 @@ impl Tool for WriteFile {
 /// 安全分级(Design 004):白名单命令直接执行;其他命令返回 PAUSED 状态
 /// 提醒用户确认。设 `force: true` 可跳过白名单检查(用户 approve 后)。
 /// 未来 run_command 后端将换为 Ash,由 Ash 的逐命令沙箱接管安全。
+///
+/// PLAN-040 T4(对齐 pi bash 工具):流式执行(tokio,经
+/// [`crate::command_runner::CommandRunner`] 接缝)、可选 `timeout` 秒参数
+/// (无默认超时;到点杀整个进程树,输出保留)、有界累积 + 超限全量落临时
+/// 文件(路径随尾注给模型)、非零退出码 = 错误结果(pi 语义:更显眼、
+/// 自愈更快)。执行中的流式尾部经 [`crate::tool_context::ProgressSink`]
+/// 以 ToolUpdate SSE 推给前端(100ms 节流)。
 pub struct RunCommand {
     /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
     /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
     /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
     root: Option<std::sync::Arc<std::path::PathBuf>>,
+    /// PLAN-040 T4:实时进度通道(chat = session_id / relay = run_id;
+    /// None = 测试/CLI 无前端订阅)。
+    progress: Option<crate::tool_context::ProgressSink>,
 }
 
 impl RunCommand {
-    pub fn new() -> Self { Self { root: None } }
-    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
+    pub fn new() -> Self { Self { root: None, progress: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root), progress: None } }
+    /// PLAN-040 T4:workspace root + 前端进度通道。
+    pub fn with_root_and_progress(
+        root: std::sync::Arc<std::path::PathBuf>,
+        progress: Option<crate::tool_context::ProgressSink>,
+    ) -> Self {
+        Self { root: Some(root), progress }
+    }
     fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
 }
 #[async_trait]
@@ -218,15 +235,21 @@ impl Tool for RunCommand {
         "Run a shell command and return its combined stdout and stderr. \
          Whitelisted commands (cargo/npm/git status/echo/…) run directly; \
          all others are PAUSED for user approval. Pass \"force\": true to \
-         run a paused command after the user approves it. Output is \
-         truncated to the last 2000 lines or 50KB (whichever is hit first)."
+         run a paused command after the user approves it. Optional \
+         \"timeout\" (seconds) kills the whole process tree on expiry. \
+         Output is truncated to the last 2000 lines or 50KB (whichever is \
+         hit first); when truncated, the full output is preserved in a \
+         temp file whose path is given in the trailing note. A non-zero \
+         exit code returns the output as an ERROR (with 'Command exited \
+         with code N') — check the output and fix the command."
     }
     fn parameters(&self) -> Value {
         json!({
             "type": "object",
             "properties": {
                 "cmd": { "type": "string", "description": "the shell command to run" },
-                "force": { "type": "boolean", "description": "skip the whitelist check (set true only after user approval)" }
+                "force": { "type": "boolean", "description": "skip the whitelist check (set true only after user approval)" },
+                "timeout": { "type": "number", "description": "timeout in seconds (optional, no default timeout); the whole process tree is killed on expiry" }
             },
             "required": ["cmd"]
         })
@@ -236,6 +259,28 @@ impl Tool for RunCommand {
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'cmd' argument".into()))?;
         let force = args["force"].as_bool().unwrap_or(false);
+        // timeout 参数(pi `resolveTimeoutMs`):可选秒数,>0 有限,上限
+        // i32::MAX 毫秒。缺省 = 无超时。
+        let timeout_secs = match args.get("timeout") {
+            None | Some(Value::Null) => None,
+            Some(v) => {
+                let secs = v.as_f64().ok_or_else(|| {
+                    ToolError::Args("Invalid timeout: must be a finite number of seconds".into())
+                })?;
+                if !secs.is_finite() || secs <= 0.0 {
+                    return Err(ToolError::Args(
+                        "Invalid timeout: must be a finite number of seconds".into(),
+                    ));
+                }
+                if secs * 1000.0 > i32::MAX as f64 {
+                    return Err(ToolError::Args(format!(
+                        "Invalid timeout: maximum is {} seconds",
+                        i32::MAX / 1000
+                    )));
+                }
+                Some(secs)
+            }
+        };
 
         // Safety classification (Design 004).
         if !force {
@@ -262,50 +307,117 @@ impl Tool for RunCommand {
             .map(|p| p.to_path_buf())
             .unwrap_or_else(crate::tool_safety::project_root);
 
-        let output = if cfg!(windows) {
-            std::process::Command::new("cmd").args(["/C", cmd]).current_dir(&root).output()
-        } else {
-            std::process::Command::new("sh").args(["-c", cmd]).current_dir(&root).output()
-        }
-        .map_err(|e| ToolError::Exec(format!("spawn '{cmd}': {e}")))?;
+        // ── PLAN-040 T4:流式执行(经 CommandRunner 接缝)────────────────
+        use crate::command_runner::{CommandRunner, ExecOptions, LocalRunner};
+        use crate::output_accumulator::OutputAccumulator;
+        use crate::tool_truncate::format_size;
 
-        let mut result = String::new();
-        if !output.stdout.is_empty() {
-            result.push_str(&String::from_utf8_lossy(&output.stdout));
+        // pi `appendStatus`:输出在前、状态在后(输出为空则只有状态)。
+        fn append_status(text: &str, status: &str) -> String {
+            if text.is_empty() { status.to_string() } else { format!("{text}\n\n{status}") }
         }
-        if !output.stderr.is_empty() {
-            if !result.is_empty() {
-                result.push_str("\n[stderr]\n");
+
+        // pi formatOutput 三态尾注:行区间 + Full output 路径(临时文件失败
+        // 时退化为说明文本,不给假路径)。
+        fn format_note(
+            text: &mut String,
+            snap: &crate::output_accumulator::OutputSnapshot,
+        ) {
+            use crate::tool_truncate::TruncatedBy;
+            if !snap.truncated {
+                return;
             }
-            result.push_str(&String::from_utf8_lossy(&output.stderr));
-        }
-        // PLAN-039 T4: 输出封顶(2000 行/50KB,尾部保留——错误信息与最终
-        // 结果在输出末尾最有信息量)。临时措施:run_command 的完整重写
-        //(超时/全量落盘/退出码语义)归 PLAN-040。
-        if !result.is_empty() {
-            use crate::tool_truncate::{
-                format_size, truncate_tail, TruncatedBy, DEFAULT_MAX_BYTES, DEFAULT_MAX_LINES,
+            let full = match (&snap.full_output_path, &snap.temp_error) {
+                (Some(p), _) => p.display().to_string(),
+                (None, Some(e)) => format!("unavailable ({e})"),
+                (None, None) => "unavailable".to_string(),
             };
-            let capped = truncate_tail(&result, DEFAULT_MAX_LINES, DEFAULT_MAX_BYTES);
-            if capped.truncated {
-                let why = if capped.truncated_by == Some(TruncatedBy::Lines) {
-                    format!("showing last {} lines", capped.output_lines)
-                } else {
-                    format!("showing last {}", format_size(capped.content.len()))
-                };
-                result = format!("{}\n\n[Output truncated: {why}]", capped.content);
+            let start_line = snap.total_lines.saturating_sub(snap.output_lines) + 1;
+            let end_line = snap.total_lines;
+            if snap.last_line_partial {
+                text.push_str(&format!(
+                    "\n\n[Showing last {} of line {end_line} (line is {}). Full output: {full}]",
+                    format_size(snap.content.len()),
+                    format_size(snap.last_line_bytes),
+                ));
+            } else if snap.truncated_by == Some(TruncatedBy::Lines) {
+                text.push_str(&format!(
+                    "\n\n[Showing lines {start_line}-{end_line} of {}. Full output: {full}]",
+                    snap.total_lines
+                ));
+            } else {
+                text.push_str(&format!(
+                    "\n\n[Showing lines {start_line}-{end_line} of {} ({} limit). Full output: {full}]",
+                    snap.total_lines,
+                    format_size(crate::tool_truncate::DEFAULT_MAX_BYTES),
+                ));
             }
         }
-        if result.is_empty() {
-            result.push_str("(no output)");
+
+        // 流式累积器 + 100ms 节流进度(pi BASH_UPDATE_THROTTLE_MS)。快照式
+        // 推送(当前尾部),前端直接替换渲染;丢帧可接受(partial 是易态)。
+        const THROTTLE: std::time::Duration = std::time::Duration::from_millis(100);
+        let acc = std::sync::Arc::new(std::sync::Mutex::new(OutputAccumulator::new(
+            crate::tool_truncate::DEFAULT_MAX_LINES,
+            crate::tool_truncate::DEFAULT_MAX_BYTES,
+        )));
+        let last_emit = std::sync::Arc::new(std::sync::Mutex::new(None::<std::time::Instant>));
+        let acc_cb = acc.clone();
+        let le_cb = last_emit.clone();
+        let progress_cb = self.progress.clone();
+        let on_data = std::sync::Arc::new(move |chunk: Vec<u8>| {
+            let mut acc = acc_cb.lock().unwrap();
+            acc.append(&chunk);
+            if let Some(sink) = &progress_cb {
+                let mut le = le_cb.lock().unwrap();
+                let due = le.map_or(true, |t| t.elapsed() >= THROTTLE);
+                if due {
+                    let snap = acc.snapshot(true);
+                    sink.send("run_command", "", &snap.content);
+                    *le = Some(std::time::Instant::now());
+                }
+            }
+        });
+
+        let opts = ExecOptions {
+            on_data: Some(on_data),
+            timeout: timeout_secs.map(std::time::Duration::from_secs_f64),
+            env: std::collections::HashMap::new(),
+        };
+        let out = LocalRunner.exec(cmd, &root, opts).await?;
+
+        // 结束:flush 解码器 → 快照(persist_if_truncated 兜底临时文件)。
+        {
+            let mut acc = acc.lock().unwrap();
+            acc.finish();
         }
-        // PLAN-031 T36: 非零退出码追加标记——agent 与前端（cmd 结果块红色
-        // Error: 前缀）共同的成功/失败判定信号。
-        if !output.status.success() {
-            result.push_str(&format!("
-[exit: {}]", output.status.code().unwrap_or(-1)));
+        let snap = acc.lock().unwrap().snapshot(true);
+        let mut text = if snap.content.is_empty() {
+            "(no output)".to_string()
+        } else {
+            snap.content.clone()
+        };
+        format_note(&mut text, &snap);
+
+        // 超时(pi):输出保留 + 状态追加,作为错误结果回喂。
+        if out.timed_out {
+            let secs = timeout_secs.unwrap_or(0.0);
+            return Err(ToolError::Exec(append_status(
+                &text,
+                &format!("Command timed out after {secs} seconds"),
+            )));
         }
-        Ok(result)
+        // 非零退出码(pi bash.ts:throw)——错误更显眼、自愈更快;输出保留
+        // 在错误文本里,`exec_or_msg` 转字符串回喂,agent 循环不断。
+        if let Some(code) = out.exit_code {
+            if code != 0 {
+                return Err(ToolError::Exec(append_status(
+                    &text,
+                    &format!("Command exited with code {code}"),
+                )));
+            }
+        }
+        Ok(text)
     }
 }
 
@@ -1090,8 +1202,8 @@ mod tests {
         assert!(matches!(err, ToolError::Args(_)));
     }
 
-    /// PLAN-039 T4: run_command 输出封顶(2000 行/50KB,尾部保留)。
-    /// 完整重写(超时/全量落盘)归 PLAN-040,此处为临时上限。
+    /// PLAN-039 T4 → PLAN-040 T4: run_command 输出封顶(2000 行/50KB,尾部
+    /// 保留)+ 超限全量落临时文件,尾注带行区间与 Full output 路径(pi 语义)。
     #[tokio::test]
     async fn run_command_output_capped_at_50kb() {
         let content = (0..600).map(|_| "y".repeat(99)).collect::<Vec<_>>().join("\r\n");
@@ -1104,8 +1216,77 @@ mod tests {
         };
         let out = RunCommand::new().execute(&json!({"cmd": cmd})).await.unwrap();
         assert!(out.len() < 52_000, "expected capped output, got {} bytes", out.len());
-        assert!(out.contains("[Output truncated"), "capped output should carry a note, tail: {}", &out[out.len().saturating_sub(120)..]);
+        assert!(
+            out.contains("[Showing lines ") && out.contains("Full output: "),
+            "pi-style tail note expected, tail: {}",
+            &out[out.len().saturating_sub(160)..]
+        );
+        // Full output 路径真实存在且内容为全量输出。
+        let path = out
+            .split("Full output: ")
+            .nth(1)
+            .and_then(|s| s.trim().trim_end_matches(']').trim().parse::<std::path::PathBuf>().ok())
+            .expect("temp file path parseable");
+        assert!(path.exists(), "full output temp file exists: {}", path.display());
+        let on_disk = std::fs::read(&path).unwrap();
+        assert_eq!(on_disk.len(), content.len(), "full raw output persisted");
         let _ = std::fs::remove_file(&p);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// PLAN-040 T4: 非零退出码 = 错误结果(pi 语义),输出保留 + 状态追加,
+    /// agent 循环可继续(exec_or_msg 转字符串回喂)。
+    #[tokio::test]
+    async fn run_command_nonzero_exit_is_error_with_output() {
+        let t = RunCommand::new();
+        // 白名单命令读不存在的相对路径文件 → 非零退出 + stderr
+        // (相对路径 confine 放行;force 不需要——type/cat 在白名单)。
+        let cmd = if cfg!(windows) {
+            "type no-such-file-xyz.txt"
+        } else {
+            "cat no-such-file-xyz.txt"
+        };
+        let err = t.execute(&json!({"cmd": cmd})).await.unwrap_err();
+        match err {
+            ToolError::Exec(msg) => {
+                let status_at = msg
+                    .find("Command exited with code")
+                    .unwrap_or_else(|| panic!("status appended: {msg}"));
+                assert!(status_at > 0, "error preserves output before status: {msg}");
+            }
+            other => panic!("expected Exec error, got {other:?}"),
+        }
+    }
+
+    /// PLAN-040 T4: timeout 参数——非法值(0/负/非数/超上限)是 Args 错误。
+    #[tokio::test]
+    async fn run_command_timeout_arg_validation() {
+        let t = RunCommand::new();
+        for bad in [json!(0), json!(-5), json!("10"), json!(3.0e9)] {
+            let err = t.execute(&json!({"cmd": "echo hi", "timeout": bad})).await.unwrap_err();
+            assert!(matches!(err, ToolError::Args(_)), "expected Args error for {bad}");
+        }
+    }
+
+    /// PLAN-040 T4: 超时——到点杀进程,输出保留 + timed out 状态(pi 语义)。
+    #[tokio::test]
+    async fn run_command_timeout_kills_and_reports() {
+        let t = RunCommand::new();
+        let cmd = if cfg!(windows) {
+            "echo early & ping -n 30 127.0.0.1 > nul"
+        } else {
+            "echo early; sleep 30"
+        };
+        let start = std::time::Instant::now();
+        let err = t.execute(&json!({"cmd": cmd, "timeout": 2, "force": true})).await.unwrap_err();
+        assert!(start.elapsed() < std::time::Duration::from_secs(10), "killed promptly");
+        match err {
+            ToolError::Exec(msg) => {
+                assert!(msg.contains("early"), "pre-timeout output kept: {msg}");
+                assert!(msg.contains("Command timed out after 2 seconds"), "status: {msg}");
+            }
+            other => panic!("expected Exec error, got {other:?}"),
+        }
     }
 
     // ── EditFile ───────────────────────────────────────────────

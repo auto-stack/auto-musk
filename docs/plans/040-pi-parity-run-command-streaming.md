@@ -100,6 +100,14 @@ PLAN-026 独立推进，两轨将来在 relay 桥接层合流）。
 3. `CommandRunner` trait + `LocalRunner`（tokio 流式读、进程组、超时杀树）+ 单测
    （sleep 超时、子进程孤儿清理）。
 4. `run_command` 重写接 runner + 累积器 + 截断尾注 + 退出码语义。
+   [✅ 已完成] tools.rs RunCommand 重写:timeout 参数(pi resolveTimeoutMs 校验:
+   >0 有限/上限 i32::MAX ms)→ LocalRunner.exec(on_data:累积器 append+100ms 节流
+   ProgressSink 快照推送)→ finish → snapshot(true) → pi formatOutput 三态尾注
+   (lastLinePartial/lines/bytes + Full output 路径,临时文件失败退化说明文本)→
+   超时/非零退出码 = ToolError::Exec(appendStatus:输出保留+状态追加);PAUSED 与
+   confine 逻辑零改动;lib.rs 装配换 with_root_and_progress;前端 partial 改快照
+   替换式。新测试 4 + 更新旧封顶测试(临时文件真实存在+全量字节),tools:: 60/60、
+   全量 31 target 全绿;[exit: 旧标记 grep 零引用。
 5. `tool_context.rs` 扩展：ToolContext 挂 broadcast sender（工具侧推 ToolUpdate）。
    [✅ 已完成] ToolContext 新增 progress: Option<ProgressSink>(进程级 broadcast 总线
    sender + run_id;send() 推 RunEvent::ToolUpdate);4 个构造点全接:relay/driver.rs
