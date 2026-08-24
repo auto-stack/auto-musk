@@ -1,14 +1,22 @@
 ---
 plan_id: PLAN-040
-status: execution_done
+status: reviewed
 feature_name: run_command 对齐 pi bash——tokio 流式输出、超时、进程树终止、尾部截断+临时文件、ToolUpdate SSE 实时进度与 CommandRunner 接缝
 author: [zhaopuming]
 created_at: 2026-08-23
 updated_at: 2026-08-24
 
-supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+supersedes_spec_components:
+  - "docs/specs/01-architecture.md: tools.rs 行——RunCommand 重写为流式/超时/进程树杀/临时文件/pi 退出码语义(PLAN-040)"
+  - "docs/specs/01-architecture.md: relay/ 行——RunEvent 16→17 变体(+ToolUpdate,SSE-only 易态不落历史)"
+  - "docs/specs/01-architecture.md: tool_context.rs 行——ToolContext 增 progress 字段(ProgressSink)"
+  - "docs/specs/00-overview.md: §目标 1 Agent 运行——run_command 补齐 pi parity(与 PLAN-039 文件工具 parity 并列)"
+new_spec_components:
+  - "docs/specs/01-architecture.md: 新增 command_runner.rs 行——CommandRunner trait(Ash 后座契约)+ LocalRunner(tokio 流式/超时杀树)+ ExecOptions/ExecOutcome"
+  - "docs/specs/01-architecture.md: 新增 output_accumulator.rs 行——有界内存流式累积器(滚动尾部/UTF-8 流式解码/超限临时文件转储/快照)"
+  - "RunEvent::ToolUpdate + ProgressSink: 工具实时进度通道(100ms 节流,chat= session_id/relay=run_id,SSE-only)"
+touched_goals:
+  - "goal-agent: run_command 对齐 pi bash(流式输出/超时/可控终止/退出码错误化),Agent 运行目标的核心工具能力补全"
 
 current_step: 5
 total_steps: 10
@@ -154,3 +162,43 @@ PLAN-026 独立推进，两轨将来在 relay 桥接层合流）。
   是易态）。
 - 退出码语义从 `Ok+[exit: N]` 改为 `Err`：改变模型可见行为，属有意对齐 pi
   （错误更显眼、自愈更快）；技能文档若依赖旧标记格式需同步 grep 更新。
+
+## 复审记录
+
+- **复审人**:zhaopuming(经 /auto-plan:review,worktree `plan-040-run-command-streaming` @ 669fb88)
+- **时间**:2026-08-24
+- **方法**:worktree 内重跑全部验证命令(不信任已勾选项)+ diff 逐文件核对(main..HEAD,20 文件 +1539/-56)
+
+### 验收标准逐项判定
+
+| # | 标准 | 判定 | 证据 |
+|---|---|---|---|
+| 1 | 10MB 输出:上下文 ≤50KB 尾部 + 完整输出临时文件;前端流式(节流 ≤100ms) | **过**(E2E 人工观察待用户) | `cargo test -- --ignored` 重跑:上下文 <60KB(50KB 尾部+尾注)、临时文件精确 10MB(tools.rs `run_command_smoke_10mb_output`);节流常量 `THROTTLE=100ms`(tools.rs:359);链路组件级全绿:ProgressSink 发布(tool_context 2 测)→ 桥接(extern_impl bus→mpsc)→ SSE 透传(server_stream tool_update 直通;relay 端点 api.rs:341 对 BusEvent 原样序列化)→ 前端(useForge 替换式 partial + ChatsView shell-partial 折叠,vue-tsc 0 错 + build 过) |
+| 2 | 超时命令指定秒数被杀,进程树无孤儿 | **过** | `windows_timeout_kills_process_tree_no_orphans` 重跑(5.44s):start /b 孙 ping + 主 ping,3s `taskkill /T /F`,tasklist CSV 前后无增量;Unix 侧 process_group(0)+killpg 代码审查(Windows host 无法运行验证,libc 仅 cfg(unix) 依赖) |
+| 3 | 非零退出码错误回喂,agent 循环不中断 | **过**(验收措辞的 ScriptedClient 在 musk 不存在,以下述替代) | 工具层:`run_command_nonzero_exit_is_error_with_output` 断言 Err(Exec) 含 "Command exited with code";循环回喂:auto-ai `tool.at:171` exec_or_msg 把 Err→`[tool error: …]` 字符串回喂(源码确认,非实测) |
+| 4 | PAUSED + force 行为与重写前逐项一致 | **过** | T6 四测试重跑:非白名单 Ok(PAUSED) 且未执行 / force 真执行 / force 不豁免 confine / 审批闭环;tools.rs run_command 组 11/11 |
+
+### 回归验证(重跑)
+
+- 全量 `cargo test`:31 个 test target 全部 ok,无失败
+- 组件分组重跑:accumulator 13 / command_runner 8 / tool_context 2 / run_command 11(另 1 ignored 冒烟单独跑)
+- 前端 `vue-tsc -b` 0 错误;`npm run build` 成功(6.59s)
+- `[exit: N]` 旧标记:grep 全仓零引用(前端 isErrorResult 判定不依赖旧格式)
+
+### 与计划的偏差(已核实为合理)
+
+1. `ExecOptions.on_data`:计划 `Box<dyn Fn>` → 实现 `Arc<dyn Fn>`——两个读任务共享同一回调,Box 无法 clone,语义等价。
+2. `RunEvent::ToolUpdate` 实际字段是计划签名的超集(+`timestamp`/`tool_name`,全部 `serde default`,wire 兼容);`tool_call_id` 允许空,前端按 tool_name+running 匹配。
+3. T9(可选)落地为最小版:仅注入 `MUSK_SESSION_ID`;pi 的 SESSION_FILE/PROVIDER/MODEL 未注入(等前端显示会话上下文时再加)。
+4. LocalRunner 的 wait 与 drain 必须**并发 join**——计划未预见:串行等待在大输出下死锁(管道写满→子进程阻塞→永不退出),实施中实测发现并修复,是本计划最重要的实现细节沉淀。
+
+### Debt 候选(不阻塞 merge)
+
+- **DEBT-040-1**:前端流式进度 E2E(起 musk serve + 真实 LLM 会话跑长命令,人工观察 tool_update 渲染)未执行——组件级全绿,端到端待用户冒烟。
+- **DEBT-040-2**:Windows `taskkill /T` 覆盖多数场景;若未来发现漏网进程(跨控制台分离),按计划风险节评估 Job Object 兜底。
+- **DEBT-040-3**:Unix 侧 killpg 逻辑无运行验证(仅代码审查;开发 host 为 Windows)。
+- **DEBT-040-4**:`01-architecture.md` 的 "RunEvent(16)" 计数与 tool_context 行已过时——由 /auto-plan:merge 按 supersedes 元数据更新。
+
+### 结论
+
+4/4 验收全过,无阻塞 debt → `status: reviewed`,可执行 /auto-plan:merge。
