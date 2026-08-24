@@ -73,6 +73,15 @@ pub enum RunEvent {
     TurnError { timestamp: u64, role_id: String, message: String },
     TurnBudgetWarning { timestamp: u64, role_id: String, remaining: u64 },
     TurnBudgetExceeded { timestamp: u64, role_id: String },
+    // PLAN-040 手补：ToolUpdate 与 hw 枚举 wire parity（crate::relay::store
+    // 同款；重生成后需手工补回——parity 测试编译期拦截）。
+    ToolUpdate {
+        timestamp: u64,
+        #[serde(default)] run_id: String,
+        #[serde(default)] tool_call_id: String,
+        #[serde(default)] tool_name: String,
+        #[serde(default)] partial: String,
+    },
 }
 
 
@@ -95,6 +104,7 @@ impl RunEvent {
             RunEvent::TurnError { .. } => return "turn_error".to_string(),
             RunEvent::TurnBudgetWarning { .. } => return "turn_budget_warning".to_string(),
             RunEvent::TurnBudgetExceeded { .. } => return "turn_budget_exceeded".to_string(),
+            RunEvent::ToolUpdate { .. } => return "tool_update".to_string(),
         }
     }
 }

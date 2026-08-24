@@ -73,6 +73,19 @@ pub enum RunEvent {
     TurnError { #[serde(default)] timestamp: u64, role_id: String, message: String },
     TurnBudgetWarning { #[serde(default)] timestamp: u64, role_id: String, remaining: u64 },
     TurnBudgetExceeded { #[serde(default)] timestamp: u64, role_id: String },
+    /// PLAN-040:工具执行中的流式部分输出(run_command,100ms 节流)。
+    /// partial 是易态——只经 [`crate::relay::api::publish`] 走 SSE broadcast,
+    /// **不**进 run.events 历史、不镜像会话 turns(`run_event_to_turns` 空)。
+    /// run_id 由 BusEvent 外层携带,变体内冗余一份便于 chat 场景前端定位;
+    /// tool_call_id 可为空(auto-ai 工具侧不感知 SSE 配对 id,前端按
+    /// tool_name + running 状态匹配)。
+    ToolUpdate {
+        #[serde(default)] timestamp: u64,
+        #[serde(default)] run_id: String,
+        #[serde(default)] tool_call_id: String,
+        #[serde(default)] tool_name: String,
+        #[serde(default)] partial: String,
+    },
 }
 
 /// PLAN-032: 汇报报告元数据（emit_report 工具产物登记；本体文件在
@@ -198,7 +211,8 @@ impl RunEvent {
             | RunEvent::TurnComplete { timestamp, .. }
             | RunEvent::TurnError { timestamp, .. }
             | RunEvent::TurnBudgetWarning { timestamp, .. }
-            | RunEvent::TurnBudgetExceeded { timestamp, .. } => *timestamp,
+            | RunEvent::TurnBudgetExceeded { timestamp, .. }
+            | RunEvent::ToolUpdate { timestamp, .. } => *timestamp,
         }
     }
 
@@ -221,6 +235,7 @@ impl RunEvent {
             RunEvent::TurnError { .. } => "turn_error",
             RunEvent::TurnBudgetWarning { .. } => "turn_budget_warning",
             RunEvent::TurnBudgetExceeded { .. } => "turn_budget_exceeded",
+            RunEvent::ToolUpdate { .. } => "tool_update",
         }
     }
 }

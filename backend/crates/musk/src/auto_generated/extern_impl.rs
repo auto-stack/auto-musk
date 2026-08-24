@@ -1817,6 +1817,9 @@ pub async fn chat_run_stream(
             state: state_for_ctx.clone(),
             workspace_id: ws_id.clone(),
             parent_conversation_id: session_id.clone(),
+            // PLAN-040 T5：工具进度挂 session_id（chat 场景的 run_id）——
+            // 下方 bridge 任务把总线上的 ToolUpdate 桥接进本 SSE 流。
+            progress: Some(crate::tool_context::ProgressSink::for_run(&session_id)),
         };
         let mut agent = match crate::build_agent_with_context(&agent_mode, client, Some(tool_ctx)) {
             Ok(a) => a,
@@ -1931,6 +1934,27 @@ pub async fn chat_run_stream(
             });
         // No cancellation endpoint yet — the run flag is never set.
         let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        // PLAN-040 T2：工具流式进度（ToolUpdate）桥接——工具经
+        // ToolContext.progress 推上进程级 broadcast 总线，这里订阅并过滤本
+        // session 的 tool_update 事件转进 chat SSE（SseEventDto 严格枚举之外
+        // 的透传 JSON，前端 useForge 按 type 分发）。run 结束后 abort。
+        let mut bridge_rx = crate::relay::api::relay_bus().subscribe();
+        let tx_bridge = tx2.clone();
+        let bridge_sid = session_id.clone();
+        let bridge = tokio::spawn(async move {
+            loop {
+                match bridge_rx.recv().await {
+                    Ok(ev) => {
+                        if ev.run_id == bridge_sid && ev.event_type == "tool_update" {
+                            mpsc_try_send(&tx_bridge, ev.payload);
+                        }
+                    }
+                    // partial 是易态，Lagged（背压丢帧）可接受——继续收。
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(_) => break,
+                }
+            }
+        });
         match agent.run_stream(&user_msg, on_event, cancel).await {
             Ok(_) => {
                 // Persist the assistant reply + thinking + tool calls.
@@ -1955,6 +1979,7 @@ pub async fn chat_run_stream(
                 mpsc_try_send(&tx2, serde_json::json!({"type":"error","message": format!("{e}")}));
             }
         }
+        bridge.abort();
         crate::tool_safety::clear_current_root();
         close_channel(&tx2);
     });

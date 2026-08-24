@@ -65,6 +65,9 @@ impl AgentFactory for MuskAgentFactory {
             state: self.state.clone(),
             workspace_id: self.workspace_id.clone(),
             parent_conversation_id: self.run_id.clone(),
+            // PLAN-040 T5:relay 步骤的工具进度挂在 run_id 上——run SSE
+            // (/runs/{id}/events)订阅同一条总线,ToolUpdate 自动透传前端。
+            progress: Some(crate::tool_context::ProgressSink::for_run(&self.run_id)),
         };
         let mut agent =
             crate::build_agent_with_context(&mode, self.state.client.clone(), Some(tool_ctx))?;

@@ -18,6 +18,8 @@ pub mod plans;
 pub mod report_tools;
 pub mod plan_merge;
 pub mod plan_tools;
+pub mod command_runner;
+pub mod output_accumulator;
 pub mod tool_context;
 pub mod tool_safety;
 pub mod tool_test;

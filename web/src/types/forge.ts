@@ -37,7 +37,7 @@ export interface ForgeSession {
 }
 
 export interface ForgeStreamEvent {
-  type: 'turn_start' | 'delta' | 'thinking' | 'tool_call' | 'tool_result' | 'phase_change' | 'done' | 'error' | 'gate_reached' | 'run_completed' | 'agent_handoff' | 'errand_start' | 'errand_turn_start' | 'errand_delta' | 'errand_tool_call' | 'errand_tool_result' | 'errand_complete' | 'relay_spawned' | 'relay_update' | 'relay_gate_waiting' | 'relay_complete' | 'task_plan_spawned'
+  type: 'turn_start' | 'delta' | 'thinking' | 'tool_call' | 'tool_result' | 'phase_change' | 'done' | 'error' | 'gate_reached' | 'run_completed' | 'agent_handoff' | 'errand_start' | 'errand_turn_start' | 'errand_delta' | 'errand_tool_call' | 'errand_tool_result' | 'errand_complete' | 'relay_spawned' | 'relay_update' | 'relay_gate_waiting' | 'relay_complete' | 'task_plan_spawned' | 'tool_update'
   text?: string
   thinking?: string
   id?: string
@@ -72,6 +72,9 @@ export interface ForgeStreamEvent {
   turn?: number
   token_usage?: number
   status?: string
+  // PLAN-040: tool_update fields (run_command streaming partial)
+  tool_name?: string
+  partial?: string
   // relay fields
   flow_id?: string
   step_id?: string

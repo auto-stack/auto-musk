@@ -439,6 +439,8 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
         } => {
             push_system!(role_id.clone(), "Budget exceeded".into());
         }
+        // PLAN-040: 流式 partial 是易态,只走 SSE 实时进度,不落会话历史。
+        RunEvent::ToolUpdate { .. } => {}
     }
     turns
 }

@@ -1,16 +1,16 @@
 ---
 plan_id: PLAN-040
-status: drafting
+status: executing
 feature_name: run_command 对齐 pi bash——tokio 流式输出、超时、进程树终止、尾部截断+临时文件、ToolUpdate SSE 实时进度与 CommandRunner 接缝
 author: [zhaopuming]
 created_at: 2026-08-23
-updated_at: 2026-08-23
+updated_at: 2026-08-24
 
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 0
+current_step: 5
 total_steps: 10
 ---
 
@@ -88,12 +88,23 @@ PLAN-026 独立推进，两轨将来在 relay 桥接层合流）。
 ## 任务分解（10 步）
 
 1. `output_accumulator.rs` + 单测（流式分块、多字节边界、超限转临时文件、行计数）。
+   [✅ 已完成] TDD 红→绿:`backend/crates/musk/src/output_accumulator.rs`(滚动尾部+流式 UTF-8 解码+临时文件转储+pi snapshot 语义),13/13 测试过;与 pi 分野:临时文件失败优雅降级不 throw。
 2. `RunEvent::ToolUpdate` 变体 + relay driver 桥接 + SSE 透传；前端 ToolCall 块
    渲染 partial（增量追加 + 折叠）。
+   [✅ 已完成] store.rs+auto_generated/relay_store.rs(wire parity 手补)ToolUpdate 变体
+   +event_type/timestamp 分支;conversation.rs run_event_to_turns 空分支(partial 不
+   落历史);chat SSE:extern_impl 桥接任务(bus→mpsc,run 结束 abort)+ server_stream
+   chat_sse_stream tool_update 原样透传(SseEventDto 枚举外);relay SSE 经 BusEvent 自动
+   透传;前端 useForge tool_update 增量追加(按 name+running 匹配)+ ChatsView shell 卡
+   partial 折叠渲染(flex 贴底);useRelay if 链未知类型忽略。ProgressSink 单测 2/2 绿。
 3. `CommandRunner` trait + `LocalRunner`（tokio 流式读、进程组、超时杀树）+ 单测
    （sleep 超时、子进程孤儿清理）。
 4. `run_command` 重写接 runner + 累积器 + 截断尾注 + 退出码语义。
 5. `tool_context.rs` 扩展：ToolContext 挂 broadcast sender（工具侧推 ToolUpdate）。
+   [✅ 已完成] ToolContext 新增 progress: Option<ProgressSink>(进程级 broadcast 总线
+   sender + run_id;send() 推 RunEvent::ToolUpdate);4 个构造点全接:relay/driver.rs
+   (run_id)、hw server.rs、ag extern_impl(session_id)、ag relay_driver.rs(run_id)。
+   (作为 T2 桥接的前置依赖与 T2 合并落地;单测见 tool_context.rs 2/2 绿)
 6. 白名单/force/confine 回归测试（确保重写未削弱安全层）。
 7. Windows 进程树终止实测（`taskkill /T /F`，cmd → 子进程链）。
 8. `CommandRunner` 的 Ash 后端占位文档（未来 Ash 逐命令沙箱就绪后换实现，工具层

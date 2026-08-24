@@ -245,13 +245,21 @@ fn chat_sse_stream(rx: Value) -> impl futures::Stream<Item = Result<Event, Infal
     loop {
         let msg = mpsc_recv(&rx).await;
         if msg_is_none(&msg) {
-            
+
 
             break;
         } else {
-            let dto = stream_event_to_dto(msg.clone());
-            let event = sse_event("chat", to_value(dto).unwrap());
-            yield Ok(event);
+            // PLAN-040 T2：ToolUpdate（run_command 流式 partial）透传——
+            // SseEventDto 严格枚举之外的事件 JSON 原样下发（前端 useForge
+            // 按 type 分发；枚举内事件保持 DTO 往返不变）。
+            let ty = msg.as_ref().and_then(|m| m.get("type")).and_then(|t| t.as_str()).unwrap_or("");
+            if ty == "tool_update" {
+                yield Ok(sse_event("chat", msg.unwrap_or(serde_json::Value::Null)));
+            } else {
+                let dto = stream_event_to_dto(msg);
+                let event = sse_event("chat", to_value(dto).unwrap());
+                yield Ok(event);
+            }
         }
 
     }

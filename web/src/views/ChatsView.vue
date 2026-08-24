@@ -232,6 +232,9 @@
                     <ChevronUp v-else-if="tc.result && tc._expanded" :size="14" class="tool-chevron" />
                   </div>
                   <pre v-if="tc.result && tc._expanded" class="shell-output">{{ tc.result }}</pre>
+                  <!-- PLAN-040 T2：执行中的流式 partial(ToolUpdate SSE,100ms
+                       节流)——折叠滚动区实时可见;结果到达后由 result 取代。 -->
+                  <pre v-else-if="tc.partial && tc.status === 'running'" class="shell-output shell-partial">{{ tc.partial }}</pre>
                 </div>
                 <!-- Write-file card: shows the written code with syntax highlight -->
                 <div v-else-if="tc.name === 'write_file'" class="tool-card write-card" :class="tc.status">
@@ -2274,6 +2277,17 @@ onUnmounted(() => {
   word-break: break-word;
   max-height: 200px;
   overflow-y: auto;
+}
+
+/* PLAN-040 T2：run_command 执行中的流式 partial——更低平的折叠区 +
+   尾部锚点(scroll-pin 用 flex 反转列,内容增长时自动贴底)。 */
+.shell-partial {
+  max-height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  color: hsl(var(--af-info) / 0.85);
 }
 
 .shell-toggle {

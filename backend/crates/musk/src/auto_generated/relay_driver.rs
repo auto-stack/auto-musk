@@ -25,7 +25,8 @@ pub struct MuskAgentFactory {
 impl MuskAgentFactory {
     pub fn build_agent(&self, role_id: &str, handoff: Option<String>) -> Result<Agent, String> {
         let mode = AgentMode { name: format!("{}{}", "relay-", role_id), description: "".to_string(), role: role_id.to_string(), skills: false, tools: vec![], workflow: None, context_file: "".to_string(), extra_system_prompt: "".to_string() };
-        let tool_ctx = ToolContext { state: self.state.clone(), workspace_id: self.workspace_id.clone(), parent_conversation_id: self.run_id.clone() };
+        // PLAN-040 T5：工具进度挂 run_id（与 hw relay/driver.rs 同款）。
+        let tool_ctx = ToolContext { state: self.state.clone(), workspace_id: self.workspace_id.clone(), parent_conversation_id: self.run_id.clone(), progress: Some(crate::tool_context::ProgressSink::for_run(&self.run_id)) };
         let agent = build_agent_with_context(mode, self.state.client.clone(), Some(tool_ctx));
         match handoff {
             Some(h) => {

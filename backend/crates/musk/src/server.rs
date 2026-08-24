@@ -609,6 +609,7 @@ async fn chat_stream(
             state: state_for_ctx.clone(),
             workspace_id: ws_id_for_ctx.clone(),
             parent_conversation_id: session_id.clone(),
+            progress: Some(crate::tool_context::ProgressSink::for_run(&session_id)),
         };
         let mut agent = match crate::build_agent_with_context(&agent_mode, client, Some(tool_ctx)) {
             Ok(a) => a,
