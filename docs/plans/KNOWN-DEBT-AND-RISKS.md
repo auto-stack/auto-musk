@@ -23,7 +23,7 @@
 | 030/038-040 | **merge 沉淀后归档移动不回写 specs.json 的 `file` 指针**（系统性，2026-08-24 普查发现）：四计划归档后其 28 条 SpecItem（每计划 P0NN-1..7）仍指 `docs/plans/0NN-*` 旧活动路径——溯源链接全断。**已修复**（2026-08-24 文本替换为 `docs/plans/archived/`，JSON 校验过）；根因在 merge 时写指针、后续 archive 移文件两步无联动，建议 merge skill 或 archive 流程补"归档时回写 file 指针"。 | `backend/.autoos/specs.json`（运行时账本，gitignore） |
 | — | ~~**auto-ai pi-parity 027/028 跨仓漂移致 musk 编译红（2026-08-24 实测 33 错）**~~ **✅ 机械适配完成（PLAN-042 T1，ad5b2a4，2026-08-24）**：26 处 execute 签名迁 `ToolOutput` + 31 返回点 `text()` 包裹 + 测试取 `.content`；全量测试 0 失败，主线编译恢复。**剩余（归 PLAN-042 T3-T8）**：真 details 填充（edit diff/read 截断/run_command 全量路径）、事件链透传（relay RunEvent/conversation 持久化/SseEventDto 结构）、前端渲染；SSE `tool_result.status` 真字段仍缺（hw 轨已透传 details，status 恒 success + 前端嗅探维持——027 条债务未解除）。 | `backend/crates/musk/Cargo.toml:17` / [PLAN-042](042-pi-parity-tooloutput-migration.md) |
 | 033 | **W1 归档路径绕过状态机**：`move_to_archived`（plans.rs:520）直写 status 而不经 `can_transition`——计划文本"transition(Archived)+rename"与"状态机去掉 reviewed→archived 边"自相矛盾，实现取后者。风险：未来 `transition()` 若增加副作用（事件/钩子），终态路径不触发。改进方向：显式建模"系统迁移"（force 参数或独立类型）。 | `backend/crates/musk/src/plans.rs:520` |
-| 033 | **W2 渲染层仅代码级验证**：MetaBlock 布局/徽标中文/按钮组换行只有代码+单测证据（复审时内置浏览器 webview 无法挂载），无人眼/截图验证。补验：起服务人工过目（约 5 分钟）。 | `web/src/views/PlansView.vue:163` |
+| 033 | **W2 渲染层仅代码级验证**：MetaBlock 布局/徽标中文/按钮组换行只有代码+单测证据（复审时内置浏览器 webview 无法挂载），无人眼/截图验证。补验：起服务人工过目（约 5 分钟）。**2026-08-25 重试记录**：服务 :8580 在跑（新二进制 + 新 dist），但会话内置浏览器再次报 "browser guest not attached (webview not ready)"——同一环境限制，两次不同日期复现；浏览器冒烟仍需用户在普通浏览器中执行（`http://127.0.0.1:8580` → Plans 视图 + 聊天工具卡 details 区，可与 PLAN-042 手工冒烟合并一次做）。 | `web/src/views/PlansView.vue:163` |
 
 ## 🟢 已知限制
 
