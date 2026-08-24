@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-042
-status: drafting
+status: execution_done
 feature_name: ToolOutput 迁移——修复主线编译断、填真 details（edit diff / read 截断 / run_command 全量输出路径）、事件链透传与前端渲染、PLAN-040 账面清理
 author: [zhaopuming]
 created_at: 2026-08-24
@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 0
+current_step: 10
 total_steps: 10
 ---
 
@@ -125,17 +125,36 @@ pub fn generate_edit_diff(original: &str, new: &str, spans: &[ReplacedSpan]) -> 
    3 处为 StreamEvent::Tool 匹配缺 `details`，已绑 `details: _` 修复；
    server.rs hw 轨已顺带把 details 透传进 SSE（任务 7 的 hw 侧先行片）。
 3. `edit_diff.rs` 增加 `generate_edit_diff`（diff/patch/first_changed_line）
-   + 单测（CRLF 文件行号、多 hunk、上下文截断）。
-4. edit_file 返回真 details；tools.rs:591 挂接点注释移除。
-5. read_file details（tools.rs:100 挂接点）。
-6. run_command details（truncation + full_output_path）。
+   + 单测（CRLF 文件行号、多 hunk、上下文截断）。**[✅ 2026-08-24，511202c]**
+   AppliedEdits 扩展 `replaced_groups`（替换组新旧行区间，分组逻辑与模糊
+   路径共用）；generate_edit_diff 5 单测（单编辑/多组行号换算/远距省略号/
+   删除/无尾换行）。
+4. edit_file 返回真 details；tools.rs:591 挂接点注释移除。**[✅ 511202c]**
+   details={diff, patch, first_changed_line}；锚定测试
+   edit_file_details_carries_diff_and_patch。
+5. read_file details（tools.rs:100 挂接点）。**[✅ 511202c]**
+   details={truncation:{total_lines, output_lines, truncated_by}}（截断与
+   user_limit 续读两种情形都带）；锚定测试 read_file_details_on_truncation
+   （注：total_lines 为 split 口径，含末尾换行产生的空行）。
+6. run_command details（truncation + full_output_path）。**[✅ 511202c]**
+   含 last_line_partial；仅截断时携带（错误路径走 ToolError 文本，无 details）。
 7. relay 桥接 + RunEvent::ToolResult.details + conversation 持久化 + SSE 透传。
-8. 前端渲染（diff 折叠块 / 截断徽标 / Full output 链接）。
+   **[✅ 511202c]** RunEvent.TurnToolResult / ToolRecord 增 details 字段
+   （serde default 兼容旧回放）；driver + extern_impl ag 轨 + conversation
+   持久化透传；SSE 经 serde 自动下发；ag 镜像轨（relay_store/conversation
+   产物 + .at 源）手工同步（a2r 转译有已知漂移，镜像轨按惯例手工维护）；
+   SSE details 序列化锚定测试（server.rs contract_stream_event_tool_pairing）。
+8. 前端渲染（diff 折叠块 / 截断徽标 / Full output 链接）。**[✅ 2026-08-24，
+   0e431d6]** 双轨：web（ChatsView 泛型卡 + useForge 留存 + 类型）与 gen
+   （generic_tool_card.at 计算属性守卫 + forge_helpers.at toolTruncBadge +
+   forge_store.at 留存）；auto build 30 组件 + 双端 vue-tsc/vite build 绿。
 9. 账面清理三件。**[✅ 2026-08-24]** ① 040 frontmatter current_step 5→10；
    ② extern_sigs.rs:574 `batch_replace_do` 死签名已删（无其他引用，check 绿）；
    ③ DEBT-040-1/2/3 已登 KNOWN-DEBT 🟢 区。
 10. 回归：`cargo test` 全绿 + 手工冒烟（编辑看 diff、读大文件看徽标、刷新后
-    details 仍在）。
+    details 仍在）。**[✅ 自动化部分 2026-08-24]** cargo lib 399 + 集成全绿
+    （603 通过 0 失败）；双前端 build 绿；:8580 已起新二进制。**手工冒烟
+    留待用户**（真实 LLM 会话编辑/读大文件/刷新回放）。
 
 ## 验收标准
 
