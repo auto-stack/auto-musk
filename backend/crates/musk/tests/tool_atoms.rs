@@ -614,6 +614,7 @@ async fn run_command_whitelist_passes() {
 async fn run_command_unknown_returns_paused() {
     let t = RunCommand::new();
     let result = t.execute(&json!({"cmd":"some-unknown-binary --flag"})).await.unwrap();
+    let result = result.content;
     assert!(result.contains("PAUSED"), "unknown command should return PAUSED, got: {result}");
     assert!(result.contains("not on the whitelist"), "should explain why: {result}");
 }
@@ -623,6 +624,7 @@ async fn run_command_unknown_returns_paused() {
 async fn run_command_dangerous_returns_paused() {
     let t = RunCommand::new();
     let result = t.execute(&json!({"cmd":"rm -rf /"})).await.unwrap();
+    let result = result.content;
     assert!(result.contains("PAUSED"), "dangerous command should return PAUSED, got: {result}");
     assert!(result.contains("dangerous pattern"), "should warn about danger: {result}");
 }
@@ -632,6 +634,7 @@ async fn run_command_dangerous_returns_paused() {
 async fn run_command_force_overrides_pause() {
     let t = RunCommand::new();
     let result = t.execute(&json!({"cmd":"echo forced","force":true})).await.unwrap();
+    let result = result.content;
     assert!(result.contains("forced"), "force should execute the command, got: {result}");
     assert!(!result.contains("PAUSED"), "force should not PAUSE: {result}");
 }

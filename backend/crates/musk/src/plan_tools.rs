@@ -10,7 +10,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use auto_ai_agent::{Tool, ToolError};
+use auto_ai_agent::{Tool, ToolError, ToolOutput};
 use serde_json::{json, Value};
 
 use crate::plans::{merge_plan_stores, PlanStatus, PlansStore};
@@ -73,7 +73,7 @@ impl Tool for ListPlans {
             }
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let include_archived = args["include_archived"].as_bool().unwrap_or(false);
         let list = self.plans.list(include_archived);
         if list.is_empty() {
@@ -89,7 +89,7 @@ impl Tool for ListPlans {
                 p.title
             ));
         }
-        Ok(out)
+        Ok(ToolOutput::text(out))
     }
 }
 
@@ -129,7 +129,7 @@ impl Tool for ReadPlan {
             "required": ["seq"]
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let seq = args["seq"]
             .as_u64()
             .and_then(|n| u32::try_from(n).ok())
@@ -138,7 +138,7 @@ impl Tool for ReadPlan {
             .plans
             .get(seq)
             .ok_or_else(|| ToolError::Exec(format!("plan {seq:03} not found")))?;
-        Ok(plan.content)
+        Ok(ToolOutput::text(plan.content))
     }
 }
 
@@ -185,7 +185,7 @@ impl Tool for CreatePlan {
             "required": ["feature_name", "content"]
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let feature_name = args["feature_name"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'feature_name'".into()))?;
@@ -196,14 +196,14 @@ impl Tool for CreatePlan {
             .plans
             .create(feature_name, content)
             .map_err(ToolError::Exec)?;
-        Ok(json!({
+        Ok(ToolOutput::text(json!({
             "seq": pf.seq,
             "plan_id": pf.id,
             "filename": pf.filename,
             "path": format!("docs/plans/{}", pf.filename),
             "status": pf.status.as_str(),
         })
-        .to_string())
+        .to_string()))
     }
 }
 
@@ -245,7 +245,7 @@ impl Tool for UpdatePlan {
             "required": ["seq", "content"]
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let seq = args["seq"]
             .as_u64()
             .and_then(|n| u32::try_from(n).ok())
@@ -254,12 +254,12 @@ impl Tool for UpdatePlan {
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'content'".into()))?;
         let pf = self.plans.update(seq, content).map_err(ToolError::Exec)?;
-        Ok(format!(
+        Ok(ToolOutput::text(format!(
             "updated plan {:03} ({} bytes, status {})",
             pf.seq,
             pf.content.len(),
             pf.status.as_str()
-        ))
+        )))
     }
 }
 
@@ -309,7 +309,7 @@ impl Tool for TransitionPlan {
             "required": ["seq", "to"]
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let seq = args["seq"]
             .as_u64()
             .and_then(|n| u32::try_from(n).ok())
@@ -319,12 +319,12 @@ impl Tool for TransitionPlan {
             .ok_or_else(|| ToolError::Args("missing 'to'".into()))?;
         let new_status = PlanStatus::from_str_lossy(to);
         match self.plans.transition(seq, new_status) {
-            Ok(pf) => Ok(format!(
+            Ok(pf) => Ok(ToolOutput::text(format!(
                 "plan {:03} -> {} ({})",
                 pf.seq,
                 pf.status.as_str(),
                 pf.filename
-            )),
+            ))),
             Err(e) => {
                 let hint = self.plans.get(seq).map(|p| {
                     format!(
@@ -378,19 +378,19 @@ impl Tool for MergePlan {
             "required": ["seq"]
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let seq = args["seq"]
             .as_u64()
             .and_then(|n| u32::try_from(n).ok())
             .ok_or_else(|| ToolError::Args("missing/invalid 'seq'".into()))?;
         let result = merge_plan_stores(&self.plans, &self.specs, seq).map_err(ToolError::Exec)?;
-        Ok(json!({
+        Ok(ToolOutput::text(json!({
             "plan_id": result.plan_id,
             "sections_touched": result.sections_touched,
             "items_created": result.items_created,
             "archived": true,
         })
-        .to_string())
+        .to_string()))
     }
 }
 
@@ -430,17 +430,19 @@ mod tests {
             .execute(&json!({ "feature_name": "演示功能", "content": BODY }))
             .await
             .unwrap();
-        assert!(out.contains("\"seq\":1"));
-        assert!(out.contains("docs/plans/001-"));
+        assert!(out.content.contains("\"seq\":1"));
+        assert!(out.content.contains("docs/plans/001-"));
 
         let l = ListPlans::with_store(plans.clone());
         let out = l.execute(&json!({})).await.unwrap();
+        let out = out.content;
         assert!(out.contains("001"));
         assert!(out.contains("[drafting]"));
         assert!(out.contains("演示功能"));
 
         let r = ReadPlan::with_store(plans);
         let out = r.execute(&json!({ "seq": 1 })).await.unwrap();
+        let out = out.content;
         assert!(out.contains("## 1. 目标"));
         assert!(out.contains("目标内容。"));
     }
@@ -455,10 +457,12 @@ mod tests {
         let new_body = BODY.replace("- [ ] T1", "- [x] T1 已完成");
         let u = UpdatePlan::with_store(plans.clone());
         let out = u.execute(&json!({ "seq": 1, "content": new_body })).await.unwrap();
+        let out = out.content;
         assert!(out.contains("updated plan 001"));
 
         let r = ReadPlan::with_store(plans);
         let out = r.execute(&json!({ "seq": 1 })).await.unwrap();
+        let out = out.content;
         assert!(out.contains("- [x] T1 已完成"));
         assert!(out.contains("PLAN-001"), "plan_id preserved");
     }
@@ -484,6 +488,7 @@ mod tests {
 
         // drafting → executing 合法
         let out = t.execute(&json!({ "seq": 1, "to": "executing" })).await.unwrap();
+        let out = out.content;
         assert!(out.contains("plan 001 -> executing"));
     }
 
@@ -507,6 +512,7 @@ mod tests {
             .unwrap();
 
         let out = m.execute(&json!({ "seq": 1 })).await.unwrap();
+        let out = out.content;
         assert!(out.contains("\"items_created\":7"));
         assert!(out.contains("archived"));
 
@@ -517,8 +523,9 @@ mod tests {
 
         // plan 已归档：active list 空，archived list 有
         let l = ListPlans::with_store(plans.clone());
-        assert_eq!(l.execute(&json!({})).await.unwrap(), "(no plans)");
+        assert_eq!(l.execute(&json!({})).await.unwrap().content, "(no plans)");
         let out = l.execute(&json!({ "include_archived": true })).await.unwrap();
+        let out = out.content;
         assert!(out.contains("[archived]"));
     }
 }

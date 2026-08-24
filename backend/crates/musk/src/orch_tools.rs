@@ -14,7 +14,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
-use auto_ai_agent::{Tool, ToolError};
+use auto_ai_agent::{Tool, ToolError, ToolOutput};
 
 use crate::conversation::{
     self, ConversationKind, ConversationStatus, Driver, GateInfo, Turn, TurnKind,
@@ -69,7 +69,7 @@ impl Tool for SpawnRelay {
         })
     }
 
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         // PLAN-030 §5.5: default flow is the plan-driven dev flow.
         let flow_id = args["flow_id"].as_str().unwrap_or("plan").to_string();
         let task = args["task"]
@@ -164,13 +164,13 @@ impl Tool for SpawnRelay {
         //    a step has a human gate (the run sits in waiting_for_human while
         //    the poll loop here ignores it, and the chat SSE shows nothing).
         //    The JSON shape feeds the frontend's extractRunId (result.run_id).
-        Ok(json!({
+        Ok(ToolOutput::text(json!({
             "run_id": run_id,
             "flow_id": flow_id,
             "status": "started",
             "detail": "relay run started in the background; it advances until the first human gate. Track it via GET /api/forge/relay/runs/{run_id} (or the chat run box) and approve gates via POST /api/forge/relay/runs/{run_id}/gate",
         })
-        .to_string())
+        .to_string()))
     }
 }
 
@@ -218,7 +218,7 @@ impl Tool for Dispatch {
         })
     }
 
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let target = args["target"].as_str().unwrap_or("gofer").to_string();
         let task = args["task"]
             .as_str()
@@ -291,7 +291,7 @@ impl Tool for Dispatch {
                 );
                 ws.conversations
                     .set_status(&child.id, ConversationStatus::Completed);
-                Ok(output)
+                Ok(ToolOutput::text(output))
             }
             Err(e) => {
                 ws.conversations.set_status(
@@ -352,7 +352,7 @@ impl Tool for BringIn {
         })
     }
 
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let target = args["target"]
             .as_str()
             .unwrap_or("coder")
@@ -426,7 +426,7 @@ impl Tool for BringIn {
                 );
                 ws.conversations
                     .set_status(&child.id, ConversationStatus::Completed);
-                Ok(output)
+                Ok(ToolOutput::text(output))
             }
             Err(e) => {
                 ws.conversations.set_status(
@@ -588,7 +588,7 @@ impl Tool for SpawnTaskPlan {
         })
     }
 
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let task_plan_id = args["task_plan_id"]
             .as_str()
             .unwrap_or("")
@@ -649,14 +649,14 @@ impl Tool for SpawnTaskPlan {
             }
         });
 
-        Ok(json!({
+        Ok(ToolOutput::text(json!({
             "task_plan_spawned": true,
             "instance_id": instance_id,
             "task_plan_id": task_plan_id,
             "initial_input": initial_input,
             "status": "started"
         })
-        .to_string())
+        .to_string()))
     }
 }
 
@@ -700,7 +700,7 @@ impl Tool for RegisterTaskPlan {
         })
     }
 
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let atom = args["atom"]
             .as_str()
             .unwrap_or("")
@@ -720,12 +720,12 @@ impl Tool for RegisterTaskPlan {
             (plan, phase_count, run_count)
         };
 
-        Ok(json!({
+        Ok(ToolOutput::text(json!({
             "task_plan_registered": true,
             "id": plan.id,
             "phase_count": phase_count,
             "run_count": run_count
         })
-        .to_string())
+        .to_string()))
     }
 }

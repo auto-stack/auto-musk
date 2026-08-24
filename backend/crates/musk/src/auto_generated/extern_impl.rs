@@ -1307,7 +1307,7 @@ pub fn drive_handle_stream_event(s: &Arc<AppState>, w: &str, r: &str, role_id: &
         }
         // auto-ai PLAN-026 turn 边界事件:store 不消费,覆盖以保穷尽。
         Ok(StreamEvent::TurnStart { .. }) | Ok(StreamEvent::TurnEnd { .. }) => {}
-        Ok(StreamEvent::Tool { tool, args, result }) => {
+        Ok(StreamEvent::Tool { tool, args, result, details: _ }) => {
             ws.relay.push_event(r, crate::relay::store::RunEvent::TurnToolCall {
                 timestamp: now,
                 role_id: role_id.to_string(),
@@ -1605,7 +1605,7 @@ pub async fn agent_run_stream(
                         name: tool.clone(),
                         arguments: args.clone(),
                     },
-                    StreamEvent::Tool { tool, args, result } => SseEventDto::ToolResult {
+                    StreamEvent::Tool { tool, args, result, details: _ } => SseEventDto::ToolResult {
                         id: id.clone(),
                         name: tool.clone(),
                         arguments: args.clone(),
@@ -1874,7 +1874,7 @@ pub async fn chat_run_stream(
                         name: tool.clone(),
                         arguments: args.clone(),
                     },
-                    StreamEvent::Tool { tool, args, result } => SseEventDto::ToolResult {
+                    StreamEvent::Tool { tool, args, result, details: _ } => SseEventDto::ToolResult {
                         id: id.clone(),
                         name: tool.clone(),
                         arguments: args.clone(),

@@ -5,7 +5,7 @@
 //! 在本地直接调用 —— LLM 通信才走 daemon,工具执行永远在 musk 进程内。
 
 use async_trait::async_trait;
-use auto_ai_agent::{Tool, ToolError};
+use auto_ai_agent::{Tool, ToolError, ToolOutput};
 use serde_json::{json, Value};
 
 /// PLAN-027 ①: path 越界错误 → 结构化 `SecurityDenied`（让 driver/前端识别
@@ -58,7 +58,7 @@ impl Tool for ReadFile {
             "required": ["path"]
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let path = args["path"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'path' argument".into()))?;
@@ -133,7 +133,7 @@ impl Tool for ReadFile {
         } else {
             t.content
         };
-        Ok(output)
+        Ok(ToolOutput::text(output))
     }
 }
 
@@ -169,7 +169,7 @@ impl Tool for WriteFile {
             "required": ["path", "content"]
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let path = args["path"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'path' argument".into()))?;
@@ -188,7 +188,7 @@ impl Tool for WriteFile {
         }
         std::fs::write(&resolved, content)
             .map_err(|e| ToolError::Exec(format!("write '{path}': {e}")))?;
-        Ok(format!("wrote {} bytes to {}", content.len(), path))
+        Ok(ToolOutput::text(format!("wrote {} bytes to {}", content.len(), path)))
     }
 }
 
@@ -254,7 +254,7 @@ impl Tool for RunCommand {
             "required": ["cmd"]
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let cmd = args["cmd"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'cmd' argument".into()))?;
@@ -289,11 +289,11 @@ impl Tool for RunCommand {
                 crate::tool_safety::CommandTier::NeedsApproval(reason) => {
                     // Return a PAUSED result — not an error. The agent should
                     // relay this to the user; if approved, re-call with force.
-                    return Ok(format!(
+                    return Ok(ToolOutput::text(format!(
                         "⏸ PAUSED: {reason}\n\n\
                          To run this command, the user must approve it. \
                          If approved, call run_command again with \"force\": true."
-                    ));
+                    )));
                 }
             }
         }
@@ -424,7 +424,7 @@ impl Tool for RunCommand {
                 )));
             }
         }
-        Ok(text)
+        Ok(ToolOutput::text(text))
     }
 }
 
@@ -542,7 +542,7 @@ impl Tool for EditFile {
             "required": ["path"]
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let args = prepare_edit_arguments(args);
         let path = args["path"]
             .as_str()
@@ -592,7 +592,7 @@ impl Tool for EditFile {
             // content/details 分离落地后放入 details;当前返回简短确认。
             Ok(())
         })?;
-        Ok(format!("Successfully replaced {edits_len} block(s) in '{}'.", path))
+        Ok(ToolOutput::text(format!("Successfully replaced {edits_len} block(s) in '{}'.", path)))
     }
 }
 
@@ -630,7 +630,7 @@ impl Tool for Search {
             "required": ["pattern"]
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let pattern = args["pattern"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'pattern'".into()))?;
@@ -693,7 +693,7 @@ impl Tool for Search {
             result = capped.content;
             result.push_str("\n... (output truncated, refine your pattern)");
         }
-        Ok(result)
+        Ok(ToolOutput::text(result))
     }
 }
 
@@ -728,7 +728,7 @@ impl Tool for ListDir {
             }
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let raw_path = args["path"].as_str().unwrap_or(".");
         // Path confinement (Design 004).
         let path = crate::tool_safety::resolve_scoped(raw_path, self.scope())
@@ -760,7 +760,7 @@ impl Tool for ListDir {
         if out.is_empty() {
             out.push_str("(empty directory)");
         }
-        Ok(out)
+        Ok(ToolOutput::text(out))
     }
 }
 
@@ -797,7 +797,7 @@ impl Tool for ListSymbols {
             "required": ["path"]
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let path = args["path"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'path'".into()))?;
@@ -837,7 +837,7 @@ impl Tool for ListSymbols {
         if out.is_empty() {
             out.push_str("(no symbols found)");
         }
-        Ok(out)
+        Ok(ToolOutput::text(out))
     }
 }
 
@@ -874,7 +874,7 @@ impl Tool for Glob {
             "required": ["pattern"]
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let pattern = args["pattern"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'pattern'".into()))?;
@@ -909,7 +909,7 @@ impl Tool for Glob {
         if matches.len() > MAX {
             out.push_str(&format!("... ({} more, refine pattern)\n", matches.len() - MAX));
         }
-        Ok(out)
+        Ok(ToolOutput::text(out))
     }
 }
 
@@ -948,7 +948,7 @@ impl Tool for DisplayImage {
             "required": ["path"]
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let path = args["path"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'path' argument".into()))?;
@@ -988,7 +988,7 @@ impl Tool for DisplayImage {
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("image");
-        Ok(format!("![{}]({})", alt, url))
+        Ok(ToolOutput::text(format!("![{}]({})", alt, url)))
     }
 }
 
@@ -1018,7 +1018,7 @@ mod tests {
             .execute(&json!({"path": "Cargo.toml"}))
             .await
             .unwrap();
-        assert!(out.contains("[package]"));
+        assert!(out.content.contains("[package]"));
     }
 
     #[tokio::test]
@@ -1049,7 +1049,7 @@ mod tests {
         // 窗口为第 3-6 行;文件还有余量(limit 提前停)→ 续读尾注。
         // (总行数含末尾换行产生的空行,与 pi split 口径一致 = 11。)
         assert_eq!(
-            out,
+            out.content,
             "line3\nline4\nline5\nline6\n\n[5 more lines in file. Use offset=7 to continue.]"
         );
     }
@@ -1073,6 +1073,7 @@ mod tests {
         let content = (1..=2500).map(|i| format!("l{i}")).collect::<Vec<_>>().join("\n");
         let p = write_fixture(".test-tmp/musk_read_lines.txt", &content);
         let out = ReadFile::new().execute(&json!({"path": p})).await.unwrap();
+        let out = out.content;
         assert!(out.contains("[Showing lines 1-2000 of 2500. Use offset=2001 to continue.]"), "out tail: {}", &out[out.len().saturating_sub(120)..]);
         assert!(out.starts_with("l1\nl2\n"));
     }
@@ -1083,6 +1084,7 @@ mod tests {
         let content = (0..600).map(|_| "b".repeat(99)).collect::<Vec<_>>().join("\n");
         let p = write_fixture(".test-tmp/musk_read_bytes.txt", &content);
         let out = ReadFile::new().execute(&json!({"path": p})).await.unwrap();
+        let out = out.content;
         assert!(out.contains("(50.0KB limit). Use offset="), "out tail: {}", &out[out.len().saturating_sub(160)..]);
         assert!(out.len() < 52_000, "capped at ~50KB, got {}", out.len());
     }
@@ -1093,6 +1095,7 @@ mod tests {
         let content = "x".repeat(60_000);
         let p = write_fixture(".test-tmp/musk_read_huge_line.txt", &content);
         let out = ReadFile::new().execute(&json!({"path": p})).await.unwrap();
+        let out = out.content;
         assert!(out.contains("exceeds 50.0KB limit"), "out: {}", &out[..out.len().min(200)]);
         assert!(out.contains("run_command"), "must point at run_command escape hatch");
         assert!(out.contains("sed -n '1p'"), "must give the exact sed command");
@@ -1105,6 +1108,7 @@ mod tests {
         let content = (0..1_000_000).map(|i| format!("data{i:06}")).collect::<Vec<_>>().join("\n");
         let p = write_fixture(".test-tmp/musk_read_10mb.txt", &content);
         let out = ReadFile::new().execute(&json!({"path": p})).await.unwrap();
+        let out = out.content;
         assert!(out.len() < 52_000, "10MB read must be capped ≤~50KB, got {}", out.len());
         assert!(out.contains("Use offset=2001 to continue."));
         let _ = std::fs::remove_file(&p);
@@ -1119,9 +1123,9 @@ mod tests {
             .execute(&json!({"path": p, "offset": 2001}))
             .await
             .unwrap();
-        assert!(out.starts_with("l2001\n"));
-        assert!(out.ends_with("l2500"));
-        assert!(!out.contains("Use offset="), "no further truncation note expected");
+        assert!(out.content.starts_with("l2001\n"));
+        assert!(out.content.ends_with("l2500"));
+        assert!(!out.content.contains("Use offset="), "no further truncation note expected");
     }
 
     /// PLAN-030 复审回归：注入式 root 下，相对路径必须落在注入的 workspace
@@ -1175,6 +1179,7 @@ mod tests {
             .await
             .unwrap();
         let back = t_read.execute(&json!({"path": p})).await.unwrap();
+        let back = back.content;
         assert_eq!(back, "hello musk");
         let _ = std::fs::remove_file(&path);
     }
@@ -1199,6 +1204,7 @@ mod tests {
         let t = RunCommand::new();
         // `echo` works on both Windows (cmd /C echo) and Unix (sh -c echo).
         let out = t.execute(&json!({"cmd": "echo musk_test_token"})).await.unwrap();
+        let out = out.content;
         assert!(out.contains("musk_test_token"));
     }
 
@@ -1222,6 +1228,7 @@ mod tests {
             format!("cat {p}")
         };
         let out = RunCommand::new().execute(&json!({"cmd": cmd})).await.unwrap();
+        let out = out.content;
         assert!(out.len() < 52_000, "expected capped output, got {} bytes", out.len());
         assert!(
             out.contains("[Showing lines ") && out.contains("Full output: "),
@@ -1303,6 +1310,7 @@ mod tests {
     async fn run_command_paused_for_non_whitelisted_command() {
         let t = RunCommand::new();
         let out = t.execute(&json!({"cmd": "whoami"})).await.unwrap();
+        let out = out.content;
         assert!(out.starts_with("⏸ PAUSED"), "must pause instead of executing, got: {out}");
         assert!(out.contains("\"force\": true"), "approval hint present: {out}");
     }
@@ -1312,6 +1320,7 @@ mod tests {
     async fn run_command_force_runs_paused_command() {
         let t = RunCommand::new();
         let out = t.execute(&json!({"cmd": "whoami", "force": true})).await.unwrap();
+        let out = out.content;
         assert!(!out.contains("PAUSED"), "force must execute, got: {out}");
         assert_ne!(out, "(no output)", "whoami produces output");
     }
@@ -1344,6 +1353,7 @@ mod tests {
     async fn run_command_paused_then_force_approval_roundtrip() {
         let t = RunCommand::new();
         let first = t.execute(&json!({"cmd": "whoami"})).await.unwrap();
+        let first = first.content;
         assert!(first.starts_with("⏸ PAUSED"));
         let second = t.execute(&json!({"cmd": "whoami", "force": true})).await;
         assert!(second.is_ok(), "approved run succeeds: {:?}", second.err());
@@ -1366,13 +1376,13 @@ mod tests {
         .execute(&json!({"cmd": echo_var}))
         .await
         .unwrap();
-        assert!(with.contains("sess-t9"), "injected: {with}");
+        assert!(with.content.contains("sess-t9"), "injected: {}", with.content);
 
         let without = crate::tools::RunCommand::with_root(root)
             .execute(&json!({"cmd": echo_var}))
             .await
             .unwrap();
-        assert!(!without.contains("sess-t9"), "not injected without progress: {without}");
+        assert!(!without.content.contains("sess-t9"), "not injected without progress: {}", without.content);
     }
 
     /// PLAN-040 T10 验收冒烟(10MB):`--ignored` 手动跑。上下文 ≤50KB 尾部
@@ -1389,6 +1399,7 @@ mod tests {
         };
         let started = std::time::Instant::now();
         let out = RunCommand::new().execute(&json!({"cmd": cmd})).await.unwrap();
+        let out = out.content;
         assert!(out.len() < 60_000, "context sees ≤50KB tail + note, got {}", out.len());
         assert!(out.contains("Full output: "), "note carries temp path");
         let path = out
@@ -1415,7 +1426,7 @@ mod tests {
             .execute(&json!({"path": p, "old_string": "beta", "new_string": "BETA"}))
             .await
             .unwrap();
-        assert!(out.contains("1 block"), "msg: {out}");
+        assert!(out.content.contains("1 block"), "msg: {}", out.content);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "alpha\nBETA\ngamma\n");
         let _ = std::fs::remove_file(&path);
     }
@@ -1521,7 +1532,7 @@ mod tests {
             }))
             .await
             .unwrap();
-        assert!(out.contains("2 block"), "msg: {out}");
+        assert!(out.content.contains("2 block"), "msg: {}", out.content);
         assert_eq!(std::fs::read_to_string(".test-tmp/musk_edit_multi.txt").unwrap(), "AAA\nbbb\nCCC\n");
     }
 
@@ -1647,7 +1658,7 @@ mod tests {
             .await
             .unwrap();
         // rg or grep should find "pub mod" in lib.rs.
-        assert!(!out.contains("(no matches)"));
+        assert!(!out.content.contains("(no matches)"));
     }
 
     #[tokio::test]
@@ -1657,7 +1668,7 @@ mod tests {
             .execute(&json!({"pattern": "zzz_definitely_not_here_xyz", "path": "src/lib.rs"}))
             .await
             .unwrap();
-        assert!(out.contains("(no matches)"));
+        assert!(out.content.contains("(no matches)"));
     }
 
     /// PLAN-039 T2 回归:中文内容超过 8KB 截断上限时不得 panic。
@@ -1677,8 +1688,8 @@ mod tests {
             .execute(&json!({"pattern": "match", "path": path.to_string_lossy()}))
             .await
             .expect("multibyte truncation must not panic");
-        assert!(out.len() <= 9_000, "output should be capped, got {} bytes", out.len());
-        assert!(out.contains("truncated"), "capped output should carry a truncation note");
+        assert!(out.content.len() <= 9_000, "output should be capped, got {} bytes", out.content.len());
+        assert!(out.content.contains("truncated"), "capped output should carry a truncation note");
         let _ = std::fs::remove_file(&path);
     }
 
@@ -1688,6 +1699,7 @@ mod tests {
     async fn list_dir_lists_files() {
         init_root();
         let out = ListDir::new().execute(&json!({"path": "src"})).await.unwrap();
+        let out = out.content;
         // src/ contains tools.rs, lib.rs, main.rs, etc.
         assert!(out.contains("tools.rs"));
         assert!(out.contains("lib.rs"));
@@ -1711,7 +1723,7 @@ mod tests {
             .execute(&json!({"path": dir.to_string_lossy().to_string()}))
             .await
             .unwrap();
-        assert!(out.contains("(empty directory)"));
+        assert!(out.content.contains("(empty directory)"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1725,8 +1737,8 @@ mod tests {
             .await
             .unwrap();
         // tools.rs defines these structs.
-        assert!(out.contains("pub struct EditFile"));
-        assert!(out.contains("pub struct Search"));
+        assert!(out.content.contains("pub struct EditFile"));
+        assert!(out.content.contains("pub struct Search"));
     }
 
     #[tokio::test]
@@ -1746,8 +1758,8 @@ mod tests {
             .execute(&json!({"pattern": "**/*.rs", "path": "src"}))
             .await
             .unwrap();
-        assert!(out.contains("tools.rs"));
-        assert!(out.contains("lib.rs"));
+        assert!(out.content.contains("tools.rs"));
+        assert!(out.content.contains("lib.rs"));
     }
 
     #[tokio::test]
@@ -1757,7 +1769,7 @@ mod tests {
             .execute(&json!({"pattern": "**/*.nonexistent", "path": "src"}))
             .await
             .unwrap();
-        assert!(out.contains("(no matches)"));
+        assert!(out.content.contains("(no matches)"));
     }
 
     // ── BatchReplace:已删除(PLAN-039 T7,原子多编辑语义由 edit_file

@@ -415,12 +415,17 @@ fn stream_event_to_json(ev: &auto_ai_agent::StreamEvent, id: Option<&str>) -> se
             "name": tool,
             "arguments": args,
         }),
-        StreamEvent::Tool { tool, args, result } => json!({
+        StreamEvent::Tool { tool, args, result, details } => json!({
             "type": "tool_result",
             "id": id_val(id),
             "name": tool,
             "arguments": args,
             "result": result,
+            // auto-ai 027 content/details 分离：details 为 UI 载荷（截断信息等），
+            // 不进 LLM 上下文；此处透传给前端（None → null，前端可忽略）。
+            "details": details,
+            // status 真字段仍缺失（错误在 agent loop 已折叠进 result 文本，事件
+            // 不携带 error 标记）——KNOWN-DEBT 027 条登记的前端嗅探仍在位。
             "status": "success",
         }),
         StreamEvent::Warning { text } => json!({"type": "warning", "text": text}),
@@ -1924,6 +1929,7 @@ mod tests {
             tool: "read_file".into(),
             args: json!({"path": "/tmp/x"}),
             result: "ok".into(),
+            details: None,
         };
         let v = stream_event_to_json(&tool, Some("tc-1"));
         assert_eq!(v["type"], "tool_result", "Tool → type=tool_result");

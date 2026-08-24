@@ -136,14 +136,14 @@ where
         Expect::OkContains(sub) => {
             let out = result.unwrap_or_else(|e| panic!("[{}] expected Ok, got Err: {e}", case.name));
             assert!(
-                out.contains(sub),
+                out.content.contains(sub),
                 "[{}] expected result containing {:?}, got: {:?}",
                 case.name, sub, out
             );
         }
         Expect::OkExact(exact) => {
             let out = result.unwrap_or_else(|e| panic!("[{}] expected Ok, got Err: {e}", case.name));
-            assert_eq!(out, *exact, "[{}] result mismatch", case.name);
+            assert_eq!(out.content, *exact, "[{}] result mismatch", case.name);
         }
         Expect::OkFileEquals { path, content } => {
             let out = result.unwrap_or_else(|e| panic!("[{}] expected Ok, got Err: {e}", case.name));

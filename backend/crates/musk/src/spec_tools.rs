@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use auto_ai_agent::{Tool, ToolError};
+use auto_ai_agent::{Tool, ToolError, ToolOutput};
 use serde_json::{json, Value};
 
 use crate::specs::{SpecItem, SpecStatus, SpecsStore};
@@ -68,7 +68,7 @@ impl Tool for ReadSpecs {
             }
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let mut doc = self
             .store
             .load()
@@ -92,7 +92,7 @@ impl Tool for ReadSpecs {
                     it.content.lines().next().unwrap_or("")
                 ));
             }
-            Ok(out)
+            Ok(ToolOutput::text(out))
         } else {
             let mut out = String::from("# Spec overview\n\n");
             for s in &doc.sections {
@@ -111,7 +111,7 @@ impl Tool for ReadSpecs {
                     ));
                 }
             }
-            Ok(out)
+            Ok(ToolOutput::text(out))
         }
     }
 }
@@ -148,7 +148,7 @@ impl Tool for ListSpecs {
     fn parameters(&self) -> Value {
         json!({ "type": "object", "properties": {} })
     }
-    async fn execute(&self, _args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, _args: &Value) -> Result<ToolOutput, ToolError> {
         let doc = self
             .store
             .load()
@@ -164,7 +164,7 @@ impl Tool for ListSpecs {
                 s.id, s.item_count, s.status.to_str()
             ));
         }
-        Ok(out)
+        Ok(ToolOutput::text(out))
     }
 }
 
@@ -212,7 +212,7 @@ impl Tool for UpdateSpec {
             "required": ["action", "section_id"]
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let action = args["action"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'action'".into()))?;
@@ -235,7 +235,7 @@ impl Tool for UpdateSpec {
                 self.store
                     .save(&doc)
                     .map_err(|e| ToolError::Exec(format!("save: {e}")))?;
-                Ok(format!("upserted {id} into {section_id} (v{})", doc.version))
+                Ok(ToolOutput::text(format!("upserted {id} into {section_id} (v{})", doc.version)))
             }
             "delete" => {
                 let item_id = args["item_id"]
@@ -249,9 +249,9 @@ impl Tool for UpdateSpec {
                     .save(&doc)
                     .map_err(|e| ToolError::Exec(format!("save: {e}")))?;
                 if removed {
-                    Ok(format!("deleted {item_id} from {section_id} (v{})", doc.version))
+                    Ok(ToolOutput::text(format!("deleted {item_id} from {section_id} (v{})", doc.version)))
                 } else {
-                    Ok(format!("{item_id} not found in {section_id}"))
+                    Ok(ToolOutput::text(format!("{item_id} not found in {section_id}")))
                 }
             }
             "set_status" => {
@@ -268,11 +268,11 @@ impl Tool for UpdateSpec {
                 self.store
                     .save(&doc)
                     .map_err(|e| ToolError::Exec(format!("save: {e}")))?;
-                Ok(format!(
+                Ok(ToolOutput::text(format!(
                     "{item_id} -> {} (v{})",
                     new_status.to_str(),
                     doc.version
-                ))
+                )))
             }
             other => Err(ToolError::Args(format!("unknown action '{other}'"))),
         }
@@ -321,7 +321,7 @@ impl Tool for WriteSpec {
             "required": ["section_id", "content"]
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let section_id = args["section_id"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'section_id'".into()))?;
@@ -376,7 +376,7 @@ impl Tool for WriteSpec {
         self.store
             .save(&doc)
             .map_err(|e| ToolError::Exec(format!("save: {e}")))?;
-        Ok(format!("wrote {count} items into {section_id} (v{})", doc.version))
+        Ok(ToolOutput::text(format!("wrote {count} items into {section_id} (v{})", doc.version)))
     }
 }
 
@@ -419,7 +419,7 @@ impl Tool for WriteGoals {
             "required": ["goals"]
         })
     }
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let goals = args["goals"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'goals'".into()))?;
@@ -454,7 +454,7 @@ impl Tool for WriteGoals {
         self.store
             .save(&doc)
             .map_err(|e| ToolError::Exec(format!("save: {e}")))?;
-        Ok(format!("wrote {} goals (v{})", idx - 1, doc.version))
+        Ok(ToolOutput::text(format!("wrote {} goals (v{})", idx - 1, doc.version)))
     }
 }
 
@@ -481,6 +481,7 @@ mod tests {
         let store = tmp_store();
         let t = ReadSpecs::with_store(store);
         let out = t.execute(&json!({})).await.unwrap();
+        let out = out.content;
         assert!(out.contains("Spec overview"));
     }
 
@@ -492,10 +493,11 @@ mod tests {
             .execute(&json!({ "goals": "- [ ] first goal\n- second goal\n- [x] done one" }))
             .await
             .unwrap();
-        assert!(out.contains("wrote 3 goals"));
+        assert!(out.content.contains("wrote 3 goals"));
 
         let r = ReadSpecs::with_store(store);
         let out = r.execute(&json!({ "section_id": "goals" })).await.unwrap();
+        let out = out.content;
         assert!(out.contains("G1"));
         assert!(out.contains("first goal"));
         assert!(out.contains("done one"));
@@ -518,7 +520,7 @@ mod tests {
             }))
             .await
             .unwrap();
-        assert!(out.contains("upserted G1"));
+        assert!(out.content.contains("upserted G1"));
 
         let out = u
             .execute(&json!({
@@ -527,7 +529,7 @@ mod tests {
             }))
             .await
             .unwrap();
-        assert!(out.contains("proposed"));
+        assert!(out.content.contains("proposed"));
     }
 
     #[tokio::test]
@@ -566,10 +568,11 @@ mod tests {
             }))
             .await
             .unwrap();
-        assert!(out.contains("wrote 2 items"));
+        assert!(out.content.contains("wrote 2 items"));
 
         let r = ReadSpecs::with_store(store);
         let out = r.execute(&json!({ "section_id": "tests" })).await.unwrap();
+        let out = out.content;
         assert!(out.contains("T1"));
         assert!(out.contains("First test"));
         assert!(out.contains("Do the thing"));
@@ -582,6 +585,7 @@ mod tests {
         w.execute(&json!({ "goals": "- a\n- b" })).await.unwrap();
         let l = ListSpecs::with_store(store);
         let out = l.execute(&json!({})).await.unwrap();
+        let out = out.content;
         assert!(out.contains("goals"));
         assert!(out.contains("2 items"));
     }

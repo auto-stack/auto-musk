@@ -218,6 +218,7 @@ async fn run_step(
                 tool,
                 args,
                 result,
+                details: _,
             } => {
                 store.push_event(
                     &run_id_owned,

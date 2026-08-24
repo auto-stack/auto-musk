@@ -11,7 +11,7 @@
 //! `.autoos/reports/{run_id}/` 并登记 `report_emitted`。
 
 use async_trait::async_trait;
-use auto_ai_agent::{Tool, ToolError};
+use auto_ai_agent::{Tool, ToolError, ToolOutput};
 use serde_json::{json, Value};
 
 use crate::relay::store::ReportMeta;
@@ -662,7 +662,7 @@ impl Tool for EmitReport {
         })
     }
 
-    async fn execute(&self, args: &Value) -> Result<String, ToolError> {
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let ad = args["ad"].as_str().unwrap_or("");
         if ad.trim().is_empty() {
             return Err(ToolError::Args("emit_report: ad（.ad 文档全文）必填".into()));
@@ -719,9 +719,9 @@ impl Tool for EmitReport {
             .append_report(&run_id, meta)
             .ok_or_else(|| ToolError::Exec("emit_report: 登记 report_emitted 失败（run 已失效）".into()))?;
 
-        Ok(format!(
+        Ok(ToolOutput::text(format!(
             "报告已生成并登记（.ad 机械渲染）：{title}（html/md/ad: {rel} 同目录）"
-        ))
+        )))
     }
 }
 
