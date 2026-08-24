@@ -131,7 +131,9 @@ pub fn generate_edit_diff(original: &str, new: &str, spans: &[ReplacedSpan]) -> 
 6. run_command details（truncation + full_output_path）。
 7. relay 桥接 + RunEvent::ToolResult.details + conversation 持久化 + SSE 透传。
 8. 前端渲染（diff 折叠块 / 截断徽标 / Full output 链接）。
-9. 账面清理三件。
+9. 账面清理三件。**[✅ 2026-08-24]** ① 040 frontmatter current_step 5→10；
+   ② extern_sigs.rs:574 `batch_replace_do` 死签名已删（无其他引用，check 绿）；
+   ③ DEBT-040-1/2/3 已登 KNOWN-DEBT 🟢 区。
 10. 回归：`cargo test` 全绿 + 手工冒烟（编辑看 diff、读大文件看徽标、刷新后
     details 仍在）。
 

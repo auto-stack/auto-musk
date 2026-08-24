@@ -19,7 +19,7 @@ new_spec_components:
 touched_goals:
   - "goal-agent: run_command 对齐 pi bash(流式输出/超时/可控终止/退出码错误化),Agent 运行目标的核心工具能力补全"
 
-current_step: 5
+current_step: 10
 total_steps: 10
 ---
 

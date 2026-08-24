@@ -30,6 +30,9 @@
 | Plan | 描述 | 参考 |
 |---|---|---|
 | 026 | **手测 :3334 chat 气泡未补**（标准 6/步骤 5.5，当时 gen build 未全绿留待）：核心修复已由 a2vue fixture 008/009/010 + 生成物断言保证，后被 PLAN-028 双轨 148 项对拍 + 031+ 浏览器冒烟实质超越，未单独补验。低优先——可在 041 解冻后的生产切换冒烟（五视图 + 编辑器）时顺带闭。 | `docs/plans/archived/026-codegen-chat-defects.md`（标准 6） |
+| 040 | **DEBT-040-1 前端流式进度 E2E 未执行**：tool_update 流式渲染组件级全绿，但"起 musk serve + 真实 LLM 会话跑长命令人工观察"的端到端冒烟待用户执行。 | 040 计划 §遗留 |
+| 040 | **DEBT-040-2 Windows 进程树终止兜底**：`taskkill /T` 覆盖多数场景；若发现跨控制台分离的漏网进程，按 040 风险节评估 Job Object 兜底。 | 040 计划 §遗留 |
+| 040 | **DEBT-040-3 Unix killpg 无运行验证**：仅代码审查（开发 host 为 Windows）。 | 040 计划 §遗留 |
 | 024 | **`/api/plans` 走 hw 路由（非 ag 轨）**：a2r 转译器漂移（`auto trans specs.at rust` 产物含未被 nativeize 清理的 `a2r_std` 引用、多余 `.clone()`、分号风格差异），计划 §3.6 允许的逃生舱，功能等价（API 全链路 + 测试绿）。待 a2r 转译器对齐（auto-lang 433 a2r 闭环）后切回 ag 轨。 | `backend/crates/musk/src/server.rs:134` |
 | 024 | **derive_statuses Rule 1 移除**：Goal→Implemented 自动推进规则依赖已移除的 plans section（plans 独立为 PlansStore）。Goal 需手动 transition 到 Implemented；Rule 2（Implemented→Verified）保留。 | `backend/crates/musk/src/specs.rs`（derive_statuses） |
 | 024 | **`migrate_legacy()` 未独立实现**：计划 §5.2 列了独立方法，实际用 `update` 注入 frontmatter 行为替代（+ 测试，plans.rs migrate_legacy_injects_frontmatter）。旧格式容错可用（无 frontmatter → drafting）。 | `backend/crates/musk/src/plans.rs` |
