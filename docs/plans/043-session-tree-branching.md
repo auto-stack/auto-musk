@@ -1,14 +1,19 @@
 ---
 plan_id: PLAN-043
-status: execution_done
+status: reviewed
 feature_name: 会话树分支——从任意轮 fork 重试、branchSummary、树导航（对齐 pi 单文件会话树模型）
 author: [zhaopuming]
 created_at: 2026-08-24
 updated_at: 2026-08-25
 
 supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+new_spec_components:
+  - "会话树数据模型: ChatMessage.parent_id + ChatSession.active_leaf(serde default 线性退化,树单源 ChatStore/镜像不动)"
+  - "投影语义: ChatSession.active_path(leaf→root 链+线性前缀)/history_pairs(with_history 输入)"
+  - "分支端点: POST fork / POST navigate(同机制 set_active_leaf 零复制) / GET tree(children+on_active_path+preview)"
+  - "前端分支交互: 活跃路径渲染+兄弟分支切换器+从这里重试(fork+预填),双轨"
+touched_goals:
+  - "会话体验: 从任意轮 fork 重试、分支导航、全历史 append-only 可回看"
 
 current_step: 9
 total_steps: 9
@@ -131,6 +136,23 @@ pi 仓库本地克隆 `D:\github\pi`（main @ a1f955e9f）：
 2. **跨标签 SSE 树变更刷新未做**（T8 简化）：当前 fork/navigate 后经
    restoreSession 同客户端刷新；多标签同时打开同一会话的场景未推送。若需要，
    沿 PLAN-040 ToolUpdate 的 broadcast 模式补一个 tree_changed 轻事件。
+
+## 复审记录
+
+### /auto-plan:review 正式复审（2026-08-25）
+
+| 验收项 | 判定 | 证据 |
+|---|---|---|
+| 从任意轮 fork 重试：两分支独立演进互不污染；切回原分支上下文一致 | pass | chats.rs 单测（fork_two_branches_independent_paths/history_pairs_*：公共前缀一次、旧分支不进历史）；**真实服务器冒烟**（:8580 一次性会话：fork 后 tree 显示答一 children=2、分支 B on_path、旧支 off_path；navigate 回原支后 active_path=旧支三消息，分支 B 消息不进上下文）。验收原文"ScriptedClient 捕获请求消息序"以 history_pairs（with_history 的直接输入）等价锚定 |
+| 旧会话加载/对话/追加与改造前逐项一致 | pass | active_path_legacy_linear_fallback + history_pairs 排除语义与原实现逐字一致 + 全量回归 611 通过（含既有 16 项 chats 测试）；真实会话（"nihao"，旧 jsonl 无树字段）加载/fork 正常 |
+| turns.jsonl 只追加、永不重写 | pass* | 分支操作仅写 chats.json（ChatStore）；turns.jsonl（ConversationStore 镜像）在 fork/navigate 中完全不触碰（chat_branch.rs 只调 ws.chats）。测试断言旧消息 id/内容/parent 逐字段不变。*注：验收原文以 turns.jsonl 表述，勘察修正后树数据面为 chats.json——语义等价（append-only 不重写） |
+| 树查询响应规模可控 | pass | tree_nodes 每节点 preview 截断 60 字符（chats.rs）；节点数 = 消息数（线性） |
+
+**手工冒烟（用户指定由复审执行）**：真实服务器 API 级全链路通过（见验收 1）；**UI 视觉检查受环境阻塞**——IAB webview 第三次 "guest not attached"（跨三天复现），桌面 Chrome 无法后台激活（激活接口拒绝）。缓解证据：web/dist 已含新 UI 代码（branch-btn/retry-btn 在产物中）、双轨 vue-tsc/vite build 绿、交互逻辑与 API 已分别验证。**残余：真人过目分支切换器/重试按钮的视觉呈现（约 2 分钟）**。
+
+**遗留（非阻断，在册）**：① T7 branchSummary 递延（待澄清 #1）；② 跨标签 SSE 树刷新未做（待澄清 #2）。
+
+**结论**：review_done，可进入 /auto-plan:merge。
 
 ## 风险
 
