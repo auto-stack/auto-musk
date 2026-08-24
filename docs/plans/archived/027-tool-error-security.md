@@ -197,30 +197,30 @@ let status = match &result { Err(_) => "error", Ok(_) => "success" };
 
 ## 7. 验收标准 (Acceptance Criteria)
 
-- [ ] 标准 1：`run_command` 设 cwd=workspace root + 越界路径参数被拒（单测通过）。
-- [ ] 标准 2：`tool_safety` 的 path 拒绝返回 `SecurityDenied{kind:"path_confined"}`（结构化，非纯字符串）。
-- [ ] 标准 3：SSE `tool_result.status` 在 error 时为 `"error"`（+ error envelope）。
-- [ ] 标准 4：gen 前端 ToolCard 识别 path_confined 显示友好提示（hint）；assistant 回复体现安全限制。
-- [ ] 标准 5：driver 连续 3 次同类 security error → 注入强 hint（agent loop 测试或日志确认）。
-- [ ] 标准 6：手测 chat 复现场景 —— read_file/run_command 读 workspace 外都被拒 + 友好错误 + 不无限重试。
-- [ ] 标准 7：`cargo test -p musk` 全绿（含新 fixture）。
+- [x] 标准 1：`run_command` 设 cwd=workspace root + 越界路径参数被拒（单测通过）。[✅ 2026-08-24 复核] 最终形态为 `confine_command_paths` 路径校验（tools.rs:301）而非 .current_dir（经 039/040 重写演进，更强）；040 T6 回归测试锁定（tools.rs:1299-1322）。
+- [x] 标准 2：`tool_safety` 的 path 拒绝返回 `SecurityDenied{kind:"path_confined"}`（结构化，非纯字符串）。[✅ 2026-08-24 复核] tools.rs:14-20 map_path_error + auto-ai error.at:22 变体在位。
+- [ ] 标准 3：SSE `tool_result.status` 在 error 时为 `"error"`（+ error envelope）。[未做→登记] stream_event_to_json 的 status 恒硬编码 "success"（server.rs Tool 分支），错误语义靠双轨前端嗅探；027 提交④许诺登 KNOWN-DEBT 但漏登，2026-08-24 补登（见台账 027 条）。
+- [x] 标准 4：gen 前端 ToolCard 识别 path_confined 显示友好提示（hint）；assistant 回复体现安全限制。[✅ 渐进形态] 嗅探 `[security denied`/`[tool error]` 前缀标记 failed + hint 文案随 result 文本展示（web useForge.ts:246 / gen forge_store.at:238 双轨在位）。
+- [x] 标准 5：driver 连续 3 次同类 security error → 注入强 hint（agent loop 测试或日志确认）。[✅ 2026-08-24 复核] auto-ai rust-ref/src/agent.rs:474-654（活构建，Cargo.toml [lib] 指 rust-ref）计数+归零+≥3 强 hint 在位。
+- [ ] 标准 6：手测 chat 复现场景 —— read_file/run_command 读 workspace 外都被拒 + 友好错误 + 不无限重试。[未做] 需重编 musk.exe；与步骤 4.3 同源，留待（当前 musk 编译红须先适配 auto-ai 027/028 漂移）。
+- [x] 标准 7：`cargo test -p musk` 全绿（含新 fixture）。[✅ 当时绿] ae75416 "cargo test 9 passed"；2026-08-24 现状红为 auto-ai 027/028 跨仓漂移（33 错），非本计划缺陷。
 
 ## 8. 执行步骤 (Execution Tasks)
 
 > 每个任务 2-5 分钟原子操作，含精确路径 + 操作 + 验证命令。
 
 ### 任务 1: 🔴 run_command confinement（堵安全漏洞，最高优先）
-- [ ] **步骤 1.1:** `backend/crates/musk/src/tools.rs:119-160` run_command execute 加 `.current_dir(workspace_root)`（从 thread-local `current_workspace_root()` 取）。
-- [ ] **步骤 1.2:** `backend/crates/musk/src/tool_safety.rs` 新 fn `confine_command_paths(cmd: &str, root: &Path) -> Result<()>`：拆 cmd tokens，对绝对路径/`..` token 调 `resolve_within_project` 校验；越界返回错误。在 run_command execute 调用。
-- [ ] **步骤 1.3:** `tool_safety.rs` 内嵌单测：`run_command cat /etc/passwd`（越界）+ `cat ../secret`（穿越）+ `cat local.txt`（workspace 内允许）。
-- [ ] **步骤 1.4:** `cargo test -p musk tool_safety` 全绿。
+- [x] **步骤 1.1:** `backend/crates/musk/src/tools.rs:119-160` run_command execute 加 `.current_dir(workspace_root)`（从 thread-local `current_workspace_root()` 取）。[✅ 当时实现] 后经 039/040 重写演进为 confine_command_paths 路径校验（tools.rs:301，含 cat/type 白名单路径校验），confinement 语义保留且更强。
+- [x] **步骤 1.2:** `backend/crates/musk/src/tool_safety.rs` 新 fn `confine_command_paths(cmd: &str, root: &Path) -> Result<()>`：拆 cmd tokens，对绝对路径/`..` token 调 `resolve_within_project` 校验；越界返回错误。在 run_command execute 调用。[✅] tools.rs:301-303 在位。
+- [x] **步骤 1.3:** `tool_safety.rs` 内嵌单测：`run_command cat /etc/passwd`（越界）+ `cat ../secret`（穿越）+ `cat local.txt`（workspace 内允许）。[✅] + 040 T6 新增 run_command_confine_blocks_workspace_outside_path_even_with_force（tools.rs:1322）。
+- [x] **步骤 1.4:** `cargo test -p musk tool_safety` 全绿。[✅ 当时绿]
 
 ### 任务 2: 结构化 tool 错误（跨 auto-ai repo）
-- [ ] **步骤 2.1:** auto-ai worktree（`D:/autostack/auto-ai`，参考 PLAN-026 worktree 做法）；改 `crates/auto-ai-agent/src/error.at:15` ToolError 加 `SecurityDenied { kind, path, root, hint }` 变体。
-- [ ] **步骤 2.2:** `tool.at:171 exec_or_msg` 保留 SecurityDenied 结构化（不拍平）。
-- [ ] **步骤 2.3:** 回 auto-musk：`tool_safety.rs:136` 返回 `ToolError::SecurityDenied{kind:"path_confined", path, root, hint}`（替代纯字符串）。
-- [ ] **步骤 2.4:** `server.rs:413 stream_event_to_json` SSE status 按 error 真实（`"error"`）+ error envelope（kind/path/root/hint）。
-- [ ] **步骤 2.5:** auto-ai cargo test + cargo install（更新 auto-ai-agent）；auto-musk cargo test。
+- [x] **步骤 2.1:** auto-ai worktree（`D:/autostack/auto-ai`，参考 PLAN-026 worktree 做法）；改 `crates/auto-ai-agent/src/error.at:15` ToolError 加 `SecurityDenied { kind, path, root, hint }` 变体。[✅] error.at:22 在位。
+- [x] **步骤 2.2:** `tool.at:171 exec_or_msg` 保留 SecurityDenied 结构化（不拍平）。[✅] tool.at:199 格式化含 hint。
+- [x] **步骤 2.3:** 回 auto-musk：`tool_safety.rs:136` 返回 `ToolError::SecurityDenied{kind:"path_confined", path, root, hint}`（替代纯字符串）。[✅] tools.rs:14-20 map_path_error。
+- [ ] **步骤 2.4:** `server.rs:413 stream_event_to_json` SSE status 按 error 真实（`"error"`）+ error envelope（kind/path/root/hint）。[未做→登记] status 恒 "success"，前端嗅探替代；KNOWN-DEBT 补登（2026-08-24）。auto-ai 027 content/details 分离合入后适配时顺带解除。
+- [x] **步骤 2.5:** auto-ai cargo test + cargo install（更新 auto-ai-agent）；auto-musk cargo test。[✅ 当时绿]
 
 ### 任务 3: 前端友好播报（渐进：嗅探 outcome 标记）
 - [x] **步骤 3.1:** gen `forge_stream.ts:186` 嗅探 result `[security denied]`/`[tool error]` → status `failed`（对齐 generic_tool_card 的 completed/failed/running）。[✅ 已完成] outcome 含标记即识别为 error（后端 SSE status 恒 success 的渐进绕过）。
@@ -236,14 +236,18 @@ let status = match &result { Err(_) => "error", Ok(_) => "success" };
 ## 9. 复审记录 (Review Log)
 
 > 由 `/auto-plan:review` 填写。
+> **注（2026-08-24 普查回填）**：正式复审于 2026-08-13 通过（commit 0396177）；
+> 同日 finish-plan 普查对 HEAD 逐项复核（证据见 §7/§8 条目内 [✅ 2026-08-24 复核]
+> 注释），勾选框按复核结论回填。唯标准 3/步骤 2.4（SSE status 真字段）与
+> 标准 6/步骤 4.3（手测）保持未勾。
 
-- **复审人**: [待填]
-- **复审时间**: [待填]
+- **复审人**: agent（/auto-plan:review 2026-08-13 + 普查复核 2026-08-24）
+- **复审时间**: 2026-08-13（0396177）；复核 2026-08-24
 - **复审结论**:
-  - [ ] 验收标准全部满足
-  - [ ] 代码无安全隐患（尤其 run_command confinement）
-  - [ ] Spec 元数据已补全
-- **遗留问题**: [如有]
+  - [x] 验收标准全部满足（标准 3/6 除外，见遗留）
+  - [x] 代码无安全隐患（尤其 run_command confinement）
+  - [x] Spec 元数据已补全
+- **遗留问题**: ① SSE tool_result.status 恒 "success" 硬编码，错误语义靠双轨嗅探 workaround——本计划提交④许诺登 KNOWN-DEBT 但漏登，2026-08-24 补登（台账 027 条）；解除时机 = musk 适配 auto-ai 027 content/details 分离时。② 手测复现（标准 6/步骤 4.3）未做，被 musk 编译红阻塞（同适配任务）。
 
 ## 10. 待澄清事项 (Open Questions)
 

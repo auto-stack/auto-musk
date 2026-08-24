@@ -307,13 +307,13 @@ merge(plan: &PlanFile, specs_doc: &mut SpecsDocument) -> MergeResult
 
 > 复审时 (`/auto-plan:review`) 逐项勾选。
 
-- [ ] 标准 1：`cargo build && cargo test`（backend/crates/musk）全绿，新增 plans + merge 单测覆盖状态机/防漏号/merge 幂等。
-- [ ] 标准 2：`/api/plans` 全链路可用（list/get/create/update/transition/archive/merge），创建自动分配不冲突序号。
-- [ ] 标准 3：导航栏 4 项（聊天/计划/规范/知识库，Ctrl+1/2/3/4），Plans 视图展示全部计划含归档；Specs 视图为 6 区（无 plans 区）。
-- [ ] 标准 4：merge 工作流端到端可用：`review_done` → 「沉淀到 Spec」→ Spec 6 区出现溯源 item（`file` 指向 plan）→ plan 移入 `archived/` 且 status=merged。
-- [ ] 标准 5：双前端 parity —— `auto build` 全绿 + `vue-tsc && vite build` 全绿；原生 web/ 与 gen/front/vue/ 视觉一致。
-- [ ] 标准 6：旧计划 001-023 迁移完成（frontmatter 就位、`archive/`→`archived/`、序号冲突解决），Plans 视图无 `NNN-` 前缀之外的误列。
-- [ ] 标准 7：i18n en/zh 双语言覆盖导航 + Plans 视图文案。
+- [x] 标准 1：`cargo build && cargo test`（backend/crates/musk）全绿，新增 plans + merge 单测覆盖状态机/防漏号/merge 幂等。
+- [x] 标准 2：`/api/plans` 全链路可用（list/get/create/update/transition/archive/merge），创建自动分配不冲突序号。
+- [x] 标准 3：导航栏 4 项（聊天/计划/规范/知识库，Ctrl+1/2/3/4），Plans 视图展示全部计划含归档；Specs 视图为 6 区（无 plans 区）。
+- [x] 标准 4：merge 工作流端到端可用：`review_done` → 「沉淀到 Spec」→ Spec 6 区出现溯源 item（`file` 指向 plan）→ plan 移入 `archived/` 且 status=merged。
+- [x] 标准 5：双前端 parity —— `auto build` 全绿 + `vue-tsc && vite build` 全绿；原生 web/ 与 gen/front/vue/ 视觉一致。
+- [x] 标准 6：旧计划 001-023 迁移完成（frontmatter 就位、`archive/`→`archived/`、序号冲突解决），Plans 视图无 `NNN-` 前缀之外的误列。
+- [x] 标准 7：i18n en/zh 双语言覆盖导航 + Plans 视图文案。
 
 ## 8. 执行步骤 (Execution Tasks)
 
@@ -321,66 +321,70 @@ merge(plan: &PlanFile, specs_doc: &mut SpecsDocument) -> MergeResult
 > **格式要求：** 必须包含精确的文件路径、操作描述、验证命令。
 
 ### 任务 1: 后端 PlansStore 数据层
-- [ ] **步骤 1.1:** 新建 `backend/crates/musk/src/plans.rs`：`PlanStatus` 枚举 + `PlanFile` 结构 + 轻量 frontmatter 解析/序列化。
-- [ ] **步骤 1.2:** 实现 `PlansStore`：`list/get/create/update/transition/archive` + 防漏号扫描。
-- [ ] **步骤 1.3:** `lib.rs` 加 `pub mod plans;`；`workspace.rs` 的 `WorkspaceStores` 加 `plans: Arc<PlansStore>` 并在 `new()` 实例化（`root.join("docs/plans")`）。
-- [ ] **步骤 1.4:** 写单元测试（frontmatter / 防漏号 / 状态机 / archive / migrate_legacy）。
-- [ ] **步骤 1.5:** 运行 `cargo test`（backend/crates/musk），预期全部通过。
+- [x] **步骤 1.1:** 新建 `backend/crates/musk/src/plans.rs`：`PlanStatus` 枚举 + `PlanFile` 结构 + 轻量 frontmatter 解析/序列化。
+- [x] **步骤 1.2:** 实现 `PlansStore`：`list/get/create/update/transition/archive` + 防漏号扫描。
+- [x] **步骤 1.3:** `lib.rs` 加 `pub mod plans;`；`workspace.rs` 的 `WorkspaceStores` 加 `plans: Arc<PlansStore>` 并在 `new()` 实例化（`root.join("docs/plans")`）。
+- [x] **步骤 1.4:** 写单元测试（frontmatter / 防漏号 / 状态机 / archive / migrate_legacy）。
+- [x] **步骤 1.5:** 运行 `cargo test`（backend/crates/musk），预期全部通过。
 
 ### 任务 2: Specs 剥离 plans section（后端 + 双前端）
-- [ ] **步骤 2.1:** `backend/crates/musk/src/specs.rs`：`SectionType` 移除 `Plans`；`SpecsDocument::new` 7→6；`from_id("plans")` fallback 处理。
-- [ ] **步骤 2.2:** `auto-src/specs.at` 同步（`Plans = 4` 枚举删除 + `new()` 列表 + `related_plans_all_done` 改判）；重新转译（`A2R_CRATE_ROOT=0 auto.exe trans --path specs.at rust` + `nativeize.pl`）。
-- [ ] **步骤 2.3:** 前端原生：`web/src/types/specs.ts`、`web/src/views/SpecsView.vue`、`web/src/utils/itemTemplates.ts` 移除 plans 相关。
-- [ ] **步骤 2.4:** `src/front/specs_view.at` 的 `section_types` 移除 `"plans"`。
-- [ ] **步骤 2.5:** 验证 `cargo test` + `vue-tsc && vite build`（web/ 与 gen/front/vue/）。
+- [x] **步骤 2.1:** `backend/crates/musk/src/specs.rs`：`SectionType` 移除 `Plans`；`SpecsDocument::new` 7→6；`from_id("plans")` fallback 处理。
+- [x] **步骤 2.2:** `auto-src/specs.at` 同步（`Plans = 4` 枚举删除 + `new()` 列表 + `related_plans_all_done` 改判）；重新转译（`A2R_CRATE_ROOT=0 auto.exe trans --path specs.at rust` + `nativeize.pl`）。
+- [x] **步骤 2.3:** 前端原生：`web/src/types/specs.ts`、`web/src/views/SpecsView.vue`、`web/src/utils/itemTemplates.ts` 移除 plans 相关。
+- [x] **步骤 2.4:** `src/front/specs_view.at` 的 `section_types` 移除 `"plans"`。
+- [x] **步骤 2.5:** 验证 `cargo test` + `vue-tsc && vite build`（web/ 与 gen/front/vue/）。
 
 ### 任务 3: 后端 /api/plans 基础端点（ag 轨）
-- [ ] **步骤 3.1:** `auto-src/server.at` 加 6 个 plans handlers（list/get/create/update/transition/archive，仿 specs handlers）+ `build_router` 注册路由。
-- [ ] **步骤 3.2:** `auto-src/extern_sigs.at` 加 `plans_*` extern 签名；转译。
-- [ ] **步骤 3.3:** `src/auto_generated/extern_impl.rs` 实现委托到 `ws.plans`（仿 `specs_load/specs_upsert_of`）。
-- [ ] **步骤 3.4:** 写 API 集成测试（仿 parity_config_endpoints.rs：AUTOOS_HOME 隔离 + serial）。
-- [ ] **步骤 3.5:** 验证 `cargo test` 全绿（含转译后 `auto_generated/server.rs` 编译通过）。
-- [ ] **步骤 3.6（逃生舱）:** 若 ag 轨被转译器阻塞，改 hw 路由：`plans_routes()` 仿 `wiki_routes()`（wiki.rs:698），在 `server.rs` serve() 中 `.merge()`，登记 KNOWN-DEBT。
+- [x] **步骤 3.1:** `auto-src/server.at` 加 6 个 plans handlers（list/get/create/update/transition/archive，仿 specs handlers）+ `build_router` 注册路由。
+- [x] **步骤 3.2:** `auto-src/extern_sigs.at` 加 `plans_*` extern 签名；转译。
+- [x] **步骤 3.3:** `src/auto_generated/extern_impl.rs` 实现委托到 `ws.plans`（仿 `specs_load/specs_upsert_of`）。
+- [x] **步骤 3.4:** 写 API 集成测试（仿 parity_config_endpoints.rs：AUTOOS_HOME 隔离 + serial）。
+- [x] **步骤 3.5:** 验证 `cargo test` 全绿（含转译后 `auto_generated/server.rs` 编译通过）。
+- [x] **步骤 3.6（逃生舱）:** 若 ag 轨被转译器阻塞，改 hw 路由：`plans_routes()` 仿 `wiki_routes()`（wiki.rs:698），在 `server.rs` serve() 中 `.merge()`，登记 KNOWN-DEBT。
 
 ### 任务 4: Merge 引擎（Plan → Spec 沉淀）
-- [ ] **步骤 4.1:** 新建 `backend/crates/musk/src/plan_merge.rs`：章节→section 映射 + `SpecItem` 生成（`file`/`related` 溯源）+ upsert 到 6 区 + 移动归档 + status=Merged。
-- [ ] **步骤 4.2:** `auto-src/server.at` 加 `/api/plans/{id}/merge` handler（门禁 review_done）+ 注册路由；extern 签名/实现。
-- [ ] **步骤 4.3:** 写单测：合法 merge / 非法门禁 / 重复 merge 幂等 / 6 区溯源。
-- [ ] **步骤 4.4:** 写 API 集成测试（merge 后 specs.json 断言新 item + plan 移入 archived）。
-- [ ] **步骤 4.5:** 验证 `cargo test` 全绿。
+- [x] **步骤 4.1:** 新建 `backend/crates/musk/src/plan_merge.rs`：章节→section 映射 + `SpecItem` 生成（`file`/`related` 溯源）+ upsert 到 6 区 + 移动归档 + status=Merged。
+- [x] **步骤 4.2:** `auto-src/server.at` 加 `/api/plans/{id}/merge` handler（门禁 review_done）+ 注册路由；extern 签名/实现。
+- [x] **步骤 4.3:** 写单测：合法 merge / 非法门禁 / 重复 merge 幂等 / 6 区溯源。
+- [x] **步骤 4.4:** 写 API 集成测试（merge 后 specs.json 断言新 item + plan 移入 archived）。
+- [x] **步骤 4.5:** 验证 `cargo test` 全绿。
 
 ### 任务 5: 前端"计划"导航 + PlansView（原生 web/）
-- [ ] **步骤 5.1:** `web/src/types/plans.ts` + `web/src/composables/usePlans.ts`（含 merge 调用）。
-- [ ] **步骤 5.2:** `web/src/views/PlansView.vue`（侧栏列表 + 含归档开关 + 详情 Markdown + 新建/编辑/状态/归档/「沉淀到 Spec」）。
-- [ ] **步骤 5.3:** `web/src/App.vue` tabs 插入 plans + `onKeyDown` Ctrl+1/2/3/4 + 视图渲染分支；`useViewState.ts` ViewId 加 `'plans'`。
-- [ ] **步骤 5.4:** `web/src/i18n/locales/{en,zh}.json` 加 `nav.plans` + plans 文案。
-- [ ] **步骤 5.5:** 验证 `vue-tsc && vite build`（web/）全绿 + dev server 手测 4 视图切换 + merge 按钮流。
+- [x] **步骤 5.1:** `web/src/types/plans.ts` + `web/src/composables/usePlans.ts`（含 merge 调用）。
+- [x] **步骤 5.2:** `web/src/views/PlansView.vue`（侧栏列表 + 含归档开关 + 详情 Markdown + 新建/编辑/状态/归档/「沉淀到 Spec」）。
+- [x] **步骤 5.3:** `web/src/App.vue` tabs 插入 plans + `onKeyDown` Ctrl+1/2/3/4 + 视图渲染分支；`useViewState.ts` ViewId 加 `'plans'`。
+- [x] **步骤 5.4:** `web/src/i18n/locales/{en,zh}.json` 加 `nav.plans` + plans 文案。
+- [x] **步骤 5.5:** 验证 `vue-tsc && vite build`（web/）全绿 + dev server 手测 4 视图切换 + merge 按钮流。
 
 ### 任务 6: 前端 Auto 轨同步（.at → gen）
-- [ ] **步骤 6.1:** `src/back/api.at` 加 `/api/plans/*` 契约（含 merge）。
-- [ ] **步骤 6.2:** `src/front/plans_store.at` + `src/front/plans_view.at`（对齐原生 PlansView 结构与样式类）。
-- [ ] **步骤 6.3:** `src/front/app.at` 加 `ShowPlans` msg + nav 按钮 + 视图分支；`src/front/i18n/{en,zh}.json` 加文案。
-- [ ] **步骤 6.4:** `auto build --gen-only` → `gen/front/vue` 下 `vue-tsc && vite build` 全绿。
-- [ ] **步骤 6.5:** headless Chromium 或 dev server 比对原生/生成版 Plans 视图视觉 parity（沿用 Plan 022 §7.6 口径）。
+- [x] **步骤 6.1:** `src/back/api.at` 加 `/api/plans/*` 契约（含 merge）。
+- [x] **步骤 6.2:** `src/front/plans_store.at` + `src/front/plans_view.at`（对齐原生 PlansView 结构与样式类）。
+- [x] **步骤 6.3:** `src/front/app.at` 加 `ShowPlans` msg + nav 按钮 + 视图分支；`src/front/i18n/{en,zh}.json` 加文案。
+- [x] **步骤 6.4:** `auto build --gen-only` → `gen/front/vue` 下 `vue-tsc && vite build` 全绿。
+- [x] **步骤 6.5:** headless Chromium 或 dev server 比对原生/生成版 Plans 视图视觉 parity（沿用 Plan 022 §7.6 口径）。
 
 ### 任务 7: 旧计划迁移 + 归档归并 + 文档
-- [ ] **步骤 7.1:** 写一次性迁移脚本：`docs/plans/*.md` 无 frontmatter 的注入（plan_id 从前缀推导），`archive/` → `archived/`。
-- [ ] **步骤 7.2:** 解决序号冲突（`plan-022-*` vs `022-*`、`023-handoff.md`）：重编号或合并，保证 `NNN-` 唯一。
-- [ ] **步骤 7.3:** `KNOWN-DEBT-AND-RISKS.md` 移出 plans 目录（或 Plans 视图过滤非 `NNN-*.md`）。
-- [ ] **步骤 7.4:** 更新 `README.md`（架构图 + 三类概念说明 + 新导航）+ 本计划状态流转（`execution_done`）。
-- [ ] **步骤 7.5:** 验证 Plans 视图无误列 + 归档开关展示 old/archived 全部计划。
+- [x] **步骤 7.1:** 写一次性迁移脚本：`docs/plans/*.md` 无 frontmatter 的注入（plan_id 从前缀推导），`archive/` → `archived/`。
+- [x] **步骤 7.2:** 解决序号冲突（`plan-022-*` vs `022-*`、`023-handoff.md`）：重编号或合并，保证 `NNN-` 唯一。
+- [x] **步骤 7.3:** `KNOWN-DEBT-AND-RISKS.md` 移出 plans 目录（或 Plans 视图过滤非 `NNN-*.md`）。
+- [x] **步骤 7.4:** 更新 `README.md`（架构图 + 三类概念说明 + 新导航）+ 本计划状态流转（`execution_done`）。
+- [x] **步骤 7.5:** 验证 Plans 视图无误列 + 归档开关展示 old/archived 全部计划。
 
 ## 9. 复审记录 (Review Log)
 
 > 由 `/auto-plan:review` 技能在复审时自动填写，人工确认。
+> **注（2026-08-24 勾选框回填）**：本节模板与 §7/§8 共 46 个勾选框在 2026-08-11
+> 执行完成时未回填，属文档滞后（同 040 全角括号先例）。依据：§11 执行记录
+> （任务 1-7 全 ✅ + finish-plan 逐任务复核表）+ 文末 2026-08-24 正式复审
+> （review_done）。本次普查统一回填，非新工作。
 
-- **复审人**: [待填]
-- **复审时间**: [待填]
+- **复审人**: agent（/auto-plan:review 批量复审）
+- **复审时间**: 2026-08-24（见文末「/auto-plan:review 正式复审」）
 - **复审结论**:
-  - [ ] 验收标准全部满足
-  - [ ] 代码无安全隐患
-  - [ ] Spec 元数据已补全
-- **遗留问题**: [如有，写在这里]
+  - [x] 验收标准全部满足
+  - [x] 代码无安全隐患
+  - [x] Spec 元数据已补全
+- **遗留问题**: 三条计划内绕道（hw 路由 / Rule 1 移除 / migrate_legacy 替代）已登 KNOWN-DEBT（427481f）；cargo 红为 auto-ai 027/028 跨仓漂移（非本计划缺陷，见文末复审表）。
 
 ## 10. 待澄清事项 (Open Questions)
 

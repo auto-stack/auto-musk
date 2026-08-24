@@ -416,8 +416,11 @@ plan（无序号无 frontmatter）；relay 侧 `superpower` flow 是 4 步 3 角
   parity。验证：`cd web && npm run build` + `grep -r RelayView web/src src/front` 无
   残留
   [✅ 已完成] RelayView.vue 已删（grep 零残留）；useRelay 收敛为 9 导出（runs/currentRun/loading/error/loadRun/startRun/advanceRun/resolveGate/subscribeToRun/sessionLogFor）；relay_store.at 同步退役 6 消息；vue-tsc 对比基线零新增错误（既有 12 个登记待澄清）、vite build 绿
-- [ ] **T13** `backend/.autoos/specs.json`：删除残留的空 `plans` section（7 区→6 区
+- [x] **T13** `backend/.autoos/specs.json`：删除残留的空 `plans` section（7 区→6 区
   迁移遗漏清理）。验证：`cargo test -p musk specs` + 前端 SpecsView 冒烟
+  [✅ 2026-08-24 普查回填] 目标态已达成：specs.json sections 现为 6 区
+  （goals/architecture/designs/tests/reviews/reports），无 plans section——
+  由后续 merge 流程重写账本时顺带清除，勾选框当时漏回填
 
 **E 组：技能、文档与全量验证**
 

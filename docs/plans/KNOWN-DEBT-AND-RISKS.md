@@ -19,6 +19,9 @@
 
 | Plan | 描述 | 参考 |
 |---|---|---|
+| 027 | **SSE `tool_result.status` 恒硬编码 `"success"`**（027 提交④许诺登记但漏登，2026-08-24 普查补登）：`stream_event_to_json` 的 Tool 分支不区分 error，错误语义靠双轨前端嗅探 result 前缀（`[security denied`/`[tool error]` → failed：web `useForge.ts` + gen `forge_store.at`）。**解除时机**：musk 适配 auto-ai 027 content/details 分离（修编译红）时顺带落 status 真字段 + error envelope，前端去嗅探。 | `backend/crates/musk/src/server.rs`（stream_event_to_json Tool 分支） |
+| 030/038-040 | **merge 沉淀后归档移动不回写 specs.json 的 `file` 指针**（系统性，2026-08-24 普查发现）：四计划归档后其 28 条 SpecItem（每计划 P0NN-1..7）仍指 `docs/plans/0NN-*` 旧活动路径——溯源链接全断。**已修复**（2026-08-24 文本替换为 `docs/plans/archived/`，JSON 校验过）；根因在 merge 时写指针、后续 archive 移文件两步无联动，建议 merge skill 或 archive 流程补"归档时回写 file 指针"。 | `backend/.autoos/specs.json`（运行时账本，gitignore） |
+| — | **auto-ai pi-parity 027/028 跨仓漂移致 musk 编译红（2026-08-24 实测 33 错）**：auto-ai 08-24 合入其 027（Tool 结果 content/details 分离，改 `Tool` trait/`ToolOutput`）+ 028（压缩与模型元数据），musk 经 path 依赖（`Cargo.toml` auto-ai-agent）直接暴露——错误集中在 `orch_tools.rs`/`spec_tools.rs` 的 `execute` E0053 等。039 执行时已预警（待澄清#1/#2 + 三处 `// PLAN-027 挂接点`：tools.rs:100/472、tool_truncate.rs），**适配无人承接，阻塞一切 cargo 验证**。 | `backend/crates/musk/Cargo.toml:17` / `orch_tools.rs` / 039 待澄清 |
 | 033 | **W1 归档路径绕过状态机**：`move_to_archived`（plans.rs:520）直写 status 而不经 `can_transition`——计划文本"transition(Archived)+rename"与"状态机去掉 reviewed→archived 边"自相矛盾，实现取后者。风险：未来 `transition()` 若增加副作用（事件/钩子），终态路径不触发。改进方向：显式建模"系统迁移"（force 参数或独立类型）。 | `backend/crates/musk/src/plans.rs:520` |
 | 033 | **W2 渲染层仅代码级验证**：MetaBlock 布局/徽标中文/按钮组换行只有代码+单测证据（复审时内置浏览器 webview 无法挂载），无人眼/截图验证。补验：起服务人工过目（约 5 分钟）。 | `web/src/views/PlansView.vue:163` |
 
@@ -26,6 +29,7 @@
 
 | Plan | 描述 | 参考 |
 |---|---|---|
+| 026 | **手测 :3334 chat 气泡未补**（标准 6/步骤 5.5，当时 gen build 未全绿留待）：核心修复已由 a2vue fixture 008/009/010 + 生成物断言保证，后被 PLAN-028 双轨 148 项对拍 + 031+ 浏览器冒烟实质超越，未单独补验。低优先——可在 041 解冻后的生产切换冒烟（五视图 + 编辑器）时顺带闭。 | `docs/plans/archived/026-codegen-chat-defects.md`（标准 6） |
 | 024 | **`/api/plans` 走 hw 路由（非 ag 轨）**：a2r 转译器漂移（`auto trans specs.at rust` 产物含未被 nativeize 清理的 `a2r_std` 引用、多余 `.clone()`、分号风格差异），计划 §3.6 允许的逃生舱，功能等价（API 全链路 + 测试绿）。待 a2r 转译器对齐（auto-lang 433 a2r 闭环）后切回 ag 轨。 | `backend/crates/musk/src/server.rs:134` |
 | 024 | **derive_statuses Rule 1 移除**：Goal→Implemented 自动推进规则依赖已移除的 plans section（plans 独立为 PlansStore）。Goal 需手动 transition 到 Implemented；Rule 2（Implemented→Verified）保留。 | `backend/crates/musk/src/specs.rs`（derive_statuses） |
 | 024 | **`migrate_legacy()` 未独立实现**：计划 §5.2 列了独立方法，实际用 `update` 注入 frontmatter 行为替代（+ 测试，plans.rs migrate_legacy_injects_frontmatter）。旧格式容错可用（无 frontmatter → drafting）。 | `backend/crates/musk/src/plans.rs` |

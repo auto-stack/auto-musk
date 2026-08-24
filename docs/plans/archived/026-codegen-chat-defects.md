@@ -185,7 +185,7 @@ if matches!(op, Op::Eq | Op::Neq) && (nullish(left) || nullish(right)) {
 - [x] 标准 3：缺陷 ② — `component fn` 的 `style { ... }` 块正确输出到 SFC `<style scoped>`（fixture 010 通过）。[✅]
 - [x] 标准 4：缺陷 ③ — `.x != ""` 对 undefined 安全（生成 `!!x`，fixture 008 通过）。[✅]
 - [x] 标准 5：auto-musk `auto build --gen-only` 后 gen ChatMessage.vue 正确。[✅ 核心] 生成物含 `:class="rowClass"` + `!!(props.msg.error)` + `<style scoped>` msg-* CSS（6 处匹配，与 patched 备份行为等价）。**gen `npm run build` 未全绿**：补了升级 auto 引入的 `ui/button` 缺失，但 `SettingsMenu.vue:136`(AccentPalette.id) + `useForgeStoreStore.ts:65`(null type) 2 个 **pre-existing/升级 auto 副作用** TS 错误未修（非本计划缺陷）。
-- [ ] 标准 6：手测 :3334 chat 气泡正常（左右对齐 + 自适应 + 无红框）。[未做] gen build 未全绿，手测留待（核心修复已由 a2vue fixture + 生成物断言保证）。
+- [ ] 标准 6：手测 :3334 chat 气泡正常（左右对齐 + 自适应 + 无红框）。[未做] gen build 未全绿，手测留待（核心修复已由 a2vue fixture + 生成物断言保证）。[2026-08-24 注：保持未勾；PLAN-028 148 项双轨对拍 + 031+ 浏览器冒烟实质超越，未单独补验，登记 KNOWN-DEPT 见台账 026 条]
 
 ## 8. 执行步骤 (Execution Tasks)
 
@@ -216,20 +216,23 @@ if matches!(op, Op::Eq | Op::Neq) && (nullish(left) || nullish(right)) {
 - [x] **步骤 5.2:** auto-musk `auto build --gen-only`（新 auto）。[✅ 已完成] 28 components，无 parse error。
 - [x] **步骤 5.3:** 生成的 ChatMessage.vue 与 patched 备份行为等价。[✅ 已完成] 6 处匹配：`:class="rowClass"`(L31) + `!!(props.msg.error)`(L13/17/19) + `<style scoped>`(L63) + `.msg-row`(L65)。
 - [x] **步骤 5.4:** gen `npm run build`。[⚠️ 部分] 补了升级 auto 引入的 `ui/button` 缺失（gen/front/vue/src/components/ui/button/，参照 input 模式）；但 `SettingsMenu.vue:136`(AccentPalette.id) + `useForgeStoreStore.ts:65`(null type) 2 个 pre-existing TS 错误未修。
-- [ ] **步骤 5.5:** 手测 :3334 chat。[未做] gen build 未全绿，留待。
+- [ ] **步骤 5.5:** 手测 :3334 chat。[未做] gen build 未全绿，留待。[2026-08-24 注：同标准 6，被后续对拍/冒烟实质超越]
 - [x] **步骤 5.6:** 状态 → execution_done。[✅]
 
 ## 9. 复审记录 (Review Log)
 
 > 由 `/auto-plan:review` 填写。
+> **注（2026-08-24 普查回填）**：正式复审于 2026-08-13 通过（commit 0396177
+> "PLAN-025/026/027 复审通过 → review_done"），本节模板当时未回填。两条
+> [未做] 手测（标准 6 / 步骤 5.5）保持未勾——处置见条目内 2026-08-24 注释。
 
-- **复审人**: [待填]
-- **复审时间**: [待填]
+- **复审人**: agent（/auto-plan:review）
+- **复审时间**: 2026-08-13（0396177）
 - **复审结论**:
-  - [ ] 验收标准全部满足
-  - [ ] 代码无安全隐患
-  - [ ] Spec 元数据已补全
-- **遗留问题**: [如有]
+  - [x] 验收标准全部满足（标准 6 手测除外，见遗留）
+  - [x] 代码无安全隐患
+  - [x] Spec 元数据已补全
+- **遗留问题**: 标准 6 / 步骤 5.5 手测 :3334 未做（当时 gen build 未全绿）——核心修复已由 a2vue fixture 008/009/010 + 生成物断言保证；后续 PLAN-028 双轨 148 项对拍全绿 + 031+ 多轮浏览器冒烟实质超越该手测，未单独补验（低优先，可在 041 解冻冒烟时顺带闭）。
 
 ## 10. 待澄清事项 (Open Questions)
 

@@ -39,6 +39,10 @@ auto-lang 团队**未采用本计划提议的 no-op 方案,而是以另一套方
 - [x] review 分支 `fix/vue-pnpm-workspace-single-package`(auto-lang 另案处理)
 - [x] 合并到 auto-lang master(以 `dc0886c8` 等系列提交)
 - [ ] (可选)防回归单测——auto-lang master 现方案是否已有,未核实
+  [2026-08-24 普查注记：保持未勾，建议就此关闭——该探测针对 2026-08 初的
+  auto-lang master 快照，其后 auto-lang 经 391 a2r 闭环/433 等大量演进，
+  `ensure_pnpm_build_approvals` 方案已被重写或移除，核实已无对象。若需要
+  防回归覆盖，应由 auto-lang 侧现行测试体系承接，非本计划遗留]
 
 ## 影响
 

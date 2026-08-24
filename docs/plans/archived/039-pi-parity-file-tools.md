@@ -153,6 +153,12 @@ path confinement 与注入式 root 原样保留在所有新代码路径中；`li
   ToolError>`（无 content/details 分离），故任务 10 走"简短确认 + 三处
   `// PLAN-027 挂接点` 标注"路线（tools.rs:100 / tools.rs:472 / tool_truncate.rs
   TruncationResult 文档）。
+  **[2026-08-24 普查注记：已解除]** auto-ai 其 PLAN-027（content/details 分离，
+  commit ccf24fb）+ PLAN-028（压缩元数据）已于 08-24 合入 main——挂接点解锁，
+  但 musk 侧未适配致编译红（33 错，orch_tools/spec_tools execute 签名等）。
+  适配承接情况见 KNOWN-DEBT「auto-ai pi-parity 027/028 跨仓漂移」条。
+  （另：musk 自身 PLAN-027 为 tool 安全计划，与本条 auto-ai 027 无关——
+  其落地情况经 2026-08-24 复核确认在位，见 027 计划文件复审记录。）
 
 ## 复审记录
 

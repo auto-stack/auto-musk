@@ -210,7 +210,9 @@ relay 路由（query token/workspace）。
        验证：`auto build --gen-only` + vite 3001 无错。
 - [x] 8. E2E（musk-demo 真实小 run 全流程）+ `cargo test -p musk` 全量 +
        web build；回归 PLAN-031 的 RunBox 展示无破坏。
-- [ ] 9. spec reports 区 upsert 本能力条目（摘要+指针）+ 提交。
+- [x] 9. spec reports 区 upsert 本能力条目（摘要+指针）+ 提交。
+       [✅ 2026-08-24 普查回填] 已由 /auto-plan:merge 承接完成（49fd1db）：
+       reports 区 P032-1（file → docs/plans/archived/032-run-report-block.md）
 
 ## 9. 复审记录
 
