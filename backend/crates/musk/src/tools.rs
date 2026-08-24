@@ -379,10 +379,17 @@ impl Tool for RunCommand {
             }
         });
 
+        // PLAN-040 T9(pi resolveSpawnContext 的 PI_* 对应):注入会话上下文
+        // 环境变量,脚本可感知自己在哪个会话里被跑;无前端订阅(测试/CLI)
+        // 时不注入。
+        let mut env = std::collections::HashMap::new();
+        if let Some(sink) = &self.progress {
+            env.insert("MUSK_SESSION_ID".to_string(), sink.run_id().to_string());
+        }
         let opts = ExecOptions {
             on_data: Some(on_data),
             timeout: timeout_secs.map(std::time::Duration::from_secs_f64),
-            env: std::collections::HashMap::new(),
+            env,
         };
         let out = LocalRunner.exec(cmd, &root, opts).await?;
 
@@ -1340,6 +1347,32 @@ mod tests {
         assert!(first.starts_with("⏸ PAUSED"));
         let second = t.execute(&json!({"cmd": "whoami", "force": true})).await;
         assert!(second.is_ok(), "approved run succeeds: {:?}", second.err());
+    }
+
+    /// PLAN-040 T9: progress 通道存在时注入 MUSK_SESSION_ID(pi PI_* 对应);
+    /// 无 progress(测试默认构造)不注入(变量为空)。
+    #[tokio::test]
+    async fn run_command_injects_musk_session_env() {
+        let root = std::sync::Arc::new(std::path::PathBuf::from("."));
+        let echo_var = if cfg!(windows) {
+            "echo %MUSK_SESSION_ID%"
+        } else {
+            "echo $MUSK_SESSION_ID"
+        };
+        let with = crate::tools::RunCommand::with_root_and_progress(
+            root.clone(),
+            Some(crate::tool_context::ProgressSink::for_run("sess-t9")),
+        )
+        .execute(&json!({"cmd": echo_var}))
+        .await
+        .unwrap();
+        assert!(with.contains("sess-t9"), "injected: {with}");
+
+        let without = crate::tools::RunCommand::with_root(root)
+            .execute(&json!({"cmd": echo_var}))
+            .await
+            .unwrap();
+        assert!(!without.contains("sess-t9"), "not injected without progress: {without}");
     }
 
     // ── EditFile ───────────────────────────────────────────────

@@ -119,9 +119,17 @@ PLAN-026 独立推进，两轨将来在 relay 桥接层合流）。
    type/cat + C:\Windows 绝对路径仍拒);PAUSED→force 审批闭环(Ok→Ok)。
    10/10 run_command 测试绿。
 7. Windows 进程树终止实测（`taskkill /T /F`，cmd → 子进程链）。
+   [✅ 已完成] command_runner.rs windows_timeout_kills_process_tree_no_orphans:
+   cmd→(start /b)孙 ping+主 ping,3s 超时 taskkill /T /F,tasklist CSV 口径验证
+   杀树前后 ping 数无增(任务管理器等价),5.4s 通过。Job Object 兜底未需要。
 8. `CommandRunner` 的 Ash 后端占位文档（未来 Ash 逐命令沙箱就绪后换实现，工具层
    零改动）。
+   [✅ 已完成] command_runner.rs 模块文档"Ash 后座"节:替换契约五条——安全不在
+   runner 层(分类/PAUSE/confine 留工具层,切换日上收 Ash 策略)、流式 on_data chunk
+   语义、超时杀树、退出码透明(错误化在工具层)、cwd/env 不逸出。
 9. （可选）MUSK_* 环境变量注入。
+   [✅ 已完成·轻量] progress 通道存在时注入 MUSK_SESSION_ID(pi PI_* 对应,chat 场景
+   =session_id/relay=run_id);无订阅(测试/CLI)不注入。测试:注入/不注入双向断言。
 10. 回归：`cargo test` + 手工冒烟（长输出命令、超时命令、非零退出、PAUSED 流程）。
 
 ## 验收标准

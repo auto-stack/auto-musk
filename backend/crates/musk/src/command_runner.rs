@@ -7,8 +7,22 @@
 //! `process_group(0)` + `killpg`,pi `shell.ts killProcessTree` 同源)、
 //! 合并输出返回。
 //!
-//! Ash 后座占位(任务 8):未来 Ash 逐命令沙箱就绪后实现本 trait 换掉
-//! `LocalRunner`,工具层零改动。
+//! # Ash 后座(PLAN-040 T8 占位)
+//!
+//! 未来 Ash 逐命令沙箱就绪后实现本 trait 换掉 `LocalRunner`,**工具层零
+//! 改动**。替换实现的契约:
+//!
+//! - **安全不在这一层**:白名单分类 / PAUSED+force 审批流 /
+//!   `confine_command_paths` 都在 run_command 工具层,runner 收到的命令
+//!   已过审(Ash 接管安全时,这些检查同步上收到 Ash 策略,工具层保持
+//!   现状直至切换日)。
+//! - **流式语义**:`on_data` 以 chunk 粒度回调合并输出(stdout+stderr
+//!   交错),调用方在回调里做有界累积与节流进度,不做全量缓冲。
+//! - **超时杀树**:到点终止命令的**整个**进程组/沙箱实例,输出保留,
+//!   `timed_out = true`。
+//! - **退出码透明**:runner 原样上报退出码;非零码的"错误化"语义在
+//!   工具层(pi:exitCode !== 0 → error result)。
+//! - **cwd / env**:以给定 cwd 与叠加 env 执行,不得逸出到别处落盘。
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -345,5 +359,46 @@ mod tests {
     fn kill_process_tree_tolerates_missing_pid() {
         // PID 0xFFF0C0DE 大概率不存在;taskkill 失败被忽略。
         kill_process_tree(0xFFF0_C0DE & 0xFFFF_FFFF);
+    }
+
+    /// PLAN-040 T7: Windows 进程树终止实测——`start /b` 分离孙进程 ping +
+    /// 主进程 ping,超时 taskkill /T /F 后**无孤儿**(tasklist 口径验证,
+    /// 等价任务管理器人工核对;Job Object 兜底方案见计划风险节)。
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn windows_timeout_kills_process_tree_no_orphans() {
+        fn count_ping() -> usize {
+            let out = std::process::Command::new("tasklist")
+                .args(["/FI", "IMAGENAME eq PING.EXE", "/FO", "CSV", "/NH"])
+                .output()
+                .expect("tasklist runs");
+            let text = String::from_utf8_lossy(&out.stdout);
+            text.lines().filter(|l| l.to_uppercase().contains("PING.EXE")).count()
+        }
+        let before = count_ping();
+        let opts = ExecOptions {
+            timeout: Some(std::time::Duration::from_secs(3)),
+            ..Default::default()
+        };
+        // start /b 在 cmd 内启动分离孙进程 ping;第二个 ping 保持主命令存活
+        // 直到超时——树:cmd →(start /b)ping 孙 + ping 子。
+        let started = std::time::Instant::now();
+        let out = LocalRunner
+            .exec("start /b ping -n 60 127.0.0.1 & ping -n 60 127.0.0.1", &tmp_dir(), opts)
+            .await
+            .expect("exec ok");
+        assert!(out.timed_out, "tree runs until timeout");
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(15),
+            "killed promptly (elapsed {:?})",
+            started.elapsed()
+        );
+        // 给 taskkill 的异步收割留收尾时间,再验证无新增 ping 孤儿。
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        let after = count_ping();
+        assert!(
+            after <= before,
+            "process-tree kill left orphans: before {before}, after {after}"
+        );
     }
 }
