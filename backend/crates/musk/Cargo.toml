@@ -17,7 +17,8 @@ path = "src/lib.rs"
 auto-ai-agent = { path = "../../../../auto-ai/crates/auto-ai-agent" }
 # daemon 发现/调用(auto-ai-agent 已重导出,但直接依赖更清晰)
 auto-ai-client = { path = "../../../../auto-ai/crates/auto-ai-client" }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync"] }
+# PLAN-040: process(streaming Command)+time(timeout)+io-util(AsyncReadExt) 供 LocalRunner
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "process", "time", "io-util"] }
 clap = { version = "4", features = ["derive", "env"] }
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
@@ -58,3 +59,7 @@ tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
 serial_test = "3"
 # 接线运行冒烟测试:Router::oneshot 发真实 HTTP 请求
 tower = { version = "0.5", features = ["util"] }
+
+# PLAN-040: LocalRunner Unix 进程组终止 killpg(仅 unix 目标拉取)
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
