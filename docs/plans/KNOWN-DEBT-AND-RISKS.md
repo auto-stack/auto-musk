@@ -17,12 +17,18 @@
 
 ## 🟡 一致性遗漏
 
-_无。_
+| Plan | 描述 | 参考 |
+|---|---|---|
+| 033 | **W1 归档路径绕过状态机**：`move_to_archived`（plans.rs:520）直写 status 而不经 `can_transition`——计划文本"transition(Archived)+rename"与"状态机去掉 reviewed→archived 边"自相矛盾，实现取后者。风险：未来 `transition()` 若增加副作用（事件/钩子），终态路径不触发。改进方向：显式建模"系统迁移"（force 参数或独立类型）。 | `backend/crates/musk/src/plans.rs:520` |
+| 033 | **W2 渲染层仅代码级验证**：MetaBlock 布局/徽标中文/按钮组换行只有代码+单测证据（复审时内置浏览器 webview 无法挂载），无人眼/截图验证。补验：起服务人工过目（约 5 分钟）。 | `web/src/views/PlansView.vue:163` |
 
 ## 🟢 已知限制
 
 | Plan | 描述 | 参考 |
 |---|---|---|
+| 024 | **`/api/plans` 走 hw 路由（非 ag 轨）**：a2r 转译器漂移（`auto trans specs.at rust` 产物含未被 nativeize 清理的 `a2r_std` 引用、多余 `.clone()`、分号风格差异），计划 §3.6 允许的逃生舱，功能等价（API 全链路 + 测试绿）。待 a2r 转译器对齐（auto-lang 433 a2r 闭环）后切回 ag 轨。 | `backend/crates/musk/src/server.rs:134` |
+| 024 | **derive_statuses Rule 1 移除**：Goal→Implemented 自动推进规则依赖已移除的 plans section（plans 独立为 PlansStore）。Goal 需手动 transition 到 Implemented；Rule 2（Implemented→Verified）保留。 | `backend/crates/musk/src/specs.rs`（derive_statuses） |
+| 024 | **`migrate_legacy()` 未独立实现**：计划 §5.2 列了独立方法，实际用 `update` 注入 frontmatter 行为替代（+ 测试，plans.rs migrate_legacy_injects_frontmatter）。旧格式容错可用（无 frontmatter → drafting）。 | `backend/crates/musk/src/plans.rs` |
 | 038 | ~~**auto-icons 渲染层降级**（T9 canary 实证 2026-08-23）~~ **🔶 解除条件已达成,待实现（2026-08-23 canary 重放）**：auto-lang 442 A4（svg 节点语言层支持）已落地并经 musk 复核——T9 canary 重放通过（`svg { viewBox: ..., path { d: ... } }` 产物为真实 `<svg>/<path>`,静态属性与动态绑定完整保留,exit 0）。数据层不受影响始终已交付：`src/front/lib/icons_data.at`（52 图标）+ 数据对拍全等。**剩余动作**：`src/front/lib/icon.at` 按 stub 头注实现 Icon widget（svg 元素树 + 渲染层默认六属性）+ `scripts/lib-parity/icons.mjs` 升级为 @vue/server-renderer renderToString 对拍——独立小任务,可随时承接。 | `src/front/lib/icon.at`（stub）/ [442 A4](../../auto-lang/docs/plans/442-cross-platform-closure.md) |
 | 018 | `task_plan.at` C1：`impl TryFrom<Node>` trait impl → `static fn from_node`（Auto 无 trait impl 语法）。**a2r 计划391 D6 已让 `impl Trait for Type` 报清晰错误**（不再静默反转），但 Auto 语言层面的 trait impl 支持仍是未来设计决策。parity 分别调 hw `try_from` / ag `from_node` 比行为。 | `auto-src/task_plan.at:272` / [391 D6](../../auto-lang/docs/plans/391-a2r-parity-debt-from-musk.md) |
 | 018 | ~~`app_config` 的 `AAID_URL` env 覆盖在 a2r 产物中缺失~~ **✅ 已修复（Plan 021 B1，2026-08-07）**：`app_config.at` 的 `effective_daemon_url` 现读 `env::var("AAID_URL").ok()`（与 hw file < env < default 一致；391 D4 让方法链可解析）。`parity_app_config.rs::parity_effective_daemon_url` 断言两侧行为一致。 | `auto-src/app_config.at` |
