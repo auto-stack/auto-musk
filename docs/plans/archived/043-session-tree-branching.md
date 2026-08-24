@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-043
-status: reviewed
+status: archived
 feature_name: 会话树分支——从任意轮 fork 重试、branchSummary、树导航（对齐 pi 单文件会话树模型）
 author: [zhaopuming]
 created_at: 2026-08-24
