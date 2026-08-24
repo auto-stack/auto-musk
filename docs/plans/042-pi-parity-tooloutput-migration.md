@@ -1,14 +1,20 @@
 ---
 plan_id: PLAN-042
-status: execution_done
+status: reviewed
 feature_name: ToolOutput 迁移——修复主线编译断、填真 details（edit diff / read 截断 / run_command 全量输出路径）、事件链透传与前端渲染、PLAN-040 账面清理
 author: [zhaopuming]
 created_at: 2026-08-24
 updated_at: 2026-08-24
 
 supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+new_spec_components:
+  - "edit_diff: 替换组行区间(replaced_groups) + generate_edit_diff(行号 diff/unified patch/first_changed_line,语义对齐 pi)"
+  - "工具 details 载荷约定: edit {diff,patch,first_changed_line} / read {truncation} / run_command {truncation,full_output_path}"
+  - "事件链 details: RunEvent.TurnToolResult.details + ToolRecord.details(serde default 兼容旧回放) + SSE 透传"
+  - "前端工具卡 details 区: Diff/Truncated 徽标/Full output(双轨)"
+touched_goals:
+  - "工具结果双通道呈现（content 给模型 + details 给 UI：diff/截断/全量输出）"
+  - "ToolOutput 迁移与主线绿色基线恢复"
 
 current_step: 10
 total_steps: 10
@@ -163,6 +169,21 @@ pub fn generate_edit_diff(original: &str, new: &str, spans: &[ReplacedSpan]) -> 
   details（信任 auto-ai 链路保证，musk 侧以事件捕获测试锚定）。
 - 会话刷新回放后 diff 徽标仍渲染（conversation 持久化生效）。
 - 审批 UI 能展示 spec 写入的 diff（若 spec 工具接了 details）。
+
+## 复审记录
+
+### /auto-plan:review 正式复审（2026-08-25）
+
+| 验收项 | 判定 | 证据 |
+|---|---|---|
+| `cargo check && cargo test -p musk` 全绿（33 错清零） | pass | lib 400 + 28 集成目标全绿（本复审重跑，fc4b005 含两处复审补丁）；复审中又捕获一例新的跨仓漂移——auto-ai 031（压缩二期）给 `CompletionResponse` 加 `model_meta`，server.rs MockClient 补 `model_meta: None` 即恢复（1 处，非本计划缺陷） |
+| edit/read/run_command SSE 携带 details；LLM 请求体不含 | pass | SSE 锚定 `contract_stream_event_tool_pairing`（details 透传 + None→null）；三工具 details 内容锚定（edit_file_details…/read_file_details…）；LLM 侧零泄漏信任 auto-ai mvp_harness 既有断言（042 §pi 索引约定） |
+| 刷新回放后 diff 仍渲染（conversation 持久化） | pass | 复审补锚定 `run_event_tool_result_details_persisted_into_turn`（映射 + serde 往返不丢，fc4b005） |
+| 审批 UI 展示 spec 写入 diff | n/a | 计划原文括号条款（"若 spec 工具接了 details"）——spec_tools 未接 details，未启用该分支 |
+
+**遗留（非阻断，均已在册）**：① T10 手工冒烟（真实 LLM 会话编辑/读大文件/刷新回放）留待用户；② SSE `tool_result.status` 真字段维持 027 债务（事件无 error 标记）；③ ag 镜像轨为手工同步而非 retranspile（a2r 已知漂移，随 041 轨道处置收尾）。
+
+**结论**：review_done，可进入 /auto-plan:merge。
 
 ## 风险
 
