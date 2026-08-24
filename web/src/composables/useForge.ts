@@ -122,6 +122,26 @@ export function useForge() {
     }
   }
 
+  /** PLAN-043: switch the active branch leaf (fork-from & navigate share the
+   * same server mechanism). Reloads the session afterwards so messages and
+   * active_leaf reflect the new path. */
+  async function branchTo(messageId: string, mode: 'fork' | 'navigate') {
+    const sid = sessionId.value
+    if (!sid) return false
+    try {
+      const resp = await authFetch(`${API_BASE}/session/${sid}/${mode}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message_id: messageId }),
+      })
+      if (!resp.ok) return false
+      await restoreSession(sid)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   /** Switch to a different existing session */
   async function switchSession(sid: string) {
     if (sessionId.value === sid) return sid
@@ -590,6 +610,7 @@ export function useForge() {
     pendingMessage: _pendingMessage,
     createSession,
     restoreSession,
+    branchTo,
     switchSession,
     clearSession,
     resume,

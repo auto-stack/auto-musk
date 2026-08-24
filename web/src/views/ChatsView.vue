@@ -178,6 +178,22 @@
                      : msg.role }}
               </span>
               <span class="msg-time">{{ formatTime(msg.timestamp) }}</span>
+              <!-- PLAN-043: branch switcher (siblings at this fork point) -->
+              <span v-if="siblingsOf(msg).length" class="branch-switcher" title="切换分支">
+                <button
+                  class="branch-btn"
+                  v-for="sib in siblingsOf(msg)"
+                  :key="sib.id"
+                  @click="switchBranch(sib.id)"
+                >⑂ {{ sib.role === 'user' ? sib.content.slice(0, 18) : sib.content.slice(0, 18) }}</button>
+              </span>
+              <!-- PLAN-043: retry from here (assistant messages) -->
+              <button
+                v-if="msg.role === 'assistant'"
+                class="retry-btn"
+                title="从这里重试"
+                @click="retryFrom(msg)"
+              >⑂ 重试</button>
             </div>
             <div class="message-content" :class="{ 'has-border': msg.role === 'assistant' && msg.content.length > 200 }">
               <span v-if="msg.role === 'assistant' && msg.content === '' && isStreamingMessage(msg)" class="typing-dots">
@@ -476,6 +492,7 @@ const {
   pendingSpecChanges,
   pendingMessage,
   resume,
+  branchTo,
   switchSession,
   clearSession,
   loadSessionList,
@@ -799,10 +816,63 @@ const projectName = computed(() => {
 })
 const textareaRef = ref<HTMLTextAreaElement>()
 
+// ── PLAN-043: session tree ─────────────────────────────────────────
+// Active path projection (mirrors chats.rs active_path): leaf→root chain +
+// linear prefix. Legacy sessions (no parent chain) fall back to all messages.
+const visibleMessages = computed(() => {
+  const msgs = messages.value
+  const leaf = session.value?.active_leaf
+  if (!leaf) return msgs
+  const idx = new Map(msgs.map((m, i) => [m.id, i]))
+  const li = idx.get(leaf)
+  if (li === undefined) return msgs
+  const chain: number[] = []
+  let cur = li
+  for (;;) {
+    const p = msgs[cur].parent_id
+    const pi = p ? idx.get(p) : undefined
+    if (pi === undefined || pi >= cur) break
+    chain.push(pi)
+    cur = pi
+  }
+  const anchor = chain.pop()
+  if (anchor === undefined) return msgs.slice(0, li + 1)
+  const out = msgs.slice(0, anchor + 1)
+  for (let i = chain.length - 1; i >= 0; i--) out.push(msgs[chain[i]])
+  return out
+})
+
+// Siblings of a visible message (same parent, other branches) — for the
+// branch switcher. Only meaningful once the session has any tree structure.
+function siblingsOf(msg: typeof messages.value[number]) {
+  const msgs = messages.value
+  if (!msgs.some((m) => m.parent_id)) return []
+  if (!msg.parent_id) return []
+  return msgs.filter((m) => m.parent_id === msg.parent_id && m.id !== msg.id)
+}
+
+async function switchBranch(targetId: string) {
+  await branchTo(targetId, 'navigate')
+}
+
+// "Retry from here" on an assistant message: fork at the user message that
+// produced it (its parent), prefill the composer with that prompt.
+async function retryFrom(msg: typeof messages.value[number]) {
+  const parent = messages.value.find((m) => m.id === msg.parent_id)
+  const prompt = parent?.role === 'user' ? parent.content : ''
+  const forkAt = parent?.id ?? msg.id
+  const ok = await branchTo(forkAt, 'fork')
+  if (ok && prompt) {
+    inputText.value = prompt
+    await nextTick()
+    textareaRef.value?.focus()
+  }
+}
+
 const filteredMessages = computed(() => {
   const q = chatSearch.value.trim().toLowerCase()
-  if (!q) return messages.value
-  return messages.value.filter((m) =>
+  if (!q) return visibleMessages.value
+  return visibleMessages.value.filter((m) =>
     m.content.toLowerCase().includes(q) ||
     m.role.toLowerCase().includes(q)
   )
@@ -2944,4 +3014,22 @@ onUnmounted(() => {
 .diff-editor:focus {
   border-color: hsl(var(--primary) / 0.4);
 }
+
+/* PLAN-043: branch switcher & retry */
+.branch-switcher { display: inline-flex; gap: 4px; margin-left: 4px; }
+.branch-btn {
+  font-size: 0.68rem; padding: 1px 6px; border-radius: 9999px;
+  border: 1px solid hsl(var(--border)); background: hsl(var(--muted-foreground) / 0.06);
+  color: hsl(var(--muted-foreground)); cursor: pointer; max-width: 140px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.branch-btn:hover { background: hsl(var(--muted-foreground) / 0.12); color: hsl(var(--foreground)); }
+.retry-btn {
+  font-size: 0.68rem; padding: 1px 8px; border-radius: 9999px;
+  border: 1px dashed hsl(var(--border)); background: transparent;
+  color: hsl(var(--muted-foreground)); cursor: pointer; opacity: 0;
+  transition: opacity 0.15s;
+}
+.message:hover .retry-btn { opacity: 1; }
+.retry-btn:hover { color: hsl(var(--foreground)); border-color: hsl(var(--foreground) / 0.4); }
 </style>

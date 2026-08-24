@@ -385,11 +385,15 @@ pub type ForgeMessage = {
     tool_calls: []str,
     profession_id: str,
     thinking: str,
+    // PLAN-043: 会话树父指针(None = 线性/旧数据)。
+    parent_id: str,
 }
 
 pub type ForgeSession = {
     id: str,
     project_path: str,
+    // PLAN-043: 活跃分支叶(消息 id;None = 线性)。
+    active_leaf: str,
     status: str,
     phase: str,
     messages: []ForgeMessage,
@@ -449,6 +453,17 @@ pub fn chats_delete_all_sessions() {
 
 #[api(method = "PATCH", path = "/api/chats/session/{id}")]
 pub fn chats_rename_session(id str, name str) {
+    return None
+}
+
+// PLAN-043: 会话树分支(fork/navigate 服务端同机制:切 active_leaf,不复制数据)。
+#[api(method = "POST", path = "/api/chats/session/{id}/fork")]
+pub fn chats_fork_session(id str, message_id str) SessionDetailResponse {
+    return None
+}
+
+#[api(method = "POST", path = "/api/chats/session/{id}/navigate")]
+pub fn chats_navigate_session(id str, message_id str) SessionDetailResponse {
     return None
 }
 

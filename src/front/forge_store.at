@@ -4,12 +4,14 @@
 // forge_stream.ts 逃生舱里，store 只管状态 + 简单调用，避开 codegen 对 store
 // handler 复杂控制流（嵌套 if/return/结构体字面量）的 parser 边界。
 
-use back.api: chats_list_sessions, chats_create_session, chats_get_session, chats_send_message, chats_approve, chats_reject_all
+use back.api: chats_list_sessions, chats_create_session, chats_get_session, chats_send_message, chats_approve, chats_reject_all, chats_fork_session, chats_navigate_session
 
 store ForgeStore {
     model {
         var session_id str = ""
         var messages []Value = []
+        // PLAN-043: 活跃分支叶（空 = 线性/旧数据）。
+        var active_leaf str = ""
         var session_list []Value = []
         var loading bool = false
         var error str = ""
@@ -76,6 +78,7 @@ store ForgeStore {
                     .session_id = .session_list[0].id;
                     let detail = chats_get_session(.session_id);
                     .messages = detail.session.messages
+                    .active_leaf = detail.session.active_leaf ?? ""
                 }
             }
         }
@@ -92,6 +95,42 @@ store ForgeStore {
             .session_id = id;
             let resp = chats_get_session(id);
             .messages = resp.session.messages
+            .active_leaf = resp.session.active_leaf ?? ""
+        }
+
+        // PLAN-043: 切换活跃分支（fork/navigate 同机制），随后重载会话。
+        .BranchTo(message_id str, mode str) -> {
+            let sid = .session_id
+            if sid == "" { return }
+            let resp = None
+            if mode == "fork" {
+                resp = chats_fork_session(sid, message_id)
+            } else {
+                resp = chats_navigate_session(sid, message_id)
+            }
+            let detail = chats_get_session(sid);
+            .messages = detail.session.messages
+            .active_leaf = detail.session.active_leaf ?? ""
+        }
+
+        // PLAN-043: 从指定 assistant 轮 fork 重试——fork 点为其父 user 消息,
+        // 预填输入框为该 user 消息内容。
+        .RetryFrom(msg Value) -> {
+            let pid = msg.parent_id ?? ""
+            let prompt = ""
+            if pid != "" {
+                for m in .messages {
+                    if m.id == pid {
+                        if m.role == "user" { prompt = m.content ?? "" }
+                    }
+                }
+            }
+            if prompt != "" {
+                .BranchTo(pid, "fork")
+                .current_draft = prompt
+            } else {
+                .BranchTo(msg.id, "fork")
+            }
         }
 
         .StreamStarted(sid) -> { .session_id = sid }

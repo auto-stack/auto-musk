@@ -1,16 +1,16 @@
 ---
 plan_id: PLAN-043
-status: drafting
+status: execution_done
 feature_name: 会话树分支——从任意轮 fork 重试、branchSummary、树导航（对齐 pi 单文件会话树模型）
 author: [zhaopuming]
 created_at: 2026-08-24
-updated_at: 2026-08-24
+updated_at: 2026-08-25
 
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 0
+current_step: 9
 total_steps: 9
 ---
 
@@ -50,6 +50,13 @@ pi 仓库本地克隆 `D:\github\pi`（main @ a1f955e9f）：
 | 树内导航的原地切换（不复制会话、不建新文件） | `packages/coding-agent/src/core/agent-session-runtime.ts`（会话/分支切换的 runtime 重建） | musk 对应：切 active_leaf 后下一请求按新路径 with_history |
 | 入口类型清单（message/model_change/compaction/branchSummary/custom…） | `packages/coding-agent/src/core/session-manager.ts` 的 SessionEntry 类型 | 参考哪些变更要留痕；musk 现有 TurnKind 已覆盖大部分 |
 | 树可视化与导航 UI | `packages/coding-agent/src/modes/interactive/components/`（session/tree 选择器） | Web 端对应：时间线分叉标记 + 分支切换器 |
+
+## 勘察记录（Phase 0，2026-08-25）
+
+1. **Turn.parent_id 现语义**：构造恒 None（conversation.rs:580 唯一赋值点），完全空闲——但见下条，树不落 ConversationStore。
+2. **双存储归属（关键修正）**：Chat 视图的消息流（显示与 with_history 上下文）都走 **ChatStore（chats.json）的 session.messages**（server.rs:560-580 由 messages 构建 history）；ConversationStore 是完成后双写的镜像（chat_message_to_turns → append_turn，供 conversation API/relay 语义）。**树功能落 ChatStore**：`ChatMessage.parent_id` + `ChatSession.active_leaf`（serde default，旧 jsonl 无这两个字段 → 线性退化）。ConversationStore 镜像保持线性 journal 不动（投影兼容 = 镜像照旧双写，树语义单源于 ChatStore）。
+3. **active_leaf 持久化位置**：ChatSession（chats.json）新增字段（原计划设想 meta.json 属 ConversationStore 侧，随第 2 项归属修正）。
+4. **压缩锚点共存（风险项勘察）**：musk 侧 with_history 喂的是 ChatStore 全量消息（server.rs:628），无 musk 侧压缩截断；auto-ai 压缩在 Memory 内部（锚点后截断）——树投影只改变喂入的消息序列，与压缩叠加无冲突（投影后的路径整体进 Memory，锚点机制照常）。
 
 ## 方案
 
@@ -93,17 +100,17 @@ pi 仓库本地克隆 `D:\github\pi`（main @ a1f955e9f）：
 
 ## 任务分解（9 步）
 
-1. Phase 0 勘察三项，结论写回本计划（占位节：勘察记录）。
+1. Phase 0 勘察三项，结论写回本计划（占位节：勘察记录）。**[✅ 2026-08-25]** 见「勘察记录」节——关键修正：树落 ChatStore（消息流与 with_history 均走 chats.json），Turn.parent_id 空闲但不用，ConversationStore 镜像保持线性。
 2. 树投影函数 `history_for_request`（含旧数据线性退化）+ 单测（分叉后两分支
-   各自路径正确、公共前缀只出现一次）。
-3. meta.json `active_leaf` 持久化 + 加载兼容。
-4. fork 端点 + 单测（fork 后旧分支只读保留、新分支追加落在新支）。
-5. navigate 端点 + 单测（切换后 with_history 路径变化、turns.jsonl 无重写）。
-6. tree 查询端点（节点投影 + 分支摘要行）。
-7. branchSummary（可选档）：离开分支摘要生成与路径注入 + 设置开关。
-8. 前端：分叉标记 / 分支切换器 / "从这里重试"交互 + SSE 树变更刷新。
+   各自路径正确、公共前缀只出现一次）。**[✅ 2026-08-25]** 实现为 ChatSession::active_path/history_pairs（chats.rs）；chat_run_stream（ag 轨）与 hw server.rs 两处 history 构建换用投影；6 单测含两分支独立/公共前缀一次/旧数据退化。
+3. meta.json `active_leaf` 持久化 + 加载兼容。**[✅ 2026-08-25]** 随勘察修正落在 ChatSession.active_leaf（chats.json，serde default 兼容旧数据）；ConversationStore meta.json 不动。
+4. fork 端点 + 单测（fork 后旧分支只读保留、新分支追加落在新支）。**[✅ 2026-08-25]** chat_branch.rs hw 路由（/api/plans hw 先例）；集成测试 parity_chat_branch：append-only 断言（旧消息 id/内容/parent 逐字段不变）+ 新消息 parent=fork 点。
+5. navigate 端点 + 单测（切换后 with_history 路径变化、turns.jsonl 无重写）。**[✅ 2026-08-25]** 与 fork 同机制（set_active_leaf）；测试断言切换后 history_pairs 路径变化 + 旧消息不变（ChatStore 整文件持久化，等价"不重写"）。
+6. tree 查询端点（节点投影 + 分支摘要行）。**[✅ 2026-08-25]** GET tree：节点含 children/on_active_path/preview（60 字符摘要行）。
+7. branchSummary（可选档）：离开分支摘要生成与路径注入 + 设置开关。**[⏸ 递延，见待澄清 #1]**
+8. 前端：分叉标记 / 分支切换器 / "从这里重试"交互 + SSE 树变更刷新。**[✅ 2026-08-25，双轨]** web（ChatsView visibleMessages 投影 + branchTo + 切换器/hover 重试按钮）与 gen（chats_view.at + forge_store.at BranchTo/RetryFrom + forge_helpers.at chatActivePath/chatSiblings + api.at fork/navigate 契约）；auto build 29 组件 + 双端 vue-tsc/vite build 绿。**简化**：树变更刷新走同客户端直接响应（restoreSession 重载），跨标签 SSE 刷新未做（见待澄清 #2）。
 9. 回归：`cargo test` + 前端 vitest + 手工冒烟（fork→两分支各自对话→切换→
-   刷新后树仍在）。
+   刷新后树仍在）。**[✅ 自动化]** cargo lib+集成 611 通过 0 失败；双前端 build 绿。**手工冒烟留待用户**（浏览器 webview 本环境无法挂载，见 KNOWN-DEBT W2 条）；vitest 套件仍在 web/（2 存量套件，迁 gen 属 PLAN-041 T13 范围）。
 
 ## 验收标准
 
@@ -112,6 +119,18 @@ pi 仓库本地克隆 `D:\github\pi`（main @ a1f955e9f）：
 - 旧会话（无 parent 的线性 jsonl）加载、对话、追加行为与改造前逐项一致。
 - turns.jsonl 只追加、永不重写（文件级断言：fork/navigate 前后旧行字节不变）。
 - 树查询响应规模可控（长会话下节点投影有截断/摘要行）。
+
+
+## 待澄清事项
+
+1. **T7 branchSummary 递延（2026-08-25）**：计划自身定性为"可选增强，默认关"
+   （成本敏感）。实现需独立 LLM 摘要调用（复用 auto-ai compact 链路 vs musk
+   本地简化模板，二选一未裁定）+ 设置开关的存储位置（ChatSession 字段 vs
+   modes 设置）。分支原样可回看的核心体验（fork/navigate/tree）已全量交付，
+   摘要属恢复成本优化——建议用户裁定摘要链路后作为独立小任务承接。
+2. **跨标签 SSE 树变更刷新未做**（T8 简化）：当前 fork/navigate 后经
+   restoreSession 同客户端刷新；多标签同时打开同一会话的场景未推送。若需要，
+   沿 PLAN-040 ToolUpdate 的 broadcast 模式补一个 tree_changed 轻事件。
 
 ## 风险
 

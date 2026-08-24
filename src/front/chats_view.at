@@ -66,10 +66,17 @@ widget ChatsView {
 
     // Plan 028 T15：搜索过滤（原 useChatSearch composable → F2 多参 fn 直调）
     computed {
-        filteredMessages => chatSearchFilter(.store.messages, .chat_search)
+        // PLAN-043: 先按活跃路径投影再套搜索过滤。
+        filteredMessages => chatSearchFilter(chatActivePath(.store.messages, .store.active_leaf), .chat_search)
         lastMsgId => chatLastMessageId(.filteredMessages)
     }
 
+    style {
+.branch-row { display: flex; gap: 4px; margin: 0 0 2px 0; }
+.branch-btn { font-size: 11px; padding: 1px 8px; border-radius: 9999px; border: 1px solid hsl(var(--border)); background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.retry-btn { font-size: 11px; padding: 1px 8px; border-radius: 9999px; border: 1px dashed hsl(var(--border)); background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer; }
+.retry-btn:hover { color: hsl(var(--foreground)); }
+    }
     view {
         row {
             style: "chats-view"
@@ -179,6 +186,24 @@ widget ChatsView {
                     for msg in .filteredMessages {
                         col {
                             key: .msg.id
+                            // PLAN-043: 同分叉点的兄弟分支切换器 + assistant 轮"从这里重试"。
+                            row {
+                                style: "branch-row"
+                                for sib in chatSiblings(.store.messages, .msg) {
+                                    button {
+                                        style: "branch-btn"
+                                        text "⑂ " + (sib.content ?? "").slice(0, 18)
+                                        onclick: .BranchTo(sib.id, "navigate")
+                                    }
+                                }
+                                if .msg.role == "assistant" {
+                                    button {
+                                        style: "retry-btn"
+                                        text "⑂ 重试"
+                                        onclick: .RetryFrom(.msg)
+                                    }
+                                }
+                            }
                             // ChatMessage 独立组件：有序 block 流（文本/思考/工具），
                             // 工具卡随 block 内联渲染（不再后置循环）。
                             ChatMessage {

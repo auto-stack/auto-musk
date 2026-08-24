@@ -8,6 +8,8 @@ export interface ForgeMessage {
   tool_calls?: ToolCallInfo[]
   profession_id?: string
   thinking?: string
+  /** PLAN-043: session-tree parent (None = linear/legacy). */
+  parent_id?: string | null
 }
 
 export interface SpecChange {
@@ -34,6 +36,8 @@ export interface ForgeSession {
   current_phase_index?: number | null
   phase_history?: PhaseHistoryEntry[]
   active_profession?: string
+  /** PLAN-043: active branch leaf message id. */
+  active_leaf?: string | null
 }
 
 export interface ForgeStreamEvent {
