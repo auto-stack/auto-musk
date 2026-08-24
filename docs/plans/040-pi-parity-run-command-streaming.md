@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-040
-status: executing
+status: execution_done
 feature_name: run_command 对齐 pi bash——tokio 流式输出、超时、进程树终止、尾部截断+临时文件、ToolUpdate SSE 实时进度与 CommandRunner 接缝
 author: [zhaopuming]
 created_at: 2026-08-23
@@ -131,6 +131,10 @@ PLAN-026 独立推进，两轨将来在 relay 桥接层合流）。
    [✅ 已完成·轻量] progress 通道存在时注入 MUSK_SESSION_ID(pi PI_* 对应,chat 场景
    =session_id/relay=run_id);无订阅(测试/CLI)不注入。测试:注入/不注入双向断言。
 10. 回归：`cargo test` + 手工冒烟（长输出命令、超时命令、非零退出、PAUSED 流程）。
+   [✅ 已完成] 全量 cargo test 31 target 全绿(含本计划新增:accumulator 13+runner 8+
+   tool_context 2+tools 组 12);10MB 验收冒烟(cargo test -- --ignored):上下文 60KB
+   内含尾注+临时文件精确 10MB,0.19s;超时/非零退出/PAUSED 由常驻测试覆盖;前端
+   vue-tsc 0 错误 + vite build 成功。
 
 ## 验收标准
 

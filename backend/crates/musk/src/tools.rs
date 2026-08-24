@@ -1375,6 +1375,34 @@ mod tests {
         assert!(!without.contains("sess-t9"), "not injected without progress: {without}");
     }
 
+    /// PLAN-040 T10 验收冒烟(10MB):`--ignored` 手动跑。上下文 ≤50KB 尾部
+    /// + 完整输出在临时文件(路径随尾注)。
+    #[tokio::test]
+    #[ignore = "PLAN-040 acceptance smoke: cargo test -p musk -- --ignored"]
+    async fn run_command_smoke_10mb_output() {
+        let ten_mb = "x".repeat(10 * 1024 * 1024);
+        let p = write_fixture(".test-tmp/musk_smoke_10mb.txt", &ten_mb);
+        let cmd = if cfg!(windows) {
+            format!("type {}", p.replace('/', "\\"))
+        } else {
+            format!("cat {p}")
+        };
+        let started = std::time::Instant::now();
+        let out = RunCommand::new().execute(&json!({"cmd": cmd})).await.unwrap();
+        assert!(out.len() < 60_000, "context sees ≤50KB tail + note, got {}", out.len());
+        assert!(out.contains("Full output: "), "note carries temp path");
+        let path = out
+            .split("Full output: ")
+            .nth(1)
+            .and_then(|s| s.trim().trim_end_matches(']').trim().parse::<std::path::PathBuf>().ok())
+            .unwrap();
+        let on_disk = std::fs::metadata(&path).unwrap().len();
+        assert_eq!(on_disk, 10 * 1024 * 1024, "full output persisted");
+        let _ = std::fs::remove_file(&p);
+        let _ = std::fs::remove_file(&path);
+        eprintln!("10MB smoke done in {:?}", started.elapsed());
+    }
+
     // ── EditFile ───────────────────────────────────────────────
 
     #[tokio::test]
