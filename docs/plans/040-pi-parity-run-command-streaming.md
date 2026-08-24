@@ -107,6 +107,13 @@ PLAN-026 独立推进，两轨将来在 relay 桥接层合流）。
    partial 折叠渲染(flex 贴底);useRelay if 链未知类型忽略。ProgressSink 单测 2/2 绿。
 3. `CommandRunner` trait + `LocalRunner`（tokio 流式读、进程组、超时杀树）+ 单测
    （sleep 超时、子进程孤儿清理）。
+   [✅ 已完成] (复审补记:初次标记因全角括号替换未命中而丢失,工作与证据在
+   commit c764b6a)command_runner.rs:ExecOptions(on_data/timeout/env)+ExecOutcome
+   (combined/exit_code/timed_out)+trait;LocalRunner 双读任务流式拉取+合并通道,
+   wait 与 drain **并发 join**(串行在大输出下死锁——管道写满阻塞子进程,实测修复),
+   超时 kill_process_tree(Win taskkill /F /T;Unix process_group(0)+killpg,libc 仅
+   unix 依赖);tokio features 补 process/time/io-util。8/8 测试绿(含 T7 补充的
+   Windows 树杀实测)。
 4. `run_command` 重写接 runner + 累积器 + 截断尾注 + 退出码语义。
    [✅ 已完成] tools.rs RunCommand 重写:timeout 参数(pi resolveTimeoutMs 校验:
    >0 有限/上限 i32::MAX ms)→ LocalRunner.exec(on_data:累积器 append+100ms 节流
@@ -198,6 +205,12 @@ PLAN-026 独立推进，两轨将来在 relay 桥接层合流）。
 - **DEBT-040-2**:Windows `taskkill /T` 覆盖多数场景;若未来发现漏网进程(跨控制台分离),按计划风险节评估 Job Object 兜底。
 - **DEBT-040-3**:Unix 侧 killpg 逻辑无运行验证(仅代码审查;开发 host 为 Windows)。
 - **DEBT-040-4**:`01-architecture.md` 的 "RunEvent(16)" 计数与 tool_context 行已过时——由 /auto-plan:merge 按 supersedes 元数据更新。
+
+### 二次复审补记(2026-08-24,用户显式重跑 /auto-plan:review)
+
+- 状态确认:reviewed @ aa6469a 后工作树干净、无代码漂移,验收判定与元数据有效。
+- 复审修复一处账面缺陷:任务 3 的 `[✅ 已完成]` 标记在执行期因全角括号替换未命中
+  静默丢失(10/9)——工作与证据本就在(commit c764b6a,8/8 测试),已补记,10/10。
 
 ### 结论
 
