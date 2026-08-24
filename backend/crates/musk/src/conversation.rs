@@ -122,6 +122,9 @@ pub struct ToolRecord {
     pub result: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_id: Option<String>,
+    /// PLAN-042:工具结构化载荷（edit diff / 截断信息），刷新回放仍可渲染。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -196,6 +199,7 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
                 args: tc.args.clone(),
                 result: String::new(),
                 tool_id: None,
+                details: None,
             }),
             gate: None,
             child_conversation: None,
@@ -214,6 +218,7 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
                 args: serde_json::Value::Null,
                 result: tc.result.clone(),
                 tool_id: None,
+                details: None,
             }),
             gate: None,
             child_conversation: None,
@@ -313,6 +318,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
                     args: arguments.clone(),
                     result: String::new(),
                     tool_id: None,
+                    details: None,
                 }),
                 gate: None,
                 child_conversation: None,
@@ -324,6 +330,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
         RunEvent::TurnToolResult {
             role_id,
             result,
+            details,
             ..
         } => {
             turns.push(Turn {
@@ -338,6 +345,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
                     args: serde_json::Value::Null,
                     result: result.clone(),
                     tool_id: None,
+                    details: details.clone(),
                 }),
                 gate: None,
                 child_conversation: None,
@@ -1281,6 +1289,7 @@ mod tests {
             role_id: "coder".into(),
             tool_id: "t1".into(),
             result: "contents".into(),
+            details: None,
         };
         let call_turns = run_event_to_turns(&call, 0);
         assert_eq!(call_turns.len(), 1);

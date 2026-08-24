@@ -92,6 +92,7 @@ fn parity_turn_wire_format() {
             args: serde_json::json!({"path": "x"}),
             result: "ok".into(),
             tool_id: Some("tc-1".into()),
+            details: None,
         }),
         gate: Some(hw::GateRecord {
             step_id: "s1".into(),
@@ -114,6 +115,7 @@ fn parity_turn_wire_format() {
             args: serde_json::json!({"path": "x"}),
             result: "ok".into(),
             tool_id: Some("tc-1".into()),
+            details: None,
         }),
         gate: Some(ag::GateRecord {
             step_id: "s1".into(),

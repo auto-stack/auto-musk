@@ -110,6 +110,8 @@ pub type ToolRecord {
     result str
     #[serde(default, skip_serializing_if = "Option::is_none")]
     tool_id Option<str>
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    details Option<Value>
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -263,7 +265,7 @@ pub fn chat_message_to_turns(msg ChatMessage, seq_base uint) List<Turn> {
             to_role: None,
             kind: TurnKind.ToolCall,
             content: "",
-            tool: Some(ToolRecord(name: tc.tool.clone(), args: tc.args.clone(), result: "", tool_id: None)),
+            tool: Some(ToolRecord(name: tc.tool.clone(), args: tc.args.clone(), result: "", tool_id: None, details: None)),
             gate: None,
             child_conversation: None,
             tokens: None,
@@ -278,7 +280,7 @@ pub fn chat_message_to_turns(msg ChatMessage, seq_base uint) List<Turn> {
             to_role: None,
             kind: TurnKind.ToolResult,
             content: "",
-            tool: Some(ToolRecord(name: tc.tool.clone(), args: null_value(), result: tc.result.clone(), tool_id: None)),
+            tool: Some(ToolRecord(name: tc.tool.clone(), args: null_value(), result: tc.result.clone(), tool_id: None, details: None)),
             gate: None,
             child_conversation: None,
             tokens: None,

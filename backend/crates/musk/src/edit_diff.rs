@@ -135,6 +135,18 @@ struct MatchedEdit {
 pub struct AppliedEdits {
     pub base_content: String,
     pub new_content: String,
+    /// 替换组的行区间(LF 规范化空间,行 = split_inclusive('\n') 口径,0 基
+    /// [start, end);相邻/重叠的替换合并为一组)。PLAN-042 details 的数据源。
+    pub replaced_groups: Vec<ReplacedGroup>,
+}
+
+/// 一个替换组在新旧内容中的行区间(PLAN-042)。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplacedGroup {
+    pub base_start: usize,
+    pub base_end: usize,
+    pub new_start: usize,
+    pub new_end: usize,
 }
 
 // ── 五类自愈报错(pi 错误构造函数,文案语义照抄)─────────────────────
@@ -319,25 +331,81 @@ pub fn apply_edits_to_normalized_content(
         }
     }
 
-    // 6. 应用:模糊 → 行级保留;纯精确 → 直接一趟拼接。
+    // 6. 替换组行区间（相邻/重叠合并）——模糊路径的行组重写与 PLAN-042 的
+    //    diff 渲染共用同一分组。
     let new_texts: Vec<String> = normalized_edits.iter().map(|e| e.new_string.clone()).collect();
+    let spans = line_spans(&replacement_base);
+    let groups = group_replacements(&spans, &matched)?;
+
+    // 每组新文本行数：组内替换应用于组切片（组边界 = 匹配区间并集，两条
+    // 应用路径的组产物与此一致），据此换算新内容中的对应行区间。
+    let mut replaced_groups: Vec<ReplacedGroup> = Vec::with_capacity(groups.len());
+    let mut delta: isize = 0;
+    for (s, e, reps) in &groups {
+        let group_start = spans[*s].start;
+        let group_end = spans[e - 1].end;
+        let group_new = apply_replacements(
+            &replacement_base[group_start..group_end],
+            reps,
+            &new_texts,
+            group_start,
+        );
+        let new_len = if group_new.is_empty() { 0 } else { group_new.split_inclusive('\n').count() };
+        let base_len = e - s;
+        let new_start = (*s as isize + delta) as usize;
+        replaced_groups.push(ReplacedGroup {
+            base_start: *s,
+            base_end: *e,
+            new_start,
+            new_end: new_start + new_len,
+        });
+        delta += new_len as isize - base_len as isize;
+    }
+
+    // 7. 应用:模糊 → 行级保留;纯精确 → 直接一趟拼接。
     let new_content = if used_fuzzy {
         apply_replacements_preserving_unchanged_lines(
             normalized_content,
             &replacement_base,
-            &matched,
+            &groups,
             &new_texts,
         )?
     } else {
         apply_replacements(&replacement_base, &matched, &new_texts, 0)
     };
 
-    // 7. 无变化拒绝。
+    // 8. 无变化拒绝。
     if normalized_content == new_content {
         return Err(no_change_error(path, total));
     }
 
-    Ok(AppliedEdits { base_content: normalized_content.to_string(), new_content })
+    Ok(AppliedEdits {
+        base_content: normalized_content.to_string(),
+        new_content,
+        replaced_groups,
+    })
+}
+
+/// 按触达行分组合并（相邻/重叠的替换进同一组），返回 (start, end, 组内替换)。
+fn group_replacements(
+    spans: &[LineSpan],
+    replacements: &[MatchedEdit],
+) -> Result<Vec<(usize, usize, Vec<MatchedEdit>)>, String> {
+    let mut sorted: Vec<MatchedEdit> = replacements.to_vec();
+    sorted.sort_by_key(|r| r.match_index);
+    let mut groups: Vec<(usize, usize, Vec<MatchedEdit>)> = Vec::new();
+    for r in sorted {
+        let range = replacement_line_range(spans, r.match_index, r.match_length)?;
+        if let Some(cur) = groups.last_mut() {
+            if range.0 < cur.1 {
+                cur.1 = cur.1.max(range.1);
+                cur.2.push(r);
+                continue;
+            }
+        }
+        groups.push((range.0, range.1, vec![r]));
+    }
+    Ok(groups)
 }
 
 /// pi `applyReplacementsPreservingUnchangedLines`:以行组为单位应用替换,
@@ -345,7 +413,7 @@ pub fn apply_edits_to_normalized_content(
 fn apply_replacements_preserving_unchanged_lines(
     original_content: &str,
     base_content: &str,
-    replacements: &[MatchedEdit],
+    groups: &[(usize, usize, Vec<MatchedEdit>)],
     new_texts: &[String],
 ) -> Result<String, String> {
     let original_lines: Vec<&str> = original_content.split_inclusive('\n').collect();
@@ -358,25 +426,9 @@ fn apply_replacements_preserving_unchanged_lines(
         );
     }
 
-    // 按触达行分组合并(相邻/重叠的替换进同一组)。
-    let mut sorted: Vec<MatchedEdit> = replacements.to_vec();
-    sorted.sort_by_key(|r| r.match_index);
-    let mut groups: Vec<(usize, usize, Vec<MatchedEdit>)> = Vec::new();
-    for r in sorted {
-        let range = replacement_line_range(&base_spans, r.match_index, r.match_length)?;
-        if let Some(cur) = groups.last_mut() {
-            if range.0 < cur.1 {
-                cur.1 = cur.1.max(range.1);
-                cur.2.push(r);
-                continue;
-            }
-        }
-        groups.push((range.0, range.1, vec![r]));
-    }
-
     let mut result = String::new();
     let mut orig_idx = 0usize;
-    for (start_line, end_line, reps) in &groups {
+    for (start_line, end_line, reps) in groups.iter() {
         // 未触达行:原始字节原样复制。
         result.push_str(&original_lines[orig_idx..*start_line].concat());
         // 触达行组:从规范化 base 切片重写(替换偏移相对组起点)。
@@ -392,6 +444,102 @@ fn apply_replacements_preserving_unchanged_lines(
     }
     result.push_str(&original_lines[orig_idx..].concat());
     Ok(result)
+}
+
+// ── PLAN-042:edit details（diff 展示 + unified patch）──────────────────
+
+/// edit_file 的 details 载荷（语义对齐 pi `EditToolDetails`）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EditDetails {
+    /// 行号标注的展示 diff（±context 行上下文；格式 `+N line`/`-N line`/
+    /// ` N line`，省略行以 ` N ...` 标记——pi `generateDiffString` 同款）。
+    pub diff: String,
+    /// 标准 unified diff（`--- a/path` / `+++ b/path` + `@@` hunk）。
+    pub patch: String,
+    /// 新文件中首个改动行的行号（1 基，编辑器跳转用；无替换组时 None）。
+    pub first_changed_line: Option<usize>,
+}
+
+/// 由 [`AppliedEdits::replaced_groups`] 生成展示 diff 与 unified patch。
+/// base/new 均为 LF 规范化空间（与 apply 相同），path 仅入 patch 头。
+pub fn generate_edit_diff(
+    path: &str,
+    base: &str,
+    new: &str,
+    groups: &[ReplacedGroup],
+    context: usize,
+) -> EditDetails {
+    let mut base_lines: Vec<&str> = base.split('\n').collect();
+    if base_lines.last() == Some(&"") {
+        base_lines.pop();
+    }
+    let mut new_lines: Vec<&str> = new.split('\n').collect();
+    if new_lines.last() == Some(&"") {
+        new_lines.pop();
+    }
+    let width = base_lines.len().max(new_lines.len()).to_string().len();
+    let pad = |n: usize| format!("{n:>width$}");
+
+    // ── 展示 diff（pi generateDiffString 的行号标注格式）─────────────
+    let mut out: Vec<String> = Vec::new();
+    let mut shown_until = 0usize; // base 行 [0, shown_until) 已输出
+    for (i, g) in groups.iter().enumerate() {
+        let next_start = groups.get(i + 1).map(|n| n.base_start).unwrap_or(base_lines.len());
+        let ctx_start = g.base_start.saturating_sub(context).max(shown_until);
+        if ctx_start > shown_until && !out.is_empty() {
+            out.push(format!("{} ...", " ".repeat(width + 1)));
+        }
+        for ln in ctx_start..g.base_start {
+            out.push(format!(" {} {}", pad(ln + 1), base_lines[ln]));
+        }
+        for ln in g.base_start..g.base_end {
+            out.push(format!("-{} {}", pad(ln + 1), base_lines[ln]));
+        }
+        for ln in g.new_start..g.new_end {
+            out.push(format!("+{} {}", pad(ln + 1), new_lines[ln]));
+        }
+        let ctx_end = (g.base_end + context).min(next_start);
+        for ln in g.base_end..ctx_end {
+            out.push(format!(" {} {}", pad(ln + 1), base_lines[ln]));
+        }
+        shown_until = ctx_end;
+    }
+
+    // ── unified patch（逐组一个 hunk；组间上下文经 next_start 裁剪不重叠）──
+    fn trim(s: &str) -> &str {
+        s.trim_end_matches('\n')
+    }
+    let mut patch = format!("--- a/{path}\n+++ b/{path}\n");
+    for (i, g) in groups.iter().enumerate() {
+        let next_start = groups.get(i + 1).map(|n| n.base_start).unwrap_or(base_lines.len());
+        let ctx_start = g.base_start.saturating_sub(context);
+        let ctx_end = (g.base_end + context).min(next_start);
+        let old_count = ctx_end - ctx_start;
+        let new_count =
+            old_count - (g.base_end - g.base_start) + (g.new_end - g.new_start);
+        // 空区间(计数 0)的标准写法是"位于其后"，即 1 基起点为 ctx_start 本身。
+        let old_start = if old_count == 0 { ctx_start } else { ctx_start + 1 };
+        let new_start = if new_count == 0 { g.new_start } else { g.new_start - (g.base_start - ctx_start) + 1 };
+        patch.push_str(&format!("@@ -{old_start},{old_count} +{new_start},{new_count} @@\n"));
+        for ln in ctx_start..g.base_start {
+            patch.push_str(&format!(" {}\n", trim(base_lines[ln])));
+        }
+        for ln in g.base_start..g.base_end {
+            patch.push_str(&format!("-{}\n", trim(base_lines[ln])));
+        }
+        for ln in g.new_start..g.new_end {
+            patch.push_str(&format!("+{}\n", trim(new_lines[ln])));
+        }
+        for ln in g.base_end..ctx_end {
+            patch.push_str(&format!(" {}\n", trim(base_lines[ln])));
+        }
+    }
+
+    EditDetails {
+        diff: out.join("\n"),
+        patch,
+        first_changed_line: groups.first().map(|g| g.new_start + 1),
+    }
 }
 
 #[cfg(test)]
@@ -593,5 +741,103 @@ mod tests {
         )
         .unwrap_err();
         assert!(e.contains("2 occurrences"), "{e}");
+    }
+
+    // ── PLAN-042:替换组区间 + diff/patch 生成 ────────────────────────
+
+    #[test]
+    fn replaced_groups_single_edit_ranges() {
+        let r = apply_edits_to_normalized_content(
+            "one\ntwo\nthree\n",
+            &[Edit::new("two", "TWO")],
+            "f.txt",
+        )
+        .unwrap();
+        assert_eq!(
+            r.replaced_groups,
+            vec![ReplacedGroup { base_start: 1, base_end: 2, new_start: 1, new_end: 2 }]
+        );
+        let d = generate_edit_diff("f.txt", &r.base_content, &r.new_content, &r.replaced_groups, 4);
+        assert_eq!(d.diff, " 1 one\n-2 two\n+2 TWO\n 3 three");
+        assert_eq!(d.first_changed_line, Some(2));
+        assert!(d.patch.contains("--- a/f.txt"), "{}", d.patch);
+        assert!(d.patch.contains("@@ -1,3 +1,3 @@"), "{}", d.patch);
+        assert!(d.patch.contains("-two\n+TWO"), "{}", d.patch);
+    }
+
+    #[test]
+    fn replaced_groups_multiline_insert_shifts_later_groups() {
+        // 前组扩一行、后组行号随之 +1;纯精确路径(无模糊)。
+        let base = "a\nb\nc\nd\ne\nf\ng\n";
+        let r = apply_edits_to_normalized_content(
+            base,
+            &[Edit::new("b", "B1\nB2"), Edit::new("f", "F")],
+            "f.txt",
+        )
+        .unwrap();
+        assert_eq!(
+            r.replaced_groups,
+            vec![
+                ReplacedGroup { base_start: 1, base_end: 2, new_start: 1, new_end: 3 },
+                ReplacedGroup { base_start: 5, base_end: 6, new_start: 6, new_end: 7 },
+            ]
+        );
+        let d = generate_edit_diff("f.txt", &r.base_content, &r.new_content, &r.replaced_groups, 1);
+        // 上下文 1:两组间有省略号;后组 +行号 = 新内容行号(7)。
+        assert!(
+            d.diff.lines().any(|l| l.starts_with('+') && l.contains('F')),
+            "{}",
+            d.diff
+        );
+        assert_eq!(d.first_changed_line, Some(2));
+    }
+
+    #[test]
+    fn generate_diff_distant_edits_show_ellipsis() {
+        let base: String = (1..=20).map(|i| format!("line{i}\n")).collect();
+        let r = apply_edits_to_normalized_content(
+            &base,
+            &[Edit::new("line2
+", "LINE2
+"), Edit::new("line18
+", "LINE18
+")],
+            "f.txt",
+        )
+        .unwrap();
+        let d = generate_edit_diff("f.txt", &r.base_content, &r.new_content, &r.replaced_groups, 4);
+        assert!(d.diff.contains(" ..."), "ellipsis between distant groups: {}", d.diff);
+        assert!(d.diff.starts_with("  1 line1"), "{}", d.diff);
+        assert!(d.diff.ends_with(" 20 line20"), "{}", d.diff);
+        // patch 两 hunk,头尾行号正确。
+        assert_eq!(d.patch.matches("@@ -").count(), 2, "{}", d.patch);
+        assert!(d.patch.contains("@@ -1,6 +1,6 @@"), "{}", d.patch);
+        assert!(d.patch.contains("@@ -14,7 +14,7 @@"), "{}", d.patch);
+    }
+
+    #[test]
+    fn generate_diff_deletion_group() {
+        let r = apply_edits_to_normalized_content(
+            "keep\ndrop\nkeep2\n",
+            &[Edit::new("drop\n", "")],
+            "f.txt",
+        )
+        .unwrap();
+        let d = generate_edit_diff("f.txt", &r.base_content, &r.new_content, &r.replaced_groups, 4);
+        assert!(d.diff.contains("-2 drop"), "{}", d.diff);
+        assert_eq!(d.first_changed_line, Some(2));
+        assert!(d.patch.contains("@@ -1,3 +1,2 @@"), "{}", d.patch);
+    }
+
+    #[test]
+    fn generate_diff_no_trailing_newline() {
+        let r = apply_edits_to_normalized_content(
+            "x\ny",
+            &[Edit::new("y", "z")],
+            "f.txt",
+        )
+        .unwrap();
+        let d = generate_edit_diff("f.txt", &r.base_content, &r.new_content, &r.replaced_groups, 4);
+        assert_eq!(d.diff, " 1 x\n-2 y\n+2 z");
     }
 }

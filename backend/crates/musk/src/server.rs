@@ -1938,6 +1938,18 @@ mod tests {
         assert_eq!(v["arguments"]["path"], "/tmp/x");
         assert_eq!(v["result"], "ok");
         assert_eq!(v["status"], "success");
+        assert!(v["details"].is_null(), "None 序列化为 null（前端可忽略）");
+
+        // PLAN-042:details（UI 载荷）原样透传进 SSE。
+        let tool = StreamEvent::Tool {
+            tool: "edit_file".into(),
+            args: json!({"path": "/tmp/x"}),
+            result: "done".into(),
+            details: Some(json!({"diff": "-2 old\n+2 new", "first_changed_line": 2})),
+        };
+        let v = stream_event_to_json(&tool, Some("tc-2"));
+        assert_eq!(v["details"]["diff"], "-2 old\n+2 new");
+        assert_eq!(v["details"]["first_changed_line"], 2);
     }
 
     /// (1b) Delta/Warning/Error 走 `type` 字段,无 id(只有 tool 事件配对)。

@@ -68,7 +68,7 @@ pub enum RunEvent {
     RelayUpdate { timestamp: u64, step_id: String, role_id: String, status: String },
     TurnDelta { timestamp: u64, role_id: String, text: String },
     TurnToolCall { timestamp: u64, role_id: String, tool_id: String, tool_name: String, arguments: Value },
-    TurnToolResult { timestamp: u64, role_id: String, tool_id: String, result: String },
+    TurnToolResult { timestamp: u64, role_id: String, tool_id: String, result: String, #[serde(default, skip_serializing_if = "Option::is_none")] details: Option<Value> },
     TurnComplete { timestamp: u64, role_id: String },
     TurnError { timestamp: u64, role_id: String, message: String },
     TurnBudgetWarning { timestamp: u64, role_id: String, remaining: u64 },

@@ -56,7 +56,7 @@ pub tag RunEvent {
     RelayUpdate { timestamp u64, step_id str, role_id str, status str }
     TurnDelta { timestamp u64, role_id str, text str }
     TurnToolCall { timestamp u64, role_id str, tool_id str, tool_name str, arguments Value }
-    TurnToolResult { timestamp u64, role_id str, tool_id str, result str }
+    TurnToolResult { timestamp u64, role_id str, tool_id str, result str, #[serde(default, skip_serializing_if = "Option::is_none")] details Option<Value> }
     TurnComplete { timestamp u64, role_id str }
     TurnError { timestamp u64, role_id str, message str }
     TurnBudgetWarning { timestamp u64, role_id str, remaining u64 }

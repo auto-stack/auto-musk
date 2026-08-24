@@ -218,7 +218,7 @@ async fn run_step(
                 tool,
                 args,
                 result,
-                details: _,
+                details,
             } => {
                 store.push_event(
                     &run_id_owned,
@@ -237,6 +237,8 @@ async fn run_step(
                         role_id: profession_owned.clone(),
                         tool_id: String::new(),
                         result: result.clone(),
+                        // PLAN-042:结构化载荷透传(run events SSE + 会话回放)。
+                        details: details.clone(),
                     },
                 );
             }

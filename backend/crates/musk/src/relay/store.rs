@@ -68,6 +68,10 @@ pub enum RunEvent {
         role_id: String,
         tool_id: String,
         result: String,
+        /// PLAN-042:工具结构化载荷(edit diff / 截断信息 / 全量输出路径)。
+        /// 旧事件回放serde default 兜底;不进 LLM 上下文(仅前端消费)。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        details: Option<serde_json::Value>,
     },
     TurnComplete { #[serde(default)] timestamp: u64, role_id: String },
     TurnError { #[serde(default)] timestamp: u64, role_id: String, message: String },

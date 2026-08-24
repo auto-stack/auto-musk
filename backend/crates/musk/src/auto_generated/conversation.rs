@@ -168,6 +168,8 @@ pub struct ToolRecord {
     pub result: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<Value>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -290,10 +292,10 @@ pub fn chat_message_to_turns(mut msg: ChatMessage, seq_base: u32) -> Vec<Turn> {
     let mut i: u32 = 0;
     for tc in msg.tool_calls.clone() {
         let tc_id: String = format!("{}{}", format!("{}{}", msg.id.clone(), "-tc"), i);
-        let tc_turn: Turn = Turn { id: tc_id.to_string(), seq: seq_base + ((turns.len() as i32) as u32), from: from.clone().to_string(), to_role: None, kind: TurnKind::ToolCall, content: "".to_string(), tool: Some(ToolRecord { name: tc.tool.clone().to_string(), args: tc.args.clone(), result: "".to_string(), tool_id: None }), gate: None, child_conversation: None, tokens: None, timestamp: msg.created_at };
+        let tc_turn: Turn = Turn { id: tc_id.to_string(), seq: seq_base + ((turns.len() as i32) as u32), from: from.clone().to_string(), to_role: None, kind: TurnKind::ToolCall, content: "".to_string(), tool: Some(ToolRecord { name: tc.tool.clone().to_string(), args: tc.args.clone(), result: "".to_string(), tool_id: None, details: None }), gate: None, child_conversation: None, tokens: None, timestamp: msg.created_at };
         turns.push(tc_turn.clone());
         let tr_id: String = format!("{}{}", format!("{}{}", msg.id.clone(), "-tr"), i);
-        let tr_turn: Turn = Turn { id: tr_id.to_string(), seq: seq_base + ((turns.len() as i32) as u32), from: "system".to_string(), to_role: None, kind: TurnKind::ToolResult, content: "".to_string(), tool: Some(ToolRecord { name: tc.tool.clone().to_string(), args: null_value(), result: tc.result.clone().to_string(), tool_id: None }), gate: None, child_conversation: None, tokens: None, timestamp: msg.created_at };
+        let tr_turn: Turn = Turn { id: tr_id.to_string(), seq: seq_base + ((turns.len() as i32) as u32), from: "system".to_string(), to_role: None, kind: TurnKind::ToolResult, content: "".to_string(), tool: Some(ToolRecord { name: tc.tool.clone().to_string(), args: null_value(), result: tc.result.clone().to_string(), tool_id: None, details: None }), gate: None, child_conversation: None, tokens: None, timestamp: msg.created_at };
         turns.push(tr_turn.clone());
         i = i + 1;
     }

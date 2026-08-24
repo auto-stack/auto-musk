@@ -503,6 +503,7 @@ fn build_toolcall_turn(tool_name: &str, args: &Value, child_id: &str) -> Turn {
             args: args.clone(),
             result: String::new(),
             tool_id: None,
+            details: None,
         }),
         gate: None,
         child_conversation: Some(child_id.into()),

@@ -133,7 +133,33 @@ impl Tool for ReadFile {
         } else {
             t.content
         };
-        Ok(ToolOutput::text(output))
+        // PLAN-042:截断元数据入 details（pi read.ts `{truncation}` 同语义）。
+        let details = if t.first_line_exceeds_limit {
+            // 首行单独超限:没有任何完整行输出,元数据无意义。
+            None
+        } else if t.truncated {
+            Some(json!({
+                "truncation": {
+                    "total_lines": total_file_lines,
+                    "output_lines": t.output_lines,
+                    "truncated_by": match t.truncated_by {
+                        Some(crate::tool_truncate::TruncatedBy::Lines) => "lines",
+                        _ => "bytes",
+                    },
+                }
+            }))
+        } else if let Some(n) = user_limited_lines.filter(|n| start_line + n < all_lines.len()) {
+            Some(json!({
+                "truncation": {
+                    "total_lines": total_file_lines,
+                    "output_lines": n,
+                    "truncated_by": "user_limit",
+                }
+            }))
+        } else {
+            None
+        };
+        Ok(ToolOutput { content: output, details })
     }
 }
 
@@ -406,6 +432,28 @@ impl Tool for RunCommand {
         };
         format_note(&mut text, &snap);
 
+        // PLAN-042:截断信息 + 全量输出路径入 details(pi bash.ts
+        // `{truncation, fullOutputPath}` 同语义,字段名取 snake_case)。
+        let details = if snap.truncated {
+            Some(json!({
+                "truncation": {
+                    "total_lines": snap.total_lines,
+                    "output_lines": snap.output_lines,
+                    "truncated_by": match snap.truncated_by {
+                        Some(crate::tool_truncate::TruncatedBy::Lines) => "lines",
+                        _ => "bytes",
+                    },
+                    "last_line_partial": snap.last_line_partial,
+                },
+                "full_output_path": snap
+                    .full_output_path
+                    .as_ref()
+                    .map(|p| p.display().to_string()),
+            }))
+        } else {
+            None
+        };
+
         // 超时(pi):输出保留 + 状态追加,作为错误结果回喂。
         if out.timed_out {
             let secs = timeout_secs.unwrap_or(0.0);
@@ -424,7 +472,7 @@ impl Tool for RunCommand {
                 )));
             }
         }
-        Ok(ToolOutput::text(text))
+        Ok(ToolOutput { content: text, details })
     }
 }
 
@@ -571,7 +619,7 @@ impl Tool for EditFile {
 
         // per-path 互斥:读-改-写(含落盘)全段串行化(PLAN-039 T9)。
         let edits_len = edits.len();
-        with_path_write_lock(&resolved, || -> Result<(), ToolError> {
+        let details = with_path_write_lock(&resolved, || -> Result<serde_json::Value, ToolError> {
             let raw = std::fs::read_to_string(&resolved)
                 .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
 
@@ -588,11 +636,24 @@ impl Tool for EditFile {
             );
             std::fs::write(&resolved, final_content)
                 .map_err(|e| ToolError::Exec(format!("write '{path}': {e}")))?;
-            // PLAN-027 挂接点:变更 diff(base_content → new_content)应在
-            // content/details 分离落地后放入 details;当前返回简短确认。
-            Ok(())
+            // PLAN-042:变更 diff 入 details(pi `EditToolDetails` 同语义)。
+            let d = crate::edit_diff::generate_edit_diff(
+                &path,
+                &applied.base_content,
+                &applied.new_content,
+                &applied.replaced_groups,
+                4,
+            );
+            Ok(json!({
+                "diff": d.diff,
+                "patch": d.patch,
+                "first_changed_line": d.first_changed_line,
+            }))
         })?;
-        Ok(ToolOutput::text(format!("Successfully replaced {edits_len} block(s) in '{}'.", path)))
+        Ok(ToolOutput {
+            content: format!("Successfully replaced {edits_len} block(s) in '{}'.", path),
+            details: Some(details),
+        })
     }
 }
 
@@ -1428,6 +1489,43 @@ mod tests {
             .unwrap();
         assert!(out.content.contains("1 block"), "msg: {}", out.content);
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "alpha\nBETA\ngamma\n");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// PLAN-042:edit_file 的 details 携带 diff/patch/first_changed_line。
+    #[tokio::test]
+    async fn edit_file_details_carries_diff_and_patch() {
+        init_root();
+        let path = std::path::PathBuf::from(".test-tmp/musk_edit_details.txt");
+        std::fs::write(&path, "alpha\nbeta\ngamma\n").unwrap();
+        let p = path.to_string_lossy().to_string();
+        let out = EditFile::new()
+            .execute(&json!({"path": p, "old_string": "beta", "new_string": "BETA"}))
+            .await
+            .unwrap();
+        let d = out.details.expect("edit details present");
+        assert!(d["diff"].as_str().unwrap().contains("-2 beta"), "diff: {d}");
+        assert!(d["diff"].as_str().unwrap().contains("+2 BETA"), "diff: {d}");
+        assert!(d["patch"].as_str().unwrap().contains("--- a/"), "patch: {d}");
+        assert!(d["patch"].as_str().unwrap().contains("+BETA"), "patch: {d}");
+        assert_eq!(d["first_changed_line"], json!(2));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// PLAN-042:read_file 截断时 details 携带 truncation 元数据。
+    #[tokio::test]
+    async fn read_file_details_on_truncation() {
+        init_root();
+        let path = std::path::PathBuf::from(".test-tmp/musk_read_details.txt");
+        let big: String = (1..=2500).map(|i| format!("l{i}\n")).collect();
+        std::fs::write(&path, &big).unwrap();
+        let out = ReadFile::new()
+            .execute(&json!({"path": path.to_string_lossy()}))
+            .await
+            .unwrap();
+        let d = out.details.expect("truncated read has details");
+        assert_eq!(d["truncation"]["total_lines"], json!(2501), "split 口径含末尾换行空行");
+        assert_eq!(d["truncation"]["truncated_by"], json!("lines"));
         let _ = std::fs::remove_file(&path);
     }
 
