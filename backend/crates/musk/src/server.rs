@@ -934,6 +934,8 @@ mod tests {
                 usage: None,
                 model: "mock".into(),
                 error: None,
+                // auto-ai PLAN-031 新增（真实 context_window 贯穿）——mock 无元数据。
+                model_meta: None,
             })
         }
     }

@@ -1302,6 +1302,33 @@ mod tests {
         assert_eq!(res_turns[0].tool.as_ref().unwrap().result, "contents");
     }
 
+    /// PLAN-042:TurnToolResult.details 映射进 ToolRecord 并随 Turn 序列化
+    /// （会话刷新回放后 diff 徽标仍渲染的持久化锚点）。
+    #[test]
+    fn run_event_tool_result_details_persisted_into_turn() {
+        let res = crate::relay::store::RunEvent::TurnToolResult {
+            timestamp: 0,
+            role_id: "coder".into(),
+            tool_id: "t1".into(),
+            result: "done".into(),
+            details: Some(serde_json::json!({
+                "diff": "-2 old\n+2 new",
+                "first_changed_line": 2,
+            })),
+        };
+        let turns = run_event_to_turns(&res, 0);
+        let tool = turns[0].tool.as_ref().unwrap();
+        assert_eq!(
+            tool.details.as_ref().unwrap()["diff"],
+            "-2 old\n+2 new"
+        );
+        // 序列化往返(会话落盘/回放链路)details 不丢。
+        let json = serde_json::to_value(&turns[0]).unwrap();
+        assert_eq!(json["tool"]["details"]["first_changed_line"], 2);
+        let back: Turn = serde_json::from_value(json).unwrap();
+        assert!(back.tool.unwrap().details.is_some());
+    }
+
     #[test]
     fn run_event_gate_waiting_and_resolved() {
         let waiting = crate::relay::store::RunEvent::GateWaiting {
