@@ -35,6 +35,7 @@ impl Client for CannedClient {
             usage: None,
             model: "mock".into(),
             error: None,
+                model_meta: None,
         })
     }
 }

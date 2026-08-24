@@ -76,6 +76,8 @@ pub type ChatMessage {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     tool_calls List<ToolCall>
     created_at u64
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    parent_id Option<str>
 }
 
 ext ChatMessage {
@@ -83,7 +85,7 @@ ext ChatMessage {
     pub static fn user(content str) ChatMessage {
         return ChatMessage(
             id: new_id(8u),
-            role: Role.User,
+            role: Role.User, parent_id: None,
             content: content.clone(),
             tool_calls: [],
             created_at: now_sec()
@@ -94,7 +96,7 @@ ext ChatMessage {
     pub static fn assistant(content str) ChatMessage {
         return ChatMessage(
             id: new_id(8u),
-            role: Role.Assistant,
+            role: Role.Assistant, parent_id: None,
             content: content.clone(),
             tool_calls: [],
             created_at: now_sec()
@@ -119,6 +121,8 @@ pub type ChatSession {
     pending_spec_changes List<SpecChange>
     #[serde(default, skip_serializing_if = "Option::is_none")]
     workspace_id Option<str>
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    active_leaf Option<str>
 }
 
 /// A lightweight summary for list views (no message bodies).
@@ -144,7 +148,8 @@ ext ChatSession {
             created_at: now,
             updated_at: now,
             pending_spec_changes: [],
-            workspace_id: workspace_id
+            workspace_id: workspace_id,
+            active_leaf: None
         )
     }
 

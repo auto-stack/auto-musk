@@ -93,14 +93,16 @@ pub struct ChatMessage {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_calls: Vec<ToolCall>,
     pub created_at: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
 }
 
 impl ChatMessage {
     pub fn user(content: &str) -> ChatMessage {
-        return ChatMessage { id: new_id(8).to_string(), role: Role::User, content: content.clone().to_string(), tool_calls: vec![], created_at: now_sec() };
+        return ChatMessage { id: new_id(8).to_string(), role: Role::User, content: content.clone().to_string(), tool_calls: vec![], created_at: now_sec(), parent_id: None };
     }
     pub fn assistant(content: &str) -> ChatMessage {
-        return ChatMessage { id: new_id(8).to_string(), role: Role::Assistant, content: content.clone().to_string(), tool_calls: vec![], created_at: now_sec() };
+        return ChatMessage { id: new_id(8).to_string(), role: Role::Assistant, content: content.clone().to_string(), tool_calls: vec![], created_at: now_sec(), parent_id: None };
     }
 }
 
@@ -119,12 +121,14 @@ pub struct ChatSession {
     pub pending_spec_changes: Vec<SpecChange>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_leaf: Option<String>,
 }
 
 impl ChatSession {
     pub fn new(mode: &str, workspace_id: Option<String>) -> ChatSession {
         let now: u64 = now_sec();
-        return ChatSession { id: new_id(12).to_string(), name: "New chat".to_string(), mode: mode.clone().to_string(), messages: vec![], created_at: now, updated_at: now, pending_spec_changes: vec![], workspace_id: workspace_id };
+        return ChatSession { id: new_id(12).to_string(), name: "New chat".to_string(), mode: mode.clone().to_string(), messages: vec![], created_at: now, updated_at: now, pending_spec_changes: vec![], workspace_id: workspace_id, active_leaf: None };
     }
     pub fn summary(&self) -> ChatSessionSummary {
 

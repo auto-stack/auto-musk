@@ -14,6 +14,7 @@ pub mod server;
 pub mod spec_tools;
 pub mod specs;
 pub mod spec_tree;
+pub mod chat_branch;
 pub mod plans;
 pub mod report_tools;
 pub mod plan_merge;

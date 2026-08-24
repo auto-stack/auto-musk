@@ -146,6 +146,7 @@ fn parity_chat_message_wire_format() {
         content: "using tool".into(),
         tool_calls: vec![hw_tc],
         created_at: 50,
+        parent_id: None,
         thinking: String::new(),
     };
     let ag_msg = ag::ChatMessage {
@@ -153,7 +154,7 @@ fn parity_chat_message_wire_format() {
         role: ag::Role::Assistant,
         content: "using tool".into(),
         tool_calls: vec![ag_tc],
-        created_at: 50,
+        created_at: 50, parent_id: None,
     };
     assert_eq!(
         serde_json::to_string(&hw_msg).unwrap(),
@@ -169,13 +170,14 @@ fn parity_chat_message_wire_format() {
         tool_calls: vec![],
         created_at: 51,
         thinking: String::new(),
+        parent_id: None,
     };
     let ag_empty = ag::ChatMessage {
         id: "m2".into(),
         role: ag::Role::User,
         content: "plain".into(),
         tool_calls: vec![],
-        created_at: 51,
+        created_at: 51, parent_id: None,
     };
     let hw_json = serde_json::to_string(&hw_empty).unwrap();
     assert_eq!(hw_json, serde_json::to_string(&ag_empty).unwrap());
@@ -210,6 +212,7 @@ fn parity_chat_session_wire_format() {
             tool_calls: vec![hw_tc],
             created_at: 100,
             thinking: String::new(),
+            parent_id: None,
         }],
         created_at: 100,
         updated_at: 200,
@@ -222,6 +225,7 @@ fn parity_chat_session_wire_format() {
             reason: "proposed by agent".into(),
         }],
         workspace_id: Some("ws1".into()),
+        active_leaf: None,
     };
     let ag_s = ag::ChatSession {
         id: "s1".into(),
@@ -232,7 +236,7 @@ fn parity_chat_session_wire_format() {
             role: ag::Role::User,
             content: "hi".into(),
             tool_calls: vec![ag_tc],
-            created_at: 100,
+            created_at: 100, parent_id: None,
         }],
         created_at: 100,
         updated_at: 200,
@@ -245,6 +249,7 @@ fn parity_chat_session_wire_format() {
             reason: "proposed by agent".into(),
         }],
         workspace_id: Some("ws1".into()),
+        active_leaf: None,
     };
     assert_eq!(
         serde_json::to_string(&hw_s).unwrap(),
@@ -261,7 +266,7 @@ fn parity_chat_session_wire_format() {
         created_at: 0,
         updated_at: 0,
         pending_spec_changes: vec![],
-        workspace_id: None,
+        workspace_id: None, active_leaf: None,
     };
     let ag_min = ag::ChatSession {
         id: "s2".into(),
@@ -271,7 +276,7 @@ fn parity_chat_session_wire_format() {
         created_at: 0,
         updated_at: 0,
         pending_spec_changes: vec![],
-        workspace_id: None,
+        workspace_id: None, active_leaf: None,
     };
     let hw_json = serde_json::to_string(&hw_min).unwrap();
     assert_eq!(hw_json, serde_json::to_string(&ag_min).unwrap());

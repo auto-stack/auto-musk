@@ -1770,23 +1770,8 @@ pub async fn chat_run_stream(
         return;
     }
 
-    // Build (role, content) history pairs for prior turns (exclude the last
-    // user message — that's the one we're about to run).
-    let mut history: Vec<(String, String)> = Vec::new();
-    let mut seen_last_user = false;
-    for m in session.messages.iter().rev() {
-        if !seen_last_user && m.role == crate::chats::Role::User {
-            seen_last_user = true;
-            continue; // skip the message we're running now
-        }
-        let role = match m.role {
-            crate::chats::Role::User => "user",
-            crate::chats::Role::Assistant => "assistant",
-            crate::chats::Role::Tool => continue, // tool observations aren't plain turns
-        };
-        history.push((role.to_string(), m.content.clone()));
-    }
-    history.reverse(); // chronological order for the agent
+    // PLAN-043: 历史按活跃路径投影(分叉后只喂当前分支;旧数据线性退化)。
+    let history: Vec<(String, String)> = session.history_pairs();
 
     // Resolve the session's mode to an AgentMode (built-in or user .at).
     let mode_reg = crate::mode::ModeRegistry::load();

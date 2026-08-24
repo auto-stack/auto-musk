@@ -132,6 +132,10 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         // Plans (PLAN-024) — hw escape-hatch routes; ag track deferred
         // (a2r transpiler drift — see plans.rs §"HTTP routes" + KNOWN-DEBT).
         .merge(crate::plans::plans_routes())
+        // Chat session branching (PLAN-043) — hw escape-hatch routes (fork /
+        // navigate / tree); projection semantics in chats.rs, tree sourced
+        // from ChatStore (Phase 0 #2).
+        .merge(crate::chat_branch::branch_routes())
         // Spec module-tree browser (PLAN-025) — hw escape-hatch reusing
         // wiki::build_tree; serves docs/specs/ knowledge layer (008 §5).
         .merge(crate::spec_tree::spec_tree_routes())
@@ -560,23 +564,8 @@ async fn chat_stream(
     // 实际路由走 ag 轨道（extern_impl.rs chat_run_stream）；解析器为本文件
     // `parse_plan_merge_command`（pub），由 ag 层调用。
 
-    // Build (role, content) history pairs for prior turns (exclude the last
-    // user message — that's the one we're about to run).
-    let mut history: Vec<(String, String)> = Vec::new();
-    let mut seen_last_user = false;
-    for m in session.messages.iter().rev() {
-        if !seen_last_user && m.role == crate::chats::Role::User {
-            seen_last_user = true;
-            continue; // skip the message we're running now
-        }
-        let role = match m.role {
-            crate::chats::Role::User => "user",
-            crate::chats::Role::Assistant => "assistant",
-            crate::chats::Role::Tool => continue, // tool observations aren't plain turns
-        };
-        history.push((role.to_string(), m.content.clone()));
-    }
-    history.reverse(); // chronological order for the agent
+    // PLAN-043: 历史按活跃路径投影(分叉后只喂当前分支;旧数据线性退化)。
+    let history: Vec<(String, String)> = session.history_pairs();
 
     // Spawn the agent run, streaming events.
     let (tx, mut rx) = tokio::sync::mpsc::channel::<serde_json::Value>(64);

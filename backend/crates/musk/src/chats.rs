@@ -73,6 +73,10 @@ pub struct ChatMessage {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tool_calls: Vec<ToolCall>,
     pub created_at: u64,
+    /// PLAN-043: 会话树父指针（None = 线性接在上一条之后/旧数据）。树语义
+    /// 单源于 ChatStore（ConversationStore 镜像保持线性 journal）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_id: Option<String>,
 }
 
 impl ChatMessage {
@@ -84,6 +88,7 @@ impl ChatMessage {
             thinking: String::new(),
             tool_calls: Vec::new(),
             created_at: now_sec(),
+            parent_id: None,
         }
     }
     pub fn assistant(content: impl Into<String>) -> Self {
@@ -94,6 +99,7 @@ impl ChatMessage {
             thinking: String::new(),
             tool_calls: Vec::new(),
             created_at: now_sec(),
+            parent_id: None,
         }
     }
 }
@@ -116,6 +122,9 @@ pub struct ChatSession {
     /// Which workspace this session belongs to (for agent root routing).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_id: Option<String>,
+    /// PLAN-043: 活跃分支叶（消息 id）。None = 线性（旧数据或未分叉）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_leaf: Option<String>,
 }
 
 /// A lightweight summary for list views (no message bodies).
@@ -142,6 +151,7 @@ impl ChatSession {
             updated_at: now,
             pending_spec_changes: Vec::new(),
             workspace_id,
+            active_leaf: None,
         }
     }
 
@@ -171,7 +181,12 @@ impl ChatSession {
     }
 
     /// Append a message and bump `updated_at`.
+    /// PLAN-043: 新消息挂到当前活跃叶下（线性会话 parent=None 直到首次分叉），
+    /// 追加后活跃叶前移到新消息。
     pub fn append(&mut self, msg: ChatMessage) {
+        let mut msg = msg;
+        msg.parent_id = self.active_leaf.clone();
+        self.active_leaf = Some(msg.id.clone());
         self.messages.push(msg);
         self.updated_at = now_sec();
         // Auto-name from the first user message if still default.
@@ -186,6 +201,106 @@ impl ChatSession {
                     .to_string();
             }
         }
+    }
+
+    // ── PLAN-043: 会话树投影 ─────────────────────────────────────
+
+    /// 活跃路径（leaf → root 链 + 线性前缀）。旧数据（无 parent 链）自然
+    /// 退化为全部消息的线性读取。
+    pub fn active_path(&self) -> Vec<&ChatMessage> {
+        let leaf_id = match &self.active_leaf {
+            Some(l) => l,
+            None => return self.messages.iter().collect(),
+        };
+        let idx: std::collections::HashMap<&str, usize> = self
+            .messages
+            .iter()
+            .enumerate()
+            .map(|(i, m)| (m.id.as_str(), i))
+            .collect();
+        let Some(&leaf) = idx.get(leaf_id.as_str()) else {
+            return self.messages.iter().collect();
+        };
+        // leaf → root 回溯（父索引必须在前——无前向引用/环）。
+        let mut chain: Vec<usize> = vec![leaf];
+        let mut cur = leaf;
+        while let Some(pid) = &self.messages[cur].parent_id {
+            match idx.get(pid.as_str()) {
+                Some(&pi) if pi < cur => {
+                    chain.push(pi);
+                    cur = pi;
+                }
+                _ => break,
+            }
+        }
+        let anchor = chain.pop().expect("chain non-empty"); // 线性前缀终点
+        let mut result: Vec<&ChatMessage> = self.messages[..=anchor].iter().collect();
+        for &ci in chain.iter().rev() {
+            result.push(&self.messages[ci]);
+        }
+        result
+    }
+
+    /// 活跃路径上的 (role, content) 历史对（排除路径末尾的 user 消息——那是
+    /// 即将运行的一条；tool 观测不进 plain 历史）。与改造前的线性构建逻辑
+    /// 逐字一致，仅消息序列换成活跃路径。
+    pub fn history_pairs(&self) -> Vec<(String, String)> {
+        let mut pairs: Vec<(String, String)> = Vec::new();
+        let mut seen_last_user = false;
+        for m in self.active_path().into_iter().rev() {
+            if !seen_last_user && m.role == Role::User {
+                seen_last_user = true;
+                continue;
+            }
+            let role = match m.role {
+                Role::User => "user",
+                Role::Assistant => "assistant",
+                Role::Tool => continue,
+            };
+            pairs.push((role.to_string(), m.content.clone()));
+        }
+        pairs.reverse();
+        pairs
+    }
+
+    /// 把活跃叶切到指定消息（fork-from 与 navigate 共用同一机制：都不复制
+    /// 数据，只改指针——新消息将挂到该点之下形成/延续分支）。返回 false =
+    /// 消息不存在。
+    pub fn set_active_leaf(&mut self, message_id: &str) -> bool {
+        if self.messages.iter().any(|m| m.id == message_id) {
+            self.active_leaf = Some(message_id.to_string());
+            self.updated_at = now_sec();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// 树节点投影（GET tree 端点用）：每条消息的 id/role/预览行/子分支数，
+    /// 供前端渲染分叉标记与分支切换器。
+    pub fn tree_nodes(&self) -> Vec<serde_json::Value> {
+        use std::collections::HashMap;
+        let mut children: HashMap<&str, usize> = HashMap::new();
+        for m in &self.messages {
+            if let Some(p) = &m.parent_id {
+                *children.entry(p.as_str()).or_insert(0) += 1;
+            }
+        }
+        let active: std::collections::HashSet<&str> =
+            self.active_path().iter().map(|m| m.id.as_str()).collect();
+        self.messages
+            .iter()
+            .map(|m| {
+                serde_json::json!({
+                    "id": m.id,
+                    "role": match m.role { Role::User => "user", Role::Assistant => "assistant", Role::Tool => "tool" },
+                    "parent_id": m.parent_id,
+                    "preview": m.content.chars().take(60).collect::<String>(),
+                    "children": children.get(m.id.as_str()).copied().unwrap_or(0),
+                    "on_active_path": active.contains(m.id.as_str()),
+                })
+            })
+            .collect()
     }
 }
 
@@ -293,6 +408,25 @@ impl ChatStore {
         let mut map = self.load_map();
         if let Some(session) = map.get_mut(id) {
             session.append(msg);
+            let updated = session.clone();
+            self.save_map(&map)?;
+            Ok(Some(updated))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// PLAN-043: 切换会话活跃叶（fork/navigate 共用），持久化后返回更新会话。
+    pub fn set_active_leaf(
+        &self,
+        id: &str,
+        message_id: &str,
+    ) -> std::io::Result<Option<ChatSession>> {
+        let mut map = self.load_map();
+        if let Some(session) = map.get_mut(id) {
+            if !session.set_active_leaf(message_id) {
+                return Ok(None);
+            }
             let updated = session.clone();
             self.save_map(&map)?;
             Ok(Some(updated))
@@ -613,5 +747,109 @@ mod tests {
         }
         let after = store.reject_all_spec_changes(&s.id).unwrap().unwrap();
         assert!(after.pending_spec_changes.is_empty());
+    }
+
+    // ── PLAN-043: 会话树投影 ─────────────────────────────────────
+
+    #[test]
+    fn append_chains_parent_and_advances_leaf() {
+        let mut s = ChatSession::new("superpowers", None);
+        s.append(ChatMessage::user("q1"));
+        s.append(ChatMessage::assistant("a1"));
+        let m1 = &s.messages[1];
+        assert_eq!(m1.parent_id.as_deref(), Some(s.messages[0].id.as_str()));
+        assert_eq!(s.active_leaf.as_deref(), Some(m1.id.as_str()));
+    }
+
+    #[test]
+    fn active_path_legacy_linear_fallback() {
+        // 旧数据:无 parent/active_leaf 字段(jsonl 缺字段 → default None)。
+        let mut s = ChatSession::new("superpowers", None);
+        for c in ["q1", "a1", "q2"] {
+            s.messages.push(ChatMessage::user(c)); // 直接 push,不经 append(模拟旧数据)
+        }
+        s.active_leaf = None;
+        assert_eq!(s.active_path().len(), 3, "旧数据退化为线性全量");
+    }
+
+    #[test]
+    fn fork_two_branches_independent_paths() {
+        let mut s = ChatSession::new("superpowers", None);
+        s.append(ChatMessage::user("q1"));
+        s.append(ChatMessage::assistant("a1"));
+        let branch_point = s.messages[0].id.clone(); // fork 自 q1 之后
+        // 分支 A:从 branch_point 续聊
+        assert!(s.set_active_leaf(&branch_point));
+        s.append(ChatMessage::assistant("branch-A"));
+        let path_a: Vec<String> = s.active_path().iter().map(|m| m.content.clone()).collect();
+        assert_eq!(path_a, vec!["q1", "branch-A"]);
+
+        // 分支 B:切回同一分叉点再续
+        assert!(s.set_active_leaf(&branch_point));
+        s.append(ChatMessage::assistant("branch-B"));
+        let path_b: Vec<String> = s.active_path().iter().map(|m| m.content.clone()).collect();
+        assert_eq!(path_b, vec!["q1", "branch-B"], "两分支互不污染");
+        assert_eq!(s.messages.len(), 4, "append-only:全历史保留");
+
+        // 公共前缀只出现一次
+        assert_eq!(path_b.iter().filter(|c| **c == "q1").count(), 1);
+        // set_active_leaf 对不存在消息返回 false
+        assert!(!s.set_active_leaf("no-such"));
+    }
+
+    #[test]
+    fn history_pairs_excludes_trailing_user_on_path() {
+        let mut s = ChatSession::new("superpowers", None);
+        s.append(ChatMessage::user("q1"));
+        s.append(ChatMessage::assistant("a1"));
+        s.append(ChatMessage::user("q2"));
+        let pairs = s.history_pairs();
+        assert_eq!(
+            pairs,
+            vec![("user".to_string(), "q1".to_string()), ("assistant".to_string(), "a1".to_string())],
+            "路径末尾的 user(即将运行)被排除"
+        );
+        // 分叉后:另一分支的消息不进历史
+        let bp = s.messages[1].id.clone();
+        s.set_active_leaf(&bp);
+        s.append(ChatMessage::user("q2-prime"));
+        s.append(ChatMessage::assistant("a2-prime"));
+        // 逆序首个 user(q2-prime)被跳过(与原线性构建同款语义);
+        // q2(旧分支的消息)不在路径上,不进历史。
+        let pairs = s.history_pairs();
+        let contents: Vec<&str> = pairs.iter().map(|(_, c)| c.as_str()).collect();
+        assert_eq!(contents, vec!["q1", "a1", "a2-prime"]);
+        assert!(!contents.contains(&"q2"), "旧分支消息不进历史");
+    }
+
+    #[test]
+    fn tree_nodes_mark_children_and_active_path() {
+        let mut s = ChatSession::new("superpowers", None);
+        s.append(ChatMessage::user("q1"));
+        s.append(ChatMessage::assistant("a1"));
+        let bp = s.messages[0].id.clone();
+        s.set_active_leaf(&bp);
+        s.append(ChatMessage::assistant("a1-B"));
+        let nodes = s.tree_nodes();
+        let by_content = |c: &str| nodes.iter().find(|n| n["preview"] == c).unwrap().clone();
+        assert_eq!(by_content("q1")["children"], 2, "分叉点两个子分支");
+        assert_eq!(by_content("a1")["on_active_path"], false);
+        assert_eq!(by_content("a1-B")["on_active_path"], true);
+    }
+
+    #[test]
+    fn store_set_active_leaf_persists() {
+        let (store, _f) = temp_store();
+        let s = store.create("superpowers", None).unwrap();
+        store.append_message(&s.id, ChatMessage::user("q1")).unwrap().unwrap();
+        let sess = store.get(&s.id).unwrap();
+        let mid = sess.messages[0].id.clone();
+        let updated = store.set_active_leaf(&s.id, &mid).unwrap().unwrap();
+        assert_eq!(updated.active_leaf.as_deref(), Some(mid.as_str()));
+        // 未知消息 → None
+        assert!(store.set_active_leaf(&s.id, "nope").unwrap().is_none());
+        // 重载持久化
+        let reloaded = store.get(&s.id).unwrap();
+        assert_eq!(reloaded.active_leaf.as_deref(), Some(mid.as_str()));
     }
 }
