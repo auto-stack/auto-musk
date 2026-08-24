@@ -341,6 +341,9 @@ export function useForge() {
               }
               if (call) {
                 call.result = data.result ?? ''
+                // PLAN-042: structured payload (edit diff / truncation) —
+                // backend omits or nulls it for tools without details.
+                call.details = data.details ?? null
                 // Prefer backend-provided status; else infer from the result text.
                 if (data.status === 'error' || isErrorResult(data.result ?? '')) {
                   call.status = 'error'

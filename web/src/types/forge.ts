@@ -58,6 +58,8 @@ export interface ForgeStreamEvent {
   cost?: string
   confidence?: 'High' | 'Medium' | 'Low'
   deliverables?: string[]
+  // PLAN-042: tool_result structured payload (edit diff / truncation / full output)
+  details?: ToolCallInfo['details']
   // agent_handoff fields
   from_agent?: string
   from_profession?: string

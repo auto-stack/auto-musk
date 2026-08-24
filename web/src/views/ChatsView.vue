@@ -339,6 +339,19 @@
                       :max-live-nodes="320"
                     />
                   </div>
+                  <!-- PLAN-042: structured details (edit diff / truncation / full output) -->
+                  <div v-if="tc.details?.diff" class="tool-section">
+                    <div class="tool-section-title">Diff</div>
+                    <pre class="tool-code tool-diff">{{ tc.details.diff }}</pre>
+                  </div>
+                  <div v-if="tc.details?.truncation" class="tool-section">
+                    <div class="tool-section-title">Truncated</div>
+                    <pre class="tool-code">Showing {{ tc.details.truncation.output_lines }} of {{ tc.details.truncation.total_lines }} lines (by {{ tc.details.truncation.truncated_by }})</pre>
+                  </div>
+                  <div v-if="tc.details?.full_output_path" class="tool-section">
+                    <div class="tool-section-title">Full output</div>
+                    <pre class="tool-code">{{ tc.details.full_output_path }}</pre>
+                  </div>
                 </div>
                 </div>
               </template>
@@ -2226,6 +2239,20 @@ onUnmounted(() => {
 
 .tool-code.result {
   color: hsl(var(--af-success));
+}
+
+/* PLAN-042: edit diff block — monospace, subtle +/- tint per line */
+.tool-code.tool-diff {
+  white-space: pre;
+  color: var(--af-muted);
+}
+.tool-diff :deep(.diff-add),
+.tool-diff .diff-add {
+  color: hsl(var(--af-success));
+}
+.tool-diff :deep(.diff-del),
+.tool-diff .diff-del {
+  color: hsl(var(--destructive));
 }
 
 /* Shell tool card */

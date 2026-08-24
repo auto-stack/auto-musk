@@ -232,6 +232,8 @@ store ForgeStore {
                     if call != None {
                         let result = ev.result ?? ""
                         call.result = result
+                        // PLAN-042:结构化载荷(edit diff/截断/全量输出路径)随调用留存。
+                        call.details = ev.details ?? None
                         // 嗅探 result 标记识别 error（对齐 generic_tool_card 样式）
                         let failed = false
                         if ev.status == "error" { failed = true }

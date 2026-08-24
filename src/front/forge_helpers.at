@@ -84,6 +84,13 @@ fn toolArgsJson(tc obj) str {
     return JSON.stringify(tc.arguments, null, 2)
 }
 
+/** PLAN-042:details.truncation 的截断徽标文本。 */
+fn toolTruncBadge(details obj) str {
+    let trunc = details.truncation
+    let by = trunc.truncated_by ?? "bytes"
+    return "Showing " + trunc.output_lines + " of " + trunc.total_lines + " lines (by " + by + ")"
+}
+
 /** 消息时间格式化（F3 Date.format → toLocaleTimeString）。 */
 fn msgTimeLabel(createdAt int) str {
     if createdAt == 0 { return "" }
