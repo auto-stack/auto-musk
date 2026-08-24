@@ -1289,6 +1289,59 @@ mod tests {
         }
     }
 
+    /// PLAN-040 T6: 白名单/force/confine 回归——重写不得削弱安全层。
+    /// 非白名单命令返回 PAUSED(Ok),**不执行**(whoami 若被误执行会返回
+    /// 用户名而非 PAUSED 文本)。
+    #[tokio::test]
+    async fn run_command_paused_for_non_whitelisted_command() {
+        let t = RunCommand::new();
+        let out = t.execute(&json!({"cmd": "whoami"})).await.unwrap();
+        assert!(out.starts_with("⏸ PAUSED"), "must pause instead of executing, got: {out}");
+        assert!(out.contains("\"force\": true"), "approval hint present: {out}");
+    }
+
+    /// force = 用户已审批:跳过白名单真执行。
+    #[tokio::test]
+    async fn run_command_force_runs_paused_command() {
+        let t = RunCommand::new();
+        let out = t.execute(&json!({"cmd": "whoami", "force": true})).await.unwrap();
+        assert!(!out.contains("PAUSED"), "force must execute, got: {out}");
+        assert_ne!(out, "(no output)", "whoami produces output");
+    }
+
+    /// force 不豁免 path confinement:白名单命令(type/cat)+ workspace 外
+    /// 绝对路径仍被拒(PLAN-027 ③,重写后必须在 runner 之前)。
+    #[tokio::test]
+    async fn run_command_confine_blocks_workspace_outside_path_even_with_force() {
+        let t = RunCommand::new();
+        let (outside, read) = if cfg!(windows) {
+            (r"C:\Windows\win.ini", "type")
+        } else {
+            ("/etc/hostname", "cat")
+        };
+        let err = t
+            .execute(&json!({"cmd": format!("{read} {outside}"), "force": true}))
+            .await
+            .unwrap_err();
+        match err {
+            ToolError::Exec(m) => {
+                assert!(m.contains("outside the project root"), "confine message: {m}")
+            }
+            other => panic!("expected Exec from confine, got {other:?}"),
+        }
+    }
+
+    /// PAUSED 审批闭环:非白名单 → PAUSED(Ok)→ force 重发 → 执行成功(Ok,
+    /// 退出码 0 不错误化)——整个流程在重写后语义不变。
+    #[tokio::test]
+    async fn run_command_paused_then_force_approval_roundtrip() {
+        let t = RunCommand::new();
+        let first = t.execute(&json!({"cmd": "whoami"})).await.unwrap();
+        assert!(first.starts_with("⏸ PAUSED"));
+        let second = t.execute(&json!({"cmd": "whoami", "force": true})).await;
+        assert!(second.is_ok(), "approved run succeeds: {:?}", second.err());
+    }
+
     // ── EditFile ───────────────────────────────────────────────
 
     #[tokio::test]

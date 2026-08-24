@@ -114,6 +114,10 @@ PLAN-026 独立推进，两轨将来在 relay 桥接层合流）。
    (run_id)、hw server.rs、ag extern_impl(session_id)、ag relay_driver.rs(run_id)。
    (作为 T2 桥接的前置依赖与 T2 合并落地;单测见 tool_context.rs 2/2 绿)
 6. 白名单/force/confine 回归测试（确保重写未削弱安全层）。
+   [✅ 已完成] tools.rs 新增 4 测试:非白名单 whoami → Ok("⏸ PAUSED")且**未执行**
+   (若误执行会返回用户名);force=true 真执行;force **不豁免** confine(白名单
+   type/cat + C:\Windows 绝对路径仍拒);PAUSED→force 审批闭环(Ok→Ok)。
+   10/10 run_command 测试绿。
 7. Windows 进程树终止实测（`taskkill /T /F`，cmd → 子进程链）。
 8. `CommandRunner` 的 Ash 后端占位文档（未来 Ash 逐命令沙箱就绪后换实现，工具层
    零改动）。
