@@ -15,14 +15,17 @@ Rust + axum 0.8 HTTP 服务。`lib.rs:5-29` 声明手写模块 + `lib.rs:28` `au
 | `plans.rs` | Plan 文件树 + 5 态状态机 + HTTP 路由（hw） | `PlanStatus`(5) / `PlansStore`(create/transition/archive/merge) / `plans_routes()` |
 | `plan_merge.rs` | Plan→Spec 合并（§N→section 映射） | `plan_to_items()` / `upsert_items_into_doc()` |
 | `spec_tree.rs` | docs/specs/ 文件树 API（hw，复用 wiki::build_tree） | `spec_tree_routes()` / `spec_tree` / `spec_file` |
-| `tools.rs` | 8 本地工具 + `map_path_error`(SecurityDenied) | ReadFile/WriteFile/EditFile/Search/ListDir/Glob/RunCommand/DisplayImage |
+| `tools.rs` | 8 本地工具 + `map_path_error`(SecurityDenied)；RunCommand 为 PLAN-040 流式版（timeout 参数/临时文件尾注/pi 退出码语义，经 CommandRunner） | ReadFile/WriteFile/EditFile/Search/ListDir/Glob/RunCommand/DisplayImage |
 | `edit_diff.rs` | edit_file 匹配/应用核心（PLAN-039，pi edit-diff.ts 移植） | `normalize_for_fuzzy_match()` / `fuzzy_find_text()` / `apply_edits_to_normalized_content()`（行级保留+重叠检测+五类自愈报错） |
 | `tool_truncate.rs` | 共享截断模块（PLAN-039，字符边界安全） | `truncate_head()/truncate_tail()/truncate_line()` / `TruncationResult` |
+| `command_runner.rs` | 执行后端接缝 + 本地 tokio 实现（PLAN-040，Ash 后座契约见模块文档） | `CommandRunner` / `LocalRunner` / `ExecOptions`(on_data/timeout/env) / `ExecOutcome` / `kill_process_tree()`（Win taskkill /T /F；Unix killpg） |
+| `output_accumulator.rs` | 有界内存流式累积器（PLAN-040，pi output-accumulator 移植） | `OutputAccumulator`（滚动尾部 2×maxBytes / 流式 UTF-8 解码 / 超限临时文件转储） / `OutputSnapshot` |
+| `tool_context.rs` | 工具执行上下文 + 实时进度通道（PLAN-040） | `ToolContext{state,workspace_id,parent_conversation_id,progress}` / `ProgressSink::for_run()/send()`（100ms 节流由工具侧） |
 | `tool_safety.rs` | path confinement + run_command 分级 + cmd 路径校验 | `resolve_within_project()` / `project_root()` / `classify_command()` / `confine_command_paths()` |
 | `workspace.rs` | workspace 注册表 + store bundle + 数据迁移 | `WorkspaceRegistry` / `WorkspaceStores` / `WorkspaceQuery` |
 | `chats.rs` | chat session 持久化 + spec-change 审批队列 | `ChatStore` / `ChatSession` / queue_spec_change/approve/reject |
 | `conversation.rs` | 统一会话（chat+flow 抽象）+ jsonl + broadcast SSE | `ConversationStore` / `Turn` / `chat_message_to_turns()` |
-| `relay/` | Relay 编排引擎（driver/store/api/feature_dev/profession/flows/task_plan） | `MuskAgentFactory` / `RunStore` / `RunEvent`(16) / `drive_loop()` |
+| `relay/` | Relay 编排引擎（driver/store/api/feature_dev/profession/flows/task_plan） | `MuskAgentFactory` / `RunStore` / `RunEvent`(17：含 PLAN-040 `ToolUpdate` 流式 partial——SSE-only 易态，不落 run.events/不镜像 turns) / `drive_loop()` |
 | `orch_tools.rs` | 编排工具（spawn_relay/dispatch/bring_in/task_plan） | `SpawnRelay` / `Dispatch` / `BringIn` / `run_errand_agent()` |
 | `mode.rs` | agent 运行模式（.at 配置） | `AgentMode` / `BUILTIN_MODES`(superpowers/basic/coding/review) |
 | `auto_generated/` | a2r 转译模块（server/auth/relay_api/wiki 等） | `build_router()`(38 路由) / `extern_impl`(委托 hw) / `server_stream`(6 SSE handler) |

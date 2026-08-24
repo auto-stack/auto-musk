@@ -1,10 +1,11 @@
 ---
 plan_id: PLAN-040
-status: reviewed
+status: archived
 feature_name: run_command 对齐 pi bash——tokio 流式输出、超时、进程树终止、尾部截断+临时文件、ToolUpdate SSE 实时进度与 CommandRunner 接缝
 author: [zhaopuming]
 created_at: 2026-08-23
 updated_at: 2026-08-24
+
 
 supersedes_spec_components:
   - "docs/specs/01-architecture.md: tools.rs 行——RunCommand 重写为流式/超时/进程树杀/临时文件/pi 退出码语义(PLAN-040)"
