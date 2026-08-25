@@ -78,3 +78,250 @@ fn specTagAt(tags obj, i int) obj {
 fn specRowSummary(item obj) str {
     return ""
 }
+
+// ── PLAN-041 T3:分类摘要(web utils/categorySummary.ts 对拍面)──
+
+fn specSummaryArchitecture(item obj) str {
+    let c = item.content ?? ""
+    let m = Regex.match(c, "\\*\\*Decision:\\*\\*\\s*(.+)")
+    let decision = ""
+    if m.length > 1 {
+        decision = m[1].trim().slice(0, 120)
+    }
+    let hasDiagram = c.contains("```mermaid")
+    if decision != "" && hasDiagram { return decision + " · 📊 Diagram" }
+    if decision != "" { return decision }
+    if hasDiagram { return "📊 Diagram" }
+    return ""
+}
+
+fn specSummaryDesign(item obj) str {
+    let c = item.content ?? ""
+    let m = Regex.match(c, "```\\w*\\n([^(\\n]+\\([^)]*\\))")
+    let iface = ""
+    if m.length > 1 {
+        iface = m[1].trim().slice(0, 120)
+    }
+    let module = item.module ?? ""
+    if iface != "" && module != "" { return iface + " · 📦 " + module }
+    if iface != "" { return iface }
+    if module != "" { return "📦 " + module }
+    return ""
+}
+
+fn specSummaryPlan(item obj) str {
+    let c = item.content ?? ""
+    let m = Regex.match(c, "\\*\\*Objective:\\*\\*\\s*(.+)")
+    let objective = ""
+    if m.length > 1 {
+        objective = m[1].trim().slice(0, 80)
+    }
+    let phaseCount = 0
+    let plines = c.split("\n")
+    for pl in plines {
+        if pl.length > 0 {
+            if pl.char_at(0) == "|" {
+                phaseCount = phaseCount + 1
+            }
+        }
+    }
+    phaseCount = phaseCount - 1
+    if phaseCount < 0 { phaseCount = 0 }
+    if objective != "" && phaseCount > 0 { return "Objective: " + objective + " · " + phaseCount + " phases" }
+    if objective != "" { return "Objective: " + objective }
+    if phaseCount > 0 { return phaseCount + " phases" }
+    return ""
+}
+
+fn specSummaryTest(item obj) str {
+    let c = item.content ?? ""
+    let m = Regex.match(c, "\\*\\*Type:\\*\\*\\s*(\\w+)")
+    let ty = ""
+    if m.length > 1 {
+        ty = m[1].trim()
+    }
+    let stepCount = 0
+    let slines = c.split("\n")
+    for sl in slines {
+        let t = sl.trim()
+        if t.length > 1 {
+            if t.char_at(0) >= "0" && t.char_at(0) <= "9" && t.char_at(1) == "." {
+                stepCount = stepCount + 1
+            }
+        }
+    }
+    let parts = ""
+    if ty != "" { parts = ty }
+    let tf = item.test_file ?? ""
+    if tf != "" {
+        let segs = tf.split("/")
+        let base = segs[segs.length - 1]
+        if parts != "" { parts = parts + " · 📄 " + base } else { parts = "📄 " + base }
+    }
+    if stepCount > 0 {
+        if parts != "" { parts = parts + " · " + stepCount + " steps" } else { parts = stepCount + " steps" }
+    }
+    return parts
+}
+
+fn specSummaryReview(item obj) str {
+    let c = item.content ?? ""
+    let passed = Regex.match(c, "[☑✅✓]").length
+    let partial = Regex.match(c, "[⚠]").length
+    let failed = Regex.match(c, "[❌✗]").length
+    let issues = Regex.match(c, "####\s+V\d+-I\d+").length
+    let parts = ""
+    if passed > 0 || partial > 0 || failed > 0 {
+        parts = passed + " passed"
+        if partial > 0 { parts = parts + ", " + partial + " partial" }
+        if failed > 0 { parts = parts + ", " + failed + " failed" }
+    }
+    if issues > 0 {
+        if parts != "" { parts = parts + " · " }
+        parts = parts + issues + " issue"
+        if issues > 1 { parts = parts + "s" }
+    }
+    return parts
+}
+
+fn specSummaryReport(item obj) str {
+    let c = item.content ?? ""
+    let phaseCount = 0
+    let plines = c.split("\n")
+    for pl in plines {
+        if pl.length > 0 {
+            if pl.char_at(0) == "|" {
+                phaseCount = phaseCount + 1
+            }
+        }
+    }
+    phaseCount = phaseCount - 1
+    if phaseCount < 0 { phaseCount = 0 }
+    let metricCount = phaseCount
+    let blockers = Regex.match(c, "\*\*B\d+\*\*").length
+    let parts = ""
+    if metricCount > 0 { parts = metricCount + " metrics" }
+    if blockers > 0 {
+        if parts != "" { parts = parts + " · " }
+        parts = parts + blockers + " blocker"
+        if blockers > 1 { parts = parts + "s" }
+    }
+    return parts
+}
+
+fn specSummaryApi(item obj) str {
+    let c = item.content ?? ""
+    let m = Regex.match(c, "\\*\\*Version:\\*\\*\\s*(.+)")
+    let version = ""
+    if m.length > 1 {
+        version = m[1].trim()
+    }
+    let endpoints = Regex.match(c, "(?i)####\s+(GET|POST|PUT|DELETE|PATCH)").length
+    let parts = ""
+    if version != "" { parts = "v" + version }
+    if endpoints > 0 {
+        if parts != "" { parts = parts + " · " }
+        parts = parts + endpoints + " endpoint"
+        if endpoints > 1 { parts = parts + "s" }
+    }
+    return parts
+}
+
+fn specSummaryGeneric(item obj) str {
+    let c = item.content ?? ""
+    let lines = c.split("\n")
+    for line in lines {
+        let t = line.trim()
+        if t == "" { continue }
+        if t.char_at(0) == "#" { continue }
+        if t.slice(0, 3) == "```" { continue }
+        if t.slice(0, 4) == "<!--" { continue }
+        if t.char_at(0) == "|" { continue }
+        if t.slice(0, 2) == "- " { continue }
+        if t.slice(0, 2) == "-[" { continue }
+        return t.slice(0, 160)
+    }
+    return ""
+}
+
+/** 按 section 分派摘要 fn(CategoryList 经 summary_kind 消费)。 */
+fn specSummaryFor(kind str, item obj) str {
+    if kind == "architecture" { return specSummaryArchitecture(item) }
+    if kind == "designs" { return specSummaryDesign(item) }
+    if kind == "plans" { return specSummaryPlan(item) }
+    if kind == "tests" { return specSummaryTest(item) }
+    if kind == "reviews" { return specSummaryReview(item) }
+    if kind == "reports" { return specSummaryReport(item) }
+    if kind == "api" { return specSummaryApi(item) }
+    return specSummaryGeneric(item)
+}
+
+// ── PLAN-041 T3:GoalsTable 树形展平(web buildChildMap/treeRows 对拍)──
+
+/** G12.3 → G12 父 id;无层级形态返回 ""。 */
+fn goalsParentId(id str) str {
+    let m = Regex.match(id, "^(G\\d+)\\.")
+    if m.length > 1 {
+        return m[1]
+    }
+    return ""
+}
+
+/** 展平行序列:根项 + (展开时)递归子项。expanded = id→bool。 */
+fn goalsTreeRows(items obj, expanded obj) list {
+    let out list = []
+    let ids obj = {}
+    for it in items {
+        ids[it.id] = true
+    }
+    for it in items {
+        let pid = goalsParentId(it.id)
+        if pid == "" || ids[pid] != true {
+            goalsAppendNode(out, items, it, 0, expanded)
+        }
+    }
+    return out
+}
+
+fn goalsAppendNode(out list, items obj, it obj, level int, expanded obj) {
+    let children list = []
+    for ch in items {
+        if goalsParentId(ch.id) == it.id {
+            children.push(ch)
+        }
+    }
+    let cls = "goal-node is-root"
+    if level > 0 {
+        cls = "goal-node is-sub"
+    }
+    if children.length > 0 {
+        cls = cls + " has-children"
+    }
+    let toggleCls = "node-toggle-area"
+    if expanded[it.id] == true {
+        toggleCls = "node-toggle-area expanded"
+    }
+    let e obj = { item: it, level: level, cls: cls, toggleCls: toggleCls, hasChildren: children.length > 0, childCount: children.length }
+    out.push(e)
+    if children.length > 0 && expanded[it.id] == true {
+        for ch in children {
+            goalsAppendNode(out, items, ch, level + 1, expanded)
+        }
+    }
+}
+
+/** PLAN-041 T3:document.sections 中 section_type 命中的 items(无命中空表)。 */
+fn specSectionItems(document obj, section_type str) list {
+    let out list = []
+    if document == None { return out }
+    let sections = document.sections ?? []
+    for section in sections {
+        if section.section_type == section_type {
+            let items = section.items ?? []
+            for it in items {
+                out.push(it)
+            }
+        }
+    }
+    return out
+}

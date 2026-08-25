@@ -13,10 +13,17 @@ const CASES = [
   ['StatusBadge', { status: 'in_progress', size: 'md' }],
   ['StatusBadge', { status: 'under_review', size: 'sm' }],
   ['SpecLink', { id: 'A-12' }],
-  ['SpecItemRow', { item: { id: 'G1', title: 'Sample goal', content: 'body', status: 'proposed', tags: [] }, section_type: 'goals', project: 'specs', is_expanded: false, summary: '' }],
-  ['SpecItemRow', { item: { id: 'A2', title: 'With tags', content: 'c', status: 'done', tags: ['stack:rust', 'module:ui', 'x:y', 'z'] }, section_type: 'architecture', project: 'specs', is_expanded: false, summary: 'a summary line' }],
+  ['SpecItemRow', { item: { id: 'G1', title: 'Sample goal', content: '', status: 'proposed', tags: [] }, section_type: 'goals', project: 'specs', is_expanded: false, summary: '' }],
+  ['SpecItemRow', { item: { id: 'A2', title: 'With tags', content: '', status: 'done', tags: ['stack:rust', 'module:ui', 'x:y', 'z'] }, section_type: 'architecture', project: 'specs', is_expanded: false, summary: 'a summary line' }],
   ['CategoryList', { items: [], project: 'specs', expanded_id: '', editing_id: '', section_type: 'goals' }],
-  ['CategoryList', { items: [{ id: 'G1', title: 'One', content: 'c', status: 'proposed', tags: [] }, { id: 'G2', title: 'Two', content: 'c', status: 'done', tags: [] }], project: 'specs', expanded_id: '', editing_id: '', section_type: 'goals' }],
+  ['CategoryList', { items: [{ id: 'G1', title: 'One', content: '', status: 'proposed', tags: [] }, { id: 'G2', title: 'Two', content: '', status: 'done', tags: [] }], project: 'specs', expanded_id: '', editing_id: '', section_type: 'goals' }],
+  // T3: category wrappers(summary_kind 透传;折叠态) + GoalsTable 树。
+  ['ArchitectureCards', { items: [{ id: 'A1', title: 'Arch one', content: '', status: 'approved', tags: [] }], project: 'specs', expanded_id: '', editing_id: '' }],
+  ['DesignCards', { items: [{ id: 'D1', title: 'Design one', content: '', status: 'draft', tags: [] }], project: 'specs', expanded_id: '', editing_id: '' }],
+  ['TestsCards', { items: [{ id: 'T1', title: 'Test one', content: '', status: 'proposed', tags: [] }], project: 'specs', expanded_id: '', editing_id: '' }],
+  ['ReviewCards', { items: [], project: 'specs', expanded_id: '', editing_id: '' }],
+  ['ReportCards', { items: [{ id: 'R1', title: 'Report one', content: '', status: 'done', tags: [] }], project: 'specs', expanded_id: '', editing_id: '' }],
+  ['GoalsTable', { items: [{ id: 'G1', title: 'Root goal', content: '', status: 'proposed', tags: [] }, { id: 'G1.1', title: 'Sub', content: '', status: 'draft', tags: [] }], project: 'specs' }],
 ];
 
 const RENDERER = `
@@ -93,7 +100,7 @@ function normalize(html) {
 let webOut, genOut;
 try {
   webOut = run(join(ROOT, 'web'), join(ROOT, 'web'),
-    n => `/src/components/${n === 'CategoryList' ? 'category/' : ''}${n}.vue`, true);
+    n => `/src/components/${['CategoryList','ArchitectureCards','DesignCards','TestsCards','ReviewCards','ReportCards','GoalsTable'].includes(n) ? 'category/' : ''}${n}.vue`, true);
   genOut = run(join(ROOT, 'gen/front/vue'), join(ROOT, 'gen/front/vue'),
     n => `/src/components/${n}.vue`, false);
 } finally {

@@ -1,0 +1,190 @@
+// specs_category.at — PLAN-041 T3:分类组件组(category/ 7 件)。
+// 薄包装 ×5(Section 固定 + summary 分派)对标 web category/*Cards.vue;
+// GoalsTable 树形(父子展平 + 展开态)对标 GoalsTable.vue。
+// Cards 的 detail 槽位(SpecItemDetail/编辑器)分别归 T4/Phase 2——本阶段
+// CategoryList 的展开分支仍为占位,对拍面为折叠态 + 空态。
+
+use.web component ChevronRight, Inbox from "src/front/ports/icons.at"
+use.web specSummaryFor, goalsTreeRows from "src/front/specs_helpers.at"
+
+// PLAN-037 P1: cross-file component refs (native alias form).
+use category_list: CategoryList
+use spec_item_row: SpecItemRow
+use status_badge: StatusBadge
+
+widget ArchitectureCards(items: obj, project: str, expanded_id: str, editing_id: str) {
+    view {
+        CategoryList {
+            items: .items
+            project: .project
+            expanded_id: .expanded_id
+            editing_id: .editing_id
+            section_type: "architecture"
+            summary_kind: "architecture"
+        }
+    }
+}
+
+widget DesignCards(items: obj, project: str, expanded_id: str, editing_id: str) {
+    view {
+        CategoryList {
+            items: .items
+            project: .project
+            expanded_id: .expanded_id
+            editing_id: .editing_id
+            section_type: "designs"
+            summary_kind: "designs"
+        }
+    }
+}
+
+widget ReportCards(items: obj, project: str, expanded_id: str, editing_id: str) {
+    view {
+        CategoryList {
+            items: .items
+            project: .project
+            expanded_id: .expanded_id
+            editing_id: .editing_id
+            section_type: "reports"
+            summary_kind: "reports"
+        }
+    }
+}
+
+widget ReviewCards(items: obj, project: str, expanded_id: str, editing_id: str) {
+    view {
+        CategoryList {
+            items: .items
+            project: .project
+            expanded_id: .expanded_id
+            editing_id: .editing_id
+            section_type: "reviews"
+            summary_kind: "reviews"
+        }
+    }
+}
+
+widget TestsCards(items: obj, project: str, expanded_id: str, editing_id: str) {
+    // web 形态:独立包装(div.tests-cards > SpecItemRow 列表,不经 CategoryList
+    // ——无空态,tests 无子目标概念)。
+    view {
+        div {
+            class: "tests-cards"
+            for item in .items {
+                SpecItemRow {
+                    key: item.id
+                    item: item
+                    section_type: "tests"
+                    project: .project
+                    is_expanded: .expanded_id == item.id
+                    summary: specSummaryFor("tests", item)
+                }
+            }
+        }
+    }
+}
+
+widget GoalsTable(items: obj, project: str) {
+    msg Msg {
+        OpenDetail(obj),
+        ToggleNode(str),
+    }
+    model {
+        // id → bool 展开态(web treeExpanded Set)
+        var expanded obj = {}
+    }
+    computed {
+        isEmpty => .items.length == 0
+        rows => goalsTreeRows(.items, .expanded)
+    }
+    style {
+.goals-tree-wrapper { display: flex; flex-direction: column; }
+.empty-state { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; padding: 2.5rem 1rem; color: var(--af-muted); font-size: 0.93rem; }
+.empty-hint { font-size: 0.83rem; color: hsl(var(--muted-foreground) / 0.6); }
+.goals-tree { display: flex; flex-direction: column; }
+.goal-node { display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.75rem; border-radius: 8px; cursor: pointer; }
+.goal-node:hover { background: hsl(var(--muted-foreground) / 0.05); }
+.goal-node.is-root { font-weight: 500; }
+.goal-node.is-sub { font-size: 0.88rem; color: var(--af-muted); }
+.node-indent { flex-shrink: 0; }
+.node-toggle-area { display: flex; align-items: center; gap: 0.15rem; width: 2.2rem; cursor: pointer; flex-shrink: 0; justify-content: center; }
+.node-children-count { font-size: 0.68rem; color: var(--af-muted); background: hsl(var(--muted-foreground) / 0.1); border-radius: 999px; padding: 0 0.35rem; }
+.node-chevron { color: var(--af-muted); transition: opacity 0.15s; }
+.node-chevron.expanded { transform: rotate(90deg); }
+.node-left { flex-shrink: 0; }
+.node-id { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.78rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 6px; background: hsl(var(--muted-foreground) / 0.08); color: var(--af-muted); }
+.node-right { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.5rem; }
+.node-title { font-size: 0.92rem; color: var(--af-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.node-priority { font-size: 0.68rem; padding: 0.1rem 0.4rem; border-radius: 4px; }
+.node-tags { display: flex; align-items: center; gap: 0.25rem; }
+    }
+    view {
+        div {
+            class: "goals-tree-wrapper"
+            if .isEmpty {
+                div {
+                    class: "empty-state"
+                    Inbox { size: 28 }
+                    span {
+                        text "No goals yet"
+                    }
+                    span {
+                        class: "empty-hint"
+                        text "Click \"Add\" above to create one"
+                    }
+                }
+            } else {
+                div {
+                    class: "goals-tree"
+                    for row in .rows {
+                        div {
+                            key: row.item.id
+                            class: row.cls
+                            onclick: .OpenDetail(row.item)
+                            div {
+                                class: "node-indent"
+                                style: "width: " + row.level * 1.25 + "rem"
+                            }
+                            if row.hasChildren {
+                                div {
+                                    class: row.toggleCls
+                                    title: row.childCount + " sub-goals"
+                                    onclick: .ToggleNode(row.item.id)
+                                    if row.level == 0 {
+                                        span {
+                                            class: "node-children-count"
+                                            text row.childCount
+                                        }
+                                    }
+                                    span {
+                                        class: "node-chevron"
+                                        ChevronRight { size: 14 }
+                                    }
+                                }
+                            }
+                            div {
+                                class: "node-left"
+                                span {
+                                    class: "node-id"
+                                    text row.item.id
+                                }
+                            }
+                            div {
+                                class: "node-right"
+                                span {
+                                    class: "node-title"
+                                    text row.item.title
+                                }
+                                StatusBadge {
+                                status: row.item.status
+                                size: "sm"
+                            }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

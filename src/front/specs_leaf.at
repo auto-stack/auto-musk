@@ -13,7 +13,7 @@
 //     详情占位——两分支均不在 T2 对拍面。
 
 use.web component ChevronDown, ChevronUp, Inbox from "src/front/ports/icons.at"
-use.web specTagParse, specTagAt, specRowSummary from "src/front/specs_helpers.at"
+use.web specTagParse, specTagAt, specSummaryFor from "src/front/specs_helpers.at"
 
 widget StatusBadge(status: str, size: str) {
     computed {
@@ -182,7 +182,7 @@ widget SpecItemRow(item: obj, section_type: str, project: str, is_expanded: bool
     }
 }
 
-widget CategoryList(items: obj, project: str, expanded_id: str, editing_id: str, section_type: str) {
+widget CategoryList(items: obj, project: str, expanded_id: str, editing_id: str, section_type: str, summary_kind: str) {
     computed {
         isEmpty => .items.length == 0
     }
@@ -215,7 +215,7 @@ widget CategoryList(items: obj, project: str, expanded_id: str, editing_id: str,
                         section_type: .section_type
                         project: .project
                         is_expanded: .expanded_id == item.id
-                        summary: specRowSummary(item)
+                        summary: specSummaryFor(.summary_kind, item)
                     }
                 }
             }

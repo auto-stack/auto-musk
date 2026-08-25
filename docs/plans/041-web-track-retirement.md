@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 2
+current_step: 3
 total_steps: 16
 ---
 
@@ -186,7 +186,15 @@ frontend/（musk-config-remote 独立小应用，与 web/ 无关）。
   exit 0 + auto build(vue-tsc+vite)绿。移植坑入册:computed 不支持对象
   字面量(经 fn 返回)、style 内 transition: all 的 all 关键字、
   transition 需 opacity 形态、icons 端口补 Inbox、事件需 msg 声明。]
-- [ ] **T3** category 卡片组 7 件 → .at + specs_view.at 接线 + 对拍。验证：同上。
+- [x] **T3** category 卡片组 7 件 → .at + specs_view.at 接线 + 对拍。验证：同上。
+  [✅ 已完成(2026-08-27):specs_category.at(5 薄包装 + GoalsTable 树形 +
+  TestsCards 独立形态 div.tests-cards>SpecItemRow);specs_helpers 补 8 个
+  extract*Summary(正则形态,行迭代替 (?m) 内联旗——JS regex 不收)+ goals
+  树展平(goalsTreeRows/goalsAppendNode,cls 预计算——循环变量内联 if 的 >
+  破坏解析)+ specSectionItems;specs_view.at 分域接线(goals→GoalsTable,
+  其余各卡,未知→CategoryList 通用)。对拍 13/13 全等(exit 0)+ auto
+  build exit 0。坑入册:跨文件组件引用须 use x: X 别名形态(use.web 对
+  .at 组件件不适用)。]
 - [ ] **T4** detail 组 6 件 + SpecItemDetail → .at + 接线 + 对拍。验证：同上。
 - [ ] **T5** TreeView + RelationsPanel → .at + 对拍。验证：同上。
 - [ ] **T6** 五视图路由对拍（含 popstate/history 行为用例入快照脚本）。
