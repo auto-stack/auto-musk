@@ -6,6 +6,14 @@
 # NOTE: 手写 Vue 组件若放进 gen/front/vue/src/，需单独跟踪——
 # 目前手写文件还未放入，待 Step 4 接入时再决定跟踪策略。
 gen/
+# PLAN-041 T13 迁移物:gen 工程手写测试资产(重生成不覆盖,单独跟踪防丢)
+!gen/front/vue/src/__tests__/
+gen/front/vue/src/__tests__/*
+!gen/front/vue/src/__tests__/i18n.spec.ts
+!gen/front/vue/src/__tests__/frontmatter.spec.ts
+!gen/front/vue/src/utils/
+gen/front/vue/src/utils/*
+!gen/front/vue/src/utils/frontmatter.ts
 
 # a2vue codegen by-products (Plan 022): api client + rust backend scaffolding
 # emitted by `auto build` from src/front + src/back .at. Regenerated each build.
