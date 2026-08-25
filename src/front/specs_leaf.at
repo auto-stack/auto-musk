@@ -172,10 +172,14 @@ widget SpecItemRow(item: obj, section_type: str, project: str, is_expanded: bool
                 }
             }
             if .is_expanded {
-                // T4 接线:SpecItemDetail(详情面板);T2 先占位(不在对拍面)。
+                // PLAN-041 T4:SpecItemDetail 接线(详情面板)。
                 div {
                     class: "row-detail"
-                    text " "
+                    SpecItemDetail {
+                        item: .item
+                        section_type: .section_type
+                        project: .project
+                    }
                 }
             }
         }

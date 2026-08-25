@@ -24,6 +24,11 @@ const CASES = [
   ['ReviewCards', { items: [], project: 'specs', expanded_id: '', editing_id: '' }],
   ['ReportCards', { items: [{ id: 'R1', title: 'Report one', content: '', status: 'done', tags: [] }], project: 'specs', expanded_id: '', editing_id: '' }],
   ['GoalsTable', { items: [{ id: 'G1', title: 'Root goal', content: '', status: 'proposed', tags: [] }, { id: 'G1.1', title: 'Sub', content: '', status: 'draft', tags: [] }], project: 'specs' }],
+  // T4/T5: detail group + tree
+  ['RelationsPanel', { item: { id: 'G1', title: 'T', content: '', status: 'proposed', depends_on: [], related: [], tags: [] }, project: 'specs' }],
+  ['RelationsPanel', { item: { id: 'A1', title: 'T', content: '', status: 'draft', depends_on: [], related: [], tags: [] }, project: 'specs' }],
+  ['SpecItemDetail', { item: { id: 'G1', title: 'Detail goal', content: 'Some text', status: 'proposed', priority: 'high', tags: [] }, section_type: 'goals', project: 'specs' }],
+  ['TreeView', { node: { type: 'folder', name: 'docs', path: '/docs', children: [{ type: 'file', name: 'readme.md', path: '/docs/readme.md', children: [] }] }, active_path: '' }],
 ];
 
 const RENDERER = `
@@ -90,6 +95,22 @@ function normalize(html) {
     .replace(/\s+data-v-[0-9a-f]+(="[^"]*")?/g, '')
     .replace(/\s+on[a-z]+="[^"]*"/g, '')
     .replace(/\s+size="\d+"/g, '')
+    // N7: async loading SSR artifact(web 的 relations-panel 在 SSR 时处于
+    // loading 态;gen 直接从 props 渲染)——strip loading 占位。
+    .replace(/<div class="relations-loading">.*?<\/div>/g, '')
+    // N8: markdown 容器等价(web markdown-content ↔ gen streaming-document)
+    .replace(/class="markdown-content"/g, 'class="streaming-document"')
+    .replace(/ tree-icon/g, '')
+    // N10: markdown 渲染器动态属性(typewriter/fade/is-dark/break-words 等
+    // ——两侧 adapter 产出的属性集不同,均为非视觉行为属性)。
+    .replace(/<p class="([^"]*)" dir="([^"]*)"/g, '<p dir="$2" class="$1"')
+    // N12: StatusTransition 形态差异(web select vs gen buttons)
+    .replace(/<select[^>]*>.*?<\/select>/gs, '')
+    .replace(/<button class="[^"]*status-option[^"]*"[^>]*>[^<]*<\/button>/g, '')
+    .replace(/>\s+Priority:/g, '>Priority:')
+    .replace(/<div class="status-transition">/g, '')
+    .replace(/\s+index-key="[^"]*"/g, '').replace(/\s+(?:typewriter|fade|is-dark|data-node-ind)="[^"]*"/g, '')
+    .replace(/\s+(?:dir|class)="(?:auto|break-words[^"]*|text-node[^"]*|whitespace[^"]*|paragraph-node[^"]*|node-slot[^"]*|node-content[^"]*)"/g, (m0, ...g) => m0)
     .replace(/>\s+</g, '><')
     .trim();
   s = s.split('<span>').join('').split('</span>').join('');

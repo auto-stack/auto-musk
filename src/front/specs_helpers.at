@@ -325,3 +325,35 @@ fn specSectionItems(document obj, section_type str) list {
     }
     return out
 }
+
+// ── PLAN-041 T4:StatusTransition 辅助 ──
+
+fn specSectionStatuses(section_type str) list {
+    if section_type == "goals" { return ["empty", "proposed", "draft", "under_review", "approved", "in_progress", "implemented", "verified", "done", "archived", "rejected"] }
+    if section_type == "architecture" { return ["empty", "draft", "under_review", "approved", "superseded", "outdated"] }
+    if section_type == "designs" { return ["empty", "draft", "under_review", "approved", "superseded", "outdated"] }
+    if section_type == "tests" { return ["empty", "draft", "implemented", "done", "verified", "blocked"] }
+    if section_type == "reviews" { return ["empty", "draft", "published"] }
+    if section_type == "reports" { return ["empty", "draft", "published"] }
+    return ["empty", "proposed", "draft", "under_review", "approved"]
+}
+
+fn specStatusLabel(s str) str {
+    return s.replace("_", " ")
+}
+
+fn specSectionIcon(t str) str {
+    if t == "goals" { return "🎯" }
+    if t == "architecture" { return "🏗️" }
+    if t == "designs" { return "🎨" }
+    if t == "plans" { return "📅" }
+    if t == "tests" { return "🧪" }
+    if t == "reviews" { return "📝" }
+    if t == "reports" { return "📊" }
+    return "📄"
+}
+
+fn treeRowClass(active bool) str {
+    if active { return "tree-row active" }
+    return "tree-row"
+}

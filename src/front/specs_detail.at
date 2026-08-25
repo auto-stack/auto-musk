@@ -1,0 +1,120 @@
+use.web component Markdown from "src/front/ports/renderer.at"
+use.web specSectionStatuses, specStatusLabel from "src/front/specs_helpers.at"
+
+widget StatusTransition(status: str, section_type: str) {
+    msg Msg {
+        Change(str),
+    }
+    computed {
+        options => specSectionStatuses(.section_type)
+    }
+    view {
+        div {
+            class: "status-transition"
+            for s in .options {
+                button {
+                    key: s
+                    class: "status-option " + s
+                    onclick: .Change(s)
+                    text specStatusLabel(s)
+                }
+            }
+        }
+    }
+}
+
+widget RelationsPanel(item: obj, project: str) {
+    msg Msg {
+        Jump(str),
+    }
+    computed {
+        parents => .item.depends_on ?? []
+        children => .item.related ?? []
+        hasParents => .parents.length > 0
+        hasChildren => .children.length > 0
+        isEmpty => !.hasParents && !.hasChildren
+    }
+    view {
+        div {
+            class: "relations-panel"
+            if .hasParents {
+                div {
+                    class: "relations-group"
+                    div {
+                        class: "relations-label"
+                        text "Parents"
+                        span {
+                            class: "relations-count"
+                            text .parents.length
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+widget SpecItemDetail(item: obj, section_type: str, project: str) {
+    msg Msg {
+        Jump(str),
+        Edit(Value),
+        StatusChange(Value),
+        Delete(str),
+    }
+    computed {
+        hasMeta => .item.priority != "" && .item.priority != None
+        contentText => .item.content ?? "(No content)"
+        tags => .item.tags ?? []
+    }
+    view {
+        div {
+            class: "spec-item-detail"
+            div {
+                class: "detail-title-bar"
+                span {
+                    class: "spec-id"
+                    text .item.id
+                }
+                span {
+                    class: "spec-title"
+                    text .item.title
+                }
+            }
+            RelationsPanel {
+                item: .item
+                project: .project
+            }
+            div {
+                class: "detail-content"
+                Markdown {
+                    source: .contentText
+                    streaming: false
+                }
+            }
+            if .hasMeta {
+                div {
+                    class: "detail-meta"
+                    if .item.priority != "" && .item.priority != None {
+                        span {
+                            class: "meta-chip priority"
+                            text "Priority: " + .item.priority
+                        }
+                    }
+                }
+            }
+            div {
+                class: "detail-actions"
+                button {
+                    class: "action-btn"
+                    onclick: .Edit(.item)
+                    text "Edit"
+                }
+                button {
+                    class: "action-btn danger"
+                    onclick: .Delete(.item.id)
+                    text "Delete"
+                }
+            }
+        }
+    }
+}
