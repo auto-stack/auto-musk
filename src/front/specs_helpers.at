@@ -357,3 +357,642 @@ fn treeRowClass(active bool) str {
     if active { return "tree-row active" }
     return "tree-row"
 }
+
+// ── PLAN-041 债务收口:StatusTransition select 化(web TRANSITIONS 表对拍)──
+
+/** from→to 迁移表;自迁移恒真,未列出目标禁用(web canTransition)。 */
+fn specCanTransition(cur str, nxt str) bool {
+    if cur == nxt { return true }
+    if cur == "empty" { return nxt == "proposed" || nxt == "draft" }
+    if cur == "proposed" { return nxt == "draft" }
+    if cur == "draft" { return nxt == "under_review" }
+    if cur == "under_review" { return nxt == "approved" || nxt == "rejected" }
+    if cur == "approved" { return nxt == "in_progress" || nxt == "superseded" || nxt == "outdated" || nxt == "stable" }
+    if cur == "in_progress" {
+        if nxt == "implemented" || nxt == "done" || nxt == "archived" { return true }
+        return nxt == "obsolete" || nxt == "blocked"
+    }
+    if cur == "in_implementation" { return nxt == "implemented" }
+    if cur == "implemented" { return nxt == "done" || nxt == "verified" || nxt == "blocked" }
+    if cur == "done" { return nxt == "verified" || nxt == "archived" }
+    if cur == "verified" { return nxt == "done" || nxt == "archived" }
+    if cur == "rejected" { return nxt == "draft" }
+    if cur == "backlog" { return nxt == "ready" }
+    if cur == "ready" { return nxt == "in_progress" }
+    if cur == "in_review" { return nxt == "done" }
+    if cur == "blocked" { return nxt == "in_progress" || nxt == "implemented" }
+    if cur == "stable" { return nxt == "deprecated" }
+    if cur == "analysed" { return nxt == "approved" }
+    if cur == "drift" { return nxt == "draft" || nxt == "under_review" }
+    return false
+}
+
+/** NativeSelect 选项集:{value,label,disabled}(web allowedStatuses×canTransition)。 */
+fn specStatusOptions(status str, section_type str) list {
+    let out list = []
+    let statuses = specSectionStatuses(section_type)
+    for s in statuses {
+        let dis = !specCanTransition(status, s)
+        out.push({ value: s, label: specStatusLabel(s), disabled: dis })
+    }
+    return out
+}
+
+// ── PLAN-041 债务收口:detail 组内容解析(web detail/*.vue 对拍)──
+
+/** GoalDetail:验收标准行(- [x] 文本)解析。 */
+fn goalCriteria(content str) list {
+    let out list = []
+    let lines = content.split("\n")
+    var in_criteria = false
+    for raw in lines {
+        let line = raw.trim_end()
+        if line.slice(0, 23) == "**Acceptance Criteria:**" {
+            in_criteria = true
+            continue
+        }
+        if line.slice(0, 11) == "**Details:**" || line.slice(0, 3) == "## " || line.slice(0, 2) == "# " {
+            in_criteria = false
+            continue
+        }
+        if in_criteria {
+            let m = Regex.match(line, "^-\\s+\\[([ xX])\\]\\s*(.*)$")
+            if m.length > 2 {
+                let chk = m[1] == "x" || m[1] == "X"
+                out.push({ text: m[2].trim(), checked: chk })
+            }
+        }
+    }
+    return out
+}
+
+/** GoalDetail:Details 块正文。 */
+fn goalDetailsText(content str) str {
+    let out list = []
+    let lines = content.split("\n")
+    var in_details = false
+    for raw in lines {
+        let line = raw.trim_end()
+        if line.slice(0, 11) == "**Details:**" {
+            in_details = true
+            continue
+        }
+        if in_details {
+            if line.length > 1 && line.slice(0, 2) == "**" {
+                in_details = false
+                continue
+            }
+            out.push(line)
+        }
+    }
+    return out.join("\n").trim()
+}
+
+/** GoalDetail:剥掉 criteria/details 块后的剩余 markdown。 */
+fn goalRemaining(content str) str {
+    let kept list = []
+    let lines = content.split("\n")
+    var skip = ""
+    for raw in lines {
+        let line = raw.trim_end()
+        if line.slice(0, 23) == "**Acceptance Criteria:**" { skip = "criteria"; continue }
+        if line.slice(0, 11) == "**Details:**" { skip = "details"; continue }
+        if skip != "" && line.length > 1 && line.slice(0, 2) == "**" { skip = "" }
+        if skip == "criteria" {
+            let m = Regex.match(line, "^-\\s+\\[[ xX]\\]")
+            if m.length > 0 { continue }
+        }
+        if skip == "details" { continue }
+        if line.trim() != "" { kept.push(line) }
+    }
+    return kept.join("\n")
+}
+
+/** GoalEditor 序列化(criteria+details → content;web serializeGoalForm)。 */
+fn goalSerialize(criteria obj, details str) str {
+    let lines list = []
+    if criteria.length > 0 {
+        lines.push("**Acceptance Criteria:**")
+        for c in criteria {
+            let mark = " "
+            if c.checked == true { mark = "x" }
+            lines.push("- [" + mark + "] " + c.text)
+        }
+        lines.push("")
+    }
+    if details.trim() != "" {
+        lines.push("**Details:**")
+        lines.push(details)
+    }
+    return lines.join("\n")
+}
+
+/** TestDetail/TestEditor:块提取的 ``` 围栏剥离(前置 ```lang 行 + 尾行 ```)。 */
+fn testStripFences(block str) str {
+    var b = block.trim()
+    let m2 = Regex.match(b, "^```\\w*\\n?")
+    if m2.length > 0 {
+        b = b.slice(m2[0].length)
+    }
+    let m3 = Regex.match(b, "\\n?```$")
+    if m3.length > 0 {
+        b = b.slice(0, b.length - m3[0].length)
+    }
+    return b.trim()
+}
+
+/** Fixture 块提取(Regex pattern 须字面量——F4 只转译字面量形态)。 */
+fn testExtractFixture(content str) str {
+    let m = Regex.match(content, "\\*\\*Fixture:\\*\\*\\s*\\n?([\\s\\S]*?)(?=\\n\\*\\*|$)")
+    if m.length < 2 { return "" }
+    return testStripFences(m[1])
+}
+
+/** Expected Outcome 块提取。 */
+fn testExtractExpected(content str) str {
+    let m = Regex.match(content, "\\*\\*Expected Outcome:\\*\\*\\s*\\n?([\\s\\S]*?)(?=\\n\\*\\*|$)")
+    if m.length < 2 { return "" }
+    return testStripFences(m[1])
+}
+
+/** TestDetail/TestEditor:编号步骤行提取。 */
+fn testExtractSteps(content str) list {
+    let out list = []
+    let lines = content.split("\n")
+    for raw in lines {
+        let m = Regex.match(raw, "^\\d+\\.\\s*(.*)$")
+        if m.length > 1 {
+            out.push(m[1].trim())
+        }
+    }
+    return out
+}
+
+/** TestDetail:元数据集合(web meta computed)。 */
+fn testMeta(content str, test_file str) obj {
+    let ty = ""
+    let mty = Regex.match(content, "\\*\\*Type:\\*\\*\\s*(\\w+)")
+    if mty.length > 1 { ty = mty[1] }
+    let scope = ""
+    let msc = Regex.match(content, "\\*\\*Scope:\\*\\*\\s*(.+)")
+    if msc.length > 1 { scope = msc[1] }
+    let tf = test_file
+    if tf == "" {
+        let mtf = Regex.match(content, "\\*\\*Test File:\\*\\*\\s*(.+)")
+        if mtf.length > 1 { tf = mtf[1] }
+    }
+    return {
+        type: ty,
+        scope: scope,
+        fixture: testExtractFixture(content),
+        expected: testExtractExpected(content),
+        steps: testExtractSteps(content),
+        testFile: tf,
+    }
+}
+
+/** TestDetail:结构化字段剥离后的剩余 markdown。 */
+fn testRemaining(content str) str {
+    let kept list = []
+    let lines = content.split("\n")
+    var skipping = false
+    for raw in lines {
+        let line = raw.trim_end()
+        if Regex.match(line, "^\\*\\*Type:\\*\\*").length > 0 { continue }
+        if Regex.match(line, "^\\*\\*Scope:\\*\\*").length > 0 { continue }
+        if Regex.match(line, "^\\*\\*Test File:\\*\\*").length > 0 { continue }
+        if Regex.match(line, "^\\*\\*Fixture:\\*\\*").length > 0 { skipping = true; continue }
+        if Regex.match(line, "^\\*\\*Expected Outcome:\\*\\*").length > 0 { skipping = true; continue }
+        if skipping {
+            if line.length > 1 && line.slice(0, 2) == "**" { skipping = false }
+            else {
+                if line.trim() == "```" { skipping = false; continue }
+                continue
+            }
+        }
+        if Regex.match(line, "^\\d+\\.\\s+").length > 0 { continue }
+        if line.trim() != "" { kept.push(line) }
+    }
+    return kept.join("\n")
+}
+
+/** TestEditor:草稿序列化(web onSave lines 组装)。 */
+fn testSerializeDraft(draft obj) str {
+    let lines list = []
+    if draft.type != "" { lines.push("**Type:** " + draft.type) }
+    if draft.scope != "" { lines.push("**Scope:** " + draft.scope) }
+    if draft.fixture != "" {
+        lines.push("**Fixture:**")
+        lines.push("```")
+        lines.push(draft.fixture)
+        lines.push("```")
+    }
+    var has_steps = false
+    let steps = draft.steps ?? []
+    for s in steps {
+        if s.trim() != "" { has_steps = true }
+    }
+    if steps.length > 0 && has_steps {
+        lines.push("")
+        var i = 0
+        for s in steps {
+            if s.trim() != "" {
+                lines.push((i + 1).to_string() + ". " + s.trim())
+                i = i + 1
+            }
+        }
+    }
+    if draft.expected != "" {
+        lines.push("")
+        lines.push("**Expected Outcome:**")
+        lines.push(draft.expected)
+    }
+    return lines.join("\n")
+}
+
+/** ReviewDetail:清单行状态嗅探(web detectStatus)。 */
+fn reviewDetectStatus(text str) str {
+    if text.contains("✅") || text.contains("✓") || text.contains("Pass") || text.contains("pass") { return "pass" }
+    if text.contains("⚠️") || text.contains("❗") || text.contains("Warning") || text.contains("warn") { return "warn" }
+    if text.contains("❌") || text.contains("✗") || text.contains("Fail") || text.contains("fail") { return "fail" }
+    return "pending"
+}
+
+fn reviewStatusIcon(status str) str {
+    if status == "pass" { return "✓" }
+    if status == "warn" { return "!" }
+    if status == "fail" { return "✕" }
+    return "○"
+}
+
+/** ReviewDetail:清单行(-/* + emoji 文本[—注记])解析。 */
+fn reviewChecklist(content str) list {
+    let out list = []
+    let lines = content.split("\n")
+    for raw in lines {
+        let line = raw.trim()
+        let m = Regex.match(line, "^[-*]\\s+([✅✓⚠️❗❌✗⏳○]\\s+)?(.+)$")
+        if m.length > 2 {
+            let text = m[2].trim()
+            let status = reviewDetectStatus(line)
+            // 注记:- 或 — 后的尾部说明
+            let note = ""
+            let body = text
+            let m2 = Regex.match(text, "^(.+?)\\s*(?:[-—]\\s*(.+))?$")
+            if m2.length > 1 {
+                body = m2[1].trim()
+                if m2.length > 2 && m2[2] != None { note = m2[2].trim() }
+            }
+            out.push({ text: body, status: status, note: note })
+        }
+    }
+    return out
+}
+
+/** ReviewDetail:计数摘要。 */
+fn reviewSummaryOf(checklist obj) obj {
+    var pass = 0
+    var warn = 0
+    var fail = 0
+    var pending = 0
+    for it in checklist {
+        if it.status == "pass" { pass = pass + 1 }
+        else {
+            if it.status == "warn" { warn = warn + 1 }
+            else {
+                if it.status == "fail" { fail = fail + 1 }
+                else { pending = pending + 1 }
+            }
+        }
+    }
+    return { pass: pass, warn: warn, fail: fail, pending: pending, total: checklist.length }
+}
+
+/** ReviewDetail:剥掉清单行后的剩余 markdown。 */
+fn reviewRemaining(content str) str {
+    let kept list = []
+    let lines = content.split("\n")
+    for raw in lines {
+        let line = raw.trim_end()
+        if Regex.match(line, "^[-*]\\s+[✅✓⚠️❗❌✗⏳○]").length > 0 { continue }
+        kept.push(line)
+    }
+    return kept.join("\n")
+}
+
+/** ReportDetail:数值比较状态(web compareStatus)。 */
+fn reportCompareStatus(value str, target str) str {
+    let mv = Regex.match(value, "^([\\d.]+)")
+    let mt = Regex.match(target, "^([\\d.]+)")
+    if mv.length < 2 || mt.length < 2 { return "neutral" }
+    let v = mv[1].to_float()
+    let t = mt[1].to_float()
+    if t == 0 { return "neutral" }
+    if target.contains("<") {
+        if v < t { return "good" }
+        return "bad"
+    }
+    if target.contains(">") {
+        if v > t { return "good" }
+        return "bad"
+    }
+    let ratio = v / t
+    if ratio >= 1 { return "good" }
+    if ratio >= 0.7 { return "warn" }
+    return "bad"
+}
+
+fn reportCell(cells obj, i int) str {
+    if cells.length > i {
+        let c = cells[i].trim()
+        if c == "—" || c == "-" { return "" }
+        return c
+    }
+    return ""
+}
+
+/** ReportDetail:Metric|Score|Target 表 → 卡片序列(web metrics)。 */
+fn reportMetrics(content str) list {
+    let out list = []
+    let lines = content.split("\n")
+    var in_table = false
+    for raw in lines {
+        let line = raw.trim_end()
+        if Regex.match(line, "^\\|?\\s*Metric\\s*\\|\\s*Score\\s*\\|\\s*Target\\s*\\|?").length > 0 {
+            in_table = true
+            continue
+        }
+        if in_table && line.length > 0 {
+            if line.char_at(0) != "|" { in_table = false }
+        }
+        if in_table {
+            let cells = line.split("|")
+            let cols list = []
+            for ci in cells {
+                let cc = ci.trim()
+                if cc != "" { cols.push(cc) }
+            }
+            if cols.length >= 2 {
+                let name = cols[0]
+                if name != "Metric" && name.slice(0, 3) != "---" {
+                    let value = reportCell(cols, 1)
+                    let target = reportCell(cols, 2)
+                    let shown = value
+                    if shown == "" { shown = "—" }
+                    let status = "neutral"
+                    if value != "" { status = reportCompareStatus(value, target) }
+                    out.push({ name: name, value: shown, target: target, status: status })
+                }
+            }
+        }
+    }
+    return out
+}
+
+/** ReportDetail:剥掉 metrics 表后的剩余 markdown。 */
+fn reportRemaining(content str) str {
+    let kept list = []
+    let lines = content.split("\n")
+    var in_table = false
+    for raw in lines {
+        let line = raw.trim_end()
+        if Regex.match(line, "^\\|?\\s*Metric\\s*\\|\\s*Score\\s*\\|\\s*Target\\s*\\|?").length > 0 {
+            in_table = true
+            continue
+        }
+        if in_table && line.trim() != "" && line.length > 0 {
+            if line.char_at(0) != "|" { in_table = false }
+        }
+        if in_table { continue }
+        kept.push(line)
+    }
+    return kept.join("\n")
+}
+
+// ── PLAN-041 债务收口:编辑器组草稿操作(widget 内 list 不可变更新)──
+
+fn goalToggleCriteria(criteria obj, idx int) obj {
+    let out list = []
+    var i = 0
+    for c in criteria {
+        if i == idx {
+            out.push({ text: c.text, checked: c.checked != true })
+        } else {
+            out.push(c)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn goalSetCriterionText(criteria obj, idx int, text str) obj {
+    let out list = []
+    var i = 0
+    for c in criteria {
+        if i == idx {
+            out.push({ text: text, checked: c.checked == true })
+        } else {
+            out.push(c)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn goalAddCriterion(criteria obj) obj {
+    let out list = []
+    for c in criteria {
+        out.push(c)
+    }
+    out.push({ text: "", checked: false })
+    return out
+}
+
+fn goalRemoveCriterion(criteria obj, idx int) obj {
+    let out list = []
+    var i = 0
+    for c in criteria {
+        if i != idx {
+            out.push(c)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+/** GoalEditor 草稿行(带索引,循环体内行内绑定用)。 */
+fn goalCriteriaRows(criteria obj) list {
+    let out list = []
+    var i = 0
+    for c in criteria {
+        out.push({ text: c.text, checked: c.checked == true, idx: i })
+        i = i + 1
+    }
+    return out
+}
+
+fn tagListAdd(tags obj, val str) obj {
+    let v = val.trim()
+    if v == "" { return tags }
+    for t in tags {
+        if t == v { return tags }
+    }
+    let out list = []
+    for t in tags {
+        out.push(t)
+    }
+    out.push(v)
+    return out
+}
+
+fn tagListRemove(tags obj, idx int) obj {
+    let out list = []
+    var i = 0
+    for t in tags {
+        if i != idx {
+            out.push(t)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn testStepsSet(steps obj, idx int, text str) obj {
+    let out list = []
+    var i = 0
+    for s in steps {
+        if i == idx {
+            out.push(text)
+        } else {
+            out.push(s)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn testStepsRemove(steps obj, idx int) obj {
+    let out list = []
+    var i = 0
+    for s in steps {
+        if i != idx {
+            out.push(s)
+        }
+        i = i + 1
+    }
+    return out
+}
+
+fn testStepsAdd(steps obj) obj {
+    let out list = []
+    for s in steps {
+        out.push(s)
+    }
+    out.push("")
+    return out
+}
+
+/** TestEditor 草稿行(带索引)。 */
+fn testStepRows(steps obj) list {
+    let out list = []
+    var i = 0
+    for s in steps {
+        out.push({ text: s, idx: i, label: (i + 1).to_string() + "." })
+        i = i + 1
+    }
+    return out
+}
+
+/** GoalEditor 保存 payload 组装。 */
+fn goalEditorPayload(title str, content str, priority str, depends_on obj) obj {
+    return { title: title, content: content, priority: priority, depends_on: depends_on }
+}
+
+fn tagIndexOf(tags obj, val str) int {
+    var i = 0
+    for t in tags {
+        if t == val { return i }
+        i = i + 1
+    }
+    return 0
+}
+
+/** 事件对象取输入值(input/textarea oninput)。 */
+fn stepValueOf(e Value) str {
+    if e.target != None {
+        return e.target.value ?? ""
+    }
+    return ""
+}
+
+/** any → 安全串(空串字面量在绑定面会坍缩为 null——经 fn 中转)。 */
+fn specStr(v Value) str {
+    if v != None {
+        return v
+    }
+    return ""
+}
+
+/** 多标志 any-of(|| 链在 computed 类型推断坍缩为 number——经 fn 中转)。 */
+fn specHasMeta(p bool, a bool, t bool, m bool, ms bool, d bool, tg bool) bool {
+    if p { return true }
+    if a { return true }
+    if t { return true }
+    if m { return true }
+    if ms { return true }
+    if d { return true }
+    return tg
+}
+
+/** TestEditor 保存 payload 组装。 */
+fn testEditorPayload(title str, content str, test_file str) obj {
+    return { title: title, content: content, test_file: test_file }
+}
+
+// ── PLAN-041 债务收口:SpecsView 编辑/详情接线辅助 ──
+
+/** item 字段覆写(web {...item, ...patch} 对拍;modified_at 由服务端定序)。 */
+fn specItemPatch(item obj, patch obj) obj {
+    let out obj = {}
+    let fields = ["id", "title", "content", "status", "depends_on", "related", "priority", "assignee", "test_file", "file", "milestone", "module", "tags", "created_at", "modified_at", "completed_at"]
+    for f in fields {
+        if patch[f] != None {
+            out[f] = patch[f]
+        } else {
+            if item[f] != None {
+                out[f] = item[f]
+            }
+        }
+    }
+    return out
+}
+
+/** 跨 section 查找 item;无命中 None。 */
+fn specFindItem(document obj, id str) obj {
+    if document == None { return None }
+    let sections = document.sections ?? []
+    for section in sections {
+        let items = section.items ?? []
+        for it in items {
+            if it.id == id {
+                return it
+            }
+        }
+    }
+    return None
+}
+
+/** item 所在 section_type;无命中 ""。 */
+fn specSectionOfItem(document obj, id str) str {
+    if document == None { return "" }
+    let sections = document.sections ?? []
+    for section in sections {
+        let items = section.items ?? []
+        for it in items {
+            if it.id == id {
+                return section.section_type
+            }
+        }
+    }
+    return ""
+}

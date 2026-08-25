@@ -13,7 +13,12 @@
 //     详情占位——两分支均不在 T2 对拍面。
 
 use.web component ChevronDown, ChevronUp, Inbox from "src/front/ports/icons.at"
-use.web specTagParse, specTagAt, specSummaryFor from "src/front/specs_helpers.at"
+use.web specTagParse, specTagAt, specSummaryFor, specItemPatch, specStr from "src/front/specs_helpers.at"
+
+// PLAN-037 P1: cross-file component refs (native alias form).
+use spec_item_detail: SpecItemDetail
+use test_editor: TestEditor
+use auto_down_editor: AutoDownEditor
 
 widget StatusBadge(status: str, size: str) {
     computed {
@@ -64,9 +69,17 @@ widget SpecLink(id: str) {
     }
 }
 
-widget SpecItemRow(item: obj, section_type: str, project: str, is_expanded: bool, summary: str) {
+widget SpecItemRow(item: obj, section_type: str, project: str, is_expanded: bool, is_editing: bool, summary: str, detail_kind: str) {
     msg Msg {
-        Toggle(str),
+        toggle(str),
+        jump(str),
+        edititem(Value),
+        statuschange(str),
+        del(str),
+        savetest(obj),
+        savemarkdown,
+        canceledit,
+        editorsaved(obj),
     }
     computed {
         rowCls => if .is_expanded { "spec-item-row expanded cat-" + .section_type } else { "spec-item-row cat-" + .section_type }
@@ -107,7 +120,7 @@ widget SpecItemRow(item: obj, section_type: str, project: str, is_expanded: bool
     view {
         div {
             class: .rowCls
-            onclick: .Toggle(.item.id)
+            onclick: .toggle(.item.id)
             div {
                 class: "row-main"
                 span {
@@ -172,21 +185,62 @@ widget SpecItemRow(item: obj, section_type: str, project: str, is_expanded: bool
                 }
             }
             if .is_expanded {
-                // PLAN-041 T4:SpecItemDetail 接线(详情面板)。
+                // PLAN-041 债务收口:展开分支对齐 web——编辑态渲染行内编辑器
+                // (tests → TestEditor,其余 → AutoDownEditor textarea stub),
+                // 否则 SpecItemDetail(detail_kind 分派内容渲染器)。
                 div {
                     class: "row-detail"
-                    SpecItemDetail {
-                        item: .item
-                        section_type: .section_type
-                        project: .project
+                    if .is_editing {
+                        if .section_type == "tests" {
+                            TestEditor {
+                                item: .item
+                                onsave: .editorsaved($event)
+                                oncancel: .canceledit
+                            }
+                        } else {
+                            AutoDownEditor {
+                                content: specStr(.item.content)
+                                placeholder: "Edit content..."
+                            }
+                        }
+                    } else {
+                        SpecItemDetail {
+                            item: .item
+                            section_type: .section_type
+                            project: .project
+                            detail_kind: .detail_kind
+                            onjump: .jump($event)
+                            onedit: .edititem($event)
+                            onstatuschange: .statuschange($event)
+                            ondelete: .del($event)
+                        }
                     }
                 }
             }
         }
     }
+    on {
+        // TestEditor payload 在行级合并为完整 item 再上行(属性绑定不支持
+        // 嵌套 fn 调用——handler 内组装)。
+        .editorsaved(payload) -> { .savetest(specItemPatch(.item, payload)) }
+        .savetest(item) -> { }
+        .savemarkdown -> { }
+        .canceledit -> { }
+    }
 }
 
-widget CategoryList(items: obj, project: str, expanded_id: str, editing_id: str, section_type: str, summary_kind: str) {
+widget CategoryList(items: obj, project: str, expanded_id: str, editing_id: str, section_type: str, summary_kind: str, detail_kind: str) {
+    msg Msg {
+        toggle(str),
+        jump(str),
+        edititem(Value),
+        statuschange(str),
+        del(str),
+        savetest(obj),
+        savemarkdown,
+        canceledit,
+        editorsaved(obj),
+    }
     computed {
         isEmpty => .items.length == 0
     }
@@ -219,7 +273,17 @@ widget CategoryList(items: obj, project: str, expanded_id: str, editing_id: str,
                         section_type: .section_type
                         project: .project
                         is_expanded: .expanded_id == item.id
+                        is_editing: .editing_id == item.id
                         summary: specSummaryFor(.summary_kind, item)
+                        detail_kind: .detail_kind
+                        ontoggle: .toggle($event)
+                        onjump: .jump($event)
+                        onedititem: .edititem($event)
+                        onstatuschange: .statuschange($event)
+                        ondelete: .del($event)
+                        onsavetest: .savetest($event)
+                        onsavemarkdown: .savemarkdown
+                        oncanceledit: .canceledit
                     }
                 }
             }

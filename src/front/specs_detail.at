@@ -1,38 +1,117 @@
+// specs_detail.at — PLAN-041 债务收口:detail 组逐件细化 + StatusTransition
+// select 化 + GoalDetailModal。
+//
+// 对标 web/src/components/{StatusTransition,RelationsPanel,SpecItemDetail,
+// GoalDetailModal}.vue + detail/{Goal,Review,Test,Report}Detail.vue。
+// ApiDetail/PlanDetail 在 web 无消费面(grep 零引用),登记不移植。
+//
+// 形态裁定:
+//   - 原生 select:auto-lang schema 无原生 select 元素(select→shadcn Select),
+//     经 ext 组件 NativeSelect.vue 对齐 web DOM(use.web component 逃生舱,
+//     与 MarkdownRender.vue 同款机制)。
+//   - 原生 button(带 lucide 子图标):button 元素映射 shadcn Button(类集不同),
+//     经 tab 元素(native_html tier → 原生 button)对齐;tab 注入 4 个基类
+//     token(px-4 py-2 border-b-2 border-transparent),对拍 N13 归一。
+//   - GoalDetailModal:Teleport/Transition 不可表达(023 先例),原位渲染 +
+//     动画舍弃;Escape 关闭(document 级监听)不可表达——登记。
+
 use.web component Markdown from "src/front/ports/renderer.at"
-use.web specSectionStatuses, specStatusLabel from "src/front/specs_helpers.at"
+use.web component NativeSelect from "src/front/components/NativeSelect.vue"
+use.web component Pencil, Trash2, X, ArrowUp, ArrowDown, Unlink from "src/front/ports/icons.at"
+use.web specSectionStatuses, specStatusLabel, specStatusOptions, specSectionIcon from "src/front/specs_helpers.at"
+use.web goalCriteria, goalDetailsText, goalRemaining from "src/front/specs_helpers.at"
+use.web testMeta, testRemaining from "src/front/specs_helpers.at"
+use.web reviewChecklist, reviewSummaryOf, reviewRemaining, reviewStatusIcon from "src/front/specs_helpers.at"
+use.web reportMetrics, reportRemaining, specStr, specHasMeta from "src/front/specs_helpers.at"
+
+// PLAN-037 P1: cross-file component refs (native alias form).
+use status_badge: StatusBadge
+use goal_editor: GoalEditor
 
 widget StatusTransition(status: str, section_type: str) {
     msg Msg {
-        Change(str),
+        change(str),
     }
     computed {
-        options => specSectionStatuses(.section_type)
+        options => specStatusOptions(.status, .section_type)
+    }
+    style {
+.status-transition { display: flex; align-items: center; }
+.status-select { appearance: none; -webkit-appearance: none; padding: 0.2rem 1.5rem 0.2rem 0.6rem; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; border-radius: 999px; border: 1px solid transparent; cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.4rem center; background-size: 0.75rem; }
+.status-select:disabled { opacity: 0.4; cursor: not-allowed; }
+.status-select.empty { color: #94a3b8; background-color: hsl(215 16% 62% / 0.12); }
+.status-select.proposed { color: #a78bfa; background-color: hsl(258 90% 66% / 0.12); }
+.status-select.draft { color: #94a3b8; background-color: hsl(215 16% 62% / 0.12); }
+.status-select.under_review { color: #f59e0b; background-color: hsl(38 92% 50% / 0.12); }
+.status-select.approved { color: #3b82f6; background-color: hsl(217 91% 60% / 0.12); }
+.status-select.in_progress { color: #f59e0b; background-color: hsl(38 92% 50% / 0.12); }
+.status-select.in_implementation { color: #8b5cf6; background-color: hsl(258 90% 66% / 0.12); }
+.status-select.implemented { color: #10b981; background-color: hsl(160 84% 39% / 0.12); }
+.status-select.verified { color: #22c55e; background-color: hsl(142 71% 45% / 0.12); }
+.status-select.done { color: #10b981; background-color: hsl(160 84% 39% / 0.12); }
+.status-select.archived { color: #9ca3af; background-color: hsl(220 9% 46% / 0.12); }
+.status-select.rejected { color: #ef4444; background-color: hsl(0 72% 51% / 0.12); }
+.status-select.backlog { color: #94a3b8; background-color: hsl(215 16% 62% / 0.12); }
+.status-select.ready { color: #3b82f6; background-color: hsl(217 91% 60% / 0.12); }
+.status-select.in_review { color: #f59e0b; background-color: hsl(38 92% 50% / 0.12); }
+.status-select.blocked { color: #ef4444; background-color: hsl(0 72% 51% / 0.12); }
+.status-select.superseded { color: #9ca3af; background-color: hsl(220 9% 46% / 0.12); }
+.status-select.outdated { color: #9ca3af; background-color: hsl(220 9% 46% / 0.12); }
+.status-select.stable { color: #10b981; background-color: hsl(160 84% 39% / 0.12); }
+.status-select.deprecated { color: #f59e0b; background-color: hsl(38 92% 50% / 0.12); }
+.status-select.published { color: #3b82f6; background-color: hsl(217 91% 60% / 0.12); }
+.status-select.analysed { color: #8b5cf6; background-color: hsl(258 90% 66% / 0.12); }
+.status-select.obsolete { color: #9ca3af; background-color: hsl(220 9% 46% / 0.12); }
+.status-select.drift { color: #ef4444; background-color: hsl(0 72% 51% / 0.12); }
     }
     view {
         div {
             class: "status-transition"
-            for s in .options {
-                button {
-                    key: s
-                    class: "status-option " + s
-                    onclick: .Change(s)
-                    text specStatusLabel(s)
-                }
+            NativeSelect {
+                value: .status
+                options: .options
+                cls: "status-select " + .status
+                onchange: .change($event)
             }
+        }
+    }
+    on {
+        .change(v) -> {
         }
     }
 }
 
 widget RelationsPanel(item: obj, project: str) {
     msg Msg {
-        Jump(str),
+        jump(str),
     }
     computed {
+        // 数据源裁定:web 经 useItemRelations 拉 /api/specs/related/{id}
+        // (返回 depends_on/related id 清单,SSR 时为 loading 态);gen 直接
+        // 从 item 字段渲染(同一份数据的另一视图),SSR 即终态——对拍 N7
+        // 归一 web 的 loading 占位。
         parents => .item.depends_on ?? []
         children => .item.related ?? []
         hasParents => .parents.length > 0
         hasChildren => .children.length > 0
         isEmpty => !.hasParents && !.hasChildren
+    }
+    style {
+.relations-panel { background: hsl(var(--muted-foreground) / 0.04); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 0.75rem; }
+.relations-loading { display: flex; align-items: center; gap: 0.4rem; font-size: 0.83rem; color: var(--af-muted); }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.relations-group { margin-bottom: 0.6rem; }
+.relations-group:last-child { margin-bottom: 0; }
+.relations-label { display: flex; align-items: center; gap: 0.3rem; font-size: 0.73rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--af-muted); margin-bottom: 0.4rem; }
+.relations-count { margin-left: auto; font-size: 0.68rem; padding: 0.05rem 0.35rem; border-radius: 999px; background: hsl(var(--muted-foreground) / 0.1); color: var(--af-muted); }
+.relations-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.relations-chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.55rem; border-radius: 8px; background: var(--af-card); border: 1px solid var(--af-border); cursor: pointer; transition: opacity 0.12s; font-size: 0.86rem; }
+.relations-chip:hover { border-color: hsl(var(--primary) / 0.3); background: hsl(var(--primary) / 0.04); }
+.chip-icon { font-size: 0.93rem; line-height: 1; }
+.chip-id { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-weight: 600; color: hsl(var(--primary)); font-size: 0.83rem; }
+.chip-title { color: var(--af-fg); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.relations-empty { display: flex; align-items: center; gap: 0.35rem; font-size: 0.83rem; color: var(--af-muted); padding: 0.5rem 0; }
     }
     view {
         div {
@@ -42,29 +121,467 @@ widget RelationsPanel(item: obj, project: str) {
                     class: "relations-group"
                     div {
                         class: "relations-label"
+                        ArrowUp { size: 12 }
                         text "Parents"
                         span {
                             class: "relations-count"
                             text .parents.length
                         }
                     }
+                    div {
+                        class: "relations-list"
+                        for p in .parents {
+                            div {
+                                key: p
+                                class: "relations-chip"
+                                onclick: .jump(p)
+                                span {
+                                    class: "chip-icon"
+                                    text specSectionIcon("")
+                                }
+                                span {
+                                    class: "chip-id"
+                                    text p
+                                }
+                                span {
+                                    class: "chip-title"
+                                    text p
+                                }
+                                StatusBadge {
+                                    status: ""
+                                    size: "sm"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if .hasChildren {
+                div {
+                    class: "relations-group"
+                    div {
+                        class: "relations-label"
+                        ArrowDown { size: 12 }
+                        text "Children"
+                        span {
+                            class: "relations-count"
+                            text .children.length
+                        }
+                    }
+                    div {
+                        class: "relations-list"
+                        for c in .children {
+                            div {
+                                key: c
+                                class: "relations-chip"
+                                onclick: .jump(c)
+                                span {
+                                    class: "chip-icon"
+                                    text specSectionIcon("")
+                                }
+                                span {
+                                    class: "chip-id"
+                                    text c
+                                }
+                                span {
+                                    class: "chip-title"
+                                    text c
+                                }
+                                StatusBadge {
+                                    status: ""
+                                    size: "sm"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if .isEmpty {
+                div {
+                    class: "relations-empty"
+                    Unlink { size: 14 }
+                    text "No relations"
                 }
             }
         }
     }
 }
 
-widget SpecItemDetail(item: obj, section_type: str, project: str) {
+// ── detail 组:内容渲染器(web detail/*.vue)──
+
+widget GoalDetail(content: str) {
+    computed {
+        criteria => goalCriteria(.content)
+        hasCriteria => .criteria.length > 0
+        details => goalDetailsText(.content)
+        remaining => goalRemaining(.content)
+    }
+    style {
+.goal-detail { display: flex; flex-direction: column; gap: 0.75rem; }
+.block-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--af-muted); margin-bottom: 0.3rem; }
+.criteria-block { border: 1px solid var(--af-border); border-radius: 8px; padding: 0.6rem 0.75rem; background: hsl(var(--muted-foreground) / 0.02); }
+.criteria-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.criteria-list li { display: flex; align-items: flex-start; gap: 0.4rem; color: var(--af-fg); line-height: 1.4; }
+.criteria-list li.checked { opacity: 0.55; }
+.criteria-list li.checked .criteria-text { text-decoration: line-through; }
+.criteria-check { color: hsl(var(--primary)); min-width: 1rem; text-align: center; }
+.criteria-list li.checked .criteria-check { color: hsl(142 71% 45%); }
+.criteria-text { flex: 1; }
+.details-block { border-left: 3px solid hsl(var(--primary)); padding: 0.5rem 0.75rem; background: hsl(var(--primary) / 0.04); border-radius: 0 8px 8px 0; }
+.details-body { white-space: pre-wrap; color: var(--af-fg); line-height: 1.6; }
+    }
+    view {
+        div {
+            class: "goal-detail"
+            if .hasCriteria {
+                div {
+                    class: "criteria-block"
+                    div {
+                        class: "block-label"
+                        text "Acceptance Criteria"
+                    }
+                    div {
+                        class: "criteria-list"
+                        for c in .criteria {
+                            div {
+                                key: c.text
+                                class: if c.checked == true { "checked" } else { "" }
+                                span {
+                                    class: "criteria-check"
+                                    text if c.checked == true { "☑" } else { "☐" }
+                                }
+                                span {
+                                    class: "criteria-text"
+                                    text c.text
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if .details != "" {
+                div {
+                    class: "details-block"
+                    div {
+                        class: "block-label"
+                        text "Details"
+                    }
+                    div {
+                        class: "details-body"
+                        text .details
+                    }
+                }
+            }
+            if .remaining != "" {
+                Markdown {
+                    source: .remaining
+                    streaming: false
+                }
+            }
+        }
+    }
+}
+
+widget ReviewDetail(content: str) {
+    computed {
+        checklist => reviewChecklist(.content)
+        summary => reviewSummaryOf(.checklist)
+        hasChecklist => .checklist.length > 0
+        hasSummary => .summary.total > 0
+        processed => reviewRemaining(.content)
+    }
+    style {
+.review-detail { display: flex; flex-direction: column; gap: 0.75rem; }
+.review-summary { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.summary-chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
+.summary-chip .chip-dot { width: 8px; height: 8px; border-radius: 50%; }
+.summary-chip.pass { background: hsl(142 71% 45% / 0.1); color: hsl(142 71% 35%); }
+.summary-chip.pass .chip-dot { background: #22c55e; }
+.summary-chip.warn { background: hsl(38 92% 50% / 0.12); color: hsl(38 80% 35%); }
+.summary-chip.warn .chip-dot { background: #f59e0b; }
+.summary-chip.fail { background: hsl(0 72% 51% / 0.1); color: hsl(0 72% 40%); }
+.summary-chip.fail .chip-dot { background: #ef4444; }
+.summary-chip.pending { background: hsl(215 16% 62% / 0.1); color: var(--af-muted); }
+.summary-chip.pending .chip-dot { background: #94a3b8; }
+.checklist-block { border: 1px solid var(--af-border); border-radius: 8px; overflow: hidden; }
+.checklist-table { display: flex; flex-direction: column; }
+.checklist-row { display: flex; align-items: flex-start; gap: 0.6rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--af-border); }
+.checklist-row:last-child { border-bottom: none; }
+.checklist-row.pass { background: hsl(142 71% 45% / 0.03); }
+.checklist-row.warn { background: hsl(38 92% 50% / 0.04); }
+.checklist-row.fail { background: hsl(0 72% 51% / 0.04); }
+.checklist-row.pending { opacity: 0.75; }
+.row-status { font-weight: 700; flex-shrink: 0; }
+.checklist-row.pass .row-status { color: #22c55e; }
+.checklist-row.warn .row-status { color: #f59e0b; }
+.checklist-row.fail .row-status { color: #ef4444; }
+.checklist-row.pending .row-status { color: var(--af-muted); }
+.row-text { color: var(--af-fg); flex: 1; }
+.row-note { font-size: 0.83rem; color: var(--af-muted); }
+    }
+    view {
+        div {
+            class: "review-detail"
+            if .hasSummary {
+                div {
+                    class: "review-summary"
+                    div {
+                        class: "summary-chip pass"
+                        span { class: "chip-dot" }
+                        span { text "Pass " + .summary.pass }
+                    }
+                    div {
+                        class: "summary-chip warn"
+                        span { class: "chip-dot" }
+                        span { text "Warning " + .summary.warn }
+                    }
+                    div {
+                        class: "summary-chip fail"
+                        span { class: "chip-dot" }
+                        span { text "Fail " + .summary.fail }
+                    }
+                    div {
+                        class: "summary-chip pending"
+                        span { class: "chip-dot" }
+                        span { text "Pending " + .summary.pending }
+                    }
+                }
+            }
+            if .hasChecklist {
+                div {
+                    class: "checklist-block"
+                    div {
+                        class: "checklist-table"
+                        for item in .checklist {
+                            div {
+                                key: item.text
+                                class: "checklist-row " + item.status
+                                span {
+                                    class: "row-status"
+                                    text reviewStatusIcon(item.status)
+                                }
+                                span {
+                                    class: "row-text"
+                                    text item.text
+                                }
+                                if item.note != "" {
+                                    span {
+                                        class: "row-note"
+                                        text item.note
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Markdown {
+                source: .processed
+                streaming: false
+            }
+        }
+    }
+}
+
+widget TestDetail(content: str, test_file: str) {
+    computed {
+        meta => testMeta(.content, .test_file)
+        hasMetaBadges => .meta.type != "" || .meta.scope != "" || .meta.testFile != ""
+        steps => .meta.steps ?? []
+        hasSteps => .steps.length > 0
+        remaining => testRemaining(.content)
+    }
+    style {
+.test-detail { display: flex; flex-direction: column; gap: 0.75rem; }
+.test-meta { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.meta-badge { display: inline-flex; align-items: center; padding: 0.15rem 0.5rem; font-weight: 600; border-radius: 6px; border: 1px solid var(--af-border); }
+.meta-badge.type { background: hsl(217 91% 60% / 0.1); color: #3b82f6; border-color: hsl(217 91% 60% / 0.25); }
+.meta-badge.scope { background: hsl(38 92% 50% / 0.1); color: #f59e0b; border-color: hsl(38 92% 50% / 0.25); }
+.meta-badge.file { background: hsl(var(--muted-foreground) / 0.06); color: var(--af-muted); }
+.block-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--af-muted); margin-bottom: 0.3rem; }
+.fixture-block { border: 1px solid var(--af-border); border-radius: 8px; overflow: hidden; }
+.fixture-code { margin: 0; padding: 0.6rem 0.75rem; background: hsl(var(--muted-foreground) / 0.04); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.88rem; line-height: 1.5; color: var(--af-fg); overflow-x: auto; }
+.steps-block { border: 1px solid var(--af-border); border-radius: 8px; padding: 0.6rem 0.75rem; background: hsl(var(--muted-foreground) / 0.02); }
+.steps-list { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.steps-list li { color: var(--af-fg); line-height: 1.5; padding-left: 0.3rem; }
+.steps-list li::marker { color: hsl(var(--primary)); font-weight: 600; }
+.expected-block { border-left: 3px solid hsl(142 71% 45%); padding: 0.5rem 0.75rem; background: hsl(142 71% 45% / 0.05); border-radius: 0 8px 8px 0; }
+.expected-body { white-space: pre-wrap; color: var(--af-fg); line-height: 1.5; }
+    }
+    view {
+        div {
+            class: "test-detail"
+            if .hasMetaBadges {
+                div {
+                    class: "test-meta"
+                    if .meta.type != "" {
+                        span {
+                            class: "meta-badge type"
+                            text .meta.type
+                        }
+                    }
+                    if .meta.scope != "" {
+                        span {
+                            class: "meta-badge scope"
+                            text "Scope: " + .meta.scope
+                        }
+                    }
+                    if .meta.testFile != "" {
+                        span {
+                            class: "meta-badge file"
+                            text "📄 " + .meta.testFile
+                        }
+                    }
+                }
+            }
+            if .meta.fixture != "" {
+                div {
+                    class: "fixture-block"
+                    div {
+                        class: "block-label"
+                        text "Fixture"
+                    }
+                    pre {
+                        class: "fixture-code"
+                        code {
+                            text .meta.fixture
+                        }
+                    }
+                }
+            }
+            if .hasSteps {
+                div {
+                    class: "steps-block"
+                    div {
+                        class: "block-label"
+                        text "Steps"
+                    }
+                    ol {
+                        class: "steps-list"
+                        for step in .steps {
+                            li {
+                                key: step
+                                text step
+                            }
+                        }
+                    }
+                }
+            }
+            if .meta.expected != "" {
+                div {
+                    class: "expected-block"
+                    div {
+                        class: "block-label"
+                        text "Expected Outcome"
+                    }
+                    div {
+                        class: "expected-body"
+                        text .meta.expected
+                    }
+                }
+            }
+            if .remaining != "" {
+                Markdown {
+                    source: .remaining
+                    streaming: false
+                }
+            }
+        }
+    }
+}
+
+widget ReportDetail(content: str) {
+    computed {
+        metrics => reportMetrics(.content)
+        hasMetrics => .metrics.length > 0
+        processed => reportRemaining(.content)
+    }
+    style {
+.report-detail { display: flex; flex-direction: column; gap: 0.75rem; }
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.6rem; }
+.metric-card { border: 1px solid var(--af-border); border-radius: 8px; padding: 0.6rem 0.75rem; background: var(--af-card); display: flex; flex-direction: column; gap: 0.2rem; }
+.metric-name { font-size: 0.73rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--af-muted); }
+.metric-value { font-size: 1.3rem; font-weight: 700; color: var(--af-fg); }
+.metric-value.good { color: #10b981; }
+.metric-value.warn { color: #f59e0b; }
+.metric-value.bad { color: #ef4444; }
+.metric-target { font-size: 0.73rem; color: var(--af-muted); }
+    }
+    view {
+        div {
+            class: "report-detail"
+            if .hasMetrics {
+                div {
+                    class: "metrics-grid"
+                    for m in .metrics {
+                        div {
+                            key: m.name
+                            class: "metric-card"
+                            div {
+                                class: "metric-name"
+                                text m.name
+                            }
+                            div {
+                                class: "metric-value " + m.status
+                                text m.value
+                            }
+                            if m.target != "" {
+                                div {
+                                    class: "metric-target"
+                                    text "Target: " + m.target
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Markdown {
+                source: .processed
+                streaming: false
+            }
+        }
+    }
+}
+
+// ── SpecItemDetail:detail_kind 分派(web 经 #content slot 覆盖,gen 经
+// prop 分派——DOM 等价:kind 命中时渲染对应 detail 渲染器,否则 Markdown)──
+
+widget SpecItemDetail(item: obj, section_type: str, project: str, detail_kind: str) {
     msg Msg {
-        Jump(str),
-        Edit(Value),
-        StatusChange(Value),
-        Delete(str),
+        jump(str),
+        edit(Value),
+        statuschange(str),
+        del(str),
     }
     computed {
-        hasMeta => .item.priority != "" && .item.priority != None
         contentText => .item.content ?? "(No content)"
+        hasPriority => .item.priority != "" && .item.priority != None
+        hasAssignee => .item.assignee != "" && .item.assignee != None
+        hasTestFile => .item.test_file != "" && .item.test_file != None
+        hasModule => .item.module != "" && .item.module != None
+        hasMilestone => .item.milestone != "" && .item.milestone != None
+        deps => .item.depends_on ?? []
+        hasDeps => .deps.length > 0
+        depsText => .deps.join(", ")
         tags => .item.tags ?? []
+        hasTags => .tags.length > 0
+        hasMeta => specHasMeta(.hasPriority, .hasAssignee, .hasTestFile, .hasModule, .hasMilestone, .hasDeps, .hasTags)
+    }
+    style {
+.spec-item-detail { padding-top: 0.75rem; }
+.detail-title-bar { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0; margin-bottom: 0.75rem; border-bottom: 1px solid var(--af-border); }
+.spec-id { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.85rem; font-weight: 700; padding: 0.25rem 0.65rem; border-radius: 6px; background: hsl(var(--primary) / 0.1); color: hsl(var(--primary)); border: 1px solid hsl(var(--primary) / 0.25); flex-shrink: 0; letter-spacing: 0.03em; }
+.spec-title { font-size: 1rem; font-weight: 600; color: var(--af-fg); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detail-content { margin-bottom: 0.75rem; }
+.detail-content .streaming-document { font-size: 0.93rem; line-height: 1.65; }
+.detail-meta { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
+.meta-chip { display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.2rem 0.5rem; font-size: 0.78rem; border-radius: 6px; background: hsl(var(--muted-foreground) / 0.06); color: var(--af-muted); border: 1px solid var(--af-border); }
+.meta-chip.priority { background: hsl(var(--primary) / 0.08); color: hsl(var(--primary)); border-color: hsl(var(--primary) / 0.2); }
+.meta-chip.tag { background: hsl(var(--accent) / 0.08); color: hsl(var(--accent)); border-color: hsl(var(--accent) / 0.2); }
+.detail-actions { display: flex; align-items: center; gap: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--af-border); }
+.action-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.65rem; font-size: 0.83rem; border-radius: 6px; border: 1px solid var(--af-border); background: transparent; color: var(--af-muted); cursor: pointer; transition: opacity 0.12s; }
+.action-btn:hover { background: hsl(var(--muted-foreground) / 0.06); color: var(--af-fg); border-color: hsl(var(--muted-foreground) / 0.2); }
+.action-btn.danger:hover { background: hsl(var(--destructive) / 0.08); color: hsl(var(--destructive)); border-color: hsl(var(--destructive) / 0.3); }
     }
     view {
         div {
@@ -83,38 +600,276 @@ widget SpecItemDetail(item: obj, section_type: str, project: str) {
             RelationsPanel {
                 item: .item
                 project: .project
+                onjump: .jump($event)
             }
             div {
                 class: "detail-content"
-                Markdown {
-                    source: .contentText
-                    streaming: false
+                if .detail_kind == "goal" {
+                    GoalDetail {
+                        content: .contentText
+                    }
+                } else {
+                    if .detail_kind == "review" {
+                        ReviewDetail {
+                            content: .contentText
+                        }
+                    } else {
+                        if .detail_kind == "test" {
+                            TestDetail {
+                                content: .contentText
+                                test_file: specStr(.item.test_file)
+                            }
+                        } else {
+                            if .detail_kind == "report" {
+                                ReportDetail {
+                                    content: .contentText
+                                }
+                            } else {
+                                Markdown {
+                                    source: .contentText
+                                    streaming: false
+                                }
+                            }
+                        }
+                    }
                 }
             }
             if .hasMeta {
                 div {
                     class: "detail-meta"
-                    if .item.priority != "" && .item.priority != None {
+                    if .hasPriority {
                         span {
                             class: "meta-chip priority"
                             text "Priority: " + .item.priority
+                        }
+                    }
+                    if .hasAssignee {
+                        span {
+                            class: "meta-chip assignee"
+                            text "👤 " + .item.assignee
+                        }
+                    }
+                    if .hasTestFile {
+                        span {
+                            class: "meta-chip file"
+                            text "📄 " + .item.test_file
+                        }
+                    }
+                    if .hasModule {
+                        span {
+                            class: "meta-chip module"
+                            text "📦 " + .item.module
+                        }
+                    }
+                    if .hasMilestone {
+                        span {
+                            class: "meta-chip milestone"
+                            text "🚩 " + .item.milestone
+                        }
+                    }
+                    if .hasDeps {
+                        span {
+                            class: "meta-chip deps"
+                            text "Depends: " + .depsText
+                        }
+                    }
+                    for tag in .tags {
+                        span {
+                            key: tag
+                            class: "meta-chip tag"
+                            text "🏷️ " + tag
                         }
                     }
                 }
             }
             div {
                 class: "detail-actions"
-                button {
+                StatusTransition {
+                    status: .item.status
+                    section_type: .section_type
+                    onchange: .statuschange($event)
+                }
+                tab {
                     class: "action-btn"
-                    onclick: .Edit(.item)
+                    onclick: .edit(.item)
+                    Pencil { size: 13 }
                     text "Edit"
                 }
-                button {
+                tab {
                     class: "action-btn danger"
-                    onclick: .Delete(.item.id)
+                    onclick: .del(.item.id)
+                    Trash2 { size: 13 }
                     text "Delete"
                 }
             }
+        }
+    }
+    on {
+        .statuschange(v) -> {
+        }
+    }
+}
+
+// ── GoalDetailModal(web Teleport+Transition → gen 原位渲染,动画舍弃)──
+
+widget GoalDetailModal(item: obj, project: str, section_type: str, is_editing: bool) {
+    msg Msg {
+        close,
+        edit,
+        savegoal(Value),
+        canceledit,
+        statuschange(str),
+        del(str),
+        jump(str),
+    }
+    computed {
+        hasItem => .item != None
+        tags => if .hasItem { .item.tags ?? [] } else { [] }
+        deps => if .hasItem { .item.depends_on ?? [] } else { [] }
+        hasDeps => .deps.length > 0
+        depsText => .deps.join(", ")
+        hasPriority => .hasItem && .item.priority != "" && .item.priority != None
+        hasMeta => specHasMeta(.hasPriority, false, false, false, false, .hasDeps, .tags.length > 0)
+        contentText => if .hasItem { .item.content ?? "(No content)" } else { "" }
+    }
+    style {
+.modal-backdrop { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.35); backdrop-filter: blur(2px); padding: 1rem; }
+.modal-dialog { width: 100%; max-width: 680px; max-height: 85vh; display: flex; flex-direction: column; background: var(--af-bg); border-radius: 10px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); border: 1px solid var(--af-border); overflow: hidden; }
+.modal-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--af-border); flex-shrink: 0; }
+.modal-header-left { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+.modal-id { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.8rem; font-weight: 600; color: var(--af-muted); background: hsl(var(--muted-foreground) / 0.08); padding: 0.15rem 0.4rem; border-radius: 4px; white-space: nowrap; }
+.modal-title { font-size: 1rem; font-weight: 600; color: var(--af-fg); line-height: 1.3; }
+.modal-close { background: none; border: none; color: var(--af-muted); cursor: pointer; padding: 0.25rem; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.modal-close:hover { color: var(--af-fg); background: hsl(var(--muted-foreground) / 0.08); }
+.modal-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; padding: 0.6rem 1.25rem; border-bottom: 1px solid var(--af-border); background: hsl(var(--muted-foreground) / 0.02); flex-shrink: 0; }
+.meta-pill { display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.15rem 0.45rem; font-size: 0.78rem; border-radius: 6px; background: hsl(var(--muted-foreground) / 0.06); color: var(--af-muted); border: 1px solid var(--af-border); }
+.meta-pill.priority { background: hsl(var(--primary) / 0.08); color: hsl(var(--primary)); border-color: hsl(var(--primary) / 0.2); }
+.meta-pill.tag { background: hsl(var(--accent) / 0.08); color: hsl(var(--accent)); border-color: hsl(var(--accent) / 0.2); }
+.modal-body { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; }
+.description-section { margin-bottom: 1.25rem; }
+.section-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--af-muted); margin-bottom: 0.5rem; }
+.modal-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 1.25rem; border-top: 1px solid var(--af-border); flex-shrink: 0; }
+.modal-footer-actions { display: flex; align-items: center; gap: 0.5rem; }
+.modal-footer .action-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.4rem 0.7rem; font-size: 0.83rem; border-radius: 6px; border: 1px solid var(--af-border); background: hsl(var(--muted-foreground) / 0.04); color: var(--af-fg); cursor: pointer; transition: opacity 0.12s; }
+.modal-footer .action-btn:hover { background: hsl(var(--muted-foreground) / 0.08); }
+.modal-footer .action-btn.danger { color: hsl(var(--destructive)); border-color: hsl(var(--destructive) / 0.25); background: hsl(var(--destructive) / 0.04); }
+.modal-footer .action-btn.danger:hover { background: hsl(var(--destructive) / 0.08); }
+    }
+    view {
+        if .hasItem {
+            div {
+                class: "modal-backdrop"
+                onclick: .close
+                div {
+                    class: "modal-dialog"
+                    // 头部
+                    div {
+                        class: "modal-header"
+                        div {
+                            class: "modal-header-left"
+                            span {
+                                class: "modal-id"
+                                text .item.id
+                            }
+                            span {
+                                class: "modal-title"
+                                text .item.title
+                            }
+                        }
+                        tab {
+                            class: "modal-close"
+                            onclick: .close
+                            X { size: 16 }
+                        }
+                    }
+                    // 元信息条
+                    if !.is_editing && .hasMeta {
+                        div {
+                            class: "modal-meta"
+                            StatusBadge {
+                                status: .item.status
+                                size: "md"
+                            }
+                            if .hasPriority {
+                                span {
+                                    class: "meta-pill priority"
+                                    text .item.priority
+                                }
+                            }
+                            for tag in .tags {
+                                span {
+                                    key: tag
+                                    class: "meta-pill tag"
+                                    text tag
+                                }
+                            }
+                            if .hasDeps {
+                                span {
+                                    class: "meta-pill deps"
+                                    text "Depends: " + .depsText
+                                }
+                            }
+                        }
+                    }
+                    // 主体
+                    div {
+                        class: "modal-body"
+                        if .is_editing {
+                            GoalEditor {
+                                item: .item
+                                onsave: .savegoal($event)
+                                oncancel: .canceledit
+                            }
+                        } else {
+                            div {
+                                class: "description-section"
+                                div {
+                                    class: "section-label"
+                                    text "Description"
+                                }
+                                GoalDetail {
+                                    content: .contentText
+                                }
+                            }
+                            RelationsPanel {
+                                item: .item
+                                project: .project
+                                onjump: .jump($event)
+                            }
+                        }
+                    }
+                    // 底部
+                    if !.is_editing {
+                        div {
+                            class: "modal-footer"
+                            StatusTransition {
+                                status: .item.status
+                                section_type: .section_type
+                                onchange: .statuschange($event)
+                            }
+                            div {
+                                class: "modal-footer-actions"
+                                tab {
+                                    class: "action-btn"
+                                    onclick: .edit
+                                    Pencil { size: 13 }
+                                    text "Edit"
+                                }
+                                tab {
+                                    class: "action-btn danger"
+                                    onclick: .del(.item.id)
+                                    Trash2 { size: 13 }
+                                    text "Delete"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    on {
+        .statuschange(v) -> {
         }
     }
 }

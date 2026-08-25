@@ -13,6 +13,16 @@ use spec_item_row: SpecItemRow
 use status_badge: StatusBadge
 
 widget ArchitectureCards(items: obj, project: str, expanded_id: str, editing_id: str) {
+    msg Msg {
+        toggle(str),
+        jump(str),
+        edititem(Value),
+        statuschange(str),
+        del(str),
+        savetest(obj),
+        savemarkdown,
+        canceledit,
+    }
     view {
         CategoryList {
             items: .items
@@ -21,11 +31,30 @@ widget ArchitectureCards(items: obj, project: str, expanded_id: str, editing_id:
             editing_id: .editing_id
             section_type: "architecture"
             summary_kind: "architecture"
+            detail_kind: "architecture"
+            ontoggle: .toggle($event)
+            onjump: .jump($event)
+            onedititem: .edititem($event)
+            onstatuschange: .statuschange($event)
+            ondelete: .del($event)
+            onsavetest: .savetest($event)
+            onsavemarkdown: .savemarkdown
+            oncanceledit: .canceledit
         }
     }
 }
 
 widget DesignCards(items: obj, project: str, expanded_id: str, editing_id: str) {
+    msg Msg {
+        toggle(str),
+        jump(str),
+        edititem(Value),
+        statuschange(str),
+        del(str),
+        savetest(obj),
+        savemarkdown,
+        canceledit,
+    }
     view {
         CategoryList {
             items: .items
@@ -34,11 +63,30 @@ widget DesignCards(items: obj, project: str, expanded_id: str, editing_id: str) 
             editing_id: .editing_id
             section_type: "designs"
             summary_kind: "designs"
+            detail_kind: "designs"
+            ontoggle: .toggle($event)
+            onjump: .jump($event)
+            onedititem: .edititem($event)
+            onstatuschange: .statuschange($event)
+            ondelete: .del($event)
+            onsavetest: .savetest($event)
+            onsavemarkdown: .savemarkdown
+            oncanceledit: .canceledit
         }
     }
 }
 
 widget ReportCards(items: obj, project: str, expanded_id: str, editing_id: str) {
+    msg Msg {
+        toggle(str),
+        jump(str),
+        edititem(Value),
+        statuschange(str),
+        del(str),
+        savetest(obj),
+        savemarkdown,
+        canceledit,
+    }
     view {
         CategoryList {
             items: .items
@@ -47,11 +95,30 @@ widget ReportCards(items: obj, project: str, expanded_id: str, editing_id: str) 
             editing_id: .editing_id
             section_type: "reports"
             summary_kind: "reports"
+            detail_kind: "report"
+            ontoggle: .toggle($event)
+            onjump: .jump($event)
+            onedititem: .edititem($event)
+            onstatuschange: .statuschange($event)
+            ondelete: .del($event)
+            onsavetest: .savetest($event)
+            onsavemarkdown: .savemarkdown
+            oncanceledit: .canceledit
         }
     }
 }
 
 widget ReviewCards(items: obj, project: str, expanded_id: str, editing_id: str) {
+    msg Msg {
+        toggle(str),
+        jump(str),
+        edititem(Value),
+        statuschange(str),
+        del(str),
+        savetest(obj),
+        savemarkdown,
+        canceledit,
+    }
     view {
         CategoryList {
             items: .items
@@ -60,6 +127,15 @@ widget ReviewCards(items: obj, project: str, expanded_id: str, editing_id: str) 
             editing_id: .editing_id
             section_type: "reviews"
             summary_kind: "reviews"
+            detail_kind: "review"
+            ontoggle: .toggle($event)
+            onjump: .jump($event)
+            onedititem: .edititem($event)
+            onstatuschange: .statuschange($event)
+            ondelete: .del($event)
+            onsavetest: .savetest($event)
+            onsavemarkdown: .savemarkdown
+            oncanceledit: .canceledit
         }
     }
 }
@@ -67,6 +143,16 @@ widget ReviewCards(items: obj, project: str, expanded_id: str, editing_id: str) 
 widget TestsCards(items: obj, project: str, expanded_id: str, editing_id: str) {
     // web 形态:独立包装(div.tests-cards > SpecItemRow 列表,不经 CategoryList
     // ——无空态,tests 无子目标概念)。
+    msg Msg {
+        toggle(str),
+        jump(str),
+        edititem(Value),
+        statuschange(str),
+        del(str),
+        savetest(obj),
+        savemarkdown,
+        canceledit,
+    }
     view {
         div {
             class: "tests-cards"
@@ -77,7 +163,17 @@ widget TestsCards(items: obj, project: str, expanded_id: str, editing_id: str) {
                     section_type: "tests"
                     project: .project
                     is_expanded: .expanded_id == item.id
+                    is_editing: .editing_id == item.id
                     summary: specSummaryFor("tests", item)
+                    detail_kind: "test"
+                    ontoggle: .toggle($event)
+                    onjump: .jump($event)
+                    onedititem: .edititem($event)
+                    onstatuschange: .statuschange($event)
+                    ondelete: .del($event)
+                    onsavetest: .savetest($event)
+                    onsavemarkdown: .savemarkdown
+                    oncanceledit: .canceledit
                 }
             }
         }
@@ -86,7 +182,7 @@ widget TestsCards(items: obj, project: str, expanded_id: str, editing_id: str) {
 
 widget GoalsTable(items: obj, project: str) {
     msg Msg {
-        OpenDetail(obj),
+        opendetail(obj),
         ToggleNode(str),
     }
     model {
@@ -140,7 +236,7 @@ widget GoalsTable(items: obj, project: str) {
                         div {
                             key: row.item.id
                             class: row.cls
-                            onclick: .OpenDetail(row.item)
+                            onclick: .opendetail(row.item)
                             div {
                                 class: "node-indent"
                                 style: "width: " + row.level * 1.25 + "rem"

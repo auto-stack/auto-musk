@@ -6,7 +6,7 @@
 use store: SpecsStore
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web spec_next_id, spec_default_status, specSectionItems from "src/front/specs_helpers.at"
+use.web spec_next_id, spec_default_status, specSectionItems, specItemPatch, specFindItem, specSectionOfItem from "src/front/specs_helpers.at"
 use.web useT from "src/front/ports/composables.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
@@ -19,6 +19,7 @@ use review_cards: ReviewCards
 use report_cards: ReportCards
 use category_list: CategoryList
 use content_header: ContentHeader
+use goal_detail_modal: GoalDetailModal
 
 widget SpecsView {
 
@@ -41,6 +42,21 @@ widget SpecsView {
         EnterStructuredMode,
         EnterTreeMode,
         SelectSpecFile(str),
+        // PLAN-041 债务收口:行内编辑/详情接线(web handleSave/status/jump 族)。
+        EditItem(Value),
+        RowStatusChange(str),
+        RowDelete(str),
+        JumpToItem(str),
+        SaveTestItem(obj),
+        // GoalDetailModal(web openDetailModal 族)。
+        OpenDetailModal(obj),
+        CloseDetailModal,
+        DetailEdit,
+        DetailCancelEdit,
+        DetailSaveGoal(obj),
+        DetailStatusChange(str),
+        DetailDelete(str),
+        DetailJump(str),
     }
 
     model {
@@ -57,6 +73,12 @@ widget SpecsView {
         var edit_title str = ""
         var edit_content str = ""
         var edit_status str = "draft"
+        // PLAN-041 债务收口:Add 流走底部面板(edit-panel),既有条目编辑走
+        // 行内编辑器(与 web CategoryList 一致)——adding_item 区分两态。
+        var adding_item bool = false
+        // GoalDetailModal 状态(web detailItem/detailEditing)。
+        var detail_item obj = None
+        var detail_editing bool = false
     }
 
     // Plan 028 T9：模板内联 `view_mode == "…"` 三元会被 vue-tsc 流窄化，
@@ -196,6 +218,14 @@ widget SpecsView {
     editing_id: .editing_item_id
     section_type: .active_section
     summary_kind: .active_section
+    detail_kind: ""
+    ontoggle: .SelectItem($event)
+    onjump: .JumpToItem($event)
+    onedititem: .EditItem($event)
+    onstatuschange: .RowStatusChange($event)
+    ondelete: .RowDelete($event)
+    onsavetest: .SaveTestItem($event)
+    oncanceledit: .CancelEdit
 }
                                                 }
                                             }
@@ -206,8 +236,8 @@ widget SpecsView {
                         } else {
                             text t("specs.noDoc")
                         }
-                        // 编辑面板（editing_item_id 非 None 时显示）
-                        if .editing_item_id != None {
+                        // 编辑面板(Add 流专用;既有条目编辑走行内编辑器)。
+                        if .adding_item {
                             col {
                                 style: "edit-panel"
                                 h3 "Edit Item" { style: "text-lg font-bold mb-2" }
@@ -255,6 +285,21 @@ widget SpecsView {
                         }
                     }
                 }
+            }
+            // PLAN-041 债务收口:GoalDetailModal(web Teleport→原位渲染,
+            // position:fixed 全屏遮罩,DOM 挂载点差异登记)。
+            GoalDetailModal {
+                item: .detail_item
+                project: .store.project
+                section_type: "goals"
+                is_editing: .detail_editing
+                onclose: .CloseDetailModal
+                onedit: .DetailEdit
+                onsavegoal: .DetailSaveGoal($event)
+                oncanceledit: .DetailCancelEdit
+                onstatuschange: .DetailStatusChange($event)
+                ondelete: .DetailDelete($event)
+                onjump: .DetailJump($event)
             }
         }
         } else {
@@ -318,7 +363,14 @@ widget SpecsView {
 
         .ToggleOverview -> { .show_overview = !.show_overview }
 
-        .SelectItem(id) -> { .active_item_id = id }
+        .SelectItem(id) -> {
+            // web toggleItem:再点折叠。
+            if .active_item_id == id {
+                .active_item_id = None
+            } else {
+                .active_item_id = id
+            }
+        }
 
         // AddItem: 用 getNextId/getDefaultStatus 创建新 item，进入编辑。
         .AddItem -> {
@@ -327,6 +379,7 @@ widget SpecsView {
             .edit_content = "";
             .edit_status = spec_default_status(.active_section);
             .editing_item_id = new_id;
+            .adding_item = true;
             .active_item_id = new_id
         }
 
@@ -339,7 +392,8 @@ widget SpecsView {
         }
 
         .CancelEdit -> {
-            .editing_item_id = None
+            .editing_item_id = None;
+            .adding_item = false
         }
 
         // SaveEditItem: 保存编辑（新建或更新）。
@@ -370,7 +424,8 @@ widget SpecsView {
                     completed_at: 0,
                 };
                 store.SaveItem(.active_section, item);
-                .editing_item_id = None
+                .editing_item_id = None;
+                .adding_item = false
             }
         }
 
@@ -399,6 +454,99 @@ widget SpecsView {
         // PLAN-025: 选中文件 → 读正文（文件夹点击忽略；扁平渲染不展开）。
         .SelectSpecFile(path) -> {
             store.LoadSpecFile(path)
+        }
+
+        // ── PLAN-041 债务收口:行内编辑/详情接线(web handleSave 族) ──
+
+        // EditItem(item):既有条目进入行内编辑(web startEditItem)。
+        .EditItem(item) -> {
+            .active_item_id = item.id;
+            .editing_item_id = item.id;
+            .adding_item = false
+        }
+
+        // RowStatusChange(status):当前展开条目的状态迁移(web handleStatusChange
+        // ——payload 只携带新状态,id 取展开行 active_item_id)。
+        .RowStatusChange(status) -> {
+            if .active_item_id != None {
+                let item = specFindItem(.store.document, .active_item_id)
+                if item != None {
+                    store.SaveItem(.active_section, specItemPatch(item, {status: status}))
+                }
+            }
+        }
+
+        // RowDelete(id):行内删除(web handleDelete)。
+        .RowDelete(id) -> {
+            store.DeleteItem(.active_section, id);
+            .active_item_id = None
+        }
+
+        // JumpToItem(id):跨 section 跳转(web jumpToItem,flash 高亮舍弃)。
+        .JumpToItem(id) -> {
+            let section = specSectionOfItem(.store.document, id)
+            if section != "" {
+                .active_section = section;
+                .active_item_id = id;
+                .show_overview = false
+            }
+        }
+
+        // SaveTestItem(item):TestEditor 保存(payload 已在行级合并为完整 item)。
+        .SaveTestItem(item) -> {
+            store.SaveItem(.active_section, item);
+            .editing_item_id = None;
+            .adding_item = false
+        }
+
+        // ── GoalDetailModal 接线(web openDetailModal 族) ──
+
+        .OpenDetailModal(item) -> {
+            .detail_item = item;
+            .detail_editing = false
+        }
+
+        .CloseDetailModal -> {
+            .detail_item = None;
+            .detail_editing = false
+        }
+
+        .DetailEdit -> {
+            .detail_editing = true
+        }
+
+        .DetailCancelEdit -> {
+            .detail_editing = false
+        }
+
+        .DetailSaveGoal(payload) -> {
+            if .detail_item != None {
+                let item = specFindItem(.store.document, .detail_item.id)
+                if item != None {
+                    store.SaveItem("goals", specItemPatch(item, payload))
+                }
+            }
+            .detail_editing = false
+        }
+
+        .DetailStatusChange(status) -> {
+            if .detail_item != None {
+                let item = specFindItem(.store.document, .detail_item.id)
+                if item != None {
+                    store.SaveItem("goals", specItemPatch(item, {status: status}))
+                }
+            }
+        }
+
+        .DetailDelete(id) -> {
+            store.DeleteItem("goals", id);
+            .detail_item = None;
+            .detail_editing = false
+        }
+
+        .DetailJump(id) -> {
+            .CloseDetailModal();
+            .JumpToItem(id)
         }
     }
 }

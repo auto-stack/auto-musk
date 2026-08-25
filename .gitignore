@@ -69,3 +69,4 @@ tmp/
 *.err
 .playwright-cli/
 .worktrees/
+track-switch-diff-*.html

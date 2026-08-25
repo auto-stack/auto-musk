@@ -1,0 +1,576 @@
+// specs_editors.at — PLAN-041 债务收口:编辑器组(Phase 2 补齐)。
+//
+// 对标 web/src/components/editors/{GoalEditor,MarkdownEditor,TagInput,
+// TestEditor}.vue + editors/autodown/core/AutoDownEditor.vue。
+//
+// 形态裁定:
+//   - web 的 AutoDownEditor 本身即 textarea stub(头注释自述,TipTap 真身
+//     属 PLAN-038 编辑库路线)——gen 等价移植 textarea 形态,@autodown/editor
+//     vendor 接入不再构成本计划阻塞(原债务前提失效,登记)。
+//   - 原生 select(GoalEditor priority/TestEditor type)经 NativeSelect ext
+//     组件对齐(同 specs_detail.at 裁定)。
+//   - 带图标原生 button 经 tab 元素(N13 归一 tab 基类 token)。
+//   - input/textarea 映射 shadcn Input/Textarea(原生标签 + 平台基类 token,
+//     表单观感为既有平台皮肤,对拍 N14 归一基类 token)。
+//   - criteria checkbox:web 原生 input[type=checkbox],gen 经 checkbox 元素
+//     映射 shadcn Checkbox(button[role=checkbox] 形态)——对拍 N15 双侧剥除。
+
+use.web component Markdown from "src/front/ports/renderer.at"
+use.web component NativeSelect from "src/front/components/NativeSelect.vue"
+use.web component Check, X, Plus from "src/front/ports/icons.at"
+use.web goalCriteria, goalDetailsText, goalSerialize from "src/front/specs_helpers.at"
+use.web goalToggleCriteria, goalSetCriterionText, goalAddCriterion, goalRemoveCriterion, goalCriteriaRows from "src/front/specs_helpers.at"
+use.web tagListAdd, tagListRemove, tagIndexOf, stepValueOf from "src/front/specs_helpers.at"
+use.web testMeta, testSerializeDraft, testStepsSet, testStepsRemove, testStepsAdd, testStepRows from "src/front/specs_helpers.at"
+use.web goalEditorPayload, testEditorPayload from "src/front/specs_helpers.at"
+
+// PLAN-037 P1: cross-file component refs (native alias form).
+use tag_input: TagInput
+
+widget TagInput(value: obj, placeholder: str) {
+    msg Msg {
+        update(obj),
+        removetag(str),
+        EntryInput,
+        EntryKeydown(Value),
+    }
+    model {
+        var input_val str = ""
+    }
+    style {
+.tag-input { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; padding: 0.3rem 0.5rem; border-radius: 6px; border: 1px solid var(--af-border); background: hsl(var(--background)); }
+.tag-list { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.tag-chip { display: inline-flex; align-items: center; gap: 0.15rem; padding: 0.15rem 0.4rem; font-size: 0.83rem; border-radius: 4px; background: hsl(var(--primary) / 0.08); color: hsl(var(--primary)); }
+.tag-remove { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 3px; border: none; background: transparent; color: inherit; cursor: pointer; padding: 0; }
+.tag-remove:hover { background: hsl(var(--primary) / 0.15); }
+.tag-entry { flex: 1; min-width: 80px; border: none; background: transparent; color: var(--af-fg); outline: none; padding: 0.15rem 0; }
+    }
+    view {
+        div {
+            class: "tag-input"
+            div {
+                class: "tag-list"
+                for t in .value {
+                    span {
+                        key: t
+                        class: "tag-chip"
+                        text t
+                        tab {
+                            class: "tag-remove"
+                            onclick: .removetag(t)
+                            X { size: 10 }
+                        }
+                    }
+                }
+            }
+            input {
+                class: "tag-entry"
+                placeholder: .placeholder
+                value: .input_val
+                oninput: .EntryInput
+                onkeydown: .EntryKeydown($event)
+            }
+        }
+    }
+    on {
+        .removetag(t) -> { .update(tagListRemove(.value, tagIndexOf(.value, t))) }
+        // v-model marker(U5):输入实时进本地草稿。
+        .EntryInput -> { }
+        .update(tags) -> { }
+        .EntryKeydown(e) -> {
+            if e.key == "Enter" {
+                e.preventDefault();
+                .update(tagListAdd(.value, .input_val));
+                .input_val = ""
+            } else {
+                if e.key == "Backspace" {
+                    if .input_val == "" && .value.length > 0 {
+                        .update(tagListRemove(.value, .value.length - 1))
+                    }
+                }
+            }
+        }
+    }
+}
+
+// AutoDownEditor — web 侧即 textarea stub(PLAN-030 permissive 形态),
+// 仅 update 输入,save/cancel 事件 web stub 从未发射——gen 等价移植。
+widget AutoDownEditor(content: str, placeholder: str) {
+    msg Msg {
+        Input,
+    }
+    model {
+        // v-model(U5)要求模型变量——prop 经本地草稿中转(挂载初始化)。
+        var draft str = ""
+    }
+    style {
+.autodown-stub { width: 100%; min-height: 200px; padding: 8px; border: 1px solid var(--af-border); border-radius: 6px; background: var(--af-bg); color: var(--af-fg); font-family: monospace; font-size: 0.9rem; resize: vertical; }
+    }
+    view {
+        textarea {
+            class: "autodown-stub"
+            placeholder: .placeholder
+            value: .draft
+            oninput: .Input
+        }
+    }
+    on {
+        .Init -> { .draft = .content }
+        .Input -> { }
+    }
+}
+
+widget TestEditor(item: obj) {
+    msg Msg {
+        save(obj),
+        cancel,
+        TitleInput,
+        TypeChange(str),
+        ScopeInput,
+        FixtureInput,
+        StepInput(int, str),
+        RemoveStep(int),
+        AddStep,
+        ExpectedInput,
+        TestFileInput,
+    }
+    model {
+        var draft_title str = ""
+        var draft_type str = "Unit"
+        var draft_scope str = ""
+        var draft_fixture str = ""
+        var draft_steps obj = []
+        var draft_expected str = ""
+        var draft_test_file str = ""
+    }
+    computed {
+        typeOptions => [{value: "Unit", label: "Unit", disabled: false}, {value: "Integration", label: "Integration", disabled: false}, {value: "E2E", label: "E2E", disabled: false}, {value: "Contract", label: "Contract", disabled: false}, {value: "Performance", label: "Performance", disabled: false}, {value: "Fuzz", label: "Fuzz", disabled: false}]
+        stepRows => testStepRows(.draft_steps)
+    }
+    style {
+.test-editor { display: flex; flex-direction: column; gap: 0.75rem; }
+.form-row { display: flex; flex-direction: column; gap: 0.3rem; }
+.form-row label { font-size: 0.83rem; font-weight: 600; color: var(--af-muted); }
+.form-select { padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid var(--af-border); background: hsl(var(--background)); color: var(--af-fg); font-size: 0.93rem; outline: none; }
+.form-textarea { resize: vertical; min-height: 100px; }
+.form-textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.88rem; }
+.form-input.monospace { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.steps-list { display: flex; flex-direction: column; gap: 0.35rem; }
+.step-row { display: flex; align-items: center; gap: 0.3rem; }
+.step-num { font-size: 0.88rem; color: var(--af-muted); min-width: 1.2rem; }
+.step-input { flex: 1; padding: 0.3rem 0.5rem; border-radius: 6px; border: 1px solid var(--af-border); background: hsl(var(--background)); color: var(--af-fg); outline: none; }
+.step-remove { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 4px; border: none; background: transparent; color: var(--af-muted); cursor: pointer; }
+.step-remove:hover { background: hsl(var(--destructive) / 0.1); color: hsl(var(--destructive)); }
+.add-step { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.5rem; font-size: 0.83rem; border-radius: 6px; border: 1px dashed var(--af-border); background: transparent; color: var(--af-muted); cursor: pointer; align-self: flex-start; }
+.add-step:hover { color: hsl(var(--primary)); border-color: hsl(var(--primary) / 0.4); }
+.editor-actions { display: flex; gap: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--af-border); }
+.save-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.4rem 0.8rem; font-size: 0.86rem; font-weight: 600; border-radius: 6px; border: none; background: hsl(var(--primary)); color: white; cursor: pointer; }
+.save-btn:hover { opacity: 0.9; }
+.cancel-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.4rem 0.8rem; font-size: 0.86rem; border-radius: 6px; border: 1px solid var(--af-border); background: transparent; color: var(--af-muted); cursor: pointer; }
+.cancel-btn:hover { color: var(--af-fg); background: hsl(var(--muted-foreground) / 0.05); }
+    }
+    view {
+        div {
+            class: "test-editor"
+            div {
+                class: "form-row"
+                label "Title"
+                input {
+                    class: "form-input"
+                    value: .draft_title
+                    oninput: .TitleInput
+                }
+            }
+            div {
+                class: "form-row"
+                label "Type"
+                NativeSelect {
+                    value: .draft_type
+                    options: .typeOptions
+                    cls: "form-select"
+                    onchange: .TypeChange($event)
+                }
+            }
+            div {
+                class: "form-row"
+                label "Scope / Parent Goal"
+                input {
+                    class: "form-input"
+                    placeholder: "G1"
+                    value: .draft_scope
+                    oninput: .ScopeInput
+                }
+            }
+            div {
+                class: "form-row"
+                label "Fixture"
+                textarea {
+                    class: "form-textarea code"
+                    rows: 4
+                    value: .draft_fixture
+                    oninput: .FixtureInput
+                }
+            }
+            div {
+                class: "form-row"
+                label "Steps"
+                div {
+                    class: "steps-list"
+                    for row in .stepRows {
+                        div {
+                            key: row.idx
+                            class: "step-row"
+                            span {
+                                class: "step-num"
+                                text row.label
+                            }
+                            input {
+                                class: "step-input"
+                                value: row.text
+                                oninput: .StepInput(row.idx, $event)
+                            }
+                            tab {
+                                class: "step-remove"
+                                onclick: .RemoveStep(row.idx)
+                                X { size: 12 }
+                            }
+                        }
+                    }
+                    tab {
+                        class: "add-step"
+                        onclick: .AddStep
+                        Plus { size: 12 }
+                        text "Add step"
+                    }
+                }
+            }
+            div {
+                class: "form-row"
+                label "Expected Outcome"
+                textarea {
+                    class: "form-textarea"
+                    rows: 3
+                    value: .draft_expected
+                    oninput: .ExpectedInput
+                }
+            }
+            div {
+                class: "form-row"
+                label "Test File Path"
+                input {
+                    class: "form-input monospace"
+                    placeholder: "tests/foo.rs"
+                    value: .draft_test_file
+                    oninput: .TestFileInput
+                }
+            }
+            div {
+                class: "editor-actions"
+                tab {
+                    class: "save-btn"
+                    onclick: .DoSave
+                    Check { size: 13 }
+                    text "Save"
+                }
+                tab {
+                    class: "cancel-btn"
+                    onclick: .cancel
+                    X { size: 13 }
+                    text "Cancel"
+                }
+            }
+        }
+    }
+    on {
+        // 挂载即从 item.content 解析草稿(web draft = ref(parsed))。
+        .Init -> {
+            let meta = testMeta(.item.content ?? "", .item.test_file ?? "")
+            .draft_title = .item.title ?? ""
+            .draft_type = meta.type
+            if .draft_type == "" { .draft_type = "Unit" }
+            .draft_scope = meta.scope
+            .draft_fixture = meta.fixture
+            let steps = meta.steps
+            if steps.length == 0 {
+                .draft_steps = [""]
+            } else {
+                .draft_steps = steps
+            }
+            .draft_expected = meta.expected
+            .draft_test_file = .item.test_file ?? ""
+        }
+        .DoSave -> {
+            .save(testEditorPayload(.draft_title, testSerializeDraft({type: .draft_type, scope: .draft_scope, fixture: .draft_fixture, steps: .draft_steps, expected: .draft_expected}), .draft_test_file))
+        }
+        .save(payload) -> { }
+        .cancel -> { }
+        .TitleInput -> { }
+        .TypeChange(v) -> { .draft_type = v }
+        .ScopeInput -> { }
+        .FixtureInput -> { }
+        .StepInput(idx, e) -> { .draft_steps = testStepsSet(.draft_steps, idx, stepValueOf(e)) }
+        .RemoveStep(idx) -> { .draft_steps = testStepsRemove(.draft_steps, idx) }
+        .AddStep -> { .draft_steps = testStepsAdd(.draft_steps) }
+        .ExpectedInput -> { }
+        .TestFileInput -> { }
+    }
+}
+
+widget GoalEditor(item: obj) {
+    msg Msg {
+        save(obj),
+        cancel,
+        TitleInput,
+        PriorityChange(str),
+        ToggleCriterion(int),
+        CriterionInput(int, str),
+        RemoveCriterion(int),
+        AddCriterion,
+        DetailsInput,
+        DependsUpdate(obj),
+    }
+    model {
+        var draft_title str = ""
+        var draft_priority str = ""
+        var draft_criteria obj = []
+        var draft_details str = ""
+        var draft_depends obj = []
+    }
+    computed {
+        priorityOptions => [{value: "", label: "—", disabled: false}, {value: "P0", label: "P0", disabled: false}, {value: "P1", label: "P1", disabled: false}, {value: "P2", label: "P2", disabled: false}]
+        criteriaRows => goalCriteriaRows(.draft_criteria)
+        detailsLength => .draft_details.length
+        detailsOver => .detailsLength > 500
+    }
+    style {
+.goal-editor { display: flex; flex-direction: column; gap: 0.75rem; }
+.form-row { display: flex; flex-direction: column; gap: 0.3rem; }
+.form-row label { font-size: 0.83rem; font-weight: 600; color: var(--af-muted); display: flex; justify-content: space-between; }
+.char-count { font-size: 0.78rem; font-weight: 500; color: var(--af-muted); }
+.char-count.over { color: hsl(var(--destructive)); }
+.form-select { padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid var(--af-border); background: hsl(var(--background)); color: var(--af-fg); font-size: 0.93rem; outline: none; }
+.form-textarea { resize: vertical; min-height: 100px; }
+.criteria-list { display: flex; flex-direction: column; gap: 0.35rem; }
+.criteria-row { display: flex; align-items: center; gap: 0.4rem; }
+.criteria-check { width: 16px; height: 16px; flex-shrink: 0; cursor: pointer; }
+.criteria-input { flex: 1; padding: 0.3rem 0.5rem; border-radius: 6px; border: 1px solid var(--af-border); background: hsl(var(--background)); color: var(--af-fg); outline: none; }
+.criteria-remove { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 4px; border: none; background: transparent; color: var(--af-muted); cursor: pointer; }
+.criteria-remove:hover { background: hsl(var(--destructive) / 0.1); color: hsl(var(--destructive)); }
+.add-criterion { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.5rem; font-size: 0.83rem; border-radius: 6px; border: 1px dashed var(--af-border); background: transparent; color: var(--af-muted); cursor: pointer; align-self: flex-start; }
+.add-criterion:hover { color: hsl(var(--primary)); border-color: hsl(var(--primary) / 0.4); }
+.editor-actions { display: flex; gap: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--af-border); }
+.save-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.4rem 0.8rem; font-size: 0.86rem; font-weight: 600; border-radius: 6px; border: none; background: hsl(var(--primary)); color: white; cursor: pointer; }
+.save-btn:hover { opacity: 0.9; }
+.cancel-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.4rem 0.8rem; font-size: 0.86rem; border-radius: 6px; border: 1px solid var(--af-border); background: transparent; color: var(--af-muted); cursor: pointer; }
+.cancel-btn:hover { color: var(--af-fg); background: hsl(var(--muted-foreground) / 0.05); }
+    }
+    view {
+        div {
+            class: "goal-editor"
+            div {
+                class: "form-row"
+                label "Title"
+                input {
+                    class: "form-input"
+                    value: .draft_title
+                    oninput: .TitleInput
+                }
+            }
+            div {
+                class: "form-row"
+                label "Priority"
+                NativeSelect {
+                    value: .draft_priority
+                    options: .priorityOptions
+                    cls: "form-select"
+                    onchange: .PriorityChange($event)
+                }
+            }
+            div {
+                class: "form-row"
+                label "Acceptance Criteria"
+                div {
+                    class: "criteria-list"
+                    for row in .criteriaRows {
+                        div {
+                            key: row.idx
+                            class: "criteria-row"
+                            checkbox {
+                                class: "criteria-check"
+                                checked: row.checked
+                                onchange: .ToggleCriterion(row.idx)
+                            }
+                            input {
+                                class: "criteria-input"
+                                placeholder: "Testable criterion..."
+                                value: row.text
+                                oninput: .CriterionInput(row.idx, $event)
+                            }
+                            tab {
+                                class: "criteria-remove"
+                                onclick: .RemoveCriterion(row.idx)
+                                X { size: 12 }
+                            }
+                        }
+                    }
+                    tab {
+                        class: "add-criterion"
+                        onclick: .AddCriterion
+                        Plus { size: 12 }
+                        text "Add criterion"
+                    }
+                }
+            }
+            div {
+                class: "form-row"
+                label {
+                    text "Details"
+                    span {
+                        class: if .detailsOver { "char-count over" } else { "char-count" }
+                        text .detailsLength.to_string() + "/500"
+                    }
+                }
+                textarea {
+                    class: "form-textarea"
+                    rows: 5
+                    placeholder: "≤500 words"
+                    value: .draft_details
+                    oninput: .DetailsInput
+                }
+            }
+            div {
+                class: "form-row"
+                label "Depends on"
+                TagInput {
+                    value: .draft_depends
+                    placeholder: "G1, A1..."
+                    onupdate: .DependsUpdate($event)
+                }
+            }
+            div {
+                class: "editor-actions"
+                tab {
+                    class: "save-btn"
+                    onclick: .DoSave
+                    Check { size: 13 }
+                    text "Save"
+                }
+                tab {
+                    class: "cancel-btn"
+                    onclick: .cancel
+                    X { size: 13 }
+                    text "Cancel"
+                }
+            }
+        }
+    }
+    on {
+        // 挂载即解析(web parseGoalContent + priority/depends_on 覆写)。
+        .Init -> {
+            .draft_title = .item.title ?? ""
+            .draft_criteria = goalCriteria(.item.content ?? "")
+            .draft_details = goalDetailsText(.item.content ?? "")
+            let p = .item.priority
+            if p != None && p != "" {
+                .draft_priority = p
+            } else {
+                .draft_priority = ""
+            }
+            let d = .item.depends_on
+            if d != None {
+                .draft_depends = d
+            } else {
+                .draft_depends = []
+            }
+        }
+        .DoSave -> {
+            .save(goalEditorPayload(.draft_title, goalSerialize(.draft_criteria, .draft_details), .draft_priority, .draft_depends))
+        }
+        .save(payload) -> { }
+        .cancel -> { }
+        .TitleInput -> { }
+        .PriorityChange(v) -> { .draft_priority = v }
+        .ToggleCriterion(idx) -> { .draft_criteria = goalToggleCriteria(.draft_criteria, idx) }
+        .CriterionInput(idx, e) -> { .draft_criteria = goalSetCriterionText(.draft_criteria, idx, stepValueOf(e)) }
+        .RemoveCriterion(idx) -> { .draft_criteria = goalRemoveCriterion(.draft_criteria, idx) }
+        .AddCriterion -> { .draft_criteria = goalAddCriterion(.draft_criteria) }
+        .DetailsInput -> { }
+        .DependsUpdate(tags) -> { .draft_depends = tags }
+    }
+}
+
+widget MarkdownEditor(content: str) {
+    msg Msg {
+        save,
+        cancel,
+        DraftInput,
+    }
+    model {
+        var draft_content str = ""
+    }
+    style {
+.markdown-editor { display: flex; flex-direction: column; gap: 0.75rem; }
+.editor-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; min-height: 320px; }
+.editor-pane { display: flex; flex-direction: column; border: 1px solid var(--af-border); border-radius: 8px; overflow: hidden; background: var(--af-card); }
+.preview-pane { display: flex; flex-direction: column; border: 1px solid var(--af-border); border-radius: 8px; overflow: hidden; background: var(--af-card); }
+.pane-label { padding: 0.35rem 0.6rem; font-size: 0.73rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--af-muted); background: hsl(var(--muted-foreground) / 0.04); border-bottom: 1px solid var(--af-border); }
+.editor-textarea { flex: 1; padding: 0.6rem 0.75rem; border: none; background: transparent; color: var(--af-fg); line-height: 1.6; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; resize: none; outline: none; }
+.editor-actions { display: flex; gap: 0.5rem; }
+.save-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.4rem 0.8rem; font-size: 0.86rem; font-weight: 600; border-radius: 6px; border: none; background: hsl(var(--primary)); color: white; cursor: pointer; }
+.save-btn:hover { opacity: 0.9; }
+.cancel-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.4rem 0.8rem; font-size: 0.86rem; border-radius: 6px; border: 1px solid var(--af-border); background: transparent; color: var(--af-muted); cursor: pointer; }
+.cancel-btn:hover { color: var(--af-fg); background: hsl(var(--muted-foreground) / 0.05); }
+    }
+    view {
+        div {
+            class: "markdown-editor"
+            div {
+                class: "editor-split"
+                div {
+                    class: "editor-pane"
+                    div {
+                        class: "pane-label"
+                        text "Markdown"
+                    }
+                    textarea {
+                        class: "editor-textarea"
+                        value: .draft_content
+                        oninput: .DraftInput
+                    }
+                }
+                div {
+                    class: "preview-pane"
+                    div {
+                        class: "pane-label"
+                        text "Preview"
+                    }
+                    Markdown {
+                        source: .draft_content
+                        streaming: false
+                    }
+                }
+            }
+            div {
+                class: "editor-actions"
+                tab {
+                    class: "save-btn"
+                    onclick: .save
+                    Check { size: 13 }
+                    text "Save"
+                }
+                tab {
+                    class: "cancel-btn"
+                    onclick: .cancel
+                    X { size: 13 }
+                    text "Cancel"
+                }
+            }
+        }
+    }
+    on {
+        .Init -> { .draft_content = .content }
+        .DraftInput -> { }
+        .save -> { }
+        .cancel -> { }
+    }
+}
