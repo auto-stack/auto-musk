@@ -214,6 +214,21 @@ auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇�
   者闭包化，流式 handler 经 host_bridge 注入事件（442 C2 ② SSE 形态
   对接）。验证：VM serve 下 `/api/run/stream` 一条完整 SSE 流冒烟
   （MockClient 即可）。
+  - **▶ 宿主侧已落地(2026-08-26 续,2eca95e)**:vm_backend 注册 mpsc 全族
+    (channel/sender/receiver/try_send/recv/msg_is_none/msg_unwrap,mpsc_recv
+    经 VM 专用 tokio Runtime block_on)+ async 生产者(agent_run_stream/
+    wf_run_with_progress/chat_run_stream spawn fire-and-forget,与 hw 一致)
+    + workflow_exists/mode_exists/stream_event_map;cargo test 406 绿;
+    vm_entry 装配 🔴 七条路由(对齐 hw server.rs serve),server_stream.at
+    加 run_endpoint 别名(裸名 run 撞内建)。
+  - **▶ 剩余卡点(精确记录,待续)**:vm_entry 路由装配的 VM 命名/闭包解析
+    三连——① 裸名 `run` 与内建撞名(别名已加,但) ② 模块 pub fn 别名
+    (run_endpoint 等)不流经 use 导入的裸名绑定面(collect_module_imports
+    别名表只覆盖既有调用面) ③ 模块限定名 fn-ref(server_stream.X 传给
+    post())可解析可分发但闭包捕获取错体(POST /api/run/stream 返回
+    health 的 body、VMDISP 零命中——疑 axum_adapter resolve_params 的
+    exports_by_name addr 反查在多模块场景失真)。下一步:auto-lang 侧修
+    fn-ref 闭包解析(worktree),或 vm_entry 改本地 thunk fn 转发绕开。
 
 ### Phase 2 — parity harness 换 VM
 
