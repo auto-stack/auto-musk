@@ -12,11 +12,11 @@ spec Tool {
 
 // NOTE: schema `let`s are emitted into fn main() by a2r and stripped by
 // nativeize.pl (real consts live in extern_impl.rs).
-let read_specs_schema = `{"type":"object","properties":{"section":{"type":"string"}}}`
-let list_specs_schema = `{"type":"object"}`
-let write_spec_schema = `{"type":"object","properties":{"section":{"type":"string"},"content":{"type":"string"}},"required":["section","content"]}`
-let update_spec_schema = `{"type":"object","properties":{"action":{"type":"string"},"section":{"type":"string"},"item_id":{"type":"string"}},"required":["action","section"]}`
-let write_goals_schema = `{"type":"object","properties":{"goals":{"type":"string"}},"required":["goals"]}`
+const read_specs_schema = `{"type":"object","properties":{"section":{"type":"string"}}}`
+const list_specs_schema = `{"type":"object"}`
+const write_spec_schema = `{"type":"object","properties":{"section":{"type":"string"},"content":{"type":"string"}},"required":["section","content"]}`
+const update_spec_schema = `{"type":"object","properties":{"action":{"type":"string"},"section":{"type":"string"},"item_id":{"type":"string"}},"required":["action","section"]}`
+const write_goals_schema = `{"type":"object","properties":{"goals":{"type":"string"}},"required":["goals"]}`
 
 type ReadSpecs as Tool {
     fn name() str { return "read_specs" }

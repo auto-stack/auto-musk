@@ -12,9 +12,9 @@ spec Tool {
 
 // NOTE: schema `let`s are emitted into fn main() by a2r and stripped by
 // nativeize.pl (real consts live in extern_impl.rs).
-let spawn_relay_schema = `{"type":"object","properties":{"task":{"type":"string"},"flow_id":{"type":"string"}},"required":["task"]}`
-let dispatch_schema = `{"type":"object","properties":{"task":{"type":"string"},"to":{"type":"string"}},"required":["task","to"]}`
-let bring_in_schema = `{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`
+const spawn_relay_schema = `{"type":"object","properties":{"task":{"type":"string"},"flow_id":{"type":"string"}},"required":["task"]}`
+const dispatch_schema = `{"type":"object","properties":{"task":{"type":"string"},"to":{"type":"string"}},"required":["task","to"]}`
+const bring_in_schema = `{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`
 
 type SpawnRelay as Tool {
     fn name() str { return "spawn_relay" }

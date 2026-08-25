@@ -1,0 +1,15 @@
+dep axum
+use.rust axum::Router
+use.rust axum::routing::{get, post}
+
+fn health() {}
+
+fn build_router() Router {
+    var app = Router.new()
+    app = app.route("/api/health", get(health))
+    return app
+}
+
+fn main() {
+    print("repro-ok")
+}

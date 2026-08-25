@@ -15,14 +15,14 @@ spec Tool {
 // NOTE: xxx_schema are defined as `let` here so a2r sees them as defined.
 // a2r emits them into fn main(); nativeize.pl strips that fn main afterward
 // (the real consts live in extern_impl.rs, imported via the glob use).
-let read_file_schema = `{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}`
-let write_file_schema = `{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}`
-let run_command_schema = `{"type":"object","properties":{"cmd":{"type":"string"},"force":{"type":"boolean"}},"required":["cmd"]}`
-let edit_file_schema = `{"type":"object","properties":{"path":{"type":"string"},"old_string":{"type":"string"},"new_string":{"type":"string"}},"required":["path","old_string","new_string"]}`
-let search_schema = `{"type":"object","properties":{"pattern":{"type":"string"}},"required":["pattern"]}`
-let list_dir_schema = `{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}`
-let list_symbols_schema = `{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}`
-let glob_schema = `{"type":"object","properties":{"pattern":{"type":"string"}},"required":["pattern"]}`
+const read_file_schema = `{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}`
+const write_file_schema = `{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"]}`
+const run_command_schema = `{"type":"object","properties":{"cmd":{"type":"string"},"force":{"type":"boolean"}},"required":["cmd"]}`
+const edit_file_schema = `{"type":"object","properties":{"path":{"type":"string"},"old_string":{"type":"string"},"new_string":{"type":"string"}},"required":["path","old_string","new_string"]}`
+const search_schema = `{"type":"object","properties":{"pattern":{"type":"string"}},"required":["pattern"]}`
+const list_dir_schema = `{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}`
+const list_symbols_schema = `{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}`
+const glob_schema = `{"type":"object","properties":{"pattern":{"type":"string"}},"required":["pattern"]}`
 
 type ReadFile as Tool {
     fn name() str { return "read_file" }
