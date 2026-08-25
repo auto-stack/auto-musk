@@ -69,11 +69,15 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
     // (`frontend-dist/config-page.js`, if present) is served as a fallback so
     // auto-os-config can still load it cross-origin.
     let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    // web/dist is two levels up from backend/crates/musk → auto-musk/web/dist.
-    let web_dist = manifest
-        .join("../../../web/dist")
+    // PLAN-041 T11: 生产前端切 gen 产物(gen/front/vue/dist——Auto 单源)。
+    // MUSK_WEB_DIST env 可覆盖回 web/dist(回滚开关,观察期使用)。
+    let default_dist = manifest.join("../../../gen/front/vue/dist");
+    let web_dist = std::env::var("MUSK_WEB_DIST")
+        .map(std::path::PathBuf::from)
+        .ok()
+        .unwrap_or_else(|| default_dist.clone())
         .canonicalize()
-        .unwrap_or_else(|_| manifest.join("../../../web/dist"));
+        .unwrap_or(default_dist);
     // The config-page ESM bundles (served to auto-os-config) live at
     // backend/crates/musk/frontend-dist/ (that's where vite lib mode outputs).
     let frontend_dist = manifest.join("frontend-dist");

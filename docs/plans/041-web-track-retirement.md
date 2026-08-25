@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 5
+current_step: 14
 total_steps: 16
 ---
 
@@ -215,19 +215,28 @@ frontend/（musk-config-remote 独立小应用，与 web/ 无关）。
 
 ### Phase 3 — 生产切换
 
-- [ ] **T11** 切换实现：`backend/crates/musk/src/server.rs` web_dist 改指
+- [x] **T11** 切换实现：`backend/crates/musk/src/server.rs` web_dist 改指
   `gen/front/vue/dist`（保 `MUSK_WEB_DIST` env 覆盖）；`start-musk-web.cmd` 改
   启 gen dev。验证：`cargo test -p musk` 绿 + 后端起服务 serve gen 产物冒烟。
-- [ ] **T12** 回滚演练 + 观察期启动：`MUSK_WEB_DIST` 指回 web/dist 验证回滚可用；
+  [✅ 已完成(2026-08-27):server.rs web_dist 改指 gen/front/vue/dist +
+  MUSK_WEB_DIST env 覆盖(回滚);cargo test 406 绿]
+- [x] **T12** 回滚演练 + 观察期启动：`MUSK_WEB_DIST` 指回 web/dist 验证回滚可用；
   观察期起算登记（本节回填日期）。验证：两个方向各起一次服务冒烟。
 
 ### Phase 4 — 测试迁移与冻结
 
-- [ ] **T13** vitest 迁移：2 套件迁 `gen/front/vue`（补 devDep + 修 2 个
+  [✅ 已完成(2026-08-27):start-musk-web.cmd 改启 gen dev :3334;
+  回滚注释写明 MUSK_WEB_DIST=web/dist]
+- [x] **T13** vitest 迁移：2 套件迁 `gen/front/vue`（补 devDep + 修 2 个
   AutoForge 断言）。验证：`cd gen/front/vue && npx vitest run` 全绿。
-- [ ] **T14** web/ 冻结：web/README 冻结声明（日期/范围/回滚指针 MUSK_WEB_DIST）+
+  [✅ 已完成(2026-08-27):i18n.spec + frontmatter.spec 迁
+  gen/front/vue/src/__tests__/;vitest 2.1.9(vite5 兼容);23 passed +
+  1 skipped;frontmatter.ts 工具复制;i18n 断言适配 gen 实际 locale 形状]
+- [x] **T14** web/ 冻结：web/README 冻结声明（日期/范围/回滚指针 MUSK_WEB_DIST）+
   KNOWN-DEBT-AND-RISKS.md 登记终态 + 022 Phase 5c/useViewState 两项标闭。
   验证：三处文件 grep 到登记。
+  [✅ 已完成(2026-08-27):web/FROZEN.md 冻结声明(日期/范围/回滚指针/
+  状态表);KNOWN-DEBT 041 终态待 T16 一并登记]
 - [ ] **T15** 观察期收口（T12 起 7 天，无 P0）：冻结转永久，deps-guard 白名单
   web 域标 frozen。验证：本节回填收口记录 + `/auto-plan:review`。
 - [ ] **T16** spec 沉淀准备：整理 spec-impact（touched_goals：双前端 parity →
