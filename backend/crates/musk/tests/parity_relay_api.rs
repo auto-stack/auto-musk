@@ -451,3 +451,77 @@ fn relay_stateless_vm_vs_hw() {
     }
     eprintln!("relay_stateless_vm_vs_hw: 5 endpoint(s) VM≡hw");
 }
+
+
+/// PLAN-044 T6: SSE parity —— hw vs VM 各消费一条完整流。
+/// 双侧都走确定性错误路径(VM: AAID_URL 不可达;hw: MockClient),比对
+/// SSE 框架形态 + 事件类型序列(错误 message 文本两侧来源不同,只比 type)。
+/// 同时充当 T4 偶发停摆的稳定性观察(挂起会在 ureq 超时表现为失败)。
+#[test]
+fn run_stream_sse_vm_vs_hw() {
+    if !vm_target_enabled() {
+        eprintln!("run_stream_sse_vm_vs_hw: SKIPPED — set PARITY_TARGET=vm to run");
+        return;
+    }
+    // hw 侧:MockClient 错误路径的完整 SSE 流(oneshot 收到流关闭)。
+    // run/stream 不在 relay 路由组——按 hw server.rs serve 同款挂 ag
+    // server_stream handler(hw 生产轨即它服务 🔴 路由)。
+    let rt = tokio::runtime::Runtime::new().expect("hw tokio rt");
+    let hw_sse = rt.block_on(async {
+        let hw = axum::Router::new()
+            .route(
+                "/api/run/stream",
+                axum::routing::post(musk::auto_generated::server_stream::run_stream_handler),
+            )
+            .with_state(tmp_state());
+        let resp = hw
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/run/stream")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"task":"hi"}"#.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let status = resp.status();
+        let bytes = axum::body::to_bytes(resp.into_body(), 1024 * 1024).await.unwrap();
+        (status.as_u16(), String::from_utf8_lossy(&bytes).into_owned())
+    });
+
+    // VM 侧:子进程 serve + 不可达 daemon → 同族错误路径。
+    let vm = common::spawn_vm_serve_with_env(&[(
+        "AAID_URL".to_string(),
+        "http://127.0.0.1:9".to_string(),
+    )]);
+    let (vm_code, vm_sse) = vm.req_raw("POST", "/api/run/stream", r#"{"task":"hi"}"#);
+
+    // 两侧都是 200 + text/event-stream 流(hw 的 SSE 响应)。
+    assert_eq!(vm_code, 200, "vm sse: {vm_sse}
+serve.log tail:
+{}", vm.log_tail(15));
+    assert_eq!(hw_sse.0, 200, "hw sse: {}", hw_sse.1);
+
+    let parse = |raw: &str| -> Vec<String> {
+        raw.lines()
+            .filter(|l| l.starts_with("data: "))
+            .filter_map(|l| l.strip_prefix("data: "))
+            .map(|d| {
+                serde_json::from_str::<Value>(d)
+                    .ok()
+                    .and_then(|v| v["type"].as_str().map(str::to_string))
+                    .unwrap_or_else(|| "<unparsable>".to_string())
+            })
+            .collect()
+    };
+    let hw_types = parse(&hw_sse.1);
+    let vm_types = parse(&vm_sse);
+    assert!(!hw_types.is_empty(), "hw stream must yield ≥1 event: {hw_types:?}");
+    assert_eq!(vm_types, hw_types, "event type sequence parity (hw={:?} vm={:?})", hw_types, vm_types);
+    // 确定性错误路径的既定序列:turn_start 起流,error 帧收尾,连接正常关闭。
+    assert_eq!(hw_types, vec!["turn_start".to_string(), "error".to_string()],
+        "deterministic error path: {hw_types:?}");
+    eprintln!("run_stream_sse_vm_vs_hw: {} frame(s) VM≡hw ({:?})", hw_types.len(), hw_types);
+}

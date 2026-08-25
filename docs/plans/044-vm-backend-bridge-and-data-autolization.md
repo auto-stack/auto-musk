@@ -312,8 +312,14 @@ auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇�
   task_plans)hw vs VM 语义等价 + DELETE 404 状态码;vm_backend 补
   relay_task_plans_list 桥。PARITY_TARGET=vm 全绿;默认模式 5+1 零回归。
   其余 parity 套件按同模式按需迁移。]
-- [ ] **T6** SSE parity 用例：真实流对照（hw vs VM 各消费一条流，
+- [x] **T6** SSE parity 用例：真实流对照（hw vs VM 各消费一条流，
   事件序归一断言）。验证：同 T5 命令含流式用例通过。
+  [✅ 已完成(2026-08-27):run_stream_sse_vm_vs_hw——双侧确定性错误路径
+  (VM:AAID_URL 不可达;hw:MockClient),完整 SSE 流逐事件 type 序列比对
+  ——实测两侧均 ["turn_start","error"] 且连接正常关闭;harness 配套:
+  req_raw 裸 TCP 消费(ureq 对无 content-length 流不稳)+ stderr 落盘
+  serve.log(诊断)+ log_tail;连跑 3 次稳定性绿(T4 偶发停摆未再现);
+  PARITY_TARGET=vm 全套 6 用例绿;默认模式零回归。]
 - [ ] **T7** 442 验收 3 对账：双面 parity 全绿记录回填 auto-lang 442
   文档（其 §7.3 接力项闭环），442 转 C3 观察期流程。验证：442 文档
   grep 到回填记录。
