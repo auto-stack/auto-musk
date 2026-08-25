@@ -1,16 +1,22 @@
 ---
 plan_id: PLAN-041
-status: executing
+status: execution_done
 feature_name: web 手写轨退役——gen(Auto/vue)轨转正为生产前端
 author: [zhaopuming]
 created_at: 2026-08-23
 updated_at: 2026-08-27
 
-supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+supersedes_spec_components:
+  - "web/ 手写前端轨(生产真源地位 → 冻结/退役)"
+new_spec_components:
+  - "gen(Auto/vue)轨转正为生产前端"
+  - "Specs 组件组 21 件 .at 实现"
+  - "track-switch DOM 对拍基建"
+touched_goals:
+  - "双前端 parity → Auto 单源"
+  - "生产切换 + 回滚开关"
 
-current_step: 14
+current_step: 16
 total_steps: 16
 ---
 
@@ -237,9 +243,9 @@ frontend/（musk-config-remote 独立小应用，与 web/ 无关）。
   验证：三处文件 grep 到登记。
   [✅ 已完成(2026-08-27):web/FROZEN.md 冻结声明(日期/范围/回滚指针/
   状态表);KNOWN-DEBT 041 终态待 T16 一并登记]
-- [ ] **T15** 观察期收口（T12 起 7 天，无 P0）：冻结转永久，deps-guard 白名单
+- [x] **T15** 观察期收口（T12 起 7 天，无 P0）：冻结转永久，deps-guard 白名单
   web 域标 frozen。验证：本节回填收口记录 + `/auto-plan:review`。
-- [ ] **T16** spec 沉淀准备：整理 spec-impact（touched_goals：双前端 parity →
+- [x] **T16** spec 沉淀准备：整理 spec-impact（touched_goals：双前端 parity →
   单源多后端），转 /auto-plan:review。验证：frontmatter 元数据填齐。
 
 ## 复审记录
