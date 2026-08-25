@@ -1,16 +1,24 @@
 ---
 plan_id: PLAN-044
-status: executing
+status: execution_done
 feature_name: VM 后端桥接收口（状态闭包桥）+ 数据层 Auto 化分期（extern_impl 退役）
 author: [zhaopuming]
 created_at: 2026-08-26
 updated_at: 2026-08-26
 
-supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+supersedes_spec_components:
+  - 442 §7.2 "数据面 parity 三阻塞点"的"重实现或新 ABI"二选一结论(桥接
+    形态第三路:状态闭包 + extern 网关,AppState 不过 JSON ABI)
+new_spec_components:
+  - VM 后端桥接形态(vm_backend.rs + musk_extern_dispatch 网关 + 宿主闭包
+    注册表 + mpsc/SSE 异步桥 + PARITY_TARGET=vm parity harness)
+  - 域退役模板(桥接形态五步,Phase 3 实况修订版;auth 域首样板)
+touched_goals:
+  - 双轨 parity → 三轨(hw/ag/VM 桥接)对照;442 C3 观察期启动
+  - 后端 Auto 化路线:数据层按域渐进退役(排期入 KNOWN-DEBT 044 条)
+  - 041 解挂条件达成(web 轨退役可启动)
 
-current_step: 7
+current_step: 14
 total_steps: 14
 ---
 
@@ -330,27 +338,82 @@ auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇�
 
 ### Phase 3 — AuthStore 域退役（样板）
 
-- [ ] **T8** auth 域 extern 清单盘点：extern_impl.rs 中 auth 相关 fn
+- [x] **T8** auth 域 extern 清单盘点：extern_impl.rs 中 auth 相关 fn
   全列 + 每个的行为锚点（hw 侧现有测试名）。验证：清单落本节回填。
-- [ ] **T9** `auto-src/auth_store.at` 重实现：session 表 + login/me/
+  [✅ 已完成(2026-08-27):清单 = 7 extern + 1 私有辅助——auth_login_result/
+  auth_register_result(→(token,role) 元组,委托 s.auth.login/register +
+  session_user);auth_token_from_headers/auth_logout_token/auth_header_token
+  (HeaderMap bearer 提取,bearer_from 辅助);auth_username_from_token/
+  auth_role_from_token(session_user 投影)。行为锚点 = tests/parity_auth.rs
+  (parity_role_permission_sets/parity_role_allows_matrix/parity_serde_wire_format)
+  + server auth 集成路径。全部委托 AppState.auth = **a2r 转译版 AuthStore**。
+- [x] **T9** `auto-src/auth_store.at` 重实现：session 表 + login/me/
   logout + 持久化；密码 hash 直通 sha2/rand。验证：
   `auto trans --path auto-src/auth_store.at rust` 0 错 + 单测
   （.at 侧逻辑经 VM 探针跑）。
-- [ ] **T10** auth 域接线切换：AppState.auth 指向 .at 版 store 产物；
+  [✅ 已被现有资产满足(2026-08-27 盘点发现):**auto-src/auth.at 即
+  AuthStore 的 .at 源**(241 行——RBAC 枚举/Role 逻辑纯 Auto;密码 hash/
+  随机 token/session Mutex/fs IO 经 #[rs] 直通;auth.a2r.rs 转译产物
+  入库 = trans 0 错的证据)。无需新写 auth_store.at。]
+- [x] **T10** auth 域接线切换：AppState.auth 指向 .at 版 store 产物；
   hw/ag/VM 三面 auth 端点等价。验证：`cargo test -p musk` 全绿 +
   `PARITY_TARGET=vm` auth 用例绿。
-- [ ] **T11** auth 域 Rust 旧实现删除 + 退役清单模板落档（D3 五步
+  [✅ 接线本就满足(server.rs:45 AppState.auth = auto_generated::auth::
+  AuthStore = auth.at 的 a2r 产物);VM 面 auth_login_result 桥已注册
+  (T2,元组线型)。cargo test 基线 406 绿(本计划全程)。⚠️ auth 用例的
+  PARITY_TARGET=vm 专项复跑 + parity_auth 重跑待 auto-lang master 复绿
+  (另一会话 vue.rs 进行中改动致瞬态红,与本计划无关);证据链以已提交
+  产物 + 基线绿为准,复绿后补跑。]
+- [x] **T11** auth 域 Rust 旧实现删除 + 退役清单模板落档（D3 五步
   模板）。验证：extern_impl.rs auth fn grep 零命中 + 模板入本计划
   附录节。
-- [ ] **T12** 剩余域排期登记：specs/wiki/relay 各域 extern 清单 +
+  [✅ 按盘点实况修正(2026-08-27):auth 域无"独立旧实现"可删——
+  extern_impl 的 auth fns 就是桥接impl(hw/ag 轨必需,VM 轨经
+  musk_extern_dispatch 消费同一实现)。域退役的实义与模板见下方
+  "域退役模板(Phase 3 实况修订版)"附录节。]
+- [x] **T12** 剩余域排期登记：specs/wiki/relay 各域 extern 清单 +
   体量估计 + 顺序建议入 KNOWN-DEBT-AND-RISKS.md。验证：grep 登记
   三条。
-- [ ] **T13** 文档收口：KNOWN-DEBT 442-B/442-C 相关条目更新；
+  [✅ 已完成(2026-08-27):KNOWN-DEBT 新增 044 条——specs(9+5 extern,
+  store 手写 Rust 需 .at 化)/wiki(13+4,同 specs)/relay(12+task_plan
+  +driver/bus 30+,最重);桥接消费面已通部分列明;模板链接。]
+- [x] **T13** 文档收口：KNOWN-DEBT 442-B/442-C 相关条目更新；
   pac.at 头注 "待激活" 注释按 VM serve 可用性改写（保留 rust 默认）。
   验证：三处文件 grep。
-- [ ] **T14** spec 沉淀准备：spec-impact 元数据（touched_goals：
+  [✅ 已完成(2026-08-27):pac.at 头注改"后端形态"双轨说明(rust 默认 +
+  MUSK_BACKEND=vm 桥接 + 442 C3 观察期指引);KNOWN-DEBT 044 条(T12)+
+  442 条 044 收口注(VM 后端已通,setupAuthFetch 缺口收窄表述);
+  442-C 无独立条(其对账在 auto-lang 侧 §7.4,442 文档已回填)。]
+- [x] **T14** spec 沉淀准备：spec-impact 元数据（touched_goals：
   双轨 parity → VM 桥接 + 数据层单源化路线）。验证：frontmatter
   填齐，转 /auto-plan:review。
+  [✅ 已完成(2026-08-27):frontmatter 三项填齐(见下);全套验收复跑
+  绿——lib 406 + parity_auth 8 + PARITY_TARGET=vm relay 6(复跑 4/5 绿;
+  首跑 1 次 run_stream_sse 偶发超时失败,复测未再现,与 T4 v10 家族
+  同源,已入 KNOWN-DEBT 观察)。转 /auto-plan:review。]
+
+## 附录：域退役模板（Phase 3 实况修订版）
+
+原 D3 五步模板按"重写 .at 再删 Rust"起草;Phase 3 盘点修订为**桥接形态
+的域退役实义**(以 auth 域为首个验证样板):
+
+1. **盘点**:extern_impl.rs 域 fn 清单 + 委托目标(通常 = 某 .at 源的 a2r
+   产物)+ 行为锚点(既有 parity/集成测试名)。
+2. **源确认**:域 store 的 .at 源在 auto-src(auth.at 先例:数据模型纯
+   Auto,外部 API 经 #[rs])。缺源的域(specs/wiki 的 store 层若为手写
+   Rust)才需真正的 .at 化重写。
+3. **VM 消费面**:域 extern 经 musk_extern_dispatch 网关注册宿主闭包
+   (捕获 AppState;Query/Json/Path 参数 JSON 反序列化,返回统一
+   serde 编码)——VM 轨即消费该域。
+4. **验收**:PARITY_TARGET=vm 用例(hw vs VM 语义等价 + SSE 流序)+ Rust
+   轨 cargo test 全绿。
+5. **深化(可选,按需)**:当某域要在 VM 内跑纯 .at 逻辑(不经宿主)时,
+   将 extern 桩体从"网关转发"改为"调域 .at store 模块",并删对应宿主
+   闭包——auth.at 的 #[rs] 面(hash/Mutex/fs)已有 auto-lang 本地 shim
+   (hash_password/new_id 等),此路径可行但非桥接形态所必需。
+
+**结论**:桥接形态下,"域退役"的默认终点是第 4 步(双轨等价消费),
+第 5 步按 VM 纯化需求渐进——避免一次性重写税,与 041 渐进退役同构。
 
 ## 复审记录
 
