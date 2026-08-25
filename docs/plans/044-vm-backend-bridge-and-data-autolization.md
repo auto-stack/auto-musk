@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 5
+current_step: 7
 total_steps: 14
 ---
 
@@ -306,6 +306,12 @@ auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇�
 - [x] **T5** `tests/vm_serve_harness.rs`（首期骨架+冒烟门;套件迁移续接）：子进程拉起 + 端口探活 +
   清理；`PARITY_TARGET` env 门控接入 parity 测试公共构造。验证：
   `PARITY_TARGET=vm cargo test -p musk --test parity_relay_api` 全绿。
+  [✅ 验收达成(2026-08-27,ea0cde8):harness 抽共享 tests/common/mod.rs
+  (req 任意方法 + ureq 4xx 合法对照面);parity_relay_api 接入
+  relay_stateless_vm_vs_hw——五端点(professions/souls/flows/runs/
+  task_plans)hw vs VM 语义等价 + DELETE 404 状态码;vm_backend 补
+  relay_task_plans_list 桥。PARITY_TARGET=vm 全绿;默认模式 5+1 零回归。
+  其余 parity 套件按同模式按需迁移。]
 - [ ] **T6** SSE parity 用例：真实流对照（hw vs VM 各消费一条流，
   事件序归一断言）。验证：同 T5 命令含流式用例通过。
 - [ ] **T7** 442 验收 3 对账：双面 parity 全绿记录回填 auto-lang 442
