@@ -253,3 +253,4 @@ fn auth_register_result(_s @T, _u str, _p str) Value {}
 fn relay_append_report_message_to(_ws @T, _run_id @str) {}
 fn sse_plain_event(_dto @T) Value {}
 fn serve_build_app(_s @T, _st @T, _c @T) Value {}
+fn serve_listen(_a @str, _app @T) {}
