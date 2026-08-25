@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-044
-status: reviewed
+status: archived
 feature_name: VM 后端桥接收口（状态闭包桥）+ 数据层 Auto 化分期（extern_impl 退役）
 author: [zhaopuming]
 created_at: 2026-08-26
