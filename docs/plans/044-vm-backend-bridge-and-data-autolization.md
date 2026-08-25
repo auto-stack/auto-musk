@@ -320,9 +320,13 @@ auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇�
   req_raw 裸 TCP 消费(ureq 对无 content-length 流不稳)+ stderr 落盘
   serve.log(诊断)+ log_tail;连跑 3 次稳定性绿(T4 偶发停摆未再现);
   PARITY_TARGET=vm 全套 6 用例绿;默认模式零回归。]
-- [ ] **T7** 442 验收 3 对账：双面 parity 全绿记录回填 auto-lang 442
+- [x] **T7** 442 验收 3 对账：双面 parity 全绿记录回填 auto-lang 442
   文档（其 §7.3 接力项闭环），442 转 C3 观察期流程。验证：442 文档
   grep 到回填记录。
+  [✅ 已完成(2026-08-27,auto-lang c2aa15826):442 新增 §7.4 接力闭环
+  对账(三阻塞点逐项解法 + 验收 3/4 达成标注 + C3 观察期转换);
+  grep "7.4 接力闭环"/"转 C3 观察期" 均命中。041 解挂条件达成(其侧
+  启动记录归 041 会话回填)。]
 
 ### Phase 3 — AuthStore 域退役（样板）
 
