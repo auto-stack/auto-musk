@@ -273,6 +273,16 @@ auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇�
     handler 返回 Response 前被整条消费(响应帧未增量下发,curl 收空)。
     修点:auto-lang 生成器调用语义惰性化(Sse.new 持迭代器、服务器
     迭代时才逐帧拉),或 http_server 的 SSE 分支改拉模式。
+  - **▶ 惰性化已就位 + 帧拉取线程化(2026-08-26 深夜二)**:查明运行时
+    CALL 本就有生成器短路(Plan 317),SSE 分支两端(axum/legacy)均有
+    流式模式,"200 SSE (1ms)" 实测触发;SSE 帧拉取改专职线程(生成器
+    体内阻塞宿主调用会饿死异步 worker 的 I/O 反应器——头写入但不上
+    线,usize 洗 Send 同 vp 先例;auto-lang worktree 已合)。
+  - **▶ 当前精确停摆点**:首帧链 mpsc_recv→turn_start→stream_event_map
+    全通后,第二次 iterator.next 未再进 mpsc_recv(生成器未恢复或
+    shim_iterator_next 在 puller 线程内让出/阻塞形态待查);且头 0
+    字节上线(write+flush 已执行)。下一步:eprintln 逐帧打点 SSE 循环
+    + sse_frame_from_nv 对 Event 对象的输出核验。
 
 ### Phase 2 — parity harness 换 VM
 
