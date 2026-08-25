@@ -15,6 +15,8 @@ use.web platformInjectStyles, platformSetupAuthFetch from "src/front/ports/platf
 use.web ensure_workspace from "src/front/workspace_helpers.at"
 use.web useT from "src/front/ports/composables.at"
 use.web useGateRouter from "src/front/ports/composables.at"
+// PLAN-041 T8:URL 路由桥(popstate→rail 点击;vsSetView pushState)。
+use.web useViewRouter, vsCurrentView, vsSetView from "src/front/ports/composables.at"
 use.web component MessageSquare, ListTodo, Scroll, BookOpen from "src/front/ports/icons.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
@@ -26,6 +28,7 @@ widget App {
     setup {
         let t = useT()
         let gateRouter = useGateRouter()
+        let viewRouter = useViewRouter()
     }
 
     msg Msg {
@@ -127,8 +130,17 @@ widget App {
     }
 
     on {
-        .Init -> { platformInjectStyles(); platformSetupAuthFetch(); store.Init() }
-        .ShowChats -> { .current_view = "chats" }
+        .Init -> {
+            platformInjectStyles();
+            platformSetupAuthFetch();
+            store.Init();
+            // URL → 视图(挂载恢复,web useViewState 初始解析对拍)。
+            .current_view = vsCurrentView()
+        }
+        .ShowChats -> {
+            .current_view = "chats";
+            vsSetView("chats")
+        }
         // Plan 029 T20：全局快捷键（原 useKeyboardShortcuts composable）。
         // Ctrl/Cmd+Shift+S 聚焦搜索框；Ctrl/Cmd+Shift+N 点新建会话按钮。
         // 监听挂在视图根元素（document 级监听不可表达——焦点需在应用内，
@@ -146,8 +158,17 @@ widget App {
                 }
             }
         }
-        .ShowPlans -> { .current_view = "plans" }
-        .ShowSpecs -> { .current_view = "specs" }
-        .ShowWiki -> { .current_view = "wiki" }
+        .ShowPlans -> {
+            .current_view = "plans";
+            vsSetView("plans")
+        }
+        .ShowSpecs -> {
+            .current_view = "specs";
+            vsSetView("specs")
+        }
+        .ShowWiki -> {
+            .current_view = "wiki";
+            vsSetView("wiki")
+        }
     }
 }

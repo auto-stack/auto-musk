@@ -8,6 +8,7 @@ use store: SpecsStore
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web spec_next_id, spec_default_status, specSectionItems, specItemPatch, specFindItem, specSectionOfItem from "src/front/specs_helpers.at"
 use.web useT from "src/front/ports/composables.at"
+use.web vsCurrentDetail, vsSetDetailPath from "src/front/ports/composables.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
 use nav_sidebar: NavSidebar
@@ -353,12 +354,28 @@ widget SpecsView {
     on {
         .Init -> {
             store.Init();
-            store.LoadOverview()
+            store.LoadOverview();
+            // URL detail 子路径恢复(web restoreSpecsFromUrl:/<view>/<section>/<item>)。
+            let d = vsCurrentDetail()
+            if d != "" {
+                let parts = d.split("/")
+                if parts.length > 0 {
+                    let sec = parts[0]
+                    if sec != "" {
+                        .active_section = sec;
+                        .show_overview = false
+                    }
+                    if parts.length > 1 {
+                        .active_item_id = parts[1]
+                    }
+                }
+            }
         }
 
         .SelectSection(section) -> {
             .active_section = section;
-            .show_overview = false
+            .show_overview = false;
+            vsSetDetailPath(section)
         }
 
         .ToggleOverview -> { .show_overview = !.show_overview }
@@ -366,9 +383,11 @@ widget SpecsView {
         .SelectItem(id) -> {
             // web toggleItem:再点折叠。
             if .active_item_id == id {
-                .active_item_id = None
+                .active_item_id = None;
+                vsSetDetailPath(.active_section)
             } else {
-                .active_item_id = id
+                .active_item_id = id;
+                vsSetDetailPath(.active_section + "/" + id)
             }
         }
 

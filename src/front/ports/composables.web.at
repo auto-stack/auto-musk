@@ -9,8 +9,12 @@
 
 use.web composable useT from "src/front/composables/useT.ts"
 use.web composable useGateRouter from "src/front/composables/gate_router.ts"
+use.web composable useViewRouter from "src/front/composables/viewstate_router.ts"
 use.web composable useI18n from "vue-i18n"
 use.web settingsInitLocale, settingsChangeLocale from "src/front/composables/useT.ts"
+// PLAN-041 T8:URL 路由端口(viewstate 域 web adapter——history API;
+// T7 勘察裁定 routes 块为 hash-router 语义不匹配,详见 viewstate_router.ts 头注)。
+use.web vsCurrentView, vsSetView, vsCurrentDetail, vsSetDetailPath from "src/front/composables/viewstate_router.ts"
 // PLAN-038 Phase 1: auto-i18n 纯 .at 实现经端口可见（对拍资产；直绑替换属跨平台
 // 迁移接线步骤,见计划待澄清 7——现阶段仅入编译图,运行路径仍走 vue-i18n）。
 use.web i18nT from "src/front/lib/i18n.at"

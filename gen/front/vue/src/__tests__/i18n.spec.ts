@@ -116,11 +116,13 @@ describe('translation file parity', () => {
     }
   })
 
-  it('nav section has all 4 navigation keys', () => {
-    const navKeys = ['chat', 'plans', 'specs', 'wiki']
+  it('nav section carries the full web key set (041 债务收口⑥)', () => {
+    const navKeys = ['explorer', 'chat', 'plans', 'specs', 'wiki', 'relay', 'agents', 'professions', 'skills', 'apis']
+    const enNav = en.nav as Record<string, unknown>
+    const zhNav = zh.nav as Record<string, unknown>
     for (const key of navKeys) {
-      expect(en.nav[key]).toBeDefined()
-      expect(zh.nav[key]).toBeDefined()
+      expect(enNav[key]).toBeDefined()
+      expect(zhNav[key]).toBeDefined()
     }
   })
 
@@ -146,9 +148,11 @@ describe('translation file parity', () => {
 
   it('common section has standard action labels in both locales', () => {
     const commonKeys = ['save', 'cancel', 'edit', 'delete', 'create']
+    const enCommon = en.common as Record<string, unknown>
+    const zhCommon = zh.common as Record<string, unknown>
     for (const key of commonKeys) {
-      expect(en.common[key]).toBeDefined()
-      expect(zh.common[key]).toBeDefined()
+      expect(enCommon[key]).toBeDefined()
+      expect(zhCommon[key]).toBeDefined()
     }
   })
 
