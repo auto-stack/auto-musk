@@ -34,7 +34,7 @@ type ListSpecs as Tool {
     fn description() str { return "List all spec sections" }
     fn parameters() Value { return parse_json(list_specs_schema) }
     fn execute(args Value) ~Result<str, ToolError> {
-        let result = specs_list()
+        let result = specs_files_list()
         return Ok(result)
     }
 }

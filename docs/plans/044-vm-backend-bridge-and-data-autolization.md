@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 1
+current_step: 3
 total_steps: 14
 ---
 
@@ -185,15 +185,26 @@ auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇�
   2137 路由注册;配套 auto-lang worktree plan-044 三提交(layer 直通 shim/
   bare Json 构造 shim/response ctor RC stake 作用域修复——后者根治
   `Json(字面量)` 的 use-after-free,已合 master)。]
-- [ ] **T2** 无状态 extern 直转发：extern_impl.rs 中不收 State 的 fn
+- [x] **T2** 无状态 extern 直转发：extern_impl.rs 中不收 State 的 fn
   （wiki_* 文件系族等）逐个包 HostCallFn 注册；`extern_sigs.vm.at`
   建立并声明同名无状态签名。验证：VM serve 下 `GET /api/wiki/...`
-  读端点 200。
-- [ ] **T3** 状态 extern 去参数化（裁定后按 D1 统一策略）：67 调用点
+  读端点 200。 [✅ 已完成(2026-08-26) 超预期形态:未走 extern_sigs.vm.at 分轨,
+  而是 extern_sigs.at 桩体统一改调 auto-lang 新 native musk_extern_dispatch
+  (name,args)→host(3129,worktree plan-044 合入);extern_impl.rs 无状态集
+  (professions/modes/skills/roles/config/app_config/forge_mode/workflows/
+  relay professions+flows/wiki 等)经宿主闭包直转,professions 实测真数据。]
+- [x] **T3** 状态 extern 去参数化（裁定后按 D1 统一策略）：67 调用点
   所在 4 文件的 `s.*` 实参移除；`extern_sigs.at` 同步；`extern_impl.rs`
   状态 fn 改 OnceLock 全局 state（ag 轨同构改造）。验证：
   `cargo test -p musk` 全绿（ag 轨回归）+ VM serve 下
-  `/api/auth/login` + `/api/specs?section=goals` 实测通过。
+  `/api/auth/login` + `/api/specs?section=goals` 实测通过。 [✅ 已完成(2026-08-26)
+  策略 (b′):调用点零改动——桩体跳过状态参(_s/_ws @T 不进 args),
+  宿主闭包捕获 OnceLock AppState;.at 的 s.view 是语言级借用表达式
+  (a2r 发 &s),VM 侧经 AppState 访问器直通 shim 原样透传;specs/chats/
+  conversations/workspace/relay_runs/ws_wiki_list 桥接实测——specs
+  ?workspace=musk-demo 返回与 hw 同形真数据;名字碰撞 specs_list
+  (extern 桩 vs server.at handler)改名 specs_files_list 消除;
+  cargo test 406 绿。]
 - [ ] **T4** SSE 路径过桥：server_stream.at 的 9 处 extern 中状态相关
   者闭包化，流式 handler 经 host_bridge 注入事件（442 C2 ② SSE 形态
   对接）。验证：VM serve 下 `/api/run/stream` 一条完整 SSE 流冒烟

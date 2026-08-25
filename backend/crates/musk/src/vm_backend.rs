@@ -86,8 +86,73 @@ pub fn state() -> Option<Arc<AppState>> {
     STATE.get().cloned()
 }
 
-/// 数据 extern → HostCallFn 注册表。T1 为空壳（/api/health 纯 Auto 无需
-/// extern）;T2 起无状态 extern 直转发,T3 起状态 extern 闭包捕获 STATE。
+/// 数据 extern → HostCallFn 注册表。T2/T3:经 musk_extern_dispatch(name,args)
+/// 网关转发（args 为 JSON 数组,状态参由本侧闭包捕获,不进 ABI）。首期覆盖
+/// parity 数据面的核心集;长尾 extern 未注册时网关回退 null（handler 错误
+/// 包络兜底）,后续按域补齐。
 fn register_host_calls() {
-    // PLAN-044 T2/T3 填充。
+    type SerdeValue = serde_json::Value;
+
+    fn st() -> Result<Arc<AppState>, String> {
+        state().ok_or_else(|| "vm_backend: AppState not initialized".to_string())
+    }
+    fn arg(args: &[SerdeValue], i: usize) -> SerdeValue {
+        args.get(i).cloned().unwrap_or(SerdeValue::Null)
+    }
+    fn wq_server(args: &[SerdeValue]) -> axum::extract::Query<crate::auto_generated::server::WorkspaceQuery> {
+        axum::extract::Query(serde_json::from_value(arg(args, 0)).unwrap_or_else(|_| serde_json::from_value(serde_json::json!({})).unwrap()))
+    }
+    fn wq_relay(args: &[SerdeValue]) -> axum::extract::Query<crate::auto_generated::relay_api::WorkspaceQuery> {
+        axum::extract::Query(serde_json::from_value(arg(args, 0)).unwrap_or_else(|_| serde_json::from_value(serde_json::json!({})).unwrap()))
+    }
+    fn wq_wiki(args: &[SerdeValue]) -> axum::extract::Query<crate::auto_generated::wiki::WorkspaceQuery> {
+        axum::extract::Query(serde_json::from_value(arg(args, 0)).unwrap_or_else(|_| serde_json::from_value(serde_json::json!({})).unwrap()))
+    }
+    fn st_axum(s: &Arc<AppState>) -> axum::extract::State<AppState> {
+        axum::extract::State(s.as_ref().clone())
+    }
+    fn enc(v: impl serde::Serialize) -> Result<String, String> {
+        serde_json::to_string(&v).map_err(|e| e.to_string())
+    }
+
+    macro_rules! host {
+        ($name:literal, $body:expr) => {{
+            let f: auto_lang::vm::host_bridge::HostCallFn = std::sync::Arc::new(move |args_json: &str| {
+                let args: Vec<SerdeValue> = serde_json::from_str(args_json).unwrap_or_default();
+                ($body)(&args)
+            });
+            auto_lang::vm::host_bridge::register_host_call($name, f);
+        }};
+    }
+
+    use crate::auto_generated::extern_impl as ei;
+
+    // ── 无状态纯数据 ──
+    host!("professions_list", |_a| enc(ei::professions_list()));
+    host!("modes_all", |_a| enc(ei::modes_all()));
+    host!("skills_all", |_a| enc(ei::skills_all()));
+    host!("roles_all", |_a| enc(ei::roles_all()));
+    host!("config_build", |_a| enc(ei::config_build()));
+    host!("app_config_load", |_a| enc(ei::app_config_load()));
+    host!("forge_mode_load", |_a| enc(ei::forge_mode_load()));
+    host!("workflows_builtin_names", |_a| enc(ei::workflows_builtin_names()));
+    host!("relay_professions_list", |_a| enc(ei::relay_professions_list()));
+    host!("relay_flows_list", |_a| enc(ei::relay_flows_list()));
+    host!("app_config_effective_daemon_url", |_a| enc(ei::app_config_effective_daemon_url::<SerdeValue>(SerdeValue::Null)));
+
+    // ── 状态数据（Query 第一参）──
+    host!("specs_load", |a| enc(ei::specs_load(&st_axum(&st()?), wq_server(a))));
+    host!("chats_list", |a| enc(ei::chats_list(&st_axum(&st()?), wq_server(a))));
+    host!("conversations_list", |a| enc(ei::conversations_list(&st_axum(&st()?), wq_server(a))));
+    host!("workspace_list_all", |_a| enc(ei::workspace_list_all(&st_axum(&st()?))));
+    host!("relay_runs_list", |a| enc(ei::relay_runs_list(&st_axum(&st()?), wq_relay(a))));
+    host!("ws_wiki_list", |a| enc(ei::ws_wiki_list(&st_axum(&st()?), wq_wiki(a))));
+
+    // ── auth 域 ──
+    host!("auth_login_result", |a| {
+        let u = arg(a, 0).as_str().unwrap_or_default().to_string();
+        let p = arg(a, 1).as_str().unwrap_or_default().to_string();
+        let (t, r) = ei::auth_login_result(&st_axum(&st()?), u, p);
+        enc(vec![t, r])
+    });
 }
