@@ -262,6 +262,17 @@ auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇�
     急切执行)+ 生产者侧 tokio panic(multi_thread mod.rs:91 = spawn
     无 runtime 上下文——extern_impl agent 路径内部再 spawn 的上下文
     或 block_on 线程问题)。
+  - **▶▶▶ T4 全链贯通(2026-08-26 深夜,74f72cb)**:三连修——① void 桩
+    补漏(机械改写正则漏了 25 个无返回类型 extern,agent_run_stream
+    空体静默是"生产者消失"根因);② mpsc_recv 专职线程桥(VM http
+    server 自身是 tokio,嵌套 block_on panic 根治);③ None/unwrap_or
+    协议(auto-lang)。实测 VMDISP/VMHOST:agent_run_stream 真实参数
+    (query/body/tx)过桥 → aaid 真会话 spawn+finish → turn_start 等
+    事件流经 channel → msg_is_none/stream_event_map DTO 转换链活跃。
+  - **▶ T4 最后一寸**:生成器急切求值——run_sse_stream(rx) 的事件在
+    handler 返回 Response 前被整条消费(响应帧未增量下发,curl 收空)。
+    修点:auto-lang 生成器调用语义惰性化(Sse.new 持迭代器、服务器
+    迭代时才逐帧拉),或 http_server 的 SSE 分支改拉模式。
 
 ### Phase 2 — parity harness 换 VM
 
