@@ -177,7 +177,15 @@ fn register_host_calls() {
     host!("mpsc_receiver", |a| enc(ei::mpsc_receiver(&arg(a, 0))));
     host!("mpsc_try_send", |a| { ei::mpsc_try_send(&arg(a, 0), arg(a, 1)); enc(()) });
     host!("mpsc_recv", |a| {
-        let r = rt().block_on(async { ei::mpsc_recv(&arg(a, 0)).await });
+        // VM http server 自身跑在 tokio 上,直接嵌套 block_on 会 panic
+        // ("Cannot start a runtime from within a runtime")——经专职线程桥。
+        let rx_id = arg(a, 0);
+        let (tx, done) = std::sync::mpsc::channel::<Option<SerdeValue>>();
+        std::thread::spawn(move || {
+            let r = rt().block_on(async { ei::mpsc_recv(&rx_id).await });
+            let _ = tx.send(r);
+        });
+        let r = done.recv().map_err(|e| format!("mpsc_recv bridge: {e}"))?;
         enc(r)
     });
     host!("msg_is_none", |a| enc(ei::msg_is_none(&opt(&arg(a, 0)))));
@@ -201,7 +209,11 @@ fn register_host_calls() {
         let b = serde_json::from_value::<crate::auto_generated::server_stream::RunRequest>(arg(a, 1))
             .map_err(|e| format!("RunRequest: {e}"))?;
         let tx = arg(a, 2);
-        rt().spawn(async move { ei::agent_run_stream(&st, axum::extract::Query(q), axum::Json(b), tx).await });
+        rt().spawn(async move {
+            eprintln!("[VMHOST] agent_run_stream spawned, mode={:?}", b.mode);
+            ei::agent_run_stream(&st, axum::extract::Query(q), axum::Json(b), tx).await;
+            eprintln!("[VMHOST] agent_run_stream finished");
+        });
         enc(())
     });
     host!("wf_run_with_progress", |a| {

@@ -19,7 +19,7 @@ fn auth_login_token(_s @T, _u str, _p str) str { return musk_extern_dispatch("au
 fn auth_token_from_headers(_s @T, _h Value) str { return musk_extern_dispatch("auth_token_from_headers", [_h]) }
 fn auth_username_from_token(_s @T, _t @str) str { return musk_extern_dispatch("auth_username_from_token", [_t]) }
 fn auth_role_from_token(_s @T, _t @str) str { return musk_extern_dispatch("auth_role_from_token", [_t]) }
-fn auth_logout_token(_s @T, _h Value) {}
+fn auth_logout_token(_s @T, _h Value) { return musk_extern_dispatch("auth_logout_token", [_h]) }
 fn auth_header_token(_h Value) Value { return musk_extern_dispatch("auth_header_token", [_h]) }
 fn specs_load(_s @T, _q Value) Value { return musk_extern_dispatch("specs_load", [_q]) }
 fn specs_overview_of(_s @T, _q Value) Value { return musk_extern_dispatch("specs_overview_of", [_q]) }
@@ -92,7 +92,7 @@ fn workspace_browse_of(_q @T) Value { return musk_extern_dispatch("workspace_bro
 fn workspace_initialize_of(_s @T, _q Value) Value { return musk_extern_dispatch("workspace_initialize_of", [_q]) }
 fn workflows_builtin_names() Value { return musk_extern_dispatch("workflows_builtin_names", []) }
 fn wf_run(_s @T, _q Value, _b Value) Value { return musk_extern_dispatch("wf_run", [_q, _b]) }
-fn wf_run_with_progress(_s @T, _q Value, _b Value, _sink Value) {}
+fn wf_run_with_progress(_s @T, _q Value, _b Value, _sink Value) { return musk_extern_dispatch("wf_run_with_progress", [_q, _b, _sink]) }
 // Plan 019 §6.1: 流式 handler 前置校验(坏 mode/workflow → 400,与 hw 等价)。
 // 成功返回 Null(无错误),失败返回 {"error":{"code":400,"message":...}};
 // handler 经 resp_is_err 判定。name 是 @str(引用)。
@@ -101,29 +101,29 @@ fn mode_exists(name @str) Value { return musk_extern_dispatch("mode_exists", [na
 fn orch_spawn_relay(_t str, _a Value) str { return musk_extern_dispatch("orch_spawn_relay", [_t, _a]) }
 fn orch_dispatch(_t str, _to str) str { return musk_extern_dispatch("orch_dispatch", [_t, _to]) }
 fn orch_bring_in(_q str) str { return musk_extern_dispatch("orch_bring_in", [_q]) }
-fn drive_set_root(_s @T, _w str) {}
-fn drive_clear_root() {}
+fn drive_set_root(_s @T, _w str) { return musk_extern_dispatch("drive_set_root", [_w]) }
+fn drive_clear_root() { return musk_extern_dispatch("drive_clear_root", []) }
 // Plan 020 Phase G (relay_driver.at): drive_run/drive_loop/run_step 的依赖 extern。
 // drive_set_root/clear_root 在此(原 server_serve 段,与 settings_link serve 外壳同段);
 // Plan 020 Phase A (feature_dev.at): tool-root confinement + AgentError → str。
-fn feature_dev_set_root(root PathBuf) {}
-fn feature_dev_clear_root() {}
+fn feature_dev_set_root(root PathBuf) { return musk_extern_dispatch("feature_dev_set_root", [root]) }
+fn feature_dev_clear_root() { return musk_extern_dispatch("feature_dev_clear_root", []) }
 fn agent_error_msg(e @T) str { return musk_extern_dispatch("agent_error_msg", [e]) }
 // Plan 020 Phase B (task_plan_engine.at): uuidish / SSE broadcast / handoff 读取。
 fn task_plan_uuidish() str { return musk_extern_dispatch("task_plan_uuidish", []) }
-fn task_plan_broadcast(_i @str, _t @str, _p Value) {}
+fn task_plan_broadcast(_i @str, _t @str, _p Value) { return musk_extern_dispatch("task_plan_broadcast", [_i, _t, _p]) }
 fn handoff_resolve_path(_s @T, _p @str) Option<str> { return musk_extern_dispatch("handoff_resolve_path", [_p]) }
 // Plan 020 Phase H (task_plan_engine.at RelayTaskPlanExecutor): single-run
 // 执行内核的 store 访问 extern + ag drive_run 跨模块调用包装。drive_run 委托
 // ag relay_driver::drive_run(Phase G 产物);其余三个委托 hw ws.relay.*。
 fn drive_run(_s @T, _w str, _r str) bool { return musk_extern_dispatch("drive_run", [_w, _r]) }
-fn task_plan_start_run(_s @T, _w str, _r str, _f str, _t str) {}
+fn task_plan_start_run(_s @T, _w str, _r str, _f str, _t str) { return musk_extern_dispatch("task_plan_start_run", [_w, _r, _f, _t]) }
 fn task_plan_run_status(_s @T, _w str, _r str) Option<str> { return musk_extern_dispatch("task_plan_run_status", [_w, _r]) }
 fn task_plan_last_handoff(_s @T, _w str, _r str) Option<HandoffDocument> { return musk_extern_dispatch("task_plan_last_handoff", [_w, _r]) }
 // Plan 020 Phase B (parser/registry): Atom 调试文本 / 内建 atom / 文件删除。
 fn atom_debug_value(_a @T) str { return musk_extern_dispatch("atom_debug_value", [_a]) }
 fn task_plan_builtin_atom() str { return musk_extern_dispatch("task_plan_builtin_atom", []) }
-fn task_plan_delete_file(path PathBuf) {}
+fn task_plan_delete_file(path PathBuf) { return musk_extern_dispatch("task_plan_delete_file", [path]) }
 fn task_plan_write_atom(path PathBuf, content str) bool { return musk_extern_dispatch("task_plan_write_atom", [path, content]) }
 fn path_extension_str(path PathBuf) str { return musk_extern_dispatch("path_extension_str", [path]) }
 fn task_plan_read_file(path PathBuf) Result<str, str> {}
@@ -177,24 +177,24 @@ fn settings_link_do() Value { return musk_extern_dispatch("settings_link_do", []
 fn err_json_response(_d Value, _c uint) Response { return musk_extern_dispatch("err_json_response", [_d, _c]) }
 // Plan 020 Phase C (wiki.at): 页面写盘 / 父目录 / 删除。
 fn wiki_write_page(path PathBuf, content str) Result<(), str> {}
-fn wiki_ensure_parent(path PathBuf) {}
-fn wiki_delete_file(path PathBuf) {}
+fn wiki_ensure_parent(path PathBuf) { return musk_extern_dispatch("wiki_ensure_parent", [path]) }
+fn wiki_delete_file(path PathBuf) { return musk_extern_dispatch("wiki_delete_file", [path]) }
 fn relay_advance(_s @T, _w str, _r str) Value { return musk_extern_dispatch("relay_advance", [_w, _r]) }
-fn relay_publish(_r str, _v @T) {}
+fn relay_publish(_r str, _v @T) { return musk_extern_dispatch("relay_publish", [_r, _v]) }
 fn advance_is_none(_r @T) bool { return musk_extern_dispatch("advance_is_none", [_r]) }
 fn advance_kind(_r @T) str { return musk_extern_dispatch("advance_kind", [_r]) }
 fn advance_role_id(_r @T) str { return musk_extern_dispatch("advance_role_id", [_r]) }
-fn relay_submit_error(_s @T, _w str, _r str, _r2 str, _e @T) {}
+fn relay_submit_error(_s @T, _w str, _r str, _r2 str, _e @T) { return musk_extern_dispatch("relay_submit_error", [_w, _r, _r2, _e]) }
 fn relay_step_context(_s @T, _w str, _r str) str { return musk_extern_dispatch("relay_step_context", [_w, _r]) }
 fn factory_build_agent(_s @T, _w str, _r str, _r2 str) Value { return musk_extern_dispatch("factory_build_agent", [_w, _r, _r2]) }
 fn drive_accumulated(_s @T, _w str, _r str) str { return musk_extern_dispatch("drive_accumulated", [_w, _r]) }
 fn drive_finalize_output(_o str, _r @T) str { return musk_extern_dispatch("drive_finalize_output", [_o, _r]) }
-fn drive_submit_handoff(_s @T, _w str, _r str, _r2 str, _o str, _v @T) {}
-fn drive_handle_stream_event(_s @T, _w str, _r str, _r2 str, _e Value) {}
+fn drive_submit_handoff(_s @T, _w str, _r str, _r2 str, _o str, _v @T) { return musk_extern_dispatch("drive_submit_handoff", [_w, _r, _r2, _o, _v]) }
+fn drive_handle_stream_event(_s @T, _w str, _r str, _r2 str, _e Value) { return musk_extern_dispatch("drive_handle_stream_event", [_w, _r, _r2, _e]) }
 // Note: on_event passes self.ws_id.clone() etc (String); a2r emits them by value,
 // so the impl takes String for w/r/role_id (not &str) to match the call site.
-fn agent_register_shared(_a @T, _t Value) {}
-fn agent_register_skill_tool(_a @T) {}
+fn agent_register_shared(_a @T, _t Value) { return musk_extern_dispatch("agent_register_shared", [_a, _t]) }
+fn agent_register_skill_tool(_a @T) { return musk_extern_dispatch("agent_register_skill_tool", [_a]) }
 fn agent_with_context_file(_a Value, _p @str) Value { return musk_extern_dispatch("agent_with_context_file", [_a, _p]) }
 fn agent_with_history(_a Value, _h @str) Value { return musk_extern_dispatch("agent_with_history", [_a, _h]) }
 fn build_agent_with_context(_m Value, _c Value, _ctx Value) Value { return musk_extern_dispatch("build_agent_with_context", [_m, _c, _ctx]) }
@@ -210,17 +210,17 @@ fn ctx_is_some(_c @T) bool { return musk_extern_dispatch("ctx_is_some", [_c]) }
 fn ctx_unwrap(_c Value) str { return musk_extern_dispatch("ctx_unwrap", [_c]) }
 fn handoff_render(_h str) str { return musk_extern_dispatch("handoff_render", [_h]) }
 fn agent_run(_s @T, _q Value, _b Value) Value { return musk_extern_dispatch("agent_run", [_q, _b]) }
-fn chat_run_stream(_s @T, _q Value, _p Value, _sink Value) {}
-fn agent_run_stream(_s @T, _q Value, _b Value, _sink Value) {}
+fn chat_run_stream(_s @T, _q Value, _p Value, _sink Value) { return musk_extern_dispatch("chat_run_stream", [_q, _p, _sink]) }
+fn agent_run_stream(_s @T, _q Value, _b Value, _sink Value) { return musk_extern_dispatch("agent_run_stream", [_q, _b, _sink]) }
 fn agent_run_stream_with_sink(_a Value, _t str, _sink Value, _c Value) Value { return musk_extern_dispatch("agent_run_stream_with_sink", [_a, _t, _sink, _c]) }
 fn serve_init_state(_c Value) Value { return musk_extern_dispatch("serve_init_state", [_c]) }
-fn serve_build_static() {}
-fn serve_build_cors() {}
+fn serve_build_static() { return musk_extern_dispatch("serve_build_static", []) }
+fn serve_build_cors() { return musk_extern_dispatch("serve_build_cors", []) }
 fn stream_event_map(_e Value) Value { return musk_extern_dispatch("stream_event_map", [_e]) }
 fn workflow_event_map(_e Value) Value { return musk_extern_dispatch("workflow_event_map", [_e]) }
 fn step_err_is_err(e @T) bool { return musk_extern_dispatch("step_err_is_err", [e]) }
 fn resolve_within_project(p @str) str { return musk_extern_dispatch("resolve_within_project", [p]) }
-fn write_file_do(p @str, c @str) {}
+fn write_file_do(p @str, c @str) { return musk_extern_dispatch("write_file_do", [p, c]) }
 fn command_needs_approval(c @str) bool { return musk_extern_dispatch("command_needs_approval", [c]) }
 fn run_shell_command(c @str) str { return musk_extern_dispatch("run_shell_command", [c]) }
 fn edit_file_do(p @str, o @str, n @str) str { return musk_extern_dispatch("edit_file_do", [p, o, n]) }
@@ -232,7 +232,7 @@ fn http_post_json(_u @str) Value { return musk_extern_dispatch("http_post_json",
 fn mpsc_channel() Value { return musk_extern_dispatch("mpsc_channel", []) }
 fn mpsc_sender(_ch @T) Value { return musk_extern_dispatch("mpsc_sender", [_ch]) }
 fn mpsc_receiver(_ch @T) Value { return musk_extern_dispatch("mpsc_receiver", [_ch]) }
-fn mpsc_try_send(_t @T, _m Value) {}
+fn mpsc_try_send(_t @T, _m Value) { return musk_extern_dispatch("mpsc_try_send", [_t, _m]) }
 fn mpsc_recv(_r @T) Value { return musk_extern_dispatch("mpsc_recv", [_r]) }
 fn msg_is_none(m @T) bool { return musk_extern_dispatch("msg_is_none", [m]) }
 fn msg_unwrap(m Value) Value { return musk_extern_dispatch("msg_unwrap", [m]) }
@@ -253,7 +253,7 @@ fn resp_err_code(v @T) int { return musk_extern_dispatch("resp_err_code", [v]) }
 fn resp_err_message(v @T) str { return musk_extern_dispatch("resp_err_message", [v]) }
 fn auth_login_result(_s @T, _u str, _p str) Value { return musk_extern_dispatch("auth_login_result", [_u, _p]) }
 fn auth_register_result(_s @T, _u str, _p str) Value { return musk_extern_dispatch("auth_register_result", [_u, _p]) }
-fn relay_append_report_message_to(_ws @T, _run_id @str) {}
+fn relay_append_report_message_to(_ws @T, _run_id @str) { return musk_extern_dispatch("relay_append_report_message_to", [_run_id]) }
 fn sse_plain_event(_dto @T) Value { return musk_extern_dispatch("sse_plain_event", [_dto]) }
 fn serve_build_app(_s @T, _st @T, _c @T) Value { return musk_extern_dispatch("serve_build_app", [_st, _c]) }
-fn serve_listen(_a @str, _app @T) {}
+fn serve_listen(_a @str, _app @T) { return musk_extern_dispatch("serve_listen", [_a, _app]) }
