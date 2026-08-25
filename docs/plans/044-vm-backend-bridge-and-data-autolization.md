@@ -248,6 +248,20 @@ auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇�
     .mode 属性访问经 method-dispatch 路径未命中 json instance 字段)。
     修点:auto-lang CALL_SPEC 加 None.unwrap_or 臂 + __json_object 的
     方法形态字段访问(GET_FIELD vs CALL_METHOD 路径分叉)。
+  - **▶▶ None.unwrap_or 已修(auto-lang worktree plan-044)**:CALL_SPEC None
+    接收者协议(unwrap_or 取默认/clone·ok 透传)。实测 absent mode →
+    mode_exists args=["superpowers"] 默认链通;mpsc 全链活跃
+    (channel→sender→receiver→recv)。
+  - **▶ 剩余两精确点(2026-08-26 晚收口)**:① present 字段读取仍 null——
+    body.mode="bogus" 时 mode_exists args=[null];缺字段错误曾出现在
+    GET_FIELD 路径(engine:5130)且 Str 分支本身正确,疑点收敛到
+    Json<RunRequest> 类型化参数的 .mode 发射路径(Option 字段可能走
+    CALL_SPEC getter 而非字段读,或 clone/unwrap_or 链上 String 接收者
+    的中转丢值)——需 disasm 单 handler 定位。② SSE 流卡在响应提交前:
+    mpsc_recv block_on 在 handler 返回 Response 前被求值(生成器疑似
+    急切执行)+ 生产者侧 tokio panic(multi_thread mod.rs:91 = spawn
+    无 runtime 上下文——extern_impl agent 路径内部再 spawn 的上下文
+    或 block_on 线程问题)。
 
 ### Phase 2 — parity harness 换 VM
 
