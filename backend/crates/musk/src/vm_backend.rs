@@ -125,12 +125,22 @@ fn register_host_calls() {
     fn enc(v: impl serde::Serialize) -> Result<String, String> {
         serde_json::to_string(&v).map_err(|e| e.to_string())
     }
+    /// json null → Rust None(Option 参数线型)。
+    fn opt(v: &SerdeValue) -> Option<SerdeValue> {
+        if v.is_null() { None } else { Some(v.clone()) }
+    }
+    /// VM 后端专用 tokio 运行时(SSE 生产者 spawn + mpsc 阻塞收)。
+    fn rt() -> &'static tokio::runtime::Runtime {
+        static RT: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
+        RT.get_or_init(|| tokio::runtime::Runtime::new().expect("vm tokio runtime"))
+    }
 
     macro_rules! host {
         ($name:literal, $body:expr) => {{
             let f: auto_lang::vm::host_bridge::HostCallFn = std::sync::Arc::new(move |args_json: &str| {
                 let args: Vec<SerdeValue> = serde_json::from_str(args_json).unwrap_or_default();
-                ($body)(&args)
+                let call: fn(&Vec<SerdeValue>) -> Result<String, String> = $body;
+                call(&args)
             });
             auto_lang::vm::host_bridge::register_host_call($name, f);
         }};
@@ -158,6 +168,61 @@ fn register_host_calls() {
     host!("workspace_list_all", |_a| enc(ei::workspace_list_all(&st_axum(&st()?))));
     host!("relay_runs_list", |a| enc(ei::relay_runs_list(&st_axum(&st()?), wq_relay(a))));
     host!("ws_wiki_list", |a| enc(ei::ws_wiki_list(&st_axum(&st()?), wq_wiki(a))));
+
+    // ── SSE/mpsc 域（T4）── mpsc 句柄即 JSON 数字,HANDLES side-table 在宿主,
+    // 直接过网关;async 生产者(agent/chat/wf stream)经 tokio spawn 并发推 tx,
+    // VM 侧 mpsc_recv 阻塞收(tokio worker 线程喂消息,无死锁)。
+    host!("mpsc_channel", |_a| enc(ei::mpsc_channel()));
+    host!("mpsc_sender", |a| enc(ei::mpsc_sender(&arg(a, 0))));
+    host!("mpsc_receiver", |a| enc(ei::mpsc_receiver(&arg(a, 0))));
+    host!("mpsc_try_send", |a| { ei::mpsc_try_send(&arg(a, 0), arg(a, 1)); enc(()) });
+    host!("mpsc_recv", |a| {
+        let r = rt().block_on(async { ei::mpsc_recv(&arg(a, 0)).await });
+        enc(r)
+    });
+    host!("msg_is_none", |a| enc(ei::msg_is_none(&opt(&arg(a, 0)))));
+    host!("msg_unwrap", |a| enc(ei::msg_unwrap(opt(&arg(a, 0)))));
+    host!("workflow_exists", |a| {
+        let n: &str = a.first().and_then(|v| v.as_str()).unwrap_or("");
+        enc(ei::workflow_exists(n))
+    });
+    host!("mode_exists", |a| {
+        let n: &str = a.first().and_then(|v| v.as_str()).unwrap_or("");
+        enc(ei::mode_exists(n))
+    });
+    host!("stream_event_map", |a| enc(ei::stream_event_map(opt(&arg(a, 0)))));
+
+    // async 流式生产者:fire-and-forget spawn(与 hw 的 spawn 语义一致),
+    // 事件经 mpsc 侧表流回,channel 关闭即流终止。
+    host!("agent_run_stream", |a| {
+        let st = st_axum(&st()?);
+        let q = serde_json::from_value::<crate::auto_generated::server_stream::WorkspaceQuery>(arg(a, 0))
+            .unwrap_or_else(|_| serde_json::from_value(serde_json::json!({})).unwrap());
+        let b = serde_json::from_value::<crate::auto_generated::server_stream::RunRequest>(arg(a, 1))
+            .map_err(|e| format!("RunRequest: {e}"))?;
+        let tx = arg(a, 2);
+        rt().spawn(async move { ei::agent_run_stream(&st, axum::extract::Query(q), axum::Json(b), tx).await });
+        enc(())
+    });
+    host!("wf_run_with_progress", |a| {
+        let st = st_axum(&st()?);
+        let q = serde_json::from_value::<crate::auto_generated::server_stream::WorkspaceQuery>(arg(a, 0))
+            .unwrap_or_else(|_| serde_json::from_value(serde_json::json!({})).unwrap());
+        let b = serde_json::from_value::<crate::auto_generated::server_stream::WorkflowRunRequest>(arg(a, 1))
+            .map_err(|e| format!("WorkflowRunRequest: {e}"))?;
+        let tx = arg(a, 2);
+        rt().spawn(async move { ei::wf_run_with_progress(&st, axum::extract::Query(q), axum::Json(b), tx).await });
+        enc(())
+    });
+    host!("chat_run_stream", |a| {
+        let st = st_axum(&st()?);
+        let q = serde_json::from_value::<crate::auto_generated::server_stream::WorkspaceQuery>(arg(a, 0))
+            .unwrap_or_else(|_| serde_json::from_value(serde_json::json!({})).unwrap());
+        let id = a.get(2).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        let tx = arg(a, 3);
+        rt().spawn(async move { ei::chat_run_stream(&st, axum::extract::Query(q), axum::extract::Path(id), tx).await });
+        enc(())
+    });
 
     // ── auth 域 ──
     host!("auth_login_result", |a| {

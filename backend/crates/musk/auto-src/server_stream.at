@@ -245,6 +245,13 @@ pub type ConvEventDto { conversation_id str, turn Option<Value>, status Option<s
 // POST /api/run (Plan 019 Phase 2-4: ~Response + 错误包络)
 // ============================================================
 
+// PLAN-044 T4: vm_entry 路由出口别名——裸名 `run` 在 VM/转译器命名空间
+// 不可解析(与内建撞名),经本别名转发。hw server.rs 直引 server_stream::run
+// 不受影响(a2r 私有名不导出面)。
+pub fn run_endpoint(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunRequest>) ~Response {
+    return run(s, q, body)
+}
+
 pub fn run(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunRequest>) ~Response {
     let resp = agent_run(s.view, q, body).await
     if resp_is_err(resp.view) {
