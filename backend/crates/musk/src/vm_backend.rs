@@ -129,6 +129,12 @@ fn register_host_calls() {
     fn opt(v: &SerdeValue) -> Option<SerdeValue> {
         if v.is_null() { None } else { Some(v.clone()) }
     }
+    /// headers JSON(Headers 提取器封送 {"authorization": "Bearer x"})→ token。
+    fn bearer_of(h: &SerdeValue) -> Option<String> {
+        let raw = h.get("authorization")?.as_str()?;
+        let t = raw.strip_prefix("Bearer ")?.trim();
+        if t.is_empty() { None } else { Some(t.to_string()) }
+    }
     /// VM 后端专用 tokio 运行时(SSE 生产者 spawn + mpsc 阻塞收)。
     fn rt() -> &'static tokio::runtime::Runtime {
         static RT: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
@@ -237,11 +243,42 @@ fn register_host_calls() {
         enc(())
     });
 
-    // ── auth 域 ──
+    // ── auth 域(闭环:register/登录元组 + headers 基 bearer 提取——
+    // Headers 提取器经 auto-lang 封送 {"authorization": raw} JSON)──
     host!("auth_login_result", |a| {
         let u = arg(a, 0).as_str().unwrap_or_default().to_string();
         let p = arg(a, 1).as_str().unwrap_or_default().to_string();
         let (t, r) = ei::auth_login_result(&st_axum(&st()?), u, p);
         enc(vec![t, r])
+    });
+    host!("auth_register_result", |a| {
+        let u = arg(a, 0).as_str().unwrap_or_default().to_string();
+        let p = arg(a, 1).as_str().unwrap_or_default().to_string();
+        let (t, r) = ei::auth_register_result(&st_axum(&st()?), u, p);
+        enc(vec![t, r])
+    });
+    host!("auth_token_from_headers", |a| {
+        enc(bearer_of(&arg(a, 0)).unwrap_or_default())
+    });
+    host!("auth_header_token", |a| {
+        enc(bearer_of(&arg(a, 0)).unwrap_or_default())
+    });
+    host!("auth_username_from_token", |a| {
+        let t = arg(a, 0).as_str().unwrap_or_default().to_string();
+        enc(ei::auth_username_from_token(&st_axum(&st()?), &t))
+    });
+    host!("auth_role_from_token", |a| {
+        let t = arg(a, 0).as_str().unwrap_or_default().to_string();
+        enc(ei::auth_role_from_token(&st_axum(&st()?), &t))
+    });
+    host!("auth_logout_token", |a| {
+        if let Some(t) = bearer_of(&arg(a, 0)) {
+            let mut hm = axum::http::HeaderMap::new();
+            if let Ok(v) = axum::http::HeaderValue::from_str(&format!("Bearer {t}")) {
+                hm.insert(axum::http::header::AUTHORIZATION, v);
+            }
+            ei::auth_logout_token(&st_axum(&st()?), hm);
+        }
+        enc(())
     });
 }

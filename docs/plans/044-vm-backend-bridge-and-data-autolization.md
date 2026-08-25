@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-044
-status: execution_done
+status: reviewed
 feature_name: VM 后端桥接收口（状态闭包桥）+ 数据层 Auto 化分期（extern_impl 退役）
 author: [zhaopuming]
 created_at: 2026-08-26
@@ -417,7 +417,23 @@ auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇�
 
 ## 复审记录
 
-（待 /auto-plan:review 填写）
+### /auto-plan:review 正式复审（2026-08-27）
+
+复审人：zhaopuming（musk 会话）。逐条重验（不信勾选框,重跑命令）：
+
+| 验收项 | 判定 | 证据 |
+|---|---|---|
+| 1. `MUSK_BACKEND=vm` 起服,四组端点通过;AppState 不过 JSON ABI | pass | health `{"status":"ok"}`;auth 全生命周期(register→me→logout→me 401 "invalid or expired session")实测;specs?workspace=musk-demo 真数据;relay/runs 200。ABI 面:extern_sigs 桩状态参不进 args(设计性保证 + VMDISP 链路日志从未出现 state 载荷)。复审中补齐 auth_register_result/auth_header_token/auth_token_from_headers/auth_username_from_token/auth_role_from_token/auth_logout_token 六桥 + auto-lang Headers 提取器真实头封送(axum::http::HeaderMap 尾段匹配根治漏判 Plain) |
+| 2. `PARITY_TARGET=vm` parity 全绿(hw 不回归) | pass | 复审日重跑 6/6 绿(5 无状态语义等价 + SSE 流对照);hw 基线 lib 406 + parity_auth 8 绿;vm_serve_harness 冒烟门 2 绿 |
+| 3. AuthStore 域等价 + 退役模板 | pass(实况修订) | 盘点发现 auth.at 即 .at 源(241 行)+a2r 产物,原验收"删 extern_impl auth fn"按实况修订为桥接形态模板(附录五步)——无独立旧实现可删,extern fns 即桥接impl(hw/ag 必需)。auth 端点三面等价由复审补验(VM 实测全生命周期) |
+| 4. specs/wiki/relay 排期登记 | pass | KNOWN-DEBT 044 条 grep 命中(三域 extern 清单+体量+顺序) |
+| 5. Rust 轨零回归 | pass | `cargo test -p musk --lib` 406 绿(复审日重跑) |
+
+**复审修正项（执行中未达、复审补齐）**：验收 1 的 auth 端点组在 execution_done 时未实测(register 返回 token:0 数值化、login invalid)——根因三连:auth_register_result 等六桥未注册、Headers 提取器不透明占位、from_type_name 不认 axum::http::HeaderMap 路径限定形态。均已修复并实测闭环。
+
+**残余（非阻断,在册）**：① SSE 偶发停摆家族(T4 v10 一次 + 复审首轮一次,复测不复现,归 442 C3 观察期观察);② auto-lang master 曾瞬态红(他 agent vue.rs 进行中,与本计划无关,已复绿);③ KNOWN-DEBT 442 条的 setupAuthFetch 前端认证注入缺口(前端面,VM 后端桥不涉)。
+
+**结论**：5/5 验收过(1 项实况修订有据),status → reviewed,转 /auto-plan:merge。
 
 ## 待澄清事项
 
