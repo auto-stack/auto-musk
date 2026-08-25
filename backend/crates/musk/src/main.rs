@@ -167,6 +167,15 @@ fn main() {
                     Arc::new(NoDaemonClient)
                 }
             };
+            // PLAN-044 Phase 1: MUSK_BACKEND=vm 切 AutoVM 后端（桥接形态,
+            // 路由/handler 跑 .at,数据 extern 经宿主闭包——见 vm_backend.rs）。
+            if std::env::var("MUSK_BACKEND").as_deref() == Ok("vm") {
+                if let Err(e) = musk::vm_backend::serve(&addr, client) {
+                    eprintln!("musk vm server: {e}");
+                    std::process::exit(1);
+                }
+                return;
+            }
             let rt = tokio::runtime::Runtime::new().expect("failed to start tokio runtime");
             if let Err(e) = rt.block_on(musk::server::serve(&addr, client)) {
                 eprintln!("musk server: {e}");

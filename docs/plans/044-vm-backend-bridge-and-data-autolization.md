@@ -1,0 +1,255 @@
+---
+plan_id: PLAN-044
+status: executing
+feature_name: VM 后端桥接收口（状态闭包桥）+ 数据层 Auto 化分期（extern_impl 退役）
+author: [zhaopuming]
+created_at: 2026-08-26
+updated_at: 2026-08-26
+
+supersedes_spec_components: []
+new_spec_components: []
+touched_goals: []
+
+current_step: 1
+total_steps: 14
+---
+
+# [PLAN-044] VM 后端桥接收口 + 数据层 Auto 化分期
+
+## 变更摘要
+
+auto-lang 442 收口时发现数据面 parity 阻塞于 auto-musk 侧：数据 extern
+（`relay_*`/`specs_*`/`auth_*`/`wiki_*`）参数含 `State<AppState>`（持
+`Arc<dyn Client>` + `WorkspaceRegistry`，不可序列化），无法经 JSON ABI
+（HostCallFn `fn(&str)->Result<String,String>`）传送；纯重实现（path b）
+体量巨大；既有 parity 测试用 a2r Rust router（tower oneshot）而非 VM。
+根因是 musk 后端"handler 层 Auto、数据层 Rust 岛"的混合架构
+（`auto-src/server.at:572` 注释写明的设计决策，Rust 岛 =
+`extern_impl.rs` 2841 行 / 207 pub fn）。
+
+本计划三层推进：**①状态闭包桥**（AppState 不过 ABI——宿主侧闭包捕获，
+`.at` 侧经 `extern_sigs.vm.at` adapter 去状态化，ag 轨零改动）解堵 442
+验收 3；**②parity harness 换 VM**（起 `musk serve` VM 后端打真实
+HTTP/SSE）闭验收 3 的测试面；**③数据层分期 Auto 化**（auth → specs/wiki
+→ relay 逐域在 .at 重实现，extern_impl.rs 趋零），根治"未完全 Auto 化"。
+
+## 目标
+
+1. `musk serve --backend=vm`（env 开关 `MUSK_BACKEND=vm`）以 AutoVM 跑
+   .at 路由 + 宿主闭包数据 extern 起服，健康/认证/核心数据端点可用。
+2. 既有 parity 测试面（`parity_relay_api` 等）经 env 切换可对 VM 后端
+   运行，hw 与 VM 双后端对照全绿（442 验收 3 达成）。
+3. AuthStore 域完成 .at 重实现并退役对应 extern（分期第一域，验证
+   退役模式可复制）。
+4. 442 可按"桥接形态"收口 C3 观察期；数据层剩余域的退役路线在
+   KNOWN-DEBT 登记（specs/wiki/relay 排期后续计划承接）。
+
+## 架构方案
+
+```
+现状（442 卡点）                          目标（本计划）
+──────────────────────                  ──────────────────────
+VM handler → extern(s: State<AppState>)  VM handler → extern_sigs.vm.at（无状态签名）
+              ↓ JSON ABI                         ↓ JSON ABI（仅业务参数）
+              ✗ State 不可序列化                  ✓ 宿主闭包捕获 Arc<AppState>
+ag 轨: handler → extern(s) → extern_impl  ag 轨: 不变（State 经 a2r 正常传）
+parity: tower oneshot a2r router          parity: env 切换起 musk serve(VM) 打 HTTP/SSE
+数据层: extern_impl.rs 2841 行 Rust 岛    分期: auth→specs/wiki→relay 逐域 .at 化退役
+```
+
+- **状态闭包桥**：`musk serve` VM 模式下宿主构建一次 `Arc<AppState>`，
+  经 `auto_backend_register`/`host_bridge` 把每个数据 extern 注册为捕获
+  state 的 HostCallFn（auto-lang 442 C2 items ①②③ 已备好转发 + Query
+  参数 marshal + RC 修复）。**AppState 永不过 ABI**。
+- **`.at` 侧去状态化**：复用 442 B 阶段验证过的 `X.at → X.vm.at`
+  adapter 链（ext_stubs 对后端模块生效，`plan442_musk_probe_tests` 已
+  实证）——`extern_sigs.vm.at` 提供无 `s` 参数的 extern 签名（如
+  `auth_login_result(username, password)`），调用点 67 处
+  `s.view`/`s.registry` 等经 adapter 吸收；ag 轨仍用原签名。
+- **AuthStore 先行**：`server.rs:43` 注明 auth 数据层已是 a2r 转译版
+  AuthStore——离 .at 最近，重实现面最小，作退役模式的样板。
+
+## 技术栈
+
+auto-musk（backend/crates/musk：`src/main.rs` serve 分支 + 新
+`src/vm_backend.rs` 桥接注册 + `auto-src/extern_sigs.vm.at` +
+`auto-src/auth_store.at`（新）；`tests/parity_*` harness 适配）；
+auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇新缺口
+登记回 442 残余账）。
+
+## 需求分析与背景调查
+
+> 依据 auto-lang 442 计划文档 §7.2/§7.3（2026-08-26 收口记录）与本仓
+> 2026-08-26 实测。
+
+### 现状核实（2026-08-26）
+
+- **442 auto-lang 侧就绪**：extern 响应构造器 + SSE 形态 + path(a)
+  转发（Query args marshal，1475d31e2）+ path(b) 纯 extern + RC 死区
+  UAF 修复已合入（06360d8ef）；真实语料 `musk_backend_gap_enumerator`
+  31/32 VM-clean。
+- **阻塞面精确**：`State<AppState>` 出现在 4 个 .at 文件
+  （relay_api/wiki/server/server_stream），状态相关调用点 67 处；
+  `extern_impl.rs` 207 pub fn 中多数**无状态**（如 `wiki_write_page`
+  只收 PathBuf/str——这些今天就能过桥）。
+- **AppState 组成**（`server.rs:41`）：`client: Arc<dyn Client>`（aaid
+  网关客户端）+ `auth: Arc<a2r AuthStore>`（已转译！）+ `registry:
+  Arc<WorkspaceRegistry>`。
+- **parity 现状**：`parity_relay_api` 等以 tower `oneshot` 直打 a2r
+  Rust router，无进程无 HTTP——442 验收 3 要求对照的是 VM 后端。
+- **前端已无关联阻塞**：442 B 阶段（musk 侧 platform/composables vm
+  adapter + 严格探针全绿）与渲染 0.2.0 切换（51b8abf）均已收口。
+
+### 与既有计划的关系
+
+- **auto-lang 442**：本计划 = 其 §7.3 指定的"auto-musk 侧新的桥接设计
+  /实现"承接方。①②完成即满足其验收 3 的 musk 侧条件，442 可收口。
+- **PLAN-041（web 轨退役，挂起中）**：442 收口 = 041 解挂条件达成，
+  本计划②完成后 041 可启动。
+- **KNOWN-DEBT 018（hw/ag 双轨债）**：数据层逐域 .at 化会自然缩小双
+  轨面，每域收口时顺带核对。
+
+## 详细设计
+
+### D1 状态闭包桥（Phase 1）
+
+- `src/vm_backend.rs` 新模块：`MUSK_BACKEND=vm` 时 serve 路径改为——
+  宿主构建 `Arc<AppState>`（复用 `server.rs:61` 现有构建）→ 经
+  auto-lang `backend_abi`/`host_bridge` 注册数据 extern HostCallFn
+  （闭包捕获 state；无状态 extern 直接转发 `extern_impl.rs` 同名 fn）→
+  `auto_lang::run_file` 跑 `auto-src/main.at`（VM HTTP server 形态）。
+- **`extern_sigs.vm.at`**：无状态签名变体。内容 = 现 extern_sigs.at
+  的去 `s`/`State` 参数版（如 `extern fn specs_load(q Query<WorkspaceQuery>) Value`）；
+  ext_stubs 的 adapter 链在 VM 装载时自动优选 `.vm.at`（机制已实证）。
+- **调用点改造**：67 处状态调用点按文件分批——handler 体内的
+  `extern_fn(s.view, ...)` 改 `extern_fn(...)`（VM 轨经 adapter），
+  **ag 轨兼容策略**：`.at` 源统一用无状态签名，`extern_sigs.at`（Rust
+  轨声明）同步去状态化 + `extern_impl.rs` 的包装 fn 改从闭包/全局
+  OnceLock 取 state（与 VM 同构，ag 轨也删 State 透传）——**避免双签名
+  分叉维护**（比 adapter 双轨更省，裁定见待澄清 #1）。
+
+### D2 parity harness 换 VM（Phase 2）
+
+- `tests/` 新增 `vm_serve_harness.rs`：拉起 `musk serve`（子进程，
+  `MUSK_BACKEND=vm`，随机端口），wait-on /health。
+- `parity_relay_api`/`parity_app_config` 等加 env 门控：`PARITY_TARGET=vm`
+  时 base_url 指向 VM serve，hw 对照不变；SSE 用例走真实流。
+- CI/本地验收命令：`PARITY_TARGET=vm cargo test -p musk --test parity_relay_api`。
+
+### D3 AuthStore 域 .at 重实现（Phase 3，退役样板）
+
+- `auto-src/auth_store.at` 新模块：session 表（内存 + JSON 持久化经
+  fs natives）、login/logout/me 逻辑；密码 hash 经 `#[rs]` 直通或
+  `use.rust` sha2/rand（与 hw 同库，行为等价）。
+- `extern_impl.rs` 的 auth 域 fn 退役：`AppState.auth` 字段类型改指向
+  .at 版 store 的 a2r 产物；parity（D2 的 VM 面 + hw 面）双绿后删
+  Rust 侧旧实现。
+- 退役模式固化为清单（域 fn 清单 → .at 重实现 → 双面 parity → 删
+  Rust → KNOWN-DEBT 回填），供 specs/wiki/relay 后续复制。
+
+## 测试设计
+
+1. **桥接单测**：vm_backend.rs 注册表完整性（每个 extern_sigs 声明有
+   HostCallFn；无状态 extern 直转发的正确性抽查）。
+2. **端到端**：VM serve 起服后 `/api/health`、`/api/auth/login+me`、
+   `/api/specs?section=goals`（读）、`/api/relay/runs`（列表）实测。
+3. **parity 双面**：D2 harness 下 hw vs VM 对照全绿（含 SSE 一条流式
+   用例）。
+4. **回归**：`cargo test -p musk`（ag 轨全量）+ auto-lang
+   `plan442_musk_probe_tests`（前端探针）+ `plan442_musk_backend_probe`
+   （后端探针，随 extern_sigs.vm.at 落地推进断言面）。
+5. **AuthStore 退役**：auth 域 parity 双面 + 既有 auth 集成测试全绿。
+
+## 验收标准
+
+1. `MUSK_BACKEND=vm cargo run -p musk -- serve` 起服成功，D2 端到端
+   四组端点通过；AppState 不出现在任何 JSON ABI 载荷（桥接层断言）。
+2. `PARITY_TARGET=vm` 下 parity 套件全绿（hw 对照不回归）——442 验收
+   3 的 musk 侧条件达成，442 可转 C3 收口。
+3. AuthStore 域：`extern_impl.rs` auth fn 删除，`.at` 实现在双面
+   parity 下等价；退役清单模板落档。
+4. specs/wiki/relay 三域的剩余 extern 清单 + 退役排期登记
+   KNOWN-DEBT（后续计划承接）。
+5. 全程 `cargo test -p musk` ag 轨全绿（Rust 生产轨零回归）。
+
+## 执行步骤
+
+### Phase 1 — 状态闭包桥
+
+- [x] **T1** 桥接模块骨架：`src/vm_backend.rs`——`MUSK_BACKEND=vm`
+  分支接入 `main.rs` serve 路径；构建 `Arc<AppState>` + 注册表空壳 +
+  `auto_lang::run_file("auto-src/main.at")` 引线。验证：
+  `MUSK_BACKEND=vm cargo run -p musk -- serve` 进程起且 `/api/health`
+  返回 200（无数据 extern 时仅静态路由）。 [✅ 已完成（2026-08-26）实测
+  `/api/health` → `{"status":"ok"}` 200 + workflows/professions/modes 200,
+  2137 路由注册;配套 auto-lang worktree plan-044 三提交(layer 直通 shim/
+  bare Json 构造 shim/response ctor RC stake 作用域修复——后者根治
+  `Json(字面量)` 的 use-after-free,已合 master)。]
+- [ ] **T2** 无状态 extern 直转发：extern_impl.rs 中不收 State 的 fn
+  （wiki_* 文件系族等）逐个包 HostCallFn 注册；`extern_sigs.vm.at`
+  建立并声明同名无状态签名。验证：VM serve 下 `GET /api/wiki/...`
+  读端点 200。
+- [ ] **T3** 状态 extern 去参数化（裁定后按 D1 统一策略）：67 调用点
+  所在 4 文件的 `s.*` 实参移除；`extern_sigs.at` 同步；`extern_impl.rs`
+  状态 fn 改 OnceLock 全局 state（ag 轨同构改造）。验证：
+  `cargo test -p musk` 全绿（ag 轨回归）+ VM serve 下
+  `/api/auth/login` + `/api/specs?section=goals` 实测通过。
+- [ ] **T4** SSE 路径过桥：server_stream.at 的 9 处 extern 中状态相关
+  者闭包化，流式 handler 经 host_bridge 注入事件（442 C2 ② SSE 形态
+  对接）。验证：VM serve 下 `/api/run/stream` 一条完整 SSE 流冒烟
+  （MockClient 即可）。
+
+### Phase 2 — parity harness 换 VM
+
+- [ ] **T5** `tests/vm_serve_harness.rs`：子进程拉起 + 端口探活 +
+  清理；`PARITY_TARGET` env 门控接入 parity 测试公共构造。验证：
+  `PARITY_TARGET=vm cargo test -p musk --test parity_relay_api` 全绿。
+- [ ] **T6** SSE parity 用例：真实流对照（hw vs VM 各消费一条流，
+  事件序归一断言）。验证：同 T5 命令含流式用例通过。
+- [ ] **T7** 442 验收 3 对账：双面 parity 全绿记录回填 auto-lang 442
+  文档（其 §7.3 接力项闭环），442 转 C3 观察期流程。验证：442 文档
+  grep 到回填记录。
+
+### Phase 3 — AuthStore 域退役（样板）
+
+- [ ] **T8** auth 域 extern 清单盘点：extern_impl.rs 中 auth 相关 fn
+  全列 + 每个的行为锚点（hw 侧现有测试名）。验证：清单落本节回填。
+- [ ] **T9** `auto-src/auth_store.at` 重实现：session 表 + login/me/
+  logout + 持久化；密码 hash 直通 sha2/rand。验证：
+  `auto trans --path auto-src/auth_store.at rust` 0 错 + 单测
+  （.at 侧逻辑经 VM 探针跑）。
+- [ ] **T10** auth 域接线切换：AppState.auth 指向 .at 版 store 产物；
+  hw/ag/VM 三面 auth 端点等价。验证：`cargo test -p musk` 全绿 +
+  `PARITY_TARGET=vm` auth 用例绿。
+- [ ] **T11** auth 域 Rust 旧实现删除 + 退役清单模板落档（D3 五步
+  模板）。验证：extern_impl.rs auth fn grep 零命中 + 模板入本计划
+  附录节。
+- [ ] **T12** 剩余域排期登记：specs/wiki/relay 各域 extern 清单 +
+  体量估计 + 顺序建议入 KNOWN-DEBT-AND-RISKS.md。验证：grep 登记
+  三条。
+- [ ] **T13** 文档收口：KNOWN-DEBT 442-B/442-C 相关条目更新；
+  pac.at 头注 "待激活" 注释按 VM serve 可用性改写（保留 rust 默认）。
+  验证：三处文件 grep。
+- [ ] **T14** spec 沉淀准备：spec-impact 元数据（touched_goals：
+  双轨 parity → VM 桥接 + 数据层单源化路线）。验证：frontmatter
+  填齐，转 /auto-plan:review。
+
+## 复审记录
+
+（待 /auto-plan:review 填写）
+
+## 待澄清事项
+
+1. **去状态化的轨道策略**（T3 关键裁定）：(a) 双签名——`.at` 统一无
+   状态 + ag 轨经 `extern_sigs.web.at`... 即 Rust 轨 adapter 保 State
+   透传（extern_impl.rs 零改动）；(b) 单签名——两轨都去 State，
+   extern_impl.rs 改 OnceLock 全局 state（推荐：无双签名维护税，且
+   Rust 侧 OnceLock 与 VM 闭包同构，一次改完）。本计划按 (b) 起草，
+   请确认。
+2. **relay 域退役时机**：SSE/timer 最重，是否允许在后续计划长期搁置
+   （桥接形态长期承载）——影响 442 C3 观察期的"收口定义"。
+3. **aaid Client 的 .at 化**：`Arc<dyn Client>` 本身是否列入退役范围
+   （HTTP 客户端经 auto.http natives 可表达，但 MockClient/真实双实现
+   面大）——建议本计划不含，登记后续。
+4. **观察期长度**：442 C3 移交后的双后端并行观察期（默认 7 天对齐
+   041 惯例）——请确认。

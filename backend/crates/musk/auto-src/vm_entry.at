@@ -1,0 +1,30 @@
+// vm_entry.at — PLAN-044 T1:VM 后端起服入口（AutoVM HTTP server）。
+//
+// 经 build_router()（server.at 🟡 路由）+ relay_routes()/wiki_routes()
+// （分域路由组）装配全部路由——axum_adapter 仿真把 .route(handler) 注册进
+// 路由表,AUTO_HTTP_PORT 监听由 AutoVM http server 承担。handler 的
+// State<AppState> 形参绑定为不透明句柄;数据 extern 由宿主侧
+//（src/vm_backend.rs）注册的 HostCallFn 提供（AppState 不过 ABI）。
+//
+// 注意:本文件被 auto-lang 442 gap enumerator 视为普通模块驱动（importable
+// + init-clean 判定),保持与语料一致的 use 形态。
+
+// VM 装载器的 crate 声明（语料 use.rust 根集;std/serde_json/clap 为内置）。
+dep axum
+dep serde
+dep crate
+dep auto_ai_agent
+dep auto_atom
+dep auto_val
+
+use extern_sigs
+use server
+use relay_api
+use wiki
+
+fn main() {
+    let app = build_router()
+    let relay = relay_routes()
+    let wk = wiki_routes()
+    print("musk-vm-router-built")
+}

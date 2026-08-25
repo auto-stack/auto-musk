@@ -11,6 +11,9 @@ pub mod mode;
 pub mod orch_tools;
 pub mod relay;
 pub mod server;
+
+// PLAN-044 Phase 1: VM 后端桥接（MUSK_BACKEND=vm 时 serve 走 AutoVM）。
+pub mod vm_backend;
 pub mod spec_tools;
 pub mod specs;
 pub mod spec_tree;

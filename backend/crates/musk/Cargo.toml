@@ -44,6 +44,8 @@ regex = "1"
 reqwest = { version = "0.12", features = ["blocking", "json"] }
 # auto-atom parser(for mode .at config parsing)
 auto-atom = { path = "../../../../auto-lang/crates/auto-atom" }
+# PLAN-044 Phase 1: in-process AutoVM backend (run_file + host_bridge)。
+auto-lang = { path = "../../../../auto-lang/crates/auto-lang" }
 auto-val = { path = "../../../../auto-lang/crates/auto-val", features = ["serde"] }
 # temp dir for the tool-test framework (Design 003); also used by chats tests
 tempfile = "3"
