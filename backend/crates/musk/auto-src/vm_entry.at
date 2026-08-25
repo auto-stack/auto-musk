@@ -17,8 +17,6 @@ dep auto_ai_agent
 dep auto_atom
 dep auto_val
 
-use.rust axum::routing::{get, post}
-
 use extern_sigs
 use server
 use server_stream
@@ -26,15 +24,8 @@ use relay_api
 use wiki
 
 fn main() {
-    var app = build_router()
-    // 🔴 daemon/SSE 路由(与 hw server.rs serve 的七条对齐,server_stream handlers)。
-    app = app.route("/api/run", post(run_endpoint))
-    app = app.route("/api/run/stream", post(run_stream_handler))
-    app = app.route("/api/workflow/run", post(workflow_run))
-    app = app.route("/api/workflow/run/stream", post(workflow_run_stream))
-    app = app.route("/api/settings-link", post(settings_link))
-    app = app.route("/api/chats/session/{id}/stream", get(chat_stream))
-    app = app.route("/api/conversations/{id}/stream", get(conversation_stream))
+    let app = build_router()
+    let red = red_routes()
     let relay = relay_routes()
     let tk = task_plan_routes()
     let wk = wiki_routes()

@@ -229,6 +229,17 @@ auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇�
     health 的 body、VMDISP 零命中——疑 axum_adapter resolve_params 的
     exports_by_name addr 反查在多模块场景失真)。下一步:auto-lang 侧修
     fn-ref 闭包解析(worktree),或 vm_entry 改本地 thunk fn 转发绕开。
+  - **▶▶ 路由装配打通(2026-08-26 再续)**:根因=跨模块 fn-ref 闭包解析
+    陷阱的解法=🔴 路由组装下沉为 server_stream.at 本模块的 red_routes()
+    (同 relay_routes 形态——模块内 fn-ref 分发本来就正确);server_stream
+    补 Router/routing use.rust 声明;run 改名 run_nonstream(run_endpoint
+    转发,避内建撞名)。实测:POST /api/run/stream bogus mode → 正确错误
+    包络 {"error":"unknown mode ''; available: ..."};VMDISP 链路活跃。
+  - **▶ 剩余(auto-lang 侧,已收敛到点)**:Json body → VM 对象的 Option
+    字段语义——缺字段访问报 RuntimeError("Field 'mode' not found on
+    __json_object")而非 null(Option unwrap_or 链路断);有值时
+    body.mode 也传 null(字段提取丢失)。修点:axum Json extractor 的
+    json→instance 字段填充或实例字段访问的缺省语义。
 
 ### Phase 2 — parity harness 换 VM
 

@@ -10,6 +10,8 @@
 /// `while let Some(v) = rx.recv().await` 终止语义一致(前端靠 onerror 收尾)。
 /// run/workflow_run 两个非流式 handler 改用 ~Response + 错误包络(经
 /// resp_is_err/resp_err_message/resp_err_code),补齐 hw 的 400/500 状态码。
+use.rust axum::Router
+use.rust axum::routing::{get, post}
 use.rust axum::extract::{Query, Path, State}
 /// json!() 宏 → DTO。impl IntoResponse → concrete Response/Result。
 
@@ -249,10 +251,10 @@ pub type ConvEventDto { conversation_id str, turn Option<Value>, status Option<s
 // 不可解析(与内建撞名),经本别名转发。hw server.rs 直引 server_stream::run
 // 不受影响(a2r 私有名不导出面)。
 pub fn run_endpoint(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunRequest>) ~Response {
-    return run(s, q, body)
+    return run_nonstream(s, q, body)
 }
 
-pub fn run(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunRequest>) ~Response {
+pub fn run_nonstream(s State<AppState>, q Query<WorkspaceQuery>, body Json<RunRequest>) ~Response {
     let resp = agent_run(s.view, q, body).await
     if resp_is_err(resp.view) {
         return err_response(resp_err_message(resp.view), resp_err_code(resp.view))
@@ -320,4 +322,20 @@ pub fn settings_link() ~Response {
     }
     let err str = value_get_str(resp.view, "error")
     return err_json_response(SettingsErrResp(status: status, error: err), 500)
+}
+
+
+// PLAN-044 T4: 🔴 daemon/SSE 路由组——与 hw server.rs serve 的七条对齐。
+// 装配放本模块内(同 relay_routes 形态):模块内 fn-ref 的闭包解析是好的,
+// 跨模块(驱动文件)fn-ref 在 VM 侧捕获取错体(axum_adapter exports 反查)。
+pub fn red_routes() Router<AppState> {
+    var app = Router.new()
+    app = app.route("/api/run", post(run_endpoint))
+    app = app.route("/api/run/stream", post(run_stream_handler))
+    app = app.route("/api/workflow/run", post(workflow_run))
+    app = app.route("/api/workflow/run/stream", post(workflow_run_stream))
+    app = app.route("/api/settings-link", post(settings_link))
+    app = app.route("/api/chats/session/{id}/stream", get(chat_stream))
+    app = app.route("/api/conversations/{id}/stream", get(conversation_stream))
+    return app
 }
