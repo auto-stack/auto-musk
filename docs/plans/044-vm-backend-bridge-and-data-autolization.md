@@ -283,6 +283,16 @@ auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇�
     shim_iterator_next 在 puller 线程内让出/阻塞形态待查);且头 0
     字节上线(write+flush 已执行)。下一步:eprintln 逐帧打点 SSE 循环
     + sse_frame_from_nv 对 Event 对象的输出核验。
+  - **▶▶ to_value 已修 + 打点就位(auto-lang ac2529aaf)**:to_value 恒等
+    shim(DTO 实例即可序列化)——v9 实证第二次 iterator.next 恢复了
+    生成器(事件链双次),断点在 sse_event(name,to_value(dto))。
+  - **▶ 当前停摆(v10,SSED 打点实测)**:headers flushed → pulling
+    frame #1 后 puller 线程内 shim_iterator_next 未进入生成器体
+    (无 mpsc_recv VMDISP;v9 同位曾恢复)——嫌疑:线程化拉取与
+    迭代器/任务锁序(shim_iterator_next 的 Yield 重试路径在非执行器
+    线程上的行为)。下一步:shim_iterator_next 内部打点(进入/恢复/
+    Yield 三点),或帧拉取回执行器线程 + mpsc_recv 桥改
+    spawn_blocking 形态。
 
 ### Phase 2 — parity harness 换 VM
 
