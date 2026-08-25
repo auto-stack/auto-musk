@@ -167,6 +167,7 @@ fn register_host_calls() {
     host!("conversations_list", |a| enc(ei::conversations_list(&st_axum(&st()?), wq_server(a))));
     host!("workspace_list_all", |_a| enc(ei::workspace_list_all(&st_axum(&st()?))));
     host!("relay_runs_list", |a| enc(ei::relay_runs_list(&st_axum(&st()?), wq_relay(a))));
+    host!("relay_task_plans_list", |a| enc(ei::relay_task_plans_list(&st_axum(&st()?), wq_relay(a))));
     host!("ws_wiki_list", |a| enc(ei::ws_wiki_list(&st_axum(&st()?), wq_wiki(a))));
 
     // ── SSE/mpsc 域（T4）── mpsc 句柄即 JSON 数字,HANDLES side-table 在宿主,

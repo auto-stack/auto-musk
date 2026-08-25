@@ -393,3 +393,61 @@ async fn task_plan_crud_and_start_hw_vs_ag() {
     assert_eq!((s_hw, &b_hw), (s_ag, &b_ag), "task_plan double-delete 400 parity");
     assert_eq!(b_hw, json!("cannot remove 'my-plan' (not found or built-in)"));
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PLAN-044 T5: PARITY_TARGET=vm —— VM serve(AutoVM 后端)对照 hw。
+// 无状态端点集逐键等价 + 错误路径状态码;套件其余用例(有状态 lifecycle)
+// 迁移属后续(需跨进程存储对齐,见计划 T5 回填)。
+// 跑法:PARITY_TARGET=vm cargo test -p musk --test parity_relay_api -- --nocapture
+// ═══════════════════════════════════════════════════════════════════════════
+
+mod common;
+
+fn vm_target_enabled() -> bool {
+    std::env::var("PARITY_TARGET").as_deref() == Ok("vm")
+}
+
+#[test]
+fn relay_stateless_vm_vs_hw() {
+    if !vm_target_enabled() {
+        eprintln!("relay_stateless_vm_vs_hw: SKIPPED — set PARITY_TARGET=vm to run");
+        return;
+    }
+    // hw 侧:进程内 router(与既有 parity 同源 tmp_state)。
+    let rt = tokio::runtime::Runtime::new().expect("hw tokio rt");
+    let expected: Vec<(&str, &str, u16, Value)> = rt.block_on(async {
+        let hw = hw_app(tmp_state());
+        let mut out = Vec::new();
+        for (m, u) in [
+            ("GET", "/api/forge/relay/professions"),
+            ("GET", "/api/forge/relay/souls"),
+            ("GET", "/api/forge/relay/flows"),
+            ("GET", "/api/forge/relay/runs"),
+            ("GET", "/api/forge/relay/task_plans"),
+            ("DELETE", "/api/forge/relay/runs/nonexistent-run"),
+        ] {
+            let (s, b) = send(&hw, m, u, None).await;
+            out.push((m, u, s.as_u16(), b));
+        }
+        out
+    });
+
+    // VM 侧:子进程 serve(隔离临时态)。与既有 parity 惯例一致:解析为
+    // Value 语义比较(VM 序列化带空格,语义等价即 parity)。
+    let vm = common::spawn_vm_serve();
+    for (m, u, want_code, want_body) in expected {
+        let (code, body) = vm.req(m, u);
+        assert_eq!(code, want_code, "{m} {u}: hw={want_code} vm={code} body={body}");
+        // DELETE 404 错误包络含 run_id 文本,只比状态码;GET 逐键语义比较。
+        if m == "GET" {
+            let vm_body: Value =
+                serde_json::from_str(&body).unwrap_or(Value::Null);
+            assert_eq!(
+                vm_body, want_body,
+                "{m} {u}: hw={want_body} vm={body}"
+            );
+        }
+    }
+    eprintln!("relay_stateless_vm_vs_hw: 5 endpoint(s) VM≡hw");
+}
