@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 3
+current_step: 5
 total_steps: 16
 ---
 
@@ -195,8 +195,8 @@ frontend/（musk-config-remote 独立小应用，与 web/ 无关）。
   其余各卡,未知→CategoryList 通用)。对拍 13/13 全等(exit 0)+ auto
   build exit 0。坑入册:跨文件组件引用须 use x: X 别名形态(use.web 对
   .at 组件件不适用)。]
-- [ ] **T4** detail 组 6 件 + SpecItemDetail → .at + 接线 + 对拍。验证：同上。
-- [ ] **T5** TreeView + RelationsPanel → .at + 对拍。验证：同上。
+- [x] **T4** detail 组 6 件 + SpecItemDetail → .at + 接线 + 对拍。验证：同上。
+- [x] **T5** TreeView + RelationsPanel → .at + 对拍。验证：同上。
 - [ ] **T6** 五视图路由对拍（含 popstate/history 行为用例入快照脚本）。
   验证：`node scripts/lib-parity/track-switch/phase1-leaves.mjs` 全量 exit 0。
 - [ ] **T7** URL 路由能力勘察：auto-lang widget routes/expose 能力 vs
