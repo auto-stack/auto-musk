@@ -1,0 +1,224 @@
+// specs_leaf.at — PLAN-041 T2:Specs 叶子组件组(StatusBadge/SpecLink/
+// SpecItemRow/CategoryList),对标 web/src/components/{StatusBadge,SpecLink,
+// SpecItemRow}.vue + category/CategoryList.vue。
+//
+// 移植约定(041 D1):
+//   - web .vue → .at widget,DOM 对拍(scripts/lib-parity/track-switch/
+//     phase1-leaves.mjs)为验收;scoped CSS → widget style 块(全局化,类名
+//     保持一致,对拍按类名+结构归一)。
+//   - 跨文件组件引用经 PLAN-037 P1 native alias(use.web component)。
+//   - 事件上行:onclick: .Xxx(args) 形态(父级 msg)。
+//   - T2 阶段 SpecItemRow 的展开分支先渲染占位(T4 落 SpecItemDetail 后接线);
+//     CategoryList 的编辑分支(editingId 命中)属 Phase 2 编辑器组,T2 渲染
+//     详情占位——两分支均不在 T2 对拍面。
+
+use.web component ChevronDown, ChevronUp, Inbox from "src/front/ports/icons.at"
+use.web specTagParse, specTagAt, specRowSummary from "src/front/specs_helpers.at"
+
+widget StatusBadge(status: str, size: str) {
+    computed {
+        sz => if .size == "" { "md" } else { .size }
+        cls => "status-badge " + .status + " " + .sz
+        label => .status.replace("_", " ")
+    }
+    style {
+.status-badge { display: inline-flex; align-items: center; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.73rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap; }
+.status-badge.sm { padding: 0.1rem 0.4rem; font-size: 0.68rem; }
+.status-badge.md { padding: 0.25rem 0.6rem; font-size: 0.83rem; }
+.status-badge.empty { color: #94a3b8; background: hsl(215 16% 62% / 0.12); }
+.status-badge.proposed { color: #a78bfa; background: hsl(258 90% 66% / 0.12); }
+.status-badge.draft { color: #94a3b8; background: hsl(215 16% 62% / 0.12); }
+.status-badge.under_review { color: #f59e0b; background: hsl(38 92% 50% / 0.12); }
+.status-badge.approved { color: #3b82f6; background: hsl(217 91% 60% / 0.12); }
+.status-badge.in_progress { color: #f59e0b; background: hsl(38 92% 50% / 0.12); }
+.status-badge.in_implementation { color: #8b5cf6; background: hsl(258 90% 66% / 0.12); }
+.status-badge.implemented { color: #10b981; background: hsl(160 84% 39% / 0.12); }
+.status-badge.verified { color: #22c55e; background: hsl(142 71% 45% / 0.12); }
+.status-badge.done { color: #10b981; background: hsl(160 84% 39% / 0.12); }
+.status-badge.archived { color: #9ca3af; background: hsl(220 9% 46% / 0.12); }
+.status-badge.rejected { color: #ef4444; background: hsl(0 84% 60% / 0.12); }
+.status-badge.blocked { color: #f97316; background: hsl(25 95% 53% / 0.12); }
+    }
+    view {
+        span {
+            class: .cls
+            text .label
+        }
+    }
+}
+
+widget SpecLink(id: str) {
+    msg Msg {
+        Jump(str),
+    }
+    style {
+.spec-link { display: inline; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.85em; font-weight: 600; color: hsl(var(--primary)); background: hsl(var(--primary) / 0.08); padding: 0.05em 0.35em; border-radius: 4px; cursor: pointer; transition: background 0.12s; }
+.spec-link:hover { background: hsl(var(--primary) / 0.18); }
+    }
+    view {
+        span {
+            class: "spec-link"
+            onclick: .Jump(.id)
+            text .id
+        }
+    }
+}
+
+widget SpecItemRow(item: obj, section_type: str, project: str, is_expanded: bool, summary: str) {
+    msg Msg {
+        Toggle(str),
+    }
+    computed {
+        rowCls => if .is_expanded { "spec-item-row expanded cat-" + .section_type } else { "spec-item-row cat-" + .section_type }
+        showSummary => .summary != ""
+        tags => .item.tags ?? []
+        tagCount => .tags.length
+        showTags => .tagCount > 0
+        tag0 => specTagAt(.tags, 0)
+        tag1 => specTagAt(.tags, 1)
+        moreCount => if .tagCount > 2 { .tagCount - 2 } else { 0 }
+        showMore => .tagCount > 2
+    }
+    style {
+.spec-item-row { border-radius: 10px; background: var(--af-card); border: 1px solid var(--af-border); transition: opacity 0.15s; overflow: hidden; }
+.spec-item-row:hover { border-color: hsl(var(--muted-foreground) / 0.25); box-shadow: 0 1px 3px hsl(var(--muted-foreground) / 0.06); }
+.spec-item-row.expanded { border-color: hsl(var(--primary) / 0.25); box-shadow: 0 2px 8px hsl(var(--muted-foreground) / 0.08); }
+.spec-item-row.cat-goals { border-left: 3px solid #10b981; }
+.spec-item-row.cat-architecture { border-left: 3px solid #8b5cf6; }
+.spec-item-row.cat-designs { border-left: 3px solid #ec4899; }
+.spec-item-row.cat-plans { border-left: 3px solid #f59e0b; }
+.spec-item-row.cat-tests { border-left: 3px solid #06b6d4; }
+.spec-item-row.cat-reviews { border-left: 3px solid #6366f1; }
+.spec-item-row.cat-reports { border-left: 3px solid #14b8a6; }
+.row-main { display: flex; align-items: center; gap: 0.75rem; padding: 0.7rem 1rem; cursor: pointer; }
+.id-badge { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.8rem; font-weight: 700; padding: 0.25rem 0.6rem; border-radius: 6px; background: hsl(var(--muted-foreground) / 0.08); color: var(--af-muted); flex-shrink: 0; min-width: 3rem; text-align: center; }
+.row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.row-title { font-size: 0.96rem; font-weight: 500; color: var(--af-fg); line-height: 1.35; }
+.row-summary { font-size: 0.83rem; color: var(--af-muted); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-meta { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.row-tags { display: flex; align-items: center; gap: 0.25rem; }
+.tag-chip { display: inline-flex; align-items: center; padding: 0.1rem 0.3rem; font-size: 0.68rem; border-radius: 4px; border: 1px solid var(--af-border); background: hsl(var(--muted-foreground) / 0.06); color: var(--af-muted); white-space: nowrap; cursor: help; }
+.tag-chip.stack { background: hsl(200 80% 50% / 0.1); color: hsl(200 70% 45%); border-color: hsl(200 70% 50% / 0.25); }
+.tag-chip.module { background: hsl(280 60% 55% / 0.1); color: hsl(280 50% 50%); border-color: hsl(280 50% 50% / 0.25); }
+.tag-more { font-size: 0.68rem; color: var(--af-muted); }
+.expand-icon { color: var(--af-muted); transition: transform 0.2s; }
+.row-detail { padding: 0 1rem 1rem; border-top: 1px solid var(--af-border); margin-top: 0; }
+    }
+    view {
+        div {
+            class: .rowCls
+            onclick: .Toggle(.item.id)
+            div {
+                class: "row-main"
+                span {
+                    class: "id-badge"
+                    text .item.id
+                }
+                div {
+                    class: "row-body"
+                    span {
+    class: "row-title"
+    text .item.title
+}
+                    if .showSummary {
+                        span {
+                            class: "row-summary"
+                            text .summary
+                        }
+                    }
+                }
+                div {
+                    class: "row-meta"
+                    if .showTags {
+                        span {
+                            class: "row-tags"
+                            if .tagCount > 0 {
+                                span {
+                                    class: "tag-chip " + .tag0.type
+                                    title: .tag0.full
+                                    text .tag0.value
+                                }
+                            }
+                            if .tagCount > 1 {
+                                span {
+                                    class: "tag-chip " + .tag1.type
+                                    title: .tag1.full
+                                    text .tag1.value
+                                }
+                            }
+                            if .showMore {
+                                span {
+                                    class: "tag-more"
+                                    text "+" + .moreCount
+                                }
+                            }
+                        }
+                    }
+                    StatusBadge {
+    status: .item.status
+    size: "sm"
+}
+                    if .is_expanded {
+                        ChevronUp {
+    size: 14
+    class: "expand-icon"
+}
+                    } else {
+                        ChevronDown {
+    size: 14
+    class: "expand-icon"
+}
+                    }
+                }
+            }
+            if .is_expanded {
+                // T4 接线:SpecItemDetail(详情面板);T2 先占位(不在对拍面)。
+                div {
+                    class: "row-detail"
+                    text " "
+                }
+            }
+        }
+    }
+}
+
+widget CategoryList(items: obj, project: str, expanded_id: str, editing_id: str, section_type: str) {
+    computed {
+        isEmpty => .items.length == 0
+    }
+    style {
+.category-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.empty-state { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; padding: 2.5rem 1rem; color: var(--af-muted); font-size: 0.93rem; }
+.empty-state svg { color: hsl(var(--muted-foreground) / 0.3); margin-bottom: 0.3rem; }
+.empty-hint { font-size: 0.83rem; color: hsl(var(--muted-foreground) / 0.6); }
+    }
+    view {
+        div {
+            class: "category-list"
+            if .isEmpty {
+                div {
+                    class: "empty-state"
+                    Inbox { size: 28 }
+                    span {
+                        text "No items yet"
+                    }
+                    span {
+                        class: "empty-hint"
+                        text "Click \"Add\" above to create one"
+                    }
+                }
+            } else {
+                for item in .items {
+                    SpecItemRow {
+                        key: item.id
+                        item: item
+                        section_type: .section_type
+                        project: .project
+                        is_expanded: .expanded_id == item.id
+                        summary: specRowSummary(item)
+                    }
+                }
+            }
+        }
+    }
+}

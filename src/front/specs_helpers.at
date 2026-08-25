@@ -49,3 +49,32 @@ fn spec_next_id(section_type str, existing_ids []str) str {
     }
     return prefix + (max_num + 1).to_string()
 }
+
+
+// ── PLAN-041 T2:Specs 组件组辅助(web parseTag/summaryFn 对拍面)──
+
+/** tag 串 `type:value` 解析(无冒号 → other);对拍 web SpecItemRow.parseTag。 */
+fn specTagParse(tag str) obj {
+    let idx = tag.find(":")
+    if idx > 0 {
+        return { type: tag.slice(0, idx), value: tag.slice(idx + 1), full: tag }
+    }
+    return { type: "other", value: tag, full: tag }
+}
+
+/** 越界安全的 tag 取解(computed 不支持对象字面量,经 fn 返回)。 */
+fn specTagOther() obj {
+    return { type: "other", value: "", full: "" }
+}
+
+fn specTagAt(tags obj, i int) obj {
+    if tags.length > i {
+        return specTagParse(tags[i])
+    }
+    return specTagOther()
+}
+
+/** 行摘要(T2 占位:空串;T4 接线时按 section 细化——web summaryFn 语义)。 */
+fn specRowSummary(item obj) str {
+    return ""
+}

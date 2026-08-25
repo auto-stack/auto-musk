@@ -1,16 +1,16 @@
 ---
 plan_id: PLAN-041
-status: drafting
+status: executing
 feature_name: web 手写轨退役——gen(Auto/vue)轨转正为生产前端
 author: [zhaopuming]
 created_at: 2026-08-23
-updated_at: 2026-08-23
+updated_at: 2026-08-27
 
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 0
+current_step: 2
 total_steps: 16
 ---
 
@@ -29,6 +29,8 @@ web/ 轨**（`backend/crates/musk/src/server.rs:67-76` serve `web/dist`；`start
 **前置关系（2026-08-23 用户裁定）**：**整个计划（含 Phase 1）等跨平台迁移完成后
 启动**——迁移未竟期间 web/ 轨保持现维护节奏（不执行冻结令），本计划先行挂起。
 原分相依赖保留供参考（Phase 2 依赖 PLAN-038 编辑库；Phase 3/4 依赖 Phase 1/2）。
+**✅ 2026-08-27 解挂启动**：auto-lang 442 C 阶段收口（数据面 parity 达成转 C3
+观察期，见 442 §7.4 / PLAN-044），"迁移完成"条件达成，本计划启动执行。
 
 ## 目标
 
@@ -166,13 +168,24 @@ frontend/（musk-config-remote 独立小应用，与 web/ 无关）。
 
 ### Phase 1 — Specs 组件组 + URL 路由（可先行）
 
-- [ ] **T1** 勘察吸收面：`plan/PlanMetaBlock.vue`/`PlanStatusBadge.vue` 对照
+- [x] **T1** 勘察吸收面：`plan/PlanMetaBlock.vue`/`PlanStatusBadge.vue` 对照
   plans_view.at 现有实现，确认被吸收或需移植；产出 21 件最终迁移清单入本节回填。
   验证：清单落档 + grep 无二义引用。
-- [ ] **T2** 叶子件移植（StatusBadge/SpecLink/SpecItemRow/CategoryList →
+  [✅ 已完成(2026-08-27):最终清单 = 全部 21 件均需移植(gen 零覆盖)——
+  category 7 + detail 6 + plan 2(Plan 033 的 plans_view.at 无 PlanMetaBlock/
+  PlanStatusBadge 等价物,未吸收)+ 独立 6;SpecItemDetail 随 detail 组。
+  编辑器组引用(CategoryList 的 TestEditor/AutoDownEditor 分支)归 Phase 2。]
+- [x] **T2** 叶子件移植（StatusBadge/SpecLink/SpecItemRow/CategoryList →
   `src/front/specs_*.at`）+ 对拍快照脚本
   `scripts/lib-parity/track-switch/phase1-leaves.mjs`。验证：对拍 exit 0 +
   `auto build` 0 错。
+  [✅ 已完成(2026-08-27):specs_leaf.at 四件(StatusBadge/SpecLink/
+  SpecItemRow/CategoryList);对拍脚本落地(vite 双工程子进程 SSR + 归一化
+  N1-N6:注释/scoped/事件属性/空白/plain-span text 包裹/size 泄漏/class
+  词元排序;web 侧 prop camelCase 映射 + summaryFn 函数标记)——7/7 全等
+  exit 0 + auto build(vue-tsc+vite)绿。移植坑入册:computed 不支持对象
+  字面量(经 fn 返回)、style 内 transition: all 的 all 关键字、
+  transition 需 opacity 形态、icons 端口补 Inbox、事件需 msg 声明。]
 - [ ] **T3** category 卡片组 7 件 → .at + specs_view.at 接线 + 对拍。验证：同上。
 - [ ] **T4** detail 组 6 件 + SpecItemDetail → .at + 接线 + 对拍。验证：同上。
 - [ ] **T5** TreeView + RelationsPanel → .at + 对拍。验证：同上。
