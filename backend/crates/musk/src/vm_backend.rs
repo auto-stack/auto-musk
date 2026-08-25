@@ -55,14 +55,25 @@ pub fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn std::err
 /// 与 `server::serve` 同源的 AppState 构建（T1 只需结构就位;数据 extern
 /// 在 T2/T3 逐步接线）。抽公共前先保持本地复制,避免动 hw 轨签名。
 fn build_app_state(client: Arc<dyn Client>) -> Arc<AppState> {
-    let users_path = dirs::home_dir()
-        .map(|h| h.join(".config/autoos/users.json"))
+    // PLAN-044 T5: parity/测试隔离覆盖（未设时与 server::serve 同源）。
+    let users_path = std::env::var("MUSK_VM_USERS_PATH")
+        .map(std::path::PathBuf::from)
+        .ok()
+        .or_else(|| {
+            dirs::home_dir().map(|h| h.join(".config/autoos/users.json"))
+        })
         .unwrap_or_else(|| std::path::PathBuf::from("users.json"));
-    let config_dir = dirs::home_dir()
-        .map(|h| h.join(".config/autoos"))
+    let config_dir = std::env::var("MUSK_VM_CONFIG_DIR")
+        .map(std::path::PathBuf::from)
+        .ok()
+        .or_else(|| dirs::home_dir().map(|h| h.join(".config/autoos")))
         .unwrap_or_else(|| std::path::PathBuf::from("."));
-    let default_root =
-        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let default_root = std::env::var("MUSK_VM_DEFAULT_ROOT")
+        .map(std::path::PathBuf::from)
+        .ok()
+        .unwrap_or_else(|| {
+            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+        });
     let registry = crate::workspace::WorkspaceRegistry::load(
         config_dir.join("workspaces.json"),
         default_root,

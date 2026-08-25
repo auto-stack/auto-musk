@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 3
+current_step: 5
 total_steps: 14
 ---
 
@@ -205,14 +205,19 @@ auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇�
   ?workspace=musk-demo 返回与 hw 同形真数据;名字碰撞 specs_list
   (extern 桩 vs server.at handler)改名 specs_files_list 消除;
   cargo test 406 绿。]
-- [ ] **T4** SSE 路径过桥：server_stream.at 的 9 处 extern 中状态相关
+- [ ] **T4** SSE 路径过桥（▶ 勘察完成,实现续接:mpsc extern 族是 JSON 友好
+  线型——mpsc_channel() 返回 json!(id),HANDLES side-table 在宿主,tx/rx 即
+  JSON 数字,可直接过现有网关;难点收敛为 mpsc_recv(rx).await 与
+  agent_run_stream(...).await 的异步语义过桥——宿主闭包是同步 fn(&str),
+  VM 侧 await 需 yield 通道(参照 waiting_sse_stream_id 的 iterator.next
+  重试模式);sse_event/Sse.new 等响应构造 auto-lang 已有本地 shim。）:server_stream.at 的 9 处 extern 中状态相关
   者闭包化，流式 handler 经 host_bridge 注入事件（442 C2 ② SSE 形态
   对接）。验证：VM serve 下 `/api/run/stream` 一条完整 SSE 流冒烟
   （MockClient 即可）。
 
 ### Phase 2 — parity harness 换 VM
 
-- [ ] **T5** `tests/vm_serve_harness.rs`：子进程拉起 + 端口探活 +
+- [x] **T5** `tests/vm_serve_harness.rs`（首期骨架+冒烟门;套件迁移续接）：子进程拉起 + 端口探活 +
   清理；`PARITY_TARGET` env 门控接入 parity 测试公共构造。验证：
   `PARITY_TARGET=vm cargo test -p musk --test parity_relay_api` 全绿。
 - [ ] **T6** SSE parity 用例：真实流对照（hw vs VM 各消费一条流，
