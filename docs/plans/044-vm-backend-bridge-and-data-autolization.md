@@ -240,6 +240,14 @@ auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇�
     __json_object")而非 null(Option unwrap_or 链路断);有值时
     body.mode 也传 null(字段提取丢失)。修点:axum Json extractor 的
     json→instance 字段填充或实例字段访问的缺省语义。
+  - **▶▶ 缺字段→null 已修(auto-lang d86615620)**:__json_object 实例缺字段
+    读 null。剩两个精确缺口(2026-08-26 收口记录):① Nil 接收者的
+    .unwrap_or 方法缺失(CALL_SPEC: no function 'None.unwrap_or'——
+    body.mode 为 null 时 unwrap_or 默认值链断);② Json body 的 present
+    字段读取也回 null(body.mode="bogus" 但 mode_exists args=[null]——
+    .mode 属性访问经 method-dispatch 路径未命中 json instance 字段)。
+    修点:auto-lang CALL_SPEC 加 None.unwrap_or 臂 + __json_object 的
+    方法形态字段访问(GET_FIELD vs CALL_METHOD 路径分叉)。
 
 ### Phase 2 — parity harness 换 VM
 
