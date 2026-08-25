@@ -239,3 +239,17 @@ fn path_inner(p @T) str {}
 fn json_response(_d Value) Value {}
 fn error_response(_c int, _d Value) Value {}
 fn atomic_bool_false() Value {}
+
+// ── Plan 442 C2 补遗: 语料调用但旁车漏登的 extern fn(对齐 extern_impl.rs;
+// 签名按 a2r 旁车惯例——@T 表 Rust 引用参数,宽松占位类型仅驱动引用注入)。──
+fn ok_response(v @T) Value {}
+fn err_response(msg @str, code int) Value {}
+fn to_response(v @T, msg @str, code int) Value {}
+fn resp_is_err(v @T) bool {}
+fn resp_err_code(v @T) int {}
+fn resp_err_message(v @T) str {}
+fn auth_login_result(_s @T, _u str, _p str) Value {}
+fn auth_register_result(_s @T, _u str, _p str) Value {}
+fn relay_append_report_message_to(_ws @T, _run_id @str) {}
+fn sse_plain_event(_dto @T) Value {}
+fn serve_build_app(_s @T, _st @T, _c @T) Value {}
