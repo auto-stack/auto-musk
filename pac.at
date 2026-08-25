@@ -18,11 +18,9 @@ i18n: ["src/front/i18n/zh.json", "src/front/i18n/en.json"]
 // Plan 022 Phase 6 → PLAN-038 Phase 3: 渲染真源切换 @autodown/vue（vendored 快照,
 // 来源 ../auto-down,再生 scripts/vendor-autodown-vue.mjs;file: 直链上游被其
 // workspace:* 依赖阻塞,故 vendor shim 入库）。路径相对 gen/front/vue/。
-// markstream-vue 保留直依赖：.at 内置 markdown 元素（auto-lang codegen 硬编码
-// 绑定）+ platform:markdown 的 setCustomComponents 注册仍直接引用——其消灭属
-// auto-down 侧 008 草稿 + auto-lang 跟进（PLAN-038 T13 证据行登记）。
+// vendor 0.2.0（2026-08-25 切换）：markstream-vue 依赖移除——auto-down 008
+// 解析器 Auto 化后 dist 零引用（"markstream-vue" 串仅为 CSS 类名）。
 npm_deps: {
   // 注:本对象为 auto-man 行式解析,条目间不加逗号（尾逗号会被误计入版本串）
   "@autodown/vue": "file:../../../vendor/@autodown/vue"
-  "markstream-vue": "^0.0.14-beta.8"
 }

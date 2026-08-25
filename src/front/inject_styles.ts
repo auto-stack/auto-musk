@@ -6,12 +6,9 @@
 //
 // 逃生舱说明：AutoUI .at 无法表达 scoped CSS，用 use { fn } 在 App.Init 注入。
 
-// markstream-vue 渲染器样式（表格边框/表头背景/行内代码配色等 design token）。
-// 原生 web/ 在 main.ts 引入；gen 工程的 main.ts 由 codegen 生成不可改，
-// 故在此引入（模块加载即注入，效果等价）。
-import 'markstream-vue/index.css'
-// PLAN-038 T12: @autodown/vue StreamingRenderer（platform:markdown 实现源）的
-// 增量样式（code 块头/复制按钮/placeholder/katex 等）——上游再导出后必需。
+// PLAN-038 T12 → 0.2.0 收口:渲染样式唯一来源 = @autodown/vue/style.css
+// （vendor 0.2.0 起 markstream-vue 消灭,其全局 index.css 随依赖移除;
+// 上游样式改 scoped data-attr 形态,表格/代码块等 design token 内含）。
 import '@autodown/vue/style.css'
 
 const STYLES = `
@@ -413,7 +410,7 @@ a { color: hsl(var(--primary)); }
 .nav-icon-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid hsl(var(--border)); border-radius: 6px; background: transparent; cursor: pointer; color: hsl(var(--foreground)); font-size: 1rem; }
 .nav-icon-btn:hover { background: hsl(var(--accent)); }
 .wiki-nav-list { flex: 1; overflow-y: auto; }
-/* ── Markdown 表格补充：斑马线背景（markstream index.css 已含边框/表头底色） ── */
+/* ── Markdown 表格补充：斑马线背景（0.2.0 scoped 样式已含边框/表头底色,斑马纹为 musk 增补） ── */
 .markstream-vue .table-node tbody tr:nth-child(even) td {
   background: hsl(var(--ms-muted) / 0.55);
 }

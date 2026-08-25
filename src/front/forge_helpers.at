@@ -389,6 +389,32 @@ fn chatActivePath(messages obj, leaf str) obj {
 }
 
 /** PLAN-043: 同一分叉点的兄弟分支（切换器用）。 */
+/** 分支切换器按钮文案:内容前 18 字符(空内容回退空串)。
+    (view 内 `(x ?? "").slice(0,18)` 括号化 ?? 链破坏 UI parser——043 引入时
+    被旧 gen 掩盖,442-B 后新 CLI 升为致命;提升到 fn 内规避,同 a2ts 优先级
+    存量债务的中间变量惯例。) */
+fn chatBranchLabel(content obj) str {
+    let c = content ?? ""
+    return c.slice(0, 18)
+}
+
+/** 分叉切换器扁平条目:每条 {for_id, sib}（for_id = 拥有兄弟的消息 id,
+    sib = 该分叉点的一个兄弟）。视图 for-in 迭代器限制的预算侧配套。 */
+fn chatBranchEntries(messages obj) list {
+    let out list = []
+    if messages == None { return out }
+    for m in messages {
+        let sibs = chatSiblings(messages, m)
+        if sibs.length > 1 {
+            for sib in sibs {
+                let e obj = { for_id: m.id, sib: sib }
+                out.push(e)
+            }
+        }
+    }
+    return out
+}
+
 fn chatSiblings(messages obj, msg obj) obj {
     let out list = []
     if messages == None { return out }

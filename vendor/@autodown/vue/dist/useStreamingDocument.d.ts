@@ -1,15 +1,6 @@
 import { Ref } from 'vue';
-export interface MarkdownSegment {
-    type: 'markdown';
-    text: string;
-}
-export interface ComponentSegment {
-    type: 'component';
-    componentType: string;
-    props: Record<string, any>;
-    final: boolean;
-}
-export type StreamingSegment = MarkdownSegment | ComponentSegment;
+import { StreamingSegment } from './streaming.generated';
+export type { MarkdownSegment, ComponentSegment, StreamingSegment, } from './streaming.generated';
 export declare function useStreamingDocument(rawText: Ref<string>): {
     segments: import('vue').ComputedRef<StreamingSegment[]>;
 };

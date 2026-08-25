@@ -5,8 +5,9 @@
 // 为什么 vendor 而非 file: 直链 ../auto-down：上游 package.json 声明
 // `@autodown/core: workspace:*`——npm/pnpm 在 workspace 外均无法解析该协议,
 // file: 直链安装即失败。dist 本身为 lib-bundle,运行时外部化仅
-// vue/markstream-vue/lowlight/hast-util-to-html（dist 未引用 core/katex/mermaid,
-// 类型面仅 vue）——shim 只声明这四个,均可从消费方解析。
+// vue/lowlight/hast-util-to-html（0.2.0 起 markstream-vue 已消灭——auto-down
+// 008 解析器 Auto 化,dist 内 "markstream-vue" 串仅为 CSS 类名）——shim 只
+// 声明这三个,均可从消费方解析。
 // 版本跟进 = auto-down 侧重build后重跑本脚本（快照含源版本号,git diff 可审）。
 //
 // 再生：node scripts/vendor-autodown-vue.mjs（幂等；auto-down 侧需先 pnpm build）
@@ -48,7 +49,6 @@ const shim = {
   },
   peerDependencies: { vue: '^3.4.0' },
   dependencies: {
-    'markstream-vue': '^0.0.14-beta.8',
     lowlight: '^3.3.0',
     'hast-util-to-html': '9.0.5',
   },

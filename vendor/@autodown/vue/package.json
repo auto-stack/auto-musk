@@ -1,6 +1,6 @@
 {
   "name": "@autodown/vue",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "AutoDown Vue renderer — streaming and static document rendering for AutoDown (vendored dist snapshot; source ../auto-down, regen: scripts/vendor-autodown-vue.mjs)",
   "type": "module",
   "main": "./dist/index.js",
@@ -17,7 +17,6 @@
     "vue": "^3.4.0"
   },
   "dependencies": {
-    "markstream-vue": "^0.0.14-beta.8",
     "lowlight": "^3.3.0",
     "hast-util-to-html": "9.0.5"
   }

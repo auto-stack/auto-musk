@@ -16,7 +16,7 @@ use back.api: chats_delete_session, chats_delete_all_sessions
 use.web relay_command_match from "src/front/relay_commands.at"
 use.web platformRunRelayCommand from "src/front/ports/platform.at"
 use.web extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.at"
-use.web chatSearchFilter, chatLastMessageId from "src/front/forge_helpers.at"
+use.web chatSearchFilter, chatLastMessageId, chatBranchLabel, chatBranchEntries, chatActivePath from "src/front/forge_helpers.at"
 use.web getQuestions, hasQuestionnaire from "src/front/questionnaire.at"
 use.web questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder from "src/front/questionnaire_helpers.at"
 use.web component Plus, Trash2, Search, Info from "src/front/ports/icons.at"
@@ -56,6 +56,10 @@ widget ChatsView {
         SecretaryReject,
         SecretarySnooze,
         OnQuestionnaireSubmit(str),
+        // PLAN-043 补遗:分支切换/重试事件（043 只加了视图调用,漏了 msg 声明——
+        // 旧 CLI 解析失败被 stale gen 掩盖,新 CLI 重建时暴露为 0 参 emit）。
+        BranchTo(str, str),
+        RetryFrom(obj),
     }
 
     model {
@@ -69,6 +73,10 @@ widget ChatsView {
         // PLAN-043: 先按活跃路径投影再套搜索过滤。
         filteredMessages => chatSearchFilter(chatActivePath(.store.messages, .store.active_leaf), .chat_search)
         lastMsgId => chatLastMessageId(.filteredMessages)
+        // PLAN-043: 分叉切换器数据（for-in 迭代器仅支持纯 dot 路径,fn 调用与
+        // 动态索引均破坏 UI parser——扁平 {for_id, sib} 条目在此预算,视图按
+        // for_id 相等匹配渲染兄弟按钮）。
+        branchEntries => chatBranchEntries(.store.messages)
     }
 
     style {
@@ -189,11 +197,13 @@ widget ChatsView {
                             // PLAN-043: 同分叉点的兄弟分支切换器 + assistant 轮"从这里重试"。
                             row {
                                 style: "branch-row"
-                                for sib in chatSiblings(.store.messages, .msg) {
-                                    button {
-                                        style: "branch-btn"
-                                        text "⑂ " + (sib.content ?? "").slice(0, 18)
-                                        onclick: .BranchTo(sib.id, "navigate")
+                                for be in .branchEntries {
+                                    if be.for_id == .msg.id {
+                                        button {
+                                            style: "branch-btn"
+                                            text "⑂ " + chatBranchLabel(be.sib.content)
+                                            onclick: .BranchTo(be.sib.id, "navigate")
+                                        }
                                     }
                                 }
                                 if .msg.role == "assistant" {
@@ -204,8 +214,8 @@ widget ChatsView {
                                     }
                                 }
                             }
-                            // ChatMessage 独立组件：有序 block 流（文本/思考/工具），
-                            // 工具卡随 block 内联渲染（不再后置循环）。
+                            // ChatMessage 独立组件: 有序 block 流.
+                            // 工具卡随 block 内联渲染.
                             ChatMessage {
                                 msg: .msg
                                 is_streaming: isMsgStreaming(.store.streaming, .store.messages, .msg)
