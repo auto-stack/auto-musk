@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 5
+current_step: 4
 total_steps: 14
 ---
 
@@ -205,7 +205,7 @@ auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇�
   ?workspace=musk-demo 返回与 hw 同形真数据;名字碰撞 specs_list
   (extern 桩 vs server.at handler)改名 specs_files_list 消除;
   cargo test 406 绿。]
-- [ ] **T4** SSE 路径过桥（▶ 勘察完成,实现续接:mpsc extern 族是 JSON 友好
+- [x] **T4** SSE 路径过桥（▶ 勘察完成,实现续接:mpsc extern 族是 JSON 友好
   线型——mpsc_channel() 返回 json!(id),HANDLES side-table 在宿主,tx/rx 即
   JSON 数字,可直接过现有网关;难点收敛为 mpsc_recv(rx).await 与
   agent_run_stream(...).await 的异步语义过桥——宿主闭包是同步 fn(&str),
@@ -293,6 +293,13 @@ auto-lang（零新改动——442 C2 前置已合入 master 06360d8ef；如遇�
     线程上的行为)。下一步:shim_iterator_next 内部打点(进入/恢复/
     Yield 三点),或帧拉取回执行器线程 + mpsc_recv 桥改
     spawn_blocking 形态。
+  - **✅✅ T4 验收达成(2026-08-27 凌晨,73f1b7f28 后净二进制复验)**:
+    to_value 修毕后全链自然打通——SSED 打点实证逐帧链
+    (pulled→formatted→written+flushed),冒烟输出四帧全序列
+    turn_start/delta{"text":"ok"}/turn_end/done,流正常终止(channel
+    关闭→-1→break),wire 形状与 hw SseEventDto 一致;真实 aaid 会话
+    (非 Mock)。v10 停摆为偶发时序(未再复现),稳定性观察并入 T6
+    SSE parity 用例。Rust 轨 406 绿;SSED 调试打点已移除。
 
 ### Phase 2 — parity harness 换 VM
 
