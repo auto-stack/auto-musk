@@ -20,7 +20,7 @@ touched_goals:
   - "双前端 parity → Auto 单源"
   - "生产切换 + 回滚开关"
 
-current_step: 20
+current_step: 22
 total_steps: 22
 ---
 
@@ -319,15 +319,32 @@ frontend/（musk-config-remote 独立小应用，与 web/ 无关）。
 - [ ] **T20** 解析器三坑:句首 `.` 方法链吞并前一语句、属性绑定嵌套 fn
   调用、`||` 链>4 项解析失败、`to` 保留字报错不清(四小项)。
   验证:各加 parser/codegen 回归测试。
-  [🔶 部分收口(2026-08-26):句首 . 语句 glue 与事件绑定嵌套调用
-  (.msg(.field, fn($event)))两坑已在 auto-lang 提 #[ignore] 复现测试
-  (parser.rs,带成因注)——修复以此为入口;`||` 链>4 项经复核实为 `to`
-  保留字误用的连带误判(真因即 `to`),四小项并为两坑 + 保留字报错优化
-  待后续。musk 侧绕行形态(handler 内组装)不变。]
-- [ ] **T21** 动态拼接 Regex pattern 转译(F4 字面量限制):`Regex.match(s, expr)`
+  [✅ 收口(2026-08-26,auto-lang 7d5f457b8):①句首 . 语句 glue——根因是
+  parse_body_inner 的方法链合并特性把 handler 体内 .X(args) 消息派发并入
+  前一赋值;on-handler/watch 体(in_on_body)禁用合并,fn 体链式糖保留。
+  ②括号表达式简写 text (.row.idx+1).to_string()——( 后首 token 为 Dot 时
+  按 primary-prop 表达式消歧。③事件绑定嵌套调用经复核本就可用(此前
+  报错为②的连带)。④`to` 保留字经复核为 T17 同款误用,报错优化登记
+  不做(低收益)。复现测试全部转正。musk 侧消费:specs_view 7 处
+  `{  {` 规避形态归一。]
+- [x] **T21** 动态拼接 Regex pattern 转译(F4 字面量限制):`Regex.match(s, expr)`
   非字面量形态发射 `new RegExp(expr)` 包装。验证:auto-lang 单测。
-- [ ] **T22** 表单元素 value 绑定 prop 目标生成 v-model 编译红:非 model
+  [✅(2026-08-26):ts_adapter 非字面量分支发射 new RegExp(<expr>)(match 补
+  || [];replace flags 位与字面量分支一致);回归测试 t21_dynamic_*
+  断言表达式包装 + 无 Regex.match 残留。musk 侧字面量拆分形态(testExtract
+  Fixture/Expected)保持——现役代码,不回改。]
+- [x] **T22** 表单元素 value 绑定 prop 目标生成 v-model 编译红:非 model
   变量目标改发射 `:value`。验证:探针 + auto-lang 单测。
+  [✅(2026-08-26):两处 v-model 折叠点(oninput 配对 + 裸 value)gate 于
+  prop_names 命中——prop 目标保持 :modelValue/:value 单向;回归测试
+  t22_value_on_prop_stays_one_way(prop 单向/model 变量照折)。]
+
+**Phase 5 附记(2026-08-26 收口)**:R006 双修(for 包装索引键回退 + 单元素
+快路径 id 键 + find_loop_child_key 嵌套 Dot 链)、teleport 入 schema、
+fn-only 文件 strict 降级(auto-man)——**musk 全量 build 摘除 --lenient,
+strict 模式零 flag 全绿**(auto-lang b5e392c16 主二进制)。musk 侧配套:
+session_info text-if 块内 dot 改 computed 中转。终态验证:auto build(strict)
+绿 + 对拍 30/30 + vitest 23+1;auto-lang lib 3203 绿 + fence 绿。
 
 ## 复审记录
 
