@@ -195,15 +195,30 @@ auto-lang 侧根因（重写器漏访节点）不在本计划修——登记移�
   [✅(2026-08-26) 复审门过(三门禁+探针 8/8;实验代码已还原,一次性扫描器已删);
   合并 + 主检出终验记录见复审记录节]
 - [x] **T9** 探针包装脚本。
-  [✅(2026-08-26) scripts/vm-link-probe.cmd(ui-iced 勘误 + RUST_MIN_STACK 说明);
-  auto-lang 442 探针头注的调用串修正随 plan-446-try-rewrite 分支合并处理]
+  [✅(2026-08-26) 本体 scripts/vm-link-probe.mjs(node spawn cargo,ui-iced 勘误 +
+  RUST_MIN_STACK 说明) + scripts/vm-link-probe.cmd 单行委托(本机 cmd batch 的
+  相对 .. 跳转在该环境不可靠,实测 syntax incorrect——故 cmd 只委托 node);
+  端到端实测 PASS exit 0。auto-lang 442 探针头注调用串修正随合并处理
+  (master 5718d432b 已含 K0/K1 与本计划的 446 文档登记)]
 - [x] **T10** 登记面三件。
   [✅(2026-08-26) KNOWN-DEBT 442 行补 auth-fetch 依赖结论 + 新增 045 行(六项
   移交清单);platform.vm.at 头注同步;本文件回填]
 
 ## 复审记录
 
-（待 /auto-plan:review）
+**执行内复审（2026-08-26，GEMINI.md 独立复审门）**
+
+| 项 | 结论 |
+|---|---|
+| 验收 1：探针 PASS 零毒化/零 handler-codegen 失败 | ✅ worktree 8/8 稳定绿 + 主检出(cargo 形态)3/3 绿 + vm-link-probe.cmd 端到端 PASS |
+| 验收 2：vue 三门禁 | ✅ build strict "Vue project built successfully"(worktree+main 各一次) + vitest 23/1skip + 对拍 30/30 normalized equal |
+| 验收 3：一键门禁 + 勘误登记 | ✅ mjs 本体 + cmd 委托；勘误在脚本头注 + KNOWN-DEBT 045 行 |
+| 验收 4：依赖结论入册 | ✅ KNOWN-DEBT 442 行(auth-fetch) + 045 行(六项移交) + platform.vm.at 头注 |
+| 验收 5：不动 web/backend/auto-lang 约束 | ⚠️ web/零改动 ✓ backend零改动 ✓;auto-lang 破例两修(K0/K1)——待澄清#1 升级裁定:源改写代价过高(七 handler 全中+未来必然复发),且 handler_codegen.rs/vm/codegen.rs 均不在另一会话在途改动集内,已按 GEMINI.md worktree 流程执行+合并(master 5718d432b) |
+| workaround 扫描 | ✅ 实验代码已还原(agent_configs);一次性扫描器已删;pnpm 误入 web/ 的锁文件已剔除并 gitignore |
+| 合并与清理 | ✅ musk main 20b7118(ff);auto-lang master 5718d432b(no-ff);worktree/分支/junction 全清 |
+
+（/auto-plan:review 待用户触发；本计划观察性收口——无运行期面）
 
 ## 待澄清事项
 
