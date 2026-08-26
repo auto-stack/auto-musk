@@ -18,10 +18,10 @@
 use.web component Markdown from "src/front/ports/renderer.at"
 use.web component NativeSelect from "src/front/components/NativeSelect.vue"
 use.web component Check, X, Plus from "src/front/ports/icons.at"
-use.web goalCriteria, goalDetailsText, goalSerialize from "src/front/specs_helpers.at"
+use.web goalCriteria, goalDetailsText, goalSerialize, goalItemDepends from "src/front/specs_helpers.at"
 use.web goalToggleCriteria, goalSetCriterionText, goalAddCriterion, goalRemoveCriterion, goalCriteriaRows from "src/front/specs_helpers.at"
-use.web tagListAdd, tagListRemove, tagIndexOf, stepValueOf from "src/front/specs_helpers.at"
-use.web testMeta, testSerializeDraft, testStepsSet, testStepsRemove, testStepsAdd, testStepRows from "src/front/specs_helpers.at"
+use.web tagListAdd, tagListRemove, tagIndexOf, stepValueOf, specStr from "src/front/specs_helpers.at"
+use.web testMeta, testSerializeDraft, testStepsSet, testStepsRemove, testStepsAdd, testStepRows, testMetaTypeDefault, testMetaScopeOf, testMetaFixtureOf, testMetaExpectedOf, testMetaStepsRows from "src/front/specs_helpers.at"
 use.web goalEditorPayload, testEditorPayload from "src/front/specs_helpers.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
@@ -100,7 +100,8 @@ widget AutoDownEditor(content: str, placeholder: str) {
         Input,
     }
     model {
-        // v-model(U5)要求模型变量——prop 经本地草稿中转(挂载初始化)。
+        // v-model(U5)要求 model 变量;web stub 的 update 输出无消费面,
+        // gen 编辑态经本地草稿自持(SSR 空值经对拍 N14b 归一)。
         var draft str = ""
     }
     style {
@@ -142,10 +143,13 @@ widget TestEditor(item: obj) {
         var draft_steps obj = []
         var draft_expected str = ""
         var draft_test_file str = ""
+        // SSR 可见回退:onMounted(Init) 前按 item 渲染(web setup 期初始化)。
+        var inited bool = false
     }
     computed {
         typeOptions => [{value: "Unit", label: "Unit", disabled: false}, {value: "Integration", label: "Integration", disabled: false}, {value: "E2E", label: "E2E", disabled: false}, {value: "Contract", label: "Contract", disabled: false}, {value: "Performance", label: "Performance", disabled: false}, {value: "Fuzz", label: "Fuzz", disabled: false}]
-        stepRows => testStepRows(.draft_steps)
+        typeValue => if .inited { .draft_type } else { testMetaTypeDefault(.item.content ?? "") }
+        stepRows => if .inited { testStepRows(.draft_steps) } else { testMetaStepsRows(.item.content ?? "") }
     }
     style {
 .test-editor { display: flex; flex-direction: column; gap: 0.75rem; }
@@ -185,7 +189,7 @@ widget TestEditor(item: obj) {
                 class: "form-row"
                 label "Type"
                 NativeSelect {
-                    value: .draft_type
+                    value: .typeValue
                     options: .typeOptions
                     cls: "form-select"
                     onchange: .TypeChange($event)
@@ -297,7 +301,8 @@ widget TestEditor(item: obj) {
                 .draft_steps = steps
             }
             .draft_expected = meta.expected
-            .draft_test_file = .item.test_file ?? ""
+            .draft_test_file = .item.test_file ?? "";
+            .inited = true
         }
         .DoSave -> {
             .save(testEditorPayload(.draft_title, testSerializeDraft({type: .draft_type, scope: .draft_scope, fixture: .draft_fixture, steps: .draft_steps, expected: .draft_expected}), .draft_test_file))
@@ -335,11 +340,16 @@ widget GoalEditor(item: obj) {
         var draft_criteria obj = []
         var draft_details str = ""
         var draft_depends obj = []
+        // SSR 可见回退(onMounted 前按 item 渲染)。
+        var inited bool = false
     }
     computed {
         priorityOptions => [{value: "", label: "—", disabled: false}, {value: "P0", label: "P0", disabled: false}, {value: "P1", label: "P1", disabled: false}, {value: "P2", label: "P2", disabled: false}]
-        criteriaRows => goalCriteriaRows(.draft_criteria)
-        detailsLength => .draft_details.length
+        priorityValue => if .inited { .draft_priority } else { specStr(.item.priority) }
+        criteriaRows => if .inited { goalCriteriaRows(.draft_criteria) } else { goalCriteriaRows(goalCriteria(.item.content ?? "")) }
+        detailsValue => if .inited { .draft_details } else { goalDetailsText(.item.content ?? "") }
+        dependsValue => if .inited { .draft_depends } else { goalItemDepends(.item) }
+        detailsLength => .detailsValue.length
         detailsOver => .detailsLength > 500
     }
     style {
@@ -380,7 +390,7 @@ widget GoalEditor(item: obj) {
                 class: "form-row"
                 label "Priority"
                 NativeSelect {
-                    value: .draft_priority
+                    value: .priorityValue
                     options: .priorityOptions
                     cls: "form-select"
                     onchange: .PriorityChange($event)
@@ -442,7 +452,7 @@ widget GoalEditor(item: obj) {
                 class: "form-row"
                 label "Depends on"
                 TagInput {
-                    value: .draft_depends
+                    value: .dependsValue
                     placeholder: "G1, A1..."
                     onupdate: .DependsUpdate($event)
                 }
@@ -481,7 +491,8 @@ widget GoalEditor(item: obj) {
                 .draft_depends = d
             } else {
                 .draft_depends = []
-            }
+            };
+            .inited = true
         }
         .DoSave -> {
             .save(goalEditorPayload(.draft_title, goalSerialize(.draft_criteria, .draft_details), .draft_priority, .draft_depends))
@@ -507,6 +518,8 @@ widget MarkdownEditor(content: str) {
     }
     model {
         var draft_content str = ""
+        // SSR 可见回退(onMounted 前按 content prop 渲染)。
+        var inited bool = false
     }
     style {
 .markdown-editor { display: flex; flex-direction: column; gap: 0.75rem; }
@@ -520,6 +533,9 @@ widget MarkdownEditor(content: str) {
 .save-btn:hover { opacity: 0.9; }
 .cancel-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.4rem 0.8rem; font-size: 0.86rem; border-radius: 6px; border: 1px solid var(--af-border); background: transparent; color: var(--af-muted); cursor: pointer; }
 .cancel-btn:hover { color: var(--af-fg); background: hsl(var(--muted-foreground) / 0.05); }
+    }
+    computed {
+        contentValue => if .inited { .draft_content } else { .content }
     }
     view {
         div {
@@ -545,7 +561,7 @@ widget MarkdownEditor(content: str) {
                         text "Preview"
                     }
                     Markdown {
-                        source: .draft_content
+                        source: .contentValue
                         streaming: false
                     }
                 }
@@ -568,7 +584,10 @@ widget MarkdownEditor(content: str) {
         }
     }
     on {
-        .Init -> { .draft_content = .content }
+        .Init -> {
+            .draft_content = .content;
+            .inited = true
+        }
         .DraftInput -> { }
         .save -> { }
         .cancel -> { }

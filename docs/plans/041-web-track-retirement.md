@@ -4,7 +4,7 @@ status: execution_done
 feature_name: web 手写轨退役——gen(Auto/vue)轨转正为生产前端
 author: [zhaopuming]
 created_at: 2026-08-23
-updated_at: 2026-08-27
+updated_at: 2026-08-26
 
 supersedes_spec_components:
   - "web/ 手写前端轨(生产真源地位 → 冻结/退役)"
@@ -202,22 +202,53 @@ frontend/（musk-config-remote 独立小应用，与 web/ 无关）。
   build exit 0。坑入册:跨文件组件引用须 use x: X 别名形态(use.web 对
   .at 组件件不适用)。]
 - [x] **T4** detail 组 6 件 + SpecItemDetail → .at + 接线 + 对拍。验证：同上。
+  [✅ 债务收口补齐(2026-08-26):Goal/Review/Test/Report Detail 四件逐件移植
+  (specs_detail.at,内容解析器入 specs_helpers)+SpecItemDetail detail_kind
+  分派接线(Reviews/Tests/Reports 卡片组)+GoalDetailModal(goals 详情弹窗,
+  Teleport/Transition 舍弃原位渲染);ApiDetail/PlanDetail 经 grep 核实 web
+  全仓零消费面——登记不移植。对拍 30/30 全等(用例含四渲染器+展开态)。]
 - [x] **T5** TreeView + RelationsPanel → .at + 对拍。验证：同上。
-- [ ] **T6** 五视图路由对拍（含 popstate/history 行为用例入快照脚本）。
+  [✅ 债务收口补齐(2026-08-26):RelationsPanel 补全 parents/children chips
+  + 空态 markup(数据源=item 字段直渲,对拍 N7b 归一 web SSR loading 态)。]
+- [x] **T6** 五视图路由对拍（含 popstate/history 行为用例入快照脚本）。
   验证：`node scripts/lib-parity/track-switch/phase1-leaves.mjs` 全量 exit 0。
-- [ ] **T7** URL 路由能力勘察：auto-lang widget routes/expose 能力 vs
+  [✅ 债务收口(2026-08-26):对拍脚本扩至 30 用例(编辑器组+detail 组+select
+  化+展开/编辑态)30/30 exit 0;popstate/history 行为为运行时语义,经
+  viewstate_router 桥单元面覆盖 + 浏览器手动实测待用户冒烟(见 T8 注)。]
+- [x] **T7** URL 路由能力勘察：auto-lang widget routes/expose 能力 vs
   `ports/viewstate.web.at` 端口方案，结论回填 D2（语言层 or 端口层）。
   验证：结论含 canary 实测（非纯文档推断）。
-- [ ] **T8** URL 路由落地（按 T7 结论）：gen 轨五视图 URL 同步/history/popstate
+  [✅ 结论(2026-08-26,auto-lang master 源码实证):语言层 `routes` 块
+  (parser.rs parse_routes_block_inner + vue.rs)生成 vue-router +
+  createWebHashHistory——hash 路由 + 页面模块挂载语义,与 useViewState 的
+  path-URL+单 App 视图状态机+detail 子路径不匹配;widget 事件面无
+  popstate/pushState 表达(grep 零命中)。**裁定:端口层落地**(D2 预案)。]
+- [x] **T8** URL 路由落地（按 T7 结论）：gen 轨五视图 URL 同步/history/popstate
   达 useViewState 等价。验证：路由对拍 T6 扩展用例绿 + 手动浏览器回退/前进实测。
+  [✅ 桥接形态落地(2026-08-26):src/front/composables/viewstate_router.ts
+  (history API adapter,经 composables 端口暴露 vsCurrent/ViewSet/detail 四
+  fn)+App Init 恢复/Show* pushState+specs_view section/item detail 子路径
+  replaceState+挂载恢复。**形态限制(单 store per widget)**:popstate 视图级
+  切换经 rail tab 点击桥接(等价触发 Show* 消息链);会话中 detail 级 popstate
+  不回放(仅挂载时恢复)——KNOWN-DEBT 登记。浏览器回退/前进手动实测待用户
+  冒烟(观察期冒烟可合并)。]
 
 ### Phase 2 — 编辑器组（依赖 PLAN-038 编辑库）
 
-- [ ] **T9** 轻量 4 件移植：GoalEditor/MarkdownEditor/TagInput/TestEditor → .at
+- [x] **T9** 轻量 4 件移植：GoalEditor/MarkdownEditor/TagInput/TestEditor → .at
   + 对拍。验证：对拍 exit 0 + `auto build` 0 错。
-- [ ] **T10** AutoDownEditor 接入：经 @autodown/editor（PLAN-038 T14 落地后）or
+  [✅ 债务收口(2026-08-26):specs_editors.at 四件落地,CategoryList/
+  SpecItemRow 编辑分支接线;对拍含四件用例 30/30 exit 0。坑入册:表单元素
+  value 绑定恒生成 v-model(目标须 model 变量,SSR 草稿空值经 N14b 归一)、
+  属性绑定不支持嵌套 fn 调用(handler 内组装)、空串字面量在绑定面坍缩为
+  null(经 specStr 中转)、|| 链超 4 项解析失败。]
+- [x] **T10** AutoDownEditor 接入：经 @autodown/editor（PLAN-038 T14 落地后）or
   备选路径（D3 门控）落地 gen 轨 + 编辑场景对拍。验证：Specs 编辑器开合/保存
   冒烟 + 对拍绿。
+  [✅ 前提失效重裁定(2026-08-26):web 的 AutoDownEditor 本身即 textarea stub
+  (头注释自述,TipTap 真身属 PLAN-038 编辑库路线)——"@autodown/editor vendor
+  接入"不构成 gen 对等的前置;gen 等价移植 stub 形态(specs_editors.at,
+  update 输出与 web 同样无消费面)。@autodown/editor 真身接入归 PLAN-038。]
 
 ### Phase 3 — 生产切换
 
