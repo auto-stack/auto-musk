@@ -20,7 +20,7 @@ fn gate_toggle_expanded(expanded obj, sid str) bool {
 fn gate_with_expanded(changes []Value, expanded obj) []Value {
     let out = []
     for c in (changes ?? []) {
-        let open = false
+        var open = false
         if expanded[c.section_id] {
             open = true
         }

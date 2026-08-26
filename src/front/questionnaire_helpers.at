@@ -21,7 +21,7 @@ fn questionnaireToggleAnswer(answers obj, qid str, opt str) obj {
     if cur.includes(opt) {
         return cur.filter(x => x != opt)
     }
-    let out = []
+    var out = []
     for c in cur { out.push(c) }
     out.push(opt)
     return out
@@ -65,24 +65,24 @@ fn eventInputValue(e obj) str {
  */
 fn formatQuestionnaireAnswers(questions obj, answers obj) str {
     if questions == None { return "" }
-    let parts list = []
-    let idx = 0
+    let parts []str = []
+    var     idx = 0
     while idx < questions.length {
-        let q = questions[idx]
+        var q = questions[idx]
         let answer = answers[q.id]
         let other = answers[questionnaireOtherKey(q.id)]
-        let n = idx + 1
+        var n = idx + 1
         let qNum = "Q" + n
         if Array.isArray(answer) {
             if answer.length > 0 {
-                let seg = qNum + ": " + answer.join(", ")
+                var seg = qNum + ": " + answer.join(", ")
                 if other != None { seg = seg + ", Other: " + other }
                 parts.push(seg)
             }
         } else {
             if answer != None {
                 if String(answer).trim() != "" {
-                    let seg2 = qNum + ": " + answer
+                    var seg2 = qNum + ": " + answer
                     if other != None { seg2 = seg2 + ", Other: " + other }
                     parts.push(seg2)
                 } else {

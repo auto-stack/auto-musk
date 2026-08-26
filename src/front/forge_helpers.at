@@ -27,8 +27,16 @@ fn getTaskPlan(taskPlans obj, tc obj) obj {
 
 /** 按 tool_call_id 在 errands record 里查 errand 状态。 */
 fn getErrandByToolCallId(errands obj, toolCallId str) obj {
-    let found = Object.values(errands).find(e => e.tool_call_id == toolCallId)
-    return found ?? None
+    // obj 接收者 .find 无 VM native(446-D4)——手扫(PLAN-045 VM-clean;
+    // 经 keys 索引访问规避 Object.values 的 unknown 元素类型)
+    let keys = Object.keys(errands)
+    var vi = 0
+    while vi < keys.length {
+        let e = errands[keys[vi]]
+        if e.tool_call_id == toolCallId { return e }
+        vi = vi + 1
+    }
+    return None
 }
 
 fn getErrandTask(tc obj) str {
@@ -110,9 +118,9 @@ fn agentAvatarData(professionId str, name str, size str) obj {
         "documenter": { "h": 220, "s": 65, "l": 52 },
         "gofer": { "h": 160, "s": 65, "l": 42 }
     }
-    let c = professionColors[professionId]
+    var c = professionColors[professionId]
     if c == None {
-        let hash = 0
+        var hash = 0
         for ch in professionId {
             // (hash << 5) - hash == hash*31（Math.imul 保持 32 位回绕语义）
             hash = ch.char_code_at(0) + Math.imul(hash, 31)
@@ -120,22 +128,22 @@ fn agentAvatarData(professionId str, name str, size str) obj {
         c = { "h": Math.abs(hash) % 360, "s": 60, "l": 48 }
     }
     let bg = "hsl(" + c.h + " " + c.s + "% " + c.l + "%)"
-    let text = ""
+    var text = ""
     if c.l > 55 {
         text = "hsl(220 15% 12%)"
     } else {
         text = "#fff"
     }
-    let source = name.trim()
+    var source = name.trim()
     if source == "" { source = professionId }
     let initials = source.char_at(0).to_upper()
-    let title = ""
+    var title = ""
     if name != "" {
         title = name + " (" + professionId + ")"
     } else {
         title = professionId
     }
-    let sizeClass = size
+    var sizeClass = size
     if sizeClass == "" { sizeClass = "md" }
     return { bg: bg, text: text, initials: initials, title: title, sizeClass: sizeClass }
 }
@@ -151,7 +159,7 @@ fn getToolSummary(tc obj) obj {
     let pattern = args.pattern ?? ""
     let query = args.query ?? ""
     let task = args.task ?? ""
-    let command = args.command ?? ""
+    var command = args.command ?? ""
     if command == "" { command = args.cmd ?? "" }
     let limit = args.limit
     let offset = args.offset
@@ -165,22 +173,22 @@ fn getToolSummary(tc obj) obj {
     if slug != "" { segs.push({ type: "path", text: slug }) }
     if sectionId != "" { segs.push({ type: "path", text: sectionId }) }
     if pattern != "" {
-        let s = pattern
+        var s = pattern
         if pattern.length > 60 { s = pattern.substring(0, 57) + "…" }
         segs.push({ type: "pattern", text: "\"" + s + "\"" })
     }
     if query != "" {
-        let s2 = query
+        var s2 = query
         if query.length > 60 { s2 = query.substring(0, 57) + "…" }
         segs.push({ type: "pattern", text: "\"" + s2 + "\"" })
     }
     if task != "" && segs.length == 0 {
-        let s3 = task
+        var s3 = task
         if task.length > 60 { s3 = task.substring(0, 57) + "…" }
         segs.push({ type: "desc", text: s3 })
     }
     if command != "" && segs.length == 0 {
-        let s4 = command
+        var s4 = command
         if command.length > 80 { s4 = command.substring(0, 77) + "…" }
         segs.push({ type: "desc", text: s4 })
     }
@@ -193,7 +201,7 @@ fn getToolSummary(tc obj) obj {
  * 历史上在 questionnaire.ts，唯一消费方 messageDisplayBlocks 在本文件。 */
 fn stripQuestionnaire(text str, streaming bool) str {
     if text == "" { return text }
-    let out = Regex.replace(text, "```json\\s*\\n\\{[\\s\\S]*?\"type\"\\s*:\\s*\"questionnaire\"[\\s\\S]*?\\}\\s*\\n\\s*```", "", "g")
+    var out = Regex.replace(text, "```json\\s*\\n\\{[\\s\\S]*?\"type\"\\s*:\\s*\"questionnaire\"[\\s\\S]*?\\}\\s*\\n\\s*```", "", "g")
     if streaming {
         let tail = out.lastIndexOf("```json")
         if tail != -1 {
@@ -219,14 +227,14 @@ fn stripQuestionnaire(text str, streaming bool) str {
  */
 fn messageBlocks(msg obj) obj {
     if Array.isArray(msg.blocks) { return msg.blocks }
-    let out list = []
+    var out list = []
     if msg.thinking != None { out.push({ kind: "thinking", text: msg.thinking }) }
     if msg.content != None {
         if msg.content != "" { out.push({ kind: "text", text: msg.content }) }
     }
     let toolCalls = msg.tool_calls ?? []
     for raw in toolCalls {
-        let status = "completed"
+        var status = "completed"
         if raw.status == "error" || raw.status == "failed" {
             status = "failed"
         } else {
@@ -243,7 +251,7 @@ fn messageBlocks(msg obj) obj {
  * JSON，剥离后为空的 text 块（纯问卷消息）直接移除。
  */
 fn messageDisplayBlocks(msg obj, streaming bool) obj {
-    let out list = []
+    var out list = []
     let tools list = []
     for b in messageBlocks(msg) {
         if b.kind == "text" {
@@ -270,7 +278,7 @@ fn messageDisplayBlocks(msg obj, streaming bool) obj {
 fn estimateTokens(text str) int {
     if text == None { return 0 }
     if text == "" { return 0 }
-    let cjk = 0
+    var cjk = 0
     for c in text {
         let code = c.char_code_at(0)
         if (code >= 19968 && code <= 40959) || (code >= 12352 && code <= 12543) || (code >= 44032 && code <= 55215) {
@@ -312,7 +320,7 @@ fn isMsgStreaming(streaming bool, messages obj, msg obj) bool {
 /** ReportCard confidence class。 */
 fn reportConfidenceClass(confidence str) str {
     let v = confidence || "Medium"
-    let c = v.to_lower()
+    var c = v.to_lower()
     return "report-confidence " + c
 }
 
@@ -332,7 +340,7 @@ fn chatSearchFilter(messages obj, q str) obj {
     if q == None { return messages }
     if q.trim() == "" { return messages }
     let query = q.to_lower()
-    let out list = []
+    var out list = []
     for m in messages {
         let content = (m.content ?? "").to_lower()
         let role = (m.role ?? "").to_lower()
@@ -347,8 +355,8 @@ fn chatActivePath(messages obj, leaf str) obj {
     if leaf == None || leaf == "" { return messages }
     if messages == None { return messages }
     let n = messages.length
-    let leafIdx = -1
-    let i = 0
+    var leafIdx = -1
+    var i = 0
     while i < n {
         if messages[i].id == leaf { leafIdx = i }
         i = i + 1
@@ -356,13 +364,13 @@ fn chatActivePath(messages obj, leaf str) obj {
     if leafIdx == -1 { return messages }
     // leaf → root 回溯（父索引必须在前——无前向引用/环）。
     let chain list = []
-    let cur = leafIdx
-    let guard = 0
+    var cur = leafIdx
+    var guard = 0
     while guard < n + 1 {
         let pid = messages[cur].parent_id
         if pid == None || pid == "" { break }
-        let pi = -1
-        let j = 0
+        var pi = -1
+        var j = 0
         while j < n {
             if messages[j].id == pid { pi = j }
             j = j + 1
@@ -372,15 +380,24 @@ fn chatActivePath(messages obj, leaf str) obj {
         cur = pi
         guard = guard + 1
     }
-    if chain.length == 0 { return messages.slice(0, leafIdx + 1) }
+    if chain.length == 0 {
+        // obj 接收者无 VM slice native——循环重建前缀（语义 = slice(0, leafIdx+1)）
+        var head list = []
+        var hi = 0
+        while hi <= leafIdx {
+            head.push(messages[hi])
+            hi = hi + 1
+        }
+        return head
+    }
     let anchor = chain[chain.length - 1]
-    let out list = []
-    let k = 0
+    var out list = []
+    var k = 0
     while k <= anchor {
         out.push(messages[k])
         k = k + 1
     }
-    let c = chain.length - 2
+    var c = chain.length - 2
     while c >= 0 {
         out.push(messages[chain[c]])
         c = c - 1
@@ -394,14 +411,15 @@ fn chatActivePath(messages obj, leaf str) obj {
     被旧 gen 掩盖,442-B 后新 CLI 升为致命;提升到 fn 内规避,同 a2ts 优先级
     存量债务的中间变量惯例。) */
 fn chatBranchLabel(content obj) str {
-    let c = content ?? ""
+    // obj → str 边界定型：.slice 在 obj 接收者上无 VM native（str.slice 才有）
+    var c str = content ?? ""
     return c.slice(0, 18)
 }
 
 /** 分叉切换器扁平条目:每条 {for_id, sib}（for_id = 拥有兄弟的消息 id,
     sib = 该分叉点的一个兄弟）。视图 for-in 迭代器限制的预算侧配套。 */
 fn chatBranchEntries(messages obj) list {
-    let out list = []
+    var out list = []
     if messages == None { return out }
     for m in messages {
         let sibs = chatSiblings(messages, m)
@@ -416,11 +434,11 @@ fn chatBranchEntries(messages obj) list {
 }
 
 fn chatSiblings(messages obj, msg obj) obj {
-    let out list = []
+    var out list = []
     if messages == None { return out }
     let pid = msg.parent_id
     if pid == None || pid == "" { return out }
-    let hasTree = false
+    var hasTree = false
     for m in messages {
         if m.parent_id != None && m.parent_id != "" { hasTree = true }
     }

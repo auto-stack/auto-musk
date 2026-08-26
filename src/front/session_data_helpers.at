@@ -10,7 +10,7 @@
 
 /** errands 对象 token_usage 求和（对齐原 tokenCost；数据域为 number）。 */
 fn session_token_cost(errands obj) int {
-    let total = 0
+    var total = 0
     if errands != None {
         let keys = Object.keys(errands)
         for k in keys {

@@ -56,18 +56,24 @@ store RelayStore {
     on {
         .LoadRuns(projectPath) -> {
             try {
-                let q = ""
+                var q = ""
                 if projectPath != "" { q = "?project_path=" + encodeURIComponent(projectPath) }
                 let raw = Http.get("/api/forge/relay/runs" + q)
-                let data = raw
+                var data = raw
                 if raw.runs != None { data = raw.runs }
                 // 按更新时间倒序
                 data.sort((a, b) => b.updated_at - a.updated_at)
                 .runs = data
                 // 失效 current_run 清理（列表已无此 run）
                 if .current_run != None {
+                    // obj .find 无 VM native(446-D4)——手扫(PLAN-045 VM-clean)
                     let cid = .current_run.run_id
-                    let still = data.find(r => r.run_id == cid)
+                    var still = None
+                    var si = 0
+                    while si < data.length {
+                        if data[si].run_id == cid { still = data[si] }
+                        si = si + 1
+                    }
                     if still == None { .current_run = None }
                 }
             } catch {
@@ -176,7 +182,7 @@ store RelayStore {
 
         .ResolveGate(runId, decision, feedback) -> {
             try {
-                let body map = { decision: decision }
+                var body map = { decision: decision }
                 if feedback != "" { body.feedback = feedback }
                 Http.post("/api/forge/relay/runs/" + encodeURIComponent(runId) + "/gate", body)
                 // codegen 修复：原 `.LoadRun` 续链到 Http.post 结果上（批准后
@@ -191,7 +197,7 @@ store RelayStore {
             if .relay_subs[runId] != None { return }
             if .session_logs[runId] == None { .session_logs[runId] = [] }
             // EventSource 不能设 header：token/workspace 走 query 参数鉴权
-            let qs = ""
+            var qs = ""
             let ws = localStorage.getItem("musk_workspace")
             if ws != None { qs = "?workspace=" + encodeURIComponent(ws) }
             let tk = localStorage.getItem("musk_jwt")
@@ -215,7 +221,7 @@ store RelayStore {
             let meta = .run_report_meta[runId]
             if meta == None { return }
             try {
-                let qs = ""
+                var qs = ""
                 let ws = localStorage.getItem("musk_workspace")
                 if ws != None { qs = "?workspace=" + encodeURIComponent(ws) }
                 let html = Http.get("/api/forge/relay/runs/" + encodeURIComponent(runId) + "/report" + qs)
@@ -238,7 +244,7 @@ store RelayStore {
             let p = ev.payload ?? {}
             // 后端 RunEvent 用 role_id（relay_store.at 后端侧），兼容 profession_id
             let prof = p.role_id ?? p.profession_id ?? "unknown"
-            let time = relayNowTime()
+            var time = relayNowTime()
 
             // ─── live_log ───
             if et == "handoff_submitted" {
@@ -345,15 +351,15 @@ store RelayStore {
 
             // ─── gate 事件中转（useGateInbox watch gate_signal 消费）───
             if et == "gate_reached" {
-                let gid = ev.gate_id ?? ""
+                var gid = ev.gate_id ?? ""
                 if gid == "" { gid = runId + "-" + (ev.step_id ?? "") }
                 let gprof = ev.profession ?? "unknown"
-                let gtitle = ev.title ?? ""
+                var gtitle = ev.title ?? ""
                 if gtitle == "" { gtitle = (ev.profession_id ?? "agent") + " needs approval" }
                 .gate_signal = { kind: "reached", gate_id: gid, run_id: runId, profession: gprof, title: gtitle, section_id: ev.section_id ?? "" }
             }
             if et == "gate_resolved" {
-                let gid2 = ev.gate_id ?? ""
+                var gid2 = ev.gate_id ?? ""
                 if gid2 == "" { gid2 = runId + "-" + (ev.step_id ?? "") }
                 .gate_signal = { kind: "resolved", gate_id: gid2, decision: ev.decision ?? "approved" }
             }
@@ -441,7 +447,7 @@ fn relayHistoryFromConversation(conv Value) Value {
                 }
                 // 与聊天侧一致：带 arguments（操作目标展示用），结果由紧随的
                 // tool_result 配对合并（支撑 RunBox 工具卡展开）。
-                let targs Value = None
+                var targs Value = None
                 if t.tool != None {
                     targs = t.tool.args ?? None
                 }
@@ -523,7 +529,7 @@ fn relayHistoryFromConversation(conv Value) Value {
     while ti < turs.length {
         let tc = turs[ti].content ?? ""
         if tc.starts_with("汇报报告已生成：") {
-            let body = tc.substring(9)
+            var body = tc.substring(9)
             let pa = body.indexOf("（")
             let pb = body.indexOf("，path：")
             let pc = body.lastIndexOf("）")
@@ -549,7 +555,7 @@ fn relayHistoryFromConversation(conv Value) Value {
 fn relayEventsToSessionLog(runId str, events Value) Value {
     let result list = []
     for ev in events {
-        let time = relayNowTime()
+        var time = relayNowTime()
         if ev.timestamp != None { time = relayFormatTimestamp(ev.timestamp) }
         let prof = ev.role_id ?? ev.profession_id ?? "unknown"
 

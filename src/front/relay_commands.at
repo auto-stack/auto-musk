@@ -23,7 +23,7 @@ fn relay_strip_prefix(trimmed str, prefix str) str {
 fn relay_command_match(text str) Value {
     let trimmed = text.trim()
 
-    let goal = relay_strip_prefix(trimmed, "/plan ")
+    var goal = relay_strip_prefix(trimmed, "/plan ")
     if goal == "" {
         goal = relay_strip_prefix(trimmed, "/relay ")
     }

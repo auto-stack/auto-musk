@@ -8,7 +8,10 @@
 //      "constructor"）会命中 Object.prototype 原型链；
 //   3) lastIndexOf 无映射 → 手写反向扫描 mention_last_at。
 // resolveMention 在 Auto 轨无消费方，不迁。
-// window.innerHeight / el.getBoundingClientRect() 为未知全局，passthrough 原样生成。
+// window.innerHeight 经 platform 端口 platformViewportHeight（PLAN-045 VM-clean:
+// 裸 window 在 VM 目标为未定义符号;web adapter 恒等回传,vm 为常量降级）。
+
+use.web platformViewportHeight from "src/front/ports/platform.at"
 
 /** 默认职业列表（props 未传且 configs 为空时的兜底）。 */
 fn mention_default_professions() []Value {
@@ -55,13 +58,13 @@ fn mention_is_word_char(c str) bool {
 /** 转义 HTML，然后把 @mention 包成高亮 span（手写扫描，等价 /@(\w+)/g 回调）。 */
 fn render_mentions(text str, names obj) str {
     let escaped = Regex.replace(Regex.replace(Regex.replace(text, "&", "&amp;", "g"), "<", "&lt;", "g"), ">", "&gt;", "g")
-    let out = ""
-    let i = 0
+    var out = ""
+    var i = 0
     let n = escaped.length
     for i < n {
         if escaped.char_at(i) == "@" {
-            let j = i + 1
-            let word = ""
+            var j = i + 1
+            var word = ""
             for j < n {
                 let c = escaped.char_at(j)
                 if mention_is_word_char(c) {
@@ -109,7 +112,7 @@ fn render_input_mentions(text str, names obj) str {
 /** 按 filter 过滤 professions（id/name 大小写不敏感 contains）。 */
 fn mention_filtered(professions []Value, filter str) []Value {
     let f = (filter ?? "").to_lower()
-    let out = []
+    var out = []
     for p in (professions ?? []) {
         let pid = (p.id ?? "").to_lower()
         let pname = (p.name ?? "").to_lower()
@@ -125,7 +128,7 @@ fn mention_position(anchor_rect obj) obj {
     if anchor_rect == None {
         return {}
     }
-    let bottom_px = (window.innerHeight - anchor_rect.top + 4).to_string() + "px"
+    let bottom_px = (platformViewportHeight() - anchor_rect.top + 4).to_string() + "px"
     return { "position": "fixed", "left": anchor_rect.left.to_string() + "px", "bottom": bottom_px }
 }
 
@@ -148,7 +151,7 @@ fn mention_clamp_index(index int, len int) int {
 
 /** 鼠标 hover 按 id 定位索引（首个匹配，无则 0）。 */
 fn mention_index_of(filtered []Value, id str) int {
-    let i = 0
+    var i = 0
     for p in filtered {
         if p.id == id {
             return i
@@ -183,7 +186,7 @@ fn mention_professions_list(prop_prof []Value, configs []Value) []Value {
             return prop_prof
         }
     }
-    let out = []
+    var out = []
     for c in (configs ?? []) {
         out.push({ "id": c.profession_id ?? c.id, "name": c.name })
     }
@@ -195,7 +198,7 @@ fn mention_professions_list(prop_prof []Value, configs []Value) []Value {
 
 /** s 中最后一个 @ 的下标（无则 -1；替代无映射的 lastIndexOf）。 */
 fn mention_last_at(s str) int {
-    let i = s.length - 1
+    var i = s.length - 1
     for i >= 0 {
         if s.char_at(i) == "@" {
             return i
@@ -213,7 +216,7 @@ fn mention_detect(e obj) obj {
     let before = val.sub(0, pos)
     let at_idx = mention_last_at(before)
     if at_idx >= 0 {
-        let char_before = ""
+        var char_before = ""
         if at_idx > 0 {
             char_before = val.char_at(at_idx - 1)
         }
@@ -246,7 +249,7 @@ fn mention_detect_pos(e obj) int {
 
 /** 插入 mention 文本（@ 位置前插 @name + 保留光标后文本）。 */
 fn mention_insert(professions []Value, id str, val str, pos int) str {
-    let name = id
+    var name = id
     for p in professions {
         if p.id == id {
             name = p.name

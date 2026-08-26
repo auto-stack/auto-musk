@@ -18,7 +18,7 @@
 use.web component Markdown from "src/front/ports/renderer.at"
 use.web component NativeSelect from "src/front/components/NativeSelect.vue"
 use.web component Pencil, Trash2, X, ArrowUp, ArrowDown, Unlink from "src/front/ports/icons.at"
-use.web specSectionStatuses, specStatusLabel, specStatusOptions, specSectionIcon from "src/front/specs_helpers.at"
+use.web specDepsJoinText, specSectionStatuses, specStatusLabel, specStatusOptions, specSectionIcon from "src/front/specs_helpers.at"
 use.web goalCriteria, goalDetailsText, goalRemaining from "src/front/specs_helpers.at"
 use.web testMeta, testRemaining from "src/front/specs_helpers.at"
 use.web reviewChecklist, reviewSummaryOf, reviewRemaining, reviewStatusIcon from "src/front/specs_helpers.at"
@@ -562,7 +562,7 @@ widget SpecItemDetail(item: obj, section_type: str, project: str, detail_kind: s
         hasMilestone => .item.milestone != "" && .item.milestone != None
         deps => .item.depends_on ?? []
         hasDeps => .deps.length > 0
-        depsText => .deps.join(", ")
+        depsText => specDepsJoinText(.item.depends_on ?? [])
         tags => .item.tags ?? []
         hasTags => .tags.length > 0
         hasMeta => specHasMeta(.hasPriority, .hasAssignee, .hasTestFile, .hasModule, .hasMilestone, .hasDeps, .hasTags)
@@ -727,7 +727,7 @@ widget GoalDetailModal(item: obj, project: str, section_type: str, is_editing: b
         tags => if .hasItem { .item.tags ?? [] } else { [] }
         deps => if .hasItem { .item.depends_on ?? [] } else { [] }
         hasDeps => .deps.length > 0
-        depsText => .deps.join(", ")
+        depsText => specDepsJoinText(.item.depends_on ?? [])
         hasPriority => .hasItem && .item.priority != "" && .item.priority != None
         hasMeta => specHasMeta(.hasPriority, false, false, false, false, .hasDeps, .tags.length > 0)
         contentText => if .hasItem { .item.content ?? "(No content)" } else { "" }

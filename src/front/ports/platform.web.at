@@ -28,3 +28,9 @@ fn platformSetupAuthFetch() {
 fn platformRunRelayCommand(cmd Value) {
     runRelayCommand(cmd)
 }
+
+// PLAN-045: 视口高度端口——mention 锚点定位用（原裸 window.innerHeight 的
+// 端口化收口,web 侧恒等回传）。
+fn platformViewportHeight() int {
+    return window.innerHeight
+}

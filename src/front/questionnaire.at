@@ -16,7 +16,7 @@ fn questionnaireFor(msg obj) obj {
     // 1. 结构化 JSON 块（```json 围栏内 type == "questionnaire"）
     let matches = Regex.match(msg.content, "```json[\\s\\S]*?```", "g")
     for m in matches {
-        let inner = Regex.replace(m, "^```json\\s*", "", "g")
+        var inner = Regex.replace(m, "^```json\\s*", "", "g")
         inner = Regex.replace(inner, "```\\s*$", "", "g")
         try {
             let json = JSON.parse(inner.trim())
@@ -37,10 +37,10 @@ fn questionnaireFor(msg obj) obj {
     // 2. free-text 问题启发式（三趟）
     let lines = msg.content.split("\n")
     let questions list = []
-    let consumedLines list = []
+    var consumedLines list = []
 
     // Pass 1: 父问题 + 子弹点/编号选项
-    let i = 0
+    var i = 0
     while i < lines.length {
         let line = lines[i].trim()
         if line == "" || line.starts_with("```") || consumedLines.contains(i) {
@@ -51,7 +51,7 @@ fn questionnaireFor(msg obj) obj {
         let isStandaloneQuestion = questionnaireIsNumbered(line) == false && questionnaireIsBullet(line) == false && line.ends_with("?") && line.length > 15
         if isNumberedQuestion || isStandaloneQuestion {
             let childOptions list = []
-            let j = i + 1
+            var j = i + 1
             while j < lines.length {
                 let nextLine = lines[j]
                 if questionnaireIsBullet(nextLine) || questionnaireIsNumbered(nextLine) {
@@ -71,7 +71,7 @@ fn questionnaireFor(msg obj) obj {
                 let qid = questions.length + 1
                 questions.push({ id: "q" + qid, text: parentText, type: "multiple", options: childOptions, otherLabel: "Other:", otherPlaceholder: "Type additional details..." })
                 consumedLines.push(i)
-                let k = i + 1
+                var k = i + 1
                 while k < j {
                     consumedLines.push(k)
                     k = k + 1
@@ -83,7 +83,7 @@ fn questionnaireFor(msg obj) obj {
                     let qid2 = questions.length + 1
                     questions.push({ id: "q" + qid2, text: parentText, type: "single", options: [childOptions[0]], otherLabel: "Other:", otherPlaceholder: "Type additional details..." })
                     consumedLines.push(i)
-                    let k2 = i + 1
+                    var k2 = i + 1
                     while k2 < j {
                         consumedLines.push(k2)
                         k2 = k2 + 1
@@ -103,7 +103,7 @@ fn questionnaireFor(msg obj) obj {
     }
 
     // Pass 2: 冒号后的行内选项（逗号/顿号/斜杠/ or 分隔）
-    let i2 = 0
+    var i2 = 0
     while i2 < lines.length {
         if consumedLines.contains(i2) {
             i2 = i2 + 1
@@ -120,7 +120,7 @@ fn questionnaireFor(msg obj) obj {
             let optsRaw = Regex.split(colonMatch[2], "[,，、/]|\\s+or\\s+")
             let opts list = []
             for o in optsRaw {
-                let s = questionnaireStripMarkdown(o).trim()
+                var s = questionnaireStripMarkdown(o).trim()
                 if s.length > 0 && s.to_lower() != "etc" { opts.push(s) }
             }
             if opts.length >= 2 {
@@ -134,9 +134,9 @@ fn questionnaireFor(msg obj) obj {
 
     // Pass 3: markdown 表格问卷（? 占位或 priority 表头）
     if questions.length == 0 {
-        let tableStart = -1
-        let tableEnd = -1
-        let i3 = 0
+        var tableStart = -1
+        var tableEnd = -1
+        var i3 = 0
         while i3 < lines.length {
             if lines[i3].trim().starts_with("|") && lines[i3].indexOf("|", lines[i3].indexOf("|") + 1) != -1 {
                 if tableStart == -1 { tableStart = i3 }
@@ -148,7 +148,7 @@ fn questionnaireFor(msg obj) obj {
         }
         if tableStart != -1 && tableEnd > tableStart + 1 {
             let tableLines list = []
-            let tidx = tableStart
+            var tidx = tableStart
             while tidx <= tableEnd {
                 tableLines.push(lines[tidx])
                 tidx = tidx + 1
@@ -159,23 +159,23 @@ fn questionnaireFor(msg obj) obj {
             }
             if dataRows.length >= 2 {
                 let headerCells = questionnaireNonEmpty(dataRows[0].split("|"))
-                let hasPriorityHeader = false
+                var hasPriorityHeader = false
                 for h in headerCells {
                     if Regex.test(h, "priority", "i") { hasPriorityHeader = true }
                 }
                 let rows list = []
-                let ridx0 = 1
+                var ridx0 = 1
                 while ridx0 < dataRows.length {
                     rows.push(dataRows[ridx0])
                     ridx0 = ridx0 + 1
                 }
-                let hasPlaceholders = false
+                var hasPlaceholders = false
                 for r in rows {
                     if r.contains("?") { hasPlaceholders = true }
                 }
                 if hasPriorityHeader || hasPlaceholders {
-                    let precedingLines list = []
-                    let pidx = 0
+                    let precedingLines []str = []
+                    var pidx = 0
                     while pidx < tableStart {
                         precedingLines.push(lines[pidx])
                         pidx = pidx + 1
@@ -184,7 +184,7 @@ fn questionnaireFor(msg obj) obj {
                     let p0 = Regex.match(precedingText, "P0\\s*\\(([^)]+)\\)")
                     let p1 = Regex.match(precedingText, "P1\\s*\\(([^)]+)\\)")
                     let p2 = Regex.match(precedingText, "P2\\s*\\(([^)]+)\\)")
-                    let priorityOptions = ["P0 (Critical)", "P1 (Important)", "P2 (Nice-to-have)"]
+                    var priorityOptions = ["P0 (Critical)", "P1 (Important)", "P2 (Nice-to-have)"]
                     if p0.length > 0 && p1.length > 0 && p2.length > 0 {
                         priorityOptions = ["P0 (" + p0[1] + ")", "P1 (" + p1[1] + ")", "P2 (" + p2[1] + ")"]
                     }
@@ -199,7 +199,7 @@ fn questionnaireFor(msg obj) obj {
                         }
                     }
                     consumedLines = []
-                    let idx = tableStart
+                    var idx = tableStart
                     while idx <= tableEnd {
                         consumedLines.push(idx)
                         idx = idx + 1
@@ -210,8 +210,8 @@ fn questionnaireFor(msg obj) obj {
     }
 
     if questions.length >= 2 {
-        let remainingLines list = []
-        let ridx = 0
+        let remainingLines []str = []
+        var ridx = 0
         while ridx < lines.length {
             if consumedLines.contains(ridx) == false { remainingLines.push(lines[ridx]) }
             ridx = ridx + 1

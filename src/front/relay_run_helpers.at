@@ -10,8 +10,13 @@ fn relayFindRun(runs obj, currentRun obj, runId str) obj {
     if currentRun != None {
         if currentRun.run_id == runId { return currentRun }
     }
-    let found = runs.find(r => r.run_id == runId)
-    return found ?? None
+    // obj 接收者 .find 无 VM native(446-D4)——手扫(PLAN-045 VM-clean)
+    var ri = 0
+    while ri < runs.length {
+        if runs[ri].run_id == runId { return runs[ri] }
+        ri = ri + 1
+    }
+    return None
 }
 
 /** 状态→中文标签。 */
@@ -68,7 +73,7 @@ fn relayPreviewLines(entries Value) Value {
     var latest Value = None
     var i int = list.length - 1
     while i >= 0 {
-        let ty = list[i].type ?? ""
+        var ty = list[i].type ?? ""
         let c = list[i].content ?? ""
         if ty == "tool" || ty == "tool_call" || c != "" {
             latest = list[i]
@@ -214,7 +219,7 @@ fn relayPhaseText(ty str, content str) str {
         return relayStepLabel(relayStepIdOf(content))
     }
     if ty == "gate_waiting" {
-        let gid = relayStepIdOf(content)
+        var gid = relayStepIdOf(content)
         if gid != "" { return relayStepLabel(gid) }
         return ""
     }
@@ -229,12 +234,12 @@ fn relayPhaseText(ty str, content str) str {
 fn relayPhaseDetail(ty str, content str) str {
     if ty == "step_completed" {
         let marker = "completed:"
-        let i = content.indexOf(marker)
+        var i = content.indexOf(marker)
         if i == -1 { return "" }
         return content.substring(i + marker.length).trim()
     }
     if ty == "gate_waiting" {
-        let gid = relayStepIdOf(content)
+        var gid = relayStepIdOf(content)
         if gid == "" { return "" }
         let glabel = relayStepLabel(gid)
         return "阶段「" + glabel + "」开始前的人工审批点：批准后流程继续执行；拒绝将附修改意见回到该阶段。"
@@ -245,7 +250,7 @@ fn relayPhaseDetail(ty str, content str) str {
 /** 收起态预览行的阶段/终态条目 → 与 Run 内阶段块标题栏同构的紧凑行
  *（着色 mark + 阶段名 + 着色动作；不带详情）。 */
 fn relayEntryPreviewRow(e Value) Value {
-    let ty = e.type ?? ""
+    var ty = e.type ?? ""
     if ty == "tool" || ty == "tool_call" {
         return { mark: "🔧", mark_class: "", name: e.tool_name ?? "", target: relayToolTarget(e), text: "", text_class: "" }
     }
@@ -275,7 +280,7 @@ fn relayEntryPreviewRow(e Value) Value {
 /** 工具卡是否为"文档读取型"（📄 图标 + 结果按 Markdown 展示于展开子窗，
  * 字号小一号）：读类工具或结果较长。 */
 fn relayToolIsDocKind(entry Value) bool {
-    let n = entry.tool_name ?? ""
+    var n = entry.tool_name ?? ""
     if n == "read_plan" || n == "read_file" || n == "list_plans" || n == "get_plan" {
         return true
     }
@@ -322,8 +327,8 @@ fn relayParseListing(result str) Value {
             } else {
                 if ln.contains(" <file ") {
                     let ci = ln.indexOf(" <file ")
-                    let name = ln.substring(0, ci)
-                    let sz = ln.substring(ci + 7)
+                    var name = ln.substring(0, ci)
+                    var sz = ln.substring(ci + 7)
                     if sz.ends_with(">") { sz = sz.substring(0, sz.length - 1) }
                     out.push({ is_dir: false, name: name, size: sz })
                 } else {
@@ -340,7 +345,7 @@ fn relayParseListing(result str) Value {
  *  cmd（终端块）/ diff（左右对照）/ write（写入内容）/ file（读取内容+
  *  参数 chips）/ listing（文件浏览）/ doc（文档 Markdown）/ generic。 */
 fn relayToolView(entry Value) Value {
-    let n = entry.tool_name ?? ""
+    var n = entry.tool_name ?? ""
     let a = entry.arguments ?? {}
     let r = entry.result ?? ""
     if n == "run_command" || n == "shell" {
@@ -367,7 +372,7 @@ fn relayToolView(entry Value) Value {
         return { kind: "file", cmd: "", force: false, path: a.path ?? "", old_s: "", new_s: "", content: "", body: r, items: [], chips: chips, result: r }
     }
     if n == "list_dir" || n == "glob" {
-        let base = a.path ?? ""
+        var base = a.path ?? ""
         if base == "" { base = a.pattern ?? "" }
         return { kind: "listing", cmd: "", force: false, path: base, old_s: "", new_s: "", content: "", body: "", items: relayParseListing(r), chips: [], result: r }
     }
@@ -574,7 +579,7 @@ fn relayToolView3(n str, a Value, r str) Value {
 fn relayCmdIsError(r str) bool {
     if r.starts_with("PAUSED") { return true }
     if r.contains("[tool error:") { return true }
-    let i = r.indexOf("[exit: ")
+    var i = r.indexOf("[exit: ")
     if i == -1 { return false }
     let rest = r.substring(i + 7)
     let j = rest.indexOf("]")

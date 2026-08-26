@@ -4,7 +4,10 @@
 // relay_command_runner.ts）均为浏览器概念,VM/iced 目标按验收"显式降级登记"：
 //   - platformInjectStyles:CSS 全局样式注入 → no-op（iced 主题自管）;
 //   - platformSetupAuthFetch:window.fetch monkey-patch 注 Bearer/workspace →
-//     no-op 桩（VM Http 走 native,认证头注入缺口登记 KNOWN-DEBT 442-B）;
+//     no-op 桩(VM Http 走 native,认证头注入缺口登记 KNOWN-DEBT 442-B;
+//     PLAN-045 勘察定案:补齐依赖 auto-lang Http.set_default_header 族 native,
+//     musk 侧无法独立落地——Http.get 仅收 url/builder 链踩 446-E2/post_bearer
+//     仅 POST,归 auto-lang 承接);
 //   - platformRunRelayCommand:跨 RelayStore/ForgeStore 的执行桥（web 侧受
 //     单 store per file 限制的接线）→ 降级为会话 KV 留痕 + 控制台 warn,
 //     完整 VM 实现待多 store 放开后并入（与 web 侧 D 组登记同源）。
@@ -23,4 +26,10 @@ fn platformRunRelayCommand(cmd Value) {
     // 降级留痕:relay 快捷命令在 VM 轨暂不启动工作流。
     let flow = cmd["flow"] ?? ""
     print("relay command skipped on vm target: " + flow)
+}
+
+// PLAN-045: 视口高度端口——web 侧为 window.innerHeight;VM/iced 目标常量降级
+// (桌面窗口实际高度暴露为后续增强,KNOWN-DEBT 045 登记 partial)。
+fn platformViewportHeight() int {
+    return 720
 }

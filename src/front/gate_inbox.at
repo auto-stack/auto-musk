@@ -9,7 +9,7 @@
 
 /** pending 门计数（badge）。 */
 fn gate_pending_count(gates []Value) int {
-    let n = 0
+    var n = 0
     for g in gates {
         if g.status == "pending" {
             n = n + 1

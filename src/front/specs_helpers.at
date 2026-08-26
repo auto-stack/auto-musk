@@ -53,6 +53,20 @@ fn spec_next_id(section_type str, existing_ids []str) str {
 
 // ── PLAN-041 T2:Specs 组件组辅助(web parseTag/summaryFn 对拍面)──
 
+/** deps 逗号连接文案(PLAN-045:视图绑定内动态值 .join 在 VM 目标为
+    不可链接符号 list.join——helper 内手拼,两轨语义一致)。 */
+fn specDepsJoinText(deps obj) str {
+    let items = deps ?? []
+    var out str = ""
+    var di = 0
+    while di < items.length {
+        if di > 0 { out = out + ", " }
+        out = out + (items[di] ?? "")
+        di = di + 1
+    }
+    return out
+}
+
 /** tag 串 `type:value` 解析(无冒号 → other);对拍 web SpecItemRow.parseTag。 */
 fn specTagParse(tag str) obj {
     let idx = tag.find(":")
@@ -84,7 +98,7 @@ fn specRowSummary(item obj) str {
 fn specSummaryArchitecture(item obj) str {
     let c = item.content ?? ""
     let m = Regex.match(c, "\\*\\*Decision:\\*\\*\\s*(.+)")
-    let decision = ""
+    var decision = ""
     if m.length > 1 {
         decision = m[1].trim().slice(0, 120)
     }
@@ -98,7 +112,7 @@ fn specSummaryArchitecture(item obj) str {
 fn specSummaryDesign(item obj) str {
     let c = item.content ?? ""
     let m = Regex.match(c, "```\\w*\\n([^(\\n]+\\([^)]*\\))")
-    let iface = ""
+    var iface = ""
     if m.length > 1 {
         iface = m[1].trim().slice(0, 120)
     }
@@ -112,11 +126,11 @@ fn specSummaryDesign(item obj) str {
 fn specSummaryPlan(item obj) str {
     let c = item.content ?? ""
     let m = Regex.match(c, "\\*\\*Objective:\\*\\*\\s*(.+)")
-    let objective = ""
+    var objective = ""
     if m.length > 1 {
         objective = m[1].trim().slice(0, 80)
     }
-    let phaseCount = 0
+    var phaseCount = 0
     let plines = c.split("\n")
     for pl in plines {
         if pl.length > 0 {
@@ -136,11 +150,11 @@ fn specSummaryPlan(item obj) str {
 fn specSummaryTest(item obj) str {
     let c = item.content ?? ""
     let m = Regex.match(c, "\\*\\*Type:\\*\\*\\s*(\\w+)")
-    let ty = ""
+    var ty = ""
     if m.length > 1 {
         ty = m[1].trim()
     }
-    let stepCount = 0
+    var stepCount = 0
     let slines = c.split("\n")
     for sl in slines {
         let t = sl.trim()
@@ -150,12 +164,12 @@ fn specSummaryTest(item obj) str {
             }
         }
     }
-    let parts = ""
+    var parts = ""
     if ty != "" { parts = ty }
-    let tf = item.test_file ?? ""
+    var tf = item.test_file ?? ""
     if tf != "" {
         let segs = tf.split("/")
-        let base = segs[segs.length - 1]
+        var base = segs[segs.length - 1]
         if parts != "" { parts = parts + " · 📄 " + base } else { parts = "📄 " + base }
     }
     if stepCount > 0 {
@@ -170,7 +184,7 @@ fn specSummaryReview(item obj) str {
     let partial = Regex.match(c, "[⚠]").length
     let failed = Regex.match(c, "[❌✗]").length
     let issues = Regex.match(c, "####\s+V\d+-I\d+").length
-    let parts = ""
+    var parts = ""
     if passed > 0 || partial > 0 || failed > 0 {
         parts = passed + " passed"
         if partial > 0 { parts = parts + ", " + partial + " partial" }
@@ -186,7 +200,7 @@ fn specSummaryReview(item obj) str {
 
 fn specSummaryReport(item obj) str {
     let c = item.content ?? ""
-    let phaseCount = 0
+    var phaseCount = 0
     let plines = c.split("\n")
     for pl in plines {
         if pl.length > 0 {
@@ -199,7 +213,7 @@ fn specSummaryReport(item obj) str {
     if phaseCount < 0 { phaseCount = 0 }
     let metricCount = phaseCount
     let blockers = Regex.match(c, "\*\*B\d+\*\*").length
-    let parts = ""
+    var parts = ""
     if metricCount > 0 { parts = metricCount + " metrics" }
     if blockers > 0 {
         if parts != "" { parts = parts + " · " }
@@ -212,12 +226,12 @@ fn specSummaryReport(item obj) str {
 fn specSummaryApi(item obj) str {
     let c = item.content ?? ""
     let m = Regex.match(c, "\\*\\*Version:\\*\\*\\s*(.+)")
-    let version = ""
+    var version = ""
     if m.length > 1 {
         version = m[1].trim()
     }
     let endpoints = Regex.match(c, "(?i)####\s+(GET|POST|PUT|DELETE|PATCH)").length
-    let parts = ""
+    var parts = ""
     if version != "" { parts = "v" + version }
     if endpoints > 0 {
         if parts != "" { parts = parts + " · " }
@@ -290,14 +304,14 @@ fn goalsAppendNode(out list, items obj, it obj, level int, expanded obj) {
             children.push(ch)
         }
     }
-    let cls = "goal-node is-root"
+    var cls = "goal-node is-root"
     if level > 0 {
         cls = "goal-node is-sub"
     }
     if children.length > 0 {
         cls = cls + " has-children"
     }
-    let toggleCls = "node-toggle-area"
+    var toggleCls = "node-toggle-area"
     if expanded[it.id] == true {
         toggleCls = "node-toggle-area expanded"
     }
@@ -428,7 +442,7 @@ fn goalCriteria(content str) list {
 
 /** GoalDetail:Details 块正文。 */
 fn goalDetailsText(content str) str {
-    let out list = []
+    let out []str = []
     let lines = content.split("\n")
     var in_details = false
     for raw in lines {
@@ -450,7 +464,7 @@ fn goalDetailsText(content str) str {
 
 /** GoalDetail:剥掉 criteria/details 块后的剩余 markdown。 */
 fn goalRemaining(content str) str {
-    let kept list = []
+    let kept []str = []
     let lines = content.split("\n")
     var skip = ""
     for raw in lines {
@@ -470,11 +484,11 @@ fn goalRemaining(content str) str {
 
 /** GoalEditor 序列化(criteria+details → content;web serializeGoalForm)。 */
 fn goalSerialize(criteria obj, details str) str {
-    let lines list = []
+    let lines []str = []
     if criteria.length > 0 {
         lines.push("**Acceptance Criteria:**")
         for c in criteria {
-            let mark = " "
+            var mark = " "
             if c.checked == true { mark = "x" }
             lines.push("- [" + mark + "] " + c.text)
         }
@@ -517,7 +531,7 @@ fn testExtractExpected(content str) str {
 
 /** TestDetail/TestEditor:编号步骤行提取。 */
 fn testExtractSteps(content str) list {
-    let out list = []
+    let out []str = []
     let lines = content.split("\n")
     for raw in lines {
         let m = Regex.match(raw, "^\\d+\\.\\s*(.*)$")
@@ -530,13 +544,13 @@ fn testExtractSteps(content str) list {
 
 /** TestDetail:元数据集合(web meta computed)。 */
 fn testMeta(content str, test_file str) obj {
-    let ty = ""
+    var ty = ""
     let mty = Regex.match(content, "\\*\\*Type:\\*\\*\\s*(\\w+)")
     if mty.length > 1 { ty = mty[1] }
-    let scope = ""
+    var scope = ""
     let msc = Regex.match(content, "\\*\\*Scope:\\*\\*\\s*(.+)")
     if msc.length > 1 { scope = msc[1] }
-    let tf = test_file
+    var tf = test_file
     if tf == "" {
         let mtf = Regex.match(content, "\\*\\*Test File:\\*\\*\\s*(.+)")
         if mtf.length > 1 { tf = mtf[1] }
@@ -553,7 +567,7 @@ fn testMeta(content str, test_file str) obj {
 
 /** TestDetail:结构化字段剥离后的剩余 markdown。 */
 fn testRemaining(content str) str {
-    let kept list = []
+    let kept []str = []
     let lines = content.split("\n")
     var skipping = false
     for raw in lines {
@@ -578,7 +592,7 @@ fn testRemaining(content str) str {
 
 /** TestEditor:草稿序列化(web onSave lines 组装)。 */
 fn testSerializeDraft(draft obj) str {
-    let lines list = []
+    let lines []str = []
     if draft.type != "" { lines.push("**Type:** " + draft.type) }
     if draft.scope != "" { lines.push("**Scope:** " + draft.scope) }
     if draft.fixture != "" {
@@ -634,10 +648,10 @@ fn reviewChecklist(content str) list {
         let m = Regex.match(line, "^[-*]\\s+([✅✓⚠️❗❌✗⏳○]\\s+)?(.+)$")
         if m.length > 2 {
             let text = m[2].trim()
-            let status = reviewDetectStatus(line)
+            var status = reviewDetectStatus(line)
             // 注记:- 或 — 后的尾部说明
-            let note = ""
-            let body = text
+            var note = ""
+            var body = text
             let m2 = Regex.match(text, "^(.+?)\\s*(?:[-—]\\s*(.+))?$")
             if m2.length > 1 {
                 body = m2[1].trim()
@@ -670,7 +684,7 @@ fn reviewSummaryOf(checklist obj) obj {
 
 /** ReviewDetail:剥掉清单行后的剩余 markdown。 */
 fn reviewRemaining(content str) str {
-    let kept list = []
+    let kept []str = []
     let lines = content.split("\n")
     for raw in lines {
         let line = raw.trim_right()
@@ -733,13 +747,13 @@ fn reportMetrics(content str) list {
                 if cc != "" { cols.push(cc) }
             }
             if cols.length >= 2 {
-                let name = cols[0]
+                var name = cols[0]
                 if name != "Metric" && name.slice(0, 3) != "---" {
                     let value = reportCell(cols, 1)
                     let target = reportCell(cols, 2)
-                    let shown = value
+                    var shown = value
                     if shown == "" { shown = "—" }
-                    let status = "neutral"
+                    var status = "neutral"
                     if value != "" { status = reportCompareStatus(value, target) }
                     out.push({ name: name, value: shown, target: target, status: status })
                 }
@@ -751,7 +765,7 @@ fn reportMetrics(content str) list {
 
 /** ReportDetail:剥掉 metrics 表后的剩余 markdown。 */
 fn reportRemaining(content str) str {
-    let kept list = []
+    let kept []str = []
     let lines = content.split("\n")
     var in_table = false
     for raw in lines {
@@ -809,7 +823,7 @@ fn goalAddCriterion(criteria obj) obj {
 }
 
 fn goalRemoveCriterion(criteria obj, idx int) obj {
-    let out list = []
+    let out []str = []
     var i = 0
     for c in criteria {
         if i != idx {
@@ -837,7 +851,7 @@ fn tagListAdd(tags obj, val str) obj {
     for t in tags {
         if t == v { return tags }
     }
-    let out list = []
+    let out []str = []
     for t in tags {
         out.push(t)
     }
@@ -846,7 +860,7 @@ fn tagListAdd(tags obj, val str) obj {
 }
 
 fn tagListRemove(tags obj, idx int) obj {
-    let out list = []
+    let out []str = []
     var i = 0
     for t in tags {
         if i != idx {
@@ -858,7 +872,7 @@ fn tagListRemove(tags obj, idx int) obj {
 }
 
 fn testStepsSet(steps obj, idx int, text str) obj {
-    let out list = []
+    let out []str = []
     var i = 0
     for s in steps {
         if i == idx {
@@ -872,7 +886,7 @@ fn testStepsSet(steps obj, idx int, text str) obj {
 }
 
 fn testStepsRemove(steps obj, idx int) obj {
-    let out list = []
+    let out []str = []
     var i = 0
     for s in steps {
         if i != idx {
@@ -884,7 +898,7 @@ fn testStepsRemove(steps obj, idx int) obj {
 }
 
 fn testStepsAdd(steps obj) obj {
-    let out list = []
+    let out []str = []
     for s in steps {
         out.push(s)
     }

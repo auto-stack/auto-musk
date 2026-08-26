@@ -71,7 +71,7 @@ store ForgeStore {
 
         // LoadSessionList: 加载列表后，如无选中会话，自动选第一个 + 加载消息。
         .LoadSessionList -> {
-            let resp = chats_list_sessions();
+            var resp = chats_list_sessions();
             .session_list = resp.sessions;
             if .session_id == "" {
                 if .session_list.length > 0 {
@@ -84,7 +84,7 @@ store ForgeStore {
         }
 
         .NewSession -> {
-            let resp = chats_create_session(.workspace);
+            var resp = chats_create_session(.workspace);
             .session_id = resp.session.id;
             let list = chats_list_sessions();
             .session_list = list.sessions
@@ -93,7 +93,7 @@ store ForgeStore {
         // SwitchSession: 切换 + 回写 session 详情（messages）。
         .SwitchSession(id) -> {
             .session_id = id;
-            let resp = chats_get_session(id);
+            var resp = chats_get_session(id);
             .messages = resp.session.messages
             .active_leaf = resp.session.active_leaf ?? ""
         }
@@ -102,7 +102,7 @@ store ForgeStore {
         .BranchTo(message_id str, mode str) -> {
             let sid = .session_id
             if sid == "" { return }
-            let resp = None
+            var resp = None
             if mode == "fork" {
                 resp = chats_fork_session(sid, message_id)
             } else {
@@ -117,7 +117,7 @@ store ForgeStore {
         // 预填输入框为该 user 消息内容。
         .RetryFrom(msg Value) -> {
             let pid = msg.parent_id ?? ""
-            let prompt = ""
+            var prompt = ""
             if pid != "" {
                 for m in .messages {
                     if m.id == pid {
@@ -142,7 +142,7 @@ store ForgeStore {
             // 发送消息到后端。不覆盖 messages（避免和 SSE 回写竞态）——
             // user 消息由 startForgeStream 在建连前乐观 push（见 forge_stream.ts），
             // assistant 消息由 SSE delta 事件回写。
-            let resp = chats_send_message(.session_id, content, "");
+            var resp = chats_send_message(.session_id, content, "");
             .streaming = true
         }
 
@@ -173,7 +173,7 @@ store ForgeStore {
             // 乐观插入 user 消息（不等 API 返回；与 Send 并发执行）
             if userContent.trim() != "" {
                 let msgs = .messages
-                let dup = false
+                var dup = false
                 if msgs.length > 0 {
                     if msgs[msgs.length - 1].role == "user" {
                         if msgs[msgs.length - 1].content == userContent { dup = true }
@@ -186,7 +186,7 @@ store ForgeStore {
                 }
             }
             let path0 = "/api/chats/session/" + encodeURIComponent(sid0) + "/stream"
-            let qs = ""
+            var qs = ""
             if ws0 != "" { qs = "?workspace=" + encodeURIComponent(ws0) }
             if tk0 != "" {
                 if qs == "" {
@@ -215,7 +215,8 @@ store ForgeStore {
             if ev.type == "delta" {
                 if ev.text != None {
                     if ev.text != "" {
-                        let msg = ensureAssistantMsg("")
+                        var msg = currentAssistantMsgIn(.messages)
+                        if msg == None { msg = newAssistantMsg("") ; .messages.push(msg) }
                         msg.content = msg.content + ev.text
                         .current_draft = .current_draft + ev.text
                         let _ab = appendBlockText(msg, "text", ev.text)
@@ -226,7 +227,8 @@ store ForgeStore {
             if ev.type == "thinking" {
                 if ev.thinking != None {
                     if ev.thinking != "" {
-                        let msg2 = ensureAssistantMsg("")
+                        var msg2 = currentAssistantMsgIn(.messages)
+                        if msg2 == None { msg2 = newAssistantMsg("") ; .messages.push(msg2) }
                         let th = msg2.thinking ?? ""
                         msg2.thinking = th + ev.thinking
                         .thinking = msg2.thinking
@@ -236,8 +238,9 @@ store ForgeStore {
                 return
             }
             if ev.type == "tool_call" {
-                let msg3 = ensureAssistantMsg("")
-                let callId = ev.id ?? ""
+                var msg3 = currentAssistantMsgIn(.messages)
+                if msg3 == None { msg3 = newAssistantMsg("") ; .messages.push(msg3) }
+                var callId = ev.id ?? ""
                 if callId == "" { callId = "tc-" + Date.now() }
                 let callName = ev.name ?? "unknown"
                 let callArgs = ev.arguments ?? {}
@@ -247,19 +250,19 @@ store ForgeStore {
                 return
             }
             if ev.type == "tool_result" {
-                let msg4 = currentAssistantMsg()
+                let msg4 = currentAssistantMsgIn(.messages)
                 if msg4 != None {
                     let calls = msg4.tool_calls
-                    let call = None
+                    var call = None
                     if ev.id != None {
-                        let i = 0
+                        var i = 0
                         while i < calls.length {
                             if calls[i].id == ev.id { call = calls[i] }
                             i = i + 1
                         }
                     }
                     if call == None {
-                        let j = calls.length - 1
+                        var j = calls.length - 1
                         while j >= 0 {
                             let c = calls[j]
                             if c.status == "running" {
@@ -274,7 +277,7 @@ store ForgeStore {
                         // PLAN-042:结构化载荷(edit diff/截断/全量输出路径)随调用留存。
                         call.details = ev.details ?? None
                         // 嗅探 result 标记识别 error（对齐 generic_tool_card 样式）
-                        let failed = false
+                        var failed = false
                         if ev.status == "error" { failed = true }
                         if result.starts_with("[security denied") { failed = true }
                         if result.starts_with("[tool error") { failed = true }
@@ -315,7 +318,7 @@ store ForgeStore {
                 if ev.errand_id != None {
                     let e1 = .errands[ev.errand_id]
                     if e1 != None {
-                        let tcid = ev.id ?? ""
+                        var tcid = ev.id ?? ""
                         if tcid == "" { tcid = "etc-" + Date.now() }
                         e1.tool_calls.push({ id: tcid, name: ev.name ?? "unknown", arguments: ev.arguments ?? {}, status: "running" })
                     }
@@ -327,7 +330,7 @@ store ForgeStore {
                     let e2 = .errands[ev.errand_id]
                     if e2 != None {
                         let tcs = e2.tool_calls
-                        let k = 0
+                        var k = 0
                         while k < tcs.length {
                             if tcs[k].id == ev.id {
                                 tcs[k].result = ev.result ?? ""
@@ -344,7 +347,7 @@ store ForgeStore {
                     let e3 = .errands[ev.errand_id]
                     if e3 != None {
                         e3.status = ev.status ?? "completed"
-                        let r0 = ev.result ?? ""
+                        var r0 = ev.result ?? ""
                         if r0 == "" { r0 = e3.content }
                         e3.result = r0
                         e3.token_usage = ev.token_usage
@@ -400,7 +403,8 @@ store ForgeStore {
             // ─── 会话状态事件 ───
             if ev.type == "turn_start" {
                 let p0 = ev.profession_id ?? ""
-                let _ea = ensureAssistantMsg(p0)
+                var _ea = currentAssistantMsgIn(.messages)
+                if _ea == None { _ea = newAssistantMsg(p0) ; .messages.push(_ea) } else { if _ea.profession_id == None { _ea.profession_id = p0 } }
                 return
             }
             if ev.type == "phase_change" {
@@ -414,7 +418,7 @@ store ForgeStore {
 
             // ─── gate / run_completed 事件（SecretaryMessage 由 chats_view watch current_gate 驱动）───
             if ev.type == "gate_reached" {
-                let gateId = ev.gate_id ?? ""
+                var gateId = ev.gate_id ?? ""
                 if gateId == "" { gateId = (ev.run_id ?? "") + "-" + (ev.step_id ?? "") }
                 if gateId != "" {
                     .current_gate = { gate_id: gateId, run_id: ev.run_id ?? "", profession: ev.profession ?? "", title: ev.title ?? "", section_id: ev.section_id ?? "", since: Date.now() }
@@ -425,7 +429,7 @@ store ForgeStore {
                 .report_data = { runId: ev.run_id ?? "", goalsMet: ev.goals_met ?? "", testsPass: ev.tests_pass ?? "", driftDetected: ev.drift_detected ?? "", cost: ev.cost ?? "", confidence: ev.confidence ?? "Medium", deliverables: ev.deliverables ?? [] }
                 return
             }
-            console.log("[forge stream]", ev.type)
+            print("[forge stream] " + (ev.type ?? ""))
         }
     }
 }
@@ -436,7 +440,7 @@ store ForgeStore {
 fn appendBlockText(msg Value, kind str, text str) {
     if msg.blocks == None { msg.blocks = [] }
     let blocks = msg.blocks
-    let last = blocks[blocks.length - 1]
+    var last = blocks[blocks.length - 1]
     if last != None {
         if last.kind == kind {
             if last.text != None {
@@ -449,29 +453,16 @@ fn appendBlockText(msg Value, kind str, text str) {
 }
 
 /** 当前（末条）assistant 消息；末条非 assistant 返回 None。 */
-fn currentAssistantMsg() Value {
-    let msgs = .messages
+// PLAN-045 VM-clean:普通 fn 直读 .messages 在 VM 合成为未定义符号——
+// 拆纯读 fn(state 由 handler 传入) + handler 侧承接 push/backfill 副作用。
+fn currentAssistantMsgIn(msgs Value) Value {
     if msgs.length == 0 { return None }
     let last = msgs[msgs.length - 1]
     if last.role == "assistant" { return last }
     return None
 }
 
-/** 确保「当前」assistant 消息存在（无则新建 push）；profession_id 来自 turn_start。 */
-fn ensureAssistantMsg(professionId str) Value {
-    let msgs = .messages
-    let last = None
-    if msgs.length > 0 {
-        let l0 = msgs[msgs.length - 1]
-        if l0.role == "assistant" { last = l0 }
-    }
-    if last == None {
-        let fresh = { id: "a-" + Date.now(), role: "assistant", content: "", thinking: "", timestamp: Date.now(), tool_calls: [], blocks: [], profession_id: professionId }
-        .messages.push(fresh)
-        return fresh
-    }
-    if professionId != "" {
-        if last.profession_id == None { last.profession_id = professionId }
-    }
-    return last
+/** 新建 assistant 消息骨架(不落 store——由调用方 push);profession_id 来自 turn_start。 */
+fn newAssistantMsg(professionId str) Value {
+    return { id: "a-" + Date.now(), role: "assistant", content: "", thinking: "", timestamp: Date.now(), tool_calls: [], blocks: [], profession_id: professionId }
 }
