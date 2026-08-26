@@ -158,13 +158,8 @@ function normalize(html) {
     // Checkbox button[role=checkbox])——双侧剥除(编辑器组登记)。
     .replace(/<input type="checkbox"[^>]*>/g, '')
     .replace(/<button[^>]*role="checkbox"[^>]*>.*?<\/button>/gs, '')
-    // N16: 列表/代码标签等价(web ul/ol/pre/code ↔ gen div——auto-lang
-    // 诸元素 backends web:none,语义经类名+结构承载)。
-    .replace(/<(ul|ol|pre|code)(\s|>)/g, '<div$2')
-    .replace(/<\/(ul|ol|pre|code)>/g, '</div>')
-    // N17: li(含带属性形态)→ div。
-    .replace(/<li(\s[^>]*)?>/g, '<div$1>')
-    .replace(/<\/li>/g, '</div>')
+    // N16/N17 已撤(041 Phase 5 T19:auto-lang 原生元素直通修复后,gen 侧
+    // pre/code/ol/ul/li 与 web 同为原生标签,逐项对拍)。
     // N14b: 表单值归一——input value 属性/textarea 文本/select value 与
     // option selected 均为草稿态呈现(web setup 期初始化,gen onMounted
     // 初始化,SSR 面不可比;输入功能两侧等价)。

@@ -240,10 +240,10 @@ widget GoalDetail(content: str) {
                         class: "block-label"
                         text "Acceptance Criteria"
                     }
-                    div {
+                    ul {
                         class: "criteria-list"
                         for c in .criteria {
-                            div {
+                            li {
                                 key: c.text
                                 class: if c.checked == true { "checked" } else { "" }
                                 span {

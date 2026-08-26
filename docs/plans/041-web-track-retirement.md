@@ -20,7 +20,7 @@ touched_goals:
   - "双前端 parity → Auto 单源"
   - "生产切换 + 回滚开关"
 
-current_step: 17
+current_step: 20
 total_steps: 22
 ---
 
@@ -289,19 +289,41 @@ frontend/（musk-config-remote 独立小应用，与 web/ 无关）。
 > auto-lang——本 Phase 在 auto-lang worktree 修复,musk 为消费面复验
 > (build 摘 --lenient / 对拍 / workaround 回撤为验收)。
 
-- [ ] **T17** a2ts 字符串方法映射补 `trim_end`→`trimEnd`(musk 侧曾以
+- [x] **T17** a2ts 字符串方法映射补 `trim_end`→`trimEnd`(musk 侧曾以
   改用 trim() 绕行,与 web 的 trimEnd 语义有边缘差)。验证:auto-lang
   单测 + musk specs_helpers 回撤 trim_end 后对拍 30/30。
-- [ ] **T18** S002 slot 误报:schema(aura.at)登记 `slot` 元素(native)
+  [✅ 重定性收口(2026-08-26):`trim_end` 非语言方法——规范名 `trim_right`
+  (ts_adapter/VM builtin/各 trans 均已映射),041a② 实为 musk 误用方法名。
+  musk specs_helpers 按 web 语义逐函数分派(16 处 trim_right=trimEnd,双侧
+  trim 站点保持 .trim()),对拍 30/30 复验。非 auto-lang 缺口,撤登记。]
+- [x] **T18** S002 slot 误报:schema(aura.at)登记 `slot` 元素(native)
   ——strict 默认(auto-lang Plan 015)下 musk 全量 build 不再需 --lenient。
   验证:musk `auto build`(无 flag)0 错。
-- [ ] **T19** 原生元素可达性:native_select/button(及 pre/code/ol/li)
+  [✅(2026-08-26,auto-lang 36a6ead1):slot 入 schema.rs(声明面)+map_tag
+  直通 arm;新二进制下 musk strict 模式 S002 噪声清零。**残余**:strict
+  仍被 ChatsView 单条 R006 拦截(branchEntries 分叉切换器 if-in-for 结构
+  使 key 无法提升至 v-for 容器——重构涉 DOM 结构风险,登记;--lenient
+  维持至该条修复)。]
+- [x] **T19** 原生元素可达性:native_select/button(及 pre/code/ol/li)
   backends web:"none" → div 兜底不可用;修正为原生标签发射。验证:探针
   生成物为原生标签;musk TestDetail 切回 pre/code/ol/li 后对拍 N16/N17
   可撤。
+  [✅(2026-08-26,auto-lang 36a6ead1):schema.rs 新增 13 件(slot/pre/code/
+  ol/ul/dl/dt/dd/optgroup/figure/figcaption/blockquote/native_button)+
+  map_tag 直通 arm(native_select→select 逃生名);aura.at 经
+  SCHEMA_DRIFT_GENERATE_AT 再生,桌面表缺失为有意漂移入 baseline。musk
+  TestDetail 原生 pre/ol/li 发射确认,GoalDetail criteria-list 切 ul/li,
+  对拍 N16/N17 撤除后 **30/30 全等**。NativeSelect ext 组件保留(select
+  元素仍映射 shadcn Select,需 onchange/option value 语义;native_select
+  元素直连为后续简化项)。]
 - [ ] **T20** 解析器三坑:句首 `.` 方法链吞并前一语句、属性绑定嵌套 fn
   调用、`||` 链>4 项解析失败、`to` 保留字报错不清(四小项)。
   验证:各加 parser/codegen 回归测试。
+  [🔶 部分收口(2026-08-26):句首 . 语句 glue 与事件绑定嵌套调用
+  (.msg(.field, fn($event)))两坑已在 auto-lang 提 #[ignore] 复现测试
+  (parser.rs,带成因注)——修复以此为入口;`||` 链>4 项经复核实为 `to`
+  保留字误用的连带误判(真因即 `to`),四小项并为两坑 + 保留字报错优化
+  待后续。musk 侧绕行形态(handler 内组装)不变。]
 - [ ] **T21** 动态拼接 Regex pattern 转译(F4 字面量限制):`Regex.match(s, expr)`
   非字面量形态发射 `new RegExp(expr)` 包装。验证:auto-lang 单测。
 - [ ] **T22** 表单元素 value 绑定 prop 目标生成 v-model 编译红:非 model

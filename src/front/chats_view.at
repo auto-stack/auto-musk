@@ -200,6 +200,8 @@ widget ChatsView {
                                 for be in .branchEntries {
                                     if be.for_id == .msg.id {
                                         button {
+                                            // R006(strict):v-for 项需 :key。
+                                            key: be.sib.id
                                             style: "branch-btn"
                                             text "⑂ " + chatBranchLabel(be.sib.content)
                                             onclick: .BranchTo(be.sib.id, "navigate")
