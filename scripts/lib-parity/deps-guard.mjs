@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 // deps-guard.mjs — 第三方依赖白名单守卫（PLAN-038 T3 / 设计 D6）。
 //
+// ⚠️ web/ 域为 FROZEN（PLAN-041 T14/T15，2026-08-27 起）：
+//   观察期（至 2026-09-03）内仅收 P0 bugfix，期满完全停更。web/src 扫描
+//   仅作存量校验（不得新增依赖），功能演进一律落 .at 轨。
+//
 // 白名单（内置,新增第三方依赖须显式改这里并说明理由）：
 //   - 普查结论表：vue-i18n / lucide-vue-next / markstream-vue / prismjs / mermaid
 //   - 运行时：vue

@@ -282,8 +282,8 @@ worktree 全部清理（plan012-a/b/c + label-class + plan398）。
 ### 残留结构性 drift（非 B 类外部依赖）
 
 1. **视图体量**：生成视图行数远小于原生（ChatsView 183 vs 2767 行）。这是架构差异（逃生舱拆分），非缺陷——交互逻辑在 14 个逃生舱组件 + forge_stream/helpers 里。深度 parity 需逐交互点比对（C 类专项）。
-2. **Specs 子系统细化**（§5c 范围）：category 卡片（8）/detail（6）/editors（5）/StatusBadge/RelationsPanel/TreeView 等未生成——属 Phase 5c 低优先级细化。
-3. **URL 路由能力**：useViewState（URL 同步/history/popstate/快捷键）未做，gen 用裸 ref 切换。属交互增强，非功能阻塞。
+2. ~~**Specs 子系统细化**（§5c 范围）：category 卡片（8）/detail（6）/editors（5）/StatusBadge/RelationsPanel/TreeView 等未生成——属 Phase 5c 低优先级细化。~~ **✅ 已闭（PLAN-041 Phase 1 + 债务收口，2026-08-26）**：21 件全量移植 + detail 组逐件细化 + 编辑器组五件，对拍 30/30（`scripts/lib-parity/track-switch/phase1-leaves.mjs`）。
+3. ~~**URL 路由能力**：useViewState（URL 同步/history/popstate/快捷键）未做，gen 用裸 ref 切换。属交互增强，非功能阻塞。~~ **✅ 已闭（PLAN-041 T7/T8，2026-08-26）**：viewstate_router 桥（history API 端口层；popstate 视图级经 rail 点击桥接、detail 级挂载恢复——残余登记 KNOWN-DEBT 041②）。
 
 ### parity 验收口径（沿用 §9 口径 a）
 

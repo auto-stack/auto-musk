@@ -1,17 +1,21 @@
 ---
 plan_id: PLAN-041
-status: execution_done
+status: reviewed
 feature_name: web 手写轨退役——gen(Auto/vue)轨转正为生产前端
 author: [zhaopuming]
 created_at: 2026-08-23
 updated_at: 2026-08-26
 
 supersedes_spec_components:
-  - "web/ 手写前端轨(生产真源地位 → 冻结/退役)"
+  - "web/ 手写前端轨(生产真源地位 → 冻结/退役,回滚指针 MUSK_WEB_DIST)"
 new_spec_components:
-  - "gen(Auto/vue)轨转正为生产前端"
-  - "Specs 组件组 21 件 .at 实现"
-  - "track-switch DOM 对拍基建"
+  - "gen(Auto/vue)轨转正为生产前端(server.rs serve gen dist + start 脚本启 gen dev)"
+  - "Specs 组件组 21 件 .at 实现(叶子/category/detail/树 + GoalDetailModal)"
+  - "编辑器组五件 .at(TagInput/GoalEditor/MarkdownEditor/TestEditor/AutoDownEditor-stub 等价)"
+  - "URL 路由 viewstate 端口(viewstate_router.ts + composables 端口四 fn)"
+  - "NativeSelect ext 组件(原生 select 平台逃生,schema 无原生元素)"
+  - "track-switch DOM 对拍基建(30 用例 + N1-N19 归一化规则)"
+  - "gen 工程测试资产入库(vitest 2 套件 + frontmatter 工具 + vitest-shim)"
 touched_goals:
   - "双前端 parity → Auto 单源"
   - "生产切换 + 回滚开关"
@@ -281,7 +285,36 @@ frontend/（musk-config-remote 独立小应用，与 web/ 无关）。
 
 ## 复审记录
 
-（待 /auto-plan:review 填写）
+**reviewer**: auto-plan:review(zhaopuming 会话) · **2026-08-26** · 入态 execution_done → **reviewed**
+
+### 验收标准逐条复审(verify, don't trust)
+
+| # | 标准 | 判定 | 证据 |
+|---|---|---|---|
+| 1 | gen 轨组件覆盖 = web 轨超集;Specs/Plans/编辑器对拍零差异(白名单外) | ✅ pass(附清单登记) | `comm` 覆盖断言:web 组件 45 件,gen 对应 35 件;10 件 web-only 全数登记——5 件 web 零消费裁剪(AutoLinkContent/ConfirmDeleteDialog/GatePanel/SegmentedProgressBar/TaskPlanPanel + detail 组 ApiDetail/PlanDetail)、5 件吸收(MarkdownContent→Markdown ext、StreamingRenderer→platform:markdown、DropZone→wikiUploadDrop/raw_upload 端口、GateBanner→GateInbox 域横幅形态未植、OnboardingDialog→workspace 流程)。对拍 `node scripts/lib-parity/track-switch/phase1-leaves.mjs` **30/30 exit 0**(含编辑器组五件/detail 四件/select 化/展开+编辑态;N1-N19 归一化逐条带成因注) |
+| 2 | 后端 serve gen 产物、启动脚本启 gen dev;MUSK_WEB_DIST 回滚演练通过 | ✅ pass | `backend/crates/musk/src/server.rs:72-75`(gen dist + env 覆盖);`start-musk-web.cmd`(gen dev :3334 + 回滚注释);T12 双向起服冒烟记录在案(本次未重演,回滚路径代码在) |
+| 3 | vitest gen 工程全绿(含修 2 断言);web/ 冻结声明 + KNOWN-DEBT 登记 | ✅ pass | `npx -y vitest@2.1.9 run` 23 passed + 1 skipped;`web/FROZEN.md` ✓;KNOWN-DEBT 041/041a ✓;T13 迁移物原落 gitignored gen/ 未入库——本次复审前已 `git add -f` 入库 + vitest-shim(见债务候选 3) |
+| 4 | 观察期(7 天)无 P0 回滚后计划方可 review | ⏳ **时间门未满**(至 2026-09-03) | T12 起算 2026-08-27(冻结声明日期);至今无 P0/无回滚事件(web/ 零提交)。**merge 前提:观察期满无 P0**——见路由裁定 |
+| 5 | KNOWN-DEBT 022 Phase 5c 与 useViewState 两项标闭 | ✅ pass | `docs/plans/archived/022-frontend-auto-ization.md` §遗留 2/3 条已标闭并指向 041(本次复审补登) |
+| 附 | 存量不变量:cargo test 绿 | ✅ pass | `cargo test -p musk` **614 passed / 0 failed**(T11 时 406,后续计划增至 614) |
+
+### 复审发现的遗漏与修复(当场执行)
+
+1. **T15 子项「deps-guard 白名单 web 域标 frozen」未执行**(勾选框早标)——已补:`scripts/lib-parity/deps-guard.mjs` 头部 frozen 域标注 + 守卫复跑 OK。
+2. **022 归档计划遗留项未闭账**——已补:§遗留 2/3 标闭指向 041。
+3. **T13 测试资产未入版本库**(gitignored gen/ 内的手写件,worktree/新克隆即失)——债务收口阶段已修(.gitignore 注释 + git add -f;vitest 经 `npx vitest@2.1.9` 锁版,devDep 不可持存于再生产物 package.json)。
+
+### 债务候选(merge 后入 KNOWN-DEBT 跟踪)
+
+- **观察期收口动作(2026-09-03)**:无 P0 → 冻结转永久(web/ 完全停更,归档时机用户裁定);出 P0 → MUSK_WEB_DIST 回滚。
+- **GateBanner(SpecsView 内嵌审批横幅)**:gen 经 GateInbox 域(chats 面Secretary/GateCard)覆盖审批面,SpecsView 内嵌横幅形态未移植——形态差异,按需补。
+- **OnboardingDialog**:gen workspace 流程(WorkspaceSelector)吸收,新建工程向导形态未移植。
+- **URL 路由桥残余**:popstate 视图级经 rail tab 点击桥接(单 store per widget 限制);会话中 detail 级 popstate 不回放(挂载时恢复);浏览器回退/前进手动实测待用户(可与观察期冒烟合并)。
+- **auto-lang 侧缺口六项**(KNOWN-DEBT 041a 已登记:原生 select/button/pre/code/ol/li 不可达、a2ts trim_end 未映射、strict 默认 vs S002 slot 误报、动态 Regex 不转译、v-model-on-prop、解析器三坑)。
+
+### 路由裁定
+
+验收 1/2/3/5 + 存量不变量全 pass;唯 4(观察期)为**未到期的时间门**——无可执行的修复动作(回 /auto-plan:work 无意义)。裁定:**status → reviewed**,`/auto-plan:merge` 的执行前提 = 观察期 2026-09-03 期满无 P0(届时 T15 收口动作一并落:冻结转永久判定)。用户指令序列(债务收口 → 本复审)与此裁定一致。
 
 ## 待澄清事项
 
