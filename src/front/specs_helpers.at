@@ -406,7 +406,7 @@ fn goalCriteria(content str) list {
     let lines = content.split("\n")
     var in_criteria = false
     for raw in lines {
-        let line = raw.trim()
+        let line = raw.trim_right()
         if line.slice(0, 24) == "**Acceptance Criteria:**" {
             in_criteria = true
             continue
@@ -419,7 +419,7 @@ fn goalCriteria(content str) list {
             let m = Regex.match(line, "^-\\s+\\[([ xX])\\]\\s*(.*)$")
             if m.length > 2 {
                 let chk = m[1] == "x" || m[1] == "X"
-                out.push({ text: m[2].trim(), checked: chk })
+                out.push({ text: m[2].trim_right(), checked: chk })
             }
         }
     }
@@ -432,7 +432,7 @@ fn goalDetailsText(content str) str {
     let lines = content.split("\n")
     var in_details = false
     for raw in lines {
-        let line = raw.trim()
+        let line = raw.trim_right()
         if line.slice(0, 12) == "**Details:**" {
             in_details = true
             continue
@@ -445,7 +445,7 @@ fn goalDetailsText(content str) str {
             out.push(line)
         }
     }
-    return out.join("\n").trim()
+    return out.join("\n").trim_right()
 }
 
 /** GoalDetail:剥掉 criteria/details 块后的剩余 markdown。 */
@@ -454,7 +454,7 @@ fn goalRemaining(content str) str {
     let lines = content.split("\n")
     var skip = ""
     for raw in lines {
-        let line = raw.trim()
+        let line = raw.trim_right()
         if line.slice(0, 24) == "**Acceptance Criteria:**" { skip = "criteria"; continue }
         if line.slice(0, 12) == "**Details:**" { skip = "details"; continue }
         if skip != "" && line.length > 1 && line.slice(0, 2) == "**" { skip = "" }
@@ -463,7 +463,7 @@ fn goalRemaining(content str) str {
             if m.length > 0 { continue }
         }
         if skip == "details" { continue }
-        if line.trim() != "" { kept.push(line) }
+        if line.trim_right() != "" { kept.push(line) }
     }
     return kept.join("\n")
 }
@@ -557,7 +557,7 @@ fn testRemaining(content str) str {
     let lines = content.split("\n")
     var skipping = false
     for raw in lines {
-        let line = raw.trim()
+        let line = raw.trim_right()
         if Regex.match(line, "^\\*\\*Type:\\*\\*").length > 0 { continue }
         if Regex.match(line, "^\\*\\*Scope:\\*\\*").length > 0 { continue }
         if Regex.match(line, "^\\*\\*Test File:\\*\\*").length > 0 { continue }
@@ -566,12 +566,12 @@ fn testRemaining(content str) str {
         if skipping {
             if line.length > 1 && line.slice(0, 2) == "**" { skipping = false }
             else {
-                if line.trim() == "```" { skipping = false; continue }
+                if line.trim_right() == "```" { skipping = false; continue }
                 continue
             }
         }
         if Regex.match(line, "^\\d+\\.\\s+").length > 0 { continue }
-        if line.trim() != "" { kept.push(line) }
+        if line.trim_right() != "" { kept.push(line) }
     }
     return kept.join("\n")
 }
@@ -673,7 +673,7 @@ fn reviewRemaining(content str) str {
     let kept list = []
     let lines = content.split("\n")
     for raw in lines {
-        let line = raw.trim()
+        let line = raw.trim_right()
         if Regex.match(line, "^[-*]\\s+[✅✓⚠️❗❌✗⏳○]").length > 0 { continue }
         kept.push(line)
     }
@@ -755,12 +755,12 @@ fn reportRemaining(content str) str {
     let lines = content.split("\n")
     var in_table = false
     for raw in lines {
-        let line = raw.trim()
+        let line = raw.trim_right()
         if Regex.match(line, "^\\|?\\s*Metric\\s*\\|\\s*Score\\s*\\|\\s*Target\\s*\\|?").length > 0 {
             in_table = true
             continue
         }
-        if in_table && line.trim() != "" && line.length > 0 {
+        if in_table && line.trim_right() != "" && line.length > 0 {
             if line.char_at(0) != "|" { in_table = false }
         }
         if in_table { continue }
