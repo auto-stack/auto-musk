@@ -34,3 +34,8 @@ fn platformRunRelayCommand(cmd Value) {
 fn platformViewportHeight() int {
     return window.innerHeight
 }
+
+// PLAN-045-E4/446-E4: web 侧 no-op——fetch 拦截器每请求读 localStorage,
+// 无需重注入(避免二次 monkey-patch 的 workspace query 重复追加)。
+fn platformRefreshAuth() {
+}

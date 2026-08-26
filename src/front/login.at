@@ -8,6 +8,9 @@
 // auth guard v-if 切换。不需要 auth-success 事件回调（比原生更简洁）。
 
 use store: AuthStore
+// PLAN-045-E4/446-E4: 登录/注册成功后重注入 VM 默认认证头(web adapter
+// no-op——web 拦截器逐请求读 localStorage,时序无关)。
+use.web platformRefreshAuth from "src/front/ports/platform.at"
 
 widget LoginPage {
     msg Msg {
@@ -110,6 +113,7 @@ widget LoginPage {
             } else {
                 store.Login(.username, .password)
             }
+            platformRefreshAuth()
         }
     }
 }
