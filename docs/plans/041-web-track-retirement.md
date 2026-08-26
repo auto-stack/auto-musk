@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-041
-status: reviewed
+status: executing
 feature_name: web 手写轨退役——gen(Auto/vue)轨转正为生产前端
 author: [zhaopuming]
 created_at: 2026-08-23
@@ -20,8 +20,8 @@ touched_goals:
   - "双前端 parity → Auto 单源"
   - "生产切换 + 回滚开关"
 
-current_step: 16
-total_steps: 16
+current_step: 17
+total_steps: 22
 ---
 
 # [PLAN-041] web 手写轨退役——gen(Auto/vue)轨转正
@@ -282,6 +282,30 @@ frontend/（musk-config-remote 独立小应用，与 web/ 无关）。
   web 域标 frozen。验证：本节回填收口记录 + `/auto-plan:review`。
 - [x] **T16** spec 沉淀准备：整理 spec-impact（touched_goals：双前端 parity →
   单源多后端），转 /auto-plan:review。验证：frontmatter 元数据填齐。
+
+### Phase 5 — auto-lang 侧缺口修复(KNOWN-DEBT 041a 六项;跨仓执行)
+
+> 复审后追加(2026-08-26):041 债务收口在 musk 侧的六项绕行,根因在
+> auto-lang——本 Phase 在 auto-lang worktree 修复,musk 为消费面复验
+> (build 摘 --lenient / 对拍 / workaround 回撤为验收)。
+
+- [ ] **T17** a2ts 字符串方法映射补 `trim_end`→`trimEnd`(musk 侧曾以
+  改用 trim() 绕行,与 web 的 trimEnd 语义有边缘差)。验证:auto-lang
+  单测 + musk specs_helpers 回撤 trim_end 后对拍 30/30。
+- [ ] **T18** S002 slot 误报:schema(aura.at)登记 `slot` 元素(native)
+  ——strict 默认(auto-lang Plan 015)下 musk 全量 build 不再需 --lenient。
+  验证:musk `auto build`(无 flag)0 错。
+- [ ] **T19** 原生元素可达性:native_select/button(及 pre/code/ol/li)
+  backends web:"none" → div 兜底不可用;修正为原生标签发射。验证:探针
+  生成物为原生标签;musk TestDetail 切回 pre/code/ol/li 后对拍 N16/N17
+  可撤。
+- [ ] **T20** 解析器三坑:句首 `.` 方法链吞并前一语句、属性绑定嵌套 fn
+  调用、`||` 链>4 项解析失败、`to` 保留字报错不清(四小项)。
+  验证:各加 parser/codegen 回归测试。
+- [ ] **T21** 动态拼接 Regex pattern 转译(F4 字面量限制):`Regex.match(s, expr)`
+  非字面量形态发射 `new RegExp(expr)` 包装。验证:auto-lang 单测。
+- [ ] **T22** 表单元素 value 绑定 prop 目标生成 v-model 编译红:非 model
+  变量目标改发射 `:value`。验证:探针 + auto-lang 单测。
 
 ## 复审记录
 
