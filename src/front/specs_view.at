@@ -166,13 +166,13 @@ widget SpecsView {
                         if .store.document != None {
                             // PLAN-041 T3:分域组件接线(web SpecsView 同构)。
                             if .active_section == "goals" {
-                                GoalsTable {  {
+                                GoalsTable {
     items: specSectionItems(.store.document, .active_section)
     project: .store.project
 }
                             } else {
                                 if .active_section == "architecture" {
-                                    ArchitectureCards {  {
+                                    ArchitectureCards {
     items: specSectionItems(.store.document, .active_section)
     project: .store.project
     expanded_id: .active_item_id
@@ -180,7 +180,7 @@ widget SpecsView {
 }
                                 } else {
                                     if .active_section == "designs" {
-                                        DesignCards {  {
+                                        DesignCards {
     items: specSectionItems(.store.document, .active_section)
     project: .store.project
     expanded_id: .active_item_id
@@ -188,7 +188,7 @@ widget SpecsView {
 }
                                     } else {
                                         if .active_section == "tests" {
-                                            TestsCards {  {
+                                            TestsCards {
     items: specSectionItems(.store.document, .active_section)
     project: .store.project
     expanded_id: .active_item_id
@@ -196,7 +196,7 @@ widget SpecsView {
 }
                                         } else {
                                             if .active_section == "reviews" {
-                                                ReviewCards {  {
+                                                ReviewCards {
     items: specSectionItems(.store.document, .active_section)
     project: .store.project
     expanded_id: .active_item_id
@@ -204,7 +204,7 @@ widget SpecsView {
 }
                                             } else {
                                                 if .active_section == "reports" {
-                                                    ReportCards {  {
+                                                    ReportCards {
     items: specSectionItems(.store.document, .active_section)
     project: .store.project
     expanded_id: .active_item_id
@@ -212,7 +212,7 @@ widget SpecsView {
 }
                                                 } else {
                                                     // plans/api 及未知 section:通用 CategoryList。
-                                                    CategoryList {  {
+                                                    CategoryList {
     items: specSectionItems(.store.document, .active_section)
     project: .store.project
     expanded_id: .active_item_id

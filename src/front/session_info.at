@@ -26,6 +26,7 @@ widget SessionInfo() {
         refs i18n: [locale]
     }
     computed {
+        sessionIdText => if .sessionId != "" { .sessionId } else { "—" }
         sessionId => .store.session_id
         messageCount => session_message_count(.store.messages)
         tokenCost => session_token_cost(.store.errands)
@@ -104,7 +105,7 @@ widget SessionInfo() {
                         span { style: "session-info-label", text i18n.t("chat.chatId") }
                         code {
                             style: "session-info-value session-info-id"
-                            text if .sessionId != "" { .sessionId } else { "—" }
+                            text .sessionIdText
                         }
                         button {
                             onclick: .CopyId
