@@ -50,8 +50,15 @@ fn platformRunRelayCommand(cmd Value) {
     print("relay command skipped on vm target: " + flow)
 }
 
-// PLAN-045: 视口高度端口——web 侧为 window.innerHeight;VM/iced 目标常量降级
-// (桌面窗口实际高度暴露为后续增强,KNOWN-DEBT 045 登记 partial)。
+// PLAN-045 立项 / PLAN-046-T7 真值化:视口高度端口。web 侧 window.innerHeight
+// 恒等;VM 侧读会话 KV vm.window_inner_height——iced renderer 于
+// startup_window_size() 发布基线、双 __window_resized 漏斗实时刷新
+// (auto-lang master plan-046-B 桥)。读不到(旧宿主/极端时序)回落 720。
 fn platformViewportHeight() int {
+    let raw = localStorage.getItem("vm.window_inner_height")
+    if raw != None {
+        let h = raw.to_int()
+        if h > 0 { return h }
+    }
     return 720
 }

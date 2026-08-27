@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-046
-status: executing
+status: execution_done
 feature_name: musk VM 轨 workaround/债务集中清偿——obj 族 native + 真值化认证视口接线 + 体积观察门禁
 author: [zhaopuming]
 created_at: 2026-08-27
@@ -211,11 +211,12 @@ KNOWN-DEBT 台账）；不动 web/（冻结）、backend/。
   端到端 ×2 #[ignore] 带理由。]
 - [ ] **T3** auto-lang:window height native(T1-b 判缺失才做;已有则跳过并在注中
   记复用决定) + 回归测试。验证:同上。
-  [⏸ 复核后仍挂起(2026-08-27 收尾批实证):454-E5 只收 obj 族三缺口,
-  window-height 上游面不存在(catalog 无 inner/viewport_height 族,提交史
-  无相关件)。真值化需跨层设计而非 shim:iced renderer 持真实窗口,须在
-  启动/resize 时把高度写入进程级 KV(Plan 401 storage 面),musk 端口再读
-  ——涉 ui-iced 渲染面(plan-455 在途域),规格已录台账 046-B;T7 同步等。]
+  [✅(2026-08-27 本会话跨仓微批):auto-lang 分支 plan-046-window-height
+  已合 master——stdlib 增 pub storage_host_publish(与 Storage.set 同契约),
+  renderer.rs 三挂点(startup_window_size() 单点基线发布 + 两处
+  __window_resized 漏斗实时刷新);回归语料 +host_publish_roundtrip,
+  master lib 复跑 3219 全绿。运行时实测注:真实窗口值的端到端冒烟需起
+  desktop UI,与 logout 手测同批留用户观察期动作。]
 - [ ] **T4** musk 规避位点清册:grep `[]str` 显式注解用于参数传递处、手扫替代
   slice/find 的循环形态（含 T6 注所列 keys 索引形态),逐位点标注「回撤/保留
   （自然写法）」两类。产出位点清册附于本任务注。验证:清册覆盖探针历史日志变量
@@ -257,8 +258,13 @@ KNOWN-DEBT 台账）；不动 web/（冻结）、backend/。
   auto.obj.keys 兜住;规避属性消失。「values-typed 包装」立为上游
   ts_adapter 新潜在项(台账 046-A′)。VM-clean 标记注释同步清除。
   验证:build strict 绿+vitest 23+1+对拍 30/30。]
-- [ ] **T7** musk viewportHeight 真值接入(web 恒等/vm native)。验证:auto build
+- [x] **T7** musk viewportHeight 真值接入(web 恒等/vm native)。验证:auto build
   + 探针 PASS + 弹层冒烟一次居中。
+  [✅(2026-08-27):platform.vm.at 改读会话 KV `vm.window_inner_height`
+  (localStorage.* 家族,auth_store 同款 None 判定),>0 校验后返回,
+  读不到回落 720(旧宿主/极端时序兜底)。web adapter 恒等不动。
+  验证:build strict exit0+vitest 23+1+对拍 30/30+探针×2
+  (60803/60805 PASS)。弹层居中冒烟留桌面实机。]
 - [ ] **T8** musk 认证清偿落码(按 T5 选型,派发点位与/或 401 兜底)。
   验证:auto build + 探针;模拟过期路径行为链人工核对(token 清空→下次请求无
   Authorization 头,以平台注释或临时日志确认后拆除临检代码)。
@@ -312,10 +318,11 @@ KNOWN-DEBT 台账）；不动 web/（冻结）、backend/。
   终态注记(2026-08-27 收尾批):上游两轮推进后本批终验全绿——探针×2
   (60743/60753 bytes PASS)+build strict+vitest 23+1+对拍 30/30;
   auto-lang lib 全绿含 obj 语料 4/4(T2 靶子转绿=454-E5)。
-  **T7 未做**(验收#2 唯一未达项):等台账 046-B 的 renderer→KV 跨层设计
-  落地后方可真值化收口;届时 /auto-plan:work 微批补完→execution_done。
-  其余验收:#1 ✓(R1-R3 清册回撤>0,R4 改判留档)#3 ✓(协议固化)
-  #4 按条件项路线 BLOCKED 登记 ✓ #5 ✓ #6 ✓。]
+  终态(2026-08-27 全闭):验收 #1-#6 全达——#2 经本会话跨仓微批
+  (auto-lang master plan-046-B 合并点,lib 3219 绿)+ musk 端口 KV 化补完;
+  四门禁终轮全绿(探针×2 60803/60805、build exit0、vitest 23+1、对拍
+  30/30)。唯一留观=desktop 实机冒烟(高度生效+弹层居中),归入观察期
+  手测清单,不阻塞入档。]
 
 ## 复审记录
 
