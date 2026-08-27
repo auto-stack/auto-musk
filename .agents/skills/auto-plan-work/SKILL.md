@@ -61,16 +61,31 @@ cd .worktrees/plan-<NNN>-dev
 - Branch name = worktree name (`plan-<NNN>-dev`). Commit completed steps onto
   that branch as you go. First entry is cold — install deps / rebuild inside
   the worktree as the plan's steps require.
+- **ONE worktree per plan per repo — for the plan's whole lifetime.** Never
+  open a second worktree for a later phase/batch/concern of the same plan;
+  later phases commit onto the same branch. If you find yourself typing
+  `git worktree add` mid-plan, that is a process bug — reuse the existing
+  worktree.
+- **Multi-phase plans land incrementally.** After a phase's verification
+  passes (and its commits are in), merge the branch into the default
+  branch, then sync the default branch back into the worktree
+  (`git merge <default>` inside the worktree) before starting the next
+  phase. Long-running plans drift badly behind a live default branch
+  (parallel sessions keep advancing it); per-phase fold + re-sync keeps the
+  worktree current and lets cross-repo consumers pick landed phases up
+  early. The worktree itself stays put — final cleanup/removal remains
+  `/auto-plan:merge`'s job.
 - **Plan-file bookkeeping stays on the default checkout.** `[✅]` markers,
   frontmatter flips, and 待澄清事项 entries go into the main checkout's
   `docs/plans/<NNN>-*.md` — every skill reads the plan from there, so progress
   must stay visible on the default checkout. Only product/code changes belong
   in the worktree.
 - **Dependency projects:** when a step must modify another project this repo
-  depends on (e.g. `auto-musk` depends on `auto-lang`), open a worktree in
-  THAT project too — named after THIS project: `<dep-root>/.worktrees/auto-musk-dev`,
-  same-name branch. Never edit a dependency checkout outside its own worktree.
-  Fold each dependency worktree back into the dependency's main branch as soon
+  depends on (e.g. `auto-musk` depends on `auto-lang`), open ONE worktree in
+  THAT project — named after THIS project: `<dep-root>/.worktrees/auto-musk-dev`,
+  same-name branch, reused for the whole plan (same one-worktree rule).
+  Never edit a dependency checkout outside its own worktree. Fold each
+  dependency worktree back into the dependency's main branch as soon
   as this repo consumes the change (dependency bump verified in integration) —
   don't leave them dangling until plan completion.
 
@@ -108,9 +123,11 @@ Once every step has `[✅]` and every verification has passed:
    inside the worktree.
 3. Hand off: tell the user the plan is ready for `/auto-plan:review`.
 
-Leave `.worktrees/plan-<NNN>-dev` (and its branch) in place — folding it back
-into main is `/auto-plan:merge`'s job. Do not review or merge — those are
-separate skills.
+Leave `.worktrees/plan-<NNN>-dev` (and its branch) in place — final fold +
+cleanup + deletion is `/auto-plan:merge`'s job. (Per-phase incremental merges
+into the default branch, per Step 2, are landing progress — they are not the
+terminal fold and do not remove the worktree.) Do not run the review or merge
+skills — those are separate hand-offs.
 
 ## When to stop and ask for help
 
@@ -124,6 +141,9 @@ Ask rather than guess — a wrong step propagates to every later step.
 ## Rules
 
 - **Only read the target plan.** No specs, no other plans, no design docs mid-flight.
+- **One worktree per plan per repo, whole plan lifetime** — no per-phase or
+  per-concern worktrees; multi-phase plans land by merging the branch into
+  the default branch per phase and re-syncing (Step 2).
 - **Code changes only in the worktree; bookkeeping only on the default checkout.**
   Product/code edits go into `.worktrees/plan-<NNN>-dev`; `[✅]` markers and
   frontmatter flips stay on the default checkout's plan file.
