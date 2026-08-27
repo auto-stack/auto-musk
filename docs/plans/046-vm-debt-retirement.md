@@ -201,9 +201,10 @@ KNOWN-DEBT 台账）；不动 web/（冻结）、backend/。
   可行,运行时实证留 T8 冒烟。]
 - [x] **T2** auto-lang worktree `plan-046-obj-natives`:obj 方法族 VM native
   （按 T1-a 最小集,防过度设计）+ 回归测试。验证:其仓测试全绿 + 自有新测试过。
-  [⚠️ 半程入档(2026-08-27 续跑批):**注册/路由/链接三关已打通**,shim 实体落地
-  ——WIP 分支 auto-lang `plan-046-obj-natives`@10e8bffa3(按约不合 master);
-  上游全量 lib 3216 passed 零回归。**残余=动态值运行时语义层**(03 缺口:
+  [⚠️ 半程入档(2026-08-27 续跑批;同日用户裁定基线提前并入 master):**注册/路由/
+  链接三关已打通**,shim 实体落地——auto-lang master `0737c26f3`
+  (原 WIP 分支 plan-046-obj-natives@10e8bffa3,合并后 musk 探针/build/对拍
+  三门禁复验绿)。**残余=动态值运行时语义层**(03 缺口:
   Option 返回在无类型路径的表示传播/谓词闭包×GET_FIELD 协作/auto.obj.* 结果
   的静态型别标注),完整规格+插入点坐标见分支提交体与 KNOWN-DEBT 046-A;
   建议并入 plan454 队列以该分支为基续作。回归语料:注册表断言 ×2 passed,
