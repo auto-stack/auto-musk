@@ -47,6 +47,18 @@ head -10 docs/plans/<NNN>-*.md | grep 'status:'
 If not `reviewed`, **stop**. Do not "merge anyway" — tell the user what status
 it is and which skill to run.
 
+Then a cheap final sweep before anything becomes permanent — review itself can
+have been rushed, and archiving is terminal:
+
+```bash
+grep -n '\- \[ \]' docs/plans/<NNN>-*.md   # unchecked tasks left behind?
+```
+
+Also re-read 复审记录 and the open-questions section in the plan body: an
+unapproved deferral (延后), a blocking debt candidate, or a silently dropped
+task means the plan goes back — `/auto-plan:work` to fix or `/auto-plan:review`
+to re-verify — never forward into the archive.
+
 ### Step 2: Fold the execution worktree back into main, then clean up
 
 Before depositing knowledge, land the reviewed code onto the main branch and
@@ -137,6 +149,9 @@ the plan now lives.
 ## Rules
 
 - **Never merge a plan that is not `reviewed`.** The review gate exists for a reason.
+- **Sweep before sealing.** Archiving is terminal — glance one last time for
+  unchecked tasks, unapproved deferrals (延后), or workarounds that slipped
+  past review; anything found sends the plan back, not forward.
 - **Land the worktree first.** Fold `.worktrees/plan-<NNN>-dev` back into main
   and delete worktree + dev branch BEFORE depositing/archiving; do it
   idempotently (skip silently when already folded). Never leave the scaffolding behind.
@@ -152,6 +167,8 @@ the plan now lives.
 ## Checklist
 
 - [ ] Plan confirmed `reviewed` (gate passed)
+- [ ] Final sweep clean: no unchecked `- [ ]` tasks, no unapproved deferrals
+      or blocking debt left in the plan body
 - [ ] `.worktrees/plan-<NNN>-dev` branch landed on main; worktree and dev branch removed (or confirmed already gone)
 - [ ] Spec items deposited into the 6 sections, each with `file` + `related` traceability
 - [ ] `specs.json` saved with the new items

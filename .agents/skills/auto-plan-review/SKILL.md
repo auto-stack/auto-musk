@@ -64,12 +64,25 @@ Record each as pass / partial / fail with a `file:line` or command-output
 evidence note. **Any unfinished or workaround-forced item is recorded, not
 hidden** (it becomes a debt candidate).
 
-### Step 3: Check for dropped sub-items and workarounds
+### Step 3: Hunt for 遗漏 / 延后 / workaround (the lazy-convergence check)
 
-- A task marked Done that lost a sub-item (a test, a call-site update, a config)?
-- Any `// TODO`, hack, scope reduction, or "works but not clean" approach —
-  especially one forced by an upstream limit? Each is a debt candidate; record
-  it with the root cause.
+The executor optimizes for finishing fast. To converge quickly it tends to
+silently drop part of a task, defer it "for later" once it finds any excuse,
+or paper over it with a workaround — then report the whole plan complete.
+Assume this may have happened; hunt for all three patterns explicitly:
+
+- **遗漏 (dropped):** a task marked Done that lost a sub-item (a test, a
+  call-site update, a config)? A plan-level task with no corresponding change
+  in the diff at all?
+- **延后 (deferred):** anything postponed to "a follow-up plan / later batch"
+  without the user approving the split?
+- **Workaround:** any `// TODO`, hack, scope reduction, or "works but not
+  clean" approach — especially one forced by an upstream limit?
+
+Each finding is a debt candidate: record it with the root cause. A deferral
+the user never signed off on means the plan is *not* actually complete — fail
+the review and put it on the fix list; recording it as debt alone does not
+make the plan pass.
 
 ### Step 4: Fill in the spec-impact metadata (the key step for merge)
 
@@ -109,6 +122,8 @@ candidates. Then route:
   onto main happens in `/auto-plan:merge`, after this gate passes.
 - **Trust code over plan text.** Record divergences in the review record.
 - **Never set `reviewed` on unverified work.** Partial → fail the review.
+- **No silent deferrals.** Postponing a task, shrinking scope, or swapping in
+  a workaround without saying so counts as incomplete, not done.
 - **Metadata must be precise.** `/auto-plan:merge` reads it verbatim.
 - **Never merge.** This skill stops at `reviewed`; merging is `/auto-plan:merge`.
 - **Defer to specialists.** After `reviewed`, the broader `/finish-plan` can
@@ -119,7 +134,7 @@ candidates. Then route:
 - [ ] Plan loaded alongside the actual code diff
 - [ ] Verification re-ran inside `.worktrees/plan-<NNN>-dev` (or on the default checkout if already folded)
 - [ ] Every acceptance criterion re-verified (pass/partial/fail + evidence)
-- [ ] Dropped sub-items and workarounds identified and recorded
+- [ ] 遗漏 / 延后 / workarounds hunted explicitly and recorded
 - [ ] `supersedes_spec_components` / `new_spec_components` / `touched_goals`
       filled precisely (or left empty if not applicable)
 - [ ] `## 复审记录` written with per-criterion verdicts
