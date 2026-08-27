@@ -27,16 +27,9 @@ fn getTaskPlan(taskPlans obj, tc obj) obj {
 
 /** 按 tool_call_id 在 errands record 里查 errand 状态。 */
 fn getErrandByToolCallId(errands obj, toolCallId str) obj {
-    // obj 接收者 .find 无 VM native(446-D4)——手扫(PLAN-045 VM-clean;
-    // 经 keys 索引访问规避 Object.values 的 unknown 元素类型)
-    let keys = Object.keys(errands)
-    var vi = 0
-    while vi < keys.length {
-        let e = errands[keys[vi]]
-        if e.tool_call_id == toolCallId { return e }
-        vi = vi + 1
-    }
-    return None
+    // PLAN-046 T6 回撤:Object.values().find 自然形态(auto-lang 454-E5 解锁)
+    let es = Object.values(errands)
+    return es.find(e => e.tool_call_id == toolCallId)
 }
 
 fn getErrandTask(tc obj) str {

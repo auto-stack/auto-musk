@@ -12,8 +12,12 @@
 fn session_token_cost(errands obj) int {
     var total = 0
     if errands != None {
-        let keys = Object.keys(errands)
-        for k in keys {
+        // PLAN-046 复核:keys 循环形态保留——不再是为绕 VM 链接的 workaround
+        // (auto.obj.keys 已是原生实现且运行时正确,454-E5),而是 vue 轨 TS 对
+        // Object.values 元素一率推 {} 的类型墙(session_data_helpers.ts 实证);
+        // 待上游 ts_adapter 为 auto.obj.values 发 explicitly-typed 包装后再撤。
+        let ks = Object.keys(errands)
+        for k in ks {
             let e = errands[k]
             if e != None {
                 total = total + (e.token_usage ?? 0)

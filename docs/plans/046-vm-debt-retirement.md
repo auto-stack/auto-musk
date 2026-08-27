@@ -211,10 +211,11 @@ KNOWN-DEBT 台账）；不动 web/（冻结）、backend/。
   端到端 ×2 #[ignore] 带理由。]
 - [ ] **T3** auto-lang:window height native(T1-b 判缺失才做;已有则跳过并在注中
   记复用决定) + 回归测试。验证:同上。
-  [⏸ 同批移交(2026-08-27 续跑批裁定):native 本体独立可做,但真值化需 iced
-  renderer 暴露面 + 端到端弹层实证,与 T2 残余同属"上游续作批";拆散两处
-  分散落地不如随 T2 终态一批走,musk 侧 T7 同步等。447 冲突已消——本项
-  与 T2 非文件冲突性挂起,是批次完整性挂起。]
+  [⏸ 复核后仍挂起(2026-08-27 收尾批实证):454-E5 只收 obj 族三缺口,
+  window-height 上游面不存在(catalog 无 inner/viewport_height 族,提交史
+  无相关件)。真值化需跨层设计而非 shim:iced renderer 持真实窗口,须在
+  启动/resize 时把高度写入进程级 KV(Plan 401 storage 面),musk 端口再读
+  ——涉 ui-iced 渲染面(plan-455 在途域),规格已录台账 046-B;T7 同步等。]
 - [ ] **T4** musk 规避位点清册:grep `[]str` 显式注解用于参数传递处、手扫替代
   slice/find 的循环形态（含 T6 注所列 keys 索引形态),逐位点标注「回撤/保留
   （自然写法）」两类。产出位点清册附于本任务注。验证:清册覆盖探针历史日志变量
@@ -245,8 +246,17 @@ KNOWN-DEBT 台账）；不动 web/（冻结）、backend/。
   必须动上游 stdlib=撞 447 冲突集。落型:T8 取"协议固化注记"路线(auth_store.Me
   注 + platform.vm.at 头注刷新),行为零变化;401 native 化并入 046 同步批次。
   新增待澄清#5 三选一留用户裁定(见待澄清节)。]
-- [ ] **T6** musk obj 回撤改写(按 T4 清册「回撤」类) 。验证:`auto build` strict
+- [x] **T6** musk obj 回撤改写(按 T4 清册「回撤」类) 。验证:`auto build` strict
   exit 0;`npx -y vitest@2.1.9 run` 23+1;对拍 30/30。
+  [✅(2026-08-27 收尾批,上游=454-E5@db22358ec):
+  R1 relayFindRun→runs.find(r=>…) ✓;
+  R2 relay_store 存活性→data.find(r=>…) ✓;
+  R3 getErrandByToolCallId→Object.values(errands).find(e=>…) ✓;
+  **R4 改判保留**:Object.values 消费在 vue 轨撞 TS 类型墙(元素一率推 {},
+  for-of 与索引循环同证),形态维持 keys 循环且运行时正确性已由原生
+  auto.obj.keys 兜住;规避属性消失。「values-typed 包装」立为上游
+  ts_adapter 新潜在项(台账 046-A′)。VM-clean 标记注释同步清除。
+  验证:build strict 绿+vitest 23+1+对拍 30/30。]
 - [ ] **T7** musk viewportHeight 真值接入(web 恒等/vm native)。验证:auto build
   + 探针 PASS + 弹层冒烟一次居中。
 - [ ] **T8** musk 认证清偿落码(按 T5 选型,派发点位与/或 401 兜底)。
@@ -299,10 +309,13 @@ KNOWN-DEBT 台账）；不动 web/（冻结）、backend/。
   1 skipped;对拍 30/30 normalized equal。cargo test -p musk 不重跑
   (零 backend 改动,引 041 复审 614 绿基线——同计划测试设计#4)。
   auto-lang master 合并=e3abde1ba(probe-size 小批,worktree/分支即焚)。
-  **T2/T3/T6/T7 未勾**:按待澄清#1 默认裁定挂起(plan-447 活跃会话撞
-  stdlib.rs/native_catalog.rs 文件面),去向=KNOWN-DEBT 046 行同步批次
-  A/B 两件;447 合并后重入 /auto-plan:work 补完本计划剩余任务,届时再定
-  execution_done。]
+  终态注记(2026-08-27 收尾批):上游两轮推进后本批终验全绿——探针×2
+  (60743/60753 bytes PASS)+build strict+vitest 23+1+对拍 30/30;
+  auto-lang lib 全绿含 obj 语料 4/4(T2 靶子转绿=454-E5)。
+  **T7 未做**(验收#2 唯一未达项):等台账 046-B 的 renderer→KV 跨层设计
+  落地后方可真值化收口;届时 /auto-plan:work 微批补完→execution_done。
+  其余验收:#1 ✓(R1-R3 清册回撤>0,R4 改判留档)#3 ✓(协议固化)
+  #4 按条件项路线 BLOCKED 登记 ✓ #5 ✓ #6 ✓。]
 
 ## 复审记录
 

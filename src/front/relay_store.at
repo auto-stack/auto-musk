@@ -66,14 +66,9 @@ store RelayStore {
                 .runs = data
                 // 失效 current_run 清理（列表已无此 run）
                 if .current_run != None {
-                    // obj .find 无 VM native(446-D4)——手扫(PLAN-045 VM-clean)
+                    // PLAN-046 T6 回撤:obj.find 已端到端可用(auto-lang 454-E5)
                     let cid = .current_run.run_id
-                    var still = None
-                    var si = 0
-                    while si < data.length {
-                        if data[si].run_id == cid { still = data[si] }
-                        si = si + 1
-                    }
+                    let still = data.find(r => r.run_id == cid)
                     if still == None { .current_run = None }
                 }
             } catch {

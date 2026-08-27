@@ -10,13 +10,8 @@ fn relayFindRun(runs obj, currentRun obj, runId str) obj {
     if currentRun != None {
         if currentRun.run_id == runId { return currentRun }
     }
-    // obj 接收者 .find 无 VM native(446-D4)——手扫(PLAN-045 VM-clean)
-    var ri = 0
-    while ri < runs.length {
-        if runs[ri].run_id == runId { return runs[ri] }
-        ri = ri + 1
-    }
-    return None
+    // PLAN-046 T6 回撤:obj.find 已端到端可用(auto-lang 454-E5)
+    return runs.find(r => r.run_id == runId)
 }
 
 /** 状态→中文标签。 */
