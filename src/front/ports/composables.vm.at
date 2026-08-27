@@ -6,9 +6,11 @@
 // 双轨读写互通）。useGateRouter 是 vue 路由组合式,VM 轨视图切换走状态机,
 // 降级为 no-op 桩（返回空对象,调用面仅判空）。
 
-use.web i18nT from "src/front/lib/i18n.at"
-// (装载钩子:i18n.at 经此进编译图;调用面用模块限定名 i18n.i18nT——adapter
-//  内部 use.web 别名不进 codegen 绑定面,442 B 探针实测。)
+use i18nT from "src/front/lib/i18n.at"
+// PLAN-047 T3:原 use.web 门控解除——i18n.at 是零生态依赖纯 .at(038 验收),
+// VM 编译图需它常驻否则 useT 闭包内调用落成 no-op 桩(首跑红清单 R2 实证:
+// i18nT 桩 arity0)。门控取消后经 scanner 正常装载,i18nT 直接符号可解析,
+// 闭包体内改直调。vue 轨不消费本 adapter,零影响。
 
 fn settings_locale_get() str {
     let saved = storage.get("musk-language")
@@ -32,7 +34,7 @@ fn settingsChangeLocale(l str) {
     使 settingsChangeLocale 后的文案即时跟随(对齐 vue-i18n 反应语义)。 */
 fn useT() {
     return (key, params) => {
-        return i18n.i18nT(settings_locale_get(), key, params)
+        return i18nT(settings_locale_get(), key, params)
     }
 }
 
