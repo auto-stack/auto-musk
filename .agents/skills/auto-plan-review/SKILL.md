@@ -37,13 +37,15 @@ asks. `drafting`/`executing` with unfinished steps → refuse and point to
 
 ### Step 1: Load the plan AND the actual code
 
-Read the plan file. Then look at the real diff and the real files it claims to
-have touched. Plans drift from implementation — **trust the code** when they
-disagree.
+Read the plan file (it lives on the default checkout). Then look at the real
+diff and the real files it claims to have touched — from inside the execution
+worktree `.worktrees/plan-<NNN>-dev`. If the worktree is already gone, its
+branch was folded into main early; verify against the default checkout instead.
+Plans drift from implementation — **trust the code** when they disagree.
 
 ```bash
 git log --oneline -20                 # what actually committed
-git diff <branch-base>..HEAD --stat   # what actually changed
+git diff <branch-base>..HEAD --stat   # what actually changed (run in .worktrees/plan-<NNN>-dev)
 ```
 
 ### Step 2: Re-verify every acceptance criterion
@@ -100,6 +102,11 @@ candidates. Then route:
 ## Rules
 
 - **Verify, don't trust.** A checked box is a claim. Re-run every verification.
+- **Re-run verifications inside the execution worktree**
+  (`.worktrees/plan-<NNN>-dev`); write 复审记录 and status flips to the plan
+  file on the default checkout.
+- **Never fold the branch back here.** Landing `.worktrees/plan-<NNN>-dev`
+  onto main happens in `/auto-plan:merge`, after this gate passes.
 - **Trust code over plan text.** Record divergences in the review record.
 - **Never set `reviewed` on unverified work.** Partial → fail the review.
 - **Metadata must be precise.** `/auto-plan:merge` reads it verbatim.
@@ -110,6 +117,7 @@ candidates. Then route:
 ## Checklist
 
 - [ ] Plan loaded alongside the actual code diff
+- [ ] Verification re-ran inside `.worktrees/plan-<NNN>-dev` (or on the default checkout if already folded)
 - [ ] Every acceptance criterion re-verified (pass/partial/fail + evidence)
 - [ ] Dropped sub-items and workarounds identified and recorded
 - [ ] `supersedes_spec_components` / `new_spec_components` / `touched_goals`

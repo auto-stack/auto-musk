@@ -105,6 +105,11 @@ edits. Starting execution is `/auto-plan:work`'s job, not this skill's.
 
 ## Rules
 
+- **Draft on the default checkout; code lands in a worktree later.** The plan
+  doc must stay visible on the default checkout (the backend and every other
+  skill read `docs/plans/` from there). Actual implementation happens in a
+  dedicated worktree `.worktrees/plan-<NNN>-dev`, created by `/auto-plan:work`
+  when execution starts.
 - **Never read other plan files.** They pollute context and bias the draft.
 - **Only read the spec overview**, not full spec contents.
 - **Sequence numbers are computed from the filesystem, never hardcoded.**
