@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-041
-status: executing
+status: reviewed
 feature_name: web 手写轨退役——gen(Auto/vue)轨转正为生产前端
 author: [zhaopuming]
 created_at: 2026-08-23
-updated_at: 2026-08-26
+updated_at: 2026-08-27
 
 supersedes_spec_components:
   - "web/ 手写前端轨(生产真源地位 → 冻结/退役,回滚指针 MUSK_WEB_DIST)"
@@ -316,7 +316,7 @@ frontend/（musk-config-remote 独立小应用，与 web/ 无关）。
   对拍 N16/N17 撤除后 **30/30 全等**。NativeSelect ext 组件保留(select
   元素仍映射 shadcn Select,需 onchange/option value 语义;native_select
   元素直连为后续简化项)。]
-- [ ] **T20** 解析器三坑:句首 `.` 方法链吞并前一语句、属性绑定嵌套 fn
+- [x] **T20** 解析器三坑:句首 `.` 方法链吞并前一语句、属性绑定嵌套 fn
   调用、`||` 链>4 项解析失败、`to` 保留字报错不清(四小项)。
   验证:各加 parser/codegen 回归测试。
   [✅ 收口(2026-08-26,auto-lang 7d5f457b8):①句首 . 语句 glue——根因是
@@ -349,6 +349,10 @@ session_info text-if 块内 dot 改 computed 中转。终态验证:auto build(st
 ## 复审记录
 
 **reviewer**: auto-plan:review(zhaopuming 会话) · **2026-08-26** · 入态 execution_done → **reviewed**
+
+> **2026-08-27 文档回填**:Phase 5(T17-T22)已于 09bf2d1 收口,status 自 executing
+> 回置 **reviewed**(延续本节路由裁定,merge 前提不变 = 观察期 2026-09-03 期满无 P0);
+> T20 勾选框对齐其 ✅ 收口标注。无实质变更。
 
 ### 验收标准逐条复审(verify, don't trust)
 

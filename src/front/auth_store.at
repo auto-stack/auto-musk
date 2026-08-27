@@ -82,6 +82,12 @@ store AuthStore {
         }
 
         // Me: 拉 /api/auth/me 刷新 user 信息；失败则 logout。
+        // PLAN-046 T5/T8 勘察注:store 层不可跨层调 ports——此处 Logout 后
+        // VM 轨默认认证头滞留(web 无此问题,monkey-patch 每请求重读
+        // localStorage)。清偿协议:UI 化 logout 派发点须同步调
+        // platformRefreshAuth()(login.at:116 同款);401 兜底需上游暴露
+        // Http status 面——已入 KNOWN-DEBT 046 同步义务。现状:.Me 零派发点
+        // (预留),滞留实际暴露面为零。
         .Me -> {
             if .token == None { return None }
             let me = auth_me()

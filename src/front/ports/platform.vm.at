@@ -26,9 +26,11 @@ fn platformSetupAuthFetch() {
 }
 
 // 认证面重注入(login/register/restore 后经 login.at Submit / App Init 调用;
-// web adapter 为 no-op)。已知边缘:auth_store.Me 内部的 Logout()(会话过期)
-// 无法跨层调端口,VM 默认头滞留至下次 login/register/重启——后续 UI 化
-// logout 时在派发点补调即可(KNOWN-DEBT 041/045 语义,非阻塞)。
+// web adapter 为 no-op)。过期边缘(PLAN-046 T5/T8 刷新):auth_store.Me 内部
+// Logout() 无法跨层调端口,VM 默认头滞留至重登录/重启;Me 当前零派发点
+// (预留死码),滞留实际暴露面为零。清偿协议:UI 化 logout 派发点必须同步调
+// 本 fn(login.at:116 同款);401 兜底待上游暴露 Http status 面(auto-lang
+// stdlib,KNOWN-DEBT 046 同步义务,plan-447 冲突批后)。
 fn platformRefreshAuth() {
     let token = localStorage.getItem("musk_jwt") ?? ""
     let wid = localStorage.getItem("musk_workspace") ?? ""
