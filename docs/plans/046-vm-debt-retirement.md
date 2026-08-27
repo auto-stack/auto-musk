@@ -1,12 +1,15 @@
 ---
 plan_id: PLAN-046
-status: execution_done
+status: reviewed
 feature_name: musk VM 轨 workaround/债务集中清偿——obj 族 native + 真值化认证视口接线 + 体积观察门禁
 author: [zhaopuming]
 created_at: 2026-08-27
 updated_at: 2026-08-27
 
 supersedes_spec_components: []
+# 理由(2026-08-27 复审):本计划为基建/债务清偿性质,无 spec 域文件增删
+# ——沿 PLAN-045 先例留空;.at 编写规约(R1-R3)属工程约定沉淀,载体为
+# src/front/README.at-conventions.md 与 KNOWN-DEBT 台账,merge 时随计划归档。
 new_spec_components: []
 touched_goals: []
 
@@ -326,7 +329,35 @@ KNOWN-DEBT 台账）；不动 web/（冻结）、backend/。
 
 ## 复审记录
 
-（/auto-plan:review 待触发后回填）
+**reviewer**: auto-plan:review(zhaopuming 会话)· **2026-08-27** · execution_done → **reviewed**
+
+### 验收标准逐条复审(verify, don't trust)
+
+| # | 标准 | 判定 | 证据 |
+|---|---|---|---|
+| 1 | 探针 PASS+体积行;obj 规避形态 grep 清零(回撤位点>0) | ✅ pass | 探针 exit0、`linked-modules-total 60817 bytes`(fresh rerun);R1/R2/R3 三位点已自然 find/values 形态(relay_run_helpers.at:14 / relay_store.at:71 / forge_helpers.at);残留 VM-clean 标记×2 经定性均非 045 行③域(forge_store=D5 规约正例指针、mention_helpers=视口移植史注);R4 改判保留有据(vue-TS 墙实测) |
+| 2 | platformViewportHeight 返回真实值;partial 转正 | ✅ pass | musk 端口读 KV(platform.vm.at:58)+上游链路实证(auto-lang master:storage_host_publish+startup/双 resize 发布共 7 处引用);runtime 实测留观察期手测(desktop 冒烟,备案不阻塞——headless 无法起窗) |
+| 3 | 认证滞留存在代码级清理路径其一 | ✅ pass | 清偿协议固化注记(auth_store.Me / platform.vm.at 头注)+既有可调路径 platformRefreshAuth(login.at:116/App Init 已接线);401 兜底按用户裁定 a 不做,台账留边缘注 |
+| 4 | relay 条件项(A1 依赖) | ✅ 按条文处理 | A1 未合入→BLOCKED 登记(KNOWN-DEBT 442 行尾+046 行独立阻塞件),条文明确"不视为失败但不标闭";A1 合入后由后续批接线 |
+| 5 | 规约文档存在且被引;阈值可配置+依据说明 | ✅ pass | src/front/README.at-conventions.md 在案+KNOWN-DEBT 045 行④改指;probe 脚本头部阈值常数/env 覆盖/实测锚点注齐备(:15/:29) |
+| 6 | 不动 web//backend/;auto-lang 改动走 worktree 有测试回归 | ✅ pass | 39d6977^..HEAD 全量文件清单无 web/backend;obj 族基线(worktree 流程,lib 3216 绿)+window-height 微批(plan-046-window-height,lib 3219 绿)均先 worktree 后 no-ff 合并 |
+
+### 遗漏/延后/workaround 猎查(lazy-convergence)
+
+- **延后(用户已签核)**:T9 relay 接线(A1 未合入,条件项路线)、desktop 实机冒烟(高度生效/弹层居中/回退前进/logout 补调四项并入观察期手测清单)。均有台账行,无静默遗漏。
+- **workaround(如实入账)**:R4 keys 形态保留——非 VM 规避而系 vue-TS 对 Object.values 元素推 `{}`(for-of/索引双证),新立上游项 A′(ts_adapter 显式类型包装);体积门禁为合计字节粗粒度代理,per-module 精确记账留上游(046-D)。
+- **行为面变更提示**:obj 基线合入后,musk 两处 Object.keys 消费(getErrandByToolCallId/session_token_cost)从"静默错值"转为真实计算——建议观察期实机核对 token 汇总与 errand 关联数据符合预期。
+- **瞬态备忘**:复审中一次 auto build exit=1 复跑即 exit=0 且日志零错误(疑似 gen 产物文件锁竞争),连续两次干净通过后判定稳定。
+
+### spec-impact 元数据
+
+沿 PLAN-045 先例三字段留空(理由见 frontmatter 注):债务清偿/基建计划,
+无 specs 域组件增删;规约沉淀物以文件+台账行交付。
+
+### 路由裁定
+
+六条验收全 pass、无阻塞债(仅用户签核的登记型延后)→ **status: reviewed**。
+下一步 `/auto-plan:merge`(或 finish-plan 泛用收口路由)。
 
 ## 待澄清事项
 
