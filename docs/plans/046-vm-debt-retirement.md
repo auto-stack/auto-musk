@@ -199,10 +199,21 @@ KNOWN-DEBT 台账）；不动 web/（冻结）、backend/。
   e) E1:shim_response_status_code 返回真实 status(stdlib.rs:5029-5033,
   u16→i32;send 路径 3694 写真值)——哨兵问题已不在主路径;401 兜底技术
   可行,运行时实证留 T8 冒烟。]
-- [ ] **T2** auto-lang worktree `plan-046-obj-natives`:obj 方法族 VM native
+- [x] **T2** auto-lang worktree `plan-046-obj-natives`:obj 方法族 VM native
   （按 T1-a 最小集,防过度设计）+ 回归测试。验证:其仓测试全绿 + 自有新测试过。
+  [⚠️ 半程入档(2026-08-27 续跑批):**注册/路由/链接三关已打通**,shim 实体落地
+  ——WIP 分支 auto-lang `plan-046-obj-natives`@10e8bffa3(按约不合 master);
+  上游全量 lib 3216 passed 零回归。**残余=动态值运行时语义层**(03 缺口:
+  Option 返回在无类型路径的表示传播/谓词闭包×GET_FIELD 协作/auto.obj.* 结果
+  的静态型别标注),完整规格+插入点坐标见分支提交体与 KNOWN-DEBT 046-A;
+  建议并入 plan454 队列以该分支为基续作。回归语料:注册表断言 ×2 passed,
+  端到端 ×2 #[ignore] 带理由。]
 - [ ] **T3** auto-lang:window height native(T1-b 判缺失才做;已有则跳过并在注中
   记复用决定) + 回归测试。验证:同上。
+  [⏸ 同批移交(2026-08-27 续跑批裁定):native 本体独立可做,但真值化需 iced
+  renderer 暴露面 + 端到端弹层实证,与 T2 残余同属"上游续作批";拆散两处
+  分散落地不如随 T2 终态一批走,musk 侧 T7 同步等。447 冲突已消——本项
+  与 T2 非文件冲突性挂起,是批次完整性挂起。]
 - [ ] **T4** musk 规避位点清册:grep `[]str` 显式注解用于参数传递处、手扫替代
   slice/find 的循环形态（含 T6 注所列 keys 索引形态),逐位点标注「回撤/保留
   （自然写法）」两类。产出位点清册附于本任务注。验证:清册覆盖探针历史日志变量
