@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-046
-status: reviewed
+status: archived
 feature_name: musk VM 轨 workaround/债务集中清偿——obj 族 native + 真值化认证视口接线 + 体积观察门禁
 author: [zhaopuming]
 created_at: 2026-08-27
@@ -172,7 +172,7 @@ KNOWN-DEBT 台账）；不动 web/（冻结）、backend/。
 
 ## 执行步骤
 
-- [ ] **T1** 跨仓勘察（先行,一次性侦察不改码）:a) auto-lang obj 接收者方法族
+- [x] **T1** 跨仓勘察（先行,一次性侦察不改码）:a) auto-lang obj 接收者方法族
   现状(vm/codegen 中 obj 字段访问臂与方法发射缺口, 定义 musk 最小消费集);
   b) 442 dom/window 桥窗口尺寸能力有无;c) A1 多 store master 合入与否;
   d) 在途会话改动集冲突检查(撞集→对应子计划挂起,记本文件);
@@ -212,7 +212,7 @@ KNOWN-DEBT 台账）；不动 web/（冻结）、backend/。
   的静态型别标注),完整规格+插入点坐标见分支提交体与 KNOWN-DEBT 046-A;
   建议并入 plan454 队列以该分支为基续作。回归语料:注册表断言 ×2 passed,
   端到端 ×2 #[ignore] 带理由。]
-- [ ] **T3** auto-lang:window height native(T1-b 判缺失才做;已有则跳过并在注中
+- [x] **T3** auto-lang:window height native(T1-b 判缺失才做;已有则跳过并在注中
   记复用决定) + 回归测试。验证:同上。
   [✅(2026-08-27 本会话跨仓微批):auto-lang 分支 plan-046-window-height
   已合 master——stdlib 增 pub storage_host_publish(与 Storage.set 同契约),
@@ -220,7 +220,7 @@ KNOWN-DEBT 台账）；不动 web/（冻结）、backend/。
   __window_resized 漏斗实时刷新);回归语料 +host_publish_roundtrip,
   master lib 复跑 3219 全绿。运行时实测注:真实窗口值的端到端冒烟需起
   desktop UI,与 logout 手测同批留用户观察期动作。]
-- [ ] **T4** musk 规避位点清册:grep `[]str` 显式注解用于参数传递处、手扫替代
+- [x] **T4** musk 规避位点清册:grep `[]str` 显式注解用于参数传递处、手扫替代
   slice/find 的循环形态（含 T6 注所列 keys 索引形态),逐位点标注「回撤/保留
   （自然写法）」两类。产出位点清册附于本任务注。验证:清册覆盖探针历史日志变量
   集(可交叉 T6 当时记录)。
@@ -241,7 +241,7 @@ KNOWN-DEBT 台账）；不动 web/（冻结）、backend/。
   (转 D5 规约正例,永不回撤);P5 print 形态(VM 正解,非债)。
   最小上游集修正:**obj.find + Object.values 两件**(list.slice 缺位记上游
   增强,无 musk 消费实证不扩)。]
-- [ ] **T5** auth 滞留清理位勘察:auth_store.Me 过期分支实际落点 + App/init 可插
+- [x] **T5** auth 滞留清理位勘察:auth_store.Me 过期分支实际落点 + App/init 可插
   重注入的消费点选型(定 D3 派发方案);检查 E1 状态值可用性定 401 兜底做否。
   验证:选型结论与本任务注一致。
   [✅(2026-08-27) 关键发现:**`.Me` 全仓零派发点(预留死码)**、Logout 唯一调用
@@ -268,7 +268,7 @@ KNOWN-DEBT 台账）；不动 web/（冻结）、backend/。
   读不到回落 720(旧宿主/极端时序兜底)。web adapter 恒等不动。
   验证:build strict exit0+vitest 23+1+对拍 30/30+探针×2
   (60803/60805 PASS)。弹层居中冒烟留桌面实机。]
-- [ ] **T8** musk 认证清偿落码(按 T5 选型,派发点位与/或 401 兜底)。
+- [x] **T8** musk 认证清偿落码(按 T5 选型,派发点位与/或 401 兜底)。
   验证:auto build + 探针;模拟过期路径行为链人工核对(token 清空→下次请求无
   Authorization 头,以平台注释或临时日志确认后拆除临检代码)。
   [✅ 协议固化批(2026-08-27,T5 选型落地):T5 关键发现(.Me 零派发点死码 +
@@ -285,7 +285,7 @@ KNOWN-DEBT 台账）；不动 web/（冻结）、backend/。
   含 A1/B1)未实施、master 无多 store 合入记录。按验收#4 条款项路线:本项
   保持留痕降级现状,阻塞因同步 KNOWN-DEBT 442 行(T12 落);A1 合入后由后续
   批次接线(平台 adapter 内直连双 store)。]
-- [ ] **T10** 探针体积门禁:vm-link-probe.mjs 头部加阈值常量与体积提取/告警逻辑。
+- [x] **T10** 探针体积门禁:vm-link-probe.mjs 头部加阈值常量与体积提取/告警逻辑。
   验证:cmd 一键跑体积行出现;<30000 无 WARN 制造样例判定逻辑可用(阈值临时
   下调复测后复原)。
   [✅(2026-08-27,**含实测校准偏离,见待澄清#6**):上游两层 accessor 落
@@ -300,18 +300,18 @@ KNOWN-DEBT 台账）；不动 web/（冻结）、backend/。
   在今日实测下会立即假红。门禁统计口径=链接后合计字节(flash.memory.
   len,粗粒度);单模块精确记账需上游 per-module 面→KNOWN-DEBT 046-D。
   端到端:node scripts/vm-link-probe.mjs PASS exit 0 + 体积行在案。]
-- [ ] **T11** 规约文档:D5 正文落 `src/front/README.at-conventions.md`(新建),
+- [x] **T11** 规约文档:D5 正文落 `src/front/README.at-conventions.md`(新建),
   含正反例与错误签名。验证:文件存在且 KNOWN-DEBT 045 行④引用更新。
   [✅(2026-08-27) `src/front/README.at-conventions.md` 新建:R1 纯 fn 规约
   (ensureAssistantMsg 正反例)+ R2 动态值方法面速查表(可用形态五类,指
   046-T4 清册回撤语义)+ R3 let/window/ports 三约束摘要。KNOWN-DEBT
   045 行④已改指本文。]
-- [ ] **T12** 台账总刷新:KNOWN-DEBT 045/442 行、platform.vm.at 头注按验收逐项
+- [x] **T12** 台账总刷新:KNOWN-DEBT 045/442 行、platform.vm.at 头注按验收逐项
   标闭/转正/注阻塞。验证:grep 台账行与实况一一对得上。
   [✅(2026-08-27) 三处刷新:045 行③→转 046 同步批(挂起因)、④→✅规约化
   指针、⑤→✅门禁落地+实测校准注记;442 行 RunRelayCommand 尾→BLOCKED
   于 A1 登记;新增 046 行(已完成四件 + 同步义务 A-D + 独立阻塞件)。]
-- [ ] **T13** 全量终验:主检出探针两连绿(8/8×2)+ 三门禁 + auto-lang master
+- [x] **T13** 全量终验:主检出探针两连绿(8/8×2)+ 三门禁 + auto-lang master
   合并记录(auto-lang 侧若 T2/T3 生效)。验证:各门禁输出在案;status → execution_done。
   [✅ 可执行子集全绿(2026-08-27):探针两连绿(60676/60642 bytes,PASS,
   体积行在案);`auto build` strict 绿(T8 改后即跑);vitest 23 passed +
