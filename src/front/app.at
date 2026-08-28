@@ -58,7 +58,7 @@ widget App {
                 col {
                     style: "w-48 shrink-0 bg-card border-r border-border gap-3 px-3 pb-3 pt-0 h-full"
                     row {
-                        style: "app-header px-0 gap-2 items-baseline"
+                        style: "flex items-baseline gap-2 px-0"
                         // PLAN-048:字面量化(VM 视图文本无裸调用臂,t() 恒空;
                         // 见 KD 048 行 UPSTREAM④)。
                         text "Auto Musk" { style: "text-base font-bold text-primary" }
@@ -69,9 +69,9 @@ widget App {
                         button {
                             onclick: .ShowChats
                             style: if .current_view == "chats" {
-                                "rail-tab active"
+                                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent"
                             } else {
-                                "rail-tab"
+                                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground hover:bg-accent"
                             }
                             MessageSquare { size: 16 }
                             text "会话"
@@ -79,9 +79,9 @@ widget App {
                         button {
                             onclick: .ShowPlans
                             style: if .current_view == "plans" {
-                                "rail-tab active"
+                                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent"
                             } else {
-                                "rail-tab"
+                                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground hover:bg-accent"
                             }
                             ListTodo { size: 16 }
                             text "计划"
@@ -89,9 +89,9 @@ widget App {
                         button {
                             onclick: .ShowSpecs
                             style: if .current_view == "specs" {
-                                "rail-tab active"
+                                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent"
                             } else {
-                                "rail-tab"
+                                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground hover:bg-accent"
                             }
                             Scroll { size: 16 }
                             text "规范"
@@ -99,9 +99,9 @@ widget App {
                         button {
                             onclick: .ShowWiki
                             style: if .current_view == "wiki" {
-                                "rail-tab active"
+                                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent"
                             } else {
-                                "rail-tab"
+                                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground hover:bg-accent"
                             }
                             BookOpen { size: 16 }
                             text "知识库"
@@ -109,7 +109,7 @@ widget App {
                     }
                     // Plan 407：WorkspaceSelector + SettingsMenu 在导航栏底部。
                     row {
-                        style: "rail-footer"
+                        style: "mt-auto flex items-center justify-between gap-1.5 px-1"
                         WorkspaceSelector
                         SettingsMenu
                     }
