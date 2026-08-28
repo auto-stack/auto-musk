@@ -1,0 +1,138 @@
+[count-selectors] inject_styles.ts 顶层规则选择器总数: 134
+[count-selectors] @ 规则: @import (font)
+[count-selectors] —— 清单开始 ——
+  :root
+  .dark
+  ::-webkit-scrollbar
+  ::-webkit-scrollbar-track
+  ::-webkit-scrollbar-thumb
+  ::-webkit-scrollbar-thumb:hover
+  a
+  .flex.flex-row.h-screen > div:first-child
+  .chats-view > div:first-child
+  .plans-view > div:first-child
+  .specs-view > div:first-child
+  .wiki-view > div:first-child
+  .dark .flex.flex-row.h-screen > div:first-child
+  .dark .chats-view > div:first-child
+  .dark .plans-view > div:first-child
+  .dark .specs-view > div:first-child
+  .dark .wiki-view > div:first-child
+  .app-header
+  .nav-sidebar
+  .nav-sidebar.collapsed
+  .nav-sidebar-header
+  .nav-sidebar-title
+  .content-header
+  .content-header-title
+  .content-header-middle
+  .content-header-actions
+  .rail-tab
+  .rail-tab:hover
+  .rail-tab.active
+  .rail-footer
+  .rail-footer .workspace-selector
+  .chats-view
+  .chats-view > div:first-child
+  .sidebar-new-btn
+  .sidebar-new-btn:hover
+  .session-list
+  .session-item
+  .session-item:hover
+  .session-item.active
+  .session-item.active .session-name
+  .session-item
+  .session-delete-btn
+  .session-item:hover .session-delete-btn
+  .session-delete-btn:hover
+  .session-preview
+  .session-name
+  .session-count
+  .chats-body
+  .plans-root
+  .plans-view
+  .plans-view > div:first-child
+  .plans-main
+  .header-actions
+  .session-info-btn
+  .session-info-btn:hover
+  .header-search
+  .header-search:focus-within
+  .header-search svg
+  .search-input
+  .search-input::placeholder
+  .chats-canvas
+  .msg-row
+  .msg-header
+  .chats-canvas > div:has(.msg-bubble-user) .msg-header
+  .chats-canvas > div:has(.msg-bubble-user) .msg-role-badge
+  .chats-canvas > div:has(.msg-bubble-ai) .msg-role-badge
+  .msg-bubble
+  .user-text
+  .chats-canvas > div:has(.user-text):not(:has(.msg-bubble-user))
+  .chats-canvas > div:has(.user-text):not(:has(.msg-bubble-user)) .user-text
+  .chats-canvas > div:has(.streaming-document):not(:has(.msg-bubble-ai))
+  .chats-canvas > div:has(.streaming-document):not(:has(.msg-bubble-ai)) .streaming-document
+  .msg.assistant-msg.draft
+  .chats-input-bar
+  .input-inner
+  .input-row
+  .input-compose
+  .input-compose:focus-within
+  .input-backdrop
+  .input-compose textarea
+  .chats-input
+  .chats-input:focus
+  .input-row button[class*="send"]
+  .input-compose button[type="submit"]
+  .input-compose button:last-child
+  .send-btn
+  .send-btn:active
+  .input-row button[class*="send"]:hover
+  .input-compose button:last-child:hover
+  .send-btn:hover
+  .input-row button[class*="send"]:disabled
+  .input-compose button:last-child:disabled
+  .send-btn:disabled
+  .specs-view
+  .specs-view > div:first-child
+  .section-nav-list
+  .overview-entry
+  .overview-entry:hover
+  .overview-entry.active
+  .section-nav-item
+  .section-nav-item:hover
+  .section-nav-item.active
+  .specs-main
+  .overview-content
+  .section-content
+  .spec-item-btn
+  .spec-item-btn:hover
+  .spec-item-main
+  .spec-item-title
+  .spec-item-status
+  .spec-item-actions
+  .edit-panel
+  .form-group
+  .form-group label
+  .form-input
+  .form-input:focus
+  .content-input
+  .edit-actions
+  .add-btn
+  .save-btn
+  .cancel-btn
+  .action-btn
+  .add-btn:hover
+  .save-btn:hover
+  .cancel-btn:hover
+  .action-btn:hover
+  .action-btn.danger
+  .action-btn.danger:hover
+  .wiki-view
+  .wiki-view > div:first-child
+  .nav-icon-btn
+  .nav-icon-btn:hover
+  .wiki-nav-list
+  .markstream-vue .table-node tbody tr:nth-child(even) td
+[count-selectors] —— 清单结束 ——

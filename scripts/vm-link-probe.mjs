@@ -30,9 +30,14 @@ const SIZE_WARN = Number(process.env.VM_PROBE_SIZE_WARN ?? 90000);
 const SIZE_FAIL = Number(process.env.VM_PROBE_SIZE_FAIL ?? 131072);
 
 const muskRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const langRoot = resolve(muskRoot, '..', 'auto-lang');
-if (!existsSync(resolve(langRoot, 'crates', 'auto-lang'))) {
-  console.error(`[vm-link-probe] sibling auto-lang not found at ${langRoot}`);
+// PLAN-049: 布局自适应——主检出 sibling ../auto-lang;worktree 布局 ../../auto-lang;
+// env VM_LINK_LANG_ROOT 最优先。
+const langRoot =
+  process.env.VM_LINK_LANG_ROOT ||
+  [resolve(muskRoot, '..', 'auto-lang'), resolve(muskRoot, '..', '..', '..', 'auto-lang')]
+    .find((p) => existsSync(resolve(p, 'crates', 'auto-lang')));
+if (!langRoot) {
+  console.error('[vm-link-probe] auto-lang not found (env VM_LINK_LANG_ROOT 可指定)');
   process.exit(2);
 }
 const r = spawnSync(

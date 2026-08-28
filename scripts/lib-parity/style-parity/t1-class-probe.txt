@@ -1,0 +1,119 @@
+running 1 test
+[style-parity-probe] ok	h-screen	高度=视口
+[style-parity-probe] ok	w-full	宽 100%
+[style-parity-probe] ok	w-48	192px
+[style-parity-probe] ok	shrink-0	不收缩
+[style-parity-probe] ok	bg-card	语义卡色
+[style-parity-probe] ok	bg-secondary	语义次面色
+[style-parity-probe] gap	border-r	单侧边框无解析臂——iced 边框均匀,降级项
+[style-parity-probe] ok	border-border	边框语义色
+[style-parity-probe] ok	gap-3	12px
+[style-parity-probe] ok	px-3	12px
+[style-parity-probe] ok	pb-3	
+[style-parity-probe] ok	pt-0	
+[style-parity-probe] ok	h-full	
+[style-parity-probe] ok	flex	
+[style-parity-probe] gap	items-baseline	items 仅 center/start/end/stretch——baseline 丢弃
+[style-parity-probe] ok	gap-2	
+[style-parity-probe] ok	px-0	
+[style-parity-probe] ok	text-base	16px
+[style-parity-probe] ok	font-bold	
+[style-parity-probe] ok	text-primary	语义主色
+[style-parity-probe] ok	text-xs	12px
+[style-parity-probe] ok	text-sm	14px
+[style-parity-probe] ok	text-muted-foreground	语义弱化前景
+[style-parity-probe] ok	rounded-md	6px
+[style-parity-probe] ok	text-left	
+[style-parity-probe] ok	bg-primary/10	alpha 语法(主题暗感知)
+[style-parity-probe] ok	font-medium	
+[style-parity-probe] variant	hover:bg-accent	hover 进 hover_classes,iced 按钮消费
+[style-parity-probe] ok	mt-auto	
+[style-parity-probe] ok	items-center	
+[style-parity-probe] ok	justify-between	
+[style-parity-probe] ok	gap-1.5	分数 gap=Pixels(6)
+[style-parity-probe] ok	px-1	
+[style-parity-probe] ok	flex-1	
+[style-parity-probe] ok	min-h-0	MinHeight(0)
+[style-parity-probe] ok	min-w-0	
+[style-parity-probe] ok	overflow-hidden	
+[style-parity-probe] ok	min-h-screen	f32::MAX 语义
+[style-parity-probe] ok	justify-center	
+[style-parity-probe] ok	bg-background	语义背景
+[style-parity-probe] ok	max-w-sm	384px
+[style-parity-probe] ok	p-8	
+[style-parity-probe] ok	border	默认边框
+[style-parity-probe] ok	rounded-xl	12px
+[style-parity-probe] ok	shadow-lg	L3 阴影
+[style-parity-probe] ok	gap-6	
+[style-parity-probe] ok	gap-4	
+[style-parity-probe] ok	gap-1	
+[style-parity-probe] ok	mb-2	
+[style-parity-probe] ok	text-2xl	24px
+[style-parity-probe] ok	text-foreground	
+[style-parity-probe] ok	font-semibold	
+[style-parity-probe] gap	px-2.5	p/m 族分数值无 0.5 步进臂(gap 有)——D3 候选
+[style-parity-probe] gap	py-2.5	同 px-2.5
+[style-parity-probe] ok	py-2	
+[style-parity-probe] variant	focus:outline-none	focus: 非响应式前缀,整体跳过
+[style-parity-probe] variant	focus:ring-2	focus: 跳过
+[style-parity-probe] variant	focus:ring-ring	focus: 跳过
+[style-parity-probe] ok	px-4	
+[style-parity-probe] ok	bg-primary	
+[style-parity-probe] ok	text-primary-foreground	
+[style-parity-probe] variant	hover:opacity-90	hover+opacity 装饰
+[style-parity-probe] variant	transition-opacity	仅 transition-colors 有臂,其余跳过
+[style-parity-probe] ok	mt-1	
+[style-parity-probe] ok	text-center	
+[style-parity-probe] ok	bg-transparent	
+[style-parity-probe] ok	border-none	
+[style-parity-probe] gap	underline	text-decoration 无臂——VM 无法表达下划线
+[style-parity-probe] ok	cursor-pointer	
+[style-parity-probe] variant	hover:opacity-80	
+[style-parity-probe] ok	bg-destructive/10	alpha 语法
+[style-parity-probe] ok	text-destructive	
+[style-parity-probe] ok	w-[220px]	arbitrary 像素
+[style-parity-probe] ok	w-[200px]	
+[style-parity-probe] ok	w-[240px]	
+[style-parity-probe] ok	flex-col	
+[style-parity-probe] ok	justify-start	
+[style-parity-probe] ok	justify-end	
+[style-parity-probe] ok	justify-center	
+[style-parity-probe] ok	overflow-y-auto	
+[style-parity-probe] ok	whitespace-nowrap	
+[style-parity-probe] ok	truncate	
+[style-parity-probe] ok	leading-[1.6]	arbitrary 行高
+[style-parity-probe] ok	font-mono	
+[style-parity-probe] ok	break-words	
+[style-parity-probe] ok	rounded	4px
+[style-parity-probe] ok	rounded-full	
+[style-parity-probe] ok	rounded-lg	
+[style-parity-probe] ok	max-h-[300px]	arbitrary
+[style-parity-probe] ok	max-w-[320px]	
+[style-parity-probe] ok	opacity-60	
+[style-parity-probe] ok	relative	
+[style-parity-probe] ok	absolute	VM 降级(无绝对定位)
+[style-parity-probe] ok	z-10	
+[style-parity-probe] gap	z-[100]	z>50 拒绝且 arbitrary 不走 pixel 臂——草案避用
+[style-parity-probe] ok	hidden	
+[style-parity-probe] ok	inline-flex	
+[style-parity-probe] gap	select-none	user-select 无臂
+[style-parity-probe] gap	uppercase	text-transform 无臂
+[style-parity-probe] gap	capitalize	text-transform 无臂
+[style-parity-probe] ok	-ml-2	负 margin
+[style-parity-probe] ok	w-px	1px
+[style-parity-probe] ok	h-px	1px
+[style-parity-probe] ok	inset-0	VM 降级
+[style-parity-probe] ok	grid	VM 降级单行
+[style-parity-probe] ok	grid-cols-2	VM 降级
+[style-parity-probe] ok	items-stretch	
+[style-parity-probe] ok	self-end	VM 降级到容器 items
+[style-parity-probe] ok	gap-x-2	
+[style-parity-probe] ok	outline-none	
+[style-parity-probe] ok	transition-colors	有臂(iced 消费)
+[style-parity-probe] gap	animate-pulse	动画无臂——web-only
+[style-parity-probe] gap	resize-y	textarea resize 无臂
+[style-parity-probe] gap	appearance-none	无臂
+[style-parity-probe] gap	italic	无臂
+[style-parity-probe] gap	tracking-wide	letter-spacing 无臂
+[style-parity-probe] summary: total=116 ok=95 variant=7 gap=14
+test plan449_style_parity_tests::plan449_style_migration_probe::style_migration_probe ... ok

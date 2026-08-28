@@ -7,19 +7,24 @@
 // 折叠态由父视图持有（component fn 子内部调用 prop 作 handler 不工作，探针 B），
 // 父传 collapsed prop；折叠按钮由各视图在 actions slot 注入（wiki 的 PanelLeft）。
 //
-// 宽度由父容器（`.xxx-view > div:first-child` 位置选择器）决定，此处不设宽。
-//
-// 样式：`.nav-sidebar` 系列为单一真源（inject_styles.ts），替代三处分散的
-// sidebar-header/section-nav-header/wiki-nav-header 规则 + !important 覆盖。
+// PLAN-049 T6：宽度参数化——原宽度由 `.xxx-view > div:first-child` 位置选择器
+// 给出（chats/plans 220px、specs 200px、wiki 240px），单一样式源后改由父视图传
+// width_class（w-[220px] 等）；底色（bg-card）与右边框一并落根 div 工具类。
+// 样式：inject_styles.ts 的 .nav-sidebar 系列已迁内联工具类（PLAN-049 双轨收敛）。
 
-widget NavSidebar(title: str, collapsed: bool) {
+widget NavSidebar(title: str, collapsed: bool, width_class: str) {
     view {
         div {
-            class: if .collapsed { "nav-sidebar collapsed" } else { "nav-sidebar" }
+            class: .width_class
+            style: if .collapsed {
+                "w-12 flex flex-col h-full shrink-0 overflow-hidden bg-card border-r border-border"
+            } else {
+                "flex flex-col h-full shrink-0 overflow-hidden bg-card border-r border-border"
+            }
             div {
-                style: "nav-sidebar-header"
+                style: "flex items-center gap-1.5 py-2 px-3 shrink-0 h-12 border-b border-border"
                 span {
-                    style: "nav-sidebar-title"
+                    style: "flex-1 text-base font-bold text-foreground"
                     text .title
                 }
                 slot(name: "actions") {}

@@ -14,7 +14,7 @@
 //   - teleport 用花括号 props 形式（`teleport (to:...)` 与 ident+LParen fn-call
 //     检测冲突）
 //
-// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.mention-dropdown 等）。
+// 样式：PLAN-049 T6 双轨收敛——mention-* 迁内联工具类。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web mention_filtered, mention_position, mention_current_id from "src/front/mention_helpers.at"
@@ -33,46 +33,30 @@ widget MentionDropdown(professions: obj, visible: bool, filter: str, anchorRect:
         .select(id) -> {}
         .hover(id) -> {}
     }
-    // Plan 029 T22：原 inject_styles 全局兜底下放（scoped 生效于本组件 DOM）。
-    style {
-  .mention-dropdown {
-    min-width: 180px; max-height: 220px; overflow-y: auto;
-    background: var(--af-card, #fff); border: 1px solid var(--af-border, hsl(220 13% 91%));
-    border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); padding: 4px; z-index: 200;
-  }
-  .mention-item {
-    display: flex; align-items: center; gap: 0.5rem; width: 100%;
-    padding: 6px 10px; border: none; border-radius: 5px; background: transparent;
-    color: var(--af-fg, hsl(220 14% 10%)); font-size: 0.88rem; cursor: pointer; text-align: left;
-    transition: background 0.1s;
-  }
-  .mention-item:hover, .mention-item.active { background: hsl(var(--primary, 220 90% 56%) / 0.08); }
-  .mention-item.active { color: var(--af-primary, hsl(220 90% 56%)); }
-  .mention-name { font-weight: 600; font-family: monospace; }
-  .mention-label { color: var(--af-muted, hsl(220 9% 46%)); font-size: 0.83rem; }
-    }
+    // PLAN-049 T6：mention-* 已迁内联工具类（块删除）。阴影 web-only（白名单）;
+    // teleport/绝对定位 VM 降级（与原 scoped 形态一致）。
 
     view {
         teleport {
             to: "body"
             if .visible && .filtered.len > 0 {
                 div {
-                    class: "mention-dropdown"
+                    class: "min-w-[180px] max-h-[220px] overflow-y-auto bg-card border border-border rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-1 z-[200]"
                     style: .position
                     for prof in .filtered {
                         button {
                             key: .prof.id
                             onclick: .select(.prof.id)
                             onmouseenter: .hover(.prof.id)
-                            class: if .activeId == .prof.id { "mention-item active" } else { "mention-item" }
+                            class: if .activeId == .prof.id { "flex items-center gap-2 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-sm text-left cursor-pointer" } else { "flex items-center gap-2 w-full py-1.5 px-2.5 border-none rounded-md bg-transparent text-foreground text-sm text-left cursor-pointer hover:bg-primary/10" }
                             AgentAvatar { professionId: .prof.id, name: .prof.name, size: "sm" }
                             span {
-                                style: "mention-name"
+                                style: "font-semibold font-mono"
                                 text "@"
                                 text .prof.id
                             }
                             span {
-                                style: "mention-label"
+                                style: "text-muted-foreground text-[13px]"
                                 text .prof.name
                             }
                         }

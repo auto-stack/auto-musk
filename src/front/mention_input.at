@@ -12,7 +12,10 @@
 //   - nextTick focus 舍弃（template ref）
 //   - i18n t + useAgentConfigs → composable facade（refs 标注）
 //
-// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.chats-input-bar 等）。
+// 样式：PLAN-049 T6 双轨收敛——容器迁内联工具类;@mention 双层文字技术
+// （textarea 文字透明 + backdrop 高亮层）为 web-only（inject_styles.ts 暂存段,
+// T8 拆 web-only.ts）,VM 侧 textarea 直接显字。原 send-btn 渐变底收敛为
+// bg-primary 单色（登记）;rounded-[20px] VM 无 arbitrary 圆角臂,登记降级。
 
 use store: AgentConfigs
 
@@ -88,19 +91,19 @@ widget MentionInput(disabled: bool, professions: obj) {
     }
     view {
         div {
-            style: "chats-input-bar"
+            style: "w-full"
             div {
-                style: "input-inner"
+                style: "max-w-[960px] mx-auto w-full"
                 div {
-                    style: "input-row"
+                    style: "flex items-end gap-1.5 w-full"
                     div {
-                        style: "input-compose"
+                        style: "relative flex-1 min-w-0 flex items-center bg-muted-foreground/5 border border-primary/15 rounded-[20px] py-1 px-2 min-h-20 focus-within:border-primary/45"
                         div {
-                            style: "input-backdrop"
+                            style: "absolute inset-0 py-1 px-2 bg-transparent border-none rounded-none pointer-events-none overflow-hidden whitespace-pre-wrap break-words text-foreground"
                             html: .backdropHtml
                         }
                         textarea {
-                            style: "chats-input"
+                            style: "block w-full border-none rounded-none bg-transparent text-[15px] outline-none resize-none"
                             value: .text
                             oninput: .Input($event)
                             onkeydown: .Keydown($event)
@@ -112,13 +115,13 @@ widget MentionInput(disabled: bool, professions: obj) {
                     if .disabled {
                         button {
                             onclick: .cancel
-                            style: "send-btn stop"
+                            style: "w-9 h-9 min-w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-lg shrink-0 border-none cursor-pointer hover:opacity-85 disabled:opacity-40"
                             Square { size: 16 }
                         }
                     } else {
                         button {
                             onclick: .send(mention_trim(.text))
-                            style: "send-btn"
+                            style: "w-9 h-9 min-w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-lg shrink-0 border-none cursor-pointer hover:opacity-85 disabled:opacity-40"
                             disabled: !.canSend
                             Send { size: 16 }
                         }

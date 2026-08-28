@@ -1,6 +1,6 @@
 // ports/platform.vm.at — PLAN-442 Phase B1:平台域 VM adapter。
 //
-// web 侧三绑定（inject_styles.ts / setup_auth_fetch.ts /
+// web 侧三绑定（inject_styles.web-only.ts,PLAN-049 T8 退役拆分 / setup_auth_fetch.ts /
 // relay_command_runner.ts）均为浏览器概念,VM/iced 目标按验收"显式降级登记"：
 //   - platformInjectStyles:CSS 全局样式注入 → no-op（iced 主题自管）;
 //   - platformSetupAuthFetch:window.fetch monkey-patch 注 Bearer/workspace →

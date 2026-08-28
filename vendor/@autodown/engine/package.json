@@ -1,0 +1,19 @@
+{
+  "name": "@autodown/engine",
+  "version": "0.4.0-musk-shim",
+  "description": "PLAN-049 过渡 shim：上游 plan-019 Phase 4 把 markdown 渲染 import 重定向到 @autodown/engine（b26b61fd0, 2026-08-28），musk 尚未消费真实 engine 包。本 shim 以 vendor/@autodown/vue 0.2.0 同实现按新包名再导出，零行为变化；待真实 engine 消费计划落地后整体移除。",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.0"
+  }
+}

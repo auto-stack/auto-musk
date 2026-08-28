@@ -13,7 +13,8 @@
 //     原样转发全部符号)。
 // 调用面 use.web 非 .at 目标零命中。
 
-use.web injectStyles from "src/front/inject_styles.ts"
+// PLAN-049 T8：inject_styles.ts 退役,余量（全局段+web-only 增强）拆本文件。
+use.web injectStyles from "src/front/inject_styles.web-only.ts"
 use.web setupAuthFetch from "src/front/setup_auth_fetch.ts"
 use.web runRelayCommand from "src/front/composables/relay_command_runner.ts"
 

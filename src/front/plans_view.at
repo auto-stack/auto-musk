@@ -45,17 +45,18 @@ widget PlansView {
 
     view {
         col {
-            style: "plans-root"
+            style: "flex flex-col h-full overflow-hidden"
         row {
-            style: "plans-view"
+            style: "flex flex-row h-full overflow-hidden"
             // 左侧 plan 列表
             NavSidebar {
                 title: t("plans.title")
                 collapsed: false
+                width_class: "w-[220px]"
                 slot(name: "actions") {
                     button {
                         onclick: .StartCreate
-                        style: "sidebar-new-btn"
+                        style: "inline-flex items-center justify-center h-[26px] px-2 text-xs border border-border rounded-md bg-transparent text-foreground hover:bg-accent"
                         title: t("plans.newPlan")
                         Plus { size: 14 }
                     }
@@ -71,9 +72,9 @@ widget PlansView {
                                     key: .plan.seq
                                     onclick: .SelectPlan(.plan.seq)
                                     style: if .plan.seq == .selected_seq {
-                                        "plan-item active"
+                                        "w-full text-left py-2 px-2.5 mb-[2px] rounded-md bg-primary/10 text-primary text-[13.6px] truncate"
                                     } else {
-                                        "plan-item"
+                                        "w-full text-left py-2 px-2.5 mb-[2px] rounded-md bg-transparent hover:bg-accent text-[13.6px] text-foreground truncate"
                                     }
                                     text .plan.id
                                     text " — "
@@ -89,48 +90,48 @@ widget PlansView {
             }
             // 右侧主内容区
             col {
-                style: "plans-main"
+                style: "flex-1 flex flex-col min-w-0 overflow-hidden"
                 if .store.current != None {
                     ContentHeader {
                         title: .store.current.id
                         slot(name: "actions") {
                             button {
                                 onclick: .StartEdit
-                                style: "action-btn"
+                                style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border"
                                 text t("plans.edit")
                             }
                             button {
                                 onclick: .ArchiveCurrent
-                                style: "action-btn"
+                                style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border"
                                 text t("plans.archive")
                             }
                             if .store.current.status == "review_done" {
                                 button {
                                     onclick: .MergeCurrent
-                                    style: "action-btn primary"
+                                    style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border bg-primary text-primary-foreground border-primary hover:opacity-90"
                                     text t("plans.mergeToSpec")
                                 }
                             }
                         }
                     }
                     col {
-                        style: "plan-content"
+                        style: "flex-1 overflow-y-auto p-5"
                         if .editing {
                             textarea {
                                 value: .edit_content
                                 oninput: .EditContentChanged
-                                style: "edit-textarea"
+                                style: "w-full min-h-[200px] p-3 border border-border rounded-md bg-background text-foreground text-sm font-mono"
                             }
                             row {
-                                style: "edit-actions"
+                                style: "flex gap-2 justify-end"
                                 button {
                                     onclick: .SaveEdit
-                                    style: "save-btn"
+                                    style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border hover:bg-primary hover:text-primary-foreground hover:border-primary"
                                     text t("plans.save")
                                 }
                                 button {
                                     onclick: .CancelEdit
-                                    style: "cancel-btn"
+                                    style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border hover:bg-accent"
                                     text t("plans.cancel")
                                 }
                             }
@@ -140,7 +141,7 @@ widget PlansView {
                     }
                 } else {
                     col {
-                        style: "plans-empty"
+                        style: "flex-1 flex items-center justify-center text-muted-foreground text-sm"
                         text t("plans.selectPlan")
                     }
                 }
@@ -149,26 +150,26 @@ widget PlansView {
         // 新建 plan 对话框
         if .creating {
             col {
-                style: "modal-overlay"
+                style: "fixed inset-0 bg-black/50 flex items-center justify-center z-50"
                 col {
-                    style: "modal"
+                    style: "bg-card border border-border rounded-lg p-6 w-full max-w-md flex flex-col gap-3"
                     h3 t("plans.newPlan") {}
                     label t("plans.featureName")
                     input {
                         value: .new_name
                         oninput: .CreateNameChanged
-                        style: "form-input"
+                        style: "py-2 px-2.5 border border-border rounded-md bg-background text-foreground text-sm"
                     }
                     row {
-                        style: "modal-actions"
+                        style: "flex gap-2 justify-end"
                         button {
                             onclick: .ConfirmCreate
-                            style: "save-btn"
+                            style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border hover:bg-primary hover:text-primary-foreground hover:border-primary"
                             text t("plans.create")
                         }
                         button {
                             onclick: .CancelCreate
-                            style: "cancel-btn"
+                            style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border hover:bg-accent"
                             text t("plans.cancel")
                         }
                     }

@@ -13,7 +13,12 @@
 //     传 "" + titleText 兜底 computed
 //   - approveBtnRef 自动聚焦（template ref）→ 舍弃（登记轻微差异）
 //
-// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.gate-card 等）。
+// 样式：PLAN-049 T6 双轨收敛——原 style{} 块（.gate-card/.diff-* 系）全量迁
+// 内联工具类（代表验收点）。色裁定：旧字面 hsl(220 90% 56%)≈blue-500、
+// hsl(38 92% 50%)=amber-500、hsl(142 71% 45%)=green-500 逐一对齐 tailwind
+// token;2%-alpha 底纹（gate-card/diff-body）视觉近零,删除并登记;
+// hover/focus 增强走变体（VM 白名单丢弃）;uppercase/capitalize/resize 等
+// iced 无对应属性为 web-only 增强。VM 侧 diff-body grid 降级单行（Plan 412）。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web component Check, X, Eye, ChevronDown, ChevronUp from "src/front/ports/icons.at"
@@ -44,112 +49,54 @@ widget GateCard(title: str, profession: str, changes: obj) {
         .approve(specs) -> {}
         .reject -> {}
     }
-    // Plan 029 T22：原 inject_styles 全局兜底下放（scoped 生效于本组件 DOM）。
-    style {
-  .gate-card {
-    display: flex; flex-direction: column; gap: 0.6rem;
-    padding: 0.75rem 1.25rem; border-top: 1px solid var(--af-border, hsl(220 13% 91%));
-    flex-shrink: 0; background: hsl(220 14% 50% / 0.02);
-  }
-  .gate-card-header { display: flex; align-items: center; gap: 0.5rem; font-size: 0.93rem; color: var(--af-fg, hsl(220 14% 10%)); }
-  .gate-icon { font-size: 1.18rem; }
-  .gate-title { flex: 1; }
-  .gate-profession {
-    font-size: 0.78rem; padding: 0.15rem 0.4rem; border-radius: 4px;
-    background: hsl(220 90% 56% / 0.08); color: hsl(220 90% 56%); font-weight: 500;
-  }
-  .gate-diff-list { display: flex; flex-direction: column; gap: 0.35rem; max-height: 300px; overflow-y: auto; }
-  .diff-card { border: 1px solid var(--af-border, hsl(220 13% 91%)); border-radius: 8px; overflow: hidden; }
-  .diff-header {
-    display: flex; align-items: center; gap: 0.5rem;
-    padding: 0.4rem 0.6rem; cursor: pointer; user-select: none;
-  }
-  .diff-header:hover { background: hsl(220 14% 50% / 0.03); }
-  .diff-title { font-size: 0.88rem; font-weight: 500; color: var(--af-fg, hsl(220 14% 10%)); text-transform: capitalize; flex: 1; }
-  .diff-status { font-size: 0.73rem; font-weight: 500; color: hsl(38 92% 50%); }
-  .diff-status.approved { color: hsl(142 71% 45%); }
-  .diff-chevron { color: var(--af-muted, hsl(220 9% 46%)); }
-  .diff-body {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;
-    padding: 0.5rem 0.6rem; background: hsl(220 14% 50% / 0.02); border-top: 1px solid var(--af-border, hsl(220 13% 91%));
-  }
-  .diff-side { display: flex; flex-direction: column; gap: 0.2rem; }
-  .diff-label { font-size: 0.73rem; font-weight: 500; text-transform: uppercase; color: var(--af-muted, hsl(220 9% 46%)); letter-spacing: 0.02em; }
-  .diff-content {
-    font-size: 0.83rem; font-family: 'JetBrains Mono', 'Fira Code', monospace;
-    background: var(--af-bg, #fff); border: 1px solid var(--af-border, hsl(220 13% 91%));
-    border-radius: 4px; padding: 0.35rem; overflow-x: auto;
-    white-space: pre-wrap; word-break: break-word;
-    color: var(--af-fg, hsl(220 14% 10%)); margin: 0;
-  }
-  .diff-content.old { color: var(--af-muted, hsl(220 9% 46%)); }
-  .diff-editor {
-    font-size: 0.83rem; font-family: 'JetBrains Mono', 'Fira Code', monospace;
-    background: var(--af-bg, #fff); border: 1px solid var(--af-border, hsl(220 13% 91%));
-    border-radius: 4px; padding: 0.35rem; color: var(--af-fg, hsl(220 14% 10%));
-    resize: vertical; outline: none; width: 100%; box-sizing: border-box;
-  }
-  .diff-editor:focus { border-color: hsl(220 90% 56% / 0.4); }
-  .gate-actions { display: flex; gap: 0.5rem; }
-  .approve-btn, .reject-btn, .review-btn {
-    display: inline-flex; align-items: center; gap: 0.35rem;
-    padding: 0.4rem 0.9rem; border: none; border-radius: 6px;
-    font-size: 0.88rem; font-weight: 500; cursor: pointer; transition: opacity 0.15s;
-  }
-  .approve-btn { background: hsl(142 71% 45%); color: #fff; }
-  .reject-btn { background: transparent; color: var(--af-fg, hsl(220 14% 10%)); border: 1px solid var(--af-border, hsl(220 13% 91%)); }
-  .review-btn { background: hsl(220 14% 50% / 0.08); color: var(--af-fg, hsl(220 14% 10%)); border: 1px solid var(--af-border, hsl(220 13% 91%)); }
-  .approve-btn:hover, .reject-btn:hover, .review-btn:hover { opacity: 0.85; }
-    }
-
     view {
         div {
-            style: "gate-card"
+            style: "flex flex-col gap-[10px] px-5 py-3 border-t border-border shrink-0"
             div {
-                style: "gate-card-header"
-                span { style: "gate-icon", text "🔒" }
-                span { style: "gate-title", text .titleText }
+                style: "flex items-center gap-2 text-[15px] text-foreground"
+                span { style: "text-[19px]", text "🔒" }
+                span { style: "flex-1", text .titleText }
                 if .profession != "" {
-                    span { style: "gate-profession", text .profession }
+                    span { style: "text-xs py-0.5 px-1.5 rounded bg-blue-500/10 text-blue-500 font-medium", text .profession }
                 }
             }
             if .hasChanges {
                 div {
-                    style: "gate-diff-list"
+                    style: "flex flex-col gap-1.5 max-h-[300px] overflow-y-auto"
                     for change in .diffList {
                         div {
                             key: .change.section_id
-                            style: "diff-card"
+                            style: "border border-border rounded-lg overflow-hidden"
                             div {
                                 onclick: .ToggleDiff(.change.section_id)
-                                style: "diff-header"
-                                span { style: "diff-title", text .change.section_id }
+                                style: "flex items-center gap-2 py-1.5 px-2.5 cursor-pointer select-none hover:bg-accent"
+                                span { style: "text-sm font-medium text-foreground flex-1 capitalize", text .change.section_id }
                                 span {
-                                    class: if .change.new_status == "approved" { "diff-status approved" } else { "diff-status" }
+                                    class: if .change.new_status == "approved" { "text-xs font-medium text-green-500" } else { "text-xs font-medium text-amber-500" }
                                     text .change.old_status
                                     text " → "
                                     text .change.new_status
                                 }
                                 if .change._expanded {
-                                    ChevronUp { size: 14, class: "diff-chevron" }
+                                    ChevronUp { size: 14, class: "text-muted-foreground" }
                                 } else {
-                                    ChevronDown { size: 14, class: "diff-chevron" }
+                                    ChevronDown { size: 14, class: "text-muted-foreground" }
                                 }
                             }
                             if .change._expanded {
                                 div {
-                                    style: "diff-body"
+                                    style: "grid grid-cols-2 gap-2 py-2 px-2.5 border-t border-border"
                                     div {
-                                        style: "diff-side"
-                                        div { style: "diff-label", text "Before" }
-                                        pre { style: "diff-content old", text .change.old_content }
+                                        style: "flex flex-col gap-[3px]"
+                                        div { style: "text-xs font-medium uppercase text-muted-foreground", text "Before" }
+                                        pre { style: "text-[13px] font-mono bg-background border border-border rounded p-1.5 overflow-x-auto whitespace-pre-wrap break-words text-muted-foreground", text .change.old_content }
                                     }
                                     div {
-                                        style: "diff-side"
-                                        div { style: "diff-label", text "After" }
+                                        style: "flex flex-col gap-[3px]"
+                                        div { style: "text-xs font-medium uppercase text-muted-foreground", text "After" }
                                         textarea {
                                             rows: "6"
-                                            style: "diff-editor"
+                                            style: "text-[13px] font-mono bg-background border border-border rounded p-1.5 text-foreground w-full outline-none resize-y focus:border-blue-500/40"
                                             value: .editedSpecs[change.section_id]
                                             oninput: .EditedChanged(.change.section_id, $event)
                                         }
@@ -161,22 +108,22 @@ widget GateCard(title: str, profession: str, changes: obj) {
                 }
             }
             div {
-                style: "gate-actions"
+                style: "flex gap-2"
                 button {
                     onclick: .approve(.editedSpecs)
-                    style: "approve-btn"
+                    style: "inline-flex items-center gap-1.5 py-1.5 px-3.5 rounded-md text-sm font-medium bg-green-500 text-white hover:opacity-85"
                     Check { size: 14 }
                     text "Approve & Execute"
                 }
                 button {
                     onclick: .reject
-                    style: "reject-btn"
+                    style: "inline-flex items-center gap-1.5 py-1.5 px-3.5 rounded-md text-sm font-medium bg-transparent text-foreground border border-border hover:opacity-85"
                     X { size: 14 }
                     text "Reject & Redraft"
                 }
                 button {
                     onclick: .ToggleReview
-                    style: "review-btn"
+                    style: "inline-flex items-center gap-1.5 py-1.5 px-3.5 rounded-md text-sm font-medium bg-muted text-foreground border border-border hover:opacity-85"
                     Eye { size: 14 }
                     text .reviewLabel
                 }

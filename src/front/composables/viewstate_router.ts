@@ -90,8 +90,10 @@ export function useViewRouter(): void {
       _currentDetail = parsed.detail
       // rail tab 顺序 = VALID_VIEWS 顺序(App view rail)。
       const idx = (VALID_VIEWS as readonly string[]).indexOf(parsed.view)
+      // PLAN-049 T4：rail tab 自定义类已迁内联工具类（048 试点），选择器
+      // 同步改为结构定位（col.gap-1 的第 idx 个 button）。
       const tab = document.querySelector<HTMLButtonElement>(
-        `div.gap-1 > button.rail-tab:nth-child(${idx + 1})`,
+        `div.gap-1 > button:nth-child(${idx + 1})`,
       )
       if (tab) tab.click()
     } else {

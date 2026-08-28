@@ -1,0 +1,295 @@
+{
+  "comment": "PLAN-049 style-parity 对拍用例集。case = { id, classes, note }。classes 为被迁组件的实际类串（或其代表片段）;run.mjs 对每 token 做双轨解释 diff。首批（T3）：048 导航栏试点全类 + 主题 token/alpha/间距/字号代表类。",
+  "cases": [
+    {
+      "id": "nav-rail-root",
+      "classes": "h-screen w-full",
+      "note": "App 视图根 row（app.at）"
+    },
+    {
+      "id": "nav-rail-col",
+      "classes": "w-48 shrink-0 bg-card border-r border-border gap-3 px-3 pb-3 pt-0 h-full",
+      "note": "rail 侧栏 col（048 试点）"
+    },
+    {
+      "id": "nav-brand-row",
+      "classes": "flex items-baseline gap-2 px-0",
+      "note": "品牌行(items-baseline=D3 降级臂)"
+    },
+    {
+      "id": "nav-tab-active",
+      "classes": "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent",
+      "note": "rail 按钮·active 态"
+    },
+    {
+      "id": "nav-tab-idle",
+      "classes": "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent",
+      "note": "rail 按钮·常态(bg-transparent 压 shadcn Button 默认底)"
+    },
+    {
+      "id": "nav-footer",
+      "classes": "mt-auto flex items-center justify-between gap-1.5 px-1",
+      "note": "rail 底部行"
+    },
+    {
+      "id": "nav-brand-name",
+      "classes": "text-base font-bold text-primary",
+      "note": "品牌名"
+    },
+    {
+      "id": "nav-brand-version",
+      "classes": "text-xs text-muted-foreground",
+      "note": "版本号"
+    },
+    {
+      "id": "nav-view-main",
+      "classes": "flex-1 min-h-0 min-w-0 overflow-hidden",
+      "note": "视图主区 col"
+    },
+    {
+      "id": "token-alpha-primary-bg",
+      "classes": "bg-primary/10",
+      "note": "alpha 语法·primary 10%"
+    },
+    {
+      "id": "token-alpha-destructive-bg",
+      "classes": "bg-destructive/10",
+      "note": "alpha 语法·destructive 10%"
+    },
+    {
+      "id": "token-semantic-card",
+      "classes": "bg-card",
+      "note": "语义面·card"
+    },
+    {
+      "id": "token-semantic-secondary",
+      "classes": "bg-secondary",
+      "note": "语义面·secondary"
+    },
+    {
+      "id": "token-semantic-background",
+      "classes": "bg-background",
+      "note": "语义面·background"
+    },
+    {
+      "id": "token-semantic-text-primary",
+      "classes": "text-primary",
+      "note": "语义前景·primary"
+    },
+    {
+      "id": "token-semantic-text-muted",
+      "classes": "text-muted-foreground",
+      "note": "语义前景·muted"
+    },
+    {
+      "id": "token-semantic-text-foreground",
+      "classes": "text-foreground",
+      "note": "语义前景·foreground"
+    },
+    {
+      "id": "token-border-pair",
+      "classes": "border border-border",
+      "note": "边框宽+语义边色"
+    },
+    {
+      "id": "spacing-scale-int",
+      "classes": "p-8 px-3 py-2 px-1 pt-0 pb-3 mb-2 mt-1 gap-6 gap-4 gap-3 gap-2 gap-1",
+      "note": "整数间距档位"
+    },
+    {
+      "id": "spacing-fraction",
+      "classes": "gap-1.5 px-2.5 py-2.5",
+      "note": "0.5 步进族(D3 已补臂;mb-0.5/py-1.5 待 T6 迁移后补入)"
+    },
+    {
+      "id": "font-size-scale",
+      "classes": "text-xs text-sm text-base text-lg text-xl text-2xl",
+      "note": "字号档位"
+    },
+    {
+      "id": "font-weight-scale",
+      "classes": "font-medium font-semibold font-bold",
+      "note": "字重档位"
+    },
+    {
+      "id": "radius-scale",
+      "classes": "rounded-md rounded-xl",
+      "note": "圆角档位(rounded/rounded-full 待 T6 迁移后补入)"
+    },
+    {
+      "id": "layout-verbs",
+      "classes": "flex flex-col flex-1 items-center justify-between shrink-0 overflow-hidden w-full h-full min-h-0 min-w-0",
+      "note": "布局动词集(overflow-y-auto 待迁移后补入)"
+    },
+    {
+      "id": "login-shell",
+      "classes": "min-h-screen items-center justify-center bg-background",
+      "note": "登录页外壳（login.at）"
+    },
+    {
+      "id": "login-card",
+      "classes": "w-full max-w-sm p-8 bg-card border border-border rounded-xl shadow-lg gap-6",
+      "note": "登录卡(shadow=web-only 报告)"
+    },
+    {
+      "id": "login-input",
+      "classes": "px-2.5 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring",
+      "note": "登录输入框(focus:=变体白名单)"
+    },
+    {
+      "id": "login-submit",
+      "classes": "py-2.5 px-4 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity",
+      "note": "提交按钮(hover/transition=白名单)"
+    },
+    {
+      "id": "login-toggle",
+      "classes": "bg-transparent border-none text-primary text-sm underline cursor-pointer hover:opacity-80",
+      "note": "切换按钮(underline=白名单)"
+    },
+    {
+      "id": "login-error",
+      "classes": "px-3 py-2 rounded-md bg-destructive/10 text-destructive text-sm",
+      "note": "错误条"
+    },
+    {
+      "id": "t6-nav-sidebar-header",
+      "classes": "flex items-center gap-1.5 py-2 px-3 shrink-0 h-12 border-b border-border",
+      "note": "NavSidebar 头(T6)"
+    },
+    {
+      "id": "t6-content-header",
+      "classes": "flex items-center justify-between h-12 shrink-0 px-5 border-b border-border bg-card",
+      "note": "ContentHeader 根(T6)"
+    },
+    {
+      "id": "t6-session-item-active",
+      "classes": "w-full text-left py-2 px-2.5 mb-[2px] rounded-md bg-primary/10 text-primary",
+      "note": "会话项·active"
+    },
+    {
+      "id": "t6-session-item-idle",
+      "classes": "w-full text-left py-2 px-2.5 mb-[2px] rounded-md bg-transparent hover:bg-accent",
+      "note": "会话项·常态"
+    },
+    {
+      "id": "t6-sidebar-new-btn",
+      "classes": "inline-flex items-center justify-center h-[26px] px-2 text-xs border border-border rounded-md bg-transparent text-foreground hover:bg-accent",
+      "note": "新建会话钮"
+    },
+    {
+      "id": "t6-header-search",
+      "classes": "flex items-center gap-[5px] max-w-[320px] flex-[0_1_320px] px-3 py-1.5 bg-muted-foreground/5 border border-muted-foreground/10 rounded-md text-muted-foreground",
+      "note": "搜索框壳"
+    },
+    {
+      "id": "t6-chats-canvas",
+      "classes": "flex-1 overflow-y-auto p-4 flex flex-col gap-6",
+      "note": "消息画布"
+    },
+    {
+      "id": "t6-msg-row-user",
+      "classes": "flex flex-col gap-[3px] max-w-[85%] self-end items-end",
+      "note": "用户消息行"
+    },
+    {
+      "id": "t6-msg-bubble-user",
+      "classes": "px-[14px] py-[10px] rounded-xl rounded-br text-[15px] leading-[1.6] break-words bg-primary text-primary-foreground",
+      "note": "用户气泡"
+    },
+    {
+      "id": "t6-msg-blocks",
+      "classes": "flex flex-col gap-1.5 py-[11px] px-[3px] border-t border-b border-border/60",
+      "note": "AI 内容容器(hairline)"
+    },
+    {
+      "id": "t6-branch-btn",
+      "classes": "text-[11px] py-[1px] px-2 rounded-full border border-border bg-transparent text-muted-foreground cursor-pointer max-w-[160px] truncate",
+      "note": "分支切换钮"
+    },
+    {
+      "id": "t6-gate-card",
+      "classes": "flex flex-col gap-[10px] px-5 py-3 border-t border-border shrink-0",
+      "note": "GateCard 根(style{} 迁移代表点)"
+    },
+    {
+      "id": "t6-gate-approve-btn",
+      "classes": "inline-flex items-center gap-1.5 py-1.5 px-3.5 rounded-md text-sm font-medium bg-green-500 text-white hover:opacity-85",
+      "note": "批准钮"
+    },
+    {
+      "id": "t6-gate-diff-card",
+      "classes": "border border-border rounded-lg overflow-hidden",
+      "note": "diff 卡"
+    },
+    {
+      "id": "t6-session-info-btn",
+      "classes": "flex items-center justify-center w-7 h-7 border-none rounded-md bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer",
+      "note": "会话信息钮"
+    },
+    {
+      "id": "t6-input-compose",
+      "classes": "relative flex-1 min-w-0 flex items-center bg-muted-foreground/5 border border-primary/15 rounded-[20px] py-1 px-2 min-h-20 focus-within:border-primary/45",
+      "note": "输入容器"
+    },
+    {
+      "id": "t6-send-btn",
+      "classes": "w-9 h-9 min-w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-lg shrink-0 border-none cursor-pointer hover:opacity-85 disabled:opacity-40",
+      "note": "发送钮"
+    },
+    {
+      "id": "t6-mention-item-active",
+      "classes": "flex items-center gap-2 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-sm text-left cursor-pointer",
+      "note": "@提及项·active"
+    },
+    {
+      "id": "t7-plans-root",
+      "classes": "flex flex-col h-full overflow-hidden",
+      "note": "plans 骨架"
+    },
+    {
+      "id": "t7-specs-nav-item",
+      "classes": "w-full text-left py-1.5 px-3 rounded-md text-sm bg-transparent cursor-pointer text-foreground hover:bg-accent",
+      "note": "specs 二级导航项"
+    },
+    {
+      "id": "t7-edit-panel",
+      "classes": "p-4 border border-border rounded-lg bg-card mb-4",
+      "note": "编辑面板(三域共用)"
+    },
+    {
+      "id": "t7-form-input",
+      "classes": "py-2 px-2.5 border border-border rounded-md bg-background text-foreground text-sm",
+      "note": "表单输入"
+    },
+    {
+      "id": "t7-save-btn",
+      "classes": "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border hover:bg-primary hover:text-primary-foreground hover:border-primary",
+      "note": "保存钮"
+    },
+    {
+      "id": "t7-action-danger",
+      "classes": "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border text-destructive hover:bg-destructive/10",
+      "note": "危险操作钮"
+    },
+    {
+      "id": "t7-tree-item",
+      "classes": "flex items-center gap-[5px] w-full py-1 px-2 border-none rounded bg-transparent text-foreground text-[13px] cursor-pointer text-left hover:bg-accent",
+      "note": "wiki 树项"
+    },
+    {
+      "id": "t7-nav-icon-btn",
+      "classes": "w-7 h-7 inline-flex items-center justify-center border border-border rounded-md bg-transparent cursor-pointer text-foreground text-base hover:bg-accent",
+      "note": "导航图标钮"
+    },
+    {
+      "id": "t7-drop-zone",
+      "classes": "flex flex-col items-center justify-center gap-[5px] p-2 mx-1 mt-1 mb-2 border border-dashed border-border rounded-md text-muted-foreground cursor-pointer",
+      "note": "上传 dropzone"
+    },
+    {
+      "id": "t7-wiki-content",
+      "classes": "px-5 pb-5 text-sm leading-[1.6] text-foreground",
+      "note": "wiki 正文容器"
+    }
+  ]
+}

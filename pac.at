@@ -26,4 +26,9 @@ i18n: ["src/front/i18n/zh.json", "src/front/i18n/en.json"]
 npm_deps: {
   // 注:本对象为 auto-man 行式解析,条目间不加逗号（尾逗号会被误计入版本串）
   "@autodown/vue": "file:../../../vendor/@autodown/vue"
+  // PLAN-049 过渡:上游 plan-019 Phase 4(auto-lang b26b61fd0, 2026-08-28)把
+  // markdown 渲染 import 重定向到 @autodown/engine;真实 engine 包未消费前,
+  // 以 vendor shim(同 vue 0.2.0 实现,零行为变化)按新包名供给,保
+  // `auto build` 门禁绿。真实消费另立计划后移除本行与 shim。
+  "@autodown/engine": "file:../../../vendor/@autodown/engine"
 }

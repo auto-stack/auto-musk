@@ -7,19 +7,19 @@
 // 架构：header 贴顶全宽自带宽（48px + border-bottom），内容容器单独 padding。
 // 各视图把 header 提到内容容器外（section/wiki 原负 margin hack 消除）。
 //
-// 样式：`.content-header` 系列为单一真源（inject_styles.ts），替代分散的
-// chats-header/section-header/wiki-content-header 规则 + !important 覆盖。
+// 样式：inject_styles.ts 的 .content-header 系列已迁内联工具类
+//（PLAN-049 双轨收敛,单一样式源）。
 
 widget ContentHeader(title: str) {
     view {
         div {
-            style: "content-header"
+            style: "flex items-center justify-between h-12 shrink-0 px-5 border-b border-border bg-card"
             span {
-                style: "content-header-title"
+                style: "text-xl font-bold text-foreground shrink-0"
                 text .title
             }
             div {
-                style: "content-header-middle"
+                style: "flex-1 min-w-0 flex justify-center"
                 slot(name: "middle") {}
             }
             slot(name: "actions") {}

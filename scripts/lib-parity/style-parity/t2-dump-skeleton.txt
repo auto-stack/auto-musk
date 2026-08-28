@@ -1,0 +1,1647 @@
+ --> crates\auto-lang\src\api\integration_tests.rs:8:53
+  |
+8 |         ApiAnnotationParser, ApiAttrs, ApiEndpoint, ApiExtractor, ApiField, ApiModule, ApiParam,
+  |                                                     ^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+   --> crates\auto-lang\src\aura\extract.rs:813:1
+    |
+813 | /// Extract view node from parsed ViewNode
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+    = note: `#[warn(unused_doc_comments)]` (part of `#[warn(unused)]`) on by default
+
+  --> crates\auto-lang\src\aura\extract.rs:13:50
+   |
+13 | use crate::ast::{Expr, Type, Key, ViewPropValue, ViewProp, ViewEvent};
+   |                                                  ^^^^^^^^
+
+     --> crates\auto-lang\src\ui_gen\vue.rs:15503:5
+      |
+15503 |     #[test]
+      |     ^^^^^^^
+      |
+      = note: `#[warn(duplicate_macro_attributes)]` on by default
+
+    --> crates\auto-lang\src\ui_gen\rust.rs:3179:26
+     |
+3179 |         use crate::ast::{Expr, Stmt};
+     |                          ^^^^  ^^^^
+
+    --> crates\auto-lang\src\ui_gen\rust.rs:3180:13
+     |
+3180 |         use auto_val::Op;
+     |             ^^^^^^^^^^^^
+
+    --> crates\auto-lang\src\ui_gen\rust.rs:4728:20
+     |
+4728 |                 if (fn_name.starts_with("store.") || fn_name.starts_with("self.store.")) {
+     |                    ^                                                                   ^
+     |
+     = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+     |
+4728 -                 if (fn_name.starts_with("store.") || fn_name.starts_with("self.store.")) {
+4728 +                 if fn_name.starts_with("store.") || fn_name.starts_with("self.store.") {
+     |
+
+   --> crates\auto-lang\src\ui_gen\api.rs:283:5
+    |
+283 | use std::collections::HashSet;
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+     --> crates\auto-lang\src\parser.rs:18135:5
+      |
+18135 |     #[test]
+      |     ^^^^^^^
+
+     --> crates\auto-lang\src\parser.rs:16093:9
+      |
+16093 |     use super::*;
+      |         ^^^^^^^^
+
+ --> crates\auto-lang\src\vm\codegen.rs:7:863
+  |
+7 | ...E_BASENAME, NATIVE_PRINT_F32, NATIVE_PRINT_F64, NATIVE_PRINT_I32, NATIVE_PRINT_STR, NATIVE_PRINT_U64, NATIVE_PRINT_UNIFIED, NATIVE...
+  |                                  ^^^^^^^^^^^^^^^^                                      ^^^^^^^^^^^^^^^^
+
+  --> crates\auto-lang\src\vm\abt\mod.rs:81:13
+   |
+81 |         use std::fmt::Write;
+   |             ^^^^^^^^^^^^^^^
+
+   --> crates\auto-lang\src\vm\engine.rs:716:13
+    |
+716 |         use std::sync::atomic::Ordering;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+  --> crates\auto-lang\src\vm\rc.rs:20:5
+   |
+20 | use dashmap::DashMap;
+   |     ^^^^^^^^^^^^^^^^
+
+  --> crates\auto-lang\src\vm\rc.rs:22:36
+   |
+22 | use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+   |                                    ^^^^^^^^^
+
+    --> crates\auto-lang\src\vm\native.rs:9179:13
+     |
+9179 |         use super::*;
+     |             ^^^^^^^^
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:2245:1
+     |
+2245 | /// 原始（inventory rust_fn）shim 的暂存表：wrapper 规整首参后委托原实现。
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+     |
+     = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+    --> crates\auto-lang\src\lib.rs:5313:76
+     |
+5313 |     use crate::ui_gen::{generate_component_from_file, ComponentGenOptions, VueGenerator, VueMode};
+     |                                                                            ^^^^^^^^^^^^  ^^^^^^^
+
+ --> crates\auto-lang\src\tests\autodown_tests.rs:3:16
+  |
+3 |     AdocBlock, AdocDocument, AdocInline, AdocMath, AdocParser, AdocSection,
+  |                ^^^^^^^^^^^^  ^^^^^^^^^^                        ^^^^^^^^^^^
+4 |     AdocLexer, LexerMode,
+  |     ^^^^^^^^^  ^^^^^^^^^
+
+   --> crates\auto-lang\src\plan340_tests.rs:124:13
+    |
+124 |         use std::path::PathBuf;
+    |             ^^^^^^^^^^^^^^^^^^
+
+   --> crates\auto-lang\src\plan340_tests.rs:420:13
+    |
+420 |         use std::path::PathBuf;
+    |             ^^^^^^^^^^^^^^^^^^
+
+  --> crates\auto-lang\src\ui\code_editor\core\render.rs:14:41
+   |
+14 |     Attrs, AttrsList, BufferLine, Edit, Family, FontSystem, LineEnding, Metrics, Selection, Wrap,
+   |                                         ^^^^^^
+
+  --> crates\auto-lang\src\ui\code_editor\core\mod.rs:20:39
+   |
+20 | use std::sync::{Arc, Mutex, OnceLock, Weak};
+   |                                       ^^^^
+
+  --> crates\auto-lang\src\ui\code_editor\iced\gutter.rs:21:35
+   |
+21 |     Attrs, AttrsList, BufferLine, Family, FontSystem, LayoutLine, LineEnding, Shaping, SwashCache,
+   |                                   ^^^^^^
+
+  --> crates\auto-lang\src\ui\code_editor\iced\widget.rs:13:5
+   |
+13 | use iced::advanced::graphics::text::Renderer as RawTextRenderer;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    --> crates\auto-lang\src\ui\view.rs:3169:5
+     |
+3169 |     #[test]
+     |     ^^^^^^^
+
+   --> crates\auto-lang\src\ui\debug\inspector_cache.rs:311:5
+    |
+311 |     #[test]
+    |     ^^^^^^^
+
+    --> crates\auto-lang\src\ui\vm_bridge.rs:2654:13
+     |
+2654 |         use crate::ast::Stmt;
+     |             ^^^^^^^^^^^^^^^^
+
+    --> crates\auto-lang\src\ui\aura_view_builder.rs:5210:22
+     |
+5210 |                     };
+     |                      ^ help: remove this semicolon
+     |
+     = note: `#[warn(redundant_semicolons)]` (part of `#[warn(unused)]`) on by default
+
+    --> crates\auto-lang\src\ui\dynamic.rs:1470:58
+     |
+1470 |     use crate::aura::{AuraNode, AuraStateDef, AuraEvent, AuraPropValue, AuraTextContent};
+     |                                                          ^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^
+
+   --> crates\auto-lang\src\ui\iced\renderer.rs:122:1
+    |
+122 | /// 独立 kill-ring(readline 语义:最近 16 条;不污染系统剪贴板)。
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+   --> crates\auto-lang\src\ui\iced\renderer.rs:920:1
+    |
+920 | /// 每个 textarea key 当前嵌入的 ghost 后缀(渲染时写入,编辑派发时读)。
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ rustdoc does not generate documentation for macro invocations
+    |
+    = help: to document an item produced by a macro, the macro must produce the documentation as part of its expansion
+
+    --> crates\auto-lang\src\ui\iced\renderer.rs:4689:36
+     |
+4689 |         use iced::widget::canvas::{Fill, Frame, Path, Stroke};
+     |                                    ^^^^
+
+   --> crates\auto-lang\src\ui\host.rs:117:9
+    |
+117 |     use super::*;
+    |         ^^^^^^^^
+
+   --> crates\auto-lang\src\ui_gen\jet\components.rs:168:24
+    |
+168 |         let registry = Material3Registry::new();
+    |                        ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+   --> crates\auto-lang\src\ui_gen\jet\components.rs:176:24
+    |
+176 |         let registry = Material3Registry::new();
+    |                        ^^^^^^^^^^^^^^^^^
+
+   --> crates\auto-lang\src\ui_gen\jet\components.rs:184:24
+    |
+184 |         let registry = Material3Registry::new();
+    |                        ^^^^^^^^^^^^^^^^^
+
+   --> crates\auto-lang\src\ui_gen\jet\components.rs:192:24
+    |
+192 |         let registry = Material3Registry::new();
+    |                        ^^^^^^^^^^^^^^^^^
+
+  --> crates\auto-lang\src\plan_088_tests.rs:30:45
+   |
+30 |         assert_eq!(format!("{}", ParamMode::Take), "move"); // Displays as "move" per Plan 122
+   |                                             ^^^^
+
+   --> crates\auto-lang\src\ast\task.rs:948:14
+    |
+948 |         let (p, g, _) = &on_block.handlers[0];
+    |              ^ help: if this is intentional, prefix it with an underscore: `_p`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+   --> crates\auto-lang\src\aura\extract.rs:635:24
+    |
+635 |     let (mut handlers, mut handler_params) = if let Some(on) = &decl.on {
+    |                        ----^^^^^^^^^^^^^^
+    |                        |
+    |                        help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+   --> crates\auto-lang\src\aura\schema.rs:323:21
+    |
+323 |         if let Some(def) = self.elements.get(tag) {
+    |                     ^^^ help: if this is intentional, prefix it with an underscore: `_def`
+
+    --> crates\auto-lang\src\ui_gen\vue.rs:6025:13
+     |
+6003 |             "option" | "Option" => "option".to_string(),
+     |             ------------------- matches all the relevant values
+...
+6025 |             "option" | "Option" => "option".to_string(),
+     |             ^^^^^^^^^^^^^^^^^^^ no value can reach this
+     |
+     = note: `#[warn(unreachable_patterns)]` (part of `#[warn(unused)]`) on by default
+
+    --> crates\auto-lang\src\ui_gen\vue.rs:6442:17
+     |
+6442 |                 _ => {}
+     |                 ^ no value can reach this
+     |
+note: multiple earlier patterns match some of the same values
+    --> crates\auto-lang\src\ui_gen\vue.rs:6442:17
+     |
+6381 |                 AuraPropValue::StyleBinding(bindings) => {
+     |                 ------------------------------------- matches some of the same values
+...
+6400 |                 AuraPropValue::Expr(crate::ast::Expr::Str(s)) => {
+     |                 --------------------------------------------- matches some of the same values
+...
+6413 |                 AuraPropValue::Expr(crate::ast::Expr::If(if_stmt)) => {
+     |                 -------------------------------------------------- matches some of the same values
+...
+6419 |                 AuraPropValue::Expr(other_expr) => {
+     |                 ------------------------------- matches some of the same values
+...
+6442 |                 _ => {}
+     |                 ^ collectively making this unreachable
+
+     --> crates\auto-lang\src\ui_gen\vue.rs:16068:14
+      |
+16068 |         let (attrs, _slot_content, slot_children) = gen.generate_shadcn_attrs("button", &props, &events);
+      |              ^^^^^ help: if this is intentional, prefix it with an underscore: `_attrs`
+
+     --> crates\auto-lang\src\ui_gen\vue.rs:16446:14
+      |
+16446 |         let (attrs, slot_content, _) = gen.generate_shadcn_attrs("tree_item", &props, &events);
+      |              ^^^^^ help: if this is intentional, prefix it with an underscore: `_attrs`
+
+     --> crates\auto-lang\src\ui_gen\vue.rs:16461:13
+      |
+16461 |         let primary_component =
+      |             ^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_primary_component`
+
+     --> crates\auto-lang\src\ui_gen\vue.rs:22435:13
+      |
+22435 |         let mut gen = VueGenerator::new();
+      |             ----^^^
+      |             |
+      |             help: remove this `mut`
+
+     --> crates\auto-lang\src\ui_gen\vue.rs:22440:13
+      |
+22440 |         let mut gen_shadcn = VueGenerator::new_shadcn();
+      |             ----^^^^^^^^^^
+      |             |
+      |             help: remove this `mut`
+
+    --> crates\auto-lang\src\ui_gen\rust.rs:3441:21
+     |
+3441 |                 let store_check = format!("{}.{}", first, part);
+     |                     ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_store_check`
+
+    --> crates\auto-lang\src\ui_gen\jet\generator.rs:2919:13
+     |
+2919 |         let mut gen = JetGenerator::new();
+     |             ----^^^
+     |             |
+     |             help: remove this `mut`
+
+    --> crates\auto-lang\src\ui_gen\jet\generator.rs:2919:13
+     |
+2919 |         let mut gen = JetGenerator::new();
+     |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_gen`
+
+   --> crates\auto-lang\src\ui_gen\jet\layout.rs:833:13
+    |
+833 |         let mut props = HashMap::new();
+    |             ----^^^^^
+    |             |
+    |             help: remove this `mut`
+
+   --> crates\auto-lang\src\ui_gen\widget\registry.rs:326:13
+    |
+326 |         let mut scroll_scrollbar = WidgetSpec::new("ScrollAreaScrollbar", WidgetCategory::Layout)
+    |             ----^^^^^^^^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+   --> crates\auto-lang\src\ui_gen\widget\registry.rs:331:13
+    |
+331 |         let mut scroll_thumb = WidgetSpec::new("ScrollAreaThumb", WidgetCategory::Layout)
+    |             ----^^^^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+   --> crates\auto-lang\src\ui_gen\widget\registry.rs:508:13
+    |
+508 |         let mut select_value = WidgetSpec::new("SelectValue", WidgetCategory::Form)
+    |             ----^^^^^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+    --> crates\auto-lang\src\ui_gen\widget\registry.rs:1060:13
+     |
+1060 |         let mut breadcrumb_sep = WidgetSpec::new("BreadcrumbSeparator", WidgetCategory::Navigation)
+     |             ----^^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+    --> crates\auto-lang\src\ui_gen\widget\registry.rs:1125:13
+     |
+1125 |         let mut pagination_link = WidgetSpec::new("PaginationLink", WidgetCategory::Navigation)
+     |             ----^^^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+    --> crates\auto-lang\src\ui_gen\widget\registry.rs:1130:13
+     |
+1130 |         let mut pagination_ellipsis = WidgetSpec::new("PaginationEllipsis", WidgetCategory::Navigation)
+     |             ----^^^^^^^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+    --> crates\auto-lang\src\ui_gen\widget\registry.rs:1135:13
+     |
+1135 |         let mut pagination_next = WidgetSpec::new("PaginationNext", WidgetCategory::Navigation)
+     |             ----^^^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+    --> crates\auto-lang\src\ui_gen\widget\registry.rs:1140:13
+     |
+1140 |         let mut pagination_prev = WidgetSpec::new("PaginationPrevious", WidgetCategory::Navigation)
+     |             ----^^^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+    --> crates\auto-lang\src\ui_gen\widget\registry.rs:1641:13
+     |
+1641 |         let mut toast_viewport = WidgetSpec::new("ToastViewport", WidgetCategory::Feedback)
+     |             ----^^^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+    --> crates\auto-lang\src\ui_gen\widget\registry.rs:1652:13
+     |
+1652 |         let mut toast_close = WidgetSpec::new("ToastClose", WidgetCategory::Feedback)
+     |             ----^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+    --> crates\auto-lang\src\ui_gen\widget\registry.rs:1690:13
+     |
+1690 |         let mut sonner = WidgetSpec::new("Sonner", WidgetCategory::Feedback)
+     |             ----^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+    --> crates\auto-lang\src\ui_gen\widget\registry.rs:1861:13
+     |
+1861 |         let mut calendar_day = WidgetSpec::new("CalendarDay", WidgetCategory::Data)
+     |             ----^^^^^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+   --> crates\auto-lang\src\ui_gen\api.rs:596:44
+    |
+596 |     let mut sub_widgets_out: Vec<String> = Vec::new();
+    |                                            ^^^^^^^^^^ this value is reassigned later and never used
+...
+659 |         sub_widgets_out = package_names;
+    |         --------------- `sub_widgets_out` is overwritten here before the previous value is read
+    |
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+   --> crates\auto-lang\src\ui_gen\validators.rs:588:9
+    |
+588 |     let count = template.matches("AutoDownEditor").count();
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_count`
+
+    --> crates\auto-lang\src\parser.rs:2316:13
+     |
+2316 |         let mut rollback = |slf: &mut Self| {
+     |             ----^^^^^^^^
+     |             |
+     |             help: remove this `mut`
+
+     --> crates\auto-lang\src\parser.rs:10441:14
+      |
+10441 |         let (open, close, close_text) = if self.is_kind(TokenKind::Lt) {
+      |              ^^^^ help: if this is intentional, prefix it with an underscore: `_open`
+
+     --> crates\auto-lang\src\parser.rs:16231:13
+      |
+16231 |         let same_line = code.replace("};
+      |             ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_same_line`
+
+   --> crates\auto-lang\src\trans\rust.rs:875:31
+    |
+875 |         if let Expr::Dot(obj, method) = call.name.as_ref() {
+    |                               ^^^^^^ help: if this is intentional, prefix it with an underscore: `_method`
+
+    --> crates\auto-lang\src\trans\rust.rs:5601:34
+     |
+5501 |                         "Json" => match method.as_str() {
+     |                         ------ matches all the relevant values
+...
+5601 |                         "json" | "Json" => match method.as_str() {
+     |                                  ^^^^^^ no value can reach this
+
+    --> crates\auto-lang\src\trans\rust.rs:5721:29
+     |
+5643 | ...                   "as_int" => {
+     |                       -------- matches all the relevant values
+...
+5721 | ...                   "as_int" => {
+     |                       ^^^^^^^^ no value can reach this
+
+     --> crates\auto-lang\src\trans\rust.rs:10796:13
+      |
+10796 |         let name = td.name.as_str();
+      |             ^^^^ help: if this is intentional, prefix it with an underscore: `_name`
+
+     --> crates\auto-lang\src\trans\rust.rs:11348:9
+      |
+11348 |         name: &str,
+      |         ^^^^ help: if this is intentional, prefix it with an underscore: `_name`
+
+     --> crates\auto-lang\src\trans\rust.rs:17245:20
+      |
+17245 |                 if let crate::ast::Cover::Tag(tc) = cover {
+      |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      |
+      = note: this pattern will always match, so the `if let` is useless
+      = help: consider replacing the `if let` with a `let`
+      = note: `#[warn(irrefutable_let_patterns)]` on by default
+
+     --> crates\auto-lang\src\trans\rust.rs:19286:21
+      |
+19286 |                 let derive_attr = caps.get(1).unwrap().as_str();
+      |                     ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_derive_attr`
+
+    --> crates\auto-lang\src\vm\codegen.rs:2537:28
+     |
+2537 |             Stmt::SpecDecl(spec_decl) => {
+     |                            ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_spec_decl`
+
+    --> crates\auto-lang\src\vm\codegen.rs:7208:61
+     |
+7208 | ...                   let enum_method = format!("{}.{}", enum_name, method.as_ref());
+     |                           ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_enum_method`
+
+   --> crates\auto-lang\src\vm\abt\asm.rs:175:11
+    |
+151 |         | OpCode::LOAD_GLOBAL | OpCode::STORE_GLOBAL
+    |           ------------------- matches all the relevant values
+...
+175 |         | OpCode::LOAD_GLOBAL | OpCode::STORE_GLOBAL
+    |           ^^^^^^^^^^^^^^^^^^^ no value can reach this
+
+   --> crates\auto-lang\src\vm\abt\asm.rs:175:33
+    |
+151 |         | OpCode::LOAD_GLOBAL | OpCode::STORE_GLOBAL
+    |                                 -------------------- matches all the relevant values
+...
+175 |         | OpCode::LOAD_GLOBAL | OpCode::STORE_GLOBAL
+    |                                 ^^^^^^^^^^^^^^^^^^^^ no value can reach this
+
+   --> crates\auto-lang\src\vm\abt\disasm.rs:263:11
+    |
+239 |         | OpCode::LOAD_GLOBAL | OpCode::STORE_GLOBAL
+    |           ------------------- matches all the relevant values
+...
+263 |         | OpCode::LOAD_GLOBAL | OpCode::STORE_GLOBAL
+    |           ^^^^^^^^^^^^^^^^^^^ no value can reach this
+
+   --> crates\auto-lang\src\vm\abt\disasm.rs:263:33
+    |
+239 |         | OpCode::LOAD_GLOBAL | OpCode::STORE_GLOBAL
+    |                                 -------------------- matches all the relevant values
+...
+263 |         | OpCode::LOAD_GLOBAL | OpCode::STORE_GLOBAL
+    |                                 ^^^^^^^^^^^^^^^^^^^^ no value can reach this
+
+   --> crates\auto-lang\src\vm\abt\tests.rs:197:9
+    |
+197 |     let task_id = vm.spawn_task(main_entry, 16384);
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_task_id`
+
+  --> crates\auto-lang\src\vm\abt\mod.rs:87:13
+   |
+87 | ...   let mut emit_line = |s: &str, src_line: Option<u32>, out: &mut String, map: &mut Vec<crate::trans::SourceMapEntry>, line_no: &...
+   |           ----^^^^^^^^^
+   |           |
+   |           help: remove this `mut`
+
+  --> crates\auto-lang\src\vm\tests_parser_stack.rs:30:13
+   |
+30 |         let mut session = crate::compile::CompileSession::new();
+   |             ----^^^^^^^
+   |             |
+   |             help: remove this `mut`
+
+  --> crates\auto-lang\src\vm\tests_parser_stack.rs:70:13
+   |
+70 |         let mut session = crate::compile::CompileSession::new();
+   |             ----^^^^^^^
+   |             |
+   |             help: remove this `mut`
+
+  --> crates\auto-lang\src\vm\tests_parser_stack.rs:93:13
+   |
+93 |         let mut session = crate::compile::CompileSession::new();
+   |             ----^^^^^^^
+   |             |
+   |             help: remove this `mut`
+
+   --> crates\auto-lang\src\vm\tests_parser_stack.rs:112:13
+    |
+112 |         let mut session = crate::compile::CompileSession::new();
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+   --> crates\auto-lang\src\vm\tests_parser_stack.rs:130:13
+    |
+130 |         let mut session = crate::compile::CompileSession::new();
+    |             ----^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+    --> crates\auto-lang\src\vm\engine.rs:5668:33
+     |
+5668 |                     if let Some(handle) = http_response_handle {
+     |                                 ^^^^^^ help: if this is intentional, prefix it with an underscore: `_handle`
+
+    --> crates\auto-lang\src\vm\engine.rs:6469:42
+     |
+6469 | ...                   Some(other) => {
+     |                            ^^^^^ help: if this is intentional, prefix it with an underscore: `_other`
+
+    --> crates\auto-lang\src\vm\engine.rs:4217:58
+     |
+4217 |                       let mut old_field_ref: Option<u64> = None;
+     |                                                            ^^^^ this value is reassigned later and never used
+...
+4231 | /                                 old_field_ref = instance.fields.get(field_index).and_then(|v| match v {
+4232 | |                                     Value::VmRef(r) => Some(r.id as u64),
+4233 | |                                     _ => None,
+4234 | |                                 });
+     | |__________________________________- `old_field_ref` is overwritten here before the previous value is read
+
+    --> crates\auto-lang\src\vm\engine.rs:4776:57
+     |
+4776 |                       let mut old_elem_ref: Option<u64> = None;
+     |                                                           ^^^^ this value is reassigned later and never used
+...
+4786 | /                                 old_elem_ref = match &list.elems[index] {
+4787 | |                                     auto_val::Value::VmRef(r) => Some(r.id as u64),
+4788 | |                                     _ => None,
+4789 | |                                 };
+     | |_________________________________- `old_elem_ref` is overwritten here before the previous value is read
+
+   --> crates\auto-lang\src\vm\rc.rs:277:22
+    |
+277 |             let Some(mut e) = self.heap_rc.get_mut(&id) else {
+    |                      ----^
+    |                      |
+    |                      help: remove this `mut`
+
+   --> crates\auto-lang\src\vm\rc.rs:455:25
+    |
+455 |             if let Some(k) = &key {
+    |                         ^ help: if this is intentional, prefix it with an underscore: `_k`
+
+  --> crates\auto-lang\src\vm\autodown_natives.rs:59:9
+   |
+59 |     let key = pop_string_arg(task, vm);
+   |         ^^^ help: if this is intentional, prefix it with an underscore: `_key`
+
+   --> crates\auto-lang\src\vm\native.rs:297:38
+    |
+297 | fn shim_int_and(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                      ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:305:37
+    |
+305 | fn shim_int_or(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                     ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:313:38
+    |
+313 | fn shim_int_xor(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                      ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:322:38
+    |
+322 | fn shim_int_not(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                      ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:330:38
+    |
+330 | fn shim_int_shl(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                      ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:341:38
+    |
+341 | fn shim_int_shr(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                      ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:352:38
+    |
+352 | fn shim_int_sar(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                      ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:366:38
+    |
+366 | fn shim_int_rol(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                      ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:374:38
+    |
+374 | fn shim_int_ror(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                      ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:382:45
+    |
+382 | fn shim_int_count_ones(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                             ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:389:48
+    |
+389 | fn shim_int_leading_zeros(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                                ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:396:49
+    |
+396 | fn shim_int_trailing_zeros(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                                 ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:403:41
+    |
+403 | fn shim_int_bitrev(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                         ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:412:43
+    |
+412 | fn shim_int_bit_read(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:424:43
+    |
+424 | fn shim_int_bit_test(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:435:41
+    |
+435 | fn shim_int_bit_on(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                         ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:445:42
+    |
+445 | fn shim_int_bit_off(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                          ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:455:43
+    |
+455 | fn shim_int_bit_flip(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+505 | math_unary_shim!(shim_math_sin, sin);
+    | ------------------------------------ in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+505 | math_unary_shim!(shim_math_sin, sin);
+    | ------------------------------------ in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+506 | math_unary_shim!(shim_math_cos, cos);
+    | ------------------------------------ in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+506 | math_unary_shim!(shim_math_cos, cos);
+    | ------------------------------------ in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+507 | math_unary_shim!(shim_math_tan, tan);
+    | ------------------------------------ in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+507 | math_unary_shim!(shim_math_tan, tan);
+    | ------------------------------------ in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+510 | math_unary_shim!(shim_math_abs_f, abs);
+    | -------------------------------------- in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+510 | math_unary_shim!(shim_math_abs_f, abs);
+    | -------------------------------------- in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+511 | math_unary_shim!(shim_math_floor, floor);
+    | ---------------------------------------- in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+511 | math_unary_shim!(shim_math_floor, floor);
+    | ---------------------------------------- in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+512 | math_unary_shim!(shim_math_ceil, ceil);
+    | -------------------------------------- in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+512 | math_unary_shim!(shim_math_ceil, ceil);
+    | -------------------------------------- in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+513 | math_unary_shim!(shim_math_round, round);
+    | ---------------------------------------- in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+513 | math_unary_shim!(shim_math_round, round);
+    | ---------------------------------------- in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+514 | math_unary_shim!(shim_math_exp, exp);
+    | ------------------------------------ in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+514 | math_unary_shim!(shim_math_exp, exp);
+    | ------------------------------------ in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+515 | math_unary_shim!(shim_math_ln, ln);
+    | ---------------------------------- in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+515 | math_unary_shim!(shim_math_ln, ln);
+    | ---------------------------------- in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+516 | math_unary_shim!(shim_math_log2, log2);
+    | -------------------------------------- in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+516 | math_unary_shim!(shim_math_log2, log2);
+    | -------------------------------------- in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+517 | math_unary_shim!(shim_math_log10, log10);
+    | ---------------------------------------- in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+517 | math_unary_shim!(shim_math_log10, log10);
+    | ---------------------------------------- in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+518 | math_unary_shim!(shim_math_signum, signum);
+    | ------------------------------------------ in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+518 | math_unary_shim!(shim_math_signum, signum);
+    | ------------------------------------------ in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+519 | math_unary_shim!(shim_math_asin, asin);
+    | -------------------------------------- in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+519 | math_unary_shim!(shim_math_asin, asin);
+    | -------------------------------------- in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+520 | math_unary_shim!(shim_math_acos, acos);
+    | -------------------------------------- in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+520 | math_unary_shim!(shim_math_acos, acos);
+    | -------------------------------------- in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+521 | math_unary_shim!(shim_math_atan, atan);
+    | -------------------------------------- in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+521 | math_unary_shim!(shim_math_atan, atan);
+    | -------------------------------------- in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+522 | math_unary_shim!(shim_math_to_radians, to_radians);
+    | -------------------------------------------------- in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+522 | math_unary_shim!(shim_math_to_radians, to_radians);
+    | -------------------------------------------------- in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+523 | math_unary_shim!(shim_math_to_degrees, to_degrees);
+    | -------------------------------------------------- in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:486:43
+    |
+486 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+523 | math_unary_shim!(shim_math_to_degrees, to_degrees);
+    | -------------------------------------------------- in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:496:43
+    |
+496 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+524 | math_binary_shim!(shim_math_pow, powf);
+    | -------------------------------------- in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:496:43
+    |
+496 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+524 | math_binary_shim!(shim_math_pow, powf);
+    | -------------------------------------- in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:496:43
+    |
+496 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+525 | math_binary_shim!(shim_math_powf, powf);
+    | --------------------------------------- in this macro invocation
+    |
+help: `vm` is captured in macro and introduced a unused variable
+   --> crates\auto-lang\src\vm\native.rs:496:43
+    |
+496 |         pub fn $name(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                           ^^
+...
+525 | math_binary_shim!(shim_math_powf, powf);
+    | --------------------------------------- in this macro invocation
+
+   --> crates\auto-lang\src\vm\native.rs:536:45
+    |
+536 | pub fn shim_math_atan2(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+    |                                             ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\native.rs:1154:48
+     |
+1154 | pub fn shim_console_clear(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                                ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\native.rs:6159:46
+     |
+6159 | pub fn shim_rand_random(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                              ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\native.rs:6177:44
+     |
+6177 | pub fn shim_log_noop(_task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                            ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\native.rs:7914:45
+     |
+7914 | pub fn shim_result_ok(_task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                             ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\native.rs:7968:45
+     |
+7968 | pub fn shim_rand_float(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                             ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\native.rs:7981:44
+     |
+7981 | pub fn shim_rand_bool(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                            ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+   --> crates\auto-lang\src\vm\task_system.rs:950:13
+    |
+950 |         let mut instance = TaskInstance::new("TestTask".to_string(), 2);
+    |             ----^^^^^^^^
+    |             |
+    |             help: remove this `mut`
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:2973:58
+     |
+2973 | pub fn shim_net_tcp_listener_accept(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                                          ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:3012:57
+     |
+3012 | pub fn shim_net_tcp_listener_close(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                                         ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:3154:55
+     |
+3154 | pub fn shim_net_tcp_stream_close(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                                       ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:3175:66
+     |
+3175 | pub fn shim_net_tcp_stream_set_read_timeout(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                                                  ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:3194:67
+     |
+3194 | pub fn shim_net_tcp_stream_set_write_timeout(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                                                   ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:3216:55
+     |
+3216 | pub fn shim_net_tcp_stream_flush(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                                       ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:3232:61
+     |
+3232 | pub fn shim_net_tcp_stream_set_nodelay(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                                             ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:3460:46
+     |
+3460 | pub fn shim_http_server(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                              ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:3842:48
+     |
+3842 | pub fn shim_http_response(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                                ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:3855:55
+     |
+3855 | pub fn shim_http_response_status(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                                       ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:3979:50
+     |
+3979 | pub fn shim_http_rate_limit(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                                  ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:5196:55
+     |
+5196 | pub fn shim_response_status_code(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                                       ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:5352:54
+     |
+5352 | pub fn shim_http_stream_is_done(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                                      ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:5369:52
+     |
+5369 | pub fn shim_http_stream_close(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                                    ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:6298:51
+     |
+6298 | pub fn shim_http_last_status(task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                                   ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\vm\ffi\stdlib.rs:6331:47
+     |
+6331 | pub fn shim_http_listen(_task: &mut AutoTask, vm: &AutoVM) -> Result<(), VMError> {
+     |                                               ^^ help: if this is intentional, prefix it with an underscore: `_vm`
+
+    --> crates\auto-lang\src\tests\list_tests.rs:1006:10
+     |
+1006 |     let (r, s) = crate::run_with_capture(code).unwrap();
+     |          ^ help: if this is intentional, prefix it with an underscore: `_r`
+
+  --> crates\auto-lang\src\plan046_obj_natives_tests.rs:48:13
+   |
+48 |         let out = run(
+   |             ^^^ help: if this is intentional, prefix it with an underscore: `_out`
+
+    --> crates\auto-lang\src\ui\code_editor\core\mod.rs:2285:28
+     |
+2285 |                 let (line, col, _) = core.cursor_info();
+     |                            ^^^ help: if this is intentional, prefix it with an underscore: `_col`
+
+   --> crates\auto-lang\src\ui\action_config.rs:767:19
+    |
+
+   --> crates\auto-lang\src\ui\style\class.rs:893:13
+    |
+889 |             "font-normal" => return Ok(StyleClass::FontNormal),
+    |             ------------- matches all the relevant values
+...
+893 |             "font-normal" => return Ok(StyleClass::FontNormal),
+    |             ^^^^^^^^^^^^^ no value can reach this
+
+   --> crates\auto-lang\src\ui\style\color.rs:212:13
+    |
+212 |             _ => (128, 128, 128),
+    |             ^ no value can reach this
+    |
+note: multiple earlier patterns match some of the same values
+   --> crates\auto-lang\src\ui\style\color.rs:212:13
+    |
+170 |             Color::Rgb { r, g, b } => (*r, *g, *b),
+    |             ---------------------- matches some of the same values
+171 |             Color::Rgba { r, g, b, .. } => (*r, *g, *b),
+    |             --------------------------- matches some of the same values
+172 |             Color::Hex(value) => {
+    |             ----------------- matches some of the same values
+...
+178 |             Color::White => (255, 255, 255),
+    |             ------------ matches some of the same values
+...
+212 |             _ => (128, 128, 128),
+    |             ^ ...and 32 other patterns collectively make this unreachable
+
+    --> crates\auto-lang\src\ui\handler_codegen.rs:1256:5
+     |
+1256 |     store_fields: &HashMap<String, Vec<String>>,
+     |     ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_store_fields`
+
+    --> crates\auto-lang\src\ui\handler_codegen.rs:1257:5
+     |
+1257 |     store_widget_names: &HashMap<String, String>,
+     |     ^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_store_widget_names`
+
+   --> crates\auto-lang\src\ui\snapshot_builder.rs:194:21
+    |
+194 |                 let mut props = vec![
+    |                     ----^^^^^
+    |                     |
+    |                     help: remove this `mut`
+
+    --> crates\auto-lang\src\ui\mcp_server.rs:2602:13
+     |
+2602 |         let ids: Vec<String> = matches.iter()
+     |             ^^^ help: if this is intentional, prefix it with an underscore: `_ids`
+
+    --> crates\auto-lang\src\ui\aura_view_builder.rs:5346:13
+     |
+5346 |         let cond = condition.trim();
+     |             ^^^^ help: if this is intentional, prefix it with an underscore: `_cond`
+
+    --> crates\auto-lang\src\ui\aura_view_builder.rs:5772:13
+     |
+5772 |         let mut inner = self.serialize_svg_children(children, bindings);
+     |             ----^^^^^
+     |             |
+     |             help: remove this `mut`
+
+    --> crates\auto-lang\src\ui\dynamic.rs:1766:13
+     |
+1766 |         let mut comp = comp;
+     |             ----^^^^
+     |             |
+     |             help: remove this `mut`
+
+    --> crates\auto-lang\src\ui\iced\renderer.rs:2855:95
+     |
+2855 |             AbstractView::Textarea { placeholder, value, on_change, on_submit, height, style, keymap, .. } => {
+     |                                                                                               ^^^^^^ help: try ignoring the field: `keymap: _`
+
+    --> crates\auto-lang\src\ui\iced\renderer.rs:5002:9
+     |
+5002 |     let mut lock = match guard.lock() {
+     |         ----^^^^
+     |         |
+     |         help: remove this `mut`
+
+    --> crates\auto-lang\src\ui\iced\renderer.rs:8915:13
+     |
+8915 |         let mut buf = state.app.devtools.console_buffer.lock().unwrap();
+     |             ----^^^
+     |             |
+     |             help: remove this `mut`
+
+     --> crates\auto-lang\src\ui\iced\renderer.rs:10824:15
+      |
+10824 | fn apply_edit(mut state: crate::ui::session::SessionViewMut) {
+      |               ----^^^^^
+      |               |
+      |               help: remove this `mut`
+
+     --> crates\auto-lang\src\ui\iced\renderer.rs:11427:5
+      |
+11427 |     on_change: Option<M>,
+      |     ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_on_change`
+
+     --> crates\auto-lang\src\ui\iced\renderer.rs:11996:40
+      |
+11996 |         AbstractView::AutodownEditor { key, value, is_final, on_change, style: _ } => {
+      |                                        ^^^ help: try ignoring the field: `key: _`
+
+     --> crates\auto-lang\src\ui\iced\renderer.rs:11996:52
+      |
+11996 |         AbstractView::AutodownEditor { key, value, is_final, on_change, style: _ } => {
+      |                                                    ^^^^^^^^ help: try ignoring the field: `is_final: _`
+
+     --> crates\auto-lang\src\ui\iced\renderer.rs:11996:62
+      |
+11996 |         AbstractView::AutodownEditor { key, value, is_final, on_change, style: _ } => {
+      |                                                              ^^^^^^^^^ help: try ignoring the field: `on_change: _`
+
+     --> crates\auto-lang\src\ui\iced\renderer.rs:12918:19
+      |
+12918 |     let (tick_ms, tick_msg) = (tick.tick_interval_ms(), tick.tick_msg());
+      |                   ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_tick_msg`
+
+    --> crates\auto-lang\src\lib.rs:5906:13
+     |
+5906 |         let mut cs = crate::compile::CompileSession::new();
+     |             ----^^
+     |             |
+     |             help: remove this `mut`
+
+    --> crates\auto-lang\src\lib.rs:5924:13
+     |
+5924 |         let mut cs = crate::compile::CompileSession::new();
+     |             ----^^
+     |             |
+     |             help: remove this `mut`
+
+    --> crates\auto-lang\src\ui\session.rs:48:5
+     |
+  48 |     pub todos: Vec<TodoItem>,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^ field `AppState::todos` is reachable at visibility `pub`
+     |
+note: but type `TodoItem` is only usable at visibility `pub(crate)`
+    --> crates\auto-lang\src\ui\iced\renderer.rs:4051:1
+     |
+4051 | pub(crate) struct TodoItem {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+     = note: `#[warn(private_interfaces)]` on by default
+
+     --> crates\auto-lang\src\ui\session.rs:98:5
+      |
+   98 |     pub debug_element_styles: RefCell<HashMap<String, DebugElementInfo>>,
+      |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ field `ui::session::DevToolsState::debug_element_styles` is reachable at visibility `pub`
+      |
+note: but type `DebugElementInfo` is only usable at visibility `pub(crate)`
+     --> crates\auto-lang\src\ui\iced\renderer.rs:10984:1
+      |
+10984 | pub(crate) struct DebugElementInfo {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    --> crates\auto-lang\src\ui\session.rs:103:5
+     |
+ 103 |     pub inspector_subtab: RefCell<InspectorSubTab>,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ field `ui::session::DevToolsState::inspector_subtab` is reachable at visibility `pub`
+     |
+note: but type `InspectorSubTab` is only usable at visibility `pub(crate)`
+    --> crates\auto-lang\src\ui\iced\renderer.rs:5983:1
+     |
+5983 | pub(crate) enum InspectorSubTab {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    --> crates\auto-lang\src\ui\session.rs:104:5
+     |
+ 104 |     pub inspector_sections: RefCell<InspectorSections>,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ field `ui::session::DevToolsState::inspector_sections` is reachable at visibility `pub`
+     |
+note: but type `InspectorSections` is only usable at visibility `pub(crate)`
+    --> crates\auto-lang\src\ui\iced\renderer.rs:6023:1
+     |
+6023 | pub(crate) struct InspectorSections {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    --> crates\auto-lang\src\ui\session.rs:106:5
+     |
+ 106 |     pub devtools_tab: RefCell<DevToolsTab>,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ field `ui::session::DevToolsState::devtools_tab` is reachable at visibility `pub`
+     |
+note: but type `DevToolsTab` is only usable at visibility `pub(crate)`
+    --> crates\auto-lang\src\ui\iced\renderer.rs:5972:1
+     |
+5972 | pub(crate) enum DevToolsTab {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+     --> crates\auto-lang\src\ui\session.rs:113:5
+      |
+  113 |     pub component_tree: RefCell<Option<DebugTreeNode>>,
+      |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ field `ui::session::DevToolsState::component_tree` is reachable at visibility `pub`
+      |
+note: but type `DebugTreeNode` is only usable at visibility `pub(crate)`
+     --> crates\auto-lang\src\ui\iced\renderer.rs:10939:1
+      |
+10939 | pub(crate) struct DebugTreeNode {
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    --> crates\auto-lang\src\ui\session.rs:195:5
+     |
+ 195 |     pub toasts: RefCell<Vec<ToastReq>>,
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ field `DesktopState::toasts` is reachable at visibility `pub`
+     |
+note: but type `ToastReq` is only usable at visibility `pub(crate)`
+    --> crates\auto-lang\src\ui\iced\renderer.rs:6038:1
+     |
+6038 | pub(crate) struct ToastReq {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+   --> crates\auto-lang\src\ui\aura_view_builder.rs:202:5
+    |
+202 |     pub fn with_preview_states(mut self, states: &'a std::collections::HashMap<String, crate::ui::dynamic::PreviewCardUiState>) -> Self {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ method `aura_view_builder::AuraViewBuilder::<'a>::with_preview_states` is reachable at visibility `pub`
+    |
+note: but type `PreviewCardUiState` is only usable at visibility `pub(crate)`
+   --> crates\auto-lang\src\ui\dynamic.rs:149:1
+    |
+149 | pub(crate) struct PreviewCardUiState {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    --> crates\auto-lang\src\lib.rs:5176:4
+     |
+5176 | fn extract_api_imports_from_ast(code: &crate::ast::Code) -> Vec<String> {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+    --> crates\auto-lang\src\lib.rs:5189:4
+     |
+5189 | fn is_api_use_stmt(use_stmt: &crate::ast::Use) -> bool {
+     |    ^^^^^^^^^^^^^^^
+
+  --> crates\auto-lang\src\test_util\program_generator.rs:40:5
+   |
+34 | pub struct ProgramGenerator {
+   |            ---------------- field in this struct
+...
+40 |     seed: u64,
+   |     ^^^^
+
+  --> crates\auto-lang\src\test_util\program_generator.rs:54:12
+   |
+43 | impl ProgramGenerator {
+   | --------------------- method in this implementation
+...
+54 |     pub fn seed(&self) -> u64 {
+   |            ^^^^
+
+   --> crates\auto-lang\src\ui_gen\vue.rs:174:8
+    |
+174 |     fn key_of(node: &AuraNode) -> Option<String> {
+    |        ^^^^^^
+
+     --> crates\auto-lang\src\ui_gen\vue.rs:15680:8
+      |
+15680 |     fn test_pattern_to_handler_name() {
+      |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+     --> crates\auto-lang\src\trans\rust.rs:17229:8
+      |
+  405 | impl RustTrans {
+      | -------------- associated function in this implementation
+...
+17229 |     fn collect_pattern_idents(expr: &Expr, out: &mut HashSet<AutoStr>) {
+      |        ^^^^^^^^^^^^^^^^^^^^^^
+
+     --> crates\auto-lang\src\trans\rust.rs:20460:15
+      |
+20460 | pub(crate) fn escape_analysis_summary(code: &str) -> std::collections::HashMap<AutoStr, usize> {
+      |               ^^^^^^^^^^^^^^^^^^^^^^^
+
+  --> crates\auto-lang\src\vm\engine.rs:89:4
+   |
+89 | fn pop_str_idx(ram: &mut VirtualRAM) -> usize {
+   |    ^^^^^^^^^^^
+
+    --> crates\auto-lang\src\vm\native.rs:2030:4
+     |
+2030 | fn push_tagged_value(ram: &mut crate::vm::virt_memory::VirtualRAM, val: i32) {
+     |    ^^^^^^^^^^^^^^^^^
+
+  --> crates\auto-lang\src\plan370_test_support.rs:21:15
+   |
+21 | pub(crate) fn locate_app_at() -> Option<PathBuf> {
+   |               ^^^^^^^^^^^^^
+
+    --> crates\auto-lang\src\ui\view.rs:3227:8
+     |
+3227 |     fn test_grid_map_msg_remaps_cells() {
+     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+   --> crates\auto-lang\src\ui\debug\inspector_cache.rs:319:8
+    |
+319 |     fn backfill_bounds_sets_bounds_and_box_model() {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    --> crates\auto-lang\src\ui\handler_codegen.rs:1172:4
+     |
+1172 | fn synthesize_handler_fn_from_decl(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    --> crates\auto-lang\src\ui\mcp_server.rs:2067:4
+     |
+2067 | fn parse_aura_id(s: &str) -> Option<AuraNodeId> {
+     |    ^^^^^^^^^^^^^
+
+    --> crates\auto-lang\src\ui\mcp_server.rs:2183:4
+     |
+2183 | fn view_kind_str(view: &View<DynamicMessage>) -> &'static str {
+     |    ^^^^^^^^^^^^^
+
+    --> crates\auto-lang\src\ui\aura_view_builder.rs:2487:8
+     |
+ 126 | impl<'a> AuraViewBuilder<'a> {
+     | ---------------------------- associated function in this implementation
+...
+2487 |     fn icon_to_emoji(icon: &str) -> Option<&'static str> {
+     |        ^^^^^^^^^^^^^
+
+    --> crates\auto-lang\src\ui\aura_view_builder.rs:7836:4
+     |
+7836 | fn svg_attr_literal(expr: &Expr) -> Option<String> {
+     |    ^^^^^^^^^^^^^^^^
+
+    --> crates\auto-lang\src\ui\dynamic.rs:1287:4
+     |
+1287 | fn onkeydown_suffix(event_key: &str) -> Option<&str> {
+     |    ^^^^^^^^^^^^^^^^
+
+   --> crates\auto-lang\src\ui\iced\renderer.rs:150:5
+    |
+135 | enum LineEditOp {
+    |      ---------- variants in this enum
+...
+150 |     Handler,
+    |     ^^^^^^^
+...
+158 |     Swallow,
+    |     ^^^^^^^
+    |
+    = note: `LineEditOp` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+    --> crates\auto-lang\src\ui\iced\renderer.rs:6039:5
+     |
+6038 | pub(crate) struct ToastReq {
+     |                   -------- field in this struct
+6039 |     id: u64,
+     |     ^^
+
+     --> crates\auto-lang\src\ui\iced\renderer.rs:14099:4
+      |
+14099 | fn ade_fg_dark() -> crate::ui::code_editor::theme::Rgba {
+      |    ^^^^^^^^^^^
+
+     --> crates\auto-lang\src\ui\iced\renderer.rs:14102:4
+      |
+14102 | fn ade_fg_light() -> crate::ui::code_editor::theme::Rgba {
+      |    ^^^^^^^^^^^^
+
+     --> crates\auto-lang\src\ui\iced\renderer.rs:13442:16
+      |
+13442 |         Toggle(bool),
+      |         ------ ^^^^
+      |         |
+      |         field in this variant
+      |
+      = note: `TestMessage` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+      |
+13442 -         Toggle(bool),
+13442 +         Toggle(()),
+      |
+
+    --> crates\auto-lang\src\vm\native.rs:2604:13
+     |
+2604 |         let _stake__disc = crate::vm::native::StakeGuard::nv(vm, _disc);
+     |             ^^^^^^^^^^^^ help: convert the identifier to snake case: `_stake_disc`
+     |
+     = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+    --> crates\auto-lang\src\vm\native.rs:2923:9
+     |
+2923 |     let _stake__closure_id = crate::vm::native::StakeGuard::new(vm, _closure_id as i64 as u64);
+     |         ^^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `_stake_closure_id`
+
+    --> crates\auto-lang\src\vm\native.rs:3747:9
+     |
+3747 |     let _stake__func_addr = crate::vm::native::StakeGuard::new(vm, _func_addr as i64 as u64); // Not used in MVP
+     |         ^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `_stake_func_addr`
+
+    --> crates\auto-lang\src\vm\native.rs:3801:9
+     |
+3801 |     let _stake__func_addr = crate::vm::native::StakeGuard::new(vm, _func_addr as i64 as u64); // Not used in MVP
+     |         ^^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `_stake_func_addr`
+
+    --> crates\auto-lang\src\vm\native.rs:4554:9
+     |
+4554 |     let _stake__capacity = crate::vm::native::StakeGuard::new(vm, _capacity as i64 as u64);
+     |         ^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `_stake_capacity`
+
+    --> crates\auto-lang\src\vm\native.rs:5357:9
+     |
+5357 |     let _stake__capacity = crate::vm::native::StakeGuard::new(vm, _capacity as i64 as u64);
+     |         ^^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `_stake_capacity`
+
+    --> crates\auto-lang\src\vm\native.rs:5870:9
+     |
+5870 |     let _stake__arr_id = crate::vm::native::StakeGuard::new(vm, _arr_id as i64 as u64);
+     |         ^^^^^^^^^^^^^^ help: convert the identifier to snake case: `_stake_arr_id`
+
+    --> crates\auto-lang\src\vm\native.rs:5975:9
+     |
+5975 |     let _stake__inst_id = crate::vm::native::StakeGuard::new(vm, _inst_id as i64 as u64);
+     |         ^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `_stake_inst_id`
+
+    --> crates\auto-lang\src\vm\native.rs:5988:9
+     |
+5988 |     let _stake__inst_id = crate::vm::native::StakeGuard::new(vm, _inst_id as i64 as u64);
+     |         ^^^^^^^^^^^^^^^ help: convert the identifier to snake case: `_stake_inst_id`
+
+   --> crates\auto-lang\src\vm\ffi\musk_response_ctor.rs:836:16
+    |
+836 |     let (_cfg, _stake__cfg) = pop_value_staked(task, vm); // config Value (unused for the default)
+    |                ^^^^^^^^^^^ help: convert the identifier to snake case: `_stake_cfg`
+
+   --> crates\auto-lang\src\tests\ffi_tests.rs:238:20
+    |
+237 |     let bytes: &[u8] = &[0xFF, 0xFE];
+    |                         ------------ the literal was valid UTF-8 up to the 0 bytes
+238 |     let utf8_err = std::str::from_utf8(bytes).unwrap_err();
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(invalid_from_utf8)]` on by default
+
+   --> crates\auto-lang\src\ui\vm_bridge.rs:153:15
+    |
+153 |     for on in &decl.on {
+    |               ^^^^^^^^
+    |
+    = note: `#[warn(for_loops_over_fallibles)]` on by default
+help: to check pattern in a loop use `while let`
+    |
+153 -     for on in &decl.on {
+153 +     while let Some(on) = &decl.on {
+    |
+help: consider using `if let` to clear intent
+    |
+153 -     for on in &decl.on {
+153 +     if let Some(on) = &decl.on {
+    |
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.76s
+     Running unittests src\lib.rs (target\debug\deps\auto_lang-459cfa81fc4bc57d.exe)
+[style-parity] ═══ style-parity 对拍报告 ═══
+[style-parity] cases=0 tokens=0
+[style-parity] web-only 增强 token: 0
+[style-parity] 白名单 VM 缺口 token: 0
+[style-parity] web-only 增强属性: (无)
+[style-parity] PASS — diff=0(白名单外)
+(node:28296) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[style-parity-dump] BEGIN 1 cases from C:/Users/zhaop/AppData/Local/Temp/probe-cases.json
+[style-parity-dump] {"case":"dump-format-demo","tokens":[{"raw":"w-full","ok":true,"props":{"width":"100%"}},{"raw":"bg-primary/10","ok":true,"props":{"background-color":"color(primary@0.1)","_rgb_background-color":"147,148,245,25"}},{"raw":"py-2","ok":true,"props":{"padding-top":"8px","padding-bottom":"8px"}},{"raw":"hover:bg-accent","variant":"hover","ok":true,"props":{}}]}
+[style-parity-dump] END

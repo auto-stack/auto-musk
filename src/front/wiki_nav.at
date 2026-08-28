@@ -12,7 +12,7 @@
 //     父刷新幂等，登记轻微差异）
 //   - 树过滤 → wiki_helpers.at fn 模块；动态 component :is → if/else 图标切换
 //
-// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.wiki-nav 等）。
+// 样式：PLAN-049 T7 双轨收敛——wiki 树/搜索/dropzone 迁内联工具类。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web component Plus, PanelLeft, Search, BookOpen, FolderInput, FolderPlus, UploadCloud, Trash2, ChevronDown, ChevronRight, FileText, File from "src/front/ports/icons.at"
@@ -64,73 +64,27 @@ widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: 
             wikiUploadDrop(.workspace, e).await
         }
     }
-    // Plan 029 T22：原 inject_styles 全局兜底下放（scoped 生效于本组件 DOM）。
-    style {
-  .wiki-search {
-    display: flex; align-items: center; gap: 0.35rem;
-    margin: 0.5rem 0.5rem; padding: 0.3rem 0.6rem;
-    background: hsl(var(--muted-foreground) / 0.06);
-    border: 1px solid hsl(var(--muted-foreground) / 0.12);
-    border-radius: 6px; color: hsl(var(--muted-foreground));
-  }
-  .wiki-search:focus-within { border-color: hsl(var(--primary) / 0.35); }
-  .wiki-search-input { border: none; background: transparent; outline: none; font-size: 0.8rem; color: hsl(var(--foreground)); width: 100%; }
-  .wiki-search-input::placeholder { color: hsl(var(--muted-foreground)); }
-  .wiki-nav-list { padding: 0 0.25rem; }
-  .tree-section { margin-bottom: 0.25rem; }
-  .tree-section-header {
-    display: flex; align-items: center; gap: 0.3rem;
-    padding: 0.35rem 0.5rem; cursor: pointer; border-radius: 4px;
-    color: hsl(var(--muted-foreground)); font-size: 0.75rem; font-weight: 600;
-  }
-  .tree-section-header:hover { background: hsl(var(--accent)); }
-  .tree-section-title { flex: 1; }
-  .tree-section-body { padding-left: 0.75rem; }
-  .tree-item {
-    display: flex; align-items: center; gap: 0.35rem;
-    width: 100%; padding: 0.25rem 0.5rem; border: none; border-radius: 4px;
-    background: transparent; color: hsl(var(--foreground)); font-size: 0.8rem;
-    cursor: pointer; text-align: left;
-  }
-  .tree-item:hover { background: hsl(var(--accent)); }
-  .tree-item.active { background: hsl(var(--primary) / 0.08); color: hsl(var(--primary)); }
-  .tree-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-  .tree-item-del {
-    display: none; align-items: center; justify-content: center;
-    width: 18px; height: 18px; border: none; border-radius: 4px;
-    background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer; padding: 0;
-  }
-  .tree-item:hover .tree-item-del { display: flex; }
-  .tree-item-del:hover { background: hsl(var(--destructive) / 0.12); color: hsl(var(--destructive)); }
-  .tree-empty { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem; color: hsl(var(--muted-foreground)); font-size: 0.75rem; }
-  .drop-zone {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 0.3rem; padding: 0.5rem; margin: 0.25rem 0.25rem 0.5rem;
-    border: 1px dashed hsl(var(--border)); border-radius: 6px;
-    color: hsl(var(--muted-foreground)); transition: all 0.15s; cursor: pointer;
-  }
-  .drop-zone.active { border-color: hsl(var(--primary)); background: hsl(var(--primary) / 0.04); color: hsl(var(--primary)); }
-  .drop-text { font-size: 0.72rem; }
-  .progress-bar { width: 100%; height: 3px; background: hsl(var(--muted-foreground) / 0.1); border-radius: 2px; overflow: hidden; }
-  .progress-fill { height: 100%; background: hsl(var(--primary)); transition: width 0.2s; }
-    }
+    // PLAN-049 T7：wiki 搜索/树/dropzone/进度条样式已迁内联工具类（块删除）。
+    // tree-item-del 悬停显隐与搜索 placeholder 色为 web-only
+    //（inject_styles.ts 暂存段,T8 拆出）;focus-within/transition 走变体白名单。
 
     view {
         NavSidebar {
             title: i18n.t("wiki.title")
             collapsed: .collapsed
+            width_class: "w-[240px]"
             slot(name: "actions") {
                 div {
-                    style: "wiki-nav-actions"
+                    style: "flex gap-1"
                     button {
                         onclick: .newpage
-                        style: "nav-icon-btn"
+                        style: "w-7 h-7 inline-flex items-center justify-center border border-border rounded-md bg-transparent cursor-pointer text-foreground text-base hover:bg-accent"
                         title: i18n.t("wiki.newPage")
                         Plus { size: 14 }
                     }
                     button {
                         onclick: .ToggleCollapsed
-                        style: "nav-icon-btn"
+                        style: "w-7 h-7 inline-flex items-center justify-center border border-border rounded-md bg-transparent cursor-pointer text-foreground text-base hover:bg-accent"
                         title: i18n.t("wiki.toggleSidebar")
                         PanelLeft { size: 14 }
                     }
@@ -139,26 +93,26 @@ widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: 
             slot(name: "list") {
                 // 搜索框
                 div {
-                    style: "wiki-search"
+                    style: "flex items-center gap-[5px] mx-2 my-2 px-[10px] py-[5px] bg-muted-foreground/5 border border-muted-foreground/10 rounded-md text-muted-foreground focus-within:border-primary/35"
                     Search { size: 13 }
                     input {
                         value: .query
                         oninput: .QueryChanged
                         type: "text"
-                        style: "wiki-search-input"
+                        style: "border-none bg-transparent outline-none text-[13px] text-foreground w-full"
                         placeholder: i18n.t("wiki.searchPlaceholder")
                     }
                 }
                 // tree list
                 if !.collapsed {
                     div {
-                        style: "wiki-nav-list"
+                        style: "flex-1 overflow-y-auto px-1"
                     // ── Raw section ──
                     div {
-                        style: "tree-section"
+                        style: "mb-1"
                         div {
                             onclick: .ToggleRaw
-                            style: "tree-section-header"
+                            style: "flex items-center gap-[5px] py-1.5 px-2 cursor-pointer rounded bg-transparent text-muted-foreground text-xs font-semibold hover:bg-accent"
                             if .rawExpanded {
                                 ChevronDown { size: 12 }
                             } else {
@@ -166,31 +120,31 @@ widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: 
                             }
                             FolderInput { size: 13 }
                             span {
-                                style: "tree-section-title"
+                                style: "flex-1"
                                 text i18n.t("wiki.raw")
                             }
                             button {
                                 onclick.stop: .newfolder
-                                style: "nav-icon-btn"
+                                style: "w-7 h-7 inline-flex items-center justify-center border border-border rounded-md bg-transparent cursor-pointer text-foreground text-base hover:bg-accent"
                                 title: i18n.t("wiki.newFolder")
                                 FolderPlus { size: 13 }
                             }
                         }
                         if .rawExpanded {
                             div {
-                                style: "tree-section-body"
+                                style: "pl-3"
                                 // DropZone
                                 div {
-                                    class: if .isDragging { "drop-zone active" } else { "drop-zone" }
+                                    class: if .isDragging { "flex flex-col items-center justify-center gap-[5px] p-2 mx-1 mt-1 mb-2 border border-dashed border-primary rounded-md text-primary bg-primary/5 cursor-pointer" } else { "flex flex-col items-center justify-center gap-[5px] p-2 mx-1 mt-1 mb-2 border border-dashed border-border rounded-md text-muted-foreground cursor-pointer" }
                                     ondragenter.prevent: .DragEnter
                                     ondragover.prevent: .DragOver
                                     ondragleave.prevent: .DragLeave
                                     ondrop.prevent: .uploaded($event)
                                     UploadCloud { size: 14 }
-                                    span { style: "drop-text", text .dropText }
+                                    span { style: "text-xs", text .dropText }
                                     if .isUploading {
                                         div {
-                                            style: "progress-bar"
+                                            style: "w-full h-[3px] bg-muted-foreground/10 rounded-[2px] overflow-hidden"
                                             div {
                                                 class: "progress-fill"
                                                 style: "width: " + .uploadProgress + "%"
@@ -202,12 +156,12 @@ widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: 
                                     button {
                                         onclick: .selectraw(.node.path)
                                         key: .node.path
-                                        class: if .activeRawPath == .node.path { "tree-item active" } else { "tree-item" }
+                                        class: if .activeRawPath == .node.path { "flex items-center gap-[5px] w-full py-1 px-2 border-none rounded bg-primary/10 text-primary text-[13px] cursor-pointer text-left" } else { "flex items-center gap-[5px] w-full py-1 px-2 border-none rounded bg-transparent text-foreground text-[13px] cursor-pointer text-left hover:bg-accent" }
                                         File { size: 12 }
-                                        span { style: "tree-item-name", text .node.name }
+                                        span { style: "truncate flex-1", text .node.name }
                                         button {
                                             onclick.stop: .deleteraw(.node.path)
-                                            style: "tree-item-del"
+                                            style: "items-center justify-center w-[18px] h-[18px] border-none rounded bg-transparent text-muted-foreground cursor-pointer p-0"
                                             title: i18n.t("common.delete")
                                             Trash2 { size: 12 }
                                         }
@@ -215,7 +169,7 @@ widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: 
                                 }
                                 if .rawEmpty {
                                     div {
-                                        style: "tree-empty"
+                                        style: "flex items-center gap-1.5 p-2 text-muted-foreground text-xs"
                                         FileText { size: 14 }
                                         span { text i18n.t("wiki.noPages") }
                                     }
@@ -225,10 +179,10 @@ widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: 
                     }
                     // ── Wiki section ──
                     div {
-                        style: "tree-section"
+                        style: "mb-1"
                         div {
                             onclick: .ToggleWiki
-                            style: "tree-section-header"
+                            style: "flex items-center gap-[5px] py-1.5 px-2 cursor-pointer rounded bg-transparent text-muted-foreground text-xs font-semibold hover:bg-accent"
                             if .wikiExpanded {
                                 ChevronDown { size: 12 }
                             } else {
@@ -236,25 +190,25 @@ widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: 
                             }
                             BookOpen { size: 13 }
                             span {
-                                style: "tree-section-title"
+                                style: "flex-1"
                                 text i18n.t("wiki.title")
                             }
                         }
                         if .wikiExpanded {
                             div {
-                                style: "tree-section-body"
+                                style: "pl-3"
                                 for node in .filteredWikiTree {
                                     button {
                                         onclick: .selectwiki(.node.path)
                                         key: .node.path
-                                        class: if .activeWikiPath == .node.path { "tree-item active" } else { "tree-item" }
+                                        class: if .activeWikiPath == .node.path { "flex items-center gap-[5px] w-full py-1 px-2 border-none rounded bg-primary/10 text-primary text-[13px] cursor-pointer text-left" } else { "flex items-center gap-[5px] w-full py-1 px-2 border-none rounded bg-transparent text-foreground text-[13px] cursor-pointer text-left hover:bg-accent" }
                                         FileText { size: 12 }
-                                        span { style: "tree-item-name", text .node.name }
+                                        span { style: "truncate flex-1", text .node.name }
                                     }
                                 }
                                 if .wikiEmpty {
                                     div {
-                                        style: "tree-empty"
+                                        style: "flex items-center gap-1.5 p-2 text-muted-foreground text-xs"
                                         FileText { size: 14 }
                                         span { text i18n.t("wiki.noPages") }
                                     }
