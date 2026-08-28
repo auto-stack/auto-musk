@@ -49,7 +49,7 @@ widget MentionInput(disabled: bool, professions: obj) {
         var mentionPos int = 0
     }
     on {
-        .Init -> { store.Init() }
+        .Init -> { AgentConfigs.Init() }
 
         .Input(e) -> {
             .mentionFilter = mention_detect_filter(e);
