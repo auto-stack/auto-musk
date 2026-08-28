@@ -113,6 +113,9 @@ widget LoginPage {
             } else {
                 store.Login(.username, .password)
             }
+            // PLAN-048:VM 轨登录态变化无视图重挂载信号(web 由 guard 切换
+            // 驱动 ChatsView onMounted)——登录后显式拉一次会话列表。
+            ForgeStore.LoadSessionList()
             platformRefreshAuth()
         }
     }
