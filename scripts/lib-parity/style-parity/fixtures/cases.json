@@ -1,0 +1,4 @@
+{
+  "comment": "PLAN-049 style-parity 对拍用例集。case = { id, classes, note }。classes 为被迁组件的实际类串（或其代表片段）;run.mjs 对每 token 做双轨解释 diff。首批 ≥20 用例见 T3（导航 15 类 + 主题 token/alpha/间距/字号代表类）。",
+  "cases": []
+}

@@ -1,0 +1,59 @@
+{
+  "comment": "PLAN-049 style-parity 归一化表。run.mjs 消费:双轨属性值归一到同一量纲/记法后再 diff。",
+  "remPx": 16,
+
+  "dropProps": {
+    "comment": "web 侧删除、不参与 diff 的属性（键=属性名,值=原因）",
+    "line-height": "tailwind text-* 附带行高;VM 字号类不带行高（行高由 leading-* 单独对拍）",
+    "caret-color": "web mention 技法专属",
+    "outline-width": "focus 光环细节",
+    "outline-offset": "focus 光环细节"
+  },
+
+  "dropPropPrefixes": {
+    "comment": "前缀匹配删除（web 侧 tailwind 内部变量）",
+    "--tw-": "tailwind v3 内部 CSS 变量"
+  },
+
+  "webOnlyProps": {
+    "comment": "web-only 增强:web 侧出现=报告计数,不判失败（VM 无对应能力,已登记白名单）",
+    "box-shadow": "阴影（VM 落 _shadow 报告键）",
+    "text-decoration-line": "underline 等",
+    "text-decoration": "underline 简写",
+    "user-select": "",
+    "letter-spacing": "",
+    "text-transform": "",
+    "text-overflow": "仅当 VM 未同时给 truncate 三件套时进报告（正常由 truncate 展开匹配）",
+    "resize": "",
+    "appearance": "",
+    "animation": "",
+    "transition-property": "",
+    "transition-duration": "",
+    "transition-timing-function": "",
+    "transition": "",
+    "scrollbar-width": "",
+    "background-image": "渐变（send-btn brand 渐变等）",
+    "cursor": "交互指示,VM 无鼠标概念"
+  },
+
+  "flexShorthand": {
+    "comment": "web flex 简写 → VM 记法",
+    "1 1 0%": "1",
+    "1 1 auto": "auto",
+    "0 1 auto": "initial",
+    "0 0 auto": "none",
+    "1 1 0": "1"
+  },
+
+  "tokenWhitelist": {
+    "comment": "类级白名单:VM 已知丢弃且不迁移的 token 前缀/全名（web-only 增强,报告计数不判失败）。hover:/focus:/disabled:/placeholder:/dark:/md: 等变体在 run.mjs 内置处理,不必在此重复。",
+    "names": ["underline", "animate-pulse", "select-none", "appearance-none", "resize-y", "resize-none", "italic", "tracking-wide", "uppercase", "capitalize", "antialiased"],
+    "prefixes": ["animate-", "transition-", "duration-", "ease-"]
+  },
+
+  "tokenValues": {
+    "comment": "T3 填充:主题 token 双轨值对照（web inject_styles :root HSL vs auto-lang theme.rs 解析 RGB）,报告呈现,值差超阈触发待澄清④裁定",
+    "light": {},
+    "dark": {}
+  }
+}
