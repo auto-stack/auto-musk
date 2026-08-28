@@ -102,14 +102,14 @@ widget LoginPage {
         // ToggleMode: 切换登录/注册，清空 error。
         .ToggleMode -> {
             .register_mode = !.register_mode
-            store.SetError("")
+            AuthStore.SetError("")
         }
 
         // Submit: 根据 register_mode 调 store.Login 或 store.Register。
         // 成功后 store.authenticated 自动变 true → App.vue 的 v-if 切换（无需回调）。
         .Submit -> {
             if .register_mode {
-                store.Register(.username, .password)
+                AuthStore.Register(.username, .password)
             } else {
                 store.Login(.username, .password)
             }

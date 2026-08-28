@@ -133,7 +133,7 @@ widget App {
         .Init -> {
             platformInjectStyles();
             platformSetupAuthFetch();
-            store.Init();
+            AuthStore.Init();
             // URL → 视图(挂载恢复,web useViewState 初始解析对拍)。
             .current_view = vsCurrentView()
         }

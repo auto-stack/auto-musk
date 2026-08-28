@@ -180,7 +180,7 @@ widget PlansView {
 
     on {
         .Init -> {
-            store.Init()
+            PlansStore.Init()
         }
 
         .SelectPlan(seq) -> {
