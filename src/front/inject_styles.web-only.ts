@@ -1,18 +1,14 @@
-// inject_styles.ts — 全局布局样式注入（Plan 022 C 类 parity）
+// inject_styles.web-only.ts — web 专属全局样式（PLAN-049 T8 退役产物）
 //
-// AutoUI 生成的组件 <style> 为空，自定义语义 class（chats-view/session-list/
-// chats-canvas/msg-* 等）无对应 CSS。原生 web/ 把这些放在各组件 <style scoped>。
-// 这里集中注入全局样式，对齐原生视觉。
-//
-// 逃生舱说明：AutoUI .at 无法表达 scoped CSS，用 use { fn } 在 App.Init 注入。
-//
-// PLAN-049 双轨收敛（单一样式源 = .at 内联 tailwind 工具类）：组件自定义类段
-// 已分切片迁入 .at（T4 导航栏/T6 会话壳/T7 三域/T8 杂项）。本文件余量：
-//   1. 全局段（字体/主题变量/滚动条/链接色）——iced 无对应概念,web-only；
-//   2. 三列背景层中尚未迁移的视图（plans/specs/wiki,待 T7）；
-//   3. 「web-only 增强暂存」段——伪类/伪元素/后代选择器/输入法技术等工具类
-//      无法表达的规则,T8 拆出 inject_styles.web-only.ts 后本文件退役。
-// 导入 '@autodown/vue/style.css' 保持不变（渲染真源,PLAN-038 T12）。
+// PLAN-049 双轨收敛后,组件自定义类已全量迁 .at 内联 tailwind 工具类
+// （单一样式源）;原 inject_styles.ts 退役,余量按 D4 判据拆入本文件：
+//   1. 全局段（字体/主题变量/滚动条/链接色/@autodown/vue/style.css 引入）
+//      ——iced 无对应概念,web 专属;
+//   2. web-only 增强（伪类链/伪元素/后代选择器/悬停显隐/@mention 双层文字
+//      技术/斑马线/动画 keyframes）——工具类无法表达,VM 白名单登记。
+// 二批挂账：各组件 style{} 块（specs_leaf/editors/detail/category、errand/ws/
+// settings 等余 30 块）仍为 scoped 生效,迁移归二批（KNOWN-DEBT 049 行）。
+// 平台绑定：platformInjectStyles（platform.web.at → 本文件;VM 侧 no-op）。
 
 // PLAN-038 T12 → 0.2.0 收口:渲染样式唯一来源 = @autodown/vue/style.css
 // （vendor 0.2.0 起 markstream-vue 消灭,其全局 index.css 随依赖移除;
