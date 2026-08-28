@@ -272,7 +272,7 @@ widget ChatsView {
 
     on {
         .Init -> {
-            store.Init();
+            ForgeStore.Init();
             // AgentConfigs 由 MentionInput 挂载时 Init（ professions 拉取）。
         }
 

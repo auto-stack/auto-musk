@@ -250,7 +250,7 @@ widget WikiView {
     on {
         .Init -> {
             ensure_workspace();
-            store.Init()
+            WikiStore.Init()
         }
 
         .SelectPage(slug) -> {

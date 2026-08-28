@@ -49,7 +49,7 @@ widget SettingsMenu() {
         .Init -> {
             // VisualStore.Init 常驻挂载即触发（主题/强调色启动应用，对齐原
             // composable onMounted 自初始化）。
-            store.Init();
+            VisualStore.Init();
             .currentLocale = settingsInitLocale();
             .forgeMode = settings_load_forge_mode().await
         }

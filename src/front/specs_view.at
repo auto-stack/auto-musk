@@ -353,7 +353,7 @@ widget SpecsView {
 
     on {
         .Init -> {
-            store.Init();
+            SpecsStore.Init();
             store.LoadOverview();
             // URL detail 子路径恢复(web restoreSpecsFromUrl:/<view>/<section>/<item>)。
             let d = vsCurrentDetail()
