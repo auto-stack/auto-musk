@@ -134,6 +134,10 @@ widget App {
             platformInjectStyles();
             platformSetupAuthFetch();
             AuthStore.Init();
+            // PLAN-048 T5:VM 轨子部件 Init 生命周期不派发(ChatsView.Init→
+            // ForgeStore.Init→LoadSessionList 永不执行),App 级代派等价
+            // vue 轨 onMounted 语义——会话列表契约 GET + workspace 兜底。
+            ForgeStore.Init();
             // URL → 视图(挂载恢复,web useViewState 初始解析对拍)。
             .current_view = vsCurrentView()
         }
