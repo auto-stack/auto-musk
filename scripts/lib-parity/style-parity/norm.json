@@ -45,14 +45,17 @@
     "1 1 0": "1"
   },
 
+  "radiusVarPx": 8,
+
   "valueDegrades": {
     "comment": "VM 布局降级等价（Plan 412 降级矩阵的 web 值→VM 值映射,判等价不判 diff）",
-    "align-items": { "baseline": "flex-start" }
+    "align-items": { "baseline": "flex-start" },
+    "height": { "100vh": "100%" }
   },
 
   "tokenWhitelist": {
     "comment": "类级白名单:VM 已知丢弃且不迁移的 token 前缀/全名（web-only 增强,报告计数不判失败）。hover:/focus:/disabled:/placeholder:/dark:/md: 等变体在 run.mjs 内置处理,不必在此重复。",
-    "names": ["underline", "animate-pulse", "select-none", "appearance-none", "resize-y", "resize-none", "italic", "tracking-wide", "uppercase", "capitalize", "antialiased"],
+    "names": ["underline", "animate-pulse", "select-none", "appearance-none", "resize-y", "resize-none", "italic", "tracking-wide", "uppercase", "capitalize", "antialiased", "border-r", "border-t", "border-b", "border-l", "border-t-2", "border-b-2", "border-dashed"],
     "prefixes": ["animate-", "transition-", "duration-", "ease-"]
   },
 

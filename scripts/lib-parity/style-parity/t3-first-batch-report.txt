@@ -1,0 +1,8 @@
+[style-parity] ═══ style-parity 对拍报告 ═══
+[style-parity] cases=30 tokens=149
+[style-parity] web-only 增强 token: 7
+  nav-tab-active/hover:bg-accent, nav-tab-idle/hover:bg-accent, login-input/focus:outline-none, login-input/focus:ring-2, login-input/focus:ring-ring, login-submit/hover:opacity-90, login-toggle/hover:opacity-80
+[style-parity] 白名单 VM 缺口 token: 3
+  nav-rail-col/border-r, login-submit/transition-opacity, login-toggle/underline
+[style-parity] web-only 增强属性: box-shadow×1
+[style-parity] PASS — diff=0(白名单外)

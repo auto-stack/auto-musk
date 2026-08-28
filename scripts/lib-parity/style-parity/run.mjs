@@ -20,7 +20,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const root = resolve(here, '../..'); // auto-musk root
+const root = resolve(here, '../../..'); // auto-musk root（style-parity → lib-parity → scripts → 根）
 const norm = JSON.parse(readFileSync(join(here, 'norm.json'), 'utf8'));
 const casesDoc = JSON.parse(readFileSync(join(here, 'fixtures/cases.json'), 'utf8'));
 const cases = casesDoc.cases ?? [];
@@ -78,8 +78,24 @@ function parseRules(css) {
 }
 
 // web 值归一 → VM 记法
+const LEN_PROPS = /^(padding|margin|gap|row-gap|column-gap|top|right|bottom|left|width|min-|max-|border-radius|border-width|height|inset)/;
+
 function normWebValue(prop, val) {
   let v = val;
+  // shadcn radius 体系:borderRadius 档位挂在 --radius(rem) 的 calc 上
+  if (norm.radiusVarPx && /calc\(var\(--radius\)\s*[+-]?\s*[\d.]+px\)|^var\(--radius\)$/.test(v)) {
+    const m = v.match(/calc\(var\(--radius\)\s*([+-])\s*([\d.]+)px\)/);
+    if (m) {
+      const delta = m[1] === '-' ? -parseFloat(m[2]) : parseFloat(m[2]);
+      v = `${fmtNum(norm.radiusVarPx + delta)}px`;
+    } else {
+      v = `${fmtNum(norm.radiusVarPx)}px`;
+    }
+  }
+  // 长度族零值:tailwind 写 0,VM 记 0px
+  if (LEN_PROPS.test(prop) && (v === '0' || v === '0px')) v = '0px';
+  // 字面透明色:VM 记 color(transparent@1)
+  if (v === 'transparent') v = 'color(transparent@1)';
   // rem → px(逐 token 内联)
   v = v.replace(/(-?[\d.]+)rem/g, (_, n) => `${fmtNum(parseFloat(n) * norm.remPx)}px`);
   // hsl(var(--x)) / hsl(var(--x) / .1)
@@ -99,10 +115,14 @@ function fmtNum(n) {
 // ── VM 侧:cargo dump → case JSON ────────────────────────────────────────────
 
 function runVmDump() {
+  // 布局自适应:主检出 sibling ../auto-lang;worktree 布局 ../../auto-lang;
+  // env STYLE_PARITY_LANG_ROOT 最优先。
   const langRoot =
-    process.env.STYLE_PARITY_LANG_ROOT || resolve(root, '..', 'auto-lang');
-  if (!existsSync(join(langRoot, 'crates', 'auto-lang'))) {
-    console.error(`[style-parity] auto-lang not found at ${langRoot}`);
+    process.env.STYLE_PARITY_LANG_ROOT ||
+    [resolve(root, '..', 'auto-lang'), resolve(root, '..', '..', '..', 'auto-lang')]
+      .find((p) => existsSync(join(p, 'crates', 'auto-lang')));
+  if (!langRoot) {
+    console.error('[style-parity] auto-lang not found (env STYLE_PARITY_LANG_ROOT 可指定)');
     process.exit(2);
   }
   const env = { ...process.env, STYLE_PARITY_CASES: join(here, 'fixtures/cases.json') };

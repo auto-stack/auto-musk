@@ -102,14 +102,8 @@ a { color: hsl(var(--primary)); }
 }
 /* ── 共用 NavSidebar + ContentHeader（Plan 023 §3.1 单一真源）──
    替代三视图分散的 sidebar-header/section-nav-header/wiki-nav-header/chats-header/
-   section-header/wiki-content-header 规则 + !important 覆盖。 */
-.app-header {
-  height: 48px !important; padding: 0 1rem !important;
-  /* 负 margin 抵消父容器 px-3(12px) 左右 padding，让 border 撑满宽度 */
-  margin-left: -0.75rem; margin-right: -0.75rem;
-  border-bottom: 1px solid hsl(var(--border));
-  display: flex; align-items: center; flex-shrink: 0;
-}
+   section-header/wiki-content-header 规则 + !important 覆盖。
+   PLAN-049 T4：App 侧栏头段已迁 app.at 内联工具类（048 试点），原段删除。 */
 /* NavSidebar：二级导航外壳（header 48px 贴顶全宽 border + list slot） */
 .nav-sidebar {
   display: flex; flex-direction: column; height: 100%; flex-shrink: 0;
@@ -137,28 +131,9 @@ a { color: hsl(var(--primary)); }
 }
 .content-header-middle { flex: 1; min-width: 0; display: flex; justify-content: center; }
 .content-header-actions { display: flex; align-items: center; gap: 0.3rem; flex-shrink: 0; }
-/* ── 导航栏 ── */
-.rail-tab {
-  width: 100%; text-align: left; padding: 0.5rem 0.75rem; border-radius: 0.375rem;
-  font-size: 0.875rem; color: hsl(var(--muted-foreground)); background: transparent;
-  border: none; cursor: pointer; transition: all 0.15s;
-  display: flex; align-items: center; justify-content: flex-start; gap: 0.5rem;
-}
-.rail-tab:hover { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
-.rail-tab.active {
-  background: hsl(var(--primary) / 0.08); color: hsl(var(--primary)); font-weight: 500;
-}
-/* rail-footer：导航栏底部（WorkspaceSelector + SettingsMenu 并排） */
-.rail-footer {
-  margin-top: auto;
-  display: flex !important;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.4rem;
-  padding: 0 0.3rem;
-}
-/* WorkspaceSelector 填满剩余空间，SettingsMenu 固定宽度 */
-.rail-footer .workspace-selector { flex: 1; min-width: 0; }
+/* ── 导航栏 ──
+   PLAN-049 T4：导航栏两段（tab 规则 3 条 + 底部行 2 条,含 workspace 子选择器）
+   已迁 app.at 内联工具类（048 试点）,原段删除。 */
 /* ── ChatsView 布局 ── */
 .chats-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
 .chats-view > div:first-child {

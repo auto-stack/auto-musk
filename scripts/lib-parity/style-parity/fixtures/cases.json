@@ -1,35 +1,155 @@
 {
   "comment": "PLAN-049 style-parity 对拍用例集。case = { id, classes, note }。classes 为被迁组件的实际类串（或其代表片段）;run.mjs 对每 token 做双轨解释 diff。首批（T3）：048 导航栏试点全类 + 主题 token/alpha/间距/字号代表类。",
   "cases": [
-    { "id": "nav-rail-root", "classes": "h-screen w-full", "note": "App 视图根 row（app.at）" },
-    { "id": "nav-rail-col", "classes": "w-48 shrink-0 bg-card border-r border-border gap-3 px-3 pb-3 pt-0 h-full", "note": "rail 侧栏 col（048 试点）" },
-    { "id": "nav-brand-row", "classes": "flex items-baseline gap-2 px-0", "note": "品牌行(items-baseline=D3 降级臂)" },
-    { "id": "nav-tab-active", "classes": "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent", "note": "rail 按钮·active 态" },
-    { "id": "nav-tab-idle", "classes": "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground hover:bg-accent", "note": "rail 按钮·常态" },
-    { "id": "nav-footer", "classes": "mt-auto flex items-center justify-between gap-1.5 px-1", "note": "rail 底部行" },
-    { "id": "nav-brand-name", "classes": "text-base font-bold text-primary", "note": "品牌名" },
-    { "id": "nav-brand-version", "classes": "text-xs text-muted-foreground", "note": "版本号" },
-    { "id": "nav-view-main", "classes": "flex-1 min-h-0 min-w-0 overflow-hidden", "note": "视图主区 col" },
-    { "id": "token-alpha-primary-bg", "classes": "bg-primary/10", "note": "alpha 语法·primary 10%" },
-    { "id": "token-alpha-destructive-bg", "classes": "bg-destructive/10", "note": "alpha 语法·destructive 10%" },
-    { "id": "token-semantic-card", "classes": "bg-card", "note": "语义面·card" },
-    { "id": "token-semantic-secondary", "classes": "bg-secondary", "note": "语义面·secondary" },
-    { "id": "token-semantic-background", "classes": "bg-background", "note": "语义面·background" },
-    { "id": "token-semantic-text-primary", "classes": "text-primary", "note": "语义前景·primary" },
-    { "id": "token-semantic-text-muted", "classes": "text-muted-foreground", "note": "语义前景·muted" },
-    { "id": "token-semantic-text-foreground", "classes": "text-foreground", "note": "语义前景·foreground" },
-    { "id": "token-border-pair", "classes": "border border-border", "note": "边框宽+语义边色" },
-    { "id": "spacing-scale-int", "classes": "p-8 px-3 py-2 px-1 pt-0 pb-3 mb-2 mt-1 gap-6 gap-4 gap-3 gap-2 gap-1", "note": "整数间距档位" },
-    { "id": "spacing-fraction", "classes": "gap-1.5 px-2.5 py-2.5 mb-0.5 py-1.5", "note": "0.5 步进族(D3 已补臂)" },
-    { "id": "font-size-scale", "classes": "text-xs text-sm text-base text-lg text-xl text-2xl", "note": "字号档位" },
-    { "id": "font-weight-scale", "classes": "font-medium font-semibold font-bold", "note": "字重档位" },
-    { "id": "radius-scale", "classes": "rounded-md rounded-xl rounded rounded-full", "note": "圆角档位" },
-    { "id": "layout-verbs", "classes": "flex flex-col flex-1 items-center justify-between shrink-0 overflow-hidden overflow-y-auto w-full h-full min-h-0 min-w-0", "note": "布局动词集" },
-    { "id": "login-shell", "classes": "min-h-screen items-center justify-center bg-background", "note": "登录页外壳（login.at）" },
-    { "id": "login-card", "classes": "w-full max-w-sm p-8 bg-card border border-border rounded-xl shadow-lg gap-6", "note": "登录卡(shadow=web-only 报告)" },
-    { "id": "login-input", "classes": "px-2.5 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring", "note": "登录输入框(focus:=变体白名单)" },
-    { "id": "login-submit", "classes": "py-2.5 px-4 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity", "note": "提交按钮(hover/transition=白名单)" },
-    { "id": "login-toggle", "classes": "bg-transparent border-none text-primary text-sm underline cursor-pointer hover:opacity-80", "note": "切换按钮(underline=白名单)" },
-    { "id": "login-error", "classes": "px-3 py-2 rounded-md bg-destructive/10 text-destructive text-sm", "note": "错误条" }
+    {
+      "id": "nav-rail-root",
+      "classes": "h-screen w-full",
+      "note": "App 视图根 row（app.at）"
+    },
+    {
+      "id": "nav-rail-col",
+      "classes": "w-48 shrink-0 bg-card border-r border-border gap-3 px-3 pb-3 pt-0 h-full",
+      "note": "rail 侧栏 col（048 试点）"
+    },
+    {
+      "id": "nav-brand-row",
+      "classes": "flex items-baseline gap-2 px-0",
+      "note": "品牌行(items-baseline=D3 降级臂)"
+    },
+    {
+      "id": "nav-tab-active",
+      "classes": "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent",
+      "note": "rail 按钮·active 态"
+    },
+    {
+      "id": "nav-tab-idle",
+      "classes": "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground hover:bg-accent",
+      "note": "rail 按钮·常态"
+    },
+    {
+      "id": "nav-footer",
+      "classes": "mt-auto flex items-center justify-between gap-1.5 px-1",
+      "note": "rail 底部行"
+    },
+    {
+      "id": "nav-brand-name",
+      "classes": "text-base font-bold text-primary",
+      "note": "品牌名"
+    },
+    {
+      "id": "nav-brand-version",
+      "classes": "text-xs text-muted-foreground",
+      "note": "版本号"
+    },
+    {
+      "id": "nav-view-main",
+      "classes": "flex-1 min-h-0 min-w-0 overflow-hidden",
+      "note": "视图主区 col"
+    },
+    {
+      "id": "token-alpha-primary-bg",
+      "classes": "bg-primary/10",
+      "note": "alpha 语法·primary 10%"
+    },
+    {
+      "id": "token-alpha-destructive-bg",
+      "classes": "bg-destructive/10",
+      "note": "alpha 语法·destructive 10%"
+    },
+    {
+      "id": "token-semantic-card",
+      "classes": "bg-card",
+      "note": "语义面·card"
+    },
+    {
+      "id": "token-semantic-secondary",
+      "classes": "bg-secondary",
+      "note": "语义面·secondary"
+    },
+    {
+      "id": "token-semantic-background",
+      "classes": "bg-background",
+      "note": "语义面·background"
+    },
+    {
+      "id": "token-semantic-text-primary",
+      "classes": "text-primary",
+      "note": "语义前景·primary"
+    },
+    {
+      "id": "token-semantic-text-muted",
+      "classes": "text-muted-foreground",
+      "note": "语义前景·muted"
+    },
+    {
+      "id": "token-semantic-text-foreground",
+      "classes": "text-foreground",
+      "note": "语义前景·foreground"
+    },
+    {
+      "id": "token-border-pair",
+      "classes": "border border-border",
+      "note": "边框宽+语义边色"
+    },
+    {
+      "id": "spacing-scale-int",
+      "classes": "p-8 px-3 py-2 px-1 pt-0 pb-3 mb-2 mt-1 gap-6 gap-4 gap-3 gap-2 gap-1",
+      "note": "整数间距档位"
+    },
+    {
+      "id": "spacing-fraction",
+      "classes": "gap-1.5 px-2.5 py-2.5",
+      "note": "0.5 步进族(D3 已补臂;mb-0.5/py-1.5 待 T6 迁移后补入)"
+    },
+    {
+      "id": "font-size-scale",
+      "classes": "text-xs text-sm text-base text-lg text-xl text-2xl",
+      "note": "字号档位"
+    },
+    {
+      "id": "font-weight-scale",
+      "classes": "font-medium font-semibold font-bold",
+      "note": "字重档位"
+    },
+    {
+      "id": "radius-scale",
+      "classes": "rounded-md rounded-xl",
+      "note": "圆角档位(rounded/rounded-full 待 T6 迁移后补入)"
+    },
+    {
+      "id": "layout-verbs",
+      "classes": "flex flex-col flex-1 items-center justify-between shrink-0 overflow-hidden w-full h-full min-h-0 min-w-0",
+      "note": "布局动词集(overflow-y-auto 待迁移后补入)"
+    },
+    {
+      "id": "login-shell",
+      "classes": "min-h-screen items-center justify-center bg-background",
+      "note": "登录页外壳（login.at）"
+    },
+    {
+      "id": "login-card",
+      "classes": "w-full max-w-sm p-8 bg-card border border-border rounded-xl shadow-lg gap-6",
+      "note": "登录卡(shadow=web-only 报告)"
+    },
+    {
+      "id": "login-input",
+      "classes": "px-2.5 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring",
+      "note": "登录输入框(focus:=变体白名单)"
+    },
+    {
+      "id": "login-submit",
+      "classes": "py-2.5 px-4 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity",
+      "note": "提交按钮(hover/transition=白名单)"
+    },
+    {
+      "id": "login-toggle",
+      "classes": "bg-transparent border-none text-primary text-sm underline cursor-pointer hover:opacity-80",
+      "note": "切换按钮(underline=白名单)"
+    },
+    {
+      "id": "login-error",
+      "classes": "px-3 py-2 rounded-md bg-destructive/10 text-destructive text-sm",
+      "note": "错误条"
+    }
   ]
 }
