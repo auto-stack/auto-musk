@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-049
-status: drafting
+status: executing
 feature_name: 双轨样式收敛——tailwind-in-Auto 单一样式源 + 双解释器对拍
 author: [zhaopuming]
 created_at: 2026-08-28
@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 0
+current_step: 7
 total_steps: 9
 ---
 
@@ -158,32 +158,82 @@ web 独有项（如复杂选择器/伪类链），逐条挂账并从该文件拆
 
 ## 执行步骤
 
-- [ ] **T1** 盘点与映射表：通读 `src/front/inject_styles.ts`（425 行）全部选
+- [✅ 已完成] **T1** 盘点与映射表：通读 `src/front/inject_styles.ts`（425 行）全
   择器 + `grep -rn "style {" src/front --include="*.at"` 的 style{} 块清单；
   产出 `scripts/lib-parity/style-parity/MIGRATION.md`（选择器→组件→工具类草
   案→class.rs 支持度[探针逐类断言]→切片归属）。验证：清单覆盖 inject_styles
   全部选择器（脚本计数对账）+ 探针输出在案。
-- [ ] **T2** 夹具骨架：建 `scripts/lib-parity/style-parity/{cases.json,run.mjs,
+  [✅ 已完成] 对账脚本 134 选择器全列（t1-selector-inventory.txt）+ style{} 块
+  37 处/23 文件入册 MIGRATION.md；探针 116 token 断言全绿 ok=95/variant=7/
+  gap=14（t1-class-probe.txt，auto-lang worktree auto-musk-dev 提交 fcb9de968）；
+  gap 裁定：p/m 分数族 + items-baseline 走 D3 修复，border-r/underline/装饰族
+  白名单，z-[100] 草案避用（musk worktree 提交 062504f）
+- [✅ 已完成] **T2** 夹具骨架：建 `scripts/lib-parity/style-parity/{cases.json,run.mjs,
   norm.json}`；VM 侧新增 `style_parity_dump` 测试（auto-lang worktree，读
   cases.json 输出解析 JSON 行）。验证：`node run.mjs` 跑通骨架（0 用例 0
   diff）+ cargo 测试输出 JSON 在案。
-- [ ] **T3** 首批对拍集：cases.json 录入导航 15 类 + 主题 token/alpha/间距/
+  [✅ 已完成] run.mjs 0 用例 PASS（t2-dump-skeleton.txt）+ dump JSON 格式留档
+  （color(primary@0.1) 等口径）;dump 测试 auto-lang worktree 提交 c83148a70;
+  骨架提交 9ac3653。环境注记：auto-lang master 当日 b26b61fd0 把 markdown 渲染
+  切到 @autodown/engine,musk vendor 未含 → `auto build` 现版二进制全数失败;
+  本计划构建改用 c4e18f676（pre-engine,048 同款映射）钉住的 auto 二进制,
+  上游消费另立任务（见待澄清6）
+- [✅ 已完成] **T3** 首批对拍集：cases.json 录入导航 15 类 + 主题 token/alpha/间距/
   字号代表类（≥20 用例）；归一化表落地；run.mjs diff=0 或输出缺口清单（缺口
   按 D3 规程处理）。验证：`node run.mjs` 报告 diff=0（白名单外）。
-- [ ] **T4** 切片·导航栏收尾：048 试点补录对拍用例 + `rail-*`/`app-header` 残
+  [✅ 已完成] 30 用例/149 token PASS diff=0（t3-first-batch-report.txt；7 web-only
+  增强 + border-r/transition-opacity/underline 白名单计数）。前置 D3 两修复已
+  入 auto-lang master（3309909a8 折回,lib 3777 绿唯一红=md_hidden 既有）。
+  归一化运行期补齐：零值 px/radius calc(var(--radius))/transparent 记法/
+  h-screen→100% 降级等价。musk 提交 0c49dff。新增门禁=style-parity（并入四门禁）
+- [✅ 已完成] **T4** 切片·导航栏收尾：048 试点补录对拍用例 + `rail-*`/`app-header` 残
   留确认清零。验证：四门禁 + style-parity 绿 + `grep -c "rail-" src/front` =0。
-- [ ] **T5** 切片·登录页：login.at 类串核验（现有 tailwind 类全被解释；对拍
+  [✅ 已完成] inject_styles.ts 删 .app-header + 导航栏 5 死规则段；意外收获：
+  viewstate_router.ts 弹出路由 DOM 选择器 .rail-tab 自 048 起已断链,同步改结构
+  定位（div.gap-1 > button:nth-child）+ vue-tsc/vitest 复验。四门禁全绿：
+  build strict EXIT=0 / vitest 23+1 / phase1-leaves 30/30 / vm-link-probe PASS
+  60900B + style-parity diff=0；`grep -rc "rail-" src/front`=0。musk 提交 0c49dff
+- [✅ 已完成] **T5** 切片·登录页：login.at 类串核验（现有 tailwind 类全被解释；对拍
   录用例）。验证：四门禁 + 对拍绿 + MCP 登录页截图。
-- [ ] **T6** 切片·会话壳：chats_view.at / gate_card.at（style{} 块迁移+删除）/
+  [✅ 已完成] login 6 用例已在 T3 批对拍 PASS（shell/card/input/submit/toggle/
+  error 全 token diff=0;focus:/hover:/transition 白名单计数,underline 白名单）;
+  类串核验=探针 ok 覆盖（px-2.5/py-2.5 D3 已补）。MCP 登录页截图存档
+  screenshots/t5-login-dark.png（暗色主题目验：卡居中 max-w-sm/品牌 2xl/输入框
+  边框圆角/主按钮 bg-primary/切换下划线,全部按工具类渲染）。待用户目验复核。
+- [✅ 已完成] **T6** 切片·会话壳：chats_view.at / gate_card.at（style{} 块迁移+删除）/
   mention_input.at / nav_sidebar.at / session_info.at / chat_message.at 类串
   迁移 + inject_styles 对应段删除。验证：四门禁 + 对拍绿 + 会话页 MCP 截图
   + 用户目验。
-- [ ] **T7** 切片·plans/specs/wiki：三域视图与子组件类串迁移 + 对应段删除。
+  [✅ 已完成] 九组件迁移（nav_sidebar 宽度参数化 width_class 四视图传参/
+  content_header/chats_view/chat_message 角色条件类串等价 :has()/user_message/
+  gate_card 代表点全迁/session_info 段/mention 双件）;inject_styles 删迁段+
+  建 web-only 暂存段。视觉验收发现并修复:shadcn Button 默认底透出致 rail
+  idle 态紫色块（048 遗留）→ 补 bg-transparent。四门禁全绿+parity diff=0
+  （48 用例/324 token）+截图 t6-chats-view-dark.png;norm 白名单扩 12 项
+  （rounded-[20px]/z arbitrary/translate 等降级,KD 登记）。musk 88b48e6;
+  auto-lang mapper 补 directional rounded 臂 bc5c4d06f。待用户目验复核。
+- [✅ 已完成] **T7** 切片·plans/specs/wiki：三域视图与子组件类串迁移 + 对应段删除。
   验证：四门禁 + 对拍绿 + 三视图 MCP 截图 + 用户目验。
-- [ ] **T8** 切片·杂项与退役：settings/workspace/errand/questionnaire 等剩余
+  [✅ 已完成] plans_view/specs_view/wiki_view/wiki_nav 全迁 + session_info 寄居
+  wiki-* 规则随域迁走（style{} 块删除）;inject_styles 三域段删除。plans 死类
+  （plan-item/模态等）按会话壳同款模式给实用工具类（有意微调,登记）。
+  视觉:三视图 URL 直达 DOM 快照实证 + t6 会话/登录截图;截图管线本时段降级
+  （t7-visual-notes.md 登记）,三视图亮暗色截图待用户目验复核。四门禁全绿 +
+  parity diff=0（58 用例/422 token）。musk 提交 e3331e2。
+  余组件 style{} 块（specs_leaf/editors/detail/category 等 18 块）按待澄清①
+  降级「二批」KD 挂账（见 T8 注）。
+- [✅ 已完成] **T8** 切片·杂项与退役：settings/workspace/errand/questionnaire 等剩余
   组件迁移；inject_styles.ts 退役（D4 判据）；`platformInjectStyles` 头注同
   步。验证：`grep -rn "class.*:" src/front --include="*.at"` 无未知自定义类 +
   四门禁 + 全视图截图组。
+  [✅ 已完成] inject_styles.ts 退役 → 余量（全局段+web-only 增强）拆
+  inject_styles.web-only.ts;platform.web.at 改指新文件,vm.at 头注同步。
+  余组件 style{} 块 31 处（settings/ws/errand/specs_leaf/editors/detail/
+  category 等）按待澄清①降级「二批」KD 挂账,退役条件依①改写;视图类串审计
+  清零（style: 全为工具类+白名单）。四门禁全绿（vm-probe 经
+  VM_LINK_LANG_ROOT+MUSK_APP_PATH 指 worktree 真跑——主检出被并行会话合并
+  冲突暂阻塞,已登记;plan442 探针增 env,auto-lang 176fe7da4）。截图组:
+  登录/会话已摄,余视图 DOM 快照实证+待用户目验。musk 提交 a136435。
 - [ ] **T9** 收口：KD 048 行 UPSTREAM④ 样式段核销改写；像素级长杆差异入 KD
   新行；全门禁复验；status → execution_done。验证：门禁输出在案 + 台账
   grep 对得上。
@@ -206,3 +256,9 @@ web 独有项（如复杂选择器/伪类链），逐条挂账并从该文件拆
    （先对齐语义）或上游色表对齐项（登记）。
 5. **VmBridge state_names 与对拍**：style-parity 仅涉 class.rs 解析，不触状
    态求值；若 T2 发现 dump 需要组件语境，裁定为「类串级夹具不扩组件语境」。
+6. **（执行中新）auto-lang b26b61fd0 markdown→@autodown/engine 迁移的 musk
+   消费**：2026-08-28 上游把 schema markdown/mermaid 渲染重定向到
+   @autodown/engine（新包,musk vendor 0.2.0 未含,pac.at npm_deps 未声明）,
+   现 bin 全数使 `auto build` 在 TS 阶段失败。本计划不消费该迁移,构建改用
+   c4e18f676 钉住版二进制（auto-lang `.worktrees/cli-pin`,pre-engine=048
+   同款 @autodown/vue 映射）;待上游 vendor/目验就绪后另立计划切换并解除钉住。

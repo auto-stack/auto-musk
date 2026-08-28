@@ -71,10 +71,17 @@ cd .worktrees/plan-<NNN>-dev
   branch, then sync the default branch back into the worktree
   (`git merge <default>` inside the worktree) before starting the next
   phase. Long-running plans drift badly behind a live default branch
-  (parallel sessions keep advancing it); per-phase fold + re-sync keeps the
-  worktree current and lets cross-repo consumers pick landed phases up
+  (parallel sessions keep advancing it); per-phase fold + re-sync keeps
+  the worktree current and lets cross-repo consumers pick landed phases up
   early. The worktree itself stays put — final cleanup/removal remains
   `/auto-plan:merge`'s job.
+- **Pre-fold full-suite gate (Plan 466).** A phase fold puts code on the
+  default branch *before* review, so it carries its own regression gate:
+  run the repo's full-suite command in the worktree and require green
+  before folding (in auto-lang: `cargo tf`, plus `cargo tv/tt/tb` when the
+  phase touched VM files / transpiler / book). Together with
+  `/auto-plan:review`'s gate, these are the only two places a full suite
+  runs in a plan's lifecycle.
 - **Plan-file bookkeeping stays on the default checkout.** `[✅]` markers,
   frontmatter flips, and 待澄清事项 entries go into the main checkout's
   `docs/plans/<NNN>-*.md` — every skill reads the plan from there, so progress
@@ -119,8 +126,12 @@ execution drifts from the reviewed plan.
 Once every step has `[✅]` and every verification has passed:
 
 1. Set `status: execution_done` in the frontmatter.
-2. Run the plan's whole verification suite (acceptance criteria section) once more —
-   inside the worktree.
+2. Re-run the plan's **scoped** verifications only, inside the worktree:
+   `cargo check -p <touched crates>` plus the touched modules' targeted
+   tests (`cargo t <module>` or the plan's own per-step commands). Do NOT
+   run full suites (`cargo t` / `cargo tf` / `cargo ta`) at wrap-up — the
+   single full-suite gate is `/auto-plan:review`'s job (plus the pre-fold
+   gate in Step 2 for multi-phase plans).
 3. Hand off: tell the user the plan is ready for `/auto-plan:review`.
 
 Leave `.worktrees/plan-<NNN>-dev` (and its branch) in place — final fold +
@@ -151,6 +162,10 @@ Ask rather than guess — a wrong step propagates to every later step.
   (`<dep-root>/.worktrees/auto-musk-dev`, named after this repo).
 - **Every completed step gets a `[✅]` marker + `current_step` bump.** No silent progress.
 - **TDD: failing test → implement → passing test**, when tests apply.
+- **Scoped checks during execution; full suites only at review (and pre-fold).**
+  Per-step and wrap-up verification use `cargo check` + targeted module
+  tests (`cargo t <module>`); full-suite runs (`cargo tf`/`ta` in
+  auto-lang) are reserved for the review gate and the pre-fold gate.
 - **Blockers go to `## 待澄清事项`, not into speculative research.**
 - **Follow steps exactly.** If a step looks wrong, stop and ask — do not redesign on the fly.
 - **Do not start on the default branch without consent** (general safety rule).

@@ -55,7 +55,7 @@ verification yourself — do not trust a checked box:
 
 | Criterion type | How to re-verify |
 |:---|:---|
-| Test suite passes | Run the exact command (`cargo test ...`, `npm run build`, etc.) |
+| Test suite passes | **The plan's one and only full-suite gate.** Run the repo's full suite: in auto-lang `cargo tf` (plus `cargo tv`/`tt`/`tb` when the plan touched VM files / transpiler / book); other repos: their full test command. Execution-phase steps ran scoped checks only, so this run is what catches cross-module regressions |
 | API endpoint works | `curl` it, or read the handler + its tests |
 | File/feature exists | Open the file; confirm the claimed behavior |
 | Type-check / lint clean | Run `vue-tsc`/`cargo check` and look for new errors |
@@ -118,6 +118,9 @@ candidates. Then route:
 - **Re-run verifications inside the execution worktree**
   (`.worktrees/plan-<NNN>-dev`); write 复审记录 and status flips to the plan
   file on the default checkout.
+- **The full suite runs here, and only here** (plus the pre-fold gate for
+  multi-phase plans, per `/auto-plan:work` Step 2). A regression found at
+  this gate routes the plan back to `/auto-plan:work` with a fix list.
 - **Never fold the branch back here.** Landing `.worktrees/plan-<NNN>-dev`
   onto main happens in `/auto-plan:merge`, after this gate passes.
 - **Trust code over plan text.** Record divergences in the review record.
