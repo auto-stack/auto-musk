@@ -1,0 +1,208 @@
+---
+plan_id: PLAN-049
+status: drafting
+feature_name: 双轨样式收敛——tailwind-in-Auto 单一样式源 + 双解释器对拍
+author: [zhaopuming]
+created_at: 2026-08-28
+updated_at: 2026-08-28
+
+supersedes_spec_components: []
+new_spec_components: []
+touched_goals: []
+
+current_step: 0
+total_steps: 9
+---
+
+# [PLAN-049] 双轨样式收敛——tailwind-in-Auto 单一样式源 + 双解释器对拍
+
+## 变更摘要
+
+048 用户裁定并试点验证的样式架构收敛路线落地：**单一样式源 = .at 源码内的
+tailwind 工具类**，废弃「web 专用全局 CSS（inject_styles.ts，425 行）+ 组件内
+style{} 块」的旧载体。web 轨由 tailwind 扫描生成物出 CSS + 浏览器解释；VM 轨由
+class.rs（Plan 411 样式引擎）解释同一类串。收敛保障 = **样式对拍门禁**进
+lib-parity 体系：同一类串的双轨解释逐属性 diff（web 侧=tailwind 生成 CSS 的静
+态规则匹配，VM 侧=class.rs 解析输出 JSON），0 diff 为绿。用户已知的现实：现阶
+段双轨存在大量细微差别，本计划以「开发时一一对比」逐一收敛；**像素级**中的布
+局引擎（浏览器 flow vs iced row/col）与文字度量差异作为长杆登记不闭，本期目标
+锚定「样式语义一致」（同断言的盒子尺寸/颜色/字号/间距）。
+
+## 目标
+
+1. **对拍门禁**：`scripts/lib-parity/style-parity/` 夹具体系上线——首批覆盖导
+   航栏 15 类 + 登录页 + 主题 token（bg-primary/10 alpha 语法、text-*、间距）
+   的双轨解释 diff=0，且可执行进日常门禁。
+2. **迁移完成**：inject_styles.ts 全部选择器 + 各 .at `style{}` 块迁移为 .at
+   内联工具类（组件垂直切片推进）；迁完后 inject_styles.ts 退役（或仅留 web
+   独有且对拍判定不迁的过渡项，逐条挂账）。
+3. **VM 视觉修复兑现**：048 用户报告的「侧栏空白/宽度不对」类问题随迁移消除
+   （导航栏已于 048 试点完成，本计划推广至全域）。
+4. **四门禁零回归**：build strict / vitest / 对拍 / VM 探针全程绿；web 生产观
+   感回归=用户目验清单逐切片确认。
+
+## 架构方案
+
+```
+现状(048 前)                          本计划后
+──────────────                       ──────────────
+.at style: "rail-tab"  ──web──▶      .at style: "w-full flex items-center …
+  inject_styles.ts(web CSS,含          gap-2 px-3 py-2 … text-primary
+  hover/transition)  ──VM──▶ ✗无映射   bg-primary/10 hover:bg-accent"
+                                        ├─web─▶ tailwind CSS + 浏览器(hover 生效)
+.at style{} 块(gate_card 等,            └─VM ─▶ class.rs 解析(hover: 丢弃,登记)
+  CSS 语法) ──VM──▶ ✗无映射
+无对比手段                             style-parity 夹具: 类串→{web 规则表, VM
+                                       解析表} 逐属性 diff=0 门禁
+```
+
+- **对拍可行性**（048 试点实证）：tailwind utilities 是确定性 CSS，无浏览器也
+  可静态匹配（扫生成的 CSS 文件取规则表）；VM 侧 class.rs 解析沿
+  vm-link-probe 模式（cargo test --nocapture 输出 JSON 行，node 抓取比对）。
+- **收敛判据分层**：L1 工具类解释一致（对拍 diff=0，本期硬门禁）；L2 组件视觉
+  一致（切片目验 + MCP 截图，本期逐切片确认）；L3 像素级（布局引擎/文字度量，
+  登记长杆，不在本期闭）。
+- **角色边界**：本计划零改 VM 渲染器布局/文字引擎；class.rs 仅允许「解析缺口
+  补齐」级小改（新工具类支持），走 auto-lang worktree 流程带回归。
+
+## 技术栈
+
+auto-musk（.at 类串迁移、scripts/lib-parity/style-parity 夹具、inject_styles
+退役）；auto-lang（class.rs 缺口补齐 + 对拍 JSON 输出测试，若需）；web 侧
+tailwind 配置不动。不动 backend/。
+
+## 需求分析与背景调查
+
+> spec overview 端点构建失败（`{"error":"failed to build overview"}`）；依据
+> = 048 执行实况 + KD 048 行。
+
+- 048 用户报告侧栏空白/宽度不对 → 根因三层：视图文本裸调用臂缺失（已字面量
+  化缓解，KD 048 UPSTREAM④）、lucide 图标空框（047 DEGRADED，本计划不闭）、
+  自定义类定义在 web-only inject_styles.ts（VM 无映射）——第三层即本计划主体。
+- 048 试点（worktree plan-048-dev 提交「样式试点」）：导航栏 rail-tab/
+  rail-footer/app-header 三类已迁内联工具类；16 类探针 15 支持（仅 hover: 丢
+  弃）；vue 构建绿；VM 活体登录后标签/结构不变。
+- class.rs（Plan 411）：支持 w-*/h-*/px-*/py-*/gap-*/rounded-*/text-*/flex 系
+  /items-*/justify-*/mt-auto/font-medium/bg-{token}/{alpha} 等；hover: 丢弃
+  （parser.rs:20 注记）。
+- inject_styles.ts：425 行全局 CSS（023 P3「scoped 转全局」的产物），覆盖全部
+  组件自定义类（rail-tab/chats-view/gate-card/approve-btn/settings-* 等）。
+- .at `style{}` 块：gate_card.at 等 029 T22 下放的组件内 scoped CSS，web 生效、
+  VM 无映射。
+- 既有对拍体系：scripts/lib-parity/（phase1-leaves 30/30 门禁、i18n fixtures、
+  028 时代 148 项对拍）——本计划沿用其组织方式。
+
+## 详细设计
+
+### D1 样式对拍夹具（T2-T3）
+
+- 目录：`scripts/lib-parity/style-parity/`。
+  - `fixtures/cases.json`：用例 = { 类串, 组件语境(可选), 期望属性表 }。
+  - `run.mjs`：①web 侧——读取 `gen/front/vue/dist/assets/*.css`（构建产物已
+    含 tailwind 生成规则），对用例类串逐类匹配规则、展开为属性表（确定性，
+    无浏览器）；②VM 侧——调
+    `cargo test -p auto-lang --lib --features ui-iced style_parity_dump -- --nocapture`
+    抓 JSON 行（新增的 dump 测试枚举 fixtures 类串，输出 class.rs 解析结果）；
+    ③逐属性 diff，输出报告；非映射属性（VM 未支持且登记白名单）忽略并计数。
+- 属性归一化规则：px/rem 换算（web 0.75rem ↔ VM 12px）、颜色 hsl(var(--x)) 对
+  主题常量表、shorthand 展开（padding 双值）。归一化表入 `norm.json` 可维护。
+- 白名单（VM 已知丢弃项）：`hover:*`、`transition*`、`cursor-*`——登记不判
+  失败，报告中单独列「web-only 增强」。
+
+### D2 迁移切片（T4-T7，垂直切片每片含四门禁+目验）
+
+切片序（按用户可见度/风险）：
+1. 导航栏（✅ 048 已完成——本计划补对拍用例即可）；
+2. 登录页（login.at，已全字面量+label 原语，验证现有类全被解释）；
+3. 会话壳（chats_view.at / gate_card.at 的 style{} 块 / mention_input.at /
+   nav_sidebar.at / session_info.at）；
+4. plans/specs/wiki 三域（plans_view / specs_view / wiki_view 及子组件）；
+5. settings/workspace/errand 等杂项 + 收尾。
+
+每片操作：`.at` 类串替换（自定义类→等价工具类；web 增强以 `hover:` 变体保
+留）→ inject_styles.ts 对应段删除 → 四门禁 + style-parity → MCP 截图 +
+用户目验。gate_card 等 `style{}` 块迁移后整块删除。
+
+### D3 class.rs 缺口补齐规程（触及即走 auto-lang worktree）
+
+对拍暴露的 VM 解析缺口（如某 token/alpha 形态不支持）：auto-lang
+worktree（auto-musk-dev）TDD 补解析臂 + lib 回归 → no-ff 并回 → musk 侧重建
+消费。禁止在 musk 侧绕过（不得为迁就 VM 而写 web 无效的类串）。
+
+### D4 inject_styles.ts 退役判据
+
+全部选择器迁毕且对拍/目验过 → 文件删除 + `platformInjectStyles` VM 侧保持
+no-op、web 侧 App 引用移除（App.vue 生成物随 .at 变化自动更新）。若存留个别
+web 独有项（如复杂选择器/伪类链），逐条挂账并从该文件拆出 `inject_styles.web-only.ts`
+过渡（下批裁定）。
+
+## 测试设计
+
+1. style-parity 对拍：首批 ≥20 用例（导航 15 类 + 主题 token/alpha/间距/字号
+   代表类）diff=0。
+2. 四门禁每切片全绿：`auto build --strict` / vitest 23+1 /
+   `phase1-leaves.mjs` 30/30 / `vm-link-probe.mjs` PASS。
+3. 切片视觉验收：MCP 截图（登录→主 UI→对应视图）+ 用户目验清单逐项勾选。
+4. auto-lang 侧（若触 class.rs）：新解析臂回归测试 + lib ui-iced 全量绿
+   （唯一允许红=master 既有 md_hidden，须在合并注记复述）。
+5. vue 侧行为回归：vitest + 对拍不变；登录/导航/会话流 MCP 冒烟复跑。
+
+## 验收标准
+
+1. style-parity 门禁上线且首批用例 diff=0（导航+登录+主题 token）。
+2. inject_styles.ts 选择器清零（或逐条挂账的 web-only 过渡项 ≤5 且拆分文件）；
+   组件 `style{}` 块迁毕（gate_card 为代表验收点）。
+3. 048 UPSTREAM④ 的样式段核销（侧栏空白/宽度问题在全域消除，用户目验确认）。
+4. 全程四门禁绿 + 切片目验记录在案；web 观感回归零（目验清单无未解释项）。
+5. 像素级长杆（布局引擎/文字度量）差异清单入 KD，登记不闭。
+
+## 执行步骤
+
+- [ ] **T1** 盘点与映射表：通读 `src/front/inject_styles.ts`（425 行）全部选
+  择器 + `grep -rn "style {" src/front --include="*.at"` 的 style{} 块清单；
+  产出 `scripts/lib-parity/style-parity/MIGRATION.md`（选择器→组件→工具类草
+  案→class.rs 支持度[探针逐类断言]→切片归属）。验证：清单覆盖 inject_styles
+  全部选择器（脚本计数对账）+ 探针输出在案。
+- [ ] **T2** 夹具骨架：建 `scripts/lib-parity/style-parity/{cases.json,run.mjs,
+  norm.json}`；VM 侧新增 `style_parity_dump` 测试（auto-lang worktree，读
+  cases.json 输出解析 JSON 行）。验证：`node run.mjs` 跑通骨架（0 用例 0
+  diff）+ cargo 测试输出 JSON 在案。
+- [ ] **T3** 首批对拍集：cases.json 录入导航 15 类 + 主题 token/alpha/间距/
+  字号代表类（≥20 用例）；归一化表落地；run.mjs diff=0 或输出缺口清单（缺口
+  按 D3 规程处理）。验证：`node run.mjs` 报告 diff=0（白名单外）。
+- [ ] **T4** 切片·导航栏收尾：048 试点补录对拍用例 + `rail-*`/`app-header` 残
+  留确认清零。验证：四门禁 + style-parity 绿 + `grep -c "rail-" src/front` =0。
+- [ ] **T5** 切片·登录页：login.at 类串核验（现有 tailwind 类全被解释；对拍
+  录用例）。验证：四门禁 + 对拍绿 + MCP 登录页截图。
+- [ ] **T6** 切片·会话壳：chats_view.at / gate_card.at（style{} 块迁移+删除）/
+  mention_input.at / nav_sidebar.at / session_info.at / chat_message.at 类串
+  迁移 + inject_styles 对应段删除。验证：四门禁 + 对拍绿 + 会话页 MCP 截图
+  + 用户目验。
+- [ ] **T7** 切片·plans/specs/wiki：三域视图与子组件类串迁移 + 对应段删除。
+  验证：四门禁 + 对拍绿 + 三视图 MCP 截图 + 用户目验。
+- [ ] **T8** 切片·杂项与退役：settings/workspace/errand/questionnaire 等剩余
+  组件迁移；inject_styles.ts 退役（D4 判据）；`platformInjectStyles` 头注同
+  步。验证：`grep -rn "class.*:" src/front --include="*.at"` 无未知自定义类 +
+  四门禁 + 全视图截图组。
+- [ ] **T9** 收口：KD 048 行 UPSTREAM④ 样式段核销改写；像素级长杆差异入 KD
+  新行；全门禁复验；status → execution_done。验证：门禁输出在案 + 台账
+  grep 对得上。
+
+## 复审记录
+
+（/auto-plan:review 时填写）
+
+## 待澄清事项
+
+1. **组件 style{} 块是否纳入本期**：default 纳入（gate_card 代表验收）；若
+   T6 体量超预期，降级为「二批」并在 KD 挂账，不影响 T8 退役（退役条件改为
+   「选择器仅余 style{} 块对应项」）。
+2. **hover/transition 的 VM 最终形态**：default 丢弃登记（web-only 增强）；
+   若用户要求 VM 侧悬停反馈，另立上游项（iced hover 状态映射）。
+3. **vue 视觉回归验收方式**：default=用户目验清单逐切片勾选 + MCP 截图存档；
+   备选=Playwright 截图 diff（引入成本高，不 default）。
+4. **bg-primary/10 类 alpha/主题 token 双轨值一致性**：进 T3 对拍集；若值差
+   超阈（如 VM 主题常量与 CSS 变量色值不等），裁定为对拍归一化表的映射项
+   （先对齐语义）或上游色表对齐项（登记）。
+5. **VmBridge state_names 与对拍**：style-parity 仅涉 class.rs 解析，不触状
+   态求值；若 T2 发现 dump 需要组件语境，裁定为「类串级夹具不扩组件语境」。
