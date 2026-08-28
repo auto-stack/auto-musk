@@ -7,8 +7,10 @@
 // 降级为 no-op 桩（返回空对象,调用面仅判空）。
 
 use.web i18nT from "src/front/lib/i18n.at"
-// (装载钩子:i18n.at 经此进编译图;调用面用模块限定名 i18n.i18nT——adapter
-//  内部 use.web 别名不进 codegen 绑定面,442 B 探针实测。)
+// PLAN-047 T3 勘误:门控前缀不可去(plain use 在本文件上下文解析死,
+// 批1 实测全文件 Parse error→整 adapter 静默失明)。基线真缺陷是闭包体
+// 用了模块限定名 i18n.i18nT——442 A3 装载器把纯 .at fn 别名为可直调的
+// 非限定符号,直调即解。vue 轨不消费本 adapter,零影响。
 
 fn settings_locale_get() str {
     let saved = storage.get("musk-language")
@@ -32,11 +34,21 @@ fn settingsChangeLocale(l str) {
     使 settingsChangeLocale 后的文案即时跟随(对齐 vue-i18n 反应语义)。 */
 fn useT() {
     return (key, params) => {
-        return i18n.i18nT(settings_locale_get(), key, params)
+        return i18nT(settings_locale_get(), key, params)
     }
 }
 
 fn useGateRouter() {
     // web-only:vue-router 组合式。VM 轨导航走视图状态机,返回空记录。
     return {}
+}
+
+/** useI18n 的 VM 形态(PLAN-047 T7/R7):vue-i18n 语义子集 { t, locale }。
+    t = i18nT + 会话 KV locale 实时读(与 useT 同源);settings 菜单经
+    settingsChangeLocale 持久化,locale 字段仅作当前值快照。 */
+fn useI18n() {
+    return {
+        t: (key, params) => { return i18nT(settings_locale_get(), key, params) },
+        locale: settings_locale_get()
+    }
 }
