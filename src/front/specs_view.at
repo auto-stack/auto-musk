@@ -97,6 +97,7 @@ widget SpecsView {
             NavSidebar {
                 title: t("specs.title")
                 collapsed: .nav_collapsed
+                width_class: "w-[200px]"
                 slot(name: "list") {
                     col {
                         style: "section-nav-list"

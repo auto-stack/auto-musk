@@ -12,6 +12,13 @@
 //
 // 历史/重载消息无 msg.blocks 时，messageBlocks 从持久化字段合成
 // （thinking → text → tool_calls），保证渲染模型统一。
+//
+// PLAN-049 T6 双轨收敛：原 style{} 块（.msg-row/.msg-blocks/.msg-bubble-* 等）
+// 全量迁内联工具类；角色相关差异（用户行右对齐/徽章色）改 computed 条件类串
+// （原 :has() 结构选择器的等价表达）。v-html 内部 .inline-mention 高亮与
+// .streaming-document 深层排版为 web-only（inject_styles.web-only.ts）。
+// AI 侧无边框正文（Claude 风格）不变：文本块透明、上下 hairline 由 msg-blocks
+// 容器 utilities 承担（VM 侧单侧边框降级登记）。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web component Markdown from "src/front/ports/renderer.at"
@@ -26,7 +33,21 @@ widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task
     computed {
         role => .msg.role
         isUser => .role == "user"
-        rowClass => if .isUser { "msg-row msg-row-user" } else { "msg-row msg-row-ai" }
+        rowClass => if .isUser {
+            "flex flex-col gap-[3px] max-w-[85%] self-end items-end"
+        } else {
+            "flex flex-col gap-[5px] self-stretch items-stretch max-w-full"
+        }
+        headerClass => if .isUser {
+            "flex items-center gap-2 px-1 justify-end"
+        } else {
+            "flex items-center gap-2 px-1"
+        }
+        badgeClass => if .isUser {
+            "text-[13.6px] font-semibold text-primary"
+        } else {
+            "text-[13.6px] font-semibold text-muted-foreground"
+        }
         badge => if .isUser { "🧑 You" } else { "🤖 AI" }
         userContent => .msg.content
         // 展示用 blocks：text 已剥离问卷 JSON（问卷由 QuestionnaireCard 呈现），
@@ -37,97 +58,35 @@ widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task
         hasError => .msg.error != ""
         errorText => if .hasError { .msg.error } else { "" }
     }
-    // PLAN-026 缺陷②: component fn 的 style 块。AI 回复采用"无边框正文 + 内容区
-    // 上下边界"布局（Claude 风格）：标题栏（icon/time）在框线上方，hairline 只
-    // 框 block 区；文本块透明无气泡（inject_styles 侧改），思考/工具等特殊块以
-    // "内嵌"卡片呈现；块间统一 gap；align-items: stretch 让折叠块标题栏等宽。
-    // ⚠️ 不要重复定义 .msg-bubble/.msg-bubble-user/.msg-bubble-ai —— inject_styles
-    // 已含完整气泡颜色（AI 侧改为透明）。
-    style {
-.msg-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  max-width: 85%;
-}
-.msg-row-user {
-  align-self: flex-end;
-  align-items: flex-end;
-}
-.msg-row-ai {
-  align-self: stretch;
-  align-items: stretch;
-  max-width: 100%;
-  gap: 0.3rem;
-}
-.msg-blocks {
-  display: flex;
-  flex-direction: column;
-  /* 块间节奏：gap 0.4 + 前块尾部 margin 0.35（如 streaming-table）= 0.75rem，
-     与 markdown 流内 代码块 0.4 + 表格 0.35 = 0.75rem 对齐，块内外一致。 */
-  gap: 0.4rem;
-  padding: 0.7rem 0.2rem;
-  border-top: 1px solid hsl(var(--border) / 0.6);
-  border-bottom: 1px solid hsl(var(--border) / 0.6);
-}
-.msg-role-badge {
-  font-size: 0.85rem; font-weight: 600;
-}
-.msg-time {
-  font-size: 0.72rem; color: hsl(var(--muted-foreground));
-}
-.msg-bubble-user {
-  background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
-  border-bottom-right-radius: 4px;
-}
-.user-text .inline-mention {
-  background: hsl(220 90% 56% / 0.12); color: hsl(220 90% 56%);
-  border-radius: 3px; padding: 0 0.2rem; font-weight: 500;
-}
-.msg-bubble-user .user-text { color: hsl(var(--primary-foreground)); white-space: pre-wrap; }
-.msg-bubble-user .user-text .inline-mention { color: hsl(var(--primary-foreground)); font-weight: 600; background: hsl(0 0% 100% / 0.15); }
-.msg-bubble-ai {
-  /* 无边框正文（Claude 风格）：AI 回复文本不设气泡边界/底色/圆角，
-     整条回复由 .msg-row-ai 的上下边界框定；思考/工具等特殊块内嵌其中。 */
-  background: transparent; border: none; color: hsl(var(--foreground));
-  border-radius: 0; padding: 0.05rem 0.15rem;
-}
-.msg-bubble-ai .streaming-document { color: hsl(var(--foreground)); }
-/* ⚠️ 不要在这里写 .streaming-document p/pre/code 等深层的规则——本组件 style
-   块是 scoped 的，属性只落在子组件根节点，深层元素永远匹配不到（此前那组
-   pre/code 规则整组失效）。代码块样式唯一落点：PrismCodeBlock.vue。 */
-.msg-thinking { font-size: 0.82rem; color: hsl(var(--muted-foreground)); font-style: italic; padding: 0.25rem 0.5rem; align-self: flex-start; max-width: 100%; }
-.msg-error { color: hsl(var(--destructive)); font-size: 0.88rem; padding: 0.5rem 0.75rem; background: hsl(var(--destructive) / 0.08); border-radius: 8px; align-self: flex-start; max-width: 100%; }
-    }
     view {
         col {
             class: .rowClass
-            // header: 角色标识 + 时间
+            // header: 角色标识 + 时间（用户行右对齐,徽章随角色着色）
             row {
-                style: "msg-header"
-                text .badge { style: "msg-role-badge" }
+                style: .headerClass
+                text .badge { style: .badgeClass }
                 if .hasTime {
-                    text .time { style: "msg-time" }
+                    text .time { style: "text-xs text-muted-foreground" }
                 }
             }
             // 内容（按 role 分支）
             if .isUser {
                 col {
-                    style: "msg-bubble msg-bubble-user"
+                    style: "px-[14px] py-[10px] rounded-xl rounded-br text-[15px] leading-[1.6] break-words bg-primary text-primary-foreground"
                     UserMessage(content: .userContent)
                 }
             } else {
-                // 内容区容器（msg-blocks）：上下 hairline 只框 block 区，标题栏
-                // （icon/time）留在框线上方。
+                // 内容区容器：上下 hairline 只框 block 区，标题栏留在框线上方。
+                // 块间节奏 0.4rem 与 markdown 流内间距对齐（原 style{} 块注记）。
                 col {
-                    style: "msg-blocks"
+                    style: "flex flex-col gap-1.5 py-[11px] px-[3px] border-t border-b border-border/60"
                     // 有序 block 流：文本 / 思考 / 工具按到达顺序，块不删除。
                     // text 块已在 computed（messageDisplayBlocks）里剥离问卷 JSON 并
                     // 过滤空块——纯问卷消息不出气泡，问卷本体由 QuestionnaireCard 呈现。
                     for block in .blocks {
                         if .block.kind == "text" {
                             col {
-                                style: "msg-bubble msg-bubble-ai"
+                                style: "px-[2px] py-[1px] bg-transparent border-none text-foreground rounded-none"
                                 Markdown(source: .block.text, streaming: isBlockStreaming(.is_streaming, .blocks, .block))
                             }
                         } else if .block.kind == "thinking" {
@@ -139,7 +98,7 @@ widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task
                 }
             }
             if .hasError {
-                text .errorText { style: "msg-error" }
+                text .errorText { style: "text-destructive text-[14px] py-2 px-3 bg-destructive/10 rounded-lg self-start max-w-full" }
             }
         }
     }

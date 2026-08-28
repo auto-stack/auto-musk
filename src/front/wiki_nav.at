@@ -119,6 +119,7 @@ widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: 
         NavSidebar {
             title: i18n.t("wiki.title")
             collapsed: .collapsed
+            width_class: "w-[240px]"
             slot(name: "actions") {
                 div {
                     style: "wiki-nav-actions"

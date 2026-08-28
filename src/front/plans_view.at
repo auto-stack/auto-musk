@@ -52,6 +52,7 @@ widget PlansView {
             NavSidebar {
                 title: t("plans.title")
                 collapsed: false
+                width_class: "w-[220px]"
                 slot(name: "actions") {
                     button {
                         onclick: .StartCreate

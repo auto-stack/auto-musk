@@ -101,6 +101,13 @@ function normWebValue(prop, val) {
   // hsl(var(--x)) / hsl(var(--x) / .1)
   const hv = v.match(/^hsl\(var\(--([\w-]+)\)\s*(?:\/\s*([\d.]+))?\)$/);
   if (hv) return `color(${hv[1]}@${fmtNum(hv[2] ? parseFloat(hv[2]) : 1)})`;
+  // rgb 字面色（tailwind 调色板类经 --tw-*-opacity 变量）→ norm.literalColors 归一
+  const rv = v.match(/^rgb\((\d+)\s+(\d+)\s+(\d+)\s*\/\s*(?:var\(--tw-[\w-]+,\s*([\d.]+)\)|([\d.]+))\)$/);
+  if (rv) {
+    const key = `${rv[1]},${rv[2]},${rv[3]}`;
+    const token = norm.literalColors?.[key];
+    if (token) return `color(${token}@${fmtNum(parseFloat(rv[4] ?? rv[5] ?? 1))})`;
+  }
   // .6 → 0.6
   if (/^-?\.\d+$/.test(v)) v = v.replace(/^(-?)\./, '$10.');
   if (prop === 'flex' && norm.flexShorthand[v]) v = norm.flexShorthand[v];
@@ -147,7 +154,7 @@ function runVmDump() {
 // ── diff ────────────────────────────────────────────────────────────────────
 
 function isVariantToken(t) {
-  return /^(hover|focus|active|disabled|placeholder|dark|group|peer|sm|md|lg|xl|2xl):/.test(t);
+  return /^(hover|focus|focus-within|active|disabled|placeholder|dark|group|peer|sm|md|lg|xl|2xl):/.test(t);
 }
 
 function isWhitelisted(t) {

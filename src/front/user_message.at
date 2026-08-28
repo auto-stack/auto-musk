@@ -9,8 +9,9 @@
 // forge_helpers.ts——它是纯正则替换，.at 无正则能力，保留为逃生舱 fn
 // 经 use { fn } 引入（Plan 408 P5 缺陷 5 修复后支持）。
 //
-// 样式：逃生舱 scoped（color/line-height/word-break + .inline-mention 高亮）
-// 由 inject_styles.ts 全局兜底——component fn 不支持 scoped CSS。
+// 样式：PLAN-049 T6 双轨收敛——.user-text 基础排版迁内联工具类；
+// v-html 内部 .inline-mention 高亮为 web-only（inject_styles.web-only.ts,VM
+// 不解析 v-html 内容,天然无映射需求）。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web render_mentions_default from "src/front/mention_helpers.at"
@@ -22,7 +23,7 @@ widget UserMessage(content: str) {
     view {
         div {
             html: .html
-            style: "user-text"
+            style: "leading-[1.5] break-words"
         }
     }
 }
