@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-047
-status: reviewed
+status: archived
 feature_name: musk VM 首跑——auto run -r vm 实机启动 + 运行时红清单采集消化 + MVP 链路打通
 author: [zhaopuming]
 created_at: 2026-08-27
@@ -251,7 +251,7 @@ T1 盘点 aura_view_builder 的 img/svg 能力（455 例 007 avatars 过审是�
   [✅(2026-08-27) G4 实际空集(T1-b 预判实证):setTimeout 仅注释级两处
   (session_info copy 复位/secretary dismiss,029 已录行为差异),零码改;
   grep 自检在案。upload 家族桩化归 R5 DEGRADED,KD 行承载]
-- [ ] **T7** 红清单消化迭代批次（D2 循环）：FIXED-musk/FIXED-conf 类逐条修，
+- [x] **T7** 红清单消化迭代批次（D2 循环）：FIXED-musk/FIXED-conf 类逐条修，
   每条一轮探针+首跑复跑；UPSTREAM/DEGRADED 类在台账与降级位收敛。终点 =
   登录页可见可交互，或剩余红全数非 FIX 类。
   验证：首跑汇总行 red 计数单调下降记录在案；终态每红有归属。
@@ -261,7 +261,7 @@ T1 盘点 aura_view_builder 的 img/svg 能力（455 例 007 avatars 过审是�
   族)+R10(启动器)。UPSTREAM 类=R1(filteredMessages computed 缺臂,点位精确
   到 resolve_iterable)/R3 上游依赖件。BLOCKED=R8(数据桥选型)。OPEN=R7/R9。
   每红归属齐备于红清单节,验收#2 达成]
-- [ ] **T8** 端到端链路取证（D6）：musk serve 起服（本机后台）+ VM 前端完成
+- [x] **T8** 端到端链路取证（D6）：musk serve 起服（本机后台）+ VM 前端完成
   登录 → chats 列表 → 单会话打开。验证：服务端请求日志命中 auth/chats 端点
   前后端双证 + 前端进程存活 + 视觉项转用户手测清单三条以内；若验收 3 走
   降级路线，本任务记录阻断点单根因后即闭。
