@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-049
-status: reviewed
+status: archived
 feature_name: 双轨样式收敛——tailwind-in-Auto 单一样式源 + 双解释器对拍
 author: [zhaopuming]
 created_at: 2026-08-28
-updated_at: 2026-08-28
+updated_at: 2026-08-28（archived：/auto-plan:merge 沉淀 P049-1..7 七节入 specs.json + 归档）
 
 supersedes_spec_components:
   - "specs/01-architecture.md: 修改（inject_styles.ts 全局 CSS 兜底退役——单一样式源=.at 内联 tailwind 工具类,web-only 余量拆 inject_styles.web-only.ts）"
