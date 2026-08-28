@@ -61,6 +61,9 @@ store AuthStore {
                 }
                 localStorage.setItem("musk_jwt", resp.token)
                 localStorage.setItem("musk_user", .user)
+                // PLAN-048:登录成功后拉会话列表——VM 轨登录态变化无视图
+                // 重挂载信号,web 轨由 guard 切换驱动 onMounted 等价物。
+                ForgeStore.LoadSessionList()
             }
         }
 
@@ -78,6 +81,7 @@ store AuthStore {
                 }
                 localStorage.setItem("musk_jwt", resp.token)
                 localStorage.setItem("musk_user", .user)
+                ForgeStore.LoadSessionList()
             }
         }
 
