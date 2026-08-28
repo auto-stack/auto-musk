@@ -205,8 +205,8 @@ mention_input.at 是逃生舱组件（v-html backdrop），其 DOM 类名与 inj
 
 | token | 裁定 | 说明 |
 |:--|:--|:--|
-| `px-2.5` / `py-2.5`（含 mb-0.5/py-0.5/py-1.5/px-3.5/mb-2.5 等 0.5 步进族） | **D3 修复**（T5 前执行） | p/m 族无分数步进臂（gap 族已有 parse_gap_value 先例）；iced 可精确表达,TDD 补臂低风险 |
-| `items-baseline` | D3 修复（降级臂→ItemsStart） | app.at 现用（品牌行）,VM 丢类致对齐失效;web 语义不变 |
+| `px-2.5` / `py-2.5`（含 mb-0.5/py-0.5/py-1.5/px-3.5/mb-2.5 等 0.5 步进族） | **D3 已修**（T3 前完成） | p/m 族补分数步进臂（Pixels(N*4px)，对齐 gap 族先例）；TDD 双测锁定 |
+| `items-baseline` | **D3 已修（降级臂）** | 解析保存为 ItemsStart（iced 无基线对齐，Plan 412 降级矩阵先例）；对拍归一化表记 baseline→flex-start 等价 |
 | `border-r`（单侧边框族） | 白名单（VM 降级） | iced 边框均匀宽,无单侧概念;保留 web 效果,VM 无分隔线（048 已接受态） |
 | `underline` | 白名单 | iced 文本无下划线;login 切换按钮 VM 无下划线（登记） |
 | `z-[100]` | 草案避用 | 迁移时 session-info-tooltip 用 `z-50`（视觉等价,登记） |

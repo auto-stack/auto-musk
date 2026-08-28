@@ -187,8 +187,11 @@ function diffCase(caseEntry, vmEntry, rules) {
     for (const [prop, webValRaw] of webProps) {
       if (prop.startsWith('--tw-') || (norm.dropPropPrefixes && Object.keys(norm.dropPropPrefixes).some((p) => prop.startsWith(p)))) continue;
       if (vmProps.has(prop)) {
-        const webVal = normWebValue(prop, webValRaw);
+        let webVal = normWebValue(prop, webValRaw);
         const vmVal = String(vmProps.get(prop));
+        // VM 布局降级等价（Plan 412 降级矩阵）:web 值按 norm.valueDegrades 折算后再比
+        const deg = norm.valueDegrades?.[prop]?.[webVal];
+        if (deg !== undefined) webVal = deg;
         if (webVal !== vmVal) {
           report.diffs.push({ case: caseId, token: raw, kind: 'value-mismatch', detail: `${prop}: web=${webVal} vm=${vmVal}` });
         }
