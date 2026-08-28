@@ -7,6 +7,9 @@
 //     ✅ PLAN-045-E4/446-E4 已实装(auto-lang Http.set_default_header/
 //     set_default_query/clear_default_auth natives,3130-3132)——经
 //     platformRefreshAuth 注入,token 变更由 auth_store 重调用;
+//     ✅ PLAN-048:默认头/查询现已覆盖 #[api] 契约改写主臂
+//     (auto.http.get_json/post_json 底层 simple_http_json,上游 0f3dd82dc),
+//     活体验证=登录→chats_list_sessions 契约往返(auto-musk 048 计划)。
 //   - platformRunRelayCommand:跨 RelayStore/ForgeStore 的执行桥（web 侧受
 //     单 store per file 限制的接线）→ 降级为会话 KV 留痕 + 控制台 warn,
 //     完整 VM 实现待多 store 放开后并入（与 web 侧 D 组登记同源）。
