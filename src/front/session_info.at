@@ -10,7 +10,7 @@
 //     info 按钮再次点击关闭，登记轻微差异）
 //   - @click.stop 舍弃（无外部关闭逻辑，无冒泡需求）
 //
-// 样式：PLAN-049 T6 双轨收敛——session-info-* 迁内联工具类（wiki-* 寄居规则待 T7）。
+// 样式：PLAN-049 T6/T7 双轨收敛——全部内联工具类,style{} 块删除。
 
 use store: ForgeStore
 
@@ -49,23 +49,8 @@ widget SessionInfo() {
     // PLAN-049 T6：session-info-* 已迁内联工具类（单一样式源）；tooltip 阴影
     // 为 web-only 增强（box-shadow 白名单）,z-100 收敛为 z-50（视觉等价,登记）。
     // wiki-* 规则系 Plan 029 下放时寄居本块,归 T7 wiki 域切片迁移。
-    style {
-  .wiki-nav-item {
-    display: block; width: 100%; text-align: left;
-    padding: 0.4rem 0.75rem; border: none; border-radius: 6px; font-size: 0.85rem;
-    background: transparent; color: hsl(var(--foreground)); cursor: pointer;
-  }
-  .wiki-nav-item:hover { background: hsl(var(--accent)); }
-  .wiki-nav-item.active { background: hsl(var(--accent)); font-weight: 500; }
-  .wiki-main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
-  .wiki-content-actions { display: flex; gap: 0.25rem; }
-  .wiki-content { padding: 0 1.25rem 1.25rem; font-size: 0.9rem; line-height: 1.6; color: hsl(var(--foreground)); }
-  .wiki-raw { padding: 0 1.25rem 1.25rem; }
-  .wiki-markdown { font-size: 0.9rem; line-height: 1.6; }
-  .wiki-editor { margin: 1.25rem; padding: 1rem; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--card)); }
-  .wiki-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: hsl(var(--muted-foreground)); gap: 0.5rem; text-align: center; }
-  .text-muted { color: hsl(var(--muted-foreground)); }
-    }
+    // PLAN-049 T7：寄居的 wiki-* 规则已随 wiki 域切片迁 wiki_view/wiki_nav
+    // 内联工具类,style{} 块整体删除（本组件样式在 T6 已迁工具类）。
 
     view {
         div {

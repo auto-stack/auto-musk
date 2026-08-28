@@ -60,7 +60,7 @@ widget WikiView {
 
     view {
         row {
-            style: "wiki-view"
+            style: "flex flex-row h-full overflow-hidden"
             // WikiNav 组件（双树 + 搜索 + 图标 + DropZone 上传，对齐原版）
             WikiNav {
                 wikiTree: .store.tree
@@ -77,52 +77,52 @@ widget WikiView {
             }
             // 主内容区
             col {
-                style: "wiki-main"
+                style: "flex-1 overflow-y-auto flex flex-col"
                 if .creating {
                     // 创建新页面表单
                     col {
-                        style: "wiki-editor"
+                        style: "p-4 border border-border rounded-lg bg-card mb-4"
                         h2 "New Page" { style: "text-xl font-bold mb-4" }
                         col {
-                            style: "form-group"
+                            style: "flex flex-col gap-[5px] mb-3"
                             label "Slug"
                             input {
                                 value: .new_slug
                                 oninput: .SlugChanged
                                 placeholder: t("wiki.slugPlaceholder")
-                                style: "form-input"
+                                style: "py-2 px-2.5 border border-border rounded-md bg-background text-foreground text-sm"
                             }
                         }
                         col {
-                            style: "form-group"
+                            style: "flex flex-col gap-[5px] mb-3"
                             label "Title"
                             input {
                                 value: .new_title
                                 oninput: .TitleChanged
                                 placeholder: t("wiki.titlePlaceholder")
-                                style: "form-input"
+                                style: "py-2 px-2.5 border border-border rounded-md bg-background text-foreground text-sm"
                             }
                         }
                         col {
-                            style: "form-group"
+                            style: "flex flex-col gap-[5px] mb-3"
                             label "Content (Markdown)"
                             textarea {
                                 value: .new_content
                                 oninput: .ContentChanged
                                 placeholder: t("wiki.contentPlaceholder")
-                                style: "form-input content-input"
+                                style: "py-2 px-2.5 border border-border rounded-md bg-background text-foreground text-sm min-h-[120px] font-mono resize-y"
                             }
                         }
                         row {
-                            style: "edit-actions"
+                            style: "flex gap-2 justify-end"
                             button {
                                 onclick: .CreatePage
-                                style: "save-btn"
+                                style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border hover:bg-primary hover:text-primary-foreground hover:border-primary"
                                 text t("wiki.create")
                             }
                             button {
                                 onclick: .CancelCreate
-                                style: "cancel-btn"
+                                style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border hover:bg-accent"
                                 text t("common.cancel")
                             }
                         }
@@ -130,23 +130,23 @@ widget WikiView {
                 } else if .editing {
                     // 编辑现有页面
                     col {
-                        style: "wiki-editor"
+                        style: "p-4 border border-border rounded-lg bg-card mb-4"
                         h2 "Edit Page" { style: "text-xl font-bold mb-4" }
                         textarea {
                             value: .new_content
                             oninput: .ContentChanged
-                            style: "form-input content-input"
+                            style: "py-2 px-2.5 border border-border rounded-md bg-background text-foreground text-sm min-h-[120px] font-mono resize-y"
                         }
                         row {
-                            style: "edit-actions"
+                            style: "flex gap-2 justify-end"
                             button {
                                 onclick: .SavePage
-                                style: "save-btn"
+                                style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border hover:bg-primary hover:text-primary-foreground hover:border-primary"
                                 text t("common.save")
                             }
                             button {
                                 onclick: .EditPage
-                                style: "cancel-btn"
+                                style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border hover:bg-accent"
                                 text t("common.cancel")
                             }
                         }
@@ -154,27 +154,27 @@ widget WikiView {
                 } else if .creating_folder {
                     // 新建文件夹表单（对齐原版 WikiView.vue:190-205 new-folder 分支）
                     col {
-                        style: "wiki-editor"
+                        style: "p-4 border border-border rounded-lg bg-card mb-4"
                         col {
-                            style: "form-group"
+                            style: "flex flex-col gap-[5px] mb-3"
                             label "Folder Path"
                             input {
                                 value: .new_folder_path
                                 oninput: .FolderPathChanged
                                 placeholder: "datasheets/stm32"
-                                style: "form-input"
+                                style: "py-2 px-2.5 border border-border rounded-md bg-background text-foreground text-sm"
                             }
                         }
                         row {
-                            style: "edit-actions"
+                            style: "flex gap-2 justify-end"
                             button {
                                 onclick: .CreateFolder
-                                style: "save-btn"
+                                style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border hover:bg-primary hover:text-primary-foreground hover:border-primary"
                                 text t("common.create")
                             }
                             button {
                                 onclick: .CancelNewFolder
-                                style: "cancel-btn"
+                                style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border hover:bg-accent"
                                 text t("common.cancel")
                             }
                         }
@@ -187,22 +187,22 @@ widget WikiView {
                         title: .store.active_raw_path
                         slot(name: "actions") {
                             div {
-                                style: "wiki-content-actions"
+                                style: "flex gap-1"
                                 button {
                                     onclick: .DeleteRawFile(.store.active_raw_path)
-                                    style: "action-btn danger"
+                                    style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border text-destructive hover:bg-destructive/10"
                                     text t("common.delete")
                                 }
                                 button {
                                     onclick: .ClearRaw
-                                    style: "action-btn"
+                                    style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border"
                                     text t("common.cancel")
                                 }
                             }
                         }
                     }
                     col {
-                        style: "wiki-raw"
+                        style: "px-5 pb-5"
                         RawPreview {
                             workspace: .store.workspace
                             path: .store.active_raw_path
@@ -215,32 +215,32 @@ widget WikiView {
                         title: .store.current_page.title
                         slot(name: "actions") {
                             div {
-                                style: "wiki-content-actions"
+                                style: "flex gap-1"
                                 button {
                                     onclick: .EditPage
-                                    style: "action-btn"
+                                    style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border"
                                     text t("wiki.edit")
                                 }
                                 button {
                                     onclick: .DeletePage(.active_slug)
-                                    style: "action-btn danger"
+                                    style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border text-destructive hover:bg-destructive/10"
                                     text t("wiki.delete")
                                 }
                             }
                         }
                     }
                     col {
-                        style: "wiki-content"
+                        style: "px-5 pb-5 text-sm leading-[1.6] text-foreground"
                         // markdown 渲染（Phase 3 内置 tag）
                         markdown {
                             content: .store.current_page.content
-                            style: "wiki-markdown"
+                            style: "text-sm leading-[1.6]"
                         }
                     }
                 } else {
                     col {
-                        style: "wiki-empty"
-                        text t("wiki.selectPage") { style: "text-muted" }
+                        style: "flex-1 flex flex-col items-center justify-center text-muted-foreground gap-2 text-center"
+                        text t("wiki.selectPage") { style: "text-muted-foreground" }
                     }
                 }
             }

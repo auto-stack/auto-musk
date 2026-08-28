@@ -81,63 +81,10 @@ body, button, input, textarea, select { font-family: 'Noto Sans SC', -apple-syst
 ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.35); }
 /* 全局链接色 */
 a { color: hsl(var(--primary)); }
-/* ── 三列渐变背景层次 ──
-   PLAN-049 T6：三列底色/边框/宽度已全部落组件工具类
-   （第一列 app.at bg-secondary;第二列 NavSidebar bg-card + width_class 参数,
-   chats/plans/specs/wiki 四视图已全部传参）,原位置选择器规则删除。
-   plans-root/plans-main 等骨架类待 T7 切片迁移,暂留。 */
-.plans-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-.plans-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
-.plans-main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-/* ── SpecsView 布局（T7 迁移,暂留）── */
-.specs-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
-.section-nav-list {
-  flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.25rem;
-  padding: 0 0.25rem;
-}
-.overview-entry {
-  display: block; width: 100%; text-align: left;
-  padding: 0.4rem 0.75rem; border: none; border-radius: 6px; font-size: 0.85rem;
-  background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer;
-}
-.overview-entry:hover { background: hsl(var(--accent)); }
-.overview-entry.active { background: hsl(var(--accent)); color: hsl(var(--foreground)); font-weight: 500; }
-.section-nav-item {
-  display: block; width: 100%; text-align: left;
-  padding: 0.4rem 0.75rem; border: none; border-radius: 6px; font-size: 0.85rem;
-  background: transparent; color: hsl(var(--foreground)); cursor: pointer;
-}
-.section-nav-item:hover { background: hsl(var(--accent)); }
-.section-nav-item.active { background: hsl(var(--accent)); font-weight: 500; }
-.specs-main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
-.overview-content { padding: 1.25rem; font-size: 0.9rem; line-height: 1.6; color: hsl(var(--foreground)); }
-.section-content { margin-bottom: 1rem; padding: 0 1.25rem 1.25rem; }
-.spec-item-btn { display: block; width: 100%; text-align: left; padding: 0.6rem 0.75rem; border: 1px solid hsl(var(--border)); border-radius: 8px; margin-bottom: 0.4rem; background: hsl(var(--card)); cursor: pointer; }
-.spec-item-btn:hover { border-color: hsl(var(--primary)); }
-.spec-item-main { display: flex; align-items: center; gap: 0.5rem; }
-.spec-item-title { font-weight: 500; font-size: 0.88rem; flex: 1; color: hsl(var(--foreground)); }
-.spec-item-status { font-size: 0.72rem; padding: 2px 8px; border-radius: 4px; background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
-.spec-item-actions { display: flex; gap: 0.25rem; }
-/* 编辑面板（T7） */
-.edit-panel { padding: 1rem; border: 1px solid hsl(var(--border)); border-radius: 8px; background: hsl(var(--card)); margin-bottom: 1rem; }
-.form-group { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.75rem; }
-.form-group label { font-size: 0.82rem; font-weight: 500; color: hsl(var(--muted-foreground)); }
-.form-input { padding: 0.5rem 0.65rem; border: 1px solid hsl(var(--border)); border-radius: 6px; background: hsl(var(--background)); color: hsl(var(--foreground)); font-size: 0.88rem; }
-.form-input:focus { outline: none; border-color: hsl(var(--primary)); }
-.content-input { min-height: 120px; resize: vertical; font-family: monospace; }
-.edit-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
-.add-btn, .save-btn, .cancel-btn, .action-btn {
-  padding: 0.4rem 0.85rem; border: 1px solid hsl(var(--border)); border-radius: 6px; font-size: 0.82rem; cursor: pointer; background: hsl(var(--card)); color: hsl(var(--foreground));
-}
-.add-btn:hover, .save-btn:hover { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-color: hsl(var(--primary)); }
-.cancel-btn:hover, .action-btn:hover { background: hsl(var(--accent)); }
-.action-btn.danger { color: hsl(var(--destructive)); }
-.action-btn.danger:hover { background: hsl(var(--destructive) / 0.1); }
-/* ── WikiView 布局（T7 迁移,暂留）── */
-.wiki-view { display: flex; flex-direction: row; height: 100%; overflow: hidden; }
-.nav-icon-btn { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid hsl(var(--border)); border-radius: 6px; background: transparent; cursor: pointer; color: hsl(var(--foreground)); font-size: 1rem; }
-.nav-icon-btn:hover { background: hsl(var(--accent)); }
-.wiki-nav-list { flex: 1; overflow-y: auto; }
+/* ── 三列渐变背景层次 / plans / specs / wiki 布局 ──
+   PLAN-049 T7：三域布局骨架与编辑面板表单全部迁对应 .at 内联工具类
+   （NavSidebar width_class 参数化;编辑面板段为 plans/specs/wiki 共用,
+   已在各消费者落同串工具类）,原全局规则整段删除。 */
 /* ── StreamingTable keyframes（023 P3,动画 web-only）── */
 @keyframes st-dots { 0%, 80%, 100% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } }
 /* ── Markdown 表格补充：斑马线背景（0.2.0 scoped 样式已含边框/表头底色,斑马纹为 musk 增补） ── */
@@ -164,6 +111,11 @@ a { color: hsl(var(--primary)); }
   border-color: hsl(var(--primary) / 0.35);
 }
 .search-input::placeholder { color: hsl(var(--muted-foreground)); }
+.wiki-search-input::placeholder { color: hsl(var(--muted-foreground)); }
+/* wiki 树删除钮：悬停行显现 + 悬停钮危险色（悬停显隐无法工具类化） */
+.tree-item-del { display: none; }
+.tree-item:hover .tree-item-del { display: flex; }
+.tree-item-del:hover { background: hsl(var(--destructive) / 0.12); color: hsl(var(--destructive)); }
 /* 输入区 focus 光环 + @mention 双层文字技术（textarea 文字透明,由
    backdrop 层显示高亮文本;VM 侧 textarea 直接显字,无此技术） */
 .input-compose:focus-within {

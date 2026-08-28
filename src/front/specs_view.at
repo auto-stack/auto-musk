@@ -92,7 +92,7 @@ widget SpecsView {
     view {
         if .structuredMode {
         row {
-            style: "specs-view"
+            style: "flex flex-row h-full overflow-hidden"
             // 左侧 section-nav（Plan 023 §3.1：共用 NavSidebar——header + list slot）
             NavSidebar {
                 title: t("specs.title")
@@ -100,10 +100,10 @@ widget SpecsView {
                 width_class: "w-[200px]"
                 slot(name: "list") {
                     col {
-                        style: "section-nav-list"
+                        style: "flex-1 overflow-y-auto flex flex-col gap-1 px-1"
                         button {
                             onclick: .ToggleOverview
-                            style: if .show_overview { "overview-entry active" } else { "overview-entry" }
+                            style: if .show_overview { "w-full text-left py-1.5 px-3 rounded-md text-sm bg-accent text-foreground font-medium cursor-pointer" } else { "w-full text-left py-1.5 px-3 rounded-md text-sm bg-transparent text-muted-foreground cursor-pointer hover:bg-accent" }
                             text t("specs.overview")
                         }
                         for section in .section_types {
@@ -111,9 +111,9 @@ widget SpecsView {
                                 key: .section
                                 onclick: .SelectSection(.section)
                                 style: if .section == .active_section {
-                                    "section-nav-item active"
+                                    "w-full text-left py-1.5 px-3 rounded-md text-sm bg-accent font-medium cursor-pointer text-foreground"
                                 } else {
-                                    "section-nav-item"
+                                    "w-full text-left py-1.5 px-3 rounded-md text-sm bg-transparent cursor-pointer text-foreground hover:bg-accent"
                                 }
                                 text .section
                             }
@@ -123,10 +123,10 @@ widget SpecsView {
             }
             // 右侧主内容区
             col {
-                style: "specs-main"
+                style: "flex-1 overflow-y-auto flex flex-col"
                 if .show_overview {
                     col {
-                        style: "overview-content"
+                        style: "p-5 text-sm leading-[1.6] text-foreground"
                         h2 "Overview" { style: "text-xl font-bold mb-4" }
                         if .store.overview != "" {
                             text .store.overview
@@ -141,15 +141,15 @@ widget SpecsView {
                         title: .active_section
                         slot(name: "middle") {
                             row {
-                                style: "view-mode-toggle"
+                                style: "flex gap-1"
                                 button {
                                     onclick: .EnterStructuredMode
-                                    class: if .structuredMode { "mode-btn active" } else { "mode-btn" }
+                                    class: if .structuredMode { "px-2 py-1 text-xs rounded-md bg-primary/10 text-primary" } else { "px-2 py-1 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent" }
                                     text t("specs.structuredMode")
                                 }
                                 button {
                                     onclick: .EnterTreeMode
-                                    class: if .treeMode { "mode-btn active" } else { "mode-btn" }
+                                    class: if .treeMode { "px-2 py-1 text-xs rounded-md bg-primary/10 text-primary" } else { "px-2 py-1 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent" }
                                     text t("specs.fileTreeMode")
                                 }
                             }
@@ -157,13 +157,13 @@ widget SpecsView {
                         slot(name: "actions") {
                             button {
                                 onclick: .AddItem
-                                style: "add-btn"
+                                style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border hover:bg-primary hover:text-primary-foreground hover:border-primary"
                                 text t("specs.addItem")
                             }
                         }
                     }
                     col {
-                        style: "section-content"
+                        style: "mb-4 px-5 pb-5"
                         if .store.document != None {
                             // PLAN-041 T3:分域组件接线(web SpecsView 同构)。
                             if .active_section == "goals" {
@@ -241,45 +241,45 @@ widget SpecsView {
                         // 编辑面板(Add 流专用;既有条目编辑走行内编辑器)。
                         if .adding_item {
                             col {
-                                style: "edit-panel"
+                                style: "p-4 border border-border rounded-lg bg-card mb-4"
                                 h3 "Edit Item" { style: "text-lg font-bold mb-2" }
                                 col {
-                                    style: "form-group"
+                                    style: "flex flex-col gap-[5px] mb-3"
                                     label "Title"
                                     input {
                                         value: .edit_title
                                         oninput: .EditTitleChanged
-                                        style: "form-input"
+                                        style: "py-2 px-2.5 border border-border rounded-md bg-background text-foreground text-sm"
                                     }
                                 }
                                 col {
-                                    style: "form-group"
+                                    style: "flex flex-col gap-[5px] mb-3"
                                     label "Status"
                                     input {
                                         value: .edit_status
                                         oninput: .EditContentChanged
-                                        style: "form-input"
+                                        style: "py-2 px-2.5 border border-border rounded-md bg-background text-foreground text-sm"
                                     }
                                 }
                                 col {
-                                    style: "form-group"
+                                    style: "flex flex-col gap-[5px] mb-3"
                                     label "Content"
                                     textarea {
                                         value: .edit_content
                                         oninput: .EditContentChanged
-                                        style: "form-input content-input"
+                                        style: "py-2 px-2.5 border border-border rounded-md bg-background text-foreground text-sm min-h-[120px] font-mono resize-y"
                                     }
                                 }
                                 row {
-                                    style: "edit-actions"
+                                    style: "flex gap-2 justify-end"
                                     button {
                                         onclick: .SaveEditItem
-                                        style: "save-btn"
+                                        style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border hover:bg-primary hover:text-primary-foreground hover:border-primary"
                                         text t("common.save")
                                     }
                                     button {
                                         onclick: .CancelEdit
-                                        style: "cancel-btn"
+                                        style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border hover:bg-accent"
                                         text t("common.cancel")
                                     }
                                 }
@@ -307,40 +307,40 @@ widget SpecsView {
         } else {
             // PLAN-025 §10: 扁平文件树渲染（递归留作 KNOWN-DEBT）
             row {
-                style: "specs-view"
+                style: "flex flex-row h-full overflow-hidden"
                 col {
-                    style: "filetree-nav"
+                    style: "w-[200px] shrink-0 border-r border-border bg-card overflow-y-auto p-2 flex flex-col gap-1"
                     for node in .store.spec_tree {
                         button {
                             key: .node.path
                             onclick: .SelectSpecFile(.node.path)
-                            class: if .store.active_spec_file_path == .node.path { "tree-item active" } else { "tree-item" }
+                            class: if .store.active_spec_file_path == .node.path { "w-full text-left py-1.5 px-2 rounded-md text-sm bg-accent font-medium text-foreground" } else { "w-full text-left py-1.5 px-2 rounded-md text-sm bg-transparent text-foreground hover:bg-accent" }
                             text .node.name
                         }
                     }
                 }
                 col {
-                    style: "specs-main"
+                    style: "flex-1 overflow-y-auto flex flex-col"
                     ContentHeader {
                         title: t("specs.fileTreeMode")
                         slot(name: "middle") {
                             row {
-                                style: "view-mode-toggle"
+                                style: "flex gap-1"
                                 button {
                                     onclick: .EnterStructuredMode
-                                    class: if .structuredMode { "mode-btn active" } else { "mode-btn" }
+                                    class: if .structuredMode { "px-2 py-1 text-xs rounded-md bg-primary/10 text-primary" } else { "px-2 py-1 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent" }
                                     text t("specs.structuredMode")
                                 }
                                 button {
                                     onclick: .EnterTreeMode
-                                    class: if .treeMode { "mode-btn active" } else { "mode-btn" }
+                                    class: if .treeMode { "px-2 py-1 text-xs rounded-md bg-primary/10 text-primary" } else { "px-2 py-1 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent" }
                                     text t("specs.fileTreeMode")
                                 }
                             }
                         }
                     }
                     col {
-                        style: "filetree-editor"
+                        style: "flex-1 overflow-y-auto p-5 text-sm text-foreground font-mono whitespace-pre-wrap"
                         if .store.active_spec_file_content != "" {
                             text .store.active_spec_file_content
                         } else {
