@@ -17,7 +17,6 @@ use.web useT from "src/front/ports/composables.at"
 use.web useGateRouter from "src/front/ports/composables.at"
 // PLAN-041 T8:URL 路由桥(popstate→rail 点击;vsSetView pushState)。
 use.web useViewRouter, vsCurrentView, vsSetView from "src/front/ports/composables.at"
-use.web component MessageSquare, ListTodo, Scroll, BookOpen from "src/front/ports/icons.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
 use workspace_selector: WorkspaceSelector
@@ -71,47 +70,14 @@ widget App {
                         }
                     }
                     col {
-                        style: "gap-1"
-                        button {
-                            onclick: .ShowChats
-                            style: if .current_view == "chats" {
-                                "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent"
-                            } else {
-                                "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent"
-                            }
-                            MessageSquare { size: 16 }
-                            text "会话" { style: if .current_view == "chats" { "text-primary font-medium" } else { "text-muted-foreground" } }
-                        }
-                        button {
-                            onclick: .ShowPlans
-                            style: if .current_view == "plans" {
-                                "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent"
-                            } else {
-                                "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent"
-                            }
-                            ListTodo { size: 16 }
-                            text "计划" { style: if .current_view == "plans" { "text-primary font-medium" } else { "text-muted-foreground" } }
-                        }
-                        button {
-                            onclick: .ShowSpecs
-                            style: if .current_view == "specs" {
-                                "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent"
-                            } else {
-                                "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent"
-                            }
-                            Scroll { size: 16 }
-                            text "规范" { style: if .current_view == "specs" { "text-primary font-medium" } else { "text-muted-foreground" } }
-                        }
-                        button {
-                            onclick: .ShowWiki
-                            style: if .current_view == "wiki" {
-                                "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent"
-                            } else {
-                                "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent"
-                            }
-                            BookOpen { size: 16 }
-                            text "知识库" { style: if .current_view == "wiki" { "text-primary font-medium" } else { "text-muted-foreground" } }
-                        }
+                        style: "gap-1 app-rail"
+                        // Plan 052（上游 auto-lang Plan 482）：nav-item 组件——
+                        // hover/active 三态与图标由契约承载，取代手搓 if 样式串
+                        // 与逐 text 补色 workaround（8453d6d）。
+                        nav-item (onclick: .ShowChats, active: .current_view == "chats", icon: "message-square", label: "会话")
+                        nav-item (onclick: .ShowPlans, active: .current_view == "plans", icon: "list-todo", label: "计划")
+                        nav-item (onclick: .ShowSpecs, active: .current_view == "specs", icon: "scroll", label: "规范")
+                        nav-item (onclick: .ShowWiki, active: .current_view == "wiki", icon: "book-open", label: "知识库")
                     }
                     // Plan 407：WorkspaceSelector + SettingsMenu 在导航栏底部。
                     row {
