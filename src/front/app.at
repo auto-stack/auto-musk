@@ -57,12 +57,18 @@ widget App {
                 // Plan 407：text 节点 t() 化 + WorkspaceSelector 逃生舱接入（原生支持）。
                 col {
                     style: "w-48 shrink-0 bg-secondary border-r border-border gap-3 px-3 pb-3 pt-0 h-full"
+                    // 标题行对齐三级头约定（NavSidebar/ContentHeader 均为
+                    // h-12 + border-b,2026-08-29 用户实测 rail 标题高度不齐）。
+                    // 内层保留 items-baseline 的字号配对。
                     row {
-                        style: "flex items-baseline gap-2 px-0"
-                        // PLAN-048:字面量化(VM 视图文本无裸调用臂,t() 恒空;
-                        // 见 KD 048 行 UPSTREAM④)。
-                        text "Auto Musk" { style: "text-base font-bold text-primary" }
-                        text "v0.1.0" { style: "text-xs text-muted-foreground" }
+                        style: "h-12 shrink-0 flex items-center border-b border-border"
+                        row {
+                            style: "flex items-baseline gap-2"
+                            // PLAN-048:字面量化(VM 视图文本无裸调用臂,t() 恒空;
+                            // 见 KD 048 行 UPSTREAM④)。
+                            text "Auto Musk" { style: "text-base font-bold text-primary" }
+                            text "v0.1.0" { style: "text-xs text-muted-foreground" }
+                        }
                     }
                     col {
                         style: "gap-1"
