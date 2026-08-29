@@ -54,7 +54,7 @@ fn visual_apply_accent(name str) {
 
 store VisualStore {
     model {
-        var mode str = "auto"
+        var mode str = "dark"
         var accent str = "indigo"
     }
 
@@ -66,7 +66,7 @@ store VisualStore {
 
     on {
         .Init -> {
-            .mode = storage.get("musk-theme") ?? "auto"
+            .mode = storage.get("musk-theme") ?? "dark"
             visual_apply_theme(.mode)
             let stored_accent = storage.get("musk-accent-color") ?? "indigo"
             var initial = "indigo"

@@ -72,14 +72,14 @@ widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task
             // 内容（按 role 分支）
             if .isUser {
                 col {
-                    style: "px-[14px] py-[10px] rounded-xl rounded-br text-[15px] leading-[1.6] break-words bg-primary text-primary-foreground"
+                    style: "msg-bubble-user px-[14px] py-[10px] rounded-xl rounded-br text-[15px] leading-[1.6] break-words bg-primary text-primary-foreground"
                     UserMessage(content: .userContent)
                 }
             } else {
                 // 内容区容器：上下 hairline 只框 block 区，标题栏留在框线上方。
                 // 块间节奏 0.4rem 与 markdown 流内间距对齐（原 style{} 块注记）。
                 col {
-                    style: "flex flex-col gap-1.5 py-[11px] px-[3px] border-t border-b border-border/60"
+                    style: "msg-bubble-ai flex flex-col gap-1.5 py-[11px] px-[3px] border-t border-b border-border/60"
                     // 有序 block 流：文本 / 思考 / 工具按到达顺序，块不删除。
                     // text 块已在 computed（messageDisplayBlocks）里剥离问卷 JSON 并
                     // 过滤空块——纯问卷消息不出气泡，问卷本体由 QuestionnaireCard 呈现。

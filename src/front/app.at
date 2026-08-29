@@ -69,9 +69,9 @@ widget App {
                         button {
                             onclick: .ShowChats
                             style: if .current_view == "chats" {
-                                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent"
+                                "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent"
                             } else {
-                                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent"
+                                "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent"
                             }
                             MessageSquare { size: 16 }
                             text "会话"
@@ -79,9 +79,9 @@ widget App {
                         button {
                             onclick: .ShowPlans
                             style: if .current_view == "plans" {
-                                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent"
+                                "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent"
                             } else {
-                                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent"
+                                "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent"
                             }
                             ListTodo { size: 16 }
                             text "计划"
@@ -89,9 +89,9 @@ widget App {
                         button {
                             onclick: .ShowSpecs
                             style: if .current_view == "specs" {
-                                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent"
+                                "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent"
                             } else {
-                                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent"
+                                "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent"
                             }
                             Scroll { size: 16 }
                             text "规范"
@@ -99,9 +99,9 @@ widget App {
                         button {
                             onclick: .ShowWiki
                             style: if .current_view == "wiki" {
-                                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent"
+                                "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-primary bg-primary/10 font-medium hover:bg-accent"
                             } else {
-                                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent"
+                                "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent"
                             }
                             BookOpen { size: 16 }
                             text "知识库"

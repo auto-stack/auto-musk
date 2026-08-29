@@ -112,9 +112,9 @@ widget ChatsView {
                                 key: .s.id
                                 onclick: .SelectSession(.s.id)
                                 style: if .s.id == .store.session_id {
-                                    "w-full text-left py-2 px-2.5 mb-[2px] rounded-md bg-primary/10 text-primary"
+                                    "session-item relative w-full text-left py-2 px-2.5 mb-[2px] rounded-md bg-primary/10 text-primary"
                                 } else {
-                                    "w-full text-left py-2 px-2.5 mb-[2px] rounded-md bg-transparent hover:bg-accent"
+                                    "session-item relative w-full text-left py-2 px-2.5 mb-[2px] rounded-md bg-transparent hover:bg-accent"
                                 }
                                 col {
                                     style: "flex flex-col gap-[2px]"
@@ -123,7 +123,7 @@ widget ChatsView {
                                 }
                                 // #4 回流：会话项 hover 删除按钮（Trash2 图标 + onclick.stop 阻止冒泡）
                                 span {
-                                    style: "absolute right-[6px] top-1/2 -translate-y-1/2 items-center opacity-60 bg-transparent border-none p-[3px]"
+                                    style: "session-delete-btn absolute right-[6px] top-1/2 -translate-y-1/2 items-center opacity-60 bg-transparent border-none p-[3px]"
                                     onclick.stop: .DeleteSession(.s.id)
                                     title: t("chat.deleteSession")
                                     Trash2 { size: 12 }
