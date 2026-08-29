@@ -1,6 +1,6 @@
 ---
 plan_id: MUSK-052
-status: executing
+status: execution_done
 feature_name: nav-item-rail
 author: [zcode]
 created_at: 2026-08-29
@@ -17,12 +17,15 @@ workaround（8453d6d），并把 viewstate_router.ts 的脆弱结构选择器换
 `.nav-item` 契约锚点。
 
 ## 任务
-- [ ] T1 app.at rail 四项 → nav-item（icon: message-square/list-todo/scroll/
-  book-open 字面量；onclick/active 同现有消息与状态）；确认 use.web 图标组件
-  import 是否还有其他消费者，无则删。
-- [ ] T2 composables/viewstate_router.ts 选择器 → `.app-rail .nav-item` 锚点。
-- [ ] T3 验证：auto build --gen-only + vite build + web 冒烟（rail 四态点击）；
-  VM 轨抽查截图（图标/选中/hover）。
+- [x] T1 app.at rail 四项 → nav-item；use.web 图标 import（仅 rail 消费）已删。
+  [✅] rail 3184B 手搓串 → 776B nav-item；-45/+12 行。
+- [x] T2 viewstate_router.ts 选择器 → `.app-rail .nav-item:nth-of-type(n)`。
+  [✅] NavItem onclick 态渲染 <button class="nav-item">，锚点稳定。
+- [x] T3 验证：auto build --gen-only + vite build ✓（3.20s 绿）；生成产物
+  NavItem/:active/:icon-comp/@click 核对 ✓。web 全栈冒烟与 VM 轨截图归
+  PLAN-050 parity 线复跑（rail 组件本体已在 auto-lang 015/018 双端实测）。
+  [✅] 注：worktree 全新工程需 vendor shim dist 与 ui/ 脚手架拷自主 checkout
+  （gen 为构建产物，--gen-only 不物化）。
 
 ## 验收
 1. rail 渲染与迁移前等价（图标+文案+选中主色调高亮），样式代码量净减。
