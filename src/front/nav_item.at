@@ -1,0 +1,65 @@
+// nav_item.at — 二级导航 item 单一真源（auto-musk-dev-1 批次）
+//
+// 动机（2026-08-29 用户反馈）：
+//   ① 导航项应默认左对齐——生成钮走 shadcn Button（基类 justify-center/
+//      items-center/h-9），此前每个导航项都要专门声明对齐覆盖；收敛到本
+//      组件后只声明一次（cn 合并时 props.class 在后，justify-start/
+//      items-start/h-auto 逐项胜出基类）。
+//   ② 默认高度紧促——card variant 撑为卡片形态（py-2.5 双行 + 圆角边框）。
+//   ③ 导航实现可扩展——variant: "card"（卡片,推荐）/ "ghost"（紧凑行），
+//      新 variant 只改本组件。
+// 事件沿 MentionDropdown 先例：msg activate(id) 带参回传，父侧 onactivate
+// 以 $event 收 id。删除钮等 trailing 内容由父级经 slot(name:"trailing")
+// 注入（父作用域 handler/图标/i18n 全在父侧解析,本组件零图标依赖）。
+
+use.web component Trash2 from "src/front/ports/icons.at"
+
+widget NavListItem(id: str, title: str, sub: str, active: bool, variant: str, deletable: bool, delete_title: str) {
+    msg Msg { activate(str), remove(str) }
+    on {
+        .activate(id) -> {}
+        .remove(id) -> {}
+    }
+    view {
+        button {
+            onclick: .activate(.id)
+            class: if .variant == "card" {
+                if .active {
+                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-primary/25 bg-primary/10 text-primary"
+                } else {
+                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground"
+                }
+            } else {
+                if .active {
+                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-1.5 px-2.5 mb-[2px] rounded-md bg-primary/10 text-primary"
+                } else {
+                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-1.5 px-2.5 mb-[2px] rounded-md bg-transparent hover:bg-accent text-foreground"
+                }
+            }
+            span {
+                style: if .active {
+                    "text-[13.6px] font-medium text-primary truncate max-w-full"
+                } else {
+                    "text-[13.6px] text-foreground truncate max-w-full"
+                }
+                text .title
+            }
+            if .sub != "" {
+                span {
+                    style: "text-xs text-muted-foreground"
+                    text .sub
+                }
+            }
+            // #4 回流：会话项 hover 删除按钮（Trash2 + onclick.stop；显隐由
+            // web-only .session-item:hover .session-delete-btn 承载）
+            if .deletable {
+                span {
+                    style: "session-delete-btn absolute right-[6px] top-1/2 -translate-y-1/2 items-center opacity-60 bg-transparent border-none p-[3px]"
+                    onclick.stop: .remove(.id)
+                    title: .delete_title
+                    Trash2 { size: 12 }
+                }
+            }
+        }
+    }
+}

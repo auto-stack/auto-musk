@@ -26,6 +26,7 @@ use.web useT from "src/front/ports/composables.at"
 // PLAN-037 P1: cross-file component refs (native alias form).
 use mention_input: MentionInput
 use nav_sidebar: NavSidebar
+use nav_item: NavListItem
 use content_header: ContentHeader
 use mention_dropdown: MentionDropdown
 use relay_run_box: RelayRunBox
@@ -108,26 +109,19 @@ widget ChatsView {
                     col {
                         style: "flex-1 overflow-y-auto px-2"
                         for s in .store.session_list {
-                            button {
+                            // 二级导航 item 收敛 NavItem（nav_item.at）：默认左对齐 +
+                            // card variant（卡片形态），事件 activate/delete 带 id 回传。
+                            NavListItem {
                                 key: .s.id
-                                onclick: .SelectSession(.s.id)
-                                style: if .s.id == .store.session_id {
-                                    "session-item relative w-full text-left py-2 px-2.5 mb-[2px] rounded-md bg-primary/10 text-primary"
-                                } else {
-                                    "session-item relative w-full text-left py-2 px-2.5 mb-[2px] rounded-md bg-transparent hover:bg-accent"
-                                }
-                                col {
-                                    style: "flex flex-col gap-[2px]"
-                                    text .s.name { style: if .s.id == .store.session_id { "text-[13.6px] text-foreground truncate font-medium text-primary" } else { "text-[13.6px] text-foreground truncate" } }
-                                    text t("chat.msgs", { count: .s.message_count }) { style: "text-xs text-muted-foreground" }
-                                }
-                                // #4 回流：会话项 hover 删除按钮（Trash2 图标 + onclick.stop 阻止冒泡）
-                                span {
-                                    style: "session-delete-btn absolute right-[6px] top-1/2 -translate-y-1/2 items-center opacity-60 bg-transparent border-none p-[3px]"
-                                    onclick.stop: .DeleteSession(.s.id)
-                                    title: t("chat.deleteSession")
-                                    Trash2 { size: 12 }
-                                }
+                                id: .s.id
+                                title: .s.name
+                                sub: t("chat.msgs", { count: .s.message_count })
+                                active: .s.id == .store.session_id
+                                variant: "card"
+                                deletable: true
+                                delete_title: t("chat.deleteSession")
+                                onactivate: .SelectSession($event)
+                                onremove: .DeleteSession($event)
                             }
                         }
                     }
