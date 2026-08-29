@@ -4,7 +4,7 @@ status: reviewed
 feature_name: web 手写轨退役——gen(Auto/vue)轨转正为生产前端
 author: [zhaopuming]
 created_at: 2026-08-23
-updated_at: 2026-08-27
+updated_at: 2026-08-29
 
 supersedes_spec_components:
   - "web/ 手写前端轨(生产真源地位 → 冻结/退役,回滚指针 MUSK_WEB_DIST)"
@@ -347,6 +347,32 @@ session_info text-if 块内 dot 改 computed 中转。终态验证:auto build(st
 绿 + 对拍 30/30 + vitest 23+1;auto-lang lib 3203 绿 + fence 绿。
 
 ## 复审记录
+
+**再复审(2026-08-29,用户显式触发 `/auto-plan:review`)**:前次复审(2026-08-26)之后,
+PLAN-045~049 五批计划又大幅改写同一前端面(helpers 重写/样式收敛/VM 桥)——本次在
+当前 main(5cb9699)上全量实跑复核 041 验收是否依然成立。
+
+| # | 标准 | 判定 | 证据(2026-08-29 实跑) |
+|---|---|---|---|
+| 1 | gen 组件覆盖超集;对拍零差异 | ✅ pass | `node scripts/lib-parity/track-switch/phase1-leaves.mjs` **30/30 normalized equal**(045-049 五批后零回归);7 件 new_spec_components 落点逐一核实(specs_leaf/category/detail/editors.at + viewstate_router.ts + track-switch 夹具 + gen `__tests__` 2 套件 + vitest-shim) |
+| 2 | 后端 serve gen 产物;启动脚本;MUSK_WEB_DIST 回滚 | ✅ pass | `server.rs:73-75`(MUSK_WEB_DIST 覆盖 + gen dist);`start-musk-web.cmd`(gen dev :3334 + 回滚注释);web/ 自 2026-08-26 起 **git log 零提交**(生产持续跑 gen 轨、回滚从未触发) |
+| 3 | vitest 全绿;冻结声明 + KNOWN-DEBT 登记 | ✅ pass | `npx -y vitest@2.1.9 run` **23 passed + 1 skipped**;`web/FROZEN.md` 在册 |
+| 4 | 观察期(7 天)无 P0 方可 merge | ⏳ 时间门未满 | 至 **2026-09-03**(今日 08-29,余 5 天);web/ 零提交、零回滚事件——门内状态持续健康,merge 前提不变 |
+| 5 | KNOWN-DEBT 022 Phase 5c 与 useViewState 标闭 | ✅ pass | `docs/plans/archived/022-frontend-auto-ization.md:285-286`(两条已闭,指向 041) |
+| 附 | 存量不变量:`cargo test -p musk` | ✅ pass | **614 passed / 0 failed**(33 套件,与前次复审基线持平) |
+
+**遗漏/workaround 排查(本次)**:无新增。前次登记的债务候选(GateBanner/
+OnboardingDialog 形态差异、URL 路由桥残余 + 浏览器手动实测待用户、观察期收口动作)
+原样携带至 merge;Phase 5 auto-lang 六项维持闭账(KNOWN-DEBT 041a)。新发现一处陈旧
+措辞(不闭账,随观察期收口处理):`web/FROZEN.md`"日常开发"节仍写"start-musk-web.cmd
+待 T12 更新"——T12 已于同日完成且脚本实指 gen dev;冻结期内不改 web/(守住零提交
+证据),归档时一并修正。另注:KNOWN-DEBT 038 行"icons 渲染层裁定建议归入 041
+Phase 1"未随 041 闭环——该裁定自始不在 041 范围,仍以 038 行登记为准,不属本计划
+遗漏。
+
+**路由**:验收 1/2/3/5 + 附全 pass(全量实跑复核),唯 4 为未到期时间门——与前次
+路由一致:**status 维持 reviewed**,`/auto-plan:merge` 前提 = 观察期 2026-09-03 期满
+无 P0(届时 T15 冻结转永久判定一并落)。spec-impact 元数据经落点核实维持原样。
 
 **reviewer**: auto-plan:review(zhaopuming 会话) · **2026-08-26** · 入态 execution_done → **reviewed**
 
