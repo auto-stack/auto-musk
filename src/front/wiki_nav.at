@@ -99,7 +99,7 @@ widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: 
                         value: .query
                         oninput: .QueryChanged
                         type: "text"
-                        style: "border-none bg-transparent outline-none text-[13px] text-foreground w-full"
+                        style: "border-none bg-transparent outline-none text-[13px] text-foreground w-full placeholder:text-muted-foreground"
                         placeholder: i18n.t("wiki.searchPlaceholder")
                     }
                 }

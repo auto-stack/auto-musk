@@ -90,36 +90,21 @@ a { color: hsl(var(--primary)); }
 /* ══ PLAN-049 web-only 增强暂存（T8 拆出 inject_styles.web-only.ts）══
    工具类无法表达：伪类链/伪元素/后代选择器/悬停显隐/输入透明文字技术。
    VM 轨对这些无映射（登记白名单）,仅 web 生效。 */
-/* @mention 高亮（UserMessage v-html 内部,后代选择器） */
-.user-text .inline-mention {
-  background: hsl(220 90% 56% / 0.12); color: hsl(220 90% 56%);
-  border-radius: 3px; padding: 0 0.2rem; font-weight: 500;
-}
-.msg-bubble-user .user-text { color: hsl(var(--primary-foreground)); white-space: pre-wrap; }
-.msg-bubble-user .user-text .inline-mention { color: hsl(var(--primary-foreground)); font-weight: 600; background: hsl(0 0% 100% / 0.15); }
+/* PLAN-050 B1: mention 高亮已内联 mention_helpers.at（按上下文发完整类串）
+   与 user_message.at（user-text 显式气泡内文字色）——后代选择器规则删除。 */
 .msg-bubble-ai .streaming-document { color: hsl(var(--foreground)); }
 /* 会话删除按钮：默认隐藏,悬停会话项时显现（悬停显隐无法工具类化） */
 .session-delete-btn { display: none; }
 .session-item:hover .session-delete-btn { display: flex; align-items: center; }
 .session-delete-btn:hover { opacity: 1; color: hsl(var(--destructive)); }
-/* 搜索框 focus 光环 + placeholder 色 */
-.header-search:focus-within {
-  border-color: hsl(var(--primary) / 0.35);
-}
-.search-input::placeholder { color: hsl(var(--muted-foreground)); }
-.wiki-search-input::placeholder { color: hsl(var(--muted-foreground)); }
-/* wiki 树删除钮：悬停行显现 + 悬停钮危险色（悬停显隐无法工具类化） */
-.tree-item-del { display: none; }
-.tree-item:hover .tree-item-del { display: flex; }
-.tree-item-del:hover { background: hsl(var(--destructive) / 0.12); color: hsl(var(--destructive)); }
+/* PLAN-050: search/tree 系钩子类在 gen 轨零元素（仅匹配已冻结 web/ 轨）
+   ——死规则删除;placeholder 色已内联 wiki_nav.at/chats_view.at。 */
 /* 输入区 focus 光环 + @mention 双层文字技术（textarea 文字透明,由
    backdrop 层显示高亮文本;VM 侧 textarea 直接显字,无此技术） */
 /* PLAN-050: 输入区双层技术已全量内联 mention_input.at（text-transparent/
    caret/focus-within 光环）——VM 不解析这些类,恰好保持"VM 直接显字"的
    平台非对称;此处原规则块删除（迁移矩阵 docs/designs/010 A1-A3b）。 */
-/* send-btn 悬停/禁用反馈（透明度渐变,工具类已给 hover:/disabled: 变体,
-   此处仅补 :active 缩放微交互） */
-.send-btn:active { transform: scale(0.95); }
+/* PLAN-050: send-btn 钩子在 gen 轨零元素,死规则删除。 */
 `
 
 export function injectStyles(): void {

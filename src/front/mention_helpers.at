@@ -56,7 +56,7 @@ fn mention_is_word_char(c str) bool {
 }
 
 /** 转义 HTML，然后把 @mention 包成高亮 span（手写扫描，等价 /@(\w+)/g 回调）。 */
-fn render_mentions(text str, names obj) str {
+fn render_mentions(text str, names obj, cls str) str {
     let escaped = Regex.replace(Regex.replace(Regex.replace(text, "&", "&amp;", "g"), "<", "&lt;", "g"), ">", "&gt;", "g")
     var out = ""
     var i = 0
@@ -78,7 +78,7 @@ fn render_mentions(text str, names obj) str {
             if word != "" {
                 let display = names["k_" + word.to_lower()]
                 if display != None && display != "" {
-                    out = out + "<span class=\"inline-mention\">@" + display + "</span>"
+                    out = out + "<span class=\"inline-mention " + cls + "\">@" + display + "</span>"
                     i = j
                 } else {
                     out = out + "@"
@@ -97,16 +97,18 @@ fn render_mentions(text str, names obj) str {
 }
 
 /** renderMentions 的默认职业版本（原 TS 默认参数）。 */
+// PLAN-050 B1: 气泡上下文 mention 样式内联（原 web-only 后代选择器规则迁移）。
 fn render_mentions_default(text str) str {
-    return render_mentions(text, build_mention_names(mention_default_professions()))
+    return render_mentions(text, build_mention_names(mention_default_professions()), "text-primary-foreground font-semibold bg-white/15 rounded-[3px] px-[0.2rem]")
 }
 
 /** 同 render_mentions，但末尾加换行（输入框 backdrop 用）。 */
+// PLAN-050 B1: 输入 backdrop 上下文 mention 样式内联（蓝 tint,原 web-only 迁移）。
 fn render_input_mentions(text str, names obj) str {
     if text == "" || text == None {
         return ""
     }
-    return render_mentions(text, names) + "\n"
+    return render_mentions(text, names, "text-[hsl(220_90%_56%)] bg-[hsl(220_90%_56%/0.12)] rounded-[3px] px-[0.2rem] font-medium") + "\n"
 }
 
 /** 按 filter 过滤 professions（id/name 大小写不敏感 contains）。 */

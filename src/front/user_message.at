@@ -23,7 +23,7 @@ widget UserMessage(content: str) {
     view {
         div {
             html: .html
-            style: "leading-[1.5] break-words"
+            style: "leading-[1.5] break-words whitespace-pre-wrap text-primary-foreground"
         }
     }
 }
