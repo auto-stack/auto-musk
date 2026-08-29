@@ -126,8 +126,8 @@ a { color: hsl(var(--primary)); }
   resize: none; outline: none;
   color: transparent !important;
   caret-color: hsl(var(--foreground));
-  position: relative;
-  z-index: 1;
+  /* position/z-index 移除：双层改为同几何 absolute 叠放（nav_item 批次），
+     DOM 顺序天然保证 textarea 在 backdrop 之上，relative 会压掉 .at 的 absolute */
 }
 .chats-input:focus { outline: none !important; box-shadow: none !important; border: none !important; }
 /* send-btn 悬停/禁用反馈（透明度渐变,工具类已给 hover:/disabled: 变体,
