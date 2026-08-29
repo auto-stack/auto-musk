@@ -160,25 +160,25 @@ widget SettingsMenu() {
             }
             if .isOpen {
                 div {
-                    style: "settings-panel"
+                    style: "settings-panel absolute bottom-full left-0 mb-2 z-100 min-w-[220px] bg-card border border-border rounded-[10px] p-2.5"
                     // ── Mode Section（GSD/Check，后端持久化）──
                     div {
-                        style: "settings-section"
+                        style: "settings-section w-full p-1.5"
                         div {
-                            style: "settings-section-title"
+                            style: "settings-section-title text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
                             text i18n.t("settings.mode")
                         }
                         div {
-                            style: "mode-toggle"
+                            style: "mode-toggle flex gap-1 px-0.5"
                             button {
                                 onclick: .SetForgeGSD
-                                class: if .forgeMode == "gsd" { "mode-btn active" } else { "mode-btn" }
+                                class: if .forgeMode == "gsd" { "mode-btn active flex-1 py-1 px-2 border border-border rounded-md text-xs font-semibold text-primary-foreground bg-primary" } else { "mode-btn flex-1 py-1 px-2 border border-border rounded-md text-xs font-semibold text-foreground bg-transparent" }
                                 title: i18n.t("settings.modeGsdTitle")
                                 text "GSD"
                             }
                             button {
                                 onclick: .SetForgeCheck
-                                class: if .forgeMode == "check" { "mode-btn active" } else { "mode-btn" }
+                                class: if .forgeMode == "check" { "mode-btn active flex-1 py-1 px-2 border border-border rounded-md text-xs font-semibold text-primary-foreground bg-primary" } else { "mode-btn flex-1 py-1 px-2 border border-border rounded-md text-xs font-semibold text-foreground bg-transparent" }
                                 title: i18n.t("settings.modeCheckTitle")
                                 text "Check"
                             }
@@ -186,13 +186,13 @@ widget SettingsMenu() {
                     }
                     // ── Accent Section ──
                     div {
-                        style: "settings-section"
+                        style: "settings-section w-full p-1.5"
                         div {
-                            style: "settings-section-title"
+                            style: "settings-section-title text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
                             text i18n.t("settings.accent")
                         }
                         div {
-                            style: "accent-swatches"
+                            style: "accent-swatches flex flex-wrap gap-2 px-0.5"
                             for opt in .accentOptions {
                                 // 注:shadcn Button 映射会丢弃动态 class/title
                                 // (codegen 缺口,登记 auto-lang 债务)——样式改走
@@ -201,6 +201,7 @@ widget SettingsMenu() {
                                 button {
                                     onclick: .SetAccent(.opt.name)
                                     key: .opt.name
+                                    class: "w-6 h-6 rounded-full flex items-center justify-center border-2 border-transparent text-white"
                                     style: "background: " + .opt.brand1
                                     if .accentCurrent == .opt.name {
                                         Check { size: 12, key: .opt.name }
@@ -211,16 +212,16 @@ widget SettingsMenu() {
                     }
                     // ── Theme Section ──
                     div {
-                        style: "settings-section"
+                        style: "settings-section w-full p-1.5"
                         div {
-                            style: "settings-section-title"
+                            style: "settings-section-title text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
                             text i18n.t("settings.theme")
                         }
                         div {
-                            style: "theme-options"
+                            style: "theme-options flex flex-col gap-0.5"
                             button {
                                 onclick: .SetThemeLight
-                                class: if .themeMode == "light" { "theme-option active" } else { "theme-option" }
+                                class: if .themeMode == "light" { "theme-option active flex items-center gap-2 w-full py-1 px-2 rounded-md text-sm text-left bg-primary/10 text-primary" } else { "theme-option flex items-center gap-2 w-full py-1 px-2 rounded-md text-sm text-left text-foreground bg-transparent" }
                                 Sun { size: 14 }
                                 span {
                                     style: "theme-option-label"
@@ -232,7 +233,7 @@ widget SettingsMenu() {
                             }
                             button {
                                 onclick: .SetThemeDark
-                                class: if .themeMode == "dark" { "theme-option active" } else { "theme-option" }
+                                class: if .themeMode == "dark" { "theme-option active flex items-center gap-2 w-full py-1 px-2 rounded-md text-sm text-left bg-primary/10 text-primary" } else { "theme-option flex items-center gap-2 w-full py-1 px-2 rounded-md text-sm text-left text-foreground bg-transparent" }
                                 Moon { size: 14 }
                                 span {
                                     style: "theme-option-label"
@@ -258,9 +259,9 @@ widget SettingsMenu() {
                     }
                     // ── Language Section ──
                     div {
-                        style: "settings-section"
+                        style: "settings-section w-full p-1.5"
                         div {
-                            style: "settings-section-title"
+                            style: "settings-section-title text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
                             text i18n.t("settings.language")
                         }
                         div {
@@ -287,9 +288,9 @@ widget SettingsMenu() {
                     }
                     // ── AutoOS Settings deep-link ──
                     div {
-                        style: "settings-section"
+                        style: "settings-section w-full p-1.5"
                         div {
-                            style: "settings-section-title"
+                            style: "settings-section-title text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
                             text "AutoOS"
                         }
                         button {
