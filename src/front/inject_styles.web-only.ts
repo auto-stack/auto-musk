@@ -114,22 +114,9 @@ a { color: hsl(var(--primary)); }
 .tree-item-del:hover { background: hsl(var(--destructive) / 0.12); color: hsl(var(--destructive)); }
 /* 输入区 focus 光环 + @mention 双层文字技术（textarea 文字透明,由
    backdrop 层显示高亮文本;VM 侧 textarea 直接显字,无此技术） */
-.input-compose:focus-within {
-  border-color: hsl(var(--primary) / 0.45) !important;
-  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.08) !important;
-}
-.input-compose textarea,
-.chats-input {
-  display: block !important;
-  width: 100% !important;
-  border: none !important; border-radius: 0 !important; background: transparent !important;
-  resize: none; outline: none;
-  color: transparent !important;
-  caret-color: hsl(var(--foreground));
-  /* position/z-index 移除：双层改为同几何 absolute 叠放（nav_item 批次），
-     DOM 顺序天然保证 textarea 在 backdrop 之上，relative 会压掉 .at 的 absolute */
-}
-.chats-input:focus { outline: none !important; box-shadow: none !important; border: none !important; }
+/* PLAN-050: 输入区双层技术已全量内联 mention_input.at（text-transparent/
+   caret/focus-within 光环）——VM 不解析这些类,恰好保持"VM 直接显字"的
+   平台非对称;此处原规则块删除（迁移矩阵 docs/designs/010 A1-A3b）。 */
 /* send-btn 悬停/禁用反馈（透明度渐变,工具类已给 hover:/disabled: 变体,
    此处仅补 :active 缩放微交互） */
 .send-btn:active { transform: scale(0.95); }

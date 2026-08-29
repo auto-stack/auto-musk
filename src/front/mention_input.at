@@ -97,13 +97,13 @@ widget MentionInput(disabled: bool, professions: obj) {
                 div {
                     style: "flex items-end gap-1.5 w-full"
                     div {
-                        style: "input-compose relative flex-1 min-w-0 min-h-20 bg-muted-foreground/5 border border-primary/15 rounded-[20px] focus-within:border-primary/45"
+                        style: "input-compose relative flex-1 min-w-0 min-h-20 bg-muted-foreground/5 border border-primary/15 rounded-[20px] focus-within:border-primary/45 focus-within:shadow-[0_0_0_3px_hsl(var(--primary)/0.08)]"
                         div {
                             style: "absolute inset-0 py-2 px-3 bg-transparent border-none rounded-none pointer-events-none overflow-hidden whitespace-pre-wrap break-words text-foreground text-[15px] leading-[1.5]"
                             html: .backdropHtml
                         }
                         textarea {
-                            style: "chats-input absolute inset-0 py-2 px-3 block w-full border-none rounded-none bg-transparent text-[15px] leading-[1.5] outline-none resize-none"
+                            style: "chats-input absolute inset-0 py-2 px-3 block w-full border-none rounded-none bg-transparent text-[15px] leading-[1.5] text-transparent caret-[hsl(var(--foreground))] outline-none resize-none focus:outline-none focus:shadow-none focus:border-none"
                             value: .text
                             oninput: .Input($event)
                             onkeydown: .Keydown($event)
