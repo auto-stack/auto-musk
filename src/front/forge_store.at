@@ -91,6 +91,10 @@ store ForgeStore {
         .NewSession -> {
             var resp = chats_create_session(.workspace);
             .session_id = resp.session.id;
+            // 新会话为空会话：清空旧消息视图，否则右侧面板仍挂上一会话内容
+            // （2026-08-29 用户实测：新建后面板不切换、误判未选中）。
+            .messages = []
+            .active_leaf = ""
             let list = chats_list_sessions();
             .session_list = list.sessions
         }
