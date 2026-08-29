@@ -1,13 +1,16 @@
 ---
 plan_id: PLAN-045
-status: execution_done
+status: reviewed
 feature_name: musk VM 前端链接复绿——VM-clean 源清理 + 探针门禁固化 + auth fetch VM 依赖登记
 author: [zhaopuming]
 created_at: 2026-08-26
-updated_at: 2026-08-26
+updated_at: 2026-08-29
 
 supersedes_spec_components: []
 new_spec_components: []
+# 理由(2026-08-29 正式复审):基建/债务清偿 + 常驻门禁脚本 + 登记面性质,无 spec 域
+# 文件增删——探针门禁(scripts/vm-link-probe.*)与 KNOWN-DEBT 台账为载体;046 归档件
+# 所引"沿 PLAN-045 先例留空"即本件。
 touched_goals: []
 
 current_step: 10
@@ -219,6 +222,32 @@ auto-lang 侧根因（重写器漏访节点）不在本计划修——登记移�
 | 合并与清理 | ✅ musk main 20b7118(ff);auto-lang master 5718d432b(no-ff);worktree/分支/junction 全清 |
 
 （/auto-plan:review 待用户触发；本计划观察性收口——无运行期面）
+
+### 正式复审（auto-plan:review，2026-08-29）
+
+> 执行内复审（2026-08-26）之上补正式门。距收口已过三日，期间 046–049 四批计划叠加
+> 演进同一前端面——本次在当前 main（5298c85）全量实跑，核验 045 验收仍成立。
+
+| # | 标准 | 判定 | 证据（2026-08-29 实跑） |
+|---|---|---|---|
+| 1 | 探针 PASS，零毒化/零 handler-codegen 失败 | ✅ pass | `scripts/vm-link-probe.cmd`（musk 根一键）→ node spawn cargo 形态端到端：**PASS — musk frontend links on VM target**；linked-modules-total **60868 bytes**（WARN≥90000/FAIL≥131072，046 T10 体积行）；输出 grep `poisoned\|HANDLER-CODEGEN failed\|Undefined symbol` **0 hits** |
+| 2 | vue 三门禁全绿 | ✅ pass | `auto build` strict exit 0（本次）+ vitest **23 passed/1 skipped** + 对拍 **30/30 normalized equal**（同日 041 再复审实跑，同一工作树，其后仅 docs 提交） |
+| 3 | 一键探针存在可执行；勘误登记 | ✅ pass | `scripts/vm-link-probe.{cmd,mjs}` 在册且本次实跑成功；勘误（feature=ui-iced 非 ui-interpreter）在脚本头注 + KNOWN-DEBT 045 行⑥；auto-lang 442 探针头注修正随合并落 master 5718d432b |
+| 4 | KNOWN-DEBT 442 依赖结论；platform.vm.at 头注同步 | ✅ pass（附形态演化） | 442 行含 auth-fetch 依赖结论（后由 446-E4 三 native 解除，platform.vm.at 实装）；计划文本的「self 断绑逐位点清单」被上游根因修复取代——K0=rewrite_stmt 缺 Stmt::Try 臂一次解释全部七 handler，位点清单失义，045 行①以根因形态登记。计划文本与终态偏差照登，代码为准 |
+| 5 | 全程不动 web/、backend/、auto-lang | ✅ pass（附已裁定破例） | 折叠提交 `20b7118` 改动面=src/front/*.at + ports + scripts + docs + .gitignore，**零 backend/、零 web/**；auto-lang K0/K1 两修为待澄清#1 升级裁定的授权破例（执行内复审 ⚠️ 已录，master 5718d432b） |
+
+**遗漏/延后/workaround 排查**：无新增。执行内复审 workaround 扫描三项（实验代码已还原/
+一次性扫描器已删/pnpm 锁文件剔除并 gitignore）经折叠 stat 复核（.gitignore +2 在案）；
+六项移交清单逐项对账=①②上游已修、③④⑤由 PLAN-046 闭账、⑥落探针体积行——无未签核
+的 silent deferral。T2 let→var 由预估 12 处扩至 ~60 处（逐轮探针解掩蔽）为计划内如实
+记录，非遗漏。platformViewportHeight vm=720 桩后由 046 B 件真值化（KV）——后续计划
+演进，非本计划债务。
+
+**spec-impact 元数据**：维持三空——基建/债务清偿 + 门禁脚本 + 登记面性质，无 spec 域
+文件增删（046 归档件明载「沿 PLAN-045 先例」互为印证；理由注已补入 frontmatter）。
+
+**路由**：五项验收全 pass（含两处已裁定的记录性偏差），无阻断债务——**status:
+execution_done → reviewed**，就绪 `/auto-plan:merge`。
 
 ## 待澄清事项
 
