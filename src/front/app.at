@@ -80,7 +80,7 @@ widget App {
                                 "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent"
                             }
                             MessageSquare { size: 16 }
-                            text "会话"
+                            text "会话" { style: if .current_view == "chats" { "text-primary font-medium" } else { "text-muted-foreground" } }
                         }
                         button {
                             onclick: .ShowPlans
@@ -90,7 +90,7 @@ widget App {
                                 "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent"
                             }
                             ListTodo { size: 16 }
-                            text "计划"
+                            text "计划" { style: if .current_view == "plans" { "text-primary font-medium" } else { "text-muted-foreground" } }
                         }
                         button {
                             onclick: .ShowSpecs
@@ -100,7 +100,7 @@ widget App {
                                 "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent"
                             }
                             Scroll { size: 16 }
-                            text "规范"
+                            text "规范" { style: if .current_view == "specs" { "text-primary font-medium" } else { "text-muted-foreground" } }
                         }
                         button {
                             onclick: .ShowWiki
@@ -110,7 +110,7 @@ widget App {
                                 "w-full flex items-center justify-start gap-2 px-3 py-2 rounded-md text-sm text-left text-muted-foreground bg-transparent hover:bg-accent"
                             }
                             BookOpen { size: 16 }
-                            text "知识库"
+                            text "知识库" { style: if .current_view == "wiki" { "text-primary font-medium" } else { "text-muted-foreground" } }
                         }
                     }
                     // Plan 407：WorkspaceSelector + SettingsMenu 在导航栏底部。
