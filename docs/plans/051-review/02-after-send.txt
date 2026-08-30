@@ -1,0 +1,253 @@
+AURA Snapshot v2 (rendered)
+widget: "App"
+
+tree:
+row #vnode_14695981039346656037 {
+  col #vnode_12642422519345821663 {
+    row #vnode_4305065243889594349 {
+      row #vnode_4321691031005245367 {
+        text #vnode_15876414090542715893 "Auto Musk"
+        text #vnode_15876396498356671042 "v0.1.0"
+      }
+    }
+    col #vnode_4305047651703549498 {
+      button #vnode_4306385829146414222 "会话" {
+        row #vnode_5889769877696550218 {
+          text #vnode_4965876993954819262 "[Image]"
+          col #vnode_4965894586140864113 {
+            text #vnode_9021770874781493763 "会话"
+          }
+        }
+      }
+      button #vnode_4306403421332459073 "计划" {
+        row #vnode_5905075079555381363 {
+          text #vnode_14952521206800984937 "[Image]"
+          col #vnode_14952503614614940086 {
+            text #vnode_8967164765105348674 "计划"
+          }
+        }
+      }
+      button #vnode_4306350644774324520 "规范" {
+        row #vnode_5859159473978887928 {
+          text #vnode_3439332641972039528 "[Image]"
+          col #vnode_3439350234158084379 {
+            text #vnode_9069762286698459361 "规范"
+          }
+        }
+      }
+      button #vnode_4306368236960369371 "知识库" {
+        row #vnode_5874464675837719073 {
+          text #vnode_13425976854818205203 "[Image]"
+          col #vnode_13425959262632160352 {
+            text #vnode_9015156177022314272 "知识库"
+          }
+        }
+      }
+    }
+    row #vnode_4305030059517504647 {
+      container #vnode_4291080627287583077 {
+        button #vnode_14349869738559936159 "" {
+          text #vnode_4989872699913302061 "选择工作目录"
+        }
+      }
+      container #vnode_4291063035101538226 {
+        button #vnode_14334564536701105014 ""
+      }
+    }
+  }
+  col #vnode_12642404927159776812 {
+    row #vnode_4289760042030763204 {
+      container #vnode_12781790891868631308 {
+        col #vnode_15900409796501198692 {
+          row #vnode_8766178259980025580 {
+            text #vnode_9218183197671271172 "会话"
+            button #vnode_9218200789857316023 ""
+            button #vnode_9218218382043360874 ""
+          }
+          scrollable #vnode_8766195852166070431 {
+            col #vnode_9233488399530102317 {
+              col #vnode_11958449586866722423 {
+                button #vnode_13303511465850874933 "" {
+                  col #vnode_13972144095809019407 {
+                    text #vnode_14227400068823552893 "New chat"
+                    text #vnode_14227382476637508042 "{count} 条"
+                    button #vnode_14227364884451463191 ""
+                  }
+                }
+                button #vnode_13303493873664830082 "" {
+                  col #vnode_13956838893950188262 {
+                    text #vnode_4240755855977387218 "New chat"
+                    text #vnode_4240773448163432069 "{count} 条"
+                    button #vnode_4240720671605297516 ""
+                  }
+                }
+                button #vnode_13303476281478785231 "" {
+                  col #vnode_13941533692091357117 {
+                    text #vnode_12700855716840773159 "New chat"
+                    text #vnode_12700838124654728308 "{count} 条"
+                    button #vnode_12700890901212862861 ""
+                  }
+                }
+                button #vnode_13303458689292740380 "" {
+                  col #vnode_13926228490232525972 {
+                    text #vnode_2714211503994607484 "New chat"
+                    text #vnode_2714229096180652335 "{count} 条"
+                    button #vnode_2714246688366697186 ""
+                  }
+                }
+                button #vnode_13303441097106695529 "" {
+                  col #vnode_13910923288373694827 {
+                    text #vnode_11174311364857993425 "New chat"
+                    text #vnode_11174293772671948574 "{count} 条"
+                    button #vnode_11174276180485903723 ""
+                  }
+                }
+                button #vnode_13303423504920650678 "" {
+                  col #vnode_13895618086514863682 {
+                    text #vnode_1187667152011827750 "nihao"
+                    text #vnode_1187684744197872601 "{count} 条"
+                    button #vnode_1187631967639738048 ""
+                  }
+                }
+                button #vnode_13303405912734605827 "" {
+                  col #vnode_13880312884656032537 {
+                    text #vnode_9647767012875213691 "New chat"
+                    text #vnode_9647749420689168840 "{count} 条"
+                    button #vnode_9647802197247303393 ""
+                  }
+                }
+                button #vnode_13303388320548560976 "" {
+                  col #vnode_13865007682797201392 {
+                    text #vnode_18107866873738599632 "What is 2+2? Reply with just the number."
+                    text #vnode_18107884465924644483 "{count} 条"
+                    button #vnode_18107902058110689334 ""
+                  }
+                }
+                button #vnode_13303652203339233741 "" {
+                  col #vnode_14094585710679668567 {
+                    text #vnode_1886833403045120213 "What is 1+1?"
+                    text #vnode_1886815810859075362 "{count} 条"
+                    button #vnode_1886798218673030511 ""
+                  }
+                }
+                button #vnode_13303634611153188890 "" {
+                  col #vnode_14079280508820837422 {
+                    text #vnode_10346933263908506154 "请用 run_command 执行 echo hello-from-musk,把"
+                    text #vnode_10346950856094551005 "{count} 条"
+                    button #vnode_10346898079536416452 ""
+                  }
+                }
+                button #vnode_13303617018967144039 "" {
+                  col #vnode_14063975306962006277 {
+                    text #vnode_360289051062340479 "3加5等于几?请简短回答"
+                    text #vnode_360271458876295628 "{count} 条"
+                    button #vnode_360324235434430181 ""
+                  }
+                }
+                button #vnode_13303599426781099188 "" {
+                  col #vnode_14048670105103175132 {
+                    text #vnode_8820388911925726420 "你好，请问你的模型可用吗？"
+                    text #vnode_8820406504111771271 "{count} 条"
+                    button #vnode_8820424096297816122 ""
+                  }
+                }
+                button #vnode_13303581834595054337 "" {
+                  col #vnode_14033364903244343987 {
+                    text #vnode_17280488772789112361 "Reply with exactly: PING"
+                    text #vnode_17280471180603067510 "{count} 条"
+                    button #vnode_17280453588417022659 ""
+                  }
+                }
+                button #vnode_13303564242409009486 "" {
+                  col #vnode_14018059701385512842 {
+                    text #vnode_7293844559942946686 "用一句话介绍你自己"
+                    text #vnode_7293862152128991537 "{count} 条"
+                    button #vnode_7293809375570856984 ""
+                  }
+                }
+                button #vnode_13303546650222964635 "" {
+                  col #vnode_14002754499526681697 {
+                    text #vnode_15753944420806332627 "New chat"
+                    text #vnode_15753926828620287776 "{count} 条"
+                    button #vnode_15753979605178422329 ""
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      col #vnode_12781808484054676159 {
+        row #vnode_15915714998360029837 {
+          text #vnode_306078399116639639 "聊天"
+          row #vnode_306060806930594788 {
+            row #vnode_9178882289853957228 {
+              input #vnode_6607608262900253572 {
+                placeholder: "搜索消息…"
+                value: ""
+              }
+            }
+          }
+          row #vnode_306113583488729341 {
+            container #vnode_9224797895430450663 {
+              button #vnode_18120796827729198981 ""
+            }
+          }
+        }
+        scrollable #vnode_15915697406173984986 {
+          col #vnode_290773197257808494 {
+            col #vnode_17654287352576174314 {
+              row #vnode_16618248181704902046 {
+                text #vnode_13115789647060749178 "🔒"
+                text #vnode_13115807239246794029 "278"
+              }
+              row #vnode_16618265773890946897 {
+                button #vnode_13131094848919580323 "Approve & Execute" {
+                  text #vnode_12192373612950273785 "Approve & Execute"
+                }
+                button #vnode_13131077256733535472 "Reject & Redraft" {
+                  text #vnode_12177068411091442640 "Reject & Redraft"
+                }
+                button #vnode_13131130033291670025 "Review" {
+                  text #vnode_12222984016667936075 "Review"
+                }
+              }
+            }
+            col #vnode_17654304944762219165 {
+              row #vnode_16633553383563733191 {
+                text #vnode_4655689786197363237 "✅"
+                col #vnode_4655672194011318386 {
+                  text #vnode_2166428492286794166 "${runId}"
+                }
+                text #vnode_4655654601825273535 "${durationLabel}"
+                text #vnode_4655637009639228684 "${confidenceLabel}"
+              }
+            }
+            col #vnode_17654252168204084612
+            col #vnode_17654269760390129463 {
+              text #vnode_16602942979846070901 "AI 思考中..."
+            }
+          }
+        }
+        container #vnode_15915679813987940135 {
+          container #vnode_275467995398977349 {
+            row #vnode_7667643139730008639 {
+              container #vnode_16642243887663384845 {
+                col #vnode_16940086619044438295 {
+                  container #vnode_6241743896836405781 {
+                  }
+                  textarea #vnode_6241726304650360930 {
+                    value: ""
+                    placeholder: "描述你想构建的内容... (Enter 发送, {'@'} 呼出 agent, /relay /superpower /spec1 命令)"
+                  }
+                }
+              }
+              button #vnode_16642226295477339994 ""
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

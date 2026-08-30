@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-045
-status: reviewed
+status: archived
 feature_name: musk VM 前端链接复绿——VM-clean 源清理 + 探针门禁固化 + auth fetch VM 依赖登记
 author: [zhaopuming]
 created_at: 2026-08-26
