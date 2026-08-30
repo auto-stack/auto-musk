@@ -467,6 +467,24 @@ RC canary 阻断主界面渲染——KD-048-b 同族，不在本计划）。实�
   接上，streaming 锁死 composer；C2 无参 oncancel 对缺口，下游批次）。
   auto-musk-dev@2c36322c0 待随 Phase 2 收口合回 master。
 
+## Phase 3——用户二轮实测三修（2026-08-30 P2 合并后）
+
+- **P3-① 输入框有框无法输入**：textarea（absolute inset-0）在 VM 轨降级流内
+  后仅自然高度悬于 80px 容器顶部，点击容器中下部不命中输入件。修：类串补
+  `h-full` 填满容器（web 侧 absolute 几何已定尺寸，冗余无副作用）。
+- **P3-② 搜索框打字显示"0"**：`.OnSearchInput(val)` 单参 oninput 双轨契约下
+  val 已是纯文本（vue codegen 自动包 $event.target.value），源里再取
+  `val.target.value` 在 VM 得 0（GET_FIELD on Str）。修：`.chat_search = val`
+  （顺带修复 web 侧 undefined）。审计：.at 视图层仅此一处；specs_helpers 的
+  stepValueOf 同族形态留 specs 域批次。
+- **P3-③④ "切换不生效"+面板杂物**：SwitchSession 不清会话域状态——旧会话的
+  current_gate/report_data/errands/relays/task_plans 跨会话残留，切到空会话
+  时 gate/run 卡仍杵着（观感=切换无效）。修：切换时全清 + streaming/draft/
+  thinking 复位。gate/run 卡本体是会话数据（assistant 工具使用史），行为正确。
+- 实机验证（9db3a0d 后重启）：chat_search="hello"（经真实 handler 路径）✓；
+  切 New chat→current_gate/report nil+messages 空+面板无卡 ✓；textarea
+  "p3 check" 写入 ✓（真键盘命中区为 h-full 确定性修复，交用户目验）。
+
 ## 复审记录
 
 **复审人**：zhaopuming（/auto-plan:review，2026-08-30 02:10）
