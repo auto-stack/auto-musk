@@ -124,6 +124,11 @@ widget MentionInput(disabled: bool, professions: obj) {
                             value: .text
                             mentions: .mentionNames
                             mention_class: "text-[hsl(220_90%_56%)] bg-[hsl(220_90%_56%/0.12)] rounded-[3px] px-[0.2rem] font-medium"
+                            // PLAN-493 T7: VM 轨多行编辑面——text_editor 缺省
+                            // Fixed(30) 单行高（h-full/min-h 类为 CSS-only，
+                            // Plan 053 注记），显式 height 对齐 web 侧 min-h-20
+                            // 容器的编辑面（vue 轨不消费此 prop，几何不变）。
+                            height: 72
                             oninput: .Input($event)
                             onkeydown: .Keydown($event)
                             onkeydown.enter.exact.prevent: .send(.text)
