@@ -154,7 +154,7 @@ widget SettingsMenu() {
             style: "settings-menu-wrapper"
             button {
                 onclick: .Toggle
-                class: if .isOpen { "settings-trigger open" } else { "settings-trigger" }
+                class: if .isOpen { "settings-trigger open h-8 w-8 flex items-center justify-center rounded-md bg-accent text-primary" } else { "settings-trigger h-8 w-8 flex items-center justify-center rounded-md bg-transparent text-muted-foreground" }
                 title: i18n.t("settings.title")
                 Settings { size: 16 }
             }
