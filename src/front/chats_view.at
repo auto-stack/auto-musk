@@ -139,7 +139,10 @@ widget ChatsView {
                     slot(name: "middle") {
                         // 搜索框（居中，对齐原版 .header-search）
                         div {
-                            style: "flex items-center gap-[5px] max-w-[320px] flex-[0_1_320px] px-3 py-1.5 bg-muted-foreground/5 border border-muted-foreground/10 rounded-md text-muted-foreground"
+                            // PLAN-051 P2-③: 补 min-w-[200px] w-[320px]——VM 轨
+                            // flex-[0_1_320px] 任意值不支持整类丢弃 → 搜索框塌 0
+                            // 被挤压；web 侧仅极窄窗行为微改进（原可压到 0）。
+                            style: "flex items-center gap-[5px] max-w-[320px] min-w-[200px] w-[320px] flex-[0_1_320px] px-3 py-1.5 bg-muted-foreground/5 border border-muted-foreground/10 rounded-md text-muted-foreground"
                             Search { size: 13, class: "shrink-0" }
                             input {
                                 style: "w-full text-[13px] text-foreground bg-transparent border-none outline-none placeholder:text-muted-foreground"
