@@ -53,6 +53,18 @@ store ForgeStore {
         StartStream(str, str, str, str),
         StopStream,
         OnStreamEvent(Value),
+        // Plan 051 T10（G1 阶段1）：VM 轮询降级的流式回填拍。
+        PollStream,
+    }
+
+    // Plan 051 T10（G1 阶段1）：VM 轨无 SSE 形态期间，流式回复以 500ms
+    // 轮询 chats_get_session 全量回填替代（.streaming 门控——Send 置真、
+    // 末条非空 assistant 置假；条件假不派发不停底层计时）。web 轨仍走
+    // Sse.open 流式（timer 拍在 vue 轨同样存在但 handler 逻辑幂等——
+    // 全量回填与 SSE 增量回写共存时以轮询覆盖为最终态，SSE 到达的增量
+    // 会在下一拍被全量快照校正）。SSE 桥泛化（阶段2）后退役。
+    timer {
+        PollStream (every_ms: 500, when: .streaming)
     }
 
     on {
@@ -214,6 +226,23 @@ store ForgeStore {
         .StopStream -> {
             .stream_es = Sse.close(.stream_es)
  }
+
+        // Plan 051 T10（G1 阶段1）：轮询拍——全量回填 + 完成启发式。
+        .PollStream -> {
+            let sid = .session_id
+            if sid == "" { return }
+            var resp = chats_get_session(sid)
+            .messages = resp.session.messages
+            let msgs = .messages
+            if msgs.length > 0 {
+                let last = msgs[msgs.length - 1]
+                if last.role == "assistant" {
+                    if (last.content ?? "") != "" {
+                        .streaming = false
+                    }
+                }
+            }
+        }
 
         // forge 流事件 → blocks/卡片状态回写（对应 forge_stream.ts handleForgeEvent；
         // 平台层已 JSON 预解析——直接按 ev.type 分支，零样板）

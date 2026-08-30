@@ -246,7 +246,10 @@ fn messageBlocks(msg obj) obj {
 fn messageDisplayBlocks(msg obj, streaming bool) obj {
     var out list = []
     let tools list = []
-    for b in messageBlocks(msg) {
+    // PLAN-051 T8: 迭代源先 let 绑定再 for——直接以调用结果作 for-in 源在
+    // VM 触发栈失衡(返回值错位,上游债登记),绑定局部变量即绕开。
+    let src_blocks = messageBlocks(msg)
+    for b in src_blocks {
         if b.kind == "text" {
             let stripped = stripQuestionnaire(b.text ?? "", streaming)
             if stripped != "" { out.push({ kind: "text", text: stripped }) }

@@ -16,8 +16,11 @@ use back.api: chats_delete_session, chats_delete_all_sessions
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web relay_command_match from "src/front/relay_commands.at"
 use.web platformRunRelayCommand from "src/front/ports/platform.at"
-use.web extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.at"
-use.web chatSearchFilter, chatLastMessageId, chatBranchLabel, chatBranchEntries, chatActivePath from "src/front/forge_helpers.at"
+use.web.fn extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.at"
+use.web.fn chatSearchFilter, chatLastMessageId, chatBranchLabel, chatBranchEntries, chatActivePath from "src/front/forge_helpers.at"
+// PLAN-051 T8: SendInput 净空口径统一（原 .send(mention_trim(.text)) 调用位
+// 形态，实参内移后宿主侧复用同一 helper）。
+use.web.fn mention_trim from "src/front/mention_helpers.at"
 use.web getQuestions, hasQuestionnaire from "src/front/questionnaire.at"
 use.web questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder from "src/front/questionnaire_helpers.at"
 use.web component Plus, Trash2, Search, Info from "src/front/ports/icons.at"
@@ -287,13 +290,17 @@ widget ChatsView {
         // SendInput(text): MentionInput 的 onsubmit 回调。先检测 /relay//superpower//spec1
         // 命令（relay_command_match 非 None 表示已处理，runner 接线执行），
         // 否则走普通发送 + SSE 流。
+        // PLAN-051 T8: 消费回调实参 text——原读 .text（统一态下是 MentionInput
+        // 的字段，子 handler 已先清空 → 守卫恒假，发送被静默丢弃）。沿 017-chat
+        // SendMessage(text) 的参数契约；mention_trim 统一净空口径。
         .SendInput(text) -> {
-            if .text.trim() != "" {
-                let cmd = relay_command_match(.text);
+            let tt = mention_trim(text)
+            if tt != "" {
+                let cmd = relay_command_match(tt);
                 .input = "";
                 if cmd == None {
-                    store.Send(.text);
-                    store.StartStream(.store.session_id, .store.workspace, .store.token, .text)
+                    store.Send(tt);
+                    store.StartStream(.store.session_id, .store.workspace, .store.token, tt)
                 } else {
                     platformRunRelayCommand(cmd)
                 }

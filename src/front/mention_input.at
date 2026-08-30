@@ -82,7 +82,11 @@ widget MentionInput(disabled: bool, professions: obj) {
         }
         .Hover(id) -> { .mentionIndex = mention_index_of(.mentionFilteredList, id) }
         .send(t) -> {
-            if t != "" {
+            // PLAN-051 T8: 实参改 t（原 .send(mention_trim(.text)) 的 fn 调用
+            // 实参在 VM 构建期求值面不可达，会落字面量串）——trim 内移，净效果
+            // 等价（vue 轨求值点从调用位移到 handler 内，守卫口径不变）。
+            let tt = mention_trim(t)
+            if tt != "" {
                 .text = "";
                 .mentionVisible = false
             }
@@ -107,7 +111,7 @@ widget MentionInput(disabled: bool, professions: obj) {
                             value: .text
                             oninput: .Input($event)
                             onkeydown: .Keydown($event)
-                            onkeydown.enter.exact.prevent: .send(mention_trim(.text))
+                            onkeydown.enter.exact.prevent: .send(.text)
                             placeholder: i18n.t("chat.inputPlaceholder")
                             disabled: .disabled
                         }
@@ -120,7 +124,7 @@ widget MentionInput(disabled: bool, professions: obj) {
                         }
                     } else {
                         button {
-                            onclick: .send(mention_trim(.text))
+                            onclick: .send(.text)
                             style: "w-9 h-9 min-w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-lg shrink-0 border-none cursor-pointer hover:opacity-85 disabled:opacity-40"
                             disabled: !.canSend
                             Send { size: 16 }
