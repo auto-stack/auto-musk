@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-050
-status: execution_done
+status: archived
 feature_name: VM/Vue 渲染一致性第一批（主导航栏/设置界面/文件夹选择/会话二级导航）
 author: [zhaopuming]
 created_at: 2026-08-29
-updated_at: 2026-08-30
+updated_at: 2026-08-31
 
 supersedes_spec_components: []
 new_spec_components:
@@ -144,33 +144,33 @@ auto-lang（iced renderer.rs / class.rs / slot 臂 / icons VM 桥；只动渲染
 
 ## 执行步骤
 
-- [ ] **T1** VM 四界面现状取证：起 release VM（`AUTO_BACKEND=http://127.0.0.1:8081
+- [x] **T1** VM 四界面现状取证：起 release VM（`AUTO_BACKEND=http://127.0.0.1:8081
   AUTOUI_MCP_PORT=9250 auto run --render=vm`），`autoui_screenshot`/`autoui_inspect`
   逐界面截图存 `tmp/plan050-survey/`；产出 `tmp/plan050-survey/gaps.md` 差异表
   （每界面行：现状/依赖能力号 C1-C7）。验证：4 截图 + gaps.md 存在且含 4 行。
   [✅ 已完成] tmp/plan050-survey/{01-rail,02-settings-open,03-folder-picker}.png +
   04-session-nav.vtree.txt + gaps.md（4 界面行全，依赖能力号逐项标注）。
-- [ ] **T2** 文件夹选择界面形态裁定：grep musk 源定位该界面（WorkspaceSelector/raw
+- [x] **T2** 文件夹选择界面形态裁定：grep musk 源定位该界面（WorkspaceSelector/raw
   路径输入/原生 input），对照 vue 轨形态写裁定行入 gaps.md（若依赖浏览器原生能力
   → 记 VM 显式降级形态为本计划通过态）。验证：gaps.md 该行含裁定与依据。
   [✅ 已完成] 界面身份=WorkspaceSelector（web 原生逃生舱，Plan 407）；裁定=VM 通过
   态为内嵌展开列表降级（数据同源 vue 轨，选后写 musk_workspace + 显示真实名），
   不做 iced 原生文件夹对话框；依据已写入 gaps.md T2 节。
-- [ ] **T3** C1 按钮宽度/对齐（auto-lang worktree）：renderer.rs Button content-subtree
+- [x] **T3** C1 按钮宽度/对齐（auto-lang worktree）：renderer.rs Button content-subtree
   臂消费 width(Full)/text_align(Left)/items-start/flex-col；新增 plan050_* 单测先红
   后绿。验证：`cargo test -p auto-lang plan050_` 绿。
   [✅ 已完成] auto-musk-dev@7fed34b：plan050_content_align 最小映射（justify-content
   优先、text-left 兜底、items-start→垂直），Button 臂 Fill 容器承载；w-full→Fill 为
   既有路径。注意：单测需 `cargo test -p auto-lang --features ui-iced plan050_`（ui-iced
   门控），4 绿。
-- [ ] **T4** C2 单侧边框 + 容器对齐最小集：class.rs 解析 border-b/r/t/l 与
+- [x] **T4** C2 单侧边框 + 容器对齐最小集：class.rs 解析 border-b/r/t/l 与
   items-*/justify-*；renderer 容器发射 1px 填充条与 align_x/align_y；单测同上。
   验证：`cargo test -p auto-lang plan050_` 绿。
   [✅ 已完成] auto-musk-dev@26220179：BorderBottom/Top/Left/Right 变体+解析+IcedStyle
   旗标+apply_side_borders 1px 填充条（推广 table_row_rule），挂钩 build_row/column/
   container 三发射点；容器 items-*/justify-* 消费经查 iced 侧已有（renderer 1471-1489/
   1664-1672），未重复实现。plan050_ 5 绿。
-- [ ] **T5** C3 slot 子树渲染：grep 定位 slot 丢失点→修复→NavSidebar(list/actions)
+- [x] **T5** C3 slot 子树渲染：grep 定位 slot 丢失点→修复→NavSidebar(list/actions)
   冒烟单测（slot 内 button 可见性断言）。验证：`cargo test -p auto-lang plan050_` 绿。
   [✅ 已完成] 由上游 Plan 476 承接（用户携 009 需求说明立项）：SlotFills 父作用域
   捕获 + outlet 渲染臂 + 五容器拼接,slot 单测 16 绿（c45a5e237 合入 master）。
@@ -178,13 +178,13 @@ auto-lang（iced renderer.rs / class.rs / slot 臂 / icons VM 桥；只动渲染
   worktree release 构建 + VM 实测：会话二级导航完整恢复（真实数据卡片列表,
   tmp/plan050-survey/06-rail-slot-batch.png）。无降级补丁需拆除（NavListItem
   组件形态本就在位）。
-- [ ] **T6** C4 透明度色：class.rs `bg-<token>/<nn>` 解析 + 渲染 alpha；单测。
+- [x] **T6** C4 透明度色：class.rs `bg-<token>/<nn>` 解析 + 渲染 alpha；单测。
   验证：`cargo test -p auto-lang plan050_` 绿。
   [✅ 已完成] auto-musk-dev@2411c5398：解析+alpha 上游已有（待澄清 5,Plan 409 在库），
   实机高亮已现（待澄清 8）；本项新增 plan050_bg_alpha_survives_to_iced_style 钉住
   from_style/convert_color 渲染侧 alpha 不拍平（10%→25/255、50%→127/255）。
   `cargo test -p auto-lang --features ui-iced plan050_` 6 绿。
-- [ ] **T7** C5 VM 图标桥：musk 新增 `src/front/ports/icons.vm.at` + auto-lang VM 臂
+- [x] **T7** C5 VM 图标桥：musk 新增 `src/front/ports/icons.vm.at` + auto-lang VM 臂
   svg 直绘（数据取 icons_data.at）；单测。验证：同上 + rail 图标在 VM 截图可见。
   [✅ 已完成（代码+单测；VM 实证随 T10）] auto-musk-dev@32cb5e78e：勘察裁定走既有
   lucide:/resvg currentColor 直绘管线（Plan 408/442 在库），icons.vm.at 数据桥无需
@@ -192,7 +192,7 @@ auto-lang（iced renderer.rs / class.rs / slot 臂 / icons VM 桥；只动渲染
   size→固定像素}（此前 unknown fallback→Empty）；②renderer lucide 补 27 枚
   glyph（路径数据取 musk icons_data.at 0.460.0 单一真源）。先红后绿；
   plan050_ 10 绿，`--lib` 3905 绿。
-- [ ] **T8** C6 设置下拉 VM 降级形态：renderer absolute 容器降级文档流展开 + musk
+- [x] **T8** C6 设置下拉 VM 降级形态：renderer absolute 容器降级文档流展开 + musk
   settings_menu.at 类串微调（worktree plan-050-dev）；单测 + 实机点开验证。
   验证：VM 截图下拉面板可见且切换生效。
   [✅ 已完成（代码+单测；实机点开随 T10/T11）] 勘察：absolute 在 iced adapter
@@ -202,7 +202,7 @@ auto-lang（iced renderer.rs / class.rs / slot 臂 / icons VM 桥；只动渲染
   类串即语义微调——面板/分区/标题/模式钮/色板/主题行补工具类（镜像 scoped CSS
   值，vue 浮层不变）；VM 丢弃定位类=内联展开；色板内联 background VM 不解析呈
   中性圆（降级登记，切换仍可点）。
-- [ ] **T9** C7 文本插值最小集：`${ident}`/`t(key)` text 臂求值（rail currentName
+- [x] **T9** C7 文本插值最小集：`${ident}`/`t(key)` text 臂求值（rail currentName
   打通）；单测。验证：VM rail 显示 musk-demo。
   [✅ 已完成（代码+单测；VM 实证随 T10 release 重装）] auto-musk-dev@ff7eb1261：
   根因三处断链全修——①engine decode_tagged_nv 补 is_null 臂（null nv 曾落兜底
@@ -212,15 +212,23 @@ auto-lang（iced renderer.rs / class.rs / slot 臂 / icons VM 桥；只动渲染
   查表 + i18n_lookup（front 根 i18n/{lang}.json 平铺装载，AUTO_LOCALE 默认
   zh）。corpus plan050_stub_nil 全链回归 + plan449 探针 border-r 翻 ok。
   plan050_ 9 绿；`--lib` 3904 绿。
-- [ ] **T10** auto-lang 收口：`cargo test -p auto-lang --lib` 全量绿 + no-ff 合回
+- [x] **T10** auto-lang 收口：`cargo test -p auto-lang --lib` 全量绿 + no-ff 合回
   master + 主检出 release 重装（`cargo build --release -p auto`）+
   `scripts/vm-link-probe.cmd` PASS + first-run alive reds=0。验证：命令全过。
-- [ ] **T11** musk 验收对拍：四界面 VM/浏览器截图并排核对（验收标准 1-4 逐项），
+  [✅ 已完成] 初轮 096786d70 时代已收口（T7 记录）；Phase 2 终态=master
+  318d011a8 + release 重装 + plan050_ 13 绿 + probe PASS 61419B + first-run
+  reds=0（见 Phase 2 收口记录）。
+- [x] **T11** musk 验收对拍：四界面 VM/浏览器截图并排核对（验收标准 1-4 逐项），
   必要 .at 微调在 `.worktrees/plan-050-dev`；对拍材料存 `docs/plans/050-review/`。
   验证：清单 4/4 勾完。
-- [ ] **T12** 全量门禁 + 收尾：vue 三门禁 + style-parity + 探针 + first-run 全绿；
+  [✅ 已完成] t11-checklist.md 4/4 + 050-review/ 三截图（2026-08-30 复审记录）；
+  准则 2 补证闭环（2026-08-31 补证复审）。
+- [x] **T12** 全量门禁 + 收尾：vue 三门禁 + style-parity + 探针 + first-run 全绿；
   KNOWN-DEBT 增 050 行；worktree 折叠（auto-musk-dev 与 plan-050-dev 合回各自
   master/main 并清理）。验证：门禁输出贴计划复审记录。
+  [✅ 已完成] 六门禁全绿（初轮 master 6f7189bce + Phase 2 后 + 2026-08-31 复跑
+  main 0e2ea2e）；KNOWN-DEBT 050 行含 Phase 2 附记；auto-musk-dev 已折 auto-lang
+  master，plan-050-dev 已并入 main、脚手架随 /auto-plan:merge 清理。
 
 ## Phase 2 复活清单（2026-08-30 用户实测，052 nav-item 化后的新回归+未覆盖面）
 
@@ -282,6 +290,29 @@ auto-lang（iced renderer.rs / class.rs / slot 臂 / icons VM 桥；只动渲染
 - 遗漏/延后/工作量扫描：浏览器侧对拍截图延后（登记）；gate 卡裸串族延后（登记，
   后续批次）；无未登记 workaround。
 - 结论：仅剩 2 的一次点击级复验，补证后翻 reviewed；其余全 pass。
+
+### 补证复审（2026-08-31，ZCode /auto-plan:review 续）
+
+- **准则 2 收口**：release auto.exe（auto-lang master）+ musk :8081 后端起 VM 实例，
+  AutoUI MCP 实测——齿轮 press → `.SettingsMenu.Toggle` 派发、`isOpen: false -> true`
+  面板展开（C6 内联降级形态，i18n 文案"主题色/外观/浅色/深色/跟随系统"上屏=C7）；
+  色板 press → `.SettingsMenu.SetAccentscoral` 派发、`accent: "" -> "coral"` 状态翻转；
+  浅色钮 press → `.SetThemeLight` 派发、`mode: "" -> "light"`；深色钮复验 `mode ->
+  "dark"`、色板复位 `accent -> "indigo"`。切换链路（handler 派发+store 写+storage.set
+  持久化同 handler）全通。证据=tmp/plan050-review/{snap-initial,snap-panel-open,
+  snap-accent2,snap-light}.txt + mcp.mjs 复验脚本。
+- **新观察（登记，不阻塞）**：选中态 Check 条件子图标（色板/主题行的
+  `if .themeMode/.accentCurrent == … { Check }`）在 VM vtree 未渲染——与 T8 已登记
+  "色板内联 background 呈中性圆"同族观感残留；切换功能不受影响。另 accent 像素级
+  生效链（visual_apply_accent 的 dom.set_css_var）为 web 机制，VM 侧降级——像素级
+  终验依项目惯例留用户（图像通道限制）。
+- **门禁复跑（main 0e2ea2e，2026-08-31）**：auto build strict ✓（含 vue-tsc+vite
+  5.72s）/ vitest 23+1 skip ✓ / phase1-leaves 30/30 ✓ / style-parity 58 用例 12 红=
+  基线差分恒等 ✓ / vm-link-probe PASS 61217B ✓ / vm-first-run（release）alive reds=0 ✓；
+  auto-lang plan050_ 前缀 13 测全绿（master，含 493 在途未提交改动不受扰）。
+- **快照侧证**：rail 四 nav-item 带 [Image] 图标（052 组件+C5 桥）、标题行
+  "Auto Musk/v0.1.0" 双文本（P2 #1）、底部"选择工作目录"钮+齿轮钮在位（P2 #5）。
+- **结论**：准则 2 补证闭环，六准则全 pass → **reviewed（通过）**。
 
 
 ## 待澄清事项

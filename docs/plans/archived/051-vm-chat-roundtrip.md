@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-051
-status: executing
+status: archived
 feature_name: VM 会话主界面闭环——气泡渲染/发送链路/流式降级（017-chat 实测定位）
 author: [zhaopuming]
 created_at: 2026-08-29
-updated_at: 2026-08-30
+updated_at: 2026-08-31
 
 supersedes_spec_components: []
 new_spec_components: []
@@ -529,6 +529,27 @@ KD-048-a（本次复现第二次，~4min 无 panic）。
 **路由**：reviewed（通过）——准则 1 两子项为上游独立缺陷所致降级达成，
 根因二分+回归锁+musk 侧绕开+显式登记齐备，修复体量超出本计划边界且已经
 用户多轮汇报知情；其余准则全部实证通过。
+
+### 增量复审（2026-08-31，ZCode /auto-plan:review 续——覆盖复审后追加的 Phase 2/3）
+
+- 范围：原复审（2026-08-30 02:10）只覆盖 T1-T11；其后追加 Phase 2（T12-T17
+  会话壳视觉五缺陷）与 Phase 3（用户二轮实测三修），本次对增量做代码/门禁/实机
+  三面复核。
+- 代码落位：Phase 2 上游 auto-musk-dev@2c36322c0 已随 KV 批次折入 auto-lang
+  master（auto-musk-dev 分支零领先实证）；musk 侧 05e29c9/9db3a0d/b7ae16c 均在
+  main（Phase 3 记录即 b7ae16c）。
+- 门禁复跑（main 0e2ea2e，2026-08-31）：auto build strict ✓ / vitest 23+1 skip ✓ /
+  phase1-leaves 30/30 ✓ / style-parity 12 红=基线差分恒等 ✓ / vm-link-probe PASS
+  61217B ✓ / vm-first-run（release）alive reds=0 ✓；auto-lang plan051_ 前缀全绿
+  （master）。
+- 实机侧证：VM 实例（release）rail/会话壳快照正常——会话/计划/规范/知识库四项
+  nav-item 带 [Image] 图标（Phase 2 P2-① 注册表第三路实效）、状态字段
+  chat_search/streaming 在树、i18n"浅色/深色/跟随系统"等文案上屏（P2-②b 参数
+  插值族同链路）。
+- 遗留核对：T17 登记"MentionInput .cancel 路由未达"与 KD-051 Phase 2 附记一致
+  （下游批次，非静默缩水）；发送路径垃圾引用崩溃为 KD-493 ①在途债（双仓 master
+  先在，非本计划回归）。
+- 结论：增量 Phase 2/3 无未登记缩水，复审通过口径维持 → **reviewed（通过）**。
 
 ## 待澄清事项
 
