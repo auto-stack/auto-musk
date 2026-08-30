@@ -4,7 +4,7 @@ status: execution_done
 feature_name: VM/Vue 渲染一致性第一批（主导航栏/设置界面/文件夹选择/会话二级导航）
 author: [zhaopuming]
 created_at: 2026-08-29
-updated_at: 2026-08-29
+updated_at: 2026-08-30
 
 supersedes_spec_components: []
 new_spec_components:
@@ -226,16 +226,44 @@ auto-lang（iced renderer.rs / class.rs / slot 臂 / icons VM 桥；只动渲染
 
 1. 标题行 `v0.1.0` 字体上漂（未纵向居中）——items-baseline 的 VM 降级
    （ItemsStart）缺字号配对的纵向校正；方向：行高固定 + center_y 或 leading 补偿。
+   [✅ 已修] auto-lang 318d011a8：降级目标 ItemsStart→ItemsCenter（行内纵向
+   居中近似，配对测试随断言更新 _to_center）。
 2. nav-item（052 组件化）文字+图标重新居中——nav-item 的 VM 臂未走 C1 的
    content-subtree flex 行修复（或 NavItem 组件路径绕过 button 修复面）；
    方向：nav-item VM 臂消费 justify-start/items-center。
+   [✅ 已修（双修互补）] ①并行会话 master b5aaf7f54（6d51cf092）
+   plan414_content_alignment：高度臂让位显式对齐类（text-left/justify-*），
+   含实机截图 rail 四项左对齐取证；②本批 nav-item 三 preset 补 justify-start
+   （NavItem.vue 资产同步；web 侧 justify-start=flex 默认值零视觉变化，
+   nav_contract_matches_scaffold_assets 复绿）。
 3. rail 底部工具栏不贴底——`.at` 的 `mt-auto` 无 iced 映射（margin 系静默跳过）；
    方向：mt-auto → 列内弹性占位（Fill spacer）或 col space-between 映射。
+   [✅ 已修] auto-lang 318d011a8：Column 发射时对 mt-auto 子项前置 Fill 弹性
+   占位条。实现细节：master 通用 mt-<size> 解析已产 MarginTop(SizeValue::Auto)
+   （前会话专用 MarginTopAuto 变体被通用路径抢先成死代码，已删去重），
+   plan050_mt_auto_spacer 决策函数 + plan050_mt_auto_child_gets_fill_spacer
+   全链回归钉（mt-auto 命中/mt-4 与空类不命中）。
 4. 选择工作目录面板未做降级类串——workspace_selector.at 的 ws-panel 系仍是裸
    CSS 名（T8 只覆盖了 settings_menu.at）；方向：复制 T8 做法补工具类。
+   [✅ 已修] 98006de（2026-08-30，已进 main）。
 5. settings 触发钮无齿轮图标且挤扁——`Settings { size: 16 }` 子组件形态的图标
    未渲染 + 按钮无尺寸类坍缩；对照 widgets-gallery 查 `button(variant="icon",
    icon="xxx")` 的 VM 支持面与 icon 子组件臂的命中条件（Settings 在 46 名单内）。
+   [✅ 已修] 98006de（2026-08-30，已进 main；触发钮尺寸/居中工具类）。
+
+### Phase 2 收口记录（2026-08-30）
+
+- #1/#3 落点全在 auto-lang（前会话已在 `.worktrees/plan-050-p2` 实现三项修复
+  但未合回）；本批收口：并入最新 master（两处冲突正交并存——mt-auto 占位 ×
+  Plan 490 wrap_layout_onclick；plan414 × plan050_mt_auto_spacer）、mt-auto 与
+  master 通用路径去重、NavItem.vue 资产同步，合入 master **318d011a8** +
+  release 重装完成。
+- 验证：`cargo test -p auto-lang --features ui-iced plan050_` **13 绿**；全量
+  `--lib` 差分**零新增**（master 基线 8-9 败 dock/notif/settings/stage3 flaky
+  族持平，双仓对跑实证）；`vm-link-probe` **PASS 61419B**（历史 61162B）；
+  `vm-first-run`（release）**alive reds=0**。
+- 残留：#1/#3 的 rail 实机像素目验留用户（本环境图像通道限制，项目惯例）；
+  #2 已有并行会话实机截图取证。
 
 ## 复审记录
 
