@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-051
-status: archived
+status: executing
 feature_name: VM 会话主界面闭环——气泡渲染/发送链路/流式降级（017-chat 实测定位）
 author: [zhaopuming]
 created_at: 2026-08-29
