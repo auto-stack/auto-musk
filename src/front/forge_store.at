@@ -114,6 +114,17 @@ store ForgeStore {
         // SwitchSession: 切换 + 回写 session 详情（messages）。
         .SwitchSession(id) -> {
             .session_id = id;
+            // PLAN-051 P3-④: 清会话域状态——current_gate/report_data/卡片表
+            // 此前跨会话残留，切到空会话时旧 gate/run 卡仍杵在面板上，
+            // 观感为"切换不生效"。
+            .current_gate = None
+            .report_data = None
+            .errands = {}
+            .relays = {}
+            .task_plans = {}
+            .streaming = false
+            .current_draft = ""
+            .thinking = ""
             var resp = chats_get_session(id);
             .messages = resp.session.messages
             .active_leaf = resp.session.active_leaf ?? ""

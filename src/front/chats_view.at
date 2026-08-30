@@ -272,7 +272,10 @@ widget ChatsView {
             // AgentConfigs 由 MentionInput 挂载时 Init（ professions 拉取）。
         }
 
-        .OnSearchInput(val) -> { .chat_search = val.target.value }
+        // PLAN-051 P3-②: 单参 oninput 双轨契约——vue codegen 自动包
+        // ($event.target).value 传入，两轨 val 均为纯文本；此前 val.target.value
+        // 在 VM 得 0（GET_FIELD on Str）、在 web 得 undefined。
+        .OnSearchInput(val) -> { .chat_search = val }
 
         .NewSession -> { store.NewSession() }
 

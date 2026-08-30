@@ -107,7 +107,12 @@ widget MentionInput(disabled: bool, professions: obj) {
                             html: .backdropHtml
                         }
                         textarea {
-                            style: "chats-input absolute inset-0 py-2 px-3 block w-full border-none rounded-none bg-transparent text-[15px] leading-[1.5] text-transparent caret-[hsl(var(--foreground))] outline-none resize-none focus:outline-none focus:shadow-none focus:border-none"
+                            // PLAN-051 P3-①: 补 h-full——VM 轨 absolute 降级为流内
+                            // 后 textarea 仅自然高度(~1 行)悬于 80px 容器顶部，
+                            // 点击容器中下部不命中输入件（"有框无法输入"现场）；
+                            // h-full 使其填满容器。web 侧 absolute inset-0 几何
+                            // 已定尺寸，此类的 height:100% 冗余无副作用。
+                            style: "chats-input absolute inset-0 h-full py-2 px-3 block w-full border-none rounded-none bg-transparent text-[15px] leading-[1.5] text-transparent caret-[hsl(var(--foreground))] outline-none resize-none focus:outline-none focus:shadow-none focus:border-none"
                             value: .text
                             oninput: .Input($event)
                             onkeydown: .Keydown($event)
