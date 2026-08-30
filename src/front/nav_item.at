@@ -54,7 +54,11 @@ widget NavListItem(id: str, title: str, sub: str, active: bool, variant: str, de
             // web-only .session-item:hover .session-delete-btn 承载）
             if .deletable {
                 span {
-                    style: "session-delete-btn absolute right-[6px] top-1/2 -translate-y-1/2 items-center opacity-60 bg-transparent border-none p-[3px]"
+                    // PLAN-051 P2-②a: hidden——VM 轨不渲染（absolute hover 件
+                    // 无 VM 形态,此前 C6 内联降级成列表项第三行垃圾行）；
+                    // web 侧 .session-delete-btn 本就 display:none,hover 经
+                    // 0,3,0 特异性覆盖 tailwind 单类,行为零变化。
+                    style: "session-delete-btn hidden absolute right-[6px] top-1/2 -translate-y-1/2 items-center opacity-60 bg-transparent border-none p-[3px]"
                     onclick.stop: .remove(.id)
                     title: .delete_title
                     Trash2 { size: 12 }
