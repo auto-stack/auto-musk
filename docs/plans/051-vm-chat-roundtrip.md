@@ -410,6 +410,63 @@ RC canary 阻断主界面渲染——KD-048-b 同族，不在本计划）。实�
   master（worktree 本体清理随 /auto-plan:merge 终态）；plan-051-dev 分支
   留待 /auto-plan:merge 合回 main（技能规则：终态折叠归 merge 技能）。
 
+## Phase 2——会话壳视觉五缺陷（2026-08-30 用户实测回归）
+
+> 复审归档后用户实测 VM 版 Chat 栏目仍乱（截图五点）。vtree+源码对拍诊断已
+> 完成根因定罪，逐项修复（vue 轨零回归约束不变）：
+
+- **P2-① icon 按钮空白**（二级导航头 Plus/Trash2、列表删除钮 Trash2、搜索框
+  Search）：注册表收集（lib.rs:3762 邻域）只收"根 AST 顶层 use.web + widget
+  内嵌 ext_imports"两路——**子模块文件顶层 use.web component（chats_view.at:26、
+  nav_item.at:15）不在收集面**→is_imported_component 假→unknown fallback→Empty。
+  rail 图标正常恰因其在根模块（对照组实证）。修：收集点补第三路（装载期
+  visited 模块扫描，沿 ext_stubs 同款模式）。
+- **P2-②a 列表项第三行垃圾**：delete span（absolute+hover）按 C6 降级为流内
+  第三子。修（musk 侧）：span 类串加 `hidden`——web 侧 .session-delete-btn
+  本就 display:none、hover 经 0,3,0 特异性覆盖 tailwind 单类，**零 web 回归**；
+  VM 走既有 is_hidden 臂不渲染（hover-only 件不进 VM，登记）。
+- **P2-②b `{count} 条` 未插值**：call_expr_t_key 只取首参，第二参（参数记录
+  字面量）被丢。修：t() 臂增参数求值（bindings 感知）+ lookup 后 `{k}` 替换。
+- **P2-③ 搜索框挤压**：`flex-[0_1_320px]` 任意值不支持→整类丢弃→塌 0。修
+  （musk 侧）：类串补 `min-w-[200px] w-[320px]`（min-w 解析在册 class.rs:1138；
+  web 仅极窄窗行为微改进）。
+- **P2-④ 输入框不显示**：apply_container_style（renderer.rs:1840 normal 分支）
+  **无 min_height/min_width 消费**→input-compose（div→Container）的 min-h-20
+  丢弃→高度塌。修：补 min_h/min_w 消费（镜像 Column 臂 1524；语义近似=Fixed
+  而非下限，textarea 自滚场景正确，登记）。
+- **P2-⑤ 消息区**：①-④ 通后端到端实测（发送→气泡→轮询）。
+
+执行步骤：
+- [x] **T12**（auto-lang/auto-musk-dev）P2-① 注册表第三路 + 回归锁（子模块
+  顶层 use.web component 名进表；先红后绿）。
+  [✅ 已完成 2c36322c0] visited 重解析第三路（沿 ext_stubs 模式）；语料
+  plan051_p2_modules（子模块顶层声明双图标形态）红→绿。
+- [x] **T13**（auto-lang）P2-④ apply_container_style 补 min_h/min_w + 单测。
+  [✅ 已完成 2c36322c0] normal 分支 else-if 链补消费（9999 哨兵→Fill 镜像
+  Column 臂）；语义近似=Fixed 下限而非弹性最小高（自滚场景正确）登记。
+- [x] **T14**（auto-lang）P2-②b i18n 参数插值臂 + 单测。
+  [✅ 已完成 2c36322c0] t_call_params（第二实参 Expr::Object 逐字段 bindings
+  求值）+ substitute_params（{k} 替换、未提供原样保留）；文本/prop 双位接线。
+- [x] **T15**（musk）P2-②a hidden 类 + P2-③ 搜索框宽度类。
+  [✅ 已完成 1eb2e38→main 05e29c9] hidden 类（web hover CSS 0,3,0 特异性
+  覆盖零回归/VM is_hidden 不渲染）+ min-w-[200px] w-[320px]（web 仅极窄窗
+  微改进）。执行波折登记：worktree 目录被残留 node.exe 文件锁拖入嵌套
+  重建循环，最终 T15 直落 main（05e29c9）。
+- [x] **T16** release 重装 + VM 实机五项逐一对拍（截图存档）+ vue 门禁抽查。
+  [✅ 已完成（结构级四项实证+像素级交用户目验）] ①vtree [Image] 16 枚
+  （原~5，会话栏头双钮/搜索框/发送钮/工作区钮全出图标）②列表项恰两行
+  （title+"N 条"，无第三行垃圾钮）②b"3 条/0 条"插值实机生效 ③搜索框
+  w-[320px]/min-w 类进 Width/MinWidth 消费 ④textarea+80px 容器链在树
+  ⑤选会话→发送→backend 第 4 条即所发（往返闭环）。截图=tmp 下
+  autoui-screenshot-1788059593387.png（judge 子代理与本会话 Read 均只能
+  转 CDN 无法目检——环境限制登记，像素级终验交用户）。vue 门禁：build
+  strict ✅ + vitest 60 过 2 跳 ✅；plan051_ 全前缀 23 测绿。
+- [x] **T17** 计划标记/KNOWN-DEBT 补行 + 收尾。
+  [✅ 已完成] 本标记 + KNOWN-DEBT 051 行 Phase 2 附记（含新债：MentionInput
+  .cancel 声明式路由未达——.MentionInput.cancel 派发而宿主 .StopStream 未
+  接上，streaming 锁死 composer；C2 无参 oncancel 对缺口，下游批次）。
+  auto-musk-dev@2c36322c0 待随 Phase 2 收口合回 master。
+
 ## 复审记录
 
 **复审人**：zhaopuming（/auto-plan:review，2026-08-30 02:10）
