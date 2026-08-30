@@ -56,6 +56,7 @@ widget LoginPage {
                         input {
                             value: .password
                             oninput: .PasswordChanged
+                            onenter: .Submit
                             password: true
                             placeholder: "Enter password"
                             style: "px-2.5 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
