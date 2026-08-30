@@ -48,6 +48,8 @@ store AuthStore {
 
         // Login(username, password): 调 auth_login，成功则存 token/user。
         // 后端返回 {token, user:{username, role}}（嵌套 user 对象）。
+        // 另存 musk_login_username/password 供登录页预填（LoginPage.Init
+        // 读取；记住上次登录凭据，免重复输入——本地开发工具语义）。
         .Login(username, password) -> {
             .loading = true
             .error = ""
@@ -61,6 +63,8 @@ store AuthStore {
                 }
                 localStorage.setItem("musk_jwt", resp.token)
                 localStorage.setItem("musk_user", .user)
+                localStorage.setItem("musk_login_username", username)
+                localStorage.setItem("musk_login_password", password)
             }
         }
 
@@ -78,6 +82,8 @@ store AuthStore {
                 }
                 localStorage.setItem("musk_jwt", resp.token)
                 localStorage.setItem("musk_user", .user)
+                localStorage.setItem("musk_login_username", username)
+                localStorage.setItem("musk_login_password", password)
             }
         }
 
