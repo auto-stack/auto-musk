@@ -102,14 +102,9 @@ fn render_mentions_default(text str) str {
     return render_mentions(text, build_mention_names(mention_default_professions()), "text-primary-foreground font-semibold bg-white/15 rounded-[3px] px-[0.2rem]")
 }
 
-/** 同 render_mentions，但末尾加换行（输入框 backdrop 用）。 */
-// PLAN-050 B1: 输入 backdrop 上下文 mention 样式内联（蓝 tint,原 web-only 迁移）。
-fn render_input_mentions(text str, names obj) str {
-    if text == "" || text == None {
-        return ""
-    }
-    return render_mentions(text, names, "text-[hsl(220_90%_56%)] bg-[hsl(220_90%_56%/0.12)] rounded-[3px] px-[0.2rem] font-medium") + "\n"
-}
+// PLAN-493: render_input_mentions（输入框 backdrop 专用，末尾加换行）删除——
+// composer 高亮改由 textarea `mentions:` 能力声明承载（叠加技法下沉实现层），
+// 无消费方；聊天气泡路径 render_mentions_default 不动。
 
 /** 按 filter 过滤 professions（id/name 大小写不敏感 contains）。 */
 fn mention_filtered(professions []Value, filter str) []Value {
@@ -196,6 +191,25 @@ fn mention_professions_list(prop_prof []Value, configs []Value) []Value {
         return out
     }
     return mention_default_professions()
+}
+
+/** professions 兜底链 → mention 名单 List<str]（id + 显示名）。
+ *  PLAN-493: textarea `mentions:` 能力消费——名单须 state-rooted（model var，
+ *  handler 上下文刷新），builder/Vue 双轨对同一份名单着色 @词原文。 */
+fn build_mention_name_list(prop_prof []Value, configs []Value) []Value {
+    let profs = mention_professions_list(prop_prof, configs)
+    var out = []
+    for p in profs {
+        let pid = p.id ?? ""
+        let pname = p.name ?? ""
+        if pid != "" {
+            out.push(pid)
+        }
+        if pname != "" {
+            out.push(pname)
+        }
+    }
+    return out
 }
 
 /** s 中最后一个 @ 的下标（无则 -1；替代无映射的 lastIndexOf）。 */

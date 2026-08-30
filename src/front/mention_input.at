@@ -3,7 +3,9 @@
 // 对标 src/front/components/MentionInput.vue（逃生舱，已删除）。
 //
 // 关键转换：
-//   - v-html backdrop（@mention 高亮）→ html: prop（UserMessage 已验）
+//   - v-html backdrop（@mention 高亮）→ textarea `mentions:` 能力声明（PLAN-493：
+//     叠加技法整体下沉双端实现层——Vue 由 codegen 发射 backdrop+透明 textarea
+//     兄弟对，VM 走原生 Highlighter 着色；.at 声明层不再出现 backdrop 结构）
 //   - textarea v-model（固定 key）→ value: + oninput:（v-model 优化触发）
 //   - @mention 检测（regex/slice/DOM 读取）→ mention_helpers.ts fn + $event
 //   - 键盘导航（dropdown 已原生，状态在本组件）→ Keydown handler + mentionKeyAction
@@ -12,17 +14,17 @@
 //   - nextTick focus 舍弃（template ref）
 //   - i18n t + useAgentConfigs → composable facade（refs 标注）
 //
-// 样式：PLAN-049 T6 双轨收敛——容器迁内联工具类;@mention 双层文字技术
-// （textarea 文字透明 + backdrop 高亮层）为 web-only（inject_styles.ts 暂存段,
-// T8 拆 web-only.ts）,VM 侧 textarea 直接显字。原 send-btn 渐变底收敛为
-// bg-primary 单色（登记）;rounded-[20px] VM 无 arbitrary 圆角臂,登记降级。
+// 样式：PLAN-049 T6 双轨收敛——容器迁内联工具类;@mention 高亮为 textarea
+// 能力（PLAN-493：web 侧 text-transparent 由 codegen 注入,VM 侧文字可见+
+// 原生着色）。原 send-btn 渐变底收敛为 bg-primary 单色（登记）;rounded-[20px]
+// VM 无 arbitrary 圆角臂,登记降级。
 
 use store: AgentConfigs
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web component Send, Square from "src/front/ports/icons.at"
 use.web useI18n from "src/front/ports/composables.at"
-use.web render_input_mentions, build_mention_names from "src/front/mention_helpers.at"
+use.web build_mention_name_list from "src/front/mention_helpers.at"
 use.web mention_filtered, mention_clamp_index, mention_index_of, mention_key_action, mention_detect_filter, mention_detect_anchor, mention_detect_visible, mention_detect_pos, mention_insert, mention_can_send, mention_trim, mention_professions_list, mention_current_id from "src/front/mention_helpers.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
@@ -36,8 +38,6 @@ widget MentionInput(disabled: bool, professions: obj) {
     }
     computed {
         professionsList => mention_professions_list(.professions, .store.configs)
-        mentionNames => build_mention_names(.professionsList)
-        backdropHtml => render_input_mentions(.text, .mentionNames)
         canSend => mention_can_send(.text)
         mentionFilteredList => mention_filtered(.professionsList, .mentionFilter)
         hasMentionItems => .mentionFilteredList.length > 0
@@ -50,15 +50,23 @@ widget MentionInput(disabled: bool, professions: obj) {
         var mentionAnchor obj = None
         var mentionIndex int = 0
         var mentionPos int = 0
+        // PLAN-493: mention 名单（state-rooted——mentions prop 的 VM 受限解析
+        // 只认 var/store 字段，computed 会踩 call 链 UAF 红线）。Init 即取默认
+        // 表；Input 再刷一次收敛异步到达的 configs（静置缺口登记计划待澄清④）。
+        var mentionNames []Value = []
     }
     on {
-        .Init -> { AgentConfigs.Init() }
+        .Init -> {
+            AgentConfigs.Init()
+            .mentionNames = build_mention_name_list(.professions, .store.configs)
+        }
 
         .Input(e) -> {
             .mentionFilter = mention_detect_filter(e);
             .mentionAnchor = mention_detect_anchor(e);
             .mentionVisible = mention_detect_visible(e);
-            .mentionPos = mention_detect_pos(e)
+            .mentionPos = mention_detect_pos(e);
+            .mentionNames = build_mention_name_list(.professions, .store.configs)
         }
         .Keydown(e) -> {
             if .mentionVisible {
@@ -102,18 +110,20 @@ widget MentionInput(disabled: bool, professions: obj) {
                     style: "flex items-end gap-1.5 w-full"
                     div {
                         style: "input-compose relative flex-1 min-w-0 min-h-20 bg-muted-foreground/5 border border-primary/15 rounded-[20px] focus-within:border-primary/45 focus-within:shadow-[0_0_0_3px_hsl(var(--primary)/0.08)]"
-                        div {
-                            style: "absolute inset-0 py-2 px-3 bg-transparent border-none rounded-none pointer-events-none overflow-hidden whitespace-pre-wrap break-words text-foreground text-[15px] leading-[1.5]"
-                            html: .backdropHtml
-                        }
+                        // PLAN-493: mention 高亮为 textarea 能力声明——backdrop
+                        // div（v-html 手写叠加层）删除，技法下沉双端实现层
+                        //（Vue: codegen 发射 backdrop+透明对；VM: 原生着色）。
+                        // text-transparent 同步删除（由 codegen 注入）。
                         textarea {
                             // PLAN-051 P3-①: 补 h-full——VM 轨 absolute 降级为流内
                             // 后 textarea 仅自然高度(~1 行)悬于 80px 容器顶部，
                             // 点击容器中下部不命中输入件（"有框无法输入"现场）；
                             // h-full 使其填满容器。web 侧 absolute inset-0 几何
                             // 已定尺寸，此类的 height:100% 冗余无副作用。
-                            style: "chats-input absolute inset-0 h-full py-2 px-3 block w-full border-none rounded-none bg-transparent text-[15px] leading-[1.5] text-transparent caret-[hsl(var(--foreground))] outline-none resize-none focus:outline-none focus:shadow-none focus:border-none"
+                            style: "chats-input absolute inset-0 h-full py-2 px-3 block w-full border-none rounded-none bg-transparent text-[15px] leading-[1.5] caret-[hsl(var(--foreground))] outline-none resize-none focus:outline-none focus:shadow-none focus:border-none"
                             value: .text
+                            mentions: .mentionNames
+                            mention_class: "text-[hsl(220_90%_56%)] bg-[hsl(220_90%_56%/0.12)] rounded-[3px] px-[0.2rem] font-medium"
                             oninput: .Input($event)
                             onkeydown: .Keydown($event)
                             onkeydown.enter.exact.prevent: .send(.text)
