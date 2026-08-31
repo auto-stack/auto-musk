@@ -71,10 +71,6 @@ widget ChatsView {
         var input str = ""
         var sidebar_collapsed bool = false
         var chat_search str = ""
-        // PLAN-053 批4 诊断: SelectSession 实收 id 的页面内回显（VM 轨无
-        // toast 组件的等价物），与侧栏 hover tooltip 的 .s.id 对照即可
-        // 判定点击实参是否被错取成会话名。诊断期脚手架，结案时移除。
-        var debug_click_id str = ""
     }
 
     // Plan 028 T15：搜索过滤（原 useChatSearch composable → F2 多参 fn 直调）
@@ -119,10 +115,9 @@ widget ChatsView {
                             button {
                                 key: .s.id
                                 onclick: .SelectSession(.s.id)
-                                // PLAN-053 批4 诊断: 悬停显示会话真 id——web 轨
-                                // title 映射原生属性，VM 轨经 auto-lang title→EE03
-                                // tooltip 接线（renderer 包 iced tooltip）。用于
-                                // 核对点击实参是否被错取成会话名（"你好"）。
+                                // PLAN-053 批4: 悬停显示会话 id——web 轨 title
+                                // 映射原生属性，VM 轨经 auto-lang title→EE03
+                                // tooltip 接线（renderer 包 iced tooltip）。
                                 title: .s.id
                                 class: if .s.id == .store.session_id {
                                     "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-primary/25 bg-primary/10 text-primary"
@@ -143,7 +138,7 @@ widget ChatsView {
                                         style: "text-xs text-muted-foreground"
                                         text t("chat.msgs", { count: .s.message_count })
                                     }
-                                    // PLAN-053 批4 诊断: info 图标示意"悬停看 id"。
+                                    // PLAN-053 批4: info 图标示意"悬停看 id"。
                                     Info { size: 11, class: "text-muted-foreground shrink-0 ml-auto" }
                                 }
                                 span {
@@ -185,16 +180,6 @@ widget ChatsView {
                             style: "flex items-center gap-[5px] shrink-0"
                             SessionInfo
                         }
-                    }
-                }
-                // PLAN-053 批4 诊断条: 点击会话时 handler 实收 id 的回显
-                // （VM 轨无 toast 组件的等价物）。与侧栏 hover tooltip 的
-                // .s.id 对照：tooltip 对 + 这里错 → onclick 实参求值坏；
-                // 两者同错 → 列表数据/绑定坏。诊断期脚手架，结案时移除。
-                if .debug_click_id != "" {
-                    div {
-                        style: "px-4 py-1 text-[11px] font-mono text-muted-foreground bg-muted-foreground/5 border-b border-border"
-                        text "[debug] SelectSession 收到 id: " + .debug_click_id
                     }
                 }
                 // canvas（SecretaryMessage/GateCard/ReportCard + 消息列表 + 流式 draft）
@@ -329,8 +314,6 @@ widget ChatsView {
         }
 
         .SelectSession(id) -> {
-            .debug_click_id = id
-            print("[ChatsView.SelectSession] ENTER id=" + id)
             store.SwitchSession(id)
         }
 

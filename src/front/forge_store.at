@@ -152,14 +152,11 @@ store ForgeStore {
             // 失败时清空 .messages、置错误提示、顺手刷新列表让过期项消失。
             var resp = chats_get_session(id);
             if resp != None && resp.session != None {
-                print("[ForgeStore.SwitchSession] SUCCESS id=" + id)
                 .messages = resp.session.messages
                 .active_leaf = resp.session.active_leaf ?? ""
                 .error = ""
             } else {
-                print("[ForgeStore.SwitchSession] FAILED id=" + id)
-                // PLAN-053 批4: 错误信息携带实收 id——与侧栏 hover tooltip 的
-                // .s.id 对照，直接判定实参是否被错取成会话名。
+                // PLAN-053 批4: 错误信息携带实收 id（过期会话可对号入座）。
                 .error = "会话加载失败（可能已删除），列表已刷新，请重新选择 [收到 id=" + id + "]"
                 .messages = []
                 let list = chats_list_sessions();
