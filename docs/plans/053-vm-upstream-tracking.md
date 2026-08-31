@@ -4,7 +4,7 @@ status: execution_done         # drafting → executing → execution_done → r
 feature_name: vm-upstream-tracking
 author: [zhaopuming]
 created_at: 2026-08-31
-updated_at: 2026-08-31
+updated_at: 2026-09-01
 
 # /auto-plan:review 复审 1 填充（2026-08-31，FAIL——现状快照，供下次复审通过后 merge 消费）：
 supersedes_spec_components: []   # 未修改任何既有 spec 组件（修复全落 auto-lang 运行时 + musk 单点加固）
@@ -102,7 +102,7 @@ debug 构建 RC canary panic 等。此前这些问题散落在各计划的红清
 | P-053-6 | **（批1 实机验收发现）**消息气泡内容体空：ChatMessage `blocks` computed（`messageDisplayBlocks(.msg, .is_streaming)`）不求值——气泡骨架+角色头渲染但内容列空 | `AUTO_DEBUG_EMIT=1` 实况：`[VM-CALLFN]` 全量 2008 条中 `messageDisplayBlocks`/`messageBlocks` **零调用**（对照 chatActivePath 590 次）；无报错无告警（静默 None）。**用户目验（2026-08-31 截图1）**：登录后气泡骨架+🧑 You/🤖 AI 角色标记+⑂重试按钮可见，内容体空——与树级诊断一致 | 子组件 prop 实参在合并 computed 表求值上下文缺绑定：`blocks` 体内 `.msg` 是 ChatMessage 的 prop，eval_computed → resolve_expr_to_value 的 bindings/read_state 均无 `msg`（for 循环绑定不跨组件）→ 实参 incomplete → 静默返回 None（`src/ui/aura_view_builder.rs` Call 臂 / `src/ui/dynamic.rs` computed 合并） | **已修（批2，2026-08-31）**：批1 的"computed 不求值"诊断为 Call 臂 swallowed-Err 所误——批2 诊断打印显形后确认 computed 一直在调，真因是**五层连环缺口**（详见执行步骤 13）：①Regex.replace/test 静态 native 缺失（helper 执行即崩）②call_vm_fn 字符串结果降格池索引 ③use.web component 图标臂遮蔽注册组件（正文画成 lucide 图标）④web 字符串方法族六臂缺失（trimEnd 等，落 null）⑤Obj/Array 实参编组 0 占位（msg 变 Int(0)）+ ObjectData 缺键硬报错（`msg.blocks ?? 兜底` 炸）。auto-lang master 801ed776c..053-null-key 系列；实机 7/7 气泡全文可见+会话切换往返干净；musk_vm_track_tests 24 绿 |
 | P-053-M1 | （musk 侧配套，非本计划代码域）会话列表过期 + 切换 404 静默 | 实机：应用选中 `eeb247…` 对后端 404；点 NewSession 刷新后真实会话可选中加载。**用户目验（2026-08-31 截图2）**：点侧栏会话后主面板连气泡骨架都消失（全空白）——代码面机制：SwitchSession 无失败路径，`chats_get_session` 失败（404 或 api no-op）返回 None → `resp.session.messages` 逐级 GET_FIELD 落 0 → `.messages` 被写成垃圾 → for 零行 + 无任何错误提示。注：截图出自本计划复审期的测试实例（agent 拉起），其侧栏「你好」会话不在 8080 后端（复审期 merged 形态复现侧栏为空）——精确后端归属未定，但静默清空机制两条路径（404/no-op）同构 | **已修（批3，2026-08-31）**：`src/front/forge_store.at` 中 `.SwitchSession`、`.LoadSessionList`、`.BranchTo`、`.NewSession` 全面加固守卫为 `if resp != None && resp.session != None`；失败路径清空 `.messages = []` 并设置错误提示 `.error = "会话加载失败（可能已删除），列表已刷新，请重新选择"`，且自动拉取 `chats_list_sessions()` 刷新剔除过期项；测试 `musk_vm_track_p053_m1_guard_behavior` 绿 |
 | P-053-7 | **（复审 1 新登记）**boot 后会话列表恒空：KV 恢复登录态（token 落地、直达聊天视图）但侧栏 0 项、`session_id` 空，须点 NewSession（在后端造垃圾会话）或 Delete 才触发 LoadSessionList 刷新 | 复审实机 2/2 复现（2026-08-31，release 15:15 二进制 + AUTO_VM_MERGE=0 + AUTO_BACKEND=8080）：boot 稳定后 state `session_list: []` / `session_id: ""` 而 token 已恢复；同 token curl 后端 `/api/chats/sessions` 返回 13 会话（该端点甚至不校验 auth，排除认证因素）；点 NewSession 后列表即刻 14 项（桥运行时可用）。批1 执行记录"NewSession 刷新列表→选中"措辞表明当时同现象已存在，被当流程步骤消化而未按协议登记 | 根因：`ForgeStore.Init` 原为裸调用 `LoadSessionList()`，`handler_codegen.rs` 原先只处理带点 receiver `.Sibling()`，导致 boot 时调用未被转译派发。修：`handler_codegen.rs` 扩展支持裸同级消息调用转译；`forge_store.at` 改为显式 `.LoadSessionList()`；测试 `musk_vm_track_p053_7_sibling_handler_calls` 绿 |
-| P-053-8 | **（批4 新登记）**二级导航点击会话（如「你好」）报错：初判 onclick 实参 `.s.id` 被错取成会话名（另一 agent 判断，未实证） | 用户报障（2026-08-31）；4330891 已试 inline 直绑 `onclick: .SelectSession(.s.id)`（NavListItem `$event` 通道嫌疑排除后仍报错）→ 指向 VM event 实参求值/编组层。**待实机取证** | VM onclick 实参求值（`event_to_message_with` 循环绑定编组，`src/ui/aura_view_builder.rs`）；关联 P-053-6 ⑤ Obj/Array 实参编组家族 | **批4 诊断脚手架已布（2026-08-31，待实机定位）**：①musk 侧——侧栏项 `title: .s.id` 悬停显示真 id + info 图标示意 + 点击回显实收 id（调试条/错误信息携带/stdout 三通道）；②auto-lang 侧——普通 button `title` 全轨接线（VM `convert_button` 埋 EE03→renderer 既有 iced tooltip；vue 臂补 title 透传，顺带清偿 web 轨按钮 tooltip 全失效存量缺口；snapshot 剥 EE03 为独立 title prop 供 MCP 断言）；musk 54df8c6 + auto-lang auto-musk-dev 36afff093；`musk_vm_track` 33/33 绿。判读法：tooltip id 对 + 回显 id 错 → 实参求值坏；两者同错 → 列表数据/绑定坏 |
+| P-053-8 | **（批4 新登记，批4 内闭环）**二级导航点击会话（如「你好」）报错：onclick 实参 `.s.id` 被错取成会话名 | **canary 实锤**：`[P053-8] intern drift: arg "8f20138cab63f0c24832d3fb" -> idx 2348 content Some("你好")`——`add_string("8f20…")` 残键命中槽 2348 而槽内容已是「你好」；后端请求 URL 实拍 `/api/chats/session/%E4%BD%A0%E5%A5%BD`。**POOLLOG 时间线**（vm3-poollog.log）：#216 槽 2348 内化 `8f20…`（键 K8→2348）→ #222 release rc 2→1（条目存活）→ **#223 槽 2348 被 freelist 弹出复用为 `http://127.0…`（期间无 FREE 日志=幻影 freelist 条目；内容覆写、K8 未删、rc 清零）**→ 槽位轮转（JSON/空串/…）→ #589 轮转至「你好」→ 点击时 K8 残键命中返回 2348。UI 层 encode/VM_HANDLER_CALL 实参全程正确，漂移点=VM 字符串池内化 | `src/vm/engine.rs add_string`：dedup 命中只查墓碑（D26）不校验槽内容；幻影 freelist 条目注入源（槽存活入 freelist）属 060 计划 RC 债（0e2ea2e 家族），本批不改语义只加签名 | **已修（批4+批4b，2026-08-31～09-01，实机验证通过）**：三刀——①`add_string` 命中侧**槽内容校验**（残键内容不一致视为 miss 重内化，insert 覆盖残键，一键一槽不变量自愈）；②`pool_release` rc 归零即写锁复核+**墓碑先行**（关掉 dedup-hit 经未删键复活存活槽的竞态窗）；③`add_string` freelist 弹出**清扫**——rc>0 存活槽丢弃幻影条目绝不复用（不变量消费侧恢复，任何注入源免疫）；`call_handler_for` 保留双 canary（intern 漂移/入栈编码）。回归 `stale_key_selfheal`/`phantom_entry_dropped`/corpus×2/drift×2，`musk_vm_track` 39/39，全量 lib 4217 绿/7 红=基线。**实机复验（2026-09-01）：整列表全部加载**；注入源本体（over-release 家族，清扫器期间 1896 次幻影首见但零伤害）归 060 RC 债。诊断脚手架已移除（保留 title 悬停特性+错误信息实收 id） |
 
 ### 修复批次协议
 
@@ -307,6 +307,17 @@ debug 构建 RC canary panic 等。此前这些问题散落在各计划的红清
     - 回归：`musk_vm_track_p053_b4_title_tooltip` 4 测试（EE03 label / 无 title 纯净 / snapshot title prop / vue `:title` 绑定）；
     - 落点：musk plan-053-dev 54df8c6；auto-lang auto-musk-dev 36afff093（**未合 master**——按协议待实机验证后合回）。
     [⏳ 待实机] 门禁全绿（musk_vm_track 33/33；gen-only 55 组件 0 error；vitest 23+1skip；probe PASS 61608B）；待用户实机悬停/点击判读（tooltip id 对+回显错→实参求值坏；同错→数据/绑定坏），定位后转正式修复项。
+    [✅ 已完成] 判读结论：tooltip 对+回显错→实参求值层坏（P-053-8 确诊，转步骤 23 修复）。
+
+23. P-053-8 根因定位与修复（批4 内闭环，同日）：
+    - 用户实机判读：tooltip 显示正确 id、点击实收「你好」→ 实参求值层坏确诊；
+    - 复现矩阵：脚本级最小/corpus 生产路径（子 widget+store 兄弟调用+扁平化）/池膨胀 70k 全不复发 → 长跑磨损态；
+    - canary①② 埋点 `call_handler_for`（add_string 返回槽内容校验/入栈 NV 编码校验）→ 用户点击即中：`intern drift: arg "8f20…" -> idx 2348 content Some("你好")`；
+    - `P419_POOL_LOG=1` 45s 全池日志时间线重建：槽 2348 为高频复用槽；#223 幻影 freelist 复用（rc=1 存活、无 FREE、旧键未删、内容覆写）为残键注入点；
+    - 修复：`engine.rs add_string` dedup 命中侧槽内容校验（残键→干净重内化+键覆盖自愈）+ freelist 弹 rc>0 槽显式签名；canary 保留；
+    - 回归：`musk_vm_track_p053_8_stale_key_selfheal`/corpus×2/drift×2，`musk_vm_track` 38/38 绿。
+    - **批4 二轮（P-053-8b）**：用户复验「你好」修复但下方会话报 `[收到 id={"error":"HTTP 404"...}]`——同族更深一层：幻影签名刷屏实锤槽 49299 存活(rc=5)被复用→rc 清零→孤儿 release 下溢(4294967295)→再 free→自续风暴；store 兄弟调用读参时活槽被偷、读到后落的 404 JSON。两连修：①`pool_release` rc 归零即写锁复核+**墓碑先行**（关掉 dedup-hit 经未删键复活存活槽的竞态窗）；②`add_string` freelist 弹出**清扫**——rc>0 存活槽丢弃幻影条目绝不复用（不变量从消费侧恢复，任何注入源免疫）。回归 `phantom_entry_dropped_live_slot_never_stolen`；`musk_vm_track` 39/39；全量 lib 4217 绿/7 红=基线。
+    [✅ 已完成] **用户实机复验通过（2026-09-01）：整列表全部加载**。日志实证 ENTER id 全对、12 次成功加载；清扫器期间 1896 次幻影首见——注入源（over-release 家族）仍活跃但偷不到槽、用户可见腐坏=0，归 060 RC 债跟踪。诊断脚手架已移除（musk fd500f1；保留 title 悬停特性+错误信息实收 id）。
 
 ## 复审记录
 
