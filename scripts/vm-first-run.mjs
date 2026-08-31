@@ -10,6 +10,10 @@
 //   RUST_MIN_STACK 仅影响派生线程。若主线程栈溢出，按 D1 阶梯②建
 //   tools/musk-vm-host 微 crate（/STACK 抬升主线程栈），本脚本不改。
 //
+// 桥接注（PLAN-053 P-053-4）：
+//   默认使用 VM+VM 拆分模式（AUTO_VM_MERGE=0），#[api] 调用经 HTTP 桥发送至 AUTO_BACKEND（默认 http://127.0.0.1:9247）。
+//   若显式指定 AUTO_VM_MERGE=1（merged 模式），#[api] 调用桩体会发出一次性 no-op 告警。
+//
 // 观察模式：默认观察 VM_FIRST_RUN_OBSERVE_MS(默认 20000ms) 后 taskkill 收尾；
 //   --keep 不杀进程（留给用户实机目验），此时退出码只反映启动期 fatal。
 // 日志：全量行 tee 至 tmp/plan047-firstrun.log；结尾出

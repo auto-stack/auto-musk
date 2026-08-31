@@ -91,6 +91,16 @@ musk serve
 cd web && npm run dev      # → http://localhost:3000
 ```
 
+**原生 VM GUI 模式（Iced 桌面端）：**
+```bash
+# 启动原生 VM GUI 桌面端（需先起 musk serve，默认连接 127.0.0.1:9247）
+auto run --render=vm
+
+# 环境变量：
+# AUTO_VM_MERGE=0    启用 VM+VM 拆分模式（默认开启；#[api] 经 HTTP 桥连到后端，merged 模式下会显式告警）
+# AUTO_BACKEND=<url> 指定后端服务地址（默认 http://127.0.0.1:9247）
+```
+
 ## 子命令
 
 | 命令 | 作用 |
