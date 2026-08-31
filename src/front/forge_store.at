@@ -76,18 +76,25 @@ store ForgeStore {
                 .workspace = "musk-demo";
                 localStorage.setItem("musk_workspace", "musk-demo")
             };
+            if .workspace != "" {
+                Http.set_default_query("workspace", .workspace)
+            };
             let tk = localStorage.getItem("musk_jwt");
             // PLAN-048:VM 扁平化单状态里 AuthStore.token 与本 store 的 token
             // 撞名合并(均落根状态裸名 token)——缺席时不得清写,否则覆写认证
             // 门的 nil 语义(登录墙失效);仅在有存档 JWT 时回填。
             if tk != None {
-                .token = tk
-            }
+                .token = tk;
+                Http.set_default_header("Authorization", "Bearer " + tk)
+            };
             .LoadSessionList()
         }
 
         // LoadSessionList: 加载列表后，如无选中会话，自动选第一个 + 加载消息。
         .LoadSessionList -> {
+            if .workspace != "" {
+                Http.set_default_query("workspace", .workspace)
+            };
             var resp = chats_list_sessions();
             if resp != None && resp.sessions != None {
                 .session_list = resp.sessions;
@@ -126,6 +133,7 @@ store ForgeStore {
 
         // SwitchSession: 切换 + 回写 session 详情（messages）。
         .SwitchSession(id) -> {
+            print("[ForgeStore.SwitchSession] ENTER id=" + id)
             .session_id = id;
             // PLAN-051 P3-④: 清会话域状态——current_gate/report_data/卡片表
             // 此前跨会话残留，切到空会话时旧 gate/run 卡仍杵在面板上，
@@ -148,7 +156,8 @@ store ForgeStore {
                 .active_leaf = resp.session.active_leaf ?? ""
                 .error = ""
             } else {
-                .error = "会话加载失败（可能已删除），列表已刷新，请重新选择"
+                // PLAN-053 批4: 错误信息携带实收 id（过期会话可对号入座）。
+                .error = "会话加载失败（可能已删除），列表已刷新，请重新选择 [收到 id=" + id + "]"
                 .messages = []
                 let list = chats_list_sessions();
                 if list != None && list.sessions != None {

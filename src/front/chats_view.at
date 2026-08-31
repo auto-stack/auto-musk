@@ -112,19 +112,41 @@ widget ChatsView {
                     col {
                         style: "flex-1 overflow-y-auto px-2"
                         for s in .store.session_list {
-                            // 二级导航 item 收敛 NavItem（nav_item.at）：默认左对齐 +
-                            // card variant（卡片形态），事件 activate/delete 带 id 回传。
-                            NavListItem {
+                            button {
                                 key: .s.id
-                                id: .s.id
-                                title: .s.name
-                                sub: t("chat.msgs", { count: .s.message_count })
-                                active: .s.id == .store.session_id
-                                variant: "card"
-                                deletable: true
-                                delete_title: t("chat.deleteSession")
-                                onactivate: .SelectSession($event)
-                                onremove: .DeleteSession($event)
+                                onclick: .SelectSession(.s.id)
+                                // PLAN-053 批4: 悬停显示会话 id——web 轨 title
+                                // 映射原生属性，VM 轨经 auto-lang title→EE03
+                                // tooltip 接线（renderer 包 iced tooltip）。
+                                title: .s.id
+                                class: if .s.id == .store.session_id {
+                                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-primary/25 bg-primary/10 text-primary"
+                                } else {
+                                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground"
+                                }
+                                span {
+                                    style: if .s.id == .store.session_id {
+                                        "text-[13.6px] font-medium text-primary truncate max-w-full"
+                                    } else {
+                                        "text-[13.6px] text-foreground truncate max-w-full"
+                                    }
+                                    text .s.name
+                                }
+                                row {
+                                    style: "flex items-center gap-1 w-full"
+                                    span {
+                                        style: "text-xs text-muted-foreground"
+                                        text t("chat.msgs", { count: .s.message_count })
+                                    }
+                                    // PLAN-053 批4: info 图标示意"悬停看 id"。
+                                    Info { size: 11, class: "text-muted-foreground shrink-0 ml-auto" }
+                                }
+                                span {
+                                    style: "session-delete-btn hidden absolute right-[6px] top-1/2 -translate-y-1/2 items-center opacity-60 bg-transparent border-none p-[3px]"
+                                    onclick.stop: .DeleteSession(.s.id)
+                                    title: t("chat.deleteSession")
+                                    Trash2 { size: 12 }
+                                }
                             }
                         }
                     }
@@ -291,7 +313,9 @@ widget ChatsView {
             store.LoadSessionList()
         }
 
-        .SelectSession(id) -> { store.SwitchSession(id) }
+        .SelectSession(id) -> {
+            store.SwitchSession(id)
+        }
 
         // SendInput(text): MentionInput 的 onsubmit 回调。先检测 /relay//superpower//spec1
         // 命令（relay_command_match 非 None 表示已处理，runner 接线执行），

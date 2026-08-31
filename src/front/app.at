@@ -107,6 +107,7 @@ widget App {
         .Init -> {
             platformInjectStyles();
             platformSetupAuthFetch();
+            ensure_workspace();
             AuthStore.Init();
             // PLAN-048 T5:VM 轨子部件 Init 生命周期不派发(ChatsView.Init→
             // ForgeStore.Init→LoadSessionList 永不执行),App 级代派等价
