@@ -14,8 +14,8 @@ touched_goals:
   - "P046-2: musk VM 轨 workaround/债务清偿——P-053-1/2/6 五层连环缺口清偿即该目标延续"
 
 affects: [auto-lang/ui, auto-lang/vm]
-current_step: 21
-total_steps: 21
+current_step: 22
+total_steps: 22
 ---
 
 # [PLAN-053] auto-musk VM 版上游统一跟踪（auto-lang 修复伞）
@@ -102,6 +102,7 @@ debug 构建 RC canary panic 等。此前这些问题散落在各计划的红清
 | P-053-6 | **（批1 实机验收发现）**消息气泡内容体空：ChatMessage `blocks` computed（`messageDisplayBlocks(.msg, .is_streaming)`）不求值——气泡骨架+角色头渲染但内容列空 | `AUTO_DEBUG_EMIT=1` 实况：`[VM-CALLFN]` 全量 2008 条中 `messageDisplayBlocks`/`messageBlocks` **零调用**（对照 chatActivePath 590 次）；无报错无告警（静默 None）。**用户目验（2026-08-31 截图1）**：登录后气泡骨架+🧑 You/🤖 AI 角色标记+⑂重试按钮可见，内容体空——与树级诊断一致 | 子组件 prop 实参在合并 computed 表求值上下文缺绑定：`blocks` 体内 `.msg` 是 ChatMessage 的 prop，eval_computed → resolve_expr_to_value 的 bindings/read_state 均无 `msg`（for 循环绑定不跨组件）→ 实参 incomplete → 静默返回 None（`src/ui/aura_view_builder.rs` Call 臂 / `src/ui/dynamic.rs` computed 合并） | **已修（批2，2026-08-31）**：批1 的"computed 不求值"诊断为 Call 臂 swallowed-Err 所误——批2 诊断打印显形后确认 computed 一直在调，真因是**五层连环缺口**（详见执行步骤 13）：①Regex.replace/test 静态 native 缺失（helper 执行即崩）②call_vm_fn 字符串结果降格池索引 ③use.web component 图标臂遮蔽注册组件（正文画成 lucide 图标）④web 字符串方法族六臂缺失（trimEnd 等，落 null）⑤Obj/Array 实参编组 0 占位（msg 变 Int(0)）+ ObjectData 缺键硬报错（`msg.blocks ?? 兜底` 炸）。auto-lang master 801ed776c..053-null-key 系列；实机 7/7 气泡全文可见+会话切换往返干净；musk_vm_track_tests 24 绿 |
 | P-053-M1 | （musk 侧配套，非本计划代码域）会话列表过期 + 切换 404 静默 | 实机：应用选中 `eeb247…` 对后端 404；点 NewSession 刷新后真实会话可选中加载。**用户目验（2026-08-31 截图2）**：点侧栏会话后主面板连气泡骨架都消失（全空白）——代码面机制：SwitchSession 无失败路径，`chats_get_session` 失败（404 或 api no-op）返回 None → `resp.session.messages` 逐级 GET_FIELD 落 0 → `.messages` 被写成垃圾 → for 零行 + 无任何错误提示。注：截图出自本计划复审期的测试实例（agent 拉起），其侧栏「你好」会话不在 8080 后端（复审期 merged 形态复现侧栏为空）——精确后端归属未定，但静默清空机制两条路径（404/no-op）同构 | **已修（批3，2026-08-31）**：`src/front/forge_store.at` 中 `.SwitchSession`、`.LoadSessionList`、`.BranchTo`、`.NewSession` 全面加固守卫为 `if resp != None && resp.session != None`；失败路径清空 `.messages = []` 并设置错误提示 `.error = "会话加载失败（可能已删除），列表已刷新，请重新选择"`，且自动拉取 `chats_list_sessions()` 刷新剔除过期项；测试 `musk_vm_track_p053_m1_guard_behavior` 绿 |
 | P-053-7 | **（复审 1 新登记）**boot 后会话列表恒空：KV 恢复登录态（token 落地、直达聊天视图）但侧栏 0 项、`session_id` 空，须点 NewSession（在后端造垃圾会话）或 Delete 才触发 LoadSessionList 刷新 | 复审实机 2/2 复现（2026-08-31，release 15:15 二进制 + AUTO_VM_MERGE=0 + AUTO_BACKEND=8080）：boot 稳定后 state `session_list: []` / `session_id: ""` 而 token 已恢复；同 token curl 后端 `/api/chats/sessions` 返回 13 会话（该端点甚至不校验 auth，排除认证因素）；点 NewSession 后列表即刻 14 项（桥运行时可用）。批1 执行记录"NewSession 刷新列表→选中"措辞表明当时同现象已存在，被当流程步骤消化而未按协议登记 | 根因：`ForgeStore.Init` 原为裸调用 `LoadSessionList()`，`handler_codegen.rs` 原先只处理带点 receiver `.Sibling()`，导致 boot 时调用未被转译派发。修：`handler_codegen.rs` 扩展支持裸同级消息调用转译；`forge_store.at` 改为显式 `.LoadSessionList()`；测试 `musk_vm_track_p053_7_sibling_handler_calls` 绿 |
+| P-053-8 | **（批4 新登记）**二级导航点击会话（如「你好」）报错：初判 onclick 实参 `.s.id` 被错取成会话名（另一 agent 判断，未实证） | 用户报障（2026-08-31）；4330891 已试 inline 直绑 `onclick: .SelectSession(.s.id)`（NavListItem `$event` 通道嫌疑排除后仍报错）→ 指向 VM event 实参求值/编组层。**待实机取证** | VM onclick 实参求值（`event_to_message_with` 循环绑定编组，`src/ui/aura_view_builder.rs`）；关联 P-053-6 ⑤ Obj/Array 实参编组家族 | **批4 诊断脚手架已布（2026-08-31，待实机定位）**：①musk 侧——侧栏项 `title: .s.id` 悬停显示真 id + info 图标示意 + 点击回显实收 id（调试条/错误信息携带/stdout 三通道）；②auto-lang 侧——普通 button `title` 全轨接线（VM `convert_button` 埋 EE03→renderer 既有 iced tooltip；vue 臂补 title 透传，顺带清偿 web 轨按钮 tooltip 全失效存量缺口；snapshot 剥 EE03 为独立 title prop 供 MCP 断言）；musk 54df8c6 + auto-lang auto-musk-dev 36afff093；`musk_vm_track` 33/33 绿。判读法：tooltip id 对 + 回显 id 错 → 实参求值坏；两者同错 → 列表数据/绑定坏 |
 
 ### 修复批次协议
 
@@ -294,6 +295,18 @@ debug 构建 RC canary panic 等。此前这些问题散落在各计划的红清
     - musk vue 三门禁：`auto build --gen-only` **PASS**；`npx vitest run` **23 passed + 1 skipped**；`node scripts/vm-link-probe.mjs` **PASS 61622B**；
     - musk 后端单元测试：`cargo test`（backend）**100+ 全部通过**。
     [✅ 已完成] 全线门禁通过。
+
+<!-- ───────────────── 批 4（2026-08-31，P-053-8 诊断脚手架） ───────────────── -->
+
+22. P-053-8 二级导航点击会话报错——诊断脚手架 + 普通 button title 全轨接线：
+    - musk `src/front/chats_view.at`：会话项 `title: .s.id`（悬停显示真 id）+ 消息数行尾 Info 图标示意；widget 本地 `debug_click_id` 于 `SelectSession` 回显（canvas 顶调试条 `[debug] SelectSession 收到 id: …`）；
+    - musk `src/front/forge_store.at`：`SwitchSession` 失败路径错误信息携带实收 id（`[收到 id=…]`），ENTER/SUCCESS/FAILED 三点 stdout 打印对齐（修正原 SUCCESS 行误标 messages）；
+    - auto-lang `convert_button`（`aura_view_builder.rs`）：消费 `title` prop 埋 EE03 PUA 标记——renderer Button 臂既有 iced tooltip 通道（原仅 toolbar 合成按钮在用）；
+    - auto-lang `snapshot_builder.rs`：Button 快照剥 EE03 为独立 `title` prop（MCP 断言面直读悬停值）；
+    - auto-lang `ui_gen/vue.rs` button 臂：补 `title` 透传（`title: .s.id` → `:title="s.id"`；此前 shadcn Button 静默丢弃，web 轨全部按钮 tooltip 失效——存量缺口一并清偿）；
+    - 回归：`musk_vm_track_p053_b4_title_tooltip` 4 测试（EE03 label / 无 title 纯净 / snapshot title prop / vue `:title` 绑定）；
+    - 落点：musk plan-053-dev 54df8c6；auto-lang auto-musk-dev 36afff093（**未合 master**——按协议待实机验证后合回）。
+    [⏳ 待实机] 门禁全绿（musk_vm_track 33/33；gen-only 55 组件 0 error；vitest 23+1skip；probe PASS 61608B）；待用户实机悬停/点击判读（tooltip id 对+回显错→实参求值坏；同错→数据/绑定坏），定位后转正式修复项。
 
 ## 复审记录
 
