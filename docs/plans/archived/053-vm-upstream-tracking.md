@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-053
-status: reviewed              # drafting → executing → execution_done → reviewed → archived
+status: archived              # 终态（2026-09-01 用户明示关闭本伞——验收7的归档条件成立；批1-4 全闭环，上游残余注入源已登记 060 RC 债）
 feature_name: vm-upstream-tracking
 author: [zhaopuming]
 created_at: 2026-08-31
