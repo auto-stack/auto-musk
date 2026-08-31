@@ -93,9 +93,13 @@ store ForgeStore {
             if .session_id == "" {
                 if .session_list.length > 0 {
                     .session_id = .session_list[0].id;
+                    // PLAN-053 M1: 自动选中首会话失败时静默跳过（保留空面板），
+                    // 不再把垃圾写进 .messages。
                     let detail = chats_get_session(.session_id);
-                    .messages = detail.session.messages
-                    .active_leaf = detail.session.active_leaf ?? ""
+                    if detail != None {
+                        .messages = detail.session.messages
+                        .active_leaf = detail.session.active_leaf ?? ""
+                    }
                 }
             }
         }
@@ -125,9 +129,21 @@ store ForgeStore {
             .streaming = false
             .current_draft = ""
             .thinking = ""
+            // PLAN-053 M1: 失败路径自愈——chats_get_session 失败（会话已删/
+            // 列表过期 404）返回 None 时，原 `resp.session.messages` 逐级读 0
+            // 把 .messages 写成垃圾 → 面板连气泡骨架都消失且无提示。失败时
+            // 不动 .messages（保留旧渲染）、置错误提示、顺手刷新列表让
+            // 过期项消失（P-053-M1 实测：点 NewSession 刷新后可恢复）。
             var resp = chats_get_session(id);
-            .messages = resp.session.messages
-            .active_leaf = resp.session.active_leaf ?? ""
+            if resp != None {
+                .messages = resp.session.messages
+                .active_leaf = resp.session.active_leaf ?? ""
+                .error = ""
+            } else {
+                .error = "会话加载失败（可能已删除），列表已刷新，请重新选择"
+                let list = chats_list_sessions();
+                .session_list = list.sessions
+            }
         }
 
         // PLAN-043: 切换活跃分支（fork/navigate 同机制），随后重载会话。
@@ -140,9 +156,12 @@ store ForgeStore {
             } else {
                 resp = chats_navigate_session(sid, message_id)
             }
+            // PLAN-053 M1: 重载失败不动 .messages（同 SwitchSession 加固）。
             let detail = chats_get_session(sid);
-            .messages = detail.session.messages
-            .active_leaf = detail.session.active_leaf ?? ""
+            if detail != None {
+                .messages = detail.session.messages
+                .active_leaf = detail.session.active_leaf ?? ""
+            }
         }
 
         // PLAN-043: 从指定 assistant 轮 fork 重试——fork 点为其父 user 消息,
