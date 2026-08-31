@@ -133,6 +133,7 @@ store ForgeStore {
 
         // SwitchSession: 切换 + 回写 session 详情（messages）。
         .SwitchSession(id) -> {
+            print("[ForgeStore.SwitchSession] ENTER id=" + id)
             .session_id = id;
             // PLAN-051 P3-④: 清会话域状态——current_gate/report_data/卡片表
             // 此前跨会话残留，切到空会话时旧 gate/run 卡仍杵在面板上，
@@ -151,11 +152,15 @@ store ForgeStore {
             // 失败时清空 .messages、置错误提示、顺手刷新列表让过期项消失。
             var resp = chats_get_session(id);
             if resp != None && resp.session != None {
+                print("[ForgeStore.SwitchSession] SUCCESS id=" + id)
                 .messages = resp.session.messages
                 .active_leaf = resp.session.active_leaf ?? ""
                 .error = ""
             } else {
-                .error = "会话加载失败（可能已删除），列表已刷新，请重新选择"
+                print("[ForgeStore.SwitchSession] FAILED id=" + id)
+                // PLAN-053 批4: 错误信息携带实收 id——与侧栏 hover tooltip 的
+                // .s.id 对照，直接判定实参是否被错取成会话名。
+                .error = "会话加载失败（可能已删除），列表已刷新，请重新选择 [收到 id=" + id + "]"
                 .messages = []
                 let list = chats_list_sessions();
                 if list != None && list.sessions != None {
