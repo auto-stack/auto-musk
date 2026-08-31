@@ -1,21 +1,21 @@
 ---
 plan_id: PLAN-053
-status: execution_done         # drafting → executing → execution_done → reviewed → archived
+status: reviewed              # drafting → executing → execution_done → reviewed → archived
 feature_name: vm-upstream-tracking
 author: [zhaopuming]
 created_at: 2026-08-31
 updated_at: 2026-09-01
 
-# /auto-plan:review 复审 1 填充（2026-08-31，FAIL——现状快照，供下次复审通过后 merge 消费）：
+# /auto-plan:review 复审 2 填充（2026-09-01，PASS——批1-4 全验，伞维持 open 待后续批）：
 supersedes_spec_components: []   # 未修改任何既有 spec 组件（修复全落 auto-lang 运行时 + musk 单点加固）
 new_spec_components: []          # 未新增 spec 组件（常设伞，修复批次不沉淀独立 spec 面）
 touched_goals:
-  - "P045-2: musk VM 前端链路——上游修复使登录→聊天主链实机可用（7/7 气泡+正文渲染+nil 门控）"
-  - "P046-2: musk VM 轨 workaround/债务清偿——P-053-1/2/6 五层连环缺口清偿即该目标延续"
+  - "P045-2: musk VM 前端链路——上游修复使登录→聊天主链实机可用（7/7 气泡+正文渲染+nil 门控+批4 会话点击链路全列表加载）"
+  - "P046-2: musk VM 轨 workaround/债务清偿——P-053-1/2/6/8 四族缺口清偿即该目标延续"
 
 affects: [auto-lang/ui, auto-lang/vm]
-current_step: 22
-total_steps: 22
+current_step: 23
+total_steps: 23
 ---
 
 # [PLAN-053] auto-musk VM 版上游统一跟踪（auto-lang 修复伞）
@@ -404,3 +404,57 @@ debug 构建 RC canary panic 等。此前这些问题散落在各计划的红清
   先 musk 侧小修闭环，桥语义另立红项观察。
 - （复审 1 新增）PLAN-054 处置：主项 P-053-6 已被本计划批2 吸收，草稿过时
   ——改写为剩余批次（P-053-4/5 + M1 续 + P-053-7）还是废弃重立？
+
+### 复审 2（2026-09-01，/auto-plan:review，结论：**PASS → reviewed**）
+
+**复审范围**：批3（复审 1 修复批）+ 批4（P-053-8 三刀）全额重验；伞本体维持 open。
+**核验基准**：musk worktree `plan-053-dev` @ fd500f1（main..HEAD 4 提交，worktree 干净）；
+auto-lang 已按批次协议逐批合回 master（批4 = 14db39ec1，其后有 498/508 等他人计划正常叠建），
+对照当前 master d8388f4a3 核验。
+
+**门禁复跑（本席全量实跑）**：
+
+- auto-lang 全量：`cargo test -p auto-lang --lib --features ui-iced`（2 线程）
+  **4264 绿 / 8 红 / 99 skip**——7 红为复审 1 已认定的 settings/storage/dock 并行基线；
+  第 8 红 `desktop_protocol::demo::counter_loopback_demo_parity_with_direct_mount`
+  为他人计划（505/508 系）新测试，**单线程单跑绿**，同属并行抖动族，非本计划回归；
+- musk vue 三门禁（worktree）：`auto build --gen-only` **55 组件 0 error**；
+  `npx vitest run` **23 passed + 1 skipped**（worktree web/ 无 node_modules，借主检出跑
+  ——web/src 与 worktree 逐字节一致，diffstat 仅涉 src/front）；`vm-link-probe` **PASS**；
+- 实机：master 版 release（d8388f4a3-dirty，dirty 为他人未提交文档）运行中；
+  最终态（脚手架移除后）经 probe 用当前 .at 构建实跑 + fd500f1 diff 复核（纯删打印/
+  调试条，零逻辑变更）。
+
+**验收标准逐条**：
+
+1. 气泡渲染 — **PASS**：复审 1 snapshot 7/7 证据 + 批4 实机（vm5 日志 ENTER id 全对、
+   12 次成功加载；用户 2026-09-01 确认"整列表都能加载"）。
+2. nil 门控 — **PASS**：复审 1 snapshot 证据维持；批3/4 未触 gate 渲染路径。
+3. P-053-4 — **PASS**：告警代码+测试+probe 运行时捕获实证；文档双落核实——
+   musk `README.md:100-101` + `scripts/vm-first-run.mjs` 桥接注（c9c3b66）；
+   auto-lang README 无涉（文档目标是 musk 运行形态）。
+4. P-053-5 — **PASS**：`musk_vm_track_p053_5_localstorage_rc_canary` 随全量套件绿。
+5. 回归面 — **PASS**：门禁如上；登录三项——KV 恢复直达聊天视图于 vm5/vm6 boot 实证
+   （预填面），Tab/Enter 沿用复审 1 记录（批3/4 未触登录链），记部分复验维持。
+6. 红清单协议 — **PASS**：P-053-8 全证据链登记并闭环；本文件唯一入口成立
+   （复审 1 F2 指出的 silent deferral 模式未再犯）。
+7. 归档条件 — n/a（常设伞豁免，维持 open）。
+
+**复审 1 fix list 核销**：①M1 失败路径（批3 守卫改判+实机演绎：用户 404 场景错误可见+
+列表刷新+messages 清空）✓；②P-053-4 ✓；③P-053-5 ✓；④P-053-7（boot 列表 vm5/vm6
+实况非空）✓；⑤PLAN-054 草稿已删 ✓。
+
+**三查（遗漏/延后/workaround）**：
+
+- 遗漏：无。批4 脚手架按"结案时移除"约定移除（fd500f1），保留项（title 悬停特性、
+  错误信息实收 id、双 canary 哨兵）均为文档化决策。
+- 延后：幻影注入源本体（over-release 族）归上游 RC 债——批4 报告已向用户明示并获
+  接受（非静默）；**F-B（新债候）**：该债的落点指针悬垂——engine.rs 注释指向
+  `docs/plans/060`，实际仅存 `archive/060-closure-syntax.md`（主题不符，悬垂先于本
+  计划存在），auto-lang `DEBTS.md`（12 行）无池债条目。修法：auto-lang 侧 DEBTS.md
+  补一行或重指正确归档；属 auto-lang 自有流程，不阻塞本伞。
+- Workaround（均已文档化，非暗坑）：`call_handler_for` 双 canary（常设哨兵，开销可略）；
+  freelist 丢弃幻影条目以槽位泄漏换正确性（1896 首见实证，060 域）；`[收到 id=…]`
+  错误信息携带原始 id（终用户可见噪音，保留决策已记录，后续可酌情收敛）。
+
+**结论：PASS**。status → reviewed。伞不归档（验收 7），后续批继续走 work→review 循环。
