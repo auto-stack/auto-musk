@@ -76,18 +76,25 @@ store ForgeStore {
                 .workspace = "musk-demo";
                 localStorage.setItem("musk_workspace", "musk-demo")
             };
+            if .workspace != "" {
+                Http.set_default_query("workspace", .workspace)
+            };
             let tk = localStorage.getItem("musk_jwt");
             // PLAN-048:VM 扁平化单状态里 AuthStore.token 与本 store 的 token
             // 撞名合并(均落根状态裸名 token)——缺席时不得清写,否则覆写认证
             // 门的 nil 语义(登录墙失效);仅在有存档 JWT 时回填。
             if tk != None {
-                .token = tk
-            }
+                .token = tk;
+                Http.set_default_header("Authorization", "Bearer " + tk)
+            };
             .LoadSessionList()
         }
 
         // LoadSessionList: 加载列表后，如无选中会话，自动选第一个 + 加载消息。
         .LoadSessionList -> {
+            if .workspace != "" {
+                Http.set_default_query("workspace", .workspace)
+            };
             var resp = chats_list_sessions();
             if resp != None && resp.sessions != None {
                 .session_list = resp.sessions;
