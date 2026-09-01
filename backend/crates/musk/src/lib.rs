@@ -6,6 +6,7 @@ pub mod app_config;
 pub mod auth;
 pub mod chats;
 pub mod conversation;
+pub mod dev_seed;
 pub mod edit_diff;
 pub mod mode;
 pub mod orch_tools;

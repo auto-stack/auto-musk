@@ -147,6 +147,9 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         // cannot obtain the picked dir's absolute path, so the local serve
         // process opens the OS dialog (rfd) and returns the path.
         .merge(crate::workspace::pick_routes())
+        // Dev/demo run seeding (block-demo 展示) — hw route: inject a fully
+        // formed RunEntry into the in-memory relay store (runs never persist).
+        .merge(crate::dev_seed::dev_routes())
         // Serve config-page.js + any other static assets at the root.
         .fallback_service(static_service)
         .layer(cors)
