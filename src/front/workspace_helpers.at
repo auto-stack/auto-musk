@@ -43,6 +43,22 @@ fn ws_find(recent []Value, id str) Value {
     return None
 }
 
+/** 按名称子串过滤（大小写不敏感；query 空串返回原列表）。供选择器搜索框用：
+ * str.contains 只在 fn 内正确转译为 includes，view 表达式侧不可用。 */
+fn ws_filter_recent(recent []Value, query str) []Value {
+    if query == "" {
+        return recent
+    }
+    var out []Value = []
+    let q = query.to_lower()
+    for w in recent {
+        if w.name.to_lower().contains(q) {
+            out.push(w)
+        }
+    }
+    return out
+}
+
 /** 弹出系统文件夹选择器（本机 serve 进程代弹原生对话框；取消/失败返回 None）。 */
 fn ws_pick() Value {
     try {
