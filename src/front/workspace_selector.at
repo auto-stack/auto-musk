@@ -16,7 +16,7 @@
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web component Folder, FolderOpen, ChevronUp, ChevronDown, X from "src/front/ports/icons.at"
-use.web ws_load_recent, ws_load_current, ws_find, ws_browse, ws_open from "src/front/workspace_helpers.at"
+use.web ws_load_recent, ws_load_current, ws_find, ws_pick, ws_open from "src/front/workspace_helpers.at"
 
 widget WorkspaceSelector() {
     computed {
@@ -25,13 +25,11 @@ widget WorkspaceSelector() {
         hasCurrent => .current != None
         showEmpty => .recent.length == 0
     }
-    msg Msg { Toggle, Choose(str), Close, OnBrowseInput, OpenCustom, SelectSuggestion(str) }
+    msg Msg { Toggle, Choose(str), Close, PickFolder }
     model {
         var open bool = false
         var current obj = None
         var recent obj = []
-        var custom_path str = ""
-        var suggestions obj = []
     }
     on {
         .Init -> {
@@ -55,26 +53,17 @@ widget WorkspaceSelector() {
         }
         .Close -> { .open = false }
 
-        // browse：输入含路径分隔符时实时建议子目录
-        .OnBrowseInput -> {
-            .suggestions = ws_browse(.custom_path).await
-        }
-
-        // 选建议项 → 填入 custom_path
-        .SelectSuggestion(path) -> {
-            .custom_path = path;
-            .suggestions = []
-        }
-
-        // 打开自定义路径（后端注册为新 workspace + reload 切换）
-        .OpenCustom -> {
-            if .custom_path != "" {
-                let meta = ws_open(.custom_path).await;
+        // 弹系统文件夹选择器（本机 serve 进程经 rfd 代弹）→ 选中路径注册为
+        // workspace 并写 localStorage（对齐 Choose），reload 后即当前 workspace。
+        // 取消/失败静默不动。
+        .PickFolder -> {
+            let path = ws_pick().await;
+            if path != None {
+                let meta = ws_open(path).await;
                 if meta != None {
+                    storage.set("musk_workspace", meta.id);
                     .current = meta;
                     .open = false;
-                    .custom_path = "";
-                    .suggestions = [];
                     location.reload()
                 }
             }
@@ -92,10 +81,13 @@ widget WorkspaceSelector() {
   .ws-btn:hover { background: hsl(var(--accent)); }
   .ws-name { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ws-panel {
-    position: absolute; bottom: 100%; left: 0; right: 0; margin-bottom: 4px;
+    position: absolute; bottom: 100%; left: 0; margin-bottom: 4px;
+    /* 宽度适配内容（随最近项/路径撑开），不低于触发钮宽，超宽封顶并截断；
+       overflow-x 钉死 hidden（overflow-y:auto 会把 x 也抬成 auto，出横向滚动条） */
+    width: max-content; min-width: 100%; max-width: min(26rem, 90vw);
     background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); padding: 0.5rem; z-index: 50;
-    max-height: 320px; overflow-y: auto;
+    max-height: 320px; overflow-x: hidden; overflow-y: auto;
   }
   .ws-panel-header {
     display: flex; align-items: center; justify-content: space-between;
@@ -105,32 +97,21 @@ widget WorkspaceSelector() {
   .ws-close:hover { color: hsl(var(--foreground)); }
   .ws-section-label { font-size: 0.7rem; color: hsl(var(--muted-foreground)); padding: 0.2rem 0.3rem; }
   .ws-item {
-    display: flex; align-items: center; gap: 0.35rem; width: 100%;
+    /* justify-start：ui Button 基类自带 justify-center，内容超宽时从两侧
+       溢出（图标被左缘裁切）——scoped 高优先级钉回左对齐 */
+    display: flex; justify-content: flex-start; align-items: center; gap: 0.35rem; width: 100%;
     padding: 0.35rem 0.4rem; border: none; border-radius: 4px; background: transparent;
-    cursor: pointer; font-size: 0.75rem; text-align: left;
+    cursor: pointer; font-size: 0.75rem; text-align: left; white-space: nowrap;
   }
   .ws-item:hover { background: hsl(var(--accent)); }
   .ws-item.active { background: hsl(var(--primary) / 0.1); color: hsl(var(--primary)); }
   .ws-item-name { flex-shrink: 0; font-weight: 500; }
   .ws-item-path {
-    flex: 1; font-size: 0.68rem; color: hsl(var(--muted-foreground));
+    flex: 1; min-width: 0; font-size: 0.68rem; color: hsl(var(--muted-foreground));
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .ws-empty { padding: 0.5rem; text-align: center; font-size: 0.72rem; color: hsl(var(--muted-foreground)); }
-  /* browse 选目录（打开其他文件夹）—— 对齐 web WorkspaceSelector scoped 样式 */
   .ws-divider { height: 1px; background: hsl(var(--border)); margin: 0.4rem 0; }
-  .ws-input {
-    width: 100%; box-sizing: border-box; background: hsl(var(--background));
-    border: 1px solid hsl(var(--border)); border-radius: 4px;
-    padding: 0.35rem 0.5rem; color: hsl(var(--foreground)); font-size: 0.8rem;
-  }
-  .ws-suggest { max-height: 120px; overflow-y: auto; }
-  .ws-suggest-item {
-    display: block; width: 100%; background: none; border: none;
-    padding: 0.3rem 0.5rem; text-align: left; cursor: pointer;
-    color: hsl(var(--foreground)); font-size: 0.78rem; border-radius: 4px;
-  }
-  .ws-suggest-item:hover { background: hsl(var(--muted-foreground) / 0.08); }
   .ws-open-btn {
     display: flex; align-items: center; gap: 0.4rem; width: 100%; justify-content: center;
     margin-top: 0.4rem; background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
@@ -170,7 +151,7 @@ widget WorkspaceSelector() {
             }
             if .open {
                 div {
-                    style: "ws-panel w-full mb-1 bg-card border border-border rounded-lg p-2 flex flex-col"
+                    style: "ws-panel mb-1 bg-card border border-border rounded-lg p-2 flex flex-col"
                     div {
                         style: "ws-panel-header flex items-center justify-between text-xs font-semibold text-muted-foreground mb-1"
                         span "切换 Workspace"
@@ -205,35 +186,13 @@ widget WorkspaceSelector() {
                             text "暂无工作区"
                         }
                     }
-                    // 打开其他文件夹（browse 选目录）
+                    // 选择其他文件夹（弹系统文件夹选择器，选中即切 workspace）
                     div { style: "ws-divider h-px bg-border my-1" }
-                    div {
-                        style: "ws-section-label text-[0.7rem] text-muted-foreground px-0.5 py-0.5"
-                        text "打开其他文件夹"
-                    }
-                    input {
-                        value: .custom_path
-                        oninput: .OnBrowseInput
-                        placeholder: "D:\\path\\to\\project"
-                        style: "ws-input w-full bg-background border border-border rounded px-1.5 py-1 text-foreground text-xs"
-                    }
-                    if .suggestions.length > 0 {
-                        div {
-                            style: "ws-suggest"
-                            for s in .suggestions {
-                                button {
-                                    onclick: .SelectSuggestion(.s.path)
-                                    style: "ws-suggest-item"
-                                    text .s.name
-                                }
-                            }
-                        }
-                    }
                     button {
-                        onclick: .OpenCustom
+                        onclick: .PickFolder
                         style: "ws-open-btn w-full flex items-center justify-center gap-1 mt-1 py-1.5 rounded-md bg-primary text-primary-foreground text-xs"
                         FolderOpen { size: 13 }
-                        text "打开"
+                        text "选择其他文件夹"
                     }
                 }
             }

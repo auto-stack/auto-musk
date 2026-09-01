@@ -435,6 +435,39 @@ impl WorkspaceStores {
     }
 }
 
+// ============================================================
+// Native folder picker route (hw 轨,serve() merge 进 ag 主 router)。
+// 浏览器拿不到用户所选目录的绝对路径(File System Access API 只暴露
+// handle 名),而 /api/workspace/open 需要绝对路径——由本机 serve 进程经
+// rfd 弹原生系统文件夹选择器,选中即回路径。与 plans::plans_routes 同
+// 模式(hw 路由;KNOWN-DEBT: a2r 对齐后可迁 ag 轨)。
+// ============================================================
+
+use axum::{
+    routing::post,
+    Json, Router,
+};
+
+use crate::server::AppState;
+
+/// `POST /api/workspace/pick` — 弹出系统文件夹选择器,返回 `{"path": "..."}`;
+/// 用户取消/失败返回 `{"path": null}`。对话框模态等待用户,阻塞放在
+/// spawn_blocking(独占 blocking 线程,不占 worker)。
+async fn workspace_pick() -> Json<serde_json::Value> {
+    let picked = tokio::task::spawn_blocking(|| rfd::FileDialog::new().pick_folder())
+        .await
+        .ok()
+        .flatten();
+    Json(serde_json::json!({
+        "path": picked.map(|p| p.to_string_lossy().to_string())
+    }))
+}
+
+/// workspace 扩展路由(原生文件夹选择)。
+pub fn pick_routes() -> Router<AppState> {
+    Router::new().route("/api/workspace/pick", post(workspace_pick))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

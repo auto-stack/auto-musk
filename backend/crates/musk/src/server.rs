@@ -143,6 +143,10 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         // Spec module-tree browser (PLAN-025) — hw escape-hatch reusing
         // wiki::build_tree; serves docs/specs/ knowledge layer (008 §5).
         .merge(crate::spec_tree::spec_tree_routes())
+        // Native folder picker (workspace_switch UX) — hw route: the browser
+        // cannot obtain the picked dir's absolute path, so the local serve
+        // process opens the OS dialog (rfd) and returns the path.
+        .merge(crate::workspace::pick_routes())
         // Serve config-page.js + any other static assets at the root.
         .fallback_service(static_service)
         .layer(cors)

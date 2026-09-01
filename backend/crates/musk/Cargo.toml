@@ -53,6 +53,9 @@ tempfile = "3"
 unicode-normalization = "0.1"
 # PLAN-039: per-path 写互斥(edit_file 读-改-写串行化);纯 Rust 无构建脚本
 dashmap = "6"
+# POST /api/workspace/pick:原生系统文件夹选择器(浏览器拿不到所选目录绝对路径,
+# 由本机 serve 进程代弹;Windows 走 IFileDialog,无额外系统依赖)
+rfd = "0.15"
 
 [dev-dependencies]
 ureq = "2"

@@ -43,30 +43,25 @@ fn ws_find(recent []Value, id str) Value {
     return None
 }
 
-/** 浏览目录条目（仅当 path 含路径分隔符时查询，避免根目录长列表）。 */
-fn ws_browse(path str) []Value {
-    var has_sep = false
-    if path.contains("/") {
-        has_sep = true
-    }
-    if path.contains("\\") {
-        has_sep = true
-    }
-    if has_sep == false {
-        return []
-    }
+/** 弹出系统文件夹选择器（本机 serve 进程代弹原生对话框；取消/失败返回 None）。 */
+fn ws_pick() Value {
     try {
-        let data = Http.get("/api/workspace/browse?path=" + encodeURIComponent(path))
-        return data.entries ?? []
+        let data = Http.post("/api/workspace/pick", {})
+        return data.path ?? None
     } catch {
-        return []
+        return None
     }
 }
 
-/** 打开/切换到指定路径的 workspace（失败返回 None）。 */
+/** 打开/切换到指定路径的 workspace（失败返回 None）。响应为
+ * {workspace: meta} 包裹结构，此处解包成 meta 本体（对齐 ws_load_current）。 */
 fn ws_open(path str) Value {
     try {
-        return Http.post("/api/workspace/open", { "path": path })
+        let data = Http.post("/api/workspace/open", { "path": path })
+        if data.workspace != None {
+            return data.workspace
+        }
+        return data
     } catch {
         return None
     }
