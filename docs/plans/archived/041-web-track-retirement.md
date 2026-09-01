@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-041
-status: reviewed
+status: archived
 feature_name: web 手写轨退役——gen(Auto/vue)轨转正为生产前端
 author: [zhaopuming]
 created_at: 2026-08-23
-updated_at: 2026-08-29
+updated_at: 2026-09-01
 
 supersedes_spec_components:
   - "web/ 手写前端轨(生产真源地位 → 冻结/退役,回滚指针 MUSK_WEB_DIST)"
@@ -408,6 +408,14 @@ Phase 1"未随 041 闭环——该裁定自始不在 041 范围,仍以 038 行�
 ### 路由裁定
 
 验收 1/2/3/5 + 存量不变量全 pass;唯 4(观察期)为**未到期的时间门**——无可执行的修复动作(回 /auto-plan:work 无意义)。裁定:**status → reviewed**,`/auto-plan:merge` 的执行前提 = 观察期 2026-09-03 期满无 P0(届时 T15 收口动作一并落:冻结转永久判定)。用户指令序列(债务收口 → 本复审)与此裁定一致。
+
+**归档收口(2026-09-01,/auto-plan:merge)**:用户裁定观察期提前收口——原时间门
+2026-09-03,实际窗口 2026-08-27→09-01 持续零 P0/零回滚(web/ 零提交,生产持续跑
+gen 轨),验收 4 以用户裁定形式落定。T15 冻结转永久判定一并落:web/FROZEN.md
+更新为永久冻结 + "start-musk-web.cmd 待 T12"陈旧措辞修正(复审移交项);GateBanner/
+OnboardingDialog 两项残余并入 KNOWN-DEBT 041 行跟踪;URL 路由桥残余与浏览器手动
+实测维持 041 行②原登记。spec 沉淀:specs.json P041-1..7(摘要/目标/架构/详细设计/
+测试/验收+复审)。status → **archived**(终态)。
 
 ## 待澄清事项
 
