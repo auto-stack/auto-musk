@@ -270,20 +270,34 @@ fn messageDisplayBlocks(msg obj, streaming bool) obj {
 
 /**
  * 粗略 token 估算（显示用）：CJK 字符 ≈ 0.9 token/字，其余 ≈ 4 字符/token。
+ *
+ * PLAN-055 双轨等价重写（P055 探针链实锤）：
+ *   - 旧形态 `c.char_code_at(0)` 作用在 for-in 循环字符上——VM 轨码点接收者
+ *     方法分派落 Nil，cjk 恒 0；
+ *   - 旧形态 `Math.round(cjk * 0.9 + …)`——VM 轨 int×float 产出未打标签的
+ *     位型垃圾、Math.round 归 0，恒得 max(1,0)=1（"1 tokens" 现场根因）。
+ *   现改索引式 char_code_at（TS charCodeAt / VM str 臂同值）+ for-in 计数
+ *   （TS for-of 码点数 / VM ARRAY_LEN 字符数同值）+ 整数定点四舍五入
+ *   （×10000 定点，TS 侧 `/` 注入 Math.trunc 与 VM int 除同语义）。
  */
 fn estimateTokens(text str) int {
     if text == None { return 0 }
     if text == "" { return 0 }
-    var cjk = 0
+    var total = 0
     for c in text {
-        let code = c.char_code_at(0)
+        total = total + 1
+    }
+    var cjk = 0
+    for i in 0..total {
+        let code = text.char_code_at(i)
         if (code >= 19968 && code <= 40959) || (code >= 12352 && code <= 12543) || (code >= 44032 && code <= 55215) {
             cjk = cjk + 1
         }
     }
-    let nonCjk = text.length - cjk
-    // ×0.25 而非 /4：a2ts 对 `/` 注入 Math.trunc（int 除语义）会破坏四舍五入
-    return Math.max(1, Math.round(cjk * 0.9 + nonCjk * 0.25))
+    let nonCjk = total - cjk
+    // 0.9 / 0.25 的 ×10000 定点；+5000 实现四舍五入（旧 Math.round 语义）。
+    let scaled = cjk * 9000 + nonCjk * 2500
+    return Math.max(1, (scaled + 5000) / 10000)
 }
 
 /** ThinkBlock 头部 label。 */

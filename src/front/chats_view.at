@@ -95,17 +95,22 @@ widget ChatsView {
                 width_class: "w-[220px]"
                 slot(name: "actions") {
                     // Plan 407：lucide 图标作 button 子节点（parser 增强后原生支持）。
+                    // PLAN-055: icon-only 方钮（variant="icon" 语义经单源类表达，
+                    // 两轨一致——gen 侧 shadcn Button 无 icon variant，VM 侧默认
+                    // 预设(紫底 + h-10 px-4)由后置类逐项覆盖）。px-0/py-0 显式
+                    // 清预设内边距（414 R13：负内容宽 → 图标不可见）；
+                    // text-muted-foreground 双主题自适应（深色下浅色图标）。
                     button {
                         onclick: .NewSession
-                        style: "inline-flex items-center justify-center h-[26px] px-2 text-xs border border-border rounded-md bg-transparent text-foreground hover:bg-accent"
+                        style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent border border-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
                         title: t("chat.newSession")
-                        Plus { size: 14 }
+                        Plus { size: 16 }
                     }
                     button {
                         onclick: .DeleteAllSessions
-                        style: "inline-flex items-center justify-center h-[26px] px-2 text-xs border border-border rounded-md bg-transparent text-foreground hover:bg-accent"
+                        style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent border border-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
                         title: t("chat.deleteAllSessions")
-                        Trash2 { size: 14 }
+                        Trash2 { size: 16 }
                     }
                 }
                 slot(name: "list") {
@@ -221,7 +226,9 @@ widget ChatsView {
                                         button {
                                             // R006(strict):v-for 项需 :key。
                                             key: be.sib.id
-                                            style: "text-[11px] py-[1px] px-2 rounded-full border border-border bg-transparent text-muted-foreground cursor-pointer max-w-[160px] truncate"
+                                            // PLAN-055: 显式高度——VM button 默认
+                                            // size 预设 h-10 会把 pill 撑成大块。
+                                            style: "text-[11px] h-[22px] py-[1px] px-2 rounded-full border border-border bg-transparent text-muted-foreground cursor-pointer max-w-[160px] truncate"
                                             text "⑂ " + chatBranchLabel(be.sib.content)
                                             onclick: .BranchTo(be.sib.id, "navigate")
                                         }
@@ -229,7 +236,7 @@ widget ChatsView {
                                 }
                                 if .msg.role == "assistant" {
                                     button {
-                                        style: "text-[11px] py-[1px] px-2 rounded-full border border-dashed bg-transparent text-muted-foreground cursor-pointer hover:text-foreground"
+                                        style: "text-[11px] h-[22px] py-[1px] px-2 rounded-full border border-dashed bg-transparent text-muted-foreground cursor-pointer hover:text-foreground"
                                         text "⑂ 重试"
                                         onclick: .RetryFrom(.msg)
                                     }

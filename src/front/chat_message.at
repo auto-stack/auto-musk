@@ -22,6 +22,7 @@
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web component Markdown from "src/front/ports/renderer.at"
+use.web component Copy from "src/front/ports/icons.at"
 use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens from "src/front/forge_helpers.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
@@ -30,9 +31,17 @@ use think_block: ThinkBlock
 use tool_block: ToolBlock
 
 widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj) {
+    msg Msg { CopyContent }
+    on {
+        // PLAN-055: AI 消息工具栏 copy（对齐 web 原版 message-toolbar）。
+        .CopyContent -> {
+            dom.copy_text(.msg.content)
+        }
+    }
     computed {
         role => .msg.role
         isUser => .role == "user"
+        isAssistant => .role == "assistant"
         rowClass => if .isUser {
             "flex flex-col gap-[3px] max-w-[85%] self-end items-end"
         } else {
@@ -72,7 +81,11 @@ widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task
             // 内容（按 role 分支）
             if .isUser {
                 col {
-                    style: "msg-bubble-user px-[14px] py-[10px] rounded-xl rounded-br text-[15px] leading-[1.6] break-words bg-primary text-primary-foreground"
+                    // PLAN-055: self-end——web 父列 items-end 已使气泡抱合右靠；
+                    // VM 轨 visual-wrap 容器此前无条件 Fill（全宽紫条形态），
+                    // renderer 对 self-end 列改为 Shrink+右对齐（055 配套），
+                    // 该类是 VM 侧抱合的触发器（web 侧冗余无害）。
+                    style: "msg-bubble-user self-end px-[14px] py-[10px] rounded-xl rounded-br text-[15px] leading-[1.6] break-words bg-primary text-primary-foreground"
                     UserMessage(content: .userContent)
                 }
             } else {
@@ -94,6 +107,19 @@ widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task
                         } else {
                             ToolBlock(tc: .block.tc, errands: .errands, relays: .relays, task_plans: .task_plans)
                         }
+                    }
+                }
+            }
+            // PLAN-055: AI 消息工具栏（对齐 web 原版 message-toolbar：copy 靠右）。
+            // 单源新增，gen Vue 轨同步获得（web 原版同款能力）。
+            if .isAssistant {
+                row {
+                    style: "flex items-center justify-end gap-1 mt-[2px] px-[3px]"
+                    button {
+                        onclick: .CopyContent
+                        style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                        title: "Copy"
+                        Copy { size: 13 }
                     }
                 }
             }
