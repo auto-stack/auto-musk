@@ -219,9 +219,9 @@ auto-lang（iced renderer.rs / class.rs / slot 臂 / icons VM 桥；只动渲染
   318d011a8 + release 重装 + plan050_ 13 绿 + probe PASS 61419B + first-run
   reds=0（见 Phase 2 收口记录）。
 - [x] **T11** musk 验收对拍：四界面 VM/浏览器截图并排核对（验收标准 1-4 逐项），
-  必要 .at 微调在 `.worktrees/plan-050-dev`；对拍材料存 `docs/plans/050-review/`。
+  必要 .at 微调在 `.worktrees/plan-050-dev`；对拍材料存 `docs/plans/archived/050-review/`。
   验证：清单 4/4 勾完。
-  [✅ 已完成] t11-checklist.md 4/4 + 050-review/ 三截图（2026-08-30 复审记录）；
+  [✅ 已完成] t11-checklist.md 4/4 + archived/050-review/ 三截图（2026-08-30 复审记录）；
   准则 2 补证闭环（2026-08-31 补证复审）。
 - [x] **T12** 全量门禁 + 收尾：vue 三门禁 + style-parity + 探针 + first-run 全绿；
   KNOWN-DEBT 增 050 行；worktree 折叠（auto-musk-dev 与 plan-050-dev 合回各自

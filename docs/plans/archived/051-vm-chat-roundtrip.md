@@ -217,7 +217,7 @@ RC canary 阻断主界面渲染——KD-048-b 同族，不在本计划）。实�
   对拍）+ style-parity 58 用例 + `scripts/vm-link-probe.cmd` PASS +
   `node scripts/vm-first-run.mjs` alive reds=0。
 - 会话闭环验收：`musk serve` :8081 + VM 实例，MCP `autoui_snapshot`/`autoui_state`
-  双证（气泡入列/状态回写），材料存 `docs/plans/051-review/`。
+  双证（气泡入列/状态回写），材料存 `docs/plans/archived/051-review/`。
 
 ## 验收标准
 
@@ -330,7 +330,7 @@ RC canary 阻断主界面渲染——KD-048-b 同族，不在本计划）。实�
 - [x] **T8** musk 发送链路+列表渲染实测：worktree plan-051-dev 起实例，Enter/按钮
   → `.SendInput` → `chats_send_message` → 列表刷新 → 气泡入列；气泡/名字/时间/
   分向/正文降级逐项核对；必要 .at 微调在 worktree。验证：MCP 快照+状态双证存
-  `docs/plans/051-review/`。
+  `docs/plans/archived/051-review/`。
   [✅ 已完成] 数据面全通（会话切换 NavListItem→SelectSession→messages 入态；
   按钮发送 MentionInput.send→C2①onsend→SendInput→store.Send+StartStream→
   streaming=true→chats_send_message 后端 count 2→3 末条即所发文本 curl 实证）。
@@ -341,7 +341,7 @@ RC canary 阻断主界面渲染——KD-048-b 同族，不在本计划）。实�
   i18n 模板未插值；**发送后用户气泡不可见**定责 T10（乐观 push 仅 web 轨
   forge_stream.ts，VM 无 SSE 无轮询，非 C1-C4 回归）。musk 侧 .at 修正 3 处 +
   上游随修 2 项（call_vm_fn retain 悬挂 id 根因+回归锁，auto-musk-dev@4e0d9ffff）。
-  证据=docs/plans/051-review/{SEND-EVIDENCE.md（含视觉核对节）,01/02 快照,
+  证据=docs/plans/archived/051-review/{SEND-EVIDENCE.md（含视觉核对节）,01/02 快照,
   t8-01/02 截图,vm-run-t8.log}。
   **补录（2026-08-30 续测，日志铁证）**：SendInput 崩溃点定位——
   `handler_ChatsView_SendInput` 内 StartStream 的 `Sse.open(path, .OnStreamEvent)`
