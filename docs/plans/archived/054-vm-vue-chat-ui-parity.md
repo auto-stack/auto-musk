@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-054
-status: reviewed
+status: archived
 feature_name: VM/Vue 聊天主界面一致性第二批（截图对拍 15 项）+ Vue NavItem 导航回归
 author: [zhaopuming]
 created_at: 2026-09-01
