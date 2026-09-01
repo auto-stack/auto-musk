@@ -519,6 +519,15 @@ impl RunStore {
         runs.get(run_id).map(build_run_state)
     }
 
+    /// Dev/demo seeding (block-demo 展示用):直接把一个完整 RunEntry 插进内存
+    /// store,绕过 start_run 的真实 agent 链路。run 本就是纯内存态(进程退出
+    /// 即失),重启后由种子方重新注入。
+    pub fn seed(&self, entry: RunEntry) {
+        let run_id = entry.run_id.clone();
+        let mut runs = self.runs.lock().unwrap();
+        runs.insert(run_id, entry);
+    }
+
     pub fn list(&self) -> Vec<RunSummary> {
         let runs = self.runs.lock().unwrap();
         let mut summaries: Vec<RunSummary> = runs.values().map(build_run_summary).collect();
