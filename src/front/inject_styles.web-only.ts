@@ -105,6 +105,75 @@ a { color: hsl(var(--primary)); }
    caret/focus-within 光环）——VM 不解析这些类,恰好保持"VM 直接显字"的
    平台非对称;此处原规则块删除（迁移矩阵 docs/designs/010 A1-A3b）。 */
 /* PLAN-050: send-btn 钩子在 gen 轨零元素,死规则删除。 */
+/* ══ PLAN-054 B1：@autodown/vue 深色主题覆盖（最小集）══
+   vendor style.css 全硬编码浅色 design token（正文/标题 #111827、
+   表格/代码块 #e5e7eb/#f8f9fa、blockquote、details、admonition）,
+   .dark 下深底浅字不可读。统一改挂 musk 主题变量（.dark 域内自动
+   取暗值）;admonition 保色相降明度。vendor scoped data-attr 与本块
+   特异性打平,注入顺序（head 末尾 <style>）取胜。 */
+.dark .streaming-document .markstream-vue,
+.dark .streaming-document h1,
+.dark .streaming-document h2,
+.dark .streaming-document h3,
+.dark .streaming-document td,
+.dark .streaming-document th,
+.dark .streaming-document pre code,
+.dark .streaming-document .mermaid-source-code,
+.dark .streaming-document details summary { color: hsl(var(--foreground)); }
+.dark .streaming-document table th,
+.dark .streaming-document table td,
+.dark .streaming-document th,
+.dark .streaming-document td,
+.dark .streaming-document hr { border-color: hsl(var(--border)); }
+.dark .streaming-document table th,
+.dark .streaming-document th { background: hsl(var(--muted) / 0.5); }
+.dark .streaming-document tr:nth-child(2n),
+.dark .streaming-document table tr:nth-child(2n) { background: hsl(var(--muted) / 0.35); }
+.dark .streaming-document code {
+  background: hsl(var(--muted) / 0.6);
+  color: hsl(var(--foreground));
+}
+.dark .streaming-document pre[data-language],
+.dark .streaming-document pre:not([data-language]),
+.dark .streaming-document .mermaid-source-panel { background: hsl(var(--card)); border-color: hsl(var(--border)); }
+.dark .streaming-document .codeblock-language-badge,
+.dark .streaming-document .mermaid-block-header { background: hsl(var(--muted) / 0.5); border-color: hsl(var(--border)); color: hsl(var(--muted-foreground)); }
+.dark .streaming-document pre[data-language] .codeblock-language-badge { background: hsl(var(--muted) / 0.5); border-color: hsl(var(--border)); }
+.dark .streaming-document .code-block-container { background: hsl(var(--card)) !important; border-color: hsl(var(--border)) !important; }
+.dark .streaming-document .code-block-header { background: hsl(var(--muted) / 0.6); border-color: hsl(var(--border)); color: hsl(var(--foreground)); }
+.dark .streaming-document blockquote { border-left-color: hsl(var(--border)); color: hsl(var(--muted-foreground)); }
+.dark .streaming-document details { border-color: hsl(var(--border)); background: hsl(var(--card)); }
+.dark .streaming-document details summary { background: hsl(var(--muted) / 0.5); }
+.dark .streaming-document details summary:hover { background: hsl(var(--muted) / 0.8); }
+.dark .streaming-document details[open] summary { border-bottom-color: hsl(var(--border)); }
+.dark .streaming-document details summary:before { color: hsl(var(--muted-foreground)); }
+.dark .streaming-document details .details-content { background: hsl(var(--muted) / 0.25); }
+/* admonition：保色相、暗底亮字（vendor !important 需同量级对冲） */
+.dark .streaming-document .admonition-legend { background: hsl(var(--card)) !important; }
+.dark .streaming-document .admonition-content { color: hsl(var(--foreground)) !important; }
+.dark .streaming-document .admonition-note { background: hsl(222 60% 18%) !important; border-color: hsl(222 60% 30%) !important; }
+.dark .streaming-document .admonition-note .admonition-legend { color: #93c5fd !important; }
+.dark .streaming-document .admonition-info { background: hsl(199 60% 16%) !important; border-color: hsl(199 60% 28%) !important; }
+.dark .streaming-document .admonition-info .admonition-legend { color: #7dd3fc !important; }
+.dark .streaming-document .admonition-tip { background: hsl(142 55% 14%) !important; border-color: hsl(142 55% 26%) !important; }
+.dark .streaming-document .admonition-tip .admonition-legend { color: #86efac !important; }
+.dark .streaming-document .admonition-warning,
+.dark .streaming-document .admonition-caution { background: hsl(38 65% 15%) !important; border-color: hsl(38 65% 28%) !important; }
+.dark .streaming-document .admonition-warning .admonition-legend,
+.dark .streaming-document .admonition-caution .admonition-legend { color: #fcd34d !important; }
+.dark .streaming-document .admonition-danger,
+.dark .streaming-document .admonition-error { background: hsl(0 55% 16%) !important; border-color: hsl(0 55% 28%) !important; }
+.dark .streaming-document .admonition-danger .admonition-legend,
+.dark .streaming-document .admonition-error .admonition-legend { color: #fca5a5 !important; }
+.dark .streaming-document .mermaid-block-container,
+.dark .streaming-document .mermaid-preview-area { background: hsl(var(--card)); border-color: hsl(var(--border)); }
+.dark .streaming-document .mermaid-block-container>div:not(.mermaid-block-header) .absolute.top-2.right-2>.flex { background: hsl(var(--card) / 0.9); }
+.dark .streaming-document .mermaid-mode-btn,
+.dark .streaming-document .mermaid-action-btn { color: hsl(var(--muted-foreground)); }
+.dark .streaming-document .mermaid-mode-btn.is-active,
+.dark .streaming-document .mermaid-mode-btn:hover,
+.dark .streaming-document .mermaid-action-btn:hover { background: hsl(var(--muted) / 0.6); color: hsl(var(--foreground)); }
+/* ═══════════════════════════════════════════════════ */
 `
 
 export function injectStyles(): void {
