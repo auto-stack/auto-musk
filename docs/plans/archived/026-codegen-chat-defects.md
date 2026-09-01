@@ -20,7 +20,7 @@ total_steps: 5
 # [PLAN-026] auto-lang codegen 三缺陷修复 — gen chat 渲染根治
 
 > **给执行 Agent：** 用 `/auto-plan:work` 逐步执行。
-> **来源：** PLAN-025 双前端对比时发现，gen（Auto/vue 版）的 ChatMessage 渲染有 3 个缺陷，已在 gen 生成物上临时打补丁验证（备份在 `docs/plans/attachments/026-ChatMessage.gen-patched.vue`）。本计划在 **auto-lang 生成器**层根治，而非 gen 生成物。
+> **来源：** PLAN-025 双前端对比时发现，gen（Auto/vue 版）的 ChatMessage 渲染有 3 个缺陷，已在 gen 生成物上临时打补丁验证（备份在 `docs/plans/archived/attachments/026-ChatMessage.gen-patched.vue`）。本计划在 **auto-lang 生成器**层根治，而非 gen 生成物。
 
 ## 0. 变更摘要 (Executive Summary)
 
@@ -83,7 +83,7 @@ PLAN-025 启动双前端对比（原生 web :3333 + Auto/gen :3334）后，发�
 
 PLAN-025 执行后启动双前端对比，gen 版（:3334）chat 暴露问题。临时修复路径：
 - 在 `gen/.../ChatMessage.vue` 手动加 `:class="rowClass"` + `<style>` 补 msg-* CSS + `hasError`/`hasThinking` 改 `!!`
-- 备份：`docs/plans/attachments/026-ChatMessage.gen-patched.vue`（3.2KB，作为"修复后生成物应匹配的行为基准"）
+- 备份：`docs/plans/archived/attachments/026-ChatMessage.gen-patched.vue`（3.2KB，作为"修复后生成物应匹配的行为基准"）
 
 ### 4.2 生成器实地调查结论（2026-08-12 agent 深入 auto-lang）
 
@@ -159,7 +159,7 @@ if matches!(op, Op::Eq | Op::Neq) && (nullish(left) || nullish(right)) {
 
 ### 5.4 auto-musk 侧：`chat_message.at` 补 `style { ... }` 块
 
-缺陷 ② 修复后，在 `auto-musk/src/front/chat_message.at` 的 `component fn ChatMessage(...)` 末尾加 `style { ... }` 块，内容 = 从备份 `docs/plans/attachments/026-ChatMessage.gen-patched.vue` 的 `<style>` 提取的 msg-* CSS（`.msg-row` / `.msg-row-user` / `.msg-row-ai` / `.msg-bubble` / `.msg-bubble-user` / `.msg-bubble-ai`）。
+缺陷 ② 修复后，在 `auto-musk/src/front/chat_message.at` 的 `component fn ChatMessage(...)` 末尾加 `style { ... }` 块，内容 = 从备份 `docs/plans/archived/attachments/026-ChatMessage.gen-patched.vue` 的 `<style>` 提取的 msg-* CSS（`.msg-row` / `.msg-row-user` / `.msg-row-ai` / `.msg-bubble` / `.msg-bubble-user` / `.msg-bubble-ai`）。
 
 **注意：** `inject_styles.ts`（ext，持久）已有 `.msg-error` / `.msg-thinking` 定义，**不要重复**。chat_message.at 的 style 块只放布局/气泡样式。
 
@@ -174,7 +174,7 @@ if matches!(op, Op::Eq | Op::Neq) && (nullish(left) || nullish(right)) {
 回归命令：`cargo test -p auto-lang`（含所有 a2vue 黄金对比）。
 
 端到端验证（auto-musk）：
-- `auto build --gen-only` 后，`diff gen/.../ChatMessage.vue docs/plans/attachments/026-ChatMessage.gen-patched.vue`（行为等价：:class + style + truthy）。
+- `auto build --gen-only` 后，`diff gen/.../ChatMessage.vue docs/plans/archived/attachments/026-ChatMessage.gen-patched.vue`（行为等价：:class + style + truthy）。
 - `cd gen/front/vue && npm run build` 全绿。
 - 手测 :3334 chat：气泡左右对齐 + 自适应宽度 + 无红色空框。
 
