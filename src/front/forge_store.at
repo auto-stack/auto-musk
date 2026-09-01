@@ -76,25 +76,24 @@ store ForgeStore {
                 .workspace = "musk-demo";
                 localStorage.setItem("musk_workspace", "musk-demo")
             };
-            if .workspace != "" {
-                Http.set_default_query("workspace", .workspace)
-            };
+            // PLAN-054 T6: Http.set_default_* 调用摘除——store 级宿主对象
+            // 调用在 web store codegen 无降级臂(新 CLI 直出裸 Http.* →
+            // vue-tsc TS2304),旧 CLI 则静默丢弃且 generated api client 亦无
+            // 默认查询载体,两轨恒为死代码。f6a5422 的 workspace 查询默认
+            // 意图需 api client 载体,登记 KNOWN-DEBT。
             let tk = localStorage.getItem("musk_jwt");
             // PLAN-048:VM 扁平化单状态里 AuthStore.token 与本 store 的 token
             // 撞名合并(均落根状态裸名 token)——缺席时不得清写,否则覆写认证
             // 门的 nil 语义(登录墙失效);仅在有存档 JWT 时回填。
             if tk != None {
-                .token = tk;
-                Http.set_default_header("Authorization", "Bearer " + tk)
+                .token = tk
             };
             .LoadSessionList()
         }
 
         // LoadSessionList: 加载列表后，如无选中会话，自动选第一个 + 加载消息。
         .LoadSessionList -> {
-            if .workspace != "" {
-                Http.set_default_query("workspace", .workspace)
-            };
+            // PLAN-054 T6: Http.set_default_query 同上摘除(死代码)。
             var resp = chats_list_sessions();
             if resp != None && resp.sessions != None {
                 .session_list = resp.sessions;
