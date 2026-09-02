@@ -1,0 +1,25 @@
+PLAN-055 T10 gen 轨搜索实机证据（worktree gen dev :3340 → musk serve :9091，2026-09-02）
+会话：88917f55（6 消息：三问三答）
+
+=== search="2+2"（过滤态，evaluate innerText 采集） ===
+聊天
+🧑 You
+18:02:34
+再回答一次：2+2等于几？
+⑂ 重试
+🤖 AI
+18:02:38
+
+2+2等于4。
+
+→ 恰好命中 2 条（user「再回答一次：2+2等于几？」+ assistant「2+2等于4。」），其余 4 条被过滤。
+→ 时间标签正确（created_at 秒渲染：18:02:34/18:02:38），无 Invalid Date。
+
+=== 清空（恢复态） ===
+消息列表恢复多轮气泡（虚拟化滚动窗口内可见首尾多条，含「用一句话回答：1+1等于几？」…「3+3等于6。」）。
+
+=== 现场发现（非本项断点，登记） ===
+1. chatActivePath 线性链漏推叶节点：chain 臂 out=[0..anchor]+chain 反推，leaf 本身永不入列
+   （forge_helpers.ts:302-336 生成形态）——末条 assistant 永不在过滤投影内（"3+3"仅命中
+   user 气泡、"等于6" 0 命中实证）。P043 既有缺陷，与本计划搜索断点（$event 绑定，已修）正交。
+2. IAB 截图能力不可用（"browser screenshot activity capture failed for guest"）——以 DOM 文本证据替代。
