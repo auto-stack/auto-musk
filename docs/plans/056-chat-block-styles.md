@@ -97,6 +97,7 @@ Vue 模板编译对 `<pre>` 子树保留全部空白（isPre 语义），模板�
 
 ## 结果记录
 
+- 2026-09-02（T7，路径 1 落地）：markdown 渲染真源升格——用户拍板后查实**上游 auto-down master 已自带修复**（segment 规则 + is-sync 守卫 + --ad-* token；.markdown-renderer 包装只属 MarkdownRender 静态组件），无需改上游代码；实际工作 = musk 消费面切换：vendor 脚本改读 packages/engine/dist 全量（0.5.0，dist-stamp 058e5d70），engine 0.5.0 真身替代 0.4.0-musk-shim，@autodown/vue 降级 re-export 别名（生成物 platform/markdown.vue 零改动），两适配器+inject 切 @autodown/engine；T6 规则实证保留（升级后 DOM 仍为单 wrapper+slot 流，上游 segment 规则够不着），054 的 .markstream-vue 死选择器删除、补 .dark .markdown-renderer 根色覆盖（新根色 #111827 暗底隐形实测回归后修复）；.gitignore dist/ 规则吞快照的坑以 force-add 解决（快照即本地补丁面应入库）。auto-down DEBTS 020 行更新：packages/vue 归档解锁。auto-lang base-styles §4.5/§4.6 规约不变。
 - 2026-09-02：T1-T5 全部完成，auto build strict 绿；浏览器实测通过（块间距 0.75rem、ReportCard 暗色走 --card + .dark 提亮、ThinkBlock 13.5px 无缩进、GenericToolCard/GateCard/RelayRunBox 展开区无缩进）。合并 main（见 git log），9080 服务重启后重注 run。
 - 备注：VM 轨 `pre`→`div` 影响面=aura text 容器语义，类串渲染路径不变（055 已确认 VM 消费类串）；如 VM 实机回归再单独登记。
 
