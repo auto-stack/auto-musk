@@ -1,13 +1,15 @@
 ---
 plan_id: PLAN-056
-status: executing
+status: execution_done
 feature_name: Chat 块型样式收敛——块间距 / ReportCard 暗色适配 / ThinkBlock 字号与 pre 首行缩进
 author: [zhaopuming]
 created_at: 2026-09-02T00:00:00+08:00
 updated_at: 2026-09-02T00:00:00+08:00
-supersedes_spec_components: []
+supersedes_spec_components:
+  - "docs/specs/03-front-component-groups.md: 修改——G-对话 Block 组 6 组件（ChatMessage/ThinkBlock/GenericToolCard(ToolBlock 分发)/GateCard/RelayRunBox/ReportCard）样式实现细节更新；组件清单与原生化状态无变化"
 new_spec_components: []
-touched_goals: []
+touched_goals:
+  - "goal-frontend-parity: Chat 对话块样式收敛（块间距对齐 autodown 节奏 / ReportCard 暗色适配 / pre 模板缩进伪影清除），gen Vue 轨与 VM 轨同源受益"
 current_step: 0
 total_steps: 7
 ---
@@ -92,3 +94,30 @@ Vue 模板编译对 `<pre>` 子树保留全部空白（isPre 语义），模板�
 
 - 2026-09-02：T1-T5 全部完成，auto build strict 绿；浏览器实测通过（块间距 0.75rem、ReportCard 暗色走 --card + .dark 提亮、ThinkBlock 13.5px 无缩进、GenericToolCard/GateCard/RelayRunBox 展开区无缩进）。合并 main（见 git log），9080 服务重启后重注 run。
 - 备注：VM 轨 `pre`→`div` 影响面=aura text 容器语义，类串渲染路径不变（055 已确认 VM 消费类串）；如 VM 实机回归再单独登记。
+
+## 复审记录（/auto-plan:review，2026-09-02）
+
+**Reviewer**: ZCode（用户指令 `$auto-plan-review 056`）。**入口状态**: executing（任务全勾）→ 按技能规则首步推进 `execution_done`。**验证位置**: worktree 已随上一轮提前合并清理（流程偏差：合并发生在本复审门之前，见下方"流程偏差"），按技能规则改在默认检出（main @ 8ae60e2）复核；实际 diff = `089d6b9..8ae60e2` 共 7 文件（6 源码 + 本计划文档），与计划任务清单一一对应，无计划外文件。
+
+### 逐条验收复验
+
+| 验收项 | 复验方式 | 结论 |
+|---|---|---|
+| 块间距 = 段落间隔（②） | 9080 实机 computed style：`.msg-bubble-ai` gap = **12px**（0.75rem，改前 6px）；基准 autodown `.streaming-document > *+*{margin-top:.75rem}` | **pass** |
+| ReportCard 暗色可读（③） | computed style：`.report-card` 背景 **rgb(22,24,29)**（--card，改前白）、`.metric-value` **rgb(47,218,110)**（.dark 提亮 #2fda6e）；截图目验 hero/汇总/chips 全可读 | **pass** |
+| ThinkBlock 字号+首行缩进（④a） | computed style：标签 **DIV**（原 PRE）、字号 **13.5px**、首字符 `"用户要看全部 B"` 零前导空白 | **pass** |
+| 全部折叠块展开无缩进（④b/c） | GenericToolCard 展开区：标签 DIV、首字符 `{"cmd"...` 顶格、white-space:pre-wrap + Geist Mono 保留；GateCard/RelayRunBox 同批替换（`tool-pre` 选择器扩展已入 dist CSS） | **pass** |
+| `auto build` strict（验收 2 前半） | 复审复跑：`Vue project built successfully!`（vue-tsc + vite） | **pass** |
+| VM 轨不回归（验收 2 后半） | `scripts/vm-first-run.cmd --observe-ms 10000`：**alive=yes, reds=0**（stack/panic/codegen/link/io 全零）；style-parity 14 条红全为基线（050 border-t/b 12 条 + 055 nav/login 2 条），本次改动组件零新增 | **pass** |
+| 全量测试套 | `cargo test -j 2` 全量：**614 passed / 0 failed**（backend 零改动，回归兜底）；vitest **23 passed + 1 skipped**（基线一致）；deps-guard 两条存量红（@autodown/engine + vue-router，main 先在）零新增 | **pass** |
+
+### 遗漏 / 延后 / workaround 排查
+
+- **延后（已登记）**：`specs_detail.at` TestDetail 的 fixture `pre` 同根因缩进——在规范页不在本计划范围（聊天块型），计划"结果记录"已备忘，**merge 时登记 KNOWN-DEBT**。
+- **流程偏差（已在先轮发生，非本计划任务遗漏）**：`plan-056-dev` 分支在复审门之前已合回 main 并清理（当时用户在等实机修复）。本次复审按技能的"已折叠"分支改在默认检出复核，合并本身由 /auto-plan:merge 补办收尾。
+- **workaround 排查**：pre→div 属根因修复（模板空白语义），非 CSS hack；无 TODO 残留（grep 复核）；无范围缩水（计划 T1-T5 全落地，diff 对得上）。
+- **部署债候选（复审新发现）**：`gen/front/vue/dist` 产物**无内容 hash 且响应无 Cache-Control**，重新部署后浏览器启发式缓存会吐旧 JS（复审时实测踩到，强刷才可见）。与本计划改动无关（先在），建议 merge 时登记 KNOWN-DEBT（修法方向：vite build hash 化或静态服务加 no-cache for index.html）。
+
+### 结论
+
+**全部验收项 pass，无阻塞债 → `status: reviewed`**，可进入 `/auto-plan:merge`（沉淀 + 归档）。
