@@ -212,7 +212,9 @@ store ForgeStore {
             // 发送消息到后端。不覆盖 messages（避免和 SSE 回写竞态）——
             // user 消息由 startForgeStream 在建连前乐观 push（见 forge_stream.ts），
             // assistant 消息由 SSE delta 事件回写。
-            var resp = chats_send_message(.session_id, content, "");
+            // PLAN-055 ⑧(D1)：run=true 显式触发后端 agent 运行——VM 轨 Sse.open
+            // 为 no-op，订阅触发路径不可达；gen/web 轨双保险无害（订阅侧守卫防双跑）。
+            var resp = chats_send_message(.session_id, content, "", true);
             .streaming = true
         }
 
@@ -281,6 +283,10 @@ store ForgeStore {
             let sid = .session_id
             if sid == "" { return }
             var resp = chats_get_session(sid)
+            // PLAN-055 ⑧：404/会话缺失时 resp.session 为 None——守卫避免
+            // None.messages 崩掉后续 computed（对齐 SwitchSession 守卫风格）。
+            if resp == None { return }
+            if resp.session == None { return }
             .messages = resp.session.messages
             let msgs = .messages
             if msgs.length > 0 {
