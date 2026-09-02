@@ -82,7 +82,15 @@ fn getRelayStatus(relays obj, tc obj) obj {
 
 /** 工具参数 JSON 格式化（F3 JSON.stringify 直通）。 */
 fn toolArgsJson(tc obj) str {
-    return JSON.stringify(tc.arguments, null, 2)
+    let s = JSON.stringify(tc.arguments, null, 2)
+    if s != None { return s }
+    // PLAN-055 T0：VM 对 JSON.stringify 是静默 no-op 桩（等价性缺陷族③，恒
+    // None）——降级为参数键名占位（Object.keys 在 VM 可用），避免工具卡参数区
+    // 整块空白；PLAN-057 上游 natives 落地后回归完整 JSON 展示。
+    if tc.arguments == None { return "" }
+    let ks = Object.keys(tc.arguments)
+    if ks.length == 0 { return "{}" }
+    return "[args] " + ks.join(", ")
 }
 
 /** PLAN-042:details.truncation 的截断徽标文本。 */
@@ -233,8 +241,20 @@ fn messageBlocks(msg obj) obj {
         } else {
             if raw.status == "running" { status = "running" }
         }
-        raw.status = status
-        out.push({ kind: "tool", tc: raw })
+        // PLAN-055 T0：VM 等价性缺陷族①规避——对象新键赋值(raw.status = …)在 VM
+        // 抛 RuntimeError 炸掉 computed blocks，改字面量重建（探针 c7_nested_push
+        // 验证形态）；PLAN-057 根修 SET_FIELD 后可回归原位修改。
+        out.push({
+            kind: "tool",
+            tc: {
+                name: raw.name,
+                id: raw.id,
+                arguments: raw.arguments,
+                result: raw.result,
+                details: raw.details,
+                status: status
+            }
+        })
     }
     return out
 }
