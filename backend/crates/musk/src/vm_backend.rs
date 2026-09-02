@@ -83,6 +83,7 @@ fn build_app_state(client: Arc<dyn Client>) -> Arc<AppState> {
         client,
         auth: Arc::new(crate::auto_generated::auth::AuthStore::new(users_path)),
         registry: Arc::new(registry),
+        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
     })
 }
 

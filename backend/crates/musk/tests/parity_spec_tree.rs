@@ -44,6 +44,7 @@ fn tmp_state() -> (AppState, PathBuf) {
         client: Arc::new(MockClient) as Arc<dyn Client>,
         auth: Arc::new(musk::auto_generated::auth::AuthStore::new(dir.join("users.json"))),
         registry: Arc::new(registry),
+        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
     };
     (state, dir)
 }
