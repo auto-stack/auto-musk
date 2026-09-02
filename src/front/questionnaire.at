@@ -13,25 +13,37 @@
 fn questionnaireFor(msg obj) obj {
     if msg.role != "assistant" { return None }
 
-    // 1. 结构化 JSON 块（```json 围栏内 type == "questionnaire"）
-    let matches = Regex.match(msg.content, "```json[\\s\\S]*?```", "g")
-    for m in matches {
-        var inner = Regex.replace(m, "^```json\\s*", "", "g")
-        inner = Regex.replace(inner, "```\\s*$", "", "g")
+    // 1. 结构化 JSON 块（```json 围栏内 type == "questionnaire"）。
+    // PLAN-057 T11：围栏提取由 Regex.match 改 indexOf 纯串通道——VM 的
+    // Regex native 对本形态恒空（055-3 ① regex 族，探针 wl_probe18 实证
+    // 0 匹配），问卷卡在 VM 整体不渲染；indexOf/substring/JSON.parse 在
+    // 双轨同语义。guard 循环沿 forge_helpers.at:406 先例。
+    var rest = msg.content
+    var guard = 0
+    while guard < 32 {
+        let start = rest.indexOf("```json")
+        if start == -1 { break }
+        let innerStart = start + 7
+        let end = rest.indexOf("```", innerStart)
+        if end == -1 { break }
+        var inner = rest.substring(innerStart, end).trim()
         try {
-            let json = JSON.parse(inner.trim())
+            let json = JSON.parse(inner)
             if json.type == "questionnaire" {
                 if json.questions != None {
                     if json.questions.length > 0 {
-                        // 字面串 replace（replaceAll 收字符串参数时不做正则解释）
-                        let stripped = msg.content.replace(m, "")
+                        // 字面串 replace（收字符串参数时不做正则解释）
+                        let fence = rest.substring(start, end + 3)
+                        let stripped = msg.content.replace(fence, "")
                         return { questions: json.questions, strippedContent: stripped.trim() }
                     }
                 }
             }
         } catch {
-            // 无效 JSON：忽略本块
+            // 无效 JSON：继续找下一个围栏
         }
+        rest = rest.substring(end + 3)
+        guard = guard + 1
     }
 
     // 2. free-text 问题启发式（三趟）

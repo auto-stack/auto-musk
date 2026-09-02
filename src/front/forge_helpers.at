@@ -211,21 +211,41 @@ fn getToolSummary(tc obj) obj {
  * 历史上在 questionnaire.ts，唯一消费方 messageDisplayBlocks 在本文件。 */
 fn stripQuestionnaire(text str, streaming bool) str {
     if text == "" { return text }
-    var out = Regex.replace(text, "```json\\s*\\n\\{[\\s\\S]*?\"type\"\\s*:\\s*\"questionnaire\"[\\s\\S]*?\\}\\s*\\n\\s*```", "", "g")
-    if streaming {
-        let tail = out.lastIndexOf("```json")
-        if tail != -1 {
-            if out.indexOf("```", tail + 3) == -1 {
-                let head = out.substring(0, tail)
-                // 只有当未闭合块看起来是问卷开头时才隐藏（行尾容差）
-                if head.length == 0 || Regex.test(head, "\\n\\s*$") {
-                    let partial = out.substring(tail)
-                    if Regex.test(partial, "questionnaire|\"questions\"") || partial.length <= 40 {
-                        out = head
-                    }
+    // PLAN-057 T11：Regex 通道改 indexOf 纯串通道（VM Regex 恒空，同
+    // questionnaireFor 注记）——仅剔除「解析为 questionnaire」的 ```json
+    // 围栏（两函数同口径），非问卷围栏保留；流式未闭合围栏的尾部隐藏
+    // 逻辑保留（疑似问卷开头才隐藏）。
+    var out = text
+    var probe = text
+    var guard = 0
+    while guard < 32 {
+        let start = probe.indexOf("```json")
+        if start == -1 { break }
+        let innerStart = start + 7
+        let end = probe.indexOf("```", innerStart)
+        if end == -1 {
+            if streaming {
+                let partial = probe.substring(start)
+                if partial.contains("questionnaire") || partial.contains("\"questions\"") || partial.length <= 40 {
+                    out = probe.substring(0, start)
                 }
             }
+            break
         }
+        var inner = probe.substring(innerStart, end).trim()
+        var isQ = false
+        try {
+            let json = JSON.parse(inner)
+            if json.type == "questionnaire" { isQ = true }
+        } catch {
+            isQ = false
+        }
+        if isQ {
+            let fence = probe.substring(start, end + 3)
+            out = out.replace(fence, "")
+        }
+        probe = probe.substring(end + 3)
+        guard = guard + 1
     }
     return out.trimEnd()
 }
