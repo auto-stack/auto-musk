@@ -90,7 +90,7 @@ widget QuestionnaireCard(questions: obj) {
 
     view {
         div {
-            style: "questionnaire-card"
+            style: "questionnaire-card border border-primary/[0.15] rounded-[10px] bg-primary/[0.04] px-[1rem] py-[0.75rem] w-full box-border"
             div {
                 style: "q-header"
                 HelpCircle { size: 16 }

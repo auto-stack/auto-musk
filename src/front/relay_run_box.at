@@ -581,7 +581,7 @@ widget RelayRunBox(runId: str) {
                                     // write 写入内容/file 读取内容+范围 chips/
                                     // listing 文件浏览/doc 文档 Markdown/generic）。
                                     div {
-                                        style: "entry-tool-card"
+                                        style: "entry-tool-card border border-border rounded-md overflow-hidden"
                                         div {
                                             style: "entry-tool-head"
                                             onclick: .ToggleEntry(.entry)

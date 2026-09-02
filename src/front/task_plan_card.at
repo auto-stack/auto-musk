@@ -58,7 +58,7 @@ widget TaskPlanCard(tc: obj, taskPlans: obj) {
 
     view {
         col {
-            class: if .status == "completed" { "task-plan-card completed" } else { if .status == "failed" { "task-plan-card failed" } else { "task-plan-card running" } }
+            class: if .status == "completed" { "task-plan-card completed border border-border rounded-lg w-full" } else { if .status == "failed" { "task-plan-card failed border border-border rounded-lg w-full" } else { "task-plan-card running border border-border rounded-lg w-full" } }
             row {
                 onclick: .Toggle
                 style: "tp-header"

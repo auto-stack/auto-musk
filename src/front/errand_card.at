@@ -70,7 +70,7 @@ widget ErrandCard(tc: obj, errands: obj) {
 
     view {
         col {
-            class: if .status == "completed" { "errand-card completed" } else { if .status == "failed" { "errand-card failed" } else { "errand-card running" } }
+            class: if .status == "completed" { "errand-card completed border border-border rounded-lg w-full" } else { if .status == "failed" { "errand-card failed border border-border rounded-lg w-full" } else { "errand-card running border border-border rounded-lg w-full" } }
             // header（click toggle）
             row {
                 onclick: .Toggle

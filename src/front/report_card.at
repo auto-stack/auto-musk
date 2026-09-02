@@ -29,7 +29,7 @@ widget ReportCard(report: obj, deckMeta: obj = None, deckHtml: str = "") {
         durationLabel => reportDurationLabel(.report.durationS ?? 0)
         hasDeliverables => if .report.deliverables != None { .report.deliverables.length > 0 } else { false }
         deliverables => if .report.deliverables != None { .report.deliverables } else { [] }
-        cardClass => if .expanded { "report-card" } else { "report-card collapsed" }
+        cardClass => if .expanded { "report-card border rounded-xl w-full" } else { "report-card collapsed border rounded-xl w-full" }
         // PLAN-032 deck 层：汇报报告元数据 + HTML 缓存
         hasDeck => .deckMeta != None && .deckHtml != ""
         deckTitle => if .deckMeta != None { .deckMeta.title ?? "" } else { "" }
