@@ -98,7 +98,10 @@ a { color: hsl(var(--primary)); }
    preflight 清零元素默认 margin 后块全部贴死。对齐上游
    .streaming-document > *+* { margin-top:.75rem } 的节奏，落在实际 DOM
    层级（.markdown-renderer > .node-slot 相邻兄弟）上；上游两条剥边
-   !important 规则继续防止内容边缘双倍间距。 */
+   !important 规则继续防止内容边缘双倍间距。
+   本规则属"渲染器内部默认样式"，已登记 auto-lang
+   docs/design/autoui/base-styles-and-visual-parity.md §4.5（VM 侧按该节
+   对齐）；同族暗色映射见 §4.6。 */
 .streaming-document .markdown-renderer > .node-slot + .node-slot { margin-top: 0.75rem; }
 /* 会话删除按钮：默认隐藏,悬停会话项时显现（悬停显隐无法工具类化） */
 .session-delete-btn { display: none; }
