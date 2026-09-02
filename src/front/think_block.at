@@ -44,8 +44,8 @@ widget ThinkBlock(text: str, tokens: int, streaming: bool) {
                 }
             }
             if .expanded {
-                pre {
-                    style: "think-content my-0 py-[9px] px-[12px] text-[12.5px] leading-[1.5] whitespace-pre-wrap break-words text-muted-foreground max-h-[240px] overflow-y-auto border-t border-border"
+                div {
+                    style: "think-content my-0 py-[9px] px-[12px] text-[13.5px] leading-[1.5] font-mono whitespace-pre-wrap break-words text-muted-foreground max-h-[240px] overflow-y-auto border-t border-border"
                     text .text
                 }
             }

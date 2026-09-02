@@ -89,7 +89,7 @@ widget GateCard(title: str, profession: str, changes: obj) {
                                     div {
                                         style: "flex flex-col gap-[3px]"
                                         div { style: "text-xs font-medium uppercase text-muted-foreground", text "Before" }
-                                        pre { style: "text-[13px] font-mono bg-background border border-border rounded p-1.5 overflow-x-auto whitespace-pre-wrap break-words text-muted-foreground", text .change.old_content }
+                                        div { style: "text-[13px] font-mono bg-background border border-border rounded p-1.5 overflow-x-auto whitespace-pre-wrap break-words text-muted-foreground", text .change.old_content }
                                     }
                                     div {
                                         style: "flex flex-col gap-[3px]"

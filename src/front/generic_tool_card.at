@@ -91,7 +91,7 @@ widget GenericToolCard(tc: obj) {
                     col {
                         style: "tool-section"
                         text "Arguments" { style: "tool-section-title" }
-                        pre {
+                        div {
                             style: "tool-code"
                             text .argsJson
                         }
@@ -108,7 +108,7 @@ widget GenericToolCard(tc: obj) {
                         col {
                             style: "tool-section"
                             text "Diff" { style: "tool-section-title" }
-                            pre {
+                            div {
                                 style: "tool-code tool-diff"
                                 text .diffText
                             }
@@ -118,7 +118,7 @@ widget GenericToolCard(tc: obj) {
                         col {
                             style: "tool-section"
                             text "Truncated" { style: "tool-section-title" }
-                            pre {
+                            div {
                                 style: "tool-code"
                                 text .truncBadge
                             }
@@ -128,7 +128,7 @@ widget GenericToolCard(tc: obj) {
                         col {
                             style: "tool-section"
                             text "Full output" { style: "tool-section-title" }
-                            pre {
+                            div {
                                 style: "tool-code"
                                 text .fullOutputPath
                             }
