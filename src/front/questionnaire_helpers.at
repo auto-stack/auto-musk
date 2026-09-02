@@ -73,12 +73,9 @@ fn formatQuestionnaireAnswers(questions obj, answers obj) str {
         let other = answers[questionnaireOtherKey(q.id)]
         var n = idx + 1
         let qNum = "Q" + n
-        // PLAN-055 T0：VM Array.isArray 恒 None（等价性缺陷族③）——改按问题
-        // 声明类型判多数选（与 questionnaireComplete 同口径）；PLAN-057 回归点。
-        if q.type == "multiple" {
-            let arr = answer ?? []
-            if arr.length > 0 {
-                var seg = qNum + ": " + arr.join(", ")
+        if Array.isArray(answer) {
+            if answer.length > 0 {
+                var seg = qNum + ": " + answer.join(", ")
                 if other != None { seg = seg + ", Other: " + other }
                 parts.push(seg)
             }

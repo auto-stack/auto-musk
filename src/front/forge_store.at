@@ -529,7 +529,6 @@ store ForgeStore {
  * store 文件不消费 use.web.fn 导入（codegen 只发调用不发 import），沿
  * relay_store.relayFormatTimestamp 先例内联定义。 */
 fn nowSec() int {
-    // vm-safe-allow P3 Math.trunc：trunc(int) 32 位回绕、trunc(float) None（wl_probe2 实证）；T6/T7 收口见 PLAN-057 待澄清
     return Math.trunc(Date.now() / 1000)
 }
 

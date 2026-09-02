@@ -80,18 +80,10 @@ fn getRelayStatus(relays obj, tc obj) obj {
 
 // ─── Generic tool card helpers ───────────────────────────────────────────────
 
-/** 工具参数 JSON 格式化（F3 JSON.stringify 直通）。 */
+/** 工具参数 JSON 格式化（F3 JSON.stringify 直通——PLAN-057 T6 native
+ * 落地，PLAN-055 T0 守卫降级解除）。 */
 fn toolArgsJson(tc obj) str {
-    // vm-safe-allow P3 JSON.stringify=VM 静默 None（PLAN-055 T0 守卫降级）；T6 natives + T10 解除
-    let s = JSON.stringify(tc.arguments, null, 2)
-    if s != None { return s }
-    // PLAN-055 T0：VM 对 JSON.stringify 是静默 no-op 桩（等价性缺陷族③，恒
-    // None）——降级为参数键名占位（Object.keys 在 VM 可用），避免工具卡参数区
-    // 整块空白；PLAN-057 上游 natives 落地后回归完整 JSON 展示。
-    if tc.arguments == None { return "" }
-    let ks = Object.keys(tc.arguments)
-    if ks.length == 0 { return "{}" }
-    return "[args] " + ks.join(", ")
+    return JSON.stringify(tc.arguments, null, 2)
 }
 
 /** PLAN-042:details.truncation 的截断徽标文本。 */
@@ -141,7 +133,6 @@ fn agentAvatarData(professionId str, name str, size str) obj {
         var hash = 0
         for ch in professionId {
             // (hash << 5) - hash == hash*31（Math.imul 保持 32 位回绕语义）
-            // vm-safe-allow P3+P4 Math.imul 恒 None / ch 接收者方法落 None（avatar 色相 hash 退化，缺陷族③④）；T5/T6 根修
             hash = ch.char_code_at(0) + Math.imul(hash, 31)
         }
         c = { "h": Math.abs(hash) % 360, "s": 60, "l": 48 }
@@ -245,7 +236,6 @@ fn stripQuestionnaire(text str, streaming bool) str {
  * 持久化 tool 状态规范化为 completed/failed/running。
  */
 fn messageBlocks(msg obj) obj {
-    // vm-safe-allow P5 Array.isArray VM 恒 None：真 blocks 亦走合成臂，后端持久化 blocks 即静默分叉（缺陷族③）；T6 根修
     if Array.isArray(msg.blocks) { return msg.blocks }
     var out list = []
     if msg.thinking != None { out.push({ kind: "thinking", text: msg.thinking }) }
@@ -260,9 +250,9 @@ fn messageBlocks(msg obj) obj {
         } else {
             if raw.status == "running" { status = "running" }
         }
-        // PLAN-055 T0：VM 等价性缺陷族①规避——对象新键赋值(raw.status = …)在 VM
-        // 抛 RuntimeError 炸掉 computed blocks，改字面量重建（探针 c7_nested_push
-        // 验证形态）；PLAN-057 根修 SET_FIELD 后可回归原位修改。
+        // PLAN-055 T0 规避形态保留（PLAN-057 T2 SET_FIELD 根修后 VM 已合法，
+        // 但字面量重建按待澄清③倾向保留——双轨行为可预测、回退无收益，
+        // 且重建形态同时承载 details 键保真）。
         out.push({
             kind: "tool",
             tc: {

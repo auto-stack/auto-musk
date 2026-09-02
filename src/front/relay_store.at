@@ -178,7 +178,7 @@ store RelayStore {
         .ResolveGate(runId, decision, feedback) -> {
             try {
                 var body map = { decision: decision }
-                // vm-safe-allow P1 活雷：map 点号新键 VM 崩（wl_probe3 实证）；T2 SET_FIELD 插入语义根修后合法化
+                // vm-safe-allow P1 既有形态：条件补键（有意新键写入；PLAN-057 T2 后 VM/TS 同合法，留痕审计）
                 if feedback != "" { body.feedback = feedback }
                 Http.post("/api/forge/relay/runs/" + encodeURIComponent(runId) + "/gate", body)
                 // codegen 修复：原 `.LoadRun` 续链到 Http.post 结果上（批准后

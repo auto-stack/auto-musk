@@ -26,14 +26,14 @@ import { join, relative } from 'node:path';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const FRONT = join(ROOT, 'src', 'front');
 
-// ── VM 已实现 web 内建白名单（2026-09-02 实机探针实证）──
-// 注：JSON.parse 仅对象形态可用（数组形态 .length=0，T6 接线）；调用点静态
-// 无法区分形态，暂入白名单，数组形态语义由 case_web_builtins H 钉死。
+// ── VM 已实现 web 内建白名单（2026-09-02 实机探针实证；PLAN-057 T6 后增补）──
+// 注：JSON.parse 数组形态已在 T6 接线（shim_str_len 堆句柄判定扩展）。
 const VM_IMPLEMENTED = new Set([
   'Math.abs', 'Math.min', 'Math.max', 'Math.floor', 'Math.ceil',
-  'Math.round', 'Math.sqrt', 'Math.random',
+  'Math.round', 'Math.sqrt', 'Math.random', 'Math.trunc', 'Math.imul',
   'Object.keys', 'Object.values',
-  'JSON.parse',
+  'JSON.parse', 'JSON.stringify',
+  'Array.isArray',
 ]);
 
 const ALLOW_MARK = /\/\/\s*vm-safe-allow\b/;
@@ -133,14 +133,17 @@ function lintFile(absPath) {
       literalCapture = null;
     }
 
-    // P3/P5：web 内建调用白名单
+    // P3/P5：web 内建调用白名单（P5=isArray 特化：白名单外才报——恒 None
+    // 分叉雷仅在未实现时成立，T6 native 落地后isArray 已恒布尔）
     for (const m of line.matchAll(BUILTIN_CALL)) {
       const name = m[0].replace(/\s*\($/, '').replace(/\s*\($/, '');
       const call = name;
-      if (call === 'Array.isArray') {
-        addHit('P5', i, 'Array.isArray VM 恒 None：真列表也走 else 臂（静默分叉雷）');
-      } else if (!VM_IMPLEMENTED.has(call)) {
-        addHit('P3', i, `${call} 不在 VM 已实现白名单（静默 None 桩）`);
+      if (!VM_IMPLEMENTED.has(call)) {
+        if (call === 'Array.isArray') {
+          addHit('P5', i, 'Array.isArray VM 恒 None：真列表也走 else 臂（静默分叉雷）');
+        } else {
+          addHit('P3', i, `${call} 不在 VM 已实现白名单（静默 None 桩）`);
+        }
       }
     }
 
@@ -180,15 +183,21 @@ function lintFile(absPath) {
       }
     }
 
-    // P4：字符循环变量直接调方法
+    // P4：字符循环变量直接调方法（仅未修方法——T5 后 char_code_at/charCodeAt
+    // 走 Char 码点恒等臂已同值；其余方法在裸字符接收者上仍静默 None）
     depth += (line.split('{').length - 1) - (line.split('}').length - 1);
     // endDepth=for 行配平后的深度；严格 < 才弹帧（for 行本身 depth===endDepth 保活，
     // 循环收口行 depth 回到 endDepth-1 才失效；单行循环体净配平 0 会悬挂到 fn 尾，
     // 现源无此形态，出现时由豁免机制兜底）
     while (charFrames.length && depth < charFrames[charFrames.length - 1].endDepth) charFrames.pop();
+    const P4_FIXED_METHODS = new Set(['char_code_at', 'charCodeAt']);
     for (const f of charFrames) {
-      const call = new RegExp(`(?<![\\w.])${f.v}\\.([A-Za-z_]\\w*)\\s*\\(`);
-      if (call.test(line)) addHit('P4', i, `字符循环变量 ${f.v}.<method>() 直调 → VM 落 None（缺陷族④）`);
+      const call = new RegExp(`(?<![\\w.])${f.v}\\.([A-Za-z_]\\w*)\\s*\\(`, 'g');
+      for (const cm of line.matchAll(call)) {
+        if (!P4_FIXED_METHODS.has(cm[1])) {
+          addHit('P4', i, `字符循环变量 ${f.v}.${cm[1]}() 直调 → VM 落 None（缺陷族④）`);
+        }
+      }
     }
   }
   return hits;
