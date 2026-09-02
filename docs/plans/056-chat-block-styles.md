@@ -79,6 +79,10 @@ Vue 模板编译对 `<pre>` 子树保留全部空白（isPre 语义），模板�
 - [x] T4 ④b：`generic_tool_card.at` 4 处 pre→div；`gate_card.at` 1 处 pre→div。
 - [x] T5 ④c：`relay_run_box.at` pre→div + `tool-pre` 类 + CSS 选择器扩展。
 - [x] T6 ②追加（用户复审截图 2026-09-02）：markdown 文本块**内部**各元素（标题/列表/引用/表格/代码）之间无间距——根因：markdown 每块渲染为 `.markdown-renderer > .node-slot`，vendored 0.2.0 快照只有"剥相邻 slot 内容边缘 margin"的规则、**slot 间距段缺失**，叠加 tailwind preflight 清零元素默认 margin 后全部贴死。修法：`inject_styles.web-only.ts`（.streaming-document 深层排版既有落点）补 `.streaming-document .markdown-renderer > .node-slot + .node-slot { margin-top: 0.75rem }`，对齐上游块节奏；上游两条剥边 !important 规则继续防双倍间距。仅 gen/web 轨生效（web-only 文件），VM 轨 markdown 间距属 VM 渲染器（auto-lang）另案。
+  **默认样式登记（2026-09-02）**：本规则与 PLAN-054 B1 暗色映射已登记 auto-lang
+  `docs/design/autoui/base-styles-and-visual-parity.md` **§4.5（markdown 块间节奏
+  0.75rem）/ §4.6（markdown 暗色主题颜色映射）**——两处均属 .at 视图无法表达的
+  渲染器内部 DOM，按"统一默认 style、双端实现"原则归档；musk 侧规则处已加指针注释。
 
 ## Phase 3 门禁与验证
 
