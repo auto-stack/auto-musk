@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-056
-status: reviewed
+status: archived
 feature_name: Chat 块型样式收敛——块间距 / ReportCard 暗色适配 / ThinkBlock 字号与 pre 首行缩进
 author: [zhaopuming]
 created_at: 2026-09-02T00:00:00+08:00
