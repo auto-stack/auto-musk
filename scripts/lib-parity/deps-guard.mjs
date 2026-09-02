@@ -42,8 +42,10 @@ const WHITELIST = new Set([
   'clsx', 'tailwind-merge',
   // auto-man 脚手架 ui 组件库（gen 轨 Button/Input 真实运行面,全量 build 时按需生成）
   'class-variance-authority', 'reka-ui',
-  // Phase 3 渲染真源切换（T11 接入）
-  '@autodown/vue',
+  // Phase 3 渲染真源切换（T11 接入）→ PLAN-056 T7 起真源为 @autodown/engine
+  // 0.5.0 真身 vendor 快照；@autodown/vue 降级 re-export 别名（零 import 消费，
+  // 条目保留至别名退役，防生成物回退旧包名时漏报）。
+  '@autodown/vue', '@autodown/engine',
 ]);
 
 const SCAN_DIRS = ['web/src', 'gen/front/vue/src'];
