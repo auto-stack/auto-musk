@@ -10,7 +10,7 @@
   // 上游内部 markstream 语义不变——切换前后核心 markdown DOM 一致（对拍保障）。
 -->
 <script setup lang="ts">
-import { StreamingRenderer } from '@autodown/vue'
+import { StreamingRenderer } from '@autodown/engine'
 
 const props = withDefaults(
   defineProps<{

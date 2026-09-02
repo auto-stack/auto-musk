@@ -13,7 +13,7 @@
 // PLAN-038 T12 → 0.2.0 收口:渲染样式唯一来源 = @autodown/vue/style.css
 // （vendor 0.2.0 起 markstream-vue 消灭,其全局 index.css 随依赖移除;
 // 上游样式改 scoped data-attr 形态,表格/代码块等 design token 内含）。
-import '@autodown/vue/style.css'
+import '@autodown/engine/style.css'
 
 const STYLES = `
 /* ── 字体（Noto Sans SC）── */
@@ -93,15 +93,13 @@ a { color: hsl(var(--primary)); }
 /* PLAN-050 B1: mention 高亮已内联 mention_helpers.at（按上下文发完整类串）
    与 user_message.at（user-text 显式气泡内文字色）——后代选择器规则删除。 */
 .msg-bubble-ai .streaming-document { color: hsl(var(--foreground)); }
-/* PLAN-056 T6: markdown 块间节奏——vendor 0.2.0 快照缺 markstream 的 slot
-   间距段（只剩剥相邻 slot 内容边缘 margin 的两条规则），叠加 tailwind
-   preflight 清零元素默认 margin 后块全部贴死。对齐上游
-   .streaming-document > *+* { margin-top:.75rem } 的节奏，落在实际 DOM
-   层级（.markdown-renderer > .node-slot 相邻兄弟）上；上游两条剥边
-   !important 规则继续防止内容边缘双倍间距。
-   本规则属"渲染器内部默认样式"，已登记 auto-lang
+/* PLAN-056 T6（T7 后复核仍必需）：markdown 块间节奏。engine 0.5.0 升级后
+   实测 DOM 仍为 .streaming-document > .markdown-renderer(单个) > .node-slot
+   兄弟流，上游 segment 规则 .streaming-document > *+* 只管"多 segment"场景
+   （命中不了单文档内的 slot），slot 间距段在上游 CSS 中缺位——本规则即该
+   缺位的 musk 侧实现。规约登记 auto-lang
    docs/design/autoui/base-styles-and-visual-parity.md §4.5（VM 侧按该节
-   对齐）；同族暗色映射见 §4.6。 */
+   对齐）；同族暗色映射见 §4.6。上游若后续内置 slot 节奏，本规则可退役。 */
 .streaming-document .markdown-renderer > .node-slot + .node-slot { margin-top: 0.75rem; }
 /* 会话删除按钮：默认隐藏,悬停会话项时显现（悬停显隐无法工具类化） */
 .session-delete-btn { display: none; }
@@ -121,7 +119,7 @@ a { color: hsl(var(--primary)); }
    .dark 下深底浅字不可读。统一改挂 musk 主题变量（.dark 域内自动
    取暗值）;admonition 保色相降明度。vendor scoped data-attr 与本块
    特异性打平,注入顺序（head 末尾 <style>）取胜。 */
-.dark .streaming-document .markstream-vue,
+.dark .streaming-document .markdown-renderer,
 .dark .streaming-document h1,
 .dark .streaming-document h2,
 .dark .streaming-document h3,

@@ -1,23 +1,19 @@
 {
-  "name": "@autodown/vue",
-  "version": "0.2.0",
-  "description": "AutoDown Vue renderer — streaming and static document rendering for AutoDown (vendored dist snapshot; source ../auto-down, regen: scripts/vendor-autodown-vue.mjs)",
-  "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    },
-    "./style.css": "./dist/style.css"
+ "name": "@autodown/vue",
+ "version": "0.5.0-musk-alias",
+ "description": "PLAN-056 T7: 退役别名——re-export @autodown/engine 0.5.0（真源 ../engine）。上游 plan 020 已 deprecate 本包；保留仅为生成物 platform/markdown.vue 历史 import 零改动，待 auto-lang 模板切 engine 后移除。",
+ "type": "module",
+ "main": "./dist/index.js",
+ "module": "./dist/index.js",
+ "types": "./dist/index.d.ts",
+ "exports": {
+  ".": {
+   "import": "./dist/index.js",
+   "types": "./dist/index.d.ts"
   },
-  "peerDependencies": {
-    "vue": "^3.4.0"
-  },
-  "dependencies": {
-    "lowlight": "^3.3.0",
-    "hast-util-to-html": "9.0.5"
-  }
+  "./style.css": "./dist/style.css"
+ },
+ "dependencies": {
+  "@autodown/engine": "file:../engine"
+ }
 }

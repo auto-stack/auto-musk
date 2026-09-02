@@ -16,7 +16,7 @@
   此文件经 auto-man mount_platform_impls 升格复制为 gen 的 platform/markdown.vue。
 -->
 <script lang="ts">
-import { StreamingRenderer as UpstreamStreamingRenderer, enableHighlight } from '@autodown/vue'
+import { StreamingRenderer as UpstreamStreamingRenderer, enableHighlight } from '@autodown/engine'
 
 // code_block 高亮：上游内置 lowlight 路径（enableKatex/enableMermaid 的
 // 同族开关；模块级一次性启用）。
