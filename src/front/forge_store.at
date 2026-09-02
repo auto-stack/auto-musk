@@ -253,8 +253,9 @@ store ForgeStore {
                 }
                 if dup == false {
                     let uid = "u-" + Date.now()
-                    let now0 = Date.now()
-                    .messages.push({ id: uid, role: "user", content: userContent, timestamp: now0, thinking: "", tool_calls: [], profession_id: "" })
+                    // PLAN-055 ⑦：乐观消息改写后端契约字段 created_at（秒）
+                    // ——此前写 timestamp（毫秒）导致重载/格式化读不到值。
+                    .messages.push({ id: uid, role: "user", content: userContent, created_at: nowSec(), thinking: "", tool_calls: [], profession_id: "" })
                 }
             }
             let path0 = "/api/chats/session/" + encodeURIComponent(sid0) + "/stream"
@@ -530,6 +531,15 @@ store ForgeStore {
 // ─── Plan 028 T14：流消费模块 fn（原 forge_stream.ts 的累积/查找逻辑）───
 
 /** 追加流式 text/thinking 到消息有序 blocks：同类连续块合并，异类开新块。 */
+/** 当前秒级时间戳（PLAN-055 ⑦：乐观/新 assistant 消息对齐后端契约字段
+ * created_at=秒）。Math.trunc 显式截断——TS 侧 Date.now() 为宿主调用，`/`
+ * 不自动注入 trunc（浮点除）；VM 侧 int 除原生截断、trunc(int) 恒等。
+ * store 文件不消费 use.web.fn 导入（codegen 只发调用不发 import），沿
+ * relay_store.relayFormatTimestamp 先例内联定义。 */
+fn nowSec() int {
+    return Math.trunc(Date.now() / 1000)
+}
+
 fn appendBlockText(msg Value, kind str, text str) {
     if msg.blocks == None { msg.blocks = [] }
     let blocks = msg.blocks
@@ -557,5 +567,5 @@ fn currentAssistantMsgIn(msgs Value) Value {
 
 /** 新建 assistant 消息骨架(不落 store——由调用方 push);profession_id 来自 turn_start。 */
 fn newAssistantMsg(professionId str) Value {
-    return { id: "a-" + Date.now(), role: "assistant", content: "", thinking: "", timestamp: Date.now(), tool_calls: [], blocks: [], profession_id: professionId }
+    return { id: "a-" + Date.now(), role: "assistant", content: "", thinking: "", created_at: nowSec(), tool_calls: [], blocks: [], profession_id: professionId }
 }

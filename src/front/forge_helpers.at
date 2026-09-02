@@ -100,10 +100,17 @@ fn toolTruncBadge(details obj) str {
     return "Showing " + trunc.output_lines + " of " + trunc.total_lines + " lines (by " + by + ")"
 }
 
-/** 消息时间格式化（F3 Date.format → toLocaleTimeString）。 */
+/** 消息时间格式化（F3 Date.format → toLocaleTimeString）。
+ * PLAN-055 ⑦：乐观/流式消息此前写 `timestamp`（毫秒）而后端契约字段是
+ * `created_at`（秒）——读侧得 undefined → NaN → "Invalid Date"。此处双保险：
+ * None/0 → ""，量级自适应（毫秒判定 >1000 亿档，除法式避开超 i32 字面量
+ * ——.at 字面量解析 i32，1e12 会被丢弃；口径对齐 web/ formatTime）。 */
 fn msgTimeLabel(createdAt int) str {
+    if createdAt == None { return "" }
     if createdAt == 0 { return "" }
-    return Date.format(createdAt * 1000, "HH:mm:ss")
+    var ms = createdAt * 1000
+    if createdAt / 1000000000 > 1000 { ms = createdAt }
+    return Date.format(ms, "HH:mm:ss")
 }
 
 /** AgentAvatar 渲染数据（F1 字典（对象值）+ F3 char_code_at hash）。 */
