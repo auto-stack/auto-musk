@@ -187,13 +187,6 @@
                   @click="switchBranch(sib.id)"
                 >⑂ {{ sib.role === 'user' ? sib.content.slice(0, 18) : sib.content.slice(0, 18) }}</button>
               </span>
-              <!-- PLAN-043: retry from here (assistant messages) -->
-              <button
-                v-if="msg.role === 'assistant'"
-                class="retry-btn"
-                title="从这里重试"
-                @click="retryFrom(msg)"
-              >⑂ 重试</button>
             </div>
             <div class="message-content" :class="{ 'has-border': msg.role === 'assistant' && msg.content.length > 200 }">
               <span v-if="msg.role === 'assistant' && msg.content === '' && isStreamingMessage(msg)" class="typing-dots">
@@ -853,20 +846,6 @@ function siblingsOf(msg: typeof messages.value[number]) {
 
 async function switchBranch(targetId: string) {
   await branchTo(targetId, 'navigate')
-}
-
-// "Retry from here" on an assistant message: fork at the user message that
-// produced it (its parent), prefill the composer with that prompt.
-async function retryFrom(msg: typeof messages.value[number]) {
-  const parent = messages.value.find((m) => m.id === msg.parent_id)
-  const prompt = parent?.role === 'user' ? parent.content : ''
-  const forkAt = parent?.id ?? msg.id
-  const ok = await branchTo(forkAt, 'fork')
-  if (ok && prompt) {
-    inputText.value = prompt
-    await nextTick()
-    textareaRef.value?.focus()
-  }
 }
 
 const filteredMessages = computed(() => {
@@ -3015,7 +2994,7 @@ onUnmounted(() => {
   border-color: hsl(var(--primary) / 0.4);
 }
 
-/* PLAN-043: branch switcher & retry */
+/* PLAN-043: branch switcher（PLAN-055 ⑤：retry 钮三处删除，冻结豁免） */
 .branch-switcher { display: inline-flex; gap: 4px; margin-left: 4px; }
 .branch-btn {
   font-size: 0.68rem; padding: 1px 6px; border-radius: 9999px;
@@ -3024,12 +3003,4 @@ onUnmounted(() => {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .branch-btn:hover { background: hsl(var(--muted-foreground) / 0.12); color: hsl(var(--foreground)); }
-.retry-btn {
-  font-size: 0.68rem; padding: 1px 8px; border-radius: 9999px;
-  border: 1px dashed hsl(var(--border)); background: transparent;
-  color: hsl(var(--muted-foreground)); cursor: pointer; opacity: 0;
-  transition: opacity 0.15s;
-}
-.message:hover .retry-btn { opacity: 1; }
-.retry-btn:hover { color: hsl(var(--foreground)); border-color: hsl(var(--foreground) / 0.4); }
 </style>

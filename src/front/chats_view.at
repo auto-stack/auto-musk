@@ -61,10 +61,10 @@ widget ChatsView {
         SecretaryReject,
         SecretarySnooze,
         OnQuestionnaireSubmit(str),
-        // PLAN-043 补遗:分支切换/重试事件（043 只加了视图调用,漏了 msg 声明——
+        // PLAN-043 补遗:分支切换事件（043 只加了视图调用,漏了 msg 声明——
         // 旧 CLI 解析失败被 stale gen 掩盖,新 CLI 重建时暴露为 0 参 emit）。
+        // PLAN-055 ⑤: RetryFrom 随"⑂ 重试"按钮删除（孤儿清理）。
         BranchTo(str, str),
-        RetryFrom(obj),
     }
 
     model {
@@ -120,10 +120,8 @@ widget ChatsView {
                             button {
                                 key: .s.id
                                 onclick: .SelectSession(.s.id)
-                                // PLAN-053 批4: 悬停显示会话 id——web 轨 title
-                                // 映射原生属性，VM 轨经 auto-lang title→EE03
-                                // tooltip 接线（renderer 包 iced tooltip）。
-                                title: .s.id
+                                // PLAN-055 T15: 删 title=.s.id 悬停 tooltip（用户
+                                // 对拍 ②a——chat id 对用户无信息量）。
                                 class: if .s.id == .store.session_id {
                                     "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-primary/25 bg-primary/10 text-primary"
                                 } else {
@@ -143,11 +141,13 @@ widget ChatsView {
                                         style: "text-xs text-muted-foreground"
                                         text t("chat.msgs", { count: .s.message_count })
                                     }
-                                    // PLAN-053 批4: info 图标示意"悬停看 id"。
-                                    Info { size: 11, class: "text-muted-foreground shrink-0 ml-auto" }
                                 }
+                                // PLAN-055 T15/T16: 删 Info 图标（②b）；删除钮类串
+                                // 去 hidden（②c）——VM 无 hover 态改常显小红钮（观感
+                                // 偏差登记），gen/web 轨 hover 显隐由样式注入承接
+                                // （inject_styles 的 .session-item:hover 规则）。
                                 span {
-                                    style: "session-delete-btn hidden absolute right-[6px] top-1/2 -translate-y-1/2 items-center opacity-60 bg-transparent border-none p-[3px]"
+                                    style: "session-delete-btn absolute right-[6px] top-1/2 -translate-y-1/2 items-center opacity-60 bg-transparent border-none p-[3px] text-destructive"
                                     onclick.stop: .DeleteSession(.s.id)
                                     title: t("chat.deleteSession")
                                     Trash2 { size: 12 }
@@ -218,7 +218,9 @@ widget ChatsView {
                     for msg in .filteredMessages {
                         col {
                             key: .msg.id
-                            // PLAN-043: 同分叉点的兄弟分支切换器 + assistant 轮"从这里重试"。
+                            // PLAN-043: 同分叉点的兄弟分支切换器（PLAN-055 ⑤：
+                            // "⑂ 重试"按钮删除——用户对拍裁决，重试语义由分支
+                            // 切换器与新发消息承载）。
                             row {
                                 style: "flex gap-1 mb-[2px]"
                                 for be in .branchEntries {
@@ -232,13 +234,6 @@ widget ChatsView {
                                             text "⑂ " + chatBranchLabel(be.sib.content)
                                             onclick: .BranchTo(be.sib.id, "navigate")
                                         }
-                                    }
-                                }
-                                if .msg.role == "assistant" {
-                                    button {
-                                        style: "text-[11px] h-[22px] py-[1px] px-2 rounded-full border border-dashed bg-transparent text-muted-foreground cursor-pointer hover:text-foreground"
-                                        text "⑂ 重试"
-                                        onclick: .RetryFrom(.msg)
                                     }
                                 }
                             }

@@ -189,26 +189,6 @@ store ForgeStore {
             }
         }
 
-        // PLAN-043: 从指定 assistant 轮 fork 重试——fork 点为其父 user 消息,
-        // 预填输入框为该 user 消息内容。
-        .RetryFrom(msg Value) -> {
-            let pid = msg.parent_id ?? ""
-            var prompt = ""
-            if pid != "" {
-                for m in .messages {
-                    if m.id == pid {
-                        if m.role == "user" { prompt = m.content ?? "" }
-                    }
-                }
-            }
-            if prompt != "" {
-                .BranchTo(pid, "fork")
-                .current_draft = prompt
-            } else {
-                .BranchTo(msg.id, "fork")
-            }
-        }
-
         .StreamStarted(sid) -> { .session_id = sid }
 
         .Send(content) -> {
