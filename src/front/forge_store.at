@@ -33,6 +33,10 @@ store ForgeStore {
         var report_data Value = null
         // Plan 028 T14：SSE 流句柄（Sse.open/close 平台协议，替代 forge_stream.ts）
         var stream_es Value = null
+        // PLAN-055 ④/T11：ThinkBlock 各实例独立展开态——VM 无 per-instance
+        // 子件模型（ensure_child_state 全实例共享根态），源侧 keyed 形态：
+        // 展开的块键列表（thinkKey 生成），切换走 thinkToggleList 字面量重建。
+        var think_open []Value = []
     }
 
     msg Msg {
@@ -55,6 +59,8 @@ store ForgeStore {
         OnStreamEvent(Value),
         // Plan 051 T10（G1 阶段1）：VM 轮询降级的流式回填拍。
         PollStream,
+        // PLAN-055 ④/T11：ThinkBlock 展开切换（子件上抛，键=thinkKey）。
+        ThinkToggle(str),
     }
 
     // Plan 051 T10（G1 阶段1）：VM 轨无 SSE 形态期间，流式回复以 500ms
@@ -183,26 +189,6 @@ store ForgeStore {
             }
         }
 
-        // PLAN-043: 从指定 assistant 轮 fork 重试——fork 点为其父 user 消息,
-        // 预填输入框为该 user 消息内容。
-        .RetryFrom(msg Value) -> {
-            let pid = msg.parent_id ?? ""
-            var prompt = ""
-            if pid != "" {
-                for m in .messages {
-                    if m.id == pid {
-                        if m.role == "user" { prompt = m.content ?? "" }
-                    }
-                }
-            }
-            if prompt != "" {
-                .BranchTo(pid, "fork")
-                .current_draft = prompt
-            } else {
-                .BranchTo(msg.id, "fork")
-            }
-        }
-
         .StreamStarted(sid) -> { .session_id = sid }
 
         .Send(content) -> {
@@ -212,12 +198,20 @@ store ForgeStore {
             // 发送消息到后端。不覆盖 messages（避免和 SSE 回写竞态）——
             // user 消息由 startForgeStream 在建连前乐观 push（见 forge_stream.ts），
             // assistant 消息由 SSE delta 事件回写。
-            var resp = chats_send_message(.session_id, content, "");
+            // PLAN-055 ⑧(D1)：run=true 显式触发后端 agent 运行——VM 轨 Sse.open
+            // 为 no-op，订阅触发路径不可达；gen/web 轨双保险无害（订阅侧守卫防双跑）。
+            var resp = chats_send_message(.session_id, content, "", true);
             .streaming = true
         }
 
         .StopStream -> {
             .streaming = false
+        }
+
+        // PLAN-055 ④/T11：ThinkBlock 独立展开——键列表重建回写（VM 安全：
+        // 既有字段整列表赋值，无新键写入）。
+        .ThinkToggle(key) -> {
+            .think_open = thinkToggleList(.think_open, key)
         }
 
         .SetThinking(text) -> { .thinking = text }
@@ -251,8 +245,9 @@ store ForgeStore {
                 }
                 if dup == false {
                     let uid = "u-" + Date.now()
-                    let now0 = Date.now()
-                    .messages.push({ id: uid, role: "user", content: userContent, timestamp: now0, thinking: "", tool_calls: [], profession_id: "" })
+                    // PLAN-055 ⑦：乐观消息改写后端契约字段 created_at（秒）
+                    // ——此前写 timestamp（毫秒）导致重载/格式化读不到值。
+                    .messages.push({ id: uid, role: "user", content: userContent, created_at: nowSec(), thinking: "", tool_calls: [], profession_id: "" })
                 }
             }
             let path0 = "/api/chats/session/" + encodeURIComponent(sid0) + "/stream"
@@ -281,6 +276,10 @@ store ForgeStore {
             let sid = .session_id
             if sid == "" { return }
             var resp = chats_get_session(sid)
+            // PLAN-055 ⑧：404/会话缺失时 resp.session 为 None——守卫避免
+            // None.messages 崩掉后续 computed（对齐 SwitchSession 守卫风格）。
+            if resp == None { return }
+            if resp.session == None { return }
             .messages = resp.session.messages
             let msgs = .messages
             if msgs.length > 0 {
@@ -524,6 +523,34 @@ store ForgeStore {
 // ─── Plan 028 T14：流消费模块 fn（原 forge_stream.ts 的累积/查找逻辑）───
 
 /** 追加流式 text/thinking 到消息有序 blocks：同类连续块合并，异类开新块。 */
+/** 当前秒级时间戳（PLAN-055 ⑦：乐观/新 assistant 消息对齐后端契约字段
+ * created_at=秒）。Math.trunc 显式截断——TS 侧 Date.now() 为宿主调用，`/`
+ * 不自动注入 trunc（浮点除）；VM 侧 int 除原生截断、trunc(int) 恒等。
+ * store 文件不消费 use.web.fn 导入（codegen 只发调用不发 import），沿
+ * relay_store.relayFormatTimestamp 先例内联定义。 */
+fn nowSec() int {
+    return Math.trunc(Date.now() / 1000)
+}
+
+/** ThinkBlock 展开列表取反（PLAN-055 T11；内联同 nowSec 缘由——
+ * forge_helpers 版 thinkToggleList 供渲染侧读，此处 store 侧写路径用同构
+ * fn，避免 store 文件引入 use.web.fn 导入缺口）。 */
+fn thinkToggleList(ids obj, key str) obj {
+    var out list = []
+    var found = false
+    if ids != None {
+        for k in ids {
+            if k == key {
+                found = true
+            } else {
+                out.push(k)
+            }
+        }
+    }
+    if found == false { out.push(key) }
+    return out
+}
+
 fn appendBlockText(msg Value, kind str, text str) {
     if msg.blocks == None { msg.blocks = [] }
     let blocks = msg.blocks
@@ -551,5 +578,5 @@ fn currentAssistantMsgIn(msgs Value) Value {
 
 /** 新建 assistant 消息骨架(不落 store——由调用方 push);profession_id 来自 turn_start。 */
 fn newAssistantMsg(professionId str) Value {
-    return { id: "a-" + Date.now(), role: "assistant", content: "", thinking: "", timestamp: Date.now(), tool_calls: [], blocks: [], profession_id: professionId }
+    return { id: "a-" + Date.now(), role: "assistant", content: "", thinking: "", created_at: nowSec(), tool_calls: [], blocks: [], profession_id: professionId }
 }

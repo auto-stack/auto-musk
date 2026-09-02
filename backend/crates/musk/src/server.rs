@@ -44,6 +44,22 @@ pub struct AppState {
     // auth 端点由 a2r 转译 handler 服务(C2/C3),手写 auth handler 已删除。
     pub auth: Arc<crate::auto_generated::auth::AuthStore>,
     pub registry: Arc<crate::workspace::WorkspaceRegistry>,
+    /// PLAN-055 ⑧(D1): per-session chat run 守卫（键 "ws_id:session_id"）。
+    /// `POST /message {run:true}` 显式 spawn 前置位（chats_message），由
+    /// chat_run_stream 的全部出口清除；SSE 订阅触发路径不置位、清除为 no-op。
+    pub chat_runs: Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+}
+
+impl AppState {
+    /// 置位并报告是否抢到（false = 该会话已有进行中的 run，防双跑）。
+    pub fn chat_run_try_start(&self, key: &str) -> bool {
+        self.chat_runs.lock().unwrap().insert(key.to_string())
+    }
+
+    /// 清除运行标记（chat_run_stream 各出口调用；未置位时为 no-op）。
+    pub fn chat_run_finish(&self, key: &str) {
+        self.chat_runs.lock().unwrap().remove(key);
+    }
 }
 
 /// Run the HTTP server on the given address (default `127.0.0.1:8080`).
@@ -62,6 +78,7 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         client,
         auth: Arc::new(crate::auto_generated::auth::AuthStore::new(users_path)),
         registry: Arc::new(registry),
+        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
     };
 
     // Static assets: the web app (Chats/Specs SPA) lives at `web/dist`
@@ -969,6 +986,7 @@ mod tests {
             client: Arc::new(MockClient) as Arc<dyn Client>,
             auth: tmp_auth(),
             registry: Arc::new(registry),
+            chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
         }
     }
 
@@ -2707,5 +2725,157 @@ mod tests {
         assert_eq!(v["turns"], 3);
         assert_eq!(v["tool_calls"][0]["name"], "read_file", "tool_calls 用 name");
         assert!(matches!(stream_event_map(Some(v)), SseEventDto::Done { .. }));
+    }
+
+    // ── PLAN-055 ⑧(D1) T3: 显式 run 触发三例（触发 spawn / 守卫防双跑 / 缺省不触发）──
+
+    /// 永挂起的 Client：把 run 驱动到 LLM 调用点后悬停，使守卫观察确定化
+    /// （run 不完成 → 守卫不清除 → 可稳定断言置位/防双跑）。
+    struct HangingClient {
+        calls: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    }
+    #[async_trait]
+    impl Client for HangingClient {
+        async fn complete(
+            &self,
+            _req: &CompletionRequest,
+        ) -> Result<CompletionResponse, ClientError> {
+            self.calls
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            std::future::pending().await
+        }
+    }
+
+    /// 同 tmp_state 但注入指定 Client（默认 MockClient 之外的可观测桩）。
+    fn tmp_state_with_client(client: Arc<dyn Client>) -> AppState {
+        let dir = std::env::temp_dir().join(format!(
+            "musk-server-test-run-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let registry =
+            crate::workspace::WorkspaceRegistry::load(dir.join("workspaces.json"), dir.clone());
+        AppState {
+            client,
+            auth: tmp_auth(),
+            registry: Arc::new(registry),
+            chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+        }
+    }
+
+    /// 建 chat 路由 + 新会话，返回 (app, session_id, calls)。mode=basic 免 skills 加载。
+    async fn chat_run_test_app()
+    -> (axum::Router, String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+        use crate::auto_generated::server as ag_server;
+        use tower::ServiceExt;
+
+        let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let state = tmp_state_with_client(Arc::new(HangingClient {
+            calls: calls.clone(),
+        }));
+        let app = axum::Router::new()
+            .route(
+                "/api/chats/session",
+                axum::routing::post(ag_server::chat_create),
+            )
+            .route(
+                "/api/chats/session/{id}/message",
+                axum::routing::post(ag_server::chat_message),
+            )
+            .with_state(state);
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/chats/session")
+                    .header("content-type", "application/json")
+                    .body(axum::body::Body::from(r#"{"mode":"basic"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), axum::http::StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let sid = json["session"]["id"].as_str().expect("session id").to_string();
+        (app, sid, calls)
+    }
+
+    async fn post_message(
+        app: axum::Router,
+        sid: &str,
+        body: &'static str,
+    ) -> axum::http::StatusCode {
+        use tower::ServiceExt;
+        let resp = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/chats/session/{sid}/message"))
+                    .header("content-type", "application/json")
+                    .body(axum::body::Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        resp.status()
+    }
+
+    /// 等待谓词为真（run spawn 是异步的，客户端调用计数需轮询）。
+    async fn wait_until<F: Fn() -> bool>(pred: F) {
+        for _ in 0..100 {
+            if pred() {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    }
+
+    #[tokio::test]
+    async fn chat_message_run_true_triggers_spawn_and_sets_guard() {
+        let (app, sid, calls) = chat_run_test_app().await;
+        let st = post_message(app, &sid, r#"{"content":"hi","run":true}"#).await;
+        assert_eq!(st, axum::http::StatusCode::OK);
+        // run=true → spawn 发生 → run 内核到达 LLM 调用点（HangingClient 计数 ≥1）。
+        wait_until(|| calls.load(std::sync::atomic::Ordering::SeqCst) >= 1).await;
+        assert!(
+            calls.load(std::sync::atomic::Ordering::SeqCst) >= 1,
+            "run=true 应 spawn agent 运行并到达 LLM 调用"
+        );
+    }
+
+    #[tokio::test]
+    async fn chat_message_run_guard_prevents_double_run() {
+        let (app, sid, calls) = chat_run_test_app().await;
+        let st1 = post_message(app.clone(), &sid, r#"{"content":"first","run":true}"#).await;
+        assert_eq!(st1, axum::http::StatusCode::OK);
+        wait_until(|| calls.load(std::sync::atomic::Ordering::SeqCst) >= 1).await;
+        // 第二条 run=true：守卫应拒绝二次 spawn（悬停中的 run 未结束）。
+        let st2 = post_message(app, &sid, r#"{"content":"second","run":true}"#).await;
+        assert_eq!(st2, axum::http::StatusCode::OK, "消息照常追加");
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        assert_eq!(
+            calls.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "守卫应阻止同一会话的第二个 run spawn"
+        );
+    }
+
+    #[tokio::test]
+    async fn chat_message_run_default_false_does_not_spawn() {
+        let (app, sid, calls) = chat_run_test_app().await;
+        // 不带 run（web 轨语义）：订阅触发路径原样——无 spawn。
+        let st = post_message(app, &sid, r#"{"content":"web-track"}"#).await;
+        assert_eq!(st, axum::http::StatusCode::OK);
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        assert_eq!(
+            calls.load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "run 缺省 false 不应触发 spawn"
+        );
     }
 }

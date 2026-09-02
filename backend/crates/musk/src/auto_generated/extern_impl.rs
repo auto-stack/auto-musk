@@ -826,6 +826,23 @@ pub fn chats_message(s: &State<AppState>, q: Query<crate::auto_generated::server
             for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
                 let _ = ws.conversations.append_turn(&p.0, turn);
             }
+            // PLAN-055 ⑧(D1): VM 轨显式 run 触发——VM 的 Sse.open 是 no-op，
+            // 「订阅即运行」不可达，发送时带 run=true 由后端直接 spawn 运行
+            // 内核（T1 证毕：持久化在 run 循环体内，tx 未注册即无订阅者安全
+            // 运行）。per-session 守卫防双跑；run 缺省（web 轨）不触发。
+            if b.run.unwrap_or(false) {
+                let run_key = format!("{}:{}", q.workspace.clone().unwrap_or_default(), p.0);
+                if s.0.chat_run_try_start(&run_key) {
+                    let st = State(s.0.clone());
+                    let wsq = crate::auto_generated::server_stream::WorkspaceQuery {
+                        workspace: q.workspace.clone(),
+                    };
+                    let sid = p.0.clone();
+                    tokio::spawn(async move {
+                        chat_run_stream(&st, Query(wsq), Path(sid), serde_json::Value::Null).await;
+                    });
+                }
+            }
             serde_json::to_value(serde_json::json!({ "session": session, "queued": msg }))
                 .unwrap_or(Value::Null)
         }
@@ -1669,9 +1686,13 @@ pub async fn chat_run_stream(
     let ws_id = q.workspace.clone().unwrap_or_default();
     let ws = s.0.registry.get(&ws_id);
     let session_id = p.0.clone();
+    // PLAN-055 ⑧(D1): per-session run 守卫键——显式 run 触发路径由 chats_message
+    // 置位，本函数全部出口清除（SSE 订阅路径未置位，清除为 no-op）。
+    let run_key = format!("{ws_id}:{session_id}");
     let session = match ws.chats.get(&session_id) {
         Some(sess) => sess,
         None => {
+            s.0.chat_run_finish(&run_key);
             mpsc_try_send(&tx, serde_json::json!({"type":"error","message": format!("session '{session_id}' not found")}));
             close_channel(&tx);
             return;
@@ -1683,6 +1704,7 @@ pub async fn chat_run_stream(
         match session.messages.iter().rev().find(|m| m.role == crate::chats::Role::User) {
             Some(m) => m.content.clone(),
             None => {
+                s.0.chat_run_finish(&run_key);
                 mpsc_try_send(&tx, serde_json::json!({"type":"error","message":"no user message to run"}));
                 close_channel(&tx);
                 return;
@@ -1766,6 +1788,9 @@ pub async fn chat_run_stream(
                 "tool_calls": [{"name": "spawn_relay", "arguments": tc_args, "result": tc_result}],
             }),
         );
+        // PLAN-055 ⑧(D1): plan-merge 短路的 run 由 relay driver 独立驱动，
+        // chat 层 run 到此为止——清守卫。
+        s.0.chat_run_finish(&run_key);
         close_channel(&tx);
         return;
     }
@@ -1797,6 +1822,7 @@ pub async fn chat_run_stream(
     let ws_root = ws.root.clone();
     let state_for_ctx = std::sync::Arc::new(s.0.clone());
     let tx2 = tx.clone();
+    let run_key2 = run_key.clone();
     tokio::spawn(async move {
         crate::tool_safety::set_current_root(ws_root.clone());
         // Build agent with orchestration tool context (spawn_relay, dispatch).
@@ -1812,6 +1838,7 @@ pub async fn chat_run_stream(
             Ok(a) => a,
             Err(e) => {
                 crate::tool_safety::clear_current_root();
+                state_for_ctx.chat_run_finish(&run_key2);
                 mpsc_try_send(&tx2, serde_json::json!({"type":"error","message": format!("build agent: {e}")}));
                 close_channel(&tx2);
                 return;
@@ -1968,6 +1995,8 @@ pub async fn chat_run_stream(
         }
         bridge.abort();
         crate::tool_safety::clear_current_root();
+        // PLAN-055 ⑧(D1): run 结束（Ok/Err 两路汇合点）——清 per-session 守卫。
+        state_for_ctx.chat_run_finish(&run_key2);
         close_channel(&tx2);
     });
 }

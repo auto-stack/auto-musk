@@ -23,16 +23,25 @@
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web component Markdown from "src/front/ports/renderer.at"
 use.web component Copy from "src/front/ports/icons.at"
-use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens from "src/front/forge_helpers.at"
+// PLAN-055 T13: thinkLabel 进内联思考块（ThinkBlock 子件退役）；thinkIsOpen
+// 走 store.think_open 键列表（键=msg.id）。
+use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens, thinkLabel, thinkIsOpen from "src/front/forge_helpers.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
 use user_message: UserMessage
-use think_block: ThinkBlock
 use tool_block: ToolBlock
 
-widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj) {
-    msg Msg { CopyContent }
+// PLAN-055 ④/T11：ThinkBlock 展开态读写走 ForgeStore 根态键列表。
+use store: ForgeStore
+
+widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, thinkList: obj) {
+    msg Msg { CopyContent, ToggleThink(str) }
     on {
+        // PLAN-055 ④/T11：ThinkBlock 上抛（payload=构建期冻结的块键）——
+        // 直调 store 切换根态展开键列表（跨件 handler 沿 ForgeStore.Init() 先例）。
+        .ToggleThink(key) -> {
+            ForgeStore.ThinkToggle(key)
+        }
         // PLAN-055: AI 消息工具栏 copy（对齐 web 原版 message-toolbar）。
         .CopyContent -> {
             dom.copy_text(.msg.content)
@@ -64,6 +73,12 @@ widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task
         blocks => messageDisplayBlocks(.msg, .is_streaming)
         time => msgTimeLabel(.msg.created_at)
         hasTime => .time != ""
+        // PLAN-055 ④/T13：本消息思考块展开态（键=msg.id，每消息至多一个
+        // thinking 块）。键列表经 prop 下传（chats_view 读 store 传 thinkList），
+        // fn 调用收敛在 computed——事件实参须纯路径、span 文本元素内 if/else
+        // 会被丢，chevron 字符同 computed 化（badge 同款 if/else 形态）。
+        thinkOpen => thinkIsOpen(.thinkList, .msg.id)
+        chev => if .thinkOpen { "▲" } else { "▼" }
         hasError => .msg.error != ""
         errorText => if .hasError { .msg.error } else { "" }
     }
@@ -103,7 +118,33 @@ widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task
                                 Markdown(source: .block.text, streaming: isBlockStreaming(.is_streaming, .blocks, .block))
                             }
                         } else if .block.kind == "thinking" {
-                            ThinkBlock(text: .block.text, tokens: estimateTokens(.block.text), streaming: .is_streaming)
+                            // PLAN-055 ④/T11/T13：思考块内联（ThinkBlock 子件
+                            // 退役）——VM 子件上下文三缺陷叠加：ensure_child_state
+                            // 全实例共享根态（expanded 末实例覆盖）、子件视图内
+                            // if/computed 求值分歧（chevron 读共享值而 if 臂恒真）、
+                            // row.onclick 派发不达。本层（ChatMessage）的 if/for/
+                            // 按钮冻结实参（Copy 钮同款）均已实证可用；展开态走
+                            // store.think_open 键列表（thinkToggleList 重建）。
+                            // 类串与 ThinkBlock 时期逐类一致（双轨观感不变）。
+                            col {
+                                class: "think-block w-full box-border rounded-lg border border-border bg-muted/40 max-w-full overflow-hidden"
+                                button {
+                                    onclick: .ToggleThink(.msg.id)
+                                    style: "think-header w-full flex items-center gap-[6px] py-[6px] px-[10px] text-[12.5px] text-muted-foreground cursor-pointer select-none hover:bg-muted/50 border-none bg-transparent text-left"
+                                    text "💭"
+                                    text thinkLabel(estimateTokens(.block.text), .is_streaming)
+                                    span {
+                                        style: "tool-chevron ml-auto"
+                                        text .chev
+                                    }
+                                }
+                                if .thinkOpen {
+                                    div {
+                                        style: "think-content my-0 py-[9px] px-[12px] text-[13.5px] leading-[1.5] font-mono whitespace-pre-wrap break-words text-muted-foreground max-h-[240px] overflow-y-auto border-t border-border"
+                                        text .block.text
+                                    }
+                                }
+                            }
                         } else {
                             ToolBlock(tc: .block.tc, errands: .errands, relays: .relays, task_plans: .task_plans)
                         }

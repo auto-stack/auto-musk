@@ -16,6 +16,14 @@
   （`git rm -r web/` 归档时机由用户另行裁定）
 - `web/` 内的 vitest 套件已迁 `gen/front/vue/src/__tests__/`（T13）
 
+
+## 冻结豁免记录
+
+- **2026-09-02 PLAN-055 ⑤（用户明示豁免）**：`src/views/ChatsView.vue` 外科手术
+  删除"⑂ 重试"按钮三处——模板按钮（原 :190-196）、`retryFrom` 函数（原
+  :858-872）、`.retry-btn` 样式三条（原 :3018-3034）。范围仅限重试钮；
+  :383-386 的 Regenerate 保留。单源（gen 轨）同日同步删除，对拍一致性目的。
+
 ## Status
 
 | Item | Status |
