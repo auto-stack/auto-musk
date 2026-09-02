@@ -78,6 +78,7 @@ Vue 模板编译对 `<pre>` 子树保留全部空白（isPre 语义），模板�
 - [x] T3 ④a：`think_block.at` pre→div + `font-mono` + 字号 13.5px。
 - [x] T4 ④b：`generic_tool_card.at` 4 处 pre→div；`gate_card.at` 1 处 pre→div。
 - [x] T5 ④c：`relay_run_box.at` pre→div + `tool-pre` 类 + CSS 选择器扩展。
+- [x] T6 ②追加（用户复审截图 2026-09-02）：markdown 文本块**内部**各元素（标题/列表/引用/表格/代码）之间无间距——根因：markdown 每块渲染为 `.markdown-renderer > .node-slot`，vendored 0.2.0 快照只有"剥相邻 slot 内容边缘 margin"的规则、**slot 间距段缺失**，叠加 tailwind preflight 清零元素默认 margin 后全部贴死。修法：`inject_styles.web-only.ts`（.streaming-document 深层排版既有落点）补 `.streaming-document .markdown-renderer > .node-slot + .node-slot { margin-top: 0.75rem }`，对齐上游块节奏；上游两条剥边 !important 规则继续防双倍间距。仅 gen/web 轨生效（web-only 文件），VM 轨 markdown 间距属 VM 渲染器（auto-lang）另案。
 
 ## Phase 3 门禁与验证
 
@@ -118,6 +119,10 @@ Vue 模板编译对 `<pre>` 子树保留全部空白（isPre 语义），模板�
 - **workaround 排查**：pre→div 属根因修复（模板空白语义），非 CSS hack；无 TODO 残留（grep 复核）；无范围缩水（计划 T1-T5 全落地，diff 对得上）。
 - **部署债候选（复审新发现）**：`gen/front/vue/dist` 产物**无内容 hash 且响应无 Cache-Control**，重新部署后浏览器启发式缓存会吐旧 JS（复审时实测踩到，强刷才可见）。与本计划改动无关（先在），建议 merge 时登记 KNOWN-DEBT（修法方向：vite build hash 化或静态服务加 no-cache for index.html）。
 
+### T6 附录（同日复审增补：markdown 内部块间节奏）
+
+用户复验截图反馈②只修了外层 block 间距、markdown **内部**元素仍贴死。根因补析：每块渲染为 `.markdown-renderer > .node-slot`，vendor 0.2.0 快照只有剥边规则、slot 间距段缺失 + tailwind preflight 清零。T6 = `inject_styles.web-only.ts` 补 `.streaming-document .markdown-renderer > .node-slot + .node-slot { margin-top:.75rem }`。复验：9080 实机 44 slots、第二 slot margin-top **12px**、规则在 styleSheets 存活；截图目验标题/列表/表格/代码块间距拉开。VM 轨 markdown 间距属 VM 渲染器（auto-lang）另案。门禁同前（auto build strict 绿）。**T6 pass → 维持 `status: reviewed`**。
+
 ### 结论
 
-**全部验收项 pass，无阻塞债 → `status: reviewed`**，可进入 `/auto-plan:merge`（沉淀 + 归档）。
+**全部验收项 pass（含 T6 增补），无阻塞债 → `status: reviewed`**，可进入 `/auto-plan:merge`（沉淀 + 归档）。
