@@ -82,6 +82,7 @@ fn getRelayStatus(relays obj, tc obj) obj {
 
 /** 工具参数 JSON 格式化（F3 JSON.stringify 直通）。 */
 fn toolArgsJson(tc obj) str {
+    // vm-safe-allow P3 JSON.stringify=VM 静默 None（PLAN-055 T0 守卫降级）；T6 natives + T10 解除
     let s = JSON.stringify(tc.arguments, null, 2)
     if s != None { return s }
     // PLAN-055 T0：VM 对 JSON.stringify 是静默 no-op 桩（等价性缺陷族③，恒
@@ -140,6 +141,7 @@ fn agentAvatarData(professionId str, name str, size str) obj {
         var hash = 0
         for ch in professionId {
             // (hash << 5) - hash == hash*31（Math.imul 保持 32 位回绕语义）
+            // vm-safe-allow P3+P4 Math.imul 恒 None / ch 接收者方法落 None（avatar 色相 hash 退化，缺陷族③④）；T5/T6 根修
             hash = ch.char_code_at(0) + Math.imul(hash, 31)
         }
         c = { "h": Math.abs(hash) % 360, "s": 60, "l": 48 }
@@ -243,6 +245,7 @@ fn stripQuestionnaire(text str, streaming bool) str {
  * 持久化 tool 状态规范化为 completed/failed/running。
  */
 fn messageBlocks(msg obj) obj {
+    // vm-safe-allow P5 Array.isArray VM 恒 None：真 blocks 亦走合成臂，后端持久化 blocks 即静默分叉（缺陷族③）；T6 根修
     if Array.isArray(msg.blocks) { return msg.blocks }
     var out list = []
     if msg.thinking != None { out.push({ kind: "thinking", text: msg.thinking }) }

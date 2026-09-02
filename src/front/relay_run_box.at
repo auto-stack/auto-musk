@@ -782,6 +782,7 @@ widget RelayRunBox(runId: str) {
                                                                         if .entry.arguments != None {
                                                                             div {
                                                                                 style: "tool-pre tool-args"
+                                                                                // vm-safe-allow P3 JSON.stringify=VM 静默 None（工具参数区空白，055 掩蔽雷点）；T6 根修
                                                                                 text JSON.stringify(.entry.arguments, null, 2)
                                                                             }
                                                                         }

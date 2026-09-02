@@ -59,6 +59,7 @@ store GateInbox {
         .Resolve(gate_id, decision) -> {
             for g in .gates {
                 if g.gateId == gate_id {
+                    // vm-safe-allow P1 既有键：后端 gate.status 契约键（census⑥ 判定安全）
                     g.status = decision
                 }
             }
@@ -76,6 +77,7 @@ store GateInbox {
         .Snooze(gate_id) -> {
             for g in .gates {
                 if g.gateId == gate_id {
+                    // vm-safe-allow P1 既有键：后端 gate.status 契约键（census⑥ 判定安全）
                     g.status = "snoozed"
                 }
             }
