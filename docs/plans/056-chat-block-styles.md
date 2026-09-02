@@ -1,12 +1,13 @@
 ---
 plan_id: PLAN-056
-status: execution_done
+status: reviewed
 feature_name: Chat 块型样式收敛——块间距 / ReportCard 暗色适配 / ThinkBlock 字号与 pre 首行缩进
 author: [zhaopuming]
 created_at: 2026-09-02T00:00:00+08:00
 updated_at: 2026-09-02T00:00:00+08:00
 supersedes_spec_components:
   - "docs/specs/03-front-component-groups.md: 修改——G-对话 Block 组 6 组件（ChatMessage/ThinkBlock/GenericToolCard(ToolBlock 分发)/GateCard/RelayRunBox/ReportCard）样式实现细节更新；组件清单与原生化状态无变化"
+  - "docs/specs/03-front-component-groups.md: 修改——G-对话 Block·平台实现 Markdown 行：渲染实现真源 = vendored @autodown/engine 0.5.0 真身 StreamingRenderer（PLAN-056 T7；@autodown/vue 降级 re-export 别名仅兜生成物历史 import，markstream-vue 早已退役）"
 new_spec_components: []
 touched_goals:
   - "goal-frontend-parity: Chat 对话块样式收敛（块间距对齐 autodown 节奏 / ReportCard 暗色适配 / pre 模板缩进伪影清除），gen Vue 轨与 VM 轨同源受益"
@@ -83,6 +84,7 @@ Vue 模板编译对 `<pre>` 子树保留全部空白（isPre 语义），模板�
   `docs/design/autoui/base-styles-and-visual-parity.md` **§4.5（markdown 块间节奏
   0.75rem）/ §4.6（markdown 暗色主题颜色映射）**——两处均属 .at 视图无法表达的
   渲染器内部 DOM，按"统一默认 style、双端实现"原则归档；musk 侧规则处已加指针注释。
+- [x] T7（用户拍板追加，同日）markdown 渲染真源升格：上游 auto-down master 已自带修复，musk 消费面切换——vendor 脚本改读 packages/engine/dist 全量（0.5.0，dist-stamp 058e5d70），`vendor/@autodown/engine` 换真身 dist（替代 0.4.0-musk-shim），`@autodown/vue` 降级 re-export 别名（生成物 platform/markdown.vue 零改动），两适配器+inject style.css 切 `@autodown/engine`；DOM 变化收敛：T6 slot 节奏规则复核保留（上游 segment 规则够不着单文档 slot 流）、054 `.markstream-vue` 死选择器删除、补 `.dark .markdown-renderer` 根色覆盖（新根色 #111827 暗底隐形实测后修复）；dist 快照 force-add 入库（.gitignore dist/ 规则吞产物的坑）；上游 auto-down DEBTS 020 行同步（packages/vue 归档解锁）。
 
 ## Phase 3 门禁与验证
 
@@ -131,3 +133,32 @@ Vue 模板编译对 `<pre>` 子树保留全部空白（isPre 语义），模板�
 ### 结论
 
 **全部验收项 pass（含 T6 增补），无阻塞债 → `status: reviewed`**，可进入 `/auto-plan:merge`（沉淀 + 归档）。
+
+### T7 增补复审（/auto-plan:review，2026-09-02，engine 0.5.0 真源升格后 re-review）
+
+**Reviewer**: ZCode（用户指令 `/auto-plan:review`）。**入口状态**: execution_done（T6 复审通过后 T7 落地，状态按流程回滚待复审）。**验证位置**: main @ 363b6d7（worktree 已先期折叠，按"已折叠"规则在默认检出复核）；T7 diff = `32a23e5..363b6d7`（c28ba08 主改动 + 9b9b00f dist 补库 + 363b6d7 记录），159 文件；**backend/ 与 `src/front/*.at` 零改动**（T7 纯前端消费面+vendor 快照）。
+
+**逐门禁复验**：
+
+| 门禁 | T7 记录口径 | 复审复跑 | 结论 |
+|---|---|---|---|
+| auto build strict | 绿 | `Vue project built successfully!`（vue-tsc+vite；chunk 体积警告为存量） | **pass** |
+| vitest | 23+1 | `npx vitest run`（gen/front/vue）：**23 passed + 1 skipped** | **pass** |
+| cargo 全量 | （T6 前轮 614/0） | 首跑失败——运行中 serve 锁 `target/debug/musk.exe` 致链接 os error 5（环境性，非回归）；改 `CARGO_TARGET_DIR=target-review` 全新构建复跑：**614 passed / 0 failed**（33 test binary，零 fail 标记），与基线恒等 | **pass** |
+| deps-guard | "engine 转正消一条存量红（余 vue-router 基线）" | **复跑不符**：`deps-guard.mjs` 白名单未更新（仍 `@autodown/vue`、无 engine），engine 红依在，两条存量红依旧 → **复审当场补齐一行**（`'@autodown/engine'` 入白名单，vue 条目保留至别名退役）后复跑 = 仅余 vue-router 基线红，与记录口径一致 | **pass（复审补遗后）** |
+| style-parity | 14=基线零新增 | 14 条红，构成与复审基线**逐条恒等**（050 border 族 12 + 055 nav/login 2） | **pass** |
+| 实机 9081 观感 | 12px 节奏/暗色可读/代码块 chrome | 执行期已实测记录；验收标准 1 属用户截图对拍口径，用户 T7 拍板及后续反馈即认可；同一源码 `auto build` 再生 dist 无代码增量，复审未重跑浏览器 | **pass（用户已认可口径）** |
+
+**代码面核验**：两适配器（MarkdownRender/StreamingRenderer）+ inject `@autodown/engine/style.css` 切换 ✓；`@autodown/vue` 别名 package re-export engine ✓；生成物 `platform/markdown.vue` 在 T7 diff 外零改动、其 `@autodown/engine` import 现落真身 ✓；dist-stamp `058e5d70…` 与记录一致 ✓；T6 slot 节奏规则保留且注释改写为"上游 segment 规则够不着单文档 slot 流" ✓；054 `.markstream-vue` 死选择器→`.dark .markdown-renderer` 根色覆盖 ✓；vendor 脚本重写（读 packages/engine/dist 全量+上游依赖声明+`--src`）✓；T7 触碰文件 grep 零 TODO/FIXME ✓。
+
+**上游联动实证**：auto-down `DEBTS.md` 020 行已更新（"▶ musk 侧确认到位（2026-09-02，auto-musk PLAN-056 T7）…packages/vue 零消费——物理归档已解锁"）✓。
+
+**遗漏 / 延后 / workaround（T7 段）**：
+
+- **遗漏（复审当场修复）**：deps-guard 白名单 engine 转正——T7 记录的"消一条存量红"未落 diff（commit message 超前于实现）。定性：改前 engine+vue-router 两条红、改后仍两条，**零新增始终成立**，不构成回归；现补齐后与记录一致。随本复审以 `fix(scripts)` 单行提交。
+- **延后（均已在案）**：① `specs_detail.at` TestDetail fixture pre 同根因缩进（规范页，前轮已备忘，merge 登记 KNOWN-DEBT）；② `gen/front/vue/dist` 无内容 hash 无 Cache-Control 部署缓存债（T6 前轮已发现，merge 登记 KNOWN-DEBT）；③ `@autodown/vue` 别名退役（别名 package.json 自述"待 auto-lang 模板切 engine 后移除"，归后续计划，非本计划任务）。
+- **workaround**：无新增——T7 为真源升格非绕道；dist 快照 force-add 入库沿 vendor 快照即本地补丁面的既有惯例。
+
+### T7 结论
+
+**T7 全部门禁复现（deps-guard 记录失实一处已当场补齐+复跑），无阻塞债 → 维持 `status: reviewed`**，可进入 `/auto-plan:merge`（沉淀 + 归档）。
