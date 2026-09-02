@@ -93,6 +93,13 @@ a { color: hsl(var(--primary)); }
 /* PLAN-050 B1: mention 高亮已内联 mention_helpers.at（按上下文发完整类串）
    与 user_message.at（user-text 显式气泡内文字色）——后代选择器规则删除。 */
 .msg-bubble-ai .streaming-document { color: hsl(var(--foreground)); }
+/* PLAN-056 T6: markdown 块间节奏——vendor 0.2.0 快照缺 markstream 的 slot
+   间距段（只剩剥相邻 slot 内容边缘 margin 的两条规则），叠加 tailwind
+   preflight 清零元素默认 margin 后块全部贴死。对齐上游
+   .streaming-document > *+* { margin-top:.75rem } 的节奏，落在实际 DOM
+   层级（.markdown-renderer > .node-slot 相邻兄弟）上；上游两条剥边
+   !important 规则继续防止内容边缘双倍间距。 */
+.streaming-document .markdown-renderer > .node-slot + .node-slot { margin-top: 0.75rem; }
 /* 会话删除按钮：默认隐藏,悬停会话项时显现（悬停显隐无法工具类化） */
 .session-delete-btn { display: none; }
 .session-item:hover .session-delete-btn { display: flex; align-items: center; }
