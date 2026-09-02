@@ -467,8 +467,11 @@ pub fn chats_navigate_session(id str, message_id str) SessionDetailResponse {
     return None
 }
 
+// PLAN-055 ⑧(D1)：run=true 时后端直接 spawn agent 运行（per-session 守卫防双跑），
+// 供 VM 轨显式触发（其 Sse.open 为 no-op，订阅触发路径不可达）；缺省 false 保持
+// web 轨「订阅即运行」语义不变。
 #[api(method = "POST", path = "/api/chats/session/{id}/message")]
-pub fn chats_send_message(id str, content str, profession_id str) {
+pub fn chats_send_message(id str, content str, profession_id str, run bool = false) {
     return None
 }
 

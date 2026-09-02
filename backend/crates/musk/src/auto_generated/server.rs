@@ -331,6 +331,9 @@ pub struct ChatRenameBody {
 #[derive(Debug, Deserialize)]
 pub struct ChatMessageBody {
     pub content: String,
+    /// PLAN-055 ⑧(D1): optional run trigger — absent/None keeps the web-track
+    /// subscription-driven semantics unchanged.
+    pub run: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
