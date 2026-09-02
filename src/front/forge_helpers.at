@@ -100,6 +100,15 @@ fn toolTruncBadge(details obj) str {
     return "Showing " + trunc.output_lines + " of " + trunc.total_lines + " lines (by " + by + ")"
 }
 
+/** 键是否在展开列表中（列表遍历判等——VM/TS 双轨同原语）。 */
+fn thinkIsOpen(ids obj, key str) bool {
+    if ids == None { return false }
+    for k in ids {
+        if k == key { return true }
+    }
+    return false
+}
+
 /** 消息时间格式化（F3 Date.format → toLocaleTimeString）。
  * PLAN-055 ⑦：乐观/流式消息此前写 `timestamp`（毫秒）而后端契约字段是
  * `created_at`（秒）——读侧得 undefined → NaN → "Invalid Date"。此处双保险：

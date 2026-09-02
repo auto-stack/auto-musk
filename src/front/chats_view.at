@@ -250,6 +250,9 @@ widget ChatsView {
                                 errands: .store.errands
                                 relays: .store.relays
                                 task_plans: .store.task_plans
+                                // PLAN-055 T13：思考块展开键列表经 prop 下传——
+                                // 子件 computed 读 store 前缀不可达（只读自身 props）。
+                                thinkList: .store.think_open
                             }
                             // 问卷卡片（专门的提问 block）：解析 assistant 消息里的
                             // 问卷 JSON/问题列表渲染为可选项表单。仅随最新一条消息

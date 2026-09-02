@@ -17,25 +17,34 @@
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web thinkLabel from "src/front/forge_helpers.at"
 
-widget ThinkBlock(text: str, tokens: int, streaming: bool) {
+// PLAN-055 ④/T11：无状态化——VM 轨 ensure_child_state 使所有 ThinkBlock 实例
+// 共享同一根态模型字段（expanded 全实例联动）；对象新键/索引插入在 VM 均崩
+// （keyed map 不可行）。改为：expanded 由父级按 thinkKey 从根态展开键列表
+// 计算（每实例构建期求值，天然隔离）；点击以小写 toggle msg 携构建期冻结的
+// .id 实参上抛（.Pick(.s.id) 同款已证形态），父级 ChatMessage 收流直调
+// ForgeStore.ThinkToggle 键列表重建。PLAN-057 子件状态分槽根修后可回归
+// 子件自持模型形态。
+widget ThinkBlock(id: str, text: str, tokens: int, streaming: bool, expanded: bool) {
     computed {
         // 折叠/展开指示,与 GenericToolCard 的 ▼/▲ 同款
         chevron => if .expanded { "▲" } else { "▼" }
     }
-    msg Msg { Toggle }
-    model {
-        var expanded bool = false
-    }
+    msg Msg { toggle(str) }
     on {
-        .Toggle -> { .expanded = !.expanded }
+        // 空体：声明式 emit（child_emit C2①）以首实参（构建期冻结的 id）回送父级。
+        .toggle(id) -> {}
     }
 
     view {
         col {
             class: "think-block w-full box-border rounded-lg border border-border bg-muted/40 max-w-full overflow-hidden"
-            row {
-                onclick: .Toggle
-                style: "think-header flex items-center gap-[6px] py-[6px] px-[10px] text-[12.5px] text-muted-foreground cursor-pointer select-none hover:bg-muted/50"
+            // PLAN-055 T13：头改为全宽 button——VM 轨子件内 row.onclick 派发
+            // 不达（5 连按零 dispatch 实测；musk 全部可靠点击面均为 button，
+            // 会话列表 .SelectSession(.s.id) 同款带实参形态）。web 侧样式
+            // 重置类（border-none bg-transparent）保持与原 row 观感一致。
+            button {
+                onclick: .toggle(.id)
+                style: "think-header w-full flex items-center gap-[6px] py-[6px] px-[10px] text-[12.5px] text-muted-foreground cursor-pointer select-none hover:bg-muted/50 border-none bg-transparent text-left"
                 text "💭"
                 text thinkLabel(.tokens, .streaming)
                 span {

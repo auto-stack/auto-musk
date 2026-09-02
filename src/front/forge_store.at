@@ -33,6 +33,10 @@ store ForgeStore {
         var report_data Value = null
         // Plan 028 T14：SSE 流句柄（Sse.open/close 平台协议，替代 forge_stream.ts）
         var stream_es Value = null
+        // PLAN-055 ④/T11：ThinkBlock 各实例独立展开态——VM 无 per-instance
+        // 子件模型（ensure_child_state 全实例共享根态），源侧 keyed 形态：
+        // 展开的块键列表（thinkKey 生成），切换走 thinkToggleList 字面量重建。
+        var think_open []Value = []
     }
 
     msg Msg {
@@ -55,6 +59,8 @@ store ForgeStore {
         OnStreamEvent(Value),
         // Plan 051 T10（G1 阶段1）：VM 轮询降级的流式回填拍。
         PollStream,
+        // PLAN-055 ④/T11：ThinkBlock 展开切换（子件上抛，键=thinkKey）。
+        ThinkToggle(str),
     }
 
     // Plan 051 T10（G1 阶段1）：VM 轨无 SSE 形态期间，流式回复以 500ms
@@ -220,6 +226,12 @@ store ForgeStore {
 
         .StopStream -> {
             .streaming = false
+        }
+
+        // PLAN-055 ④/T11：ThinkBlock 独立展开——键列表重建回写（VM 安全：
+        // 既有字段整列表赋值，无新键写入）。
+        .ThinkToggle(key) -> {
+            .think_open = thinkToggleList(.think_open, key)
         }
 
         .SetThinking(text) -> { .thinking = text }
@@ -538,6 +550,25 @@ store ForgeStore {
  * relay_store.relayFormatTimestamp 先例内联定义。 */
 fn nowSec() int {
     return Math.trunc(Date.now() / 1000)
+}
+
+/** ThinkBlock 展开列表取反（PLAN-055 T11；内联同 nowSec 缘由——
+ * forge_helpers 版 thinkToggleList 供渲染侧读，此处 store 侧写路径用同构
+ * fn，避免 store 文件引入 use.web.fn 导入缺口）。 */
+fn thinkToggleList(ids obj, key str) obj {
+    var out list = []
+    var found = false
+    if ids != None {
+        for k in ids {
+            if k == key {
+                found = true
+            } else {
+                out.push(k)
+            }
+        }
+    }
+    if found == false { out.push(key) }
+    return out
 }
 
 fn appendBlockText(msg Value, kind str, text str) {
