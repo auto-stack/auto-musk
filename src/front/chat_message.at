@@ -25,28 +25,68 @@ use.web component Markdown from "src/front/ports/renderer.at"
 use.web component Copy from "src/front/ports/icons.at"
 // PLAN-055 T13: thinkLabel 进内联思考块（ThinkBlock 子件退役）；thinkIsOpen
 // 走 store.think_open 键列表（键=msg.id）。
-use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens, thinkLabel, thinkIsOpen from "src/front/forge_helpers.at"
+// 2026-09-03:工具卡内联（ToolBlock/GenericToolCard 子件退役,沿 ThinkBlock
+// 先例——VM 子件 model 全实例共享 + 孙件 store 直调不可靠,回归根因）。补充
+// toolIsOpen/toolArgsJson/extractRunId 与 relay 助手导入。
+use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens, thinkLabel, thinkIsOpen, toolIsOpen, toolArgsJson, extractRunId from "src/front/forge_helpers.at"
+use.web relayReportView from "src/front/relay_run_helpers.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
 use user_message: UserMessage
-use tool_block: ToolBlock
+use errand_card: ErrandCard
+use relay_run_box: RelayRunBox
+use task_plan_card: TaskPlanCard
+use report_card: ReportCard
 
 // PLAN-055 ④/T11：ThinkBlock 展开态读写走 ForgeStore 根态键列表。
 use store: ForgeStore
 
+
 widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, thinkList: obj, toolList: obj) {
-    msg Msg { CopyContent, ToggleThink(str) }
+    msg Msg { CopyContent, ToggleThink(str), ToolToggleKey(str) }
     on {
         // PLAN-055 ④/T11：ThinkBlock 上抛（payload=构建期冻结的块键）——
         // 直调 store 切换根态展开键列表（跨件 handler 沿 ForgeStore.Init() 先例）。
         .ToggleThink(key) -> {
             ForgeStore.ThinkToggle(key)
         }
+        // 2026-09-03:工具卡逐卡展开（键=block.tkey,冻结实参沿 ToggleThink;
+        // 写侧 ForgeStore.ToolToggle → tool_open 键列表）。
+        .ToolToggleKey(key) -> {
+            ForgeStore.ToolToggle(key)
+        }
         // PLAN-055: AI 消息工具栏 copy（对齐 web 原版 message-toolbar）。
         .CopyContent -> {
             dom.copy_text(.msg.content)
         }
     }
+// 2026-09-03:工具卡内联后 .tool-* scoped 样式随元素迁入本文件（scoped CSS
+// 只打本组件模板;取值沿 generic_tool_card.at 原基准,web 精调/hover 兜底,
+// VM 侧观感由元素内联工具类承载）。
+style {
+.tool-card { border: 1px solid hsl(var(--border)); border-radius: 8px; margin: 0; overflow: hidden; width: 100%; background: transparent; }
+.tool-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; cursor: pointer; user-select: none; }
+.tool-header:hover { background: hsl(var(--muted-foreground) / 0.04); }
+.tool-icon { font-size: 0.93rem; line-height: 1; flex-shrink: 0; }
+.tool-name { font-size: 0.83rem; font-weight: 500; color: hsl(var(--foreground)); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-seg { font-size: 0.78rem; font-weight: 500; font-family: 'Geist Mono', 'Fira Code', monospace; flex-shrink: 0; }
+.tool-seg.seg-path { color: hsl(190 80% 40%); }
+.tool-seg.seg-loc { color: hsl(var(--muted-foreground)); }
+.tool-seg.seg-pattern { color: hsl(280 60% 45%); }
+.tool-seg.seg-desc { color: hsl(var(--foreground)); }
+.tool-status { font-size: 0.73rem; font-weight: 500; flex-shrink: 0; }
+.tool-status.running { color: hsl(210 90% 52%); }
+.tool-status.completed { color: hsl(142 71% 40%); }
+.tool-status.failed { color: hsl(var(--destructive)); }
+.tool-chevron { font-size: 0.7rem; color: hsl(var(--muted-foreground)); flex-shrink: 0; }
+.tool-body { border-top: 1px solid hsl(var(--border)); padding: 0.5rem 0.6rem; }
+.tool-section { margin-bottom: 0.4rem; }
+.tool-section:last-child { margin-bottom: 0; }
+.tool-section-title { font-size: 0.73rem; font-weight: 500; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-bottom: 0.2rem; letter-spacing: 0.02em; }
+.tool-code { font-size: 0.83rem; color: hsl(var(--muted-foreground)); background: hsl(var(--muted-foreground) / 0.04); padding: 0.35rem 0.5rem; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; font-family: 'Geist Mono', 'Fira Code', monospace; margin: 0; }
+.tool-block-slot { width: 100%; }
+}
+
     computed {
         role => .msg.role
         isUser => .role == "user"
@@ -146,7 +186,94 @@ widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task
                                 }
                             }
                         } else {
-                            ToolBlock(tc: .block.tc, tkey: .block.tkey, open: toolIsOpen(.toolList, .block.tkey), errands: .errands, relays: .relays, task_plans: .task_plans)
+                            // 2026-09-03:工具卡内联（原 ToolBlock→GenericToolCard
+                            // 子件链退役——VM 子件 model 全实例共享根态,点一张全
+                            // 展开;孙件 store 直调 + 未导入符号叠加致全块展开
+                            // 失效。沿 ThinkBlock 内联先例:分发/卡片段落上提至
+                            // 本层,展开态走 toolList 键列表,冻结实参派发）。
+                            col {
+                                style: "tool-block-slot w-full"
+                                if .block.tc.name == "dispatch" {
+                                    ErrandCard {
+                                        tc: .block.tc
+                                        errands: .errands
+                                    }
+                                } else if .block.tc.name == "spawn_relay" {
+                                    if extractRunId(.block.tc) != "" {
+                                        RelayRunBox {
+                                            runId: extractRunId(.block.tc)
+                                        }
+                                    } else {
+                                        col {
+                                            class: "tool-card border border-border rounded-lg w-full"
+                                            row {
+                                                onclick: .ToolToggleKey(.block.tkey)
+                                                style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer"
+                                                text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
+                                                text .block.tc.name { style: "tool-name flex-1 min-w-0 truncate text-[13.3px] font-medium text-foreground" }
+                                                text .block.tc.status { style: "tool-status text-[11.7px] font-medium shrink-0 text-blue-500" }
+                                                if toolIsOpen(.toolList, .block.tkey) {
+                                                    text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
+                                                } else {
+                                                    text "▼" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else if .block.tc.name == "task_plan" {
+                                    TaskPlanCard {
+                                        tc: .block.tc
+                                        taskPlans: .task_plans
+                                    }
+                                } else if .block.tc.name == "report" {
+                                    ReportCard {
+                                        report: relayReportView(.block.tc.arguments)
+                                    }
+                                } else {
+                                    col {
+                                        class: if .block.tc.status == "failed" { "tool-card failed border border-border rounded-lg w-full" } else { if .block.tc.status == "running" { "tool-card running border border-border rounded-lg w-full" } else { "tool-card completed border border-border rounded-lg w-full" } }
+                                        // header（click toggle）——冻结实参 .block.tkey
+                                        // 上抛 ToolToggleKey（沿 ToggleThink 形态）。
+                                        row {
+                                            onclick: .ToolToggleKey(.block.tkey)
+                                            style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer"
+                                            text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
+                                            text .block.tc.name { style: "tool-name flex-1 min-w-0 truncate text-[13.3px] font-medium text-foreground" }
+                                            for seg in .block.summary {
+                                                text .seg.text { class: if .seg.type == "path" { "tool-seg seg-path text-[12.5px] font-medium font-mono shrink-0 text-info" } else { if .seg.type == "pattern" { "tool-seg seg-pattern text-[12.5px] font-medium font-mono shrink-0 text-primary" } else { if .seg.type == "desc" { "tool-seg seg-desc text-[12.5px] font-medium font-mono shrink-0 text-foreground" } else { "tool-seg seg-loc text-[12.5px] font-medium font-mono shrink-0 text-muted-foreground" } } } }
+                                            }
+                                            text .block.tc.status { class: if .block.tc.status == "completed" { "tool-status completed text-[11.7px] font-medium shrink-0 text-green-500" } else { if .block.tc.status == "failed" { "tool-status failed text-[11.7px] font-medium shrink-0 text-red-500" } else { "tool-status running text-[11.7px] font-medium shrink-0 text-blue-500" } } }
+                                            if toolIsOpen(.toolList, .block.tkey) {
+                                                text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
+                                            } else {
+                                                text "▼" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
+                                            }
+                                        }
+                                        // body（展开时）——键列表驱动,逐卡独立;
+                                        // 段名大写字面量（VM 无 text-transform）。
+                                        if toolIsOpen(.toolList, .block.tkey) {
+                                            col {
+                                                style: "tool-body border-t border-border px-[10px] py-[8px]"
+                                                col {
+                                                    style: "tool-section mb-[6px]"
+                                                    text "ARGUMENTS" { style: "tool-section-title text-[11.7px] font-medium tracking-wide text-muted-foreground mb-[3px]" }
+                                                    div {
+                                                        style: "tool-code bg-muted-foreground/5 rounded px-[6px] py-[6px] font-mono text-[13.3px] text-muted-foreground whitespace-pre-wrap break-words"
+                                                        text toolArgsJson(.block.tc)
+                                                    }
+                                                }
+                                                if .block.tc.result != "" {
+                                                    col {
+                                                        style: "tool-section mb-[6px]"
+                                                        text "RESULT" { style: "tool-section-title text-[11.7px] font-medium tracking-wide text-muted-foreground mb-[3px]" }
+                                                        Markdown(source: .block.tc.result, streaming: false)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

@@ -263,6 +263,9 @@ fn messageBlocks(msg obj) obj {
         if msg.content != "" { out.push({ kind: "text", text: msg.content }) }
     }
     let toolCalls = msg.tool_calls ?? []
+    // 2026-09-03:tkey 在此字面量生成(msg.id#t<工具序>)——ToolBlock 逐卡
+    // 展开键(ForgeStore.tool_open);工具分区后相对序不变,重载/轮询同键。
+    var tcount = 0
     for raw in toolCalls {
         var status = "completed"
         if raw.status == "error" || raw.status == "failed" {
@@ -270,11 +273,18 @@ fn messageBlocks(msg obj) obj {
         } else {
             if raw.status == "running" { status = "running" }
         }
-        // PLAN-055 T0 规避形态保留（PLAN-057 T2 SET_FIELD 根修后 VM 已合法，
-        // 但字面量重建按待澄清③倾向保留——双轨行为可预测、回退无收益，
-        // 且重建形态同时承载 details 键保真）。
+        tcount = tcount + 1
+        // PLAN-055 T0 规避形态保留（字面量重建双轨可预测,同时承载 details/tkey
+        // 键保真——不用 SET_FIELD 回填循环变量）。summary 预计算内联:视图侧
+        // for-in 源不允许 fn 调用(051 T8),内联渲染标题段需现成数组。
         out.push({
             kind: "tool",
+            tkey: (msg.id ?? "m") + "#t" + tcount,
+            summary: getToolSummary({
+                name: raw.name,
+                arguments: raw.arguments,
+                result: raw.result
+            }),
             tc: {
                 name: raw.name,
                 id: raw.id,
@@ -295,10 +305,6 @@ fn messageBlocks(msg obj) obj {
 fn messageDisplayBlocks(msg obj, streaming bool) obj {
     var out list = []
     let tools list = []
-    // 2026-09-03:工具块稳定键(msg.id#t<序>)——ToolBlock 逐卡展开态
-    // (ForgeStore.tool_open)的键源。序数在分区前后保持稳定(工具块整体
-    // 后置,序号按 tools 分区序生成),重载/轮询重建均同键。
-    var tn int = 0
     // PLAN-051 T8: 迭代源先 let 绑定再 for——直接以调用结果作 for-in 源在
     // VM 触发栈失衡(返回值错位,上游债登记),绑定局部变量即绕开。
     let src_blocks = messageBlocks(msg)
@@ -315,9 +321,9 @@ fn messageDisplayBlocks(msg obj, streaming bool) obj {
     // 展示顺序统一：文字/思考在前、工具块在后——与持久化重载的渲染口径
     // 一致。修复：实时流里工具先到（spawn_relay）、说明文字后流完时，Run
     // 窗口与说明顺序颠倒（刷新后又反过来）。分区对实时/重载同时生效。
+    // tkey 已在 messageBlocks 字面量生成,此处直传(2026-09-03 去 SET_FIELD
+    // 回填循环变量——回归嫌疑之一,沿待澄清③字面量重建口径)。
     for t in tools {
-        tn = tn + 1
-        t.tkey = (msg.id ?? "m") + "#t" + tn
         out.push(t)
     }
     return out
