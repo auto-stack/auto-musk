@@ -215,6 +215,22 @@ schema 回填:         iced: none → native（随实现逐家族推进）
 
 ## 执行步骤（Phase 1 基建 + alert_dialog 纵切；后续家族按同模式铺开）
 
+### 并行批次（2026-09-04 增补——等待 auto-lang PLAN-533 期间可即做项）
+
+- [✅ 已完成 2026-09-04] **S1 验收环境硬化**：一键开发栈脚本（scripts/dev-stack.mjs/.cmd）——
+  后端 musk serve :9247（workdir tmp/musk-demo,已监听则跳过）+ VM 前端
+  （AUTO_BACKEND/AUTO_VM_MERGE=0/RUST_MIN_STACK/**AUTOUI_MCP_PORT=9277 换口**
+  ——修复 MCP 与后端抢 9247 的 FATAL 盲验）+ 可选 Vue dev :3335（代理 9247）。
+  533 联测期 snapshot/驱动取证的直接前置。
+  烟测通过：MCP `listening on http://127.0.0.1:9277` 实证（d5d6270）。
+- [ ] **S2 Vue 轨对拍确认**（需人工）：:3335 上逐项核对与 VM 同源修复——
+  会话卡 hover ×、工具卡逐卡展开、消息间距 gap-10、copy 靠左;产出 web 基准
+  截图（533 对拍门禁的 web 侧基准）。
+- [ ] **S3 worktree 收尾**（依赖用户验证展开/hover 正常）：auto-musk-dev-1
+  三批提交（120d89e/a2ef16e/cbece28）合回 main,删 worktree+分支。
+- [ ] **S4 挂账转计划**：VM 数据面 DEGRADED 30 fn → musk PLAN-060;
+  059-FU1 反应性三问题 → auto-lang PLAN-534。（已完成 2026-09-04）
+
 - [✅ 已完成] worktree 建（基于 master 7ab140c41）；探针工程
   examples/overlay-probe 随 T2 入库。
 - [✅ 已完成] **T2 根因实锤+修复**（auto-musk-dev 分支）：派发侧
