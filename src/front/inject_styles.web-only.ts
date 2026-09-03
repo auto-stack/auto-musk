@@ -105,6 +105,10 @@ a { color: hsl(var(--primary)); }
 .session-delete-btn { display: none; }
 .session-item:hover .session-delete-btn { display: flex; align-items: center; }
 .session-delete-btn:hover { opacity: 1; color: hsl(var(--destructive)); }
+/* PLAN-058 三期:内联删除确认行仅 VM 轨渲染——web 轨用 alert-dialog 模态
+   （components/DeleteConfirmDialog.vue）,本规则抑制 web 侧内联行双现。
+   VM 不消费本文件,确认行在 VM 正常显示。 */
+.session-delete-strip { display: none; }
 /* PLAN-050: search/tree 系钩子类在 gen 轨零元素（仅匹配已冻结 web/ 轨）
    ——死规则删除;placeholder 色已内联 wiki_nav.at/chats_view.at。 */
 /* 输入区 focus 光环 + @mention 双层文字技术（textarea 文字透明,由

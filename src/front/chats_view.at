@@ -25,6 +25,13 @@ use.web getQuestions, hasQuestionnaire from "src/front/questionnaire.at"
 use.web questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder from "src/front/questionnaire_helpers.at"
 use.web component Plus, Trash2, Search, Info from "src/front/ports/icons.at"
 use.web useT from "src/front/ports/composables.at"
+// PLAN-058 三期:删除确认 web 轨 = AutoUI alert-dialog（components/
+// DeleteConfirmDialog.vue 薄适配:ui/alert-dialog 标准件组合,直连绑定沿
+// renderer.web.at→MarkdownRender.vue 先例）。VM 轨 = 列表顶部内联确认行
+// （下 span 行,类 session-delete-strip 经 web CSS display:none 抑制——
+// alert-dialog backends iced:none,VM 不渲染对话框,实机快照实证;且 VM 跨
+// widget msg 派发不通,确认行必须内联本视图）。
+use.web component DeleteConfirmDialog from "src/front/components/DeleteConfirmDialog.vue"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
 use mention_input: MentionInput
@@ -56,7 +63,6 @@ widget ChatsView {
         AskDeleteAll,
         CancelDelete,
         ConfirmDelete(str),
-        ConfirmDeleteAll,
         SelectSession(str),
         SendInput(str),
         StopStream,
@@ -77,8 +83,11 @@ widget ChatsView {
         var sidebar_collapsed bool = false
         var chat_search str = ""
         // PLAN-058: 待确认删除目标（会话 id 或 "__all__"；空串=无待确认）。
-        // 沿 chat_search 先例的视图态 str 字段（VM 对 str SET/比较双轨实证）。
+        // 沿 chat_search 先例的视图态 str 字段（VM 对 str 字段 SET/比较双轨实证）。
         var delete_pending_id str = ""
+        // PLAN-058 三期:alert-dialog 受控 open（web 侧 v-model:open 需
+        // state_ref bool——字面量/表达式会让整树退化成 div,vue.rs:10863）。
+        var delete_confirm_open bool = false
     }
 
     // Plan 028 T15：搜索过滤（原 useChatSearch composable → F2 多参 fn 直调）
@@ -126,23 +135,43 @@ widget ChatsView {
                 slot(name: "list") {
                     col {
                         style: "flex-1 overflow-y-auto px-2"
-                        // PLAN-058: 全部删除确认条（列表顶部展开；单臂 if 沿
-                        // nav_item 先例——VM 对视图内 if 的已证形态）。
-                        if .delete_pending_id == "__all__" {
+                        // PLAN-058 三期:删除确认双轨——web=DeleteConfirmDialog
+                        // (alert-dialog 模态,CSS .session-delete-strip 抑制下述
+                        // 内联行);VM=内联确认行(单臂 if 分流单删/全删文案,按钮
+                        // 直发本视图 msg——VM 跨 widget 派发不通,055 子件教训)。
+                        DeleteConfirmDialog {
+                            open: .delete_confirm_open
+                            target: .delete_pending_id
+                            session_title: t("chat.confirmDeleteSession")
+                            all_title: t("chat.confirmDeleteAll")
+                            confirm_text: t("chat.confirmDelete")
+                            cancel_text: t("chat.cancel")
+                            onconfirm: .ConfirmDelete($event)
+                            oncancel: .CancelDelete
+                        }
+                        if .delete_confirm_open {
                             row {
-                                style: "flex items-center gap-2 w-full px-1 py-1.5 mb-1"
-                                span {
-                                    style: "text-xs text-destructive"
-                                    text t("chat.confirmDeleteAll")
+                                style: "session-delete-strip flex items-center gap-2 w-full px-1 py-1.5 mb-1"
+                                if .delete_pending_id == "__all__" {
+                                    span {
+                                        style: "text-xs text-destructive"
+                                        text t("chat.confirmDeleteAll")
+                                    }
+                                }
+                                if .delete_pending_id != "__all__" {
+                                    span {
+                                        style: "text-xs text-destructive"
+                                        text t("chat.confirmDeleteSession")
+                                    }
                                 }
                                 span {
                                     style: "text-xs font-medium text-destructive border border-destructive/40 rounded px-1.5 py-0.5 cursor-pointer hover:bg-destructive/10"
-                                    onclick.stop: .ConfirmDeleteAll
+                                    onclick.stop: .ConfirmDelete(.delete_pending_id)
                                     text t("chat.confirmDelete")
                                 }
                                 span {
                                     style: "text-xs text-muted-foreground border border-border rounded px-1.5 py-0.5 cursor-pointer hover:bg-accent"
-                                    onclick: .CancelDelete
+                                    onclick.stop: .CancelDelete
                                     text t("chat.cancel")
                                 }
                             }
@@ -182,35 +211,14 @@ widget ChatsView {
                                 // 隐形，而 absolute 类 VM 不消费退化为流内排布
                                 // （恰落卡片下半部），误点即直删；改 text "×"
                                 //（gate_card 🔒 / chat_message ▲▼ 字形先例，双轨
-                                // 可见）。②点击只置 pending，确认条二次确认后才
-                                // 调删除 API。两个单臂 if（nav_item 先例），不用
-                                // if/else。
-                                if .delete_pending_id == .s.id {
-                                    row {
-                                        style: "flex items-center gap-2 w-full mt-1"
-                                        span {
-                                            style: "text-xs text-destructive"
-                                            text t("chat.confirmDeleteSession")
-                                        }
-                                        span {
-                                            style: "text-xs font-medium text-destructive border border-destructive/40 rounded px-1.5 py-0.5 cursor-pointer hover:bg-destructive/10"
-                                            onclick.stop: .ConfirmDelete(.s.id)
-                                            text t("chat.confirmDelete")
-                                        }
-                                        span {
-                                            style: "text-xs text-muted-foreground border border-border rounded px-1.5 py-0.5 cursor-pointer hover:bg-accent"
-                                            onclick.stop: .CancelDelete
-                                            text t("chat.cancel")
-                                        }
-                                    }
-                                }
-                                if .delete_pending_id != .s.id {
-                                    span {
-                                        style: "session-delete-btn absolute right-[6px] top-1/2 -translate-y-1/2 items-center opacity-60 bg-transparent border-none p-[3px] text-destructive text-base leading-none cursor-pointer"
-                                        onclick.stop: .AskDelete(.s.id)
-                                        title: t("chat.deleteSession")
-                                        text "×"
-                                    }
+                                // 可见）。②点击置 pending+open，经
+                                // DeleteConfirmDialog（web=alert-dialog 模态,
+                                // VM=列表顶确认行）二次确认后才调删除 API。
+                                span {
+                                    style: "session-delete-btn absolute right-[6px] top-1/2 -translate-y-1/2 items-center opacity-60 bg-transparent border-none p-[3px] text-destructive text-base leading-none cursor-pointer"
+                                    onclick.stop: .AskDelete(.s.id)
+                                    title: t("chat.deleteSession")
+                                    text "×"
                                 }
                             }
                         }
@@ -366,30 +374,42 @@ widget ChatsView {
 
         .NewSession -> { store.NewSession() }
 
-        // PLAN-058: 删除两步确认状态机——Ask* 只置 pending，Confirm* 才真正
-        // 调删除 API；Cancel/SelectSession 复位（点其他会话=放弃删除）。
-        .AskDelete(id) -> { .delete_pending_id = id }
-
-        .AskDeleteAll -> { .delete_pending_id = "__all__" }
-
-        .CancelDelete -> { .delete_pending_id = "" }
-
-        .ConfirmDelete(id) -> {
-            chats_delete_session(id);
-            .delete_pending_id = "";
-            store.LoadSessionList()
+        // PLAN-058 三期:Ask* 置 pending + open（alert-dialog 受控态）;取消
+        // （含 reka-ui ESC/遮罩关闭路径,统一折算 oncancel）与 SelectSession
+        // 复位双字段;ConfirmDelete 分流单删/全删（target 注入）并复位。
+        .AskDelete(id) -> {
+            .delete_pending_id = id;
+            .delete_confirm_open = true
         }
 
-        .ConfirmDeleteAll -> {
-            chats_delete_all_sessions();
+        .AskDeleteAll -> {
+            .delete_pending_id = "__all__";
+            .delete_confirm_open = true
+        }
+
+        .CancelDelete -> {
             .delete_pending_id = "";
-            store.session_id = "";
-            store.messages = [];
+            .delete_confirm_open = false
+        }
+
+        // PLAN-058 三期:ConfirmDelete 统一确认入口——target 为会话 id 走单删,
+        // "__all__"(DeleteConfirmDialog target 注入)走全删;双字段一并复位。
+        .ConfirmDelete(id) -> {
+            if id == "__all__" {
+                chats_delete_all_sessions();
+                store.session_id = "";
+                store.messages = [];
+            } else {
+                chats_delete_session(id);
+            }
+            .delete_pending_id = "";
+            .delete_confirm_open = false;
             store.LoadSessionList()
         }
 
         .SelectSession(id) -> {
             .delete_pending_id = "";
+            .delete_confirm_open = false;
             store.SwitchSession(id)
         }
 
