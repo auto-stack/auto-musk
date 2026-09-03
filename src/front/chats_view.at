@@ -16,7 +16,7 @@ use back.api: chats_delete_session, chats_delete_all_sessions
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web relay_command_match from "src/front/relay_commands.at"
 use.web platformRunRelayCommand from "src/front/ports/platform.at"
-use.web.fn extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming, msgTimeLabel, thinkIsOpen, toolIsOpen, toolToggleList, toolArgsJson, withExpansion from "src/front/forge_helpers.at"
+use.web.fn extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming, msgTimeLabel, thinkIsOpen, toolIsOpen, thinkToggleList, toolToggleList, toolArgsJson, withExpansion from "src/front/forge_helpers.at"
 use.web.fn relayReportView from "src/front/relay_run_helpers.at"
 use.web component Markdown from "src/front/ports/renderer.at"
 use.web component Copy from "src/front/ports/icons.at"

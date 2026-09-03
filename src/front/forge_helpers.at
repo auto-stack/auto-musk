@@ -356,6 +356,23 @@ fn withExpansion(msgs obj, thinkIds obj, toolKeys obj, streaming bool, allMsgs o
 
 /** 工具块是否展开（读侧;toolToggleList 写侧在 forge_store）。 */
 /** 展开键列表取反（think/tool 共用;字面量重建形态）。 */
+/** 展开键列表取反（tool 版;与 thinkToggleList 同构）。 */
+fn toolToggleList(ids obj, key str) obj {
+    var out list = []
+    var found = false
+    if ids != None {
+        for k in ids {
+            if k == key {
+                found = true
+            } else {
+                out.push(k)
+            }
+        }
+    }
+    if found == false { out.push(key) }
+    return out
+}
+
 fn thinkToggleList(ids obj, key str) obj {
     var out list = []
     var found = false
