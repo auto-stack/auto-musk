@@ -1,17 +1,17 @@
 ---
 plan_id: PLAN-058
 status: execution_done
-feature_name: 会话删除两步确认护栏 + Block 全家福会话重灌
+feature_name: 会话删除两步确认护栏 + Block 全家福会话重灌（+二期：主导航纵排与标题边框）
 author: [zhaopuming]
 created_at: 2026-09-03T10:00:00+08:00
-updated_at: 2026-09-03T11:05:00+08:00
+updated_at: 2026-09-03T12:00:00+08:00
 
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 9
-total_steps: 9
+current_step: 12
+total_steps: 12
 ---
 
 # [PLAN-058] 会话删除两步确认护栏 + Block 全家福会话重灌
@@ -25,6 +25,17 @@ total_steps: 9
    点击 icon 后弹确认，确认后才删除。VM 轨无 CSS/hover/图标，需双轨等价的
    两步删除设计。
 2. **数据修复**：Block 全家福测试会话在用户视角已被误删，要求补回一个完整的。
+
+**二期（2026-09-03 用户追加，gen 截图实测）**：
+
+3. **主导航标题下边框**：截图上"Auto Musk v0.1.0"标题栏没有下边框。实测
+   边框**存在且已与二级导航标题对齐**（均 y=48 处 1px solid），不可见的真因
+   是 `--border`(亮度 18%) 与 rail 的 `bg-secondary`(16%) 仅差 2 个亮度点，
+   视觉上等于没有（bg-card 是 10%，所以二级导航那条可见）。修复=提高该线
+   对比度（border-white/10），对齐天然成立无需改高度。
+4. **主导航底部纵排**：WorkspaceSelector 与 SettingsMenu 齿轮横向并排
+   （justify-between）撑宽主导航。改为上下排列：工程目录在上 → 分割线 →
+   设置行（齿轮 icon + "设置" 文字，与上方导航项 icon+文字 形态一致）。
 
 ## 目标
 
@@ -227,6 +238,19 @@ total_steps: 9
 - [✅ 已完成] 状态推进 execution_done；scoped 复验（lint+vitest）绿；残差与
   偏差入待澄清④-⑧；交接 /auto-plan:review（merge 时主检出需重跑
   auto build --gen-only + pnpm install 使 :3334 生效）。
+- [✅ 已完成] 标题下边框对比度：border-b 换 border-white/10（实测
+  border-border 与 bg-secondary 仅差 2 亮度点不可见）；h-12 不动。gen 实测
+  borderBottomColor=rgba(255,255,255,.1) @y=48，与二级导航标题线对齐。
+- [✅ 已完成] 底部纵排：WorkspaceSelector 在上 → 分割线（SettingsMenu 根容器
+  border-t border-white/10）→ 设置行（齿轮+「设置」全宽 36px 行,.settings-trigger
+  样式块同步改,面板上弹锚点不变）。gen 实测：设置钮全宽 167px、分割线居间、
+  面板开合正常；VM 快照纵排结构成立。证据 p058-gen-rail-phase2/
+  p058-gen-settings-panel.png + p058-vm-phase2-snapshot.txt。
+- [✅ 已完成] 重生成+门禁+双轨验证+收尾：auto build 绿（54 组件）/
+  vm-safe-lint PASS/vitest 23+1skip/pnpm build 绿；gen 浏览器实测 Block
+  全家福全块型渲染（思考块/表格/代码块/工具卡×5/Run 窗口/报告卡/问卷）。
+  **执行期抓错**：style{} 块内 CSS 注释致 auto build 静默失败（exit 1 零
+  诊断,二分定位），去注释即绿——登记待澄清⑨。
 
 ## 复审记录
 
@@ -258,3 +282,8 @@ total_steps: 9
 8. **（执行期发现）OS 级合成输入被 VM 守卫拒绝**（057 账本在案）：鼠标
    click 与键盘 type 均被拦，AutoUI MCP 的 widget 级 autoui_action(press)/
    autoui_type 可用——实机自动化验收应走 MCP 路线。
+9. **（二期执行期抓错）style{} 块内 CSS 注释致 auto build 静默失败**：在
+   settings_menu.at 的 style 块加 `/* ... */` 注释后 build exit 1 且零诊断
+   输出（二分定位确认，去除即绿）。auto-lang 债务：style 块注释应支持或
+   报错，不应静默。同批排除项：独立空 div 分割线嫌疑未独立证实（与注释
+   同批存在）；nav-item 同形的 icon+span 触发钮无问题。
