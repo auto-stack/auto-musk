@@ -83,6 +83,28 @@ DynamicMessage 派发——与 popover 臂同构）；
 ③ dropdown_menu 臂复用 popover（placement bottom-start + 菜单 item 列表）。
 T2 的 child_emit 修复已使弹层内按钮的 onclick 派发可用。
 
+### T4 实施检查点（auto-musk-dev 分支 WIP 提交，编译绿）
+
+已落地：
+- `view.rs`：`PopoverPlacement::Modal` 变体；
+- `popover.rs` Panel 模态三语义：layout 根=全视口命中区+content 居中子节点
+  （`move_to` 按值消费须接收返回值）；update 内容外点击/ESC=dismiss+捕获
+  （阻断基础树）；draw 先画全视口暗幕（`advanced::renderer::Quad`，
+  fill_quad 需 `use iced::advanced::Renderer` trait 在作用域）；
+- `aura_view_builder.rs`：主 match 加 alert-dialog 家族臂（容器/文本/button
+  委托），`convert_alert_dialog` 子标签改名（trigger/content→popover-*）
+  委托 `convert_popover_inner`（placement_override=Modal）+ oncancel 别名
+  折算 ondismiss；placement 解析加 "modal"。
+
+**剩余断点（下一段工作从这里继续）**：gallery /alertdialog 实机——按
+Show Dialog 后 MCP snapshot 已见对话框子树（title/Cancel/Continue），但
+截图视觉无浮层。二选一断点待查：
+(a) 触发器 `__popover_toggle` 开合是否真把 POPOVER_OPEN 置为该 slot id
+   （popover 臂的自管开合接线对 alert-dialog 委托形态是否生效）；
+(b) Modal 的 draw 路径（暗幕/卡片是否真的绘制，index=10.0 层级是否被
+   基础树覆盖）。排查顺序：先 autoui_state/snapshot 对比 open 前后差异 →
+   再日志确认 popover.rs Panel::draw 是否被调用。
+
 ```
 渲染根: Stack { base: 现有视图树, ...open_overlays }
 overlay registry（renderer 侧）:
