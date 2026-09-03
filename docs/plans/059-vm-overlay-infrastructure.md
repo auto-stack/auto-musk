@@ -123,6 +123,13 @@ ui-cache.json` 缓存编译产物,源码不变则复用旧产物——**codegen 
 该文件强制重编**;另 Windows 下运行中的 auto.exe 锁文件,cargo build 前须
 taskkill（此前多轮"构建成功实为静默失败"皆因此）。
 
+**【2026-09-03 更新】本节工作已立项 auto-lang PLAN-533**
+（`auto-lang/docs/plans/533-vm-overlay-runtime-channel.md`,commit b67525b63）：
+四件套（codegen 臂+生成侧 Modal 运行时+开合/open 绑定+ESC/外点事件回流）
++ 重做 auto-musk-dev 丢失工作（Modal 基建三件 + child_emit 大小写折叠）。
+533 完成并合回后,本计划从 T4 验证起恢复执行（gallery /alertdialog 实机 →
+T5-T8 → T9 musk 三场景回归）。
+
 ### codegen 侧确认（2026-09-03 补充勘察）
 
 - 用户实机复测定案：编译 VM 轨点 Show Dialog **完全无反应**——alert-dialog
