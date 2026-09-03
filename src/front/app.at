@@ -49,7 +49,11 @@ widget App {
             LoginPage
         } else {
             row {
-                style: "h-screen w-full"
+                style: "h-screen w-full bg-background"
+                // bg-background：web 轨 body CSS 已有同色（冗余无害）；VM 轨
+                // 此前无背景类落 iced 默认黑——用户对拍 2026-09-03：VM 内容
+                // 面板与二级导航同色。补上后 VM 三栏 = bg-secondary(左)/
+                // bg-card(二级)/bg-background(内容) 三档渐进,与 Vue 层次一致。
                 // Plan 029 T20：全局快捷键挂视图根（见 .GlobalKeydown）。
                 onkeydown: .GlobalKeydown($event)
                 // view rail（侧边导航栏）
@@ -78,10 +82,12 @@ widget App {
                         // Plan 052（上游 auto-lang Plan 482）：nav-item 组件——
                         // hover/active 三态与图标由契约承载，取代手搓 if 样式串
                         // 与逐 text 补色 workaround（8453d6d）。
-                        nav-item (onclick: .ShowChats, active: .current_view == "chats", icon: "message-square", label: "会话")
-                        nav-item (onclick: .ShowPlans, active: .current_view == "plans", icon: "list-todo", label: "计划")
-                        nav-item (onclick: .ShowSpecs, active: .current_view == "specs", icon: "scroll", label: "规范")
-                        nav-item (onclick: .ShowWiki, active: .current_view == "wiki", icon: "book-open", label: "知识库")
+                        // size=lg：图标 20px(h-5 w-5,nav 契约两轨同源)——用户
+                        // 对拍 2026-09-03:VM 图标观感偏小,主导航抬档。
+                        nav-item (onclick: .ShowChats, active: .current_view == "chats", icon: "message-square", label: "会话", size: "lg")
+                        nav-item (onclick: .ShowPlans, active: .current_view == "plans", icon: "list-todo", label: "计划", size: "lg")
+                        nav-item (onclick: .ShowSpecs, active: .current_view == "specs", icon: "scroll", label: "规范", size: "lg")
+                        nav-item (onclick: .ShowWiki, active: .current_view == "wiki", icon: "book-open", label: "知识库", size: "lg")
                     }
                     // Plan 407：WorkspaceSelector + SettingsMenu 在导航栏底部。
                     // PLAN-058 二期：横排（justify-between 撑宽主导航）改纵排

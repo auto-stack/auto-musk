@@ -295,6 +295,10 @@ fn messageBlocks(msg obj) obj {
 fn messageDisplayBlocks(msg obj, streaming bool) obj {
     var out list = []
     let tools list = []
+    // 2026-09-03:工具块稳定键(msg.id#t<序>)——ToolBlock 逐卡展开态
+    // (ForgeStore.tool_open)的键源。序数在分区前后保持稳定(工具块整体
+    // 后置,序号按 tools 分区序生成),重载/轮询重建均同键。
+    var tn int = 0
     // PLAN-051 T8: 迭代源先 let 绑定再 for——直接以调用结果作 for-in 源在
     // VM 触发栈失衡(返回值错位,上游债登记),绑定局部变量即绕开。
     let src_blocks = messageBlocks(msg)
@@ -312,9 +316,20 @@ fn messageDisplayBlocks(msg obj, streaming bool) obj {
     // 一致。修复：实时流里工具先到（spawn_relay）、说明文字后流完时，Run
     // 窗口与说明顺序颠倒（刷新后又反过来）。分区对实时/重载同时生效。
     for t in tools {
+        tn = tn + 1
+        t.tkey = (msg.id ?? "m") + "#t" + tn
         out.push(t)
     }
     return out
+}
+
+/** 工具块是否展开（读侧;toolToggleList 写侧在 forge_store）。 */
+fn toolIsOpen(ids obj, key str) bool {
+    if ids == None { return false }
+    for k in ids {
+        if k == key { return true }
+    }
+    return false
 }
 
 /**

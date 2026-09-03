@@ -34,7 +34,7 @@ use tool_block: ToolBlock
 // PLAN-055 ④/T11：ThinkBlock 展开态读写走 ForgeStore 根态键列表。
 use store: ForgeStore
 
-widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, thinkList: obj) {
+widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, thinkList: obj, toolList: obj) {
     msg Msg { CopyContent, ToggleThink(str) }
     on {
         // PLAN-055 ④/T11：ThinkBlock 上抛（payload=构建期冻结的块键）——
@@ -146,7 +146,7 @@ widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task
                                 }
                             }
                         } else {
-                            ToolBlock(tc: .block.tc, errands: .errands, relays: .relays, task_plans: .task_plans)
+                            ToolBlock(tc: .block.tc, tkey: .block.tkey, open: toolIsOpen(.toolList, .block.tkey), errands: .errands, relays: .relays, task_plans: .task_plans)
                         }
                     }
                 }
@@ -161,7 +161,9 @@ widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task
                         onclick: .CopyContent
                         style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
                         title: "Copy"
-                        Copy { size: 13 }
+                        // size 13→16(用户对拍 2026-09-03:VM 图标观感偏小,统一抬到 16;
+                        // web 端 lucide size 同步,两轨一致)。
+                        Copy { size: 16 }
                     }
                 }
             }

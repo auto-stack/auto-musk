@@ -76,6 +76,10 @@ widget ChatsView {
         // 旧 CLI 解析失败被 stale gen 掩盖,新 CLI 重建时暴露为 0 参 emit）。
         // PLAN-055 ⑤: RetryFrom 随"⑂ 重试"按钮删除（孤儿清理）。
         BranchTo(str, str),
+        // 2026-09-03:会话卡 × hover 显隐（mouse-area 命中区驱动;web 侧
+        // CSS .session-item:hover 双保险,语义一致）。
+        HoverSession(str),
+        HoverSessionClear,
     }
 
     model {
@@ -88,6 +92,8 @@ widget ChatsView {
         // PLAN-058 三期:alert-dialog 受控 open（web 侧 v-model:open 需
         // state_ref bool——字面量/表达式会让整树退化成 div,vue.rs:10863）。
         var delete_confirm_open bool = false
+        // 2026-09-03:当前 hover 的会话 id(× 按钮显隐;空串=无 hover)。
+        var hover_session_id str = ""
     }
 
     // Plan 028 T15：搜索过滤（原 useChatSearch composable → F2 多参 fn 直调）
@@ -121,7 +127,9 @@ widget ChatsView {
                         onclick: .NewSession
                         style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent border border-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
                         title: t("chat.newSession")
-                        Plus { size: 16 }
+                        // 2026-09-03:图标 16→20(用户对拍 VM 图标观感偏小,整体抬档;
+                        // web 端 lucide size 同步,两轨一致)。
+                        Plus { size: 20 }
                     }
                     button {
                         // PLAN-058: 直删改两步确认；Trash2（use.web，VM 空内容）
@@ -187,43 +195,46 @@ widget ChatsView {
                                 } else {
                                     "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground"
                                 }
-                                // 标题行 justify-between：× 在标题同排右缘（用户
-                                // 反馈 2026-09-03：× 常显且落卡片下半部——VM 编译
-                                // 轨不消费 absolute，改为流内右上角承载；web 轨
-                                // absolute 类继续生效=右上角 + hover 显隐不变）。
-                                row {
-                                    style: "flex items-start justify-between w-full gap-1"
-                                    span {
-                                        style: if .s.id == .store.session_id {
-                                            "text-[13.6px] font-medium text-primary truncate max-w-full"
-                                        } else {
-                                            "text-[13.6px] text-foreground truncate max-w-full"
+                                // 标题行 justify-between：× 在标题同排右缘。悬停
+                                // 显隐：内容包 mouse-area(Plan 484 hover 命中区,
+                                // iced mouse_area on_enter/on_exit / vue div
+                                // @mouseenter),进/出事件驱动 hover_session_id,
+                                // × 仅 hover 该卡时渲染——web 另有 CSS
+                                // .session-item:hover 双保险,两轨语义一致
+                                // （用户对拍 2026-09-03:× 须 hover 才现）。
+                                mouse-area {
+                                    onmouseenter: .HoverSession(.s.id)
+                                    onmouseleave: .HoverSessionClear
+                                    row {
+                                        style: "flex items-start justify-between w-full gap-1"
+                                        span {
+                                            style: if .s.id == .store.session_id {
+                                                "text-[13.6px] font-medium text-primary truncate max-w-full"
+                                            } else {
+                                                "text-[13.6px] text-foreground truncate max-w-full"
+                                            }
+                                            text .s.name
                                         }
-                                        text .s.name
+                                        // PLAN-055 T15/T16 + PLAN-058 两步删除:
+                                        // 字形化 ×(Trash2 use.web 在 VM 为空形)+
+                                        // AskDelete 二次确认。absolute 类仅 web
+                                        // 消费(右上角精放),VM 编译轨不消费、
+                                        // 流内承载于标题行右缘。
+                                        if .hover_session_id == .s.id {
+                                            span {
+                                                style: "session-delete-btn absolute right-[6px] top-[6px] flex items-center shrink-0 opacity-40 bg-transparent border-none p-[3px] text-muted-foreground text-sm leading-none cursor-pointer hover:opacity-100 hover:text-destructive"
+                                                onclick.stop: .AskDelete(.s.id)
+                                                title: t("chat.deleteSession")
+                                                text "×"
+                                            }
+                                        }
                                     }
-                                    // PLAN-055 T15/T16: 删 Info 图标（②b）。PLAN-058
-                                    // 两步删除：①affordance 字形化——Trash2 是
-                                    // use.web 组件，VM 轨生成物无图标内容=空 span
-                                    // 隐形；改 text "×"（gate_card 🔒 /
-                                    // chat_message ▲▼ 字形先例，双轨可见）。
-                                    // ②点击置 pending+open，经 DeleteConfirmDialog
-                                    // （web=alert-dialog 模态,VM=列表顶确认行）二次
-                                    // 确认后才调删除 API。观感注记：VM 编译轨无
-                                    // 父级 hover 显隐机制（mouse-area 无 codegen
-                                    // 臂），× 在 VM 常显但低对比（opacity-40 +
-                                    // muted 前景）；web 轨仍 hover 才现。
-                                    span {
-                                        style: "session-delete-btn absolute right-[6px] top-[6px] flex items-center shrink-0 opacity-40 bg-transparent border-none p-[3px] text-muted-foreground text-sm leading-none cursor-pointer hover:opacity-100 hover:text-destructive"
-                                        onclick.stop: .AskDelete(.s.id)
-                                        title: t("chat.deleteSession")
-                                        text "×"
-                                    }
-                                }
-                                row {
-                                    style: "flex items-center gap-1 w-full"
-                                    span {
-                                        style: "text-xs text-muted-foreground"
-                                        text t("chat.msgs", { count: .s.message_count })
+                                    row {
+                                        style: "flex items-center gap-1 w-full"
+                                        span {
+                                            style: "text-xs text-muted-foreground"
+                                            text t("chat.msgs", { count: .s.message_count })
+                                        }
                                     }
                                 }
                             }
@@ -244,7 +255,7 @@ widget ChatsView {
                             // flex-[0_1_320px] 任意值不支持整类丢弃 → 搜索框塌 0
                             // 被挤压；web 侧仅极窄窗行为微改进（原可压到 0）。
                             style: "flex items-center gap-[5px] max-w-[320px] min-w-[200px] w-[320px] flex-[0_1_320px] px-3 py-1.5 bg-muted-foreground/5 border border-muted-foreground/10 rounded-md text-muted-foreground"
-                            Search { size: 13, class: "shrink-0" }
+                            Search { size: 16, class: "shrink-0" }
                             input {
                                 style: "w-full text-[13px] text-foreground bg-transparent border-none outline-none placeholder:text-muted-foreground"
                                 value: .chat_search
@@ -322,6 +333,8 @@ widget ChatsView {
                                 // PLAN-055 T13：思考块展开键列表经 prop 下传——
                                 // 子件 computed 读 store 前缀不可达（只读自身 props）。
                                 thinkList: .store.think_open
+                                // 2026-09-03:工具块逐卡展开键列表(同 thinkList 形态)。
+                                toolList: .store.tool_open
                             }
                             // 问卷卡片（专门的提问 block）：解析 assistant 消息里的
                             // 问卷 JSON/问题列表渲染为可选项表单。仅随最新一条消息
@@ -379,6 +392,11 @@ widget ChatsView {
         .OnSearchInput(val) -> { .chat_search = val }
 
         .NewSession -> { store.NewSession() }
+
+        // 2026-09-03:hover 会话 × 显隐(mouse-area onmouseenter/onmouseleave;
+        // 离开清空,进入置 id——相邻卡先 clear 后 enter,无抖动)。
+        .HoverSession(id) -> { .hover_session_id = id }
+        .HoverSessionClear -> { .hover_session_id = "" }
 
         // PLAN-058 三期:Ask* 置 pending + open（alert-dialog 受控态）;取消
         // （含 reka-ui ESC/遮罩关闭路径,统一折算 oncancel）与 SelectSession

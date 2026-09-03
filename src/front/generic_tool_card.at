@@ -11,13 +11,25 @@
 //   - expanded toggle → model + on（P4）
 //   - 行内三元/拼接 → 提 computed（parser 陷阱规避）
 //
+// 2026-09-03 用户对拍两改：
+//   ①展开态上提——VM 子件 model 全实例共享（ensure_child_state 根态），
+//     本地 expanded 点一张全展开。改 props（tkey+open）+ ForgeStore.ToolToggle
+//     键列表（沿 think_open 先例）;handler 直调 store(ChatsView.Init 代派先例)。
+//   ②样式双轨化——.tool-* scoped CSS 仅 web 生效,VM 只吃内联工具类。标题栏/
+//     正文补 VM 可消费的工具类（状态色改 text-green-500 等 tailwind 基色:
+//     text-success 非 web 默认调色板,shadcn tailwind 无此 token）;段名改大写
+//     字面量（VM 无 text-transform）。
+//
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.tool-card 等）。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web getToolSummary, toolArgsJson, toolTruncBadge from "src/front/forge_helpers.at"
 use.web component Markdown from "src/front/ports/renderer.at"
 
-widget GenericToolCard(tc: obj) {
+// PLAN-055 ④先例：展开态读写走 ForgeStore 根态键列表。
+use store: ForgeStore
+
+widget GenericToolCard(tc: obj, tkey: str, open: bool) {
     computed {
         name => .tc.name
         status => if .tc.status != "" { .tc.status } else { "running" }
@@ -27,7 +39,7 @@ widget GenericToolCard(tc: obj) {
         resultText => if .hasResult { .tc.result } else { "" }
         argsJson => toolArgsJson(.tc)
         summary => getToolSummary(.tc)
-        chevron => if .expanded { "▲" } else { "▼" }
+        chevron => if .open { "▲" } else { "▼" }
         // PLAN-042:details 载荷(edit diff/截断/全量输出路径)。
         hasDiff => if .tc.details == None { false } else { if .tc.details.diff == None { false } else { true } }
         diffText => if .hasDiff { .tc.details.diff } else { "" }
@@ -37,14 +49,19 @@ widget GenericToolCard(tc: obj) {
         fullOutputPath => if .hasFullOutput { .tc.details.full_output_path } else { "" }
     }
     msg Msg { Toggle }
-    model { var expanded bool = false }
     on {
-        .Toggle -> { .expanded = !.expanded }
+        // 展开切换：直调 store 键列表（跨件 handler 沿 ForgeStore.Init() 先例;
+        // 本地 model 在 VM 为全实例共享态,禁用——2026-09-03 对拍实锤）。
+        .Toggle -> {
+            ForgeStore.ToolToggle(.tkey)
+        }
     }
     // 样式必须放本组件的 style 块（scoped）：元素在 GenericToolCard 自己的
     // 模板里。此前放在 ToolBlock（父组件）的 style 块，scoped 打不到子组件
     // 元素，整组规则失效（行高细/icon 不右对齐/文字不居中的直接原因）。
     // 取值对齐原生 web/src/views/ChatsView.vue 的 .tool-* 基准。
+    // 注：2026-09-03 起每个元素同步携带 VM 可消费的内联工具类（见视图内
+    // 注释），scoped CSS 仅兜 web 精调（hover 背景等 VM 无对应物）。
     style {
 .tool-card { border: 1px solid hsl(var(--border)); border-radius: 8px; margin: 0; overflow: hidden; width: 100%; background: transparent; }
 .tool-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; cursor: pointer; user-select: none; }
@@ -71,65 +88,68 @@ widget GenericToolCard(tc: obj) {
     view {
         col {
             class: if .status == "completed" { "tool-card completed border border-border rounded-lg w-full" } else { if .status == "failed" { "tool-card failed border border-border rounded-lg w-full" } else { "tool-card running border border-border rounded-lg w-full" } }
-            // header（click toggle）
+            // header（click toggle）。内联工具类为 VM 承载：flex-1 让名称吃满
+            // 剩余宽（状态/chevron 贴右）、各段定色定号——.tool-* 类 VM 不解析。
             row {
                 onclick: .Toggle
-                style: "tool-header py-[0.4rem] px-[0.6rem]"
-                text "🔧" { style: "tool-icon" }
-                text .name { style: "tool-name" }
+                style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer"
+                text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
+                text .name { style: "tool-name flex-1 min-w-0 truncate text-[13.3px] font-medium text-foreground" }
                 for seg in .summary {
-                    text .seg.text { class: if .seg.type == "path" { "tool-seg seg-path" } else { if .seg.type == "pattern" { "tool-seg seg-pattern" } else { if .seg.type == "desc" { "tool-seg seg-desc" } else { "tool-seg seg-loc" } } } }
+                    text .seg.text { class: if .seg.type == "path" { "tool-seg seg-path text-[12.5px] font-medium font-mono shrink-0 text-info" } else { if .seg.type == "pattern" { "tool-seg seg-pattern text-[12.5px] font-medium font-mono shrink-0 text-primary" } else { if .seg.type == "desc" { "tool-seg seg-desc text-[12.5px] font-medium font-mono shrink-0 text-foreground" } else { "tool-seg seg-loc text-[12.5px] font-medium font-mono shrink-0 text-muted-foreground" } } } }
                 }
-                text .status { class: if .status == "completed" { "tool-status completed" } else { if .status == "failed" { "tool-status failed" } else { "tool-status running" } } }
-                text .chevron { style: "tool-chevron" }
+                text .status { class: if .status == "completed" { "tool-status completed text-[11.7px] font-medium shrink-0 text-green-500" } else { if .status == "failed" { "tool-status failed text-[11.7px] font-medium shrink-0 text-red-500" } else { "tool-status running text-[11.7px] font-medium shrink-0 text-blue-500" } } }
+                text .chevron { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
             }
             // body（展开时）——Result 走 Markdown 渲染（与原生 MarkdownRender 一致，
             // 内容里的代码/表格带高亮），Arguments 保持 JSON pre。
-            if .expanded {
+            // 段名大写字面量：web 沿用 CSS text-transform（视觉同形）,VM 无
+            // text-transform 只能字面量承载（2026-09-03 对拍）。
+            if .open {
                 col {
-                    style: "tool-body border-t border-border px-[0.6rem] py-[0.5rem]"
+                    style: "tool-body border-t border-border px-[10px] py-[8px]"
                     col {
-                        style: "tool-section"
-                        text "Arguments" { style: "tool-section-title" }
+                        style: "tool-section mb-[6px]"
+                        text "ARGUMENTS" { style: "tool-section-title text-[11.7px] font-medium tracking-wide text-muted-foreground mb-[3px]" }
                         div {
-                            style: "tool-code bg-muted-foreground/[0.04] rounded-[4px] px-[0.35rem] py-[0.5rem]"
+                            style: "tool-code bg-muted-foreground/5 rounded px-[6px] py-[6px] font-mono text-[13.3px] text-muted-foreground whitespace-pre-wrap break-words"
                             text .argsJson
                         }
                     }
                     if .hasResult {
                         col {
-                            style: "tool-section"
-                            text "Result" { style: "tool-section-title" }
+                            style: "tool-section mb-[6px]"
+                            text "RESULT" { style: "tool-section-title text-[11.7px] font-medium tracking-wide text-muted-foreground mb-[3px]" }
                             Markdown(source: .resultText, streaming: false)
                         }
                     }
                     // PLAN-042:details 载荷区(存在才渲染)。
                     if .hasDiff {
                         col {
-                            style: "tool-section"
-                            text "Diff" { style: "tool-section-title" }
+                            style: "tool-section mb-[6px]"
+                            text "DIFF" { style: "tool-section-title text-[11.7px] font-medium tracking-wide text-muted-foreground mb-[3px]" }
                             div {
-                                style: "tool-code tool-diff"
+                                style: "tool-code tool-diff bg-muted-foreground/5 rounded px-[6px] py-[6px] font-mono text-[13.3px] text-muted-foreground whitespace-pre-wrap break-words"
                                 text .diffText
                             }
                         }
                     }
                     if .hasTrunc {
                         col {
-                            style: "tool-section"
-                            text "Truncated" { style: "tool-section-title" }
+                            style: "tool-section mb-[6px]"
+                            text "TRUNCATED" { style: "tool-section-title text-[11.7px] font-medium tracking-wide text-muted-foreground mb-[3px]" }
                             div {
-                                style: "tool-code bg-muted-foreground/[0.04] rounded-[4px] px-[0.35rem] py-[0.5rem]"
+                                style: "tool-code bg-muted-foreground/5 rounded px-[6px] py-[6px] font-mono text-[13.3px] text-muted-foreground whitespace-pre-wrap break-words"
                                 text .truncBadge
                             }
                         }
                     }
                     if .hasFullOutput {
                         col {
-                            style: "tool-section"
-                            text "Full output" { style: "tool-section-title" }
+                            style: "tool-section mb-[6px]"
+                            text "FULL OUTPUT" { style: "tool-section-title text-[11.7px] font-medium tracking-wide text-muted-foreground mb-[3px]" }
                             div {
-                                style: "tool-code bg-muted-foreground/[0.04] rounded-[4px] px-[0.35rem] py-[0.5rem]"
+                                style: "tool-code bg-muted-foreground/5 rounded px-[6px] py-[6px] font-mono text-[13.3px] text-muted-foreground whitespace-pre-wrap break-words"
                                 text .fullOutputPath
                             }
                         }
