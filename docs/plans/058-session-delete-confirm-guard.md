@@ -306,7 +306,8 @@ total_steps: 15
    （delete_confirm.vm.at）内联确认行的 onclick → 子 msg → 父 onconfirm/
    oncancel 链路在 VM 实机全程静默（带参/无参均断,MCP ActionResult ok 但
    父 handler 不执行）。与 055"VM 子件上下文三缺陷"同源——**跨 widget
-   交互在 VM 必须内联或走 store**,候选升级 auto-lang 账本。
+   交互在 VM 必须内联或走 store**,候选升级 auto-lang 账本。 → 已立项 PLAN-059（VM 悬浮层基础设施,含该前置修复与 musk 确认
+   alert-dialog 化）。
 11. **（三期）merge 后主检出生效清单**：①`auto build --gen-only` 重生成;
     ②`gen/front/vue` 补拷 `src/components/ui/alert-dialog/`（脚手架源:
     auto-lang crates/auto-man/assets/shadcn-ui/alert-dialog）与
