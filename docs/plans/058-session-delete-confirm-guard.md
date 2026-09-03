@@ -10,8 +10,8 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 12
-total_steps: 12
+current_step: 15
+total_steps: 15
 ---
 
 # [PLAN-058] 会话删除两步确认护栏 + Block 全家福会话重灌
@@ -251,6 +251,21 @@ total_steps: 12
   全家福全块型渲染（思考块/表格/代码块/工具卡×5/Run 窗口/报告卡/问卷）。
   **执行期抓错**：style{} 块内 CSS 注释致 auto build 静默失败（exit 1 零
   诊断,二分定位），去注释即绿——登记待澄清⑨。
+- [✅ 已完成] **三期 T13（用户追加）删除确认迁移 AutoUI alert-dialog**：
+  web 轨新增 components/DeleteConfirmDialog.vue 薄适配（ui/alert-dialog
+  标准件组合,脚手架取自 auto-man assets 铺入 gen ui/alert-dialog；reka-ui
+  已在依赖,补 @vueuse/core）。受控 open 需 state_ref——新增
+  delete_confirm_open bool 字段（字面量/表达式致整树退化 div,vue.rs:10863
+  实证）。VM 轨 iced:none 实证整树丢弃 + 跨 widget msg 派发不通（带参/无参
+  均断,055 子件缺陷族同源）→ 确认行必须内联 chats_view（T3 形态回归）,
+  web 侧内联行经 .session-delete-strip{display:none} 抑制（055-T16 CSS
+  轨道开关机制）。
+- [✅ 已完成] **三期 T14 双轨验证**：浏览器实测模态弹出（role=alertdialog,
+  标题正确）/取消关闭/确认删除 API 9→8/全删对话框标题正确且取消无损;
+  VM 六断言全过（A1 ×字形/A2 确认行/A3 取消复位/A4 全删确认行/A5 取消/
+  A6 确认删除后 LoadSessionList 刷新）。
+- [✅ 已完成] **三期 T15 收尾**：门禁四绿复跑（auto build/lint/vitest/
+  pnpm build）;状态 execution_done;merge 清单入待澄清⑪。
 
 ## 复审记录
 
@@ -287,3 +302,15 @@ total_steps: 12
    输出（二分定位确认，去除即绿）。auto-lang 债务：style 块注释应支持或
    报错，不应静默。同批排除项：独立空 div 分割线嫌疑未独立证实（与注释
    同批存在）；nav-item 同形的 icon+span 触发钮无问题。
+10. **（三期执行期发现）VM 轨跨 widget msg 派发不通**：端口分轨 widget
+   （delete_confirm.vm.at）内联确认行的 onclick → 子 msg → 父 onconfirm/
+   oncancel 链路在 VM 实机全程静默（带参/无参均断,MCP ActionResult ok 但
+   父 handler 不执行）。与 055"VM 子件上下文三缺陷"同源——**跨 widget
+   交互在 VM 必须内联或走 store**,候选升级 auto-lang 账本。
+11. **（三期）merge 后主检出生效清单**：①`auto build --gen-only` 重生成;
+    ②`gen/front/vue` 补拷 `src/components/ui/alert-dialog/`（脚手架源:
+    auto-lang crates/auto-man/assets/shadcn-ui/alert-dialog）与
+    components/DeleteConfirmDialog.vue（随 git 合入,ext 镜像随 build 同步）;
+    ③`pnpm add @vueuse/core`（alert-dialog 脚手架依赖,package.json 属生成物
+    不入库,每次重生成后需补）;④vitest@2 会话级补装;⑤重启 :3334。
+
