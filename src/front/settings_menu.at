@@ -78,12 +78,12 @@ widget SettingsMenu() {
     }
     // Plan 029 T22：原 inject_styles 全局兜底下放（scoped 生效于本组件 DOM）。
     style {
-  .settings-menu-wrapper { position: relative; }
+  .settings-menu-wrapper { position: relative; width: 100%; }
   .settings-trigger {
-    display: flex; align-items: center; justify-content: center;
-    width: 32px; height: 32px; border: none; border-radius: 6px;
+    display: flex; align-items: center; gap: 0.5rem;
+    width: 100%; height: 36px; padding: 0 0.5rem; border: none; border-radius: 6px;
     background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.15s; text-align: left; font-size: 0.875rem;
   }
   .settings-trigger:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
   .settings-trigger.open { background: hsl(var(--accent)); color: hsl(var(--primary)); }
@@ -150,13 +150,21 @@ widget SettingsMenu() {
     }
 
     view {
+        // PLAN-058 二期：根容器带 border-t 分割线（与上方 WorkspaceSelector
+        // 分隔）+ pt/mt 间距——分割线归属本组件，app.at 侧不再放独立空 div。
         div {
-            style: "settings-menu-wrapper"
+            style: "settings-menu-wrapper border-t border-white/10 pt-2 mt-2"
+            // PLAN-058 二期：icon+文字全宽行（与上方导航项同形；原 32px 齿轮
+            // 方块横排在 WorkspaceSelector 旁撑宽主导航）。面板上弹锚点不变。
             button {
                 onclick: .Toggle
-                class: if .isOpen { "settings-trigger open h-8 w-8 flex items-center justify-center rounded-md bg-accent text-primary" } else { "settings-trigger h-8 w-8 flex items-center justify-center rounded-md bg-transparent text-muted-foreground" }
+                class: if .isOpen { "settings-trigger open w-full flex items-center gap-2 rounded-md px-2 h-9 bg-accent text-primary" } else { "settings-trigger w-full flex items-center gap-2 rounded-md px-2 h-9 bg-transparent text-muted-foreground" }
                 title: i18n.t("settings.title")
                 Settings { size: 16 }
+                span {
+                    style: "flex-1 text-left text-sm"
+                    text i18n.t("settings.title")
+                }
             }
             if .isOpen {
                 div {

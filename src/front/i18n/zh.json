@@ -41,7 +41,8 @@
     "themeSystem": "跟随系统",
     "accentTitle": "主题色",
     "themeTitle": "外观",
-    "languageTitle": "语言"
+    "languageTitle": "语言",
+    "openSystemSettings": "打开系统设置"
   },
   "common": {
     "cancel": "取消",
@@ -126,7 +127,10 @@
     "sessionLog": "会话日志",
     "startRun": "启动运行以查看智能体活动",
     "arguments": "参数",
-    "noSteps": "尚未完成任何步骤"
+    "noSteps": "尚未完成任何步骤",
+    "confirmDeleteSession": "确认删除此会话？",
+    "confirmDelete": "删除",
+    "cancel": "取消"
   },
   "specs": {
     "title": "规范",
@@ -147,7 +151,9 @@
     "structuredMode": "结构化",
     "fileTreeMode": "文件树",
     "emptyTree": "还没有 spec 文件",
-    "selectFile": "从树中选择一个文件"
+    "selectFile": "从树中选择一个文件",
+    "addItem": "+ 添加项目",
+    "noDoc": "未加载文档"
   },
   "plans": {
     "title": "计划",

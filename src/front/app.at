@@ -59,8 +59,12 @@ widget App {
                     // 标题行对齐三级头约定（NavSidebar/ContentHeader 均为
                     // h-12 + border-b,2026-08-29 用户实测 rail 标题高度不齐）。
                     // 内层保留 items-baseline 的字号配对。
+                    // PLAN-058 二期：border-b 换 border-white/10——实测
+                    // border-border(亮度18%) 与 bg-secondary(16%) 仅差 2 点
+                    // 完全不可见（bg-card 10% 上才可见），白 10% 叠加后为
+                    // 可辨细线；h-12 对齐天然成立（两线均 y=48）。
                     row {
-                        style: "h-12 shrink-0 flex items-center border-b border-border"
+                        style: "h-12 shrink-0 flex items-center border-b border-white/10"
                         row {
                             style: "flex items-baseline gap-2"
                             // PLAN-048:字面量化(VM 视图文本无裸调用臂,t() 恒空;
@@ -80,8 +84,12 @@ widget App {
                         nav-item (onclick: .ShowWiki, active: .current_view == "wiki", icon: "book-open", label: "知识库")
                     }
                     // Plan 407：WorkspaceSelector + SettingsMenu 在导航栏底部。
-                    row {
-                        style: "mt-auto flex items-center justify-between gap-1.5 px-1"
+                    // PLAN-058 二期：横排（justify-between 撑宽主导航）改纵排
+                    // ——工程目录在上，分割线，设置(icon+文字)在下。分割线同
+                    // T10 用 border-white/10（border-border 在 bg-secondary 上
+                    // 不可见），归属 SettingsMenu 根容器 border-t。
+                    col {
+                        style: "mt-auto shrink-0"
                         WorkspaceSelector
                         SettingsMenu
                     }
