@@ -138,7 +138,7 @@ widget ChatsView {
                                 span {
                                     style: "text-xs font-medium text-destructive border border-destructive/40 rounded px-1.5 py-0.5 cursor-pointer hover:bg-destructive/10"
                                     onclick.stop: .ConfirmDeleteAll
-                                    text t("chat.confirm")
+                                    text t("chat.confirmDelete")
                                 }
                                 span {
                                     style: "text-xs text-muted-foreground border border-border rounded px-1.5 py-0.5 cursor-pointer hover:bg-accent"
@@ -195,7 +195,7 @@ widget ChatsView {
                                         span {
                                             style: "text-xs font-medium text-destructive border border-destructive/40 rounded px-1.5 py-0.5 cursor-pointer hover:bg-destructive/10"
                                             onclick.stop: .ConfirmDelete(.s.id)
-                                            text t("chat.confirm")
+                                            text t("chat.confirmDelete")
                                         }
                                         span {
                                             style: "text-xs text-muted-foreground border border-border rounded px-1.5 py-0.5 cursor-pointer hover:bg-accent"
