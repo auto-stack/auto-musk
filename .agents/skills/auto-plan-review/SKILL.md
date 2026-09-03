@@ -39,13 +39,15 @@ asks. `drafting`/`executing` with unfinished steps → refuse and point to
 
 Read the plan file (it lives on the default checkout). Then look at the real
 diff and the real files it claims to have touched — from inside the execution
-worktree `.worktrees/plan-<NNN>-dev`. If the worktree is already gone, its
+worktree (`.wt/<repo>-<NNN>/<repo>` per Plan 529; legacy
+`.worktrees/plan-<NNN>-dev` for in-flight plans — `git worktree list | grep plan-<NNN>-dev`
+locates it). If the worktree is already gone, its
 branch was folded into main early; verify against the default checkout instead.
 Plans drift from implementation — **trust the code** when they disagree.
 
 ```bash
 git log --oneline -20                 # what actually committed
-git diff <branch-base>..HEAD --stat   # what actually changed (run in .worktrees/plan-<NNN>-dev)
+git diff <branch-base>..HEAD --stat   # what actually changed (run in the plan's worktree)
 ```
 
 ### Step 2: Re-verify every acceptance criterion
@@ -116,12 +118,12 @@ candidates. Then route:
 
 - **Verify, don't trust.** A checked box is a claim. Re-run every verification.
 - **Re-run verifications inside the execution worktree**
-  (`.worktrees/plan-<NNN>-dev`); write 复审记录 and status flips to the plan
-  file on the default checkout.
+  (`.wt/<repo>-<NNN>/<repo>`, or legacy path for in-flight plans); write 复审记录 and status
+  flips to the plan file on the default checkout.
 - **The full suite runs here, and only here** (plus the pre-fold gate for
   multi-phase plans, per `/auto-plan:work` Step 2). A regression found at
   this gate routes the plan back to `/auto-plan:work` with a fix list.
-- **Never fold the branch back here.** Landing `.worktrees/plan-<NNN>-dev`
+- **Never fold the branch back here.** Landing the plan's worktree
   onto main happens in `/auto-plan:merge`, after this gate passes.
 - **Trust code over plan text.** Record divergences in the review record.
 - **Never set `reviewed` on unverified work.** Partial → fail the review.
@@ -135,7 +137,7 @@ candidates. Then route:
 ## Checklist
 
 - [ ] Plan loaded alongside the actual code diff
-- [ ] Verification re-ran inside `.worktrees/plan-<NNN>-dev` (or on the default checkout if already folded)
+- [ ] Verification re-ran inside the plan's worktree (or on the default checkout if already folded)
 - [ ] Every acceptance criterion re-verified (pass/partial/fail + evidence)
 - [ ] 遗漏 / 延后 / workarounds hunted explicitly and recorded
 - [ ] `supersedes_spec_components` / `new_spec_components` / `touched_goals`

@@ -9,8 +9,10 @@ description: |
   (2) User says "/auto-plan:work" or "按这个 plan 干活"
   (3) A plan in docs/plans/ is in drafting/executing status and the user wants to advance it
   Reads only the target plan — never loads specs or other plans mid-execution.
-  All code changes happen in a dedicated git worktree `.worktrees/plan-<NNN>-dev`
-  (never on the default checkout); plan-file progress markers stay on the
+  All code changes happen in a dedicated git worktree in the sibling-group
+  layout `<workspace>/.wt/<repo>-<NNN>/<repo>` (never on the default checkout;
+  Plan 529 layout — legacy `.worktrees/plan-<NNN>-dev` only for in-flight plans
+  that already live there); plan-file progress markers stay on the
   default checkout so every skill can see them.
 ---
 
@@ -48,19 +50,29 @@ needed; going off-script is how steps get dropped (008 §6.3 constraint).
 ### Step 2: Set up the execution worktree BEFORE touching any code
 
 All modification of this repo happens inside a dedicated git worktree — never
-directly on the default checkout. Worktrees always live under the project
-root's `.worktrees/` directory:
+directly on the default checkout. Worktrees live in the **sibling-group layout**
+(Plan 529): `<workspace>/.wt/<repo>-<NNN>/<repo>`, where `<workspace>` is the
+parent dir of the repo's main checkout (e.g. `D:/autostack`) and `<repo>` is
+the repo's directory name. In-flight plans that already have a legacy
+`.worktrees/plan-<NNN>-dev` keep using it until folded.
 
 ```bash
 # From the default checkout. Resume-safe: reuse if it already exists.
+REPO=$(basename "$(git rev-parse --show-toplevel)")
+GROUP="$(dirname "$(git rev-parse --show-toplevel)")/.wt/${REPO%-*}-<NNN>"
 git worktree list | grep -q plan-<NNN>-dev || \
-  git worktree add .worktrees/plan-<NNN>-dev -b plan-<NNN>-dev
-cd .worktrees/plan-<NNN>-dev
+  git worktree add "$GROUP/$REPO" -b plan-<NNN>-dev
+cd "$GROUP/$REPO"
 ```
 
-- Branch name = worktree name (`plan-<NNN>-dev`). Commit completed steps onto
-  that branch as you go. First entry is cold — install deps / rebuild inside
-  the worktree as the plan's steps require.
+- Branch name stays `plan-<NNN>-dev` (decoupled from the directory name).
+  Commit completed steps onto that branch as you go. First entry is cold —
+  install deps / rebuild inside the worktree as the plan's steps require.
+- **RED LINE — no junctions/symlinks inside a worktree, ever.** `git worktree
+  remove`'s recursive delete follows them and destroys the target repo's
+  contents (2026-09-03 incident, reproduced). Cross-repo deps resolve by
+  order: env override (`$AUTO_LANG_ROOT` etc.) → group sibling (`../auto-lang`)
+  → main checkout (`<workspace>/auto-lang`). Never a filesystem link.
 - **ONE worktree per plan per repo — for the plan's whole lifetime.** Never
   open a second worktree for a later phase/batch/concern of the same plan;
   later phases commit onto the same branch. If you find yourself typing
@@ -89,8 +101,11 @@ cd .worktrees/plan-<NNN>-dev
   in the worktree.
 - **Dependency projects:** when a step must modify another project this repo
   depends on (e.g. `auto-musk` depends on `auto-lang`), open ONE worktree in
-  THAT project — named after THIS project: `<dep-root>/.worktrees/auto-musk-dev`,
-  same-name branch, reused for the whole plan (same one-worktree rule).
+  THAT project **inside the same group dir**, named after THIS project:
+  `git -C <dep-root> worktree add "$GROUP/<dep-repo>" -b <this-repo>-dev`,
+  reused for the whole plan (same one-worktree rule). Same group = the
+  relative path `../<dep-repo>` from either worktree just works — this
+  replaces the old junction trick, which is now forbidden (red line above).
   Never edit a dependency checkout outside its own worktree. Fold each
   dependency worktree back into the dependency's main branch as soon
   as this repo consumes the change (dependency bump verified in integration) —
@@ -134,7 +149,7 @@ Once every step has `[✅]` and every verification has passed:
    gate in Step 2 for multi-phase plans).
 3. Hand off: tell the user the plan is ready for `/auto-plan:review`.
 
-Leave `.worktrees/plan-<NNN>-dev` (and its branch) in place — final fold +
+Leave the plan's worktree (and its branch) in place — final fold +
 cleanup + deletion is `/auto-plan:merge`'s job. (Per-phase incremental merges
 into the default branch, per Step 2, are landing progress — they are not the
 terminal fold and do not remove the worktree.) Do not run the review or merge
@@ -156,10 +171,15 @@ Ask rather than guess — a wrong step propagates to every later step.
   per-concern worktrees; multi-phase plans land by merging the branch into
   the default branch per phase and re-syncing (Step 2).
 - **Code changes only in the worktree; bookkeeping only on the default checkout.**
-  Product/code edits go into `.worktrees/plan-<NNN>-dev`; `[✅]` markers and
+  Product/code edits go into the plan's worktree (`.wt/<repo>-<NNN>/<repo>`,
+  or the legacy path for in-flight plans); `[✅]` markers and
   frontmatter flips stay on the default checkout's plan file.
-- **Never modify a dependency project outside its own worktree**
-  (`<dep-root>/.worktrees/auto-musk-dev`, named after this repo).
+- **Never modify a dependency project outside its own worktree** — and its
+  worktree lives in the same group dir (`$GROUP/<dep-repo>`, branch
+  `<this-repo>-dev`), never via junction/symlink.
+- **No junctions/symlinks inside any worktree** (red line; resolution order:
+  env → group sibling → main checkout). Before removing any worktree run
+  `bash <workspace>/wt-guard.sh <worktree-path>` and require a clean result.
 - **Every completed step gets a `[✅]` marker + `current_step` bump.** No silent progress.
 - **TDD: failing test → implement → passing test**, when tests apply.
 - **Scoped checks during execution; full suites only at review (and pre-fold).**
@@ -173,8 +193,9 @@ Ask rather than guess — a wrong step propagates to every later step.
 ## Checklist
 
 - [ ] Target plan located; loaded as sole context
-- [ ] Execution worktree `.worktrees/plan-<NNN>-dev` exists; every code edit/build/test ran inside it
-- [ ] Dependency-project changes (if any) were made in that project's own worktree and folded back once consumed
+- [ ] Execution worktree exists (`$GROUP/$REPO`, or legacy `.worktrees/` for in-flight plans); every code edit/build/test ran inside it
+- [ ] No junction/symlink was created inside any worktree (red line)
+- [ ] Dependency-project changes (if any) were made in that project's own worktree in the same group and folded back once consumed
 - [ ] `status` advanced (`drafting → executing`, or already `executing`)
 - [ ] Every execution step has `[✅ 已完成]` evidence
 - [ ] `current_step` reflects the furthest completed step

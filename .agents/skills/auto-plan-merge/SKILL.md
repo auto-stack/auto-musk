@@ -8,8 +8,10 @@ description: |
   (2) User says "/auto-plan:merge" or a plan is reviewed and ready to settle
   (3) A plan has passed /auto-plan:review and the user wants its outcome to become permanent spec knowledge
   This skill refuses any plan that is not reviewed. It first folds the plan's
-  execution worktree (`.worktrees/plan-<NNN>-dev`) back into the main branch
-  and removes worktree + dev branch, then prefers the
+  execution worktree (`.wt/<repo>-<NNN>/<repo>` in the Plan 529 sibling-group
+  layout; legacy `.worktrees/plan-<NNN>-dev` for in-flight plans) back into
+  the main branch — with a mandatory reparse-point guard scan before any
+  worktree removal — and removes worktree + dev branch, then prefers the
   /api/plans/{seq}/merge endpoint (automated section→spec deposit) and falls back
   to manual file edits when the backend is not running.
 ---
@@ -62,13 +64,20 @@ to re-verify — never forward into the archive.
 ### Step 2: Fold the execution worktree back into main, then clean up
 
 Before depositing knowledge, land the reviewed code onto the main branch and
-remove the scaffolding:
+remove the scaffolding. **The removal is guard-gated (mandatory, Plan 529):**
+run `bash <workspace>/wt-guard.sh <worktree-path>` first and abort if it
+reports any reparse point — a junction/symlink inside a worktree makes
+`git worktree remove` delete through the link (2026-09-03 incident).
 
 ```bash
+# Locate the plan's worktree (group layout first, then legacy):
+git worktree list | grep plan-<NNN>-dev
 # Only if it still exists — idempotent skip when already folded:
 git merge plan-<NNN>-dev                            # land reviewed commits on main
-git worktree remove .worktrees/plan-<NNN>-dev       # delete the worktree
+bash <workspace>/wt-guard.sh <worktree-path>        # MUST print clean before removal
+git worktree remove <worktree-path>                 # delete the worktree
 git branch -d plan-<NNN>-dev                        # delete the dev branch too
+# Group dir empty now? Remove it: rmdir "$(dirname <worktree-path>)"
 ```
 
 - The worktree must be clean first. If uncommitted changes remain inside it,
@@ -76,11 +85,10 @@ git branch -d plan-<NNN>-dev                        # delete the dev branch too
   never part of what review verified.
 - After landing, optionally re-run a cheap acceptance check on main so main is
   known-green before archiving.
-- Dependency-project worktrees opened during execution (e.g.
-  `auto-lang/.worktrees/auto-musk-dev`, named after this repo) should already
-  have been folded into their own projects during execution; if one still
-  exists, remind the user to close it out in THAT project — do not reach into
-  another repo unasked.
+- Dependency-project worktrees opened during execution (same group dir,
+  branch `<this-repo>-dev) should already have been folded into their own
+  projects during execution; if one still exists, remind the user to close it
+  out in THAT project — do not reach into another repo unasked.
 
 ### Step 3: Prefer the automated endpoint
 
@@ -137,8 +145,8 @@ state — `archived` plans do not go back).
 
 ### Step 6: Verify + report
 
-- The execution worktree branch is folded into main; `.worktrees/plan-<NNN>-dev`
-  and the `plan-<NNN>-dev` branch no longer exist.
+- The execution worktree branch is folded into main; the plan's worktree
+  (group or legacy path) and the `plan-<NNN>-dev` branch no longer exist.
 - The plan is under `docs/plans/archived/` with `status: archived`.
 - The spec ledger has new items whose `file` points at the plan.
 - Re-running merge is a no-op (item ids `P<seq>-<n>` are stable → upsert is idempotent).
@@ -152,9 +160,10 @@ the plan now lives.
 - **Sweep before sealing.** Archiving is terminal — glance one last time for
   unchecked tasks, unapproved deferrals (延后), or workarounds that slipped
   past review; anything found sends the plan back, not forward.
-- **Land the worktree first.** Fold `.worktrees/plan-<NNN>-dev` back into main
-  and delete worktree + dev branch BEFORE depositing/archiving; do it
-  idempotently (skip silently when already folded). Never leave the scaffolding behind.
+- **Land the worktree first — behind a guard.** Fold the plan's worktree back
+  into main and delete worktree + dev branch BEFORE depositing/archiving; do it
+  idempotently (skip silently when already folded). Removal is always preceded
+  by `wt-guard.sh <worktree-path>` (must print clean). Never leave the scaffolding behind.
 - **Plan content wins over stale spec text** for the items this plan touches
   (the plan was reviewed; the spec is the materialized view). But only touch the
   items this plan generated — leave unrelated spec items alone.
@@ -169,7 +178,8 @@ the plan now lives.
 - [ ] Plan confirmed `reviewed` (gate passed)
 - [ ] Final sweep clean: no unchecked `- [ ]` tasks, no unapproved deferrals
       or blocking debt left in the plan body
-- [ ] `.worktrees/plan-<NNN>-dev` branch landed on main; worktree and dev branch removed (or confirmed already gone)
+- [ ] Plan's worktree branch landed on main; worktree and dev branch removed
+      (or confirmed already gone), removal guard-gated by `wt-guard.sh clean`
 - [ ] Spec items deposited into the 6 sections, each with `file` + `related` traceability
 - [ ] `specs.json` saved with the new items
 - [ ] Plan moved to `docs/plans/archived/` via `git mv`

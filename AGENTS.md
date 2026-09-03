@@ -7,29 +7,39 @@
 
 ### 位置
 
-统一放在所在项目仓库根目录下的 `.worktrees/` 子目录中（已在 `.gitignore` 忽略），
-便于集中管理。不要散落在项目根、系统临时目录或其他位置。
+统一放在按计划分组的平铺目录 **`D:\autostack\.wt\<组名>\<项目名>\`**（Plan 529 布局；
+`.wt` 根不受任何仓库管理）。组名规则 `musk-<NNN>`（本项目 plan）或
+`<任务名>`（无 plan 场景）。示例：`.wt/musk-060/auto-musk`。不要放项目根、
+系统临时目录或项目内部（旧 `.worktrees/` 已因 2026-09-03 删除事故退役，仅剩
+在途计划就地跑完）。
+
+**红线**：worktree 内**禁止创建任何 junction/symlink**——`git worktree remove`
+的递归删除会穿透链接删掉目标仓内容（事故实测复现）。跨仓依赖按解析序：
+`$AUTO_LANG_ROOT/$AUTO_AI_ROOT 等 env 覆盖 → 组内 ../auto-lang 等兄弟 →
+D:/autostack/<repo> 主检出`。
 
 ### 命名
 
-| 场景 | worktree / 分支名 | 示例 |
+| 场景 | worktree 组 / 分支名 | 示例 |
 |:---|:---|:---|
-| 本项目、有对应 plan | `plan-<NNN>-dev` | `plan-043-dev` |
-| 本项目、无对应 plan | `<项目名>-dev-<n>`（n 从 1 起找空位递增） | `auto-down-dev-1` |
-| 因本项目而改的外部依赖项目 | 在依赖项目里开，用本项目命名：`<本项目名>-dev` | 改 auto-lang 时：`auto-lang/.worktrees/auto-musk-dev` |
+| 本项目、有对应 plan | 组 `musk-<NNN>`，分支 `plan-<NNN>-dev` | `.wt/musk-060/auto-musk` |
+| 本项目、无对应 plan | 组 `<任务名>`，分支 `<项目名>-dev-<n>` | `.wt/vendor-bump/auto-musk` |
+| 因本项目而改的外部依赖项目 | 同组并排开依赖项目 worktree，分支 `<本项目名>-dev` | `.wt/musk-060/auto-lang`（分支 `auto-musk-dev`） |
 
-分支名与 worktree 目录同名。本仓库 `/auto-plan:*` 流程走第一行命名；其余场景
-按第二行。第三行适用于任何"顺带要改依赖库"的任务——依赖项目内部的改动只发生
-在它自己的 worktree 里。
+分支名与 worktree 目录名解耦（目录名恒为项目名）。本仓库 `/auto-plan:*` 流程走
+第一行命名；其余场景按第二行。第三行适用于任何"顺带要改依赖库"的任务——同组
+并排使 `../auto-lang` 相对路径直接成立，**不再用 junction**。
 
 ### 收尾（合回 + 清理）
 
 任务或计划完成后：
 
 ```bash
+bash D:/autostack/wt-guard.sh D:/autostack/.wt/<组>/<项目>   # 必须输出 clean 才继续
 git merge <dev-branch>            # 把开发分支合回该项目主分支
-git worktree remove .worktrees/<name>
+git worktree remove D:/autostack/.wt/<组>/<项目>
 git branch -d <name>              # 删掉对应的开发分支
+# 组内已无兄弟 worktree 时删除组目录：rmdir D:/autostack/.wt/<组>
 ```
 
 - 依赖项目的 worktree 不等整体收尾——一旦本项目消费了改动（集成验证/锁文件更新
