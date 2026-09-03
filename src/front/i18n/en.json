@@ -28,7 +28,8 @@
     "themeSystem": "System",
     "accentTitle": "Accent color",
     "themeTitle": "Theme",
-    "languageTitle": "Language"
+    "languageTitle": "Language",
+    "openSystemSettings": "Open System Settings"
   },
   "common": {
     "cancel": "Cancel",
@@ -113,7 +114,10 @@
     "sessionLog": "Session Log",
     "startRun": "Start a run to see agent activity",
     "arguments": "Arguments",
-    "noSteps": "No steps completed yet"
+    "noSteps": "No steps completed yet",
+    "confirmDeleteSession": "Delete this session?",
+    "confirmDelete": "Delete",
+    "cancel": "Cancel"
   },
   "specs": {
     "title": "Specs",
@@ -134,7 +138,9 @@
     "structuredMode": "Structured",
     "fileTreeMode": "File Tree",
     "emptyTree": "No spec files yet",
-    "selectFile": "Select a file from the tree"
+    "selectFile": "Select a file from the tree",
+    "addItem": "+ Add Item",
+    "noDoc": "No document loaded"
   },
   "plans": {
     "title": "Plans",
