@@ -16,7 +16,11 @@ use back.api: chats_delete_session, chats_delete_all_sessions
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web relay_command_match from "src/front/relay_commands.at"
 use.web platformRunRelayCommand from "src/front/ports/platform.at"
-use.web.fn extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.at"
+use.web.fn extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming, msgTimeLabel, thinkIsOpen, toolIsOpen, toolToggleList, toolArgsJson, withExpansion from "src/front/forge_helpers.at"
+use.web.fn relayReportView from "src/front/relay_run_helpers.at"
+use.web component Markdown from "src/front/ports/renderer.at"
+use.web component Copy from "src/front/ports/icons.at"
+use.web component UserMessage from "src/front/user_message.at"
 use.web.fn chatSearchFilter, chatLastMessageId, chatBranchLabel, chatBranchEntries, chatActivePath from "src/front/forge_helpers.at"
 // PLAN-051 T8: SendInput 净空口径统一（原 .send(mention_trim(.text)) 调用位
 // 形态，实参内移后宿主侧复用同一 helper）。
@@ -44,7 +48,6 @@ use questionnaire_card: QuestionnaireCard
 use gate_card: GateCard
 use secretary_message_wrapper: SecretaryMessageWrapper
 use secretary_message: SecretaryMessage
-use chat_message: ChatMessage
 use session_info: SessionInfo
 
 widget ChatsView {
@@ -80,6 +83,10 @@ widget ChatsView {
         // CSS .session-item:hover 双保险,语义一致）。
         HoverSession(str),
         HoverSessionClear,
+        // 消息卡展开/copy(内联后为本视图消息;冻结实参沿 HoverSession 先例)。
+        ToggleThink(str),
+        ToolToggleKey(str),
+        CopyMessageContent(str),
     }
 
     model {
@@ -94,6 +101,10 @@ widget ChatsView {
         var delete_confirm_open bool = false
         // 2026-09-03:当前 hover 的会话 id(× 按钮显隐;空串=无 hover)。
         var hover_session_id str = ""
+        // 消息卡展开态(顶层 own-state;子件 prop 快照/handler 写 prop 双缺陷
+        // 的绕行——renderMsgs computed 并入消息克隆,视图读纯 dot 路径)。
+        var msg_think_open []Value = []
+        var msg_tool_open []Value = []
     }
 
     // Plan 028 T15：搜索过滤（原 useChatSearch composable → F2 多参 fn 直调）
@@ -105,6 +116,9 @@ widget ChatsView {
         // 动态索引均破坏 UI parser——扁平 {for_id, sib} 条目在此预算,视图按
         // for_id 相等匹配渲染兄弟按钮）。
         branchEntries => chatBranchEntries(.store.messages)
+        // 消息渲染列表:克隆消息并入展开态/流式标志/有序块——视图循环读纯
+        // dot 路径(for-in 源限 dot 路径),展开切换=own-state 写→computed 重算。
+        renderMsgs => withExpansion(.filteredMessages, .msg_think_open, .msg_tool_open, .store.streaming, .store.messages)
     }
 
     // PLAN-049 T6：branch-row/branch-btn/retry-btn 已迁视图内联工具类（块删除）。
@@ -222,7 +236,7 @@ widget ChatsView {
                                         // 流内承载于标题行右缘。
                                         if .hover_session_id == .s.id {
                                             span {
-                                                style: "session-delete-btn absolute right-[6px] top-[6px] flex items-center shrink-0 opacity-40 bg-transparent border-none p-[3px] text-muted-foreground text-sm leading-none cursor-pointer hover:opacity-100 hover:text-destructive"
+                                                style: "session-delete-btn absolute right-[6px] top-[6px] flex items-center shrink-0 opacity-40 -mr-1 -mt-0.5 bg-transparent border-none p-[3px] text-muted-foreground text-sm leading-none cursor-pointer hover:opacity-100 hover:text-destructive"
                                                 onclick.stop: .AskDelete(.s.id)
                                                 title: t("chat.deleteSession")
                                                 text "×"
@@ -300,16 +314,16 @@ widget ChatsView {
                             deckHtml: ""
                         }
                     }
-                    for msg in .filteredMessages {
+                    for rm in .renderMsgs {
                         col {
-                            key: .msg.id
+                            key: .rm.id
                             // PLAN-043: 同分叉点的兄弟分支切换器（PLAN-055 ⑤：
                             // "⑂ 重试"按钮删除——用户对拍裁决，重试语义由分支
                             // 切换器与新发消息承载）。
                             row {
                                 style: "flex gap-1 mb-[2px]"
                                 for be in .branchEntries {
-                                    if be.for_id == .msg.id {
+                                    if be.for_id == .rm.id {
                                         button {
                                             // R006(strict):v-for 项需 :key。
                                             key: be.sib.id
@@ -322,25 +336,166 @@ widget ChatsView {
                                     }
                                 }
                             }
-                            // ChatMessage 独立组件: 有序 block 流.
-                            // 工具卡随 block 内联渲染.
-                            ChatMessage {
-                                msg: .msg
-                                is_streaming: isMsgStreaming(.store.streaming, .store.messages, .msg)
-                                errands: .store.errands
-                                relays: .store.relays
-                                task_plans: .store.task_plans
-                                // 【2026-09-04】think/tool 展开态迁消息对象字段
-                                // （chat_message 直写直读）,不再经 prop 下传——
-                                // VM 子件 prop 为构建期快照,写后不达（059-FU1 族）。
+                            // 【2026-09-04】消息卡内联（ChatMessage 子件退役）——
+                            // VM 子件 prop 构建期快照 + handler 写 prop 崩溃
+                            // (Invalid object ID)双缺陷,唯顶层 own-state 全链
+                            // 实证可用;展开态走 msg_think_open/msg_tool_open。
+                            col {
+                                class: if .rm.role == "user" { "flex flex-col gap-[3px] max-w-[85%] self-end items-end" } else { "flex flex-col gap-[5px] self-stretch items-stretch max-w-full" }
+                                row {
+                                    style: if .rm.role == "user" { "flex items-center gap-2 px-1 justify-end" } else { "flex items-center gap-2 px-1" }
+                                    if .rm.role == "user" {
+                                        text "🧑 You" { style: "text-[13.6px] font-semibold text-primary" }
+                                    } else {
+                                        text "🤖 AI" { style: "text-[13.6px] font-semibold text-muted-foreground" }
+                                    }
+                                    if msgTimeLabel(.rm.created_at) != "" {
+                                        text msgTimeLabel(.rm.created_at) { style: "text-xs text-muted-foreground" }
+                                    }
+                                }
+                                if .rm.role == "user" {
+                                    col {
+                                        style: "msg-bubble-user self-end px-[14px] py-[10px] rounded-xl rounded-br text-[15px] leading-[1.6] break-words bg-primary text-primary-foreground"
+                                        UserMessage(content: .rm.content)
+                                    }
+                                } else {
+                                    col {
+                                        style: "msg-bubble-ai flex flex-col gap-3 py-[11px] px-[3px] border-t border-b border-border/60"
+                                        for block in .rm.blocks {
+                                            if .block.kind == "text" {
+                                                col {
+                                                    style: "px-[2px] py-[1px] bg-transparent border-none text-foreground rounded-none"
+                                                    Markdown(source: .block.text, streaming: isBlockStreaming(.rm.streaming, .rm.blocks, .block))
+                                                }
+                                            } else if .block.kind == "thinking" {
+                                                col {
+                                                    class: "think-block w-full box-border rounded-lg border border-border bg-muted/40 max-w-full overflow-hidden"
+                                                    button {
+                                                        onclick: .ToggleThink(.rm.id)
+                                                        style: "think-header w-full flex items-center gap-[6px] py-[6px] px-[10px] text-[12.5px] text-muted-foreground cursor-pointer select-none hover:bg-muted/50 border-none bg-transparent text-left"
+                                                        text "💭"
+                                                        text thinkLabel(estimateTokens(.block.text), .rm.streaming)
+                                                        span {
+                                                            style: "tool-chevron ml-auto"
+                                                            if thinkIsOpen(.msg_think_open, .rm.id) {
+                                                                text "▲" { style: "text-[11px] text-muted-foreground" }
+                                                            } else {
+                                                                text "▼" { style: "text-[11px] text-muted-foreground" }
+                                                            }
+                                                        }
+                                                    }
+                                                    if thinkIsOpen(.msg_think_open, .rm.id) {
+                                                        div {
+                                                            style: "think-content my-0 py-[9px] px-[12px] text-[13.5px] leading-[1.5] font-mono whitespace-pre-wrap break-words text-muted-foreground max-h-[240px] overflow-y-auto border-t border-border"
+                                                            text .block.text
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                col {
+                                                    style: "tool-block-slot w-full"
+                                                    if .block.tc.name == "dispatch" {
+                                                        ErrandCard {
+                                                            tc: .block.tc
+                                                            errands: .store.errands
+                                                        }
+                                                    } else if .block.tc.name == "spawn_relay" {
+                                                        if extractRunId(.block.tc) != "" {
+                                                            RelayRunBox {
+                                                                runId: extractRunId(.block.tc)
+                                                            }
+                                                        } else {
+                                                            col {
+                                                                class: "tool-card border border-border rounded-lg w-full"
+                                                                row {
+                                                                    onclick: .ToolToggleKey(.block.tkey)
+                                                                    style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer"
+                                                                    text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
+                                                                    text .block.tc.name { style: "tool-name flex-1 min-w-0 truncate text-[13.3px] font-medium text-foreground" }
+                                                                    text .block.tc.status { style: "tool-status text-[11.7px] font-medium shrink-0 text-blue-500" }
+                                                                    if toolIsOpen(.msg_tool_open, .block.tkey) {
+                                                                        text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
+                                                                    } else {
+                                                                        text "▼" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    } else if .block.tc.name == "task_plan" {
+                                                        TaskPlanCard {
+                                                            tc: .block.tc
+                                                            taskPlans: .store.task_plans
+                                                        }
+                                                    } else if .block.tc.name == "report" {
+                                                        ReportCard {
+                                                            report: relayReportView(.block.tc.arguments)
+                                                        }
+                                                    } else {
+                                                        col {
+                                                            class: if .block.tc.status == "failed" { "tool-card failed border border-border rounded-lg w-full" } else { if .block.tc.status == "running" { "tool-card running border border-border rounded-lg w-full" } else { "tool-card completed border border-border rounded-lg w-full" } }
+                                                            row {
+                                                                onclick: .ToolToggleKey(.block.tkey)
+                                                                style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer"
+                                                                text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
+                                                                text .block.tc.name { style: "tool-name flex-1 min-w-0 truncate text-[13.3px] font-medium text-foreground" }
+                                                                for seg in .block.summary {
+                                                                    text .seg.text { class: if .seg.type == "path" { "tool-seg seg-path text-[12.5px] font-medium font-mono shrink-0 text-info" } else { if .seg.type == "pattern" { "tool-seg seg-pattern text-[12.5px] font-medium font-mono shrink-0 text-primary" } else { if .seg.type == "desc" { "tool-seg seg-desc text-[12.5px] font-medium font-mono shrink-0 text-foreground" } else { "tool-seg seg-loc text-[12.5px] font-medium font-mono shrink-0 text-muted-foreground" } } } }
+                                                                }
+                                                                text .block.tc.status { class: if .block.tc.status == "completed" { "tool-status completed text-[11.7px] font-medium shrink-0 text-green-500" } else { if .block.tc.status == "failed" { "tool-status failed text-[11.7px] font-medium shrink-0 text-red-500" } else { "tool-status running text-[11.7px] font-medium shrink-0 text-blue-500" } } }
+                                                                if toolIsOpen(.msg_tool_open, .block.tkey) {
+                                                                    text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
+                                                                } else {
+                                                                    text "▼" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
+                                                                }
+                                                            }
+                                                            if toolIsOpen(.msg_tool_open, .block.tkey) {
+                                                                col {
+                                                                    style: "tool-body border-t border-border px-[10px] py-[8px]"
+                                                                    col {
+                                                                        style: "tool-section mb-[6px]"
+                                                                        text "ARGUMENTS" { style: "tool-section-title text-[11.7px] font-medium tracking-wide text-muted-foreground mb-[3px]" }
+                                                                        div {
+                                                                            style: "tool-code bg-muted-foreground/5 rounded px-[6px] py-[6px] font-mono text-[13.3px] text-muted-foreground whitespace-pre-wrap break-words"
+                                                                            text toolArgsJson(.block.tc)
+                                                                        }
+                                                                    }
+                                                                    if .block.tc.result != "" {
+                                                                        col {
+                                                                            style: "tool-section mb-[6px]"
+                                                                            text "RESULT" { style: "tool-section-title text-[11.7px] font-medium tracking-wide text-muted-foreground mb-[3px]" }
+                                                                            Markdown(source: .block.tc.result, streaming: false)
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        // AI 消息工具栏（copy 靠左,2026-09-03 裁定）。
+                                        row {
+                                            style: "flex items-center justify-start gap-1 mt-[2px] px-[3px]"
+                                            button {
+                                                onclick: .CopyMessageContent(.rm.content)
+                                                style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                                                title: "Copy"
+                                                Copy { size: 16 }
+                                            }
+                                        }
+                                    }
+                                    if .rm.error != "" {
+                                        text .rm.error { style: "text-destructive text-[14px] py-2 px-3 bg-destructive/10 rounded-lg self-start max-w-full" }
+                                    }
+                                }
                             }
                             // 问卷卡片（专门的提问 block）：解析 assistant 消息里的
                             // 问卷 JSON/问题列表渲染为可选项表单。仅随最新一条消息
                             // 显示（lastMessageId 来自 useChatSearch composable，
                             // .at if 条件不支持多参 fn）——已回答的旧问题不再常驻表单。
-                            if .msg.role == "assistant" {
-                                if hasQuestionnaire(.msg) {
-                                    if .msg.id == .lastMsgId {
+                            if .rm.role == "assistant" {
+                                if hasQuestionnaire(.rm) {
+                                    if .rm.id == .lastMsgId {
                                         QuestionnaireCard {
                                             questions: getQuestions(.msg)
                                             onsubmit: .OnQuestionnaireSubmit($event)
@@ -395,6 +550,11 @@ widget ChatsView {
         // 离开清空,进入置 id——相邻卡先 clear 后 enter,无抖动)。
         .HoverSession(id) -> { .hover_session_id = id }
         .HoverSessionClear -> { .hover_session_id = "" }
+
+        // 消息卡展开/copy(内联后同 widget;冻结实参+own-state 写,全实证链)。
+        .ToggleThink(id) -> { .msg_think_open = thinkToggleList(.msg_think_open, id) }
+        .ToolToggleKey(key) -> { .msg_tool_open = toolToggleList(.msg_tool_open, key) }
+        .CopyMessageContent(text) -> { dom.copy_text(text) }
 
         // PLAN-058 三期:Ask* 置 pending + open（alert-dialog 受控态）;取消
         // （含 reka-ui ESC/遮罩关闭路径,统一折算 oncancel）与 SelectSession

@@ -329,7 +329,49 @@ fn messageDisplayBlocks(msg obj, streaming bool) obj {
     return out
 }
 
+/** 【2026-09-04】展开态合并（chats_view renderMsgs 用）——把 think/tool 展开
+ * 标志并入消息克隆（rm.think_expanded bool / rm.tool_expanded 键列表 /
+ * rm.streaming bool / rm.blocks 有序块）。为什么在顶层做:VM 子件 prop 为
+ * 构建期快照（写进 store 子件读侧不更新,autoui_state 实证）、子件 handler
+ * 写 prop 对象报 Invalid object ID——只有顶层 widget 的 own-state 读写与
+ * computed 重算全链实证可用。克隆载荷=视图所需最小集。 */
+fn withExpansion(msgs obj, thinkIds obj, toolKeys obj, streaming bool, allMsgs obj) obj {
+    var out list = []
+    if msgs == None { return out }
+    for m in msgs {
+        out.push({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            created_at: m.created_at,
+            error: m.error ?? "",
+            streaming: isMsgStreaming(streaming, allMsgs, m),
+            think_expanded: thinkIsOpen(thinkIds, m.id),
+            tool_expanded: toolKeys,
+            blocks: messageDisplayBlocks(m, isMsgStreaming(streaming, allMsgs, m))
+        })
+    }
+    return out
+}
+
 /** 工具块是否展开（读侧;toolToggleList 写侧在 forge_store）。 */
+/** 展开键列表取反（think/tool 共用;字面量重建形态）。 */
+fn thinkToggleList(ids obj, key str) obj {
+    var out list = []
+    var found = false
+    if ids != None {
+        for k in ids {
+            if k == key {
+                found = true
+            } else {
+                out.push(k)
+            }
+        }
+    }
+    if found == false { out.push(key) }
+    return out
+}
+
 fn toolIsOpen(ids obj, key str) bool {
     if ids == None { return false }
     for k in ids {
@@ -337,6 +379,7 @@ fn toolIsOpen(ids obj, key str) bool {
     }
     return false
 }
+
 
 /**
  * 粗略 token 估算（显示用）：CJK 字符 ≈ 0.9 token/字，其余 ≈ 4 字符/token。
