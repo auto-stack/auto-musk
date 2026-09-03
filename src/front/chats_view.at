@@ -209,9 +209,9 @@ widget ChatsView {
                                         style: "flex items-start justify-between w-full gap-1"
                                         span {
                                             style: if .s.id == .store.session_id {
-                                                "text-[13.6px] font-medium text-primary truncate max-w-full"
+                                                "text-[13.6px] font-medium text-primary truncate flex-1 min-w-0"
                                             } else {
-                                                "text-[13.6px] text-foreground truncate max-w-full"
+                                                "text-[13.6px] text-foreground truncate flex-1 min-w-0"
                                             }
                                             text .s.name
                                         }
@@ -330,11 +330,9 @@ widget ChatsView {
                                 errands: .store.errands
                                 relays: .store.relays
                                 task_plans: .store.task_plans
-                                // PLAN-055 T13：思考块展开键列表经 prop 下传——
-                                // 子件 computed 读 store 前缀不可达（只读自身 props）。
-                                thinkList: .store.think_open
-                                // 2026-09-03:工具块逐卡展开键列表(同 thinkList 形态)。
-                                toolList: .store.tool_open
+                                // 【2026-09-04】think/tool 展开态迁消息对象字段
+                                // （chat_message 直写直读）,不再经 prop 下传——
+                                // VM 子件 prop 为构建期快照,写后不达（059-FU1 族）。
                             }
                             // 问卷卡片（专门的提问 block）：解析 assistant 消息里的
                             // 问卷 JSON/问题列表渲染为可选项表单。仅随最新一条消息

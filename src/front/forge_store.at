@@ -36,11 +36,10 @@ store ForgeStore {
         // PLAN-055 ④/T11：ThinkBlock 各实例独立展开态——VM 无 per-instance
         // 子件模型（ensure_child_state 全实例共享根态），源侧 keyed 形态：
         // 展开的块键列表（thinkKey 生成），切换走 thinkToggleList 字面量重建。
+        // 【2026-09-04 退役】think/tool 展开态迁消息对象字段
+        // （msg.think_expanded / msg.tool_expanded,chat_message 直读直写）——
+        // store 键列表经子件 prop 下发在 VM 为构建期快照,写后不达(059-FU1 族)。
         var think_open []Value = []
-        // 2026-09-03 用户对拍：ToolBlock 同族问题——GenericToolCard 本地
-        // expanded 全实例共享，点一张全部展开。沿 think_open 键列表形态：
-        // 键 = messageDisplayBlocks 生成的 block.tkey（msg.id#t<序>）。
-        var tool_open []Value = []
     }
 
     msg Msg {
@@ -65,8 +64,6 @@ store ForgeStore {
         PollStream,
         // PLAN-055 ④/T11：ThinkBlock 展开切换（子件上抛，键=thinkKey）。
         ThinkToggle(str),
-        // 2026-09-03:ToolBlock 逐卡展开切换（键=block.tkey,沿 ThinkToggle）。
-        ToolToggle(str),
     }
 
     // Plan 051 T10（G1 阶段1）：VM 轨无 SSE 形态期间，流式回复以 500ms
@@ -218,11 +215,6 @@ store ForgeStore {
         // 既有字段整列表赋值，无新键写入）。
         .ThinkToggle(key) -> {
             .think_open = thinkToggleList(.think_open, key)
-        }
-
-        // ToolBlock 逐卡展开切换（键=block.tkey;形态沿 ThinkToggle）。
-        .ToolToggle(key) -> {
-            .tool_open = toolToggleList(.tool_open, key)
         }
 
         .SetThinking(text) -> { .thinking = text }
@@ -547,23 +539,6 @@ fn nowSec() int {
  * forge_helpers 版 thinkToggleList 供渲染侧读，此处 store 侧写路径用同构
  * fn，避免 store 文件引入 use.web.fn 导入缺口）。 */
 fn thinkToggleList(ids obj, key str) obj {
-    var out list = []
-    var found = false
-    if ids != None {
-        for k in ids {
-            if k == key {
-                found = true
-            } else {
-                out.push(k)
-            }
-        }
-    }
-    if found == false { out.push(key) }
-    return out
-}
-
-/** ToolBlock 展开列表取反（同 thinkToggleList 缘由,store 侧写路径）。 */
-fn toolToggleList(ids obj, key str) obj {
     var out list = []
     var found = false
     if ids != None {

@@ -28,7 +28,7 @@ use.web component Copy from "src/front/ports/icons.at"
 // 2026-09-03:工具卡内联（ToolBlock/GenericToolCard 子件退役,沿 ThinkBlock
 // 先例——VM 子件 model 全实例共享 + 孙件 store 直调不可靠,回归根因）。补充
 // toolIsOpen/toolArgsJson/extractRunId 与 relay 助手导入。
-use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens, thinkLabel, thinkIsOpen, toolIsOpen, toolArgsJson, extractRunId from "src/front/forge_helpers.at"
+use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens, thinkLabel, thinkIsOpen, toolIsOpen, toolToggleList, toolArgsJson, extractRunId from "src/front/forge_helpers.at"
 use.web relayReportView from "src/front/relay_run_helpers.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
@@ -38,22 +38,24 @@ use relay_run_box: RelayRunBox
 use task_plan_card: TaskPlanCard
 use report_card: ReportCard
 
-// PLAN-055 ④/T11：ThinkBlock 展开态读写走 ForgeStore 根态键列表。
-use store: ForgeStore
 
-
-widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, thinkList: obj, toolList: obj) {
-    msg Msg { CopyContent, ToggleThink(str), ToolToggleKey(str) }
+widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj) {
+    msg Msg { CopyContent, ToggleThink, ToolToggleKey(str) }
     on {
-        // PLAN-055 ④/T11：ThinkBlock 上抛（payload=构建期冻结的块键）——
-        // 直调 store 切换根态展开键列表（跨件 handler 沿 ForgeStore.Init() 先例）。
-        .ToggleThink(key) -> {
-            ForgeStore.ThinkToggle(key)
+        // 【2026-09-04 二次修正】展开态直写消息对象（msg.think_expanded /
+        // msg.tool_expanded）——上一版走 ForgeStore 键列表 + prop 下传,VM 侧
+        // prop 为构建期快照:写入确已进 store（autoui_state 实证 tool_open
+        // 含所点键）,但子件读侧永远见旧列表=点开无反应。消息对象即共享根态
+        // 对象,本件直写直读,无传递链。
+        .ToggleThink -> {
+            if .msg.think_expanded == true {
+                .msg.think_expanded = false
+            } else {
+                .msg.think_expanded = true
+            }
         }
-        // 2026-09-03:工具卡逐卡展开（键=block.tkey,冻结实参沿 ToggleThink;
-        // 写侧 ForgeStore.ToolToggle → tool_open 键列表）。
         .ToolToggleKey(key) -> {
-            ForgeStore.ToolToggle(key)
+            .msg.tool_expanded = toolToggleList(.msg.tool_expanded, key)
         }
         // PLAN-055: AI 消息工具栏 copy（对齐 web 原版 message-toolbar）。
         .CopyContent -> {
@@ -117,7 +119,8 @@ style {
         // thinking 块）。键列表经 prop 下传（chats_view 读 store 传 thinkList），
         // fn 调用收敛在 computed——事件实参须纯路径、span 文本元素内 if/else
         // 会被丢，chevron 字符同 computed 化（badge 同款 if/else 形态）。
-        thinkOpen => thinkIsOpen(.thinkList, .msg.id)
+        // 2026-09-04:展开态读消息对象字段（thinkList/toolList prop 快照退役）。
+        thinkOpen => .msg.think_expanded == true
         chev => if .thinkOpen { "▲" } else { "▼" }
         hasError => .msg.error != ""
         errorText => if .hasError { .msg.error } else { "" }
@@ -169,7 +172,7 @@ style {
                             col {
                                 class: "think-block w-full box-border rounded-lg border border-border bg-muted/40 max-w-full overflow-hidden"
                                 button {
-                                    onclick: .ToggleThink(.msg.id)
+                                    onclick: .ToggleThink
                                     style: "think-header w-full flex items-center gap-[6px] py-[6px] px-[10px] text-[12.5px] text-muted-foreground cursor-pointer select-none hover:bg-muted/50 border-none bg-transparent text-left"
                                     text "💭"
                                     text thinkLabel(estimateTokens(.block.text), .is_streaming)
@@ -212,7 +215,7 @@ style {
                                                 text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
                                                 text .block.tc.name { style: "tool-name flex-1 min-w-0 truncate text-[13.3px] font-medium text-foreground" }
                                                 text .block.tc.status { style: "tool-status text-[11.7px] font-medium shrink-0 text-blue-500" }
-                                                if toolIsOpen(.toolList, .block.tkey) {
+                                                if toolIsOpen(.msg.tool_expanded, .block.tkey) {
                                                     text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
                                                 } else {
                                                     text "▼" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
@@ -243,7 +246,7 @@ style {
                                                 text .seg.text { class: if .seg.type == "path" { "tool-seg seg-path text-[12.5px] font-medium font-mono shrink-0 text-info" } else { if .seg.type == "pattern" { "tool-seg seg-pattern text-[12.5px] font-medium font-mono shrink-0 text-primary" } else { if .seg.type == "desc" { "tool-seg seg-desc text-[12.5px] font-medium font-mono shrink-0 text-foreground" } else { "tool-seg seg-loc text-[12.5px] font-medium font-mono shrink-0 text-muted-foreground" } } } }
                                             }
                                             text .block.tc.status { class: if .block.tc.status == "completed" { "tool-status completed text-[11.7px] font-medium shrink-0 text-green-500" } else { if .block.tc.status == "failed" { "tool-status failed text-[11.7px] font-medium shrink-0 text-red-500" } else { "tool-status running text-[11.7px] font-medium shrink-0 text-blue-500" } } }
-                                            if toolIsOpen(.toolList, .block.tkey) {
+                                            if toolIsOpen(.msg.tool_expanded, .block.tkey) {
                                                 text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
                                             } else {
                                                 text "▼" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
@@ -251,7 +254,7 @@ style {
                                         }
                                         // body（展开时）——键列表驱动,逐卡独立;
                                         // 段名大写字面量（VM 无 text-transform）。
-                                        if toolIsOpen(.toolList, .block.tkey) {
+                                        if toolIsOpen(.msg.tool_expanded, .block.tkey) {
                                             col {
                                                 style: "tool-body border-t border-border px-[10px] py-[8px]"
                                                 col {
