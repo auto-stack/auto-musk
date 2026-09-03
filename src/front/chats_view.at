@@ -187,13 +187,37 @@ widget ChatsView {
                                 } else {
                                     "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground"
                                 }
-                                span {
-                                    style: if .s.id == .store.session_id {
-                                        "text-[13.6px] font-medium text-primary truncate max-w-full"
-                                    } else {
-                                        "text-[13.6px] text-foreground truncate max-w-full"
+                                // 标题行 justify-between：× 在标题同排右缘（用户
+                                // 反馈 2026-09-03：× 常显且落卡片下半部——VM 编译
+                                // 轨不消费 absolute，改为流内右上角承载；web 轨
+                                // absolute 类继续生效=右上角 + hover 显隐不变）。
+                                row {
+                                    style: "flex items-start justify-between w-full gap-1"
+                                    span {
+                                        style: if .s.id == .store.session_id {
+                                            "text-[13.6px] font-medium text-primary truncate max-w-full"
+                                        } else {
+                                            "text-[13.6px] text-foreground truncate max-w-full"
+                                        }
+                                        text .s.name
                                     }
-                                    text .s.name
+                                    // PLAN-055 T15/T16: 删 Info 图标（②b）。PLAN-058
+                                    // 两步删除：①affordance 字形化——Trash2 是
+                                    // use.web 组件，VM 轨生成物无图标内容=空 span
+                                    // 隐形；改 text "×"（gate_card 🔒 /
+                                    // chat_message ▲▼ 字形先例，双轨可见）。
+                                    // ②点击置 pending+open，经 DeleteConfirmDialog
+                                    // （web=alert-dialog 模态,VM=列表顶确认行）二次
+                                    // 确认后才调删除 API。观感注记：VM 编译轨无
+                                    // 父级 hover 显隐机制（mouse-area 无 codegen
+                                    // 臂），× 在 VM 常显但低对比（opacity-40 +
+                                    // muted 前景）；web 轨仍 hover 才现。
+                                    span {
+                                        style: "session-delete-btn absolute right-[6px] top-[6px] flex items-center shrink-0 opacity-40 bg-transparent border-none p-[3px] text-muted-foreground text-sm leading-none cursor-pointer hover:opacity-100 hover:text-destructive"
+                                        onclick.stop: .AskDelete(.s.id)
+                                        title: t("chat.deleteSession")
+                                        text "×"
+                                    }
                                 }
                                 row {
                                     style: "flex items-center gap-1 w-full"
@@ -201,24 +225,6 @@ widget ChatsView {
                                         style: "text-xs text-muted-foreground"
                                         text t("chat.msgs", { count: .s.message_count })
                                     }
-                                }
-                                // PLAN-055 T15/T16: 删 Info 图标（②b）；删除钮类串
-                                // 去 hidden（②c）——VM 无 hover 态改常显红钮（观感
-                                // 偏差登记），gen/web 轨 hover 显隐由样式注入承接
-                                // （inject_styles 的 .session-item:hover 规则）。
-                                // PLAN-058 两步删除：①affordance 字形化——Trash2
-                                // 是 use.web 组件，VM 轨生成物无图标内容=空 span
-                                // 隐形，而 absolute 类 VM 不消费退化为流内排布
-                                // （恰落卡片下半部），误点即直删；改 text "×"
-                                //（gate_card 🔒 / chat_message ▲▼ 字形先例，双轨
-                                // 可见）。②点击置 pending+open，经
-                                // DeleteConfirmDialog（web=alert-dialog 模态,
-                                // VM=列表顶确认行）二次确认后才调删除 API。
-                                span {
-                                    style: "session-delete-btn absolute right-[6px] top-1/2 -translate-y-1/2 items-center opacity-60 bg-transparent border-none p-[3px] text-destructive text-base leading-none cursor-pointer"
-                                    onclick.stop: .AskDelete(.s.id)
-                                    title: t("chat.deleteSession")
-                                    text "×"
                                 }
                             }
                         }
@@ -257,7 +263,7 @@ widget ChatsView {
                 }
                 // canvas（SecretaryMessage/GateCard/ReportCard + 消息列表 + 流式 draft）
                 col {
-                    style: "flex-1 overflow-y-auto p-4 flex flex-col gap-6"
+                    style: "flex-1 overflow-y-auto p-4 flex flex-col gap-10"
                     // SecretaryMessageWrapper：gate_reached 触发 useGateInbox.registerGate →
                     // currentSecretary 驱动审批消息条（B 类批4。wrapper 内部 v-if gate 控制显隐）。
                     SecretaryMessageWrapper {

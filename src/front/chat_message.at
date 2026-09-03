@@ -151,11 +151,12 @@ widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task
                     }
                 }
             }
-            // PLAN-055: AI 消息工具栏（对齐 web 原版 message-toolbar：copy 靠右）。
-            // 单源新增，gen Vue 轨同步获得（web 原版同款能力）。
+            // PLAN-055: AI 消息工具栏。copy 靠左（用户反馈 2026-09-03：右侧是
+            // user 气泡的对齐侧,assistant 工具栏占右观感错位）——对齐 assistant
+            // 内容列的左缘。单源新增,gen Vue 轨同步获得。
             if .isAssistant {
                 row {
-                    style: "flex items-center justify-end gap-1 mt-[2px] px-[3px]"
+                    style: "flex items-center justify-start gap-1 mt-[2px] px-[3px]"
                     button {
                         onclick: .CopyContent
                         style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
