@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-059
-status: drafting
+status: executing
 feature_name: VM(iced) 悬浮层基础设施与 overlay 组件族落地
 author: [zhaopuming]
 created_at: 2026-09-03T13:30:00+08:00
@@ -134,11 +134,19 @@ schema 回填:         iced: none → native（随实现逐家族推进）
 
 ## 执行步骤（Phase 1 基建 + alert_dialog 纵切；后续家族按同模式铺开）
 
-- [ ] **T1 auto-lang worktree 就绪**：`auto-lang/.worktrees/auto-musk-dev`
-  分支 + 主检出 gen 门禁基线记录。验证：`git -C auto-lang worktree list`。
-- [ ] **T2 跨 widget msg 派发修复（前置）**：最小复现 .at（child button →
-  child msg → parent onX 置状态）定位 VM emit 断点并修复
-  （ui/interpreter/child_emit 链路）。验证：复现 .at 实机父状态翻转。
+- [✅ 已完成] worktree 建（基于 master 7ab140c41）；探针工程
+  examples/overlay-probe 随 T2 入库。
+- [✅ 已完成] **T2 根因实锤+修复**（auto-musk-dev 分支）：派发侧
+  `emit_key = "on"+子 msg 名` 与注册侧父声明键**大小写错配**即静默丢派发
+  （子 msg `Confirm` + 父绑定 `onconfirm` → lookup("onConfirm") 落空）。
+  修复：child_emit.rs 注册/派发两侧键折叠小写匹配 + 2 个单测。全量 lib
+  （--features ui-iced）4284 过/173 败 vs 基线 4280/175——零新增失败、
+  净修好 3（其余 172 为存量环境批量失败）。**e2e 残项**：VM 实机矩阵复测
+  被启动工具链不稳定阻塞（launcher 随机退出/MCP ~60-90s 寿命/探针首编译
+  卡 "Waiting for AutoVM server"——探针 build 目录已清需一次性全量编译），
+  探针工程就绪（examples/overlay-probe，AUTOUI_MCP_PORT=9277），工具债
+  修复后补跑。另登记：VM split 模式必须 src/back/api.at，缺失报
+  20×"Expected term, got RBrace" 零位置诊断（解析器诊断债）。
 - [ ] **T3 overlay registry + Stack 根**：renderer 根切 Stack（base+layers），
   registry 数据结构与 open 绑定生命周期。验证：iced_test 单测绿；现有
   musk/gallery 无回归（空 overlay 时渲染不变）。
