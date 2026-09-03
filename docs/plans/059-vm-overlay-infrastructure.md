@@ -123,6 +123,24 @@ ui-cache.json` 缓存编译产物,源码不变则复用旧产物——**codegen 
 该文件强制重编**;另 Windows 下运行中的 auto.exe 锁文件,cargo build 前须
 taskkill（此前多轮"构建成功实为静默失败"皆因此）。
 
+### codegen 侧确认（2026-09-03 补充勘察）
+
+- 用户实机复测定案：编译 VM 轨点 Show Dialog **完全无反应**——alert-dialog
+  的 trigger 开合/open 绑定/浮层机制在编译产物中不存在,按钮被编译为普通
+  button（无 onclick 语义）,点击自然无事发生。同时解释了为什么 PLAN-058
+  的内联确认行（col/row/span/button 基础件）在编译 VM 轨正常工作——
+  codegen 对基础件有臂,对 alert-dialog 家族没有。
+- ui_gen/rust.rs 现状：6426 行;`tag_to_view_fn`（:3613）按 tag 映射视图
+  构造 fn;无 popover/alert-dialog/dialog 任何浮层家族臂;亦无浮层运行时
+  （生成的视图代码的 overlay 通道）。
+- **T4 剩余工作量重估**：不是"补一个 match 臂",而是给 a2r 编译轨补浮层
+  运行时通道——①codegen 臂:alert-dialog 家族 → 生成 Modal 构造调用;
+  ②生成侧运行时:Modal/浮层的 iced 实现（可复用 ui/iced/popover.rs 的
+  Panel 模式,需确认生成代码可引用的运行时 crate 面）;③触发器开合 +
+  open 态绑定（state_ref v-model 对齐 vue 轨）;④ESC/外点关闭事件回流。
+  建议作为 auto-lang 独立计划立项（依赖 ui/iced 深水区,非 musk 侧可闭环）,
+  musk 侧 VM 确认行（PLAN-058 形态）在浮层通道落地前为最优可用形态。
+
 ```
 渲染根: Stack { base: 现有视图树, ...open_overlays }
 overlay registry（renderer 侧）:
