@@ -65,7 +65,23 @@ auto-lang 依赖 iced 0.14（crates/auto-lang/Cargo.toml:164），`iced_widget`
 （嵌套 overlay,combo_box 内部即用此实现下拉）、原生 `tooltip`、
 `combo_box`。悬浮层基础设施完全可行,无需外部 UI 库。
 
-### 分层设计
+### 架构发现（2026-09-03 T3 勘察，改变实现量级）
+
+**悬浮层基建已存在大半**：`ui/iced/popover.rs`（529 行）是完整的自绘锚定
+浮层 widget——placement/at_point/gap/open/on_dismiss/Esc/外点关闭全备，
+renderer.rs:3839 已接 `AbstractView::Popover`，aura_view_builder.rs:4972
+已有 popover-trigger/content 拆解臂（含自管开合 slot id 与 ondismiss）。
+**真正的缺口收窄为**：alert_dialog / dialog / dropdown_menu / tooltip 等
+家族没有接上这套机制（builder 无对应臂 → 元素走 default 臂丢弃）。
+
+→ T3/T4 修订：不再需要"根切 Stack"的大改，改为——
+① 在 popover.rs 基座加 `ModalWidget`（全屏 backdrop 捕获 + 居中卡片，
+复用其 Esc/捕获机制，~150 行）；
+② aura_view_builder 加 alert_dialog 家族臂（trigger/content/header/title/
+description/footer/action/cancel 拆解，action·cancel onclick 走既有
+DynamicMessage 派发——与 popover 臂同构）；
+③ dropdown_menu 臂复用 popover（placement bottom-start + 菜单 item 列表）。
+T2 的 child_emit 修复已使弹层内按钮的 onclick 派发可用。
 
 ```
 渲染根: Stack { base: 现有视图树, ...open_overlays }
