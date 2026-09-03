@@ -105,6 +105,24 @@ Show Dialog 后 MCP snapshot 已见对话框子树（title/Cancel/Continue），
    基础树覆盖）。排查顺序：先 autoui_state/snapshot 对比 open 前后差异 →
    再日志确认 popover.rs Panel::draw 是否被调用。
 
+**排查结论（T4 根因定案）——VM 应用视图来自 a2r/ninja 编译产物，运行时
+builder 不参与页面构建**。实证链：①builder 两处臂（tracked convert_node_
+tracked_ctx + untracked convert_element）与 convert_alert_dialog 入口的
+eprintln，/alertdialog 页导航后全部零命中；②convert_element fallback 臂
+的未知 tag 日志亦零命中——alert-dialog 元素从未进运行时 builder；③
+`auto run --render=vm` 走 windows_ninja 端口把 .at 编译成原生程序（工程
+build 目录 build.ninja），页面视图由 **ui_gen/rust.rs 代码生成**产出，其
+分发表无 alert-dialog 臂 → 编译页代码直接丢弃对话框子树（触发 button 臂
+存在故按钮渲染,弹层机制不存在）。
+
+**T4 剩余实现 = ui_gen/rust.rs（a2r codegen）加 alert-dialog 家族臂**：
+生成 Modal 浮层构造代码（对齐 View::Popover/PopoverPlacement::Modal 语义：
+居中卡片+全视口暗幕+ESC/外点 dismiss）。已完成的 interpreter 侧臂（本仓
+auto-musk-dev 分支提交）服务动态/解释模式,保留。工具注记：工程 `.auto/
+ui-cache.json` 缓存编译产物,源码不变则复用旧产物——**codegen 改动后须删
+该文件强制重编**;另 Windows 下运行中的 auto.exe 锁文件,cargo build 前须
+taskkill（此前多轮"构建成功实为静默失败"皆因此）。
+
 ```
 渲染根: Stack { base: 现有视图树, ...open_overlays }
 overlay registry（renderer 侧）:
