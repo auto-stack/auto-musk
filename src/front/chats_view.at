@@ -221,6 +221,7 @@ widget ChatsView {
                                 // .session-item:hover 双保险,两轨语义一致
                                 // （用户对拍 2026-09-03:× 须 hover 才现）。
                                 mouse-area {
+                                    style: "w-full"
                                     onmouseenter: .HoverSession(.s.id)
                                     onmouseleave: .HoverSessionClear
                                     row {
