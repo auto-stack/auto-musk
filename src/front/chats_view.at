@@ -209,7 +209,7 @@ widget ChatsView {
                                 // PLAN-055 T15: 删 title=.s.id 悬停 tooltip（用户
                                 // 对拍 ②a——chat id 对用户无信息量）。
                                 class: if .s.id == .store.session_id {
-                                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-primary/25 bg-primary/10 text-primary"
+                                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-primary/25 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
                                 } else {
                                     "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground"
                                 }
