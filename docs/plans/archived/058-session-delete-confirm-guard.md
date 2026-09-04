@@ -1,14 +1,16 @@
 ---
 plan_id: PLAN-058
-status: execution_done
+status: archived
 feature_name: 会话删除两步确认护栏 + Block 全家福会话重灌（+二期：主导航纵排与标题边框）
 author: [zhaopuming]
 created_at: 2026-09-03T10:00:00+08:00
 updated_at: 2026-09-03T12:00:00+08:00
 
-supersedes_spec_components: []
+supersedes_spec_components:
+  - "docs/specs/03-front-component-groups.md: 会话壳/删除交互行为更新（chats_view.at 两步确认状态机 + DeleteConfirmDialog.vue web 适配）"
 new_spec_components: []
-touched_goals: []
+touched_goals:
+  - "00-overview 目标5 双前端 parity：会话删除交互双轨等价（可见 affordance + 两步确认），VM 轨消隐形可点区"
 
 current_step: 15
 total_steps: 15
@@ -269,7 +271,34 @@ total_steps: 15
 
 ## 复审记录
 
-（/auto-plan:review 填写）
+- **复审人**：ZCode（/auto-plan:review）；**时间**：2026-09-04 上午
+- **复验位置**：plan-058-dev 已在 1cdafa1 合回 main、worktree 已清，按 skill 在主检出复验。
+- **逐条验收复核**（全部重跑/重证，不信勾选）：
+  1. **VM ×字形可见**：pass——源侧 `text "×"` 两处（chats_view.at:132 头部、:221 列表项）；
+     实机断言 A1-A6 + 证据 docs/attachments/p058-vm-confirm-strip.png（合入前已摄）。
+  2. **双轨两步确认**：pass——状态机齐全（AskDelete/AskDeleteAll/CancelDelete/
+     ConfirmDelete/ConfirmDeleteAll/delete_confirm_open，chats_view.at:62-65,90,380-392）；
+     VM 走内联确认行，web 走 DeleteConfirmDialog.vue（gen ext 镜像
+     src/ext/src/front/components/ 已随 build 同步，ChatsView.vue:203 引用）。
+  3. **gen hover 显隐不变**：pass（带登记注）——inject_styles.web-only.ts:105-107
+     三规则原样；:111 新增 `.session-delete-strip{display:none}` 4 行系三期 T13
+     有记录的轨道抑制机制（055-T16 先例），非意外改动。
+  4. **四门禁全绿**：pass——复审当场复跑：vm-safe-lint PASS（0 命中+3 豁免）/
+     vitest 23+1skip / pnpm build ✓ built / auto build --gen-only exit 0（54 组件）。
+  5. **Block 全家福会话**：pass——backend/.autoos/chats.json 含 block-showcase-chat
+     且 updated_at 置顶。
+  6. **VM 问卷卡残差豁免**：pass——057 账本在案，不计失败。
+- **遗漏/延后/workaround 排查**：无静默项。所有偏离均已在待澄清①-⑪显式登记，
+  延后项有用户可追溯的承接：⑩跨 widget 派发断路 → PLAN-059；VM alert-dialog
+  浮层 → PLAN-059/auto-lang PLAN-533。⑦未起隔离 serve 属登记偏离非省工。
+  nav_item.at 死代码为清理候选，不属本计划范围。
+- **merge 清单⑪执行情况**（复审顺手核销）：主检出现态 = 重生成后完整态——
+  `auto build --gen-only` 已跑（ext 镜像与 alert-dialog 脚手架幸存/同步）；
+  被抹的 @vueuse/core 与 vitest@2 已复装（11b6c20 注记复现确认）；复装后
+  pnpm build + vitest 复跑仍绿。清单②③④已闭环。
+- **债务候选**：⑪④"vitest 每次重生成需会话级补装"属重复性工具债，建议未来
+  立项 codegen 侧固化 devDeps（不阻塞本计划）。
+- **结论**：6/6 通过，无阻塞债务 → `status: reviewed`，可进 /auto-plan:merge。
 
 ## 待澄清事项
 

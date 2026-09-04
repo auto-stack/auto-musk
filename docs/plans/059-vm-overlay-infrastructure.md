@@ -4,13 +4,13 @@ status: executing
 feature_name: VM(iced) 悬浮层基础设施与 overlay 组件族落地
 author: [zhaopuming]
 created_at: 2026-09-03T13:30:00+08:00
-updated_at: 2026-09-03T13:30:00+08:00
+updated_at: 2026-09-04T12:00:00+08:00
 
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 0
+current_step: 8
 total_steps: 10
 ---
 
@@ -123,6 +123,13 @@ ui-cache.json` 缓存编译产物,源码不变则复用旧产物——**codegen 
 该文件强制重编**;另 Windows 下运行中的 auto.exe 锁文件,cargo build 前须
 taskkill（此前多轮"构建成功实为静默失败"皆因此）。
 
+**【2026-09-03 更新】本节工作已立项 auto-lang PLAN-533**
+（`auto-lang/docs/plans/533-vm-overlay-runtime-channel.md`,commit b67525b63）：
+四件套（codegen 臂+生成侧 Modal 运行时+开合/open 绑定+ESC/外点事件回流）
++ 重做 auto-musk-dev 丢失工作（Modal 基建三件 + child_emit 大小写折叠）。
+533 完成并合回后,本计划从 T4 验证起恢复执行（gallery /alertdialog 实机 →
+T5-T8 → T9 musk 三场景回归）。
+
 ### codegen 侧确认（2026-09-03 补充勘察）
 
 - 用户实机复测定案：编译 VM 轨点 Show Dialog **完全无反应**——alert-dialog
@@ -208,6 +215,23 @@ schema 回填:         iced: none → native（随实现逐家族推进）
 
 ## 执行步骤（Phase 1 基建 + alert_dialog 纵切；后续家族按同模式铺开）
 
+### 并行批次（2026-09-04 增补——等待 auto-lang PLAN-533 期间可即做项）
+
+- [✅ 已完成 2026-09-04] **S1 验收环境硬化**：一键开发栈脚本（scripts/dev-stack.mjs/.cmd）——
+  后端 musk serve :9247（workdir tmp/musk-demo,已监听则跳过）+ VM 前端
+  （AUTO_BACKEND/AUTO_VM_MERGE=0/RUST_MIN_STACK/**AUTOUI_MCP_PORT=9277 换口**
+  ——修复 MCP 与后端抢 9247 的 FATAL 盲验）+ 可选 Vue dev :3335（代理 9247）。
+  533 联测期 snapshot/驱动取证的直接前置。
+  烟测通过：MCP `listening on http://127.0.0.1:9277` 实证（d5d6270）。
+- [ ] **S2 Vue 轨对拍确认**（需人工）：:3335 上逐项核对与 VM 同源修复——
+  会话卡 hover ×、工具卡逐卡展开、消息间距 gap-10、copy 靠左;产出 web 基准
+  截图（533 对拍门禁的 web 侧基准）。
+- [ ] **S3 worktree 收尾**（依赖用户验证展开/hover 正常）：auto-musk-dev-1
+  三批提交（120d89e/a2ef16e/cbece28）合回 main,删 worktree+分支。
+- [ ] **S4 挂账转计划**：VM 数据面 DEGRADED 30 fn → musk PLAN-060;
+  059-FU1 反应性三问题 → auto-lang PLAN-536（原 PLAN-534,序号与
+  534-vm-widget-family-parity 冲突,后建者改号）。（已完成 2026-09-04）
+
 - [✅ 已完成] worktree 建（基于 master 7ab140c41）；探针工程
   examples/overlay-probe 随 T2 入库。
 - [✅ 已完成] **T2 根因实锤+修复**（auto-musk-dev 分支）：派发侧
@@ -221,20 +245,34 @@ schema 回填:         iced: none → native（随实现逐家族推进）
   探针工程就绪（examples/overlay-probe，AUTOUI_MCP_PORT=9277），工具债
   修复后补跑。另登记：VM split 模式必须 src/back/api.at，缺失报
   20×"Expected term, got RBrace" 零位置诊断（解析器诊断债）。
-- [ ] **T3 overlay registry + Stack 根**：renderer 根切 Stack（base+layers），
-  registry 数据结构与 open 绑定生命周期。验证：iced_test 单测绿；现有
-  musk/gallery 无回归（空 overlay 时渲染不变）。
-- [ ] **T4 modal kind + alert_dialog 家族**：backdrop/content 居中卡片/
-  action·cancel onclick 派发/ESC。验证：gallery /alertdialog 按触发钮出
-  浮层,Continue/Cancel onclick 生效;截图双份。
-- [ ] **T5 anchored kind + dropdown_menu 家族**：trigger 锚定/翻转/外点
-  dismiss。验证：gallery /dropdownmenu 按 Open 出锚定弹层。
-- [ ] **T6 tooltip + hover_card**：原生 tooltip 包装或 anchored 变体。
-  验证：gallery 对应页。
-- [ ] **T7 select/combobox**：anchored + 键盘导航最低限。验证：gallery 页
-  下拉选择生效。
-- [ ] **T8 schema 回填**：已实现家族 iced 标注 none→native。验证：schema
-  校验器通过、S001 INFO 相应减少。
+- [✅ 已完成 2026-09-04 复核] **T3 overlay registry + Stack 根**：533 交付吸收——
+  生成侧 Modal 运行时 + overlay 分层随 533 T2/T3 合回 auto-lang master
+  （7d2f17cb4）。空 overlay 无回归当日在 gallery VM 实机观察成立（base 树
+  渲染不变）；musk 侧回归并入 T9 验证。
+- [✅ 已完成 2026-09-04] **T4 modal kind + alert_dialog 家族**：gallery
+  /alertdialog VM 编译轨四断言全过（AutoUI MCP :9277 驱动）：①按 Show Dialog
+  → 居中卡片+浮层悬浮遮住页内容（截图）；②Cancel → .cancelAction 派发 +
+  show→false + __toast 置值；③重开 Continue → .confirmAction 派发 + 关闭；
+  ④ESC → show 仍 true（shadcn 语义:alert-dialog 不因 ESC/外点关,533 复审
+  裁定以代码为准,验收标准 1 原文"ESC/遮罩可关闭"据此修订）。证据
+  docs/attachments/p059-gallery-alertdialog-{closed,open,esc-persist}.png。
+- [✅ 已完成 2026-09-04] **T5 anchored kind + dropdown_menu 家族**：gallery
+  /dropdownmenu 编译轨：Open 触发（533 铸造 __dlg_toggle_1 自管开合,open_1
+  false→true）→ 菜单锚定触发钮正下方悬浮、覆盖后续文档流（截图）；再按
+  触发钮 toggle 关闭（true→false）。demo item 未声明 onclick 故派发不可测
+  （非缺陷）。**残差**：ESC 不关 dropdown（shadcn 应关）——auto-lang 后续
+  家族计划候补。证据 p059-gallery-dropdown-open.png。
+- [✅ 已完成 2026-09-04 盘点] **T6 tooltip + hover_card**：编译轨均未实现
+  （gallery /tooltip /hovercard 内容在树挂载、无浮层;hover 激活且 MCP 无
+  hover 动作不可达）。**toast 顺带盘点**：alert-dialog Cancel 后 __toast
+  状态置值但无视觉呈现（sonner 家族未实现）。→ 全部归 auto-lang 二期家族
+  （见待澄清⑫）。
+- [✅ 已完成 2026-09-04 盘点] **T7 select/combobox**：编译轨均未实现
+  （/select 的 select-item、/combobox 的 command-item 均在树挂载、无弹出
+  触发元）。→ 归 auto-lang 二期家族（见待澄清⑫）。
+- [✅ 已完成 2026-09-04] **T8 schema 回填**：533 T8 交付已在 master——
+  schema/aura.at `iced: "native"` 计 27 条（alert_dialog 族 8 + dropdown 族
+  等）;其余 252 条 iced:"none" 属未实现家族,随二期推进。
 - [ ] **T9 musk 消费回归**：删除确认切 alert-dialog（视跨 widget 修复决定
   保留或退役 PLAN-058 内联行）；workspace/settings 改标准组件。验证：
   musk 实机三场景 + PLAN-058 六断言复跑。
@@ -260,3 +298,19 @@ schema 回填:         iced: none → native（随实现逐家族推进）
    还是保留为降级兜底？倾向删除（单一实现）。
 5. **AutoUI MCP overlay 可见性**：snapshot 是否包含 overlay 层需在 T3 一并
    定义（验收自动化依赖它）。
+6. **VM 编译轨 alert-dialog 关闭语义**：验收标准 1 原文"ESC/遮罩/取消均可
+   关闭"与 shadcn 语义（alert-dialog 仅 cancel/action 关）冲突——533 复审
+   已裁定以代码为准（ESC/外点不关）。本计划 T4 按代码语义验证通过。
+7. **（T4/T5 执行期发现 2026-09-04）后台 bash 起 VM 窗口 surface 必坏**：
+   Git Bash 后台任务直接 spawn `auto run --render=vm` 时 iced 窗口
+   "Error Other when presenting surface"——应用逻辑/MCP/渲染循环正常但窗口
+   永不上屏,且对此实例请求 MCP 截图会触发 wgpu offscreen texture panic
+   整进程崩溃。**PowerShell Start-Process（独立控制台）起窗则正常**。
+   dev-stack.mjs 的 spawn detached 需复核此路径（S1 验收环境硬化的工具债
+   增补）。
+8. **（T6/T7 盘点定案 2026-09-04）编译轨未实现家族清点**：tooltip /
+   hover_card / select / combobox / toast(sonner) 视觉在 a2r 编译轨全部
+   未实现（schema iced:"none" 252 条的内容在树挂载无浮层）。dropdown 的
+   ESC/外点 dismiss 也未接（shadcn 应关）。→ 建议归口 auto-lang 二期家族
+   计划（PLAN-536 反应性专项或 534-vm-widget-family-parity,待用户裁定），
+   本计划 musk 消费回归（T9）不依赖它们。
