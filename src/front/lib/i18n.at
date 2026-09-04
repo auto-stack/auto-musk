@@ -273,7 +273,8 @@ fn i18n_catalog() map {
                 "emptyTree": "还没有 spec 文件",
                 "selectFile": "从树中选择一个文件",
                 "addItem": "+ 添加项目",
-                "noDoc": "未加载文档"
+                "noDoc": "未加载文档",
+                "rebuildRelations": "重建关系"
             },
             "plans": {
                 "title": "计划",
@@ -671,7 +672,8 @@ fn i18n_catalog() map {
                 "emptyTree": "No spec files yet",
                 "selectFile": "Select a file from the tree",
                 "addItem": "+ Add Item",
-                "noDoc": "No document loaded"
+                "noDoc": "No document loaded",
+                "rebuildRelations": "Rebuild relations"
             },
             "plans": {
                 "title": "Plans",
