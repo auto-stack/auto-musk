@@ -10,7 +10,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 1
+current_step: 6
 total_steps: 6
 ---
 
