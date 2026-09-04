@@ -41,6 +41,14 @@ widget PlansView {
         var new_name str = ""
         var editing bool = false
         var edit_content str = ""
+        // PLAN-060 T3:流转目标状态常量——VM builder 丢弃纯字面量事件参数的
+        // 按钮（onclick: .TransitionTo(.st_drafting) 整钮不渲染,实机快照实证;
+        // gen vue 侧正常）,dot-path 实参是渲染安全形。
+        var st_drafting str = "drafting"
+        var st_executing str = "executing"
+        var st_execution_done str = "execution_done"
+        var st_reviewed str = "reviewed"
+        var st_review_done str = "review_done"
     }
 
     view {
@@ -95,6 +103,37 @@ widget PlansView {
                     ContentHeader {
                         title: .store.current.id
                         slot(name: "actions") {
+                            // PLAN-060 T3:状态流转触发面（TransitionTo 此前孤儿——
+                            // 048 DEGRADED 清单里唯一 plans 域缺口）。四态按钮组,
+                            // 当前态自身隐藏;后端校验非法迁移。
+                            row {
+                                style: "flex gap-1 mr-2 items-center"
+                                button {
+                                    onclick: .TransitionTo(.st_drafting)
+                                    style: "py-1 px-2 rounded text-[11px] cursor-pointer border border-border bg-transparent text-muted-foreground hover:bg-accent"
+                                    text "drafting"
+                                }
+                                button {
+                                    onclick: .TransitionTo(.st_executing)
+                                    style: "py-1 px-2 rounded text-[11px] cursor-pointer border border-border bg-transparent text-muted-foreground hover:bg-accent"
+                                    text "executing"
+                                }
+                                button {
+                                    onclick: .TransitionTo(.st_execution_done)
+                                    style: "py-1 px-2 rounded text-[11px] cursor-pointer border border-border bg-transparent text-muted-foreground hover:bg-accent"
+                                    text "execution_done"
+                                }
+                                button {
+                                    onclick: .TransitionTo(.st_reviewed)
+                                    style: "py-1 px-2 rounded text-[11px] cursor-pointer border border-border bg-transparent text-muted-foreground hover:bg-accent"
+                                    text "reviewed"
+                                }
+                                button {
+                                    onclick: .TransitionTo(.st_review_done)
+                                    style: "py-1 px-2 rounded text-[11px] cursor-pointer border border-border bg-transparent text-muted-foreground hover:bg-accent"
+                                    text "review_done"
+                                }
+                            }
                             button {
                                 onclick: .StartEdit
                                 style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border"
