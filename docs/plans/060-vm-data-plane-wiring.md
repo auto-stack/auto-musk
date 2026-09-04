@@ -78,7 +78,17 @@ auth_register/auth_me 通路已通;auth_login/chats_list_sessions 已活体验�
   **活体点击矩阵移交用户**——MCP 快照/find 不穿透 mouse-area 与
   ChatMessage 子树（工具债,登记 KD）:点 ⑂ → 列表出新分叉会话 → 切换器
   navigate → 审批门（需门数据）。
-- [ ] **T3** plans 域 7 fn：PlansView 列表/创建/状态机/归档/合并接线 + 活体。
+- [🚧 受阻 2026-09-05] **T3** plans 域 7 fn：
+  **已完成部分**:plans_transition 触发面补齐(五态按钮组 drafting/executing/
+  execution_done/reviewed/review_done;TransitionTo 此前孤儿)——纯字面量事件
+  参数的按钮被 VM builder 丢弃(gen vue 正常),dot-path model 实参变通后渲染
+  (builder 缺陷登记 auto-lang)。活体:plans_list ✓(列表 9→10 出数)、
+  plans_create ✓(双证:状态 creating=false+plans 10 条刷新;磁盘文件
+  musk-demo/docs/plans/037-plan060-review-test.md 落盘)、plans_get ✓
+  (SelectPlan→current)、plans_transition ✓(executing 迁移落盘)。
+  **受阻**:transition→review_done 后续(merge 按钮条件=review_done)被数据面
+  归属问题挡住——见待澄清③。plans_update/merge/archive 的活体矩阵随之待
+  数据面归属裁定后补跑(触发面本身已全部在案)。
 - [ ] **T4** specs 域 7 fn：SpecsView 树/总览/编辑/删除/重建关系 + 活体。
 - [ ] **T5** wiki 域 10 fn：WikiView 列表/页/编辑/删除/搜索/raw 目录操作 + 活体。
 - [ ] **T6** 收尾：musk 四门禁（build strict/vitest/对拍/探针）+ KD 048 核销
@@ -100,3 +110,14 @@ auth_register/auth_me 通路已通;auth_login/chats_list_sessions 已活体验�
 
 1. specs_tree/specs_raw 类返回大树契约的 VM 侧渲染性能（是否需要分页/裁剪）。
 2. wiki raw 文件操作在 VM 轨的确认交互（无浮层期间用内联确认行兜底）。
+3. **（T3 受阻 2026-09-05）plans 数据面归属与注册表漂移**:VM(merged 模式)
+   的 plans_create 把文件写到 **serve 数据目录**
+   （main/tmp/musk-demo/docs/plans/037-plan060-review-test.md,worktree 内
+   无副本）,但 **:9247 serve 的 /api/plans 注册表返回 []**、
+   transition/archive 对新计划报 "plan 037 not found"——同目录文件存在而
+   注册表不认。三问:①api_over_http 通路在 merged 模式下 plans 读写到底
+   落 in-process 还是 :9247（两者注册表明显是两套）;②serve 的
+   PlansStore 注册表生命周期(疑似启动时扫描后不 rescans,与磁盘漂移);
+   ③review060 登录态下 VM 列表见过 10 条而 HTTP 侧恒 []——用户作用域还是
+   注册表分叉。裁定前 T3 的 transition/update/merge/archive 活体矩阵冻结
+   (触发面 UI 已全部在案);裁定后 30 分钟内可补完全矩阵。
