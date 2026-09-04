@@ -163,23 +163,36 @@ widget ChatsView {
                 slot(name: "list") {
                     col {
                         style: "flex-1 overflow-y-auto px-2"
-                        // PLAN-059 T9:删除确认 alert-dialog 单源（无 trigger
-                        // 受控形态,open 绑 state_ref bool;title 按单删/全删
-                        // 分流,action 回执 .delete_pending_id 分流单删/全删）。
-                        alert-dialog (open: .delete_confirm_open) {
-                            alert-dialog-content {
-                                alert-dialog-header {
-                                    if .delete_pending_id == "__all__" {
-                                        alert-dialog-title (text: t("chat.confirmDeleteAll")) {}
+                        // PLAN-059 T9:VM 内联确认行暂返场兜底——解释器轨对
+                        // ChatsView 上下文的 alert-dialog open 绑定不渲染
+                        // （四个形态探针全灭:根位/字面量/空 trigger;gallery
+                        // 同模式同形态可渲染,D-GAP 深水区,归 auto-lang 536
+                        // 候补）。web 轨 CSS .session-delete-strip 抑制不变,
+                        // 走上方 alert-dialog;解释器修复后本行退役。
+                        if .delete_confirm_open {
+                            row {
+                                style: "session-delete-strip flex items-center gap-2 w-full px-1 py-1.5 mb-1"
+                                if .delete_pending_id == "__all__" {
+                                    span {
+                                        style: "text-xs text-destructive"
+                                        text t("chat.confirmDeleteAll")
                                     }
-                                    if .delete_pending_id != "__all__" {
-                                        alert-dialog-title (text: t("chat.confirmDeleteSession")) {}
-                                    }
-                                    alert-dialog-description (text: t("chat.confirmIrreversible")) {}
                                 }
-                                alert-dialog-footer {
-                                    alert-dialog-cancel (text: t("chat.cancel"), onclick: .CancelDelete) {}
-                                    alert-dialog-action (text: t("chat.confirmDelete"), onclick: .ConfirmDelete(.delete_pending_id)) {}
+                                if .delete_pending_id != "__all__" {
+                                    span {
+                                        style: "text-xs text-destructive"
+                                        text t("chat.confirmDeleteSession")
+                                    }
+                                }
+                                span {
+                                    style: "text-xs font-medium text-destructive border border-destructive/40 rounded px-1.5 py-0.5 cursor-pointer hover:bg-destructive/10"
+                                    onclick.stop: .ConfirmDelete(.delete_pending_id)
+                                    text t("chat.confirmDelete")
+                                }
+                                span {
+                                    style: "text-xs text-muted-foreground border border-border rounded px-1.5 py-0.5 cursor-pointer hover:bg-accent"
+                                    onclick.stop: .CancelDelete
+                                    text t("chat.cancel")
                                 }
                             }
                         }
@@ -514,6 +527,28 @@ widget ChatsView {
                     professions: ""
                     onsend: .SendInput($event)
                     oncancel: .StopStream
+                }
+            }
+            // PLAN-059 T9:删除确认 alert-dialog 单源（无 trigger 受控形态,
+            // open 绑 state_ref bool;title 单删/全删分流,action 回执
+            // .delete_pending_id 分流）。置于视图根部——058 T13/首次实测均证
+            // 深嵌(slot list col 内)时 VM 解释轨整树丢弃,视图根部/gallery
+            // demo 形态才渲染。
+            alert-dialog (open: .delete_confirm_open) {
+                alert-dialog-content {
+                    alert-dialog-header {
+                        if .delete_pending_id == "__all__" {
+                            alert-dialog-title (text: t("chat.confirmDeleteAll")) {}
+                        }
+                        if .delete_pending_id != "__all__" {
+                            alert-dialog-title (text: t("chat.confirmDeleteSession")) {}
+                        }
+                        alert-dialog-description (text: t("chat.confirmIrreversible")) {}
+                    }
+                    alert-dialog-footer {
+                        alert-dialog-cancel (text: t("chat.cancel"), onclick: .CancelDelete) {}
+                        alert-dialog-action (text: t("chat.confirmDelete"), onclick: .ConfirmDelete(.delete_pending_id)) {}
+                    }
                 }
             }
         }
