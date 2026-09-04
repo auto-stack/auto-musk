@@ -31,7 +31,10 @@ use.web useT from "src/front/ports/composables.at"
 // （下 span 行,类 session-delete-strip 经 web CSS display:none 抑制——
 // alert-dialog backends iced:none,VM 不渲染对话框,实机快照实证;且 VM 跨
 // widget msg 派发不通,确认行必须内联本视图）。
-use.web component DeleteConfirmDialog from "src/front/components/DeleteConfirmDialog.vue"
+// PLAN-536 T9：改走端口链（ports/delete_confirm.at → vm.at/web.at 目标
+// 门控,同 renderer 域）——VM 轨由 delete_confirm.vm.at 的 alert-dialog
+// 受控 open 模态承接,web 轨 facade re-export 原 .vue 适配器。
+use.web component DeleteConfirmDialog from "src/front/ports/delete_confirm.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
 use mention_input: MentionInput
@@ -214,8 +217,12 @@ widget ChatsView {
                                 // 可见）。②点击置 pending+open，经
                                 // DeleteConfirmDialog（web=alert-dialog 模态,
                                 // VM=列表顶确认行）二次确认后才调删除 API。
+                                // PLAN-536 T7：悬浮类串对齐 VM absolute 语义——
+                                // z-10（VM hoist 触发）+ top-2 px（VM 不支持
+                                // top-1/2 百分比与 -translate 变换）。vue 轨 ×
+                                // 由垂直居中改卡片顶 8px，观感偏差登记。
                                 span {
-                                    style: "session-delete-btn absolute right-[6px] top-1/2 -translate-y-1/2 items-center opacity-60 bg-transparent border-none p-[3px] text-destructive text-base leading-none cursor-pointer"
+                                    style: "session-delete-btn absolute right-[6px] top-2 z-10 items-center opacity-60 bg-transparent border-none p-[3px] text-destructive text-base leading-none cursor-pointer"
                                     onclick.stop: .AskDelete(.s.id)
                                     title: t("chat.deleteSession")
                                     text "×"
