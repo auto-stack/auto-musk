@@ -386,9 +386,10 @@ fn relayNowTime() str {
     return Date.format(Date.now(), "HH:mm:ss")
 }
 
-/** 秒级时间戳 → HH:mm:ss。 */
+/** 秒级时间戳 → HH:mm:ss。PLAN-536 T4：裸秒直传（Date.format 双轨已归一
+ * 1e11 阈值），原 ×1000 在 VM i32 回绕。 */
 fn relayFormatTimestamp(ts int) str {
-    return Date.format(ts * 1000, "HH:mm:ss")
+    return Date.format(ts, "HH:mm:ss")
 }
 
 /** 末条为 (type, profession_id) 时拼接 text 返回 true；否则 false。 */

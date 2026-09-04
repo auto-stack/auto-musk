@@ -16,14 +16,7 @@ use back.api: chats_delete_session, chats_delete_all_sessions
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web relay_command_match from "src/front/relay_commands.at"
 use.web platformRunRelayCommand from "src/front/ports/platform.at"
-use.web.fn extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming, msgTimeLabel, toolArgsJson, withExpansion from "src/front/forge_helpers.at"
-use.web.fn relayReportView from "src/front/relay_run_helpers.at"
-use.web component Markdown from "src/front/ports/renderer.at"
-use.web component Copy from "src/front/ports/icons.at"
-// PLAN-059 T9 顺手修复:UserMessage 是原生 .at 组件,须走 use 组件别名形态
-// （codegen 导入已生成的 @/components/UserMessage.vue）——4700cdc 内联化时
-// 误用 use.web 指向 .at 源模块,ext 镜像无此 ts 模块,vue-tsc TS2305 拦截。
-use user_message: UserMessage
+use.web.fn extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.at"
 use.web.fn chatSearchFilter, chatLastMessageId, chatBranchLabel, chatBranchEntries, chatActivePath from "src/front/forge_helpers.at"
 // PLAN-051 T8: SendInput 净空口径统一（原 .send(mention_trim(.text)) 调用位
 // 形态，实参内移后宿主侧复用同一 helper）。
@@ -32,12 +25,15 @@ use.web getQuestions, hasQuestionnaire from "src/front/questionnaire.at"
 use.web questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder from "src/front/questionnaire_helpers.at"
 use.web component Plus, Trash2, Search, Info from "src/front/ports/icons.at"
 use.web useT from "src/front/ports/composables.at"
-// PLAN-059 T9:删除确认 alert-dialog 单源双轨——533 浮层通道合回后
-// （a2r codegen alert-dialog 家族臂 + child_emit 大小写折叠,gallery
-// /alertdialog 编译轨四断言过）,VM 渲染真模态、onconfirm/oncancel 派发
-// 直达本视图 handler;536 fallback 绑定根修合回后解释器轨同形成立
-// （子件重播种守卫）,PLAN-058 三期的 web 薄适配器（DeleteConfirmDialog.vue）
-// 与 VM 内联确认行+CSS .session-delete-strip 抑制一并退役——单源单实现。
+// PLAN-058 三期:删除确认 web 轨 = AutoUI alert-dialog（components/
+// DeleteConfirmDialog.vue 薄适配:ui/alert-dialog 标准件组合,直连绑定沿
+// renderer.web.at→MarkdownRender.vue 先例）。
+// PLAN-536 T9：改走端口链（ports/delete_confirm.at → vm.at/web.at 目标
+// 门控,同 renderer 域）——VM 轨由 delete_confirm.vm.at 的 alert-dialog
+// 受控 open 模态承接,web 轨 facade re-export 原 .vue 适配器。
+// PLAN-059 T9:536 绑定根修+vm.at 真源实机复验通过后,VM 内联确认行
+// （session-delete-strip）与 web CSS 抑制规则退役——单源双轨。
+use.web component DeleteConfirmDialog from "src/front/ports/delete_confirm.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
 use mention_input: MentionInput
@@ -50,6 +46,7 @@ use questionnaire_card: QuestionnaireCard
 use gate_card: GateCard
 use secretary_message_wrapper: SecretaryMessageWrapper
 use secretary_message: SecretaryMessage
+use chat_message: ChatMessage
 use session_info: SessionInfo
 
 widget ChatsView {
@@ -81,14 +78,6 @@ widget ChatsView {
         // 旧 CLI 解析失败被 stale gen 掩盖,新 CLI 重建时暴露为 0 参 emit）。
         // PLAN-055 ⑤: RetryFrom 随"⑂ 重试"按钮删除（孤儿清理）。
         BranchTo(str, str),
-        // 2026-09-03:会话卡 × hover 显隐（mouse-area 命中区驱动;web 侧
-        // CSS .session-item:hover 双保险,语义一致）。
-        HoverSession(str),
-        HoverSessionClear,
-        // 消息卡展开/copy(内联后为本视图消息;冻结实参沿 HoverSession 先例)。
-        ToggleThink(str),
-        ToolToggleKey(str),
-        CopyMessageContent(str),
     }
 
     model {
@@ -101,12 +90,6 @@ widget ChatsView {
         // PLAN-058 三期:alert-dialog 受控 open（web 侧 v-model:open 需
         // state_ref bool——字面量/表达式会让整树退化成 div,vue.rs:10863）。
         var delete_confirm_open bool = false
-        // 2026-09-03:当前 hover 的会话 id(× 按钮显隐;空串=无 hover)。
-        var hover_session_id str = ""
-        // 消息卡展开态(顶层 own-state;子件 prop 快照/handler 写 prop 双缺陷
-        // 的绕行——renderMsgs computed 并入消息克隆,视图读纯 dot 路径)。
-        var msg_think_open str = ""
-        var msg_tool_open str = ""
     }
 
     // Plan 028 T15：搜索过滤（原 useChatSearch composable → F2 多参 fn 直调）
@@ -118,13 +101,6 @@ widget ChatsView {
         // 动态索引均破坏 UI parser——扁平 {for_id, sib} 条目在此预算,视图按
         // for_id 相等匹配渲染兄弟按钮）。
         branchEntries => chatBranchEntries(.store.messages)
-        // 消息渲染列表:克隆消息并入展开态/流式标志/有序块——视图循环读纯
-        // dot 路径(for-in 源限 dot 路径),展开切换=own-state 写→computed 重算。
-        // 【2026-09-04 二修】msgs 改传 store 原生列表——filteredMessages 是
-        // computed 构建列表,穿 fn 边界后 for-in 零迭代(051 T8 返回值错位族,
-        // 探针实证 len=3 而 body 0 次执行)。搜索过滤暂让位渲染正确性,
-        // chatActivePath/搜索过滤损失挂账 536 同族。
-        renderMsgs => withExpansion({ list: .store.messages })
     }
 
     // PLAN-049 T6：branch-row/branch-btn/retry-btn 已迁视图内联工具类（块删除）。
@@ -147,9 +123,7 @@ widget ChatsView {
                         onclick: .NewSession
                         style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent border border-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
                         title: t("chat.newSession")
-                        // 2026-09-03:图标 16→20(用户对拍 VM 图标观感偏小,整体抬档;
-                        // web 端 lucide size 同步,两轨一致)。
-                        Plus { size: 20 }
+                        Plus { size: 16 }
                     }
                     button {
                         // PLAN-058: 直删改两步确认；Trash2（use.web，VM 空内容）
@@ -163,59 +137,76 @@ widget ChatsView {
                 slot(name: "list") {
                     col {
                         style: "flex-1 overflow-y-auto px-2"
+                        // PLAN-058 三期→PLAN-059 T9 定稿:删除确认单源双轨——
+                        // DeleteConfirmDialog 端口链(vm.at 真源/web.at facade),
+                        // VM alert-dialog 受控 open 模态(536 绑定根修+vm.at
+                        // 真源后渲染成立,实机 T9 复验)。VM 内联确认行
+                        // (session-delete-strip)与 web CSS 抑制规则退役。
+                        DeleteConfirmDialog {
+                            open: .delete_confirm_open
+                            target: .delete_pending_id
+                            session_title: t("chat.confirmDeleteSession")
+                            all_title: t("chat.confirmDeleteAll")
+                            confirm_text: t("chat.confirmDelete")
+                            cancel_text: t("chat.cancel")
+                            onconfirm: .ConfirmDelete($event)
+                            oncancel: .CancelDelete
+                        }
                         for s in .store.session_list {
-                            button {
-                                key: .s.id
-                                onclick: .SelectSession(.s.id)
+                            // PLAN-536 重测改构(2026-09-04)：× 移出卡片
+                            // button 成兄弟,由外层 relative col 的 col-arm
+                            // hoist 承接悬浮——Button{content:Overlay} 在
+                            // iced 画布渲染空壳(auto-lang 侧该臂已撤销,
+                            // renderer 根修留档)。兄弟 × 不经卡片点击冒泡。
+                            col {
+                                style: "relative w-full"
+                                button {
+                                    key: .s.id
+                                    onclick: .SelectSession(.s.id)
                                 // PLAN-055 T15: 删 title=.s.id 悬停 tooltip（用户
                                 // 对拍 ②a——chat id 对用户无信息量）。
                                 class: if .s.id == .store.session_id {
-                                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-primary/25 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-primary/25 bg-primary/10 text-primary"
                                 } else {
                                     "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground"
                                 }
-                                // 标题行 justify-between：× 在标题同排右缘。悬停
-                                // 显隐：内容包 mouse-area(Plan 484 hover 命中区,
-                                // iced mouse_area on_enter/on_exit / vue div
-                                // @mouseenter),进/出事件驱动 hover_session_id,
-                                // × 仅 hover 该卡时渲染——web 另有 CSS
-                                // .session-item:hover 双保险,两轨语义一致
-                                // （用户对拍 2026-09-03:× 须 hover 才现）。
-                                mouse-area {
-                                    style: "w-full"
-                                    onmouseenter: .HoverSession(.s.id)
-                                    onmouseleave: .HoverSessionClear
-                                    row {
-                                        style: "flex items-start justify-between w-full gap-1"
-                                        span {
-                                            style: if .s.id == .store.session_id {
-                                                "text-[13.6px] font-medium text-primary flex-1 min-w-0 break-all leading-[1.45]"
-                                            } else {
-                                                "text-[13.6px] text-foreground flex-1 min-w-0 break-all leading-[1.45]"
-                                            }
-                                            text .s.name
-                                        }
-                                        // PLAN-055 T15/T16 + PLAN-058 两步删除:
-                                        // 字形化 ×(Trash2 use.web 在 VM 为空形)+
-                                        // AskDelete 二次确认。absolute 类仅 web
-                                        // 消费(右上角精放),VM 编译轨不消费、
-                                        // 流内承载于标题行右缘。
-                                        if .hover_session_id == .s.id {
-                                            span {
-                                                style: "session-delete-btn absolute right-[4px] top-[4px] w-5 h-5 flex items-center justify-center shrink-0 opacity-40 bg-transparent border-none p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:opacity-100 hover:text-destructive"
-                                                onclick.stop: .AskDelete(.s.id)
-                                                title: t("chat.deleteSession")
-                                                text "×"
-                                            }
-                                        }
+                                span {
+                                    style: if .s.id == .store.session_id {
+                                        "text-[13.6px] font-medium text-primary truncate max-w-full"
+                                    } else {
+                                        "text-[13.6px] text-foreground truncate max-w-full"
                                     }
-                                    row {
-                                        style: "flex items-center gap-1 w-full"
-                                        span {
-                                            style: "text-xs text-muted-foreground"
-                                            text t("chat.msgs", { count: .s.message_count })
-                                        }
+                                    text .s.name
+                                }
+                                row {
+                                    style: "flex items-center gap-1 w-full"
+                                    span {
+                                        style: "text-xs text-muted-foreground"
+                                        text t("chat.msgs", { count: .s.message_count })
                                     }
+                                }
+                                // PLAN-055 T15/T16: 删 Info 图标（②b）；删除钮类串
+                                // 去 hidden（②c）——VM 无 hover 态改常显红钮（观感
+                                // 偏差登记），gen/web 轨 hover 显隐由样式注入承接
+                                // （inject_styles 的 .session-item:hover 规则）。
+                                // PLAN-058 两步删除：①affordance 字形化——Trash2
+                                // 是 use.web 组件，VM 轨生成物无图标内容=空 span
+                                // 隐形，而 absolute 类 VM 不消费退化为流内排布
+                                // （恰落卡片下半部），误点即直删；改 text "×"
+                                //（gate_card 🔒 / chat_message ▲▼ 字形先例，双轨
+                                // 可见）。②点击置 pending+open，经
+                                // DeleteConfirmDialog（web=alert-dialog 模态,
+                                // VM=列表顶确认行）二次确认后才调删除 API。
+                                // PLAN-536 T7：悬浮类串对齐 VM absolute 语义——
+                                // z-10（VM hoist 触发）+ top-2 px（VM 不支持
+                                // top-1/2 百分比与 -translate 变换）。vue 轨 ×
+                                // 由垂直居中改卡片顶 8px，观感偏差登记。
+                                }
+                                span {
+                                    style: "session-delete-btn absolute right-[6px] top-2 items-center opacity-60 bg-transparent border-none p-[3px] text-destructive text-base leading-none cursor-pointer"
+                                    onclick.stop: .AskDelete(.s.id)
+                                    title: t("chat.deleteSession")
+                                    text "×"
                                 }
                             }
                         }
@@ -235,7 +226,7 @@ widget ChatsView {
                             // flex-[0_1_320px] 任意值不支持整类丢弃 → 搜索框塌 0
                             // 被挤压；web 侧仅极窄窗行为微改进（原可压到 0）。
                             style: "flex items-center gap-[5px] max-w-[320px] min-w-[200px] w-[320px] flex-[0_1_320px] px-3 py-1.5 bg-muted-foreground/5 border border-muted-foreground/10 rounded-md text-muted-foreground"
-                            Search { size: 16, class: "shrink-0" }
+                            Search { size: 13, class: "shrink-0" }
                             input {
                                 style: "w-full text-[13px] text-foreground bg-transparent border-none outline-none placeholder:text-muted-foreground"
                                 value: .chat_search
@@ -254,7 +245,7 @@ widget ChatsView {
                 }
                 // canvas（SecretaryMessage/GateCard/ReportCard + 消息列表 + 流式 draft）
                 col {
-                    style: "flex-1 overflow-y-auto p-4 flex flex-col gap-10"
+                    style: "flex-1 overflow-y-auto p-4 flex flex-col gap-6"
                     // SecretaryMessageWrapper：gate_reached 触发 useGateInbox.registerGate →
                     // currentSecretary 驱动审批消息条（B 类批4。wrapper 内部 v-if gate 控制显隐）。
                     SecretaryMessageWrapper {
@@ -280,16 +271,16 @@ widget ChatsView {
                             deckHtml: ""
                         }
                     }
-                    for rm in .renderMsgs {
+                    for msg in .filteredMessages {
                         col {
-                            key: .rm.id
+                            key: .msg.id
                             // PLAN-043: 同分叉点的兄弟分支切换器（PLAN-055 ⑤：
                             // "⑂ 重试"按钮删除——用户对拍裁决，重试语义由分支
                             // 切换器与新发消息承载）。
                             row {
                                 style: "flex gap-1 mb-[2px]"
                                 for be in .branchEntries {
-                                    if be.for_id == .rm.id {
+                                    if be.for_id == .msg.id {
                                         button {
                                             // R006(strict):v-for 项需 :key。
                                             key: be.sib.id
@@ -302,168 +293,27 @@ widget ChatsView {
                                     }
                                 }
                             }
-                            // 【2026-09-04】消息卡内联（ChatMessage 子件退役）——
-                            // VM 子件 prop 构建期快照 + handler 写 prop 崩溃
-                            // (Invalid object ID)双缺陷,唯顶层 own-state 全链
-                            // 实证可用;展开态走 msg_think_open/msg_tool_open。
-                            col {
-                                class: if .rm.role == "user" { "flex flex-col gap-[3px] max-w-[85%] self-end items-end" } else { "flex flex-col gap-[5px] self-stretch items-stretch max-w-full" }
-                                row {
-                                    style: if .rm.role == "user" { "flex items-center gap-2 px-1 justify-end" } else { "flex items-center gap-2 px-1" }
-                                    if .rm.role == "user" {
-                                        text "🧑 You" { style: "text-[13.6px] font-semibold text-primary" }
-                                    } else {
-                                        text "🤖 AI" { style: "text-[13.6px] font-semibold text-muted-foreground" }
-                                    }
-                                    if msgTimeLabel(.rm.created_at) != "" {
-                                        text msgTimeLabel(.rm.created_at) { style: "text-xs text-muted-foreground" }
-                                    }
-                                }
-                                if .rm.role == "user" {
-                                    col {
-                                        style: "msg-bubble-user self-end px-[14px] py-[10px] rounded-xl rounded-br text-[15px] leading-[1.6] break-words bg-primary text-primary-foreground"
-                                        UserMessage(content: .rm.content)
-                                    }
-                                } else {
-                                    col {
-                                        style: "msg-bubble-ai flex flex-col gap-3 py-[11px] px-[3px] border-t border-b border-border/60"
-                                        for block in .rm.blocks {
-                                            if .block.kind == "text" {
-                                                col {
-                                                    style: "px-[2px] py-[1px] bg-transparent border-none text-foreground rounded-none"
-                                                    Markdown(source: .block.text, streaming: isBlockStreaming(.rm.streaming, .rm.blocks, .block))
-                                                }
-                                            } else if .block.kind == "thinking" {
-                                                col {
-                                                    class: "think-block w-full box-border rounded-lg border border-border bg-muted/40 max-w-full overflow-hidden"
-                                                    button {
-                                                        onclick: .ToggleThink(.rm.id)
-                                                        style: "think-header w-full flex items-center gap-[6px] py-[6px] px-[10px] text-[12.5px] text-muted-foreground cursor-pointer select-none hover:bg-muted/50 border-none bg-transparent text-left"
-                                                        text "💭"
-                                                        text thinkLabel(estimateTokens(.block.text), .rm.streaming)
-                                                        span {
-                                                            style: "tool-chevron ml-auto"
-                                                            if .msg_think_open == .rm.id {
-                                                                text "▲" { style: "text-[11px] text-muted-foreground" }
-                                                            } else {
-                                                                text "▼" { style: "text-[11px] text-muted-foreground" }
-                                                            }
-                                                        }
-                                                    }
-                                                    if .msg_think_open == .rm.id {
-                                                        div {
-                                                            style: "think-content my-0 py-[9px] px-[12px] text-[13.5px] leading-[1.5] font-mono whitespace-pre-wrap break-words text-muted-foreground max-h-[240px] overflow-y-auto border-t border-border"
-                                                            text .block.text
-                                                        }
-                                                    }
-                                                }
-                                            } else {
-                                                col {
-                                                    style: "tool-block-slot w-full"
-                                                    if .block.tc.name == "dispatch" {
-                                                        ErrandCard {
-                                                            tc: .block.tc
-                                                            errands: .store.errands
-                                                        }
-                                                    } else if .block.tc.name == "spawn_relay" {
-                                                        if extractRunId(.block.tc) != "" {
-                                                            RelayRunBox {
-                                                                runId: extractRunId(.block.tc)
-                                                            }
-                                                        } else {
-                                                            col {
-                                                                class: "tool-card border border-border rounded-lg w-full"
-                                                                row {
-                                                                    onclick: .ToolToggleKey(.block.tkey)
-                                                                    style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer"
-                                                                    text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
-                                                                    text .block.tc.name { style: "tool-name flex-1 min-w-0 truncate text-[13.3px] font-medium text-foreground" }
-                                                                    text .block.tc.status { style: "tool-status text-[11.7px] font-medium shrink-0 text-blue-500" }
-                                                                    if .msg_tool_open == .block.tkey {
-                                                                        text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
-                                                                    } else {
-                                                                        text "▼" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    } else if .block.tc.name == "task_plan" {
-                                                        TaskPlanCard {
-                                                            tc: .block.tc
-                                                            taskPlans: .store.task_plans
-                                                        }
-                                                    } else if .block.tc.name == "report" {
-                                                        ReportCard {
-                                                            report: relayReportView(.block.tc.arguments)
-                                                        }
-                                                    } else {
-                                                        col {
-                                                            class: if .block.tc.status == "failed" { "tool-card failed border border-border rounded-lg w-full" } else { if .block.tc.status == "running" { "tool-card running border border-border rounded-lg w-full" } else { "tool-card completed border border-border rounded-lg w-full" } }
-                                                            row {
-                                                                onclick: .ToolToggleKey(.block.tkey)
-                                                                style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer"
-                                                                text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
-                                                                text .block.tc.name { style: "tool-name flex-1 min-w-0 truncate text-[13.3px] font-medium text-foreground" }
-                                                                for seg in .block.summary {
-                                                                    text .seg.text { class: if .seg.type == "path" { "tool-seg seg-path text-[12.5px] font-medium font-mono shrink-0 text-info" } else { if .seg.type == "pattern" { "tool-seg seg-pattern text-[12.5px] font-medium font-mono shrink-0 text-primary" } else { if .seg.type == "desc" { "tool-seg seg-desc text-[12.5px] font-medium font-mono shrink-0 text-foreground" } else { "tool-seg seg-loc text-[12.5px] font-medium font-mono shrink-0 text-muted-foreground" } } } }
-                                                                }
-                                                                text .block.tc.status { class: if .block.tc.status == "completed" { "tool-status completed text-[11.7px] font-medium shrink-0 text-green-500" } else { if .block.tc.status == "failed" { "tool-status failed text-[11.7px] font-medium shrink-0 text-red-500" } else { "tool-status running text-[11.7px] font-medium shrink-0 text-blue-500" } } }
-                                                                if .msg_tool_open == .block.tkey {
-                                                                    text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
-                                                                } else {
-                                                                    text "▼" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
-                                                                }
-                                                            }
-                                                            if .msg_tool_open == .block.tkey {
-                                                                col {
-                                                                    style: "tool-body border-t border-border px-[10px] py-[8px]"
-                                                                    col {
-                                                                        style: "tool-section mb-[6px]"
-                                                                        text "ARGUMENTS" { style: "tool-section-title text-[11.7px] font-medium tracking-wide text-muted-foreground mb-[3px]" }
-                                                                        div {
-                                                                            style: "tool-code bg-muted-foreground/5 rounded px-[6px] py-[6px] font-mono text-[13.3px] text-muted-foreground whitespace-pre-wrap break-words"
-                                                                            text toolArgsJson(.block.tc)
-                                                                        }
-                                                                    }
-                                                                    if .block.tc.result != "" {
-                                                                        col {
-                                                                            style: "tool-section mb-[6px]"
-                                                                            text "RESULT" { style: "tool-section-title text-[11.7px] font-medium tracking-wide text-muted-foreground mb-[3px]" }
-                                                                            Markdown(source: .block.tc.result, streaming: false)
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        // AI 消息工具栏（copy 靠左,2026-09-03 裁定）。
-                                        row {
-                                            style: "flex items-center justify-start gap-1 mt-[2px] px-[3px]"
-                                            button {
-                                                onclick: .CopyMessageContent(.rm.content)
-                                                style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-                                                title: "Copy"
-                                                Copy { size: 16 }
-                                            }
-                                        }
-                                    }
-                                    if .rm.error != "" {
-                                        text .rm.error { style: "text-destructive text-[14px] py-2 px-3 bg-destructive/10 rounded-lg self-start max-w-full" }
-                                    }
-                                }
+                            // ChatMessage 独立组件: 有序 block 流.
+                            // 工具卡随 block 内联渲染.
+                            ChatMessage {
+                                msg: .msg
+                                is_streaming: isMsgStreaming(.store.streaming, .store.messages, .msg)
+                                errands: .store.errands
+                                relays: .store.relays
+                                task_plans: .store.task_plans
+                                // PLAN-055 T13：思考块展开键列表经 prop 下传——
+                                // 子件 computed 读 store 前缀不可达（只读自身 props）。
+                                thinkList: .store.think_open
                             }
                             // 问卷卡片（专门的提问 block）：解析 assistant 消息里的
                             // 问卷 JSON/问题列表渲染为可选项表单。仅随最新一条消息
                             // 显示（lastMessageId 来自 useChatSearch composable，
                             // .at if 条件不支持多参 fn）——已回答的旧问题不再常驻表单。
-                            if .rm.role == "assistant" {
-                                if hasQuestionnaire(.rm) {
-                                    if .rm.id == .lastMsgId {
+                            if .msg.role == "assistant" {
+                                if hasQuestionnaire(.msg) {
+                                    if .msg.id == .lastMsgId {
                                         QuestionnaireCard {
-                                            questions: getQuestions(.rm)
+                                            questions: getQuestions(.msg)
                                             onsubmit: .OnQuestionnaireSubmit($event)
                                         }
                                     }
@@ -496,27 +346,6 @@ widget ChatsView {
                     oncancel: .StopStream
                 }
             }
-            // PLAN-059 T9:删除确认 alert-dialog 单源（无 trigger 受控形态,
-            // open 绑 state_ref bool;title 单删/全删分流,action 回执
-            // .delete_pending_id 分流）。置于视图根部——深嵌形态的历史问题
-            // 已由 auto-lang 536 子件重播种守卫根修,根部放置保留（稳定形）。
-            alert-dialog (open: .delete_confirm_open) {
-                alert-dialog-content {
-                    alert-dialog-header {
-                        if .delete_pending_id == "__all__" {
-                            alert-dialog-title (text: t("chat.confirmDeleteAll")) {}
-                        }
-                        if .delete_pending_id != "__all__" {
-                            alert-dialog-title (text: t("chat.confirmDeleteSession")) {}
-                        }
-                        alert-dialog-description (text: t("chat.confirmIrreversible")) {}
-                    }
-                    alert-dialog-footer {
-                        alert-dialog-cancel (text: t("chat.cancel"), onclick: .CancelDelete) {}
-                        alert-dialog-action (text: t("chat.confirmDelete"), onclick: .ConfirmDelete(.delete_pending_id)) {}
-                    }
-                }
-            }
         }
     }
 
@@ -532,20 +361,6 @@ widget ChatsView {
         .OnSearchInput(val) -> { .chat_search = val }
 
         .NewSession -> { store.NewSession() }
-
-        // 2026-09-03:hover 会话 × 显隐(mouse-area onmouseenter/onmouseleave;
-        // 离开清空,进入置 id——相邻卡先 clear 后 enter,无抖动)。
-        .HoverSession(id) -> { .hover_session_id = id }
-        .HoverSessionClear -> { .hover_session_id = "" }
-
-        // 消息卡展开/copy(内联后同 widget;冻结实参+own-state 写,全实证链)。
-        .ToggleThink(id) -> {
-            if .msg_think_open == id { .msg_think_open = "" } else { .msg_think_open = id }
-        }
-        .ToolToggleKey(key) -> {
-            if .msg_tool_open == key { .msg_tool_open = "" } else { .msg_tool_open = key }
-        }
-        .CopyMessageContent(text) -> { dom.copy_text(text) }
 
         // PLAN-058 三期:Ask* 置 pending + open（alert-dialog 受控态）;取消
         // （含 reka-ui ESC/遮罩关闭路径,统一折算 oncancel）与 SelectSession
@@ -566,7 +381,7 @@ widget ChatsView {
         }
 
         // PLAN-058 三期:ConfirmDelete 统一确认入口——target 为会话 id 走单删,
-        // "__all__"(alert-dialog action 回执 .delete_pending_id)走全删;双字段一并复位。
+        // "__all__"(DeleteConfirmDialog target 注入)走全删;双字段一并复位。
         .ConfirmDelete(id) -> {
             if id == "__all__" {
                 chats_delete_all_sessions();

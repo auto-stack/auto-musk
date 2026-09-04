@@ -273,9 +273,17 @@ schema 回填:         iced: none → native（随实现逐家族推进）
 - [✅ 已完成 2026-09-04] **T8 schema 回填**：533 T8 交付已在 master——
   schema/aura.at `iced: "native"` 计 27 条（alert_dialog 族 8 + dropdown 族
   等）;其余 252 条 iced:"none" 属未实现家族,随二期推进。
-- [ ] **T9 musk 消费回归**：删除确认切 alert-dialog（视跨 widget 修复决定
-  保留或退役 PLAN-058 内联行）；workspace/settings 改标准组件。验证：
-  musk 实机三场景 + PLAN-058 六断言复跑。
+- [🚧 进行中 2026-09-04] **T9 musk 消费回归**：**场景1（删除确认）代码侧完成**——
+  chats_view 直写 alert-dialog 单源（web 生效:shadcn v-model:open+title 单删/
+  全删分流+新增 confirmIrreversible 键中英+catalog 重跑;DeleteConfirmDialog.vue
+  适配器退役）;VM 内联确认行返场兜底（解释器轨 blocker,见待澄清⑨;否则删除
+  流程卡死 pending）。门禁四绿;MCP 实机:AskDeleteAll→确认行渲染+取消复位
+  （截图 p059-musk-vm-strip-all.png）;单删路径卡片 × 依赖 hover,MCP 无 hover
+  动作（057 账本在案）留用户实机。**场景2/3（workspace dropdown、settings）
+  未开工**——依赖与场景1 相同的解释器绑定通道,建议 D-GAP 修复后再做。
+  顺手修分支既有红两处（4700cdc 引入:getQuestions(.msg)→.rm TS2339;
+  UserMessage use.web 指 .at 源模块→use 组件别名 TS2305）。
+  提交 auto-musk-dev-1 e3fd1fe+2a216f8。
 - [ ] **T10 收尾**：账本回写（overlay 缺口族、跨 widget 派发修复）、
   gallery 对拍截图入 attachments、status 推进。
 
@@ -314,3 +322,18 @@ schema 回填:         iced: none → native（随实现逐家族推进）
    ESC/外点 dismiss 也未接（shadcn 应关）。→ 建议归口 auto-lang 二期家族
    计划（PLAN-536 反应性专项或 534-vm-widget-family-parity,待用户裁定），
    本计划 musk 消费回归（T9）不依赖它们。
+9. **（T9 实机 blocker 2026-09-04）解释器轨 alert-dialog open 绑定不渲染
+   （musk 上下文）**：`auto run --render=vm` 现走 "vm+vm merged → VM
+   interpreter UI"（gallery/musk 同模式）;gallery /alertdialog 模态渲染
+   成立,musk chats_view 的 alert-dialog 四形态探针全灭（slot 深嵌/视图
+   根部/字面量文案/空 trigger）——状态翻转正常（delete_confirm_open=true）
+   但 vtree 无 modal 节点,autoui_check 显示各视图 widget 均走 "unknown
+   tag → Column fallback"。疑解释器 fallback 路径的 bindings 解析断链,
+   D-GAP 深水区。**处置**:VM 兜底内联行返场（web 不受影响）;根修归
+   auto-lang——**已立项为 PLAN-536 题⑥**（2026-09-04 用户裁定追加:
+   变更摘要⑥/目标⑥/执行步骤 T8 根修+T9 musk 联测/待澄清③,含本节全部
+   探针证据交叉引用）;修复后删兜底行+CSS 抑制,并重启场景2/3。
+   另:dev-stack 后台起窗 surface 必坏（presenting surface 错误→窗口不上
+   屏,MCP 截图触发 wgpu panic 崩进程）,PowerShell Start-Process 独立
+   控制台起窗正常——S1 工具债增补;窗口还会最小化启动（-32000 坐标）,
+   需 ShowWindow 还原后再取证。

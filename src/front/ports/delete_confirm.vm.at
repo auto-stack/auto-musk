@@ -1,0 +1,54 @@
+// delete_confirm.vm.at — DeleteConfirmDialog 的 VM 轨真源（PLAN-536 T9）。
+// DeleteConfirmDialog.vue 顶部注释宣告本文件为其 VM 形态,此前缺失——use.web
+// component 无 .at 适配器 → VM 轨落 stub → alert-dialog 四形态探针全灭
+// （musk 059-vm-overlay-infrastructure.md 待澄清⑨）。本件按标准件组合:
+// 受控 open + target 分流文案 + confirm/cancel 事件（子→父 declarative
+// 路由沿 onconfirm/oncancel 键,载荷=首实参,PLAN-051 C2 契约）。
+//
+// 实机验收（T9）:AskDelete → open 翻转 → 模态弹出;action/cancel 派发直达
+// 父侧 ConfirmDelete/CancelDelete。注意:引擎缺陷（auto-lang PLAN-536
+// 待澄清 #5——根 handler 模型字段写不落盘）与本件无涉（open 写发生在
+// chats_view 子件 handler,子件写入经探针实证正常）。
+widget DeleteConfirmDialog {
+    msg {
+        Confirm(str),
+        Cancel
+    }
+    model {
+        var open bool = false
+        var target str = ""
+        var session_title str = ""
+        var all_title str = ""
+        var confirm_text str = ""
+        var cancel_text str = ""
+    }
+    computed {
+        title_text => if .target == "__all__" { .all_title } else { .session_title }
+    }
+    view {
+        alert-dialog (open: .open) {
+            alert-dialog-trigger {
+                text ""
+            }
+            alert-dialog-content {
+                alert-dialog-title {
+                    text .title_text
+                }
+                alert-dialog-footer {
+                    alert-dialog-cancel {
+                        onclick: .Cancel
+                        text .cancel_text
+                    }
+                    alert-dialog-action {
+                        onclick: .Confirm(.target)
+                        text .confirm_text
+                    }
+                }
+            }
+        }
+    }
+    on {
+        .Confirm(target str) -> { }
+        .Cancel -> { }
+    }
+}

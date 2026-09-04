@@ -110,8 +110,10 @@ fn thinkIsOpen(ids list, key str) bool {
 fn msgTimeLabel(createdAt int) str {
     if createdAt == None { return "" }
     if createdAt == 0 { return "" }
-    var ms = createdAt * 1000
-    if createdAt / 1000000000 > 1000 { ms = createdAt }
+    // PLAN-536 T4/T7：裸值直传——Date.format 双轨均已归一（VM native 1e11
+    // 阈值 + vue/ts_adapter 同款守卫），此处不再自行 ×1000。原乘式在 VM
+    // i32 回绕产出垃圾时刻（气泡 08:34 实录，KD-055 ⑦ 的调用方形态）。
+    var ms = createdAt
     return Date.format(ms, "HH:mm:ss")
 }
 

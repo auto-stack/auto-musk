@@ -1,0 +1,6 @@
+// ports/delete_confirm.web.at — DeleteConfirmDialog 域 web facade。
+// 调用方只引 ports/delete_confirm.at（auto-man 目标门控约定,同 renderer
+// 域）：web 轨 re-export 本地适配器（components/DeleteConfirmDialog.vue,
+// ui/alert-dialog 标准件组合）;VM 轨由 delete_confirm.vm.at 承接
+// （PLAN-536 T9：alert-dialog 受控 open 模态）。
+use.web component DeleteConfirmDialog from "src/front/components/DeleteConfirmDialog.vue"
