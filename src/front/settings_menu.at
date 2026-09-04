@@ -172,6 +172,12 @@ widget SettingsMenu() {
                 }
             }
             dialog (open: .isOpen) {
+                // 空 trigger 锚件(536 delete_confirm.vm.at 同款)——解释器轨
+                // Modal 浮层的 overlay 挂载依赖 anchor widget 在场,无 trigger
+                // (anchor=Empty)时面板退化流内不绘浮层(实机对照实证)。
+                dialog-trigger {
+                    text ""
+                }
                 dialog-content {
                     // ── Mode Section（GSD/Check，后端持久化）──
                     div {
