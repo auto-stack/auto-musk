@@ -330,7 +330,9 @@ schema 回填:         iced: none → native（随实现逐家族推进）
    但 vtree 无 modal 节点,autoui_check 显示各视图 widget 均走 "unknown
    tag → Column fallback"。疑解释器 fallback 路径的 bindings 解析断链,
    D-GAP 深水区。**处置**:VM 兜底内联行返场（web 不受影响）;根修归
-   auto-lang（536 候补条目）;修复后删兜底行+CSS 抑制,并重启场景2/3。
+   auto-lang——**已立项为 PLAN-536 题⑥**（2026-09-04 用户裁定追加:
+   变更摘要⑥/目标⑥/执行步骤 T8 根修+T9 musk 联测/待澄清③,含本节全部
+   探针证据交叉引用）;修复后删兜底行+CSS 抑制,并重启场景2/3。
    另:dev-stack 后台起窗 surface 必坏（presenting surface 错误→窗口不上
    屏,MCP 截图触发 wgpu panic 崩进程）,PowerShell Start-Process 独立
    控制台起窗正常——S1 工具债增补;窗口还会最小化启动（-32000 坐标）,
