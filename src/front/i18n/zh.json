@@ -154,7 +154,8 @@
     "emptyTree": "还没有 spec 文件",
     "selectFile": "从树中选择一个文件",
     "addItem": "+ 添加项目",
-    "noDoc": "未加载文档"
+    "noDoc": "未加载文档",
+    "rebuildRelations": "重建关系"
   },
   "plans": {
     "title": "计划",
