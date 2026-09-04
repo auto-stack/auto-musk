@@ -33,10 +33,14 @@ store ForgeStore {
         var report_data Value = null
         // Plan 028 T14：SSE 流句柄（Sse.open/close 平台协议，替代 forge_stream.ts）
         var stream_es Value = null
-        // PLAN-055 ④/T11：ThinkBlock 各实例独立展开态——VM 无 per-instance
-        // 子件模型（ensure_child_state 全实例共享根态），源侧 keyed 形态：
-        // 展开的块键列表（thinkKey 生成），切换走 thinkToggleList 字面量重建。
-        var think_open []Value = []
+        // PLAN-055 ④/T11 + PLAN-059 T9：思考块/工具卡展开态——单槽字符串
+        // （手风琴式,同 id 再点收起）。【2026-09-04 三次定案】消息对象直写
+        // （msg.think_expanded/tool_expanded）在 VM 为 for-in 循环副本写,读侧
+        // 永不更新;列表 prop 跨子件边界不可迭代（051 T8 返回值错位族）——
+        // 唯 store 字符串字段:子件 handler 直调 ForgeStore.*Toggle 写共享根态
+        // （autoui_state 实证可达）,ChatMessage 经 str prop 每帧重建刷新读取。
+        var think_open str = ""
+        var tool_open str = ""
     }
 
     msg Msg {
@@ -59,8 +63,10 @@ store ForgeStore {
         OnStreamEvent(Value),
         // Plan 051 T10（G1 阶段1）：VM 轮询降级的流式回填拍。
         PollStream,
-        // PLAN-055 ④/T11：ThinkBlock 展开切换（子件上抛，键=thinkKey）。
+        // PLAN-055 ④/T11 + PLAN-059 T9：思考块/工具卡展开切换（子件上抛,
+        // 键 think=msg.id / tool=block.tkey）。
         ThinkToggle(str),
+        ToolToggle(str),
     }
 
     // Plan 051 T10（G1 阶段1）：VM 轨无 SSE 形态期间，流式回复以 500ms
@@ -74,6 +80,15 @@ store ForgeStore {
     }
 
     on {
+        // PLAN-059 T9:展开态切换（chat_message 子件 handler 直调;键取反经
+        // 内联 fn——store 文件不消费 use.web.fn 导入,沿 nowSec 内联先例）。
+        .ThinkToggle(key str) -> {
+            if .think_open == key { .think_open = "" } else { .think_open = key }
+        }
+        .ToolToggle(key str) -> {
+            if .tool_open == key { .tool_open = "" } else { .tool_open = key }
+        }
+
         .Init -> {
             let ws = localStorage.getItem("musk_workspace");
             if ws != None {
@@ -210,9 +225,6 @@ store ForgeStore {
 
         // PLAN-055 ④/T11：ThinkBlock 独立展开——键列表重建回写（VM 安全：
         // 既有字段整列表赋值，无新键写入）。
-        .ThinkToggle(key) -> {
-            .think_open = thinkToggleList(.think_open, key)
-        }
 
         .SetThinking(text) -> { .thinking = text }
         .FinalizeDraft -> { .streaming = false }
@@ -273,6 +285,10 @@ store ForgeStore {
 
         // Plan 051 T10（G1 阶段1）：轮询拍——全量回填 + 完成启发式。
         .PollStream -> {
+            // 【2026-09-04】when 门失效自守卫:VM 构建里 PollStream 实测恒频
+            // 派发(非流式期也 500ms 全负载跑,取证 170 拍/85s),推测与 ~87s
+            // 静默退出相关。处理器内自检 streaming,假则空转——等价 when 语义。
+            if .streaming == false { return }
             let sid = .session_id
             if sid == "" { return }
             var resp = chats_get_session(sid)
@@ -532,25 +548,10 @@ fn nowSec() int {
     return Math.trunc(Date.now() / 1000)
 }
 
+
 /** ThinkBlock 展开列表取反（PLAN-055 T11；内联同 nowSec 缘由——
  * forge_helpers 版 thinkToggleList 供渲染侧读，此处 store 侧写路径用同构
  * fn，避免 store 文件引入 use.web.fn 导入缺口）。 */
-fn thinkToggleList(ids obj, key str) obj {
-    var out list = []
-    var found = false
-    if ids != None {
-        for k in ids {
-            if k == key {
-                found = true
-            } else {
-                out.push(k)
-            }
-        }
-    }
-    if found == false { out.push(key) }
-    return out
-}
-
 fn appendBlockText(msg Value, kind str, text str) {
     if msg.blocks == None { msg.blocks = [] }
     let blocks = msg.blocks

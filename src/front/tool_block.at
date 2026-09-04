@@ -16,7 +16,7 @@ use task_plan_card: TaskPlanCard
 use generic_tool_card: GenericToolCard
 use report_card: ReportCard
 
-widget ToolBlock(tc: obj, errands: obj, relays: obj, task_plans: obj) {
+widget ToolBlock(tc: obj, tkey: str, open: bool, errands: obj, relays: obj, task_plans: obj) {
     computed {
         name => .tc.name
     }
@@ -53,6 +53,10 @@ widget ToolBlock(tc: obj, errands: obj, relays: obj, task_plans: obj) {
             } else {
                 GenericToolCard {
                     tc: .tc
+                    // 2026-09-03:逐卡展开态(键+开合)经 props 下传,写路径
+                    // ForgeStore.ToolToggle(GenericToolCard handler 直调)。
+                    tkey: .tkey
+                    open: .open
                 }
             }
         }

@@ -93,14 +93,14 @@ widget ReportCard(report: obj, deckMeta: obj = None, deckHtml: str = "") {
             // hero（click toggle）——PPT 封面：✅ + 标题 + runId + 置信/用时 chips
             row {
                 onclick: .Toggle
-                style: "report-hero"
-                text "✅" { style: "report-status" }
+                style: "report-hero flex items-center gap-[10px] py-[12px] px-[14px] cursor-pointer"
+                text "✅" { style: "report-status text-[19px] leading-none shrink-0" }
                 col {
-                    style: "report-title-block"
-                    text .title { style: "report-title" }
-                    text .runId { style: "report-subtitle" }
+                    style: "report-title-block flex-1 min-w-0 flex flex-col gap-[2px]"
+                    text .title { style: "report-title text-[15px] font-semibold text-foreground truncate min-w-0" }
+                    text .runId { style: "report-subtitle text-[11.5px] text-muted-foreground font-mono truncate min-w-0" }
                 }
-                text .durationLabel { style: "report-duration" }
+                text .durationLabel { style: "report-duration text-[11px] font-medium shrink-0 rounded-full px-[7px] py-[2px] bg-muted-foreground/10 text-muted-foreground" }
                 text .confidenceLabel { class: .confidenceClass }
                 if .expanded {
                     ChevronUp { size: 14, style: "report-chevron" }
@@ -111,34 +111,34 @@ widget ReportCard(report: obj, deckMeta: obj = None, deckHtml: str = "") {
             // body（展开时）：摘要 → 指标 → 交付物 → 操作
             if .expanded {
                 col {
-                    style: "report-body"
+                    style: "report-body px-[14px] py-[10px] flex flex-col gap-[10px]"
                     if .hasSummary {
                         col {
-                            style: "report-summary"
+                            style: "report-summary text-[14px] text-foreground"
                             Markdown(source: .summary, streaming: false)
                         }
                     }
                     col {
                         style: "report-metrics"
                         col {
-                            style: "metric-cell"
-                            text .goalsMet { style: "metric-value" }
-                            text "步骤完成" { style: "metric-label" }
+                            style: "metric-cell flex flex-col gap-[2px] px-[8px] py-[7px] rounded-lg bg-muted-foreground/5"
+                            text .goalsMet { style: "metric-value text-[16px] font-semibold text-green-500" }
+                            text "步骤完成" { style: "metric-label text-[11px] text-muted-foreground" }
                         }
                         col {
-                            style: "metric-cell"
-                            text .toolCalls { style: "metric-value" }
-                            text "工具调用" { style: "metric-label" }
+                            style: "metric-cell flex flex-col gap-[2px] px-[8px] py-[7px] rounded-lg bg-muted-foreground/5"
+                            text .toolCalls { style: "metric-value text-[16px] font-semibold text-green-500" }
+                            text "工具调用" { style: "metric-label text-[11px] text-muted-foreground" }
                         }
                         col {
-                            style: "metric-cell"
-                            text .cost { style: "metric-value" }
-                            text "令牌消耗" { style: "metric-label" }
+                            style: "metric-cell flex flex-col gap-[2px] px-[8px] py-[7px] rounded-lg bg-muted-foreground/5"
+                            text .cost { style: "metric-value text-[16px] font-semibold text-green-500" }
+                            text "令牌消耗" { style: "metric-label text-[11px] text-muted-foreground" }
                         }
                         col {
-                            style: "metric-cell"
-                            text .durationLabel { style: "metric-value" }
-                            text "总用时" { style: "metric-label" }
+                            style: "metric-cell flex flex-col gap-[2px] px-[8px] py-[7px] rounded-lg bg-muted-foreground/5"
+                            text .durationLabel { style: "metric-value text-[16px] font-semibold text-green-500" }
+                            text "总用时" { style: "metric-label text-[11px] text-muted-foreground" }
                         }
                     }
                     if .hasDeck {

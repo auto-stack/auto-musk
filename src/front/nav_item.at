@@ -61,7 +61,7 @@ widget NavListItem(id: str, title: str, sub: str, active: bool, variant: str, de
                     style: "session-delete-btn hidden absolute right-[6px] top-1/2 -translate-y-1/2 items-center opacity-60 bg-transparent border-none p-[3px]"
                     onclick.stop: .remove(.id)
                     title: .delete_title
-                    Trash2 { size: 12 }
+                    Trash2 { size: 14 }
                 }
             }
         }

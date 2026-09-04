@@ -117,6 +117,7 @@
     "noSteps": "No steps completed yet",
     "confirmDeleteSession": "Delete this session?",
     "confirmDelete": "Delete",
+    "confirmIrreversible": "This action cannot be undone.",
     "cancel": "Cancel"
   },
   "specs": {

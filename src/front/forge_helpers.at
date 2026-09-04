@@ -94,7 +94,7 @@ fn toolTruncBadge(details obj) str {
 }
 
 /** 键是否在展开列表中（列表遍历判等——VM/TS 双轨同原语）。 */
-fn thinkIsOpen(ids obj, key str) bool {
+fn thinkIsOpen(ids list, key str) bool {
     if ids == None { return false }
     for k in ids {
         if k == key { return true }
@@ -265,6 +265,9 @@ fn messageBlocks(msg obj) obj {
         if msg.content != "" { out.push({ kind: "text", text: msg.content }) }
     }
     let toolCalls = msg.tool_calls ?? []
+    // 2026-09-03:tkey 在此字面量生成(msg.id#t<工具序>)——ToolBlock 逐卡
+    // 展开键(ForgeStore.tool_open);工具分区后相对序不变,重载/轮询同键。
+    var tcount = 0
     for raw in toolCalls {
         var status = "completed"
         if raw.status == "error" || raw.status == "failed" {
@@ -272,11 +275,18 @@ fn messageBlocks(msg obj) obj {
         } else {
             if raw.status == "running" { status = "running" }
         }
-        // PLAN-055 T0 规避形态保留（PLAN-057 T2 SET_FIELD 根修后 VM 已合法，
-        // 但字面量重建按待澄清③倾向保留——双轨行为可预测、回退无收益，
-        // 且重建形态同时承载 details 键保真）。
+        tcount = tcount + 1
+        // PLAN-055 T0 规避形态保留（字面量重建双轨可预测,同时承载 details/tkey
+        // 键保真——不用 SET_FIELD 回填循环变量）。summary 预计算内联:视图侧
+        // for-in 源不允许 fn 调用(051 T8),内联渲染标题段需现成数组。
         out.push({
             kind: "tool",
+            tkey: (msg.id ?? "m") + "#t" + tcount,
+            summary: getToolSummary({
+                name: raw.name,
+                arguments: raw.arguments,
+                result: raw.result
+            }),
             tc: {
                 name: raw.name,
                 id: raw.id,
@@ -313,11 +323,92 @@ fn messageDisplayBlocks(msg obj, streaming bool) obj {
     // 展示顺序统一：文字/思考在前、工具块在后——与持久化重载的渲染口径
     // 一致。修复：实时流里工具先到（spawn_relay）、说明文字后流完时，Run
     // 窗口与说明顺序颠倒（刷新后又反过来）。分区对实时/重载同时生效。
+    // tkey 已在 messageBlocks 字面量生成,此处直传(2026-09-03 去 SET_FIELD
+    // 回填循环变量——回归嫌疑之一,沿待澄清③字面量重建口径)。
     for t in tools {
         out.push(t)
     }
     return out
 }
+
+/** 【2026-09-04】展开态合并（chats_view renderMsgs 用）——把 think/tool 展开
+ * 标志并入消息克隆（rm.think_expanded bool / rm.tool_expanded 键列表 /
+ * rm.streaming bool / rm.blocks 有序块）。为什么在顶层做:VM 子件 prop 为
+ * 构建期快照（写进 store 子件读侧不更新,autoui_state 实证）、子件 handler
+ * 写 prop 对象报 Invalid object ID——只有顶层 widget 的 own-state 读写与
+ * computed 重算全链实证可用。克隆载荷=视图所需最小集。 */
+// 【2026-09-04 三修】签名收缩为 3 参(去 bool/allMsgs)——5 参形态 for-in
+// 零迭代(参数栈失衡嫌疑,051 T8 同族,探针实证 len=3 而 body 0 次执行)。
+// streaming 标志暂硬编码 false(流式期打字机效果让位渲染正确性,挂账)。
+// 【2026-09-04 四修】参数只收单个包装 obj——VM 跨 fn 边界传列表会退化为
+// 不透明句柄(vmref,.length 可用、for-in 零迭代,探针实证 msgs=4000057),
+// 而字段解包的列表(msg.tool_calls 先例)可迭代。展开态不在此处:视图直读
+// 顶层 own-state 字符串(msg_think_open/msg_tool_open,基元跨边界安全)。
+// streaming 暂硬编码 false(流式打字机效果让位正确性,挂账 536)。
+fn withExpansion(p obj) obj {
+    var out list = []
+    var src = p.list
+    if src == None { return out }
+    for m in src {
+        var tk = messageDisplayBlocks(m, false)
+        var err = m.error ?? ""
+        out.push({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            created_at: m.created_at,
+            error: err,
+            streaming: false,
+            think_expanded: false,
+            tool_expanded: false,
+            blocks: tk
+        })
+    }
+    return out
+}
+/** 工具块是否展开（读侧;toolToggleList 写侧在 forge_store）。 */
+/** 展开键列表取反（think/tool 共用;字面量重建形态）。 */
+/** 展开键列表取反（tool 版;与 thinkToggleList 同构）。 */
+fn toolToggleList(ids list, key str) obj {
+    var out list = []
+    var found = false
+    if ids != None {
+        for k in ids {
+            if k == key {
+                found = true
+            } else {
+                out.push(k)
+            }
+        }
+    }
+    if found == false { out.push(key) }
+    return out
+}
+
+fn thinkToggleList(ids list, key str) obj {
+    var out list = []
+    var found = false
+    if ids != None {
+        for k in ids {
+            if k == key {
+                found = true
+            } else {
+                out.push(k)
+            }
+        }
+    }
+    if found == false { out.push(key) }
+    return out
+}
+
+fn toolIsOpen(ids list, key str) bool {
+    if ids == None { return false }
+    for k in ids {
+        if k == key { return true }
+    }
+    return false
+}
+
 
 /**
  * 粗略 token 估算（显示用）：CJK 字符 ≈ 0.9 token/字，其余 ≈ 4 字符/token。

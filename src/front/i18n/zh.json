@@ -130,6 +130,7 @@
     "noSteps": "尚未完成任何步骤",
     "confirmDeleteSession": "确认删除此会话？",
     "confirmDelete": "删除",
+    "confirmIrreversible": "此操作无法撤销。",
     "cancel": "取消"
   },
   "specs": {

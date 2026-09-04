@@ -59,7 +59,7 @@ widget SessionInfo() {
                 onclick: .Toggle
                 style: "flex items-center justify-center w-7 h-7 border-none rounded-md bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
                 title: i18n.t("chat.sessionInfo")
-                Info { size: 15 }
+                Info { size: 18 }
             }
             if .open {
                 div {
@@ -76,9 +76,9 @@ widget SessionInfo() {
                             style: "flex items-center justify-center w-6 h-6 border-none rounded bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground shrink-0 cursor-pointer"
                             title: i18n.t("chat.copyChatId")
                             if .copied {
-                                CopyCheck { size: 12 }
+                                CopyCheck { size: 14 }
                             } else {
-                                Copy { size: 12 }
+                                Copy { size: 14 }
                             }
                         }
                     }
