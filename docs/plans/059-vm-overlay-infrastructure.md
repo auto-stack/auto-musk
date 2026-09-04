@@ -1,14 +1,22 @@
 ---
 plan_id: PLAN-059
-status: execution_done
+status: reviewed
 feature_name: VM(iced) 悬浮层基础设施与 overlay 组件族落地
 author: [zhaopuming]
 created_at: 2026-09-03T13:30:00+08:00
 updated_at: 2026-09-04T21:30:00+08:00
 
-supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+supersedes_spec_components:
+  - "PLAN-058 VM 内联确认行降级形态 + CSS .session-delete-strip 抑制: 退役（059 T9 alert-dialog 端口链单源替代）"
+  - "PLAN-536 会话卡兄弟浮 × 结构（V2 形态）: 退役——几何落左上/常显/悬浮层抢卡片点击三缺陷, 回归 mouse-area hover 标题行形态（dbe52a7）"
+  - "chat_message 消息对象直写展开形态（msg.think_expanded/tool_expanded）: 退役——for-in 循环副本写读侧不更新, 回归 ForgeStore 单槽字符串通道（c13c250）"
+new_spec_components:
+  - "architecture: VM(iced) overlay 消费三形态——alert-dialog 受控 open + 端口链（delete_confirm.at→vm.at/web.at）/ popover 自管嵌套（workspace_selector）/ dialog 受控 + 空 trigger 锚件（settings_menu）"
+  - "architecture: 展开态 ForgeStore 单槽字符串通道（think_open/tool_open; ChatMessage 经 str prop 每帧重建刷新）"
+  - "designs: 解释器轨浮层挂载约束——家族根需 trigger 锚件在场（anchor=Empty 不绘浮层）; 受控 open 在 VM 无 ESC/外点自动关闭（家族债, KD 059-T9②）"
+  - "designs: 会话卡 mouse-area hover × 显隐 + × 自身 hover 方块高亮（bg-accent, 两轨语义一致）"
+touched_goals:
+  - "VM(iced) 悬浮层基础设施与 overlay 家族落地: musk 三场景（删除确认/工程目录/设置）告别流内降级, 浮层语义与 shadcn 对齐"
 
 current_step: 10
 total_steps: 10
@@ -266,10 +274,10 @@ schema 回填:         iced: none → native（随实现逐家族推进）
   （gallery /tooltip /hovercard 内容在树挂载、无浮层;hover 激活且 MCP 无
   hover 动作不可达）。**toast 顺带盘点**：alert-dialog Cancel 后 __toast
   状态置值但无视觉呈现（sonner 家族未实现）。→ 全部归 auto-lang 二期家族
-  （见待澄清⑫）。
+  （见待澄清⑧）。
 - [✅ 已完成 2026-09-04 盘点] **T7 select/combobox**：编译轨均未实现
   （/select 的 select-item、/combobox 的 command-item 均在树挂载、无弹出
-  触发元）。→ 归 auto-lang 二期家族（见待澄清⑫）。
+  触发元）。→ 归 auto-lang 二期家族（见待澄清⑧）。
 - [✅ 已完成 2026-09-04] **T8 schema 回填**：533 T8 交付已在 master——
   schema/aura.at `iced: "native"` 计 27 条（alert_dialog 族 8 + dropdown 族
   等）;其余 252 条 iced:"none" 属未实现家族,随二期推进。
@@ -314,7 +322,25 @@ schema 回填:         iced: none → native（随实现逐家族推进）
 
 ## 复审记录
 
-（/auto-plan:review 填写）
+- **复审人/时间**：ZCode / 2026-09-04 晚（execution_worktree `.wt/vm-chat-fixes/auto-musk`, 分支 `auto-musk-dev-1` @ c13c250, 领先 main 21 提交）
+- **验收标准逐条复验**：
+  1. **alert-dialog 居中模态+状态复位+cancel/action 派发** — **PASS**。复审构建活体复验: AskDeleteAll → 居中模态浮层（截图 autoui-screenshot-1788536614140）→ Cancel 复位; 此前 ConfirmDelete → session_list 3→2 真删除+刷新（p059-musk-scene1-delete-modal.png）。ESC/遮罩口径依⑥修订（shadcn: alert-dialog 不因 ESC/外点关）; scrim 变暗目验留白记 KD 059-T9③。
+  2. **dropdown/popover 锚定弹层** — **PASS（外点/翻转为引擎侧证据）**。musk workspace popover 开合双向实机（p059-musk-scene2-workspace-popover.png）; 外点 dismiss（__popover_close 接线）与越界翻转（popover.rs 翻转臂+428 W9 单测）为引擎机制, MCP 无鼠标注入不可自动化, 留 S2 人工。
+  3. **tooltip / select / combobox** — **PARTIAL（延期, 已登记）**: a2r 编译轨未实现该三家族（待澄清⑧, schema 252 条 iced:"none"）, 归 auto-lang 二期家族（534/536 批）。延期经待澄清⑧+KD 059-T9 余项多会话用户可见; 注意⑧原文"待用户裁定"未落正式裁定记录, 且 T6/T7 的"⑫"为悬空引用（编号缺口, 实质内容在⑧）——随本复审补记。
+  4. **gallery overlay 家族对拍** — **PASS（范围内两页）**: /alertdialog 四断言（T4）+ /dropdownmenu 开合（T5）, 证据 p059-gallery-*.png; 其余家族页随③延期。
+  5. **musk 三场景回归+内联行退役** — **PASS**: 场景1 删除确认（端口链+模态+取消/确认全链）/场景2 workspace popover/场景3 settings dialog 全通; 内联确认行+CSS 抑制退役。实机收尾追加: 会话卡 × 回归 hover 形态（dbe52a7）、工具卡/思考块展开回归 ForgeStore 单槽通道（c13c250, run_command 卡 ARGUMENTS/RESULT 展开截图 1788532958208）。
+  6. **schema iced 标注推进** — **PASS**: 27 条 native（533 T8 合回）, 余 252 条随二期家族。
+- **全量门禁（复审重跑, worktree 内）**: auto build（gen+vue-tsc+vite）绿; vm-safe-lint PASS; vitest 23 passed + 1 skipped（零回归）。backend/ 零改动（分支 diff 23 文件全在 src/front/scripts/docs）→ 后端套件不在本计划门禁面。
+- **遗漏/延后/workaround 清点**：
+  - 延后① tooltip/hover_card/select/combobox/toast → auto-lang 二期家族（债务候选, KD+⑧在案; 裁定记录缺失随本复审补记）。
+  - 延后② S2 web 轨人工对拍 → 用户目验门（设计如此, 非 silent deferral）。
+  - 延后③ S3 worktree 收尾 → /auto-plan:merge 职责（流程定位）。
+  - workaround④ 空 trigger 锚件（解释器轨浮层挂载约束）→ KD 059-T9②, 归 auto-lang。
+  - workaround⑤ 头部 +/× 图标 fixed_both 方钮内偏左上 → KD 059-T9⓪, 归 auto-lang renderer（div 包裹实验无效, 已记录）。
+  - 工具债⑥ AutoUI MCP 线程静默死亡（axum::serve unwrap, :460）→ 跨计划工具债候选（今日实测复现: 监听消失而应用存活）, 归 auto-lang 独立排查（058④/059⑨ 建议立项未落地）。
+  - 偏差⑦ 消息渲染架构演进: 执行期从 c1c094b 内联架构（fn 边界在新二进制不兼容）收敛到 main 的 ChatMessage 架构+ForgeStore 单槽通道——信任代码原则的落地, 已在 T9 追记。
+- **债务候选汇总**：KD 059-T9 行（⓪图标居中/①空 trigger/②受控 open 无 ESC 外点关/scrim 目验/chrome 固定档）+ 二期家族（tooltip/select/combobox/toast）+ 工具债（MCP 寿命）。
+- **结论**：范围内验收全过, 延期项均有登记且用户多会话可见; 路由 `reviewed`, 交 `/auto-plan:merge`（合并时连带 S3 worktree 收尾）。
 
 ## 待澄清事项
 
@@ -347,6 +373,8 @@ schema 回填:         iced: none → native（随实现逐家族推进）
    ESC/外点 dismiss 也未接（shadcn 应关）。→ 建议归口 auto-lang 二期家族
    计划（PLAN-536 反应性专项或 534-vm-widget-family-parity,待用户裁定），
    本计划 musk 消费回归（T9）不依赖它们。
+   **【复审补记 2026-09-04】裁定落地:归 auto-lang 二期家族（KD 059-T9 余项
+   在案）;T6/T7 原引"⑫"为悬空编号,统一改指⑧。
 9. **（T9 实机 blocker 2026-09-04）解释器轨 alert-dialog open 绑定不渲染
    （musk 上下文）**：`auto run --render=vm` 现走 "vm+vm merged → VM
    interpreter UI"（gallery/musk 同模式）;gallery /alertdialog 模态渲染
