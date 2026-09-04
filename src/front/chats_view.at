@@ -230,7 +230,7 @@ widget ChatsView {
                                 // 由垂直居中改卡片顶 8px，观感偏差登记。
                                 }
                                 span {
-                                    style: "session-delete-btn absolute right-[6px] top-2 z-10 items-center opacity-60 bg-transparent border-none p-[3px] text-destructive text-base leading-none cursor-pointer"
+                                    style: "session-delete-btn absolute right-[6px] top-2 items-center opacity-60 bg-transparent border-none p-[3px] text-destructive text-base leading-none cursor-pointer"
                                     onclick.stop: .AskDelete(.s.id)
                                     title: t("chat.deleteSession")
                                     text "×"
