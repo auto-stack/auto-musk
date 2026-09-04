@@ -10,7 +10,8 @@
 //     composable ref 赋值 + fetch 链式 + window.open）
 //   - themeOptions computed 数组（含 lucide 图标）→ 静态渲染 3 个按钮
 //   - document 点击外部关闭 + menuRef template ref + <transition> → 舍弃
-//     （trigger 再次点击关闭；无 fade 动画——登记轻微差异）
+//     （PLAN-059 T9 起 dialog 家族原生外点/ESC 关闭;web DialogContent 自带
+//     X——原"trigger 再次点击关闭"的近似差异消除）
 //   - accent 动态 style（per-item brand1）→ style: 字符串拼接（P12 缺陷 9）
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.settings-* 等）。
@@ -39,6 +40,13 @@ widget SettingsMenu() {
         isLocaleZh => .currentLocale == "zh"
     }
     msg Msg { Toggle, SetForgeGSD, SetForgeCheck, SetAccent(str), SetThemeLight, SetThemeDark, SetThemeAuto, ChangeLocale(str), OpenAutoOs }
+    // PLAN-059 T9:开关态改 dialog 受控形态（无 trigger,open 绑 state_ref
+    // bool——chats_view 删除确认 alert-dialog 同款已验证模式）。触发行留在
+    // dialog 外自持 onclick（parser 铸造形态的 toggle 会落内层按钮,与 web
+    // 侧 reka DialogTrigger 包裹层自动开合叠加双翻转,永不弹开——实机探针
+    // 定案走受控）;web DialogContent 自带 X/遮罩/ESC 关闭（reka 经
+    // v-model:open 回写）;VM Modal 卡片经底部关闭钮关闭（ESC/外点 dismiss
+    // 不接线,与 alert 族同口径,家族债已在案）。
     model {
         var isOpen bool = false
         var currentLocale str = ""
@@ -71,7 +79,6 @@ widget SettingsMenu() {
             .currentLocale = l
         }
         .OpenAutoOs -> {
-            .isOpen = false;
             .autoOsError = "";
             .autoOsError = settings_open_autoos().await
         }
@@ -87,11 +94,9 @@ widget SettingsMenu() {
   }
   .settings-trigger:hover { background: hsl(var(--accent)); color: hsl(var(--foreground)); }
   .settings-trigger.open { background: hsl(var(--accent)); color: hsl(var(--primary)); }
-  .settings-panel {
-    position: absolute; bottom: 100%; left: 0; margin-bottom: 8px; min-width: 220px;
-    background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 10px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); padding: 0.6rem; z-index: 100;
-  }
+  /* PLAN-059 T9:手搓 .settings-panel（absolute 流内承载）随 dialog 家族切换
+     退役——面板 chrome 归 DialogContent（web 居中模态+遮罩+X 关闭）与 VM
+     Modal 浮层。 */
   .settings-section { padding: 0.4rem 0; }
   .settings-section + .settings-section { border-top: 1px solid hsl(var(--border)); }
   .settings-section-title {
@@ -152,10 +157,10 @@ widget SettingsMenu() {
     view {
         // PLAN-058 二期：根容器带 border-t 分割线（与上方 WorkspaceSelector
         // 分隔）+ pt/mt 间距——分割线归属本组件，app.at 侧不再放独立空 div。
+        // PLAN-058 二期：icon+文字全宽行（与上方导航项同形）。面板由 dialog
+        // 受控形态承载（open: .isOpen,VM Modal 居中卡 / web 居中模态）。
         div {
             style: "settings-menu-wrapper border-t border-white/10 pt-2 mt-2"
-            // PLAN-058 二期：icon+文字全宽行（与上方导航项同形；原 32px 齿轮
-            // 方块横排在 WorkspaceSelector 旁撑宽主导航）。面板上弹锚点不变。
             button {
                 onclick: .Toggle
                 class: if .isOpen { "settings-trigger open w-full flex items-center gap-2 rounded-md px-2 h-9 bg-accent text-primary" } else { "settings-trigger w-full flex items-center gap-2 rounded-md px-2 h-9 bg-transparent text-muted-foreground" }
@@ -166,9 +171,8 @@ widget SettingsMenu() {
                     text i18n.t("settings.title")
                 }
             }
-            if .isOpen {
-                div {
-                    style: "settings-panel absolute bottom-full left-0 mb-2 z-100 min-w-[220px] bg-card border border-border rounded-[10px] p-2.5"
+            dialog (open: .isOpen) {
+                dialog-content {
                     // ── Mode Section（GSD/Check，后端持久化）──
                     div {
                         style: "settings-section w-full p-1.5"
@@ -315,6 +319,16 @@ widget SettingsMenu() {
                                 style: "deep-link-error"
                                 text .autoOsError
                             }
+                        }
+                    }
+                    // ── 关闭（VM Modal 卡无 X/遮罩关闭,显式动作收口;web 侧与
+                    // DialogContent 自带 X 并存,冗余无害）──
+                    div {
+                        style: "settings-section w-full p-1.5 flex justify-end"
+                        button {
+                            onclick: .Toggle
+                            style: "deep-link-btn w-auto px-3"
+                            text i18n.t("common.close")
                         }
                     }
                 }

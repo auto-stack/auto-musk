@@ -14,12 +14,13 @@
 //
 // 弹窗风格（对齐参考稿）：顶部搜索框过滤、纯名称行 + 当前项右侧 Check、
 // 底部"打开文件夹"动作行（弹系统文件夹选择器）、大圆角卡片、无头部；
-// 点面板外关闭（fixed 透明 backdrop）。
+// PLAN-059 T9 起弹层归 popover 家族原语（触发钮锚定、外点/ESC 关闭、
+// 越界翻转），手搓 backdrop/panel 已退役。
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.ws-btn 等）。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web component Folder, FolderPlus, ChevronUp, ChevronDown, Search, Check from "src/front/ports/icons.at"
+use.web component Folder, FolderPlus, ChevronDown, Search, Check from "src/front/ports/icons.at"
 use.web ws_load_recent, ws_load_current, ws_find, ws_filter_recent, ws_pick, ws_open from "src/front/workspace_helpers.at"
 
 widget WorkspaceSelector() {
@@ -29,9 +30,14 @@ widget WorkspaceSelector() {
         hasCurrent => .current != None
         showEmpty => .shown.length == 0
     }
-    msg Msg { Toggle, Choose(str), Close, UpdateQuery(str), PickFolder }
+    // PLAN-059 T9:弹层切 popover 自管嵌套形态（PLAN-422 P3/P4）——触发钮/面板
+    // 入 popover-trigger/content,开合态归解释器自管注册表（锚钮无 onclick 时
+    // 注入内部 toggle;外点/ESC/点锚 dismiss 走 __popover_close）。web 轨映射
+    // shadcn Popover/PopoverTrigger(as-child)/PopoverContent,reka 原生开合同
+    // 语义。此前手搓 ws-backdrop+ws-panel 流内承载,VM 不消费 absolute 退化为
+    // 嵌入侧栏（用户原始吐槽点之一）。
+    msg Msg { Choose(str), UpdateQuery(str), PickFolder }
     model {
-        var open bool = false
         var current obj = None
         var recent obj = []
         // 搜索框可见行（handler 侧过滤；str.contains 只在 fn 内正确转译）
@@ -45,23 +51,11 @@ widget WorkspaceSelector() {
             .shown = .recent;
             .current = ws_load_current().await
         }
-        .Toggle -> {
-            .open = !.open;
-            if .open {
-                .query = "";
-                if .recent.length == 0 {
-                    .recent = ws_load_recent().await
-                }
-                .shown = .recent
-            }
-        }
         .Choose(id) -> {
             localStorage.setItem("musk_workspace", id);
             .current = ws_find(.recent, id);
-            .open = false;
             location.reload()
         }
-        .Close -> { .open = false }
         .UpdateQuery(q) -> {
             .query = q;
             .shown = ws_filter_recent(.recent, .query)
@@ -77,7 +71,6 @@ widget WorkspaceSelector() {
                 if meta != None {
                     storage.set("musk_workspace", meta.id);
                     .current = meta;
-                    .open = false;
                     location.reload()
                 }
             }
@@ -94,17 +87,9 @@ widget WorkspaceSelector() {
   }
   .ws-btn:hover { background: hsl(var(--accent)); }
   .ws-name { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* 面板外点击关闭用透明遮罩（面板 z-50 在其上） */
-  .ws-backdrop { position: fixed; inset: 0; z-index: 40; background: transparent; border: none; }
-  .ws-panel {
-    position: absolute; bottom: 100%; left: 0; margin-bottom: 6px;
-    /* 宽度适配内容，不低于触发钮宽，超宽封顶并截断；
-       overflow-x 钉死 hidden（overflow-y:auto 会把 x 也抬成 auto，出横向滚动条） */
-    width: max-content; min-width: 100%; max-width: min(24rem, 90vw);
-    background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); padding: 0.5rem; z-index: 50;
-    max-height: 22rem; overflow-x: hidden; overflow-y: auto;
-  }
+  /* PLAN-059 T9:面板/遮罩手搓 CSS（.ws-backdrop/.ws-panel）随 popover 家族
+     切换退役——开合/悬浮/外点关闭归 popover 原语,面板 chrome 归
+     PopoverContent 组件（web）与默认 w-72 面板（VM）。 */
   .ws-search {
     display: flex; align-items: center; gap: 0.5rem;
     background: hsl(var(--muted) / 0.4); border: 1px solid hsl(var(--border));
@@ -153,28 +138,20 @@ widget WorkspaceSelector() {
     view {
         div {
             style: "workspace-selector"
-            button {
-                onclick: .Toggle
-                style: "ws-btn w-full flex items-center gap-1 py-1.5 px-2 border border-border rounded-md bg-transparent text-foreground text-xs"
-                title: .currentTitle
-                Folder { size: 14 }
-                span {
-                    style: "ws-name flex-1 text-left truncate"
-                    text .currentName
+            popover {
+                popover-trigger (as_child: true) {
+                    button {
+                        style: "ws-btn w-full flex items-center gap-1 py-1.5 px-2 border border-border rounded-md bg-transparent text-foreground text-xs"
+                        title: .currentTitle
+                        Folder { size: 14 }
+                        span {
+                            style: "ws-name flex-1 text-left truncate"
+                            text .currentName
+                        }
+                        ChevronDown { size: 12 }
+                    }
                 }
-                if .open {
-                    ChevronUp { size: 12 }
-                } else {
-                    ChevronDown { size: 12 }
-                }
-            }
-            if .open {
-                button {
-                    onclick: .Close
-                    style: "ws-backdrop"
-                }
-                div {
-                    style: "ws-panel flex flex-col"
+                popover-content {
                     div {
                         style: "ws-search"
                         Search { size: 14 }

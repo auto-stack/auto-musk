@@ -32,12 +32,12 @@ use.web getQuestions, hasQuestionnaire from "src/front/questionnaire.at"
 use.web questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder from "src/front/questionnaire_helpers.at"
 use.web component Plus, Trash2, Search, Info from "src/front/ports/icons.at"
 use.web useT from "src/front/ports/composables.at"
-// PLAN-059 T9:删除确认切 alert-dialog 单源双轨——533 浮层通道合回后
+// PLAN-059 T9:删除确认 alert-dialog 单源双轨——533 浮层通道合回后
 // （a2r codegen alert-dialog 家族臂 + child_emit 大小写折叠,gallery
 // /alertdialog 编译轨四断言过）,VM 渲染真模态、onconfirm/oncancel 派发
-// 直达本视图 handler。PLAN-058 三期的 web 薄适配器（DeleteConfirmDialog.vue,
-// 已删除）与 VM 内联确认行（web CSS .session-delete-strip 抑制,已删除）
-// 一并退役——单源单实现。
+// 直达本视图 handler;536 fallback 绑定根修合回后解释器轨同形成立
+// （子件重播种守卫）,PLAN-058 三期的 web 薄适配器（DeleteConfirmDialog.vue）
+// 与 VM 内联确认行+CSS .session-delete-strip 抑制一并退役——单源单实现。
 
 // PLAN-037 P1: cross-file component refs (native alias form).
 use mention_input: MentionInput
@@ -163,39 +163,6 @@ widget ChatsView {
                 slot(name: "list") {
                     col {
                         style: "flex-1 overflow-y-auto px-2"
-                        // PLAN-059 T9:VM 内联确认行暂返场兜底——解释器轨对
-                        // ChatsView 上下文的 alert-dialog open 绑定不渲染
-                        // （四个形态探针全灭:根位/字面量/空 trigger;gallery
-                        // 同模式同形态可渲染,D-GAP 深水区,归 auto-lang 536
-                        // 候补）。web 轨 CSS .session-delete-strip 抑制不变,
-                        // 走上方 alert-dialog;解释器修复后本行退役。
-                        if .delete_confirm_open {
-                            row {
-                                style: "session-delete-strip flex items-center gap-2 w-full px-1 py-1.5 mb-1"
-                                if .delete_pending_id == "__all__" {
-                                    span {
-                                        style: "text-xs text-destructive"
-                                        text t("chat.confirmDeleteAll")
-                                    }
-                                }
-                                if .delete_pending_id != "__all__" {
-                                    span {
-                                        style: "text-xs text-destructive"
-                                        text t("chat.confirmDeleteSession")
-                                    }
-                                }
-                                span {
-                                    style: "text-xs font-medium text-destructive border border-destructive/40 rounded px-1.5 py-0.5 cursor-pointer hover:bg-destructive/10"
-                                    onclick.stop: .ConfirmDelete(.delete_pending_id)
-                                    text t("chat.confirmDelete")
-                                }
-                                span {
-                                    style: "text-xs text-muted-foreground border border-border rounded px-1.5 py-0.5 cursor-pointer hover:bg-accent"
-                                    onclick.stop: .CancelDelete
-                                    text t("chat.cancel")
-                                }
-                            }
-                        }
                         for s in .store.session_list {
                             button {
                                 key: .s.id
@@ -531,9 +498,8 @@ widget ChatsView {
             }
             // PLAN-059 T9:删除确认 alert-dialog 单源（无 trigger 受控形态,
             // open 绑 state_ref bool;title 单删/全删分流,action 回执
-            // .delete_pending_id 分流）。置于视图根部——058 T13/首次实测均证
-            // 深嵌(slot list col 内)时 VM 解释轨整树丢弃,视图根部/gallery
-            // demo 形态才渲染。
+            // .delete_pending_id 分流）。置于视图根部——深嵌形态的历史问题
+            // 已由 auto-lang 536 子件重播种守卫根修,根部放置保留（稳定形）。
             alert-dialog (open: .delete_confirm_open) {
                 alert-dialog-content {
                     alert-dialog-header {

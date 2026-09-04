@@ -106,9 +106,8 @@ a { color: hsl(var(--primary)); }
 .session-item:hover .session-delete-btn { display: flex; align-items: center; }
 .session-delete-btn:hover { opacity: 1; color: hsl(var(--destructive)); }
 
-/* PLAN-059 T9:内联删除确认行仅 VM 兜底渲染;web 走 alert-dialog 模态,
-   本规则抑制 web 侧内联行双现（解释器轨修复后随内联行一并退役）。 */
-.session-delete-strip { display: none; }
+/* PLAN-059 T9:内联删除确认行兜底与 .session-delete-strip 抑制规则已退役
+   （536 绑定根修合回,alert-dialog 单源双轨成立）。 */
 /* PLAN-050: search/tree 系钩子类在 gen 轨零元素（仅匹配已冻结 web/ 轨）
    ——死规则删除;placeholder 色已内联 wiki_nav.at/chats_view.at。 */
 /* 输入区 focus 光环 + @mention 双层文字技术（textarea 文字透明,由
