@@ -296,6 +296,13 @@ schema 回填:         iced: none → native（随实现逐家族推进）
   object ID: 0,即 536 T9"留用户实机"的取消/确认派发终验;aa92a821e,
   探针语料 plan059_child_emit 零参/一参双形态锁定）。
   提交 auto-musk-dev-1 c1c094b+8522603+1332bd3+2c55058。
+  **【T9 实机收尾追加 2026-09-04 晚，dbe52a7+c13c250】**用户实机对拍三批：
+  ①会话卡 × 弃用 536 兄弟浮 ×（几何落左上/常显/抢卡片点击致点会话不出
+  内容），回归 mouse-area hover 标题行形态+× 自身 hover 方块高亮；
+  ②工具卡/思考块展开回归 ForgeStore 单槽字符串通道（消息对象直写为循环
+  副本写读侧不更新;str prop 基元跨边界安全），实机 run_command 卡展开
+  渲染 ARGUMENTS/RESULT；③头部 +/× 图标 fixed_both 方钮内偏左上，登记
+  auto-lang renderer 债（KD 059-T9 ⓪）。
 - [✅ 已完成 2026-09-04] **T10 收尾**：账本回写（KNOWN-DEBT 059-T9 行:
   内联行退役+零参路由/空 trigger 锚件两笔 auto-lang 债登记）;三场景
   实机截图入 docs/attachments;gallery 对拍截图已在 attachments
