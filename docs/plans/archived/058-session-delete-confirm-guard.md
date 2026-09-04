@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-058
-status: reviewed
+status: archived
 feature_name: 会话删除两步确认护栏 + Block 全家福会话重灌（+二期：主导航纵排与标题边框）
 author: [zhaopuming]
 created_at: 2026-09-03T10:00:00+08:00
