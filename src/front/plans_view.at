@@ -48,7 +48,6 @@ widget PlansView {
         var st_executing str = "executing"
         var st_execution_done str = "execution_done"
         var st_reviewed str = "reviewed"
-        var st_review_done str = "review_done"
     }
 
     view {
@@ -128,11 +127,6 @@ widget PlansView {
                                     style: "py-1 px-2 rounded text-[11px] cursor-pointer border border-border bg-transparent text-muted-foreground hover:bg-accent"
                                     text "reviewed"
                                 }
-                                button {
-                                    onclick: .TransitionTo(.st_review_done)
-                                    style: "py-1 px-2 rounded text-[11px] cursor-pointer border border-border bg-transparent text-muted-foreground hover:bg-accent"
-                                    text "review_done"
-                                }
                             }
                             button {
                                 onclick: .StartEdit
@@ -144,7 +138,7 @@ widget PlansView {
                                 style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border"
                                 text t("plans.archive")
                             }
-                            if .store.current.status == "review_done" {
+                            if .store.current.status == "reviewed" {
                                 button {
                                     onclick: .MergeCurrent
                                     style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border bg-primary text-primary-foreground border-primary hover:opacity-90"
