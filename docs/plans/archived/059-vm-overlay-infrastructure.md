@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-059
-status: reviewed
+status: archived
 feature_name: VM(iced) 悬浮层基础设施与 overlay 组件族落地
 author: [zhaopuming]
 created_at: 2026-09-03T13:30:00+08:00
-updated_at: 2026-09-04T21:30:00+08:00
+updated_at: 2026-09-04T23:59:00+08:00
 
 supersedes_spec_components:
   - "PLAN-058 VM 内联确认行降级形态 + CSS .session-delete-strip 抑制: 退役（059 T9 alert-dialog 端口链单源替代）"
@@ -231,12 +231,12 @@ schema 回填:         iced: none → native（随实现逐家族推进）
   ——修复 MCP 与后端抢 9247 的 FATAL 盲验）+ 可选 Vue dev :3335（代理 9247）。
   533 联测期 snapshot/驱动取证的直接前置。
   烟测通过：MCP `listening on http://127.0.0.1:9277` 实证（d5d6270）。
-- [ ] **S2 Vue 轨对拍确认**（需人工）：:3335 上逐项核对与 VM 同源修复——
+- [ ] **S2 Vue 轨对拍确认**（需人工;移交用户实机目验,复审已登记不阻塞归档）：:3335 上逐项核对与 VM 同源修复——
   会话卡 hover ×、工具卡逐卡展开、消息间距 gap-10、copy 靠左;产出 web 基准
   截图（533 对拍门禁的 web 侧基准）。
-- [ ] **S3 worktree 收尾**（依赖用户验证展开/hover 正常）：auto-musk-dev-1
+- [✅ 已完成 2026-09-04] **S3 worktree 收尾**（merge(auto-musk-dev-1)=9cc1c5f 折回全分支 21 提交;worktree+分支+组目录已清,gen pnpm 链接剥除后过 guard）：auto-musk-dev-1
   三批提交（120d89e/a2ef16e/cbece28）合回 main,删 worktree+分支。
-- [ ] **S4 挂账转计划**：VM 数据面 DEGRADED 30 fn → musk PLAN-060;
+- [✅ 已完成 2026-09-04] **S4 挂账转计划**：VM 数据面 DEGRADED 30 fn → musk PLAN-060;
   059-FU1 反应性三问题 → auto-lang PLAN-536（原 PLAN-534,序号与
   534-vm-widget-family-parity 冲突,后建者改号）。（已完成 2026-09-04）
 
