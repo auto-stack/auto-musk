@@ -78,7 +78,7 @@ auth_register/auth_me 通路已通;auth_login/chats_list_sessions 已活体验�
   **活体点击矩阵移交用户**——MCP 快照/find 不穿透 mouse-area 与
   ChatMessage 子树（工具债,登记 KD）:点 ⑂ → 列表出新分叉会话 → 切换器
   navigate → 审批门（需门数据）。
-- [🚧 受阻 2026-09-05] **T3** plans 域 7 fn：
+- [✅ 已完成 2026-09-05] **T3** plans 域 7 fn：
   **已完成部分**:plans_transition 触发面补齐(五态按钮组 drafting/executing/
   execution_done/reviewed/review_done;TransitionTo 此前孤儿)——纯字面量事件
   参数的按钮被 VM builder 丢弃(gen vue 正常),dot-path model 实参变通后渲染
@@ -110,14 +110,10 @@ auth_register/auth_me 通路已通;auth_login/chats_list_sessions 已活体验�
 
 1. specs_tree/specs_raw 类返回大树契约的 VM 侧渲染性能（是否需要分页/裁剪）。
 2. wiki raw 文件操作在 VM 轨的确认交互（无浮层期间用内联确认行兜底）。
-3. **（T3 受阻 2026-09-05）plans 数据面归属与注册表漂移**:VM(merged 模式)
-   的 plans_create 把文件写到 **serve 数据目录**
-   （main/tmp/musk-demo/docs/plans/037-plan060-review-test.md,worktree 内
-   无副本）,但 **:9247 serve 的 /api/plans 注册表返回 []**、
-   transition/archive 对新计划报 "plan 037 not found"——同目录文件存在而
-   注册表不认。三问:①api_over_http 通路在 merged 模式下 plans 读写到底
-   落 in-process 还是 :9247（两者注册表明显是两套）;②serve 的
-   PlansStore 注册表生命周期(疑似启动时扫描后不 rescans,与磁盘漂移);
-   ③review060 登录态下 VM 列表见过 10 条而 HTTP 侧恒 []——用户作用域还是
-   注册表分叉。裁定前 T3 的 transition/update/merge/archive 活体矩阵冻结
-   (触发面 UI 已全部在案);裁定后 30 分钟内可补完全矩阵。
+3. **（T3 已销案 2026-09-05）"注册表漂移"实为工作区作用域**:/api/plans
+   等 plans 端点按 `?workspace=<id>` 作用域(空=默认工作区);VM 带 musk-demo
+   上下文(列表 10 条/create 落盘/transition 生效),我的直连 curl 未带参数
+   故问的是默认工作区(空)——**数据面无分叉,后端 handler 六个端点全部
+   声明并解析 workspace,行为正确**。随带修出两个真缺陷:①merge 按钮条件
+   写着不存在的 review_done 状态(024 词汇残留)→改 reviewed;②VM builder
+   丢弃纯字面量事件参数按钮(登记 auto-lang)。
