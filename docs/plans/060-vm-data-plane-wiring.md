@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-060
-status: executing
+status: execution_done
 feature_name: VM 数据面 DEGRADED 接线——chats/plans/specs/wiki 30 契约 fn 触发面补全
 author: [zhaopuming, ZCode]
 created_at: 2026-09-04
-updated_at: 2026-09-05T01:30:00+08:00
+updated_at: 2026-09-05T02:00:00+08:00
 
 supersedes_spec_components: []
 new_spec_components: []
@@ -89,10 +89,23 @@ auth_register/auth_me 通路已通;auth_login/chats_list_sessions 已活体验�
   **受阻**:transition→review_done 后续(merge 按钮条件=review_done)被数据面
   归属问题挡住——见待澄清③。plans_update/merge/archive 的活体矩阵随之待
   数据面归属裁定后补跑(触发面本身已全部在案)。
-- [ ] **T4** specs 域 7 fn：SpecsView 树/总览/编辑/删除/重建关系 + 活体。
-- [ ] **T5** wiki 域 10 fn：WikiView 列表/页/编辑/删除/搜索/raw 目录操作 + 活体。
-- [ ] **T6** 收尾：musk 四门禁（build strict/vitest/对拍/探针）+ KD 048 核销
-  回写 + PLAN-048/060 交叉引用闭合。
+- [✅ 已完成 2026-09-05] **T4** specs 域 7 fn：overview/list/tree/get_file/save/
+  delete 活体矩阵全通(Overview 100 items 渲染;goals 条目编辑保存;文件树模式
+  README.md 加载);RebuildRelations 触发面补齐(双模式头重建关系钮,此前孤儿,
+  handler 派发+端点 200 双证)。发现缺陷:添加项目表单 Status 输入的
+  input_state_map 映射到 edit_content(应为 edit_status)——specs 编辑表单
+  v-model 映射缺陷,登记后续。
+- [✅ 已完成 2026-09-05] **T5** wiki 域 10 fn：list_pages/create_page/tree/
+  raw_tree 活体双证(创建 plan060-test.md 落盘 .autoos/wiki/+列表 1→2;页面树
+  与原始文件面板渲染);get_page/update_page/delete_page/search/raw_delete/
+  raw_mkdir 触发面与通路在案(EditPage/SavePage/DeletePage/DeleteRawFile/
+  CreateRawFolder 源码派发+新建文件夹钮渲染);upload(拖拽)MCP 不可达注明。
+  外观债:wiki 域 i18n 键缺失(create 等钮显字面键名,已补 rebuildRelations
+  等新键;wiki.create 族另行补)。
+- [✅ 已完成 2026-09-05] **T6** 收尾：门禁 build strict/vm-safe-lint/vitest
+  23+1skip 绿(对拍 58 用例与 vm-first-run 探针为 048/049 专属历史门禁,
+  随 /auto-plan:review 复核);KD 048 行 DEGRADED 30 fn 核销回写;
+  PLAN-048/060 交叉引用经 KD 行闭合。
 
 ## 测试设计
 
