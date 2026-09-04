@@ -16,6 +16,10 @@ store ForgeStore {
         var loading bool = false
         var error str = ""
         var streaming bool = false
+        // PLAN-536 T12: 发送前回合基线（StartStream 乐观 push 后写定）——
+        // PollStream 完成启发式的回合增长守卫用（防旧 assistant 尾部误判完成）。
+        var pre_stream_len int = 0
+        var poll_window []Value = []
         var current_draft str = ""
         var thinking str = ""
         var workspace str = ""
@@ -76,7 +80,11 @@ store ForgeStore {
     // 全量回填与 SSE 增量回写共存时以轮询覆盖为最终态，SSE 到达的增量
     // 会在下一拍被全量快照校正）。SSE 桥泛化（阶段2）后退役。
     timer {
-        PollStream (every_ms: 500, when: .streaming)
+        // PLAN-536 T12(D4 修复,musk 侧⑥)：when 门摘除——.streaming 的跨模块
+        // SET_FIELD 不可达根态（见 PollStream 注④），when 门恒假把轮询拍
+        // 在 handler 之前整体丢弃，deadman 窗（handler 内）永无执行机会。
+        // 门控职责已由 handler 内 deadman 窗接管。
+        PollStream (every_ms: 500)
     }
 
     on {
@@ -245,7 +253,13 @@ store ForgeStore {
 
         // ─── Plan 028 T14：SSE 流消费（原 forge_stream.ts；F8 Sse.open/close + 消息分发）───
         .StartStream(sid0, ws0, tk0, userContent) -> {
-            .StopStream()
+            // PLAN-536 T12(D4 修复,musk 侧②)：头部不再走 .StopStream()——
+            // 它把 .streaming 打回 false,而 VM 轨尾部 Sse.open 的
+            // handler-as-value 实参抛点(KD-047/055-4②)会终止 handler,
+            // 门控若在抛点前落 false 则 PollStream 兜底链死亡(KD 059-FU1
+            // 题1 残余通路)。此处仅需关闭上一条 SSE 句柄,直连
+            // Sse.close 等价且不动门控;web 轨行为不变(close 后仍会重开)。
+            .stream_es = Sse.close(.stream_es)
             // 乐观插入 user 消息（不等 API 返回；与 Send 并发执行）
             if userContent.trim() != "" {
                 let msgs = .messages
@@ -261,6 +275,11 @@ store ForgeStore {
                     // ——此前写 timestamp（毫秒）导致重载/格式化读不到值。
                     .messages.push({ id: uid, role: "user", content: userContent, created_at: nowSec(), thinking: "", tool_calls: [], profession_id: "" })
                 }
+                // PLAN-536 T12(D4 修复,musk 侧⑤)：deadman 窗戳走**列表 push**
+                // ——跨模块调用帧的 SET_FIELD 重绑定不达根态（见 PollStream
+                // 注④）,而共享 vmref 的列表突变实证可靠（同帧 messages.push
+                // 落地实录）,故轮询窗戳以列表承载。
+                .poll_window.push(Date.now())
             }
             let path0 = "/api/chats/session/" + encodeURIComponent(sid0) + "/stream"
             var qs = ""
@@ -276,6 +295,15 @@ store ForgeStore {
             if .errands == None { .errands = {} }
             if .relays == None { .relays = {} }
             if .task_plans == None { .task_plans = {} }
+            // PLAN-536 T12(D4 修复,musk 侧):streaming 置位必须在 Sse.open
+            // **之前**——VM 轨 Sse.open 的 handler-as-value 实参
+            // (.OnStreamEvent)求值抛 Field not found(KD-047/055-4②,根修归
+            // 上游 SSE 专项),抛点若在置位前,轮询兜底链(PollStream 的
+            // .streaming 门控)随抛点死亡,"AI 回复了但界面不动"复发(KD
+            // 059-FU1 题1 残余通路,auto-lang plan536_t12 探针锁定该契约)。
+            // web 轨 Sse.open 正常返回,置位次序无行为差异。
+            .streaming = true
+            .pre_stream_len = .messages.length
             .stream_es = Sse.open(path0 + qs, .OnStreamEvent)
         }
 
@@ -285,10 +313,20 @@ store ForgeStore {
 
         // Plan 051 T10（G1 阶段1）：轮询拍——全量回填 + 完成启发式。
         .PollStream -> {
-            // 【2026-09-04】when 门失效自守卫:VM 构建里 PollStream 实测恒频
-            // 派发(非流式期也 500ms 全负载跑,取证 170 拍/85s),推测与 ~87s
-            // 静默退出相关。处理器内自检 streaming,假则空转——等价 when 语义。
-            if .streaming == false { return }
+            // PLAN-536 T12(D4 修复,musk 侧④)：门控改 **deadman 时间窗**。
+            // 原因链（536 T12 实机时序实证）:跨模块调用帧（SendInput 体内
+            // `store.Send/store.StartStream`）对 store 字段的 SET_FIELD
+            // 重绑定不达根态（同帧 .messages.push 经共享 vmref 可见、同帧
+            // .streaming/.pre_stream_len 重绑定不可见,autoui_state 对拍
+            // 实证;新立案 auto-lang KD——state-scope 专项）,.streaming 置位
+            // 不可靠 → when 门/handler 自守卫恒假 → 轮询永不启动。改以
+            // 发送时间戳 deadman 窗（2 分钟,窗戳经列表 push 承载,见
+            // StartStream 注⑤）门控:窗口内恒轮询（timer 派发走根态,回填
+            // 写入可靠）,窗口外静默;web 轨语义不受影响。
+            let wins = .poll_window
+            if wins.length == 0 { return }
+            let started = wins[wins.length - 1]
+            if Date.now() - started > 120000 { return }
             let sid = .session_id
             if sid == "" { return }
             var resp = chats_get_session(sid)
@@ -297,12 +335,21 @@ store ForgeStore {
             if resp == None { return }
             if resp.session == None { return }
             .messages = resp.session.messages
+            // PLAN-536 T12(D4 修复,musk 侧③)：完成启发式补**回合增长守卫**
+            // ——原形只看"末回合=非空 assistant",竞态:发送后首个轮询拍若
+            // 后端读模型尚无新 user turn（或上一对话尾部本就是 assistant）,
+            // 启发式误判"已完成"→streaming 提前落 false→真正的回复永远
+            // 不再被轮询（536 T12 实机时序实证:tick1 误杀,回复无人取）。
+            // 守卫口径:轮询到的回合数须 ≥ 发送前基线(pre_stream_len=乐观
+            // push 后的长度),回复到货时回合数必然 > 基线。
             let msgs = .messages
             if msgs.length > 0 {
                 let last = msgs[msgs.length - 1]
                 if last.role == "assistant" {
                     if (last.content ?? "") != "" {
-                        .streaming = false
+                        if msgs.length > .pre_stream_len {
+                            .streaming = false
+                        }
                     }
                 }
             }
