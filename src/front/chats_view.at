@@ -78,6 +78,8 @@ widget ChatsView {
         // 旧 CLI 解析失败被 stale gen 掩盖,新 CLI 重建时暴露为 0 参 emit）。
         // PLAN-055 ⑤: RetryFrom 随"⑂ 重试"按钮删除（孤儿清理）。
         BranchTo(str, str),
+        // PLAN-060 T2:分叉入口（ChatMessage onfork 路由;mid=分叉锚消息）。
+        ForkFrom(str),
         // 2026-09-04 恢复（PLAN-059 T9 用户实机对拍）：会话卡 × hover 显隐
         // （mouse-area 命中区驱动;web 侧 CSS .session-item:hover 双保险）。
         // 536 重测的兄弟浮 × 形态在 VM 实机三连败：× 几何落左上、常显、
@@ -321,6 +323,7 @@ widget ChatsView {
                                 // 只读自身 props;prop 每帧重建刷新）。
                                 think_open: .store.think_open
                                 tool_open: .store.tool_open
+                                onfork: .ForkFrom($event)
                             }
                             // 问卷卡片（专门的提问 block）：解析 assistant 消息里的
                             // 问卷 JSON/问题列表渲染为可选项表单。仅随最新一条消息
@@ -410,6 +413,12 @@ widget ChatsView {
             .delete_pending_id = "";
             .delete_confirm_open = false;
             store.LoadSessionList()
+        }
+
+        // PLAN-060 T2:分叉——经 store.BranchTo fork 模式调 chats_fork_session,
+        // 重载后列表出新会话、原消息树出新分支（切换器随之可见）。
+        .ForkFrom(mid str) -> {
+            store.BranchTo(mid, "fork")
         }
 
         .SelectSession(id) -> {
