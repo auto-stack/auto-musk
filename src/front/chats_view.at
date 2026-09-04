@@ -227,9 +227,9 @@ widget ChatsView {
                                         style: "flex items-start justify-between w-full gap-1"
                                         span {
                                             style: if .s.id == .store.session_id {
-                                                "text-[13.6px] font-medium text-primary truncate flex-1 min-w-0"
+                                                "text-[13.6px] font-medium text-primary flex-1 min-w-0 break-all leading-[1.45]"
                                             } else {
-                                                "text-[13.6px] text-foreground truncate flex-1 min-w-0"
+                                                "text-[13.6px] text-foreground flex-1 min-w-0 break-all leading-[1.45]"
                                             }
                                             text .s.name
                                         }
