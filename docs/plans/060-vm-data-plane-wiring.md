@@ -71,8 +71,13 @@ auth_register/auth_me 通路已通;auth_login/chats_list_sessions 已活体验�
   ⑤ chats approve/reject:审批门触发在案(GateCard onapprove/onreject),
      活体依赖门数据。
   T2-T5 由此收敛为"补缺口触发面 + 30 fn 活体矩阵双证"。
-- [ ] **T2** chats 域 6 fn：删除两步确认已有内联行（PLAN-058）,补 fork/navigate/
-  approve/reject 触发面 + 活体验证。
+- [🚧 代码完成 2026-09-05] **T2** chats 域 6 fn：删除两步确认已交付（059,
+  alert-dialog 单源）;分叉入口新增（ChatMessage 工具栏 ⑂ 钮 → onfork 路由 →
+  ForkFrom → store.BranchTo(mid,"fork") → chats_fork_session,c13c250 后续
+  提交）;navigate（分叉切换器）/approve/reject（GateCard）既有接线确认。
+  **活体点击矩阵移交用户**——MCP 快照/find 不穿透 mouse-area 与
+  ChatMessage 子树（工具债,登记 KD）:点 ⑂ → 列表出新分叉会话 → 切换器
+  navigate → 审批门（需门数据）。
 - [ ] **T3** plans 域 7 fn：PlansView 列表/创建/状态机/归档/合并接线 + 活体。
 - [ ] **T4** specs 域 7 fn：SpecsView 树/总览/编辑/删除/重建关系 + 活体。
 - [ ] **T5** wiki 域 10 fn：WikiView 列表/页/编辑/删除/搜索/raw 目录操作 + 活体。
