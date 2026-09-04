@@ -1,16 +1,16 @@
 ---
 plan_id: PLAN-060
-status: drafting
+status: executing
 feature_name: VM 数据面 DEGRADED 接线——chats/plans/specs/wiki 30 契约 fn 触发面补全
 author: [zhaopuming, ZCode]
 created_at: 2026-09-04
-updated_at: 2026-09-04T00:10:00+08:00
+updated_at: 2026-09-05T00:00:00+08:00
 
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 0
+current_step: 1
 total_steps: 6
 ---
 
@@ -58,8 +58,19 @@ auth_register/auth_me 通路已通;auth_login/chats_list_sessions 已活体验�
 
 ## 执行步骤
 
-- [ ] **T1** 勘察：三视图（PlansView/SpecsView/WikiView）+ 会话操作的现有
-  store/视图消费点、缺哪层接线（Init 面/触发 handler/结果回填）,产出接线清单。
+- [✅ 已完成 2026-09-05] **T1** 勘察（源码盘点+worktree VM 活体勘察,MCP :9278,
+  登录 review060 后逐视图 snapshot/截图）。**结论:048/060 立项时的"空壳"清单
+  大半已过时**——四域 store 层 30 fn 调用全在,三视图在当前二进制活体出数:
+  计划列表 9 条(musk-demo)/规范六节+Overview 100 items/知识库页面树+原始
+  文件面板。**真实缺口收敛为**:
+  ① plans_transition:视图 TransitionTo 孤儿(无状态流转按钮);
+  ② specs_rebuild_relations + specs_list(LoadDocument handler):无触发点;
+  ③ wiki:源码全接线+页面树/raw 面板活体渲染,逐触发器活体矩阵待跑(T5);
+  ④ chats fork:navigate 走分叉切换器(已有)但**创建分叉无触发面**
+     (chats_fork_session 无 UI 入口,切换器只切既有分支);
+  ⑤ chats approve/reject:审批门触发在案(GateCard onapprove/onreject),
+     活体依赖门数据。
+  T2-T5 由此收敛为"补缺口触发面 + 30 fn 活体矩阵双证"。
 - [ ] **T2** chats 域 6 fn：删除两步确认已有内联行（PLAN-058）,补 fork/navigate/
   approve/reject 触发面 + 活体验证。
 - [ ] **T3** plans 域 7 fn：PlansView 列表/创建/状态机/归档/合并接线 + 活体。
