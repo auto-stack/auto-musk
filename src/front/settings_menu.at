@@ -168,7 +168,7 @@ widget SettingsMenu() {
             }
             if .isOpen {
                 div {
-                    style: "settings-panel absolute bottom-full left-0 mb-2 z-100 min-w-[220px] bg-card border border-border rounded-[10px] p-2.5"
+                    style: "settings-panel absolute bottom-full left-0 mb-2 z-50 min-w-[220px] bg-card border border-border rounded-[10px] p-2.5"
                     // ── Mode Section（GSD/Check，后端持久化）──
                     div {
                         style: "settings-section w-full p-1.5"

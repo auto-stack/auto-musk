@@ -214,8 +214,12 @@ widget ChatsView {
                                 // 可见）。②点击置 pending+open，经
                                 // DeleteConfirmDialog（web=alert-dialog 模态,
                                 // VM=列表顶确认行）二次确认后才调删除 API。
+                                // PLAN-536 T7：悬浮类串对齐 VM absolute 语义——
+                                // z-10（VM hoist 触发）+ top-2 px（VM 不支持
+                                // top-1/2 百分比与 -translate 变换）。vue 轨 ×
+                                // 由垂直居中改卡片顶 8px，观感偏差登记。
                                 span {
-                                    style: "session-delete-btn absolute right-[6px] top-1/2 -translate-y-1/2 items-center opacity-60 bg-transparent border-none p-[3px] text-destructive text-base leading-none cursor-pointer"
+                                    style: "session-delete-btn absolute right-[6px] top-2 z-10 items-center opacity-60 bg-transparent border-none p-[3px] text-destructive text-base leading-none cursor-pointer"
                                     onclick.stop: .AskDelete(.s.id)
                                     title: t("chat.deleteSession")
                                     text "×"
