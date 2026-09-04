@@ -240,7 +240,7 @@ widget ChatsView {
                                         // 流内承载于标题行右缘。
                                         if .hover_session_id == .s.id {
                                             span {
-                                                style: "session-delete-btn absolute right-[6px] top-[6px] flex items-center shrink-0 opacity-40 -mr-1 -mt-0.5 bg-transparent border-none p-[3px] text-muted-foreground text-sm leading-none cursor-pointer hover:opacity-100 hover:text-destructive"
+                                                style: "session-delete-btn absolute right-[4px] top-[4px] w-5 h-5 flex items-center justify-center shrink-0 opacity-40 bg-transparent border-none p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:opacity-100 hover:text-destructive"
                                                 onclick.stop: .AskDelete(.s.id)
                                                 title: t("chat.deleteSession")
                                                 text "×"
