@@ -180,9 +180,16 @@ widget ChatsView {
                             }
                         }
                         for s in .store.session_list {
-                            button {
-                                key: .s.id
-                                onclick: .SelectSession(.s.id)
+                            // PLAN-536 重测改构(2026-09-04)：× 移出卡片
+                            // button 成兄弟,由外层 relative col 的 col-arm
+                            // hoist 承接悬浮——Button{content:Overlay} 在
+                            // iced 画布渲染空壳(auto-lang 侧该臂已撤销,
+                            // renderer 根修留档)。兄弟 × 不经卡片点击冒泡。
+                            col {
+                                style: "relative w-full"
+                                button {
+                                    key: .s.id
+                                    onclick: .SelectSession(.s.id)
                                 // PLAN-055 T15: 删 title=.s.id 悬停 tooltip（用户
                                 // 对拍 ②a——chat id 对用户无信息量）。
                                 class: if .s.id == .store.session_id {
@@ -221,6 +228,7 @@ widget ChatsView {
                                 // z-10（VM hoist 触发）+ top-2 px（VM 不支持
                                 // top-1/2 百分比与 -translate 变换）。vue 轨 ×
                                 // 由垂直居中改卡片顶 8px，观感偏差登记。
+                                }
                                 span {
                                     style: "session-delete-btn absolute right-[6px] top-2 z-10 items-center opacity-60 bg-transparent border-none p-[3px] text-destructive text-base leading-none cursor-pointer"
                                     onclick.stop: .AskDelete(.s.id)

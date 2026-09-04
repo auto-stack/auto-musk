@@ -11,7 +11,7 @@
 // chats_view 子件 handler,子件写入经探针实证正常）。
 widget DeleteConfirmDialog {
     msg {
-        Confirm(target str),
+        Confirm(str),
         Cancel
     }
     model {
