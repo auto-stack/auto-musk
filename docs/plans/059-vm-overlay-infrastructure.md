@@ -1,16 +1,16 @@
 ---
 plan_id: PLAN-059
-status: executing
+status: execution_done
 feature_name: VM(iced) 悬浮层基础设施与 overlay 组件族落地
 author: [zhaopuming]
 created_at: 2026-09-03T13:30:00+08:00
-updated_at: 2026-09-04T12:00:00+08:00
+updated_at: 2026-09-04T21:30:00+08:00
 
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 8
+current_step: 10
 total_steps: 10
 ---
 
@@ -273,19 +273,37 @@ schema 回填:         iced: none → native（随实现逐家族推进）
 - [✅ 已完成 2026-09-04] **T8 schema 回填**：533 T8 交付已在 master——
   schema/aura.at `iced: "native"` 计 27 条（alert_dialog 族 8 + dropdown 族
   等）;其余 252 条 iced:"none" 属未实现家族,随二期推进。
-- [🚧 进行中 2026-09-04] **T9 musk 消费回归**：**场景1（删除确认）代码侧完成**——
-  chats_view 直写 alert-dialog 单源（web 生效:shadcn v-model:open+title 单删/
-  全删分流+新增 confirmIrreversible 键中英+catalog 重跑;DeleteConfirmDialog.vue
-  适配器退役）;VM 内联确认行返场兜底（解释器轨 blocker,见待澄清⑨;否则删除
-  流程卡死 pending）。门禁四绿;MCP 实机:AskDeleteAll→确认行渲染+取消复位
-  （截图 p059-musk-vm-strip-all.png）;单删路径卡片 × 依赖 hover,MCP 无 hover
-  动作（057 账本在案）留用户实机。**场景2/3（workspace dropdown、settings）
-  未开工**——依赖与场景1 相同的解释器绑定通道,建议 D-GAP 修复后再做。
-  顺手修分支既有红两处（4700cdc 引入:getQuestions(.msg)→.rm TS2339;
-  UserMessage use.web 指 .at 源模块→use 组件别名 TS2305）。
-  提交 auto-musk-dev-1 e3fd1fe+2a216f8。
-- [ ] **T10 收尾**：账本回写（overlay 缺口族、跨 widget 派发修复）、
-  gallery 对拍截图入 attachments、status 推进。
+- [✅ 已完成 2026-09-04] **T9 musk 消费回归（三场景全通,实机 MCP :9277 驱动+截图）**：
+  合并 main 吸收 536 端口链三件套后,场景1 改采纳 **DeleteConfirmDialog
+  端口链形态**（vm.at 真源=子件根部 alert-dialog 受控 open+空 trigger,
+  536 实证形态）;本侧落地=VM 内联确认行（session-delete-strip）与 web
+  CSS 抑制规则**退役**,DeleteConfirmDialog 单源双轨。**场景1**:
+  AskDeleteAll → 父子状态双翻转（delete_confirm_open/open/target）→
+  居中模态浮层（p059-musk-scene1-delete-modal.png）→ Cancel 父侧
+  CancelDelete 全状态复位 → Confirm 载荷直达 ConfirmDelete,
+  session_list 3→2 真删除+刷新（新建空会话做破坏性验证,用户数据未动）。
+  **场景2**:workspace_selector 切 popover 自管嵌套形态（trigger as-child,
+  内部 __popover_toggle 开合+__popover_close dismiss+越界翻转）,手搓
+  backdrop/panel 退役;实机开合双向验证（p059-musk-scene2-workspace-popover.png）。
+  **场景3**:settings_menu 切 dialog 受控形态（open 绑 .isOpen,VM Modal
+  居中卡+显式关闭钮;web shadcn DialogContent 自带 X/遮罩/ESC）;实机开合
+  双向验证（p059-musk-scene3-settings-dialog.png）。门禁四绿
+  （auto build 含 vue-tsc/vite/vm-safe-lint/vitest 23+1skip）。
+  **联测期依赖双根修（auto-lang auto-musk-dev 分支,已折入 master
+  3837aa8b5）**:① a2ts Date.format ts 发射括号失衡（536 题3 回归,
+  ext 镜像 TS1005;d848cb29a）;② 子→父声明式路由零参父 handler 帧错位
+  （dispatch_parent_route 恒塞 Nil 载荷 → CancelDelete 崩 Invalid
+  object ID: 0,即 536 T9"留用户实机"的取消/确认派发终验;aa92a821e,
+  探针语料 plan059_child_emit 零参/一参双形态锁定）。
+  提交 auto-musk-dev-1 c1c094b+8522603+1332bd3+2c55058。
+- [✅ 已完成 2026-09-04] **T10 收尾**：账本回写（KNOWN-DEBT 059-T9 行:
+  内联行退役+零参路由/空 trigger 锚件两笔 auto-lang 债登记）;三场景
+  实机截图入 docs/attachments;gallery 对拍截图已在 attachments
+  （p059-gallery-*,6bd7bf4）;status → execution_done。
+  **随计划带往 review/merge**：S3（worktree 收尾=merge 步职责,分支
+  auto-musk-dev-1 现含全部工作）;S2（Vue 轨逐项目视对拍,需人工,
+  场景2/3 的 web 侧 shadcn Popover/Dialog 生成物已过 vue-tsc/vite 门禁,
+  活体观感留用户）。
 
 ## 复审记录
 
@@ -337,3 +355,10 @@ schema 回填:         iced: none → native（随实现逐家族推进）
    屏,MCP 截图触发 wgpu panic 崩进程）,PowerShell Start-Process 独立
    控制台起窗正常——S1 工具债增补;窗口还会最小化启动（-32000 坐标）,
    需 ShowWindow 还原后再取证。
+   **【2026-09-04 销案】**536 交付（绑定根修+vm.at 真源端口链）+本计划
+   T9 联测期 auto-lang 双补丁（Date.format ts 括号/零参路由帧对齐,
+   3837aa8b5）后,删除确认 alert-dialog 实机模态弹出+取消/确认派发+全
+   状态复位全链路通过;兜底行与 CSS 抑制已退役。唯一保留形态约束:解释器
+   轨家族根需 trigger 锚件在场（anchor=Empty 时不绘浮层）,vm.at 的空
+   trigger 即为此;该约束与"受控 open 在 VM 无 ESC/外点自动关闭"一并记
+   KNOWN-DEBT 059-T9 行,归 auto-lang 二期家族。
