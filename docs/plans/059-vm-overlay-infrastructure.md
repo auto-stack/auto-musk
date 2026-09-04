@@ -229,7 +229,8 @@ schema 回填:         iced: none → native（随实现逐家族推进）
 - [ ] **S3 worktree 收尾**（依赖用户验证展开/hover 正常）：auto-musk-dev-1
   三批提交（120d89e/a2ef16e/cbece28）合回 main,删 worktree+分支。
 - [ ] **S4 挂账转计划**：VM 数据面 DEGRADED 30 fn → musk PLAN-060;
-  059-FU1 反应性三问题 → auto-lang PLAN-534。（已完成 2026-09-04）
+  059-FU1 反应性三问题 → auto-lang PLAN-536（原 PLAN-534,序号与
+  534-vm-widget-family-parity 冲突,后建者改号）。（已完成 2026-09-04）
 
 - [✅ 已完成] worktree 建（基于 master 7ab140c41）；探针工程
   examples/overlay-probe 随 T2 入库。
