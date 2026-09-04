@@ -94,7 +94,7 @@ fn toolTruncBadge(details obj) str {
 }
 
 /** 键是否在展开列表中（列表遍历判等——VM/TS 双轨同原语）。 */
-fn thinkIsOpen(ids obj, key str) bool {
+fn thinkIsOpen(ids list, key str) bool {
     if ids == None { return false }
     for k in ids {
         if k == key { return true }
@@ -335,29 +335,39 @@ fn messageDisplayBlocks(msg obj, streaming bool) obj {
  * 构建期快照（写进 store 子件读侧不更新,autoui_state 实证）、子件 handler
  * 写 prop 对象报 Invalid object ID——只有顶层 widget 的 own-state 读写与
  * computed 重算全链实证可用。克隆载荷=视图所需最小集。 */
-fn withExpansion(msgs obj, thinkIds obj, toolKeys obj, streaming bool, allMsgs obj) obj {
+// 【2026-09-04 三修】签名收缩为 3 参(去 bool/allMsgs)——5 参形态 for-in
+// 零迭代(参数栈失衡嫌疑,051 T8 同族,探针实证 len=3 而 body 0 次执行)。
+// streaming 标志暂硬编码 false(流式期打字机效果让位渲染正确性,挂账)。
+// 【2026-09-04 四修】参数只收单个包装 obj——VM 跨 fn 边界传列表会退化为
+// 不透明句柄(vmref,.length 可用、for-in 零迭代,探针实证 msgs=4000057),
+// 而字段解包的列表(msg.tool_calls 先例)可迭代。展开态不在此处:视图直读
+// 顶层 own-state 字符串(msg_think_open/msg_tool_open,基元跨边界安全)。
+// streaming 暂硬编码 false(流式打字机效果让位正确性,挂账 536)。
+fn withExpansion(p obj) obj {
     var out list = []
-    if msgs == None { return out }
-    for m in msgs {
+    var src = p.list
+    if src == None { return out }
+    for m in src {
+        var tk = messageDisplayBlocks(m, false)
+        var err = m.error ?? ""
         out.push({
             id: m.id,
             role: m.role,
             content: m.content,
             created_at: m.created_at,
-            error: m.error ?? "",
-            streaming: isMsgStreaming(streaming, allMsgs, m),
-            think_expanded: thinkIsOpen(thinkIds, m.id),
-            tool_expanded: toolKeys,
-            blocks: messageDisplayBlocks(m, isMsgStreaming(streaming, allMsgs, m))
+            error: err,
+            streaming: false,
+            think_expanded: false,
+            tool_expanded: false,
+            blocks: tk
         })
     }
     return out
 }
-
 /** 工具块是否展开（读侧;toolToggleList 写侧在 forge_store）。 */
 /** 展开键列表取反（think/tool 共用;字面量重建形态）。 */
 /** 展开键列表取反（tool 版;与 thinkToggleList 同构）。 */
-fn toolToggleList(ids obj, key str) obj {
+fn toolToggleList(ids list, key str) obj {
     var out list = []
     var found = false
     if ids != None {
@@ -373,7 +383,7 @@ fn toolToggleList(ids obj, key str) obj {
     return out
 }
 
-fn thinkToggleList(ids obj, key str) obj {
+fn thinkToggleList(ids list, key str) obj {
     var out list = []
     var found = false
     if ids != None {
@@ -389,7 +399,7 @@ fn thinkToggleList(ids obj, key str) obj {
     return out
 }
 
-fn toolIsOpen(ids obj, key str) bool {
+fn toolIsOpen(ids list, key str) bool {
     if ids == None { return false }
     for k in ids {
         if k == key { return true }

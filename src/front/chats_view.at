@@ -16,7 +16,7 @@ use back.api: chats_delete_session, chats_delete_all_sessions
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web relay_command_match from "src/front/relay_commands.at"
 use.web platformRunRelayCommand from "src/front/ports/platform.at"
-use.web.fn extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming, msgTimeLabel, thinkIsOpen, toolIsOpen, thinkToggleList, toolToggleList, toolArgsJson, withExpansion from "src/front/forge_helpers.at"
+use.web.fn extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming, msgTimeLabel, toolArgsJson, withExpansion from "src/front/forge_helpers.at"
 use.web.fn relayReportView from "src/front/relay_run_helpers.at"
 use.web component Markdown from "src/front/ports/renderer.at"
 use.web component Copy from "src/front/ports/icons.at"
@@ -103,8 +103,8 @@ widget ChatsView {
         var hover_session_id str = ""
         // 消息卡展开态(顶层 own-state;子件 prop 快照/handler 写 prop 双缺陷
         // 的绕行——renderMsgs computed 并入消息克隆,视图读纯 dot 路径)。
-        var msg_think_open []Value = []
-        var msg_tool_open []Value = []
+        var msg_think_open str = ""
+        var msg_tool_open str = ""
     }
 
     // Plan 028 T15：搜索过滤（原 useChatSearch composable → F2 多参 fn 直调）
@@ -118,7 +118,11 @@ widget ChatsView {
         branchEntries => chatBranchEntries(.store.messages)
         // 消息渲染列表:克隆消息并入展开态/流式标志/有序块——视图循环读纯
         // dot 路径(for-in 源限 dot 路径),展开切换=own-state 写→computed 重算。
-        renderMsgs => withExpansion(.filteredMessages, .msg_think_open, .msg_tool_open, .store.streaming, .store.messages)
+        // 【2026-09-04 二修】msgs 改传 store 原生列表——filteredMessages 是
+        // computed 构建列表,穿 fn 边界后 for-in 零迭代(051 T8 返回值错位族,
+        // 探针实证 len=3 而 body 0 次执行)。搜索过滤暂让位渲染正确性,
+        // chatActivePath/搜索过滤损失挂账 536 同族。
+        renderMsgs => withExpansion({ list: .store.messages })
     }
 
     // PLAN-049 T6：branch-row/branch-btn/retry-btn 已迁视图内联工具类（块删除）。
@@ -377,14 +381,14 @@ widget ChatsView {
                                                         text thinkLabel(estimateTokens(.block.text), .rm.streaming)
                                                         span {
                                                             style: "tool-chevron ml-auto"
-                                                            if thinkIsOpen(.msg_think_open, .rm.id) {
+                                                            if .msg_think_open == .rm.id {
                                                                 text "▲" { style: "text-[11px] text-muted-foreground" }
                                                             } else {
                                                                 text "▼" { style: "text-[11px] text-muted-foreground" }
                                                             }
                                                         }
                                                     }
-                                                    if thinkIsOpen(.msg_think_open, .rm.id) {
+                                                    if .msg_think_open == .rm.id {
                                                         div {
                                                             style: "think-content my-0 py-[9px] px-[12px] text-[13.5px] leading-[1.5] font-mono whitespace-pre-wrap break-words text-muted-foreground max-h-[240px] overflow-y-auto border-t border-border"
                                                             text .block.text
@@ -413,7 +417,7 @@ widget ChatsView {
                                                                     text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
                                                                     text .block.tc.name { style: "tool-name flex-1 min-w-0 truncate text-[13.3px] font-medium text-foreground" }
                                                                     text .block.tc.status { style: "tool-status text-[11.7px] font-medium shrink-0 text-blue-500" }
-                                                                    if toolIsOpen(.msg_tool_open, .block.tkey) {
+                                                                    if .msg_tool_open == .block.tkey {
                                                                         text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
                                                                     } else {
                                                                         text "▼" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
@@ -442,13 +446,13 @@ widget ChatsView {
                                                                     text .seg.text { class: if .seg.type == "path" { "tool-seg seg-path text-[12.5px] font-medium font-mono shrink-0 text-info" } else { if .seg.type == "pattern" { "tool-seg seg-pattern text-[12.5px] font-medium font-mono shrink-0 text-primary" } else { if .seg.type == "desc" { "tool-seg seg-desc text-[12.5px] font-medium font-mono shrink-0 text-foreground" } else { "tool-seg seg-loc text-[12.5px] font-medium font-mono shrink-0 text-muted-foreground" } } } }
                                                                 }
                                                                 text .block.tc.status { class: if .block.tc.status == "completed" { "tool-status completed text-[11.7px] font-medium shrink-0 text-green-500" } else { if .block.tc.status == "failed" { "tool-status failed text-[11.7px] font-medium shrink-0 text-red-500" } else { "tool-status running text-[11.7px] font-medium shrink-0 text-blue-500" } } }
-                                                                if toolIsOpen(.msg_tool_open, .block.tkey) {
+                                                                if .msg_tool_open == .block.tkey {
                                                                     text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
                                                                 } else {
                                                                     text "▼" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
                                                                 }
                                                             }
-                                                            if toolIsOpen(.msg_tool_open, .block.tkey) {
+                                                            if .msg_tool_open == .block.tkey {
                                                                 col {
                                                                     style: "tool-body border-t border-border px-[10px] py-[8px]"
                                                                     col {
@@ -552,8 +556,12 @@ widget ChatsView {
         .HoverSessionClear -> { .hover_session_id = "" }
 
         // 消息卡展开/copy(内联后同 widget;冻结实参+own-state 写,全实证链)。
-        .ToggleThink(id) -> { .msg_think_open = thinkToggleList(.msg_think_open, id) }
-        .ToolToggleKey(key) -> { .msg_tool_open = toolToggleList(.msg_tool_open, key) }
+        .ToggleThink(id) -> {
+            if .msg_think_open == id { .msg_think_open = "" } else { .msg_think_open = id }
+        }
+        .ToolToggleKey(key) -> {
+            if .msg_tool_open == key { .msg_tool_open = "" } else { .msg_tool_open = key }
+        }
         .CopyMessageContent(text) -> { dom.copy_text(text) }
 
         // PLAN-058 三期:Ask* 置 pending + open（alert-dialog 受控态）;取消

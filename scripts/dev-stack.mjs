@@ -91,10 +91,9 @@ if (await portInUse(PORTS.serve)) {
   if (await portInUse(PORTS.mcp)) {
     results.push(`[vm] MCP :${PORTS.mcp} 已监听——VM 实例已在跑,跳过`);
   } else {
-    // KD 059-FU1 观察项 a:debug 构建踩 RC canary ~1.5-4.5 分钟静默退出
-    // ——优先用 release 二进制(KD 指明 release 无恙),AUTO_EXE 可覆盖。
-    const relExe = "D:/autostack/auto-lang/target/release/auto.exe";
-    const autoExe = process.env.AUTO_EXE || relExe;
+    // KD 059-FU1 观察项 a:静默退出——release 规避实测无效(2026-09-04 仍退),
+    // 回归 debug 构建走取证路线(AUTO_EXE 可覆盖;退出码/末尾输出由调用方捕获)。
+    const autoExe = process.env.AUTO_EXE || "auto";
     const log = path.join(LOG_DIR, "dev-stack-vm.log");
     const pid = detach(autoExe, ["run", "--render=vm"], ROOT, log, {
       AUTO_BACKEND: `http://127.0.0.1:${PORTS.serve}`,
