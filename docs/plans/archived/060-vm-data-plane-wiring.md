@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-060
-status: reviewed
+status: archived
 feature_name: VM 数据面 DEGRADED 接线——chats/plans/specs/wiki 30 契约 fn 触发面补全
 author: [zhaopuming, ZCode]
 created_at: 2026-09-04
-updated_at: 2026-09-05T02:00:00+08:00
+updated_at: 2026-09-05T02:30:00+08:00
 
 supersedes_spec_components:
   - "KD-048 DEGRADED 数据面挂账行: 核销（30 fn 触发面接线+活体,T1 勘察证实大半已随 055-059 迭代就位,缺口三处补齐）"
