@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-061
-status: drafting
+status: executing
 feature_name: Auto/vue 轨实测走查缺陷修复批次
 author: [zhaopuming]
 created_at: 2026-09-04T00:00:00+08:00
-updated_at: 2026-09-04T22:30:00+08:00
+updated_at: 2026-09-05T10:35:00+08:00
 
 # Leave these EMPTY here — /auto-plan:review fills them:
 supersedes_spec_components: []
@@ -313,6 +313,14 @@ module by AutoUI (Plan 028 M1)",虽位于 ext 树但**受重生成覆盖**,根�
 - **D24** codegen 动态 style 绑定产出 `:style=`(Tailwind 类串作废,
   实证 `ChatMessage.vue:65-66`)——D17 的上游根修;root-fix 后可回撤
   .at 分支静态化规避。
+- **D27** auto-man shadcn 脚手架检测语料只含 .at 生成代码,手写 .vue
+  passthrough(use.web 组件,如 DeleteConfirmDialog.vue)的
+  `@/components/ui/*` 导入标记不入语料 → 冷检出重生成后脚手架缺失
+  (vue-tsc TS2307)。058 时已知手工步("gen ui/ 补脚手架+@vueuse/core,
+  regen 后需重装"),536 T9 改端口链后 .at 语料不再含 alert-dialog 标记,
+  缺陷潜伏化(存量树靠粘性资产存活)。上游根修=语料并入 passthrough
+  .vue;musk 侧每次冷重生成后手工补拷。vitest devDeps 同被重生成抹除
+  (058 ⑪④ 既有工具债,`pnpm add -D vitest@2` 会话级补装)。
 
 ### 环境注记(非债,不立项)
 
@@ -372,6 +380,18 @@ IAB/无头后台页 rAF 停帧导致 Playwright locator click actionability 超�
 > 合并后消息卡组织复核(该分支重构过消息卡渲染路径);D19 与该分支
 > 12d931d 的 `hover:bg-primary/15` 方案统一为本批裁定的
 > `hover:bg-accent` 灰色方案(用户 2026-09-04 明示)。
+>
+> 开工前置已清(2026-09-05):①059 分支已合回(925c9ed/966ec46),worktree
+> 已清理;②auto-lang master release 工具链重装(target-master-check,
+> g7009a5111)后 T9 alert-dialog modal 廉价回归 PASS(模态渲染+Cancel
+> 派发+状态复位,像素/状态双证,tmp/p061-preflight/);③冷重生成陷阱
+> 实录:gen 树 gitignored → worktree 首次 `auto build` 后
+> alert-dialog 脚手架缺失(auto-man shadcn 检测语料只扫 .at 生成代码,
+> 手写 DeleteConfirmDialog.vue 的 `@/components/ui/alert-dialog` 标记
+> 不入语料——058 已知手工步"regen 后需重装"在 536 T9 改端口链后变
+> 潜伏;登记 C 组 D27)与 vitest devDeps 被抹(058 ⑪④ 工具债)——
+> 会话级处置:拷 shadcn-ui/alert-dialog 脚手架 + `pnpm add -D vitest@2`,
+> 处置后 build/vitest 23+1skip 双绿基线确立。
 
 - [ ] T1 写 D1 回归单测:新建 `gen/front/vue/src/__tests__/specs_helpers.spec.ts`,
       断言 `specSectionItems` 对 `"Goals"`/`"goals"` 命中;运行
