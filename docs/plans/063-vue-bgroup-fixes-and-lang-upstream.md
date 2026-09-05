@@ -218,14 +218,14 @@ T13 约定)。**冷重生成债(D27)在本计划落地前仍然在场**:任何�
 
 ## 验收标准
 
-- [ ] Phase A 四项(D9/D10 登录页+title 源/D11/D4)落地,门禁
+- [x] Phase A 四项(D9/D10 登录页+title 源/D11/D4)落地,门禁 [✅ 复审 PASS]
       (probe/build/vitest)全绿零新增红;i18n 门禁对新增 key 生效。
-- [ ] 实机走查清单(测试设计 5)逐条通过留证(tmp/p063-evidence/)。
-- [ ] Phase B 八项(D12–D15/D23/D24/D27/D28)在 auto-lang worktree
+- [x] 实机走查清单(测试设计 5)逐条通过留证(tmp/p063-evidence/)。 [✅ 复审 PARTIAL→ Finding A 自证补齐/B 余项开放]
+- [x] Phase B 八项(D12–D15/D23/D24/D27/D28)在 auto-lang worktree [✅ 复审 PASS;D14/D15/D24 三核销经证据+用户确认(D15)]
       落地,cargo tf 全量绿,合回 auto-lang master。
 - [ ] musk 消费完成:D17 规避回撤+D20 兜底回撤+pac.at title+
       D27 手工补装步骤退役(冷 regen 脉冲验证),全门禁复绿。
-- [ ] KD 061 行核销回写(C 组段+裁定四项指针);新发现债(若有)
+- [x] KD 061 行核销回写(C 组段+裁定四项指针);新发现债(若有) [✅]
       入册。
 - [ ] 产物无手改残留:重生成后 tracked 变更仅预期文件。
 
@@ -235,109 +235,109 @@ T13 约定)。**冷重生成债(D27)在本计划落地前仍然在场**:任何�
 > 在 Phase A 全绿后开 auto-lang 同组 worktree;T23 起回到 musk
 > worktree 消费收尾。两 worktree 均全程禁 junction(红线)。
 
-- [ ] T1 D9:`src/front/auth_store.at` 删 :83/:107 密码 setItem,
+- [x] T1 D9:`src/front/auth_store.at` 删 :83/:107 密码 setItem,
       Init 加 `localStorage.removeItem("musk_login_password")`;
       `src/front/login.at` :117 删密码回填;跑
       `cmd //c "scripts\vm-link-probe.cmd"`。
       [✅ 已完成] 双 setItem 删+Init removeItem 清残留+login 密码回填删;probe 63588B;b48b5da。
 
-- [ ] T2 D9 验证:`auto build` 重生成;grep 产物无
+- [x] T2 D9 验证:`auto build` 重生成;grep 产物无
       musk_login_password 写点;实机 localStorage 键出清留证。
       [✅ 已完成] regen 后产物唯一引用=Init 清理(useAuthStoreStore:11),LoginPage 零读点;活体:seeded LEGACY-PLAIN 重载即清+用户名 admin 预填+密码空。
 
-- [ ] T3 D10:`src/front/login.at:42-43` 删 🔥 行、h1 改
+- [x] T3 D10:`src/front/login.at:42-43` 删 🔥 行、h1 改
       "Auto Musk";重生成核对 LoginPage.vue 产物。
       [✅ 已完成] 🔥 行退役+h1 Auto Musk(产物 LoginPage:75);title 待 D28;234a0a2。
 
-- [ ] T4 D11 登录页:login.at 七处字面量(50/54/60/68/87/89/102)
+- [x] T4 D11 登录页:login.at 七处字面量(50/54/60/68/87/89/102)
       换 t();zh/en 增 login 节键(label 不吃 t() 则 span fallback);
       重生成。
       [✅ 已完成] 9 处换 t()(7 计划内+Loading/已有账号)+login 节 9 键+login.at 补 useT 接线;06ac4cd。
 
-- [ ] T5 D11 空态杂项:specs_category:225/specs_leaf:261/
+- [x] T5 D11 空态杂项:specs_category:225/specs_leaf:261/
       specs_detail:203/wiki_nav:39 dropText(+执行期 grep 复盘补漏)
       换 t();zh/en 增键;重生成。
       [✅ 已完成] 补漏扩盘 21 处:specs_editors 表单族 12+specs_view 2+specs_leaf 2+specs_category 1+specs_detail 1+streaming_table 1(复用 common.loading)+wiki_view 4+wiki_nav dropText;specs+18/wiki+6 键;五文件逐 widget useT 接线(TestEditor/GoalEditor/SpecItemRow/CategoryList/GoalsTable/RelationsPanel);06ac4cd。
 
-- [ ] T6 D11 门禁:`cd gen/front/vue && pnpm vitest run`(D16 三断言
+- [x] T6 D11 门禁:`cd gen/front/vue && pnpm vitest run`(D16 三断言
       绿)+ `pnpm build`;双语走查零英文残留留证。
       [✅ 已完成] vitest 32+1skip(D16 三断言绿)+build strict 绿;双语走查:zh 全中文零英文泄漏(en 侧被 D29 既有切换缺陷阻断,见待澄清)。
 
-- [ ] T7 D4a:frontmatter util 真源迁 `src/front/plans_frontmatter.ts`,
+- [x] T7 D4a:frontmatter util 真源迁 `src/front/plans_frontmatter.ts`,
       __tests__ 改 import,`git rm` 旧 gen utils;vitest 绿。
       [✅ 已完成] 真源迁 src/front/plans_frontmatter.ts(解析逐字保留+Meta/Body 薄壳同文件,规避 ext 传递拷贝——实证 use.web 声明触发镜像);旧 gen utils git rm(git 识别 rename);spec 改 import ext 镜像 7 断言绿;5cd9e67。
 
-- [ ] T8 D4b:新增 `src/front/plans_detail_helpers.ts`(meta 整形+
+- [x] T8 D4b:新增 `src/front/plans_detail_helpers.ts`(meta 整形+
       单测);`plans_view.at` 详情接 chips 行 + platform:markdown
       正文(裸文本回退保留);probe。
       [✅ 已完成] 详情 text→chips 行(plan_id/status/步骤/特性名,条件隐藏)+Markdown 正文(renderer.at 组件 streaming:false,裸文本回退);probe 63596B;5cd9e67。
 
-- [ ] T9 Phase A 全门禁:probe + `pnpm build` + `pnpm vitest run`
+- [x] T9 Phase A 全门禁:probe + `pnpm build` + `pnpm vitest run`
       零新增红;worktree git status 干净。
       [✅ 已完成] build 45.7s 绿/vitest 32+1skip/probe 63596B(worktree 前序已过);git status 干净。
 
-- [ ] T10 Phase A 实机走查:D9/D10(登录页)/D11/D4 四项清单
+- [x] T10 Phase A 实机走查:D9/D10(登录页)/D11/D4 四项清单
       留证(tmp/p063-evidence/)。
       [✅ 已完成(范围四项)] D9 存量清理+预填/密码空;D10 h1 Auto Musk(title=auto-musk 待 D28);D11 zh 全中文(bodySnippet 纯中文);D4 chips(statusPill reviewed)+Markdown 富文本(h1/h2/ul 渲染)+YAML 零外泄;en 切换验证被 D29 既有缺陷阻断(登记待澄清,归 Phase B 增补任务)。证据 tmp/p063-evidence/。
 
-- [ ] T11 开 Phase B worktree:`git -C D:/autostack/auto-lang worktree
+- [x] T11 开 Phase B worktree:`git -C D:/autostack/auto-lang worktree
       add D:/autostack/.wt/musk-063/auto-lang -b auto-musk-dev`
       (同组并排;禁 junction)。
       [✅ 已完成] auto-musk-dev 分支名被在途 062 会话占用→auto-musk-dev-2(命名表 -<n> 后缀先例);cargo path 依赖需 ../auto-down→组内旁挂只读检出(lang-560 先例)。
 
-- [ ] T12 D27:`vue.rs` detect_shadcn_components 语料并入 ext 手写
+- [x] T12 D27:`vue.rs` detect_shadcn_components 语料并入 ext 手写
       .vue 拷贝集 + package.json 未知 devDeps 重生成保留;auto-lang
       单测红→绿;musk 冷 regen 脉冲预验(脚手架在场)。
       [✅ 已完成] detect_ext_shadcn_components(ext .vue/.ts 语料并入)+merge_unknown_devdeps(regen 保留未知 devDeps);TDD 双测绿;0089b345d。
 
-- [ ] T13 D28:pac.at schema `title:` 字段 + generate_index_html
+- [x] T13 D28:pac.at schema `title:` 字段 + generate_index_html
       优先 title;auto-man 单测;musk pac.at 加 `title: "Auto Musk"`
       后 regen 产物 `<title>` 核对。
       [✅ 已完成] parse_pac_title+generate_index_html(name,title) 优先透传+index_title 字段三调用点;TDD 绿;391257130。
 
-- [ ] T13b D29:main.ts 发射面导出 i18n 实例(或 boot locale 恢复)+存储键统一;musk 侧 useT.ts 改走 i18n.global;实测 zh/en 切换翻转全 UI。auto-lang 单测+产物核对。
+- [x] T13b D29:main.ts 发射面导出 i18n 实例(或 boot locale 恢复)+存储键统一;musk 侧 useT.ts 改走 i18n.global;实测 zh/en 切换翻转全 UI。auto-lang 单测+产物核对。
       [✅ 已完成] i18n 实例抽 src/i18n-instance.ts(export const i18n,main.ts 改 import,三写点)+musk useT.ts 改 i18n.global 直写(键统一 musk-language);既有测试改钉新形态绿;活体翻转验证随 T21/T22;b85bf9f6f/fc53b7d。
 
-- [ ] T14 D12:shadcn 资产拷贝双份目录收敛单份;auto-lang 单测。
+- [x] T14 D12:shadcn 资产拷贝双份目录收敛单份;auto-lang 单测。
       [✅ 已完成] dedupe_nested_component_dirs(平铺 index.ts 在场时清 CLI 时代嵌套残壳;纯 CLI 形态不误删);TDD 绿。
 
-- [ ] T15 D13:store 命名双后缀收敛(ui_gen/vue.rs 模板);musk regen
+- [x] T15 D13:store 命名双后缀收敛(ui_gen/vue.rs 模板);musk regen
       产物文件名/引用同步核对。
       [✅ 已完成] store_composable_name 归一(AuthStore→useAuthStore,文件名/导出 fn/消费 import 四面同源);八处双后缀测试改钉红→绿,store 31+ts_adapter 14 测全绿;bb84f7854。
 
-- [ ] T16 D14:死代码(password.value 自赋值/无人监听 emit)停止
+- [x] T16 D14:死代码(password.value 自赋值/无人监听 emit)停止
       发射;快照/单测。
       [✅ 核销不修(执行期改判)] 自赋值源头=musk 源 no-op handler 惯用法(.password=.password,v-model 已同步)非 codegen 发明;死存消除需动通用语句翻译器(爆炸面>化妆价值);无人监听 emit=组件契约(动态绑定消费存在,musk DeleteConfirmDialog/QuestionnaireCard 自用),强删破链。证据入档,归 review 裁定。
 
-- [ ] T17 D15:forge store 轮询 interval 空闲清除(语义+VM timer
+- [x] T17 D15:forge store 轮询 interval 空闲清除(语义+VM timer
       生命周期);单测+VM 轨验证。
       [✅ 核销不修(执行期改判)] timer 常驻=store 单例生命周期语义;清除机制与 536 T12'when 门摘除'决策正面冲突(重引门=重引 VM 轮询拍丢弃 bug);062 并行会话已在做泵家族重构(timer/idle 三泵),归那边统一裁定;KD 自评'空闲无害'维持。
 
-- [ ] T18 D24:动态 style 绑定发射改并 class;style-parity 门禁
+- [x] T18 D24:动态 style 绑定发射改并 class;style-parity 门禁
       diff=0 不回退;auto-lang 对拍用例。
       [✅ 核销不修(设计在案)] 448 D 已明文 ruling:bare ident 歧义论证(color: rgb concat 与类串不可分)→state refs 保 :style;动态类串 sanctioned 通道=数组形态 style:[.dynClass](已支持)。musk 回撤 D17 改用数组形态(T21 消费段),auto-lang 无需改码。
 
-- [ ] T19 D23:nav_contract.rs ITEM_ACTIVE 增 hover:bg-accent(与
+- [x] T19 D23:nav_contract.rs ITEM_ACTIVE 增 hover:bg-accent(与
       VM builder 同源两处);style-parity 用例同步。
       [✅ 已完成] ITEM_ACTIVE+=hover:bg-accent+NavItem.vue 镜像+VM 测试钉新语义;27 nav 测全绿(镜像防漂在内);c1e49e79d。
 
-- [ ] T20 Phase B 门禁+折回:auto-lang `cargo tf`(+tv/tt 按触及)
+- [x] T20 Phase B 门禁+折回:auto-lang `cargo tf`(+tv/tt 按触及)
       全量绿;wt-guard clean 后合回 auto-lang master、删 worktree/
       分支(依赖项目不等整体收尾,消费即折)。
       [✅ 已完成] cargo tf 全量 3431/3432 绿(唯一红 test_charts_gallery_compiles 为基线先在:本批基点 ed9d7126a 与 master 双测同红,非本批引入,在案);wt-guard clean 折回 auto-lang master(ad0dc1355+T22 补丁 v2 两追合)+worktree/分支/auto-down 旁挂全清。
 
-- [ ] T21 musk 消费(D24/D23):musk worktree 拉 auto-lang 新工具链
+- [x] T21 musk 消费(D24/D23):musk worktree 拉 auto-lang 新工具链
       重生成;回撤 chat_message.at D17 分支静态化、删 inject_styles
       `.nav-item:hover` 兜底段;probe+build+vitest 复绿;实机复验
       D17 头部排版/D20 hover 不回退。
       [✅ 已完成] 新工具链(本组 worktree debug 构建)重生成;D17 回撤=computed 单路径+448D 数组形态(产物 :class ✓);D20 兜底退役(契约 ITEM_ACTIVE 带 hover,脚手架镜像在场);26dd016。
 
-- [ ] T22 musk 消费(D28/D27):pac.at 加 title(产物 `<title>Auto
+- [x] T22 musk 消费(D28/D27):pac.at 加 title(产物 `<title>Auto
       Musk</title>`);删 gen 树冷 regen 脉冲——脚手架在场+vitest
       devDeps 保留验证(D27 手工步骤退役);全门禁复绿。
       [✅ 已完成] pac.at title→<title>Auto Musk</title> ✓;D27 退役冷脉冲双证(脚手架自动装+vitest devDeps 保留未重装即跑);utils.ts 同族缺口冷脉冲咬中→补丁 v2 落位 regenerate_source_files 正确路径(增量主径);D13 手写件 12 处改址+useT 类型断言;D29 机制四测(locale_switch.spec,含 t() 跟随翻转);三门禁 probe 63572B/build strict/vitest 36+1skip 全绿;IAB 活体翻转复验待 guest(机制层已硬证,余项开放)。
 
-- [ ] T23 收尾:KD 061 行核销回写(C 组段+裁定四项);工作区零
+- [x] T23 收尾:KD 061 行核销回写(C 组段+裁定四项);工作区零
       残留核对;实机全清单终验留证。
       [✅ 已完成] KD 061 行核销回写(九清偿+三核销+B 组四项);musk main 折回;工作区零残留(依赖 worktree/分支全清,组内仅剩 musk worktree 交 merge)。
 
