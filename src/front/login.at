@@ -39,8 +39,9 @@ widget LoginPage {
                 // 品牌
                 row {
                     style: "items-center gap-3 mb-2"
-                    text "🔥" { style: "text-2xl" }
-                    h1 "AutoForge" { style: "text-2xl font-bold text-foreground" }
+                    // PLAN-063 T3 (D10):正名 Auto Musk(用户裁定),emoji 随
+                    // 侧栏形态统一退役(app.at 品牌无 emoji)。
+                    h1 "Auto Musk" { style: "text-2xl font-bold text-foreground" }
                 }
                 // 表单
                 col {
