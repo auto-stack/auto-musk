@@ -184,6 +184,13 @@ a { color: hsl(var(--primary)); }
 .dark .streaming-document .mermaid-mode-btn.is-active,
 .dark .streaming-document .mermaid-mode-btn:hover,
 .dark .streaming-document .mermaid-action-btn:hover { background: hsl(var(--muted) / 0.6); color: hsl(var(--foreground)); }
+
+/* ── 主导航 hover（PLAN-061 T14, D20）──
+   NavItem active 项 class-token 契约不含 hover（Plan 482 build-time
+   either/or,ITEM_ACTIVE 无 hover:*,VM builder 同源）——active 项悬停无
+   高亮。web 侧兜底:nav-item token 类所有导航项都带,统一中性灰 hover
+   （active/非 active 一致）。上游契约放开后撤本条（C 组 D23）。 */
+.nav-item:hover { background-color: hsl(var(--accent)); }
 /* ═══════════════════════════════════════════════════ */
 `
 
