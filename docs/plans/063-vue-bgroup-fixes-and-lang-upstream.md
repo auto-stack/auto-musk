@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-063
-status: drafting
+status: executing
 feature_name: B 组裁定四项修复 + auto-lang 上游 C 组清偿(双相)
 author: [zhaopuming]
 created_at: 2026-09-05T13:20:00+08:00
-updated_at: 2026-09-05T13:20:00+08:00
+updated_at: 2026-09-05T13:30:00+08:00
 
 # Leave these EMPTY here — /auto-plan:review fills them:
 supersedes_spec_components: []
