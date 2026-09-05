@@ -50,21 +50,30 @@ store AuthStore {
         // 后端返回 {token, user:{username, role}}（嵌套 user 对象）。
         // 另存 musk_login_username/password 供登录页预填（LoginPage.Init
         // 读取；记住上次登录凭据，免重复输入——本地开发工具语义）。
+        // PLAN-061 T4 (D2):auth_login 对 !ok 抛错，此前异常外泄致 loading
+        // 恒 true（按钮卡 "Loading..."）且 error 横幅为死代码——包
+        // try/catch，catch 只赋值（规避 store 内 try 嵌 if-return，029
+        // 缺口③），loading 在成功/失败两路各自复位（finally 语义位）。
         .Login(username, password) -> {
             .loading = true
             .error = ""
-            let resp = auth_login(username, password)
-            .loading = false
-            if resp != None {
-                .token = resp.token
-                .user = AuthUser {
-                    username: resp.user.username,
-                    role: resp.user.role,
+            try {
+                let resp = auth_login(username, password)
+                .loading = false
+                if resp != None {
+                    .token = resp.token
+                    .user = AuthUser {
+                        username: resp.user.username,
+                        role: resp.user.role,
+                    }
+                    localStorage.setItem("musk_jwt", resp.token)
+                    localStorage.setItem("musk_user", .user)
+                    localStorage.setItem("musk_login_username", username)
+                    localStorage.setItem("musk_login_password", password)
                 }
-                localStorage.setItem("musk_jwt", resp.token)
-                localStorage.setItem("musk_user", .user)
-                localStorage.setItem("musk_login_username", username)
-                localStorage.setItem("musk_login_password", password)
+            } catch {
+                .loading = false
+                .error = "登录失败：用户名或密码错误，或后端不可达"
             }
         }
 
@@ -72,18 +81,23 @@ store AuthStore {
         .Register(username, password) -> {
             .loading = true
             .error = ""
-            let resp = auth_register(username, password)
-            .loading = false
-            if resp != None {
-                .token = resp.token
-                .user = AuthUser {
-                    username: resp.user.username,
-                    role: resp.user.role,
+            try {
+                let resp = auth_register(username, password)
+                .loading = false
+                if resp != None {
+                    .token = resp.token
+                    .user = AuthUser {
+                        username: resp.user.username,
+                        role: resp.user.role,
+                    }
+                    localStorage.setItem("musk_jwt", resp.token)
+                    localStorage.setItem("musk_user", .user)
+                    localStorage.setItem("musk_login_username", username)
+                    localStorage.setItem("musk_login_password", password)
                 }
-                localStorage.setItem("musk_jwt", resp.token)
-                localStorage.setItem("musk_user", .user)
-                localStorage.setItem("musk_login_username", username)
-                localStorage.setItem("musk_login_password", password)
+            } catch {
+                .loading = false
+                .error = "注册失败：用户名已存在，或后端不可达"
             }
         }
 
