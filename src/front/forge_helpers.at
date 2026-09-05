@@ -554,6 +554,11 @@ fn chatActivePath(messages obj, leaf str) obj {
         out.push(messages[chain[c]])
         c = c - 1
     }
+    // PLAN-061 T19 (D25 ⭐):chain 回走最远只到叶子父节点(chain[0]),
+    // 叶子本身从未 append——重建会话 10 条只渲染 9 条、问卷卡
+    // (挂载条件 msg.id == lastMsgId)与叶子隐藏互相抵消恒不可见,皆此
+    // 差一。补叶子收官(早退分支 hi <= leafIdx 本就含叶,不受影响)。
+    out.push(messages[leafIdx])
     return out
 }
 
