@@ -1,17 +1,17 @@
 ---
 plan_id: PLAN-061
-status: executing
+status: execution_done
 feature_name: Auto/vue 轨实测走查缺陷修复批次
 author: [zhaopuming]
 created_at: 2026-09-04T00:00:00+08:00
-updated_at: 2026-09-05T10:35:00+08:00
+updated_at: 2026-09-05T11:15:00+08:00
 
 # Leave these EMPTY here — /auto-plan:review fills them:
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 16
+current_step: 19
 total_steps: 19
 ---
 
@@ -356,15 +356,32 @@ IAB/无头后台页 rAF 停帧导致 Playwright locator click actionability 超�
 
 ## 验收标准
 
-- [ ] A 组 13 项(D1/D2/D3/D5/D6/D7/D8/D16/D17/D18/D19/D20/D21/D22 中除
+- [x] A 组 13 项(D1/D2/D3/D5/D6/D7/D8/D16/D17/D18/D19/D20/D21/D22 中除
       blocker 转出者)全部落地,门禁(vm-link-probe/build/vitest)全绿,
       零新增红。
-- [ ] 实机走查清单(测试设计 4,共 12 条)逐条通过并留证。
+      [✅] 14/14 落地(含 D25/D26 增量),零 blocker 转出(D3 type 透传/
+      D7 span 形态/D15— DSL 均可表达);D18/D21 属"已由 059 分支顺带
+      解决+本批复核确认"形态(排程前置预告的合并后复核);终态门禁:
+      probe 63149B PASS / pnpm build strict ✓ / vitest 32+1skip
+      (基线 23+1,新增 9:D1×3+D16×3+D25×3)。
+- [x] 实机走查清单(测试设计 4,共 12 条)逐条通过并留证。
+      [✅] 两批全 PASS:tmp/p061-evidence/{T10-第一批走查证据,
+      T18-第二批走查证据}.md + d2-d3 截图;IAB 截图通道间歇失败,
+      以 DOM 断言/计算样式几何量/焦点态/真实点击行为替代像素留证
+      (对截断/类型/交互类更硬)。
 - [ ] B 组每项在待澄清⑨有明确裁定(修/不修/移 C 组);裁定为修的项并入
       执行步骤并复跑门禁。
-- [ ] C 组 6 项(D12–D15/D23/D24)在 KNOWN-DEBT-AND-RISKS.md 登记在案
+      → **执行期状态(2026-09-05)**:⑨a-d 四项用户裁定未落,保持待澄清
+      开放(本批不擅自裁定);⑨e 已由 D25/D26 并入清偿。KD 061 行登记
+      待裁定指针。
+- [x] C 组 6 项(D12–D15/D23/D24)在 KNOWN-DEBT-AND-RISKS.md 登记在案
       (引用本计划编号)。
-- [ ] 产物无手改残留:重生成后 `git diff` 仅预期文件变化。
+      [✅] KD 061 行登记七项(D12–D15/D23/D24+执行期新增 D27 冷重生成
+      脚手架缺失/vitest 抹除)。
+- [x] 产物无手改残留:重生成后 `git diff` 仅预期文件变化。
+      [✅] worktree git status 干净;tracked gen 资产仅 __tests__/utils
+      (add -f 约定),手改 gen 拷贝(inject_styles)已归真源 src/front/
+      并经 regen 传播(8571ad5)。
 
 ## 执行步骤
 
@@ -498,18 +515,37 @@ IAB/无头后台页 rAF 停帧导致 Playwright locator click actionability 超�
       platform.web.at 转发/vm=platform.vm.at 降级留痕(iced 无 DOM
       查询/focus native)/chats_view NewSession 追加调用;产物
       ChatsView:15/133+ext 镜像;probe 63135B;eacc022。
-- [ ] T17 全量门禁复跑:`scripts/vm-link-probe.cmd` +
+- [x] T17 全量门禁复跑:`scripts/vm-link-probe.cmd` +
       `cd gen/front/vue && pnpm build` + `pnpm vitest run`,零新增红;
       `git diff` 核对无产物手改残留。
-- [ ] T18 实机走查第二批(D17–D22 六项,测试设计 4 清单逐条,对照用户
+      [✅ 已完成] probe PASS 63149B / pnpm build(vue-tsc strict+vite)
+      ✓ / vitest 29+1skip(基线 23+1 + 新增 6:D1 三测+D16 门禁三测)
+      零新增红;worktree git status 干净——重生成零手改残留(tracked
+      gen 资产仅 __tests__/utils,手改 gen 拷贝已被 regen 自然冲平)。
+- [x] T18 实机走查第二批(D17–D22 六项,测试设计 4 清单逐条,对照用户
       四张截图),截图/录证留档。
-- [ ] T19 修 D25(⭐ 头号):先在
+      [✅ 已完成] 六项全 PASS(计算样式/DOM 焦点态/真实 CUA 点击为证,
+      IAB 截图通道间歇失败——环境注记族):D17 四头行 alignItems=center+
+      gap=8px/D18 工具栏 flex-start/D19 选中卡 hover:bg-accent 且
+      variant hover:bg-primary/90 被 tailwind-merge 剔除/D20 规则注入+
+      4 导航项全带 nav-item/D21 真实点击遮罩关闭(data-state=closed,
+      触发钮 open 退出)/D22 点 + 后 activeElement=TEXTAREA.chats-input
+      (首测红两处回修 4fd0103:同步 focus 被点击默认焦点覆盖→
+      setTimeout(0);裸 .chats-input 双持有→收窄 textarea.chats-input);
+      证据 tmp/p061-evidence/T18-第二批走查证据.md。
+- [x] T19 修 D25(⭐ 头号):先在
       `gen/front/vue/src/__tests__/` 补 `chatActivePath` 单测(线性链含
       叶/分支链含叶/叶子即根三形态,当前应红);再修
       `src/front/forge_helpers.at` `chatActivePath`——chain 走完后补
       `out.push(messages[leafIdx])`;跑 `scripts/vm-link-probe.cmd`,
       重生成后单测转绿。D26 随批:prompt/文档侧统一问卷块用
       `"type":"questionnaire"`(见登记册,不改前端判定)。
+      [✅ 已完成] TDD:红(线性 10→9/分支缺叶;叶子即根本绿)→chain 走完
+      补 push(messages[leafIdx])→绿 3/3;probe 63105B;活体:Block
+      全家福 23 条=DOM 23 徽章,末条 AI 叶子在場(问卷卡可达性同源
+      解除)。D26:demo 工作区 Block 规范 v2 §8 口径统一 survey→type:
+      'questionnaire'+kind 陷阱注记(文档侧教 agent,前端判定不动);
+      52df5a5。
 
 ## 复审记录
 
