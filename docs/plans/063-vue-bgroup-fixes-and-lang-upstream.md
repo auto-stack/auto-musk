@@ -281,24 +281,44 @@ T13 约定)。**冷重生成债(D27)在本计划落地前仍然在场**:任何�
 - [ ] T11 开 Phase B worktree:`git -C D:/autostack/auto-lang worktree
       add D:/autostack/.wt/musk-063/auto-lang -b auto-musk-dev`
       (同组并排;禁 junction)。
+      [✅ 已完成] auto-musk-dev 分支名被在途 062 会话占用→auto-musk-dev-2(命名表 -<n> 后缀先例);cargo path 依赖需 ../auto-down→组内旁挂只读检出(lang-560 先例)。
+
 - [ ] T12 D27:`vue.rs` detect_shadcn_components 语料并入 ext 手写
       .vue 拷贝集 + package.json 未知 devDeps 重生成保留;auto-lang
       单测红→绿;musk 冷 regen 脉冲预验(脚手架在场)。
+      [✅ 已完成] detect_ext_shadcn_components(ext .vue/.ts 语料并入)+merge_unknown_devdeps(regen 保留未知 devDeps);TDD 双测绿;0089b345d。
+
 - [ ] T13 D28:pac.at schema `title:` 字段 + generate_index_html
       优先 title;auto-man 单测;musk pac.at 加 `title: "Auto Musk"`
       后 regen 产物 `<title>` 核对。
+      [✅ 已完成] parse_pac_title+generate_index_html(name,title) 优先透传+index_title 字段三调用点;TDD 绿;391257130。
+
 - [ ] T13b D29:main.ts 发射面导出 i18n 实例(或 boot locale 恢复)+存储键统一;musk 侧 useT.ts 改走 i18n.global;实测 zh/en 切换翻转全 UI。auto-lang 单测+产物核对。
+      [✅ 已完成] i18n 实例抽 src/i18n-instance.ts(export const i18n,main.ts 改 import,三写点)+musk useT.ts 改 i18n.global 直写(键统一 musk-language);既有测试改钉新形态绿;活体翻转验证随 T21/T22;b85bf9f6f/fc53b7d。
+
 - [ ] T14 D12:shadcn 资产拷贝双份目录收敛单份;auto-lang 单测。
+      [✅ 已完成] dedupe_nested_component_dirs(平铺 index.ts 在场时清 CLI 时代嵌套残壳;纯 CLI 形态不误删);TDD 绿。
+
 - [ ] T15 D13:store 命名双后缀收敛(ui_gen/vue.rs 模板);musk regen
       产物文件名/引用同步核对。
+      [✅ 已完成] store_composable_name 归一(AuthStore→useAuthStore,文件名/导出 fn/消费 import 四面同源);八处双后缀测试改钉红→绿,store 31+ts_adapter 14 测全绿;bb84f7854。
+
 - [ ] T16 D14:死代码(password.value 自赋值/无人监听 emit)停止
       发射;快照/单测。
+      [✅ 核销不修(执行期改判)] 自赋值源头=musk 源 no-op handler 惯用法(.password=.password,v-model 已同步)非 codegen 发明;死存消除需动通用语句翻译器(爆炸面>化妆价值);无人监听 emit=组件契约(动态绑定消费存在,musk DeleteConfirmDialog/QuestionnaireCard 自用),强删破链。证据入档,归 review 裁定。
+
 - [ ] T17 D15:forge store 轮询 interval 空闲清除(语义+VM timer
       生命周期);单测+VM 轨验证。
+      [✅ 核销不修(执行期改判)] timer 常驻=store 单例生命周期语义;清除机制与 536 T12'when 门摘除'决策正面冲突(重引门=重引 VM 轮询拍丢弃 bug);062 并行会话已在做泵家族重构(timer/idle 三泵),归那边统一裁定;KD 自评'空闲无害'维持。
+
 - [ ] T18 D24:动态 style 绑定发射改并 class;style-parity 门禁
       diff=0 不回退;auto-lang 对拍用例。
+      [✅ 核销不修(设计在案)] 448 D 已明文 ruling:bare ident 歧义论证(color: rgb concat 与类串不可分)→state refs 保 :style;动态类串 sanctioned 通道=数组形态 style:[.dynClass](已支持)。musk 回撤 D17 改用数组形态(T21 消费段),auto-lang 无需改码。
+
 - [ ] T19 D23:nav_contract.rs ITEM_ACTIVE 增 hover:bg-accent(与
       VM builder 同源两处);style-parity 用例同步。
+      [✅ 已完成] ITEM_ACTIVE+=hover:bg-accent+NavItem.vue 镜像+VM 测试钉新语义;27 nav 测全绿(镜像防漂在内);c1e49e79d。
+
 - [ ] T20 Phase B 门禁+折回:auto-lang `cargo tf`(+tv/tt 按触及)
       全量绿;wt-guard clean 后合回 auto-lang master、删 worktree/
       分支(依赖项目不等整体收尾,消费即折)。
