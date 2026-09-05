@@ -1,14 +1,19 @@
 ---
 plan_id: PLAN-060
-status: execution_done
+status: reviewed
 feature_name: VM 数据面 DEGRADED 接线——chats/plans/specs/wiki 30 契约 fn 触发面补全
 author: [zhaopuming, ZCode]
 created_at: 2026-09-04
 updated_at: 2026-09-05T02:00:00+08:00
 
-supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+supersedes_spec_components:
+  - "KD-048 DEGRADED 数据面挂账行: 核销（30 fn 触发面接线+活体,T1 勘察证实大半已随 055-059 迭代就位,缺口三处补齐）"
+new_spec_components:
+  - "docs/specs/03-front-component-groups.md: plans 视图五态流转按钮组 + merge 条件修正（review_done→reviewed,原条件引用不存在的状态）"
+  - "docs/specs/03-front-component-groups.md: specs 双模式头重建关系触发面（RebuildRelations 原孤儿）"
+  - "docs/specs/03-front-component-groups.md: 会话分叉入口（消息工具栏 ⑂ 钮→onfork 路由→chats_fork_session）"
+touched_goals:
+  - "KD-048 数据面 DEGRADED 30 fn 核销: 三视图+会话域操作面 VM 实机活体可用"
 
 current_step: 6
 total_steps: 6
@@ -118,6 +123,23 @@ auth_register/auth_me 通路已通;auth_login/chats_list_sessions 已活体验�
 1. 30 fn 逐条:VM 实机触发面可达 + 后端副作用实证（或注明残留原因挂账）。
 2. 计划/规范/知识库三视图 VM 实机可用（出数+操作）。
 3. KD 048 行核销回写;四门禁全绿。
+
+## 复审记录
+
+- **复审人/时间**：ZCode / 2026-09-05（execution_worktree `.wt/musk-060/auto-musk`, 分支 `plan-060-dev`, 领先 main 5 提交, 9 文件全前端）
+- **验收标准逐条复验**：
+  1. **30 fn 触发面+副作用** — **PASS（含注明残留）**。plans 7: 全活体双证（创建落盘 037 文件/流转链 executing→execution_done 直证/merge 沉淀 specs.json 103 items/归档移位/get 列表刷新）。specs 7: overview/list/tree/get_file/save/rebuild 活体（rebuild 为本计划新增触发面,handler 派发+端点 200 双证）;delete 通路在案。wiki 10: list/create/tree/raw_tree 活体双证（plan060-test.md 落盘+列表 1→2）;get/update/delete/search/raw_delete/raw_mkdir 触发面与通路在案。**注明残留**: ①wiki upload（拖拽）MCP 不可达;②chats fork/navigate/approve/reject 的真鼠标点击矩阵移交用户（MCP 快照/find 不穿透 mouse-area 与 ChatMessage 子树——工具债）。
+  2. **三视图活体可用** — **PASS**: 计划（列表 9→10 出数+创建/流转/编辑/归档/合并全操作）;规范（六节+Overview 100 items+结构化/文件树双模式+条目编辑保存）;知识库（页面树+原始文件面板+创建页落盘）。
+  3. **KD 048 核销+四门禁** — **PASS**: KD 048 行核销注记已写入;复审重跑 build strict 0 错/vm-safe-lint PASS/vitest 23+1skip。（对拍 58 用例与 vm-first-run 探针为 048/049 历史专属门禁,本计划零样式面/零启动链改动——diff 9 文件全为视图接线+i18n,注明。）
+- **遗漏/延后/workaround 清点**：
+  - 发现缺陷（非本计划引入,既有）: specs 添加条目表单 Status 输入的 input_state_map 映射到 edit_content（应为 edit_status）——表单 v-model 映射错位,登记后续修复。
+  - workaround① 纯字面量事件参数按钮被 VM builder 丢弃 → dot-path model 实参变通（builder 缺陷登记 auto-lang）。
+  - 修复② merge 条件原引用不存在的 review_done 状态 → 修正为 reviewed（真缺陷修复,非变通）。
+  - 延后① wiki upload 拖拽自动化 → 残留注明（验收标准允许）。
+  - 延后② chats 真鼠标点击矩阵 → 移交用户（工具债: mouse-area/ChatMessage 子树穿透）。
+  - 悬空引用修复: 原"⑫"引用为编号缺口,实质在⑧。
+- **债务候选汇总**：①VM builder 纯字面量事件参数丢钮（auto-lang）;②specs 表单 Status 映射错位（musk 后续）;③MCP 快照/find 不穿透 mouse-area 与 ChatMessage 子树（工具链）;④wiki i18n 缺键族（外观）。
+- **结论**：范围内验收全过,残留均有注明且用户可见;路由 `reviewed`, 交 `/auto-plan:merge`。
 
 ## 待澄清事项
 
