@@ -5,8 +5,8 @@
 // store，受 v1「单 store per file」限制）。待多 store 放开后并入 .at 并
 // 删除本文件（D 组登记）。
 
-import { useRelayStoreStore } from '@/stores/useRelayStoreStore'
-import { useForgeStoreStore } from '@/stores/useForgeStoreStore'
+import { useRelayStore } from '@/stores/useRelayStore'
+import { useForgeStore } from '@/stores/useForgeStore'
 
 export function runRelayCommand(cmd: {
   flow: string
@@ -15,8 +15,8 @@ export function runRelayCommand(cmd: {
   detail: string
   steps: any[] | null
 }): void {
-  const { StartRun, AdvanceRun } = useRelayStoreStore()
-  const store = useForgeStoreStore()
+  const { StartRun, AdvanceRun } = useRelayStore()
+  const store = useForgeStore()
   const req: any = { flow_id: cmd.flow, task: cmd.task }
   if (cmd.steps) req.steps = cmd.steps
   void (async () => {

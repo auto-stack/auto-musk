@@ -23,7 +23,7 @@ export function settingsInitLocale(): string {
   const saved = localStorage.getItem(LOCALE_KEY)
   const current = i18n.global.locale.value
   if (saved && saved !== current) {
-    i18n.global.locale.value = saved
+    i18n.global.locale.value = saved as 'zh' | 'en'
     return saved
   }
   return current
@@ -31,6 +31,6 @@ export function settingsInitLocale(): string {
 
 /** 切换语言：直写全局实例 locale + localStorage 持久化。 */
 export function settingsChangeLocale(l: string): void {
-  i18n.global.locale.value = l
+  i18n.global.locale.value = l as 'zh' | 'en'
   localStorage.setItem(LOCALE_KEY, l)
 }
