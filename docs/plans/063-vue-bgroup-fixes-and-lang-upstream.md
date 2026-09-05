@@ -12,7 +12,7 @@ new_spec_components: []
 touched_goals: []
 
 current_step: 10
-total_steps: 23
+total_steps: 24
 ---
 
 # [PLAN-063] B 组裁定四项修复 + auto-lang 上游 C 组清偿(双相)
