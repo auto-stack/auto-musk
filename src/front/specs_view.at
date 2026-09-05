@@ -111,7 +111,7 @@ widget SpecsView {
                                 key: .section
                                 onclick: .SelectSection(.section)
                                 style: if .section == .active_section {
-                                    "w-full text-left py-1.5 px-3 rounded-md text-sm bg-accent font-medium cursor-pointer text-foreground"
+                                    "w-full text-left py-1.5 px-3 rounded-md text-sm bg-accent font-medium cursor-pointer text-foreground hover:bg-accent"
                                 } else {
                                     "w-full text-left py-1.5 px-3 rounded-md text-sm bg-transparent cursor-pointer text-foreground hover:bg-accent"
                                 }
@@ -144,12 +144,12 @@ widget SpecsView {
                                 style: "flex gap-1"
                                 button {
                                     onclick: .EnterStructuredMode
-                                    class: if .structuredMode { "px-2 py-1 text-xs rounded-md bg-primary/10 text-primary" } else { "px-2 py-1 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent" }
+                                    class: if .structuredMode { "px-2 py-1 text-xs rounded-md bg-primary/10 text-primary hover:bg-accent" } else { "px-2 py-1 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent" }
                                     text t("specs.structuredMode")
                                 }
                                 button {
                                     onclick: .EnterTreeMode
-                                    class: if .treeMode { "px-2 py-1 text-xs rounded-md bg-primary/10 text-primary" } else { "px-2 py-1 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent" }
+                                    class: if .treeMode { "px-2 py-1 text-xs rounded-md bg-primary/10 text-primary hover:bg-accent" } else { "px-2 py-1 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent" }
                                     text t("specs.fileTreeMode")
                                 }
                                 button {
@@ -333,12 +333,12 @@ widget SpecsView {
                                 style: "flex gap-1"
                                 button {
                                     onclick: .EnterStructuredMode
-                                    class: if .structuredMode { "px-2 py-1 text-xs rounded-md bg-primary/10 text-primary" } else { "px-2 py-1 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent" }
+                                    class: if .structuredMode { "px-2 py-1 text-xs rounded-md bg-primary/10 text-primary hover:bg-accent" } else { "px-2 py-1 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent" }
                                     text t("specs.structuredMode")
                                 }
                                 button {
                                     onclick: .EnterTreeMode
-                                    class: if .treeMode { "px-2 py-1 text-xs rounded-md bg-primary/10 text-primary" } else { "px-2 py-1 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent" }
+                                    class: if .treeMode { "px-2 py-1 text-xs rounded-md bg-primary/10 text-primary hover:bg-accent" } else { "px-2 py-1 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent" }
                                     text t("specs.fileTreeMode")
                                 }
                                 button {

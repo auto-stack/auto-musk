@@ -98,17 +98,6 @@ style {
         } else {
             "flex flex-col gap-[5px] self-stretch items-stretch max-w-full"
         }
-        headerClass => if .isUser {
-            "flex items-center gap-2 px-1 justify-end"
-        } else {
-            "flex items-center gap-2 px-1"
-        }
-        badgeClass => if .isUser {
-            "text-[13.6px] font-semibold text-primary"
-        } else {
-            "text-[13.6px] font-semibold text-muted-foreground"
-        }
-        badge => if .isUser { "🧑 You" } else { "🤖 AI" }
         userContent => .msg.content
         // 展示用 blocks：text 已剥离问卷 JSON（问卷由 QuestionnaireCard 呈现），
         // 纯问卷消息的空 text 块已移除。多参 fn 收敛在 helper（.at if 条件不支持）。
@@ -129,12 +118,26 @@ style {
     view {
         col {
             class: .rowClass
-            // header: 角色标识 + 时间（用户行右对齐,徽章随角色着色）
-            row {
-                style: .headerClass
-                text .badge { style: .badgeClass }
-                if .hasTime {
-                    text .time { style: "text-xs text-muted-foreground" }
+            // header: 角色标识 + 时间（用户行右对齐,徽章随角色着色）。
+            // PLAN-061 T11 (D17):头行/badge 分支静态化——computed 类串经
+            // codegen 发 :style=(Tailwind 类串进 style 属性被浏览器整条
+            // 丢弃→时间戳悬空、与角色名无间距),拆 isUser 两个静态 style
+            // row;上游根修登记 C 组 D24。
+            if .isUser {
+                row {
+                    style: "flex items-center gap-2 px-1 justify-end"
+                    text "🧑 You" { style: "text-[13.6px] font-semibold text-primary" }
+                    if .hasTime {
+                        text .time { style: "text-xs text-muted-foreground" }
+                    }
+                }
+            } else {
+                row {
+                    style: "flex items-center gap-2 px-1"
+                    text "🤖 AI" { style: "text-[13.6px] font-semibold text-muted-foreground" }
+                    if .hasTime {
+                        text .time { style: "text-xs text-muted-foreground" }
+                    }
                 }
             }
             // 内容（按 role 分支）

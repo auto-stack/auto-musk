@@ -161,3 +161,41 @@ describe('translation file parity', () => {
     expect(zh.app.brandName).toBe('Auto Musk')
   })
 })
+
+// PLAN-061 T7 (D16): 模板 t() 字面量 ⊆ locale keys 回归门禁。
+// wiki.edit/wiki.delete 漏网(D5)现有 2 spec 抓不住——静态扫描生成产物
+// components/**/*.vue(含 ext 手写 passthrough)模板里的 t('section.key')
+// 字面量,断言每个 key 在 zh/en locale 都存在。人为删 key 应红。
+// 实现:import.meta.glob(?raw, eager)(vite 原生,无 node 内建依赖——
+// gen tsconfig 的 vue-tsc 面不含 node 类型;shim 已补 glob 最小声明)。
+describe('template t() literals ⊆ locale keys (D16 gate)', () => {
+  const vueSources = {
+    ...(import.meta.glob('../components/**/*.vue', { query: '?raw', import: 'default', eager: true }) as Record<string, string>),
+    ...(import.meta.glob('../ext/src/front/components/**/*.vue', { query: '?raw', import: 'default', eager: true }) as Record<string, string>),
+  }
+
+  const templateKeys = new Map<string, string[]>() // key -> [file, ...]
+  for (const [file, src] of Object.entries(vueSources)) {
+    // t('a.b') / t("a.b") / $t('a.b') —— 仅字面量(动态 key 不在本门禁面)
+    for (const m of src.matchAll(/\$?\bt\(\s*['"]([A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+)['"]\s*[),]/g)) {
+      const key = m[1]
+      templateKeys.set(key, [...(templateKeys.get(key) ?? []), file])
+    }
+  }
+
+  it('scanner actually found template t() literals (guard against vacuous pass)', () => {
+    expect(templateKeys.size).toBeGreaterThan(20)
+  })
+
+  it('every literal key used in templates exists in en.json', () => {
+    const enKeys = new Set(collectKeys(en as unknown as Record<string, unknown>))
+    const missing = [...templateKeys.keys()].filter((k) => !enKeys.has(k))
+    expect(missing, `keys missing in en.json (used in: ${missing.map((k) => `${k} -> ${templateKeys.get(k)![0]}`).join('; ')})`).toEqual([])
+  })
+
+  it('every literal key used in templates exists in zh.json', () => {
+    const zhKeys = new Set(collectKeys(zh as unknown as Record<string, unknown>))
+    const missing = [...templateKeys.keys()].filter((k) => !zhKeys.has(k))
+    expect(missing, `keys missing in zh.json (used in: ${missing.map((k) => `${k} -> ${templateKeys.get(k)![0]}`).join('; ')})`).toEqual([])
+  })
+})

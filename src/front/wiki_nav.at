@@ -159,9 +159,14 @@ widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: 
                                         class: if .activeRawPath == .node.path { "flex items-center gap-[5px] w-full py-1 px-2 border-none rounded bg-primary/10 text-primary text-[13px] cursor-pointer text-left" } else { "flex items-center gap-[5px] w-full py-1 px-2 border-none rounded bg-transparent text-foreground text-[13px] cursor-pointer text-left hover:bg-accent" }
                                         File { size: 12 }
                                         span { style: "truncate flex-1", text .node.name }
-                                        button {
+                                        // PLAN-061 T8 (D7):内层删除钮改 span 形态
+                                        // ——button 嵌 button 违 HTML 规范(vite
+                                        // 每编译告警,浏览器提前闭合外层致布局/
+                                        // 交互不可靠);span + onclick.stop 同语义
+                                        // (头部 div onclick 先例证普通元素可挂)。
+                                        span {
                                             onclick.stop: .deleteraw(.node.path)
-                                            style: "items-center justify-center w-[18px] h-[18px] border-none rounded bg-transparent text-muted-foreground cursor-pointer p-0"
+                                            style: "flex items-center justify-center w-[18px] h-[18px] shrink-0 rounded bg-transparent text-muted-foreground cursor-pointer p-0 hover:text-foreground"
                                             title: i18n.t("common.delete")
                                             Trash2 { size: 12 }
                                         }

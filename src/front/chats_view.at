@@ -16,6 +16,7 @@ use back.api: chats_delete_session, chats_delete_all_sessions
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web relay_command_match from "src/front/relay_commands.at"
 use.web platformRunRelayCommand from "src/front/ports/platform.at"
+use.web platformFocusComposer from "src/front/ports/platform.at"
 use.web.fn extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.at"
 use.web.fn chatSearchFilter, chatLastMessageId, chatBranchLabel, chatBranchEntries, chatActivePath from "src/front/forge_helpers.at"
 // PLAN-051 T8: SendInput 净空口径统一（原 .send(mention_trim(.text)) 调用位
@@ -170,7 +171,7 @@ widget ChatsView {
                                 // PLAN-055 T15: 删 title=.s.id 悬停 tooltip（用户
                                 // 对拍 ②a——chat id 对用户无信息量）。
                                 class: if .s.id == .store.session_id {
-                                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-primary/25 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
+                                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-primary/25 bg-primary/10 text-primary hover:bg-accent"
                                 } else {
                                     "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground"
                                 }
@@ -380,7 +381,11 @@ widget ChatsView {
         // 在 VM 得 0（GET_FIELD on Str）、在 web 得 undefined。
         .OnSearchInput(val) -> { .chat_search = val }
 
-        .NewSession -> { store.NewSession() }
+        // PLAN-061 T16 (D22):新建会话后自动聚焦 composer(此前需手点输入框)。
+        .NewSession -> {
+            store.NewSession()
+            platformFocusComposer()
+        }
 
         // PLAN-058 三期:Ask* 置 pending + open（alert-dialog 受控态）;取消
         // （含 reka-ui ESC/遮罩关闭路径,统一折算 oncancel）与 SelectSession

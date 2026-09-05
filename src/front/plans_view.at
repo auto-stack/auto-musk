@@ -79,16 +79,24 @@ widget PlansView {
                                     key: .plan.seq
                                     onclick: .SelectPlan(.plan.seq)
                                     style: if .plan.seq == .selected_seq {
-                                        "w-full text-left py-2 px-2.5 mb-[2px] rounded-md bg-primary/10 text-primary text-[13.6px] truncate"
+                                        "w-full text-left py-2 px-2.5 mb-[2px] rounded-md bg-primary/10 text-primary text-[13.6px] truncate hover:bg-accent"
                                     } else {
                                         "w-full text-left py-2 px-2.5 mb-[2px] rounded-md bg-transparent hover:bg-accent text-[13.6px] text-foreground truncate"
                                     }
-                                    text .plan.id
-                                    text " — "
-                                    text .plan.feature_name
-                                    text " ["
-                                    text .plan.status
-                                    text "]"
+                                    // PLAN-061 T9 (D6):Button(inline-flex) 的
+                                    // 多 text 子节点各成 flex item,truncate 对
+                                    // flex 内容不产省略号只硬裁——单 span
+                                    // (flex-1 min-w-0 truncate)承载整条标签,
+                                    // span 内联内容恢复 ellipsis(wiki_nav 同款)。
+                                    span {
+                                        style: "flex-1 min-w-0 truncate"
+                                        text .plan.id
+                                        text " — "
+                                        text .plan.feature_name
+                                        text " ["
+                                        text .plan.status
+                                        text "]"
+                                    }
                                 }
                             }
                         }
