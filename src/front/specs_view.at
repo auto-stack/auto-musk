@@ -259,7 +259,7 @@ widget SpecsView {
                                 }
                                 col {
                                     style: "flex flex-col gap-[5px] mb-3"
-                                    label "Status"
+                                    label t("specs.editStatus")
                                     input {
                                         value: .edit_status
                                         oninput: .EditContentChanged
@@ -268,7 +268,7 @@ widget SpecsView {
                                 }
                                 col {
                                     style: "flex flex-col gap-[5px] mb-3"
-                                    label "Content"
+                                    label t("specs.editContent")
                                     textarea {
                                         value: .edit_content
                                         oninput: .EditContentChanged

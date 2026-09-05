@@ -11,8 +11,14 @@ use store: AuthStore
 // PLAN-045-E4/446-E4: 登录/注册成功后重注入 VM 默认认证头(web adapter
 // no-op——web 拦截器逐请求读 localStorage,时序无关)。
 use.web platformRefreshAuth from "src/front/ports/platform.at"
+// PLAN-063 T4 (D11):登录页文案 i18n 化(此前全硬编码英文)。
+use.web useT from "src/front/ports/composables.at"
 
 widget LoginPage {
+    setup {
+        let t = useT()
+    }
+
     msg Msg {
         Init,
         Submit,
@@ -48,17 +54,17 @@ widget LoginPage {
                     style: "gap-4"
                     col {
                         style: "gap-1"
-                        label "Username" { style: "text-sm font-medium text-muted-foreground" }
+                        label t("login.username") { style: "text-sm font-medium text-muted-foreground" }
                         input {
                             value: .username
                             oninput: .UsernameChanged
-                            placeholder: "Enter username"
+                            placeholder: t("login.enterUsername")
                             style: "px-2.5 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                         }
                     }
                     col {
                         style: "gap-1"
-                        label "Password" { style: "text-sm font-medium text-muted-foreground" }
+                        label t("login.password") { style: "text-sm font-medium text-muted-foreground" }
                         input {
                             value: .password
                             oninput: .PasswordChanged
@@ -66,7 +72,7 @@ widget LoginPage {
                             // (产物曾是无效绑定 :password="true"→明文);
                             // type 属性透传产出 type="password"。
                             type: "password"
-                            placeholder: "Enter password"
+                            placeholder: t("login.enterPassword")
                             style: "px-2.5 py-2 border border-border rounded-md bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                         }
                     }
@@ -83,11 +89,11 @@ widget LoginPage {
                         variant: "submit"
                         style: "py-2.5 px-4 rounded-md bg-primary text-primary-foreground text-sm font-semibold hover:opacity-90 transition-opacity"
                         if store.loading {
-                            text "Loading..."
+                            text t("login.loading")
                         } else if .register_mode {
-                            text "Register"
+                            text t("login.register")
                         } else {
-                            text "Login"
+                            text t("login.login")
                         }
                     }
                 }
@@ -98,9 +104,9 @@ widget LoginPage {
                         onclick: .ToggleMode
                         style: "bg-transparent border-none text-primary text-sm underline cursor-pointer hover:opacity-80"
                         if .register_mode {
-                            text "Already have an account?"
+                            text t("login.hasAccount")
                         } else {
-                            text "No account? Register"
+                            text t("login.noAccount")
                         }
                     }
                 }

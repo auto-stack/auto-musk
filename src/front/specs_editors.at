@@ -25,6 +25,7 @@ use.web testMeta, testSerializeDraft, testStepsSet, testStepsRemove, testStepsAd
 use.web goalEditorPayload, testEditorPayload from "src/front/specs_helpers.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
+use.web useT from "src/front/ports/composables.at"
 use tag_input: TagInput
 
 widget TagInput(value: obj, placeholder: str) {
@@ -122,6 +123,10 @@ widget AutoDownEditor(content: str, placeholder: str) {
 }
 
 widget TestEditor(item: obj) {
+    setup {
+        let t = useT()
+    }
+
     msg Msg {
         save(obj),
         cancel,
@@ -178,7 +183,7 @@ widget TestEditor(item: obj) {
             class: "test-editor"
             div {
                 class: "form-row"
-                label "Title"
+                label t("specs.editTitle")
                 input {
                     class: "form-input"
                     value: .draft_title
@@ -187,7 +192,7 @@ widget TestEditor(item: obj) {
             }
             div {
                 class: "form-row"
-                label "Type"
+                label t("specs.editType")
                 NativeSelect {
                     value: .typeValue
                     options: .typeOptions
@@ -197,7 +202,7 @@ widget TestEditor(item: obj) {
             }
             div {
                 class: "form-row"
-                label "Scope / Parent Goal"
+                label t("specs.editScope")
                 input {
                     class: "form-input"
                     placeholder: "G1"
@@ -207,7 +212,7 @@ widget TestEditor(item: obj) {
             }
             div {
                 class: "form-row"
-                label "Fixture"
+                label t("specs.editFixture")
                 textarea {
                     class: "form-textarea code"
                     rows: 4
@@ -217,7 +222,7 @@ widget TestEditor(item: obj) {
             }
             div {
                 class: "form-row"
-                label "Steps"
+                label t("specs.editSteps")
                 div {
                     class: "steps-list"
                     for row in .stepRows {
@@ -250,7 +255,7 @@ widget TestEditor(item: obj) {
             }
             div {
                 class: "form-row"
-                label "Expected Outcome"
+                label t("specs.editExpected")
                 textarea {
                     class: "form-textarea"
                     rows: 3
@@ -260,7 +265,7 @@ widget TestEditor(item: obj) {
             }
             div {
                 class: "form-row"
-                label "Test File Path"
+                label t("specs.editTestFile")
                 input {
                     class: "form-input monospace"
                     placeholder: "tests/foo.rs"
@@ -322,6 +327,10 @@ widget TestEditor(item: obj) {
 }
 
 widget GoalEditor(item: obj) {
+    setup {
+        let t = useT()
+    }
+
     msg Msg {
         save(obj),
         cancel,
@@ -379,7 +388,7 @@ widget GoalEditor(item: obj) {
             class: "goal-editor"
             div {
                 class: "form-row"
-                label "Title"
+                label t("specs.editTitle")
                 input {
                     class: "form-input"
                     value: .draft_title
@@ -388,7 +397,7 @@ widget GoalEditor(item: obj) {
             }
             div {
                 class: "form-row"
-                label "Priority"
+                label t("specs.editPriority")
                 NativeSelect {
                     value: .priorityValue
                     options: .priorityOptions
@@ -398,7 +407,7 @@ widget GoalEditor(item: obj) {
             }
             div {
                 class: "form-row"
-                label "Acceptance Criteria"
+                label t("specs.editAcceptance")
                 div {
                     class: "criteria-list"
                     for row in .criteriaRows {
@@ -412,7 +421,7 @@ widget GoalEditor(item: obj) {
                             }
                             input {
                                 class: "criteria-input"
-                                placeholder: "Testable criterion..."
+                                placeholder: t("specs.testablePlaceholder")
                                 value: row.text
                                 oninput: .CriterionInput(row.idx, $event)
                             }
@@ -443,14 +452,14 @@ widget GoalEditor(item: obj) {
                 textarea {
                     class: "form-textarea"
                     rows: 5
-                    placeholder: "≤500 words"
+                    placeholder: t("specs.wordsLimitPlaceholder")
                     value: .draft_details
                     oninput: .DetailsInput
                 }
             }
             div {
                 class: "form-row"
-                label "Depends on"
+                label t("specs.editDepends")
                 TagInput {
                     value: .dependsValue
                     placeholder: "G1, A1..."

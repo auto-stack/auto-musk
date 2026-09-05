@@ -85,7 +85,7 @@ widget WikiView {
                         h2 "New Page" { style: "text-xl font-bold mb-4" }
                         col {
                             style: "flex flex-col gap-[5px] mb-3"
-                            label "Slug"
+                            label t("wiki.pageSlug")
                             input {
                                 value: .new_slug
                                 oninput: .SlugChanged
@@ -95,7 +95,7 @@ widget WikiView {
                         }
                         col {
                             style: "flex flex-col gap-[5px] mb-3"
-                            label "Title"
+                            label t("wiki.pageTitle")
                             input {
                                 value: .new_title
                                 oninput: .TitleChanged
@@ -105,7 +105,7 @@ widget WikiView {
                         }
                         col {
                             style: "flex flex-col gap-[5px] mb-3"
-                            label "Content (Markdown)"
+                            label t("wiki.contentMarkdown")
                             textarea {
                                 value: .new_content
                                 oninput: .ContentChanged
@@ -157,7 +157,7 @@ widget WikiView {
                         style: "p-4 border border-border rounded-lg bg-card mb-4"
                         col {
                             style: "flex flex-col gap-[5px] mb-3"
-                            label "Folder Path"
+                            label t("wiki.folderPath")
                             input {
                                 value: .new_folder_path
                                 oninput: .FolderPathChanged

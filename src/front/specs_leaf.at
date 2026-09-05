@@ -16,6 +16,7 @@ use.web component ChevronDown, ChevronUp, Inbox from "src/front/ports/icons.at"
 use.web specTagParse, specTagAt, specSummaryFor, specItemPatch, specStr from "src/front/specs_helpers.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
+use.web useT from "src/front/ports/composables.at"
 use spec_item_detail: SpecItemDetail
 use test_editor: TestEditor
 use auto_down_editor: AutoDownEditor
@@ -70,6 +71,10 @@ widget SpecLink(id: str) {
 }
 
 widget SpecItemRow(item: obj, section_type: str, project: str, is_expanded: bool, is_editing: bool, summary: str, detail_kind: str) {
+    setup {
+        let t = useT()
+    }
+
     msg Msg {
         toggle(str),
         jump(str),
@@ -200,7 +205,7 @@ widget SpecItemRow(item: obj, section_type: str, project: str, is_expanded: bool
                         } else {
                             AutoDownEditor {
                                 content: specStr(.item.content)
-                                placeholder: "Edit content..."
+                                placeholder: t("specs.editContentPlaceholder")
                             }
                         }
                     } else {
@@ -230,6 +235,10 @@ widget SpecItemRow(item: obj, section_type: str, project: str, is_expanded: bool
 }
 
 widget CategoryList(items: obj, project: str, expanded_id: str, editing_id: str, section_type: str, summary_kind: str, detail_kind: str) {
+    setup {
+        let t = useT()
+    }
+
     msg Msg {
         toggle(str),
         jump(str),
@@ -258,7 +267,7 @@ widget CategoryList(items: obj, project: str, expanded_id: str, editing_id: str,
                     class: "empty-state"
                     Inbox { size: 28 }
                     span {
-                        text "No items yet"
+                        text t("specs.noItemsYet")
                     }
                     span {
                         class: "empty-hint"

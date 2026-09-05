@@ -12,7 +12,13 @@
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.streaming-table 等）。
 
+use.web useT from "src/front/ports/composables.at"
+
 widget StreamingTable(columns: []str, rows: []obj, final: bool) {
+    setup {
+        let t = useT()
+    }
+
     computed {
         hasColumns => .columns != None
         safeColumns => if .hasColumns { .columns } else { [] }
@@ -59,7 +65,7 @@ widget StreamingTable(columns: []str, rows: []obj, final: bool) {
                             style: "loading-row"
                             td {
                                 colspan: .colspan
-                                text "Loading" { style: "loading-dots" }
+                                text t("common.loading") { style: "loading-dots" }
                             }
                         }
                     }
