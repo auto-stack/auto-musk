@@ -25,13 +25,13 @@ widget NavListItem(id: str, title: str, sub: str, active: bool, variant: str, de
             onclick: .activate(.id)
             class: if .variant == "card" {
                 if .active {
-                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-primary/25 bg-primary/10 text-primary"
+                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-primary/25 bg-primary/10 text-primary hover:bg-accent"
                 } else {
                     "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground"
                 }
             } else {
                 if .active {
-                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-1.5 px-2.5 mb-[2px] rounded-md bg-primary/10 text-primary"
+                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-1.5 px-2.5 mb-[2px] rounded-md bg-primary/10 text-primary hover:bg-accent"
                 } else {
                     "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-1.5 px-2.5 mb-[2px] rounded-md bg-transparent hover:bg-accent text-foreground"
                 }
