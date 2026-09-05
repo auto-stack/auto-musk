@@ -53,6 +53,13 @@ fn platformRunRelayCommand(cmd Value) {
     print("relay command skipped on vm target: " + flow)
 }
 
+// PLAN-061 T16 (D22):web 侧 querySelector('.chats-input').focus() 的
+// DOM 逃生舱;VM/iced 无 DOM 查询与跨 widget focus native,降级留痕
+// (聚焦语义归上游 iced focus 接线,随 KD 059-T9 家族观察)。
+fn platformFocusComposer() {
+    print("focus composer skipped on vm target")
+}
+
 // PLAN-045 立项 / PLAN-046-T7 真值化:视口高度端口。web 侧 window.innerHeight
 // 恒等;VM 侧读会话 KV vm.window_inner_height——iced renderer 于
 // startup_window_size() 发布基线、双 __window_resized 漏斗实时刷新
