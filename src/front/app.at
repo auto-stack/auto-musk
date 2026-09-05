@@ -79,15 +79,40 @@ widget App {
                     }
                     col {
                         style: "gap-1 app-rail"
-                        // Plan 052（上游 auto-lang Plan 482）：nav-item 组件——
-                        // hover/active 三态与图标由契约承载，取代手搓 if 样式串
-                        // 与逐 text 补色 workaround（8453d6d）。
-                        // size=lg：图标 20px(h-5 w-5,nav 契约两轨同源)——用户
-                        // 对拍 2026-09-03:VM 图标观感偏小,主导航抬档。
-                        nav-item (onclick: .ShowChats, active: .current_view == "chats", icon: "message-square", label: "会话", size: "lg")
-                        nav-item (onclick: .ShowPlans, active: .current_view == "plans", icon: "list-todo", label: "计划", size: "lg")
-                        nav-item (onclick: .ShowSpecs, active: .current_view == "specs", icon: "scroll", label: "规范", size: "lg")
-                        nav-item (onclick: .ShowWiki, active: .current_view == "wiki", icon: "book-open", label: "知识库", size: "lg")
+                        // Plan 562（上游 auto-lang nav 族退役）：nav-item →
+                        // sidebar_menu_item + sidebar_menu_button。onclick/active/
+                        // size 语义不变（548/561 双端契约）；icon/label 改 children
+                        // 形态（Vue 548 臂不处理 icon:/label: props）。
+                        // size=lg：图标 20px——用户对拍 2026-09-03:VM 图标观感偏小,
+                        // 主导航抬档。
+                        sidebar_provider (class: "w-full min-h-0 flex flex-col") {
+                            sidebar_menu {
+                                sidebar_menu_item {
+                                    sidebar_menu_button (onclick: .ShowChats, active: .current_view == "chats", size: "lg") {
+                                        icon (name: "message-square") {}
+                                        text "会话" {}
+                                    }
+                                }
+                                sidebar_menu_item {
+                                    sidebar_menu_button (onclick: .ShowPlans, active: .current_view == "plans", size: "lg") {
+                                        icon (name: "list-todo") {}
+                                        text "计划" {}
+                                    }
+                                }
+                                sidebar_menu_item {
+                                    sidebar_menu_button (onclick: .ShowSpecs, active: .current_view == "specs", size: "lg") {
+                                        icon (name: "scroll") {}
+                                        text "规范" {}
+                                    }
+                                }
+                                sidebar_menu_item {
+                                    sidebar_menu_button (onclick: .ShowWiki, active: .current_view == "wiki", size: "lg") {
+                                        icon (name: "book-open") {}
+                                        text "知识库" {}
+                                    }
+                                }
+                            }
+                        }
                     }
                     // Plan 407：WorkspaceSelector + SettingsMenu 在导航栏底部。
                     // PLAN-058 二期：横排（justify-between 撑宽主导航）改纵排
