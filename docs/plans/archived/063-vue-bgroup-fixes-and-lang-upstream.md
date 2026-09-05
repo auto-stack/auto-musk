@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-063
-status: reviewed
+status: archived
 feature_name: B 组裁定四项修复 + auto-lang 上游 C 组清偿(双相)
 author: [zhaopuming]
 created_at: 2026-09-05T13:20:00+08:00
