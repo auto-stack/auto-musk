@@ -175,6 +175,7 @@
   },
   "wiki": {
     "title": "Wiki",
+    "create": "Create",
     "newPage": "New page",
     "toggleSidebar": "Toggle sidebar",
     "showSidebar": "Show sidebar",
@@ -185,6 +186,7 @@
     "deleteFile": "Delete file",
     "newFolder": "New folder",
     "searchPlaceholder": "Search pages...",
+    "contentPlaceholder": "Enter page content in Markdown...",
     "noPages": "No pages yet",
     "selectPage": "Select a page or file from the sidebar",
     "loading": "Loading...",

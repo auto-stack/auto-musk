@@ -11,3 +11,12 @@ declare module 'vitest' {
   export const beforeEach: any
   export const vi: any
 }
+
+// PLAN-061 T7 (D16): i18n 门禁扫产物 .vue 源用 import.meta.glob(?raw)。
+// gen tsconfig 不含 vite/client 类型,此处给最小声明(仅本仓用到的面)。
+interface ImportMeta {
+  glob(
+    pattern: string,
+    options?: { query?: string; import?: string; eager?: boolean },
+  ): Record<string, unknown>
+}
