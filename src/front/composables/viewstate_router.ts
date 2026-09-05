@@ -90,12 +90,14 @@ export function useViewRouter(): void {
       _currentDetail = parsed.detail
       // rail tab 顺序 = VALID_VIEWS 顺序(App view rail)。
       const idx = (VALID_VIEWS as readonly string[]).indexOf(parsed.view)
-      // Plan 052：rail 换 nav-item（auto-lang 482 契约组件，onclick 态渲染
-      // <button class="nav-item ...">）——选择器改锚 .app-rail 内的契约类，
-      // 不再依赖脆弱的 gap-1 结构序。
-      const tab = document.querySelector<HTMLButtonElement>(
-        `.app-rail .nav-item:nth-of-type(${idx + 1})`,
+      // Plan 562（上游 auto-lang nav 族退役）：rail 迁移 sidebar_menu_button,
+      // 渲染锚改 shadcn 契约属性 data-sidebar="menu-button"(原 .nav-item
+      // 契约类随 nav-item 退役消失);且按钮现由 sidebar_menu_item(li)包裹、
+      // 不再是兄弟节点,nth-of-type 失效——改 querySelectorAll 取序。
+      const tabs = document.querySelectorAll<HTMLButtonElement>(
+        '.app-rail [data-sidebar="menu-button"]',
       )
+      const tab = tabs[idx]
       if (tab) tab.click()
     } else {
       _currentDetail = parsed.detail
