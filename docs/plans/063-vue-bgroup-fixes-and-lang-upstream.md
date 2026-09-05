@@ -223,11 +223,11 @@ T13 约定)。**冷重生成债(D27)在本计划落地前仍然在场**:任何�
 - [x] 实机走查清单(测试设计 5)逐条通过留证(tmp/p063-evidence/)。 [✅ 复审 PARTIAL→ Finding A 自证补齐/B 余项开放]
 - [x] Phase B 八项(D12–D15/D23/D24/D27/D28)在 auto-lang worktree [✅ 复审 PASS;D14/D15/D24 三核销经证据+用户确认(D15)]
       落地,cargo tf 全量绿,合回 auto-lang master。
-- [ ] musk 消费完成:D17 规避回撤+D20 兜底回撤+pac.at title+
+- [x] musk 消费完成:D17 规避回撤+D20 兜底回撤+pac.at title+ [✅ 复审 PASS 九面产物复核]
       D27 手工补装步骤退役(冷 regen 脉冲验证),全门禁复绿。
 - [x] KD 061 行核销回写(C 组段+裁定四项指针);新发现债(若有) [✅]
       入册。
-- [ ] 产物无手改残留:重生成后 tracked 变更仅预期文件。
+- [x] 产物无手改残留:重生成后 tracked 变更仅预期文件。 [✅ worktree clean]
 
 ## 执行步骤
 
