@@ -1,6 +1,8 @@
-// frontmatter.ts — PLAN-033: 计划 frontmatter 轻量拆分（PlanMetaBlock 与
-// 正文渲染共用）。只支持 plan 文件实际用到的子集：扁平 `key: value`、
-// 行内数组 `[a, b]`、块列表（`- item`），不引入 YAML 依赖。
+// plans_frontmatter.ts — PLAN-063 T7 (D4): 计划 frontmatter 拆分真源
+// (自 gen/front/vue/src/utils/frontmatter.ts 迁入,PLAN-033 原作;
+// 解析逻辑逐字保留,断言见 __tests__/frontmatter.spec.ts 改址后的同套)
+// + T8 meta 整形薄壳(供 plans_view.at 经 use.web 消费)。
+// 单文件持有避免 ext 镜像的传递拷贝问题(use.web 引本文件即整体拷贝)。
 
 export type FrontmatterValue = string | string[]
 
@@ -72,4 +74,35 @@ function stripComment(s: string): string {
   if (s.startsWith('"') || s.startsWith("'")) return s
   const idx = s.indexOf(' #')
   return idx === -1 ? s : s.slice(0, idx).trimEnd()
+}
+
+// ── PLAN-063 T8: plans_view.at 消费面(meta chips + 正文) ──────────────
+
+export interface PlansMetaBar {
+  plan_id: string
+  status: string
+  feature_name: string
+  step_label: string
+}
+
+/** frontmatter meta → 详情 chips 行四字段;无 frontmatter 回退空串族。 */
+export function plansFrontmatterMeta(content: string): PlansMetaBar {
+  const r = splitFrontmatter(content)
+  if (!r) return { plan_id: '', status: '', feature_name: '', step_label: '' }
+  const meta = r.meta
+  const cur = typeof meta['current_step'] === 'string' ? Number(meta['current_step']) : 0
+  const total = typeof meta['total_steps'] === 'string' ? Number(meta['total_steps']) : 0
+  const step_label = total > 0 ? `${cur}/${total}` : ''
+  return {
+    plan_id: typeof meta['plan_id'] === 'string' ? meta['plan_id'] : '',
+    status: typeof meta['status'] === 'string' ? meta['status'] : '',
+    feature_name: typeof meta['feature_name'] === 'string' ? meta['feature_name'] : '',
+    step_label,
+  }
+}
+
+/** 正文(去 frontmatter 后);无 frontmatter 时原文返回(裸 md/纯文本回退)。 */
+export function plansFrontmatterBody(content: string): string {
+  const r = splitFrontmatter(content)
+  return r ? r.body : content
 }

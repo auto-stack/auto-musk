@@ -8,6 +8,10 @@ use store: PlansStore
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web useT from "src/front/ports/composables.at"
 use.web component Plus from "src/front/ports/icons.at"
+// PLAN-063 T8 (D4): 详情 = frontmatter 元数据 chips + Markdown 正文
+// (复用聊天轨 Markdown 组件;裸文本/无围栏 md 回退 body=原文)。
+use.web component Markdown from "src/front/ports/renderer.at"
+use.web plansFrontmatterMeta, plansFrontmatterBody from "src/front/plans_frontmatter.ts"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
 use nav_sidebar: NavSidebar
@@ -48,6 +52,13 @@ widget PlansView {
         var st_executing str = "executing"
         var st_execution_done str = "execution_done"
         var st_reviewed str = "reviewed"
+    }
+
+    computed {
+        // PLAN-063 T8 (D4): 详情拆分——current 空守卫经 detailContent 中转。
+        detailContent => if .store.current != None { .store.current.content } else { "" }
+        detailMeta => plansFrontmatterMeta(.detailContent)
+        detailBody => plansFrontmatterBody(.detailContent)
     }
 
     view {
@@ -177,7 +188,24 @@ widget PlansView {
                                 }
                             }
                         } else {
-                            text .store.current.content
+                            // PLAN-063 T8 (D4): meta chips + Markdown 正文。
+                            col {
+                                style: "flex flex-col gap-3"
+                                if .detailMeta.plan_id != "" {
+                                    row {
+                                        style: "flex flex-wrap items-center gap-2"
+                                        span { style: "px-2 py-0.5 rounded-md text-xs font-mono bg-primary/10 text-primary", text .detailMeta.plan_id }
+                                        span { style: "px-2 py-0.5 rounded-md text-xs bg-accent text-foreground", text .detailMeta.status }
+                                        if .detailMeta.step_label != "" {
+                                            span { style: "px-2 py-0.5 rounded-md text-xs font-mono bg-muted text-muted-foreground", text .detailMeta.step_label }
+                                        }
+                                        if .detailMeta.feature_name != "" {
+                                            span { style: "text-sm text-muted-foreground", text .detailMeta.feature_name }
+                                        }
+                                    }
+                                }
+                                Markdown(source: .detailBody, streaming: false)
+                            }
                         }
                     }
                 } else {

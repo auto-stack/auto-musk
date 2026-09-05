@@ -155,7 +155,25 @@
     "selectFile": "从树中选择一个文件",
     "addItem": "+ 添加项目",
     "noDoc": "未加载文档",
-    "rebuildRelations": "重建关系"
+    "rebuildRelations": "重建关系",
+    "editTitle": "标题",
+    "editType": "类型",
+    "editScope": "范围 / 父目标",
+    "editFixture": "测试夹具",
+    "editSteps": "步骤",
+    "editExpected": "预期结果",
+    "editTestFile": "测试文件路径",
+    "editPriority": "优先级",
+    "editAcceptance": "验收标准",
+    "editDepends": "依赖",
+    "editStatus": "状态",
+    "editContent": "内容",
+    "editContentPlaceholder": "编辑内容…",
+    "testablePlaceholder": "可验证的判据…",
+    "wordsLimitPlaceholder": "≤500 字",
+    "noGoalsYet": "暂无目标",
+    "noItemsYet": "暂无条目",
+    "noRelations": "暂无关联"
   },
   "plans": {
     "title": "计划",
@@ -219,7 +237,13 @@
     "sourceGuide": "指南",
     "sourceApiRef": "API 参考",
     "sourceCustom": "自定义",
-    "tagsLabel": "标签（逗号分隔）"
+    "tagsLabel": "标签（逗号分隔）",
+    "pageSlug": "路径标识",
+    "pageTitle": "标题",
+    "contentMarkdown": "内容（Markdown）",
+    "folderPath": "文件夹路径",
+    "dropHere": "松开以上传",
+    "dragToUpload": "拖拽文件到此处上传"
   },
   "explorer": {
     "title": "浏览器",
@@ -412,5 +436,16 @@
   },
   "counter": {
     "label": "计数"
+  },
+  "login": {
+    "username": "用户名",
+    "password": "密码",
+    "enterUsername": "输入用户名",
+    "enterPassword": "输入密码",
+    "loading": "登录中…",
+    "register": "注册",
+    "login": "登录",
+    "hasAccount": "已有账号？",
+    "noAccount": "没有账号？注册"
   }
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { splitFrontmatter } from '../utils/frontmatter'
+// PLAN-063 T7: 真源迁 src/front/plans_frontmatter.ts,经 regen ext 镜像消费。
+import { splitFrontmatter } from '../ext/src/front/plans_frontmatter'
 
 describe('splitFrontmatter', () => {
   it('parses a real plan frontmatter with flat keys, inline arrays and ISO dates', () => {

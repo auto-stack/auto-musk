@@ -8,6 +8,7 @@ use.web component ChevronRight, Inbox from "src/front/ports/icons.at"
 use.web specSummaryFor, goalsTreeRows from "src/front/specs_helpers.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
+use.web useT from "src/front/ports/composables.at"
 use category_list: CategoryList
 use spec_item_row: SpecItemRow
 use status_badge: StatusBadge
@@ -181,6 +182,10 @@ widget TestsCards(items: obj, project: str, expanded_id: str, editing_id: str) {
 }
 
 widget GoalsTable(items: obj, project: str) {
+    setup {
+        let t = useT()
+    }
+
     msg Msg {
         opendetail(obj),
         ToggleNode(str),
@@ -222,7 +227,7 @@ widget GoalsTable(items: obj, project: str) {
                     class: "empty-state"
                     Inbox { size: 28 }
                     span {
-                        text "No goals yet"
+                        text t("specs.noGoalsYet")
                     }
                     span {
                         class: "empty-hint"

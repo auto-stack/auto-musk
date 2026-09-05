@@ -36,7 +36,7 @@ widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: 
         isUploading => .uploadProgress != None
         rawEmpty => .filteredRawTree.length == 0
         wikiEmpty => .filteredWikiTree.length == 0
-        dropText => if .isDragging { "Drop files here" } else { "Drag files to upload" }
+        dropText => if .isDragging { i18n.t("wiki.dropHere") } else { i18n.t("wiki.dragToUpload") }
     }
     msg Msg { ToggleCollapsed, QueryChanged, ToggleRaw, ToggleWiki, newpage, newfolder, selectwiki(str), selectraw(str), deleteraw(str), DragEnter, DragOver, DragLeave, uploaded }
     model {

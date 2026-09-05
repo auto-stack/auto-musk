@@ -142,7 +142,25 @@
     "selectFile": "Select a file from the tree",
     "addItem": "+ Add Item",
     "noDoc": "No document loaded",
-    "rebuildRelations": "Rebuild relations"
+    "rebuildRelations": "Rebuild relations",
+    "editTitle": "Title",
+    "editType": "Type",
+    "editScope": "Scope / Parent Goal",
+    "editFixture": "Fixture",
+    "editSteps": "Steps",
+    "editExpected": "Expected Outcome",
+    "editTestFile": "Test File Path",
+    "editPriority": "Priority",
+    "editAcceptance": "Acceptance Criteria",
+    "editDepends": "Depends on",
+    "editStatus": "Status",
+    "editContent": "Content",
+    "editContentPlaceholder": "Edit content...",
+    "testablePlaceholder": "Testable criterion...",
+    "wordsLimitPlaceholder": "≤500 words",
+    "noGoalsYet": "No goals yet",
+    "noItemsYet": "No items yet",
+    "noRelations": "No relations"
   },
   "plans": {
     "title": "Plans",
@@ -206,7 +224,13 @@
     "sourceGuide": "Guide",
     "sourceApiRef": "API Reference",
     "sourceCustom": "Custom",
-    "tagsLabel": "Tags (comma-separated)"
+    "tagsLabel": "Tags (comma-separated)",
+    "pageSlug": "Slug",
+    "pageTitle": "Title",
+    "contentMarkdown": "Content (Markdown)",
+    "folderPath": "Folder Path",
+    "dropHere": "Drop files here",
+    "dragToUpload": "Drag files to upload"
   },
   "explorer": {
     "title": "Explorer",
@@ -412,5 +436,16 @@
   },
   "counter": {
     "label": "Count"
+  },
+  "login": {
+    "username": "Username",
+    "password": "Password",
+    "enterUsername": "Enter username",
+    "enterPassword": "Enter password",
+    "loading": "Loading...",
+    "register": "Register",
+    "login": "Login",
+    "hasAccount": "Already have an account?",
+    "noAccount": "No account? Register"
   }
 }

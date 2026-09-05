@@ -25,6 +25,7 @@ use.web reviewChecklist, reviewSummaryOf, reviewRemaining, reviewStatusIcon from
 use.web reportMetrics, reportRemaining, specStr, specHasMeta from "src/front/specs_helpers.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
+use.web useT from "src/front/ports/composables.at"
 use status_badge: StatusBadge
 use goal_editor: GoalEditor
 
@@ -82,6 +83,10 @@ widget StatusTransition(status: str, section_type: str) {
 }
 
 widget RelationsPanel(item: obj, project: str) {
+    setup {
+        let t = useT()
+    }
+
     msg Msg {
         jump(str),
     }
@@ -200,7 +205,7 @@ widget RelationsPanel(item: obj, project: str) {
                 div {
                     class: "relations-empty"
                     Unlink { size: 14 }
-                    text "No relations"
+                    text t("specs.noRelations")
                 }
             }
         }
