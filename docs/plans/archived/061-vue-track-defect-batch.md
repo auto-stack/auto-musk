@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-061
-status: reviewed
+status: archived
 feature_name: Auto/vue 轨实测走查缺陷修复批次
 author: [zhaopuming]
 created_at: 2026-09-04T00:00:00+08:00
