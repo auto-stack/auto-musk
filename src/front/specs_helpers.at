@@ -324,13 +324,17 @@ fn goalsAppendNode(out list, items obj, it obj, level int, expanded obj) {
     }
 }
 
-/** PLAN-041 T3:document.sections 中 section_type 命中的 items(无命中空表)。 */
+/** PLAN-041 T3:document.sections 中 section_type 命中的 items(无命中空表)。
+ * PLAN-061 T2 (D1):比较前两侧小写归一——后端返回首字母大写("Goals"),
+ * 视图以小写("goals")查询,全等比较恒不匹配致结构化视图空。 */
 fn specSectionItems(document obj, section_type str) list {
     let out list = []
     if document == None { return out }
     let sections = document.sections ?? []
+    let want = section_type.to_lower()
     for section in sections {
-        if section.section_type == section_type {
+        let have = section.section_type ?? ""
+        if have.to_lower() == want {
             let items = section.items ?? []
             for it in items {
                 out.push(it)
