@@ -12,7 +12,7 @@ new_spec_components: []
 touched_goals: []
 
 current_step: 0
-total_steps: 18
+total_steps: 19
 ---
 
 # [PLAN-061] Auto/vue 轨实测走查缺陷修复批次
@@ -258,6 +258,32 @@ module by AutoUI (Plan 028 M1)",虽位于 ext 树但**受重生成覆盖**,根�
   - 层:`src/front/chats_view.at` + `src/front/ports/platform.at` +
     `ports/platform.ts` + ext 实现(手写桥)。
 
+- **D25 会话最新一条消息(叶子)永不渲染**⭐
+  - 证据:重建的 Block 全家福会话(10 条消息,后端 active_leaf 正确指向
+    末条 assistant)在 UI 只渲染前 9 条——DOM 消息根节点恰 9 个;回看旧
+    会话"问卷消息空白""probe 回复不见"同为此病。发新消息后,原叶子转为
+    中间节点即显现(与"AI 已回复但当时看不见、过一会又有了"的用户体感
+    吻合)。
+  - 根因:`src/front/forge_helpers.at` 的 `chatActivePath` 差一错误——
+    主路径 `out` = 头段 `[0..anchor]` + `chain[c] (c=len-2..0)`,最远只
+    推到叶子的父节点(`chain[0]`),**叶子本身从未 append**;仅
+    `chain.length == 0` 的早退分支(叶子即根)用 `hi <= leafIdx` 含叶。
+    产物 `ext/src/front/forge_helpers.ts:354-403`。
+  - 修法:chain 走完后 `out.push(messages[leafIdx])`(或循环改为
+    `c = chain.length - 1` 且头段只到 anchor 前一节点,二选一,注意
+    R1 纯 fn 形态);补 vitest 单测钉死"线性链含叶/分支链含叶"两形态。
+  - 影响:此病修复前,QuestionnaireCard 的挂载条件
+    (`msg.id == lastMsgId`)与叶子隐藏互相抵消——问卷卡永远不可见。
+  - 层:`src/front/forge_helpers.at` → 产物 `forge_helpers.ts`。
+
+- **D26 问卷块判别字段口径不一(kind vs type)**
+  - 证据:重建会话中 agent 按 `{"kind":"questionnaire",...}` 产出问卷
+    JSON,前端 `questionnaireFor`/`stripQuestionnaire` 只认
+    `json.type == 'questionnaire'` → 不识别为问卷块。口径二选一统一:
+    前端兼容 kind,或 prompt/文档教 agent 用 type(本批执行取后者,
+    兼容性放宽归 C 组上游)。
+  - 层:`src/front/questionnaire.at` → 产物 `questionnaire.ts`。
+
 ### B 组:待用户裁定后并入(默认建议已给出)
 
 - **D9 明文密码持久化 localStorage**(`auth_store.at:67`
@@ -401,6 +427,13 @@ IAB/无头后台页 rAF 停帧导致 Playwright locator click actionability 超�
       `git diff` 核对无产物手改残留。
 - [ ] T18 实机走查第二批(D17–D22 六项,测试设计 4 清单逐条,对照用户
       四张截图),截图/录证留档。
+- [ ] T19 修 D25(⭐ 头号):先在
+      `gen/front/vue/src/__tests__/` 补 `chatActivePath` 单测(线性链含
+      叶/分支链含叶/叶子即根三形态,当前应红);再修
+      `src/front/forge_helpers.at` `chatActivePath`——chain 走完后补
+      `out.push(messages[leafIdx])`;跑 `scripts/vm-link-probe.cmd`,
+      重生成后单测转绿。D26 随批:prompt/文档侧统一问卷块用
+      `"type":"questionnaire"`(见登记册,不改前端判定)。
 
 ## 复审记录
 
