@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-061
-status: execution_done
+status: reviewed
 feature_name: Auto/vue 轨实测走查缺陷修复批次
 author: [zhaopuming]
 created_at: 2026-09-04T00:00:00+08:00
@@ -9,7 +9,9 @@ updated_at: 2026-09-05T11:15:00+08:00
 # Leave these EMPTY here — /auto-plan:review fills them:
 supersedes_spec_components: []
 new_spec_components: []
-touched_goals: []
+touched_goals:
+  - "goal-frontend-parity: Auto/vue 生产轨实测缺陷批次清偿——A 组 14 项全落地(D1 结构化视图/D2 登录容错/D3 密码语义/D5-D8/D16 i18n 门禁/D17-D22 交互与排版/D25 叶子渲染),全部修在 .at 单源,双轨同步受益"
+  - "goal-spec-knowledge: specs 结构化视图消费面修复(D1 大小写归一,92→103 items 前端可见),ledger 双落点的 UI 消费端恢复"
 
 current_step: 19
 total_steps: 19
@@ -549,7 +551,54 @@ IAB/无头后台页 rAF 停帧导致 Playwright locator click actionability 超�
 
 ## 复审记录
 
-(空,待 /auto-plan:review 填写)
+**2026-09-05 复审(zhaopuming 会话,/auto-plan:review)——PASS,status → reviewed。**
+
+**验收标准逐条复验(worktree plan-061-dev,13 提交 82e2e54..52df5a5,diff 23 文件 +315/-203):**
+
+1. **A 组全落地+门禁全绿** — **PASS**。复审新鲜重跑三门禁:
+   ① vm-link-probe PASS 63145B;② pnpm build(vue-tsc strict+vite)✓;
+   ③ vitest 32+1skip(基线 23+1,新增 9:D1×3/D16×3/D25×3)零新增红。
+   diff 逐项签名核验:to_lower×2/登录+注册双 catch 文案/type:"password"/
+   i18n 四 key/plans truncate span/wiki_nav span 化/stringify×3+parse/
+   glob 门禁+shim 声明/双静态头行字面量/hover:bg-accent 增 9 行+
+   hover:bg-primary/15 删 1 行/nav-item:hover/focusComposer 链×3/
+   out.push(messages[leafIdx])——14/14 与 diff 一一对应,零 blocker
+   转出(登记册预告的 T5/T8/T15 fallback 均未触发,DSL 可表达)。
+   核验销案二项(D18/D21):059 分支先行修复在案(源码/产物复核),
+   属排程前置预告的"合并后复核"形态,非遗漏。
+2. **实机走查 12 条留证** — **PASS**。两批证据文件在案
+   (tmp/p061-evidence/{T10,T18}+d2-d3 截图);IAB 截图通道间歇失败,
+   以计算样式几何量/DOM 断言/焦点态/真实 CUA 点击替代像素留证
+   (D6 ellipsized 四项 scrollW>clientW/D21 真实点击遮罩关闭/
+   D22 activeElement=TEXTAREA.chats-input,对交互类更硬)。
+3. **B 组裁定** — **执行期状态如实**:⑨a-d 四项保持待澄清开放
+   (用户裁定未落,本批不擅自裁定);⑨e 已由 D25/D26 并入清偿。
+   KD 061 行挂待裁定指针。
+4. **C 组 KD 登记** — **PASS**。KD 061 行七项(D12-D15/D23/D24/D27)
+   引用本计划编号;D27 为执行期新发现(冷重生成脚手架缺失+vitest
+   抹除),根修归 auto-man。
+5. **产物无手改残留** — **PASS**。worktree git status 干净;tracked
+   gen 资产仅 __tests__/utils(add -f 约定);D20 手改 gen 拷贝已归
+   真源 src/front/(8571ad5,regen 整写拷贝的勘误)。
+
+**遗漏/延后/workaround 清点:**
+- 遗漏:无(每任务有 diff 对应;D26 文档侧修在 demo 工作区数据
+  tmp/musk-demo/docs/plans/block-rendering-spec-v2.md——工作区数据
+  本不入版本库,chats.json 同口径,复验在案)。
+- 延后:B 组⑨a-d 待用户裁定(计划内机制,非静默);D26 前端 kind
+  兼容放宽归 C 组(登记册明示)。
+- Workaround(均有登记/计划内设计):D17 .at 分支静态化→C 组 D24;
+  D20 ext CSS 兜底→C 组 D23;D2 catch 自赋值→029 缺口③规避
+  (登记册修法明示);D22 VM 侧 focus 降级 no-op(iced 无 DOM 查询/
+  focus native,ports 注记在案——iced focus 接线归上游,候选随
+  KD 059-T9 家族观察);D27 冷重生成手工补装(KD 061)。
+- diff 零 TODO/FIXME/HACK 新增。
+
+**复审范围注记**:本计划仅触前端源(src/front+gen tests),后端
+零改动(diff 证实);style-parity/phase1-leaves 对拍为 auto-lang 侧
+fixture 门禁(KD 049),不消费 musk 应用类串,与本 diff 面无交,
+未随本批评测。pre-flight 转交语三项(release 工具链 g7009a5111+
+T9 modal 回归 PASS+059 已合回)执行期已清并在案。
 
 ## 待澄清事项
 
