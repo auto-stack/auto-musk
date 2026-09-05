@@ -40,7 +40,9 @@ use report_card: ReportCard
 
 
 widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, think_open: str, tool_open: str) {
-    msg Msg { CopyContent, ToggleThink, ToolToggleKey(str) }
+    // PLAN-060 T2:ForkFrom 上抛分叉请求（mid=msg.id）——子件空 handler,
+    // 经 onfork 声明路由直达宿主 BranchTo（零参帧对齐根修后单参载荷同链）。
+    msg Msg { CopyContent, ToggleThink, ToolToggleKey(str), ForkFrom(str) }
     on {
         // 【2026-09-04 三次定案】展开态回归 ForgeStore 键列表——二次修正的
         // 消息对象直写（.msg.think_expanded/.msg.tool_expanded）在 VM 为
@@ -52,6 +54,8 @@ widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task
         }
         .ToolToggleKey(key) -> {
             ForgeStore.ToolToggle(key)
+        }
+        .ForkFrom(mid str) -> {
         }
         // PLAN-055: AI 消息工具栏 copy（对齐 web 原版 message-toolbar）。
         .CopyContent -> {
@@ -291,6 +295,14 @@ style {
                         // size 13→16(用户对拍 2026-09-03:VM 图标观感偏小,统一抬到 16;
                         // web 端 lucide size 同步,两轨一致)。
                         Copy { size: 16 }
+                    }
+                    button {
+                        // PLAN-060 T2:分叉入口（chats_fork_session 此前无 UI 触发面,
+                        // 分叉切换器只切既有分支）——⑂ 字形文本钮(VM 居中安全)。
+                        onclick: .ForkFrom(.msg.id)
+                        style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                        title: "Fork"
+                        text "⑂"
                     }
                 }
             }

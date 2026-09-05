@@ -152,6 +152,11 @@ widget SpecsView {
                                     class: if .treeMode { "px-2 py-1 text-xs rounded-md bg-primary/10 text-primary" } else { "px-2 py-1 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent" }
                                     text t("specs.fileTreeMode")
                                 }
+                                button {
+                                    onclick: .RebuildRelations
+                                    style: "px-2 py-1 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent"
+                                    text t("specs.rebuildRelations")
+                                }
                             }
                         }
                         slot(name: "actions") {
@@ -335,6 +340,11 @@ widget SpecsView {
                                     onclick: .EnterTreeMode
                                     class: if .treeMode { "px-2 py-1 text-xs rounded-md bg-primary/10 text-primary" } else { "px-2 py-1 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent" }
                                     text t("specs.fileTreeMode")
+                                }
+                                button {
+                                    onclick: .RebuildRelations
+                                    style: "px-2 py-1 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent"
+                                    text t("specs.rebuildRelations")
                                 }
                             }
                         }
