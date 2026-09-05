@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-063
-status: execution_done
+status: reviewed
 feature_name: B 组裁定四项修复 + auto-lang 上游 C 组清偿(双相)
 author: [zhaopuming]
 created_at: 2026-09-05T13:20:00+08:00
@@ -9,7 +9,9 @@ updated_at: 2026-09-05T15:10:00+08:00
 # Leave these EMPTY here — /auto-plan:review fills them:
 supersedes_spec_components: []
 new_spec_components: []
-touched_goals: []
+touched_goals:
+  - "goal-frontend-parity: B 组裁定四项清偿(D9 密码语义/D10 正名 Auto Musk/D11 i18n 全量化+语言切换机制根修[D29]/D4 详情 frontmatter+Markdown)+D13 store 命名/D17 规避回撤(数组形态)/D20 退役——.at 单源双轨受益"
+  - "goal-spec-knowledge: 计划详情消费面升级(frontmatter 元数据 chips+Markdown 富文本,plans 域数据可读性)"
 
 current_step: 24
 total_steps: 24
@@ -341,7 +343,44 @@ T13 约定)。**冷重生成债(D27)在本计划落地前仍然在场**:任何�
 
 ## 复审记录
 
-(空,待 /auto-plan:review 填写)
+**2026-09-05 复审(zhaopuming 会话,/auto-plan:review)——PASS(带四项发现),status → reviewed。**
+
+**验收标准逐条复验(证据 tmp/p063-evidence/review-verification.md):**
+
+1. **Phase A 四项+门禁** — **PASS**。门禁新鲜复跑全绿(probe 63580B/
+   build strict 17.1s/vitest 36+1skip);产物级九面复核全过(D9 唯一
+   removeItem/D10 h1+title/D11 t()×9+D16 门禁/D4 chips+Markdown 面×9)。
+2. **实机走查留证** — **PARTIAL(过程缺口 Finding A)**。走查项在执行会话
+   实机执行且数值记入计划标记(登录页态/D4 chips 与富文本/D9 存量清理);
+   但标记引用的 tmp/p063-evidence/ 目录未落盘——复审自证补齐(review-
+   verification.md,明确标注性质);D11 en 侧与 D29 UI 层翻转因 IAB guest
+   反复离线未走完(D29 机制层 vitest 四测硬证,余 Finding B)。
+3. **Phase B 落地+全量+折回** — **PASS**。auto-lang master 含全部六提交
+   (ad0dc1355→4f198b89e is-ancestor 证);cargo tf 3431/3432,唯一红
+   test_charts_gallery_compiles 为基线先在(基点 ed9d7126a/master/分支
+   三证非 063 引入;归引入方会话,Finding D)。
+4. **musk 消费+D27 退役** — **PASS**。五面产物复核(:class 数组形态/
+   nav-item:hover 零残留/`<title>Auto Musk</title>`/stores 零双后缀+
+   手写件改址/i18n-instance+直写);D27 冷脉冲双证在案(utils.ts 同族
+   补丁 v2 落位增量主径)。
+5. **KD 核销回写** — **PASS**。KD 061 行重写为双批闭环态(8ff35a6)。
+6. **产物无手改残留** — **PASS**。worktree clean,tracked 变更全提交。
+
+**遗漏/延后/workaround 清点(四项发现):**
+- **Finding A(过程,复审已补)**:T10/T22 引用 tmp/p063-evidence/ 未落盘
+  ——现场数值在计划标记内,复审自证文件补齐并标注性质。
+- **Finding B(开放余项)**:D29 UI 层翻转复验待 IAB guest 恢复或用户实机
+  一点(设置→English);机制层四测已硬证(global 翻转/t() 跟随/持久化恢复)。
+- **Finding C(需用户确认)**:D15 核销不修=真延后——timer 清除与 536 T12
+  "when 门摘除"决策正面冲突,且 062 并行会话在做泵家族重构,归其域统一
+  裁定;D14/D24 非延后(前提证伪/上游设计已裁定且已按正解消费:数组形态)。
+- **Finding D(非本批,通报)**:auto-lang master test_charts_gallery_compiles
+  基线红(三证非 063 引入),归引入方;063 不拦。
+- Workaround:零未登记(D17 数组形态=448 D sanctioned 通道非规避;useT
+  locale 断言=类型卫生)。
+
+**复审范围注记**:全量门禁唯一跑点=执行期 T20 预折门禁(cargo tf)+本复审
+三门禁新鲜复跑;musk 三门禁在 Phase B 工具链 regen 树上验证。
 
 ## 待澄清事项
 
