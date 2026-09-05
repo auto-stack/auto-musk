@@ -309,6 +309,12 @@ store ForgeStore {
 
         .StopStream -> {
             .stream_es = Sse.close(.stream_es)
+            // PLAN-062：显式停止即关 deadman 窗——pop 清空窗戳（完成/
+            // 异常/手动停止后窗口立即关闭；列表突变经共享 vmref 可靠，
+            // 与 StartStream 的 push 同机制）。
+            while .poll_window.length > 0 {
+                let _pw0 = .poll_window.pop()
+            }
  }
 
         // Plan 051 T10（G1 阶段1）：轮询拍——全量回填 + 完成启发式。
@@ -349,6 +355,11 @@ store ForgeStore {
                     if (last.content ?? "") != "" {
                         if msgs.length > .pre_stream_len {
                             .streaming = false
+                            // PLAN-062：完成即关 deadman 窗（pop 清窗戳，
+                            // 防长会话堆积；机制注同 .StopStream）。
+                            while .poll_window.length > 0 {
+                                let _pw1 = .poll_window.pop()
+                            }
                         }
                     }
                 }
@@ -437,12 +448,22 @@ store ForgeStore {
             }
             if ev.type == "done" {
                 .streaming = false
+                // PLAN-062：done 即关 deadman 窗——本臂自清（跨模块调用
+                // 帧内 .StopStream 的 SET_FIELD 重绑定不达根态，T12 同款
+                // 风险，不依赖其体内清窗）。
+                while .poll_window.length > 0 {
+                    let _pw2 = .poll_window.pop()
+                }
                 .StopStream()
                 return
             }
             if ev.type == "error" {
                 .error = ev.message ?? "unknown error"
                 .streaming = false
+                // PLAN-062：error 即关 deadman 窗（机制注同 done 臂）。
+                while .poll_window.length > 0 {
+                    let _pw3 = .poll_window.pop()
+                }
                 .StopStream()
                 return
             }
