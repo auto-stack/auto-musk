@@ -11,7 +11,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 9
+current_step: 16
 total_steps: 19
 ---
 
@@ -441,30 +441,63 @@ IAB/无头后台页 rAF 停帧导致 Playwright locator click actionability 超�
       truncate)承载整条标签(wiki_nav 同款);D8 三写侧 JSON.stringify+
       Init 读侧 JSON.parse 守卫(坏串弃用走重登);probe 63125B+regen 绿,
       产物 PlansView:152/useAuthStoreStore:14;6f3daf1。
-- [ ] T10 实机走查第一批(D1/D2/D3/D5/D6/D8 六项,测试设计 4 清单),
+- [x] T10 实机走查第一批(D1/D2/D3/D5/D6/D8 六项,测试设计 4 清单),
       截图留证。
-- [ ] T11 修 D17:`src/front/chat_message.at` 消息头按 isUser 分支拆成
+      [✅ 已完成] 六项全 PASS:worktree regen 产物+vite :3336+musk serve
+      :9247;D1 goals 结构化条目(账本已增至 103 items)/D2 错密码横幅+按钮
+      复位+正码入主界面/D3 type=password/D5 编辑/删除按钮/D6 几何硬证
+      ellipsized(4 项 scrollW>clientW)/D8 musk_user 合法 JSON+重载恢复;
+      IAB 截图通道间歇失败(环境注记族),D2/D3 截图落盘,余以 DOM 断言+
+      计算样式为证;证据 tmp/p061-evidence/T10-第一批走查证据.md。
+- [x] T11 修 D17:`src/front/chat_message.at` 消息头按 isUser 分支拆成
       两个静态 style 的 row(badge 颜色同批静态化),绕开 codegen
       `:style` 缺陷;重生成后核对 `ChatMessage.vue` 产物为
       `class="flex items-center gap-2 …"` 形态。
-- [ ] T12 修 D18:`src/front/chat_message.at:157` 工具栏行
+      [✅ 已完成] headerClass/badgeClass/badge 三 computed 退役,双分支
+      静态 row+字面量 badge;产物 :81/:89 `class="flex flex-row
+      items-center gap-2 px-1( justify-end)"`,组件内 :style= 清零;
+      838571f。
+- [x] T12 修 D18:`src/front/chat_message.at:157` 工具栏行
       `justify-end` → `justify-start`;重生成。
-- [ ] T13 修 D19:`src/front/chats_view.at:186` 选中分支类串补
+      [✅ 已完成] 核验销案:059 分支已顺带修妥(用户反馈 2026-09-03
+      注释在案),源码+产物 :194 均 justify-start,排程前置预告的
+      "合并后复核"确认,无需重修;838571f 附带核验。
+- [x] T13 修 D19:`src/front/chats_view.at:186` 选中分支类串补
       `hover:bg-accent`;同批扫描并修 `nav_item.at:28`、
       `specs_view.at:301` 同病位点(active 分支缺 hover: 的 Button);
       重生成后在产物 `ChatsView.vue` 确认 hover 类落地。
-- [ ] T14 修 D20:`gen/front/vue/src/ext/src/front/inject_styles.web-only.ts`
+      [✅ 已完成] 扫描扩至 6 族位点:chats 会话选中
+      hover:bg-primary/15→hover:bg-accent(统一 059 分支 12d931d 为
+      用户裁定灰方案)/nav_item card+compact 两 active/plans 列表选中
+      /specs 节导航选中/specs 结构化+文件树模式开关×2;产物
+      ChatsView:4/SpecsView:10/PlansView:8 hover:bg-accent,src 零
+      hover:bg-primary/15 残留;probe PASS;e53d14e。
+- [x] T14 修 D20:`gen/front/vue/src/ext/src/front/inject_styles.web-only.ts`
       增 `.nav-item:hover { background-color: hsl(var(--accent)); }`
       (ext 手写层,直接改);C 组 D23 上游登记。
-- [ ] T15 修 D21:`src/front/settings_menu.at` `.isOpen` 分支加全屏透明
+      [✅ 已完成] 落点勘误:该文件真源=src/front/inject_styles.web-only.ts
+      (platform.web.at use.web 引),gen/ext 侧是 regen 整写拷贝(手改
+      必被冲,实测复现)——改真源后 regen 传播,产物 :188 hover 规则
+      落地;8571ad5。
+- [x] T15 修 D21:`src/front/settings_menu.at` `.isOpen` 分支加全屏透明
       背板 div(`fixed inset-0 z-99` + onclick 关闭,面板 z-100 之上
       保持);若 codegen 对 div onclick 不可表达,同任务内改走 ports
       逃生舱(`platformSetupOutsideClose`,照 `setup_auth_fetch` 模式)
       实现之;重生成后实机验证点外可关。
-- [ ] T16 修 D22:`ports/platform.at` 增 `platformFocusComposer` 声明,
+      [✅ 已完成] 核验销案:登记形态(z-100 absolute popover 无 dismiss)
+      已被 059 T9 dialog 受控重构退役——现行 dialog(open:.isOpen) web
+      侧自带遮罩外点/X/ESC 三路关闭(reka),VM 侧显式关闭钮(ESC/外点
+      =KD 059-T9② 上游家族债在案);旧背板方案对现行架构为倒退,不施;
+      web 外点关闭 T18 实机复验。
+- [x] T16 修 D22:`ports/platform.at` 增 `platformFocusComposer` 声明,
       `ports/platform.ts` 透传,ext 实现 `querySelector('.chats-input')
       ?.focus()`;`src/front/chats_view.at:375` handler 追加调用;
       重生成。
+      [✅ 已完成] 端口链三件:web=src/front/focus_composer.ts 手写件
+      (querySelector('.chats-input').focus(),常驻挂载无需等重渲染)+
+      platform.web.at 转发/vm=platform.vm.at 降级留痕(iced 无 DOM
+      查询/focus native)/chats_view NewSession 追加调用;产物
+      ChatsView:15/133+ext 镜像;probe 63135B;eacc022。
 - [ ] T17 全量门禁复跑:`scripts/vm-link-probe.cmd` +
       `cd gen/front/vue && pnpm build` + `pnpm vitest run`,零新增红;
       `git diff` 核对无产物手改残留。
