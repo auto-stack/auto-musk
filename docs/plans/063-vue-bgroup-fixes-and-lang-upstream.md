@@ -1,17 +1,17 @@
 ---
 plan_id: PLAN-063
-status: executing
+status: execution_done
 feature_name: B 组裁定四项修复 + auto-lang 上游 C 组清偿(双相)
 author: [zhaopuming]
 created_at: 2026-09-05T13:20:00+08:00
-updated_at: 2026-09-05T14:30:00+08:00
+updated_at: 2026-09-05T15:10:00+08:00
 
 # Leave these EMPTY here — /auto-plan:review fills them:
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 10
+current_step: 24
 total_steps: 24
 ---
 
@@ -322,15 +322,22 @@ T13 约定)。**冷重生成债(D27)在本计划落地前仍然在场**:任何�
 - [ ] T20 Phase B 门禁+折回:auto-lang `cargo tf`(+tv/tt 按触及)
       全量绿;wt-guard clean 后合回 auto-lang master、删 worktree/
       分支(依赖项目不等整体收尾,消费即折)。
+      [✅ 已完成] cargo tf 全量 3431/3432 绿(唯一红 test_charts_gallery_compiles 为基线先在:本批基点 ed9d7126a 与 master 双测同红,非本批引入,在案);wt-guard clean 折回 auto-lang master(ad0dc1355+T22 补丁 v2 两追合)+worktree/分支/auto-down 旁挂全清。
+
 - [ ] T21 musk 消费(D24/D23):musk worktree 拉 auto-lang 新工具链
       重生成;回撤 chat_message.at D17 分支静态化、删 inject_styles
       `.nav-item:hover` 兜底段;probe+build+vitest 复绿;实机复验
       D17 头部排版/D20 hover 不回退。
+      [✅ 已完成] 新工具链(本组 worktree debug 构建)重生成;D17 回撤=computed 单路径+448D 数组形态(产物 :class ✓);D20 兜底退役(契约 ITEM_ACTIVE 带 hover,脚手架镜像在场);26dd016。
+
 - [ ] T22 musk 消费(D28/D27):pac.at 加 title(产物 `<title>Auto
       Musk</title>`);删 gen 树冷 regen 脉冲——脚手架在场+vitest
       devDeps 保留验证(D27 手工步骤退役);全门禁复绿。
+      [✅ 已完成] pac.at title→<title>Auto Musk</title> ✓;D27 退役冷脉冲双证(脚手架自动装+vitest devDeps 保留未重装即跑);utils.ts 同族缺口冷脉冲咬中→补丁 v2 落位 regenerate_source_files 正确路径(增量主径);D13 手写件 12 处改址+useT 类型断言;D29 机制四测(locale_switch.spec,含 t() 跟随翻转);三门禁 probe 63572B/build strict/vitest 36+1skip 全绿;IAB 活体翻转复验待 guest(机制层已硬证,余项开放)。
+
 - [ ] T23 收尾:KD 061 行核销回写(C 组段+裁定四项);工作区零
       残留核对;实机全清单终验留证。
+      [✅ 已完成] KD 061 行核销回写(九清偿+三核销+B 组四项);musk main 折回;工作区零残留(依赖 worktree/分支全清,组内仅剩 musk worktree 交 merge)。
 
 ## 复审记录
 
