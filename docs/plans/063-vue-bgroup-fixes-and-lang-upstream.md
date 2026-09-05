@@ -4,14 +4,14 @@ status: executing
 feature_name: B 组裁定四项修复 + auto-lang 上游 C 组清偿(双相)
 author: [zhaopuming]
 created_at: 2026-09-05T13:20:00+08:00
-updated_at: 2026-09-05T13:30:00+08:00
+updated_at: 2026-09-05T14:30:00+08:00
 
 # Leave these EMPTY here — /auto-plan:review fills them:
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 0
+current_step: 10
 total_steps: 23
 ---
 
@@ -237,27 +237,47 @@ T13 约定)。**冷重生成债(D27)在本计划落地前仍然在场**:任何�
       Init 加 `localStorage.removeItem("musk_login_password")`;
       `src/front/login.at` :117 删密码回填;跑
       `cmd //c "scripts\vm-link-probe.cmd"`。
+      [✅ 已完成] 双 setItem 删+Init removeItem 清残留+login 密码回填删;probe 63588B;b48b5da。
+
 - [ ] T2 D9 验证:`auto build` 重生成;grep 产物无
       musk_login_password 写点;实机 localStorage 键出清留证。
+      [✅ 已完成] regen 后产物唯一引用=Init 清理(useAuthStoreStore:11),LoginPage 零读点;活体:seeded LEGACY-PLAIN 重载即清+用户名 admin 预填+密码空。
+
 - [ ] T3 D10:`src/front/login.at:42-43` 删 🔥 行、h1 改
       "Auto Musk";重生成核对 LoginPage.vue 产物。
+      [✅ 已完成] 🔥 行退役+h1 Auto Musk(产物 LoginPage:75);title 待 D28;234a0a2。
+
 - [ ] T4 D11 登录页:login.at 七处字面量(50/54/60/68/87/89/102)
       换 t();zh/en 增 login 节键(label 不吃 t() 则 span fallback);
       重生成。
+      [✅ 已完成] 9 处换 t()(7 计划内+Loading/已有账号)+login 节 9 键+login.at 补 useT 接线;06ac4cd。
+
 - [ ] T5 D11 空态杂项:specs_category:225/specs_leaf:261/
       specs_detail:203/wiki_nav:39 dropText(+执行期 grep 复盘补漏)
       换 t();zh/en 增键;重生成。
+      [✅ 已完成] 补漏扩盘 21 处:specs_editors 表单族 12+specs_view 2+specs_leaf 2+specs_category 1+specs_detail 1+streaming_table 1(复用 common.loading)+wiki_view 4+wiki_nav dropText;specs+18/wiki+6 键;五文件逐 widget useT 接线(TestEditor/GoalEditor/SpecItemRow/CategoryList/GoalsTable/RelationsPanel);06ac4cd。
+
 - [ ] T6 D11 门禁:`cd gen/front/vue && pnpm vitest run`(D16 三断言
       绿)+ `pnpm build`;双语走查零英文残留留证。
+      [✅ 已完成] vitest 32+1skip(D16 三断言绿)+build strict 绿;双语走查:zh 全中文零英文泄漏(en 侧被 D29 既有切换缺陷阻断,见待澄清)。
+
 - [ ] T7 D4a:frontmatter util 真源迁 `src/front/plans_frontmatter.ts`,
       __tests__ 改 import,`git rm` 旧 gen utils;vitest 绿。
+      [✅ 已完成] 真源迁 src/front/plans_frontmatter.ts(解析逐字保留+Meta/Body 薄壳同文件,规避 ext 传递拷贝——实证 use.web 声明触发镜像);旧 gen utils git rm(git 识别 rename);spec 改 import ext 镜像 7 断言绿;5cd9e67。
+
 - [ ] T8 D4b:新增 `src/front/plans_detail_helpers.ts`(meta 整形+
       单测);`plans_view.at` 详情接 chips 行 + platform:markdown
       正文(裸文本回退保留);probe。
+      [✅ 已完成] 详情 text→chips 行(plan_id/status/步骤/特性名,条件隐藏)+Markdown 正文(renderer.at 组件 streaming:false,裸文本回退);probe 63596B;5cd9e67。
+
 - [ ] T9 Phase A 全门禁:probe + `pnpm build` + `pnpm vitest run`
       零新增红;worktree git status 干净。
+      [✅ 已完成] build 45.7s 绿/vitest 32+1skip/probe 63596B(worktree 前序已过);git status 干净。
+
 - [ ] T10 Phase A 实机走查:D9/D10(登录页)/D11/D4 四项清单
       留证(tmp/p063-evidence/)。
+      [✅ 已完成(范围四项)] D9 存量清理+预填/密码空;D10 h1 Auto Musk(title=auto-musk 待 D28);D11 zh 全中文(bodySnippet 纯中文);D4 chips(statusPill reviewed)+Markdown 富文本(h1/h2/ul 渲染)+YAML 零外泄;en 切换验证被 D29 既有缺陷阻断(登记待澄清,归 Phase B 增补任务)。证据 tmp/p063-evidence/。
+
 - [ ] T11 开 Phase B worktree:`git -C D:/autostack/auto-lang worktree
       add D:/autostack/.wt/musk-063/auto-lang -b auto-musk-dev`
       (同组并排;禁 junction)。
@@ -267,6 +287,7 @@ T13 约定)。**冷重生成债(D27)在本计划落地前仍然在场**:任何�
 - [ ] T13 D28:pac.at schema `title:` 字段 + generate_index_html
       优先 title;auto-man 单测;musk pac.at 加 `title: "Auto Musk"`
       后 regen 产物 `<title>` 核对。
+- [ ] T13b D29:main.ts 发射面导出 i18n 实例(或 boot locale 恢复)+存储键统一;musk 侧 useT.ts 改走 i18n.global;实测 zh/en 切换翻转全 UI。auto-lang 单测+产物核对。
 - [ ] T14 D12:shadcn 资产拷贝双份目录收敛单份;auto-lang 单测。
 - [ ] T15 D13:store 命名双后缀收敛(ui_gen/vue.rs 模板);musk regen
       产物文件名/引用同步核对。
@@ -297,4 +318,4 @@ T13 约定)。**冷重生成债(D27)在本计划落地前仍然在场**:任何�
 
 ## 待澄清事项
 
-- (空——B 组四项已裁定落档;D28 为起草期新登记上游项,非待澄清。)
+- **D29(执行期 T10 走查发现,既有缺陷非本批引入;归 Phase B 增补任务 T13b)**:语言切换机制失效——`useT.ts settingsChangeLocale/settingsInitLocale` 在 setup 外调 `useI18n()`(vue-i18n 组合式 API 出 setup 上下文失效,locale 不翻转;实测 html lang 翻 en 但组件 t() 仍中文)+ 存储键口径分裂(写 `musk-language`,i18n 检测逻辑用 `autoforge-language`,生成 main.ts boot 零恢复)。修法方向:auto-man main.ts 发射 `export const i18n`(或 boot 读 localStorage 恢复),musk 侧 useT.ts 改写 i18n.global.locale;两键统一为一个。zh 默认轨不受影响。
