@@ -7,6 +7,9 @@
 // 参照 examples/ui/015-notes 的单包结构（scene:ui + render:vue + api 指向后端）。
 
 name: "auto-musk"
+
+# PLAN-063 T22 (KD 061 D28): 展示名——document.title 用,回退 name。
+title: "Auto Musk"
 version: "0.1.0"
 
 scene: "ui"

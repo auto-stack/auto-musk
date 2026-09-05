@@ -9,14 +9,14 @@
 //   - relay.gate_signal（reached/resolved）→ Register / Resolve
 
 import { watch } from 'vue'
-import { useForgeStoreStore } from '@/stores/useForgeStoreStore'
-import { useRelayStoreStore } from '@/stores/useRelayStoreStore'
+import { useForgeStore } from '@/stores/useForgeStore'
+import { useRelayStore } from '@/stores/useRelayStore'
 import { useGateInboxStore } from '@/stores/useGateInboxStore'
 
 export function useGateRouter() {
   const inbox = useGateInboxStore()
-  const forge = useForgeStoreStore()
-  const relay = useRelayStoreStore()
+  const forge = useForgeStore()
+  const relay = useRelayStore()
 
   watch(() => forge.current_gate, (gate: any) => {
     if (!gate || !gate.gate_id) return
