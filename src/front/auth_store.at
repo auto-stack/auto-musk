@@ -39,6 +39,8 @@ store AuthStore {
         // 守卫(旧串/坏串 parse 失败弃用,保持 None 走重新登录;catch 只
         // 自赋值,规避 store try 嵌 if-return 029 缺口③)。
         .Init -> {
+            // PLAN-063 T1 (D9):一次性清掉历史版本残留的明文密码键(幂等无害)。
+            localStorage.removeItem("musk_login_password")
             let saved_token = localStorage.getItem("musk_jwt")
             if saved_token != None {
                 .token = saved_token
@@ -59,8 +61,8 @@ store AuthStore {
 
         // Login(username, password): 调 auth_login，成功则存 token/user。
         // 后端返回 {token, user:{username, role}}（嵌套 user 对象）。
-        // 另存 musk_login_username/password 供登录页预填（LoginPage.Init
-        // 读取；记住上次登录凭据，免重复输入——本地开发工具语义）。
+        // 另存 musk_login_username 供登录页预填。PLAN-063 T1 (D9):明文密码
+        // 持久化按用户裁定退役(浏览器无真密文路径)。
         // PLAN-061 T4 (D2):auth_login 对 !ok 抛错，此前异常外泄致 loading
         // 恒 true（按钮卡 "Loading..."）且 error 横幅为死代码——包
         // try/catch，catch 只赋值（规避 store 内 try 嵌 if-return，029
@@ -80,7 +82,6 @@ store AuthStore {
                     localStorage.setItem("musk_jwt", resp.token)
                     localStorage.setItem("musk_user", JSON.stringify(.user))
                     localStorage.setItem("musk_login_username", username)
-                    localStorage.setItem("musk_login_password", password)
                 }
             } catch {
                 .loading = false
@@ -104,7 +105,6 @@ store AuthStore {
                     localStorage.setItem("musk_jwt", resp.token)
                     localStorage.setItem("musk_user", JSON.stringify(.user))
                     localStorage.setItem("musk_login_username", username)
-                    localStorage.setItem("musk_login_password", password)
                 }
             } catch {
                 .loading = false

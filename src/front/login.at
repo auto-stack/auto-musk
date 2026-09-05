@@ -114,7 +114,8 @@ widget LoginPage {
             if .prefilled != true {
                 .prefilled = true
                 .username = localStorage.getItem("musk_login_username") ?? ""
-                .password = localStorage.getItem("musk_login_password") ?? ""
+                // PLAN-063 T1 (D9):密码不回填(明文持久化已退役),空串起点。
+                .password = ""
             }
         }
 
