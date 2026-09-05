@@ -11,7 +11,7 @@ supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
 
-current_step: 0
+current_step: 9
 total_steps: 19
 ---
 
@@ -393,31 +393,54 @@ IAB/无头后台页 rAF 停帧导致 Playwright locator click actionability 超�
 > 会话级处置:拷 shadcn-ui/alert-dialog 脚手架 + `pnpm add -D vitest@2`,
 > 处置后 build/vitest 23+1skip 双绿基线确立。
 
-- [ ] T1 写 D1 回归单测:新建 `gen/front/vue/src/__tests__/specs_helpers.spec.ts`,
+- [x] T1 写 D1 回归单测:新建 `gen/front/vue/src/__tests__/specs_helpers.spec.ts`,
       断言 `specSectionItems` 对 `"Goals"`/`"goals"` 命中;运行
       `cd gen/front/vue && pnpm vitest run src/__tests__/specs_helpers.spec.ts`
       确认当前为红。
-- [ ] T2 修 D1:`src/front/specs_helpers.at:328` `specSectionItems` 比较前
+      [✅ 已完成] 3 测全红(大小写敏感比较实证);git add -f 入库(PLAN-041
+      T13 约定)。
+- [x] T2 修 D1:`src/front/specs_helpers.at:328` `specSectionItems` 比较前
       两侧小写归一(遵守 R1 纯 fn 形态);跑 `scripts/vm-link-probe.cmd`。
-- [ ] T3 重生成 vue 轨(`auto run`,AutoUI 管线,同 PLAN-028 M1 流程),
+      [✅ 已完成] want/have 双侧 to_lower;probe PASS 63135B。
+- [x] T3 重生成 vue 轨(`auto run`,AutoUI 管线,同 PLAN-028 M1 流程),
       确认 `ext/src/front/specs_helpers.ts` 产物含归一化逻辑;T1 单测转绿。
-- [ ] T4 修 D2:`src/front/auth_store.at` Login/Register 补 try/catch +
+      [✅ 已完成] release 工具链 `auto build`;产物 :263 toLowerCase;
+      vitest 3/3 绿(重生成抹 devDeps,vitest@2 会话级补装——D27)。
+      82e2e54。
+- [x] T4 修 D2:`src/front/auth_store.at` Login/Register 补 try/catch +
       loading 复位 + SetError(规避 try 内嵌 if-return);跑
       `scripts/vm-link-probe.cmd` 并重生成。
-- [ ] T5 修 D3:`src/front/login.at:64` 密码输入框属性改为产出
+      [✅ 已完成] catch 只赋值/两路 loading 复位/错误文案接通;
+      probe 63105B;产物 catch 落地;97618d5。
+- [x] T5 修 D3:`src/front/login.at:64` 密码输入框属性改为产出
       `type="password"`;若 codegen 不支持则记 blocker 转出并跳到 T6;
       重生成后核对 `components/LoginPage.vue` 产物。
-- [ ] T6 修 D5:`src/front/i18n/zh.json`、`en.json` wiki 节补
+      [✅ 已完成] type 属性透传成立(产物 `:type="'password'"`),
+      无 blocker;3ef9cfb。
+- [x] T6 修 D5:`src/front/i18n/zh.json`、`en.json` wiki 节补
       `"edit"`/`"delete"`;重生成后核对 `locales/*.json` 同步。
-- [ ] T7 写 D16 门禁:扩展 `gen/front/vue/src/__tests__/i18n.spec.ts`(或
+      [✅ 已完成] 双 key 补入,产物 locales 同步;9e19bb8。
+- [x] T7 写 D16 门禁:扩展 `gen/front/vue/src/__tests__/i18n.spec.ts`(或
       新建 spec),静态扫描产物模板 t() key ⊆ locale keys;
       `pnpm vitest run` 全绿(依赖 T6 先落)。
-- [ ] T8 修 D7:`src/front/wiki_nav.at` 内层删除钮去 button 嵌套(改 span
+      [✅ 已完成] import.meta.glob(?raw,eager) 静态门禁(非空守卫+en/zh
+      两断言,shim 补 glob 声明规避 node 内建类型);首跑即抓出
+      wiki.create/wiki.contentPlaceholder 两枚 D5 同族漏网 key,随批补齐;
+      vitest 29+1skip;15c7a60。
+- [x] T8 修 D7:`src/front/wiki_nav.at` 内层删除钮去 button 嵌套(改 span
       形态;DSL 不可表达则记 blocker 转出);重生成后确认 vite 编译零
       "<button> cannot be child of <button>" 告警。
-- [ ] T9 修 D6+D8:`src/front/plans_view.at` 列表项补 truncate 类串;
+      [✅ 已完成] raw 树内删除钮 button→span+onclick.stop(div onclick
+      先例证普通元素可挂),产物 WikiNav.vue:193,DSL 可表达无 blocker;
+      67799f1。
+- [x] T9 修 D6+D8:`src/front/plans_view.at` 列表项补 truncate 类串;
       `src/front/auth_store.at` musk_user 写读 JSON 化;重生成,
       跑 `scripts/vm-link-probe.cmd` + `pnpm build`。
+      [✅ 已完成] D6 断点重定:truncate 已在类串,真因=Button(inline-flex)
+      多 text 子节点各成 flex item 不吃 ellipsis→单 span(flex-1 min-w-0
+      truncate)承载整条标签(wiki_nav 同款);D8 三写侧 JSON.stringify+
+      Init 读侧 JSON.parse 守卫(坏串弃用走重登);probe 63125B+regen 绿,
+      产物 PlansView:152/useAuthStoreStore:14;6f3daf1。
 - [ ] T10 实机走查第一批(D1/D2/D3/D5/D6/D8 六项,测试设计 4 清单),
       截图留证。
 - [ ] T11 修 D17:`src/front/chat_message.at` 消息头按 isUser 分支拆成
