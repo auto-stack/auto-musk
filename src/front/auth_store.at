@@ -35,6 +35,9 @@ store AuthStore {
 
     on {
         // Init: 从 localStorage 恢复 token/user（App 挂载时调用）。
+        // PLAN-061 T9 (D8):musk_user 写侧已 JSON.stringify,读侧 parse+
+        // 守卫(旧串/坏串 parse 失败弃用,保持 None 走重新登录;catch 只
+        // 自赋值,规避 store try 嵌 if-return 029 缺口③)。
         .Init -> {
             let saved_token = localStorage.getItem("musk_jwt")
             if saved_token != None {
@@ -42,7 +45,15 @@ store AuthStore {
             }
             let saved_user = localStorage.getItem("musk_user")
             if saved_user != None {
-                .user = saved_user
+                try {
+                    let parsed = JSON.parse(saved_user)
+                    .user = AuthUser {
+                        username: parsed.username ?? "",
+                        role: parsed.role ?? "",
+                    }
+                } catch {
+                    .token = .token
+                }
             }
         }
 
@@ -67,7 +78,7 @@ store AuthStore {
                         role: resp.user.role,
                     }
                     localStorage.setItem("musk_jwt", resp.token)
-                    localStorage.setItem("musk_user", .user)
+                    localStorage.setItem("musk_user", JSON.stringify(.user))
                     localStorage.setItem("musk_login_username", username)
                     localStorage.setItem("musk_login_password", password)
                 }
@@ -91,7 +102,7 @@ store AuthStore {
                         role: resp.user.role,
                     }
                     localStorage.setItem("musk_jwt", resp.token)
-                    localStorage.setItem("musk_user", .user)
+                    localStorage.setItem("musk_user", JSON.stringify(.user))
                     localStorage.setItem("musk_login_username", username)
                     localStorage.setItem("musk_login_password", password)
                 }
@@ -115,7 +126,7 @@ store AuthStore {
                 Logout()
             } else {
                 .user = me
-                localStorage.setItem("musk_user", .user)
+                localStorage.setItem("musk_user", JSON.stringify(.user))
             }
         }
 
