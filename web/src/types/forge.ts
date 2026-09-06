@@ -38,6 +38,9 @@ export interface ForgeSession {
   active_profession?: string
   /** PLAN-043: active branch leaf message id. */
   active_leaf?: string | null
+  /** PLAN-064: per-session thinking level ('off'|'low'|'high'|'max'); absent
+   * = follow role default (no thinking parameter sent). */
+  thinking_level?: string | null
 }
 
 export interface ForgeStreamEvent {

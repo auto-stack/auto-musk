@@ -408,6 +408,22 @@
       />
       <div v-else class="chats-input-bar">
         <div class="input-inner">
+          <!-- PLAN-064: 思考档位选择器——输入栏上方一排小档位钮，选中态高亮。
+               PATCH 持久化到会话，后端 run 时读取；与 ag 轨行为一致。 -->
+          <div class="thinking-level-row">
+            <span class="thinking-level-label">{{ t('chat.thinkingLevel') }}</span>
+            <button
+              v-for="opt in thinkingLevelOptions"
+              :key="opt.value"
+              class="thinking-level-btn"
+              :class="{ active: thinkingLevel === opt.value || (opt.value === '' && (thinkingLevel === '' || thinkingLevel === 'off')) }"
+              :disabled="isLoading"
+              :title="opt.title"
+              @click="setThinkingLevel(opt.value)"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
           <div class="input-row">
             <div class="input-compose">
               <div class="input-backdrop" v-html="renderInputMentions(inputText)"></div>
@@ -494,6 +510,8 @@ const {
   approveSpec,
   rejectSpec,
   renameSession,
+  setThinkingLevel,
+  thinkingLevel,
   deleteSession,
   deleteAllSessions,
   errands,
@@ -502,6 +520,14 @@ const {
 } = useForge()
 
 const { projectPath, workspaceId } = useProject()
+
+// PLAN-064: 思考档位选项（与 ag 轨四钮一致；'' = 跟随 role 默认/关闭）。
+const thinkingLevelOptions = [
+  { value: '', label: t('chat.thinkingOff'), title: t('chat.thinkingOff') },
+  { value: 'low', label: t('chat.thinkingLow'), title: t('chat.thinkingLow') },
+  { value: 'high', label: t('chat.thinkingHigh'), title: t('chat.thinkingHigh') },
+  { value: 'max', label: t('chat.thinkingMax'), title: t('chat.thinkingMax') },
+]
 const { currentSecretary, badgeCount: gateBadgeCount, resolveGate: resolveGateInbox, snoozeGate } = useGateInbox()
 const { configs: agentConfigs, loadConfigs: loadAgentConfigs } = useAgentConfigs()
 const { startRun, advanceRun } = useRelay()
@@ -2821,6 +2847,49 @@ onUnmounted(() => {
 
 .send-btn:disabled {
   opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ─── PLAN-064: thinking level picker ─────────────────────────────────────── */
+
+.thinking-level-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 6px;
+}
+
+.thinking-level-label {
+  font-size: 12px;
+  color: var(--af-text-muted, var(--vp-c-text-2));
+  flex-shrink: 0;
+}
+
+.thinking-level-btn {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--af-text-muted, var(--vp-c-text-2));
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.thinking-level-btn:hover:not(:disabled) {
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-1);
+}
+
+.thinking-level-btn.active {
+  border-color: color-mix(in srgb, var(--vp-c-brand-1) 40%, transparent);
+  background: color-mix(in srgb, var(--vp-c-brand-1) 10%, transparent);
+  color: var(--vp-c-brand-1);
+}
+
+.thinking-level-btn:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 

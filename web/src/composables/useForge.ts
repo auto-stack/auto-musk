@@ -559,6 +559,29 @@ export function useForge() {
     }
   }
 
+  /** PLAN-064: the session's thinking level ('' = follow role default). */
+  const thinkingLevel = computed(() => session.value?.thinking_level ?? '')
+
+  /** PLAN-064: set/clear the session's thinking level (PATCH persisted; ''
+   * clears). Updates the local session so the picker reflects immediately. */
+  async function setThinkingLevel(level: string) {
+    const sid = sessionId.value
+    if (!sid) return false
+    try {
+      const resp = await authFetch(`${API_BASE}/session/${sid}/thinking`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ thinking_level: level === '' ? null : level }),
+      })
+      if (!resp.ok) throw new Error(`Failed to set thinking level: ${resp.status}`)
+      if (session.value) session.value = { ...session.value, thinking_level: level }
+      return true
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : String(e)
+      return false
+    }
+  }
+
   async function deleteSession(sid: string) {
     try {
       const resp = await authFetch(`${API_BASE}/session/${sid}`, {
@@ -621,6 +644,8 @@ export function useForge() {
     approveSpec,
     rejectSpec,
     renameSession,
+    setThinkingLevel,
+    thinkingLevel,
     deleteSession,
     deleteAllSessions,
     errands,
