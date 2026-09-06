@@ -309,6 +309,19 @@ auto-ai 主检出（34ca739）重建 aaid——同时验证 fold 未丢行为。
 merge 前请用户在常规 dev stack 里对 ag 轨选择器做一次实机点击（表 #5 人工项）；
 发现问题即回退本状态重开。
 
+### 复审补记（2026-09-06，归档后用户显式要求复审）
+
+范围：merge 后落地的增量——auto-ai-cli `/think` 斜杠命令（d294f5d，用户裁定
+的 PLAN-064 follow-up，无 plan 小改：linear/tui/打印轨三 UI + SetThinking
+命令 + 重建后重设）。其余时间两仓无漂移（musk main 停在 4bb20d8）。
+
+- `/think` 增量只触碰 auto-ai-cli 4 文件（+102/-4），引擎/daemon/musk 零改动。
+- 主检出复跑：auto-ai-cli 15 passed；引擎链三 crate 235 passed、0 失败。
+- 实测：管道冒烟四路径（查看/设置/记忆/非法值拒绝）+ 真实推理对比
+  （max=97 tok vs off=52 tok，方向与直连基线 205/43 一致）。
+- 结论：无回归，archived 终态维持。人工项（ag 轨选择器实机点击）仍待用户
+  dev stack 复验；债候选 D1/D2 不变。
+
 ## 待澄清事项
 
 1. GLM 官方 低/高/最高 与 budget_tokens 的确切映射未知（官方疑为 adaptive），
