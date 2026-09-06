@@ -456,6 +456,13 @@ pub fn chats_rename_session(id str, name str) {
     return None
 }
 
+// PLAN-064: 会话思考档位。thinking_level 传 "off"/"low"/"high"/"max"，
+// 空串 = 清除（后端归一化为 null，跟随 role 默认）。
+#[api(method = "PATCH", path = "/api/chats/session/{id}/thinking")]
+pub fn chats_set_thinking(id str, thinking_level str) {
+    return None
+}
+
 // PLAN-043: 会话树分支(fork/navigate 服务端同机制:切 active_leaf,不复制数据)。
 #[api(method = "POST", path = "/api/chats/session/{id}/fork")]
 pub fn chats_fork_session(id str, message_id str) SessionDetailResponse {

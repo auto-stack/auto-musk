@@ -390,13 +390,15 @@ impl ChatStore {
 
     /// PLAN-064: set (or clear, with `None`) a session's thinking level.
     /// Stored leniently — unknown names are rejected (warn + skip) at the
-    /// daemon's injection point, not here. Returns the updated session, or
-    /// `None` when the id is unknown.
+    /// daemon's injection point, not here. Empty string normalizes to None
+    /// (ag 轨 api 绑定无可选参数，空串即"跟随 role 默认"). Returns the updated
+    /// session, or `None` when the id is unknown.
     pub fn set_thinking_level(
         &self,
         id: &str,
         level: Option<String>,
     ) -> std::io::Result<Option<ChatSession>> {
+        let level = level.filter(|s| !s.trim().is_empty());
         let mut map = self.load_map();
         if let Some(session) = map.get_mut(id) {
             session.thinking_level = level;
