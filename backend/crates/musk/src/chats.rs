@@ -388,6 +388,27 @@ impl ChatStore {
         }
     }
 
+    /// PLAN-064: set (or clear, with `None`) a session's thinking level.
+    /// Stored leniently — unknown names are rejected (warn + skip) at the
+    /// daemon's injection point, not here. Returns the updated session, or
+    /// `None` when the id is unknown.
+    pub fn set_thinking_level(
+        &self,
+        id: &str,
+        level: Option<String>,
+    ) -> std::io::Result<Option<ChatSession>> {
+        let mut map = self.load_map();
+        if let Some(session) = map.get_mut(id) {
+            session.thinking_level = level;
+            session.updated_at = now_sec();
+            let updated = session.clone();
+            self.save_map(&map)?;
+            Ok(Some(updated))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Delete one session; return whether it existed.
     pub fn delete(&self, id: &str) -> std::io::Result<bool> {
         let mut map = self.load_map();

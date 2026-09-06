@@ -180,6 +180,10 @@ pub type ChatCreateBody { mode Option<str>, workspace_id Option<str> }
 #[derive(Debug, Deserialize)]
 pub type ChatRenameBody { name str }
 
+/// PLAN-064: per-session thinking level. null clears (follow role default).
+#[derive(Debug, Deserialize)]
+pub type ChatThinkingBody { thinking_level Option<str> }
+
 #[derive(Debug, Deserialize)]
 pub type ChatMessageBody { content str }
 
@@ -414,6 +418,11 @@ pub fn chat_rename(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body
     return to_response(chats_rename(s.view, q, p, body), "session not found", 404u)
 }
 
+/// PLAN-064: set/clear a session's thinking level.
+pub fn chat_thinking(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ChatThinkingBody>) ~Response {
+    return to_response(chats_thinking(s.view, q, p, body), "session not found", 404u)
+}
+
 pub fn chat_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Response {
     return to_response(chats_delete(s.view, q, p.view), "session not found", 404u)
 }
@@ -546,6 +555,8 @@ pub fn build_router() Router<AppState> {
     app = app.route("/api/chats/sessions", get(chat_list).delete(chat_delete_all))
     app = app.route("/api/chats/session", post(chat_create))
     app = app.route("/api/chats/session/{id}", get(chat_get).patch(chat_rename).delete(chat_delete))
+    // PLAN-064: per-session thinking level (PATCH body {thinking_level|null}).
+    app = app.route("/api/chats/session/{id}/thinking", patch(chat_thinking))
     app = app.route("/api/chats/session/{id}/message", post(chat_message))
     app = app.route("/api/chats/session/{id}/approve/{index}", post(chat_approve))
     app = app.route("/api/chats/session/{id}/reject/{index}", post(chat_reject))

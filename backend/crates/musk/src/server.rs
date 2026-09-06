@@ -605,6 +605,8 @@ async fn chat_stream(
     let ws_root = ws.root.clone();
     let ws_id_for_ctx = q.id_or_default(&state.registry);
     let state_for_ctx = Arc::new(state.clone());
+    // PLAN-064: 会话思考档位（spawn 任务内用克隆）。
+    let session_thinking = session.thinking_level.clone();
     // Resolve the session's mode to an AgentMode (built-in or user .at).
     let mode_reg = crate::mode::ModeRegistry::load();
     let agent_mode = match mode_reg.get(&mode).cloned() {
@@ -643,6 +645,8 @@ async fn chat_stream(
         };
         // Pre-load the conversation history so the agent has context.
         agent = agent.with_history(history_for_agent);
+        // PLAN-064: 会话思考档位 → agent override（None = 跟随 role 默认）。
+        agent.set_thinking_level_override(session_thinking.clone());
 
         // Accumulate the streamed text + thinking + tool calls to persist on completion.
         let accumulated = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
@@ -1172,6 +1176,7 @@ mod tests {
                     .patch(ag_server::chat_rename)
                     .delete(ag_server::chat_delete),
             )
+            .route("/api/chats/session/{id}/thinking", axum::routing::patch(ag_server::chat_thinking))
             .route("/api/chats/session/{id}/message", axum::routing::post(ag_server::chat_message))
             .with_state(tmp_state());
 
@@ -1302,6 +1307,33 @@ mod tests {
         let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
         let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(v["session"]["name"], "renamed");
+
+        // PLAN-064: PATCH thinking 设置 + 清除(下条紧跟 rename 后的同一会话)。
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("PATCH")
+                .uri(format!("/api/chats/session/{session_id}/thinking"))
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"thinking_level":"high"}"#))
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["session"]["thinking_level"], "high");
+
+        let resp = app.clone().oneshot(
+            axum::http::Request::builder()
+                .method("PATCH")
+                .uri(format!("/api/chats/session/{session_id}/thinking"))
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"thinking_level":null}"#))
+                .unwrap(),
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(v["session"]["thinking_level"].is_null());
 
         let resp = app.clone().oneshot(
             axum::http::Request::builder()

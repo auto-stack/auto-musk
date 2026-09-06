@@ -793,6 +793,14 @@ pub fn chats_rename(s: &State<AppState>, q: Query<crate::auto_generated::server:
         _ => Value::Null,
     }
 }
+/// PLAN-064: set/clear a session's thinking level (see ChatStore::set_thinking_level).
+pub fn chats_thinking(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>, b: Json<crate::auto_generated::server::ChatThinkingBody>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    match ws.chats.set_thinking_level(&p.0, b.thinking_level.clone()) {
+        Ok(Some(session)) => serde_json::json!({ "session": session }),
+        _ => Value::Null,
+    }
+}
 pub fn chats_delete(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: &Path<String>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
     if ws.chats.delete(&p.0).unwrap_or(false) {
@@ -1825,6 +1833,8 @@ pub async fn chat_run_stream(
     let state_for_ctx = std::sync::Arc::new(s.0.clone());
     let tx2 = tx.clone();
     let run_key2 = run_key.clone();
+    // PLAN-064: 会话思考档位（spawn 任务内用克隆）。
+    let session_thinking2 = session.thinking_level.clone();
     tokio::spawn(async move {
         crate::tool_safety::set_current_root(ws_root.clone());
         // Build agent with orchestration tool context (spawn_relay, dispatch).
@@ -1846,6 +1856,8 @@ pub async fn chat_run_stream(
                 return;
             }
         };
+        // PLAN-064: 会话思考档位 → agent override（None = 跟随 role 默认）。
+        agent.set_thinking_level_override(session_thinking2.clone());
         // Pre-load the conversation history so the agent has context.
         agent = agent.with_history(history);
 
