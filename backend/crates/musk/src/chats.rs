@@ -125,6 +125,10 @@ pub struct ChatSession {
     /// PLAN-043: 活跃分支叶（消息 id）。None = 线性（旧数据或未分叉）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_leaf: Option<String>,
+    /// PLAN-064: 本会话的思考档位（"off"|"low"|"high"|"max"）。None = 跟随
+    /// role 默认（不注入 thinking 参数）。随会话持久化，UI 档位选择器写这里。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thinking_level: Option<String>,
 }
 
 /// A lightweight summary for list views (no message bodies).
@@ -152,6 +156,7 @@ impl ChatSession {
             pending_spec_changes: Vec::new(),
             workspace_id,
             active_leaf: None,
+            thinking_level: None,
         }
     }
 

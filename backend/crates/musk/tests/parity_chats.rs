@@ -226,6 +226,7 @@ fn parity_chat_session_wire_format() {
         }],
         workspace_id: Some("ws1".into()),
         active_leaf: None,
+        thinking_level: None,
     };
     let ag_s = ag::ChatSession {
         id: "s1".into(),
@@ -250,6 +251,7 @@ fn parity_chat_session_wire_format() {
         }],
         workspace_id: Some("ws1".into()),
         active_leaf: None,
+        thinking_level: None,
     };
     assert_eq!(
         serde_json::to_string(&hw_s).unwrap(),
@@ -267,6 +269,7 @@ fn parity_chat_session_wire_format() {
         updated_at: 0,
         pending_spec_changes: vec![],
         workspace_id: None, active_leaf: None,
+        thinking_level: None,
     };
     let ag_min = ag::ChatSession {
         id: "s2".into(),
@@ -277,6 +280,7 @@ fn parity_chat_session_wire_format() {
         updated_at: 0,
         pending_spec_changes: vec![],
         workspace_id: None, active_leaf: None,
+        thinking_level: None,
     };
     let hw_json = serde_json::to_string(&hw_min).unwrap();
     assert_eq!(hw_json, serde_json::to_string(&ag_min).unwrap());
@@ -285,6 +289,48 @@ fn parity_chat_session_wire_format() {
     assert!(hw_json.contains("\"messages\":[]"));
     assert!(!hw_json.contains("pending_spec_changes"));
     assert!(!hw_json.contains("workspace_id"));
+}
+
+// ──────────────────────────────────────────────────────────
+// PLAN-064: per-session thinking level
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn parity_thinking_level_roundtrip_and_old_payload_compat() {
+    // Old persisted sessions (pre-PLAN-064, no field) deserialize to None on
+    // BOTH tracks, and None is skipped on serialize (no wire change).
+    let old = serde_json::json!({
+        "id": "s9",
+        "name": "old chat",
+        "mode": "superpowers",
+        "messages": [],
+        "created_at": 1,
+        "updated_at": 2,
+    });
+    let hw_s: hw::ChatSession = serde_json::from_value(old.clone()).unwrap();
+    let ag_s: ag::ChatSession = serde_json::from_value(old).unwrap();
+    assert!(hw_s.thinking_level.is_none());
+    assert!(ag_s.thinking_level.is_none());
+    assert!(!serde_json::to_string(&hw_s).unwrap().contains("thinking_level"));
+
+    // Some("high") round-trips identically on both tracks. new() generates
+    // random ids / live timestamps — pin them before comparing wire forms.
+    let mut hw_hi = hw::ChatSession::new("superpowers", None);
+    let mut ag_hi = ag::ChatSession::new("superpowers", None);
+    hw_hi.id = "s10".into();
+    ag_hi.id = "s10".into();
+    hw_hi.created_at = 100;
+    ag_hi.created_at = 100;
+    hw_hi.updated_at = 200;
+    ag_hi.updated_at = 200;
+    hw_hi.thinking_level = Some("high".into());
+    ag_hi.thinking_level = Some("high".into());
+    assert_eq!(
+        serde_json::to_string(&hw_hi).unwrap(),
+        serde_json::to_string(&ag_hi).unwrap(),
+        "thinking_level wire mismatch"
+    );
+    assert!(serde_json::to_string(&hw_hi).unwrap().contains("\"thinking_level\":\"high\""));
 }
 
 // ──────────────────────────────────────────────────────────

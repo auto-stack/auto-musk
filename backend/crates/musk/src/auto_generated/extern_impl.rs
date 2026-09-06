@@ -510,6 +510,7 @@ pub fn role_save_of(p: &Path<String>, b: Json<crate::auto_generated::server::Rol
         system_prompt_append: None,
         tools_append: None,
         memory_limit: None,
+        thinking_level: None,
     };
     let reg = auto_ai_agent::RoleRegistry::load();
     match reg.save(&p.0, cfg, b.soul.as_deref()) {
@@ -696,6 +697,7 @@ pub fn harness_save(p: &Path<(String, String)>, b: Json<crate::auto_generated::s
                 system_prompt_append: None,
                 tools_append: None,
                 memory_limit: None,
+                thinking_level: None,
             };
             let dir = match crate::server::app_harness_dir("roles") {
                 Some(d) => d,
