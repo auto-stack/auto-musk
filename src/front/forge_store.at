@@ -452,11 +452,10 @@ store ForgeStore {
                         call.result = result
                         // PLAN-042:结构化载荷(edit diff/截断/全量输出路径)随调用留存。
                         call.details = ev.details ?? None
-                        // 嗅探 result 标记识别 error（对齐 generic_tool_card 样式）
+                        // 027 债闭环（PLAN-065 T2）：status 真字段，服务端单点判定
+                        // （server.rs tool_result_status），前端不再嗅探 result 前缀。
                         var failed = false
                         if ev.status == "error" { failed = true }
-                        if result.starts_with("[security denied") { failed = true }
-                        if result.starts_with("[tool error") { failed = true }
                         if failed { call.status = "failed" } else { call.status = "completed" }
                     }
                 }
