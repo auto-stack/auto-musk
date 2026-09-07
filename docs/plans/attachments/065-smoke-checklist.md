@@ -60,6 +60,7 @@
 - **F3 · gen 轨直播流不渲染（刷新才见回复）**：PollStream 每 500ms `chats_get_session` 快照**整体覆盖** .messages（forge_store.at:337-380"以轮询为最终态"），而 musk 后端 assistant 消息**完成时才持久化**（server.rs run_stream 收尾 append_message）——直播期间快照恒为 [user msg]，SSE delta 增量每拍被抹；done 事件随即关 deadman 窗（StopStream pop），完成后无补拍 → 界面停留空态直至手动刷新。VM 轨纯轮询无此问题；web 轨"轮询+SSE 共存"设计（051 T10）与后端持久化时序相悖。修法建议：streaming 期间不覆盖式回填（或 done 臂补一次最终回填）。
 - **F4 · gen 轨无 tool_update 消费臂**：`[forge stream] tool_update` 落入 OnStreamEvent 末尾兜底日志（forge_store.at:617）——P040-2 的 run_command 流式进度在 gen 轨无渲染路径（S3 预期项），web 轨 useForge.ts 有（冻结不动）。
 - **F5 · details 载荷不持久化（musk 后端契约缺口，双轨共有）**：`chats.rs` ToolCall 结构无 details 字段（实测落盘 JSON tool_calls 键仅 `arguments/id/name/result`）——SSE 直播路径 store 里有 details（generic_tool_card 的 diff/截断徽标/全量输出三区 computed 就绪），回放路径全部丢失。042 的"刷新后回放一致"对 details 面只成立一半：截断信息因 auto-ai read 自带分页提示而落在 result **文本**里可见，diff 专用区回放消失。修法：ToolCall 增 Option<details> 字段（serde skip_if None）+ 双写路径透传。
+- **F6 · 一级导航文案硬编码中文（048 存量债，双轨共有）**：`app.at:93-113` 四个 rail 项为字面量 `text "会话"/"计划"/"规范"/"知识库"`——PLAN-048 因"VM 视图文本无裸调用臂,t() 恒空"字面量化，字符串从未接 t()，D29 的 i18n-instance 根修无法覆盖。S6 实测：二级菜单（走 t()）翻转正常，一级导航恒中文。
 
 ---
 
@@ -70,6 +71,6 @@
 | S1 | 033 W2 | 浏览器 | 🔶 | 芯片行(MetaBlock 对应物)布局/按钮组正常（截图）；徽标中文未落地=F1。顺带 T5 目验待 S6 场次确认 |
 | S2 | 042 T10 | 浏览器 | 🔶 | ARGUMENTS/RESULT 渲染正确且回放一致（截图实证）；big-dump 截断提示在 result 文本可见（50KB 分页+offset，auto-ai read 自身机制）；042 结构化 details 区回放丢失=F5；RESULT 无语法高亮（小注记，纯文本区不走 markdown 管线） |
 | S3 | 040-1 | 浏览器 | 🔶 | 服务端 tool_update 流式事件已证实到达（console `[forge stream] tool_update`）；gen 轨无消费臂（F4）+ 直播视图被轮询覆盖（F3）→ 实时渲染不可达；web 轨当年已验收（冻结） |
-| S4 | 493 | VM | ＿ | ＿ |
-| S5 | 050 | VM | ＿ | ＿ |
-| S6 | 061 D29 | 浏览器 | ＿ | ＿ |
+| S4 | 493 | VM | 🔶 | 输入 @ 无反应 + 全程零 `[493-MENTIONS]` 日志（该日志每帧视图构建即打,零日志=链路未武装）。候选根因:env 未达 VM 进程 / mentionNames 空（AgentConfigs 拉取失败→降级无高亮）。归 VM 专项复验,残留 |
+| S5 | 050 | VM | ＿ | 待用户目验:rail=VM 左侧竖条导航栏(标题行+会话/计划/规范/知识库);看图标-文字纵向居中、底部项贴边、缩放不破版 |
+| S6 | 061 D29 | 浏览器 | 🔶 | 二级菜单翻转正常（D29 根修工作）;一级导航四项恒中文=F6（048 字面量化存量,字符串未接 t(),根修管不到） |
