@@ -59,6 +59,7 @@
 - **F2 · gen 轨 composer @mention 检测链每键抛 TypeError**：codegen（051 P3-② v-model 优化）把 `oninput: .Input($event)` 编译为 `@input="Input(($event.target).value)"` 传**字符串**，而 `.Input(e)` 处理器（mention_input.at:64-72）期望**DOM 事件**（mention_detect_filter 读 e.target.value/getBoundingClientRect）→ `reading 'value' of undefined` 每键必抛。输入/发送不受影响（v-model 直更 text），坏的是 @mention 下拉检测。主检出 gen 生成物一字不差，同款既有。
 - **F3 · gen 轨直播流不渲染（刷新才见回复）**：PollStream 每 500ms `chats_get_session` 快照**整体覆盖** .messages（forge_store.at:337-380"以轮询为最终态"），而 musk 后端 assistant 消息**完成时才持久化**（server.rs run_stream 收尾 append_message）——直播期间快照恒为 [user msg]，SSE delta 增量每拍被抹；done 事件随即关 deadman 窗（StopStream pop），完成后无补拍 → 界面停留空态直至手动刷新。VM 轨纯轮询无此问题；web 轨"轮询+SSE 共存"设计（051 T10）与后端持久化时序相悖。修法建议：streaming 期间不覆盖式回填（或 done 臂补一次最终回填）。
 - **F4 · gen 轨无 tool_update 消费臂**：`[forge stream] tool_update` 落入 OnStreamEvent 末尾兜底日志（forge_store.at:617）——P040-2 的 run_command 流式进度在 gen 轨无渲染路径（S3 预期项），web 轨 useForge.ts 有（冻结不动）。
+- **F5 · details 载荷不持久化（musk 后端契约缺口，双轨共有）**：`chats.rs` ToolCall 结构无 details 字段（实测落盘 JSON tool_calls 键仅 `arguments/id/name/result`）——SSE 直播路径 store 里有 details（generic_tool_card 的 diff/截断徽标/全量输出三区 computed 就绪），回放路径全部丢失。042 的"刷新后回放一致"对 details 面只成立一半：截断信息因 auto-ai read 自带分页提示而落在 result **文本**里可见，diff 专用区回放消失。修法：ToolCall 增 Option<details> 字段（serde skip_if None）+ 双写路径透传。
 
 ---
 
@@ -66,9 +67,9 @@
 
 | # | 出处 | 面 | 结果 | 注记 |
 |---|------|----|------|------|
-| S1 | 033 W2 | 浏览器 | ＿ | ＿ |
-| S2 | 042 T10 | 浏览器 | ＿ | ＿ |
-| S3 | 040-1 | 浏览器 | ＿ | ＿ |
+| S1 | 033 W2 | 浏览器 | 🔶 | 芯片行(MetaBlock 对应物)布局/按钮组正常（截图）；徽标中文未落地=F1。顺带 T5 目验待 S6 场次确认 |
+| S2 | 042 T10 | 浏览器 | 🔶 | ARGUMENTS/RESULT 渲染正确且回放一致（截图实证）；big-dump 截断提示在 result 文本可见（50KB 分页+offset，auto-ai read 自身机制）；042 结构化 details 区回放丢失=F5；RESULT 无语法高亮（小注记，纯文本区不走 markdown 管线） |
+| S3 | 040-1 | 浏览器 | 🔶 | 服务端 tool_update 流式事件已证实到达（console `[forge stream] tool_update`）；gen 轨无消费臂（F4）+ 直播视图被轮询覆盖（F3）→ 实时渲染不可达；web 轨当年已验收（冻结） |
 | S4 | 493 | VM | ＿ | ＿ |
 | S5 | 050 | VM | ＿ | ＿ |
 | S6 | 061 D29 | 浏览器 | ＿ | ＿ |
