@@ -103,11 +103,19 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
     // client-side routing). The nesting matters: each layer only falls through
     // if the previous didn't find the file.
     let index_html = web_dist.join("index.html");
-    let static_service = tower_http::services::ServeDir::new(&web_dist)
-        .fallback(
+    // PLAN-065 T3（056 部署缓存债）：dist 产物名无 hash（auto-lang vite 模板
+    // 平铺 assets/index.js），重新部署后浏览器仍可能吃旧 JS——统一 no-cache
+    // （每次 revalidate），强刷不再是看到新前端的必要条件。index.html 与
+    // assets 一并覆盖（overriding）。
+    let static_service = tower::ServiceBuilder::new()
+        .layer(tower_http::set_header::SetResponseHeaderLayer::overriding(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("no-cache"),
+        ))
+        .service(tower_http::services::ServeDir::new(&web_dist).fallback(
             tower_http::services::ServeDir::new(&frontend_dist)
                 .fallback(tower_http::services::ServeFile::new(&index_html)),
-        );
+        ));
 
     // Warn (not fail) if the web app wasn't built — the API still works, but
     // the browser UI will be missing. Tells the user how to build it.

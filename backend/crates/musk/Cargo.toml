@@ -25,7 +25,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # HTTP server (musk serve — frontend talks to this on :8080)
 axum = { version = "0.8", features = ["macros", "multipart"] }
-tower-http = { version = "0.6", features = ["cors", "fs"] }
+# PLAN-065 T3/T4：set-header(静态服务 Cache-Control)+ trace(请求日志)；
+# tower 仅用 ServiceExt::layer 包静态服务(已随 axum 在依赖树内)。
+tower-http = { version = "0.6", features = ["cors", "fs", "set-header", "trace"] }
+tower = "0.5"
 # SSE streaming for the relay events endpoint (api.rs).
 tokio-stream = { version = "0.1", features = ["sync"] }
 tracing = "0.1"
