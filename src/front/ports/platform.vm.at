@@ -60,6 +60,12 @@ fn platformFocusComposer() {
     print("focus composer skipped on vm target")
 }
 
+// composer 一体化改版(2026-09-07):web 侧 composer 自适应增高(DOM
+// scrollHeight 测量+wrapper 定高逃生舱)。VM/iced text_editor 固定
+// height:72 内滚降级,空实现。
+fn platformComposerAutoGrow() {
+}
+
 // PLAN-045 立项 / PLAN-046-T7 真值化:视口高度端口。web 侧 window.innerHeight
 // 恒等;VM 侧读会话 KV vm.window_inner_height——iced renderer 于
 // startup_window_size() 发布基线、双 __window_resized 漏斗实时刷新

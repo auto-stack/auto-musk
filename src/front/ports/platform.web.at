@@ -19,6 +19,8 @@ use.web setupAuthFetch from "src/front/setup_auth_fetch.ts"
 use.web runRelayCommand from "src/front/composables/relay_command_runner.ts"
 // PLAN-061 T16 (D22):新建会话后聚焦 composer(DOM 查询逃生舱)。
 use.web focusComposer from "src/front/focus_composer.ts"
+// composer 一体化改版(2026-09-07):textarea 自适应增高(DOM 测量逃生舱)。
+use.web composerAutoGrow from "src/front/composer_autogrow.web-only.ts"
 
 fn platformInjectStyles() {
     injectStyles()
@@ -35,6 +37,12 @@ fn platformRunRelayCommand(cmd Value) {
 // PLAN-061 T16 (D22):.chats-input 稳定类定位 composer textarea 并聚焦。
 fn platformFocusComposer() {
     focusComposer()
+}
+
+// composer 自适应增高:委托监听安装 + wrapper 定高(见 composer_autogrow
+// .web-only.ts 头注——backdrop 镜像下增高打 wrapper,0px 复位测量)。
+fn platformComposerAutoGrow() {
+    composerAutoGrow()
 }
 
 // PLAN-045: 视口高度端口——mention 锚点定位用（原裸 window.innerHeight 的

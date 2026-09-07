@@ -25,14 +25,18 @@ const DIST_ICONS = join(ROOT, 'web/node_modules/lucide-vue-next/dist/esm/icons')
 const TARGET = join(ROOT, 'src/front/lib/icons_data.at');
 
 // ── 固化清单 ─────────────────────────────────────────────────────────────────
-// 来源 1：src/front/ports/icons.web.at 的 37 符号（.at 轨经端口消费的 lucide 面）
+// 来源 1：src/front/ports/icons.web.at 的符号（.at 轨经端口消费的 lucide 面）。
+// 2026-09-07 对齐实际清单（PLAN-041 起漂移：ArrowDown/ArrowUp/Inbox/Loader2/
+// Pencil 五符号漏录致自检恒红；Brain 为 composer 思考档位 dropdown 新增）。
 const PORTS_SYMBOLS = [
-  'BookOpen', 'Check', 'ChevronDown', 'ChevronRight', 'ChevronUp', 'Clock', 'Copy',
-  'CopyCheck', 'Download', 'ExternalLink', 'Eye', 'File', 'FileIcon', 'FileText',
-  'Folder', 'FolderInput', 'FolderOpen', 'FolderPlus', 'HelpCircle', 'Info',
-  'ListTodo', 'MessageSquare', 'Monitor', 'Moon', 'Orbit', 'PanelLeft', 'Plus',
-  'Scroll', 'Search', 'Send', 'Settings', 'Square', 'Sun', 'Terminal', 'Trash2',
-  'UploadCloud', 'Wrench', 'X',
+  'ArrowDown', 'ArrowUp', 'BookOpen', 'Brain', 'Check', 'ChevronDown',
+  'ChevronRight', 'ChevronUp', 'Clock', 'Copy', 'CopyCheck', 'Download',
+  'ExternalLink', 'Eye', 'File', 'FileIcon', 'FileText', 'Folder',
+  'FolderInput', 'FolderOpen', 'FolderPlus', 'HelpCircle', 'Inbox', 'Info',
+  'ListTodo', 'Loader2', 'MessageSquare', 'Monitor', 'Moon', 'Orbit',
+  'PanelLeft', 'Pencil', 'Plus', 'Scroll', 'Search', 'Send', 'Settings',
+  'Square', 'Sun', 'Terminal', 'Trash2', 'Unlink', 'UploadCloud', 'Wrench',
+  'X',
 ];
 // 来源 2：web/src 直引 lucide-vue-next 的符号（web 轨差集补充；含多行 import）
 const WEB_SYMBOLS = [

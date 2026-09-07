@@ -18,19 +18,31 @@
 // 能力（PLAN-493：web 侧 text-transparent 由 codegen 注入,VM 侧文字可见+
 // 原生着色）。原 send-btn 渐变底收敛为 bg-primary 单色（登记）;rounded-[20px]
 // VM 无 arbitrary 圆角臂,登记降级。
+//
+// composer 一体化改版（2026-09-07,zcode/codex 式）：
+//   - 输入面与工具栏（思考档位 dropdown + 发送钮）同框：外层大圆角容器持
+//     边框/底色/焦点环;chats_view 的独立思考档位行（PLAN-064 形态）收编进
+//     本组件工具栏——经 thinkingLevel prop + pick 事件与 ForgeStore 解耦,
+//     档位落库仍在 chats_view.PickThinking。
+//   - textarea 自适应增高：web 侧 platformComposerAutoGrow 逃生舱按内容
+//     驱动 wrapper 高度（backdrop 类由 textarea 声明类逐 token 镜像推导,
+//     textarea 恒 absolute inset-0 h-full 才能正确叠加——故增高打 wrapper,
+//     0px 复位测 scrollHeight 防 h-full 下"只涨不缩"）;VM 轨 text_editor
+//     固定 height:72 内滚降级。
 
 use store: AgentConfigs
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web component Send, Square from "src/front/ports/icons.at"
+use.web component ArrowUp, Brain, Check, ChevronDown, Square from "src/front/ports/icons.at"
 use.web useI18n from "src/front/ports/composables.at"
 use.web build_mention_name_list from "src/front/mention_helpers.at"
 use.web mention_filtered, mention_clamp_index, mention_index_of, mention_key_action, mention_detect_filter, mention_detect_anchor, mention_detect_visible, mention_detect_pos, mention_insert, mention_can_send, mention_trim, mention_professions_list, mention_current_id from "src/front/mention_helpers.at"
+use.web platformComposerAutoGrow from "src/front/ports/platform.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
 use mention_dropdown: MentionDropdown
 
-widget MentionInput(disabled: bool, professions: obj) {
+widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str) {
 
     setup {
         let i18n = useI18n()
@@ -41,8 +53,10 @@ widget MentionInput(disabled: bool, professions: obj) {
         canSend => mention_can_send(.text)
         mentionFilteredList => mention_filtered(.professionsList, .mentionFilter)
         hasMentionItems => .mentionFilteredList.length > 0
+        // 触发钮档位文案（""/off 同归"关",与选中态口径一致）。
+        thinkingLabel => if .thinkingLevel == "low" { i18n.t("chat.thinkingLow") } else if .thinkingLevel == "high" { i18n.t("chat.thinkingHigh") } else if .thinkingLevel == "max" { i18n.t("chat.thinkingMax") } else { i18n.t("chat.thinkingOff") }
     }
-    msg Msg { Init, Input, Keydown, Select, Hover, send(str), cancel }
+    msg Msg { Init, Input, Keydown, Select, Hover, send(str), cancel, pick(str) }
     model {
         var text str = ""
         var mentionVisible bool = false
@@ -54,11 +68,16 @@ widget MentionInput(disabled: bool, professions: obj) {
         // 只认 var/store 字段，computed 会踩 call 链 UAF 红线）。Init 即取默认
         // 表；Input 再刷一次收敛异步到达的 configs（静置缺口登记计划待澄清④）。
         var mentionNames []Value = []
+        // 思考档位 dropdown 开合态（触发钮 toggle 关闭,无外点关闭——
+        // 同 SessionInfo 登记差异）。
+        var thinkOpen bool = false
     }
     on {
         .Init -> {
-            AgentConfigs.Init()
-            .mentionNames = build_mention_name_list(.professions, .store.configs)
+            AgentConfigs.Init();
+            .mentionNames = build_mention_name_list(.professions, .store.configs);
+            // web 侧装 document 级委托监听 + 初次定高（空态 ~1 行）。
+            platformComposerAutoGrow()
         }
 
         .Input(e) -> {
@@ -66,7 +85,8 @@ widget MentionInput(disabled: bool, professions: obj) {
             .mentionAnchor = mention_detect_anchor(e);
             .mentionVisible = mention_detect_visible(e);
             .mentionPos = mention_detect_pos(e);
-            .mentionNames = build_mention_name_list(.professions, .store.configs)
+            .mentionNames = build_mention_name_list(.professions, .store.configs);
+            platformComposerAutoGrow()
         }
         .Keydown(e) -> {
             if .mentionVisible {
@@ -77,7 +97,8 @@ widget MentionInput(disabled: bool, professions: obj) {
                         .mentionIndex = mention_clamp_index(.mentionIndex - 1, .mentionFilteredList.length)
                     } else if mention_key_action(e) == "Enter" || mention_key_action(e) == "Tab" {
                         .text = mention_insert(.professionsList, mention_current_id(.mentionFilteredList, .mentionIndex), .text, .mentionPos);
-                        .mentionVisible = false
+                        .mentionVisible = false;
+                        platformComposerAutoGrow()
                     } else if mention_key_action(e) == "Escape" {
                         .mentionVisible = false
                     }
@@ -86,7 +107,8 @@ widget MentionInput(disabled: bool, professions: obj) {
         }
         .Select(id) -> {
             .text = mention_insert(.professionsList, id, .text, .mentionPos);
-            .mentionVisible = false
+            .mentionVisible = false;
+            platformComposerAutoGrow()
         }
         .Hover(id) -> { .mentionIndex = mention_index_of(.mentionFilteredList, id) }
         .send(t) -> {
@@ -96,38 +118,38 @@ widget MentionInput(disabled: bool, professions: obj) {
             let tt = mention_trim(t)
             if tt != "" {
                 .text = "";
-                .mentionVisible = false
+                .mentionVisible = false;
+                // 程序化清空不冒泡 input 事件——显式调度回落到单行高。
+                platformComposerAutoGrow()
             }
         }
         .cancel -> {}
+        // 思考档位：菜单开合 + 选中收菜单（落库经父层 onpick →
+        // chats_view.PickThinking → ForgeStore.SetThinkingLevel）。
+        .ToggleThinkMenu -> { .thinkOpen = !.thinkOpen }
+        .pick(level) -> { .thinkOpen = false }
     }
     view {
         div {
             style: "w-full"
             div {
                 style: "max-w-[960px] mx-auto w-full"
+                // zcode/codex 式一体化 composer：大圆角容器 = 输入面 + 工具栏。
                 div {
-                    style: "flex items-end gap-1.5 w-full"
+                    style: "composer-box flex flex-col w-full bg-muted-foreground/5 border border-primary/15 rounded-[20px] focus-within:border-primary/45 focus-within:shadow-[0_0_0_3px_hsl(var(--primary)/0.08)]"
+                    // 输入面：wrapper 高度由 web 侧 JS 按内容驱动（min-h 兜
+                    // 首帧）；textarea absolute inset-0 h-full 镜像 backdrop。
                     div {
-                        style: "input-compose relative flex-1 min-w-0 min-h-20 bg-muted-foreground/5 border border-primary/15 rounded-[20px] focus-within:border-primary/45 focus-within:shadow-[0_0_0_3px_hsl(var(--primary)/0.08)]"
-                        // PLAN-493: mention 高亮为 textarea 能力声明——backdrop
-                        // div（v-html 手写叠加层）删除，技法下沉双端实现层
-                        //（Vue: codegen 发射 backdrop+透明对；VM: 原生着色）。
-                        // text-transparent 同步删除（由 codegen 注入）。
+                        style: "relative w-full min-h-[44px]"
                         textarea {
-                            // PLAN-051 P3-①: 补 h-full——VM 轨 absolute 降级为流内
-                            // 后 textarea 仅自然高度(~1 行)悬于 80px 容器顶部，
-                            // 点击容器中下部不命中输入件（"有框无法输入"现场）；
-                            // h-full 使其填满容器。web 侧 absolute inset-0 几何
-                            // 已定尺寸，此类的 height:100% 冗余无副作用。
-                            style: "chats-input absolute inset-0 h-full py-2 px-3 block w-full border-none rounded-none bg-transparent text-[15px] leading-[1.5] caret-[hsl(var(--foreground))] outline-none resize-none focus:outline-none focus:shadow-none focus:border-none"
+                            style: "chats-input absolute inset-0 h-full py-2.5 px-3.5 block w-full border-none rounded-none bg-transparent text-[15px] leading-[1.5] caret-[hsl(var(--foreground))] outline-none resize-none focus:outline-none focus:shadow-none focus:border-none"
                             value: .text
                             mentions: .mentionNames
                             mention_class: "text-[hsl(220_90%_56%)] bg-[hsl(220_90%_56%/0.12)] rounded-[3px] px-[0.2rem] font-medium"
-                            // PLAN-493 T7: VM 轨多行编辑面——text_editor 缺省
-                            // Fixed(30) 单行高（h-full/min-h 类为 CSS-only，
-                            // Plan 053 注记），显式 height 对齐 web 侧 min-h-20
-                            // 容器的编辑面（vue 轨不消费此 prop，几何不变）。
+                            // VM 轨多行编辑面——text_editor 缺省 Fixed(30) 单行高
+                            // （h-full/min-h 类为 CSS-only,Plan 053 注记）,显式
+                            // height 固定编辑面;web 轨不消费此 prop（几何由
+                            // wrapper 内联高度承载）。
                             height: 72
                             oninput: .Input($event)
                             onkeydown: .Keydown($event)
@@ -136,18 +158,99 @@ widget MentionInput(disabled: bool, professions: obj) {
                             disabled: .disabled
                         }
                     }
-                    if .disabled {
-                        button {
-                            onclick: .cancel
-                            style: "w-9 h-9 min-w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-lg shrink-0 border-none cursor-pointer hover:opacity-85 disabled:opacity-40"
-                            Square { size: 16 }
+                    // 工具栏行：思考档位 dropdown（左）+ 弹性留白 + 发送钮（右）。
+                    div {
+                        style: "flex items-center gap-1.5 px-2 pb-2 w-full shrink-0"
+                        div {
+                            style: "relative"
+                            button {
+                                onclick: .ToggleThinkMenu
+                                disabled: .disabled
+                                title: i18n.t("chat.thinkingLevel")
+                                class: if .thinkOpen {
+                                    "flex items-center gap-1 h-8 px-2 rounded-md text-[13px] border-none bg-accent text-foreground cursor-pointer"
+                                } else {
+                                    "flex items-center gap-1 h-8 px-2 rounded-md text-[13px] border-none bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                                }
+                                Brain { size: 15 }
+                                text .thinkingLabel
+                                ChevronDown { size: 13 }
+                            }
+                            // 向上弹出菜单（zcode 式）：当前档位打勾。
+                            if .thinkOpen {
+                                div {
+                                    style: "absolute bottom-full left-0 mb-2 min-w-[120px] bg-card border border-border rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-1 z-50 flex flex-col"
+                                    button {
+                                        onclick: .pick("")
+                                        disabled: .disabled
+                                        class: if .thinkingLevel == "" || .thinkingLevel == "off" {
+                                            "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-[13px] text-left cursor-pointer"
+                                        } else {
+                                            "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-transparent text-foreground text-[13px] text-left cursor-pointer hover:bg-primary/10"
+                                        }
+                                        text i18n.t("chat.thinkingOff")
+                                        if .thinkingLevel == "" || .thinkingLevel == "off" {
+                                            Check { size: 14 }
+                                        }
+                                    }
+                                    button {
+                                        onclick: .pick("low")
+                                        disabled: .disabled
+                                        class: if .thinkingLevel == "low" {
+                                            "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-[13px] text-left cursor-pointer"
+                                        } else {
+                                            "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-transparent text-foreground text-[13px] text-left cursor-pointer hover:bg-primary/10"
+                                        }
+                                        text i18n.t("chat.thinkingLow")
+                                        if .thinkingLevel == "low" {
+                                            Check { size: 14 }
+                                        }
+                                    }
+                                    button {
+                                        onclick: .pick("high")
+                                        disabled: .disabled
+                                        class: if .thinkingLevel == "high" {
+                                            "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-[13px] text-left cursor-pointer"
+                                        } else {
+                                            "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-transparent text-foreground text-[13px] text-left cursor-pointer hover:bg-primary/10"
+                                        }
+                                        text i18n.t("chat.thinkingHigh")
+                                        if .thinkingLevel == "high" {
+                                            Check { size: 14 }
+                                        }
+                                    }
+                                    button {
+                                        onclick: .pick("max")
+                                        disabled: .disabled
+                                        class: if .thinkingLevel == "max" {
+                                            "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-[13px] text-left cursor-pointer"
+                                        } else {
+                                            "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-transparent text-foreground text-[13px] text-left cursor-pointer hover:bg-primary/10"
+                                        }
+                                        text i18n.t("chat.thinkingMax")
+                                        if .thinkingLevel == "max" {
+                                            Check { size: 14 }
+                                        }
+                                    }
+                                }
+                            }
                         }
-                    } else {
-                        button {
-                            onclick: .send(.text)
-                            style: "w-9 h-9 min-w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-lg shrink-0 border-none cursor-pointer hover:opacity-85 disabled:opacity-40"
-                            disabled: !.canSend
-                            Send { size: 16 }
+                        div {
+                            style: "flex-1"
+                        }
+                        if .disabled {
+                            button {
+                                onclick: .cancel
+                                style: "w-9 h-9 min-w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0 border-none cursor-pointer hover:opacity-85 disabled:opacity-40"
+                                Square { size: 18 }
+                            }
+                        } else {
+                            button {
+                                onclick: .send(.text)
+                                style: "w-9 h-9 min-w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0 border-none cursor-pointer hover:opacity-85 disabled:opacity-40"
+                                disabled: !.canSend
+                                ArrowUp { size: 18 }
+                            }
                         }
                     }
                 }

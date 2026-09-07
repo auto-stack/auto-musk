@@ -359,66 +359,20 @@ widget ChatsView {
                         text .store.error { style: "text-destructive text-[14px] py-2 px-3 bg-destructive/10 rounded-lg self-start max-w-full" }
                     }
                 }
-                // PLAN-064: 思考档位选择器——输入栏上方一排小档位钮。选中态
-                // 高亮；点击写 store（UI 态 + PATCH 持久化到会话）。档位生效于
-                // 下一次发送（后端 run 时读会话元数据），流式进行中禁用。
-                // 硬编码 4 钮避开 for/codegen parser 边界（同 store 注释方针）。
-                row {
-                    style: "flex items-center gap-1.5 px-3 pb-1 shrink-0"
-                    text t("chat.thinkingLevel") { style: "text-[12px] text-muted-foreground shrink-0" }
-                    button {
-                        onclick: .PickThinking("")
-                        disabled: .store.streaming
-                        title: t("chat.thinkingOff")
-                        class: if .store.thinking_level == "" || .store.thinking_level == "off" {
-                            "h-6 px-2 rounded-md text-[12px] border border-primary/40 bg-primary/10 text-primary cursor-pointer"
-                        } else {
-                            "h-6 px-2 rounded-md text-[12px] border border-transparent bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-                        }
-                        text t("chat.thinkingOff")
-                    }
-                    button {
-                        onclick: .PickThinking("low")
-                        disabled: .store.streaming
-                        title: t("chat.thinkingLow")
-                        class: if .store.thinking_level == "low" {
-                            "h-6 px-2 rounded-md text-[12px] border border-primary/40 bg-primary/10 text-primary cursor-pointer"
-                        } else {
-                            "h-6 px-2 rounded-md text-[12px] border border-transparent bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-                        }
-                        text t("chat.thinkingLow")
-                    }
-                    button {
-                        onclick: .PickThinking("high")
-                        disabled: .store.streaming
-                        title: t("chat.thinkingHigh")
-                        class: if .store.thinking_level == "high" {
-                            "h-6 px-2 rounded-md text-[12px] border border-primary/40 bg-primary/10 text-primary cursor-pointer"
-                        } else {
-                            "h-6 px-2 rounded-md text-[12px] border border-transparent bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-                        }
-                        text t("chat.thinkingHigh")
-                    }
-                    button {
-                        onclick: .PickThinking("max")
-                        disabled: .store.streaming
-                        title: t("chat.thinkingMax")
-                        class: if .store.thinking_level == "max" {
-                            "h-6 px-2 rounded-md text-[12px] border border-primary/40 bg-primary/10 text-primary cursor-pointer"
-                        } else {
-                            "h-6 px-2 rounded-md text-[12px] border border-transparent bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-                        }
-                        text t("chat.thinkingMax")
-                    }
-                }
-                // input bar（MentionInput 逃生舱；onsend/oncancel 避开原生 submit/stop 名）
+                // input bar（MentionInput 逃生舱；onsend/oncancel 避开原生 submit/stop 名）。
+                // PLAN-064 独立思考档位行已收编进 composer 工具栏（zcode/codex
+                // 式一体化改版,2026-09-07）——档位经 thinkingLevel prop 下入、
+                // pick 事件上抛,落库仍走 PickThinking → store.SetThinkingLevel
+                // （UI 态 + PATCH 持久化到会话；档位生效于下一次发送,流式中禁用）。
                 MentionInput {
                     disabled: .store.streaming
                     // .at 无可选 props：professions 必填，传空串走 helper 兜底
                     // （props.professions > 动态 configs > DEFAULT_PROFESSIONS）。
                     professions: ""
+                    thinkingLevel: .store.thinking_level
                     onsend: .SendInput($event)
                     oncancel: .StopStream
+                    onpick: .PickThinking($event)
                 }
             }
         }
