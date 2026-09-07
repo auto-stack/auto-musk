@@ -134,6 +134,18 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .allow_headers(tower_http::cors::Any)
         .allow_origin(tower_http::cors::Any);
 
+    // PLAN-065 T4（048-c）：请求日志。INFO 级单行——方法/路径在 span 字段、
+    // 状态/耗时在 on_response 事件（fmt subscriber 默认带 current span 上下文，
+    // 两者的字段拼进同一行）。挂最外层（cors 之外），同时覆盖 API 路由与
+    // 静态服务 fallback。
+    let trace = tower_http::trace::TraceLayer::new_for_http()
+        .make_span_with(
+            tower_http::trace::DefaultMakeSpan::new()
+                .level(tracing::Level::INFO)
+                .include_headers(false),
+        )
+        .on_response(tower_http::trace::DefaultOnResponse::new().level(tracing::Level::INFO));
+
     // ④ 整体接入(plan 018 §11):转译的 ag build_router(38 路由)作为主 router。
     // Plan 019:6 个 🔴 daemon/SSE handler 全部切到 ag server_stream
     // (Phase 1c 非流式 run/workflow_run + Phase 2-4 流式 run_stream/
@@ -178,6 +190,7 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         // Serve config-page.js + any other static assets at the root.
         .fallback_service(static_service)
         .layer(cors)
+        .layer(trace)
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
