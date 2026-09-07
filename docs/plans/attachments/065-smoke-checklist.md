@@ -51,6 +51,17 @@
 
 ---
 
+## 冒烟过程新发现（2026-09-07，执行 S2/S3 时实测）
+
+均为**既有缺陷**（主检出同款生成物/源码一致，非 PLAN-065 T1-T6 引入）：
+
+- **F1 · S1 · gen 轨徽标中文未落地**：`i18n/zh.json` 有全套状态键（statusDrafting=草拟 等）但 `plans_view.at` 零消费——详情 meta 芯片渲染原始英文 status（plans_view.at:198），四个状态流转按钮硬编码英文（:126-142）。033 #3 当年只在 web 轨落地（PlanStatusBadge t(planStatusKey)），063 T8 移植时未带 i18n。
+- **F2 · gen 轨 composer @mention 检测链每键抛 TypeError**：codegen（051 P3-② v-model 优化）把 `oninput: .Input($event)` 编译为 `@input="Input(($event.target).value)"` 传**字符串**，而 `.Input(e)` 处理器（mention_input.at:64-72）期望**DOM 事件**（mention_detect_filter 读 e.target.value/getBoundingClientRect）→ `reading 'value' of undefined` 每键必抛。输入/发送不受影响（v-model 直更 text），坏的是 @mention 下拉检测。主检出 gen 生成物一字不差，同款既有。
+- **F3 · gen 轨直播流不渲染（刷新才见回复）**：PollStream 每 500ms `chats_get_session` 快照**整体覆盖** .messages（forge_store.at:337-380"以轮询为最终态"），而 musk 后端 assistant 消息**完成时才持久化**（server.rs run_stream 收尾 append_message）——直播期间快照恒为 [user msg]，SSE delta 增量每拍被抹；done 事件随即关 deadman 窗（StopStream pop），完成后无补拍 → 界面停留空态直至手动刷新。VM 轨纯轮询无此问题；web 轨"轮询+SSE 共存"设计（051 T10）与后端持久化时序相悖。修法建议：streaming 期间不覆盖式回填（或 done 臂补一次最终回填）。
+- **F4 · gen 轨无 tool_update 消费臂**：`[forge stream] tool_update` 落入 OnStreamEvent 末尾兜底日志（forge_store.at:617）——P040-2 的 run_command 流式进度在 gen 轨无渲染路径（S3 预期项），web 轨 useForge.ts 有（冻结不动）。
+
+---
+
 ## 汇总（T8 回填后填写）
 
 | # | 出处 | 面 | 结果 | 注记 |
