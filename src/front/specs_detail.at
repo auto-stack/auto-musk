@@ -405,7 +405,7 @@ widget TestDetail(content: str, test_file: str) {
 .meta-badge.file { background: hsl(var(--muted-foreground) / 0.06); color: var(--af-muted); }
 .block-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--af-muted); margin-bottom: 0.3rem; }
 .fixture-block { border: 1px solid var(--af-border); border-radius: 8px; overflow: hidden; }
-.fixture-code { margin: 0; padding: 0.6rem 0.75rem; background: hsl(var(--muted-foreground) / 0.04); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.88rem; line-height: 1.5; color: var(--af-fg); overflow-x: auto; }
+.fixture-code { margin: 0; padding: 0.6rem 0.75rem; background: hsl(var(--muted-foreground) / 0.04); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.88rem; line-height: 1.5; color: var(--af-fg); overflow-x: auto; white-space: pre-wrap; }
 .steps-block { border: 1px solid var(--af-border); border-radius: 8px; padding: 0.6rem 0.75rem; background: hsl(var(--muted-foreground) / 0.02); }
 .steps-list { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.25rem; }
 .steps-list li { color: var(--af-fg); line-height: 1.5; padding-left: 0.3rem; }
@@ -446,7 +446,9 @@ widget TestDetail(content: str, test_file: str) {
                         class: "block-label"
                         text "Fixture"
                     }
-                    pre {
+                    // PLAN-065 T5（056 pre 缩进伪影同族）：pre→div + pre-wrap
+                    // 承接换行语义，消除 codegen 对 pre 子树保留的模板缩进。
+                    div {
                         class: "fixture-code"
                         code {
                             text .meta.fixture

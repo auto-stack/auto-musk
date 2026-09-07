@@ -497,6 +497,28 @@ impl PlansStore {
         PlanFile::from_path(&path, &self.plans_dir)
     }
 
+    /// 系统迁移（033 W1 建模，PLAN-065 T6 落地）：不经 `can_transition` 的
+    /// 状态写入。调用方须自证迁移合法性（如归档漏斗的两条进入路径：archive
+    /// 搁置 / merge 沉淀）。写入形状与 `transition()` 一致（同态幂等跳过 +
+    /// 刷新 updated_at），差别仅在免校验、且不做移位；未来 `transition()`
+    /// 增加副作用（事件/钩子）时，系统迁移是显式旁路面，不静默漏触发。
+    pub fn force_transition(&self, seq: u32, to: PlanStatus) -> Result<PlanFile, String> {
+        let pf = self.get(seq).ok_or_else(|| format!("plan {:03} not found", seq))?;
+        let body = if pf.status == to {
+            pf.content.clone()
+        } else {
+            set_field(&pf.content, "status", to.as_str())
+        };
+        let body = set_field(&body, "updated_at", &now_iso());
+        let path = if pf.archived {
+            self.archived_dir.join(&pf.filename)
+        } else {
+            self.plans_dir.join(&pf.filename)
+        };
+        std::fs::write(&path, &body).map_err(|e| format!("failed to write plan: {}", e))?;
+        PlanFile::from_path(&path, &self.plans_dir)
+    }
+
     /// 归档：置 `status: archived` 并移入 `archived/`（PLAN-033 单一终态，
     /// 状态与位置恒一致）。reviewed 计划拒绝直接归档——必须先 merge 沉淀
     /// 进 Spec。已是 archived 则原样返回（幂等）。
@@ -514,19 +536,12 @@ impl PlansStore {
         self.move_to_archived(seq)
     }
 
-    /// 终态漏斗：直接写 `status: archived`（不经 `can_transition`——两条进入
-    /// 路径 archive 搁置 / merge 沉淀都不受手动转移状态机约束）+ 刷新
-    /// updated_at + 移入 `archived/`。调用方须保证计划当前在活跃目录。
+    /// 终态漏斗的移位半段：状态写入已上收 `force_transition`（033 W1 系统
+    /// 迁移面），此处只把文件挪进 `archived/`。调用方须保证计划当前在活跃
+    /// 目录（archive/merge 漏斗已保证）。
     fn move_to_archived(&self, seq: u32) -> Result<PlanFile, String> {
-        let pf = self.get(seq).ok_or_else(|| format!("plan {:03} not found", seq))?;
-        let body = if pf.status == PlanStatus::Archived {
-            pf.content.clone()
-        } else {
-            set_field(&pf.content, "status", PlanStatus::Archived.as_str())
-        };
-        let body = set_field(&body, "updated_at", &now_iso());
+        let pf = self.force_transition(seq, PlanStatus::Archived)?;
         let src = self.plans_dir.join(&pf.filename);
-        std::fs::write(&src, &body).map_err(|e| format!("failed to write plan: {}", e))?;
         let dst = self.archived_dir.join(&pf.filename);
         if dst.exists() {
             return Err(format!(
@@ -1033,6 +1048,35 @@ mod tests {
         store.create("a", "").unwrap();
         let pf = store.transition(1, PlanStatus::Drafting).unwrap();
         assert_eq!(pf.status, PlanStatus::Drafting);
+    }
+
+    /// PLAN-065 T6（033 W1 建模）：force_transition 是不经 can_transition 的
+    /// 系统迁移面——写状态 + 刷 updated_at，但不移位（移位归调用方）。
+    #[test]
+    fn force_transition_sets_status_and_updated_at() {
+        let (_td, store) = tmp_store();
+        store.create("a", "").unwrap();
+        // 哨兵 updated_at，验证 force 后确被刷新（防同秒创建时间假阳）
+        let path = store.plans_dir.join("001-a.md");
+        let seeded = set_field(
+            &std::fs::read_to_string(&path).unwrap(),
+            "updated_at",
+            "2000-01-01T00:00:00+00:00",
+        );
+        std::fs::write(&path, seeded).unwrap();
+
+        let pf = store.force_transition(1, PlanStatus::Archived).unwrap();
+        assert_eq!(pf.status, PlanStatus::Archived, "系统迁移直接写终态");
+        assert!(!pf.archived, "force_transition 只写状态，不移位");
+
+        let body = std::fs::read_to_string(&path).unwrap();
+        assert!(body.contains("status: archived"), "写盘生效");
+        assert!(
+            !body.contains("2000-01-01"),
+            "updated_at 已刷新（非哨兵值）"
+        );
+        // 回读一致
+        assert_eq!(store.get(1).unwrap().status, PlanStatus::Archived);
     }
 
     #[test]

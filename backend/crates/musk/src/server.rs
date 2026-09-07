@@ -103,11 +103,19 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
     // client-side routing). The nesting matters: each layer only falls through
     // if the previous didn't find the file.
     let index_html = web_dist.join("index.html");
-    let static_service = tower_http::services::ServeDir::new(&web_dist)
-        .fallback(
+    // PLAN-065 T3（056 部署缓存债）：dist 产物名无 hash（auto-lang vite 模板
+    // 平铺 assets/index.js），重新部署后浏览器仍可能吃旧 JS——统一 no-cache
+    // （每次 revalidate），强刷不再是看到新前端的必要条件。index.html 与
+    // assets 一并覆盖（overriding）。
+    let static_service = tower::ServiceBuilder::new()
+        .layer(tower_http::set_header::SetResponseHeaderLayer::overriding(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("no-cache"),
+        ))
+        .service(tower_http::services::ServeDir::new(&web_dist).fallback(
             tower_http::services::ServeDir::new(&frontend_dist)
                 .fallback(tower_http::services::ServeFile::new(&index_html)),
-        );
+        ));
 
     // Warn (not fail) if the web app wasn't built — the API still works, but
     // the browser UI will be missing. Tells the user how to build it.
@@ -125,6 +133,18 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         .allow_methods(tower_http::cors::Any)
         .allow_headers(tower_http::cors::Any)
         .allow_origin(tower_http::cors::Any);
+
+    // PLAN-065 T4（048-c）：请求日志。INFO 级单行——方法/路径在 span 字段、
+    // 状态/耗时在 on_response 事件（fmt subscriber 默认带 current span 上下文，
+    // 两者的字段拼进同一行）。挂最外层（cors 之外），同时覆盖 API 路由与
+    // 静态服务 fallback。
+    let trace = tower_http::trace::TraceLayer::new_for_http()
+        .make_span_with(
+            tower_http::trace::DefaultMakeSpan::new()
+                .level(tracing::Level::INFO)
+                .include_headers(false),
+        )
+        .on_response(tower_http::trace::DefaultOnResponse::new().level(tracing::Level::INFO));
 
     // ④ 整体接入(plan 018 §11):转译的 ag build_router(38 路由)作为主 router。
     // Plan 019:6 个 🔴 daemon/SSE handler 全部切到 ag server_stream
@@ -170,6 +190,7 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         // Serve config-page.js + any other static assets at the root.
         .fallback_service(static_service)
         .layer(cors)
+        .layer(trace)
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -421,6 +442,18 @@ async fn run_stream_handler(
         .unwrap()
 }
 
+/// auto-ai `exec_or_msg`（auto-ai-agent tool.rs）是错误标记的唯一产源，仅
+/// 两种格式：`[security denied (...)...]` / `[tool error: ...]`。错误折叠进
+/// result 文本、事件不携带 error 标记，故在 SSE 边界单点按前缀重判。
+/// 事件契约：status = "error" | "success"（对齐 gen 轨 forge_store 消费）。
+fn tool_result_status(result: &str) -> &'static str {
+    if result.starts_with("[security denied") || result.starts_with("[tool error") {
+        "error"
+    } else {
+        "success"
+    }
+}
+
 /// Serialize a [`auto_ai_agent::StreamEvent`] to the SSE JSON shape.
 ///
 /// Tool events are emitted as the `tool_call` / `tool_result` pair the Vue
@@ -456,9 +489,9 @@ fn stream_event_to_json(ev: &auto_ai_agent::StreamEvent, id: Option<&str>) -> se
             // auto-ai 027 content/details 分离：details 为 UI 载荷（截断信息等），
             // 不进 LLM 上下文；此处透传给前端（None → null，前端可忽略）。
             "details": details,
-            // status 真字段仍缺失（错误在 agent loop 已折叠进 result 文本，事件
-            // 不携带 error 标记）——KNOWN-DEBT 027 条登记的前端嗅探仍在位。
-            "status": "success",
+            // 027 债闭环（PLAN-065 T1）：status 真字段，服务端单点判定，
+            // 前端不再嗅探 result 前缀。
+            "status": tool_result_status(result),
         }),
         StreamEvent::Warning { text } => json!({"type": "warning", "text": text}),
         StreamEvent::Done { result } => json!({
@@ -691,9 +724,12 @@ async fn chat_stream(
                     let tool = value.get("name").and_then(|t| t.as_str()).unwrap_or("").to_string();
                     let args = value.get("arguments").cloned().unwrap_or(json!(null));
                     let result = value.get("result").and_then(|t| t.as_str()).unwrap_or("").to_string();
+                    // 与 SSE 同源取真 status（PLAN-065 T1 回放一致性）：
+                    // 持久化与流式两轨对同一事件判定一致。
+                    let status = value.get("status").and_then(|t| t.as_str()).unwrap_or("success").to_string();
                     tc2.lock().unwrap().push(crate::chats::ToolCall {
                         tool, args, result,
-                        status: String::from("success"),
+                        status,
                         id: id.unwrap_or_default(),
                     });
                 }
@@ -2002,6 +2038,37 @@ mod tests {
         let v = stream_event_to_json(&tool, Some("tc-2"));
         assert_eq!(v["details"]["diff"], "-2 old\n+2 new");
         assert_eq!(v["details"]["first_changed_line"], 2);
+    }
+
+    /// (1a-2) PLAN-065 T1：tool_result.status 真字段——错误标记（auto-ai
+    /// exec_or_msg 仅两种前缀）在服务端单点判定，前端不再嗅探 result 前缀。
+    #[test]
+    fn contract_stream_event_tool_result_status_is_true_field() {
+        use auto_ai_agent::StreamEvent;
+        let mk = |result: &str| {
+            stream_event_to_json(
+                &StreamEvent::Tool {
+                    tool: "read_file".into(),
+                    args: json!({"path": "/tmp/x"}),
+                    result: result.into(),
+                    details: None,
+                },
+                Some("tc-1"),
+            )
+        };
+
+        let v = mk("[security denied (read)] '/etc/hosts' is outside the workspace root '.'. hint");
+        assert_eq!(v["status"], "error", "security denied 前缀 → error");
+
+        let v = mk("[tool error: file not found]");
+        assert_eq!(v["status"], "error", "tool error 前缀 → error");
+
+        let v = mk("ok content here");
+        assert_eq!(v["status"], "success", "正常文本 → success");
+
+        // 前缀必须在开头——正文中间引用错误标记不误判。
+        let v = mk("prev line\n[tool error: x]");
+        assert_eq!(v["status"], "success", "非开头前缀不误判");
     }
 
     /// (1b) Delta/Warning/Error 走 `type` 字段,无 id(只有 tool 事件配对)。

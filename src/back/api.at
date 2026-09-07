@@ -401,7 +401,8 @@ pub type ForgeSession = {
     pending_spec_changes: []SpecChange,
     // PLAN-064: 会话思考档位(""|off|low|high|max)。后端 detail 自 064 T9 起
     // 即回传、forge_store 读取——补契约缺字段(此前 api.ts 生成缺该键,
-    // vue-tsc TS2339 恒红,2026-09-07 composer 改版门禁暴露)。
+    // vue-tsc TS2339 恒红,2026-09-07 composer 改版门禁暴露;065 T2 独立同修,
+    // merge 双注释归一)。
     thinking_level: str,
 }
 
