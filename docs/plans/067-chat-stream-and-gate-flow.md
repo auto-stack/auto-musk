@@ -154,7 +154,7 @@ T-02 按 T-01 结论实施，统一验收口径见 AC-01/AC-02。约束：不破
 - T-01 ✅ 定责记录：后端 SSE 推流正常（curl 逐 token 实达）；浏览器事件接收正常（addEventListener 探针 17 事件）；断点=前端渲染投影：消息列表按 chatActivePath(messages, active_leaf) 叶链渲染，乐观 user 与流式 assistant 消息无 parent_id、PollStream 不刷新 leaf → 新回合不在链上不可见，刷新重拉 leaf 才可见。附带发现：双订阅者（多标签）会对同一会话各触发一次 run（回复 ×2）；运行中服务端快照不含未完成 assistant，全量回填会清掉流式内容。证据：tmp/probe-sse2.log（curl 字节流）、探针采样曲线（hasSent 恒 false + poll count 增长）。
 - T-02 ✅ 提交（worktree）: forge_store.at 四处改动，:3001 实测乐观消息 2s 内上屏、流式内容实时渲染（domLen 590→602 随回复到达）、无需刷新。
 - T-03 ✅ 定责记录（r2 修订依据）：全库（musk relay + auto-ai orchestration）**不存在超时自动拒绝机制**——resolve_gate_auto 无 handler 时默认 APPROVE（driver.at:159）；relay run 遇 human gate 时 drive 返回、run 停在 GateWaiting 等待 API 决议（relay/api.rs POST /gate → store.resolve_gate 重入驱动）,即暂停语义已存在且无期限。GateType 缺省 unwrap_or(Auto)（store.rs:386）值得复核。用户所见'到期默认拒绝'最可能=gate 卡片因 T-02 前渲染缺陷从未显示,agent 后续自行为（LLM 视为拒绝继续/工具 safety 拒绝）被解读为超时。T-04 设计据此修订（见上）,plan_revision 1→2。
-- T-04/T-05 ✅ 提交（worktree,19 files）:实现面=ag drive_loop wait 分支镜像 relay_gate_waiting + 审批模式 auto 即刻放行继续驱动（store.resolve_gate 落审计）;桥接放行 relay_gate_waiting;hw driver/store 同款镜像+三态单测（等待无超时/approve 续跑/reject(feedback)=重做非中止）;ChatSession.approval_mode hw+ag 双轨;PATCH /approval 端点三处登记（server.at/extern_sigs/auto_generated）;spawn_relay+plan-merge 写 approval_mode context;composer 审批模式下拉+SetApprovalMode+i18n。验证:relay 55 测试+parity 全绿;PATCH 持久化实测;UI 下拉点击→服务端 auto 实测。E2E（auto 会话 spawn plan 流程过门）观察中（run-1983de34,step0 plan agent 执行期）。
+- T-04/T-05 ✅ 提交（worktree,19 files）:实现面=ag drive_loop wait 分支镜像 relay_gate_waiting + 审批模式 auto 即刻放行继续驱动（store.resolve_gate 落审计）;桥接放行 relay_gate_waiting;hw driver/store 同款镜像+三态单测（等待无超时/approve 续跑/reject(feedback)=重做非中止）;ChatSession.approval_mode hw+ag 双轨;PATCH /approval 端点三处登记（server.at/extern_sigs/auto_generated）;spawn_relay+plan-merge 写 approval_mode context;composer 审批模式下拉+SetApprovalMode+i18n。验证:relay 55 测试+parity 全绿;PATCH 持久化实测;UI 下拉点击→服务端 auto 实测。E2E（auto 会话 spawn plan 流程过门）观察中（run-1983de34,step0 plan agent 执行期）。E2E 结果:gate 自动放行验证通过——run 到达 execute 前的 Human gate 后无人工干预直接进入 step 1（waiting 恒 False）;step 1 agent 执行报错致 run failed（原因待查,与门逻辑无关——同源现象:relay execute 步 agent 的工具 cwd 报 os error 3,登记待澄清⑤）。
 
 
 
@@ -166,6 +166,7 @@ T-02 按 T-01 结论实施，统一验收口径见 AC-01/AC-02。约束：不破
 - 2026-09-09（new / r1 起草）：基于用户实测与当日本会话证据起草。背景调查记录于 4.2；两处调查型任务（T-01/T-03）以决策记录为产物。handoff：`stage: new`，`outcome: pass`（起草完成，可进入 review）；`next: work` 前置条件 = `10. 待澄清`①（方案取舍）由用户确认，其余可在执行中细化。
 
 ## 10. 待澄清事项
+5. **T-05 E2E 遗留**：auto 放行后 step 1（execute,plan-dev agent）执行失败（run status=failed）,失败消息未入列表投影——需单独定位（候选:relay 步 agent 的工具工作目录/模式注册）。不影响门放行语义的验证结论。
 
 1. **方案取舍**：✅ 已决（2026-09-09，用户确认）——P1 暂停与 P2 自动 approve 都做；顺序 P0 → P1 → P2 → T-06 → T-07。
 2. **gate 超时值**：暂停模式的默认超时时长（现行为疑似数分钟级自动拒绝）；是否分 gate 类型（human/auto）配置。
