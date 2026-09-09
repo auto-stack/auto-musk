@@ -185,8 +185,41 @@ a { color: hsl(var(--primary)); }
 .dark .streaming-document .mermaid-mode-btn:hover,
 .dark .streaming-document .mermaid-action-btn:hover { background: hsl(var(--muted) / 0.6); color: hsl(var(--foreground)); }
 
+/* ══ IME 组合串可见性（PLAN-493 双层文字技术的组词缺口）══
+   textarea 常态 color:transparent（显字由 backdrop 层承担）,组词中的
+   composition 文字不进 v-model（Vue 组词期冻结）、不进 backdrop,浏览器
+   对透明色的组合串回退系统黑——深色主题下不可读。组词期间给 textarea
+   挂 .ime-composing（换主题前景色实绘,深浅色自动跟随 --foreground 翻转;
+   浅色下≈深墨与原系统黑观感一致）,backdrop 兄弟层挂 .ime-composing-
+   backdrop 隐藏,避免整段文字双层叠绘与 mention 底色混色。 */
+textarea.chats-input.ime-composing {
+  color: hsl(var(--foreground));
+  -webkit-text-fill-color: hsl(var(--foreground));
+}
+.chats-input.ime-composing-backdrop { visibility: hidden; }
 /* ═══════════════════════════════════════════════════ */
 `
+
+// 组词状态钩子:compositionstart/end 在 document 冒泡段监听,只认
+// "textarea.chats-input 且前邻兄弟为 backdrop div.chats-input"的双层结构
+// （其余输入面零影响）。end 走冒泡段保证晚于 Vue v-model 的组词同步
+// （元素上先跑）,类移除与 backdrop 文字刷新同帧落定,无闪断。
+function installImeComposingHook(): void {
+  const pair = (target: EventTarget | null): [HTMLTextAreaElement, HTMLElement] | null => {
+    if (!(target instanceof HTMLTextAreaElement) || !target.classList.contains('chats-input')) return null
+    const backdrop = target.previousElementSibling
+    if (!(backdrop instanceof HTMLDivElement) || !backdrop.classList.contains('chats-input')) return null
+    return [target, backdrop]
+  }
+  const flip = (target: EventTarget | null, on: boolean): void => {
+    const pairRes = pair(target)
+    if (!pairRes) return
+    pairRes[0].classList.toggle('ime-composing', on)
+    pairRes[1].classList.toggle('ime-composing-backdrop', on)
+  }
+  document.addEventListener('compositionstart', (e) => flip(e.target, true))
+  document.addEventListener('compositionend', (e) => flip(e.target, false))
+}
 
 export function injectStyles(): void {
   if (document.getElementById('musk-global-styles')) return
@@ -194,4 +227,5 @@ export function injectStyles(): void {
   style.id = 'musk-global-styles'
   style.textContent = STYLES
   document.head.appendChild(style)
+  installImeComposingHook()
 }
