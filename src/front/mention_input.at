@@ -42,7 +42,7 @@ use.web platformComposerAutoGrow from "src/front/ports/platform.at"
 // PLAN-037 P1: cross-file component refs (native alias form).
 use mention_dropdown: MentionDropdown
 
-widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str) {
+widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approvalMode: str) {
 
     setup {
         let i18n = useI18n()
@@ -55,8 +55,10 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str) {
         hasMentionItems => .mentionFilteredList.length > 0
         // 触发钮档位文案（""/off 同归"关",与选中态口径一致）。
         thinkingLabel => if .thinkingLevel == "low" { i18n.t("chat.thinkingLow") } else if .thinkingLevel == "high" { i18n.t("chat.thinkingHigh") } else if .thinkingLevel == "max" { i18n.t("chat.thinkingMax") } else { i18n.t("chat.thinkingOff") }
+        // PLAN-067 T-05: 审批模式文案（human=人工[缺省],auto=自动放行）。
+        approvalLabel => if .approvalMode == "auto" { i18n.t("chat.approvalAuto") } else { i18n.t("chat.approvalHuman") }
     }
-    msg Msg { Init, Input, Keydown, Select, Hover, send(str), cancel, pick(str) }
+    msg Msg { Init, Input, Keydown, Select, Hover, send(str), cancel, pick(str), pick_approval(str) }
     model {
         var text str = ""
         var mentionVisible bool = false
@@ -71,6 +73,8 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str) {
         // 思考档位 dropdown 开合态（触发钮 toggle 关闭,无外点关闭——
         // 同 SessionInfo 登记差异）。
         var thinkOpen bool = false
+        // PLAN-067 T-05: 审批模式 dropdown 开合态（同 thinkOpen 口径）。
+        var approvalOpen bool = false
     }
     on {
         .Init -> {
@@ -128,6 +132,10 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str) {
         // chats_view.PickThinking → ForgeStore.SetThinkingLevel）。
         .ToggleThinkMenu -> { .thinkOpen = !.thinkOpen }
         .pick(level) -> { .thinkOpen = false }
+        // PLAN-067 T-05: 审批模式 dropdown 开合 + 选中收菜单（事件经父层
+        // PickApproval → store.SetApprovalMode 落库）。
+        .ToggleApprovalMenu -> { .approvalOpen = !.approvalOpen }
+        .pick_approval(mode) -> { .approvalOpen = false }
     }
     view {
         div {
@@ -230,6 +238,54 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str) {
                                         text i18n.t("chat.thinkingMax")
                                         if .thinkingLevel == "max" {
                                             Check { size: 14 }
+                                        }
+                                    }
+                                }
+                            }
+                            // PLAN-067 T-05: 审批模式 dropdown（思考档位右侧,
+                            // 同款开合/选中勾口径;human=人工[缺省],auto=自动）。
+                            div {
+                                style: "relative"
+                                button {
+                                    onclick: .ToggleApprovalMenu
+                                    disabled: .disabled
+                                    title: i18n.t("chat.approvalMode")
+                                    class: if .approvalOpen {
+                                        "flex items-center gap-1 h-8 px-2 rounded-md text-[13px] border-none bg-accent text-foreground cursor-pointer"
+                                    } else {
+                                        "flex items-center gap-1 h-8 px-2 rounded-md text-[13px] border-none bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                                    }
+                                    text .approvalLabel
+                                    ChevronDown { size: 13 }
+                                }
+                                if .approvalOpen {
+                                    div {
+                                        style: "absolute bottom-full left-0 mb-2 min-w-[120px] bg-card border border-border rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-1 z-50 flex flex-col"
+                                        button {
+                                            onclick: .pick_approval("human")
+                                            disabled: .disabled
+                                            class: if .approvalMode != "auto" {
+                                                "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-[13px] text-left cursor-pointer"
+                                            } else {
+                                                "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-transparent text-foreground text-[13px] text-left cursor-pointer hover:bg-primary/10"
+                                            }
+                                            text i18n.t("chat.approvalHuman")
+                                            if .approvalMode != "auto" {
+                                                Check { size: 14 }
+                                            }
+                                        }
+                                        button {
+                                            onclick: .pick_approval("auto")
+                                            disabled: .disabled
+                                            class: if .approvalMode == "auto" {
+                                                "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-[13px] text-left cursor-pointer"
+                                            } else {
+                                                "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-transparent text-foreground text-[13px] text-left cursor-pointer hover:bg-primary/10"
+                                            }
+                                            text i18n.t("chat.approvalAuto")
+                                            if .approvalMode == "auto" {
+                                                Check { size: 14 }
+                                            }
                                         }
                                     }
                                 }

@@ -23,6 +23,7 @@ use auto_ai_agent::orchestration::{AgentFactory, HandoffDocument};
 use auto_ai_agent::StreamEvent;
 
 use crate::relay::AdvanceResult;
+use crate::relay::GateDecision;
 use crate::relay::store::RunEvent;
 use crate::server::AppState;
 
@@ -136,9 +137,49 @@ async fn drive_loop(
                 //    loop back to advance the next step.
                 continue;
             }
-            AdvanceResult::WaitForHuman { .. } => {
+            AdvanceResult::WaitForHuman { step_id, .. } => {
                 // Gate: stop driving and wait for POST /gate to resolve it.
                 tracing::info!("drive_run: {run_id} paused at human gate");
+                // PLAN-067 T-04(a)：镜像 gate_waiting 到发起会话的 chat 流。
+                // 总线桥（chat_run_stream 内）按 run_id==session_id 过滤,而
+                // relay run 事件携带的是 run 自身 id——此前 chat 级审批门
+                // 事件无生产者（前端 OnStreamEvent 的 relay_gate_waiting
+                // 分支为死线）,审批卡永不出现。此处读发起会话 id,以其为
+                // bus run_id 发 relay_gate_waiting（payload.run_id 仍是
+                // relay run id,前端据此更新 .relays 卡片状态）。
+                if let Some(chat_sid) = ws.relay.context_var(run_id, "chat_session_id") {
+                    if !chat_sid.is_empty() {
+                        crate::relay::api::publish_task_plan_event(
+                            &chat_sid,
+                            "relay_gate_waiting",
+                            serde_json::json!({ "run_id": run_id, "step_id": step_id }),
+                        );
+                    }
+                }
+                // PLAN-067 T-05：审批模式 = auto 时即刻放行并继续驱动
+                // （resolve_gate 内部 advance 出 ExecuteStep/Completed）。
+                // 放行本身经 store.resolve_gate 落 GateResolved 审计事件。
+                if ws.relay.context_var(run_id, "approval_mode").as_deref() == Some("auto") {
+                    tracing::info!("drive_run: {run_id} approval_mode=auto, auto-approving gate");
+                    let (res, _st) = match ws.relay.resolve_gate(run_id, GateDecision::Approve) {
+                        Some(v) => v,
+                        None => return,
+                    };
+                    match res {
+                        AdvanceResult::ExecuteStep { role_id, .. } => {
+                            if let Err(e) = run_step(state, ws, run_id, &role_id).await {
+                                tracing::error!("drive_run: step agent failed for {run_id}: {e}");
+                                let _ = ws.relay.fail_run(run_id, &format!("[agent error] {e}"));
+                            }
+                            continue;
+                        }
+                        AdvanceResult::Completed => {
+                            crate::auto_generated::extern_impl::relay_append_report_message_to(ws, run_id);
+                            return;
+                        }
+                        _ => return,
+                    }
+                }
                 return;
             }
             AdvanceResult::Completed => {

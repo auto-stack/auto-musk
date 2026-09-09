@@ -801,6 +801,14 @@ pub fn chats_thinking(s: &State<AppState>, q: Query<crate::auto_generated::serve
         _ => Value::Null,
     }
 }
+// PLAN-067 T-05: 会话审批模式 PATCH（human|auto;非法值后端归一 human）。
+pub fn chats_approval(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>, b: Json<crate::auto_generated::server::ChatApprovalBody>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    match ws.chats.set_approval_mode(&p.0, b.approval_mode.as_str()) {
+        Ok(Some(session)) => serde_json::json!({ "session": session }),
+        _ => Value::Null,
+    }
+}
 pub fn chats_delete(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: &Path<String>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
     if ws.chats.delete(&p.0).unwrap_or(false) {
@@ -1737,6 +1745,10 @@ pub async fn chat_run_stream(
         let (run_id, _initial) = ws.relay.start_run(&req, Some(ws_id.clone()));
         // PLAN-034 T9：登记发起会话——driver 完成时把报告消息写回这里。
         ws.relay.set_context_var(&run_id, "chat_session_id", &session_id);
+        // PLAN-067 T-05：登记审批模式（plan-merge 流无 gate,登记为一致性
+        // 语义;后续带门 flow 复用本短路时即生效）。
+        ws.relay
+            .set_context_var(&run_id, "approval_mode", &session.approval_mode);
         let tc_args = serde_json::json!({
             "flow_id": "plan-merge",
             "task": task,
@@ -1973,7 +1985,14 @@ pub async fn chat_run_stream(
             loop {
                 match bridge_rx.recv().await {
                     Ok(ev) => {
-                        if ev.run_id == bridge_sid && ev.event_type == "tool_update" {
+                        // PLAN-067 T-04(a)：放行 relay_gate_waiting——发起
+                        // 会话镜像事件（relay/driver.rs WaitForHuman 分支
+                        // 以 chat_session_id 为 bus run_id 发射），前端
+                        // OnStreamEvent 据此把 Run 卡置 gate_waiting。
+                        if ev.run_id == bridge_sid
+                            && (ev.event_type == "tool_update"
+                                || ev.event_type == "relay_gate_waiting")
+                        {
                             mpsc_try_send(&tx_bridge, ev.payload);
                         }
                     }

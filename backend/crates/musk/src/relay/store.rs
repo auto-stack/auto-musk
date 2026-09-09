@@ -1106,6 +1106,88 @@ mod tests {
     use super::*;
     use crate::relay::HandoffDocument;
 
+    /// PLAN-067 T-04(c)：human gate 三态——①GateWaiting 即暂停（无超时,
+    /// 不决议就一直等,决无自动拒绝）;②approve → 重入驱动续跑后续步骤至
+    /// 完成;③reject(feedback) → 带反馈重做同一步（非中止,redraft 语义,
+    /// 流程随后继续走完,plan flow 仅 execute 前一个 Human gate）。
+    #[test]
+    fn human_gate_pauses_then_approve_resumes_or_reject_redrafts() {
+        // ③ reject 分支：reject 不中止——重做被门守卫的步骤后流程继续。
+        let store = tmp_store();
+        let (id, _) = store.start_run(
+            &StartRunRequest {
+                flow_id: Some("plan".into()),
+                ..Default::default()
+            },
+            None,
+        );
+        // plan 相位执行并提交 handoff → 停在 execute 前的 Human gate。
+        let (r, _) = store.advance(&id).unwrap();
+        assert!(matches!(r, crate::relay::AdvanceResult::ExecuteStep { .. }));
+        let (r, state) = store.submit_handoff(&id, handoff("plan-dev")).unwrap();
+        assert!(matches!(r, crate::relay::AdvanceResult::WaitForHuman { .. }), "actual after handoff: {r:?}");
+        assert!(state.waiting_for_gate.is_some(), "gate waiting = paused");
+        // 无超时：不决议 run 就一直停在等待（重复读取代证）,决不自动拒绝。
+        let st = store.get(&id).unwrap();
+        assert!(st.waiting_for_gate.is_some(), "no timeout auto-reject");
+
+        // reject(feedback)：带反馈重做被门守卫的步骤（redraft,非中止）。
+        let (r, _) = store
+            .resolve_gate(&id, GateDecision::Reject { feedback: "计划缺验收标准".to_string() })
+            .unwrap();
+        assert!(
+            matches!(r, crate::relay::AdvanceResult::ExecuteStep { .. }),
+            "reject redrafts the gated step"
+        );
+        // redraft 后流程继续走完剩余 Auto 步骤（plan flow 仅此一个 Human gate）。
+        let mut r = store.submit_handoff(&id, handoff("plan-dev")).unwrap().0;
+        let mut guard = 0;
+        loop {
+            match r {
+                crate::relay::AdvanceResult::ExecuteStep { .. } => {
+                    r = store.submit_handoff(&id, handoff("plan-dev")).unwrap().0;
+                }
+                crate::relay::AdvanceResult::Completed => break,
+                other => panic!("unexpected advance result: {other:?}"),
+            }
+            guard += 1;
+            assert!(guard < 16, "flow did not terminate");
+        }
+        let st = store.get(&id).unwrap();
+        assert_eq!(st.status, "completed", "reject-redraft flow completes");
+
+        // ② approve 分支（全新 run）：gate 上 approve → 重入驱动续跑至完成。
+        let store2 = tmp_store();
+        let (id2, _) = store2.start_run(
+            &StartRunRequest {
+                flow_id: Some("plan".into()),
+                ..Default::default()
+            },
+            None,
+        );
+        let (_r, _) = store2.advance(&id2).unwrap();
+        let (_r, _) = store2.submit_handoff(&id2, handoff("plan-dev")).unwrap();
+        let (r, _) = store2
+            .resolve_gate(&id2, GateDecision::Approve)
+            .unwrap();
+        assert!(matches!(r, crate::relay::AdvanceResult::ExecuteStep { .. }), "approve resumes execution");
+        let mut r = store2.submit_handoff(&id2, handoff("plan-dev")).unwrap().0;
+        let mut guard = 0;
+        loop {
+            match r {
+                crate::relay::AdvanceResult::ExecuteStep { .. } => {
+                    r = store2.submit_handoff(&id2, handoff("plan-dev")).unwrap().0;
+                }
+                crate::relay::AdvanceResult::Completed => break,
+                other => panic!("unexpected advance result: {other:?}"),
+            }
+            guard += 1;
+            assert!(guard < 16, "flow did not terminate");
+        }
+        let st2 = store2.get(&id2).unwrap();
+        assert_eq!(st2.status, "completed", "approve resumes to completion");
+    }
+
     /// PLAN-035：ReportMeta 新增 structured 字段——旧 JSON（无该字段）可反
     /// 序列化，新数据携带结构化报告。
     #[test]

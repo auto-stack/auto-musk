@@ -67,6 +67,7 @@ fn chats_list(_s @T, _q Value) Value { return musk_extern_dispatch("chats_list",
 fn chats_get(_s @T, _q Value, _p Value) Value { return musk_extern_dispatch("chats_get", [_q, _p]) }
 fn chats_rename(_s @T, _q Value, _p Value, _b Value) Value { return musk_extern_dispatch("chats_rename", [_q, _p, _b]) }
 fn chats_thinking(_s @T, _q Value, _p Value, _b Value) Value { return musk_extern_dispatch("chats_thinking", [_q, _p, _b]) }
+fn chats_approval(_s @T, _q Value, _p Value, _b Value) Value { return musk_extern_dispatch("chats_approval", [_q, _p, _b]) }
 fn chats_delete(_s @T, _q Value, _p @T) Value { return musk_extern_dispatch("chats_delete", [_q, _p]) }
 fn chats_delete_all(_s @T, _q Value) Value { return musk_extern_dispatch("chats_delete_all", [_q]) }
 fn chats_message(_s @T, _q Value, _p Value, _b Value) Value { return musk_extern_dispatch("chats_message", [_q, _p, _b]) }

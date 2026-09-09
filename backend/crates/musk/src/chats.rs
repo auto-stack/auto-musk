@@ -129,6 +129,15 @@ pub struct ChatSession {
     /// role 默认（不注入 thinking 参数）。随会话持久化，UI 档位选择器写这里。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thinking_level: Option<String>,
+    /// PLAN-067 T-05: 本会话审批模式（"human"|"auto"）。auto = relay run 的
+    /// human gate 到达即自动放行（driver 侧，留审计事件），用于无人值守跑通
+    /// 全流程。缺省/旧数据 = "human"（现行为，gate 等待人工决议）。
+    #[serde(default = "default_approval_mode")]
+    pub approval_mode: String,
+}
+
+fn default_approval_mode() -> String {
+    "human".to_string()
 }
 
 /// A lightweight summary for list views (no message bodies).
@@ -157,6 +166,7 @@ impl ChatSession {
             workspace_id,
             active_leaf: None,
             thinking_level: None,
+            approval_mode: default_approval_mode(),
         }
     }
 
@@ -402,6 +412,26 @@ impl ChatStore {
         let mut map = self.load_map();
         if let Some(session) = map.get_mut(id) {
             session.thinking_level = level;
+            session.updated_at = now_sec();
+            let updated = session.clone();
+            self.save_map(&map)?;
+            Ok(Some(updated))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// PLAN-067 T-05: 设置会话审批模式（"human"|"auto"）。非法值回落
+    /// "human"（gate 等待人工决议的现行为）。
+    pub fn set_approval_mode(
+        &self,
+        id: &str,
+        mode: &str,
+    ) -> std::io::Result<Option<ChatSession>> {
+        let mode = if mode == "auto" { "auto" } else { "human" }.to_string();
+        let mut map = self.load_map();
+        if let Some(session) = map.get_mut(id) {
+            session.approval_mode = mode;
             session.updated_at = now_sec();
             let updated = session.clone();
             self.save_map(&map)?;

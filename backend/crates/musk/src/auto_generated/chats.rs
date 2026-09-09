@@ -126,12 +126,19 @@ pub struct ChatSession {
     /// PLAN-064: per-session thinking level ("off"|"low"|"high"|"max").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thinking_level: Option<String>,
+    /// PLAN-067 T-05: per-session approval mode ("human"|"auto"; default human).
+    #[serde(default = "default_approval_mode")]
+    pub approval_mode: String,
+}
+
+fn default_approval_mode() -> String {
+    return "human".to_string();
 }
 
 impl ChatSession {
     pub fn new(mode: &str, workspace_id: Option<String>) -> ChatSession {
         let now: u64 = now_sec();
-        return ChatSession { id: new_id(12).to_string(), name: "New chat".to_string(), mode: mode.clone().to_string(), messages: vec![], created_at: now, updated_at: now, pending_spec_changes: vec![], workspace_id: workspace_id, active_leaf: None, thinking_level: None };
+        return ChatSession { id: new_id(12).to_string(), name: "New chat".to_string(), mode: mode.clone().to_string(), messages: vec![], created_at: now, updated_at: now, pending_spec_changes: vec![], workspace_id: workspace_id, active_leaf: None, thinking_level: None, approval_mode: default_approval_mode() };
     }
     pub fn summary(&self) -> ChatSessionSummary {
 

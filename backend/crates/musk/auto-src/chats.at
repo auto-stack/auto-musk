@@ -126,6 +126,10 @@ pub type ChatSession {
     /// PLAN-064: 本会话思考档位（"off"|"low"|"high"|"max"）。None = 跟随 role 默认。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     thinking_level Option<str>
+    /// PLAN-067 T-05: 会话审批模式（"human"|"auto";缺省 human）。auto =
+    /// relay run 的 human gate 到达即自动放行（driver 侧留审计事件）。
+    #[serde(default = "default_approval_mode")]
+    approval_mode str
 }
 
 /// A lightweight summary for list views (no message bodies).

@@ -184,6 +184,10 @@ pub type ChatRenameBody { name str }
 #[derive(Debug, Deserialize)]
 pub type ChatThinkingBody { thinking_level Option<str> }
 
+/// PLAN-067 T-05: per-session approval mode. "human"|"auto" (default human).
+#[derive(Debug, Deserialize)]
+pub type ChatApprovalBody { approval_mode str }
+
 #[derive(Debug, Deserialize)]
 pub type ChatMessageBody { content str }
 
@@ -423,6 +427,11 @@ pub fn chat_thinking(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, bo
     return to_response(chats_thinking(s.view, q, p, body), "session not found", 404u)
 }
 
+/// PLAN-067 T-05: set a session's approval mode ("human"|"auto").
+pub fn chat_approval(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>, body Json<ChatApprovalBody>) ~Response {
+    return to_response(chats_approval(s.view, q, p, body), "session not found", 404u)
+}
+
 pub fn chat_delete(s State<AppState>, q Query<WorkspaceQuery>, p Path<str>) ~Response {
     return to_response(chats_delete(s.view, q, p.view), "session not found", 404u)
 }
@@ -557,6 +566,8 @@ pub fn build_router() Router<AppState> {
     app = app.route("/api/chats/session/{id}", get(chat_get).patch(chat_rename).delete(chat_delete))
     // PLAN-064: per-session thinking level (PATCH body {thinking_level|null}).
     app = app.route("/api/chats/session/{id}/thinking", patch(chat_thinking))
+    // PLAN-067 T-05: per-session approval mode (PATCH body {approval_mode}).
+    app = app.route("/api/chats/session/{id}/approval", patch(chat_approval))
     app = app.route("/api/chats/session/{id}/message", post(chat_message))
     app = app.route("/api/chats/session/{id}/approve/{index}", post(chat_approve))
     app = app.route("/api/chats/session/{id}/reject/{index}", post(chat_reject))

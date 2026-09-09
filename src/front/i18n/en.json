@@ -123,7 +123,10 @@
     "confirmDeleteSession": "Delete this session?",
     "confirmDelete": "Delete",
     "confirmIrreversible": "This action cannot be undone.",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "approvalMode": "Approval",
+    "approvalHuman": "Manual",
+    "approvalAuto": "Auto"
   },
   "specs": {
     "title": "Specs",

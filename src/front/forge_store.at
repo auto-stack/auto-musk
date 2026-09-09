@@ -4,7 +4,7 @@
 // forge_stream.ts 逃生舱里，store 只管状态 + 简单调用，避开 codegen 对 store
 // handler 复杂控制流（嵌套 if/return/结构体字面量）的 parser 边界。
 
-use back.api: chats_list_sessions, chats_create_session, chats_get_session, chats_send_message, chats_approve, chats_reject_all, chats_fork_session, chats_navigate_session, chats_set_thinking
+use back.api: chats_list_sessions, chats_create_session, chats_get_session, chats_send_message, chats_approve, chats_reject_all, chats_fork_session, chats_navigate_session, chats_set_thinking, chats_set_approval
 
 store ForgeStore {
     model {
@@ -52,6 +52,9 @@ store ForgeStore {
         // PLAN-064: 本会话思考档位（"" = 关闭/跟随 role 默认；off|low|high|max）。
         // 仅 UI 态 + PATCH 持久化到会话，发送链路不携带（后端 run 时读会话）。
         var thinking_level str = ""
+        // PLAN-067 T-05: 本会话审批模式（human|auto;缺省 human）。仅 UI 态 +
+        // PATCH 持久化到会话;后端 relay driver 遇 gate 时读会话模式。
+        var approval_mode str = "human"
     }
 
         msg Msg {
@@ -67,6 +70,8 @@ store ForgeStore {
         SetError(str),
         // PLAN-064: 思考档位切换（off|low|high|max，"" 同 off 语义）。
         SetThinkingLevel(str),
+        // PLAN-067 T-05: 审批模式切换（human|auto）。
+        SetApprovalMode(str),
         ClearGate,
         ApproveGate,
         RejectGate,
@@ -145,6 +150,8 @@ store ForgeStore {
                             .messages = detail.session.messages
                             .active_leaf = detail.session.active_leaf ?? ""
                             .thinking_level = detail.session.thinking_level ?? ""
+                            // PLAN-067 T-05: 会话审批模式随载入回填（缺省 human）。
+                            .approval_mode = detail.session.approval_mode ?? "human"
                         }
                     }
                 }
@@ -194,6 +201,8 @@ store ForgeStore {
                 .messages = resp.session.messages
                 .active_leaf = resp.session.active_leaf ?? ""
                 .thinking_level = resp.session.thinking_level ?? ""
+                // PLAN-067 T-05: 审批模式随会话切换回填（缺省 human）。
+                .approval_mode = resp.session.approval_mode ?? "human"
                 .error = ""
             } else {
                 // PLAN-053 批4: 错误信息携带实收 id（过期会话可对号入座）。
@@ -255,6 +264,16 @@ store ForgeStore {
             .thinking_level = level
             if .session_id != "" {
                 chats_set_thinking(.session_id, level)
+            }
+        }
+
+        // PLAN-067 T-05: 审批模式切换——先写 UI 态再 PATCH 持久化（口径同
+        // SetThinkingLevel;后端 relay driver 遇 gate 时读会话模式,auto 即刻
+        // 放行并留 GateResolved 审计事件）。
+        .SetApprovalMode(mode) -> {
+            .approval_mode = mode
+            if .session_id != "" {
+                chats_set_approval(.session_id, mode)
             }
         }
 
