@@ -224,10 +224,23 @@ fn mention_last_at(s str) int {
     return -1
 }
 
-/** @mention 检测（光标前找 @ → 行首/空白后 → @后无空格 → 记录 filter/anchor/visible/pos）。 */
+/** @mention 检测（光标前找 @ → 行首/空白后 → @后无空格 → 记录 filter/anchor/visible/pos）。
+
+    入参双形态兼容：PLAN-051 P3-② 单参 oninput 双轨契约下,vue codegen 把
+    oninput 实参自动包成纯文本串（.value）,事件对象不可达——串入参时
+    e.target 为 undefined,此前直接读 el.value 在此抛 TypeError 并中断
+    Input 链（mention 下拉/锚点/composer 自适应增高静默失效）。串入参时
+    元素回退 activeElement（input 事件时 textarea 必持焦点）,串本身即
+    val;事件对象入参（既有调用形态）走原路不受影响。 */
 fn mention_detect(e obj) obj {
     let el = e.target
-    let val = el.value ?? ""
+    let val = ""
+    if el == None {
+        el = document.activeElement
+        val = e ?? ""
+    } else {
+        val = el.value ?? ""
+    }
     let pos = el.selectionStart ?? val.length
     let before = val.sub(0, pos)
     let at_idx = mention_last_at(before)
