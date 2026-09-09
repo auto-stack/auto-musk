@@ -1,12 +1,12 @@
 ---
 plan_id: PLAN-067
-status: executing
+status: execution_done
 feature_name: 对话流式实时刷新根修 + approve 门暂停/自动通过流程（含本会话问题沉淀与 VM/Rust 双轨对齐检查）
 author: zhaop / zcode
 created_at: 2026-09-09T15:30:00+08:00
-updated_at: 2026-09-09T22:50:00+08:00
+updated_at: 2026-09-09T23:40:00+08:00
 plan_revision: 2
-current_step: 5
+current_step: 7
 total_steps: 7
 supersedes_spec_components: []
 new_spec_components:
@@ -144,8 +144,8 @@ T-02 按 T-01 结论实施，统一验收口径见 AC-01/AC-02。约束：不破
 - [x] **T-03 gate 超时机制定位（调查）**：定位超时默认拒绝产生点与现行超时值，理清 gate 决议数据流（`relay/api.rs` ← UI；`GateWaiting/Resolved` ← store）。产出定位记录。→ AC-03。
 - [x] **T-04 gate 等待语义收敛（r2 修订）**（依赖 T-03）：原设计'超时改暂停'前提不成立——代码库无超时机制,relay run 的 GateWaiting 本就暂停等决议（driver 返回,API resolve_gate 重入驱动）。修订为：a) chat 级 plan-flow 的确认门补齐与 relay 同款的显式 pending/paused 表意（会话状态+UI 徽标）,杜绝'无可见等待'；b) 复核 GateType 默认值（store.rs unwrap_or(Auto)）确保 plan-flow 关键门显式 human；c) 补 relay 单测：GateWaiting→drive 返回→resolve_gate 重入续跑。验证：AC-03/AC-04。
 - [x] **T-05 审批模式**（依赖 T-04 定义的决议产生点）：mention_input.at UI + ForgeStore 持久化 + relay 决议链；审计事件。验证：AC-05。
-- [ ] **T-06 双轨对齐检查**（依赖 T-02/T-04/T-05 行为定型）：按 4.4 清单复检 VM 轨与 web/ 轨，差异登记。验证：AC-06。
-- [ ] **T-07 回归探针固化与执行**：固化清单脚本并全量执行。验证：AC-07。
+- [x] **T-06 双轨对齐检查**（依赖 T-02/T-04/T-05 行为定型）：按 4.4 清单复检 VM 轨与 web/ 轨，差异登记。验证：AC-06。
+- [x] **T-07 回归探针固化与执行**：固化清单脚本并全量执行。验证：AC-07。
 
 ### 执行记录
 
@@ -155,6 +155,10 @@ T-02 按 T-01 结论实施，统一验收口径见 AC-01/AC-02。约束：不破
 - T-02 ✅ 提交（worktree）: forge_store.at 四处改动，:3001 实测乐观消息 2s 内上屏、流式内容实时渲染（domLen 590→602 随回复到达）、无需刷新。
 - T-03 ✅ 定责记录（r2 修订依据）：全库（musk relay + auto-ai orchestration）**不存在超时自动拒绝机制**——resolve_gate_auto 无 handler 时默认 APPROVE（driver.at:159）；relay run 遇 human gate 时 drive 返回、run 停在 GateWaiting 等待 API 决议（relay/api.rs POST /gate → store.resolve_gate 重入驱动）,即暂停语义已存在且无期限。GateType 缺省 unwrap_or(Auto)（store.rs:386）值得复核。用户所见'到期默认拒绝'最可能=gate 卡片因 T-02 前渲染缺陷从未显示,agent 后续自行为（LLM 视为拒绝继续/工具 safety 拒绝）被解读为超时。T-04 设计据此修订（见上）,plan_revision 1→2。
 - T-04/T-05 ✅ 提交（worktree,19 files）:实现面=ag drive_loop wait 分支镜像 relay_gate_waiting + 审批模式 auto 即刻放行继续驱动（store.resolve_gate 落审计）;桥接放行 relay_gate_waiting;hw driver/store 同款镜像+三态单测（等待无超时/approve 续跑/reject(feedback)=重做非中止）;ChatSession.approval_mode hw+ag 双轨;PATCH /approval 端点三处登记（server.at/extern_sigs/auto_generated）;spawn_relay+plan-merge 写 approval_mode context;composer 审批模式下拉+SetApprovalMode+i18n。验证:relay 55 测试+parity 全绿;PATCH 持久化实测;UI 下拉点击→服务端 auto 实测。E2E（auto 会话 spawn plan 流程过门）观察中（run-1983de34,step0 plan agent 执行期）。E2E 结果:gate 自动放行验证通过——run 到达 execute 前的 Human gate 后无人工干预直接进入 step 1（waiting 恒 False）;step 1 agent 执行报错致 run failed（原因待查,与门逻辑无关——同源现象:relay execute 步 agent 的工具 cwd 报 os error 3,登记待澄清⑤）。
+- T-06 ✅ 双轨对齐检查完成：登记文档 docs/plans/attachments/plan067-dual-track-parity-check.md。要点：web/ 回退轨 composer 非双层技术（textarea 直接显字 var(--af-fg)），种子 1-3 天然免疫；VM 轨原生显字/选层同免疫；T-02 的 PollStream 叶同步预计顺带修复 VM 轨 KD 059-FU1 残留（待实机复核）；VM 审批模式下拉缺位（API 可设）登记为 VM 待办。
+- T-07 ✅ 回归探针全绿（:3001 当前构建）：IME 组合开关（类切换+前景色翻转+backdrop 隐藏/还原）、::selection 规则注入、输入链路零报错零告警、删除弹窗全件渲染且取消无损。
+- handoff：stage=work | plan_id=PLAN-067 | plan_revision=2 | outcome=pass | code_commit=worktree plan-067-dev（T-02 cd4f62e + T-04/T-05 提交）| next=review（合并前按守卫清理 worktree node_modules junction）。
+
 
 
 
@@ -166,7 +170,7 @@ T-02 按 T-01 结论实施，统一验收口径见 AC-01/AC-02。约束：不破
 - 2026-09-09（new / r1 起草）：基于用户实测与当日本会话证据起草。背景调查记录于 4.2；两处调查型任务（T-01/T-03）以决策记录为产物。handoff：`stage: new`，`outcome: pass`（起草完成，可进入 review）；`next: work` 前置条件 = `10. 待澄清`①（方案取舍）由用户确认，其余可在执行中细化。
 
 ## 10. 待澄清事项
-5. **T-05 E2E 遗留**：auto 放行后 step 1（execute,plan-dev agent）执行失败（run status=failed）,失败消息未入列表投影——需单独定位（候选:relay 步 agent 的工具工作目录/模式注册）。不影响门放行语义的验证结论。
+5. ✅ 已定位（T-05 E2E 遗留）：step 1 失败原因 = agent 环检测器终止（loop detected: tool run_command identical args）——模型对无意义测试任务反复发同一命令,属 LLM 行为/任务设计问题,与门放行/审批链路无关。后续同类验收任务应给可执行的合理任务。
 
 1. **方案取舍**：✅ 已决（2026-09-09，用户确认）——P1 暂停与 P2 自动 approve 都做；顺序 P0 → P1 → P2 → T-06 → T-07。
 2. **gate 超时值**：暂停模式的默认超时时长（现行为疑似数分钟级自动拒绝）；是否分 gate 类型（human/auto）配置。
