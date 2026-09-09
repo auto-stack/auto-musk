@@ -20,6 +20,10 @@ store ForgeStore {
         // PollStream 完成启发式的回合增长守卫用（防旧 assistant 尾部误判完成）。
         var pre_stream_len int = 0
         var poll_window []Value = []
+        // PLAN-067 T-02: 最近一次流事件时间戳（OnStreamEvent 入口写定）——
+        // PollStream 的 SSE 健康门：流活着就不做全量回填（运行中服务端
+        // 快照不含未完成 assistant,回填会反复清掉流式内容）。
+        var last_sse_at int = 0
         var current_draft str = ""
         var thinking str = ""
         var workspace str = ""
@@ -289,7 +293,12 @@ store ForgeStore {
                     let uid = "u-" + Date.now()
                     // PLAN-055 ⑦：乐观消息改写后端契约字段 created_at（秒）
                     // ——此前写 timestamp（毫秒）导致重载/格式化读不到值。
-                    .messages.push({ id: uid, role: "user", content: userContent, created_at: nowSec(), thinking: "", tool_calls: [], profession_id: "" })
+                    // PLAN-067 T-02：乐观 user 消息挂 parent_id（=当前叶）并
+                    // 推进 active_leaf——渲染按 chatActivePath 叶链投影,
+                    // 不入链的消息（无 parent_id）在活跃会话里永远不可见,
+                    // 只能靠刷新重载才出现（T-01 实测定责）。
+                    .messages.push({ id: uid, role: "user", content: userContent, created_at: nowSec(), thinking: "", tool_calls: [], profession_id: "", parent_id: .active_leaf })
+                    .active_leaf = uid
                 }
                 // PLAN-536 T12(D4 修复,musk 侧⑤)：deadman 窗戳走**列表 push**
                 // ——跨模块调用帧的 SET_FIELD 重绑定不达根态（见 PollStream
@@ -349,6 +358,13 @@ store ForgeStore {
             if wins.length == 0 { return }
             let started = wins[wins.length - 1]
             if Date.now() - started > 120000 { return }
+            // PLAN-067 T-02：SSE 健康门——3 秒内有流事件就不回填。运行中
+            // 服务端快照不含未完成 assistant（完成后才持久化）,回填会反复
+            // 清掉 SSE 已上屏的流式内容;且回填不推进 active_leaf,叶链投影
+            // 会把新回合整体排除在渲染外（T-01 实测:轮询取到新数据但
+            // hasSent 恒 false）。SSE 断流（>3s 无事件）时本门自动放开,
+            // 轮询恢复兜底语义。
+            if .last_sse_at != 0 && Date.now() - .last_sse_at < 3000 { return }
             let sid = .session_id
             if sid == "" { return }
             var resp = chats_get_session(sid)
@@ -357,6 +373,9 @@ store ForgeStore {
             if resp == None { return }
             if resp.session == None { return }
             .messages = resp.session.messages
+            // PLAN-067 T-02：回填时同步服务端活跃叶——否则叶链投影沿旧叶
+            // 回溯,新回合不在链上,依旧"数据到了但不渲染"。
+            if resp.session.active_leaf != None { .active_leaf = resp.session.active_leaf }
             // PLAN-536 T12(D4 修复,musk 侧③)：完成启发式补**回合增长守卫**
             // ——原形只看"末回合=非空 assistant",竞态:发送后首个轮询拍若
             // 后端读模型尚无新 user turn（或上一对话尾部本就是 assistant）,
@@ -387,12 +406,22 @@ store ForgeStore {
         .OnStreamEvent(ev) -> {
             if ev == None { return }
             if ev.type == None { return }
+            // PLAN-067 T-02：SSE 心跳——PollStream 健康门的依据（流活着
+            // 就不做全量回填,防运行中快照清掉流式内容）。
+            .last_sse_at = Date.now()
 
             if ev.type == "delta" {
                 if ev.text != None {
                     if ev.text != "" {
                         var msg = currentAssistantMsgIn(.messages)
-                        if msg == None { msg = newAssistantMsg("") ; .messages.push(msg) }
+                        if msg == None {
+                            msg = newAssistantMsg("")
+                            // PLAN-067 T-02：新 assistant 挂 parent_id（=当前
+                            // 叶）并推进叶——不入叶链的消息不被渲染投影。
+                            msg.parent_id = .active_leaf
+                            .active_leaf = msg.id
+                            .messages.push(msg)
+                        }
                         msg.content = msg.content + ev.text
                         .current_draft = .current_draft + ev.text
                         let _ab = appendBlockText(msg, "text", ev.text)
@@ -404,7 +433,12 @@ store ForgeStore {
                 if ev.thinking != None {
                     if ev.thinking != "" {
                         var msg2 = currentAssistantMsgIn(.messages)
-                        if msg2 == None { msg2 = newAssistantMsg("") ; .messages.push(msg2) }
+                        if msg2 == None {
+                            msg2 = newAssistantMsg("")
+                            msg2.parent_id = .active_leaf
+                            .active_leaf = msg2.id
+                            .messages.push(msg2)
+                        }
                         let th = msg2.thinking ?? ""
                         msg2.thinking = th + ev.thinking
                         .thinking = msg2.thinking
@@ -415,7 +449,12 @@ store ForgeStore {
             }
             if ev.type == "tool_call" {
                 var msg3 = currentAssistantMsgIn(.messages)
-                if msg3 == None { msg3 = newAssistantMsg("") ; .messages.push(msg3) }
+                if msg3 == None {
+                    msg3 = newAssistantMsg("")
+                    msg3.parent_id = .active_leaf
+                    .active_leaf = msg3.id
+                    .messages.push(msg3)
+                }
                 var callId = ev.id ?? ""
                 if callId == "" { callId = "tc-" + Date.now() }
                 let callName = ev.name ?? "unknown"
