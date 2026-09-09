@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-067
-status: execution_done
+status: reviewed
 feature_name: 对话流式实时刷新根修 + approve 门暂停/自动通过流程（含本会话问题沉淀与 VM/Rust 双轨对齐检查）
 author: zhaop / zcode
 created_at: 2026-09-09T15:30:00+08:00
@@ -158,6 +158,8 @@ T-02 按 T-01 结论实施，统一验收口径见 AC-01/AC-02。约束：不破
 - T-06 ✅ 双轨对齐检查完成：登记文档 docs/plans/attachments/plan067-dual-track-parity-check.md。要点：web/ 回退轨 composer 非双层技术（textarea 直接显字 var(--af-fg)），种子 1-3 天然免疫；VM 轨原生显字/选层同免疫；T-02 的 PollStream 叶同步预计顺带修复 VM 轨 KD 059-FU1 残留（待实机复核）；VM 审批模式下拉缺位（API 可设）登记为 VM 待办。
 - T-07 ✅ 回归探针全绿（:3001 当前构建）：IME 组合开关（类切换+前景色翻转+backdrop 隐藏/还原）、::selection 规则注入、输入链路零报错零告警、删除弹窗全件渲染且取消无损。
 - handoff：stage=work | plan_id=PLAN-067 | plan_revision=2 | outcome=pass | code_commit=worktree plan-067-dev（T-02 cd4f62e + T-04/T-05 提交）| next=review（合并前按守卫清理 worktree node_modules junction）。
+- 复审（stage=review | plan_id=PLAN-067 | plan_revision=2 | outcome=pass）：reviewed_commit=plan-067-dev@57b5dba；base=a19ab34；deps=auto-ai@27222d5,auto-lang@1b5e5a657（组内 worktree,仅构建解析）。限制声明：复审与实现同会话,结论全部由复跑证据重建——全量 cargo test -p musk 521 passed/0 failed（含 human_gate 三态新测）；AC-01 实测乐观消息 1s 上屏且持续可见（≤2s 达标）；AC-02 流式期间 DOM 持续增长 + relay_gate_waiting 桥接/前端映射代码路径核对（Run 卡'等待审批'文案映射既有）；AC-03/04 单测钉死；AC-05 UI 点击→服务端 approval_mode=auto 持久化复验；AC-06 登记文档已提交（attachments/plan067-dual-track-parity-check.md）；AC-07 探针套件全绿（组合开关/选区规则/零报错/弹窗）。findings（非阻塞,均登记）：F-1 双订阅双 run；F-2 E2E step1 模型环检测终止（任务内容问题）；F-3 VM 实机复核待做（静态对齐已登记）。规范增量 SD-01/02/03 目标路径与行为描述核对无误,canonical 文档于 merge 落地。next=merge。
+
 
 
 
