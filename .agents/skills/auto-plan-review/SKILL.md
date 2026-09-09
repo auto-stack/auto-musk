@@ -1,146 +1,139 @@
 ---
 name: auto-plan-review
 description: |
-  Review a finished plan against its acceptance criteria and the actual code,
-  then fill in the spec-impact metadata (supersedes / new_spec_components /
-  touched_goals) so /auto-plan:merge knows what to deposit. Sets status to
-  reviewed (pass) or sends back to /auto-plan:work (fail). Use when:
-  (1) User says "review plan N" / "复审 plan N" / "验收 plan" / "check plan N"
-  (2) User says "/auto-plan:review" or a plan just reached execution_done
-  (3) User wants to verify a plan is truly complete and ready to merge into the spec ledger
-  This skill never merges — it only verifies and prepares metadata. Verification
-  is re-run from scratch; a green checkbox in the plan is a claim, not evidence.
+  Independently verify a Plan against agreed acceptance criteria and actual
+  code, bind evidence to revisions, and validate its proposed Spec delta.
+  Use for "review plan", "复审计划", "/auto-plan:review", or work completion.
+  Returns pass, needs_fix, needs_replan, or blocked; never merges code.
 ---
 
-# /auto-plan:review — Review a plan for merge-readiness
+# /auto-plan:review — Verify the implementation and Spec delta
 
-Re-verify a plan that is *believed* done, fill in the spec-impact metadata that
-`/auto-plan:merge` consumes, and route the plan to `reviewed` (pass) or back
-to `/auto-plan:work` (fail). One skill, one session, one review pass.
+Announce: "I'm using /auto-plan:review to verify plan NNN."
 
-> **Design source:** `docs/designs/008-auto-plan.md` §6.4. This skill is the
-> plan-specific review gate; for the generic "close out + route to archive/debt"
-> pass, the broader `/finish-plan` skill applies afterwards.
+Input: a Plan reference, optionally a named phase for an approved incremental
+landing. Output: reproducible evidence and an unambiguous next action.
 
-**Announce at start:** "I'm using /auto-plan:review to verify plan `<NNN>`."
+## Entry, authority, and independence
 
-**Input:** A plan reference (number / filename). The plan should be
-`execution_done`; if it is `executing` with all steps marked done, this skill
-will advance it to `execution_done` as the first action.
+- Read the Plan from the main checkout. Read the implementation and diff in
+  its existing worktree, plus relevant `docs/specs/`, tests, and repository
+  rules. Module Specs are authoritative project knowledge; ledger entries are
+  derived navigation/history, not competing requirements.
+- Compare the approved intent, actual behavior, and proposed change. Trust code
+  as evidence of what exists; do not treat a mismatch as permission to weaken
+  the agreed requirement.
+- Normal entry is `execution_done`. If `executing` claims all tasks done,
+  verify that claim before treating it as ready. A draft or incomplete Plan
+  returns to work. A re-review is appropriate on explicit request or when
+  merge detects stale evidence. Do not reopen an archived Plan.
+- Prefer an independent review session/context when available and authorized.
+  A separate role/model is optional; do not claim independence merely from a
+  role name. If reviewing in the implementation session, state that limitation
+  and reconstruct the verdict from artifacts rather than the executor's summary.
+  Do not create another task or agent without the applicable authorization.
+- Identify the actual worktree via `git worktree list --porcelain`.
+  If absent, verify landing through commit ancestry and recorded history;
+  absence alone does not prove a merge. A review requiring code changes goes
+  back to work in a worktree.
 
-**State gate:** `execution_done` is the expected entry state. `reviewed` or
-`archived` means review already happened — re-review only if the user explicitly
-asks. `drafting`/`executing` with unfinished steps → refuse and point to
-`/auto-plan:work`.
+## Establish the review baseline
 
-## Process
+1. Record Plan revision, full Git commit SHA, diff base, dependency revisions,
+   and relevant Spec source versions/hashes. Migrate a legacy Plan's missing
+   revision as described in [new](../auto-plan-new/SKILL.md); do not fabricate
+   old approvals or evidence.
+   For legacy tasks/criteria without stable IDs, assign IDs while preserving
+   their meaning and progress; record that normalization in the review baseline.
+2. Require reviewed implementation changes to be committed. Inventory dirty
+   changes and route them for resolution; do not issue a pass tied only to HEAD
+   while uncommitted implementation is being tested.
+3. Check authorization for the actual scope and any plan revisions. Preserve
+   acceptance IDs and prior review records.
 
-### Step 1: Load the plan AND the actual code
+Progress markers, timestamps, and this review record do not change
+`plan_revision`. Changes to the semantic contract or reviewed implementation
+invalidate the affected review. A previous pass never covers future edits
+automatically.
 
-Read the plan file (it lives on the default checkout). Then look at the real
-diff and the real files it claims to have touched — from inside the execution
-worktree (`.wt/<repo>-<NNN>/<repo>` per Plan 529; legacy
-`.worktrees/plan-<NNN>-dev` for in-flight plans — `git worktree list | grep plan-<NNN>-dev`
-locates it). If the worktree is already gone, its
-branch was folded into main early; verify against the default checkout instead.
-Plans drift from implementation — **trust the code** when they disagree.
+## Verify coverage and behavior
 
-```bash
-git log --oneline -20                 # what actually committed
-git diff <branch-base>..HEAD --stat   # what actually changed (run in the plan's worktree)
-```
+For each acceptance ID, reproduce its verification and record
+`pass / partial / fail`, command or inspection method, result, and evidence.
 
-### Step 2: Re-verify every acceptance criterion
+- Run the repository-required full suite for code changes, including relevant
+  backend/target checks. In auto-lang this includes `cargo tf`, plus
+  `cargo tv`, `cargo tt`, or `cargo tb` for affected VM/transpiler/book work.
+  Documentation-only changes use applicable content, link, and format checks
+  unless repository rules require more.
+- Exercise user-visible/API behavior where required; source inspection alone
+  does not demonstrate a runtime acceptance criterion.
+- Verify test assertions and negative cases, not just exit codes. Separate
+  baseline/environment failures from regressions, but never turn an unverified
+  required criterion into a pass.
+- Reproduce verification for this review baseline. If a repeated review has
+  unchanged code, dependencies, and test configuration, reuse identified
+  evidence only with an explicit reason; rerun checks whose assumptions changed.
 
-The plan's `## 验收标准` section lists checkboxes. For each one, reproduce the
-verification yourself — do not trust a checked box:
+Map `AC IDs → task IDs → code/artifacts → evidence`. Look for missing
+sub-items, configuration/call-site gaps, unapproved scope reductions,
+deferrals, or workarounds. Findings need stable IDs, affected acceptance/tasks,
+severity, evidence, and a concrete correction or investigation.
 
-| Criterion type | How to re-verify |
-|:---|:---|
-| Test suite passes | **The plan's one and only full-suite gate.** Run the repo's full suite: in auto-lang `cargo tf` (plus `cargo tv`/`tt`/`tb` when the plan touched VM files / transpiler / book); other repos: their full test command. Execution-phase steps ran scoped checks only, so this run is what catches cross-module regressions |
-| API endpoint works | `curl` it, or read the handler + its tests |
-| File/feature exists | Open the file; confirm the claimed behavior |
-| Type-check / lint clean | Run `vue-tsc`/`cargo check` and look for new errors |
+Recording an unmet requirement as debt does not make it complete. Distinguish
+nonblocking improvements outside the agreed scope from failures within it.
 
-Record each as pass / partial / fail with a `file:line` or command-output
-evidence note. **Any unfinished or workaround-forced item is recorded, not
-hidden** (it becomes a debt candidate).
+## Review the knowledge delta
 
-### Step 3: Hunt for 遗漏 / 延后 / workaround (the lazy-convergence check)
+Read `### 规范增量` under the Plan's detailed design, or add it for a legacy
+Plan using the verified implementation. For each add/modify/retire operation:
 
-The executor optimizes for finishing fast. To converge quickly it tends to
-silently drop part of a task, defer it "for later" once it finds any excuse,
-or paper over it with a workaround — then report the whole plan complete.
-Assume this may have happened; hunt for all three patterns explicitly:
+- Verify the repository-relative `docs/specs/...` target and the before/after
+  rule, rationale, acceptance IDs, and current target version.
+- Ensure the proposed text describes current behavior and enduring decisions,
+  not abandoned implementation plans or an execution diary.
+- Resolve conflicts with current canonical Specs through evidence and approved
+  intent; concurrent changes require reconciliation, never blind Plan priority.
+- Finalize `supersedes_spec_components`, `new_spec_components`, and
+  `touched_goals`. Use exact `docs/specs/...` paths and real goal IDs.
+  Empty impact requires a written explanation.
+- Review any prepared Spec diff in the worktree. The ledger will be derived
+  from these canonical documents and review/history artifacts at merge.
 
-- **遗漏 (dropped):** a task marked Done that lost a sub-item (a test, a
-  call-site update, a config)? A plan-level task with no corresponding change
-  in the diff at all?
-- **延后 (deferred):** anything postponed to "a follow-up plan / later batch"
-  without the user approving the split?
-- **Workaround:** any `// TODO`, hack, scope reduction, or "works but not
-  clean" approach — especially one forced by an upstream limit?
+Do not publish canonical Specs or modify the live ledger during review.
+If correcting the delta changes the semantic contract, increment its revision
+and verify the resulting contract before issuing the final verdict.
 
-Each finding is a debt candidate: record it with the root cause. A deferral
-the user never signed off on means the plan is *not* actually complete — fail
-the review and put it on the fix list; recording it as debt alone does not
-make the plan pass.
+## Record and route
 
-### Step 4: Fill in the spec-impact metadata (the key step for merge)
+Append to `9. 复审记录`:
 
-Analyze what this plan actually changed in the spec ledger's domain, then
-populate the frontmatter fields `/auto-plan:merge` will read:
+`stage: review | plan_id | plan_revision | outcome | reviewed_commit |
+base_commit | dependency_revisions | spec_inputs | acceptance_results |
+findings | evidence | next`
 
-```yaml
-supersedes_spec_components:   # existing spec items/modules this plan modified
-  - "specs/modules/<x>/spec.md: 修改"
-new_spec_components:           # new spec items/modules this plan introduced
-  - "specs/modules/<y>/spec.md: 新增"
-touched_goals:                # which goals this plan advances
-  - "goal-001: <one-line>"
-```
+Keep evidence paths resolvable after worktree removal: record durable repository
+artifacts or concise command/result excerpts in the Plan, not only temporary logs.
+The evidence package includes a frozen copy/hash of the reviewed Spec delta.
 
-These must be **precise** — `/auto-plan:merge` uses them verbatim to decide what
-to upsert. If a field does not apply, leave the list empty rather than guessing.
+| Outcome | Plan state | Next action |
+|---|---|---|
+| `pass` | `reviewed` | merge; every required criterion and the delta passed |
+| `needs_fix` | `executing` | work with the concrete findings and affected task IDs |
+| `needs_replan` | `executing` | new to revise the invalid design or task contract |
+| `blocked` | `executing` | Resolve the named prerequisite/decision, then resume the appropriate stage |
 
-### Step 5: Write the review record + route
+For any non-pass, reopen affected task checkboxes and their dependent evidence;
+recompute `current_step` from the completed task count. Preserve unaffected
+completed tasks and all historical findings. Never leave a failed review in
+`execution_done` while asking work to repair it.
 
-Fill `## 复审记录` with: reviewer, time, per-criterion verdicts, any debt
-candidates. Then route:
+A phase-only review records its phase/commit verdict while the overall Plan
+stays `executing`; it cannot grant final `reviewed` status. Phase landing
+still requires its regression gate.
 
-- **All criteria pass, no blocking debt** → `status: reviewed`. Tell the user
-  the plan is ready for `/auto-plan:merge`.
-- **Any criterion fails or the plan is not actually complete** → keep status at
-  `execution_done` (or roll back to `executing`), list exactly what to fix, and
-  hand back to `/auto-plan:work`.
-
-## Rules
-
-- **Verify, don't trust.** A checked box is a claim. Re-run every verification.
-- **Re-run verifications inside the execution worktree**
-  (`.wt/<repo>-<NNN>/<repo>`, or legacy path for in-flight plans); write 复审记录 and status
-  flips to the plan file on the default checkout.
-- **The full suite runs here, and only here** (plus the pre-fold gate for
-  multi-phase plans, per `/auto-plan:work` Step 2). A regression found at
-  this gate routes the plan back to `/auto-plan:work` with a fix list.
-- **Never fold the branch back here.** Landing the plan's worktree
-  onto main happens in `/auto-plan:merge`, after this gate passes.
-- **Trust code over plan text.** Record divergences in the review record.
-- **Never set `reviewed` on unverified work.** Partial → fail the review.
-- **No silent deferrals.** Postponing a task, shrinking scope, or swapping in
-  a workaround without saying so counts as incomplete, not done.
-- **Metadata must be precise.** `/auto-plan:merge` reads it verbatim.
-- **Never merge.** This skill stops at `reviewed`; merging is `/auto-plan:merge`.
-- **Defer to specialists.** After `reviewed`, the broader `/finish-plan` can
-  run for the generic close-out + archive routing.
-
-## Checklist
-
-- [ ] Plan loaded alongside the actual code diff
-- [ ] Verification re-ran inside the plan's worktree (or on the default checkout if already folded)
-- [ ] Every acceptance criterion re-verified (pass/partial/fail + evidence)
-- [ ] 遗漏 / 延后 / workarounds hunted explicitly and recorded
-- [ ] `supersedes_spec_components` / `new_spec_components` / `touched_goals`
-      filled precisely (or left empty if not applicable)
-- [ ] `## 复审记录` written with per-criterion verdicts
-- [ ] Status routed: `reviewed` (pass) or back to work with a fix list
+Do not merge or fix implementation within review. If the whole workflow is
+already authorized, hand control to the appropriate skill and honor the repair
+limit from [work](../auto-plan-work/SKILL.md); otherwise report the next action.
+Outcome records are a skill contract, not new backend statuses or automatic
+Relay routing.

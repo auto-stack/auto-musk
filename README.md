@@ -80,11 +80,13 @@ See [pac.at](pac.at), the [backend entry point](backend/crates/musk/src/main.rs)
 |---|---|---|
 | Plan | One change's analysis, design, tasks, acceptance criteria, and progress | `docs/plans/NNN-slug.md` |
 | Archived Plan | Preserved change history | `docs/plans/archived/` |
-| Spec Ledger | Structured goals, architecture, designs, tests, reviews, and reports | Workspace `.autoos/specs.json` |
-| Module Specs | Current module behavior and design knowledge | `docs/specs/` |
+| Spec Ledger | Derived indexes, relations, and history across six sections | Workspace `.autoos/specs.json` |
+| Module Specs | Authoritative current module behavior and design knowledge | `docs/specs/` |
 | Conversations | Chat and Relay activity history | Workspace `.autoos/conversations/` |
 
-Current consolidation has two parts: `merge_plan` maps Plan sections into ledger items and archives the Plan; the document-phase agent then updates the module Specs using the review's impact metadata. These are separate operations today.
+`docs/specs/` is the authoritative source of current project knowledge. The ledger provides derived indexes, relations, and history. The repository skills apply a reviewed Spec delta in the worktree, land the canonical documents, refresh the derived ledger, and archive only after verifying those operations. Consolidation receipts support checking and completing interrupted work.
+
+The application's existing `merge_plan` operation still copies Plan chapters to the ledger and archives immediately, with module updates performed afterward by the document phase. The updated repository merge skill avoids that combined operation; the application flow has not yet adopted the new consolidation contract.
 
 Relay runs currently live in memory. Their activity is recorded in conversations, but restarting the service does **not** resume active runs. A completed Relay run is also distinct from an accepted and consolidated Plan.
 
@@ -196,7 +198,9 @@ drafting → executing → execution_done → reviewed → archived
 
 Review failure returns the work for correction. Archiving can also mean shelving an unfinished Plan through the application's archive action, so archive status alone does not prove successful delivery.
 
-A Plan contains goals, architecture, background analysis, detailed design, test design, acceptance criteria, execution tasks, review records, and open questions. Frontmatter carries its ID, status, progress, and the review's `supersedes_spec_components`, `new_spec_components`, and `touched_goals` fields.
+A Plan contains goals, architecture, background analysis, detailed design, test design, acceptance criteria, execution tasks, review records, and open questions. Frontmatter carries its ID, status, semantic `plan_revision`, progress, and Spec-impact fields: `supersedes_spec_components`, `new_spec_components`, and `touched_goals`. Stable task and acceptance IDs connect work to evidence. The Plan includes a proposed Spec delta that review validates against code and canonical documents.
+
+The repository skills allow relevant code/Spec lookup and bounded adjustments within existing authorization. Handoffs use `pass`, `needs_fix`, `needs_replan`, or `blocked` as appropriate to the stage, separate from Plan status. Failed review returns to `executing`; successful review records its Plan revision and code commit. An already authorized end-to-end workflow can continue through the next skill, with bounded repair attempts. These records do not provide backend restart recovery.
 
 ### Built-in Relay flow
 
@@ -226,10 +230,10 @@ The [workflow design](docs/designs/008-auto-plan.md) explains the Plan/Spec spli
 
 The next step is to make the existing workflow reliably automated while preserving the Plan/Spec split. The following are proposed improvements, not completed features:
 
-1. **Unify workflow contracts.** Align skills, runtime prompts, state transitions, worktree naming, and Auto/generated implementations. Move deterministic validation into shared tools.
-2. **Allow bounded plan adaptation.** Keep the Plan as the primary context while allowing relevant code and Spec lookup. Separate local implementation adjustments from changes requiring a revised agreement.
+1. **Align the runtime with the skill contracts.** Bring runtime prompts, state handling, and Auto/generated implementations into line with the updated skills. Move deterministic validation into shared tools.
+2. **Support bounded adaptation in the application.** Carry the skills' revision and authorization rules into runtime handoffs, preserving relevant evidence and user decisions.
 3. **Build a durable Plan Runner.** Persist execution checkpoints, run ownership, pending gates, and configuration snapshots; support restart recovery, pause, cancellation, and budget limits.
 4. **Close the work/review loop.** Use structured outcomes such as `pass`, `needs_fix`, `needs_replan`, and `blocked`; bind evidence to Plan and code revisions and stop repeated attempts without progress.
-5. **Make consolidation recoverable.** Prepare explicit Spec additions, modifications, and removals; record code landing, ledger/module updates, archival, and cleanup separately. Define authority between module Specs and ledger views.
+5. **Automate recoverable consolidation.** Implement the skills' canonical-Spec-first ordering and receipts in the backend, with concurrency control and recovery for publication, archival, and cleanup.
 6. **Route agents by capability.** Use independent review contexts and evaluated role/model choices; add parallel work where task dependencies and write ownership permit it.
 7. **Measure before scaling.** Evaluate on representative historical Plans, tracking human intervention, missed requirements, recovery success, time, and cost before increasing unattended concurrency.

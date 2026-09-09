@@ -1,128 +1,142 @@
 ---
 name: auto-plan-new
 description: |
-  Create a new implementation plan file in docs/plans/ with an auto-assigned
-  3-digit sequence number, YAML frontmatter, and a needs-analysis section seeded
-  from the spec ledger overview. Use when:
-  (1) User says "new plan" / "新建 plan" / "创建计划" / "建个 plan" / describes a new feature or requirement to plan
-  (2) User says "/auto-plan:new" or "给这个需求建个 plan"
-  (3) A new requirement arrives and no plan for it exists yet
-  This skill only scans docs/plans/ for the next number and reads the spec
-  overview; it never reads other plan files (avoids context pollution) and never
-  starts executing — hand off to /auto-plan:work.
+  Create or revise an implementation Plan grounded in the current module Specs
+  and relevant code. Use for "new plan", "新建计划", "/auto-plan:new", or an
+  explicit plan revision after needs_replan. Produces a reviewable execution
+  contract; does not implement the change.
 ---
 
-# /auto-plan:new — Create a new plan
+# /auto-plan:new — Create or revise an execution contract
 
-Create a single, self-contained plan file that becomes the **sole execution
-context** for `/auto-plan:work`. One skill, one session, one plan. Idempotent —
-re-running with the same requirement overwrites the same draft until the user
-confirms.
+Announce: "I'm using /auto-plan:new to draft or revise the plan."
 
-> **Design source:** `docs/designs/008-auto-plan.md` §6.2.
+Input: a requirement, or an existing Plan reference and the reason for revision.
+Output: one Plan in `docs/plans/`, with verifiable outcomes and an explicit
+handoff to [work](../auto-plan-work/SKILL.md).
 
-**Announce at start:** "I'm using /auto-plan:new to draft the plan."
+## Authority and context
 
-**Input:** A requirement description (natural language). If vague, clarify first.
+- **`docs/specs/` is authoritative for current agreed project knowledge.**
+  Module Specs describe behavior, interfaces, constraints, and design decisions.
+  The six-section ledger is a derived index, relation graph, and historical
+  view; use it to locate sources, not to override them.
+- The Plan is the primary context and proposed change contract. Code and tests
+  establish observed behavior. A conflict between code and an agreed requirement
+  is a discrepancy to resolve, not permission to rewrite the requirement.
+- Start with the Spec overview/index if present, then read only relevant module
+  Specs, code, tests, and repository instructions. Record source paths and
+  relevant versions or content hashes under background analysis.
+- Read other Plans only to identify an existing active change, resolve a
+  dependency, or trace a cited decision. Avoid loading unrelated history.
+- If Specs are absent or stale, record that explicitly and investigate the code.
+  Put the required Spec addition/correction in the proposed delta.
 
-**Output:** `docs/plans/NNN-slug.md` with `status: drafting`, presented for
-user confirmation. Execution is **not** started.
+## Locate or allocate the Plan
 
-## Process
+1. Resolve the main checkout and inspect active Plan metadata for an existing
+   matching requirement. Reuse a confirmed match; do not overwrite another
+   draft on the strength of a similar title. Preserve progress and review history.
+2. For a new Plan, scan both `docs/plans/` and `docs/plans/archived/`,
+   taking the maximum valid numeric prefix plus one. Use `NNN-slug.md`.
+   The current backend reads a three-digit prefix: if the next number exceeds
+   999, report that compatibility blocker rather than silently truncating it.
+3. Allocation must have one writer. Use an available exclusive allocation
+   mechanism, or serialize Plan creation across the agent and application.
+   Recheck IDs across both directories immediately before creation; create
+   without overwriting and verify the resulting ID is unique. A max-plus-one
+   scan, including the current API, is not by itself concurrency-safe.
+4. Plan drafts and progress live on the main checkout, per `AGENTS.md`.
+   This skill does not edit implementation files or canonical Specs.
 
-### Step 1: Assign the next sequence number (deterministic, never guess)
+## Draft the contract
 
-Scan BOTH the active and archived directories so numbers never collide with
-history:
+Use the existing numbered sections for parser compatibility:
 
-```bash
-ls docs/plans/*.md docs/plans/archived/*.md 2>/dev/null \
-  | sed -E 's|.*/([0-9]{3})-.*|\1|' | sort -n | tail -1
-```
+`0. 变更摘要`, `1. 目标`, `2. 架构方案`, `3. 技术栈`,
+`4. 需求分析与背景调查`, `5. 详细设计`, `6. 测试设计`,
+`7. 验收标准`, `8. 执行步骤`, `9. 复审记录`, `10. 待澄清事项`.
 
-Take the max, add 1, zero-pad to 3 digits (max `023` → `024`). Empty directory
-→ `001`. This is authoritative — `PlansStore::next_seq` uses the same rule, so a
-number assigned here will not collide with one later assigned by the API.
-
-### Step 2: Read the spec overview (background, not full specs)
-
-Ground the plan's "needs analysis" in the project's current state:
-
-```bash
-# Preferred: structured overview from the running backend
-curl -s http://127.0.0.1:8080/api/specs/overview 2>/dev/null \
-  || cat .autoos/specs.json 2>/dev/null || cat backend/.autoos/specs.json
-```
-
-Extract: existing modules, goals, architecture items, anything the new plan
-touches. **Do not read other plan files** — they bias the draft and waste
-context (008 §6.2 constraint).
-
-### Step 3: Clarify the requirement (only if vague)
-
-If the requirement is clear, skip to Step 4. If vague (ambiguous scope, missing
-constraints, several interpretations), ask 1-3 focused questions **one at a
-time**. Prefer proposing 2-3 concrete options over open-ended questions. Record
-the resolved decisions in the plan's "needs analysis" section.
-
-### Step 4: Draft the plan file
-
-Create `docs/plans/NNN-slug.md` where `slug` is a short English kebab-case name
-derived from the feature. Use this frontmatter (008 §4.2):
+Keep these frontmatter fields; values below illustrate the shape:
 
 ```yaml
----
-plan_id: PLAN-NNN              # matches the filename prefix
-status: drafting               # drafting → executing → execution_done → reviewed → archived
-feature_name: <concise name>
-author: [<you>]
-created_at: <ISO now>
-updated_at: <ISO now>
-
-# Leave these EMPTY here — /auto-plan:review fills them:
+plan_id: PLAN-042
+status: drafting
+feature_name: Example change
+author: [agent]
+created_at: 2026-09-09T00:00:00Z
+updated_at: 2026-09-09T00:00:00Z
+plan_revision: 1
+current_step: 0
+total_steps: 3
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
-
-current_step: 0
-total_steps: <count of execution tasks>
----
 ```
 
-Body sections (in order): `# [PLAN-NNN] <title>`, 变更摘要, 目标, 架构方案,
-技术栈, 需求分析与背景调查 (seeded from Step 2), 详细设计, 测试设计, 验收标准,
-执行步骤 (atomic tasks), 复审记录, 待澄清事项.
+- State the goal, non-goals, affected repositories/modules, constraints,
+  dependencies, assumptions, and what success looks like.
+- Give acceptance criteria stable IDs such as `AC-01`. Each states observable
+  behavior and a concrete verification method, including expected results.
+- Give executable tasks stable IDs such as `T-01`, dependencies, affected
+  files or symbols verified against the repository, the intended outcome,
+  linked acceptance IDs, and verification commands with expected results.
+  Identify genuinely new paths as new.
+- Size tasks by independently verifiable outcomes. The former 2–5 minute rule
+  is a heuristic, not a gate. Detail the next executable work; do not invent
+  exact implementation mechanics for unresolved research. Use a bounded
+  investigation task with a decision artifact when needed.
+- Under `5. 详细设计`, include a `### 规范增量` table:
+  `delta_id | add/modify/retire | docs/specs/... target | before/after rule |
+  rationale | acceptance IDs`. Use stable IDs such as `SD-01`.
+  Populate known Spec-impact frontmatter entries provisionally, with
+  repository-relative `docs/specs/...` paths; review finalizes them.
+  A change with no Spec impact must explain why.
+- Under `4. 需求分析与背景调查`, record the authorization already given:
+  approved scope/revision, allowed repositories/actions, and any user-specified
+  budget or automatic continuation limits. Do not invent approvals or budgets.
+  Unknown constraints that affect correctness go to `10. 待澄清事项`.
 
-**Execution-task granularity (superpowers rule):** each task = a 2-5 minute
-atomic action with (a) precise file paths, (b) the exact operation, (c) a
-verification command. Forbidden: "TBD", "TODO", "similar to Task N",
-"implement later".
+## Revisions and authorization
 
-### Step 5: Present for confirmation — do NOT execute
+`plan_revision` identifies the semantic contract: goals, constraints, design,
+tasks, acceptance criteria, and Spec delta. Increment it when those change;
+progress ticks, evidence, timestamps, and merge receipts do not increment it.
 
-Show the drafted plan to the user. Update `updated_at`. Wait for confirmation or
-edits. Starting execution is `/auto-plan:work`'s job, not this skill's.
+For legacy Plans, retain their sections and IDs where possible. Establish
+revision 1 when first maintaining the contract, recording the baseline and any
+actual changes. Missing revision or approval fields are not evidence of approval.
 
-## Rules
+| Change | Handling |
+|---|---|
+| Path/symbol correction or equivalent implementation within agreed scope | Record reason and evidence, increment revision if contract text changes, inherit existing scope authorization |
+| Design no longer works, but goal and acceptance remain unchanged | Revise the affected tasks/design from evidence; retain completed work and existing authorization where it covers the revision |
+| Changed goal, acceptance threshold, compatibility promise, repository/action scope, or budget beyond authorization | Present the specific change for user decision before dependent execution |
 
-- **Draft on the default checkout; code lands in a worktree later.** The plan
-  doc must stay visible on the default checkout (the backend and every other
-  skill read `docs/plans/` from there). Actual implementation happens in a
-  dedicated worktree in the sibling-group layout `.wt/<repo>-<NNN>/<repo>`
-  (Plan 529), created by `/auto-plan:work` when execution starts.
-- **Never read other plan files.** They pollute context and bias the draft.
-- **Only read the spec overview**, not full spec contents.
-- **Sequence numbers are computed from the filesystem, never hardcoded.**
-- **No placeholders.** Every task names real files + a real verification command.
-- **Hand off, don't execute.** New ends at `status: drafting`.
-- **Respect the design doc.** Plan format follows `docs/designs/008-auto-plan.md` §4.2.
+Never remove acceptance criteria or silently defer work to make a Plan pass.
+Mark affected prior verification as stale; preserve it as history.
 
-## Checklist
+For a draft, keep `drafting`. A revision of an in-progress Plan stays
+`executing` and records any pending decision explicitly; it is not reset to
+a fresh Plan. Return `execution_done` or `reviewed` work to `executing` before a
+semantic revision. Do not reopen archived Plans for new requirements.
 
-- [ ] `docs/plans/NNN-slug.md` exists with `status: drafting`
-- [ ] `plan_id: PLAN-NNN` matches the filename's 3-digit prefix
-- [ ] Sequence number = max(active + archived) + 1, no collision
-- [ ] Needs-analysis section references real spec modules from the overview
-- [ ] Every execution task has a file path + operation + verification command
-- [ ] `supersedes`/`new_spec_components`/`touched_goals` left empty (deferred to review)
-- [ ] User has confirmed or edited the draft; execution not started
+## Handoff
+
+Check that tasks cover all acceptance criteria and Spec deltas, paths and
+commands are grounded, and unresolved assumptions have an owner/next action.
+
+Show the concrete Plan and any decisions still needed. Honor existing
+authorization; do not ask again for an already authorized scope. This skill
+hands off rather than implementing.
+
+Record a short result under `9. 复审记录` (draft/revision handoff) and report it:
+
+- `stage: new`, Plan ID and revision.
+- `outcome: pass` when ready for work within recorded authorization;
+  `blocked` when a required decision or prerequisite is missing.
+- `next: work` or the precise unblock action, plus changed task/acceptance IDs.
+
+These are skill-level handoff records, not new Plan statuses or a claim that
+the current Relay driver parses them. Historical design rationale is in
+`docs/designs/008-auto-plan.md`; this contract governs the updated skill.

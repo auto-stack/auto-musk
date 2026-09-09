@@ -1,204 +1,146 @@
 ---
 name: auto-plan-work
 description: |
-  Execute an implementation plan step by step, using the plan file as the sole
-  context. Walks the task list, marks each step done, advances the status
-  (drafting → executing → execution_done), and logs blockers to the plan's
-  open-questions section instead of going off-script. Use when:
-  (1) User says "execute plan N" / "执行 plan N" / "继续做 plan" / "work on plan 42"
-  (2) User says "/auto-plan:work" or "按这个 plan 干活"
-  (3) A plan in docs/plans/ is in drafting/executing status and the user wants to advance it
-  Reads only the target plan — never loads specs or other plans mid-execution.
-  All code changes happen in a dedicated git worktree in the sibling-group
-  layout `<workspace>/.wt/<repo>-<NNN>/<repo>` (never on the default checkout;
-  Plan 529 layout — legacy `.worktrees/plan-<NNN>-dev` only for in-flight plans
-  that already live there); plan-file progress markers stay on the
-  default checkout so every skill can see them.
+  Execute or repair an identified Plan in its dedicated worktree, using the
+  Plan as primary context and relevant code and Specs as evidence. Use for
+  "execute plan", "执行计划", "/auto-plan:work", or a needs_fix handoff.
+  Records verified progress, bounded adjustments, and structured blockers.
 ---
 
-# /auto-plan:work — Execute a plan
+# /auto-plan:work — Implement and repair a Plan
 
-Execute one plan, end to end, treating that plan as the **only** context. One
-skill, one session, one plan. Resumable — if interrupted, re-run and resume from
-the first unchecked task.
+Announce: "I'm using /auto-plan:work to execute plan NNN."
 
-> **Design source:** `docs/designs/008-auto-plan.md` §6.3.
+Input: a Plan reference, optionally with review findings. Resolve it from the
+request or active task context; if multiple candidates remain, ask which Plan
+instead of selecting the newest unrelated draft.
 
-**Announce at start:** "I'm using /auto-plan:work to execute plan `<NNN>`."
+## Entry and context
 
-**Input:** A plan reference — a number (`42`), a filename (`042-*.md`), or the
-literal "执行 Plan N". If omitted, pick the newest `drafting` or `executing`
-plan in `docs/plans/`.
+- Read the Plan on the main checkout, repository instructions, task evidence,
+  review findings, and any pending decision. `docs/specs/` is authoritative
+  for agreed project knowledge; the ledger is a derived lookup/history view.
+- The Plan is the primary context. Read relevant code, tests, module Specs, and
+  directly cited historical decisions when needed. Record evidence for any
+  discrepancy; current code does not automatically override an agreed requirement.
+- Enter from `drafting` once the scope is authorized, or `executing`.
+  Ordinary `execution_done` work goes to [review](../auto-plan-review/SKILL.md).
+  An explicit repair request or `needs_fix` finding permits
+  `execution_done/reviewed → executing`; record why and invalidate affected
+  review evidence. Archived work needs a new Plan.
+- Follow [new](../auto-plan-new/SKILL.md) for contract revisions. Honor prior
+  approval within its scope; never infer authorization from a status field.
+- Reconcile task marks with code, commits, and evidence before resuming.
+  An unchecked task may already have been implemented before an interruption;
+  verify it before repeating side effects. A checked task with stale evidence
+  needs verification.
 
-**State gate:** The plan must be `drafting` or `executing`. If it is
-`execution_done` / `reviewed` / `archived`, refuse and point the user to the
-right next skill (`/auto-plan:review` for `execution_done`).
+## Worktree and write ownership
 
-## Process
+Follow the repository's `AGENTS.md`. For auto-musk:
 
-### Step 1: Locate and load the target plan
+| Item | Location / branch |
+|---|---|
+| Shared Plan and progress | Main checkout `docs/plans/NNN-slug.md` |
+| Implementation worktree | `D:/autostack/.wt/musk-NNN/auto-musk` |
+| Development branch | `plan-NNN-dev` |
+| Dependency worktree | Same group, e.g. `D:/autostack/.wt/musk-NNN/auto-lang` |
+| Dependency branch | `auto-musk-dev`, subject to existing ownership checks |
 
-```bash
-# By number — match the 3-digit prefix in active OR archived dir:
-ls docs/plans/<NNN>-*.md docs/plans/archived/<NNN>-*.md 2>/dev/null
-```
+1. Inspect `git worktree list --porcelain`. Reuse the Plan's existing
+   worktree/branch throughout its lifetime. Confirm repository, Plan ownership,
+   absolute path, and branch; a matching branch name alone is insufficient.
+   Retain an existing legacy worktree for an in-flight Plan.
+2. If none exists, create the worktree before edits. If the intended directory
+   or branch belongs to other work, do not repurpose it. Apply the target
+   repository's naming convention when these skills are used elsewhere;
+   do not derive the group by stripping an arbitrary part of the repo name.
+3. All implementation, test, and canonical Spec file edits/builds take place
+   in worktrees. Plan progress and handoff records remain on the main checkout.
+   Only one writer updates the shared Plan; reread before patching and preserve
+   concurrent user edits. An unexpected concurrent edit requires reconciliation.
+4. Never create junctions/symlinks inside any worktree. Dependencies resolve
+   via explicit environment override, then a group sibling, then the main
+   dependency checkout. Dependency modifications require their own worktree.
+5. Commit completed implementation units. Preserve unexpected uncommitted
+   changes and resolve ownership before committing or merging them.
+   Record base commit, worktree, and dependency revisions in the Plan.
+6. If the approved Plan lands phases incrementally, each landing needs a
+   recorded phase acceptance review on that commit and the required full-suite
+   gate. Keep the overall Plan `executing`; do not claim final review.
+   Sync the default branch back before the next phase and refresh stale evidence.
+   Fold an authorized dependency change back promptly after its own verification
+   and successful consumer integration, then guard and clean its worktree.
 
-Read that one file. It is now the sole context for this session. **Do not load
-specs, other plans, or the design doc** — the plan already contains everything
-needed; going off-script is how steps get dropped (008 §6.3 constraint).
+Before any worktree removal, verify the resolved absolute target is inside its
+intended group and require `bash D:/autostack/wt-guard.sh <worktree>` to report
+clean. Final project cleanup belongs to [merge](../auto-plan-merge/SKILL.md).
 
-### Step 2: Set up the execution worktree BEFORE touching any code
+## Execute verifiable units
 
-All modification of this repo happens inside a dedicated git worktree — never
-directly on the default checkout. Worktrees live in the **sibling-group layout**
-(Plan 529): `<workspace>/.wt/<repo>-<NNN>/<repo>`, where `<workspace>` is the
-parent dir of the repo's main checkout (e.g. `D:/autostack`) and `<repo>` is
-the repo's directory name. In-flight plans that already have a legacy
-`.worktrees/plan-<NNN>-dev` keep using it until folded.
+Choose the next dependency-ready task. Respect ordering dependencies; continue
+independent authorized work when another task is blocked.
 
-```bash
-# From the default checkout. Resume-safe: reuse if it already exists.
-REPO=$(basename "$(git rev-parse --show-toplevel)")
-GROUP="$(dirname "$(git rev-parse --show-toplevel)")/.wt/${REPO%-*}-<NNN>"
-git worktree list | grep -q plan-<NNN>-dev || \
-  git worktree add "$GROUP/$REPO" -b plan-<NNN>-dev
-cd "$GROUP/$REPO"
-```
+For each task:
 
-- Branch name stays `plan-<NNN>-dev` (decoupled from the directory name).
-  Commit completed steps onto that branch as you go. First entry is cold —
-  install deps / rebuild inside the worktree as the plan's steps require.
-- **RED LINE — no junctions/symlinks inside a worktree, ever.** `git worktree
-  remove`'s recursive delete follows them and destroys the target repo's
-  contents (2026-09-03 incident, reproduced). Cross-repo deps resolve by
-  order: env override (`$AUTO_LANG_ROOT` etc.) → group sibling (`../auto-lang`)
-  → main checkout (`<workspace>/auto-lang`). Never a filesystem link.
-- **ONE worktree per plan per repo — for the plan's whole lifetime.** Never
-  open a second worktree for a later phase/batch/concern of the same plan;
-  later phases commit onto the same branch. If you find yourself typing
-  `git worktree add` mid-plan, that is a process bug — reuse the existing
-  worktree.
-- **Multi-phase plans land incrementally.** After a phase's verification
-  passes (and its commits are in), merge the branch into the default
-  branch, then sync the default branch back into the worktree
-  (`git merge <default>` inside the worktree) before starting the next
-  phase. Long-running plans drift badly behind a live default branch
-  (parallel sessions keep advancing it); per-phase fold + re-sync keeps
-  the worktree current and lets cross-repo consumers pick landed phases up
-  early. The worktree itself stays put — final cleanup/removal remains
-  `/auto-plan:merge`'s job.
-- **Pre-fold full-suite gate (Plan 466).** A phase fold puts code on the
-  default branch *before* review, so it carries its own regression gate:
-  run the repo's full-suite command in the worktree and require green
-  before folding (in auto-lang: `cargo tf`, plus `cargo tv/tt/tb` when the
-  phase touched VM files / transpiler / book). Together with
-  `/auto-plan:review`'s gate, these are the only two places a full suite
-  runs in a plan's lifecycle.
-- **Plan-file bookkeeping stays on the default checkout.** `[✅]` markers,
-  frontmatter flips, and 待澄清事项 entries go into the main checkout's
-  `docs/plans/<NNN>-*.md` — every skill reads the plan from there, so progress
-  must stay visible on the default checkout. Only product/code changes belong
-  in the worktree.
-- **Dependency projects:** when a step must modify another project this repo
-  depends on (e.g. `auto-musk` depends on `auto-lang`), open ONE worktree in
-  THAT project **inside the same group dir**, named after THIS project:
-  `git -C <dep-root> worktree add "$GROUP/<dep-repo>" -b <this-repo>-dev`,
-  reused for the whole plan (same one-worktree rule). Same group = the
-  relative path `../<dep-repo>` from either worktree just works — this
-  replaces the old junction trick, which is now forbidden (red line above).
-  Never edit a dependency checkout outside its own worktree. Fold each
-  dependency worktree back into the dependency's main branch as soon
-  as this repo consumes the change (dependency bump verified in integration) —
-  don't leave them dangling until plan completion.
+1. Implement its intended outcome. Keep work within the approved scope.
+2. Run the specified or justified equivalent verification. Record command,
+   expected result, actual result, and evidence tied to the code/dependency
+   revision. In TDD, an expected failing test is evidence of the red phase;
+   the final implementation still requires the passing result.
+3. Replace its open checkbox with `[x]` and append concise evidence
+   (`[✅ 已完成]` may be retained for legacy Plans). Do not count a checkbox
+   and a legacy completion marker as separate tasks.
+4. Set `current_step` to the number of completed executable tasks and
+   `total_steps` to their total count. These are counts, not a resume cursor;
+   stable task IDs, dependencies, and evidence determine remaining work.
+5. Update the proposed Spec delta for actual changes. Canonical Spec edits may
+   be prepared in the worktree, but do not publish them or edit the live ledger
+   as an independent source of requirements.
 
-### Step 3: Advance the state machine if needed
+Use scoped verification during implementation. Full suites belong at review
+and pre-landing gates unless new failures, changes, or repository requirements
+justify another run. Do not add tests that merely mirror wording or trivial
+implementation details.
 
-If `status: drafting`, flip it to `executing` in the frontmatter and bump
-`updated_at`. If already `executing`, leave it. Legal transitions:
-`drafting → executing`; `executing → execution_done` (Step 6).
+## Adapt or route from evidence
 
-### Step 4: Execute tasks in order, marking each done
+| Situation | Action |
+|---|---|
+| Renamed file/symbol, missing call site, equivalent local implementation | Investigate relevant sources, record adjustment, update the semantic revision if needed, and continue within existing authorization |
+| Design is invalid but the goal still stands | Record evidence and affected IDs; return `needs_replan` to new for a bounded revision |
+| Scope, acceptance, compatibility, or authorized actions must change | Record the concrete proposal; return `blocked` pending the required user decision |
+| External dependency, permission, or environment prevents progress | Record failed prerequisite, evidence, and exact unblock action; continue unaffected work |
 
-Work through `## 执行步骤` top-to-bottom. For each step:
+Do not weaken acceptance criteria or silently move required work to another
+Plan. Reconcile revised tasks and their dependent evidence instead of clearing
+the entire task list.
 
-1. Do exactly what the step says — precise file path, exact operation.
-2. Run the step's verification command. It must pass before moving on.
-3. Append `[✅ 已完成] <one-line evidence>` next to the step in the plan file.
-4. Bump `current_step` in the frontmatter.
+Retries must have a reason to work: new evidence, an implementation fix, or a
+changed transient condition. Record attempts by task/finding. For authorized
+automatic continuation, use the user's limit; if none was set, cap automatic
+work/review repair cycles at three, then diagnose or hand back the blocker.
+Repeated identical failure without progress stops blind retries sooner.
+This is a skill-level bound, not a background scheduler.
 
-**TDD order (superpowers rule):** when a step writes code with tests, write the
-failing test first, confirm it fails, then implement, then confirm it passes.
+## Completion and handoff
 
-### Step 5: Log blockers in-plan, do NOT improvise
+Before setting `execution_done`, verify that all tasks and acceptance mappings
+are accounted for, required scoped checks passed on the current code, completed
+changes are committed, and no blocking question remains. Incomplete work stays
+`executing`.
 
-When a step is ambiguous or blocked, **do not** go search specs or other docs to
-figure it out. Instead append a bullet under `## 待澄清事项` (Open Questions)
-and stop there for the user to resolve. Going off-script to "research" is how
-execution drifts from the reviewed plan.
+Append a short record under `9. 复审记录`; blockers also appear under
+`10. 待澄清事项`:
 
-### Step 6: When all tasks are done → execution_done
+`stage: work | plan_id | plan_revision | outcome | code_commit |
+task_ids | evidence | blockers | next`
 
-Once every step has `[✅]` and every verification has passed:
+- `pass`: set `execution_done`; next is review.
+- `needs_replan`: keep `executing`; next is new with affected tasks.
+- `blocked`: keep `executing`; state the precise unblock action.
 
-1. Set `status: execution_done` in the frontmatter.
-2. Re-run the plan's **scoped** verifications only, inside the worktree:
-   `cargo check -p <touched crates>` plus the touched modules' targeted
-   tests (`cargo t <module>` or the plan's own per-step commands). Do NOT
-   run full suites (`cargo t` / `cargo tf` / `cargo ta`) at wrap-up — the
-   single full-suite gate is `/auto-plan:review`'s job (plus the pre-fold
-   gate in Step 2 for multi-phase plans).
-3. Hand off: tell the user the plan is ready for `/auto-plan:review`.
-
-Leave the plan's worktree (and its branch) in place — final fold +
-cleanup + deletion is `/auto-plan:merge`'s job. (Per-phase incremental merges
-into the default branch, per Step 2, are landing progress — they are not the
-terminal fold and do not remove the worktree.) Do not run the review or merge
-skills — those are separate hand-offs.
-
-## When to stop and ask for help
-
-Stop immediately and surface to the user if:
-- A verification command fails repeatedly and the fix is unclear.
-- A step's instructions contradict the current code and you cannot tell which is right.
-- The plan references a file/path/module that does not exist and the intent is unclear.
-
-Ask rather than guess — a wrong step propagates to every later step.
-
-## Rules
-
-- **Only read the target plan.** No specs, no other plans, no design docs mid-flight.
-- **One worktree per plan per repo, whole plan lifetime** — no per-phase or
-  per-concern worktrees; multi-phase plans land by merging the branch into
-  the default branch per phase and re-syncing (Step 2).
-- **Code changes only in the worktree; bookkeeping only on the default checkout.**
-  Product/code edits go into the plan's worktree (`.wt/<repo>-<NNN>/<repo>`,
-  or the legacy path for in-flight plans); `[✅]` markers and
-  frontmatter flips stay on the default checkout's plan file.
-- **Never modify a dependency project outside its own worktree** — and its
-  worktree lives in the same group dir (`$GROUP/<dep-repo>`, branch
-  `<this-repo>-dev`), never via junction/symlink.
-- **No junctions/symlinks inside any worktree** (red line; resolution order:
-  env → group sibling → main checkout). Before removing any worktree run
-  `bash <workspace>/wt-guard.sh <worktree-path>` and require a clean result.
-- **Every completed step gets a `[✅]` marker + `current_step` bump.** No silent progress.
-- **TDD: failing test → implement → passing test**, when tests apply.
-- **Scoped checks during execution; full suites only at review (and pre-fold).**
-  Per-step and wrap-up verification use `cargo check` + targeted module
-  tests (`cargo t <module>`); full-suite runs (`cargo tf`/`ta` in
-  auto-lang) are reserved for the review gate and the pre-fold gate.
-- **Blockers go to `## 待澄清事项`, not into speculative research.**
-- **Follow steps exactly.** If a step looks wrong, stop and ask — do not redesign on the fly.
-- **Do not start on the default branch without consent** (general safety rule).
-
-## Checklist
-
-- [ ] Target plan located; loaded as sole context
-- [ ] Execution worktree exists (`$GROUP/$REPO`, or legacy `.worktrees/` for in-flight plans); every code edit/build/test ran inside it
-- [ ] No junction/symlink was created inside any worktree (red line)
-- [ ] Dependency-project changes (if any) were made in that project's own worktree in the same group and folded back once consumed
-- [ ] `status` advanced (`drafting → executing`, or already `executing`)
-- [ ] Every execution step has `[✅ 已完成]` evidence
-- [ ] `current_step` reflects the furthest completed step
-- [ ] All per-step verification commands passed
-- [ ] Blockers (if any) recorded under `## 待澄清事项`, not silently worked around
-- [ ] On completion: `status: execution_done`; user pointed to `/auto-plan:review`
+Keep the worktree for review and merge. If the user already authorized the
+whole workflow, continue with the next skill after satisfying its entry gate;
+a request for work alone ends at this handoff. These outcome records are
+distinct from the backend's five Plan statuses.
