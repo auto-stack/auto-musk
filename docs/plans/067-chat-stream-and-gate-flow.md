@@ -4,9 +4,9 @@ status: executing
 feature_name: 对话流式实时刷新根修 + approve 门暂停/自动通过流程（含本会话问题沉淀与 VM/Rust 双轨对齐检查）
 author: zhaop / zcode
 created_at: 2026-09-09T15:30:00+08:00
-updated_at: 2026-09-09T18:55:00+08:00
-plan_revision: 1
-current_step: 2
+updated_at: 2026-09-09T19:30:00+08:00
+plan_revision: 2
+current_step: 3
 total_steps: 7
 supersedes_spec_components: []
 new_spec_components:
@@ -141,8 +141,8 @@ T-02 按 T-01 结论实施，统一验收口径见 AC-01/AC-02。约束：不破
 
 - [x] **T-01 流式断点定责（调查）**：按 5.1 取证矩阵产出根因决策记录（attachments/或复审记录）。涉及：`src/front/forge_store.at`（OnStreamEvent/PollStream）、`backend/crates/musk/src/chats.rs`（stream 端点）。验证：决策记录成文，含证据截图/日志。→ AC-01。
 - [x] **T-02 流式根修**（依赖 T-01）：按结论实施前端/后端修复；SSE 增量为主通道、轮询校正为兜底。验证：AC-01/AC-02 实测通过；`cargo test`/前端现有测试不回归。
-- [ ] **T-03 gate 超时机制定位（调查）**：定位超时默认拒绝产生点与现行超时值，理清 gate 决议数据流（`relay/api.rs` ← UI；`GateWaiting/Resolved` ← store）。产出定位记录。→ AC-03。
-- [ ] **T-04 gate 超时改暂停**（依赖 T-03）：暂停态 + 恢复/中止语义 + 超时可配置；补 relay 单测三态。验证：AC-03/AC-04。
+- [x] **T-03 gate 超时机制定位（调查）**：定位超时默认拒绝产生点与现行超时值，理清 gate 决议数据流（`relay/api.rs` ← UI；`GateWaiting/Resolved` ← store）。产出定位记录。→ AC-03。
+- [ ] **T-04 gate 等待语义收敛（r2 修订）**（依赖 T-03）：原设计'超时改暂停'前提不成立——代码库无超时机制,relay run 的 GateWaiting 本就暂停等决议（driver 返回,API resolve_gate 重入驱动）。修订为：a) chat 级 plan-flow 的确认门补齐与 relay 同款的显式 pending/paused 表意（会话状态+UI 徽标）,杜绝'无可见等待'；b) 复核 GateType 默认值（store.rs unwrap_or(Auto)）确保 plan-flow 关键门显式 human；c) 补 relay 单测：GateWaiting→drive 返回→resolve_gate 重入续跑。验证：AC-03/AC-04。
 - [ ] **T-05 审批模式**（依赖 T-04 定义的决议产生点）：mention_input.at UI + ForgeStore 持久化 + relay 决议链；审计事件。验证：AC-05。
 - [ ] **T-06 双轨对齐检查**（依赖 T-02/T-04/T-05 行为定型）：按 4.4 清单复检 VM 轨与 web/ 轨，差异登记。验证：AC-06。
 - [ ] **T-07 回归探针固化与执行**：固化清单脚本并全量执行。验证：AC-07。
@@ -153,6 +153,8 @@ T-02 按 T-01 结论实施，统一验收口径见 AC-01/AC-02。约束：不破
 - worktree：`D:/autostack/.wt/musk-067/auto-musk`（branch `plan-067-dev`，base = main@a19ab34）。
 - T-01 ✅ 定责记录：后端 SSE 推流正常（curl 逐 token 实达）；浏览器事件接收正常（addEventListener 探针 17 事件）；断点=前端渲染投影：消息列表按 chatActivePath(messages, active_leaf) 叶链渲染，乐观 user 与流式 assistant 消息无 parent_id、PollStream 不刷新 leaf → 新回合不在链上不可见，刷新重拉 leaf 才可见。附带发现：双订阅者（多标签）会对同一会话各触发一次 run（回复 ×2）；运行中服务端快照不含未完成 assistant，全量回填会清掉流式内容。证据：tmp/probe-sse2.log（curl 字节流）、探针采样曲线（hasSent 恒 false + poll count 增长）。
 - T-02 ✅ 提交（worktree）: forge_store.at 四处改动，:3001 实测乐观消息 2s 内上屏、流式内容实时渲染（domLen 590→602 随回复到达）、无需刷新。
+- T-03 ✅ 定责记录（r2 修订依据）：全库（musk relay + auto-ai orchestration）**不存在超时自动拒绝机制**——resolve_gate_auto 无 handler 时默认 APPROVE（driver.at:159）；relay run 遇 human gate 时 drive 返回、run 停在 GateWaiting 等待 API 决议（relay/api.rs POST /gate → store.resolve_gate 重入驱动）,即暂停语义已存在且无期限。GateType 缺省 unwrap_or(Auto)（store.rs:386）值得复核。用户所见'到期默认拒绝'最可能=gate 卡片因 T-02 前渲染缺陷从未显示,agent 后续自行为（LLM 视为拒绝继续/工具 safety 拒绝）被解读为超时。T-04 设计据此修订（见上）,plan_revision 1→2。
+
 
 - 2026-09-09：用户确认待澄清①——P1 暂停与 P2 自动 approve **都做**，顺序 P0 → P1 → P2 → T-06 → T-07。授权进入 executing。
 - worktree：`D:/autostack/.wt/musk-067/auto-musk`（branch `plan-067-dev`，base = main@d7c2a65）。
