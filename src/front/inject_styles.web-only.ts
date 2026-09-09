@@ -197,6 +197,14 @@ textarea.chats-input.ime-composing {
   -webkit-text-fill-color: hsl(var(--foreground));
 }
 .chats-input.ime-composing-backdrop { visibility: hidden; }
+/* 选区可见性：透明 textarea 的默认选区高亮对比随浏览器/系统色模式浮动,
+   暗色下近乎不可见,形似"Ctrl+A 无效"（DOM 选区实测正常）。显式给主题
+   选区配色:primary 半透明底 + 前景色字——选中时 textarea 层文字也以前
+   景色实绘,与 backdrop 层同色叠加,深浅主题自动翻转。 */
+textarea.chats-input::selection {
+  background: hsl(var(--primary) / 0.32);
+  color: hsl(var(--foreground));
+}
 /* ═══════════════════════════════════════════════════ */
 `
 
