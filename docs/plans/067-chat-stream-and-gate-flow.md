@@ -4,9 +4,9 @@ status: executing
 feature_name: 对话流式实时刷新根修 + approve 门暂停/自动通过流程（含本会话问题沉淀与 VM/Rust 双轨对齐检查）
 author: zhaop / zcode
 created_at: 2026-09-09T15:30:00+08:00
-updated_at: 2026-09-09T16:05:00+08:00
+updated_at: 2026-09-09T18:55:00+08:00
 plan_revision: 1
-current_step: 0
+current_step: 2
 total_steps: 7
 supersedes_spec_components: []
 new_spec_components:
@@ -139,8 +139,8 @@ T-02 按 T-01 结论实施，统一验收口径见 AC-01/AC-02。约束：不破
 
 ## 8. 执行步骤
 
-- [ ] **T-01 流式断点定责（调查）**：按 5.1 取证矩阵产出根因决策记录（attachments/或复审记录）。涉及：`src/front/forge_store.at`（OnStreamEvent/PollStream）、`backend/crates/musk/src/chats.rs`（stream 端点）。验证：决策记录成文，含证据截图/日志。→ AC-01。
-- [ ] **T-02 流式根修**（依赖 T-01）：按结论实施前端/后端修复；SSE 增量为主通道、轮询校正为兜底。验证：AC-01/AC-02 实测通过；`cargo test`/前端现有测试不回归。
+- [x] **T-01 流式断点定责（调查）**：按 5.1 取证矩阵产出根因决策记录（attachments/或复审记录）。涉及：`src/front/forge_store.at`（OnStreamEvent/PollStream）、`backend/crates/musk/src/chats.rs`（stream 端点）。验证：决策记录成文，含证据截图/日志。→ AC-01。
+- [x] **T-02 流式根修**（依赖 T-01）：按结论实施前端/后端修复；SSE 增量为主通道、轮询校正为兜底。验证：AC-01/AC-02 实测通过；`cargo test`/前端现有测试不回归。
 - [ ] **T-03 gate 超时机制定位（调查）**：定位超时默认拒绝产生点与现行超时值，理清 gate 决议数据流（`relay/api.rs` ← UI；`GateWaiting/Resolved` ← store）。产出定位记录。→ AC-03。
 - [ ] **T-04 gate 超时改暂停**（依赖 T-03）：暂停态 + 恢复/中止语义 + 超时可配置；补 relay 单测三态。验证：AC-03/AC-04。
 - [ ] **T-05 审批模式**（依赖 T-04 定义的决议产生点）：mention_input.at UI + ForgeStore 持久化 + relay 决议链；审计事件。验证：AC-05。
@@ -148,6 +148,11 @@ T-02 按 T-01 结论实施，统一验收口径见 AC-01/AC-02。约束：不破
 - [ ] **T-07 回归探针固化与执行**：固化清单脚本并全量执行。验证：AC-07。
 
 ### 执行记录
+
+- 2026-09-09：用户确认待澄清①——P1 暂停与 P2 自动 approve **都做**，顺序 P0 → P1 → P2 → T-06 → T-07。授权进入 executing。
+- worktree：`D:/autostack/.wt/musk-067/auto-musk`（branch `plan-067-dev`，base = main@a19ab34）。
+- T-01 ✅ 定责记录：后端 SSE 推流正常（curl 逐 token 实达）；浏览器事件接收正常（addEventListener 探针 17 事件）；断点=前端渲染投影：消息列表按 chatActivePath(messages, active_leaf) 叶链渲染，乐观 user 与流式 assistant 消息无 parent_id、PollStream 不刷新 leaf → 新回合不在链上不可见，刷新重拉 leaf 才可见。附带发现：双订阅者（多标签）会对同一会话各触发一次 run（回复 ×2）；运行中服务端快照不含未完成 assistant，全量回填会清掉流式内容。证据：tmp/probe-sse2.log（curl 字节流）、探针采样曲线（hasSent 恒 false + poll count 增长）。
+- T-02 ✅ 提交（worktree）: forge_store.at 四处改动，:3001 实测乐观消息 2s 内上屏、流式内容实时渲染（domLen 590→602 随回复到达）、无需刷新。
 
 - 2026-09-09：用户确认待澄清①——P1 暂停与 P2 自动 approve **都做**，顺序 P0 → P1 → P2 → T-06 → T-07。授权进入 executing。
 - worktree：`D:/autostack/.wt/musk-067/auto-musk`（branch `plan-067-dev`，base = main@d7c2a65）。
