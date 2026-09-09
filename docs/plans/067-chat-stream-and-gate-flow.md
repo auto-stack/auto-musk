@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-067
-status: drafting
+status: executing
 feature_name: 对话流式实时刷新根修 + approve 门暂停/自动通过流程（含本会话问题沉淀与 VM/Rust 双轨对齐检查）
 author: zhaop / zcode
 created_at: 2026-09-09T15:30:00+08:00
-updated_at: 2026-09-09T15:30:00+08:00
+updated_at: 2026-09-09T16:05:00+08:00
 plan_revision: 1
 current_step: 0
 total_steps: 7
@@ -139,13 +139,18 @@ T-02 按 T-01 结论实施，统一验收口径见 AC-01/AC-02。约束：不破
 
 ## 8. 执行步骤
 
-- **T-01 流式断点定责（调查）**：按 5.1 取证矩阵产出根因决策记录（attachments/或复审记录）。涉及：`src/front/forge_store.at`（OnStreamEvent/PollStream）、`backend/crates/musk/src/chats.rs`（stream 端点）。验证：决策记录成文，含证据截图/日志。→ AC-01。
-- **T-02 流式根修**（依赖 T-01）：按结论实施前端/后端修复；SSE 增量为主通道、轮询校正为兜底。验证：AC-01/AC-02 实测通过；`cargo test`/前端现有测试不回归。
-- **T-03 gate 超时机制定位（调查）**：定位超时默认拒绝产生点与现行超时值，理清 gate 决议数据流（`relay/api.rs` ← UI；`GateWaiting/Resolved` ← store）。产出定位记录。→ AC-03。
-- **T-04 gate 超时改暂停**（依赖 T-03）：暂停态 + 恢复/中止语义 + 超时可配置；补 relay 单测三态。验证：AC-03/AC-04。
-- **T-05 审批模式**（依赖 T-04 定义的决议产生点）：mention_input.at UI + ForgeStore 持久化 + relay 决议链；审计事件。验证：AC-05。
-- **T-06 双轨对齐检查**（依赖 T-02/T-04/T-05 行为定型）：按 4.4 清单复检 VM 轨与 web/ 轨，差异登记。验证：AC-06。
-- **T-07 回归探针固化与执行**：固化清单脚本并全量执行。验证：AC-07。
+- [ ] **T-01 流式断点定责（调查）**：按 5.1 取证矩阵产出根因决策记录（attachments/或复审记录）。涉及：`src/front/forge_store.at`（OnStreamEvent/PollStream）、`backend/crates/musk/src/chats.rs`（stream 端点）。验证：决策记录成文，含证据截图/日志。→ AC-01。
+- [ ] **T-02 流式根修**（依赖 T-01）：按结论实施前端/后端修复；SSE 增量为主通道、轮询校正为兜底。验证：AC-01/AC-02 实测通过；`cargo test`/前端现有测试不回归。
+- [ ] **T-03 gate 超时机制定位（调查）**：定位超时默认拒绝产生点与现行超时值，理清 gate 决议数据流（`relay/api.rs` ← UI；`GateWaiting/Resolved` ← store）。产出定位记录。→ AC-03。
+- [ ] **T-04 gate 超时改暂停**（依赖 T-03）：暂停态 + 恢复/中止语义 + 超时可配置；补 relay 单测三态。验证：AC-03/AC-04。
+- [ ] **T-05 审批模式**（依赖 T-04 定义的决议产生点）：mention_input.at UI + ForgeStore 持久化 + relay 决议链；审计事件。验证：AC-05。
+- [ ] **T-06 双轨对齐检查**（依赖 T-02/T-04/T-05 行为定型）：按 4.4 清单复检 VM 轨与 web/ 轨，差异登记。验证：AC-06。
+- [ ] **T-07 回归探针固化与执行**：固化清单脚本并全量执行。验证：AC-07。
+
+### 执行记录
+
+- 2026-09-09：用户确认待澄清①——P1 暂停与 P2 自动 approve **都做**，顺序 P0 → P1 → P2 → T-06 → T-07。授权进入 executing。
+- worktree：`D:/autostack/.wt/musk-067/auto-musk`（branch `plan-067-dev`，base = main@d7c2a65）。
 
 ## 9. 复审记录
 
@@ -153,7 +158,7 @@ T-02 按 T-01 结论实施，统一验收口径见 AC-01/AC-02。约束：不破
 
 ## 10. 待澄清事项
 
-1. **方案取舍（阻塞 T-04/T-05 优先级）**：P1 暂停与 P2 自动 approve 都做，还是先做一个？用户原话"不论选哪个方案（或者两个都实现）"——建议两个都做（暂停是正确性根修，自动 approve 是效率阀门），仅确认顺序。
+1. **方案取舍**：✅ 已决（2026-09-09，用户确认）——P1 暂停与 P2 自动 approve 都做；顺序 P0 → P1 → P2 → T-06 → T-07。
 2. **gate 超时值**：暂停模式的默认超时时长（现行为疑似数分钟级自动拒绝）；是否分 gate 类型（human/auto）配置。
 3. **自动 approve 作用域**：仅 phase gate，还是含工具调用审批？自动模式下 reject 是否还允许人工介入。
 4. **轮询兜底最终形态**：SSE 根修后 PollStream 是否降级为"断线重连期间的临时通道"（涉及 KD 059-FU1 的关闭条件），需 T-01 结论后定。
