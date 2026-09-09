@@ -96,6 +96,12 @@ impl Tool for SpawnRelay {
         // PLAN-034 T9：登记发起会话——driver 完成时把报告消息写回这里。
         ws.relay
             .set_context_var(&run_id, "chat_session_id", &self.ctx.parent_conversation_id);
+        // PLAN-067 T-05：登记发起会话的审批模式——driver 遇 human gate 时
+        // auto 模式即刻放行（留 GateResolved 审计事件），human 等待决议。
+        if let Some(session) = ws.chats.get(&self.ctx.parent_conversation_id) {
+            ws.relay
+                .set_context_var(&run_id, "approval_mode", &session.approval_mode);
+        }
 
         // 2. Record parent Turn linking to the run conversation (same id as
         //    the run — the run's durable log home).

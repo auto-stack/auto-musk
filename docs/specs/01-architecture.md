@@ -51,6 +51,12 @@ Rust + axum 0.8 HTTP 服务。`lib.rs:5-29` 声明手写模块 + `lib.rs:28` `au
 
 主 router = `auto_generated::server::build_router()`（38 路由，ag 转译）。转译 handler 经 `extern_impl` 委托到 hw store/registry。hw escape-hatch 直接挂载（plans/spec_tree），因 a2r 转译器 drift（KNOWN-DEBT）。
 
+### Relay gate 等待与审批模式（PLAN-067 r2）
+
+- **等待即暂停**：relay run 遇 human gate（如 plan flow 的 execute 前确认门，`FlowStep::with_gate(Human)` 显式声明）时，drive_loop 停车返回，run 停在 `GateWaiting`，**无超时、决不自动拒绝**；决议唯一入口 = `POST /api/forge/relay/runs/{run_id}/gate`（approve|reject|edit）。approve 重入驱动续跑；reject(feedback) 带反馈**重做被门守卫的步骤**（非中止）。语义由 `relay/store.rs tests::human_gate_pauses_then_approve_resumes_or_reject_redrafts` 钉死。
+- **gate_waiting 实时镜像**：driver 停车前以发起会话 id（context `chat_session_id`）为 bus run_id 发 `relay_gate_waiting`；chat_run_stream 总线桥放行该事件，前端 Run 卡实时置"⏸ 等待审批"。
+- **会话审批模式**：`ChatSession.approval_mode`（`human`[缺省]|`auto`），PATCH `/api/chats/session/{id}/approval`；spawn_relay / plan-merge 短路写入 run context（`approval_mode`）。`auto` 时 driver 到达 gate 即 Approve 放行并继续驱动（store 落 GateResolved 审计事件）——用于无人值守验证任务全程可跑通。
+
 ## 2. 前端（web/ + src/front/ .at → gen/）
 
 ### 双前端

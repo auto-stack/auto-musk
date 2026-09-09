@@ -74,15 +74,56 @@ async fn drive_loop(state: Arc<AppState>, ws_id: &str, run_id: &str) -> Result<b
                     done = true;
                 }
             } else {
-                // PLAN-034 T9：run 完成时把报告作为助手消息写回发起 chat 会话
-                //（chat_session_id 由 plan-merge 短路 / spawn_relay 写入 context；
-                // 报告卡在对话流内渲染，刷新持久，与 Run 卡片互链）。
+                // PLAN-067 T-04(a)/T-05：human gate——①镜像 gate_waiting 到
+                // 发起会话的 chat 流（总线桥按 run_id==session_id 过滤,此前
+                // 该事件无生产者,审批卡永不出现）;②会话审批模式 = auto 时
+                // 即刻放行（store.resolve_gate 落 GateResolved 审计）并继续
+                // 驱动,实现无人干预跑通;human（缺省）停车等 POST /gate。
+                let mut handled = false;
+                if kind == "wait" {
+                    let ws = state.registry.get(ws_id);
+                    if let Some(chat_sid) = ws.relay.context_var(run_id, "chat_session_id") {
+                        if !chat_sid.is_empty() {
+                            crate::relay::api::publish_task_plan_event(
+                                &chat_sid,
+                                "relay_gate_waiting",
+                                serde_json::json!({ "run_id": run_id, "step_id": run_id }),
+                            );
+                        }
+                    }
+                    if ws.relay.context_var(run_id, "approval_mode").as_deref() == Some("auto") {
+                        if let Some((res2, _st2)) = ws.relay.resolve_gate(run_id, crate::relay::GateDecision::Approve) {
+                            let mut kind2 = String::new();
+                            let mut role2 = String::new();
+                            match &res2 {
+                                crate::relay::AdvanceResult::ExecuteStep { role_id, .. } => {
+                                    kind2 = "execute".into();
+                                    role2 = role_id.clone();
+                                }
+                                crate::relay::AdvanceResult::Completed => { kind2 = "completed".into(); }
+                                _ => {}
+                            }
+                            if kind2 == "execute" {
+                                let step_err = run_step(state.clone(), ws_id, run_id, &role2).await;
+                                if step_err_is_err(&step_err) {
+                                    relay_submit_error(&state, ws_id, run_id, &role2, &step_err);
+                                }
+                                handled = true;
+                            } else if kind2 == "completed" {
+                                let ws = state.registry.get(ws_id);
+                                super::extern_impl::relay_append_report_message_to(&ws, run_id);
+                                handled = true;
+                            }
+                        }
+                    }
+                }
                 if kind == "completed" {
                     let ws = state.registry.get(ws_id);
                     super::extern_impl::relay_append_report_message_to(&ws, run_id);
                 }
-
-                done = true;
+                if !handled {
+                    done = true;
+                }
             }
         }
 

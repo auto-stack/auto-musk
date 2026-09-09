@@ -227,6 +227,7 @@ fn parity_chat_session_wire_format() {
         workspace_id: Some("ws1".into()),
         active_leaf: None,
         thinking_level: None,
+        approval_mode: "human".to_string(),
     };
     let ag_s = ag::ChatSession {
         id: "s1".into(),
@@ -252,6 +253,7 @@ fn parity_chat_session_wire_format() {
         workspace_id: Some("ws1".into()),
         active_leaf: None,
         thinking_level: None,
+        approval_mode: "human".to_string(),
     };
     assert_eq!(
         serde_json::to_string(&hw_s).unwrap(),
@@ -270,6 +272,7 @@ fn parity_chat_session_wire_format() {
         pending_spec_changes: vec![],
         workspace_id: None, active_leaf: None,
         thinking_level: None,
+        approval_mode: "human".to_string(),
     };
     let ag_min = ag::ChatSession {
         id: "s2".into(),
@@ -281,6 +284,7 @@ fn parity_chat_session_wire_format() {
         pending_spec_changes: vec![],
         workspace_id: None, active_leaf: None,
         thinking_level: None,
+        approval_mode: "human".to_string(),
     };
     let hw_json = serde_json::to_string(&hw_min).unwrap();
     assert_eq!(hw_json, serde_json::to_string(&ag_min).unwrap());

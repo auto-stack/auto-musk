@@ -404,6 +404,9 @@ pub type ForgeSession = {
     // vue-tsc TS2339 恒红,2026-09-07 composer 改版门禁暴露;065 T2 独立同修,
     // merge 双注释归一)。
     thinking_level: str,
+    // PLAN-067 T-05: 会话审批模式（"human"|"auto";缺省 human）。auto =
+    // relay run 的 human gate 到达即自动放行（driver 侧留审计事件）。
+    approval_mode: str,
 }
 
 // spec 变更项（对应 web/src/types/forge.ts SpecChange，GateCard 的 changes prop）。
@@ -465,6 +468,13 @@ pub fn chats_rename_session(id str, name str) {
 // 空串 = 清除（后端归一化为 null，跟随 role 默认）。
 #[api(method = "PATCH", path = "/api/chats/session/{id}/thinking")]
 pub fn chats_set_thinking(id str, thinking_level str) {
+    return None
+}
+
+// PLAN-067 T-05: 会话审批模式。"human" = gate 等待人工决议（缺省）；
+// "auto" = relay run 的 human gate 到达即自动放行（driver 侧留审计事件）。
+#[api(method = "PATCH", path = "/api/chats/session/{id}/approval")]
+pub fn chats_set_approval(id str, approval_mode str) {
     return None
 }
 

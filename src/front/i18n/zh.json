@@ -136,7 +136,10 @@
     "confirmDeleteSession": "确认删除此会话？",
     "confirmDelete": "删除",
     "confirmIrreversible": "此操作无法撤销。",
-    "cancel": "取消"
+    "cancel": "取消",
+    "approvalMode": "审批",
+    "approvalHuman": "人工",
+    "approvalAuto": "自动"
   },
   "specs": {
     "title": "规范",

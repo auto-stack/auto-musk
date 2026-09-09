@@ -62,6 +62,8 @@ widget ChatsView {
         OnSearchInput(str),
         // PLAN-064: 思考档位选择（value: ""|off|low|high|max；"" = 跟随默认）。
         PickThinking(str),
+        // PLAN-067 T-05: 审批模式选择（value: human|auto）。
+        PickApproval(str),
         // PLAN-058: 删除两步确认——Ask* 只置 pending，Confirm* 才真正调删除
         // API（替代原 DeleteSession/DeleteAllSessions 直删）。
         AskDelete(str),
@@ -370,9 +372,14 @@ widget ChatsView {
                     // （props.professions > 动态 configs > DEFAULT_PROFESSIONS）。
                     professions: ""
                     thinkingLevel: .store.thinking_level
+                    // PLAN-067 T-05: 审批模式（human|auto）同款下入/上抛——
+                    // 落库走 PickApproval → store.SetApprovalMode（UI 态 +
+                    // PATCH 持久化;后端 relay driver 遇 gate 读会话模式）。
+                    approvalMode: .store.approval_mode
                     onsend: .SendInput($event)
                     oncancel: .StopStream
                     onpick: .PickThinking($event)
+                    onpickapproval: .PickApproval($event)
                 }
             }
         }
@@ -391,6 +398,9 @@ widget ChatsView {
 
         // PLAN-064: 档位选择→store（UI 态 + PATCH 持久化到会话）。
         .PickThinking(level) -> { store.SetThinkingLevel(level) }
+
+        // PLAN-067 T-05: 审批模式落库（UI 态 + PATCH 持久化到会话）。
+        .PickApproval(mode) -> { store.SetApprovalMode(mode) }
 
         // PLAN-061 T16 (D22):新建会话后自动聚焦 composer(此前需手点输入框)。
         .NewSession -> {
