@@ -21,7 +21,7 @@ api: "rust"
 # musk（MUSK_SERVE_PORT 端口覆盖,main.rs Serve 臂）。
 front_port: 17200
 back_port: 17201
-daemon: auto-musk
+daemon: "auto-musk"
 
 // Plan 022 Phase 2 + Plan 407: i18n (vue-i18n) — locale files copied to src/locales/
 // and wired into createI18n in main.ts. default_locale = 第一个文件 stem（zh 在前→中文默认）。
