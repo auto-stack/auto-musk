@@ -156,6 +156,13 @@ fn main() {
             // For `serve`, start the HTTP server even if the daemon is down —
             // the frontend still loads, and each /api/run surfaces the daemon
             // error so the user can start aaid afterward.
+            // PLAN-013 T4（auto-os 桌面 daemon 链）：MUSK_SERVE_PORT 纯端口
+            // 覆盖——桌面 launch 前置 ensure 按 `<NAME>_BACK_PORT` 键约定注入
+            // 数字端口，优先于 MUSK_SERVE_ADDR 全 addr 形态。
+            let addr = std::env::var("MUSK_SERVE_PORT")
+                .ok()
+                .map(|p| format!("127.0.0.1:{p}"))
+                .unwrap_or(addr);
             let client: Arc<dyn Client> = match AiClient::new() {
                 Ok(c) => Arc::new(c),
                 Err(e) => {
