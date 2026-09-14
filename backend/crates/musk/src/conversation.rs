@@ -168,6 +168,76 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
     };
     let mut turns = Vec::new();
 
+    // PLAN-069 W2：块化消息（新数据）→ 按**执行序**投影（叙述与工具穿插，
+    // 最终回答在最后工具之后）；空 blocks = 旧数据走 legacy 投影。
+    if !msg.blocks.is_empty() {
+        for (i, b) in msg.blocks.iter().enumerate() {
+            match b.kind.as_str() {
+                "text" => {
+                    if b.text.is_empty() {
+                        continue;
+                    }
+                    turns.push(Turn {
+                        id: format!("{}-b{}t", msg.id, i),
+                        seq: seq_base + turns.len(),
+                        from: from.to_string(),
+                        to: if matches!(msg.role, Role::User) { Some("assistant".into()) } else { None },
+                        kind: TurnKind::Message,
+                        content: b.text.clone(),
+                        tool: None,
+                        gate: None,
+                        child_conversation: None,
+                        tokens: None,
+                        timestamp: msg.created_at,
+                    });
+                }
+                "tool" => {
+                    let Some(tc) = &b.tool else { continue };
+                    turns.push(Turn {
+                        id: format!("{}-b{}tc", msg.id, i),
+                        seq: seq_base + turns.len(),
+                        from: from.to_string(),
+                        to: None,
+                        kind: TurnKind::ToolCall,
+                        content: String::new(),
+                        tool: Some(ToolRecord {
+                            name: tc.tool.clone(),
+                            args: tc.args.clone(),
+                            result: String::new(),
+                            tool_id: None,
+                            details: None,
+                        }),
+                        gate: None,
+                        child_conversation: None,
+                        tokens: None,
+                        timestamp: msg.created_at,
+                    });
+                    turns.push(Turn {
+                        id: format!("{}-b{}tr", msg.id, i),
+                        seq: seq_base + turns.len(),
+                        from: "system".to_string(),
+                        to: None,
+                        kind: TurnKind::ToolResult,
+                        content: String::new(),
+                        tool: Some(ToolRecord {
+                            name: tc.tool.clone(),
+                            args: serde_json::Value::Null,
+                            result: tc.result.clone(),
+                            tool_id: Some(tc.id.clone()),
+                            details: None,
+                        }),
+                        gate: None,
+                        child_conversation: None,
+                        tokens: None,
+                        timestamp: msg.created_at,
+                    });
+                }
+                _ => {}
+            }
+        }
+        return turns;
+    }
+
     // Main message turn
     if !msg.content.is_empty() || msg.tool_calls.is_empty() {
         turns.push(Turn {
@@ -913,6 +983,7 @@ impl ConversationStore {
 
 #[cfg(test)]
 mod tests {
+    use crate::chats::ChatBlock;
     use super::*;
     use crate::chats::{ChatMessage, Role, ToolCall};
 
@@ -1376,5 +1447,30 @@ mod tests {
         assert!(f[0].content.contains("boom"));
         let c = run_event_to_turns(&completed, 1);
         assert_eq!(c[0].content, "Flow completed");
+    }
+
+    /// PLAN-069 W2 (AC-03/AC-04)：块化消息按执行序投影。
+    #[test]
+    fn blocks_project_in_execution_order() {
+        let mut msg = ChatMessage::assistant("final");
+        msg.blocks = vec![
+            ChatBlock { kind: "text".into(), text: "iter1".into(), tool: None },
+            ChatBlock { kind: "tool".into(), text: String::new(), tool: Some(ToolCall { tool: "run_command".into(), args: serde_json::json!({"cmd": "dir"}), result: "ok".into(), status: "success".into(), id: "tc-1".into() }) },
+            ChatBlock { kind: "text".into(), text: "final".into(), tool: None },
+        ];
+        let turns = chat_message_to_turns(&msg, 0);
+        let kinds: Vec<&str> = turns.iter().map(|t| match t.kind { TurnKind::Message => "msg", TurnKind::ToolCall => "tc", TurnKind::ToolResult => "tr", _ => "?" }).collect();
+        assert_eq!(kinds, vec!["msg", "tc", "tr", "msg"], "kinds: {kinds:?}");
+        assert_eq!(turns[3].content, "final", "final answer after last tool");
+    }
+
+    /// 旧数据（无 blocks）走 legacy 投影。
+    #[test]
+    fn legacy_projection_unchanged() {
+        let mut msg = ChatMessage::assistant("legacy text");
+        msg.tool_calls = vec![ToolCall { tool: "glob".into(), args: serde_json::Value::Null, result: "r".into(), status: "success".into(), id: "tc-9".into() }];
+        let turns = chat_message_to_turns(&msg, 0);
+        assert_eq!(turns.len(), 3);
+        assert_eq!(turns[0].content, "legacy text");
     }
 }

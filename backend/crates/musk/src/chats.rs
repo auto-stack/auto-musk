@@ -77,6 +77,22 @@ pub struct ChatMessage {
     /// 单源于 ChatStore（ConversationStore 镜像保持线性 journal）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<String>,
+    /// PLAN-069 W2：活动时间线块（按**执行序**追加）——叙述文本与工具调用
+    /// 穿插，替代"content 整段 + tool_calls 尾挂"的塌缩投影。空 = 旧数据
+    /// （前端回退 content+tool_calls 渲染）。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blocks: Vec<ChatBlock>,
+}
+
+/// 活动时间线块：kind = "text"（叙述/回答文本）| "tool"（一次工具调用，
+/// 执行后 result/status 回填同块）。
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ChatBlock {
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool: Option<ToolCall>,
 }
 
 impl ChatMessage {
@@ -89,6 +105,7 @@ impl ChatMessage {
             tool_calls: Vec::new(),
             created_at: now_sec(),
             parent_id: None,
+            blocks: Vec::new(),
         }
     }
     pub fn assistant(content: impl Into<String>) -> Self {
@@ -100,6 +117,7 @@ impl ChatMessage {
             tool_calls: Vec::new(),
             created_at: now_sec(),
             parent_id: None,
+            blocks: Vec::new(),
         }
     }
 }

@@ -1889,6 +1889,15 @@ pub async fn chat_run_stream(
         let thinking_acc = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
         let tool_calls: std::sync::Arc<std::sync::Mutex<Vec<crate::chats::ToolCall>>> =
             std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        // PLAN-069 W2：活动时间线块（执行序）——Delta 追加当前叙述块，
+        // TurnStart/工具边界翻新叙述块，工具成对入块。
+        let blocks: std::sync::Arc<std::sync::Mutex<Vec<crate::chats::ChatBlock>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let cur_text: std::sync::Arc<std::sync::Mutex<String>> =
+            std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+        let tool_idx: std::sync::Arc<
+            std::sync::Mutex<std::collections::HashMap<String, usize>>,
+        > = std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
         let tx3 = tx2.clone();
         let acc2 = accumulated.clone();
         let think2 = thinking_acc.clone();
@@ -1896,6 +1905,9 @@ pub async fn chat_run_stream(
         let tc_counter = std::sync::Arc::new(std::sync::Mutex::new(0usize));
         let tc_stack: std::sync::Arc<std::sync::Mutex<Vec<String>>> =
             std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let blocks2 = blocks.clone();
+        let cur_text2 = cur_text.clone();
+        let tool_idx2 = tool_idx.clone();
         let on_event: Arc<dyn Fn(auto_ai_agent::StreamEvent) + Send + Sync> =
             Arc::new(move |ev| {
                 use auto_ai_agent::StreamEvent;
@@ -1964,6 +1976,92 @@ pub async fn chat_run_stream(
                     }
                 };
                 let value = serde_json::to_value(&dto).unwrap_or(Value::Null);
+                // PLAN-069 W2：块维护（先于 capture）。
+                {
+                    let ev_type = value.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                    match ev_type {
+                        "turn_start" => {
+                            // 新迭代：封口当前叙述块（下个 delta 另起新块）。
+                            cur_text2.lock().unwrap().clear();
+                        }
+                        "delta" => {
+                            if let Some(text) = value.get("text").and_then(|t| t.as_str()) {
+                                cur_text2.lock().unwrap().push_str(text);
+                            }
+                        }
+                        "tool_call" => {
+                            let pending = cur_text2.lock().unwrap().clone();
+                            if !pending.is_empty() {
+                                blocks2.lock().unwrap().push(crate::chats::ChatBlock {
+                                    kind: "text".into(),
+                                    text: pending,
+                                    tool: None,
+                                });
+                                cur_text2.lock().unwrap().clear();
+                            }
+                            let id = value
+                                .get("id")
+                                .and_then(|t| t.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let tc = crate::chats::ToolCall {
+                                tool: value
+                                    .get("name")
+                                    .and_then(|t| t.as_str())
+                                    .unwrap_or("")
+                                    .to_string(),
+                                args: value.get("arguments").cloned().unwrap_or(Value::Null),
+                                result: String::new(),
+                                status: "running".into(),
+                                id: id.clone(),
+                            };
+                            let mut bl = blocks2.lock().unwrap();
+                            bl.push(crate::chats::ChatBlock {
+                                kind: "tool".into(),
+                                text: String::new(),
+                                tool: Some(tc),
+                            });
+                            tool_idx2.lock().unwrap().insert(id, bl.len() - 1);
+                        }
+                        "tool_result" => {
+                            let id = value
+                                .get("id")
+                                .and_then(|t| t.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let idx = tool_idx2.lock().unwrap().get(&id).copied();
+                            if let Some(idx) = idx {
+                                let mut bl = blocks2.lock().unwrap();
+                                if let Some(block) = bl.get_mut(idx) {
+                                    if let Some(tc) = block.tool.as_mut() {
+                                        tc.result = value
+                                            .get("result")
+                                            .and_then(|t| t.as_str())
+                                            .unwrap_or("")
+                                            .to_string();
+                                        tc.status = value
+                                            .get("status")
+                                            .and_then(|t| t.as_str())
+                                            .unwrap_or("success")
+                                            .to_string();
+                                    }
+                                }
+                            }
+                        }
+                        "done" => {
+                            let pending = cur_text2.lock().unwrap().clone();
+                            if !pending.is_empty() {
+                                blocks2.lock().unwrap().push(crate::chats::ChatBlock {
+                                    kind: "text".into(),
+                                    text: pending,
+                                    tool: None,
+                                });
+                                cur_text2.lock().unwrap().clear();
+                            }
+                        }
+                        _ => {}
+                    }
+                }
                 // capture for persistence
                 if let Some(text) = value.get("text").and_then(|t| t.as_str()) {
                     acc2.lock().unwrap().push_str(text);
@@ -2022,6 +2120,19 @@ pub async fn chat_run_stream(
                 let mut msg = crate::chats::ChatMessage::assistant(text);
                 msg.thinking = thinking;
                 msg.tool_calls = tcs;
+                // PLAN-069 W2：收口当前叙述块并挂时间线。
+                {
+                    let pending = cur_text.lock().unwrap().clone();
+                    let mut bl = blocks.lock().unwrap();
+                    if !pending.is_empty() {
+                        bl.push(crate::chats::ChatBlock {
+                            kind: "text".into(),
+                            text: pending,
+                            tool: None,
+                        });
+                    }
+                    msg.blocks = std::mem::take(&mut *bl);
+                }
                 let _ = chats.append_message(&session_id, msg.clone());
                 // Dual-write: mirror the assistant message (+ tool calls) into
                 // the conversation as turns.
