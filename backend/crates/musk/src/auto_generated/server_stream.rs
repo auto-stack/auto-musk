@@ -232,10 +232,17 @@ pub struct RunResponse {
 }
 
 pub async fn chat_stream(s: State<AppState>, p: Path<String>, q: Query<WorkspaceQuery>) -> Response {
+    // PLAN-069 T-06：运行 spawn 化——原实现同步 await 整个运行结束后才返回
+    // SSE 响应，事件全部积压（前端无实时流、门事件饿死、断线重连拿到的是
+    // 事后重放且报 malformed）。spawn 后事件实时流出。
     let ch = mpsc_channel();
     let tx = mpsc_sender(&ch);
     let rx = mpsc_receiver(&ch);
-    chat_run_stream(&s, q, p, tx).await;
+    let st = s.clone();
+    let sid = p.clone();
+    tokio::spawn(async move {
+        chat_run_stream(&st, q, p, tx).await;
+    });
     let stream = chat_sse_stream(rx.clone());
     let mut sse = Sse::new(stream);
     return sse.keep_alive(KeepAlive::new()).into_response();
@@ -253,7 +260,10 @@ fn chat_sse_stream(rx: Value) -> impl futures::Stream<Item = Result<Event, Infal
             // SseEventDto 严格枚举之外的事件 JSON 原样下发（前端 useForge
             // 按 type 分发；枚举内事件保持 DTO 往返不变）。
             let ty = msg.as_ref().and_then(|m| m.get("type")).and_then(|t| t.as_str()).unwrap_or("");
-            if ty == "tool_update" {
+            // PLAN-069 T-06：非 DTO 形态事件原样透传（tool_update 流式进度 /
+            // tool_gate_waiting 审批门 / relay_gate_waiting 镜像）——前端
+            // useForge 按 type 分发。
+            if ty == "tool_update" || ty == "tool_gate_waiting" || ty == "relay_gate_waiting" {
                 yield Ok(sse_event("chat", msg.unwrap_or(serde_json::Value::Null)));
             } else {
                 let dto = stream_event_to_dto(msg);
