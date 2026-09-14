@@ -227,9 +227,10 @@ async fn drive(
                     context_file: String::new(),
                     extra_system_prompt: String::new(),
                 };
-                let ws_root = std::sync::Arc::new(ws.root.clone());
+                // PLAN-070 T-02：多根 = [workspace 根, *白名单]（按根路径匹配）。
+                let ws_roots = state.registry.sandbox_roots_by_path(&ws.root);
                 let mut agent =
-                    crate::build_agent_from_mode(&mode, state.client.clone(), Some(&ws_root))
+                    crate::build_agent_from_mode(&mode, state.client.clone(), Some(&ws_roots))
                         .map_err(|e| format!("build agent '{role_id}': {e}"))?;
 
                 let agent_result = agent

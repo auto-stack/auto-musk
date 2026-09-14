@@ -149,7 +149,9 @@ pub fn build_agent_from_mode(
     // 必传，fail-closed）；None = 旧解析链（thread-local > startup CWD），
     // 仅测试可用——运行入口禁止传 None（PLAN-030 同类缺陷在 /api/run、
     // SSE run 与 dispatch 的复发根治）。
-    ws_root: Option<&std::sync::Arc<std::path::PathBuf>>,
+    // PLAN-070 T-02：单根 → 多根（registry::sandbox_roots 合成的
+    // [workspace 根, *白名单] 向量；CLI 单根 CWD 亦走 Vec）。
+    ws_roots: Option<&std::sync::Arc<Vec<std::path::PathBuf>>>,
 ) -> Result<auto_ai_agent::Agent, String> {
     // 1. Resolve role: user role (.at) > built-in name > .at file path.
     let role: Arc<dyn Role> = resolve_role(&mode.role)
@@ -195,11 +197,12 @@ pub fn build_agent_from_mode(
 
     // 2. Register tools filtered by the mode's whitelist.
     //    Empty whitelist = register all base tools.
-    // PLAN-069 W1：文件/命令工具按 ws_root 条件注入。None = 测试回退链
+    // PLAN-069 W1：文件/命令工具按 ws_roots 条件注入。None = 测试回退链
     // （thread-local > startup CWD）；生产运行入口一律 Some（fail-closed）。
+    // PLAN-070 T-02：单根 → 多根（workspace 根 + 白名单，任一命中即放行）。
     macro_rules! scoped {
         ($new:expr, $scoped:expr) => {
-            if let Some(r) = ws_root {
+            if let Some(r) = ws_roots {
                 Arc::new($scoped(r.clone()))
             } else {
                 Arc::new($new())
@@ -207,14 +210,14 @@ pub fn build_agent_from_mode(
         };
     }
     let all_tools: Vec<(&str, Arc<dyn auto_ai_agent::Tool>)> = vec![
-        ("read_file", scoped!(tools::ReadFile::new, tools::ReadFile::with_root)),
-        ("write_file", scoped!(tools::WriteFile::new, tools::WriteFile::with_root)),
-        ("edit_file", scoped!(tools::EditFile::new, tools::EditFile::with_root)),
-        ("search", scoped!(tools::Search::new, tools::Search::with_root)),
-        ("list_dir", scoped!(tools::ListDir::new, tools::ListDir::with_root)),
-        ("list_symbols", scoped!(tools::ListSymbols::new, tools::ListSymbols::with_root)),
-        ("glob", scoped!(tools::Glob::new, tools::Glob::with_root)),
-        ("run_command", scoped!(tools::RunCommand::new, tools::RunCommand::with_root)),
+        ("read_file", scoped!(tools::ReadFile::new, tools::ReadFile::with_roots)),
+        ("write_file", scoped!(tools::WriteFile::new, tools::WriteFile::with_roots)),
+        ("edit_file", scoped!(tools::EditFile::new, tools::EditFile::with_roots)),
+        ("search", scoped!(tools::Search::new, tools::Search::with_roots)),
+        ("list_dir", scoped!(tools::ListDir::new, tools::ListDir::with_roots)),
+        ("list_symbols", scoped!(tools::ListSymbols::new, tools::ListSymbols::with_roots)),
+        ("glob", scoped!(tools::Glob::new, tools::Glob::with_roots)),
+        ("run_command", scoped!(tools::RunCommand::new, tools::RunCommand::with_roots)),
         // Spec tools (Plan 009 P1a): read/write the Spec Ledger.
         ("read_specs", Arc::new(spec_tools::ReadSpecs::new())),
         ("list_specs", Arc::new(spec_tools::ListSpecs::new())),
@@ -275,10 +278,12 @@ pub fn build_agent_with_context(
 ) -> Result<auto_ai_agent::Agent, String> {
     // PLAN-069 W1：root 在 base 构建期即注入（原 base 注册非注入 + 此处覆盖
     // 注册的双跳形态退役——覆盖窗口内 thread-local 回调仍可能漏出）。
-    let base_root = ctx
+    // PLAN-070 T-02：多根 = [workspace 根, *白名单]（sandbox_roots 现读，
+    // 白名单增删对后续运行即时生效）。
+    let base_roots = ctx
         .as_ref()
-        .map(|c| std::sync::Arc::new(c.state.registry.get(&c.workspace_id).root.clone()));
-    let mut agent = build_agent_from_mode(mode, client, base_root.as_ref())?;
+        .map(|c| c.state.registry.sandbox_roots(&c.workspace_id));
+    let mut agent = build_agent_from_mode(mode, client, base_roots.as_ref())?;
     if let Some(ctx) = ctx {
         // PLAN-030 T3: plan tools are workspace-scoped (docs/plans/), so they
         // need the ToolContext — registered alongside the orchestration tools
@@ -303,11 +308,11 @@ pub fn build_agent_with_context(
                 agent.register_shared(tool.clone());
             }
         }
-        // PLAN-069 W1+W3：七个文件工具已在 base 构建期按 ws_root 注入（见上），
+        // PLAN-069 W1+W3：七个文件工具已在 base 构建期按 ws_roots 注入（见上），
         // 仅 run_command 需在此覆盖注册以挂进度通道与审批门（human 会话
-        // 越界首触暂停，W3）。
-        let ws_root: std::sync::Arc<std::path::PathBuf> =
-            std::sync::Arc::new(ctx.state.registry.get(&ctx.workspace_id).root.clone());
+        // 越界首触暂停，W3）。PLAN-070 T-02：门判定与 cwd 同走多根。
+        let ws_roots: std::sync::Arc<Vec<std::path::PathBuf>> =
+            ctx.state.registry.sandbox_roots(&ctx.workspace_id);
         let gate_session = if ctx.approval_mode.as_deref() == Some("human") {
             Some(ctx.parent_conversation_id.clone())
         } else {
@@ -316,8 +321,8 @@ pub fn build_agent_with_context(
         let scoped_run_command: Vec<(&str, Arc<dyn auto_ai_agent::Tool>)> = vec![
             (
                 "run_command",
-                Arc::new(crate::tools::RunCommand::with_root_progress_gate(
-                    ws_root.clone(),
+                Arc::new(crate::tools::RunCommand::with_roots_progress_gate(
+                    ws_roots.clone(),
                     ctx.progress.clone(),
                     gate_session,
                 )),

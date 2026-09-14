@@ -535,6 +535,33 @@ impl WorkspaceRegistry {
             .map(|m| m.extra_roots.clone())
             .unwrap_or_default()
     }
+
+    /// PLAN-070 T-02：运行入口用——合成工具沙箱多根向量
+    /// `[workspace 根, *白名单]`（根恒为第一根；新建写归第一根）。
+    /// 每次运行构造工具前现读——白名单增删对后续运行即时生效。
+    pub fn sandbox_roots(&self, ws_id: &str) -> std::sync::Arc<Vec<PathBuf>> {
+        let ws = self.get(ws_id);
+        let mut roots = vec![ws.root.clone()];
+        roots.extend(self.extra_roots(ws_id).into_iter().map(PathBuf::from));
+        std::sync::Arc::new(roots)
+    }
+
+    /// PLAN-070 T-02：按根路径合成的同款变体——workflow step agent 等仅持
+    /// `WorkspaceStores`（无 ws_id）的路径经 meta.path 匹配取白名单。
+    pub fn sandbox_roots_by_path(&self, root: &Path) -> std::sync::Arc<Vec<PathBuf>> {
+        let canonical = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+        let extras = {
+            let idx = self.index.read().unwrap();
+            idx.workspaces
+                .iter()
+                .find(|m| Path::new(&m.path) == canonical)
+                .map(|m| m.extra_roots.clone())
+                .unwrap_or_default()
+        };
+        let mut roots = vec![canonical];
+        roots.extend(extras.into_iter().map(PathBuf::from));
+        std::sync::Arc::new(roots)
+    }
 }
 
 /// Query extractor: `?workspace=<id>` on business endpoints. Empty/absent →
@@ -640,7 +667,7 @@ fn roots_bad(msg: String) -> (StatusCode, Json<serde_json::Value>) {
     (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": msg })))
 }
 
-async fn workspace_roots_get(
+pub(crate) async fn workspace_roots_get(
     AxumState(state): AxumState<AppState>,
     AxumQuery(q): AxumQuery<WorkspaceQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
@@ -654,7 +681,7 @@ async fn workspace_roots_get(
     Ok(Json(serde_json::json!({ "roots": state.registry.extra_roots(&id) })))
 }
 
-async fn workspace_roots_add(
+pub(crate) async fn workspace_roots_add(
     AxumState(state): AxumState<AppState>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
@@ -671,7 +698,7 @@ async fn workspace_roots_add(
     Ok(Json(serde_json::json!({ "roots": roots })))
 }
 
-async fn workspace_roots_remove(
+pub(crate) async fn workspace_roots_remove(
     AxumState(state): AxumState<AppState>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {

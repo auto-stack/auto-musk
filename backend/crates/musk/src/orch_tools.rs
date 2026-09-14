@@ -539,9 +539,9 @@ async fn run_errand_agent(
         context_file: String::new(),
         extra_system_prompt: String::new(),
     };
-    // PLAN-069 W1：errand 子代理同样注入 ws 沙箱根。
-    let ws_root = std::sync::Arc::new(ws.root.clone());
-    let mut agent = crate::build_agent_from_mode(&mode, state.client.clone(), Some(&ws_root))?;
+    // PLAN-069 W1：errand 子代理同样注入 ws 沙箱根（PLAN-070：多根含白名单）。
+    let ws_roots = state.registry.sandbox_roots_by_path(&ws.root);
+    let mut agent = crate::build_agent_from_mode(&mode, state.client.clone(), Some(&ws_roots))?;
 
     let result = agent.run(task).await.map_err(|e| format!("agent: {e}"))?;
     Ok(result.output)

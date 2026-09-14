@@ -247,9 +247,10 @@ async fn run_task(
     let prof_name = mode.role.clone();
 
     // PLAN-069 W1：CLI 沙箱 = 用户执行目录（显式注入，不用回退链）。
-    let cwd = std::sync::Arc::new(
+    // PLAN-070：多根签名下 CLI 仍单根 CWD（v1 CLI 无白名单 UI，待澄清③）。
+    let cwd = std::sync::Arc::new(vec![
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
-    );
+    ]);
     let mut agent = build_agent_from_mode(&mode, client, Some(&cwd))
         .map_err(|e| format!("build agent: {e}"))?;
 
@@ -313,10 +314,10 @@ async fn chat_loop(
     use std::sync::Arc as StdArc;
 
     let name = mode.name.clone();
-    // PLAN-069 W1：CLI 沙箱 = 用户执行目录（显式注入）。
-    let cwd = StdArc::new(
+    // PLAN-069 W1：CLI 沙箱 = 用户执行目录（显式注入）。PLAN-070：单根 Vec 化。
+    let cwd = StdArc::new(vec![
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
-    );
+    ]);
     let mut agent = musk::build_agent_from_mode(&mode, client, Some(&cwd))
         .map_err(|e| format!("build agent: {e}"))?;
 

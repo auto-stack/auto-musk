@@ -10,20 +10,32 @@ use serde_json::{json, Value};
 
 /// PLAN-027 ①: path 越界错误 → 结构化 `SecurityDenied`（让 driver/前端识别
 /// kind 并友好播报）。其他 path 错误（IO 等）仍走 `Exec`（纯字符串）。
-fn map_path_error(e: String, scope: Option<&std::path::Path>) -> ToolError {
+fn map_path_error(e: String, roots: &[std::path::PathBuf]) -> ToolError {
     // PLAN-069 W1：root 必须报告**工具实际 scope**（with_root 注入值）——
     // 原 `project_root()` 回退在 thread-local 失效时谎报为 startup CWD
     // （会话 81b45c34 实证：模型据此向用户转述错误的沙箱根）。None（测试/
     // 未注入）才回退 project_root()。
-    let reported_root = scope
-        .map(|p| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf()))
-        .unwrap_or_else(crate::tool_safety::project_root);
-    if e.contains("outside the project root") {
+    // PLAN-070 T-02：多根 scope 全部列出（workspace 根 + 白名单）。
+    let reported_root: String = if roots.is_empty() {
+        crate::tool_safety::project_root().display().to_string()
+    } else {
+        roots
+            .iter()
+            .map(|p| {
+                std::fs::canonicalize(p)
+                    .unwrap_or_else(|_| p.clone())
+                    .display()
+                    .to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
+    };
+    if e.contains("outside the project root") || e.contains("outside all of the") {
         ToolError::SecurityDenied {
             kind: "path_confined".into(),
             path: String::new(),
-            root: reported_root.display().to_string(),
-            hint: "AI 只能读写当前 workspace 内的文件；workspace 外的配置请让用户手动提供。".into(),
+            root: reported_root,
+            hint: "AI 只能读写 workspace 根与其白名单目录内的文件；如需访问其他目录，请用户在「白名单」视图中添加该目录。".into(),
         }
     } else {
         ToolError::Exec(e)
@@ -35,13 +47,21 @@ pub struct ReadFile {
     /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
     /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
     /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
-    root: Option<std::sync::Arc<std::path::PathBuf>>,
+    roots: Option<std::sync::Arc<Vec<std::path::PathBuf>>>,
 }
 
 impl ReadFile {
-    pub fn new() -> Self { Self { root: None } }
-    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
-    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+    pub fn new() -> Self { Self { roots: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self {
+        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])) }
+    }
+    /// PLAN-070 T-02：多根构造（[workspace 根, *白名单] 合成向量）。
+    pub fn with_roots(roots: std::sync::Arc<Vec<std::path::PathBuf>>) -> Self {
+        Self { roots: Some(roots) }
+    }
+    fn roots(&self) -> &[std::path::PathBuf] {
+        self.roots.as_ref().map(|v| v.as_slice()).unwrap_or(&[])
+    }
 }
 #[async_trait]
 impl Tool for ReadFile {
@@ -72,8 +92,8 @@ impl Tool for ReadFile {
         let offset = args["offset"].as_u64().filter(|o| *o > 0);
         let limit = args["limit"].as_u64();
         // Path confinement (Design 004): reject paths outside project root.
-        let resolved = crate::tool_safety::resolve_scoped(path, self.scope())
-            .map_err(|e| map_path_error(e, self.scope()))?;
+        let resolved = crate::tool_safety::resolve_multi(path, self.roots())
+            .map_err(|e| map_path_error(e, self.roots()))?;
         let content = std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
 
@@ -175,13 +195,21 @@ pub struct WriteFile {
     /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
     /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
     /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
-    root: Option<std::sync::Arc<std::path::PathBuf>>,
+    roots: Option<std::sync::Arc<Vec<std::path::PathBuf>>>,
 }
 
 impl WriteFile {
-    pub fn new() -> Self { Self { root: None } }
-    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
-    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+    pub fn new() -> Self { Self { roots: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self {
+        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])) }
+    }
+    /// PLAN-070 T-02：多根构造（[workspace 根, *白名单] 合成向量）。
+    pub fn with_roots(roots: std::sync::Arc<Vec<std::path::PathBuf>>) -> Self {
+        Self { roots: Some(roots) }
+    }
+    fn roots(&self) -> &[std::path::PathBuf] {
+        self.roots.as_ref().map(|v| v.as_slice()).unwrap_or(&[])
+    }
 }
 #[async_trait]
 impl Tool for WriteFile {
@@ -211,8 +239,8 @@ impl Tool for WriteFile {
             .ok_or_else(|| ToolError::Args("missing 'content' argument".into()))?;
 
         // Path confinement (Design 004).
-        let resolved = crate::tool_safety::resolve_scoped(path, self.scope())
-            .map_err(|e| map_path_error(e, self.scope()))?;
+        let resolved = crate::tool_safety::resolve_multi(path, self.roots())
+            .map_err(|e| map_path_error(e, self.roots()))?;
 
         // Auto-create parent directories.
         if let Some(parent) = resolved.parent() {
@@ -241,7 +269,7 @@ pub struct RunCommand {
     /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
     /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
     /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
-    root: Option<std::sync::Arc<std::path::PathBuf>>,
+    roots: Option<std::sync::Arc<Vec<std::path::PathBuf>>>,
     /// PLAN-040 T4:实时进度通道(chat = session_id / relay = run_id;
     /// None = 测试/CLI 无前端订阅)。
     progress: Option<crate::tool_context::ProgressSink>,
@@ -251,22 +279,30 @@ pub struct RunCommand {
 }
 
 impl RunCommand {
-    pub fn new() -> Self { Self { root: None, progress: None, gate_session: None } }
-    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root), progress: None, gate_session: None } }
-    /// PLAN-069 W3:human 会话的 live 门构造。
-    pub fn with_root_progress_gate(
-        root: std::sync::Arc<std::path::PathBuf>,
+    pub fn new() -> Self { Self { roots: None, progress: None, gate_session: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self {
+        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])), progress: None, gate_session: None }
+    }
+    /// PLAN-070 T-02：多根构造（[workspace 根, *白名单] 合成向量）。
+    pub fn with_roots(roots: std::sync::Arc<Vec<std::path::PathBuf>>) -> Self {
+        Self { roots: Some(roots), progress: None, gate_session: None }
+    }
+    /// PLAN-069 W3 + PLAN-070：human 会话的 live 门构造（多根版）。
+    pub fn with_roots_progress_gate(
+        roots: std::sync::Arc<Vec<std::path::PathBuf>>,
         progress: Option<crate::tool_context::ProgressSink>,
         gate_session: Option<String>,
-    ) -> Self { Self { root: Some(root), progress, gate_session } }
-    /// PLAN-040 T4:workspace root + 前端进度通道。
+    ) -> Self { Self { roots: Some(roots), progress, gate_session } }
+    /// PLAN-040 T4:workspace root + 前端进度通道（单根兼容；测试用）。
     pub fn with_root_and_progress(
         root: std::sync::Arc<std::path::PathBuf>,
         progress: Option<crate::tool_context::ProgressSink>,
     ) -> Self {
-        Self { root: Some(root), progress, gate_session: None }
+        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])), progress, gate_session: None }
     }
-    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+    fn roots(&self) -> &[std::path::PathBuf] {
+        self.roots.as_ref().map(|v| v.as_slice()).unwrap_or(&[])
+    }
 }
 #[async_trait]
 impl Tool for RunCommand {
@@ -345,7 +381,11 @@ impl Tool for RunCommand {
         // PLAN-069 W3：human 会话 → 首个越界 token 触发 live 审批门（挂起等
         // 决议）；approve → 放行执行（跳过 confinement）；deny/超时 → 拒绝
         // 回灌模型。auto/无会话 → 维持硬拒 + 继续（现状）。
-        let offending = crate::tool_safety::confine_offending_paths(cmd);
+        // PLAN-070 T-02：判定按注入的全部根（workspace + 白名单）——修复旧
+        // confine_* 走全局链（thread-local 退役后 = startup CWD）与注入 scope
+        // 脱节的缺陷（workspace 内绝对路径被误判越界）。
+        let offending =
+            crate::tool_safety::confine_offending_paths_multi(cmd, self.roots());
         let mut gate_approved = false;
         if !offending.is_empty() {
             if !force && self.gate_session.is_some() {
@@ -380,13 +420,17 @@ impl Tool for RunCommand {
             } else {
                 // auto/force/无会话 → 维持 PLAN-027 ③ 硬拒（force 不豁免
                 // confinement，回归测试口径不变）。
-                crate::tool_safety::confine_command_paths(cmd).map_err(ToolError::Exec)?;
+                crate::tool_safety::confine_command_paths_multi(cmd, self.roots())
+                    .map_err(ToolError::Exec)?;
             }
         }
         let _ = gate_approved;
+        // PLAN-070 T-02：命令 cwd = 第一根（workspace 根恒为第一根）；未注入
+        // （测试）沿用旧链。
         let root = self
-            .scope()
-            .map(|p| p.to_path_buf())
+            .roots
+            .as_ref()
+            .and_then(|v| v.first().cloned())
             .unwrap_or_else(crate::tool_safety::project_root);
 
         // ── PLAN-040 T4:流式执行(经 CommandRunner 接缝)────────────────
@@ -547,13 +591,21 @@ pub struct EditFile {
     /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
     /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
     /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
-    root: Option<std::sync::Arc<std::path::PathBuf>>,
+    roots: Option<std::sync::Arc<Vec<std::path::PathBuf>>>,
 }
 
 impl EditFile {
-    pub fn new() -> Self { Self { root: None } }
-    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
-    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+    pub fn new() -> Self { Self { roots: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self {
+        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])) }
+    }
+    /// PLAN-070 T-02：多根构造（[workspace 根, *白名单] 合成向量）。
+    pub fn with_roots(roots: std::sync::Arc<Vec<std::path::PathBuf>>) -> Self {
+        Self { roots: Some(roots) }
+    }
+    fn roots(&self) -> &[std::path::PathBuf] {
+        self.roots.as_ref().map(|v| v.as_slice()).unwrap_or(&[])
+    }
 }
 
 /// per-path 写互斥(PLAN-039 T9):读-改-写全段按已解析路径串行化。
@@ -670,8 +722,8 @@ impl Tool for EditFile {
             .collect();
 
         // Path confinement (Design 004).
-        let resolved = crate::tool_safety::resolve_scoped(&path, self.scope())
-            .map_err(|e| map_path_error(e, self.scope()))?;
+        let resolved = crate::tool_safety::resolve_multi(&path, self.roots())
+            .map_err(|e| map_path_error(e, self.roots()))?;
 
         // per-path 互斥:读-改-写(含落盘)全段串行化(PLAN-039 T9)。
         let edits_len = edits.len();
@@ -719,13 +771,21 @@ pub struct Search {
     /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
     /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
     /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
-    root: Option<std::sync::Arc<std::path::PathBuf>>,
+    roots: Option<std::sync::Arc<Vec<std::path::PathBuf>>>,
 }
 
 impl Search {
-    pub fn new() -> Self { Self { root: None } }
-    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
-    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+    pub fn new() -> Self { Self { roots: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self {
+        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])) }
+    }
+    /// PLAN-070 T-02：多根构造（[workspace 根, *白名单] 合成向量）。
+    pub fn with_roots(roots: std::sync::Arc<Vec<std::path::PathBuf>>) -> Self {
+        Self { roots: Some(roots) }
+    }
+    fn roots(&self) -> &[std::path::PathBuf] {
+        self.roots.as_ref().map(|v| v.as_slice()).unwrap_or(&[])
+    }
 }
 #[async_trait]
 impl Tool for Search {
@@ -754,8 +814,8 @@ impl Tool for Search {
         let raw_path = args["path"].as_str().unwrap_or(".");
 
         // Path confinement (Design 004): constrain search to project root.
-        let resolved = crate::tool_safety::resolve_scoped(raw_path, self.scope())
-            .map_err(|e| map_path_error(e, self.scope()))?;
+        let resolved = crate::tool_safety::resolve_multi(raw_path, self.roots())
+            .map_err(|e| map_path_error(e, self.roots()))?;
         let path = resolved.to_string_lossy().to_string();
 
         // Prefer ripgrep if available (faster, respects .gitignore); else grep.
@@ -820,13 +880,21 @@ pub struct ListDir {
     /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
     /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
     /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
-    root: Option<std::sync::Arc<std::path::PathBuf>>,
+    roots: Option<std::sync::Arc<Vec<std::path::PathBuf>>>,
 }
 
 impl ListDir {
-    pub fn new() -> Self { Self { root: None } }
-    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
-    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+    pub fn new() -> Self { Self { roots: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self {
+        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])) }
+    }
+    /// PLAN-070 T-02：多根构造（[workspace 根, *白名单] 合成向量）。
+    pub fn with_roots(roots: std::sync::Arc<Vec<std::path::PathBuf>>) -> Self {
+        Self { roots: Some(roots) }
+    }
+    fn roots(&self) -> &[std::path::PathBuf] {
+        self.roots.as_ref().map(|v| v.as_slice()).unwrap_or(&[])
+    }
 }
 #[async_trait]
 impl Tool for ListDir {
@@ -848,8 +916,8 @@ impl Tool for ListDir {
     async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let raw_path = args["path"].as_str().unwrap_or(".");
         // Path confinement (Design 004).
-        let path = crate::tool_safety::resolve_scoped(raw_path, self.scope())
-            .map_err(|e| map_path_error(e, self.scope()))?;
+        let path = crate::tool_safety::resolve_multi(raw_path, self.roots())
+            .map_err(|e| map_path_error(e, self.roots()))?;
         let entries = std::fs::read_dir(&path)
             .map_err(|e| ToolError::Exec(format!("list '{raw_path}': {e}")))?;
 
@@ -887,13 +955,21 @@ pub struct ListSymbols {
     /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
     /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
     /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
-    root: Option<std::sync::Arc<std::path::PathBuf>>,
+    roots: Option<std::sync::Arc<Vec<std::path::PathBuf>>>,
 }
 
 impl ListSymbols {
-    pub fn new() -> Self { Self { root: None } }
-    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
-    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+    pub fn new() -> Self { Self { roots: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self {
+        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])) }
+    }
+    /// PLAN-070 T-02：多根构造（[workspace 根, *白名单] 合成向量）。
+    pub fn with_roots(roots: std::sync::Arc<Vec<std::path::PathBuf>>) -> Self {
+        Self { roots: Some(roots) }
+    }
+    fn roots(&self) -> &[std::path::PathBuf] {
+        self.roots.as_ref().map(|v| v.as_slice()).unwrap_or(&[])
+    }
 }
 #[async_trait]
 impl Tool for ListSymbols {
@@ -919,8 +995,8 @@ impl Tool for ListSymbols {
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'path'".into()))?;
         // Path confinement (Design 004).
-        let resolved = crate::tool_safety::resolve_scoped(path, self.scope())
-            .map_err(|e| map_path_error(e, self.scope()))?;
+        let resolved = crate::tool_safety::resolve_multi(path, self.roots())
+            .map_err(|e| map_path_error(e, self.roots()))?;
         let content = std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
 
@@ -964,13 +1040,21 @@ pub struct Glob {
     /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
     /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
     /// 规避 tokio 线程迁移下 thread-local 失效导致的越界写。
-    root: Option<std::sync::Arc<std::path::PathBuf>>,
+    roots: Option<std::sync::Arc<Vec<std::path::PathBuf>>>,
 }
 
 impl Glob {
-    pub fn new() -> Self { Self { root: None } }
-    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root) } }
-    fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
+    pub fn new() -> Self { Self { roots: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self {
+        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])) }
+    }
+    /// PLAN-070 T-02：多根构造（[workspace 根, *白名单] 合成向量）。
+    pub fn with_roots(roots: std::sync::Arc<Vec<std::path::PathBuf>>) -> Self {
+        Self { roots: Some(roots) }
+    }
+    fn roots(&self) -> &[std::path::PathBuf] {
+        self.roots.as_ref().map(|v| v.as_slice()).unwrap_or(&[])
+    }
 }
 #[async_trait]
 impl Tool for Glob {
@@ -997,8 +1081,8 @@ impl Tool for Glob {
             .ok_or_else(|| ToolError::Args("missing 'pattern'".into()))?;
         let raw_base = args["path"].as_str().unwrap_or(".");
         // Path confinement (Design 004): constrain glob base to project root.
-        let base = crate::tool_safety::resolve_scoped(raw_base, self.scope())
-            .map_err(|e| map_path_error(e, self.scope()))?;
+        let base = crate::tool_safety::resolve_multi(raw_base, self.roots())
+            .map_err(|e| map_path_error(e, self.roots()))?;
         let base_str = base.to_string_lossy().to_string();
         let full_pattern = if pattern.starts_with('/') || pattern.contains(':') {
             // absolute or has a drive letter — use as-is
@@ -1071,10 +1155,19 @@ impl Tool for DisplayImage {
             .ok_or_else(|| ToolError::Args("missing 'path' argument".into()))?;
 
         // Confine + canonicalize (same guard as read_file).
-        let resolved = crate::tool_safety::resolve_scoped(
-                path,
-                Some(&self.ctx.state.registry.get(&self.ctx.workspace_id).root),
-            )
+        // PLAN-070 T-02：按 workspace 根 + 白名单实时合成判定（registry 现读，
+        // 白名单增删对本工具的下一次调用即生效）。
+        let ws = self.ctx.state.registry.get(&self.ctx.workspace_id);
+        let mut img_roots = vec![ws.root.clone()];
+        img_roots.extend(
+            self.ctx
+                .state
+                .registry
+                .extra_roots(&self.ctx.workspace_id)
+                .into_iter()
+                .map(std::path::PathBuf::from),
+        );
+        let resolved = crate::tool_safety::resolve_multi(path, &img_roots)
             .map_err(ToolError::Exec)?;
 
         // Accept only image extensions.
@@ -1955,4 +2048,82 @@ mod tests {
 
     // ── BatchReplace:已删除(PLAN-039 T7,原子多编辑语义由 edit_file
     //    的 edits[] + 前置校验全覆盖)────────────────────────────────
+
+    /// PLAN-070 T-02/AC-02/AC-03：with_roots 工具判定——白名单目录内可读，
+    /// 全根之外 SecurityDenied 且 root 字段列出全部根。
+    #[tokio::test]
+    async fn read_file_with_roots_resolves_extra_root() {
+        let base = std::env::temp_dir().join(format!(
+            "musk-tools-roots-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let ws = base.join("ws");
+        let extra = base.join("extra");
+        std::fs::create_dir_all(&ws).unwrap();
+        std::fs::create_dir_all(&extra).unwrap();
+        std::fs::write(extra.join("wl.md"), "from whitelist").unwrap();
+
+        let roots = std::sync::Arc::new(vec![ws.clone(), extra.clone()]);
+        let tool = ReadFile::with_roots(roots.clone());
+        let out = tool
+            .execute(&json!({"path": "wl.md"}))
+            .await
+            .expect("whitelisted file must read");
+        assert!(out.content.contains("from whitelist"));
+
+        // 全根之外的绝对路径 → SecurityDenied，root 报文列出全部根。
+        let outside = if cfg!(windows) { "C:/Windows/win.ini" } else { "/etc/passwd" };
+        let err = tool
+            .execute(&json!({"path": outside}))
+            .await
+            .expect_err("outside-all-roots must be denied");
+        match err {
+            ToolError::SecurityDenied { root, .. } => {
+                assert!(root.contains("ws"), "root must list all roots: {root}");
+                assert!(root.contains("extra"), "root must list all roots: {root}");
+            }
+            other => panic!("expected SecurityDenied, got {other:?}"),
+        }
+    }
+
+    /// PLAN-070 T-02/AC-05：run_command 多根门判定——白名单内命令 token 不
+    /// 触发越界收集，全根外 token 被硬拒（auto/无门路径）。
+    #[tokio::test]
+    async fn run_command_with_roots_confinement() {
+        let base = std::env::temp_dir().join(format!(
+            "musk-tools-rc-roots-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let ws = base.join("ws");
+        let extra = base.join("extra");
+        std::fs::create_dir_all(&ws).unwrap();
+        std::fs::create_dir_all(&extra).unwrap();
+        std::fs::write(extra.join("wl.md"), "x").unwrap();
+
+        let roots = std::sync::Arc::new(vec![ws.clone(), extra.clone()]);
+        let tool = RunCommand::with_roots(roots);
+        // 白名单内 type/cat → 不越界，正常执行（文件存在 → 允许）。
+        let rel = if cfg!(windows) { r"extra\wl.md" } else { "../extra/wl.md" };
+        let out = tool.execute(&json!({"cmd": format!("type {rel}")})).await;
+        assert!(
+            out.is_ok() || matches!(&out, Err(ToolError::Exec(e)) if !e.contains("denied")),
+            "whitelisted path must not be denied: {out:?}"
+        );
+        // 全根外绝对路径 → 硬拒（无门会话）。
+        let outside = if cfg!(windows) { "C:/Windows/win.ini" } else { "/etc/passwd" };
+        let err = tool
+            .execute(&json!({"cmd": format!("cat {outside}")}))
+            .await
+            .expect_err("outside command must be denied");
+        assert!(
+            err.to_string().contains("denied") || err.to_string().contains("outside"),
+            "denial message: {err:?}"
+        );
+    }
 }

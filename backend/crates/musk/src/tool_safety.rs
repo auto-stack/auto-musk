@@ -188,6 +188,85 @@ pub fn confine_offending_paths(cmd: &str) -> Vec<String> {
     offending
 }
 
+/// PLAN-070 T-02：多根解析——逐根按 [`resolve_scoped`] 语义判定，任一根命中
+/// 即放行（白名单目录与 workspace 根等价）。
+///
+/// 两段式判定（避免第一根"吞掉"其他根下真实存在的相对路径）：
+/// 1. **存在/绝对优先**：绝对路径落任一根内、或相对路径在某根下**真实存在**
+///    → 放行（读/改既有文件按真实位置命中）；
+/// 2. **新建归第一根**：相对且尚不存在的路径（新建写）→ 归第一根
+///    （workspace 根恒为第一根——新建位置可预测，不按猜测散落白名单）。
+///
+/// 全部越界 → Err（报文列出全部根，供门卡片/报文展示）。`roots` 为空 =
+/// 未注入 → 沿用旧解析链（测试回退）。
+pub fn resolve_multi(path: &str, roots: &[PathBuf]) -> Result<PathBuf, String> {
+    if roots.is_empty() {
+        return resolve_within_project(path);
+    }
+    let absolute = Path::new(path).is_absolute();
+    for r in roots {
+        if let Ok(p) = resolve_scoped(path, Some(r)) {
+            if absolute || p.exists() {
+                return Ok(p);
+            }
+        }
+    }
+    if !absolute {
+        if let Ok(p) = resolve_scoped(path, Some(&roots[0])) {
+            return Ok(p);
+        }
+    }
+    let listed = roots
+        .iter()
+        .map(|r| r.display().to_string())
+        .collect::<Vec<_>>()
+        .join("; ");
+    Err(format!(
+        "path '{path}' is outside all of the {} allowed root(s): {listed}",
+        roots.len()
+    ))
+}
+
+/// PLAN-070 T-02：[`confine_offending_paths`] 的多根收集变体（human 审批门
+/// 用）——越界判定按注入的全部根（workspace 根 + 白名单）；空 roots = 旧链。
+pub fn confine_offending_paths_multi(cmd: &str, roots: &[PathBuf]) -> Vec<String> {
+    let mut offending: Vec<String> = Vec::new();
+    for token in cmd.split_whitespace() {
+        if token.starts_with('-') {
+            continue;
+        }
+        let looks_like_path = token.contains('/')
+            || token.contains('\\')
+            || token.contains("..")
+            || token.starts_with("./")
+            || token.starts_with('~');
+        if !looks_like_path {
+            continue;
+        }
+        if resolve_multi(token, roots).is_err() && !offending.contains(&token.to_string()) {
+            offending.push(token.to_string());
+        }
+    }
+    offending
+}
+
+/// PLAN-070 T-02：[`confine_command_paths`] 的多根硬拒变体（auto/无门路径）。
+pub fn confine_command_paths_multi(cmd: &str, roots: &[PathBuf]) -> Result<(), String> {
+    for token in cmd.split_whitespace() {
+        if token.starts_with('-') { continue; }  // 跳过 flag（-x / --foo）
+        let looks_like_path = token.contains('/')
+            || token.contains('\\')
+            || token.contains("..")
+            || token.starts_with("./")
+            || token.starts_with('~');
+        if !looks_like_path { continue; }
+        resolve_multi(token, roots).map_err(|e| {
+            format!("run_command path argument '{token}': {e}")
+        })?;
+    }
+    Ok(())
+}
+
 pub fn confine_command_paths(cmd: &str) -> Result<(), String> {
     for token in cmd.split_whitespace() {
         if token.starts_with('-') { continue; }  // 跳过 flag（-x / --foo）
@@ -421,6 +500,90 @@ mod tests {
         assert!(confine_command_paths("cargo build").is_ok(), "cargo build should be allowed");
         // flag 不误判（-la 不当路径）
         assert!(confine_command_paths("ls -la").is_ok(), "ls -la should be allowed");
+
+        clear_current_root();
+    }
+
+    /// PLAN-070 T-02/AC-02/AC-03：多根解析——任一根命中即放行；全根越界拒绝
+    /// 且报文列出全部根；白名单移除后立即恢复拒绝。
+    #[test]
+    fn resolve_multi_allows_any_root_and_lists_roots_on_miss() {
+        let base = std::env::temp_dir().join(format!(
+            "musk-ts-multi-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let ws = base.join("ws");
+        let extra = base.join("extra-lang");
+        fs::create_dir_all(&ws).unwrap();
+        fs::create_dir_all(&extra).unwrap();
+        fs::write(extra.join("README.md"), "hello").unwrap();
+
+        let roots = vec![ws.clone(), extra.clone()];
+        // 白名单目录内相对路径 → 按 extra 根解析放行。
+        let ok = resolve_multi("README.md", &roots).unwrap();
+        assert_eq!(
+            ok,
+            fs::canonicalize(extra.join("README.md")).unwrap(),
+            "extra root hit must resolve against it"
+        );
+        // workspace 根内相对路径 → 按第一根放行。
+        fs::write(ws.join("local.txt"), "x").unwrap();
+        assert!(resolve_multi("local.txt", &roots).is_ok());
+        // 全根之外 → 拒 + 报文列出全部根。
+        let outside = if cfg!(windows) { "C:/Windows/notepad.exe" } else { "/etc/passwd" };
+        let err = resolve_multi(outside, &roots).unwrap_err();
+        assert!(err.contains("outside all of the 2 allowed root(s)"), "{err}");
+        assert!(err.contains("ws"), "报文须含根列表: {err}");
+        // 移除白名单后，穿越形式的同一文件恢复拒绝（AC-03；非存在相对路径
+        // 按单根旧语义归第一根=新建写位，不算越界）。
+        let only_ws = vec![ws.clone()];
+        assert!(
+            resolve_multi("../extra-lang/README.md", &only_ws).is_err(),
+            "removed whitelist root must be denied again"
+        );
+        // 空 roots = 旧解析链（不 panic）。
+        let _ = resolve_multi("local.txt", &[]);
+    }
+
+    /// PLAN-070 T-02/AC-05：confine 多根变体——白名单内 token 不再算越界
+    /// （门不触发），全根外 token 照常收集/拒绝。
+    #[test]
+    fn confine_multi_judges_against_all_roots() {
+        let base = std::env::temp_dir().join(format!(
+            "musk-ts-multi-cmd-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let ws = base.join("ws");
+        let extra = base.join("extra");
+        fs::create_dir_all(&ws).unwrap();
+        fs::create_dir_all(&extra).unwrap();
+        set_current_root(ws.clone());
+
+        let roots = vec![ws.clone(), extra.clone()];
+        // 白名单目录内的 type 命令：多根判定下不算越界。
+        let token = format!("{}/README.md", extra.to_string_lossy().replace('\\', "/"));
+        assert!(
+            confine_offending_paths_multi(&format!("type {token}"), &roots).is_empty(),
+            "whitelisted path must not offend"
+        );
+        // 全根之外：照常收集。
+        let outside = if cfg!(windows) { "C:/Windows/win.ini" } else { "/etc/passwd" };
+        let off = confine_offending_paths_multi(&format!("cat {outside}"), &roots);
+        assert_eq!(off.len(), 1, "{off:?}");
+        // 硬拒变体：多根内放行、全根外拒绝。
+        assert!(confine_command_paths_multi(&format!("type {token}"), &roots).is_ok());
+        assert!(confine_command_paths_multi(&format!("cat {outside}"), &roots).is_err());
+        // 旧链（空 roots）下同一白名单路径被拒——多根语义确实生效。
+        assert!(
+            confine_command_paths_multi(&format!("type {token}"), &[]).is_err(),
+            "legacy chain must still deny"
+        );
 
         clear_current_root();
     }

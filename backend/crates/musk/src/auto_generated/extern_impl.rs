@@ -1549,8 +1549,12 @@ pub async fn agent_run(
             return serde_json::json!({"error": {"code": 400, "message": "unknown or missing workspace; pass ?workspace=".to_string()}});
         }
     };
-    let ws_root = std::sync::Arc::new(ws.root.clone());
-    let mut agent = match crate::build_agent_from_mode(&mode, s.0.client.clone(), Some(&ws_root)) {
+    // PLAN-070 T-02：多根 = [workspace 根, *白名单]。
+    let ws_roots = s
+        .0
+        .registry
+        .sandbox_roots(q.workspace.as_deref().unwrap_or(""));
+    let mut agent = match crate::build_agent_from_mode(&mode, s.0.client.clone(), Some(&ws_roots)) {
         Ok(a) => a,
         Err(e) => {
             return serde_json::json!({"error": {"code": 500, "message": format!("build agent: {e}")}});
@@ -1608,13 +1612,17 @@ pub async fn agent_run_stream(
             return;
         }
     };
-    let ws_root = std::sync::Arc::new(ws.root.clone());
+    // PLAN-070 T-02：多根 = [workspace 根, *白名单]。
+    let ws_roots = s
+        .0
+        .registry
+        .sandbox_roots(q.workspace.as_deref().unwrap_or(""));
     let client = s.0.client.clone();
     let task = b.task.clone();
     let tx2 = tx.clone();
     tokio::spawn(async move {
         // root 经 build_agent 注入（thread-local 退役）。
-        let mut agent = match crate::build_agent_from_mode(&mode, client, Some(&ws_root)) {
+        let mut agent = match crate::build_agent_from_mode(&mode, client, Some(&ws_roots)) {
             Ok(a) => a,
             Err(e) => {
                 mpsc_try_send(&tx2, serde_json::json!({"type":"error","message": format!("build agent: {e}")}));

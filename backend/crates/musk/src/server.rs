@@ -311,7 +311,10 @@ async fn run_inner(
                 }),
             )
         })?;
-    let ws_root = std::sync::Arc::new(ws.root.clone());
+    // PLAN-070 T-02：多根 = [workspace 根, *白名单]（现读，后续运行即时生效）。
+    let ws_roots = state
+        .registry
+        .sandbox_roots(req.workspace.as_deref().unwrap_or(""));
 
     // Resolve the mode from the request.
     let reg = crate::mode::ModeRegistry::load();
@@ -329,7 +332,7 @@ async fn run_inner(
     })?;
 
     let mut agent =
-        crate::build_agent_from_mode(&mode, state.client.clone(), Some(&ws_root)).map_err(|e| {
+        crate::build_agent_from_mode(&mode, state.client.clone(), Some(&ws_roots)).map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ApiError {
@@ -408,7 +411,10 @@ async fn run_stream_handler(
                 .into_response()
         }
     };
-    let ws_root = std::sync::Arc::new(ws.root.clone());
+    // PLAN-070 T-02：多根 = [workspace 根, *白名单]（现读，后续运行即时生效）。
+    let ws_roots = state
+        .registry
+        .sandbox_roots(q.workspace.as_deref().unwrap_or(""));
 
     // Resolve the mode up front so we can fail fast on a bad spec.
     let reg = crate::mode::ModeRegistry::load();
@@ -434,7 +440,7 @@ async fn run_stream_handler(
     tokio::spawn(async move {
         // PLAN-069 W1：root 经 build_agent 注入（thread-local 退役——tokio
         // 线程迁移下失效，实证会话 81b45c34 沙箱根中途翻转）。
-        let mut agent = match crate::build_agent_from_mode(&mode, client, Some(&ws_root)) {
+        let mut agent = match crate::build_agent_from_mode(&mode, client, Some(&ws_roots)) {
             Ok(a) => a,
             Err(e) => {
                 let _ = tx.try_send(json!({"type": "error", "message": format!("build agent: {e}")}));
@@ -692,7 +698,6 @@ async fn chat_stream(
     let conversations = ws.conversations.clone();
     let session_id = id.clone();
     let history_for_agent = history.clone();
-    let ws_root = ws.root.clone();
     let ws_id_for_ctx = q.id_or_default(&state.registry);
     let state_for_ctx = Arc::new(state.clone());
     // PLAN-064: 会话思考档位（spawn 任务内用克隆）。
@@ -904,7 +909,6 @@ async fn workflow_run_stream(
                 .into_response()
         }
     };
-    let ws_root = std::sync::Arc::new(ws.root.clone());
     let state = state.clone();
     let task = req.task.clone();
     tokio::spawn(async move {
@@ -1007,6 +1011,154 @@ mod tests {
             registry: Arc::new(registry),
             chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
         }
+    }
+
+    /// PLAN-070 T-01/AC-01/AC-07：白名单 API 三端点——GET/ADD/REMOVE 往返
+    /// 一致；未知 workspace、缺参、非法路径 → 400。
+    #[tokio::test]
+    async fn workspace_roots_endpoints_roundtrip_and_400() {
+        use axum::body::Body;
+        use tower::ServiceExt;
+        let state = tmp_state();
+        // 建一个可寻址的工作区 + 一个合法候选目录。
+        let base = std::env::temp_dir().join(format!(
+            "musk-roots-api-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let ws_root_dir = base.join("proj");
+        let cand = base.join("cand");
+        std::fs::create_dir_all(&ws_root_dir).unwrap();
+        std::fs::create_dir_all(&cand).unwrap();
+        let meta = state.registry.open(ws_root_dir.to_str().unwrap());
+        let ws_id = meta.id.clone();
+        let canonical = std::fs::canonicalize(&cand).unwrap().to_string_lossy().to_string();
+
+        let app = axum::Router::new()
+            .route(
+                "/api/workspace/roots",
+                axum::routing::get(crate::workspace::workspace_roots_get),
+            )
+            .route(
+                "/api/workspace/roots/add",
+                axum::routing::post(crate::workspace::workspace_roots_add),
+            )
+            .route(
+                "/api/workspace/roots/remove",
+                axum::routing::post(crate::workspace::workspace_roots_remove),
+            )
+            .with_state(state.clone());
+
+        // GET 缺 workspace → 400；未知 workspace → 400。
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("GET")
+                    .uri("/api/workspace/roots")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("GET")
+                    .uri("/api/workspace/roots?workspace=no-such")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // ADD 非法路径（不存在）→ 400。
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/workspace/roots/add")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"workspace":"WS","root":"Z:/no/such/dir"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        // ADD 合法 → roots 返回 canonical 一条；GET 一致（AC-01）。
+        let body = serde_json::json!({"workspace": ws_id, "root": cand.to_string_lossy()}).to_string();
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/workspace/roots/add")
+                    .header("content-type", "application/json")
+                    .body(Body::from(body))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(v["roots"].as_array().unwrap().len(), 1);
+        assert_eq!(v["roots"][0].as_str().unwrap(), canonical);
+
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("GET")
+                    .uri(&format!("/api/workspace/roots?workspace={ws_id}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(v["roots"][0].as_str().unwrap(), canonical, "GET must match ADD");
+
+        // REMOVE → 空；REMOVE 未命中 → 400。
+        let body = serde_json::json!({"workspace": ws_id, "root": canonical}).to_string();
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/workspace/roots/remove")
+                    .header("content-type", "application/json")
+                    .body(Body::from(body.clone()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(v["roots"].as_array().unwrap().is_empty());
+        let resp = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/workspace/roots/remove")
+                    .header("content-type", "application/json")
+                    .body(Body::from(body.clone()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     /// 接线运行(计划 018 §11 ①):真实 HTTP 请求打到 auth 端点,数据层是 a2r
