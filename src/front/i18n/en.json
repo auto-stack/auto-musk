@@ -13,7 +13,8 @@
     "agents": "Agents",
     "professions": "Professions",
     "skills": "Skills",
-    "apis": "APIs"
+    "apis": "APIs",
+    "files": "Files"
   },
   "settings": {
     "title": "Settings",
@@ -455,5 +456,12 @@
     "login": "Login",
     "hasAccount": "Already have an account?",
     "noAccount": "No account? Register"
+  },
+  "files": {
+    "selectHint": "Select a file to preview",
+    "cannotOpen": "This file type cannot be opened",
+    "emptyTree": "Workspace is empty",
+    "truncated": "Tree truncated (too many entries)",
+    "loading": "Loading…"
   }
 }

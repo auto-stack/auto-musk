@@ -1,0 +1,71 @@
+// filetree.at — FileTree 组件(PLAN-614,移植自 auto-os widgets-gallery
+// components/filetree.at @ musk-068;只读浏览消费,不改画廊仓)。
+// 纯函数经 use.web 导入 tree_util.at（mention_helpers 同款;VM 轨缺口登记
+// T-06 对齐文档——auto-musk 无 VM import_aliases 机制,现有 fn 导入面同）。
+
+use.web flatten_tree, toggle_id from "src/front/tree_util.at"
+use tree_icon: TreeIcon
+
+widget FileTree (nodes: List, default_expanded: List = []) {
+    msg { Init, Toggle(str), Select(str) }
+
+    model {
+        ftExpanded List = []
+        ftSelected str = ""
+    }
+
+    on {
+        .Init -> {
+            .ftExpanded = .default_expanded
+        }
+        .Toggle(id) -> {
+            .ftExpanded = toggle_id(.ftExpanded, id)
+        }
+        .Select(id) -> {
+            .ftSelected = id
+        }
+    }
+
+    computed {
+        ftRows => flatten_tree(.nodes, .ftExpanded, true, .ftSelected)
+    }
+
+    view {
+        col (style: "w-full text-sm") {
+            for r in .ftRows {
+                row (style: "items-center") {
+                    for g in r.guides {
+                        if g == "l" {
+                            div (style: "w-4 h-6 flex items-center justify-center") {
+                                div (style: "w-px h-6 bg-border") {}
+                            }
+                        } else {
+                            div (style: "w-4 h-6") {}
+                        }
+                    }
+                    if r.has_kids {
+                        mouse-area (onclick: .Toggle(r.id), style: "w-5 h-5 shrink-0 items-center justify-center cursor-pointer") {
+                            if r.open {
+                                icon (name: "chevron-down", style: "w-3.5 h-3.5 text-muted-foreground") {}
+                            } else {
+                                icon (name: "chevron-right", style: "w-3.5 h-3.5 text-muted-foreground") {}
+                            }
+                        }
+                    } else {
+                        div (style: "w-5 shrink-0") {}
+                    }
+                    row (onclick: .Select(r.id), class: f"flex flex-row flex-1 items-center gap-1.5 py-1 pr-2 rounded-md cursor-pointer ${r.state}") {
+                        if r.icon != "" {
+                            TreeIcon (name: r.icon) {}
+                        }
+                        text r.label { style: "text-sm" }
+                        if r.badge != "" {
+                            text r.badge { style: "ml-auto text-xs text-muted-foreground" }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

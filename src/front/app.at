@@ -9,6 +9,7 @@ use specs_view: SpecsView
 use wiki_view: WikiView
 use chats_view: ChatsView
 use plans_view: PlansView
+use files_view: FilesView
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web platformInjectStyles, platformSetupAuthFetch from "src/front/ports/platform.at"
@@ -36,6 +37,7 @@ widget App {
         ShowPlans,
         ShowSpecs,
         ShowWiki,
+        ShowFiles,
         GlobalKeydown,
     }
 
@@ -111,6 +113,12 @@ widget App {
                                         text "知识库" {}
                                     }
                                 }
+                                sidebar_menu_item {
+                                    sidebar_menu_button (onclick: .ShowFiles, active: .current_view == "files", size: "lg") {
+                                        icon (name: "folder") {}
+                                        text "文件" {}
+                                    }
+                                }
                             }
                         }
                     }
@@ -134,6 +142,8 @@ widget App {
                         SpecsView
                     } else if .current_view == "wiki" {
                         WikiView
+                    } else if .current_view == "files" {
+                        FilesView
                     } else {
                         ChatsView
                     }
@@ -187,6 +197,13 @@ widget App {
         .ShowWiki -> {
             .current_view = "wiki";
             vsSetView("wiki")
+        }
+        // PLAN-068: 进入文件视图即重拉 workspace 树（freshness 优先；
+        // FilesView.Init 的 files_loaded 守卫只拦挂载期双触发）。
+        .ShowFiles -> {
+            .current_view = "files";
+            vsSetView("files");
+            FilesStore.LoadTree()
         }
     }
 }

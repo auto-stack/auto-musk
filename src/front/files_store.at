@@ -1,0 +1,142 @@
+// files_store.at — 文件浏览器状态 store（PLAN-068；specs_store.at 同款模式）。
+//
+// 单例 store：workspace 根文件树 + 当前选中文件的查看器状态。
+// 依赖 auth_fetch 拦截器（App.Init 设置）与 back.api 生成的 files 绑定。
+// 每次进入视图重拉树（App.ShowFiles 驱动；浏览器语义 freshness 优先，
+// spec_tree 的一次性加载口径不同）。
+//
+// 内联注记：分派/URL/围栏纯函数内联本文件——store 不消费 use.web.fn 导入
+// （codegen 只发调用不发 import，forge_store nowSec 内联先例）。
+// 口径：无扩展名路径（含目录行选中）落 "other" → 不能打开空态（登记）。
+
+use back.api: files_tree, files_raw
+
+/** 查看器类型分派（扩展名大小写不敏感）：image|video|markdown|code|other。 */
+fn files_file_kind(path str) str {
+    if Regex.test(path, "\.(png|jpe?g|gif|svg|webp|bmp|ico|avif)$", "i") {
+        return "image"
+    }
+    if Regex.test(path, "\.(mp4|m4v|webm|mov)$", "i") {
+        return "video"
+    }
+    if Regex.test(path, "\.(md|markdown)$", "i") {
+        return "markdown"
+    }
+    if Regex.test(path, "\.(at|rs|ts|tsx|vue|js|mjs|cjs|json|toml|yaml|yml|css|html|htm|sh|bat|cmd|ps1|py|sql|txt|lock|xml|csv|gitignore)$", "i") {
+        return "code"
+    }
+    return "other"
+}
+
+/** 代码 → 高亮语言名（fence 信息串；未知扩展名回空串）。 */
+fn files_code_lang(path str) str {
+    if Regex.test(path, "\.rs$", "i") {
+        return "rust"
+    }
+    if Regex.test(path, "\.(ts|tsx)$", "i") {
+        return "typescript"
+    }
+    if Regex.test(path, "\.(js|mjs|cjs)$", "i") {
+        return "javascript"
+    }
+    if Regex.test(path, "\.(vue|html|htm)$", "i") {
+        return "html"
+    }
+    if Regex.test(path, "\.css$", "i") {
+        return "css"
+    }
+    if Regex.test(path, "\.py$", "i") {
+        return "python"
+    }
+    if Regex.test(path, "\.(sh|bat|cmd|ps1)$", "i") {
+        return "bash"
+    }
+    if Regex.test(path, "\.(yaml|yml|toml)$", "i") {
+        return "yaml"
+    }
+    if Regex.test(path, "\.json$", "i") {
+        return "json"
+    }
+    if Regex.test(path, "\.sql$", "i") {
+        return "sql"
+    }
+    if Regex.test(path, "\.at$", "i") {
+        return "auto"
+    }
+    return ""
+}
+
+/** 代码内容 → 围栏 markdown（复用聊天 autodown 高亮管线，PLAN-038 真源）。 */
+fn files_code_markdown(content str, path str) str {
+    let lang = files_code_lang(path)
+    return "```" + lang + "
+" + content + "
+```"
+}
+
+/** raw 预览 URL（workspace 由服务端缺省解析；path 经 encodeURIComponent）。 */
+fn files_raw_url(path str) str {
+    return "/api/files/raw/" + encodeURIComponent(path)
+}
+
+/** 视频内嵌 HTML（v-html 兜底——.at 无原生 video 标签映射，iframe 同款）。 */
+fn files_video_html(url str) str {
+    return "<video src=\"" + url + "\" controls style=\"max-width:100%;max-height:70vh;border-radius:8px;background:#000\"></video>"
+}
+
+store FilesStore {
+    model {
+        // workspace 根目录树（服务端忽略清单/预算已收敛）。
+        // 命名 file_*：避让 back.api 绑定 files_tree()（同名冲突实证）。
+        var file_tree List<TreeNode> = []
+        var file_truncated bool = false
+        var file_loaded bool = false
+        // 当前选中文件（相对路径；"" = 未选择）。
+        var active_path str = ""
+        var active_content str = ""
+        var active_loading bool = false
+    }
+
+    computed {
+        // 查看器分派面（视图只读；各自自包含，不引兄弟 computed——
+        // computed 引 computed 未生成引用，实证 TS2304）。
+        active_kind => files_file_kind(.active_path)
+        active_url => files_raw_url(.active_path)
+        // markdown/代码统一经 autodown 管线渲染（代码围栏包装高亮）。
+        active_markdown => if files_file_kind(.active_path) == "code" {
+            files_code_markdown(.active_content, .active_path)
+        } else {
+            .active_content
+        }
+        active_video_html => files_video_html(files_raw_url(.active_path))
+    }
+
+    msg Msg {
+        LoadTree,
+        SelectFile(str),
+    }
+
+    on {
+        .LoadTree -> {
+            let resp = files_tree()
+            .file_tree = resp.tree
+            .file_truncated = resp.truncated
+            .file_loaded = true
+        }
+
+        // 文本类（code/markdown）拉正文；媒体只记路径（URL 惰性加载）。
+        .SelectFile(path) -> {
+            .active_path = path
+            let kind = files_file_kind(path)
+            if kind == "code" || kind == "markdown" {
+                .active_loading = true
+                let content = files_raw(path)
+                .active_content = content
+                .active_loading = false
+            } else {
+                .active_content = ""
+                .active_loading = false
+            }
+        }
+    }
+}
