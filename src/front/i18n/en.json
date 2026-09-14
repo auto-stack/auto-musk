@@ -459,6 +459,7 @@
   },
   "files": {
     "selectHint": "Select a file to preview",
+    "loadFailed": "Failed to load file",
     "cannotOpen": "This file type cannot be opened",
     "emptyTree": "Workspace is empty",
     "truncated": "Tree truncated (too many entries)",

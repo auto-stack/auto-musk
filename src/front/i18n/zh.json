@@ -459,6 +459,7 @@
   },
   "files": {
     "selectHint": "选择左侧文件查看内容",
+    "loadFailed": "文件加载失败",
     "cannotOpen": "不能打开该文件类型",
     "emptyTree": "工作区为空",
     "truncated": "文件树过大，仅显示部分内容",

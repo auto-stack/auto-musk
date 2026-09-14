@@ -54,6 +54,15 @@
 | SettingsMenu | settings_menu.at | ✅ component fn；settings_helpers.ts 留 TS | F3/F6 |
 | LoginPage | login.at | ✅ component fn | F6 |
 
+## G-文件浏览（PLAN-068）
+
+| 组件 | 源 | 迁移状态 | 依赖特性 |
+|---|---|---|---|
+| FileTree | filetree.at（移植自 auto-os widgets-gallery，PLAN-614） | ✅ vue 轨（VM 待 import_aliases，登记差异） | tree_util.at / tree_icon.at |
+| FilesView | files_view.at | ✅ vue 轨 | files_store.at / ports: renderer+icons+composables+files(.web.at) |
+| FilesStore | files_store.at | ✅ store（helper 内联） | back.api: files_tree |
+| 查看器 | MarkdownRender（autodown）/ img / video(html:) / 不能打开空态 | ✅ vue 轨 | ports/renderer.at |
+
 ## G-知识库
 
 | 组件 | 源 | 迁移状态 | 依赖特性 |
