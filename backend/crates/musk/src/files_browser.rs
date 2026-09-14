@@ -35,7 +35,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::server::AppState;
-use crate::wiki::{guess_mime, validate_path_pub, TreeNode};
+use crate::wiki::{guess_mime, validate_path_pub};
 use crate::workspace::WorkspaceQuery;
 
 /// Directory names excluded from the workspace tree (PLAN-068 §5.1).
@@ -61,9 +61,25 @@ pub struct FilesQuery {
     pub workspace: WorkspaceQuery,
 }
 
+/// FileTree 消费的 fs 形态节点 schema（PLAN-614 gallery 契约）：
+/// `id` = 相对路径，`children` **恒存在**（叶子为空数组——flatten_tree 对
+/// 缺键字段取 `.len()` 会踩 undefined），`icon`/`badge` 留空走组件内自动
+/// 映射。刻意不用 wiki 的 `TreeNode`（name/type、叶子缺 children，schema
+/// 不同——实证 TypeError: reading 'length'）。
+#[derive(Serialize, Clone, Debug)]
+pub struct FilesNode {
+    pub id: String,
+    pub label: String,
+    pub children: Vec<FilesNode>,
+    pub kind: String,    // "dir" | "file"
+    pub icon: String,    // "" = 组件按 kind/扩展名自动映射
+    pub is_leaf: bool,
+    pub badge: String,
+}
+
 #[derive(Serialize)]
 pub struct FilesTreeResponse {
-    pub tree: Vec<TreeNode>,
+    pub tree: Vec<FilesNode>,
     pub truncated: bool,
 }
 
@@ -112,8 +128,8 @@ fn build_ws_tree(
     depth: usize,
     budget: &mut usize,
     truncated: &mut bool,
-) -> Vec<TreeNode> {
-    let mut entries: Vec<TreeNode> = Vec::new();
+) -> Vec<FilesNode> {
+    let mut entries: Vec<FilesNode> = Vec::new();
     if depth > MAX_DEPTH {
         *truncated = true;
         return entries;
@@ -144,33 +160,32 @@ fn build_ws_tree(
         if is_dir && IGNORED_DIRS.iter().any(|d| d.eq_ignore_ascii_case(&name)) {
             continue;
         }
-        let path = if prefix.is_empty() {
+        let id = if prefix.is_empty() {
             name.clone()
         } else {
             format!("{}/{}", prefix, name)
         };
         *budget -= 1;
         if is_dir {
-            let children = build_ws_tree(&entry.path(), &path, depth + 1, budget, truncated);
-            entries.push(TreeNode {
-                name,
-                path,
-                node_type: "folder".into(),
-                children: Some(children),
-                size: None,
-                modified: None,
+            let children = build_ws_tree(&entry.path(), &id, depth + 1, budget, truncated);
+            entries.push(FilesNode {
+                label: name,
+                id,
+                children,
+                kind: "dir".into(),
+                icon: String::new(),
+                is_leaf: false,
+                badge: String::new(),
             });
         } else {
-            let meta = entry.metadata().ok();
-            entries.push(TreeNode {
-                name,
-                path,
-                node_type: "file".into(),
-                children: None,
-                size: meta.as_ref().map(|m| m.len()),
-                modified: meta.and_then(|m| m.modified().ok()).map(|t| {
-                    t.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs()
-                }),
+            entries.push(FilesNode {
+                label: name,
+                id,
+                children: Vec::new(),
+                kind: "file".into(),
+                icon: String::new(),
+                is_leaf: true,
+                badge: String::new(),
             });
         }
     }
@@ -242,11 +257,11 @@ mod tests {
         std::fs::write(&p, content).unwrap();
     }
 
-    fn names(nodes: &[TreeNode]) -> Vec<&str> {
-        nodes.iter().map(|n| n.name.as_str()).collect()
+    fn names(nodes: &[FilesNode]) -> Vec<&str> {
+        nodes.iter().map(|n| n.label.as_str()).collect()
     }
 
-    fn build(root: &std::path::Path) -> (Vec<TreeNode>, bool) {
+    fn build(root: &std::path::Path) -> (Vec<FilesNode>, bool) {
         let mut budget = MAX_NODES;
         let mut truncated = false;
         let tree = build_ws_tree(root, "", 0, &mut budget, &mut truncated);
@@ -269,7 +284,7 @@ mod tests {
         let (tree, truncated) = build(root);
         assert!(!truncated);
         assert_eq!(names(&tree), vec!["src", "README.md"], "got {tree:?}");
-        let src_children = tree[0].children.as_ref().unwrap();
+        let src_children = &tree[0].children;
         assert_eq!(names(src_children), vec!["front"]);
     }
 
@@ -317,11 +332,11 @@ mod tests {
         // Walk down: every level on the way has exactly one child until cut.
         let mut node = &tree[0];
         let mut depth_seen = 1usize;
-        while let Some(kids) = &node.children {
-            if kids.is_empty() {
+        loop {
+            if node.children.is_empty() {
                 break;
             }
-            node = &kids[0];
+            node = &node.children[0];
             depth_seen += 1;
         }
         assert!(depth_seen <= MAX_DEPTH + 1, "walked {depth_seen} levels");

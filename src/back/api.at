@@ -198,14 +198,25 @@ pub fn files_tree() FilesTreeResponse {
 }
 
 pub type FilesTreeResponse = {
-    tree: []TreeNode,
+    tree: []FilesNode,
     truncated: bool,
 }
 
-#[api(method = "GET", path = "/api/files/raw/{path}")]
-pub fn files_raw(path str) str {
-    return None
+// fs 形态节点（PLAN-614 FileTree 契约）：id=相对路径，children 恒存在
+// （叶子空数组），icon/badge 留空走组件自动映射。
+pub type FilesNode = {
+    id: str,
+    label: str,
+    children: []FilesNode,
+    kind: str,
+    icon: str,
+    is_leaf: bool,
+    badge: str,
 }
+
+// raw 端点不进 #[api]：生成绑定固定 response.json()，对文本/字节响应
+// 均不可用——文本经 ports/files.web.at 的 loadFilesFileText（.text()），
+// 媒体直接以 /api/files/raw URL 喂 <img>/<video>（path encodeURIComponent）。
 
 
 

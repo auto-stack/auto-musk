@@ -1,0 +1,6 @@
+// ports/files.web.at — PLAN-068 文件浏览器 web facade。
+//
+// 正文加载经 .text()（api.at 绑定 json() 对文本必炸）；调用方只引
+// ports/files.at。media 预览不经此域（<img>/<video> 直连 raw URL）。
+
+use.web loadFilesFileText from "src/front/files_web.ts"

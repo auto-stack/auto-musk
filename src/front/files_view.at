@@ -9,6 +9,7 @@ use store: FilesStore
 use filetree: FileTree
 use.web component MarkdownRender from "src/front/ports/renderer.at"
 use.web component FileIcon from "src/front/ports/icons.at"
+use.web loadFilesFileText from "src/front/ports/files.at"
 use.web useT from "src/front/ports/composables.at"
 
 widget FilesView {
@@ -32,7 +33,17 @@ widget FilesView {
         }
 
         .Pick(path) -> {
-            FilesStore.SelectFile(path)
+            FilesStore.SelectFile(path);
+            // 文本类经 .text() 异步加载（视图侧 use.web——store 不消费
+            // use.web.fn；api.at 绑定 json() 对文本必炸）。
+            if .store.active_kind == "code" || .store.active_kind == "markdown" {
+                try {
+                    let content = loadFilesFileText(path).await
+                    FilesStore.SetContent(content)
+                } catch (e) {
+                    FilesStore.SetLoadFailed()
+                }
+            }
         }
     }
 
@@ -68,7 +79,12 @@ widget FilesView {
                             text t("files.loading")
                         }
                     } else {
-                        if .store.active_kind == "image" {
+                        if .store.active_failed {
+                        div (style: "h-full flex flex-col items-center justify-center gap-2 text-muted-foreground") {
+                            FileIcon { size: 28 }
+                            text t("files.loadFailed") { style: "text-sm" }
+                        }
+                    } else if .store.active_kind == "image" {
                             img { src: .store.active_url, style: "max-w-full max-h-[70vh] rounded-md" }
                         } else if .store.active_kind == "video" {
                             div { html: .store.active_video_html }

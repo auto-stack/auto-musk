@@ -9,7 +9,7 @@
 // （codegen 只发调用不发 import，forge_store nowSec 内联先例）。
 // 口径：无扩展名路径（含目录行选中）落 "other" → 不能打开空态（登记）。
 
-use back.api: files_tree, files_raw
+use back.api: files_tree
 
 /** 查看器类型分派（扩展名大小写不敏感）：image|video|markdown|code|other。 */
 fn files_file_kind(path str) str {
@@ -74,9 +74,12 @@ fn files_code_markdown(content str, path str) str {
 ```"
 }
 
-/** raw 预览 URL（workspace 由服务端缺省解析；path 经 encodeURIComponent）。 */
+/** raw 预览 URL。workspace 必须显式带上——<img>/<video> 不经 fetch 拦截器
+ * （拦截器只给 /api 请求注入 jwt+workspace），缺省时服务端解析到 serve
+ * 自身 CWD 工作区而非当前选中工作区（E2E 实证 404）。 */
 fn files_raw_url(path str) str {
-    return "/api/files/raw/" + encodeURIComponent(path)
+    let wid = storage.get("musk_workspace") ?? ""
+    return "/api/files/raw/" + encodeURIComponent(path) + "?workspace=" + encodeURIComponent(wid)
 }
 
 /** 视频内嵌 HTML（v-html 兜底——.at 无原生 video 标签映射，iframe 同款）。 */
@@ -95,6 +98,7 @@ store FilesStore {
         var active_path str = ""
         var active_content str = ""
         var active_loading bool = false
+        var active_failed bool = false
     }
 
     computed {
@@ -114,6 +118,8 @@ store FilesStore {
     msg Msg {
         LoadTree,
         SelectFile(str),
+        SetContent(str),
+        SetLoadFailed,
     }
 
     on {
@@ -124,19 +130,25 @@ store FilesStore {
             .file_loaded = true
         }
 
-        // 文本类（code/markdown）拉正文；媒体只记路径（URL 惰性加载）。
+        // SelectFile 只置路径与 loading；正文由视图侧 use.web 异步加载
+        // （api.at 绑定固定 response.json()，对文本响应必炸——E2E 实证），
+        // 经 SetContent/SetLoadFailed 回填。媒体只记路径（URL 惰性加载）。
         .SelectFile(path) -> {
             .active_path = path
+            .active_content = ""
+            .active_failed = false
             let kind = files_file_kind(path)
-            if kind == "code" || kind == "markdown" {
-                .active_loading = true
-                let content = files_raw(path)
-                .active_content = content
-                .active_loading = false
-            } else {
-                .active_content = ""
-                .active_loading = false
-            }
+            .active_loading = kind == "code" || kind == "markdown"
+        }
+
+        .SetContent(content) -> {
+            .active_content = content
+            .active_loading = false
+        }
+
+        .SetLoadFailed -> {
+            .active_loading = false
+            .active_failed = true
         }
     }
 }
