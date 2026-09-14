@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-069
-status: executing
+status: reviewed
 feature_name: chat 运行沙箱绑定 + 助手消息时序块化 + 工具级人工审批门（会话 81b45c34 四问题综合改善）
 author: zhaop / zcode
 created_at: 2026-09-14T17:10:00+08:00
@@ -359,6 +359,18 @@ hw 运行、chats.json 沉淀 ag 运行——"内容又不完全相同"）；Eve
   间歇停顿环境不重跑，e2e_v3.py 可重入）AC-08✓（legacy 渲染分支+vitest 36）
   **AC-09✗（F-05）**。findings: F-05。next: work（修 F-05 后 r2 复审，
   通过方可 merge）。
+- 2026-09-15 work（r2 续，复审 r1 F-05 修复，author zcode）：ag_chat_stream_
+  persists_and_streams 改走运行主体路径——先 `chat_run_try_start(&":{sess.id}")`
+  取守卫（chats_message run=true 同款）再开流，断言不变。全量 cargo lib 复跑
+  **416 passed / 0 failed / 1 ignored**（5.39s）。`outcome: pass |
+  code_commit: 3d94726（worktree musk-069） | task_ids: F-05 | next: review r2`。
+- 2026-09-15 review r2（plan_revision 2，reviewer zcode，同会话限制同 r1 声明）：
+  **pass**。reviewed_commit 3d94726（= c9742a4 + F-05 测试修复，产品代码零改动，
+  相对 c9742a4 的 diff 仅 server.rs 测试函数内 8 行）。门：cargo lib 416 绿
+  （本 commit 复跑）；vitest 36 绿 + auto build 绿（r1 同代码面证据沿用：F-05
+  修复不触 src/front/.at 与 gen 面）。acceptance_results：AC-01..AC-09 全✓
+  （AC-05/06 沿 r1 采信口径）。findings: 无未决。spec delta SD-01..SD-03 提案
+  维持，文本于 merge 阶段备制并随 delivery 复核。next: merge。
 
 ## 10. 待澄清事项
 
