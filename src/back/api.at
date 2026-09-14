@@ -188,6 +188,25 @@ pub fn specs_get_file(path str) str {
     return None
 }
 
+// PLAN-068: workspace 文件浏览器（hw files_browser_routes；spec_tree 泛化到
+// workspace 根目录——忽略清单/节点与深度预算服务端强制，canonicalize 防
+// symlink 穿出，20MB 读上限）。raw 返回字节 + MIME（.html 强制 text/plain，
+// 媒体预览直接以 URL 喂 <img>/<video>，不经本绑定）。
+#[api(method = "GET", path = "/api/files/tree")]
+pub fn files_tree() FilesTreeResponse {
+    return None
+}
+
+pub type FilesTreeResponse = {
+    tree: []TreeNode,
+    truncated: bool,
+}
+
+#[api(method = "GET", path = "/api/files/raw/{path}")]
+pub fn files_raw(path str) str {
+    return None
+}
+
 
 
 // ============================================================

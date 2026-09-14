@@ -18,6 +18,7 @@ pub mod vm_backend;
 pub mod spec_tools;
 pub mod specs;
 pub mod spec_tree;
+pub mod files_browser;
 pub mod chat_branch;
 pub mod plans;
 pub mod report_tools;
