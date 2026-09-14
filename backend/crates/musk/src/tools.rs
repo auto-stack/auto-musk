@@ -10,12 +10,19 @@ use serde_json::{json, Value};
 
 /// PLAN-027 ①: path 越界错误 → 结构化 `SecurityDenied`（让 driver/前端识别
 /// kind 并友好播报）。其他 path 错误（IO 等）仍走 `Exec`（纯字符串）。
-fn map_path_error(e: String) -> ToolError {
+fn map_path_error(e: String, scope: Option<&std::path::Path>) -> ToolError {
+    // PLAN-069 W1：root 必须报告**工具实际 scope**（with_root 注入值）——
+    // 原 `project_root()` 回退在 thread-local 失效时谎报为 startup CWD
+    // （会话 81b45c34 实证：模型据此向用户转述错误的沙箱根）。None（测试/
+    // 未注入）才回退 project_root()。
+    let reported_root = scope
+        .map(|p| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf()))
+        .unwrap_or_else(crate::tool_safety::project_root);
     if e.contains("outside the project root") {
         ToolError::SecurityDenied {
             kind: "path_confined".into(),
             path: String::new(),
-            root: crate::tool_safety::project_root().display().to_string(),
+            root: reported_root.display().to_string(),
             hint: "AI 只能读写当前 workspace 内的文件；workspace 外的配置请让用户手动提供。".into(),
         }
     } else {
@@ -66,7 +73,7 @@ impl Tool for ReadFile {
         let limit = args["limit"].as_u64();
         // Path confinement (Design 004): reject paths outside project root.
         let resolved = crate::tool_safety::resolve_scoped(path, self.scope())
-            .map_err(map_path_error)?;
+            .map_err(|e| map_path_error(e, self.scope()))?;
         let content = std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
 
@@ -205,7 +212,7 @@ impl Tool for WriteFile {
 
         // Path confinement (Design 004).
         let resolved = crate::tool_safety::resolve_scoped(path, self.scope())
-            .map_err(map_path_error)?;
+            .map_err(|e| map_path_error(e, self.scope()))?;
 
         // Auto-create parent directories.
         if let Some(parent) = resolved.parent() {
@@ -615,7 +622,7 @@ impl Tool for EditFile {
 
         // Path confinement (Design 004).
         let resolved = crate::tool_safety::resolve_scoped(&path, self.scope())
-            .map_err(map_path_error)?;
+            .map_err(|e| map_path_error(e, self.scope()))?;
 
         // per-path 互斥:读-改-写(含落盘)全段串行化(PLAN-039 T9)。
         let edits_len = edits.len();
@@ -699,7 +706,7 @@ impl Tool for Search {
 
         // Path confinement (Design 004): constrain search to project root.
         let resolved = crate::tool_safety::resolve_scoped(raw_path, self.scope())
-            .map_err(map_path_error)?;
+            .map_err(|e| map_path_error(e, self.scope()))?;
         let path = resolved.to_string_lossy().to_string();
 
         // Prefer ripgrep if available (faster, respects .gitignore); else grep.
@@ -793,7 +800,7 @@ impl Tool for ListDir {
         let raw_path = args["path"].as_str().unwrap_or(".");
         // Path confinement (Design 004).
         let path = crate::tool_safety::resolve_scoped(raw_path, self.scope())
-            .map_err(map_path_error)?;
+            .map_err(|e| map_path_error(e, self.scope()))?;
         let entries = std::fs::read_dir(&path)
             .map_err(|e| ToolError::Exec(format!("list '{raw_path}': {e}")))?;
 
@@ -864,7 +871,7 @@ impl Tool for ListSymbols {
             .ok_or_else(|| ToolError::Args("missing 'path'".into()))?;
         // Path confinement (Design 004).
         let resolved = crate::tool_safety::resolve_scoped(path, self.scope())
-            .map_err(map_path_error)?;
+            .map_err(|e| map_path_error(e, self.scope()))?;
         let content = std::fs::read_to_string(&resolved)
             .map_err(|e| ToolError::Exec(format!("read '{path}': {e}")))?;
 
@@ -942,7 +949,7 @@ impl Tool for Glob {
         let raw_base = args["path"].as_str().unwrap_or(".");
         // Path confinement (Design 004): constrain glob base to project root.
         let base = crate::tool_safety::resolve_scoped(raw_base, self.scope())
-            .map_err(map_path_error)?;
+            .map_err(|e| map_path_error(e, self.scope()))?;
         let base_str = base.to_string_lossy().to_string();
         let full_pattern = if pattern.starts_with('/') || pattern.contains(':') {
             // absolute or has a drive letter — use as-is
@@ -1384,6 +1391,33 @@ mod tests {
         let out = out.content;
         assert!(!out.contains("PAUSED"), "force must execute, got: {out}");
         assert_ne!(out, "(no output)", "whoami produces output");
+    }
+
+    /// PLAN-069 W1：拒绝报文的 `root` 字段必须报告**注入的 scope 根**——
+    /// 原 `project_root()` 回退在 thread-local 失效时谎报 startup CWD
+    /// （会话 81b45c34 实证：模型据此转述错误的沙箱根）。
+    #[tokio::test]
+    async fn read_file_denial_reports_injected_scope_root() {
+        // 越界路径：注入根之外的绝对路径
+        let outside = tempfile::tempdir().unwrap();
+        let outside_file = outside.path().join("secret.txt");
+        std::fs::write(&outside_file, "s").unwrap();
+        let injected_dir = tempfile::tempdir().unwrap();
+        let injected = std::sync::Arc::new(injected_dir.path().to_path_buf());
+        let tool = ReadFile::with_root(injected.clone());
+        let err = tool
+            .execute(&serde_json::json!({ "path": outside_file.display().to_string() }))
+            .await
+            .err()
+            .expect("outside path must be denied");
+        let ToolError::SecurityDenied { root, .. } = err else {
+            panic!("expected SecurityDenied, got {err:?}");
+        };
+        let expected = std::fs::canonicalize(injected.as_ref()).unwrap();
+        assert!(
+            root.contains(expected.to_string_lossy().as_ref()),
+            "denial root must report injected scope {expected:?}, got {root:?}"
+        );
     }
 
     /// force 不豁免 path confinement:白名单命令(type/cat)+ workspace 外

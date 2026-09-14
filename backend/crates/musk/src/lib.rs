@@ -142,6 +142,11 @@ impl Role for OwnedRole {
 pub fn build_agent_from_mode(
     mode: &crate::mode::AgentMode,
     client: Arc<dyn auto_ai_agent::Client>,
+    // PLAN-069 W1：注入式沙箱根。Some = 文件/命令工具按显式根注册（生产入口
+    // 必传，fail-closed）；None = 旧解析链（thread-local > startup CWD），
+    // 仅测试可用——运行入口禁止传 None（PLAN-030 同类缺陷在 /api/run、
+    // SSE run 与 dispatch 的复发根治）。
+    ws_root: Option<&std::sync::Arc<std::path::PathBuf>>,
 ) -> Result<auto_ai_agent::Agent, String> {
     // 1. Resolve role: user role (.at) > built-in name > .at file path.
     let role: Arc<dyn Role> = resolve_role(&mode.role)
@@ -187,15 +192,26 @@ pub fn build_agent_from_mode(
 
     // 2. Register tools filtered by the mode's whitelist.
     //    Empty whitelist = register all base tools.
+    // PLAN-069 W1：文件/命令工具按 ws_root 条件注入。None = 测试回退链
+    // （thread-local > startup CWD）；生产运行入口一律 Some（fail-closed）。
+    macro_rules! scoped {
+        ($new:expr, $scoped:expr) => {
+            if let Some(r) = ws_root {
+                Arc::new($scoped(r.clone()))
+            } else {
+                Arc::new($new())
+            }
+        };
+    }
     let all_tools: Vec<(&str, Arc<dyn auto_ai_agent::Tool>)> = vec![
-        ("read_file", Arc::new(tools::ReadFile::new())),
-        ("write_file", Arc::new(tools::WriteFile::new())),
-        ("edit_file", Arc::new(tools::EditFile::new())),
-        ("search", Arc::new(tools::Search::new())),
-        ("list_dir", Arc::new(tools::ListDir::new())),
-        ("list_symbols", Arc::new(tools::ListSymbols::new())),
-        ("glob", Arc::new(tools::Glob::new())),
-        ("run_command", Arc::new(tools::RunCommand::new())),
+        ("read_file", scoped!(tools::ReadFile::new, tools::ReadFile::with_root)),
+        ("write_file", scoped!(tools::WriteFile::new, tools::WriteFile::with_root)),
+        ("edit_file", scoped!(tools::EditFile::new, tools::EditFile::with_root)),
+        ("search", scoped!(tools::Search::new, tools::Search::with_root)),
+        ("list_dir", scoped!(tools::ListDir::new, tools::ListDir::with_root)),
+        ("list_symbols", scoped!(tools::ListSymbols::new, tools::ListSymbols::with_root)),
+        ("glob", scoped!(tools::Glob::new, tools::Glob::with_root)),
+        ("run_command", scoped!(tools::RunCommand::new, tools::RunCommand::with_root)),
         // Spec tools (Plan 009 P1a): read/write the Spec Ledger.
         ("read_specs", Arc::new(spec_tools::ReadSpecs::new())),
         ("list_specs", Arc::new(spec_tools::ListSpecs::new())),
@@ -254,7 +270,12 @@ pub fn build_agent_with_context(
     client: Arc<dyn auto_ai_agent::Client>,
     ctx: Option<tool_context::ToolContext>,
 ) -> Result<auto_ai_agent::Agent, String> {
-    let mut agent = build_agent_from_mode(mode, client)?;
+    // PLAN-069 W1：root 在 base 构建期即注入（原 base 注册非注入 + 此处覆盖
+    // 注册的双跳形态退役——覆盖窗口内 thread-local 回调仍可能漏出）。
+    let base_root = ctx
+        .as_ref()
+        .map(|c| std::sync::Arc::new(c.state.registry.get(&c.workspace_id).root.clone()));
+    let mut agent = build_agent_from_mode(mode, client, base_root.as_ref())?;
     if let Some(ctx) = ctx {
         // PLAN-030 T3: plan tools are workspace-scoped (docs/plans/), so they
         // need the ToolContext — registered alongside the orchestration tools
@@ -279,22 +300,14 @@ pub fn build_agent_with_context(
                 agent.register_shared(tool.clone());
             }
         }
-        // PLAN-030 复审修复：文件/命令工具覆盖注册为注入式 workspace root
-        // （thread-local root 在 tokio 线程迁移下失效，曾致相对路径回落进程
-        //   CWD、文件写穿 workspace 边界——E2E 实证）。
+        // PLAN-069 W1：七个文件工具已在 base 构建期按 ws_root 注入（见上），
+        // 仅 run_command 需在此覆盖注册以挂进度通道（with_root_and_progress）。
         let ws_root: std::sync::Arc<std::path::PathBuf> =
             std::sync::Arc::new(ctx.state.registry.get(&ctx.workspace_id).root.clone());
-        let scoped_file_tools: Vec<(&str, Arc<dyn auto_ai_agent::Tool>)> = vec![
-            ("read_file", Arc::new(crate::tools::ReadFile::with_root(ws_root.clone()))),
-            ("write_file", Arc::new(crate::tools::WriteFile::with_root(ws_root.clone()))),
-            ("edit_file", Arc::new(crate::tools::EditFile::with_root(ws_root.clone()))),
-            ("search", Arc::new(crate::tools::Search::with_root(ws_root.clone()))),
-            ("list_dir", Arc::new(crate::tools::ListDir::with_root(ws_root.clone()))),
-            ("list_symbols", Arc::new(crate::tools::ListSymbols::with_root(ws_root.clone()))),
-            ("glob", Arc::new(crate::tools::Glob::with_root(ws_root.clone()))),
+        let scoped_run_command: Vec<(&str, Arc<dyn auto_ai_agent::Tool>)> = vec![
             ("run_command", Arc::new(crate::tools::RunCommand::with_root_and_progress(ws_root.clone(), ctx.progress.clone()))),
         ];
-        for (name, tool) in &scoped_file_tools {
+        for (name, tool) in &scoped_run_command {
             if mode.tools.is_empty() || mode.tools.iter().any(|t| t == name) {
                 agent.register_shared(tool.clone());
             }

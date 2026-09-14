@@ -229,6 +229,27 @@ impl WorkspaceRegistry {
 
     /// Resolve a workspace id to its store bundle. Falls back to the default
     /// workspace if the id is missing/empty. Lazy-loads + caches by root path.
+    /// PLAN-069 W1：严格解析——仅接受**精确存在**的 id；缺失/未知返回 None。
+    /// 运行入口（/api/run、SSE run、workflow run）用本方法 fail-closed，
+    /// 杜绝 get() 的 default→first 静默回退把沙箱根落到错误工作区。
+    pub fn get_exact(&self, ws_id: &str) -> Option<Arc<WorkspaceStores>> {
+        if ws_id.is_empty() {
+            return None;
+        }
+        let meta = {
+            let idx = self.index.read().unwrap();
+            idx.workspaces.iter().find(|m| m.id == ws_id).cloned()?
+        };
+        let root = PathBuf::from(&meta.path);
+        let mut cache = self.cache.write().unwrap();
+        if let Some(stores) = cache.get(&root).cloned() {
+            return Some(stores);
+        }
+        let stores = Arc::new(WorkspaceStores::new(root.clone()));
+        cache.insert(root, stores.clone());
+        Some(stores)
+    }
+
     pub fn get(&self, ws_id: &str) -> Arc<WorkspaceStores> {
         let meta = {
             let idx = self.index.read().unwrap();
@@ -675,5 +696,17 @@ mod tests {
         ));
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    /// PLAN-069 W1：get_exact 仅接受精确 id；空串/未知 → None（fail-closed）。
+    #[test]
+    fn get_exact_is_strict() {
+        let dir = tmp_dir();
+        let reg = WorkspaceRegistry::load(dir.join("workspaces.json"), dir.clone());
+        let meta = reg.open(dir.join("strict-a").to_str().unwrap());
+        let id = meta.id.clone();
+        assert!(reg.get_exact(&id).is_some(), "exact id resolves");
+        assert!(reg.get_exact("").is_none(), "empty id rejected");
+        assert!(reg.get_exact("no-such-ws").is_none(), "unknown id rejected");
     }
 }

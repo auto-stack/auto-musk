@@ -1143,7 +1143,6 @@ pub fn drive_set_root(s: &Arc<AppState>, w: &str) {
     crate::tool_safety::set_current_root(ws.root.clone());
 }
 pub fn drive_clear_root() {
-    crate::tool_safety::clear_current_root();
 }
 /// Plan 020 Phase G (relay_driver.at): serialize the `Option<AdvanceResult>`
 /// from `ws.relay.advance(run_id)`. None → Null (advance_is_none true);
@@ -1386,7 +1385,6 @@ pub fn feature_dev_set_root(root: std::path::PathBuf) {
     crate::tool_safety::set_current_root(root);
 }
 pub fn feature_dev_clear_root() {
-    crate::tool_safety::clear_current_root();
 }
 /// Plan 020 Phase A (feature_dev.at): AgentError → message string (the drive
 /// loop's `agent '{step}' failed: {e}` error path; AgentError impls Display).
@@ -1533,7 +1531,7 @@ pub fn handoff_render(h: String) -> String {
 /// None 时回退 "superpowers"(与 hw default_mode 一致)。
 pub async fn agent_run(
     s: &State<AppState>,
-    _q: Query<StreamWorkspaceQuery>,
+    q: Query<StreamWorkspaceQuery>,
     b: Json<RunRequest>,
 ) -> Value {
     let mode_name = b.mode.clone().unwrap_or_else(|| "superpowers".into());
@@ -1544,7 +1542,15 @@ pub async fn agent_run(
             return serde_json::json!({"error": {"code": 400, "message": format!("unknown mode '{}'; available: {}", mode_name, reg.names().join(", "))}});
         }
     };
-    let mut agent = match crate::build_agent_from_mode(&mode, s.0.client.clone()) {
+    // PLAN-069 W1：沙箱工作区 fail-closed 解析（缺失/未知 → 400 包络）。
+    let ws = match s.0.registry.get_exact(q.workspace.as_deref().unwrap_or("")) {
+        Some(w) => w,
+        None => {
+            return serde_json::json!({"error": {"code": 400, "message": "unknown or missing workspace; pass ?workspace=".to_string()}});
+        }
+    };
+    let ws_root = std::sync::Arc::new(ws.root.clone());
+    let mut agent = match crate::build_agent_from_mode(&mode, s.0.client.clone(), Some(&ws_root)) {
         Ok(a) => a,
         Err(e) => {
             return serde_json::json!({"error": {"code": 500, "message": format!("build agent: {e}")}});
@@ -1593,17 +1599,24 @@ pub async fn agent_run_stream(
             return;
         }
     };
-    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
-    let ws_root = ws.root.clone();
+    // PLAN-069 W1：沙箱工作区 fail-closed 解析（缺失/未知 → error 事件）。
+    let ws = match s.0.registry.get_exact(q.workspace.as_deref().unwrap_or("")) {
+        Some(w) => w,
+        None => {
+            mpsc_try_send(&tx, serde_json::json!({"type":"error","message":"unknown or missing workspace; pass ?workspace="}));
+            close_channel(&tx);
+            return;
+        }
+    };
+    let ws_root = std::sync::Arc::new(ws.root.clone());
     let client = s.0.client.clone();
     let task = b.task.clone();
     let tx2 = tx.clone();
     tokio::spawn(async move {
-        crate::tool_safety::set_current_root(ws_root.clone());
-        let mut agent = match crate::build_agent_from_mode(&mode, client) {
+        // root 经 build_agent 注入（thread-local 退役）。
+        let mut agent = match crate::build_agent_from_mode(&mode, client, Some(&ws_root)) {
             Ok(a) => a,
             Err(e) => {
-                crate::tool_safety::clear_current_root();
                 mpsc_try_send(&tx2, serde_json::json!({"type":"error","message": format!("build agent: {e}")}));
                 close_channel(&tx2);
                 return;
@@ -1687,7 +1700,6 @@ pub async fn agent_run_stream(
         if let Err(e) = agent.run_stream(&task, on_event, cancel).await {
             mpsc_try_send(&tx2, serde_json::json!({"type":"error","message": format!("{e}")}));
         }
-        crate::tool_safety::clear_current_root();
         close_channel(&tx2);
     });
 }
@@ -1848,7 +1860,7 @@ pub async fn chat_run_stream(
     // PLAN-064: 会话思考档位（spawn 任务内用克隆）。
     let session_thinking2 = session.thinking_level.clone();
     tokio::spawn(async move {
-        crate::tool_safety::set_current_root(ws_root.clone());
+        // PLAN-069 W1：root 注入由 build_agent_with_context 完成（thread-local 退役）。
         // Build agent with orchestration tool context (spawn_relay, dispatch).
         let tool_ctx = crate::tool_context::ToolContext {
             state: state_for_ctx.clone(),
@@ -1861,7 +1873,6 @@ pub async fn chat_run_stream(
         let mut agent = match crate::build_agent_with_context(&agent_mode, client, Some(tool_ctx)) {
             Ok(a) => a,
             Err(e) => {
-                crate::tool_safety::clear_current_root();
                 state_for_ctx.chat_run_finish(&run_key2);
                 mpsc_try_send(&tx2, serde_json::json!({"type":"error","message": format!("build agent: {e}")}));
                 close_channel(&tx2);
@@ -2027,7 +2038,6 @@ pub async fn chat_run_stream(
             }
         }
         bridge.abort();
-        crate::tool_safety::clear_current_root();
         // PLAN-055 ⑧(D1): run 结束（Ok/Err 两路汇合点）——清 per-session 守卫。
         state_for_ctx.chat_run_finish(&run_key2);
         close_channel(&tx2);

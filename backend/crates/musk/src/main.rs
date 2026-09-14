@@ -246,7 +246,11 @@ async fn run_task(
     let name = mode.name.clone();
     let prof_name = mode.role.clone();
 
-    let mut agent = build_agent_from_mode(&mode, client)
+    // PLAN-069 W1：CLI 沙箱 = 用户执行目录（显式注入，不用回退链）。
+    let cwd = std::sync::Arc::new(
+        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+    );
+    let mut agent = build_agent_from_mode(&mode, client, Some(&cwd))
         .map_err(|e| format!("build agent: {e}"))?;
 
     println!("musk: running mode '{}' (role={}) on task:\n  {task}\n", name, prof_name);
@@ -309,7 +313,11 @@ async fn chat_loop(
     use std::sync::Arc as StdArc;
 
     let name = mode.name.clone();
-    let mut agent = musk::build_agent_from_mode(&mode, client)
+    // PLAN-069 W1：CLI 沙箱 = 用户执行目录（显式注入）。
+    let cwd = StdArc::new(
+        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+    );
+    let mut agent = musk::build_agent_from_mode(&mode, client, Some(&cwd))
         .map_err(|e| format!("build agent: {e}"))?;
 
     println!(

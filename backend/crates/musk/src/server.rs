@@ -242,6 +242,11 @@ pub struct RunRequest {
     /// a `.at` mode file. Defaults to "superpowers".
     #[serde(default = "default_mode")]
     pub mode: String,
+    /// PLAN-069 W1：沙箱工作区（fail-closed）。缺失/未知 → 400，不再静默
+    /// 回退 default/CWD（thread-local 回退链在 tokio 迁移下失效，实证
+    /// 会话 81b45c34 沙箱根中途翻转）。
+    #[serde(default)]
+    pub workspace: Option<String>,
 }
 
 fn default_mode() -> String {
@@ -276,6 +281,21 @@ async fn run_inner(
     state: AppState,
     req: RunRequest,
 ) -> Result<RunResponse, (StatusCode, Json<ApiError>)> {
+    // PLAN-069 W1：沙箱工作区 fail-closed 解析（缺失/未知 → 400）。
+    let ws = state
+        .registry
+        .get_exact(req.workspace.as_deref().unwrap_or(""))
+        .ok_or_else(|| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError {
+                    error: "unknown or missing workspace; pass ?workspace= or body.workspace"
+                        .to_string(),
+                }),
+            )
+        })?;
+    let ws_root = std::sync::Arc::new(ws.root.clone());
+
     // Resolve the mode from the request.
     let reg = crate::mode::ModeRegistry::load();
     let mode = reg.get(&req.mode).cloned().ok_or_else(|| {
@@ -291,8 +311,8 @@ async fn run_inner(
         )
     })?;
 
-    let mut agent = crate::build_agent_from_mode(&mode, state.client.clone())
-        .map_err(|e| {
+    let mut agent =
+        crate::build_agent_from_mode(&mode, state.client.clone(), Some(&ws_root)).map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ApiError {
@@ -330,10 +350,9 @@ async fn run(
     Query(q): Query<WorkspaceQuery>,
     Json(req): Json<RunRequest>,
 ) -> impl IntoResponse {
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    crate::tool_safety::set_current_root(ws.root.clone());
+    // PLAN-069 W1：root 注入与 fail-closed 解析在 run_inner 内完成
+    // （thread-local set/clear 退役）。
     let result = run_inner(state, req).await;
-    crate::tool_safety::clear_current_root();
     match result {
         Ok(resp) => Json(resp).into_response(),
         Err(err) => err.into_response(),
@@ -359,8 +378,20 @@ async fn run_stream_handler(
 
     let (tx, mut rx) = mpsc::channel::<serde_json::Value>(64);
 
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    let ws_root = ws.root.clone();
+    // PLAN-069 W1：沙箱工作区 fail-closed 解析（缺失/未知 → 400）。
+    let ws = match state.registry.get_exact(q.workspace.as_deref().unwrap_or("")) {
+        Some(w) => w,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError {
+                    error: "unknown or missing workspace; pass ?workspace=".to_string(),
+                }),
+            )
+                .into_response()
+        }
+    };
+    let ws_root = std::sync::Arc::new(ws.root.clone());
 
     // Resolve the mode up front so we can fail fast on a bad spec.
     let reg = crate::mode::ModeRegistry::load();
@@ -384,12 +415,11 @@ async fn run_stream_handler(
     // Spawn the agent run, pushing StreamEvents into the channel as SSE JSON.
     let client = state.client.clone();
     tokio::spawn(async move {
-        // Confine this task's file-tool operations to the workspace root.
-        crate::tool_safety::set_current_root(ws_root.clone());
-        let mut agent = match crate::build_agent_from_mode(&mode, client) {
+        // PLAN-069 W1：root 经 build_agent 注入（thread-local 退役——tokio
+        // 线程迁移下失效，实证会话 81b45c34 沙箱根中途翻转）。
+        let mut agent = match crate::build_agent_from_mode(&mode, client, Some(&ws_root)) {
             Ok(a) => a,
             Err(e) => {
-                crate::tool_safety::clear_current_root();
                 let _ = tx.try_send(json!({"type": "error", "message": format!("build agent: {e}")}));
                 return;
             }
@@ -424,7 +454,6 @@ async fn run_stream_handler(
                 let _ = tx.try_send(json!({"type": "error", "message": format!("{e}")}));
             }
         }
-        crate::tool_safety::clear_current_root();
     });
 
     let stream = async_stream::stream! {
@@ -603,7 +632,18 @@ async fn chat_stream(
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Response {
     use axum::body::Body;
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    // PLAN-069 W1：fail-closed 解析（缺失/未知 → 400；会话归属校验由
+    // ws.chats.get 的 404 兜底）。
+    let ws = match state.registry.get_exact(q.workspace.as_deref().unwrap_or("")) {
+        Some(w) => w,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                "unknown or missing workspace; pass ?workspace=".to_string(),
+            )
+                .into_response()
+        }
+    };
     // Load the session + its history.
     let session = match ws.chats.get(&id) {
         Some(s) => s,
@@ -659,8 +699,7 @@ async fn chat_stream(
         }),
     };
     tokio::spawn(async move {
-        // Confine this task's file-tool operations to the workspace root.
-        crate::tool_safety::set_current_root(ws_root.clone());
+        // PLAN-069 W1：root 注入由 build_agent_with_context 完成（thread-local 退役）。
         // Build agent with orchestration tool context (spawn_relay, dispatch).
         let tool_ctx = crate::tool_context::ToolContext {
             state: state_for_ctx.clone(),
@@ -671,7 +710,6 @@ async fn chat_stream(
         let mut agent = match crate::build_agent_with_context(&agent_mode, client, Some(tool_ctx)) {
             Ok(a) => a,
             Err(e) => {
-                crate::tool_safety::clear_current_root();
                 let _ = tx.try_send(json!({"type": "error", "message": format!("build agent: {e}")}));
                 return;
             }
@@ -758,10 +796,8 @@ async fn chat_stream(
                 {
                     let _ = conversations.append_turn(&session_id, turn);
                 }
-                crate::tool_safety::clear_current_root();
             }
             Err(e) => {
-                crate::tool_safety::clear_current_root();
                 let _ = tx_err.try_send(json!({"type": "error", "message": format!("{e}")}));
             }
         }
@@ -922,13 +958,24 @@ async fn workflow_run_stream(
 
     let (tx, mut rx) = mpsc::channel::<serde_json::Value>(64);
 
-    let ws = state.registry.get(&q.id_or_default(&state.registry));
-    let ws_root = ws.root.clone();
+    // PLAN-069 W1：沙箱工作区 fail-closed 解析（缺失/未知 → 400）。
+    let ws = match state.registry.get_exact(q.workspace.as_deref().unwrap_or("")) {
+        Some(w) => w,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError {
+                    error: "unknown or missing workspace; pass ?workspace=".to_string(),
+                }),
+            )
+                .into_response()
+        }
+    };
+    let ws_root = std::sync::Arc::new(ws.root.clone());
     let state = state.clone();
     let task = req.task.clone();
     tokio::spawn(async move {
-        // Confine this task's file-tool operations to the workspace root.
-        crate::tool_safety::set_current_root(ws_root);
+        // PLAN-069 W1：root 注入由 build_agent_from_mode 完成（thread-local 退役）。
         let on_event: Arc<dyn Fn(crate::relay::feature_dev::WorkflowStreamEvent) + Send + Sync> =
             Arc::new(move |ev| {
                 let _ = tx.try_send(
@@ -942,7 +989,6 @@ async fn workflow_run_stream(
             // event stream carries whatever step events ran before it.
             tracing::error!("workflow stream failed: {e}");
         }
-        crate::tool_safety::clear_current_root();
     });
 
     let stream = async_stream::stream! {
@@ -1129,9 +1175,17 @@ mod tests {
     #[tokio::test]
     async fn run_endpoint_returns_result() {
         let state = tmp_state();
+        // PLAN-069 W1：fail-closed 后运行必须绑定已注册工作区。
+        let ws_dir = std::env::temp_dir().join(format!(
+            "musk-run-ws-{}",
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        std::fs::create_dir_all(&ws_dir).unwrap();
+        let meta = state.registry.open(ws_dir.to_str().unwrap());
         let req = RunRequest {
             task: "say hello".into(),
             mode: "superpowers".into(),
+            workspace: Some(meta.id),
         };
         let resp = run_inner(state, req).await.unwrap();
         assert_eq!(resp.output, "mock answer");
@@ -1683,9 +1737,16 @@ mod tests {
     #[tokio::test]
     async fn run_endpoint_bad_profession_errors() {
         let state = tmp_state();
+        let ws_dir = std::env::temp_dir().join(format!(
+            "musk-run-ws-{}",
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        std::fs::create_dir_all(&ws_dir).unwrap();
+        let meta = state.registry.open(ws_dir.to_str().unwrap());
         let req = RunRequest {
             task: "x".into(),
             mode: "nonexistent-mode".into(),
+            workspace: Some(meta.id),
         };
         let err = run_inner(state, req).await.unwrap_err();
         assert_eq!(err.0, StatusCode::BAD_REQUEST);
@@ -2292,14 +2353,21 @@ mod tests {
         use axum::body::Body;
         use tower::ServiceExt;
         use crate::auto_generated::server_stream as ag;
+                let state = tmp_state();
+        let ws_dir = std::env::temp_dir().join(format!(
+            "musk-ag-run-ws-{}",
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        std::fs::create_dir_all(&ws_dir).unwrap();
+        let meta = state.registry.open(ws_dir.to_str().unwrap());
         let app = axum::Router::new()
             .route("/api/run", axum::routing::post(ag::run))
-            .with_state(tmp_state());
+            .with_state(state);
         let resp = app
             .oneshot(
                 axum::http::Request::builder()
                     .method("POST")
-                    .uri("/api/run")
+                    .uri(&format!("/api/run?workspace={}", meta.id))
                     .header("content-type", "application/json")
                     .body(Body::from(r#"{"task":"say hello","mode":"superpowers"}"#))
                     .unwrap(),
@@ -2381,14 +2449,21 @@ mod tests {
         use axum::body::Body;
         use tower::ServiceExt;
         use crate::auto_generated::server_stream as ag;
+                let state = tmp_state();
+        let ws_dir = std::env::temp_dir().join(format!(
+            "musk-ag-run-ws-{}",
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+        ));
+        std::fs::create_dir_all(&ws_dir).unwrap();
+        let meta = state.registry.open(ws_dir.to_str().unwrap());
         let app = axum::Router::new()
             .route("/api/run/stream", axum::routing::post(ag::run_stream_handler))
-            .with_state(tmp_state());
+            .with_state(state);
         let resp = app
             .oneshot(
                 axum::http::Request::builder()
                     .method("POST")
-                    .uri("/api/run/stream")
+                    .uri(&format!("/api/run/stream?workspace={}", meta.id))
                     .header("content-type", "application/json")
                     .body(Body::from(r#"{"task":"say hello","mode":"superpowers"}"#))
                     .unwrap(),

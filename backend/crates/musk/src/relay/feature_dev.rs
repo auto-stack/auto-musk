@@ -166,8 +166,7 @@ async fn drive(
     task: &str,
     on_event: Option<&(dyn Fn(WorkflowStreamEvent) + Send + Sync)>,
 ) -> Result<FeatureDevResult, String> {
-    // Confine this run's file-tool operations to the workspace root.
-    crate::tool_safety::set_current_root(ws.root.clone());
+    // PLAN-069 W1：root 注入由 build_agent_from_mode 完成（thread-local 退役）。
 
     let run_id = format!("workflow-feature-dev-{}", now_secs());
     let mut engine = PipelineEngine::new(flow(), run_id);
@@ -228,8 +227,10 @@ async fn drive(
                     context_file: String::new(),
                     extra_system_prompt: String::new(),
                 };
-                let mut agent = crate::build_agent_from_mode(&mode, state.client.clone())
-                    .map_err(|e| format!("build agent '{role_id}': {e}"))?;
+                let ws_root = std::sync::Arc::new(ws.root.clone());
+                let mut agent =
+                    crate::build_agent_from_mode(&mode, state.client.clone(), Some(&ws_root))
+                        .map_err(|e| format!("build agent '{role_id}': {e}"))?;
 
                 let agent_result = agent
                     .run(&input)
