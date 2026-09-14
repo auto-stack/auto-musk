@@ -7,8 +7,9 @@
 
 1. **SSE 主通道**：chat 会话的 assistant 回复、工具 Block、`gate_waiting` 等
    run 事件必须经 `GET /api/chats/session/{id}/stream`（SSE）增量实时推送。
-   后端 `chat_run_stream`（extern_impl）由订阅触发运行，事件经 mpsc→SSE 逐段
-   下发；事件为无名（message）SSE 事件，前端以 `onmessage` 接收。
+   后端 `chat_run_stream`（extern_impl）运行由 `chats_message run=true` 取守卫
+   孵化（PLAN-069 W4/F-03 后订阅不孵化——订阅即附加/空闲流），事件经
+   mpsc→SSE 逐段下发；事件为无名（message）SSE 事件，前端以 `onmessage` 接收。
 2. **实时性口径**：发送后乐观 user 消息立即上屏；assistant 首增量 ≤2s 内渲染；
    工具 Block / gate 卡片出现延迟 ≤2s。违反任一即缺陷，不得以"刷新后可见"替代。
 3. **叶链投影一致性**：会话渲染按 `chatActivePath(messages, active_leaf)` 父链
@@ -17,10 +18,18 @@
    轮询回填时同步服务端 `active_leaf`）。**只写数组不推进叶 = 渲染不可见缺陷**
    （PLAN-067 T-01 实测定责，症状"AI 回复不自动刷新"）。
 4. **轮询为兜底**：`PollStream`（500ms，deadman 窗 2 分钟）仅在 SSE 不健康时
-   承担回填（PLAN-067：3s 内有流事件则跳过——运行中服务端快照不含未完成
-   assistant，回填会清掉流式内容）。完成启发式（回合增长守卫）保留。
+   承担回填（PLAN-067：3s 内有流事件则跳过）。**PLAN-069 F-04 收紧**：
+   `.streaming && stream_es != None`（web 轨 SSE 已附加）期间回填**整体跳过**——
+   回填快照不含在途 assistant，健康门放开后的回填会清掉直播内容（实测每轮
+   边界"删掉重显"）；done 臂落 streaming=false 后回填恢复兜底。完成启发式
+   （回合增长守卫）保留。
 5. **双轨注记**：VM 轨无 SSE，轮询即主通道（Plan 051 T10 形态），叶同步规则
    同样适用；SSE 健康门在 VM 恒开（OnStreamEvent 不触发），不影响 VM 轮询。
+6. **块化组装规则（PLAN-069 W2）**：每次 ReAct 迭代的叙述文本独立成 text 块
+   （跨轮不合并）；tool_call 与 tool_result 成对入块、按执行序穿插；`content`
+   为全部 text 块的派生拼接、`tool_calls` 为 tool 块引用（兼容面）。前端
+   blocks 非空逐块渲染，为空走旧 content+tool_calls 分支。详见
+   `modules/chat-run-policy.md`。
 
 ## 关联实现
 

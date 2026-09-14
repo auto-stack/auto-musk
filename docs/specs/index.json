@@ -1,12 +1,13 @@
 {
   "version": "2.0",
-  "updated_at": "2026-09-09T23:55:00Z",
+  "updated_at": "2026-09-15T03:20:00Z",
   "based_on": "full code scan 2026-08-14 (backend Rust + dual frontend + codegen)",
   "spec_files": [
     "00-overview.md",
     "01-architecture.md",
     "goals/README.md",
     "modules/chat-streaming.md",
+    "modules/chat-run-policy.md",
     "modules/web-input-contracts.md",
     "modules/files-browser.md"
   ],
