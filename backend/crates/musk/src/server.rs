@@ -180,6 +180,9 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         // Spec module-tree browser (PLAN-025) — hw escape-hatch reusing
         // wiki::build_tree; serves docs/specs/ knowledge layer (008 §5).
         .merge(crate::spec_tree::spec_tree_routes())
+        // Tool approval gate (PLAN-069 W3) — human 会话越界命令首触暂停的
+        // 决议端点（resolve 唤醒挂起的 run_command）。
+        .merge(crate::tool_gate_routes::tool_gate_routes())
         // Native folder picker (workspace_switch UX) — hw route: the browser
         // cannot obtain the picked dir's absolute path, so the local serve
         // process opens the OS dialog (rfd) and returns the path.
@@ -680,6 +683,8 @@ async fn chat_stream(
     let state_for_ctx = Arc::new(state.clone());
     // PLAN-064: 会话思考档位（spawn 任务内用克隆）。
     let session_thinking = session.thinking_level.clone();
+    // PLAN-069 W3: 会话审批模式（run_command 审批门策略）。
+    let session_approval = session.approval_mode.clone();
     // Resolve the session's mode to an AgentMode (built-in or user .at).
     let mode_reg = crate::mode::ModeRegistry::load();
     let agent_mode = match mode_reg.get(&mode).cloned() {
@@ -706,6 +711,7 @@ async fn chat_stream(
             workspace_id: ws_id_for_ctx.clone(),
             parent_conversation_id: session_id.clone(),
             progress: Some(crate::tool_context::ProgressSink::for_run(&session_id)),
+            approval_mode: Some(session_approval.clone()),
         };
         let mut agent = match crate::build_agent_with_context(&agent_mode, client, Some(tool_ctx)) {
             Ok(a) => a,

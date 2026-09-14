@@ -19,6 +19,9 @@ pub struct ToolContext {
     /// chat 场景 = session_id,relay 场景 = run_id;run_command 等长任务工具
     /// 经此把流式 partial 推上进程级 broadcast 总线(SSE 订阅者按 id 过滤)。
     pub progress: Option<ProgressSink>,
+    /// PLAN-069 W3:会话审批模式透传("human" → run_command 越界首触即挂
+    /// 审批门;None/"auto" → 维持硬拒 + 继续)。relay 驱动路径暂不启用。
+    pub approval_mode: Option<String>,
 }
 
 /// PLAN-040 T5:工具侧进度通道——进程级 broadcast 总线的 sender + 目标 id
@@ -42,6 +45,33 @@ impl ProgressSink {
 
     pub fn run_id(&self) -> &str {
         &self.run_id
+    }
+
+    /// PLAN-069 W3：工具审批门等待事件（human 模式越界命令首触暂停）。
+    /// payload 携带 gate_id / 命令全文 / 命中的越界路径，前端渲染
+    /// approve/deny 卡片，决议经 /api/chats/tool-gate/{id}/approve|deny。
+    pub fn send_gate_waiting(
+        &self,
+        gate_id: &str,
+        tool_call_id: &str,
+        tool_name: &str,
+        cmd: &str,
+        paths: &[String],
+    ) {
+        let event = serde_json::json!({
+            "type": "tool_gate_waiting",
+            "run_id": self.run_id,
+            "gate_id": gate_id,
+            "tool_call_id": tool_call_id,
+            "tool_name": tool_name,
+            "cmd": cmd,
+            "paths": paths,
+        });
+        let _ = self.bus.send(crate::relay::api::BusEvent {
+            run_id: self.run_id.clone(),
+            event_type: "tool_gate_waiting".into(),
+            payload: event,
+        });
     }
 
     /// 推一条流式 partial(工具名 + 可空的配对 id;易态,尽力而为)。

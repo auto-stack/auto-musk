@@ -1,0 +1,59 @@
+// tool_gate_card.at — 工具审批门卡片（PLAN-069 W3）
+//
+// human 会话的 run_command 越界首触暂停：展示命令全文与命中的越界路径，
+// approve（放行执行一次）/ deny（拒绝回灌模型）经决议端点唤醒挂起的运行。
+// 决议后 tool_result 事件回填同一工具块（状态自愈，无需前端再改）。
+
+use.web useT from "src/front/ports/composables.at"
+
+widget ToolGateCard(tc: obj) {
+    computed {
+        cmd => .tc.pending_cmd ?? ""
+        paths => .tc.escape_paths ?? []
+        pathList => JSON.stringify(.paths)
+    }
+    msg Msg {
+        GateApprove,
+        GateDeny,
+    }
+    on {
+        .GateApprove -> {
+            Http.post("/api/chats/tool-gate/" + (.tc.gate_id ?? "") + "/approve", {})
+        }
+        .GateDeny -> {
+            Http.post("/api/chats/tool-gate/" + (.tc.gate_id ?? "") + "/deny", {})
+        }
+    }
+    view {
+        col {
+            style: "w-full rounded-lg border border-amber-500/60 bg-amber-500/5 p-3 flex flex-col gap-2"
+            row {
+                style: "flex items-center gap-2"
+                text "⏸" { style: "text-sm" }
+                text "命令试图访问工作区之外的路径" { style: "text-sm font-medium text-foreground" }
+            }
+            if .cmd != "" {
+                div {
+                    style: "text-xs font-mono bg-muted/50 rounded px-2 py-1 break-all whitespace-pre-wrap"
+                    text .cmd
+                }
+            }
+            if .pathList != "" {
+                text .pathList { style: "text-xs text-muted-foreground break-all" }
+            }
+            row {
+                style: "flex items-center gap-2 mt-1"
+                button {
+                    onclick: .GateApprove
+                    style: "px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground border-none cursor-pointer"
+                    text "放行执行"
+                }
+                button {
+                    onclick: .GateDeny
+                    style: "px-3 py-1.5 text-xs rounded-md border border-border bg-transparent text-muted-foreground cursor-pointer hover:bg-accent"
+                    text "拒绝"
+                }
+            }
+        }
+    }
+}

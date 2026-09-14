@@ -15,6 +15,7 @@ use relay_run_box: RelayRunBox
 use task_plan_card: TaskPlanCard
 use generic_tool_card: GenericToolCard
 use report_card: ReportCard
+use tool_gate_card: ToolGateCard
 
 widget ToolBlock(tc: obj, tkey: str, open: bool, errands: obj, relays: obj, task_plans: obj) {
     computed {
@@ -27,7 +28,11 @@ widget ToolBlock(tc: obj, tkey: str, open: bool, errands: obj, relays: obj, task
 
         col {
             style: "tool-block-slot"
-            if .name == "dispatch" {
+            if .tc.status == "gate_waiting" {
+                ToolGateCard {
+                    tc: .tc
+                }
+            } else if .name == "dispatch" {
                 ErrandCard {
                     tc: .tc
                     errands: .errands

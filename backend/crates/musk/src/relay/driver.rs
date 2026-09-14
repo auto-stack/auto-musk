@@ -63,6 +63,7 @@ impl AgentFactory for MuskAgentFactory {
         };
         // Build agent with orchestration tool context (spawn_relay, dispatch).
         let tool_ctx = crate::tool_context::ToolContext {
+            approval_mode: None,
             state: self.state.clone(),
             workspace_id: self.workspace_id.clone(),
             parent_conversation_id: self.run_id.clone(),

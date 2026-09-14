@@ -165,6 +165,29 @@ pub fn is_within_project(path: &str) -> bool {
 /// / `~`）调 `resolve_within_project` 校验。**局限**：不解析引号
 /// （`"my dir"/x` 会被拆错），不覆盖 `$(...)`/反引号里的动态路径 ——
 /// 这些留待后续切 Ash shell（Design 004）时统一处理。
+/// PLAN-069 W3：收集命令中全部越界路径 token（confine_command_paths 的
+/// 收集变体——human 模式审批门需要完整越界清单做决策展示）。
+pub fn confine_offending_paths(cmd: &str) -> Vec<String> {
+    let mut offending: Vec<String> = Vec::new();
+    for token in cmd.split_whitespace() {
+        if token.starts_with('-') {
+            continue;
+        }
+        let looks_like_path = token.contains('/')
+            || token.contains('\\')
+            || token.contains("..")
+            || token.starts_with("./")
+            || token.starts_with('~');
+        if !looks_like_path {
+            continue;
+        }
+        if resolve_within_project(token).is_err() && !offending.contains(&token.to_string()) {
+            offending.push(token.to_string());
+        }
+    }
+    offending
+}
+
 pub fn confine_command_paths(cmd: &str) -> Result<(), String> {
     for token in cmd.split_whitespace() {
         if token.starts_with('-') { continue; }  // 跳过 flag（-x / --foo）

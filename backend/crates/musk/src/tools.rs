@@ -245,17 +245,26 @@ pub struct RunCommand {
     /// PLAN-040 T4:实时进度通道(chat = session_id / relay = run_id;
     /// None = 测试/CLI 无前端订阅)。
     progress: Option<crate::tool_context::ProgressSink>,
+    /// PLAN-069 W3:live 审批门会话 id(Some = human 模式,越界首触即挂门;
+    /// None = auto/无会话,维持硬拒 + 继续)。
+    gate_session: Option<String>,
 }
 
 impl RunCommand {
-    pub fn new() -> Self { Self { root: None, progress: None } }
-    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root), progress: None } }
+    pub fn new() -> Self { Self { root: None, progress: None, gate_session: None } }
+    pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self { Self { root: Some(root), progress: None, gate_session: None } }
+    /// PLAN-069 W3:human 会话的 live 门构造。
+    pub fn with_root_progress_gate(
+        root: std::sync::Arc<std::path::PathBuf>,
+        progress: Option<crate::tool_context::ProgressSink>,
+        gate_session: Option<String>,
+    ) -> Self { Self { root: Some(root), progress, gate_session } }
     /// PLAN-040 T4:workspace root + 前端进度通道。
     pub fn with_root_and_progress(
         root: std::sync::Arc<std::path::PathBuf>,
         progress: Option<crate::tool_context::ProgressSink>,
     ) -> Self {
-        Self { root: Some(root), progress }
+        Self { root: Some(root), progress, gate_session: None }
     }
     fn scope(&self) -> Option<&std::path::Path> { self.root.as_ref().map(|p| p.as_path()) }
 }
@@ -333,8 +342,48 @@ impl Tool for RunCommand {
 
         // PLAN-027 ③: run_command 也受 workspace path confinement（堵 cat/type
         // 白名单放行 + 不设 cwd 导致能绕过读 workspace 外文件的安全漏洞）。
-        crate::tool_safety::confine_command_paths(cmd)
-            .map_err(ToolError::Exec)?;
+        // PLAN-069 W3：human 会话 → 首个越界 token 触发 live 审批门（挂起等
+        // 决议）；approve → 放行执行（跳过 confinement）；deny/超时 → 拒绝
+        // 回灌模型。auto/无会话 → 维持硬拒 + 继续（现状）。
+        let offending = crate::tool_safety::confine_offending_paths(cmd);
+        let mut gate_approved = false;
+        if !offending.is_empty() {
+            if !force && self.gate_session.is_some() {
+                // PLAN-069 W3：human 会话 → 首触 live 门（挂起等决议）。
+                let gate_id = format!(
+                    "tg-{}",
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_nanos()
+                );
+                if let Some(sink) = &self.progress {
+                    sink.send_gate_waiting(&gate_id, "", "run_command", cmd, &offending);
+                }
+                let rx = crate::tool_gate::register(&gate_id);
+                let approved = match tokio::time::timeout(
+                    std::time::Duration::from_secs(1800),
+                    rx,
+                )
+                .await
+                {
+                    Ok(Ok(v)) => v,
+                    _ => false,
+                };
+                if !approved {
+                    return Err(ToolError::Exec(format!(
+                        "run_command path argument '{}': denied by user (outside workspace root)",
+                        offending.join(", ")
+                    )));
+                }
+                gate_approved = true;
+            } else {
+                // auto/force/无会话 → 维持 PLAN-027 ③ 硬拒（force 不豁免
+                // confinement，回归测试口径不变）。
+                crate::tool_safety::confine_command_paths(cmd).map_err(ToolError::Exec)?;
+            }
+        }
+        let _ = gate_approved;
         let root = self
             .scope()
             .map(|p| p.to_path_buf())

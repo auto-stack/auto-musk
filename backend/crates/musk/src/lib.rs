@@ -26,6 +26,8 @@ pub mod plan_tools;
 pub mod command_runner;
 pub mod output_accumulator;
 pub mod tool_context;
+pub mod tool_gate;
+pub mod tool_gate_routes;
 pub mod tool_safety;
 pub mod tool_test;
 pub mod tool_truncate;
@@ -300,12 +302,25 @@ pub fn build_agent_with_context(
                 agent.register_shared(tool.clone());
             }
         }
-        // PLAN-069 W1：七个文件工具已在 base 构建期按 ws_root 注入（见上），
-        // 仅 run_command 需在此覆盖注册以挂进度通道（with_root_and_progress）。
+        // PLAN-069 W1+W3：七个文件工具已在 base 构建期按 ws_root 注入（见上），
+        // 仅 run_command 需在此覆盖注册以挂进度通道与审批门（human 会话
+        // 越界首触暂停，W3）。
         let ws_root: std::sync::Arc<std::path::PathBuf> =
             std::sync::Arc::new(ctx.state.registry.get(&ctx.workspace_id).root.clone());
+        let gate_session = if ctx.approval_mode.as_deref() == Some("human") {
+            Some(ctx.parent_conversation_id.clone())
+        } else {
+            None
+        };
         let scoped_run_command: Vec<(&str, Arc<dyn auto_ai_agent::Tool>)> = vec![
-            ("run_command", Arc::new(crate::tools::RunCommand::with_root_and_progress(ws_root.clone(), ctx.progress.clone()))),
+            (
+                "run_command",
+                Arc::new(crate::tools::RunCommand::with_root_progress_gate(
+                    ws_root.clone(),
+                    ctx.progress.clone(),
+                    gate_session,
+                )),
+            ),
         ];
         for (name, tool) in &scoped_run_command {
             if mode.tools.is_empty() || mode.tools.iter().any(|t| t == name) {

@@ -483,6 +483,25 @@ store ForgeStore {
                 msg3.blocks.push({ kind: "tool", tc: msg3.tool_calls[lastIdx] })
                 return
             }
+            if ev.type == "tool_gate_waiting" {
+                // PLAN-069 W3：human 会话越界命令首触暂停——最后一个 running
+                // 工具块置 gate_waiting，携带 gate_id/命令/越界路径供卡片渲染。
+                let msgg = currentAssistantMsgIn(.messages)
+                if msgg != None {
+                    var i = msgg.tool_calls.length - 1
+                    while i >= 0 {
+                        if msgg.tool_calls[i].status == "running" {
+                            msgg.tool_calls[i].status = "gate_waiting"
+                            msgg.tool_calls[i].gate_id = ev.gate_id ?? ""
+                            msgg.tool_calls[i].pending_cmd = ev.cmd ?? ""
+                            msgg.tool_calls[i].escape_paths = ev.paths ?? []
+                            break
+                        }
+                        i = i - 1
+                    }
+                }
+                return
+            }
             if ev.type == "tool_result" {
                 let msg4 = currentAssistantMsgIn(.messages)
                 if msg4 != None {

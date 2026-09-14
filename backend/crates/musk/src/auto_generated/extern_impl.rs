@@ -1869,6 +1869,8 @@ pub async fn chat_run_stream(
             // PLAN-040 T5：工具进度挂 session_id（chat 场景的 run_id）——
             // 下方 bridge 任务把总线上的 ToolUpdate 桥接进本 SSE 流。
             progress: Some(crate::tool_context::ProgressSink::for_run(&session_id)),
+            // PLAN-069 W3：审批模式透传（human → run_command 越界首触挂门）。
+            approval_mode: Some(session.approval_mode.clone()),
         };
         let mut agent = match crate::build_agent_with_context(&agent_mode, client, Some(tool_ctx)) {
             Ok(a) => a,
@@ -2100,6 +2102,7 @@ pub async fn chat_run_stream(
                         // OnStreamEvent 据此把 Run 卡置 gate_waiting。
                         if ev.run_id == bridge_sid
                             && (ev.event_type == "tool_update"
+                                || ev.event_type == "tool_gate_waiting"
                                 || ev.event_type == "relay_gate_waiting")
                         {
                             mpsc_try_send(&tx_bridge, ev.payload);

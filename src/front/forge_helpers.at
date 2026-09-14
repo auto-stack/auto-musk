@@ -258,6 +258,46 @@ fn stripQuestionnaire(text str, streaming bool) str {
  * 持久化 tool 状态规范化为 completed/failed/running。
  */
 fn messageBlocks(msg obj) obj {
+    // PLAN-069 W2：后端持久化时间线块（{kind,text,tool:tc}）规范化为流式
+    // 展示形态（{kind,text}|{kind,tool,tc:{...}}，tkey/summary/tc 同合成
+    // 口径）；流式侧自产块（带 tc）原样透传。空数组 = 流式尚未产块 → 走
+    // legacy 合成。
+    if Array.isArray(msg.blocks) && msg.blocks.length > 0 {
+        var norm list = []
+        var tnorm = 0
+        for b in msg.blocks {
+            if b.kind == "tool" {
+                tnorm = tnorm + 1
+                var raw = b.tool ?? {}
+                var nstatus = "completed"
+                if raw.status == "error" || raw.status == "failed" {
+                    nstatus = "failed"
+                } else {
+                    if raw.status == "running" { nstatus = "running" }
+                }
+                norm.push({
+                    kind: "tool",
+                    tkey: (msg.id ?? "m") + "#t" + tnorm,
+                    summary: getToolSummary({
+                        name: raw.name,
+                        arguments: raw.arguments,
+                        result: raw.result
+                    }),
+                    tc: {
+                        name: raw.name,
+                        id: raw.id,
+                        arguments: raw.arguments,
+                        result: raw.result,
+                        details: raw.details,
+                        status: nstatus
+                    }
+                })
+            } else {
+                norm.push({ kind: "text", text: b.text ?? "" })
+            }
+        }
+        return norm
+    }
     if Array.isArray(msg.blocks) { return msg.blocks }
     var out list = []
     if msg.thinking != None { out.push({ kind: "thinking", text: msg.thinking }) }
@@ -307,6 +347,10 @@ fn messageBlocks(msg obj) obj {
 fn messageDisplayBlocks(msg obj, streaming bool) obj {
     var out list = []
     let tools list = []
+    // PLAN-069 W2：时间线源消息（msg.blocks 非空）**保序渲染**——叙述与
+    // 工具按执行序穿插，最终回答在最后工具之后（AC-03）。legacy 合成块
+    // 维持"文字/思考在前、工具在后"的既有分区口径。
+    let timeline bool = Array.isArray(msg.blocks) && msg.blocks.length > 0
     // PLAN-051 T8: 迭代源先 let 绑定再 for——直接以调用结果作 for-in 源在
     // VM 触发栈失衡(返回值错位,上游债登记),绑定局部变量即绕开。
     let src_blocks = messageBlocks(msg)
@@ -317,7 +361,11 @@ fn messageDisplayBlocks(msg obj, streaming bool) obj {
         } else if b.kind == "thinking" {
             out.push(b)
         } else {
-            tools.push(b)
+            if timeline {
+                out.push(b)
+            } else {
+                tools.push(b)
+            }
         }
     }
     // 展示顺序统一：文字/思考在前、工具块在后——与持久化重载的渲染口径
@@ -325,8 +373,10 @@ fn messageDisplayBlocks(msg obj, streaming bool) obj {
     // 窗口与说明顺序颠倒（刷新后又反过来）。分区对实时/重载同时生效。
     // tkey 已在 messageBlocks 字面量生成,此处直传(2026-09-03 去 SET_FIELD
     // 回填循环变量——回归嫌疑之一,沿待澄清③字面量重建口径)。
-    for t in tools {
-        out.push(t)
+    if !timeline {
+        for t in tools {
+            out.push(t)
+        }
     }
     return out
 }
