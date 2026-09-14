@@ -1,10 +1,11 @@
 ---
 plan_id: PLAN-069
-status: reviewed
+status: archived
+completion_kind: delivered
 feature_name: chat 运行沙箱绑定 + 助手消息时序块化 + 工具级人工审批门（会话 81b45c34 四问题综合改善）
 author: zhaop / zcode
 created_at: 2026-09-14T17:10:00+08:00
-updated_at: 2026-09-14T17:10:00+08:00
+updated_at: 2026-09-15T03:40:00+08:00
 plan_revision: 2
 current_step: 5
 total_steps: 5
@@ -371,6 +372,22 @@ hw 运行、chats.json 沉淀 ag 运行——"内容又不完全相同"）；Eve
   修复不触 src/front/.at 与 gen 面）。acceptance_results：AC-01..AC-09 全✓
   （AC-05/06 沿 r1 采信口径）。findings: 无未决。spec delta SD-01..SD-03 提案
   维持，文本于 merge 阶段备制并随 delivery 复核。next: merge。
+
+- 2026-09-15 merge（consolidation receipt，PLAN-069:r2，author zcode）：**delivered**。
+  `prepared`：reviewed 3d94726（复审 r2 pass）；delivery a93669d=reviewed 的文档
+  增量后代（72a73c1 为 main@92981cd 对账合并入分支——携入 068 已落地代码/规范，
+  合并后全量门复验：cargo lib 422 绿×3、vitest 36、auto build exit 0，产品实现
+  相对 reviewed 无改动）；规范增量 SD-01（modules/chat-run-policy.md 新增）、
+  SD-02（chat-streaming.md 契约 1 修正+4 F-04 收紧+6 块化组装）、SD-03
+  （01-architecture 工具门段/数据流注入式修正/三层 root 注记/Chats API 行）。
+  `landed`：main 92981cd → a93669d（fast-forward，72a73c1 证前 main 祖先）；
+  main 冒烟 cargo lib 422 绿（5.71s）。`ledger_refreshed`：docs/specs/index.json
+  spec_files += modules/chat-run-policy.md（a93669d，tracked 走 worktree 提交）。
+  `archived`：本文件移入 docs/plans/archived/，status: archived，
+  completion_kind: delivered。`cleaned`：wt-guard clean（737 个 pnpm junction
+  链接已按 guard 处方 cmd /c rmdir 逐链摘除，0 残留；rust-workspace/ 构建产物
+  已清）→ worktree remove + branch -d plan-069-dev + 组目录 rmdir（执行中，
+  收据下一条补记）。
 
 ## 10. 待澄清事项
 
