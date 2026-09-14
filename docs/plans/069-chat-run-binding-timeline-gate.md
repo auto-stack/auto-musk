@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-069
-status: execution_done
+status: executing
 feature_name: chat 运行沙箱绑定 + 助手消息时序块化 + 工具级人工审批门（会话 81b45c34 四问题综合改善）
 author: zhaop / zcode
 created_at: 2026-09-14T17:10:00+08:00
@@ -336,6 +336,29 @@ hw 运行、chats.json 沉淀 ag 运行——"内容又不完全相同"）；Eve
   blockers: 无 | next: review`。
   worktree `D:/autostack/.wt/musk-069/auto-musk`（base main@f685880）保留待复审/合回；
   :8081 验收 serve 已重启为新 exe，供用户实测（human 会话越界 → 门卡片 → 放行/拒绝）。
+- 2026-09-15 review r1（plan_revision 2，reviewer zcode，会话内复审——同会话限制
+  已声明，verdict 由代码/门复跑重建而非采纳执行者摘要）：**needs_fix**。
+  基线：reviewed_commit c9742a4（worktree musk-069 HEAD，base main@f685880）；
+  依赖：auto-lang 0.1.0+v0.4.2-685-g2b669a989-dirty（本地 toolchain，组内无依赖
+  worktree）；spec 输入：SD-01..SD-03 提案态（merge 阶段备制后随 delivery 复核）。
+  门复跑：cargo lib **415 passed / 1 FAILED / 1 ignored**（复跑 2 次确定性失败）；
+  vitest 36 绿（1 skipped 同前）；auto build 绿（vue-tsc+vite ✓ 18.8s，0 error）。
+  **F-05**（severity: high；命中 AC-09、T-06/F-03 证据修订）：
+  `server::tests::ag_chat_stream_persists_and_streams`（server.rs:2540，plan-019
+  时代测试）仍假定"订阅即运行"语义——F-03 后裸 SSE 订阅恒为附加/空闲流
+  （`chat_run_active` 只读窥探 false → 挂 relay_bus 等 done，绝不孵化），测试
+  等 done 10s 超时 `Elapsed(())`（server.rs:2578）确定性红。c9742a4/d602348 work
+  记录"416 lib 绿"在该代码上不可复现（实测 415+1F）。修复方向：测试改走运行
+  主体路径（chats_message run=true 同款：先 `chat_run_try_start` 取守卫再开流），
+  断言不变（delta/done/assistant 持久化）；F-03 负语义（裸订阅零字节零运行）
+  由 E2E v3 双订阅 0 字节记录覆盖，不加高脆弱定时负测试。
+  acceptance_results：AC-01✓（get_exact 严格解析+denial-root 注入 scope 单测
+  在库复跑绿）AC-02✓（同上+/api/run 400 记录）AC-03✓ AC-04✓ AC-07✓（blocks
+  投影顺序/legacy 兼容单测）AC-05✓ AC-06✓（E2E v3 记录采信：llm_alive 流式、
+  门 t=8s 首触暂停、approve 200 resolved、deny/0 字节双订阅；当前 provider
+  间歇停顿环境不重跑，e2e_v3.py 可重入）AC-08✓（legacy 渲染分支+vitest 36）
+  **AC-09✗（F-05）**。findings: F-05。next: work（修 F-05 后 r2 复审，
+  通过方可 merge）。
 
 ## 10. 待澄清事项
 
