@@ -365,6 +365,17 @@ main@f685880）。依赖兄弟（只读 detached）：auto-ai@9d2102c、auto-lan
   main 合并冲突面：server.rs/lib.rs 各一处相邻路由与 mod 声明，PLAN-069 已在
   plan-069-dev 含同类行，合并顺序无关、冲突平凡）。
 
+- 2026-09-14 merge 收据（PLAN-068:r1，author zcode）：`prepared`=ad15903 前置
+  （worktree 内 docs/specs 三件 + index 挂载 delivery commit）；`landed`=main FF 至
+  ad15903（含 d4cac2d/82c2bfe/73822ba/d2fde81 全部交付；main 冒烟：files_browser
+  6/6、vitest 36、auto build 绿、gen/App.vue 含 FilesView×2）；`ledger_refreshed`=
+  docs/specs/index.json 挂载 modules/files-browser.md（tracked view；runtime
+  specs.json 为 plan-chapter 投影无模块先例，维持现状不造条目）；`archived`=
+  docs/plans/archived/068-files-browser.md（status: archived，c2684c7）；
+  `cleaned`=wt-guard 三 worktree 全 clean，musk-068 组（auto-musk worktree +
+  plan-068-dev 分支 + auto-ai/auto-lang detached 兄弟 + 组目录）全数移除，
+  `git worktree list` 0 项。
+
 ## 10. 待澄清事项
 
 | # | 事项 | 当前缺省方向 | 状态 |
