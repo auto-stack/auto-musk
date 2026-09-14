@@ -60,6 +60,12 @@ impl AppState {
     pub fn chat_run_finish(&self, key: &str) {
         self.chat_runs.lock().unwrap().remove(key);
     }
+
+    /// PLAN-069 W3/F-03：只读窥探——运行在途判定（不移除守卫键）。
+    /// 订阅路径据此决定附加转发或空闲等待，**绝不孵化**。
+    pub fn chat_run_active(&self, key: &str) -> bool {
+        self.chat_runs.lock().unwrap().contains(key)
+    }
 }
 
 /// Run the HTTP server on the given address (default `127.0.0.1:8080`).

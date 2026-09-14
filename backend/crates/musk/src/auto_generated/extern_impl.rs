@@ -1719,6 +1719,44 @@ pub async fn chat_run_stream(
     // PLAN-055 ⑧(D1): per-session run 守卫键——显式 run 触发路径由 chats_message
     // 置位，本函数全部出口清除（SSE 订阅路径未置位，清除为 no-op）。
     let run_key = format!("{ws_id}:{session_id}");
+    // PLAN-069 T-06/F-03：守卫归运行核心所有。try_start 成功 = 本调用是运行
+    // 主体（chats_message run=true / VM 触发）；失败 = 已有运行在途 → 本调用
+    // 退化为**附加订阅**：转发总线事件直至 done，绝不二次孵化（F-03 实证：
+    // 每次 SSE 附加都无守卫孵化一轮，4 连跑根源）。
+    // F-03 修正：不可用 try_start 判附加（订阅抢到守卫 = 变成运行主体、
+    // 跑最后一条用户消息——4 连跑实证）。改用只读窥探 chat_run_active：
+    // 在途 → 附加转发；不在途 → 空闲流（EventSource 挂着等下一次运行）。
+    let run_owner = s.0.chat_run_active(&run_key);
+    if !run_owner {
+        let sid2 = session_id.clone();
+        let mut attach_rx = crate::relay::api::relay_bus().subscribe();
+        loop {
+            match attach_rx.recv().await {
+                Ok(ev) => {
+                    if ev.run_id != sid2 {
+                        continue;
+                    }
+                    let ty = ev.event_type.as_str();
+                    if ty != "chat_event"
+                        && ty != "tool_update"
+                        && ty != "tool_gate_waiting"
+                        && ty != "relay_gate_waiting"
+                    {
+                        continue;
+                    }
+                    let is_done = ty == "chat_event"
+                        && ev.payload.get("type").and_then(|t| t.as_str()) == Some("done");
+                    mpsc_try_send(&tx, ev.payload);
+                    if is_done {
+                        break;
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(_) => break,
+            }
+        }
+        return;
+    }
     let session = match ws.chats.get(&session_id) {
         Some(sess) => sess,
         None => {
