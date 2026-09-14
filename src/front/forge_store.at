@@ -377,6 +377,13 @@ store ForgeStore {
             if wins.length == 0 { return }
             let started = wins[wins.length - 1]
             if Date.now() - started > 120000 { return }
+            // PLAN-069 F-04：流式期（web 轨 SSE 已附加）**绝不全量回填**——
+            // 回填快照不含在途 assistant，LLM 长思考/迭代间隙超过 3 秒健康
+            // 门就放开，回填反复清掉已上屏的直播内容（用户实测：每轮边界
+            // "删掉重显"）。直播期 SSE 是唯一实时源；done 臂落 .streaming=
+            // false 后回填恢复兜底语义。VM 轨 Sse.open no-op（stream_es 为
+            // None）不受影响，轮询仍是其直播机制。
+            if .streaming == true && .stream_es != None { return }
             // PLAN-067 T-02：SSE 健康门——3 秒内有流事件就不回填。运行中
             // 服务端快照不含未完成 assistant（完成后才持久化）,回填会反复
             // 清掉 SSE 已上屏的流式内容;且回填不推进 active_leaf,叶链投影
