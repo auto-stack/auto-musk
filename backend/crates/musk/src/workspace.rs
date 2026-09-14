@@ -23,6 +23,11 @@ pub struct WorkspaceMeta {
     /// frontend shows the new-project onboarding dialog.
     #[serde(default)]
     pub is_empty: bool,
+    /// PLAN-070 T-01：工作区目录白名单（额外授权根，canonical 绝对路径）。
+    /// 工具沙箱判定按 [workspace 根, *extra_roots] 多根放行；只能经 UI/API 由
+    /// 用户显式增删（模型/工具无写路径），随 workspaces.json 持久化。
+    #[serde(default)]
+    pub extra_roots: Vec<String>,
 }
 
 /// The on-disk index file at ~/.config/autoos/workspaces.json.
@@ -184,6 +189,7 @@ impl WorkspaceRegistry {
                 name: id,
                 last_opened: now_secs(),
                 is_empty: is_workspace_empty(&canonical),
+                extra_roots: Vec::new(),
             };
             let seeded = WorkspaceIndex {
                 default_workspace_id: Some(meta.id.clone()),
@@ -325,6 +331,7 @@ impl WorkspaceRegistry {
                 name: base_id,
                 last_opened: now_secs(),
                 is_empty: empty,
+                extra_roots: Vec::new(),
             };
             idx.workspaces.push(meta.clone());
             if idx.default_workspace_id.is_none() {
@@ -399,6 +406,134 @@ impl WorkspaceRegistry {
         drop(idx);
         self.save();
         Some(out)
+    }
+
+    // ── PLAN-070 T-01：工作区目录白名单（额外授权根）──────────────────
+
+    /// 白名单路径等值判定。Windows 文件系统大小写不敏感 → 忽略大小写；
+    /// 其他平台精确比较（canonicalize 已返回规范大小写）。
+    fn roots_eq(a: &str, b: &str) -> bool {
+        #[cfg(windows)]
+        {
+            a.eq_ignore_ascii_case(b)
+        }
+        #[cfg(not(windows))]
+        {
+            a == b
+        }
+    }
+
+    /// 校验并 canonical 化一个白名单候选目录：必须存在且为目录；canonicalize
+    /// 统一 `\\?\` 前缀形态（防伪：判定与存储两侧同形态）；命中危险目录
+    /// 黑名单 → Err。v1 黑名单口径（待澄清②）：任意驱动器根、Windows/程序
+    /// 目录/ProgramData/Users 前缀、用户主目录本身。
+    fn canonical_extra_root(root: &str) -> Result<String, String> {
+        let trimmed = root.trim();
+        if trimmed.is_empty() {
+            return Err("路径为空".into());
+        }
+        let p = PathBuf::from(trimmed);
+        if !p.exists() {
+            return Err(format!("目录不存在: {trimmed}"));
+        }
+        if !p.is_dir() {
+            return Err(format!("不是目录: {trimmed}（白名单粒度为目录）"));
+        }
+        let canonical = std::fs::canonicalize(&p)
+            .map_err(|e| format!("无法解析路径 {trimmed}: {e}"))?;
+        // 任意驱动器根本身（C:\ —— parent() 返回 None）。
+        if canonical.parent().is_none() {
+            return Err(format!(
+                "拒绝添加驱动器根目录: {}",
+                canonical.display()
+            ));
+        }
+        let raw = canonical.to_string_lossy().replace('/', "\\");
+        // 剥掉 canonicalize 的 `\\?\` 前缀再做前缀/等值匹配（两侧同形态）。
+        let norm = raw
+            .strip_prefix("\\\\?\\")
+            .unwrap_or(&raw)
+            .to_ascii_lowercase();
+        // 子树整体危险（系统/程序目录）——前缀拒绝。
+        const DENY_PREFIX: &[&str] = &[
+            "c:\\windows",
+            "c:\\program files",
+            "c:\\program files (x86)",
+            "c:\\programdata",
+        ];
+        // 根本身危险（等值拒绝；更深层子目录是合法的定向授权）。
+        const DENY_EQUAL: &[&str] = &["c:\\users"];
+        for d in DENY_PREFIX {
+            if norm == *d || norm.starts_with(&format!("{d}\\")) {
+                return Err(format!("拒绝添加系统目录: {d}（子树整体受保护）"));
+            }
+        }
+        for d in DENY_EQUAL {
+            if norm == *d {
+                return Err(format!("拒绝添加目录: {d}（根本身；子目录可单独授权）"));
+            }
+        }
+        // 用户主目录本身（任意盘）——等值拒绝。
+        if let Some(home) = dirs::home_dir() {
+            let h = home.to_string_lossy().replace('/', "\\");
+            let h = h.strip_prefix("\\\\?\\").unwrap_or(&h);
+            let h = h.trim_end_matches('\\').to_ascii_lowercase();
+            if norm == h {
+                return Err("拒绝添加用户主目录本身".into());
+            }
+        }
+        Ok(canonical.to_string_lossy().to_string())
+    }
+
+    /// PLAN-070 T-01：新增白名单目录。canonical 化 + 黑名单校验 + 去重；
+    /// 返回更新后的完整白名单（canonical 形态）。未知 workspace → Err。
+    pub fn add_extra_root(&self, ws_id: &str, root: &str) -> Result<Vec<String>, String> {
+        let canonical = Self::canonical_extra_root(root)?;
+        let mut idx = self.index.write().unwrap();
+        let meta = idx
+            .workspaces
+            .iter_mut()
+            .find(|m| m.id == ws_id)
+            .ok_or_else(|| format!("unknown workspace '{ws_id}'"))?;
+        if !meta.extra_roots.iter().any(|r| Self::roots_eq(r, &canonical)) {
+            meta.extra_roots.push(canonical);
+        }
+        let out = meta.extra_roots.clone();
+        drop(idx);
+        self.save();
+        Ok(out)
+    }
+
+    /// PLAN-070 T-01：移除白名单目录（输入先经同样的 canonical 化，保证与
+    /// 存储形态一致；workspace 根不在白名单内、不可移除）。未命中 → Err。
+    pub fn remove_extra_root(&self, ws_id: &str, root: &str) -> Result<Vec<String>, String> {
+        let canonical = Self::canonical_extra_root(root)?;
+        let mut idx = self.index.write().unwrap();
+        let meta = idx
+            .workspaces
+            .iter_mut()
+            .find(|m| m.id == ws_id)
+            .ok_or_else(|| format!("unknown workspace '{ws_id}'"))?;
+        let before = meta.extra_roots.len();
+        meta.extra_roots.retain(|r| !Self::roots_eq(r, &canonical));
+        if meta.extra_roots.len() == before {
+            return Err(format!("白名单中不存在该目录: {root}"));
+        }
+        let out = meta.extra_roots.clone();
+        drop(idx);
+        self.save();
+        Ok(out)
+    }
+
+    /// PLAN-070 T-01：读取当前白名单（canonical 字符串；未知 workspace → 空）。
+    /// 运行入口每次构造工具前调用——增删对**后续运行**即时生效。
+    pub fn extra_roots(&self, ws_id: &str) -> Vec<String> {
+        let idx = self.index.read().unwrap();
+        idx.workspaces
+            .iter()
+            .find(|m| m.id == ws_id)
+            .map(|m| m.extra_roots.clone())
+            .unwrap_or_default()
     }
 }
 
@@ -487,6 +622,84 @@ async fn workspace_pick() -> Json<serde_json::Value> {
 /// workspace 扩展路由(原生文件夹选择)。
 pub fn pick_routes() -> Router<AppState> {
     Router::new().route("/api/workspace/pick", post(workspace_pick))
+}
+
+// ============================================================
+// PLAN-070 T-01：工作区目录白名单 API（hw 路由，auth 保护区同 pick_routes）。
+//   GET  /api/workspace/roots?workspace={id}   → {"roots":[...]}
+//   POST /api/workspace/roots/add    {workspace, root} → {"roots":[...]}
+//   POST /api/workspace/roots/remove {workspace, root} → {"roots":[...]}
+// 白名单只能由用户经本 API 显式维护（模型/工具无写路径）；非法/未知
+// workspace、黑名单/不存在目录 → 400 + 文案。
+// ============================================================
+
+use axum::extract::{Query as AxumQuery, State as AxumState};
+use axum::http::StatusCode;
+
+fn roots_bad(msg: String) -> (StatusCode, Json<serde_json::Value>) {
+    (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": msg })))
+}
+
+async fn workspace_roots_get(
+    AxumState(state): AxumState<AppState>,
+    AxumQuery(q): AxumQuery<WorkspaceQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let Some(id) = q.workspace.filter(|w| !w.is_empty()) else {
+        return Err(roots_bad("missing workspace id".into()));
+    };
+    // 严格解析：未知 workspace → 400（管理面不做 default 回退）。
+    if state.registry.get_exact(&id).is_none() {
+        return Err(roots_bad(format!("unknown workspace '{id}'")));
+    }
+    Ok(Json(serde_json::json!({ "roots": state.registry.extra_roots(&id) })))
+}
+
+async fn workspace_roots_add(
+    AxumState(state): AxumState<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let Some(id) = body["workspace"].as_str().filter(|w| !w.is_empty()) else {
+        return Err(roots_bad("missing workspace id".into()));
+    };
+    let Some(root) = body["root"].as_str() else {
+        return Err(roots_bad("missing root".into()));
+    };
+    let roots = state
+        .registry
+        .add_extra_root(id, root)
+        .map_err(roots_bad)?;
+    Ok(Json(serde_json::json!({ "roots": roots })))
+}
+
+async fn workspace_roots_remove(
+    AxumState(state): AxumState<AppState>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let Some(id) = body["workspace"].as_str().filter(|w| !w.is_empty()) else {
+        return Err(roots_bad("missing workspace id".into()));
+    };
+    let Some(root) = body["root"].as_str() else {
+        return Err(roots_bad("missing root".into()));
+    };
+    let roots = state
+        .registry
+        .remove_extra_root(id, root)
+        .map_err(roots_bad)?;
+    Ok(Json(serde_json::json!({ "roots": roots })))
+}
+
+/// PLAN-070 T-01：白名单维护路由（与 pick_routes 同挂载点/同保护区）。
+pub fn whitelist_routes() -> Router<AppState> {
+    Router::new()
+        .route(
+            "/api/workspace/roots",
+            axum::routing::get(workspace_roots_get),
+        )
+        .route("/api/workspace/roots/add", post(workspace_roots_add))
+        .route(
+            "/api/workspace/roots/remove",
+            post(workspace_roots_remove),
+        )
 }
 
 #[cfg(test)]
@@ -708,5 +921,117 @@ mod tests {
         assert!(reg.get_exact(&id).is_some(), "exact id resolves");
         assert!(reg.get_exact("").is_none(), "empty id rejected");
         assert!(reg.get_exact("no-such-ws").is_none(), "unknown id rejected");
+    }
+
+    // ── PLAN-070 T-01：白名单持久层 ─────────────────────────────────
+
+    /// PLAN-070 AC-06：多工作区白名单互相隔离。
+    #[test]
+    fn extra_roots_are_per_workspace() {
+        let dir = tmp_dir();
+        let reg = WorkspaceRegistry::load(dir.join("workspaces.json"), dir.clone());
+        let a = reg.open(dir.join("ws-a").to_str().unwrap());
+        let b = reg.open(dir.join("ws-b").to_str().unwrap());
+        // 两个真实存在的候选目录。
+        let ra = dir.join("roots-a");
+        let rb = dir.join("roots-b");
+        std::fs::create_dir_all(&ra).unwrap();
+        std::fs::create_dir_all(&rb).unwrap();
+        let la = reg.add_extra_root(&a.id, ra.to_str().unwrap()).unwrap();
+        let lb = reg.add_extra_root(&b.id, rb.to_str().unwrap()).unwrap();
+        assert_eq!(la.len(), 1);
+        assert_eq!(lb.len(), 1);
+        assert_ne!(
+            std::fs::canonicalize(&ra).unwrap().to_string_lossy(),
+            std::fs::canonicalize(&rb).unwrap().to_string_lossy()
+        );
+        assert!(reg.extra_roots(&a.id)[0].contains("roots-a"));
+        assert!(reg.extra_roots(&b.id)[0].contains("roots-b"));
+        assert_eq!(reg.extra_roots(&a.id).len(), 1, "workspace b's roots must not leak into a");
+        // 未知 workspace → 空（peek）。
+        assert!(reg.extra_roots("no-such").is_empty());
+    }
+
+    /// PLAN-070 AC-01/AC-04：添加/移除往返 + 去重 + 跨 load 持久化。
+    #[test]
+    fn extra_roots_roundtrip_dedupe_and_persist() {
+        let dir = std::env::temp_dir().join(format!(
+            "musk-ws-roots-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let index_path = dir.join("workspaces.json");
+        let reg = WorkspaceRegistry::load(index_path.clone(), dir.clone());
+        let meta = reg.open(dir.join("ws-persist").to_str().unwrap());
+        let r = dir.join("extra");
+        std::fs::create_dir_all(&r).unwrap();
+        let canonical = std::fs::canonicalize(&r).unwrap().to_string_lossy().to_string();
+        let l1 = reg.add_extra_root(&meta.id, r.to_str().unwrap()).unwrap();
+        assert_eq!(l1, vec![canonical.clone()], "stored canonical form");
+        // 去重：同目录（不同大小写路径输入）再次添加 → 不重复。
+        #[cfg(windows)]
+        let dup_input = r.to_string_lossy().to_uppercase();
+        #[cfg(not(windows))]
+        let dup_input = r.to_string_lossy().to_string();
+        let l2 = reg.add_extra_root(&meta.id, &dup_input).unwrap();
+        assert_eq!(l2.len(), 1, "duplicate add must dedupe");
+        // 移除 → 空；再移除 → Err。
+        let l3 = reg.remove_extra_root(&meta.id, &canonical).unwrap();
+        assert!(l3.is_empty());
+        assert!(reg.remove_extra_root(&meta.id, &canonical).is_err());
+        // 持久化：重新 load 后白名单仍在（先加回一条）。
+        reg.add_extra_root(&meta.id, r.to_str().unwrap()).unwrap();
+        let reg2 = WorkspaceRegistry::load(index_path, dir.clone());
+        assert_eq!(
+            reg2.extra_roots(&meta.id),
+            vec![canonical],
+            "extra_roots must survive registry reload"
+        );
+    }
+
+    /// PLAN-070 AC-07：非法输入（驱动器根/系统目录/不存在/文件/空）被拒。
+    #[test]
+    fn extra_root_rejects_invalid_and_denied_paths() {
+        let dir = tmp_dir();
+        let reg = WorkspaceRegistry::load(dir.join("workspaces.json"), dir.clone());
+        let meta = reg.open(dir.join("ws-deny").to_str().unwrap());
+        // 空串。
+        assert!(reg.add_extra_root(&meta.id, "").is_err(), "empty rejected");
+        // 不存在路径。
+        assert!(
+            reg.add_extra_root(&meta.id, dir.join("no-such-dir").to_str().unwrap()).is_err(),
+            "nonexistent rejected"
+        );
+        // 文件（非目录）。
+        let f = dir.join("plain.txt");
+        std::fs::write(&f, "x").unwrap();
+        assert!(reg.add_extra_root(&meta.id, f.to_str().unwrap()).is_err(), "file rejected");
+        // 驱动器根（Windows C:\；Linux /）。
+        let drive_root = if cfg!(windows) { "C:\\" } else { "/" };
+        assert!(reg.add_extra_root(&meta.id, drive_root).is_err(), "drive root rejected");
+        // 系统目录前缀（Windows C:\Windows；Linux /usr）。
+        #[cfg(windows)]
+        assert!(reg.add_extra_root(&meta.id, "C:\\Windows").is_err(), "system dir rejected");
+        // 用户主目录本身（等值拒绝；其子目录允许）。
+        #[cfg(windows)]
+        if let Some(home) = dirs::home_dir() {
+            assert!(
+                reg.add_extra_root(&meta.id, home.to_str().unwrap()).is_err(),
+                "home root rejected"
+            );
+        }
+        // 未知 workspace。
+        let ok_dir = dir.join("ok-dir");
+        std::fs::create_dir_all(&ok_dir).unwrap();
+        assert!(
+            reg.add_extra_root("no-such-ws", ok_dir.to_str().unwrap()).is_err(),
+            "unknown workspace rejected"
+        );
+        // 合法目录正常入库（黑名单不误伤普通目录）。
+        let added = reg.add_extra_root(&meta.id, ok_dir.to_str().unwrap()).unwrap();
+        assert_eq!(added.len(), 1);
     }
 }

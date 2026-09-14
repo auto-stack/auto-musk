@@ -197,6 +197,10 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         // cannot obtain the picked dir's absolute path, so the local serve
         // process opens the OS dialog (rfd) and returns the path.
         .merge(crate::workspace::pick_routes())
+        // Workspace directory whitelist (PLAN-070) — hw route: user-managed
+        // extra sandbox roots (GET / add / remove); tools treat them as
+        // equivalent to the workspace root.
+        .merge(crate::workspace::whitelist_routes())
         // Dev/demo run seeding (block-demo 展示) — hw route: inject a fully
         // formed RunEntry into the in-memory relay store (runs never persist).
         .merge(crate::dev_seed::dev_routes())
