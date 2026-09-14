@@ -242,50 +242,50 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
                                     }
                                 }
                             }
-                            // PLAN-067 T-05: 审批模式 dropdown（思考档位右侧,
-                            // 同款开合/选中勾口径;human=人工[缺省],auto=自动）。
-                            div {
-                                style: "relative"
-                                button {
-                                    onclick: .ToggleApprovalMenu
-                                    disabled: .disabled
-                                    title: i18n.t("chat.approvalMode")
-                                    class: if .approvalOpen {
-                                        "flex items-center gap-1 h-8 px-2 rounded-md text-[13px] border-none bg-accent text-foreground cursor-pointer"
-                                    } else {
-                                        "flex items-center gap-1 h-8 px-2 rounded-md text-[13px] border-none bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-                                    }
-                                    text .approvalLabel
-                                    ChevronDown { size: 13 }
+                        }
+                        // PLAN-067 T-05: 审批模式 dropdown（思考档位右侧,
+                        // 同款开合/选中勾口径;human=人工[缺省],auto=自动）。
+                        div {
+                            style: "relative"
+                            button {
+                                onclick: .ToggleApprovalMenu
+                                disabled: .disabled
+                                title: i18n.t("chat.approvalMode")
+                                class: if .approvalOpen {
+                                    "flex items-center gap-1 h-8 px-2 rounded-md text-[13px] border-none bg-accent text-foreground cursor-pointer"
+                                } else {
+                                    "flex items-center gap-1 h-8 px-2 rounded-md text-[13px] border-none bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
                                 }
-                                if .approvalOpen {
-                                    div {
-                                        style: "absolute bottom-full left-0 mb-2 min-w-[120px] bg-card border border-border rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-1 z-50 flex flex-col"
-                                        button {
-                                            onclick: .pick_approval("human")
-                                            disabled: .disabled
-                                            class: if .approvalMode != "auto" {
-                                                "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-[13px] text-left cursor-pointer"
-                                            } else {
-                                                "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-transparent text-foreground text-[13px] text-left cursor-pointer hover:bg-primary/10"
-                                            }
-                                            text i18n.t("chat.approvalHuman")
-                                            if .approvalMode != "auto" {
-                                                Check { size: 14 }
-                                            }
+                                text .approvalLabel
+                                ChevronDown { size: 13 }
+                            }
+                            if .approvalOpen {
+                                div {
+                                    style: "absolute bottom-full left-0 mb-2 min-w-[120px] bg-card border border-border rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-1 z-50 flex flex-col"
+                                    button {
+                                        onclick: .pick_approval("human")
+                                        disabled: .disabled
+                                        class: if .approvalMode != "auto" {
+                                            "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-[13px] text-left cursor-pointer"
+                                        } else {
+                                            "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-transparent text-foreground text-[13px] text-left cursor-pointer hover:bg-primary/10"
                                         }
-                                        button {
-                                            onclick: .pick_approval("auto")
-                                            disabled: .disabled
-                                            class: if .approvalMode == "auto" {
-                                                "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-[13px] text-left cursor-pointer"
-                                            } else {
-                                                "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-transparent text-foreground text-[13px] text-left cursor-pointer hover:bg-primary/10"
-                                            }
-                                            text i18n.t("chat.approvalAuto")
-                                            if .approvalMode == "auto" {
-                                                Check { size: 14 }
-                                            }
+                                        text i18n.t("chat.approvalHuman")
+                                        if .approvalMode != "auto" {
+                                            Check { size: 14 }
+                                        }
+                                    }
+                                    button {
+                                        onclick: .pick_approval("auto")
+                                        disabled: .disabled
+                                        class: if .approvalMode == "auto" {
+                                            "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-[13px] text-left cursor-pointer"
+                                        } else {
+                                            "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-transparent text-foreground text-[13px] text-left cursor-pointer hover:bg-primary/10"
+                                        }
+                                        text i18n.t("chat.approvalAuto")
+                                        if .approvalMode == "auto" {
+                                            Check { size: 14 }
                                         }
                                     }
                                 }
