@@ -1888,6 +1888,17 @@ pub async fn chat_run_stream(
 
         // Accumulate the streamed text + thinking + tool calls to persist on completion.
         let accumulated = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+        // PLAN-069 T-06：事件双发总线——订阅者（hw chat_stream SSE）按
+        // run_id==session_id 过滤接收；任意数量订阅者、断线重连只附加不重跑。
+        let bus_sid = session_id.clone();
+        let bus_sid2 = bus_sid.clone();
+        let emit_bus = move |v: &serde_json::Value| {
+            let _ = crate::relay::api::relay_bus().send(crate::relay::api::BusEvent {
+                run_id: bus_sid2.clone(),
+                event_type: "chat_event".into(),
+                payload: v.clone(),
+            });
+        };
         let thinking_acc = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
         let tool_calls: std::sync::Arc<std::sync::Mutex<Vec<crate::chats::ToolCall>>> =
             std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));

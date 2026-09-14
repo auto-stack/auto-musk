@@ -704,107 +704,20 @@ async fn chat_stream(
         }),
     };
     tokio::spawn(async move {
-        // PLAN-069 W1：root 注入由 build_agent_with_context 完成（thread-local 退役）。
-        // Build agent with orchestration tool context (spawn_relay, dispatch).
-        let tool_ctx = crate::tool_context::ToolContext {
-            state: state_for_ctx.clone(),
-            workspace_id: ws_id_for_ctx.clone(),
-            parent_conversation_id: session_id.clone(),
-            progress: Some(crate::tool_context::ProgressSink::for_run(&session_id)),
-            approval_mode: Some(session_approval.clone()),
-        };
-        let mut agent = match crate::build_agent_with_context(&agent_mode, client, Some(tool_ctx)) {
-            Ok(a) => a,
-            Err(e) => {
-                let _ = tx.try_send(json!({"type": "error", "message": format!("build agent: {e}")}));
-                return;
-            }
-        };
-        // Pre-load the conversation history so the agent has context.
-        agent = agent.with_history(history_for_agent);
-        // PLAN-064: 会话思考档位 → agent override（None = 跟随 role 默认）。
-        agent.set_thinking_level_override(session_thinking.clone());
-
-        // Accumulate the streamed text + thinking + tool calls to persist on completion.
-        let accumulated = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
-        let thinking_acc = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
-        let tool_calls: std::sync::Arc<std::sync::Mutex<Vec<crate::chats::ToolCall>>> =
-            std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-        // tx is moved into the on_event closure; keep a clone for the error path.
-        let tx_err = tx.clone();
-        let acc2 = accumulated.clone();
-        let think2 = thinking_acc.clone();
-        let tc2 = tool_calls.clone();
-        // Tool-call id pairing: ToolStart has no shared id with Tool, so we hand
-        // out a sequential id on ToolStart and re-use it for the matching Tool.
-        // Start/result are strictly nested (a tool always finishes before the
-        // next begins in the current agent loop), so a simple stack suffices.
-        let tc_counter = std::sync::Arc::new(std::sync::Mutex::new(0usize));
-        let tc_stack: std::sync::Arc<std::sync::Mutex<Vec<String>>> =
-            std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-        let on_event: Arc<dyn Fn(auto_ai_agent::StreamEvent) + Send + Sync> =
-            Arc::new(move |ev| {
-                // Assign / reuse an id for tool start/result pairing.
-                use auto_ai_agent::StreamEvent;
-                let id = match &ev {
-                    StreamEvent::ToolStart { .. } => {
-                        let n = { let mut c = tc_counter.lock().unwrap(); *c += 1; *c };
-                        let id = format!("tc-{n}");
-                        tc_stack.lock().unwrap().push(id.clone());
-                        Some(id)
+        // PLAN-069 T-06：本端点**只订阅、不孵化**——运行由 chats_message
+        // (run=true) 显式触发（ag chat_run_stream，事件经 relay_bus 广播，
+        // run_id=session_id）。EventSource 重连只会重新附加到在途运行的
+        // 事件流，不会再把最后一条用户消息重跑一遍（探针实证 8 连跑根除）。
+        let mut bridge_rx = crate::relay::api::relay_bus().subscribe();
+        loop {
+            match bridge_rx.recv().await {
+                Ok(ev) => {
+                    if ev.run_id == session_id {
+                        let _ = tx.try_send(ev.payload);
                     }
-                    StreamEvent::Tool { .. } => tc_stack.lock().unwrap().pop(),
-                    _ => None,
-                };
-                let value = stream_event_to_json(&ev, id.as_deref());
-                // capture for persistence
-                if let Some(text) = value.get("text").and_then(|t| t.as_str()) {
-                    acc2.lock().unwrap().push_str(text);
                 }
-                if let Some(text) = value.get("thinking").and_then(|t| t.as_str()) {
-                    think2.lock().unwrap().push_str(text);
-                }
-                if value.get("type").and_then(|t| t.as_str()) == Some("tool_result") {
-                    let tool = value.get("name").and_then(|t| t.as_str()).unwrap_or("").to_string();
-                    let args = value.get("arguments").cloned().unwrap_or(json!(null));
-                    let result = value.get("result").and_then(|t| t.as_str()).unwrap_or("").to_string();
-                    // 与 SSE 同源取真 status（PLAN-065 T1 回放一致性）：
-                    // 持久化与流式两轨对同一事件判定一致。
-                    let status = value.get("status").and_then(|t| t.as_str()).unwrap_or("success").to_string();
-                    tc2.lock().unwrap().push(crate::chats::ToolCall {
-                        tool, args, result,
-                        status,
-                        id: id.unwrap_or_default(),
-                    });
-                }
-                let _ = tx.try_send(value);
-            });
-        // No cancellation endpoint yet — the run flag is never set.
-        let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        match agent.run_stream(&user_msg, on_event, cancel).await {
-            Ok(_) => {
-                // Persist the assistant reply + thinking + tool calls.
-                let text = std::mem::take(&mut *accumulated.lock().unwrap());
-                let thinking = std::mem::take(&mut *thinking_acc.lock().unwrap());
-                let tcs = std::mem::take(&mut *tool_calls.lock().unwrap());
-                let mut msg = crate::chats::ChatMessage::assistant(text);
-                msg.thinking = thinking;
-                msg.tool_calls = tcs;
-                let _ = chats.append_message(&session_id, msg.clone());
-                // Dual-write: mirror the assistant message (+ tool calls) into
-                // the conversation as turns.
-                let seq_base = conversations
-                    .get(&session_id)
-                    .map(|c| c.turns.len())
-                    .unwrap_or(0);
-                for turn in
-                    crate::conversation::chat_message_to_turns(&msg, seq_base)
-                {
-                    let _ = conversations.append_turn(&session_id, turn);
-                }
-            }
-            Err(e) => {
-                let _ = tx_err.try_send(json!({"type": "error", "message": format!("{e}")}));
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(_) => break,
             }
         }
     });
