@@ -1,0 +1,104 @@
+// files_view.at — 文件浏览器视图（PLAN-068）。
+//
+// 左 FileTree（workspace 根，PLAN-614 移植组件）+ 右分类型查看器。
+// 模式同源：RawPreview（分型预览）/ SpecsView（树消费 + t() 惯用法）。
+// markdown/代码经 autodown 管线渲染（files_store.active_markdown 单一真源）；
+// 视频以 html: 兜底内嵌（.at 无原生 video 映射，raw iframe 同款逃生舱）。
+
+use store: FilesStore
+use filetree: FileTree
+use.web component MarkdownRender from "src/front/ports/renderer.at"
+use.web component FileIcon from "src/front/ports/icons.at"
+use.web loadFilesFileText from "src/front/ports/files.at"
+use.web useT from "src/front/ports/composables.at"
+
+widget FilesView {
+
+    setup {
+        let t = useT()
+    }
+
+    msg Msg {
+        Init,
+        Pick(str),
+    }
+
+    on {
+        // vue 轨挂载期 Init 派发；App.ShowFiles 兜底重拉（VM 轨 Init 不
+        // 派发——PLAN-048 T5 口径，App 级代驱）。
+        .Init -> {
+            if .store.file_loaded != true {
+                FilesStore.LoadTree()
+            }
+        }
+
+        .Pick(path) -> {
+            FilesStore.SelectFile(path);
+            // 文本类经 .text() 异步加载（视图侧 use.web——store 不消费
+            // use.web.fn；api.at 绑定 json() 对文本必炸）。
+            if .store.active_kind == "code" || .store.active_kind == "markdown" {
+                try {
+                    let content = loadFilesFileText(path).await
+                    FilesStore.SetContent(content)
+                } catch (e) {
+                    FilesStore.SetLoadFailed()
+                }
+            }
+        }
+    }
+
+    view {
+        row (style: "h-full w-full min-h-0") {
+            // 二级导航：文件树栏
+            aside (style: "w-72 shrink-0 border-r border-border overflow-auto p-2") {
+                if .store.file_truncated {
+                    div (style: "text-xs text-amber-500 mb-2 px-2") {
+                        text t("files.truncated")
+                    }
+                }
+                if .store.file_loaded {
+                    if .store.file_tree.len() == 0 {
+                        div (style: "text-sm text-muted-foreground p-4") {
+                            text t("files.emptyTree")
+                        }
+                    } else {
+                        FileTree (nodes: .store.file_tree, onselect: .Pick($event))
+                    }
+                }
+            }
+            // 内容面板
+            main (style: "flex-1 min-w-0 overflow-auto p-4") {
+                if .store.active_path == "" {
+                    div (style: "h-full flex flex-col items-center justify-center gap-2 text-muted-foreground") {
+                        FileIcon { size: 28 }
+                        text t("files.selectHint") { style: "text-sm" }
+                    }
+                } else {
+                    if .store.active_loading {
+                        div (style: "text-sm text-muted-foreground p-4") {
+                            text t("files.loading")
+                        }
+                    } else {
+                        if .store.active_failed {
+                        div (style: "h-full flex flex-col items-center justify-center gap-2 text-muted-foreground") {
+                            FileIcon { size: 28 }
+                            text t("files.loadFailed") { style: "text-sm" }
+                        }
+                    } else if .store.active_kind == "image" {
+                            img { src: .store.active_url, style: "max-w-full max-h-[70vh] rounded-md" }
+                        } else if .store.active_kind == "video" {
+                            div { html: .store.active_video_html }
+                        } else if .store.active_kind == "markdown" || .store.active_kind == "code" {
+                            MarkdownRender { content: .store.active_markdown }
+                        } else {
+                            div (style: "h-full flex flex-col items-center justify-center gap-2 text-muted-foreground") {
+                                FileIcon { size: 28 }
+                                text t("files.cannotOpen") { style: "text-sm" }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -36,6 +36,7 @@ Rust + axum 0.8 HTTP 服务。`lib.rs:5-29` 声明手写模块 + `lib.rs:28` `au
 |---|---|---|
 | **Specs ledger** | GET/POST /api/specs, /api/specs/item, /api/specs/transition, /api/specs/overview, /api/specs/drift-check | build_router (ag) |
 | **Specs 文件树** | GET /api/specs/tree, /api/specs/file/{*path} | spec_tree.rs (hw) |
+| **Files 文件浏览** | GET /api/files/tree, GET /api/files/raw/{*path} | files_browser.rs (hw, PLAN-068；忽略清单+预算+canonicalize confinement) |
 | **Plans** | GET/POST /api/plans, /api/plans/{seq}/transition\|archive\|merge | plans.rs (hw) |
 | **Chats** | /api/chats/session(s), message, approve, reject | build_router (ag) |
 | **Conversations** | /api/conversations, /api/conversations/{id} | build_router (ag) |

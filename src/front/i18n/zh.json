@@ -13,7 +13,8 @@
     "agents": "智能体",
     "professions": "角色",
     "skills": "技能",
-    "apis": "API"
+    "apis": "API",
+    "files": "文件"
   },
   "auth": {
     "username": "用户名",
@@ -455,5 +456,13 @@
     "login": "登录",
     "hasAccount": "已有账号？",
     "noAccount": "没有账号？注册"
+  },
+  "files": {
+    "selectHint": "选择左侧文件查看内容",
+    "loadFailed": "文件加载失败",
+    "cannotOpen": "不能打开该文件类型",
+    "emptyTree": "工作区为空",
+    "truncated": "文件树过大，仅显示部分内容",
+    "loading": "加载中…"
   }
 }

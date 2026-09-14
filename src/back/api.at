@@ -188,6 +188,36 @@ pub fn specs_get_file(path str) str {
     return None
 }
 
+// PLAN-068: workspace 文件浏览器（hw files_browser_routes；spec_tree 泛化到
+// workspace 根目录——忽略清单/节点与深度预算服务端强制，canonicalize 防
+// symlink 穿出，20MB 读上限）。raw 返回字节 + MIME（.html 强制 text/plain，
+// 媒体预览直接以 URL 喂 <img>/<video>，不经本绑定）。
+#[api(method = "GET", path = "/api/files/tree")]
+pub fn files_tree() FilesTreeResponse {
+    return None
+}
+
+pub type FilesTreeResponse = {
+    tree: []FilesNode,
+    truncated: bool,
+}
+
+// fs 形态节点（PLAN-614 FileTree 契约）：id=相对路径，children 恒存在
+// （叶子空数组），icon/badge 留空走组件自动映射。
+pub type FilesNode = {
+    id: str,
+    label: str,
+    children: []FilesNode,
+    kind: str,
+    icon: str,
+    is_leaf: bool,
+    badge: str,
+}
+
+// raw 端点不进 #[api]：生成绑定固定 response.json()，对文本/字节响应
+// 均不可用——文本经 ports/files.web.at 的 loadFilesFileText（.text()），
+// 媒体直接以 /api/files/raw URL 喂 <img>/<video>（path encodeURIComponent）。
+
 
 
 // ============================================================

@@ -186,6 +186,10 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         // Spec module-tree browser (PLAN-025) — hw escape-hatch reusing
         // wiki::build_tree; serves docs/specs/ knowledge layer (008 §5).
         .merge(crate::spec_tree::spec_tree_routes())
+        // Workspace file browser (PLAN-068) — hw escape-hatch generalizing
+        // the specs tree to the whole workspace root (ignore list + budgets +
+        // canonicalize confinement + 20 MB cap).
+        .merge(crate::files_browser::files_routes())
         // Tool approval gate (PLAN-069 W3) — human 会话越界命令首触暂停的
         // 决议端点（resolve 唤醒挂起的 run_command）。
         .merge(crate::tool_gate_routes::tool_gate_routes())
