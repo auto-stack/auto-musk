@@ -386,8 +386,13 @@ hw 运行、chats.json 沉淀 ag 运行——"内容又不完全相同"）；Eve
   `archived`：本文件移入 docs/plans/archived/，status: archived，
   completion_kind: delivered。`cleaned`：wt-guard clean（737 个 pnpm junction
   链接已按 guard 处方 cmd /c rmdir 逐链摘除，0 残留；rust-workspace/ 构建产物
-  已清）→ worktree remove + branch -d plan-069-dev + 组目录 rmdir（执行中，
-  收据下一条补记）。
+  已清）→ worktree remove + branch -d plan-069-dev（首删遇 musk.exe 运行锁：
+  069 验收 serve（:8081，PID 49720）仍驻留——taskkill 后 rd /s /q 成功）。
+  收据补记（同日）：auto-musk worktree 已删（0 残留）、plan-069-dev 已删
+  （was a93669d=main 头，无未合提交）；**组目录 musk-069/ 保留非空**——内含
+  auto-ai@9d2102c 与 auto-lang@3f3264cee 两个干净 detached 检出（他仓只读快照，
+  非本计划改动，不属本计划处置权）+ E2E 探针脚本 e2e_v3.py 等（计划证据引用，
+  e2e_v3.py 可重入口径依赖）。遗留项转用户裁定。
 
 ## 10. 待澄清事项
 
