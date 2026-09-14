@@ -14,7 +14,8 @@
     "professions": "Professions",
     "skills": "Skills",
     "apis": "APIs",
-    "files": "Files"
+    "files": "Files",
+    "whitelist": "Whitelist"
   },
   "settings": {
     "title": "Settings",
@@ -463,6 +464,19 @@
     "cannotOpen": "This file type cannot be opened",
     "emptyTree": "Workspace is empty",
     "truncated": "Tree truncated (too many entries)",
+    "loading": "Loading…"
+  },
+  "whitelist": {
+    "title": "Workspace Directory Whitelist",
+    "hint": "Files inside whitelisted directories are readable/writable by the AI (same as the workspace root); removing a directory restores the restriction immediately.",
+    "workspaceRootLabel": "Workspace root (always authorized, cannot be removed)",
+    "addPlaceholder": "Absolute path of the directory to authorize, e.g. D:\\projects\\lib",
+    "add": "Add",
+    "remove": "Remove",
+    "empty": "No whitelisted directories — the AI can only access the workspace root.",
+    "invalidPath": "Invalid path",
+    "loadFailed": "Failed to load whitelist",
+    "removeConfirm": "Remove this directory? The AI loses access immediately.",
     "loading": "Loading…"
   }
 }

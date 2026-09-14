@@ -12,7 +12,7 @@
 // Show* 消息链);detail 子路径的 popstate 实时恢复仅覆盖挂载时(Init),
 // 会话中 back/forward 的 detail 级变化不回放——KNOWN-DEBT 登记。
 
-const VALID_VIEWS = ['chats', 'plans', 'specs', 'wiki', 'files'] as const
+const VALID_VIEWS = ['chats', 'plans', 'specs', 'wiki', 'files', 'whitelist'] as const
 const DEFAULT_VIEW = 'chats'
 
 let _currentView: string = DEFAULT_VIEW

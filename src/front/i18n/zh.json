@@ -14,7 +14,8 @@
     "professions": "角色",
     "skills": "技能",
     "apis": "API",
-    "files": "文件"
+    "files": "文件",
+    "whitelist": "白名单"
   },
   "auth": {
     "username": "用户名",
@@ -463,6 +464,19 @@
     "cannotOpen": "不能打开该文件类型",
     "emptyTree": "工作区为空",
     "truncated": "文件树过大，仅显示部分内容",
+    "loading": "加载中…"
+  },
+  "whitelist": {
+    "title": "工作区目录白名单",
+    "hint": "白名单目录内的文件 AI 可以读写（与工作区根同等）；移除后立即恢复限制。",
+    "workspaceRootLabel": "工作区根（恒定授权，不可移除）",
+    "addPlaceholder": "输入要授权的目录绝对路径，如 D:\\projects\\lib",
+    "add": "添加",
+    "remove": "移除",
+    "empty": "暂无白名单目录——AI 目前只能访问工作区根。",
+    "invalidPath": "路径无效",
+    "loadFailed": "加载白名单失败",
+    "removeConfirm": "确定移除该目录？移除后 AI 立即失去访问权。",
     "loading": "加载中…"
   }
 }

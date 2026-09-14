@@ -1,0 +1,151 @@
+// whitelist_view.at — 工作区目录白名单视图（PLAN-070）。
+//
+// 列出/添加/移除当前工作区的授权目录，即时生效、跨重启持久化（后端
+// workspaces.json）。模式同源：FilesView（store + 视图侧 use.web 异步 +
+// t() 惯用法）。workspace 显式取自 storage musk_workspace（拦截器对
+// /api/workspace/* 豁免自动注入，whitelist_web.ts 同口径）。
+//
+// 安全语义：白名单只能由用户在此显式维护——模型/工具无任何写路径；
+// workspace 根恒为第一授权根，不在本视图列表（不可移除）。
+
+use store: WhitelistStore
+use.web useT from "src/front/ports/composables.at"
+use.web loadWorkspaceRoots, addWorkspaceRoot, removeWorkspaceRoot from "src/front/ports/whitelist.at"
+
+widget WhitelistView {
+
+    setup {
+        let t = useT()
+    }
+
+    msg Msg {
+        Init,
+        Input(str),
+        Add,
+        Remove(str),
+    }
+
+    on {
+        // 挂载期 Init 派发；视图 v-if 切换重挂载即重拉（freshness 优先，
+        // 无 loaded 守卫——每次进入视图都拿最新白名单）。
+        // 结果对象取 error 文案（不用 catch：.at catch 值 unknown，TS2571）。
+        .Init -> {
+            WhitelistStore.SetLoading()
+            let wid = storage.get("musk_workspace") ?? ""
+            let res = loadWorkspaceRoots(wid).await
+            if res.ok {
+                WhitelistStore.SetRoots(res.roots)
+            } else {
+                WhitelistStore.SetError(res.error)
+            }
+        }
+
+        .Input(v) -> {
+            WhitelistStore.SetInput(v)
+        }
+
+        .Add -> {
+            if .store.wl_input != "" && !.store.wl_busy {
+                WhitelistStore.SetBusy(true)
+                let wid = storage.get("musk_workspace") ?? ""
+                let res = addWorkspaceRoot(wid, .store.wl_input).await
+                if res.ok {
+                    WhitelistStore.SetRoots(res.roots)
+                    WhitelistStore.SetInput("")
+                } else {
+                    WhitelistStore.SetError(res.error)
+                }
+            }
+        }
+
+        .Remove(path) -> {
+            if !.store.wl_busy {
+                WhitelistStore.SetBusy(true)
+                let wid = storage.get("musk_workspace") ?? ""
+                let res = removeWorkspaceRoot(wid, path).await
+                if res.ok {
+                    WhitelistStore.SetRoots(res.roots)
+                    WhitelistStore.SetError("")
+                } else {
+                    WhitelistStore.SetError(res.error)
+                }
+            }
+        }
+    }
+
+    view {
+        col (style: "h-full w-full overflow-auto p-6 gap-4 max-w-3xl mx-auto") {
+            // 标题 + 语义说明
+            col {
+                style: "gap-1"
+                h2 t("whitelist.title") {}
+                text t("whitelist.hint") { style: "text-sm text-muted-foreground" }
+            }
+
+            // workspace 根（恒定授权，不可移除）
+            row {
+                style: "items-center gap-2 py-2 px-3 rounded-md border border-border bg-secondary"
+                icon (name: "shield") {}
+                col {
+                    style: "min-w-0"
+                    text t("whitelist.workspaceRootLabel") { style: "text-sm font-medium" }
+                }
+            }
+
+            // 添加行
+            row {
+                style: "gap-2"
+                input {
+                    value: .store.wl_input
+                    oninput: .Input($event)
+                    placeholder: t("whitelist.addPlaceholder")
+                    style: "flex-1 py-2 px-2.5 border border-border rounded-md bg-background text-foreground text-sm"
+                }
+                button {
+                    onclick: .Add
+                    disabled: .store.wl_busy
+                    style: "py-2 px-3 rounded-md text-sm cursor-pointer bg-primary text-primary-foreground border border-primary disabled:opacity-50"
+                    text t("whitelist.add") {}
+                }
+            }
+
+            // 错误文案（后端 400 原样：目录不存在/黑名单/驱动器根…）
+            if .store.wl_error != "" {
+                row {
+                    style: "items-center gap-2 py-2 px-3 rounded-md border border-red-500/40 bg-red-500/10"
+                    text .store.wl_error { style: "text-sm text-red-500" }
+                }
+            }
+
+            // 白名单列表
+            if .store.wl_loading {
+                text t("whitelist.loading") { style: "text-sm text-muted-foreground" }
+            } else {
+                if .store.wl_roots.len() == 0 {
+                    col {
+                        style: "items-center justify-center gap-2 py-10 text-muted-foreground"
+                        icon (name: "shield-check") {}
+                        text t("whitelist.empty") { style: "text-sm" }
+                    }
+                } else {
+                    col {
+                        style: "gap-2"
+                        for path in .store.wl_roots {
+                            row {
+                                style: "items-center gap-2 py-2 px-3 rounded-md border border-border bg-card"
+                                icon (name: "folder") {}
+                                text path { style: "text-sm font-mono break-all min-w-0" }
+                                button {
+                                    onclick: .Remove(path)
+                                    disabled: .store.wl_busy
+                                    style: "ml-auto shrink-0 py-1 px-2 rounded-md text-xs cursor-pointer bg-card text-red-500 border border-border hover:bg-red-500 hover:text-white disabled:opacity-50"
+                                    text t("whitelist.remove") {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

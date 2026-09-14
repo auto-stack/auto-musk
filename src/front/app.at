@@ -10,6 +10,7 @@ use wiki_view: WikiView
 use chats_view: ChatsView
 use plans_view: PlansView
 use files_view: FilesView
+use whitelist_view: WhitelistView
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web platformInjectStyles, platformSetupAuthFetch from "src/front/ports/platform.at"
@@ -38,6 +39,7 @@ widget App {
         ShowSpecs,
         ShowWiki,
         ShowFiles,
+        ShowWhitelist,
         GlobalKeydown,
     }
 
@@ -119,6 +121,13 @@ widget App {
                                         text "文件" {}
                                     }
                                 }
+                                // PLAN-070：工作区目录白名单管理视图入口。
+                                sidebar_menu_item {
+                                    sidebar_menu_button (onclick: .ShowWhitelist, active: .current_view == "whitelist", size: "lg") {
+                                        icon (name: "shield-check") {}
+                                        text "白名单" {}
+                                    }
+                                }
                             }
                         }
                     }
@@ -144,6 +153,8 @@ widget App {
                         WikiView
                     } else if .current_view == "files" {
                         FilesView
+                    } else if .current_view == "whitelist" {
+                        WhitelistView
                     } else {
                         ChatsView
                     }
@@ -204,6 +215,12 @@ widget App {
             .current_view = "files";
             vsSetView("files");
             FilesStore.LoadTree()
+        }
+        // PLAN-070：白名单视图——进入即由视图 Init 重拉（v-if 重挂载语义，
+        // 无需 App 驱动 store）。
+        .ShowWhitelist -> {
+            .current_view = "whitelist";
+            vsSetView("whitelist")
         }
     }
 }

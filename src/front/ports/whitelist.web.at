@@ -1,0 +1,6 @@
+// ports/whitelist.web.at — PLAN-070 白名单 web facade。
+//
+// 白名单增删调用经本域（调用方只引 ports/whitelist.at）；不用 api.at 生成
+// 绑定——绑定非 2xx 丢弃 error body（400 文案须原样展示，见 whitelist_web.ts）。
+
+use.web loadWorkspaceRoots, addWorkspaceRoot, removeWorkspaceRoot from "src/front/whitelist_web.ts"

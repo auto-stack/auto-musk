@@ -1,0 +1,62 @@
+// whitelist_store.at — 工作区目录白名单 store（PLAN-070；files_store.at 同款
+// 单例 store 模式）。
+//
+// 状态命名 wl_*：避让潜在 api 绑定撞名（files_store file_* 同款口径）。
+// 异步调用在视图侧（store 不消费 use.web.fn，files 先例）——视图 await
+// ports/whitelist 门面后经 SetRoots/SetError 回填；后端 400 文案原样展示。
+
+store WhitelistStore {
+    model {
+        // 当前工作区的白名单目录（canonical 绝对路径；后端返回序）。
+        var wl_roots []str = []
+        var wl_loaded bool = false
+        var wl_loading bool = false
+        // 最近一次错误（添加/移除/加载失败的后端文案；"" = 无）。
+        var wl_error str = ""
+        // 添加输入框内容。
+        var wl_input str = ""
+        // 添加/移除请求在途（按钮禁用）。
+        var wl_busy bool = false
+    }
+
+    msg Msg {
+        SetLoading,
+        SetRoots([]str),
+        SetError(str),
+        SetInput(str),
+        SetBusy(bool),
+        ClearError,
+    }
+
+    on {
+        .SetLoading -> {
+            .wl_loading = true
+            .wl_error = ""
+        }
+
+        .SetRoots(roots) -> {
+            .wl_roots = roots
+            .wl_loaded = true
+            .wl_loading = false
+            .wl_busy = false
+        }
+
+        .SetError(e) -> {
+            .wl_error = e
+            .wl_loading = false
+            .wl_busy = false
+        }
+
+        .SetInput(v) -> {
+            .wl_input = v
+        }
+
+        .SetBusy(b) -> {
+            .wl_busy = b
+        }
+
+        .ClearError -> {
+            .wl_error = ""
+        }
+    }
+}
