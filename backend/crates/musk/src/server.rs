@@ -2553,6 +2553,14 @@ mod tests {
                 crate::chats::ChatMessage::user("say hello"),
             )
             .expect("append user message");
+        // PLAN-069 F-03 后语义：裸 SSE 订阅=附加/空闲流（绝不孵化运行）。本测试
+        // 验证运行主体路径的流式+持久化，先按 chats_message run=true 同款取守卫
+        // （run_key = "{ws_id}:{session_id}"，此处 ws_id 为空串默认工作区）。
+        let run_key = format!(":{}", sess.id);
+        assert!(
+            state.chat_run_try_start(&run_key),
+            "运行守卫应可获取（无并发运行）"
+        );
         let app = axum::Router::new()
             .route(
                 "/api/chats/session/{id}/stream",
