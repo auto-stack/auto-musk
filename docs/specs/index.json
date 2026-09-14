@@ -7,7 +7,8 @@
     "01-architecture.md",
     "goals/README.md",
     "modules/chat-streaming.md",
-    "modules/web-input-contracts.md"
+    "modules/web-input-contracts.md",
+    "modules/files-browser.md"
   ],
   "goals": [
     "goal-agent",
