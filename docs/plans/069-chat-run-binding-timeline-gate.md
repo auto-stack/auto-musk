@@ -5,7 +5,7 @@ feature_name: chat 运行沙箱绑定 + 助手消息时序块化 + 工具级人�
 author: zhaop / zcode
 created_at: 2026-09-14T17:10:00+08:00
 updated_at: 2026-09-14T17:10:00+08:00
-plan_revision: 1
+plan_revision: 2
 current_step: 5
 total_steps: 5
 supersedes_spec_components: []
@@ -248,6 +248,78 @@ map_path_error`（L13-25）的 `root` 字段取 `tool_safety::project_root()` �
 | 8 | W2 组装点 | extern_impl.rs on_event 闭包（~L1898-1936，Delta/TurnStart/TurnEnd/ToolStart/Tool 事件齐备）+ Done 持久化（L2012-2023，msg 无 blocks） | 块化组装；ChatMessage 增 blocks；chat_message_to_turns（conversation.rs:163）映射 |
 | 9 | W3 钩子 | command_runner.rs 预执行 + AppState gate 注册表 + api.at gate 端点 + 前端事件桥（relay_gate_waiting 先例，PLAN-067 T-04a） | 见 §5.3 |
 
+### 8.5 W4 追加工作流（r2 修订，2026-09-14 E2E 探针实证）
+
+**新根因（W4）**：hw SSE 端点 `chat_stream`（server.rs:632）为"订阅即运行"且**无
+守卫**——web 每次 Send 走 run=true（ag chat_run_stream，有守卫+持久化），而
+StartStream 打开的 hw SSE **又孵化一个无持久化的 hw agent 运行**（双跑：UI 展示
+hw 运行、chats.json 沉淀 ag 运行——"内容又不完全相同"）；EventSource 断线自动
+重连 → 再次孵化 → 无限重跑最后一条用户消息（探针实证 100s 内 8 个 done）；
+每次重跑 UI 重置为新一轮思考（"删掉重显"）。
+
+**修复**：T-06 SSE 生命周期——①chat_run_stream 事件改经 relay_bus 广播
+（run_id=session_id，任意订阅者附加）；②hw chat_stream 加 chat_run_try_start
+守卫：抢到 → 委托 ag chat_run_stream（含持久化），未抢到（已在跑）→ 仅订阅
+总线；③前端 done 即 Sse.close（重连不再触发重跑）；④订阅时无运行中 → 空闲
+流直至运行出现。验收：同一会话二次订阅/重连不产生新运行（AC-10）；双端展示
+与沉淀一致（AC-11）。规范增量并入 SD-01。
+
+
+- 2026-09-14 work（r2 续，W4 部分，author zcode）：T-06 SSE 生命周期**部分落地**
+  ——chat_run_stream 事件双发 relay_bus（run_id=session_id/chat_event），hw
+  chat_stream 转 subscribe-only（移除自孵化 agent run + 守卫分支退役）：
+  复验实证双订阅收到同一运行同序事件流（无重跑）、延迟重连接续在途运行。
+  **遗留 F-03**：实测同任务仍 4 连跑（22:53:24/:29/:32/:54:16），间隔与 UI 轮询
+  节奏吻合，触发源未定位（疑 UI 侧残留 run 触发链）——`outcome: needs_fix |
+  code_commit: 49dea27 | next: work`（PLAN-069 保持 executing，current_step 不变；
+  F-03 定位切入点：serve.log URI 时序 + OnStreamEvent/PollStream 全链审计 + VM/轮询
+  路径 chats_message run=true 重放点）。
+- 2026-09-14 work（r2 续，F-03 根修，author zcode）：附加订阅与孵化权分离——
+  `chat_run_active` 只读窥探（原 try_start 抢占形态：订阅抢到守卫=变身运行主体
+  跑最后一条用户消息，4 连跑实证）；chats_message run=true 恢复守卫孵化。
+  E2E：run=false + 双订阅 = **0 字节零运行**（根除）；正路径（run=true）流式已起、
+  探针会话历史被 run=false 元话语污染致模型绕圈停滞——待干净会话复测后收口。
+  `outcome: needs_fix（仅余干净会话正路径复测一项） | code_commit: 49dea27+本批 |
+  next: work`。
+- 2026-09-15 work（r2 续，F-03 终版，author zcode）：订阅路径改只读窥探
+  `chat_run_active`（try_start 抢占形态下，订阅抢到守卫=变身运行主体，4 连跑
+  实证）；chats_message run=true 恢复守卫孵化。E2E 实证：run=false + 双订阅 =
+  0 字节零运行（根除）。正路径（run=true）**阻塞于环境**：LLM 调用无响应
+  （aaid 2204→8108 重启后依旧；疑似 provider token 隔日过期，需用户侧重新
+  授权/检查 ~/.config/autoos/ai-daemon.at），非本计划代码。`stage: work |
+  plan_id: PLAN-069 | plan_revision: 2 | outcome: blocked | code_commit: 49dea27
+  + f0677cd | task_ids: T-00..T-06 完成 + F-03 根修完成 | evidence: 416 lib 绿；
+  run=false 双订阅 0 字节；serve.log 17:03:28 agent 构建后零事件 | blockers:
+  LLM 环境恢复后补正路径 E2E 一项 | next: work（环境恢复后复测即
+  execution_done）`。
+- 2026-09-15 work（r2 续，T-06 终版 + E2E v3，author zcode）：ag chat_stream
+  运行 spawn 化（同步 await 总根源修复）+ 非 DTO 事件透传 + chat_run_active
+  附加语义。E2E v3 实证：**llm_alive=True 实时流 ✓；human 门 t=8s 首触暂停 ✓；
+  approve 200 resolved=True ✓；run=false 双订阅 0 字节 ✓**。遗留：approve 后
+  总结阶段遇环境性 LLM 停顿（provider 间歇无响应，与本计划代码无关）——
+  沉淀终态与无重跑终验待环境恢复后复测（e2e_v3.py 可重入）。
+  `outcome: needs_fix（仅余环境依赖的终态复测） | code_commit: 本批（含
+  server_stream.rs spawn 化） | next: work`。
+- 2026-09-15 work（r2 续，F-04 用户实测精确化，author zcode）：沉淀与重载
+  渲染已实证正确（blocks 全量持久化、重载按序渲染）；**剩余问题锁定在直播
+  渲染层**——多轮运行时每轮 turn_start 后，直播视图把前轮的思考块+工具卡
+  清掉，只显示当前轮，run 结束后才恢复全量。F-04 登记为渲染层缺陷（疑点：
+  forge_store 流式块维护 appendBlockText/turn_start 臂与 chat_message.at
+  isBlockStreaming 的直播投影交叉），下轮工作以浏览器插桩直击
+  （采样 msg3.blocks 数组随事件的变化序列定位清除点）。PLAN-069 保持
+  executing；`outcome: needs_fix | next: work（F-04 直播渲染修复）`。
+- 2026-09-15 work（r2 续，F-04 修复 + 收口，author zcode）：**execution_done**。
+  F-04 根修：PollStream 回填在流式期（.streaming && stream_es!=None，web 轨
+  SSE 已附加）整体跳过——回填快照不含在途 assistant，LLM 长思考/迭代间隙
+  超 3s 健康门即放开、回填反复清掉直播内容（用户实测每轮边界"删掉重显"）。
+  done 臂落 streaming=false 后回填恢复兜底；VM 轨 stream_es=None 不受影响。
+  E2E：多轮任务全程 DOM 采样 drops=[] 零清空、工具卡 4→6 累积、沉淀 5 消息
+  完整块时间线；run=false 双订阅 0 字节零运行（F-03 根修）。
+  `stage: work | plan_id: PLAN-069 | plan_revision: 2 | outcome: pass |
+  code_commit: c9742a4（F-04）+ f0677cd（F-03）+ 49dea27（T-06）+ 590f508（T-02）
+  | task_ids: T-00..T-06 + F-03/F-04 全清 | evidence: 416 lib 绿 + vitest 36 +
+  auto build 绿 + E2E v3/v4 DOM 采样 | blockers: 无（视频播放实测与 AC-08 VM
+  轨沿登记口径） | next: review`。
 ## 9. 复审记录
 
 - 2026-09-14 draft（plan_revision 1，author zcode）：四问题根因实证（§4 证据 1-8，
