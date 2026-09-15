@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "updated_at": "2026-09-15T03:20:00Z",
+  "updated_at": "2026-09-15T09:05:00Z",
   "based_on": "full code scan 2026-08-14 (backend Rust + dual frontend + codegen)",
   "spec_files": [
     "00-overview.md",
@@ -9,7 +9,8 @@
     "modules/chat-streaming.md",
     "modules/chat-run-policy.md",
     "modules/web-input-contracts.md",
-    "modules/files-browser.md"
+    "modules/files-browser.md",
+    "modules/workspace-sandbox.md"
   ],
   "goals": [
     "goal-agent",

@@ -41,6 +41,7 @@ Rust + axum 0.8 HTTP 服务。`lib.rs:5-29` 声明手写模块 + `lib.rs:28` `au
 | **Chats** | /api/chats/session(s), message, approve, reject；/api/chats/tool-gate/{gid}/approve\|deny（tool_gate_routes hw，PLAN-069） | build_router (ag) |
 | **Conversations** | /api/conversations, /api/conversations/{id} | build_router (ag) |
 | **Workspace** | /api/workspace/list\|open\|status\|browse\|initialize | build_router (ag) |
+| **Workspace 白名单** | GET /api/workspace/roots?workspace={id}，POST /api/workspace/roots/add\|remove（workspace.rs hw，PLAN-070；canonical 化+黑名单校验，400+文案） | whitelist_routes (hw) |
 | **Run/Stream** | POST /api/run, /api/run/stream, /api/workflow/run/stream | server.rs (hw .route) |
 | **Chat SSE** | GET /api/chats/session/{id}/stream, /api/conversations/{id}/stream | server_stream (ag) |
 | **Relay** | /api/forge/relay/runs, advance, gate, events, professions, flows | relay_api (ag) |
