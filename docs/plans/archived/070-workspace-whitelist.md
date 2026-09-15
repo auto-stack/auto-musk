@@ -293,6 +293,10 @@ canonical 化防伪（`\\?\` 前缀两侧一致）；Windows 大小写不敏感�
   branch -d plan-070-dev + 本计划创建的依赖快照 worktree（auto-ai@9d2102c2/
   auto-lang@03914ec9a，干净 detached）一并移除 + 组目录 rmdir（执行中，
   收据下一条补记）。
+  收据补记（同日）：**cleaned 全数完成**——auto-musk worktree 已删（guard
+  clean 后移除，0 残留）、plan-070-dev 已删（was 59d8e94=main 头，无未合
+  提交）、依赖快照 auto-ai/auto-lang worktree 已从各自仓移除、组目录
+  musk-070/ 已删（空）；worktree list 仅剩主检出。无遗留项。
 
 ## 10. 待澄清事项
 
