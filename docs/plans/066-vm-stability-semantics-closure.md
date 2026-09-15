@@ -16,7 +16,7 @@ touched_goals:
   - "goal-frontend-parity: VM 轨语义族根修消费（问卷卡直读/computed 投影/chevron/Sse 零抛）——双轨等价最后一里"
   - "goal-agent: VM 进程稳定性（KD-048a 静默退出根修 + MCP 子进程回收）——agent 运行面可靠性"
 
-current_step: 6
+current_step: 7
 total_steps: 12
 ---
 
@@ -164,7 +164,7 @@ SD 目标为暂填：review 按已验证实现定稿（含 SD-03 最终挂载文
 - [ ] T-04 __json_object 字符串读根修：✅ 上游根修落地（见 rev2 工作记录 W-1：`.type` 属性抢占收窄，非 stdlib 臂缺陷）+ wl_probe21 全形态转正 musk_vm_track p066 测试族 4/4 绿 + tv 3711/3711；musk 侧零代码变更（questionnaireFor 的 json.type 直读本就在位）；⏸ 实机问卷卡渲染验证被 F-W1 阻塞（🔶 待用户窗口+VM 启动修复）
 - [x] T-05 Regex：前置复跑 wl_probe18 裁定**分支 b（红，计数脸未修）**→ 残余根修落地 [✅ 2026-09-15：真根=shim_regex_match 为 is_match 1/0 语义且弹参错位（非 583 retain 脸）→ JS web 语义统一三参契约+编译期补参，auto-lang `c9e6e4737`；musk 回撤 11b6c20 两函数恢复 Regex 通道 `8536ff4`；p066_2 四测绿（wl_probe18 全形态双脸+组提取+元素存活 583 锁）+tv 3715/3715+auto build 绿+vitest 36+1skip 基线一致]（AC-03）
 - [x] T-06 state-scope 专项（前置：624 收口对表——✅ 624 已合并 master `0b5a23d08`，分支已同步零冲突，对表完成）：eval_computed 上下文 + P536-D2 SET_FIELD（624 已覆盖则裁剪）+ musk t3_filter 转正；验证画布投影实机即时入列（AC-04）**[✅ 2026-09-15 根修落地]**：①P536-D2 SET_FIELD 面**裁定已覆盖**（PB 绿，裁剪入账）；②055-4⑥ 现代真身**七步切分**钉死为 `str.includes` 在合成 fn 内未注册 native 且不达引擎 CALL_SPEC str 臂 → extern no-op 桩恒假 → 过滤投影 0 条（055 期"VmRef 域读取恒空"定性过时——域读取今已正常）。根修 auto-lang `253204c71`：auto.str.includes 注册原生 shim（id2461）+ CALL_SPEC 选择条件放行未解析 str.* 族（includes/startsWith/trim 等随通）；语料定稿 PA 全断言绿（命中 2/清空 3/miss 0）。**Face A 独立登记**：列表字段读改写（`.messages=.messages+[]`）在旧值陈旧时静默失效（整写正常；musk 生产整写回填未踩，语料以整写绕行）。t3_filter 转正=函数层语义由 PA/语料锁承载。实机即时入列目验仍 🔶 待用户
-- [ ] T-07 ThinkBlock chevron 读侧（随 T-06 同根验收）；验证实机独立翻转（AC-04）
+- [x] T-07 ThinkBlock chevron 读侧（随 T-06 同根验收）；验证实机独立翻转（AC-04）**[✅ 2026-09-15 读侧语料+回归锁落地]**：当前树（含 T-06 includes 修复）**裁定未现形**——语料 bubble.at 子件（MsgBubble：computed `isOpen => .expanded == .current_msg.id` 串等值 + Toggle/Probe handler 直调 store）三断言绿（Toggle 携 `.current_msg.id` 达 store expanded="m1"/展开态 computed true/收起 false）。055-T13「读侧 computed 与视图 if 恒假恒真分歧」被 T-06 str.includes 修复+上游域读取演进覆盖；obj-prop 传递脸 harness 无逐帧烘焙不可测（生产写侧实机已验在案）。实机 ▼ 独立翻转目验仍 🔶 待用户（auto-lang `f138dd761`）
 - [ ] T-08 Sse no-op 容错 + 绕行层复盘（8b1ae23 四修 + 067/069 叠加层逐项裁定，deadman 立场重估）；验证 StartStream VM 零抛 + 发送链 E2E 不回归（AC-05）⏸ E2E 面受 F-W1 影响
 - [ ] T-09 059-T9 五余项逐项修 + 实机验证（fixed_both Image/trigger 锚件/受控 open ESC+外点/scrim 双主题/宽度 prop，符号锚重定位）；验证五项证据在案（AC-06）
 - [ ] T-10 musk 全量门禁：vm-first-run（含长跑变体）/vm-link-probe/pnpm build+vitest/cargo nextest/对拍 30/30/style-parity 基线；验证全绿（AC-07）
