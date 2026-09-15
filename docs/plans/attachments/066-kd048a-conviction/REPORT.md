@@ -27,6 +27,22 @@ WER 零事件）；历史 WER AppHangB1 ×2（625 T-07）为另一张独立面�
   我方三轮死亡 → 14:39 其再起 ui_desktop **抢占 9247**。动机闭环：其工具链需要
   9247，占用者成为清理靶子。
 
+## 修复后验证（run3，T-02 落地构建 `8d03dc1a8`，隔离端口 9741）
+
+`soak-summary-run3-verify-fixed.json` / `exit-audit-run3-r1-mainreturn.log`：
+
+- **r1**：起跑后 121s `main_return code=0` 自退（审计在案、退出码正常、非静默）；
+- **r2/r3**：满 10min 存活（auditLines=0）。
+- **-1 外击脸未再现**；全部 3×10min **零静默退出**（所有终止均有审计+正常退出码，
+  575 降档出口判读矩阵"正常退出码"口径）。AC-01 长跑面达标。
+
+**残留观察（main_return 自退脸）**：3 轮里 2 次（run1 r2 @58s、run3 r1 @121s），
+混合端口、死前输出零异常（纯泵循环），iced 事件循环正常退出=窗口被关或 exit
+请求，嫌疑仍指外方（桌面清理式动作：能关窗则关、否则杀进程；run2 三轮全净
+与其活动间歇期吻合）。置信度低，暂不深追；若复发需 CloseRequested 溯源插桩
+（新调查面）。稳定性 soak 运行守则：先查同机并发会话与端口共址，再用
+AUTOUI_MCP_PORT 私有端口隔离（见 REPORT 上文与 SD-02）。
+
 ## 证据文件（本目录）
 
 - `soak-summary-run1-9247.json` / `soak-summary-run2-9741-isolated.json`：两臂
