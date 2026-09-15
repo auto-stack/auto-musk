@@ -1,10 +1,11 @@
 ---
 plan_id: PLAN-070
-status: reviewed
+status: archived
+completion_kind: delivered
 feature_name: 工作区目录白名单——多根沙箱 + 主导航"白名单"管理视图 + 审批门联动
 author: zhaop / zcode
 created_at: 2026-09-15T11:30:00+08:00
-updated_at: 2026-09-15T04:00:00+08:00
+updated_at: 2026-09-15T09:10:00+08:00
 plan_revision: 1
 current_step: 4
 total_steps: 4
@@ -275,6 +276,23 @@ canonical 化防伪（`\\?\` 前缀两侧一致）；Windows 大小写不敏感�
   evidence：测试清单 8 项新增（--list 在库）；E2E 走查记录见 §9 work 收口
   （同一 commit 无代码变更，注册表副作用类走查不重复执行——显式复用理由：
   代码/依赖/配置恒同，门已复跑）。next: merge。
+
+- 2026-09-15 merge（consolidation receipt，PLAN-070:r1，author zcode）：**delivered**。
+  `prepared`：reviewed 749bdb1（复审 r1 pass，门复跑 430 lib/36 vitest/build 0）；
+  delivery 59d8e94 = reviewed 的文档增量后代（7608f9f 为 main@e21ff4f 对账合并
+  ——纯 docs/plans 计划文件，`git diff 749bdb1..59d8e94 -- backend/ src/ web/`
+  为空，实现/依赖零改动）；规范增量 SD-01（modules/workspace-sandbox.md 新增
+  ——多根两段式判定/黑名单分级口径/在途快照语义/门联动/VM 缺口登记）、SD-02
+  （01-architecture API 面增 Workspace 白名单行）、index.json 挂载。
+  `landed`：main e21ff4f → 59d8e94（fast-forward，7608f9f 证前 main 祖先）；
+  main 冒烟 cargo lib 430 绿（5.48s）。`ledger_refreshed`：docs/specs/index.json
+  spec_files += modules/workspace-sandbox.md（59d8e94，tracked 走 worktree 提交）。
+  `archived`：本文件移入 docs/plans/archived/，status: archived，
+  completion_kind: delivered。`cleaned`：guard clean（737 个 pnpm junction
+  按 guard 处方逐链摘除，rust-workspace/ 构建产物已清）→ worktree remove +
+  branch -d plan-070-dev + 本计划创建的依赖快照 worktree（auto-ai@9d2102c2/
+  auto-lang@03914ec9a，干净 detached）一并移除 + 组目录 rmdir（执行中，
+  收据下一条补记）。
 
 ## 10. 待澄清事项
 
