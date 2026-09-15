@@ -16,7 +16,7 @@ touched_goals:
   - "goal-frontend-parity: VM 轨语义族根修消费（问卷卡直读/computed 投影/chevron/Sse 零抛）——双轨等价最后一里"
   - "goal-agent: VM 进程稳定性（KD-048a 静默退出根修 + MCP 子进程回收）——agent 运行面可靠性"
 
-current_step: 5
+current_step: 6
 total_steps: 12
 ---
 
@@ -163,7 +163,7 @@ SD 目标为暂填：review 按已验证实现定稿（含 SD-03 最终挂载文
 - [x] T-03 MCP 子进程回收：auto-lang `ui/mcp_server.rs` autoui_snapshot spawn 链 + musk census 脚本；验证会话后子进程归零（AC-02）**[✅ 2026-09-15]**：spawn 链定位=**Plan 508 桌面 outproc 通道**（`launch_app_outproc`→`spawn_outproc_child` re-exec `--autodesk-incubate` 子 auto；MCP 工具面 16 个 autoui_* 全程进程内零 spawn，census 五连调实证）——KD-062「~66MB 子进程不退」真身=outproc 子进程登记 `outproc_children` 后生产路径**无 kill/wait**（Rust Child Drop 不杀），会话结束即滞留；~43MB 瞬态=broker attach 失败自退同族。根修=**DesktopSession Drop 统一收割**（`shutdown_outproc_children`：drain+kill+wait，一处收口覆盖全部 iced::exit() 面含 4 个未停机 broker 的协议失败面）；回归锁 `session_drop_reaps_outproc_children` 绿（ui-iced 面）。验证：census 归零 + tv 3716/3716 + ui-iced 档基线对照零新增（该档 215-219 flaky 既有）+ release reds=0（auto-lang `f11cd5df1` / musk `bc03de3`）
 - [ ] T-04 __json_object 字符串读根修：✅ 上游根修落地（见 rev2 工作记录 W-1：`.type` 属性抢占收窄，非 stdlib 臂缺陷）+ wl_probe21 全形态转正 musk_vm_track p066 测试族 4/4 绿 + tv 3711/3711；musk 侧零代码变更（questionnaireFor 的 json.type 直读本就在位）；⏸ 实机问卷卡渲染验证被 F-W1 阻塞（🔶 待用户窗口+VM 启动修复）
 - [x] T-05 Regex：前置复跑 wl_probe18 裁定**分支 b（红，计数脸未修）**→ 残余根修落地 [✅ 2026-09-15：真根=shim_regex_match 为 is_match 1/0 语义且弹参错位（非 583 retain 脸）→ JS web 语义统一三参契约+编译期补参，auto-lang `c9e6e4737`；musk 回撤 11b6c20 两函数恢复 Regex 通道 `8536ff4`；p066_2 四测绿（wl_probe18 全形态双脸+组提取+元素存活 583 锁）+tv 3715/3715+auto build 绿+vitest 36+1skip 基线一致]（AC-03）
-- [ ] T-06 state-scope 专项（前置：624 收口对表——✅ 624 已合并 master `0b5a23d08`，分支已同步零冲突，对表完成）：eval_computed 上下文 + P536-D2 SET_FIELD（624 已覆盖则裁剪）+ musk t3_filter 转正；验证画布投影实机即时入列（AC-04）**[🔶 2026-09-15 对表+红相隔离完成，根修下会话续]**：①P536-D2 SET_FIELD 面**裁定已覆盖**（PB 绿：MarkDone→ClearWindow 跨模块自调链写达根态——624 闭包帧修复或更早已修，裁剪入账）；②055-4⑥ 现代真身**七步切分隔离**为单行复现：合成 fn 内 `for m in <store 列表> { out.push(m) }` 对**循环变量 VmRef 本体的 push 静默 no-op**（列表恒空=投影 0 条；push 字面量/push m.content/循环迭代/元素域读取全部正常）；③另证列表字段读改写（`.messages=.messages+[]`）在旧值陈旧时静默失效（全新字面量整写正常——musk 生产整写回填未踩）。红相语料+PA #[ignore] 锁入库 auto-lang `d9e6f452c`；根修=合成 fn 内 List push 的 VmRef 实参通道（plan419/rc 族）
+- [x] T-06 state-scope 专项（前置：624 收口对表——✅ 624 已合并 master `0b5a23d08`，分支已同步零冲突，对表完成）：eval_computed 上下文 + P536-D2 SET_FIELD（624 已覆盖则裁剪）+ musk t3_filter 转正；验证画布投影实机即时入列（AC-04）**[✅ 2026-09-15 根修落地]**：①P536-D2 SET_FIELD 面**裁定已覆盖**（PB 绿，裁剪入账）；②055-4⑥ 现代真身**七步切分**钉死为 `str.includes` 在合成 fn 内未注册 native 且不达引擎 CALL_SPEC str 臂 → extern no-op 桩恒假 → 过滤投影 0 条（055 期"VmRef 域读取恒空"定性过时——域读取今已正常）。根修 auto-lang `253204c71`：auto.str.includes 注册原生 shim（id2461）+ CALL_SPEC 选择条件放行未解析 str.* 族（includes/startsWith/trim 等随通）；语料定稿 PA 全断言绿（命中 2/清空 3/miss 0）。**Face A 独立登记**：列表字段读改写（`.messages=.messages+[]`）在旧值陈旧时静默失效（整写正常；musk 生产整写回填未踩，语料以整写绕行）。t3_filter 转正=函数层语义由 PA/语料锁承载。实机即时入列目验仍 🔶 待用户
 - [ ] T-07 ThinkBlock chevron 读侧（随 T-06 同根验收）；验证实机独立翻转（AC-04）
 - [ ] T-08 Sse no-op 容错 + 绕行层复盘（8b1ae23 四修 + 067/069 叠加层逐项裁定，deadman 立场重估）；验证 StartStream VM 零抛 + 发送链 E2E 不回归（AC-05）⏸ E2E 面受 F-W1 影响
 - [ ] T-09 059-T9 五余项逐项修 + 实机验证（fixed_both Image/trigger 锚件/受控 open ESC+外点/scrim 双主题/宽度 prop，符号锚重定位）；验证五项证据在案（AC-06）
@@ -271,6 +271,17 @@ SD 目标为暂填：review 按已验证实现定稿（含 SD-03 最终挂载文
 - evidence: 语料 test/ui/plan066_filter_projection/ + plan066_filter_projection_tests.rs（PA #[ignore] 红相锁+七步诊断输出；PB 绿）；两 commit。
 - blockers: 无（根修面已锁定：合成 fn 内 List push 的 VmRef 实参通道，plan419/rc 族——下会话以单行复现直入）。
 - next: T-06 根修（push(VmRef) 通道）→ PA 解锁 → t3_filter 转正 → T-07 chevron 同族验收。
+
+**2026-09-15（续七）| stage: work | plan_id: PLAN-066 | plan_revision: 2 | outcome: pass（T-06 根修收口，整体仍 executing）**
+
+- code_commit: auto-lang `auto-musk-dev` **`253204c71`**（str.includes 原生注册+CALL_SPEC 放行+语料定稿）；musk `plan-066-dev` **`d51036f`**（ports 四域 .vm.at 补齐）
+- task_ids: T-06 ✅（current_step 6/12；实机目验 🔶 待用户）
+- W-10（T-06 根修定性，修正 W-9 猜想）：续七以 `--ignored` 强制执行红相+shim 插桩实证——**push(VmRef) 通道正常**（shim 到达、elem_is_obj=true 正确入列），真身=**`content.includes(q)` 的 func_name `auto.str.includes` 无 native 注册且不达引擎 CALL_SPEC str 臂**（extern no-op 桩→Nil→if 恒假→投影 0）。W-9 的"push(VmRef) no-op"猜想证伪（当时 count_len=0 实为 includes 恒假所致——msgCount 后来版同为过滤体）。修：①`auto.str.includes` 原生 shim（id2461 Bool，[pat,receiver] 约定）+catalog 双表；②CALL_SPEC 选择放行未解析 `str.*`/`auto.str.*`（引擎 str 臂 includes/startsWith/trim 族随通）。
+- Face A 独立登记（未修，另行立案候选）：列表字段读改写 `.messages=.messages+[]` 在旧值陈旧/Nil 时静默失效；整写正常。musk 生产消息列表全为后端快照整写→未踩；语料以 SetAll 整写绕行。
+- 附带（T-12 同族）：master 同步后上游 ext 链收口使 web-only 符号硬链接，vm-first-run link=1 连环（vsCurrentView→wikiUploadDrop→loadFilesFileText→addWorkspaceRoot）——musk 补 ports 四域 .vm.at（viewstate storage-KV 形态/upload-files-whitelist 安全空值桩），`d51036f`。vsParseUrl 教训在案：`view` 为 AutoUI 保留字不可作 map 键。
+- 验证：PA 全断言绿（2/3/0）+PB 绿+plan066 4/4；tv 3731/3731；release 重建+vm-first-run **alive=yes reds=0**（observe 20s）。
+- blockers: 无。
+- next: T-07（chevron 读侧，随 T-06 同根验收）→ T-04/T-08/T-09 实机面（待用户窗口）→ T-10 全量门禁 → T-11 收尾。
 
 ## 待澄清事项
 
