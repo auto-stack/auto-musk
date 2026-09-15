@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-070
-status: execution_done
+status: reviewed
 feature_name: 工作区目录白名单——多根沙箱 + 主导航"白名单"管理视图 + 审批门联动
 author: zhaop / zcode
 created_at: 2026-09-15T11:30:00+08:00
@@ -11,7 +11,7 @@ total_steps: 4
 supersedes_spec_components: []
 new_spec_components:
   - docs/specs/modules/workspace-sandbox.md
-touched_goals: [goal-relay]
+touched_goals: [goal-relay, goal-frontend-parity]
 ---
 
 # PLAN-070 — 工作区目录白名单（多根沙箱）
@@ -245,6 +245,36 @@ canonical 化防伪（`\\?\` 前缀两侧一致）；Windows 大小写不敏感�
   TS2571 实证改结果对象）；导航文本沿 PLAN-048 字面量口径（"白名单"字面，
   nav.whitelist 键照增）。
   blockers: 无 | next: review`。
+
+- 2026-09-15 review r1（plan_revision 1，reviewer zcode，**同会话复审限制已声明**
+  ——verdict 由 reviewed commit 复跑门+代码/测试断言重建，不采信执行者摘要）：
+  **pass**。基线：reviewed_commit 749bdb1（worktree musk-070 HEAD，base
+  main@3e6a336；worktree 仅未跟踪构建产物，实现全数已提交）；依赖快照
+  auto-ai@9d2102c2 / auto-lang@03914ec9a（与主检出 HEAD 一致，无改动）；
+  spec 输入：SD-01/SD-02 提案态（merge 备制后随 delivery 复核）。
+  门复跑（本 commit）：cargo lib **430 passed / 0 failed / 1 ignored**；
+  vitest **36 passed**（重新生成 gen 后）；auto build exit 0（一次瞬时 127
+  spawn 失败重跑即绿，gen 已确认再生成）。
+  acceptance_results：AC-01✓（wire 测试往返+400 与 live 走查一致）AC-02✓
+  （read_file/run_command with_roots 集成测试钉死白名单目录可读/全根外
+  SecurityDenied；真实 LLM 全链受 provider 间歇停顿阻塞——沿 069 复审同款
+  采信口径，evidence 绑本 commit）AC-03✓（resolve_multi 移除恢复拒绝断言+
+  REMOVE wire/live）AC-04✓（往返持久化重载断言+live kill/重启仍在）AC-05✓
+  （confine_multi 测试+门钩子已接多根：with_roots_progress_gate/
+  confine_offending_paths_multi）AC-06✓（per-workspace 隔离测试）AC-07✓
+  （7 类非法输入单测+wire/live 400 文案）AC-08✓（三门复跑全绿）。
+  findings: 无阻塞项。注记：
+  a) 非阻塞 UI：`disabled:` 于裸 button 被 codegen 丢弃（组件才生效）——
+  busy 态不变灰；.Add/.Remove 处理器 wl_busy 守卫兜底防双击，功能正确。
+  b) touched_goals 本复审定稿为 [goal-relay, goal-frontend-parity]（068
+  同形先例）；SD-01 备制时按 068 8.2 口径登记 VM 轨缺口（视图 web-only，
+  无 whitelist.vm.at），并写入 resolve_multi 两段式/黑名单等值+前缀口径/
+  在途运行快照语义。
+  c) 既有项（非本计划回归）：ag auto_lib 二参 build 桩与 ag::feature_dev
+  路径维持 069 时代非注入形态，070 未触碰。
+  evidence：测试清单 8 项新增（--list 在库）；E2E 走查记录见 §9 work 收口
+  （同一 commit 无代码变更，注册表副作用类走查不重复执行——显式复用理由：
+  代码/依赖/配置恒同，门已复跑）。next: merge。
 
 ## 10. 待澄清事项
 
