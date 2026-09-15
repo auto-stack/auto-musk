@@ -283,6 +283,15 @@ SD 目标为暂填：review 按已验证实现定稿（含 SD-03 最终挂载文
 - blockers: 无。
 - next: T-07（chevron 读侧，随 T-06 同根验收）→ T-04/T-08/T-09 实机面（待用户窗口）→ T-10 全量门禁 → T-11 收尾。
 
+**2026-09-15（续八）| stage: work | plan_id: PLAN-066 | plan_revision: 2 | outcome: pass（T-07 读侧收口，整体仍 executing）**
+
+- code_commit: auto-lang `auto-musk-dev` **`f138dd761`**（T-07 读侧语料+回归锁）
+- task_ids: T-07 ✅（current_step 7/12；实机 ▼ 目验 🔶 待用户）
+- W-11（T-07 裁定）：当前树（含 T-06 str.includes 根修）读侧全链绿——语料 bubble.at 子件三断言（Toggle 携 `.current_msg.id` 达 store expanded="m1"/展开态 computed `isOpen => .expanded == .current_msg.id` 串等值 true/收起 false）。055-T13「读侧 computed 与视图 if 恒假恒真分歧」未现形（T-06 includes 修复+上游域读取演进覆盖）。obj-prop 传递脸 harness 无逐帧烘焙不可测；生产写侧 `.msg.id` 实机已达（计划在案）。语料教训在案：`use` 模块名必须与文件名一致（resolve 按名找文件）。
+- evidence: bubble.at + PC 回归锁三断言；plan066 5/5 绿；tv 3731/3731。
+- blockers: 无。
+- next: T-04/T-08/T-09 实机面（待用户窗口）→ T-10 全量门禁 → T-11 收尾。
+
 ## 待澄清事项
 
 1. **T-01 转储工具引入**：~~请用户裁定~~ **✅ 2026-09-15 用户批准引入 procdump/wpr**（P625-D1 指定手段；工具落 `D:/autostack/tools/` 仓外，不入库）。若证据实锤外部击杀链，按 575 降档出口处理（审计常驻，一轮真实复现重启归因）。
