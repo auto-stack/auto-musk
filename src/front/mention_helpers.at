@@ -233,8 +233,10 @@ fn mention_last_at(s str) int {
     元素回退 activeElement（input 事件时 textarea 必持焦点）,串本身即
     val;事件对象入参（既有调用形态）走原路不受影响。 */
 fn mention_detect(e obj) obj {
-    let el = e.target
-    let val = ""
+    // PLAN-066 T-12: var 化——el 在 None 臂重赋值（web let 语义），VM 轨
+    // let 不可变纪律拒绝重赋值（重赋值编译错曾毒化本导出）。
+    var el = e.target
+    var val = ""
     if el == None {
         el = document.activeElement
         val = e ?? ""
