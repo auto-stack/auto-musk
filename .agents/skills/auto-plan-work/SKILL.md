@@ -47,6 +47,16 @@ Follow the repository's `AGENTS.md`. For auto-musk:
 | Dependency worktree | Same group, e.g. `D:/autostack/.wt/musk-NNN/auto-lang` |
 | Dependency branch | `auto-musk-dev`, subject to existing ownership checks |
 
+For auto-lang:
+
+| Item | Location / branch |
+|---|---|
+| Shared Plan and progress | Main checkout `docs/plans/NNN-slug.md` |
+| Implementation worktree | `D:/autostack/.wt/lang-NNN/auto-lang` |
+| Development branch | `plan-NNN-dev` |
+| Dependency worktree | Same group, e.g. `D:/autostack/.wt/lang-NNN/auto-down` |
+| L0 / walkthrough fix | `D:/autostack/.wt/fix-<slug>/auto-lang`, branch `fix-<slug>` |
+
 1. Inspect `git worktree list --porcelain`. Reuse the Plan's existing
    worktree/branch throughout its lifetime. Confirm repository, Plan ownership,
    absolute path, and branch; a matching branch name alone is insufficient.
@@ -55,22 +65,42 @@ Follow the repository's `AGENTS.md`. For auto-musk:
    or branch belongs to other work, do not repurpose it. Apply the target
    repository's naming convention when these skills are used elsewhere;
    do not derive the group by stripping an arbitrary part of the repo name.
-3. All implementation, test, and canonical Spec file edits/builds take place
+3. Before the first edit, assert you are inside the worktree, never the main
+   checkout: `git rev-parse --show-toplevel` must resolve to the worktree path
+   and `git branch --show-current` to the development branch. If either fails,
+   stop and create/enter the worktree first. Re-assert after any `cd`.
+4. Preflight the main checkout at session start: if its working tree carries
+   uncommitted changes under code paths (`crates/**`, `test/**`, or the
+   repository's equivalent), surface them to the user before any landing or
+   edit of your own; another session's WIP on the main checkout violates the
+   master-zero-WIP rule and needs its own routing (stash/patch handoff to its
+   owner or a fix worktree), not silent inclusion.
+5. All implementation, test, and canonical Spec file edits/builds take place
    in worktrees. Plan progress and handoff records remain on the main checkout.
    Only one writer updates the shared Plan; reread before patching and preserve
    concurrent user edits. An unexpected concurrent edit requires reconciliation.
-4. Never create junctions/symlinks inside any worktree. Dependencies resolve
+6. Never create junctions/symlinks inside any worktree. Dependencies resolve
    via explicit environment override, then a group sibling, then the main
    dependency checkout. Dependency modifications require their own worktree.
-5. Commit completed implementation units. Preserve unexpected uncommitted
+7. Commit completed implementation units. Preserve unexpected uncommitted
    changes and resolve ownership before committing or merging them.
    Record base commit, worktree, and dependency revisions in the Plan.
-6. If the approved Plan lands phases incrementally, each landing needs a
+8. If the approved Plan lands phases incrementally, each landing needs a
    recorded phase acceptance review on that commit and the required full-suite
    gate. Keep the overall Plan `executing`; do not claim final review.
    Sync the default branch back before the next phase and refresh stale evidence.
    Fold an authorized dependency change back promptly after its own verification
    and successful consumer integration, then guard and clean its worktree.
+
+The worktree mandate covers every code-writing entry, not only plan execution:
+L0 trivial fixes and walkthrough/verification-session incidental fixes likewise
+require a dedicated fix worktree (the `fix-<slug>` row above; auto-lang
+2026-09-15 ruling 87eba67ab: the main checkout carries zero WIP code — only
+Plan bookkeeping under `docs/plans/**` may be edited there). An agent editing
+implementation files directly on the main checkout — with or without this
+skill — violates the ruling; when you encounter such a working tree, do not
+build on it: surface it to the user and help its owner route the WIP into a
+worktree before proceeding.
 
 Before any worktree removal, verify the resolved absolute target is inside its
 intended group and require `bash D:/autostack/wt-guard.sh <worktree>` to report
