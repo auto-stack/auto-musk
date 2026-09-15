@@ -16,7 +16,7 @@ touched_goals:
   - "goal-frontend-parity: VM 轨语义族根修消费（问卷卡直读/computed 投影/chevron/Sse 零抛）——双轨等价最后一里"
   - "goal-agent: VM 进程稳定性（KD-048a 静默退出根修 + MCP 子进程回收）——agent 运行面可靠性"
 
-current_step: 4
+current_step: 5
 total_steps: 12
 ---
 
@@ -160,7 +160,7 @@ SD 目标为暂填：review 按已验证实现定稿（含 SD-03 最终挂载文
 
 - [x] T-01 KD-048a 定罪：575 审计钩子复核 ✓（三挂点在案：shim_process_exit/panic hook/main_return @ renderer.rs:16997）+ vm-first-run-soak.mjs 长跑取证 harness 入库（端到端小参实跑链路通）**[✅ 2026-09-15 实跑取证完成]**：A/B 对照定罪——run1（9247 标准端口，与并发会话共址）0/3 存活（-1 静默死×2 @4.5min/7.7min 绕过 575 全钩 + main_return 自退×1 @58s）vs run2（AUTOUI_MCP_PORT=9741 私有隔离）**3/3 存活**；procdump -h 六轮全程监听零挂起检出 + 死亡窗口 WER 零报告 → **慢性静默退出=同机并发会话争抢默认 MCP 端口的环境干扰，P625-D1 AppHang 链未现形**（历史 WER ×2 为独立面孔）。证据入库 musk `175597b`（attachments/066-kd048a-conviction/ + scripts/vm-hangwatch.mjs + soak 判读修正）
 - [x] T-02 按 P625-D1 候选面根修（快照序列化让出 UI 线程/日志限频/端口显式报错按定罪取用）；验证 3×10min 长跑零静默退出 + vm-first-run alive reds=0（AC-01）**[✅ 2026-09-15 按定罪落地]**：auto-lang `8d03dc1a8` 两件——①快照锁持有面收紧（styled_vtree 改 Arc 发布，clone_styled_vtree O(1)，tool_snapshot/autoui_wait 深序列化移出锁外——历史 AppHangB1 结构面孔根修）②端口绑定回退链（9247..+10 逐档探测+实际端口播报+FATAL 附行动指引；实测 9247 被占自动回退 9248 双方共存）；日志限频候选：取证无洪水证据，不动（裁定记录）。验证：tv 3716/3716 + run3 修复后隔离 3×10min（r2/r3 全存活，r1 main_return code=0 干净自退 @121s 有审计）**零静默退出** + vm-first-run reds=0；残留观察=main_return 自退脸（嫌疑外方关窗，低置信，复发需 CloseRequested 溯源，记录于 conviction REPORT）
-- [ ] T-03 MCP 子进程回收：auto-lang `ui/mcp_server.rs` autoui_snapshot spawn 链 + musk census 脚本；验证会话后子进程归零（AC-02）
+- [x] T-03 MCP 子进程回收：auto-lang `ui/mcp_server.rs` autoui_snapshot spawn 链 + musk census 脚本；验证会话后子进程归零（AC-02）**[✅ 2026-09-15]**：spawn 链定位=**Plan 508 桌面 outproc 通道**（`launch_app_outproc`→`spawn_outproc_child` re-exec `--autodesk-incubate` 子 auto；MCP 工具面 16 个 autoui_* 全程进程内零 spawn，census 五连调实证）——KD-062「~66MB 子进程不退」真身=outproc 子进程登记 `outproc_children` 后生产路径**无 kill/wait**（Rust Child Drop 不杀），会话结束即滞留；~43MB 瞬态=broker attach 失败自退同族。根修=**DesktopSession Drop 统一收割**（`shutdown_outproc_children`：drain+kill+wait，一处收口覆盖全部 iced::exit() 面含 4 个未停机 broker 的协议失败面）；回归锁 `session_drop_reaps_outproc_children` 绿（ui-iced 面）。验证：census 归零 + tv 3716/3716 + ui-iced 档基线对照零新增（该档 215-219 flaky 既有）+ release reds=0（auto-lang `f11cd5df1` / musk `bc03de3`）
 - [ ] T-04 __json_object 字符串读根修：✅ 上游根修落地（见 rev2 工作记录 W-1：`.type` 属性抢占收窄，非 stdlib 臂缺陷）+ wl_probe21 全形态转正 musk_vm_track p066 测试族 4/4 绿 + tv 3711/3711；musk 侧零代码变更（questionnaireFor 的 json.type 直读本就在位）；⏸ 实机问卷卡渲染验证被 F-W1 阻塞（🔶 待用户窗口+VM 启动修复）
 - [x] T-05 Regex：前置复跑 wl_probe18 裁定**分支 b（红，计数脸未修）**→ 残余根修落地 [✅ 2026-09-15：真根=shim_regex_match 为 is_match 1/0 语义且弹参错位（非 583 retain 脸）→ JS web 语义统一三参契约+编译期补参，auto-lang `c9e6e4737`；musk 回撤 11b6c20 两函数恢复 Regex 通道 `8536ff4`；p066_2 四测绿（wl_probe18 全形态双脸+组提取+元素存活 583 锁）+tv 3715/3715+auto build 绿+vitest 36+1skip 基线一致]（AC-03）
 - [ ] T-06 state-scope 专项（前置：624 收口对表——✅ 624 已复审 pass 2026-09-15，待合并）：eval_computed 上下文 + P536-D2 SET_FIELD（624 已覆盖则裁剪）+ musk t3_filter 转正；验证画布投影实机即时入列（AC-04）
@@ -250,6 +250,17 @@ SD 目标为暂填：review 按已验证实现定稿（含 SD-03 最终挂载文
 - evidence: attachments/066-kd048a-conviction/（REPORT + 两臂 soak summary + hangwatch 时序 + 审计行）+ run3 三件；soak 判读修正随 175597b（旧逻辑把干净自退误判 alive）。
 - blockers: 无。
 - next: T-03（MCP 子进程 census+回收；AC-02）→ 624 合并后 T-06/T-07 → T-04/T-08/T-09 实机面（待用户窗口）。
+
+**2026-09-15（续五）| stage: work | plan_id: PLAN-066 | plan_revision: 2 | outcome: pass（T-03 收口，整体仍 executing）**
+
+- code_commit: auto-lang `auto-musk-dev` **`f11cd5df1`**（T-03 根修+回归锁）；musk `plan-066-dev` **`bc03de3`**（census 资产）
+- task_ids: T-03 ✅（current_step 5/12）；T-06..T-11 未动
+- W-7（T-03 定性）：**spawn 链不在 MCP 工具面**——16 个 autoui_* 工具全程进程内（mcp_server.rs 零 Command），census 对存活 App 五连 autoui_snapshot 全 200、零子进程拉起。真 spawn 链=**Plan 508 桌面 outproc 通道**（`launch_app_outproc`→`spawn_outproc_child` re-exec `auto run --autodesk-incubate --app386=<N>`）；子进程登记 `outproc_children` 后生产路径零 kill/wait（仅测试内 drain），Rust `Child` Drop 不杀不 wait → 会话结束子 auto.exe 滞留=KD-062「~66MB 不退」真身；~43MB 瞬态=broker attach 失败自退同族。根修=`shutdown_outproc_children`（drain+kill+wait）挂 **DesktopSession Drop**——run() 返回必经 Drop，单点覆盖全部 iced::exit() 面（含 4 个未显式停机 broker 的协议失败退出）。
+- 验证：回归锁 `session_drop_reaps_outproc_children` 绿（ping 长命子进程打桩、Drop 后 pid 消失；session.rs 为 ui-iced 门控模块，须 `--features ui-iced` 面）；census 归零（exit 0）；tv 3716/3716；release 重建 + vm-first-run reds=0；ui-iced lib 档基线对照（stash 前后 diff）**零新增失败**（该档 215-219 flaky 既有破损，非本计划门）。
+- 环境实证（census 附带）：census-before 撞见并发会话（lang-020 组）6 个 `--autodesk-incubate` debug 实例（22-183MB）共时运行；+8s 窗内 7 个 auto.exe（含我方 App）**全部被按名团灭**（我方审计零记录）——KD-048a 环境干扰定罪的又一实证，跨会话按名清理为本机常态。
+- evidence: census 运行输出（会话记录）；两仓 commit。
+- blockers: 无。
+- next: T-06/T-07（待 624 合并对表）或 T-04/T-08/T-09 实机面（待用户窗口）；SD-02 定稿随 review。
 
 ## 待澄清事项
 
