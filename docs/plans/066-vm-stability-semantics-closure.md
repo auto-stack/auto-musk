@@ -16,7 +16,7 @@ touched_goals:
   - "goal-frontend-parity: VM 轨语义族根修消费（问卷卡直读/computed 投影/chevron/Sse 零抛）——双轨等价最后一里"
   - "goal-agent: VM 进程稳定性（KD-048a 静默退出根修 + MCP 子进程回收）——agent 运行面可靠性"
 
-current_step: 2
+current_step: 4
 total_steps: 12
 ---
 
@@ -158,8 +158,8 @@ SD 目标为暂填：review 按已验证实现定稿（含 SD-03 最终挂载文
 
 ## 执行步骤
 
-- [ ] T-01 KD-048a 定罪：575 审计钩子复核 ✓（三挂点在案：shim_process_exit/panic hook/main_return @ renderer.rs:16997）+ vm-first-run-soak.mjs 长跑取证 harness 入库（端到端小参实跑链路通）⏸ 实跑取证被 F-W1 VM 启动断裂阻塞（转储工具仍待澄清①）
-- [ ] T-02 按 P625-D1 候选面根修（快照序列化让出 UI 线程/日志限频/端口显式报错按定罪取用）；验证 3×10min 长跑零静默退出 + vm-first-run alive reds=0（AC-01）⏸ 待 T-01
+- [x] T-01 KD-048a 定罪：575 审计钩子复核 ✓（三挂点在案：shim_process_exit/panic hook/main_return @ renderer.rs:16997）+ vm-first-run-soak.mjs 长跑取证 harness 入库（端到端小参实跑链路通）**[✅ 2026-09-15 实跑取证完成]**：A/B 对照定罪——run1（9247 标准端口，与并发会话共址）0/3 存活（-1 静默死×2 @4.5min/7.7min 绕过 575 全钩 + main_return 自退×1 @58s）vs run2（AUTOUI_MCP_PORT=9741 私有隔离）**3/3 存活**；procdump -h 六轮全程监听零挂起检出 + 死亡窗口 WER 零报告 → **慢性静默退出=同机并发会话争抢默认 MCP 端口的环境干扰，P625-D1 AppHang 链未现形**（历史 WER ×2 为独立面孔）。证据入库 musk `175597b`（attachments/066-kd048a-conviction/ + scripts/vm-hangwatch.mjs + soak 判读修正）
+- [x] T-02 按 P625-D1 候选面根修（快照序列化让出 UI 线程/日志限频/端口显式报错按定罪取用）；验证 3×10min 长跑零静默退出 + vm-first-run alive reds=0（AC-01）**[✅ 2026-09-15 按定罪落地]**：auto-lang `8d03dc1a8` 两件——①快照锁持有面收紧（styled_vtree 改 Arc 发布，clone_styled_vtree O(1)，tool_snapshot/autoui_wait 深序列化移出锁外——历史 AppHangB1 结构面孔根修）②端口绑定回退链（9247..+10 逐档探测+实际端口播报+FATAL 附行动指引；实测 9247 被占自动回退 9248 双方共存）；日志限频候选：取证无洪水证据，不动（裁定记录）。验证：tv 3716/3716 + run3 修复后隔离 3×10min（r2/r3 全存活，r1 main_return code=0 干净自退 @121s 有审计）**零静默退出** + vm-first-run reds=0；残留观察=main_return 自退脸（嫌疑外方关窗，低置信，复发需 CloseRequested 溯源，记录于 conviction REPORT）
 - [ ] T-03 MCP 子进程回收：auto-lang `ui/mcp_server.rs` autoui_snapshot spawn 链 + musk census 脚本；验证会话后子进程归零（AC-02）
 - [ ] T-04 __json_object 字符串读根修：✅ 上游根修落地（见 rev2 工作记录 W-1：`.type` 属性抢占收窄，非 stdlib 臂缺陷）+ wl_probe21 全形态转正 musk_vm_track p066 测试族 4/4 绿 + tv 3711/3711；musk 侧零代码变更（questionnaireFor 的 json.type 直读本就在位）；⏸ 实机问卷卡渲染验证被 F-W1 阻塞（🔶 待用户窗口+VM 启动修复）
 - [x] T-05 Regex：前置复跑 wl_probe18 裁定**分支 b（红，计数脸未修）**→ 残余根修落地 [✅ 2026-09-15：真根=shim_regex_match 为 is_match 1/0 语义且弹参错位（非 583 retain 脸）→ JS web 语义统一三参契约+编译期补参，auto-lang `c9e6e4737`；musk 回撤 11b6c20 两函数恢复 Regex 通道 `8536ff4`；p066_2 四测绿（wl_probe18 全形态双脸+组提取+元素存活 583 锁）+tv 3715/3715+auto build 绿+vitest 36+1skip 基线一致]（AC-03）
@@ -239,6 +239,17 @@ SD 目标为暂填：review 按已验证实现定稿（含 SD-03 最终挂载文
 - evidence: worktree 内插桩复核（vm_debug static-check + MissingNative 探针 `--nocapture` 输出）；firstrun summary 行 `observe_ms=20013 alive=yes … reds=0`。
 - blockers: 无（待澄清①已解除；实机目验类仍待用户窗口，属 T-04/T-08 验收面）。
 - next: T-01 实跑取证（3×10min soak + procdump 挂起期转储；VM 启动链已通，F-W1 污染源解除）→ T-02 根修。
+
+**2026-09-15（续四）| stage: work | plan_id: PLAN-066 | plan_revision: 2 | outcome: pass（T-01+T-02 收口，整体仍 executing）**
+
+- code_commit: auto-lang `auto-musk-dev` **`8d03dc1a8`**（T-02 两件根修）；musk `plan-066-dev` **`175597b`**（T-01 取证资产：conviction 报告/hangwatch 工具/soak 判读修正/证据文件）
+- task_ids: T-01 ✅、T-02 ✅（current_step 4/12）；T-03/T-06..T-11 未动
+- W-5（T-01 定罪，KD-048a 翻案）：A/B 对照（单变量 AUTOUI_MCP_PORT）——run1（9247 与并发 auto-os 会话共址）**0/3 存活**（-1 静默死×2 @4.5min/7.7min 绕过 575 全部三挂点 + main_return 干净自退×1 @58s）vs run2（9741 隔离）**3/3 存活**；procdump -h 六轮全程零挂起检出、死亡窗口 WER 零事件 → 慢性「~4-5min 静默退出」=**同机并发会话争抢标准 MCP 端口的环境干扰**（-1 恰为 PowerShell Stop-Process 退出码；时间线与对方会话起 ui_desktop 抢 9247 闭环），**P625-D1 AppHang 链今日未现形**（历史 WER ×2 为独立面孔）。环境处置记录：run1 前清理遗留 ui_desktop 42944（占 9247，12:24 起）与孤儿 debug auto.exe 48072。
+- W-6（T-02 按定罪取用）：①快照锁持有面收紧——SharedState.styled_vtree 改 Arc 发布，clone 降 O(1)，tool_snapshot/autoui_wait 深序列化移出锁外（历史 AppHangB1 结构面孔根修）；②端口绑定回退链 9247..+10 逐档探测+播报实际端口+FATAL 附指引（实测 9247 被并发会话占用→自动回退 9248→双方共存 reds=0）；③日志限频候选：取证无洪水证据，不动。验证：tv 3716/3716；run3（修复后构建，隔离端口）3×10min **零静默退出**（r2/r3 全存活、r1 main_return code=0 @121s 有审计）+ vm-first-run reds=0。
+- 残留观察：main_return 自退脸 3 轮中 2 次（run1 r2 @58s、run3 r1 @121s），混合端口、死前零异常，嫌疑外方关窗（低置信）——复发需 CloseRequested 溯源插桩（新调查面，暂记不追）。
+- evidence: attachments/066-kd048a-conviction/（REPORT + 两臂 soak summary + hangwatch 时序 + 审计行）+ run3 三件；soak 判读修正随 175597b（旧逻辑把干净自退误判 alive）。
+- blockers: 无。
+- next: T-03（MCP 子进程 census+回收；AC-02）→ 624 合并后 T-06/T-07 → T-04/T-08/T-09 实机面（待用户窗口）。
 
 ## 待澄清事项
 
