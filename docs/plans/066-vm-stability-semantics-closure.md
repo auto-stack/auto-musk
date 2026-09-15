@@ -163,7 +163,7 @@ SD 目标为暂填：review 按已验证实现定稿（含 SD-03 最终挂载文
 - [x] T-03 MCP 子进程回收：auto-lang `ui/mcp_server.rs` autoui_snapshot spawn 链 + musk census 脚本；验证会话后子进程归零（AC-02）**[✅ 2026-09-15]**：spawn 链定位=**Plan 508 桌面 outproc 通道**（`launch_app_outproc`→`spawn_outproc_child` re-exec `--autodesk-incubate` 子 auto；MCP 工具面 16 个 autoui_* 全程进程内零 spawn，census 五连调实证）——KD-062「~66MB 子进程不退」真身=outproc 子进程登记 `outproc_children` 后生产路径**无 kill/wait**（Rust Child Drop 不杀），会话结束即滞留；~43MB 瞬态=broker attach 失败自退同族。根修=**DesktopSession Drop 统一收割**（`shutdown_outproc_children`：drain+kill+wait，一处收口覆盖全部 iced::exit() 面含 4 个未停机 broker 的协议失败面）；回归锁 `session_drop_reaps_outproc_children` 绿（ui-iced 面）。验证：census 归零 + tv 3716/3716 + ui-iced 档基线对照零新增（该档 215-219 flaky 既有）+ release reds=0（auto-lang `f11cd5df1` / musk `bc03de3`）
 - [ ] T-04 __json_object 字符串读根修：✅ 上游根修落地（见 rev2 工作记录 W-1：`.type` 属性抢占收窄，非 stdlib 臂缺陷）+ wl_probe21 全形态转正 musk_vm_track p066 测试族 4/4 绿 + tv 3711/3711；musk 侧零代码变更（questionnaireFor 的 json.type 直读本就在位）；⏸ 实机问卷卡渲染验证被 F-W1 阻塞（🔶 待用户窗口+VM 启动修复）
 - [x] T-05 Regex：前置复跑 wl_probe18 裁定**分支 b（红，计数脸未修）**→ 残余根修落地 [✅ 2026-09-15：真根=shim_regex_match 为 is_match 1/0 语义且弹参错位（非 583 retain 脸）→ JS web 语义统一三参契约+编译期补参，auto-lang `c9e6e4737`；musk 回撤 11b6c20 两函数恢复 Regex 通道 `8536ff4`；p066_2 四测绿（wl_probe18 全形态双脸+组提取+元素存活 583 锁）+tv 3715/3715+auto build 绿+vitest 36+1skip 基线一致]（AC-03）
-- [ ] T-06 state-scope 专项（前置：624 收口对表——✅ 624 已复审 pass 2026-09-15，待合并）：eval_computed 上下文 + P536-D2 SET_FIELD（624 已覆盖则裁剪）+ musk t3_filter 转正；验证画布投影实机即时入列（AC-04）
+- [ ] T-06 state-scope 专项（前置：624 收口对表——✅ 624 已合并 master `0b5a23d08`，分支已同步零冲突，对表完成）：eval_computed 上下文 + P536-D2 SET_FIELD（624 已覆盖则裁剪）+ musk t3_filter 转正；验证画布投影实机即时入列（AC-04）**[🔶 2026-09-15 对表+红相隔离完成，根修下会话续]**：①P536-D2 SET_FIELD 面**裁定已覆盖**（PB 绿：MarkDone→ClearWindow 跨模块自调链写达根态——624 闭包帧修复或更早已修，裁剪入账）；②055-4⑥ 现代真身**七步切分隔离**为单行复现：合成 fn 内 `for m in <store 列表> { out.push(m) }` 对**循环变量 VmRef 本体的 push 静默 no-op**（列表恒空=投影 0 条；push 字面量/push m.content/循环迭代/元素域读取全部正常）；③另证列表字段读改写（`.messages=.messages+[]`）在旧值陈旧时静默失效（全新字面量整写正常——musk 生产整写回填未踩）。红相语料+PA #[ignore] 锁入库 auto-lang `d9e6f452c`；根修=合成 fn 内 List push 的 VmRef 实参通道（plan419/rc 族）
 - [ ] T-07 ThinkBlock chevron 读侧（随 T-06 同根验收）；验证实机独立翻转（AC-04）
 - [ ] T-08 Sse no-op 容错 + 绕行层复盘（8b1ae23 四修 + 067/069 叠加层逐项裁定，deadman 立场重估）；验证 StartStream VM 零抛 + 发送链 E2E 不回归（AC-05）⏸ E2E 面受 F-W1 影响
 - [ ] T-09 059-T9 五余项逐项修 + 实机验证（fixed_both Image/trigger 锚件/受控 open ESC+外点/scrim 双主题/宽度 prop，符号锚重定位）；验证五项证据在案（AC-06）
@@ -261,6 +261,16 @@ SD 目标为暂填：review 按已验证实现定稿（含 SD-03 最终挂载文
 - evidence: census 运行输出（会话记录）；两仓 commit。
 - blockers: 无。
 - next: T-06/T-07（待 624 合并对表）或 T-04/T-08/T-09 实机面（待用户窗口）；SD-02 定稿随 review。
+
+**2026-09-15（续六）| stage: work | plan_id: PLAN-066 | plan_revision: 2 | outcome: pass（T-06 对表+红相隔离，根修留点）**
+
+- code_commit: auto-lang `auto-musk-dev` 分支同步 master（merge `9c8729009`，零冲突；tv 3731/3731）+ **`d9e6f452c`**（T-06 红相语料）
+- task_ids: T-06 🔶（对表+隔离完成，根修留点）；其余未动
+- W-8（624 对表裁定）：624 实际修=跨状态**读**解析（?str 双态/嵌套/map 字面量）+ 闭包激活帧协议（jade Invalid object ID 真因）；**未覆盖 P536-D2 SET_FIELD 面而实机绿**（PB：MarkDone→ClearWindow 自调链 `.done=false` 达根态）——裁定 SET_FIELD 裁剪出 T-06，T-06 余量=computed 读侧（055-4⑥ 现代真身）。
+- W-9（055-4⑥ 七步切分，真身改写）：musk chats_view 缩样语料双臂驱动（plan624 同款 harness）。排除链：store 列表 computed 内可达（msgCount=.messages.len()=1）→ 元素域读取正常（firstContent="你好世界"）→ push 字面量（=3）→ push 元素域读值 m.content（=1）→ **push 循环变量 VmRef 本体 no-op（=0）**。055-4⑥「computed 求值上下文 VmRef 域读取恒空」改写为「合成 fn 内 List.push 的 VmRef 实参通道静默丢弃」（元素域读取今已正常——T-04 .type 收窄/上游演进已修域读取脸）。附带：列表字段读改写（concat 旧值）在旧值陈旧时静默失效（全新字面量整写正常；musk 生产只整写回填故未踩）。
+- evidence: 语料 test/ui/plan066_filter_projection/ + plan066_filter_projection_tests.rs（PA #[ignore] 红相锁+七步诊断输出；PB 绿）；两 commit。
+- blockers: 无（根修面已锁定：合成 fn 内 List push 的 VmRef 实参通道，plan419/rc 族——下会话以单行复现直入）。
+- next: T-06 根修（push(VmRef) 通道）→ PA 解锁 → t3_filter 转正 → T-07 chevron 同族验收。
 
 ## 待澄清事项
 
