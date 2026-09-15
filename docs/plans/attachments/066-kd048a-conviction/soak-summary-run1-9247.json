@@ -1,0 +1,51 @@
+{
+  "started": "2026-09-15T06:09:28.071Z",
+  "rounds": [
+    {
+      "round": 1,
+      "exitCode": 4,
+      "auditPath": "tmp\\plan066-exit-audit-r1.log",
+      "auditLines": [],
+      "verdict": "external-kill-or-apphang",
+      "logTail": [
+        "stderr | [UI_EVENT] widget=\"ForgeStore\" event=\"PollStream\" input_val=None",
+        "stderr | [VM_HANDLER_CALL] widget=ForgeStore event=PollStream args=[]",
+        "stderr | [VM_EXEC] fn_name=handler_ForgeStore_PollStream state_obj_id=4000033 args=[]",
+        "stderr | [VM_HANDLER_OK] widget=ForgeStore event=PollStream",
+        "[first-run] summary observe_ms=600018 alive=no(exit=4294967295) stack=0 panic=0 codegen=0 link=0 io=0 reds=0"
+      ]
+    },
+    {
+      "round": 2,
+      "exitCode": 0,
+      "auditPath": "tmp\\plan066-exit-audit-r2.log",
+      "auditLines": [
+        "1789453225205 pid=42804 code=0 site=main_return"
+      ],
+      "verdict": "alive",
+      "logTail": [
+        "stderr | [VM_HANDLER_CALL] widget=ForgeStore event=PollStream args=[]",
+        "stderr | [VM_EXEC] fn_name=handler_ForgeStore_PollStream state_obj_id=4000033 args=[]",
+        "stderr | [VM_HANDLER_OK] widget=ForgeStore event=PollStream",
+        "stdout | ------------- end --------------",
+        "[first-run] summary observe_ms=600017 alive=no(exit=0) stack=0 panic=0 codegen=0 link=0 io=0 reds=0"
+      ]
+    },
+    {
+      "round": 3,
+      "exitCode": 4,
+      "auditPath": "tmp\\plan066-exit-audit-r3.log",
+      "auditLines": [],
+      "verdict": "external-kill-or-apphang",
+      "logTail": [
+        "stderr | [UI_EVENT] widget=\"ForgeStore\" event=\"PollStream\" input_val=None",
+        "stderr | [VM_HANDLER_CALL] widget=ForgeStore event=PollStream args=[]",
+        "stderr | [VM_EXEC] fn_name=handler_ForgeStore_PollStream state_obj_id=4000033 args=[]",
+        "stderr | [VM_HANDLER_OK] widget=ForgeStore event=PollStream",
+        "[first-run] summary observe_ms=600017 alive=no(exit=4294967295) stack=0 panic=0 codegen=0 link=0 io=0 reds=0"
+      ]
+    }
+  ],
+  "finished": "2026-09-15T06:39:28.313Z",
+  "allAlive": false
+}

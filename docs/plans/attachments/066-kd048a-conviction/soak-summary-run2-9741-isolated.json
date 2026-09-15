@@ -1,0 +1,49 @@
+{
+  "started": "2026-09-15T06:47:56.282Z",
+  "rounds": [
+    {
+      "round": 1,
+      "exitCode": 0,
+      "auditPath": "tmp\\plan066-exit-audit-r1.log",
+      "auditLines": [],
+      "verdict": "alive",
+      "logTail": [
+        "stderr | [UI_EVENT] widget=\"ForgeStore\" event=\"PollStream\" input_val=None",
+        "stderr | [VM_HANDLER_CALL] widget=ForgeStore event=PollStream args=[]",
+        "stderr | [VM_EXEC] fn_name=handler_ForgeStore_PollStream state_obj_id=4000033 args=[]",
+        "stderr | [VM_HANDLER_OK] widget=ForgeStore event=PollStream",
+        "[first-run] summary observe_ms=600015 alive=yes stack=0 panic=0 codegen=0 link=0 io=0 reds=0"
+      ]
+    },
+    {
+      "round": 2,
+      "exitCode": 0,
+      "auditPath": "tmp\\plan066-exit-audit-r2.log",
+      "auditLines": [],
+      "verdict": "alive",
+      "logTail": [
+        "stderr | [UI_EVENT] widget=\"ForgeStore\" event=\"PollStream\" input_val=None",
+        "stderr | [VM_HANDLER_CALL] widget=ForgeStore event=PollStream args=[]",
+        "stderr | [VM_EXEC] fn_name=handler_ForgeStore_PollStream state_obj_id=4000033 args=[]",
+        "stderr | [VM_HANDLER_OK] widget=ForgeStore event=PollStream",
+        "[first-run] summary observe_ms=600019 alive=yes stack=0 panic=0 codegen=0 link=0 io=0 reds=0"
+      ]
+    },
+    {
+      "round": 3,
+      "exitCode": 0,
+      "auditPath": "tmp\\plan066-exit-audit-r3.log",
+      "auditLines": [],
+      "verdict": "alive",
+      "logTail": [
+        "stderr | [UI_EVENT] widget=\"ForgeStore\" event=\"PollStream\" input_val=None",
+        "stderr | [VM_HANDLER_CALL] widget=ForgeStore event=PollStream args=[]",
+        "stderr | [VM_EXEC] fn_name=handler_ForgeStore_PollStream state_obj_id=4000033 args=[]",
+        "stderr | [VM_HANDLER_OK] widget=ForgeStore event=PollStream",
+        "[first-run] summary observe_ms=600019 alive=yes stack=0 panic=0 codegen=0 link=0 io=0 reds=0"
+      ]
+    }
+  ],
+  "finished": "2026-09-15T07:17:56.587Z",
+  "allAlive": true
+}

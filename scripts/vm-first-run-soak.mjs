@@ -48,12 +48,16 @@ for (let r = 1; r <= ROUNDS; r++) {
   const code = res.status ?? -1;
   const auditText = existsSync(audit) ? readFileSync(audit, "utf8").trim() : "";
   const auditLines = auditText ? auditText.split("\n") : [];
-  const earlyExit = code === 4; // vm-first-run: 进程提前自行退出（KD-048a 信号形态）
+  // T-01 取证修正：vm-first-run 对「子进程提前干净退出(code=0)」上报进程
+  // 退出码 0 但 summary 行 alive=no——仅按退出码会把自退轮误判 alive
+  // （run1-9247 r2 实证）。verdict 以 summary 行 alive= 为准。
+  const summaryAlive = /alive=(yes|no)/.exec(res.stdout || "")?.[1] !== "no";
   let verdict;
-  if (code === 0) verdict = "alive";
+  if (code === 0 && summaryAlive) verdict = "alive";
   else if (code === 3) verdict = "harness-red"; // 检出 fatal 红，harness 主动收尾——非稳定性判定
-  else if (earlyExit && auditLines.length > 0) verdict = "product-defect"; // 审计 site 指认
-  else if (earlyExit) verdict = "external-kill-or-apphang"; // 零审计 + 死亡 → 048a/P625-D1 现形
+  else if (!summaryAlive && auditLines.length > 0) verdict = "product-defect"; // 审计 site 指认
+  else if (!summaryAlive) verdict = "external-kill-or-apphang"; // 零审计 + 死亡 → 048a/P625-D1 现形
+  else if (code === 0) verdict = "alive";
   else verdict = "infra"; // spawn 失败等 harness 自身故障
   summary.rounds.push({
     round: r,
