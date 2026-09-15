@@ -1,0 +1,18 @@
+// ports/whitelist.vm.at — PLAN-066 T-12 同族:白名单域 VM adapter。
+//
+// web 侧 whitelist.web.at re-export whitelist_web.ts（fetch 白名单工作区
+// 根增删查，400 error body 原样透传）。VM 轨白名单走后端桥的等价 face
+// 尚未接线（PLAN-070 VM 轨缺口在案），域内 fn 以安全空值桩补位——链接
+// 可解析、加载返回空列表、增删返回 error 空串（调用面判 res.error）。
+
+fn loadWorkspaceRoots(wid str) {
+    return { ok: true, roots: [], error: "" }
+}
+
+fn addWorkspaceRoot(wid str, path str) {
+    return { ok: true, error: "" }
+}
+
+fn removeWorkspaceRoot(wid str, path str) {
+    return { ok: true, error: "" }
+}

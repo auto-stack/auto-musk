@@ -1,0 +1,19 @@
+// ports/upload.vm.at — PLAN-066 T-12 同族:upload 域 VM adapter。
+//
+// web 侧 upload.web.at re-export raw_upload.ts（XHR FormData 上传 + 进度
+// ref）。VM 轨无 XHR/拖放上传管线（wiki 上传面依赖浏览器 drop 事件与
+// 进度回调），域内 fn 以安全空值桩补位——链接可解析、调用面行为退化
+// （上传动作无操作、文本加载返回空串、进度恒 0）。rawUploadProgress 为
+// ref 常量（值位置 .value 消费），不产代码重定位，无需桩。
+
+fn uploadRawFiles(workspace str, files) {
+    return []
+}
+
+fn loadRawFileText(workspace str, path str) str {
+    return ""
+}
+
+fn wikiUploadDrop(workspace str, e) {
+    return None
+}

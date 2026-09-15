@@ -1,0 +1,10 @@
+// ports/files.vm.at — PLAN-066 T-12 同族:files 域 VM adapter。
+//
+// web 侧 files.web.at re-export files_web.ts（fetch .text() 正文加载，
+// api.at 绑定 json() 对文本必炸）。VM 轨文件正文加载走后端 HTTP 桥的
+// 等价 face 尚未接线（PLAN-068 VM 轨缺口在案），域内 fn 以安全空值桩
+// 补位——链接可解析、文本预览退化为空串。
+
+fn loadFilesFileText(path str) str {
+    return ""
+}

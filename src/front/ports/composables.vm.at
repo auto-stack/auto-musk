@@ -52,3 +52,42 @@ fn useI18n() {
         locale: settings_locale_get()
     }
 }
+
+// ── useViewState/viewstate_router 的 VM 形态（PLAN-066 T-12 同族补齐）──
+// web 侧 viewstate_router.ts 以模块态 currentView 持 URL 派生视图；VM 轨
+// 无 URL， Plan 401 会话 KV 同语义替代（locale 三 fn 同款）。DEFAULT_VIEW
+// = "chats" 对齐 VALID_VIEWS 白名单口径（app.at Init 的挂载恢复消费）。
+
+fn vsCurrentView() str {
+    let saved = storage.get("__viewstate_current")
+    if saved != None {
+        if saved != "" {
+            return saved
+        }
+    }
+    return "chats"
+}
+
+fn vsSetView(v str) {
+    storage.set("__viewstate_current", v)
+}
+
+fn vsCurrentDetail() str {
+    let saved = storage.get("__viewstate_detail")
+    if saved != None {
+        if saved != "" {
+            return saved
+        }
+    }
+    return ""
+}
+
+fn vsSetDetailPath(d str) {
+    storage.set("__viewstate_detail", d)
+}
+
+/** useViewRouter 的 VM 形态:VM 轨无 history API——no-op 桩(返回空对象,
+    调用面仅判空),对齐 useGateRouter 先例(本文件头注)。 */
+fn useViewRouter() {
+    return {}
+}
