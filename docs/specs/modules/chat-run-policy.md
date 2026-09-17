@@ -48,14 +48,26 @@
 
 ## SSE 订阅/运行生命周期
 
+> PLAN-071 增订（2026-09-17）：会话 `18683b29`（auto-edit）一句话两答实证 F-03
+> 窥探分流的结构性缺陷——守卫状态对"POST 孵化的主体"与"1ms 后到达的订阅者"
+> 同值，`if !run_owner` 反置使在途订阅并行再跑一轮。改**显式角色分离**，并将
+> PLAN-069 T-06 未接线的事件双发补全。
+
 - **运行孵化唯一入口**：`chats_message run=true` → `chat_run_try_start`
-  （per-session 守卫键 `{ws_id}:{session_id}`）抢到 → spawn `chat_run_stream`
-  运行主体（含持久化）；未抢到（已在途）→ 不重复孵化。
-- **订阅即附加**：SSE `chat_stream` 以 `chat_run_active` **只读窥探**分流——
-  在途 → 附加转发 relay_bus 事件（run_id=session_id；chat_event / tool_update /
-  tool_gate_waiting / relay_gate_waiting）直至 done；不在途 → **空闲流**（挂起
-  等下一次运行）。订阅**绝不孵化运行**（F-03 根修：订阅抢守卫变身运行主体 =
-  4 连跑实证，已根除）。
+  （per-session 守卫键 `{ws_id}:{session_id}`）抢到 → spawn `chat_run_owner`
+  运行主体（含持久化，守卫由其全部出口清除）；未抢到（已在途）→ 不重复孵化。
+- **显式角色分离**：SSE `chat_stream` 与 VM 桥的 `chat_run_stream`（签名不变、
+  调用点零改动）**恒为附加/空闲订阅**——在途 → 附加转发 relay_bus 事件
+  （run_id=session_id；chat_event / tool_update / tool_gate_waiting /
+  relay_gate_waiting）直至 done；不在途 → **空闲流**（挂起等下一次运行）。
+  订阅**绝不孵化运行、不触碰守卫**。以共享守卫窥探分流主体/订阅者的 F-03
+  方案（`chat_run_active` + `if !run_owner`）退役。
+- **事件双发**：`chat_run_owner` 把全部 SSE 事件（含 plan-merge 短路四帧）
+  镜像上 relay_bus（`event_type=chat_event`）。PLAN-069 T-06 的 emit_bus 闭包
+  此前只有定义无调用点（死代码）——流式事件只进本运行 tx（chats_message
+  spawn 路径恒 Null），订阅可见流曾由 F-03 缺陷（订阅方自行再跑）意外顶替。
+- **订阅收束**：附加订阅 done 后必须析构桥接 channel pair（`close_channel`）
+  ——Sender 常驻 HANDLES 表，tx Value 掉落不关闭通道，漏调则 SSE 永不收束。
 - **无重跑**：同一会话二次订阅 / EventSource 断线自动重连不产生新运行；双订阅
   收到同一运行同序事件流；延迟重连接续在途运行。
 - **运行 spawn 化**：ag chat_stream 立即返回 SSE、运行后台 spawn——事件不再积压，
@@ -69,7 +81,10 @@
 ## 测试口径
 
 cargo lib：get_exact 严格性、denial-root 报注入 scope、blocks 投影顺序与 legacy
-兼容、run 守卫防双跑、ag_chat_stream 运行主体路径（先 `chat_run_try_start` 取守卫
-再订阅——裸订阅恒空闲流不终止，复审 F-05 口径）；E2E v3/v4：实时流 llm_alive、
+兼容、run 守卫防双跑、运行主体路径经 chats_message run=true（relay_bus 双发收
+到 delta/done、恰一条助手回复、收束后守卫清除）、18683b29 回归序列（run:true
+POST 后紧跟 SSE 订阅 = 附加转发同一事件流至 done、恰一条助手回复）、裸订阅恒
+空闲流不终止/不孵化/不触碰守卫（PLAN-071 口径；F-05"先 try_start 取守卫再订阅
+= 运行主体路径"口径随窥探机制一并退役）；E2E v3/v4：实时流 llm_alive、
 human 门 t≈8s 首触暂停 / approve 200 resolved / deny 回灌、run=false 双订阅
 0 字节零运行、多轮 DOM 采样直播零清空（drops=[]）。
