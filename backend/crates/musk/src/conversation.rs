@@ -101,6 +101,10 @@ pub struct Turn {
     pub child_conversation: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tokens: Option<u64>,
+    /// PLAN-071 r3：回答方 Agent 职业身份（沿 ChatMessage.profession_id 双写；
+    /// 仅 Message 主 turn 填充，tool/tool_result turn 恒 None）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profession_id: Option<String>,
     pub timestamp: u64,
 }
 
@@ -188,6 +192,7 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
                         gate: None,
                         child_conversation: None,
                         tokens: None,
+                        profession_id: msg.profession_id.clone(),
                         timestamp: msg.created_at,
                     });
                 }
@@ -210,6 +215,7 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
                         gate: None,
                         child_conversation: None,
                         tokens: None,
+                        profession_id: None,
                         timestamp: msg.created_at,
                     });
                     turns.push(Turn {
@@ -229,6 +235,7 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
                         gate: None,
                         child_conversation: None,
                         tokens: None,
+                        profession_id: None,
                         timestamp: msg.created_at,
                     });
                 }
@@ -251,6 +258,7 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
             gate: None,
             child_conversation: None,
             tokens: None,
+            profession_id: msg.profession_id.clone(),
             timestamp: msg.created_at,
         });
     }
@@ -274,6 +282,7 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
             gate: None,
             child_conversation: None,
             tokens: None,
+            profession_id: None,
             timestamp: msg.created_at,
         });
         turns.push(Turn {
@@ -293,6 +302,7 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
             gate: None,
             child_conversation: None,
             tokens: None,
+            profession_id: None,
             timestamp: msg.created_at,
         });
     }
@@ -323,6 +333,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
                 gate: None,
                 child_conversation: None,
                 tokens: None,
+                profession_id: None,
                 timestamp: ts,
             });
             seq += 1;
@@ -366,6 +377,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
                 gate: None,
                 child_conversation: None,
                 tokens: None,
+                profession_id: None,
                 timestamp: ts,
             });
             seq += 1;
@@ -393,6 +405,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
                 gate: None,
                 child_conversation: None,
                 tokens: None,
+                profession_id: None,
                 timestamp: ts,
             });
             seq += 1;
@@ -420,6 +433,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
                 gate: None,
                 child_conversation: None,
                 tokens: None,
+                profession_id: None,
                 timestamp: ts,
             });
             seq += 1;
@@ -443,6 +457,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
                 }),
                 child_conversation: None,
                 tokens: None,
+                profession_id: None,
                 timestamp: ts,
             });
             seq += 1;
@@ -465,6 +480,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
                 }),
                 child_conversation: None,
                 tokens: None,
+                profession_id: None,
                 timestamp: ts,
             });
             seq += 1;
@@ -1085,6 +1101,7 @@ mod tests {
                 gate: None,
                 child_conversation: None,
                 tokens: None,
+                profession_id: None,
                 timestamp: now_secs(),
             },
         );
@@ -1139,6 +1156,7 @@ mod tests {
                 gate: None,
                 child_conversation: None,
                 tokens: None,
+                profession_id: None,
                 timestamp: now_secs(),
             },
         );
@@ -1195,6 +1213,7 @@ mod tests {
                     gate: None,
                     child_conversation: None,
                     tokens: Some(100),
+                    profession_id: None,
                     timestamp: now_secs(),
                 },
             );

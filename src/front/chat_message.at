@@ -28,11 +28,13 @@ use.web component Copy from "src/front/ports/icons.at"
 // 2026-09-03:工具卡内联（ToolBlock/GenericToolCard 子件退役,沿 ThinkBlock
 // 先例——VM 子件 model 全实例共享 + 孙件 store 直调不可靠,回归根因）。补充
 // toolIsOpen/toolArgsJson/extractRunId 与 relay 助手导入。
-use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens, thinkLabel, thinkIsOpen, toolIsOpen, toolToggleList, toolArgsJson, extractRunId from "src/front/forge_helpers.at"
+use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens, thinkLabel, thinkIsOpen, toolIsOpen, toolToggleList, toolArgsJson, extractRunId, agentDisplayName from "src/front/forge_helpers.at"
 use.web relayReportView from "src/front/relay_run_helpers.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
 use user_message: UserMessage
+// PLAN-071 r3：助手消息头部职业头像（复用 mention_dropdown 同款组件）。
+use agent_avatar: AgentAvatar
 use errand_card: ErrandCard
 use relay_run_box: RelayRunBox
 use task_plan_card: TaskPlanCard
@@ -109,6 +111,11 @@ style {
             "text-[13.6px] font-semibold text-muted-foreground"
         }
         badge => if .isUser { "🧑 You" } else { "🤖 AI" }
+        // PLAN-071 r3：职业身份显示（名自 id 推导，不走 AgentConfigs——
+        // 生成器 store 单别名限制；未携带身份回退 "🤖 AI" 徽章）。
+        agentName => agentDisplayName(.msg.profession_id)
+        agentProf => if .msg.profession_id == None { "" } else { .msg.profession_id }
+        showAgent => .isAssistant && .agentName != ""
         userContent => .msg.content
         // 展示用 blocks：text 已剥离问卷 JSON（问卷由 QuestionnaireCard 呈现），
         // 纯问卷消息的空 text 块已移除。多参 fn 收敛在 helper（.at if 条件不支持）。
@@ -135,7 +142,12 @@ style {
             // 即动态类串的 sanctioned 通道(:class 发射),无需上游改码。
             row {
                 style: [.headerClass]
-                text .badge { style: [.badgeClass] }
+                if .showAgent {
+                    AgentAvatar { professionId: .agentProf, name: .agentName, size: "xs" }
+                    text .agentName { style: "text-[13.6px] font-semibold text-muted-foreground" }
+                } else {
+                    text .badge { style: [.badgeClass] }
+                }
                 if .hasTime {
                     text .time { style: "text-xs text-muted-foreground" }
                 }

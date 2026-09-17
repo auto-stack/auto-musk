@@ -1240,6 +1240,15 @@ pub fn relay_append_report_message_to(
         status: "success".into(),
         id: "report-1".into(),
     }];
+    // PLAN-071 r3：报告回写身份 = 发起会话 mode 的 role（未注册回退 mode 名）。
+    if let Some(sess) = ws.chats.get(&session_id) {
+        msg.profession_id = Some(
+            crate::mode::ModeRegistry::load()
+                .get(&sess.mode)
+                .map(|m| m.role.clone())
+                .unwrap_or_else(|| sess.mode.clone()),
+        );
+    }
     let _ = ws.chats.append_message(&session_id, msg.clone());
     let seq_base = ws
         .conversations
@@ -1851,6 +1860,13 @@ pub async fn chat_run_owner(
 `emit_report` 生成 HTML 报告。"
         );
         let mut msg = crate::chats::ChatMessage::assistant(summary.clone());
+        // PLAN-071 r3：职业身份 = 会话 mode 的 role（未注册回退 mode 名）。
+        msg.profession_id = Some(
+            crate::mode::ModeRegistry::load()
+                .get(&mode)
+                .map(|m| m.role.clone())
+                .unwrap_or_else(|| mode.clone()),
+        );
         msg.tool_calls = vec![tc];
         let _ = ws.chats.append_message(&session_id, msg.clone());
         let seq_base = ws
@@ -2202,6 +2218,9 @@ pub async fn chat_run_owner(
                 let mut msg = crate::chats::ChatMessage::assistant(text);
                 msg.thinking = thinking;
                 msg.tool_calls = tcs;
+                // PLAN-071 r3：回答方职业身份 = 会话生效 mode 的 role
+                // （superpowers → "assistant"；agent_mode 解析已含回退）。
+                msg.profession_id = Some(agent_mode.role.clone());
                 // PLAN-069 W2：收口当前叙述块并挂时间线。
                 {
                     let pending = cur_text.lock().unwrap().clone();

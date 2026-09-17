@@ -648,3 +648,28 @@ fn chatLastMessageId(messages obj) str {
     let last = messages[messages.length - 1]
     return last.id ?? ""
 }
+
+/** PLAN-071 r3：职业显示名自 id 推导（"super-coder"→"Super Coder"，与
+    professions.json 命名一致）。纯参数驱动（R1）；只用 VM 原语
+    （for-in 字符迭代 / == / to_upper / 串拼接，沿 agentAvatarData 同族）。
+    不走 AgentConfigs store：生成器仅支持 `store` 单别名绑定，跨 store 经
+    prop 下传链路在 ChatsView 不可用（r3 实测 vue-tsc 绑定缺失）。 */
+fn agentDisplayName(professionId str) str {
+    if professionId == None { return "" }
+    var out str = ""
+    var cap bool = true
+    for ch in professionId {
+        if ch == "-" {
+            out = out + " "
+            cap = true
+        } else {
+            if cap {
+                out = out + ch.to_upper()
+                cap = false
+            } else {
+                out = out + ch
+            }
+        }
+    }
+    return out
+}

@@ -2790,6 +2790,26 @@ mod tests {
             .count();
         assert_eq!(replies, 1, "恰好一条助手回复（18683b29 双回复回归）");
         assert!(runs.lock().unwrap().is_empty(), "运行收束后守卫应清除");
+        // PLAN-071 r3：助手消息携带职业身份 = 会话生效 mode 的 role
+        // （basic → "coder"），turns 双写主 turn 同步。
+        let agent = updated
+            .messages
+            .iter()
+            .find(|m| m.role == crate::chats::Role::Assistant)
+            .expect("assistant message")
+            .profession_id
+            .clone();
+        assert_eq!(agent.as_deref(), Some("coder"), "身份 = mode role");
+        let conv = ws.conversations.get(&sid).expect("conversation exists");
+        let turn_agent = conv
+            .turns
+            .iter()
+            .rev()
+            .find(|t| t.profession_id.is_some())
+            .expect("assistant main turn carries identity")
+            .profession_id
+            .clone();
+        assert_eq!(turn_agent.as_deref(), Some("coder"), "turns 主 turn 同步身份");
     }
 
     /// PLAN-071 T-03 回归（会话 18683b29 实测序列）：POST run:true 后紧跟
