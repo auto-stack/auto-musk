@@ -37,5 +37,13 @@
   `last_sse_at` 心跳、叶推进）、`mention_input.at`（composer）。
 - 后端：`auto_generated/extern_impl.rs chat_run_stream`（订阅触发 + mpsc 桥）、
   `auto_generated/server_stream.rs`（SSE 出口）。
-- 历史债务：KD 059-FU1（"AI 回复了但界面不动"）——VM 轨 Sse.open 抛点问题
-  （根修归上游 SSE 专项）；web 轨同症状由本契约 T-02 根修。
+- 历史债务 KD 059-FU1（"AI 回复了但界面不动"）已收口（PLAN-066 T-08）：
+  VM 轨 `Sse.open(url, .Handler)` 的 handler-as-value 实参在合成 fn 内改写为
+  handler fn 裸引用（值位置 CLOSURE，JS this.method 语义），不再落 GET_FIELD
+  抛 "Field not found" 中止 StartStream。
+- **绕行层 enduring 契约（VM 轨 SSE 保持 no-op 传输期间，PLAN-066 T-08 复盘
+  逐项裁定全部保留）**：①streaming 置位先于 Sse.open；②StopStream 头部直连
+  close；③回合增长守卫（pre_stream_len 基线）；④deadman 2 分钟时间窗（窗戳
+  经列表 push 承载）——**立场：保留**（无真 SSE 事件流下唯一恢复路径）；
+  ⑤SSE 健康门（last_sse_at 3 秒内不回填，067）；⑥流式期跳过回填（069）。
+  前端 blocks 消费面不变。
