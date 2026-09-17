@@ -152,7 +152,7 @@ widget ChatsView {
                 }
                 slot(name: "list") {
                     col {
-                        style: "flex-1 overflow-y-auto px-2"
+                        style: "flex-1 overflow-y-auto px-2 pt-1.5"
                         // PLAN-058 三期→PLAN-059 T9 定稿:删除确认单源双轨——
                         // DeleteConfirmDialog 端口链(vm.at 真源/web.at facade),
                         // VM alert-dialog 受控 open 模态(536 绑定根修+vm.at
@@ -192,41 +192,37 @@ widget ChatsView {
                                     style: "w-full"
                                     onmouseenter: .HoverSession(.s.id)
                                     onmouseleave: .HoverSessionClear
+                                    // PLAN-071 r5（需求④-1）：标题单行 truncate
+                                    // + title 悬停全名（break-all 换行形态在
+                                    // 长标题场景溢出 box，退役）。
                                     row {
-                                        style: "flex items-start justify-between w-full gap-1"
+                                        style: "flex items-start w-full gap-1"
                                         span {
+                                            title: .s.name
                                             style: if .s.id == .store.session_id {
-                                                "text-[13.6px] font-medium text-primary flex-1 min-w-0 break-all leading-[1.45]"
+                                                "text-[13.6px] font-medium text-primary flex-1 min-w-0 truncate leading-[1.45]"
                                             } else {
-                                                "text-[13.6px] text-foreground flex-1 min-w-0 break-all leading-[1.45]"
+                                                "text-[13.6px] text-foreground flex-1 min-w-0 truncate leading-[1.45]"
                                             }
                                             text .s.name
                                         }
-                                        // PLAN-055 T15/T16 + PLAN-058 两步删除:
-                                        // 字形化 ×(Trash2 use.web 在 VM 为空形)+
-                                        // AskDelete 二次确认。absolute 类仅 web
-                                        // 消费(右上角精放),VM 编译轨不消费、
-                                        // 流内承载于标题行右缘。
+                                    }
+                                    row {
+                                        style: "flex items-center justify-between w-full gap-1"
+                                        span {
+                                            style: "text-xs text-muted-foreground"
+                                            text t("chat.msgs", { count: .s.message_count })
+                                        }
+                                        // PLAN-071 r5（需求④-2）：× 移第二行右缘
+                                        // （与 "n 条" 同行；原标题行 absolute 形态
+                                        // 退役）。hover 显隐与两步删除逻辑不变。
                                         if .hover_session_id == .s.id {
                                             span {
-                                                // 2026-09-04 用户对拍:× 自身 hover 时
-                                                // 方形容器高亮(bg-accent),与头部
-                                                // +/× 方钮同款样式语言——点 × 还是点
-                                                // 标题一眼可辨。VM 侧 span 带 onclick
-                                                // 转按钮,显式 hover:bg-accent 同时
-                                                // 免除默认主色 hover 预设(12d931d 先例)。
-                                                style: "session-delete-btn absolute right-[4px] top-[4px] w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-destructive"
+                                                style: "session-delete-btn w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-destructive"
                                                 onclick.stop: .AskDelete(.s.id)
                                                 title: t("chat.deleteSession")
                                                 text "×"
                                             }
-                                        }
-                                    }
-                                    row {
-                                        style: "flex items-center gap-1 w-full"
-                                        span {
-                                            style: "text-xs text-muted-foreground"
-                                            text t("chat.msgs", { count: .s.message_count })
                                         }
                                     }
                                 }

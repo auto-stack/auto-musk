@@ -170,7 +170,8 @@
     "wordsLimitPlaceholder": "≤500 words",
     "noGoalsYet": "No goals yet",
     "noItemsYet": "No items yet",
-    "noRelations": "No relations"
+    "noRelations": "No relations",
+    "docs": "{count} docs"
   },
   "plans": {
     "title": "Plans",
