@@ -31,7 +31,7 @@ widget WorkspaceSelector(collapsed: bool) {
         currentTitle => if .current != None { .current.path } else { "选择工作目录" }
         hasCurrent => .current != None
         showEmpty => .shown.length == 0
-        triggerIconSize => if .collapsed { 32 } else { 14 }
+        triggerIconSize => if .collapsed { 18 } else { 14 }
     }
     // PLAN-059 T9:弹层切 popover 自管嵌套形态（PLAN-422 P3/P4）——触发钮/面板
     // 入 popover-trigger/content,开合态归解释器自管注册表（锚钮无 onclick 时
