@@ -175,7 +175,7 @@ fn parity_build_agent_from_mode_registers_same_tools() {
     };
 
     let ag_agent = ag_lib::build_agent_from_mode(mode.clone(), Arc::new(MockClient)).unwrap();
-    let hw_agent = musk::build_agent_from_mode(&mode, Arc::new(MockClient)).unwrap();
+    let hw_agent = musk::build_agent_from_mode(&mode, Arc::new(MockClient), None).unwrap();
 
     assert_eq!(
         tool_set(&ag_agent),
