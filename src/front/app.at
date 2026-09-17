@@ -93,8 +93,8 @@ widget App {
                                 onclick: .ToggleRail
                                 title: "Auto Musk v0.1.0"
                                 style: "rail-icon-btn mx-auto"
-                                img (src: .deerDarkSrc) { class: "deer-icon-dark w-8 h-8 rounded-lg" }
-                                img (src: .deerLightSrc) { class: "deer-icon-light w-8 h-8 rounded-lg" }
+                                img (src: .deerDarkSrc) { class: "deer-icon-dark w-6 h-6 rounded-lg" }
+                                img (src: .deerLightSrc) { class: "deer-icon-light w-6 h-6 rounded-lg" }
                             }
                         } else {
                             row {
@@ -115,12 +115,12 @@ widget App {
                     if .rail_collapsed {
                         col {
                             style: "gap-1 app-rail items-center"
-                            button { onclick: .ShowChats; title: "会话"; class: if .current_view == "chats" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "message-square", size: 18) {} }
-                            button { onclick: .ShowPlans; title: "计划"; class: if .current_view == "plans" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "list-todo", size: 18) {} }
-                            button { onclick: .ShowSpecs; title: "规范"; class: if .current_view == "specs" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "scroll", size: 18) {} }
-                            button { onclick: .ShowWiki; title: "知识库"; class: if .current_view == "wiki" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "book-open", size: 18) {} }
-                            button { onclick: .ShowFiles; title: "文件"; class: if .current_view == "files" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "folder", size: 18) {} }
-                            button { onclick: .ShowWhitelist; title: "白名单"; class: if .current_view == "whitelist" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "shield-check", size: 18) {} }
+                            button { onclick: .ShowChats; title: "会话"; class: if .current_view == "chats" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "message-square", size: 24) {} }
+                            button { onclick: .ShowPlans; title: "计划"; class: if .current_view == "plans" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "list-todo", size: 24) {} }
+                            button { onclick: .ShowSpecs; title: "规范"; class: if .current_view == "specs" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "scroll", size: 24) {} }
+                            button { onclick: .ShowWiki; title: "知识库"; class: if .current_view == "wiki" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "book-open", size: 24) {} }
+                            button { onclick: .ShowFiles; title: "文件"; class: if .current_view == "files" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "folder", size: 24) {} }
+                            button { onclick: .ShowWhitelist; title: "白名单"; class: if .current_view == "whitelist" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "shield-check", size: 24) {} }
                         }
                     } else {
                     col {

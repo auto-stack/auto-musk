@@ -39,7 +39,7 @@ widget SettingsMenu(collapsed: bool) {
         accentOptions => visual_accent_options()
         isLocaleEn => .currentLocale == "en"
         isLocaleZh => .currentLocale == "zh"
-        triggerIconSize => if .collapsed { 18 } else { 16 }
+        triggerIconSize => if .collapsed { 24 } else { 16 }
     }
     msg Msg { Toggle, SetForgeGSD, SetForgeCheck, SetAccent(str), SetThemeLight, SetThemeDark, SetThemeAuto, ChangeLocale(str), OpenAutoOs }
     // PLAN-059 T9:开关态改 dialog 受控形态（无 trigger,open 绑 state_ref
