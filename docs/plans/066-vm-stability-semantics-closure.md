@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-066
-status: executing
+status: reviewed
 feature_name: vm-stability-semantics-closure
 author: [zhaop]
 created_at: 2026-09-07T11:10:00+08:00
@@ -310,6 +310,29 @@ SD 目标为暂填：review 按已验证实现定稿（含 SD-03 最终挂载文
 - 状态说明：AC-01/02/03/05(上游+复盘半)/07 达成在案；AC-04/06 的实机截图面按用户指令延后补证（回归锁/语料已在案承载代码语义）；T-10 对拍 6/30+style-parity 15 diff 两红归上游样式债（066 零样式/零叶组件改动），另行立案候选。musk worktree 保留待 review+merge。
 - blockers: 无（实机补证为用户侧排期项）。
 - next: auto-plan-review → merge。
+
+**2026-09-17 | stage: review | plan_id: PLAN-066 | plan_revision: 2 | outcome: pass（附三项 sanctioned 延后）**
+
+- reviewed_commit: musk plan-066-dev `f019e8f`（worktree clean 无脏区）；auto-lang master `dac830340`（066 消费折叠 07463f54b ∈ 祖先；plan-019 并入后基线）
+- base_commit: musk `78c0af9`（分支基）；auto-lang 折叠前 master `9b2cf54cb`
+- dependency_revisions: auto-lang master `dac830340`
+- spec_inputs: docs/specs/modules/chat-streaming.md（:40 KD-059-FU1 债行 before 锚在位核验）/ docs/specs/index.json（goal-agent/goal-frontend-parity 在册）/ modules 面 6 件
+- 局限声明: 实现会话自审——判定由工件重建（tf/tv/plan066 语料/vm-first-run/nextest 均复审期新跑，非引用执行摘要）
+- acceptance_results:
+  - AC-01 **pass**——定罪报告 attachments/066-kd048a-conviction/（A/B 端口臂+procdump 六轮+WER 零事件）+ run3/run4 soak 零静默退出
+  - AC-02 **pass**——scripts/vm-mcp-census.mjs 入库 + 会话前后零滞留实证（spawn 链定位=Plan 508 outproc；Drop 收割 f11cd5df1）
+  - AC-03 **pass**——p066/p066_2 语料族转正 + indexOf 回撤 + vitest 36+1skip 基线一致
+  - AC-04 partial → **sanctioned 延后**——语料 PA（过滤投影 2/3/0）/PC（chevron 等值翻转）回归锁承载代码语义；实机目验用户令延后
+  - AC-05 partial → **sanctioned 延后**——PD 锁（Sse.open 实参容错后续执行）+六层裁定表全保留+deadman 保留在案；E2E 实机延后
+  - AC-06 **sanctioned 延后**——T-09 五项行为面需实机（fixed_both/scrim 臂在位 grep 信号；行为验证不可离线）
+  - AC-07 partial——六绿二红：vm-first-run reds=0/vm-link-probe PASS 77354B/vitest 36+1skip/nextest 638/638/soak 零静默退出/auto-lang lib tv 3731+tf 3597 绿；**对拍 6/30 + style-parity 15 非白名单 diff 红=上游样式栈与 worktree web 工具链状态（066 changed-files 清单零样式零叶组件触及）**
+- findings:
+  - F-R1(low, AC-04/05/06): 实机目验/E2E 三项 sanctioned 延后——用户 2026-09-17 指令在案；merge 后补证（预期无代码变更，实机翻出新脸则另立）
+  - F-R2(low, AC-07): 对拍 6/30+style-parity 15 diff——上游样式栈/worktree web 工具链状态（625-631 批），另立案候选
+  - F-R3(info): 主检出 parity 069 遗留（blocks 初始化器×4+三参）顺手修复 ed2c0e7/f019e8f（非 066 范围，nextest 门禁解锁）
+- evidence: attachments/066-kd048a-conviction/*（run1-run4 soak+审计行）/ 语料 test/ui/plan066_filter_projection/ + plan066_filter_projection_tests.rs（PA/PB/PC/PD 六测）/ scripts/vm-mcp-census.mjs + vm-hangwatch.mjs / 复审期新跑: auto-lang master **tf 3597/3597**（dac830340）+ 分支 tv 3731/3731 / musk **nextest 638/638** + vm-first-run reds=0（tmp/plan047-firstrun.log）
+- spec delta 冻结（plan_revision 2 规范增量）: SD-01 modify modules/chat-streaming.md（KD-059-FU1 债行→Sse.* 容错契约+六层复盘结论+deadman 保留立场）/ SD-02 add modules/vm-process-stability.md（退出审计消费口径+KD-048a 端口干扰定罪翻案+outproc Drop 收割+长跑 harness/census 资产）/ SD-03 add modules/vm-data-semantics.md（typeof 收窄/includes 注册+CALL_SPEC 放行/读改写 concat Face A 登记/SET_FIELD 覆盖裁定/ThinkBlock 读侧独立）——merge 时按此落 canonical
+- next: **merge**（musk 分支合并+主检出复跑+SD-01..03 落 canonical+组目录终清）；实机补证（AC-04/05/06）为 merge 后 sanctioned follow-up
 
 ## 待澄清事项
 
