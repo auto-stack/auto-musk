@@ -856,8 +856,10 @@ pub fn chats_message(s: &State<AppState>, q: Query<crate::auto_generated::server
                         workspace: q.workspace.clone(),
                     };
                     let sid = p.0.clone();
+                    // PLAN-071 T-02：spawn 运行主体 chat_run_owner（SSE 订阅
+                    // 走 chat_run_stream 恒附加，两者角色显式分离）。
                     tokio::spawn(async move {
-                        chat_run_stream(&st, Query(wsq), Path(sid), serde_json::Value::Null).await;
+                        chat_run_owner(&st, Query(wsq), Path(sid), serde_json::Value::Null).await;
                     });
                 }
             }
@@ -1711,11 +1713,56 @@ pub async fn agent_run_stream(
         close_channel(&tx2);
     });
 }
-/// Plan 019 Phase 4:chat_stream 真实化 —— 与 hw `chat_stream`(server.rs:575)
-/// 同路径:session + history + build_agent_with_context + run_stream + 完成后
-/// 持久化(append_message + 双写 conversation turns)。持久化在 extern 内直接做
-/// (它知道 session_id),不依赖 sink 回调。
+/// PLAN-071 T-02：chat SSE 订阅（GET /api/chats/session/{id}/stream 与 VM 桥
+/// host 共用）——恒为**附加/空闲订阅**：在途运行 → 附加转发 relay_bus 事件
+/// 直至 done；不在途 → 空闲流（挂起等下一次运行）。绝不孵化运行、不触碰
+/// per-session 守卫。运行孵化唯一入口 = chats_message run=true → spawn
+/// chat_run_owner（会话 18683b29 双回复实证：F-03 以共享守卫窥探分流主体/
+/// 订阅者，在途订阅会并行再跑一轮——结构性缺陷，改显式角色分离）。
 pub async fn chat_run_stream(
+    _s: &State<AppState>,
+    _q: Query<StreamWorkspaceQuery>,
+    p: Path<String>,
+    tx: Value,
+) {
+    let session_id = p.0.clone();
+    let mut attach_rx = crate::relay::api::relay_bus().subscribe();
+    loop {
+        match attach_rx.recv().await {
+            Ok(ev) => {
+                if ev.run_id != session_id {
+                    continue;
+                }
+                let ty = ev.event_type.as_str();
+                if ty != "chat_event"
+                    && ty != "tool_update"
+                    && ty != "tool_gate_waiting"
+                    && ty != "relay_gate_waiting"
+                {
+                    continue;
+                }
+                let is_done = ty == "chat_event"
+                    && ev.payload.get("type").and_then(|t| t.as_str()) == Some("done");
+                mpsc_try_send(&tx, ev.payload);
+                if is_done {
+                    break;
+                }
+            }
+            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+            Err(_) => break,
+        }
+    }
+    // PLAN-071 T-02：收束必须析构 channel pair——桥接 Sender 常驻 HANDLES 表，
+    // tx Value 掉落不关闭通道（旧附加分支漏调，SSE 永不收束）。
+    close_channel(&tx);
+}
+
+/// PLAN-071 T-02：chat 运行主体（原 chat_run_stream 运行躯干；PLAN-055 ⑧ D1
+/// 守卫语义不变）——session + history + build_agent_with_context + run_stream +
+/// 完成后持久化(append_message + 双写 conversation turns)。唯一孵化入口 =
+/// chats_message run=true → chat_run_try_start 抢到守卫后 spawn 本函数；守卫
+/// 由本函数全部出口清除。SSE 订阅路径（chat_run_stream）不进入本函数。
+pub async fn chat_run_owner(
     s: &State<AppState>,
     q: Query<StreamWorkspaceQuery>,
     p: Path<String>,
@@ -1724,47 +1771,25 @@ pub async fn chat_run_stream(
     let ws_id = q.workspace.clone().unwrap_or_default();
     let ws = s.0.registry.get(&ws_id);
     let session_id = p.0.clone();
-    // PLAN-055 ⑧(D1): per-session run 守卫键——显式 run 触发路径由 chats_message
-    // 置位，本函数全部出口清除（SSE 订阅路径未置位，清除为 no-op）。
+    // PLAN-055 ⑧(D1): per-session run 守卫键——由 chats_message 置位，
+    // 本函数全部出口清除。
     let run_key = format!("{ws_id}:{session_id}");
-    // PLAN-069 T-06/F-03：守卫归运行核心所有。try_start 成功 = 本调用是运行
-    // 主体（chats_message run=true / VM 触发）；失败 = 已有运行在途 → 本调用
-    // 退化为**附加订阅**：转发总线事件直至 done，绝不二次孵化（F-03 实证：
-    // 每次 SSE 附加都无守卫孵化一轮，4 连跑根源）。
-    // F-03 修正：不可用 try_start 判附加（订阅抢到守卫 = 变成运行主体、
-    // 跑最后一条用户消息——4 连跑实证）。改用只读窥探 chat_run_active：
-    // 在途 → 附加转发；不在途 → 空闲流（EventSource 挂着等下一次运行）。
-    let run_owner = s.0.chat_run_active(&run_key);
-    if !run_owner {
-        let sid2 = session_id.clone();
-        let mut attach_rx = crate::relay::api::relay_bus().subscribe();
-        loop {
-            match attach_rx.recv().await {
-                Ok(ev) => {
-                    if ev.run_id != sid2 {
-                        continue;
-                    }
-                    let ty = ev.event_type.as_str();
-                    if ty != "chat_event"
-                        && ty != "tool_update"
-                        && ty != "tool_gate_waiting"
-                        && ty != "relay_gate_waiting"
-                    {
-                        continue;
-                    }
-                    let is_done = ty == "chat_event"
-                        && ev.payload.get("type").and_then(|t| t.as_str()) == Some("done");
-                    mpsc_try_send(&tx, ev.payload);
-                    if is_done {
-                        break;
-                    }
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                Err(_) => break,
-            }
+    // PLAN-071 T-02：事件双发补全——运行主体把全部 SSE 事件镜像上 relay_bus
+    // （run_id=session_id，event_type="chat_event"），SSE 订阅方
+    // （chat_run_stream 附加/空闲流）据此转发。PLAN-069 T-06 的 emit_bus 闭包
+    // 此前只有定义无调用点（死代码）：流式事件实际只进本运行 tx，而
+    // chats_message spawn 路径 tx 为 Null——订阅者永远收不到 delta/done，
+    // "订阅在途可见流"此前由 F-03 缺陷（订阅方自行再跑一轮）意外顶替。
+    let emit_bus = {
+        let bus_sid = session_id.clone();
+        move |v: &serde_json::Value| {
+            let _ = crate::relay::api::relay_bus().send(crate::relay::api::BusEvent {
+                run_id: bus_sid.clone(),
+                event_type: "chat_event".into(),
+                payload: v.clone(),
+            });
         }
-        return;
-    }
+    };
     let session = match ws.chats.get(&session_id) {
         Some(sess) => sess,
         None => {
@@ -1849,25 +1874,25 @@ pub async fn chat_run_stream(
         });
         // SSE（SseEventDto 严格枚举——无 relay_spawned 变体，改用原生
         // tool_call/tool_result 形状携带 run_id，前端据此实时渲染 Run 卡片）。
-        mpsc_try_send(
-            &tx,
-            serde_json::json!({"type": "tool_call", "id": "tc-1", "name": "spawn_relay", "arguments": tc_args}),
-        );
-        mpsc_try_send(
-            &tx,
-            serde_json::json!({
-                "type": "tool_result", "id": "tc-1", "name": "spawn_relay",
-                "arguments": tc_args, "result": tc_result, "status": "success",
-            }),
-        );
-        mpsc_try_send(&tx, serde_json::json!({"type": "delta", "text": summary}));
-        mpsc_try_send(
-            &tx,
-            serde_json::json!({
-                "type": "done", "output": summary, "turns": 1,
-                "tool_calls": [{"name": "spawn_relay", "arguments": tc_args, "result": tc_result}],
-            }),
-        );
+        // PLAN-071 T-02：同步镜像上总线（本路径 tx 恒为 Null，订阅方靠总线收）。
+        let ev_tc = serde_json::json!({"type": "tool_call", "id": "tc-1", "name": "spawn_relay", "arguments": tc_args});
+        emit_bus(&ev_tc);
+        mpsc_try_send(&tx, ev_tc);
+        let ev_tr = serde_json::json!({
+            "type": "tool_result", "id": "tc-1", "name": "spawn_relay",
+            "arguments": tc_args, "result": tc_result, "status": "success",
+        });
+        emit_bus(&ev_tr);
+        mpsc_try_send(&tx, ev_tr);
+        let ev_delta = serde_json::json!({"type": "delta", "text": summary});
+        emit_bus(&ev_delta);
+        mpsc_try_send(&tx, ev_delta);
+        let ev_done = serde_json::json!({
+            "type": "done", "output": summary, "turns": 1,
+            "tool_calls": [{"name": "spawn_relay", "arguments": tc_args, "result": tc_result}],
+        });
+        emit_bus(&ev_done);
+        mpsc_try_send(&tx, ev_done);
         // PLAN-055 ⑧(D1): plan-merge 短路的 run 由 relay driver 独立驱动，
         // chat 层 run 到此为止——清守卫。
         s.0.chat_run_finish(&run_key);
@@ -1934,17 +1959,10 @@ pub async fn chat_run_stream(
 
         // Accumulate the streamed text + thinking + tool calls to persist on completion.
         let accumulated = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
-        // PLAN-069 T-06：事件双发总线——订阅者（hw chat_stream SSE）按
-        // run_id==session_id 过滤接收；任意数量订阅者、断线重连只附加不重跑。
-        let bus_sid = session_id.clone();
-        let bus_sid2 = bus_sid.clone();
-        let emit_bus = move |v: &serde_json::Value| {
-            let _ = crate::relay::api::relay_bus().send(crate::relay::api::BusEvent {
-                run_id: bus_sid2.clone(),
-                event_type: "chat_event".into(),
-                payload: v.clone(),
-            });
-        };
+        // PLAN-069 T-06 + PLAN-071 T-02：事件双发总线——emit_bus 自
+        // chat_run_owner 作用域捕获进本任务（原闭包死代码已上移接线）；
+        // 订阅者按 run_id==session_id 过滤接收，任意数量订阅者、断线重连
+        // 只附加不重跑。
         let thinking_acc = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
         let tool_calls: std::sync::Arc<std::sync::Mutex<Vec<crate::chats::ToolCall>>> =
             std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -2035,6 +2053,10 @@ pub async fn chat_run_stream(
                     }
                 };
                 let value = serde_json::to_value(&dto).unwrap_or(Value::Null);
+                // PLAN-071 T-02：双发——镜像上总线供订阅方（chat_run_stream）
+                // 转发；本运行 tx 在 chats_message spawn 路径为 Null，总线是
+                // 唯一活通道。
+                emit_bus(&value);
                 // PLAN-069 W2：块维护（先于 capture）。
                 {
                     let ev_type = value.get("type").and_then(|t| t.as_str()).unwrap_or("");
