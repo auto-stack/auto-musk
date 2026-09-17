@@ -206,6 +206,16 @@ textarea.chats-input::selection {
   color: hsl(var(--foreground));
 }
 /* ═══════════════════════════════════════════════════ */
+
+/* PLAN-071 r4（需求③-3）：鹿 logo 双主题切换 + 收缩态导航按钮。
+   主题经 html.dark 翻转（useVisualStore）；light 变体默认 inline
+   display:none（VM 轨无本样式表，兜底单图）。 */
+.deer-icon-light { display: none; }
+:root:not(.dark) .deer-icon-dark { display: none !important; }
+:root:not(.dark) .deer-icon-light { display: block !important; }
+.rail-icon-btn { width: 2.5rem; height: 2.5rem; display: flex; align-items: center; justify-content: center; border-radius: 0.375rem; background: transparent; border: none; color: hsl(var(--muted-foreground)); cursor: pointer; padding: 0; }
+.rail-icon-btn:hover { background: hsl(var(--accent)); }
+.rail-icon-btn.active { background: hsl(var(--accent)); color: hsl(var(--primary)); }
 `
 
 // 组词状态钩子:compositionstart/end 在 document 冒泡段监听,只认

@@ -41,11 +41,26 @@ widget App {
         ShowFiles,
         ShowWhitelist,
         GlobalKeydown,
+        ToggleRail,
     }
 
     model {
         // 当前视图（chats/specs/wiki）。不用 view（保留字）。
         var current_view str = "chats"
+        // PLAN-071 r4（需求③-3）：侧边栏收缩态。
+        var rail_collapsed bool = false
+    }
+
+    computed {
+        railClass => if .rail_collapsed {
+            "w-16 shrink-0 bg-secondary border-r border-border gap-3 px-2 pb-3 pt-0 h-full items-center"
+        } else {
+            "w-48 shrink-0 bg-secondary border-r border-border gap-3 px-3 pb-3 pt-0 h-full"
+        }
+        // 小鹿 logo（auto-os 虚拟桌面同款 assets/icons/{dark,light}/auto-musk.png，
+        // 64px 量化内嵌）——dark 常显，light 由 inject_styles 随 html.dark 切换。
+        deerDarkSrc => "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAABgFBMVEUeWWCSr6UbVF02hHpGmXlSamgPGSU4jHxu5a8gWmMxl30KJVpxcXFVqlU8l4KA9r0teXRDrI88lYR2foJDmINAnInCz8UTLkA/i4WczMH///8AHDgUKDQTNDkQHCkbOUQjR04XRkoAAADt9+woVVYXV1EsdmzM6NgthnTT+eWx5c4sZ2Sq2sev99Vv17ZQqJIhPElvuaUYZVlQl4iQ58VNtpiNx7Vtx6w3p4zI9twNRTpJhniS+MuM1ryV18EpWmEnZFpTyKc2dnFqqZgulHkcdWeMuKpX1a8VNUlu5bYcaGJql44zmIUFFh1Ld3Gy/eJSi4NptJtJaWdRu6EAVVUcZmE4g3Wox7szbm6D5rzb7uEKVDw7s5WwzsNriocWN0w2fXkXLUPj7eNX460udHF47MUoaGlVqqpNxJwddGkAf3+LmpgAPz8VQlQXOE8UNkscdVgA//+i07w7lIIXO1ATKUUXN015+cFignschGoqhXjG29Elc1YueHZtraEyiXRWjxITAAAAgHRSTlOt/dtr/f39zP1kIw8CA3b9MiC6/Ve6/bks/QEJ/Pz8/Pz6AP38/Pz9/P39/f39/f39/P39/f39/P39/P39/f32/f2Z/f39/P23/f39/Pz9/f39/f0DuZn9l/39/P39/TQK/v390v3fA/24Av0ENJFJ/QH9JXUS2P39/bH9/Ub9ErJglJgAAAh9SURBVHjahZcHe9s4Eobp9Fxyu3u9ESIhESDAGnZRzVLUIsmWW3Yd2+nlktv03rb89R2QlCzZ3ucmZlzE7+UUzACUyrndhetPfz39Q2FXl+zGjRv5lf128fQ//10uPy6EUvb/j6D+5jyl5qGtrq5qmrgWbDU303x4+m0mmgH+WP7DN4ya+V2qCl//xzSTXv01d0IAHpffnqdtbaZftitHbPZ38+F3WdxS9nyWPV3Fv69UFOUIYZX+LAgShPI212PN1DDKIOL+37PDOIBwuSy9vnz3fK7vWm+MWxMNKersXnQSAJ6AhQnC3dc/So/LP9BMvxm/evVT1+CDNugQQuJCSJ7Z3AHQmpM4rgNhVSpfliABefzeq65xhhwEKe/iTC0fMSQcwgrZ/Bc3toKmCQTzZ8jBFypSj7Wtz0ZqO+zAjyuWeVwuCAKwaXHe9Xturw7Z0KSy9GumB4Db42m45/QI2eJ8KqOTAEiL+UZI/ci2qwKgmt9Jp2lWegC4PLVHwyeMHAw43z7BAwVRw240fT9p2GlUF+lYvSFdNbOaYDXaEYBOVH1VI5ZtaMcdQFO78cghfjTaS9OIKpBOTZIeZgCsqG7CbTvs3OwxUqvbjfh4DKb9aNhqk+qTYYOnOyYkVFFPSQ+zDCgYuR0ANJxqj/k1bIX25lG9Fo46zqRG1246dmpEWlbU1QyAxaKpD9M0dJxOr+8TFDec8MqRCJLhzWpLI7T3JLS54eJsVa1K/9UwFmtONodQxk612vMB0LWjR5PSEiAYVXvem5rvVx0AhCxbppCEAoCQ2jG4vVdloCdowqMoVJcCcKqsbwxqhHU6js0dLV/nAFBzPZKDR5CEhPkEY3S74vY6XuZCCQwC2KmyMeOTGoRQDbkdCUkBUAqAOrLBhQ4TgGllq99zJrJ8Zfv25PZUQ6xKx6RbmWLi98CBsC3nBFUyZwAkn4HqODfXxgAweeybrJPExkZmRosRQgydYMISm2+4mT4DrKrKvO88cKHD+j5MBcOgxKejhrAwfNSwjQmup11EaLSXckcRS30ZkFfK5mnSgyyggeES4g4dsDC0Q2fU4IPE0Gr+5w4EoM37cw6Y1crmFT0OiGw2I5NG0U7SamUMuGy7jiCAlDfVw/YCAFYWBkdJg5HCeZOiIPLZWtWqVCq82XFCJ3H2NrrYhVJPkLwMWBo8cglp9YEdtqnrMyb0YK3EaQo/uJds1dXSYoPjJUD+vbRe2g4Tl9G+p+s5oZmIZOzZFa20vDwBoM0A4lutrmWMc9vNiPWZlaYrnz59rVT0FrjQbBqVp+vizgWAmgMKfbvJiy4ubQEgMAZnZfUp2gWC0Wy1mqk+RfkCQAseKDN9rQ7zxs0/Wq93BGBFRepUPgsAboRhmK5oNYSCuD0nAIAohf5ga6Px7Znik/UgYjSw+EpNXkfy30UeDMPgZ2uyXAs3jHqtuE9RJKxkawrctxujn2bkUlRljL3R9Sk0p/ypkhP45ABupXuNjW5BOATAEPv2CZm5VrqS9JjLPL1yfze+tdu+lRFgDuHsWU7DjklByAGyZjcuRAczx+T16ZAF3ppr5WXUB3k17WxYQ7aiBqyUJYA6Go0u/DQHlLyov5VUXa8gzIxbOaDWGzWac0D2t/bwwWjEihBKqlPtey038pKmsYjgfLIu6nVwZvRxaxEABFwdjhpRDeVFHK71PcOLkjhuWosIseOIEC48iPASQOSGDR98dPJG9arVfje1PK9lWBYQ9P3794X+a+y1VLmWfHzQm9VxBhAEEj1obGUtuQYTjOmGFSeWrusAAEKlcj9IWq5nqGg0pPOVNAdkyekNqQAErAfTucsNI3t8ZvD8FbQ9cGmwLRNyuJYXAHk/iBRGsH0zSuM01XXrEFDRslaaLrXjEiDrs3W00yMsWqM06O7qeprJb90Wo+GWiuR1c2nDOQSUCpO15GafsB2XUq/L6puTlcGupfNBfaDrvAvN2FVPAiBVnHPa5jTwhrADEeoljHm7XsDEAbJdnwy+1qeb9TocpbTSkRCQrKzC9Lu50+kM4R/ImY/7XhNawdr13AAYlMmqHljxAOz2OfkIAJPxuN+vOlH/c98duWN/TAkee62m6+qWNeh2gyDokKeD0rYXD7Z3/7J+BECIOPSRwKU+hUfBrz4ASNRqxRFUwIo9r+smW08RjEpI1O65I0NROgV7KzZJDZMt28W47WJ/DICg1bSarawAcZw4Ico3WvWsoMjyfLaCB3AopGsE13BQJ7gdukgAMG22LMPS93XhRLNpTwtF6bBccw9gDRcXRgEcMmEXhTiSlpW3Ed+HH7h3VF8QcgBI2U4bZQhAEU3EEIPO4MUwS0O0vFxmBEWSMgB1Wb5HBxRhjUJWKYNGLjqZG2nDLB2RZ4B716SLGUAj+binoYkULRAH6nHXmLug89CVTwIo76Tnxc4k4sAypeI8+wtk0YRmMmbDhHOng47qBUG5A6dlsbOIL+rSfNvBXhbDeFNkYX8/AySOVjoBcA1O6xfz2SRjVtcKgBtkLox/gXGUdzKPhtN1+bgDL8vSdXAhb2UtG/ri2nTrJrhgUlEJqCGvGNVhcAxQunetfF0qv760NFMgJTINNgMNXDAZLAZwYr8Sr3XcYyHIynvx0nW9/BwfbtgahZ+1TbZZx8Q0x0ErbrVgHLhrOzvH9S9BDK99z8ov5z6gNhbFgbYSQcALrBfHcUu3oN8j+bj+Wf7i+ax855SyMNTABROqaOKxOWae58W6S4GwvAqVD3eEPn/1vV6+JCmLs1FptwFBiO+PXc9LBtDna2uLbXBPefEeZPOXb/jxufRBHFkLAvbbwCBk7DPXdVkfCHSOv3fvw4s75fKlhbf3DPH++bsX12b2fWGS9Oe/ffkf2Jfv/1F89OLdnf+U88eXy+XfAJ8kn+fsC3PjAAAAAElFTkSuQmCC"
+        deerLightSrc => "data:image/png;base64,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"
     }
 
     view {
@@ -63,7 +78,7 @@ widget App {
                 // view rail（侧边导航栏）
                 // Plan 407：text 节点 t() 化 + WorkspaceSelector 逃生舱接入（原生支持）。
                 col {
-                    style: "w-48 shrink-0 bg-secondary border-r border-border gap-3 px-3 pb-3 pt-0 h-full"
+                    style: [.railClass]
                     // 标题行对齐三级头约定（NavSidebar/ContentHeader 均为
                     // h-12 + border-b,2026-08-29 用户实测 rail 标题高度不齐）。
                     // 内层保留 items-baseline 的字号配对。
@@ -73,14 +88,41 @@ widget App {
                     // 可辨细线；h-12 对齐天然成立（两线均 y=48）。
                     row {
                         style: "h-12 shrink-0 flex items-center border-b border-white/10"
-                        row {
-                            style: "flex items-baseline gap-2"
-                            // PLAN-048:字面量化(VM 视图文本无裸调用臂,t() 恒空;
-                            // 见 KD 048 行 UPSTREAM④)。
-                            text "Auto Musk" { style: "text-base font-bold text-primary" }
-                            text "v0.1.0" { style: "text-xs text-muted-foreground" }
+                        if .rail_collapsed {
+                            button {
+                                onclick: .ToggleRail
+                                title: "Auto Musk v0.1.0"
+                                style: "rail-icon-btn mx-auto"
+                                img (src: .deerDarkSrc) { class: "deer-icon deer-dark w-8 h-8 rounded-lg" }
+                                img (src: .deerLightSrc) { class: "deer-icon deer-light w-8 h-8 rounded-lg"; style: "display:none" }
+                            }
+                        } else {
+                            row {
+                                style: "flex items-baseline gap-2"
+                                // PLAN-048:字面量化(VM 视图文本无裸调用臂,t() 恒空;
+                                // 见 KD 048 行 UPSTREAM④)。
+                                text "Auto Musk" { style: "text-base font-bold text-primary" }
+                                text "v0.1.0" { style: "text-xs text-muted-foreground" }
+                            }
+                            button {
+                                onclick: .ToggleRail
+                                title: "收起侧边栏"
+                                style: "ml-auto w-7 h-7 flex items-center justify-center rounded-md hover:bg-accent bg-transparent border-none text-muted-foreground cursor-pointer"
+                                icon (name: "panel-left-close", size: 18) {}
+                            }
                         }
                     }
+                    if .rail_collapsed {
+                        col {
+                            style: "gap-1 app-rail items-center"
+                            button { onclick: .ShowChats; title: "会话"; class: if .current_view == "chats" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "message-square", size: 32) {} }
+                            button { onclick: .ShowPlans; title: "计划"; class: if .current_view == "plans" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "list-todo", size: 32) {} }
+                            button { onclick: .ShowSpecs; title: "规范"; class: if .current_view == "specs" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "scroll", size: 32) {} }
+                            button { onclick: .ShowWiki; title: "知识库"; class: if .current_view == "wiki" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "book-open", size: 32) {} }
+                            button { onclick: .ShowFiles; title: "文件"; class: if .current_view == "files" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "folder", size: 32) {} }
+                            button { onclick: .ShowWhitelist; title: "白名单"; class: if .current_view == "whitelist" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "shield-check", size: 32) {} }
+                        }
+                    } else {
                     col {
                         style: "gap-1 app-rail"
                         // Plan 562（上游 auto-lang nav 族退役）：nav-item →
@@ -131,15 +173,16 @@ widget App {
                             }
                         }
                     }
+                    }
                     // Plan 407：WorkspaceSelector + SettingsMenu 在导航栏底部。
                     // PLAN-058 二期：横排（justify-between 撑宽主导航）改纵排
                     // ——工程目录在上，分割线，设置(icon+文字)在下。分割线同
                     // T10 用 border-white/10（border-border 在 bg-secondary 上
                     // 不可见），归属 SettingsMenu 根容器 border-t。
                     col {
-                        style: "mt-auto shrink-0"
-                        WorkspaceSelector
-                        SettingsMenu
+                        style: if .rail_collapsed { "mt-auto shrink-0 w-full flex flex-col items-center" } else { "mt-auto shrink-0" }
+                        WorkspaceSelector { collapsed: .rail_collapsed }
+                        SettingsMenu { collapsed: .rail_collapsed }
                     }
                 }
                 // view main（v-if 切换视图）
@@ -175,6 +218,9 @@ widget App {
             ForgeStore.Init();
             // URL → 视图(挂载恢复,web useViewState 初始解析对拍)。
             .current_view = vsCurrentView()
+        }
+        .ToggleRail -> {
+            .rail_collapsed = !.rail_collapsed
         }
         .ShowChats -> {
             .current_view = "chats";

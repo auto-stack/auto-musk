@@ -23,12 +23,15 @@
 use.web component Folder, FolderPlus, ChevronDown, Search, Check from "src/front/ports/icons.at"
 use.web ws_load_recent, ws_load_current, ws_find, ws_filter_recent, ws_pick, ws_open from "src/front/workspace_helpers.at"
 
-widget WorkspaceSelector() {
+// PLAN-071 r4（需求③-3）：collapsed 收缩形态——icon 触发（hover=目录，
+// 点击弹同款 popover），弹层逻辑不变。
+widget WorkspaceSelector(collapsed: bool) {
     computed {
         currentName => if .current != None { .current.name } else { "选择工作目录" }
         currentTitle => if .current != None { .current.path } else { "选择工作目录" }
         hasCurrent => .current != None
         showEmpty => .shown.length == 0
+        triggerIconSize => if .collapsed { 32 } else { 14 }
     }
     // PLAN-059 T9:弹层切 popover 自管嵌套形态（PLAN-422 P3/P4）——触发钮/面板
     // 入 popover-trigger/content,开合态归解释器自管注册表（锚钮无 onclick 时
@@ -86,6 +89,7 @@ widget WorkspaceSelector() {
     transition: background 0.15s;
   }
   .ws-btn:hover { background: hsl(var(--accent)); }
+  .ws-btn-collapsed:hover { background: hsl(var(--accent)); }
   .ws-name { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* PLAN-059 T9:面板/遮罩手搓 CSS（.ws-backdrop/.ws-panel）随 popover 家族
      切换退役——开合/悬浮/外点关闭归 popover 原语,面板 chrome 归
@@ -141,14 +145,17 @@ widget WorkspaceSelector() {
             popover {
                 popover-trigger (as_child: true) {
                     button {
-                        style: "ws-btn w-full flex items-center gap-1 py-1.5 px-2 border border-border rounded-md bg-transparent text-foreground text-xs"
+                        style: if .collapsed { "ws-btn-collapsed w-10 h-10 flex items-center justify-center rounded-md bg-transparent border-none text-muted-foreground hover:bg-accent" } else { "ws-btn w-full flex items-center gap-1 py-1.5 px-2 border border-border rounded-md bg-transparent text-foreground text-xs" }
                         title: .currentTitle
-                        Folder { size: 14 }
-                        span {
-                            style: "ws-name flex-1 text-left truncate"
-                            text .currentName
+                        Folder { size: .triggerIconSize }
+                        if .collapsed {
+                        } else {
+                            span {
+                                style: "ws-name flex-1 text-left truncate"
+                                text .currentName
+                            }
+                            ChevronDown { size: 12 }
                         }
-                        ChevronDown { size: 12 }
                     }
                 }
                 popover-content {

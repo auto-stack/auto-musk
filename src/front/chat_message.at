@@ -95,10 +95,12 @@ style {
         role => .msg.role
         isUser => .role == "user"
         isAssistant => .role == "assistant"
+        // PLAN-071 r4（需求③-1）：两侧对称限宽 70%——AI 回复不再占满全宽，
+        // 与用户气泡同宽（用户 85%→70% 统一）。
         rowClass => if .isUser {
-            "flex flex-col gap-[3px] max-w-[85%] self-end items-end"
+            "flex flex-col gap-[3px] max-w-[70%] self-end items-end"
         } else {
-            "flex flex-col gap-[5px] self-stretch items-stretch max-w-full"
+            "flex flex-col gap-[5px] self-stretch items-stretch max-w-[70%]"
         }
         headerClass => if .isUser {
             "flex items-center gap-2 px-1 justify-end"
@@ -229,8 +231,8 @@ style {
                                                 onclick: .ToolToggleKey(.block.tkey)
                                                 style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer"
                                                 text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
-                                                text .block.tc.name { style: "tool-name flex-1 min-w-0 truncate text-[13.3px] font-medium text-foreground" }
-                                                text .block.tc.status { style: "tool-status text-[11.7px] font-medium shrink-0 text-blue-500" }
+                                                text .block.tc.name { style: "tool-name min-w-0 truncate text-[13.3px] font-medium text-foreground" }
+                                                text .block.tc.status { style: "ml-auto tool-status text-[11.7px] font-medium shrink-0 ml-auto text-blue-500" }
                                                 if .tool_open == .block.tkey {
                                                     text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
                                                 } else {
@@ -257,11 +259,11 @@ style {
                                             onclick: .ToolToggleKey(.block.tkey)
                                             style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer"
                                             text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
-                                            text .block.tc.name { style: "tool-name flex-1 min-w-0 truncate text-[13.3px] font-medium text-foreground" }
+                                            text .block.tc.name { style: "tool-name min-w-0 truncate text-[13.3px] font-medium text-foreground" }
                                             for seg in .block.summary {
                                                 text .seg.text { class: if .seg.type == "path" { "tool-seg seg-path text-[12.5px] font-medium font-mono shrink-0 text-info" } else { if .seg.type == "pattern" { "tool-seg seg-pattern text-[12.5px] font-medium font-mono shrink-0 text-primary" } else { if .seg.type == "desc" { "tool-seg seg-desc text-[12.5px] font-medium font-mono shrink-0 text-foreground" } else { "tool-seg seg-loc text-[12.5px] font-medium font-mono shrink-0 text-muted-foreground" } } } }
                                             }
-                                            text .block.tc.status { class: if .block.tc.status == "completed" { "tool-status completed text-[11.7px] font-medium shrink-0 text-green-500" } else { if .block.tc.status == "failed" { "tool-status failed text-[11.7px] font-medium shrink-0 text-red-500" } else { "tool-status running text-[11.7px] font-medium shrink-0 text-blue-500" } } }
+                                            text .block.tc.status { class: if .block.tc.status == "completed" { "tool-status completed text-[11.7px] font-medium shrink-0 ml-auto text-green-500" } else { if .block.tc.status == "failed" { "tool-status failed text-[11.7px] font-medium shrink-0 ml-auto text-red-500" } else { "tool-status running text-[11.7px] font-medium shrink-0 ml-auto text-blue-500" } } }
                                             if .tool_open == .block.tkey {
                                                 text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
                                             } else {
