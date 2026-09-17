@@ -1,6 +1,7 @@
 ---
 plan_id: PLAN-066
-status: reviewed
+status: archived
+completion_kind: delivered
 feature_name: vm-stability-semantics-closure
 author: [zhaop]
 created_at: 2026-09-07T11:10:00+08:00
@@ -333,6 +334,15 @@ SD 目标为暂填：review 按已验证实现定稿（含 SD-03 最终挂载文
 - evidence: attachments/066-kd048a-conviction/*（run1-run4 soak+审计行）/ 语料 test/ui/plan066_filter_projection/ + plan066_filter_projection_tests.rs（PA/PB/PC/PD 六测）/ scripts/vm-mcp-census.mjs + vm-hangwatch.mjs / 复审期新跑: auto-lang master **tf 3597/3597**（dac830340）+ 分支 tv 3731/3731 / musk **nextest 638/638** + vm-first-run reds=0（tmp/plan047-firstrun.log）
 - spec delta 冻结（plan_revision 2 规范增量）: SD-01 modify modules/chat-streaming.md（KD-059-FU1 债行→Sse.* 容错契约+六层复盘结论+deadman 保留立场）/ SD-02 add modules/vm-process-stability.md（退出审计消费口径+KD-048a 端口干扰定罪翻案+outproc Drop 收割+长跑 harness/census 资产）/ SD-03 add modules/vm-data-semantics.md（typeof 收窄/includes 注册+CALL_SPEC 放行/读改写 concat Face A 登记/SET_FIELD 覆盖裁定/ThinkBlock 读侧独立）——merge 时按此落 canonical
 - next: **merge**（musk 分支合并+主检出复跑+SD-01..03 落 canonical+组目录终清）；实机补证（AC-04/05/06）为 merge 后 sanctioned follow-up
+
+**2026-09-17 | stage: merge | PLAN-066:r2 | 收据**
+
+- prepared: canonical diff 于 worktree（SD-01 改写 chat-streaming 债行→容错契约+六层复盘；SD-02 新增 vm-process-stability.md；SD-03 新增 vm-data-semantics.md；ledger index.json 挂载两模块）——commit `161afe7`
+- landed: 主检出 main 合并 plan-066-dev（分支前沿 `161afe7`=reviewed `f019e8f` 的 docs-only 后代，实现/依赖零变更核验）；主检出复跑 **vm-first-run alive=yes reds=0 + nextest 638/638**
+- ledger_refreshed: docs/specs/index.json spec_files 10 项（+vm-process-stability.md/+vm-data-semantics.md），读回校验通过
+- archived: docs/plans/archived/066-vm-stability-semantics-closure.md（status archived/completion_kind delivered）
+- cleaned: auto-lang worktree+分支已先行删讫（消费折叠 07463f54b，wt-guard clean）；musk worktree 移除见下方 cleaned 补记
+- follow-up（sanctioned）: AC-04/05/06 实机补证（用户窗口）；对拍 6/30+style-parity 15 diff 上游样式债另立案候选
 
 ## 待澄清事项
 
