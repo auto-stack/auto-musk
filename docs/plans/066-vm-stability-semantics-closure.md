@@ -303,6 +303,14 @@ SD 目标为暂填：review 按已验证实现定稿（含 SD-03 最终挂载文
 - blockers: 实机面（T-04/T-08 E2E/T-09/目验）待用户窗口；review 待用户发起（auto-plan-review）。
 - next: 用户实机窗口 → 实机面目验补证 → auto-plan-review → merge（含 musk 分支合并+主检出复跑+组目录终清）。
 
+**2026-09-17 | stage: work | plan_id: PLAN-066 | plan_revision: 2 | outcome: execution_done（交 review；实机补证按用户指令延后）**
+
+- code_commit: auto-lang master `07463f54b`（消费折叠）+ musk plan-066-dev `f019e8f`（分支前沿）；主检出 `0c84d32`
+- task_ids: T-01✅ T-02✅ T-03✅ T-05✅ T-06✅ T-07✅ T-12✅（current_step 7/12）；T-04/T-08/T-09 代码面/裁定面完成、实机目验 🔶（用户 2026-09-17 指令：先 review+merge，事后再补充实机验证）
+- 状态说明：AC-01/02/03/05(上游+复盘半)/07 达成在案；AC-04/06 的实机截图面按用户指令延后补证（回归锁/语料已在案承载代码语义）；T-10 对拍 6/30+style-parity 15 diff 两红归上游样式债（066 零样式/零叶组件改动），另行立案候选。musk worktree 保留待 review+merge。
+- blockers: 无（实机补证为用户侧排期项）。
+- next: auto-plan-review → merge。
+
 ## 待澄清事项
 
 1. **T-01 转储工具引入**：~~请用户裁定~~ **✅ 2026-09-15 用户批准引入 procdump/wpr**（P625-D1 指定手段；工具落 `D:/autostack/tools/` 仓外，不入库）。若证据实锤外部击杀链，按 575 降档出口处理（审计常驻，一轮真实复现重启归因）。
