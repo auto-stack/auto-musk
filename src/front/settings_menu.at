@@ -165,7 +165,7 @@ widget SettingsMenu(collapsed: bool) {
             style: "settings-menu-wrapper border-t border-white/10 pt-2 mt-2"
             button {
                 onclick: .Toggle
-                class: if .collapsed { "settings-trigger w-10 h-10 flex items-center justify-center rounded-md bg-transparent border-none text-muted-foreground hover:bg-accent" } else { if .isOpen { "settings-trigger open w-full flex items-center gap-2 rounded-md px-2 h-9 bg-accent text-primary" } else { "settings-trigger w-full flex items-center gap-2 rounded-md px-2 h-9 bg-transparent text-muted-foreground" } }
+                class: if .collapsed { "rail-trigger-24 settings-trigger w-10 h-10 flex items-center justify-center rounded-md bg-transparent border-none text-muted-foreground hover:bg-accent" } else { if .isOpen { "settings-trigger open w-full flex items-center gap-2 rounded-md px-2 h-9 bg-accent text-primary" } else { "settings-trigger w-full flex items-center gap-2 rounded-md px-2 h-9 bg-transparent text-muted-foreground" } }
                 title: i18n.t("settings.title")
                 Settings { size: .triggerIconSize }
                 if .collapsed {
