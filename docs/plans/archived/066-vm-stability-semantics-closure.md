@@ -341,7 +341,7 @@ SD 目标为暂填：review 按已验证实现定稿（含 SD-03 最终挂载文
 - landed: 主检出 main 合并 plan-066-dev（分支前沿 `161afe7`=reviewed `f019e8f` 的 docs-only 后代，实现/依赖零变更核验）；主检出复跑 **vm-first-run alive=yes reds=0 + nextest 638/638**
 - ledger_refreshed: docs/specs/index.json spec_files 10 项（+vm-process-stability.md/+vm-data-semantics.md），读回校验通过
 - archived: docs/plans/archived/066-vm-stability-semantics-closure.md（status archived/completion_kind delivered）
-- cleaned: auto-lang worktree+分支已先行删讫（消费折叠 07463f54b，wt-guard clean）；musk worktree 移除见下方 cleaned 补记
+- cleaned: **完成**——auto-lang worktree+分支先行删讫（消费折叠 07463f54b）；musk worktree（guard clean 后 robocopy 拆 node_modules 链接→remove --force，仅未跟踪 tmp/构建产物）+分支 plan-066-dev（was 161afe7）删讫；组目录保留（auto-down worktree 非本计划所建）
 - follow-up（sanctioned）: AC-04/05/06 实机补证（用户窗口）；对拍 6/30+style-parity 15 diff 上游样式债另立案候选
 
 ## 待澄清事项
