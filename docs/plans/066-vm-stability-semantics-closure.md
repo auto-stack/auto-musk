@@ -165,10 +165,10 @@ SD 目标为暂填：review 按已验证实现定稿（含 SD-03 最终挂载文
 - [x] T-05 Regex：前置复跑 wl_probe18 裁定**分支 b（红，计数脸未修）**→ 残余根修落地 [✅ 2026-09-15：真根=shim_regex_match 为 is_match 1/0 语义且弹参错位（非 583 retain 脸）→ JS web 语义统一三参契约+编译期补参，auto-lang `c9e6e4737`；musk 回撤 11b6c20 两函数恢复 Regex 通道 `8536ff4`；p066_2 四测绿（wl_probe18 全形态双脸+组提取+元素存活 583 锁）+tv 3715/3715+auto build 绿+vitest 36+1skip 基线一致]（AC-03）
 - [x] T-06 state-scope 专项（前置：624 收口对表——✅ 624 已合并 master `0b5a23d08`，分支已同步零冲突，对表完成）：eval_computed 上下文 + P536-D2 SET_FIELD（624 已覆盖则裁剪）+ musk t3_filter 转正；验证画布投影实机即时入列（AC-04）**[✅ 2026-09-15 根修落地]**：①P536-D2 SET_FIELD 面**裁定已覆盖**（PB 绿，裁剪入账）；②055-4⑥ 现代真身**七步切分**钉死为 `str.includes` 在合成 fn 内未注册 native 且不达引擎 CALL_SPEC str 臂 → extern no-op 桩恒假 → 过滤投影 0 条（055 期"VmRef 域读取恒空"定性过时——域读取今已正常）。根修 auto-lang `253204c71`：auto.str.includes 注册原生 shim（id2461）+ CALL_SPEC 选择条件放行未解析 str.* 族（includes/startsWith/trim 等随通）；语料定稿 PA 全断言绿（命中 2/清空 3/miss 0）。**Face A 独立登记**：列表字段读改写（`.messages=.messages+[]`）在旧值陈旧时静默失效（整写正常；musk 生产整写回填未踩，语料以整写绕行）。t3_filter 转正=函数层语义由 PA/语料锁承载。实机即时入列目验仍 🔶 待用户
 - [x] T-07 ThinkBlock chevron 读侧（随 T-06 同根验收）；验证实机独立翻转（AC-04）**[✅ 2026-09-15 读侧语料+回归锁落地]**：当前树（含 T-06 includes 修复）**裁定未现形**——语料 bubble.at 子件（MsgBubble：computed `isOpen => .expanded == .current_msg.id` 串等值 + Toggle/Probe handler 直调 store）三断言绿（Toggle 携 `.current_msg.id` 达 store expanded="m1"/展开态 computed true/收起 false）。055-T13「读侧 computed 与视图 if 恒假恒真分歧」被 T-06 str.includes 修复+上游域读取演进覆盖；obj-prop 传递脸 harness 无逐帧烘焙不可测（生产写侧实机已验在案）。实机 ▼ 独立翻转目验仍 🔶 待用户（auto-lang `f138dd761`）
-- [ ] T-08 Sse no-op 容错 + 绕行层复盘（8b1ae23 四修 + 067/069 叠加层逐项裁定，deadman 立场重估）；验证 StartStream VM 零抛 + 发送链 E2E 不回归（AC-05）⏸ E2E 面受 F-W1 影响
+- [ ] T-08 Sse no-op 容错 + 绕行层复盘（8b1ae23 四修 + 067/069 叠加层逐项裁定，deadman 立场重估）；验证 StartStream VM 零抛 + 发送链 E2E 不回归（AC-05）**[🔶 2026-09-15 上游根修+复盘裁定完成，E2E 目验待用户]**：上游 handler-as-value 容错已落（auto-lang `0ac182d34`，rewrite 层 `.Handler` 命中本件 handler 集改写 fn 裸引用→Plan 383 CLOSURE；语料 PD 绿=Sse.open(url,.OnProbe) 后 handler 续执行）。**绕行层六项裁定（当前 HEAD 逐项取证，全部保留）**：①streaming 置位前移（:349 在 Sse.open 前）②头部直连 close（StopStream :355）③回合增长守卫（pre_stream_len :350）④deadman 2 分钟窗（窗戳列表 push 承载 :366-373）⑤叶链投影对齐+SSE 健康门（last_sse_at 3 秒门 :24/:387，067）⑥流式期跳过回填（同健康门机制，069）——VM 轨 SSE 仍为 no-op 传输（G1 阶段2 非目标），PollStream 轮询正确性依赖全层，无一可回撤；**deadman 立场：保留**（无真 SSE 事件下唯一恢复路径）。E2E 发送链（StartStream 零抛实机）🔶 待用户
 - [ ] T-09 059-T9 五余项逐项修 + 实机验证（fixed_both Image/trigger 锚件/受控 open ESC+外点/scrim 双主题/宽度 prop，符号锚重定位）；验证五项证据在案（AC-06）
-- [ ] T-10 musk 全量门禁：vm-first-run（含长跑变体）/vm-link-probe/pnpm build+vitest/cargo nextest/对拍 30/30/style-parity 基线；验证全绿（AC-07）
-- [ ] T-11 双仓收尾：auto-lang 合回 master + musk 主检出复跑 + worktree/分支/组目录清理；验证 wt-guard clean
+- [ ] T-10 musk 全量门禁：vm-first-run（含长跑变体）/vm-link-probe/pnpm build+vitest/cargo nextest/对拍 30/30/style-parity 基线；验证全绿（AC-07）**[🔶 2026-09-15 六绿二红，红项非 066 引入]**：vm-first-run alive=yes reds=0 ✓；soak 长跑变体 run4 零静默退出 ✓（r1 main_return 自退有审计+码 0=残留观察既定形态，r2/r3 全存活）；vm-link-probe PASS（77354B）✓；pnpm build+vitest 36+1skip 基线一致 ✓；cargo nextest -p musk **638/638** ✓（主检出跑——backend 两支零差异，worktree 组缺 auto-ai 兄弟 env 限制在案）；**对拍 6/30 ✗**（web/ 工具链未在 worktree 恢复+上游 625-631 漂移；066 零叶组件改动）；**style-parity 15 非白名单 diff ✗**（上游样式栈状态；066 零样式改动）——红二项归上游样式债另立案候选，证据归档 attachments
+- [ ] T-11 双仓收尾：auto-lang 合回 master（**✅ 已折** master `07463f54b` 合并后 tv 3742/3742 绿；wt-guard clean 后 worktree+分支 `0ac182d34` 删讫）+ musk 主检出复跑（**待 066 musk 分支合并后复跑**——分支前沿 fixes 未合，pre-merge 主检出 link=1 为上游 ext 收口+ports 缺口，分支 `d51036f` 已补四域 .vm.at）+ worktree/分支/组目录清理（**musk worktree 保留待 review**，最终清理由 auto-plan-merge 执行；组内 auto-down worktree 非本计划所建不动）
 - [x] T-12 VM 启动链修复（F-W1，2026-09-15 用户裁定修在 066 内）：上游 handler 合成对 composable（useI18n 声明/refs 绑定）与 web 全局（document）的 VM 降级 **[✅ 2026-09-15 收口]**：①document 降级 walker + mention_detect let→var（auto-lang `ad6dd76e2` + musk `bd0c384`，毒化 4→3，link failed 解除）→ ②i18n 路由收口（auto-lang `cb39769f7`）：receiver 编译位置钉死=native 发射前第二处 is_static_method 白名单（codegen.rs:9067）漏 `"i18n"`——静态分支路由 auto.i18n.t 与 id2460 惰性解析本已生效，交接所猜 func_name 降级形态不成立；补白名单后 p066_3 回归锁绿 + tv 3716/3716 + **vm-first-run alive=yes reds=0（codegen=0 link=0，observe 20s）**。非 ui 构建运行期 MissingNative(2460)=shim 随 ui 裁剪预期面。（AC-01 前置/T-04·T-08 实机面前置——实机目验仍 🔶 待用户）
 
 依赖：T-02←T-01；T-06/T-07←624 收口；T-08 musk 复盘←上游根修；T-10←T-01..T-09；T-11←T-10。
@@ -291,6 +291,17 @@ SD 目标为暂填：review 按已验证实现定稿（含 SD-03 最终挂载文
 - evidence: bubble.at + PC 回归锁三断言；plan066 5/5 绿；tv 3731/3731。
 - blockers: 无。
 - next: T-04/T-08/T-09 实机面（待用户窗口）→ T-10 全量门禁 → T-11 收尾。
+
+**2026-09-15（续九）| stage: work | plan_id: PLAN-066 | plan_revision: 2 | outcome: pass（T-08 上游+复盘、T-10 门禁、T-11 依赖折叠，整体仍 executing）**
+
+- code_commit: auto-lang `auto-musk-dev` **`0ac182d34`**（T-08 handler-as-value 容错）；musk `plan-066-dev` **`6af8b9b`**（T-10 soak 证据）+ **`ed2c0e7`/`f019e8f`**（parity 测试补 069 遗留，主检出+分支双落）；auto-lang master **`07463f54b`**（消费折叠，tv 3742/3742）
+- task_ids: T-08 🔶（上游+复盘完成，E2E 待用户）、T-10 🔶（六绿二红均非 066 引入）、T-11 🔶（auto-lang 已折，musk 复跑待分支合并）
+- W-12（T-08 上游+复盘）：rewrite 层 handler-as-value 臂（`.Handler` 命中本件 handler 集→fn 裸引用→Plan 383 CLOSURE）；PD 回归锁绿（Sse.open(url,.OnProbe) 后 handler 续执行）。绕行层六项逐项取证**全部保留**（streaming 前移/头部直连 close/回合增长守卫/deadman 2 分钟窗/SSE 健康门/流式期跳过回填——forge_store.at :249/:349-373/:387 在案），deadman 立场**保留**（VM SSE 仍 no-op 传输，无真事件下唯一恢复路径）。E2E 实机待用户。
+- W-13（T-10 判定）：六绿（vm-first-run reds=0/vm-link-probe PASS 77354B/pnpm build+vitest 36+1skip/nextest 638/638/soak run4 零静默退出/style-parity+对拍已跑）；二红（对拍 6/30——web 工具链未恢复+上游漂移；style-parity 15 非白名单 diff——上游样式栈状态）均不触及 066 改动面（零样式/零叶组件），归上游债另立案候选。nextest 于主检出跑：backend 两支 `git diff` 零差异证等价；worktree 组缺 auto-ai 兄弟（env 限制在案）。
+- W-14（T-11 折叠）：auto-musk-dev → master `07463f54b` 零冲突合并，tv 3742/3742（master 基线+11 语料测试）；wt-guard clean 后 worktree+分支删讫。**musk worktree 保留待 review**（最终清理由 auto-plan-merge）；主检出复跑须待 066 musk 分支合并（pre-merge link=1 为上游 ext 收口+ports 缺口，分支已补）。
+- 附带修复：musk 主检出 parity 测试 069 遗留破损（ChatMessage.blocks 初始化器×4 + build_agent_from_mode 三参）——`ed2c0e7` 主检出/`f019e8f` 分支双落，nextest 638/638 解锁。
+- blockers: 实机面（T-04/T-08 E2E/T-09/目验）待用户窗口；review 待用户发起（auto-plan-review）。
+- next: 用户实机窗口 → 实机面目验补证 → auto-plan-review → merge（含 musk 分支合并+主检出复跑+组目录终清）。
 
 ## 待澄清事项
 
