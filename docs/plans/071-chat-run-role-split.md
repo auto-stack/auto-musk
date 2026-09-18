@@ -4,10 +4,10 @@ status: executing
 feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显式角色分离）+ 可用性修改需求跟踪
 author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
-updated_at: 2026-09-18T15:35:00+08:00
-plan_revision: 10
-current_step: 42
-total_steps: 42
+updated_at: 2026-09-18T16:05:00+08:00
+plan_revision: 11
+current_step: 45
+total_steps: 45
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
 new_spec_components:
@@ -19,8 +19,8 @@ touched_goals: [goal-relay]
 
 ## 会话交接摘要（2026-09-18，供新会话接续）
 
-**状态**：9 个需求全部实施完毕（T-01..T-42 全勾，AC-01..30 就绪），分支
-`plan-071-dev` 领先 main（需求②-⑨未落地，需求①已随 phase-1 于
+**状态**：10 个需求全部实施完毕（T-01..T-45 全勾，AC-01..31 就绪），分支
+`plan-071-dev` 领先 main（需求②-⑩未落地，需求①已随 phase-1 于
 3c2b178 落地 main）。**下一步 = 用户终验 → /auto-plan:review → /auto-plan:merge**
 （合并时随 SD-01/02/03 发布 specs + ledger 挂载 + worktree/依赖快照清理）。
 
@@ -40,7 +40,8 @@ aaid 在 17654。前端部署后需整页刷新（构建产物非哈希文件名
 busy指示/cancel端点/生命周期日志）⑥流式状态可见性（常驻状态行，后按用户
 裁定删除冗余组件由 ThinkBlock 半开态独占）⑦思考块沉淀与渲染修复
 ⑧流式 UX 六步规格（乐观标题栏/半开态/回填防清除）⑨流式等待点组件+
-停止按钮归位工具栏（T-42 顺带修复 cancel 端点未接真实路由的 T-25 缺陷）。
+停止按钮归位工具栏（T-42 顺带修复 cancel 端点未接真实路由的 T-25 缺陷）
+⑩思考档位默认低（未设置即 low 生效，显式关持久化 off）。
 
 **关键教训（新会话必读）**：① `auto build` 可能因二进制锁/中断静默跳过
 codegen 或 vite 阶段——构建后必须核对生成产物（grep 标记类串）再验证；
@@ -154,6 +155,15 @@ serve 清内存守卫解锁（未持久化的挂死运行工作丢失），探�
 三点跳动动画走组件 style 块（`@keyframes` + `:nth-child` 延时，
 relay_run_box.at rb-spin / streaming_table.at nth-child 先例）；停止钮直调
 `ForgeStore.CancelRun()`（ToggleThink 跨件直调先例）。
+
+**需求⑩（2026-09-18 用户追加，r11，随档位截图提出）**：思考档位默认值从
+"关"改为"低"——现状发送前要手动把档位从"关"切到"低"。语义裁定：**未设置
+（None/空串）一律按 "low" 生效与显示**；显式关闭改为持久化 "off"（原"关"
+菜单发 ""，被后端 set_thinking_level 归一成 None=跟随默认，与未设置同值、
+无法真正关闭——需求⑩起 "off" 为显式关闭，未设置即低）。三处协同：
+①后端运行路径 None → `or_else(Some("low"))`（extern_impl 手改先例区）；
+②前端四处回填/初始 `?? ""` → `?? "low"`（store 初值/NewSession/
+SwitchSession/BranchTo）；③档位菜单"关"项 `pick("")` → `pick("off")`。
 
 ## 1. 目标
 
@@ -313,6 +323,7 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
 | AC-25 | 运行生命周期 INFO 日志（spawn/finish/fail+原因/busy）可从 serve 日志直接判读 | 日志断言 |
 | AC-29 | 发送后首个 thinking/delta 到达前，assistant 气泡内显示动态等待点；块到达后消失 | 浏览器实测 |
 | AC-30 | 流式期停止按钮位于流式消息工具栏（复制/分叉旁），画布底部独立按钮退役；点击取消运行，收束后消失 | 浏览器实测 |
+| AC-31 | 新会话与未设置会话的思考档位默认显示并生效为"低"（发送产出思考块）；显式选"关"持久化为 off 且生效（无思考块）；档位选择跨刷新/重进会话保持 | 浏览器实测 |
 
 ## 8. 执行步骤
 
@@ -521,6 +532,22 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   中途不中断，调用收束后 agent 见旗标即停）；流内硬中断归看门狗域，登记
   后续可选增强（select! 臂监听 cancel 旗标 drop run_stream）。
 
+**需求⑩（r11，2026-09-18 用户提出）：思考档位默认低**
+
+- [x] **T-43** 后端运行路径兜底：extern_impl.rs `session_thinking2` 增
+  `.or_else(|| Some("low".to_string()))`——None/旧会话一律按 low 生效
+  （手改先例区，regen 安全）。[✅ 2026-09-18] → AC-31
+- [x] **T-44** 前端：①forge_store.at 四处回填/初始 `?? ""` → `?? "low"`
+  （store 初值 :54 / NewSession :176 / SwitchSession :210 / BranchTo :158）；
+  ②mention_input.at 档位菜单"关"项 `pick("")` → `pick("off")`，选中条件
+  收紧为 `== "off"`（空串语义退役）；③chats.at 结构注释同步。[✅ 2026-09-18] → AC-31
+- [x] **T-45** 构建 + 门禁 + 浏览器四场景实测。[✅ 2026-09-18] → AC-31
+  auto build 绿 + nextest 644/4 + vm-link-probe PASS（77563B）；后端重编、
+  8090 serve 已换新二进制。实测（新会话）：①新建即显示"低"（未设置旧会话
+  同样走兜底显示低）②默认低发消息产出思考块（💭 已思考 · 11 tokens，低档
+  生效）③显式选"关"发消息无思考块 ④整页刷新 + 重进会话后"关"保持
+  （= 后端已持久化 "off"）。commit fac6757。
+
 ## 9. 复审记录
 
 - 2026-09-17T23:00+08:00 `stage: new` PLAN-071 r1 起草完成。背景调查四类证据
@@ -653,6 +680,13 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   干净收束）；T-42 = T-25 cancel 端点漏接真实路由表的缺陷修复（8090 serve
   已换新二进制）| blockers: 无 | next: review（需求①-⑨全数就绪，一并复审
   merge）。
+- 2026-09-18T16:05+08:00 `stage: work` | PLAN-071 | r11 需求⑩实施完成
+  `outcome: pass` | code_commit: fac6757（worktree，分支 plan-071-dev）|
+  task_ids: T-43..T-45 完成 | evidence: 门禁 nextest 644/4 + vm-link-probe
+  PASS 77563B + auto build 绿；浏览器四场景实测——新建会话默认显示低、
+  默认低发消息产出思考块（11 tokens）、显式关无思考块、刷新重进关保持；
+  8090 serve 已换新二进制 | blockers: 无 | next: review（需求①-⑩全数
+  就绪，一并复审 merge）。
 ## 10. 待澄清事项
 
 - 无阻塞项。备注①：vm_backend.rs `chat_run_stream` host 当前无 front 调用方
