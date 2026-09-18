@@ -7,7 +7,7 @@ created_at: 2026-09-17T22:50:00+08:00
 updated_at: 2026-09-18T09:41:00+08:00
 plan_revision: 6
 current_step: 21
-total_steps: 26
+total_steps: 27
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
 new_spec_components:
@@ -257,6 +257,7 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
 | AC-22 | run_command 超时可配，超时后部分输出回灌、run 继续收束 | 测试 |
 | AC-23 | 守卫占用时 run:true 返回 busy 指示（不再静默） | 测试 |
 | AC-24 | cancel 端点 + UI 停止按钮可终止在途运行并清守卫 | 测试 + 实机 |
+| AC-25 | 运行生命周期 INFO 日志（spawn/finish/fail+原因/busy）可从 serve 日志直接判读 | 日志断言 |
 
 ## 8. 执行步骤
 
@@ -354,13 +355,38 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
   浏览器 DOM 实测四条全过（topPad 6px/4px、ellipsis、× 同行右贴、两行盒
   齐全）+ 截图确认。[✅ 2026-09-18] → AC-17..20
 
-**需求⑤（r6，2026-09-18 追加）：挂死运行防护与可取消（待实施）**
+**需求⑤（r6，2026-09-18 追加）：挂死运行防护与可取消——Phase 2 设计与实施**
 
-- [ ] **T-22** LLM 流读超时 + Err 落盘（AC-21）
-- [ ] **T-23** run_command 超时（AC-22）
-- [ ] **T-24** 守卫占用 busy 指示（AC-23）
-- [ ] **T-25** cancel 端点 + UI 停止按钮（AC-24）
-- [ ] **T-26** 门禁 + 实机验收（AC-21..24）
+### 架构方案（Phase 2）
+
+①**LLM 空闲看门狗**（T-22）：chat_run_owner 的 run_stream 改 `tokio::select!`
+包裹——事件回调每帧 touch watch 通道（Instant）；看门狗臂 sleep_until(最后事件
++ 空闲窗) 到点即赢得 select，**drop run_stream future 中止在途 LLM 流**（不依
+赖 agent 内部 cancel 语义）。空闲窗 = `AppState.run_idle_timeout`（env
+`AUTO_RUN_IDLE_TIMEOUT_SECS`，默认 300s；测试注入短窗）。到点 = 超时收束：
+错误事件上总线/SSE + **错误 assistant 消息持久化**（双写 turns + 身份）+
+守卫清理。agent Err 臂同步补**落盘**（现只发瞬态 SSE）。
+②**命令默认超时**（T-23）：run_command 工具层 `timeout_secs` 缺省时不再传
+None（=永挂），改缺省 `AUTO_CMD_TIMEOUT_SECS`（默认 300s）；超时路径已有
+（杀树+保留输出+timed_out 标记），补结果文本标注与文档。
+③**busy 指示**（T-24）：chats_message 守卫占用分支响应体加 `"busy": true` +
+WARN 日志；前端发送路径遇 busy 追加**本地未持久化**提示条（"已有运行在途，
+本条未执行；结束后请重发"），不再无声。
+④**取消**（T-25）：AppState 增 `chat_cancels: Mutex<HashMap<run_key,
+Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移除）；新端点
+`POST /api/chats/session/{id}/cancel?workspace=` 置位并应答。语义：agent 于
+迭代边界检查（agent.at 619/665/678/714 实证），**流内 stall 由①看门狗兜底**；
+前端流式期间 composer 旁显示停止钮。
+⑤**生命周期日志**（T-26）：owner spawn/finish(ok|err|timeout|cancelled)/busy
+全打 INFO/WARN（含会话、耗时、原因）。
+
+- [ ] **T-22** 看门狗 + Err/超时落盘 + run_idle_timeout 配置（AC-21）
+- [ ] **T-23** run_command 默认超时（AUTO_CMD_TIMEOUT_SECS，默认 300s）（AC-22）
+- [ ] **T-24** busy 指示：后端字段 + 前端本地提示条（AC-23）
+- [ ] **T-25** cancel 端点 + chat_cancels 注册表 + 前端停止钮（AC-24）
+- [ ] **T-26** 生命周期日志（AC-25）
+- [ ] **T-27** 门禁（nextest/probe/build）+ 浏览器实机验证（AC-21..25）
+  （依赖 T-22..T-26）
 
 ## 9. 复审记录
 
