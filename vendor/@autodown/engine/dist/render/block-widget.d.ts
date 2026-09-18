@@ -1,7 +1,7 @@
 import { Component, VNode } from 'vue';
 import { BlockNode } from '../parser/block-model';
 import { WNode } from '../parser/markdown-parser';
-import { BlockEditCtx } from './block-component';
+import { BlockComponent, BlockEditCtx } from './block-component';
 import { PanelRenderCtx, PanelRenderer, PanelBodyDecorator } from './panel-registry';
 export type BlockWidgetMode = 'view' | 'stream' | 'edit';
 export interface BlockWidgetProps {
@@ -18,8 +18,15 @@ export interface BlockWidgetProps {
  *  A family registration owns all three slots (it replaces earlier
  *  per-slot registrations for the kind). Family widgets declare the four
  *  family props (mode/node/final/ctx); the non-edit wrappers pass ctx: null
- *  so the generated required-prop checks stay quiet. */
-export declare function registerBlockWidget(kind: string, widget: Component): void;
+ *  so the generated required-prop checks stay quiet.
+ *
+ *  `slots` (plan 042 T2) overrides individual slot factories for kinds whose
+ *  faces need more than the generic four props: the container families'
+ *  edit faces take the assembly-injected children/items closures (see
+ *  BlockEditCtx), Table's faces take flat chrome data. The override still
+ *  participates in the family semantics — ONE registration call owns all
+ *  three slots for the kind. */
+export declare function registerBlockWidget(kind: string, widget: Component, slots?: Partial<Pick<BlockComponent, 'view' | 'stream' | 'edit'>>): void;
 /** Drop a kind's family registration (builtin fallback resumes). */
 export declare function unregisterBlockWidget(kind: string): void;
 /** Wrap a family widget as a PanelRenderer — the panel face of view mode.

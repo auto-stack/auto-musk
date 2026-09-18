@@ -1,12 +1,11 @@
-import { i as e, o, t as r, p as t, a9 as p, e as c } from "./markdown-parser-0FkmfLuR.js";
-import { s as l, a as n } from "./parser-BSmv1gWa.js";
+import { B as e, a9 as r, k as o, p as t, a7 as c, ac as p, ad as l, e as i } from "./parser-BfX0E-c9.js";
 export {
   e as BlockType,
-  o as anchorOf,
-  r as attrGetInt,
+  r as anchorOf,
+  o as attrGetInt,
   t as parseDocument,
-  p as parse_blocks,
-  l as serialize,
-  n as serializeBlocks,
-  c as spansText
+  c as parse_blocks,
+  p as serialize,
+  l as serializeBlocks,
+  i as spansText
 };
