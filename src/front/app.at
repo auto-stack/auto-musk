@@ -91,7 +91,7 @@ widget App {
                         if .rail_collapsed {
                             button {
                                 onclick: .ToggleRail
-                                title: "Auto Musk v0.1.0"
+                                title: "Auto Musk v0.1.0-p073r3"
                                 style: "rail-icon-btn mx-auto"
                                 img (src: .deerDarkSrc) { class: "deer-icon-dark w-6 h-6 rounded-lg" }
                                 img (src: .deerLightSrc) { class: "deer-icon-light w-6 h-6 rounded-lg" }
@@ -102,7 +102,7 @@ widget App {
                                 // PLAN-048:字面量化(VM 视图文本无裸调用臂,t() 恒空;
                                 // 见 KD 048 行 UPSTREAM④)。
                                 text "Auto Musk" { style: "text-base font-bold text-primary" }
-                                text "v0.1.0" { style: "text-xs text-muted-foreground" }
+                                text "v0.1.0-p073r3" { style: "text-xs text-muted-foreground" }
                             }
                             button {
                                 onclick: .ToggleRail
