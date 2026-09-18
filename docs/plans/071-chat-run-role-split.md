@@ -4,10 +4,10 @@ status: executing
 feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显式角色分离）+ 可用性修改需求跟踪
 author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
-updated_at: 2026-09-18T19:05:00+08:00
-plan_revision: 15
-current_step: 56
-total_steps: 56
+updated_at: 2026-09-18T20:10:00+08:00
+plan_revision: 16
+current_step: 60
+total_steps: 60
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
 new_spec_components:
@@ -19,8 +19,8 @@ touched_goals: [goal-relay]
 
 ## 会话交接摘要（2026-09-18，供新会话接续）
 
-**状态**：14 个需求全部实施完毕（T-01..T-57 全勾，AC-01..39 就绪），分支
-`plan-071-dev` 领先 main（需求②-⑭未落地，需求①已随 phase-1 于
+**状态**：15 个需求全部实施完毕（T-01..T-61 全勾，AC-01..40 就绪），分支
+`plan-071-dev` 领先 main（需求②-⑮未落地，需求①已随 phase-1 于
 3c2b178 落地 main）。**下一步 = 用户终验 → /auto-plan:review → /auto-plan:merge**
 （合并时随 SD-01/02/03 发布 specs + ledger 挂载 + worktree/依赖快照清理）。
 
@@ -46,7 +46,8 @@ busy指示/cancel端点/生命周期日志）⑥流式状态可见性（常驻�
 第一篇并加载内容（高亮以 store.current 为准）⑬@ 提及三源扩展（Agent/
 计划/规范，@plan/@spec token + 运行时解析注入）+ 下拉左对齐修复
 ⑭@ 交互收敛（默认选中第一项/Enter 补全优先不发送/引用 token 气泡内联
-组件；composer 内着色留上游改造，登记）。
+组件；composer 内着色留上游改造，登记）⑮运行在途消息排队自动执行
+（替代拒绝+请重发；连带 ChatStore 写互斥修复并发丢写）。
 
 **关键教训（新会话必读）**：① `auto build` 可能因二进制锁/中断静默跳过
 codegen 或 vite 阶段——构建后必须核对生成产物（grep 标记类串）再验证；
@@ -213,6 +214,21 @@ Keydown 补全置位 → send 读到即跳过；`.Input` 即重置 `mentionIndex
 （默认/筛选后选中第一项）。composer 内 token 着色需上游 `__autoMentionHtml`
 （auto-lang ui_gen，仅匹配 `@\w+`，斜杠中断）改造——登记为已知项，
 本轮气泡侧完整渲染（mention_helpers render_mentions 扩展 token 扫描）。
+
+**需求⑮（2026-09-18 用户追加，r16，随 70719db 会话 busy 输出提问引出）**：
+会话 70719db 实证 busy 提示机制工作正常（在途运行时第二条消息被拒并落
+可见提示），用户裁定：**正常消息应排队而非拒绝**——运行在途时消息入队，
+当前运行收束后自动执行。设计：**前端 store 级队列**（单标签页主场景
+全覆盖；后端 busy 链路保留为跨标签页/竞态兜底）。实现三件套：
+①store 队列（pending_msgs + QueueMessage/FlushQueue，done/error/
+PollStream 完成/SetError 四处收束挂点自动排空，FIFO 逐条）；
+②SendInput 在途入队 + 画布"⏳ 已排队 n 条"指示条；③收束竞态修复——
+FlushQueue 直发 chats_send_message(queued=true)（done 已见而守卫未清的
+8µs 竞态窗口内后端只回 busy:true 不落提示），前端退回队首由 PollStream
+每拍重试。**连带修复（排队实测暴露的既有缺陷）**：ChatStore 变更方法
+load-modify-save 非原子，运行主体落盘回复与并发消息 POST 交错时后写覆盖
+前写（实证：排队消息落盘覆盖丢失首个回答）——ChatStore 加 write_lock
+互斥（12 个变更方法串行化，去 Clone 改 Arc 共享不受影响）。
 
 ## 1. 目标
 
@@ -381,6 +397,7 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
 | AC-37 | @ 候选框打开时与任何筛选后，第一项均为选中态（高亮） | 浏览器 DOM 实测 |
 | AC-38 | 候选框打开时 Enter/Tab 均为补全（插入选中项）且不发送；关闭候选框后 Enter 正常发送 | 浏览器实测 |
 | AC-39 | 发送后的用户气泡中 @plan/001、@spec/<path> 渲染为 📋/📄 前缀的特殊 inline 组件 | 浏览器 DOM 实测 |
+| AC-40 | 运行在途时发送的消息入队（画布显示"⏳ 已排队 n 条"，无 busy 拒绝）；当前运行收束后队列按 FIFO 自动发送并独立成轮回答；chats.json 落盘完整无丢失 | 浏览器端到端实测 |
 
 ## 8. 执行步骤
 
@@ -670,6 +687,30 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   发送正常；用户气泡渲染 `📋 @plan/001` 高亮 token；并行回验观察到需求⑤
   busy 提示正常触发。已知项：composer 内 token 着色需上游 __autoMentionHtml
   匹配器支持非 \w 词（auto-lang），登记后续。commit 23c5add。
+
+**需求⑮（r16，2026-09-18 用户提出）：运行在途消息排队自动执行**
+
+- [x] **T-58** store 队列：forge_store.at pending_msgs + QueueMessage/
+  FlushQueue；done/error/PollStream 完成/SetError 四处收束挂点自动排空
+  （FIFO；streaming 真时 no-op 防双发）。[✅ 2026-09-18] → AC-40
+- [x] **T-59** 入队 + 指示条：chats_view.at SendInput 在途入队（不走
+  busy 拒绝链路）+ 画布"⏳ 已排队 n 条，当前回复结束后自动发送"。
+  [✅ 2026-09-18] → AC-40
+- [x] **T-60** 收束竞态修复 + 并发丢写修复。[✅ 2026-09-18] → AC-40
+  竞态：FlushQueue 首测在 done 已见/守卫未清窗口（实证 8µs）内重发被
+  拒——FlushQueue 改直发 chats_send_message(queued=true)（api.at 返回
+  any 暴露响应体；server.rs ChatMessageBody 加 queued 字段；busy 分支
+  queued=true 免落提示），busy 即退回队首由 PollStream 每拍重试。
+  连带缺陷：ChatStore load-modify-save 非原子（排队消息落盘覆盖丢失
+  首个回答，chats.json 实证）——ChatStore 加 write_lock，12 个变更方法
+  串行化（去 Clone；Arc 共享不受影响）。
+- [x] **T-61** 构建 + 门禁 + 端到端实测。[✅ 2026-09-18] → AC-40
+  nextest 644/4 + vm-link-probe PASS + auto build 绿（serve 已换新
+  二进制）。端到端：长任务在途发第二条 → "⏳ 已排队 1 条"且无 busy；
+  首轮收束后自动发送、独立成轮回答（"补充句"得到上下文衔接的回应）；
+  chats.json 四 turn 齐全无丢失。commit 4d156c4。
+  （全量门禁曾现 parity_plans 单测偶发失败，隔离重跑+复跑全绿——与本次
+  改动无关的并行噪声，登记备查。）
 
 ## 9. 复审记录
 
