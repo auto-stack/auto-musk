@@ -6,7 +6,7 @@ author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
 updated_at: 2026-09-18T09:41:00+08:00
 plan_revision: 6
-current_step: 21
+current_step: 27
 total_steps: 27
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
@@ -380,13 +380,23 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
 ⑤**生命周期日志**（T-26）：owner spawn/finish(ok|err|timeout|cancelled)/busy
 全打 INFO/WARN（含会话、耗时、原因）。
 
-- [ ] **T-22** 看门狗 + Err/超时落盘 + run_idle_timeout 配置（AC-21）
-- [ ] **T-23** run_command 默认超时（AUTO_CMD_TIMEOUT_SECS，默认 300s）（AC-22）
-- [ ] **T-24** busy 指示：后端字段 + 前端本地提示条（AC-23）
-- [ ] **T-25** cancel 端点 + chat_cancels 注册表 + 前端停止钮（AC-24）
-- [ ] **T-26** 生命周期日志（AC-25）
-- [ ] **T-27** 门禁（nextest/probe/build）+ 浏览器实机验证（AC-21..25）
-  （依赖 T-22..T-26）
+- [x] **T-22** 看门狗 + Err/超时落盘 + run_idle_timeout 配置（env
+  AUTO_RUN_IDLE_TIMEOUT_SECS 默认 300s）。[✅ 2026-09-18]
+- [x] **T-23** run_command 默认超时（AUTO_CMD_TIMEOUT_SECS，默认 300s）。
+  [✅ 2026-09-18]
+- [x] **T-24** busy 指示：守卫占用落可见 busy 提示消息（持久化）+ 响应体
+  busy:true + WARN 日志（前端零改动方案——生成客户端丢弃响应体，resp.busy
+  不可达；提示条走持久化消息同构于超时/失败落盘）。[✅ 2026-09-18]
+- [x] **T-25** cancel 端点（AppState::chat_cancel + chat_cancels 注册表）+
+  api.at chats_cancel_session + forge_store CancelRun + 会话页停止钮。
+  [✅ 2026-09-18]
+- [x] **T-26** 生命周期日志：spawned/finished(耗时)/failed/timeout/busy。
+  [✅ 2026-09-18]
+- [x] **T-27** 门禁：cargo nextest 644 passed/4 skipped（新增 4 测）+
+  vm-link-probe PASS + auto build 绿 + 实机验证（spawned→finished 7s 日志、
+  回复正常）。[✅ 2026-09-18] → AC-21..25
+  注：AC-22 命令超时沿既有基建接缺省（专项测试已有 timeout_kills_* 覆盖）；
+  T-25 VM host 桥未接线（web 为主，登记后续）。
 
 ## 9. 复审记录
 
@@ -435,7 +445,12 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   size 属性；导航图标靠 size:N 内联 style 免疫）。修复 = 全局 CSS
   .rail-trigger-24 svg { 24px !important }；复测全列 24px（含鹿 24 单显）+
   截图确认；探针账号 uitest-probe 已从 users.json 移除 | blockers: 无 |
-  next: review。
+
+- 2026-09-18T10:50+08:00 `stage: work` | PLAN-071 | r6 需求⑤实施完成 |
+  `outcome: pass` | code_commit: 需求⑤实施提交（分支 plan-071-dev）|
+  task_ids: T-22..T-27 完成 | evidence: 644/4 门禁 + 实机 spawned/finished
+  日志 + 64f0076c 事故诊断与解锁（重启清守卫）| blockers: 无 | next: review
+  （Phase 2 = 需求⑤；与 phase-1 已落地四需求一并复审）。
 - 2026-09-18T02:20+08:00 `stage: work` | PLAN-071 | r5 | `outcome: pass` |
   code_commit: r5 提交（需求④），分支 plan-071-dev | task_ids: T-17..T-21 完成 |
   evidence: 浏览器 DOM 实测四条（会话标题 ellipsis+title、× 第二行右缘 gap=0、
