@@ -72,7 +72,7 @@ style {
 .tool-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; cursor: pointer; user-select: none; }
 .tool-header:hover { background: hsl(var(--muted-foreground) / 0.04); }
 .tool-icon { font-size: 0.93rem; line-height: 1; flex-shrink: 0; }
-.tool-name { font-size: 0.83rem; font-weight: 500; color: hsl(var(--foreground)); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-name { font-size: 0.83rem; font-weight: 500; color: hsl(var(--foreground)); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tool-seg { font-size: 0.78rem; font-weight: 500; font-family: 'Geist Mono', 'Fira Code', monospace; flex-shrink: 0; }
 .tool-seg.seg-path { color: hsl(190 80% 40%); }
 .tool-seg.seg-loc { color: hsl(var(--muted-foreground)); }
