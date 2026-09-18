@@ -56,6 +56,25 @@
 - **运行孵化唯一入口**：`chats_message run=true` → `chat_run_try_start`
   （per-session 守卫键 `{ws_id}:{session_id}`）抢到 → spawn `chat_run_owner`
   运行主体（含持久化，守卫由其全部出口清除）；未抢到（已在途）→ 不重复孵化。
+- **守卫占用（busy）语义**：未抢到守卫的请求**不孵化**，用户消息照常持久化；
+  真实用户提交 → 落一条**可见 busy 提示**（持久化，替代旧静默吞掉）+ WARN
+  日志 + 响应体 `busy:true`；携带 `queued=true` 的请求（前端队列自动重发）
+  **只回 `busy:true` 不落提示**（重试每秒可达，落提示会刷屏）。
+- **在途消息排队**（前端）：流式在途时新消息入 store 队列（画布"⏳ 已排队
+  n 条"指示），收束后按 FIFO 自动重发（queued=true；busy 竞态窗口内退回
+  队首下拍重试）——后端 busy 链路保留为跨标签页/竞态兜底。
+- **空闲看门狗**：`AUTO_RUN_IDLE_TIMEOUT_SECS`（默认 300s）窗口内无任何
+  流式事件 → drop run_stream future（中止在途 LLM 流）→ 按超时收束：错误
+  事件 + **错误消息持久化** + 守卫清理。run_command 默认超时
+  `AUTO_CMD_TIMEOUT_SECS`（默认 300s，超时杀树保留部分输出）。
+- **取消**：`POST /api/chats/session/{id}/cancel` 置位 per-session 取消旗标
+  （owner 孵化注册、出口移除）；agent 于迭代边界检查收束并落盘已有内容；
+  流内 stall 由看门狗兜底。
+- **生命周期日志**：spawned / finished(elapsed) / failed(原因) / busy 全打
+  INFO/WARN——运行故障可从 serve 日志直接判读。
+- **会话存储写串行化**：ChatStore 全部变更方法持 write_lock 串行化
+  （load-modify-save 非原子；运行主体落盘回复与并发消息 POST 交错时后写
+  覆盖前写，实证丢回答）。
 - **显式角色分离**：SSE `chat_stream` 与 VM 桥的 `chat_run_stream`（签名不变、
   调用点零改动）**恒为附加/空闲订阅**——在途 → 附加转发 relay_bus 事件
   （run_id=session_id；chat_event / tool_update / tool_gate_waiting /
