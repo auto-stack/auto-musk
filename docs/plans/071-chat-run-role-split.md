@@ -6,8 +6,8 @@ author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
 updated_at: 2026-09-18T11:05:00+08:00
 plan_revision: 7
-current_step: 29
-total_steps: 29
+current_step: 30
+total_steps: 30
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
 new_spec_components:
@@ -402,6 +402,8 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   第二根因：120s 硬过期使长任务（467s）失去回填兜底，SSE 任何迟滞即永久
   空白。修复后流式进行中每 tick 续窗；浏览器回归正常（指示→流式→收束）。
   [✅ 2026-09-18] commit deadman 续期提交
+- [x] **T-30** 需求⑥回验：主导航"文件"图标 folder→folder-open，与底部
+  workspace 文件夹图标区分（展开/收缩同步）。[✅ 2026-09-18]
   vm-link-probe PASS + auto build 绿 + 实机验证（spawned→finished 7s 日志、
   回复正常）。[✅ 2026-09-18] → AC-21..25
   注：AC-22 命令超时沿既有基建接缺省（专项测试已有 timeout_kills_* 覆盖）；
