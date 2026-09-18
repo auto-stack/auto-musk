@@ -1,0 +1,4 @@
+{
+  "displayName": "复审计划",
+  "brief": "独立验证 Plan 与 Spec 增量，给出 pass / needs_fix / needs_replan 结论"
+}

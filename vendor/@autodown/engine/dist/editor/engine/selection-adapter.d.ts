@@ -25,16 +25,6 @@ export declare function getFocusedRichHost(): HTMLElement | null;
  *  The focused host is registered by the ext bridge on focus; everything
  *  here is e2e-pinned (headless envs no-op through the null host slot). */
 export declare const domSelectionAdapter: SelectionAdapter;
-/** PLAN-600 T-04 (plan-062): marks whose styled element encloses the
- *  COLLAPSED caret in the focused rich host — the cancel-channel source.
- *  hostRange/isActive are selection-oriented (collapsed → null), so this
- *  walks the start container directly. Empty when no focused host / plain
- *  text. */
-export declare function activeMarksAtCaret(): Mark[];
-/** PLAN-600/062: unwrap the styled element enclosing the COLLAPSED caret
- *  (the bubble cancel channel at a bare caret). False when the caret is
- *  not in the host or sits in plain text. */
-export declare function removeMarkAtCaret(mark: Mark): boolean;
 /** The old domToggleMark decision (isActive ? remove : apply) — a module
  *  convenience for the call sites, deliberately OUTSIDE the frozen
  *  four-method interface (D1). */

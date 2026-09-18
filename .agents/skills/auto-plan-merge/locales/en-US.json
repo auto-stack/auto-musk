@@ -1,0 +1,4 @@
+{
+  "displayName": "Merge Plan",
+  "brief": "Land a reviewed Plan, update Specs/ledger, then archive and clean worktrees"
+}

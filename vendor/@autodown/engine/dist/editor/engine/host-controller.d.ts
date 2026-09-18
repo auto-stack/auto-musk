@@ -11,10 +11,6 @@ export declare class BlockHostController {
     get text(): string;
     /** The block's inline spans (rich host mount render — plan 024 P2T1). */
     get inlines(): InlineSpan[];
-    /** Where the DOM caret should sit after a model-side rewrite: the engine
-     *  selection when it targets this block (inline input rules park it after
-     *  the mark), else null → the resync falls back to end-of-text. */
-    desiredCaretOffset(): number | null;
     /** The host was (re)rendered from the engine — re-sync the known text
      *  (history changes repaint the host). */
     syncFromModel(): string;
@@ -31,28 +27,6 @@ export declare class BlockHostController {
      *  must be an editable leaf of the same container — a container sibling
      *  (nested list subtree) never merges. */
     onBackspaceAtStart(previousSiblingId: string | null): boolean;
-    /** Previous mergeable sibling of this block, resolved MODEL-side. The
-     *  deployed host DOM nests the contenteditable inside per-block slot
-     *  wrappers (node-slot > node-content), so a previousElementSibling lookup
-     *  is always null and the DOM route never fired the merge. Returns null at
-     *  the first child position or when the previous sibling is not an
-     *  editable leaf (containers and attr-only blocks never merge) — the same
-     *  guard onBackspaceAtStart applies, so a non-null result guarantees the
-     *  op will land. */
-    prevSiblingId(): string | null;
-    /** Next mergeable sibling of this block, mirror of prevSiblingId. */
-    nextSiblingId(): string | null;
-    /** Cross-block vertical navigation, ↑ at the host's first visual line:
-     *  select the previous editable-leaf sibling with the caret at its END
-     *  (the reactive remount then mounts that block's host, whose mount
-     *  focus lands the caret at the block end — exactly the contract).
-     *  Returns the target block id, or null when there is nothing to
-     *  navigate to (first block / container siblings stay out of v1). */
-    navigateUp(): string | null;
-    /** ↓ at the last visual line: select the next editable-leaf sibling with
-     *  the caret at its START. mountHost defaults the caret to the block end,
-     *  so the ext re-places the caret at offset 0 once the remount has run. */
-    navigateDown(): string | null;
     /** Tab / Shift+Tab inside a list item → indent / outdent (plan 025 P1T3).
      *  Returns false (browser default) when the block is not in a list. */
     onTab(shift: boolean): boolean;

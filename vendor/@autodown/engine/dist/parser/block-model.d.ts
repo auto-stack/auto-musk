@@ -251,8 +251,6 @@ export declare class EditResult {
     constructor(tree: BlockNode, selection: Selection);
 }
 export declare function missingBlock(): BlockNode;
-export declare function splitTailKind(kind: BlockType): BlockType;
-export declare function splitTailAttrs(kind: BlockType, attrs: Attr[]): Attr[];
 export declare function applyOp(tree: BlockNode, selection: Selection, op: Op): EditResult;
 export declare function textInRange(tree: BlockNode, sel: Selection): string;
 export declare function invertOp(tree: BlockNode, op: Op): Op;

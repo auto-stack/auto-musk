@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-071
-status: reviewed
+status: archived
 feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显式角色分离）+ 可用性修改需求跟踪
 author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
@@ -925,6 +925,18 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   过程备注：SD-04 文本随复审记录 cherry-pick 已先行进入主检出 docs/specs
   （2d6c901，内容=已验证 delta，pass 判定之后）——发布时点早于 merge 一步，
   内容无差异；merge 仍须完成代码落地 + ledger 挂载。
+- 2026-09-18T21:30+08:00 `stage: merge` | PLAN-071:r17 | `outcome: pass`
+  | **consolidation receipt（交付收据）**：
+  `prepared` = worktree 3d24135（SD-01..04 已应用于 docs/specs/modules/
+  chat-run-policy.md + chat-agent-identity.md，与冻结 delta 一致；impl 自
+  4d156c4 未变）；`landed` = main 合并提交 48119cc（--no-ff，33 文件
+  +1060/-100；ancestry：48119cc ⊇ 3d24135 ⊇ 4f8ba9f；main 主检出重建
+  auto build 绿 + cargo build 绿 + 冒烟 nextest 644/4）；`ledger_refreshed`
+  = 验证过空操作——auto-musk 工作区 ledger（.autoos/specs.json）为空表
+  （6 区 0 item），本 delta 为文件级模块规范（docs/specs/modules/*.md，
+  规范 UI file-tree 模式直读仓库），计划未定义结构化条目，无人工造册必要；
+  `archived` = 本文件（docs/plans/archived/071-chat-run-role-split.md，
+  status: archived，completion_kind: delivered）。
 ## 10. 待澄清事项
 - 无阻塞项。备注①：vm_backend.rs `chat_run_stream` host 当前无 front 调用方
   （grep 实证），若后续 VM 前端接线，按新语义即订阅；备注②：后续追加的可用性

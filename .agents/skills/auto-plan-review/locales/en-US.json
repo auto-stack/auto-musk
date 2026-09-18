@@ -1,0 +1,4 @@
+{
+  "displayName": "Review Plan",
+  "brief": "Independently verify a Plan and Spec delta; return pass or rework"
+}

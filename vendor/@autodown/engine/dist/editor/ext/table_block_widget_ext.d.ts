@@ -1,13 +1,6 @@
 import { htmlText } from './code_block_widget_ext';
 export { htmlText };
 export declare function commitTableCell(controller: any, e: any): void;
-/** Mount focus (the widget's .Init): the table face is a cell grid with no
- *  focus of its own, so a preview click's handoff (click-caret's cellId +
- *  point payload) focuses the addressed cell and lands the caret where the
- *  user pointed — without it the first click on a preview cell left focus
- *  nowhere and the position was lost. No handoff (keyboard focus,
- *  programmatic select) keeps the face's old no-focus behavior. */
-export declare function focusPendingCell(blockId: string): void;
 /** The dyn root's tag: the view face IS the table (tablePanel's root), the
  *  other two faces are divs. */
 export declare function rootTag(mode: string): string;

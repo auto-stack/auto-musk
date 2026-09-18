@@ -1,0 +1,4 @@
+{
+  "displayName": "合并计划",
+  "brief": "落地已评审的 Plan，更新 Specs 与账本，归档并清理 worktree"
+}

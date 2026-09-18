@@ -1,7 +1,7 @@
 {
  "name": "@autodown/engine",
  "version": "0.5.0-musk-vendor",
- "description": "PLAN-072: dist 全量刷新（auto-down auto-musk-dev 3cdec33，dist-stamp 49a4c59f）——表格 cell inline 直排 / task-item flex 全域 / scrollSync 默认关 + h4-h6 排版。首次换装见 PLAN-056 T7（auto-down master 058e5d70）；dist 全量拷贝（含 code-split chunks 与 render/editor/parser 子目录）；dependencies 按上游声明（katex/mermaid 为 enable* 动态 opt-in，musk 未启用仅安装不加载）。",
+ "description": "PLAN-056 T7: 换用真实 @autodown/engine 0.5.0 dist（auto-down master 058e5d70 stamp）。替代 0.4.0-musk-shim（re-export @autodown/vue 的过渡桥）。dist 全量拷贝（含 code-split chunks 与 render/editor/parser 子目录）；dependencies 按上游声明（katex/mermaid 为 enable* 动态 opt-in，musk 未启用仅安装不加载）。",
  "type": "module",
  "main": "./dist/index.js",
  "module": "./dist/index.js",
