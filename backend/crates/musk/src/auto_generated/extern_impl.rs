@@ -2327,6 +2327,20 @@ pub async fn chat_run_owner(
                     }
                     msg.blocks = std::mem::take(&mut *bl);
                 }
+                // PLAN-071 需求⑦ T-31：思考沉淀为块——blocks 非空时前端只渲染
+                // blocks（忽略 msg.thinking 字段），不挂块则思考对用户不可见
+                // （4062c66e 回归实证）。思考先于正文，挂为首块；须在 W2 组装
+                // 之后插入（组装会整体重写 msg.blocks）。
+                if !msg.thinking.is_empty() {
+                    msg.blocks.insert(
+                        0,
+                        crate::chats::ChatBlock {
+                            kind: "thinking".into(),
+                            text: msg.thinking.clone(),
+                            tool: None,
+                        },
+                    );
+                }
                 let _ = chats.append_message(&session_id, msg.clone());
                 // Dual-write: mirror the assistant message (+ tool calls) into
                 // the conversation as turns.

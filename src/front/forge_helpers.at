@@ -275,8 +275,28 @@ fn messageBlocks(msg obj) obj {
                         status: nstatus
                     }
                 })
+            } else if b.kind == "thinking" {
+                // PLAN-071 需求⑦ T-32：thinking 块透传（原 else 兜底折成
+                // text 块，ThinkBlock 芯片永不可达）。
+                norm.push({ kind: "thinking", text: b.text ?? "" })
             } else {
                 norm.push({ kind: "text", text: b.text ?? "" })
+            }
+        }
+        // PLAN-071 需求⑦：旧消息自愈——blocks 非空但无 thinking 块且
+        // msg.thinking 有值（需求⑦修复前的持久化形态）→ 前置合成 thinking
+        // 块，思考内容免于因 blocks 化而消失。
+        let has_think = false
+        for nb in norm {
+            if nb.kind == "thinking" { has_think = true }
+        }
+        if !has_think {
+            let th = msg.thinking ?? ""
+            if th != "" {
+                // .at 无 list.insert（透传 JS 不存在的原生方法）——重建数组前置。
+                let with_think list = [{ kind: "thinking", text: th }]
+                for nb in norm { with_think.push(nb) }
+                return with_think
             }
         }
         return norm
