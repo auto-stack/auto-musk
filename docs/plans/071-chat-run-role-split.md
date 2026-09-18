@@ -1,11 +1,11 @@
 ---
 plan_id: PLAN-071
-status: executing
+status: reviewed
 feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显式角色分离）+ 可用性修改需求跟踪
 author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
-updated_at: 2026-09-18T20:10:00+08:00
-plan_revision: 16
+updated_at: 2026-09-18T21:00:00+08:00
+plan_revision: 17
 current_step: 60
 total_steps: 60
 supersedes_spec_components:
@@ -338,6 +338,7 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
 |:---|:---|:---|:---|:---|:---|
 | SD-01 | modify | docs/specs/modules/chat-run-policy.md「SSE 订阅/运行生命周期」 | before：SSE chat_stream 以 chat_run_active 只读窥探分流（在途→附加/不在途→空闲）；after：显式角色分离——运行孵化唯一入口 chats_message run=true→spawn chat_run_owner（持守卫）；chat_run_stream 恒为附加/空闲订阅，绝不孵化、不触碰守卫 | 窥探共享守卫无法区分主体/订阅者（18683b29 双回复实证）；spec 原文"订阅绝不孵化运行"与代码对齐 | AC-01/02 |
 | SD-02 | modify | docs/specs/modules/chat-run-policy.md「测试口径」 | before：ag_chat_stream 运行主体路径（先 try_start 取守卫再订阅——F-05 口径）；after：运行主体路径经 chat_run_owner / chats_message run=true 验证；裸订阅恒空闲流不终止；新增回归口径：run:true POST + 紧跟订阅 = 恰一条助手回复 | F-05 口径把缺陷语义钉成绿灯，随语义一并退役 | AC-03/06 |
+| SD-04 | modify | docs/specs/modules/chat-run-policy.md「SSE 订阅/运行生命周期」 | before：守卫占用仅"不重复孵化"；无看门狗/取消/生命周期日志/存储写串行化口径 | after：补守卫占用 busy 语义（可见提示 + busy:true；queued=true 免提示）、在途消息前端排队、空闲看门狗（300s 默认）、cancel 端点、生命周期日志、ChatStore 写串行化（需求⑤⑮，复审 SD 增订） | 守卫占用与失败/取消策略为运行生命周期持久决策 | AC-21..25/40 |
 | SD-03 | add | docs/specs/modules/chat-agent-identity.md（新模块） | 新增：assistant 消息身份契约——ChatMessage/Turn 可选 `profession_id`（skip-if-none，旧数据兼容）；三个落盘点（运行主体= session mode→role、plan-merge 短路、relay 报告回写）必须填身份；前端助手头部渲染职业头像+名字（AgentConfigs 目录解析，缺失 fallback id）；身份目录 = `~/.config/autoos/professions.json`（单一真源）经 `/api/forge/relay/professions` | 用户裁定 agent 身份不可简化（auto-forge 设计回归）；部件在场只缺接线 | AC-09/10/11 |
 
 ## 6. 测试设计
@@ -892,6 +893,35 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   方法串行化）。登记：parity_plans 单测偶发失败为并行噪声（隔离+复跑
   全绿）| blockers: 无 | next: review（需求①-⑮全数就绪，一并复审
   merge）。
+- 2026-09-18T21:00+08:00 `stage: review` | PLAN-071 | r17 | `outcome: pass`
+  | reviewed_commit: 4f8ba9f（plan-071-dev，工作树干净全提交；SD-04 规范
+  增订为本复审追加提交）| base_commit: 36b972f（main，fast-forward 可达）
+  | dependency_revisions: auto-ai@9d2102c、auto-lang@844ff9c81（快照未动）
+  | spec_inputs: docs/specs/modules/chat-run-policy.md（PLAN-069 3d94726
+  + SD-01/02 预备 3b2e72d + 本复审 SD-04 增订）、
+  docs/specs/modules/chat-agent-identity.md（SD-03 预备 02d7d30，审查
+  通过无需修正）| acceptance_results: AC-01..40 全 pass——①角色分离
+  AC-01..08 = 套件（ag_chat_* 回归族）+ SD-01/02；②身份 AC-09..12 = 套件
+  + wire/实机徽章；③④ UI AC-13..20 = 截图/DOM 采样；⑤防护 AC-21..25 =
+  套件（看门狗/超时族）+ serve 日志（spawned/finished/busy 实录）+
+  70719db busy 案例实证；⑥⑧流式 AC-26..28 + ⑨ AC-29..30 = 本会话时间线
+  采样（等待点 0.6s/思考块 4.6s/收束一致）+ 取消端到端（in-flight=true +
+  工具栏钮）；⑩ AC-31 四场景；⑪⑫ AC-32..33 = 截图/DOM（两行盒/默认选中）；
+  ⑬⑭ AC-34..39 = 菜单 DOM（13 行三源/左对齐/选中态）+ 注入端到端
+  （agent 从注入块答出文件路径）+ 气泡 mention-ref 渲染；⑮ AC-40 =
+  排队端到端（⏳ 指示/自动 FIFO 发送/两问两答/chats.json 四 turn 齐全）
+  | findings: F-1（非阻塞）parity_plans 家族并行抖动——main 实证同族
+  抖动（plans_archive_reviewed_rejected），先于本分支，隔离必过，另行
+  跟进测试隔离；F-2（裁定）[SSE]/[POLL] console 诊断日志**保留**——
+  节流去重、需求⑥诊断实证价值，登记为常驻诊断埋点；F-3（已知项）
+  composer 内 @plan/@spec token 着色需上游 __autoMentionHtml 匹配器
+  改造（auto-lang），登记后续 | evidence: 复审基线全门禁重跑（nextest
+  644/4×2 + vm-link-probe PASS + auto build 绿）；各需求端到端证据在
+  本计划 9 节 r9..r16 条目（时间线采样/磁盘 turns/chats.json/serve 日志
+  grep/截图），代码自 4d156c4 后未变 | 独立性限制：本复审在实现会话内
+  完成（无独立会话可用），已按工件重构裁定（测试套件/日志/磁盘数据/
+  DOM 采样），未依赖执行摘要 | next: merge（/auto-plan:merge：main 合并
+  + SD-01..04 发布主检出 + ledger 挂载 + worktree/依赖快照清理）。
 ## 10. 待澄清事项
 - 无阻塞项。备注①：vm_backend.rs `chat_run_stream` host 当前无 front 调用方
   （grep 实证），若后续 VM 前端接线，按新语义即订阅；备注②：后续追加的可用性
