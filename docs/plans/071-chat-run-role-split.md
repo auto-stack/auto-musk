@@ -6,8 +6,8 @@ author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
 updated_at: 2026-09-18T11:05:00+08:00
 plan_revision: 7
-current_step: 28
-total_steps: 28
+current_step: 29
+total_steps: 29
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
 new_spec_components:
@@ -398,6 +398,10 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   片段（streamThinkingTail，R1/R2 合规）。实测：会话 2882117a 运行 467s
   （glm-5.3 长思考大任务）全程有状态反馈，收束后回复正常落盘。
   [✅ 2026-09-18] commit 需求⑥提交 → 新增 AC：流式期零空白。
+- [x] **T-29** PollStream deadman 窗随流式自动续期——用户第二轮回验定位
+  第二根因：120s 硬过期使长任务（467s）失去回填兜底，SSE 任何迟滞即永久
+  空白。修复后流式进行中每 tick 续窗；浏览器回归正常（指示→流式→收束）。
+  [✅ 2026-09-18] commit deadman 续期提交
   vm-link-probe PASS + auto build 绿 + 实机验证（spawned→finished 7s 日志、
   回复正常）。[✅ 2026-09-18] → AC-21..25
   注：AC-22 命令超时沿既有基建接缺省（专项测试已有 timeout_kills_* 覆盖）；
@@ -464,6 +468,10 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
 - 2026-09-18T11:00+08:00 `stage: work` | PLAN-071 | 需求⑥（流式状态可见性）|
   `outcome: pass` | code_commit: 需求⑥提交 | evidence: 会话 2882117a 实况
   （467s 长思考任务全程有状态反馈、收束正常）| blockers: 无 | next: review。
+- 2026-09-18T11:50+08:00 `stage: work` | PLAN-071 | 需求⑥ T-29（deadman 续期）|
+  `outcome: pass` | code_commit: deadman 续期提交 | evidence: 用户回验定位第二
+  根因（120s 硬过期 → 长任务永久沉默）+ 浏览器回归全链路正常 | blockers: 无 |
+  next: review。
 - 2026-09-18T11:20+08:00 **浏览器实机复证（新构建）**：新建会话发送数学任务，
   700ms 粒度采样 DOM——深度思考期状态行常驻（0.7–8.4s 连续可见），7s 起正文
   流式增长（页面文本 5223→5311→5324B），11.5s 收束停止钮消失。**流式全链路
