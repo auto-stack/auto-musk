@@ -2694,33 +2694,204 @@ mod tests {
         assert!(v["error"].is_string(), "错误 body 含 error 字段: {v}");
     }
 
-    /// ag chat_stream(经 extern 真实化)流式输出 delta/done,run 完成后把
-    /// assistant 回复持久化到 session(与 hw chat_stream 一致)。
+    /// SlowClient：延迟后返回固定应答——为"POST 后紧跟订阅"的回归序列
+    /// 保证订阅附加时 run 仍在途（MockClient 微秒级完成会引入竞态）。
+    struct SlowClient {
+        delay: std::time::Duration,
+    }
+    #[async_trait]
+    impl Client for SlowClient {
+        async fn complete(
+            &self,
+            _req: &CompletionRequest,
+        ) -> Result<CompletionResponse, ClientError> {
+            tokio::time::sleep(self.delay).await;
+            Ok(CompletionResponse {
+                content: "slow answer".into(),
+                tool_calls: vec![],
+                stop_reason: Some("end_turn".into()),
+                usage: None,
+                model: "mock".into(),
+                error: None,
+                model_meta: None,
+            })
+        }
+    }
+
+    /// PLAN-071 T-03：运行主体路径（chats_message run=true → chat_run_owner）。
+    /// 订阅 relay_bus 收集事件直至 done（双发接线验证）；assistant 回复持久化
+    /// 且**恰好一条**（18683b29 双回复回归锚点）；运行收束后守卫清除。
     #[tokio::test]
-    async fn ag_chat_stream_persists_and_streams() {
+    async fn ag_chat_message_run_true_persists_single_reply() {
+        use axum::body::Body;
+        use tower::ServiceExt;
+        use crate::auto_generated::server as ag_server;
+        let state = tmp_state();
+        let ws = state.registry.get("");
+        let runs = state.chat_runs.clone();
+        let app = axum::Router::new()
+            .route(
+                "/api/chats/session",
+                axum::routing::post(ag_server::chat_create),
+            )
+            .route(
+                "/api/chats/session/{id}/message",
+                axum::routing::post(ag_server::chat_message),
+            )
+            .with_state(state);
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/chats/session")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"mode":"basic"}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let sid = json["session"]["id"].as_str().expect("session id").to_string();
+        // 先订阅总线再触发运行：owner 的事件应可被订阅方完整收（双发接线）。
+        let mut bus_rx = crate::relay::api::relay_bus().subscribe();
+        let st = post_message(app, &sid, r#"{"content":"say hello","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        let mut saw_delta = false;
+        let mut saw_done = false;
+        for _ in 0..200 {
+            match tokio::time::timeout(std::time::Duration::from_millis(50), bus_rx.recv()).await {
+                Ok(Ok(ev)) if ev.run_id == sid => {
+                    let ty = ev.payload.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                    if ty == "delta" {
+                        saw_delta = true;
+                    }
+                    if ty == "done" {
+                        saw_done = true;
+                        break;
+                    }
+                }
+                Ok(Ok(_)) => continue,
+                Ok(Err(tokio::sync::broadcast::error::RecvError::Lagged(_))) => continue,
+                _ => break,
+            }
+        }
+        assert!(saw_delta, "总线应收到 delta（PLAN-071 双发接线）");
+        assert!(saw_done, "总线应收到 done");
+        // done 事件先于持久化/清守卫——等 owner 收束后再断言终态。
+        wait_until(|| runs.lock().unwrap().is_empty()).await;
+        let updated = ws.chats.get(&sid).expect("session still exists");
+        let replies = updated
+            .messages
+            .iter()
+            .filter(|m| m.role == crate::chats::Role::Assistant)
+            .count();
+        assert_eq!(replies, 1, "恰好一条助手回复（18683b29 双回复回归）");
+        assert!(runs.lock().unwrap().is_empty(), "运行收束后守卫应清除");
+        // PLAN-071 r3：助手消息携带职业身份 = 会话生效 mode 的 role
+        // （basic → "coder"），turns 双写主 turn 同步。
+        let agent = updated
+            .messages
+            .iter()
+            .find(|m| m.role == crate::chats::Role::Assistant)
+            .expect("assistant message")
+            .profession_id
+            .clone();
+        assert_eq!(agent.as_deref(), Some("coder"), "身份 = mode role");
+        let conv = ws.conversations.get(&sid).expect("conversation exists");
+        let turn_agent = conv
+            .turns
+            .iter()
+            .rev()
+            .find(|t| t.profession_id.is_some())
+            .expect("assistant main turn carries identity")
+            .profession_id
+            .clone();
+        assert_eq!(turn_agent.as_deref(), Some("coder"), "turns 主 turn 同步身份");
+    }
+
+    /// PLAN-071 T-03 回归（会话 18683b29 实测序列）：POST run:true 后紧跟
+    /// SSE 订阅——订阅只附加在途运行转发同一事件流直至 done，绝不二次孵化；
+    /// SSE 正常收束（delta+done），会话恰一条助手回复。
+    #[tokio::test]
+    async fn ag_chat_run_then_subscribe_single_reply() {
+        use axum::body::Body;
+        use tower::ServiceExt;
+        use crate::auto_generated::server as ag_server;
+        use crate::auto_generated::server_stream as ag;
+        let state = tmp_state_with_client(Arc::new(SlowClient {
+            delay: std::time::Duration::from_millis(300),
+        }));
+        let ws = state.registry.get("");
+        let sess = ws
+            .chats
+            .create("basic", Some(String::new()))
+            .expect("create session");
+        ws.chats
+            .append_message(&sess.id, crate::chats::ChatMessage::user("say hello"))
+            .expect("append user message");
+        let app = axum::Router::new()
+            .route(
+                "/api/chats/session/{id}/message",
+                axum::routing::post(ag_server::chat_message),
+            )
+            .route(
+                "/api/chats/session/{id}/stream",
+                axum::routing::get(ag::chat_stream),
+            )
+            .with_state(state);
+        let st = post_message(app.clone(), &sess.id, r#"{"content":"say hello","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        // 紧跟订阅（复刻 18683b29 的 ~1ms 间隔；SlowClient 300ms 保证在途）。
+        let resp = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("GET")
+                    .uri(&format!("/api/chats/session/{}/stream", sess.id))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let text = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            axum::body::to_bytes(resp.into_body(), 1 << 20),
+        )
+        .await
+        .expect("订阅应随 owner 的 done 附加收束")
+        .unwrap();
+        let text = String::from_utf8(text.to_vec()).unwrap();
+        assert!(text.contains("\"type\":\"delta\""), "delta 事件: {text}");
+        assert!(text.contains("\"type\":\"done\""), "done 事件: {text}");
+        let updated = ws.chats.get(&sess.id).expect("session still exists");
+        let replies = updated
+            .messages
+            .iter()
+            .filter(|m| m.role == crate::chats::Role::Assistant)
+            .count();
+        assert_eq!(replies, 1, "恰一条助手回复——订阅不得孵化第二运行");
+    }
+
+    /// PLAN-071 T-03：裸订阅（无在途运行）= 空闲流——不终止、不孵化、
+    /// 不触碰守卫（F-05 口径保留，机制换显式角色）。
+    #[tokio::test]
+    async fn ag_chat_stream_bare_subscribe_stays_idle() {
         use axum::body::Body;
         use tower::ServiceExt;
         use crate::auto_generated::server_stream as ag;
         let state = tmp_state();
         let ws = state.registry.get("");
+        let runs = state.chat_runs.clone();
         let sess = ws
             .chats
-            .create("superpowers", Some(String::new()))
+            .create("basic", Some(String::new()))
             .expect("create session");
         ws.chats
-            .append_message(
-                &sess.id,
-                crate::chats::ChatMessage::user("say hello"),
-            )
+            .append_message(&sess.id, crate::chats::ChatMessage::user("say hello"))
             .expect("append user message");
-        // PLAN-069 F-03 后语义：裸 SSE 订阅=附加/空闲流（绝不孵化运行）。本测试
-        // 验证运行主体路径的流式+持久化，先按 chats_message run=true 同款取守卫
-        // （run_key = "{ws_id}:{session_id}"，此处 ws_id 为空串默认工作区）。
-        let run_key = format!(":{}", sess.id);
-        assert!(
-            state.chat_run_try_start(&run_key),
-            "运行守卫应可获取（无并发运行）"
-        );
         let app = axum::Router::new()
             .route(
                 "/api/chats/session/{id}/stream",
@@ -2738,24 +2909,20 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let text = tokio::time::timeout(
-            std::time::Duration::from_secs(10),
+        let result = tokio::time::timeout(
+            std::time::Duration::from_millis(400),
             axum::body::to_bytes(resp.into_body(), 1 << 20),
         )
-        .await
-        .expect("ag chat_stream 必须终止")
-        .unwrap();
-        let text = String::from_utf8(text.to_vec()).unwrap();
-        assert!(text.contains("\"type\":\"delta\""), "delta 事件: {text}");
-        assert!(text.contains("\"type\":\"done\""), "done 事件: {text}");
-        // Persistence: the assistant reply is now on the session.
+        .await;
+        assert!(result.is_err(), "空闲流应保持挂起不终止");
+        assert!(runs.lock().unwrap().is_empty(), "订阅不得触碰运行守卫");
         let updated = ws.chats.get(&sess.id).expect("session still exists");
         assert!(
-            updated
+            !updated
                 .messages
                 .iter()
                 .any(|m| m.role == crate::chats::Role::Assistant),
-            "assistant 回复已持久化"
+            "裸订阅不得孵化运行（无助手回复）"
         );
     }
 

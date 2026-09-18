@@ -344,6 +344,16 @@ fn specSectionItems(document obj, section_type str) list {
     return out
 }
 
+/** PLAN-071 r5（需求④-4）：各 section 类型计数行 [{name,count}]——规范
+    二级菜单两行盒渲染用。纯参数驱动（R1）；types 由调用方传（视图 model）。 */
+fn specSectionRows(document obj, section_types list) list {
+    let out list = []
+    for st in section_types {
+        out.push({ "name": st, "count": specSectionItems(document, st).length })
+    }
+    return out
+}
+
 // ── PLAN-041 T4:StatusTransition 辅助 ──
 
 fn specSectionStatuses(section_type str) list {

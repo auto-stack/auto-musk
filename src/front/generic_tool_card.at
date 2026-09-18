@@ -94,11 +94,11 @@ widget GenericToolCard(tc: obj, tkey: str, open: bool) {
                 onclick: .Toggle
                 style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer"
                 text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
-                text .name { style: "tool-name flex-1 min-w-0 truncate text-[13.3px] font-medium text-foreground" }
+                text .name { style: "tool-name min-w-0 truncate text-[13.3px] font-medium text-foreground" }
                 for seg in .summary {
                     text .seg.text { class: if .seg.type == "path" { "tool-seg seg-path text-[12.5px] font-medium font-mono shrink-0 text-info" } else { if .seg.type == "pattern" { "tool-seg seg-pattern text-[12.5px] font-medium font-mono shrink-0 text-primary" } else { if .seg.type == "desc" { "tool-seg seg-desc text-[12.5px] font-medium font-mono shrink-0 text-foreground" } else { "tool-seg seg-loc text-[12.5px] font-medium font-mono shrink-0 text-muted-foreground" } } } }
                 }
-                text .status { class: if .status == "completed" { "tool-status completed text-[11.7px] font-medium shrink-0 text-green-500" } else { if .status == "failed" { "tool-status failed text-[11.7px] font-medium shrink-0 text-red-500" } else { "tool-status running text-[11.7px] font-medium shrink-0 text-blue-500" } } }
+                text .status { class: if .status == "completed" { "tool-status completed text-[11.7px] font-medium shrink-0 ml-auto text-green-500" } else { if .status == "failed" { "tool-status failed text-[11.7px] font-medium shrink-0 ml-auto text-red-500" } else { "tool-status running text-[11.7px] font-medium shrink-0 ml-auto text-blue-500" } } }
                 text .chevron { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
             }
             // body（展开时）——Result 走 Markdown 渲染（与原生 MarkdownRender 一致，

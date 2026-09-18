@@ -183,7 +183,8 @@
     "wordsLimitPlaceholder": "≤500 字",
     "noGoalsYet": "暂无目标",
     "noItemsYet": "暂无条目",
-    "noRelations": "暂无关联"
+    "noRelations": "暂无关联",
+    "docs": "{count} 篇"
   },
   "plans": {
     "title": "计划",

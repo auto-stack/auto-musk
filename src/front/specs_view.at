@@ -6,7 +6,7 @@
 use store: SpecsStore
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web spec_next_id, spec_default_status, specSectionItems, specItemPatch, specFindItem, specSectionOfItem from "src/front/specs_helpers.at"
+use.web spec_next_id, spec_default_status, specSectionItems, specItemPatch, specFindItem, specSectionOfItem, specSectionRows from "src/front/specs_helpers.at"
 use.web useT from "src/front/ports/composables.at"
 use.web vsCurrentDetail, vsSetDetailPath from "src/front/ports/composables.at"
 
@@ -85,6 +85,7 @@ widget SpecsView {
     // Plan 028 T9：模板内联 `view_mode == "…"` 三元会被 vue-tsc 流窄化，
     // 兄弟节点的反向比较报 TS2367 —— 收敛为 computed 布尔。
     computed {
+        sectionRows => specSectionRows(.store.document, .section_types)
         structuredMode => .view_mode == "structured"
         treeMode => .view_mode == "tree"
     }
@@ -100,22 +101,31 @@ widget SpecsView {
                 width_class: "w-[200px]"
                 slot(name: "list") {
                     col {
-                        style: "flex-1 overflow-y-auto flex flex-col gap-1 px-1"
+                        style: "flex-1 overflow-y-auto flex flex-col gap-1 px-1 pt-1"
+                        // PLAN-071 r5（需求④-4）：概览/类型盒与会话 item 同构
+                        // （两行盒：名称 + 计数），样式沿 session-item 形态。
                         button {
                             onclick: .ToggleOverview
-                            style: if .show_overview { "w-full text-left py-1.5 px-3 rounded-md text-sm bg-accent text-foreground font-medium cursor-pointer" } else { "w-full text-left py-1.5 px-3 rounded-md text-sm bg-transparent text-muted-foreground cursor-pointer hover:bg-accent" }
-                            text t("specs.overview")
+                            class: if .show_overview { "session-item h-auto w-full text-left flex flex-col items-start gap-0.5 py-2.5 px-3 rounded-lg border border-primary/25 bg-primary/10 text-primary cursor-pointer" } else { "session-item h-auto w-full text-left flex flex-col items-start gap-0.5 py-2.5 px-3 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground cursor-pointer" }
+                            span {
+                                style: "text-[13.6px] font-medium truncate max-w-full"
+                                text t("specs.overview")
+                            }
                         }
-                        for section in .section_types {
+                        for row in .sectionRows {
                             button {
-                                key: .section
-                                onclick: .SelectSection(.section)
-                                style: if .section == .active_section {
-                                    "w-full text-left py-1.5 px-3 rounded-md text-sm bg-accent font-medium cursor-pointer text-foreground hover:bg-accent"
-                                } else {
-                                    "w-full text-left py-1.5 px-3 rounded-md text-sm bg-transparent cursor-pointer text-foreground hover:bg-accent"
+                                key: .row.name
+                                onclick: .SelectSection(.row.name)
+                                class: if .row.name == .active_section { "session-item h-auto w-full text-left flex flex-col items-start gap-0.5 py-2.5 px-3 rounded-lg border border-primary/25 bg-primary/10 text-primary cursor-pointer" } else { "session-item h-auto w-full text-left flex flex-col items-start gap-0.5 py-2.5 px-3 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground cursor-pointer" }
+                                span {
+                                    title: .row.name
+                                    style: "text-[13.6px] font-medium truncate max-w-full"
+                                    text .row.name
                                 }
-                                text .section
+                                span {
+                                    style: "text-sm text-muted-foreground leading-5"
+                                    text t("specs.docs", { count: .row.count })
+                                }
                             }
                         }
                     }

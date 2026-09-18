@@ -25,7 +25,8 @@ use.web settingsInitLocale, settingsChangeLocale from "src/front/ports/composabl
 use.web useI18n from "src/front/ports/composables.at"
 use.web visual_accent_options from "src/front/visual_store.at"
 
-widget SettingsMenu() {
+// PLAN-071 r4（需求③-3）：collapsed 收缩形态——齿轮 icon 触发，dialog 不变。
+widget SettingsMenu(collapsed: bool) {
 
     setup {
         let i18n = useI18n()
@@ -38,6 +39,7 @@ widget SettingsMenu() {
         accentOptions => visual_accent_options()
         isLocaleEn => .currentLocale == "en"
         isLocaleZh => .currentLocale == "zh"
+        triggerIconSize => if .collapsed { 24 } else { 16 }
     }
     msg Msg { Toggle, SetForgeGSD, SetForgeCheck, SetAccent(str), SetThemeLight, SetThemeDark, SetThemeAuto, ChangeLocale(str), OpenAutoOs }
     // PLAN-059 T9:开关态改 dialog 受控形态（无 trigger,open 绑 state_ref
@@ -163,12 +165,15 @@ widget SettingsMenu() {
             style: "settings-menu-wrapper border-t border-white/10 pt-2 mt-2"
             button {
                 onclick: .Toggle
-                class: if .isOpen { "settings-trigger open w-full flex items-center gap-2 rounded-md px-2 h-9 bg-accent text-primary" } else { "settings-trigger w-full flex items-center gap-2 rounded-md px-2 h-9 bg-transparent text-muted-foreground" }
+                class: if .collapsed { "rail-trigger-24 settings-trigger w-10 h-10 flex items-center justify-center rounded-md bg-transparent border-none text-muted-foreground hover:bg-accent" } else { if .isOpen { "settings-trigger open w-full flex items-center gap-2 rounded-md px-2 h-9 bg-accent text-primary" } else { "settings-trigger w-full flex items-center gap-2 rounded-md px-2 h-9 bg-transparent text-muted-foreground" } }
                 title: i18n.t("settings.title")
-                Settings { size: 16 }
-                span {
-                    style: "flex-1 text-left text-sm"
-                    text i18n.t("settings.title")
+                Settings { size: .triggerIconSize }
+                if .collapsed {
+                } else {
+                    span {
+                        style: "flex-1 text-left text-sm"
+                        text i18n.t("settings.title")
+                    }
                 }
             }
             dialog (open: .isOpen) {

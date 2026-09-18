@@ -266,6 +266,7 @@ impl Tool for Dispatch {
                 gate: None,
                 child_conversation: None,
                 tokens: None,
+                profession_id: None,
                 timestamp: conversation::now_secs(),
             },
         );
@@ -292,6 +293,7 @@ impl Tool for Dispatch {
                         gate: None,
                         child_conversation: None,
                         tokens: None,
+                        profession_id: None,
                         timestamp: conversation::now_secs(),
                     },
                 );
@@ -403,6 +405,7 @@ impl Tool for BringIn {
                 gate: None,
                 child_conversation: None,
                 tokens: None,
+                profession_id: None,
                 timestamp: conversation::now_secs(),
             },
         );
@@ -427,6 +430,7 @@ impl Tool for BringIn {
                         gate: None,
                         child_conversation: None,
                         tokens: None,
+                        profession_id: None,
                         timestamp: conversation::now_secs(),
                     },
                 );
@@ -491,6 +495,7 @@ fn append_run_summary_to_parent(
         gate: None,
         child_conversation: Some(run_id.into()),
         tokens: None,
+        profession_id: None,
         timestamp: conversation::now_secs(),
     };
     ws.conversations.append_turn(parent_conv_id, turn);
@@ -514,6 +519,7 @@ fn build_toolcall_turn(tool_name: &str, args: &Value, child_id: &str) -> Turn {
         gate: None,
         child_conversation: Some(child_id.into()),
         tokens: None,
+        profession_id: None,
         timestamp: conversation::now_secs(),
     }
 }

@@ -101,6 +101,7 @@ fn parity_turn_wire_format() {
         }),
         child_conversation: Some("c2".into()),
         tokens: Some(42),
+        profession_id: None,
         timestamp: 100,
     };
     let ag_turn = ag::Turn {
@@ -124,6 +125,7 @@ fn parity_turn_wire_format() {
         }),
         child_conversation: Some("c2".into()),
         tokens: Some(42),
+        profession_id: None,
         timestamp: 100,
     };
     assert_eq!(
@@ -144,6 +146,7 @@ fn parity_turn_wire_format() {
         gate: None,
         child_conversation: None,
         tokens: None,
+        profession_id: None,
         timestamp: 0,
     };
     let ag_min = ag::Turn {
@@ -157,6 +160,7 @@ fn parity_turn_wire_format() {
         gate: None,
         child_conversation: None,
         tokens: None,
+        profession_id: None,
         timestamp: 0,
     };
     let hw_json = serde_json::to_string(&hw_min).unwrap();
@@ -188,6 +192,7 @@ fn parity_conversation_wire_format() {
             gate: None,
             child_conversation: None,
             tokens: None,
+            profession_id: None,
             timestamp: 100,
         }],
         title: Some("Title".into()),
@@ -220,6 +225,7 @@ fn parity_conversation_wire_format() {
             gate: None,
             child_conversation: None,
             tokens: None,
+            profession_id: None,
             timestamp: 100,
         }],
         title: Some("Title".into()),
@@ -348,6 +354,7 @@ fn hw_msg(id: &str, role: musk::chats::Role, content: &str, tool_calls: Vec<musk
         thinking: String::new(),
         parent_id: None,
         blocks: Vec::new(),
+        profession_id: None,
     }
 }
 

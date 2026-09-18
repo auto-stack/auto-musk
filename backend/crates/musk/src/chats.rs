@@ -82,6 +82,11 @@ pub struct ChatMessage {
     /// （前端回退 content+tool_calls 渲染）。
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blocks: Vec<ChatBlock>,
+    /// PLAN-071 r3（需求②）：回答方 Agent 职业身份（professions.json 目录
+    /// id，如 "assistant"/"advisor"）。仅 assistant 落盘点填充；None = 旧
+    /// 数据/无身份（前端回退 "🤖 AI" 徽章）。词汇沿 auto-forge。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profession_id: Option<String>,
 }
 
 /// 活动时间线块：kind = "text"（叙述/回答文本）| "tool"（一次工具调用，
@@ -106,6 +111,7 @@ impl ChatMessage {
             created_at: now_sec(),
             parent_id: None,
             blocks: Vec::new(),
+            profession_id: None,
         }
     }
     pub fn assistant(content: impl Into<String>) -> Self {
@@ -118,6 +124,7 @@ impl ChatMessage {
             created_at: now_sec(),
             parent_id: None,
             blocks: Vec::new(),
+            profession_id: None,
         }
     }
 }
