@@ -4,10 +4,10 @@ status: executing
 feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显式角色分离）+ 可用性修改需求跟踪
 author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
-updated_at: 2026-09-18T09:41:00+08:00
-plan_revision: 6
-current_step: 27
-total_steps: 27
+updated_at: 2026-09-18T11:05:00+08:00
+plan_revision: 7
+current_step: 28
+total_steps: 28
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
 new_spec_components:
@@ -393,6 +393,11 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
 - [x] **T-26** 生命周期日志：spawned/finished(耗时)/failed/timeout/busy。
   [✅ 2026-09-18]
 - [x] **T-27** 门禁：cargo nextest 644 passed/4 skipped（新增 4 测）+
+- [x] **T-28** 需求⑥：流式状态指示常驻（长思考期不再空白）——chats_view
+  指示条件改 current_draft=="" 即显示；深度思考期显示 🤔 状态行 + 思考流尾
+  片段（streamThinkingTail，R1/R2 合规）。实测：会话 2882117a 运行 467s
+  （glm-5.3 长思考大任务）全程有状态反馈，收束后回复正常落盘。
+  [✅ 2026-09-18] commit 需求⑥提交 → 新增 AC：流式期零空白。
   vm-link-probe PASS + auto build 绿 + 实机验证（spawned→finished 7s 日志、
   回复正常）。[✅ 2026-09-18] → AC-21..25
   注：AC-22 命令超时沿既有基建接缺省（专项测试已有 timeout_kills_* 覆盖）；
@@ -451,6 +456,9 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   task_ids: T-22..T-27 完成 | evidence: 644/4 门禁 + 实机 spawned/finished
   日志 + 64f0076c 事故诊断与解锁（重启清守卫）| blockers: 无 | next: review
   （Phase 2 = 需求⑤；与 phase-1 已落地四需求一并复审）。
+- 2026-09-18T11:00+08:00 `stage: work` | PLAN-071 | 需求⑥（流式状态可见性）|
+  `outcome: pass` | code_commit: 需求⑥提交 | evidence: 会话 2882117a 实况
+  （467s 长思考任务全程有状态反馈、收束正常）| blockers: 无 | next: review。
 - 2026-09-18T02:20+08:00 `stage: work` | PLAN-071 | r5 | `outcome: pass` |
   code_commit: r5 提交（需求④），分支 plan-071-dev | task_ids: T-17..T-21 完成 |
   evidence: 浏览器 DOM 实测四条（会话标题 ellipsis+title、× 第二行右缘 gap=0、
