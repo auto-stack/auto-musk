@@ -459,6 +459,11 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
 - 2026-09-18T11:00+08:00 `stage: work` | PLAN-071 | 需求⑥（流式状态可见性）|
   `outcome: pass` | code_commit: 需求⑥提交 | evidence: 会话 2882117a 实况
   （467s 长思考任务全程有状态反馈、收束正常）| blockers: 无 | next: review。
+- 2026-09-18T11:20+08:00 **浏览器实机复证（新构建）**：新建会话发送数学任务，
+  700ms 粒度采样 DOM——深度思考期状态行常驻（0.7–8.4s 连续可见），7s 起正文
+  流式增长（页面文本 5223→5311→5324B），11.5s 收束停止钮消失。**流式全链路
+  在新构建实证可用**；用户报告的空白 = 旧 bundle 行为（需求⑥修复前）+ 页面
+  未刷新加载新构建。用户侧操作：刷新一次加载新 bundle 即可获得持续反馈。
 - 2026-09-18T02:20+08:00 `stage: work` | PLAN-071 | r5 | `outcome: pass` |
   code_commit: r5 提交（需求④），分支 plan-071-dev | task_ids: T-17..T-21 完成 |
   evidence: 浏览器 DOM 实测四条（会话标题 ellipsis+title、× 第二行右缘 gap=0、
