@@ -922,6 +922,9 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   完成（无独立会话可用），已按工件重构裁定（测试套件/日志/磁盘数据/
   DOM 采样），未依赖执行摘要 | next: merge（/auto-plan:merge：main 合并
   + SD-01..04 发布主检出 + ledger 挂载 + worktree/依赖快照清理）。
+  过程备注：SD-04 文本随复审记录 cherry-pick 已先行进入主检出 docs/specs
+  （2d6c901，内容=已验证 delta，pass 判定之后）——发布时点早于 merge 一步，
+  内容无差异；merge 仍须完成代码落地 + ledger 挂载。
 ## 10. 待澄清事项
 - 无阻塞项。备注①：vm_backend.rs `chat_run_stream` host 当前无 front 调用方
   （grep 实证），若后续 VM 前端接线，按新语义即订阅；备注②：后续追加的可用性
