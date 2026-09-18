@@ -2221,6 +2221,32 @@ pub async fn chat_run_owner(
                                 cur_text2.lock().unwrap().clear();
                             }
                         }
+                        // PLAN-073 T-03/T-04：daemon 降级告警（如工具流式参数
+                        // 解析失败被替换为 {}）→ ⚠️ 文本块入时间线，用户可见、
+                        // 持久化随块走（先封口当前叙述块避免粘连）。
+                        "warning" => {
+                            let warn_text = value
+                                .get("text")
+                                .and_then(|t| t.as_str())
+                                .unwrap_or("");
+                            if !warn_text.is_empty() {
+                                let pending = cur_text2.lock().unwrap().clone();
+                                let mut bl = blocks2.lock().unwrap();
+                                if !pending.is_empty() {
+                                    bl.push(crate::chats::ChatBlock {
+                                        kind: "text".into(),
+                                        text: pending,
+                                        tool: None,
+                                    });
+                                    cur_text2.lock().unwrap().clear();
+                                }
+                                bl.push(crate::chats::ChatBlock {
+                                    kind: "text".into(),
+                                    text: format!("⚠️ {}", warn_text),
+                                    tool: None,
+                                });
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -2250,8 +2276,13 @@ pub async fn chat_run_owner(
         // ToolContext.progress 推上进程级 broadcast 总线，这里订阅并过滤本
         // session 的 tool_update 事件转进 chat SSE（SseEventDto 严格枚举之外
         // 的透传 JSON，前端 useForge 按 type 分发）。run 结束后 abort。
+        // PLAN-073 T-01：桥上事件同时喂空闲看门狗——命令执行期没有 agent
+        // 流事件（ToolStart 已发、Tool 结果等命令退出），进度是唯一活性
+        // 信号；不喂狗则任何 ≥300s 的命令都会被看门狗误杀
+        //（会话 90ed3ae0 诊断）。
         let mut bridge_rx = crate::relay::api::relay_bus().subscribe();
         let tx_bridge = tx2.clone();
+        let wd_tx_bridge = wd_tx.clone();
         let bridge_sid = session_id.clone();
         let bridge = tokio::spawn(async move {
             loop {
@@ -2266,6 +2297,7 @@ pub async fn chat_run_owner(
                                 || ev.event_type == "tool_gate_waiting"
                                 || ev.event_type == "relay_gate_waiting")
                         {
+                            let _ = wd_tx_bridge.send(std::time::Instant::now());
                             mpsc_try_send(&tx_bridge, ev.payload);
                         }
                     }
@@ -2296,6 +2328,9 @@ pub async fn chat_run_owner(
         };
         if idle_timed_out {
             // 需求⑤：超时收束——错误事件上总线/SSE，且错误消息**持久化**。
+            // PLAN-073 T-04：中止前的部分产物（叙述/思考/工具卡/时间线）按
+            // 成功路径同款组装落盘，超时通知作尾块追加——会话 90ed3ae0 里
+            // 用户看到的执行痕迹曾随超时整体丢失，只剩一行超时文案。
             let text = format!(
                 "⏱ 运行空闲超时：{}s 内无任何流式事件，已中止本轮。建议把任务拆小后重发。",
                 idle_timeout.as_secs()
@@ -2304,8 +2339,41 @@ pub async fn chat_run_owner(
                 "chat run idle-timeout: session={} idle={}s elapsed={}s",
                 session_id, idle_timeout.as_secs(), run_started.elapsed().as_secs()
             );
-            let mut msg = crate::chats::ChatMessage::assistant(text.clone());
+            let partial = std::mem::take(&mut *accumulated.lock().unwrap());
+            let thinking = std::mem::take(&mut *thinking_acc.lock().unwrap());
+            let tcs = std::mem::take(&mut *tool_calls.lock().unwrap());
+            let content = if partial.is_empty() {
+                text.clone()
+            } else {
+                format!("{}\n\n{}", partial, text)
+            };
+            let mut msg = crate::chats::ChatMessage::assistant(content);
+            msg.thinking = thinking;
+            msg.tool_calls = tcs;
             msg.profession_id = Some(agent_mode.role.clone());
+            // W2 同款：封口当前叙述块 → 时间线 → 思考首块 → 超时尾块。
+            {
+                let pending = cur_text.lock().unwrap().clone();
+                let mut bl = blocks.lock().unwrap();
+                if !pending.is_empty() {
+                    bl.push(crate::chats::ChatBlock {
+                        kind: "text".into(),
+                        text: pending,
+                        tool: None,
+                    });
+                }
+                msg.blocks = std::mem::take(&mut *bl);
+            }
+            if !msg.thinking.is_empty() {
+                msg.blocks.insert(
+                    0,
+                    crate::chats::ChatBlock {
+                        kind: "thinking".into(),
+                        text: msg.thinking.clone(),
+                        tool: None,
+                    },
+                );
+            }
             msg.blocks.push(crate::chats::ChatBlock {
                 kind: "text".into(),
                 text: text.clone(),

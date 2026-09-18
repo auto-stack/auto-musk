@@ -265,6 +265,20 @@ impl Tool for WriteFile {
 /// 文件(路径随尾注给模型)、非零退出码 = 错误结果(pi 语义:更显眼、
 /// 自愈更快)。执行中的流式尾部经 [`crate::tool_context::ProgressSink`]
 /// 以 ToolUpdate SSE 推给前端(100ms 节流)。
+
+// PLAN-073 T-02：模型未传 timeout 时的默认上限（秒）。120s < 空闲看门
+// 狗窗口 300s——命令超时先自然收束回传结果，看门狗只对真停顿兜底。
+pub(crate) const DEFAULT_CMD_TIMEOUT_SECS: f64 = 120.0;
+
+/// 解析默认命令超时：AUTO_CMD_TIMEOUT_SECS 的合法正数优先，否则
+/// [`DEFAULT_CMD_TIMEOUT_SECS`]（env 非法值一律回退默认——T-02 测试锚点）。
+fn resolve_default_timeout_secs(env_val: Option<&str>) -> Option<f64> {
+    env_val
+        .and_then(|v| v.parse::<f64>().ok())
+        .filter(|v| *v > 0.0)
+        .or(Some(DEFAULT_CMD_TIMEOUT_SECS))
+}
+
 pub struct RunCommand {
     /// 注入式 workspace root（PLAN-030 复审修复）。None = 沿用旧解析链
     /// （thread-local > startup CWD）；server/relay 注册路径一律注入，
@@ -361,12 +375,12 @@ impl Tool for RunCommand {
         };
         // PLAN-071 需求⑤ T-23：模型未传 timeout 时给默认上限（秒）——
         // 永不退出的命令（dev server 等）不再永挂运行。env 可调。
+        // PLAN-073 T-02：默认 300→120s——原值与空闲看门狗窗口（300s）相同，
+        // 长命令执行期无 agent 流事件，两计时器同时到期时看门狗先胜，命令
+        // 被整体误杀（会话 90ed3ae0）。120s 保证命令超时先自然收束并回传
+        // 结果事件；模型可显式传更大 timeout（显式值不裁剪）。
         let timeout_secs = timeout_secs.or_else(|| {
-            std::env::var("AUTO_CMD_TIMEOUT_SECS")
-                .ok()
-                .and_then(|v| v.parse::<f64>().ok())
-                .filter(|v| *v > 0.0)
-                .or(Some(300.0))
+            resolve_default_timeout_secs(std::env::var("AUTO_CMD_TIMEOUT_SECS").ok().as_deref())
         });
 
         // Safety classification (Design 004).
@@ -1226,6 +1240,23 @@ mod tests {
     fn init_root() {
         crate::tool_safety::init_project_root();
         let _ = std::fs::create_dir_all(".test-tmp");
+    }
+
+    #[test]
+    fn default_cmd_timeout_resolves_to_120s() {
+        // PLAN-073 T-02：默认值必须落在看门狗窗口（300s）之内，命令超时
+        // 先自然收束；env 合法值优先，非法值回退默认。
+        assert_eq!(resolve_default_timeout_secs(None), Some(120.0));
+        assert_eq!(resolve_default_timeout_secs(Some("")), Some(120.0));
+        assert_eq!(resolve_default_timeout_secs(Some("abc")), Some(120.0));
+        assert_eq!(resolve_default_timeout_secs(Some("0")), Some(120.0));
+        assert_eq!(resolve_default_timeout_secs(Some("-5")), Some(120.0));
+        assert_eq!(resolve_default_timeout_secs(Some("30")), Some(30.0));
+        assert_eq!(resolve_default_timeout_secs(Some("600")), Some(600.0));
+        assert_eq!(DEFAULT_CMD_TIMEOUT_SECS, 120.0);
+        // 看门狗窗口默认 300s（server.rs AUTO_RUN_IDLE_TIMEOUT_SECS 缺省），
+        // 默认命令超时必须严格小于它——T-02 的关系锚点。
+        assert!(DEFAULT_CMD_TIMEOUT_SECS < 300.0);
     }
 
     #[tokio::test]
