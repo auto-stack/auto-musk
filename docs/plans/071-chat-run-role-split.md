@@ -5,9 +5,9 @@ feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显
 author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
 updated_at: 2026-09-18T11:05:00+08:00
-plan_revision: 7
-current_step: 30
-total_steps: 30
+plan_revision: 8
+current_step: 33
+total_steps: 33
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
 new_spec_components:
@@ -330,7 +330,20 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
   max-w-full→70%。[✅ 2026-09-18] → AC-13
 - [x] **T-14** 工具卡标题左对齐：name 去 flex-1（内容宽），status 加 ml-auto
   （status+chevron 靠右）；chat_message 内联两处 + generic_tool_card 一处。
-  [✅ 2026-09-18] → AC-14
+  [✅ 2026-09-18]
+
+**需求⑦（2026-09-18 用户报告会话 4062c66e 思考消失，r8）：思考沉淀为块 +
+ThinkBlock 渲染修复**
+
+- [x] **T-31** 后端：Ok 收束时 thinking 非空 → blocks 前置
+  {kind:thinking} 块（须在 W2 时间线组装之后——组装整体重写 blocks，
+  首版插在组装前被覆盖，实测修正）。[✅ 2026-09-18]
+- [x] **T-32** 前端：messageBlocks 归一化 thinking 透传（原 else 兜底折
+  成 text，ThinkBlock 分支永不可达）+ 旧消息自愈（blocks 非空但无
+  thinking 块且 msg.thinking 有值 → 前置合成）。[✅ 2026-09-18]
+- [x] **T-33** 实施注记：.at 无 list.insert 透传（TS2339）——重建数组
+  等价实现；浏览器实测：流式期思考块实时增长、收束后 💭 已思考·N tokens
+  折叠块渲染、展开可见完整思考。[✅ 2026-09-18] → AC-14
 - [x] **T-15** 侧边栏收缩态：app.at rail_collapsed + ToggleRail + railClass
   计算类（w-48/w-16）；收缩态 6 导航 32px 纯 icon（rail-icon-btn + title）；
   鹿 logo 双主题 img（64px 量化 base64 内嵌 + inject_styles 随 html.dark
@@ -473,7 +486,12 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
 - 2026-09-18T11:50+08:00 `stage: work` | PLAN-071 | 需求⑥ T-29（deadman 续期）|
   `outcome: pass` | code_commit: deadman 续期提交 | evidence: 用户回验定位第二
   根因（120s 硬过期 → 长任务永久沉默）+ 浏览器回归全链路正常 | blockers: 无 |
-  next: review。
+
+- 2026-09-18T12:20+08:00 `stage: work` | PLAN-071 | r8 需求⑦实施完成 |
+  `outcome: pass` | code_commit: 思考块沉淀 + 渲染修复提交 | task_ids:
+  T-31..T-33 完成 | evidence: 浏览器实测流式期思考块实时增长、收束后
+  ThinkBlock 折叠渲染（💭 已思考·100 token）、正文/工具卡不受影响 |
+  blockers: 无 | next: review（需求①-⑦全数就绪）。
 - 2026-09-18T11:20+08:00 **浏览器实机复证（新构建）**：新建会话发送数学任务，
   700ms 粒度采样 DOM——深度思考期状态行常驻（0.7–8.4s 连续可见），7s 起正文
   流式增长（页面文本 5223→5311→5324B），11.5s 收束停止钮消失。**流式全链路
