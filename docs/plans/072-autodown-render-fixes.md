@@ -8,7 +8,7 @@ updated_at: 2026-09-18T20:05:00+08:00
 plan_revision: 1
 current_step: 4
 total_steps: 4
-touched_repos: [auto-down@ed100dd, auto-musk@<merge-of-e097e64>]
+touched_repos: [auto-down@ed100dd, auto-musk@4f3dd7c]
 ---
 
 # PLAN-072 — AutoDown 渲染三修 + 渲染链路定案
