@@ -5,9 +5,9 @@ feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显
 author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
 updated_at: 2026-09-18T11:05:00+08:00
-plan_revision: 8
-current_step: 33
-total_steps: 33
+plan_revision: 9
+current_step: 37
+total_steps: 37
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
 new_spec_components:
@@ -257,6 +257,9 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
 | AC-22 | run_command 超时可配，超时后部分输出回灌、run 继续收束 | 测试 |
 | AC-23 | 守卫占用时 run:true 返回 busy 指示（不再静默） | 测试 |
 | AC-24 | cancel 端点 + UI 停止按钮可终止在途运行并清守卫 | 测试 + 实机 |
+| AC-26 | 发送后 assistant 标题栏立即出现（含时间戳），气泡内显示等待态 | 浏览器实测 |
+| AC-27 | 流式期 ThinkBlock 半开态：一行滚动显示最新思考；收束后收缩为已思考 | 浏览器实测 |
+| AC-28 | 流式期回填不清空在途内容；收束后无需刷新即换入持久化消息 | 浏览器实测 |
 | AC-25 | 运行生命周期 INFO 日志（spawn/finish/fail+原因/busy）可从 serve 日志直接判读 | 日志断言 |
 
 ## 8. 执行步骤
@@ -419,6 +422,18 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   workspace 文件夹图标区分（展开/收缩同步）。[✅ 2026-09-18]
   vm-link-probe PASS + auto build 绿 + 实机验证（spawned→finished 7s 日志、
   回复正常）。[✅ 2026-09-18] → AC-21..25
+
+**需求⑧（r9，2026-09-18 用户提出）：流式 UX 重构（6 步规格，待实施）**
+
+- [x] **T-34** 乐观 assistant 气泡：Send 即创建（profession=modeRoleOf
+  (会话 mode)；api.at ForgeSession 契约补 mode 字段）。[✅ 2026-09-18] → AC-26
+- [x] **T-35** 流式期 ThinkBlock 半开态：header(💭 思考中·N tokens)+一行
+  滚动尾（streamThinkingTail）；收束后收缩为已思考 chip。[✅ 2026-09-18] → AC-27
+- [x] **T-36** 回填防清除：PollStream 流式期快照末消息非 assistant 时跳过
+  回填；done 不再抢先关 deadman 窗。[✅ 2026-09-18] → AC-28
+- [x] **T-37** 构建门禁 + 浏览器全流程实测：auto build 绿；实机采样——
+  标题栏 0.6s 即现、ThinkBlock 常驻、正文流式增长、4.5s 收束；刷新后渲染
+  一致（用户并行测试消息 13:53:27 同样完整渲染）。[✅ 2026-09-18] → AC-26..28
   注：AC-22 命令超时沿既有基建接缺省（专项测试已有 timeout_kills_* 覆盖）；
   T-25 VM host 桥未接线（web 为主，登记后续）。
 
@@ -529,7 +544,13 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   f402ca5a 实拍）| `outcome: pass` | evidence: 浏览器实拍——Assistant 身份头 +
   💭 已思考·73 tokens 折叠块 + 完整回复渲染正常；4062c66e 旧会话为修复前数据
   （无思考块属预期，自愈逻辑仅对 msg.thinking 非空的旧消息生效）| blockers: 无 |
-  next: review。
+
+- 2026-09-18T13:55+08:00 `stage: work` | PLAN-071 | r9 需求⑧实施完成 |
+  `outcome: pass` | code_commit: 需求⑧实施提交（分支 plan-071-dev）|
+  task_ids: T-34..T-37 完成 | evidence: 浏览器全流程实测——乐观标题栏 0.6s
+  即现、ThinkBlock 半开态常驻、正文流式增长、收束一致；用户并行测试消息
+  渲染完整 | blockers: 无 | next: review（需求①-⑧全数就绪，一并复审
+  merge）。
 - 2026-09-18T12:20+08:00 `stage: work` | PLAN-071 | 需求⑥流式诊断埋点 |
   `outcome: pass` | code_commit: 调试埋点提交 | 前端加 [SSE]/[POLL] console
   日志（事件分发/块追加/PollStream 决策/窗口过期），供用户浏览器实测定位
