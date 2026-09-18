@@ -18,7 +18,7 @@ use.web relay_command_match from "src/front/relay_commands.at"
 use.web platformRunRelayCommand from "src/front/ports/platform.at"
 use.web platformFocusComposer from "src/front/ports/platform.at"
 use.web.fn extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.at"
-use.web.fn chatSearchFilter, chatLastMessageId, chatBranchLabel, chatBranchEntries, chatActivePath from "src/front/forge_helpers.at"
+use.web.fn chatSearchFilter, chatLastMessageId, chatBranchLabel, chatBranchEntries, chatActivePath, streamThinkingTail from "src/front/forge_helpers.at"
 // PLAN-051 T8: SendInput 净空口径统一（原 .send(mention_trim(.text)) 调用位
 // 形态，实参内移后宿主侧复用同一 helper）。
 use.web.fn mention_trim from "src/front/mention_helpers.at"
@@ -112,6 +112,9 @@ widget ChatsView {
 
     // Plan 028 T15：搜索过滤（原 useChatSearch composable → F2 多参 fn 直调）
     computed {
+        // PLAN-071 需求⑥：流式状态行——深度思考期可见，不再凭空消失。
+        streamStatusLabel => if .store.thinking != "" { "🤔 深度思考中…" } else { "AI 思考中..." }
+        thinkingTail => streamThinkingTail(.store.thinking)
         // PLAN-043: 先按活跃路径投影再套搜索过滤。
         filteredMessages => chatSearchFilter(chatActivePath(.store.messages, .store.active_leaf), .chat_search)
         lastMsgId => chatLastMessageId(.filteredMessages)
@@ -352,9 +355,18 @@ widget ChatsView {
                     // current_draft——此前 draft 区和气泡双写导致 AI 回复显示两遍。
                     // 仅在首个 delta/thinking 到达前显示等待指示（pulse 动画）。
                     if .store.streaming {
-                        if .store.current_draft == "" && .store.thinking == "" {
+                        // PLAN-071 需求⑥：状态指示常驻——原条件（draft 与
+                        // thinking 均空）在模型长思考期（thinking 事件到达但
+                        // 无正文）会隐藏指示造成"界面空白假死"观感。改为：
+                        // 只要有正文就不显示（内容即反馈）；无正文时恒显示
+                        // 状态行（深度思考期附思考尾片段）。
+                        if .store.current_draft == "" {
                             col {
-                                text "AI 思考中..."
+                                style: "flex flex-col items-start gap-1"
+                                text .streamStatusLabel { style: "text-[13px] text-muted-foreground" }
+                                if .store.thinking != "" {
+                                    text .thinkingTail { style: "text-xs text-muted-foreground/70 max-w-[70%] truncate" }
+                                }
                             }
                         }
                         // PLAN-071 需求⑤ T-25：取消在途运行（后端置位取消

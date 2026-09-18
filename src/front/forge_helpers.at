@@ -673,3 +673,13 @@ fn agentDisplayName(professionId str) str {
     }
     return out
 }
+
+/** PLAN-071 需求⑥：思考流尾片段（末 ~100 字符）——长思考期给界面一个
+    "活着"的可见信号。纯参数驱动（R1）；只用 str.slice（R2 已定型用法）。 */
+fn streamThinkingTail(t str) str {
+    var c str = t ?? ""
+    if c == "" { return "" }
+    let n = c.length
+    if n <= 100 { return c }
+    return "…" + c.slice(n - 100, n)
+}
