@@ -387,6 +387,15 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
   截图实证 hover 时卡片被顶高——"n 条" text-xs 行高 16px < × 盒 20px；计数行
   改 text-sm + leading-5（14px/20px 同高），浏览器实测 hover 前后卡高 62→62
   差 0；规范面板计数行同步保持一致 | blockers: 无 | next: review。
+- 2026-09-18T14:30+08:00 **阶段落地收据（phase-1，用户指示先合后审）**：
+  main 合并 plan-071-dev --no-ff → merge commit `3c2b178`（10 提交，22 文件
+  +625/-179）；落地门禁 cargo nextest -p musk 640 passed/4 skipped +
+  vm-link-probe PASS（77565B）+ auto build 绿。计划簿记随合并上 main
+  （dcd254c 建档+簿记）。**计划保持 executing**（用户：后续还有需求继续
+  追加、review 后置）；worktree `.wt/musk-071/auto-musk` 与分支
+  plan-071-dev 保留续用；SD-01/02/03 仍为分支预备态（发布+ledger 挂载随
+  正式 review/merge）。运行态：:8080 serve = worktree 产物（含全部修复），
+  main 检出若要自跑需重编后端 + 重建 dist。
   （需求①②③④全数就绪，可一并复审 merge）。
 
 ## 10. 待澄清事项
