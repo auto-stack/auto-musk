@@ -1,14 +1,14 @@
 ---
 plan_id: PLAN-073
-status: executing
+status: execution_done
 feature_name: chat 运行挂死修复（看门狗命令盲区 / daemon 静默吞参 / 超时收束丢证据）
 author: zhaop / zcode
 created_at: 2026-09-18T22:00:00+08:00
-updated_at: 2026-09-18T22:00:00+08:00
-plan_revision: 1
-current_step: 0
+updated_at: 2026-09-18T23:10:00+08:00
+plan_revision: 2
+current_step: 6
 total_steps: 6
-touched_repos: [auto-musk, auto-ai]
+touched_repos: [auto-ai@630a98d, auto-musk@ae86fb0]
 ---
 
 # PLAN-073 — chat 运行挂死修复
@@ -32,33 +32,39 @@ touched_repos: [auto-musk, auto-ai]
 
 ## 1. 实施
 
-- [ ] **T-01** musk：tool_update 桥喂看门狗——bridge 任务收到
+- [x] **T-01** musk：tool_update 桥喂看门狗——bridge 任务收到
   tool_update/tool_gate_waiting/relay_gate_waiting 事件时 `wd_tx.send(now)`。
-- [ ] **T-02** musk：命令默认超时 300→120s（AUTO_CMD_TIMEOUT_SECS 仍可覆盖），
+- [x] **T-02** musk：命令默认超时 300→120s（AUTO_CMD_TIMEOUT_SECS 仍可覆盖），
   令命令自然上限远小于看门狗窗口，长命令超时走自身收束而非看门狗误杀。
-- [ ] **T-03** auto-ai：吞参显式化——`StreamDelta::Warning(String)` 变体；
+- [x] **T-03** auto-ai：吞参显式化——`StreamDelta::Warning(String)` 变体；
   openai/anthropic provider 在空参/解析失败替换 `{}` 时 emit warning（含工具名、
   原因、原始长度/头部）；daemon server.rs 增 `{"type":"warning","text"}` 帧分支；
-  agent `forward_sse_delta` 映射 warning 帧 → `StreamEvent::Warning`。
-- [ ] **T-04** musk：超时收束持久化——空闲超时分支按成功路径同款组装已积累
+  agent `forward_sse_delta` 映射 warning 帧 → `StreamEvent::Warning`
+  （warning 帧带 text，必须先于通用 text 路径分流，否则告警文本被拼进正文）。
+  转换逻辑提取 `tool_calls_from_accum`/`tool_calls_from_blocks` 以可测。
+- [x] **T-04** musk：超时收束持久化——空闲超时分支按成功路径同款组装已积累
   thinking/tool_calls/blocks，超时通知作尾块追加后落盘（单消息 + turns 镜像）；
   另：on_event 事件分派增加 `warning` 臂，⚠️ 文本块入时间线（用户可见）。
-- [ ] **T-05** 验证：双仓 cargo test + build；参数丢失根因的 live 复现
-  （RUST_LOG=debug 独立 aaid + AAID_URL 指向 + 短超时；GLM key 在用户运行环境，
-  本计划先以单测钉死 provider 行为，live 复现指引写入 §4）。
-- [ ] **T-06** 收尾：auto-ai 合回 master（musk 消费后）+ musk 合回 main +
-  worktree/分支/组目录清理 + 本计划账面回写。
+- [x] **T-05** 验证：auto-ai daemon 64 + agent 133 测试全绿（含新增双 provider
+  降级行为单测）；musk 437 测试全绿（含新增 `default_cmd_timeout_resolves_to_
+  120s`；既有 `chat_idle_watchdog_times_out_hung_run` 等看门狗用例不回归）；
+  musk worktree 经路径依赖直接消费兄弟 auto-ai worktree 编译链接成功（组布局
+  即验证）。live 复现指引（GLM key 在用户环境）见 §4——参数丢失属模型侧还是
+  分片侧的最终定性留待该复现，provider 层行为已单测钉死。
+- [x] **T-06** 收尾：auto-ai 合回 main（**630a98d**，worktree/分支/auto-lang
+  兄弟快照清理）；musk 合回 main（**ae86fb0**，worktree/分支/组目录清理；
+  wt-guard 三 worktree 全 clean）。
 
 ## 2. 验收标准
 
-- [ ] **AC-01** 长命令不再被看门狗误杀：命令执行期 tool_update 事件刷新空闲窗；
+- [x] **AC-01** 长命令不再被看门狗误杀：命令执行期 tool_update 事件刷新空闲窗；
   静默命令 120s 由命令超时自身收束并返回结果事件（模型可见），看门狗仅对
   真停顿（LLM/管道级）兜底。
-- [ ] **AC-02** 吞参可见：畸形/空参时 UI 收到 warning 帧，消息时间线出现
-  ⚠️ 块；daemon 不再无痕迹替换。
-- [ ] **AC-03** 超时会话保留现场：空闲超时落盘的消息包含中止前的
+- [x] **AC-02** 吞参可见：畸形/空参时 UI 收到 warning 帧，消息时间线出现
+  ⚠️ 块；daemon 不再无痕迹替换（双 provider 单测锚定 warn 触发与内容）。
+- [x] **AC-03** 超时会话保留现场：空闲超时落盘的消息包含中止前的
   thinking/工具卡/时间线，超时通知在尾部。
-- [ ] **AC-04** 双仓既有测试全绿 + 新增行为测试（warning 帧/映射/默认超时值）。
+- [x] **AC-04** 双仓既有测试全绿 + 新增行为测试（warning 帧/映射/默认超时值）。
 
 ## 3. 影响面与兼容
 
@@ -83,4 +89,10 @@ AAID_URL=http://127.0.0.1:17655 AUTO_RUN_IDLE_TIMEOUT_SECS=60 AUTO_CMD_TIMEOUT_S
 
 ## 5. 记录
 
-（实施过程中回填）
+**实施完成（2026-09-18 23:10，r2）**：T-01..T-06 全勾，AC-01..04 全过。
+auto-ai 分支提交 630a98d → main merge；musk 分支提交 ae86fb0 → main merge
+（fast-forward）。收据：wt-guard 三 worktree clean；测试对 daemon 64 +
+agent 133 + musk 437。**生效前提**：需重编译部署 musk.exe 与 aaid.exe
+（本轮已在两仓 worktree 构建通过；用户运行态的 8090/17654 为旧二进制，
+重启/替换后生效）。同会话遗留观察：human 审批门 1800s > 看门狗窗口，
+gate 等待期无心跳仍会被中止（§3 已登记，另立计划）。
