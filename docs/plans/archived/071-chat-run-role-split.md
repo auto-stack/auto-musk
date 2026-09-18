@@ -937,6 +937,12 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   规范 UI file-tree 模式直读仓库），计划未定义结构化条目，无人工造册必要；
   `archived` = 本文件（docs/plans/archived/071-chat-run-role-split.md，
   status: archived，completion_kind: delivered）。
+  `cleaned` = wt-guard 复验 clean（737 个 pnpm node_modules 链接按守卫
+  规程 rmdir 移除后过闸）→ git worktree remove --force → branch -d
+  plan-071-dev（3d24135 已合并）→ 依赖快照清理（auto-ai worktree 移除 +
+  auto-musk-dev 分支删除@9d2102c；auto-lang detach 挂载目录移除，无注册
+  worktree 无分支）→ 组目录 .wt/musk-071 已删。serve 已切主检出二进制
+  （48119cc 代码 + 主检出 dist），health 200。
 ## 10. 待澄清事项
 - 无阻塞项。备注①：vm_backend.rs `chat_run_stream` host 当前无 front 调用方
   （grep 实证），若后续 VM 前端接线，按新语义即订阅；备注②：后续追加的可用性
