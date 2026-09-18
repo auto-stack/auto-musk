@@ -210,7 +210,10 @@ widget ChatsView {
                                     row {
                                         style: "flex items-center justify-between w-full gap-1"
                                         span {
-                                            style: "text-xs text-muted-foreground"
+                                            // PLAN-071 r5 回验：text-sm（行高 20px）
+                                            // 与 × 盒（h-5）同高——hover 时第二行
+                                            // 不再被顶高（用户截图实证 4px 跳动）。
+                                            style: "text-sm text-muted-foreground leading-5"
                                             text t("chat.msgs", { count: .s.message_count })
                                         }
                                         // PLAN-071 r5（需求④-2）：× 移第二行右缘
