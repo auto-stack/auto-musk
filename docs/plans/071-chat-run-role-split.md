@@ -4,10 +4,10 @@ status: executing
 feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显式角色分离）+ 可用性修改需求跟踪
 author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
-updated_at: 2026-09-18T18:40:00+08:00
-plan_revision: 14
-current_step: 52
-total_steps: 52
+updated_at: 2026-09-18T19:05:00+08:00
+plan_revision: 15
+current_step: 56
+total_steps: 56
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
 new_spec_components:
@@ -19,8 +19,8 @@ touched_goals: [goal-relay]
 
 ## 会话交接摘要（2026-09-18，供新会话接续）
 
-**状态**：13 个需求全部实施完毕（T-01..T-54 全勾，AC-01..36 就绪），分支
-`plan-071-dev` 领先 main（需求②-⑬未落地，需求①已随 phase-1 于
+**状态**：14 个需求全部实施完毕（T-01..T-57 全勾，AC-01..39 就绪），分支
+`plan-071-dev` 领先 main（需求②-⑭未落地，需求①已随 phase-1 于
 3c2b178 落地 main）。**下一步 = 用户终验 → /auto-plan:review → /auto-plan:merge**
 （合并时随 SD-01/02/03 发布 specs + ledger 挂载 + worktree/依赖快照清理）。
 
@@ -44,7 +44,9 @@ busy指示/cancel端点/生命周期日志）⑥流式状态可见性（常驻�
 ⑩思考档位默认低（未设置即 low 生效，显式关持久化 off）⑪计划二级导航
 两行盒改造（session-item 同构 + 状态 badge 副标题）⑫计划页默认选中
 第一篇并加载内容（高亮以 store.current 为准）⑬@ 提及三源扩展（Agent/
-计划/规范，@plan/@spec token + 运行时解析注入）+ 下拉左对齐修复。
+计划/规范，@plan/@spec token + 运行时解析注入）+ 下拉左对齐修复
+⑭@ 交互收敛（默认选中第一项/Enter 补全优先不发送/引用 token 气泡内联
+组件；composer 内着色留上游改造，登记）。
 
 **关键教训（新会话必读）**：① `auto build` 可能因二进制锁/中断静默跳过
 codegen 或 vite 阶段——构建后必须核对生成产物（grep 标记类串）再验证；
@@ -198,6 +200,19 @@ read_plan/文件工具自取全文）附加进 agent 输入；不整篇内联（
 可控、agent 按需读取）。数据面：MentionInput 无 store 绑定（codegen 单
 别名限制），plans/specs 经 back.api 直取 + 首次触发 @ 懒加载；过滤/键盘
 导航沿用既有扁平管线（三源合并列表）。
+
+**需求⑭（2026-09-18 用户追加，r15，随 @ 体验回验提出）**：三条交互
+收敛。**①token 识别确认 + 内联组件**：`@plan/001` 后端已能解析（r14
+注入链路），但须显示为特殊 inline 组件（类似 Agent @词）；**②默认
+选中**：候选框打开时第一项、以及任何筛选后结果的第一项，都应为选中态；
+**③Enter 补全优先**：候选框打开时 Enter/Tab 都应自动完成（把选中项插入
+输入框），只有正常输入态 Enter 才发送——现状 Enter 直接发送（根因：
+textarea 上 `onkeydown` 与 `onkeydown.enter.exact.prevent: .send` 两个
+监听并存，Enter 同时触发补全与发送）。修复 = mentionHandled 标记：
+Keydown 补全置位 → send 读到即跳过；`.Input` 即重置 `mentionIndex=0`
+（默认/筛选后选中第一项）。composer 内 token 着色需上游 `__autoMentionHtml`
+（auto-lang ui_gen，仅匹配 `@\w+`，斜杠中断）改造——登记为已知项，
+本轮气泡侧完整渲染（mention_helpers render_mentions 扩展 token 扫描）。
 
 ## 1. 目标
 
@@ -363,6 +378,9 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
 | AC-34 | @ 弹出行内容左对齐（justify-start），行高正常（h-auto） | 浏览器 DOM 实测 |
 | AC-35 | @ 菜单三源：Agent + 计划（@plan/<id>）+ 规范文件（@spec/<relpath>）；过滤跨三源（如 @001 命中计划）；选中插入对应 token | 浏览器实测 |
 | AC-36 | 运行时引用解析：发含 @plan/001 的消息，agent 无需读文件即能从注入块答出计划文件路径；用户可见/持久化消息保持原文 | 浏览器端到端实测 |
+| AC-37 | @ 候选框打开时与任何筛选后，第一项均为选中态（高亮） | 浏览器 DOM 实测 |
+| AC-38 | 候选框打开时 Enter/Tab 均为补全（插入选中项）且不发送；关闭候选框后 Enter 正常发送 | 浏览器实测 |
+| AC-39 | 发送后的用户气泡中 @plan/001、@spec/<path> 渲染为 📋/📄 前缀的特殊 inline 组件 | 浏览器 DOM 实测 |
 
 ## 8. 执行步骤
 
@@ -637,6 +655,22 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   `docs/plans/001-bootstrap-auto-edit.md`，可见消息保持原文。
   commit ab6645b。
 
+**需求⑭（r15，2026-09-18 用户提出）：@ 交互收敛（默认选中/补全优先/token 组件）**
+
+- [x] **T-55** 默认选中 + Enter 补全优先：mention_input.at `.Input` 即重置
+  `mentionIndex=0`；`mentionHandled` 标记（Keydown 补全置位 → `.send` 读到
+  跳过），正常输入态 Enter 发送不变。[✅ 2026-09-18] → AC-37/38
+- [x] **T-56** 气泡内联组件：mention_helpers.at `render_mentions` 扩展
+  token 扫描（@plan/<seq>、@spec/<relpath>，路径字符 \w./- 空白终止），
+  渲染 📋/📄 前缀特殊 inline 组件；`mention_is_path_char` 辅助。
+  [✅ 2026-09-18] → AC-39
+- [x] **T-57** 构建 + 门禁 + 浏览器实测。[✅ 2026-09-18] → AC-37..39
+  auto build 绿 + vm-link-probe PASS（纯前端后端零改动）。实测——@ 打开
+  与筛选 @00 后第一项均为选中态；Enter 补全为 @plan/001 且不发送、正常态
+  发送正常；用户气泡渲染 `📋 @plan/001` 高亮 token；并行回验观察到需求⑤
+  busy 提示正常触发。已知项：composer 内 token 着色需上游 __autoMentionHtml
+  匹配器支持非 \w 词（auto-lang），登记后续。commit 23c5add。
+
 ## 9. 复审记录
 
 - 2026-09-17T23:00+08:00 `stage: new` PLAN-071 r1 起草完成。背景调查四类证据
@@ -800,6 +834,14 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   端到端 agent 从注入块答出 docs/plans/001-bootstrap-auto-edit.md 且
   可见消息保持原文 | blockers: 无 | next: review（需求①-⑬全数就绪，
   一并复审 merge）。
+- 2026-09-18T19:05+08:00 `stage: work` | PLAN-071 | r15 需求⑭实施完成
+  `outcome: pass` | code_commit: 23c5add（worktree，分支 plan-071-dev）|
+  task_ids: T-55..T-57 完成 | evidence: 纯前端 auto build 绿 +
+  vm-link-probe PASS；实测——@ 打开与筛选后第一项均为选中态、Enter 补全
+  不发送/正常态发送正常、用户气泡渲染 📋 @plan/001 高亮 token；用户并行
+  回验触发需求⑤ busy 提示（正向旁证）。已知项：composer 内 token 着色
+  需上游 __autoMentionHtml 匹配器改造（auto-lang），登记后续 |
+  blockers: 无 | next: review（需求①-⑭全数就绪，一并复审 merge）。
 ## 10. 待澄清事项
 - 无阻塞项。备注①：vm_backend.rs `chat_run_stream` host 当前无 front 调用方
   （grep 实证），若后续 VM 前端接线，按新语义即订阅；备注②：后续追加的可用性
