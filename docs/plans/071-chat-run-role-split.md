@@ -4,10 +4,10 @@ status: executing
 feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显式角色分离）+ 可用性修改需求跟踪
 author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
-updated_at: 2026-09-18T11:05:00+08:00
-plan_revision: 9
-current_step: 37
-total_steps: 37
+updated_at: 2026-09-18T15:10:00+08:00
+plan_revision: 10
+current_step: 41
+total_steps: 41
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
 new_spec_components:
@@ -138,6 +138,21 @@ serve 清内存守卫解锁（未持久化的挂死运行工作丢失），探�
    按钮（现无任何取消途径，只能重启 serve）。
 5. **运行生命周期日志**：spawn/finish/fail（含原因）打 INFO——本次诊断只能靠
    registry 加载日志倒推，太隐晦。
+
+**需求⑨（2026-09-18 用户追加，r10，随流式截图提出）**：流式等待态与停止按钮
+归位，两条：
+1. **等待态组件**：发送后 AI 正在启动（首个 thinking/delta 到达前），
+   assistant 气泡内应显示类似 "..." 的动态等待组件，告知用户后台正在干活
+   （截图现状 = 空白气泡，仅身份头部 + 工具栏，无任何活动反馈）。
+2. **停止按钮归位**："停止"按钮从消息画布底部的独立按钮移入 **AI 回答气泡
+   底部工具栏**（与复制/分叉 icon 并排），仅流式中的消息显示。
+3. 用户同时确认：流式 think block 与 markdown 文本 block 已正常显示
+   （需求⑧回验通过，该面无需改动）。
+技术判定：等待窗口 = `isMsgStreaming` 为真且 `messageDisplayBlocks` 为空
+（乐观气泡 T-34 保证流式期最后一条消息恒为 assistant，窗口判定可靠）；
+三点跳动动画走组件 style 块（`@keyframes` + `:nth-child` 延时，
+relay_run_box.at rb-spin / streaming_table.at nth-child 先例）；停止钮直调
+`ForgeStore.CancelRun()`（ToggleThink 跨件直调先例）。
 
 ## 1. 目标
 
@@ -295,6 +310,8 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
 | AC-27 | 流式期 ThinkBlock 半开态：一行滚动显示最新思考；收束后收缩为已思考 | 浏览器实测 |
 | AC-28 | 流式期回填不清空在途内容；收束后无需刷新即换入持久化消息 | 浏览器实测 |
 | AC-25 | 运行生命周期 INFO 日志（spawn/finish/fail+原因/busy）可从 serve 日志直接判读 | 日志断言 |
+| AC-29 | 发送后首个 thinking/delta 到达前，assistant 气泡内显示动态等待点；块到达后消失 | 浏览器实测 |
+| AC-30 | 流式期停止按钮位于流式消息工具栏（复制/分叉旁），画布底部独立按钮退役；点击取消运行，收束后消失 | 浏览器实测 |
 
 ## 8. 执行步骤
 
@@ -470,6 +487,19 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   一致（用户并行测试消息 13:53:27 同样完整渲染）。[✅ 2026-09-18] → AC-26..28
   注：AC-22 命令超时沿既有基建接缺省（专项测试已有 timeout_kills_* 覆盖）；
   T-25 VM host 桥未接线（web 为主，登记后续）。
+
+**需求⑨（r10，2026-09-18 用户提出）：流式等待态与停止按钮归位**
+
+- [ ] **T-38** forge_helpers.at 增 `msgIsWaiting(msg, streaming)`：流式接收中
+  且展示块为空 = AI 启动窗口（乐观气泡保证窗口判定可靠）。→ AC-29
+- [ ] **T-39** chat_message.at：①等待点组件——msg-bubble-ai 内 showWaiting
+  条件渲染三点跳动动画（style 块 @keyframes + :nth-child 延时）；
+  ②工具栏停止按钮——is_streaming 时渲染在复制/分叉右侧（同款 ghost 方钮，
+  ■ 字形 + destructive 色），直调 ForgeStore.CancelRun()。→ AC-29/30
+- [ ] **T-40** chats_view.at：移除画布底部独立停止按钮 + 孤儿 CancelRun
+  msg/handler。→ AC-30
+- [ ] **T-41** auto build + 浏览器全流程实测（发送 → 等待点 → 思考块 → 正文
+  流式 → 工具栏停止钮 → 收束钮消失）。依赖：T-38..40。→ AC-29/30
 
 ## 9. 复审记录
 
