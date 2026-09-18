@@ -6,7 +6,7 @@ author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
 updated_at: 2026-09-18T11:05:00+08:00
 plan_revision: 9
-current_step: 33
+current_step: 37
 total_steps: 37
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
@@ -425,14 +425,15 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
 
 **需求⑧（r9，2026-09-18 用户提出）：流式 UX 重构（6 步规格，待实施）**
 
-- [ ] **T-34** 乐观 assistant 气泡：Send 即创建（profession=会话 mode 映射
-  role），标题栏即时可见，气泡内等待态。→ AC-26
-- [ ] **T-35** 流式期 ThinkBlock 半开态：流式中思考块显示 header+一行滚动
-  尾；收束后收缩为已思考 chip。→ AC-27
-- [ ] **T-36** 回填防清除：PollStream 流式期快照末消息非 assistant 时跳过
-  回填；done 不再抢先关 deadman 窗（最终回填换入持久化消息后自然清窗）。
-  → AC-28
-- [ ] **T-37** 构建门禁 + 浏览器全流程实测（6 步逐条对拍）。→ AC-26..28
+- [x] **T-34** 乐观 assistant 气泡：Send 即创建（profession=modeRoleOf
+  (会话 mode)；api.at ForgeSession 契约补 mode 字段）。[✅ 2026-09-18] → AC-26
+- [x] **T-35** 流式期 ThinkBlock 半开态：header(💭 思考中·N tokens)+一行
+  滚动尾（streamThinkingTail）；收束后收缩为已思考 chip。[✅ 2026-09-18] → AC-27
+- [x] **T-36** 回填防清除：PollStream 流式期快照末消息非 assistant 时跳过
+  回填；done 不再抢先关 deadman 窗。[✅ 2026-09-18] → AC-28
+- [x] **T-37** 构建门禁 + 浏览器全流程实测：auto build 绿；实机采样——
+  标题栏 0.6s 即现、ThinkBlock 常驻、正文流式增长、4.5s 收束；刷新后渲染
+  一致（用户并行测试消息 13:53:27 同样完整渲染）。[✅ 2026-09-18] → AC-26..28
   注：AC-22 命令超时沿既有基建接缺省（专项测试已有 timeout_kills_* 覆盖）；
   T-25 VM host 桥未接线（web 为主，登记后续）。
 
@@ -543,7 +544,13 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   f402ca5a 实拍）| `outcome: pass` | evidence: 浏览器实拍——Assistant 身份头 +
   💭 已思考·73 tokens 折叠块 + 完整回复渲染正常；4062c66e 旧会话为修复前数据
   （无思考块属预期，自愈逻辑仅对 msg.thinking 非空的旧消息生效）| blockers: 无 |
-  next: review。
+
+- 2026-09-18T13:55+08:00 `stage: work` | PLAN-071 | r9 需求⑧实施完成 |
+  `outcome: pass` | code_commit: 需求⑧实施提交（分支 plan-071-dev）|
+  task_ids: T-34..T-37 完成 | evidence: 浏览器全流程实测——乐观标题栏 0.6s
+  即现、ThinkBlock 半开态常驻、正文流式增长、收束一致；用户并行测试消息
+  渲染完整 | blockers: 无 | next: review（需求①-⑧全数就绪，一并复审
+  merge）。
 - 2026-09-18T12:20+08:00 `stage: work` | PLAN-071 | 需求⑥流式诊断埋点 |
   `outcome: pass` | code_commit: 调试埋点提交 | 前端加 [SSE]/[POLL] console
   日志（事件分发/块追加/PollStream 决策/窗口过期），供用户浏览器实测定位
