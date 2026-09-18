@@ -39,6 +39,11 @@ use errand_card: ErrandCard
 use relay_run_box: RelayRunBox
 use task_plan_card: TaskPlanCard
 use report_card: ReportCard
+// PLAN-073 F-B：审批门卡片接入聊天消息视图——原 ToolGateCard 只挂在已退役
+// 的 ToolBlock 链上，ChatMessage 内联工具模板没有 gate_waiting 分支：human
+// 会话越界命令暂停后既无 approve/deny 入口（运行挂到 1800s 门超时），状态
+// 又被 else 兜底渲染成绿色 completed（用户侧呈现"卡住但显示完成"）。
+use tool_gate_card: ToolGateCard
 
 
 widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, think_open: str, tool_open: str) {
@@ -264,7 +269,13 @@ style {
                             // 本层,展开态走 toolList 键列表,冻结实参派发）。
                             col {
                                 style: "tool-block-slot w-full"
-                                if .block.tc.name == "dispatch" {
+                                if .block.tc.status == "gate_waiting" {
+                                    // PLAN-073 F-B：审批门卡（approve/deny 经
+                                    // /api/chats/tool-gate/{id} 决议唤醒运行）。
+                                    ToolGateCard {
+                                        tc: .block.tc
+                                    }
+                                } else if .block.tc.name == "dispatch" {
                                     ErrandCard {
                                         tc: .block.tc
                                         errands: .errands
@@ -302,7 +313,7 @@ style {
                                     }
                                 } else {
                                     col {
-                                        class: if .block.tc.status == "failed" { "tool-card failed border border-border rounded-lg w-full" } else { if .block.tc.status == "running" { "tool-card running border border-border rounded-lg w-full" } else { "tool-card completed border border-border rounded-lg w-full" } }
+                                        class: if .block.tc.status == "gate_waiting" { "tool-card gate_waiting border border-amber-500/60 rounded-lg w-full" } else { if .block.tc.status == "failed" { "tool-card failed border border-border rounded-lg w-full" } else { if .block.tc.status == "running" { "tool-card running border border-border rounded-lg w-full" } else { "tool-card completed border border-border rounded-lg w-full" } } }
                                         // header（click toggle）——冻结实参 .block.tkey
                                         // 上抛 ToolToggleKey（沿 ToggleThink 形态）。
                                         row {
@@ -313,7 +324,7 @@ style {
                                             for seg in .block.summary {
                                                 text .seg.text { class: if .seg.type == "path" { "tool-seg seg-path text-[12.5px] font-medium font-mono shrink-0 text-info" } else { if .seg.type == "pattern" { "tool-seg seg-pattern text-[12.5px] font-medium font-mono shrink-0 text-primary" } else { if .seg.type == "desc" { "tool-seg seg-desc text-[12.5px] font-medium font-mono shrink-0 text-foreground" } else { "tool-seg seg-loc text-[12.5px] font-medium font-mono shrink-0 text-muted-foreground" } } } }
                                             }
-                                            text .block.tc.status { class: if .block.tc.status == "completed" { "tool-status completed text-[11.7px] font-medium shrink-0 ml-auto text-green-500" } else { if .block.tc.status == "failed" { "tool-status failed text-[11.7px] font-medium shrink-0 ml-auto text-red-500" } else { "tool-status running text-[11.7px] font-medium shrink-0 ml-auto text-blue-500" } } }
+                                            text .block.tc.status { class: if .block.tc.status == "gate_waiting" { "tool-status gate_waiting text-[11.7px] font-medium shrink-0 ml-auto text-amber-500" } else { if .block.tc.status == "completed" { "tool-status completed text-[11.7px] font-medium shrink-0 ml-auto text-green-500" } else { if .block.tc.status == "failed" { "tool-status failed text-[11.7px] font-medium shrink-0 ml-auto text-red-500" } else { "tool-status running text-[11.7px] font-medium shrink-0 ml-auto text-blue-500" } } } }
                                             if .tool_open == .block.tkey {
                                                 text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
                                             } else {

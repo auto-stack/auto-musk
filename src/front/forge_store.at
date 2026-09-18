@@ -161,7 +161,7 @@ store ForgeStore {
                         // 不再把垃圾写进 .messages。
                         let detail = chats_get_session(.session_id);
                         if detail != None && detail.session != None {
-                            .messages = detail.session.messages
+                            .messages = normalizeToolBlocks(detail.session.messages)
                             .active_leaf = detail.session.active_leaf ?? ""
                             .thinking_level = detail.session.thinking_level ?? "low"
                             // PLAN-067 T-05: 会话审批模式随载入回填（缺省 human）。
@@ -213,7 +213,7 @@ store ForgeStore {
             // 失败时清空 .messages、置错误提示、顺手刷新列表让过期项消失。
             var resp = chats_get_session(id);
             if resp != None && resp.session != None {
-                .messages = resp.session.messages
+                .messages = normalizeToolBlocks(resp.session.messages)
                 .active_leaf = resp.session.active_leaf ?? ""
                 .thinking_level = resp.session.thinking_level ?? "low"
                 // PLAN-067 T-05: 审批模式随会话切换回填（缺省 human）。
@@ -245,7 +245,7 @@ store ForgeStore {
             // PLAN-053 M1: 重载失败不动 .messages（同 SwitchSession 加固）。
             let detail = chats_get_session(sid);
             if detail != None && detail.session != None {
-                .messages = detail.session.messages
+                .messages = normalizeToolBlocks(detail.session.messages)
                 .active_leaf = detail.session.active_leaf ?? ""
             }
         }
@@ -501,7 +501,7 @@ store ForgeStore {
                 let last_srv = srv_msgs[srv_msgs.length - 1] ?? None
                 if last_srv == None || last_srv.role != "assistant" { return }
             }
-            .messages = resp.session.messages
+            .messages = normalizeToolBlocks(resp.session.messages)
             // PLAN-067 T-02：回填时同步服务端活跃叶——否则叶链投影沿旧叶
             // 回溯,新回合不在链上,依旧"数据到了但不渲染"。
             if resp.session.active_leaf != None { .active_leaf = resp.session.active_leaf }
@@ -593,9 +593,14 @@ store ForgeStore {
                 if callId == "" { callId = "tc-" + Date.now() }
                 let callName = ev.name ?? "unknown"
                 let callArgs = ev.arguments ?? {}
-                msg3.tool_calls.push({ id: callId, name: callName, arguments: callArgs, status: "running" })
+                // PLAN-073 F-C：result/tkey 必须就地初始化——result 缺省时
+                // `block.tc.result != ""` 对 undefined 恒真，展开卡即以
+                // source=undefined 喂 Markdown（StreamingRenderer Gye/flatMap
+                // 崩溃循环）；tkey 缺省时 tool_open == block.tkey 双 undefined
+                // 恒真，所有卡默认展开。
+                msg3.tool_calls.push({ id: callId, name: callName, arguments: callArgs, result: "", status: "running" })
                 let lastIdx = msg3.tool_calls.length - 1
-                msg3.blocks.push({ kind: "tool", tc: msg3.tool_calls[lastIdx] })
+                msg3.blocks.push({ kind: "tool", tc: msg3.tool_calls[lastIdx], tkey: callId })
                 return
             }
             if ev.type == "tool_gate_waiting" {
@@ -853,6 +858,31 @@ fn currentAssistantMsgIn(msgs Value) Value {
     let last = msgs[msgs.length - 1]
     if last.role == "assistant" { return last }
     return None
+}
+
+// PLAN-073 F-A：后端持久化 ChatBlock 的工具载荷挂在 `tool` 键（Rust 字段名），
+// 而渲染模板（chat_message.at）统一读 `tc`——会话载入/回填后历史视图的
+// 工具卡 name/arguments/result 全空。载入侧就地归一化：tool → tc 补挂，
+// 并给缺省 result 兜底空串（undefined 会让 `!= ""` 守卫放行，展开卡即崩）。
+fn normalizeToolBlocks(msgs Value) Value {
+    if msgs == None { return msgs }
+    var mi = 0
+    while mi < msgs.length {
+        let m = msgs[mi]
+        if m.blocks != None {
+            var bi = 0
+            while bi < m.blocks.length {
+                let b = m.blocks[bi]
+                if b.kind == "tool" {
+                    if b.tc == None && b.tool != None { b.tc = b.tool }
+                    if b.tc != None && b.tc.result == None { b.tc.result = "" }
+                }
+                bi = bi + 1
+            }
+        }
+        mi = mi + 1
+    }
+    return msgs
 }
 
 /** 新建 assistant 消息骨架(不落 store——由调用方 push);profession_id 来自 turn_start。 */

@@ -96,3 +96,40 @@ agent 133 + musk 437。**生效前提**：需重编译部署 musk.exe 与 aaid.e
 （本轮已在两仓 worktree 构建通过；用户运行态的 8090/17654 为旧二进制，
 重启/替换后生效）。同会话遗留观察：human 审批门 1800s > 看门狗窗口，
 gate 等待期无心跳仍会被中止（§3 已登记，另立计划）。
+
+**r3（2026-09-19 00:20）——前端渲染层崩溃修复（用户 23:01 复测暴露）**。
+重启用后用户实测：思考流正常、工具卡 ARGUMENTS/RESULT 全空、"卡住"。
+控制台记录 + SSR/线上抓流（SSE 载荷 `arguments:{"path":"docs/plans/001-…"}`
+完整）定位为**前端渲染层**三缺陷 + 一处键错位：
+
+- **F-B1 崩溃主因**：gate_waiting（人工审批门）的工具调用永远等不到
+  tool_result，`tc.result === undefined`，模板守卫 `block.tc.result != ""`
+  对 undefined 恒真 → `<Markdown :source="undefined">` → StreamingRenderer
+  `Gye/flatMap` 崩溃循环（每帧重渲必崩，整列表冻结——即"卡住"的观感）。
+- **F-B2 审批 UI 未接入**：ChatMessage 内联工具模板无 gate_waiting 分支
+  （ToolGateCard 只挂在已退役的 ToolBlock 链）→ 越界命令挂门后无
+  approve/deny 入口，运行挂到门超时；且状态被 else 兜底渲染成绿色
+  "completed"（假完成）。
+- **F-B3 键错位**：后端持久化 ChatBlock 工具载荷在 `tool` 键，模板读 `tc`
+  → 历史视图工具卡无名/无参/无结果。
+- **F-C1**：live push 的工具卡缺 `result`/`tkey` 初始化——前者即 F-B1，
+  后者使 `tool_open == block.tkey` 双 undefined 恒真（全部卡片默认展开）。
+
+修复（musk main 直提，.at 源 + 计划账面；gen/front/vue 为未跟踪生成物随
+build 部署）：forge_store.at（tool_call push 补 `result:""`/`tkey:callId`；
+新增 `normalizeToolBlocks` 于 4 处会话载入点归一 tool→tc + result 兜底）；
+chat_message.at（gate_waiting 分支接 ToolGateCard approve/deny；状态/卡片
+样式加 amber 门等待态；result 守卫回落普通比较）。约束记录：模板 v-if 表达
+式不支持 `??`（UnexpectedToken），store 脚本域支持——守卫靠归一化保证非
+undefined。重建产物部署（gen/front/vue/dist，ServeDir 直读，浏览器刷新即
+生效，无需重启 musk）。
+
+验证：codegen 通过；vite build 出 dist；线上抓流证明 SSE 载荷完整；
+历史视图实测（同一会话）工具卡名称/ARGUMENTS/RESULT 全部渲染
+（`{"path":"docs/plans/001-…md"}` + 计划正文）；后端 gate→approve→
+执行→回灌 API 闭环实测通过（tg-…/approve 200 → tool_result success）。
+
+**新登记债务**：①auto-lang vite 模板缺 `auto-select/overlay` 实现与
+`vite-env.d.ts`（既有 vue-tsc 两个错误长期红着 build）——本次以 gen 目录
+stub 绕开（生成物不入库，重装/迁移需重打），根修在 auto-lang 模板；
+②eslint 缺装；③审批门等待期无心跳（§3）。
