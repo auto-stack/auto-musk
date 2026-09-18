@@ -134,6 +134,16 @@ undefined。重建产物部署（gen/front/vue/dist，ServeDir 直读，浏览�
 stub 绕开（生成物不入库，重装/迁移需重打），根修在 auto-lang 模板；
 ②eslint 缺装；③审批门等待期无心跳（§3）。
 
+**r4+（2026-09-19 01:55）——用户复测仍见空卡（01:30 截图）排查结论**。
+校验线上 `/assets/index.js`：result 初始化/tkey/gate 分支/normalize 全部在
+bundle 中 ✓；live 抓流（复现会话）`tool_call` 载荷完整（name=read_file +
+arguments）✓；musko 日志（0919.log）无 daemon 空参/畸形告警 → **后端无
+异常，判定用户浏览器加载的是 00:10 重建前的陈旧 JS**（产物无 hash +
+no-cache 需显式刷新）。加固：侧边栏版本标记 `v0.1.0-p073r3`（app.at，
+提交 71ceb39，dist 01:59 重建）——用户刷新后看侧边栏版本即可自检加载的
+bundle 新旧。若新 bundle 下仍现空卡：抓 `musk-serve-0919.log` + console
+定位（届时重点查 glm-5.3 对特定 prompt 的 tool_call 形态）。
+
 **r4（2026-09-19 00:30）——审批模式语义修正（用户裁定）**。用户指出：人工/
 自动两种模式都不应"卡住然后失败"——人工应暂停+出审批界面，自动应自动放行。
 实测发现的行为偏差与修正（musk main 直提）：
