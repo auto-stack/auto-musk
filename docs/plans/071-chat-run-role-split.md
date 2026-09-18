@@ -5,9 +5,9 @@ feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显
 author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
 updated_at: 2026-09-18T11:05:00+08:00
-plan_revision: 8
+plan_revision: 9
 current_step: 33
-total_steps: 33
+total_steps: 37
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
 new_spec_components:
@@ -257,6 +257,9 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
 | AC-22 | run_command 超时可配，超时后部分输出回灌、run 继续收束 | 测试 |
 | AC-23 | 守卫占用时 run:true 返回 busy 指示（不再静默） | 测试 |
 | AC-24 | cancel 端点 + UI 停止按钮可终止在途运行并清守卫 | 测试 + 实机 |
+| AC-26 | 发送后 assistant 标题栏立即出现（含时间戳），气泡内显示等待态 | 浏览器实测 |
+| AC-27 | 流式期 ThinkBlock 半开态：一行滚动显示最新思考；收束后收缩为已思考 | 浏览器实测 |
+| AC-28 | 流式期回填不清空在途内容；收束后无需刷新即换入持久化消息 | 浏览器实测 |
 | AC-25 | 运行生命周期 INFO 日志（spawn/finish/fail+原因/busy）可从 serve 日志直接判读 | 日志断言 |
 
 ## 8. 执行步骤
@@ -419,6 +422,17 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   workspace 文件夹图标区分（展开/收缩同步）。[✅ 2026-09-18]
   vm-link-probe PASS + auto build 绿 + 实机验证（spawned→finished 7s 日志、
   回复正常）。[✅ 2026-09-18] → AC-21..25
+
+**需求⑧（r9，2026-09-18 用户提出）：流式 UX 重构（6 步规格，待实施）**
+
+- [ ] **T-34** 乐观 assistant 气泡：Send 即创建（profession=会话 mode 映射
+  role），标题栏即时可见，气泡内等待态。→ AC-26
+- [ ] **T-35** 流式期 ThinkBlock 半开态：流式中思考块显示 header+一行滚动
+  尾；收束后收缩为已思考 chip。→ AC-27
+- [ ] **T-36** 回填防清除：PollStream 流式期快照末消息非 assistant 时跳过
+  回填；done 不再抢先关 deadman 窗（最终回填换入持久化消息后自然清窗）。
+  → AC-28
+- [ ] **T-37** 构建门禁 + 浏览器全流程实测（6 步逐条对拍）。→ AC-26..28
   注：AC-22 命令超时沿既有基建接缺省（专项测试已有 timeout_kills_* 覆盖）；
   T-25 VM host 桥未接线（web 为主，登记后续）。
 
