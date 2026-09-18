@@ -530,6 +530,11 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   💭 已思考·73 tokens 折叠块 + 完整回复渲染正常；4062c66e 旧会话为修复前数据
   （无思考块属预期，自愈逻辑仅对 msg.thinking 非空的旧消息生效）| blockers: 无 |
   next: review。
+- 2026-09-18T12:20+08:00 `stage: work` | PLAN-071 | 需求⑥流式诊断埋点 |
+  `outcome: pass` | code_commit: 调试埋点提交 | 前端加 [SSE]/[POLL] console
+  日志（事件分发/块追加/PollStream 决策/窗口过期），供用户浏览器实测定位
+  "流式不渲染"断点；临时日志 merge 前决定去留 | next: 用户复测回报 console
+  输出。
 ## 10. 待澄清事项
 
 - 无阻塞项。备注①：vm_backend.rs `chat_run_stream` host 当前无 front 调用方
