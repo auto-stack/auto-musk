@@ -133,3 +133,25 @@ undefined。重建产物部署（gen/front/vue/dist，ServeDir 直读，浏览�
 `vite-env.d.ts`（既有 vue-tsc 两个错误长期红着 build）——本次以 gen 目录
 stub 绕开（生成物不入库，重装/迁移需重打），根修在 auto-lang 模板；
 ②eslint 缺装；③审批门等待期无心跳（§3）。
+
+**r4（2026-09-19 00:30）——审批模式语义修正（用户裁定）**。用户指出：人工/
+自动两种模式都不应"卡住然后失败"——人工应暂停+出审批界面，自动应自动放行。
+实测发现的行为偏差与修正（musk main 直提）：
+
+- **F-D1 auto 模式自动放行**：原行为 = 非白名单 PAUSED 文本（模型自诉
+  force 重调）+ 越界硬拒——与"自动 = 不打断"预期不符。改为
+  `RunCommand::with_roots_progress_policy(…, auto_approve)`（lib.rs 按
+  `approval_mode == "auto"` 接线）：auto 模式非白名单/越界直接执行。
+- **F-D2 human 模式非白名单也走门**：原仅越界路径挂门，非白名单返回
+  PAUSED 文本（无 UI 承接）。改为统一走 live 门（tool_gate_waiting →
+  UI approve/deny），deny/超时 → 拒绝回灌模型、运行继续。
+- **F-D3 门等待看门狗窗口对齐**：桥上 gate 事件喂 `now+1800s`（门超时
+  1800s + 300s 余量）——初版喂 now+1500s 与门超时同刻竞速再次误杀
+  （实测），+1800 后门超时先自然发生。
+- legacy（无会话 CLI/relay）行为不变（PAUSED/硬拒），测试口径不变。
+
+验证（live，musk-demo/backend 双工作区）：auto 模式 `hostname`（非白名单）
+直接执行成功；human 模式越界 `type` 门触发（载荷 cmd/paths 正确）→
+**故意等待 582s（远超原 300s 窗口）→ approve 200 → 命令执行 → 结果回灌**
+——看门狗不再误杀门等待。遗留：门卡 UI 渲染的最终目验（本轮 IAB 标签
+不稳定未能截到图，代码路径与 relay 视图既有 ToolGateCard 同源）。

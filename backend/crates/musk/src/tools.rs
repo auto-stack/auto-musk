@@ -290,29 +290,39 @@ pub struct RunCommand {
     /// PLAN-069 W3:live 审批门会话 id(Some = human 模式,越界首触即挂门;
     /// None = auto/无会话,维持硬拒 + 继续)。
     gate_session: Option<String>,
+    /// PLAN-073 F-D:自动审批(auto 模式)——非白名单/越界命令直接放行执行,
+    /// 不挂门不 PAUSED(用户裁定:自动模式 = 不打断)。human/legacy 恒 false。
+    auto_approve: bool,
 }
 
 impl RunCommand {
-    pub fn new() -> Self { Self { roots: None, progress: None, gate_session: None } }
+    pub fn new() -> Self { Self { roots: None, progress: None, gate_session: None, auto_approve: false } }
     pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self {
-        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])), progress: None, gate_session: None }
+        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])), progress: None, gate_session: None, auto_approve: false }
     }
     /// PLAN-070 T-02：多根构造（[workspace 根, *白名单] 合成向量）。
     pub fn with_roots(roots: std::sync::Arc<Vec<std::path::PathBuf>>) -> Self {
-        Self { roots: Some(roots), progress: None, gate_session: None }
+        Self { roots: Some(roots), progress: None, gate_session: None, auto_approve: false }
     }
     /// PLAN-069 W3 + PLAN-070：human 会话的 live 门构造（多根版）。
     pub fn with_roots_progress_gate(
         roots: std::sync::Arc<Vec<std::path::PathBuf>>,
         progress: Option<crate::tool_context::ProgressSink>,
         gate_session: Option<String>,
-    ) -> Self { Self { roots: Some(roots), progress, gate_session } }
+    ) -> Self { Self { roots: Some(roots), progress, gate_session, auto_approve: false } }
+    /// PLAN-073 F-D：审批策略构造——human 挂门 / auto 自动放行。
+    pub fn with_roots_progress_policy(
+        roots: std::sync::Arc<Vec<std::path::PathBuf>>,
+        progress: Option<crate::tool_context::ProgressSink>,
+        gate_session: Option<String>,
+        auto_approve: bool,
+    ) -> Self { Self { roots: Some(roots), progress, gate_session, auto_approve } }
     /// PLAN-040 T4:workspace root + 前端进度通道（单根兼容；测试用）。
     pub fn with_root_and_progress(
         root: std::sync::Arc<std::path::PathBuf>,
         progress: Option<crate::tool_context::ProgressSink>,
     ) -> Self {
-        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])), progress, gate_session: None }
+        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])), progress, gate_session: None, auto_approve: false }
     }
     fn roots(&self) -> &[std::path::PathBuf] {
         self.roots.as_ref().map(|v| v.as_slice()).unwrap_or(&[])
@@ -384,35 +394,36 @@ impl Tool for RunCommand {
         });
 
         // Safety classification (Design 004).
-        if !force {
-            match crate::tool_safety::classify_command(cmd) {
-                crate::tool_safety::CommandTier::Allowed => { /* proceed */ }
-                crate::tool_safety::CommandTier::NeedsApproval(reason) => {
-                    // Return a PAUSED result — not an error. The agent should
-                    // relay this to the user; if approved, re-call with force.
-                    return Ok(ToolOutput::text(format!(
-                        "⏸ PAUSED: {reason}\n\n\
-                         To run this command, the user must approve it. \
-                         If approved, call run_command again with \"force\": true."
-                    )));
-                }
-            }
-        }
-
-        // PLAN-027 ③: run_command 也受 workspace path confinement（堵 cat/type
-        // 白名单放行 + 不设 cwd 导致能绕过读 workspace 外文件的安全漏洞）。
-        // PLAN-069 W3：human 会话 → 首个越界 token 触发 live 审批门（挂起等
-        // 决议）；approve → 放行执行（跳过 confinement）；deny/超时 → 拒绝
-        // 回灌模型。auto/无会话 → 维持硬拒 + 继续（现状）。
-        // PLAN-070 T-02：判定按注入的全部根（workspace + 白名单）——修复旧
-        // confine_* 走全局链（thread-local 退役后 = startup CWD）与注入 scope
-        // 脱节的缺陷（workspace 内绝对路径被误判越界）。
-        let offending =
-            crate::tool_safety::confine_offending_paths_multi(cmd, self.roots());
+        // PLAN-073 F-D:审批策略按会话模式分流(用户裁定:两种模式都不应
+        // "卡住然后失败")——
+        //   human  (gate_session Some):非白名单/越界命令统一走 live 审批门
+        //          (tool_gate_waiting → UI approve/deny;approve → 放行执行,
+        //          deny/超时 → 拒绝结果回灌模型,运行继续)。不再返回 PAUSED
+        //          文本(旧流程实际不停,模型自诉 force 重调,无 UI 承接)。
+        //   auto   (auto_approve):自动放行——非白名单/越界直接执行,不打断
+        //          (用户裁定:自动模式 = 不打断)。
+        //   legacy (两者皆无,CLI/测试):维持原行为(非白名单 PAUSED 文本 /
+        //          越界硬拒 + 继续)。
+        // force 语义不变:跳过白名单分类;越界 confinement 即使 force 也不
+        // 豁免(回归测试口径),human 门 approve 是唯一合法放行通道。
+        let classify = if !force {
+            crate::tool_safety::classify_command(cmd)
+        } else {
+            crate::tool_safety::CommandTier::Allowed
+        };
+        let needs_approval_reason = match &classify {
+            crate::tool_safety::CommandTier::NeedsApproval(reason) => Some(reason.clone()),
+            _ => None,
+        };
+        let is_human_gate = self.gate_session.is_some();
+        let is_auto = self.auto_approve && !is_human_gate;
+        // 越界路径判定（PLAN-070 T-02 多根口径；PLAN-027 ③ 白名单命令也受
+        // workspace path confinement）。
+        let offending = crate::tool_safety::confine_offending_paths_multi(cmd, self.roots());
         let mut gate_approved = false;
-        if !offending.is_empty() {
-            if !force && self.gate_session.is_some() {
-                // PLAN-069 W3：human 会话 → 首触 live 门（挂起等决议）。
+        if !force {
+            if is_human_gate && (!offending.is_empty() || needs_approval_reason.is_some()) {
+                // human:越界 / 非白名单 → live 审批门(挂起等决议)。
                 let gate_id = format!(
                     "tg-{}",
                     std::time::SystemTime::now()
@@ -434,18 +445,33 @@ impl Tool for RunCommand {
                     _ => false,
                 };
                 if !approved {
+                    let why = needs_approval_reason.clone().unwrap_or_else(|| {
+                        format!("path argument '{}'", offending.join(", "))
+                    });
                     return Err(ToolError::Exec(format!(
-                        "run_command path argument '{}': denied by user (outside workspace root)",
-                        offending.join(", ")
+                        "run_command {why}: denied by user (outside workspace root)"
                     )));
                 }
                 gate_approved = true;
+            } else if is_auto {
+                // auto:自动放行(含越界)——不打断。
             } else {
-                // auto/force/无会话 → 维持 PLAN-027 ③ 硬拒（force 不豁免
-                // confinement，回归测试口径不变）。
-                crate::tool_safety::confine_command_paths_multi(cmd, self.roots())
-                    .map_err(ToolError::Exec)?;
+                // legacy:非白名单 → PAUSED 文本;越界 → 硬拒。
+                if !offending.is_empty() {
+                    crate::tool_safety::confine_command_paths_multi(cmd, self.roots())
+                        .map_err(ToolError::Exec)?;
+                } else if let Some(reason) = &needs_approval_reason {
+                    return Ok(ToolOutput::text(format!(
+                        "⏸ PAUSED: {reason}\n\n\
+                         To run this command, the user must approve it. \
+                         If approved, call run_command again with \"force\": true."
+                    )));
+                }
             }
+        } else if !offending.is_empty() {
+            // force 也不豁免 confinement(回归口径不变)。
+            crate::tool_safety::confine_command_paths_multi(cmd, self.roots())
+                .map_err(ToolError::Exec)?;
         }
         let _ = gate_approved;
         // PLAN-070 T-02：命令 cwd = 第一根（workspace 根恒为第一根）；未注入

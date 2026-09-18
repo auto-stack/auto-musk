@@ -318,13 +318,17 @@ pub fn build_agent_with_context(
         } else {
             None
         };
+        // PLAN-073 F-D：auto 模式自动放行（非白名单/越界直接执行，不打断）；
+        // human 挂 live 门（UI approve/deny）；其余（CLI/relay 无会话）legacy。
+        let auto_approve = ctx.approval_mode.as_deref() == Some("auto");
         let scoped_run_command: Vec<(&str, Arc<dyn auto_ai_agent::Tool>)> = vec![
             (
                 "run_command",
-                Arc::new(crate::tools::RunCommand::with_roots_progress_gate(
+                Arc::new(crate::tools::RunCommand::with_roots_progress_policy(
                     ws_roots.clone(),
                     ctx.progress.clone(),
                     gate_session,
+                    auto_approve,
                 )),
             ),
         ];
