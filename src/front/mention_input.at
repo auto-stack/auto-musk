@@ -86,6 +86,10 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
         var extLoaded bool = false
         var plansRaw obj = None
         var specFiles []Value = []
+        // PLAN-071 需求⑭：候选框打开时 Enter 已用于补全的标记——textarea
+        // 上 `onkeydown.enter.exact.prevent: .send` 与 Keydown 处理器并存，
+        // 补全后 send 依此标记跳过（正常输入态 Enter 才发送）。
+        var mentionHandled bool = false
     }
     on {
         .Init -> {
@@ -100,6 +104,10 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
             .mentionAnchor = mention_detect_anchor(e);
             .mentionVisible = mention_detect_visible(e);
             .mentionPos = mention_detect_pos(e);
+            // PLAN-071 需求⑭：筛选/输入变化即重置高亮到第一项（默认选中
+            // 首条语义），并清除 Enter 消费标记。
+            .mentionIndex = 0;
+            .mentionHandled = false;
             .mentionNames = build_mention_name_list(.professions, .store.configs);
             // PLAN-071 需求⑬：首次触发 @ 懒加载计划列表与规范文件树。
             if .mentionVisible {
@@ -132,6 +140,10 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
                     } else if mention_key_action(e) == "Enter" || mention_key_action(e) == "Tab" {
                         .text = mention_insert(.mentionItems, mention_current_id(.mentionFilteredList, .mentionIndex), .text, .mentionPos);
                         .mentionVisible = false;
+                        // PLAN-071 需求⑭：标记本次 Enter 已用于补全——send
+                        // 处理器读到标记即跳过（候选框打开时 Enter 优先补全，
+                        // 不发送）。
+                        .mentionHandled = true;
                         platformComposerAutoGrow()
                     } else if mention_key_action(e) == "Escape" {
                         .mentionVisible = false
@@ -146,6 +158,12 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
         }
         .Hover(id) -> { .mentionIndex = mention_index_of(.mentionFilteredList, id) }
         .send(t) -> {
+            // PLAN-071 需求⑭：候选框打开时 Enter 已被补全消费（Keydown 置
+            // mentionHandled）——本次 Enter 不发送；正常输入态才发送。
+            if .mentionHandled {
+                .mentionHandled = false;
+                return
+            }
             // PLAN-051 T8: 实参改 t（原 .send(mention_trim(.text)) 的 fn 调用
             // 实参在 VM 构建期求值面不可达，会落字面量串）——trim 内移，净效果
             // 等价（vue 轨求值点从调用位移到 handler 内，守卫口径不变）。
