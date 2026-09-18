@@ -28,7 +28,7 @@ use.web component Copy from "src/front/ports/icons.at"
 // 2026-09-03:工具卡内联（ToolBlock/GenericToolCard 子件退役,沿 ThinkBlock
 // 先例——VM 子件 model 全实例共享 + 孙件 store 直调不可靠,回归根因）。补充
 // toolIsOpen/toolArgsJson/extractRunId 与 relay 助手导入。
-use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens, thinkLabel, thinkIsOpen, toolIsOpen, toolToggleList, toolArgsJson, extractRunId, agentDisplayName from "src/front/forge_helpers.at"
+use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens, thinkLabel, thinkIsOpen, toolIsOpen, toolToggleList, toolArgsJson, extractRunId, agentDisplayName, streamThinkingTail from "src/front/forge_helpers.at"
 use.web relayReportView from "src/front/relay_run_helpers.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
@@ -189,6 +189,21 @@ style {
                             // 类串与 ThinkBlock 时期逐类一致（双轨观感不变）。
                             col {
                                 class: "think-block w-full box-border rounded-lg border border-border bg-muted/40 max-w-full overflow-hidden"
+                                // PLAN-071 需求⑧ T-35：流式期半开态——header
+                                // (思考中) + 一行滚动最新思考尾（不依赖展开
+                                // 操作，全程可见）；收束后收缩为已思考 chip
+                                // （chevron 展开全量，双轨观感不变）。
+                                if .is_streaming {
+                                    row {
+                                        style: "think-header w-full flex items-center gap-[6px] py-[6px] px-[10px] text-[12.5px] text-muted-foreground select-none border-none bg-transparent text-left"
+                                        text "💭"
+                                        text "思考中 · " + estimateTokens(.block.text) + " tokens"
+                                    }
+                                    div {
+                                        style: "text-[12px] text-muted-foreground/80 px-[10px] pb-[8px] whitespace-nowrap overflow-hidden text-left"
+                                        text streamThinkingTail(.block.text)
+                                    }
+                                } else {
                                 button {
                                     onclick: .ToggleThink
                                     style: "think-header w-full flex items-center gap-[6px] py-[6px] px-[10px] text-[12.5px] text-muted-foreground cursor-pointer select-none hover:bg-muted/50 border-none bg-transparent text-left"
@@ -204,6 +219,7 @@ style {
                                         style: "think-content my-0 py-[9px] px-[12px] text-[13.5px] leading-[1.5] font-mono whitespace-pre-wrap break-words text-muted-foreground max-h-[240px] overflow-y-auto border-t border-border"
                                         text .block.text
                                     }
+                                }
                                 }
                             }
                         } else {

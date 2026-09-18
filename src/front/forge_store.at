@@ -55,6 +55,9 @@ store ForgeStore {
         // PLAN-067 T-05: 本会话审批模式（human|auto;缺省 human）。仅 UI 态 +
         // PATCH 持久化到会话;后端 relay driver 遇 gate 时读会话模式。
         var approval_mode str = "human"
+        // PLAN-071 需求⑧ T-34：当前会话 mode（乐观 assistant 气泡的职业
+        // 身份映射用；LoadSession/SwitchSession/NewSession 回填）。
+        var session_mode str = "superpowers"
         // PLAN-071 需求⑥调试：PollStream 决策去重打点。
         var dbg_last str = ""
     }
@@ -165,6 +168,7 @@ store ForgeStore {
             var resp = chats_create_session(.workspace);
             if resp != None && resp.session != None {
                 .session_id = resp.session.id;
+                .session_mode = resp.session.mode ?? "superpowers"
                 // 新会话为空会话：清空旧消息视图，否则右侧面板仍挂上一会话内容
                 // （2026-08-29 用户实测：新建后面板不切换、误判未选中）。
                 .messages = []
@@ -206,6 +210,8 @@ store ForgeStore {
                 .thinking_level = resp.session.thinking_level ?? ""
                 // PLAN-067 T-05: 审批模式随会话切换回填（缺省 human）。
                 .approval_mode = resp.session.approval_mode ?? "human"
+                // PLAN-071 需求⑧：会话 mode 回填（乐观气泡职业映射用）。
+                .session_mode = resp.session.mode ?? "superpowers"
                 .error = ""
             } else {
                 // PLAN-053 批4: 错误信息携带实收 id（过期会话可对号入座）。
@@ -336,6 +342,14 @@ store ForgeStore {
                 // 注④）,而共享 vmref 的列表突变实证可靠（同帧 messages.push
                 // 落地实录）,故轮询窗戳以列表承载。
                 .poll_window.push(Date.now())
+                // PLAN-071 需求⑧ T-34：乐观 assistant 气泡——发送即创建
+                // （标题栏立即可见；profession=会话 mode 映射 role）。后续
+                // thinking/delta 事件经 currentAssistantMsgIn 命中本消息
+                // 追加；done 后回填换入持久化版本（含思考块）。
+                var amsg = newAssistantMsg(modeRoleOf(.session_mode))
+                amsg.parent_id = .active_leaf
+                .active_leaf = amsg.id
+                .messages.push(amsg)
             }
             let path0 = "/api/chats/session/" + encodeURIComponent(sid0) + "/stream"
             var qs = ""
@@ -426,6 +440,15 @@ store ForgeStore {
             // None.messages 崩掉后续 computed（对齐 SwitchSession 守卫风格）。
             if resp == None { return }
             if resp.session == None { return }
+            // PLAN-071 需求⑧ T-36：流式期回填防清除——服务端快照在收束前
+            // 不含 assistant，整表替换会把乐观消息连思考一起清掉（用户截图3
+            // 实证：内容全清冻结至刷新）。仅当快照末消息已是 assistant
+            // （收束落盘）才换入；换入后完成启发式自然清窗收束。
+            if .streaming == true {
+                let srv_msgs = resp.session.messages ?? []
+                let last_srv = srv_msgs[srv_msgs.length - 1] ?? None
+                if last_srv == None || last_srv.role != "assistant" { return }
+            }
             .messages = resp.session.messages
             // PLAN-067 T-02：回填时同步服务端活跃叶——否则叶链投影沿旧叶
             // 回溯,新回合不在链上,依旧"数据到了但不渲染"。
@@ -578,14 +601,12 @@ store ForgeStore {
             }
             if ev.type == "done" {
                 console.log("[SSE] done: msgs=" + .messages.length)
+                // PLAN-071 需求⑧ T-36：done 不清 deadman 窗——保留窗让最后
+                // 一拍回填换入持久化消息（含思考块）后由完成启发式自然清窗
+                // 收束（原立即清窗+停轮询导致"刷新才见结果"，用户截图3/4
+                // 实证）。仅停流（Sse.close 释放连接）。
                 .streaming = false
-                // PLAN-062：done 即关 deadman 窗——本臂自清（跨模块调用
-                // 帧内 .StopStream 的 SET_FIELD 重绑定不达根态，T12 同款
-                // 风险，不依赖其体内清窗）。
-                while .poll_window.length > 0 {
-                    let _pw2 = .poll_window.pop()
-                }
-                .StopStream()
+                .stream_es = Sse.close(.stream_es)
                 return
             }
             if ev.type == "error" {
@@ -777,6 +798,16 @@ fn currentAssistantMsgIn(msgs Value) Value {
 }
 
 /** 新建 assistant 消息骨架(不落 store——由调用方 push);profession_id 来自 turn_start。 */
+/** PLAN-071 需求⑧ T-34：会话 mode → 职业 role（内置四模式静态映射；
+    用户自定义 mode 回退 mode 名本身）。乐观 assistant 气泡身份用。 */
+fn modeRoleOf(mode str) str {
+    if mode == "superpowers" { return "assistant" }
+    if mode == "basic" { return "coder" }
+    if mode == "coding" { return "coder" }
+    if mode == "review" { return "reviewer" }
+    return mode
+}
+
 fn newAssistantMsg(professionId str) Value {
     return { id: "a-" + Date.now(), role: "assistant", content: "", thinking: "", created_at: nowSec(), tool_calls: [], blocks: [], profession_id: professionId }
 }
