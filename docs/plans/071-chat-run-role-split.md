@@ -17,6 +17,40 @@ touched_goals: [goal-relay]
 
 # PLAN-071 — chat 双回答回归修复（运行主体/订阅显式角色分离）+ 可用性需求跟踪
 
+## 会话交接摘要（2026-09-18，供新会话接续）
+
+**状态**：8 个需求全部实施完毕（T-01..T-37 全勾，AC-01..28 就绪），分支
+`plan-071-dev` 领先 main 16 提交（需求②-⑧未落地，需求①已随 phase-1 于
+3c2b178 落地 main）。**下一步 = 用户终验 → /auto-plan:review → /auto-plan:merge**
+（合并时随 SD-01/02/03 发布 specs + ledger 挂载 + worktree/依赖快照清理）。
+
+**环境**：worktree `D:/autostack/.wt/musk-071/auto-musk`（分支 plan-071-dev，
+与 main 的同步方式 = 在 worktree 内 `git merge main`）；依赖快照
+auto-ai@9d2102c（`.wt/musk-071/auto-ai`）+ auto-lang@844ff9c81（`.wt/
+musk-071/auto-lang`，曾因外部清理丢失后按原提交重建，detach 挂载）。
+**运行态**：musk serve 在 http://127.0.0.1:8090（worktree 产物 +
+MUSK_WEB_DIST 指 worktree dist；8080 已被无关进程 jade-garden-back 占用）；
+aaid 在 17654。前端部署后需整页刷新（构建产物非哈希文件名 + SPA 长驻页面，
+登记为已知事项）。
+
+**需求一览（全部已完成待复审）**：①chat 双回答回归根修（角色分离+双发
+接线+订阅收束）②Agent 职业身份（profession_id 三落点+前端头像）③UI 三条
+（70% 对称/工具卡标题左对齐/收缩态侧边栏+鹿logo+24px）④二级菜单四条
+（截断/×移二行/首盒gap/规范盒统一+计数）⑤挂死运行防护（看门狗/命令超时/
+busy指示/cancel端点/生命周期日志）⑥流式状态可见性（常驻状态行，后按用户
+裁定删除冗余组件由 ThinkBlock 半开态独占）⑦思考块沉淀与渲染修复
+⑧流式 UX 六步规格（乐观标题栏/半开态/回填防清除）。
+
+**关键教训（新会话必读）**：① `auto build` 可能因二进制锁/中断静默跳过
+codegen 或 vite 阶段——构建后必须核对生成产物（grep 标记类串）再验证；
+② .at 转译器剥冗余括号（+/- 混合运算优先级错位→TS 报错）且无 list.insert
+透传（TS2339）——用中间变量/重建数组规避；③ .at 的 button 全部编译为
+脚手架 Button（含 [&_svg]:size-4），store 别名仅支持 `store` 单名；④
+生成代码的两处同型锚点（agent_run_stream vs chat_run_owner）易误插——
+补丁后必须编译+定点核对；⑤ worktree 前端验证直接用 IAB 面板 + DOM
+采样（EventSource 钩子包装 addEventListener 不含 onmessage——应用走
+onmessage，计数需另行包装）。
+
 ## 0. 变更摘要
 
 会话 `18683b29…`（workspace=auto-edit）实测：**用户发一句话，收到两条助手回复**
