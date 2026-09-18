@@ -518,6 +518,13 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   main 检出若要自跑需重编后端 + 重建 dist。
   （需求①②③④全数就绪，可一并复审 merge）。
 
+- 2026-09-18T12:45+08:00 `stage: work` | PLAN-071 | 运维事项登记（用户回验
+  "仍无流式"澄清）| `outcome: pass` | evidence: 会话 2de6c8a7 数据正常
+  （12:34:37 发问 / 12:34:45 收束含思考块）+ 干净标签页渲染完整（Assistant
+  身份 + 💭 已思考 57 tokens + 全文）；用户空白 = SPA 长驻页面跑旧 bundle
+  （整页刷新即加载新前端，会话内切换不触发加载）| 已知事项：部署新前端后需
+  整页刷新（非代码缺陷，登记备查）| blockers: 无 | next: review。
+
 ## 10. 待澄清事项
 
 - 无阻塞项。备注①：vm_backend.rs `chat_run_stream` host 当前无 front 调用方
