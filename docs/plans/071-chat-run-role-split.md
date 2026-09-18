@@ -5,9 +5,9 @@ feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显
 author: zhaop / zcode
 created_at: 2026-09-17T15:20:00+08:00
 updated_at: 2026-09-18T13:00:00+08:00
-plan_revision: 5
+plan_revision: 6
 current_step: 21
-total_steps: 21
+total_steps: 26
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
 new_spec_components:
@@ -83,6 +83,22 @@ mode→role 映射在场（superpowers→"assistant"，modes/*.at）。
 4. 规范二级菜单 item box 与会话统一（session-item 盒形态：左对齐标题 + 第二
    行计数），并显示各类型规范文档数（数据源 = store.document.sections 经
    specSectionItems 计数；概览盒不计）。
+
+**需求⑤（2026-09-18 用户报告会话 64f0076c 零回答，r6 立项）**：长任务消息发出
+后 AI 一直无回答。诊断（日志+探针+DOM 实证）：09:34:54 的 run 孵化成功（单组
+registry 日志）、但 5 小时未收束——运行体挂死（LLM 流 stall 或长任务命令永不
+退出），per-session 守卫被其占住；期间所有新消息被 chats_message **静默吞掉**
+（try_start 失败不孵化也不回报），且 Err 收束臂只发瞬态 SSE 不落盘——用户侧
+永远零反馈。处理：重启 serve 清内存守卫解锁（未持久化的挂死运行工作丢失），
+探针会话 6s 收到回复确认通道恢复。修复面四条：
+1. **LLM 流读超时**：流 stall 超时（如 120s 无字节）→ run 报错收束 + 守卫
+   清理 + **错误消息持久化**（当前 Err 臂不落盘 = 失败对用户不可见）。
+2. **run_command 执行超时**：挂起命令（dev server 类永不退出）可配置超时 +
+   部分输出回灌，不再永挂运行。
+3. **守卫占用可见**：run:true 遇守卫占用时不再静默吞——响应带 busy 指示，
+   前端显示"运行中…"。
+4. **取消运行**：run_stream 的 cancel flag 接线为 POST cancel 端点 + UI 停止
+   按钮（现无任何取消途径，只能重启 serve）。
 
 ## 1. 目标
 
@@ -232,6 +248,10 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
 | AC-18 | 会话 hover `×` 位于第二行右缘（与 n 条 同行） | 浏览器实测 |
 | AC-19 | 会话/规范二级菜单首 box 顶部有间距 | 浏览器实测 |
 | AC-20 | 规范 item box 与会话同构（两行盒）且显示各类型规范文档数 | 浏览器实测 |
+| AC-21 | LLM 流 stall 超时后 run 报错收束、错误消息持久化、守卫清理 | 超时注入测试 |
+| AC-22 | run_command 超时可配，超时后部分输出回灌、run 继续收束 | 测试 |
+| AC-23 | 守卫占用时 run:true 返回 busy 指示（不再静默） | 测试 |
+| AC-24 | cancel 端点 + UI 停止按钮可终止在途运行并清守卫 | 测试 + 实机 |
 
 ## 8. 执行步骤
 
@@ -328,6 +348,14 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
 - [x] **T-21** 构建与实机：vm-link-probe PASS（77565B）+ auto build 绿 +
   浏览器 DOM 实测四条全过（topPad 6px/4px、ellipsis、× 同行右贴、两行盒
   齐全）+ 截图确认。[✅ 2026-09-18] → AC-17..20
+
+**需求⑤（r6，2026-09-18 追加）：挂死运行防护与可取消（待实施）**
+
+- [ ] **T-22** LLM 流读超时 + Err 落盘（AC-21）
+- [ ] **T-23** run_command 超时（AC-22）
+- [ ] **T-24** 守卫占用 busy 指示（AC-23）
+- [ ] **T-25** cancel 端点 + UI 停止按钮（AC-24）
+- [ ] **T-26** 门禁 + 实机验收（AC-21..24）
 
 ## 9. 复审记录
 
