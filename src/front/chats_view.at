@@ -72,7 +72,8 @@ widget ChatsView {
         ConfirmDelete(str),
         SelectSession(str),
         // PLAN-071 需求⑤ T-25：取消在途运行（转发 ForgeStore）。
-        CancelRun,
+        // PLAN-071 需求⑨：按钮迁入 ChatMessage 工具栏（子件直调
+        // ForgeStore.CancelRun），本视图级消息与 handler 退役。
         SendInput(str),
         StopStream,
         ApproveGate,
@@ -352,18 +353,12 @@ widget ChatsView {
                     // （messages 循环里的 ChatMessage 气泡），不在此重复渲染
                     // current_draft——此前 draft 区和气泡双写导致 AI 回复显示两遍。
                     // 仅在首个 delta/thinking 到达前显示等待指示（pulse 动画）。
-                    if .store.streaming {
-                        // PLAN-071 需求⑥→⑧：思考期反馈由乐观气泡内的
-                        // ThinkBlock 半开态承载（本状态行组件已删除——与
-                        // ThinkBlock 双重显示，用户裁定冗余）。
-                        // PLAN-071 需求⑤ T-25：取消在途运行（后端置位取消
-                        // 旗标，agent 迭代边界收束并落盘已有内容）。
-                        button {
-                            onclick: .CancelRun
-                            style: "self-start mt-1 text-xs text-muted-foreground bg-transparent border border-border rounded-md px-2 py-1 cursor-pointer hover:bg-accent"
-                            text "■ 停止"
-                        }
-                    }
+                    // PLAN-071 需求⑥→⑧：思考期反馈由乐观气泡内的
+                    // ThinkBlock 半开态承载（本状态行组件已删除——与
+                    // ThinkBlock 双重显示，用户裁定冗余）。
+                    // PLAN-071 需求⑨：启动窗口等待点与停止按钮均迁入
+                    // ChatMessage 气泡（等待点 = 气泡内三点动画；停止钮 =
+                    // 气泡工具栏复制/分叉旁）——本画布级独立停止按钮退役。
                     if .store.error != "" {
                         text .store.error { style: "text-destructive text-[14px] py-2 px-3 bg-destructive/10 rounded-lg self-start max-w-full" }
                     }
@@ -454,9 +449,8 @@ widget ChatsView {
             store.BranchTo(mid, "fork")
         }
 
-        .CancelRun -> {
-            ForgeStore.CancelRun()
-        }
+        // PLAN-071 需求⑨：CancelRun handler 随画布级停止按钮退役
+        // （ChatMessage 工具栏停止钮直调 ForgeStore.CancelRun）。
         .SelectSession(id) -> {
             .delete_pending_id = "";
             .delete_confirm_open = false;

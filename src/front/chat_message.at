@@ -28,7 +28,7 @@ use.web component Copy from "src/front/ports/icons.at"
 // 2026-09-03:工具卡内联（ToolBlock/GenericToolCard 子件退役,沿 ThinkBlock
 // 先例——VM 子件 model 全实例共享 + 孙件 store 直调不可靠,回归根因）。补充
 // toolIsOpen/toolArgsJson/extractRunId 与 relay 助手导入。
-use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens, thinkLabel, thinkIsOpen, toolIsOpen, toolToggleList, toolArgsJson, extractRunId, agentDisplayName, streamThinkingTail from "src/front/forge_helpers.at"
+use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens, thinkLabel, thinkIsOpen, toolIsOpen, toolToggleList, toolArgsJson, extractRunId, agentDisplayName, streamThinkingTail, msgIsWaiting from "src/front/forge_helpers.at"
 use.web relayReportView from "src/front/relay_run_helpers.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
@@ -44,7 +44,7 @@ use report_card: ReportCard
 widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, think_open: str, tool_open: str) {
     // PLAN-060 T2:ForkFrom 上抛分叉请求（mid=msg.id）——子件空 handler,
     // 经 onfork 声明路由直达宿主 BranchTo（零参帧对齐根修后单参载荷同链）。
-    msg Msg { CopyContent, ToggleThink, ToolToggleKey(str), ForkFrom(str) }
+    msg Msg { CopyContent, ToggleThink, ToolToggleKey(str), ForkFrom(str), CancelRun }
     on {
         // 【2026-09-04 三次定案】展开态回归 ForgeStore 键列表——二次修正的
         // 消息对象直写（.msg.think_expanded/.msg.tool_expanded）在 VM 为
@@ -58,6 +58,11 @@ widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task
             ForgeStore.ToolToggle(key)
         }
         .ForkFrom(mid str) -> {
+        }
+        // PLAN-071 需求⑨：取消在途运行（后端 cancel 端点置位旗标 + 本地退出
+        // 流式态；沿 ToggleThink 跨件直调 store 先例）。
+        .CancelRun -> {
+            ForgeStore.CancelRun()
         }
         // PLAN-055: AI 消息工具栏 copy（对齐 web 原版 message-toolbar）。
         .CopyContent -> {
@@ -89,6 +94,16 @@ style {
 .tool-section-title { font-size: 0.73rem; font-weight: 500; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-bottom: 0.2rem; letter-spacing: 0.02em; }
 .tool-code { font-size: 0.83rem; color: hsl(var(--muted-foreground)); background: hsl(var(--muted-foreground) / 0.04); padding: 0.35rem 0.5rem; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; font-family: 'Geist Mono', 'Fira Code', monospace; margin: 0; }
 .tool-block-slot { width: 100%; }
+/* PLAN-071 需求⑨：AI 启动窗口等待点——三点跳动（keyframes/nth-child
+   先例：relay_run_box rb-spin、streaming_table nth-child）。scoped 动画
+   web 轨生效；VM 轨 style 块不注入，退化为无动画静态点（登记已知项）。 */
+.typing-dot { width: 7px; height: 7px; border-radius: 9999px; background: hsl(var(--muted-foreground) / 0.6); display: inline-block; animation: typing-bounce 1.2s ease-in-out infinite; }
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.3s; }
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
 }
 
     computed {
@@ -134,6 +149,8 @@ style {
         chev => if .thinkOpen { "▲" } else { "▼" }
         hasError => .msg.error != ""
         errorText => if .hasError { .msg.error } else { "" }
+        // PLAN-071 需求⑨：AI 启动窗口（流式中且展示块为空）——等待点显隐。
+        showWaiting => msgIsWaiting(.msg, .is_streaming)
     }
     view {
         col {
@@ -169,6 +186,23 @@ style {
                 // 块间节奏 0.4rem 与 markdown 流内间距对齐（原 style{} 块注记）。
                 col {
                     style: "msg-bubble-ai flex flex-col gap-3 py-[11px] px-[3px] border-t border-b border-border/60"
+                    // PLAN-071 需求⑨：AI 启动窗口等待点——首个 thinking/delta
+                    // 到达前气泡内动态 "..."（三点跳动），告知后台正在干活；
+                    // 块到达即消失（msgIsWaiting 判定，块循环同窗渲染）。
+                    if .showWaiting {
+                        row {
+                            style: "msg-waiting flex items-center gap-[5px] py-[2px] px-[2px]"
+                            span {
+                                class: "typing-dot"
+                            }
+                            span {
+                                class: "typing-dot"
+                            }
+                            span {
+                                class: "typing-dot"
+                            }
+                        }
+                    }
                     // 有序 block 流：文本 / 思考 / 工具按到达顺序，块不删除。
                     // text 块已在 computed（messageDisplayBlocks）里剥离问卷 JSON 并
                     // 过滤空块——纯问卷消息不出气泡，问卷本体由 QuestionnaireCard 呈现。
@@ -336,6 +370,18 @@ style {
                         style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
                         title: "Fork"
                         text "⑂"
+                    }
+                    // PLAN-071 需求⑨：停止按钮归位——从画布底部独立按钮移入
+                    // 流式消息的工具栏（复制/分叉并排）；仅流式中的消息显示，
+                    // 收束即消失。直调 store 取消在途运行（ToggleThink 跨件
+                    // 直调先例），destructive 色示警。
+                    if .is_streaming {
+                        button {
+                            onclick: .CancelRun
+                            style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent text-destructive hover:bg-accent hover:text-destructive cursor-pointer"
+                            title: "Stop"
+                            text "■" { style: "text-[10px] leading-none" }
+                        }
                     }
                 }
             }

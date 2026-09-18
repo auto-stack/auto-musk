@@ -520,6 +520,16 @@ fn isMsgStreaming(streaming bool, messages obj, msg obj) bool {
     return last.id == msg.id && last.role == "assistant"
 }
 
+/** PLAN-071 需求⑨：AI 启动窗口——流式接收中但展示块为空（首个
+ * thinking/delta 尚未到达），等待点组件在此窗口显示；块到达后即消失。
+ * 乐观气泡（需求⑧ T-34）保证流式期最后一条消息恒为 assistant，
+ * isMsgStreaming 判定在窗口内可靠为真。 */
+fn msgIsWaiting(msg obj, streaming bool) bool {
+    if streaming == false { return false }
+    let blocks = messageDisplayBlocks(msg, streaming)
+    return blocks.length == 0
+}
+
 // ─── ReportCard helper ───────────────────────────────────────────────────────
 
 /** ReportCard confidence class。 */

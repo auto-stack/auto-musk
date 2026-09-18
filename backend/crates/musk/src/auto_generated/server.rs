@@ -676,6 +676,11 @@ pub fn build_router() -> Router<AppState> {
     app = app.route("/api/chats/session/{id}/approve/{index}", post(chat_approve));
     app = app.route("/api/chats/session/{id}/reject/{index}", post(chat_reject));
     app = app.route("/api/chats/session/{id}/reject-all", post(chat_reject_all));
+    // PLAN-071 需求⑤ T-25 补线（需求⑨回验暴露）：cancel 端点此前只注册
+    // 进 server.rs 的测试路由器，真实 build_router() 从未挂载——POST 落
+    // SPA fallback 返回 405，前端 await 抛错、streaming 永不落 false。
+    // handler = AppState::chat_cancel（置位 chat_cancels 取消旗标）。
+    app = app.route("/api/chats/session/{id}/cancel", post(crate::server::AppState::chat_cancel));
     app = app.route("/api/conversations", get(conversation_list));
     app = app.route("/api/conversations/{id}", get(conversation_get).delete(conversation_delete));
     app = app.route("/api/conversations/{id}/title", patch(conversation_rename));
