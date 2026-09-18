@@ -119,7 +119,7 @@ widget App {
                             button { onclick: .ShowPlans; title: "计划"; class: if .current_view == "plans" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "list-todo", size: 24) {} }
                             button { onclick: .ShowSpecs; title: "规范"; class: if .current_view == "specs" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "scroll", size: 24) {} }
                             button { onclick: .ShowWiki; title: "知识库"; class: if .current_view == "wiki" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "book-open", size: 24) {} }
-                            button { onclick: .ShowFiles; title: "文件"; class: if .current_view == "files" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "folder", size: 24) {} }
+                            button { onclick: .ShowFiles; title: "文件"; class: if .current_view == "files" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "folder-open", size: 24) {} }
                             button { onclick: .ShowWhitelist; title: "白名单"; class: if .current_view == "whitelist" { "rail-icon-btn active" } else { "rail-icon-btn" }; icon (name: "shield-check", size: 24) {} }
                         }
                     } else {
@@ -159,7 +159,7 @@ widget App {
                                 }
                                 sidebar_menu_item {
                                     sidebar_menu_button (onclick: .ShowFiles, active: .current_view == "files", size: "lg") {
-                                        icon (name: "folder") {}
+                                        icon (name: "folder-open") {}
                                         text "文件" {}
                                     }
                                 }

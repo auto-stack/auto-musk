@@ -437,6 +437,9 @@ pub type ForgeSession = {
     // PLAN-067 T-05: 会话审批模式（"human"|"auto";缺省 human）。auto =
     // relay run 的 human gate 到达即自动放行（driver 侧留审计事件）。
     approval_mode: str,
+    // PLAN-071 需求⑧ T-34：会话 mode（乐观 assistant 气泡的职业映射用;
+    // 后端会话详情本就回传,此处补契约声明）。
+    mode: str,
 }
 
 // spec 变更项（对应 web/src/types/forge.ts SpecChange，GateCard 的 changes prop）。
@@ -523,7 +526,14 @@ pub fn chats_navigate_session(id str, message_id str) SessionDetailResponse {
 // 供 VM 轨显式触发（其 Sse.open 为 no-op，订阅触发路径不可达）；缺省 false 保持
 // web 轨「订阅即运行」语义不变。
 #[api(method = "POST", path = "/api/chats/session/{id}/message")]
-pub fn chats_send_message(id str, content str, profession_id str, run bool = false) {
+pub fn chats_send_message(id str, content str, profession_id str, run bool = false, queued bool = false) any {
+    return None
+}
+
+// PLAN-071 需求⑤：取消在途运行（agent 于迭代边界响应；流内 stall 由
+// 后端空闲看门狗兜底）。
+#[api(method = "POST", path = "/api/chats/session/{id}/cancel")]
+pub fn chats_cancel_session(id str) {
     return None
 }
 

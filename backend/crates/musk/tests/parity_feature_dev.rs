@@ -57,6 +57,8 @@ fn test_state() -> AppState {
         auth: Arc::new(musk::auto_generated::auth::AuthStore::new(dir.join("users.json"))),
         registry: Arc::new(registry),
         chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+            chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            run_idle_timeout: std::time::Duration::from_secs(300),
     }
 }
 

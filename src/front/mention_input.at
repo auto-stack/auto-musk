@@ -31,11 +31,14 @@
 //     固定 height:72 内滚降级。
 
 use store: AgentConfigs
+// PLAN-071 需求⑬：@ 菜单三源——计划（plans_list）与规范文件（specs_tree）
+// 经 back.api 直取（MentionInput 无 store 绑定，codegen 单别名限制）。
+use back.api: plans_list, specs_tree
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web component ArrowUp, Brain, Check, ChevronDown, Square from "src/front/ports/icons.at"
 use.web useI18n from "src/front/ports/composables.at"
-use.web build_mention_name_list from "src/front/mention_helpers.at"
+use.web build_mention_name_list, mention_combined_items from "src/front/mention_helpers.at"
 use.web mention_filtered, mention_clamp_index, mention_index_of, mention_key_action, mention_detect_filter, mention_detect_anchor, mention_detect_visible, mention_detect_pos, mention_insert, mention_can_send, mention_trim, mention_professions_list, mention_current_id from "src/front/mention_helpers.at"
 use.web platformComposerAutoGrow from "src/front/ports/platform.at"
 
@@ -51,7 +54,10 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
     computed {
         professionsList => mention_professions_list(.professions, .store.configs)
         canSend => mention_can_send(.text)
-        mentionFilteredList => mention_filtered(.professionsList, .mentionFilter)
+        // PLAN-071 需求⑬：三源合并（Agent + 计划 + 规范文件），过滤与键盘
+        // 导航沿用既有扁平管线。
+        mentionItems => mention_combined_items(.professionsList, .plansRaw, .specFiles)
+        mentionFilteredList => mention_filtered(.mentionItems, .mentionFilter)
         hasMentionItems => .mentionFilteredList.length > 0
         // 触发钮档位文案（""/off 同归"关",与选中态口径一致）。
         thinkingLabel => if .thinkingLevel == "low" { i18n.t("chat.thinkingLow") } else if .thinkingLevel == "high" { i18n.t("chat.thinkingHigh") } else if .thinkingLevel == "max" { i18n.t("chat.thinkingMax") } else { i18n.t("chat.thinkingOff") }
@@ -75,6 +81,15 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
         var thinkOpen bool = false
         // PLAN-067 T-05: 审批模式 dropdown 开合态（同 thinkOpen 口径）。
         var approvalOpen bool = false
+        // PLAN-071 需求⑬：@ 菜单扩展数据——计划列表 + 规范文件树，首次
+        // 触发 @ 时懒加载（extLoaded 防重复拉取）。
+        var extLoaded bool = false
+        var plansRaw obj = None
+        var specFiles []Value = []
+        // PLAN-071 需求⑭：候选框打开时 Enter 已用于补全的标记——textarea
+        // 上 `onkeydown.enter.exact.prevent: .send` 与 Keydown 处理器并存，
+        // 补全后 send 依此标记跳过（正常输入态 Enter 才发送）。
+        var mentionHandled bool = false
     }
     on {
         .Init -> {
@@ -89,7 +104,30 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
             .mentionAnchor = mention_detect_anchor(e);
             .mentionVisible = mention_detect_visible(e);
             .mentionPos = mention_detect_pos(e);
+            // PLAN-071 需求⑭：筛选/输入变化即重置高亮到第一项（默认选中
+            // 首条语义），并清除 Enter 消费标记。
+            .mentionIndex = 0;
+            .mentionHandled = false;
             .mentionNames = build_mention_name_list(.professions, .store.configs);
+            // PLAN-071 需求⑬：首次触发 @ 懒加载计划列表与规范文件树。
+            if .mentionVisible {
+                if .extLoaded == false {
+                    .extLoaded = true;
+                    .plansRaw = plans_list();
+                    let tr = specs_tree();
+                    var files []Value = []
+                    for node in (tr ?? []) {
+                        if node != None {
+                            if node.type == "file" {
+                                if node.path != "" {
+                                    files.push({ "path": node.path, "name": node.name })
+                                }
+                            }
+                        }
+                    }
+                    .specFiles = files
+                }
+            }
             platformComposerAutoGrow()
         }
         .Keydown(e) -> {
@@ -100,8 +138,12 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
                     } else if mention_key_action(e) == "ArrowUp" {
                         .mentionIndex = mention_clamp_index(.mentionIndex - 1, .mentionFilteredList.length)
                     } else if mention_key_action(e) == "Enter" || mention_key_action(e) == "Tab" {
-                        .text = mention_insert(.professionsList, mention_current_id(.mentionFilteredList, .mentionIndex), .text, .mentionPos);
+                        .text = mention_insert(.mentionItems, mention_current_id(.mentionFilteredList, .mentionIndex), .text, .mentionPos);
                         .mentionVisible = false;
+                        // PLAN-071 需求⑭：标记本次 Enter 已用于补全——send
+                        // 处理器读到标记即跳过（候选框打开时 Enter 优先补全，
+                        // 不发送）。
+                        .mentionHandled = true;
                         platformComposerAutoGrow()
                     } else if mention_key_action(e) == "Escape" {
                         .mentionVisible = false
@@ -110,12 +152,18 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
             }
         }
         .Select(id) -> {
-            .text = mention_insert(.professionsList, id, .text, .mentionPos);
+            .text = mention_insert(.mentionItems, id, .text, .mentionPos);
             .mentionVisible = false;
             platformComposerAutoGrow()
         }
         .Hover(id) -> { .mentionIndex = mention_index_of(.mentionFilteredList, id) }
         .send(t) -> {
+            // PLAN-071 需求⑭：候选框打开时 Enter 已被补全消费（Keydown 置
+            // mentionHandled）——本次 Enter 不发送；正常输入态才发送。
+            if .mentionHandled {
+                .mentionHandled = false;
+                return
+            }
             // PLAN-051 T8: 实参改 t（原 .send(mention_trim(.text)) 的 fn 调用
             // 实参在 VM 构建期求值面不可达，会落字面量串）——trim 内移，净效果
             // 等价（vue 轨求值点从调用位移到 handler 内，守卫口径不变）。
@@ -189,15 +237,18 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
                                 div {
                                     style: "absolute bottom-full left-0 mb-2 min-w-[120px] bg-card border border-border rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-1 z-50 flex flex-col"
                                     button {
-                                        onclick: .pick("")
+                                        // PLAN-071 需求⑩：显式"关"持久化为 "off"
+                                        // （原发 "" 会被后端归一成 None=默认 low，
+                                        // 无法真正关闭）。
+                                        onclick: .pick("off")
                                         disabled: .disabled
-                                        class: if .thinkingLevel == "" || .thinkingLevel == "off" {
+                                        class: if .thinkingLevel == "off" {
                                             "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-[13px] text-left cursor-pointer"
                                         } else {
                                             "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-transparent text-foreground text-[13px] text-left cursor-pointer hover:bg-primary/10"
                                         }
                                         text i18n.t("chat.thinkingOff")
-                                        if .thinkingLevel == "" || .thinkingLevel == "off" {
+                                        if .thinkingLevel == "off" {
                                             Check { size: 14 }
                                         }
                                     }
@@ -311,7 +362,7 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
                     }
                 }
                 MentionDropdown {
-                    professions: .professionsList
+                    professions: .mentionItems
                     visible: .mentionVisible
                     filter: .mentionFilter
                     anchorRect: .mentionAnchor

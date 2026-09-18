@@ -71,6 +71,9 @@ widget ChatsView {
         CancelDelete,
         ConfirmDelete(str),
         SelectSession(str),
+        // PLAN-071 需求⑤ T-25：取消在途运行（转发 ForgeStore）。
+        // PLAN-071 需求⑨：按钮迁入 ChatMessage 工具栏（子件直调
+        // ForgeStore.CancelRun），本视图级消息与 handler 退役。
         SendInput(str),
         StopStream,
         ApproveGate,
@@ -110,6 +113,7 @@ widget ChatsView {
 
     // Plan 028 T15：搜索过滤（原 useChatSearch composable → F2 多参 fn 直调）
     computed {
+        // PLAN-071 需求⑥：流式状态行——深度思考期可见，不再凭空消失。
         // PLAN-043: 先按活跃路径投影再套搜索过滤。
         filteredMessages => chatSearchFilter(chatActivePath(.store.messages, .store.active_leaf), .chat_search)
         lastMsgId => chatLastMessageId(.filteredMessages)
@@ -349,11 +353,17 @@ widget ChatsView {
                     // （messages 循环里的 ChatMessage 气泡），不在此重复渲染
                     // current_draft——此前 draft 区和气泡双写导致 AI 回复显示两遍。
                     // 仅在首个 delta/thinking 到达前显示等待指示（pulse 动画）。
-                    if .store.streaming {
-                        if .store.current_draft == "" && .store.thinking == "" {
-                            col {
-                                text "AI 思考中..."
-                            }
+                    // PLAN-071 需求⑥→⑧：思考期反馈由乐观气泡内的
+                    // ThinkBlock 半开态承载（本状态行组件已删除——与
+                    // ThinkBlock 双重显示，用户裁定冗余）。
+                    // PLAN-071 需求⑨：启动窗口等待点与停止按钮均迁入
+                    // ChatMessage 气泡（等待点 = 气泡内三点动画；停止钮 =
+                    // 气泡工具栏复制/分叉旁）——本画布级独立停止按钮退役。
+                    // PLAN-071 需求⑮：排队消息指示条（流式收束后自动发送）。
+                    if .store.pending_msgs.length > 0 {
+                        row {
+                            style: "self-start mt-1 text-xs text-muted-foreground bg-transparent border border-border rounded-md px-2 py-1"
+                            text "⏳ 已排队 " + .store.pending_msgs.length + " 条，当前回复结束后自动发送"
                         }
                     }
                     if .store.error != "" {
@@ -446,6 +456,8 @@ widget ChatsView {
             store.BranchTo(mid, "fork")
         }
 
+        // PLAN-071 需求⑨：CancelRun handler 随画布级停止按钮退役
+        // （ChatMessage 工具栏停止钮直调 ForgeStore.CancelRun）。
         .SelectSession(id) -> {
             .delete_pending_id = "";
             .delete_confirm_open = false;
@@ -469,8 +481,15 @@ widget ChatsView {
                 let cmd = relay_command_match(tt);
                 .input = "";
                 if cmd == None {
-                    store.Send(tt);
-                    store.StartStream(.store.session_id, .store.workspace, .store.token, tt)
+                    // PLAN-071 需求⑮：运行在途时消息入队（画布显示排队指示
+                    // 条，流式收束后 store.FlushQueue 自动按 FIFO 发送），
+                    // 不再触发后端 busy 拒绝链路（后者保留为跨标签页兜底）。
+                    if .store.streaming {
+                        store.QueueMessage(tt)
+                    } else {
+                        store.Send(tt);
+                        store.StartStream(.store.session_id, .store.workspace, .store.token, tt)
+                    }
                 } else {
                     platformRunRelayCommand(cmd)
                 }

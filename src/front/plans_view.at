@@ -55,6 +55,10 @@ widget PlansView {
     }
 
     computed {
+        // PLAN-071 需求⑫：选中高亮以 store.current 为准——Init 自动选中
+        // 第一篇后（store 内 LoadPlan 异步完成）高亮与内容保持一致；
+        // selected_seq 保留为无选中时的回退。
+        selectedSeq => if .store.current != None { .store.current.seq } else { .selected_seq }
         // PLAN-063 T8 (D4): 详情拆分——current 空守卫经 detailContent 中转。
         detailContent => if .store.current != None { .store.current.content } else { "" }
         detailMeta => plansFrontmatterMeta(.detailContent)
@@ -81,7 +85,9 @@ widget PlansView {
                 }
                 slot(name: "list") {
                     col {
-                        style: "plans-nav-list"
+                        // PLAN-071 需求⑪：列表容器与会话/规范对齐（滚动 + 顶距），
+                        // 原 plans-nav-list 单行按钮列表退役。
+                        style: "flex-1 overflow-y-auto px-2 pt-1.5"
                         if .store.loading {
                             text t("plans.loading")
                         } else {
@@ -89,24 +95,26 @@ widget PlansView {
                                 button {
                                     key: .plan.seq
                                     onclick: .SelectPlan(.plan.seq)
-                                    style: if .plan.seq == .selected_seq {
-                                        "w-full text-left py-2 px-2.5 mb-[2px] rounded-md bg-primary/10 text-primary text-[13.6px] truncate hover:bg-accent"
+                                    // PLAN-071 需求⑪：与会话/规范二级导航同构的
+                                    // 两行盒（session-item 形态）——标题行
+                                    // truncate + 悬停全名，副标题行 = 状态 badge
+                                    // （draft/executing/execution_done/reviewed/
+                                    // archived 等原样展示）。
+                                    class: if .plan.seq == .selectedSeq {
+                                        "session-item h-auto w-full text-left flex flex-col items-start justify-start gap-0.5 py-2.5 px-3 mb-1.5 rounded-lg border border-primary/25 bg-primary/10 text-primary cursor-pointer"
                                     } else {
-                                        "w-full text-left py-2 px-2.5 mb-[2px] rounded-md bg-transparent hover:bg-accent text-[13.6px] text-foreground truncate"
+                                        "session-item h-auto w-full text-left flex flex-col items-start gap-0.5 py-2.5 px-3 mb-1.5 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground cursor-pointer"
                                     }
-                                    // PLAN-061 T9 (D6):Button(inline-flex) 的
-                                    // 多 text 子节点各成 flex item,truncate 对
-                                    // flex 内容不产省略号只硬裁——单 span
-                                    // (flex-1 min-w-0 truncate)承载整条标签,
-                                    // span 内联内容恢复 ellipsis(wiki_nav 同款)。
                                     span {
-                                        style: "flex-1 min-w-0 truncate"
+                                        title: .plan.id + " — " + .plan.feature_name
+                                        style: "text-[13.6px] font-medium truncate max-w-full"
                                         text .plan.id
                                         text " — "
                                         text .plan.feature_name
-                                        text " ["
+                                    }
+                                    span {
+                                        style: "px-2 py-0.5 rounded-md text-xs bg-accent text-foreground"
                                         text .plan.status
-                                        text "]"
                                     }
                                 }
                             }

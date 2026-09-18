@@ -48,6 +48,58 @@ pub struct AppState {
     /// `POST /message {run:true}` 显式 spawn 前置位（chats_message），由
     /// chat_run_stream 的全部出口清除；SSE 订阅触发路径不置位、清除为 no-op。
     pub chat_runs: Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+    /// PLAN-071 需求⑤：在途运行的取消旗标注册表（键同守卫）。owner 孵化时
+    /// 注册、出口移除；cancel 端点查表置位（agent 于迭代边界检查，流内 stall
+    /// 由空闲看门狗兜底）。
+    pub chat_cancels: Arc<std::sync::Mutex<std::collections::HashMap<String, Arc<std::sync::atomic::AtomicBool>>>>,
+    /// PLAN-071 需求⑤：LLM 空闲看门狗窗口——窗口内无任何流式事件即判挂死。
+    pub run_idle_timeout: std::time::Duration,
+}
+
+impl AppState {
+    /// 从环境读空闲窗（秒）；缺省 300s。
+    pub fn run_idle_timeout_from_env() -> std::time::Duration {
+        std::env::var("AUTO_RUN_IDLE_TIMEOUT_SECS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .filter(|v| *v > 0)
+            .map(std::time::Duration::from_secs)
+            .unwrap_or(std::time::Duration::from_secs(300))
+    }
+
+    /// 注册取消旗标（owner 孵化时）。
+    pub fn chat_cancel_register(&self, key: &str, flag: Arc<std::sync::atomic::AtomicBool>) {
+        self.chat_cancels.lock().unwrap().insert(key.to_string(), flag);
+    }
+
+    /// 取消旗标移除（owner 出口）。返回旗标（便于置位后仍可读）。
+    pub fn chat_cancel_remove(&self, key: &str) -> Option<Arc<std::sync::atomic::AtomicBool>> {
+        self.chat_cancels.lock().unwrap().remove(key)
+    }
+
+    /// 取消在途运行（cancel 端点）。true = 找到在途运行并已置位。
+    pub fn chat_cancel_request(&self, key: &str) -> bool {
+        if let Some(flag) = self.chat_cancels.lock().unwrap().get(key) {
+            flag.store(true, std::sync::atomic::Ordering::Relaxed);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// PLAN-071 需求⑤ T-25：取消在途运行的 HTTP handler。
+    pub async fn chat_cancel(
+        axum::extract::State(state): axum::extract::State<AppState>,
+        axum::extract::Query(q): axum::extract::Query<WorkspaceQuery>,
+        axum::extract::Path(id): axum::extract::Path<String>,
+    ) -> axum::response::Response {
+        let ws_id = q.workspace.clone().unwrap_or_default();
+        let key = format!("{}:{}", ws_id, id);
+        let requested = state.chat_cancel_request(&key);
+        tracing::info!("chat cancel requested: session={} (in-flight={})", id, requested);
+        let body = serde_json::json!({ "cancelled": requested });
+        axum::response::Json(body).into_response()
+    }
 }
 
 impl AppState {
@@ -85,6 +137,8 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         auth: Arc::new(crate::auto_generated::auth::AuthStore::new(users_path)),
         registry: Arc::new(registry),
         chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+        chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        run_idle_timeout: AppState::run_idle_timeout_from_env(),
     };
 
     // Static assets: the web app (Chats/Specs SPA) lives at `web/dist`
@@ -770,6 +824,60 @@ pub fn parse_plan_merge_command(text: &str) -> Option<String> {
     }
 }
 
+/// PLAN-071 需求⑭：解析消息中的 `@plan/<seq>` 与 `@spec/<relpath>` 引用，
+/// 生成附加给 agent 的上下文注记块（可见消息不变，仅 run_stream 输入追加）。
+/// - `@plan/<seq>`：查 PlansStore（含归档），解析出文件路径 + 标题/状态，
+///   提示 agent 可用 read_plan 工具读取全文；
+/// - `@spec/<relpath>`：relpath 为 docs/specs/ 下相对路径（@ 菜单来自
+///   specs_tree，只列真实文件），提示 agent 用文件工具按路径读取。
+/// 无引用或引用无法解析（如计划不存在）返回空串——不阻断运行、不改写原文。
+pub fn resolve_chat_mention_refs(content: &str, plans: &crate::plans::PlansStore) -> String {
+    let plan_re = regex::Regex::new(r"@plan/(\d{1,3})").ok();
+    let spec_re = regex::Regex::new(r"@spec/([A-Za-z0-9_\-./]+\.[A-Za-z0-9]+)").ok();
+    let mut lines: Vec<String> = Vec::new();
+    if let Some(re) = plan_re.as_ref() {
+        for caps in re.captures_iter(content) {
+            let raw = match caps.get(1) {
+                Some(g) => g.as_str(),
+                None => continue,
+            };
+            let seq: u32 = match raw.parse() {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            if let Some(pf) = plans.get(seq) {
+                // PlanStatus 无 Display——serde snake_case 序列化去引号。
+                let status = serde_json::to_string(&pf.status)
+                    .unwrap_or_default()
+                    .trim_matches('"')
+                    .to_string();
+                lines.push(format!(
+                    "- @plan/{:03} → docs/plans/{}（{}，状态：{}）——可用 read_plan 工具读取全文",
+                    pf.seq, pf.filename, pf.feature_name, status
+                ));
+            }
+        }
+    }
+    if let Some(re) = spec_re.as_ref() {
+        for caps in re.captures_iter(content) {
+            if let Some(g) = caps.get(1) {
+                lines.push(format!(
+                    "- @spec/{} → docs/specs/{}（可用文件读取工具按路径查看）",
+                    g.as_str(),
+                    g.as_str()
+                ));
+            }
+        }
+    }
+    if lines.is_empty() {
+        return String::new();
+    }
+    format!(
+        "\n\n---\n[消息中的 @ 引用解析（供你定位资料，用户消息原文不含本块）]\n{}",
+        lines.join("\n")
+    )
+}
+
 // ── Spec-change approval endpoints (Plan 009 P1b) ──────────────────────────
 // ── Workspace management endpoints ──────────────────────────────────────────
 // ── Conversation endpoints (unified chat + flow) ────────────────────────────
@@ -1009,6 +1117,8 @@ mod tests {
             client: Arc::new(MockClient) as Arc<dyn Client>,
             auth: tmp_auth(),
             registry: Arc::new(registry),
+            chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            run_idle_timeout: std::time::Duration::from_secs(300),
             chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
         }
     }
@@ -1353,6 +1463,8 @@ mod tests {
             )
             .route("/api/chats/session/{id}/thinking", axum::routing::patch(ag_server::chat_thinking))
             .route("/api/chats/session/{id}/message", axum::routing::post(ag_server::chat_message))
+            // PLAN-071 需求⑤ T-25：取消在途运行。
+            .route("/api/chats/session/{id}/cancel", axum::routing::post(crate::server::AppState::chat_cancel))
             .with_state(tmp_state());
 
         // ── specs: upsert → 真实 doc 持久化,list 可读回 ──
@@ -2738,6 +2850,10 @@ mod tests {
                 "/api/chats/session/{id}/message",
                 axum::routing::post(ag_server::chat_message),
             )
+            .route(
+                "/api/chats/session/{id}/cancel",
+                axum::routing::post(crate::server::AppState::chat_cancel),
+            )
             .with_state(state);
         let resp = app
             .clone()
@@ -3196,6 +3312,8 @@ mod tests {
             client,
             auth: tmp_auth(),
             registry: Arc::new(registry),
+            chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            run_idle_timeout: std::time::Duration::from_secs(300),
             chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
         }
     }
@@ -3219,6 +3337,10 @@ mod tests {
                 "/api/chats/session/{id}/message",
                 axum::routing::post(ag_server::chat_message),
             )
+              .route(
+                  "/api/chats/session/{id}/cancel",
+                  axum::routing::post(crate::server::AppState::chat_cancel),
+              )
             .with_state(state);
         let resp = app
             .clone()
@@ -3299,6 +3421,148 @@ mod tests {
         );
     }
 
+
+    /// PLAN-071 需求⑤ T-22：LLM 空闲看门狗——流挂死（HangingClient 零事件）
+    /// 超过空闲窗后 run 中止、错误消息**持久化**、守卫清理（64f0076c 事故回归）。
+    #[tokio::test]
+    async fn chat_idle_watchdog_times_out_hung_run() {
+        use crate::auto_generated::server as ag_server;
+        let mut state = tmp_state_with_client(Arc::new(HangingClient {
+            calls: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        }));
+        state.run_idle_timeout = std::time::Duration::from_millis(400);
+        let ws = state.registry.get("");
+        let runs = state.chat_runs.clone();
+        let sess = ws
+            .chats
+            .create("basic", Some(String::new()))
+            .expect("create session");
+        ws.chats
+            .append_message(&sess.id, crate::chats::ChatMessage::user("hang"))
+            .expect("append user message");
+        let app = axum::Router::new()
+            .route(
+                "/api/chats/session/{id}/message",
+                axum::routing::post(ag_server::chat_message),
+            )
+            .with_state(state);
+        let st = post_message(app, &sess.id, r#"{"content":"hang","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        wait_until(|| runs.lock().unwrap().is_empty()).await;
+        let updated = ws.chats.get(&sess.id).expect("session exists");
+        let err_msg = updated
+            .messages
+            .iter()
+            .find(|m| m.role == crate::chats::Role::Assistant)
+            .expect("错误消息应持久化");
+        assert!(
+            err_msg.content.contains("空闲超时"),
+            "超时错误消息: {}",
+            err_msg.content
+        );
+        assert!(runs.lock().unwrap().is_empty(), "守卫应已清理");
+    }
+
+    /// PLAN-071 需求⑤ T-22：client 失败路径——错误 assistant 消息落盘 +
+    /// 守卫清理（原 Err 臂只发瞬态 SSE，失败对用户不可见）。
+    #[tokio::test]
+    async fn chat_error_persisted_on_client_failure() {
+        use crate::auto_generated::server as ag_server;
+        struct FailingClient;
+        #[async_trait]
+        impl Client for FailingClient {
+            async fn complete(
+                &self,
+                _req: &CompletionRequest,
+            ) -> Result<CompletionResponse, ClientError> {
+                Err(ClientError::Api("provider exploded".into()))
+            }
+        }
+        let state = tmp_state_with_client(Arc::new(FailingClient));
+        let ws = state.registry.get("");
+        let runs = state.chat_runs.clone();
+        let sess = ws
+            .chats
+            .create("basic", Some(String::new()))
+            .expect("create session");
+        ws.chats
+            .append_message(&sess.id, crate::chats::ChatMessage::user("boom"))
+            .expect("append user message");
+        let app = axum::Router::new()
+            .route(
+                "/api/chats/session/{id}/message",
+                axum::routing::post(ag_server::chat_message),
+            )
+            .with_state(state);
+        let st = post_message(app, &sess.id, r#"{"content":"boom","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        wait_until(|| runs.lock().unwrap().is_empty()).await;
+        let updated = ws.chats.get(&sess.id).expect("session exists");
+        let err_msg = updated
+            .messages
+            .iter()
+            .find(|m| m.role == crate::chats::Role::Assistant)
+            .expect("失败消息应持久化");
+        assert!(
+            err_msg.content.contains("运行失败"),
+            "失败消息: {}",
+            err_msg.content
+        );
+    }
+
+    /// PLAN-071 需求⑤ T-24：守卫占用时 run:true 不再静默——响应 busy=true
+    /// 且落一条可见的 busy 提示消息。
+    #[tokio::test]
+    async fn chat_busy_notice_when_guard_held() {
+        use axum::body::Body;
+        use tower::ServiceExt;
+        use crate::auto_generated::server as ag_server;
+        let (app, sid, calls) = chat_run_test_app().await;
+        let st = post_message(app.clone(), &sid, r#"{"content":"first","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        wait_until(|| calls.load(std::sync::atomic::Ordering::SeqCst) >= 1).await;
+        let resp = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/chats/session/{sid}/message"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"content":"second","run":true}"#))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["busy"], serde_json::json!(true), "busy 指示: {json}");
+    }
+
+    /// PLAN-071 需求⑤ T-25：cancel 端点对在途运行置位取消旗标。
+    #[tokio::test]
+    async fn chat_cancel_endpoint_sets_flag() {
+        use axum::body::Body;
+        use tower::ServiceExt;
+        let (app, sid, _calls) = chat_run_test_app().await;
+        let st = post_message(app.clone(), &sid, r#"{"content":"work","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        // 等运行真正起步（守卫+旗标注册先于 LLM 调用点）再取消。
+        wait_until(|| _calls.load(std::sync::atomic::Ordering::SeqCst) >= 1).await;
+        let resp = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/chats/session/{sid}/cancel"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(resp.into_body(), 4 * 1024).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["cancelled"], serde_json::json!(true));
+    }
     #[tokio::test]
     async fn chat_message_run_default_false_does_not_spawn() {
         let (app, sid, calls) = chat_run_test_app().await;

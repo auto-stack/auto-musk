@@ -55,7 +55,27 @@ fn mention_is_word_char(c str) bool {
     return false
 }
 
-/** 转义 HTML，然后把 @mention 包成高亮 span（手写扫描，等价 /@(\w+)/g 回调）。 */
+/** PLAN-071 需求⑭：引用 token 路径字符（\w + - . /）。 */
+fn mention_is_path_char(c str) bool {
+    if mention_is_word_char(c) {
+        return true
+    }
+    if c == "-" {
+        return true
+    }
+    if c == "." {
+        return true
+    }
+    if c == "/" {
+        return true
+    }
+    return false
+}
+
+/** 转义 HTML，然后把 @mention 包成高亮 span（手写扫描，等价 /@(\w+)/g 回调）。
+ *  PLAN-071 需求⑭：@plan/<seq> 与 @spec/<relpath> 引用 token 识别为特殊
+ *  inline 组件（📋/📄 前缀 + 独立着色，区别于 Agent @词）——路径字符集
+ *  [\w./-]，空白终止；后端运行时把 token 解析为真实文件路径注入上下文。 */
 fn render_mentions(text str, names obj, cls str) str {
     let escaped = Regex.replace(Regex.replace(Regex.replace(text, "&", "&amp;", "g"), "<", "&lt;", "g"), ">", "&gt;", "g")
     var out = ""
@@ -63,30 +83,97 @@ fn render_mentions(text str, names obj, cls str) str {
     let n = escaped.length
     for i < n {
         if escaped.char_at(i) == "@" {
-            var j = i + 1
-            var word = ""
-            for j < n {
-                let c = escaped.char_at(j)
-                if mention_is_word_char(c) {
-                    word = word + c
-                    j = j + 1
-                } else {
-                    break
+            // 引用 token 分支（需求⑭）：plan/ 或 spec/ 前缀 + 路径字符。
+            var token = ""
+            var ticon = ""
+            var j2 = i + 1
+            if i + 6 <= n {
+                if escaped.char_at(i + 1) == "p" {
+                    if escaped.char_at(i + 2) == "l" {
+                        if escaped.char_at(i + 3) == "a" {
+                            if escaped.char_at(i + 4) == "n" {
+                                if escaped.char_at(i + 5) == "/" {
+                                    var d = i + 6
+                                    var dig = ""
+                                    for d < n {
+                                        let c2 = escaped.char_at(d)
+                                        if c2 >= "0" && c2 <= "9" {
+                                            dig = dig + c2
+                                            d = d + 1
+                                        } else {
+                                            break
+                                        }
+                                    }
+                                    if dig != "" {
+                                        token = "@plan/" + dig
+                                        ticon = "📋"
+                                        j2 = d
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
-            // 正则 \w+ 至少 1 字符才命中；word 为空串时按字面 @ 处理。
-            if word != "" {
-                let display = names["k_" + word.to_lower()]
-                if display != None && display != "" {
-                    out = out + "<span class=\"inline-mention " + cls + "\">@" + display + "</span>"
-                    i = j
+            if token == "" {
+                if i + 6 <= n {
+                    if escaped.char_at(i + 1) == "s" {
+                        if escaped.char_at(i + 2) == "p" {
+                            if escaped.char_at(i + 3) == "e" {
+                                if escaped.char_at(i + 4) == "c" {
+                                    if escaped.char_at(i + 5) == "/" {
+                                        var d2 = i + 6
+                                        var rel = ""
+                                        for d2 < n {
+                                            let c3 = escaped.char_at(d2)
+                                            if mention_is_path_char(c3) {
+                                                rel = rel + c3
+                                                d2 = d2 + 1
+                                            } else {
+                                                break
+                                            }
+                                        }
+                                        if rel != "" {
+                                            token = "@spec/" + rel
+                                            ticon = "📄"
+                                            j2 = d2
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if token != "" {
+                out = out + "<span class=\"inline-mention mention-ref " + cls + "\">" + ticon + " " + token + "</span>"
+                i = j2
+            } else {
+                var j = i + 1
+                var word = ""
+                for j < n {
+                    let c = escaped.char_at(j)
+                    if mention_is_word_char(c) {
+                        word = word + c
+                        j = j + 1
+                    } else {
+                        break
+                    }
+                }
+                // 正则 \w+ 至少 1 字符才命中；word 为空串时按字面 @ 处理。
+                if word != "" {
+                    let display = names["k_" + word.to_lower()]
+                    if display != None && display != "" {
+                        out = out + "<span class=\"inline-mention " + cls + "\">@" + display + "</span>"
+                        i = j
+                    } else {
+                        out = out + "@"
+                        i = i + 1
+                    }
                 } else {
                     out = out + "@"
                     i = i + 1
                 }
-            } else {
-                out = out + "@"
-                i = i + 1
             }
         } else {
             out = out + escaped.char_at(i)
@@ -115,6 +202,36 @@ fn mention_filtered(professions []Value, filter str) []Value {
         let pname = (p.name ?? "").to_lower()
         if pid.contains(f) || pname.contains(f) {
             out.push(p)
+        }
+    }
+    return out
+}
+
+/** PLAN-071 需求⑬：合并三源提及条目——Agent（@id）+ 计划（@plan/<id>）+
+ *  规范文件（@spec/<relpath>）。plans 为 plans_list() 响应（{plans:[…]}，
+ *  PlanFile 字段 id/seq/filename/feature_name/status）；spec_files 为
+ *  specs_tree() 扁平节点（{path,name,…}，仅取 path）。kind 驱动下拉渲染
+ *  与插入语义（agent 插 @显示名；plan/spec 插 @token，后端运行时解析）。 */
+fn mention_combined_items(professions []Value, plans obj, spec_files []Value) []Value {
+    var out = []
+    for p in (professions ?? []) {
+        out.push({ "kind": "agent", "id": p.id ?? "", "name": p.name ?? "" })
+    }
+    if plans != None {
+        if plans.plans != None {
+            for pl in plans.plans {
+                let pid = pl.id ?? pl.seq
+                out.push({ "kind": "plan", "id": "plan/" + pid, "name": (pl.id ?? "") + " — " + (pl.feature_name ?? "") })
+            }
+        }
+    }
+    for f in (spec_files ?? []) {
+        if f != None {
+            if f.path != None {
+                if f.path != "" {
+                    out.push({ "kind": "spec", "id": "spec/" + f.path, "name": f.path })
+                }
+            }
         }
     }
     return out
@@ -278,12 +395,19 @@ fn mention_detect_pos(e obj) int {
     return mention_detect(e).pos
 }
 
-/** 插入 mention 文本（@ 位置前插 @name + 保留光标后文本）。 */
-fn mention_insert(professions []Value, id str, val str, pos int) str {
-    var name = id
-    for p in professions {
-        if p.id == id {
-            name = p.name
+/** 插入 mention 文本（@ 位置前插 @token + 保留光标后文本）。
+ *  PLAN-071 需求⑬：items 为合并三源列表——kind=agent 插 @显示名（既有
+ *  语义，渲染高亮消费）；kind=plan/spec 插 @<id>（id 即 "plan/001"/
+ *  "spec/<relpath>" token，后端运行时解析注入）。 */
+fn mention_insert(items []Value, id str, val str, pos int) str {
+    var token = id
+    for it in items {
+        if it.id == id {
+            if it.kind == "agent" {
+                token = it.name
+            } else {
+                token = id
+            }
             break
         }
     }
@@ -292,7 +416,7 @@ fn mention_insert(professions []Value, id str, val str, pos int) str {
     if at_idx >= 0 {
         let part1 = val.sub(0, at_idx)
         let part2 = val.sub(pos)
-        return part1 + "@" + name + " " + part2
+        return part1 + "@" + token + " " + part2
     }
-    return "@" + name + " " + val
+    return "@" + token + " " + val
 }

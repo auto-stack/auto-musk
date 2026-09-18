@@ -41,23 +41,58 @@ widget MentionDropdown(professions: obj, visible: bool, filter: str, anchorRect:
             to: "body"
             if .visible && .filtered.len > 0 {
                 div {
-                    class: "min-w-[180px] max-h-[220px] overflow-y-auto bg-card border border-border rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-1 z-[200]"
+                    class: "min-w-[220px] max-h-[260px] overflow-y-auto bg-card border border-border rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-1 z-[200]"
                     style: .position
-                    for prof in .filtered {
+                    for item in .filtered {
                         button {
-                            key: .prof.id
-                            onclick: .select(.prof.id)
-                            onmouseenter: .hover(.prof.id)
-                            class: if .activeId == .prof.id { "flex items-center gap-2 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-sm text-left cursor-pointer" } else { "flex items-center gap-2 w-full py-1.5 px-2.5 border-none rounded-md bg-transparent text-foreground text-sm text-left cursor-pointer hover:bg-primary/10" }
-                            AgentAvatar { professionId: .prof.id, name: .prof.name, size: "sm" }
-                            span {
-                                style: "font-semibold font-mono"
-                                text "@"
-                                text .prof.id
-                            }
-                            span {
-                                style: "text-muted-foreground text-[13px]"
-                                text .prof.name
+                            key: .item.id
+                            onclick: .select(.item.id)
+                            onmouseenter: .hover(.item.id)
+                            // PLAN-071 需求⑬：脚手架 Button 预设 justify-center
+                            // h-10 会居中且撑高行（r4 教训）——justify-start/h-auto
+                            // 显式覆盖，内容左对齐。
+                            class: if .activeId == .item.id { "flex items-center justify-start gap-2 w-full h-auto py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-sm text-left cursor-pointer" } else { "flex items-center justify-start gap-2 w-full h-auto py-1.5 px-2.5 border-none rounded-md bg-transparent text-foreground text-sm text-left cursor-pointer hover:bg-primary/10" }
+                            if .item.kind == "agent" {
+                                AgentAvatar { professionId: .item.id, name: .item.name, size: "sm" }
+                                span {
+                                    style: "font-semibold font-mono"
+                                    text "@"
+                                    text .item.id
+                                }
+                                span {
+                                    style: "text-muted-foreground text-[13px]"
+                                    text .item.name
+                                }
+                            } else {
+                                if .item.kind == "plan" {
+                                    span {
+                                        style: "flex items-center justify-center w-6 h-6 rounded-md bg-primary/15 text-[12px] shrink-0"
+                                        text "📋"
+                                    }
+                                    span {
+                                        style: "font-semibold font-mono"
+                                        text "@"
+                                        text .item.id
+                                    }
+                                    span {
+                                        style: "text-muted-foreground text-[13px] truncate max-w-[220px]"
+                                        text .item.name
+                                    }
+                                } else {
+                                    span {
+                                        style: "flex items-center justify-center w-6 h-6 rounded-md bg-muted text-[12px] shrink-0"
+                                        text "📄"
+                                    }
+                                    span {
+                                        style: "font-semibold font-mono"
+                                        text "@"
+                                        text .item.id
+                                    }
+                                    span {
+                                        style: "text-muted-foreground text-[13px] truncate max-w-[220px]"
+                                        text .item.name
+                                    }
+                                }
                             }
                         }
                     }

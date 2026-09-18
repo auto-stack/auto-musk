@@ -348,15 +348,23 @@ impl ChatSession {
 ///
 /// Fault-tolerant like SpecsStore: a missing file starts empty; a corrupt file
 /// logs a warning and starts empty (never panics).
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ChatStore {
     path: std::path::PathBuf,
+    /// PLAN-071 需求⑮：写路径互斥——所有变更走 load_map→改→save_map 的
+    /// 非原子读改写，运行主体落盘回复与并发消息 POST（排队自动重发）交错
+    /// 时后写覆盖前写（实证：排队消息追平落盘，首个回答被整条覆盖丢失）。
+    /// Arc<ChatStore> 共享，方法内取锁串行化全部变更。
+    write_lock: std::sync::Mutex<()>,
 }
 
 impl ChatStore {
     /// Open a store at an explicit path (mainly for tests).
     pub fn at(path: impl Into<std::path::PathBuf>) -> Self {
-        Self { path: path.into() }
+        Self {
+            path: path.into(),
+            write_lock: std::sync::Mutex::new(()),
+        }
     }
 
     /// Load all sessions. Missing/corrupt file → empty map.
@@ -390,6 +398,7 @@ impl ChatStore {
         mode: &str,
         workspace_id: Option<String>,
     ) -> std::io::Result<ChatSession> {
+        let _write_guard = self.write_lock.lock().unwrap();
         let mut map = self.load_map();
         let session = ChatSession::new(mode, workspace_id);
         map.insert(session.id.clone(), session.clone());
@@ -411,6 +420,7 @@ impl ChatStore {
 
     /// Rename a session.
     pub fn rename(&self, id: &str, name: &str) -> std::io::Result<Option<ChatSession>> {
+        let _write_guard = self.write_lock.lock().unwrap();
         let mut map = self.load_map();
         if let Some(session) = map.get_mut(id) {
             session.name = name.to_string();
@@ -433,6 +443,7 @@ impl ChatStore {
         id: &str,
         level: Option<String>,
     ) -> std::io::Result<Option<ChatSession>> {
+        let _write_guard = self.write_lock.lock().unwrap();
         let level = level.filter(|s| !s.trim().is_empty());
         let mut map = self.load_map();
         if let Some(session) = map.get_mut(id) {
@@ -453,6 +464,7 @@ impl ChatStore {
         id: &str,
         mode: &str,
     ) -> std::io::Result<Option<ChatSession>> {
+        let _write_guard = self.write_lock.lock().unwrap();
         let mode = if mode == "auto" { "auto" } else { "human" }.to_string();
         let mut map = self.load_map();
         if let Some(session) = map.get_mut(id) {
@@ -468,6 +480,7 @@ impl ChatStore {
 
     /// Delete one session; return whether it existed.
     pub fn delete(&self, id: &str) -> std::io::Result<bool> {
+        let _write_guard = self.write_lock.lock().unwrap();
         let mut map = self.load_map();
         let existed = map.remove(id).is_some();
         if existed {
@@ -478,6 +491,7 @@ impl ChatStore {
 
     /// Delete all sessions.
     pub fn delete_all(&self) -> std::io::Result<()> {
+        let _write_guard = self.write_lock.lock().unwrap();
         self.save_map(&HashMap::new())
     }
 
@@ -488,6 +502,7 @@ impl ChatStore {
         id: &str,
         msg: ChatMessage,
     ) -> std::io::Result<Option<ChatSession>> {
+        let _write_guard = self.write_lock.lock().unwrap();
         let mut map = self.load_map();
         if let Some(session) = map.get_mut(id) {
             session.append(msg);
@@ -505,6 +520,7 @@ impl ChatStore {
         id: &str,
         message_id: &str,
     ) -> std::io::Result<Option<ChatSession>> {
+        let _write_guard = self.write_lock.lock().unwrap();
         let mut map = self.load_map();
         if let Some(session) = map.get_mut(id) {
             if !session.set_active_leaf(message_id) {
@@ -527,6 +543,7 @@ impl ChatStore {
         id: &str,
         change: crate::specs::SpecChange,
     ) -> std::io::Result<Option<ChatSession>> {
+        let _write_guard = self.write_lock.lock().unwrap();
         let mut map = self.load_map();
         if let Some(session) = map.get_mut(id) {
             session.pending_spec_changes.push(change);
@@ -548,6 +565,7 @@ impl ChatStore {
         index: usize,
         specs: &crate::specs::SpecsStore,
     ) -> Result<Option<(crate::specs::SpecChange, ChatSession)>, String> {
+        let _write_guard = self.write_lock.lock().unwrap();
         let mut map = self.load_map();
         let session = map
             .get_mut(id)
@@ -577,6 +595,7 @@ impl ChatStore {
         id: &str,
         index: usize,
     ) -> Result<Option<ChatSession>, String> {
+        let _write_guard = self.write_lock.lock().unwrap();
         let mut map = self.load_map();
         let session = map
             .get_mut(id)
@@ -594,6 +613,7 @@ impl ChatStore {
 
     /// Reject all pending spec changes for a session.
     pub fn reject_all_spec_changes(&self, id: &str) -> Result<Option<ChatSession>, String> {
+        let _write_guard = self.write_lock.lock().unwrap();
         let mut map = self.load_map();
         let session = map
             .get_mut(id)

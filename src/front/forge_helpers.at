@@ -275,8 +275,28 @@ fn messageBlocks(msg obj) obj {
                         status: nstatus
                     }
                 })
+            } else if b.kind == "thinking" {
+                // PLAN-071 需求⑦ T-32：thinking 块透传（原 else 兜底折成
+                // text 块，ThinkBlock 芯片永不可达）。
+                norm.push({ kind: "thinking", text: b.text ?? "" })
             } else {
                 norm.push({ kind: "text", text: b.text ?? "" })
+            }
+        }
+        // PLAN-071 需求⑦：旧消息自愈——blocks 非空但无 thinking 块且
+        // msg.thinking 有值（需求⑦修复前的持久化形态）→ 前置合成 thinking
+        // 块，思考内容免于因 blocks 化而消失。
+        let has_think = false
+        for nb in norm {
+            if nb.kind == "thinking" { has_think = true }
+        }
+        if !has_think {
+            let th = msg.thinking ?? ""
+            if th != "" {
+                // .at 无 list.insert（透传 JS 不存在的原生方法）——重建数组前置。
+                let with_think list = [{ kind: "thinking", text: th }]
+                for nb in norm { with_think.push(nb) }
+                return with_think
             }
         }
         return norm
@@ -500,6 +520,16 @@ fn isMsgStreaming(streaming bool, messages obj, msg obj) bool {
     return last.id == msg.id && last.role == "assistant"
 }
 
+/** PLAN-071 需求⑨：AI 启动窗口——流式接收中但展示块为空（首个
+ * thinking/delta 尚未到达），等待点组件在此窗口显示；块到达后即消失。
+ * 乐观气泡（需求⑧ T-34）保证流式期最后一条消息恒为 assistant，
+ * isMsgStreaming 判定在窗口内可靠为真。 */
+fn msgIsWaiting(msg obj, streaming bool) bool {
+    if streaming == false { return false }
+    let blocks = messageDisplayBlocks(msg, streaming)
+    return blocks.length == 0
+}
+
 // ─── ReportCard helper ───────────────────────────────────────────────────────
 
 /** ReportCard confidence class。 */
@@ -672,4 +702,14 @@ fn agentDisplayName(professionId str) str {
         }
     }
     return out
+}
+
+/** PLAN-071 需求⑥：思考流尾片段（末 ~100 字符）——长思考期给界面一个
+    "活着"的可见信号。纯参数驱动（R1）；只用 str.slice（R2 已定型用法）。 */
+fn streamThinkingTail(t str) str {
+    var c str = t ?? ""
+    if c == "" { return "" }
+    let n = c.length
+    if n <= 100 { return c }
+    return "…" + c.slice(n - 100, n)
 }

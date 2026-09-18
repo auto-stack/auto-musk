@@ -43,6 +43,14 @@ store PlansStore {
             if resp != None {
                 .plans = resp.plans
             }
+            // PLAN-071 需求⑫：初始无选中时默认加载第一篇（与会话轨 Init
+            // 自动选中首会话同口径）。Transition/Archive/Merge 后的列表
+            // 刷新不抢当前选中（current 已有值即跳过）。
+            if .current == None {
+                if .plans.length > 0 {
+                    LoadPlan(.plans[0].seq)
+                }
+            }
         }
 
         // LoadPlan(seq): GET /api/plans/{seq} 读单个 plan。

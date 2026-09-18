@@ -4,7 +4,7 @@
 // forge_stream.ts 逃生舱里，store 只管状态 + 简单调用，避开 codegen 对 store
 // handler 复杂控制流（嵌套 if/return/结构体字面量）的 parser 边界。
 
-use back.api: chats_list_sessions, chats_create_session, chats_get_session, chats_send_message, chats_approve, chats_reject_all, chats_fork_session, chats_navigate_session, chats_set_thinking, chats_set_approval
+use back.api: chats_list_sessions, chats_create_session, chats_get_session, chats_send_message, chats_approve, chats_reject_all, chats_fork_session, chats_navigate_session, chats_set_thinking, chats_set_approval, chats_cancel_session
 
 store ForgeStore {
     model {
@@ -51,10 +51,18 @@ store ForgeStore {
         var tool_open str = ""
         // PLAN-064: 本会话思考档位（"" = 关闭/跟随 role 默认；off|low|high|max）。
         // 仅 UI 态 + PATCH 持久化到会话，发送链路不携带（后端 run 时读会话）。
-        var thinking_level str = ""
+        var thinking_level str = "low"
         // PLAN-067 T-05: 本会话审批模式（human|auto;缺省 human）。仅 UI 态 +
         // PATCH 持久化到会话;后端 relay driver 遇 gate 时读会话模式。
         var approval_mode str = "human"
+        // PLAN-071 需求⑧ T-34：当前会话 mode（乐观 assistant 气泡的职业
+        // 身份映射用；LoadSession/SwitchSession/NewSession 回填）。
+        var session_mode str = "superpowers"
+        // PLAN-071 需求⑥调试：PollStream 决策去重打点。
+        var dbg_last str = ""
+        // PLAN-071 需求⑮：运行在途时排队的待发消息（FIFO；流式收束后
+        // FlushQueue 逐条自动发送）。
+        var pending_msgs []Value = []
     }
 
         msg Msg {
@@ -65,10 +73,16 @@ store ForgeStore {
         StreamStarted(str),
         Send(str),
         StopStream,
+        CancelRun,
         SetThinking(str),
         FinalizeDraft,
         SetError(str),
-        // PLAN-064: 思考档位切换（off|low|high|max，"" 同 off 语义）。
+        // PLAN-071 需求⑮：运行在途时消息排队（流式收束后 FlushQueue 自动
+        // 发送），替代"拒绝 + 请重发"。
+        QueueMessage(str),
+        FlushQueue,
+        // PLAN-064: 思考档位切换（off|low|high|max；PLAN-071 需求⑩起未设置
+        // 即默认 low，"off" 为显式关闭）。
         SetThinkingLevel(str),
         // PLAN-067 T-05: 审批模式切换（human|auto）。
         SetApprovalMode(str),
@@ -149,7 +163,7 @@ store ForgeStore {
                         if detail != None && detail.session != None {
                             .messages = detail.session.messages
                             .active_leaf = detail.session.active_leaf ?? ""
-                            .thinking_level = detail.session.thinking_level ?? ""
+                            .thinking_level = detail.session.thinking_level ?? "low"
                             // PLAN-067 T-05: 会话审批模式随载入回填（缺省 human）。
                             .approval_mode = detail.session.approval_mode ?? "human"
                         }
@@ -162,11 +176,12 @@ store ForgeStore {
             var resp = chats_create_session(.workspace);
             if resp != None && resp.session != None {
                 .session_id = resp.session.id;
+                .session_mode = resp.session.mode ?? "superpowers"
                 // 新会话为空会话：清空旧消息视图，否则右侧面板仍挂上一会话内容
                 // （2026-08-29 用户实测：新建后面板不切换、误判未选中）。
                 .messages = []
                 .active_leaf = ""
-                .thinking_level = ""
+                .thinking_level = "low"
                 .error = ""
                 let list = chats_list_sessions();
                 if list != None && list.sessions != None {
@@ -200,9 +215,11 @@ store ForgeStore {
             if resp != None && resp.session != None {
                 .messages = resp.session.messages
                 .active_leaf = resp.session.active_leaf ?? ""
-                .thinking_level = resp.session.thinking_level ?? ""
+                .thinking_level = resp.session.thinking_level ?? "low"
                 // PLAN-067 T-05: 审批模式随会话切换回填（缺省 human）。
                 .approval_mode = resp.session.approval_mode ?? "human"
+                // PLAN-071 需求⑧：会话 mode 回填（乐观气泡职业映射用）。
+                .session_mode = resp.session.mode ?? "superpowers"
                 .error = ""
             } else {
                 // PLAN-053 批4: 错误信息携带实收 id（过期会话可对号入座）。
@@ -244,11 +261,20 @@ store ForgeStore {
             // assistant 消息由 SSE delta 事件回写。
             // PLAN-055 ⑧(D1)：run=true 显式触发后端 agent 运行——VM 轨 Sse.open
             // 为 no-op，订阅触发路径不可达；gen/web 轨双保险无害（订阅侧守卫防双跑）。
-            var resp = chats_send_message(.session_id, content, "", true);
+            var resp = chats_send_message(.session_id, content, "", true, false);
             .streaming = true
         }
 
         .StopStream -> {
+            .streaming = false
+        }
+
+        // PLAN-071 需求⑤ T-25：取消在途运行——后端置位取消旗标（agent 于
+        // 迭代边界收束并落盘已有内容），本地立即退出流式态。
+        .CancelRun -> {
+            if .session_id != "" {
+                chats_cancel_session(.session_id)
+            }
             .streaming = false
         }
 
@@ -257,7 +283,48 @@ store ForgeStore {
 
         .SetThinking(text) -> { .thinking = text }
         .FinalizeDraft -> { .streaming = false }
-        .SetError(msg) -> { .error = msg; .streaming = false }
+        .SetError(msg) -> { .error = msg; .streaming = false; .FlushQueue() }
+
+        // PLAN-071 需求⑮：入队（运行在途时由 SendInput 调用）。
+        .QueueMessage(text) -> {
+            .pending_msgs.push(text)
+        }
+
+        // PLAN-071 需求⑮：流式收束后排空队列——取最旧一条直接 POST
+        // （queued=true：守卫占用只回 busy:true 不落提示）。busy = 收束
+        // 竞态窗口（done 已见、守卫未清）——整条退回队首，由 PollStream
+        // 下一拍重试；成功则置流式态 + 挂 SSE（余下条目等下一次收束）。
+        // streaming 为真时是 no-op（防双发）。
+        .FlushQueue -> {
+            if .streaming == false {
+                if .pending_msgs.length > 0 {
+                    let first = .pending_msgs[0]
+                    var rest []Value = []
+                    var idx = 0
+                    for m in .pending_msgs {
+                        if idx > 0 {
+                            rest.push(m)
+                        }
+                        idx = idx + 1
+                    }
+                    var resp = chats_send_message(.session_id, first, "", true, true);
+                    if resp != None {
+                        if resp.busy == true {
+                            var back []Value = []
+                            back.push(first)
+                            for m in rest {
+                                back.push(m)
+                            }
+                            .pending_msgs = back
+                            return
+                        }
+                    }
+                    .pending_msgs = rest
+                    .streaming = true
+                    .StartStream(.session_id, .workspace, .token, first)
+                }
+            }
+        }
         // PLAN-064: 档位切换——先写 UI 态再 PATCH 持久化（失败不回滚，下次
         // 切会话会以服务端为准回填）。
         .SetThinkingLevel(level) -> {
@@ -324,6 +391,14 @@ store ForgeStore {
                 // 注④）,而共享 vmref 的列表突变实证可靠（同帧 messages.push
                 // 落地实录）,故轮询窗戳以列表承载。
                 .poll_window.push(Date.now())
+                // PLAN-071 需求⑧ T-34：乐观 assistant 气泡——发送即创建
+                // （标题栏立即可见；profession=会话 mode 映射 role）。后续
+                // thinking/delta 事件经 currentAssistantMsgIn 命中本消息
+                // 追加；done 后回填换入持久化版本（含思考块）。
+                var amsg = newAssistantMsg(modeRoleOf(.session_mode))
+                amsg.parent_id = .active_leaf
+                .active_leaf = amsg.id
+                .messages.push(amsg)
             }
             let path0 = "/api/chats/session/" + encodeURIComponent(sid0) + "/stream"
             var qs = ""
@@ -348,6 +423,7 @@ store ForgeStore {
             // web 轨 Sse.open 正常返回,置位次序无行为差异。
             .streaming = true
             .pre_stream_len = .messages.length
+            console.log("[SSE] open: " + path0 + qs)
             .stream_es = Sse.open(path0 + qs, .OnStreamEvent)
         }
 
@@ -363,6 +439,9 @@ store ForgeStore {
 
         // Plan 051 T10（G1 阶段1）：轮询拍——全量回填 + 完成启发式。
         .PollStream -> {
+            // PLAN-071 需求⑮：每拍驱动队列重试（busy 竞态退回后由此重发；
+            // streaming 为真或队列空时是 no-op）。
+            .FlushQueue()
             // PLAN-536 T12(D4 修复,musk 侧④)：门控改 **deadman 时间窗**。
             // 原因链（536 T12 实机时序实证）:跨模块调用帧（SendInput 体内
             // `store.Send/store.StartStream`）对 store 字段的 SET_FIELD
@@ -376,7 +455,22 @@ store ForgeStore {
             let wins = .poll_window
             if wins.length == 0 { return }
             let started = wins[wins.length - 1]
-            if Date.now() - started > 120000 { return }
+            // PLAN-071 需求⑥：deadman 窗随流式自动续期——原 120s 硬过期使
+            // 长任务（如 467s 深度思考）在窗口过期后 PollStream 永久沉默，
+            // SSE 侧任何迟滞都只能靠手动刷新看到结果。流式进行中每 tick
+            // 续窗；收束后窗口自然过期，恢复原语义。
+            if .streaming == true {
+                .poll_window.push(Date.now())
+            }
+            let dbg str = "wins=" + wins.length + " streaming=" + .streaming + " es=" + (.stream_es != None) + " last_sse=" + .last_sse_at
+            if dbg != .dbg_last {
+                .dbg_last = dbg
+                console.log("[POLL] " + dbg)
+            }
+            if Date.now() - started > 120000 {
+                console.log("[POLL] window expired (>120s) — backfill off")
+                return
+            }
             // PLAN-069 F-04：流式期（web 轨 SSE 已附加）**绝不全量回填**——
             // 回填快照不含在途 assistant，LLM 长思考/迭代间隙超过 3 秒健康
             // 门就放开，回填反复清掉已上屏的直播内容（用户实测：每轮边界
@@ -398,6 +492,15 @@ store ForgeStore {
             // None.messages 崩掉后续 computed（对齐 SwitchSession 守卫风格）。
             if resp == None { return }
             if resp.session == None { return }
+            // PLAN-071 需求⑧ T-36：流式期回填防清除——服务端快照在收束前
+            // 不含 assistant，整表替换会把乐观消息连思考一起清掉（用户截图3
+            // 实证：内容全清冻结至刷新）。仅当快照末消息已是 assistant
+            // （收束落盘）才换入；换入后完成启发式自然清窗收束。
+            if .streaming == true {
+                let srv_msgs = resp.session.messages ?? []
+                let last_srv = srv_msgs[srv_msgs.length - 1] ?? None
+                if last_srv == None || last_srv.role != "assistant" { return }
+            }
             .messages = resp.session.messages
             // PLAN-067 T-02：回填时同步服务端活跃叶——否则叶链投影沿旧叶
             // 回溯,新回合不在链上,依旧"数据到了但不渲染"。
@@ -421,6 +524,8 @@ store ForgeStore {
                             while .poll_window.length > 0 {
                                 let _pw1 = .poll_window.pop()
                             }
+                            // PLAN-071 需求⑮：收束即排空排队消息。
+                            .FlushQueue()
                         }
                     }
                 }
@@ -435,6 +540,7 @@ store ForgeStore {
             // PLAN-067 T-02：SSE 心跳——PollStream 健康门的依据（流活着
             // 就不做全量回填,防运行中快照清掉流式内容）。
             .last_sse_at = Date.now()
+            console.log("[SSE] ev=" + ev.type + " msgs=" + .messages.length + " draft=" + .current_draft.length + " think=" + .thinking.length)
 
             if ev.type == "delta" {
                 if ev.text != None {
@@ -451,6 +557,7 @@ store ForgeStore {
                         msg.content = msg.content + ev.text
                         .current_draft = .current_draft + ev.text
                         let _ab = appendBlockText(msg, "text", ev.text)
+                        console.log("[SSE] delta: chunk=" + ev.text.length + " draft=" + .current_draft.length + " blocks=" + msg.blocks.length)
                     }
                 }
                 return
@@ -469,6 +576,7 @@ store ForgeStore {
                         msg2.thinking = th + ev.thinking
                         .thinking = msg2.thinking
                         let _ab = appendBlockText(msg2, "thinking", ev.thinking)
+                        console.log("[SSE] thinking: chunk=" + ev.thinking.length + " acc=" + msg2.thinking.length + " blocks=" + msg2.blocks.length)
                     }
                 }
                 return
@@ -546,14 +654,15 @@ store ForgeStore {
                 return
             }
             if ev.type == "done" {
+                console.log("[SSE] done: msgs=" + .messages.length)
+                // PLAN-071 需求⑧ T-36：done 不清 deadman 窗——保留窗让最后
+                // 一拍回填换入持久化消息（含思考块）后由完成启发式自然清窗
+                // 收束（原立即清窗+停轮询导致"刷新才见结果"，用户截图3/4
+                // 实证）。仅停流（Sse.close 释放连接）。
                 .streaming = false
-                // PLAN-062：done 即关 deadman 窗——本臂自清（跨模块调用
-                // 帧内 .StopStream 的 SET_FIELD 重绑定不达根态，T12 同款
-                // 风险，不依赖其体内清窗）。
-                while .poll_window.length > 0 {
-                    let _pw2 = .poll_window.pop()
-                }
-                .StopStream()
+                .stream_es = Sse.close(.stream_es)
+                // PLAN-071 需求⑮：收束即排空排队消息。
+                .FlushQueue()
                 return
             }
             if ev.type == "error" {
@@ -564,6 +673,8 @@ store ForgeStore {
                     let _pw3 = .poll_window.pop()
                 }
                 .StopStream()
+                // PLAN-071 需求⑮：收束即排空排队消息。
+                .FlushQueue()
                 return
             }
 
@@ -745,6 +856,16 @@ fn currentAssistantMsgIn(msgs Value) Value {
 }
 
 /** 新建 assistant 消息骨架(不落 store——由调用方 push);profession_id 来自 turn_start。 */
+/** PLAN-071 需求⑧ T-34：会话 mode → 职业 role（内置四模式静态映射；
+    用户自定义 mode 回退 mode 名本身）。乐观 assistant 气泡身份用。 */
+fn modeRoleOf(mode str) str {
+    if mode == "superpowers" { return "assistant" }
+    if mode == "basic" { return "coder" }
+    if mode == "coding" { return "coder" }
+    if mode == "review" { return "reviewer" }
+    return mode
+}
+
 fn newAssistantMsg(professionId str) Value {
     return { id: "a-" + Date.now(), role: "assistant", content: "", thinking: "", created_at: nowSec(), tool_calls: [], blocks: [], profession_id: professionId }
 }
