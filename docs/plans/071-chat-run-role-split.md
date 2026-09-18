@@ -525,6 +525,11 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   （整页刷新即加载新前端，会话内切换不触发加载）| 已知事项：部署新前端后需
   整页刷新（非代码缺陷，登记备查）| blockers: 无 | next: review。
 
+- 2026-09-18T12:35+08:00 `stage: work` | PLAN-071 | 需求⑦终验（用户会话
+  f402ca5a 实拍）| `outcome: pass` | evidence: 浏览器实拍——Assistant 身份头 +
+  💭 已思考·73 tokens 折叠块 + 完整回复渲染正常；4062c66e 旧会话为修复前数据
+  （无思考块属预期，自愈逻辑仅对 msg.thinking 非空的旧消息生效）| blockers: 无 |
+  next: review。
 ## 10. 待澄清事项
 
 - 无阻塞项。备注①：vm_backend.rs `chat_run_stream` host 当前无 front 调用方
