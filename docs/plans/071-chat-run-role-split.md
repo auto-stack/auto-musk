@@ -556,6 +556,10 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   日志（事件分发/块追加/PollStream 决策/窗口过期），供用户浏览器实测定位
   "流式不渲染"断点；临时日志 merge 前决定去留 | next: 用户复测回报 console
   输出。
+- 2026-09-18T14:50+08:00 `stage: work` | PLAN-071 | 需求⑧回验（用户
+  实测流式已通，裁定双流式输出冗余）| `outcome: pass` | code_commit:
+  状态行移除提交 | evidence: 用户实测确认流式渲染已通；ThinkBlock 半开态
+  独占思考期反馈，状态行组件删除 | blockers: 无 | next: review。
 ## 10. 待澄清事项
 
 - 无阻塞项。备注①：vm_backend.rs `chat_run_stream` host 当前无 front 调用方
