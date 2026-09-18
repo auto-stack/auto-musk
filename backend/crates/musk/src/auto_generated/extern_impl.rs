@@ -1860,6 +1860,11 @@ pub async fn chat_run_owner(
         "chat run spawned: session={} ws={} mode={} msg_len={}",
         session_id, ws_id, mode, user_msg.len()
     );
+    // PLAN-071 需求⑭：@plan/<seq> / @spec/<relpath> 引用解析——附加注记块
+    // 给 agent（指向文件路径 + 计划摘要，agent 用既有 read_plan/文件工具
+    // 自取全文）；用户可见/持久化消息保持原文不变。
+    let agent_refs_block =
+        crate::server::resolve_chat_mention_refs(&user_msg, &ws.plans);
 
     if let Some(plan_id) = crate::server::parse_plan_merge_command(&user_msg) {
         let task = format!("沉淀 {plan_id} 到 Spec 知识库");
@@ -2267,9 +2272,15 @@ pub async fn chat_run_owner(
         });
         // PLAN-071 需求⑤ T-22：空闲看门狗 select——窗口内无任何流式事件即
         // drop run_stream future（中止在途 LLM 流），按超时收束并落盘。
+        // PLAN-071 需求⑭：agent 输入 = 原文 + @引用解析块（有引用才追加）。
+        let agent_input = if agent_refs_block.is_empty() {
+            user_msg.clone()
+        } else {
+            format!("{}{}", user_msg, agent_refs_block)
+        };
         let mut idle_timed_out = false;
         let run_out = tokio::select! {
-            r = agent.run_stream(&user_msg, on_event, cancel) => Some(r),
+            r = agent.run_stream(&agent_input, on_event, cancel) => Some(r),
             _ = async {
                 loop {
                     let last = *wd_rx.borrow();

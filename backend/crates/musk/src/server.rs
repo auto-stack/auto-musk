@@ -824,6 +824,60 @@ pub fn parse_plan_merge_command(text: &str) -> Option<String> {
     }
 }
 
+/// PLAN-071 需求⑭：解析消息中的 `@plan/<seq>` 与 `@spec/<relpath>` 引用，
+/// 生成附加给 agent 的上下文注记块（可见消息不变，仅 run_stream 输入追加）。
+/// - `@plan/<seq>`：查 PlansStore（含归档），解析出文件路径 + 标题/状态，
+///   提示 agent 可用 read_plan 工具读取全文；
+/// - `@spec/<relpath>`：relpath 为 docs/specs/ 下相对路径（@ 菜单来自
+///   specs_tree，只列真实文件），提示 agent 用文件工具按路径读取。
+/// 无引用或引用无法解析（如计划不存在）返回空串——不阻断运行、不改写原文。
+pub fn resolve_chat_mention_refs(content: &str, plans: &crate::plans::PlansStore) -> String {
+    let plan_re = regex::Regex::new(r"@plan/(\d{1,3})").ok();
+    let spec_re = regex::Regex::new(r"@spec/([A-Za-z0-9_\-./]+\.[A-Za-z0-9]+)").ok();
+    let mut lines: Vec<String> = Vec::new();
+    if let Some(re) = plan_re.as_ref() {
+        for caps in re.captures_iter(content) {
+            let raw = match caps.get(1) {
+                Some(g) => g.as_str(),
+                None => continue,
+            };
+            let seq: u32 = match raw.parse() {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+            if let Some(pf) = plans.get(seq) {
+                // PlanStatus 无 Display——serde snake_case 序列化去引号。
+                let status = serde_json::to_string(&pf.status)
+                    .unwrap_or_default()
+                    .trim_matches('"')
+                    .to_string();
+                lines.push(format!(
+                    "- @plan/{:03} → docs/plans/{}（{}，状态：{}）——可用 read_plan 工具读取全文",
+                    pf.seq, pf.filename, pf.feature_name, status
+                ));
+            }
+        }
+    }
+    if let Some(re) = spec_re.as_ref() {
+        for caps in re.captures_iter(content) {
+            if let Some(g) = caps.get(1) {
+                lines.push(format!(
+                    "- @spec/{} → docs/specs/{}（可用文件读取工具按路径查看）",
+                    g.as_str(),
+                    g.as_str()
+                ));
+            }
+        }
+    }
+    if lines.is_empty() {
+        return String::new();
+    }
+    format!(
+        "\n\n---\n[消息中的 @ 引用解析（供你定位资料，用户消息原文不含本块）]\n{}",
+        lines.join("\n")
+    )
+}
+
 // ── Spec-change approval endpoints (Plan 009 P1b) ──────────────────────────
 // ── Workspace management endpoints ──────────────────────────────────────────
 // ── Conversation endpoints (unified chat + flow) ────────────────────────────
