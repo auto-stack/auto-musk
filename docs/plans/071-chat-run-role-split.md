@@ -456,6 +456,11 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   task_ids: T-22..T-27 完成 | evidence: 644/4 门禁 + 实机 spawned/finished
   日志 + 64f0076c 事故诊断与解锁（重启清守卫）| blockers: 无 | next: review
   （Phase 2 = 需求⑤；与 phase-1 已落地四需求一并复审）。
+- 2026-09-18T11:40+08:00 `stage: work` | PLAN-071 | 需求③回验二（工具卡参数
+  仍右对齐）| `outcome: pass` | code_commit: scoped .tool-name flex:1 删除 |
+  evidence: 根因 = r4 只删工具类 flex-1、scoped 样式块 .tool-name 规则残留
+  flex:1 照常生效；浏览器 DOM 实测三卡参数紧随名称左对齐（gap ~8px）、
+  status+chevron 靠右 + 截图确认 | blockers: 无 | next: review。
 - 2026-09-18T11:00+08:00 `stage: work` | PLAN-071 | 需求⑥（流式状态可见性）|
   `outcome: pass` | code_commit: 需求⑥提交 | evidence: 会话 2882117a 实况
   （467s 长思考任务全程有状态反馈、收束正常）| blockers: 无 | next: review。
