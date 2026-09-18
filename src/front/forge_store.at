@@ -386,6 +386,13 @@ store ForgeStore {
             let wins = .poll_window
             if wins.length == 0 { return }
             let started = wins[wins.length - 1]
+            // PLAN-071 需求⑥：deadman 窗随流式自动续期——原 120s 硬过期使
+            // 长任务（如 467s 深度思考）在窗口过期后 PollStream 永久沉默，
+            // SSE 侧任何迟滞都只能靠手动刷新看到结果。流式进行中每 tick
+            // 续窗；收束后窗口自然过期，恢复原语义。
+            if .streaming == true {
+                .poll_window.push(Date.now())
+            }
             if Date.now() - started > 120000 { return }
             // PLAN-069 F-04：流式期（web 轨 SSE 已附加）**绝不全量回填**——
             // 回填快照不含在途 assistant，LLM 长思考/迭代间隙超过 3 秒健康
