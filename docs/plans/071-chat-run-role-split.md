@@ -3,7 +3,7 @@ plan_id: PLAN-071
 status: executing
 feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显式角色分离）+ 可用性修改需求跟踪
 author: zhaop / zcode
-created_at: 2026-09-17T15:20:00+08:00
+created_at: 2026-09-17T22:50:00+08:00
 updated_at: 2026-09-18T09:41:00+08:00
 plan_revision: 6
 current_step: 21
@@ -384,25 +384,25 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
   不回退 | blockers: 无 | next: review（两需求一并复审；r3 方案变更 =
   前端职业名走 id 推导而非 AgentConfigs 查名——生成器 `store` 单别名限制，
   实测记录于 T-09 与 SD-03 KD 行）。
-- 2026-09-18T10:30+08:00 `stage: work` | PLAN-071 | r4 | `outcome: pass` |
+- 2026-09-18T01:37+08:00 `stage: work` | PLAN-071 | r4 | `outcome: pass` |
   code_commit: f8c8ca4，分支 plan-071-dev | task_ids: T-13/T-14/T-15/T-16 完成 |
   evidence: 需求①②③全部实现完毕；vm-link-probe PASS（77457B）+ auto build 绿
   + dist 标记齐全；后端零改动 | blockers: 无 | next: review（三个需求一并复审
   后 merge；需求③-3 鹿 logo 明暗双变体随 html.dark 切换、VM 兜底单图的机制
   记录于 SD-03 同文件注释与 commit message）。
-- 2026-09-18T11:10+08:00 `stage: work` | PLAN-071 | r4 用户回验修复 |
+- 2026-09-18T01:49+08:00 `stage: work` | PLAN-071 | r4 用户回验修复 |
   `outcome: pass` | code_commit: dcc3b18 | evidence: 用户截图回验三问题修正
   ——①双鹿并显根因 = img class 与 CSS 选择器不一致 + img style:prop 被
   codegen 并进 class（两处修：类名对齐 deer-icon-dark/-light；去失效
   style:prop，VM 双图并显随 inject_styles 家族口径记为已知项）②收缩态
   主导航 6 icon 32→18px ③workspace/设置 icon 32→18px；auto build 绿 |
   blockers: 无 | next: review。
-- 2026-09-18T11:40+08:00 `stage: work` | PLAN-071 | r4 用户回验二（图标尺寸
+- 2026-09-18T01:54+08:00 `stage: work` | PLAN-071 | r4 用户回验二（图标尺寸
   对齐 VS Code）| `outcome: pass` | code_commit: dcc3b18 后续（24px 统一提交）|
   evidence: 用户对拍 VS Code 活动栏（24px 口径）——收缩态主导航/workspace/
   设置 icon 18→24px，小鹿 32→24px（w-6）；展开态收起钮保持 18px 不随动；
   auto build 绿 | blockers: 无 | next: review。
-- 2026-09-18T12:10+08:00 `stage: work` | PLAN-071 | r4 用户回验三（底部图标
+- 2026-09-18T02:06+08:00 `stage: work` | PLAN-071 | r4 用户回验三（底部图标
   真 24px）| `outcome: pass` | code_commit: 24px 统一 + rail-trigger-24 两提交 |
   evidence: 浏览器 DOM 实测（getBoundingClientRect）坐实底部 Folder/Settings
   渲染 16px——.at button 全编译为脚手架 Button（[&_svg]:size-4 压制 lucide
@@ -410,7 +410,7 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
   .rail-trigger-24 svg { 24px !important }；复测全列 24px（含鹿 24 单显）+
   截图确认；探针账号 uitest-probe 已从 users.json 移除 | blockers: 无 |
   next: review。
-- 2026-09-18T13:40+08:00 `stage: work` | PLAN-071 | r5 | `outcome: pass` |
+- 2026-09-18T02:20+08:00 `stage: work` | PLAN-071 | r5 | `outcome: pass` |
   code_commit: r5 提交（需求④），分支 plan-071-dev | task_ids: T-17..T-21 完成 |
   evidence: 浏览器 DOM 实测四条（会话标题 ellipsis+title、× 第二行右缘 gap=0、
   首盒 topPad 6px/4px、规范盒两行+计数 goals 11/architecture 8/designs 10）+
