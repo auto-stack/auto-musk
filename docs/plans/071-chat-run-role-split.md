@@ -4,10 +4,10 @@ status: executing
 feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显式角色分离）+ 可用性修改需求跟踪
 author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
-updated_at: 2026-09-18T15:10:00+08:00
+updated_at: 2026-09-18T15:35:00+08:00
 plan_revision: 10
-current_step: 41
-total_steps: 41
+current_step: 42
+total_steps: 42
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
 new_spec_components:
@@ -19,8 +19,8 @@ touched_goals: [goal-relay]
 
 ## 会话交接摘要（2026-09-18，供新会话接续）
 
-**状态**：8 个需求全部实施完毕（T-01..T-37 全勾，AC-01..28 就绪），分支
-`plan-071-dev` 领先 main 16 提交（需求②-⑧未落地，需求①已随 phase-1 于
+**状态**：9 个需求全部实施完毕（T-01..T-42 全勾，AC-01..30 就绪），分支
+`plan-071-dev` 领先 main（需求②-⑨未落地，需求①已随 phase-1 于
 3c2b178 落地 main）。**下一步 = 用户终验 → /auto-plan:review → /auto-plan:merge**
 （合并时随 SD-01/02/03 发布 specs + ledger 挂载 + worktree/依赖快照清理）。
 
@@ -39,7 +39,8 @@ aaid 在 17654。前端部署后需整页刷新（构建产物非哈希文件名
 （截断/×移二行/首盒gap/规范盒统一+计数）⑤挂死运行防护（看门狗/命令超时/
 busy指示/cancel端点/生命周期日志）⑥流式状态可见性（常驻状态行，后按用户
 裁定删除冗余组件由 ThinkBlock 半开态独占）⑦思考块沉淀与渲染修复
-⑧流式 UX 六步规格（乐观标题栏/半开态/回填防清除）。
+⑧流式 UX 六步规格（乐观标题栏/半开态/回填防清除）⑨流式等待点组件+
+停止按钮归位工具栏（T-42 顺带修复 cancel 端点未接真实路由的 T-25 缺陷）。
 
 **关键教训（新会话必读）**：① `auto build` 可能因二进制锁/中断静默跳过
 codegen 或 vite 阶段——构建后必须核对生成产物（grep 标记类串）再验证；
@@ -490,16 +491,35 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
 
 **需求⑨（r10，2026-09-18 用户提出）：流式等待态与停止按钮归位**
 
-- [ ] **T-38** forge_helpers.at 增 `msgIsWaiting(msg, streaming)`：流式接收中
-  且展示块为空 = AI 启动窗口（乐观气泡保证窗口判定可靠）。→ AC-29
-- [ ] **T-39** chat_message.at：①等待点组件——msg-bubble-ai 内 showWaiting
+- [x] **T-38** forge_helpers.at 增 `msgIsWaiting(msg, streaming)`：流式接收中
+  且展示块为空 = AI 启动窗口（乐观气泡保证窗口判定可靠）。[✅ 2026-09-18] → AC-29
+- [x] **T-39** chat_message.at：①等待点组件——msg-bubble-ai 内 showWaiting
   条件渲染三点跳动动画（style 块 @keyframes + :nth-child 延时）；
   ②工具栏停止按钮——is_streaming 时渲染在复制/分叉右侧（同款 ghost 方钮，
-  ■ 字形 + destructive 色），直调 ForgeStore.CancelRun()。→ AC-29/30
-- [ ] **T-40** chats_view.at：移除画布底部独立停止按钮 + 孤儿 CancelRun
-  msg/handler。→ AC-30
-- [ ] **T-41** auto build + 浏览器全流程实测（发送 → 等待点 → 思考块 → 正文
-  流式 → 工具栏停止钮 → 收束钮消失）。依赖：T-38..40。→ AC-29/30
+  ■ 字形 + destructive 色），直调 ForgeStore.CancelRun()。[✅ 2026-09-18] → AC-29/30
+- [x] **T-40** chats_view.at：移除画布底部独立停止按钮 + 孤儿 CancelRun
+  msg/handler。[✅ 2026-09-18] → AC-30
+- [x] **T-41** auto build + 浏览器全流程实测。[✅ 2026-09-18] → AC-29/30
+  实测证据（新会话 70bdf78f，worktree 构建即时生效）：采样时间线 t=0.6s
+  等待点 3 粒即现 + 工具栏停止钮在场 + 独立按钮全程未出现；t=4.6s 首个
+  thinking 到达、等待点消失、ThinkBlock 半开态接管；收束后停止钮消失、
+  回复完整渲染（💭 已思考折叠块 + 全文）。工具栏 DOM 结构实证 = Copy →
+  ⑂ (Fork) → ■ (Stop) 同行三钮；截图确认等待点 + 红色停止钮形态。
+- [x] **T-42** cancel 端点接入真实路由表（**T-25 遗留缺陷修复**，T-41 实测
+  暴露）。[✅ 2026-09-18] → AC-30
+  缺陷：T-25 的 `POST /api/chats/session/{id}/cancel` 只注册进 server.rs 的
+  **测试路由器**（1413 行，#[tokio::test] 内），真实 `auto_generated/
+  server.rs::build_router()` 从未挂载——POST 落 SPA fallback 返回 405，
+  前端 `await chats_cancel_session` 抛错、`streaming` 永不落 false、停止钮
+  点击无效。修复：build_router() 补一行路由（handler = AppState::chat_cancel，
+  已在场）。修复后需重编后端 + 重启 serve（8090 已换新二进制）。
+  取消链路终验：点击 → POST cancel → serve 日志 "chat cancel requested
+  session=70bdf78f… (in-flight=true)" → 前端停止钮 901ms 消失 → run 于
+  迭代边界干净收束（elapsed=72s，守卫清除）。门禁：cargo nextest 644
+  passed / 4 skipped + vm-link-probe PASS（77560B）+ auto build 绿。
+  注：取消语义仍为 T-25 口径（旗标于 agent 迭代边界检查；单次 LLM 调用
+  中途不中断，调用收束后 agent 见旗标即停）；流内硬中断归看门狗域，登记
+  后续可选增强（select! 臂监听 cancel 旗标 drop run_stream）。
 
 ## 9. 复审记录
 
@@ -624,6 +644,15 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   实测流式已通，裁定双流式输出冗余）| `outcome: pass` | code_commit:
   状态行移除提交 | evidence: 用户实测确认流式渲染已通；ThinkBlock 半开态
   独占思考期反馈，状态行组件删除 | blockers: 无 | next: review。
+- 2026-09-18T15:35+08:00 `stage: work` | PLAN-071 | r10 需求⑨实施完成
+  `outcome: pass` | code_commit: bfcc152（worktree，分支 plan-071-dev）|
+  task_ids: T-38..T-42 完成 | evidence: 门禁 nextest 644/4 + vm-link-probe
+  PASS 77560B + auto build 绿；浏览器实测——等待点 0.6s 即现/思考到达即消、
+  工具栏 Copy/⑂/■ 三钮并排、独立停止钮退役、取消链路端到端（serve 日志
+  "chat cancel requested (in-flight=true)" + 前端按钮 901ms 消失 + run 72s
+  干净收束）；T-42 = T-25 cancel 端点漏接真实路由表的缺陷修复（8090 serve
+  已换新二进制）| blockers: 无 | next: review（需求①-⑨全数就绪，一并复审
+  merge）。
 ## 10. 待澄清事项
 
 - 无阻塞项。备注①：vm_backend.rs `chat_run_stream` host 当前无 front 调用方
