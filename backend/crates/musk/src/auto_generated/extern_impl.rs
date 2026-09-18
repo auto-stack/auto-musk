@@ -1988,7 +1988,12 @@ pub async fn chat_run_owner(
     let tx2 = tx.clone();
     let run_key2 = run_key.clone();
     // PLAN-064: 会话思考档位（spawn 任务内用克隆）。
-    let session_thinking2 = session.thinking_level.clone();
+    // PLAN-071 需求⑩：默认档位改为 low——未设置（None/旧会话）一律按
+    // "low" 生效；显式 "off"（需求⑩起由前端持久化）仍可完全关闭。
+    let session_thinking2 = session
+        .thinking_level
+        .clone()
+        .or_else(|| Some("low".to_string()));
     tokio::spawn(async move {
         // PLAN-069 W1：root 注入由 build_agent_with_context 完成（thread-local 退役）。
         // Build agent with orchestration tool context (spawn_relay, dispatch).

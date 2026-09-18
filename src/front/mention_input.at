@@ -189,15 +189,18 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
                                 div {
                                     style: "absolute bottom-full left-0 mb-2 min-w-[120px] bg-card border border-border rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-1 z-50 flex flex-col"
                                     button {
-                                        onclick: .pick("")
+                                        // PLAN-071 需求⑩：显式"关"持久化为 "off"
+                                        // （原发 "" 会被后端归一成 None=默认 low，
+                                        // 无法真正关闭）。
+                                        onclick: .pick("off")
                                         disabled: .disabled
-                                        class: if .thinkingLevel == "" || .thinkingLevel == "off" {
+                                        class: if .thinkingLevel == "off" {
                                             "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-[13px] text-left cursor-pointer"
                                         } else {
                                             "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-transparent text-foreground text-[13px] text-left cursor-pointer hover:bg-primary/10"
                                         }
                                         text i18n.t("chat.thinkingOff")
-                                        if .thinkingLevel == "" || .thinkingLevel == "off" {
+                                        if .thinkingLevel == "off" {
                                             Check { size: 14 }
                                         }
                                     }
