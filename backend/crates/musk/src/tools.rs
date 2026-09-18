@@ -359,6 +359,15 @@ impl Tool for RunCommand {
                 Some(secs)
             }
         };
+        // PLAN-071 需求⑤ T-23：模型未传 timeout 时给默认上限（秒）——
+        // 永不退出的命令（dev server 等）不再永挂运行。env 可调。
+        let timeout_secs = timeout_secs.or_else(|| {
+            std::env::var("AUTO_CMD_TIMEOUT_SECS")
+                .ok()
+                .and_then(|v| v.parse::<f64>().ok())
+                .filter(|v| *v > 0.0)
+                .or(Some(300.0))
+        });
 
         // Safety classification (Design 004).
         if !force {

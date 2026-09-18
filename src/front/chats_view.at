@@ -71,6 +71,8 @@ widget ChatsView {
         CancelDelete,
         ConfirmDelete(str),
         SelectSession(str),
+        // PLAN-071 需求⑤ T-25：取消在途运行（转发 ForgeStore）。
+        CancelRun,
         SendInput(str),
         StopStream,
         ApproveGate,
@@ -355,6 +357,13 @@ widget ChatsView {
                                 text "AI 思考中..."
                             }
                         }
+                        // PLAN-071 需求⑤ T-25：取消在途运行（后端置位取消
+                        // 旗标，agent 迭代边界收束并落盘已有内容）。
+                        button {
+                            onclick: .CancelRun
+                            style: "self-start mt-1 text-xs text-muted-foreground bg-transparent border border-border rounded-md px-2 py-1 cursor-pointer hover:bg-accent"
+                            text "■ 停止"
+                        }
                     }
                     if .store.error != "" {
                         text .store.error { style: "text-destructive text-[14px] py-2 px-3 bg-destructive/10 rounded-lg self-start max-w-full" }
@@ -446,6 +455,9 @@ widget ChatsView {
             store.BranchTo(mid, "fork")
         }
 
+        .CancelRun -> {
+            ForgeStore.CancelRun()
+        }
         .SelectSession(id) -> {
             .delete_pending_id = "";
             .delete_confirm_open = false;

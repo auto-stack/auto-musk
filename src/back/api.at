@@ -527,6 +527,13 @@ pub fn chats_send_message(id str, content str, profession_id str, run bool = fal
     return None
 }
 
+// PLAN-071 需求⑤：取消在途运行（agent 于迭代边界响应；流内 stall 由
+// 后端空闲看门狗兜底）。
+#[api(method = "POST", path = "/api/chats/session/{id}/cancel")]
+pub fn chats_cancel_session(id str) {
+    return None
+}
+
 // ============================================================
 // Spec approve/reject (B 类批4 — GateCard 真实 API)
 // 后端 server.at:402/410 已实现。

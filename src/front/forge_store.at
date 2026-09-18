@@ -4,7 +4,7 @@
 // forge_stream.ts 逃生舱里，store 只管状态 + 简单调用，避开 codegen 对 store
 // handler 复杂控制流（嵌套 if/return/结构体字面量）的 parser 边界。
 
-use back.api: chats_list_sessions, chats_create_session, chats_get_session, chats_send_message, chats_approve, chats_reject_all, chats_fork_session, chats_navigate_session, chats_set_thinking, chats_set_approval
+use back.api: chats_list_sessions, chats_create_session, chats_get_session, chats_send_message, chats_approve, chats_reject_all, chats_fork_session, chats_navigate_session, chats_set_thinking, chats_set_approval, chats_cancel_session
 
 store ForgeStore {
     model {
@@ -65,6 +65,7 @@ store ForgeStore {
         StreamStarted(str),
         Send(str),
         StopStream,
+        CancelRun,
         SetThinking(str),
         FinalizeDraft,
         SetError(str),
@@ -249,6 +250,15 @@ store ForgeStore {
         }
 
         .StopStream -> {
+            .streaming = false
+        }
+
+        // PLAN-071 需求⑤ T-25：取消在途运行——后端置位取消旗标（agent 于
+        // 迭代边界收束并落盘已有内容），本地立即退出流式态。
+        .CancelRun -> {
+            if .session_id != "" {
+                chats_cancel_session(.session_id)
+            }
             .streaming = false
         }
 

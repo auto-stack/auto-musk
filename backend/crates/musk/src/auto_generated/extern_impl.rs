@@ -861,6 +861,32 @@ pub fn chats_message(s: &State<AppState>, q: Query<crate::auto_generated::server
                     tokio::spawn(async move {
                         chat_run_owner(&st, Query(wsq), Path(sid), serde_json::Value::Null).await;
                     });
+                } else {
+                    // PLAN-071 需求⑤ T-24：守卫占用不再静默——落一条可见的
+                    // busy 提示（持久化，与超时/失败落盘同构），响应体带 busy
+                    // 字段供 API 消费方判断。
+                    tracing::warn!(
+                        "chat run spawn skipped (guard held): session={} ws={}",
+                        p.0,
+                        q.workspace.clone().unwrap_or_default()
+                    );
+                    let notice = crate::chats::ChatMessage::assistant(
+                        "⚠ 已有运行在途，本条消息未执行；待当前运行结束后请重新发送。"
+                            .to_string(),
+                    );
+                    let _ = ws.chats.append_message(&p.0, notice.clone());
+                    let seq_base = ws
+                        .conversations
+                        .get(&p.0)
+                        .map(|c| c.turns.len())
+                        .unwrap_or(0);
+                    for turn in crate::conversation::chat_message_to_turns(&notice, seq_base) {
+                        let _ = ws.conversations.append_turn(&p.0, turn);
+                    }
+                    return serde_json::to_value(serde_json::json!({
+                        "session": session, "queued": msg, "busy": true
+                    }))
+                    .unwrap_or(Value::Null);
                 }
             }
             serde_json::to_value(serde_json::json!({ "session": session, "queued": msg }))
@@ -1826,6 +1852,15 @@ pub async fn chat_run_owner(
     // 会话：助手消息含 spawn_relay tool call（Run 卡片渲染来源）持久化 +
     // 双写 conversation turns，刷新不丢；后台起 run 驱动；SSE 回
     // delta/relay_spawned/done。解析器复用 hw server.rs 的 pub 版。
+    // PLAN-071 需求⑤ T-25/T-26：取消旗标注册 + 生命周期日志。
+    let cancel_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    s.0.chat_cancel_register(&run_key, cancel_flag.clone());
+    let run_started = std::time::Instant::now();
+    tracing::info!(
+        "chat run spawned: session={} ws={} mode={} msg_len={}",
+        session_id, ws_id, mode, user_msg.len()
+    );
+
     if let Some(plan_id) = crate::server::parse_plan_merge_command(&user_msg) {
         let task = format!("沉淀 {plan_id} 到 Spec 知识库");
         let req = crate::relay::store::StartRunRequest {
@@ -1911,6 +1946,12 @@ pub async fn chat_run_owner(
         mpsc_try_send(&tx, ev_done);
         // PLAN-055 ⑧(D1): plan-merge 短路的 run 由 relay driver 独立驱动，
         // chat 层 run 到此为止——清守卫。
+        s.0.chat_cancel_remove(&run_key);
+        tracing::info!(
+            "chat run finished (plan-merge shortcut): session={} elapsed={}s",
+            session_id,
+            run_started.elapsed().as_secs()
+        );
         s.0.chat_run_finish(&run_key);
         close_channel(&tx);
         return;
@@ -1942,6 +1983,8 @@ pub async fn chat_run_owner(
     let conversations = ws.conversations.clone();
     let ws_root = ws.root.clone();
     let state_for_ctx = std::sync::Arc::new(s.0.clone());
+    // PLAN-071 需求⑤ T-22：空闲看门狗窗口（env AUTO_RUN_IDLE_TIMEOUT_SECS，默认 300s）。
+    let idle_timeout = s.0.run_idle_timeout;
     let tx2 = tx.clone();
     let run_key2 = run_key.clone();
     // PLAN-064: 会话思考档位（spawn 任务内用克隆）。
@@ -1992,6 +2035,9 @@ pub async fn chat_run_owner(
             std::sync::Mutex<std::collections::HashMap<String, usize>>,
         > = std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
         let tx3 = tx2.clone();
+        // PLAN-071 需求⑤ T-22：空闲看门狗通道——on_event 每帧 touch。
+        let (wd_tx, mut wd_rx) = tokio::sync::watch::channel(std::time::Instant::now());
+        let wd_tx2 = wd_tx.clone();
         let acc2 = accumulated.clone();
         let think2 = thinking_acc.clone();
         let tc2 = tool_calls.clone();
@@ -2001,9 +2047,13 @@ pub async fn chat_run_owner(
         let blocks2 = blocks.clone();
         let cur_text2 = cur_text.clone();
         let tool_idx2 = tool_idx.clone();
+        // PLAN-071 需求⑤：超时/失败落盘臂专用的总线发射器（emit_bus 本体
+        // 已被 on_event 捕获）。
+        let emit_bus_tail = emit_bus.clone();
         let on_event: Arc<dyn Fn(auto_ai_agent::StreamEvent) + Send + Sync> =
             Arc::new(move |ev| {
                 use auto_ai_agent::StreamEvent;
+                let _ = wd_tx2.send(std::time::Instant::now());
                 let id = match &ev {
                     StreamEvent::ToolStart { .. } => {
                         let n = { let mut c = tc_counter.lock().unwrap(); *c += 1; *c };
@@ -2178,8 +2228,9 @@ pub async fn chat_run_owner(
                 }
                 mpsc_try_send(&tx3, value);
             });
-        // No cancellation endpoint yet — the run flag is never set.
-        let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        // PLAN-071 需求⑤ T-25：取消旗标来自注册表（cancel 端点置位，
+        // agent 于迭代边界检查；流内 stall 由下方空闲看门狗 drop 兜底）。
+        let cancel = cancel_flag.clone();
         // PLAN-040 T2：工具流式进度（ToolUpdate）桥接——工具经
         // ToolContext.progress 推上进程级 broadcast 总线，这里订阅并过滤本
         // session 的 tool_update 事件转进 chat SSE（SseEventDto 严格枚举之外
@@ -2209,7 +2260,49 @@ pub async fn chat_run_owner(
                 }
             }
         });
-        match agent.run_stream(&user_msg, on_event, cancel).await {
+        // PLAN-071 需求⑤ T-22：空闲看门狗 select——窗口内无任何流式事件即
+        // drop run_stream future（中止在途 LLM 流），按超时收束并落盘。
+        let mut idle_timed_out = false;
+        let run_out = tokio::select! {
+            r = agent.run_stream(&user_msg, on_event, cancel) => Some(r),
+            _ = async {
+                loop {
+                    let last = *wd_rx.borrow();
+                    tokio::time::sleep_until(tokio::time::Instant::from_std(last + idle_timeout)).await;
+                    if *wd_rx.borrow() <= last { break; }
+                }
+            } => { idle_timed_out = true; None }
+        };
+        if idle_timed_out {
+            // 需求⑤：超时收束——错误事件上总线/SSE，且错误消息**持久化**。
+            let text = format!(
+                "⏱ 运行空闲超时：{}s 内无任何流式事件，已中止本轮。建议把任务拆小后重发。",
+                idle_timeout.as_secs()
+            );
+            tracing::warn!(
+                "chat run idle-timeout: session={} idle={}s elapsed={}s",
+                session_id, idle_timeout.as_secs(), run_started.elapsed().as_secs()
+            );
+            let mut msg = crate::chats::ChatMessage::assistant(text.clone());
+            msg.profession_id = Some(agent_mode.role.clone());
+            msg.blocks.push(crate::chats::ChatBlock {
+                kind: "text".into(),
+                text: text.clone(),
+                tool: None,
+            });
+            let _ = chats.append_message(&session_id, msg.clone());
+            let seq_base = conversations
+                .get(&session_id)
+                .map(|c| c.turns.len())
+                .unwrap_or(0);
+            for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
+                let _ = conversations.append_turn(&session_id, turn);
+            }
+            emit_bus_tail(&serde_json::json!({"type": "error", "message": text}));
+            emit_bus_tail(&serde_json::json!({"type": "done", "output": text, "turns": 0}));
+            mpsc_try_send(&tx2, serde_json::json!({"type": "error", "message": text}));
+        } else {
+            match run_out.unwrap() {
             Ok(_) => {
                 // Persist the assistant reply + thinking + tool calls.
                 let text = std::mem::take(&mut *accumulated.lock().unwrap());
@@ -2244,9 +2337,31 @@ pub async fn chat_run_owner(
                 for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
                     let _ = conversations.append_turn(&session_id, turn);
                 }
+                tracing::info!(
+                    "chat run finished: session={} elapsed={}s",
+                    session_id,
+                    run_started.elapsed().as_secs()
+                );
             }
             Err(e) => {
-                mpsc_try_send(&tx2, serde_json::json!({"type":"error","message": format!("{e}")}));
+                // PLAN-071 需求⑤ T-22：失败**落盘**（原只发瞬态 SSE——失败对
+                // 用户不可见），双写 turns + 总线错误事件。
+                tracing::warn!("chat run failed: session={} error={}", session_id, e);
+                let text = format!("⚠ 运行失败：{e}");
+                let mut msg = crate::chats::ChatMessage::assistant(text.clone());
+                msg.profession_id = Some(agent_mode.role.clone());
+                let _ = chats.append_message(&session_id, msg.clone());
+                let seq_base = conversations
+                    .get(&session_id)
+                    .map(|c| c.turns.len())
+                    .unwrap_or(0);
+                for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
+                    let _ = conversations.append_turn(&session_id, turn);
+                }
+                emit_bus_tail(&serde_json::json!({"type": "error", "message": text}));
+                emit_bus_tail(&serde_json::json!({"type": "done", "output": text, "turns": 0}));
+                mpsc_try_send(&tx2, serde_json::json!({"type": "error", "message": text}));
+            }
             }
         }
         bridge.abort();
