@@ -55,6 +55,8 @@ store ForgeStore {
         // PLAN-067 T-05: 本会话审批模式（human|auto;缺省 human）。仅 UI 态 +
         // PATCH 持久化到会话;后端 relay driver 遇 gate 时读会话模式。
         var approval_mode str = "human"
+        // PLAN-071 需求⑥调试：PollStream 决策去重打点。
+        var dbg_last str = ""
     }
 
         msg Msg {
@@ -358,6 +360,7 @@ store ForgeStore {
             // web 轨 Sse.open 正常返回,置位次序无行为差异。
             .streaming = true
             .pre_stream_len = .messages.length
+            console.log("[SSE] open: " + path0 + qs)
             .stream_es = Sse.open(path0 + qs, .OnStreamEvent)
         }
 
@@ -393,7 +396,15 @@ store ForgeStore {
             if .streaming == true {
                 .poll_window.push(Date.now())
             }
-            if Date.now() - started > 120000 { return }
+            let dbg str = "wins=" + wins.length + " streaming=" + .streaming + " es=" + (.stream_es != None) + " last_sse=" + .last_sse_at
+            if dbg != .dbg_last {
+                .dbg_last = dbg
+                console.log("[POLL] " + dbg)
+            }
+            if Date.now() - started > 120000 {
+                console.log("[POLL] window expired (>120s) — backfill off")
+                return
+            }
             // PLAN-069 F-04：流式期（web 轨 SSE 已附加）**绝不全量回填**——
             // 回填快照不含在途 assistant，LLM 长思考/迭代间隙超过 3 秒健康
             // 门就放开，回填反复清掉已上屏的直播内容（用户实测：每轮边界
@@ -452,6 +463,7 @@ store ForgeStore {
             // PLAN-067 T-02：SSE 心跳——PollStream 健康门的依据（流活着
             // 就不做全量回填,防运行中快照清掉流式内容）。
             .last_sse_at = Date.now()
+            console.log("[SSE] ev=" + ev.type + " msgs=" + .messages.length + " draft=" + .current_draft.length + " think=" + .thinking.length)
 
             if ev.type == "delta" {
                 if ev.text != None {
@@ -468,6 +480,7 @@ store ForgeStore {
                         msg.content = msg.content + ev.text
                         .current_draft = .current_draft + ev.text
                         let _ab = appendBlockText(msg, "text", ev.text)
+                        console.log("[SSE] delta: chunk=" + ev.text.length + " draft=" + .current_draft.length + " blocks=" + msg.blocks.length)
                     }
                 }
                 return
@@ -486,6 +499,7 @@ store ForgeStore {
                         msg2.thinking = th + ev.thinking
                         .thinking = msg2.thinking
                         let _ab = appendBlockText(msg2, "thinking", ev.thinking)
+                        console.log("[SSE] thinking: chunk=" + ev.thinking.length + " acc=" + msg2.thinking.length + " blocks=" + msg2.blocks.length)
                     }
                 }
                 return
@@ -563,6 +577,7 @@ store ForgeStore {
                 return
             }
             if ev.type == "done" {
+                console.log("[SSE] done: msgs=" + .messages.length)
                 .streaming = false
                 // PLAN-062：done 即关 deadman 窗——本臂自清（跨模块调用
                 // 帧内 .StopStream 的 SET_FIELD 重绑定不达根态，T12 同款
