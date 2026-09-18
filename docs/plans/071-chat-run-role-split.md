@@ -4,10 +4,10 @@ status: executing
 feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显式角色分离）+ 可用性修改需求跟踪
 author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
-updated_at: 2026-09-18T17:05:00+08:00
-plan_revision: 13
-current_step: 49
-total_steps: 49
+updated_at: 2026-09-18T18:40:00+08:00
+plan_revision: 14
+current_step: 52
+total_steps: 52
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
 new_spec_components:
@@ -19,8 +19,8 @@ touched_goals: [goal-relay]
 
 ## 会话交接摘要（2026-09-18，供新会话接续）
 
-**状态**：12 个需求全部实施完毕（T-01..T-50 全勾，AC-01..33 就绪），分支
-`plan-071-dev` 领先 main（需求②-⑫未落地，需求①已随 phase-1 于
+**状态**：13 个需求全部实施完毕（T-01..T-54 全勾，AC-01..36 就绪），分支
+`plan-071-dev` 领先 main（需求②-⑬未落地，需求①已随 phase-1 于
 3c2b178 落地 main）。**下一步 = 用户终验 → /auto-plan:review → /auto-plan:merge**
 （合并时随 SD-01/02/03 发布 specs + ledger 挂载 + worktree/依赖快照清理）。
 
@@ -43,7 +43,8 @@ busy指示/cancel端点/生命周期日志）⑥流式状态可见性（常驻�
 停止按钮归位工具栏（T-42 顺带修复 cancel 端点未接真实路由的 T-25 缺陷）
 ⑩思考档位默认低（未设置即 low 生效，显式关持久化 off）⑪计划二级导航
 两行盒改造（session-item 同构 + 状态 badge 副标题）⑫计划页默认选中
-第一篇并加载内容（高亮以 store.current 为准）。
+第一篇并加载内容（高亮以 store.current 为准）⑬@ 提及三源扩展（Agent/
+计划/规范，@plan/@spec token + 运行时解析注入）+ 下拉左对齐修复。
 
 **关键教训（新会话必读）**：① `auto build` 可能因二进制锁/中断静默跳过
 codegen 或 vite 阶段——构建后必须核对生成产物（grep 标记类串）再验证；
@@ -183,6 +184,20 @@ store handler 为 async（Init 不等 LoadPlans），视图侧 Init 同步读不
 选中结果——自动选中必须落在 store 的 LoadPlans 链内，高亮改以
 `store.current` 为准（computed selectedSeq），视图 `selected_seq` 保留
 为无选中回退。
+
+**需求⑬（2026-09-18 用户追加，r14，随 @ 弹窗截图提出，含设计讨论）**：
+两条。**①对齐 bug**：@ 弹出行内容没有左对齐（截图实证行居中且偏高）——
+根因同 r4 教训：.at button 编译为脚手架 Button，预设 `justify-center
+h-10` 未被覆盖；修复 = 行按钮补 `justify-start h-auto`。**②@ 菜单三源
+扩展**：传统 CodingAgent 的 @ 多用于选文件，建议除 Agent 外增加计划与
+规范搜索（如 `@001` 指向计划 001）。设计裁定（用户征询意见后按推荐
+落地）：@ 引用的下游语义 = **运行时解析注入**——菜单选择插入
+`@plan/<id>` / `@spec/<relpath>` token（用户消息原文保留），chat 运行
+主体启动时解析 token 并把解析注记块（文件路径 + 计划标题/状态，提示用
+read_plan/文件工具自取全文）附加进 agent 输入；不整篇内联（上下文成本
+可控、agent 按需读取）。数据面：MentionInput 无 store 绑定（codegen 单
+别名限制），plans/specs 经 back.api 直取 + 首次触发 @ 懒加载；过滤/键盘
+导航沿用既有扁平管线（三源合并列表）。
 
 ## 1. 目标
 
@@ -345,6 +360,9 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
 | AC-31 | 新会话与未设置会话的思考档位默认显示并生效为"低"（发送产出思考块）；显式选"关"持久化为 off 且生效（无思考块）；档位选择跨刷新/重进会话保持 | 浏览器实测 |
 | AC-32 | 计划二级导航为两行盒（与会话/规范同构）：标题行 truncate + hover 全名，副标题行状态 badge；选中态 primary 边框底色；点选加载详情正常 | 浏览器实测 + 截图 |
 | AC-33 | 打开计划页时第一篇默认选中（primary 高亮）且右侧详情自动加载，空态提示不出现；用户点选切换行为不变；列表刷新（流转/归档）不抢当前选中 | 浏览器实测 |
+| AC-34 | @ 弹出行内容左对齐（justify-start），行高正常（h-auto） | 浏览器 DOM 实测 |
+| AC-35 | @ 菜单三源：Agent + 计划（@plan/<id>）+ 规范文件（@spec/<relpath>）；过滤跨三源（如 @001 命中计划）；选中插入对应 token | 浏览器实测 |
+| AC-36 | 运行时引用解析：发含 @plan/001 的消息，agent 无需读文件即能从注入块答出计划文件路径；用户可见/持久化消息保持原文 | 浏览器端到端实测 |
 
 ## 8. 执行步骤
 
@@ -598,6 +616,27 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   页第一篇即选中（primary 高亮）+ 详情自动渲染（Plan 001 正文）、空态
   提示不再出现、点选切换行为不变。commit 6fbfc2c。
 
+**需求⑬（r14，2026-09-18 用户提出）：@ 三源扩展 + 对齐修复**
+
+- [x] **T-51** 对齐修复：mention_dropdown.at 行按钮补 `justify-start
+  h-auto`（脚手架 Button 预设覆盖，r4 教训同源）。[✅ 2026-09-18] → AC-34
+- [x] **T-52** 前端三源：mention_helpers.at `mention_combined_items`
+  （Agent+计划+规范文件合并）+ `mention_insert` kind 感知（agent 插
+  @显示名 / plan·spec 插 @token）；mention_input.at 经 back.api 懒加载
+  plans_list/specs_tree（type==file 过滤），过滤与键盘导航沿用扁平管线；
+  dropdown kind 分支渲染（Avatar/📋/📄）。[✅ 2026-09-18] → AC-35
+- [x] **T-53** 后端解析注入：server.rs `resolve_chat_mention_refs`
+  （@plan/<seq> 查 PlansStore 含归档 → 路径+标题+状态；@spec/<relpath> →
+  docs/specs/ 路径；空串=不改写）；extern_impl chat_run_owner 解析块
+  附加进 agent.run_stream 输入。[✅ 2026-09-18] → AC-36
+- [x] **T-54** 构建 + 门禁 + 端到端实测。[✅ 2026-09-18] → AC-34..36
+  auto build 绿 + nextest 644/4 + vm-link-probe PASS（77602B）；serve 已
+  换新二进制。实测——菜单 13 行（9 Agent + 1 计划 + 3 规范）左对齐
+  42px；@001 过滤唯一命中、插入 `@plan/001 `；端到端：发"@plan/001 引用
+  的计划文件名是什么（不要读文件）"→ agent 从注入块答出
+  `docs/plans/001-bootstrap-auto-edit.md`，可见消息保持原文。
+  commit ab6645b。
+
 ## 9. 复审记录
 
 - 2026-09-17T23:00+08:00 `stage: new` PLAN-071 r1 起草完成。背景调查四类证据
@@ -753,8 +792,15 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   async，自动选中须落在 LoadPlans 链内、高亮以 store.current 为准
   （登记 T-49）| blockers: 无 | next: review（需求①-⑫全数就绪，一并
   复审 merge）。
+- 2026-09-18T18:40+08:00 `stage: work` | PLAN-071 | r14 需求⑬实施完成
+  `outcome: pass` | code_commit: ab6645b（worktree，分支 plan-071-dev）|
+  task_ids: T-51..T-54 完成 | evidence: nextest 644/4 + vm-link-probe PASS
+  77602B + auto build 绿（serve 已换新二进制）；实测——@ 菜单 13 行三源
+  （9 Agent+1 计划+3 规范）左对齐 42px、@001 过滤唯一命中插入 @plan/001、
+  端到端 agent 从注入块答出 docs/plans/001-bootstrap-auto-edit.md 且
+  可见消息保持原文 | blockers: 无 | next: review（需求①-⑬全数就绪，
+  一并复审 merge）。
 ## 10. 待澄清事项
-
 - 无阻塞项。备注①：vm_backend.rs `chat_run_stream` host 当前无 front 调用方
   （grep 实证），若后续 VM 前端接线，按新语义即订阅；备注②：后续追加的可用性
   修改需求在本计划以新 T-/AC-/SD- 追加并递增 plan_revision，不另开档（用户
