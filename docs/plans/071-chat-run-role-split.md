@@ -4,10 +4,10 @@ status: executing
 feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显式角色分离）+ 可用性修改需求跟踪
 author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
-updated_at: 2026-09-18T16:35:00+08:00
-plan_revision: 12
-current_step: 47
-total_steps: 47
+updated_at: 2026-09-18T17:05:00+08:00
+plan_revision: 13
+current_step: 49
+total_steps: 49
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
 new_spec_components:
@@ -19,8 +19,8 @@ touched_goals: [goal-relay]
 
 ## 会话交接摘要（2026-09-18，供新会话接续）
 
-**状态**：11 个需求全部实施完毕（T-01..T-47 全勾，AC-01..32 就绪），分支
-`plan-071-dev` 领先 main（需求②-⑪未落地，需求①已随 phase-1 于
+**状态**：12 个需求全部实施完毕（T-01..T-50 全勾，AC-01..33 就绪），分支
+`plan-071-dev` 领先 main（需求②-⑫未落地，需求①已随 phase-1 于
 3c2b178 落地 main）。**下一步 = 用户终验 → /auto-plan:review → /auto-plan:merge**
 （合并时随 SD-01/02/03 发布 specs + ledger 挂载 + worktree/依赖快照清理）。
 
@@ -42,7 +42,8 @@ busy指示/cancel端点/生命周期日志）⑥流式状态可见性（常驻�
 ⑧流式 UX 六步规格（乐观标题栏/半开态/回填防清除）⑨流式等待点组件+
 停止按钮归位工具栏（T-42 顺带修复 cancel 端点未接真实路由的 T-25 缺陷）
 ⑩思考档位默认低（未设置即 low 生效，显式关持久化 off）⑪计划二级导航
-两行盒改造（session-item 同构 + 状态 badge 副标题）。
+两行盒改造（session-item 同构 + 状态 badge 副标题）⑫计划页默认选中
+第一篇并加载内容（高亮以 store.current 为准）。
 
 **关键教训（新会话必读）**：① `auto build` 可能因二进制锁/中断静默跳过
 codegen 或 vite 阶段——构建后必须核对生成产物（grep 标记类串）再验证；
@@ -173,6 +174,15 @@ item 加副标题行，用 **badge 展示计划文件的状态**（draft/executi
 execution_done/reviewed/archived 等后端原值，样式对齐详情页 meta badge
 `px-2 py-0.5 rounded-md text-xs bg-accent`）。标题行保留 truncate +
 hover（title 属性）全名。
+
+**需求⑫（2026-09-18 用户追加，r13，随截图提出）**：计划页打开时列表
+第一篇没有默认选中、内容空白（"从侧栏选择一个计划"）。**默认选中第一篇
+并加载对应内容**。根因：PlansStore.LoadPlans 只填列表，无自动选中
+（会话轨 ForgeStore.Init 有"自动选中首会话"口径，计划轨缺失）；且生成
+store handler 为 async（Init 不等 LoadPlans），视图侧 Init 同步读不到
+选中结果——自动选中必须落在 store 的 LoadPlans 链内，高亮改以
+`store.current` 为准（computed selectedSeq），视图 `selected_seq` 保留
+为无选中回退。
 
 ## 1. 目标
 
@@ -334,6 +344,7 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
 | AC-30 | 流式期停止按钮位于流式消息工具栏（复制/分叉旁），画布底部独立按钮退役；点击取消运行，收束后消失 | 浏览器实测 |
 | AC-31 | 新会话与未设置会话的思考档位默认显示并生效为"低"（发送产出思考块）；显式选"关"持久化为 off 且生效（无思考块）；档位选择跨刷新/重进会话保持 | 浏览器实测 |
 | AC-32 | 计划二级导航为两行盒（与会话/规范同构）：标题行 truncate + hover 全名，副标题行状态 badge；选中态 primary 边框底色；点选加载详情正常 | 浏览器实测 + 截图 |
+| AC-33 | 打开计划页时第一篇默认选中（primary 高亮）且右侧详情自动加载，空态提示不出现；用户点选切换行为不变；列表刷新（流转/归档）不抢当前选中 | 浏览器实测 |
 
 ## 8. 执行步骤
 
@@ -574,6 +585,19 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   副标题 badge "drafting"）、选中态 border-primary/25 + bg-primary/10、
   点选详情 Markdown 正常加载。commit 701c013。
 
+**需求⑫（r13，2026-09-18 用户提出）：计划页默认选中第一篇**
+
+- [x] **T-48** plans_store.at LoadPlans：列表到位后 `current == None` 则
+  `LoadPlan(.plans[0].seq)`（与会话轨 Init 自动选中首会话同口径；刷新
+  不抢当前选中）。[✅ 2026-09-18] → AC-33
+- [x] **T-49** plans_view.at：computed `selectedSeq` 读 store.current，
+  class 高亮条件改用之（async 链使视图 Init 同步不可见，store 为单一
+  真源）；`selected_seq` 保留回退。[✅ 2026-09-18] → AC-33
+- [x] **T-50** 构建 + 门禁 + 浏览器实测。[✅ 2026-09-18] → AC-33
+  auto build 绿 + vm-link-probe PASS（77591B，纯前端）；实测——打开计划
+  页第一篇即选中（primary 高亮）+ 详情自动渲染（Plan 001 正文）、空态
+  提示不再出现、点选切换行为不变。commit 6fbfc2c。
+
 ## 9. 复审记录
 
 - 2026-09-17T23:00+08:00 `stage: new` PLAN-071 r1 起草完成。背景调查四类证据
@@ -721,6 +745,14 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   双类、点选详情正常；实施注记 R016（text 点路径开头多段拼接 → span 内
   多 text 子节点规避）登记 T-46 | blockers: 无 | next: review（需求①-⑪
   全数就绪，一并复审 merge）。
+- 2026-09-18T17:05+08:00 `stage: work` | PLAN-071 | r13 需求⑫实施完成
+  `outcome: pass` | code_commit: 6fbfc2c（worktree，分支 plan-071-dev）|
+  task_ids: T-48..T-50 完成 | evidence: 纯前端 auto build 绿 +
+  vm-link-probe PASS 77591B；实测——打开计划页第一篇即选中 + 详情自动
+  渲染、空态提示消失、点选切换不变；技术注记：生成 store handler 为
+  async，自动选中须落在 LoadPlans 链内、高亮以 store.current 为准
+  （登记 T-49）| blockers: 无 | next: review（需求①-⑫全数就绪，一并
+  复审 merge）。
 ## 10. 待澄清事项
 
 - 无阻塞项。备注①：vm_backend.rs `chat_run_stream` host 当前无 front 调用方
