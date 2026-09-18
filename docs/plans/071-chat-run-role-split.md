@@ -4,10 +4,10 @@ status: executing
 feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显式角色分离）+ 可用性修改需求跟踪
 author: zhaop / zcode
 created_at: 2026-09-17T22:50:00+08:00
-updated_at: 2026-09-18T16:05:00+08:00
-plan_revision: 11
-current_step: 45
-total_steps: 45
+updated_at: 2026-09-18T16:35:00+08:00
+plan_revision: 12
+current_step: 47
+total_steps: 47
 supersedes_spec_components:
   - docs/specs/modules/chat-run-policy.md
 new_spec_components:
@@ -19,8 +19,8 @@ touched_goals: [goal-relay]
 
 ## 会话交接摘要（2026-09-18，供新会话接续）
 
-**状态**：10 个需求全部实施完毕（T-01..T-45 全勾，AC-01..31 就绪），分支
-`plan-071-dev` 领先 main（需求②-⑩未落地，需求①已随 phase-1 于
+**状态**：11 个需求全部实施完毕（T-01..T-47 全勾，AC-01..32 就绪），分支
+`plan-071-dev` 领先 main（需求②-⑪未落地，需求①已随 phase-1 于
 3c2b178 落地 main）。**下一步 = 用户终验 → /auto-plan:review → /auto-plan:merge**
 （合并时随 SD-01/02/03 发布 specs + ledger 挂载 + worktree/依赖快照清理）。
 
@@ -41,7 +41,8 @@ busy指示/cancel端点/生命周期日志）⑥流式状态可见性（常驻�
 裁定删除冗余组件由 ThinkBlock 半开态独占）⑦思考块沉淀与渲染修复
 ⑧流式 UX 六步规格（乐观标题栏/半开态/回填防清除）⑨流式等待点组件+
 停止按钮归位工具栏（T-42 顺带修复 cancel 端点未接真实路由的 T-25 缺陷）
-⑩思考档位默认低（未设置即 low 生效，显式关持久化 off）。
+⑩思考档位默认低（未设置即 low 生效，显式关持久化 off）⑪计划二级导航
+两行盒改造（session-item 同构 + 状态 badge 副标题）。
 
 **关键教训（新会话必读）**：① `auto build` 可能因二进制锁/中断静默跳过
 codegen 或 vite 阶段——构建后必须核对生成产物（grep 标记类串）再验证；
@@ -164,6 +165,14 @@ relay_run_box.at rb-spin / streaming_table.at nth-child 先例）；停止钮直
 ①后端运行路径 None → `or_else(Some("low"))`（extern_impl 手改先例区）；
 ②前端四处回填/初始 `?? ""` → `?? "low"`（store 初值/NewSession/
 SwitchSession/BranchTo）；③档位菜单"关"项 `pick("")` → `pick("off")`。
+
+**需求⑪（2026-09-18 用户追加，r12，随计划页截图提出）**：计划二级导航
+改造——现状是普通单行按钮（"001 — bootstrap-auto-edit […"截断形态），
+改成与"会话"/"规范"同款的 Sidebar 两行盒（session-item 形态）；每个
+item 加副标题行，用 **badge 展示计划文件的状态**（draft/executing/
+execution_done/reviewed/archived 等后端原值，样式对齐详情页 meta badge
+`px-2 py-0.5 rounded-md text-xs bg-accent`）。标题行保留 truncate +
+hover（title 属性）全名。
 
 ## 1. 目标
 
@@ -324,6 +333,7 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
 | AC-29 | 发送后首个 thinking/delta 到达前，assistant 气泡内显示动态等待点；块到达后消失 | 浏览器实测 |
 | AC-30 | 流式期停止按钮位于流式消息工具栏（复制/分叉旁），画布底部独立按钮退役；点击取消运行，收束后消失 | 浏览器实测 |
 | AC-31 | 新会话与未设置会话的思考档位默认显示并生效为"低"（发送产出思考块）；显式选"关"持久化为 off 且生效（无思考块）；档位选择跨刷新/重进会话保持 | 浏览器实测 |
+| AC-32 | 计划二级导航为两行盒（与会话/规范同构）：标题行 truncate + hover 全名，副标题行状态 badge；选中态 primary 边框底色；点选加载详情正常 | 浏览器实测 + 截图 |
 
 ## 8. 执行步骤
 
@@ -548,6 +558,22 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   生效）③显式选"关"发消息无思考块 ④整页刷新 + 重进会话后"关"保持
   （= 后端已持久化 "off"）。commit fac6757。
 
+**需求⑪（r12，2026-09-18 用户提出）：计划二级导航两行盒改造**
+
+- [x] **T-46** plans_view.at：列表容器 `plans-nav-list` → 会话轨同款
+  （`flex-1 overflow-y-auto px-2 pt-1.5`）；item 改 session-item 两行盒
+  （选中/未选中双态 class，规格对齐 specs_view/chats_view），标题行
+  truncate + title 悬停全名，副标题行状态 badge。实施注记：`text` 以
+  点路径开头的多段拼接（`text .plan.id + " — " + …`）触发 codegen R016
+  （元素标签 "." 泄漏）——标题行改回 span 内多 text 子节点（PLAN-061 T9
+  验证安全形）；attr 拼接（`title:`）有 specs_category 先例可用。
+  [✅ 2026-09-18] → AC-32
+- [x] **T-47** 构建 + 门禁 + 浏览器实测。[✅ 2026-09-18] → AC-32
+  auto build 绿 + vm-link-probe PASS（77545B，纯前端后端零改动）；实机
+  截图 + DOM 实证：两行盒高 64px（标题行 "001 — bootstrap-auto-edit" +
+  副标题 badge "drafting"）、选中态 border-primary/25 + bg-primary/10、
+  点选详情 Markdown 正常加载。commit 701c013。
+
 ## 9. 复审记录
 
 - 2026-09-17T23:00+08:00 `stage: new` PLAN-071 r1 起草完成。背景调查四类证据
@@ -687,6 +713,14 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   默认低发消息产出思考块（11 tokens）、显式关无思考块、刷新重进关保持；
   8090 serve 已换新二进制 | blockers: 无 | next: review（需求①-⑩全数
   就绪，一并复审 merge）。
+- 2026-09-18T16:35+08:00 `stage: work` | PLAN-071 | r12 需求⑪实施完成
+  `outcome: pass` | code_commit: 701c013（worktree，分支 plan-071-dev）|
+  task_ids: T-46..T-47 完成 | evidence: 纯前端（后端零改动）auto build 绿
+  + vm-link-probe PASS 77545B；实机截图 + DOM 实证——计划导航两行盒 64px
+  （标题 truncate + hover 全名 / 副标题 badge "drafting"）、选中态 primary
+  双类、点选详情正常；实施注记 R016（text 点路径开头多段拼接 → span 内
+  多 text 子节点规避）登记 T-46 | blockers: 无 | next: review（需求①-⑪
+  全数就绪，一并复审 merge）。
 ## 10. 待澄清事项
 
 - 无阻塞项。备注①：vm_backend.rs `chat_run_stream` host 当前无 front 调用方
