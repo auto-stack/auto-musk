@@ -865,23 +865,28 @@ pub fn chats_message(s: &State<AppState>, q: Query<crate::auto_generated::server
                     // PLAN-071 需求⑤ T-24：守卫占用不再静默——落一条可见的
                     // busy 提示（持久化，与超时/失败落盘同构），响应体带 busy
                     // 字段供 API 消费方判断。
+                    // PLAN-071 需求⑮：b.queued=true 为前端队列自动重发——
+                    // 收束竞态窗口内的重试不落提示（否则每拍重试都会写入
+                    // 一条 ⚠），只回 busy:true 由前端稍后再试。
                     tracing::warn!(
                         "chat run spawn skipped (guard held): session={} ws={}",
                         p.0,
                         q.workspace.clone().unwrap_or_default()
                     );
-                    let notice = crate::chats::ChatMessage::assistant(
-                        "⚠ 已有运行在途，本条消息未执行；待当前运行结束后请重新发送。"
-                            .to_string(),
-                    );
-                    let _ = ws.chats.append_message(&p.0, notice.clone());
-                    let seq_base = ws
-                        .conversations
-                        .get(&p.0)
-                        .map(|c| c.turns.len())
-                        .unwrap_or(0);
-                    for turn in crate::conversation::chat_message_to_turns(&notice, seq_base) {
-                        let _ = ws.conversations.append_turn(&p.0, turn);
+                    if !b.queued {
+                        let notice = crate::chats::ChatMessage::assistant(
+                            "⚠ 已有运行在途，本条消息未执行；待当前运行结束后请重新发送。"
+                                .to_string(),
+                        );
+                        let _ = ws.chats.append_message(&p.0, notice.clone());
+                        let seq_base = ws
+                            .conversations
+                            .get(&p.0)
+                            .map(|c| c.turns.len())
+                            .unwrap_or(0);
+                        for turn in crate::conversation::chat_message_to_turns(&notice, seq_base) {
+                            let _ = ws.conversations.append_turn(&p.0, turn);
+                        }
                     }
                     return serde_json::to_value(serde_json::json!({
                         "session": session, "queued": msg, "busy": true

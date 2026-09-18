@@ -359,6 +359,13 @@ widget ChatsView {
                     // PLAN-071 需求⑨：启动窗口等待点与停止按钮均迁入
                     // ChatMessage 气泡（等待点 = 气泡内三点动画；停止钮 =
                     // 气泡工具栏复制/分叉旁）——本画布级独立停止按钮退役。
+                    // PLAN-071 需求⑮：排队消息指示条（流式收束后自动发送）。
+                    if .store.pending_msgs.length > 0 {
+                        row {
+                            style: "self-start mt-1 text-xs text-muted-foreground bg-transparent border border-border rounded-md px-2 py-1"
+                            text "⏳ 已排队 " + .store.pending_msgs.length + " 条，当前回复结束后自动发送"
+                        }
+                    }
                     if .store.error != "" {
                         text .store.error { style: "text-destructive text-[14px] py-2 px-3 bg-destructive/10 rounded-lg self-start max-w-full" }
                     }
@@ -474,8 +481,15 @@ widget ChatsView {
                 let cmd = relay_command_match(tt);
                 .input = "";
                 if cmd == None {
-                    store.Send(tt);
-                    store.StartStream(.store.session_id, .store.workspace, .store.token, tt)
+                    // PLAN-071 需求⑮：运行在途时消息入队（画布显示排队指示
+                    // 条，流式收束后 store.FlushQueue 自动按 FIFO 发送），
+                    // 不再触发后端 busy 拒绝链路（后者保留为跨标签页兜底）。
+                    if .store.streaming {
+                        store.QueueMessage(tt)
+                    } else {
+                        store.Send(tt);
+                        store.StartStream(.store.session_id, .store.workspace, .store.token, tt)
+                    }
                 } else {
                     platformRunRelayCommand(cmd)
                 }

@@ -346,6 +346,10 @@ pub struct ChatMessageBody {
     /// PLAN-055 ⑧(D1): optional run trigger — absent/None keeps the web-track
     /// subscription-driven semantics unchanged.
     pub run: Option<bool>,
+    /// PLAN-071 需求⑮：排队重试标记——前端队列自动重发携带 queued=true，
+    /// 守卫占用时不落 busy 提示（只回 busy:true，前端会再次重试）。
+    #[serde(default)]
+    pub queued: bool,
 }
 
 #[derive(Debug, Serialize)]

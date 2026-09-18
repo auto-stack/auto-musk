@@ -60,6 +60,9 @@ store ForgeStore {
         var session_mode str = "superpowers"
         // PLAN-071 需求⑥调试：PollStream 决策去重打点。
         var dbg_last str = ""
+        // PLAN-071 需求⑮：运行在途时排队的待发消息（FIFO；流式收束后
+        // FlushQueue 逐条自动发送）。
+        var pending_msgs []Value = []
     }
 
         msg Msg {
@@ -74,6 +77,10 @@ store ForgeStore {
         SetThinking(str),
         FinalizeDraft,
         SetError(str),
+        // PLAN-071 需求⑮：运行在途时消息排队（流式收束后 FlushQueue 自动
+        // 发送），替代"拒绝 + 请重发"。
+        QueueMessage(str),
+        FlushQueue,
         // PLAN-064: 思考档位切换（off|low|high|max；PLAN-071 需求⑩起未设置
         // 即默认 low，"off" 为显式关闭）。
         SetThinkingLevel(str),
@@ -254,7 +261,7 @@ store ForgeStore {
             // assistant 消息由 SSE delta 事件回写。
             // PLAN-055 ⑧(D1)：run=true 显式触发后端 agent 运行——VM 轨 Sse.open
             // 为 no-op，订阅触发路径不可达；gen/web 轨双保险无害（订阅侧守卫防双跑）。
-            var resp = chats_send_message(.session_id, content, "", true);
+            var resp = chats_send_message(.session_id, content, "", true, false);
             .streaming = true
         }
 
@@ -276,7 +283,48 @@ store ForgeStore {
 
         .SetThinking(text) -> { .thinking = text }
         .FinalizeDraft -> { .streaming = false }
-        .SetError(msg) -> { .error = msg; .streaming = false }
+        .SetError(msg) -> { .error = msg; .streaming = false; .FlushQueue() }
+
+        // PLAN-071 需求⑮：入队（运行在途时由 SendInput 调用）。
+        .QueueMessage(text) -> {
+            .pending_msgs.push(text)
+        }
+
+        // PLAN-071 需求⑮：流式收束后排空队列——取最旧一条直接 POST
+        // （queued=true：守卫占用只回 busy:true 不落提示）。busy = 收束
+        // 竞态窗口（done 已见、守卫未清）——整条退回队首，由 PollStream
+        // 下一拍重试；成功则置流式态 + 挂 SSE（余下条目等下一次收束）。
+        // streaming 为真时是 no-op（防双发）。
+        .FlushQueue -> {
+            if .streaming == false {
+                if .pending_msgs.length > 0 {
+                    let first = .pending_msgs[0]
+                    var rest []Value = []
+                    var idx = 0
+                    for m in .pending_msgs {
+                        if idx > 0 {
+                            rest.push(m)
+                        }
+                        idx = idx + 1
+                    }
+                    var resp = chats_send_message(.session_id, first, "", true, true);
+                    if resp != None {
+                        if resp.busy == true {
+                            var back []Value = []
+                            back.push(first)
+                            for m in rest {
+                                back.push(m)
+                            }
+                            .pending_msgs = back
+                            return
+                        }
+                    }
+                    .pending_msgs = rest
+                    .streaming = true
+                    .StartStream(.session_id, .workspace, .token, first)
+                }
+            }
+        }
         // PLAN-064: 档位切换——先写 UI 态再 PATCH 持久化（失败不回滚，下次
         // 切会话会以服务端为准回填）。
         .SetThinkingLevel(level) -> {
@@ -391,6 +439,9 @@ store ForgeStore {
 
         // Plan 051 T10（G1 阶段1）：轮询拍——全量回填 + 完成启发式。
         .PollStream -> {
+            // PLAN-071 需求⑮：每拍驱动队列重试（busy 竞态退回后由此重发；
+            // streaming 为真或队列空时是 no-op）。
+            .FlushQueue()
             // PLAN-536 T12(D4 修复,musk 侧④)：门控改 **deadman 时间窗**。
             // 原因链（536 T12 实机时序实证）:跨模块调用帧（SendInput 体内
             // `store.Send/store.StartStream`）对 store 字段的 SET_FIELD
@@ -473,6 +524,8 @@ store ForgeStore {
                             while .poll_window.length > 0 {
                                 let _pw1 = .poll_window.pop()
                             }
+                            // PLAN-071 需求⑮：收束即排空排队消息。
+                            .FlushQueue()
                         }
                     }
                 }
@@ -608,6 +661,8 @@ store ForgeStore {
                 // 实证）。仅停流（Sse.close 释放连接）。
                 .streaming = false
                 .stream_es = Sse.close(.stream_es)
+                // PLAN-071 需求⑮：收束即排空排队消息。
+                .FlushQueue()
                 return
             }
             if ev.type == "error" {
@@ -618,6 +673,8 @@ store ForgeStore {
                     let _pw3 = .poll_window.pop()
                 }
                 .StopStream()
+                // PLAN-071 需求⑮：收束即排空排队消息。
+                .FlushQueue()
                 return
             }
 
