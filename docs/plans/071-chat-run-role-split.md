@@ -883,6 +883,15 @@ Arc<AtomicBool>>>`——owner 孵化时注册自己的 cancel flag（出口移�
   回验触发需求⑤ busy 提示（正向旁证）。已知项：composer 内 token 着色
   需上游 __autoMentionHtml 匹配器改造（auto-lang），登记后续 |
   blockers: 无 | next: review（需求①-⑭全数就绪，一并复审 merge）。
+- 2026-09-18T20:10+08:00 `stage: work` | PLAN-071 | r16 需求⑮实施完成
+  `outcome: pass` | code_commit: 4d156c4（worktree，分支 plan-071-dev）|
+  task_ids: T-58..T-61 完成 | evidence: nextest 644/4 + vm-link-probe
+  PASS + auto build 绿（serve 已换新二进制）；端到端——长任务在途发
+  第二条 → "⏳ 已排队 1 条"且无 busy、首轮收束后自动发送独立成轮回答、
+  chats.json 四 turn 齐全；连带修复 ChatStore 并发丢写（write_lock 12
+  方法串行化）。登记：parity_plans 单测偶发失败为并行噪声（隔离+复跑
+  全绿）| blockers: 无 | next: review（需求①-⑮全数就绪，一并复审
+  merge）。
 ## 10. 待澄清事项
 - 无阻塞项。备注①：vm_backend.rs `chat_run_stream` host 当前无 front 调用方
   （grep 实证），若后续 VM 前端接线，按新语义即订阅；备注②：后续追加的可用性
