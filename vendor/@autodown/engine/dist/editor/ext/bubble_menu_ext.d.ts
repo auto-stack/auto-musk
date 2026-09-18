@@ -13,6 +13,7 @@ export declare function bubbleShouldShow({ editor, state, }: {
         selection: {
             empty: boolean;
         };
+        marks?: unknown[];
     };
 }): boolean;
 export declare function runBubbleLink(editor: any, prompt: string | null | undefined): void;
