@@ -4,7 +4,7 @@ status: executing
 feature_name: chat 一句话双回答回归修复（SSE 订阅与运行主体显式角色分离）+ 可用性修改需求跟踪
 author: zhaop / zcode
 created_at: 2026-09-17T15:20:00+08:00
-updated_at: 2026-09-18T13:00:00+08:00
+updated_at: 2026-09-18T09:41:00+08:00
 plan_revision: 6
 current_step: 21
 total_steps: 26
@@ -85,12 +85,15 @@ mode→role 映射在场（superpowers→"assistant"，modes/*.at）。
    specSectionItems 计数；概览盒不计）。
 
 **需求⑤（2026-09-18 用户报告会话 64f0076c 零回答，r6 立项）**：长任务消息发出
-后 AI 一直无回答。诊断（日志+探针+DOM 实证）：09:34:54 的 run 孵化成功（单组
-registry 日志）、但 5 小时未收束——运行体挂死（LLM 流 stall 或长任务命令永不
-退出），per-session 守卫被其占住；期间所有新消息被 chats_message **静默吞掉**
-（try_start 失败不孵化也不回报），且 Err 收束臂只发瞬态 SSE 不落盘——用户侧
-永远零反馈。处理：重启 serve 清内存守卫解锁（未持久化的挂死运行工作丢失），
-探针会话 6s 收到回复确认通道恢复。修复面四条：
+后 AI 一直无回答（发送 09:34:54、报告 ~09:36，等待约 1-2 分钟——初诊误判
+"5 小时"，以 git/日志时间戳更正为**即时卡住**）。诊断（日志+探针+DOM 实证）：
+09:34:54.564 run 孵化成功（单组 registry 日志）后**一分钟内零产出、永不收束**
+——运行体挂死，per-session 守卫被其占住；期间所有新消息被 chats_message
+**静默吞掉**（try_start 失败不孵化也不回报），且 Err 收束臂只发瞬态 SSE 不落
+盘——用户侧永远零反馈。即时卡死形态 → 头号嫌疑 = **首个 LLM 请求流 stall**
+（无读超时即永挂）；工具审批门/长命令需先有模型响应，概率次之。处理：重启
+serve 清内存守卫解锁（未持久化的挂死运行工作丢失），探针会话 6s 收到回复确认
+通道恢复。修复面五条：
 1. **LLM 流读超时**：流 stall 超时（如 120s 无字节）→ run 报错收束 + 守卫
    清理 + **错误消息持久化**（当前 Err 臂不落盘 = 失败对用户不可见）。
 2. **run_command 执行超时**：挂起命令（dev server 类永不退出）可配置超时 +
@@ -99,6 +102,8 @@ registry 日志）、但 5 小时未收束——运行体挂死（LLM 流 stall 
    前端显示"运行中…"。
 4. **取消运行**：run_stream 的 cancel flag 接线为 POST cancel 端点 + UI 停止
    按钮（现无任何取消途径，只能重启 serve）。
+5. **运行生命周期日志**：spawn/finish/fail（含原因）打 INFO——本次诊断只能靠
+   registry 加载日志倒推，太隐晦。
 
 ## 1. 目标
 
@@ -359,11 +364,11 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
 
 ## 9. 复审记录
 
-- 2026-09-17T15:20+08:00 `stage: new` PLAN-071 r1 起草完成。背景调查四类证据
+- 2026-09-17T23:00+08:00 `stage: new` PLAN-071 r1 起草完成。背景调查四类证据
   （会话数据/服务端日志/代码行号/历史提交与测试口径）齐备，路径均实测存在。
   `outcome: pass` ——任务覆盖全部 AC 与 SD；无阻塞待澄清。
   `next: work`（用户已授权直接实施）。
-- 2026-09-17T16:25+08:00 `stage: work` | PLAN-071 | r2 | `outcome: pass` |
+- 2026-09-17T23:20+08:00 `stage: work` | PLAN-071 | r2 | `outcome: pass` |
   code_commit: 5ca6cfe（实现）+ 3b2e72d（spec 预备），分支 plan-071-dev
   （worktree `.wt/musk-071/auto-musk`，基座 ba90b30；依赖快照
   auto-ai@9d2102c / auto-lang@844ff9c81，无改动待 merge 清理）|
@@ -410,12 +415,12 @@ auto-musk 代码/测试/规范修改（worktree 内）+ docs/plans 计划簿记�
   evidence: 浏览器 DOM 实测四条（会话标题 ellipsis+title、× 第二行右缘 gap=0、
   首盒 topPad 6px/4px、规范盒两行+计数 goals 11/architecture 8/designs 10）+
   截图确认；实施补丁 h-auto（Button h-10 定高） | blockers: 无 | next: review
-- 2026-09-18T14:00+08:00 `stage: work` | PLAN-071 | r5 用户回验（hover 高度
+- 2026-09-18T09:09+08:00 `stage: work` | PLAN-071 | r5 用户回验（hover 高度
   跳动）| `outcome: pass` | code_commit: 计数行 text-sm 提交 | evidence: 用户
   截图实证 hover 时卡片被顶高——"n 条" text-xs 行高 16px < × 盒 20px；计数行
   改 text-sm + leading-5（14px/20px 同高），浏览器实测 hover 前后卡高 62→62
   差 0；规范面板计数行同步保持一致 | blockers: 无 | next: review。
-- 2026-09-18T14:30+08:00 **阶段落地收据（phase-1，用户指示先合后审）**：
+- 2026-09-18T09:34+08:00 **阶段落地收据（phase-1，用户指示先合后审）**：
   main 合并 plan-071-dev --no-ff → merge commit `3c2b178`（10 提交，22 文件
   +625/-179）；落地门禁 cargo nextest -p musk 640 passed/4 skipped +
   vm-link-probe PASS（77565B）+ auto build 绿。计划簿记随合并上 main
