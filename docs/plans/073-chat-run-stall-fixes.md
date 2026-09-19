@@ -324,3 +324,15 @@ badge 上线后的四个交互问题：
 
 worktree musk-073（plan-073-dev，merge 689be48）已合回 main 并清理；
 dist 已部署，8090 刷新生效。新增文件：composer_cursor.web-only.ts。
+
+**r12（2026-09-19 晚②）——工具卡头两修（用户报障）**：
+1. **skill 卡头无名**：getToolSummary 加 skill_name 分支——skill 工具参数
+   为 `skill_name`（auto-ai skill.rs schema），名称以 path 青色段显示
+   （与 write_file 路径同款）。
+2. **run_command 命令串灰色**：command 的 seg 类型 desc→cmd，chat_message
+   seg class 加 cmd 臂（text-muted-foreground）+ scoped
+   `.tool-seg.seg-cmd`——命令串与工具名拉开层次。
+
+验证：node 单测（skill→path "executing-plans"、run_command→cmd、
+write_file 不回归）+ 真机 run（skill 卡青色名 + run_command 灰色命令串）。
+worktree musk-073（plan-073-dev@8e87b85）已合回 main；dist 已部署。
