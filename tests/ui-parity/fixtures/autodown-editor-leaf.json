@@ -1,0 +1,10 @@
+{
+  "props": {
+    "content": "# Specification Document\n\nThis is a **draft** specification item.\n\n- [ ] Task 1\n- [x] Task 2",
+    "placeholder": "Enter specification markdown..."
+  },
+  "contract": {
+    "kind": "editor",
+    "state": "editable-draft"
+  }
+}

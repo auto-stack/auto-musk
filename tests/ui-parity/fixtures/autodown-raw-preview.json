@@ -1,0 +1,10 @@
+{
+  "props": {
+    "workspace": "musk-preview",
+    "path": "docs/architecture.md"
+  },
+  "contract": {
+    "kind": "preview",
+    "state": "markdown-file-preview"
+  }
+}

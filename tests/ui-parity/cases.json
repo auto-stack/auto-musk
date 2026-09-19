@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "plan": "PLAN-075",
+  "plan": "PLAN-076",
   "unitPolicy": "auto-reachable",
   "casePolicy": "one-per-reachable-plus-inline",
   "units": [],
@@ -44,6 +44,36 @@
       "state": "gate-waiting",
       "owner": "PLAN-077",
       "plan": "PLAN-077"
+    },
+    {
+      "id": "autodown-editor-leaf",
+      "unit": "AutoDownEditor",
+      "logicalUnit": "editor",
+      "fixture": "autodown-editor-leaf.json",
+      "mode": "render-and-interact",
+      "state": "editable-draft",
+      "owner": "PLAN-076",
+      "plan": "PLAN-076"
+    },
+    {
+      "id": "autodown-view-standalone",
+      "unit": "Markdown",
+      "logicalUnit": "document",
+      "fixture": "autodown-view-standalone.json",
+      "mode": "fixture-contract",
+      "state": "rich-markdown-view",
+      "owner": "PLAN-076",
+      "plan": "PLAN-076"
+    },
+    {
+      "id": "autodown-raw-preview",
+      "unit": "RawPreview",
+      "logicalUnit": "preview",
+      "fixture": "autodown-raw-preview.json",
+      "mode": "fixture-contract",
+      "state": "markdown-file-preview",
+      "owner": "PLAN-076",
+      "plan": "PLAN-076"
     },
     {
       "id": "style-controls-login",

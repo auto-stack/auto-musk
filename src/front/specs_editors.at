@@ -94,31 +94,28 @@ widget TagInput(value: obj, placeholder: str) {
     }
 }
 
-// AutoDownEditor — web 侧即 textarea stub(PLAN-030 permissive 形态),
-// 仅 update 输入,save/cancel 事件 web stub 从未发射——gen 等价移植。
-widget AutoDownEditor(content: str, placeholder: str) {
+// AutoDownEditor — PLAN-076: 统一转接原生 autodown_editor 引擎组件。
+// 废除历史 textarea stub，支持多块编辑、快捷斜杠命令与双端富文本状态自持。
+widget AutoDownEditor(content: str, placeholder: str = "") {
     msg Msg {
-        Input,
+        Input(str),
     }
     model {
-        // v-model(U5)要求 model 变量;web stub 的 update 输出无消费面,
-        // gen 编辑态经本地草稿自持(SSR 空值经对拍 N14b 归一)。
         var draft str = ""
     }
-    style {
-.autodown-stub { width: 100%; min-height: 200px; padding: 8px; border: 1px solid var(--af-border); border-radius: 6px; background: var(--af-bg); color: var(--af-fg); font-family: monospace; font-size: 0.9rem; resize: vertical; }
-    }
     view {
-        textarea {
-            class: "autodown-stub"
+        autodown_editor {
+            key: "specs-editor"
+            content: .draft
             placeholder: .placeholder
-            value: .draft
+            can_edit: true
+            class: "w-full min-h-[200px]"
             oninput: .Input
         }
     }
     on {
         .Init -> { .draft = .content }
-        .Input -> { }
+        .Input(val) -> { .draft = val }
     }
 }
 

@@ -1,4 +1,33 @@
 {
-  "instances": [],
+  "instances": [
+    {
+      "is_streaming": false,
+      "msg": {
+        "id": "fixture-user-text",
+        "role": "user",
+        "content": "Render markdown please",
+        "created_at": 1700000000,
+        "blocks": [],
+        "profession_id": ""
+      }
+    },
+    {
+      "is_streaming": false,
+      "msg": {
+        "id": "fixture-assistant-text",
+        "role": "assistant",
+        "content": "# Result\n\nA **completed** result with [link](https://example.com) and `inline code`.\n\n- Item 1\n- Item 2\n\n```typescript\nconst x: number = 42;\n```",
+        "created_at": 1700000001,
+        "blocks": [
+          {
+            "kind": "text",
+            "text": "# Result\n\nA **completed** result with [link](https://example.com) and `inline code`.\n\n- Item 1\n- Item 2\n\n```typescript\nconst x: number = 42;\n```",
+            "state": "done"
+          }
+        ],
+        "profession_id": "assistant"
+      }
+    }
+  ],
   "contract": { "kind": "text", "state": "done", "source": "# Result\n\nA **completed** result." }
 }

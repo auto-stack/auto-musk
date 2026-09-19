@@ -1,25 +1,22 @@
-// ports/renderer.vm.at — PLAN-047 T4:渲染域 VM adapter(markdown 纯文本降级)。
+// ports/renderer.vm.at — PLAN-076: 渲染域 VM adapter (统一转接原生 autodown 引擎)。
 //
-// web 轨真源 = renderer.web.at(use.web 门控的 platform:markdown 协议组件,
-// Vue 侧由 auto-man 注册表挂载 StreamingRenderer.vue/MarkdownRender.vue 提供
-// 富文本);VM 轨无 DOM/markdown 库,按 PLAN-047 D4 取文本降级——本文件经端口
-// 适配链(renderer.at → renderer.vm.at → renderer.web.at,442 A3)在 VM 目标被
-// 接住,同名 widget 注册进视图 registry,消息正文以 pre-wrap 文本渲染。
-// comrak 族富文本 native 为上游项(KNOWN-DEBT 047 行登记),降级形态内容可读、
-// 结构信息丢失,观察期口径见计划待澄清#2。
+// 废除旧 PLAN-047 纯文本降级，实现全量 Markdown 富文本/高亮/表格/流式双端对齐。
+// 统一提供 Markdown 与 MarkdownRender 两个端口组件，内部均映射至原生 autodown。
 
-widget Markdown(source: str, streaming: bool) {
+widget Markdown(source: str, streaming: bool = false) {
     view {
-        div {
-            style: "vm-markdown-plain"
-            text .source
+        autodown {
+            content: .source
+            streaming: .streaming
         }
     }
-    style {
-.vm-markdown-plain {
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-width: 100%;
 }
+
+widget MarkdownRender(content: str, final: bool = true) {
+    view {
+        autodown {
+            content: .content
+            streaming: !.final
+        }
     }
 }

@@ -1,0 +1,10 @@
+{
+  "props": {
+    "source": "# Standalone Document\n\nThis is **rendered** directly via Markdown.\n\n| Col 1 | Col 2 |\n|---|---|\n| Cell A | Cell B |\n\n> Blockquote with *italics* and `inline code`.\n\n```python\ndef hello():\n    return 'world'\n```",
+    "streaming": false
+  },
+  "contract": {
+    "kind": "document",
+    "state": "rich-markdown-view"
+  }
+}

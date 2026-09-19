@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT, GALLERY, DATA, files, hash, slash, readJson, writeJson, inventory } from './source.mjs';
+import { ROOT, GALLERY, DATA, files, hash, slash, readJson, writeJson, inventory, effectiveCases } from './source.mjs';
 
 export function at(v) {
   if (Array.isArray(v)) return '[' + v.map(at).join(', ') + ']';
@@ -10,7 +10,7 @@ export function at(v) {
 
 export function materialize(caseId = 'chat-message-pair') {
   const catalog = readJson(path.join(DATA, 'cases.json'));
-  const c = catalog.cases.find(c => c.id === caseId);
+  const c = effectiveCases(catalog).find(c => c.id === caseId);
   if (!c) throw new Error(`Unknown case: ${caseId}`);
   const fixture = readJson(path.join(DATA, 'fixtures', c.fixture));
   const receipt = { version: 1, caseId, sourceFiles: [], boundaryChanges: [], fixtureHash: hash(JSON.stringify(fixture)) };
