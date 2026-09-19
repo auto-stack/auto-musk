@@ -155,6 +155,13 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 - evidence: runner now uses the gallery pac front/back ports and kills only its own process tree; VM case is `startup-failed` with the `forge_helpers.messageBlocks` link error; Vue case reaches the bounded 20s wait but has no HTTP endpoint while dependency installation is incomplete. Reports retain both missing-runtime receipts and fail closed.
 - next: resolve the VM helper codegen blocker and rerun both modes; only then add MCP/browser interaction, reset/event spy, and screenshots.
 
+- stage: work | plan_id: PLAN-074 | plan_revision: 1 | outcome: blocked (VM startup blocker cleared; cross-platform evidence still incomplete)
+- code_commit: `250c549` (worktree `D:/autostack/.wt/musk-074/auto-musk`; includes `2cce7bf` source compatibility fix)
+- task_ids: T-01/T-05 verified; T-02/T-03/T-04 remain open
+- evidence: after changing the production helper's reassigned binding from `let` to `var`, `node scripts/ui-parity.mjs run --mode vm --case chat-message-pair` returns `snapshot-ok` and the snapshot contains both Instance 1 and Instance 2. The runner retries until the first UI state sync and records stdout/stderr/snapshot tails. Vue generation reaches component output but does not expose the front HTTP endpoint within the 60s bounded run; no screenshots or interaction trace are claimed.
+- blockers: Vue dependency/dev-server readiness plus the remaining MCP interaction/reset/event-spy and screenshot gates. VM snapshot still logs native `self-stretch` degradation and missing `blocks` state reads; these are assigned to the VM parity follow-up, not silently ignored.
+- next: finish Vue endpoint/screenshot capture, add actual reset/toggle event assertions, and rerun both modes before execution_done.
+
 ## 10. 待澄清事项
 
 无阻止写成草案的用户信息缺口。实现期开工责任人处理以下有界事项：
@@ -162,7 +169,7 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 2. 074已冻结的导入机制/runner参数/字体与预算需核对；若前置未完成，保持该阶段阻塞。
 3. 若原生能力需要大范围机制重构，T-01提供最小复现和修订提案；影响验收标准时需范围决策。
 4. 本路线的近期“大体一致”预算是拟议执行合同；长期像素目标仍独立保留，不能自动宣称完成。
-5. T-02/T-03/T-04 当前阻塞于 gallery 的 VM 启动：`auto run -r vm` 在 ChatMessage 生产 helper 编译阶段因 `has_think` 不可变绑定重赋值失败，导致 `forge_helpers.messageBlocks` 未链接。解除动作：修复或确认 auto-lang/VM handler 对该已存在生产代码形态的支持（或由后续计划完成等价兼容修复），随后重新执行 `run --mode vm`、MCP snapshot、reset/事件隔离和双端截图门。
+5. T-02/T-03/T-04 的初始 VM 启动阻塞已在工作分支以最小生产兼容修复解除（`forge_helpers.at` 的 `has_think` 重赋值改为 `var`，VM runner 已 `snapshot-ok`）。当前未决面是 Vue 依赖/dev-server 没有在预算内提供 HTTP endpoint，以及尚未完成双端交互、reset/事件 spy、截图/布局证据；这些证据齐全前保持 executing。
 
 ### Work 启动记录（2026-09-19）
 
