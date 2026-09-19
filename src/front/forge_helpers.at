@@ -255,7 +255,9 @@ fn messageBlocks(msg obj) obj {
     if Array.isArray(msg.blocks) && msg.blocks.length > 0 {
         var norm list = []
         var tnorm = 0
+        var bnorm = 0
         for b in msg.blocks {
+            bnorm = bnorm + 1
             if b.kind == "tool" {
                 tnorm = tnorm + 1
                 // r7：raw 兼容双形态——持久化块载荷在 tool 键；流式 live push
@@ -279,7 +281,7 @@ fn messageBlocks(msg obj) obj {
                 }
                 norm.push({
                     kind: "tool",
-                    tkey: (msg.id ?? "m") + "#t" + tnorm,
+                    tkey: (msg.id ?? "m") + "#tool:" + (raw.id ?? b.id ?? b.tkey ?? tnorm),
                     summary: getToolSummary({
                         name: raw.name,
                         arguments: raw.arguments,
@@ -291,13 +293,16 @@ fn messageBlocks(msg obj) obj {
                         arguments: raw.arguments,
                         result: raw.result,
                         details: raw.details,
+                        gate_id: raw.gate_id ?? "",
+                        pending_cmd: raw.pending_cmd ?? "",
+                        escape_paths: raw.escape_paths ?? [],
                         status: nstatus
                     }
                 })
             } else if b.kind == "thinking" {
                 // PLAN-071 需求⑦ T-32：thinking 块透传（原 else 兜底折成
                 // text 块，ThinkBlock 芯片永不可达）。
-                norm.push({ kind: "thinking", text: b.text ?? "" })
+                norm.push({ kind: "thinking", id: b.id, tkey: (msg.id ?? "m") + "#think:" + (b.id ?? b.tkey ?? bnorm), text: b.text ?? "", state: b.state ?? "completed" })
             } else {
                 norm.push({ kind: "text", text: b.text ?? "" })
             }
@@ -313,7 +318,7 @@ fn messageBlocks(msg obj) obj {
             let th = msg.thinking ?? ""
             if th != "" {
                 // .at 无 list.insert（透传 JS 不存在的原生方法）——重建数组前置。
-                let with_think list = [{ kind: "thinking", text: th }]
+                let with_think list = [{ kind: "thinking", tkey: (msg.id ?? "m") + "#think:legacy", text: th, state: "completed" }]
                 for nb in norm { with_think.push(nb) }
                 return with_think
             }
@@ -322,7 +327,7 @@ fn messageBlocks(msg obj) obj {
     }
     if Array.isArray(msg.blocks) { return msg.blocks }
     var out list = []
-    if msg.thinking != None { out.push({ kind: "thinking", text: msg.thinking }) }
+    if msg.thinking != None { out.push({ kind: "thinking", tkey: (msg.id ?? "m") + "#think:legacy", text: msg.thinking, state: "completed" }) }
     if msg.content != None {
         if msg.content != "" { out.push({ kind: "text", text: msg.content }) }
     }
@@ -336,6 +341,7 @@ fn messageBlocks(msg obj) obj {
             status = "failed"
         } else {
             if raw.status == "running" { status = "running" }
+            if raw.status == "gate_waiting" { status = "gate_waiting" }
         }
         tcount = tcount + 1
         // PLAN-055 T0 规避形态保留（字面量重建双轨可预测,同时承载 details/tkey
@@ -343,7 +349,7 @@ fn messageBlocks(msg obj) obj {
         // for-in 源不允许 fn 调用(051 T8),内联渲染标题段需现成数组。
         out.push({
             kind: "tool",
-            tkey: (msg.id ?? "m") + "#t" + tcount,
+            tkey: (msg.id ?? "m") + "#tool:" + (raw.id ?? tcount),
             summary: getToolSummary({
                 name: raw.name,
                 arguments: raw.arguments,
@@ -355,6 +361,9 @@ fn messageBlocks(msg obj) obj {
                 arguments: raw.arguments,
                 result: raw.result,
                 details: raw.details,
+                gate_id: raw.gate_id ?? "",
+                pending_cmd: raw.pending_cmd ?? "",
+                escape_paths: raw.escape_paths ?? [],
                 status: status
             }
         })

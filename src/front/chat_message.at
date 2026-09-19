@@ -49,15 +49,15 @@ use tool_gate_card: ToolGateCard
 widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, think_open: str, tool_open: str) {
     // PLAN-060 T2:ForkFrom 上抛分叉请求（mid=msg.id）——子件空 handler,
     // 经 onfork 声明路由直达宿主 BranchTo（零参帧对齐根修后单参载荷同链）。
-    msg Msg { CopyContent, ToggleThink, ToolToggleKey(str), ForkFrom(str), CancelRun }
+    msg Msg { CopyContent, ToggleThink(str), ToolToggleKey(str), ForkFrom(str), CancelRun }
     on {
         // 【2026-09-04 三次定案】展开态回归 ForgeStore 键列表——二次修正的
         // 消息对象直写（.msg.think_expanded/.msg.tool_expanded）在 VM 为
         // for-in 循环副本写,读侧永不更新（用户实机:工具卡点不开）。写:子件
         // handler 直调 store（跨件沿 ForgeStore.Init() 先例,写入进共享根态）;
         // 读:think_list/tool_list prop 每帧重建刷新（chats_view 传 store 字段）。
-        .ToggleThink -> {
-            ForgeStore.ThinkToggle(.msg.id)
+        .ToggleThink(key str) -> {
+            ForgeStore.ThinkToggle(key)
         }
         .ToolToggleKey(key) -> {
             ForgeStore.ToolToggle(key)
@@ -249,16 +249,16 @@ style {
                                     }
                                 } else {
                                 button {
-                                    onclick: .ToggleThink
+                                    onclick: .ToggleThink(.block.tkey)
                                     style: "think-header w-full flex items-center gap-[6px] py-[6px] px-[10px] text-[12.5px] text-muted-foreground cursor-pointer select-none hover:bg-muted/50 border-none bg-transparent text-left"
                                     text "💭"
                                     text thinkLabel(estimateTokens(.block.text), false)
                                     span {
                                         style: "tool-chevron ml-auto"
-                                        text .chev
+                                        if .think_open == .block.tkey { text "▲" } else { text "▼" }
                                     }
                                 }
-                                if .thinkOpen {
+                                if .think_open == .block.tkey {
                                     div {
                                         style: "think-content my-0 py-[9px] px-[12px] text-[13.5px] leading-[1.5] font-mono whitespace-pre-wrap break-words text-muted-foreground max-h-[240px] overflow-y-auto border-t border-border"
                                         text .block.text
