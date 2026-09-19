@@ -269,3 +269,33 @@ musk-073（plan-073-dev@f8d5c4b）已合回 main；dist 已部署，8090 刷新�
 `gen/front/vue/dist`）；worktree 临时 dev server（vite 3000/3001）仅诊断
 用，收尾必清理——r7 诊断后 3001 残留进程向用户浏览器吐删除前旧模块，
 造成"修复无效"误判（实为访问了失效入口）。
+
+**r9（2026-09-19 傍晚）——输入框引用 token badge（用户报障，r6 遗留项闭环）**。
+用户确认 r6/r7/r8 生效后指出：补全进输入框的 `@plan/001` 仍是纯文本，应成
+badge 小组件。根因：输入框高亮由 codegen `__autoMentionHtml` 承载（PLAN-493
+textarea mentions 能力），原实现只扫 `@\w+` 且 musk 高亮名单仅含 agent 名
+——含 `/` 的引用 token 永不可达。
+
+修复（跨仓双提交）：
+- **auto-lang@03ef62f**（worktree 组内并排，auto-musk-dev 合回 master）：
+  helper 通用化——token 字符集扩展扫描（`\w./-`）+ 名单**最长匹配**；命中
+  含非 `\w` 字符者 span 附加 `mention-token` 语义类（宿主样式差异化着色；
+  类名零宽度，backdrop 与 textarea 逐字对齐不受影响——badge 禁
+  padding/border 即此铁律）。纯 `\w` 词（Agent @词）走原类串口径不变。
+  plan493 三测试更新全绿；ui_gen 全量对照 master 基线零回归（差异仅
+  bp::registry scan 抖动测试）。
+- **musk@fffddc0**（合回 main）：①mention_input 两处 mentionNames 刷新后
+  追加 mentionItems 非 agent 项 id——token 匹配名单驱动；②inject_styles
+  `.mention-token` 紫系（品牌主色 + 10% 底 + 圆角）区别 Agent @词（蓝）。
+
+验证：bundle 内 helper 四场景单测（refToken/specToken 命中+mention-token、
+agentWord 原口径、a@b.com/@nope 不误高亮）；真机 backdrop 合成输入——
+`@plan/001` 紫 badge、`@assistant` 蓝、计算样式 rgb(100,103,242)。dist 已
+部署（8090 刷新生效）。
+
+**工程记注**：①auto-lang workspace 路径依赖 `../../../auto-down` 在组
+worktree 内失效——组内并排 auto-down worktree（纯路径解析，零改动）后
+cargo 可跑；②auto-lang 主检出存在他方在途合并（MERGE_HEAD plan-022 遗留
++UU specs.json），merge/--ff-only 均被前置检查拒绝——以 update-ref 原子
+前移（纯 ff）+ checkout 同步单文件完成合回，在途合并状态原样保留待其主
+处置。
