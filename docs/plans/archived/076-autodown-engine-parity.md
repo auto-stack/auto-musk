@@ -1,10 +1,11 @@
 ---
 plan_id: PLAN-076
-status: reviewed
+status: archived
+completion_kind: delivered
 feature_name: AutoDown 统一引擎三模式接入与差异关闭
 author: [agent]
 created_at: 2026-09-19T00:00:00Z
-updated_at: 2026-09-19T21:38:00Z
+updated_at: 2026-09-20T00:20:00Z
 plan_revision: 2
 current_step: 5
 total_steps: 5
@@ -181,6 +182,22 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
   - 运行时对拍: `node scripts/ui-parity.mjs run --plan 076 --mode vm` -> 4 cases 全部 snapshot-ok
   - 证据账本: docs/reports/ui-parity/076-evidence.md
 - next: merge
+
+- stage: merge
+- plan_id: PLAN-076
+- plan_revision: 2
+- outcome: pass
+- delivery_commit: d71f1ed731fa062ca75244de71e5d755e0f47a6
+- old_to_new_commits:
+  - cda57ad -> 794ad11 (range-diff 全等)
+  - 0e923d6 -> 7b81e20 (range-diff 全等)
+  - e70aea3 -> d71f1ed (range-diff 全等)
+- checkpoints:
+  - prepared: reviewed baseline (e70aea3), canonical spec delta (docs/specs/modules/autodown-consumption.md, docs/specs/03-front-component-groups.md), delivery commit (d71f1ed)
+  - landed: main 分支 tip 快进合并至 d71f1ed (--ff-only 成功，线性历史无 merge commit)
+  - ledger_refreshed: 规范增量正式沉淀入 canonical docs/specs
+  - archived: 归档落点 docs/plans/archived/076-autodown-engine-parity.md，completion_kind: delivered
+  - cleaned: wt-guard clean (0 reparse points)，移除 worktree D:/autostack/.wt/musk-076/auto-musk，删除开发分支 plan-076-dev，清理空组目录 musk-076
 
 ## 10. 待澄清事项
 
