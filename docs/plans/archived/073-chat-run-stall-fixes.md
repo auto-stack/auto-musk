@@ -1,10 +1,11 @@
 ---
 plan_id: PLAN-073
-status: reviewed（Phase 2 pass @e5e098e，见 §9；下一步 merge）
+status: archived
+completion_kind: delivered
 feature_name: chat 运行挂死修复（看门狗命令盲区 / daemon 静默吞参 / 超时收束丢证据）
 author: zhaop / zcode
 created_at: 2026-09-18T22:00:00+08:00
-updated_at: 2026-09-19T22:05:00+08:00
+updated_at: 2026-09-20T00:50:00+08:00
 plan_revision: 4
 current_step: 11
 total_steps: 11
@@ -532,3 +533,36 @@ data:{"type":"idle"}；dist=复审终版（attach 逻辑在 bundle）| next: mer
 重读、独立 target 目录复跑全量套件、AC-P2-2 端到端重现实证），不采信
 r13 实施记录自述。AC-P2-2 复现使用用户 aaid 两次短 run（读目录+读文件，
 最小配额，沿 r4/r6/r7 live 验证惯例）。
+
+### 巩固收据 (Consolidation Receipt) — PLAN-073:r4
+
+- stage: merge | plan_id: PLAN-073 | plan_revision: 4 | outcome: pass |
+  delivery_commit: `1247846` | canonical_specs:
+  [docs/specs/modules/chat-run-policy.md, docs/specs/modules/chat-streaming.md,
+  docs/specs/index.json] | archive_path:
+  docs/plans/archived/073-chat-run-stall-fixes.md | completion_kind: delivered |
+  cleanup_state: cleaned
+
+- Checkpoints:
+  - `prepared`：reviewed baseline `e5e098e`（§9 复审 pass，rev4）；冻结增量
+    = 计划 §6.6；巩固 worktree `D:/autostack/.wt/musk-073/auto-musk`
+    （branch plan-073-dev 自 main tip ec9b9bb 建）。主分支在复审后的新增
+    （PLAN-076 落地 ec9b9bb 等）与 073 复审面**零文件交叠**
+    （`git diff --stat e5e098e..HEAD -- <复审文件>` 为空）——实现/依赖
+    未变，文档型后代可作 delivery commit。
+  - `landed`：spec 提交 `1247846`（docs-only）经 rebase 校验（up to
+    date，无改写 → 无需 range-diff）后于 main `git merge --ff-only
+    plan-073-dev`——tip = `1247846`，无 merge commit；两模块规范与
+    index.json 在 main 验证（PLAN-073 Phase 2 标记 grep 命中）。
+  - `ledger_refreshed`：`docs/specs/index.json`（version 2.0）——两模块
+    已在 spec_files（核对），updated_at → 2026-09-20；无新增 spec 文件。
+  - `archived`：active `docs/plans/073-chat-run-stall-fixes.md` →
+    `docs/plans/archived/073-chat-run-stall-fixes.md`（git mv）；
+    `status: archived`、`completion_kind: delivered`。
+  - `cleaned`：巩固 worktree 移除（wt-guard clean 前置）+ 分支
+    plan-073-dev 删除 + 组目录 `D:/autostack/.wt/musk-073` 移除。
+
+- 备注：实现代码在 work 阶段已落地（e5e098e 为 main 祖先，收据 §9 复审
+  记录）；本次 delivery commit 仅规范沉淀。运行态 8090 仍为旧 exe——
+  新二进制生效需重启（用户操作）。遗留登记见 §6.5（gate 循环/孤儿快照/
+  9063dfd4 死因）与 §9 F-R1/R2。
