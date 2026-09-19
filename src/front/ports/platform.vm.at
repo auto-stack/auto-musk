@@ -47,6 +47,12 @@ fn platformRefreshAuth() {
     }
 }
 
+// r10:原子删除 token 后光标恢复——web-only(受控 textarea 光标经 Vue flush
+// 后重置)。VM text_editor 光标自管,且原子删除为 web 增强(VM 降级逐字符
+// 删除),no-op。
+fn platformRestoreComposerCursor(pos int) {
+}
+
 fn platformRunRelayCommand(cmd Value) {
     // 降级留痕:relay 快捷命令在 VM 轨暂不启动工作流。
     let flow = cmd["flow"] ?? ""

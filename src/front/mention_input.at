@@ -39,8 +39,10 @@ use back.api: plans_list, specs_tree
 use.web component ArrowUp, Brain, Check, ChevronDown, Square from "src/front/ports/icons.at"
 use.web useI18n from "src/front/ports/composables.at"
 use.web build_mention_name_list, mention_combined_items from "src/front/mention_helpers.at"
-use.web mention_filtered, mention_clamp_index, mention_index_of, mention_key_action, mention_detect_filter, mention_detect_anchor, mention_detect_visible, mention_detect_pos, mention_insert, mention_can_send, mention_trim, mention_professions_list, mention_current_id from "src/front/mention_helpers.at"
+use.web mention_filtered, mention_clamp_index, mention_index_of, mention_key_action, mention_detect_filter, mention_detect_anchor, mention_detect_visible, mention_detect_pos, mention_insert, mention_can_send, mention_trim, mention_professions_list, mention_current_id, mention_backspace_target from "src/front/mention_helpers.at"
 use.web platformComposerAutoGrow from "src/front/ports/platform.at"
+// r10：原子删除 token 后的光标恢复端口（web setTimeout 恢复 / VM no-op）。
+use.web platformRestoreComposerCursor from "src/front/ports/platform.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
 use mention_dropdown: MentionDropdown
@@ -118,7 +120,11 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
             // 首条语义），并清除 Enter 消费标记。
             .mentionIndex = 0;
             .mentionHandled = false;
-            .mentionNames = build_mention_name_list(.professions, .store.configs);
+            // r10：名单拼装改单次赋值——原"先赋纯 agent 名单再 push token"
+            // 在 IME 组词的高频 input 下存在中间态窗口（纯 agent 数组已上
+            // ref、token 未 push），表现为组词瞬间 badge 闪回纯文本。本地
+            // 数组拼装完成后一次写入，无中间态。
+            var names = build_mention_name_list(.professions, .store.configs);
             // r9：追加引用 token id（plan/<seq>、spec/<relpath>）进高亮名单
             // ——codegen __autoMentionHtml 的 token 匹配是名单驱动的（含
             // . / - 字符的扩展扫描 + 最长匹配），名单不含 token 则输入框
@@ -126,9 +132,10 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
             // 直读即可（plans/spec 拉取后的下一拍起生效）。
             for it in .mentionItems {
                 if it.kind != "agent" {
-                    .mentionNames.push(it.id)
+                    names.push(it.id)
                 }
             }
+            .mentionNames = names
             // PLAN-071 需求⑬：首次触发 @ 懒加载计划列表与规范文件树。
             if .mentionVisible {
                 if .extLoaded == false {
@@ -151,6 +158,19 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
             platformComposerAutoGrow()
         }
         .Keydown(e) -> {
+            // r10：引用 token 原子删除——光标紧邻/处于 @plan/<seq>、
+            // @spec/<relpath> 内按 Backspace 时整块删除（独立于候选框
+            // 开合）。preventDefault 挡住默认单字符删除；光标经端口在
+            // Vue flush 后恢复到删除点（受控 textarea 回写会重置光标）。
+            if mention_key_action(e) == "Backspace" {
+                let pos = e.target.selectionStart ?? 0
+                let start = mention_backspace_target(.text, pos, .mentionItems)
+                if start >= 0 {
+                    e.preventDefault();
+                    .text = .text.sub(0, start) + .text.sub(pos);
+                    platformRestoreComposerCursor(start)
+                }
+            }
             if .mentionVisible {
                 if .hasMentionItems {
                     if mention_key_action(e) == "ArrowDown" {
@@ -231,7 +251,11 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
                             style: "chats-input absolute inset-0 h-full py-2.5 px-3.5 block w-full border-none rounded-none bg-transparent text-[15px] leading-[1.5] caret-[hsl(var(--foreground))] outline-none resize-none focus:outline-none focus:shadow-none focus:border-none"
                             value: .text
                             mentions: .mentionNames
-                            mention_class: "text-[hsl(220_90%_56%)] bg-[hsl(220_90%_56%/0.12)] rounded-[3px] px-[0.2rem] font-medium"
+                            // r10：高亮类串禁 padding——backdrop 与 textarea
+                            // 逐字对齐铁律：padding 把高亮文字推离真实位置
+                            // （用户实测：token badge 后光标视觉"进入"
+                            // badge/错位半字符）。底色紧贴文字即 badge 形态。
+                            mention_class: "text-[hsl(220_90%_56%)] bg-[hsl(220_90%_56%/0.12)] rounded-[3px] font-medium"
                             // VM 轨多行编辑面——text_editor 缺省 Fixed(30) 单行高
                             // （h-full/min-h 类为 CSS-only,Plan 053 注记）,显式
                             // height 固定编辑面;web 轨不消费此 prop（几何由

@@ -21,6 +21,9 @@ use.web runRelayCommand from "src/front/composables/relay_command_runner.ts"
 use.web focusComposer from "src/front/focus_composer.ts"
 // composer 一体化改版(2026-09-07):textarea 自适应增高(DOM 测量逃生舱)。
 use.web composerAutoGrow from "src/front/composer_autogrow.web-only.ts"
+// r10（PLAN-073 续）:引用 token 原子删除后的光标恢复(Backspace 场景,
+// Vue flush 后 setSelectionRange)。
+use.web restoreComposerCursor from "src/front/composer_cursor.web-only.ts"
 
 fn platformInjectStyles() {
     injectStyles()
@@ -43,6 +46,11 @@ fn platformFocusComposer() {
 // .web-only.ts 头注——backdrop 镜像下增高打 wrapper,0px 复位测量)。
 fn platformComposerAutoGrow() {
     composerAutoGrow()
+}
+
+// r10:原子删除 token 后按 pos 恢复光标(见 composer_cursor.web-only.ts)。
+fn platformRestoreComposerCursor(pos int) {
+    restoreComposerCursor(pos)
 }
 
 // PLAN-045: 视口高度端口——mention 锚点定位用（原裸 window.innerHeight 的
