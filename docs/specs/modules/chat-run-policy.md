@@ -2,6 +2,9 @@
 
 > PLAN-069 落地（2026-09-15，reviewed 3d94726）。会话 81b45c34 四问题综合改善：
 > 会话沙箱绑定、消息块时间线、工具级审批门、SSE 订阅/运行生命周期。
+> PLAN-073 Phase 2 增订（2026-09-20，reviewed e5e098e）：收束三臂统一组装
+> 现场 + turn 增量落盘（pending 快照 / upsert 原位替换保树链）+ 空闲订阅
+> idle 帧即收；详见"收束落盘与增量快照"节与 chat-streaming 契约。
 
 ## 会话沙箱绑定（fail-closed 不变量）
 
@@ -31,6 +34,26 @@
   之后）；blocks 为空 → content+tool_calls 旧渲染分支（历史会话兼容，AC-08）。
 - 转写补尾：run 收束时最终 assistant 消息补入 turns.jsonl（消除"尾 turn =
   tool_result"的双存储悬尾）。
+
+## 收束落盘与增量快照（PLAN-073 Phase 2）
+
+- **三臂统一组装**：成功/失败/超时三种收束一律组装完整现场（叙述块封口 →
+  思考首块 → 已积累工具卡 → 超时/失败的 ⚠ 尾块），共用
+  `assemble_chat_run_msg`（clone 语义，不消耗累积器）。失败臂不再仅落一行
+  ⚠ 文本（24a43d74 跑满 100 轮失败全现场丢失实证）；零现场时退化为仅 ⚠ 尾块。
+- **turn 增量落盘**：run 起跑即定本 run 的消息 id；每个 `turn_end` 边界把
+  当前积累（thinking/工具卡/叙述）以 `pending=true` 快照 upsert 落盘——
+  run 进行中刷新页面即可见已完成轮次的现场。
+- **终版同 id 换入**：收束终版与快照共用消息 id，`ChatStore::upsert_message`
+  按 id 原位替换并清除 pending；session 内无该 id 时退化为 append（parent/
+  leaf 语义同 append_message）。
+- **树链不变量**：原位替换必须保留原消息的 `parent_id` 与 `created_at`——
+  终版由收束组装独立构造（不重导 parent），整体换入会把消息踢出所在分支
+  （`upsert_message_replaces_in_place` 测试实证）。
+- **落盘不静默**：收束/快照落盘统一走 `persist_chat_run_msg`——写失败与
+  session 缺失（Ok(None)）均显式 WARN（原三臂 `let _ =` 静默吞错）。
+- **turns 双写粒度**：conversations turns 镜像维持收束时一次——增量快照
+  不镜像（避免半轮 turn 重复入 journal）。
 
 ## 工具级审批门（human 会话）
 
@@ -78,7 +101,10 @@
 - **显式角色分离**：SSE `chat_stream` 与 VM 桥的 `chat_run_stream`（签名不变、
   调用点零改动）**恒为附加/空闲订阅**——在途 → 附加转发 relay_bus 事件
   （run_id=session_id；chat_event / tool_update / tool_gate_waiting /
-  relay_gate_waiting）直至 done；不在途 → **空闲流**（挂起等下一次运行）。
+  relay_gate_waiting）直至 done；不在途 → **空闲即收**：入口以
+  `chat_run_active` 只读窥探，立即回 `{"type":"idle"}` 帧并关流（PLAN-073
+  P2-T4 修订；原"挂起等下一次运行"的空闲流语义退役——前端据此复位运行
+  态，不再悬挂空流；收束竞态窗口内 try_recv 捞到本会话 done 尾巴则转发）。
   订阅**绝不孵化运行、不触碰守卫**。以共享守卫窥探分流主体/订阅者的 F-03
   方案（`chat_run_active` + `if !run_owner`）退役。
 - **事件双发**：`chat_run_owner` 把全部 SSE 事件（含 plan-merge 短路四帧）

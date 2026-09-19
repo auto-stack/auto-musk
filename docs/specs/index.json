@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "updated_at": "2026-09-17T11:30:00Z",
+  "updated_at": "2026-09-20T00:30:00+08:00",
   "based_on": "full code scan 2026-08-14 (backend Rust + dual frontend + codegen)",
   "spec_files": [
     "00-overview.md",
