@@ -5,20 +5,40 @@
 // 现 codegen 已原生支持 html: prop → v-html（Plan 012 P2 gap 22）+
 // component fn（Plan 408 P1-P6），可脱离逃生舱。
 //
-// render_mentions_default（@mention 高亮，HTML 转义 + @word 包 span，mention_helpers.at）
+// render_mentions（@mention 高亮 + @plan/@spec 引用 token badge，mention_helpers.at）
 // forge_helpers.ts——它是纯正则替换，.at 无正则能力，保留为逃生舱 fn
 // 经 use { fn } 引入（Plan 408 P5 缺陷 5 修复后支持）。
 //
+// r6（PLAN-073 续）：render_mentions_default → render_mentions_ref——
+// @plan/<seq> token 升级 badge 小组件（胶囊+边框+悬停加深），hover title
+// 显示真实计划文件路径（build_ref_path_map 查 PlansStore.plans；
+// @spec/<relpath> 的 relpath 本身即路径,render 内直用）。plans 数据懒
+// 加载：Init 时 store.plans 为空才拉一次（首个挂载实例触发,后续实例
+// 跳过;PlansStore 单例共享）。
+//
 // 样式：PLAN-049 T6 双轨收敛——.user-text 基础排版迁内联工具类；
-// v-html 内部 .inline-mention 高亮为 web-only（inject_styles.web-only.ts,VM
-// 不解析 v-html 内容,天然无映射需求）。
+// v-html 内部 .inline-mention/.mention-ref 高亮为 web-only（VM 不解析
+// v-html 内容,天然无映射需求）。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web render_mentions_default from "src/front/mention_helpers.at"
+use.web render_mentions_ref, build_ref_path_map from "src/front/mention_helpers.at"
+
+use store: PlansStore
 
 widget UserMessage(content: str) {
+    msg Msg { Init }
+    on {
+        .Init -> {
+            // plans 未加载才拉（hover 路径数据源;空表 = plans 列表本身
+            // 为空的合法态,不重试）。
+            if .store.plans.length == 0 {
+                PlansStore.Init()
+            }
+        }
+    }
     computed {
-        html => render_mentions_default(.content)
+        refPaths => build_ref_path_map(.store.plans)
+        html => render_mentions_ref(.content, .refPaths)
     }
     view {
         div {

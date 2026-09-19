@@ -64,7 +64,7 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
         // PLAN-067 T-05: 审批模式文案（human=人工[缺省],auto=自动放行）。
         approvalLabel => if .approvalMode == "auto" { i18n.t("chat.approvalAuto") } else { i18n.t("chat.approvalHuman") }
     }
-    msg Msg { Init, Input, Keydown, Select, Hover, send(str), cancel, pick(str), pick_approval(str) }
+    msg Msg { Init, Input, Keydown, Select, Hover, send(str), cancel, pick(str), pickapproval(str) }
     model {
         var text str = ""
         var mentionVisible bool = false
@@ -138,6 +138,11 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
                     } else if mention_key_action(e) == "ArrowUp" {
                         .mentionIndex = mention_clamp_index(.mentionIndex - 1, .mentionFilteredList.length)
                     } else if mention_key_action(e) == "Enter" || mention_key_action(e) == "Tab" {
+                        // r6：补全消费按键必须阻断默认行为——Tab 默认把焦点
+                        // 移到 tabindex 序下一个可聚焦元素（工具栏"思考"钮），
+                        // Enter 默认可能触发表单提交；Enter 常另有
+                        // .prevent 修饰符兜底,Tab 无修饰符臂,必须在此阻断。
+                        e.preventDefault();
                         .text = mention_insert(.mentionItems, mention_current_id(.mentionFilteredList, .mentionIndex), .text, .mentionPos);
                         .mentionVisible = false;
                         // PLAN-071 需求⑭：标记本次 Enter 已用于补全——send
@@ -182,8 +187,13 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
         .pick(level) -> { .thinkOpen = false }
         // PLAN-067 T-05: 审批模式 dropdown 开合 + 选中收菜单（事件经父层
         // PickApproval → store.SetApprovalMode 落库）。
+        // r6：msg 名 pick_approval → pickapproval——codegen emit 用 msg
+        // 原名（emit('pick_approval')），父层模板绑定却是 @pickapproval
+        // （onPickapproval）；Vue3 事件名精确匹配（camelize 兜底要
+        // onPickApproval 也不等于 onPickapproval），下划线版事件永远
+        // 悬空 → 选"自动"后 store 未收到任何调用（实测无网络请求）。
         .ToggleApprovalMenu -> { .approvalOpen = !.approvalOpen }
-        .pick_approval(mode) -> { .approvalOpen = false }
+        .pickapproval(mode) -> { .approvalOpen = false }
     }
     view {
         div {
@@ -314,7 +324,7 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
                                 div {
                                     style: "absolute bottom-full left-0 mb-2 min-w-[120px] bg-card border border-border rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-1 z-50 flex flex-col"
                                     button {
-                                        onclick: .pick_approval("human")
+                                        onclick: .pickapproval("human")
                                         disabled: .disabled
                                         class: if .approvalMode != "auto" {
                                             "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-[13px] text-left cursor-pointer"
@@ -327,7 +337,7 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
                                         }
                                     }
                                     button {
-                                        onclick: .pick_approval("auto")
+                                        onclick: .pickapproval("auto")
                                         disabled: .disabled
                                         class: if .approvalMode == "auto" {
                                             "flex items-center justify-between gap-3 w-full py-1.5 px-2.5 border-none rounded-md bg-primary/10 text-primary text-[13px] text-left cursor-pointer"
