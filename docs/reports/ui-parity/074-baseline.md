@@ -1,6 +1,6 @@
 # PLAN-074 Gallery baseline
 
-Generated: 2026-09-19T07:47:13.584Z
+Generated: 2026-09-19T07:53:40.184Z
 
 Units: 62 (54 reachable)
 Cases: 57
@@ -150,7 +150,7 @@ Cases: 57
 ## Runtime evidence
 
 - prepare chat-message-pair: **prepared** (source)
-- vm chat-message-pair: **startup-failed** (missing-runtime-evidence)
+- vm chat-message-pair: **snapshot-ok** (runtime-smoke)
 - vue chat-message-pair: **missing:Timed out waiting for http://127.0.0.1:17474** (missing-runtime-evidence)
 
 ## Rules
