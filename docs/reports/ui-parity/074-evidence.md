@@ -1,6 +1,6 @@
 # PLAN-074 evidence ledger
 
-Generated: 2026-09-19T09:18:50.690Z
+Generated: 2026-09-19T09:47:11.417Z
 
 ## Static gates
 
@@ -10,8 +10,8 @@ Generated: 2026-09-19T09:18:50.690Z
 
 ## Runtime gates
 
-- vm / chat-message-pair: **snapshot-ok**; evidence=runtime-smoke; stdout=536b8a5b7c40508bae04a0812ba896a2da2d7172ca0110d8e76884e7d2903dac; stderr=0e911ba69e5025c6cd868cfddcfbec1164e483778cfc880d30221706411253ff.
-- vue / chat-message-pair: **http-ok**; evidence=runtime-smoke; stdout=58c3e6e5f1d318ce70c31e9c0b6e3c4dd1551cc1e3dae0bac153546792b5aed3; stderr=26737fcc4ab62765b587b83efedbbebdee89f7e6117342a26ab31fb90aff240c.
+- vm / chat-message-pair: **snapshot-ok**; evidence=runtime-smoke; stdout=3a10fc98ddeacf97def4d0a7ca0d93e02715d12b2300775bf464e24ee5de5f3a; stderr=0e911ba69e5025c6cd868cfddcfbec1164e483778cfc880d30221706411253ff.
+- vue / chat-message-pair: **http-ok**; evidence=runtime-smoke; stdout=665df6f1c2ee64a1f00328d24ecea93f6d559b76f72b3cc3a247d2ff5feccb80; stderr=6df01b111c8593221e13a7b6418a145588ded4365970066884dcecae3c7f589f.
 - vm reset/event spy: **PASS**; screenshot=saved.
 - Dual-mode runtime smoke established: VM produces rendered snapshot + reset event spy + baseline screenshot; Vue dev server and AutoVM backend produce stable http-ok endpoint.
 - Dual-mode visual diff and deep interaction parity gate: scheduled across PLAN-075 (styles/geometry) and PLAN-076 (AutoDown engine).
