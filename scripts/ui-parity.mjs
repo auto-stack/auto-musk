@@ -56,7 +56,7 @@ function prepare() {
 async function waitFor(url, timeoutMs = 20000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    try { const r = await fetch(url); if (r.ok) return r.status; } catch (_) { /* retry */ }
+    try { const r = await fetch(url); if (r.status < 500) return r.status; } catch (_) { /* retry */ }
     await new Promise(r => setTimeout(r, 250));
   }
   throw new Error(`Timed out waiting for ${url}`);
@@ -75,17 +75,22 @@ async function runMode(mode, caseId) {
   const executable = process.env.AUTO_EXE ?? 'auto';
   const env = { AUTOUI_MCP_PORT: String(mcpPort), AUTO_PARITY_CASE: caseId };
   const c = child(executable, ['run', '--render', render, '--port', String(frontPort), '--back-port', String(backPort)], GALLERY, env);
-  const started = Date.now(); let status = 'missing'; let endpoint = '';
+  const timeoutMs = Number(option('--timeout-ms') ?? 20000);
+  const started = Date.now(); let status = 'missing'; let endpoint = ''; let snapshotBody = '';
   try {
     if (mode === 'vm') {
       endpoint = `http://127.0.0.1:${mcpPort}/mcp`;
-      await waitFor(endpoint);
-      const body = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'autoui_snapshot', arguments: { mode: 'rendered' } } }) }).then(r => r.text());
-      status = body.includes('Instance') ? 'snapshot-ok' : 'snapshot-missing-needle';
+      await waitFor(endpoint, timeoutMs);
+      const payload = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'autoui_snapshot', arguments: { mode: 'rendered' } } });
+      for (let i = 0; i < 20; i++) {
+        snapshotBody = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload }).then(r => r.text());
+        if (!snapshotBody.includes('No UI available yet')) break;
+        await new Promise(r => setTimeout(r, 250));
+      }
+      status = snapshotBody.includes('Instance 1') && snapshotBody.includes('Instance 2') ? 'snapshot-ok' : 'snapshot-missing-needle';
     } else {
       endpoint = `http://127.0.0.1:${frontPort}`;
-      await waitFor(endpoint);
+      await waitFor(endpoint, timeoutMs);
       status = 'http-ok';
     }
   } catch (e) { status = `missing:${e.message}`; }
@@ -100,6 +105,7 @@ async function runMode(mode, caseId) {
   else c.p.kill('SIGTERM');
   return { plan: catalog.plan, caseId, mode, at: now(), duration_ms: Date.now() - started,
     endpoint, status, stdout_sha256: hash(logs.stdout), stderr_sha256: hash(logs.stderr),
+    stdout_tail: logs.stdout.slice(-4000), stderr_tail: logs.stderr.slice(-4000), snapshot_tail: snapshotBody.slice(-4000),
     evidence: status === 'snapshot-ok' || status === 'http-ok' ? 'runtime-smoke' : 'missing-runtime-evidence' };
 }
 async function run() {
