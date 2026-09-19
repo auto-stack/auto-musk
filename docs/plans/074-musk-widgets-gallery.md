@@ -169,6 +169,12 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 - blockers: Vue runner reaches generated component output but no front HTTP endpoint within the 60s budget because dependency/dev-server readiness is unavailable in this environment; cross-mode screenshots and parity comparison cannot be claimed.
 - next: make the Vue dependency/dev-server step reproducible, then add Vue browser screenshot + reset/toggle trace and complete the dual-mode evidence gate.
 
+- stage: work | plan_id: PLAN-074 | plan_revision: 1 | outcome: blocked (evidence report now includes VM reset/screenshot verdict)
+- code_commit: `67f8e75`
+- task_ids: T-01/T-05 verified; T-02/T-03/T-04 open
+- evidence: `docs/reports/ui-parity/074-evidence.md` now reports `vm reset/event spy: PASS; screenshot=saved` from the receipt, while Vue remains missing-runtime-evidence.
+- next: unblock Vue dev server and complete the dual-mode gate; do not mark execution_done yet.
+
 ## 10. 待澄清事项
 
 无阻止写成草案的用户信息缺口。实现期开工责任人处理以下有界事项：
