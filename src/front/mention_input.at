@@ -112,6 +112,16 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
         }
 
         .Input(e) -> {
+            // r11：IME 组词守卫——composing input 只承载文本渲染（.text 由
+            // v-model/受控链负责），跳过候选检测与名单拼装：组词期间 names
+            // 冻结、badge 高亮不受组词扰动（用户实测组词瞬间 badge 闪纯
+            // 文本；模拟时序不可复现，属真实 IME 事件交错，守卫即理论正解
+            // 第一层）。compositionend 后浏览器补发非 composing input，
+            // 全量逻辑照常执行。
+            if e.isComposing == true {
+                platformComposerAutoGrow();
+                return
+            }
             .mentionFilter = mention_detect_filter(e);
             .mentionAnchor = mention_detect_anchor(e);
             .mentionVisible = mention_detect_visible(e);
