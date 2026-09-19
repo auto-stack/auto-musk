@@ -92,6 +92,16 @@ a { color: hsl(var(--primary)); }
    VM 轨对这些无映射（登记白名单）,仅 web 生效。 */
 /* PLAN-050 B1: mention 高亮已内联 mention_helpers.at（按上下文发完整类串）
    与 user_message.at（user-text 显式气泡内文字色）——后代选择器规则删除。 */
+/* r9（PLAN-073 续）：输入框 backdrop 的引用 token（@plan/<seq>、
+   @spec/<relpath>）语义类——codegen __autoMentionHtml 对名单命中的非纯词
+   token 附加 mention-token。紫系着色（品牌主色）区别 Agent @词（蓝）；
+   零宽度样式（禁 padding/border）不改字宽，backdrop 与 textarea 逐字
+   对齐不受影响。 */
+.mention-token {
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.10);
+  border-radius: 4px;
+}
 .msg-bubble-ai .streaming-document { color: hsl(var(--foreground)); }
 /* PLAN-056 T6（T7 后复核仍必需）：markdown 块间节奏。engine 0.5.0 升级后
    实测 DOM 仍为 .streaming-document > .markdown-renderer(单个) > .node-slot

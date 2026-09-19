@@ -95,6 +95,16 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
         .Init -> {
             AgentConfigs.Init();
             .mentionNames = build_mention_name_list(.professions, .store.configs);
+            // r9：追加引用 token id（plan/<seq>、spec/<relpath>）进高亮名单
+            // ——codegen __autoMentionHtml 的 token 匹配是名单驱动的（含
+            // . / - 字符的扩展扫描 + 最长匹配），名单不含 token 则输入框
+            // backdrop 永远不亮。mentionItems 由 computed 即时重算，此处
+            // 直读即可（plans/spec 拉取后的下一拍起生效）。
+            for it in .mentionItems {
+                if it.kind != "agent" {
+                    .mentionNames.push(it.id)
+                }
+            }
             // web 侧装 document 级委托监听 + 初次定高（空态 ~1 行）。
             platformComposerAutoGrow()
         }
@@ -109,6 +119,16 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
             .mentionIndex = 0;
             .mentionHandled = false;
             .mentionNames = build_mention_name_list(.professions, .store.configs);
+            // r9：追加引用 token id（plan/<seq>、spec/<relpath>）进高亮名单
+            // ——codegen __autoMentionHtml 的 token 匹配是名单驱动的（含
+            // . / - 字符的扩展扫描 + 最长匹配），名单不含 token 则输入框
+            // backdrop 永远不亮。mentionItems 由 computed 即时重算，此处
+            // 直读即可（plans/spec 拉取后的下一拍起生效）。
+            for it in .mentionItems {
+                if it.kind != "agent" {
+                    .mentionNames.push(it.id)
+                }
+            }
             // PLAN-071 需求⑬：首次触发 @ 懒加载计划列表与规范文件树。
             if .mentionVisible {
                 if .extLoaded == false {
