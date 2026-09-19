@@ -1,12 +1,12 @@
 ---
 plan_id: PLAN-074
-status: drafting
+status: executing
 feature_name: 组件真实消费清单与双端 Gallery 基线
 author: [agent]
 created_at: 2026-09-19T00:00:00Z
-updated_at: 2026-09-19T00:00:00Z
+updated_at: 2026-09-19T07:42:00Z
 plan_revision: 1
-current_step: 0
+current_step: 2
 total_steps: 5
 supersedes_spec_components:
   - "docs/specs/03-front-component-groups.md"
@@ -53,7 +53,7 @@ AutoUI MCP snapshot/交互/截图。具体依赖版本以执行期锁文件与�
 ## 4. 需求分析与背景调查
 
 授权记录：用户2026-09-19明确要求组件分析、总方案和多个阶段计划；本次仅调查与文档。
-未授予实施/部署授权；没有用户指定token、时间预算或自动继续限制。work启动按后续授权执行。
+2026-09-19 用户已明确授权使用 auto-plan-work 实施074；范围为本计划，不含后续075–079或部署。没有指定token/时间预算。
 当前源码基线：auto-musk `04eb90531643223076a5d9d2a9572ccaaf6d1c14`; auto-lang `278efbea7e95fe05f45f86f7871a5c72043d4f3c`; auto-down `7c0b774e17f079eaa2462b0d9028781d75458f50`.
 总设计§12另附关键源hash；执行前检查漂移并更新证据，不假设CLI与仓库HEAD必然同版本。
 已读Specs入口：docs/specs/00-overview.md、01-architecture.md、03-front-component-groups.md；
@@ -117,7 +117,7 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 
 ## 8. 执行步骤
 
-- [ ] **T-01 建立有限清单**（依赖：阶段前置；覆盖AC-01、AC-05）：枚举 src/front 所有 widget、内联 thinking/tool 逻辑单元、端口变体和实际 App 消费；记录 retired/unreachable，分类双端/仅Vue/仅VM，明确每项归属075–079。 落点：§4源码锚点及新增 `docs/reports/ui-parity/074-evidence.md`；新增gallery/runner/fixtures见总设计§5。验证：静态widget扫描与App消费路径对账，预期零未归类单元；此时不调用尚未创建的runner。
+- [x] **T-01 建立有限清单**（依赖：阶段前置；覆盖AC-01、AC-05）：枚举 src/front 所有 widget、内联 thinking/tool 逻辑单元、端口变体和实际 App 消费；记录 retired/unreachable，分类双端/仅Vue/仅VM，明确每项归属075–079。 落点：§4源码锚点及新增 `docs/reports/ui-parity/074-evidence.md`；新增gallery/runner/fixtures见总设计§5。验证：`node scripts/ui-parity.mjs check` PASS（62 declarations / 57 effective cases）；report 列出 54 reachable、8 unreachable、8 port groups，并对每项给出 consumer path/platform/owner。
 
 - [ ] **T-02 同源隔离入口**（依赖：T-01；覆盖AC-02）：新增 examples/musk-widgets-gallery/pac.at 与 src/front/app.at；首先用 ChatMessage 单块与两个实例验证跨目录导入、props/事件和状态隔离。导入不支持时输出有界决策记录，不人工复制旧 ToolBlock。 落点：§4源码锚点及新增 `docs/reports/ui-parity/074-evidence.md`；新增gallery/runner/fixtures见总设计§5。验证：两端运行新增gallery入口并通过MCP/浏览器驱动双实例，预期内容正确且状态互不污染。
 
@@ -125,7 +125,7 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 
 - [ ] **T-04 双端采集和失败门**（依赖：T-03；覆盖AC-04）：新增 scripts/ui-parity.mjs list/check/run/report；驱动Vue浏览器与VM MCP，产截图/布局/事件/环境/版本证据。冻结命令接口与预算；故意缺case或超预算必须非零。 落点：§4源码锚点及新增 `docs/reports/ui-parity/074-evidence.md`；新增gallery/runner/fixtures见总设计§5。验证：node scripts/ui-parity.mjs check；注入缺截图/超预算样本，预期非零；现存产品差异作为失败证据输出。
 
-- [ ] **T-05 回写盘点与独立复核**（依赖：T-04；覆盖AC-01..AC-05）：新增 gallery README、docs/reports/ui-parity/074-baseline.md，检查每个声明和内联分支均有归类。基线差异归属后续计划，不把现状标成一致。 落点：§4源码锚点及新增 `docs/reports/ui-parity/074-evidence.md`；新增gallery/runner/fixtures见总设计§5。验证：node scripts/ui-parity.mjs report --plan 074，预期清单完整且所有差异有后续owner。074只验基础设施，不要求存量组件全绿。
+- [x] **T-05 回写盘点与独立复核**（依赖：T-04；覆盖AC-01..AC-05）：新增 gallery README、docs/reports/ui-parity/074-baseline.md，检查每个声明和内联分支均有归类。基线差异归属后续计划，不把现状标成一致。 落点：§4源码锚点及新增 `docs/reports/ui-parity/074-evidence.md`；新增gallery/runner/fixtures见总设计§5。验证：`node scripts/ui-parity.mjs report --plan 074` 生成 baseline/evidence；报告明确 runtime 缺件、VM blocker 与 PLAN-075–079 owner，未把现状标成 PASS。
 
 工作区：代码分支 `plan-074-dev`，组 `D:/autostack/.wt/musk-074/auto-musk`；
 外部依赖同组兄弟目录、分支按AGENTS `auto-musk-dev`，冲突先核查不复用他人分支。
@@ -142,6 +142,13 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 - changed: T-01..T-05、AC-01..AC-05、SD-01..SD-02（本次新建）
 - 本次检查：源路径已核对，新路径明确标注；不修改072/073；未运行产品测试或宣称双端截图达标。
 
+- stage: work | plan_id: PLAN-074 | plan_revision: 1 | outcome: blocked（静态清单、夹具、报告、失败门已落地；双端运行证据尚未满足）
+- code_commit: `2d658bb`（worktree `D:/autostack/.wt/musk-074/auto-musk`, branch `plan-074-dev`）
+- task_ids: T-01、T-05 completed；T-02、T-03、T-04 remain executing pending runtime evidence
+- evidence: `node scripts/ui-parity.mjs check` PASS；`node scripts/ui-parity.mjs prepare --case chat-message-pair` PASS；`node scripts/ui-parity.mjs run --mode vm --case chat-message-pair` returns `startup-failed` as required by the missing-evidence gate；`verifyMaterialized()` returns `[]`; mutated-catalog probe is non-zero.
+- blockers: VM gallery reaches production ChatMessage but handler synthesis rejects `let has_think = false` followed by reassignment in copied `forge_helpers.at`, then drops `forge_helpers.messageBlocks` and fails App link. This is a bounded upstream VM/compiler/source compatibility issue, preserved as evidence instead of rewriting production renderer.
+- next: route the minimal VM compiler/source fix to the responsible follow-up plan, then rerun gallery VM snapshot and complete Vue HTTP/screenshot plus interaction evidence before execution_done.
+
 ## 10. 待澄清事项
 
 无阻止写成草案的用户信息缺口。实现期开工责任人处理以下有界事项：
@@ -149,3 +156,11 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 2. 074已冻结的导入机制/runner参数/字体与预算需核对；若前置未完成，保持该阶段阻塞。
 3. 若原生能力需要大范围机制重构，T-01提供最小复现和修订提案；影响验收标准时需范围决策。
 4. 本路线的近期“大体一致”预算是拟议执行合同；长期像素目标仍独立保留，不能自动宣称完成。
+5. T-02/T-03/T-04 当前阻塞于 gallery 的 VM 启动：`auto run -r vm` 在 ChatMessage 生产 helper 编译阶段因 `has_think` 不可变绑定重赋值失败，导致 `forge_helpers.messageBlocks` 未链接。解除动作：修复或确认 auto-lang/VM handler 对该已存在生产代码形态的支持（或由后续计划完成等价兼容修复），随后重新执行 `run --mode vm`、MCP snapshot、reset/事件隔离和双端截图门。
+
+### Work 启动记录（2026-09-19）
+
+- base: 7fe7612b0693736b62AEac313d799d8f81cd21bc
+- worktree: D:/autostack/.wt/musk-074/auto-musk；branch: plan-074-dev
+- 主检出无代码WIP；已有未跟踪 .zcodeignore 不属本任务，保持不动。
+- 当前CLI: auto 0.1.0+v0.4.2-1305-ga38461ba3；与设计源码基线不同，证据记录实际binary hash。
