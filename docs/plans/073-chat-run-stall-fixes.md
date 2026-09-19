@@ -257,3 +257,15 @@ streaming 中 list_dir [specs] completed、glob [specs "**/*.md"] completed，
 两个会话后端仅剩 user 消息，assistant（含工具卡/正文/思考块）前端有、
 后端无 → 刷新即丢。疑似收束 append_message 路径回归（r4 T-04 补的是
 超时收束，正常收束臂待查）。
+
+**r8（2026-09-19 下午③）——标题栏收敛（用户报障）**。窄 rail 里
+"Auto Musk"+版本号双 text 挤成两行（用户截图）。改为单一 deer icon 按钮
+（与折叠态同款双主题图，点击仍可折叠），版本号转 hover title——
+`Auto Musk v0.1.0-p073r8`（r3 的 bundle 新旧自检锚点保留，版本号随轮次
+更新——本轮 3001 旧缓存混淆正是缺此锚点所致）。worktree
+musk-073（plan-073-dev@f8d5c4b）已合回 main；dist 已部署，8090 刷新生效。
+
+**部署口径备忘**：正式入口恒为 `http://127.0.0.1:8090`（musk serve 直读
+`gen/front/vue/dist`）；worktree 临时 dev server（vite 3000/3001）仅诊断
+用，收尾必清理——r7 诊断后 3001 残留进程向用户浏览器吐删除前旧模块，
+造成"修复无效"误判（实为访问了失效入口）。
