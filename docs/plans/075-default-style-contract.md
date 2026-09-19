@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-075
-status: execution_done
+status: reviewed
 feature_name: 默认样式三方对账与主题字体收敛
 author: [agent]
 created_at: 2026-09-19T00:00:00Z
-updated_at: 2026-09-19T10:37:00Z
+updated_at: 2026-09-19T10:46:00Z
 plan_revision: 1
 current_step: 5
 total_steps: 5
@@ -134,6 +134,37 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 不得丢弃不属于本计划的WIP，包管理器链接风险必须事前验证。
 
 ## 9. 复审记录
+
+- stage: review
+  plan_id: PLAN-075
+  plan_revision: 1
+  outcome: pass
+  reviewed_commit: 263422a46f829a861ffc38b930c1d217b5d81750
+  base_commit: bde98f1e9b8a6d2b73ae5e96c8f0d7a5bd12427b
+  dependency_revisions:
+    auto-lang: 3edcf5fcf3f3379529ef579ac16068ce4023a644
+    auto-down: 84c989722cd59e811ef9c57098ac4c67c40969e2
+  spec_inputs:
+    - docs/specs/00-overview.md
+    - docs/specs/01-architecture.md
+    - docs/specs/03-front-component-groups.md
+    - docs/specs/modules/ui-parity.md
+  acceptance_results:
+    AC-01: pass (静态对账全表零未归属，引擎规约全量移交 PLAN-076)
+    AC-02: pass (auto-lang h1/h2 补齐 tracking-tight，控件测试与 fixture 就绪)
+    AC-03: pass (pac.at 品牌主题生效，Google Fonts 消除并收敛至离线系统字体栈)
+    AC-04: pass (双端 3 用例全部通过，VM snapshot-ok + reset spy PASS + screenshot saved；Vue http-ok runtime-smoke)
+    AC-05: pass (Specs 模块增量 SD-01 ui-default-styles.md 固化，075-evidence.md 全量建档)
+  findings: []
+  evidence:
+    - docs/reports/ui-parity/075-default-style-map.md
+    - docs/reports/ui-parity/075-evidence.md
+    - docs/specs/modules/ui-default-styles.md
+    - tmp/ui-parity/PLAN-075/report.json
+    - examples/musk-widgets-gallery/src/front/tests/screenshots/plan075-style-controls-login-vm.png
+    - examples/musk-widgets-gallery/src/front/tests/screenshots/plan075-style-badge-status-vm.png
+    - examples/musk-widgets-gallery/src/front/tests/screenshots/plan075-style-button-dialog-vm.png
+  next: merge
 
 - stage: work
 - plan_revision: 1
