@@ -1,12 +1,12 @@
 ---
 plan_id: PLAN-075
-status: drafting
+status: execution_done
 feature_name: 默认样式三方对账与主题字体收敛
 author: [agent]
 created_at: 2026-09-19T00:00:00Z
-updated_at: 2026-09-19T00:00:00Z
+updated_at: 2026-09-19T10:37:00Z
 plan_revision: 1
-current_step: 0
+current_step: 5
 total_steps: 5
 supersedes_spec_components:
   - "docs/specs/modules/ui-parity.md"
@@ -117,15 +117,15 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 
 ## 8. 执行步骤
 
-- [ ] **T-01 默认合同逐行对账**（依赖：阶段前置；覆盖AC-01）：新增 docs/reports/ui-parity/075-default-style-map.md；逐条映射 Design22 §2–5和Musk全部CSS注入。列Vue最终覆盖链、VM预设/兜底、继承和显式覆盖；引擎§4.5/4.6/7移交076而非在此私修。 落点：§4源码锚点及新增 `docs/reports/ui-parity/075-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：逐条映射检查，预期Design22应用默认与Musk注入零未归属；引擎条目全部关联076。
+- [x] **T-01 默认合同逐行对账**（依赖：阶段前置；覆盖AC-01）：新增 docs/reports/ui-parity/075-default-style-map.md；逐条映射 Design22 §2–5和Musk全部CSS注入。列Vue最终覆盖链、VM预设/兜底、继承和显式覆盖；引擎§4.5/4.6/7移交076而非在此私修。 落点：§4源码锚点及新增 `docs/reports/ui-parity/075-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：逐条映射检查，预期Design22应用默认与Musk注入零未归属；引擎条目全部关联076。 [✅ 已完成：docs/reports/ui-parity/075-default-style-map.md 建立，Design 22 24条应用规则+10条引擎规则+Musk 15条注入全量归属，引擎条目全部移交 PLAN-076，初始 075-evidence.md 建档]
 
-- [ ] **T-02 基础属性修复**（依赖：T-01；覆盖AC-02）：在auto-lang对应默认预设/renderer修复标题tracking、p/text默认、ghost等实证差异；补齐input/textarea/button/checkbox/badge/row/col裸控件及部分覆盖的消费测试。旧豁免逐一重审，不无依据复制过期文档数值。 落点：§4源码锚点及新增 `docs/reports/ui-parity/075-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：auto-lang局部preset/renderer测试与裸组件fixture，预期默认/部分覆盖最终属性符合合同。
+- [x] **T-02 基础属性修复**（依赖：T-01；覆盖AC-02）：在auto-lang对应默认预设/renderer修复标题tracking、p/text默认、ghost等实证差异；补齐input/textarea/button/checkbox/badge/row/col裸控件及部分覆盖的消费测试。旧豁免逐一重审，不无依据复制过期文档数值。 落点：§4源码锚点及新增 `docs/reports/ui-parity/075-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：auto-lang局部preset/renderer测试与裸组件fixture，预期默认/部分覆盖最终属性符合合同。 [✅ 已完成：auto-lang h1/h2 补齐 tracking-tight (commit 3edcf5fcf)；tests/ui-parity/cases.json 新增 style-controls-login / style-badge-status / style-button-dialog 基础控件用例与 fixture，cargo test -p auto-lang PASS]
 
-- [ ] **T-03 主题字体统一**（依赖：T-02；覆盖AC-03）：将Musk品牌值纳入共享主题/初始化配置，核对Primary独立accent覆盖；统一离线可用字体和fallback/字重/行高。保留Vue合法CSS投影；导航默认样式在Musk补VM等价实现。 落点：§4源码锚点及新增 `docs/reports/ui-parity/075-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：深浅切换及重启fixture，比较主题RGB与字体文件hash，预期完全一致。
+- [x] **T-03 主题字体统一**（依赖：T-02；覆盖AC-03）：将Musk品牌值纳入共享主题/初始化配置，核对Primary独立accent覆盖；统一离线可用字体和fallback/字重/行高。保留Vue合法CSS投影；导航默认样式在Musk补VM等价实现。 落点：§4源码锚点及新增 `docs/reports/ui-parity/075-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：深浅切换及重启fixture，比较主题RGB与字体文件hash，预期完全一致。 [✅ 已完成：src/front/inject_styles.web-only.ts 剔除在线 Google Fonts 并使用离线系统无衬线字体栈；pac.at 与 examples/musk-widgets-gallery/pac.at 接入品牌主题 primary: "238 55% 58%"，双端启动激活]
 
-- [ ] **T-04 最终属性与动态状态验证**（依赖：T-03；覆盖AC-04）：以074 runner测深浅、hover/focus/disabled/selected及父级继承；Vue读取computed style，VM读取有效布局/样式并截图采样，不以类串包含替代最终值。 落点：§4源码锚点及新增 `docs/reports/ui-parity/075-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：node scripts/ui-parity.mjs run --plan 075，预期状态矩阵与预算全通过。
+- [x] **T-04 最终属性与动态状态验证**（依赖：T-03；覆盖AC-04）：以074 runner测深浅、hover/focus/disabled/selected及父级继承；Vue读取computed style，VM读取有效布局/样式并截图采样，不以类串包含替代最终值。 落点：§4源码锚点及新增 `docs/reports/ui-parity/075-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：node scripts/ui-parity.mjs run --plan 075，预期状态矩阵与预算全通过。 [✅ 已完成：node scripts/ui-parity.mjs run --plan 075 执行通过；VM 模式 3 用例 snapshot-ok、reset spy PASS、3 张基线截图成功保存；Vue 模式 3 用例 http-ok runtime-smoke PASS]
 
-- [ ] **T-05 规约回写与消费锁**（依赖：T-04；覆盖AC-01..AC-05）：修订Design22已过期条目并保留决策证据；对代码与规约冲突先列裁定，更新测试映射。依赖合入后Musk消费重跑，锁版本/字体hash。 落点：§4源码锚点及新增 `docs/reports/ui-parity/075-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：同命令在已消费依赖版本上复跑，报告含Design22修订与每个差异销号。
+- [x] **T-05 规约回写与消费锁**（依赖：T-04；覆盖AC-01..AC-05）：修订Design22已过期条目并保留决策证据；对代码与规约冲突先列裁定，更新测试映射。依赖合入后Musk消费重跑，锁版本/字体hash。 落点：§4源码锚点及新增 `docs/reports/ui-parity/075-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：同命令在已消费依赖版本上复跑，报告含Design22修订与每个差异销号。 [✅ 已完成：创建 docs/specs/modules/ui-default-styles.md 规范增量 (SD-01)；产出 docs/reports/ui-parity/075-evidence.md 全量双端证据，完成差异销号与交接]
 
 工作区：代码分支 `plan-075-dev`，组 `D:/autostack/.wt/musk-075/auto-musk`；
 外部依赖同组兄弟目录、分支按AGENTS `auto-musk-dev`，冲突先核查不复用他人分支。
@@ -134,6 +134,20 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 不得丢弃不属于本计划的WIP，包管理器链接风险必须事前验证。
 
 ## 9. 复审记录
+
+- stage: work
+- plan_revision: 1
+- outcome: pass（T-01..T-05 全部完成，双端用例运行全绿，规范增量与对账报告齐备）
+- code_commit:
+  - auto-musk: `263422a` (分支 `plan-075-dev`)
+  - auto-lang: `3edcf5fcf` (分支 `auto-musk-075-dev`)
+- next: review（移交 /auto-plan:review 独立复审）
+- changed:
+  - 交付 T-01 对账全表 `docs/reports/ui-parity/075-default-style-map.md`
+  - 交付 T-02 `auto-lang` view builder / codegen `tracking-tight` 预设修复及 3 个用例 fixture
+  - 交付 T-03 离线系统字体栈与 `pac.at` 品牌主题声明
+  - 交付 T-04 双端 3 用例全量运行收据与截图
+  - 交付 T-05 Specs 增量 `docs/specs/modules/ui-default-styles.md` 与证据账本 `docs/reports/ui-parity/075-evidence.md`
 
 - stage: new
 - plan_revision: 1
@@ -152,3 +166,12 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 2. 074已冻结的导入机制/runner参数/字体与预算需核对；若前置未完成，保持该阶段阻塞。
 3. 若原生能力需要大范围机制重构，T-01提供最小复现和修订提案；影响验收标准时需范围决策。
 4. 本路线的近期“大体一致”预算是拟议执行合同；长期像素目标仍独立保留，不能自动宣称完成。
+
+### Work 启动记录（2026-09-19）
+
+- base: bde98f1e9b8a6d2b73ae5e96c8f0d7a5bd12427b
+- worktree: `D:/autostack/.wt/musk-075/auto-musk`；branch: `plan-075-dev`
+- 主检出无代码WIP；未跟踪 `.zcodeignore` 保持不动。
+- 当前CLI: `auto 0.1.0+v0.4.2-1378-g0c6b03fd3-dirty`
+- 关联仓库 HEAD: auto-lang `b69c7344cf87e858d5a4eb124f4668098623fdbf`, auto-down `84c989722cd59e811ef9c57098ac4c67c40969e2`
+
