@@ -251,12 +251,24 @@ fn messageBlocks(msg obj) obj {
         for b in msg.blocks {
             if b.kind == "tool" {
                 tnorm = tnorm + 1
-                var raw = b.tool ?? {}
+                // r7：raw 兼容双形态——持久化块载荷在 tool 键；流式 live push
+                // 块（forge_store tool_call 臂）载荷在 tc 键且无 tool 键。原
+                // `b.tool ?? {}` 把 live 块洗成空载荷（name undefined +
+                // nstatus 落"completed"默认）→ 用户实测 streaming 中工具卡
+                // 无名/无参/无结果 + 假 completed。tc 形态字段名与 raw 同构
+                // （name/arguments/result/status），直取即等价。
+                var raw = b.tool ?? b.tc ?? {}
                 var nstatus = "completed"
                 if raw.status == "error" || raw.status == "failed" {
                     nstatus = "failed"
                 } else {
-                    if raw.status == "running" { nstatus = "running" }
+                    // r7：gate_waiting 透传（原 fall-through 到"completed"——
+                    // 审批等待卡假显示完成态，chat_message 的 gate 分支不可达）。
+                    if raw.status == "running" {
+                        nstatus = "running"
+                    } else {
+                        if raw.status == "gate_waiting" { nstatus = "gate_waiting" }
+                    }
                 }
                 norm.push({
                     kind: "tool",
