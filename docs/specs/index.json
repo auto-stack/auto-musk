@@ -13,7 +13,8 @@
     "modules/workspace-sandbox.md",
     "modules/vm-process-stability.md",
     "modules/vm-data-semantics.md",
-    "modules/ui-parity.md"
+    "modules/ui-parity.md",
+    "modules/ui-default-styles.md"
   ],
   "goals": [
     "goal-agent",

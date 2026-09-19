@@ -30,3 +30,4 @@
 - 自动化编排：`scripts/ui-parity.mjs`（`check`、`run`、`report` 命令接口）。
 - 测试夹具：`tests/ui-parity/cases.json`、`tests/ui-parity/fixtures/*.json`。
 - 差异与基线报告：`docs/reports/ui-parity/074-baseline.md`、`docs/reports/ui-parity/074-evidence.md`。
+- 默认样式契约与对账映射：`docs/specs/modules/ui-default-styles.md`、`docs/reports/ui-parity/075-default-style-map.md`、`docs/reports/ui-parity/075-evidence.md`。
