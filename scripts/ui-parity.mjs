@@ -68,21 +68,23 @@ function child(command, childArgs, cwd, env) {
   return { p, output: () => ({ stdout: out, stderr: err }) };
 }
 async function runMode(mode, caseId) {
-  const port = Number(option('--port') ?? (mode === 'vm' ? 17476 : 17477));
+  const mcpPort = Number(option('--port') ?? (mode === 'vm' ? 17476 : 17477));
+  const frontPort = Number(process.env.AUTO_GALLERY_FRONT_PORT ?? 17474);
+  const backPort = Number(process.env.AUTO_GALLERY_BACK_PORT ?? 17475);
   const render = mode === 'vm' ? 'vm' : 'vue';
   const executable = process.env.AUTO_EXE ?? 'auto';
-  const env = { AUTOUI_MCP_PORT: String(port), AUTO_PARITY_CASE: caseId };
-  const c = child(executable, ['run', '--render', render, '--port', String(port + 1)], GALLERY, env);
+  const env = { AUTOUI_MCP_PORT: String(mcpPort), AUTO_PARITY_CASE: caseId };
+  const c = child(executable, ['run', '--render', render, '--port', String(frontPort), '--back-port', String(backPort)], GALLERY, env);
   const started = Date.now(); let status = 'missing'; let endpoint = '';
   try {
     if (mode === 'vm') {
-      endpoint = `http://127.0.0.1:${port}/mcp`;
+      endpoint = `http://127.0.0.1:${mcpPort}/mcp`;
       await waitFor(endpoint);
       const body = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'autoui_snapshot', arguments: { mode: 'rendered' } } }) }).then(r => r.text());
       status = body.includes('Instance') ? 'snapshot-ok' : 'snapshot-missing-needle';
     } else {
-      endpoint = `http://127.0.0.1:${port + 1}`;
+      endpoint = `http://127.0.0.1:${frontPort}`;
       await waitFor(endpoint);
       status = 'http-ok';
     }
