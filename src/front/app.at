@@ -88,21 +88,25 @@ widget App {
                     // 可辨细线；h-12 对齐天然成立（两线均 y=48）。
                     row {
                         style: "h-12 shrink-0 flex items-center border-b border-white/10"
+                        // r8：标题行收敛为单一 deer icon 按钮（原展开态
+                        // "Auto Musk"+版本号双 text 在窄 rail 里挤成两行，
+                        // 用户实测截图）——版本号转 hover title，可自检
+                        // bundle 新旧（r3 引入该锚点的初衷保留）。
                         if .rail_collapsed {
                             button {
                                 onclick: .ToggleRail
-                                title: "Auto Musk v0.1.0-p073r3"
+                                title: "Auto Musk v0.1.0-p073r8"
                                 style: "rail-icon-btn mx-auto"
                                 img (src: .deerDarkSrc) { class: "deer-icon-dark w-6 h-6 rounded-lg" }
                                 img (src: .deerLightSrc) { class: "deer-icon-light w-6 h-6 rounded-lg" }
                             }
                         } else {
-                            row {
-                                style: "flex items-baseline gap-2"
-                                // PLAN-048:字面量化(VM 视图文本无裸调用臂,t() 恒空;
-                                // 见 KD 048 行 UPSTREAM④)。
-                                text "Auto Musk" { style: "text-base font-bold text-primary" }
-                                text "v0.1.0-p073r3" { style: "text-xs text-muted-foreground" }
+                            button {
+                                onclick: .ToggleRail
+                                title: "Auto Musk v0.1.0-p073r8"
+                                style: "w-8 h-8 shrink-0 flex items-center justify-center rounded-lg hover:bg-accent bg-transparent border-none cursor-pointer"
+                                img (src: .deerDarkSrc) { class: "deer-icon-dark w-6 h-6 rounded-lg" }
+                                img (src: .deerLightSrc) { class: "deer-icon-light w-6 h-6 rounded-lg" }
                             }
                             button {
                                 onclick: .ToggleRail
