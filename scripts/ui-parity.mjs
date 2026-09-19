@@ -93,7 +93,17 @@ async function runMode(mode, caseId) {
   try {
     if (mode === 'vm') {
       endpoint = `http://127.0.0.1:${mcpPort}/mcp`;
-      await waitFor(endpoint, timeoutMs);
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const out = c.output();
+        const m = (out.stderr + out.stdout).match(/AutoUI MCP: listening on (https?:\/\/[^\s]+)/);
+        if (m) {
+          endpoint = m[1].replace(/\/+$/, '') + '/mcp';
+          break;
+        }
+        await new Promise(r => setTimeout(r, 150));
+      }
+      await waitFor(endpoint, Math.max(5000, deadline - Date.now()));
       const payload = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'autoui_snapshot', arguments: { mode: 'rendered' } } });
       for (let i = 0; i < 20; i++) {
         snapshotBody = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload }).then(r => r.text());
@@ -168,6 +178,7 @@ async function run() {
       const p = logReceipt(receipt);
       console.log(`${c.id} (${mode}): ${receipt.status}; receipt=${slash(path.relative(ROOT, p))}`);
       if (receipt.evidence === 'missing-runtime-evidence') process.exitCode = 1;
+      await new Promise(r => setTimeout(r, 600));
     }
   }
 }
