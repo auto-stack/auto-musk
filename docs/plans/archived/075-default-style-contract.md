@@ -1,10 +1,11 @@
 ---
 plan_id: PLAN-075
-status: reviewed
+status: archived
+completion_kind: delivered
 feature_name: 默认样式三方对账与主题字体收敛
 author: [agent]
 created_at: 2026-09-19T00:00:00Z
-updated_at: 2026-09-19T10:46:00Z
+updated_at: 2026-09-19T11:00:00Z
 plan_revision: 1
 current_step: 5
 total_steps: 5
@@ -134,6 +135,32 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 不得丢弃不属于本计划的WIP，包管理器链接风险必须事前验证。
 
 ## 9. 复审记录
+
+- stage: merge | plan_id: PLAN-075 | plan_revision: 1 | outcome: pass | delivery_commit: af1e08e8f6efb597c586e4df16a011b664a289d4 | canonical_specs: [docs/specs/modules/ui-default-styles.md, docs/specs/modules/ui-parity.md, docs/specs/index.json] | archive_path: docs/plans/archived/075-default-style-contract.md | completion_kind: delivered | worktree: D:/autostack/.wt/musk-075/auto-musk (branch plan-075-dev rebased & merged to main via --ff-only) | cleanup_state: cleaned
+
+### 巩固收据 (Consolidation Receipt) — PLAN-075:r1
+
+- Checkpoints:
+  - `prepared`:
+    - Reviewed baseline commit: `263422a46f829a861ffc38b930c1d217b5d81750`
+    - Spec delta commit in worktree: `3b37df3` (`docs/specs/modules/ui-default-styles.md`, `docs/specs/index.json`, `docs/specs/modules/ui-parity.md`)
+    - Rebased delivery commit: `af1e08e8f6efb597c586e4df16a011b664a289d4`
+    - Range-diff proof: `git range-diff bde98f1..3b37df3 3a9aef6..af1e08e` (100% equal diffs)
+  - `landed`:
+    - Fast-forward merge: `git merge --ff-only plan-075-dev` on main (tip equals `af1e08e8f6efb597c586e4df16a011b664a289d4`)
+    - Canonical specs live on main: `docs/specs/modules/ui-default-styles.md`, `docs/specs/index.json`, `docs/specs/modules/ui-parity.md`
+  - `ledger_refreshed`:
+    - Target: `docs/specs/index.json` (version: 2.0, registered `modules/ui-default-styles.md`)
+    - Derived specs & reports: `docs/reports/ui-parity/075-default-style-map.md`, `docs/reports/ui-parity/075-evidence.md`
+  - `archived`:
+    - Active path `docs/plans/075-default-style-contract.md` moved to `docs/plans/archived/075-default-style-contract.md`
+    - `completion_kind: delivered`, `status: archived`
+  - `cleaned`:
+    - Worktree `D:/autostack/.wt/musk-075/auto-musk` removed
+    - Branch `plan-075-dev` deleted (was `af1e08e`)
+    - Dependency sibling worktree `D:/autostack/.wt/musk-075/auto-lang` merged to `master` (commit `4261037cb`), removed, branch `auto-musk-075-dev` deleted
+    - Sibling worktree `D:/autostack/.wt/musk-075/auto-down` removed
+    - Group directory `D:/autostack/.wt/musk-075` removed
 
 - stage: review
   plan_id: PLAN-075
