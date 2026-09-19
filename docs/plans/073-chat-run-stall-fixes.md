@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-073
-status: in_progress（Phase 2 已实施，待 review + 用户环境 live 复测）
+status: reviewed（Phase 2 pass @e5e098e，见 §9；下一步 merge）
 feature_name: chat 运行挂死修复（看门狗命令盲区 / daemon 静默吞参 / 超时收束丢证据）
 author: zhaop / zcode
 created_at: 2026-09-18T22:00:00+08:00
-updated_at: 2026-09-19T20:35:00+08:00
+updated_at: 2026-09-19T22:05:00+08:00
 plan_revision: 4
 current_step: 11
 total_steps: 11
@@ -460,12 +460,12 @@ rm -rf/rmdir /s（2026-09-03 事故同类）；④测试隔离：musk serve 的�
   persists_single_reply` + 09-19 九例 live 对照；失败臂 = 新回归测试 +
   8095 隔离实例 live（⚠ 尾块/终态）；超时臂 = 既有看门狗用例（组装改共用
   函数，行为等价由组装单测锚定）〕
-- [ ] **AC-P2-2** run 进行中刷新页面：可见已落盘部分现场（turn 粒度增量），
+- [x] **AC-P2-2** run 进行中刷新页面：可见已落盘部分现场（turn 粒度增量），
   且运行中状态恢复（后续事件继续渲染）；收束后前端归一为完整消息，
-  与不刷新路径一致。〔机制各环已分别验证：turn 快照（回归测试真实路径）、
-  attach 后续事件转发（既有测试）、poll pending 守卫（代码路径）；
-  **端到端（真 LLM 长 run 中刷新 + 收束归一）待用户环境复测**——重启
-  8090 新 exe 后跑一次多轮 run 中刷新即可〕
+  与不刷新路径一致。〔**复审 live 端到端复现闭环**：隔离实例（新 exe=
+  e5e098e 源码构建）+ 真 daemon 短 run——中途 GET 见 pending=True 快照
+  （2 工具卡），挂流收 578 帧实时事件，收束终版同 id 换入 pending=None、
+  content 516 字、块序 thinking·tool·tool·text、恰 1 条 assistant〕
 - [x] **AC-P2-3** 落盘失败不静默：append/upsert 失败有 warn 日志；
   新增收束落盘回归测试挂入 musk 测试套件。
 - [x] **AC-P2-4** 附加流不悬挂：对无在途 run 的会话开 /stream 立即收
@@ -481,3 +481,54 @@ rm -rf/rmdir /s（2026-09-03 事故同类）；④测试隔离：musk serve 的�
   前端渲染"运行中断"提示待做（本轮只保证数据不丢、可辨伪）。
 - 9063dfd4 的确切死因（无日志出口 vs 楔死）未定——P2-T2 起三臂全出口
   日志化后，同类案例将自带诊断面。
+
+### 6.6 规范增量（r13 复审补立——按已验证实现起草，merge 阶段发布）
+
+- **modify** `docs/specs/modules/chat-streaming.md`：
+  - 契约①"订阅即附加/空闲流"的**空闲语义**修订：空闲订阅不再挂起——
+    `chat_run_stream` 入口以 `chat_run_active` 窥探，空闲立即回
+    `{"type":"idle"}` 帧收流（收束竞态 try_recv 转发 done 尾巴）。
+  - 新增契约：**会话载入即附加**——前端会话打开（切换/刷新）即
+    AttachStream 挂流；运行态不预置，由首个真实流事件置位（旧后端
+    兼容，零事件零幻态）；`idle` 事件臂复位。
+  - 契约④补：完成启发式增 **pending 守卫**——末条为 pending 快照
+    （非终版）时不清窗不收束，等收束终版同 id 换入。
+  - 契约④动机句"回填快照不含在途 assistant"按 P2-T3 修订：run 期间
+    存在 turn 粒度增量快照，但快照不含 turn 内直播尾部——流式期跳过
+    回填的结论不变，理由更新。
+- **modify** `docs/specs/modules/chat-run-policy.md`：
+  - 收束落盘规则修订：**三臂（成功/失败/超时）统一组装现场**
+    （叙述块/思考首块/工具卡 + ⚠ 尾块）；失败臂不再仅落一行文本。
+  - 新增规则：**turn 增量落盘**——run 起跑定消息 id，turn_end 边界将
+    当前积累以 `pending=true` 快照 upsert；收束终版同 id 原位替换并清
+    pending；原位替换必须保留 parent_id/created_at（分支链不变量）。
+  - 落盘失败显式 warn（persist 统一口），session 缺失同样可观测。
+- **new**：无（均为既有模块规则修订）。
+- **supersedes**：chat-streaming 契约①"空闲流挂起"语义；契约④"回填快照
+  不含在途 assistant"动机句。
+- **touched_goals**：空——docs/specs/goals 尚无 chat/流式相关 goal 条目
+  （体系未建该项，无真实 goal id 可挂）。
+
+## 9. 复审记录
+
+`stage: review | PLAN-073 | rev4 | pass | e5e098e（code）/ ccba96b（plan doc）
+| base=e2c0cb0 | deps: auto-ai@630a98d（兄弟 worktree 纯路径解析零改动，已清）
+| spec_inputs: modules/chat-run-policy.md、modules/chat-streaming.md（增量草案
+见 §6.6，merge 发布）| acceptance: AC-P2-1 pass / AC-P2-2 pass / AC-P2-3 pass
+（验证方式=代码路径+upsert 返回值语义测试）/ AC-P2-4 pass | findings: F-R1
+idle 窥探单事件 try_recv——队列首事件属他 session 时漏收本会话 done 尾巴
+（前端 poll 归一兜底，不阻塞）；F-R2 attach 后 3s 静默窗内回填换入快照会
+抹掉客户端 turn 内增量（F-04 同族边缘，快照粒度无损，登记）；F-R3 规范
+增量原缺失，本复审补立 §6.6 | evidence: 全量套件复跑 652 绿/1 失败
+（run_command_dangerous_returns_paused——基线 e2c0cb0 stash 对照同败，
+判环境预存非回归；独立 CARGO_TARGET_DIR 规避运行中 exe 锁）；AC-P2-2
+端到端 live 复现（隔离 8095 + 真 daemon 新 exe=e5e098e 源码构建：
+t=12s GET 见 pending=True 快照（2 工具卡）→ 挂流收 578 帧实时事件 →
+t=13s 终版换入 pending=None/content 516 字/块序 thinking·tool·tool·text
+→ assistants=1）；8095 live：失败臂 ⚠ 尾块落盘 + 裸 attach 即
+data:{"type":"idle"}；dist=复审终版（attach 逻辑在 bundle）| next: merge`
+
+**独立性声明**：本复审在实施会话内进行——结论从提交产物重建（diff 独立
+重读、独立 target 目录复跑全量套件、AC-P2-2 端到端重现实证），不采信
+r13 实施记录自述。AC-P2-2 复现使用用户 aaid 两次短 run（读目录+读文件，
+最小配额，沿 r4/r6/r7 live 验证惯例）。
