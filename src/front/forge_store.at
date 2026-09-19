@@ -556,9 +556,10 @@ store ForgeStore {
                         }
                         msg.content = msg.content + ev.text
                         .current_draft = .current_draft + ev.text
+                        // PLAN-073 r5：正文开始 = 思考结束——先落地思考块。
+                        landThinkingBlocks(msg)
                         let _ab = appendBlockText(msg, "text", ev.text)
-                        console.log("[SSE] delta: chunk=" + ev.text.length + " draft=" + .current_draft.length + " blocks=" + msg.blocks.length)
-                    }
+                        console.log("[SSE] delta: chunk=" + ev.text.length + " draft=" + .current_draft.length + " blocks=" + msg.blocks.length)                    }
                 }
                 return
             }
@@ -589,6 +590,8 @@ store ForgeStore {
                     .active_leaf = msg3.id
                     .messages.push(msg3)
                 }
+                // PLAN-073 r5：思考结束转入行动——落地思考块。
+                landThinkingBlocks(msg3)
                 var callId = ev.id ?? ""
                 if callId == "" { callId = "tc-" + Date.now() }
                 let callName = ev.name ?? "unknown"
@@ -790,6 +793,14 @@ store ForgeStore {
                 let p0 = ev.profession_id ?? ""
                 var _ea = currentAssistantMsgIn(.messages)
                 if _ea == None { _ea = newAssistantMsg(p0) ; .messages.push(_ea) } else { if _ea.profession_id == None { _ea.profession_id = p0 } }
+                // PLAN-073 r5：新轮次开始——上一轮思考块落地。
+                landThinkingBlocks(_ea)
+                return
+            }
+            if ev.type == "turn_end" {
+                // PLAN-073 r5：轮次边界——思考块落地（原先落到无名分支只打日志）。
+                let _eb = currentAssistantMsgIn(.messages)
+                landThinkingBlocks(_eb)
                 return
             }
             if ev.type == "phase_change" {
@@ -835,19 +846,47 @@ fn nowSec() int {
 /** ThinkBlock 展开列表取反（PLAN-055 T11；内联同 nowSec 缘由——
  * forge_helpers 版 thinkToggleList 供渲染侧读，此处 store 侧写路径用同构
  * fn，避免 store 文件引入 use.web.fn 导入缺口）。 */
+// PLAN-073 r5：思考块生命周期——state: "streaming" | "done"。
+// 追加规则：末块同 kind 且（非 thinking 或 未落地）→ 追加文本；
+// 已落地的 thinking 块不再追加（新轮次思考开新 streaming 块）。
 fn appendBlockText(msg Value, kind str, text str) {
     if msg.blocks == None { msg.blocks = [] }
     let blocks = msg.blocks
     var last = blocks[blocks.length - 1]
     if last != None {
         if last.kind == kind {
-            if last.text != None {
-                last.text = last.text + text
-                return
+            if kind == "thinking" && last.state == "done" {
+                // 落地态不再追加——新轮次思考开新块
+            } else {
+                if last.text != None {
+                    last.text = last.text + text
+                    return
+                }
             }
         }
     }
-    blocks.push({ kind: kind, text: text })
+    if kind == "thinking" {
+        blocks.push({ kind: kind, text: text, state: "streaming" })
+    } else {
+        blocks.push({ kind: kind, text: text })
+    }
+}
+
+// PLAN-073 r5：把当前消息里所有 streaming 态思考块落为 done——在
+// delta（同轮正文开始）/ tool_call（思考结束转入行动）/ turn_start /
+// turn_end（轮次边界）时调用。模板按 state 选形态：streaming = 尾部
+// 滚动条 + "思考中"；done = 折叠头 + "已思考"（可展开）。
+fn landThinkingBlocks(msg Value) {
+    if msg == None { return }
+    if msg.blocks == None { return }
+    var bi = 0
+    while bi < msg.blocks.length {
+        let b = msg.blocks[bi]
+        if b.kind == "thinking" {
+            if b.state == None || b.state == "streaming" { b.state = "done" }
+        }
+        bi = bi + 1
+    }
 }
 
 /** 当前（末条）assistant 消息；末条非 assistant 返回 None。 */
@@ -876,6 +915,10 @@ fn normalizeToolBlocks(msgs Value) Value {
                 if b.kind == "tool" {
                     if b.tc == None && b.tool != None { b.tc = b.tool }
                     if b.tc != None && b.tc.result == None { b.tc.result = "" }
+                }
+                // PLAN-073 r5：落盘的思考块必然已结束——补 done 态。
+                if b.kind == "thinking" {
+                    if b.state == None || b.state == "streaming" { b.state = "done" }
                 }
                 bi = bi + 1
             }

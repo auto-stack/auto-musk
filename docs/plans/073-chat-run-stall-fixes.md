@@ -134,6 +134,26 @@ undefined。重建产物部署（gen/front/vue/dist，ServeDir 直读，浏览�
 stub 绕开（生成物不入库，重装/迁移需重打），根修在 auto-lang 模板；
 ②eslint 缺装；③审批门等待期无心跳（§3）。
 
+**r5（2026-09-19 11:40）——思考块单组件双状态（用户提议，顺带修"过去轮次
+思考块恒挂思考中"）**。原设计思考块的 思考中/已思考 标签跟随**消息级**
+is_streaming：运行进行中该消息所有思考块（含早已完成的过去轮次）都挂
+"思考中"展开态，直到 done 才整批翻转。修正为**块级生命周期**：
+
+- store：思考块创建即 `state:"streaming"`；`appendBlockText` 对已落地
+  （done）的思考块不再追加文本（新轮次思考开新 streaming 块）；
+  `landThinkingBlocks` 在 delta（同轮正文开始）/ tool_call（思考结束转入
+  行动）/ turn_start / turn_end 四类事件落地全部 streaming 思考块；
+  `normalizeToolBlocks` 补落盘思考块的 done 态（旧数据无 state 字段安全
+  回退：无 state 一律按 done 渲染）。
+- 模板：ChatMessage 思考块分支条件 `is_streaming` → `block.state ==
+  "streaming"`（流式 = 尾部滚动条 + 思考中；否则 = 折叠头 + 已思考 +
+  点击展开——同一形态的两个状态）；落地态标签固定"已思考"。
+- 效果：过去轮次的思考块在轮次结束即落地折叠，只有当前块保持思考中；
+  运行结束后全部落地。约束不变：.at 模板 v-if 不支持 `??`。
+
+auto build 全绿（codegen + vue-tsc + vite，本次 pipeline 完整通过），
+dist 重建部署（刷新即生效）。
+
 **r4+（2026-09-19 01:55）——用户复测仍见空卡（01:30 截图）排查结论**。
 校验线上 `/assets/index.js`：result 初始化/tkey/gate 分支/normalize 全部在
 bundle 中 ✓；live 抓流（复现会话）`tool_call` 载荷完整（name=read_file +
