@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "plan": "PLAN-074",
+  "plan": "PLAN-075",
   "unitPolicy": "auto-reachable",
   "casePolicy": "one-per-reachable-plus-inline",
   "units": [],
@@ -44,6 +44,36 @@
       "state": "gate-waiting",
       "owner": "PLAN-077",
       "plan": "PLAN-077"
+    },
+    {
+      "id": "style-controls-login",
+      "unit": "LoginPage",
+      "logicalUnit": "controls",
+      "fixture": "style-controls-login.json",
+      "mode": "render-and-interact",
+      "state": "default-styles-and-theme",
+      "owner": "PLAN-075",
+      "plan": "PLAN-075"
+    },
+    {
+      "id": "style-badge-status",
+      "unit": "StatusBadge",
+      "logicalUnit": "badge",
+      "fixture": "style-badge-status.json",
+      "mode": "fixture-contract",
+      "state": "badge-presets",
+      "owner": "PLAN-075",
+      "plan": "PLAN-075"
+    },
+    {
+      "id": "style-button-dialog",
+      "unit": "DeleteConfirmDialog",
+      "logicalUnit": "dialog",
+      "fixture": "style-button-dialog.json",
+      "mode": "fixture-contract",
+      "state": "button-variants",
+      "owner": "PLAN-075",
+      "plan": "PLAN-075"
     }
   ]
 }

@@ -16,6 +16,16 @@ version: "0.1.0"
 scene: "ui"
 render: "vue"
 api: "rust"
+
+// PLAN-075 T-03: 共享主题配置（对齐 Musk 品牌紫），AutoUI 编译器与 VM boot 统一事实源
+theme: {
+  extends: "scaffold"
+  colors: {
+    primary: "238 55% 58%"
+    "primary-foreground": "0 0% 100%"
+    ring: "238 55% 58%"
+  }
+}
 # PLAN-013 T4:桌面 daemon 链（auto-os apps.manifest daemon 字段配对）——
 # 端口 = auto-os 伞形 17xxx 带预留（17200/17201）;daemon 值 = manifest id,
 # 桌面 launch 前置 ensure ping :17201 → 发现序 spawn backend/target/release/

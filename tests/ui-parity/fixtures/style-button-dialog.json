@@ -1,0 +1,10 @@
+{
+  "props": {
+    "open": true,
+    "target": "session-1",
+    "session_title": "Test Session",
+    "all_title": "All Sessions",
+    "confirm_text": "Delete",
+    "cancel_text": "Cancel"
+  }
+}

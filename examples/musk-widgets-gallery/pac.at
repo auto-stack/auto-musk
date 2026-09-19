@@ -3,6 +3,15 @@ title: "Musk Widgets Gallery"
 version: "0.1.0"
 scene: "ui"
 render: "vue"
+// PLAN-075 T-03: 共享主题配置（对齐 Musk 品牌紫），AutoUI 编译器与 VM boot 统一事实源
+theme: {
+  extends: "scaffold"
+  colors: {
+    primary: "238 55% 58%"
+    "primary-foreground": "0 0% 100%"
+    ring: "238 55% 58%"
+  }
+}
 pkg: "pnpm"
 window: "1280x800"
 front_port: 17474

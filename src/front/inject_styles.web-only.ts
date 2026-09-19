@@ -16,9 +16,8 @@
 import '@autodown/engine/style.css'
 
 const STYLES = `
-/* ── 字体（Noto Sans SC）── */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
-body, button, input, textarea, select { font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+/* ── 字体（离线系统字体栈，消除网络依赖，PLAN-075）── */
+body, button, input, textarea, select { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif; }
 
 /* ── 主题变量覆盖（对齐原版 theme.css，Plan 022 视觉对齐）──
    codegen 生成的 index.css 用 shadcn 默认值（primary 近黑），

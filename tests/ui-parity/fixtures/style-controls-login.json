@@ -1,0 +1,8 @@
+{
+  "props": {
+    "username": "test_user",
+    "password": "secret_password",
+    "register_mode": false,
+    "prefilled": true
+  }
+}
