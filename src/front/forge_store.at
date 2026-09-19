@@ -166,6 +166,8 @@ store ForgeStore {
                             .thinking_level = detail.session.thinking_level ?? "low"
                             // PLAN-067 T-05: 会话审批模式随载入回填（缺省 human）。
                             .approval_mode = detail.session.approval_mode ?? "human"
+                            // PLAN-073 P2-T4：载入即重挂在途 run（无在途即收）。
+                            .AttachStream()
                         }
                     }
                 }
@@ -221,6 +223,9 @@ store ForgeStore {
                 // PLAN-071 需求⑧：会话 mode 回填（乐观气泡职业映射用）。
                 .session_mode = resp.session.mode ?? "superpowers"
                 .error = ""
+                // PLAN-073 P2-T4：切换即重挂在途 run（无在途即收；刷新页面
+                // 后超长 run 的现场经增量快照 + 后续事件恢复）。
+                .AttachStream()
             } else {
                 // PLAN-053 批4: 错误信息携带实收 id（过期会话可对号入座）。
                 .error = "会话加载失败（可能已删除），列表已刷新，请重新选择 [收到 id=" + id + "]"
@@ -437,6 +442,34 @@ store ForgeStore {
             }
  }
 
+        // PLAN-073 P2-T4：会话打开（切换/刷新载入）即重挂在途 run——后端
+        // chat_run_stream 入口窥探守卫：无在途立即回 idle 帧收流；有在途则
+        // 后续事件照常经 OnStreamEvent 上屏（刷新前的前缀由 P2-T3 turn 增量
+        // 快照落盘补足）。不注入乐观消息（userContent 为空），与 StartStream
+        // 的发送路径分离；deadman 窗照 push——done 后轮询换入终版（快照
+        // pending 防提前清窗，见 PollStream）。**不预置 streaming**：运行态
+        // 由首个真实流事件置位（OnStreamEvent 入口）——旧后端（无 idle 帧/
+        // 无在途）attach 后零事件即零运行态，不留幽灵"运行中"；VM 轨
+        // Sse.open no-op 同理无需复位。
+        .AttachStream -> {
+            if .session_id == "" { return }
+            .stream_es = Sse.close(.stream_es)
+            let path0 = "/api/chats/session/" + encodeURIComponent(.session_id) + "/stream"
+            var qs = ""
+            if .workspace != "" { qs = "?workspace=" + encodeURIComponent(.workspace) }
+            if .token != "" {
+                if qs == "" {
+                    qs = "?token=" + encodeURIComponent(.token)
+                } else {
+                    qs = qs + "&token=" + encodeURIComponent(.token)
+                }
+            }
+            .pre_stream_len = .messages.length
+            .poll_window.push(Date.now())
+            console.log("[SSE] attach: " + path0 + qs)
+            .stream_es = Sse.open(path0, .OnStreamEvent)
+        }
+
         // Plan 051 T10（G1 阶段1）：轮询拍——全量回填 + 完成启发式。
         .PollStream -> {
             // PLAN-071 需求⑮：每拍驱动队列重试（busy 竞态退回后由此重发；
@@ -518,6 +551,10 @@ store ForgeStore {
                 if last.role == "assistant" {
                     if (last.content ?? "") != "" {
                         if msgs.length > .pre_stream_len {
+                            // PLAN-073 P2-T3：末条若是 run 增量快照（pending
+                            // ==true）则终版未落——不清窗不收束，等收束终版
+                            // 同 id 换入（pending 随之清除）后自然收束。
+                            if last.pending == true { return }
                             .streaming = false
                             // PLAN-062：完成即关 deadman 窗（pop 清窗戳，
                             // 防长会话堆积；机制注同 .StopStream）。
@@ -540,6 +577,12 @@ store ForgeStore {
             // PLAN-067 T-02：SSE 心跳——PollStream 健康门的依据（流活着
             // 就不做全量回填,防运行中快照清掉流式内容）。
             .last_sse_at = Date.now()
+            // PLAN-073 P2-T4：真实流事件 = 运行在途——attach 路径不预置
+            // streaming（旧后端兼容）,由首事件置位；done/idle/error 各臂
+            // 自行复位。
+            if ev.type == "delta" || ev.type == "thinking" || ev.type == "tool_call" || ev.type == "tool_result" || ev.type == "turn_start" || ev.type == "turn_end" || ev.type == "tool_gate_waiting" {
+                if .streaming == false { .streaming = true }
+            }
             console.log("[SSE] ev=" + ev.type + " msgs=" + .messages.length + " draft=" + .current_draft.length + " think=" + .thinking.length)
 
             if ev.type == "delta" {
@@ -671,6 +714,15 @@ store ForgeStore {
                 .stream_es = Sse.close(.stream_es)
                 // PLAN-071 需求⑮：收束即排空排队消息。
                 .FlushQueue()
+                return
+            }
+            if ev.type == "idle" {
+                // PLAN-073 P2-T4：附加窥探回执——服务端无在途 run（chat_run_
+                // stream 入口 chat_run_active 探测），立即收流不算运行中。
+                // 已载入的消息（含 run 增量快照）就是全部现场。
+                console.log("[SSE] idle: no run in flight")
+                .streaming = false
+                .stream_es = Sse.close(.stream_es)
                 return
             }
             if ev.type == "error" {

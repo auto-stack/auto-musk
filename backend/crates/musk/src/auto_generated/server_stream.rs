@@ -263,7 +263,8 @@ fn chat_sse_stream(rx: Value) -> impl futures::Stream<Item = Result<Event, Infal
             // PLAN-069 T-06：非 DTO 形态事件原样透传（tool_update 流式进度 /
             // tool_gate_waiting 审批门 / relay_gate_waiting 镜像）——前端
             // useForge 按 type 分发。
-            if ty == "tool_update" || ty == "tool_gate_waiting" || ty == "relay_gate_waiting" {
+            // PLAN-073 P2-T4：idle——附加窥探的空闲回执（无在途 run 即收）。
+            if ty == "tool_update" || ty == "tool_gate_waiting" || ty == "relay_gate_waiting" || ty == "idle" {
                 yield Ok(sse_event("chat", msg.unwrap_or(serde_json::Value::Null)));
             } else {
                 let dto = stream_event_to_dto(msg);

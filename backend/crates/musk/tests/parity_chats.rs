@@ -149,6 +149,7 @@ fn parity_chat_message_wire_format() {
         parent_id: None,
         thinking: String::new(),
         blocks: Vec::new(),
+        pending: None,
         profession_id: None,
     };
     let ag_msg = ag::ChatMessage {
@@ -174,6 +175,7 @@ fn parity_chat_message_wire_format() {
         thinking: String::new(),
         parent_id: None,
         blocks: Vec::new(),
+        pending: None,
         profession_id: None,
     };
     let ag_empty = ag::ChatMessage {
@@ -218,6 +220,7 @@ fn parity_chat_session_wire_format() {
             thinking: String::new(),
             parent_id: None,
         blocks: Vec::new(),
+        pending: None,
         profession_id: None,
         }],
         created_at: 100,

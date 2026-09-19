@@ -1760,13 +1760,57 @@ pub async fn agent_run_stream(
 /// chat_run_owner（会话 18683b29 双回复实证：F-03 以共享守卫窥探分流主体/
 /// 订阅者，在途订阅会并行再跑一轮——结构性缺陷，改显式角色分离）。
 pub async fn chat_run_stream(
-    _s: &State<AppState>,
-    _q: Query<StreamWorkspaceQuery>,
+    s: &State<AppState>,
+    q: Query<StreamWorkspaceQuery>,
     p: Path<String>,
     tx: Value,
 ) {
     let session_id = p.0.clone();
     let mut attach_rx = crate::relay::api::relay_bus().subscribe();
+    // PLAN-073 P2-T4：附加窥探——run 守卫空闲时立即回 idle 帧收流（前端
+    // 据此知道无在途 run，不再悬挂空流；server.rs chat_run_active 只读
+    // 窥探原注释自述"订阅路径据此决定附加转发或空闲等待"但未接线，本处
+    // 补上）。先订阅后窥探：订阅 → 收束广播 → 窥探 的窗口内 done 已在
+    // 队列里，try_recv 捞到匹配事件则照常进收流循环（不丢尾巴）。
+    let probe_key = format!(
+        "{}:{}",
+        q.workspace.clone().unwrap_or_default(),
+        session_id
+    );
+    if !s.0.chat_run_active(&probe_key) {
+        // 窥探瞬间恰逢收束：done 可能已广播在队列里（守卫在 done 之后、
+        // 终版落盘之后才清）——捞到本会话 done 就转发尾巴，否则 idle。
+        let tail_done = match attach_rx.try_recv() {
+            Ok(ev)
+                if ev.run_id == session_id
+                    && ev.payload.get("type").and_then(|t| t.as_str()) == Some("done") =>
+            {
+                Some(ev.payload)
+            }
+            _ => None,
+        };
+        match tail_done {
+            Some(payload) => mpsc_try_send(&tx, payload),
+            None => mpsc_try_send(&tx, serde_json::json!({"type": "idle"})),
+        }
+        // PLAN-071 T-02：收束必须析构 channel pair——桥接 Sender 常驻 HANDLES 表，
+        // tx Value 掉落不关闭通道（旧附加分支漏调，SSE 永不收束）。
+        close_channel(&tx);
+        return;
+    }
+    chat_run_stream_loop(&mut attach_rx, &session_id, &tx).await;
+    // PLAN-071 T-02：收束必须析构 channel pair——桥接 Sender 常驻 HANDLES 表，
+    // tx Value 掉落不关闭通道（旧附加分支漏调，SSE 永不收束）。
+    close_channel(&tx);
+}
+
+/// PLAN-073 P2-T4：附加收流循环（chat_run_stream 主体拆出，供窥探两路
+/// 复用）——转发本 session 的 chat_event/tool_update/gate 事件，done 即止。
+async fn chat_run_stream_loop(
+    attach_rx: &mut tokio::sync::broadcast::Receiver<crate::relay::api::BusEvent>,
+    session_id: &str,
+    tx: &Value,
+) {
     loop {
         match attach_rx.recv().await {
             Ok(ev) => {
@@ -1783,7 +1827,7 @@ pub async fn chat_run_stream(
                 }
                 let is_done = ty == "chat_event"
                     && ev.payload.get("type").and_then(|t| t.as_str()) == Some("done");
-                mpsc_try_send(&tx, ev.payload);
+                mpsc_try_send(tx, ev.payload.clone());
                 if is_done {
                     break;
                 }
@@ -1792,9 +1836,76 @@ pub async fn chat_run_stream(
             Err(_) => break,
         }
     }
-    // PLAN-071 T-02：收束必须析构 channel pair——桥接 Sender 常驻 HANDLES 表，
-    // tx Value 掉落不关闭通道（旧附加分支漏调，SSE 永不收束）。
-    close_channel(&tx);
+}
+
+/// PLAN-073 P2-T2/P2-T3：chat run 消息组装（超时/失败/成功收束三臂与
+/// turn_end 增量快照共用）。clone 语义——不消耗累积器（快照与终版可多次
+/// 组装同一来源）。结构对齐 r4 T-04 超时臂样板：封口叙述块 → 思考首块 →
+/// 可选尾块（超时/失败的 ⚠ 文案）。
+fn assemble_chat_run_msg(
+    role: &str,
+    content: String,
+    thinking: String,
+    tcs: Vec<crate::chats::ToolCall>,
+    pending_text: &str,
+    blocks: &[crate::chats::ChatBlock],
+    tail: Option<&str>,
+) -> crate::chats::ChatMessage {
+    let mut msg = crate::chats::ChatMessage::assistant(content);
+    msg.thinking = thinking;
+    msg.tool_calls = tcs;
+    msg.profession_id = Some(role.to_string());
+    let mut bl = blocks.to_vec();
+    if !pending_text.is_empty() {
+        bl.push(crate::chats::ChatBlock {
+            kind: "text".into(),
+            text: pending_text.to_string(),
+            tool: None,
+        });
+    }
+    if !msg.thinking.is_empty() {
+        bl.insert(
+            0,
+            crate::chats::ChatBlock {
+                kind: "thinking".into(),
+                text: msg.thinking.clone(),
+                tool: None,
+            },
+        );
+    }
+    if let Some(t) = tail {
+        bl.push(crate::chats::ChatBlock {
+            kind: "text".into(),
+            text: t.to_string(),
+            tool: None,
+        });
+    }
+    msg.blocks = bl;
+    msg
+}
+
+/// PLAN-073 P2-T2/P2-T3：收束/快照落盘统一口——upsert（终版同 id 原位替换
+/// turn 快照），失败与 session 缺失均显式 warn（原三臂 `let _ =` 静默吞错）。
+fn persist_chat_run_msg(
+    chats: &crate::chats::ChatStore,
+    session_id: &str,
+    msg: &crate::chats::ChatMessage,
+    phase: &str,
+) {
+    match chats.upsert_message(session_id, msg.clone()) {
+        Ok(Some(_)) => {}
+        Ok(None) => tracing::warn!(
+            "chat run persist skipped (session gone): session={} phase={}",
+            session_id,
+            phase
+        ),
+        Err(e) => tracing::warn!(
+            "chat run persist failed: session={} phase={} error={}",
+            session_id,
+            phase,
+            e
+        ),
+    }
 }
 
 /// PLAN-071 T-02：chat 运行主体（原 chat_run_stream 运行躯干；PLAN-055 ⑧ D1
@@ -2062,6 +2173,49 @@ pub async fn chat_run_owner(
         let blocks2 = blocks.clone();
         let cur_text2 = cur_text.clone();
         let tool_idx2 = tool_idx.clone();
+        // PLAN-073 P2-T3：run 消息 id——turn 快照与收束终版共用（upsert 原位
+        // 替换的键）。快照闭包：turn_end 边界把当前积累（clone，不消耗累积
+        // 器）组装成 pending 消息落盘——刷新页面即可见已完成轮次的现场，
+        // 收束终版以同 id 换入并清 pending。
+        let run_msg_id = crate::chats::new_message_id();
+        let persist_snapshot = {
+            let chats_snap = chats.clone();
+            let sid_snap = session_id.clone();
+            let rid_snap = run_msg_id.clone();
+            let role_snap = agent_mode.role.clone();
+            let acc_s = accumulated.clone();
+            let think_s = thinking_acc.clone();
+            let tcs_s = tool_calls.clone();
+            let bl_s = blocks.clone();
+            let ct_s = cur_text.clone();
+            move || {
+                let content = acc_s.lock().unwrap().clone();
+                let thinking = think_s.lock().unwrap().clone();
+                let tcs_v = tcs_s.lock().unwrap().clone();
+                let pending_text = ct_s.lock().unwrap().clone();
+                let blocks_v = bl_s.lock().unwrap().clone();
+                if content.is_empty()
+                    && thinking.is_empty()
+                    && tcs_v.is_empty()
+                    && blocks_v.is_empty()
+                    && pending_text.is_empty()
+                {
+                    return;
+                }
+                let mut msg = assemble_chat_run_msg(
+                    &role_snap,
+                    content,
+                    thinking,
+                    tcs_v,
+                    &pending_text,
+                    &blocks_v,
+                    None,
+                );
+                msg.id = rid_snap.clone();
+                msg.pending = Some(true);
+                persist_chat_run_msg(&chats_snap, &sid_snap, &msg, "turn_snapshot");
+            }
+        };
         // PLAN-071 需求⑤：超时/失败落盘臂专用的总线发射器（emit_bus 本体
         // 已被 on_event 捕获）。
         let emit_bus_tail = emit_bus.clone();
@@ -2221,6 +2375,12 @@ pub async fn chat_run_owner(
                                 cur_text2.lock().unwrap().clear();
                             }
                         }
+                        // PLAN-073 P2-T3：turn 边界增量落盘——快照闭包内
+                        // clone 组装（不动累积器），刷新页面即可见已完成
+                        // 轮次的现场。
+                        "turn_end" => {
+                            persist_snapshot();
+                        }
                         // PLAN-073 T-03/T-04：daemon 降级告警（如工具流式参数
                         // 解析失败被替换为 {}）→ ⚠️ 文本块入时间线，用户可见、
                         // 持久化随块走（先封口当前叙述块避免粘连）。
@@ -2362,39 +2522,22 @@ pub async fn chat_run_owner(
             } else {
                 format!("{}\n\n{}", partial, text)
             };
-            let mut msg = crate::chats::ChatMessage::assistant(content);
-            msg.thinking = thinking;
-            msg.tool_calls = tcs;
-            msg.profession_id = Some(agent_mode.role.clone());
-            // W2 同款：封口当前叙述块 → 时间线 → 思考首块 → 超时尾块。
-            {
-                let pending = cur_text.lock().unwrap().clone();
-                let mut bl = blocks.lock().unwrap();
-                if !pending.is_empty() {
-                    bl.push(crate::chats::ChatBlock {
-                        kind: "text".into(),
-                        text: pending,
-                        tool: None,
-                    });
-                }
-                msg.blocks = std::mem::take(&mut *bl);
-            }
-            if !msg.thinking.is_empty() {
-                msg.blocks.insert(
-                    0,
-                    crate::chats::ChatBlock {
-                        kind: "thinking".into(),
-                        text: msg.thinking.clone(),
-                        tool: None,
-                    },
-                );
-            }
-            msg.blocks.push(crate::chats::ChatBlock {
-                kind: "text".into(),
-                text: text.clone(),
-                tool: None,
-            });
-            let _ = chats.append_message(&session_id, msg.clone());
+            // PLAN-073 P2-T2/P2-T3：组装收口 assemble_chat_run_msg（W2 同款
+            // 结构：封口叙述块 → 思考首块 → ⚠ 尾块）；终版与 turn 快照同 id
+            // 原位替换，落盘失败显式 warn（不再 `let _ =` 静默）。
+            let pending_text = cur_text.lock().unwrap().clone();
+            let blocks_v = std::mem::take(&mut *blocks.lock().unwrap());
+            let mut msg = assemble_chat_run_msg(
+                &agent_mode.role,
+                content,
+                thinking,
+                tcs,
+                &pending_text,
+                &blocks_v,
+                Some(&text),
+            );
+            msg.id = run_msg_id.clone();
+            persist_chat_run_msg(&chats, &session_id, &msg, "idle_timeout");
             let seq_base = conversations
                 .get(&session_id)
                 .map(|c| c.turns.len())
@@ -2412,40 +2555,23 @@ pub async fn chat_run_owner(
                 let text = std::mem::take(&mut *accumulated.lock().unwrap());
                 let thinking = std::mem::take(&mut *thinking_acc.lock().unwrap());
                 let tcs = std::mem::take(&mut *tool_calls.lock().unwrap());
-                let mut msg = crate::chats::ChatMessage::assistant(text);
-                msg.thinking = thinking;
-                msg.tool_calls = tcs;
-                // PLAN-071 r3：回答方职业身份 = 会话生效 mode 的 role
-                // （superpowers → "assistant"；agent_mode 解析已含回退）。
-                msg.profession_id = Some(agent_mode.role.clone());
-                // PLAN-069 W2：收口当前叙述块并挂时间线。
-                {
-                    let pending = cur_text.lock().unwrap().clone();
-                    let mut bl = blocks.lock().unwrap();
-                    if !pending.is_empty() {
-                        bl.push(crate::chats::ChatBlock {
-                            kind: "text".into(),
-                            text: pending,
-                            tool: None,
-                        });
-                    }
-                    msg.blocks = std::mem::take(&mut *bl);
-                }
-                // PLAN-071 需求⑦ T-31：思考沉淀为块——blocks 非空时前端只渲染
-                // blocks（忽略 msg.thinking 字段），不挂块则思考对用户不可见
-                // （4062c66e 回归实证）。思考先于正文，挂为首块；须在 W2 组装
-                // 之后插入（组装会整体重写 msg.blocks）。
-                if !msg.thinking.is_empty() {
-                    msg.blocks.insert(
-                        0,
-                        crate::chats::ChatBlock {
-                            kind: "thinking".into(),
-                            text: msg.thinking.clone(),
-                            tool: None,
-                        },
-                    );
-                }
-                let _ = chats.append_message(&session_id, msg.clone());
+                // PLAN-073 P2-T2/P2-T3：组装收口 assemble_chat_run_msg——
+                // PLAN-069 W2 封口叙述块挂时间线 + PLAN-071 需求⑦ T-31 思考
+                // 沉淀为首块（blocks 非空时前端只渲染 blocks）；终版与 turn
+                // 快照同 id 原位替换（run_msg_id），落盘失败显式 warn。
+                let pending_text = cur_text.lock().unwrap().clone();
+                let blocks_v = std::mem::take(&mut *blocks.lock().unwrap());
+                let mut msg = assemble_chat_run_msg(
+                    &agent_mode.role,
+                    text,
+                    thinking,
+                    tcs,
+                    &pending_text,
+                    &blocks_v,
+                    None,
+                );
+                msg.id = run_msg_id.clone();
+                persist_chat_run_msg(&chats, &session_id, &msg, "done");
                 // Dual-write: mirror the assistant message (+ tool calls) into
                 // the conversation as turns.
                 let seq_base = conversations
@@ -2465,10 +2591,32 @@ pub async fn chat_run_owner(
                 // PLAN-071 需求⑤ T-22：失败**落盘**（原只发瞬态 SSE——失败对
                 // 用户不可见），双写 turns + 总线错误事件。
                 tracing::warn!("chat run failed: session={} error={}", session_id, e);
+                // PLAN-073 P2-T2：失败臂保现场——对齐超时臂 T-04 形态组装已
+                // 积累的 thinking/工具卡/叙述（此前只落一行 ⚠ 文本，24a43d74
+                // 跑满 100 轮失败后全部现场丢失），⚠ 文案作尾块追加；终版与
+                // turn 快照同 id 原位替换。
+                let partial = std::mem::take(&mut *accumulated.lock().unwrap());
+                let thinking = std::mem::take(&mut *thinking_acc.lock().unwrap());
+                let tcs = std::mem::take(&mut *tool_calls.lock().unwrap());
                 let text = format!("⚠ 运行失败：{e}");
-                let mut msg = crate::chats::ChatMessage::assistant(text.clone());
-                msg.profession_id = Some(agent_mode.role.clone());
-                let _ = chats.append_message(&session_id, msg.clone());
+                let content = if partial.is_empty() {
+                    text.clone()
+                } else {
+                    format!("{}\n\n{}", partial, text)
+                };
+                let pending_text = cur_text.lock().unwrap().clone();
+                let blocks_v = std::mem::take(&mut *blocks.lock().unwrap());
+                let mut msg = assemble_chat_run_msg(
+                    &agent_mode.role,
+                    content,
+                    thinking,
+                    tcs,
+                    &pending_text,
+                    &blocks_v,
+                    Some(&text),
+                );
+                msg.id = run_msg_id.clone();
+                persist_chat_run_msg(&chats, &session_id, &msg, "failed");
                 let seq_base = conversations
                     .get(&session_id)
                     .map(|c| c.turns.len())
@@ -3355,4 +3503,98 @@ pub fn err_json_response<T: serde::Serialize>(v: T, code: u16) -> axum::response
     let status = axum::http::StatusCode::from_u16(code)
         .unwrap_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR);
     (status, axum::Json(v)).into_response()
+}
+
+#[cfg(test)]
+mod chat_run_assemble_tests {
+    // PLAN-073 P2-T2/P2-T3：assemble_chat_run_msg 组装契约——三臂共用，
+    // 结构对齐 r4 T-04 超时臂样板（封口叙述块 → 思考首块 → 尾块）。
+    use super::assemble_chat_run_msg;
+    use crate::chats::{ChatBlock, ToolCall};
+
+    fn tc(name: &str) -> ToolCall {
+        ToolCall {
+            tool: name.into(),
+            args: serde_json::json!({"path": "specs"}),
+            result: "ok".into(),
+            status: "success".into(),
+            id: "tc-1".into(),
+        }
+    }
+
+    #[test]
+    fn assembles_blocks_thinking_head_and_tail() {
+        let blocks = vec![ChatBlock {
+            kind: "tool".into(),
+            text: String::new(),
+            tool: Some(tc("list_dir")),
+        }];
+        let msg = assemble_chat_run_msg(
+            "coder",
+            "叙述\n\n⚠ 运行失败：boom".into(),
+            "我在思考".into(),
+            vec![tc("list_dir")],
+            "未封口的叙述",
+            &blocks,
+            Some("⚠ 运行失败：boom"),
+        );
+        assert_eq!(msg.profession_id.as_deref(), Some("coder"));
+        assert_eq!(msg.thinking, "我在思考");
+        assert_eq!(msg.tool_calls.len(), 1);
+        // 块序：思考首块 → 已积累工具块 → 封口叙述块 → ⚠ 尾块。
+        let kinds: Vec<&str> = msg.blocks.iter().map(|b| b.kind.as_str()).collect();
+        assert_eq!(kinds, vec!["thinking", "tool", "text", "text"]);
+        assert_eq!(msg.blocks[0].text, "我在思考");
+        assert_eq!(msg.blocks[2].text, "未封口的叙述");
+        assert_eq!(msg.blocks[3].text, "⚠ 运行失败：boom");
+        // 默认终态（pending 由调用方按需覆写）。
+        assert_eq!(msg.pending, None);
+    }
+
+    #[test]
+    fn empty_inputs_degrade_to_plain_message() {
+        // 失败臂零现场（如秒败）：只剩尾块，仍可落盘。
+        let msg = assemble_chat_run_msg(
+            "assistant",
+            "⚠ 运行失败：boom".into(),
+            String::new(),
+            Vec::new(),
+            "",
+            &[],
+            Some("⚠ 运行失败：boom"),
+        );
+        let kinds: Vec<&str> = msg.blocks.iter().map(|b| b.kind.as_str()).collect();
+        assert_eq!(kinds, vec!["text"]);
+        assert_eq!(msg.blocks[0].text, "⚠ 运行失败：boom");
+    }
+
+    #[test]
+    fn clone_semantics_source_untouched() {
+        // 增量快照路径反复组装同一来源——不得消耗（blocks 仍可再组装）。
+        let blocks = vec![ChatBlock {
+            kind: "text".into(),
+            text: "turn1".into(),
+            tool: None,
+        }];
+        let _first = assemble_chat_run_msg(
+            "coder",
+            "c".into(),
+            String::new(),
+            Vec::new(),
+            "",
+            &blocks,
+            None,
+        );
+        let second = assemble_chat_run_msg(
+            "coder",
+            "c2".into(),
+            String::new(),
+            Vec::new(),
+            "",
+            &blocks,
+            None,
+        );
+        assert_eq!(second.blocks.len(), 1);
+        assert_eq!(blocks[0].text, "turn1");
+    }
 }

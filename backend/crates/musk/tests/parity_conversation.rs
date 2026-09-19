@@ -354,6 +354,7 @@ fn hw_msg(id: &str, role: musk::chats::Role, content: &str, tool_calls: Vec<musk
         thinking: String::new(),
         parent_id: None,
         blocks: Vec::new(),
+        pending: None,
         profession_id: None,
     }
 }

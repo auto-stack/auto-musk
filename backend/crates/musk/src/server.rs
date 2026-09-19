@@ -2991,8 +2991,9 @@ mod tests {
         assert_eq!(replies, 1, "恰一条助手回复——订阅不得孵化第二运行");
     }
 
-    /// PLAN-071 T-03：裸订阅（无在途运行）= 空闲流——不终止、不孵化、
-    /// 不触碰守卫（F-05 口径保留，机制换显式角色）。
+    /// PLAN-071 T-03 → PLAN-073 P2-T4 修订：裸订阅（无在途运行）不再挂起
+    /// 等待——chat_run_stream 入口窥探守卫，空闲立即回 idle 帧收流（前端
+    /// 据此复位 streaming，不悬挂空流）。仍不孵化、不触碰守卫（F-05 口径）。
     #[tokio::test]
     async fn ag_chat_stream_bare_subscribe_stays_idle() {
         use axum::body::Body;
@@ -3025,12 +3026,19 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
-        let result = tokio::time::timeout(
+        // 空闲流立即收束（不再挂起）：限时内 body 必须读完，且唯一帧为 idle。
+        let bytes = tokio::time::timeout(
             std::time::Duration::from_millis(400),
             axum::body::to_bytes(resp.into_body(), 1 << 20),
         )
-        .await;
-        assert!(result.is_err(), "空闲流应保持挂起不终止");
+        .await
+        .expect("空闲流应立即回 idle 帧收束，不得挂起")
+        .unwrap();
+        let frame = String::from_utf8(bytes.to_vec()).unwrap();
+        assert!(
+            frame.contains(r#""type":"idle""#) || frame.contains(r#""type": "idle""#),
+            "空闲收束帧应为 idle: {frame}"
+        );
         assert!(runs.lock().unwrap().is_empty(), "订阅不得触碰运行守卫");
         let updated = ws.chats.get(&sess.id).expect("session still exists");
         assert!(
@@ -3508,6 +3516,97 @@ mod tests {
             "失败消息: {}",
             err_msg.content
         );
+    }
+
+    /// PLAN-073 P2-T2/P2-T3 回归：失败臂保现场——首个响应带工具调用（积累
+    /// 工具卡 + turn_end 增量快照落盘），第二个响应失败。失败收束必须保留
+    /// 已积累的 tool_calls/blocks（⚠ 文案作尾块）；终版与快照同 id 原位
+    /// 替换（恰一条 assistant、pending 清除）。24a43d74 实证：原失败臂只落
+    /// 一行 ⚠，100 轮现场全丢。
+    #[tokio::test]
+    async fn chat_failure_preserves_accumulated_scene() {
+        use crate::auto_generated::server as ag_server;
+        use auto_ai_client::ToolCall;
+        use std::sync::atomic::{AtomicU8, Ordering};
+        struct ToolThenFailClient {
+            calls: AtomicU8,
+        }
+        #[async_trait]
+        impl Client for ToolThenFailClient {
+            async fn complete(
+                &self,
+                _req: &CompletionRequest,
+            ) -> Result<CompletionResponse, ClientError> {
+                if self.calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Ok(CompletionResponse {
+                        content: "先看一眼文件".into(),
+                        tool_calls: vec![ToolCall {
+                            id: "tc-1".into(),
+                            name: "read_file".into(),
+                            input: serde_json::json!({"path": "no-such-file.txt"}),
+                        }],
+                        stop_reason: Some("tool_use".into()),
+                        usage: None,
+                        model: "mock".into(),
+                        error: None,
+                        model_meta: None,
+                    })
+                } else {
+                    Err(ClientError::Api("provider exploded mid-run".into()))
+                }
+            }
+        }
+        let state = tmp_state_with_client(Arc::new(ToolThenFailClient {
+            calls: AtomicU8::new(0),
+        }));
+        let ws = state.registry.get("");
+        let runs = state.chat_runs.clone();
+        let sess = ws
+            .chats
+            .create("basic", Some(String::new()))
+            .expect("create session");
+        ws.chats
+            .append_message(&sess.id, crate::chats::ChatMessage::user("read then boom"))
+            .expect("append user message");
+        let app = axum::Router::new()
+            .route(
+                "/api/chats/session/{id}/message",
+                axum::routing::post(ag_server::chat_message),
+            )
+            .with_state(state);
+        let st = post_message(app, &sess.id, r#"{"content":"read then boom","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        wait_until(|| runs.lock().unwrap().is_empty()).await;
+        let updated = ws.chats.get(&sess.id).expect("session exists");
+        let assistants: Vec<_> = updated
+            .messages
+            .iter()
+            .filter(|m| m.role == crate::chats::Role::Assistant)
+            .collect();
+        assert_eq!(assistants.len(), 1, "恰一条 assistant（终版原位替换快照）");
+        let msg = assistants[0];
+        assert!(
+            msg.content.contains("运行失败"),
+            "失败文案: {}",
+            msg.content
+        );
+        assert!(
+            msg.content.contains("先看一眼文件"),
+            "失败前叙述须保留: {}",
+            msg.content
+        );
+        // 现场保留：工具卡（tool_calls + blocks 的 tool 块）+ ⚠ 尾块。
+        assert_eq!(msg.tool_calls.len(), 1, "失败前的工具调用须保留");
+        assert_eq!(msg.tool_calls[0].tool, "read_file");
+        assert!(
+            msg.blocks.iter().any(|b| b.kind == "tool"),
+            "工具块须在场: {:?}",
+            msg.blocks.iter().map(|b| b.kind.as_str()).collect::<Vec<_>>()
+        );
+        let tail = msg.blocks.last().expect("尾块存在");
+        assert_eq!(tail.kind, "text");
+        assert!(tail.text.contains("运行失败"), "⚠ 尾块: {}", tail.text);
+        assert_eq!(msg.pending, None, "终版非 pending");
     }
 
     /// PLAN-071 需求⑤ T-24：守卫占用时 run:true 不再静默——响应 busy=true

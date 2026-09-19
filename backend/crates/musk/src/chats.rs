@@ -87,6 +87,11 @@ pub struct ChatMessage {
     /// 数据/无身份（前端回退 "🤖 AI" 徽章）。词汇沿 auto-forge。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profession_id: Option<String>,
+    /// PLAN-073 P2-T3：run 增量落盘标记——true = 运行中 turn 快照（收束
+    /// 终版以同 id 原位替换并清除）；None = 终态/旧数据（回退安全）。
+    /// 前端轮询据此区分"快照已换入但终版未落"与"收束完成"。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending: Option<bool>,
 }
 
 /// 活动时间线块：kind = "text"（叙述/回答文本）| "tool"（一次工具调用，
@@ -112,6 +117,7 @@ impl ChatMessage {
             parent_id: None,
             blocks: Vec::new(),
             profession_id: None,
+            pending: None,
         }
     }
     pub fn assistant(content: impl Into<String>) -> Self {
@@ -125,8 +131,15 @@ impl ChatMessage {
             parent_id: None,
             blocks: Vec::new(),
             profession_id: None,
+            pending: None,
         }
     }
+}
+
+/// PLAN-073 P2-T3：run 消息 id 生成口（chat run 起跑定 id，turn 快照与
+/// 收束终版共用，保证 upsert 原位替换）。
+pub fn new_message_id() -> String {
+    new_id(8)
 }
 
 /// A persisted multi-turn chat session.
@@ -514,6 +527,39 @@ impl ChatStore {
         }
     }
 
+    /// PLAN-073 P2-T3：按消息 id 原位替换（run 的 turn 增量快照 → 收束终版
+    /// 同 id 换入）；session 内无该消息 id 时退化为 append（parent/leaf 语义
+    /// 同 append_message）。替换不动 parent_id/active_leaf——消息位置与分支
+    /// 关系保持，只换载荷。返回值语义同 append_message。
+    pub fn upsert_message(
+        &self,
+        id: &str,
+        msg: ChatMessage,
+    ) -> std::io::Result<Option<ChatSession>> {
+        let _write_guard = self.write_lock.lock().unwrap();
+        let mut map = self.load_map();
+        if let Some(session) = map.get_mut(id) {
+            match session.messages.iter().position(|m| m.id == msg.id) {
+                Some(idx) => {
+                    // 原位替换保留树链与创建时点：替换消息由收束组装独立
+                    // 构造（不重导 parent），整体换入会把消息踢出所在分支
+                    // （测试 upsert_message_replaces_in_place 实证）。
+                    let mut msg = msg;
+                    msg.parent_id = session.messages[idx].parent_id.clone();
+                    msg.created_at = session.messages[idx].created_at;
+                    session.messages[idx] = msg;
+                    session.updated_at = now_sec();
+                }
+                None => session.append(msg),
+            }
+            let updated = session.clone();
+            self.save_map(&map)?;
+            Ok(Some(updated))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// PLAN-043: 切换会话活跃叶（fork/navigate 共用），持久化后返回更新会话。
     pub fn set_active_leaf(
         &self,
@@ -716,6 +762,79 @@ mod tests {
         // Reload from disk to confirm persistence.
         let reloaded = store.get(&s.id).unwrap();
         assert_eq!(reloaded.messages.len(), 1);
+    }
+
+    // ── PLAN-073 P2-T3：upsert_message（run 增量快照 → 收束终版同 id 换入）──
+
+    #[test]
+    fn upsert_message_appends_when_id_absent() {
+        let (store, _f) = temp_store();
+        let s = store.create("superpowers", None).unwrap();
+        store
+            .append_message(&s.id, ChatMessage::user("run this"))
+            .unwrap()
+            .unwrap();
+        // 快照首落：session 内无该消息 id → 退化为 append（parent 挂当前叶）。
+        let mut snap = ChatMessage::assistant("partial");
+        snap.pending = Some(true);
+        let updated = store.upsert_message(&s.id, snap).unwrap().unwrap();
+        assert_eq!(updated.messages.len(), 2);
+        assert_eq!(updated.messages[1].role, Role::Assistant);
+        assert_eq!(updated.messages[1].pending, Some(true));
+        assert!(updated.messages[1].parent_id.is_some());
+        assert_eq!(updated.active_leaf.as_deref(), Some(updated.messages[1].id.as_str()));
+    }
+
+    #[test]
+    fn upsert_message_replaces_in_place_keeping_position() {
+        let (store, _f) = temp_store();
+        let s = store.create("superpowers", None).unwrap();
+        store
+            .append_message(&s.id, ChatMessage::user("run this"))
+            .unwrap()
+            .unwrap();
+        // 快照（首落）→ 终版（同 id 换入）。
+        let mut snap = ChatMessage::assistant("partial");
+        snap.pending = Some(true);
+        let updated = store.upsert_message(&s.id, snap.clone()).unwrap().unwrap();
+        let msg_id = updated.messages[1].id.clone();
+        let parent = updated.messages[1].parent_id.clone();
+        let mut final_msg = ChatMessage::assistant("final answer");
+        final_msg.id = msg_id.clone();
+        final_msg.thinking = "thought".into();
+        final_msg.pending = None;
+        let updated2 = store.upsert_message(&s.id, final_msg).unwrap().unwrap();
+        // 原位替换：不增行、位置不变、parent/leaf 不动、pending 已清。
+        assert_eq!(updated2.messages.len(), 2);
+        assert_eq!(updated2.messages[1].id, msg_id);
+        assert_eq!(updated2.messages[1].content, "final answer");
+        assert_eq!(updated2.messages[1].thinking, "thought");
+        assert_eq!(updated2.messages[1].pending, None);
+        assert_eq!(updated2.messages[1].parent_id, parent);
+        assert_eq!(updated2.active_leaf.as_deref(), Some(msg_id.as_str()));
+        // 持久化确认。
+        let reloaded = store.get(&s.id).unwrap();
+        assert_eq!(reloaded.messages[1].content, "final answer");
+        assert_eq!(reloaded.messages[1].pending, None);
+    }
+
+    #[test]
+    fn upsert_message_unknown_session_returns_none() {
+        let (store, _f) = temp_store();
+        let msg = ChatMessage::assistant("x");
+        assert!(store.upsert_message("no-such-session", msg).unwrap().is_none());
+    }
+
+    #[test]
+    fn pending_field_backcompat_old_json_parses() {
+        // 旧数据（无 pending 字段）反序列化安全回退 None；新数据往返不丢。
+        let old = br#"{"id":"m1","role":"assistant","content":"hi","created_at":1}"#;
+        let m: ChatMessage = serde_json::from_slice(old).unwrap();
+        assert_eq!(m.pending, None);
+        let mut n = ChatMessage::assistant("hi");
+        n.pending = Some(true);
+        let round: ChatMessage = serde_json::from_slice(&serde_json::to_vec(&n).unwrap()).unwrap();
+        assert_eq!(round.pending, Some(true));
     }
 
     #[test]
