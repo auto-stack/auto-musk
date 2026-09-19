@@ -185,3 +185,44 @@ bundle 新旧。若新 bundle 下仍现空卡：抓 `musk-serve-0919.log` + cons
 **故意等待 582s（远超原 300s 窗口）→ approve 200 → 命令执行 → 结果回灌**
 ——看门狗不再误杀门等待。遗留：门卡 UI 渲染的最终目验（本轮 IAB 标签
 不稳定未能截到图，代码路径与 relay 视图既有 ToolGateCard 同源）。
+
+**r6（2026-09-19 下午）——Vue 版三前端修复（用户报障）**。worktree
+musk-073（plan-073-dev@acd8e11，已合回 main 并清理）：
+
+- **F-E1 Tab 补全焦点跳变**：`@001` 弹候选按 Tab，补全 `@plan/001` 后
+  焦点跳到工具栏"思考"钮。根因 = mention_input.Keydown 的 Tab/Enter
+  补全分支不阻断默认行为——Tab 默认移焦点到 tabindex 序下一可聚焦元素
+  （正是工具栏首钮）。修 = 分支内 `e.preventDefault()`（Enter 原有
+  `.prevent` 修饰符兜底，Tab 无修饰符臂必须显式阻断）。验证：IAB 真实
+  键盘事件下 `defaultPreventedAfter=true` + 补全成功 + 焦点保持 textarea。
+- **F-E2 审批模式"自动"不生效**：选"自动"后按钮仍"人工"且后端零调用
+  （浏览器实测无网络请求、无 JS 错误）。根因 = codegen 事件名断裂——
+  msg 名 `pick_approval` 原样 emit（`emit('pick_approval')`），父层
+  ChatsView 模板却生成 `@pickapproval`；Vue3 事件名精确匹配
+  （onPick_approval/onPickApproval 均≠onPickapproval），事件悬空。修 =
+  msg 重命名 `pickapproval`（全仓排查仅此一处下划线 msg）。验证：点
+  "自动" → 按钮文案变"自动" + `PATCH /api/chats/session/{id}/approval`
+  200 + 会话详情 approval_mode=auto 落库；已恢复 human。
+- **F-E3 @plan/@spec 引用 token 独立 badge 组件**：气泡内
+  `@plan/001` 升级为独立 badge 小组件（胶囊圆角+边框+悬停加深+
+  cursor-help），hover `title` 显示真实文件路径——plan 查
+  `build_ref_path_map`（PlansStore.plans 的 path||filename 映射；
+  UserMessage Init 懒加载，store.plans 非空即跳过），spec 的 relpath
+  本身即路径 render 内直用；plans 未加载时降级纯 badge 无 title。
+  `render_mentions` 签名加第 4 参 paths（render_mentions_default 传
+  None 不变，新增 render_mentions_ref 供 UserMessage）。Agent @词
+  渲染口径不变。验证：气泡内 badge DOM（title=001-bootstrap-auto-edit.md）
+  + 截图目验。
+
+- 附带确认 worktree 重建的两个环境坑（既有债务，未根修）：①auto-lang
+  scaffold 写 `auto-select/overlay.ts`（import auto-sources）但不写
+  `auto-sources.ts`/`vite-env.d.ts`（仅 `auto run`/增量同步点写）→
+  vue-tsc TS2307/TS2339，本次手工补两文件（同 r4 gen stub 绕法）；
+  ②`.gitignore` 的 `dist/` 规则把 `vendor/@autodown/engine/dist` 的
+  code-split chunks 挡在 git 外 → 新 worktree vite build 报
+  "Could not resolve render-node-*.js"，从主检出补拷 5 个 chunk。两项
+  根修均在 auto-lang 模板/仓策略（登记，未动）。
+
+验证：auto build 全 pipeline 绿（codegen+vue-tsc+vite）；dist 已部署
+主检出 gen/front/vue/dist（serve 直读，刷新生效）；live 三修复逐一
+浏览器实测通过。
