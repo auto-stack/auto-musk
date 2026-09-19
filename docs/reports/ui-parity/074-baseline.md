@@ -1,6 +1,6 @@
 # PLAN-074 Gallery baseline
 
-Generated: 2026-09-19T07:53:40.184Z
+Generated: 2026-09-19T07:53:58.827Z
 
 Units: 62 (54 reachable)
 Cases: 57
@@ -161,5 +161,5 @@ Cases: 57
 
 ## Known blockers
 
-- VM ChatMessage mounting currently stops before snapshot: the copied production `forge_helpers.at` fails VM handler synthesis at `let has_think = false` followed by reassignment, leaving `forge_helpers.messageBlocks` undefined. This is evidence for the responsible upstream VM/compiler fix; the gallery does not rewrite the production renderer.
-- Vue generation reaches project scaffolding/component generation; the local dependency installation step may require the normal network/cache and is not treated as visual evidence.
+- VM ChatMessage now reaches `snapshot-ok` after the minimal production compatibility fix `let has_think` → `var`; the snapshot still reports native renderer degradations (`self-stretch`) and `blocks` state-read warnings. Interaction and screenshot evidence remain outstanding.
+- Vue generation reaches project scaffolding and component generation, but the bounded runner does not see the front HTTP endpoint while the local dependency/dev-server step is pending.
