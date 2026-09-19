@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-076
-status: execution_done
+status: reviewed
 feature_name: AutoDown 统一引擎三模式接入与差异关闭
 author: [agent]
 created_at: 2026-09-19T00:00:00Z
-updated_at: 2026-09-19T20:42:00Z
+updated_at: 2026-09-19T21:38:00Z
 plan_revision: 2
 current_step: 5
 total_steps: 5
@@ -156,6 +156,31 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
   - 覆盖清退：`src/front/inject_styles.web-only.ts` 清退 70+ 行宿主 CSS 覆盖
   - 规范增量：`docs/specs/modules/autodown-consumption.md` (新增) 与 `docs/specs/03-front-component-groups.md` (修订)
   - 运行时对拍：`node scripts/ui-parity.mjs run --plan 076 --mode vm` 4 用例全绿并生成基线截图，证据汇总结算于 `docs/reports/ui-parity/076-evidence.md`
+
+- stage: review
+- plan_id: PLAN-076
+- plan_revision: 2
+- outcome: pass
+- reviewed_commit: e70aea3d731fa062ca75244de71e5d755e0f47a6
+- base_commit: 3a297ac1c448e7bd6b784346069602b0521bbe9c
+- dependency_revisions:
+  - auto-down master: a86cb347ba5eecb77b7cc3d64c185a973cb439bb
+  - auto-lang main: d2566829ff8f6066b924354660c47f209eeab4b9
+- spec_inputs:
+  - docs/specs/modules/autodown-consumption.md (new canonical consumption contract)
+  - docs/specs/03-front-component-groups.md (updated Markdown row to unified engine)
+- acceptance_results:
+  - AC-01: pass (唯一引擎，无裸文本降级，全量映射到原生 autodown / autodown_editor)
+  - AC-02: pass (view 一致，上游内置 12px 节奏，ambient dark 自动挂载，宿主覆盖清退)
+  - AC-03: pass (stream 一致，流式增量与未闭合语法容错保护)
+  - AC-04: pass (edit 一致，双端输入事件双向绑定自持与富文本编辑)
+  - AC-05: pass (归属与版本闭合，上游合并 master a86cb34，vendor 同步 stamp ae735aafcefc4929)
+- findings: none
+- evidence:
+  - 静态检查: `node scripts/ui-parity.mjs check` -> PASS (63 declarations, 58 cases)
+  - 运行时对拍: `node scripts/ui-parity.mjs run --plan 076 --mode vm` -> 4 cases 全部 snapshot-ok
+  - 证据账本: docs/reports/ui-parity/076-evidence.md
+- next: merge
 
 ## 10. 待澄清事项
 
