@@ -226,3 +226,34 @@ musk-073（plan-073-dev@acd8e11，已合回 main 并清理）：
 验证：auto build 全 pipeline 绿（codegen+vue-tsc+vite）；dist 已部署
 主检出 gen/front/vue/dist（serve 直读，刷新生效）；live 三修复逐一
 浏览器实测通过。
+
+**r7（2026-09-19 下午②）——streaming 工具卡空显示修复（用户报障）**。
+现象：streaming 实时显示中工具卡无名/无目标/无结果，展开 ARGUMENTS/RESULT
+空白、状态恒绿 "completed"（用户截图2），而日志证明工具实际调用成功。
+诊断路径：IAB 真实键盘不可注入 → 改 dev server（vite 3001 代理 8090）+
+页面内采样器（EventSource 帧记录 + 定时 DOM/store 双读）→ 抓到断点：
+**store 数据完好（tool_calls/blocks 的 tc.name="list_dir" 等）而 DOM 渲染
+空名** —— 纯渲染层断裂。
+
+根因 = `forge_helpers.messageBlocks` 归一化分支只认持久化形态载荷键
+`raw = b.tool ?? {}`；流式 live push 的块是 tc 形态（forge_store tool_call
+臂产 `{kind,tc,tkey}`，无 tool 键）→ raw 洗成 `{}` → 输出
+`tc:{name:undefined, status:"completed"(默认)}`：无名 + 假 completed +
+ARGUMENTS 空 + `result:undefined != ""` 恒真 → RESULT 块渲染 undefined
+（截图2 空白）。注释"流式侧自产块原样透传"与实现不符（透传未实现）。
+
+修复（worktree musk-073，plan-073-dev@75b0708，已合回 main）：
+- `raw = b.tool ?? b.tc ?? {}`——tc 形态字段名与 raw 同构，直取等价；
+- 顺带：nstatus 对 `gate_waiting` 透传（原 fall-through 假 completed，
+  chat_message 的 gate 卡分支不可达——r4 F-D2 的 UI 臂补全）。
+
+验证：沙盒单测（live 三态块 completed/running/gate_waiting 的
+name/status/summary 全正确）；浏览器端到端（修复后 dist 部署，真实 run
+streaming 中 list_dir [specs] completed、glob [specs "**/*.md"] completed，
+展开 ARGUMENTS `{"path":"specs"}` + RESULT 目录清单全渲染）。
+
+**新登记缺陷（未修，独立立案候选）**：chat run 收束后 assistant 消息
+落盘失败——9063dfd（@plan run，16:05）与 48b7e82a（musk-demo，16:15）
+两个会话后端仅剩 user 消息，assistant（含工具卡/正文/思考块）前端有、
+后端无 → 刷新即丢。疑似收束 append_message 路径回归（r4 T-04 补的是
+超时收束，正常收束臂待查）。
