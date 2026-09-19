@@ -1,6 +1,6 @@
-import { ref as w, getCurrentInstance as Wn, onBeforeUnmount as Le, defineComponent as J, computed as m, onMounted as me, openBlock as g, createBlock as Y, resolveDynamicComponent as ve, withModifiers as Oe, normalizeClass as Te, h as le, unref as re, withCtx as Ye, createElementBlock as x, Fragment as ye, renderList as Pe, createCommentVNode as $, onUnmounted as yt, normalizeStyle as gn, createElementVNode as b, withDirectives as st, withKeys as Ve, vModelText as Bt, toDisplayString as V, nextTick as ae, watch as Ee, inject as Vn, provide as Qn, createTextVNode as Xe, vShow as zn, createVNode as vt, mergeProps as Gn } from "vue";
-import { a0 as Ze, O as jn, J as Yn, ab as Ft, T as kn, M as N, B as T, f as j, a1 as et, u as Jn, a2 as Ut, i as Tt, Q as qe, V as Se, r as we, b as he, $ as Je, a7 as wn, d as ut, ac as Qe, k as Xn, S as mt, K as ze, h as bn } from "./parser-BfX0E-c9.js";
-import { H as Zn, I as eo, J as _t, K as Kt, L as to, M as no, N as yn, O as oo, a as Wt, c as lo, t as ao, b as io, P as ro, Q as Ct, R as _n, S as tt, T as Cn, U as xt, V as Sn, W as nt, X as Rt, Y as In, _ as ct, Z as Bn, $ as so, a0 as uo, a1 as co, a2 as fo, a3 as ho, a4 as ot, a5 as vo, y as xe, l as Fe, a6 as mo, a7 as po, w as dt, a8 as go, p as Vt, a9 as ko, B as wo, F as Ue, aa as ft, ab as bo, ac as yo, ad as pt, ae as _o, af as Co, ag as Qt, ah as zt, G as So, ai as gt, aj as Io, ak as Gt, al as Bo } from "./render-node-Di_WXNK8.js";
+import { ref as b, getCurrentInstance as Wn, onBeforeUnmount as Me, defineComponent as Z, computed as v, onMounted as fe, openBlock as p, createBlock as X, resolveDynamicComponent as ge, withModifiers as Oe, normalizeClass as Te, h as ie, unref as ce, withCtx as Ye, createElementBlock as R, Fragment as _e, renderList as Pe, createCommentVNode as $, onUnmounted as yt, normalizeStyle as gn, createElementVNode as w, withDirectives as st, withKeys as Ve, vModelText as Bt, toDisplayString as G, nextTick as re, watch as Ae, inject as Vn, provide as Qn, createTextVNode as Xe, vShow as zn, createVNode as vt, mergeProps as Gn } from "vue";
+import { a0 as Ze, O as jn, J as Yn, ab as Ft, T as kn, M as q, B as x, f as Y, a1 as et, u as Jn, a2 as Ut, i as Tt, Q as qe, V as Se, r as we, b as pe, $ as Je, a7 as bn, d as ut, ac as Qe, k as Xn, S as mt, K as ze, h as wn } from "./parser-BfX0E-c9.js";
+import { H as Zn, I as eo, J as _t, K as Kt, L as to, M as no, N as yn, O as oo, a as Wt, c as lo, t as ao, b as io, P as ro, Q as Ct, R as _n, S as tt, T as Cn, U as xt, V as Sn, W as nt, X as Rt, Y as In, _ as ct, Z as Bn, $ as so, a0 as uo, a1 as co, a2 as fo, a3 as ho, a4 as ot, a5 as vo, y as xe, l as Fe, a6 as mo, a7 as po, w as dt, a8 as go, p as Vt, a9 as ko, B as bo, F as Ue, aa as ft, ab as wo, ac as yo, ad as pt, ae as _o, af as Co, ag as Qt, ah as zt, G as So, ai as gt, aj as Io, ak as Gt, al as Bo } from "./render-node-jJKN3LNR.js";
 import { Link as Tn, Code as xn, Strikethrough as To, Underline as xo, Italic as Ro, Bold as Mo, Check as Eo, Text as Ao, Heading1 as Lo, Heading2 as Oo, Heading3 as Do, Heading4 as $o, Heading5 as qo, Heading6 as No, List as Ho, ListOrdered as Po, CheckSquare as Fo, Quote as Uo, Minus as Ko, Image as Wo, Table as Vo, AlertCircle as Qo, PanelTop as zo, Sigma as Go, Workflow as jo, Square as Yo, CircleDot as Jo, CheckCircle2 as Xo, Clock as Zo, Timer as el, ArrowUp as kt, Search as tl } from "lucide-vue-next";
 class nl {
   constructor(n, e) {
@@ -27,8 +27,8 @@ class nl {
   apply(n, e = {}) {
     const o = this.undoStack[this.undoStack.length - 1], l = o != null && o.ops.length === 1 ? o.ops[0] : void 0;
     if (e.coalesce !== !1 && l != null && l._tag === "InsertText" && n._tag === "InsertText" && l.value.pos.blockId === n.value.pos.blockId && l.value.pos.offset + l.value.text.length === n.value.pos.offset && o) {
-      const s = l.value, u = n.value;
-      o.ops[0] = jn.InsertText(new Yn(s.pos, s.text + u.text));
+      const r = l.value, u = n.value;
+      o.ops[0] = jn.InsertText(new Yn(r.pos, r.text + u.text));
     } else
       this.undoStack.push({ preTree: this.tree, preSel: this.sel, ops: [n] });
     this.redoStack = [];
@@ -126,9 +126,9 @@ function jt(t, n, e) {
     return !f || !d ? !1 : o.children.indexOf(d) >= a;
   });
   if (i) return i.start;
-  const s = l.filter((c) => al(o, c.node.raw));
-  if (s.length === 0) return -1;
-  const u = s[s.length - 1];
+  const r = l.filter((c) => al(o, c.node.raw));
+  if (r.length === 0) return -1;
+  const u = r[r.length - 1];
   return u.start + u.len;
 }
 function Mn(t, n) {
@@ -159,8 +159,8 @@ function il(t, n) {
   return a < 0 || i < 0 ? null : { blockId: n, lo: Math.min(a, i), hi: Math.max(a, i) };
 }
 function rl(t, n, e) {
-  const o = Mt(t), a = t.ownerDocument.createRange(), i = Yt(o, Math.min(n, e)), s = Yt(o, Math.max(n, e));
-  return !i || !s ? (a.selectNodeContents(t), a) : (a.setStart(i.raw, i.inner), a.setEnd(s.raw, s.inner), a);
+  const o = Mt(t), a = t.ownerDocument.createRange(), i = Yt(o, Math.min(n, e)), r = Yt(o, Math.max(n, e));
+  return !i || !r ? (a.selectNodeContents(t), a) : (a.setStart(i.raw, i.inner), a.setEnd(r.raw, r.inner), a);
 }
 let Be = null;
 function At(t) {
@@ -176,11 +176,11 @@ const lt = {
   u: ["u"],
   code: ["code"]
 }, Ne = {
-  [N.Strong]: "strong",
-  [N.Em]: "em",
-  [N.Del]: "del",
-  [N.Underline]: "u",
-  [N.Code]: "code"
+  [q.Strong]: "strong",
+  [q.Em]: "em",
+  [q.Del]: "del",
+  [q.Underline]: "u",
+  [q.Code]: "code"
 };
 function Ge(t) {
   const n = typeof window > "u" ? null : window.getSelection();
@@ -188,7 +188,7 @@ function Ge(t) {
   const e = n.getRangeAt(0);
   return e.collapsed || !t.contains(e.startContainer) || !t.contains(e.endContainer) ? null : e;
 }
-function ue(t, n, e) {
+function de(t, n, e) {
   let o = n;
   for (; o && o !== t; ) {
     if (o.nodeType === 1) {
@@ -210,8 +210,8 @@ function Jt(t, n, e) {
   return o.toString().replace(/\u00A0/g, " ").length;
 }
 function Xt(t, n, e) {
-  const o = ue(t, n.startContainer, e);
-  return o != null && o === ue(t, n.endContainer, e) && o.contains(n.commonAncestorContainer);
+  const o = de(t, n.startContainer, e);
+  return o != null && o === de(t, n.endContainer, e) && o.contains(n.commonAncestorContainer);
 }
 function An(t) {
   const n = t.parentNode;
@@ -228,7 +228,7 @@ function Zt(t, n, e) {
     n.appendChild(o), t.insertNode(n);
   }
 }
-const ee = {
+const ne = {
   getSelection() {
     const t = Be;
     if (!t) return null;
@@ -244,9 +244,9 @@ const ee = {
     if (!n) return !1;
     const e = Ge(n);
     if (!e) return !1;
-    if (t === N.Link) {
-      const l = ue(n, e.startContainer, ["a"]);
-      return l != null && l === ue(n, e.endContainer, ["a"]);
+    if (t === q.Link) {
+      const l = de(n, e.startContainer, ["a"]);
+      return l != null && l === de(n, e.endContainer, ["a"]);
     }
     const o = Ne[t];
     return o == null ? !1 : Xt(n, e, lt[o]);
@@ -256,13 +256,13 @@ const ee = {
     if (!e) return !1;
     const o = Ge(e);
     if (!o) return !1;
-    if (t === N.Link) {
-      if (n == null || n === "") return ee.removeMark(N.Link);
-      const i = ue(e, o.startContainer, ["a"]);
-      if (i && i === ue(e, o.endContainer, ["a"]))
+    if (t === q.Link) {
+      if (n == null || n === "") return ne.removeMark(q.Link);
+      const i = de(e, o.startContainer, ["a"]);
+      if (i && i === de(e, o.endContainer, ["a"]))
         return i.setAttribute("href", n), i.setAttribute("contenteditable", "false"), i.setAttribute("data-autodown-link", ""), !0;
-      const s = e.ownerDocument.createElement("a");
-      return s.setAttribute("href", n), s.setAttribute("contenteditable", "false"), s.setAttribute("data-autodown-link", ""), Zt(o, s), !0;
+      const r = e.ownerDocument.createElement("a");
+      return r.setAttribute("href", n), r.setAttribute("contenteditable", "false"), r.setAttribute("data-autodown-link", ""), Zt(o, r), !0;
     }
     const l = Ne[t];
     if (l == null) return !1;
@@ -274,9 +274,9 @@ const ee = {
     if (!n) return !1;
     const e = Ge(n);
     if (!e) return !1;
-    if (t === N.Link) {
-      const a = ue(n, e.startContainer, ["a"]);
-      if (a && a === ue(n, e.endContainer, ["a"])) {
+    if (t === q.Link) {
+      const a = de(n, e.startContainer, ["a"]);
+      if (a && a === de(n, e.endContainer, ["a"])) {
         const i = a.parentNode;
         if (i) {
           for (; a.firstChild; ) i.insertBefore(a.firstChild, a);
@@ -289,7 +289,7 @@ const ee = {
     const o = Ne[t];
     if (o == null) return !1;
     const l = lt[o];
-    return Xt(n, e, l) ? (An(ue(n, e.startContainer, l)), !0) : !1;
+    return Xt(n, e, l) ? (An(de(n, e.startContainer, l)), !0) : !1;
   }
 };
 function Ln() {
@@ -298,9 +298,9 @@ function Ln() {
   const e = n.getRangeAt(0);
   if (!t.contains(e.startContainer)) return [];
   const o = [];
-  for (const l of [N.Strong, N.Em, N.Underline, N.Del, N.Code]) {
+  for (const l of [q.Strong, q.Em, q.Underline, q.Del, q.Code]) {
     const a = Ne[l];
-    a != null && ue(t, e.startContainer, lt[a] ?? [a]) && o.push(l);
+    a != null && de(t, e.startContainer, lt[a] ?? [a]) && o.push(l);
   }
   return o;
 }
@@ -311,45 +311,45 @@ function sl(t) {
   if (!n.contains(o.startContainer)) return !1;
   const l = Ne[t];
   if (l == null) return !1;
-  const a = ue(n, o.startContainer, lt[l] ?? [l]);
+  const a = de(n, o.startContainer, lt[l] ?? [l]);
   return a ? (An(a), !0) : !1;
 }
 function Ie(t, n) {
-  return t === ee && t.getSelection() == null ? sl(n) : t.isActive(n) ? t.removeMark(n) : t.applyMark(n);
+  return t === ne && t.getSelection() == null ? sl(n) : t.isActive(n) ? t.removeMark(n) : t.applyMark(n);
 }
 const ul = {
-  setParagraph: T.Paragraph,
-  setMathBlock: T.MathBlock,
-  setMermaidBlock: T.Mermaid,
-  setHorizontalRule: T.ThematicBreak,
-  toggleBulletList: T.ListItem,
-  toggleOrderedList: T.ListItem,
-  toggleBlockquote: T.Blockquote
+  setParagraph: x.Paragraph,
+  setMathBlock: x.MathBlock,
+  setMermaidBlock: x.Mermaid,
+  setHorizontalRule: x.ThematicBreak,
+  toggleBulletList: x.ListItem,
+  toggleOrderedList: x.ListItem,
+  toggleBlockquote: x.Blockquote
 }, cl = {
-  bold: N.Strong,
-  strong: N.Strong,
-  italic: N.Em,
-  em: N.Em,
-  strike: N.Del,
-  strikethrough: N.Del,
-  underline: N.Underline,
-  code: N.Code,
-  link: N.Link
+  bold: q.Strong,
+  strong: q.Strong,
+  italic: q.Em,
+  em: q.Em,
+  strike: q.Del,
+  strikethrough: q.Del,
+  underline: q.Underline,
+  code: q.Code,
+  link: q.Link
 }, en = {
-  table: T.Table,
-  codeBlock: T.Fence,
-  fence: T.Fence,
-  blockquote: T.Blockquote,
-  bulletList: T.ListBlock,
-  orderedList: T.ListBlock,
-  listItem: T.ListItem,
-  heading: T.Heading,
-  details: T.Details,
-  callout: T.Callout,
-  mathBlock: T.MathBlock,
-  mermaid: T.Mermaid,
-  queryBlock: T.QueryBlock,
-  blockEmbed: T.BlockEmbed
+  table: x.Table,
+  codeBlock: x.Fence,
+  fence: x.Fence,
+  blockquote: x.Blockquote,
+  bulletList: x.ListBlock,
+  orderedList: x.ListBlock,
+  listItem: x.ListItem,
+  heading: x.Heading,
+  details: x.Details,
+  callout: x.Callout,
+  mathBlock: x.MathBlock,
+  mermaid: x.Mermaid,
+  queryBlock: x.QueryBlock,
+  blockEmbed: x.BlockEmbed
 };
 function St(t, n, e) {
   if (t.id === n)
@@ -371,32 +371,32 @@ function dl(t, n) {
   return t.anchor.blockId === n.anchor.blockId && t.anchor.offset === n.anchor.offset && t.head.blockId === n.head.blockId && t.head.offset === n.head.offset;
 }
 function fl(t) {
-  const n = w(0), e = /* @__PURE__ */ new Map();
+  const n = b(0), e = /* @__PURE__ */ new Map();
   let o = t.selection;
   const l = (i) => {
-    const s = e.get(i);
-    if (s)
-      for (const u of [...s]) u();
+    const r = e.get(i);
+    if (r)
+      for (const u of [...r]) u();
   };
   return t.onChange((i) => {
     n.value++, dl(i.selection, o) || (o = i.selection, l("selectionUpdate"));
   }), {
     storage: { "slash-command": { query: "", range: null, handled: !1 } },
     isEditable: !0,
-    on: (i, s) => {
+    on: (i, r) => {
       let u = e.get(i);
-      u || (u = /* @__PURE__ */ new Set(), e.set(i, u)), u.add(s);
+      u || (u = /* @__PURE__ */ new Set(), e.set(i, u)), u.add(r);
     },
-    off: (i, s) => {
+    off: (i, r) => {
       var u;
-      (u = e.get(i)) == null || u.delete(s);
+      (u = e.get(i)) == null || u.delete(r);
     },
     isActive: (i) => {
       n.value;
-      const s = cl[i];
-      if (s != null) {
+      const r = cl[i];
+      if (r != null) {
         const f = Ln();
-        return f.length > 0 ? f.includes(s) : Jn(Zn(t, t.selection), s);
+        return f.length > 0 ? f.includes(r) : Jn(Zn(t, t.selection), r);
       }
       const u = en[i];
       if (u == null) return !1;
@@ -405,16 +405,16 @@ function fl(t) {
     },
     getAttributes: (i) => {
       n.value;
-      const s = en[i];
-      if (s == null) return {};
-      const u = j(t.doc, t.selection.anchor.blockId);
-      if (u && u.kind === s) return tn(u.attrs);
+      const r = en[i];
+      if (r == null) return {};
+      const u = Y(t.doc, t.selection.anchor.blockId);
+      if (u && u.kind === r) return tn(u.attrs);
       if (u) {
         const c = /* @__PURE__ */ new Set();
-        if (St(t.doc, u.id, c) && c.has(s)) {
+        if (St(t.doc, u.id, c) && c.has(r)) {
           let f = u;
           for (; f; ) {
-            if (f.kind === s) return tn(f.attrs);
+            if (f.kind === r) return tn(f.attrs);
             f = et(t.doc, f.id) ?? null;
           }
         }
@@ -435,10 +435,10 @@ function fl(t) {
       },
       nodeDOM(i) {
         if (typeof document > "u") return null;
-        const s = document.querySelector(".autodown-editor-content");
-        if (!s) return null;
+        const r = document.querySelector(".autodown-editor-content");
+        if (!r) return null;
         const u = t.selection.anchor.blockId;
-        for (const c of s.querySelectorAll("[data-block-id]"))
+        for (const c of r.querySelectorAll("[data-block-id]"))
           if (c.dataset.blockId === u) return c;
         return null;
       },
@@ -449,7 +449,7 @@ function fl(t) {
        *  it to open at the caret instead of the default corner. */
       coordsAtPos(i) {
         if (typeof document > "u") return null;
-        const s = t.selection.anchor.blockId, u = En() ?? document.querySelector(`.autodown-block-host[data-block-id="${s}"]`);
+        const r = t.selection.anchor.blockId, u = En() ?? document.querySelector(`.autodown-block-host[data-block-id="${r}"]`);
         if (!u) return null;
         const c = rl(u, i, i), f = c.getClientRects(), d = f.length > 0 ? f[0] : c.getBoundingClientRect();
         return { top: d.top, left: d.left, right: d.right, bottom: d.bottom };
@@ -463,66 +463,66 @@ function fl(t) {
   };
 }
 function Re(t) {
-  const n = t.selection.anchor.blockId, e = j(t.doc, n);
+  const n = t.selection.anchor.blockId, e = Y(t.doc, n);
   if (!e) return null;
-  if (e.kind === T.Table) return { tableId: n, rowId: null, rowIdx: null, colIdx: null };
-  if (e.kind !== T.TableCell) return null;
+  if (e.kind === x.Table) return { tableId: n, rowId: null, rowIdx: null, colIdx: null };
+  if (e.kind !== x.TableCell) return null;
   const o = et(t.doc, n);
-  if (!o || o.kind !== T.TableRow) return null;
+  if (!o || o.kind !== x.TableRow) return null;
   const l = et(t.doc, o.id);
-  return !l || l.kind !== T.Table ? null : { tableId: l.id, rowId: o.id, rowIdx: Ut(l, o.id), colIdx: Ut(o, n) };
+  return !l || l.kind !== x.Table ? null : { tableId: l.id, rowId: o.id, rowIdx: Ut(l, o.id), colIdx: Ut(o, n) };
 }
 function De(t, n) {
   var e;
-  return ((e = j(t.doc, n)) == null ? void 0 : e.children) ?? [];
+  return ((e = Y(t.doc, n)) == null ? void 0 : e.children) ?? [];
 }
 function hl(t) {
   const n = [], e = {
     focus: () => e,
-    run: () => (t.applyTree((l) => n.reduce((a, i) => i(a), l)), !j(t.doc, t.selection.anchor.blockId) && t.doc.children[0] && t.select(Ze(t.doc.children[0].id, 0)), !0),
-    setHeading: (l) => (n.push((a) => $e(a, t, T.Heading, [{ key: "level", value: Se.Int((l == null ? void 0 : l.level) ?? 1) }])), e),
+    run: () => (t.applyTree((l) => n.reduce((a, i) => i(a), l)), !Y(t.doc, t.selection.anchor.blockId) && t.doc.children[0] && t.select(Ze(t.doc.children[0].id, 0)), !0),
+    setHeading: (l) => (n.push((a) => $e(a, t, x.Heading, [{ key: "level", value: Se.Int((l == null ? void 0 : l.level) ?? 1) }])), e),
     insertContent: (l) => {
       const a = String(l ?? "");
       return n.push((i) => {
         if (!a.includes(`
-`)) return wt(i, t, a);
-        const u = wn(a, !0).children;
+`)) return bt(i, t, a);
+        const u = bn(a, !0).children;
         if (u.length === 0) return i;
-        const c = Me(t), f = j(i, c);
+        const c = Ee(t), f = Y(i, c);
         if (!f) return i;
-        const d = i.children, B = d.findIndex((v) => v.id === c), A = he(f) === "" ? [] : [f], O = [...d.slice(0, B), ...A, ...u, ...d.slice(B + 1)];
+        const d = i.children, B = d.findIndex((h) => h.id === c), D = pe(f) === "" ? [] : [f], O = [...d.slice(0, B), ...D, ...u, ...d.slice(B + 1)];
         return kn(i, O);
       }), e;
     },
     deleteRange: (l) => (n.push((a) => {
-      const i = Me(t), s = j(a, i);
-      if (!s) return a;
-      const u = he(s), c = Math.max(0, Math.min(l.from, u.length)), f = Math.max(c, Math.min(l.to, u.length));
-      return we(a, i, [Je(i, s.kind, u.slice(0, c) + u.slice(f))]);
+      const i = Ee(t), r = Y(a, i);
+      if (!r) return a;
+      const u = pe(r), c = Math.max(0, Math.min(l.from, u.length)), f = Math.max(c, Math.min(l.to, u.length));
+      return we(a, i, [Je(i, r.kind, u.slice(0, c) + u.slice(f))]);
     }), e),
-    insertTable: (l) => (n.push((a) => wt(a, t, `| a | b |
+    insertTable: (l) => (n.push((a) => bt(a, t, `| a | b |
 | --- | --- |
 |  |  |
 |  |  |`)), e),
     setImage: (l) => {
       const a = String((l == null ? void 0 : l.src) ?? ""), i = String((l == null ? void 0 : l.alt) ?? "");
-      return n.push((s) => wt(s, t, `![${i}](${a})`)), e;
+      return n.push((r) => bt(r, t, `![${i}](${a})`)), e;
     },
     // table verbs (plan 026 P0T3): forward to the commands.ts table transforms,
     // resolved against the focused cell (table-level focus takes the
     // table-ends defaults); tree-level so a chain stays ONE undo.
     addRowAfter: () => {
-      var s;
+      var r;
       const l = Re(t);
       if (!l) return e;
-      const a = De(t, l.tableId), i = l.rowId ?? ((s = a[a.length - 1]) == null ? void 0 : s.id) ?? null;
+      const a = De(t, l.tableId), i = l.rowId ?? ((r = a[a.length - 1]) == null ? void 0 : r.id) ?? null;
       return n.push((u) => Kt(u, l.tableId, i)), e;
     },
     addRowBefore: () => {
       const l = Re(t);
       if (!l) return e;
       const a = De(t, l.tableId), i = l.rowIdx != null && l.rowIdx > 0 ? a[l.rowIdx - 1].id : null;
-      return n.push((s) => Kt(s, l.tableId, i)), e;
+      return n.push((r) => Kt(r, l.tableId, i)), e;
     },
     deleteRow: () => {
       const l = Re(t);
@@ -530,7 +530,7 @@ function hl(t) {
       const a = De(t, l.tableId);
       if (a.length <= 1) return e;
       const i = l.rowId ?? a[a.length - 1].id;
-      return n.push((s) => we(s, i, [])), e;
+      return n.push((r) => we(r, i, [])), e;
     },
     addColumnBefore: () => {
       const l = Re(t);
@@ -541,13 +541,13 @@ function hl(t) {
       const l = Re(t);
       if (!l) return e;
       const a = ((i = De(t, l.tableId)[0]) == null ? void 0 : i.children.length) ?? 0;
-      return n.push((s) => _t(s, l.tableId, l.colIdx != null ? l.colIdx + 1 : a)), e;
+      return n.push((r) => _t(r, l.tableId, l.colIdx != null ? l.colIdx + 1 : a)), e;
     },
     deleteColumn: () => {
-      var s;
+      var r;
       const l = Re(t);
       if (!l) return e;
-      const a = De(t, l.tableId), i = Math.max(0, (((s = a[0]) == null ? void 0 : s.children.length) ?? 1) - 1);
+      const a = De(t, l.tableId), i = Math.max(0, (((r = a[0]) == null ? void 0 : r.children.length) ?? 1) - 1);
       return n.push((u) => eo(u, l.tableId, l.colIdx ?? i)), e;
     },
     deleteTable: () => {
@@ -556,27 +556,27 @@ function hl(t) {
     },
     // code language channel (plan 026 P0T3): setBlockAttrs on the focused
     // Fence (023's IAL ruling); converts the kind when not a Fence yet.
-    setCodeBlockLanguage: (l) => (n.push((a) => $e(a, t, T.Fence, [{ key: "language", value: Se.Str(String(l ?? "")) }])), e),
-    setCodeBlock: (l) => (l == null ? void 0 : l.language) != null ? e.setCodeBlockLanguage(l.language) : (n.push((a) => $e(a, t, T.Fence)), e),
+    setCodeBlockLanguage: (l) => (n.push((a) => $e(a, t, x.Fence, [{ key: "language", value: Se.Str(String(l ?? "")) }])), e),
+    setCodeBlock: (l) => (l == null ? void 0 : l.language) != null ? e.setCodeBlockLanguage(l.language) : (n.push((a) => $e(a, t, x.Fence)), e),
     // slash manifest's Details template carries { summary } (plan 026 P2T3):
     // kind conversion + summary attr so the mounted node-view shows it.
     // Converting an inline leaf moves its text into a child paragraph — a
     // Details renders children, inlines would serialize away (data loss).
     setDetails: (l) => (n.push((a) => {
-      const i = Me(t), s = j(a, i);
-      if (!s) return a;
-      const u = s.children.length > 0 ? s.children : he(s).length > 0 ? [Je(`${i}-p`, T.Paragraph, he(s))] : [];
-      let c = { ...s, kind: T.Details, children: u };
+      const i = Ee(t), r = Y(a, i);
+      if (!r) return a;
+      const u = r.children.length > 0 ? r.children : pe(r).length > 0 ? [Je(`${i}-p`, x.Paragraph, pe(r))] : [];
+      let c = { ...r, kind: x.Details, children: u };
       return (l == null ? void 0 : l.summary) != null && (c = { ...c, attrs: qe(c.attrs, "summary", Se.Str(String(l.summary))) }), we(a, i, [c]);
     }), e),
     // slash Callout template carries { type, title } (plan 030 T7): same
     // conversion shape as setDetails — before this the kind-only KIND_COMMANDS
     // path silently dropped both attrs (the lost-title roundtrip break).
     setCallout: (l) => (n.push((a) => {
-      const i = Me(t), s = j(a, i);
-      if (!s) return a;
-      const u = s.children.length > 0 ? s.children : he(s).length > 0 ? [Je(`${i}-p`, T.Paragraph, he(s))] : [];
-      let c = { ...s, kind: T.Callout, children: u };
+      const i = Ee(t), r = Y(a, i);
+      if (!r) return a;
+      const u = r.children.length > 0 ? r.children : pe(r).length > 0 ? [Je(`${i}-p`, x.Paragraph, pe(r))] : [];
+      let c = { ...r, kind: x.Callout, children: u };
       return (l == null ? void 0 : l.type) != null && (c = { ...c, attrs: qe(c.attrs, "type", Se.Str(String(l.type))) }), (l == null ? void 0 : l.title) != null && (c = { ...c, attrs: qe(c.attrs, "title", Se.Str(String(l.title))) }), we(a, i, [c]);
     }), e),
     // task list (plan 030 T7): a real verb distinct from toggleBulletList —
@@ -585,50 +585,50 @@ function hl(t) {
     // discipline) gains/loses the `checked` attr (task ⇄ plain bullet);
     // outside a list it converts like the bullet verb.
     toggleTaskList: () => (n.push((l) => {
-      const a = Me(t);
-      let i = j(l, a);
-      for (; i != null && i.kind !== T.ListItem; )
+      const a = Ee(t);
+      let i = Y(l, a);
+      for (; i != null && i.kind !== x.ListItem; )
         i = et(l, i.id);
-      if (i == null) return $e(l, t, T.ListItem);
+      if (i == null) return $e(l, t, x.ListItem);
       const u = Tt(i.attrs, "checked") != null ? i.attrs.filter((c) => c.key !== "checked") : qe(i.attrs, "checked", Se.Bool(!1));
       return we(l, i.id, [{ ...i, attrs: u }]);
     }), e),
     // inline mark toggles (plan 024 P3T1; adapter-routed plan 036 T3): wrap
     // the FOCUSED host's live DOM through the SelectionAdapter — the model
     // catches up on the blur writeback. No focused host → no-op.
-    toggleBold: () => (Ie(ee, N.Strong), e),
-    toggleItalic: () => (Ie(ee, N.Em), e),
-    toggleStrike: () => (Ie(ee, N.Del), e),
-    toggleCode: () => (Ie(ee, N.Code), e),
+    toggleBold: () => (Ie(ne, q.Strong), e),
+    toggleItalic: () => (Ie(ne, q.Em), e),
+    toggleStrike: () => (Ie(ne, q.Del), e),
+    toggleCode: () => (Ie(ne, q.Code), e),
     // underline (plan 028 P2T2): same DOM-wrap protocol as the others —
     // the model catches up on the blur writeback (u → Mark.Underline)
-    toggleUnderline: () => (Ie(ee, N.Underline), e),
+    toggleUnderline: () => (Ie(ne, q.Underline), e),
     setLink: (l) => {
       const a = String((l == null ? void 0 : l.href) ?? "");
-      return a ? ee.applyMark(N.Link, a) : ee.removeMark(N.Link), e;
+      return a ? ne.applyMark(q.Link, a) : ne.removeMark(q.Link), e;
     },
-    unsetLink: () => (ee.removeMark(N.Link), e)
+    unsetLink: () => (ne.removeMark(q.Link), e)
   }, o = e;
   for (const [l, a] of Object.entries(ul))
     o[l] = () => (n.push((i) => $e(i, t, a)), e);
   return e;
 }
-function Me(t) {
+function Ee(t) {
   var n;
   return t.selection.anchor.blockId || ((n = t.doc.children[0]) == null ? void 0 : n.id) || "";
 }
 function $e(t, n, e, o) {
-  const l = Me(n), a = j(t, l);
+  const l = Ee(n), a = Y(t, l);
   if (!a) return t;
   let i = { ...a, kind: e };
   if (o)
-    for (const s of o) i = { ...i, attrs: qe(i.attrs, s.key, s.value) };
+    for (const r of o) i = { ...i, attrs: qe(i.attrs, r.key, r.value) };
   return we(t, l, [i]);
 }
-function wt(t, n, e) {
-  const o = Me(n), l = j(t, o);
+function bt(t, n, e) {
+  const o = Ee(n), l = Y(t, o);
   if (!l) return t;
-  const a = he(l) + e;
+  const a = pe(l) + e;
   return we(t, o, [Je(o, l.kind, a)]);
 }
 function vl(t, n) {
@@ -669,7 +669,7 @@ function kl(t, n) {
   if (!o) return;
   at.add(o), o.innerHTML = t, o.focus();
   const l = n ? to(n) : null;
-  (!l || !no(o, l)) && Lt(o), Le(() => {
+  (!l || !no(o, l)) && Lt(o), Me(() => {
     at.delete(o), En() === o && At(null);
   });
 }
@@ -679,33 +679,33 @@ function Lt(t) {
   const e = window.getSelection();
   e == null || e.removeAllRanges(), e == null || e.addRange(n);
 }
-function wl(t, n) {
+function bl(t, n) {
   const e = t.ownerDocument.createTreeWalker(t, NodeFilter.SHOW_TEXT);
   let o = Math.max(0, n), l = null, a = !1;
   for (; l = e.nextNode(); ) {
     const i = l.data.length;
     if (o <= i) {
-      const s = document.createRange();
+      const r = document.createRange();
       if (o === i) {
         const c = l.parentElement;
         if (c && c !== t) {
-          const f = t.ownerDocument.createTextNode(bl);
-          c.after(f), s.setStart(f, 1), s.collapse(!0);
+          const f = t.ownerDocument.createTextNode(wl);
+          c.after(f), r.setStart(f, 1), r.collapse(!0);
           const d = window.getSelection();
-          d == null || d.removeAllRanges(), d == null || d.addRange(s), a = !0;
+          d == null || d.removeAllRanges(), d == null || d.addRange(r), a = !0;
           break;
         }
       }
-      s.setStart(l, o), s.collapse(!0);
+      r.setStart(l, o), r.collapse(!0);
       const u = window.getSelection();
-      u == null || u.removeAllRanges(), u == null || u.addRange(s), a = !0;
+      u == null || u.removeAllRanges(), u == null || u.addRange(r), a = !0;
       break;
     }
     o -= i;
   }
   a || Lt(t);
 }
-const bl = "​";
+const wl = "​";
 function it(t) {
   return (t.textContent ?? "").replace(/\u00A0/g, " ").replace(/\u200B/g, "");
 }
@@ -754,7 +754,7 @@ function Sl(t, n) {
   if (n.onInput(e), !n.composition.composing && it(t) !== n.text) {
     t.innerHTML = yn(n.inlines);
     const o = n.desiredCaretOffset();
-    o == null ? Lt(t) : wl(t, o);
+    o == null ? Lt(t) : bl(t, o);
   }
   typeof document < "u" && ml(vl(n.text, He(t)), n.id, He(t));
 }
@@ -764,21 +764,21 @@ function Il(t, n) {
   if (t.ctrlKey || t.metaKey) {
     const o = t.key.toLowerCase();
     if (o === "b") {
-      t.preventDefault(), Ie(ee, N.Strong);
+      t.preventDefault(), Ie(ne, q.Strong);
       return;
     }
     if (o === "i") {
-      t.preventDefault(), Ie(ee, N.Em);
+      t.preventDefault(), Ie(ne, q.Em);
       return;
     }
     if (o === "u") {
-      t.preventDefault(), Ie(ee, N.Underline);
+      t.preventDefault(), Ie(ne, q.Underline);
       return;
     }
     if (o === "k") {
       t.preventDefault();
       const l = window.prompt("Enter URL");
-      l && ee.applyMark(N.Link, l);
+      l && ne.applyMark(q.Link, l);
       return;
     }
   }
@@ -823,7 +823,7 @@ function El(t, n) {
   const e = it(t);
   e !== n.text && n.onInput(e), n.onRichBlur(t);
 }
-const Al = /* @__PURE__ */ J({
+const Al = /* @__PURE__ */ Z({
   __name: "RichTextHost",
   props: {
     controller: {},
@@ -834,62 +834,62 @@ const Al = /* @__PURE__ */ J({
   },
   emits: ["Init", "ClickStop", "Input", "Keydown", "Paste", "Focus", "Blur", "CompositionStart", "CompositionUpdate", "CompositionEnd"],
   setup(t, { emit: n }) {
-    const e = t, o = m(() => pl(e.blockKind, e.level)), l = m(() => gl(e.blockKind, e.level)), a = n;
-    function i(v) {
-      El(v.target, e.controller), a("Blur", v);
+    const e = t, o = v(() => pl(e.blockKind, e.level)), l = v(() => gl(e.blockKind, e.level)), a = n;
+    function i(h) {
+      El(h.target, e.controller), a("Blur", h);
     }
-    function s(v) {
-      a("ClickStop", v);
+    function r(h) {
+      a("ClickStop", h);
     }
-    function u(v) {
-      Rl(v.target, e.controller), a("CompositionEnd", v);
+    function u(h) {
+      Rl(h.target, e.controller), a("CompositionEnd", h);
     }
-    function c(v) {
-      Tl(v.target, e.controller), a("CompositionStart", v);
+    function c(h) {
+      Tl(h.target, e.controller), a("CompositionStart", h);
     }
-    function f(v) {
-      xl(v, e.controller), a("CompositionUpdate", v);
+    function f(h) {
+      xl(h, e.controller), a("CompositionUpdate", h);
     }
-    function d(v) {
-      Ml(v.target, e.controller), a("Focus", v);
+    function d(h) {
+      Ml(h.target, e.controller), a("Focus", h);
     }
-    function B(v) {
-      Sl(v.target, e.controller), a("Input", v);
+    function B(h) {
+      Sl(h.target, e.controller), a("Input", h);
     }
-    function A(v) {
-      Il(v, e.controller), a("Keydown", v);
+    function D(h) {
+      Il(h, e.controller), a("Keydown", h);
     }
-    function O(v) {
-      Bl(v, e.controller), a("Paste", v);
+    function O(h) {
+      Bl(h, e.controller), a("Paste", h);
     }
-    return me(() => {
+    return fe(() => {
       kl(e.initial_html, e.blockId);
-    }), (v, k) => (g(), Y(ve(o.value), {
+    }), (h, g) => (p(), X(ge(o.value), {
       class: Te(l.value),
       contenteditable: !0,
       "data-block-id": t.blockId,
       "data-node-type": t.blockKind,
       dir: "auto",
       spellcheck: "false",
-      onBlur: k[0] || (k[0] = (p) => i(p)),
-      onClick: k[1] || (k[1] = Oe((p) => s(p), ["stop"])),
-      onCompositionend: k[2] || (k[2] = (p) => u(p)),
-      onCompositionstart: k[3] || (k[3] = (p) => c(p)),
-      onCompositionupdate: k[4] || (k[4] = (p) => f(p)),
-      onFocus: k[5] || (k[5] = (p) => d(p)),
-      onInput: k[6] || (k[6] = (p) => B(p)),
-      onKeydown: k[7] || (k[7] = (p) => A(p)),
-      onPaste: k[8] || (k[8] = (p) => O(p))
+      onBlur: g[0] || (g[0] = (A) => i(A)),
+      onClick: g[1] || (g[1] = Oe((A) => r(A), ["stop"])),
+      onCompositionend: g[2] || (g[2] = (A) => u(A)),
+      onCompositionstart: g[3] || (g[3] = (A) => c(A)),
+      onCompositionupdate: g[4] || (g[4] = (A) => f(A)),
+      onFocus: g[5] || (g[5] = (A) => d(A)),
+      onInput: g[6] || (g[6] = (A) => B(A)),
+      onKeydown: g[7] || (g[7] = (A) => D(A)),
+      onPaste: g[8] || (g[8] = (A) => O(A))
     }, null, 40, ["class", "data-block-id", "data-node-type"]));
   }
 });
 function Ll(t) {
   return t.startsWith("bottom") ? { vertical: "bottom", horizontal: t.endsWith("end") ? "right" : "left" } : { vertical: "top", horizontal: t.endsWith("end") ? "right" : "left" };
 }
-function be(t, n, e, o, l = "bottom", a = 8, i = "left") {
-  const { vertical: s, horizontal: u } = Ll(l);
+function ye(t, n, e, o, l = "bottom", a = 8, i = "left") {
+  const { vertical: r, horizontal: u } = Ll(l);
   let c;
-  if (s === "bottom") {
+  if (r === "bottom") {
     if (c = t.bottom + a, c + e > o.height) {
       const d = t.top - e - a;
       d >= 0 ? c = d : c = Math.max(0, o.height - e);
@@ -909,7 +909,7 @@ const Ol = {
   code: xn,
   link: Tn
 };
-function Ae(t) {
+function Le(t) {
   return Ol[t];
 }
 function Dl({
@@ -934,7 +934,7 @@ function ql(t) {
   const n = t.selection;
   return { selection: { empty: n.anchor.blockId === n.head.blockId && n.anchor.offset === n.head.offset } };
 }
-const Nl = J({
+const Nl = Z({
   name: "EngineBubbleMenu",
   props: {
     editor: { type: Object, default: null },
@@ -942,61 +942,61 @@ const Nl = J({
     shouldShow: { type: Function, default: null }
   },
   setup(t, { slots: n }) {
-    const e = w(!1), o = w("0px"), l = w("0px"), a = w(null);
+    const e = b(!1), o = b("0px"), l = b("0px"), a = b(null);
     let i = null;
-    const s = () => {
-      var K, G, _, I, C, y;
-      const d = (K = t.editor) == null ? void 0 : K.__engine;
+    const r = () => {
+      var z, J, C, I, S, y;
+      const d = (z = t.editor) == null ? void 0 : z.__engine;
       if (!d) {
         e.value = !1;
         return;
       }
-      (_ = (G = t.editor) == null ? void 0 : G.__bump) == null || _.call(G);
-      const B = typeof window > "u" ? null : window.getSelection(), A = B && B.rangeCount > 0 ? B.getRangeAt(0) : null;
-      if (!A) {
+      (C = (J = t.editor) == null ? void 0 : J.__bump) == null || C.call(J);
+      const B = typeof window > "u" ? null : window.getSelection(), D = B && B.rangeCount > 0 ? B.getRangeAt(0) : null;
+      if (!D) {
         e.value = !1;
         return;
       }
       let O;
-      A.collapsed && (O = Ln());
-      const v = { editor: t.editor, state: { ...ql(d), marks: O } };
-      if (e.value = t.shouldShow ? !!t.shouldShow(v) : !1, !e.value) return;
-      const k = (I = A.startContainer.nodeType === 3 ? A.startContainer.parentElement : A.startContainer) == null ? void 0 : I.closest(".autodown-block-host"), p = k == null ? void 0 : k.closest(".autodown-editor");
-      if (!k || !p || !p.contains(k)) {
+      D.collapsed && (O = Ln());
+      const h = { editor: t.editor, state: { ...ql(d), marks: O } };
+      if (e.value = t.shouldShow ? !!t.shouldShow(h) : !1, !e.value) return;
+      const g = (I = D.startContainer.nodeType === 3 ? D.startContainer.parentElement : D.startContainer) == null ? void 0 : I.closest(".autodown-block-host"), A = g == null ? void 0 : g.closest(".autodown-editor");
+      if (!g || !A || !A.contains(g)) {
         e.value = !1;
         return;
       }
-      const U = A.getBoundingClientRect(), X = p.getBoundingClientRect(), ie = {
-        top: U.top - X.top,
-        left: U.left - X.left,
-        bottom: U.bottom - X.top,
-        right: U.right - X.left,
-        width: U.width,
-        height: U.height
-      }, te = be(
-        ie,
-        ((C = a.value) == null ? void 0 : C.offsetWidth) ?? 0,
+      const j = D.getBoundingClientRect(), E = A.getBoundingClientRect(), te = {
+        top: j.top - E.top,
+        left: j.left - E.left,
+        bottom: j.bottom - E.top,
+        right: j.right - E.left,
+        width: j.width,
+        height: j.height
+      }, oe = ye(
+        te,
+        ((S = a.value) == null ? void 0 : S.offsetWidth) ?? 0,
         ((y = a.value) == null ? void 0 : y.offsetHeight) ?? 0,
-        { width: p.clientWidth, height: p.clientHeight },
+        { width: A.clientWidth, height: A.clientHeight },
         "top"
       );
-      l.value = `${te.left}px`, o.value = `${te.top}px`;
+      l.value = `${oe.left}px`, o.value = `${oe.top}px`;
     }, u = (d) => {
-      var B, A;
-      e.value && !((A = (B = d.target) == null ? void 0 : B.closest) != null && A.call(B, ".autodown-bubble-menu")) && (e.value = !1);
+      var B, D;
+      e.value && !((D = (B = d.target) == null ? void 0 : B.closest) != null && D.call(B, ".autodown-bubble-menu")) && (e.value = !1);
     }, c = (d) => {
       d.key === "Escape" && e.value && (e.value = !1);
-    }, f = () => s();
-    return me(() => {
+    }, f = () => r();
+    return fe(() => {
       var B;
       const d = (B = t.editor) == null ? void 0 : B.__engine;
       d && (d.onChange(f), i = () => {
-      }), document.addEventListener("pointerdown", u), document.addEventListener("keydown", c), document.addEventListener("selectionchange", f), s();
-    }), Le(() => {
+      }), document.addEventListener("pointerdown", u), document.addEventListener("keydown", c), document.addEventListener("selectionchange", f), r();
+    }), Me(() => {
       i == null || i(), document.removeEventListener("pointerdown", u), document.removeEventListener("keydown", c), document.removeEventListener("selectionchange", f);
     }), () => {
       var d;
-      return e.value ? le(
+      return e.value ? ie(
         "div",
         {
           ref: a,
@@ -1011,7 +1011,7 @@ const Nl = J({
       ) : null;
     };
   }
-}), Hl = ["title", "onClick"], Pl = /* @__PURE__ */ J({
+}), Hl = ["title", "onClick"], Pl = /* @__PURE__ */ Z({
   __name: "BubbleMenu",
   props: {
     editor: {},
@@ -1020,25 +1020,25 @@ const Nl = J({
   },
   emits: ["RunButton"],
   setup(t, { emit: n }) {
-    const e = t, o = m(() => [{ name: "bold", title: e.tooltips && e.tooltips.bold || "Bold", icon: Ae("bold"), active: e.editor.isActive("bold"), action: () => e.editor.chain().focus().toggleBold().run() }, { name: "italic", title: e.tooltips && e.tooltips.italic || "Italic", icon: Ae("italic"), active: e.editor.isActive("italic"), action: () => e.editor.chain().focus().toggleItalic().run() }, { name: "underline", title: e.tooltips && e.tooltips.underline || "Underline", icon: Ae("underline"), active: e.editor.isActive("underline"), action: () => e.editor.chain().focus().toggleUnderline().run() }, { name: "strike", title: e.tooltips && e.tooltips.strike || "Strikethrough", icon: Ae("strike"), active: e.editor.isActive("strike"), action: () => e.editor.chain().focus().toggleStrike().run() }, { name: "code", title: e.tooltips && e.tooltips.code || "Inline Code", icon: Ae("code"), active: e.editor.isActive("code"), action: () => e.editor.chain().focus().toggleCode().run() }, { name: "link", title: e.tooltips && e.tooltips.link || "Link", icon: Ae("link"), active: e.editor.isActive("link"), action: () => $l(e.editor, e.linkPrompt) }]), l = n;
+    const e = t, o = v(() => [{ name: "bold", title: e.tooltips && e.tooltips.bold || "Bold", icon: Le("bold"), active: e.editor.isActive("bold"), action: () => e.editor.chain().focus().toggleBold().run() }, { name: "italic", title: e.tooltips && e.tooltips.italic || "Italic", icon: Le("italic"), active: e.editor.isActive("italic"), action: () => e.editor.chain().focus().toggleItalic().run() }, { name: "underline", title: e.tooltips && e.tooltips.underline || "Underline", icon: Le("underline"), active: e.editor.isActive("underline"), action: () => e.editor.chain().focus().toggleUnderline().run() }, { name: "strike", title: e.tooltips && e.tooltips.strike || "Strikethrough", icon: Le("strike"), active: e.editor.isActive("strike"), action: () => e.editor.chain().focus().toggleStrike().run() }, { name: "code", title: e.tooltips && e.tooltips.code || "Inline Code", icon: Le("code"), active: e.editor.isActive("code"), action: () => e.editor.chain().focus().toggleCode().run() }, { name: "link", title: e.tooltips && e.tooltips.link || "Link", icon: Le("link"), active: e.editor.isActive("link"), action: () => $l(e.editor, e.linkPrompt) }]), l = n;
     function a(i) {
       i.action(), l("RunButton", i);
     }
-    return (i, s) => t.editor ? (g(), Y(re(Nl), {
+    return (i, r) => t.editor ? (p(), X(ce(Nl), {
       class: Te("autodown-bubble-menu"),
       editor: t.editor,
       options: { placement: "top" },
-      shouldShow: re(Dl),
+      shouldShow: ce(Dl),
       key: "TiptapBubbleMenu-1"
     }, {
       default: Ye(() => [
-        (g(!0), x(ye, null, Pe(o.value, (u) => (g(), x("button", {
+        (p(!0), R(_e, null, Pe(o.value, (u) => (p(), R("button", {
           class: Te(["autodown-bubble-btn", { active: u.active }]),
           key: u.title,
           title: u.title,
           onClick: (c) => a(u)
         }, [
-          (g(), Y(ve(u.icon), { size: 14 }))
+          (p(), X(ge(u.icon), { size: 14 }))
         ], 10, Hl))), 128))
       ]),
       _: 1
@@ -1083,188 +1083,188 @@ function on() {
 const Kl = { class: "autodown-codeblock-menu-header" }, Wl = ["onKeydown"], Vl = ["onClick", "onMouseenter"], Ql = { class: "autodown-codeblock-menu-item-label" }, zl = {
   key: 0,
   class: "autodown-codeblock-menu-empty"
-}, Gl = /* @__PURE__ */ J({
+}, Gl = /* @__PURE__ */ Z({
   __name: "CodeBlockMenu",
   props: {
     editor: {}
   },
   emits: ["Init", "Destroy", "SearchInput", "MoveDown", "MoveUp", "SelectHighlighted", "SelectItem", "HoverItem", "Close", "OutsideClick"],
   setup(t, { emit: n }) {
-    const e = t, o = w(!1), l = w(""), a = w(0), i = w(""), s = w(""), u = w(""), c = w(""), f = w(null), d = w(null), B = w(null), A = w(null), O = w(0), v = w(null), k = w(null), p = w(null), U = w(null), X = w(null), ie = w(null), te = w(null), K = m(() => on().filter((M) => [M.id, M.label].concat(M.aliases).join(" ").toLowerCase().includes(l.value.toLowerCase().trim()))), G = m(() => K.value.length === 0), _ = m(() => Fl()), I = n;
-    function C() {
+    const e = t, o = b(!1), l = b(""), a = b(0), i = b(""), r = b(""), u = b(""), c = b(""), f = b(null), d = b(null), B = b(null), D = b(null), O = b(0), h = b(null), g = b(null), A = b(null), j = b(null), E = b(null), te = b(null), oe = b(null), z = v(() => on().filter((M) => [M.id, M.label].concat(M.aliases).join(" ").toLowerCase().includes(l.value.toLowerCase().trim()))), J = v(() => z.value.length === 0), C = v(() => Fl()), I = n;
+    function S() {
       o.value = !1, l.value = "", a.value = 0, f.value = null, I("Close");
     }
     function y(M) {
       a.value = M, I("HoverItem", M);
     }
-    function R() {
-      a.value < K.value.length - 1 && (a.value = a.value + 1, ae(() => {
+    function T() {
+      a.value < z.value.length - 1 && (a.value = a.value + 1, re(() => {
         let M = null;
         if (d.value != null && (M = d.value.querySelector(".autodown-codeblock-menu")), M != null) {
-          let F = M.querySelector(".autodown-codeblock-menu-list"), W = M.querySelector(".autodown-codeblock-menu-item.active");
-          if (F != null && W != null) {
-            let ne = F.getBoundingClientRect(), se = W.getBoundingClientRect(), D = se.top - ne.top - ne.height / 2 + se.height / 2;
-            F.scrollTop = F.scrollTop + D;
+          let U = M.querySelector(".autodown-codeblock-menu-list"), K = M.querySelector(".autodown-codeblock-menu-item.active");
+          if (U != null && K != null) {
+            let se = U.getBoundingClientRect(), ue = K.getBoundingClientRect(), L = ue.top - se.top - se.height / 2 + ue.height / 2;
+            U.scrollTop = U.scrollTop + L;
           }
         }
       })), I("MoveDown");
     }
-    function Q() {
-      a.value > 0 && (a.value = a.value - 1, ae(() => {
+    function ee() {
+      a.value > 0 && (a.value = a.value - 1, re(() => {
         let M = null;
         if (d.value != null && (M = d.value.querySelector(".autodown-codeblock-menu")), M != null) {
-          let F = M.querySelector(".autodown-codeblock-menu-list"), W = M.querySelector(".autodown-codeblock-menu-item.active");
-          if (F != null && W != null) {
-            let ne = F.getBoundingClientRect(), se = W.getBoundingClientRect(), D = se.top - ne.top - ne.height / 2 + se.height / 2;
-            F.scrollTop = F.scrollTop + D;
+          let U = M.querySelector(".autodown-codeblock-menu-list"), K = M.querySelector(".autodown-codeblock-menu-item.active");
+          if (U != null && K != null) {
+            let se = U.getBoundingClientRect(), ue = K.getBoundingClientRect(), L = ue.top - se.top - se.height / 2 + ue.height / 2;
+            U.scrollTop = U.scrollTop + L;
           }
         }
       })), I("MoveUp");
     }
-    function pe(M) {
+    function he(M) {
       if (o.value) {
-        let F = null;
-        d.value != null && (F = d.value.querySelector(".autodown-codeblock-menu")), F != null && (F.contains(M.target) || (o.value = !1, l.value = "", a.value = 0, f.value = null));
+        let U = null;
+        d.value != null && (U = d.value.querySelector(".autodown-codeblock-menu")), U != null && (U.contains(M.target) || (o.value = !1, l.value = "", a.value = 0, f.value = null));
       }
       I("OutsideClick", M);
     }
-    function ce(M) {
+    function le(M) {
       l.value = M.target.value, I("SearchInput", M);
     }
-    function ge() {
-      if (K.value.length == 1) {
-        let M = K.value[0];
+    function ke() {
+      if (z.value.length == 1) {
+        let M = z.value[0];
         e.editor.chain().focus().setCodeBlock({ language: M.id }).run(), o.value = !1, l.value = "", a.value = 0, f.value = null;
       }
-      if (K.value.length != 1) {
-        let M = K.value[a.value];
+      if (z.value.length != 1) {
+        let M = z.value[a.value];
         M != null && (e.editor.chain().focus().setCodeBlock({ language: M.id }).run(), o.value = !1, l.value = "", a.value = 0, f.value = null);
       }
       I("SelectHighlighted");
     }
-    function de(M) {
+    function ve(M) {
       e.editor.chain().focus().setCodeBlock({ language: M.id }).run(), o.value = !1, l.value = "", a.value = 0, f.value = null, I("SelectItem", M);
     }
-    me(() => {
+    fe(() => {
       let M = e.editor.view.dom;
-      B.value = M, d.value = M.closest(".autodown-editor"), A.value = M.closest(".autodown-editor-content-wrapper");
-      let F = () => {
+      B.value = M, d.value = M.closest(".autodown-editor"), D.value = M.closest(".autodown-editor-content-wrapper");
+      let U = () => {
         O.value != 0 && cancelAnimationFrame(O.value), O.value = requestAnimationFrame(() => {
           if (O.value = 0, o.value && d.value != null) {
-            let D = d.value.getBoundingClientRect(), H = f.value;
+            let L = d.value.getBoundingClientRect(), H = f.value;
             if (H == null) {
-              let r = e.editor.view, h = r.nodeDOM(r.state.selection.from);
-              h != null && h.closest != null && (H = h.closest("pre[data-language]"), H == null && (H = h.closest(".autodown-codeblock-node")));
+              let F = e.editor.view, Q = F.nodeDOM(F.state.selection.from);
+              Q != null && Q.closest != null && (H = Q.closest("pre[data-language]"), H == null && (H = Q.closest(".autodown-codeblock-node")));
             }
             if (H == null && (o.value = !1, l.value = "", a.value = 0, f.value = null), H != null) {
-              let r = H.querySelector("[data-codeblock-language-badge]"), h = H;
-              r != null && (h = r);
-              let S = h.getBoundingClientRect(), q = { top: S.top - D.top + 6, left: S.left - D.left, bottom: S.bottom - D.top + 6, right: S.right - D.left, width: S.width, height: S.height }, E = { width: D.width, height: D.height }, L = be(q, 0, 0, E, "bottom-end", 0);
-              s.value = L.top + "px", u.value = L.left + "px", c.value = "hidden", ae(() => {
-                let P = d.value.querySelector(".autodown-codeblock-menu");
-                if (P != null) {
-                  let _e = P.getBoundingClientRect(), Z = be(q, _e.width, _e.height, E, "bottom-end", 0);
-                  s.value = Z.top + "px", u.value = Z.left + "px", c.value = "visible";
+              let F = H.querySelector("[data-codeblock-language-badge]"), Q = H;
+              F != null && (Q = F);
+              let s = Q.getBoundingClientRect(), m = { top: s.top - L.top + 6, left: s.left - L.left, bottom: s.bottom - L.top + 6, right: s.right - L.left, width: s.width, height: s.height }, k = { width: L.width, height: L.height }, _ = ye(m, 0, 0, k, "bottom-end", 0);
+              r.value = _.top + "px", u.value = _.left + "px", c.value = "hidden", re(() => {
+                let N = d.value.querySelector(".autodown-codeblock-menu");
+                if (N != null) {
+                  let W = N.getBoundingClientRect(), P = ye(m, W.width, W.height, k, "bottom-end", 0);
+                  r.value = P.top + "px", u.value = P.left + "px", c.value = "visible";
                 }
               });
             }
           }
         });
       };
-      U.value = F;
-      let W = (D) => {
+      j.value = U;
+      let K = (L) => {
         if (o.value) {
           let H = null;
-          if (d.value != null && (H = d.value.querySelector(".autodown-codeblock-menu")), H != null && H.contains(D.target)) {
-            D.preventDefault(), D.stopPropagation();
-            let r = H.querySelector(".autodown-codeblock-menu-list");
-            if (r != null) {
-              let h = r.scrollTop + r.clientHeight < r.scrollHeight, S = r.scrollTop > 0;
-              D.deltaY > 0 && h && (r.scrollTop = r.scrollTop + D.deltaY), D.deltaY < 0 && S && (r.scrollTop = r.scrollTop + D.deltaY);
+          if (d.value != null && (H = d.value.querySelector(".autodown-codeblock-menu")), H != null && H.contains(L.target)) {
+            L.preventDefault(), L.stopPropagation();
+            let F = H.querySelector(".autodown-codeblock-menu-list");
+            if (F != null) {
+              let Q = F.scrollTop + F.clientHeight < F.scrollHeight, s = F.scrollTop > 0;
+              L.deltaY > 0 && Q && (F.scrollTop = F.scrollTop + L.deltaY), L.deltaY < 0 && s && (F.scrollTop = F.scrollTop + L.deltaY);
             }
           }
-          H == null && (D.preventDefault(), D.stopPropagation()), H != null && !H.contains(D.target) && (D.preventDefault(), D.stopPropagation());
+          H == null && (L.preventDefault(), L.stopPropagation()), H != null && !H.contains(L.target) && (L.preventDefault(), L.stopPropagation());
         }
       };
-      v.value = W, document.addEventListener("wheel", v.value, { passive: !1, capture: !0 });
-      let ne = (D) => {
-        let H = D.target, r = null, h = null, S = null, q = null;
-        H.closest != null && (r = H.closest("[data-codeblock-language-badge]"), h = H.closest("[data-codeblock-copy-btn]"), S = H.closest("[data-codeblock-expand-btn]"), q = H.closest("[data-codeblock-more-btn]")), (r != null || h != null || S != null || q != null) && (D.preventDefault(), D.stopPropagation());
+      h.value = K, document.addEventListener("wheel", h.value, { passive: !1, capture: !0 });
+      let se = (L) => {
+        let H = L.target, F = null, Q = null, s = null, m = null;
+        H.closest != null && (F = H.closest("[data-codeblock-language-badge]"), Q = H.closest("[data-codeblock-copy-btn]"), s = H.closest("[data-codeblock-expand-btn]"), m = H.closest("[data-codeblock-more-btn]")), (F != null || Q != null || s != null || m != null) && (L.preventDefault(), L.stopPropagation());
       };
-      k.value = ne, M.addEventListener("mousedown", k.value, { capture: !0 });
-      let se = (D) => {
-        let H = D.target, r = null, h = null, S = null, q = null;
-        if (H.closest != null && (r = H.closest("[data-codeblock-copy-btn]"), h = H.closest("[data-codeblock-expand-btn]"), S = H.closest("[data-codeblock-language-badge]"), q = H.closest("[data-codeblock-more-btn]")), r != null) {
-          D.preventDefault(), D.stopPropagation();
-          let E = r.closest("pre");
-          if (E == null) {
-            let P = r.closest(".code-block-container");
-            P != null && (E = P.querySelector("pre[data-language]"));
+      g.value = se, M.addEventListener("mousedown", g.value, { capture: !0 });
+      let ue = (L) => {
+        let H = L.target, F = null, Q = null, s = null, m = null;
+        if (H.closest != null && (F = H.closest("[data-codeblock-copy-btn]"), Q = H.closest("[data-codeblock-expand-btn]"), s = H.closest("[data-codeblock-language-badge]"), m = H.closest("[data-codeblock-more-btn]")), F != null) {
+          L.preventDefault(), L.stopPropagation();
+          let k = F.closest("pre");
+          if (k == null) {
+            let N = F.closest(".code-block-container");
+            N != null && (k = N.querySelector("pre[data-language]"));
           }
-          let L = "";
-          if (E != null) {
-            let P = E.querySelector("code");
-            P != null && (L = P.textContent ?? "");
+          let _ = "";
+          if (k != null) {
+            let N = k.querySelector("code");
+            N != null && (_ = N.textContent ?? "");
           }
-          navigator.clipboard.writeText(L);
+          navigator.clipboard.writeText(_);
         }
-        if (r == null && h != null) {
-          D.preventDefault(), D.stopPropagation();
-          let E = h.closest("pre");
-          if (E == null) {
-            let L = h.closest(".code-block-container");
-            L != null && (E = L.querySelector("pre[data-language]"));
+        if (F == null && Q != null) {
+          L.preventDefault(), L.stopPropagation();
+          let k = Q.closest("pre");
+          if (k == null) {
+            let _ = Q.closest(".code-block-container");
+            _ != null && (k = _.querySelector("pre[data-language]"));
           }
-          E != null && E.classList.toggle("is-collapsed");
+          k != null && k.classList.toggle("is-collapsed");
         }
-        if (r == null && h == null) {
-          let E = S;
-          if (E == null && (E = q), E != null) {
-            let L = E.closest("pre");
-            L == null && (L = E.closest(".autodown-codeblock-node"));
-            let P = !1;
-            if (L == null && (L = E.closest(".code-block-container"), L != null && (P = !0)), D.preventDefault(), P == !1 && D.stopPropagation(), L == null && (L = E.closest(".code-block-container")), L == null) {
-              let Z = e.editor.view, z = Z.nodeDOM(Z.state.selection.from);
-              z != null && z.closest != null && (L = z.closest("pre[data-language]"), L == null && (L = z.closest(".autodown-codeblock-node")));
+        if (F == null && Q == null) {
+          let k = s;
+          if (k == null && (k = m), k != null) {
+            let _ = k.closest("pre");
+            _ == null && (_ = k.closest(".autodown-codeblock-node"));
+            let N = !1;
+            if (_ == null && (_ = k.closest(".code-block-container"), _ != null && (N = !0)), L.preventDefault(), N == !1 && L.stopPropagation(), _ == null && (_ = k.closest(".code-block-container")), _ == null) {
+              let P = e.editor.view, V = P.nodeDOM(P.state.selection.from);
+              V != null && V.closest != null && (_ = V.closest("pre[data-language]"), _ == null && (_ = V.closest(".autodown-codeblock-node")));
             }
-            if (f.value = L, i.value = "", f.value != null && (i.value = f.value.getAttribute("data-language") ?? "", i.value == "")) {
-              let Z = f.value.querySelector("pre[data-language]");
-              Z != null && (i.value = Z.getAttribute("data-language") ?? "");
+            if (f.value = _, i.value = "", f.value != null && (i.value = f.value.getAttribute("data-language") ?? "", i.value == "")) {
+              let P = f.value.querySelector("pre[data-language]");
+              P != null && (i.value = P.getAttribute("data-language") ?? "");
             }
             i.value == "" && (i.value = e.editor.getAttributes("codeBlock").language ?? ""), o.value = !0, l.value = "";
-            let _e = on().findIndex((Z) => Z.id == i.value);
-            a.value = _e, _e < 0 && (a.value = 0), ae(() => {
-              let Z = null;
-              if (d.value != null && (Z = d.value.querySelector(".autodown-codeblock-menu")), Z != null) {
-                let z = Z.querySelector(".autodown-codeblock-menu-search");
-                z != null && z.focus();
+            let W = on().findIndex((P) => P.id == i.value);
+            a.value = W, W < 0 && (a.value = 0), re(() => {
+              let P = null;
+              if (d.value != null && (P = d.value.querySelector(".autodown-codeblock-menu")), P != null) {
+                let V = P.querySelector(".autodown-codeblock-menu-search");
+                V != null && V.focus();
               }
               if (d.value != null) {
-                let z = d.value.getBoundingClientRect(), oe = f.value;
-                if (oe == null) {
-                  let Ce = e.editor.view, fe = Ce.nodeDOM(Ce.state.selection.from);
-                  fe != null && fe.closest != null && (oe = fe.closest("pre[data-language]"), oe == null && (oe = fe.closest(".autodown-codeblock-node")));
+                let V = d.value.getBoundingClientRect(), ae = f.value;
+                if (ae == null) {
+                  let Ce = e.editor.view, me = Ce.nodeDOM(Ce.state.selection.from);
+                  me != null && me.closest != null && (ae = me.closest("pre[data-language]"), ae == null && (ae = me.closest(".autodown-codeblock-node")));
                 }
-                if (oe == null && (o.value = !1, l.value = "", a.value = 0, f.value = null), oe != null) {
-                  let Ce = oe.querySelector("[data-codeblock-language-badge]"), fe = oe;
-                  Ce != null && (fe = Ce);
-                  let ke = fe.getBoundingClientRect(), We = { top: ke.top - z.top + 6, left: ke.left - z.left, bottom: ke.bottom - z.top + 6, right: ke.right - z.left, width: ke.width, height: ke.height }, $t = { width: z.width, height: z.height }, qt = be(We, 0, 0, $t, "bottom-end", 0);
-                  s.value = qt.top + "px", u.value = qt.left + "px", c.value = "hidden", ae(() => {
+                if (ae == null && (o.value = !1, l.value = "", a.value = 0, f.value = null), ae != null) {
+                  let Ce = ae.querySelector("[data-codeblock-language-badge]"), me = ae;
+                  Ce != null && (me = Ce);
+                  let be = me.getBoundingClientRect(), We = { top: be.top - V.top + 6, left: be.left - V.left, bottom: be.bottom - V.top + 6, right: be.right - V.left, width: be.width, height: be.height }, $t = { width: V.width, height: V.height }, qt = ye(We, 0, 0, $t, "bottom-end", 0);
+                  r.value = qt.top + "px", u.value = qt.left + "px", c.value = "hidden", re(() => {
                     let Nt = d.value.querySelector(".autodown-codeblock-menu");
                     if (Nt != null) {
-                      let Ht = Nt.getBoundingClientRect(), Pt = be(We, Ht.width, Ht.height, $t, "bottom-end", 0);
-                      s.value = Pt.top + "px", u.value = Pt.left + "px", c.value = "visible";
+                      let Ht = Nt.getBoundingClientRect(), Pt = ye(We, Ht.width, Ht.height, $t, "bottom-end", 0);
+                      r.value = Pt.top + "px", u.value = Pt.left + "px", c.value = "visible";
                     }
                   });
                 }
               }
-              ae(() => {
-                let z = null;
-                if (d.value != null && (z = d.value.querySelector(".autodown-codeblock-menu")), z != null) {
-                  let oe = z.querySelector(".autodown-codeblock-menu-list"), Ce = z.querySelector(".autodown-codeblock-menu-item.active");
-                  if (oe != null && Ce != null) {
-                    let fe = oe.getBoundingClientRect(), ke = Ce.getBoundingClientRect(), We = ke.top - fe.top - fe.height / 2 + ke.height / 2;
-                    oe.scrollTop = oe.scrollTop + We;
+              re(() => {
+                let V = null;
+                if (d.value != null && (V = d.value.querySelector(".autodown-codeblock-menu")), V != null) {
+                  let ae = V.querySelector(".autodown-codeblock-menu-list"), Ce = V.querySelector(".autodown-codeblock-menu-item.active");
+                  if (ae != null && Ce != null) {
+                    let me = ae.getBoundingClientRect(), be = Ce.getBoundingClientRect(), We = be.top - me.top - me.height / 2 + be.height / 2;
+                    ae.scrollTop = ae.scrollTop + We;
                   }
                 }
               });
@@ -1272,64 +1272,64 @@ const Kl = { class: "autodown-codeblock-menu-header" }, Wl = ["onKeydown"], Vl =
           }
         }
       };
-      p.value = se, M.addEventListener("click", p.value, { capture: !0 }), A.value != null && A.value.addEventListener("scroll", U.value, { passive: !0 });
+      A.value = ue, M.addEventListener("click", A.value, { capture: !0 }), D.value != null && D.value.addEventListener("scroll", j.value, { passive: !0 });
     }), yt(() => {
-      document.removeEventListener("wheel", v.value, { capture: !0 }), B.value != null && (B.value.removeEventListener("mousedown", k.value, { capture: !0 }), B.value.removeEventListener("click", p.value, { capture: !0 })), A.value != null && A.value.removeEventListener("scroll", U.value);
+      document.removeEventListener("wheel", h.value, { capture: !0 }), B.value != null && (B.value.removeEventListener("mousedown", g.value, { capture: !0 }), B.value.removeEventListener("click", A.value, { capture: !0 })), D.value != null && D.value.removeEventListener("scroll", j.value);
     });
     function Ke(M) {
-      pe(M);
+      he(M);
     }
-    return me(() => {
+    return fe(() => {
       document.addEventListener("mousedown", Ke);
     }), yt(() => {
       document.removeEventListener("mousedown", Ke);
-    }), (M, F) => o.value ? (g(), x("div", {
+    }), (M, U) => o.value ? (p(), R("div", {
       key: 0,
       class: "autodown-codeblock-menu",
       ref_key: "menuEl",
-      ref: X,
-      style: gn({ top: s.value, left: u.value, visibility: c.value })
+      ref: E,
+      style: gn({ top: r.value, left: u.value, visibility: c.value })
     }, [
-      b("div", Kl, [
-        st(b("input", {
+      w("div", Kl, [
+        st(w("input", {
           class: "autodown-codeblock-menu-search",
           placeholder: "Search language…",
           ref_key: "searchEl",
-          ref: ie,
-          "onUpdate:modelValue": F[0] || (F[0] = (W) => l.value = W),
-          onInput: F[1] || (F[1] = (W) => ce(W)),
+          ref: te,
+          "onUpdate:modelValue": U[0] || (U[0] = (K) => l.value = K),
+          onInput: U[1] || (U[1] = (K) => le(K)),
           onKeydown: [
-            Ve(Oe(R, ["prevent"]), ["down"]),
-            Ve(Oe(ge, ["prevent"]), ["enter"]),
-            Ve(C, ["esc"]),
-            Ve(Oe(Q, ["prevent"]), ["up"])
+            Ve(Oe(T, ["prevent"]), ["down"]),
+            Ve(Oe(ke, ["prevent"]), ["enter"]),
+            Ve(S, ["esc"]),
+            Ve(Oe(ee, ["prevent"]), ["up"])
           ]
         }, null, 40, Wl), [
           [Bt, l.value]
         ])
       ]),
-      b("div", {
+      w("div", {
         class: "autodown-codeblock-menu-list",
         ref_key: "listEl",
-        ref: te
+        ref: oe
       }, [
-        (g(!0), x(ye, null, Pe(K.value, (W, ne) => (g(), x("button", {
-          class: Te(["autodown-codeblock-menu-item", { active: ne == a.value, selected: W.id == i.value }]),
-          key: W.id,
-          onClick: (se) => de(W),
-          onMouseenter: (se) => y(ne)
+        (p(!0), R(_e, null, Pe(z.value, (K, se) => (p(), R("button", {
+          class: Te(["autodown-codeblock-menu-item", { active: se == a.value, selected: K.id == i.value }]),
+          key: K.id,
+          onClick: (ue) => ve(K),
+          onMouseenter: (ue) => y(se)
         }, [
-          b("span", Ql, [
-            b("span", null, V(W.label), 1)
+          w("span", Ql, [
+            w("span", null, G(K.label), 1)
           ]),
-          W.id == i.value ? (g(), Y(ve(_.value), {
+          K.id == i.value ? (p(), X(ge(C.value), {
             key: 0,
             class: "autodown-codeblock-menu-check",
             size: 13
           })) : $("", !0)
         ], 42, Vl))), 128)),
-        G.value ? (g(), x("div", zl, [...F[2] || (F[2] = [
-          b("span", null, "No matching languages", -1)
+        J.value ? (p(), R("div", zl, [...U[2] || (U[2] = [
+          w("span", null, "No matching languages", -1)
         ])])) : $("", !0)
       ], 512)
     ], 4)) : $("", !0);
@@ -1337,7 +1337,7 @@ const Kl = { class: "autodown-codeblock-menu-header" }, Wl = ["onKeydown"], Vl =
 }), jl = { class: "autodown-slash-menu-items" }, Yl = ["onClick", "onMouseenter"], Jl = { class: "autodown-slash-menu-info" }, Xl = { class: "autodown-slash-menu-title" }, Zl = { class: "autodown-slash-menu-desc" }, ea = {
   key: 0,
   class: "autodown-slash-menu-empty"
-}, ta = /* @__PURE__ */ J({
+}, ta = /* @__PURE__ */ Z({
   __name: "SlashMenu",
   props: {
     editor: {},
@@ -1346,127 +1346,127 @@ const Kl = { class: "autodown-codeblock-menu-header" }, Wl = ["onKeydown"], Vl =
   },
   emits: ["OnOpen", "OnUpdate", "OnClose", "OnKeydown", "SelectItem", "HoverItem"],
   setup(t, { emit: n }) {
-    const e = t, o = w(!1), l = w(""), a = w(null), i = w(0), s = w(""), u = w(""), c = w(""), f = w(null), d = m(() => e.items.filter((_) => [_.title, _.description].concat(_.searchTerms).join(" ").toLowerCase().includes(l.value.toLowerCase()))), B = m(() => d.value.length === 0), A = m(() => e.noResultsText ?? "No results"), O = n;
-    Ee(d, () => {
+    const e = t, o = b(!1), l = b(""), a = b(null), i = b(0), r = b(""), u = b(""), c = b(""), f = b(null), d = v(() => e.items.filter((C) => [C.title, C.description].concat(C.searchTerms).join(" ").toLowerCase().includes(l.value.toLowerCase()))), B = v(() => d.value.length === 0), D = v(() => e.noResultsText ?? "No results"), O = n;
+    Ae(d, () => {
       i.value = 0;
     });
-    function v(_) {
-      i.value = _, O("HoverItem", _);
+    function h(C) {
+      i.value = C, O("HoverItem", C);
     }
-    function k() {
+    function g() {
       o.value = !1, l.value = "", a.value = null, i.value = 0, O("OnClose");
     }
-    function p(_) {
+    function A(C) {
       if (o.value) {
-        if (_.detail.event.key == "ArrowDown") {
-          _.detail.event.preventDefault();
+        if (C.detail.event.key == "ArrowDown") {
+          C.detail.event.preventDefault();
           let I = i.value + 1;
-          i.value = I % d.value.length, ae(() => {
+          i.value = I % d.value.length, re(() => {
             if (f.value) {
-              let C = f.value.querySelector(".autodown-slash-menu-item.active");
-              C != null && C.scrollIntoView({ block: "nearest", behavior: "auto" });
+              let S = f.value.querySelector(".autodown-slash-menu-item.active");
+              S != null && S.scrollIntoView({ block: "nearest", behavior: "auto" });
             }
           }), e.editor.storage["slash-command"] != null && (e.editor.storage["slash-command"].handled = !0);
         }
-        if (_.detail.event.key == "ArrowUp") {
-          _.detail.event.preventDefault();
+        if (C.detail.event.key == "ArrowUp") {
+          C.detail.event.preventDefault();
           let I = i.value - 1 + d.value.length;
-          i.value = I % d.value.length, ae(() => {
+          i.value = I % d.value.length, re(() => {
             if (f.value) {
-              let C = f.value.querySelector(".autodown-slash-menu-item.active");
-              C != null && C.scrollIntoView({ block: "nearest", behavior: "auto" });
+              let S = f.value.querySelector(".autodown-slash-menu-item.active");
+              S != null && S.scrollIntoView({ block: "nearest", behavior: "auto" });
             }
           }), e.editor.storage["slash-command"] != null && (e.editor.storage["slash-command"].handled = !0);
         }
-        if (_.detail.event.key == "Enter" || _.detail.event.key == "NumpadEnter") {
-          _.detail.event.preventDefault();
+        if (C.detail.event.key == "Enter" || C.detail.event.key == "NumpadEnter") {
+          C.detail.event.preventDefault();
           let I = d.value[i.value];
           I != null && a.value != null && (I.command({ editor: e.editor, range: a.value }), o.value = !1, l.value = "", a.value = null, i.value = 0), e.editor.storage["slash-command"] != null && (e.editor.storage["slash-command"].handled = !0);
         }
-        _.detail.event.key == "Escape" && (_.detail.event.preventDefault(), o.value = !1, l.value = "", a.value = null, i.value = 0, e.editor.storage["slash-command"] != null && (e.editor.storage["slash-command"].handled = !0));
+        C.detail.event.key == "Escape" && (C.detail.event.preventDefault(), o.value = !1, l.value = "", a.value = null, i.value = 0, e.editor.storage["slash-command"] != null && (e.editor.storage["slash-command"].handled = !0));
       }
-      O("OnKeydown", _);
+      O("OnKeydown", C);
     }
-    function U(_) {
-      l.value = _.detail.query, a.value = _.detail.range, o.value = !0, i.value = 0, ae(() => {
+    function j(C) {
+      l.value = C.detail.query, a.value = C.detail.range, o.value = !0, i.value = 0, re(() => {
         if (a.value != null && e.editor.view) {
-          let I = e.editor.view.coordsAtPos(a.value.from), C = e.editor.view.dom.closest(".autodown-editor");
-          if (C != null) {
-            let y = C.getBoundingClientRect(), R = { top: I.top - y.top, left: I.left - y.left, bottom: I.bottom - y.top, right: I.right - y.left, width: I.right - I.left, height: I.bottom - I.top }, Q = { width: y.width, height: y.height }, pe = be(R, 0, 0, Q, "bottom", 8, "left");
-            s.value = pe.top + "px", u.value = pe.left + "px", c.value = "hidden", ae(() => {
-              let ce = C.querySelector(".autodown-slash-menu");
-              if (ce != null) {
-                let ge = ce.getBoundingClientRect(), de = be(R, ge.width, ge.height, Q, "bottom", 8, "left");
-                s.value = de.top + "px", u.value = de.left + "px", c.value = "visible";
+          let I = e.editor.view.coordsAtPos(a.value.from), S = e.editor.view.dom.closest(".autodown-editor");
+          if (S != null) {
+            let y = S.getBoundingClientRect(), T = { top: I.top - y.top, left: I.left - y.left, bottom: I.bottom - y.top, right: I.right - y.left, width: I.right - I.left, height: I.bottom - I.top }, ee = { width: y.width, height: y.height }, he = ye(T, 0, 0, ee, "bottom", 8, "left");
+            r.value = he.top + "px", u.value = he.left + "px", c.value = "hidden", re(() => {
+              let le = S.querySelector(".autodown-slash-menu");
+              if (le != null) {
+                let ke = le.getBoundingClientRect(), ve = ye(T, ke.width, ke.height, ee, "bottom", 8, "left");
+                r.value = ve.top + "px", u.value = ve.left + "px", c.value = "visible";
               }
             });
           }
         }
-      }), O("OnOpen", _);
+      }), O("OnOpen", C);
     }
-    function X(_) {
-      l.value = _.detail.query, a.value = _.detail.range, ae(() => {
+    function E(C) {
+      l.value = C.detail.query, a.value = C.detail.range, re(() => {
         if (a.value != null && e.editor.view) {
-          let I = e.editor.view.coordsAtPos(a.value.from), C = e.editor.view.dom.closest(".autodown-editor");
-          if (C != null) {
-            let y = C.getBoundingClientRect(), R = { top: I.top - y.top, left: I.left - y.left, bottom: I.bottom - y.top, right: I.right - y.left, width: I.right - I.left, height: I.bottom - I.top }, Q = { width: y.width, height: y.height }, pe = be(R, 0, 0, Q, "bottom", 8, "left");
-            s.value = pe.top + "px", u.value = pe.left + "px", c.value = "hidden", ae(() => {
-              let ce = C.querySelector(".autodown-slash-menu");
-              if (ce != null) {
-                let ge = ce.getBoundingClientRect(), de = be(R, ge.width, ge.height, Q, "bottom", 8, "left");
-                s.value = de.top + "px", u.value = de.left + "px", c.value = "visible";
+          let I = e.editor.view.coordsAtPos(a.value.from), S = e.editor.view.dom.closest(".autodown-editor");
+          if (S != null) {
+            let y = S.getBoundingClientRect(), T = { top: I.top - y.top, left: I.left - y.left, bottom: I.bottom - y.top, right: I.right - y.left, width: I.right - I.left, height: I.bottom - I.top }, ee = { width: y.width, height: y.height }, he = ye(T, 0, 0, ee, "bottom", 8, "left");
+            r.value = he.top + "px", u.value = he.left + "px", c.value = "hidden", re(() => {
+              let le = S.querySelector(".autodown-slash-menu");
+              if (le != null) {
+                let ke = le.getBoundingClientRect(), ve = ye(T, ke.width, ke.height, ee, "bottom", 8, "left");
+                r.value = ve.top + "px", u.value = ve.left + "px", c.value = "visible";
               }
             });
           }
         }
-      }), O("OnUpdate", _);
+      }), O("OnUpdate", C);
     }
-    function ie(_) {
-      let I = d.value[_];
-      I != null && a.value != null && (I.command({ editor: e.editor, range: a.value }), o.value = !1, l.value = "", a.value = null, i.value = 0), O("SelectItem", _);
+    function te(C) {
+      let I = d.value[C];
+      I != null && a.value != null && (I.command({ editor: e.editor, range: a.value }), o.value = !1, l.value = "", a.value = null, i.value = 0), O("SelectItem", C);
     }
-    function te(_) {
-      p(_);
+    function oe(C) {
+      A(C);
     }
-    function K(_) {
-      U(_);
+    function z(C) {
+      j(C);
     }
-    function G(_) {
-      X(_);
+    function J(C) {
+      E(C);
     }
-    return me(() => {
-      document.addEventListener("autodown:slash-close", k), document.addEventListener("autodown:slash-keydown", te), document.addEventListener("autodown:slash-open", K), document.addEventListener("autodown:slash-update", G);
+    return fe(() => {
+      document.addEventListener("autodown:slash-close", g), document.addEventListener("autodown:slash-keydown", oe), document.addEventListener("autodown:slash-open", z), document.addEventListener("autodown:slash-update", J);
     }), yt(() => {
-      document.removeEventListener("autodown:slash-close", k), document.removeEventListener("autodown:slash-keydown", te), document.removeEventListener("autodown:slash-open", K), document.removeEventListener("autodown:slash-update", G);
-    }), (_, I) => o.value ? (g(), x("div", {
+      document.removeEventListener("autodown:slash-close", g), document.removeEventListener("autodown:slash-keydown", oe), document.removeEventListener("autodown:slash-open", z), document.removeEventListener("autodown:slash-update", J);
+    }), (C, I) => o.value ? (p(), R("div", {
       key: 0,
       class: "autodown-slash-menu",
       ref_key: "menuEl",
       ref: f,
-      style: gn({ top: s.value, left: u.value, visibility: c.value })
+      style: gn({ top: r.value, left: u.value, visibility: c.value })
     }, [
-      b("div", jl, [
-        (g(!0), x(ye, null, Pe(d.value, (C, y) => (g(), x("button", {
+      w("div", jl, [
+        (p(!0), R(_e, null, Pe(d.value, (S, y) => (p(), R("button", {
           class: Te(["autodown-slash-menu-item", { active: y == i.value }]),
-          key: C.title,
-          onClick: (R) => ie(y),
-          onMouseenter: (R) => v(y)
+          key: S.title,
+          onClick: (T) => te(y),
+          onMouseenter: (T) => h(y)
         }, [
-          (g(), Y(ve(C.icon), {
+          (p(), X(ge(S.icon), {
             class: "autodown-slash-menu-icon",
             size: 16
           })),
-          b("div", Jl, [
-            b("div", Xl, [
-              b("span", null, V(C.title), 1)
+          w("div", Jl, [
+            w("div", Xl, [
+              w("span", null, G(S.title), 1)
             ]),
-            b("div", Zl, [
-              b("span", null, V(C.description), 1)
+            w("div", Zl, [
+              w("span", null, G(S.description), 1)
             ])
           ])
         ], 42, Yl))), 128)),
-        B.value ? (g(), x("div", ea, [
-          b("span", null, V(A.value), 1)
+        B.value ? (p(), R("div", ea, [
+          w("span", null, G(D.value), 1)
         ])) : $("", !0)
       ])
     ], 4)) : $("", !0);
@@ -1709,7 +1709,7 @@ function oa(t) {
   ], ...t.extraSlashItems ?? []];
 }
 const $n = "autodown-node-view-content";
-J({
+Z({
   name: "NodeViewWrapper",
   props: {
     as: { type: [String, Object], default: "div" }
@@ -1717,11 +1717,11 @@ J({
   setup(t, { slots: n, attrs: e }) {
     return () => {
       var o;
-      return le(t.as, { ...e, "data-node-view-wrapper": "" }, (o = n.default) == null ? void 0 : o.call(n));
+      return ie(t.as, { ...e, "data-node-view-wrapper": "" }, (o = n.default) == null ? void 0 : o.call(n));
     };
   }
 });
-J({
+Z({
   name: "NodeViewContent",
   props: {
     as: { type: [String, Object], default: "div" }
@@ -1731,12 +1731,12 @@ J({
     return () => {
       var a;
       const l = o ? o() : ((a = n.default) == null ? void 0 : a.call(n)) ?? [];
-      return le(t.as, { ...e, "data-node-view-content": "" }, l);
+      return ie(t.as, { ...e, "data-node-view-content": "" }, l);
     };
   }
 });
 let qn = {};
-function bt(t) {
+function wt(t) {
   qn = { runQuery: t.runQuery, loadBlock: t.loadBlock };
 }
 function Ot() {
@@ -1752,7 +1752,7 @@ function aa() {
 function ia() {
   return rt[rt.length - 1];
 }
-J({
+Z({
   name: "NodeViewContentProvider",
   props: { content: { type: Function, required: !0 } },
   setup(t, { slots: n }) {
@@ -1767,15 +1767,15 @@ class ra {
     this.engine = n, this.tableId = e;
   }
   table() {
-    return j(this.engine.doc, this.tableId);
+    return Y(this.engine.doc, this.tableId);
   }
   get rows() {
     var n;
     return ((n = this.table()) == null ? void 0 : n.children) ?? [];
   }
   cellText(n) {
-    const e = j(this.engine.doc, n);
-    return e ? he(e) : "";
+    const e = Y(this.engine.doc, n);
+    return e ? pe(e) : "";
   }
   /** Append an empty row after the last row (or after the header when only
    *  the header exists). One undo step. */
@@ -1795,7 +1795,7 @@ class ra {
   /** Remove the whole table; the dangling selection collapses to the first
    *  block (the menu chain's deleteTable repair, same semantics). */
   deleteTable() {
-    this.engine.applyTree((n) => we(n, this.tableId, [])), !j(this.engine.doc, this.engine.selection.anchor.blockId) && this.engine.doc.children[0] && this.engine.select(Ze(this.engine.doc.children[0].id, 0));
+    this.engine.applyTree((n) => we(n, this.tableId, [])), !Y(this.engine.doc, this.engine.selection.anchor.blockId) && this.engine.doc.children[0] && this.engine.select(Ze(this.engine.doc.children[0].id, 0));
   }
   /** Remove the last row. Refused (no-op) when only the header remains. */
   deleteRow() {
@@ -1817,9 +1817,9 @@ class ra {
    *  demo: committing a cell unmounted the table editor).
    *  Returns false when the text is unchanged or the cell is gone. */
   commitCell(n, e) {
-    const o = j(this.engine.doc, n);
-    if (!o || o.kind !== T.TableCell) return !1;
-    const l = he(o);
+    const o = Y(this.engine.doc, n);
+    if (!o || o.kind !== x.TableCell) return !1;
+    const l = pe(o);
     if (l === e) return !1;
     const a = ro(n, l, e);
     if (!a) return !1;
@@ -1847,7 +1847,7 @@ const sa = ["data-block-id", "data-math-block", "data-node-type"], ua = {
   key: 1,
   class: "autodown-math-error",
   title: "Math preview error"
-}, pa = { class: "math-block-source" }, ga = /* @__PURE__ */ J({
+}, pa = { class: "math-block-source" }, ga = /* @__PURE__ */ Z({
   __name: "MathBlockWidget",
   props: {
     mode: {},
@@ -1857,76 +1857,76 @@ const sa = ["data-block-id", "data-math-block", "data-node-type"], ua = {
   },
   emits: ["Init", "AreaInput", "Blur"],
   setup(t, { emit: n }) {
-    const e = t, o = w(""), l = w(""), a = w(tt(e.node)), i = w(Cn(e.ctx)), s = w(null), u = m(() => e.mode === "edit"), c = m(() => tt(e.node)), f = m(() => xt(e.ctx)), d = m(() => u.value ? f.value ? "autodown-math-editor is-readonly" : "autodown-math-editor" : "autodown-math-block"), B = m(() => Sn(e.mode)), A = m(() => nt(e.mode, Rt(e.ctx))), O = m(() => nt(e.mode, "MathBlock")), v = m(() => {
-      var C;
-      return (C = Ct(a.value, !0)) == null ? void 0 : C.html;
-    }), k = m(() => {
-      var C;
-      return (C = Ct(a.value, !0)) == null ? void 0 : C.error;
-    }), p = m(() => !k.value), U = m(() => !!k.value), X = m(() => Nn(a.value)), ie = m(() => !l.value), te = m(() => !!l.value), K = m(() => "code"), G = n;
-    Ee(c, () => {
+    const e = t, o = b(""), l = b(""), a = b(tt(e.node)), i = b(Cn(e.ctx)), r = b(null), u = v(() => e.mode === "edit"), c = v(() => tt(e.node)), f = v(() => xt(e.ctx)), d = v(() => u.value ? f.value ? "autodown-math-editor is-readonly" : "autodown-math-editor" : "autodown-math-block"), B = v(() => Sn(e.mode)), D = v(() => nt(e.mode, Rt(e.ctx))), O = v(() => nt(e.mode, "MathBlock")), h = v(() => {
+      var S;
+      return (S = Ct(a.value, !0)) == null ? void 0 : S.html;
+    }), g = v(() => {
+      var S;
+      return (S = Ct(a.value, !0)) == null ? void 0 : S.error;
+    }), A = v(() => !g.value), j = v(() => !!g.value), E = v(() => Nn(a.value)), te = v(() => !l.value), oe = v(() => !!l.value), z = v(() => "code"), J = n;
+    Ae(c, () => {
       if (!u.value) {
-        let C = ln(c.value);
-        o.value = C.html, l.value = C.error;
+        let S = ln(c.value);
+        o.value = S.html, l.value = S.error;
       }
     });
-    function _(C) {
-      a.value = C.target.value, G("AreaInput", C);
+    function C(S) {
+      a.value = S.target.value, J("AreaInput", S);
     }
-    function I(C) {
-      f.value || i.value.commit(C.target.value), G("Blur", C);
+    function I(S) {
+      f.value || i.value.commit(S.target.value), J("Blur", S);
     }
-    return me(() => {
-      if (u.value && In(s.value, f.value), !u.value) {
-        let C = ln(c.value);
-        o.value = C.html, l.value = C.error;
+    return fe(() => {
+      if (u.value && In(r.value, f.value), !u.value) {
+        let S = ln(c.value);
+        o.value = S.html, l.value = S.error;
       }
-    }), (C, y) => (g(), x("div", {
+    }), (S, y) => (p(), R("div", {
       class: Te(d.value),
-      "data-block-id": A.value,
+      "data-block-id": D.value,
       "data-math-block": B.value,
       "data-node-type": O.value
     }, [
-      u.value ? (g(), x(ye, { key: 0 }, [
-        f.value ? (g(), x("div", ua, [...y[3] || (y[3] = [
-          b("span", null, "流式生成中", -1)
+      u.value ? (p(), R(_e, { key: 0 }, [
+        f.value ? (p(), R("div", ua, [...y[3] || (y[3] = [
+          w("span", null, "流式生成中", -1)
         ])])) : $("", !0),
-        b("div", ca, [
-          p.value ? (g(), x("div", {
+        w("div", ca, [
+          A.value ? (p(), R("div", {
             key: 0,
             class: "autodown-math-preview",
-            innerHTML: v.value
+            innerHTML: h.value
           }, null, 8, da)) : $("", !0),
-          U.value ? (g(), x("div", fa, [
-            b("span", null, V(k.value), 1)
+          j.value ? (p(), R("div", fa, [
+            w("span", null, G(g.value), 1)
           ])) : $("", !0),
-          st(b("textarea", {
+          st(w("textarea", {
             class: "math-editor-textarea",
             disabled: f.value,
             ref_key: "area",
-            ref: s,
-            rows: X.value,
+            ref: r,
+            rows: E.value,
             spellcheck: "false",
-            "onUpdate:modelValue": y[0] || (y[0] = (R) => a.value = R),
-            onBlur: y[1] || (y[1] = (R) => I(R)),
-            onInput: y[2] || (y[2] = (R) => _(R))
+            "onUpdate:modelValue": y[0] || (y[0] = (T) => a.value = T),
+            onBlur: y[1] || (y[1] = (T) => I(T)),
+            onInput: y[2] || (y[2] = (T) => C(T))
           }, null, 40, ha), [
             [Bt, a.value]
           ])
         ])
       ], 64)) : $("", !0),
-      u.value ? $("", !0) : (g(), x(ye, { key: 1 }, [
-        ie.value ? (g(), x("div", {
+      u.value ? $("", !0) : (p(), R(_e, { key: 1 }, [
+        te.value ? (p(), R("div", {
           key: 0,
           class: "autodown-math-preview",
           innerHTML: o.value
         }, null, 8, va)) : $("", !0),
-        te.value ? (g(), x("div", ma, [
-          b("span", null, V(l.value), 1)
+        oe.value ? (p(), R("div", ma, [
+          w("span", null, G(l.value), 1)
         ])) : $("", !0),
-        b("pre", pa, [
+        w("pre", pa, [
           y[4] || (y[4] = Xe("          ", -1)),
-          (g(), Y(ve(K.value))),
+          (p(), X(ge(z.value))),
           y[5] || (y[5] = Xe(`
         `, -1))
         ])
@@ -1952,7 +1952,7 @@ function sn(t, n) {
     });
   }, ka);
 }
-const wa = ["data-block-id", "data-mermaid-block", "data-node-type"], ba = {
+const ba = ["data-block-id", "data-mermaid-block", "data-node-type"], wa = {
   key: 0,
   class: "autodown-stream-banner"
 }, ya = { class: "mermaid-editor-stack" }, _a = ["innerHTML"], Ca = {
@@ -1966,7 +1966,7 @@ const wa = ["data-block-id", "data-mermaid-block", "data-node-type"], ba = {
   key: 1,
   class: "autodown-mermaid-error",
   title: "Mermaid render error"
-}, xa = { class: "mermaid-source" }, Ra = /* @__PURE__ */ J({
+}, xa = { class: "mermaid-source" }, Ra = /* @__PURE__ */ Z({
   __name: "MermaidBlockWidget",
   props: {
     mode: {},
@@ -1976,85 +1976,85 @@ const wa = ["data-block-id", "data-mermaid-block", "data-node-type"], ba = {
   },
   emits: ["Init", "AreaInput", "Blur"],
   setup(t, { emit: n }) {
-    const e = t, o = w(""), l = w(""), a = w(tt(e.node)), i = w(""), s = w(""), u = w(!1), c = w(Cn(e.ctx)), f = w(null), d = m(() => e.mode === "edit"), B = m(() => tt(e.node)), A = m(() => xt(e.ctx)), O = m(() => d.value ? A.value ? "autodown-mermaid-editor is-readonly" : "autodown-mermaid-editor" : "autodown-mermaid-block"), v = m(() => Sn(e.mode)), k = m(() => nt(e.mode, Rt(e.ctx))), p = m(() => nt(e.mode, "Mermaid")), U = m(() => u.value === !1 && !s.value && !!i.value), X = m(() => u.value === !1 && !!s.value), ie = m(() => Nn(a.value)), te = m(() => !!o.value), K = m(() => !o.value && !!l.value), G = m(() => "code"), _ = n;
-    Ee(B, () => {
-      d.value || (B.value.trim() == "" && (o.value = "", l.value = ""), B.value.trim() != "" && an(B.value).then((R) => {
-        o.value = R.svg, l.value = R.error;
+    const e = t, o = b(""), l = b(""), a = b(tt(e.node)), i = b(""), r = b(""), u = b(!1), c = b(Cn(e.ctx)), f = b(null), d = v(() => e.mode === "edit"), B = v(() => tt(e.node)), D = v(() => xt(e.ctx)), O = v(() => d.value ? D.value ? "autodown-mermaid-editor is-readonly" : "autodown-mermaid-editor" : "autodown-mermaid-block"), h = v(() => Sn(e.mode)), g = v(() => nt(e.mode, Rt(e.ctx))), A = v(() => nt(e.mode, "Mermaid")), j = v(() => u.value === !1 && !r.value && !!i.value), E = v(() => u.value === !1 && !!r.value), te = v(() => Nn(a.value)), oe = v(() => !!o.value), z = v(() => !o.value && !!l.value), J = v(() => "code"), C = n;
+    Ae(B, () => {
+      d.value || (B.value.trim() == "" && (o.value = "", l.value = ""), B.value.trim() != "" && an(B.value).then((T) => {
+        o.value = T.svg, l.value = T.error;
       }));
     });
     function I(y) {
-      a.value = y.target.value, u.value = !0, sn(a.value, (R) => {
-        i.value = R.svg, s.value = R.error, u.value = R.loading;
-      }), _("AreaInput", y);
+      a.value = y.target.value, u.value = !0, sn(a.value, (T) => {
+        i.value = T.svg, r.value = T.error, u.value = T.loading;
+      }), C("AreaInput", y);
     }
-    function C(y) {
-      A.value || c.value.commit(y.target.value), _("Blur", y);
+    function S(y) {
+      D.value || c.value.commit(y.target.value), C("Blur", y);
     }
-    return me(() => {
-      d.value && (In(f.value, A.value), u.value = !0, sn(B.value, (y) => {
-        i.value = y.svg, s.value = y.error, u.value = y.loading;
-      })), d.value || (B.value.trim() == "" && (o.value = "", l.value = ""), B.value.trim() != "" && an(B.value).then((R) => {
-        o.value = R.svg, l.value = R.error;
+    return fe(() => {
+      d.value && (In(f.value, D.value), u.value = !0, sn(B.value, (y) => {
+        i.value = y.svg, r.value = y.error, u.value = y.loading;
+      })), d.value || (B.value.trim() == "" && (o.value = "", l.value = ""), B.value.trim() != "" && an(B.value).then((T) => {
+        o.value = T.svg, l.value = T.error;
       }));
-    }), (y, R) => (g(), x("div", {
+    }), (y, T) => (p(), R("div", {
       class: Te(O.value),
-      "data-block-id": k.value,
-      "data-mermaid-block": v.value,
-      "data-node-type": p.value
+      "data-block-id": g.value,
+      "data-mermaid-block": h.value,
+      "data-node-type": A.value
     }, [
-      d.value ? (g(), x(ye, { key: 0 }, [
-        A.value ? (g(), x("div", ba, [...R[3] || (R[3] = [
-          b("span", null, "流式生成中", -1)
+      d.value ? (p(), R(_e, { key: 0 }, [
+        D.value ? (p(), R("div", wa, [...T[3] || (T[3] = [
+          w("span", null, "流式生成中", -1)
         ])])) : $("", !0),
-        b("div", ya, [
-          U.value ? (g(), x("div", {
+        w("div", ya, [
+          j.value ? (p(), R("div", {
             key: 0,
             class: "autodown-mermaid-preview",
             innerHTML: i.value
           }, null, 8, _a)) : $("", !0),
-          X.value ? (g(), x("div", Ca, [
-            b("span", null, V(s.value), 1)
+          E.value ? (p(), R("div", Ca, [
+            w("span", null, G(r.value), 1)
           ])) : $("", !0),
-          u.value ? (g(), x("div", Sa, [...R[4] || (R[4] = [
-            b("span", null, "渲染中…", -1)
+          u.value ? (p(), R("div", Sa, [...T[4] || (T[4] = [
+            w("span", null, "渲染中…", -1)
           ])])) : $("", !0),
-          st(b("textarea", {
+          st(w("textarea", {
             class: "mermaid-editor-textarea",
-            disabled: A.value,
+            disabled: D.value,
             ref_key: "area",
             ref: f,
-            rows: ie.value,
+            rows: te.value,
             spellcheck: "false",
-            "onUpdate:modelValue": R[0] || (R[0] = (Q) => a.value = Q),
-            onBlur: R[1] || (R[1] = (Q) => C(Q)),
-            onInput: R[2] || (R[2] = (Q) => I(Q))
+            "onUpdate:modelValue": T[0] || (T[0] = (ee) => a.value = ee),
+            onBlur: T[1] || (T[1] = (ee) => S(ee)),
+            onInput: T[2] || (T[2] = (ee) => I(ee))
           }, null, 40, Ia), [
             [Bt, a.value]
           ])
         ])
       ], 64)) : $("", !0),
-      d.value ? $("", !0) : (g(), x(ye, { key: 1 }, [
-        te.value ? (g(), x("div", {
+      d.value ? $("", !0) : (p(), R(_e, { key: 1 }, [
+        oe.value ? (p(), R("div", {
           key: 0,
           class: "autodown-mermaid-preview",
           innerHTML: o.value
         }, null, 8, Ba)) : $("", !0),
-        K.value ? (g(), x("div", Ta, [
-          b("span", null, V(l.value), 1)
+        z.value ? (p(), R("div", Ta, [
+          w("span", null, G(l.value), 1)
         ])) : $("", !0),
-        b("pre", xa, [
-          R[5] || (R[5] = Xe("          ", -1)),
-          (g(), Y(ve(G.value))),
-          R[6] || (R[6] = Xe(`
+        w("pre", xa, [
+          T[5] || (T[5] = Xe("          ", -1)),
+          (p(), X(ge(J.value))),
+          T[6] || (T[6] = Xe(`
         `, -1))
         ])
       ], 64))
-    ], 10, wa));
+    ], 10, ba));
   }
 }), Pn = /* @__PURE__ */ ct(Ra, [["__scopeId", "data-v-08feae74"]]), Ma = ["data-open"], Ea = { class: "autodown-details-summary" }, Aa = { class: "autodown-details-content" }, La = {
   key: 0,
   class: "markdown-renderer"
-}, It = /* @__PURE__ */ J({
+}, It = /* @__PURE__ */ Z({
   __name: "DetailsBlockWidget",
   props: {
     mode: {},
@@ -2066,26 +2066,26 @@ const wa = ["data-block-id", "data-mermaid-block", "data-node-type"], ba = {
   },
   emits: ["ToggleOpen"],
   setup(t, { emit: n }) {
-    const e = t, o = m(() => e.mode === "edit"), l = m(() => xt(e.ctx));
-    m(() => Rt(e.ctx));
-    const a = m(() => so(e.ctx)), i = m(() => uo(e.node, e.ctx)), s = m(() => co(e.node, "open")), u = m(() => s.value ? "▼" : "▶"), c = m(() => fo(e.node, "summary")), f = m(() => c.value ? c.value : "Details"), d = n;
+    const e = t, o = v(() => e.mode === "edit"), l = v(() => xt(e.ctx));
+    v(() => Rt(e.ctx));
+    const a = v(() => so(e.ctx)), i = v(() => uo(e.node, e.ctx)), r = v(() => co(e.node, "open")), u = v(() => r.value ? "▼" : "▶"), c = v(() => fo(e.node, "summary")), f = v(() => c.value ? c.value : "Details"), d = n;
     function B() {
-      vo(a.value, i.value, s.value), d("ToggleOpen");
+      vo(a.value, i.value, r.value), d("ToggleOpen");
     }
-    return (A, O) => (g(), x("div", {
+    return (D, O) => (p(), R("div", {
       class: "autodown-details",
-      "data-open": s.value
+      "data-open": r.value
     }, [
-      b("div", Ea, [
-        b("span", {
+      w("div", Ea, [
+        w("span", {
           class: "autodown-details-marker",
           "aria-hidden": "true",
           title: "点击展开详细内容",
           onClick: Oe(B, ["stop"])
         }, [
-          b("span", null, V(u.value), 1)
+          w("span", null, G(u.value), 1)
         ]),
-        o.value ? (g(), Y(re(ho), {
+        o.value ? (p(), X(ce(ho), {
           attr_key: "summary",
           blockId: i.value,
           controller: a.value,
@@ -2096,27 +2096,27 @@ const wa = ["data-block-id", "data-mermaid-block", "data-node-type"], ba = {
           version: t.version,
           key: "AttrHost-1"
         }, null, 8, ["blockId", "controller", "readonly", "value", "version"])) : $("", !0),
-        o.value ? $("", !0) : (g(), x("span", {
+        o.value ? $("", !0) : (p(), R("span", {
           key: 1,
           class: "autodown-details-summary-text",
           onClick: Oe(B, ["stop"])
         }, [
-          b("span", null, V(f.value), 1)
+          w("span", null, G(f.value), 1)
         ]))
       ]),
-      st(b("div", Aa, [
-        o.value ? (g(), x("div", La, [
-          (g(), Y(re(ot), {
+      st(w("div", Aa, [
+        o.value ? (p(), R("div", La, [
+          (p(), X(ce(ot), {
             children_slot: t.children,
             key: "BlockChildren-2"
           }, null, 8, ["children_slot"]))
         ])) : $("", !0),
-        o.value ? $("", !0) : (g(), Y(re(ot), {
+        o.value ? $("", !0) : (p(), X(ce(ot), {
           children_slot: t.children,
           key: "BlockChildren-3"
         }, null, 8, ["children_slot"]))
       ], 512), [
-        [zn, s.value]
+        [zn, r.value]
       ])
     ], 8, Ma));
   }
@@ -2152,7 +2152,7 @@ const Da = {
 }, Fa = { class: "result-content" }, Ua = { class: "result-source" }, Ka = {
   key: 3,
   class: "query-state"
-}, Wa = /* @__PURE__ */ J({
+}, Wa = /* @__PURE__ */ Z({
   __name: "QueryBlockWidget",
   props: {
     mode: {},
@@ -2162,76 +2162,76 @@ const Da = {
   },
   emits: ["Init"],
   setup(t, { emit: n }) {
-    const e = t, o = w([]), l = w(!1), a = w(""), i = m(() => Oa(e.node)), s = m(() => "code"), u = m(() => "ul"), c = m(() => "li"), f = m(() => l.value || !e.final), d = m(() => e.final && !l.value && !!a.value), B = m(() => e.final && !l.value && !a.value && o.value.length > 0), A = m(() => e.final && !l.value && !a.value && o.value.length === 0);
-    return Ee(i, async () => {
+    const e = t, o = b([]), l = b(!1), a = b(""), i = v(() => Oa(e.node)), r = v(() => "code"), u = v(() => "ul"), c = v(() => "li"), f = v(() => l.value || !e.final), d = v(() => e.final && !l.value && !!a.value), B = v(() => e.final && !l.value && !a.value && o.value.length > 0), D = v(() => e.final && !l.value && !a.value && o.value.length === 0);
+    return Ae(i, async () => {
       if (e.final) {
         let O = un();
         if ((O == null || i.value == "") && (a.value = "No query runner configured"), O != null && i.value != "") {
           l.value = !0, a.value = "";
           try {
-            let v = await O(i.value);
-            o.value = cn(v);
-          } catch (v) {
-            a.value = dn(v), o.value = [];
+            let h = await O(i.value);
+            o.value = cn(h);
+          } catch (h) {
+            a.value = dn(h), o.value = [];
           } finally {
             l.value = !1;
           }
         }
       }
-    }), me(async () => {
+    }), fe(async () => {
       if (e.final) {
         let O = un();
         if ((O == null || i.value == "") && (a.value = "No query runner configured"), O != null && i.value != "") {
           l.value = !0, a.value = "";
           try {
-            let v = await O(i.value);
-            o.value = cn(v);
-          } catch (v) {
-            a.value = dn(v), o.value = [];
+            let h = await O(i.value);
+            o.value = cn(h);
+          } catch (h) {
+            a.value = dn(h), o.value = [];
           } finally {
             l.value = !1;
           }
         }
       }
-    }), (O, v) => (g(), x("div", Da, [
-      b("div", $a, [
-        v[0] || (v[0] = b("span", { class: "query-label" }, [
-          b("span", null, "Query")
+    }), (O, h) => (p(), R("div", Da, [
+      w("div", $a, [
+        h[0] || (h[0] = w("span", { class: "query-label" }, [
+          w("span", null, "Query")
         ], -1)),
-        (g(), Y(ve(s.value), { class: "query-code" }, {
+        (p(), X(ge(r.value), { class: "query-code" }, {
           default: Ye(() => [
-            b("span", null, V(i.value), 1)
+            w("span", null, G(i.value), 1)
           ]),
           _: 1
         }))
       ]),
-      f.value ? (g(), x("div", qa, [...v[1] || (v[1] = [
-        b("span", null, "Loading query…", -1)
+      f.value ? (p(), R("div", qa, [...h[1] || (h[1] = [
+        w("span", null, "Loading query…", -1)
       ])])) : $("", !0),
-      d.value ? (g(), x("div", Na, [
-        b("span", null, V(a.value), 1)
+      d.value ? (p(), R("div", Na, [
+        w("span", null, G(a.value), 1)
       ])) : $("", !0),
-      B.value ? (g(), Y(ve(u.value), {
+      B.value ? (p(), X(ge(u.value), {
         key: 2,
         class: "query-results"
       }, {
         default: Ye(() => [
-          (g(!0), x(ye, null, Pe(o.value, (k, p) => (g(), Y(ve(c.value), {
+          (p(!0), R(_e, null, Pe(o.value, (g, A) => (p(), X(ge(c.value), {
             class: "query-result",
-            key: p
+            key: A
           }, {
             default: Ye(() => [
-              b("span", Ha, [
-                b("span", null, V(k.marker), 1)
+              w("span", Ha, [
+                w("span", null, G(g.marker), 1)
               ]),
-              k.priority ? (g(), x("span", Pa, [
-                b("span", null, V(k.priority_label), 1)
+              g.priority ? (p(), R("span", Pa, [
+                w("span", null, G(g.priority_label), 1)
               ])) : $("", !0),
-              b("span", Fa, [
-                b("span", null, V(k.content), 1)
+              w("span", Fa, [
+                w("span", null, G(g.content), 1)
               ]),
-              b("span", Ua, [
-                b("span", null, V(k.source), 1)
+              w("span", Ua, [
+                w("span", null, G(g.source), 1)
               ])
             ]),
             _: 2
@@ -2239,8 +2239,8 @@ const Da = {
         ]),
         _: 1
       })) : $("", !0),
-      A.value ? (g(), x("div", Ka, [...v[2] || (v[2] = [
-        b("span", null, "No results", -1)
+      D.value ? (p(), R("div", Ka, [...h[2] || (h[2] = [
+        w("span", null, "No results", -1)
       ])])) : $("", !0)
     ]));
   }
@@ -2278,7 +2278,7 @@ const Ga = ["data-title"], ja = {
 }, Xa = { class: "embed-title" }, Za = {
   key: 3,
   class: "embed-content"
-}, ei = /* @__PURE__ */ J({
+}, ei = /* @__PURE__ */ Z({
   __name: "EmbedBlockWidget",
   props: {
     mode: {},
@@ -2288,54 +2288,54 @@ const Ga = ["data-title"], ja = {
   },
   emits: ["Init"],
   setup(t, { emit: n }) {
-    const e = t, o = w(null), l = w(!1), a = w(""), i = m(() => Qa(e.node)), s = m(() => za(e.node)), u = m(() => s.value != null ? i.value ? i.value + "#" + s.value : s.value : i.value), c = m(() => "Loading " + u.value + "…" || "Loading…"), f = m(() => o.value && o.value.content || ""), d = m(() => l.value || !e.final), B = m(() => e.final && !l.value && !!a.value), A = m(() => e.final && !l.value && !a.value && o.value), O = m(() => e.final && !l.value && !a.value);
-    return Ee(s, async () => {
-      if (e.final && s.value != null) {
-        let v = fn();
-        if (v == null && (a.value = "No block loader configured"), v != null) {
+    const e = t, o = b(null), l = b(!1), a = b(""), i = v(() => Qa(e.node)), r = v(() => za(e.node)), u = v(() => r.value != null ? i.value ? i.value + "#" + r.value : r.value : i.value), c = v(() => "Loading " + u.value + "…" || "Loading…"), f = v(() => o.value && o.value.content || ""), d = v(() => l.value || !e.final), B = v(() => e.final && !l.value && !!a.value), D = v(() => e.final && !l.value && !a.value && o.value), O = v(() => e.final && !l.value && !a.value);
+    return Ae(r, async () => {
+      if (e.final && r.value != null) {
+        let h = fn();
+        if (h == null && (a.value = "No block loader configured"), h != null) {
           l.value = !0, a.value = "";
           try {
-            let k = await v(s.value);
-            o.value = k, k || (a.value = "Block not found");
-          } catch (k) {
-            a.value = hn(k), o.value = null;
+            let g = await h(r.value);
+            o.value = g, g || (a.value = "Block not found");
+          } catch (g) {
+            a.value = hn(g), o.value = null;
           } finally {
             l.value = !1;
           }
         }
       }
-    }), me(async () => {
-      if (e.final && s.value != null) {
-        let v = fn();
-        if (v == null && (a.value = "No block loader configured"), v != null) {
+    }), fe(async () => {
+      if (e.final && r.value != null) {
+        let h = fn();
+        if (h == null && (a.value = "No block loader configured"), h != null) {
           l.value = !0, a.value = "";
           try {
-            let k = await v(s.value);
-            o.value = k, k || (a.value = "Block not found");
-          } catch (k) {
-            a.value = hn(k), o.value = null;
+            let g = await h(r.value);
+            o.value = g, g || (a.value = "Block not found");
+          } catch (g) {
+            a.value = hn(g), o.value = null;
           } finally {
             l.value = !1;
           }
         }
       }
-    }), (v, k) => (g(), x("div", {
+    }), (h, g) => (p(), R("div", {
       class: "autodown-block-embed",
       "data-title": i.value
     }, [
-      d.value ? (g(), x("div", ja, [
-        b("span", null, V(c.value), 1)
+      d.value ? (p(), R("div", ja, [
+        w("span", null, G(c.value), 1)
       ])) : $("", !0),
-      B.value ? (g(), x("div", Ya, [
-        b("span", null, V(a.value), 1)
+      B.value ? (p(), R("div", Ya, [
+        w("span", null, G(a.value), 1)
       ])) : $("", !0),
-      O.value ? (g(), x("div", Ja, [
-        b("span", Xa, [
-          b("span", null, V(u.value), 1)
+      O.value ? (p(), R("div", Ja, [
+        w("span", Xa, [
+          w("span", null, G(u.value), 1)
         ])
       ])) : $("", !0),
-      A.value ? (g(), x("div", Za, [
-        b("span", null, V(f.value), 1)
+      D.value ? (p(), R("div", Za, [
+        w("span", null, G(f.value), 1)
       ])) : $("", !0)
     ], 8, Ga));
   }
@@ -2345,7 +2345,7 @@ const Ga = ["data-title"], ja = {
 }, oi = {
   key: 0,
   class: "markdown-renderer"
-}, vn = /* @__PURE__ */ J({
+}, vn = /* @__PURE__ */ Z({
   __name: "BlockquoteBlockWidget",
   props: {
     mode: {},
@@ -2356,15 +2356,15 @@ const Ga = ["data-title"], ja = {
     version: {}
   },
   setup(t) {
-    const n = t, e = m(() => n.mode === "edit");
-    return (o, l) => (g(), x("blockquote", ni, [
-      e.value ? (g(), x("div", oi, [
-        (g(), Y(re(ot), {
+    const n = t, e = v(() => n.mode === "edit");
+    return (o, l) => (p(), R("blockquote", ni, [
+      e.value ? (p(), R("div", oi, [
+        (p(), X(ce(ot), {
           children_slot: t.children,
           key: "BlockChildren-1"
         }, null, 8, ["children_slot"]))
       ])) : $("", !0),
-      e.value ? $("", !0) : (g(), Y(re(ot), {
+      e.value ? $("", !0) : (p(), X(ce(ot), {
         children_slot: t.children,
         key: "BlockChildren-2"
       }, null, 8, ["children_slot"]))
@@ -2383,14 +2383,14 @@ function ai(t) {
     return {
       id: n.id,
       task: e,
-      checked: bn(n.attrs, "checked", !1),
+      checked: wn(n.attrs, "checked", !1),
       cls: "list-item" + (e ? " task-item" : ""),
       children_slot: () => Ue(ft(n.children), !0)
     };
   });
 }
 function ht(t, n) {
-  return (e, o) => le(t, {
+  return (e, o) => ie(t, {
     mode: "edit",
     node: e,
     ctx: { engine: o.engine, blockId: o.blockId, readonly: o.readonly },
@@ -2419,7 +2419,7 @@ function Kn(t) {
   return t === "center" ? "text-center" : t === "right" ? "text-right" : "text-left";
 }
 function mn(t) {
-  return { id: t.id, text: he(t), cls: Kn(ut(t.attrs, "align", "left")) };
+  return { id: t.id, text: pe(t), cls: Kn(ut(t.attrs, "align", "left")) };
 }
 function pn(t) {
   return {
@@ -2432,7 +2432,7 @@ xe("Table", gt, {
   edit: (t, n) => {
     var o;
     const e = t.children;
-    return le(gt, {
+    return ie(gt, {
       mode: "edit",
       controller: new ra(n.engine, n.blockId),
       blockId: n.blockId,
@@ -2450,7 +2450,7 @@ xe("Table", gt, {
   view: (t, n) => {
     var o;
     const e = t.children;
-    return le(gt, {
+    return ie(gt, {
       mode: "view",
       controller: null,
       blockId: "",
@@ -2482,8 +2482,8 @@ Fe(
   // the host-protocol contract) and the body through the BlockChildren
   // closure instead of the node-view injection key.
   (t) => {
-    const n = ia(), e = mo(t.node) ?? ii(T.Details, t.node);
-    return le(It, {
+    const n = ia(), e = mo(t.node) ?? ii(x.Details, t.node);
+    return ie(It, {
       mode: "view",
       node: e,
       final: t.final ?? !0,
@@ -2497,7 +2497,7 @@ Fe("MathBlock", dt(Hn));
 Fe("Mermaid", dt(Pn));
 Fe("Query", dt(Va));
 Fe("Embed", dt(ti));
-const di = /* @__PURE__ */ J({
+const di = /* @__PURE__ */ Z({
   __name: "EngineEditor",
   props: {
     content: {},
@@ -2512,300 +2512,313 @@ const di = /* @__PURE__ */ J({
   },
   emits: ["update", "update:modelValue", "save", "focusblock", "open-wiki-link"],
   setup(t, { expose: n, emit: e }) {
-    const o = t, l = ["indigo", "coral", "ocean", "sage", "amber"], a = m(
+    const o = t, l = ["indigo", "coral", "ocean", "sage", "amber"], a = v(
       () => l.includes(o.accent) ? o.accent : "indigo"
-    ), i = e;
-    let s = null, u = null;
-    const c = 250;
-    function f(r) {
-      const h = r ?? "\0null";
-      h !== s && (s = h, ae(() => {
-        const S = r ? W().find((q) => q.id === r) : void 0;
-        i("focusblock", r && S ? { id: r, height: S.height } : null);
+    ), i = b(!1), r = v(() => o.darkMode || i.value);
+    fe(() => {
+      var s;
+      if (typeof document < "u") {
+        const m = () => {
+          var _;
+          i.value = !!(document.documentElement.classList.contains("dark") || document.documentElement.getAttribute("data-theme") === "dark" || (_ = g.value) != null && _.closest('.dark, [data-theme="dark"]'));
+        };
+        m();
+        const k = new MutationObserver(m);
+        k.observe(document.documentElement, { attributes: !0, attributeFilter: ["class", "data-theme"] }), (s = g.value) != null && s.parentElement && k.observe(g.value.parentElement, { attributes: !0, attributeFilter: ["class", "data-theme"] }), Me(() => k.disconnect());
+      }
+    });
+    const u = e;
+    let c = null, f = null;
+    const d = 250;
+    function B(s) {
+      const m = s ?? "\0null";
+      m !== c && (c = m, re(() => {
+        const k = s ? ue().find((_) => _.id === s) : void 0;
+        u("focusblock", s && k ? { id: s, height: k.height } : null);
       }));
     }
-    function d(r) {
-      if (K) {
-        K = !1, s = null;
+    function D(s) {
+      if (C) {
+        C = !1, c = null;
         return;
       }
-      if (u != null && (clearTimeout(u), u = null), !r) {
-        f(null);
+      if (f != null && (clearTimeout(f), f = null), !s) {
+        B(null);
         return;
       }
-      const h = p.selection.anchor.blockId || null;
-      h && (u = setTimeout(() => {
-        u = null, f(h);
-      }, c));
+      const m = E.selection.anchor.blockId || null;
+      m && (f = setTimeout(() => {
+        f = null, B(m);
+      }, d));
     }
-    const B = (r, h) => i("open-wiki-link", r, h);
-    Gt(B), Le(() => {
-      Bo() === B && Gt(null);
+    const O = (s, m) => u("open-wiki-link", s, m);
+    Gt(O), Me(() => {
+      Bo() === O && Gt(null);
     });
-    let A = !1;
-    Ee(
+    let h = !1;
+    Ae(
       () => [o.runQuery, o.loadBlock],
       () => {
-        o.runQuery != null || o.loadBlock != null ? (bt({ runQuery: o.runQuery, loadBlock: o.loadBlock }), A = !0) : A && (bt({}), A = !1);
+        o.runQuery != null || o.loadBlock != null ? (wt({ runQuery: o.runQuery, loadBlock: o.loadBlock }), h = !0) : h && (wt({}), h = !1);
       },
       { immediate: !0 }
-    ), Le(() => {
-      if (!A) return;
-      const r = Ot();
-      r.runQuery === o.runQuery && r.loadBlock === o.loadBlock && bt({});
+    ), Me(() => {
+      if (!h) return;
+      const s = Ot();
+      s.runQuery === o.runQuery && s.loadBlock === o.loadBlock && wt({});
     });
-    const O = w(null), v = w(null);
-    function k(r) {
-      return wn(r ?? "", !0);
+    const g = b(null), A = b(null);
+    function j(s) {
+      return bn(s ?? "", !0);
     }
-    const p = new nl(k(o.modelValue ?? o.content ?? "")), U = fl(p), X = oa({ extraSlashItems: o.extraSlashItems });
-    let ie = Qe(p.doc, !0);
-    p.onChange(() => {
-      _.value++;
-      const r = te();
-      d(r);
+    const E = new nl(j(o.modelValue ?? o.content ?? "")), te = fl(E), oe = oa({ extraSlashItems: o.extraSlashItems });
+    let z = Qe(E.doc, !0);
+    E.onChange(() => {
+      S.value++;
+      const s = J();
+      D(s);
     });
-    function te() {
-      const r = Qe(p.doc, !0);
-      return r === ie ? !1 : (ie = r, i("update", r), i("update:modelValue", r), !0);
+    function J() {
+      const s = Qe(E.doc, !0);
+      return s === z ? !1 : (z = s, u("update", s), u("update:modelValue", s), !0);
     }
-    let K = !1;
-    Ee(
+    let C = !1;
+    Ae(
       () => o.modelValue ?? o.content,
-      (r) => {
-        r != null && r !== Qe(p.doc, !0) && (K = !0, p.replaceDoc(k(r)));
+      (s) => {
+        s != null && s !== Qe(E.doc, !0) && (C = !0, E.replaceDoc(j(s)));
       }
     );
-    function G() {
-      var _e;
-      const r = typeof window > "u" ? null : window.getSelection();
-      if (!r || r.rangeCount === 0) return;
-      const h = r.getRangeAt(0);
-      if (h.collapsed) return;
-      const S = h.startContainer, q = S.nodeType === 3 ? S.parentElement : S, E = q == null ? void 0 : q.closest(".autodown-block-host");
-      if (!E || !((_e = O.value) != null && _e.contains(E))) return;
-      const L = E.dataset.blockId;
-      if (!L) return;
-      const P = il(E, L);
-      !P || P.lo === P.hi || p.selection.anchor.blockId === L && p.selection.anchor.offset === P.lo && p.selection.head.offset === P.hi || p.select(new mt(new ze(L, P.lo), new ze(L, P.hi)));
+    function I() {
+      var V;
+      const s = typeof window > "u" ? null : window.getSelection();
+      if (!s || s.rangeCount === 0) return;
+      const m = s.getRangeAt(0);
+      if (m.collapsed) return;
+      const k = m.startContainer, _ = k.nodeType === 3 ? k.parentElement : k, N = _ == null ? void 0 : _.closest(".autodown-block-host");
+      if (!N || !((V = g.value) != null && V.contains(N))) return;
+      const W = N.dataset.blockId;
+      if (!W) return;
+      const P = il(N, W);
+      !P || P.lo === P.hi || E.selection.anchor.blockId === W && E.selection.anchor.offset === P.lo && E.selection.head.offset === P.hi || E.select(new mt(new ze(W, P.lo), new ze(W, P.hi)));
     }
-    me(() => document.addEventListener("selectionchange", G)), Le(() => document.removeEventListener("selectionchange", G)), Le(() => {
-      u != null && clearTimeout(u);
+    fe(() => document.addEventListener("selectionchange", I)), Me(() => document.removeEventListener("selectionchange", I)), Me(() => {
+      f != null && clearTimeout(f);
     });
-    const _ = w(0), I = w(0), C = J({
+    const S = b(0), y = b(0), T = Z({
       name: "AssemblyView",
       props: { render: { type: Function, required: !0 } },
-      setup(r) {
-        return () => r.render();
+      setup(s) {
+        return () => s.render();
       }
-    }), y = m(() => {
-      _.value;
-      const r = p.selection.anchor.blockId, h = { path: go(p.doc, r), focusedId: r, counter: { n: 0 } };
-      return p.doc.children.map((S) => de(S, h, !0));
+    }), ee = v(() => {
+      S.value;
+      const s = E.selection.anchor.blockId, m = { path: go(E.doc, s), focusedId: s, counter: { n: 0 } };
+      return E.doc.children.map((k) => M(k, m, !0));
     });
-    function R(r) {
-      la({ engine: p, adapter: U });
+    function he(s) {
+      la({ engine: E, adapter: te });
       try {
-        return Ue(ft([r]), !0)[0] ?? le("div", { class: "unknown-node" }, "");
+        return Ue(ft([s]), !0)[0] ?? ie("div", { class: "unknown-node" }, "");
       } finally {
         aa();
       }
     }
-    function Q(r, h, S, q, E = !0) {
-      return le(
+    function le(s, m, k, _, N = !0) {
+      return ie(
         "div",
         {
           class: "node-slot",
-          "data-node-index": String(q.n++),
-          "data-node-type": T[r.kind],
-          "data-block-id": r.id,
+          "data-node-index": String(_.n++),
+          "data-node-type": x[s.kind],
+          "data-block-id": s.id,
           // the innermost addressable slot wins — an expanded container's outer
           // chrome must not re-handle the bubbled click (it would resolve the
           // whole container back to its first leaf)
-          onClick: (L) => {
-            L.stopPropagation();
-            const P = bo(r, L.currentTarget, L);
-            P.anchor && yo(L, P.targetId, P.anchor, P.cellId), ne(r.id, P.targetId);
+          onClick: (W) => {
+            W.stopPropagation();
+            const P = wo(s, W.currentTarget, W);
+            P.anchor && yo(W, P.targetId, P.anchor, P.cellId), L(s.id, P.targetId);
           }
         },
         [
-          le("div", { class: "node-content" }, [h]),
-          ...S && E ? [le("div", { class: "autodown-block-boundary", "data-boundary-for": r.id })] : []
+          ie("div", { class: "node-content" }, [m]),
+          ...k && N ? [ie("div", { class: "autodown-block-boundary", "data-boundary-for": s.id })] : []
         ]
       );
     }
-    function pe(r, h) {
-      return r.children.map((S) => {
-        const q = Tt(S.attrs, "checked") != null;
+    function ke(s, m) {
+      return s.children.map((k) => {
+        const _ = Tt(k.attrs, "checked") != null;
         return {
-          id: S.id,
-          task: q,
-          checked: bn(S.attrs, "checked", !1),
-          cls: "list-item" + (q ? " task-item" : ""),
-          children_slot: () => S.children.map((E) => ce(E, h))
+          id: k.id,
+          task: _,
+          checked: wn(k.attrs, "checked", !1),
+          cls: "list-item" + (_ ? " task-item" : ""),
+          children_slot: () => k.children.map((N) => ve(N, m))
         };
       });
     }
-    function ce(r, h) {
-      return r.id === h.focusedId || h.path.has(r.id) ? ge(de(r, h, !1)) : Q(r, R(r), !1, h.counter);
+    function ve(s, m) {
+      return s.id === m.focusedId || m.path.has(s.id) ? Ke(M(s, m, !1)) : le(s, he(s), !1, m.counter);
     }
-    function ge(r) {
-      return le(r.view, r.props);
+    function Ke(s) {
+      return ie(s.view, s.props);
     }
-    function de(r, h, S) {
-      if (r.id === h.focusedId) {
-        const q = Vt(T[r.kind]);
-        if (q)
+    function M(s, m, k) {
+      if (s.id === m.focusedId) {
+        const _ = Vt(x[s.kind]);
+        if (_)
           return {
-            id: r.id,
-            view: C,
+            id: s.id,
+            view: T,
             props: {
-              render: () => Q(r, q(r, { engine: p, blockId: r.id, readonly: o.streaming === !0 }), S, h.counter, !1),
-              key: `edit:${r.id}:${I.value}`
+              render: () => le(s, _(s, { engine: E, blockId: s.id, readonly: o.streaming === !0 }), k, m.counter, !1),
+              key: `edit:${s.id}:${y.value}`
             }
           };
-        if (ko(r)) {
-          const E = F(r.id), L = r.kind === T.Heading ? Xn(r.attrs, "level", 1) : void 0;
+        if (ko(s)) {
+          const N = se(s.id), W = s.kind === x.Heading ? Xn(s.attrs, "level", 1) : void 0;
           return {
-            id: r.id,
-            view: C,
+            id: s.id,
+            view: T,
             props: {
-              render: () => Q(
-                r,
-                le(Al, {
-                  controller: E,
+              render: () => le(
+                s,
+                ie(Al, {
+                  controller: N,
                   // flat chrome data (plan 034 D4): the widget derives tag/cls from
                   // blockKind/level itself (the host-face computation is absorbed);
                   // initial_html is the mount-once rich snapshot, evaluated here —
                   // the engine is not Vue-reactive, the snapshot never invalidates.
-                  blockId: E.id,
-                  blockKind: T[r.kind],
-                  level: L ?? 0,
-                  initial_html: yn(E.inlines),
+                  blockId: N.id,
+                  blockKind: x[s.kind],
+                  level: W ?? 0,
+                  initial_html: yn(N.inlines),
                   // The face lives in the key: a kind/level flip mid-typing (input
                   // rules) must REMOUNT the host. <component :is> would swap the
                   // DOM element under the caret without re-running onMounted —
                   // focus lands nowhere and every post-flip keystroke is lost.
                   // The remount re-focuses at end (plan 029; rules match only a
                   // whole-block marker, so the caret IS at end on every flip).
-                  key: `host:${r.id}:${T[r.kind]}:${L ?? ""}:${I.value}`
+                  key: `host:${s.id}:${x[s.kind]}:${W ?? ""}:${y.value}`
                 }),
-                S,
-                h.counter,
+                k,
+                m.counter,
                 !1
               )
             }
           };
         }
       }
-      if (h.path.has(r.id) && Ke(r)) {
-        const q = Vt(T[r.kind]);
-        if (q)
+      if (m.path.has(s.id) && U(s)) {
+        const _ = Vt(x[s.kind]);
+        if (_)
           return {
-            id: r.id,
-            view: C,
+            id: s.id,
+            view: T,
             props: {
-              render: () => Q(r, q(r, {
-                engine: p,
-                blockId: r.id,
+              render: () => le(s, _(s, {
+                engine: E,
+                blockId: s.id,
                 readonly: o.streaming === !0,
-                children: () => r.children.map((E) => ce(E, h)),
-                items: () => pe(r, h),
-                version: _.value
-              }), S, h.counter)
+                children: () => s.children.map((N) => ve(N, m)),
+                items: () => ke(s, m),
+                version: S.value
+              }), k, m.counter)
             }
           };
       }
       return {
-        id: r.id,
-        view: C,
-        props: { render: () => Q(r, R(r), S, h.counter) }
+        id: s.id,
+        view: T,
+        props: { render: () => le(s, he(s), k, m.counter) }
       };
     }
-    function Ke(r) {
-      return r.children.length > 0 && (r.kind === T.ListBlock || r.kind === T.Blockquote || r.kind === T.Callout || r.kind === T.Details);
+    function U(s) {
+      return s.children.length > 0 && (s.kind === x.ListBlock || s.kind === x.Blockquote || s.kind === x.Callout || s.kind === x.Details);
     }
-    const M = /* @__PURE__ */ new Map();
-    function F(r) {
-      let h = M.get(r);
-      return h || (h = new wo(p, r), M.set(r, h)), h;
+    const K = /* @__PURE__ */ new Map();
+    function se(s) {
+      let m = K.get(s);
+      return m || (m = new bo(E, s), K.set(s, m)), m;
     }
-    function W() {
-      const r = [], h = v.value;
-      return h && Array.from(h.querySelectorAll("[data-block-id]")).forEach((q, E) => {
-        r.push({
-          id: q.dataset.blockId ?? "",
-          index: E,
-          pos: E,
-          el: q,
-          top: q.offsetTop,
-          height: q.offsetHeight
+    function ue() {
+      const s = [], m = A.value;
+      return m && Array.from(m.querySelectorAll("[data-block-id]")).forEach((_, N) => {
+        s.push({
+          id: _.dataset.blockId ?? "",
+          index: N,
+          pos: N,
+          el: _,
+          top: _.offsetTop,
+          height: _.offsetHeight
         });
-      }), r;
+      }), s;
     }
-    function ne(r, h) {
-      const S = j(p.doc, r);
-      if (!S) return;
-      const q = h && h !== r ? j(p.doc, h) : null, E = (q && pt(q) === q ? q : null) ?? pt(S) ?? S, L = new ze(E.id, 0);
-      p.select(new mt(L, L)), _.value++;
+    function L(s, m) {
+      const k = Y(E.doc, s);
+      if (!k) return;
+      const _ = m && m !== s ? Y(E.doc, m) : null, N = (_ && pt(_) === _ ? _ : null) ?? pt(k) ?? k, W = new ze(N.id, 0);
+      E.select(new mt(W, W)), S.value++;
     }
-    function se(r) {
-      const h = ol(r);
-      if (h) {
-        if (Array.from(M.values()).some((S) => S.composition.composing)) return;
-        r.preventDefault(), ll(p, M.values(), h) && I.value++;
+    function H(s) {
+      const m = ol(s);
+      if (m) {
+        if (Array.from(K.values()).some((k) => k.composition.composing)) return;
+        s.preventDefault(), ll(E, K.values(), m) && y.value++;
         return;
       }
-      if (r.ctrlKey && r.key === "End") {
-        r.preventDefault();
-        const S = _o(p.doc);
-        S && ne(S.id);
+      if (s.ctrlKey && s.key === "End") {
+        s.preventDefault();
+        const k = _o(E.doc);
+        k && L(k.id);
       }
     }
-    function D() {
-      const r = pt(p.doc);
-      if (r) {
-        const h = new ze(r.id, 0);
-        p.select(new mt(h, h));
+    function F() {
+      const s = pt(E.doc);
+      if (s) {
+        const m = new ze(s.id, 0);
+        E.select(new mt(m, m));
       }
     }
-    D();
-    function H() {
-      i("save", Qe(p.doc, !0));
+    F();
+    function Q() {
+      u("save", Qe(E.doc, !0));
     }
-    return n({ getBlockMap: W, handleSave: H }), (r, h) => (g(), x("div", {
+    return n({ getBlockMap: ue, handleSave: Q }), (s, m) => (p(), R("div", {
       ref_key: "root",
-      ref: O,
-      class: Te(["autodown-editor", { "is-dark": t.darkMode }]),
+      ref: g,
+      class: Te(["autodown-editor", { "is-dark": r.value }]),
       "data-accent": a.value
     }, [
-      b("div", {
+      w("div", {
         ref_key: "wrapper",
-        ref: v,
+        ref: A,
         class: "autodown-editor-content-wrapper"
       }, [
-        b("div", {
+        w("div", {
           class: "autodown-editor-content",
           "data-engine-editor": "",
           tabindex: "-1",
-          onKeydown: se
+          onKeydown: H
         }, [
-          vt(re(ta), {
-            editor: re(U),
-            items: re(X)
+          vt(ce(ta), {
+            editor: ce(te),
+            items: ce(oe)
           }, null, 8, ["editor", "items"]),
-          vt(Pl, { editor: re(U) }, null, 8, ["editor"]),
-          vt(Gl, { editor: re(U) }, null, 8, ["editor"]),
-          (g(!0), x(ye, null, Pe(y.value, (S) => (g(), Y(ve(S.view), Gn({
-            key: S.id
-          }, { ref_for: !0 }, S.props), null, 16))), 128))
+          vt(Pl, { editor: ce(te) }, null, 8, ["editor"]),
+          vt(Gl, { editor: ce(te) }, null, 8, ["editor"]),
+          (p(!0), R(_e, null, Pe(ee.value, (k) => (p(), X(ge(k.view), Gn({
+            key: k.id
+          }, { ref_for: !0 }, k.props), null, 16))), 128))
         ], 32)
       ], 512),
-      b("div", { class: "autodown-editor-actions" }, [
-        b("button", {
+      w("div", { class: "autodown-editor-actions" }, [
+        w("button", {
           type: "button",
           class: "autodown-editor-save",
-          onClick: H
+          onClick: Q
         }, "Save")
       ])
     ], 10, li));
@@ -2826,5 +2839,5 @@ export {
   Ot as a,
   fl as c,
   hi as g,
-  bt as s
+  wt as s
 };

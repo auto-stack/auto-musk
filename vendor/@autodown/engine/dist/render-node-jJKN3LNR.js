@@ -2194,7 +2194,7 @@ function qe(t, e) {
   return (e ?? []).map((r, i) => ({
     id: `cell-${i}`,
     cls: Io(r),
-    children_slot: Gt(l, () => t.renderEmbedded(r.children ?? [], n, t.budget))
+    children_slot: Gt(l, () => t.renderInlineChildren(r.children ?? [], n, t.budget))
   }));
 }
 function Bo(t) {

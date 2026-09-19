@@ -23,7 +23,7 @@
 
 | 组件 | 协议 | 实现 | 迁移状态 |
 |---|---|---|---|
-| Markdown（原 StreamingRenderer） | `platform:markdown` | markstream-vue + useStreamingDocument | ✅ gen src/platform/markdown.vue |
+| Markdown（统一文档引擎） | `platform:markdown` / `ports/renderer.at` | Web: `@autodown/engine`；VM: 原生 `autodown` | ✅ PLAN-076 统一引擎双端接入，详见 `docs/specs/modules/autodown-consumption.md` |
 | PrismCodeBlock | P2（高亮器，Markdown 内部） | prismjs | ✅ gen src/platform/PrismCodeBlock.vue |
 
 ## G-对话壳/输入（依赖 Block 组先行，下一批）
@@ -62,7 +62,7 @@
 | FileTree | filetree.at（移植自 auto-os widgets-gallery，PLAN-614） | ✅ vue 轨（VM 待 import_aliases，登记差异） | tree_util.at / tree_icon.at |
 | FilesView | files_view.at | ✅ vue 轨 | files_store.at / ports: renderer+icons+composables+files(.web.at) |
 | FilesStore | files_store.at | ✅ store（helper 内联） | back.api: files_tree |
-| 查看器 | MarkdownRender（autodown）/ img / video(html:) / 不能打开空态 | ✅ vue 轨 | ports/renderer.at |
+| 查看器 | MarkdownRender（双端 autodown）/ img / video(html:) / 不能打开空态 | ✅ 双端平权（PLAN-076 补齐 VM 端口） | ports/renderer.at |
 
 ## G-知识库
 

@@ -1,7 +1,7 @@
 {
  "name": "@autodown/engine",
  "version": "0.5.0-musk-vendor",
- "description": "PLAN-056 T7: 换用真实 @autodown/engine 0.5.0 dist（auto-down master 058e5d70 stamp）。替代 0.4.0-musk-shim（re-export @autodown/vue 的过渡桥）。dist 全量拷贝（含 code-split chunks 与 render/editor/parser 子目录）；dependencies 按上游声明（katex/mermaid 为 enable* 动态 opt-in，musk 未启用仅安装不加载）。",
+ "description": "PLAN-076 T-04: 更新 @autodown/engine 0.5.0 dist（auto-down master a86cb34, stamp ae735aafcefc4929）。支持环境暗色模式自动激活与 markdown 渲染块间节奏。dist 全量拷贝（含 code-split chunks 与 render/editor/parser 子目录）；dependencies 按上游声明。",
  "type": "module",
  "main": "./dist/index.js",
  "module": "./dist/index.js",
