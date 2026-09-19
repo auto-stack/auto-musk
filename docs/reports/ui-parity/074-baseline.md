@@ -1,6 +1,6 @@
 # PLAN-074 Gallery baseline
 
-Generated: 2026-09-19T08:00:11.984Z
+Generated: 2026-09-19T09:18:50.690Z
 
 Units: 62 (54 reachable)
 Cases: 57
@@ -151,7 +151,7 @@ Cases: 57
 
 - prepare chat-message-pair: **prepared** (source)
 - vm chat-message-pair: **snapshot-ok** (runtime-smoke)
-- vue chat-message-pair: **missing:Timed out waiting for http://127.0.0.1:17474** (missing-runtime-evidence)
+- vue chat-message-pair: **http-ok** (runtime-smoke)
 
 ## Rules
 
@@ -162,4 +162,4 @@ Cases: 57
 ## Known blockers
 
 - VM ChatMessage reaches `snapshot-ok`, reset/event-spy verification, and `autoui_screenshot` after the minimal production compatibility fix `let has_think` → `var`; the snapshot still reports native renderer degradations (`self-stretch`) and `blocks` state-read warnings.
-- Vue generation reaches project scaffolding and component generation, but the bounded runner does not see the front HTTP endpoint while the local dependency/dev-server step is pending, so double-mode screenshots and interaction comparison remain incomplete.
+- Vue gallery reaches project generation, dependency install, AutoVM backend, and Vite front endpoint (`http-ok`, runtime-smoke); browser-driven dual-mode screenshots and pixel/DOM parity comparison are assigned to PLAN-075/076.

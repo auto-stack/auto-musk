@@ -29,7 +29,22 @@ export declare function renderCodeHighlight(code: string, language: string): str
  *  the edit face read as unhighlighted. Wrapped like the view face, the
  *  same selectors color both. */
 export declare function editCodeInner(code: string, language: string): string;
-export declare function focusCodeArea(el: HTMLElement | null, readonly: boolean): void;
+/** The edit face's textarea draft: the model text with the closed-fence
+ *  representation newline (the parser stores one trailing "\n" on every
+ *  closed fence body) collapsed, so the caret-bearing edit face doesn't
+ *  grow a phantom empty last line the preview never showed. The controller
+ *  re-adds it on commit — representation, not content. */
+export declare function draftCodeOf(node: BlockNode | undefined): string;
+/** View/stream-face click on the code pre (bubble phase — runs before the
+ *  node-slot chrome's selectBlock ancestor handler within the same event).
+ *  Records the pointed-at offset for takePendingCodeCaret; a no-op without
+ *  a block ctx (streaming pane) or when the point resolves nowhere. */
+export declare function captureCodeClick(ev: MouseEvent, blockId: string): void;
+/** The edit face's Init consumes (and clears) the pending offset — stale
+ *  handoffs older than the channel's expiry (the click landed elsewhere,
+ *  keyboard focus path) fall back to the end-of-text default. */
+export declare function takePendingCodeCaret(blockId: string): number | null;
+export declare function focusCodeArea(el: HTMLElement | null, readonly: boolean, caret?: number | null): void;
 export declare function resizeCodeArea(el: HTMLElement | null): void;
 /** Keep the overlay pre glued to the textarea: mirror its height and any
  *  scroll offsets (the textarea auto-resizes, but wrapping/zoom edges can
@@ -40,6 +55,10 @@ export declare function nodeText(node: BlockNode | undefined): string;
 export declare function nodeLoading(node: BlockNode | undefined): boolean;
 export declare function ctxReadonly(ctx: unknown): boolean;
 export declare function ctxBlockId(ctx: unknown): string;
+/** The block id straight off the model node — the view/stream faces carry
+ *  ctx: null (block_id is ''), so the click-caret handoff keys on the node
+ *  id, which is the SAME id the edit face's ctx.blockId carries. */
+export declare function nodeIdOf(node: BlockNode | undefined): string;
 /** The edit face's headless commit controller (whole-text blur commit, one
  *  undo step). Null when no ctx arrived (view/stream modes). */
 export declare function codeController(ctx: unknown): CodeEditorController | null;

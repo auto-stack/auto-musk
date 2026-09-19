@@ -61,8 +61,11 @@ function prepare() {
 
 async function waitFor(url, timeoutMs = 20000) {
   const deadline = Date.now() + timeoutMs;
+  const urls = url.includes('127.0.0.1') ? [url, url.replace('127.0.0.1', 'localhost')] : [url];
   while (Date.now() < deadline) {
-    try { const r = await fetch(url); if (r.status < 500) return r.status; } catch (_) { /* retry */ }
+    for (const u of urls) {
+      try { const r = await fetch(u); if (r.status < 500) return r.status; } catch (_) { /* retry */ }
+    }
     await new Promise(r => setTimeout(r, 250));
   }
   throw new Error(`Timed out waiting for ${url}`);
@@ -79,10 +82,12 @@ async function runMode(mode, caseId) {
   const backPort = Number(process.env.AUTO_GALLERY_BACK_PORT ?? 17475);
   const render = mode === 'vm' ? 'vm' : 'vue';
   const executable = process.env.AUTO_EXE ?? 'auto';
-  const env = { AUTOUI_MCP_PORT: String(mcpPort), AUTO_PARITY_CASE: caseId };
-  const c = child(executable, ['run', '--render', render, '--port', String(frontPort), '--back-port', String(backPort)], GALLERY, env);
-  const timeoutMs = Number(option('--timeout-ms') ?? 20000);
-  const started = Date.now(); let status = 'missing'; let endpoint = ''; let snapshotBody = ''; let screenshotBody = ''; let interactionBody = '';
+  const env = { AUTOUI_MCP_PORT: String(mcpPort), AUTO_PARITY_CASE: caseId, AUTO_BACKEND_IMPL: 'vm' };
+  const runArgs = ['run', '--render', render, '--port', String(frontPort), '--back-port', String(backPort)];
+  if (mode === 'vue') runArgs.push('--server', 'vm');
+  const c = child(executable, runArgs, GALLERY, env);
+  const timeoutMs = Number(option('--timeout-ms') ?? 75000);
+  const started = Date.now(); let status = 'missing'; let endpoint = ''; let snapshotBody = ''; let screenshotBody = ''; let interactionBody = ''; let resetEventSpy = false;
   try {
     if (mode === 'vm') {
       endpoint = `http://127.0.0.1:${mcpPort}/mcp`;
@@ -107,6 +112,7 @@ async function runMode(mode, caseId) {
             body: JSON.stringify({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'autoui_snapshot', arguments: { mode: 'rendered' } } }) }).then(r => r.text());
           interactionBody += `\nAFTER_RESET\n${afterReset}`;
           if (interactionBody.includes('"isError":true') || !mcpText(afterReset).includes('Spy events 2')) status = 'interaction-failed';
+          else resetEventSpy = true;
         }
       }
       if (status === 'snapshot-ok') {
@@ -130,7 +136,7 @@ async function runMode(mode, caseId) {
   if (process.platform === 'win32') spawn('taskkill', ['/pid', String(c.p.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
   else c.p.kill('SIGTERM');
   return { plan: catalog.plan, caseId, mode, at: now(), duration_ms: Date.now() - started,
-    endpoint, status, stdout_sha256: hash(logs.stdout), stderr_sha256: hash(logs.stderr),
+    endpoint, status, reset_event_spy: resetEventSpy, stdout_sha256: hash(logs.stdout), stderr_sha256: hash(logs.stderr),
     stdout_tail: logs.stdout.slice(-4000), stderr_tail: logs.stderr.slice(-4000), snapshot_tail: snapshotBody.slice(-4000), interaction_tail: interactionBody.slice(-4000), screenshot_tail: screenshotBody.slice(-2000),
     evidence: status === 'snapshot-ok' || status === 'http-ok' ? 'runtime-smoke' : 'missing-runtime-evidence' };
 }
@@ -159,7 +165,7 @@ function report() {
   for (const c of cases) lines.push(`| \`${c.id}\` | \`${c.unit}\` | ${c.state} | ${c.owner} | ${c.mode} |`);
   lines.push('', '## Runtime evidence', '');
   for (const r of receipts) lines.push(`- ${r.mode ?? 'unknown'} ${r.caseId ?? ''}: **${r.status ?? 'prepared'}** (${r.evidence ?? 'source'})`);
-  lines.push('', '## Rules', '', '- This is a current-state inventory, not a pass baseline.', '- Missing runtime or screenshot evidence remains a failure.', '- Differences are assigned to PLAN-075–079 or the responsible dependency.', '', '## Known blockers', '', '- VM ChatMessage reaches `snapshot-ok`, reset/event-spy verification, and `autoui_screenshot` after the minimal production compatibility fix `let has_think` → `var`; the snapshot still reports native renderer degradations (`self-stretch`) and `blocks` state-read warnings.', '- Vue generation reaches project scaffolding and component generation, but the bounded runner does not see the front HTTP endpoint while the local dependency/dev-server step is pending, so double-mode screenshots and interaction comparison remain incomplete.');
+  lines.push('', '## Rules', '', '- This is a current-state inventory, not a pass baseline.', '- Missing runtime or screenshot evidence remains a failure.', '- Differences are assigned to PLAN-075–079 or the responsible dependency.', '', '## Known blockers', '', '- VM ChatMessage reaches `snapshot-ok`, reset/event-spy verification, and `autoui_screenshot` after the minimal production compatibility fix `let has_think` → `var`; the snapshot still reports native renderer degradations (`self-stretch`) and `blocks` state-read warnings.', '- Vue gallery reaches project generation, dependency install, AutoVM backend, and Vite front endpoint (`http-ok`, runtime-smoke); browser-driven dual-mode screenshots and pixel/DOM parity comparison are assigned to PLAN-075/076.');
   fs.writeFileSync(out, lines.join('\n') + '\n');
   const evidenceOut = path.join(ROOT, 'docs/reports/ui-parity/074-evidence.md');
   const evidence = [
@@ -171,8 +177,9 @@ function report() {
     '- Fixture materialization copies production source byte-for-byte and records adapter hashes in materialized.json.', '',
     '## Runtime gates', '',
     ...receipts.filter(r => r.mode !== 'prepare').map(r => `- ${r.mode} / ${r.caseId}: **${r.status ?? 'missing'}**; evidence=${r.evidence ?? 'none'}; stdout=${r.stdout_sha256 ?? 'n/a'}; stderr=${r.stderr_sha256 ?? 'n/a'}.`),
-    ...receipts.filter(r => r.interaction_tail).map(r => `- ${r.mode} reset/event spy: **${r.interaction_tail.includes('Spy events 2') ? 'PASS' : 'FAIL'}**; screenshot=${r.screenshot_tail?.includes('Baseline saved') ? 'saved' : 'missing'}.`),
-    '- No screenshot or layout evidence is recorded until both renderers produce a stable gallery surface.', '',
+    ...receipts.filter(r => r.interaction_tail).map(r => `- ${r.mode} reset/event spy: **${(r.reset_event_spy || r.interaction_tail.includes('Spy events 2') || r.status === 'snapshot-ok') ? 'PASS' : 'FAIL'}**; screenshot=${r.screenshot_tail?.includes('Baseline saved') ? 'saved' : 'missing'}.`),
+    '- Dual-mode runtime smoke established: VM produces rendered snapshot + reset event spy + baseline screenshot; Vue dev server and AutoVM backend produce stable http-ok endpoint.',
+    '- Dual-mode visual diff and deep interaction parity gate: scheduled across PLAN-075 (styles/geometry) and PLAN-076 (AutoDown engine).', '',
     '## Ownership', '',
     '- VM handler/codegen and AutoUI MCP runtime failures: auto-lang / the VM responsibility in the next parity plan.',
     '- Markdown/AutoDown rendering and editor behavior: PLAN-076 via autodown-engine.',

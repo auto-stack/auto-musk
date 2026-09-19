@@ -7,6 +7,15 @@ export interface BlockEditCtx {
     blockId: string;
     /** v1 ruling (plan 023): true while streaming — editing face renders read-only */
     readonly: boolean;
+    /** container-family edit contract (plan 042): the assembly injects the
+     *  children/items closures + its repaint version so the registered family
+     *  edit slot mounts the widget with the focus-path recursion (deep hosts,
+     *  epoch remounts) while the recursion itself stays at the single assembly
+     *  point. Without the injection (a directly-selected container) the edit
+     *  slot's own fallback renders the children through the preview pipeline. */
+    children?: () => VNode[];
+    items?: () => unknown[];
+    version?: number;
 }
 export interface BlockComponent {
     view(node: BlockNode, final: boolean): VNode;
