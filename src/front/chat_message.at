@@ -88,6 +88,8 @@ style {
 .tool-seg.seg-loc { color: hsl(var(--muted-foreground)); }
 .tool-seg.seg-pattern { color: hsl(280 60% 45%); }
 .tool-seg.seg-desc { color: hsl(var(--foreground)); }
+/* r12:命令参数灰（run_command 卡头的命令串，与工具名拉开层次） */
+.tool-seg.seg-cmd { color: hsl(var(--muted-foreground)); }
 .tool-status { font-size: 0.73rem; font-weight: 500; flex-shrink: 0; }
 .tool-status.running { color: hsl(210 90% 52%); }
 .tool-status.completed { color: hsl(142 71% 40%); }
@@ -325,7 +327,8 @@ style {
                                             text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
                                             text .block.tc.name { style: "tool-name min-w-0 truncate text-[13.3px] font-medium text-foreground" }
                                             for seg in .block.summary {
-                                                text .seg.text { class: if .seg.type == "path" { "tool-seg seg-path text-[12.5px] font-medium font-mono shrink-0 text-info" } else { if .seg.type == "pattern" { "tool-seg seg-pattern text-[12.5px] font-medium font-mono shrink-0 text-primary" } else { if .seg.type == "desc" { "tool-seg seg-desc text-[12.5px] font-medium font-mono shrink-0 text-foreground" } else { "tool-seg seg-loc text-[12.5px] font-medium font-mono shrink-0 text-muted-foreground" } } } }
+                                                // r12：cmd 臂（run_command 命令串灰色）插在 desc 前。
+                                                text .seg.text { class: if .seg.type == "path" { "tool-seg seg-path text-[12.5px] font-medium font-mono shrink-0 text-info" } else { if .seg.type == "pattern" { "tool-seg seg-pattern text-[12.5px] font-medium font-mono shrink-0 text-primary" } else { if .seg.type == "cmd" { "tool-seg seg-cmd text-[12.5px] font-medium font-mono shrink-0 text-muted-foreground" } else { if .seg.type == "desc" { "tool-seg seg-desc text-[12.5px] font-medium font-mono shrink-0 text-foreground" } else { "tool-seg seg-loc text-[12.5px] font-medium font-mono shrink-0 text-muted-foreground" } } } } }
                                             }
                                             text .block.tc.status { class: if .block.tc.status == "gate_waiting" { "tool-status gate_waiting text-[11.7px] font-medium shrink-0 ml-auto text-amber-500" } else { if .block.tc.status == "completed" { "tool-status completed text-[11.7px] font-medium shrink-0 ml-auto text-green-500" } else { if .block.tc.status == "failed" { "tool-status failed text-[11.7px] font-medium shrink-0 ml-auto text-red-500" } else { "tool-status running text-[11.7px] font-medium shrink-0 ml-auto text-blue-500" } } } }
                                             if .tool_open == .block.tkey {

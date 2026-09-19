@@ -194,6 +194,12 @@ fn getToolSummary(tc obj) obj {
         if query.length > 60 { s2 = query.substring(0, 57) + "…" }
         segs.push({ type: "pattern", text: "\"" + s2 + "\"" })
     }
+    // r12：skill 工具卡头显示 skill 名（参数 skill_name，auto-ai skill.rs
+    // schema；此前卡头只有工具名 "skill"，用户实测无名）。
+    let skillName = args.skill_name ?? ""
+    if skillName != "" {
+        segs.push({ type: "path", text: skillName })
+    }
     if task != "" && segs.length == 0 {
         var s3 = task
         if task.length > 60 { s3 = task.substring(0, 57) + "…" }
@@ -202,7 +208,8 @@ fn getToolSummary(tc obj) obj {
     if command != "" && segs.length == 0 {
         var s4 = command
         if command.length > 80 { s4 = command.substring(0, 77) + "…" }
-        segs.push({ type: "desc", text: s4 })
+        // r12：命令文本用 seg-cmd（灰色）——用户实测黑前景与工具名无层次。
+        segs.push({ type: "cmd", text: s4 })
     }
     return segs
 }
