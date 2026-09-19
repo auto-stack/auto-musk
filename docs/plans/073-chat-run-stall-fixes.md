@@ -299,3 +299,28 @@ cargo 可跑；②auto-lang 主检出存在他方在途合并（MERGE_HEAD plan-
 +UU specs.json），merge/--ff-only 均被前置检查拒绝——以 update-ref 原子
 前移（纯 ff）+ checkout 同步单文件完成合回，在途合并状态原样保留待其主
 处置。
+
+**r10（2026-09-19 晚）——输入框 token badge 交互四修（用户报障）**。r9
+badge 上线后的四个交互问题：
+1. **光标视觉进入 badge/错位半字符**（用户截图3/4/5）：mention_class 的
+   `px-[0.2rem]` 把 backdrop 高亮文字推离 textarea 真实位置约 0.4rem
+   （中文语境即"半个字符"）。去 padding——backdrop 与 textarea 逐字
+   对齐铁律（r9 对 .mention-token 守住了，共用的 mention_class 漏网）。
+   验证：badge computed padding 0px/0px。
+2. **IME 组词瞬间 badge 闪回纯文本**（截图2）：mentionNames 两步赋值
+   （先纯 agent 数组上 ref、再 push token）在高频 input 下存在中间态
+   窗口。改本地数组拼装完成后单次赋值，无中间态。
+3. **Backspace 逐字符删 badge**（用户需求）：新增 mention_backspace_target
+   （mention_helpers.at）——光标紧邻/处于引用 token 内时反扫路径字符到
+   '@'（@ 前不得是路径字符，排除词内@）+ "@…pos" 段为 items 非 agent 项
+   id 的非空前缀 → 返回整删起点；Keydown Backspace 分支 preventDefault +
+   整删 + platformRestoreComposerCursor 端口（新增：web =
+   composer_cursor.web-only.ts 用 setTimeout(0) 在 Vue flush 后
+   setSelectionRange 恢复光标——受控 textarea 回写会重置光标；VM no-op
+   降级逐字符）。验证：helper 六场景 node 单测全对 + 真机端到端
+   （"@plan/001 abc" 光标 9 按 Backspace → " abc" 光标 0）。
+4. 附带确认：TokenOnly 越界 pos 等防御分支行为正确（测试首版用例下标
+   算错导致的假阴性已澄清）。
+
+worktree musk-073（plan-073-dev，merge 689be48）已合回 main 并清理；
+dist 已部署，8090 刷新生效。新增文件：composer_cursor.web-only.ts。
