@@ -149,6 +149,12 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 - blockers: VM gallery reaches production ChatMessage but handler synthesis rejects `let has_think = false` followed by reassignment in copied `forge_helpers.at`, then drops `forge_helpers.messageBlocks` and fails App link. This is a bounded upstream VM/compiler/source compatibility issue, preserved as evidence instead of rewriting production renderer.
 - next: route the minimal VM compiler/source fix to the responsible follow-up plan, then rerun gallery VM snapshot and complete Vue HTTP/screenshot plus interaction evidence before execution_done.
 
+- stage: work | plan_id: PLAN-074 | plan_revision: 1 | outcome: blocked (follow-up evidence refresh)
+- code_commit: `dd08048` (includes `3469521`; worktree remains `D:/autostack/.wt/musk-074/auto-musk`)
+- task_ids: T-01/T-05 remain verified; T-02/T-03/T-04 remain open
+- evidence: runner now uses the gallery pac front/back ports and kills only its own process tree; VM case is `startup-failed` with the `forge_helpers.messageBlocks` link error; Vue case reaches the bounded 20s wait but has no HTTP endpoint while dependency installation is incomplete. Reports retain both missing-runtime receipts and fail closed.
+- next: resolve the VM helper codegen blocker and rerun both modes; only then add MCP/browser interaction, reset/event spy, and screenshots.
+
 ## 10. 待澄清事项
 
 无阻止写成草案的用户信息缺口。实现期开工责任人处理以下有界事项：
