@@ -162,6 +162,13 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 - blockers: Vue dependency/dev-server readiness plus the remaining MCP interaction/reset/event-spy and screenshot gates. VM snapshot still logs native `self-stretch` degradation and missing `blocks` state reads; these are assigned to the VM parity follow-up, not silently ignored.
 - next: finish Vue endpoint/screenshot capture, add actual reset/toggle event assertions, and rerun both modes before execution_done.
 
+- stage: work | plan_id: PLAN-074 | plan_revision: 1 | outcome: blocked (VM case now has bounded interaction/screenshot evidence; Vue side pending)
+- code_commit: `124e9cb` (worktree `D:/autostack/.wt/musk-074/auto-musk`)
+- task_ids: T-01 verified; T-02/T-03/T-04 remain open pending Vue and cross-mode evidence; T-05 report verified
+- evidence: VM `run --mode vm --case chat-message-pair` returns `snapshot-ok`, presses the generated Reset fixture via `autoui_action`, observes `Spy events 2`, and saves `tests/screenshots/plan074-chat-message-pair-vm.png`. The runner records interaction and screenshot response tails. `node scripts/ui-parity.mjs check` remains PASS (62 / 57).
+- blockers: Vue runner reaches generated component output but no front HTTP endpoint within the 60s budget because dependency/dev-server readiness is unavailable in this environment; cross-mode screenshots and parity comparison cannot be claimed.
+- next: make the Vue dependency/dev-server step reproducible, then add Vue browser screenshot + reset/toggle trace and complete the dual-mode evidence gate.
+
 ## 10. 待澄清事项
 
 无阻止写成草案的用户信息缺口。实现期开工责任人处理以下有界事项：
@@ -169,7 +176,7 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 2. 074已冻结的导入机制/runner参数/字体与预算需核对；若前置未完成，保持该阶段阻塞。
 3. 若原生能力需要大范围机制重构，T-01提供最小复现和修订提案；影响验收标准时需范围决策。
 4. 本路线的近期“大体一致”预算是拟议执行合同；长期像素目标仍独立保留，不能自动宣称完成。
-5. T-02/T-03/T-04 的初始 VM 启动阻塞已在工作分支以最小生产兼容修复解除（`forge_helpers.at` 的 `has_think` 重赋值改为 `var`，VM runner 已 `snapshot-ok`）。当前未决面是 Vue 依赖/dev-server 没有在预算内提供 HTTP endpoint，以及尚未完成双端交互、reset/事件 spy、截图/布局证据；这些证据齐全前保持 executing。
+5. T-02/T-03/T-04 的初始 VM 启动阻塞已在工作分支以最小生产兼容修复解除（`forge_helpers.at` 的 `has_think` 重赋值改为 `var`）；VM runner 已完成 snapshot、Reset/事件 spy 和截图取证。当前未决面是 Vue 依赖/dev-server 没有在预算内提供 HTTP endpoint，故双端交互、截图/布局对拍仍未完成；这些证据齐全前保持 executing。
 
 ### Work 启动记录（2026-09-19）
 
