@@ -1,6 +1,6 @@
 # PLAN-074 Gallery baseline
 
-Generated: 2026-09-19T07:53:58.827Z
+Generated: 2026-09-19T07:55:01.900Z
 
 Units: 62 (54 reachable)
 Cases: 57
