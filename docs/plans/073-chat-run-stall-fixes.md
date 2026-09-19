@@ -1,14 +1,14 @@
 ---
 plan_id: PLAN-073
-status: in_progress（Phase 2 待实施）
+status: in_progress（Phase 2 已实施，待 review + 用户环境 live 复测）
 feature_name: chat 运行挂死修复（看门狗命令盲区 / daemon 静默吞参 / 超时收束丢证据）
 author: zhaop / zcode
 created_at: 2026-09-18T22:00:00+08:00
-updated_at: 2026-09-19T19:30:00+08:00
-plan_revision: 3
-current_step: 6
-total_steps: 9
-touched_repos: [auto-ai@630a98d, auto-musk@ae86fb0]
+updated_at: 2026-09-19T20:35:00+08:00
+plan_revision: 4
+current_step: 11
+total_steps: 11
+touched_repos: [auto-ai@630a98d, auto-musk@e5e098e]
 ---
 
 # PLAN-073 — chat 运行挂死修复
@@ -337,79 +337,147 @@ dist 已部署，8090 刷新生效。新增文件：composer_cursor.web-only.ts�
 write_file 不回归）+ 真机 run（skill 卡青色名 + run_command 灰色命令串）。
 worktree musk-073（plan-073-dev@8e87b85）已合回 main；dist 已部署。
 
-## 6. Phase 2：run 收束 assistant 消息落盘修复（待实施，2026-09-19 立项）
+**r13（2026-09-19 20:35）——Phase 2 实施（P2 全量，诊断修订见 §6）**。
+诊断先行证伪原定性（成功臂落盘正常，09-19 九例 finished 全落；真缺陷 =
+失败臂丢现场 / 超长 run 零增量+刷新不重挂 / 无日志出口守卫滞留），按修订
+后的 P2-T1..T5 实施完毕：
+
+`stage: work | PLAN-073 | rev4 | pass | musk@e5e098e | P2-T1,T2,T3,T4,T5 |
+musk cargo test 652 绿（1 失败为基线预存环境失败，stash 对照 e2c0cb0 实证）；
+auto build 全 pipeline 绿；8095 隔离实例 live：失败臂落盘 ⚠ 尾块 + 终态、
+裸 attach 即收 idle 帧；新增回归 chat_failure_preserves_accumulated_scene
+（工具→快照→失败终版原位替换全链）| AC-P2-2 端到端待用户环境复测（真 LLM
+长 run 中刷新）；musk.exe 需重启 8090 生效 | next: review（auto-plan-review）`
+
+工程记注：①upsert 原位替换必须保留 parent_id/created_at——终版消息独立
+组装不重导 parent，整体换入会脱离分支链（测试实证后修复）；②idle 帧需
+进 server_stream 透传白名单（SseEventDto 严格枚举外事件会被
+stream_event_map 打成 malformed error）；③pnpm node_modules 的 junction
+触发 wt-guard——node fs.rmSync 安全移除（不穿透链接）后过闸，勿用
+rm -rf/rmdir /s（2026-09-03 事故同类）；④测试隔离：musk serve 的注册表
+绑死 ~/.config/autoos（无 env 覆盖），隔离实例用 USERPROFILE 指临时 home
++ AAID_URL 死端口（避免误烧用户 key/污染真实工作区）。
+
+## 6. Phase 2：run 收束 assistant 消息落盘修复（待实施；r13 诊断修订）
 
 > 本章节自包含——实施会话无需 Phase 1/r1-r12 的上下文即可开工。
-> 状态：**已立项未实施**（用户裁定优先）。预估 1 个会话内完成。
+> 状态：**已立项未实施**（用户裁定优先）。r13（2026-09-19 20:00）用日志+磁盘
+> 交叉分析**证伪了原始定性**，任务/验收按新根因重写。预估 1 个会话内完成。
 
-### 6.0 症状与伤害
+### 6.0 症状与定性（r13 修正）
 
-chat run 正常收束后，**assistant 回复（正文/工具卡/思考块）不持久化**：
-- 前端（SSE live 累积）有完整展示；**刷新页面后只剩 user 提问**，全部
-  回复丢失且不可恢复（静默丢失，无任何错误呈现）。
-- 实际伤害已发生：用户跑的 @plan/001 run（24a43d74，auto-edit，18:51）
-  刷新后工具卡/正文全丢；r12 验证时误刷新用户页面亦触发一次。
+原始定性"正常收束后 assistant 不落盘"**证伪**——09-19 当天全部 9 个走到
+`chat run finished` 的 run（含 61 分钟长 run 48b7e82a）assistant 均完整落盘。
+用户实际经历的是三个不同缺陷：
 
-### 6.1 已实证证据（2026-09-19 实测）
+- **D1 失败臂丢现场（真数据丢失）**：run 以 Err 收束（如 max turns / loop
+  detected）时只落一行 `⚠ 运行失败：{e}` 文本，thinking/tool_calls/blocks
+  全部丢弃。T-04 只修了**超时臂**，**Err 臂**没做同款组装。
+  实证：24a43d74 跑满 100 轮失败（19:14）→ 仅存一行 ⚠，全部工具卡丢失。
+- **D2 超长 run 期间刷新即空白（用户主诉的机制）**：assistant 只在收束时
+  **一次性**落盘；@plan 类 run 实测 23min～3h+（48b7e82a 61min、9063dfd4
+  ≥23min 未收束）；前端刷新后 store 重置——`StartStream` 仅在 Send 时调用、
+  120s 轮询窗早过期、无任何"运行中"查询 → 中途刷新只看到 user 消息，
+  观感即"落盘丢失"（数据其实还在内存，收束时会落——但用户无从知道）。
+- **D3 静默出口/楔死无诊断面**：9063dfd4（16:05 起跑）在日志里**没有任何
+  收束行**（finished/failed/idle-timeout 三种出口都打日志），守卫 16:28 仍
+  被占（"已有运行在途"通知实证）→ spawn 任务存在无日志出口或楔死路径；
+  守卫滞留期间该会话永久不可再跑。gate 循环每门 +1800s 喂狗，看门狗无法
+  兜底"deny-重试"循环（§3 已登记债务的升级证据）。
 
-| 会话 | workspace | run 结果 | 收束后 messages |
+### 6.1 证据（r13 交叉分析：musk-serve-0919.log × chats.json × conversations）
+
+日志时间戳为 UTC（+8=CST）。当前 8090 进程 09-19 01:29 CST 起存活
+（PID 5816，err.log 空 = 无 panic）。
+
+| 会话 | 起跑/收束（CST） | 结局 | 落盘现状 |
 |---|---|---|---|
-| 24a43d74 | auto-edit | 正常完成（skill/write_file/run_command 多卡） | **1（仅 user）** |
-| 48b7e82a | musk-demo | 正常完成（list_dir/read_file/glob） | **1（仅 user）** |
-| 9063dfd4 | auto-edit | 正常完成（@plan/001 多工具） | **1（仅 user）** |
-| 36418ed6 | auto-edit | **失败**（loop detected） | 2（user+assistant ✓ 失败臂落盘正常） |
+| 48b7e82a (musk-demo) | 16:15 → 17:16（3683s） | `chat run finished` | **assistant 完整**（tcs=10 blocks=18，updated_at=17:16:47）——计划旧表"仅 user"是 16:15-16:20 **run 在途时采的样** |
+| 9063dfd4 (auto-edit) | 16:05 → **无收束行** | 未知（守卫 16:28 仍占） | user + 后来补发消息 + busy 通知；run 的 assistant 至今缺席 |
+| 24a43d74 (auto-edit) | 18:51 → 19:14（max turns 100） | `chat run failed` | 仅一行 ⚠（D1 实证：100 轮现场全丢） |
+| 66005d91/bbdde7ec/76a09156/7faefb07 (auto-edit) | 16:00-19:10 各 16-24s | finished | 全部落盘 ✓（成功臂正常的多例对照） |
+| 25d7b6fb/90cdf37f/5d01c54f/9077ba9e (musk-demo) | 16:09-16:14 各 22-34s | finished | 全部落盘 ✓ |
 
-关键线索：
-- **失败臂落盘正常**（36418ed 的失败 assistant 落了盘）→ `chats.append_message`
-  本身能写；嫌疑收敛到**成功收束臂**（done 分支）的早退/异常/条件不满足。
-- 24a43d74 收束后 `updated_at` 有推进（18:51）→ 收束期**有写发生**
-  （session touch 或 user append），但 assistant 消息缺席。
-- 前端 done 帧正常到达（streaming=false 收束）→ 桥事件流活着，**不是
-  桥整体死亡**，是 done→落盘这一段没生效。
-- r4 T-04（超时收束持久化）与 r5（思考块生命周期）都触碰过收束组装区，
-  回归嫌疑待排除。
+原疑点清单裁定：疑点 1（done 早退）/2（append id 语义）/5（写失败静默）
+对**成功臂**全部证伪（`ChatSession::append` 无条件 push，chats.rs:226；
+成功臂 extern_impl.rs:2448 落盘且其后紧随 `chat run finished` 日志，多例
+兑现）。疑点 3（桥 abort）证伪（bridge.abort 在 append 之后）。
+新疑点成立处：Err 臂组装缺失（extern_impl.rs:2464-2482）、零增量落盘、
+前端不重挂（src/front/forge_store.at）、chat_run_stream 无在途判定响应。
 
 ### 6.2 代码入口（已勘察）
 
-- 收束组装与落盘：`backend/crates/musk/src/auto_generated/extern_impl.rs`
-  done 分支（~2370）→ blocks 封口/`msg.blocks = take(blocks)` →
-  `chats.append_message(&session_id, msg)`（~2392）。
-- 持久化层：`backend/crates/musk/src/chats.rs`（ChatSession/append_message）。
-- 事件源：`backend/crates/musk/src/server.rs` `stream_event_to_json`
-  （done 帧 = `StreamEvent::Done`）；桥任务生命周期见 r4 T-01 喂狗改动。
-- 会话存储形态：`~/.autoos`（或等价数据目录）下 per-session JSON，
-  可直接 curl `GET /api/chats/session/{id}?workspace=…` 对照。
+- 收束三臂：`backend/crates/musk/src/auto_generated/extern_impl.rs`
+  超时臂 2344-2407（组装样板）/ 成功臂 2408-2463 / **Err 臂 2464-2482
+  （仅文本，待修）**。事件累积器 accumulated/thinking_acc/tool_calls/
+  blocks/cur_text 定义 2035-2051；on_event 块维护 2141-2252
+  （现有 turn_start/delta/tool_call/tool_result/done/warning 臂）。
+- 附加流：`chat_run_stream`（extern_impl.rs:1762-1798）——只订阅转发，
+  **未调用** `chat_run_active` 窥探（server.rs:118 已有该只读方法，注释
+  自述"订阅路径据此决定附加转发或空闲等待"但未接线）。
+- 持久化：`backend/crates/musk/src/chats.rs` ChatStore::append_message
+  （500，整表 load→改→save，write_lock 串行）；ChatSession::append（226，
+  parent/leaf 语义）；ChatMessage 结构 64-85（serde 宽容默认）。
+- 前端：`src/front/forge_store.at`（StartStream 仅 Send 调用；OnStreamEvent
+  各事件臂；done 臂收尾；120s 轮询窗）。
 
-### 6.3 疑点清单（按优先级）
+### 6.3 任务（r13 重写；实施完成 2026-09-19 20:30，musk@e5e098e）
 
-1. done 分支早退条件：blocks/msg 判空、session 查找失败、`turns` 状态机
-   不满足等 `?`/早退分支静默吞掉落盘。
-2. `append_message` 的 id 语义：收束构造的 msg（新 id）在 session 内
-   无对应 → append 路径是否真正 append（vs 按 id 替换找不到即丢弃）。
-3. 桥任务生命周期：run 收束时桥/SSE 任务是否在 append_message 前被
-   abort/drop（r4 T-01 动过桥喂狗，回归嫌疑）。
-4. 多轮 run 的收束时机：done 只在末 turn 后发一次；若桥按 turn 聚合，
-   末轮 blocks 未封口即收束的竞态。
-5. 落盘写入失败被 `let _ =`/`ok()` 静默吞错（append_message 返回值未检查）。
+- [x] **P2-T1 定位**（r13 完成，见 §6.0/6.1）：根因三缺陷 D1/D2/D3 + 成功臂
+  证伪。产出即本节。
+- [x] **P2-T2 失败臂保现场**：`assemble_chat_run_msg` 三臂共用组装（封口
+  叙述块→思考首块→⚠ 尾块，clone 语义，单测 3 例）；Err 臂接入（⚠ 尾块 +
+  现场，24a43d74 场景闭环）；`persist_chat_run_msg` 统一落盘口——失败/
+  session 缺失显式 warn。回归测试 `chat_failure_preserves_accumulated_scene`
+  （工具→turn 快照→失败终版原位替换全链，真实 chat_run_owner 路径）。
+- [x] **P2-T3 增量落盘**：`ChatStore::upsert_message`（按 msg.id 原位替换并
+  **保留 parent_id/created_at**——测试实证整体换入会脱离分支链；无该 id
+  退化 append；单测 4 例含旧数据 pending 回退）；run 起跑定 `run_msg_id`，
+  on_event `turn_end` 臂快照落盘（pending=true，ChatMessage 新增 serde 宽容
+  字段）；收束三臂终版同 id 换入清 pending；turns 双写维持收束一次。
+- [x] **P2-T4 刷新重挂**：chat_run_stream 入口接 `chat_run_active` 窥探
+  ——空闲立即 idle 帧收流（try_recv 捞收束竞态的 done 尾巴）；server_stream
+  透传白名单补 idle；前端 AttachStream（载入即挂流，**不预置 streaming**——
+  旧后端零事件零幻态，兼容 dist 先于 exe 部署的窗口）、idle 臂 + 流事件
+  置位运行态、PollStream 完成启发式 pending 守卫。
+- [x] **P2-T5 验证合回**：musk cargo test **652 绿/1 失败**（失败
+  `run_command_dangerous_returns_paused` 为基线预存环境失败——stash 对照
+  e2c0cb0 实证同败，与本轮无关）；auto build 全 pipeline 绿（codegen+
+  vue-tsc+vite，r6 两环境坑照旧绕法：vite-env.d.ts/overlay.ts stub 拷主
+  检出）；8095 隔离实例 live（USERPROFILE 指向临时 home + AAID_URL 死端口，
+  零副作用）：失败 run 落盘含 ⚠ 尾块 + 终态、裸 attach 即收
+  `data: {"type":"idle"}`；dist 已部署主检出（前端刷新即生效）。**musk.exe
+  待用户重启 8090 生效**（运行中进程锁 target；重启顺带清掉 9063dfd4 的
+  楔死守卫）。rebase→ff-only 合回 main（e5e098e），四 worktree/分支/组目录
+  清理（node_modules 链接以 node fs.rmSync 安全移除后 wt-guard clean）。
 
-### 6.4 任务
+### 6.4 验收标准（r13 重写）
 
-- [ ] **P2-T1 定位**：短 run 复现（`echo` 级命令即可）+ 收束前后 curl
-  对照 session JSON；在 done 分支/append_message 加临时日志（或读 musko
-  日志）确认执行到哪一步断链。产出：根因一句话 + 失败点 file:line。
-- [ ] **P2-T2 修复**：按根因修复；收束落盘路径的返回值必须显式处理
-  （失败要有日志/事件，禁止静默）；新增回归测试（收束后 session 必含
-  assistant 且 tool_calls/blocks 完整——挂 extern_impl 现有测试形态）。
-- [ ] **P2-T3 验证合回**：auto build 全 pipeline 绿 + musk 后端测试绿；
-  live 三连验证（短 run / 多工具 run / 含思考块 run）收束后刷新页面
-  数据完整；按仓库 AGENTS worktree 流程合回清理。
+- [x] **AC-P2-1** 任意收束路径（成功/失败/超时）后
+  `GET /api/chats/session/{id}` 的 messages 含完整 assistant：成功臂含
+  content/thinking/tool_calls/blocks；失败臂含 ⚠ 尾块 + 中止前现场
+  （thinking/工具卡/叙述）。〔成功臂 = 既有 `ag_chat_message_run_true_
+  persists_single_reply` + 09-19 九例 live 对照；失败臂 = 新回归测试 +
+  8095 隔离实例 live（⚠ 尾块/终态）；超时臂 = 既有看门狗用例（组装改共用
+  函数，行为等价由组装单测锚定）〕
+- [ ] **AC-P2-2** run 进行中刷新页面：可见已落盘部分现场（turn 粒度增量），
+  且运行中状态恢复（后续事件继续渲染）；收束后前端归一为完整消息，
+  与不刷新路径一致。〔机制各环已分别验证：turn 快照（回归测试真实路径）、
+  attach 后续事件转发（既有测试）、poll pending 守卫（代码路径）；
+  **端到端（真 LLM 长 run 中刷新 + 收束归一）待用户环境复测**——重启
+  8090 新 exe 后跑一次多轮 run 中刷新即可〕
+- [x] **AC-P2-3** 落盘失败不静默：append/upsert 失败有 warn 日志；
+  新增收束落盘回归测试挂入 musk 测试套件。
+- [x] **AC-P2-4** 附加流不悬挂：对无在途 run 的会话开 /stream 立即收
+  idle 帧关闭；有在途 run 时刷新可重挂并收到后续事件。〔idle 帧 =
+  8095 live `data: {"type":"idle"}`；重挂转发 = 既有
+  `ag_chat_run_then_subscribe_single_reply`（裸订阅契约测试同批改锚）〕
 
-### 6.5 验收标准
+### 6.5 登记（不阻塞，另立候选）
 
-- [ ] **AC-P2-1** 任意 run（短/多工具/含思考）正常收束后，
-  `GET /api/chats/session/{id}` 的 messages 含完整 assistant 消息
-  （content/tool_calls/blocks/thinking 齐全），curl 即验。
-- [ ] **AC-P2-2** 刷新页面后 run 展示完整（工具卡含名称/参数/结果、
-  思考块、正文），与刷新前一致。
-- [ ] **AC-P2-3** 落盘失败不再静默：写失败有可见日志（并尽可能给前端
-  error 事件）；新增收束落盘回归测试挂入 musk 测试套件。
+- gate 循环超长 run：9063dfd4 实证 ≥23min 守卫滞留且无收束日志；每门
+  +1800s 喂狗使看门狗无法兜底 deny-重试循环（与 §3 心跳债务合并处置）。
+- 孤儿 pending 快照：进程重启杀 run 后遗留 pending=true 的增量快照，
+  前端渲染"运行中断"提示待做（本轮只保证数据不丢、可辨伪）。
+- 9063dfd4 的确切死因（无日志出口 vs 楔死）未定——P2-T2 起三臂全出口
+  日志化后，同类案例将自带诊断面。
