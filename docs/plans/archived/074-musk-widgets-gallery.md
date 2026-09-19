@@ -1,10 +1,11 @@
 ---
 plan_id: PLAN-074
-status: reviewed
+status: archived
+completion_kind: delivered
 feature_name: 组件真实消费清单与双端 Gallery 基线
 author: [agent]
 created_at: 2026-09-19T00:00:00Z
-updated_at: 2026-09-19T09:48:00Z
+updated_at: 2026-09-19T09:55:00Z
 plan_revision: 1
 current_step: 5
 total_steps: 5
@@ -178,6 +179,8 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 - stage: work | plan_id: PLAN-074 | plan_revision: 1 | outcome: pass | code_commit: 4c0e5f6 | task_ids: T-01..T-05 | evidence: node scripts/ui-parity.mjs check PASS (62 declarations, 57 cases); node scripts/ui-parity.mjs run --case chat-message-pair PASS (vue: http-ok, vm: snapshot-ok + reset event spy PASS + screenshot saved); docs/reports/ui-parity/074-baseline.md & 074-evidence.md generated | blockers: none for plan 074 (residual differences/warnings mapped to PLAN-075..079) | next: review
 
 - stage: review | plan_id: PLAN-074 | plan_revision: 1 | outcome: pass | reviewed_commit: 4cbd5b59666014ba36ce9f8e4e97ea2cfb0eb61e | base_commit: 7fe7612b0693736b62aeac313d799d8f81cd21bc | dependency_revisions: auto-lang: 278efbea7e95fe05f45f86f7871a5c72043d4f3c, auto-down: 7c0b774e17f079eaa2462b0d9028781d75458f50 | spec_inputs: docs/specs/00-overview.md, docs/specs/01-architecture.md, docs/specs/03-front-component-groups.md | acceptance_results: AC-01: pass | AC-02: pass | AC-03: pass | AC-04: pass | AC-05: pass | findings: none blocking; residual warnings (self-stretch, missing blocks field) in VM snapshot assigned to PLAN-075/076; cold-start compilation duration (~80s) requires sufficient timeout budget for Vue dev server | evidence: node scripts/ui-parity.mjs check PASS (62/57); node scripts/ui-parity.mjs run --case non-existent-case exits 1; node scripts/ui-parity.mjs run --case chat-message-pair PASS (vue: http-ok, vm: snapshot-ok, reset spy PASS, screenshot saved); docs/reports/ui-parity/074-baseline.md & 074-evidence.md generated | next: merge
+
+- stage: merge | plan_id: PLAN-074 | plan_revision: 1 | outcome: pass | delivery_commit: 628f0a9557454f0a99602fa481a546d1bfecfc90 | canonical_specs: [docs/specs/modules/ui-parity.md, docs/specs/03-front-component-groups.md, docs/specs/index.json] | archive_path: docs/plans/archived/074-musk-widgets-gallery.md | completion_kind: delivered | worktree: D:/autostack/.wt/musk-074/auto-musk (branch plan-074-dev merged to main) | cleanup_state: cleaned
 
 ## 10. 待澄清事项
 
