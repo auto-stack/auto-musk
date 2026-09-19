@@ -75,8 +75,12 @@ fn mention_is_path_char(c str) bool {
 /** 转义 HTML，然后把 @mention 包成高亮 span（手写扫描，等价 /@(\w+)/g 回调）。
  *  PLAN-071 需求⑭：@plan/<seq> 与 @spec/<relpath> 引用 token 识别为特殊
  *  inline 组件（📋/📄 前缀 + 独立着色，区别于 Agent @词）——路径字符集
- *  [\w./-]，空白终止；后端运行时把 token 解析为真实文件路径注入上下文。 */
-fn render_mentions(text str, names obj, cls str) str {
+ *  [\w./-]，空白终止；后端运行时把 token 解析为真实文件路径注入上下文。
+ *  r6（PLAN-073 续）：token 分支升级独立 badge 小组件（胶囊圆角+边框+悬停
+ *  加深），并带 title= 真实文件路径（plan 查 paths 映射,spec 用 relpath
+ *  本身）；paths 为空（plans 未加载）时无 title,降级为纯 badge。cls 参数
+ *  仅作用于 Agent @词;token badge 样式独立（气泡/白底上下文恒可读）。 */
+fn render_mentions(text str, names obj, cls str, paths obj) str {
     let escaped = Regex.replace(Regex.replace(Regex.replace(text, "&", "&amp;", "g"), "<", "&lt;", "g"), ">", "&gt;", "g")
     var out = ""
     var i = 0
@@ -146,7 +150,24 @@ fn render_mentions(text str, names obj, cls str) str {
                 }
             }
             if token != "" {
-                out = out + "<span class=\"inline-mention mention-ref " + cls + "\">" + ticon + " " + token + "</span>"
+                // r6：hover 路径——spec 的 relpath 即路径；plan 查 paths
+                // 映射（key 对齐 build_mention_names 的 k_ 前缀防原型链）。
+                var href = ""
+                if token.char_at(1) == "s" {
+                    href = token.sub(6)
+                } else {
+                    let hit = paths["k_" + token.sub(1)]
+                    if hit != None {
+                        if hit != "" {
+                            href = hit
+                        }
+                    }
+                }
+                var title_attr = ""
+                if href != "" {
+                    title_attr = " title=\"" + mention_attr_escape(href) + "\""
+                }
+                out = out + "<span class=\"mention-ref inline-flex items-center gap-[0.2rem] rounded-full border border-white/40 bg-white/15 hover:bg-white/30 px-[0.45rem] py-[0.04rem] font-mono text-[0.82em] font-medium leading-[1.5] cursor-help whitespace-nowrap align-baseline\"" + title_attr + ">" + ticon + " " + token + "</span>"
                 i = j2
             } else {
                 var j = i + 1
@@ -183,10 +204,47 @@ fn render_mentions(text str, names obj, cls str) str {
     return out
 }
 
+/** HTML 属性值转义（title= 等：& < " 会破坏属性边界；> 属性值内合法仍转义求稳）。 */
+fn mention_attr_escape(s str) str {
+    return Regex.replace(Regex.replace(Regex.replace(Regex.replace(s, "&", "&amp;", "g"), "<", "&lt;", "g"), ">", "&gt;", "g"), "\"", "&quot;", "g")
+}
+
+/** r6：PlansStore.plans（List<PlanFile>）→ 引用 token hover 路径映射
+ *  （"k_plan/<id>" → path || filename）。未加载/空表返回空映射
+ *  （render_mentions 无 title 降级为纯 badge）。 */
+fn build_ref_path_map(plans []Value) obj {
+    var out map = {}
+    for pl in (plans ?? []) {
+        if pl != None {
+            let pid = pl.id ?? ""
+            if pid != "" {
+                let p = pl.path ?? ""
+                let fname = pl.filename ?? ""
+                if p != "" {
+                    out["k_plan/" + pid] = p
+                } else {
+                    if fname != "" {
+                        out["k_plan/" + pid] = fname
+                    }
+                }
+            }
+        }
+    }
+    return out
+}
+
 /** renderMentions 的默认职业版本（原 TS 默认参数）。 */
 // PLAN-050 B1: 气泡上下文 mention 样式内联（原 web-only 后代选择器规则迁移）。
+// r6：签名加 paths（传 None——默认版不接 plans 数据源，token badge 无 title）。
 fn render_mentions_default(text str) str {
-    return render_mentions(text, build_mention_names(mention_default_professions()), "text-primary-foreground font-semibold bg-white/15 rounded-[3px] px-[0.2rem]")
+    return render_mentions(text, build_mention_names(mention_default_professions()), "text-primary-foreground font-semibold bg-white/15 rounded-[3px] px-[0.2rem]", None)
+}
+
+/** r6：用户气泡版（带 plans 路径映射）——UserMessage 专用。cls 与
+ *  render_mentions_default 同款（Agent @词口径不变）;token badge 的
+ *  hover title 查 paths。 */
+fn render_mentions_ref(text str, paths obj) str {
+    return render_mentions(text, build_mention_names(mention_default_professions()), "text-primary-foreground font-semibold bg-white/15 rounded-[3px] px-[0.2rem]", paths)
 }
 
 // PLAN-493: render_input_mentions（输入框 backdrop 专用，末尾加换行）删除——
