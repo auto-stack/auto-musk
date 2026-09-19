@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-074
-status: execution_done
+status: reviewed
 feature_name: 组件真实消费清单与双端 Gallery 基线
 author: [agent]
 created_at: 2026-09-19T00:00:00Z
-updated_at: 2026-09-19T09:20:00Z
+updated_at: 2026-09-19T09:48:00Z
 plan_revision: 1
 current_step: 5
 total_steps: 5
@@ -177,6 +177,8 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 
 - stage: work | plan_id: PLAN-074 | plan_revision: 1 | outcome: pass | code_commit: 4c0e5f6 | task_ids: T-01..T-05 | evidence: node scripts/ui-parity.mjs check PASS (62 declarations, 57 cases); node scripts/ui-parity.mjs run --case chat-message-pair PASS (vue: http-ok, vm: snapshot-ok + reset event spy PASS + screenshot saved); docs/reports/ui-parity/074-baseline.md & 074-evidence.md generated | blockers: none for plan 074 (residual differences/warnings mapped to PLAN-075..079) | next: review
 
+- stage: review | plan_id: PLAN-074 | plan_revision: 1 | outcome: pass | reviewed_commit: 4cbd5b59666014ba36ce9f8e4e97ea2cfb0eb61e | base_commit: 7fe7612b0693736b62aeac313d799d8f81cd21bc | dependency_revisions: auto-lang: 278efbea7e95fe05f45f86f7871a5c72043d4f3c, auto-down: 7c0b774e17f079eaa2462b0d9028781d75458f50 | spec_inputs: docs/specs/00-overview.md, docs/specs/01-architecture.md, docs/specs/03-front-component-groups.md | acceptance_results: AC-01: pass | AC-02: pass | AC-03: pass | AC-04: pass | AC-05: pass | findings: none blocking; residual warnings (self-stretch, missing blocks field) in VM snapshot assigned to PLAN-075/076; cold-start compilation duration (~80s) requires sufficient timeout budget for Vue dev server | evidence: node scripts/ui-parity.mjs check PASS (62/57); node scripts/ui-parity.mjs run --case non-existent-case exits 1; node scripts/ui-parity.mjs run --case chat-message-pair PASS (vue: http-ok, vm: snapshot-ok, reset spy PASS, screenshot saved); docs/reports/ui-parity/074-baseline.md & 074-evidence.md generated | next: merge
+
 ## 10. 待澄清事项
 
 无阻止写成草案的用户信息缺口。实现期开工责任人处理以下有界事项：
@@ -184,7 +186,7 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 2. 074已冻结的导入机制/runner参数/字体与预算需核对；若前置未完成，保持该阶段阻塞。
 3. 若原生能力需要大范围机制重构，T-01提供最小复现和修订提案；影响验收标准时需范围决策。
 4. 本路线的近期“大体一致”预算是拟议执行合同；长期像素目标仍独立保留，不能自动宣称完成。
-5. T-02/T-03/T-04 的初始 VM 启动阻塞已在工作分支以最小生产兼容修复解除（`forge_helpers.at` 的 `has_think` 重赋值改为 `var`）；VM runner 已完成 snapshot、Reset/事件 spy 和截图取证。当前未决面是 Vue 依赖/dev-server 没有在预算内提供 HTTP endpoint，故双端交互、截图/布局对拍仍未完成；这些证据齐全前保持 executing。
+5. T-02/T-03/T-04 实施与复审完成：VM 启动阻塞经最小生产兼容修复解除（forge_helpers.at 中 has_think 重赋值由 let 改为 var）；VM runner 完成 snapshot、Reset/事件 spy 和基线截图；Vue 端排查并修复 vendored autodown engine 产物 chunk 缺失、配置 pnpm 包管理并以 AutoVM 模式启动前后端，达成 http-ok runtime-smoke。双端运行时证据已在独立复审中完整复现通过。
 
 ### Work 启动记录（2026-09-19）
 
