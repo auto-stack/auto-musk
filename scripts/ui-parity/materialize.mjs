@@ -46,7 +46,7 @@ export function materialize(caseId = 'chat-message-pair') {
   // production ChatMessage source byte-for-byte intact and replace only this
   // side-effect boundary with a deterministic in-memory store. This is an
   // adapter, not a second rendering implementation.
-  const galleryStore = `// GENERATED gallery side-effect adapter; ChatMessage remains production source.\nstore ForgeStore {\n    model {\n        var think_open str = ""\n        var tool_open str = ""\n        var cancel_count int = 0\n        var events []Value = []\n    }\n    msg Msg { ThinkToggle(str), ToolToggle(str), CancelRun }\n    on {\n        .ThinkToggle(key str) -> {\n            if .think_open == key { .think_open = "" } else { .think_open = key }\n            .events.push({ kind: "think", key: key })\n        }\n        .ToolToggle(key str) -> {\n            if .tool_open == key { .tool_open = "" } else { .tool_open = key }\n            .events.push({ kind: "tool", key: key })\n        }\n        .CancelRun -> {\n            .cancel_count = .cancel_count + 1\n            .events.push({ kind: "cancel" })\n        }\n    }\n}\n`;
+  const galleryStore = `// GENERATED gallery side-effect adapter; ChatMessage remains production source.\nstore ForgeStore {\n    model {\n        var think_open str = ""\n        var tool_open str = ""\n        var cancel_count int = 0\n        var event_count int = 0\n        var events []Value = []\n    }\n    msg Msg { ThinkToggle(str), ToolToggle(str), CancelRun }\n    on {\n        .ThinkToggle(key str) -> {\n            if .think_open == key { .think_open = "" } else { .think_open = key }\n            .events.push({ kind: "think", key: key })\n            .event_count = .event_count + 1\n        }\n        .ToolToggle(key str) -> {\n            if .tool_open == key { .tool_open = "" } else { .tool_open = key }\n            .events.push({ kind: "tool", key: key })\n            .event_count = .event_count + 1\n        }\n        .CancelRun -> {\n            .cancel_count = .cancel_count + 1\n            .events.push({ kind: "cancel" })\n            .event_count = .event_count + 1\n        }\n    }\n}\n`;
   const storePath = path.join(GALLERY, 'src/front/forge_store.at');
   fs.writeFileSync(storePath, galleryStore);
   receipt.boundaryChanges.push({ path: 'src/front/forge_store.at', purpose: 'isolate expansion/cancel side effects', sha256: hash(galleryStore) });
@@ -104,6 +104,7 @@ widget App {
             row {
                 style: "w-full gap-4 items-center"
                 text .gallery_case
+                text "Spy events " + store.event_count
                 button {
                     text "Reset fixture"
                     onclick: .Reset

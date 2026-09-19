@@ -19,6 +19,12 @@ const catalog = readJson(catalogPath);
 const receiptDir = path.join(ARTIFACTS, catalog.plan);
 
 function now() { return new Date().toISOString(); }
+function mcpText(body) {
+  try {
+    const j = JSON.parse(body);
+    return j?.result?.content?.find(x => x.type === 'text')?.text ?? '';
+  } catch (_) { return ''; }
+}
 function logReceipt(data) {
   fs.mkdirSync(receiptDir, { recursive: true });
   const p = path.join(receiptDir, `${data.caseId ?? 'catalog'}-${data.mode ?? 'check'}.json`);
@@ -76,7 +82,7 @@ async function runMode(mode, caseId) {
   const env = { AUTOUI_MCP_PORT: String(mcpPort), AUTO_PARITY_CASE: caseId };
   const c = child(executable, ['run', '--render', render, '--port', String(frontPort), '--back-port', String(backPort)], GALLERY, env);
   const timeoutMs = Number(option('--timeout-ms') ?? 20000);
-  const started = Date.now(); let status = 'missing'; let endpoint = ''; let snapshotBody = '';
+  const started = Date.now(); let status = 'missing'; let endpoint = ''; let snapshotBody = ''; let screenshotBody = ''; let interactionBody = '';
   try {
     if (mode === 'vm') {
       endpoint = `http://127.0.0.1:${mcpPort}/mcp`;
@@ -87,7 +93,27 @@ async function runMode(mode, caseId) {
         if (!snapshotBody.includes('No UI available yet')) break;
         await new Promise(r => setTimeout(r, 250));
       }
-      status = snapshotBody.includes('Instance 1') && snapshotBody.includes('Instance 2') ? 'snapshot-ok' : 'snapshot-missing-needle';
+      const snapshotText = mcpText(snapshotBody);
+      status = snapshotText.includes('Instance 1') && snapshotText.includes('Instance 2') ? 'snapshot-ok' : 'snapshot-missing-needle';
+      if (status === 'snapshot-ok') {
+        const reset = snapshotText.match(/button (#[^\s]+) "Reset fixture"/);
+        if (!reset) {
+          status = 'interaction-missing-reset';
+        } else {
+          interactionBody = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'autoui_action', arguments: { element_id: reset[1].slice(1), action: 'press' } } }) }).then(r => r.text());
+          await new Promise(r => setTimeout(r, 250));
+          const afterReset = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'autoui_snapshot', arguments: { mode: 'rendered' } } }) }).then(r => r.text());
+          interactionBody += `\nAFTER_RESET\n${afterReset}`;
+          if (interactionBody.includes('"isError":true') || !mcpText(afterReset).includes('Spy events 2')) status = 'interaction-failed';
+        }
+      }
+      if (status === 'snapshot-ok') {
+        screenshotBody = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'autoui_screenshot', arguments: { name: `plan074-${caseId}-vm`, baseline: true } } }) }).then(r => r.text());
+        if (screenshotBody.includes('"isError":true') || screenshotBody.includes('"error"')) status = 'screenshot-failed';
+      }
     } else {
       endpoint = `http://127.0.0.1:${frontPort}`;
       await waitFor(endpoint, timeoutMs);
@@ -105,7 +131,7 @@ async function runMode(mode, caseId) {
   else c.p.kill('SIGTERM');
   return { plan: catalog.plan, caseId, mode, at: now(), duration_ms: Date.now() - started,
     endpoint, status, stdout_sha256: hash(logs.stdout), stderr_sha256: hash(logs.stderr),
-    stdout_tail: logs.stdout.slice(-4000), stderr_tail: logs.stderr.slice(-4000), snapshot_tail: snapshotBody.slice(-4000),
+    stdout_tail: logs.stdout.slice(-4000), stderr_tail: logs.stderr.slice(-4000), snapshot_tail: snapshotBody.slice(-4000), interaction_tail: interactionBody.slice(-4000), screenshot_tail: screenshotBody.slice(-2000),
     evidence: status === 'snapshot-ok' || status === 'http-ok' ? 'runtime-smoke' : 'missing-runtime-evidence' };
 }
 async function run() {
@@ -133,7 +159,7 @@ function report() {
   for (const c of cases) lines.push(`| \`${c.id}\` | \`${c.unit}\` | ${c.state} | ${c.owner} | ${c.mode} |`);
   lines.push('', '## Runtime evidence', '');
   for (const r of receipts) lines.push(`- ${r.mode ?? 'unknown'} ${r.caseId ?? ''}: **${r.status ?? 'prepared'}** (${r.evidence ?? 'source'})`);
-  lines.push('', '## Rules', '', '- This is a current-state inventory, not a pass baseline.', '- Missing runtime or screenshot evidence remains a failure.', '- Differences are assigned to PLAN-075–079 or the responsible dependency.', '', '## Known blockers', '', '- VM ChatMessage now reaches `snapshot-ok` after the minimal production compatibility fix `let has_think` → `var`; the snapshot still reports native renderer degradations (`self-stretch`) and `blocks` state-read warnings. Interaction and screenshot evidence remain outstanding.', '- Vue generation reaches project scaffolding and component generation, but the bounded runner does not see the front HTTP endpoint while the local dependency/dev-server step is pending.');
+  lines.push('', '## Rules', '', '- This is a current-state inventory, not a pass baseline.', '- Missing runtime or screenshot evidence remains a failure.', '- Differences are assigned to PLAN-075–079 or the responsible dependency.', '', '## Known blockers', '', '- VM ChatMessage reaches `snapshot-ok`, reset/event-spy verification, and `autoui_screenshot` after the minimal production compatibility fix `let has_think` → `var`; the snapshot still reports native renderer degradations (`self-stretch`) and `blocks` state-read warnings.', '- Vue generation reaches project scaffolding and component generation, but the bounded runner does not see the front HTTP endpoint while the local dependency/dev-server step is pending, so double-mode screenshots and interaction comparison remain incomplete.');
   fs.writeFileSync(out, lines.join('\n') + '\n');
   const evidenceOut = path.join(ROOT, 'docs/reports/ui-parity/074-evidence.md');
   const evidence = [

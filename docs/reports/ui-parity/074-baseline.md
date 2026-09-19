@@ -1,6 +1,6 @@
 # PLAN-074 Gallery baseline
 
-Generated: 2026-09-19T07:55:01.900Z
+Generated: 2026-09-19T07:59:29.199Z
 
 Units: 62 (54 reachable)
 Cases: 57
@@ -161,5 +161,5 @@ Cases: 57
 
 ## Known blockers
 
-- VM ChatMessage now reaches `snapshot-ok` after the minimal production compatibility fix `let has_think` → `var`; the snapshot still reports native renderer degradations (`self-stretch`) and `blocks` state-read warnings. Interaction and screenshot evidence remain outstanding.
-- Vue generation reaches project scaffolding and component generation, but the bounded runner does not see the front HTTP endpoint while the local dependency/dev-server step is pending.
+- VM ChatMessage reaches `snapshot-ok`, reset/event-spy verification, and `autoui_screenshot` after the minimal production compatibility fix `let has_think` → `var`; the snapshot still reports native renderer degradations (`self-stretch`) and `blocks` state-read warnings.
+- Vue generation reaches project scaffolding and component generation, but the bounded runner does not see the front HTTP endpoint while the local dependency/dev-server step is pending, so double-mode screenshots and interaction comparison remain incomplete.
