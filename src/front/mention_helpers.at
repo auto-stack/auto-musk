@@ -478,3 +478,56 @@ fn mention_insert(items []Value, id str, val str, pos int) str {
     }
     return "@" + token + " " + val
 }
+
+/** r10：Backspace 引用 token 原子删除定位——光标 pos 处按删除键时，若
+ *  pos 紧邻某引用 token（kind!=agent）末尾、或处于其内部，返回该 token
+ *  的 '@' 起始下标（应整块删除）；否则 -1（默认逐字符删除）。
+ *  判定链：从 pos-1 反向扫描路径字符到 '@'（遇其他字符即非 token 场景）；
+ *  '@' 前须为空白/文本起点；"@…pos" 段须为某 token 全文的非空前缀（支持
+ *  光标在 token 中间整删）。Agent @词不原子删（保持逐字符编辑）。 */
+fn mention_backspace_target(text str, pos int, items []Value) int {
+    if pos <= 0 {
+        return -1
+    }
+    var i = pos - 1
+    var at_idx = -1
+    for i >= 0 {
+        let c = text.char_at(i)
+        if c == "@" {
+            at_idx = i
+            break
+        }
+        if !mention_is_path_char(c) {
+            return -1
+        }
+        i = i - 1
+    }
+    if at_idx < 0 {
+        return -1
+    }
+    // '@' 前不得是路径字符（"x@plan" 形态 @ 属于词内，非独立 token；
+    // 中文/空格/行首等非路径字符均认可——与渲染端不查前置的口径对齐）。
+    if at_idx > 0 {
+        let prev = text.char_at(at_idx - 1)
+        if mention_is_path_char(prev) {
+            return -1
+        }
+    }
+    let seg = text.sub(at_idx, pos)
+    if seg.length < 2 {
+        return -1
+    }
+    for it in (items ?? []) {
+        if it != None {
+            if it.kind != "agent" {
+                let full = "@" + (it.id ?? "")
+                if full.length >= seg.length {
+                    if full.sub(0, seg.length) == seg {
+                        return at_idx
+                    }
+                }
+            }
+        }
+    }
+    return -1
+}
