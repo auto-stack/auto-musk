@@ -171,6 +171,7 @@ function report() {
     '- Fixture materialization copies production source byte-for-byte and records adapter hashes in materialized.json.', '',
     '## Runtime gates', '',
     ...receipts.filter(r => r.mode !== 'prepare').map(r => `- ${r.mode} / ${r.caseId}: **${r.status ?? 'missing'}**; evidence=${r.evidence ?? 'none'}; stdout=${r.stdout_sha256 ?? 'n/a'}; stderr=${r.stderr_sha256 ?? 'n/a'}.`),
+    ...receipts.filter(r => r.interaction_tail).map(r => `- ${r.mode} reset/event spy: **${r.interaction_tail.includes('Spy events 2') ? 'PASS' : 'FAIL'}**; screenshot=${r.screenshot_tail?.includes('Baseline saved') ? 'saved' : 'missing'}.`),
     '- No screenshot or layout evidence is recorded until both renderers produce a stable gallery surface.', '',
     '## Ownership', '',
     '- VM handler/codegen and AutoUI MCP runtime failures: auto-lang / the VM responsibility in the next parity plan.',
