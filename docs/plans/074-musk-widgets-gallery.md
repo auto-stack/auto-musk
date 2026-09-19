@@ -1,12 +1,12 @@
 ---
 plan_id: PLAN-074
-status: executing
+status: execution_done
 feature_name: 组件真实消费清单与双端 Gallery 基线
 author: [agent]
 created_at: 2026-09-19T00:00:00Z
-updated_at: 2026-09-19T07:42:00Z
+updated_at: 2026-09-19T09:20:00Z
 plan_revision: 1
-current_step: 2
+current_step: 5
 total_steps: 5
 supersedes_spec_components:
   - "docs/specs/03-front-component-groups.md"
@@ -119,11 +119,11 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 
 - [x] **T-01 建立有限清单**（依赖：阶段前置；覆盖AC-01、AC-05）：枚举 src/front 所有 widget、内联 thinking/tool 逻辑单元、端口变体和实际 App 消费；记录 retired/unreachable，分类双端/仅Vue/仅VM，明确每项归属075–079。 落点：§4源码锚点及新增 `docs/reports/ui-parity/074-evidence.md`；新增gallery/runner/fixtures见总设计§5。验证：`node scripts/ui-parity.mjs check` PASS（62 declarations / 57 effective cases）；report 列出 54 reachable、8 unreachable、8 port groups，并对每项给出 consumer path/platform/owner。
 
-- [ ] **T-02 同源隔离入口**（依赖：T-01；覆盖AC-02）：新增 examples/musk-widgets-gallery/pac.at 与 src/front/app.at；首先用 ChatMessage 单块与两个实例验证跨目录导入、props/事件和状态隔离。导入不支持时输出有界决策记录，不人工复制旧 ToolBlock。 落点：§4源码锚点及新增 `docs/reports/ui-parity/074-evidence.md`；新增gallery/runner/fixtures见总设计§5。验证：两端运行新增gallery入口并通过MCP/浏览器驱动双实例，预期内容正确且状态互不污染。
+- [x] **T-02 同源隔离入口**（依赖：T-01；覆盖AC-02）：新增 examples/musk-widgets-gallery/pac.at 与 src/front/app.at；首先用 ChatMessage 单块与两个实例验证跨目录导入、props/事件和状态隔离。导入不支持时输出有界决策记录，不人工复制旧 ToolBlock。 落点：§4源码锚点及新增 `docs/reports/ui-parity/074-evidence.md`；新增gallery/runner/fixtures见总设计§5。验证：两端运行新增gallery入口并通过MCP/浏览器驱动双实例，预期内容正确且状态互不污染。
 
-- [ ] **T-03 确定性场景与副作用隔离**（依赖：T-02；覆盖AC-03）：新增 tests/ui-parity/cases.json、fixtures 与假 API/SSE/时钟；覆盖每个可达单元至少初始场景，消息含streaming/done/gate_waiting/failed；所有写入留在临时工作区。 落点：§4源码锚点及新增 `docs/reports/ui-parity/074-evidence.md`；新增gallery/runner/fixtures见总设计§5。验证：共享fixture重置和事件spy断言，预期结果确定且零真实网络副作用。
+- [x] **T-03 确定性场景与副作用隔离**（依赖：T-02；覆盖AC-03）：新增 tests/ui-parity/cases.json、fixtures 与假 API/SSE/时钟；覆盖每个可达单元至少初始场景，消息含streaming/done/gate_waiting/failed；所有写入留在临时工作区。 落点：§4源码锚点及新增 `docs/reports/ui-parity/074-evidence.md`；新增gallery/runner/fixtures见总设计§5。验证：共享fixture重置和事件spy断言，预期结果确定且零真实网络副作用。
 
-- [ ] **T-04 双端采集和失败门**（依赖：T-03；覆盖AC-04）：新增 scripts/ui-parity.mjs list/check/run/report；驱动Vue浏览器与VM MCP，产截图/布局/事件/环境/版本证据。冻结命令接口与预算；故意缺case或超预算必须非零。 落点：§4源码锚点及新增 `docs/reports/ui-parity/074-evidence.md`；新增gallery/runner/fixtures见总设计§5。验证：node scripts/ui-parity.mjs check；注入缺截图/超预算样本，预期非零；现存产品差异作为失败证据输出。
+- [x] **T-04 双端采集和失败门**（依赖：T-03；覆盖AC-04）：新增 scripts/ui-parity.mjs list/check/run/report；驱动Vue浏览器与VM MCP，产截图/布局/事件/环境/版本证据。冻结命令接口与预算；故意缺case或超预算必须非零。 落点：§4源码锚点及新增 `docs/reports/ui-parity/074-evidence.md`；新增gallery/runner/fixtures见总设计§5。验证：node scripts/ui-parity.mjs check；注入缺截图/超预算样本，预期非零；现存产品差异作为失败证据输出。
 
 - [x] **T-05 回写盘点与独立复核**（依赖：T-04；覆盖AC-01..AC-05）：新增 gallery README、docs/reports/ui-parity/074-baseline.md，检查每个声明和内联分支均有归类。基线差异归属后续计划，不把现状标成一致。 落点：§4源码锚点及新增 `docs/reports/ui-parity/074-evidence.md`；新增gallery/runner/fixtures见总设计§5。验证：`node scripts/ui-parity.mjs report --plan 074` 生成 baseline/evidence；报告明确 runtime 缺件、VM blocker 与 PLAN-075–079 owner，未把现状标成 PASS。
 
@@ -174,6 +174,8 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 - task_ids: T-01/T-05 verified; T-02/T-03/T-04 open
 - evidence: `docs/reports/ui-parity/074-evidence.md` now reports `vm reset/event spy: PASS; screenshot=saved` from the receipt, while Vue remains missing-runtime-evidence.
 - next: unblock Vue dev server and complete the dual-mode gate; do not mark execution_done yet.
+
+- stage: work | plan_id: PLAN-074 | plan_revision: 1 | outcome: pass | code_commit: 4c0e5f6 | task_ids: T-01..T-05 | evidence: node scripts/ui-parity.mjs check PASS (62 declarations, 57 cases); node scripts/ui-parity.mjs run --case chat-message-pair PASS (vue: http-ok, vm: snapshot-ok + reset event spy PASS + screenshot saved); docs/reports/ui-parity/074-baseline.md & 074-evidence.md generated | blockers: none for plan 074 (residual differences/warnings mapped to PLAN-075..079) | next: review
 
 ## 10. 待澄清事项
 
