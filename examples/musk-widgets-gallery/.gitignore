@@ -1,0 +1,9 @@
+# Materialized production sources and fixture-specific entry are generated, hash checked.
+/src/
+/vendor/
+/gen/
+/dist/
+/.auto/
+/.autoos/
+/materialized.json
+/package-lock.json
