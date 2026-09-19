@@ -1,0 +1,29 @@
+{
+  "instances": [
+    {
+      "is_streaming": false,
+      "msg": {
+        "id": "fixture-user-1",
+        "role": "user",
+        "content": "Please inspect the workspace",
+        "created_at": 1700000000,
+        "blocks": [],
+        "profession_id": ""
+      }
+    },
+    {
+      "is_streaming": true,
+      "msg": {
+        "id": "fixture-assistant-1",
+        "role": "assistant",
+        "content": "",
+        "created_at": 1700000001,
+        "blocks": [
+          { "kind": "thinking", "text": "Inspecting the workspace", "state": "streaming" },
+          { "kind": "tool", "tkey": "tool-1", "tc": { "name": "read_file", "status": "gate_waiting", "arguments": { "path": "README.md" }, "result": "" } }
+        ],
+        "profession_id": "coder"
+      }
+    }
+  ]
+}

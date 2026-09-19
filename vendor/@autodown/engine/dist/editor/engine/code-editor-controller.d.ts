@@ -13,5 +13,13 @@ export declare class CodeEditorController {
     syncFromModel(): string;
     /** Write the edited code text back; false = no change or block gone. */
     commit(newCode: string): boolean;
+    /** The code widget's commit: the edit face drafts the COLLAPSED text
+     *  (draftCodeOf strips the closed-fence representation newline), so the
+     *  model representation is restored here before the compare+write — an
+     *  untouched blur stays a no-op, a real edit always wins, and a trailing
+     *  newline the user actually typed becomes model content on top of the
+     *  representation. Math/mermaid draft the model text verbatim and keep
+     *  using commit. */
+    commitDraft(newCode: string): boolean;
     private readModel;
 }

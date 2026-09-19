@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "plan": "PLAN-074",
+  "unitPolicy": "auto-reachable",
+  "casePolicy": "one-per-reachable-plus-inline",
+  "units": [],
+  "cases": [
+    {
+      "id": "chat-message-pair",
+      "unit": "ChatMessage",
+      "logicalUnit": "message",
+      "fixture": "chat-message-pair.json",
+      "mode": "render-and-interact",
+      "state": "thinking-open-and-tool-closed",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
+    },
+    {
+      "id": "chat-thinking-streaming",
+      "unit": "ChatMessage",
+      "logicalUnit": "thinking",
+      "fixture": "chat-thinking-streaming.json",
+      "mode": "fixture-contract",
+      "state": "streaming-thinking-tail",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
+    },
+    {
+      "id": "chat-text-block",
+      "unit": "ChatMessage",
+      "logicalUnit": "text",
+      "fixture": "chat-text-block.json",
+      "mode": "fixture-contract",
+      "state": "completed-text-with-markdown",
+      "owner": "PLAN-076",
+      "plan": "PLAN-076"
+    },
+    {
+      "id": "chat-tool-gate",
+      "unit": "ChatMessage",
+      "logicalUnit": "tool",
+      "fixture": "chat-tool-gate.json",
+      "mode": "fixture-contract",
+      "state": "gate-waiting",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
+    }
+  ]
+}

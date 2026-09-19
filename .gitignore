@@ -18,6 +18,11 @@ examples/
 # PLAN-038: vendored @autodown/vue dist 快照入库（file: 依赖目标,须可提交）
 !vendor/@autodown/vue/dist/
 !vendor/@autodown/vue/dist/**
+!vendor/@autodown/engine/dist/
+!vendor/@autodown/engine/dist/**
+
+build/
+
 
 # Node / pnpm
 node_modules/

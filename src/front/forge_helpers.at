@@ -298,7 +298,7 @@ fn messageBlocks(msg obj) obj {
         // PLAN-071 需求⑦：旧消息自愈——blocks 非空但无 thinking 块且
         // msg.thinking 有值（需求⑦修复前的持久化形态）→ 前置合成 thinking
         // 块，思考内容免于因 blocks 化而消失。
-        let has_think = false
+        var has_think = false
         for nb in norm {
             if nb.kind == "thinking" { has_think = true }
         }

@@ -12,7 +12,8 @@
     "modules/files-browser.md",
     "modules/workspace-sandbox.md",
     "modules/vm-process-stability.md",
-    "modules/vm-data-semantics.md"
+    "modules/vm-data-semantics.md",
+    "modules/ui-parity.md"
   ],
   "goals": [
     "goal-agent",

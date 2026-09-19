@@ -98,6 +98,10 @@ export interface EditorAdapter {
      *  the 1.0.0 frozen surface (plan 020 Phase 4) — a required field would
      *  break external implementors. */
     __engine?: EditorEngine;
+    /** plan-062 T-04: reactive bump for caret-only moves (the engine emit
+     *  fires on content changes; bare caret moves need their own tick so
+     *  isActive-driven computeds re-evaluate). */
+    __bump?: () => void;
 }
 export declare function createEditorAdapter(engine: EditorEngine): EditorAdapter;
 /** Derive the slash query from a host's text + caret: the '/' must sit at

@@ -1,0 +1,4 @@
+{
+  "instances": [],
+  "contract": { "kind": "tool", "state": "gate_waiting", "name": "run_command", "arguments": { "command": "echo fixture" } }
+}

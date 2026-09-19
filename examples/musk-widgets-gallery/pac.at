@@ -1,0 +1,14 @@
+name: "musk-widgets-gallery"
+title: "Musk Widgets Gallery"
+version: "0.1.0"
+scene: "ui"
+render: "vue"
+pkg: "pnpm"
+window: "1280x800"
+front_port: 17474
+back_port: 17475
+i18n: ["src/front/i18n/zh.json", "src/front/i18n/en.json"]
+npm_deps: {
+  "@autodown/engine": "file:../../../vendor/@autodown/engine"
+  "@autodown/vue": "file:../../../vendor/@autodown/vue"
+}
