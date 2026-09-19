@@ -62,7 +62,7 @@ commit/hash/path evidence; do not mark an operation done before verifying it:
 | Checkpoint | Evidence |
 |---|---|
 | `prepared` | Reviewed baseline, canonical Spec diff, projection targets, expected source versions, delivery commit |
-| `landed` | Default-branch commit and ancestry proving code and canonical Specs landed |
+| `landed` | Default-branch tip equal to the delivery commit after a `--ff-only` merge (no merge commit); old→new rebase hash mapping with `git range-diff` equivalence when landing rewrote the branch |
 | `ledger_refreshed` | Target workspace/path, verified item IDs, source references, version/hash |
 | `archived` | Archive path and delivered outcome |
 | `cleaned` | Guard result and confirmed worktree/branch removal |
@@ -112,11 +112,24 @@ and publish it to the identified workspace after canonical Specs land.
    `wt-guard.sh`; it must report clean. For auto-musk the expected group is
    `D:/autostack/.wt/musk-NNN/auto-musk`, branch `plan-NNN-dev`.
    Check ownership rather than inferring it from a name.
-3. Land the verified delivery commit on the actual default branch. If default
-   advanced beyond the prepared integration base, reconcile in the worktree
-   and refresh affected verification before landing.
-4. Confirm ancestry and the expected canonical Spec contents on main. Run the
-   appropriate integration/smoke checks so main is known-good. Record `landed`.
+3. Land the verified delivery commit on the actual default branch with linear
+   history. In the worktree, rebase the development branch onto the default
+   branch (`git rebase <default>`), resolving conflicts in the worktree; if
+   conflicts touch code or Spec targets, refresh the affected verification on
+   the rebased state before landing. Development branches are local and
+   temporary (the remote carries only the default branch), so rewriting them
+   is safe; the default branch history is never rewritten. When the rebase
+   changes hashes bound by review evidence or receipts, record the old→new
+   mapping and prove patch equivalence with `git range-diff` (a fully equal
+   range-diff is the safe-rewrite proof); the rebased tip becomes the
+   delivery commit. Then in the main checkout land with
+   `git merge --ff-only <dev-branch>`: no merge commit may be created, and a
+   refused fast-forward means the rebase was skipped or incomplete — stop and
+   reconcile instead of falling back to a plain merge. With `git rerere`
+   enabled, replayed commits reuse recorded conflict resolutions.
+4. Confirm the default-branch tip equals the landed delivery commit and the
+   expected canonical Spec contents are on main. Run the appropriate
+   integration/smoke checks so main is known-good. Record `landed`.
 5. Publish/verify the derived ledger for the correct workspace. A live service
    uses its existing non-archiving operations; inspect their current schema and
    target workspace first. Respect any existing write-approval policy.

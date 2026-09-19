@@ -30,18 +30,26 @@ D:/autostack/<repo> 主检出`。
 第一行命名；其余场景按第二行。第三行适用于任何"顺带要改依赖库"的任务——同组
 并排使 `../auto-lang` 相对路径直接成立，**不再用 junction**。
 
-### 收尾（合回 + 清理）
+### 收尾（rebase 后快进合回 + 清理）
 
-任务或计划完成后：
+任务或计划完成后（保持主分支线性历史，不产生 merge commit）：
 
 ```bash
+# ① 在 worktree 内：把主分支最新提交 rebase 到开发分支之下
 bash D:/autostack/wt-guard.sh D:/autostack/.wt/<组>/<项目>   # 必须输出 clean 才继续
-git merge <dev-branch>            # 把开发分支合回该项目主分支
+git rebase main                   # 冲突就地解决；触碰代码后重跑受影响验证
+bash D:/autostack/wt-guard.sh D:/autostack/.wt/<组>/<项目>   # rebase 后再验一次 clean
+# ② 在主检出：快进合回并清理
+git merge --ff-only <dev-branch>  # 必须快进成功；失败说明 rebase 未做完，回 ①
 git worktree remove D:/autostack/.wt/<组>/<项目>
 git branch -d <name>              # 删掉对应的开发分支
 # 组内已无兄弟 worktree 时删除组目录：rmdir D:/autostack/.wt/<组>
 ```
 
+- 开发分支是临时本地分支（远程只有主分支），rebase 改写它是安全的；
+  主分支历史只增不改。`--ff-only` 失败不得改用普通 merge 兜底，回 ① 处理。
+- 有收据/评审证据绑定了 rebase 前的 commit hash 时，用 `git range-diff`
+  验证补丁逐条等价，并在收据里记录旧→新映射。
 - 依赖项目的 worktree 不等整体收尾——一旦本项目消费了改动（集成验证/锁文件更新
   通过），就尽快合回该依赖项目的主分支并清理，不留悬挂 worktree。
 - 合回前 worktree 必须干净；有未提交改动时先向用户确认，不要静默丢弃。
