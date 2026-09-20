@@ -33,7 +33,7 @@ widget TagInput(value: obj, placeholder: str) {
         update(obj),
         removetag(str),
         EntryInput,
-        EntryKeydown(Value),
+        EntryKeydown,
     }
     model {
         var input_val str = ""
