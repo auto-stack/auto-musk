@@ -538,15 +538,21 @@ try {
     const issues = catalogCheck();
     // PLAN-080：live-required 面。缺省（离线）显式 skip 留痕不静默绿；
     // `check --live` 将 missing/stale/failed 升格为 issue（required 准入）。
+    // 升格行产生于 catalogCheck 的 printIssues 之后，必须在此补打印；
+    // issues 非空须置退出码（F-R1：此前目录红/live 红均静默零退出）。
     const liveDir = path.join(ROOT, 'tmp/ui-parity/PLAN-080');
     const liveStates = liveReceiptStatus(catalog, liveDir);
+    const liveIssues = [];
     for (const s of liveStates) {
       if (s.state === 'ok') continue;
       const line = `live-required '${s.id}': ${s.state} — ${s.reason}`;
-      if (has('--live')) issues.push(line);
+      if (has('--live')) liveIssues.push(line);
       else console.error(`⏭ ${line}`);
     }
-    if (!issues.length) console.log(`ui-parity: catalog PASS (${inventory().length} declarations, ${effectiveCases(catalog).length} cases${liveStates.length ? `, live ${liveStates.filter(s => s.state === 'ok').length}/${liveStates.length} ok` : ''})`);
+    issues.push(...liveIssues);
+    if (liveIssues.length) printIssues(liveIssues);
+    if (issues.length) process.exitCode = 1;
+    else console.log(`ui-parity: catalog PASS (${inventory().length} declarations, ${effectiveCases(catalog).length} cases${liveStates.length ? `, live ${liveStates.filter(s => s.state === 'ok').length}/${liveStates.length} ok` : ''})`);
   }
   else if (command === 'prepare') prepare();
   else if (command === 'run') await run();
