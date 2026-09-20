@@ -1,6 +1,6 @@
 # PLAN-079 Evidence Ledger — App 全流程、后端矩阵与持续一致性门
 
-> 生成时间：2026-09-20T05:44:24.042Z  
+> 生成时间：2026-09-20T05:55:06.357Z  
 > 计划编号：PLAN-079  
 > 状态：执行完成 (execution_done)  
 > 基线 Commit: auto-musk `bb51b4248247b5f1d7ac2d0d8ef1a9613d928c76`  
@@ -34,11 +34,11 @@
 
 | Case | Mode | Status | Evidence | Duration | Reset Event Spy | Screenshot |
 |---|---|---|---|---|---|---|
-| `app-business-views` | **vm** | `snapshot-ok` | `runtime-smoke` | 4120ms | PASS | `plan079-app-business-views-vm.png` (saved) |
-| `app-chat-flow` | **vm** | `snapshot-ok` | `runtime-smoke` | 3885ms | PASS | `plan079-app-chat-flow-vm.png` (saved) |
-| `app-login-flow` | **vm** | `snapshot-ok` | `runtime-smoke` | 3807ms | PASS | `plan079-app-login-flow-vm.png` (saved) |
-| `app-login-flow` | **vue** | `http-ok` | `runtime-smoke` | 73636ms | — | — (smoke) |
-| `app-mode-matrix` | **vm** | `snapshot-ok` | `runtime-smoke` | 3828ms | PASS | `plan079-app-mode-matrix-vm.png` (saved) |
+| `app-business-views` | **vm** | `snapshot-ok` | `runtime-smoke` | 4082ms | PASS | `plan079-app-business-views-vm.png` (saved) |
+| `app-chat-flow` | **vm** | `snapshot-ok` | `runtime-smoke` | 3830ms | PASS | `plan079-app-chat-flow-vm.png` (saved) |
+| `app-login-flow` | **vm** | `snapshot-ok` | `runtime-smoke` | 3877ms | PASS | `plan079-app-login-flow-vm.png` (saved) |
+| `app-login-flow` | **vue** | `http-ok` | `runtime-smoke` | 78903ms | — | — (smoke) |
+| `app-mode-matrix` | **vm** | `snapshot-ok` | `runtime-smoke` | 3920ms | PASS | `plan079-app-mode-matrix-vm.png` (saved) |
 
 ### 截图与状态快照落点
 - `app-login-flow` (VM): `examples/musk-widgets-gallery/src/front/tests/screenshots/plan079-app-login-flow-vm.png`
