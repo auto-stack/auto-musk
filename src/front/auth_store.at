@@ -57,6 +57,17 @@ store AuthStore {
                     .token = .token
                 }
             }
+            // 本地应用免登录（用户裁定 2026-09-21）：无持久化凭据即合成
+            // local 身份直进 shell。后端本无 auth 中间件（token 仅按需
+            // 携带），登录页自此无回路（Logout 零派发点）——LoginPage 保留
+            // 为死分支。不落 localStorage：每次 Init 重合成，幂等。
+            if .token == None {
+                .token = "local"
+                .user = AuthUser {
+                    username: "local",
+                    role: "local",
+                }
+            }
         }
 
         // Login(username, password): 调 auth_login，成功则存 token/user。
