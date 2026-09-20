@@ -4,7 +4,7 @@ status: executing
 feature_name: 桌面实机验收暴露的 VM 轨缺陷批次修复（gallery 真机一致性臂 + AutoUI 级 button 默认重置 + settings 类弹窗 popover 化）
 author: [agent]
 created_at: 2026-09-20T15:59:36+08:00
-updated_at: 2026-09-21T00:55:00+08:00
+updated_at: 2026-09-21T01:20:00+08:00
 plan_revision: 1
 current_step: 4
 total_steps: 6
@@ -318,6 +318,37 @@ check`）全绿为准入。
   109 case，live 3/4 ok——settings-rows 红于登记的字体度量余项 §10-10）。
 
 ## 9. 复审记录
+
+- `stage: review | plan_id: PLAN-080 | plan_revision: 1 | outcome: blocked
+  （终局 reviewed 的前置=用户验收决定；计划保持 executing，T-01/T-02/T-03/T-06
+  闭环面全部复核通过） | reviewed_commit: auto-musk f5d5558（worktree
+  plan-080-dev clean） | base_commit: d313fa1 | dependency_revisions:
+  auto-lang 7d6888076（worktree clean） | spec_inputs: ui-default-styles.md
+  b3c04591… / ui-parity.md 648a9270… / ui-compositions.md 8a815b57…
+  （88f4ad2，与 r2 复审哈希一致；SD-02 经 F-R1 后与代码相符） |
+  acceptance_results: AC-01 pass / AC-02 pass / AC-03 partial（真机手验）/
+  AC-04 pass / AC-05 partial（崩溃根修+真机手验）/ AC-06 partial（字体度量
+  族）/ AC-07 pass | findings: 无新增（余留三项均为计划内已登记开项） |
+  evidence: 下 | next: 用户二选一（见 blocked 解除条件）`
+  —— 独立性限制说明：终局复审与修复轮同会话，裁定全部自工件/命令重建。
+  **①F-R1 终局复验**：离线 check=PASS exit 0（108 声明/109 case，live 3/4
+  ok——三份 PASS 收据 LIVE_SOURCES 哈希未 stale，⏭ settings-rows 留痕）；
+  check --live=❌ 1 issue exit 1（硬红兑现）。**②F-R2 终局复验**：终局基线
+  复跑 `auto build` 全 pipeline 绿（vue-tsc && vite，11.25s）；收据
+  docs/reports/ui-parity/080-web-gate.p660d1.md 在树（f5d5558，含修前双红/
+  绕行/修后全绿与基线有效性论证）；P660-D1 已在 auto-lang 债册销记
+  （7d6888076）；cargo tf 3649/3652 于 7d6888076 内容上运行（3 败=已定罪
+  前置红，零新增——复用理由：同一提交内容、修复轮内全部编辑后运行）。
+  **③沿用证据**（复用理由：相关面自 r2 复审以来零代码变更——9b0e857 仅
+  scripts/ui-parity.mjs、f5d5558 仅 docs）：AC-02 chats 像素右缘 1263.5≈1264
+  （hits 32k、ratio 0.674≤0.72）、AC-03 ws 路径双臂+sessionClickOk 双臂
+  true、AC-05 锚定/re-press/外点关双臂绿、AC-04 musk_vm_track 63/63+button
+  20/20。**blocked 解除条件（二选一）**：(a) 用户完成真机手验清单（外点/ESC
+  关闭、点击每类会话、stale 会话反馈——AC-03/AC-05 尾项）且 §10-9/§10-10
+  auto-lang 独立收口完成后回本计划终验 → re-review → reviewed；(b) 用户裁定
+  带债落地：§10-9/§10-10/真机手验移出本计划（KNOWN-DEBT 或后续计划承接）=
+  验收合同修订，需明示授权后 re-review 按 pass-with-debts 出终局。复审不改
+  实现、不单方扩范围——§10-10 字体度量族若裁定入本计划收口，走 work 指令。
 
 - `stage: work | plan_id: PLAN-080 | plan_revision: 1 | outcome: F-R1/F-R2 修复收口 →
   review | code_commit: auto-musk f5d5558（+9b0e857）+ auto-lang 7d6888076 |
