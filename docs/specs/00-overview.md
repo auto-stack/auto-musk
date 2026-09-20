@@ -12,19 +12,19 @@ auto-musk 是 Forge 继任者——Rust 后端的 AI 编码 agent。既是 CLI�
 2. **Spec 双落点**：结构化 ledger（`.autoos/specs.json` 6 区 + 状态机）+ 文件树知识层（`docs/specs/`，本目录）。
 3. **Plans 动态执行**：`docs/plans/NNN-*.md` 文件树，5 态状态机（drafting→executing→execution_done→review_done→merged），merge 沉淀到 Spec。
 4. **Relay 编排**：PipelineEngine 流水线 + TaskPlan DAG + 子会话（spawn_relay/dispatch/bring_in）。
-5. **双前端 parity**：原生 `web/`（Vue3 手写 SPA）+ Auto 轨 `.at` 源（`src/front/*.at` → `auto build` → `gen/front/vue/`）。Block 组件组已全量原生化（Plan 028）：纯函数/SSE/HTTP/样式以 .at 为单一真源，平台强依赖（markdown 渲染/SSE/HTTP）经平台协议声明（`platform:markdown`、`Sse.*`、`Http.*`），同源 .at 未来可直接复用于 VM/Rust 后端。
+5. **双前端 parity（PLAN-074–079）**：Auto 轨 `.at` 源（`src/front/*.at`）为全量单一真源，经 AutoUI 编译器平权交付双端目标：生成 Vue 3 SPA（`gen/front/vue/`）与原生 VM/Iced 桌面 UI（`auto run -r vm`）。Block/Message 组件、业务视图与全局外壳（App）在两端共享同一套数据契约与主题（`pac.at` 主题紫）。后端同时支持 AutoVM HTTP 服务、Rust merged 进程内服务与传统 `musk serve`（:8080）。
 
 ## 架构总览
 
 ```
-auto-ai（LLM 层）               auto-lang（codegen 工具）
-  aaid daemon :17654              auto build（.at → Vue SFC + Rust）
+auto-ai（LLM 层）               auto-lang / AutoUI（编译器与 VM）
+  aaid daemon :17654              auto run / auto build（.at → Vue / VM 解释执行）
        ↑                               ↑
-       |                          auto-musk（主项目）
-  musk serve :8080 ←── backend/crates/musk（Rust axum）
+       |                          auto-musk（主项目 src/front/*.at）
+  musk serve :8080 ←── backend/crates/musk（Rust axum / AutoVM HTTP / Merged）
        |                               ↑
-       ├── web/ :3333（原生 Vue3 手写 SPA）
-       └── gen/front/vue/ :3334（Auto 轨 .at 生成）
+       ├── 生成 Vue 3 目标（gen/front/vue/ :17200 / Vite）
+       └── 原生 VM/Iced 目标（AutoUI MCP :17476 / 桌面图形终端）
 ```
 
 ## workspace 数据隔离

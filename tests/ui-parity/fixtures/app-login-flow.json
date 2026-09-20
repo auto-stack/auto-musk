@@ -1,0 +1,16 @@
+{
+  "unit": "App",
+  "plan": "PLAN-079",
+  "authenticated": false,
+  "initial_view": "chats",
+  "expect": {
+    "visible": [
+      "app-login-flow",
+      "Reset fixture",
+      "Auto Musk",
+      "用户名",
+      "密码",
+      "登录"
+    ]
+  }
+}

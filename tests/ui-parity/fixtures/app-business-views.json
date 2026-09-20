@@ -1,0 +1,15 @@
+{
+  "unit": "App",
+  "plan": "PLAN-079",
+  "authenticated": true,
+  "initial_view": "specs",
+  "expect": {
+    "visible": [
+      "app-business-views",
+      "Reset fixture",
+      "规范",
+      "文件",
+      "知识库"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "unit": "App",
+  "plan": "PLAN-079",
+  "authenticated": true,
+  "initial_view": "chats",
+  "expect": {
+    "visible": [
+      "app-mode-matrix",
+      "Reset fixture",
+      "会话",
+      "选择工作目录",
+      "设置"
+    ]
+  }
+}

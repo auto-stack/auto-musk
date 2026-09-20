@@ -158,22 +158,55 @@ store ForgeStore {
   }
   receipt.boundaryChanges.push({ path: 'src/front/forge_store.at', purpose: 'isolate expansion/cancel side effects', sha256: hash(storeSource) });
 
-  const unit = inventory().find(u => u.id === c.unit);
+  let source;
   if (c.unit === 'App') {
-    throw new Error('App is a composition case owned by PLAN-079, not mounted recursively in the gallery host');
-  }
-  const module = unit.source.replace('src/front/', '').replace(/\.at$/, '').replaceAll('/', '.');
-  const props = fixture.props ?? {};
-  // PLAN-077：字段类型按 fixture 值类型声明——字符串 prop 必须落 `str`；
-  // `Value` 字面量初始化走另一条 VM 物化路径（顶层字符串被拆成字符码
-  // 列表，user-message 内容渲染 "72105115..." 实证），对象/数组才用 Value。
-  const fieldType = v => typeof v === 'string' ? 'str' : typeof v === 'boolean' ? 'bool' : typeof v === 'number' ? (Number.isInteger(v) ? 'int' : 'float') : 'Value';
-  const fields = Object.entries(props).map(([key, v]) => `var fixture_${key} ${fieldType(v)} = ${at(v)}`).join('\n        ');
-  const bindings = Object.keys(props).map(k => `${k}: .fixture_${k}`).join('\n                ');
-  const chat = c.unit === 'ChatMessage';
-  const instances = fixture.instances ?? [props];
-  const fieldsChat = instances.map((x, i) => `var sample${i} Value = ${at(x.msg)}\n        var streaming${i} bool = ${at(x.is_streaming ?? false)}`).join('\n        ');
-  const chatViews = instances.map((x, i) => `col {
+    let appSrc = fs.readFileSync(path.join(ROOT, 'src/front/app.at'), 'utf8');
+    appSrc = appSrc.replace('use store: AuthStore', 'use store: AuthStore\nuse forge_store: ForgeStore');
+    appSrc = appSrc.replace('msg Msg {', 'msg Msg {\n        Reset,');
+    appSrc = appSrc.replace('model {', `model {\n        var gallery_case str = ${at(c.id)}\n        var spy_events int = 0`);
+    const authSetup = fixture.authenticated ? `
+            localStorage.setItem("musk_jwt", "mock_token");
+            localStorage.setItem("musk_user", "{\\"username\\":\\"admin\\",\\"role\\":\\"admin\\"}");
+            localStorage.setItem("musk_workspace", "musk-demo");
+            AuthStore.Init();
+            ForgeStore.Init();
+            .current_view = ${at(fixture.initial_view ?? 'chats')};
+            vsSetView(${at(fixture.initial_view ?? 'chats')});` : `
+            localStorage.removeItem("musk_jwt");
+            localStorage.removeItem("musk_user");
+            AuthStore.Logout();
+            ForgeStore.Init();
+            .current_view = "chats";
+            vsSetView("chats");`;
+    const resetHandler = `
+        .Reset -> {
+            ForgeStore.ThinkToggle("");
+            ForgeStore.ToolToggle("");
+            .spy_events = .spy_events + 2;
+            ${authSetup}
+        }`;
+    appSrc = appSrc.replace('.Init -> {', `${resetHandler}\n        .Init -> {\n${authSetup}`);
+    const harnessViewStart = `view {\n        col {\n            style: "w-full h-screen bg-background"\n            row {\n                style: "w-full gap-4 items-center px-4 py-1.5 bg-muted/50 border-b border-border text-xs shrink-0"\n                text .gallery_case\n                text "Spy events " + .spy_events\n                button {\n                    text "Reset fixture"\n                    onclick: .Reset\n                }\n            }\n        if store.authenticated != true {`;
+    appSrc = appSrc.replace(/view\s*\{\s*if\s+store\.authenticated\s*!=\s*true\s*\{/, harnessViewStart);
+    appSrc = appSrc.replace(/row\s*\{\s*style:\s*"h-screen w-full bg-background"/, 'row {\n                style: "flex-1 w-full bg-background min-h-0"');
+    const oldViewEnd = `                    } else {\n                        ChatsView\n                    }\n                }\n            }\n        }\n    }`;
+    const newViewEnd = `                    } else {\n                        ChatsView\n                    }\n                }\n            }\n        }\n        }\n    }`;
+    appSrc = appSrc.replace(oldViewEnd, newViewEnd);
+    source = appSrc;
+  } else {
+    const unit = inventory().find(u => u.id === c.unit);
+    const module = unit.source.replace('src/front/', '').replace(/\.at$/, '').replaceAll('/', '.');
+    const props = fixture.props ?? {};
+    // PLAN-077：字段类型按 fixture 值类型声明——字符串 prop 必须落 `str`；
+    // `Value` 字面量初始化走另一条 VM 物化路径（顶层字符串被拆成字符码
+    // 列表，user-message 内容渲染 "72105115..." 实证），对象/数组才用 Value。
+    const fieldType = v => typeof v === 'string' ? 'str' : typeof v === 'boolean' ? 'bool' : typeof v === 'number' ? (Number.isInteger(v) ? 'int' : 'float') : 'Value';
+    const fields = Object.entries(props).map(([key, v]) => `var fixture_${key} ${fieldType(v)} = ${at(v)}`).join('\n        ');
+    const bindings = Object.keys(props).map(k => `${k}: .fixture_${k}`).join('\n                ');
+    const chat = c.unit === 'ChatMessage';
+    const instances = fixture.instances ?? [props];
+    const fieldsChat = instances.map((x, i) => `var sample${i} Value = ${at(x.msg)}\n        var streaming${i} bool = ${at(x.is_streaming ?? false)}`).join('\n        ');
+    const chatViews = instances.map((x, i) => `col {
                 style: "w-full gap-2"
                 text "Instance ${i + 1}"
                 ChatMessage {
@@ -187,12 +220,12 @@ store ForgeStore {
                     on_fork_from: .ForkFrom($event)
                 }
             }`).join('\n');
-  const reset = chat ? instances.map((x, i) => `.sample${i} = ${at(x.msg)}\n            .streaming${i} = ${at(x.is_streaming ?? false)}`).join('\n            ') :
-    Object.entries(props).map(([k,v]) => `.fixture_${k} = ${at(v)}`).join('\n            ');
-  const transitions = fixture.transitions ?? [];
-  const transitionHandlers = transitions.map((t, i) => `.Step${i} -> {\n.fixture_visible = ${t.mounted ?? true}\n${(t.instances ?? []).map((x, j) => `.sample${j} = ${at(x.msg)}\n.streaming${j} = ${at(x.is_streaming ?? false)}`).join('\n')}\n}`).join('\n');
-  const transitionButtons = transitions.map((t, i) => `button { text ${at(t.label)}\n onclick: .Step${i}\n }`).join('\n');
-  const source = `// GENERATED gallery host. Production widget files are hash-checked byte copies.
+    const reset = chat ? instances.map((x, i) => `.sample${i} = ${at(x.msg)}\n            .streaming${i} = ${at(x.is_streaming ?? false)}`).join('\n            ') :
+      Object.entries(props).map(([k,v]) => `.fixture_${k} = ${at(v)}`).join('\n            ');
+    const transitions = fixture.transitions ?? [];
+    const transitionHandlers = transitions.map((t, i) => `.Step${i} -> {\n.fixture_visible = ${t.mounted ?? true}\n${(t.instances ?? []).map((x, j) => `.sample${j} = ${at(x.msg)}\n.streaming${j} = ${at(x.is_streaming ?? false)}`).join('\n')}\n}`).join('\n');
+    const transitionButtons = transitions.map((t, i) => `button { text ${at(t.label)}\n onclick: .Step${i}\n }`).join('\n');
+    source = `// GENERATED gallery host. Production widget files are hash-checked byte copies.
 use ${module}: ${c.unit}
 use store: ForgeStore
 use.web platformInjectStyles from "src/front/ports/platform.at"
@@ -248,6 +281,7 @@ widget App {
     }
 }
 `;
+  }
   const entry = path.join(GALLERY, 'src/front/app.at');
   if (!fs.existsSync(entry) || fs.readFileSync(entry, 'utf8') !== source) {
     fs.writeFileSync(entry, source);

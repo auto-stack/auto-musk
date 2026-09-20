@@ -1,0 +1,16 @@
+{
+  "unit": "App",
+  "plan": "PLAN-079",
+  "authenticated": true,
+  "initial_view": "chats",
+  "expect": {
+    "visible": [
+      "app-chat-flow",
+      "Reset fixture",
+      "会话",
+      "规范",
+      "新建会话",
+      "选择工作目录"
+    ]
+  }
+}

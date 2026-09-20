@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "plan": "PLAN-078",
+  "plan": "PLAN-079",
   "unitPolicy": "auto-reachable",
   "casePolicy": "one-per-reachable-plus-inline",
   "units": [],
@@ -370,6 +370,46 @@
       "state": "chats-body-view",
       "owner": "PLAN-078",
       "plan": "PLAN-078"
+    },
+    {
+      "id": "app-login-flow",
+      "unit": "App",
+      "logicalUnit": "app",
+      "fixture": "app-login-flow.json",
+      "mode": "render-and-interact",
+      "state": "login-ready-and-toggle",
+      "owner": "PLAN-079",
+      "plan": "PLAN-079"
+    },
+    {
+      "id": "app-chat-flow",
+      "unit": "App",
+      "logicalUnit": "app",
+      "fixture": "app-chat-flow.json",
+      "mode": "render-and-interact",
+      "state": "authenticated-chat-stream",
+      "owner": "PLAN-079",
+      "plan": "PLAN-079"
+    },
+    {
+      "id": "app-business-views",
+      "unit": "App",
+      "logicalUnit": "app",
+      "fixture": "app-business-views.json",
+      "mode": "render-and-interact",
+      "state": "authenticated-nav-views",
+      "owner": "PLAN-079",
+      "plan": "PLAN-079"
+    },
+    {
+      "id": "app-mode-matrix",
+      "unit": "App",
+      "logicalUnit": "app",
+      "fixture": "app-mode-matrix.json",
+      "mode": "render-and-interact",
+      "state": "shell-controls-matrix",
+      "owner": "PLAN-079",
+      "plan": "PLAN-079"
     }
   ]
 }
