@@ -82,124 +82,107 @@ fn mention_is_path_char(c str) bool {
  *  仅作用于 Agent @词;token badge 样式独立（气泡/白底上下文恒可读）。 */
 fn render_mentions(text str, names obj, cls str, paths obj) str {
     let escaped = Regex.replace(Regex.replace(Regex.replace(text, "&", "&amp;", "g"), "<", "&lt;", "g"), ">", "&gt;", "g")
-    var out = ""
-    var i = 0
-    let n = escaped.length
-    for i < n {
-        if escaped.sub(i, i + 1) == "@" {
-            // 引用 token 分支（需求⑭）：plan/ 或 spec/ 前缀 + 路径字符。
-            var token = ""
-            var ticon = ""
-            var j2 = i + 1
-            if i + 6 <= n {
-                if escaped.sub(i + 1, i + 2) == "p" {
-                    if escaped.sub(i + 2, i + 3) == "l" {
-                        if escaped.sub(i + 3, i + 4) == "a" {
-                            if escaped.sub(i + 4, i + 5) == "n" {
-                                if escaped.sub(i + 5, i + 6) == "/" {
-                                    var d = i + 6
-                                    var dig = ""
-                                    for d < n {
-                                        let c2 = escaped.sub(d, d + 1)
-                                        if c2 >= "0" && c2 <= "9" {
-                                            dig = dig + c2
-                                            d = d + 1
-                                        } else {
-                                            break
-                                        }
-                                    }
-                                    if dig != "" {
-                                        token = "@plan/" + dig
-                                        ticon = "📋"
-                                        j2 = d
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if token == "" {
-                if i + 6 <= n {
-                    if escaped.sub(i + 1, i + 2) == "s" {
-                        if escaped.sub(i + 2, i + 3) == "p" {
-                            if escaped.sub(i + 3, i + 4) == "e" {
-                                if escaped.sub(i + 4, i + 5) == "c" {
-                                    if escaped.sub(i + 5, i + 6) == "/" {
-                                        var d2 = i + 6
-                                        var rel = ""
-                                        for d2 < n {
-                                            let c3 = escaped.sub(d2, d2 + 1)
-                                            if mention_is_path_char(c3) {
-                                                rel = rel + c3
-                                                d2 = d2 + 1
-                                            } else {
-                                                break
-                                            }
-                                        }
-                                        if rel != "" {
-                                            token = "@spec/" + rel
-                                            ticon = "📄"
-                                            j2 = d2
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if token != "" {
-                // r6：hover 路径——spec 的 relpath 即路径；plan 查 paths
-                // 映射（key 对齐 build_mention_names 的 k_ 前缀防原型链）。
-                var href = ""
-                if token.sub(1, 2) == "s" {
-                    href = token.sub(6)
+    // F-UAT-1（PLAN-080 UAT 2026-09-21）：VM 字符串原语 length=字符数、
+    // sub=字节切片（str-parity audit B1 字节语义 + Plan 057 边界钳制），
+    // 旧逐字符扫描 sub(i, i+1) 在 CJK 上恒为空串 → out 累计为空 → 气泡
+    // 空文本（真机空泡实证：中文空泡、英文正常）。重写为 split("@") 分段
+    // + 段内字节游标：mention token 恒 ASCII（\w 与 -/. path 字节），字节
+    // =字符；非 ASCII 尾段整段拼接（sub 剩余段 LEN 用字符数请求，必然
+    // 覆盖到串尾由钳制收口），绝不逐字符切片。对字符/字节两种语义双世界
+    // 正确；web 轨（JS length/sub 均 code-unit）行为不变。
+    let parts = escaped.split("@")
+    var out = parts[0] ?? ""
+    var k = 1
+    for k < parts.length {
+        let seg = parts[k] ?? ""
+        // plan/ 分支（5 字节前缀 + 数字 run）
+        var token = ""
+        var ticon = ""
+        var consumed = 0
+        if seg.sub(0, 5) == "plan/" {
+            var d = 5
+            var dig = ""
+            for d < seg.length {
+                let c2 = seg.sub(d, d + 1)
+                if c2 >= "0" && c2 <= "9" {
+                    dig = dig + c2
+                    d = d + 1
                 } else {
-                    let hit = paths["k_" + token.sub(1)]
-                    if hit != None {
-                        if hit != "" {
-                            href = hit
-                        }
-                    }
+                    break
                 }
-                var title_attr = ""
-                if href != "" {
-                    title_attr = " title=\"" + mention_attr_escape(href) + "\""
-                }
-                out = out + "<span class=\"mention-ref inline-flex items-center gap-[0.2rem] rounded-full border border-white/40 bg-white/15 hover:bg-white/30 px-[0.45rem] py-[0.04rem] font-mono text-[0.82em] font-medium leading-[1.5] cursor-help whitespace-nowrap align-baseline\"" + title_attr + ">" + ticon + " " + token + "</span>"
-                i = j2
-            } else {
-                var j = i + 1
-                var word = ""
-                for j < n {
-                    let c = escaped.sub(j, j + 1)
-                    if mention_is_word_char(c) {
-                        word = word + c
-                        j = j + 1
+            }
+            if dig != "" {
+                token = "@plan/" + dig
+                ticon = "📋"
+                consumed = d
+            }
+        }
+        if token == "" {
+            if seg.sub(0, 5) == "spec/" {
+                var d2 = 5
+                var rel = ""
+                for d2 < seg.length {
+                    let c3 = seg.sub(d2, d2 + 1)
+                    if mention_is_path_char(c3) {
+                        rel = rel + c3
+                        d2 = d2 + 1
                     } else {
                         break
                     }
                 }
-                // 正则 \w+ 至少 1 字符才命中；word 为空串时按字面 @ 处理。
-                if word != "" {
-                    let display = names["k_" + word.to_lower()]
-                    if display != None && display != "" {
-                        out = out + "<span class=\"inline-mention " + cls + "\">@" + display + "</span>"
-                        i = j
-                    } else {
-                        out = out + "@"
-                        i = i + 1
-                    }
-                } else {
-                    out = out + "@"
-                    i = i + 1
+                if rel != "" {
+                    token = "@spec/" + rel
+                    ticon = "📄"
+                    consumed = d2
                 }
             }
-        } else {
-            out = out + escaped.sub(i, i + 1)
-            i = i + 1
         }
+        if token != "" {
+            // r6：hover 路径——spec 的 relpath 即路径；plan 查 paths 映射
+            // （key 对齐 build_mention_names 的 k_ 前缀防原型链）。
+            var href = ""
+            if token.sub(1, 2) == "s" {
+                href = token.sub(6)
+            } else {
+                let hit = paths["k_" + token.sub(1)]
+                if hit != None {
+                    if hit != "" {
+                        href = hit
+                    }
+                }
+            }
+            var title_attr = ""
+            if href != "" {
+                title_attr = " title=\"" + mention_attr_escape(href) + "\""
+            }
+            out = out + "<span class=\"mention-ref inline-flex items-center gap-[0.2rem] rounded-full border border-white/40 bg-white/15 hover:bg-white/30 px-[0.45rem] py-[0.04rem] font-mono text-[0.82em] font-medium leading-[1.5] cursor-help whitespace-nowrap align-baseline\"" + title_attr + ">" + ticon + " " + token + "</span>"
+            out = out + seg.sub(consumed, seg.length)
+        } else {
+            var word = ""
+            var j = 0
+            for j < seg.length {
+                let c = seg.sub(j, j + 1)
+                if mention_is_word_char(c) {
+                    word = word + c
+                    j = j + 1
+                } else {
+                    break
+                }
+            }
+            // 正则 \w+ 至少 1 字符才命中；word 为空串时按字面 @ 处理。
+            if word != "" {
+                let display = names["k_" + word.to_lower()]
+                if display != None && display != "" {
+                    out = out + "<span class=\"inline-mention " + cls + "\">@" + display + "</span>"
+                    out = out + seg.sub(j, seg.length)
+                } else {
+                    out = out + "@" + seg
+                }
+            } else {
+                out = out + "@" + seg
+            }
+        }
+        k = k + 1
     }
     return out
 }
