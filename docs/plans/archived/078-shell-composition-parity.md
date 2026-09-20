@@ -1,12 +1,13 @@
 ---
 plan_id: PLAN-078
-status: drafting
+status: archived
+completion_kind: delivered
 feature_name: 输入、导航、业务页面组件与组合一致性
 author: [agent]
 created_at: 2026-09-19T00:00:00Z
-updated_at: 2026-09-19T00:00:00Z
+updated_at: 2026-09-20T13:25:00Z
 plan_revision: 1
-current_step: 0
+current_step: 5
 total_steps: 5
 supersedes_spec_components:
   - "docs/specs/modules/web-input-contracts.md"
@@ -124,15 +125,15 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 
 ## 8. 执行步骤
 
-- [ ] **T-01 补齐非消息单元场景**（依赖：阶段前置；覆盖AC-01）：按074表覆盖输入/导航/会话/文件/Wiki/Specs/Plans/白名单可达组件；每个单元空/加载/错误/成功以及适用编辑状态，遗留项需可达性证据。 落点：§4源码锚点及新增 `docs/reports/ui-parity/078-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：非消息单元清单与场景覆盖检查，预期零未归属。
+- [x] **T-01 补齐非消息单元场景**（依赖：阶段前置；覆盖AC-01）：按074表覆盖输入/导航/会话/文件/Wiki/Specs/Plans/白名单可达组件；每个单元空/加载/错误/成功以及适用编辑状态，遗留项需可达性证据。 落点：§4源码锚点及新增 `docs/reports/ui-parity/078-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：非消息单元清单与场景覆盖检查，预期零未归属。
 
-- [ ] **T-02 输入能力收敛**（依赖：T-01；覆盖AC-02）：原生输入auto-grow/max-height/内滚、focus、IME、mention键盘导航、Enter与Shift+Enter、发送停止disabled；Web DOM与VM native可不同，但observable合同相同。 落点：§4源码锚点及新增 `docs/reports/ui-parity/078-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：实际中英文键盘/IME与mention测试，预期组词、选区、发送停止和自适应几何符合合同。
+- [x] **T-02 输入能力收敛**（依赖：T-01；覆盖AC-02）：原生输入auto-grow/max-height/内滚、focus、IME、mention键盘导航、Enter与Shift+Enter、发送停止disabled；Web DOM与VM native可不同，但observable合同相同。 落点：§4源码锚点及新增 `docs/reports/ui-parity/078-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：实际中英文键盘/IME与mention测试，预期组词、选区、发送停止和自适应几何符合合同。
 
-- [ ] **T-03 导航浮层和壳收敛**（依赖：T-02；覆盖AC-03）：收缩rail、Logo、主题/语言、工作区/设置菜单、删除确认；优先AutoUI Popover/Overlay承接定位和焦点。验证窗口边界/遮挡/点击外部关闭，不能用内联面板当等价。 落点：§4源码锚点及新增 `docs/reports/ui-parity/078-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：真实键盘/鼠标打开关闭浮层、主题/导航切换，预期焦点、边界与选中态正确。
+- [x] **T-03 导航浮层和壳收敛**（依赖：T-02；覆盖AC-03）：收缩rail、Logo、主题/语言、工作区/设置菜单、删除确认；优先AutoUI Popover/Overlay承接定位和焦点。验证窗口边界/遮挡/点击外部关闭，不能用内联面板当等价。 落点：§4源码锚点及新增 `docs/reports/ui-parity/078-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：真实键盘/鼠标打开关闭浮层、主题/导航切换，预期焦点、边界与选中态正确。
 
-- [ ] **T-04 页面组合验证**（依赖：T-03；覆盖AC-04）：长树/文件预览/文档编辑保存、Specs类别/详情/编辑、Plans和Wiki布局、白名单表单；引擎消费复用076，布局修复不新增业务功能。 落点：§4源码锚点及新增 `docs/reports/ui-parity/078-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：可控数据服务驱动加载/空/错误/编辑保存，预期各页面生产组件无占位缺件。
+- [x] **T-04 页面组合验证**（依赖：T-03；覆盖AC-04）：长树/文件预览/文档编辑保存、Specs类别/详情/编辑、Plans和Wiki布局、白名单表单；引擎消费复用076，布局修复不新增业务功能。 落点：§4源码锚点及新增 `docs/reports/ui-parity/078-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：可控数据服务驱动加载/空/错误/编辑保存，预期各页面生产组件无占位缺件。
 
-- [ ] **T-05 多尺寸与交接**（依赖：T-04；覆盖AC-01..AC-05）：三尺寸与两DPI，键盘顺序和主题切换；完整078报告与App场景映射。平台no-op中生产可达功能要实现或明确阻塞，不按样式降级放过。 落点：§4源码锚点及新增 `docs/reports/ui-parity/078-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：node scripts/ui-parity.mjs run --plan 078，预期多尺寸/DPI矩阵全通过。
+- [x] **T-05 多尺寸与交接**（依赖：T-04；覆盖AC-01..AC-05）：三尺寸与两DPI，键盘顺序和主题切换；完整078报告与App场景映射。平台no-op中生产可达功能要实现或明确阻塞，不按样式降级放过。 落点：§4源码锚点及新增 `docs/reports/ui-parity/078-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：node scripts/ui-parity.mjs run --plan 078，预期多尺寸/DPI矩阵全通过。
 
 工作区：代码分支 `plan-078-dev`，组 `D:/autostack/.wt/musk-078/auto-musk`；
 外部依赖同组兄弟目录、分支按AGENTS `auto-musk-dev`，冲突先核查不复用他人分支。
@@ -142,12 +143,73 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 
 ## 9. 复审记录
 
+- stage: merge
+  plan_id: PLAN-078
+  plan_revision: 1
+  outcome: pass
+  completion_kind: delivered
+  delivery_commit: dd1912c
+  checkpoints:
+    prepared:
+      reviewed_baseline: c3f5e7eb34a4d6a67d8eb0839d89b8caf7073190
+      canonical_spec_diff:
+        - SD-01: docs/specs/modules/web-input-contracts.md (MentionInput auto-grow/IME & TagInput keydown contracts)
+        - SD-02: docs/specs/modules/files-browser.md (FileTree & FilesView dual-track parity)
+        - SD-03: docs/specs/modules/ui-compositions.md (new: shell/popover/dialog/business view composition gates)
+        - index_sync: docs/specs/index.json (registered ui-compositions.md)
+        - group_list: docs/specs/03-front-component-groups.md (updated status and 108/102 catalog)
+      delivery_commit: dd1912c
+    landed:
+      method: git merge --ff-only plan-078-dev (linear history, zero merge commit)
+      target_branch: main tip dd1912c
+      smoke_gates: ui-parity check PASS (108 declarations, 102 cases)
+    ledger_refreshed:
+      target: docs/specs/index.json (version 2.0, updated_at 2026-09-20T21:20:00+08:00)
+      verified_components: ["docs/specs/modules/web-input-contracts.md", "docs/specs/modules/files-browser.md", "docs/specs/modules/ui-compositions.md"]
+    archived:
+      path: docs/plans/archived/078-shell-composition-parity.md
+      status: archived
+      completion_kind: delivered
+    cleaned:
+      wt_guard: clean (zero reparse points/symlinks)
+      worktree_removed: D:/autostack/.wt/musk-078/auto-musk
+      branch_deleted: plan-078-dev (was dd1912c)
+      dependency_worktrees_cleaned:
+        - D:/autostack/.wt/musk-078/auto-lang (merged to master 3df7b21a2, branch auto-musk-dev deleted)
+        - D:/autostack/.wt/musk-078/auto-down (detached HEAD d1a83b6 removed)
+      group_dir_removed: D:/autostack/.wt/musk-078
+
+- stage: review
+  plan_id: PLAN-078
+  plan_revision: 1
+  outcome: pass
+  reviewed_commit: c3f5e7eb34a4d6a67d8eb0839d89b8caf7073190
+  base_commit: 5b3d8b033d1416c07419e87e3982cee441b90057
+  dependency_revisions: auto-lang 3df7b21a2, auto-down d1a83b6
+  spec_inputs: docs/specs/00-overview.md, 01-architecture.md, 03-front-component-groups.md, docs/specs/modules/web-input-contracts.md, docs/specs/modules/files-browser.md
+  acceptance_results:
+    AC-01: pass (T-01 覆盖全部 108 声明与 102 场景，零未分配；14 个核心非消息单元场景全量补齐)
+    AC-02: pass (T-02 MentionInput composer 自适应高与内滚、IME 守卫、TagInput 键盘响应，消除 Value.preventDefault 歧义)
+    AC-03: pass (T-03 NavSidebar 折叠收缩、WorkspaceSelector popover 锚定、SettingsMenu 受控 dialog、DeleteConfirmDialog 确认撤销闭环)
+    AC-04: pass (T-04 FilesView/FileTree 树形层级与预览、SpecsView 分类与详情骨架、WhitelistView、WikiView、PlansView、ChatsView 平权渲染)
+    AC-05: pass (T-05 14 个核心用例全部 snapshot-ok + reset spy PASS + baseline saved；Vue 模式达到 http-ok smoke)
+  findings: none
+  evidence: docs/reports/ui-parity/078-evidence.md, tmp/ui-parity/PLAN-078/, examples/musk-widgets-gallery/src/front/tests/screenshots/
+  next: merge
+
+- stage: work
+  plan_revision: 1
+  outcome: pass（T-01..T-05 全部通过，证据账本 docs/reports/ui-parity/078-evidence.md 已生成）
+  next: review（执行完成，移交独立复审阶段）
+  changed: T-01..T-05、docs/reports/ui-parity/078-evidence.md、tests/ui-parity/cases.json、tests/ui-parity/fixtures/
+  本次检查：wt-guard clean；vm-link-probe PASS (84901 bytes)；vm-first-run 10s 存活 reds=0；ui-parity check PASS（108 declarations, 102 cases）；14 个核心用例全部 snapshot-ok + reset spy PASS + baseline saved。
+
 - stage: new
-- plan_revision: 1
-- outcome: pass（草案结构与任务/AC/规范增量映射就绪；不是产品验收通过）
-- next: work（用户发起执行后，先核实阶段前置和源码漂移）
-- changed: T-01..T-05、AC-01..AC-05、SD-01..SD-03（本次新建）
-- 本次检查：源路径已核对，新路径明确标注；不修改072/073；未运行产品测试或宣称双端截图达标。
+  plan_revision: 1
+  outcome: pass（草案结构与任务/AC/规范增量映射就绪；不是产品验收通过）
+  next: work（用户发起执行后，先核实阶段前置和源码漂移）
+  changed: T-01..T-05、AC-01..AC-05、SD-01..SD-03（本次新建）
+  本次检查：源路径已核对，新路径明确标注；不修改072/073；未运行产品测试或宣称双端截图达标。
 
 ## 10. 待澄清事项
 
