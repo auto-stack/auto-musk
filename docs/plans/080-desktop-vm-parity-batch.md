@@ -101,6 +101,8 @@ T-04 popover 原语，同组 worktree `auto-musk-dev` 分支）。
 4. settings 弹层——"需要单独修改；且是针对所有 settings 类型的弹窗
    （popover 向）的通用修改。建议加入 gallery，或者做成 AutoUI 级的 BP"。
 5. settings 内部布局——"通过 gallery 一致性检验来修"。
+6. （2026-09-21 UAT 追加）本地应用免登录——"把开启时的登录页面去掉（这个是
+   local app，不需要登录）"→ AuthStore.Init 合成 local 身份，musk 099eed7。
 另：本会话前面提到的修改需求（含 hotfix 余项：web 门补跑、基线刷新）一并
 入本计划。
 
