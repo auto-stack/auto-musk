@@ -228,10 +228,16 @@ check`）全绿为准入。
 
 ## 8. 执行步骤
 
-- [x] **T-01 gallery 真机一致性臂 + 新 case 注册 + 消息宽度定罪修复** [✅ 已完成（F-R1 收口：
-  musk 9b0e857——升格行收拢 liveIssues 补 printIssues + issues 非空置 exitCode；复验离线
-  check=PASS exit 0/⏭ 留痕不变，check --live=❌ 1 issue exit 1（settings-rows 在途债的正确红），
-  SD-02 文本与代码现一致；仪器本体/live.mjs/4 case/红绿闭环/收据哈希链此前已验收绿）]
+- [ ] **T-01 gallery 真机一致性臂 + 新 case 注册 + 消息宽度定罪修复** [🔁 UAT 重开（2026-09-21）：
+  余 F-UAT-1——cee16d694 消息行宽修复引入 **CJK 用户气泡空泡回归**：max-w-[70%] pct 臂对
+  CJK 文本测量 ≈0 宽（泡塌缩为 padding 盒、渲染按宽裁剪后不可见），latin 同泡正常。
+  证据链（UAT 会话实测）：后端存储 content="你好" 完好（输入/传输链排除）→ 侧栏会话项/
+  助手 markdown 表格/输入框占位符中文全部正常渲染（VM 字体栈 CJK 能力排除）→ 同泡 latin
+  （"heello"）正常（泡路径排除）→ 唯一剩群=用户泡独有的 max-w-pct 文本测量/裁剪臂。
+  修前（080 原始缺陷）该泡为满宽可见（文本在、宽度错），修后宽度对而 CJK 文本灭=修复引入。
+  live case 盲区根因：chats-message-width 夹具为拉丁 marker（live 臂拉丁 marker 政策），
+  CJK 变体未覆盖。修法：pct 臂 CJK 宽度测量（char 宽表/字形成测）+ live case 增 CJK 变体；
+  F-R1 面此前已收口不变]
   （auto-musk 1488482 + auto-lang cee16d694；F-1 余项前轮收口：musk f82bdf9）。
   仪器：live.mjs（隔离真后端 MUSK_CONFIG_DIR + 复用门 + MCP include_bounds + Vue dist 静态服务对拍，
   采集语义沉淀见 ui-parity.md SD-02）；4 case 注册 + 修前红定罪收据 4 份
@@ -318,6 +324,22 @@ check`）全绿为准入。
   109 case，live 3/4 ok——settings-rows 红于登记的字体度量余项 §10-10）。
 
 ## 9. 复审记录
+
+- `stage: work(uat) | plan_id: PLAN-080 | plan_revision: 1 | outcome: UAT 两发现 →
+  needs_fix | code_commit: 无新代码（UAT 于 f5d5558 + auto-lang 7d6888076 实机链） |
+  task_ids: T-01 重开（F-UAT-1）、T-04 在途（§10-9 升级阻断） | evidence: ①F-UAT-1 CJK
+  空泡（P1 回归）：用户实机报"中文消息空泡、英文正常"；取证链=后端 GET
+  /api/chats/session/95c167e8?workspace=backend 存储 content="你好"/"请列出当前目录的内容…"
+  完好（输入/传输排除）→ MCP autoui_snapshot + autoui_screenshot（muskc 窗口）证明侧栏/
+  助手 markdown/输入框中文全渲染、用户泡 latin 渲染 → 定罪 max-w-[70%] pct 臂 CJK 测量
+  ≈0（cee16d694 引入；修前该泡满宽可见=文本在，修后宽度对而 CJK 灭）；live case 盲区=
+  拉丁 marker 夹具无 CJK 变体。②§10-9 升级 P1 阻断：UAT 会话 VM 4 例 3 死（16s/~2min/
+  ~5min，静默 exit 1 无 panic，尾迹仅 handler 噪声），跳登录/使用中均触发。
+  ③环境注记：9247 为用户 auto-edit MCP 占用，musk MCP 落 9248；autoui_screenshot 落盘
+  跟随 app cwd（曾误写 auto-edit 检出 tmp/，已清理）。 | blockers: F-UAT-1 + §10-9 根修 |
+  next: work（CJK pct 臂修复 + live case CJK 变体；§10-9 根修升最优先）`——2026-09-21
+  用户真机手验会话（真后端 17201 + 真实 ai-daemon 17654 + 复用门）。手验清单 A-E 项中
+  popover/宽度等其余项待崩溃债收敛后继续。
 
 - `stage: review | plan_id: PLAN-080 | plan_revision: 1 | outcome: blocked
   （终局 reviewed 的前置=用户验收决定；计划保持 executing，T-01/T-02/T-03/T-06
@@ -522,7 +544,12 @@ check`）全绿为准入。
 6. ~~**ui-parity 截图基线刷新**~~ **已完成（f01dff6 基线刷新轮）**：078/079 物化面全量重跑双模式全绿（078 78 case + 079 4 app case + 2 补跑），过程中定罪修复 gallery ForgeStore 适配器漂移（缺 T-02 SetWorkspace msg → 079 VM 全量 startup-failed 的确定性根因）；基线 PNG 落 gallery tests/screenshots（gitignored 证据路径），收据落 tmp/ui-parity/PLAN-07{8,9}/。终局 check：catalog PASS（108 声明/109 case，live 3/4 ok）。
 7. **auto-lang vue dev 脚手架 codegen 缺口**（不变）：`auto run --render vue` 生成命名导入无 .vue 扩展——live 臂已绕行（dist 静态服务）。
 8. **auto-lang 前置红**（不变）：icon_component_child…（干净 master 同红，独立排查）。
-9. **[新增] VM app 间歇静默 exit 1（auto-lang 债）**：登录 Submit 后整进程 exit=1 无 panic 无错误尾巴（~2/8 复现，popover_probe 两轮实证 + death-stdout/stderr 全量落盘 tmp/probe080/）；exit-audit（PLAN-575）无 code=1 行=非 panic/Process.exit/main_return-Ok 路径（.run()? Err 传播或更低层退出待查）；另有一型 MCP 活而 UI vtree 永不发布（"No UI available" 300s+）。时间线与 plain fn 内 .await 链强相关（修复轮编辑窗口 2 死 1 活，最小隔离不复现）——musk 侧已规避（ws_resolve_current 内联形态），auto-lang 侧根修独立收口。与 §4 记录的 musk 后端静默 exit 1（删会话后）疑同签名家族。
+9. **[升级·UAT 实证] VM app 间歇静默 exit 1（auto-lang 债，P1 阻断级）**：2026-09-21 UAT 会话
+   **4 例 3 死**（16s / ~2min / ~5min 存活，各自静默 exit=1 无 panic；死亡尾迹仅 handler-not-found
+   噪声行 `__scroll_state_read`/`__mcp_heartbeat`，与 §4 删会话后端 exit 1 同签名家族）；**触发面
+   扩大**：备案为"登录 Submit 后（~2/8）"，本轮跳登录（持久化态直跳 shell）与使用中（MCP
+   截图后）均死——ws_resolve_current 内联规避不充分。用户手验被此债实际阻断。auto-lang 根修
+   升为最优先；凭证：tmp 后台任务日志（会话 exec 归档）+ 本行记录。
 10. **[新增] VM 字体度量映射族（auto-lang，T-05 余）**：text-xs 行高映射缺 line-height（VM 21px vs web 15.2px，疑缺省 leading ~1.75 兜底）；popover 面板锚 x 偏移 ~11px；按钮高映射 ~12px（modeRow h 50 vs 38）。影响 settings-rows h/x/y（y 为面板高差派生 ~70px）。修复落点=auto-lang 样式映射（text-* → font-size+line-height 对），全局生效需独立验证周期（examples 面回归）。
 11. **[新增·测量] vtree 快照覆盖缺口**：会话行按钮恒无样式行/空标签（session-item 类不可锚）；popover content 预构建（文本恒在）；capped/overlay 盒 @rect 伪影（视觉右对齐而 @rect 左置）——气泡/overlay 族几何对拍一律像素锚（live.mjs 已内置），vtree 覆盖面改善归 auto-lang 侧观察。
 12. ~~**[新增·复审 F-R1] `check --live` 硬红语义未兑现（musk，T-01 余）**~~ **已收口（修复轮，musk 9b0e857）**：升格行收拢 liveIssues 补 printIssues + issues 非空置 exitCode；复验离档 PASS exit 0/⏭ 留痕不变、`--live` ❌ exit 1；SD-02 文本与代码一致。
