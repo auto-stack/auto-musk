@@ -1,0 +1,19 @@
+{
+  "props": {
+    "disabled": false,
+    "professions": [
+      {
+        "id": "planner",
+        "name": "Planner",
+        "description": "Task planning"
+      },
+      {
+        "id": "coder",
+        "name": "Coder",
+        "description": "Code writing"
+      }
+    ],
+    "thinkingLevel": "high",
+    "approvalMode": "manual"
+  }
+}

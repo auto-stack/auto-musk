@@ -52,7 +52,105 @@ export function materialize(caseId = 'chat-message-pair') {
   // adapter, not a second rendering implementation.
   const expansionHelper = fs.readFileSync(path.join(ROOT, "src/front/forge_store.at"), "utf8").split("fn toggleBlockExpansion(")[1];
   if (!expansionHelper) throw new Error("Missing production expansion helper");
-  const galleryStore = `// GENERATED gallery side-effect adapter; ChatMessage remains production source.\nstore ForgeStore {\n    model {\n        var think_open str = ""\n        var tool_open str = ""\n        var cancel_count int = 0\n        var event_count int = 0\n        var events []Value = []\n    }\n    msg Msg { ThinkToggle(str), ToolToggle(str), CancelRun, LoadSessionList }\n    on {\n        .ThinkToggle(key str) -> {\n            .think_open = toggleBlockExpansion(.think_open, key)\n            .events.push({ kind: "think", key: key })\n            .event_count = .event_count + 1\n        }\n        .ToolToggle(key str) -> {\n            .tool_open = toggleBlockExpansion(.tool_open, key)\n            .events.push({ kind: "tool", key: key })\n            .event_count = .event_count + 1\n        }\n        .CancelRun -> {\n            .cancel_count = .cancel_count + 1\n            .events.push({ kind: "cancel" })\n            .event_count = .event_count + 1\n        }\n        .LoadSessionList -> {\n            .events.push({ kind: "load_session_list" })\n            .event_count = .event_count + 1\n        }\n    }\n}\n`;
+  const galleryStore = `// GENERATED gallery side-effect adapter; ChatMessage remains production source.
+store ForgeStore {
+    model {
+        var think_open str = ""
+        var tool_open str = ""
+        var cancel_count int = 0
+        var event_count int = 0
+        var events []Value = []
+        var session_id str = "session-1"
+        var workspace str = ""
+        var token str = ""
+        var session_list []Value = []
+        var messages []Value = []
+        var active_leaf str = ""
+        var streaming bool = false
+        var current_gate Value = None
+        var pending_spec_changes Value = None
+        var report_data Value = None
+        var errands Value = {}
+        var relays Value = {}
+        var task_plans Value = {}
+        var pending_msgs []Value = []
+        var error str = ""
+        var thinking_level str = "normal"
+        var approval_mode str = "auto"
+        var session_mode str = "superpowers"
+        var dbg_last str = ""
+    }
+    msg Msg {
+        Init,
+        LoadSessionList,
+        NewSession,
+        SwitchSession(str),
+        BranchTo(str),
+        StreamStarted(str),
+        Send(str),
+        StopStream,
+        CancelRun,
+        SetThinking(str),
+        FinalizeDraft,
+        SetError(str),
+        QueueMessage(str),
+        FlushQueue,
+        SetThinkingLevel(str),
+        SetApprovalMode(str),
+        ClearGate,
+        ApproveGate,
+        RejectGate,
+        StartStream(str, str, str, str),
+        AttachStream,
+        OnStreamEvent(Value),
+        PollStream,
+        ThinkToggle(str),
+        ToolToggle(str),
+    }
+    on {
+        .Init -> {}
+        .LoadSessionList -> {
+            .events.push({ kind: "load_session_list" })
+            .event_count = .event_count + 1
+        }
+        .NewSession -> {}
+        .SwitchSession(s str) -> {}
+        .BranchTo(b str) -> {}
+        .StreamStarted(s str) -> {}
+        .Send(t str) -> {}
+        .StopStream -> {}
+        .SetThinking(t str) -> {}
+        .FinalizeDraft -> {}
+        .SetError(e str) -> {}
+        .QueueMessage(m str) -> {}
+        .FlushQueue -> {}
+        .SetThinkingLevel(l str) -> { .thinking_level = l }
+        .SetApprovalMode(m str) -> { .approval_mode = m }
+        .ClearGate -> {}
+        .ApproveGate -> {}
+        .RejectGate -> {}
+        .StartStream(s str, w str, t str, p str) -> {}
+        .AttachStream -> {}
+        .OnStreamEvent(v Value) -> {}
+        .PollStream -> {}
+        .ThinkToggle(key str) -> {
+            .think_open = toggleBlockExpansion(.think_open, key)
+            .events.push({ kind: "think", key: key })
+            .event_count = .event_count + 1
+        }
+        .ToolToggle(key str) -> {
+            .tool_open = toggleBlockExpansion(.tool_open, key)
+            .events.push({ kind: "tool", key: key })
+            .event_count = .event_count + 1
+        }
+        .CancelRun -> {
+            .cancel_count = .cancel_count + 1
+            .events.push({ kind: "cancel" })
+            .event_count = .event_count + 1
+        }
+    }
+}
+`;
   const storeSource = galleryStore + "\nfn toggleBlockExpansion(" + expansionHelper;
   const storePath = path.join(GALLERY, 'src/front/forge_store.at');
   if (!fs.existsSync(storePath) || fs.readFileSync(storePath, 'utf8') !== storeSource) {

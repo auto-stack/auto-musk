@@ -1,0 +1,27 @@
+{
+  "props": {
+    "professions": [
+      {
+        "id": "planner",
+        "name": "Planner",
+        "description": "Task planning"
+      },
+      {
+        "id": "coder",
+        "name": "Coder",
+        "description": "Code writing"
+      }
+    ],
+    "visible": true,
+    "filter": "plan",
+    "anchorRect": {
+      "top": 100,
+      "left": 100,
+      "bottom": 130,
+      "right": 200,
+      "width": 100,
+      "height": 30
+    },
+    "activeIndex": 0
+  }
+}

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "plan": "PLAN-076",
+  "plan": "PLAN-078",
   "unitPolicy": "auto-reachable",
   "casePolicy": "one-per-reachable-plus-inline",
   "units": [],
@@ -230,6 +230,146 @@
       "state": "reachable-no-consumer",
       "owner": "PLAN-077",
       "plan": "PLAN-077"
+    },
+    {
+      "id": "input-mention-typing",
+      "unit": "MentionInput",
+      "logicalUnit": "input",
+      "fixture": "input-mention-typing.json",
+      "mode": "render-and-interact",
+      "state": "composer-integrated",
+      "owner": "PLAN-078",
+      "plan": "PLAN-078"
+    },
+    {
+      "id": "input-mention-dropdown",
+      "unit": "MentionDropdown",
+      "logicalUnit": "dropdown",
+      "fixture": "input-mention-dropdown.json",
+      "mode": "render-and-interact",
+      "state": "dropdown-filtered",
+      "owner": "PLAN-078",
+      "plan": "PLAN-078"
+    },
+    {
+      "id": "editor-tag-input",
+      "unit": "TagInput",
+      "logicalUnit": "editor",
+      "fixture": "editor-tag-input.json",
+      "mode": "render-and-interact",
+      "state": "tags-draft",
+      "owner": "PLAN-078",
+      "plan": "PLAN-078"
+    },
+    {
+      "id": "shell-nav-sidebar",
+      "unit": "NavSidebar",
+      "logicalUnit": "navigation",
+      "fixture": "shell-nav-sidebar.json",
+      "mode": "render-and-interact",
+      "state": "sidebar-collapsed-expanded",
+      "owner": "PLAN-078",
+      "plan": "PLAN-078"
+    },
+    {
+      "id": "shell-workspace-selector",
+      "unit": "WorkspaceSelector",
+      "logicalUnit": "shell",
+      "fixture": "shell-workspace-selector.json",
+      "mode": "render-and-interact",
+      "state": "workspace-popover",
+      "owner": "PLAN-078",
+      "plan": "PLAN-078"
+    },
+    {
+      "id": "shell-settings-menu",
+      "unit": "SettingsMenu",
+      "logicalUnit": "shell",
+      "fixture": "shell-settings-menu.json",
+      "mode": "render-and-interact",
+      "state": "settings-dialog",
+      "owner": "PLAN-078",
+      "plan": "PLAN-078"
+    },
+    {
+      "id": "shell-delete-dialog",
+      "unit": "DeleteConfirmDialog",
+      "logicalUnit": "dialog",
+      "fixture": "shell-delete-dialog.json",
+      "mode": "render-and-interact",
+      "state": "modal-confirm",
+      "owner": "PLAN-078",
+      "plan": "PLAN-078"
+    },
+    {
+      "id": "page-file-tree",
+      "unit": "FileTree",
+      "logicalUnit": "tree",
+      "fixture": "page-file-tree.json",
+      "mode": "render-and-interact",
+      "state": "file-tree-hierarchy",
+      "owner": "PLAN-078",
+      "plan": "PLAN-078"
+    },
+    {
+      "id": "page-files-browser",
+      "unit": "FilesView",
+      "logicalUnit": "page",
+      "fixture": "page-files-browser.json",
+      "mode": "render-and-interact",
+      "state": "files-browser-page",
+      "owner": "PLAN-078",
+      "plan": "PLAN-078"
+    },
+    {
+      "id": "page-specs-view",
+      "unit": "SpecsView",
+      "logicalUnit": "page",
+      "fixture": "page-specs-view.json",
+      "mode": "render-and-interact",
+      "state": "specs-ledger-view",
+      "owner": "PLAN-078",
+      "plan": "PLAN-078"
+    },
+    {
+      "id": "page-whitelist-view",
+      "unit": "WhitelistView",
+      "logicalUnit": "page",
+      "fixture": "page-whitelist-view.json",
+      "mode": "render-and-interact",
+      "state": "whitelist-manager",
+      "owner": "PLAN-078",
+      "plan": "PLAN-078"
+    },
+    {
+      "id": "page-wiki-view",
+      "unit": "WikiView",
+      "logicalUnit": "page",
+      "fixture": "page-wiki-view.json",
+      "mode": "render-and-interact",
+      "state": "wiki-knowledge-view",
+      "owner": "PLAN-078",
+      "plan": "PLAN-078"
+    },
+    {
+      "id": "page-plans-view",
+      "unit": "PlansView",
+      "logicalUnit": "page",
+      "fixture": "page-plans-view.json",
+      "mode": "render-and-interact",
+      "state": "plans-roadmap-view",
+      "owner": "PLAN-078",
+      "plan": "PLAN-078"
+    },
+    {
+      "id": "page-chats-view",
+      "unit": "ChatsView",
+      "logicalUnit": "page",
+      "fixture": "page-chats-view.json",
+      "mode": "render-and-interact",
+      "state": "chats-body-view",
+      "owner": "PLAN-078",
+      "plan": "PLAN-078"
     }
   ]
 }

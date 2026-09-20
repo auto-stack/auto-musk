@@ -1,0 +1,10 @@
+{
+  "props": {
+    "value": [
+      "shell",
+      "parity",
+      "musk"
+    ],
+    "placeholder": "Add tag..."
+  }
+}

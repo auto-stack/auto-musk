@@ -1,0 +1,34 @@
+{
+  "props": {
+    "nodes": [
+      {
+        "id": "root",
+        "name": "project-root",
+        "type": "dir",
+        "children": [
+          {
+            "id": "src",
+            "name": "src",
+            "type": "dir",
+            "children": [
+              {
+                "id": "app",
+                "name": "app.at",
+                "type": "file"
+              }
+            ]
+          },
+          {
+            "id": "readme",
+            "name": "README.md",
+            "type": "file"
+          }
+        ]
+      }
+    ],
+    "default_expanded": [
+      "root",
+      "src"
+    ]
+  }
+}
