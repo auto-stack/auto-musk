@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "updated_at": "2026-09-20T21:20:00+08:00",
+  "updated_at": "2026-09-20T13:52:16+08:00",
   "based_on": "full code scan 2026-08-14 (backend Rust + dual frontend + codegen)",
   "spec_files": [
     "00-overview.md",
@@ -16,7 +16,8 @@
     "modules/vm-data-semantics.md",
     "modules/ui-parity.md",
     "modules/ui-default-styles.md",
-    "modules/ui-compositions.md"
+    "modules/ui-compositions.md",
+    "modules/autodown-consumption.md"
   ],
   "goals": [
     "goal-agent",
