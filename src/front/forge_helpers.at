@@ -267,32 +267,35 @@ fn messageBlocks(msg obj) obj {
                 // 无名/无参/无结果 + 假 completed。tc 形态字段名与 raw 同构
                 // （name/arguments/result/status），直取即等价。
                 var raw = b.tool ?? b.tc ?? {}
+                // 持久化 tool 载荷（{arguments,id,name,result}）无 status/
+                // details 键——VM 缺字段裸读硬崩，先经 ?? 归一再比较。
+                let rstat = raw.status ?? ""
                 var nstatus = "completed"
-                if raw.status == "error" || raw.status == "failed" {
+                if rstat == "error" || rstat == "failed" {
                     nstatus = "failed"
                 } else {
                     // r7：gate_waiting 透传（原 fall-through 到"completed"——
                     // 审批等待卡假显示完成态，chat_message 的 gate 分支不可达）。
-                    if raw.status == "running" {
+                    if rstat == "running" {
                         nstatus = "running"
                     } else {
-                        if raw.status == "gate_waiting" { nstatus = "gate_waiting" }
+                        if rstat == "gate_waiting" { nstatus = "gate_waiting" }
                     }
                 }
                 norm.push({
                     kind: "tool",
                     tkey: (msg.id ?? "m") + "#tool:" + (raw.id ?? b.tkey ?? tnorm),
                     summary: getToolSummary({
-                        name: raw.name,
-                        arguments: raw.arguments,
-                        result: raw.result
+                        name: raw.name ?? "",
+                        arguments: raw.arguments ?? None,
+                        result: raw.result ?? None
                     }),
                     tc: {
-                        name: raw.name,
-                        id: raw.id,
-                        arguments: raw.arguments,
-                        result: raw.result,
-                        details: raw.details,
+                        name: raw.name ?? "",
+                        id: raw.id ?? "",
+                        arguments: raw.arguments ?? None,
+                        result: raw.result ?? None,
+                        details: raw.details ?? None,
                         gate_id: raw.gate_id ?? "",
                         pending_cmd: raw.pending_cmd ?? "",
                         escape_paths: raw.escape_paths ?? [],
@@ -507,9 +510,15 @@ fn expandedMessageBlocks(msg obj, streaming bool, thinking str, tools str) obj {
     var out list = []
     for b in blocks {
         var expanded = false
-        if b.kind == "thinking" { expanded = blockIsOpen(thinking, b.tkey) }
-        if b.kind == "tool" { expanded = blockIsOpen(tools, b.tkey) }
-        out.push({ kind: b.kind, text: b.text, state: b.state, tkey: b.tkey, summary: b.summary, tc: b.tc, expanded: expanded })
+        // 归一化各臂（text/tool/thinking/legacy 合成）输出的键集不均匀——
+        // text 块无 state/tkey/tc、tool 块无 text/state。web 侧 undefined
+        // 无害；VM 缺字段裸读硬崩。此处是展示块出海口，统一 ?? 兜底成
+        // 全字段形态后再出栈，下游（chat_message 等模板）免逐点守卫。
+        let bkind = b.kind ?? "text"
+        let btkey = b.tkey ?? ""
+        if bkind == "thinking" { expanded = blockIsOpen(thinking, btkey) }
+        if bkind == "tool" { expanded = blockIsOpen(tools, btkey) }
+        out.push({ kind: bkind, text: b.text ?? "", state: b.state ?? "done", tkey: btkey, summary: b.summary ?? "", tc: b.tc ?? None, expanded: expanded })
     }
     return out
 }

@@ -936,7 +936,8 @@ fn landThinkingBlocks(msg Value) {
     while bi < msg.blocks.length {
         let b = msg.blocks[bi]
         if b.kind == "thinking" {
-            if b.state == None || b.state == "streaming" { b.state = "done" }
+            let st = b.state ?? None
+            if st == None || st == "streaming" { b.state = "done" }
         }
         bi = bi + 1
     }
@@ -954,27 +955,45 @@ fn currentAssistantMsgIn(msgs Value) Value {
 
 // PLAN-073 F-A：后端持久化 ChatBlock 的工具载荷挂在 `tool` 键（Rust 字段名），
 // 而渲染模板（chat_message.at）统一读 `tc`——会话载入/回填后历史视图的
-// 工具卡 name/arguments/result 全空。载入侧就地归一化：tool → tc 补挂，
-// 并给缺省 result 兜底空串（undefined 会让 `!= ""` 守卫放行，展开卡即崩）。
+// 工具卡 name/arguments/result 全空。
+// VM 语义（PLAN-044 engine.rs）：__json_object GET 缺键返 null（安全），
+// SET 缺键硬崩。持久化块是稀疏键集（{kind,text}/{kind,tool}，无 tc/state），
+// 故本函数**构造新块替换**而非原地补写——msg.blocks 键存在（非 null 分支）
+// 对它 SET 合法；块对象一律重建为全字段形态。
 fn normalizeToolBlocks(msgs Value) Value {
     if msgs == None { return msgs }
     var mi = 0
     while mi < msgs.length {
         let m = msgs[mi]
-        if m.blocks != None {
+        let mblocks = m.blocks ?? None
+        if mblocks != None {
+            var nb list = []
             var bi = 0
-            while bi < m.blocks.length {
-                let b = m.blocks[bi]
-                if b.kind == "tool" {
-                    if b.tc == None && b.tool != None { b.tc = b.tool }
-                    if b.tc != None && b.tc.result == None { b.tc.result = "" }
-                }
-                // PLAN-073 r5：落盘的思考块必然已结束——补 done 态。
-                if b.kind == "thinking" {
-                    if b.state == None || b.state == "streaming" { b.state = "done" }
+            while bi < mblocks.length {
+                let b = mblocks[bi]
+                let kind = b.kind ?? "text"
+                if kind == "tool" {
+                    let tcv = b.tc ?? None
+                    if tcv == None {
+                        let tv = b.tool ?? None
+                        if tv != None {
+                            nb.push({ kind: "tool", tool: tv, tc: tv })
+                        } else {
+                            nb.push(b)
+                        }
+                    } else {
+                        nb.push(b)
+                    }
+                } else if kind == "thinking" {
+                    // PLAN-073 r5：落盘的思考块必然已结束——重建为带 done
+                    // 态的全字段形态（原 `b.state = "done"` 是缺键 SET，VM 崩）。
+                    nb.push({ kind: "thinking", text: b.text ?? "", state: b.state ?? "done" })
+                } else {
+                    nb.push(b)
                 }
                 bi = bi + 1
             }
+            m.blocks = nb
         }
         mi = mi + 1
     }
