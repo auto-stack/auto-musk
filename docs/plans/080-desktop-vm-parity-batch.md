@@ -327,6 +327,25 @@ check`）全绿为准入。
 
 ## 9. 复审记录
 
+- `stage: work | plan_id: PLAN-080 | plan_revision: 1 | outcome: F-UAT-1 修复
+  收口（真机验证绿）；F-UAT-2/§10-10/§10-9 在途 | code_commit: musk 22960ca
+  （+099eed7 免登录）+ auto-lang bad186d58 | task_ids: F-UAT-1 闭环；T-01 重开
+  项部分（v-html 链）；T-04/T-05 在途 | evidence: ①F-UAT-1 根因=VM 字符串
+  原语语义不一致（探针实证 '你好ab'.length=4 字符 / sub(0,3)='你' 字节切片
+  ——length 字符 × sub 字节，str-parity audit B1+Plan 057 钳制）；musk
+  render_mentions 逐字符扫描在 CJK 上 sub 恒空串 → out=""→ v-html 降级链
+  div_html_stripped_text 空串→None→空 div。修=split("@") 分段+段内字节游标
+  （token 恒 ASCII；尾段整段拼接 LEN 字符数请求必覆盖尾由钳制收口），
+  双世界正确。真机实例截图：原空泡完整显示中文全文。②headless 回归钉落
+  auto-lang bad186d58：同构泡 CJK/latin 测宽 112/86px 正确=测宽层无罪；
+  bisect 文档化 MaxWidthPct 子树 text 节点对 Find/选择器操作不可见（§10-11
+  伪影家族候选根因=tag/state 委托 Tree 错位，待专项）。③§10-9 新数据：
+  Start-Process 分离启动的浸泡实例亦静默死亡（非 agent 壳回收）；无 WER
+  记录、exit-audit 无 code=1、main.rs exit(1) 位点全先打印——外部终止或
+  未审计静默退出二选一，压力+足迹方案继续。 | blockers: F-UAT-2（markdown
+  段落 Row-of-spans 不可回流，需 Rich 单段落重构）/§10-10/§10-9 | next: work
+  （续修三项）`——2026-09-21 文本布局族修复轮（用户真机 UAT 驱动）。
+
 - `stage: work(uat) | plan_id: PLAN-080 | plan_revision: 1 | outcome: UAT 两发现 →
   needs_fix | code_commit: 无新代码（UAT 于 f5d5558 + auto-lang 7d6888076 实机链） |
   task_ids: T-01 重开（F-UAT-1）、T-04 在途（§10-9 升级阻断） | evidence: ①F-UAT-1 CJK
