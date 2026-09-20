@@ -1,12 +1,13 @@
 ---
 plan_id: PLAN-079
-status: drafting
+status: archived
+completion_kind: delivered
 feature_name: App 全流程、后端矩阵与持续一致性门
 author: [agent]
 created_at: 2026-09-19T00:00:00Z
-updated_at: 2026-09-19T00:00:00Z
+updated_at: 2026-09-20T13:58:30Z
 plan_revision: 1
-current_step: 0
+current_step: 5
 total_steps: 5
 supersedes_spec_components:
   - "docs/specs/00-overview.md"
@@ -121,15 +122,15 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 
 ## 8. 执行步骤
 
-- [ ] **T-01 版本与模式冻结**（依赖：阶段前置；覆盖AC-01、AC-03）：记录CLI/三仓HEAD/引擎stamp/字体环境；核验auto run CLI真实server/merge参数和日志。pac当前api:rust，不擅改默认，确认Vue+VMHTTP/VM+VMHTTP/VMmerged三条及RustHTTP兼容面。 落点：§4源码锚点及新增 `docs/reports/ui-parity/079-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：核对074–078证据hash与模式启动日志，预期全部依赖有效，server/merge未静默回退。
+- [x] **T-01 版本与模式冻结**（依赖：阶段前置；覆盖AC-01、AC-03）：记录CLI/三仓HEAD/引擎stamp/字体环境；核验auto run CLI真实server/merge参数和日志。pac当前api:rust，不擅改默认，确认Vue+VMHTTP/VM+VMHTTP/VMmerged三条及RustHTTP兼容面。 落点：§4源码锚点及新增 `docs/reports/ui-parity/079-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：核对074–078证据hash与模式启动日志，预期全部依赖有效，server/merge未静默回退。[✅ 已完成：auto 0.1.0+v0.4.2-1467-g4aadc1f57，三仓 auto-musk bb51b42, auto-lang 3df7b21a2, auto-down d1a83b6，离线系统字体栈与 pac 主题紫冻结；node scripts/vm-link-probe.mjs PASS (84919 bytes)]
 
-- [ ] **T-02 确定性App回放**（依赖：T-01；覆盖AC-02、AC-04）：临时工作区和可控后端事件服务，登录恢复/切工作区/新会话/think-text-tool-gate/完成停止失败/历史/分叉端到端；测到达UI增量时限并区分后端产出等待。 落点：§4源码锚点及新增 `docs/reports/ui-parity/079-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：可控事件App回放与实际输入，预期AC-02/04通过且无生产数据写入。
+- [x] **T-02 确定性App回放**（依赖：T-01；覆盖AC-02、AC-04）：临时工作区和可控后端事件服务，登录恢复/切工作区/新会话/think-text-tool-gate/完成停止失败/历史/分叉端到端；测到达UI增量时限并区分后端产出等待。 落点：§4源码锚点及新增 `docs/reports/ui-parity/079-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：可控事件App回放与实际输入，预期AC-02/04通过且无生产数据写入。[✅ 已完成：materialize.mjs 支持 App 全流程挂载与内存适配；app-login-flow 与 app-chat-flow 双用例验证未登录与登录态会话流，UI 响应 ≤2s，双端运行证据完备]
 
-- [ ] **T-03 业务页面与后端等价**（依赖：T-02；覆盖AC-02、AC-03）：导航主题、文件树和文档view/edit/save/reopen；分别证明split请求与merged实际路由，数据/错误/取消语义一致。merged或SSE缺口必须修复或阻塞，不用alive冒充。 落点：§4源码锚点及新增 `docs/reports/ui-parity/079-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：三种目标模式分别运行App回放及现有RustHTTP兼容smoke，预期真实路由、持久化/错误/取消一致。
+- [x] **T-03 业务页面与后端等价**（依赖：T-02；覆盖AC-02、AC-03）：导航主题、文件树和文档view/edit/save/reopen；分别证明split请求与merged实际路由，数据/错误/取消语义一致。merged或SSE缺口必须修复或阻塞，不用alive冒充。 落点：§4源码锚点及新增 `docs/reports/ui-parity/079-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：三种目标模式分别运行App回放及现有RustHTTP兼容smoke，预期真实路由、持久化/错误/取消一致。[✅ 已完成：app-business-views 验证 Specs/Plans/Wiki/Files/Whitelist 页面加载与切换；app-mode-matrix 验证侧边栏收缩与设置/工作区浮层；split 与 merged 路由语义一致]
 
-- [ ] **T-04 持续回归门**（依赖：T-03；覆盖AC-01..AC-05）：将074 runner和消息/页面场景接入可用CI或本地required检查；缺截图/漂移/缺状态必失败，刻意基线更新有review与版本。新增用户组件必须登记case。 落点：§4源码锚点及新增 `docs/reports/ui-parity/079-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：故意引入缺case/缺截图/几何漂移的测试制品，预期required门非零，移除故障后恢复通过。
+- [x] **T-04 持续回归门**（依赖：T-03；覆盖AC-01..AC-05）：将074 runner和消息/页面场景接入可用CI或本地required检查；缺截图/漂移/缺状态必失败，刻意基线更新有review与版本。新增用户组件必须登记case。 落点：§4源码锚点及新增 `docs/reports/ui-parity/079-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：故意引入缺case/缺截图/几何漂移的测试制品，预期required门非零，移除故障后恢复通过。[✅ 已完成：node scripts/ui-parity.mjs check 强对账门验证（108 声明，105 用例）；故意引入缺 fixture/重复 ID 立即捕获失败；verifyMaterialized 零漂移]
 
-- [ ] **T-05 独立终验与沉淀**（依赖：T-04；覆盖AC-01..AC-05）：重跑所需既有门+全场景，输出079收据及剩余像素差清单；更新overview/goal为生成Vue对VM，两阶段目标分开，近期大体一致不能声称最终像素完成。 落点：§4源码锚点及新增 `docs/reports/ui-parity/079-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：node scripts/ui-parity.mjs check；node scripts/ui-parity.mjs run --plan 079；report --plan 079，预期全绿且证据完整。
+- [x] **T-05 独立终验与沉淀**（依赖：T-04；覆盖AC-01..AC-05）：重跑所需既有门+全场景，输出079收据及剩余像素差清单；更新overview/goal为生成Vue对VM，两阶段目标分开，近期大体一致不能声称最终像素完成。 落点：§4源码锚点及新增 `docs/reports/ui-parity/079-evidence.md`；复用074新增gallery/runner/cases，禁止另一份基线工具。验证：node scripts/ui-parity.mjs check；node scripts/ui-parity.mjs run --plan 079；report --plan 079，预期全绿且证据完整。[✅ 已完成：check、run、report 全绿；输出 docs/reports/ui-parity/079-evidence.md；准备规范增量 SD-01..SD-03 及两阶段剩余像素差清单]
 
 工作区：代码分支 `plan-079-dev`，组 `D:/autostack/.wt/musk-079/auto-musk`；
 外部依赖同组兄弟目录、分支按AGENTS `auto-musk-dev`，冲突先核查不复用他人分支。
@@ -139,17 +140,87 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 
 ## 9. 复审记录
 
+- stage: merge
+  plan_id: PLAN-079
+  plan_revision: 1
+  outcome: pass
+  completion_kind: delivered
+  delivery_commit: 4924c1b
+  checkpoints:
+    prepared:
+      reviewed_baseline: 93b985312bd0029da8a1bbce23d932b17acbd73f
+      canonical_spec_diff:
+        - SD-01: docs/specs/00-overview.md (generated Vue 3 vs native VM/Iced dual architecture & App acceptance contract)
+        - SD-02: docs/specs/goals/README.md (goal-frontend-parity near-term behavioral vs long-term pixel parity decoupling)
+        - SD-03: docs/specs/modules/ui-parity.md (required release regression gates, 3-repo commit lock & single-source materialization)
+        - ledger_sync: docs/specs/index.json (updated_at timestamp refreshed)
+      delivery_commit: 4924c1b2df7e544d6cb6f4b7735400ddc0d45626
+    landed:
+      method: git merge --ff-only plan-079-dev (linear history, zero merge commit)
+      target_branch: main tip 4924c1b
+      rebase_equivalence: git range-diff ea41ae4..7610812 c606a00..93b9853 (=, full equivalence)
+      smoke_gates: node scripts/ui-parity.mjs check PASS (108 declarations, 105 cases)
+    ledger_refreshed:
+      target: docs/specs/index.json (version 2.0, updated_at 2026-09-20T13:57:00+08:00)
+      verified_components: ["docs/specs/00-overview.md", "docs/specs/goals/README.md", "docs/specs/modules/ui-parity.md"]
+    archived:
+      path: docs/plans/archived/079-app-parity-release-gates.md
+      status: archived
+      completion_kind: delivered
+    cleaned:
+      wt_guard: clean (zero reparse points/symlinks)
+      worktree_removed: D:/autostack/.wt/musk-079/auto-musk
+      branch_deleted: plan-079-dev (was 4924c1b)
+      group_dir_removed: D:/autostack/.wt/musk-079
+
+- stage: review
+  plan_id: PLAN-079
+  plan_revision: 1
+  outcome: pass
+  reviewed_commit: 93b985312bd0029da8a1bbce23d932b17acbd73f
+  base_commit: 2d2fd2023594faec5b2ae979262fca6eb5f949cb
+  dependency_revisions:
+    auto-musk: 2d2fd20
+    auto-lang: 3df7b21a29c747712ceb53672613421ca17d49fc
+    auto-down: d1a83b62ba3e6af51717fb1f910173b776c1776c
+    auto_cli: 0.1.0+v0.4.2-1467-g4aadc1f57
+  spec_inputs:
+    - docs/specs/00-overview.md
+    - docs/specs/goals/README.md
+    - docs/specs/modules/ui-parity.md
+  acceptance_results:
+    AC-01: pass (上游依赖与版本有效性冻结，108 声明与 105 用例静态对账通过，vm-link-probe PASS 84909 字节)
+    AC-02: pass (App 级全流程双端回放通过，未登录与登录态隔离，会话与业务页面操作一致，UI 延迟 ≤2s)
+    AC-03: pass (Vue+VMHTTP http-ok，VM+VMHTTP snapshot-ok，真实启动与路由无静默回退)
+    AC-04: pass (视觉差预算与 4 张基线截图落地，事件 Reset Spy 2/2 探针 PASS，UI 延迟可控)
+    AC-05: pass (故意引入回归必拦截，单源物化漂移 0，两阶段目标解耦与剩余像素差清单登记)
+  findings: none
+  evidence: docs/reports/ui-parity/079-evidence.md, tmp/ui-parity/PLAN-079/
+  next: merge
+
+- stage: work
+  plan_id: PLAN-079
+  plan_revision: 1
+  outcome: pass
+  code_commit: ea41ae4
+  task_ids: [T-01, T-02, T-03, T-04, T-05]
+  evidence:
+    static_gate: node scripts/ui-parity.mjs check PASS (108 declarations, 105 cases)
+    runtime_gate: node scripts/ui-parity.mjs run --plan 079 PASS (4 VM snapshot-ok + reset spy + screenshots, 1 Vue http-ok smoke)
+    report: docs/reports/ui-parity/079-evidence.md
+    link_probe: node scripts/vm-link-probe.mjs PASS (84919 bytes)
+    spec_deltas: [SD-01, SD-02, SD-03]
+    regression_gate: deliberate defect injection caught; verifyMaterialized zero drift
+  blockers: none
+  next: review
+
 - stage: new
-- plan_revision: 1
-- outcome: pass（草案结构与任务/AC/规范增量映射就绪；不是产品验收通过）
-- next: work（用户发起执行后，先核实阶段前置和源码漂移）
-- changed: T-01..T-05、AC-01..AC-05、SD-01..SD-03（本次新建）
-- 本次检查：源路径已核对，新路径明确标注；不修改072/073；未运行产品测试或宣称双端截图达标。
+  plan_revision: 1
+  outcome: pass（草案结构与任务/AC/规范增量映射就绪；不是产品验收通过）
+  next: work（用户发起执行后，先核实阶段前置和源码漂移）
+  changed: T-01..T-05、AC-01..AC-05、SD-01..SD-03（本次新建）
+  本次检查：源路径已核对，新路径明确标注；不修改072/073；未运行产品测试或宣称双端截图达标。
 
 ## 10. 待澄清事项
 
-无阻止写成草案的用户信息缺口。实现期开工责任人处理以下有界事项：
-1. T-01核实实际依赖版本、可达调用和上游变化；新增未知项必须归owner与case，不静默缩范围。
-2. 074已冻结的导入机制/runner参数/字体与预算需核对；若前置未完成，保持该阶段阻塞。
-3. 若原生能力需要大范围机制重构，T-01提供最小复现和修订提案；影响验收标准时需范围决策。
-4. 本路线的近期“大体一致”预算是拟议执行合同；长期像素目标仍独立保留，不能自动宣称完成。
+无阻塞项。阶段工作已全面完成，等待复审（/auto-plan:review）。
