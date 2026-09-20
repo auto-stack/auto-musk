@@ -2,22 +2,34 @@
 
 > 历史来源：覆盖 gen 工程全部 29 个组件 + 2 个平台实现 + 状态层（Plan 028 T22）。
 > 当前标准：以 PLAN-074 双端 Gallery 基线与全量目录扫描为准，详见 `docs/specs/modules/ui-parity.md` 与 `docs/reports/ui-parity/074-baseline.md`。
-> 静态清单总计 62 个声明单元（54 个当前可达、8 个不可达/退役单元、8 个端口变体组、57 个有效测试用例）。
+> PLAN-077 修订（2026-09-20，reviewed fbca482）：G-对话 Block 组按实际内联/抽离与事件所有权刷新（SD-02）；可达清单以 074 基线 + 077 证据为准。
+> 静态清单总计 108 个声明单元、101 个有效测试用例（PLAN-077 后；`node scripts/ui-parity.mjs check` 口径）。
 
-## G-对话 Block（✅ 已全量原生化，Plan 028 主线）
+## G-对话 Block（✅ 已全量原生化，Plan 028 主线；PLAN-077 组合一致性落地）
 
 | 组件 | 源 | 迁移状态 | 依赖特性 |
 |---|---|---|---|
-| ChatMessage | chat_message.at | ✅ component fn + fn 模块 + platform markdown | F1–F9、P1 |
-| ThinkBlock | think_block.at | ✅ component fn（样式已归还 style 块） | F3 |
-| ToolBlock | tool_block.at | ✅ 同上 | F1/F3 |
-| GenericToolCard | generic_tool_card.at | ✅ 同上 | F3 |
+| ChatMessage | chat_message.at | ✅ component fn + fn 模块 + platform markdown；thinking/tool 块**内联**（无独立 ThinkBlock 挂载）；gate_waiting 内联审批卡（PLAN-073 F-B）；块契约=chat-streaming 契约⑧（state/tkey/gate 载荷） | F1–F9、P1 |
+| ThinkBlock | think_block.at | ⚠️ 登记为历史独立件——thinking 块实际内联于 ChatMessage，展开态由父级键列表持态，无独立实例消费者 | F3 |
+| ToolBlock | tool_block.at | ⚠️ 登记为历史独立件——工具块分发逻辑已内联于 ChatMessage（gate/dispatch/spawn_relay/task_plan/report/GenericToolCard），文件无实例消费者 | F1/F3 |
+| GenericToolCard | generic_tool_card.at | ✅ 同上；展开键走 ForgeStore 键列表（`toggleBlockExpansion`） | F3 |
 | ErrandCard | errand_card.at | ✅ 同上 | F1 |
 | TaskPlanCard | task_plan_card.at | ✅ 同上 | F1 |
 | RelayRunBox | relay_run_box.at | ✅ 同上 + use store: RelayStore | F1/F8 |
 | QuestionnaireCard | questionnaire_card.at | ✅ 同上（Index v-model） | F5 |
-| UserMessage | user_message.at | ✅ 同上（renderMentions 留 TS） | F7 |
-| StreamingTable | streaming_table.at | ✅ 同上（Math.max/min） | F3 |
+| UserMessage | user_message.at | ✅ 同上；render_mentions 已 .at 原生化（mention_helpers.at），逐字符扫描用 `sub(i, i+1)`（VM/web `char_at` 语义分歧，chat-streaming 契约⑧注记） | F7 |
+| StreamingTable | streaming_table.at | ✅ 同上（Math.max/min）；当前无生产消费者，077 登记可达性证据（render 单元 case） | F3 |
+
+### 消息块事件所有权（PLAN-077 SD-02）
+
+- 展开/折叠：子件 handler 直调 `ForgeStore.ThinkToggle/ToolToggle(key)`，
+  键列表存根态（VM 子件 model 全实例共享，本地 expanded 禁用）。
+- 分叉：`ChatMessage.ForkFrom(mid)` 空 handler，经实例路由
+  `on_fork_from: .ForkFrom($event)` 直达宿主（**键必须 snake 全名形**：
+  VM 派发键 `on`+msg 名折叠、Vue `snake_to_pascal` → `@ForkFrom`；
+  `onfork` 双端皆断，077 已修）。
+- 复制/停止：`CopyContent` 走 `dom.copy_text` FFI；`CancelRun` 直调
+  `ForgeStore.CancelRun()`（后端 cancel 端点 + 本地退出流式态）。
 
 ## G-对话 Block·平台实现（不迁移，协议挂载）
 
@@ -86,7 +98,7 @@
 | ForgeStore | forge_store.at | ✅ SSE 消费原生化（Sse.open/OnStreamEvent） | F8/F9 |
 | RelayStore | relay_store.at | ✅ 全量原生化（Http.* + Sse.open + gate_signal 中转） | F8 |
 | AuthStore / PlansStore / SpecsStore / WikiStore | *_store.at | ✅ store 原生；各自 helpers 留 TS | F3/F8 |
-| 遗留 TS | mention_helpers / relay_commands / gate_/wiki_/settings_/workspace_/session_info_helpers / useGateInbox / useTheme / useT / useAccentColor / useAgentConfigs / useKeyboardShortcuts / inject_styles（token+非块组） | ⏳ 随各组后续立项 | F4 闭包 replace 等 |
+| 遗留 TS | relay_commands / gate_/wiki_/settings_/workspace_/session_info_helpers / useGateInbox / useTheme / useT / useAccentColor / useAgentConfigs / useKeyboardShortcuts / inject_styles（token+非块组） | ⏳ 随各组后续立项（mention_helpers 已 .at 原生化，PLAN-077） | F4 闭包 replace 等 |
 
 ## 后续立项建议优先级
 

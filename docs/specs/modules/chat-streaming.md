@@ -4,6 +4,8 @@
 > 定责 + T-02 修复实测（乐观消息 ≤2s 上屏、流式增量实时渲染）。
 > PLAN-073 Phase 2 增订（2026-09-20，reviewed e5e098e）：空闲订阅 idle 帧即收、
 > 会话载入即附加（AttachStream）、完成启发式 pending 守卫。
+> PLAN-077 增订（2026-09-20，reviewed fbca482）：双端 Block 状态/回放验收
+> （契约⑧，SD-01）。
 
 ## 契约
 
@@ -44,12 +46,27 @@
    tool_result/turn_start/turn_end/tool_gate_waiting），done/idle/error 臂
    自行复位——旧后端（无 idle 帧）attach 后零事件即零幻态，发送路径的
    StartStream 契约不变。
+8. **双端 Block 状态与回放验收（PLAN-077 SD-01）**：块投影必须携带
+   thinking `state`（streaming/done——漏带会把流式思考误显"已思考"）与
+   稳定块身份 `tkey`（按 `raw.id`/`块 id`，重排后不变、不串位）；gate
+   载荷（`gate_id`/`pending_cmd`/`escape_paths`）随块投影直达审批卡；
+   `gate_waiting` 状态直通显示，不得归并进 completed。展开态归 ForgeStore
+   根态 JSON 键列表（`toggleBlockExpansion`）——多块/多消息独立展开、
+   重排不串位、卸载复建保持。双端验收以 `tests/ui-parity` 同一断言集
+   回放为准（VM snapshot 内容断言 + Vue 真实交互 + 事件/请求 spy），
+   适用 case 双端全绿；未达项登记证据报告，不得藏入遗留桶。
 
 ## 关联实现
 
 - 前端：`src/front/forge_store.at`（StartStream/AttachStream/OnStreamEvent/
   PollStream、`last_sse_at` 心跳、叶推进、idle 臂）、`mention_input.at`
   （composer）。
+- 块消费面（PLAN-077）：`forge_helpers.at`（`messageDisplayBlocks`/
+  `expandedMessageBlocks`——state/tkey/gate 载荷投影）、`forge_store.at`
+  （`toggleBlockExpansion` 键列表）、`chat_message.at` / `tool_gate_card.at`
+  （显式展示 props + `on_fork_from` 宿主路由）；mention 扫描统一
+  `sub(i, i+1)` 取字符（VM `char_at` 按 Plan 368 W5 返回码点 int，
+  web 返回 1 字符 string——双端分歧以 END 语义 `sub` 承载）。
 - 后端：`auto_generated/extern_impl.rs chat_run_stream`（订阅触发 + 空闲窥探 +
   mpsc 桥）、`auto_generated/server_stream.rs`（SSE 出口 + 透传白名单含 idle）。
 - 历史债务 KD 059-FU1（"AI 回复了但界面不动"）已收口（PLAN-066 T-08）：
