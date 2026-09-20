@@ -4,13 +4,14 @@ status: executing
 feature_name: 桌面实机验收暴露的 VM 轨缺陷批次修复（gallery 真机一致性臂 + AutoUI 级 button 默认重置 + settings 类弹窗 popover 化）
 author: [agent]
 created_at: 2026-09-20T15:59:36+08:00
-updated_at: 2026-09-20T23:45:00+08:00
+updated_at: 2026-09-20T23:59:00+08:00
 plan_revision: 1
-current_step: 4
+current_step: 2
 total_steps: 6
 supersedes_spec_components:
   - "docs/specs/modules/ui-default-styles.md"
   - "docs/specs/modules/ui-parity.md"
+  - "docs/specs/modules/ui-compositions.md"
 new_spec_components: []
 touched_goals: [goal-frontend-parity]
 depends_on: ["PLAN-074", "PLAN-075", "PLAN-078", "PLAN-079"]
@@ -227,8 +228,11 @@ check`）全绿为准入。
 
 ## 8. 执行步骤
 
-- [x] **T-01 gallery 真机一致性臂 + 新 case 注册 + 消息宽度定罪修复** [✅ 已完成]
-  （auto-musk 1488482 + auto-lang cee16d694；F-1 余项本轮收口：musk f82bdf9）。
+- [ ] **T-01 gallery 真机一致性臂 + 新 case 注册 + 消息宽度定罪修复** [🔁 复审重开收窄（r2）：
+  余 F-R1——`check --live` 硬红语义未兑现（live 升格行在 printIssues 之后 append 且 check 分支不设
+  exitCode，failed/stale/missing 全部静默零退出）+ SD-02 文本与代码一致性复验；仪器本体/live.mjs/
+  4 case/红绿闭环/收据哈希链已验收绿。修法：check 分支尾 printIssues(issues) + exitCode 置位]
+  （auto-musk 1488482 + auto-lang cee16d694；F-1 余项前轮收口：musk f82bdf9）。
   仪器：live.mjs（隔离真后端 MUSK_CONFIG_DIR + 复用门 + MCP include_bounds + Vue dist 静态服务对拍，
   采集语义沉淀见 ui-parity.md SD-02）；4 case 注册 + 修前红定罪收据 4 份
   （docs/reports/ui-parity/080-*.pre-fix.json）。消息宽度定罪：VM 行 835/867
@@ -295,10 +299,15 @@ check`）全绿为准入。
   11.4px + y 累积（面板高差派生）=auto-lang 字体度量族（text-xs 行高
   VM 缺 line-height 映射、popover 锚偏移、按钮高映射），登记 §10 余项
   10 随独立验证周期收口。
-- [x] **T-06 收尾：web 门补跑 + 基线刷新 + SET 语义入册** [✅ 已完成]
-  （基线刷新轮：musk f01dff6）。web 门：auto build 全 pipeline 绿（本轮 ×2：
+- [ ] **T-06 收尾：web 门补跑 + 基线刷新 + SET 语义入册** [🔁 复审重开收窄（r2）：余 F-R2——
+  web 门"全 pipeline 绿"在基线不可复现：干净 regen 后 vue-tsc 双红（TS2307 auto-sources
+  仅 auto run 发射、TS2339 main.ts import.meta.env 缺 vite/client 类型）=P660-D1 预存生成器债
+  （auto-lang master 444b87fec 已在 080 基线内，非本计划回归）；vite build 绕行绿（复审实测
+  14.3s）。修：T-06 收据改录（vue-tsc=P660-D1 红 + vite 绕行绿收据）或 auto-lang 侧 P660-D1
+  收口后全 pipeline 重跑。基线刷新+SET 入册已验收绿]
+  （基线刷新轮：musk f01dff6）。~~web 门：auto build 全 pipeline 绿（本轮 ×2：
   vue-tsc + vite，新 auto 二进制 26b8cca44，含 T-02 内联化/T-04 popover/
-  T-05 面板宽全部改动）。SET 语义入册：ui-default-styles.md（GET-null/
+  T-05 面板宽全部改动）。~~（复审实测不可复现，见 F-R2）SET 语义入册：ui-default-styles.md（GET-null/
   SET-crash 契约）。spec 增量 SD-01..03 落三册。**基线刷新完成（f01dff6）**：
   078/079 物化面全量重跑——078 78 case + 079 4 app case 双模式全绿（vm
   snapshot-ok + vue http-ok）；过程中定罪并修复 gallery ForgeStore 适配器
@@ -309,6 +318,57 @@ check`）全绿为准入。
   109 case，live 3/4 ok——settings-rows 红于登记的字体度量余项 §10-10）。
 
 ## 9. 复审记录
+
+- `stage: review | plan_id: PLAN-080 | plan_revision: 1 | outcome: needs_fix |
+  reviewed_commit: auto-musk f01dff6ea81abc3483f2c739d60ddaa05a7b8f68（worktree
+  plan-080-dev，clean） | base_commit: d313fa1 | dependency_revisions:
+  auto-lang 26b8cca44（+71f8027ae/cee16d694/0cbf5a031；基线 172536658，worktree
+  clean） | spec_inputs: ui-default-styles.md sha256 b3c04591…、ui-parity.md
+  648a9270…、ui-compositions.md 8a815b57…（88f4ad2 落册） |
+  acceptance_results: AC-01 pass（F-R1 属 SD-02 契约缺陷）/ AC-02 pass /
+  AC-03 partial（真机手验+stale 会话反馈未验）/ AC-04 pass（F-6 P3 挂开）/
+  AC-05 partial（崩溃根修+真机手验未完）/ AC-06 partial（字体度量族=§10-10
+  登记债）/ AC-07 partial（web 门不可复现 F-R2） | findings: F-R1（P1）、
+  F-R2（P1）、F-R3（P3 已就地补正）、F-R4（P3） | evidence: 下 | next: work
+  （F-R1/F-R2 修复 + T-04/T-05 既有开项；修毕复审终局）`
+  —— 复审在独立会话进行（非执行会话），结论自命令输出与工件重建。逐项证据：
+  **①基线**：双 worktree clean；live 收据（chats/popover/ws PASS、rows fail）
+  LIVE_SOURCES sha256 与 HEAD 四源文件逐一相符（stale 机制判定非过期，显式
+  复用理由：源未变+机制自证有效性）；078 目录 76+76 绿 + 2 红收据已被
+  PLAN-079 目录 23:25-23:26 补跑绿收据（6 case ×2 模式全绿）取代（F-R4 陈旧
+  未清）；check 离线复跑=catalog PASS（108 声明/109 case，live 3/4 ok）⏭
+  留痕复现。**②auto-lang 测试复跑**：cargo tf --no-fail-fast=3647 跑 3647 绿
+  5 败——4 败在干净基线 172536658 临时 worktree 复跑同败（autodown_panel_
+  heading/mouse_area/shell_pack_vocabulary/ffi_dual_019=前置红），1 败
+  （benchmark_downcast_performance）独立 3 连跑全绿=负载敏感 flaky；**零计划
+  回归**。musk_vm_track 63/63 绿（含 p080 回归钉）、button 面 20/20 绿、
+  gallery_pages_compile 绿。**③web 门复跑（F-R2 定罪）**：release 二进制增量
+  重建至 HEAD 后 `auto build` 红——干净 regen 的 vue-tsc 双红：TS2307
+  （gen/front/vue/src/auto-sources.ts 缺失，write_auto_sources_ts 仅
+  auto run/incremental 路径发射、build 不发射，而 build 产出的 overlay.ts
+  导入之）+ TS2339（main.ts:32 import.meta.env，scaffold 无 vite/client
+  types）；补 auto-sources.ts 后 TS2339 独立复现=类型面与生成物无关。
+  `pnpm exec vite build` 绕行绿（14.31s）。根因=P660-D1 预存生成器债
+  （KNOWN-DEBT-AND-RISKS.md:2405；444b87fec 在 080 基线内）——**T-06 记录的
+  "全 pipeline 绿 ×2"在本基线不可复现**（×2 绿系陈旧/手补 gen 树假象）。
+  **④F-R1 定罪**：ui-parity.mjs check 分支——catalogCheck() 内 printIssues
+  先于 live 升格执行、live 行 append 后无人打印，且 check 分支不设
+  process.exitCode；实测 `check --live` 在 settings-rows 收据 status=fail
+  时零输出退出 0。SD-02"check --live 将 missing/stale/failed 升格硬红"
+  代码未兑现；修法=check 分支尾 printIssues(issues)+exitCode 置位（含目录
+  红时 exit 1）。
+  **F-R1**（AC-01 契约面/T-01/SD-02，P1）见上④。**F-R2**（AC-07/T-06，P1）
+  见上③。**F-R3**（P3，已就地补正）frontmatter supersedes 缺
+  docs/specs/modules/ui-compositions.md（SD-03 target）——本复审已补入。
+  **F-R4**（P3，记账）PLAN-078 收据目录残留 2 份已被 079 目录补跑取代的红
+  收据（shell-workspace-selector-vm startup-failed@22:25、
+  inventory-RelationsPanel-vue timeout@22:57），"全绿"叙述以 079 目录为准；
+  建议清理或标 superseded 防误导 triage。
+  **路由**：work——F-R1（musk 小改+复验）、F-R2（收据改录或 P660-D1 收口
+  后重跑）；T-04 余（§10-9 崩溃根修 auto-lang、真机外点/ESC 手验=用户验收）、
+  T-05 余（§10-10 字体度量族 auto-lang 独立周期）、F-6（P3 目检）不变；
+  stale 会话 404 反馈定罪并入真机手验清单。tmp/ 收据为 gitignored 易失路径，
+  关键数字已录本记录。
 
 - `stage: work | plan_id: PLAN-080 | plan_revision: 1 | outcome: F-1/F-2/F-3(断言面)/F-4(宽度面)/F-5/F-7 修复收口 →
   review | code_commit: auto-musk f82bdf9+f01dff6（+ac9cca4/1488482/88f4ad2）+
@@ -418,3 +478,6 @@ check`）全绿为准入。
 9. **[新增] VM app 间歇静默 exit 1（auto-lang 债）**：登录 Submit 后整进程 exit=1 无 panic 无错误尾巴（~2/8 复现，popover_probe 两轮实证 + death-stdout/stderr 全量落盘 tmp/probe080/）；exit-audit（PLAN-575）无 code=1 行=非 panic/Process.exit/main_return-Ok 路径（.run()? Err 传播或更低层退出待查）；另有一型 MCP 活而 UI vtree 永不发布（"No UI available" 300s+）。时间线与 plain fn 内 .await 链强相关（修复轮编辑窗口 2 死 1 活，最小隔离不复现）——musk 侧已规避（ws_resolve_current 内联形态），auto-lang 侧根修独立收口。与 §4 记录的 musk 后端静默 exit 1（删会话后）疑同签名家族。
 10. **[新增] VM 字体度量映射族（auto-lang，T-05 余）**：text-xs 行高映射缺 line-height（VM 21px vs web 15.2px，疑缺省 leading ~1.75 兜底）；popover 面板锚 x 偏移 ~11px；按钮高映射 ~12px（modeRow h 50 vs 38）。影响 settings-rows h/x/y（y 为面板高差派生 ~70px）。修复落点=auto-lang 样式映射（text-* → font-size+line-height 对），全局生效需独立验证周期（examples 面回归）。
 11. **[新增·测量] vtree 快照覆盖缺口**：会话行按钮恒无样式行/空标签（session-item 类不可锚）；popover content 预构建（文本恒在）；capped/overlay 盒 @rect 伪影（视觉右对齐而 @rect 左置）——气泡/overlay 族几何对拍一律像素锚（live.mjs 已内置），vtree 覆盖面改善归 auto-lang 侧观察。
+12. **[新增·复审 F-R1] `check --live` 硬红语义未兑现（musk，T-01 余）**：live 升格行在 printIssues 之后 append 且 check 分支不设 exitCode——failed/stale/missing 全部静默零退出（复审实测 settings-rows fail + --live → exit 0）；目录红时 check 亦 exit 0。修：check 分支尾 printIssues(issues)+exitCode 置位；修后 SD-02 文本与代码一致。
+13. **[新增·复审 F-R2] web 门"全 pipeline 绿"不可复现（T-06 余）**：干净 regen 后 vue-tsc 双红（TS2307 auto-sources 仅 auto run 发射 / TS2339 vite/client 类型缺失）=P660-D1 预存生成器债（非本计划回归）；vite build 绕行绿（复审实测 14.31s）。修：收据改录（vue-tsc=P660-D1 红+绕行绿）或 P660-D1 收口后全 pipeline 重跑。
+14. **[新增·复审 F-R4·记账] PLAN-078 收据目录 2 份陈旧红收据**（shell-workspace-selector-vm、inventory-RelationsPanel-vue）已被 PLAN-079 目录补跑绿收据取代——建议清理或标 superseded。
