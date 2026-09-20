@@ -161,7 +161,12 @@ widget SettingsMenu(collapsed: bool) {
         // 受控形态承载（open: .isOpen,VM Modal 居中卡 / web 居中模态）。
         div {
             style: "settings-menu-wrapper border-t border-white/10 pt-2 mt-2"
-            popover (placement: "top-start", class: "w-80") {
+            // PLAN-080 F-4：popover 标签不再挂 class——class 在两轨语义错位
+            //（web 落 Popover wrapper div 无几何效果、面板走 PopoverContent
+            // 缺省 w-72；VM 落 content 列且顶替 PLAN-528 W9 缺省 chrome——
+            // w-80=320 无 bg/border/p-4，内宽 308 vs web 241 实证）。摘除后
+            // 双轨同归缺省面板 chrome（w-72 + p-4），宽度差收敛。
+            popover (placement: "top-start") {
                 popover-trigger (as_child: true) {
                     // 无 onclick——解释器注入内部 toggle（web 侧 reka
                     // PopoverTrigger 原生开合；ws-btn 同款已验证形态）。
@@ -183,7 +188,7 @@ widget SettingsMenu(collapsed: bool) {
                     div {
                         style: "settings-section w-full p-1.5"
                         div {
-                            style: "settings-section-title text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
+                            style: "settings-section-title w-full text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
                             text i18n.t("settings.mode")
                         }
                         div {
@@ -206,7 +211,7 @@ widget SettingsMenu(collapsed: bool) {
                     div {
                         style: "settings-section w-full p-1.5"
                         div {
-                            style: "settings-section-title text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
+                            style: "settings-section-title w-full text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
                             text i18n.t("settings.accent")
                         }
                         div {
@@ -232,7 +237,7 @@ widget SettingsMenu(collapsed: bool) {
                     div {
                         style: "settings-section w-full p-1.5"
                         div {
-                            style: "settings-section-title text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
+                            style: "settings-section-title w-full text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
                             text i18n.t("settings.theme")
                         }
                         div {
@@ -279,7 +284,7 @@ widget SettingsMenu(collapsed: bool) {
                     div {
                         style: "settings-section w-full p-1.5"
                         div {
-                            style: "settings-section-title text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
+                            style: "settings-section-title w-full text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
                             text i18n.t("settings.language")
                         }
                         div {
@@ -308,7 +313,7 @@ widget SettingsMenu(collapsed: bool) {
                     div {
                         style: "settings-section w-full p-1.5"
                         div {
-                            style: "settings-section-title text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
+                            style: "settings-section-title w-full text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
                             text "AutoOS"
                         }
                         button {

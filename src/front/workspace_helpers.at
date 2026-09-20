@@ -38,13 +38,22 @@ fn ws_load_current() Value {
  * 失效自愈）+ 列表回退（首个非空，再退首个）+ 回写 localStorage。返回解析
  * 出的 meta 供 store 持真值（app.at/login.at 经 ForgeStore.SetWorkspace
  * 回填）；全灭返回 None——不落 "musk-demo" 硬编码（那是 store 引导值，
- * 不再写 localStorage 污染下次解析，实机验收定罪的占位文案根因）。 */
+ * 不再写 localStorage 污染下次解析，实机验收定罪的占位文案根因）。
+ * 【080 F-2 复验双修】①vue 轨此处曾裸调 ws_load_current()——vue 侧 async
+ * fn 裸调用返 Promise，`Promise != null` 恒真 → 永远短路返回未解析值
+ * （触发器占位永现，live vue 臂 20×500ms 实证）；②不补 `.await` 而是
+ * **内联** ws_load_current 逻辑——plain fn 内 `.await` 链在 VM 轨登录
+ * Submit 死亡现场（静默 exit 1）时间线强相关（080 取证），bare Http.get
+ * （无 fn 间 .await）是 live 已验证形态。 */
 fn ws_resolve_current() Value {
-    let cached = ws_load_current()
-    if cached != None {
-        return cached
-    }
+    let wid = storage.get("musk_workspace") ?? ""
     try {
+        if wid != "" {
+            let cur = Http.get("/api/workspace/status?workspace=" + encodeURIComponent(wid))
+            if cur.workspace != None {
+                return cur.workspace
+            }
+        }
         let data = Http.get("/api/workspace/list")
         let workspaces = data.workspaces ?? []
         var chosen = None

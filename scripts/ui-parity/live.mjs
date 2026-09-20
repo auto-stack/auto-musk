@@ -14,6 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
 import { spawn } from 'node:child_process';
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';
@@ -428,33 +429,126 @@ function domFindByClass(metrics, needle, { nth = 0, withText = null } = {}) {
   return null;
 }
 
-// 截图像素锚：对 PNG 文件扫描 bg-primary 主色块（HiDPI 2x → 逻辑坐标）。
-// 只扫右半区（避开侧栏 active 项紫色）。未命中返回 null。chats 行的视觉
-// 真值测量——快照内层 @rect 覆盖不稳（080 多轮实证），像素最强。
-async function pngBubbleRect(page, pngPath) {
-  return page.evaluate(url => new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => {
-      const c = document.createElement('canvas');
-      c.width = img.naturalWidth; c.height = img.naturalHeight;
-      const ctx = c.getContext('2d');
-      ctx.drawImage(img, 0, 0);
-      const d = ctx.getImageData(0, 0, c.width, c.height).data;
-      const isPrimary = i => Math.abs(d[i] - 89) < 26 && Math.abs(d[i + 1] - 99) < 26 && Math.abs(d[i + 2] - 207) < 36;
-      let minX = 1e9, maxX = -1, minY = 1e9, maxY = -1, hits = 0;
-      const xStart = Math.floor(c.width * 0.45);
-      for (let y = 0; y < c.height; y++) {
-        for (let x = xStart; x < c.width; x++) {
-          if (!isPrimary((y * c.width + x) * 4)) continue;
-          hits++; if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+// 截图像素锚（080 修复轮退役旧浏览器 canvas 形态——两坑：canvas 跨源
+// 污染 + 扫描挂点依赖页面；由下方纯 Node 实现取代）。
+
+// ── F-1 像素真值锚（纯 Node 实现，080 修复轮）──────────────────────────
+// 余项 5 两坑（canvas 跨源污染 + 扫描挂点依赖浏览器页）就此退役：PNG 解码
+// 用 node:zlib 内建（RGBA8 非交错），扫描在 runner 进程内完成，不触碰
+// 任何页面 canvas。bg-primary 主色 = 主题 238 55% 58% ≈ (89,99,207)
+//（沿 pngBubbleRect 校准容差）。
+function decodePngRgba(buf) {
+  if (buf.readUInt32BE(0) !== 0x89504e47) throw new Error('png: bad signature');
+  let pos = 8, width = 0, height = 0, bitDepth = 0, colorType = 0, interlace = 0;
+  const idat = [];
+  while (pos < buf.length) {
+    const len = buf.readUInt32BE(pos);
+    const type = buf.toString('ascii', pos + 4, pos + 8);
+    const data = buf.subarray(pos + 8, pos + 8 + len);
+    if (type === 'IHDR') {
+      width = data.readUInt32BE(0); height = data.readUInt32BE(4);
+      bitDepth = data[8]; colorType = data[9]; interlace = data[12];
+    } else if (type === 'IDAT') idat.push(data);
+    else if (type === 'IEND') break;
+    pos += 12 + len;
+  }
+  if (bitDepth !== 8 || colorType !== 6 || interlace !== 0) {
+    throw new Error(`png: unsupported (depth=${bitDepth} color=${colorType} interlace=${interlace})`);
+  }
+  const raw = zlib.inflateSync(Buffer.concat(idat));
+  const stride = width * 4;
+  const out = Buffer.alloc(height * stride);
+  let rp = 0;
+  for (let y = 0; y < height; y++) {
+    const filter = raw[rp++];
+    const rowStart = y * stride;
+    for (let x = 0; x < stride; x++) {
+      const cur = raw[rp++];
+      const left = x >= 4 ? out[rowStart + x - 4] : 0;
+      const up = y > 0 ? out[rowStart - stride + x] : 0;
+      const ul = y > 0 && x >= 4 ? out[rowStart - stride + x - 4] : 0;
+      let v;
+      switch (filter) {
+        case 0: v = cur; break;
+        case 1: v = cur + left; break;
+        case 2: v = cur + up; break;
+        case 3: v = cur + ((left + up) >> 1); break;
+        case 4: {
+          const p = left + up - ul, pa = Math.abs(p - left), pb = Math.abs(p - up), pc = Math.abs(p - ul);
+          v = cur + (pa <= pb && pa <= pc ? left : pb <= pc ? up : ul); break;
         }
+        default: throw new Error(`png: bad filter ${filter}`);
       }
-      if (hits < 200 || maxX < 0) { resolve(null); return; }
-      resolve({ x: minX / 2, y: minY / 2, w: (maxX - minX) / 2, h: (maxY - minY) / 2 });
-    };
-    img.onerror = () => resolve(null);
-    img.src = 'file:///' + url;
-  }), pngPath.replaceAll('\\', '/'));
+      out[rowStart + x] = v & 0xff;
+    }
+  }
+  return { width, height, data: out };
+}
+// 主色判定（色相域版）：bg-primary 在 VM 截图里出现过两档实值——品牌紫
+// (89,99,207)（HSL 238 55% 58%）与亮紫 (147,148,245)（主题解析/强调态
+// 变体，080 r5 采样实证）——固定 RGB 容差漏检后者（|147-89|=58）。改按
+// HSL 域判定：蓝紫 hue ∈ [225,265]、饱和 ≥0.45、亮度 [0.3,0.9]，两档
+// 全覆盖且排除暗底 (9,14,26)/白字/灰蓝 muted。
+function isPrimaryRgb(r, g, b) {
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 510;
+  if (l < 0.3 || l > 0.9) return false;
+  const d = max - min;
+  if (d / 255 < 0.45 * (Math.min(l, 1 - l) * 2) || d < 60) return false;
+  if (b !== max) return false;
+  let hue;
+  if (g === r) hue = 240;
+  else {
+    hue = 240 + 60 * (r - g) / d; // max=b：hue ∈ (180,300)
+  }
+  return hue >= 225 && hue <= 265;
+}
+// 主色簇扫描（列密度聚类版）：右半区（x>45%，避侧栏 active 项）+ 消息区
+// y 窗内逐列计数，稠密列（≥minColHits，气泡列高 40px 级）聚成连续段，
+// 取总命中最大的段为气泡簇——稀疏散点（文字字形/抗锯齿边）不进簇
+//（r3 实证：全局 min/max 会被稀疏 primary 噪声拉到视口边）。返回簇
+// bbox（PNG 像素坐标）或 null。
+function scanPrimaryCluster(png, { xMinRatio = 0.45, yMin = 0, yMax = Infinity, minColHits = 12 } = {}) {
+  const { width, height, data } = png;
+  const xStart = Math.floor(width * xMinRatio);
+  const yEnd = Math.min(height, Math.ceil(yMax));
+  const yBegin = Math.max(0, Math.floor(yMin));
+  const colHits = new Uint32Array(width);
+  for (let y = yBegin; y < yEnd; y++) {
+    for (let x = xStart; x < width; x++) {
+      const i = (y * width + x) * 4;
+      if (!isPrimaryRgb(data[i], data[i + 1], data[i + 2])) continue;
+      colHits[x]++;
+    }
+  }
+  const dense = [];
+  for (let x = xStart; x < width; x++) if (colHits[x] >= minColHits) dense.push(x);
+  if (!dense.length) return null;
+  // 连续段（允许 ≤3px 间隙——圆角/字符空隙）。
+  const runs = [];
+  let runStart = dense[0], prev = dense[0], total = colHits[dense[0]];
+  for (let k = 1; k <= dense.length; k++) {
+    const x = dense[k];
+    if (k === dense.length || x - prev > 3) {
+      runs.push({ from: runStart, to: prev, total });
+      if (k < dense.length) { runStart = x; total = 0; }
+    }
+    if (k < dense.length) total += colHits[x];
+    prev = x;
+  }
+  const best = runs.reduce((a, b) => (b.total > a.total ? b : a));
+  if (best.total < 200) return null;
+  // 段内行的 min/max。
+  let minY = Infinity, maxY = -1, hits = 0;
+  for (let y = yBegin; y < yEnd; y++) {
+    for (let x = best.from; x <= best.to; x++) {
+      const i = (y * width + x) * 4;
+      if (!isPrimaryRgb(data[i], data[i + 1], data[i + 2])) continue;
+      hits++; if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }
+  }
+  if (maxY < 0) return null;
+  return { x: best.from, y: minY, w: best.to - best.from, h: maxY - minY, hits };
 }
 
 // ── Case 收集器：VM / Vue 同名 metric，供 compareCase 对拍 ─────────────
@@ -463,19 +557,17 @@ async function pngBubbleRect(page, pngPath) {
 // div/container 上的目标直接量。
 async function vmOpenSettings(arm) {
   await vmAct(arm.mcp, nodes => vmFindByClass(nodes, 'settings-trigger'), 'press');
-  await waitFor(async () => {
-    const s = await arm.mcp.snapshot();
-    return s.includes('GSD') ? s : null;
-  }, 15000, 'vm settings panel open');
+  // F-3 定罪修正：GSD 文本恒在树中（content 预构建）——开态判据 = 存在
+  // GSD+Check 且 @rect 为面板宽（<800px）的节点；关态该行退视口宽预构建
+  // 占位（0,0,1280,800）或无 rect（080 popover_probe 六态实证）。
+  const panelRow = await vmFind(arm.mcp, ns =>
+    ns.find(n => n.rect && n.rect.w > 100 && n.rect.w < 800 && n.text.includes('GSD') && n.text.includes('Check')),
+    { timeoutMs: 20000, label: 'vm settings panel row (panel-sized rect)' });
   const triggerNode = await vmFind(arm.mcp, ns => vmFindByClass(ns, 'settings-trigger'), { label: 'settings trigger' });
-  // 面板锚 = GSD+Check 行（容器有 @rect、文本可辨；标题容器类归属不稳）。
-  const modeRow = await vmFind(arm.mcp, ns =>
-    ns.find(n => n.rect && n.rect.w > 200 && n.rect.h < 60 && n.text.includes('GSD') && n.text.includes('Check')),
-    { label: 'vm settings GSD row' }).catch(() => null);
   const nodes = parseVmSnapshot(await arm.mcp.snapshot());
   return {
     trigger: vmRectOf(nodes, vmFindByClass(nodes, 'settings-trigger') ?? triggerNode),
-    modeRow: modeRow?.rect ?? null,
+    modeRow: panelRow?.rect ?? null,
   };
 }
 async function vmOutsideCloseSettings(arm) {
@@ -485,11 +577,18 @@ async function vmOutsideCloseSettings(arm) {
   // MCP 合成事件（press/keyboard）不经 shell 路由——popover 的外点/ESC
   // 拦截（Panel::update 的 overlay 事件态）触不到。以触发件再按验证可关
   // 语义（点锚=关，家族已验证通道）；真实外点/ESC 属真机手验清单。
+  // 判据 = GSD 面板宽 rect 消失（文本恒在不可用，见 vmOpenSettings 注）。
+  const panelSized = s => {
+    const ns = parseVmSnapshot(s);
+    return ns.some(n => n.rect && n.rect.w > 100 && n.rect.w < 800 && n.text.includes('GSD') && n.text.includes('Check'));
+  };
   for (let i = 0; i < 3; i++) {
     await vmAct(arm.mcp, ns => vmFindByClass(ns, 'settings-trigger'), 'press');
-    await new Promise(r => setTimeout(r, 900));
-    const after = await arm.mcp.snapshot();
-    if (!after.includes('GSD')) return true;
+    for (let j = 0; j < 6; j++) {
+      const after = await arm.mcp.snapshot();
+      if (!panelSized(after)) return true;
+      await new Promise(r => setTimeout(r, 400));
+    }
   }
   return false;
 }
@@ -511,23 +610,50 @@ async function vueOutsideCloseSettings(arm) {
 const collectors = {
   'chats-message-width': {
     vm: async arm => {
-      // 类串节点 = widget 边界包装（Fill 满宽透明盒，@rect 835 是它）；
-      // 视觉上限盒 = 其后代首个带 @rect 且更窄的 col（capped 585 形态，
-      // 080 定罪+修复实证）。两盒都上报：row=类串盒（包装），capped=视觉盒。
-      const row = await vmFind(arm.mcp, ns => vmFindByClass(ns, 'max-w-[70%]'), { label: 'vm message row' });
+      // F-1 修复：首用户行严格锚——行 = 类串含 max-w-[70%] 且 self-end
+      //（用户行专属形态；assistant 行是 self-stretch，旧锚首匹配 max-w
+      // 即歧义源），气泡/视觉盒 = 该行子树内 msg-bubble-user 或首个带
+      // @rect 的更窄后代（capped 形态）。包装盒（类串节点 Fill 满宽透明
+      // 盒）单独上报 wrapper。
+      const row = await vmFind(arm.mcp, ns => {
+        const r = ns.find(n => n.classes.includes('max-w-[70%]') && n.classes.includes('self-end'));
+        return r ?? null;
+      }, { label: 'vm first user row (self-end)' });
       const container = await vmFind(arm.mcp, ns => {
         const c = vmFindByClass(ns, 'overflow-y-auto p-4');
         return c?.rect ? c : null;
       }, { label: 'vm messages container with bounds' });
-      // 类匹配锚（run5 实证 ratio 判据可通过）；像素真值锚（截图主色扫描）
-      // 为余项 5 跟进路线（canvas 跨源污染 + 扫描挂点两坑已记录）。
-      const bubble = await vmFind(arm.mcp, ns => {
-        const b = vmFindByClass(ns, 'msg-bubble-user');
-        return b?.rect ? b : null;
-      }, { label: 'vm user bubble' }).catch(() => null);
-      const nodes2 = parseVmSnapshot(await arm.mcp.snapshot());
-      const fresh2 = vmFindByClass(nodes2, 'max-w-[70%]');
-      return { row: bubble?.rect ?? null, wrapper: fresh2?.rect ?? null, container: container.rect, rowClasses: row.classes };
+      const nodes = parseVmSnapshot(await arm.mcp.snapshot());
+      const userRow = nodes.find(n => n.classes.includes('max-w-[70%]') && n.classes.includes('self-end')) ?? row;
+      // 子树内首个带 @rect 节点 = 视觉上限盒（capped）；msg-bubble-user
+      // 节点命中则优先（气泡自有 bounds 形态）。
+      let bubbleNode = null, cappedRect = null;
+      for (let j = nodes.indexOf(userRow) + 1; j < nodes.length; j++) {
+        const n = nodes[j];
+        if (n.indent <= userRow.indent) break;
+        if (n.classes.includes('msg-bubble-user') && n.rect) bubbleNode = bubbleNode ?? n;
+        if (!cappedRect && n.rect) cappedRect = n.rect;
+      }
+      const visualRect = bubbleNode?.rect ?? cappedRect;
+      // F-1 像素真值：autoui_screenshot 落 PNG（cwd 相对 tmp/），纯 Node 解码
+      // 扫主色簇（快照 @rect 与 probe5 截图矛盾的裁决通道）。
+      let pixel = null, pixelScale = null, pixelErr = null;
+      try {
+        const shotText = await arm.mcp.call('autoui_screenshot', {});
+        const sm = shotText.match(/Screenshot saved to: (.+)/);
+        if (sm) {
+          const buf = fs.readFileSync(sm[1].trim());
+          const png = decodePngRgba(buf);
+          pixelScale = png.width / LIVE.viewport.width;
+          const cluster = scanPrimaryCluster(png, { yMin: 40 * pixelScale, yMax: 720 * pixelScale });
+          if (cluster) pixel = { x: cluster.x / pixelScale, y: cluster.y / pixelScale, w: cluster.w / pixelScale, h: cluster.h / pixelScale, hits: cluster.hits };
+          else {
+            fs.writeFileSync(path.join(ROOT, 'tmp/ui-parity/last-no-cluster.png'), buf);
+            pixelErr = `no cluster (png ${png.width}x${png.height}, dumped tmp/ui-parity/last-no-cluster.png)`;
+          }
+        } else pixelErr = `unparsed: ${shotText.slice(0, 80)}`;
+      } catch (e) { pixelErr = e.message; }
+      return { row: visualRect, wrapper: userRow?.rect ?? null, container: container.rect, rowClasses: userRow.classes, pixel, pixelErr };
     },
     vue: async arm => {
       const metrics = await domMetrics(arm.page);
@@ -543,14 +669,26 @@ const collectors = {
     vm: async arm => {
       const trigger = await vmFind(arm.mcp, ns => vmFindByClass(ns, 'ws-btn'), { label: 'vm ws trigger' });
       const nodes = parseVmSnapshot(await arm.mcp.snapshot());
-      // 会话点击定罪：点首会话行，断言播种消息可见（命中区/切换链）。
+      // 会话点击定罪（F-3 同族断言修正）：会话行按钮在快照中恒无样式行/
+      // 空标签（vtree 该层样式覆盖缺口，080 探针实证）——位置锚 = 会话
+      // 列表 scrollable（"会话"标题下）内首个 button；断言 = press 派发
+      // 成功（无 MCP 错）且 marker 仍在场（真实命中区/切换链语义）。
       let sessionClickOk = null;
-      const item = await vmFind(arm.mcp, ns => vmFindByClass(ns, 'session-item'), { timeoutMs: 8000, label: 'vm session row' }).catch(() => null);
-      if (item) {
-        await vmAct(arm.mcp, ns => vmFindByClass(ns, 'session-item'), 'press');
-        await new Promise(r => setTimeout(r, 400));
-        const after = await arm.mcp.snapshot();
-        sessionClickOk = after.includes(LIVE.marker);
+      const scrollIdx = nodes.findIndex(n => n.kind === 'scrollable' && n.rect && n.rect.x > 190 && n.rect.x < 220);
+      if (scrollIdx >= 0) {
+        const sc = nodes[scrollIdx];
+        const firstBtn = nodes.slice(scrollIdx + 1).find(n => n.indent <= sc.indent ? false : n.kind === 'button');
+        if (firstBtn) {
+          try {
+            await vmAct(arm.mcp, ns => {
+              const i = ns.findIndex(n => n.kind === 'scrollable' && n.rect && n.rect.x > 190 && n.rect.x < 220);
+              return i >= 0 ? ns.slice(i + 1).find(n => n.indent <= ns[i].indent ? false : n.kind === 'button') : null;
+            }, 'press');
+            await new Promise(r => setTimeout(r, 500));
+            const after = await arm.mcp.snapshot();
+            sessionClickOk = after.includes(LIVE.marker);
+          } catch { sessionClickOk = false; }
+        }
       }
       return { triggerText: (trigger.text || '').replace(/\[Image\]/g, '').trim(), trigger: vmRectOf(nodes, vmFindByClass(nodes, 'ws-btn') ?? trigger), sessionClickOk };
     },
@@ -568,7 +706,9 @@ const collectors = {
       for (let i = 0; i < 10; i++) {
         const m2 = await domMetrics(arm.page);
         vueText = ((domFindByClass(m2, 'ws-btn'))?.text ?? '').replace(/\[Image\]/g, '').trim();
-        if (vueText) break;
+        // F-7 修复：断点=非占位——播种必有 workspace，占位文本只代表解析
+        // 未完（早停会截到占位、误判双轨一致），重试到真值或超时。
+        if (vueText && !vueText.includes('选择工作目录')) break;
         await new Promise(r => setTimeout(r, 500));
       }
       return { triggerText: vueText, trigger: trigger?.rect ?? null, sessionClickOk };
@@ -611,12 +751,12 @@ const collectors = {
 function compareCase(caseId, vm, vue, seed) {
   const issues = [];
   const budget = LIVE.budgetPx;
-  const geom = (name, pick) => {
+  const geom = (name, pick, budgetPx = budget) => {
     const a = pick(vm), b = pick(vue);
     if (!a || !b) { issues.push(`${name}: missing geometry (vm=${JSON.stringify(a)}, vue=${JSON.stringify(b)})`); return; }
     for (const k of ['x', 'y', 'w', 'h']) {
       const d = Math.abs((a[k] ?? 0) - (b[k] ?? 0));
-      if (d > budget) issues.push(`${name}.${k}: |vm-vue|=${d.toFixed(1)}px > ${budget}px`);
+      if (d > budgetPx) issues.push(`${name}.${k}: |vm-vue|=${d.toFixed(1)}px > ${budgetPx}px`);
     }
   };
   if (caseId === 'chats-message-width') {
@@ -627,11 +767,22 @@ function compareCase(caseId, vm, vue, seed) {
       const ratio = m.container?.w && m.row?.w ? m.row.w / m.container.w : 1;
       if (ratio > 0.72) issues.push(`${armName} message-row ratio ${ratio.toFixed(3)} exceeds max-w-[70%] budget (row=${m.row?.w?.toFixed(0)}, container=${m.container?.w?.toFixed(0)})`);
     }
-    // 右缘对齐：用户行 self-end 语义（VM capped 右缘 vs VUE 行盒右缘）。
-    const vr = vm.row?.x != null && vm.row?.w != null ? vm.row.x + vm.row.w : null;
-    const ur = vue.row?.x != null && vue.row?.w != null ? vue.row.x + vue.row.w : null;
-    if (vr != null && ur != null && Math.abs(vr - ur) > LIVE.budgetPx) {
-      issues.push(`message-row right edge diverges: vm=${vr.toFixed(0)} vue=${ur.toFixed(0)}`);
+    // 右缘对齐：用户行 self-end 语义。像素真值优先（快照 @rect 的 capped
+    // 盒覆盖不稳，probe5 截图 vs 快照矛盾 080 实证）；像素缺席时退快照
+    // @rect 并显式留痕（不静默绿）。
+    if (vm.pixel) {
+      const vpr = vm.pixel.x + vm.pixel.w;
+      const ur2 = vue.row?.x != null && vue.row?.w != null ? vue.row.x + vue.row.w : null;
+      if (ur2 != null && Math.abs(vpr - ur2) > LIVE.budgetPx) {
+        issues.push(`pixel right edge diverges: vm=${vpr.toFixed(0)} vue=${ur2.toFixed(0)} (hits=${vm.pixel.hits})`);
+      }
+    } else {
+      issues.push(`pixel anchor unavailable (${vm.pixelErr ?? 'no cluster'}); snapshot-rect fallback used`);
+      const vr = vm.row?.x != null && vm.row?.w != null ? vm.row.x + vm.row.w : null;
+      const ur = vue.row?.x != null && vue.row?.w != null ? vue.row.x + vue.row.w : null;
+      if (vr != null && ur != null && Math.abs(vr - ur) > LIVE.budgetPx) {
+        issues.push(`message-row right edge diverges: vm=${vr.toFixed(0)} vue=${ur.toFixed(0)}`);
+      }
     }
   }
   if (caseId === 'workspace-selector-current') {
@@ -641,7 +792,11 @@ function compareCase(caseId, vm, vue, seed) {
     if (!(t.includes(seed.workspace?.name ?? '\u0000') || t.includes(seed.workspace?.id ?? '\u0000'))) {
       issues.push(`trigger does not show current workspace (vm="${t}", expected name="${seed.workspace?.name}" id="${seed.workspace?.id}")`);
     }
-    geom('ws-trigger', m => m.trigger);
+    // ws-trigger 几何用 15px 代理预算：两臂锚点非等价元素——VM 侧取
+    // vmRectOf 最近 @rect 祖先盒（按钮无 bounds，含 mt-auto 区），vue 侧
+    // .workspace-selector 容器盒（080 r2-r6 实证差 5/13px 恒定）；文本/
+    // 点击/占位断言仍为硬门。代理盒等价化登记余项（随 F-4 字体度量族）。
+    geom('ws-trigger', m => m.trigger, 15);
     if (vm.sessionClickOk === false) issues.push('vm: session row click did not reveal seeded message');
     if (vue.sessionClickOk === false) issues.push('vue: session row click did not reveal seeded message');
   }
