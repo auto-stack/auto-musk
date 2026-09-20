@@ -4,7 +4,7 @@ import { ROOT, GALLERY, DATA, files, hash, slash, readJson, writeJson, inventory
 
 export function at(v) {
   if (Array.isArray(v)) return '[' + v.map(at).join(', ') + ']';
-  if (v && typeof v === 'object') return '{ ' + Object.entries(v).map(([k, val]) => `${k}: ${at(val)}`).join(', ') + ' }';
+  if (v && typeof v === 'object') return '{ ' + Object.entries(v).map(([k, val]) => `${/^[A-Za-z_][A-Za-z0-9_]*$/.test(k) ? k : JSON.stringify(k)}: ${at(val)}`).join(', ') + ' }';
   return v === null ? 'None' : JSON.stringify(v);
 }
 
