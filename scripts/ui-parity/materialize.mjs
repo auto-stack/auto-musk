@@ -108,6 +108,11 @@ store ForgeStore {
         PollStream,
         ThinkToggle(str),
         ToolToggle(str),
+        // PLAN-080 T-02: 生产 store 的 workspace 单源回填面（app.at/login.at
+        // 经 ws_resolve_current → SetWorkspace 调用）——缺此 msg 物化 app
+        // 链接即 Undefined symbol: handler_ForgeStore_SetWorkspace（080
+        // 基线刷新轮实证）。适配器语义=字段回填最小面。
+        SetWorkspace(Value),
     }
     on {
         .Init -> {}
@@ -128,6 +133,14 @@ store ForgeStore {
         .FlushQueue -> {}
         .SetThinkingLevel(l str) -> { .thinking_level = l }
         .SetApprovalMode(m str) -> { .approval_mode = m }
+        // PLAN-080 T-02: workspace 单源回填（生产 handler 的字段面等价适配）。
+        .SetWorkspace(meta Value) -> {
+            if meta != None {
+                if meta.id != None { .workspace = meta.id }
+                .workspace_name = meta.name ?? ""
+                .workspace_path = meta.path ?? ""
+            }
+        }
         .ClearGate -> {}
         .ApproveGate -> {}
         .RejectGate -> {}
