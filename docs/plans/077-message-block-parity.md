@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-077
-status: drafting
+status: reviewed
 feature_name: 消息 Block 与 ChatMessage 组合一致性
 author: [agent]
 created_at: 2026-09-19T00:00:00Z
@@ -137,6 +137,43 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 不得丢弃不属于本计划的WIP，包管理器链接风险必须事前验证。
 
 ## 9. 复审记录
+
+### 2026-09-20 执行基线
+
+- 授权：用户要求执行 077 并继续 review / merge。
+- base_commit: ec9b9bb42b7818b3730cf71b52de44f0a5afe5c3
+- worktree: D:/autostack/.wt/musk-077/auto-musk；branch: plan-077-dev
+- dependencies: auto-lang 278f71f3536c2c2a0de2d6d1ea60ebc201a8a234；auto-down a86cb343b738cec47df63c953f368a035a758451
+- 前置已归档；当前 runner 仅 smoke，不能沿用其结果作为 077 交互/视觉 PASS。
+
+### 2026-09-20 复审记录（review）
+
+- stage: review | plan_id: PLAN-077 | plan_revision: 1 | outcome: **pass**
+- reviewed_commit: `fbca482`（plan-077-dev tip；实现提交 `a3b1f59` + harness 修复 `fbca482`）
+- base_commit: `839a0cb`（073 合回后 main；rebase 基线，wip `e619dac` 补丁等价已验）
+- dependency_revisions: auto-lang master `4aadc1f57`（含 `1d6dc1f86` computed `??`）；auto-down `3f73737f`（组内兄弟，构建消费）
+- spec_inputs: `docs/specs/modules/chat-streaming.md`、`docs/specs/03-front-component-groups.md`（SD-01/SD-02 增量待 merge 阶段落canonical）
+- acceptance_results:
+  - AC-01 状态覆盖 **pass**：17 case 覆盖 text/thinking(done/streaming)/tool(completed/running/gate_waiting/failed)/gate + 扩展卡；073 行为不回退（gate 内联卡/增量快照语义随 case 复验）；`message-contract.mjs` 投影契约双端断言。
+  - AC-02 实例隔离 **pass**：chat-block-isolation 双消息×多块真实点击展开/折叠隔离、工具卡隔离、重排键不串位、增量更新、卸载/复建——VM 与 Vue 同断言集全绿。
+  - AC-03 业务交互 **pass**（含 F-1 记录限制）：审批/拒绝实测 `POST /api/chats/tool-gate/{gate_id}/approve|deny`（隔离 mock，双端）；分叉路由宿主 `FORK:<mid>`（双端）；停止 spy+1（双端）；gate_waiting 不显示 completed。
+  - AC-04 组合一致 **pass**：chat-multi-round 多轮交错 thinking→text→tool→gate→result 回放确定性（Round 2 ↔ Replay round 1 双向断言）；流式检查点由 chat-thinking-streaming 承载。
+  - AC-05 单源与证据 **pass**：gallery=生产 hash 字节拷贝（verifyMaterialized）；VM 17/17 snapshot-ok；Vue 17/17 interaction-ok 零 pageerror；未达视觉项全部登记证据报告 §6（无藏遗留）。
+- findings（非阻塞，登记不回 work）：
+  - F-1：Copy 动作 VM 端无文本锚点（icon-only 按钮），VM 未实证点击；Vue 端无错、CopyContent 为 dom FFI 无下游请求可 spy。后续：snapshot 匹配器支持 title 锚点。
+  - F-2：视觉预算未达项（VM 主题/间距/字体细分、窗口尺寸对拍、工具头内部排布）登记 077-evidence §6，责任 auto-lang/runner。
+- evidence: `docs/reports/ui-parity/077-evidence.md`；receipt `tmp/ui-parity/PLAN-077/*-{vm,vue}.json`；VM 截图 `examples/musk-widgets-gallery/src/front/tests/screenshots/plan077-*.png`；复审复核命令：`node scripts/ui-parity.mjs run --plan 077 --case task-plan-card --mode vm` / `--case chat-multi-round --mode vm`（fbca482 上重跑 snapshot-ok）。
+- 限制声明：复审与执行同会话，结论以上述工件重验重建（非执行摘要）；full matrix 运行于 `a3b1f59`，`fbca482` 仅改 host 键引用号并已对 task-plan-card/chat-multi-round 重跑确认。
+- next: merge
+
+### 2026-09-20 执行进度（work）
+
+- 状态：T-01..T-04 完成并双端验证；T-05 证据报告 `docs/reports/ui-parity/077-evidence.md` 已立。
+- 生产修复：块投影 state/稳定 tkey/gate 载荷；`toggleBlockExpansion` 键列表展开；gate 卡显式 props；chats_view `onfork`→`on_fork_from`（VM/Vue 双端路由断点修复）；mention_helpers 全面 `char_at`→`sub(i,i+1)`（VM `char_at` 按 Plan 368 W5 返回码点 int，web 返回 1 字符 string——computed `??` 支持落地后该链在 VM 真实执行而暴露）。
+- 上游 auto-lang 已合回 master：`1d6dc1f86`（computed `??` 支持）+ `4aadc1f57`（`max-w-[N%]` 百分比上限委托 widget）。门禁：cargo check 零错；`cargo t ui` 仅 2 个 master 预存环境红（stash 对照复现）；新增单测全绿。
+- runner：内容断言（visible/absent/request/spyIncrement）、vueOnly/vmOnly 步、materialize 宿主 fork 路由承载与 per-type 字段声明、Vue Playwright 对拍 runner。
+- 新增 case：chat-block-isolation / chat-multi-round / tool-gate-direct + 10 个扩展卡单元 + streaming-table（可达无消费者登记）。
+- 待办：Vue 端交互对拍收尾 → review → merge。
 
 - stage: new
 - plan_revision: 1
