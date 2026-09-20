@@ -1,0 +1,8 @@
+{
+  "live": true,
+  "case": "workspace-selector-current",
+  "note": "PLAN-080 T-02：触发器须显示当前 workspace（真名/路径，非『选择工作目录』占位），双轨文本一致 + 几何 ≤2px；含会话行点击定罪（播种消息可见）。",
+  "budget_px": 2,
+  "viewport": [1280, 800],
+  "metrics": ["ws-trigger"]
+}

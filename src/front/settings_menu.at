@@ -10,8 +10,8 @@
 //     composable ref 赋值 + fetch 链式 + window.open）
 //   - themeOptions computed 数组（含 lucide 图标）→ 静态渲染 3 个按钮
 //   - document 点击外部关闭 + menuRef template ref + <transition> → 舍弃
-//     （PLAN-059 T9 起 dialog 家族原生外点/ESC 关闭;web DialogContent 自带
-//     X——原"trigger 再次点击关闭"的近似差异消除）
+//     （PLAN-059 T9 起 dialog 家族原生外点/ESC 关闭;PLAN-080 T-04 起弹层
+//     再迁 popover 嵌套锚定形态——就近浮层、非 modal，ws-btn 同款）
 //   - accent 动态 style（per-item brand1）→ style: 字符串拼接（P12 缺陷 9）
 //
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.settings-* 等）。
@@ -41,7 +41,7 @@ widget SettingsMenu(collapsed: bool) {
         isLocaleZh => .currentLocale == "zh"
         triggerIconSize => if .collapsed { 24 } else { 16 }
     }
-    msg Msg { Toggle, SetForgeGSD, SetForgeCheck, SetAccent(str), SetThemeLight, SetThemeDark, SetThemeAuto, ChangeLocale(str), OpenAutoOs }
+    msg Msg { SetForgeGSD, SetForgeCheck, SetAccent(str), SetThemeLight, SetThemeDark, SetThemeAuto, ChangeLocale(str), OpenAutoOs }
     // PLAN-059 T9:开关态改 dialog 受控形态（无 trigger,open 绑 state_ref
     // bool——chats_view 删除确认 alert-dialog 同款已验证模式）。触发行留在
     // dialog 外自持 onclick（parser 铸造形态的 toggle 会落内层按钮,与 web
@@ -50,7 +50,6 @@ widget SettingsMenu(collapsed: bool) {
     // v-model:open 回写）;VM Modal 卡片经底部关闭钮关闭（ESC/外点 dismiss
     // 不接线,与 alert 族同口径,家族债已在案）。
     model {
-        var isOpen bool = false
         var currentLocale str = ""
         var forgeMode str = "gsd"
         var autoOsError str = ""
@@ -63,7 +62,6 @@ widget SettingsMenu(collapsed: bool) {
             .currentLocale = settingsInitLocale();
             .forgeMode = settings_load_forge_mode().await
         }
-        .Toggle -> { .isOpen = !.isOpen }
         .SetForgeGSD -> {
             .forgeMode = "gsd";
             settings_set_forge_mode("gsd").await
@@ -163,27 +161,24 @@ widget SettingsMenu(collapsed: bool) {
         // 受控形态承载（open: .isOpen,VM Modal 居中卡 / web 居中模态）。
         div {
             style: "settings-menu-wrapper border-t border-white/10 pt-2 mt-2"
-            button {
-                onclick: .Toggle
-                class: if .collapsed { "rail-trigger-24 settings-trigger w-10 h-10 flex items-center justify-center rounded-md bg-transparent border-none text-muted-foreground hover:bg-accent" } else { if .isOpen { "settings-trigger open w-full flex items-center gap-2 rounded-md px-2 h-9 bg-accent text-primary" } else { "settings-trigger w-full flex items-center gap-2 rounded-md px-2 h-9 bg-transparent text-muted-foreground" } }
-                title: i18n.t("settings.title")
-                Settings { size: .triggerIconSize }
-                if .collapsed {
-                } else {
-                    span {
-                        style: "flex-1 text-left text-sm"
-                        text i18n.t("settings.title")
+            popover (placement: "top-start", class: "w-80") {
+                popover-trigger (as_child: true) {
+                    // 无 onclick——解释器注入内部 toggle（web 侧 reka
+                    // PopoverTrigger 原生开合；ws-btn 同款已验证形态）。
+                    button {
+                        class: if .collapsed { "rail-trigger-24 settings-trigger w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" } else { "settings-trigger w-full flex items-center gap-2 rounded-md px-2 h-9 bg-transparent text-muted-foreground" }
+                        title: i18n.t("settings.title")
+                        Settings { size: .triggerIconSize }
+                        if .collapsed {
+                        } else {
+                            span {
+                                style: "flex-1 text-left text-sm"
+                                text i18n.t("settings.title")
+                            }
+                        }
                     }
                 }
-            }
-            dialog (open: .isOpen) {
-                // 空 trigger 锚件(536 delete_confirm.vm.at 同款)——解释器轨
-                // Modal 浮层的 overlay 挂载依赖 anchor widget 在场,无 trigger
-                // (anchor=Empty)时面板退化流内不绘浮层(实机对照实证)。
-                dialog-trigger {
-                    text ""
-                }
-                dialog-content {
+                popover-content {
                     // ── Mode Section（GSD/Check，后端持久化）──
                     div {
                         style: "settings-section w-full p-1.5"
@@ -330,16 +325,6 @@ widget SettingsMenu(collapsed: bool) {
                                 style: "deep-link-error"
                                 text .autoOsError
                             }
-                        }
-                    }
-                    // ── 关闭（VM Modal 卡无 X/遮罩关闭,显式动作收口;web 侧与
-                    // DialogContent 自带 X 并存,冗余无害）──
-                    div {
-                        style: "settings-section w-full p-1.5 flex justify-end"
-                        button {
-                            onclick: .Toggle
-                            style: "deep-link-btn w-auto px-3"
-                            text i18n.t("common.close")
                         }
                     }
                 }

@@ -1,0 +1,17 @@
+{
+  "live": true,
+  "case": "settings-rows",
+  "note": "PLAN-080 T-05：settings 面板内部行布局（模式行 + 四 section 标题）双拍几何 ≤2px。VM 按钮无 bounds、面板内类归属不稳——文本锚定容器代理。",
+  "budget_px": 2,
+  "viewport": [
+    1280,
+    800
+  ],
+  "metrics": [
+    "modeRow",
+    "titleMode",
+    "titleAccent",
+    "titleTheme",
+    "titleLang"
+  ]
+}

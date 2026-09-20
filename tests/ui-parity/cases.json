@@ -410,6 +410,50 @@
       "state": "shell-controls-matrix",
       "owner": "PLAN-079",
       "plan": "PLAN-079"
+    },
+    {
+      "id": "chats-message-width",
+      "unit": "ChatMessage",
+      "logicalUnit": "message",
+      "fixture": "live-chats-message-width.json",
+      "mode": "live-geometry",
+      "state": "real-backend-seeded-user-row",
+      "owner": "PLAN-080",
+      "plan": "PLAN-080",
+      "live": true
+    },
+    {
+      "id": "workspace-selector-current",
+      "unit": "WorkspaceSelector",
+      "logicalUnit": "shell",
+      "fixture": "live-workspace-selector-current.json",
+      "mode": "live-geometry",
+      "state": "real-backend-workspace-resolved",
+      "owner": "PLAN-080",
+      "plan": "PLAN-080",
+      "live": true
+    },
+    {
+      "id": "settings-popover",
+      "unit": "SettingsMenu",
+      "logicalUnit": "shell",
+      "fixture": "live-settings-popover.json",
+      "mode": "live-geometry",
+      "state": "anchored-popover-outside-close",
+      "owner": "PLAN-080",
+      "plan": "PLAN-080",
+      "live": true
+    },
+    {
+      "id": "settings-rows",
+      "unit": "SettingsMenu",
+      "logicalUnit": "shell",
+      "fixture": "live-settings-rows.json",
+      "mode": "live-geometry",
+      "state": "panel-internal-row-layout",
+      "owner": "PLAN-080",
+      "plan": "PLAN-080",
+      "live": true
     }
   ]
 }

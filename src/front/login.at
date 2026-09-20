@@ -11,6 +11,9 @@ use store: AuthStore
 // PLAN-045-E4/446-E4: 登录/注册成功后重注入 VM 默认认证头(web adapter
 // no-op——web 拦截器逐请求读 localStorage,时序无关)。
 use.web platformRefreshAuth from "src/front/ports/platform.at"
+// PLAN-080 T-02: 登录后重解析 workspace 回填 ForgeStore（boot 时后端不可达
+// 的兜底；单源解析器与 app.at 共用）。
+use.web ws_resolve_current from "src/front/workspace_helpers.at"
 // PLAN-063 T4 (D11):登录页文案 i18n 化(此前全硬编码英文)。
 use.web useT from "src/front/ports/composables.at"
 
@@ -147,6 +150,9 @@ widget LoginPage {
             // PLAN-048:VM 轨登录态变化无视图重挂载信号(web 由 guard 切换
             // 驱动 ChatsView onMounted)——登录后显式拉一次会话列表。
             ForgeStore.LoadSessionList()
+            // PLAN-080 T-02: 登录后重解析 workspace 回填 store（单源
+            // ws_resolve_current；VM 冷启 boot 期后端未就绪的兜底）。
+            ForgeStore.SetWorkspace(ws_resolve_current().await)
             platformRefreshAuth()
         }
     }

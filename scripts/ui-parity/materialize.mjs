@@ -62,6 +62,8 @@ store ForgeStore {
         var events []Value = []
         var session_id str = "session-1"
         var workspace str = ""
+        var workspace_name str = ""
+        var workspace_path str = ""
         var token str = ""
         var session_list []Value = []
         var messages []Value = []

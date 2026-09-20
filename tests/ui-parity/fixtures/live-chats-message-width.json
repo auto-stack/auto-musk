@@ -1,0 +1,8 @@
+{
+  "live": true,
+  "case": "chats-message-width",
+  "note": "PLAN-080 T-01 真机臂：真 musk.exe 后端播种长用户消息，VM(MCP @rect) 与 Vue(playwright DOM rect) 同视口 1280x800 对拍消息行宽度。预算 ≤2px（沿 079 口径），另断言 max-w-[70%] 比例上限（ratio ≤ 0.72 防百分比解析失效）。",
+  "budget_px": 2,
+  "viewport": [1280, 800],
+  "metrics": ["message-row", "messages-container"]
+}

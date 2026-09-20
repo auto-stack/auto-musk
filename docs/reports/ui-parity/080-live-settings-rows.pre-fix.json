@@ -1,0 +1,89 @@
+{
+  "plan": "PLAN-080",
+  "caseId": "settings-rows",
+  "mode": "live",
+  "at": "2026-09-20T10:06:40.824Z",
+  "duration_ms": 1,
+  "status": "fail",
+  "issues": [
+    "settings:modeRow.x: |vm-vue|=408.5px > 2px",
+    "settings:modeRow.y: |vm-vue|=285.4px > 2px",
+    "settings:modeRow.w: |vm-vue|=270.9px > 2px",
+    "settings:modeRow.h: |vm-vue|=19.0px > 2px",
+    "settings:titleMode: missing geometry (vm=null, vue={\"x\":420.54998779296875,\"y\":123.31460571289062,\"w\":438.9000244140625,\"h\":15.199996948242188})",
+    "settings:titleAccent: missing geometry (vm=null, vue={\"x\":420.54998779296875,\"y\":210.8778839111328,\"w\":438.9000244140625,\"h\":15.20001220703125})",
+    "settings:titleTheme: missing geometry (vm=null, vue={\"x\":420.54998779296875,\"y\":283.2411804199219,\"w\":438.9000244140625,\"h\":15.199981689453125})",
+    "settings:titleLang: missing geometry (vm=null, vue={\"x\":420.54998779296875,\"y\":450.6044616699219,\"w\":438.9000244140625,\"h\":15.199981689453125})"
+  ],
+  "metrics": {
+    "vm": {
+      "modeRow": {
+        "x": 12,
+        "y": 430,
+        "w": 168,
+        "h": 57
+      },
+      "titleMode": null,
+      "titleAccent": null,
+      "titleTheme": null,
+      "titleLang": null
+    },
+    "vue": {
+      "modeRow": {
+        "x": 420.54998779296875,
+        "y": 144.58570861816406,
+        "w": 438.9000244140625,
+        "h": 38
+      },
+      "titleMode": {
+        "x": 420.54998779296875,
+        "y": 123.31460571289062,
+        "w": 438.9000244140625,
+        "h": 15.199996948242188
+      },
+      "titleAccent": {
+        "x": 420.54998779296875,
+        "y": 210.8778839111328,
+        "w": 438.9000244140625,
+        "h": 15.20001220703125
+      },
+      "titleTheme": {
+        "x": 420.54998779296875,
+        "y": 283.2411804199219,
+        "w": 438.9000244140625,
+        "h": 15.199981689453125
+      },
+      "titleLang": {
+        "x": 420.54998779296875,
+        "y": 450.6044616699219,
+        "w": 438.9000244140625,
+        "h": 15.199981689453125
+      }
+    }
+  },
+  "budget_px": 2,
+  "viewport": {
+    "width": 1280,
+    "height": 800
+  },
+  "seed": {
+    "workspace": {
+      "id": "ws",
+      "name": "ws",
+      "path": "\\\\?\\D:\\autostack\\.wt\\musk-080\\auto-musk\\tmp\\ui-parity\\live-run-20260920100614\\ws"
+    },
+    "session": {
+      "id": "99724f86fe64f96dde1ea80c",
+      "name": "New chat"
+    }
+  },
+  "source_hashes": {
+    "src/front/app.at": "97244e07aad31882b4114e83ea7c47b9890cc349385ef43a071537aacab4df1c",
+    "src/front/chat_message.at": "ec79165ea905d3dcbe721689b20953d040419907ad03a69e0e0abad5f9709a53",
+    "src/front/chats_view.at": "5f299e0b57de0bc831990e9a27325ad445aca4cc7f32ff36d15f337636b88530",
+    "src/front/workspace_selector.at": "c932dbde9b7f63d1bb1197d2bff7cddf9f9e41263e7e19e48294fc20dc7bf644",
+    "src/front/workspace_helpers.at": "cebf1c1e6f687183eca2189e1a3553966dac525f59f30dbf7896c7196fa411d8",
+    "src/front/settings_menu.at": "605d970458f34771de4f47859f75e20013cf48bd126086bfdc4e11134fe8ee94",
+    "src/front/forge_store.at": "53e35076a0a9f18ae2954758137ad5136d7ddbe24a77856810fe866b7b4db4f0"
+  }
+}

@@ -10,6 +10,7 @@ import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { ROOT, GALLERY, DATA, ARTIFACTS, readJson, writeJson, inventory, portVariants, triageFor, checkCatalog, effectiveCases, hash, slash } from './ui-parity/source.mjs';
 import { materialize, verifyMaterialized } from './ui-parity/materialize.mjs';
+import { runLive, liveCases, liveReceiptStatus } from './ui-parity/live.mjs';
 
 const args = process.argv.slice(2);
 const command = args[0] ?? 'check';
@@ -205,9 +206,16 @@ async function run() {
   const planCases = option('--plan')
     ? effectiveCases(catalog).filter(c => c.plan === targetPlan)
     : [];
-  const targetCases = explicitCase
+  let targetCases = explicitCase
     ? [effectiveCases(catalog).find(c => c.id === explicitCase) ?? (() => { throw new Error(`Unknown case: ${explicitCase}`); })()]
     : (planCases.length ? planCases : [effectiveCases(catalog).find(c => c.id === 'chat-message-pair')]);
+  // PLAN-080：live case（真后端实机对拍）走 live 臂，不进物化管线。
+  const liveTargets = targetCases.filter(c => c.live).map(c => c.id);
+  if (liveTargets.length) {
+    const receipts = await runLive(liveTargets);
+    if (receipts.some(r => r.status !== 'pass')) process.exitCode = 1;
+    targetCases = targetCases.filter(c => !c.live);
+  }
   for (const c of targetCases) {
     prepare(c.id);
     const modes = option('--mode') === 'vue' ? ['vue'] : option('--mode') === 'vm' ? ['vm'] : ['vue', 'vm'];
@@ -526,9 +534,27 @@ function report() {
 }
 try {
   if (command === 'list') list();
-  else if (command === 'check') { const issues = catalogCheck(); if (!issues.length) console.log(`ui-parity: catalog PASS (${inventory().length} declarations, ${effectiveCases(catalog).length} cases)`); }
+  else if (command === 'check') {
+    const issues = catalogCheck();
+    // PLAN-080：live-required 面。缺省（离线）显式 skip 留痕不静默绿；
+    // `check --live` 将 missing/stale/failed 升格为 issue（required 准入）。
+    const liveDir = path.join(ROOT, 'tmp/ui-parity/PLAN-080');
+    const liveStates = liveReceiptStatus(catalog, liveDir);
+    for (const s of liveStates) {
+      if (s.state === 'ok') continue;
+      const line = `live-required '${s.id}': ${s.state} — ${s.reason}`;
+      if (has('--live')) issues.push(line);
+      else console.error(`⏭ ${line}`);
+    }
+    if (!issues.length) console.log(`ui-parity: catalog PASS (${inventory().length} declarations, ${effectiveCases(catalog).length} cases${liveStates.length ? `, live ${liveStates.filter(s => s.state === 'ok').length}/${liveStates.length} ok` : ''})`);
+  }
   else if (command === 'prepare') prepare();
   else if (command === 'run') await run();
+  else if (command === 'live') {
+    const ids = args.slice(1).filter(a => !a.startsWith('--'));
+    const receipts = await runLive(ids.length ? ids : undefined);
+    if (receipts.some(r => r.status !== 'pass')) process.exitCode = 1;
+  }
   else if (command === 'report') report();
-  else throw new Error(`Usage: node scripts/ui-parity.mjs list|check|prepare|run|report`);
+  else throw new Error(`Usage: node scripts/ui-parity.mjs list|check|prepare|run|live|report`);
 } catch (e) { console.error(`ui-parity: ${e.stack ?? e}`); process.exitCode = 1; }

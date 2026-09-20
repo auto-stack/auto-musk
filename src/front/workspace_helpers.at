@@ -33,6 +33,42 @@ fn ws_load_current() Value {
     }
 }
 
+/** PLAN-080 T-02：当前 workspace 单源解析器——ForgeStore 与 WorkspaceSelector
+ * 初始化的收敛点。语义 = ws_load_current（localStorage wid + status 校验，
+ * 失效自愈）+ 列表回退（首个非空，再退首个）+ 回写 localStorage。返回解析
+ * 出的 meta 供 store 持真值（app.at/login.at 经 ForgeStore.SetWorkspace
+ * 回填）；全灭返回 None——不落 "musk-demo" 硬编码（那是 store 引导值，
+ * 不再写 localStorage 污染下次解析，实机验收定罪的占位文案根因）。 */
+fn ws_resolve_current() Value {
+    let cached = ws_load_current()
+    if cached != None {
+        return cached
+    }
+    try {
+        let data = Http.get("/api/workspace/list")
+        let workspaces = data.workspaces ?? []
+        var chosen = None
+        for w in workspaces {
+            if w.is_empty == false {
+                chosen = w
+                break
+            }
+        }
+        if chosen == None {
+            if workspaces.length > 0 {
+                chosen = workspaces[0]
+            }
+        }
+        if chosen != None {
+            storage.set("musk_workspace", chosen.id)
+            return chosen
+        }
+    } catch {
+        return None
+    }
+    return None
+}
+
 /** 从最近列表按 id 找工作区（无则 None）。 */
 fn ws_find(recent []Value, id str) Value {
     for w in recent {

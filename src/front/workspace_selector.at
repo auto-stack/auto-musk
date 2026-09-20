@@ -21,15 +21,24 @@
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web component Folder, FolderPlus, ChevronDown, Search, Check from "src/front/ports/icons.at"
-use.web ws_load_recent, ws_load_current, ws_find, ws_filter_recent, ws_pick, ws_open from "src/front/workspace_helpers.at"
+use.web ws_load_recent, ws_find, ws_filter_recent, ws_pick, ws_open from "src/front/workspace_helpers.at"
+// PLAN-080 T-02: workspace 单源——current 真值归 ForgeStore（app.at/login.at
+// 经 ws_resolve_current() → SetWorkspace 回填），本组件读 store，不再自跑
+// ws_load_current 异步解析（旧双源在 VM 冷启 localStorage 空时恒显占位文案）。
+use store: ForgeStore
 
 // PLAN-071 r4（需求③-3）：collapsed 收缩形态——icon 触发（hover=目录，
 // 点击弹同款 popover），弹层逻辑不变。
 widget WorkspaceSelector(collapsed: bool) {
     computed {
-        currentName => if .current != None { .current.name } else { "选择工作目录" }
-        currentTitle => if .current != None { .current.path } else { "选择工作目录" }
-        hasCurrent => .current != None
+        hasWs => .store.workspace != ""
+        // 触发器显示当前 workspace 路径（用户裁定"把当前的 workspace 路径
+        // 列出来"）——路径优先，名字/ id 兜底；无值保持引导文案。经
+        // pathOrName 中转拆两级单层 if：嵌套 if 作分支值时 codegen 语句化
+        // 丢 return（080 实证），单层链恒稳。
+        pathOrName => if .store.workspace_path != "" { .store.workspace_path } else { .store.workspace_name }
+        wsDisplay => if .pathOrName != "" { .pathOrName } else { "选择工作目录" }
+        currentTitle => if .hasWs { .wsDisplay } else { "选择工作目录" }
         showEmpty => .shown.length == 0
         triggerIconSize => if .collapsed { 24 } else { 14 }
     }
@@ -41,7 +50,6 @@ widget WorkspaceSelector(collapsed: bool) {
     // 嵌入侧栏（用户原始吐槽点之一）。
     msg Msg { Choose(str), UpdateQuery(str), PickFolder }
     model {
-        var current obj = None
         var recent obj = []
         // 搜索框可见行（handler 侧过滤；str.contains 只在 fn 内正确转译）
         var shown obj = []
@@ -50,13 +58,13 @@ widget WorkspaceSelector(collapsed: bool) {
     on {
         .Init -> {
             // helpers 内部自带 try/catch（失败返回 []/null），.at 侧无需再包 try。
+            // current 不再在此解析（PLAN-080 T-02 单源：store 持真值）。
             .recent = ws_load_recent().await;
-            .shown = .recent;
-            .current = ws_load_current().await
+            .shown = .recent
         }
         .Choose(id) -> {
             localStorage.setItem("musk_workspace", id);
-            .current = ws_find(.recent, id);
+            ForgeStore.SetWorkspace(ws_find(.recent, id));
             location.reload()
         }
         .UpdateQuery(q) -> {
@@ -72,8 +80,8 @@ widget WorkspaceSelector(collapsed: bool) {
             if path != None {
                 let meta = ws_open(path).await;
                 if meta != None {
-                    storage.set("musk_workspace", meta.id);
-                    .current = meta;
+                    localStorage.setItem("musk_workspace", meta.id);
+                    ForgeStore.SetWorkspace(meta);
                     location.reload()
                 }
             }
@@ -145,14 +153,14 @@ widget WorkspaceSelector(collapsed: bool) {
             popover {
                 popover-trigger (as_child: true) {
                     button {
-                        style: if .collapsed { "rail-trigger-24 ws-btn-collapsed w-10 h-10 flex items-center justify-center rounded-md bg-transparent border-none text-muted-foreground hover:bg-accent" } else { "ws-btn w-full flex items-center gap-1 py-1.5 px-2 border border-border rounded-md bg-transparent text-foreground text-xs" }
+                        style: if .collapsed { "rail-trigger-24 ws-btn-collapsed w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" } else { "ws-btn w-full flex items-center gap-1 py-1.5 px-2 border border-border rounded-md bg-transparent text-foreground text-xs" }
                         title: .currentTitle
                         Folder { size: .triggerIconSize }
                         if .collapsed {
                         } else {
                             span {
                                 style: "ws-name flex-1 text-left truncate"
-                                text .currentName
+                                text .wsDisplay
                             }
                             ChevronDown { size: 12 }
                         }
@@ -179,7 +187,7 @@ widget WorkspaceSelector(collapsed: bool) {
                                 style: "ws-item-name"
                                 text .w.name
                             }
-                            if .hasCurrent && .current.id == w.id {
+                            if .hasWs && .store.workspace == w.id {
                                 span {
                                     style: "ws-item-check"
                                     Check { size: 15 }

@@ -1,0 +1,14 @@
+{
+  "live": true,
+  "case": "settings-popover",
+  "note": "PLAN-080 T-04：settings 弹层须为锚定触发件的就近 popover（非视口居中 modal），外点自动关闭。锚定判据：面板内容 x 贴触发件右缘内，且非窗口水平居中。",
+  "budget_px": 2,
+  "viewport": [
+    1280,
+    800
+  ],
+  "metrics": [
+    "settings-trigger",
+    "settings-mode-title"
+  ]
+}

@@ -122,12 +122,26 @@ impl AppState {
 
 /// Run the HTTP server on the given address (default `127.0.0.1:8080`).
 pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn std::error::Error>> {
-    let users_path = dirs::home_dir()
-        .map(|h| h.join(".config/autoos/users.json"))
-        .unwrap_or_else(|| std::path::PathBuf::from("users.json"));
-    let config_dir = dirs::home_dir()
-        .map(|h| h.join(".config/autoos"))
-        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    // PLAN-080 T-01: `MUSK_CONFIG_DIR` 隔离门——users.json/workspaces.json 落点
+    // 覆写为指定目录（ui-parity live 真机臂的 hermetic 播种用；Windows 上
+    // dirs::home_dir() 走 Shell API，USERPROFILE/HOME env 覆写无效）。缺省
+    // 行为不变（真实 ~/.config/autoos）。仅本 serve 落点；harness 等
+    // home 派生路径不受本门影响。
+    let config_root = std::env::var("MUSK_CONFIG_DIR")
+        .ok()
+        .map(std::path::PathBuf::from);
+    let users_path = match config_root.as_deref() {
+        Some(dir) => dir.join("users.json"),
+        None => dirs::home_dir()
+            .map(|h| h.join(".config/autoos/users.json"))
+            .unwrap_or_else(|| std::path::PathBuf::from("users.json")),
+    };
+    let config_dir = match config_root {
+        Some(dir) => dir,
+        None => dirs::home_dir()
+            .map(|h| h.join(".config/autoos"))
+            .unwrap_or_else(|| std::path::PathBuf::from(".")),
+    };
     let default_root = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     let registry =
         crate::workspace::WorkspaceRegistry::load(config_dir.join("workspaces.json"), default_root);
