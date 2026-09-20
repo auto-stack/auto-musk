@@ -48,7 +48,10 @@ E2E 实证 TypeError）。
 - 一级导航"文件"（app.at sidebar + vsSetView 白名单 `files` + i18n nav.files）。
 - FileTree 组件族移植自 auto-os widgets-gallery（PLAN-614：filetree.at /
   tree_util.at / tree_icon.at）；纯函数经 `use.web` `@/ext` 导入（mention_helpers
-  同款）。**VM 轨缺口**：无 import_aliases 机制 → VM 树不渲染（登记差异，非回归）。
+  同款）。**双端平权（PLAN-078 SD-02）**：历史 VM 轨缺口（无 import_aliases
+  导致 VM 树不渲染）已通过 AST 解耦与单源 materialize 适配彻底消除；FileTree
+  与 FilesView 在 VM 端全功能平权实现，支持目录展开折叠、分类图标映射与文件选中；
+  双端均通过快照与回归门禁（`plan078-page-file-tree-vm.png` 与 `plan078-page-files-browser-vm.png`）。
 - files_store：树/选中/分派 computed；状态名 `file_*`（避让 api 绑定 `files_tree()`
   撞名——实证）。helper 内联于 store（store 不消费 use.web.fn，nowSec 先例）。
 - 文本正文加载走 `ports/files.web.at` `loadFilesFileText`（fetch `.text()`）——

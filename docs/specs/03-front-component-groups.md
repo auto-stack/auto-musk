@@ -3,7 +3,7 @@
 > 历史来源：覆盖 gen 工程全部 29 个组件 + 2 个平台实现 + 状态层（Plan 028 T22）。
 > 当前标准：以 PLAN-074 双端 Gallery 基线与全量目录扫描为准，详见 `docs/specs/modules/ui-parity.md` 与 `docs/reports/ui-parity/074-baseline.md`。
 > PLAN-077 修订（2026-09-20，reviewed fbca482）：G-对话 Block 组按实际内联/抽离与事件所有权刷新（SD-02）；可达清单以 074 基线 + 077 证据为准。
-> 静态清单总计 108 个声明单元、101 个有效测试用例（PLAN-077 后；`node scripts/ui-parity.mjs check` 口径）。
+> PLAN-078 修订（2026-09-20，reviewed c3f5e7e）：输入面、导航壳与业务页面组合双端平权覆盖（SD-01..SD-03）；消除 FileTree/FilesView VM 轨缺口；静态清单总计 108 个声明单元、102 个有效测试用例（`node scripts/ui-parity.mjs check` 口径）。
 
 ## G-对话 Block（✅ 已全量原生化，Plan 028 主线；PLAN-077 组合一致性落地）
 
@@ -71,8 +71,8 @@
 
 | 组件 | 源 | 迁移状态 | 依赖特性 |
 |---|---|---|---|
-| FileTree | filetree.at（移植自 auto-os widgets-gallery，PLAN-614） | ✅ vue 轨（VM 待 import_aliases，登记差异） | tree_util.at / tree_icon.at |
-| FilesView | files_view.at | ✅ vue 轨 | files_store.at / ports: renderer+icons+composables+files(.web.at) |
+| FileTree | filetree.at（移植自 auto-os widgets-gallery，PLAN-614） | ✅ 双端平权（PLAN-078 消除 VM 差异，单源 AST 解耦） | tree_util.at / tree_icon.at |
+| FilesView | files_view.at | ✅ 双端平权（PLAN-078 VM 树组合快照通过） | files_store.at / ports: renderer+icons+composables+files(.web.at) |
 | FilesStore | files_store.at | ✅ store（helper 内联） | back.api: files_tree |
 | 查看器 | MarkdownRender（双端 autodown）/ img / video(html:) / 不能打开空态 | ✅ 双端平权（PLAN-076 补齐 VM 端口） | ports/renderer.at |
 

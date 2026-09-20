@@ -27,6 +27,20 @@
 4. **VM/web 轨非对称登记**：VM 轨 textarea 原生显字 + 原生 Highlighter
    （无双层技术）→ 规则 1a/1b/2 为 web-only；VM 侧对应对齐点见
    attachments/plan067-dual-track-parity-check.md。
+5. **双端可观测输入合同（PLAN-078 SD-01）**：
+   a. **MentionInput 自适应与内滚契约**：textarea 高度根据输入内容行数在
+   `min-height`（单行）与 `max-height`（多行）之间自适应增长；超上限后转为
+   内部滚动，不撑破宿主输入卡几何边界。
+   b. **Mention 触发与候选键盘交互**：键入 `@` 调起候选列表（`MentionDropdown`），
+   使用键盘 ArrowUp / ArrowDown 上下选定，Enter / Tab 确认补全，Esc 撤销候选项；
+   双端候选高亮状态与文本插入行为保持严格等价。
+   c. **IME 组词与消息发送判定**：在中文/日文等 IME 组词阶段（`is_composing: true`），
+   Enter 仅作为文字确认，不得派发发送消息动作；未组词时 Enter 触发消息发送，
+   Shift+Enter 插入换行符。
+   d. **TagInput 标签输入器键盘规约**：输入内容后按 Enter 添加当前 tag 并清空
+   输入框；在输入框内容为空时按 Backspace 弹出/移除最后一个 tag。键盘事件声明
+   使用无参 `EntryKeydown`，严禁声明带 `(Value)` 参数引发 VM 平台层解析未定义
+   外部符号（如 `Value.preventDefault`）而导致链接失败。
 
 ## 对齐检查表（每次输入面改动后过一遍）
 
@@ -34,4 +48,7 @@
 - [ ] Ctrl+A/拖选的选区高亮可见（透明文字层需显式 ::selection）
 - [ ] 输入链路控制台零错误零 Vue 告警（含 mention 检测、autoGrow）
 - [ ] alert-dialog 系弹窗标题/描述/按钮全件渲染（导入齐全）
+- [ ] MentionInput 组词期 Enter 不误发消息、普通 Enter 正常发送、Shift+Enter 正常换行
+- [ ] MentionDropdown 键盘导航上下选定与 Enter 补全生效
+- [ ] TagInput 回车添加 tag、空退格删除 tag，无平台符号未定义链接错误
 - [ ] aaid 存活（对话无响应先查 :17654/v1/status；启动顺序 aaid 先于 musk）
