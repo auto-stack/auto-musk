@@ -91,7 +91,7 @@ store ForgeStore {
         RejectGate,
         // Plan 028 T14：SSE 流生命周期（替代 forge_stream.ts 的 start/stopForgeStream）
         StartStream(str, str, str, str),
-        StopStream,
+        AttachStream,
         OnStreamEvent(Value),
         // Plan 051 T10（G1 阶段1）：VM 轮询降级的流式回填拍。
         PollStream,
@@ -315,12 +315,12 @@ store ForgeStore {
                     var resp = chats_send_message(.session_id, first, "", true, true);
                     if resp != None {
                         if resp.busy == true {
-                            var back []Value = []
-                            back.push(first)
+                            var restored []Value = []
+                            restored.push(first)
                             for m in rest {
-                                back.push(m)
+                                restored.push(m)
                             }
-                            .pending_msgs = back
+                            .pending_msgs = restored
                             return
                         }
                     }
@@ -428,7 +428,7 @@ store ForgeStore {
             // web 轨 Sse.open 正常返回,置位次序无行为差异。
             .streaming = true
             .pre_stream_len = .messages.length
-            console.log("[SSE] open: " + path0 + qs)
+            print("[SSE] open: " + path0 + qs)
             .stream_es = Sse.open(path0 + qs, .OnStreamEvent)
         }
 
@@ -466,7 +466,7 @@ store ForgeStore {
             }
             .pre_stream_len = .messages.length
             .poll_window.push(Date.now())
-            console.log("[SSE] attach: " + path0 + qs)
+            print("[SSE] attach: " + path0 + qs)
             .stream_es = Sse.open(path0, .OnStreamEvent)
         }
 
@@ -498,10 +498,10 @@ store ForgeStore {
             let dbg str = "wins=" + wins.length + " streaming=" + .streaming + " es=" + (.stream_es != None) + " last_sse=" + .last_sse_at
             if dbg != .dbg_last {
                 .dbg_last = dbg
-                console.log("[POLL] " + dbg)
+                print("[POLL] " + dbg)
             }
             if Date.now() - started > 120000 {
-                console.log("[POLL] window expired (>120s) — backfill off")
+                print("[POLL] window expired (>120s) — backfill off")
                 return
             }
             // PLAN-069 F-04：流式期（web 轨 SSE 已附加）**绝不全量回填**——
@@ -583,7 +583,7 @@ store ForgeStore {
             if ev.type == "delta" || ev.type == "thinking" || ev.type == "tool_call" || ev.type == "tool_result" || ev.type == "turn_start" || ev.type == "turn_end" || ev.type == "tool_gate_waiting" {
                 if .streaming == false { .streaming = true }
             }
-            console.log("[SSE] ev=" + ev.type + " msgs=" + .messages.length + " draft=" + .current_draft.length + " think=" + .thinking.length)
+            print("[SSE] ev=" + ev.type + " msgs=" + .messages.length + " draft=" + .current_draft.length + " think=" + .thinking.length)
 
             if ev.type == "delta" {
                 if ev.text != None {
@@ -602,7 +602,8 @@ store ForgeStore {
                         // PLAN-073 r5：正文开始 = 思考结束——先落地思考块。
                         landThinkingBlocks(msg)
                         let _ab = appendBlockText(msg, "text", ev.text)
-                        console.log("[SSE] delta: chunk=" + ev.text.length + " draft=" + .current_draft.length + " blocks=" + msg.blocks.length)                    }
+                        print("[SSE] delta: chunk=" + ev.text.length + " draft=" + .current_draft.length + " blocks=" + msg.blocks.length)
+                    }
                 }
                 return
             }
@@ -620,7 +621,7 @@ store ForgeStore {
                         msg2.thinking = th + ev.thinking
                         .thinking = msg2.thinking
                         let _ab = appendBlockText(msg2, "thinking", ev.thinking)
-                        console.log("[SSE] thinking: chunk=" + ev.thinking.length + " acc=" + msg2.thinking.length + " blocks=" + msg2.blocks.length)
+                        print("[SSE] thinking: chunk=" + ev.thinking.length + " acc=" + msg2.thinking.length + " blocks=" + msg2.blocks.length)
                     }
                 }
                 return
@@ -705,7 +706,7 @@ store ForgeStore {
                 return
             }
             if ev.type == "done" {
-                console.log("[SSE] done: msgs=" + .messages.length)
+                print("[SSE] done: msgs=" + .messages.length)
                 // PLAN-071 需求⑧ T-36：done 不清 deadman 窗——保留窗让最后
                 // 一拍回填换入持久化消息（含思考块）后由完成启发式自然清窗
                 // 收束（原立即清窗+停轮询导致"刷新才见结果"，用户截图3/4
@@ -720,7 +721,7 @@ store ForgeStore {
                 // PLAN-073 P2-T4：附加窥探回执——服务端无在途 run（chat_run_
                 // stream 入口 chat_run_active 探测），立即收流不算运行中。
                 // 已载入的消息（含 run 增量快照）就是全部现场。
-                console.log("[SSE] idle: no run in flight")
+                print("[SSE] idle: no run in flight")
                 .streaming = false
                 .stream_es = Sse.close(.stream_es)
                 return
