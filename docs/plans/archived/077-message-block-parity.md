@@ -1,6 +1,7 @@
 ---
 plan_id: PLAN-077
-status: reviewed
+status: archived
+completion_kind: delivered
 feature_name: 消息 Block 与 ChatMessage 组合一致性
 author: [agent]
 created_at: 2026-09-19T00:00:00Z
@@ -145,6 +146,18 @@ Musk计划记录关联路径/版本，merge阶段再沉淀；不伪称已分配�
 - worktree: D:/autostack/.wt/musk-077/auto-musk；branch: plan-077-dev
 - dependencies: auto-lang 278f71f3536c2c2a0de2d6d1ea60ebc201a8a234；auto-down a86cb343b738cec47df63c953f368a035a758451
 - 前置已归档；当前 runner 仅 smoke，不能沿用其结果作为 077 交互/视觉 PASS。
+
+### 2026-09-20 合并收据（merge，PLAN-077:r1）
+
+- stage: merge | plan_id: PLAN-077 | plan_revision: 1 | outcome: **pass（delivered）**
+- 合并基准：reviewed fbca482（rebase 映射 fbca482→b45429a、a3b1f59→f4fa4f4、9f99662→12b197e、wip e619dac→da0caad；`git range-diff e619dac..fbca482 da0caad..b45429a` 两对全 `=` 补丁等价）
+- `prepared`：canonical Spec diff = chat-streaming 契约⑧+头注+关联实现（SD-01）、03-front-component-groups G-对话 Block 组重写+事件所有权节+遗留 TS 行（SD-02）；docs-only 后代（实现自 fbca482 未变），delivery_commit `12b197e`
+- `landed`：main tip `12b197e`（--ff-only，无 merge commit）；集成冒烟（main 检出 + auto-lang master `4aadc1f57` 重建 exe）：`ui-parity check` 108/101 PASS、`message-contract.mjs` PASS、`chat-multi-round --mode vm` snapshot-ok
+- `ledger_refreshed`：`docs/specs/index.json`（version 2.0）——补登记 `03-front-component-groups.md`（SD-02 canonical 目标，此前漏登记）、`updated_at`→2026-09-20；`modules/chat-streaming.md` 已在册；账本 commit `d7060fe`
+- `archived`：active → `docs/plans/archived/077-message-block-parity.md`（git mv）；`status: archived`、`completion_kind: delivered`
+- `cleaned`：wt-guard clean ×2；worktree `D:/autostack/.wt/musk-077/auto-musk` + 分支 plan-077-dev 移除；组内兄弟 auto-lang（`4aadc1f57` 已合 master，分支 auto-musk-dev 移除）与 auto-down（detached 消费）一并清理，组目录 `musk-077` 删除
+- 依赖仓 receipts：auto-lang master tip `4aadc1f57`（1d6dc1f86 ?? 计算属性 + 4aadc1f57 max-w-[N%]；cargo check 零错、cargo t ui 仅 2 预存环境红、新增单测绿）；auto-down `3f73737f` 仅构建消费零改动
+- 环境注记：8090 旧 exe 侧的用户侧动作与 073 同款——新布局/表达式能力随 auto-lang master 重建 exe 后生效
 
 ### 2026-09-20 复审记录（review）
 
