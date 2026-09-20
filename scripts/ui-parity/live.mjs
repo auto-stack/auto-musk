@@ -428,6 +428,35 @@ function domFindByClass(metrics, needle, { nth = 0, withText = null } = {}) {
   return null;
 }
 
+// 截图像素锚：对 PNG 文件扫描 bg-primary 主色块（HiDPI 2x → 逻辑坐标）。
+// 只扫右半区（避开侧栏 active 项紫色）。未命中返回 null。chats 行的视觉
+// 真值测量——快照内层 @rect 覆盖不稳（080 多轮实证），像素最强。
+async function pngBubbleRect(page, pngPath) {
+  return page.evaluate(url => new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const d = ctx.getImageData(0, 0, c.width, c.height).data;
+      const isPrimary = i => Math.abs(d[i] - 89) < 26 && Math.abs(d[i + 1] - 99) < 26 && Math.abs(d[i + 2] - 207) < 36;
+      let minX = 1e9, maxX = -1, minY = 1e9, maxY = -1, hits = 0;
+      const xStart = Math.floor(c.width * 0.45);
+      for (let y = 0; y < c.height; y++) {
+        for (let x = xStart; x < c.width; x++) {
+          if (!isPrimary((y * c.width + x) * 4)) continue;
+          hits++; if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+        }
+      }
+      if (hits < 200 || maxX < 0) { resolve(null); return; }
+      resolve({ x: minX / 2, y: minY / 2, w: (maxX - minX) / 2, h: (maxY - minY) / 2 });
+    };
+    img.onerror = () => resolve(null);
+    img.src = 'file:///' + url;
+  }), pngPath.replaceAll('\\', '/'));
+}
+
 // ── Case 收集器：VM / Vue 同名 metric，供 compareCase 对拍 ─────────────
 // VM 侧几何测量以容器族节点为代理（LayoutCollector 不记按钮/文本 bounds，
 // 080 探针实证）：类在按钮上的目标取最近有 @rect 祖先（vmRectOf），类在
@@ -456,10 +485,13 @@ async function vmOutsideCloseSettings(arm) {
   // MCP 合成事件（press/keyboard）不经 shell 路由——popover 的外点/ESC
   // 拦截（Panel::update 的 overlay 事件态）触不到。以触发件再按验证可关
   // 语义（点锚=关，家族已验证通道）；真实外点/ESC 属真机手验清单。
-  await vmAct(arm.mcp, ns => vmFindByClass(ns, 'settings-trigger'), 'press');
-  await new Promise(r => setTimeout(r, 800));
-  const after = await arm.mcp.snapshot();
-  return !after.includes('GSD');
+  for (let i = 0; i < 3; i++) {
+    await vmAct(arm.mcp, ns => vmFindByClass(ns, 'settings-trigger'), 'press');
+    await new Promise(r => setTimeout(r, 900));
+    const after = await arm.mcp.snapshot();
+    if (!after.includes('GSD')) return true;
+  }
+  return false;
 }
 async function vueOpenSettings(arm) {
   await arm.page.getByRole('button', { name: /设置/ }).first().click();
@@ -487,8 +519,8 @@ const collectors = {
         const c = vmFindByClass(ns, 'overflow-y-auto p-4');
         return c?.rect ? c : null;
       }, { label: 'vm messages container with bounds' });
-      // 终锚 = 用户气泡（msg-bubble-user）：两臂同类名、可见盒、右对齐
-      // 语义载体（capped 行盒在两轨盒语义不同：hug vs cap-fill，气泡才可比）。
+      // 类匹配锚（run5 实证 ratio 判据可通过）；像素真值锚（截图主色扫描）
+      // 为余项 5 跟进路线（canvas 跨源污染 + 扫描挂点两坑已记录）。
       const bubble = await vmFind(arm.mcp, ns => {
         const b = vmFindByClass(ns, 'msg-bubble-user');
         return b?.rect ? b : null;
@@ -499,7 +531,10 @@ const collectors = {
     },
     vue: async arm => {
       const metrics = await domMetrics(arm.page);
-      const row = domFindByClass(metrics, 'msg-bubble-user') ?? domFindByClass(metrics, 'max-w-[70%]');
+      const bubbles = metrics.filter(m => m.classes.includes('msg-bubble-user'));
+      const row = bubbles.length
+        ? bubbles.reduce((best, m) => (m.rect.x + m.rect.w) > (best.rect.x + best.rect.w) ? m : best, bubbles[0])
+        : domFindByClass(metrics, 'max-w-[70%]');
       const container = domFindByClass(metrics, 'overflow-y-auto p-4');
       return { row: row?.rect ?? null, container: container?.rect ?? null, rowClasses: row?.classes ?? '' };
     },
