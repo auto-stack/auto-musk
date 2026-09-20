@@ -46,3 +46,16 @@
    适配器（如 `materialize.mjs` 中的 in-memory `ForgeStore`）进行环境隔离。
 2. 避免在没有完整运行时服务时调用真实网络端点，同时保证组件模板在编译和链接阶段
    具有完备的消息声明和类型注解，消除歧义性符号错误。
+
+## PLAN-080 增量：settings 向弹层一律就近 popover（SD-03）
+
+- **契约**：settings 类弹层（设置菜单及同族"就近触发、非阻断"的操作浮层）
+  一律 **锚定 popover**：锚定触发件、非 modal（不遮罩不居中）、外点/ESC
+  家族语义关闭（auto-lang Plan 422+ popover 原语；DSL `popover` +
+  `popover-trigger(as_child)` + `popover-content` 嵌套形态，触发件无
+  onclick 时解释器注入 toggle）。destructive 确认类（删除等）仍走
+  alert-dialog modal（阻断语义正当）。
+- **反例（已修）**：settings_menu 曾为 dialog 受控居中 modal——实机对拍
+  双轨均判 viewport-centered 红（080-live-settings-popover 收据）。
+- **依据**：PLAN-059 T9 弹层家族 + PLAN-080 用户裁定（"针对所有 settings
+  类型的弹窗的通用修改"）；musk 1488482。

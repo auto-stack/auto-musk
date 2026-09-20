@@ -54,3 +54,20 @@
 - 主题与样式配置：`pac.at`、`examples/musk-widgets-gallery/pac.at`、`src/front/inject_styles.web-only.ts`。
 - 上游框架修复：`auto-lang` commit `3edcf5fcf` (`aura_view_builder.rs`, `ui_gen/rust.rs`)。
 - 截图资产：`examples/musk-widgets-gallery/src/front/tests/screenshots/plan075-*.png`。
+
+## PLAN-080 增量：VM 裸 button 默认 chromeless（SD-01）
+
+- **契约**：未指定 `variant`/`size` 的裸 button 一律 **chromeless**（preflight
+  等价：透明底、无边框、内容贴边）——三端同步（VM 解释器臂 / Rust transpile
+  臂 / Vue cva，后者 `defaultVariants` 已移除）。外观只来自显式 variant 或
+  显式 class。
+- **显式档**：`variant="default"` 保留 PLAN-571 UA 预填等价基线（muted 填充
+  + 发丝描边）；`size="default"` 显式得 h-10 px-4。缺省/未知 size 无预设。
+- **事实源**：auto-lang `crates/auto-lang/src/ui/style/variants.rs`（单一
+  事实源，三表互锁 `plan571_*` 测试锚定）。
+- **VM `__json_object` 字段语义**（SET 入册，PLAN-080 T-06）：**GET 缺键返
+  null（安全），SET 缺键硬崩**（engine.rs PLAN-044 分支）。消费后端稀疏
+  JSON（持久化消息块等）时：读一律 `x.f ?? 兜底`；补写必须**构造新对象
+  整体替换**（容器键存在时 SET 合法），严禁 `b.f = v` 原地补缺失键。
+- **依据**：2026-09-20 桌面实机验收五项裁定（用户：统一重置而非逐按钮
+  覆盖）；auto-lang 0cbf5a031；musk 1488482。

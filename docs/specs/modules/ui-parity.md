@@ -39,3 +39,23 @@
 - 消息卡片与流式交互对账：`docs/reports/ui-parity/077-evidence.md`。
 - 全局壳与组合对账：`docs/reports/ui-parity/078-evidence.md`。
 - App 全流程与发布门禁证据：`docs/reports/ui-parity/079-evidence.md`。
+
+## PLAN-080 增量：live 真机一致性臂（SD-02）
+
+- **契约**：ui-parity 门在物化臂（stub 后端结构对拍）之外增 **live-required
+  真机几何/行为臂**——隔离真后端（`MUSK_CONFIG_DIR` + 每跑唯一目录 +
+  AAID 死端口播种）+ `auto run --render=vm`（`AUTO_REUSE_BACKEND` 复用门、
+  `AUTO_VM_STORAGE_FILE` 每跑重置）经 AutoUI MCP `autoui_snapshot
+  include_bounds` 采集实机几何，与 Vue 臂（dist 静态服务 + playwright，
+  同视口 1280×800）对拍；预算 ≤2px + 语义护栏（max-w 比例 ≤0.72、锚定
+  非 modal、可关语义）。
+- **门语义**：`node scripts/ui-parity.mjs check` 离线时对 live-required
+  case **显式 skip 留痕**（不静默绿）；`check --live` 将 missing/stale/
+  failed 升格硬红。收据带 LIVE_SOURCES 源哈希——改码后收据自动判 stale。
+- **采集语义沉淀**：VM 快照文本按渲染宽度裁剪（断言用短拉丁 marker）；
+  vnode id 每帧变（action 前必重拍）；LayoutCollector 不记按钮/文本
+  bounds（几何测量以容器族代理/最近有 @rect 祖先）；交互后混合态帧需
+  稳定门（连拍两次一致）；MCP 合成 press 不经 overlay 外点路由（外点/
+  ESC 属真机手验项）。
+- **依据**：080 定罪收据 `docs/reports/ui-parity/080-*.pre-fix.json` +
+  终局收据 `tmp/ui-parity/PLAN-080/`；live.mjs 实现注释内联定罪记录。
