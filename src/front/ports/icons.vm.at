@@ -1,0 +1,272 @@
+// PLAN-077: native icon adapter for the existing lucide facade.
+// Shared names and sizes; icon geometry is owned by AutoUI, not copied UI templates.
+
+widget ArrowDown(size: int = 24) {
+    view {
+        icon { name: "arrow-down", size: .size }
+    }
+}
+
+widget ArrowUp(size: int = 24) {
+    view {
+        icon { name: "arrow-up", size: .size }
+    }
+}
+
+widget BookOpen(size: int = 24) {
+    view {
+        icon { name: "book-open", size: .size }
+    }
+}
+
+widget Brain(size: int = 24) {
+    view {
+        icon { name: "brain", size: .size }
+    }
+}
+
+widget Check(size: int = 24) {
+    view {
+        icon { name: "check", size: .size }
+    }
+}
+
+widget ChevronDown(size: int = 24) {
+    view {
+        icon { name: "chevron-down", size: .size }
+    }
+}
+
+widget ChevronRight(size: int = 24) {
+    view {
+        icon { name: "chevron-right", size: .size }
+    }
+}
+
+widget ChevronUp(size: int = 24) {
+    view {
+        icon { name: "chevron-up", size: .size }
+    }
+}
+
+widget Clock(size: int = 24) {
+    view {
+        icon { name: "clock", size: .size }
+    }
+}
+
+widget Copy(size: int = 24) {
+    view {
+        icon { name: "copy", size: .size }
+    }
+}
+
+widget CopyCheck(size: int = 24) {
+    view {
+        icon { name: "copy-check", size: .size }
+    }
+}
+
+widget Download(size: int = 24) {
+    view {
+        icon { name: "download", size: .size }
+    }
+}
+
+widget ExternalLink(size: int = 24) {
+    view {
+        icon { name: "external-link", size: .size }
+    }
+}
+
+widget Eye(size: int = 24) {
+    view {
+        icon { name: "eye", size: .size }
+    }
+}
+
+widget File(size: int = 24) {
+    view {
+        icon { name: "file", size: .size }
+    }
+}
+
+widget FileIcon(size: int = 24) {
+    view {
+        icon { name: "file", size: .size }
+    }
+}
+
+widget FileText(size: int = 24) {
+    view {
+        icon { name: "file-text", size: .size }
+    }
+}
+
+widget Folder(size: int = 24) {
+    view {
+        icon { name: "folder", size: .size }
+    }
+}
+
+widget FolderInput(size: int = 24) {
+    view {
+        icon { name: "folder-input", size: .size }
+    }
+}
+
+widget FolderOpen(size: int = 24) {
+    view {
+        icon { name: "folder-open", size: .size }
+    }
+}
+
+widget FolderPlus(size: int = 24) {
+    view {
+        icon { name: "folder-plus", size: .size }
+    }
+}
+
+widget HelpCircle(size: int = 24) {
+    view {
+        icon { name: "help-circle", size: .size }
+    }
+}
+
+widget Inbox(size: int = 24) {
+    view {
+        icon { name: "inbox", size: .size }
+    }
+}
+
+widget Info(size: int = 24) {
+    view {
+        icon { name: "info", size: .size }
+    }
+}
+
+widget ListTodo(size: int = 24) {
+    view {
+        icon { name: "list-todo", size: .size }
+    }
+}
+
+widget Loader2(size: int = 24) {
+    view {
+        icon { name: "loader-circle", size: .size }
+    }
+}
+
+widget MessageSquare(size: int = 24) {
+    view {
+        icon { name: "message-square", size: .size }
+    }
+}
+
+widget Monitor(size: int = 24) {
+    view {
+        icon { name: "monitor", size: .size }
+    }
+}
+
+widget Moon(size: int = 24) {
+    view {
+        icon { name: "moon", size: .size }
+    }
+}
+
+widget Orbit(size: int = 24) {
+    view {
+        icon { name: "orbit", size: .size }
+    }
+}
+
+widget PanelLeft(size: int = 24) {
+    view {
+        icon { name: "panel-left", size: .size }
+    }
+}
+
+widget Pencil(size: int = 24) {
+    view {
+        icon { name: "pencil", size: .size }
+    }
+}
+
+widget Plus(size: int = 24) {
+    view {
+        icon { name: "plus", size: .size }
+    }
+}
+
+widget Scroll(size: int = 24) {
+    view {
+        icon { name: "scroll", size: .size }
+    }
+}
+
+widget Search(size: int = 24) {
+    view {
+        icon { name: "search", size: .size }
+    }
+}
+
+widget Send(size: int = 24) {
+    view {
+        icon { name: "send", size: .size }
+    }
+}
+
+widget Settings(size: int = 24) {
+    view {
+        icon { name: "settings", size: .size }
+    }
+}
+
+widget Square(size: int = 24) {
+    view {
+        icon { name: "square", size: .size }
+    }
+}
+
+widget Sun(size: int = 24) {
+    view {
+        icon { name: "sun", size: .size }
+    }
+}
+
+widget Terminal(size: int = 24) {
+    view {
+        icon { name: "terminal", size: .size }
+    }
+}
+
+widget Trash2(size: int = 24) {
+    view {
+        icon { name: "trash2", size: .size }
+    }
+}
+
+widget Unlink(size: int = 24) {
+    view {
+        icon { name: "unlink", size: .size }
+    }
+}
+
+widget UploadCloud(size: int = 24) {
+    view {
+        icon { name: "upload-cloud", size: .size }
+    }
+}
+
+widget Wrench(size: int = 24) {
+    view {
+        icon { name: "wrench", size: .size }
+    }
+}
+
+widget X(size: int = 24) {
+    view {
+        icon { name: "x", size: .size }
+    }
+}

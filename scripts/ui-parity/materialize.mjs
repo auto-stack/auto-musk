@@ -50,12 +50,15 @@ export function materialize(caseId = 'chat-message-pair') {
   // production ChatMessage source byte-for-byte intact and replace only this
   // side-effect boundary with a deterministic in-memory store. This is an
   // adapter, not a second rendering implementation.
-  const galleryStore = `// GENERATED gallery side-effect adapter; ChatMessage remains production source.\nstore ForgeStore {\n    model {\n        var think_open str = ""\n        var tool_open str = ""\n        var cancel_count int = 0\n        var event_count int = 0\n        var events []Value = []\n    }\n    msg Msg { ThinkToggle(str), ToolToggle(str), CancelRun, LoadSessionList }\n    on {\n        .ThinkToggle(key str) -> {\n            if .think_open == key { .think_open = "" } else { .think_open = key }\n            .events.push({ kind: "think", key: key })\n            .event_count = .event_count + 1\n        }\n        .ToolToggle(key str) -> {\n            if .tool_open == key { .tool_open = "" } else { .tool_open = key }\n            .events.push({ kind: "tool", key: key })\n            .event_count = .event_count + 1\n        }\n        .CancelRun -> {\n            .cancel_count = .cancel_count + 1\n            .events.push({ kind: "cancel" })\n            .event_count = .event_count + 1\n        }\n        .LoadSessionList -> {\n            .events.push({ kind: "load_session_list" })\n            .event_count = .event_count + 1\n        }\n    }\n}\n`;
+  const expansionHelper = fs.readFileSync(path.join(ROOT, "src/front/forge_store.at"), "utf8").split("fn toggleBlockExpansion(")[1];
+  if (!expansionHelper) throw new Error("Missing production expansion helper");
+  const galleryStore = `// GENERATED gallery side-effect adapter; ChatMessage remains production source.\nstore ForgeStore {\n    model {\n        var think_open str = ""\n        var tool_open str = ""\n        var cancel_count int = 0\n        var event_count int = 0\n        var events []Value = []\n    }\n    msg Msg { ThinkToggle(str), ToolToggle(str), CancelRun, LoadSessionList }\n    on {\n        .ThinkToggle(key str) -> {\n            .think_open = toggleBlockExpansion(.think_open, key)\n            .events.push({ kind: "think", key: key })\n            .event_count = .event_count + 1\n        }\n        .ToolToggle(key str) -> {\n            .tool_open = toggleBlockExpansion(.tool_open, key)\n            .events.push({ kind: "tool", key: key })\n            .event_count = .event_count + 1\n        }\n        .CancelRun -> {\n            .cancel_count = .cancel_count + 1\n            .events.push({ kind: "cancel" })\n            .event_count = .event_count + 1\n        }\n        .LoadSessionList -> {\n            .events.push({ kind: "load_session_list" })\n            .event_count = .event_count + 1\n        }\n    }\n}\n`;
+  const storeSource = galleryStore + "\nfn toggleBlockExpansion(" + expansionHelper;
   const storePath = path.join(GALLERY, 'src/front/forge_store.at');
-  if (!fs.existsSync(storePath) || fs.readFileSync(storePath, 'utf8') !== galleryStore) {
-    fs.writeFileSync(storePath, galleryStore);
+  if (!fs.existsSync(storePath) || fs.readFileSync(storePath, 'utf8') !== storeSource) {
+    fs.writeFileSync(storePath, storeSource);
   }
-  receipt.boundaryChanges.push({ path: 'src/front/forge_store.at', purpose: 'isolate expansion/cancel side effects', sha256: hash(galleryStore) });
+  receipt.boundaryChanges.push({ path: 'src/front/forge_store.at', purpose: 'isolate expansion/cancel side effects', sha256: hash(storeSource) });
 
   const unit = inventory().find(u => u.id === c.unit);
   if (c.unit === 'App') {
@@ -63,26 +66,34 @@ export function materialize(caseId = 'chat-message-pair') {
   }
   const module = unit.source.replace('src/front/', '').replace(/\.at$/, '').replaceAll('/', '.');
   const props = fixture.props ?? {};
-  const fields = Object.entries(props).map(([key, v]) => `var fixture_${key} Value = ${at(v)}`).join('\n        ');
+  // PLAN-077：字段类型按 fixture 值类型声明——字符串 prop 必须落 `str`；
+  // `Value` 字面量初始化走另一条 VM 物化路径（顶层字符串被拆成字符码
+  // 列表，user-message 内容渲染 "72105115..." 实证），对象/数组才用 Value。
+  const fieldType = v => typeof v === 'string' ? 'str' : typeof v === 'boolean' ? 'bool' : typeof v === 'number' ? (Number.isInteger(v) ? 'int' : 'float') : 'Value';
+  const fields = Object.entries(props).map(([key, v]) => `var fixture_${key} ${fieldType(v)} = ${at(v)}`).join('\n        ');
   const bindings = Object.keys(props).map(k => `${k}: .fixture_${k}`).join('\n                ');
   const chat = c.unit === 'ChatMessage';
   const instances = fixture.instances ?? [props];
-  const fieldsChat = instances.map((x, i) => `var sample${i} Value = ${at(x.msg)}`).join('\n        ');
+  const fieldsChat = instances.map((x, i) => `var sample${i} Value = ${at(x.msg)}\n        var streaming${i} bool = ${at(x.is_streaming ?? false)}`).join('\n        ');
   const chatViews = instances.map((x, i) => `col {
                 style: "w-full gap-2"
                 text "Instance ${i + 1}"
                 ChatMessage {
                     msg: .sample${i}
-                    is_streaming: ${at(x.is_streaming ?? false)}
+                    is_streaming: .streaming${i}
                     errands: .empty_record
                     relays: .empty_record
                     task_plans: .empty_record
                     think_open: store.think_open
                     tool_open: store.tool_open
+                    on_fork_from: .ForkFrom($event)
                 }
             }`).join('\n');
-  const reset = chat ? instances.map((x, i) => `.sample${i} = ${at(x.msg)}`).join('\n            ') :
+  const reset = chat ? instances.map((x, i) => `.sample${i} = ${at(x.msg)}\n            .streaming${i} = ${at(x.is_streaming ?? false)}`).join('\n            ') :
     Object.entries(props).map(([k,v]) => `.fixture_${k} = ${at(v)}`).join('\n            ');
+  const transitions = fixture.transitions ?? [];
+  const transitionHandlers = transitions.map((t, i) => `.Step${i} -> {\n.fixture_visible = ${t.mounted ?? true}\n${(t.instances ?? []).map((x, j) => `.sample${j} = ${at(x.msg)}\n.streaming${j} = ${at(x.is_streaming ?? false)}`).join('\n')}\n}`).join('\n');
+  const transitionButtons = transitions.map((t, i) => `button { text ${at(t.label)}\n onclick: .Step${i}\n }`).join('\n');
   const source = `// GENERATED gallery host. Production widget files are hash-checked byte copies.
 use ${module}: ${c.unit}
 use store: ForgeStore
@@ -92,12 +103,23 @@ widget App {
         var empty_record Value = {}
         var gallery_case str = ${at(c.id)}
         var reset_count int = 0
+        var fixture_visible bool = true
+        var fork_seen str = ""
         ${chat ? fieldsChat : fields}
     }
-    msg Msg { Init, Reset }
+    msg Msg { Init, Reset, ForkFrom(str) ${transitions.map((_, i) => `, Step${i}`).join('')} }
     on {
-        .Init -> { platformInjectStyles() }
+        ${transitionHandlers}
+        .ForkFrom(mid str) -> {
+            .fork_seen = "FORK:" + mid
+        }
+        .Init -> {
+            platformInjectStyles()
+            ${reset}
+        }
         .Reset -> {
+            .fixture_visible = true
+            .fork_seen = ""
             ${reset}
             ForgeStore.ThinkToggle("")
             ForgeStore.ToolToggle("")
@@ -111,6 +133,8 @@ widget App {
                 style: "w-full gap-4 items-center"
                 text .gallery_case
                 text "Spy events " + store.event_count
+                text .fork_seen
+                ${transitionButtons}
                 button {
                     text "Reset fixture"
                     onclick: .Reset
@@ -118,7 +142,9 @@ widget App {
             }
             col {
                 style: "w-full gap-4"
-                ${chat ? chatViews : `${c.unit} {\n                ${bindings}\n                }`}
+                if .fixture_visible {
+                    ${chat ? chatViews : `${c.unit} {\n                ${bindings}\n                }`}
+                }
             }
         }
     }

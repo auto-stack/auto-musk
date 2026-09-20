@@ -1,0 +1,23 @@
+{
+  "props": {
+    "gate_id": "fixture-gate",
+    "pending_cmd": "echo fixture",
+    "escape_paths": "[\"fixture-outside\"]"
+  },
+  "expect": {
+    "visible": [
+      "echo fixture",
+      "fixture-outside"
+    ]
+  },
+  "interactions": [
+    {
+      "click": "放行执行",
+      "request": "/api/chats/tool-gate/fixture-gate/approve"
+    },
+    {
+      "click": "拒绝",
+      "request": "/api/chats/tool-gate/fixture-gate/deny"
+    }
+  ]
+}

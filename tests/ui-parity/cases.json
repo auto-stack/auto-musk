@@ -104,6 +104,132 @@
       "state": "button-variants",
       "owner": "PLAN-075",
       "plan": "PLAN-075"
+    },
+    {
+      "id": "tool-gate-direct",
+      "unit": "ToolGateCard",
+      "fixture": "tool-gate-direct.json",
+      "mode": "render-and-interact",
+      "state": "gate-waiting",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
+    },
+    {
+      "id": "chat-block-isolation",
+      "unit": "ChatMessage",
+      "fixture": "chat-block-isolation.json",
+      "mode": "render-and-interact",
+      "state": "independent-expansion",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
+    },
+    {
+      "id": "agent-avatar",
+      "unit": "AgentAvatar",
+      "fixture": "agent-avatar.json",
+      "mode": "render-and-interact",
+      "state": "production-contract",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
+    },
+    {
+      "id": "user-message",
+      "unit": "UserMessage",
+      "fixture": "user-message.json",
+      "mode": "render-and-interact",
+      "state": "production-contract",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
+    },
+    {
+      "id": "errand-card",
+      "unit": "ErrandCard",
+      "fixture": "errand-card.json",
+      "mode": "render-and-interact",
+      "state": "production-contract",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
+    },
+    {
+      "id": "task-plan-card",
+      "unit": "TaskPlanCard",
+      "fixture": "task-plan-card.json",
+      "mode": "render-and-interact",
+      "state": "production-contract",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
+    },
+    {
+      "id": "report-card",
+      "unit": "ReportCard",
+      "fixture": "report-card.json",
+      "mode": "render-and-interact",
+      "state": "production-contract",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
+    },
+    {
+      "id": "questionnaire-card",
+      "unit": "QuestionnaireCard",
+      "fixture": "questionnaire-card.json",
+      "mode": "render-and-interact",
+      "state": "production-contract",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
+    },
+    {
+      "id": "gate-card",
+      "unit": "GateCard",
+      "fixture": "gate-card.json",
+      "mode": "render-and-interact",
+      "state": "production-contract",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
+    },
+    {
+      "id": "secretary-message",
+      "unit": "SecretaryMessage",
+      "fixture": "secretary-message.json",
+      "mode": "render-and-interact",
+      "state": "production-contract",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
+    },
+    {
+      "id": "secretary-wrapper",
+      "unit": "SecretaryMessageWrapper",
+      "fixture": "secretary-wrapper.json",
+      "mode": "render-and-interact",
+      "state": "production-contract",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
+    },
+    {
+      "id": "relay-run-box",
+      "unit": "RelayRunBox",
+      "fixture": "relay-run-box.json",
+      "mode": "render-and-interact",
+      "state": "production-contract",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
+    },
+    {
+      "id": "chat-multi-round",
+      "unit": "ChatMessage",
+      "fixture": "chat-multi-round.json",
+      "mode": "render-and-interact",
+      "state": "multi-round-replay",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
+    },
+    {
+      "id": "streaming-table",
+      "unit": "StreamingTable",
+      "fixture": "streaming-table.json",
+      "mode": "render-and-interact",
+      "state": "reachable-no-consumer",
+      "owner": "PLAN-077",
+      "plan": "PLAN-077"
     }
   ]
 }

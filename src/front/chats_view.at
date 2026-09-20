@@ -331,7 +331,12 @@ widget ChatsView {
                                 // 只读自身 props;prop 每帧重建刷新）。
                                 think_open: .store.think_open
                                 tool_open: .store.tool_open
-                                onfork: .ForkFrom($event)
+                                // PLAN-077 T-04：onfork 双端皆断（VM 派发键
+                                // "on"+msg 名折叠 = onforkfrom ≠ onfork；Vue
+                                // @fork 对 emit('ForkFrom') 不命中）——改 snake
+                                // 全名形 on_fork_from：VM 折叠剥下划线命中，
+                                // Vue snake_to_pascal → @ForkFrom 命中 emit。
+                                on_fork_from: .ForkFrom($event)
                             }
                             // 问卷卡片（专门的提问 block）：解析 assistant 消息里的
                             // 问卷 JSON/问题列表渲染为可选项表单。仅随最新一条消息

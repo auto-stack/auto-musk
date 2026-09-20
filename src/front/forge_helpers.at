@@ -281,7 +281,7 @@ fn messageBlocks(msg obj) obj {
                 }
                 norm.push({
                     kind: "tool",
-                    tkey: (msg.id ?? "m") + "#tool:" + (raw.id ?? b.id ?? b.tkey ?? tnorm),
+                    tkey: (msg.id ?? "m") + "#tool:" + (raw.id ?? b.tkey ?? tnorm),
                     summary: getToolSummary({
                         name: raw.name,
                         arguments: raw.arguments,
@@ -296,13 +296,14 @@ fn messageBlocks(msg obj) obj {
                         gate_id: raw.gate_id ?? "",
                         pending_cmd: raw.pending_cmd ?? "",
                         escape_paths: raw.escape_paths ?? [],
+                        escape_paths_text: JSON.stringify(raw.escape_paths ?? []),
                         status: nstatus
                     }
                 })
             } else if b.kind == "thinking" {
                 // PLAN-071 需求⑦ T-32：thinking 块透传（原 else 兜底折成
                 // text 块，ThinkBlock 芯片永不可达）。
-                norm.push({ kind: "thinking", id: b.id, tkey: (msg.id ?? "m") + "#think:" + (b.id ?? b.tkey ?? bnorm), text: b.text ?? "", state: b.state ?? "completed" })
+                norm.push({ kind: "thinking", text: b.text ?? "", state: b.state ?? "done", tkey: (msg.id ?? "m") + "#think:" + (b.id ?? bnorm) })
             } else {
                 norm.push({ kind: "text", text: b.text ?? "" })
             }
@@ -318,7 +319,7 @@ fn messageBlocks(msg obj) obj {
             let th = msg.thinking ?? ""
             if th != "" {
                 // .at 无 list.insert（透传 JS 不存在的原生方法）——重建数组前置。
-                let with_think list = [{ kind: "thinking", tkey: (msg.id ?? "m") + "#think:legacy", text: th, state: "completed" }]
+                let with_think list = [{ kind: "thinking", text: th, state: "done", tkey: (msg.id ?? "m") + "#think:legacy" }]
                 for nb in norm { with_think.push(nb) }
                 return with_think
             }
@@ -327,7 +328,7 @@ fn messageBlocks(msg obj) obj {
     }
     if Array.isArray(msg.blocks) { return msg.blocks }
     var out list = []
-    if msg.thinking != None { out.push({ kind: "thinking", tkey: (msg.id ?? "m") + "#think:legacy", text: msg.thinking, state: "completed" }) }
+    if msg.thinking != None { out.push({ kind: "thinking", text: msg.thinking, state: "done", tkey: (msg.id ?? "m") + "#think:legacy" }) }
     if msg.content != None {
         if msg.content != "" { out.push({ kind: "text", text: msg.content }) }
     }
@@ -361,9 +362,10 @@ fn messageBlocks(msg obj) obj {
                 arguments: raw.arguments,
                 result: raw.result,
                 details: raw.details,
-                gate_id: raw.gate_id ?? "",
-                pending_cmd: raw.pending_cmd ?? "",
-                escape_paths: raw.escape_paths ?? [],
+                        gate_id: raw.gate_id ?? "",
+                        pending_cmd: raw.pending_cmd ?? "",
+                        escape_paths: raw.escape_paths ?? [],
+                        escape_paths_text: JSON.stringify(raw.escape_paths ?? []),
                 status: status
             }
         })
@@ -488,6 +490,28 @@ fn toolIsOpen(ids list, key str) bool {
         if k == key { return true }
     }
     return false
+}
+
+// Expansion crosses component boundaries as a primitive; JSON preserves exact IDs.
+fn blockIsOpen(encoded str, key str) bool {
+    if encoded == "" { return false }
+    let ids = JSON.parse(encoded)
+    for id in ids {
+        if id == key { return true }
+    }
+    return false
+}
+
+fn expandedMessageBlocks(msg obj, streaming bool, thinking str, tools str) obj {
+    let blocks = messageDisplayBlocks(msg, streaming)
+    var out list = []
+    for b in blocks {
+        var expanded = false
+        if b.kind == "thinking" { expanded = blockIsOpen(thinking, b.tkey) }
+        if b.kind == "tool" { expanded = blockIsOpen(tools, b.tkey) }
+        out.push({ kind: b.kind, text: b.text, state: b.state, tkey: b.tkey, summary: b.summary, tc: b.tc, expanded: expanded })
+    }
+    return out
 }
 
 

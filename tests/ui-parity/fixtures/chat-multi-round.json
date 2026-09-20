@@ -1,0 +1,366 @@
+{
+  "instances": [
+    {
+      "is_streaming": false,
+      "msg": {
+        "role": "user",
+        "content": "Fixture request",
+        "created_at": 1700000001,
+        "profession_id": "",
+        "error": "",
+        "id": "u1",
+        "blocks": []
+      }
+    },
+    {
+      "is_streaming": false,
+      "msg": {
+        "role": "assistant",
+        "content": "",
+        "created_at": 1700000001,
+        "profession_id": "",
+        "error": "",
+        "id": "msg-a",
+        "blocks": [
+          {
+            "id": "think-a",
+            "kind": "thinking",
+            "text": "Analysis pass",
+            "state": "done"
+          },
+          {
+            "id": "text-a",
+            "kind": "text",
+            "text": "Plan ready"
+          },
+          {
+            "id": "tool-a",
+            "kind": "tool",
+            "tc": {
+              "id": "call-a",
+              "name": "run_command",
+              "status": "completed",
+              "arguments": {
+                "command": "echo round-1"
+              },
+              "result": "ok v1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "is_streaming": true,
+      "msg": {
+        "role": "assistant",
+        "content": "",
+        "created_at": 1700000001,
+        "profession_id": "",
+        "error": "",
+        "id": "msg-b",
+        "blocks": [
+          {
+            "id": "think-b",
+            "kind": "thinking",
+            "text": "Drafting tail",
+            "state": "streaming"
+          },
+          {
+            "id": "gate-b",
+            "kind": "tool",
+            "tc": {
+              "id": "call-gate",
+              "name": "run_command",
+              "status": "gate_waiting",
+              "arguments": {
+                "command": "rm -rf fixture"
+              },
+              "result": "",
+              "gate_id": "gate-round-2",
+              "pending_cmd": "rm -rf fixture",
+              "escape_paths": [
+                "outside-fixture"
+              ]
+            }
+          },
+          {
+            "id": "text-b",
+            "kind": "text",
+            "text": "Partial answer"
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "visible": [
+      "Plan ready",
+      "思考中",
+      "rm -rf fixture",
+      "Partial answer"
+    ]
+  },
+  "interactions": [
+    {
+      "click": "⑂",
+      "index": 0,
+      "visible": [
+        "FORK:msg-a"
+      ]
+    },
+    {
+      "click": "■",
+      "index": 0,
+      "spyIncrement": true
+    },
+    {
+      "click": "已思考",
+      "index": 0,
+      "visible": [
+        "Analysis pass",
+        "Drafting tail"
+      ]
+    },
+    {
+      "click": "Round 2",
+      "visible": [
+        "Plan revised"
+      ],
+      "absent": [
+        "思考中",
+        "放行执行"
+      ]
+    },
+    {
+      "click": "已思考",
+      "index": 1,
+      "visible": [
+        "Drafted"
+      ]
+    },
+    {
+      "click": "run_command",
+      "index": 0,
+      "visible": [
+        "echo round-1",
+        "ok v2"
+      ]
+    },
+    {
+      "click": "run_command",
+      "index": 1,
+      "visible": [
+        "rm -rf fixture",
+        "gate approved"
+      ]
+    },
+    {
+      "click": "Replay round 1",
+      "visible": [
+        "Plan ready",
+        "ok v1",
+        "思考中",
+        "rm -rf fixture",
+        "放行执行"
+      ],
+      "absent": [
+        "Plan revised",
+        "gate approved"
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "label": "Round 2",
+      "instances": [
+        {
+          "is_streaming": false,
+          "msg": {
+            "role": "user",
+            "content": "Fixture request",
+            "created_at": 1700000001,
+            "profession_id": "",
+            "error": "",
+            "id": "u1",
+            "blocks": []
+          }
+        },
+        {
+          "is_streaming": false,
+          "msg": {
+            "role": "assistant",
+            "content": "",
+            "created_at": 1700000001,
+            "profession_id": "",
+            "error": "",
+            "id": "msg-a",
+            "blocks": [
+              {
+                "id": "think-a",
+                "kind": "thinking",
+                "text": "Analysis pass",
+                "state": "done"
+              },
+              {
+                "id": "text-a",
+                "kind": "text",
+                "text": "Plan revised"
+              },
+              {
+                "id": "tool-a",
+                "kind": "tool",
+                "tc": {
+                  "id": "call-a",
+                  "name": "run_command",
+                  "status": "completed",
+                  "arguments": {
+                    "command": "echo round-1"
+                  },
+                  "result": "ok v2"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "is_streaming": false,
+          "msg": {
+            "role": "assistant",
+            "content": "",
+            "created_at": 1700000001,
+            "profession_id": "",
+            "error": "",
+            "id": "msg-b",
+            "blocks": [
+              {
+                "id": "think-b",
+                "kind": "thinking",
+                "text": "Drafted",
+                "state": "done"
+              },
+              {
+                "id": "gate-b",
+                "kind": "tool",
+                "tc": {
+                  "id": "call-gate",
+                  "name": "run_command",
+                  "status": "completed",
+                  "arguments": {
+                    "command": "rm -rf fixture"
+                  },
+                  "result": "gate approved",
+                  "gate_id": "gate-round-2",
+                  "pending_cmd": "rm -rf fixture",
+                  "escape_paths": [
+                    "outside-fixture"
+                  ]
+                }
+              },
+              {
+                "id": "text-b",
+                "kind": "text",
+                "text": "Partial answer"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "label": "Replay round 1",
+      "instances": [
+        {
+          "is_streaming": false,
+          "msg": {
+            "role": "user",
+            "content": "Fixture request",
+            "created_at": 1700000001,
+            "profession_id": "",
+            "error": "",
+            "id": "u1",
+            "blocks": []
+          }
+        },
+        {
+          "is_streaming": false,
+          "msg": {
+            "role": "assistant",
+            "content": "",
+            "created_at": 1700000001,
+            "profession_id": "",
+            "error": "",
+            "id": "msg-a",
+            "blocks": [
+              {
+                "id": "think-a",
+                "kind": "thinking",
+                "text": "Analysis pass",
+                "state": "done"
+              },
+              {
+                "id": "text-a",
+                "kind": "text",
+                "text": "Plan ready"
+              },
+              {
+                "id": "tool-a",
+                "kind": "tool",
+                "tc": {
+                  "id": "call-a",
+                  "name": "run_command",
+                  "status": "completed",
+                  "arguments": {
+                    "command": "echo round-1"
+                  },
+                  "result": "ok v1"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "is_streaming": true,
+          "msg": {
+            "role": "assistant",
+            "content": "",
+            "created_at": 1700000001,
+            "profession_id": "",
+            "error": "",
+            "id": "msg-b",
+            "blocks": [
+              {
+                "id": "think-b",
+                "kind": "thinking",
+                "text": "Drafting tail",
+                "state": "streaming"
+              },
+              {
+                "id": "gate-b",
+                "kind": "tool",
+                "tc": {
+                  "id": "call-gate",
+                  "name": "run_command",
+                  "status": "gate_waiting",
+                  "arguments": {
+                    "command": "rm -rf fixture"
+                  },
+                  "result": "",
+                  "gate_id": "gate-round-2",
+                  "pending_cmd": "rm -rf fixture",
+                  "escape_paths": [
+                    "outside-fixture"
+                  ]
+                }
+              },
+              {
+                "id": "text-b",
+                "kind": "text",
+                "text": "Partial answer"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

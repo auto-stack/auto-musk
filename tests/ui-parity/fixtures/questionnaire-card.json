@@ -1,0 +1,22 @@
+{
+  "props": {
+    "questions": [
+      {
+        "id": "q1",
+        "type": "single",
+        "question": "Choose fixture",
+        "options": [
+          "Alpha",
+          "Beta"
+        ],
+        "required": true
+      }
+    ]
+  },
+  "expect": {
+    "visible": [
+      "Alpha",
+      "Beta"
+    ]
+  }
+}

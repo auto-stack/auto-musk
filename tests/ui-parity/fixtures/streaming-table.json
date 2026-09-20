@@ -1,0 +1,27 @@
+{
+  "props": {
+    "columns": [
+      "Name",
+      "Value"
+    ],
+    "rows": [
+      {
+        "Name": "alpha",
+        "Value": "1"
+      },
+      {
+        "Name": "beta",
+        "Value": "2"
+      }
+    ],
+    "final": true
+  },
+  "expect": {
+    "visible": [
+      "Name",
+      "Value",
+      "alpha",
+      "beta"
+    ]
+  }
+}

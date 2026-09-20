@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { ROOT, GALLERY, DATA, ARTIFACTS, readJson, writeJson, inventory, portVariants, triageFor, checkCatalog, effectiveCases, hash, slash } from './ui-parity/source.mjs';
 import { materialize, verifyMaterialized } from './ui-parity/materialize.mjs';
@@ -79,17 +80,28 @@ function child(command, childArgs, cwd, env) {
   return { p, output: () => ({ stdout: out, stderr: err }) };
 }
 async function runMode(mode, caseId) {
+  const selectedCase = effectiveCases(catalog).find(c => c.id === caseId);
+  const fixture = readJson(path.join(DATA, 'fixtures', selectedCase.fixture));
   const mcpPort = Number(option('--port') ?? (mode === 'vm' ? 17476 : 17477));
   const frontPort = Number(process.env.AUTO_GALLERY_FRONT_PORT ?? 17474);
   const backPort = Number(process.env.AUTO_GALLERY_BACK_PORT ?? 17475);
   const render = mode === 'vm' ? 'vm' : 'vue';
   const executable = process.env.AUTO_EXE ?? 'auto';
-  const env = { AUTOUI_MCP_PORT: String(mcpPort), AUTO_PARITY_CASE: caseId, AUTO_BACKEND_IMPL: 'vm' };
+  const requests = [];
+  const mock = createServer(async (req, res) => {
+    let body = ''; for await (const chunk of req) body += chunk;
+    requests.push({ method: req.method, path: req.url, body });
+    res.writeHead(200, { 'content-type': 'application/json' }); res.end('{}');
+  });
+  await new Promise(resolve => mock.listen(0, '127.0.0.1', resolve));
+  const mockUrl = `http://127.0.0.1:${mock.address().port}`;
+  const env = { AUTOUI_MCP_PORT: String(mcpPort), AUTO_PARITY_CASE: caseId, AUTO_BACKEND_IMPL: 'vm', AUTO_HTTP_BASE: mockUrl, AUTO_BACKEND: mockUrl, AUTO_HTTP_PROXY: mockUrl };
   const runArgs = ['run', '--render', render, '--port', String(frontPort), '--back-port', String(backPort)];
   if (mode === 'vue') runArgs.push('--server', 'vm');
   const c = child(executable, runArgs, GALLERY, env);
   const timeoutMs = Number(option('--timeout-ms') ?? 120000);
   const started = Date.now(); let status = 'missing'; let endpoint = ''; let snapshotBody = ''; let screenshotBody = ''; let interactionBody = ''; let resetEventSpy = false;
+  const assertions = [];
   try {
     if (mode === 'vm') {
       endpoint = `http://127.0.0.1:${mcpPort}/mcp`;
@@ -107,7 +119,9 @@ async function runMode(mode, caseId) {
       const payload = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'autoui_snapshot', arguments: { mode: 'rendered' } } });
       for (let i = 0; i < 20; i++) {
         snapshotBody = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload }).then(r => r.text());
-        if (!snapshotBody.includes('No UI available yet')) break;
+        const readyText = mcpText(snapshotBody);
+        const expected = [caseId];
+        if (expected.every(value => readyText.includes(value))) break;
         await new Promise(r => setTimeout(r, 250));
       }
       const snapshotText = mcpText(snapshotBody);
@@ -133,6 +147,28 @@ async function runMode(mode, caseId) {
           interactionBody += `\nAFTER_RESET\n${afterReset}`;
           if (interactionBody.includes('"isError":true') || !mcpText(afterReset).includes('Spy events 2')) status = 'interaction-failed';
           else resetEventSpy = true;
+          if (resetEventSpy && !(fixture.expect?.visible ?? []).every(value => mcpText(afterReset).includes(value))) status = 'snapshot-missing-content';
+          snapshotBody = afterReset;
+        }
+      }
+      if (status === 'snapshot-ok') {
+        const spyOf = text => { const m = text.match(/Spy events (\d+)/); return m ? Number(m[1]) : -1; };
+        let spyBefore = spyOf(mcpText(snapshotBody));
+        for (const step of fixture.interactions ?? []) {
+          if (step.vueOnly) continue;
+          const tree = mcpText(snapshotBody);
+          const buttons = [...tree.matchAll(/(?:button|row) #(\S+) "([^"]*)"/g)];
+          const match = buttons.filter(m => m[2].includes(step.click))[step.index ?? 0];
+          if (!match) { assertions.push({ step, pass: false, reason: 'target missing' }); status = 'interaction-target-missing'; break; }
+          const response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 30, method: 'tools/call', params: { name: 'autoui_action', arguments: { element_id: match[1], action: 'press' } } }) }).then(r => r.text());
+          await new Promise(r => setTimeout(r, 250));
+          snapshotBody = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 31, method: 'tools/call', params: { name: 'autoui_snapshot', arguments: { mode: 'rendered' } } }) }).then(r => r.text());
+          const after = mcpText(snapshotBody);
+          const spyAfter = spyOf(after);
+          const pass = !response.includes('"isError":true') && (step.visible ?? []).every(x => after.includes(x)) && (step.absent ?? []).every(x => !after.includes(x)) && (!step.request || requests.some(r => r.method === 'POST' && r.path === step.request)) && (!step.spyIncrement || spyAfter > spyBefore);
+          spyBefore = spyAfter;
+          assertions.push({ step, pass, response });
+          if (!pass) { status = 'interaction-content-failed'; break; }
         }
       }
       if (status === 'snapshot-ok') {
@@ -156,8 +192,10 @@ async function runMode(mode, caseId) {
   // started by this runner; never scan or terminate a port range.
   if (process.platform === 'win32') spawn('taskkill', ['/pid', String(c.p.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
   else c.p.kill('SIGTERM');
+  await new Promise(resolve => mock.close(resolve));
   return { plan: targetPlan, caseId, mode, at: now(), duration_ms: Date.now() - started,
-    endpoint, status, reset_event_spy: resetEventSpy, stdout_sha256: hash(logs.stdout), stderr_sha256: hash(logs.stderr),
+    endpoint, status, assertions, requests, reset_event_spy: resetEventSpy, stdout_sha256: hash(logs.stdout), stderr_sha256: hash(logs.stderr),
+    snapshot: snapshotBody,
     stdout_tail: logs.stdout.slice(-4000), stderr_tail: logs.stderr.slice(-4000), snapshot_tail: snapshotBody.slice(-4000), interaction_tail: interactionBody.slice(-4000), screenshot_tail: screenshotBody.slice(-2000),
     evidence: status === 'snapshot-ok' || status === 'http-ok' ? 'runtime-smoke' : 'missing-runtime-evidence' };
 }

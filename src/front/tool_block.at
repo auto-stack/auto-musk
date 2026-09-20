@@ -30,7 +30,9 @@ widget ToolBlock(tc: obj, tkey: str, open: bool, errands: obj, relays: obj, task
             style: "tool-block-slot"
             if .tc.status == "gate_waiting" {
                 ToolGateCard {
-                    tc: .tc
+                    gate_id: .tc.gate_id
+                    pending_cmd: .tc.pending_cmd
+                    escape_paths: JSON.stringify(.tc.escape_paths)
                 }
             } else if .name == "dispatch" {
                 ErrandCard {

@@ -1,4 +1,71 @@
 {
-  "instances": [],
-  "contract": { "kind": "thinking", "state": "streaming", "chunks": ["Inspecting ", "the workspace"] }
+  "instances": [
+    {
+      "is_streaming": false,
+      "msg": {
+        "role": "user",
+        "content": "Fixture request",
+        "created_at": 1700000001,
+        "profession_id": "",
+        "error": "",
+        "id": "user",
+        "blocks": []
+      }
+    },
+    {
+      "is_streaming": true,
+      "msg": {
+        "role": "assistant",
+        "content": "",
+        "created_at": 1700000001,
+        "profession_id": "",
+        "error": "",
+        "id": "thinking-message",
+        "blocks": [
+          {
+            "id": "think-old",
+            "kind": "thinking",
+            "text": "Completed first thought",
+            "state": "done"
+          },
+          {
+            "id": "answer",
+            "kind": "text",
+            "text": "First answer"
+          },
+          {
+            "id": "think-live",
+            "kind": "thinking",
+            "text": "Current thought tail",
+            "state": "streaming"
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "visible": [
+      "First answer",
+      "Current thought tail",
+      "思考中"
+    ]
+  },
+  "interactions": [
+    {
+      "click": "已思考",
+      "visible": [
+        "Completed first thought",
+        "Current thought tail"
+      ]
+    },
+    {
+      "click": "已思考",
+      "absent": [
+        "Completed first thought"
+      ],
+      "visible": [
+        "Current thought tail"
+      ]
+    }
+  ]
 }

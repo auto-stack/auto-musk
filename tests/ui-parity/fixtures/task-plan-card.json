@@ -1,0 +1,22 @@
+{
+  "props": {
+    "tc": {
+      "arguments": {
+        "instance_id": "plan-instance"
+      }
+    },
+    "taskPlans": {
+      "plan-instance": {
+        "status": "completed",
+        "task_plan_id": "plan-fixture",
+        "instance_id": "plan-instance",
+        "phases": []
+      }
+    }
+  },
+  "expect": {
+    "visible": [
+      "Task Plan"
+    ]
+  }
+}

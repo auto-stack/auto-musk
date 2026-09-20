@@ -1,0 +1,10 @@
+{
+  "props": {
+    "professionId": "coder",
+    "name": "Coder",
+    "size": "xs"
+  },
+  "expect": {
+    "visible": []
+  }
+}

@@ -1,4 +1,64 @@
 {
-  "instances": [],
-  "contract": { "kind": "tool", "state": "gate_waiting", "name": "run_command", "arguments": { "command": "echo fixture" } }
+  "instances": [
+    {
+      "is_streaming": false,
+      "msg": {
+        "role": "user",
+        "content": "Fixture request",
+        "created_at": 1700000001,
+        "profession_id": "",
+        "error": "",
+        "id": "user",
+        "blocks": []
+      }
+    },
+    {
+      "is_streaming": true,
+      "msg": {
+        "role": "assistant",
+        "content": "",
+        "created_at": 1700000001,
+        "profession_id": "",
+        "error": "",
+        "id": "gate-message",
+        "blocks": [
+          {
+            "kind": "tool",
+            "tc": {
+              "id": "call-gate",
+              "name": "run_command",
+              "status": "gate_waiting",
+              "arguments": {
+                "command": "echo fixture"
+              },
+              "result": "",
+              "gate_id": "fixture-gate",
+              "pending_cmd": "echo fixture",
+              "escape_paths": [
+                "fixture-outside"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "visible": [
+      "echo fixture",
+      "fixture-outside",
+      "放行执行",
+      "拒绝"
+    ]
+  },
+  "interactions": [
+    {
+      "click": "放行执行",
+      "request": "/api/chats/tool-gate/fixture-gate/approve"
+    },
+    {
+      "click": "拒绝",
+      "request": "/api/chats/tool-gate/fixture-gate/deny"
+    }
+  ]
 }

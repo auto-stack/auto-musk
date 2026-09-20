@@ -1,0 +1,12 @@
+{
+  "props": {
+    "title": "Fixture review",
+    "profession": "coder",
+    "changes": []
+  },
+  "expect": {
+    "visible": [
+      "Fixture review"
+    ]
+  }
+}

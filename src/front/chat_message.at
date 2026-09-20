@@ -28,7 +28,7 @@ use.web component Copy from "src/front/ports/icons.at"
 // 2026-09-03:工具卡内联（ToolBlock/GenericToolCard 子件退役,沿 ThinkBlock
 // 先例——VM 子件 model 全实例共享 + 孙件 store 直调不可靠,回归根因）。补充
 // toolIsOpen/toolArgsJson/extractRunId 与 relay 助手导入。
-use.web msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens, thinkLabel, thinkIsOpen, toolIsOpen, toolToggleList, toolArgsJson, extractRunId, agentDisplayName, streamThinkingTail, msgIsWaiting from "src/front/forge_helpers.at"
+use.web expandedMessageBlocks, msgTimeLabel, messageDisplayBlocks, isBlockStreaming, estimateTokens, thinkLabel, thinkIsOpen, toolIsOpen, toolToggleList, toolArgsJson, extractRunId, agentDisplayName, streamThinkingTail, msgIsWaiting from "src/front/forge_helpers.at"
 use.web relayReportView from "src/front/relay_run_helpers.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
@@ -143,7 +143,7 @@ style {
         userContent => .msg.content
         // 展示用 blocks：text 已剥离问卷 JSON（问卷由 QuestionnaireCard 呈现），
         // 纯问卷消息的空 text 块已移除。多参 fn 收敛在 helper（.at if 条件不支持）。
-        blocks => messageDisplayBlocks(.msg, .is_streaming)
+        blocks => expandedMessageBlocks(.msg, .is_streaming, .think_open, .tool_open)
         time => msgTimeLabel(.msg.created_at)
         hasTime => .time != ""
         // PLAN-055 ④/T13：本消息思考块展开态（键=msg.id，每消息至多一个
@@ -255,10 +255,10 @@ style {
                                     text thinkLabel(estimateTokens(.block.text), false)
                                     span {
                                         style: "tool-chevron ml-auto"
-                                        if .think_open == .block.tkey { text "▲" } else { text "▼" }
+                                        if .block.expanded { text "▲" } else { text "▼" }
                                     }
                                 }
-                                if .think_open == .block.tkey {
+                                if .block.expanded {
                                     div {
                                         style: "think-content my-0 py-[9px] px-[12px] text-[13.5px] leading-[1.5] font-mono whitespace-pre-wrap break-words text-muted-foreground max-h-[240px] overflow-y-auto border-t border-border"
                                         text .block.text
@@ -278,7 +278,9 @@ style {
                                     // PLAN-073 F-B：审批门卡（approve/deny 经
                                     // /api/chats/tool-gate/{id} 决议唤醒运行）。
                                     ToolGateCard {
-                                        tc: .block.tc
+                    gate_id: .block.tc.gate_id
+                    pending_cmd: .block.tc.pending_cmd
+                    escape_paths: .block.tc.escape_paths_text
                                     }
                                 } else if .block.tc.name == "dispatch" {
                                     ErrandCard {
@@ -293,13 +295,13 @@ style {
                                     } else {
                                         col {
                                             class: "tool-card border border-border rounded-lg w-full"
-                                            row {
+                                            button {
                                                 onclick: .ToolToggleKey(.block.tkey)
-                                                style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer"
+                                                style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer bg-transparent border-none justify-start text-left h-auto w-full"
                                                 text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
                                                 text .block.tc.name { style: "tool-name min-w-0 truncate text-[13.3px] font-medium text-foreground" }
                                                 text .block.tc.status { style: "ml-auto tool-status text-[11.7px] font-medium shrink-0 ml-auto text-blue-500" }
-                                                if .tool_open == .block.tkey {
+                                                if .block.expanded {
                                                     text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
                                                 } else {
                                                     text "▼" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
@@ -321,9 +323,9 @@ style {
                                         class: if .block.tc.status == "gate_waiting" { "tool-card gate_waiting border border-amber-500/60 rounded-lg w-full" } else { if .block.tc.status == "failed" { "tool-card failed border border-border rounded-lg w-full" } else { if .block.tc.status == "running" { "tool-card running border border-border rounded-lg w-full" } else { "tool-card completed border border-border rounded-lg w-full" } } }
                                         // header（click toggle）——冻结实参 .block.tkey
                                         // 上抛 ToolToggleKey（沿 ToggleThink 形态）。
-                                        row {
+                                        button {
                                             onclick: .ToolToggleKey(.block.tkey)
-                                            style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer"
+                                            style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer bg-transparent border-none justify-start text-left h-auto w-full"
                                             text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
                                             text .block.tc.name { style: "tool-name min-w-0 truncate text-[13.3px] font-medium text-foreground" }
                                             for seg in .block.summary {
@@ -331,7 +333,7 @@ style {
                                                 text .seg.text { class: if .seg.type == "path" { "tool-seg seg-path text-[12.5px] font-medium font-mono shrink-0 text-info" } else { if .seg.type == "pattern" { "tool-seg seg-pattern text-[12.5px] font-medium font-mono shrink-0 text-primary" } else { if .seg.type == "cmd" { "tool-seg seg-cmd text-[12.5px] font-medium font-mono shrink-0 text-muted-foreground" } else { if .seg.type == "desc" { "tool-seg seg-desc text-[12.5px] font-medium font-mono shrink-0 text-foreground" } else { "tool-seg seg-loc text-[12.5px] font-medium font-mono shrink-0 text-muted-foreground" } } } } }
                                             }
                                             text .block.tc.status { class: if .block.tc.status == "gate_waiting" { "tool-status gate_waiting text-[11.7px] font-medium shrink-0 ml-auto text-amber-500" } else { if .block.tc.status == "completed" { "tool-status completed text-[11.7px] font-medium shrink-0 ml-auto text-green-500" } else { if .block.tc.status == "failed" { "tool-status failed text-[11.7px] font-medium shrink-0 ml-auto text-red-500" } else { "tool-status running text-[11.7px] font-medium shrink-0 ml-auto text-blue-500" } } } }
-                                            if .tool_open == .block.tkey {
+                                            if .block.expanded {
                                                 text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
                                             } else {
                                                 text "▼" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
@@ -339,7 +341,7 @@ style {
                                         }
                                         // body（展开时）——键列表驱动,逐卡独立;
                                         // 段名大写字面量（VM 无 text-transform）。
-                                        if .tool_open == .block.tkey {
+                                        if .block.expanded {
                                             col {
                                                 style: "tool-body border-t border-border px-[10px] py-[8px]"
                                                 col {

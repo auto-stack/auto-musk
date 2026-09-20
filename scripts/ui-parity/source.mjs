@@ -104,7 +104,7 @@ export function triageFor(u) {
   if (['Markdown', 'MarkdownEditor', 'RawPreview', 'AutoDownEditor'].includes(u.id)) {
     return { owner: 'PLAN-076', plan: 'PLAN-076', reason: 'AutoDown/Markdown engine parity' };
   }
-  if (['ChatMessage', 'UserMessage', 'AgentAvatar', 'ErrandCard', 'RelayRunBox', 'TaskPlanCard', 'ToolGateCard', 'QuestionnaireCard', 'SecretaryMessage', 'SecretaryMessageWrapper', 'GateCard'].includes(u.id)) {
+  if (['ChatMessage', 'UserMessage', 'AgentAvatar', 'ErrandCard', 'RelayRunBox', 'TaskPlanCard', 'ToolGateCard', 'QuestionnaireCard', 'SecretaryMessage', 'SecretaryMessageWrapper', 'GateCard', 'ReportCard'].includes(u.id)) {
     return { owner: 'PLAN-077', plan: 'PLAN-077', reason: 'Message block and interaction parity' };
   }
   if (u.id === 'App') return { owner: 'PLAN-079', plan: 'PLAN-079', reason: 'App-level parity and release gate' };

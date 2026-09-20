@@ -1,0 +1,8 @@
+{
+  "props": {
+    "runId": "fixture-run"
+  },
+  "expect": {
+    "visible": []
+  }
+}

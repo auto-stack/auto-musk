@@ -1,0 +1,349 @@
+{
+  "instances": [
+    {
+      "is_streaming": false,
+      "msg": {
+        "role": "assistant",
+        "content": "",
+        "created_at": 1700000001,
+        "profession_id": "",
+        "error": "",
+        "id": "isolated-0",
+        "blocks": [
+          {
+            "id": "one",
+            "kind": "thinking",
+            "text": "Thought 0 alpha",
+            "state": "done"
+          },
+          {
+            "id": "two",
+            "kind": "thinking",
+            "text": "Thought 0 beta",
+            "state": "done"
+          },
+          {
+            "kind": "tool",
+            "tc": {
+              "id": "read",
+              "name": "read_file",
+              "status": "completed",
+              "arguments": {
+                "path": "fixture-0.txt"
+              },
+              "result": "Result 0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "is_streaming": false,
+      "msg": {
+        "role": "assistant",
+        "content": "",
+        "created_at": 1700000001,
+        "profession_id": "",
+        "error": "",
+        "id": "isolated-1",
+        "blocks": [
+          {
+            "id": "one",
+            "kind": "thinking",
+            "text": "Thought 1 alpha",
+            "state": "done"
+          },
+          {
+            "id": "two",
+            "kind": "thinking",
+            "text": "Thought 1 beta",
+            "state": "done"
+          },
+          {
+            "kind": "tool",
+            "tc": {
+              "id": "read",
+              "name": "read_file",
+              "status": "completed",
+              "arguments": {
+                "path": "fixture-1.txt"
+              },
+              "result": "Result 1"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "visible": [
+      "已思考",
+      "read_file"
+    ]
+  },
+  "interactions": [
+    {
+      "click": "已思考",
+      "index": 0,
+      "visible": [
+        "Thought 0 alpha"
+      ],
+      "absent": [
+        "Thought 0 beta",
+        "Thought 1 alpha"
+      ]
+    },
+    {
+      "click": "已思考",
+      "index": 1,
+      "visible": [
+        "Thought 0 alpha",
+        "Thought 0 beta"
+      ],
+      "absent": [
+        "Thought 1 alpha"
+      ]
+    },
+    {
+      "click": "已思考",
+      "index": 2,
+      "visible": [
+        "Thought 0 alpha",
+        "Thought 0 beta",
+        "Thought 1 alpha"
+      ]
+    },
+    {
+      "click": "已思考",
+      "index": 0,
+      "absent": [
+        "Thought 0 alpha"
+      ],
+      "visible": [
+        "Thought 0 beta",
+        "Thought 1 alpha"
+      ]
+    },
+    {
+      "click": "read_file",
+      "index": 0,
+      "visible": [
+        "Result 0"
+      ],
+      "absent": [
+        "Result 1"
+      ]
+    },
+    {
+      "click": "read_file",
+      "index": 1,
+      "visible": [
+        "Result 0",
+        "Result 1"
+      ]
+    },
+    {
+      "click": "Reorder blocks",
+      "visible": [
+        "Result 0",
+        "Result 1",
+        "Thought 0 beta",
+        "Thought 1 alpha"
+      ],
+      "absent": [
+        "Thought 0 alpha"
+      ]
+    },
+    {
+      "click": "Increment result",
+      "visible": [
+        "Result 0 updated",
+        "Result 1"
+      ]
+    },
+    {
+      "click": "Unmount fixture",
+      "absent": [
+        "Result 0 updated",
+        "Result 1"
+      ]
+    },
+    {
+      "click": "Remount fixture",
+      "visible": [
+        "Result 0 updated",
+        "Result 1",
+        "Thought 0 beta",
+        "Thought 1 alpha"
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "label": "Reorder blocks",
+      "instances": [
+        {
+          "is_streaming": false,
+          "msg": {
+            "role": "assistant",
+            "content": "",
+            "created_at": 1700000001,
+            "profession_id": "",
+            "error": "",
+            "id": "isolated-0",
+            "blocks": [
+              {
+                "kind": "tool",
+                "tc": {
+                  "id": "read",
+                  "name": "read_file",
+                  "status": "completed",
+                  "arguments": {
+                    "path": "fixture-0.txt"
+                  },
+                  "result": "Result 0"
+                }
+              },
+              {
+                "id": "two",
+                "kind": "thinking",
+                "text": "Thought 0 beta",
+                "state": "done"
+              },
+              {
+                "id": "one",
+                "kind": "thinking",
+                "text": "Thought 0 alpha",
+                "state": "done"
+              }
+            ]
+          }
+        },
+        {
+          "is_streaming": false,
+          "msg": {
+            "role": "assistant",
+            "content": "",
+            "created_at": 1700000001,
+            "profession_id": "",
+            "error": "",
+            "id": "isolated-1",
+            "blocks": [
+              {
+                "kind": "tool",
+                "tc": {
+                  "id": "read",
+                  "name": "read_file",
+                  "status": "completed",
+                  "arguments": {
+                    "path": "fixture-1.txt"
+                  },
+                  "result": "Result 1"
+                }
+              },
+              {
+                "id": "two",
+                "kind": "thinking",
+                "text": "Thought 1 beta",
+                "state": "done"
+              },
+              {
+                "id": "one",
+                "kind": "thinking",
+                "text": "Thought 1 alpha",
+                "state": "done"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "label": "Increment result",
+      "instances": [
+        {
+          "is_streaming": false,
+          "msg": {
+            "role": "assistant",
+            "content": "",
+            "created_at": 1700000001,
+            "profession_id": "",
+            "error": "",
+            "id": "isolated-0",
+            "blocks": [
+              {
+                "kind": "tool",
+                "tc": {
+                  "id": "read",
+                  "name": "read_file",
+                  "status": "completed",
+                  "arguments": {
+                    "path": "fixture-0.txt"
+                  },
+                  "result": "Result 0 updated"
+                }
+              },
+              {
+                "id": "two",
+                "kind": "thinking",
+                "text": "Thought 0 beta",
+                "state": "done"
+              },
+              {
+                "id": "one",
+                "kind": "thinking",
+                "text": "Thought 0 alpha",
+                "state": "done"
+              }
+            ]
+          }
+        },
+        {
+          "is_streaming": false,
+          "msg": {
+            "role": "assistant",
+            "content": "",
+            "created_at": 1700000001,
+            "profession_id": "",
+            "error": "",
+            "id": "isolated-1",
+            "blocks": [
+              {
+                "kind": "tool",
+                "tc": {
+                  "id": "read",
+                  "name": "read_file",
+                  "status": "completed",
+                  "arguments": {
+                    "path": "fixture-1.txt"
+                  },
+                  "result": "Result 1"
+                }
+              },
+              {
+                "id": "two",
+                "kind": "thinking",
+                "text": "Thought 1 beta",
+                "state": "done"
+              },
+              {
+                "id": "one",
+                "kind": "thinking",
+                "text": "Thought 1 alpha",
+                "state": "done"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "label": "Unmount fixture",
+      "mounted": false
+    },
+    {
+      "label": "Remount fixture",
+      "mounted": true
+    }
+  ]
+}

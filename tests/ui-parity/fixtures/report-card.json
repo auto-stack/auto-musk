@@ -1,0 +1,21 @@
+{
+  "props": {
+    "report": {
+      "runId": "run-fixture",
+      "title": "Fixture report",
+      "summary": "Report summary",
+      "goalsMet": "1/1",
+      "toolCalls": 1,
+      "cost": "0",
+      "confidence": "High",
+      "durationS": 2,
+      "deliverables": []
+    }
+  },
+  "expect": {
+    "visible": [
+      "Fixture report",
+      "Report summary"
+    ]
+  }
+}

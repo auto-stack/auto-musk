@@ -6,22 +6,18 @@
 
 use.web useT from "src/front/ports/composables.at"
 
-widget ToolGateCard(tc: obj) {
-    computed {
-        cmd => .tc.pending_cmd ?? ""
-        paths => .tc.escape_paths ?? []
-        pathList => JSON.stringify(.paths)
-    }
+widget ToolGateCard(gate_id: str, pending_cmd: str, escape_paths: str) {
+
     msg Msg {
         GateApprove,
         GateDeny,
     }
     on {
         .GateApprove -> {
-            Http.post("/api/chats/tool-gate/" + (.tc.gate_id ?? "") + "/approve", {})
+            Http.post("/api/chats/tool-gate/" + .gate_id + "/approve", {})
         }
         .GateDeny -> {
-            Http.post("/api/chats/tool-gate/" + (.tc.gate_id ?? "") + "/deny", {})
+            Http.post("/api/chats/tool-gate/" + .gate_id + "/deny", {})
         }
     }
     view {
@@ -32,14 +28,14 @@ widget ToolGateCard(tc: obj) {
                 text "⏸" { style: "text-sm" }
                 text "命令试图访问工作区之外的路径" { style: "text-sm font-medium text-foreground" }
             }
-            if .cmd != "" {
+            if .pending_cmd != "" {
                 div {
                     style: "text-xs font-mono bg-muted/50 rounded px-2 py-1 break-all whitespace-pre-wrap"
-                    text .cmd
+                    text .pending_cmd
                 }
             }
-            if .pathList != "" {
-                text .pathList { style: "text-xs text-muted-foreground break-all" }
+            if .escape_paths != "" {
+                text .escape_paths { style: "text-xs text-muted-foreground break-all" }
             }
             row {
                 style: "flex items-center gap-2 mt-1"

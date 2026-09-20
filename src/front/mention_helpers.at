@@ -3,7 +3,7 @@
 //
 // Plan 029 T8。原文件的三大不可表达点及等价改写：
 //   1) 回调式 regex replace（renderMentions）超出 F4 子集 → 手写 @word
-//      扫描器（for-condition while 循环 + char_at 逐字符，\w = [A-Za-z0-9_]）；
+//      扫描器（for-condition while 循环 + sub(i, i+1) 逐字符，\w = [A-Za-z0-9_]）；
 //   2) Map（buildMentionNames）→ dict，键加 "k_" 前缀——裸 \w 键（如
 //      "constructor"）会命中 Object.prototype 原型链；
 //   3) lastIndexOf 无映射 → 手写反向扫描 mention_last_at。
@@ -86,21 +86,21 @@ fn render_mentions(text str, names obj, cls str, paths obj) str {
     var i = 0
     let n = escaped.length
     for i < n {
-        if escaped.char_at(i) == "@" {
+        if escaped.sub(i, i + 1) == "@" {
             // 引用 token 分支（需求⑭）：plan/ 或 spec/ 前缀 + 路径字符。
             var token = ""
             var ticon = ""
             var j2 = i + 1
             if i + 6 <= n {
-                if escaped.char_at(i + 1) == "p" {
-                    if escaped.char_at(i + 2) == "l" {
-                        if escaped.char_at(i + 3) == "a" {
-                            if escaped.char_at(i + 4) == "n" {
-                                if escaped.char_at(i + 5) == "/" {
+                if escaped.sub(i + 1, i + 2) == "p" {
+                    if escaped.sub(i + 2, i + 3) == "l" {
+                        if escaped.sub(i + 3, i + 4) == "a" {
+                            if escaped.sub(i + 4, i + 5) == "n" {
+                                if escaped.sub(i + 5, i + 6) == "/" {
                                     var d = i + 6
                                     var dig = ""
                                     for d < n {
-                                        let c2 = escaped.char_at(d)
+                                        let c2 = escaped.sub(d, d + 1)
                                         if c2 >= "0" && c2 <= "9" {
                                             dig = dig + c2
                                             d = d + 1
@@ -121,15 +121,15 @@ fn render_mentions(text str, names obj, cls str, paths obj) str {
             }
             if token == "" {
                 if i + 6 <= n {
-                    if escaped.char_at(i + 1) == "s" {
-                        if escaped.char_at(i + 2) == "p" {
-                            if escaped.char_at(i + 3) == "e" {
-                                if escaped.char_at(i + 4) == "c" {
-                                    if escaped.char_at(i + 5) == "/" {
+                    if escaped.sub(i + 1, i + 2) == "s" {
+                        if escaped.sub(i + 2, i + 3) == "p" {
+                            if escaped.sub(i + 3, i + 4) == "e" {
+                                if escaped.sub(i + 4, i + 5) == "c" {
+                                    if escaped.sub(i + 5, i + 6) == "/" {
                                         var d2 = i + 6
                                         var rel = ""
                                         for d2 < n {
-                                            let c3 = escaped.char_at(d2)
+                                            let c3 = escaped.sub(d2, d2 + 1)
                                             if mention_is_path_char(c3) {
                                                 rel = rel + c3
                                                 d2 = d2 + 1
@@ -153,7 +153,7 @@ fn render_mentions(text str, names obj, cls str, paths obj) str {
                 // r6：hover 路径——spec 的 relpath 即路径；plan 查 paths
                 // 映射（key 对齐 build_mention_names 的 k_ 前缀防原型链）。
                 var href = ""
-                if token.char_at(1) == "s" {
+                if token.sub(1, 2) == "s" {
                     href = token.sub(6)
                 } else {
                     let hit = paths["k_" + token.sub(1)]
@@ -173,7 +173,7 @@ fn render_mentions(text str, names obj, cls str, paths obj) str {
                 var j = i + 1
                 var word = ""
                 for j < n {
-                    let c = escaped.char_at(j)
+                    let c = escaped.sub(j, j + 1)
                     if mention_is_word_char(c) {
                         word = word + c
                         j = j + 1
@@ -197,7 +197,7 @@ fn render_mentions(text str, names obj, cls str, paths obj) str {
                 }
             }
         } else {
-            out = out + escaped.char_at(i)
+            out = out + escaped.sub(i, i + 1)
             i = i + 1
         }
     }
@@ -391,7 +391,7 @@ fn build_mention_name_list(prop_prof []Value, configs []Value) []Value {
 fn mention_last_at(s str) int {
     var i = s.length - 1
     for i >= 0 {
-        if s.char_at(i) == "@" {
+        if s.sub(i, i + 1) == "@" {
             return i
         }
         i = i - 1
@@ -424,7 +424,7 @@ fn mention_detect(e obj) obj {
     if at_idx >= 0 {
         var char_before = ""
         if at_idx > 0 {
-            char_before = val.char_at(at_idx - 1)
+            char_before = val.sub(at_idx - 1, at_idx)
         }
         if char_before == "" || Regex.test(char_before, "\\s") {
             let after_at = before.sub(at_idx + 1)
@@ -492,7 +492,7 @@ fn mention_backspace_target(text str, pos int, items []Value) int {
     var i = pos - 1
     var at_idx = -1
     for i >= 0 {
-        let c = text.char_at(i)
+        let c = text.sub(i, i + 1)
         if c == "@" {
             at_idx = i
             break
@@ -508,7 +508,7 @@ fn mention_backspace_target(text str, pos int, items []Value) int {
     // '@' 前不得是路径字符（"x@plan" 形态 @ 属于词内，非独立 token；
     // 中文/空格/行首等非路径字符均认可——与渲染端不查前置的口径对齐）。
     if at_idx > 0 {
-        let prev = text.char_at(at_idx - 1)
+        let prev = text.sub(at_idx - 1, at_idx)
         if mention_is_path_char(prev) {
             return -1
         }

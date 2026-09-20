@@ -1,0 +1,18 @@
+{
+  "props": {
+    "tc": {
+      "id": "dispatch-1",
+      "arguments": {
+        "task": "Inspect fixture"
+      },
+      "status": "completed",
+      "result": "Task finished"
+    },
+    "errands": {}
+  },
+  "expect": {
+    "visible": [
+      "Inspect fixture"
+    ]
+  }
+}

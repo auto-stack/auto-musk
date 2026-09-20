@@ -1,0 +1,12 @@
+{
+  "props": {
+    "content": "Hi @coder see @plan/12 end"
+  },
+  "expect": {
+    "visible": [
+      "@Coder",
+      "@plan/12",
+      "Hi"
+    ]
+  }
+}
