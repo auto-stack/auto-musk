@@ -66,3 +66,51 @@ expanded="m1"/展开 true/收起 false）。obj-prop 传递依赖逐帧烘焙（
 - **依据**：PLAN-081 r5 实机两实例对照定罪（vtree 真值 vs 像素全 "0"；
   BLKDBG pre/post 实证 handler 读真值；收据
   docs/reports/ui-parity/081-workspace-switch-ux.md r5 节；musk 0b70043）。
+
+## PLAN-083 增量：数据链分页契约 + 异步两段式 + 归一化直出（SD-01）
+
+- **会话详情分页契约（AC-01）**：`GET /api/chats/session/{id}/page?
+  workspace=&limit=&before=`——`limit` 缺省 50、上界 500；`before=
+  <message_id>` 取该 id 之前（不含）的最近 N 条（消息按存储序旧→新，
+  页=窗口尾部）；响应 `{session, has_more, next_before,
+  blocks_normalized:true}`，`next_before`=本页首条 id（下一页游标，
+  无更多时空串）。**缺省全量的旧端点 `/session/{id}` 字节不变**——web
+  旧消费零影响，web 轨跟进分页属后续排期。
+- **归一化直出（AC-02）**：paged 端点由后端按前端 `normalizeToolBlocks`
+  r5b 契约直出拍平块——tool 块纯字符串字段
+  （tool_name/tool_id/tool_status/tool_result/tool_gate_id/
+  tool_pending_cmd/tool_escape_paths_text/tool_args_json/summary 现算，
+  summary 口径与 TS `summaryTextOf` 逐分支对齐含 60→57/80→77 截断）；
+  thinking 块 `{kind,text,state:"done"}`。消费侧免本地归一循环。
+  **`tool_args_json` 恒为合法 JSON**（消费侧 messageBlocks r5b 臂逐块
+  JSON.parse 重建 arguments；截断臂超限→`{"_truncated":true}`、预算
+  降桩臂→`"{}"`——非法串炸掉整条渲染 computed=AI 气泡整空，PLAN-083
+  V-4 二分定罪）。
+- **块级瘦身**：巨条（实测 552KB~938KB=84~160 个工具块）分页数限制不
+  住——per-block 截断（tool_result 4K/thinking 4K/args 2K 文本类 16K，
+  截断块携带 `truncated:true`）+ 每消息 48KB 序列化预算（尾部优先保真，
+  超预算更早 tool 块降桩）+ 消息级 `tool_calls` 瘦身为 thin 数组
+  （id/name/status；载荷只留 blocks 一份——652KB 条里重复数组独占
+  225KB）。实测 938KB 会话首屏整页 106KB（8.8×）。
+- **VM 数据加载模式=异步两段式（AC-03/04）**：**store handler 发起段禁
+  长阻塞**——数据加载一律 `Http.get_msg(url, "Store.Handler")` 消息桥
+  （fire-and-forget：入队派生线程即返回，无 task Waiting=无
+  call_fn_by_name 忙等）；完成以 `{"ok","status","body"}` JSON 字符串
+  实参回填 handler（渲染层订阅泵 19ms→on_with_input_for ␟s␟ 载荷）。
+  **长冻结（handler 内同步 await #[api] 全量拉取+本地归一循环）=违反
+  本契约**（082 §10-7 实测 20.9s 冻结的根因）。Web 轨同构（ts_adapter
+  fire-and-forget IIFE + 同载荷协议；跨 store 派发 VM 专有）。
+- **回填段重建铁律**：`JSON.parse` 产物**不得直接落 store 供渲染**——
+  blocks 深度字段读在渲染/computed 上下文塌空（本节 PLAN-081 嵌套读
+  铁律的深度表现）；回填 handler 必须经 `rebuildParsedMessages` 类
+  扁平重建（handler 上下文字面量重建，分页载荷已是纯字符串块，重建=
+  纯拷贝毫秒级）。
+- **轮询回填窗口合并（073 链适配）**：流式轮询（PollStream→PollBackfill）
+  以分页快照**按已加载窗口合并**（快照首条在现表有锚点→保锚点前缀换
+  尾部；无锚点→整表换入）——用户已翻页加载的历史不被轮询覆盖；
+  pending 快照/回合增长守卫/收束排空语义不变。
+- **依据**：PLAN-083 T-01..T-05（auto-lang `auto-musk-dev` 2×commit：
+  native 3148+队列+泵+语料探针 5/5、ts_adapter web 臂；musk
+  `plan-083-dev` 5×commit：page 端点 8 测绿+938KB→106KB 实测、两段式
+  迁移、V-1..V-4 实机矩阵全 PASS（0 不可响应轮次/首屏 414~754ms/
+  翻页 264ms/巨条像素实证）——收据 tmp/v083-evidence/ + 本计划 §9）。
