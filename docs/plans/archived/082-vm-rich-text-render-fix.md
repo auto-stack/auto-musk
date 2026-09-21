@@ -426,8 +426,13 @@ AbstractView::Rich { spans, style } => AbstractView::Rich { spans, style },
       detached 位；worktree ×3 移除、分支 ×2 删除（auto-musk-dev
       @3c00aa6cb / plan-082-dev @d5f4c1b 均已合并）、组目录
       .wt/musk-082 已删；两仓 worktree 注册表零残留（grep=0×2）。
-      注：probe/evidence 验收截图随组目录清理未预搬——合并后冒烟
-      证据补存 docs/plans/attachments/（见下冒烟记录）。
+      注：probe/evidence 验收截图随组目录清理未预搬（过程图已在本
+      会话留档评审）；合并后冒烟证据补存
+      docs/plans/attachments/082-merge-smoke-main.png。
+  - 冒烟：主检出 release 重建（auto-lang master 3c00aa6cb，含
+    9f5593404 防互杀）→ launch-vm.cmd 标准序起实例 → 聊天渲染/
+    workspace 触发钮/会话列表全部正常，截图
+    docs/plans/attachments/082-merge-smoke-main.png。
   - 遗留移交：PLAN-083（VM 数据链异步化+大载荷治理，081 刷新链债合并）
     已立项 docs/plans/083-vm-data-async-and-payload.md；AC-03/05/07/09/10
     的用户目验分量（hover 微观面/流式实机抽样）转用户日常使用确认
