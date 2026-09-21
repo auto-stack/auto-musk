@@ -327,6 +327,20 @@ check`）全绿为准入。
 
 ## 9. 复审记录
 
+- `stage: work | plan_id: PLAN-080 | plan_revision: 1 | outcome: §10-9 足迹
+  首战告捷+Rich 形态经用户确认恢复 | code_commit: auto-lang 97103f867+34800cf51
+  +94be817ad | evidence: ①用户真机确认 Rich 段落排版正常（"一度解决了"）→
+  Row 回退撤销、Rich 恢复（97103f867）；②OnBackground 强制色回退层经时序
+  对齐定罪为"乱回去"嫌疑（解析疑落深色→深底深字）→ 移除恢复纯继承
+  （34800cf51，=用户验证态 b3ab1520 行为）；③§10-9 足迹桩首战（94be817ad）：
+  带桩实例死亡位于 iced 事件循环内部（X9 entering 有/returned 无/X9-PANIC
+  无），死前最后输出=workspace 下拉+settings 构建 WARN 洪峰（用户"点开它"
+  吻合）；WER 零记录/exit-audit 无 code=1/CLI exit(1) 全先打印/依赖源码
+  （iced/winit 0.30 移除 process::exit）无静默退出——外部终止或未审计
+  退出二选一，桩持续收集 | next: work（§10-9 桩续采+§10-10）`——2026-09-21
+  （三）。
+
+
 - `stage: work | plan_id: PLAN-080 | plan_revision: 1 | outcome: F-UAT-1 收口
   （真机绿）+ F-UAT-2 Rich 重构试错回退（基础设施保留待专项）+ §10-9 排查
   推进（外部终止/未审计退出二选一）| code_commit: musk 22960ca+099eed7 +
