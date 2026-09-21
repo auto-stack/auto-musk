@@ -4,8 +4,8 @@ status: executing
 feature_name: workspace 选择器显示名修正 + VM 轨切换后列表刷新链
 author: [agent]
 created_at: 2026-09-21T00:00:00Z
-updated_at: 2026-09-21T12:00:00Z
-plan_revision: 2
+updated_at: 2026-09-21T15:30:00Z
+plan_revision: 3
 current_step: 4
 total_steps: 5
 supersedes_spec_components: []
@@ -44,6 +44,10 @@ WorkspaceSelector 改为 store 单源（`ForgeStore.SetWorkspace`）且触发器
   消息面板、计划列表全部切到新 workspace；后续新会话/发消息落在新
   workspace（默认 query 重注入）。
 - web/Vue 轨行为零回归（reload 主链保留）。
+- **需求③（r3 并入，2026-09-21 用户截图报）**：收缩态 rail 三修——
+  (a) 顶部 logo 只显示一只鹿；(b) 选中导航项背景改为比底色稍亮（bg-accent
+  随 accent 预设过亮）；(c) 底部 workspace/设置图标对齐（实测：文件夹居中、
+  设置齿轮左偏 8px——用户感知"文件夹歪右"实为齿轮偏左的对比）。
 
 **非目标**：
 
@@ -250,6 +254,13 @@ currentTitle => if .hasWs { .store.workspace_path } else { "选择工作目录" 
   vitest 绿、浏览器实测切换正常。
 - **AC-07**（条件，T-01 命中才生效）VM 弹层列表可用：显示工作区名、可
   搜索过滤、可点选切换。验证：实机操作 + 截图。
+- **AC-08**（r3）收缩态顶部只显示一只鹿 logo（dark 形态）；web 亮色主题
+  仍自动切换为 light 鹿。验证：VM 截图像素扫描（图标簇唯一）+ web CSS
+  机制保留（`!important` 翻回）。
+- **AC-09**（r3）收缩态选中导航项背景=底色 +foreground 10%（暗轨约
+  +25 亮度），不再随 accent 预设爆亮。验证：VM 截图像素采样对比底色。
+- **AC-10**（r3）收缩态底部 workspace 文件夹与设置齿轮两图标水平中心
+  对齐导航列中心（±2px）。验证：VM 截图像素中心测量。
 
 ## 8. 执行步骤
 
@@ -286,11 +297,26 @@ currentTitle => if .hasWs { .store.workspace_path } else { "选择工作目录" 
    显式传 .workspace）。视觉级（截图）因 §10-9 冻结未采全，转 §10。）]
 4. [x] **T-04（条件）VM 弹层列表修复** [✅ 已取消——T-01(a) 定案列表可用，
    数组债未命中，无需修复。]
-5. [ ] **T-05 双轨验证收口**：静态门已绿（build/vitest/codegen 核对）；
-   余项=视觉级 VM 截图（AC-01/03 收尾）、PickFolder 实机（AC-05）、
-   web 浏览器 E2E（AC-06）——均受 §10-9 冻结家族/需要原生对话框制约，
-   列 §10 待办；证据落 reports + SD-01/02 入册（merge 阶段落
-   docs/specs）+ §9 复审记录。
+5. [x] **T-05 双轨验证收口** [✅ 静态门绿+VM 状态级实证（见 §9 首条）；
+   视觉级余项（AC-01/03 截图补采、AC-05 PickFolder、AC-06 浏览器 E2E）
+   受 §10-9 冻结家族制约转 §10；证据收据
+   docs/reports/ui-parity/081-workspace-switch-ux.md。]
+6. [x] **T-06 收缩态 rail 三修（r3）** [✅ 已完成（musk 0f28c31）：
+   - ③a 双鹿=light 鹿 img 加 `hidden` 类（VM 不渲染；web 亮色由
+     `display:block !important` 翻回）——像素证 [24-103]→[44-83] 单鹿；
+   - ③c 齿轮左偏 8px 双根因（用户感知"文件夹歪右"实为齿轮偏左对比）：
+     wrapper `border-t` 边框容器几何左移（A/B 像素证 56→64）+ title 经
+     EE03 进 label 参与布局（复合因素）——分隔线改独立 bg-border h-px
+     元素（border 式分隔线同样触发位移）、收缩态不挂 title；文件夹/
+     齿轮/导航图标中心全 64=rail 中心；
+   - ③b 选中背景改 wrapper col+bg-accent（web 两主题正常）；**VM 侧
+     当前 master 二进制 rail 子树 bg 全不上色**（按钮/容器×语义/alpha/
+     hex 矩阵排除+生成产物核对；080 二进制用户实机曾画 teal=auto-lang
+     回归面）——AC-09 VM 视觉暂缺，转 §10 上游项。
+   - 附带 auto-lang 债三件（§10）：icon 节点条件 class 毒化全局解析
+     （鹿 hidden 失效复现/回退即愈）；if 分支子节点 style 疑构建期
+     丢弃；rail 子树 bg 不渲染。多轮 A/B 期间一轮构建静默失败（warning
+     无 success 行）→ 截图对旧码，教训=每轮 build 必 grep success 行。]
 6. **收尾**：`bash D:/autostack/wt-guard.sh D:/autostack/.wt/musk-081/auto-musk`
    → 与 PLAN-080 协调（080 先 rebase main + ff-only 合回 + 清理，081 随后
    `git rebase main` → wt-guard → main 快进合回 → 删 worktree/分支）。
@@ -312,7 +338,7 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
   ——2026-09-21 起草，两需求静态证据链齐备，实施风险集中在 T-01 未定案
   的 VM 加载链细节（已设条件任务兜底）。
 
-- `stage: work | plan_id: PLAN-081 | plan_revision: 2 | outcome: pass（代码
+- `stage: work | plan_id: PLAN-081 | plan_revision: 3 | outcome: pass（代码
   完成，T-01..T-04 闭环；T-05 静态门绿+VM 状态级实证，视觉级余项因外部
   制约转 §10）| code_commit: musk plan-081-dev @ 9565b48（clean，wt-guard
   clean）| task_ids: T-01 定案（弹层可用/子件 Init 实派发/切换滞留实锤/
@@ -330,18 +356,41 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
   语义未证实）；PlansStore.Init→Reload（current 串台防护）；boot 链
   refreshAuth 前置（app.at/login.at）；T-04 取消（数组债未命中）。
 
+- `stage: work | plan_id: PLAN-081 | plan_revision: 3 | outcome: pass（需求③
+  三修完成：③a/③c 实机像素双绿、③b web 绿+VM 受上游 bg 渲染回归所限）
+  | code_commit: musk plan-081-dev @ 0f28c31（clean，wt-guard clean）|
+  task_ids: T-06 三修+收尾 | evidence: auto build 全 pipeline 绿；VM one-shot
+  臂（MCP 9251）像素测量——鹿 [44-83] 单只/齿轮文件夹导航中心全 64；A/B
+  排除矩阵（placement/class-vs-style/title 单因/alpha/hex/col-vs-div/
+  if 分支）在案 | blockers: ③b VM 视觉=auto-lang master rail 子树 bg
+  渲染回归（§10 转上游）；§10-9 冻结家族继续干扰（每实例 1-2 分钟内
+  死亡高频）| next: review（或用户实机目验 ③a/③c）`
+  ——2026-09-21 r3（需求③收缩态三修）。附带 auto-lang 债三件+一轮静默
+  构建失败教训入 §10。
+
 ## 10. 待澄清事项
 
 - 无阻塞项。T-01 定案后余留（非本轮范围，按需立后续）：
   - **§10-9 新数据点（转 080 交接清单①）**：ws 弹层 Choose 按压与冻结/
     死亡强相关（新码 3/4 实例、旧码 1 例同位复现；进程活/MCP 死或整体
-    亡）。080 的"触发条件不在导航切换层"口径需补此窄触发面。
-  - **视觉级验证余项（review/用户目验承接）**：AC-01/03 截图、AC-05
-    PickFolder 实机（与 Choose 同链，风险低）、AC-06 web 浏览器 E2E。
+    亡）。080 的"触发条件不在导航切换层"口径需补此窄触发面。r3 轮更甚：
+    每实例 1-2 分钟内死亡高频化（同会话多实例）。
+  - **视觉级验证余项（review/用户目验承接）**：AC-01/03 切换域截图、
+    AC-05 PickFolder 实机（与 Choose 同链，风险低）、AC-06 web 浏览器 E2E。
   - **VM workspace 选择不跨启动持久**：Choose 写 localStorage（VM 会话
     KV，进程级不落盘）→ 重启回退 registry 默认（backend）；叠加
     ws_resolve_current 列表回退链被数组迭代债打断（080 登记"VM 回填
     链暂缓"）。用户未报，登记观察。
   - **Wiki/Whitelist 同族刷新**：与 plans 同根因（进视图重拉+query
     滞留）；本轮只修点名项，同款一行接线可后续批量收。
+  - **auto-lang 债三件（r3 实测，转上游登记）**：① `icon` 节点挂条件
+    class（`class: if..else..`）毒化全局解析——他处 img 的 hidden 失效
+    （双鹿回归，回退即愈，像素复验）；② if 分支子节点 style 疑 VM 构建
+    期丢弃（快照打印原始串≠消费面，多组"在树里但不生效"观测）；③
+    master 二进制 rail 子树 bg 渲染回归（按钮/容器×语义/alpha/hex 全
+    不画；080 二进制实机可画 teal 高亮）——PLAN-081 ③b VM 视觉受此
+    所限，web 侧 bg-accent 正常。
+  - **工程教训**：auto build 偶发静默失败（只打 warning 无 success 行）
+    ——每轮构建必须 grep "successfully" 再起实例，否则截图对旧码误导
+    定罪（r3 轮实际发生一次）。
 
