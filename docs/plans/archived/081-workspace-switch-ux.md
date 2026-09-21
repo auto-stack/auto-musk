@@ -2,6 +2,7 @@
 plan_id: PLAN-081
 status: archived
 completion_kind: delivered
+cleaned: done
 feature_name: workspace 选择器显示名修正 + VM 轨切换后列表刷新链
 author: [agent]
 created_at: 2026-09-21T00:00:00Z
@@ -532,7 +533,7 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
   updated_at→2026-09-21T19:20:00+08:00（spec_files 本含两目标册，无新增
   册）；smoke=main `auto build` 全 pipeline 绿；archived=
   docs/plans/archived/081-workspace-switch-ux.md status: archived
-  completion_kind: delivered | cleaned: pending（见下） | 遗留移交:
+  completion_kind: delivered | cleaned=done（19:30 wt-guard clean 双查；worktree remove D:/autostack/.wt/musk-081/auto-musk；branch -d plan-081-dev@2633f33；组目录 rmdir；注册表仅余主检出） | 遗留移交:
   autodown 表格/段落正文债（=080 移交②）与 §10-9 死亡家族留在
   KNOWN-DEBT/接收计划，不在本计划交付范围
 
