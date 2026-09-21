@@ -318,7 +318,7 @@ store ForgeStore {
                 .LoadSessionList()
                 return
             }
-            .messages = resp.session.messages ?? []
+            .messages = rebuildParsedMessages(resp.session.messages)
             .active_leaf = resp.session.active_leaf ?? ""
             .thinking_level = resp.session.thinking_level ?? "low"
             // PLAN-067 T-05: 会话审批模式随载入回填（缺省 human）。
@@ -357,7 +357,7 @@ store ForgeStore {
             }
             if resp == None { return }
             if resp.session == None { return }
-            let older = resp.session.messages
+            let older = rebuildParsedMessages(resp.session.messages)
             if older == None { return }
             // 前插：older 全量 + 现有中 id 不在 older 的条目（页边界重叠
             // 去重；流式乐观尾部天然保留）。
@@ -747,7 +747,7 @@ store ForgeStore {
             // 按已加载窗口合并：快照首条在现表有锚点→保锚点前缀（用户已
             // 翻页加载的历史）换尾部；无锚点（fork/叶切换/空表）→整表
             // 换入。归一化免本地（blocks_normalized 直出）。
-            .messages = mergeTailWindow(.messages, resp.session.messages)
+            .messages = mergeTailWindow(.messages, rebuildParsedMessages(resp.session.messages))
             // PLAN-067 T-02：回填时同步服务端活跃叶——否则叶链投影沿旧叶
             // 回溯,新回合不在链上,依旧"数据到了但不渲染"。
             if resp.session.active_leaf != None { .active_leaf = resp.session.active_leaf }
@@ -1312,6 +1312,60 @@ fn modeRoleOf(mode str) str {
     if mode == "coding" { return "coder" }
     if mode == "review" { return "reviewer" }
     return mode
+}
+
+// PLAN-083 T-03：分页回填的扁平重建漏斗——JSON.parse 产物直接落 store 时，
+// 渲染/computed 上下文对 blocks 深度字段读产出 "0"（PLAN-081 r5 定罪的
+// 家族；旧链 normalizeToolBlocks 的 handler 上下文重建正是承重件，分页
+// 直出跳过它曾在 V-4 实测翻车：652KB 会话 assistant 气泡整空）。此处以
+// handler 上下文把每消息/每块重建为字面量对象——分页载荷已是扁平字符串
+// 块（blocks_normalized），重建是纯拷贝非拍平，有界（≤50 消息，毫秒级）。
+// 三个回填 handler（DetailLoaded/OlderLoaded/PollBackfill）统一过此漏斗。
+fn rebuildParsedMessages(msgs Value) Value {
+    if msgs == None { return [] }
+    var out list = []
+    var mi = 0
+    while mi < msgs.length {
+        let m = msgs[mi]
+        var nb list = []
+        let mblocks = m.blocks ?? None
+        if mblocks != None {
+            var bi = 0
+            while bi < mblocks.length {
+                let b = mblocks[bi]
+                nb.push({
+                    kind: b.kind ?? "text",
+                    text: b.text ?? "",
+                    state: b.state ?? None,
+                    tkey: b.tkey ?? "",
+                    tool_name: b.tool_name ?? "",
+                    tool_id: b.tool_id ?? "",
+                    tool_status: b.tool_status ?? "",
+                    tool_result: b.tool_result ?? "",
+                    tool_gate_id: b.tool_gate_id ?? "",
+                    tool_pending_cmd: b.tool_pending_cmd ?? "",
+                    tool_escape_paths_text: b.tool_escape_paths_text ?? "[]",
+                    tool_args_json: b.tool_args_json ?? "{}",
+                    summary: b.summary ?? "",
+                    truncated: b.truncated ?? None
+                })
+                bi = bi + 1
+            }
+        }
+        out.push({
+            id: m.id ?? "",
+            role: m.role ?? "user",
+            content: m.content ?? "",
+            thinking: m.thinking ?? "",
+            created_at: m.created_at ?? 0,
+            parent_id: m.parent_id ?? None,
+            blocks: nb,
+            profession_id: m.profession_id ?? None,
+            pending: m.pending ?? None
+        })
+        mi = mi + 1
+    }
+    return out
 }
 
 // PLAN-083 T-03：轮询回填的窗口合并——fresh（快照最近 N 条）首条在 cur

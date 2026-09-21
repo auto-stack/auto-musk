@@ -177,12 +177,15 @@ fn flatten_blocks_budgeted(blocks: &[ChatBlock]) -> Vec<serde_json::Value> {
         let cost = serde_json::to_string(b).map(|s| s.len() as i64).unwrap_or(0);
         let over = budget - cost < 0;
         let entry = if over && b.get("kind").and_then(|k| k.as_str()) == Some("tool") {
-            // 降桩：字符串字段保留（含 summary），重载字段清空。
+            // 降桩：字符串字段保留（含 summary），重载字段收缩——args_json
+            // 契约恒合法 JSON（V-4 实测二次定罪：降桩清空串令消费侧
+            // messageBlocks r5b 臂 JSON.parse("") 抛异常炸掉整条渲染
+            // computed），占位用 "{}"；result 是字节大头，置空即可。
             let mut stub = b.clone();
             if let Some(map) = stub.as_object_mut() {
-                for key in ["tool_result", "tool_args_json", "tool_escape_paths_text"] {
-                    map.insert(key.into(), serde_json::Value::String(String::new()));
-                }
+                map.insert("tool_result".into(), serde_json::Value::String(String::new()));
+                map.insert("tool_args_json".into(), serde_json::Value::String("{}".into()));
+                map.insert("tool_escape_paths_text".into(), serde_json::Value::String("[]".into()));
                 map.insert("truncated".into(), serde_json::Value::Bool(true));
             }
             stub
@@ -204,8 +207,17 @@ fn normalize_block(b: &ChatBlock) -> serde_json::Value {
         "tool" => match &b.tool {
             Some(tc) => {
                 let (result, result_cut) = trunc_chars(&tc.result, TOOL_RESULT_CAP);
-                let args_json = serde_json::to_string(&tc.args).unwrap_or_else(|_| "{}".into());
-                let (args_json, args_cut) = trunc_chars(&args_json, ARGS_JSON_CAP);
+                // args_json 契约：**恒为合法 JSON**——消费侧（messageBlocks
+                // r5b 臂）对每 tool 块 JSON.parse 重建 arguments，截断串
+                // （'"…' 收尾）会令 parse 抛异常炸掉整条渲染 computed
+                // （V-4 实测：652KB 会话 AI 气泡整体空白）。超限时以合法
+                // 占位对象替代，截断语义由 truncated 标记承载。
+                let args_full = serde_json::to_string(&tc.args).unwrap_or_else(|_| "{}".into());
+                let (args_json, args_cut) = if args_full.chars().count() > ARGS_JSON_CAP {
+                    ("{\"_truncated\":true}".to_string(), true)
+                } else {
+                    (args_full, false)
+                };
                 // gate 面（tool_gate 越界暂停）在 ToolCall 结构外——持久化
                 // 块载荷仅 name/args/result/status/id（chats.rs ToolCall），
                 // gate_* 字段恒空串对齐消费侧缺省；escape_paths 缺席 = TS
@@ -502,6 +514,49 @@ mod tests {
         // 恰 60 不截。
         let exact = serde_json::json!({ "pattern": "p".repeat(60) });
         assert_eq!(summary_text_of(&exact), format!("\"{}\"", "p".repeat(60)));
+    }
+
+    /// args_json 契约回归：超限截断不产生非法 JSON（V-4 实测定罪——
+    /// 消费侧 messageBlocks r5b 臂逐块 JSON.parse，非法串炸掉整条渲染
+    /// computed=AI 气泡整空）。
+    #[test]
+    fn args_json_over_cap_stays_valid_json() {
+        let big_args = serde_json::json!({ "content": "x".repeat(5000) });
+        let b = ChatBlock { kind: "tool".into(), text: String::new(), tool: Some(ToolCall {
+            tool: "edit_file".into(), args: big_args, result: "r".into(),
+            status: "success".into(), id: "tc-1".into(),
+        })};
+        let out = normalize_block(&b);
+        let raw = out["tool_args_json"].as_str().unwrap();
+        assert!(serde_json::from_str::<serde_json::Value>(raw).is_ok(),
+            "args_json must stay valid JSON, got: {}...", &raw[..40.min(raw.len())]);
+        assert_eq!(out["truncated"], serde_json::json!(true));
+    }
+
+    /// 降桩臂回归：预算降桩后 args_json 仍合法（V-4 二次定罪——
+    /// 降桩清空串 JSON.parse("") 同样炸渲染 computed）。
+    #[test]
+    fn stubbed_blocks_keep_args_json_valid() {
+        // 堆 8 个大 result 块令预算必然降桩头部块。
+        let big = "x".repeat(TOOL_RESULT_CAP + 100);
+        let blocks: Vec<ChatBlock> = (0..8)
+            .map(|i| tool_block(&format!("t{i}"), serde_json::json!({"path": "a.rs"}), &big))
+            .collect();
+        let msgs = vec![msg("a1", crate::chats::Role::Assistant, blocks)];
+        let p = paginate_and_normalize(&session(msgs), 50, None);
+        let out = p["session"]["messages"][0]["blocks"].as_array().unwrap();
+        let mut checked_stub = 0;
+        for b in out {
+            if b["truncated"] == serde_json::json!(true) && b["kind"] == serde_json::json!("tool") {
+                let raw = b["tool_args_json"].as_str().unwrap_or("");
+                assert!(
+                    serde_json::from_str::<serde_json::Value>(raw).is_ok(),
+                    "stub args_json must stay valid JSON"
+                );
+                checked_stub += 1;
+            }
+        }
+        assert!(checked_stub > 0, "fixture should have triggered stubbing");
     }
 
     /// 块级瘦身：超预算消息的更早 tool 块降桩（result 清空 + truncated），
