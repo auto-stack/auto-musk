@@ -1,11 +1,12 @@
 ---
 plan_id: PLAN-081
-status: executing
+status: reviewed
 feature_name: workspace 选择器显示名修正 + VM 轨切换后列表刷新链
 author: [agent]
 created_at: 2026-09-21T00:00:00Z
-updated_at: 2026-09-21T18:30:00Z
+updated_at: 2026-09-21T19:05:00Z
 plan_revision: 6
+reviewed_commit: 4945f61
 current_step: 11
 total_steps: 11
 supersedes_spec_components: []
@@ -495,6 +496,30 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
   blockers: 无 | next: review（或用户实机目验）`
   ——2026-09-21 r6（需求⑥⑦）。类串部分失效面（font-mono 阻断色类）与
   弹性盒居中面入 §10。
+
+- `stage: review | plan_id: PLAN-081 | plan_revision: 6 | outcome: pass |
+  reviewed_commit: 4945f61 | base_commit: plan-080-dev @ 5899fff 血统
+  （080 已等价落 main 410087c，rebase 时底座自动跳过） |
+  dependency_revisions: auto-lang master release（X9 桩，680109800+）、
+  backend musk release @17201（081 零后端改动） | spec_inputs: SD-01..04
+  目标文件均存在（ui-compositions.md / vm-data-semantics.md，先前"目标
+  缺失"系 ls 截断误读，已纠正） | acceptance_results: AC-01✅（r6 截图
+  触发器=backend 目录名）AC-02✅（T-03 状态级证据+用户真实切换到
+  auto-edit 会话活跃使用）AC-03✅（T-03 store 级）AC-04✅（T-03 机制级）
+  AC-07 取消（T-04）AC-08✅（r3 像素）AC-09✅web/VM 受上游 bg 债所限
+  （§10 登记）AC-10✅（r3 像素）AC-11✅（活实例 vtree：用户真实会话
+  skill/list_dir/read_file 卡全对、content:"0" 计数 0）AC-12✅（像素+
+  vtree）AC-13✅（vtree margin×8+像素+用户目验）AC-14✅（像素取样
+  name=(247,249,251)/param=(148,163,183)=#94a3b7） | findings: AC-05
+  partial（PickFolder 与 Choose 同链同序代码级等价，原生对话框未自动化，
+  §10 缓项）；AC-06 partial（web 同源编译+build/vitest/产物核对绿，浏览
+  器 E2E 未跑，§10 缓项）——两项均 r2 起在册缓项、六轮真实使用未报问题，
+  不作阻塞 | evidence: 本轮基线重跑 auto build 全 pipeline 绿+vitest
+  23+1skip（junction 清理毁 node_modules 后重建=重跑理由）；活实例
+  21816 只读 vtree 抽检（tmp/vtree-review.json）；像素取样记录在 r6 收据 |
+  limitations: 复审在实现会话内进行（无独立会话），结论以工件重建而非
+  执行摘要 | next: merge（用户已裁定 B 路线收口；autodown 正文债与
+  §10-9 家族不在本计划范围）`
 
 ## 10. 待澄清事项
 
