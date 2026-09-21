@@ -1,12 +1,12 @@
 ---
 plan_id: PLAN-080
-status: executing
+status: reviewed
 feature_name: 桌面实机验收暴露的 VM 轨缺陷批次修复（gallery 真机一致性臂 + AutoUI 级 button 默认重置 + settings 类弹窗 popover 化）
 author: [agent]
 created_at: 2026-09-20T15:59:36+08:00
-updated_at: 2026-09-21T01:20:00+08:00
+updated_at: 2026-09-21T13:29:46+08:00
 plan_revision: 1
-current_step: 4
+current_step: 5
 total_steps: 6
 supersedes_spec_components:
   - "docs/specs/modules/ui-default-styles.md"
@@ -230,7 +230,9 @@ check`）全绿为准入。
 
 ## 8. 执行步骤
 
-- [ ] **T-01 gallery 真机一致性臂 + 新 case 注册 + 消息宽度定罪修复** [🔁 UAT 重开（2026-09-21）：
+- [x] **T-01 gallery 真机一致性臂 + 新 case 注册 + 消息宽度定罪修复** [✅ 已完成（r4 复审收口：
+  F-UAT-1 闭环=musk 22960ca 字节安全重写（真机中文全文验证）+ auto-lang bad186d58 回归钉（r4 复验
+  plan080_uat 3/3 绿）；live case CJK 变体（仪器盲区）→ 移交清单 ④（用户裁定）][🔁 UAT 重开（2026-09-21）：
   余 F-UAT-1——cee16d694 消息行宽修复引入 **CJK 用户气泡空泡回归**：max-w-[70%] pct 臂对
   CJK 文本测量 ≈0 宽（泡塌缩为 padding 盒、渲染按宽裁剪后不可见），latin 同泡正常。
   证据链（UAT 会话实测）：后端存储 content="你好" 完好（输入/传输链排除）→ 侧栏会话项/
@@ -280,7 +282,9 @@ check`）全绿为准入。
   52 测 51 绿 1 前置红（icon_component_child…，干净 master 同红）。musk
   侧：rail 图标钮 rail-icon-btn → tailwind 词表 + 触碰面 bg-transparent/
   border-none 后置类清查。examples 裸 button 双轨同变（parity 保持）。
-- [ ] **T-04 popover 原语 + settings 弹层迁移**（复审重开收窄：余 F-3——间歇静默 exit 1 崩溃根修（auto-lang 债，取证完备案）+ 真机外点/ESC 手验清单（用户验收项）；迁移本体/re-press/锚定全绿）（musk 1488482 + f82bdf9）。
+- [x] **T-04 popover 原语 + settings 弹层迁移** [✅ 已完成（r4 复审收口：迁移本体/锚定/re-press/宽度面全绿维持；
+  余项=①§10-9 崩溃根修（auto-lang）+ ②真机外点/ESC 手验（用户验收），用户裁定移交清单 ①⑤]
+  （复审重开收窄：余 F-3——间歇静默 exit 1 崩溃根修（auto-lang 债，取证完备案）+ 真机外点/ESC 手验清单（用户验收项）；迁移本体/re-press/锚定全绿）（musk 1488482 + f82bdf9）。
   调查定案：auto-lang 锚定 popover 原语已在（Plan 422+ 家族，PLAN-059 T9
   语义），零 auto-lang 改动；settings_menu.at dialog 受控 modal → popover
   嵌套（top-start + w-80 + 注入 toggle + 家族关闭语义 + 关闭行退役）。
@@ -296,7 +300,9 @@ check`）全绿为准入。
   .await 链强相关但最小隔离不复现，musk 侧已规避=内联形态）；②真机
   外点/ESC 手验清单（MCP 合成事件不经 overlay 路由，唯真机可验——用户
   验收项）。
-- [ ] **T-05 settings 内部布局修复**（复审重开收窄：宽度面已收口（66.7→2.2px）；余字体度量族——text 行高映射 21 vs 15.2、popover 锚 x 偏移 ~11px、按钮高 ~12px（auto-lang 样式映射，独立验证周期））。
+- [x] **T-05 settings 内部布局修复** [✅ 已完成（r4 复审收口：宽度面收口 66.7→2.2px 维持；
+  字体度量族（行高/锚偏移/按钮高）→ 移交清单 ③，settings-rows live 保持正确红）]
+  （复审重开收窄：宽度面已收口（66.7→2.2px）；余字体度量族——text 行高映射 21 vs 15.2、popover 锚 x 偏移 ~11px、按钮高 ~12px（auto-lang 样式映射，独立验证周期））。
   settings-rows 双臂测量打通 + F-4 宽度收口（f82bdf9）：popover 标签摘
   class:"w-80"（两轨语义错位——web 落 wrapper div 无效果 / VM 落 content
   列且顶替 PLAN-528 W9 缺省 chrome 成 w-80=320 无 bg/border/p-4，内宽
@@ -326,6 +332,54 @@ check`）全绿为准入。
   109 case，live 3/4 ok——settings-rows 红于登记的字体度量余项 §10-10）。
 
 ## 9. 复审记录
+
+- `stage: review | plan_id: PLAN-080 | plan_revision: 1 | outcome: pass（带债落地=
+  r3 blocked 解除条件 (b) 兑现：用户裁定"剩余项转下一计划"（§9 深夜收口）+ 本会话
+  指令 review→merge，验收合同按移交清单 ①-⑤ 修订，修订范围内全部 AC 复核通过） |
+  reviewed_commit: auto-musk 5899fff（worktree plan-080-dev，构建后 clean） |
+  base_commit: d313fa1（musk main 自此 11 笔全为 docs/plans/ 提交、分支零触碰
+  docs/plans/，rebase 无冲突面） | dependency_revisions: auto-lang auto-musk-dev
+  @ 5d323810b（worktree clean；12 commits 领先 master、落后 132——合回需 rebase
+  + 门复跑，merge 阶段处理）；auto-ai @ main 630a98db / auto-down @ master
+  fba6563e（组内参考检出，clean） | spec_inputs: ui-default-styles.md b3c04591 /
+  ui-parity.md 648a9270 / ui-compositions.md 8a815b57（tip 实测哈希与 r2/r3
+  记录逐一相符，88f4ad2 后零改动——内容复用 r2 复审结论，复用理由：文件未变） |
+  acceptance_results: AC-01 pass / AC-02 pass / AC-03 pass（stale 会话反馈+真机
+  手验 → 移交⑤）/ AC-04 pass / AC-05 pass（§10-9 根修+外点/ESC 手验 → 移交①⑤）/
+  AC-06 pass（字体度量族 → 移交③；宽度面已收口 2.2px）/ AC-07 pass；r3 后新增面：
+  免登录（§4.6 用户授权，099eed7）verified / F-UAT-1 修复 verified / launch-vm.cmd
+  + X9 常驻桩（工具交付，已录 §9 深夜收口） | findings: 无阻断项；两条 merge 阶段
+  注意事项（下） | evidence: 下 | next: merge`
+  ——2026-09-21 r4 终局复审（13:29）。复审会话非执行上下文，结论自命令输出与 git
+  工件重建；关键面全部复跑：
+  **①musk 门**：离线 `check`=catalog PASS exit 0（108 声明/109 case，live 3/4 ok，
+  ⏭ settings-rows 显式留痕=SD-02 契约形态；收据 LIVE_SOURCES 无 stale）；web 门
+  `auto build` 全 pipeline 绿（worktree release auto.exe @ 5d323810b 重建后跑，
+  vue-tsc+vite 14.41s）——覆盖 r3 后全部 .at 改动（099eed7 免登录/22960ca
+  render_mentions 重写）；backend `cargo build` 绿（1m15s）。构建后 worktree clean。
+  **②auto-lang 门**（分支尖 5d323810b）：cargo tf 全量 3652 跑 3 败——
+  autodown_panel_heading/shell_pack_vocabulary=r2 定罪前置红（master 同红）；
+  kitchen_sink_page_in_sync=**环境交叉污染非本计划回归**（定罪链：本分支 172536658..
+  5d323810b 零触碰 schema/生成器文件；auto-os 主检出 kitchen-sink.at 于今日 11:24
+  被 PLAN-671 按 lang-671 分支 schema 再生（d21bee3，text 段 `text {}`→`text
+  "sample"` 51→53），本分支基线 schema 生成旧形态 → 共享文件比对红；并行计划
+  落地后再平衡自动解）。基线 4 前置红中 mouse_area/ffi_dual_019 本分支已转绿
+  （净改善，零新增红）。musk_vm_track 102 测 96 绿 6 败=§10-1 登记基线 6 前置红
+  （p053×4+p054×2，家族逐一吻合）；p080 回归钉 4/4 绿；plan080_uat 钉
+  （-F iced-layout-tests）3/3 绿（F-UAT-1 CJK 测宽+bisect+Rich bounds）；button
+  面 52 测 51 绿 1 败=icon_component_child 前置红（r2 干净 master 同红）。
+  **③r3 证据沿用**（复用理由：相关面自 r3 零代码变更）：AC-02 像素右缘
+  1263.5≈1264/AC-03 双臂路径+sessionClickOk/AC-05 锚定+re-press/AC-04 三表同步。
+  F-UAT-1 真机验证（22960ca 提交录）+ 免登录 MCP 快照断言（099eed7 提交录）为
+  执行时录得证据，辅以本复审 headless 钉+build 复验。
+  **merge 阶段注意事项**：(1) auto-lang 分支落后 master 132 提交——rebase 后
+  全门复跑再合回 auto-lang master 并清 worktree；(2) 移交清单 ①-⑤ 当前无接收
+  计划（PLAN-081=独立范围：workspace 显示名+切换刷新链，§0 自注基于
+  plan-080-dev 堆叠、不承接 auto-lang 债）——merge 沉淀时 ①-⑤ 必须入账册
+  （KNOWN-DEBT 或待建计划），防 orphaned；kitchen_sink 环境红在 auto-lang 分支
+  合回后复验一次。
+  独立性限制：本会话与执行会话同线，但执行叙述未采信，裁定全部自工件
+  （本记录命令节选+git 证据）重建。
 
 - `stage: work | plan_id: PLAN-080 | plan_revision: 1 | outcome: 本轮收口 →
   剩余项转下一计划（用户裁定：下一轮测试立新计划承接，本会话上下文过长） |
