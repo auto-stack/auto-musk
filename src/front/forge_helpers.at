@@ -214,6 +214,63 @@ fn getToolSummary(tc obj) obj {
     return segs
 }
 
+/** r5：header 单行摘要串——原 for seg 循环在 VM row 内被包装为列（多段
+ * 竖排顶高 header，用户实测），单 text 节点双轨一行；逐段条件 class 链
+ * （auto-lang 债①同族）随之退役。分支/截断口径与 getToolSummary 一致。 */
+fn getToolSummaryText(tc obj) str {
+    let args = tc.arguments ?? {}
+
+    let path = args.path ?? ""
+    let slug = args.slug ?? ""
+    let sectionId = args.section_id ?? ""
+    let pattern = args.pattern ?? ""
+    let query = args.query ?? ""
+    let task = args.task ?? ""
+    var command = args.command ?? ""
+    if command == "" { command = args.cmd ?? "" }
+    let limit = args.limit
+    let offset = args.offset
+
+    var out = ""
+    if path != "" {
+        out = path
+        if limit != None || offset != None {
+            out = out + ":" + (limit ?? "") + ":" + (offset ?? "")
+        }
+    }
+    if slug != "" { out = joinSeg(out, slug) }
+    if sectionId != "" { out = joinSeg(out, sectionId) }
+    if pattern != "" {
+        var s = pattern
+        if pattern.length > 60 { s = pattern.substring(0, 57) + "…" }
+        out = joinSeg(out, "\"" + s + "\"")
+    }
+    if query != "" {
+        var s2 = query
+        if query.length > 60 { s2 = query.substring(0, 57) + "…" }
+        out = joinSeg(out, "\"" + s2 + "\"")
+    }
+    let skillName = args.skill_name ?? ""
+    if skillName != "" { out = joinSeg(out, skillName) }
+    if task != "" && out == "" {
+        var s3 = task
+        if task.length > 60 { s3 = task.substring(0, 57) + "…" }
+        out = s3
+    }
+    if command != "" && out == "" {
+        var s4 = command
+        if command.length > 80 { s4 = command.substring(0, 77) + "…" }
+        out = s4
+    }
+    return out
+}
+
+/** 摘要段空格拼接（空段透传）。 */
+fn joinSeg(a str, b str) str {
+    if a == "" { return b }
+    return a + " " + b
+}
+
 // ─── Message blocks（有序 block 渲染模型，T10） ──────────────────────────────
 
 /** 从展示文本中剥离问卷 JSON 代码块（含流式未闭合块隐藏）。
@@ -260,16 +317,24 @@ fn messageBlocks(msg obj) obj {
             bnorm = bnorm + 1
             if b.kind == "tool" {
                 tnorm = tnorm + 1
-                // r7：raw 兼容双形态——持久化块载荷在 tool 键；流式 live push
-                // 块（forge_store tool_call 臂）载荷在 tc 键且无 tool 键。原
-                // `b.tool ?? {}` 把 live 块洗成空载荷（name undefined +
-                // nstatus 落"completed"默认）→ 用户实测 streaming 中工具卡
-                // 无名/无参/无结果 + 假 completed。tc 形态字段名与 raw 同构
-                // （name/arguments/result/status），直取即等价。
-                var raw = b.tool ?? b.tc ?? {}
-                // 持久化 tool 载荷（{arguments,id,name,result}）无 status/
-                // details 键——VM 缺字段裸读硬崩，先经 ?? 归一再比较。
-                let rstat = raw.status ?? ""
+                // r5b：双形态消费。(a) ingest 拍平块（forge_store
+                // normalizeToolBlocks 产 tool_name/tool_args_json/… 纯字符串
+                // 字段）：只读字符串字段，arguments 由 args_json 本地
+                // JSON.parse 重建，summary 优先用 ingest 上下文现算的
+                // b.summary（字符串跨上下文可靠）；(b) 流式 live 块（SSE 臂
+                // 本地字面量，tc 在）原样透传。原 `raw = b.tool ?? b.tc` 形态
+                // 退役——对存储可达嵌套对象的字段读在渲染/计算上下文产出
+                // "0"（r5 实机两实例对照定罪：vtree 真值 vs 像素全 "0"）。
+                let live_tc = b.tc ?? None
+                if live_tc != None {
+                    norm.push({
+                        kind: "tool",
+                        tkey: (msg.id ?? "m") + "#tool:" + (live_tc.id ?? b.tkey ?? tnorm),
+                        summary: b.summary ?? getToolSummaryText(live_tc),
+                        tc: live_tc
+                    })
+                } else {
+                let rstat = b.tool_status ?? ""
                 var nstatus = "completed"
                 if rstat == "error" || rstat == "failed" {
                     nstatus = "failed"
@@ -284,25 +349,22 @@ fn messageBlocks(msg obj) obj {
                 }
                 norm.push({
                     kind: "tool",
-                    tkey: (msg.id ?? "m") + "#tool:" + (raw.id ?? b.tkey ?? tnorm),
-                    summary: getToolSummary({
-                        name: raw.name ?? "",
-                        arguments: raw.arguments ?? None,
-                        result: raw.result ?? None
-                    }),
+                    tkey: (msg.id ?? "m") + "#tool:" + (b.tool_id ?? b.tkey ?? tnorm),
+                    summary: b.summary ?? "",
                     tc: {
-                        name: raw.name ?? "",
-                        id: raw.id ?? "",
-                        arguments: raw.arguments ?? None,
-                        result: raw.result ?? None,
-                        details: raw.details ?? None,
-                        gate_id: raw.gate_id ?? "",
-                        pending_cmd: raw.pending_cmd ?? "",
-                        escape_paths: raw.escape_paths ?? [],
-                        escape_paths_text: JSON.stringify(raw.escape_paths ?? []),
+                        name: b.tool_name ?? "",
+                        id: b.tool_id ?? "",
+                        arguments: JSON.parse(b.tool_args_json ?? "{}"),
+                        result: b.tool_result ?? "",
+                        details: None,
+                        gate_id: b.tool_gate_id ?? "",
+                        pending_cmd: b.tool_pending_cmd ?? "",
+                        escape_paths: [],
+                        escape_paths_text: b.tool_escape_paths_text ?? "[]",
                         status: nstatus
                     }
                 })
+                }
             } else if b.kind == "thinking" {
                 // PLAN-071 需求⑦ T-32：thinking 块透传（原 else 兜底折成
                 // text 块，ThinkBlock 芯片永不可达）。
@@ -354,7 +416,7 @@ fn messageBlocks(msg obj) obj {
         out.push({
             kind: "tool",
             tkey: (msg.id ?? "m") + "#tool:" + (raw.id ?? tcount),
-            summary: getToolSummary({
+            summary: getToolSummaryText({
                 name: raw.name,
                 arguments: raw.arguments,
                 result: raw.result

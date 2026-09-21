@@ -1021,11 +1021,77 @@ fn currentAssistantMsgIn(msgs Value) Value {
 // SET 缺键硬崩。持久化块是稀疏键集（{kind,text}/{kind,tool}，无 tc/state），
 // 故本函数**构造新块替换**而非原地补写——msg.blocks 键存在（非 null 分支）
 // 对它 SET 合法；块对象一律重建为全字段形态。
+/** r5b：工具卡 header 单行摘要串（forge_helpers.getToolSummaryText 的
+ * store 内联副本，改名防 VM 扁平命名空间撞名——store 文件不消费跨文件
+ * fn 导入，沿 nowSec 内联先例）。分支/截断口径与 helpers 版一致。 */
+fn summaryTextOf(tc obj) str {
+    let args = tc.arguments ?? {}
+
+    let path = args.path ?? ""
+    let slug = args.slug ?? ""
+    let sectionId = args.section_id ?? ""
+    let pattern = args.pattern ?? ""
+    let query = args.query ?? ""
+    let task = args.task ?? ""
+    var command = args.command ?? ""
+    if command == "" { command = args.cmd ?? "" }
+    let limit = args.limit
+    let offset = args.offset
+
+    var out = ""
+    if path != "" {
+        out = path
+        if limit != None || offset != None {
+            out = out + ":" + (limit ?? "") + ":" + (offset ?? "")
+        }
+    }
+    if slug != "" { out = segJoin(out, slug) }
+    if sectionId != "" { out = segJoin(out, sectionId) }
+    if pattern != "" {
+        var s = pattern
+        if pattern.length > 60 { s = pattern.substring(0, 57) + "…" }
+        out = segJoin(out, "\"" + s + "\"")
+    }
+    if query != "" {
+        var s2 = query
+        if query.length > 60 { s2 = query.substring(0, 57) + "…" }
+        out = segJoin(out, "\"" + s2 + "\"")
+    }
+    let skillName = args.skill_name ?? ""
+    if skillName != "" { out = segJoin(out, skillName) }
+    if task != "" && out == "" {
+        var s3 = task
+        if task.length > 60 { s3 = task.substring(0, 57) + "…" }
+        out = s3
+    }
+    if command != "" && out == "" {
+        var s4 = command
+        if command.length > 80 { s4 = command.substring(0, 77) + "…" }
+        out = s4
+    }
+    return out
+}
+
+/** 摘要段空格拼接（空段透传）。 */
+fn segJoin(a str, b str) str {
+    if a == "" { return b }
+    return a + " " + b
+}
+
 fn normalizeToolBlocks(msgs Value) Value {
     if msgs == None { return msgs }
+    // r5 根修一：API 值树入 store 前整树 JSON 往返重建为纯 VM 值（往返
+    // 产物异常时回退原值）。r5 根修二（r5b 拍平）：tool 块重建为纯字符串
+    // 字段（见下方 tool 臂注）。
+    var cur = msgs
+    let snap = JSON.stringify(msgs)
+    if snap != "" {
+        let reparsed = JSON.parse(snap)
+        if reparsed != None { cur = reparsed }
+    }
     var mi = 0
-    while mi < msgs.length {
-        let m = msgs[mi]
+    while mi < cur.length {
+        let m = cur[mi]
         let mblocks = m.blocks ?? None
         if mblocks != None {
             var nb list = []
@@ -1038,7 +1104,28 @@ fn normalizeToolBlocks(msgs Value) Value {
                     if tcv == None {
                         let tv = b.tool ?? None
                         if tv != None {
-                            nb.push({ kind: "tool", tool: tv, tc: tv })
+                            // r5b 拍平：handler 上下文把 tool 载荷重建为**纯字符串
+                            // 字段**（name/id/status/result/gate_* + args_json +
+                            // summary 现算成串）——字符串读在全部上下文可靠
+                            // （think 文本/kind/status 实证），对象型字段读在渲染/
+                            // 计算上下文产出 "0"（实机两实例对照实证：同代码
+                            // 同会话，vtree 真值 vs 像素全 "0"）。messageBlocks
+                            // 侧只读这些字符串字段，不再触碰 b.tool 嵌套对象。
+                            // summary 摘要串内联计算（store 文件不消费跨文件
+                            // fn 导入，沿 nowSec 内联先例；改名防 VM 扁平
+                            // 命名空间与 forge_helpers.getToolSummaryText 撞名）。
+                            nb.push({
+                                kind: "tool",
+                                tool_name: tv.name ?? "",
+                                tool_id: tv.id ?? "",
+                                tool_status: tv.status ?? "",
+                                tool_result: tv.result ?? "",
+                                tool_gate_id: tv.gate_id ?? "",
+                                tool_pending_cmd: tv.pending_cmd ?? "",
+                                tool_escape_paths_text: JSON.stringify(tv.escape_paths ?? []),
+                                tool_args_json: JSON.stringify(tv.arguments ?? {}),
+                                summary: summaryTextOf(tv)
+                            })
                         } else {
                             nb.push(b)
                         }
@@ -1058,7 +1145,7 @@ fn normalizeToolBlocks(msgs Value) Value {
         }
         mi = mi + 1
     }
-    return msgs
+    return cur
 }
 
 /** 新建 assistant 消息骨架(不落 store——由调用方 push);profession_id 来自 turn_start。 */
