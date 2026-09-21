@@ -5,7 +5,7 @@ feature_name: workspace 选择器显示名修正 + VM 轨切换后列表刷新�
 author: [agent]
 created_at: 2026-09-21T00:00:00Z
 updated_at: 2026-09-21T15:30:00Z
-plan_revision: 3
+plan_revision: 4
 current_step: 4
 total_steps: 5
 supersedes_spec_components: []
@@ -317,6 +317,14 @@ currentTitle => if .hasWs { .store.workspace_path } else { "选择工作目录" 
      （鹿 hidden 失效复现/回退即愈）；if 分支子节点 style 疑构建期
      丢弃；rail 子树 bg 不渲染。多轮 A/B 期间一轮构建静默失败（warning
      无 success 行）→ 截图对旧码，教训=每轮 build 必 grep success 行。]
+7. [x] **T-07 工具卡/思考卡不渲染修复（r4，用户报"工具调用组件又坏了"）**
+   [✅ 已完成（musk 344dcfb）：根因=if 分支内 col 挂 `class:` 属性时整棵
+   子树不进渲染（快照/vtree 节点齐全而像素空白——auto-lang master 渲染
+   面，与 rail bg 不上色同族）。chat_message.at 三处卡片容器（think-block
+   col、通用 tool-card 三态 col、spawn_relay 兜底 col）class→style。
+   验证：实机像素 completed 绿字 rgb(34,197,94)+裁图视觉确认 💭 chip/
+   双 🔧 卡（run_command ls -la、read_file README.md）/边框圆角全渲染；
+   web 轨 class/style 等价。]
 6. **收尾**：`bash D:/autostack/wt-guard.sh D:/autostack/.wt/musk-081/auto-musk`
    → 与 PLAN-080 协调（080 先 rebase main + ff-only 合回 + 清理，081 随后
    `git rebase main` → wt-guard → main 快进合回 → 删 worktree/分支）。
@@ -338,7 +346,7 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
   ——2026-09-21 起草，两需求静态证据链齐备，实施风险集中在 T-01 未定案
   的 VM 加载链细节（已设条件任务兜底）。
 
-- `stage: work | plan_id: PLAN-081 | plan_revision: 3 | outcome: pass（代码
+- `stage: work | plan_id: PLAN-081 | plan_revision: 4 | outcome: pass（代码
   完成，T-01..T-04 闭环；T-05 静态门绿+VM 状态级实证，视觉级余项因外部
   制约转 §10）| code_commit: musk plan-081-dev @ 9565b48（clean，wt-guard
   clean）| task_ids: T-01 定案（弹层可用/子件 Init 实派发/切换滞留实锤/
@@ -356,7 +364,7 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
   语义未证实）；PlansStore.Init→Reload（current 串台防护）；boot 链
   refreshAuth 前置（app.at/login.at）；T-04 取消（数组债未命中）。
 
-- `stage: work | plan_id: PLAN-081 | plan_revision: 3 | outcome: pass（需求③
+- `stage: work | plan_id: PLAN-081 | plan_revision: 4 | outcome: pass（需求③
   三修完成：③a/③c 实机像素双绿、③b web 绿+VM 受上游 bg 渲染回归所限）
   | code_commit: musk plan-081-dev @ 0f28c31（clean，wt-guard clean）|
   task_ids: T-06 三修+收尾 | evidence: auto build 全 pipeline 绿；VM one-shot
@@ -383,13 +391,21 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
     链暂缓"）。用户未报，登记观察。
   - **Wiki/Whitelist 同族刷新**：与 plans 同根因（进视图重拉+query
     滞留）；本轮只修点名项，同款一行接线可后续批量收。
-  - **auto-lang 债三件（r3 实测，转上游登记）**：① `icon` 节点挂条件
+  - **auto-lang 债四件（r3/r4 实测，转上游登记）**：① `icon` 节点挂条件
     class（`class: if..else..`）毒化全局解析——他处 img 的 hidden 失效
     （双鹿回归，回退即愈，像素复验）；② if 分支子节点 style 疑 VM 构建
     期丢弃（快照打印原始串≠消费面，多组"在树里但不生效"观测）；③
     master 二进制 rail 子树 bg 渲染回归（按钮/容器×语义/alpha/hex 全
     不画；080 二进制实机可画 teal 高亮）——PLAN-081 ③b VM 视觉受此
-    所限，web 侧 bg-accent 正常。
+    所限，web 侧 bg-accent 正常；④ **if 分支内 col 挂 class: 属性整棵
+    子树不渲染**（工具卡/思考卡全空白，class→style 即愈=r4 修复）——
+    与 ②③ 同族"树在漆不出"渲染面回归。
+  - **§10-9 首份带捕获证据的死亡样本（r4，p081-vm-live.log）**：X9 心跳
+    每 30s 至 1789976704 止、无 X9-PANIC/无 returned/无 main_err → 四分
+    法=外部终止类**首次有日志实证**；`[POLL] streaming=-2147483647` 垃圾
+    读数（PLAN-536 根态重绑不可见债的实锤表现）；死点=工具轮对话后
+    ~120s（与上一样本"切换后精确 120.03s"同拍=deadman 过期节拍）——
+    触发面新增"带工具调用的对话轮"；强相关但未定因果，X9 桩续采。
   - **工程教训**：auto build 偶发静默失败（只打 warning 无 success 行）
     ——每轮构建必须 grep "successfully" 再起实例，否则截图对旧码误导
     定罪（r3 轮实际发生一次）。
