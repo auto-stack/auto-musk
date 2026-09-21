@@ -499,6 +499,15 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
 ## 10. 待澄清事项
 
 - 无阻塞项。T-01 定案后余留（非本轮范围，按需立后续）：
+  - **§10-9 新样本（r6 后，用户目验窗被"自动关闭"）**：18:24:50 启动
+    （agent Bash 血缘：Bash→cmd→start cmd→auto.exe），18:25:53 末次
+    X9-ALIVE 心跳、18:26:16 日志终止——**寿命 ~90s**；无 panic/无
+    returned、WER（Application 1000/1001/1002）无 auto.exe 崩溃记录=
+    外部终止再实证。**新对照实验已布置**：`launch-vm-081.cmd`（主检出
+    根，双击启动，指向 081 worktree r6 + 日志 tmp/p081-vm-user.log）
+    ——用户双击启动若存活 >3min 而 agent 血缘实例恒 ~90s 亡，则杀手=
+    agent 会话进程清理（job 对象连带）；若同样亡，§10-9 与启动方式
+    无关的口径维持。
   - **080 移交债②实锤复现（r7 观察，用户报，081 不承接）**：助手消息
     正文在 VM autodown 渲染丢正文——「目录内容」markdown 表格只画边框/
     分隔线、单元格文本全空；「README 一句话总结」带粗体+行内代码的 CJK
