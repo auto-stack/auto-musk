@@ -327,6 +327,21 @@ check`）全绿为准入。
 
 ## 9. 复审记录
 
+- `stage: work | plan_id: PLAN-080 | plan_revision: 1 | outcome: §10-9 审计
+  册突破——管道关闭 panic 家族实锤 + 三种失败形状建档 | code_commit:
+  auto-lang 5d323810b（main Err 审计+四分法完备） | evidence: ①exit-audit
+  册 574 条 panic 记录中挖出关键族："failed printing to stderr: 管道正在被
+  关闭 (os error 232)"（pid 38712，01:05）——stderr/stdout 管道被壳关闭后
+  下一发 print 即 panic；同册另有 scrollctl 断言/[RC canary] use-after-free
+  （engine.rs:1819/rc.rs:714）/wgpu Dimension-zero/reqwest blocking
+  client.rs:1523 事件循环 panic（02:11）等多族。②今晚 exit-1 死亡均"无任何
+  审计行"→ 外部终止或未知静默路径；③文件重定向（无管道）浸泡出现新形状：
+  进程存活但全冻结（心跳停 2/MCP 无响应/后端正常）——冻结与静默 exit 1
+  或为同根不同面。 | blockers: §10-9（冻结形状+管道 panic 双案并查）|
+  next: work（①壳管道生命周期确认+常驻改文件重定向；②冻结栈抓取；
+  ③§10-10/live case CJK 变体）`——2026-09-21（四）夜。
+
+
 - `stage: work | plan_id: PLAN-080 | plan_revision: 1 | outcome: §10-9 自动化
   复现未遂（保持间歇），足迹桩常驻续采 | code_commit: auto-lang 34800cf51
   （Rich span 色回退层移除=纯继承恢复） | evidence: ①自动导航压测：会话↔
