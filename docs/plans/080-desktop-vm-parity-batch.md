@@ -327,6 +327,21 @@ check`）全绿为准入。
 
 ## 9. 复审记录
 
+- `stage: work | plan_id: PLAN-080 | plan_revision: 1 | outcome: F-UAT-1 收口
+  （真机绿）+ F-UAT-2 Rich 重构试错回退（基础设施保留待专项）+ §10-9 排查
+  推进（外部终止/未审计退出二选一）| code_commit: musk 22960ca+099eed7 +
+  auto-lang bad186d58+93e1cb420+5165cbf1f | evidence: ①F-UAT-1 全链（探针
+  语义实证→字节安全重写→真机截图中文全文→vtree 文本在场→回归钉 2 绿）；
+  ②F-UAT-2：View::Rich 基础设施+八站点映射落地（93e1cb420），真机发现
+  Rich 节点在 into_iced 前被中间层吞没（RICH-ARM 零命中+表格/段落文字整体
+  缺失，比散架更劣）→ 回退 Row 形态（5165cbf1f），真机截图确认表格恢复+
+  空泡保持修复；Rich 启用前置=吞没层定位（aura_view_builder 后处理/渲染
+  管线中段）或自定义回流文本 widget。③§10-9：WER 零记录+exit-audit 无
+  code=1+main.rs exit(1) 全先打印+Start-Process 分离实例亦死——外部终止或
+  未审计静默退出二选一；iced 循环收尾足迹方案就绪未部署。 | blockers:
+  F-UAT-2（Rich 管线断点）/§10-9（根修）/§10-10（字体度量族）/live case
+  CJK 变体 | next: work（续）`——2026-09-21 文本布局族修复轮（二）。
+
 - `stage: work | plan_id: PLAN-080 | plan_revision: 1 | outcome: F-UAT-1 修复
   收口（真机验证绿）；F-UAT-2/§10-10/§10-9 在途 | code_commit: musk 22960ca
   （+099eed7 免登录）+ auto-lang bad186d58 | task_ids: F-UAT-1 闭环；T-01 重开
