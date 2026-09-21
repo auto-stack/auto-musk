@@ -229,7 +229,7 @@ style {
                             // store.think_open 键列表（thinkToggleList 重建）。
                             // 类串与 ThinkBlock 时期逐类一致（双轨观感不变）。
                             col {
-                                class: "think-block w-full box-border rounded-lg border border-border bg-muted/40 max-w-full overflow-hidden"
+                                style: "think-block w-full box-border rounded-lg border border-border bg-muted/40 max-w-full overflow-hidden"
                                 // PLAN-073 需求⑧ T-35：流式期半开态——header
                                 // (思考中) + 一行滚动最新思考尾（不依赖展开
                                 // 操作，全程可见）；收束后收缩为已思考 chip
@@ -294,7 +294,7 @@ style {
                                         }
                                     } else {
                                         col {
-                                            class: "tool-card border border-border rounded-lg w-full"
+                                            style: "tool-card border border-border rounded-lg w-full"
                                             button {
                                                 onclick: .ToolToggleKey(.block.tkey)
                                                 style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer bg-transparent border-none justify-start text-left h-auto w-full"
@@ -320,7 +320,7 @@ style {
                                     }
                                 } else {
                                     col {
-                                        class: if .block.tc.status == "gate_waiting" { "tool-card gate_waiting border border-amber-500/60 rounded-lg w-full" } else { if .block.tc.status == "failed" { "tool-card failed border border-border rounded-lg w-full" } else { if .block.tc.status == "running" { "tool-card running border border-border rounded-lg w-full" } else { "tool-card completed border border-border rounded-lg w-full" } } }
+                                        style: if .block.tc.status == "gate_waiting" { "tool-card gate_waiting border border-amber-500/60 rounded-lg w-full" } else { if .block.tc.status == "failed" { "tool-card failed border border-border rounded-lg w-full" } else { if .block.tc.status == "running" { "tool-card running border border-border rounded-lg w-full" } else { "tool-card completed border border-border rounded-lg w-full" } } }
                                         // header（click toggle）——冻结实参 .block.tkey
                                         // 上抛 ToolToggleKey（沿 ToggleThink 形态）。
                                         button {
