@@ -152,8 +152,11 @@ widget LoginPage {
             ForgeStore.LoadSessionList()
             // PLAN-080 T-02: 登录后重解析 workspace 回填 store（单源
             // ws_resolve_current；VM 冷启 boot 期后端未就绪的兜底）。
+            // PLAN-081: refreshAuth 提到 SetWorkspace 之前——resolve 内部已
+            // 回写 localStorage，先注入 VM 默认 query 再回填，SetWorkspace
+            // 内部的会话重拉（解析 id 变化时）才带对 workspace。
+            platformRefreshAuth();
             ForgeStore.SetWorkspace(ws_resolve_current().await)
-            platformRefreshAuth()
         }
     }
 }

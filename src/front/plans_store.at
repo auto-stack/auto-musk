@@ -14,10 +14,15 @@ store PlansStore {
         var current Option<PlanFile> = None
         var loading bool = false
         var error str = ""
+        // PLAN-081：列表是否已拉取过——PlansView.Init 防双拉守卫用
+        // （对齐 FilesView/file_loaded 先例：web 轨视图挂载 Init 与
+        // App.ShowPlans 代派二选一）。
+        var plans_loaded bool = false
     }
 
     msg Msg {
         Init,
+        Reload,
         LoadPlans,
         LoadPlan(int),
         CreatePlan(str),
@@ -34,12 +39,21 @@ store PlansStore {
             LoadPlans()
         }
 
+        // PLAN-081: workspace 切换后的强刷——current 持旧 workspace 的
+        // plan（LoadPlans 的"current 已有值即跳过"守卫会保住它 → 详情
+        // 串台），先重置再重拉（current==None 自动选新列表首篇）。
+        .Reload -> {
+            .current = None;
+            LoadPlans()
+        }
+
         // LoadPlans: GET /api/plans 拉活跃 plan 列表。
         .LoadPlans -> {
             .loading = true;
             .error = "";
             let resp = plans_list();
             .loading = false;
+            .plans_loaded = true;
             if resp != None {
                 .plans = resp.plans
             }

@@ -258,7 +258,12 @@ widget PlansView {
 
     on {
         .Init -> {
-            PlansStore.Init()
+            // PLAN-081：web 轨挂载期 Init 派发；App.ShowPlans 代派兜底
+            // （VM 轨子件 Init 不派发——PLAN-048 T5 口径，FilesView 同款
+            // 守卫防双拉）。
+            if .store.plans_loaded != true {
+                PlansStore.Init()
+            }
         }
 
         .SelectPlan(seq) -> {

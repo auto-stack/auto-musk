@@ -134,15 +134,49 @@ store ForgeStore {
 
         // PLAN-080 T-02: workspace 单源回填——meta 为 ws_resolve_current()
         // 产物（{id,name,path}）；None 时 no-op（保留引导值，等下一轮解析）。
+        // PLAN-081: id 变化时本 msg 同时是 VM 轨"切换完成"事件——VM 的
+        // location.reload() 是 no-op（auto.dom.reload stub，见 selector 注），
+        // web 靠 reload 完成的整页重载语义由这里承接：清会话域状态 + 关旧
+        // 流 + 重拉列表（LoadSessionList 对空 session_id 自动选首个会话）。
+        // id 未变（boot 解析回填同值）仅更新显示字段，防启动双拉。
         .SetWorkspace(meta Value) -> {
             if meta != None {
+                var switched bool = false
                 if meta.id != None {
-                    .workspace = meta.id
+                    if meta.id != .workspace {
+                        switched = true;
+                        .workspace = meta.id
+                    }
                 }
                 .workspace_name = meta.name ?? ""
                 .workspace_path = meta.path ?? ""
                 if .workspace != "" {
                     localStorage.setItem("musk_workspace", .workspace)
+                }
+                if switched {
+                    // 清场对齐 SwitchSession 先例（gate/报表/卡片跨会话残留）
+                    // + 会话主体 + 在途流与轮询窗（Sse.close + poll_window 清
+                    // 空=PollStream 永久沉默）+ 发送队列。
+                    .session_id = ""
+                    .messages = []
+                    .active_leaf = ""
+                    .session_status = "idle"
+                    .session_phase = "intake"
+                    .streaming = false
+                    .current_draft = ""
+                    .thinking = ""
+                    .think_open = ""
+                    .tool_open = ""
+                    .current_gate = None
+                    .report_data = None
+                    .errands = {}
+                    .relays = {}
+                    .task_plans = {}
+                    .pending_msgs = []
+                    .poll_window = []
+                    .stream_es = Sse.close(.stream_es)
+                    .error = ""
+                    .LoadSessionList()
                 }
             }
         }

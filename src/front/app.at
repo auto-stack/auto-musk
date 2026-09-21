@@ -13,7 +13,8 @@ use files_view: FilesView
 use whitelist_view: WhitelistView
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web platformInjectStyles, platformSetupAuthFetch from "src/front/ports/platform.at"
+// PLAN-081: platformRefreshAuth 增入——boot 解析回填前重注入 VM 默认 query。
+use.web platformInjectStyles, platformSetupAuthFetch, platformRefreshAuth from "src/front/ports/platform.at"
 use.web ensure_workspace, ws_resolve_current from "src/front/workspace_helpers.at"
 use.web useT from "src/front/ports/composables.at"
 use.web useGateRouter from "src/front/ports/composables.at"
@@ -224,6 +225,11 @@ widget App {
             // 不挡登录页首绘；selector 触发器自此读 store 真值）。await 经
             // let 语句中转（调用实参内 .await 的 VM 语义未证实）。
             let resolved_ws = ws_resolve_current().await;
+            // PLAN-081 需求②：ws_resolve_current 内部已回写 localStorage，
+            // 在 SetWorkspace 之前重注入 VM 默认 query——否则解析出的 id 与
+            // 引导值不同时，SetWorkspace 内部的会话重拉（chats_list_sessions
+            // 无参、全靠默认 query 带 workspace）会打错工作区。web no-op。
+            platformRefreshAuth();
             ForgeStore.SetWorkspace(resolved_ws);
             // URL → 视图(挂载恢复,web useViewState 初始解析对拍)。
             .current_view = vsCurrentView()
@@ -254,7 +260,12 @@ widget App {
         }
         .ShowPlans -> {
             .current_view = "plans";
-            vsSetView("plans")
+            vsSetView("plans");
+            // PLAN-081：VM 轨子件 Init 不派发（PLAN-048 T5 口径），App 级
+            // 代派进视图重拉（.ShowFiles → FilesStore.LoadTree 同款；web 轨
+            // 由 PlansView.Init 的 plans_loaded 守卫防双拉）。workspace 切换
+            // 后的强刷走 selector 的 PlansStore.Reload 链。
+            PlansStore.Init()
         }
         .ShowSpecs -> {
             .current_view = "specs";

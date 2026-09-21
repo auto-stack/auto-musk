@@ -22,6 +22,9 @@
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web component Folder, FolderPlus, ChevronDown, Search, Check from "src/front/ports/icons.at"
 use.web ws_load_recent, ws_find, ws_filter_recent, ws_pick, ws_open from "src/front/workspace_helpers.at"
+// PLAN-081 需求②：切换后 VM 轨默认 query（Http.set_default_query workspace）
+// 重注入——web 实现为 no-op（fetch 拦截器每请求读 localStorage）。
+use.web platformRefreshAuth from "src/front/ports/platform.at"
 // PLAN-080 T-02: workspace 单源——current 真值归 ForgeStore（app.at/login.at
 // 经 ws_resolve_current() → SetWorkspace 回填），本组件读 store，不再自跑
 // ws_load_current 异步解析（旧双源在 VM 冷启 localStorage 空时恒显占位文案）。
@@ -32,13 +35,14 @@ use store: ForgeStore
 widget WorkspaceSelector(collapsed: bool) {
     computed {
         hasWs => .store.workspace != ""
-        // 触发器显示当前 workspace 路径（用户裁定"把当前的 workspace 路径
-        // 列出来"）——路径优先，名字/ id 兜底；无值保持引导文案。经
-        // pathOrName 中转拆两级单层 if：嵌套 if 作分支值时 codegen 语句化
-        // 丢 return（080 实证），单层链恒稳。
-        pathOrName => if .store.workspace_path != "" { .store.workspace_path } else { .store.workspace_name }
-        wsDisplay => if .pathOrName != "" { .pathOrName } else { "选择工作目录" }
-        currentTitle => if .hasWs { .wsDisplay } else { "选择工作目录" }
+        // PLAN-081 需求①：触发器只显示最终目录名（用户裁定 2026-09-21，
+        // 修订 080 T-02 的"路径优先"——完整路径截断后只剩开头，多工作区
+        // 无区分度）。name 优先（后端恒为目录名），path 仅缺 name 防御
+        // 兜底；完整路径保留在 title 悬浮（currentTitle）。单层链防嵌套
+        // if 分支值的 codegen 丢 return（080 实证）。
+        nameOrPath => if .store.workspace_name != "" { .store.workspace_name } else { .store.workspace_path }
+        wsDisplay => if .nameOrPath != "" { .nameOrPath } else { "选择工作目录" }
+        currentTitle => if .hasWs { .store.workspace_path } else { "选择工作目录" }
         showEmpty => .shown.length == 0
         triggerIconSize => if .collapsed { 24 } else { 14 }
     }
@@ -64,7 +68,16 @@ widget WorkspaceSelector(collapsed: bool) {
         }
         .Choose(id) -> {
             localStorage.setItem("musk_workspace", id);
+            // PLAN-081 需求②：切换完成链。顺序敏感：先重注入 VM 默认 query
+            // （Http.set_default_query 进程级，chats_list_sessions 等无参
+            // api 全靠它带 workspace；不先刷则 SetWorkspace 内部的会话重拉
+            // 打旧 workspace）→ SetWorkspace（id 变化时清场+重拉会话列表）
+            // → 计划强刷（Reload 重置选中防旧 workspace 详情串台）。web 侧
+            // platformRefreshAuth 为 no-op；reload 仅 web 有意义（VM 为
+            // auto.dom.reload no-op stub，语义已由 store 链承接）。
+            platformRefreshAuth();
             ForgeStore.SetWorkspace(ws_find(.recent, id));
+            PlansStore.Reload();
             location.reload()
         }
         .UpdateQuery(q) -> {
@@ -73,15 +86,17 @@ widget WorkspaceSelector(collapsed: bool) {
         }
 
         // 弹系统文件夹选择器（本机 serve 进程经 rfd 代弹）→ 选中路径注册为
-        // workspace 并写 localStorage（对齐 Choose），reload 后即当前 workspace。
-        // 取消/失败静默不动。
+        // workspace 并写 localStorage（对齐 Choose）。取消/失败静默不动。
+        // PLAN-081：与 Choose 同款切换完成链（顺序同理）。
         .PickFolder -> {
             let path = ws_pick().await;
             if path != None {
                 let meta = ws_open(path).await;
                 if meta != None {
                     localStorage.setItem("musk_workspace", meta.id);
+                    platformRefreshAuth();
                     ForgeStore.SetWorkspace(meta);
+                    PlansStore.Reload();
                     location.reload()
                 }
             }
