@@ -59,3 +59,65 @@ auto-musk=2 计划。
   回退链被数组迭代债打断 → 每次启动回 registry 默认 backend）：080 已
   登记债的复合表现，本轮未动，计划 §10 观察项。
 - SD-01/SD-02 spec 增量按流程于 merge 阶段入册。
+
+## r5（需求④⑤：工具卡 "0" 中毒/单行 header + 思考卡 chevron）——2026-09-21
+
+代码：musk plan-081-dev @ 0b70043（基 344dcfb）。仪器同上（MCP 9251 +
+后端 17201 复用；auto-lang master release auto.exe）。
+
+### 定罪（工具卡 "0"）
+
+- 症状：重载消息的工具卡 name="0"、参数段 "0"/:0:0/"0" 七连、header 被顶
+  高；status（本地合成默认）幸存。getToolSummary 七分支逐一命中
+  （path/limit/offset/pattern/query/slug/sectionId/skill_name 全读出 "0"）。
+- 取证（[BLKDBG] 临时打印，已撤）：normalizeToolBlocks（handler 上下文）
+  内，API 原值与 JSON 往返后的 tool 载荷读数**全程真值**——原生值层数据
+  完好、handler 上下文读可靠。
+- 反转证据：同代码同会话两实例对照——实例 1 vtree 真值 vs 实例 2 像素全
+  "0"（boot 后 18s）→ **渲染/计算上下文对"存储可达嵌套对象"的字段读产出
+  "0"，字符串读全上下文可靠**。
+- r4 现场验证为何幸存：其时可见卡片走 legacy tool_calls 合成路径；本轮
+  T-03 刷新链使 API blocks 路径成为 VM 常态后被命中。
+
+### 修法（musk 侧拍平，两层）
+
+1. normalizeToolBlocks：入 store 前整树 JSON 往返；tool 块重建为纯字符串
+   字段（tool_name/tool_id/tool_status/tool_result/tool_gate_id/
+   tool_pending_cmd/tool_escape_paths_text/tool_args_json + summary 于
+   handler 上下文由内联 summaryTextOf 现算成串——store 文件不消费跨文件
+   fn 导入，沿 nowSec 内联先例，改名防 VM 扁平命名空间撞名）。
+2. messageBlocks：只读字符串字段 + args_json 本地 JSON.parse 重建
+   arguments；live(SSE) 本地字面量块原样透传；legacy 路径不动。
+
+### 布局与 chevron
+
+- header 弃 `for seg in .block.summary`（VM row 内 for 子树被包装为列=
+  七段竖排顶高的布局根因），改单 text 节点 `text .block.summary`；
+  逐段条件 class 链（auto-lang 债①同族）随之退役，段级配色双轨退役。
+- 思考卡 chevron：span 内内联 if/else 被 VM 丢弃（2026-09-03 定案）→
+  改工具卡已证形态（直挂 if/else text 节点，ml-auto 靠右）。
+
+### 验证
+
+- 静态：auto build 全 pipeline 绿（grep "Vue project built successfully!"，
+  首轮因 gen/front/vue node_modules 残留 d3 版本错配失败，删除重装即愈）
+  ；vitest 23+1skip；生成产物三处核对（ChatMessage.vue 单 summary span/
+  chevron 对/useForgeStore.ts round-trip+拍平）。
+- VM 实机：vtree 全树 `content: "0"` 计数=0；按钮 row 五兄弟单行
+  [🔧 run_command ls -la completed ▼] / [🔧 read_file README.md completed
+  ▼] / [💭 已思考 · 301 tokens ▼]；像素截图 tmp/p081-r5-chats-fixed.png
+  同证；ToolToggleKey 展开链通（tkey #tool:tc-1 稳定），ARGUMENTS/
+  RESULT 正文（total 146 = ls -la 输出）在树。
+- 打印移除后净码复验一臂：vtree 同口径全绿。
+
+### 移交/登记（r5 新增，见 plan §10）
+
+- VM 渲染/计算上下文嵌套对象读产出 "0"（渲染面债⑤）——处方：ingest
+  拍平字符串；errands/relays/task_plans 等他店 ingest 若再现同症按同方
+  处理。
+- `.messages = <全量重绑>` 赋值后画面滞留旧态的嫌疑（实例 2 boot 18s
+  时轮询已换真值而像素仍旧）——与 PLAN-536 重绑定不可见族同疑，未定罪。
+- VM row 内文本节点 min-w-0/flex 计量与 web 差异：工具卡参数段在 VM
+  呈居中分布（web 紧跟 name），观感可接受，登记不动。
+- §10-9 家族延续：r5 轮 3 实例均 ~2min 内死亡（其中 1 例用户交互后
+  手动关闭）；截图通道对最小化窗口失败（window size zero）。
