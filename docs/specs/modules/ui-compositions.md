@@ -59,3 +59,28 @@
   双轨均判 viewport-centered 红（080-live-settings-popover 收据）。
 - **依据**：PLAN-059 T9 弹层家族 + PLAN-080 用户裁定（"针对所有 settings
   类型的弹窗的通用修改"）；musk 1488482。
+
+## PLAN-081 增量：WorkspaceSelector 显示名/切换完成语义 + 消息块与工具卡排布（SD-01/SD-04）
+
+- **WorkspaceSelector 触发器显示（SD-01，AC-01）**：触发器一律显示**最终
+  目录名**（name 优先/path 兜底/占位文案殿后），完整路径仅存悬浮 title
+  位（EE03 label 组合的 tooltip 位）；弹层列表项显示工作区名。禁止回到
+  080 T-02 的"触发器显示完整路径"旧裁定。
+- **切换完成语义（SD-01，AC-02/03/04）**：web=页面 reload（主链保留）；
+  **VM=store 级刷新链**（`platformRefreshAuth()` 先于 `SetWorkspace` →
+  `SetWorkspace` 幂等回填+会话域清场+`LoadSessionList` →
+  `PlansStore.Reload`；boot 链 refreshAuth 前置）。Choose 与 PickFolder
+  两条路径共用同一接线顺序，不得只改其一。
+- **消息块间距（SD-04，AC-13）**：聊天块（文本/思考/工具）垂直间距由
+  **每块 wrapper 的 `mb-[12px]` 承担**；禁止依赖容器 `gap-*`——VM 渲染器
+  把 for 子树包装为列、gap 只作用于直接子级（双轨等价要求 margin 方案）。
+- **工具卡 header 排布（SD-04，AC-14）**：单行结构
+  [图标][工具名][摘要串][状态][chevron]；工具名/摘要串 `shrink-0` 紧跟
+  排布，**禁止 min-w-0/truncate 弹性盒**（VM 撑宽致文字盒内居中）；摘要
+  为 ingest 预拼接单串（`getToolSummaryText`），色
+  `text-muted-foreground`（暗于工具名 foreground）；类串禁混入
+  `font-mono`（VM 解析阻断同串颜色类，等宽观感由 VM 默认字体/web scoped
+  CSS 提供）。长参数截断由 web scoped CSS 兜底。
+- **依据**：PLAN-081 r5/r6 实机定罪与像素实证（收据
+  docs/reports/ui-parity/081-workspace-switch-ux.md r5/r6 节；musk
+  0b70043/4945f61）。

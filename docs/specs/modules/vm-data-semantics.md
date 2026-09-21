@@ -45,3 +45,24 @@ expanded="m1"/展开 true/收起 false）。obj-prop 传递依赖逐帧烘焙（
 
 `use <module>: <Symbol>` 的 module 名必须与文件名一致（resolve 按名找
 文件，`use msg_bubble:` 配 bubble.at 永远解析失败且静默）。
+
+## PLAN-081 增量：location.reload VM 语义 + 嵌套对象读/for 包列铁律（SD-02/SD-03）
+
+- **`location.reload()` 在 VM 轨 = no-op（SD-02，AC-02）**：auto-lang
+  `shim_dom_reload` 空实现是事实源。需要"整页刷新"语义的功能**禁止依赖
+  reload**，必须显式走 store 级刷新链（见 ui-compositions.md PLAN-081
+  增量的切换完成语义）。
+- **嵌套对象字段读铁律（SD-03，AC-11）**：API 值树经 store 根态中转后，
+  **渲染/计算上下文对嵌套对象（obj 字段链）的字段读不可靠（产出 "0"）**；
+  字符串读全上下文可靠，native `JSON.stringify/parse` 任意上下文可靠，
+  handler 上下文读可靠。**处方：ingest（handler 上下文）把后端 JSON
+  载荷拍平为纯字符串字段 + 现算串**（`normalizeToolBlocks`/
+  `summaryTextOf` 先例；args→args_json、summary 现算），模板与 computed
+  只读字符串字段。他店（errands/relays/task_plans/specs 等）同症按同方
+  处理。store 文件内联 fn 改名防 VM 扁平命名空间与 helpers 版撞名。
+- **row 内 for 子树包装为列（SD-03，AC-11/13）**：VM 渲染器把 row 内
+  for 循环子树包装为列（多段竖排），且容器 gap 对该列不生效——**行内
+  多段必须预拼接为单串单 text 节点；块间距必须用块 wrapper margin**。
+- **依据**：PLAN-081 r5 实机两实例对照定罪（vtree 真值 vs 像素全 "0"；
+  BLKDBG pre/post 实证 handler 读真值；收据
+  docs/reports/ui-parity/081-workspace-switch-ux.md r5 节；musk 0b70043）。
