@@ -327,6 +327,18 @@ check`）全绿为准入。
 
 ## 9. 复审记录
 
+- `stage: work | plan_id: PLAN-080 | plan_revision: 1 | outcome: §10-9 新死亡
+  样本归类=外部终止类（全审计版 8 分钟存活后零痕迹死亡：16 心跳/无 PANIC/
+  无 returned/无 main_err/审计册无新行） | code_commit: auto-lang 5d323810b
+  （四分法审计已部署） | evidence: 全审计版实例（entering+16 心跳+main_err
+  审计位+panic 钩子全在位）死亡后：审计册无新行+日志无 returned/PANIC/Err
+  → 排除 Err 退出/panic/shim Process.exit；与既有多例同指纹。自动化导航
+  压测（40+ 按压）零复现——触发条件不在导航切换层。 | blockers: §10-9（外
+  部终止源定位：执行壳 vs 系统级；需用户自启对照实验）| next: work（用户
+  自终端启动对照实验；若自启稳定→§10-9=壳产物，应用侧结案转部署规范；
+  若仍死→X9 数据续采+minidump 路线）`——2026-09-21（五）。
+
+
 - `stage: work | plan_id: PLAN-080 | plan_revision: 1 | outcome: §10-9 审计
   册突破——管道关闭 panic 家族实锤 + 三种失败形状建档 | code_commit:
   auto-lang 5d323810b（main Err 审计+四分法完备） | evidence: ①exit-audit
