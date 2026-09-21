@@ -1,12 +1,13 @@
 ---
 plan_id: PLAN-080
-status: reviewed
+status: archived
+completion_kind: delivered
 feature_name: 桌面实机验收暴露的 VM 轨缺陷批次修复（gallery 真机一致性臂 + AutoUI 级 button 默认重置 + settings 类弹窗 popover 化）
 author: [agent]
 created_at: 2026-09-20T15:59:36+08:00
-updated_at: 2026-09-21T13:29:46+08:00
+updated_at: 2026-09-21T14:10:00+08:00
 plan_revision: 1
-current_step: 5
+current_step: 6
 total_steps: 6
 supersedes_spec_components:
   - "docs/specs/modules/ui-default-styles.md"
@@ -332,6 +333,56 @@ check`）全绿为准入。
   109 case，live 3/4 ok——settings-rows 红于登记的字体度量余项 §10-10）。
 
 ## 9. 复审记录
+
+- `stage: merge | plan_id: PLAN-080 | plan_revision: 1 | outcome: pass（交付+账+归档
+  完成；cleanup=pending——用户在跑的 §10-9 实验进程锁着 worktree 二进制，见
+  cleaned） | delivery_commit: musk main 410087c（ff-only，无 merge commit）/
+  auto-lang master 680109800（ff-only） | canonical_specs:
+  [docs/specs/modules/ui-default-styles.md, docs/specs/modules/ui-parity.md,
+  docs/specs/modules/ui-compositions.md, docs/specs/index.json] | archive_path:
+  docs/plans/archived/080-desktop-vm-parity-batch.md | completion_kind:
+  delivered | cleanup_state: pending（锁因与解锁收尾法在 cleaned 项）`
+  ——2026-09-21 14:10 merge 收口。Checkpoints：
+  - `prepared`：reviewed baseline = r4 pass（reviewed_commit 5899fff→rebase 后
+    18acfc6，映射与等价性见 landed）。规范增量 SD-01..03 已在分支（88f4ad2→
+    6b28af0，tip 实测哈希 b3c04591/648a9270/8a815b57 与 r2/r3/r4 逐轮一致）。
+    巩固提交 410087c = index.json 时间戳刷新（docs-only 后代，实现/依赖零变更）。
+  - `landed`：**musk**——worktree 内 rebase main（range-diff 10/10 全 `=`，映射：
+    1488482→9f54738 / 88f4ad2→6b28af0 / ac9cca4→71ef42f / f82bdf9→05a9c89 /
+    f01dff6→4eb200f / 9b0e857→ccfc369 / f5d5558→be42bd3 / 099eed7→695fdf5 /
+    22960ca→e58da96 / 5899fff→18acfc6）+ 巩固提交 → 主检出 `git merge --ff-only
+    plan-080-dev` → main tip=410087c；冒烟：check 门 PASS exit 0（main 无 live
+    收据=⏭ 显式 skip，SD-02 契约形态）+ auto build 全 pipeline 绿 + dist 重部署。
+    **auto-lang**——master 并发前进两次（13:09 后 PLAN-671 合并落地+672 记账+
+    025 terminal 链共 21 笔），两轮 rebase：第一轮债册冲突一处（P660-D1 双清偿
+    并存：master 侧 PLAN-668 R-21 先行 + 本计划 F-R2 独立修复，正文合并双记），
+    range-diff 11/12 `=` + 1 `!`（即债册那笔）；第二轮零冲突（tip 680109800）。
+    门复跑（最终合并态）：cargo tf **3689/3689 全绿**（r4 时的 3 红中 panel_heading/
+    shell_pack 被 master 侧修复收敛、kitchen_sink 环境红随 671 schema 落地自动
+    解除——r4 预判兑现）；musk_vm_track 96/102（6=§10-1 登记前置红）+ p080 4/4 +
+    plan080_uat 3/3 + button 51/52（icon_component_child 前置红）。→ auto-lang
+    主检出 ff-only → master tip=680109800。
+  - `ledger_refreshed`：musk docs/specs/index.json updated_at→2026-09-21T13:36
+    （三册已在 spec_files，无新增文件）；auto-lang 债册 P660-D1 双清偿行；**移交
+    清单 ①-⑤ 已入 musk KNOWN-DEBT-AND-RISKS.md（Plan 080 行，🟡 节）**——接收
+    计划待建（PLAN-081=独立范围不承接）。
+  - `deployed`（部署链，超出 checkpoint 表的运维注记）：auto-lang 主检出 release
+    auto.exe 重建（680109800，76MB 14:02，X9 足迹桩随分支上 master）；musk 主检出
+    dist 以该二进制重构建（全 pipeline 绿）；backend release musk.exe 主检出重建
+    （14:04）；launch-vm.cmd 路径改主检出（原 .wt/musk-080 硬编码随 worktree 退役
+    失效）——§10-9 用户自启对照实验自此全程走主检出二进制。
+  - `archived`：active → archived（git mv）+ status/completion_kind 落 frontmatter。
+  - `cleaned`：**pending**——用户在跑实验进程锁 worktree 二进制不可删（musk.exe
+    serve@17201 PID 24936 + auto.exe run --render vm PID 29304 跑自
+    .wt/musk-080/auto-musk；auto.exe build PID 20024 + 同 VM 跑自
+    .wt/musk-080/auto-lang release exe）。实验数据采集进程不动。解锁收尾（用户
+    关闭实例后）：wt-guard 双查 → `git worktree remove` musk/auto-lang 两处 →
+    `git branch -d plan-080-dev`（musk）/`git branch -d auto-musk-dev`（auto-lang）
+    → 组目录剩 auto-ai/auto-down 参考检出（本次已可移除）后 rmdir。**musk 侧
+    worktree 虽未删，其全部提交已 ff 落 main（tip=410087c），无未落地内容。**
+  - 备注：版本锚点 v0.1.0-p073r8 未随 074-080 升版（web bundle 目验判旧依据）——
+    升版与否留用户裁定（改评审过的源码超 merge 职权）；musk_vm_track 6 前置红
+    与 button 1 前置红维持 §10-1/债册登记口径不变。
 
 - `stage: review | plan_id: PLAN-080 | plan_revision: 1 | outcome: pass（带债落地=
   r3 blocked 解除条件 (b) 兑现：用户裁定"剩余项转下一计划"（§9 深夜收口）+ 本会话
