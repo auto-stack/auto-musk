@@ -192,7 +192,11 @@ style {
                 // 内容区容器：上下 hairline 只框 block 区，标题栏留在框线上方。
                 // 块间节奏 0.4rem 与 markdown 流内间距对齐（原 style{} 块注记）。
                 col {
-                    style: "msg-bubble-ai flex flex-col gap-3 py-[11px] px-[3px] border-t border-b border-border/60"
+                    // PLAN-081 r6：gap-3 撤除——VM 渲染器把 for 块包一层列，
+                    // gap 只作用于直接子级故 VM 恒不生效；块间距改由每块
+                    // wrapper 的 mb-[12px] 承担（margin 在 VM 已证生效，
+                    // web 由 gap 改 margin 后双轨等价 12px）。
+                    style: "msg-bubble-ai flex flex-col py-[11px] px-[3px] border-t border-b border-border/60"
                     // PLAN-071 需求⑨：AI 启动窗口等待点——首个 thinking/delta
                     // 到达前气泡内动态 "..."（三点跳动），告知后台正在干活；
                     // 块到达即消失（msgIsWaiting 判定，块循环同窗渲染）。
@@ -216,7 +220,7 @@ style {
                     for block in .blocks {
                         if .block.kind == "text" {
                             col {
-                                style: "px-[2px] py-[1px] bg-transparent border-none text-foreground rounded-none"
+                                style: "px-[2px] py-[1px] bg-transparent border-none text-foreground rounded-none mb-[12px]"
                                 Markdown(source: .block.text, streaming: isBlockStreaming(.is_streaming, .blocks, .block))
                             }
                         } else if .block.kind == "thinking" {
@@ -229,7 +233,7 @@ style {
                             // store.think_open 键列表（thinkToggleList 重建）。
                             // 类串与 ThinkBlock 时期逐类一致（双轨观感不变）。
                             col {
-                                style: "think-block w-full box-border rounded-lg border border-border bg-muted/40 max-w-full overflow-hidden"
+                                style: "think-block w-full box-border rounded-lg border border-border bg-muted/40 max-w-full overflow-hidden mb-[12px]"
                                 // PLAN-073 需求⑧ T-35：流式期半开态——header
                                 // (思考中) + 一行滚动最新思考尾（不依赖展开
                                 // 操作，全程可见）；收束后收缩为已思考 chip
@@ -279,7 +283,7 @@ style {
                             // 失效。沿 ThinkBlock 内联先例:分发/卡片段落上提至
                             // 本层,展开态走 toolList 键列表,冻结实参派发）。
                             col {
-                                style: "tool-block-slot w-full"
+                                style: "tool-block-slot w-full mb-[12px]"
                                 if .block.tc.status == "gate_waiting" {
                                     // PLAN-073 F-B：审批门卡（approve/deny 经
                                     // /api/chats/tool-gate/{id} 决议唤醒运行）。
@@ -305,7 +309,7 @@ style {
                                                 onclick: .ToolToggleKey(.block.tkey)
                                                 style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer bg-transparent border-none justify-start text-left h-auto w-full"
                                                 text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
-                                                text .block.tc.name { style: "tool-name min-w-0 truncate text-[13.3px] font-medium text-foreground" }
+                                                text .block.tc.name { style: "tool-name text-[13.3px] font-medium text-foreground shrink-0" }
                                                 text .block.tc.status { style: "ml-auto tool-status text-[11.7px] font-medium shrink-0 ml-auto text-blue-500" }
                                                 if .block.expanded {
                                                     text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }
@@ -333,13 +337,15 @@ style {
                                             onclick: .ToolToggleKey(.block.tkey)
                                             style: "tool-header flex items-center gap-2 py-[6px] px-[10px] min-w-0 cursor-pointer bg-transparent border-none justify-start text-left h-auto w-full"
                                             text "🔧" { style: "tool-icon text-[14px] leading-none shrink-0" }
-                                            text .block.tc.name { style: "tool-name min-w-0 truncate text-[13.3px] font-medium text-foreground" }
-                                            // PLAN-081 r5：单行摘要串（getToolSummaryText
-                                            // 预拼接）——原 for seg 循环子树在 VM row 内
-                                            // 被包装为列（多段竖排顶高 header，用户实测），
-                                            // 且逐段条件 class 链属 auto-lang 债①同族；
-                                            // 单 text 节点双轨一行，段级配色退役（web 同源）。
-                                            text .block.summary { style: "tool-seg seg-loc text-[12.5px] font-medium font-mono shrink-0 text-muted-foreground min-w-0 truncate" }
+                                            // r6：name/summary 弃 min-w-0 truncate（VM 把弹性
+                                            // 盒撑宽致文字盒内居中、参数段漂到行中）与
+                                            // font-mono（VM 串解析嫌疑、默认字体已等宽；
+                                            // web mono 由 scoped .tool-seg 提供）——两者
+                                            // shrink-0 紧跟排布，参数色 text-muted-foreground
+                                            // （暗于 name 的 foreground）；web 截断由
+                                            // scoped .tool-name 兜底。
+                                            text .block.tc.name { style: "tool-name text-[13.3px] font-medium text-foreground shrink-0" }
+                                            text .block.summary { style: "tool-seg seg-loc text-[12.5px] font-medium text-muted-foreground shrink-0" }
                                             text .block.tc.status { class: if .block.tc.status == "gate_waiting" { "tool-status gate_waiting text-[11.7px] font-medium shrink-0 ml-auto text-amber-500" } else { if .block.tc.status == "completed" { "tool-status completed text-[11.7px] font-medium shrink-0 ml-auto text-green-500" } else { if .block.tc.status == "failed" { "tool-status failed text-[11.7px] font-medium shrink-0 ml-auto text-red-500" } else { "tool-status running text-[11.7px] font-medium shrink-0 ml-auto text-blue-500" } } } }
                                             if .block.expanded {
                                                 text "▲" { style: "tool-chevron text-[11px] text-muted-foreground shrink-0" }

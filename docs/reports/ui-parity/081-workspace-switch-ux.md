@@ -121,3 +121,40 @@ auto-musk=2 计划。
   呈居中分布（web 紧跟 name），观感可接受，登记不动。
 - §10-9 家族延续：r5 轮 3 实例均 ~2min 内死亡（其中 1 例用户交互后
   手动关闭）；截图通道对最小化窗口失败（window size zero）。
+
+## r6（需求⑥⑦：block 间 gap + 参数段左对齐/调暗）——2026-09-21
+
+代码：musk plan-081-dev（基 4595fa2）。仪器同前。
+
+### 修法
+
+1. **块间距**（用户问：Vue 有 gap 而 VM 没生效？——两边同一份 Auto 类串
+   `gap-3`，web 由真 CSS 生效；VM 渲染器把 for 块包一层列、gap 只作用于
+   直接子级，故恒不生效。非"Vue 用了非 Auto 方式"）：msg-bubble-ai 撤
+   `gap-3`（防 web 与 margin 双倍），text/think/tool-block-slot 三个块
+   wrapper 加 `mb-[12px]`（margin 在 VM 已证生效）——双轨等价 12px，
+   末块对 toolbar 的 trailing 12px 两轨一致可接受。
+2. **参数段左对齐+调暗**：name/summary 弃 `min-w-0 truncate`（VM 把弹性
+   盒撑宽、文字在盒内居中=参数漂到行中的根因）改 `shrink-0` 紧跟；
+   撤 `font-mono`（VM 串解析阻断嫌疑、默认字体已等宽；web mono 由
+   scoped .tool-seg 提供）——撤后 `text-muted-foreground` 恢复解析。
+   web 侧截断由 scoped .tool-name 兜底（工具名恒短，无溢出面）。
+
+### 验证（实机臂，MCP 9251）
+
+- vtree：`margin: {b: 12}` 节点 8 处（块 wrapper）。
+- 像素取样（p081-r6-chats.png，2560x1600 @2x）：name=(247,249,251)
+  （foreground 白），param=(148,163,183)=**#94a3b7**（text-muted-foreground
+  正确解析，暗于 name）；参数起点紧跟 name（gap≈10px 逻辑）；块间 12px
+  分隔可见；chevron/状态不变。
+- 静态：auto build 绿（gen/front/vue/node_modules 再次 d3 错配——
+  **junction 清理后下次构建必坏，先删该 node_modules 再 build** 入册）；
+  vitest 23+1skip。
+
+### 登记
+
+- VM 类串解析的**部分失效面**（r6 新数据点）：`font-mono` 在场时同串
+  text 颜色类不生效（font-mono 撤下即愈）；与债①②④同族（类串解析/
+  丢弃面），具体边界待上游定界。
+- 弹性盒类（min-w-0/truncate）在 VM 文本节点上=撑宽+内容居中，**行内
+  紧凑排布一律 shrink-0+hug**。
