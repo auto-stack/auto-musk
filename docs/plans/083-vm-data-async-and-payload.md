@@ -190,11 +190,16 @@ B（契约 v2）与 A（分页）都改 `chats_get_session` 响应——合并�
 #### worktree 登记（2026-09-22）
 
 - musk：`D:/autostack/.wt/musk-083/auto-musk`（branch `plan-083-dev`，
-  base = main f622167）
+  base = main f622167，tip 454dff9）
 - auto-lang：`D:/autostack/.wt/musk-083/auto-lang`（branch
-  `auto-musk-dev`，base = master 06837787e）
+  `auto-musk-dev`，base = master 06837787e，tip 0a791cfb8）
+- auto-ai：`D:/autostack/.wt/musk-083/auto-ai`（main 检出挂靠，纯路径
+  依赖位，backend Cargo 相对解析用，零改动）
 - ⚠ auto-lang 主检出有他人未提交改动（`examples/**` 代码路径+文档），
   本计划不消费不触碰；落地前需其归位（merge 阶段处理）。
+- ⚠ musk worktree `gen/front/vue/node_modules` 含 pnpm junction（auto
+  build 产物，gitignored）——**merge 清理前先 Node rmSync 该目录再过
+  wt-guard**（标准步骤，见 memory）。
 - 主检出预检：仅 `docs/plans/**` 簿记改动，无代码 WIP，合规。
 
 ## 5. 详细设计
