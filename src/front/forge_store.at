@@ -4,7 +4,7 @@
 // forge_stream.ts 逃生舱里，store 只管状态 + 简单调用，避开 codegen 对 store
 // handler 复杂控制流（嵌套 if/return/结构体字面量）的 parser 边界。
 
-use back.api: chats_list_sessions, chats_create_session, chats_get_session, chats_send_message, chats_approve, chats_reject_all, chats_fork_session, chats_navigate_session, chats_set_thinking, chats_set_approval, chats_cancel_session
+use back.api: chats_list_sessions, chats_create_session, chats_send_message, chats_approve, chats_reject_all, chats_fork_session, chats_navigate_session, chats_set_thinking, chats_set_approval, chats_cancel_session
 
 store ForgeStore {
     model {
@@ -67,6 +67,15 @@ store ForgeStore {
         // PLAN-071 需求⑮：运行在途时排队的待发消息（FIFO；流式收束后
         // FlushQueue 逐条自动发送）。
         var pending_msgs []Value = []
+        // PLAN-083 T-03：异步数据链状态——workspace 切换骨架门（列表+首屏
+        // 两跳共用）、历史分页游标（/page 端点 has_more/next_before）、滚动
+        // 加载在途门、PollStream 异步回填在途门（防重入：上一拍请求未回收
+        // 不再发起新拍）。
+        var ws_loading bool = false
+        var has_more bool = false
+        var next_before str = ""
+        var older_loading bool = false
+        var poll_inflight bool = false
     }
 
         msg Msg {
@@ -106,14 +115,25 @@ store ForgeStore {
         // PLAN-080 T-02: workspace 单源回填（app.at/login.at 经
         // ws_resolve_current() 解析后入 store；selector 读 store）。
         SetWorkspace(Value),
+        // PLAN-083 T-03：异步消息桥回填段（Http.get_msg 完成以字符串载荷
+        // {"ok","status","body"} 到达——发起段在 LoadSessionList/
+        // FireDetailLoad/LoadOlder/PollStream，全部即返不冻结 UI）。
+        SessionsLoaded(str),
+        DetailLoaded(str),
+        OlderLoaded(str),
+        PollBackfill(str),
+        FireDetailLoad,
+        LoadOlder,
     }
 
     // Plan 051 T10（G1 阶段1）：VM 轨无 SSE 形态期间，流式回复以 500ms
-    // 轮询 chats_get_session 全量回填替代（.streaming 门控——Send 置真、
-    // 末条非空 assistant 置假；条件假不派发不停底层计时）。web 轨仍走
-    // Sse.open 流式（timer 拍在 vue 轨同样存在但 handler 逻辑幂等——
-    // 全量回填与 SSE 增量回写共存时以轮询覆盖为最终态，SSE 到达的增量
-    // 会在下一拍被全量快照校正）。SSE 桥泛化（阶段2）后退役。
+    // 轮询回填替代（.streaming 门控——Send 置真、末条非空 assistant 置假；
+    // 条件假不派发不停底层计时）。web 轨仍走 Sse.open 流式（timer 拍在
+    // vue 轨同样存在但 handler 逻辑幂等——全量回填与 SSE 增量回写共存时
+    // 以轮询覆盖为最终态，SSE 到达的增量会在下一拍被全量快照校正）。
+    // PLAN-083 T-03：回填取数异步化（Http.get_msg 发起即返 + PollBackfill
+    // 回填段）——快照换分页端点（最近 50 条 + blocks_normalized 直出），
+    // 轮询拍不再同步忙等/全量解析。SSE 桥泛化（阶段2）后退役。
     timer {
         // PLAN-536 T12(D4 修复,musk 侧⑥)：when 门摘除——.streaming 的跨模块
         // SET_FIELD 不可达根态（见 PollStream 注④），when 门恒假把轮询拍
@@ -174,6 +194,13 @@ store ForgeStore {
                     .task_plans = {}
                     .pending_msgs = []
                     .poll_window = []
+                    // PLAN-083 T-03：分页游标/骨架/在途门随清场复位（在途
+                    // 异步请求的迟到回填由各 handler 的防御臂吸收）。
+                    .has_more = false
+                    .next_before = ""
+                    .older_loading = false
+                    .poll_inflight = false
+                    .ws_loading = false
                     .stream_es = Sse.close(.stream_es)
                     .error = ""
                     .LoadSessionList()
@@ -209,30 +236,152 @@ store ForgeStore {
             .LoadSessionList()
         }
 
-        // LoadSessionList: 加载列表后，如无选中会话，自动选第一个 + 加载消息。
+        // LoadSessionList（PLAN-083 T-03 两段式）：发起段只置骨架门 +
+        // Http.get_msg 入队即返回——handler 当场收尾，UI 全程可响应
+        // （旧形：chats_list_sessions 同步 await + 首会话
+        // chats_get_session 全量 578KB 同帧解析+normalizeToolBlocks 循环
+        // =call_fn_by_name 忙等冻结 20.9s 的主链）。列表数据由
+        // SessionsLoaded 回填；无选中会话时自动选首个并接 FireDetailLoad。
         .LoadSessionList -> {
-            // PLAN-054 T6: Http.set_default_query 同上摘除(死代码)。
-            var resp = chats_list_sessions();
-            if resp != None && resp.sessions != None {
-                .session_list = resp.sessions;
-                if .session_id == "" {
-                    if .session_list.length > 0 {
-                        .session_id = .session_list[0].id;
-                        // PLAN-053 M1: 自动选中首会话失败时静默跳过（保留空面板），
-                        // 不再把垃圾写进 .messages。
-                        let detail = chats_get_session(.session_id);
-                        if detail != None && detail.session != None {
-                            .messages = normalizeToolBlocks(detail.session.messages)
-                            .active_leaf = detail.session.active_leaf ?? ""
-                            .thinking_level = detail.session.thinking_level ?? "low"
-                            // PLAN-067 T-05: 会话审批模式随载入回填（缺省 human）。
-                            .approval_mode = detail.session.approval_mode ?? "human"
-                            // PLAN-073 P2-T4：载入即重挂在途 run（无在途即收）。
-                            .AttachStream()
-                        }
-                    }
+            .ws_loading = true
+            Http.get_msg("/api/chats/sessions", "ForgeStore.SessionsLoaded")
+        }
+
+        // PLAN-083 T-03：列表回填段——payload = {"ok","status","body"}，
+        // body = {"sessions":[...]}。空选中时自动选首个 + 发起首屏详情
+        // （第二跳异步）；list 空或失败时收骨架门。
+        .SessionsLoaded(payload str) -> {
+            var ok = false
+            var resp = None
+            let r = JSON.parse(payload)
+            if r != None {
+                if r.ok == true {
+                    resp = JSON.parse(r.body)
                 }
             }
+            if resp != None {
+                if resp.sessions != None {
+                    .session_list = resp.sessions
+                    ok = true
+                }
+            }
+            if ok {
+                if .session_id == "" {
+                    if .session_list.length > 0 {
+                        .session_id = .session_list[0].id
+                        .FireDetailLoad()
+                    } else {
+                        .ws_loading = false
+                    }
+                } else {
+                    .ws_loading = false
+                }
+            } else {
+                .ws_loading = false
+                .error = "会话列表加载失败"
+            }
+        }
+
+        // PLAN-083 T-03：首屏/切换详情发起段——分页端点（limit=50 最近
+        // N 条 + blocks_normalized 拍平直出）。SwitchSession/BranchTo/
+        // SessionsLoaded 共用。
+        .FireDetailLoad -> {
+            if .session_id == "" {
+                .ws_loading = false
+                return
+            }
+            .ws_loading = true
+            Http.get_msg("/api/chats/session/" + encodeURIComponent(.session_id) + "/page?limit=50", "ForgeStore.DetailLoaded")
+        }
+
+        // PLAN-083 T-03：详情回填段——body = {session:{...},
+        // has_more, next_before, blocks_normalized:true}。messages 直接
+        // 落 store（后端已拍平为纯字符串块，免本地 normalizeToolBlocks
+        // 解释器循环；JSON.parse 产物即纯 VM 值，免 r5 根修一的二次
+        // 往返）。失败臂对齐 SwitchSession 053 自愈：清消息 + 错误提示
+        // + 列表刷新让过期项消失。
+        .DetailLoaded(payload str) -> {
+            var resp = None
+            let r = JSON.parse(payload)
+            if r != None {
+                if r.ok == true {
+                    resp = JSON.parse(r.body)
+                }
+            }
+            if resp == None || resp.session == None {
+                .ws_loading = false
+                .messages = []
+                .active_leaf = ""
+                .has_more = false
+                .next_before = ""
+                .error = "会话加载失败（可能已删除），列表已刷新，请重新选择 [收到 id=" + .session_id + "]"
+                .LoadSessionList()
+                return
+            }
+            .messages = resp.session.messages ?? []
+            .active_leaf = resp.session.active_leaf ?? ""
+            .thinking_level = resp.session.thinking_level ?? "low"
+            // PLAN-067 T-05: 会话审批模式随载入回填（缺省 human）。
+            .approval_mode = resp.session.approval_mode ?? "human"
+            // PLAN-071 需求⑧：会话 mode 回填（乐观气泡职业映射用）。
+            .session_mode = resp.session.mode ?? "superpowers"
+            .has_more = resp.has_more ?? false
+            .next_before = resp.next_before ?? ""
+            .error = ""
+            .ws_loading = false
+            // PLAN-073 P2-T4：载入即重挂在途 run（无在途即收）。
+            .AttachStream()
+        }
+
+        // PLAN-083 T-03：历史向上翻页发起段（"加载更早的消息"按钮触发；
+        // V-3）。before=next_before 游标（本页首条 id）。
+        .LoadOlder -> {
+            if .has_more == false { return }
+            if .older_loading == true { return }
+            if .session_id == "" { return }
+            if .next_before == "" { return }
+            .older_loading = true
+            Http.get_msg("/api/chats/session/" + encodeURIComponent(.session_id) + "/page?limit=50&before=" + encodeURIComponent(.next_before), "ForgeStore.OlderLoaded")
+        }
+
+        // PLAN-083 T-03：历史回填段——前插合并（older 页 + 现有去重尾），
+        // 流式/乐观消息不丢。
+        .OlderLoaded(payload str) -> {
+            .older_loading = false
+            var resp = None
+            let r = JSON.parse(payload)
+            if r != None {
+                if r.ok == true {
+                    resp = JSON.parse(r.body)
+                }
+            }
+            if resp == None { return }
+            if resp.session == None { return }
+            let older = resp.session.messages
+            if older == None { return }
+            // 前插：older 全量 + 现有中 id 不在 older 的条目（页边界重叠
+            // 去重；流式乐观尾部天然保留）。
+            var merged list = []
+            var oi = 0
+            while oi < older.length {
+                merged.push(older[oi])
+                oi = oi + 1
+            }
+            var ci = 0
+            while ci < .messages.length {
+                let m = .messages[ci]
+                var dup = false
+                var dj = 0
+                while dj < older.length {
+                    if older[dj].id == m.id { dup = true }
+                    dj = dj + 1
+                }
+                if dup == false { merged.push(m) }
+                ci = ci + 1
+            }
+            .messages = merged
+            .has_more = resp.has_more ?? false
+            .next_before = resp.next_before ?? ""
         }
 
         .NewSession -> {
@@ -256,6 +405,8 @@ store ForgeStore {
         }
 
         // SwitchSession: 切换 + 回写 session 详情（messages）。
+        // PLAN-083 T-03：详情改两段式（FireDetailLoad 异步发起，回填走
+        // DetailLoaded——含 053 失败自愈臂）；清场面保持同步（内存快）。
         .SwitchSession(id) -> {
             print("[ForgeStore.SwitchSession] ENTER id=" + id)
             .session_id = id;
@@ -270,35 +421,16 @@ store ForgeStore {
             .streaming = false
             .current_draft = ""
             .thinking = ""
-            // PLAN-053 M1: 失败路径自愈——chats_get_session 失败（会话已删/
-            // 列表过期 404）返回 {"error":...} 或 None 时，
-            // resp == None 或 resp.session == None 均判定为失败。
-            // 失败时清空 .messages、置错误提示、顺手刷新列表让过期项消失。
-            var resp = chats_get_session(id);
-            if resp != None && resp.session != None {
-                .messages = normalizeToolBlocks(resp.session.messages)
-                .active_leaf = resp.session.active_leaf ?? ""
-                .thinking_level = resp.session.thinking_level ?? "low"
-                // PLAN-067 T-05: 审批模式随会话切换回填（缺省 human）。
-                .approval_mode = resp.session.approval_mode ?? "human"
-                // PLAN-071 需求⑧：会话 mode 回填（乐观气泡职业映射用）。
-                .session_mode = resp.session.mode ?? "superpowers"
-                .error = ""
-                // PLAN-073 P2-T4：切换即重挂在途 run（无在途即收；刷新页面
-                // 后超长 run 的现场经增量快照 + 后续事件恢复）。
-                .AttachStream()
-            } else {
-                // PLAN-053 批4: 错误信息携带实收 id（过期会话可对号入座）。
-                .error = "会话加载失败（可能已删除），列表已刷新，请重新选择 [收到 id=" + id + "]"
-                .messages = []
-                let list = chats_list_sessions();
-                if list != None && list.sessions != None {
-                    .session_list = list.sessions
-                }
-            }
+            // PLAN-083 T-03：分页游标复位（新会话从首屏起）。
+            .has_more = false
+            .next_before = ""
+            .older_loading = false
+            .FireDetailLoad()
         }
 
         // PLAN-043: 切换活跃分支（fork/navigate 同机制），随后重载会话。
+        // PLAN-083 T-03：详情重载改两段式（FireDetailLoad；失败自愈归
+        // DetailLoaded）。
         .BranchTo(message_id str, mode str) -> {
             let sid = .session_id
             if sid == "" { return }
@@ -308,12 +440,9 @@ store ForgeStore {
             } else {
                 resp = chats_navigate_session(sid, message_id)
             }
-            // PLAN-053 M1: 重载失败不动 .messages（同 SwitchSession 加固）。
-            let detail = chats_get_session(sid);
-            if detail != None && detail.session != None {
-                .messages = normalizeToolBlocks(detail.session.messages)
-                .active_leaf = detail.session.active_leaf ?? ""
-            }
+            .has_more = false
+            .next_before = ""
+            .FireDetailLoad()
         }
 
         .StreamStarted(sid) -> { .session_id = sid }
@@ -581,9 +710,29 @@ store ForgeStore {
             if .last_sse_at != 0 && Date.now() - .last_sse_at < 3000 { return }
             let sid = .session_id
             if sid == "" { return }
-            var resp = chats_get_session(sid)
-            // PLAN-055 ⑧：404/会话缺失时 resp.session 为 None——守卫避免
-            // None.messages 崩掉后续 computed（对齐 SwitchSession 守卫风格）。
+            // PLAN-083 T-03：回填请求异步化——Http.get_msg 入队即返（旧形
+            // 同步 chats_get_session 在 call_fn_by_name 忙等，流式期每
+            // 500ms 一拍全量 578KB 同步解析=切换冻结同源的 UI 卡顿）。
+            // poll_inflight 防重入：上一拍未回收不再发新拍（单飞轮询）。
+            if .poll_inflight { return }
+            .poll_inflight = true
+            Http.get_msg("/api/chats/session/" + encodeURIComponent(sid) + "/page?limit=50", "ForgeStore.PollBackfill")
+        }
+
+        // PLAN-083 T-03：轮询回填段（旧 PollStream 的取数后半）——分页+
+        // 归一化载荷，按已加载窗口合并（073 链适配：has_more 历史前缀不
+        // 因轮询整表替换丢失），完成启发式与 071⑮ 排空语义原样保留。
+        .PollBackfill(payload str) -> {
+            .poll_inflight = false
+            let sid = .session_id
+            if sid == "" { return }
+            var resp = None
+            let r = JSON.parse(payload)
+            if r != None {
+                if r.ok == true {
+                    resp = JSON.parse(r.body)
+                }
+            }
             if resp == None { return }
             if resp.session == None { return }
             // PLAN-071 需求⑧ T-36：流式期回填防清除——服务端快照在收束前
@@ -595,7 +744,10 @@ store ForgeStore {
                 let last_srv = srv_msgs[srv_msgs.length - 1] ?? None
                 if last_srv == None || last_srv.role != "assistant" { return }
             }
-            .messages = normalizeToolBlocks(resp.session.messages)
+            // 按已加载窗口合并：快照首条在现表有锚点→保锚点前缀（用户已
+            // 翻页加载的历史）换尾部；无锚点（fork/叶切换/空表）→整表
+            // 换入。归一化免本地（blocks_normalized 直出）。
+            .messages = mergeTailWindow(.messages, resp.session.messages)
             // PLAN-067 T-02：回填时同步服务端活跃叶——否则叶链投影沿旧叶
             // 回溯,新回合不在链上,依旧"数据到了但不渲染"。
             if resp.session.active_leaf != None { .active_leaf = resp.session.active_leaf }
@@ -1079,6 +1231,9 @@ fn segJoin(a str, b str) str {
 }
 
 fn normalizeToolBlocks(msgs Value) Value {
+    // PLAN-083 T-03 注：本 fn 随数据链迁分页端点（blocks_normalized 直出）
+    // 退出热路径，保留为全量端点（/session/{id} 缺省形态）消费与
+    // 073 r5 契约参照——勿在新路径调用（VM 解释器逐块循环=冻结放大器）。
     if msgs == None { return msgs }
     // r5 根修一：API 值树入 store 前整树 JSON 往返重建为纯 VM 值（往返
     // 产物异常时回退原值）。r5 根修二（r5b 拍平）：tool 块重建为纯字符串
@@ -1157,6 +1312,36 @@ fn modeRoleOf(mode str) str {
     if mode == "coding" { return "coder" }
     if mode == "review" { return "reviewer" }
     return mode
+}
+
+// PLAN-083 T-03：轮询回填的窗口合并——fresh（快照最近 N 条）首条在 cur
+// 有锚点 → 保 cur 锚点前缀（用户已翻页加载的历史）+ fresh 全量；无锚点
+// （fork/叶切换/cur 空）→ 整表换入。fresh 空表防御：直接透传（清场语义
+// 由调用方负责，快照空=会话被清）。
+fn mergeTailWindow(cur Value, fresh Value) Value {
+    if fresh == None { return cur }
+    if fresh.length == 0 { return fresh }
+    if cur == None { return fresh }
+    if cur.length == 0 { return fresh }
+    var anchor = -1
+    var i = 0
+    while i < cur.length {
+        if cur[i].id == fresh[0].id { anchor = i }
+        i = i + 1
+    }
+    if anchor == -1 { return fresh }
+    var out list = []
+    var h = 0
+    while h < anchor {
+        out.push(cur[h])
+        h = h + 1
+    }
+    var f = 0
+    while f < fresh.length {
+        out.push(fresh[f])
+        f = f + 1
+    }
+    return out
 }
 
 fn newAssistantMsg(professionId str) Value {

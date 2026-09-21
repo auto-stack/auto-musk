@@ -71,6 +71,9 @@ widget ChatsView {
         CancelDelete,
         ConfirmDelete(str),
         SelectSession(str),
+        // PLAN-083 T-03：历史向上翻页（转发 ForgeStore.LoadOlder——
+        // "加载更早的消息" pill，V-3）。
+        LoadOlder,
         // PLAN-071 需求⑤ T-25：取消在途运行（转发 ForgeStore）。
         // PLAN-071 需求⑨：按钮迁入 ChatMessage 工具栏（子件直调
         // ForgeStore.CancelRun），本视图级消息与 handler 退役。
@@ -117,6 +120,8 @@ widget ChatsView {
         // PLAN-043: 先按活跃路径投影再套搜索过滤。
         filteredMessages => chatSearchFilter(chatActivePath(.store.messages, .store.active_leaf), .chat_search)
         lastMsgId => chatLastMessageId(.filteredMessages)
+        // PLAN-083 T-03：翻页 pill 文案（text 位 if 表达式不受支持，R046）。
+        olderLabel => if .store.older_loading { "正在加载更早消息…" } else { "加载更早的消息" }
         // PLAN-043: 分叉切换器数据（for-in 迭代器仅支持纯 dot 路径,fn 调用与
         // 动态索引均破坏 UI parser——扁平 {for_id, sib} 条目在此预算,视图按
         // for_id 相等匹配渲染兄弟按钮）。
@@ -171,6 +176,16 @@ widget ChatsView {
                             cancel_text: t("chat.cancel")
                             onconfirm: .ConfirmDelete($event)
                             oncancel: .CancelDelete
+                        }
+                        // PLAN-083 T-03：切 workspace 骨架——列表未到时脉冲
+                        // 占位行（两段式首跳回填前的可见中间态，V-1）。
+                        if .store.ws_loading && .store.session_list.length == 0 {
+                            col {
+                                style: "flex flex-col gap-1.5 px-1 pt-1"
+                                div { style: "h-[52px] rounded-lg bg-muted animate-pulse" }
+                                div { style: "h-[52px] rounded-lg bg-muted animate-pulse" }
+                                div { style: "h-[52px] rounded-lg bg-muted animate-pulse" }
+                            }
                         }
                         for s in .store.session_list {
                             button {
@@ -294,6 +309,26 @@ widget ChatsView {
                             report: .store.report_data
                             deckMeta: None
                             deckHtml: ""
+                        }
+                    }
+                    // PLAN-083 T-03（V-3）：历史向上翻页 pill——has_more 游标
+                    // 驱动（滚动到顶自动触发的桥接属后续增量；显式按钮双轨
+                    // 可靠，语义=按需到达）。
+                    if .store.has_more {
+                        button {
+                            onclick: .LoadOlder
+                            style: "self-center shrink-0 h-7 px-3 py-0 mb-2 rounded-full border border-border bg-card text-muted-foreground text-xs hover:bg-accent cursor-pointer"
+                            text .olderLabel
+                        }
+                    }
+                    // PLAN-083 T-03：首屏骨架——详情未到且无消息时的脉冲
+                    // 占位（两段式第二跳回填前的可见中间态）。
+                    if .store.ws_loading && .store.messages.length == 0 {
+                        col {
+                            style: "flex flex-col gap-3 w-full"
+                            div { style: "h-16 rounded-xl bg-muted animate-pulse" }
+                            div { style: "h-10 w-2/3 rounded-xl bg-muted animate-pulse" }
+                            div { style: "h-24 rounded-xl bg-muted animate-pulse" }
                         }
                     }
                     for msg in .filteredMessages {
@@ -467,6 +502,11 @@ widget ChatsView {
             .delete_pending_id = "";
             .delete_confirm_open = false;
             store.SwitchSession(id)
+        }
+
+        // PLAN-083 T-03：历史向上翻页（has_more 游标驱动，回填前插合并）。
+        .LoadOlder -> {
+            store.LoadOlder()
         }
 
         // 2026-09-04:hover 会话 × 显隐(mouse-area onmouseenter/onmouseleave;
