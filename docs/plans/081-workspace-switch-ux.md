@@ -1,12 +1,12 @@
 ---
 plan_id: PLAN-081
-status: drafting
+status: executing
 feature_name: workspace 选择器显示名修正 + VM 轨切换后列表刷新链
 author: [agent]
 created_at: 2026-09-21T00:00:00Z
-updated_at: 2026-09-21T00:00:00Z
-plan_revision: 1
-current_step: 0
+updated_at: 2026-09-21T12:00:00Z
+plan_revision: 2
+current_step: 4
 total_steps: 5
 supersedes_spec_components: []
 new_spec_components: []
@@ -183,22 +183,31 @@ currentTitle => if .hasWs { .store.workspace_path } else { "选择工作目录" 
   引导文案。`pathOrName` 中间层删除（单层链在 080 已证稳，无需两级中转）。
 - 弹层列表项 `text .w.name` 与 Check 判定不动。
 
-### 刷新链（需求②）
+### 刷新链（需求②）——实施形（r2 修订）
 
-1. `src/front/forge_store.at` `.SetWorkspace(meta)`：
+1. `src/front/forge_store.at` `.SetWorkspace(meta)`：✅ 已实施
    - `meta == None`：维持现状 no-op。
-   - id 变化：现回填逻辑 + 会话域清场（字段清单见 §2；在途流先
-     `stream_es` 收口再清）+ `.LoadSessionList()`。
+   - id 变化：回填 + 会话域清场（session_id/messages/active_leaf/
+     session_status/session_phase/streaming/current_draft/thinking/
+     think_open/tool_open/current_gate/report_data/errands/relays/
+     task_plans/pending_msgs + `poll_window=[]` + `stream_es=Sse.close`)
+     + `.LoadSessionList()`（空 session_id 自动选首会话）。
    - id 未变：仅回填 name/path 显示字段（幂等，防 boot 双拉）。
-2. `src/front/workspace_helpers.at` 新增 `fn ws_after_switch()`：
-   `platformRefreshAuth()` + `PlansStore.Init()`（store 交叉调用先例：
-   user_message.at:35）。若 T-01 定案 VM 需 App 级派发，则改为在
-   app.at 增 `WorkspaceSwitched` 接线。
-3. `src/front/workspace_selector.at`：`.Choose` 与 `.PickFolder` 在
-   SetWorkspace 之后调 `ws_after_switch()`；`location.reload()` 保留
-   （web 主链，VM no-op 无害）。
-4. `platformRefreshAuth` 引入：selector 增
-   `use.web platformRefreshAuth from "src/front/ports/platform.at"`。
+2. ~~`ws_after_switch()` helper~~ **r2 改为直接接线**（fn 内调 store 语义
+   未证实，避免不确定面；仅两处调用点，重复可接受）：
+   `src/front/workspace_selector.at` `.Choose`/`.PickFolder` 顺序敏感链：
+   `platformRefreshAuth()`（**先于** SetWorkspace——chats_list_sessions
+   无参全靠默认 query，后刷则内部重拉打旧 workspace）→
+   `ForgeStore.SetWorkspace(meta)` → `PlansStore.Reload()`（新 msg：
+   重置 current 防旧 workspace 详情串台 + LoadPlans）→
+   `location.reload()`（web 主链，VM no-op 无害）。
+3. `src/front/plans_store.at`：增 `Reload` msg + `plans_loaded` 字段；
+   `plans_view.at` `.Init` 加 `plans_loaded` 防双拉守卫（FilesView/
+   file_loaded 先例）；`app.at` `.ShowPlans` 增 `PlansStore.Init()`
+   代派（进视图 freshness；web 轨由视图守卫防双拉）。
+4. `login.at`/`app.at` boot 链：`platformRefreshAuth()` 提到
+   `SetWorkspace` 之前（ws_resolve_current 内部已回写 localStorage，
+   先注入默认 query 再回填，SetWorkspace 内部重拉才带对 workspace）。
 
 ### 规范增量
 
@@ -244,21 +253,44 @@ currentTitle => if .hasWs { .store.workspace_path } else { "选择工作目录" 
 
 ## 8. 执行步骤
 
-1. **T-01 实机基线与加载链定案**（bounded investigation，决策产物写回本
-   计划 §4/§10）：
-   - (a) VM 实机开弹层：列表是否可用（数组债影响面定案 → AC-07 去留）；
-   - (b) 计划列表在 VM 的加载触发点（子件 Init 派发与否 → PlansStore 接线
-     层级）；
-   - (c) 切换后 chats/plans/files/wiki/whitelist 各视图实际不刷新面摸底。
-2. **T-02 显示名修正**（§5 显示名；约 workspace_selector.at 单文件）。
-3. **T-03 刷新链落地**（§5 刷新链；forge_store.at + workspace_selector.at +
-   workspace_helpers.at（+app.at 视 T-01））。
-4. **T-04（条件）VM 弹层列表修复**：仅当 T-01 命中数组债。修因在 musk 侧
-   （绕行 Http.get/解包姿势）直接修；在上游则开 `.wt/musk-081/auto-lang`
-   （分支 auto-musk-dev），集成验证过即按 AGENTS.md 尽快合回 auto-lang
-   主分支并清理。
-5. **T-05 双轨验证收口**：§6 全量跑 + 证据落 reports + SD-01/02 入册 +
-   §9 复审记录。
+1. [x] **T-01 实机基线与加载链定案** [✅ 已完成（2026-09-21，MCP 9251 臂，
+   7 实例轮换）：
+   - (a) 弹层列表**可用**——items+Choose 派发全通（数组债未命中当前
+     080-tip 二进制）→ T-04 取消、AC-07 不适用；
+   - (b) **修正定案**：VM 子视图挂载 Init **会派发**（boot 进 plans 视图
+     plans_loaded=true 实证；旧基线"plans 恒空"实为 backend 真值 0 篇的
+     不可区分歧义）。用户所报"计划列表不跟切"根因=切换无重拉 + 默认
+     query 滞留（重进视图重拉也打旧 query）双因，均入 T-03 修复面；
+   - (c) 切换后 session_id/session_list 滞留旧 workspace 实锤（基线：
+     backend→auto-edit 后 session_list 仍 22 条=backend 真值，API 对账
+     backend=22/auto-edit=15）；files 由 .ShowFiles 进视图重拉既有；
+     wiki/whitelist 与 plans 同族（重进视图重拉+query 滞留），本轮仅
+     修 plans（点名项），wiki/whitelist 登记 §10。
+   - 附带新数据点（§10-9）：**ws 弹层 Choose 按压与冻结/死亡家族强
+     相关**（新码 3/4 实例按压后 MCP 失联、旧码同位 1 例复现；080 的
+     40+ 导航按压零复现口径之外的更窄触发面）。]
+2. [x] **T-02 显示名修正** [✅ 已完成（nameOrPath name 优先/path 兜底/
+   占位殿后；currentTitle=完整路径。验证：auto build 绿 + VM vtree 触发
+   钮可见文本="backend"目录名、label 组合内 path 仅存 tooltip 位）。]
+3. [x] **T-03 刷新链落地** [✅ 已完成（实施形见 §5 r2——SetWorkspace
+   幂等清场+重拉、selector 顺序敏感链 refreshAuth→SetWorkspace→
+   PlansStore.Reload、plans_store Reload/plans_loaded、plans_view 守卫、
+   app.at .ShowPlans 代派+boot refreshAuth 前置、login.at 同序。验证：
+   auto build 全 pipeline 绿（vue-tsc+vite 11.05s）、vitest 23+1skip、
+   生成 Vue 产物逐点核对（useForgeStore/usePlansStore/App.vue/
+   WorkspaceSelector.vue）。VM 实机：AC-02 全证（切换后 session_list
+   22→15=auto-edit 真值、session_id=9063dfd 即 auto-edit 首会话
+   "@plan/001 实施这个计划"、messages 4 条挂载）；AC-03 store 级证
+   （plans_loaded=true、plans=[1]=PLAN-005、current 自动选中）；AC-04
+   机制证（无参列表 15 条获取本身=默认 query 已重注入实证；NewSession
+   显式传 .workspace）。视觉级（截图）因 §10-9 冻结未采全，转 §10。）]
+4. [x] **T-04（条件）VM 弹层列表修复** [✅ 已取消——T-01(a) 定案列表可用，
+   数组债未命中，无需修复。]
+5. [ ] **T-05 双轨验证收口**：静态门已绿（build/vitest/codegen 核对）；
+   余项=视觉级 VM 截图（AC-01/03 收尾）、PickFolder 实机（AC-05）、
+   web 浏览器 E2E（AC-06）——均受 §10-9 冻结家族/需要原生对话框制约，
+   列 §10 待办；证据落 reports + SD-01/02 入册（merge 阶段落
+   docs/specs）+ §9 复审记录。
 6. **收尾**：`bash D:/autostack/wt-guard.sh D:/autostack/.wt/musk-081/auto-musk`
    → 与 PLAN-080 协调（080 先 rebase main + ff-only 合回 + 清理，081 随后
    `git rebase main` → wt-guard → main 快进合回 → 删 worktree/分支）。
@@ -280,9 +312,36 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
   ——2026-09-21 起草，两需求静态证据链齐备，实施风险集中在 T-01 未定案
   的 VM 加载链细节（已设条件任务兜底）。
 
+- `stage: work | plan_id: PLAN-081 | plan_revision: 2 | outcome: pass（代码
+  完成，T-01..T-04 闭环；T-05 静态门绿+VM 状态级实证，视觉级余项因外部
+  制约转 §10）| code_commit: musk plan-081-dev @ 9565b48（clean，wt-guard
+  clean）| task_ids: T-01 定案（弹层可用/子件 Init 实派发/切换滞留实锤/
+  §10-9 Choose 相关新数据点）、T-02 显示名、T-03 刷新链（实施形 r2：
+  Reload msg+顺序敏感链+boot 前置）、T-04 取消 | evidence: auto build 全
+  pipeline 绿（080 worktree auto.exe）；vitest 23+1skip；生成 Vue 产物
+  逐点核对；VM 实机（MCP 9251，后端 17201 复用）AC-01 vtree 可见文本=
+  目录名、AC-02 session_list 22→15+session_id 9063dfd+messages 挂载、
+  AC-03 store 级 plans=[1]+current 选中、AC-04 机制级（无参列表重注入
+  实证+显式参数）；基线对账 API：backend 22 会话/0 计划、auto-edit 15
+  会话/1 计划（PLAN-005）| blockers: 无代码阻塞；视觉级验证（AC-01/03
+  截图、AC-05 PickFolder、AC-06 浏览器 E2E）受 §10-9 冻结家族与原生
+  对话框制约 | next: review（SD-01/02 于 merge 阶段入册 docs/specs）`
+  ——2026-09-21 work 收口。修订 r2：§5 刷新链改直接接线（fn 调 store
+  语义未证实）；PlansStore.Init→Reload（current 串台防护）；boot 链
+  refreshAuth 前置（app.at/login.at）；T-04 取消（数组债未命中）。
+
 ## 10. 待澄清事项
 
-- 无阻塞项。执行期待定案点均已内建为 T-01 的调查产出：
-  - VM 弹层列表可用性（数组债）→ AC-07 条件生效。
-  - PlansStore 在 VM 的加载触发点 → §5 刷新链接线层级二选一。
-  - Wiki/Whitelist 刷新面 → 登记或（如一行可及）顺手接，超出则转下轮。
+- 无阻塞项。T-01 定案后余留（非本轮范围，按需立后续）：
+  - **§10-9 新数据点（转 080 交接清单①）**：ws 弹层 Choose 按压与冻结/
+    死亡强相关（新码 3/4 实例、旧码 1 例同位复现；进程活/MCP 死或整体
+    亡）。080 的"触发条件不在导航切换层"口径需补此窄触发面。
+  - **视觉级验证余项（review/用户目验承接）**：AC-01/03 截图、AC-05
+    PickFolder 实机（与 Choose 同链，风险低）、AC-06 web 浏览器 E2E。
+  - **VM workspace 选择不跨启动持久**：Choose 写 localStorage（VM 会话
+    KV，进程级不落盘）→ 重启回退 registry 默认（backend）；叠加
+    ws_resolve_current 列表回退链被数组迭代债打断（080 登记"VM 回填
+    链暂缓"）。用户未报，登记观察。
+  - **Wiki/Whitelist 同族刷新**：与 plans 同根因（进视图重拉+query
+    滞留）；本轮只修点名项，同款一行接线可后续批量收。
+
