@@ -327,6 +327,19 @@ check`）全绿为准入。
 
 ## 9. 复审记录
 
+- `stage: work | plan_id: PLAN-080 | plan_revision: 1 | outcome: §10-9 自动化
+  复现未遂（保持间歇），足迹桩常驻续采 | code_commit: auto-lang 34800cf51
+  （Rich span 色回退层移除=纯继承恢复） | evidence: ①自动导航压测：会话↔
+  文件 30 轮 + 全导航（会话/计划/规范/知识库/文件/白名单）40+ 按压零复现
+  （tmp/nav-crash-probe.mjs、nav-all-probe2.mjs）；②用户线索"点开它就挂
+  （文件/沙箱导航）"未能在按压层复现——崩溃触发面比导航切换更深（疑似
+  特定会话内容/时序）；③足迹桩常驻：每例死亡留 entering/returned 二分+
+  30s 心跳死亡时刻+panic backtrace 兜底 | blockers: §10-9 根因（需带桩
+  等待下一次死亡样本+死前屏幕内容对照）；§10-10；F-UAT-2 表格空文本
+  观察项 | next: work（带桩续采，用户侧死亡报告=时刻+屏幕内容）`——2026-09-21
+  （四）。
+
+
 - `stage: work | plan_id: PLAN-080 | plan_revision: 1 | outcome: §10-9 足迹
   首战告捷+Rich 形态经用户确认恢复 | code_commit: auto-lang 97103f867+34800cf51
   +94be817ad | evidence: ①用户真机确认 Rich 段落排版正常（"一度解决了"）→
