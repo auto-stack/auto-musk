@@ -564,6 +564,11 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
     死亡强相关（新码 3/4 实例、旧码 1 例同位复现；进程活/MCP 死或整体
     亡）。080 的"触发条件不在导航切换层"口径需补此窄触发面。r3 轮更甚：
     每实例 1-2 分钟内死亡高频化（同会话多实例）。
+    【2026-09-22 线索二分归档（PLAN-083 立项注记）：死亡成分=兄弟 agent
+    清场互杀（KNOWN-DEBT 080 行① 已定案，auto-lang 9f5593404 根修）；
+    **冻结成分=Choose 链同步数据加载（call_fn_by_name 忙等），PLAN-083
+    "VM 数据链异步化与大载荷治理"收编根修**（Http.get_msg 消息桥两段式
+    +会话详情分页+归一化直出；PLAN-082 §10-7 实测归因的延续）。】
   - **视觉级验证余项（review/用户目验承接）**：AC-01/03 切换域截图、
     AC-05 PickFolder 实机（与 Choose 同链，风险低）、AC-06 web 浏览器 E2E。
   - **VM workspace 选择不跨启动持久**：Choose 写 localStorage（VM 会话

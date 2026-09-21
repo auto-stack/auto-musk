@@ -31,6 +31,8 @@ store PlansStore {
         ArchivePlan(int),
         MergePlan(int),
         SetError(str),
+        // PLAN-083 T-04：列表加载异步化（Http.get_msg 消息桥回填段）。
+        PlansLoaded(str),
     }
 
     on {
@@ -48,14 +50,31 @@ store PlansStore {
         }
 
         // LoadPlans: GET /api/plans 拉活跃 plan 列表。
+        // PLAN-083 T-04：两段式——发起段置 loading + Http.get_msg 入队即
+        // 返回（旧形同步 plans_list() 在 call_fn_by_name 忙等，Choose 链
+        // 的第三段冻结源）；回填段 PlansLoaded。
         .LoadPlans -> {
             .loading = true;
             .error = "";
-            let resp = plans_list();
+            Http.get_msg("/api/plans", "PlansStore.PlansLoaded")
+        }
+
+        // PLAN-083 T-04：回填段——payload={ok,status,body}，
+        // body={plans:[...]}。
+        .PlansLoaded(payload str) -> {
             .loading = false;
             .plans_loaded = true;
+            var resp = None;
+            let r = JSON.parse(payload)
+            if r != None {
+                if r.ok == true {
+                    resp = JSON.parse(r.body)
+                }
+            }
             if resp != None {
-                .plans = resp.plans
+                if resp.plans != None {
+                    .plans = resp.plans
+                }
             }
             // PLAN-071 需求⑫：初始无选中时默认加载第一篇（与会话轨 Init
             // 自动选中首会话同口径）。Transition/Archive/Merge 后的列表
