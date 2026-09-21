@@ -4,10 +4,10 @@ status: executing
 feature_name: workspace 选择器显示名修正 + VM 轨切换后列表刷新链
 author: [agent]
 created_at: 2026-09-21T00:00:00Z
-updated_at: 2026-09-21T15:30:00Z
-plan_revision: 4
-current_step: 4
-total_steps: 5
+updated_at: 2026-09-21T17:00:00Z
+plan_revision: 5
+current_step: 9
+total_steps: 9
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
@@ -48,6 +48,11 @@ WorkspaceSelector 改为 store 单源（`ForgeStore.SetWorkspace`）且触发器
   (a) 顶部 logo 只显示一只鹿；(b) 选中导航项背景改为比底色稍亮（bg-accent
   随 accent 预设过亮）；(c) 底部 workspace/设置图标对齐（实测：文件夹居中、
   设置齿轮左偏 8px——用户感知"文件夹歪右"实为齿轮偏左的对比）。
+- **需求④（r5 并入，2026-09-21 用户截图报）**：工具卡标题栏恢复单行且
+  内容正确——现显示 name="0"、参数段 "0"/:0:0/"0" 七连垃圾且把 header
+  顶高；应为 [tool 名 + 主要参数（如 read_file 的路径）+ 右侧状态]。
+- **需求⑤（r5 并入，同报）**：思考卡标题栏右侧补上下箭头 icon
+  （展开/收起指示，现完全缺失）。
 
 **非目标**：
 
@@ -213,12 +218,42 @@ currentTitle => if .hasWs { .store.workspace_path } else { "选择工作目录" 
    `SetWorkspace` 之前（ws_resolve_current 内部已回写 localStorage，
    先注入默认 query 再回填，SetWorkspace 内部重拉才带对 workspace）。
 
-### 规范增量
+### r5：工具卡 "0" 中毒与单行 header（需求④）+ 思考卡 chevron（需求⑤）
+
+**根因（实机定罪，含一次反转）**：重载消息（API blocks 路径）的工具卡
+name="0"、参数段 "0"/:0:0/"0" 七连（getToolSummary 七分支逐一命中），
+status 幸存（本地合成默认值）。[BLKDBG] 临时打印证明：API 原生值层数据
+完好、handler 上下文字段读全程真值；而**渲染/计算上下文对"存储可达嵌套
+对象"（b.tool 及其字段）的读产出 "0"，字符串读全上下文可靠**——同代码
+同会话两实例对照（实例 1 vtree 真值 vs 实例 2 boot 18s 像素全 "0"）定罪。
+r4 现场验证幸存是因当时可见卡片走 legacy tool_calls 路径；T-03 刷新链
+使 blocks 路径成为 VM 常态后被命中。
+
+**修法（musk 侧两层拍平）**：
+1. `normalizeToolBlocks`（forge_store.at）：入 store 前整树 JSON 往返
+   （异常回退原值）；tool 块重建为**纯字符串字段**（tool_name/tool_id/
+   tool_status/tool_result/tool_gate_id/tool_pending_cmd/
+   tool_escape_paths_text/tool_args_json=stringify(arguments) +
+   summary=handler 上下文现算成串）。store 文件不消费跨文件 fn 导入
+   （nowSec 先例），摘要内联为 `summaryTextOf`/`segJoin`（改名防 VM
+   扁平命名空间与 forge_helpers 版撞名）。
+2. `messageBlocks`（forge_helpers.at）：拍平块只读字符串字段，
+   arguments 由 args_json 本地 JSON.parse 重建；live(SSE) 本地字面量块
+   原样透传；legacy 路径不动。模板 `text .block.summary` 单节点。
+3. 布局：header 弃 `for seg` 循环——**VM row 内 for 子树被包装为列**
+   （七段竖排顶高的布局根因）；单串双轨一行，逐段条件 class 链
+   （auto-lang 债①同族）退役，段级配色双轨退役（用户已确认单行诉求）。
+4. chevron（需求⑤）：span 内内联 if/else 被 VM 丢弃（2026-09-03 定案）
+   ——改工具卡已证形态（直挂 if/else text 节点，ml-auto 靠右）；
+   顺删从未接线的 `chev` computed。
+
+### 规范增量（r5 追加）
 
 | delta_id | add/modify/retire | docs/specs/... target | before/after rule | rationale | acceptance IDs |
 |---|---|---|---|---|---|
 | SD-01 | modify | docs/specs/modules/ui-compositions.md | WorkspaceSelector 浮层契约无触发器显示规则与切换完成语义 → 增：触发器显示最终目录名（name 优先/path 兜底/占位殿后），完整路径在 title 悬浮；切换完成语义 web=页面 reload，VM=store 刷新链（SetWorkspace 幂等回填+会话域清场+LoadSessionList+PlansStore 重拉+默认 query 重注入） | 用户裁定修订（本计划 §4）；双轨行为契约化防再漂移 | AC-01/02/03 |
 | SD-02 | modify | docs/specs/modules/vm-data-semantics.md | 未登记 location.reload VM 语义 → 增：VM 轨 `location.reload()` = no-op（auto.dom.reload shim 事实源），需"整页刷新"语义的功能必须显式走 store 级刷新链，禁止依赖 reload | 本次根因；防后续功能重蹈 | AC-02/03 |
+| SD-03 | modify | docs/specs/modules/vm-data-semantics.md | 增：VM 渲染/计算上下文对"存储可达嵌套对象"的字段读不可靠（产出 "0"），字符串读可靠——跨 store 边界的后端 JSON 载荷必须在 ingest（handler 上下文）拍平为字符串字段/现算串，禁止模板与 computed 直读嵌套对象；另增 VM row 内 for 子树包装为列，行内多段必须预拼接为单串 | r5 工具卡 "0" 定罪事实源；防后续功能重蹈 | AC-11/12 |
 
 无 Spec 影响的说明：后端零改动，workspace-sandbox.md 不动。
 
@@ -261,6 +296,12 @@ currentTitle => if .hasWs { .store.workspace_path } else { "选择工作目录" 
   +25 亮度），不再随 accent 预设爆亮。验证：VM 截图像素采样对比底色。
 - **AC-10**（r3）收缩态底部 workspace 文件夹与设置齿轮两图标水平中心
   对齐导航列中心（±2px）。验证：VM 截图像素中心测量。
+- **AC-11**（r5）VM 重载消息的工具卡标题栏单行且内容真实：tool 名 +
+  主要参数（如 `run_command ls -la` / `read_file README.md`）+ 右侧
+  状态 + chevron；全树无 `content: "0"` 垃圾节点。验证：vtree 文本 +
+  实机截图。
+- **AC-12**（r5）思考卡标题栏右侧有上下箭头（▼/▲ 随展开态），与工具卡
+  同款已证形态。验证：实机截图 + vtree。
 
 ## 8. 执行步骤
 
@@ -325,6 +366,23 @@ currentTitle => if .hasWs { .store.workspace_path } else { "选择工作目录" 
    验证：实机像素 completed 绿字 rgb(34,197,94)+裁图视觉确认 💭 chip/
    双 🔧 卡（run_command ls -la、read_file README.md）/边框圆角全渲染；
    web 轨 class/style 等价。]
+8. [x] **T-08 工具卡 "0" 中毒根修 + header 单行化（r5 需求④）**
+   [✅ 已完成（musk 0b70043）：定罪与实施形见 §5 r5——normalizeToolBlocks
+   JSON 往返 + tool 块拍平纯字符串字段（summary 于 handler 上下文现算，
+   内联 summaryTextOf/segJoin）；messageBlocks 改字符串消费 + args_json
+   本地 parse；live 块透传；legacy 不动；header 弃 for seg 循环改单串
+   （for 子树在 VM row 内被包装为列=顶高布局根因）。验证：auto build 绿
+   + vitest 23+1skip + 生成产物三处核对；VM 实机 vtree 全树零
+   content:"0"、按钮 row 五兄弟 [🔧 run_command ls -la completed ▼]/
+   [🔧 read_file README.md completed ▼] 单行、像素截图
+   tmp/p081-r5-chats-fixed.png；ToolToggleKey 展开链通（tkey #tool:tc-1
+   稳定）ARGUMENTS/RESULT 正文渲染；[BLKDBG] 取证打印已撤，净码复验臂
+   同口径全绿。]
+9. [x] **T-09 思考卡 chevron 补齐（r5 需求⑤）**
+   [✅ 已完成（同 0b70043）：span 内内联 if/else（VM 丢弃，2026-09-03
+   定案）改工具卡已证形态直挂 if/else text 节点 ml-auto；顺删未接线
+   chev computed。验证：实机截图 💭 已思考 · 301 tokens ▼ 箭头在位；
+   vtree label 含 ▼ 子节点。]
 6. **收尾**：`bash D:/autostack/wt-guard.sh D:/autostack/.wt/musk-081/auto-musk`
    → 与 PLAN-080 协调（080 先 rebase main + ff-only 合回 + 清理，081 随后
    `git rebase main` → wt-guard → main 快进合回 → 删 worktree/分支）。
@@ -373,8 +431,23 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
   if 分支）在案 | blockers: ③b VM 视觉=auto-lang master rail 子树 bg
   渲染回归（§10 转上游）；§10-9 冻结家族继续干扰（每实例 1-2 分钟内
   死亡高频）| next: review（或用户实机目验 ③a/③c）`
-  ——2026-09-21 r3（需求③收缩态三修）。附带 auto-lang 债三件+一轮静默
-  构建失败教训入 §10。
+——2026-09-21 r3（需求③收缩态三修）。附带 auto-lang 债三件+一轮静默
+构建失败教训入 §10。
+
+- `stage: work | plan_id: PLAN-081 | plan_revision: 5 | outcome: pass
+  （需求④⑤完成：工具卡数据中毒根修+header 单行化、思考卡 chevron 补齐，
+  实机像素/vtree 双证）| code_commit: musk plan-081-dev @ 4595fa2
+  （0b70043 代码 + 收据 docs；clean）| task_ids: T-08/T-09 | evidence:
+  auto build 全 pipeline 绿；vitest 23+1skip；VM 实机（MCP 9251，后端
+  17201 复用）AC-11/12 全证——vtree 全树零 content:"0"、按钮 row 五兄弟
+  单行、像素截图 tmp/p081-r5-chats-fixed.png、展开链通；定罪反转一次：
+  初判 API 边界毁数（round-trip 修），对照臂证明 handler 读真值而渲染
+  像素 "0" → 二次定罪"渲染/计算上下文嵌套对象读不可靠"→ 拍平字符串
+  字段根修 | blockers: 无 | next: review（或用户实机目验；SD-03 于
+  merge 阶段入册）`
+  ——2026-09-21 r5（需求④⑤）。新债登记：VM 渲染上下文嵌套读 "0"（债⑤
+  +拍平处方）、row 内 for 子树包装为列、`.messages=` 全量重绑画面滞留
+  嫌疑（PLAN-536 族）、VM 文本 flex 计量差异，均入 §10。
 
 ## 10. 待澄清事项
 
@@ -400,6 +473,20 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
     所限，web 侧 bg-accent 正常；④ **if 分支内 col 挂 class: 属性整棵
     子树不渲染**（工具卡/思考卡全空白，class→style 即愈=r4 修复）——
     与 ②③ 同族"树在漆不出"渲染面回归。
+  - **auto-lang 债⑤（r5 实测定罪，渲染/求值面）**：**渲染/计算上下文对
+    "存储可达嵌套对象"（API 值树经 store 根态中转的 obj 字段链）的字段
+    读产出 "0"**，字符串读全上下文可靠、native stringify/parse 任意上
+    下文可靠、handler 上下文读可靠（BLKDBG pre/post 实证）。处方：ingest
+    （handler 上下文）把后端 JSON 载荷拍平为纯字符串字段 + 现算串；他店
+    （errands/relays/task_plans/specs 等）同症按同方处理。附带布局债：
+    **row 内 for 子树被包装为列**（多段竖排），行内多段必须预拼接单串；
+    文本节点 min-w-0 在 VM flex 内膨胀（参数段居中分布 vs web 紧跟），
+    观感可接受未处理。
+  - **`.messages = <全量重绑>` 画面滞留嫌疑（r5，未定罪）**：实例 2
+    boot 18s 时轮询已多次换入真值而像素仍显示旧 "0" 态——与 PLAN-536
+    "跨帧 SET_FIELD 重绑定不可见"族同疑（push 可见、赋值可疑）。r5 拍平
+    后 boot 首绘即真值，此嫌疑对现网无感；若后续再现"换数据不换画面"
+    按 536 族并案。
   - **§10-9 首份带捕获证据的死亡样本（r4，p081-vm-live.log）**：X9 心跳
     每 30s 至 1789976704 止、无 X9-PANIC/无 returned/无 main_err → 四分
     法=外部终止类**首次有日志实证**；`[POLL] streaming=-2147483647` 垃圾
@@ -408,5 +495,8 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
     触发面新增"带工具调用的对话轮"；强相关但未定因果，X9 桩续采。
   - **工程教训**：auto build 偶发静默失败（只打 warning 无 success 行）
     ——每轮构建必须 grep "successfully" 再起实例，否则截图对旧码误导
-    定罪（r3 轮实际发生一次）。
+    定罪（r3 轮实际发生一次）。r5 补充：wt-guard 清 junction 后
+    `gen/front/vue/node_modules` 可残留坏 pnpm 状态（d3-contour@4 配
+    d3-array@2 的 "blur2 is not exported"）——删除该 node_modules 重装
+    即愈，非源码问题。
 
