@@ -327,6 +327,24 @@ check`）全绿为准入。
 
 ## 9. 复审记录
 
+- `stage: work | plan_id: PLAN-080 | plan_revision: 1 | outcome: 本轮收口 →
+  剩余项转下一计划（用户裁定：下一轮测试立新计划承接，本会话上下文过长） |
+  code_commit: musk plan-080-dev @ 5899fff（clean）；auto-lang auto-musk-dev
+  @ 5d323810b（clean）| task_ids: 本轮新增 UAT 项处置=F-UAT-1 闭环/免登录
+  闭环/Rich 段落重构恢复（用户确认有效）/§10-9 四分法审计+X9 足迹常驻/
+  launch-vm.cmd 交付 | handoff（下一计划输入清单）: ①§10-9 根因收口（外部
+  终止类：用户自启对照实验定案→壳产物则结案转部署规范；仍死则 minidump
+  路线；X9 桩已常驻 auto-lang 94be817ad+5d323810b）②F-UAT-2 表格单元格
+  空文本观察项（一次截图实证，用户未报；疑 §10-11 伪影家族）③§10-10 字体
+  度量族（§10 原 10）④live case CJK 变体（仪器盲区，F-UAT-1 教训）⑤用户
+  目验收尾（段落显示/手验清单余项/真机外点 ESC）| 工具交付: launch-vm.cmd
+  （musk 5899fff，双击启动后端+前端）；X9 足迹桩常驻（每次死亡自动留
+  entering/returned+心跳+panic backtrace）| next: new（下一计划承接①-⑤）`
+  ——2026-09-21 深夜收口。PLAN-080 保持 executing（T-04/T-05 未闭环）；
+  本会话净产出：F-UAT-1 修复、免登录、Rich 基础设施、§10-9 仪器化、
+  launch-vm.cmd、计划记录六轮全程落盘。
+
+
 - `stage: work | plan_id: PLAN-080 | plan_revision: 1 | outcome: §10-9 新死亡
   样本归类=外部终止类（全审计版 8 分钟存活后零痕迹死亡：16 心跳/无 PANIC/
   无 returned/无 main_err/审计册无新行） | code_commit: auto-lang 5d323810b
