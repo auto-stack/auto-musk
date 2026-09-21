@@ -335,13 +335,14 @@ check`）全绿为准入。
 ## 9. 复审记录
 
 - `stage: merge | plan_id: PLAN-080 | plan_revision: 1 | outcome: pass（交付+账+归档
-  完成；cleanup=pending——用户在跑的 §10-9 实验进程锁着 worktree 二进制，见
+  完成；cleanup 已于 2026-09-21 15:24 解锁补执行完毕，见
   cleaned） | delivery_commit: musk main 410087c（ff-only，无 merge commit）/
   auto-lang master 680109800（ff-only） | canonical_specs:
   [docs/specs/modules/ui-default-styles.md, docs/specs/modules/ui-parity.md,
   docs/specs/modules/ui-compositions.md, docs/specs/index.json] | archive_path:
   docs/plans/archived/080-desktop-vm-parity-batch.md | completion_kind:
-  delivered | cleanup_state: pending（锁因与解锁收尾法在 cleaned 项）`
+  delivered | cleanup_state: done（2026-09-21 15:24 解锁补执行，执行记录在
+  cleaned 项）`
   ——2026-09-21 14:10 merge 收口。Checkpoints：
   - `prepared`：reviewed baseline = r4 pass（reviewed_commit 5899fff→rebase 后
     18acfc6，映射与等价性见 landed）。规范增量 SD-01..03 已在分支（88f4ad2→
@@ -372,14 +373,22 @@ check`）全绿为准入。
     （14:04）；launch-vm.cmd 路径改主检出（原 .wt/musk-080 硬编码随 worktree 退役
     失效）——§10-9 用户自启对照实验自此全程走主检出二进制。
   - `archived`：active → archived（git mv）+ status/completion_kind 落 frontmatter。
-  - `cleaned`：**pending**——用户在跑实验进程锁 worktree 二进制不可删（musk.exe
-    serve@17201 PID 24936 + auto.exe run --render vm PID 29304 跑自
-    .wt/musk-080/auto-musk；auto.exe build PID 20024 + 同 VM 跑自
-    .wt/musk-080/auto-lang release exe）。实验数据采集进程不动。解锁收尾（用户
-    关闭实例后）：wt-guard 双查 → `git worktree remove` musk/auto-lang 两处 →
-    `git branch -d plan-080-dev`（musk）/`git branch -d auto-musk-dev`（auto-lang）
-    → 组目录剩 auto-ai/auto-down 参考检出（本次已可移除）后 rmdir。**musk 侧
-    worktree 虽未删，其全部提交已 ff 落 main（tip=410087c），无未落地内容。**
+  - `cleaned`：**done（2026-09-21 15:24 解锁补执行）**——原锁因：用户在跑实验进程
+    锁 worktree 二进制不可删（musk.exe serve@17201 PID 24936 + auto.exe
+    run --render vm PID 29304 跑自 .wt/musk-080/auto-musk；auto.exe build
+    PID 20024 + 同 VM 跑自 .wt/musk-080/auto-lang release exe）。补执行记录：
+    ①用户关闭实验前端后 auto.exe 自退，musk.exe 24936 为 detached serve 残留
+    （自启进程不受壳生命周期的 §10-9 实证面），15:24 前终止；②wt-guard 双查
+    clean → `git worktree remove` musk/auto-lang 两处 → `git branch -d
+    plan-080-dev`（410087c，已全落 main）/`git branch -d auto-musk-dev`
+    （680109800，master 已含且后续并发计划已越过）；③组目录 rmdir 延迟约 1h 的
+    真因：worktree 后端 24936 于 13:28:16 拉起的 `aaid.exe` 孤儿子进程（cmdline
+    为相对路径 `../../../auto-ai/target/debug/aaid.exe`，CWD 继承 worktree 路径、
+    父死后存活并接管 17654 成为唯一在册 AI daemon）以 CWD 钉住清空后的空目录；
+    处置=重启 aaid（自 D:\autostack\auto-ai 分离启动，宕机窗口约 4s，端口 17654
+    即时回监听）后 rmdir 成功，`.wt/musk-080` 组目录全清（auto-ai/auto-down 参考
+    检出此前已移除）。**musk 侧全部提交已 ff 落 main（tip=410087c），无未落地
+    内容；两仓 worktree 注册表均已无 musk-080 条目。**
   - 备注：版本锚点 v0.1.0-p073r8 未随 074-080 升版（web bundle 目验判旧依据）——
     升版与否留用户裁定（改评审过的源码超 merge 职权）；musk_vm_track 6 前置红
     与 button 1 前置红维持 §10-1/债册登记口径不变。
