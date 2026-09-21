@@ -99,7 +99,12 @@ widget App {
                                 title: "Auto Musk v0.1.0-p073r8"
                                 style: "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent mx-auto"
                                 img (src: .deerDarkSrc) { class: "deer-icon-dark w-6 h-6 rounded-lg" }
-                                img (src: .deerLightSrc) { class: "deer-icon-light w-6 h-6 rounded-lg" }
+                                // PLAN-081 需求③a：VM 轨无 CSS 引擎，双鹿并排
+                                // （light 鹿恒渲染）——hidden 类在 VM 按桌面语义
+                                // 不渲染；web 亮色由 inject_styles 的
+                                // display:block !important 翻回（Tailwind hidden
+                                // 无 !important，必输），双轨各得其所。
+                                img (src: .deerLightSrc) { class: "deer-icon-light w-6 h-6 rounded-lg hidden" }
                             }
                         } else {
                             button {
@@ -107,7 +112,7 @@ widget App {
                                 title: "Auto Musk v0.1.0-p073r8"
                                 style: "w-8 h-8 shrink-0 flex items-center justify-center rounded-lg hover:bg-accent cursor-pointer"
                                 img (src: .deerDarkSrc) { class: "deer-icon-dark w-6 h-6 rounded-lg" }
-                                img (src: .deerLightSrc) { class: "deer-icon-light w-6 h-6 rounded-lg" }
+                                img (src: .deerLightSrc) { class: "deer-icon-light w-6 h-6 rounded-lg hidden" }
                             }
                             button {
                                 onclick: .ToggleRail
@@ -120,12 +125,30 @@ widget App {
                     if .rail_collapsed {
                         col {
                             style: "gap-1 app-rail items-center"
-                            button { onclick: .ShowChats; title: "会话"; class: if .current_view == "chats" { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent bg-accent text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "message-square", size: 24) {} }
-                            button { onclick: .ShowPlans; title: "计划"; class: if .current_view == "plans" { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent bg-accent text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "list-todo", size: 24) {} }
-                            button { onclick: .ShowSpecs; title: "规范"; class: if .current_view == "specs" { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent bg-accent text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "scroll", size: 24) {} }
-                            button { onclick: .ShowWiki; title: "知识库"; class: if .current_view == "wiki" { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent bg-accent text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "book-open", size: 24) {} }
-                            button { onclick: .ShowFiles; title: "文件"; class: if .current_view == "files" { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent bg-accent text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "folder-open", size: 24) {} }
-                            button { onclick: .ShowWhitelist; title: "白名单"; class: if .current_view == "whitelist" { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent bg-accent text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "shield-check", size: 24) {} }
+                            // PLAN-081 需求③b：选中态背景改由外层 div 承载
+                            //（bg-foreground/10=比底色稍亮一档，用户裁定
+                            // 2026-09-21）——按钮自身的 bg-* 在当前 VM 二进制
+                            // 不上色（容器 bg 渲染可靠，按钮面裸），div 包裹
+                            // 双轨同形；web 侧等价（Tailwind 同类）。图标色
+                            // text-primary 仍在按钮上。
+                            col { style: if .current_view == "chats" { "w-10 h-10 rounded-md bg-accent" } else { "w-10 h-10" }
+                                button { onclick: .ShowChats; title: "会话"; style: if .current_view == "chats" { "w-10 h-10 flex items-center justify-center rounded-md text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "message-square", size: 24) {} }
+                            }
+                            col { style: if .current_view == "plans" { "w-10 h-10 rounded-md bg-accent" } else { "w-10 h-10" }
+                                button { onclick: .ShowPlans; title: "计划"; style: if .current_view == "plans" { "w-10 h-10 flex items-center justify-center rounded-md text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "list-todo", size: 24) {} }
+                            }
+                            col { style: if .current_view == "specs" { "w-10 h-10 rounded-md bg-accent" } else { "w-10 h-10" }
+                                button { onclick: .ShowSpecs; title: "规范"; style: if .current_view == "specs" { "w-10 h-10 flex items-center justify-center rounded-md text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "scroll", size: 24) {} }
+                            }
+                            col { style: if .current_view == "wiki" { "w-10 h-10 rounded-md bg-accent" } else { "w-10 h-10" }
+                                button { onclick: .ShowWiki; title: "知识库"; style: if .current_view == "wiki" { "w-10 h-10 flex items-center justify-center rounded-md text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "book-open", size: 24) {} }
+                            }
+                            col { style: if .current_view == "files" { "w-10 h-10 rounded-md bg-accent" } else { "w-10 h-10" }
+                                button { onclick: .ShowFiles; title: "文件"; style: if .current_view == "files" { "w-10 h-10 flex items-center justify-center rounded-md text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "folder-open", size: 24) {} }
+                            }
+                            col { style: if .current_view == "whitelist" { "w-10 h-10 rounded-md bg-accent" } else { "w-10 h-10" }
+                                button { onclick: .ShowWhitelist; title: "白名单"; style: if .current_view == "whitelist" { "w-10 h-10 flex items-center justify-center rounded-md text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "shield-check", size: 24) {} }
+                            }
                         }
                     } else {
                     col {

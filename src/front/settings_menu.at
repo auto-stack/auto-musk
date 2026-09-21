@@ -40,6 +40,12 @@ widget SettingsMenu(collapsed: bool) {
         isLocaleEn => .currentLocale == "en"
         isLocaleZh => .currentLocale == "zh"
         triggerIconSize => if .collapsed { 24 } else { 16 }
+        // PLAN-081 需求③c：收缩态包装层不可带 border-t——边框容器在 VM 轨
+        // 几何左移子元素（齿轮实测左偏 8px，去 border 即归位=A/B 实证；
+        // 逐项排除 placement/class-vs-style/title-label 三假设）。分隔线改
+        // 独立元素（外层 col items-center 居中、w-10 与钮同宽）。展开态
+        // wrapper 带 border 的全宽行布局不变。
+        wrapperStyle => if .collapsed { "settings-menu-wrapper pt-2 mt-2" } else { "settings-menu-wrapper border-t border-white/10 pt-2 mt-2" }
     }
     msg Msg { SetForgeGSD, SetForgeCheck, SetAccent(str), SetThemeLight, SetThemeDark, SetThemeAuto, ChangeLocale(str), OpenAutoOs }
     // PLAN-059 T9:开关态改 dialog 受控形态（无 trigger,open 绑 state_ref
@@ -157,22 +163,35 @@ widget SettingsMenu(collapsed: bool) {
     view {
         // PLAN-058 二期：根容器带 border-t 分割线（与上方 WorkspaceSelector
         // 分隔）+ pt/mt 间距——分割线归属本组件，app.at 侧不再放独立空 div。
+        // PLAN-081 需求③c：VM 轨收缩态 border 容器几何左移子元素（见
+        // wrapperStyle 注）——收缩态分隔线改独立短划元素，wrapper 裸奔。
+        // 背景式短划线（h-px）——border 式在 VM 轨引边框容器几何位移
+        //（见 wrapperStyle 注）；且 if 分支子节点 style 在 VM 构建期被丢弃
+        //（PLAN-081 实证），故用无条件节点 + style 三元（hidden=VM 不渲染）。
+        div { style: if .collapsed { "w-10 h-px bg-border mt-2" } else { "hidden" } }
         // PLAN-058 二期：icon+文字全宽行（与上方导航项同形）。面板由 dialog
         // 受控形态承载（open: .isOpen,VM Modal 居中卡 / web 居中模态）。
         div {
-            style: "settings-menu-wrapper border-t border-white/10 pt-2 mt-2"
+            style: .wrapperStyle
             // PLAN-080 F-4：popover 标签不再挂 class——class 在两轨语义错位
             //（web 落 Popover wrapper div 无几何效果、面板走 PopoverContent
             // 缺省 w-72；VM 落 content 列且顶替 PLAN-528 W9 缺省 chrome——
             // w-80=320 无 bg/border/p-4，内宽 308 vs web 241 实证）。摘除后
             // 双轨同归缺省面板 chrome（w-72 + p-4），宽度差收敛。
-            popover (placement: "top-start") {
+            popover {
                 popover-trigger (as_child: true) {
                     // 无 onclick——解释器注入内部 toggle（web 侧 reka
                     // PopoverTrigger 原生开合；ws-btn 同款已验证形态）。
                     button {
-                        class: if .collapsed { "rail-trigger-24 settings-trigger w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" } else { "settings-trigger w-full flex items-center gap-2 rounded-md px-2 h-9 bg-transparent text-muted-foreground" }
-                        title: i18n.t("settings.title")
+                        // PLAN-081 需求③c：收缩态改 style: 属性（与 ws 触发
+                        // 钮同款机制，行为等价 class:，此处统一书写面）。
+                        style: if .collapsed { "rail-trigger-24 settings-trigger w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" } else { "settings-trigger w-full flex items-center gap-2 rounded-md px-2 h-9 bg-transparent text-muted-foreground" }
+                        // PLAN-081 需求③c：与 border 位移复合的第二因素——
+                        // title 经 EE03 尾段进按钮 label，VM 轨额外文本参与
+                        // 内容布局把图标推左（border 去除后单留它仍偏 8px，
+                        // 双因素 A/B 分离实证）。收缩态不挂 title（tooltip
+                        // 牺牲）；展开态保留。
+                        title: if .collapsed { "" } else { i18n.t("settings.title") }
                         Settings { size: .triggerIconSize }
                         if .collapsed {
                         } else {
