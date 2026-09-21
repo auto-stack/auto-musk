@@ -20,10 +20,9 @@ use store: VisualStore
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web component Settings, Check, Sun, Moon, Monitor, ExternalLink from "src/front/ports/icons.at"
-use.web settings_load_forge_mode, settings_set_forge_mode, settings_open_autoos from "src/front/settings_forge_helpers.at"
+use.web settings_open_autoos from "src/front/settings_forge_helpers.at"
 use.web settingsInitLocale, settingsChangeLocale from "src/front/ports/composables.at"
 use.web useI18n from "src/front/ports/composables.at"
-use.web visual_accent_options from "src/front/visual_store.at"
 
 // PLAN-071 r4（需求③-3）：collapsed 收缩形态——齿轮 icon 触发，dialog 不变。
 widget SettingsMenu(collapsed: bool) {
@@ -35,8 +34,6 @@ widget SettingsMenu(collapsed: bool) {
     computed {
         accentCurrent => .store.accent
         themeMode => .store.mode
-        // view 的 for-range 不支持直接调 fn——经 computed 中转。
-        accentOptions => visual_accent_options()
         isLocaleEn => .currentLocale == "en"
         isLocaleZh => .currentLocale == "zh"
         triggerIconSize => if .collapsed { 24 } else { 16 }
@@ -47,7 +44,8 @@ widget SettingsMenu(collapsed: bool) {
         // wrapper 带 border 的全宽行布局不变。
         wrapperStyle => if .collapsed { "settings-menu-wrapper pt-2 mt-2" } else { "settings-menu-wrapper border-t border-white/10 pt-2 mt-2" }
     }
-    msg Msg { SetForgeGSD, SetForgeCheck, SetAccent(str), SetThemeLight, SetThemeDark, SetThemeAuto, ChangeLocale(str), OpenAutoOs }
+    // PLAN-082 T-07：GSD/Check forge mode 机制退役（用户裁定），消息面收缩。
+    msg Msg { SetAccent(str), SetThemeLight, SetThemeDark, SetThemeAuto, ChangeLocale(str), OpenAutoOs }
     // PLAN-059 T9:开关态改 dialog 受控形态（无 trigger,open 绑 state_ref
     // bool——chats_view 删除确认 alert-dialog 同款已验证模式）。触发行留在
     // dialog 外自持 onclick（parser 铸造形态的 toggle 会落内层按钮,与 web
@@ -57,7 +55,6 @@ widget SettingsMenu(collapsed: bool) {
     // 不接线,与 alert 族同口径,家族债已在案）。
     model {
         var currentLocale str = ""
-        var forgeMode str = "gsd"
         var autoOsError str = ""
     }
     on {
@@ -66,15 +63,6 @@ widget SettingsMenu(collapsed: bool) {
             // composable onMounted 自初始化）。
             VisualStore.Init();
             .currentLocale = settingsInitLocale();
-            .forgeMode = settings_load_forge_mode().await
-        }
-        .SetForgeGSD -> {
-            .forgeMode = "gsd";
-            settings_set_forge_mode("gsd").await
-        }
-        .SetForgeCheck -> {
-            .forgeMode = "check";
-            settings_set_forge_mode("check").await
         }
         .SetAccent(name) -> { store.SetAccent(name) }
         .SetThemeLight -> { store.SetMode("light") }
@@ -203,99 +191,83 @@ widget SettingsMenu(collapsed: bool) {
                     }
                 }
                 popover-content {
-                    // ── Mode Section（GSD/Check，后端持久化）──
-                    div {
-                        style: "settings-section w-full p-1.5"
-                        div {
-                            style: "settings-section-title w-full text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
-                            text i18n.t("settings.mode")
-                        }
-                        div {
-                            style: "mode-toggle flex gap-1 px-0.5"
-                            button {
-                                onclick: .SetForgeGSD
-                                class: if .forgeMode == "gsd" { "mode-btn active flex-1 py-1 px-2 border border-border rounded-md text-xs font-semibold text-primary-foreground bg-primary" } else { "mode-btn flex-1 py-1 px-2 border border-border rounded-md text-xs font-semibold text-foreground bg-transparent" }
-                                title: i18n.t("settings.modeGsdTitle")
-                                text "GSD"
-                            }
-                            button {
-                                onclick: .SetForgeCheck
-                                class: if .forgeMode == "check" { "mode-btn active flex-1 py-1 px-2 border border-border rounded-md text-xs font-semibold text-primary-foreground bg-primary" } else { "mode-btn flex-1 py-1 px-2 border border-border rounded-md text-xs font-semibold text-foreground bg-transparent" }
-                                title: i18n.t("settings.modeCheckTitle")
-                                text "Check"
-                            }
-                        }
-                    }
-                    // ── Accent Section ──
+                    // ── Accent Section（PLAN-082 T-07：参照 widgets-gallery
+                    // settings.at 的 commons 形态——五色圆点显式按钮横排
+                    // （for 在 VM 被包装为列=竖排根因，r5/r6 同族），选中态
+                    // 圆点内 Check；色值与 VisualStore.visual_palettes 同源）──
                     div {
                         style: "settings-section w-full p-1.5"
                         div {
                             style: "settings-section-title w-full text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
                             text i18n.t("settings.accent")
                         }
-                        div {
-                            style: "accent-swatches flex flex-wrap gap-2 px-0.5"
-                            for opt in .accentOptions {
-                                // 注:shadcn Button 映射会丢弃动态 class/title
-                                // (codegen 缺口,登记 auto-lang 债务)——样式改走
-                                // .accent-swatches>button 容器选择器,选中态用
-                                // :has(svg)(Check 图标存在即选中)。
-                                button {
-                                    onclick: .SetAccent(.opt.name)
-                                    key: .opt.name
-                                    class: "w-6 h-6 rounded-full flex items-center justify-center border-2 border-transparent text-white"
-                                    style: "background: " + .opt.brand1
-                                    if .accentCurrent == .opt.name {
-                                        Check { size: 12, key: .opt.name }
-                                    }
+                        row {
+                            style: "items-center gap-2.5 py-1 px-0.5"
+                            button {
+                                onclick: .SetAccent("indigo")
+                                class: "w-6 h-6 rounded-full flex items-center justify-center text-white border-2 border-transparent hover:scale-110 bg-indigo-500"
+                                if .accentCurrent == "indigo" {
+                                    Check { size: 12 }
+                                }
+                            }
+                            button {
+                                onclick: .SetAccent("coral")
+                                class: "w-6 h-6 rounded-full flex items-center justify-center text-white border-2 border-transparent hover:scale-110 bg-rose-500"
+                                if .accentCurrent == "coral" {
+                                    Check { size: 12 }
+                                }
+                            }
+                            button {
+                                onclick: .SetAccent("ocean")
+                                class: "w-6 h-6 rounded-full flex items-center justify-center text-white border-2 border-transparent hover:scale-110 bg-blue-500"
+                                if .accentCurrent == "ocean" {
+                                    Check { size: 12 }
+                                }
+                            }
+                            button {
+                                onclick: .SetAccent("sage")
+                                class: "w-6 h-6 rounded-full flex items-center justify-center text-white border-2 border-transparent hover:scale-110 bg-emerald-500"
+                                if .accentCurrent == "sage" {
+                                    Check { size: 12 }
+                                }
+                            }
+                            button {
+                                onclick: .SetAccent("amber")
+                                class: "w-6 h-6 rounded-full flex items-center justify-center text-white border-2 border-transparent hover:scale-110 bg-amber-500"
+                                if .accentCurrent == "amber" {
+                                    Check { size: 12 }
                                 }
                             }
                         }
                     }
-                    // ── Theme Section ──
+                    // ── Theme Section（PLAN-082 T-07：外观三段 icon toggle 组
+                    // ——用户裁定形态（Monitor/Sun/Moon 横排、选中 bg-primary），
+                    // 替换原竖排文字列表；显式 row 免包装列）──
+                    // ── Theme Section（旧 for 版 Accent 竖排段已退役——
+                    // PLAN-082 T-07：for 在 VM 被包装为列，圆点改显式按钮
+                    // 横排（见上方 Accent Section），此处仅存 Theme toggle）──
                     div {
                         style: "settings-section w-full p-1.5"
                         div {
                             style: "settings-section-title w-full text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
                             text i18n.t("settings.theme")
                         }
-                        div {
-                            style: "theme-options flex flex-col gap-0.5"
+                        row {
+                            style: "gap-1 p-1 rounded-lg bg-muted/40 w-full"
                             button {
                                 onclick: .SetThemeLight
-                                class: if .themeMode == "light" { "theme-option active flex items-center gap-2 w-full py-1 px-2 rounded-md text-sm text-left bg-primary/10 text-primary" } else { "theme-option flex items-center gap-2 w-full py-1 px-2 rounded-md text-sm text-left text-foreground bg-transparent" }
+                                class: if .themeMode == "light" { "flex-1 h-8 flex items-center justify-center rounded-md bg-primary text-primary-foreground" } else { "flex-1 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }
                                 Sun { size: 14 }
-                                span {
-                                    style: "theme-option-label"
-                                    text i18n.t("settings.themeLight")
-                                }
-                                if .themeMode == "light" {
-                                    Check { size: 12, class: "check" }
-                                }
                             }
                             button {
                                 onclick: .SetThemeDark
-                                class: if .themeMode == "dark" { "theme-option active flex items-center gap-2 w-full py-1 px-2 rounded-md text-sm text-left bg-primary/10 text-primary" } else { "theme-option flex items-center gap-2 w-full py-1 px-2 rounded-md text-sm text-left text-foreground bg-transparent" }
+                                class: if .themeMode == "dark" { "flex-1 h-8 flex items-center justify-center rounded-md bg-primary text-primary-foreground" } else { "flex-1 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }
                                 Moon { size: 14 }
-                                span {
-                                    style: "theme-option-label"
-                                    text i18n.t("settings.themeDark")
-                                }
-                                if .themeMode == "dark" {
-                                    Check { size: 12, class: "check" }
-                                }
                             }
                             button {
                                 onclick: .SetThemeAuto
-                                class: if .themeMode == "auto" { "theme-option active" } else { "theme-option" }
+                                class: if .themeMode == "auto" { "flex-1 h-8 flex items-center justify-center rounded-md bg-primary text-primary-foreground" } else { "flex-1 h-8 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }
                                 Monitor { size: 14 }
-                                span {
-                                    style: "theme-option-label"
-                                    text i18n.t("settings.themeSystem")
-                                }
-                                if .themeMode == "auto" {
-                                    Check { size: 12, class: "check" }
-                                }
                             }
                         }
                     }
@@ -306,24 +278,28 @@ widget SettingsMenu(collapsed: bool) {
                             style: "settings-section-title w-full text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 px-0.5"
                             text i18n.t("settings.language")
                         }
-                        div {
-                            style: "language-options"
+                        col {
+                            style: "gap-0.5"
                             button {
                                 onclick: .ChangeLocale("en")
-                                class: if .isLocaleEn { "language-option active" } else { "language-option" }
-                                span { style: "lang-code", text "EN" }
-                                span { style: "lang-name", text "English" }
-                                if .isLocaleEn {
-                                    Check { size: 12, class: "check" }
+                                class: if .isLocaleEn { "w-full rounded-md bg-primary/10 text-primary hover:bg-accent" } else { "w-full rounded-md text-foreground hover:bg-accent" }
+                                row {
+                                    style: "items-center gap-2 w-full py-1.5 px-2"
+                                    text "English" { style: "flex-1 text-left text-sm" }
+                                    if .isLocaleEn {
+                                        Check { size: 12 }
+                                    }
                                 }
                             }
                             button {
                                 onclick: .ChangeLocale("zh")
-                                class: if .isLocaleZh { "language-option active" } else { "language-option" }
-                                span { style: "lang-code", text "中" }
-                                span { style: "lang-name", text "中文" }
-                                if .isLocaleZh {
-                                    Check { size: 12, class: "check" }
+                                class: if .isLocaleZh { "w-full rounded-md bg-primary/10 text-primary hover:bg-accent" } else { "w-full rounded-md text-foreground hover:bg-accent" }
+                                row {
+                                    style: "items-center gap-2 w-full py-1.5 px-2"
+                                    text "中文" { style: "flex-1 text-left text-sm" }
+                                    if .isLocaleZh {
+                                        Check { size: 12 }
+                                    }
                                 }
                             }
                         }
@@ -337,11 +313,11 @@ widget SettingsMenu(collapsed: bool) {
                         }
                         button {
                             onclick: .OpenAutoOs
-                            style: "deep-link-btn"
-                            ExternalLink { size: 14 }
-                            span {
-                                style: "deep-link-label"
-                                text i18n.t("settings.openSystemSettings")
+                            style: "deep-link-btn w-full flex items-center gap-2 rounded-md border border-border px-2 py-1.5 text-left text-sm text-foreground hover:bg-accent bg-transparent"
+                            row {
+                                style: "items-center gap-2 w-full"
+                                ExternalLink { size: 14 }
+                                text i18n.t("settings.openSystemSettings") { style: "flex-1 text-left text-sm" }
                             }
                         }
                         if .autoOsError != "" {
