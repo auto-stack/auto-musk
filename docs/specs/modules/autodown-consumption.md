@@ -92,7 +92,38 @@ Musk 宿主前端代码仅通过统一端口抽象与原生 AST 组件消费 Aut
 
 ---
 
-## 5. 版本与供应链管理
+## 5. VM 富文本承载与转换链契约 (PLAN-082)
+
+### 5.1 段落/单元格行内序列的承载锁定 (SD-02)
+- **唯一承载**：markdown 段落、表格单元格、引用正文、列表项正文的行内序列
+  由 `View::Rich` 单段落承载（跨 span 连续折行），来源 `render_inlines`。
+- **禁止回退**：Row-of-Text 形态（各 span 窄列独立折行=排版散架）已退役，
+  不得在任何轨复活；F-UAT-2 实证在案。
+- **已知边界**：Image mark span 的 `View::Image` 升级链随 Rich 改版断开
+  （图片以 alt 文本承载），恢复需扩 `RichSpanView`——恢复前不得在
+  `render_inlines` 内绕行混排。
+
+### 5.2 VM 动态视图转换链四站点显式臂契约 (SD-01)
+- **定律**：`View` 枚举每新增变体，必须同步四处显式消费臂，缺任一即
+  静默丢弃（兜底 `_ => Empty` / 候选盲区）：
+  1. `convert_view_messages`（VM 动态渲染主链，iced/renderer.rs）——
+     缺臂=渲染面整体不可见（PLAN-082 根因：Rich 段落/表格单元格
+     吞噬，080 债②/081 实锤）；
+  2. `into_iced`（Rust 直构渲染臂）；
+  3. `vnode_converter`（MCP VNode/快照文本面）；
+  4. `snapshot_builder`（MCP UiSnapshot 面）。
+- **验证纪律**：①MCP vtree/快照面从 View 树导出（`view_to_vtree_with_paths`），
+  **不构成渲染面证据**——渲染验收以像素为唯一真值；②离线探针若直构
+  `AbstractView` 绕过 `convert_view_messages`，不证明生产链通——必须
+  走 `.at` 全链或转换链回归钉
+  （`plan082_convert_view_messages_preserves_rich`）。
+- **回归钉**：`plan082_convert_view_messages_preserves_rich`（段落+
+  表格 cell 存活）、`plan082_table_columns_align_across_rows`（表格
+  自然宽跨行列对齐，TableResize 纯展示臂）。
+
+---
+
+## 6. 版本与供应链管理
 
 - **源仓库**：`D:/autostack/auto-down` (`master` 分支)。
 - **消费落点**：`auto-musk/vendor/@autodown/engine`。
