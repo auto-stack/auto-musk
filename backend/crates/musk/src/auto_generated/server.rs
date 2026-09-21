@@ -672,6 +672,11 @@ pub fn build_router() -> Router<AppState> {
     app = app.route("/api/chats/sessions", get(chat_list).delete(chat_delete_all));
     app = app.route("/api/chats/session", post(chat_create));
     app = app.route("/api/chats/session/{id}", get(chat_get).patch(chat_rename).delete(chat_delete));
+    // PLAN-083 T-02: 会话详情分页 + 归一化直出（手写 handler，chat_cancel
+    // 同款补线先例——分页契约 limit/before/has_more/next_before + 拍平块
+    // blocks_normalized:true；缺省全量的上一行端点字节不变，web 旧消费零
+    // 影响）。源 .at（server.at）不携带本端点——分页处理为纯 Rust 面。
+    app = app.route("/api/chats/session/{id}/page", get(crate::chat_page::chat_get_page));
     // PLAN-064: per-session thinking level (PATCH body {thinking_level|null}).
     app = app.route("/api/chats/session/{id}/thinking", patch(chat_thinking));
     // PLAN-067 T-05: per-session approval mode (PATCH body {approval_mode}).

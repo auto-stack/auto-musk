@@ -36,6 +36,8 @@ pub mod tools;
 pub mod wiki;
 pub mod workspace;
 pub mod hello;
+// PLAN-083 T-02: 会话详情分页端点 + 归一化直出（/api/chats/session/{id}/page）。
+pub mod chat_page;
 
 /// Auto-generated Rust from .at sources (a2r transpilation). Coexists with
 /// the hand-written modules above. See `auto_generated/mod.rs`.
