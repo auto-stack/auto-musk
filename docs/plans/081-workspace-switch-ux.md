@@ -4,10 +4,10 @@ status: executing
 feature_name: workspace 选择器显示名修正 + VM 轨切换后列表刷新链
 author: [agent]
 created_at: 2026-09-21T00:00:00Z
-updated_at: 2026-09-21T17:00:00Z
-plan_revision: 5
-current_step: 9
-total_steps: 9
+updated_at: 2026-09-21T18:30:00Z
+plan_revision: 6
+current_step: 11
+total_steps: 11
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
@@ -53,6 +53,13 @@ WorkspaceSelector 改为 store 单源（`ForgeStore.SetWorkspace`）且触发器
   顶高；应为 [tool 名 + 主要参数（如 read_file 的路径）+ 右侧状态]。
 - **需求⑤（r5 并入，同报）**：思考卡标题栏右侧补上下箭头 icon
   （展开/收起指示，现完全缺失）。
+- **需求⑥（r6 并入，2026-09-21 用户截图报）**：三种 block（思考/工具/
+  文本）之间无间距贴在一起——设置正常 gap（用户问：Vue 版有而 VM 无
+  效？答：同一份 Auto 类串 gap-3，web 由真 CSS 生效，VM 渲染器把 for
+  块包一层列、gap 只看直接子级故恒不生效）。
+- **需求⑦（r6 并入，同报）**：工具卡标题栏参数段（a) 左对齐、紧跟
+  tool 名留 gap（VM 弹性盒把它撑到行中）；(b) 颜色调暗（黑→灰、白→
+  浅灰）。
 
 **非目标**：
 
@@ -247,13 +254,27 @@ r4 现场验证幸存是因当时可见卡片走 legacy tool_calls 路径；T-03
    ——改工具卡已证形态（直挂 if/else text 节点，ml-auto 靠右）；
    顺删从未接线的 `chev` computed。
 
-### 规范增量（r5 追加）
+### r6：块间 gap（需求⑥）+ 参数段左对齐/调暗（需求⑦）
+
+1. **块间距**：msg-bubble-ai 撤 `gap-3`（VM 的 for 包列使 gap 恒不生效；
+   撤除防 web 与 margin 双倍），text/think/tool-block-slot 三个块 wrapper
+   加 `mb-[12px]`（margin 在 VM 已证生效）——双轨等价 12px；末块对
+   toolbar 的 trailing 12px 两轨一致，可接受。
+2. **参数段**：name/summary 弃 `min-w-0 truncate`（VM 弹性盒撑宽+盒内
+   居中=参数漂到行中的根因）改 `shrink-0` 紧跟（flex gap-2≈8px）；
+   summary 撤 `font-mono`（VM 类串解析阻断嫌疑、VM 默认字体已等宽，
+   web mono 由 scoped .tool-seg 提供）——撤后 `text-muted-foreground`
+   恢复解析（像素实证 #94a3b7，暗于 name 的 foreground 白）。
+   web 侧长参数截断由 scoped .tool-name/.tool-seg 兜底（工具名恒短）。
+
+### 规范增量（r6 追加）
 
 | delta_id | add/modify/retire | docs/specs/... target | before/after rule | rationale | acceptance IDs |
 |---|---|---|---|---|---|
 | SD-01 | modify | docs/specs/modules/ui-compositions.md | WorkspaceSelector 浮层契约无触发器显示规则与切换完成语义 → 增：触发器显示最终目录名（name 优先/path 兜底/占位殿后），完整路径在 title 悬浮；切换完成语义 web=页面 reload，VM=store 刷新链（SetWorkspace 幂等回填+会话域清场+LoadSessionList+PlansStore 重拉+默认 query 重注入） | 用户裁定修订（本计划 §4）；双轨行为契约化防再漂移 | AC-01/02/03 |
 | SD-02 | modify | docs/specs/modules/vm-data-semantics.md | 未登记 location.reload VM 语义 → 增：VM 轨 `location.reload()` = no-op（auto.dom.reload shim 事实源），需"整页刷新"语义的功能必须显式走 store 级刷新链，禁止依赖 reload | 本次根因；防后续功能重蹈 | AC-02/03 |
 | SD-03 | modify | docs/specs/modules/vm-data-semantics.md | 增：VM 渲染/计算上下文对"存储可达嵌套对象"的字段读不可靠（产出 "0"），字符串读可靠——跨 store 边界的后端 JSON 载荷必须在 ingest（handler 上下文）拍平为字符串字段/现算串，禁止模板与 computed 直读嵌套对象；另增 VM row 内 for 子树包装为列，行内多段必须预拼接为单串 | r5 工具卡 "0" 定罪事实源；防后续功能重蹈 | AC-11/12 |
+| SD-04 | modify | docs/specs/modules/ui-compositions.md | 增：消息块间距契约=块 wrapper `mb-[12px]`（不依赖容器 gap——VM 的 for 包列使 gap 不生效）；工具卡 header 排布契约=name/summary `shrink-0` 紧跟（禁 min-w-0/truncate 弹性盒——VM 撑宽居中），参数色 text-muted-foreground（VM 类串对 font-mono 等存在解析阻断面，颜色类与阻断类不同串） | r6 定罪事实源 | AC-13/14 |
 
 无 Spec 影响的说明：后端零改动，workspace-sandbox.md 不动。
 
@@ -302,6 +323,11 @@ r4 现场验证幸存是因当时可见卡片走 legacy tool_calls 路径；T-03
   实机截图。
 - **AC-12**（r5）思考卡标题栏右侧有上下箭头（▼/▲ 随展开态），与工具卡
   同款已证形态。验证：实机截图 + vtree。
+- **AC-13**（r6）三种 block（文本/思考/工具）之间有 12px 间距，双轨一致。
+  验证：实机截图 + vtree margin 节点。
+- **AC-14**（r6）工具卡参数段紧跟 tool 名（gap≈8-10px）左对齐，颜色
+  暗于 tool 名（muted-foreground #94a3b7 vs foreground 白）。验证：实机
+  截图像素取样。
 
 ## 8. 执行步骤
 
@@ -383,6 +409,15 @@ r4 现场验证幸存是因当时可见卡片走 legacy tool_calls 路径；T-03
    定案）改工具卡已证形态直挂 if/else text 节点 ml-auto；顺删未接线
    chev computed。验证：实机截图 💭 已思考 · 301 tokens ▼ 箭头在位；
    vtree label 含 ▼ 子节点。]
+10. [x] **T-10 块间 gap（r6 需求⑥）**
+    [✅ 已完成（musk 4945f61）：msg-bubble-ai 撤 gap-3 + 三块 wrapper
+    mb-[12px]（双轨等价）。验证：vtree margin b:12 节点 8 处；实机截图
+    块间分隔可见。]
+11. [x] **T-11 参数段左对齐+调暗（r6 需求⑦）**
+    [✅ 已完成（同 4945f61）：name/summary 弃 min-w-0 truncate 改
+    shrink-0 紧跟；summary 撤 font-mono 后 text-muted-foreground 恢复
+    解析。验证：像素取样 name=(247,249,251)/param=(148,163,183)=#94a3b7、
+    参数紧跟 name（gap≈10px 逻辑）；spawn_relay 兜底卡 name 同步处理。]
 6. **收尾**：`bash D:/autostack/wt-guard.sh D:/autostack/.wt/musk-081/auto-musk`
    → 与 PLAN-080 协调（080 先 rebase main + ff-only 合回 + 清理，081 随后
    `git rebase main` → wt-guard → main 快进合回 → 删 worktree/分支）。
@@ -449,6 +484,18 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
   +拍平处方）、row 内 for 子树包装为列、`.messages=` 全量重绑画面滞留
   嫌疑（PLAN-536 族）、VM 文本 flex 计量差异，均入 §10。
 
+- `stage: work | plan_id: PLAN-081 | plan_revision: 6 | outcome: pass
+  （需求⑥⑦完成：块间 12px gap 双轨等价、参数段左对齐+调暗，像素实证）
+  | code_commit: musk plan-081-dev @ 4945f61（clean）| task_ids: T-10/
+  T-11 | evidence: auto build 绿（gen/front/vue node_modules d3 错配
+  复发——junction 清理后下次构建必坏，删目录重装即愈，入册）；vitest
+  23+1skip；VM 实机 vtree margin b:12×8 节点；像素取样 name=(247,249,
+  251)/param=(148,163,183)=#94a3b7、参数紧跟 name；**新定罪：summary
+  串内 font-mono 阻断同串颜色类解析（撤除即愈，r5 参数呈白即此）** |
+  blockers: 无 | next: review（或用户实机目验）`
+  ——2026-09-21 r6（需求⑥⑦）。类串部分失效面（font-mono 阻断色类）与
+  弹性盒居中面入 §10。
+
 ## 10. 待澄清事项
 
 - 无阻塞项。T-01 定案后余留（非本轮范围，按需立后续）：
@@ -479,9 +526,15 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
     下文可靠、handler 上下文读可靠（BLKDBG pre/post 实证）。处方：ingest
     （handler 上下文）把后端 JSON 载荷拍平为纯字符串字段 + 现算串；他店
     （errands/relays/task_plans/specs 等）同症按同方处理。附带布局债：
-    **row 内 for 子树被包装为列**（多段竖排），行内多段必须预拼接单串；
-    文本节点 min-w-0 在 VM flex 内膨胀（参数段居中分布 vs web 紧跟），
-    观感可接受未处理。
+    **row 内 for 子树被包装为列**（多段竖排；亦使容器 gap 对块恒失效，
+    r6 改 wrapper margin），行内多段必须预拼接单串；文本节点 min-w-0 在
+    VM flex 内膨胀（参数段居中分布 vs web 紧跟），r6 以 shrink-0+hug
+    收口。
+  - **VM 类串解析部分失效面（r6 新数据点）**：文本类串内含 `font-mono`
+    时，同串的颜色类（text-muted-foreground）不生效（撤除即愈——r5
+    参数段呈白色即此）；`min-w-0 truncate` 同串时疑似同族。与债①②④
+    （类串解析/丢弃面）同族，具体阻断边界待上游定界。**行内紧凑排布
+    处方：shrink-0+hug，禁弹性盒；颜色类串避免混入 font-family 类。**
   - **`.messages = <全量重绑>` 画面滞留嫌疑（r5，未定罪）**：实例 2
     boot 18s 时轮询已多次换入真值而像素仍显示旧 "0" 态——与 PLAN-536
     "跨帧 SET_FIELD 重绑定不可见"族同疑（push 可见、赋值可疑）。r5 拍平
@@ -498,5 +551,6 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
     定罪（r3 轮实际发生一次）。r5 补充：wt-guard 清 junction 后
     `gen/front/vue/node_modules` 可残留坏 pnpm 状态（d3-contour@4 配
     d3-array@2 的 "blur2 is not exported"）——删除该 node_modules 重装
-    即愈，非源码问题。
+    即愈，非源码问题。**r6 确认其复现规律：每次 junction 清理后，下一轮
+    build 必先删 gen/front/vue/node_modules 再 build，否则 d3 错配。**
 
