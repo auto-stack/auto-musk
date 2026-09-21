@@ -1,12 +1,12 @@
 ---
 plan_id: PLAN-083
-status: drafting
+status: execution_done
 feature_name: VM 数据链异步化与大载荷治理（081 刷新链债 + 082 §10-7 三方向合并）
 author: [agent]
 created_at: 2026-09-22T00:00:00Z
 updated_at: 2026-09-22T00:00:00Z
 plan_revision: 1
-current_step: 0
+current_step: 6
 total_steps: 6
 supersedes_spec_components: []
 new_spec_components: [docs/specs/modules/vm-data-semantics.md]
@@ -160,6 +160,43 @@ B（契约 v2）与 A（分页）都改 `chats_get_session` 响应——合并�
    和 PollStream 全量回填假设冲突——回填语义需适配（T-03 内处理，
    回归面=073 的测试链）。
 
+#### work 阶段代码级调研定案（2026-09-22，T-01 前置勘定）
+
+1. **冻结根因实锤**（auto-lang `vm/engine.rs` `call_fn_by_name`
+   StepResult::Yield 臂，~L2185）：handler 的 HTTP yield 触发**忙等循环**
+   （5ms sleep 轮询 `async_http_result_ready`，30s deadline）——UI 线程
+   整个 handler 期间被占。HTTP 本身已是派生线程（Plan 349
+   `spawn_async_http_handle`），瓶颈=忙等语义+后续 `json.to_value`
+   解析+normalize 循环+View 重建同帧。§0"HTTP 同步 IO"表述修正为
+   "语义同步（忙等）"。
+2. **C2 机制先例全部现成**：①派生线程发请求（注入默认 query/header/
+   基址展开，`spawn_async_http_handle`）；②全局通道→订阅轮询→消息
+   注入（Shell SSE 桥 `SHELL_EVENT_RX`/`poll_shell_events` +
+   `AppTickKind::Poll`，MCP 动作通道同款 16ms 轮询）；③update 闭包
+   派发到具名 store handler（`on_with_input_for`，`\u{1F}s\u{1F}`
+   载荷编码可嵌字符串实参）。C1（解释器协程化）不需要——忙等是
+   唯一卡点，绕开即可。
+3. **#[api] GET 参数自动转 query string**（`vm/codegen.rs`
+   emit_api_http_call plan-022 规则）：`chats_get_session(id, limit,
+   before)` 签名扩展即自动生成 `?limit=&before=`，前端契约零阻力。
+4. **§10-1 巨条构成定案**（auto-edit `.autoos/chats.json` 实测）：
+   552KB/938KB 巨条=**工具密集型回复**（非单块巨文本）——124/160
+   blocks（84/109 个 tool 块）。652KB 条字节分布：`tool_calls` 消息级
+   **重复数组 225KB**（与 blocks 双份载荷）+ tool result 167KB（top
+   单条 50KB）+ thinking 75KB + text 6.8KB + JSON 结构开销。分页
+   治理须含块级瘦身：paged 视图截断 tool result/thinking、瘦身
+   tool_calls 数组（T-02 落实）。
+
+#### worktree 登记（2026-09-22）
+
+- musk：`D:/autostack/.wt/musk-083/auto-musk`（branch `plan-083-dev`，
+  base = main f622167）
+- auto-lang：`D:/autostack/.wt/musk-083/auto-lang`（branch
+  `auto-musk-dev`，base = master 06837787e）
+- ⚠ auto-lang 主检出有他人未提交改动（`examples/**` 代码路径+文档），
+  本计划不消费不触碰；落地前需其归位（merge 阶段处理）。
+- 主检出预检：仅 `docs/plans/**` 簿记改动，无代码 WIP，合规。
+
 ## 5. 详细设计
 
 ### T-01 异步桥 spike（bounded 调查，决策工件）
@@ -169,6 +206,39 @@ auto-lang worktree spike：以 `LoadSessionList` 为试点，
   完成消息 `HttpDone(tag, payload)`），评估解释器/调度改动面；
 - 验收 spike：试点 handler 期间 UI 可响应（MCP state 探测不冻结）；
 - 产出决策工件：C1/C2 选型+改动面清单（文档落于本计划 §9 追记）。
+
+#### T-01 决策工件（2026-09-22 work 阶段落档）
+
+**选型：C2 分帧消息回填（定案，已实现）**。C1 挂起恢复不立项本计划。
+
+- **证据链**：冻结根因=ui 侧 `call_fn_by_name` 对 `Waiting("http")`
+  任务的忙等（5ms sleep 轮询 + 30s deadline，engine.rs StepResult::Yield
+  臂）——不是解释器不支持并发，而是同步调用语义下 UI 线程被占。C2 绕开
+  忙等（发起段无 Waiting），零解释器/调度器改动。
+- **C2 落地形态**（auto-lang `0683778` 上 commit "feat(vm): PLAN-083
+  T-01"，四站点 ~200 行）：
+  1. `vm/ffi/stdlib.rs`：`Http.get_msg(url, event)` native（3148）——
+     event 形如 `"Store.Handler"`；spawn 派生线程（复用 plain-handle 族
+     send 汇聚路径：默认 query 注入+基址展开+默认 header 快照），完成推
+     进程级 `HTTP_MSG_QUEUE`；载荷协议 `{"ok":bool,"status":u16,"body":str}`。
+  2. `vm/native_catalog.rs`：id 3148 双表登记（bare 名 `Http.get_msg`
+     经 to_canonical 默认小写规则自动映射，零注册）。
+  3. `ui/iced/renderer.rs`：`poll_http_msgs` 泵（一次 update 一条，防
+     handler 重入）+ `http_msg_subscription`（AppTickKind::Poll 19ms，
+     Shell SSE 桥/MCP 动作通道同族）——产
+     `IcedMessage{widget, "Handler␟s␟payload"}` 走 update 通用派发
+     （`on_with_input_for`→`decode_payload`），**update_inner 零改动**。
+  4. 回填 handler 签名形态：`.Handler(payload str)` 单字符串实参
+     （VM push_value 对 struct 实参只推占位 0 的限制之下最可靠形态，
+     shell SSE 桥同判）。
+- **验证（U-3）**：`plan083_http_msg_bridge_tests` 5/5 绿（3 连跑稳定）：
+  入队+载荷协议、失败臂（ok:false 可区分）、命名空间切分、␟s␟ 载荷
+  decode_payload 往返、**.at 全链模拟器探针**（test/ui/plan083_http_msg
+  语料：App.Kick→SpkStore.Fetch 置 loading 即返——发起段非阻塞 state
+  可探测；泵回填 Loaded(str) 落态 done）。实机可响应性归 T-05 V-1。
+- **C1（挂起恢复）登记为 VM 长期方向**（真挂起需任务帧/调度器重构，
+  改动面大一个数量级；若未来 handler 内多请求编排成为常态再立项）——
+  §10-2 就此闭环，无需用户裁定。
 
 ### T-02 后端分页+归一化直出（musk 后端）
 
@@ -235,12 +305,12 @@ auto-lang worktree spike：以 `LoadSessionList` 为试点，
 
 | ID | 任务 | 依赖 | 产出/验证 | AC | 状态 |
 |---|---|---|---|---|---|
-| T-01 | 异步桥 spike（C1 挂起 vs C2 消息回填）+决策工件 | — | spike 代码+选型文档；U-3 试点绿 | AC-03 | [ ] |
-| T-02 | 后端分页+归一化直出（契约+Rust 实现+单测） | — | U-1/U-2 绿 | AC-01/02 | [ ] |
-| T-03 | musk 前端消费：两段式+分页+骨架+073 适配 | T-01/T-02 | U-4 绿；实机列表/首屏出 | AC-01/05 | [ ] |
-| T-04 | 迁移收编（SetWorkspace/Reload/081 注记） | T-03 | 全链走异步桥 | AC-03 | [ ] |
-| T-05 | 实机验收矩阵 V-1..V-4 | T-04 | 冻结 20.9s→<1s 实测记录 | AC-04 | [ ] |
-| T-06 | SD-01 落册 + 销项 + 收尾 | T-05 | 文档核对；两仓 ff-only 合回 | AC-06 | [ ] |
+| T-01 | 异步桥 spike（C1 挂起 vs C2 消息回填）+决策工件 | — | spike 代码+选型文档；U-3 试点绿 | AC-03 | [x] 2026-09-22：C2 定案（决策工件见 §5 T-01 追记）；auto-lang `auto-musk-dev` 1×commit（native 3148+队列+泵+语料探针）；U-3=plan083_http_msg_bridge_tests 5/5 绿×3 连跑（cargo test -p auto-lang --lib --features ui-iced,ui-interpreter plan083） |
+| T-02 | 后端分页+归一化直出（契约+Rust 实现+单测） | — | U-1/U-2 绿 | AC-01/02 | [x] 2026-09-22：musk `plan-083-dev` 1×commit——`/api/chats/session/{id}/page?limit=&before=`（缺省 50；has_more+next_before；缺省全量旧端点字节不变）；`blocks_normalized:true` 直出 r5b 拍平块；块级瘦身（§10-1 落实：巨条=工具密集型，result/thinking/args 截断+每消息 48K 预算+thin tool_calls 去重）。U-1=分页语义测、U-2=等价形态测+截断口径测+真实载荷测（auto-edit 938KB 会话→首屏 106KB=8.8×）全绿；既有 chat 44 测零回退。cargo test -p musk --lib |
+| T-03 | musk 前端消费：两段式+分页+骨架+073 适配 | T-01/T-02 | U-4 绿；实机列表/首屏出 | AC-01/05 | [x] 2026-09-22：forge_store LoadSessionList/SwitchSession/BranchTo/PollStream 全迁消息桥（SessionsLoaded/DetailLoaded/OlderLoaded/PollBackfill 四回填段；PollBackfill 窗口合并=073 适配，pending/回合守卫/收束排空原样）；LoadOlder/OlderLoaded 历史前插翻页；chats_view 列表/首屏骨架+"加载更早的消息" pill（V-3 显式按钮形态，滚动桥接受限记录在案）；ts_adapter 补 get_msg Vue 半边（auto-lang 1×commit）。auto build 全 pipeline 绿（worktree 二进制）。U-4 实测面=后端 chat 44 测零回退 + T-05 V-4 实机 |
+| T-04 | 迁移收编（SetWorkspace/Reload/081 注记） | T-03 | 全链走异步桥 | AC-03 | [x] 2026-09-22：PlansStore.LoadPlans 两段式（Choose 链三段=SetWorkspace→LoadSessionList/PlansStore.Reload/清场 全异步）；081 归档 §10-9 冻结/死亡线索二分注记落档（死亡=互杀 9f5593404/冻结=本计划）；PollStream 泛化余量（SSE 桥）不动（timer 注记更新）。auto build 绿 |
+| T-05 | 实机验收矩阵 V-1..V-4 | T-04 | 冻结 20.9s→<1s 实测记录 | AC-04 | [x] 2026-09-22：隔离实例（worktree 后端 17283+worktree auto.exe+MCP 9283 驱动脚本 tmp/v083-acceptance.mjs）**V-1..V-4 全 PASS**——V-1 切 workspace 全程 1s 间隔 MCP state 轮询**0 不可响应轮次**（max 往返 70ms；对照基线=同一操作 20.9s 冻结）；V-2 首屏 414~754ms（≤1s，press→列表+首会话 50 条可交互；后端页 11ms/98KB）；V-3 翻页 50→60 条 264ms 零不可响应；V-4 9063 巨条（652KB/124 块）工具卡/正文/思考卡**像素实证**（截图 tmp/v083-evidence/）。**途中两缺陷根修**（musk 132ff73）：①JSON.parse 产物直接落 store 时 blocks 深度字段读在渲染上下文塌空（r5 家族）→ rebuildParsedMessages 扁平重建漏斗；②args_json 截断/降桩产非法 JSON 炸 messageBlocks computed（二分定罪 50 块阈值=预算降桩触发点）→ 恒合法 JSON 契约+2 回归测试（8/8 绿）。已知残留：isMsgStreaming 红色 Stop 钮偶现（streaming=false 态,疑 prop 构建期快照,非本计划链路——观察项） |
+| T-06 | SD-01 落册 + 销项 + 收尾 | T-05 | 文档核对；两仓 ff-only 合回 | AC-06 | [x] 2026-09-22：SD-01 落册 worktree（vm-data-semantics 增量五节，musk 454dff9）；081 注记/§10-1/§10-2 销项闭环；§10-3（web 轨分页跟进）保持开放归用户排期。两 worktree 干净留置待 review；ff-only 合回归 merge 阶段 |
 
 ## 9. 复审记录
 
@@ -250,11 +320,39 @@ auto-lang worktree spike：以 `LoadSessionList` 为试点，
   - outcome: pass（授权范围内可开工；T-01 spike 为首个决策点）
   - next: work（两仓 worktree：musk `plan-083-dev`；auto-lang
     组内并排；T-01/T-02 可并行起步）
+- 2026-09-22 work 收口（plan_revision 1，全六任务完成）：
+  - stage: work | PLAN-083 | r1 | **pass** | 
+    code_commit: musk `plan-083-dev`@454dff9（5×：T-02 243e09c /
+    T-03 330a918 / T-04 471fe7f / T-05 双根修 132ff73 / SD-01 454dff9，
+    base=main f622167）+ auto-lang `auto-musk-dev`@0a791cfb8（2×：T-01
+    ec63b6ad0 消息桥+U-3 五测 / T-03 web 臂 0a791cfb8+30s 超时，
+    base=master 06837787e）| task_ids: T-01..T-06 |
+    evidence: U-1/U-2=chat_page 8/8 绿（含 auto-edit 真实载荷
+    938KB→106KB）；U-3=plan083_http_msg_bridge_tests 5/5 绿×3 连跑
+    （.at 全链模拟器探针）；U-4=musk chat 46 测零回退+V-4 像素；
+    V-1..V-4 实机矩阵全 PASS（0 不可响应轮次/首屏 414~754ms/翻页
+    264ms/巨条工具卡像素实证；证据 `.wt/musk-083/auto-musk/
+    tmp/v083-evidence/`）；auto build 全 pipeline 绿×3 |
+    blockers: 无阻塞项 |
+    next: **review**（移交面见下）
+  - **review/UAT 移交项**（不阻塞 execution_done，如实登记）：
+    ①**发送/流式链实测未覆盖**——PollBackfill 改写（异步+窗口合并）
+    语义与旧链逐分支对齐且后端 46 测绿，但"真实 LLM 会话发送→流式
+    回填→收束"端到端未跑（验收实例无 LLM）；建议 review 或 UAT 用
+    真会话抽验一发。②082 表格面抽样未跑（表格在 markdown text 块内，
+    rebuild 保 text 字段=结构性不回退；代码层论证）。③isMsgStreaming
+    红色 Stop 钮偶现（streaming=false 态 prop 构建期快照嫌疑，非本
+    计划链路——观察项）。④已知微竞态：workspace 快速双切（<2 tick）
+    时在途回填可能乱序落地（自愈型，ws_loading 门+终态覆盖；web 轨
+    location.reload 语义无此窗）。⑤V-3 为显式按钮形态（滚动到顶自动
+    触发受 VM 滚动事件面限制，scrollable onscroll 桥已存在但画布
+    容器改造超本计划边界——follow-up 候选）。
+  - status → **execution_done**
 
 ## 10. 待澄清事项
 
 | # | 事项 | 状态/归属 |
 |---|---|---|
-| 1 | 首屏 limit 缺省值（50？）与超大单条消息（单条即 552KB）的次级截断（块内文本截断？）——552KB 若是单条消息，分页数限制不住它 | T-02 设计点：需检查该 552KB 巨条的构成（单块巨文本 vs 多块）；单块巨文本需块级截断策略（如 fence/段落上限）|
-| 2 | C1 挂起恢复是否立项为 VM 长期方向（本计划倾向 C2 起步） | T-01 spike 后按改动面数据请用户裁定 |
+| 1 | 首屏 limit 缺省值（50？）与超大单条消息（单条即 552KB）的次级截断（块内文本截断？）——552KB 若是单条消息，分页数限制不住它 | ✅ 闭环（T-02）：limit 缺省 50；巨条实测=工具密集型（84~109 tool 块非单块巨文本）——块级截断（result 4K/thinking 4K/args 2K+truncated 标记）+每消息 48K 预算（尾部优先，超预算更早 tool 块降桩）+thin tool_calls 去双份载荷（225KB 重复数组根除） |
+| 2 | C1 挂起恢复是否立项为 VM 长期方向（本计划倾向 C2 起步） | ✅ 闭环（T-01）：C2 定案落地；C1 登记长期方向（见 §5 T-01 决策工件），无需裁定 |
 | 3 | 分页对 PollStream 全量回填的语义改动的 web 轨跟进节奏 | web 可暂走全量旧路（缺省参数兼容）；跟进排期用户定 |
