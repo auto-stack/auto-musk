@@ -1,10 +1,11 @@
 ---
 plan_id: PLAN-081
-status: reviewed
+status: archived
+completion_kind: delivered
 feature_name: workspace 选择器显示名修正 + VM 轨切换后列表刷新链
 author: [agent]
 created_at: 2026-09-21T00:00:00Z
-updated_at: 2026-09-21T19:05:00Z
+updated_at: 2026-09-21T19:25:00Z
 plan_revision: 6
 reviewed_commit: 4945f61
 current_step: 11
@@ -520,6 +521,20 @@ git -C D:/autostack/auto-musk worktree add -b plan-081-dev \
   limitations: 复审在实现会话内进行（无独立会话），结论以工件重建而非
   执行摘要 | next: merge（用户已裁定 B 路线收口；autodown 正文债与
   §10-9 家族不在本计划范围）`
+
+- `stage: merge | plan_id: PLAN-081:r6 | outcome: pass | delivery_commit:
+  2633f33（ff-only，无 merge commit） | checkpoints: prepared=SD-01..04
+  落册于 worktree（28a7bef，reviewed_commit 4945f61 的 docs-only 后代，
+  代码/依赖零变动）；landed=main tip 2633f33 = delivery_commit，rebase
+  旧→新映射 d16afdc→820a0e2 / 98c2599→98cc467 / 344dcfb→bb59ef8 /
+  0b70043→abd01cb / 4595fa2→afdb97d / 4945f61→04a7578 / 28a7bef→2633f33，
+  range-diff 7/7 全等价；ledger_refreshed=docs/specs/index.json
+  updated_at→2026-09-21T19:20:00+08:00（spec_files 本含两目标册，无新增
+  册）；smoke=main `auto build` 全 pipeline 绿；archived=
+  docs/plans/archived/081-workspace-switch-ux.md status: archived
+  completion_kind: delivered | cleaned: pending（见下） | 遗留移交:
+  autodown 表格/段落正文债（=080 移交②）与 §10-9 死亡家族留在
+  KNOWN-DEBT/接收计划，不在本计划交付范围
 
 ## 10. 待澄清事项
 
