@@ -486,5 +486,24 @@
     "loadFailed": "Failed to load whitelist",
     "removeConfirm": "Remove this directory? The AI loses access immediately.",
     "loading": "Loading…"
-  }
+  },
+  "workspaceUi": {
+    "plansEmptyTitle": "Turn an idea into a plan",
+    "plansEmptyBody": "Define goals, steps and acceptance criteria before implementation and review.",
+    "wikiEmptyTitle": "Keep useful knowledge close",
+    "wikiEmptyBody": "Collect project resources, research and notes for future conversations.",
+    "specsIntro": "Module specs hold current agreements. The index shows relationships and history.",
+    "specsEmpty": "No spec index content yet. Browse the module files to get started.",
+    "specFiles": "Module files",
+    "specIndex": "Spec index",
+    "filesTitle": "Files",
+    "filesEmptyTitle": "Explore your workspace",
+    "filesBody": "Select a file on the left to preview code, documents or images.",
+    "retry": "Reload",
+    "loadFailed": "Could not load. Please retry.",
+    "draft": "Draft",
+    "executing": "In progress",
+    "done": "Ready for review",
+    "reviewed": "Reviewed"
+}
 }

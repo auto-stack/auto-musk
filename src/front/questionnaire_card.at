@@ -111,7 +111,7 @@ widget QuestionnaireCard(questions: obj) {
                             for opt in .q.options {
                                 button {
                                     onclick: .SelectSingle(.q.id, opt)
-                                    key: "single-" + opt
+                                    key: opt
                                     class: if questionnaireSingleChecked(.answers, .q.id, opt) { "q-option checked" } else { "q-option" }
                                     span { style: "q-check" }
                                     span { style: "q-label", text opt }
@@ -137,13 +137,13 @@ widget QuestionnaireCard(questions: obj) {
                     } else if .q.type == "multiple" {
                         div {
                             style: "q-options"
-                            for opt in .q.options {
+                            for choice in .q.options {
                                 button {
-                                    onclick: .SelectMultiple(.q.id, opt)
-                                    key: "multi-" + opt
-                                    class: if questionnaireMultiChecked(.answers, .q.id, opt) { "q-option checked" } else { "q-option" }
+                                    onclick: .SelectMultiple(.q.id, choice)
+                                    key: choice
+                                    class: if questionnaireMultiChecked(.answers, .q.id, choice) { "q-option checked" } else { "q-option" }
                                     span { style: "q-check square" }
-                                    span { style: "q-label", text opt }
+                                    span { style: "q-label", text choice }
                                 }
                             }
                             if .q.otherLabel != None {

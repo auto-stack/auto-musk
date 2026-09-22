@@ -17,9 +17,9 @@ widget NavSidebar(title: str, collapsed: bool, width_class: str) {
         div {
             class: .width_class
             style: if .collapsed {
-                "w-12 flex flex-col h-full shrink-0 overflow-hidden bg-muted/40 border-r border-border"
+                "w-12 flex flex-col h-full shrink-0 overflow-hidden bg-muted/20 border-r border-border"
             } else {
-                "flex flex-col h-full shrink-0 overflow-hidden bg-muted/40 border-r border-border"
+                "flex flex-col h-full shrink-0 overflow-hidden bg-muted/20 border-r border-border"
             }
             div {
                 style: "flex items-center gap-1.5 py-2 px-3 shrink-0 h-12 border-b border-border"
@@ -27,7 +27,7 @@ widget NavSidebar(title: str, collapsed: bool, width_class: str) {
                     // PLAN-055: 标题字号与 ContentHeader 主标题对齐（用户裁定
                     // 两级标题同字体同字号；原 text-base 与 text-xl 不一致，
                     // VM 轨观感差异更明显）。
-                    style: "flex-1 text-xl font-bold text-foreground"
+                    style: "flex-1 text-base font-semibold text-foreground"
                     text .title
                 }
                 slot(name: "actions") {}

@@ -18,18 +18,18 @@
 widget ContentHeader(title: str, fallback: str = "", subtitle: str = "", status: str = "") {
     view {
         div {
-            style: "flex items-center justify-between h-12 shrink-0 px-5 border-b border-border bg-card"
+            style: "flex items-center justify-between gap-3 h-12 shrink-0 px-5 border-b border-border bg-card"
             div {
                 style: "flex items-center gap-2 flex-1 min-w-0 overflow-hidden"
                 if .title != "" {
                     span {
-                        style: "text-lg font-bold text-foreground w-[250px] truncate"
+                        style: "text-base font-semibold text-foreground w-[250px] truncate"
                         text .title
                     }
                 }
                 if .title == "" {
                     span {
-                        style: "text-lg font-bold text-foreground w-[250px] truncate"
+                        style: "text-base font-semibold text-foreground w-[250px] truncate"
                         text .fallback
                     }
                 }

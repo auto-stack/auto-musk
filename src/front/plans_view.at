@@ -25,6 +25,7 @@ widget PlansView {
 
     msg Msg {
         Init,
+        Reload,
         SelectPlan(int),
         StartCreate,
         ConfirmCreate,
@@ -74,7 +75,7 @@ widget PlansView {
             NavSidebar {
                 title: t("plans.title")
                 collapsed: false
-                width_class: "w-[220px]"
+                width_class: "w-[240px]"
                 slot(name: "actions") {
                     button {
                         onclick: .StartCreate
@@ -87,9 +88,12 @@ widget PlansView {
                     col {
                         // PLAN-071 需求⑪：列表容器与会话/规范对齐（滚动 + 顶距），
                         // 原 plans-nav-list 单行按钮列表退役。
-                        style: "flex-1 overflow-y-auto px-2 pt-1.5"
+                        style: "flex-1 overflow-y-auto px-2 pt-3"
                         if .store.loading {
                             text t("plans.loading")
+                        } else if .store.error != "" {
+                            text t("workspaceUi.loadFailed") { style: "text-sm text-muted-foreground p-3" }
+                            button { onclick: .Reload; style: "h-8 px-3 rounded-md bg-muted text-foreground text-sm"; text t("workspaceUi.retry") }
                         } else {
                             for plan in .store.plans {
                                 button {
@@ -101,9 +105,9 @@ widget PlansView {
                                     // （draft/executing/execution_done/reviewed/
                                     // archived 等原样展示）。
                                     class: if .plan.seq == .selectedSeq {
-                                        "session-item h-auto w-full text-left flex flex-col items-start justify-start gap-0.5 py-2.5 px-3 mb-1.5 rounded-lg border border-primary/25 bg-primary/10 text-primary cursor-pointer"
+                                        "session-item h-auto w-full text-left flex flex-col items-start justify-start gap-0.5 py-2 px-3 mb-1 rounded-lg border border-transparent bg-primary/10 text-primary cursor-pointer"
                                     } else {
-                                        "session-item h-auto w-full text-left flex flex-col items-start gap-0.5 py-2.5 px-3 mb-1.5 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground cursor-pointer"
+                                        "session-item h-auto w-full text-left flex flex-col items-start gap-0.5 py-2 px-3 mb-1 rounded-lg border border-transparent bg-transparent hover:bg-accent text-foreground cursor-pointer"
                                     }
                                     span {
                                         title: .plan.id + " — " + .plan.feature_name
@@ -137,22 +141,22 @@ widget PlansView {
                                 button {
                                     onclick: .TransitionTo(.st_drafting)
                                     style: "py-1 px-2 rounded text-[11px] cursor-pointer border border-border bg-transparent text-muted-foreground hover:bg-accent"
-                                    text "drafting"
+                                    text t("workspaceUi.draft")
                                 }
                                 button {
                                     onclick: .TransitionTo(.st_executing)
                                     style: "py-1 px-2 rounded text-[11px] cursor-pointer border border-border bg-transparent text-muted-foreground hover:bg-accent"
-                                    text "executing"
+                                    text t("workspaceUi.executing")
                                 }
                                 button {
                                     onclick: .TransitionTo(.st_execution_done)
                                     style: "py-1 px-2 rounded text-[11px] cursor-pointer border border-border bg-transparent text-muted-foreground hover:bg-accent"
-                                    text "execution_done"
+                                    text t("workspaceUi.done")
                                 }
                                 button {
                                     onclick: .TransitionTo(.st_reviewed)
                                     style: "py-1 px-2 rounded text-[11px] cursor-pointer border border-border bg-transparent text-muted-foreground hover:bg-accent"
-                                    text "reviewed"
+                                    text t("workspaceUi.reviewed")
                                 }
                             }
                             button {
@@ -218,8 +222,14 @@ widget PlansView {
                     }
                 } else {
                     col {
-                        style: "flex-1 flex items-center justify-center text-muted-foreground text-sm"
-                        text t("plans.selectPlan")
+                        style: "flex-1 flex flex-col items-center justify-center p-8 gap-4 text-center"
+                        if .store.loading {
+                            text t("plans.loading") { style: "text-sm text-muted-foreground" }
+                        } else {
+                            text t("workspaceUi.plansEmptyTitle") { style: "text-xl font-semibold text-foreground" }
+                            text t("workspaceUi.plansEmptyBody") { style: "text-sm text-muted-foreground max-w-[400px] leading-6" }
+                            button { onclick: .StartCreate; style: "h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"; text t("plans.newPlan") }
+                        }
                     }
                 }
             }
@@ -257,6 +267,7 @@ widget PlansView {
     }
 
     on {
+        .Reload -> { PlansStore.LoadPlans() }
         .Init -> {
             // PLAN-081：web 轨挂载期 Init 派发；App.ShowPlans 代派兜底
             // （VM 轨子件 Init 不派发——PLAN-048 T5 口径，FilesView 同款

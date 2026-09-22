@@ -486,5 +486,24 @@
     "loadFailed": "加载白名单失败",
     "removeConfirm": "确定移除该目录？移除后 AI 立即失去访问权。",
     "loading": "加载中…"
-  }
+  },
+  "workspaceUi": {
+    "plansEmptyTitle": "把想法变成可执行的计划",
+    "plansEmptyBody": "在计划中明确目标、步骤与验收标准，再进入执行和复审。",
+    "wikiEmptyTitle": "让有用的知识留下来",
+    "wikiEmptyBody": "整理项目资料、调研和使用笔记，方便在后续会话中查阅。",
+    "specsIntro": "模块规范记录当前约定；索引用于查看关系与历史。",
+    "specsEmpty": "暂无规范索引内容，可先浏览模块文件。",
+    "specFiles": "模块文件",
+    "specIndex": "规范索引",
+    "filesTitle": "文件",
+    "filesEmptyTitle": "浏览工作区文件",
+    "filesBody": "从左侧选择文件，预览代码、文档或图片。",
+    "retry": "重新加载",
+    "loadFailed": "加载失败，请重试。",
+    "draft": "草稿",
+    "executing": "执行中",
+    "done": "待复审",
+    "reviewed": "已复审"
+}
 }

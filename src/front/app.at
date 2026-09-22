@@ -65,9 +65,9 @@ widget App {
 
     computed {
         railClass => if .rail_collapsed {
-            "w-16 shrink-0 bg-secondary border-r border-border gap-3 px-2 pb-3 pt-0 h-full items-center"
+            "w-16 shrink-0 bg-muted/40 border-r border-border gap-3 px-2 pb-3 pt-0 h-full items-center"
         } else {
-            "w-48 shrink-0 bg-secondary border-r border-border gap-3 px-3 pb-3 pt-0 h-full"
+            "w-48 shrink-0 bg-muted/40 border-r border-border gap-3 px-3 pb-3 pt-0 h-full"
         }
         // 小鹿 logo（auto-os 虚拟桌面同款 assets/icons/{dark,light}/auto-musk.png，
         // 64px 量化内嵌）——dark 常显，light 由 inject_styles 随 html.dark 切换。
@@ -142,22 +142,22 @@ widget App {
                             // 不上色（容器 bg 渲染可靠，按钮面裸），div 包裹
                             // 双轨同形；web 侧等价（Tailwind 同类）。图标色
                             // text-primary 仍在按钮上。
-                            col { style: if .current_view == "chats" { "w-10 h-10 rounded-md bg-accent" } else { "w-10 h-10" }
+                            col { style: if .current_view == "chats" { "w-10 h-10 rounded-md bg-primary/10" } else { "w-10 h-10" }
                                 button { onclick: .ShowChats; title: "会话"; style: if .current_view == "chats" { "w-10 h-10 flex items-center justify-center rounded-md text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "message-square", size: 24) {} }
                             }
-                            col { style: if .current_view == "plans" { "w-10 h-10 rounded-md bg-accent" } else { "w-10 h-10" }
+                            col { style: if .current_view == "plans" { "w-10 h-10 rounded-md bg-primary/10" } else { "w-10 h-10" }
                                 button { onclick: .ShowPlans; title: "计划"; style: if .current_view == "plans" { "w-10 h-10 flex items-center justify-center rounded-md text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "list-todo", size: 24) {} }
                             }
-                            col { style: if .current_view == "specs" { "w-10 h-10 rounded-md bg-accent" } else { "w-10 h-10" }
+                            col { style: if .current_view == "specs" { "w-10 h-10 rounded-md bg-primary/10" } else { "w-10 h-10" }
                                 button { onclick: .ShowSpecs; title: "规范"; style: if .current_view == "specs" { "w-10 h-10 flex items-center justify-center rounded-md text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "scroll", size: 24) {} }
                             }
-                            col { style: if .current_view == "wiki" { "w-10 h-10 rounded-md bg-accent" } else { "w-10 h-10" }
+                            col { style: if .current_view == "wiki" { "w-10 h-10 rounded-md bg-primary/10" } else { "w-10 h-10" }
                                 button { onclick: .ShowWiki; title: "知识库"; style: if .current_view == "wiki" { "w-10 h-10 flex items-center justify-center rounded-md text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "book-open", size: 24) {} }
                             }
-                            col { style: if .current_view == "files" { "w-10 h-10 rounded-md bg-accent" } else { "w-10 h-10" }
+                            col { style: if .current_view == "files" { "w-10 h-10 rounded-md bg-primary/10" } else { "w-10 h-10" }
                                 button { onclick: .ShowFiles; title: "文件"; style: if .current_view == "files" { "w-10 h-10 flex items-center justify-center rounded-md text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "folder-open", size: 24) {} }
                             }
-                            col { style: if .current_view == "whitelist" { "w-10 h-10 rounded-md bg-accent" } else { "w-10 h-10" }
+                            col { style: if .current_view == "whitelist" { "w-10 h-10 rounded-md bg-primary/10" } else { "w-10 h-10" }
                                 button { onclick: .ShowWhitelist; title: "白名单"; style: if .current_view == "whitelist" { "w-10 h-10 flex items-center justify-center rounded-md text-primary" } else { "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" }; icon (name: "shield-check", size: 24) {} }
                             }
                         }
@@ -321,7 +321,9 @@ widget App {
             .is_wiki = false;
             .is_files = false;
             .is_whitelist = false;
-            vsSetView("specs")
+            vsSetView("specs");
+            SpecsStore.LoadDocument();
+            SpecsStore.LoadOverview()
         }
         .ShowWiki -> {
             .current_view = "wiki";
@@ -331,7 +333,8 @@ widget App {
             .is_wiki = true;
             .is_files = false;
             .is_whitelist = false;
-            vsSetView("wiki")
+            vsSetView("wiki");
+            WikiStore.Init()
         }
         // PLAN-068: 进入文件视图即重拉 workspace 树（freshness 优先；
         // FilesView.Init 的 files_loaded 守卫只拦挂载期双触发）。

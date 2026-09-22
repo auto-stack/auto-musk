@@ -74,7 +74,11 @@ store PlansStore {
             if resp != None {
                 if resp.plans != None {
                     .plans = resp.plans
+                } else {
+                    .error = "plans_load_failed"
                 }
+            } else {
+                .error = "plans_load_failed"
             }
             // PLAN-071 需求⑫：初始无选中时默认加载第一篇（与会话轨 Init
             // 自动选中首会话同口径）。Transition/Archive/Merge 后的列表

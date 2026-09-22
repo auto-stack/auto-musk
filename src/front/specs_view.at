@@ -12,6 +12,7 @@ use.web vsCurrentDetail, vsSetDetailPath from "src/front/ports/composables.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
 use nav_sidebar: NavSidebar
+use filetree: FileTree
 use goals_table: GoalsTable
 use architecture_cards: ArchitectureCards
 use design_cards: DesignCards
@@ -98,7 +99,10 @@ widget SpecsView {
             NavSidebar {
                 title: t("specs.title")
                 collapsed: .nav_collapsed
-                width_class: "w-[200px]"
+                width_class: "w-[240px]"
+                slot(name: "actions") {
+                    button { onclick: .EnterTreeMode; title: t("workspaceUi.specFiles"); style: "h-7 px-2 text-xs rounded-md bg-transparent text-muted-foreground hover:bg-accent"; text t("workspaceUi.specFiles") }
+                }
                 slot(name: "list") {
                     col {
                         style: "flex-1 overflow-y-auto flex flex-col gap-1 px-1 pt-1"
@@ -106,7 +110,7 @@ widget SpecsView {
                         // （两行盒：名称 + 计数），样式沿 session-item 形态。
                         button {
                             onclick: .ToggleOverview
-                            class: if .show_overview { "session-item h-auto w-full text-left flex flex-col items-start gap-0.5 py-2.5 px-3 rounded-lg border border-primary/25 bg-primary/10 text-primary cursor-pointer" } else { "session-item h-auto w-full text-left flex flex-col items-start gap-0.5 py-2.5 px-3 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground cursor-pointer" }
+                            class: if .show_overview { "session-item h-auto w-full text-left flex flex-col items-start gap-0.5 py-2.5 px-3 rounded-lg border border-transparent bg-primary/10 text-primary cursor-pointer" } else { "session-item h-auto w-full text-left flex flex-col items-start gap-0.5 py-2.5 px-3 rounded-lg border border-transparent bg-transparent hover:bg-accent text-foreground cursor-pointer" }
                             span {
                                 style: "text-[13.6px] font-medium truncate max-w-full"
                                 text t("specs.overview")
@@ -116,7 +120,7 @@ widget SpecsView {
                             button {
                                 key: .row.name
                                 onclick: .SelectSection(.row.name)
-                                class: if .row.name == .active_section { "session-item h-auto w-full text-left flex flex-col items-start gap-0.5 py-2.5 px-3 rounded-lg border border-primary/25 bg-primary/10 text-primary cursor-pointer" } else { "session-item h-auto w-full text-left flex flex-col items-start gap-0.5 py-2.5 px-3 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground cursor-pointer" }
+                                class: if .row.name == .active_section { "session-item h-auto w-full text-left flex flex-col items-start gap-0.5 py-2.5 px-3 rounded-lg border border-transparent bg-primary/10 text-primary cursor-pointer" } else { "session-item h-auto w-full text-left flex flex-col items-start gap-0.5 py-2.5 px-3 rounded-lg border border-transparent bg-transparent hover:bg-accent text-foreground cursor-pointer" }
                                 span {
                                     title: .row.name
                                     style: "text-[13.6px] font-medium truncate max-w-full"
@@ -135,13 +139,21 @@ widget SpecsView {
             col {
                 style: "flex-1 overflow-y-auto flex flex-col"
                 if .show_overview {
+                    ContentHeader { title: t("workspaceUi.specIndex") }
                     col {
                         style: "p-5 text-sm leading-[1.6] text-foreground"
-                        h2 "Overview" { style: "text-xl font-bold mb-4" }
+                        text t("specs.overview") { style: "text-xl font-semibold text-foreground mb-3" }
+                        text t("workspaceUi.specsIntro") { style: "text-sm text-muted-foreground mb-4 leading-6" }
+                        row {
+                            style: "flex gap-2 mb-6"
+                            button { onclick: .EnterTreeMode; style: "h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"; text t("workspaceUi.specFiles") }
+                        }
                         if .store.overview != "" {
                             text .store.overview
+                        } else if .store.loading {
+                            text t("specs.loading") { style: "text-sm text-muted-foreground" }
                         } else {
-                            text t("specs.loading")
+                            text t("workspaceUi.specsEmpty") { style: "text-sm text-muted-foreground" }
                         }
                     }
                 } else {
@@ -324,15 +336,9 @@ widget SpecsView {
             row {
                 style: "flex flex-row h-full overflow-hidden"
                 col {
-                    style: "w-[200px] shrink-0 border-r border-border bg-card overflow-y-auto p-2 flex flex-col gap-1"
-                    for node in .store.spec_tree {
-                        button {
-                            key: .node.path
-                            onclick: .SelectSpecFile(.node.path)
-                            class: if .store.active_spec_file_path == .node.path { "w-full text-left py-1.5 px-2 rounded-md text-sm bg-accent font-medium text-foreground" } else { "w-full text-left py-1.5 px-2 rounded-md text-sm bg-transparent text-foreground hover:bg-accent" }
-                            text .node.name
-                        }
-                    }
+                    style: "w-[240px] shrink-0 border-r border-border bg-card overflow-y-auto p-2 flex flex-col gap-1"
+                    text t("workspaceUi.specFiles") { style: "text-base font-semibold text-foreground h-10 px-2" }
+                    FileTree(nodes: .store.spec_tree, onselect: .SelectSpecFile($event))
                 }
                 col {
                     style: "flex-1 overflow-y-auto flex flex-col"

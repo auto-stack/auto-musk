@@ -16,7 +16,7 @@
 //
 // 样式：PLAN-049 T6 双轨收敛——容器迁内联工具类;@mention 高亮为 textarea
 // 能力（PLAN-493：web 侧 text-transparent 由 codegen 注入,VM 侧文字可见+
-// 原生着色）。原 send-btn 渐变底收敛为 bg-primary 单色（登记）;rounded-[20px]
+// 原生着色）。原 send-btn 渐变底收敛为 bg-primary 单色（登记）;rounded-xl
 // VM 无 arbitrary 圆角臂,登记降级。
 //
 // composer 一体化改版（2026-09-07,zcode/codex 式）：
@@ -240,12 +240,12 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
     }
     view {
         div {
-            style: "w-full"
+            style: "w-full px-4 pb-3"
             div {
                 style: "max-w-[960px] mx-auto w-full"
                 // zcode/codex 式一体化 composer：大圆角容器 = 输入面 + 工具栏。
                 div {
-                    style: "composer-box flex flex-col w-full bg-muted-foreground/5 border border-primary/15 rounded-[20px] focus-within:border-primary/45 focus-within:shadow-[0_0_0_3px_hsl(var(--primary)/0.08)]"
+                    style: "composer-box flex flex-col w-full bg-muted-foreground/5 border border-border rounded-xl focus-within:border-primary/45 focus-within:shadow-[0_0_0_3px_hsl(var(--primary)/0.08)]"
                     // 输入面：wrapper 高度由 web 侧 JS 按内容驱动（min-h 兜
                     // 首帧）；textarea absolute inset-0 h-full 镜像 backdrop。
                     div {
