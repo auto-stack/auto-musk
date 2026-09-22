@@ -212,15 +212,21 @@ widget ChatsView {
                         // VM alert-dialog 受控 open 模态(536 绑定根修+vm.at
                         // 真源后渲染成立,实机 T9 复验)。VM 内联确认行
                         // (session-delete-strip)与 web CSS 抑制规则退役。
-                        DeleteConfirmDialog {
-                            open: .delete_confirm_open
-                            target: .delete_pending_id
-                            session_title: t("chat.confirmDeleteSession")
-                            all_title: t("chat.confirmDeleteAll")
-                            confirm_text: t("chat.confirmDelete")
-                            cancel_text: t("chat.cancel")
-                            onconfirm: .ConfirmDelete($event)
-                            oncancel: .CancelDelete
+                        // PLAN-084 UAT⑨: 关闭态不挂载——VM 受控 open=false
+                        // 仍占布局（“今天”上方 ~60px 空白根因，实测）；web 轨
+                        // v-model:open 语义不受影响（挂载时机后移，plan 058
+                        // 受控语义不变）。
+                        if .delete_confirm_open {
+                            DeleteConfirmDialog {
+                                open: .delete_confirm_open
+                                target: .delete_pending_id
+                                session_title: t("chat.confirmDeleteSession")
+                                all_title: t("chat.confirmDeleteAll")
+                                confirm_text: t("chat.confirmDelete")
+                                cancel_text: t("chat.cancel")
+                                onconfirm: .ConfirmDelete($event)
+                                oncancel: .CancelDelete
+                            }
                         }
                         // PLAN-083 T-03：切 workspace 骨架——列表未到时脉冲
                         // 占位行（两段式首跳回填前的可见中间态，V-1）。
@@ -277,9 +283,7 @@ widget ChatsView {
                                     span {
                                         style: "text-[11px]"
                                         text t("chat.groupEarlier")
-                                    }
-                                    span {
-                                        style: "text-[11px] text-muted-foreground/70"
+                                        text " "
                                         text "" + .r.gcount
                                     }
                                     if .store.earlier_collapsed {
@@ -336,18 +340,10 @@ widget ChatsView {
                                     text .r.sname
                                 }
                             }
-                            // PLAN-084 UAT⑧③: hover 提示全文——VM 无 title 悬停
-                            // tooltip（title prop 仅 web 轨），悬停行在标题下方
-                            // 展开全名（弱色小字，自动换行）。
-                            if .hover_session_id == .r.sid {
-                                row {
-                                    style: "flex items-start w-full gap-1"
-                                    span {
-                                        style: "text-[11px] text-muted-foreground/80 leading-[1.4]"
-                                        text .r.sname
-                                    }
-                                }
-                            }
+                            // PLAN-084 UAT⑨: 卡片内 hover 全名行撤除（用户否定
+                            // 卡片内形态）——浮空 tooltip 需 auto-lang 运行时
+                            // 接线（title prop→iced tooltip；tooltip prop 仅
+                            // sidebar_menu_button 原生件持有），债已登记。
                             row {
                                 style: "flex items-center justify-between w-full gap-1"
                                 span {
