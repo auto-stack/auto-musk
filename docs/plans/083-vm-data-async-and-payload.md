@@ -432,3 +432,25 @@ auto-lang worktree spike：以 `LoadSessionList` 为试点，
   - 清理：用户 backend store 两条 stray 会话已删（15de36eb/e2c631f）。
   - next：①查 VM 编译缓存强刷法后复验收束+表格（work 续）；或②用户
     实机（worktree 二进制）发一条消息+翻 315e 会话人工闭合 F-R1。
+
+- 2026-09-22 work r3（F-R1 终局定界：VM 侧收束 **blocked on 上游引擎缺陷**）：
+  - **定界证据链**：①逐门打印实证 PollStream 每拍走 expired 分支
+  （wins=1 新戳当拍即"过期"）；②戳值打印 `started=-951429338
+  now=-951429250`——**Date.now() 返回负垃圾**（应为 ~1.79e12ms）；
+  ③最小探针语料（tmp/dateprobe：timer+print(Date.now())）在**主检出
+  生产 auto.exe（082 merge 血统）同样复现** `-951187708`——**既有
+  引擎缺陷，非 083 引入、非 lang-681 基线引入**。auto-lang worktree
+  已 rebase 至 082 merge 点 3c00aa6cb（2×commit 保留，plan083 5/5 绿）
+  复验同现——排除基线因素。
+  - **推论**：生产 VM 的 PollStream deadman 窗自 attach 起恒过期，
+  轮询回填在生产环境从未真正执行（发送后回复上屏依赖的正是此链
+  ——与"streaming 恒真/Stop 钮残留"症状互证）。083 的 musk 侧修复
+  （Sse 真活门+pre_stream_len 基线）已就位且服务端闭环三轮实证，
+  但 VM 侧收束在 Date.now() 修复前**无法闭合**。
+  - **解锁动作**：auto-lang 立项修 Date.now() native（nanbox/i32 标签
+  疑点；独立计划，不属 083 范围）→ 修后跑
+  `.wt/musk-083/auto-musk/tmp/rv3-sendonly.mjs`（一键：发送→收束→
+  回复上屏断言）+表格抽样（315e 会话）即可闭合 F-R1。
+  - 本轮 worktree 状态：musk `plan-083-dev`@4cea301（r2 双修已提交，
+  调试打印已撤净）；auto-lang `auto-musk-dev`@6e77ce2da（rebase 至
+  3c00aa6cb，2×commit，5/5 绿）。
