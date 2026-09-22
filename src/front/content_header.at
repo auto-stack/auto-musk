@@ -23,13 +23,13 @@ widget ContentHeader(title: str, fallback: str = "", subtitle: str = "", status:
                 style: "flex items-center gap-2 flex-1 min-w-0 overflow-hidden"
                 if .title != "" {
                     span {
-                        style: "text-xl font-bold text-foreground shrink-0 truncate"
+                        style: "text-lg font-bold text-foreground w-[250px] truncate"
                         text .title
                     }
                 }
                 if .title == "" {
                     span {
-                        style: "text-xl font-bold text-foreground shrink-0 truncate"
+                        style: "text-lg font-bold text-foreground w-[250px] truncate"
                         text .fallback
                     }
                 }
