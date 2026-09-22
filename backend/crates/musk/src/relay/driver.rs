@@ -29,6 +29,17 @@ use crate::server::AppState;
 
 // ── MuskAgentFactory (Plan 008 Phase 6) ────────────────────────────────────
 
+/// PLAN-086 T-02: flow-level handoff-injection switch. The `plan` flow's
+/// inter-phase context is the plan file alone (mechanically passed via the
+/// run's `plan_file` context var) — injecting the prior phase's AI-generated
+/// handoff render would re-introduce the hallucination surface PLAN-086
+/// retires, so `plan`/`plan-merge` skip it. Deprecated flows keep the legacy
+/// injection (parity tests compare on `simple`). Unknown flow (vanished run)
+/// fails open to the legacy behavior.
+fn injects_handoff(flow_id: Option<&str>) -> bool {
+    !matches!(flow_id, Some("plan") | Some("plan-merge"))
+}
+
 /// Agent factory for musk relay steps. Implements
 /// [`auto_ai_agent::orchestration::AgentFactory`] so the relay driver can
 /// build agents with musk-specific context:
@@ -73,11 +84,23 @@ impl AgentFactory for MuskAgentFactory {
         };
         let mut agent =
             crate::build_agent_with_context(&mode, self.state.client.clone(), Some(tool_ctx))?;
-        // Inject prior handoff context if this isn't the first step.
-        if let Some(h) = handoff {
-            let prior_md = h.render();
-            if !prior_md.is_empty() {
-                agent = agent.with_history(vec![("user".to_string(), prior_md)]);
+        // Inject prior handoff context if this isn't the first step — unless
+        // the flow retired the channel (PLAN-086 T-02: plan/plan-merge rely
+        // on the plan file as the sole inter-phase carrier). The ag factory
+        // delegates here (extern_impl factory_build_agent), so the switch is
+        // single-point across both drivers.
+        let flow_id = self
+            .state
+            .registry
+            .get(&self.workspace_id)
+            .relay
+            .flow_of(&self.run_id);
+        if injects_handoff(flow_id.as_deref()) {
+            if let Some(h) = handoff {
+                let prior_md = h.render();
+                if !prior_md.is_empty() {
+                    agent = agent.with_history(vec![("user".to_string(), prior_md)]);
+                }
             }
         }
         Ok(agent)
@@ -363,4 +386,23 @@ mod tests {
     // The driver itself needs a live AppState + client to run an agent, so it's
     // exercised via the curl/integration layer. The state-machine behavior it
     // relies on (advance/submit_handoff/gate) is covered by pipeline/store tests.
+
+    use super::injects_handoff;
+
+    /// PLAN-086 T-02 / AC-02: plan 系流程相位输入=模板+计划文件，prior
+    /// handoff render 注入退役；deprecated 流保留注入（parity 对拍面）；
+    /// 未知 flow（run 消失）fail-open 走旧行为。
+    #[test]
+    fn handoff_injection_is_flow_gated() {
+        // plan 系两流：不注入。
+        assert!(!injects_handoff(Some("plan")));
+        assert!(!injects_handoff(Some("plan-merge")));
+        // deprecated 流：照旧注入。
+        assert!(injects_handoff(Some("simple")));
+        assert!(injects_handoff(Some("default")));
+        assert!(injects_handoff(Some("relay")));
+        assert!(injects_handoff(Some("superpower")));
+        // fail-open：run 不存在/查询不到 flow 时保持旧行为。
+        assert!(injects_handoff(None));
+    }
 }

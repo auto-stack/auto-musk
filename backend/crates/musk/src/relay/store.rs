@@ -863,6 +863,14 @@ impl RunStore {
         runs.get(run_id).and_then(|e| e.metadata.workspace_id.clone())
     }
 
+    /// PLAN-086 T-02: which flow this run runs (the factory's handoff
+    /// injection gate reads it). None when the run is unknown/vanished —
+    /// callers fail open to the legacy inject behavior.
+    pub fn flow_of(&self, run_id: &str) -> Option<String> {
+        let runs = self.runs.lock().unwrap();
+        runs.get(run_id).map(|e| e.engine.flow.id.clone())
+    }
+
     /// Snapshot the initial task + prior handoff markdown for the driver.
     /// (Read-only; the driver calls this before running the agent.)
     ///
@@ -1266,6 +1274,24 @@ mod tests {
         );
         let (task, _) = store.step_context(&id).unwrap();
         assert_eq!(task, "裸任务文本");
+    }
+
+    /// PLAN-086 T-02: flow_of resolves the run's flow id (factory handoff
+    /// gate), None for unknown runs (fail-open to legacy inject).
+    #[test]
+    fn flow_of_resolves_run_flow_id() {
+        let store = tmp_store();
+        let (id, _) = store.start_run(
+            &StartRunRequest {
+                run_id: None,
+                flow_id: Some("plan".into()),
+                steps: Vec::new(),
+                task: None,
+            },
+            None,
+        );
+        assert_eq!(store.flow_of(&id).as_deref(), Some("plan"));
+        assert!(store.flow_of("run-nope").is_none());
     }
 
     #[test]
