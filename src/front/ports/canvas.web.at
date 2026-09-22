@@ -1,0 +1,7 @@
+// ports/canvas.web.at — PLAN-087 T-07: 画布域 web facade。
+//
+// 启动/停止经本域（canvas_web.ts 结果对象门面）；状态/帧轮询在 store 侧
+// Http.get_msg 直连（不占本域）。调用方只引 ports/canvas.at（目标后缀
+// .web.at/.vm.at 由构建解析）。
+
+use.web canvasStart, canvasStop from "src/front/canvas_web.ts"

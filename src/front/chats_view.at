@@ -48,6 +48,8 @@ use gate_card: GateCard
 use secretary_message_wrapper: SecretaryMessageWrapper
 use secretary_message: SecretaryMessage
 use chat_message: ChatMessage
+// PLAN-087 T-07: 实况画布面板（chats 右侧第三列；cv_open 驱动显隐）。
+use canvas_panel: CanvasPanel
 
 widget ChatsView {
 
@@ -618,6 +620,9 @@ widget ChatsView {
                     onpick: .PickThinking($event)
                     onpickapproval: .PickApproval($event)
                 }
+                // PLAN-087 T-07: 实况画布面板——有非 stopped 会话自动展开，
+                // stop 后收起（cv_open 单源于 store 轮询；本视图零接线）。
+                CanvasPanel {}
             }
         }
     }

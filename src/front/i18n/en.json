@@ -505,5 +505,12 @@
     "executing": "In progress",
     "done": "Ready for review",
     "reviewed": "Reviewed"
-}
+  },
+  "canvas": {
+    "stop": "Stop canvas",
+    "waiting": "Waiting for the app window…",
+    "starting": "Starting the app (first frame within ~10s)…",
+    "restarting": "App crashed — restarting…",
+    "degraded": "Canvas session degraded"
+  }
 }

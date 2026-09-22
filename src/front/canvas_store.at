@@ -1,0 +1,67 @@
+// canvas_store.at — PLAN-087 T-07: 画布会话轮询 store。
+//
+// 状态命名 cv_*：避让潜在 api 绑定撞名（whitelist wl_* 同款口径）。
+// 轮询机制 = forge_store PollBackfill 同款：timer 拍发起 Http.get_msg
+// （入队即返），载荷以字符串回填消息解析（{"ok","status","body"} 信封，
+// body = {state,seq,app_path,restarts,error}）。启动/停止的 POST 不在
+// store（store 不消费 use.web）——面板视图走 ports/canvas 门面，状态由
+// 下一拍轮询自然反映。
+// VM 轨：状态轮询会打到宿主桥（无 /api/canvas/* → ok!=true 被守卫吸收，
+// 面板恒收起）；画布面板 M1 验收面=web 轨（计划 §10-2）。
+
+store CanvasStore {
+    model {
+        // 会话状态（后端 CanvasState 小写串）。
+        var cv_state str = "stopped"
+        // 帧序号（单调递增；驱动 img src 缓存击穿）。
+        var cv_seq int = 0
+        // 帧直出 URL（seq 变化才重写，避免无脑刷帧）。
+        var cv_frame_url str = ""
+        // 在跑的 app 目录显示名。
+        var cv_app str = ""
+        // 最近错误（degraded 机理等）。
+        var cv_error str = ""
+        // 面板开合（有非 stopped 会话自动展开；stop 后收起）。
+        var cv_open bool = false
+    }
+
+    timer {
+        Poll (every_ms: 1000)
+    }
+
+    msg Msg {
+        Poll,
+        StatusBackfill(str),
+    }
+
+    on {
+        .Poll -> {
+            Http.get_msg("/api/canvas/status", "CanvasStore.StatusBackfill")
+        }
+
+        .StatusBackfill(payload str) -> {
+            let r = JSON.parse(payload)
+            if r != None {
+                if r.ok == true {
+                    let body = JSON.parse(r.body)
+                    if body != None {
+                        var st str = body.state ?? "stopped"
+                        var seq int = body.seq ?? 0
+                        if seq != .cv_seq {
+                            .cv_seq = seq
+                            .cv_frame_url = `/api/canvas/frame?t=${seq}`
+                        }
+                        .cv_state = st
+                        .cv_app = body.app_path ?? ""
+                        .cv_error = body.error ?? ""
+                        if st == "stopped" {
+                            .cv_open = false
+                        } else {
+                            .cv_open = true
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

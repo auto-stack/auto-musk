@@ -1,0 +1,14 @@
+// ports/canvas.vm.at — PLAN-087 T-07: 画布域 VM adapter。
+//
+// VM 轨画布面板为尽力项（计划 §10-2：验收面=web 轨）。域内 fn 以安全
+// 空值桩补位（whitelist.vm.at 同款口径）：启动返回 error 文案（面板不
+// 展开——状态轮询桩恒 stopped）、停止幂等成功。
+
+fn canvasStart(wid str, appPath str) {
+    print("canvas start skipped on vm target: " + appPath)
+    return { ok: false, error: "canvas panel is web-only in M1", state: "stopped", app_path: "" }
+}
+
+fn canvasStop() {
+    return { ok: true, error: "", state: "stopped", app_path: "" }
+}
