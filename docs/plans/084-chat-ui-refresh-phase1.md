@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-084
-status: drafting
+status: reviewed
 feature_name: 聊天 UI 一期优化（math 兜底 + 表格 chrome + 会话列表 + 聊天头部）
 author: [agent]
 created_at: 2026-09-22T00:00:00Z
@@ -384,6 +384,42 @@ PLAN-083 合入后行号已修正，语义契约零变更）：
   本计划送 `/auto-plan:review`。
 
 - 2026-09-22 **work 阶段交接（T-01..T-06 完成，T-07 部分）**：
+- 2026-09-22 **实现性复审（execution 终态，UAT①-⑪ 后）**：
+  `stage: review | plan_id: PLAN-084 | plan_revision: 1 | outcome: pass | 
+  reviewed_commit: musk plan-084-dev @ 1ac9a15 + auto-lang auto-musk-dev @ 0c55f6c96
+  （探针入库 0c55f6c96；功能面 84ba4a58c+1ac9a15）| base_commit: musk main 278d6c9
+  （计划文档）/ 5b34a5d（代码基线，083 合入后）| dependency_revisions: auto-lang
+  auto-musk-dev @ 0c55f6c96（基于 master 641e1b9f4）、auto-down 兄弟位 3373a5c、
+  auto-ai 兄弟位 630a98d | spec_inputs: ui-compositions §1/§3（SD-01/02/06 终稿
+  021b13f）、autodown-consumption §2.1/§3.1/§5（SD-03/04）、vm-data-semantics
+  （SD-05）——增量表已修至 UAT 终态（本评审修订，commit 021b13f）|
+  acceptance_results: **AC-01 pass**（单 $ inline=autodown_math λ 转换：diag2 单测
+  +mathprobe 最小窗口实测；%{}% 块降级卡片在测；$$ 双美元=引擎债 F-D2 登记不削弱
+  本 AC 单 $ 范围）| **AC-02 pass**（表头底色 Muted 带+行分隔+082 双 pin 绿；
+  smoke 截图 04 实证）| **AC-03 pass**（今天/昨天/更早分组+相对时间+更早折叠；
+  零新增列表请求=updated_at/后端现算元数据；多轮截图）| **AC-04 pass**（重命名
+  闭环 smoke 03-renamed.png PASS+后端 PATCH 20/20；hover 形态恢复后经用户实机
+  UAT 多轮未报异常）| **AC-05 pass**（归档闭环 smoke 04/05 PASS+parity_chats
+  20/20；同上注记）| **AC-06 pass（终态演化）**：标题 text-lg 定宽+状态点+
+  搜索/归档/重命名 icon；角色徽章经 UAT⑧ 用户裁定退役（一会话多 agent）——
+  演化已记录为用户授权范围变更 | **AC-07 pass**：auto-lang cargo tf 3722/3722+
+  cargo tv 3869/3869 全绿；musk cargo test 全套绿（唯一红=tool_atoms
+  run_command_dangerous_returns_paused 基线红，PLAN-070 沙箱域，本计划 diff 前
+  即红，F-D6 登记）；auto build 全 pipeline 绿（UAT⑪ 后复验）；gallery catalog
+  PASS 108 declarations；vm-link 含于 build | findings: **F-D1（P1, auto-lang）**
+  get_msg 桥大载荷丢弃（9.3/12KB 且回调，5.5KB 达；桥/泵探针入库 0c55f6c96）；
+  **F-D2（P2, autodown）** $$ 双美元块语法不支持；**F-D3（P2, auto-lang）** 通用
+  元素浮空 tooltip 缺（title 仅进 label）；**F-D4（P1-P2, auto-lang）** 头像色块
+  三形态 container.rs:291 unwrap 崩（X9 三实锤，ainit 数据就绪）；**F-D5（P2,
+  auto-lang）** 括号不平衡 64GB 分配爆炸（解析健壮性）；**F-D6（基线红,
+  PLAN-070）** run_command 危险模式判定被多根 confine 前置拦截——**以上均为
+  范围外债（不削弱 AC），随 merge 落 KNOWN-DEBT** | evidence: tmp/desktop-launch/
+  截图组（identity/collapsed/earlier-collapsed/uat8/uat9/uat10 等）、
+  tmp/p084-smoke/ smoke 收据与截图、本文件 §8 执行进度表、双仓 commit 链
+  （musk 720babc/0fdf7eb/e48c8c8/a17ff57/c655d56/962c2e4/5dc80d8/b9f31fc/
+  446d6a8/1ac9a15；auto-lang 3ddc69ac7/84ba4a58c/0c55f6c96）| 独立性声明：
+  评审与实现同会话，verdict 由重跑门禁+工件重建（非实现者总结）| next: merge。
+
 - 2026-09-22 **review 预审（work 准入，用户授权"通过即 work"）**：
   `stage: review | plan_id: PLAN-084 | plan_revision: 1 | outcome: pass（进入 work）|
   reviewed_commit: 84bb82c（计划文本）| base_commit: 307da15（musk main，083 合入后）|
