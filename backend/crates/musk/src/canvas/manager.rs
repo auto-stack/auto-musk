@@ -109,7 +109,7 @@ impl CanvasManager {
             let mut st = self.shared.state.lock().unwrap();
             *st = CanvasState::Starting;
         }
-        *self.shared.app_path.lock().unwrap() = app_dir.display().to_string();
+        *self.shared.app_path.lock().unwrap() = display_path(&app_dir);
         *self.shared.restarts.lock().unwrap() = 0;
         *self.shared.error.lock().unwrap() = String::new();
         *self.shared.frame.lock().unwrap() = None;
@@ -220,6 +220,20 @@ impl Drop for CanvasManager {
             super::session::reap_tree_blocking(pid);
         }
     }
+}
+
+/// 展示用路径：剥 Windows canonical 化的 `\\?\` 前缀（面板标题/状态字段
+/// 显示友好；进程 spawn 仍用原始 PathBuf，不受影响）。
+fn display_path(p: &std::path::Path) -> String {
+    let s = p.to_string_lossy();
+    s.strip_prefix(r"\\?\UNC\")
+        .map(|r| format!(r"\\{r}"))
+        .unwrap_or_else(|| {
+            s.strip_prefix(r"\\?\")
+                .map(str::to_string)
+                .unwrap_or_else(|| s.to_string())
+        })
+        .replace('\\', "/")
 }
 
 /// 看门狗主体：帧循环 + 失败判定 + 退避复活（迭代式，独占 SessionHandle）。
