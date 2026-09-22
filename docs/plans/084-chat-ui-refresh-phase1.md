@@ -345,6 +345,14 @@ PLAN-083 合入后行号已修正，语义契约零变更）：
    非 084 范围；用户记忆中的"渲染过"=优化版 mock 或其它会话的单 `$` 行内）。
 4. rail 会话不高亮——已修（active 表达式 prop VM 不消费→is_* computed bool 绑定，
    截图实证高亮恢复）。
+5. 一级导航栏默认收起（用户澄清⑥所指）——rail_collapsed 默认 true（w-16 图标态，
+   ToggleRail 随时展开）；误改的二级会话列表默认收起已回滚（chats_view 恢复展开）。
+6. "更早"分组默认折叠——store 域 hideEarlier 参数（头行常驻+数量，行不生成），
+   头行点击切换；截图+MCP 闭环实证。
+7. UAT⑧ 四修——组标题统一 11px（更早头行显式 button：带 onclick 的 span 被
+   codegen 升格默认样式 button 致字体变大根因）+右缘 lucide chevron；头部标题
+   text-lg+w-[250px]+角色徽章退役；hover 全名提示行（VM 无 title tooltip）；
+   行 hover 提亮减半（accent/40、primary/20）+工具图标去黑边+归档图标 lucide 化。
 5. 工具组改 hover——已恢复（mouse-area 子树旧解析器仅支持单臂 if：S002 `<else>`
    实锤；行内 class 预计算 store scls；截图实证列表渲染正常=mouse-area 仅快照
    失明非视觉缺陷——修正 T-07 轮"子树塌"结论的误判部分）。
