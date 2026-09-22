@@ -401,7 +401,7 @@ merge_plan 机械沉淀、更新 docs/specs 模块树、归档）。纪律条目
       plan-flow.md 八节全文在位）；运行时 .autoos/specs.json 零写入。
     - archived：docs/plans/archived/086-plan-flow-fixed-roles.md，
       status: archived, completion_kind: delivered（见本记录）。
-    - cleaned：（见下）。
+    - cleaned：✅ wt-guard clean ×1（musk 计划位，移除前复验；auto-ai/auto-lang 两只读依赖位 detached 无分支，随组清）——worktree ×3 移除（musk-086/auto-musk @5e6ea76、auto-ai@57eb44a、auto-lang@641e1b9f4）、分支 plan-086-dev 删除（was 5e6ea76，ff-only 后与 main 同点）、组目录 .wt/musk-086 已删（内含冒烟台架 smoke-ws，证据已预迁 docs/plans/attachments/p086-smoke-*，删除无损）；三仓 worktree 注册表零残留（grep=0×3）。
   - 落地后门禁（主检出已知良好）——**部分受阻（外部漂移，非本轮引入）**：
     主检出 cargo build 红 11 错全在第三方 crates.io 包 wgpu-hal 27.0.4
     （windows 接口不兼容）；实证与本 delta 无涉——wgpu-hal 在本轮提交的
