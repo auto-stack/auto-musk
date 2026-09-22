@@ -1338,6 +1338,9 @@ pub fn drive_finalize_output(o: &str, v: &Value) -> String {
 /// to=next_profession, summary=final_output, step_tokens = total_tokens/2) and
 /// submit_handoff (engine routes to next step + publishes StepCompleted/TokenSpend).
 /// `v` is the AgentResult Value (carries total_tokens).
+/// PLAN-086 T-03: ag 驱动此前缺 hw run_step 的 PLAN_FILE 标记提取（仅 hw
+/// 独有）；此处对齐——create_plan 绑定主通道已写入则不覆盖（守门函数
+/// plan_file_marker_write 双轨单源），无绑定时标记回退生效。
 pub fn drive_submit_handoff(s: &Arc<AppState>, w: &str, r: &str, role_id: &str, output: &str, v: &Value) {
     let ws = s.registry.get(w);
     // hw run_step:261-267: TurnComplete event before the handoff submit.
@@ -1345,6 +1348,13 @@ pub fn drive_submit_handoff(s: &Arc<AppState>, w: &str, r: &str, role_id: &str, 
         timestamp: now_secs(),
         role_id: role_id.to_string(),
     });
+    // hw run_step:322-327 (PLAN-030/086): guarded marker extraction before submit.
+    if let Some(plan_file) = crate::relay::plan_flow::plan_file_marker_write(
+        ws.relay.context_var(r, "plan_file"),
+        output,
+    ) {
+        ws.relay.set_context_var(r, "plan_file", &plan_file);
+    }
     let next_profession = ws.relay.next_profession(r).unwrap_or_default();
     let mut handoff = auto_ai_agent::orchestration::HandoffDocument::new(role_id, &next_profession);
     handoff.summary = output.to_string();

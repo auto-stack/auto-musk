@@ -146,18 +146,31 @@ impl Tool for ReadPlan {
 
 /// Create a new plan (auto-assigns max+1 seq, injects frontmatter,
 /// status=drafting)。
+///
+/// PLAN-086 T-03：创建成功后把计划文件路径经绑定通道写入活跃 run 的
+/// `plan_file` 上下文变量——相位间计划文件传递的主通道（无 AI 参与）。
+/// `binding` 由 `from_ctx` 从 ToolContext 装配（relay run 内
+/// parent_conversation_id = run_id）；chat 会话调用时该 id 未命中任何
+/// relay run，`set_context_var` 天然 no-op。`with_store`（测试装配）不挂
+/// 通道。
 pub struct CreatePlan {
     plans: Arc<PlansStore>,
+    binding: Option<(Arc<crate::relay::store::RunStore>, String)>,
 }
 
 impl CreatePlan {
     pub fn from_ctx(ctx: &ToolContext) -> Self {
+        let ws: Arc<WorkspaceStores> = ctx.state.registry.get(&ctx.workspace_id);
         Self {
-            plans: stores_of(ctx).0,
+            plans: ws.plans.clone(),
+            binding: Some((ws.relay.clone(), ctx.parent_conversation_id.clone())),
         }
     }
     pub fn with_store(plans: Arc<PlansStore>) -> Self {
-        Self { plans }
+        Self {
+            plans,
+            binding: None,
+        }
     }
 }
 
@@ -196,6 +209,11 @@ impl Tool for CreatePlan {
             .plans
             .create(feature_name, content)
             .map_err(ToolError::Exec)?;
+        // PLAN-086 T-03：绑定主通道——路径即工具自身写盘结果，零 AI 参与。
+        // 仅命中活跃 run 时落（不存在 → set_context_var no-op）。
+        if let Some((relay, run_id)) = &self.binding {
+            relay.set_context_var(run_id, "plan_file", &format!("docs/plans/{}", pf.filename));
+        }
         Ok(ToolOutput::text(json!({
             "seq": pf.seq,
             "plan_id": pf.id,
@@ -445,6 +463,59 @@ mod tests {
         let out = out.content;
         assert!(out.contains("## 1. 目标"));
         assert!(out.contains("目标内容。"));
+    }
+
+    /// PLAN-086 T-03 / AC-03 主通道：create_plan 在活跃 relay run 内调用
+    /// 后，run 上下文写入 plan_file 绑定（路径=工具写盘结果）。
+    #[tokio::test]
+    async fn create_plan_binding_writes_active_run_context() {
+        let (plans, _specs) = tmp_stores();
+        let relay = Arc::new(crate::relay::store::RunStore::at(
+            std::env::temp_dir().join(format!("musk_bind_run_{}", std::process::id())),
+        ));
+        let (run_id, _) = relay.start_run(
+            &crate::relay::store::StartRunRequest {
+                run_id: Some("run-bind-1".into()),
+                flow_id: Some("plan".into()),
+                steps: Vec::new(),
+                task: Some("做一个功能".into()),
+            },
+            None,
+        );
+        let c = CreatePlan {
+            plans: plans.clone(),
+            binding: Some((relay.clone(), run_id.clone())),
+        };
+        let out = c
+            .execute(&json!({ "feature_name": "绑定演示", "content": BODY }))
+            .await
+            .unwrap();
+        let v: Value = serde_json::from_str(&out.content).unwrap();
+        let path = v["path"].as_str().unwrap();
+        assert_eq!(
+            relay.context_var(&run_id, "plan_file").as_deref(),
+            Some(path),
+            "binding var must equal the created plan's path"
+        );
+    }
+
+    /// PLAN-086 T-03：chat 会话调用（id 未命中任何 relay run）→ no-op，
+    /// 不得污染 run store。
+    #[tokio::test]
+    async fn create_plan_binding_noop_for_non_run_session() {
+        let (plans, _specs) = tmp_stores();
+        let relay = Arc::new(crate::relay::store::RunStore::at(
+            std::env::temp_dir().join(format!("musk_bind_chat_{}", std::process::id())),
+        ));
+        let c = CreatePlan {
+            plans,
+            binding: Some((relay.clone(), "chat-not-a-run".into())),
+        };
+        c.execute(&json!({ "feature_name": "x", "content": BODY }))
+            .await
+            .unwrap();
+        assert!(relay.context_var("chat-not-a-run", "plan_file").is_none());
+        assert!(relay.list().is_empty(), "no phantom run created");
     }
 
     #[tokio::test]

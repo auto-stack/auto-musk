@@ -25,6 +25,20 @@ pub fn extract_plan_file(output: &str) -> Option<String> {
         .and_then(|c| c.get(1).map(|m| m.as_str().to_string()))
 }
 
+/// PLAN-086 T-03: gate the marker-fallback write — the plan_file context var
+/// is the binding channel's territory (create_plan writes it tool-time, zero
+/// AI involvement). When a binding already exists the `PLAN_FILE:` marker
+/// must NOT overwrite it (binding > marker > hint); with no binding the
+/// marker extraction runs as the fallback. Returns the value to write
+/// (None = don't touch the var). Both drivers (hw run_step + ag
+/// drive_submit_handoff) route through this so the order is single-sourced.
+pub fn plan_file_marker_write(existing: Option<String>, output: &str) -> Option<String> {
+    if existing.is_some() {
+        return None;
+    }
+    extract_plan_file(output)
+}
+
 /// Compose the phase task for (flow_id, step_id). Returns None for flows
 /// without templates (legacy behavior: raw initial task).
 ///
@@ -208,5 +222,27 @@ mod tests {
         assert!(extract_plan_file("no marker here").is_none());
         // 行中(非行首)出现不算
         assert!(extract_plan_file("mention PLAN_FILE: x.md inline").is_none());
+    }
+
+    /// PLAN-086 T-03 / AC-03：标记回退守门——绑定已存在不覆盖；无绑定时
+    /// 标记生效；无标记不动。
+    #[test]
+    fn marker_fallback_never_overwrites_binding() {
+        // 绑定优先：已有 plan_file 时标记输出被忽略。
+        assert_eq!(
+            plan_file_marker_write(
+                Some("docs/plans/001-bound.md".into()),
+                "分析…\nPLAN_FILE: docs/plans/002-fallback.md\n"
+            ),
+            None
+        );
+        // 回退生效：无绑定时提取标记。
+        assert_eq!(
+            plan_file_marker_write(None, "分析…\n\nPLAN_FILE: docs/plans/002-fallback.md\n")
+                .as_deref(),
+            Some("docs/plans/002-fallback.md")
+        );
+        // 双缺：无绑定亦无标记 → 不写（组装臂落 hint）。
+        assert_eq!(plan_file_marker_write(None, "no marker"), None);
     }
 }

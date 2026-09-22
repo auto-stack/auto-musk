@@ -345,7 +345,13 @@ async fn run_step(
     // PLAN-030: stash the plan-file marker (emitted by the plan flow's plan
     // phase) into the run context so later phases' templates carry the exact
     // path instead of relying on the handoff summary.
-    if let Some(plan_file) = crate::relay::plan_flow::extract_plan_file(&final_output) {
+    // PLAN-086 T-03: the marker is now the FALLBACK channel — when the
+    // create_plan binding already wrote plan_file tool-time, the marker must
+    // not overwrite it (binding > marker > hint).
+    if let Some(plan_file) = crate::relay::plan_flow::plan_file_marker_write(
+        ws.relay.context_var(run_id, "plan_file"),
+        &final_output,
+    ) {
         ws.relay.set_context_var(run_id, "plan_file", &plan_file);
     }
 
