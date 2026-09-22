@@ -1,12 +1,12 @@
 ---
 plan_id: PLAN-083
-status: execution_done
+status: executing
 feature_name: VM 数据链异步化与大载荷治理（081 刷新链债 + 082 §10-7 三方向合并）
 author: [agent]
 created_at: 2026-09-22T00:00:00Z
 updated_at: 2026-09-22T00:00:00Z
 plan_revision: 1
-current_step: 6
+current_step: 5
 total_steps: 6
 supersedes_spec_components: []
 new_spec_components: [docs/specs/modules/vm-data-semantics.md]
@@ -314,7 +314,7 @@ auto-lang worktree spike：以 `LoadSessionList` 为试点，
 | T-02 | 后端分页+归一化直出（契约+Rust 实现+单测） | — | U-1/U-2 绿 | AC-01/02 | [x] 2026-09-22：musk `plan-083-dev` 1×commit——`/api/chats/session/{id}/page?limit=&before=`（缺省 50；has_more+next_before；缺省全量旧端点字节不变）；`blocks_normalized:true` 直出 r5b 拍平块；块级瘦身（§10-1 落实：巨条=工具密集型，result/thinking/args 截断+每消息 48K 预算+thin tool_calls 去重）。U-1=分页语义测、U-2=等价形态测+截断口径测+真实载荷测（auto-edit 938KB 会话→首屏 106KB=8.8×）全绿；既有 chat 44 测零回退。cargo test -p musk --lib |
 | T-03 | musk 前端消费：两段式+分页+骨架+073 适配 | T-01/T-02 | U-4 绿；实机列表/首屏出 | AC-01/05 | [x] 2026-09-22：forge_store LoadSessionList/SwitchSession/BranchTo/PollStream 全迁消息桥（SessionsLoaded/DetailLoaded/OlderLoaded/PollBackfill 四回填段；PollBackfill 窗口合并=073 适配，pending/回合守卫/收束排空原样）；LoadOlder/OlderLoaded 历史前插翻页；chats_view 列表/首屏骨架+"加载更早的消息" pill（V-3 显式按钮形态，滚动桥接受限记录在案）；ts_adapter 补 get_msg Vue 半边（auto-lang 1×commit）。auto build 全 pipeline 绿（worktree 二进制）。U-4 实测面=后端 chat 44 测零回退 + T-05 V-4 实机 |
 | T-04 | 迁移收编（SetWorkspace/Reload/081 注记） | T-03 | 全链走异步桥 | AC-03 | [x] 2026-09-22：PlansStore.LoadPlans 两段式（Choose 链三段=SetWorkspace→LoadSessionList/PlansStore.Reload/清场 全异步）；081 归档 §10-9 冻结/死亡线索二分注记落档（死亡=互杀 9f5593404/冻结=本计划）；PollStream 泛化余量（SSE 桥）不动（timer 注记更新）。auto build 绿 |
-| T-05 | 实机验收矩阵 V-1..V-4 | T-04 | 冻结 20.9s→<1s 实测记录 | AC-04 | [x] 2026-09-22：隔离实例（worktree 后端 17283+worktree auto.exe+MCP 9283 驱动脚本 tmp/v083-acceptance.mjs）**V-1..V-4 全 PASS**——V-1 切 workspace 全程 1s 间隔 MCP state 轮询**0 不可响应轮次**（max 往返 70ms；对照基线=同一操作 20.9s 冻结）；V-2 首屏 414~754ms（≤1s，press→列表+首会话 50 条可交互；后端页 11ms/98KB）；V-3 翻页 50→60 条 264ms 零不可响应；V-4 9063 巨条（652KB/124 块）工具卡/正文/思考卡**像素实证**（截图 tmp/v083-evidence/）。**途中两缺陷根修**（musk 132ff73）：①JSON.parse 产物直接落 store 时 blocks 深度字段读在渲染上下文塌空（r5 家族）→ rebuildParsedMessages 扁平重建漏斗；②args_json 截断/降桩产非法 JSON 炸 messageBlocks computed（二分定罪 50 块阈值=预算降桩触发点）→ 恒合法 JSON 契约+2 回归测试（8/8 绿）。已知残留：isMsgStreaming 红色 Stop 钮偶现（streaming=false 态,疑 prop 构建期快照,非本计划链路——观察项） |
+| T-05 | 实机验收矩阵 V-1..V-4 | T-04 | 冻结 20.9s→<1s 实测记录 | AC-04 | [ ] 2026-09-22：**needs_fix reopen（review F-R1）**——已完成面：隔离实例（worktree 后端 17283+worktree auto.exe+MCP 9283 驱动脚本 tmp/v083-acceptance.mjs）**V-1..V-4 全 PASS**——V-1 切 workspace 全程 1s 间隔 MCP state 轮询**0 不可响应轮次**（max 往返 70ms；对照基线=同一操作 20.9s 冻结）；V-2 首屏 414~754ms（≤1s，press→列表+首会话 50 条可交互；后端页 11ms/98KB）；V-3 翻页 50→60 条 264ms 零不可响应；V-4 9063 巨条（652KB/124 块）工具卡/正文/思考卡**像素实证**（截图 tmp/v083-evidence/）。**途中两缺陷根修**（musk 132ff73）：①JSON.parse 产物直接落 store 时 blocks 深度字段读在渲染上下文塌空（r5 家族）→ rebuildParsedMessages 扁平重建漏斗；②args_json 截断/降桩产非法 JSON 炸 messageBlocks computed（二分定罪 50 块阈值=预算降桩触发点）→ 恒合法 JSON 契约+2 回归测试（8/8 绿）。已知残留：isMsgStreaming 红色 Stop 钮偶现（streaming=false 态,疑 prop 构建期快照,非本计划链路——观察项） |
 | T-06 | SD-01 落册 + 销项 + 收尾 | T-05 | 文档核对；两仓 ff-only 合回 | AC-06 | [x] 2026-09-22：SD-01 落册 worktree（vm-data-semantics 增量五节，musk 454dff9）；081 注记/§10-1/§10-2 销项闭环；§10-3（web 轨分页跟进）保持开放归用户排期。两 worktree 干净留置待 review；ff-only 合回归 merge 阶段 |
 
 ## 9. 复审记录
@@ -353,6 +353,60 @@ auto-lang worktree spike：以 `LoadSessionList` 为试点，
     触发受 VM 滚动事件面限制，scrollable onscroll 桥已存在但画布
     容器改造超本计划边界——follow-up 候选）。
   - status → **execution_done**
+
+- 2026-09-22 review（plan_revision 1，**needs_fix**——单项运行时证据缺口，
+  代码层零缺陷发现）：
+  - stage: review | PLAN-083 | r1 | **needs_fix** |
+    reviewed_commit: musk `plan-083-dev`@454dff9580de3a15b26304cb9509acbb8545bbc4
+    （base=main f622167）+ auto-lang `auto-musk-dev`@0a791cfb86bbb3c55eb193ef1e6a410cc1ecafd7
+    （base=master 06837787e）；dep: auto-ai@630a98d（零改动路径位）|
+    两 worktree 树净（status 0 脏）| 独立性：实施会话内复审，裁断自工件
+    重建（测试重跑+证据复用注明理由），未采信执行期自述 |
+  - **门禁**：auto-lang `cargo tf` **3721/3721 绿**（27.9s，历史前置红
+    清单四项本基线全绿）；musk 后端 `cargo test -p musk --lib`
+    **453/453 绿**（5.5s）；`auto build` 全 pipeline 绿（worktree
+    auto-lang 二进制）。T-05 期 V-1..V-4 矩阵证据**复用成立**——代码/
+    依赖/测试配置自取证后未变（musk src 唯一 delta=诊断探针加删净零；
+    后端二进制同源重建）。
+  - acceptance_results：
+    - AC-01 **pass**（U-1 分页语义测；page 端点 curl 实测 98KB/11ms）
+    - AC-02 **pass**（U-2 等价+截断口径+真实载荷测，8/8；938KB→106KB）
+    - AC-03 **pass**（U-3 五测绿×3 连跑含 .at 全链模拟器；V-1 0 不可
+      响应轮次）+ 迁移面代码核对（LoadSessionList/SwitchSession/
+      BranchTo/PollStream/PlansStore.LoadPlans 全两段式，grep 零残留
+      同步 chats_get_session 调用）
+    - AC-04 **pass**（V-1 0/0/0 不可响应轮次、V-2 414~754ms、
+      V-3 50→60 条 264ms；隔离实例 MCP 矩阵）
+    - AC-05 **partial**（见 F-R1）
+    - AC-06 **pass**（SD-01 落册 worktree 454dff9 五节核对=现行为+
+      持久规则，无执行日记化；081 注记/§10-1/§10-2 闭环核对）
+  - findings：
+    - **F-R1（blocking，AC-05/T-05）**：V-4 判据中"**发送/流式**"运行时
+      未验——review 会话起隔离实例+真 LLM 栈两轮仪器驱动，发送钮/表格
+      会话行的快照定位器均未命中（消息未真正发出，state 120s 停留
+      空表），发送→StartStream→PollBackfill→收束闭环无端到端证据。
+      代码层核对无缺陷（Send/StartStream 未改动；PollBackfill 与旧链
+      逐分支对齐+后端 46 测）。**补验法（work 修复项）**：修仪器定位器
+      或改人工路径——实机发一条短消息（v083-ws 一次性工作区）观察
+      流式回填与收束，+翻 315e0d25 会话抽表格。工具卡/思考卡/正文
+      渲染面已像素实证（9063 巨条）。
+    - F-R2（nonblocking，观察项）：isMsgStreaming 红色 Stop 钮偶现
+      （streaming=false 态）；workspace 快速双切 <2 tick 微竞态（自愈
+      型）；滚动到顶自动翻页为显式按钮形态（设计句"复用 Scrollable
+      offset 桥"未落地——判据"按需到达无冻结"已满足，自动触发记
+      follow-up）。
+    - F-R3（nonblocking）：web 轨运行时未实测（vue-tsc 构建绿+载荷协议
+      等价设计；建议 merge 后 8090 冒烟一轮）。
+    - F-R4（nonblocking，frontmatter）：touched_goals 为空——本计划无
+      goals 体系映射目标（问题域=性能/架构治理，非 goal 交付），书面
+      说明；new_spec_components 记 SD-01 目标文件（modify 语义）。
+  - evidence: 本计划 §4/§9/T-01 决策工件 + `.wt/musk-083/auto-musk/
+    tmp/v083-evidence/`（截图×2+acceptance.log+page.json）+ 本次门禁
+    输出（tf 3721/3721、musk 453/453，日志 .wt 各 tmp/） |
+  - next: **work**（T-05 reopen：F-R1 补验——最小闭合=实机/仪器完成
+    一次发送流式实测+表格抽样；完成即复审该项可快速 pass）。
+  - 处置：T-05 checkbox reopen（实测面），current_step=5，
+    status→**executing**。
 
 ## 10. 待澄清事项
 
