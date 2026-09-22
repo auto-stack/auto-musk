@@ -111,7 +111,7 @@ widget QuestionnaireCard(questions: obj) {
                             for opt in .q.options {
                                 button {
                                     onclick: .SelectSingle(.q.id, opt)
-                                    key: opt
+                                    key: "single-" + opt
                                     class: if questionnaireSingleChecked(.answers, .q.id, opt) { "q-option checked" } else { "q-option" }
                                     span { style: "q-check" }
                                     span { style: "q-label", text opt }
@@ -140,7 +140,7 @@ widget QuestionnaireCard(questions: obj) {
                             for choice in .q.options {
                                 button {
                                     onclick: .SelectMultiple(.q.id, choice)
-                                    key: choice
+                                    key: "multi-" + choice
                                     class: if questionnaireMultiChecked(.answers, .q.id, choice) { "q-option checked" } else { "q-option" }
                                     span { style: "q-check square" }
                                     span { style: "q-label", text choice }

@@ -155,7 +155,7 @@ widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: 
                                 for node in .filteredRawTree {
                                     button {
                                         onclick: .selectraw(.node.path)
-                                        key: .node.path
+                                        key: "raw-" + .node.path
                                         class: if .activeRawPath == .node.path { "flex items-center gap-[5px] w-full py-1 px-2 border-none rounded bg-primary/10 text-primary text-[13px] cursor-pointer text-left" } else { "flex items-center gap-[5px] w-full py-1 px-2 border-none rounded bg-transparent text-foreground text-[13px] cursor-pointer text-left hover:bg-accent" }
                                         File { size: 12 }
                                         span { style: "truncate flex-1", text .node.name }
@@ -205,7 +205,7 @@ widget WikiNav(wikiTree: obj, rawTree: obj, activeWikiPath: str, activeRawPath: 
                                 for pageNode in .filteredWikiTree {
                                     button {
                                         onclick: .selectwiki(.pageNode.path)
-                                        key: .pageNode.path
+                                        key: "wiki-" + .pageNode.path
                                         class: if .activeWikiPath == .pageNode.path { "flex items-center gap-[5px] w-full py-1 px-2 border-none rounded bg-primary/10 text-primary text-[13px] cursor-pointer text-left" } else { "flex items-center gap-[5px] w-full py-1 px-2 border-none rounded bg-transparent text-foreground text-[13px] cursor-pointer text-left hover:bg-accent" }
                                         FileText { size: 12 }
                                         span { style: "truncate flex-1", text .pageNode.name }
