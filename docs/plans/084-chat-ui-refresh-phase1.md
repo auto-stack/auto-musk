@@ -330,6 +330,25 @@ PLAN-083 合入后行号已修正，语义契约零变更）：
 6. span 内多子元素带 key 的 template v-for 包裹塌 `self.*`（vue-tsc 红）。
 以上 1-5 均为 auto-lang/VM 侧待归因债，登记 KNOWN-DEBT 候选（merge 阶段落册）。
 
+**UAT 实机轮（2026-09-22 晚，用户五项反馈）处置**：
+1. 切会话内容不更新——**复现+定位**（桥两端打点实锤）：SwitchSession→FireDetailLoad→
+   bridge queued→pump dispatched→**.at handler 未执行**；载荷尺寸相关（5.5KB 到达、
+   9.3/12KB 丢失）= **auto-lang 运行时消息路径丢弃债（P1）**，移交 auto-lang 排查
+   （musk a17ff57 留 msg-bridge/msg-pump/Fire/Arrive 四探针）。绕行候选：分页 limit
+   调小或后端瘦身加压（待阈值定界后选）。
+2. 标题截断——标题区已放大（flex-1），残留：VM truncate 实现对长名仍截（title span
+   shrink-0 与 truncate 并存的宽度协商），登记微调项。
+3. 数学未渲染——**两层定案**：①T-01b 符号转换已进桌面（最小 autodown 窗口实测
+   λ 转换 ✓，auto.exe 版本戳 1843=build.rs 缓存误导，touch build.rs 强制刷新实测）；
+   ②该会话存储的是 `$$...$$` **双美元块数学**——autodown parser 不识别（仅单 `$`
+   行内 + `%{...}%` 块），web katex 同不渲染=**autodown 引擎语法扩展债**（新债登记，
+   非 084 范围；用户记忆中的"渲染过"=优化版 mock 或其它会话的单 `$` 行内）。
+4. rail 会话不高亮——已修（active 表达式 prop VM 不消费→is_* computed bool 绑定，
+   截图实证高亮恢复）。
+5. 工具组改 hover——已恢复（mouse-area 子树旧解析器仅支持单臂 if：S002 `<else>`
+   实锤；行内 class 预计算 store scls；截图实证列表渲染正常=mouse-area 仅快照
+   失明非视觉缺陷——修正 T-07 轮"子树塌"结论的误判部分）。
+
 ## 9. 复审记录
 
 - 2026-09-22 draft handoff（plan_revision 1）：`stage: new`，`PLAN-084` rev 1。
