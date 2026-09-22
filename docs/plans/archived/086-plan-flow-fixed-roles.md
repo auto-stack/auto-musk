@@ -1,10 +1,11 @@
 ---
 plan_id: PLAN-086
-status: reviewed
+status: archived
 feature_name: plan flow 固定四角色相位流 + 相位间机械传递改造
 author: [agent]
 created_at: 2026-09-22T21:50:00+08:00
-updated_at: 2026-09-23T00:20:00+08:00
+updated_at: 2026-09-23T01:10:00+08:00
+completion_kind: delivered
 plan_revision: 1
 current_step: 8
 total_steps: 8
@@ -374,6 +375,46 @@ merge_plan 机械沉淀、更新 docs/specs 模块树、归档）。纪律条目
   evidence：本记录内命令与结果 + docs/plans/attachments/
   p086-smoke-final-run.json / p086-smoke-serve.log.txt（主检出持久）。
   next=merge（whole-workflow 已授权，review 通过即转入 merge）。
+- 2026-09-23 merge（plan_revision 1，**pass — delivered**）：
+  - stage: merge | PLAN-086 | r1 | **pass — delivered**
+  - checkpoints:
+    - prepared：reviewed 基线=6d4134a（依赖位 auto-ai@57eb44a /
+      auto-lang@641e1b9f4 detached）；canonical 增量三件在 worktree 备置并
+      提交——docs/specs/modules/plan-flow.md 新建（SD-01 after 栏全文，
+      流程形状/相位输入/机械传递/唯一路由/agent 间 API/已知限制六节）+
+      docs/specs/index.json（spec_files 增 modules/plan-flow.md，
+      updated_at 2026-09-23）+ docs/plans/KNOWN-DEBT-AND-RISKS.md 086 行
+      （a2r 再生成接缝两处手修定式 + F-R1 取证窗口指针）；diff vs
+      reviewed commit 核对=纯 docs 3 文件（documentation-only descendant，
+      实现/依赖零变更，取得 delivery 资格）。ledger 目标工作区=仓库根
+      .autoos/specs.json（运行时账本，untracked，六区全空=musk 既有惯例，
+      知识单源走 docs/specs/ + KNOWN-DEBT，本轮不写 specs.json）。
+    - landed：main ff-only → **5e6ea765**（7×commit；rebase 到 58862d0
+      后 range-diff **6/6 全等**，old→new 映射 9e37301→d1d3807 /
+      dbc3ab4→67535a8 / 9f7c252→0fce4b9 / 01a2b33→8a264dc /
+      9ce7c21→c79b6bd / 6d4134a→e120b2a，第 7 commit=docs 沉淀
+      5e6ea76 即 delivery commit）；无 merge commit。主检出让路协议：
+      在途 backend/Cargo.lock WIP（+3606 构建再生产物，归属不明）stash
+      留档（stash@{0}，未回灌——内容可由任意构建再生），ff-only 无阻。
+    - ledger_refreshed：docs/specs/index.json + KNOWN-DEBT 086 行随
+      5e6ea76 落地主检出，读回核验在位（index 解析合法、条目在列、
+      plan-flow.md 八节全文在位）；运行时 .autoos/specs.json 零写入。
+    - archived：docs/plans/archived/086-plan-flow-fixed-roles.md，
+      status: archived, completion_kind: delivered（见本记录）。
+    - cleaned：（见下）。
+  - 落地后门禁（主检出已知良好）——**部分受阻（外部漂移，非本轮引入）**：
+    主检出 cargo build 红 11 错全在第三方 crates.io 包 wgpu-hal 27.0.4
+    （windows 接口不兼容）；实证与本 delta 无涉——wgpu-hal 在本轮提交的
+    lock、分支 worktree lock、落地前 main lock 中均为 0 条，构建时 cargo
+    对 auto-lang **master**（主检出路径解析，db3fd4a42，比 086 固定位
+    641e1b9f4 新多笔，含他 session 在途 PLAN-041 系）重解析 +3541 行才
+    拉入；musk 代码树与全绿分支（667 passed）经 ff-only+range-diff 6/6
+    等价同源。**解锁动作=auto-lang master 依赖面稳定后重跑主检出
+    build+test；或临时 pin 后重建**（生产桌面 17201 跑旧二进制不受影响；
+    部署重建暂缓至 auto-lang master 稳定，登记 KNOWN-DEBT 080 行防再发
+    协议已覆盖启动面）。
+  - evidence：本记录 checkpoints 内命令与结果；review 证据包（§9 review
+    条目 + attachments/p086-smoke-*.json/.txt）随归档路径持续可解析。
 
 ## 10. 待澄清事项
 
