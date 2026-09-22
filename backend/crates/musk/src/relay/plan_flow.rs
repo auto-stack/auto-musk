@@ -1,18 +1,21 @@
-//! Phase task templates for the plan flow (PLAN-030 T8).
+//! Phase task templates for the plan flow (PLAN-030 T8; PLAN-086 fixed
+//! professions).
 //!
 //! `FlowStep` has no per-step prompt field (the orchestration types stay
 //! generic), so the musk driver injects phase-specific instructions here:
 //! `RunStore::step_context` prefers a phase template over the raw initial
 //! task for runs of the `plan` flow. The `{plan_file}` placeholder is
-//! substituted from the run context — the driver extracts the `PLAN_FILE:`
-//! marker the plan phase emits ([`extract_plan_file`]) and stashes it via
-//! `RunStore::set_context_var`.
+//! substituted from the run context — fed by the create_plan binding channel
+//! first, the `PLAN_FILE:` marker extraction as fallback
+//! ([`plan_file_marker_write`]).
 //!
 //! The four templates internalize the `/auto-plan:*` skill disciplines
 //! (008 §6): new (clarify-or-draft, numbered sections, atomic tasks),
 //! work (plan as sole context, tick + verify, blockers to 待澄清事项),
 //! review (trust the code, re-verify acceptance, fill spec-impact), merge
-//! (gate on reviewed, deposit, archive).
+//! (gate on reviewed, deposit, archive). PLAN-086 pins each phase to a
+//! fixed profession — advisor/coder/reviewer/assistant — and voices the
+//! template accordingly; the discipline items themselves are unchanged.
 
 use std::collections::HashMap;
 
@@ -68,7 +71,7 @@ pub fn phase_task(
     let template = match step_id {
         "plan" => format!(
             "{requirement}# 任务：需求整理与计划撰写（plan 相位）\n\n\
-你是本需求的负责人（plan-dev），全程以计划文件为唯一事实源。请产出一份可直接执行的实施计划：\n\n\
+你是本需求的规划师（advisor，PLAN-086 固定四职业之首），全程以计划文件为唯一事实源。请产出一份可直接执行的实施计划：\n\n\
 1. 先用 `list_plans` 检查是否已有对应此需求的 plan（按 feature 与 status 判断）——幂等续跑：已存在则复用它（输出其路径即可），**不要新建重复计划**。\n\
 2. 若需求模糊、缺关键约束：列出澄清问题（编号、一次问全），然后**停止**，不要开始写计划。用户会在审批门用「拒绝 + 反馈」回答你，届时重跑本相位。\n\
 3. 需求清晰则用 `create_plan` 写完整计划，正文章节**必须带编号**（merge 引擎按编号映射沉淀）：\n\
@@ -79,6 +82,7 @@ pub fn phase_task(
         ),
         "execute" => format!(
             "{requirement}# 任务：按计划实施（execute 相位）\n\n\
+你是本需求的实现工程师（coder，PLAN-086 第二相位职业），计划是你唯一的工作上下文——不做计划外发挥。\n\n\
 执行计划文件：{plan_file}\n\n\
 1. `read_plan` 载入上述计划——它是你唯一的工作上下文。\n\
 2. `transition_plan` 到 `executing`。\n\
@@ -89,6 +93,7 @@ pub fn phase_task(
         ),
         "review" => format!(
             "{requirement}# 任务：复审（review 相位）\n\n\
+你是本需求的复审人（reviewer，PLAN-086 第三相位职业——独立于起草与执行的凭据核验者）。\n\n\
 复审计划文件：{plan_file}\n\n\
 Trust the code, not the checkboxes：\n\n\
 1. `read_plan` 载入计划，逐条重验 `## 7. 验收标准`——对照实际代码与真实命令输出（记录 pass/partial/fail + `file:line` 证据）。绿勾是主张，不是证据。\n\
@@ -106,6 +111,7 @@ Trust the code, not the checkboxes：\n\n\
             let preamble = if flow_id == "plan-merge" {
                 String::from(
                     "# 任务：智能沉淀（plan-merge 单相位 run）\n\n\
+                     你是本计划的知识管理员（assistant，PLAN-086 起本相位固定职业）。\n\
                      目标计划：见下方需求中的 PLAN 编号（用 `read_plan` 按编号读取）。\n\
                      本 run 只做沉淀——执行与复审均已完成，不要重做。\n\n",
                 )
@@ -114,6 +120,7 @@ Trust the code, not the checkboxes：\n\n\
             };
             format!(
             "{preamble}{requirement}# 任务：知识沉淀（document 相位）\n\n\
+你是本计划的知识管理员（assistant，PLAN-086 末相位职业，merge 降档省本）。\n\n\
 沉淀计划文件：{plan_file}\n\n\
 1. `read_plan` 检查 status 必须是 `reviewed`；不是则输出「复审未通过/未完成，跳过沉淀」并结束——**不要强行 merge**。\n\
 2. `merge_plan` 把计划按章节映射沉淀进 Spec ledger 6 区（幂等 upsert，`P<seq>-<n>` 稳定 id）。\n\
@@ -156,6 +163,29 @@ mod tests {
             let t = phase_task("plan", step, "做一个功能", &ctx(Some("docs/plans/031-x.md")))
                 .unwrap_or_else(|| panic!("step {step} must have a template"));
             assert!(t.contains("做一个功能"), "{step}: requirement embedded");
+        }
+    }
+
+    /// PLAN-086 T-04：每相位模板对准其固定职业称呼（advisor/coder/reviewer/
+    /// assistant），plan-merge 沉淀前言同样点名 assistant。
+    #[test]
+    fn templates_voice_the_fixed_professions() {
+        let roles = [
+            ("plan", "advisor"),
+            ("execute", "coder"),
+            ("review", "reviewer"),
+            ("document", "assistant"),
+        ];
+        for (step, role) in roles {
+            let t = phase_task("plan", step, "需求", &ctx(None)).unwrap();
+            assert!(t.contains(&format!("（{role}")), "{step} template names {role}");
+        }
+        let pm = phase_task("plan-merge", "document", "沉淀 PLAN-007", &ctx(None)).unwrap();
+        assert!(pm.contains("（assistant"), "plan-merge document names assistant");
+        // 旧单角色称呼不得残留。
+        for (step, _) in roles {
+            let t = phase_task("plan", step, "需求", &ctx(None)).unwrap();
+            assert!(!t.contains("plan-dev"), "{step} must not mention plan-dev");
         }
     }
 
