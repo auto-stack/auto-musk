@@ -1607,6 +1607,9 @@ fn rebuildParsedMessages(msgs Value) Value {
                 bi = bi + 1
             }
         }
+        // PLAN-084 UAT⑪: ainit 两步式（括号链表达式在漏斗字面量值位产生
+        // NaN-box 垃圾→渲染期 container unwrap 崩，三形态实测定案）。
+        var apid = m.profession_id ?? "a"
         out.push({
             id: m.id ?? "",
             role: m.role ?? "user",
@@ -1616,7 +1619,14 @@ fn rebuildParsedMessages(msgs Value) Value {
             parent_id: m.parent_id ?? None,
             blocks: nb,
             profession_id: m.profession_id ?? None,
-            pending: m.pending ?? None
+            pending: m.pending ?? None,
+            // PLAN-084 UAT⑪: aname/ainit 预计算（身份展示字段）——视图
+            // computed 内 fn 调用静默返空（坑①家族），字段读为已证形态；
+            // 乐观消息（漏斗外）无此字段→回退 🤖 AI 徽章，回填后恢复。
+            // ainit=角色首字母（ASCII slice 安全）；anavatar 头像暂缺
+            // （AgentAvatar 组件内 fn 调用同坑，改视图直渲染色块）。
+            aname: m.profession_id ?? "",
+            ainit: apid.slice(0, 1)
         })
         mi = mi + 1
     }

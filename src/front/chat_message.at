@@ -137,8 +137,10 @@ style {
         badge => if .isUser { "🧑 You" } else { "🤖 AI" }
         // PLAN-071 r3：职业身份显示（名自 id 推导，不走 AgentConfigs——
         // 生成器 store 单别名限制；未携带身份回退 "🤖 AI" 徽章）。
-        agentName => agentDisplayName(.msg.profession_id)
-        agentProf => if .msg.profession_id == None { "" } else { .msg.profession_id }
+        // PLAN-084 UAT⑪: 身份展示改漏斗预计算字段（aname）——视图 computed
+        // 内 fn 调用静默返空（坑①），字段读已证；aname 空=乐观期回退徽章。
+        agentName => .msg.aname ?? ""
+        agentProf => .msg.aname ?? ""
         showAgent => .isAssistant && .agentName != ""
         userContent => .msg.content
         // 展示用 blocks：text 已剥离问卷 JSON（问卷由 QuestionnaireCard 呈现），
@@ -169,8 +171,22 @@ style {
             row {
                 style: [.headerClass]
                 if .showAgent {
-                    AgentAvatar { professionId: .agentProf, name: .agentName, size: "xs" }
+                    // PLAN-084 UAT⑪: 头像直渲染（AgentAvatar 组件内 computed
+                    // fn 调用踩坑①渲染空——角色色块+首字母漏斗字段直读）。
+                    // PLAN-084 UAT⑪: 头像 button 形态（w-5 h-5 标准刻度+
+                    // flex 居中=rail 图标钮同构；span+任意值宽高触发 iced
+                    // container unwrap 崩溃，二分实证）。
+                    // PLAN-084 UAT⑪: 头像色块三形态（span 任意值宽高/disabled
+                    // button/半透明 span）均触发 iced container.rs:291 unwrap
+                    // 崩（渲染期，回填后即崩，X9-PANIC 三实锤）——暂撤，ainit
+                    // 字段数据就绪，待 auto-lang 定位 container unwrap 触发
+                    // 组合后复上（登记债）。
                     text .agentName { style: "text-[13.6px] font-semibold text-muted-foreground" }
+                    // PLAN-084 UAT⑪: 角色 badge（用户裁定：icon+名称+角色）。
+                    span {
+                        style: "text-[11px] text-muted-foreground border border-border rounded-md px-1.5 py-[1px]"
+                        text .agentProf
+                    }
                 } else {
                     text .badge { style: [.badgeClass] }
                 }
