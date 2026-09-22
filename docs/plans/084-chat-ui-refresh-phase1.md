@@ -358,6 +358,12 @@ PLAN-083 合入后行号已修正，语义契约零变更）：
    **浮空 tooltip 登记 auto-lang 债（P2）**：title prop 实证仅进按钮 label
    （settings_menu 注释）非悬停提示、iced tooltip 仅工具栏合成路径、tooltip prop
    仅 sidebar_menu_button 原生件——通用元素浮空 tooltip 需运行时接线。
+9. UAT⑩ composer 两修——合一输入框（textarea 补 text-foreground：VM text_editor
+   仅在 style 含文本色时应用无边框样式臂，无色类=内建边框保留）+ 思考/审批菜单
+   popover 化（absolute 向上弹出 VM 不消费=菜单掉文档流底缘裁剪"点不了"根因；
+   popover 浮层 settings 同款，选档落库 label 刷新闭环实测）。**过程发现解析器
+   健壮性债**：括号不平衡（depth+2）不报错而是 64GB 分配爆炸——登记 auto-lang
+   P2（parse 期深度断言+收敛报错）。
 5. 工具组改 hover——已恢复（mouse-area 子树旧解析器仅支持单臂 if：S002 `<else>`
    实锤；行内 class 预计算 store scls；截图实证列表渲染正常=mouse-area 仅快照
    失明非视觉缺陷——修正 T-07 轮"子树塌"结论的误判部分）。
