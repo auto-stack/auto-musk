@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-086
-status: execution_done
+status: reviewed
 feature_name: plan flow 固定四角色相位流 + 相位间机械传递改造
 author: [agent]
 created_at: 2026-09-22T21:50:00+08:00
-updated_at: 2026-09-22T23:59:00+08:00
+updated_at: 2026-09-23T00:20:00+08:00
 plan_revision: 1
 current_step: 8
 total_steps: 8
@@ -315,6 +315,65 @@ merge_plan 机械沉淀、更新 docs/specs 模块树、归档）。纪律条目
   blockers：无阻塞（三项环境观察登记 §10-4/5/6，不阻塞 review）。
   next=review。worktree：D:/autostack/.wt/musk-086/auto-musk
   （组内只读依赖位 auto-ai@57eb44a、auto-lang@641e1b9f4，merge 时随组清理）。
+- 2026-09-23 /auto-plan:review 定案：stage=review，plan_id=PLAN-086，
+  plan_revision=1，outcome=pass，reviewed_commit=6d4134a5030f9214f0992
+  cdd8eedb0f69e0e68c0，base_commit=540194d，dependency_revisions=
+  auto-ai@57eb44a（detached）/auto-lang@641e1b9f4（detached，master
+  61ccf23fc 破损退避，见 §10-5②），spec_inputs=docs/specs/modules/
+  README.md 现行树（SD-01 目标 plan-flow.md 为新增，无冲突组件）。
+  独立性限制声明：与 work 同会话复核，全部证据为本 review 会话新鲜
+  重跑命令与持久化制品，不消费执行期结论。
+  acceptance_results（全部 pass，均本会话重放）：
+  - AC-01 pass——`cargo test --lib relay::flows` 4 绿
+    （plan_flow_is_four_fixed_role_steps_with_one_human_gate 逐相位
+    advisor/coder/reviewer/assistant + execute Human gate；diff 检查
+    deprecated 四流 FlowStep 行零触碰）。
+  - AC-02 pass——`handoff_injection_is_flow_gated` 绿（plan/plan-merge
+    不注入、deprecated 四流+None fail-open 注入）；parity_relay_driver
+    4 绿（simple 流 handoff 对拍面 parity_drive_run_simple_flow_matches_hw）
+    + parity_relay_api 6 绿 1 ignored（预存手动门）。
+  - AC-03 pass——三臂单测绿（create_plan_binding_writes_active_run_
+    context / create_plan_binding_noop_for_non_run_session /
+    marker_fallback_never_overwrites_binding）；冒烟真机消费链实证：
+    advisor create_plan → coder/reviewer/assistant 按 seq=1 消费同一
+    计划（run-1790093669-341d94ec，附件 JSON）。
+  - AC-04 pass——merge_plan_gates_on_reviewed_and_deposits +
+    transition_plan_validates_and_hints_legal_targets 绿（非 reviewed
+    拒绝、状态机回环语义未动）。
+  - AC-05 pass——plan_flow_professions_builtin_tier_matrix 绿
+    （Max/Max/Pro/Mid + 0.3/0.3/0.2/0.3 + 40/40/50/20 直读断言）。
+  - AC-06 pass——冒烟四职业 step_history 链 advisor=>coder=>reviewer=>
+    assistant + 四职业 token 分账（3970/4262/5868/3576）；gate 放行
+    以 serve 日志附件实锤（16:16:03 POST /gate 200，gate 前停车
+    90s）；merge_plan 归档（archived/001-*.md frontmatter status:
+    archived，spec-impact 三字段 reviewer 已填）；产物 hello-p086.txt
+    内容精确；emit_report + run_completed report 事件在案；serve 日志
+    0 error/panic。全量门禁 `cargo build && cargo test`：0 error，
+    667 passed / 1 failed（唯一红 tool_atoms::run_command_dangerous_
+    returns_paused = base 540194d 既有红，本 review 重跑同点复现，
+    与 PLAN-086 无涉）。
+  findings（均非阻断，无需回 work）：
+  - F-R1（info）：冒烟附件 JSON 的 run 事件为 API 500 条窗口视图，
+    早期事件（GateWaiting/advisor 工具调用）被窗口挤出——gate 证据已
+    从 serve 日志附件恢复；后续冒烟取证建议落盘 /events 全量或提前
+    快照。不改代码。
+  - F-R2（info）：a2r 转译器产出漂移两处（hetero 变体 ExitRouting::Loop
+    产元组语法不可编译；`for f in &flows` 与 `Some(f)` 所有权不兼容）
+    ——auto_generated 落位时按既有手修定式矫正（本分支 diff 在案），
+    未来再生成同点位需复检。auto-lang 侧改进候选，另立。
+  - F-R3（info）：spec-impact 收口说明——touched_goals=[] 依据：本轮
+    为 relay 流程编排内改造（flows/driver/plan_tools/plan_flow），不
+    触及任何 Goal 级 spec 条目（docs/specs 现行树 grep 无 plan flow
+    单角色描述组件，01-architecture.md:58 的 human gate 机制描述与
+    本轮后行为一致仍准确），故无 goal 级增删改。
+  spec delta 复核：SD-01 add docs/specs/modules/plan-flow.md——目标
+  路径有效；before 栏（PLAN-030 单角色+handoff 注入+PLAN_FILE 正则
+  主通道）与 base 代码史实一致（本分支 diff 即物证）；after 栏与
+  重放后行为逐条吻合；章节 0-10=agent 间 API、绑定>标记>hint、状态机
+  唯一路由均已被单测钉死。冻结：本记录 + 附件即 delta 证据包。
+  evidence：本记录内命令与结果 + docs/plans/attachments/
+  p086-smoke-final-run.json / p086-smoke-serve.log.txt（主检出持久）。
+  next=merge（whole-workflow 已授权，review 通过即转入 merge）。
 
 ## 10. 待澄清事项
 
