@@ -6,25 +6,6 @@ pub fn builtin_flows() -> Vec<FlowSpec> {
     return vec![plan_flow(), plan_merge_flow(), default_flow(), simple_flow(), superpower_flow(), relay_flow()];
 }
 
-/// Plan-driven dev flow — 单角色四相位，计划文件为交接载体（PLAN-030；
-/// 与 hw relay/flows.rs 的 plan_flow 保持 parity）。
-fn plan_flow() -> FlowSpec {
-    let mut flow = FlowSpec::new("plan");
-    flow.add_step(FlowStep::new("plan", "plan-dev"));
-    flow.add_step(FlowStep::new("execute", "plan-dev").with_gate(GateType::Human));
-    flow.add_step(FlowStep::new("review", "plan-dev"));
-    flow.add_step(FlowStep::new("document", "plan-dev"));
-    return flow;
-}
-
-/// Smart deposit flow（PLAN-034；与 hw relay/flows.rs 保持 parity）—
-/// 单相位 document，由 Chats `/auto-plan:merge` 触发的智能沉淀 run。
-fn plan_merge_flow() -> FlowSpec {
-    let mut flow = FlowSpec::new("plan-merge");
-    flow.add_step(FlowStep::new("document", "plan-dev"));
-    return flow;
-}
-
 /// relay_flows.at — ported from backend/crates/musk/src/relay/flows.rs (full).
 /// 
 /// Built-in flow definitions (app-level product decisions). The generic
@@ -32,7 +13,34 @@ fn plan_merge_flow() -> FlowSpec {
 /// 
 /// Boundary-test result (plan 014): 上游 crate 类型作为"不透明构造目标 + builder
 /// 方法链 + 字段访问"可转译为原生 Rust。这是首个验证此规则的全文件移植。
-/// Build the built-in flows: default (legacy), simple, superpower, relay.
+/// PLAN-086：补入 plan/plan-merge 流（此前仅存在于 hw flows.rs 与手工增补的
+/// auto_generated/relay_flows.rs），并定型固定职业四相位
+/// advisor→coder→reviewer→assistant（plan-merge 单相位 assistant）。
+/// Build the built-in flows: plan (canonical), plan-merge, default (legacy),
+/// simple, superpower, relay.
+/// Plan-driven dev flow — 固定职业四相位，计划文件为交接载体（PLAN-030 立形，
+/// PLAN-086 定角色：advisor 写计划 → coder 执行 → reviewer 复审 → assistant
+/// 沉淀；与 hw relay/flows.rs 的 plan_flow 保持 parity）。相位行为来自
+/// relay/plan_flow.rs 的相位模板；计划文件经 run 上下文 plan_file 机械传递
+/// （create_plan 绑定主通道、PLAN_FILE 标记回退）。execute 前置 Human gate
+/// （计划确认检查点）。
+fn plan_flow() -> FlowSpec {
+    let mut flow = FlowSpec::new("plan");
+    flow.add_step(FlowStep::new("plan", "advisor"));
+    flow.add_step(FlowStep::new("execute", "coder").with_gate(GateType::Human));
+    flow.add_step(FlowStep::new("review", "reviewer"));
+    flow.add_step(FlowStep::new("document", "assistant"));
+    return flow;
+}
+
+/// Smart deposit flow（PLAN-034；PLAN-086 起 assistant 职业）— 单相位
+/// document，由 Chats `/auto-plan:merge` 触发的智能沉淀 run。
+fn plan_merge_flow() -> FlowSpec {
+    let mut flow = FlowSpec::new("plan-merge");
+    flow.add_step(FlowStep::new("document", "assistant"));
+    return flow;
+}
+
 /// The canonical spec-driven pipeline. advise→architect carries a human gate.
 fn default_flow() -> FlowSpec {
     let mut flow = FlowSpec::new("default");

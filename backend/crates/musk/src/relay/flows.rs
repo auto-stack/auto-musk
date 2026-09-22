@@ -18,32 +18,36 @@ pub fn builtin_flows() -> Vec<FlowSpec> {
     ]
 }
 
-/// Plan-driven dev flow — 单角色四相位，计划文件为交接载体（PLAN-030）。
+/// Plan-driven dev flow — 固定职业四相位，计划文件为交接载体（PLAN-030 立形，
+/// PLAN-086 定角色：advisor 写计划 → coder 执行 → reviewer 复审 → assistant
+/// 沉淀；档位随 builtin 角色自动分化 Max/Max/Pro/Mid）。
 ///
-/// All four steps run as the SAME profession (`plan-dev`): role/soul/model
-/// tier/toolset never change, so there is no persona handoff. Phase behavior
-/// comes from the musk-side phase task templates (`relay/plan_flow.rs`)
-/// injected in `step_context`; the plan file (located via the `PLAN_FILE:`
-/// marker the driver extracts) is the full inter-phase context. The Human
-/// gate before `execute` is the plan-confirmation checkpoint (superpowers
+/// Phase behavior comes from the musk-side phase task templates
+/// (`relay/plan_flow.rs`) injected in `step_context`; the plan file is the
+/// full inter-phase context — mechanically passed via the run's `plan_file`
+/// context var (create_plan tool binding first, `PLAN_FILE:` marker
+/// extraction as fallback; PLAN-086). Prior-phase handoff render injection is
+/// retired for this flow (see `driver::injects_handoff`). The Human gate
+/// before `execute` is the plan-confirmation checkpoint (superpowers
 /// present-for-confirmation discipline).
 fn plan_flow() -> FlowSpec {
     use GateType::*;
     let mut flow = FlowSpec::new("plan");
-    flow.add_step(FlowStep::new("plan", "plan-dev"));
-    flow.add_step(FlowStep::new("execute", "plan-dev").with_gate(Human));
-    flow.add_step(FlowStep::new("review", "plan-dev"));
-    flow.add_step(FlowStep::new("document", "plan-dev"));
+    flow.add_step(FlowStep::new("plan", "advisor"));
+    flow.add_step(FlowStep::new("execute", "coder").with_gate(Human));
+    flow.add_step(FlowStep::new("review", "reviewer"));
+    flow.add_step(FlowStep::new("document", "assistant"));
     flow
 }
 
 /// Smart deposit flow（PLAN-034）— 单相位 document，直接沉淀。
 /// 由计划页"沉淀到 Spec"按钮经 Chats `/auto-plan:merge PLAN-NNN` 触发：
-/// Agent 先 `merge_plan`（机械沉淀+归档，幂等）→ 按 spec-impact 更新
-/// `docs/specs/` 模块树 → `emit_report` 生成 HTML 报告（relay run 内合法）。
+/// Agent（PLAN-086 起 assistant 职业，merge 降档省本）先 `merge_plan`
+/// （机械沉淀+归档，幂等）→ 按 spec-impact 更新 `docs/specs/` 模块树 →
+/// `emit_report` 生成 HTML 报告（relay run 内合法）。
 fn plan_merge_flow() -> FlowSpec {
     let mut flow = FlowSpec::new("plan-merge");
-    flow.add_step(FlowStep::new("document", "plan-dev"));
+    flow.add_step(FlowStep::new("document", "assistant"));
     flow
 }
 
@@ -104,17 +108,17 @@ pub fn get_builtin_flow(id: &str) -> Option<FlowSpec> {
 mod tests {
     use super::*;
 
-    /// PLAN-030 A1: the plan flow is 4 steps, all `plan-dev`, with a single
-    /// Human gate before `execute` (plan-confirmation checkpoint).
+    /// PLAN-030 A1 + PLAN-086 T-01: the plan flow is 4 FIXED-profession
+    /// steps advisor→coder→reviewer→assistant, with a single Human gate
+    /// before `execute` (plan-confirmation checkpoint).
     #[test]
-    fn plan_flow_is_four_same_role_steps_with_one_human_gate() {
+    fn plan_flow_is_four_fixed_role_steps_with_one_human_gate() {
         let flow = get_builtin_flow("plan").expect("plan flow registered");
         assert_eq!(flow.steps.len(), 4);
         let ids: Vec<&str> = flow.steps.iter().map(|s| s.id.as_str()).collect();
         assert_eq!(ids, vec!["plan", "execute", "review", "document"]);
-        for s in &flow.steps {
-            assert_eq!(s.role_id, "plan-dev", "step {} role", s.id);
-        }
+        let roles: Vec<&str> = flow.steps.iter().map(|s| s.role_id.as_str()).collect();
+        assert_eq!(roles, vec!["advisor", "coder", "reviewer", "assistant"]);
         assert_eq!(flow.steps[0].gate, GateType::Auto);
         assert_eq!(flow.steps[1].gate, GateType::Human);
         assert_eq!(flow.steps[2].gate, GateType::Auto);
@@ -129,13 +133,14 @@ mod tests {
         assert!(get_builtin_flow("default").is_some(), "deprecated default kept");
     }
 
-    /// PLAN-034: plan-merge 是单步 document 相位、plan-dev 角色、无 gate。
+    /// PLAN-034 + PLAN-086: plan-merge 是单步 document 相位（assistant
+    /// 职业）、无 gate。
     #[test]
     fn plan_merge_flow_is_single_document_step() {
         let flow = get_builtin_flow("plan-merge").expect("plan-merge flow registered");
         assert_eq!(flow.steps.len(), 1);
         assert_eq!(flow.steps[0].id.as_str(), "document");
-        assert_eq!(flow.steps[0].role_id, "plan-dev");
+        assert_eq!(flow.steps[0].role_id, "assistant");
         assert_eq!(flow.steps[0].gate, GateType::Auto);
     }
 }
