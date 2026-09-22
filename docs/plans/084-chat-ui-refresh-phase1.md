@@ -248,11 +248,12 @@ PLAN-083 合入后行号已修正，语义契约零变更）：
 
 | delta_id | add/modify/retire | docs/specs/... target | before/after rule | rationale | acceptance IDs |
 |:---|:---|:---|:---|:---|:---|
-| SD-01 | modify | docs/specs/modules/ui-compositions.md §1 | before：会话行=标题+N 条+hover 删除；after：行=标题+相对时间+N 条，按今天/昨天/更早分组，hover 工具组=重命名/归档/删除（两步确认不变），列表支持已归档过滤开关 | 一期会话列表信息密度与操作收敛 | AC-03, AC-04, AC-05 |
-| SD-02 | modify | docs/specs/modules/ui-compositions.md §3 | before：聊天页 ContentHeader=静态"聊天"+middle 搜索框+actions(SessionInfo)；after：标题=可编辑会话名+agent 身份徽章+状态点，middle 默认空（search icon 点击展开搜索），actions=search+归档两 icon，SessionInfo 退役 | 头部承载会话上下文与动作入口 | AC-06 |
-| SD-03 | modify | docs/specs/modules/autodown-consumption.md §5 | before：VM 对 math_inline attr 不消费、math 块降级面板="math · web-only"+裸文本；after：math_inline span 追加 mono+弱色类（不新增 View 变体，四站点不触发，snapshot 透传以开工 bounded 检查为证），math 块降级面板=mono 正文+弱色底卡片（保留 web-only 小字标注） | 数学内容视觉兜底，消除"渲染故障"观感 | AC-01 |
+| SD-01 | modify | docs/specs/modules/ui-compositions.md §1 | before：会话行=标题+N 条+hover 删除；after（UAT 终态）：行=标题+相对时间+N 条，今天/昨天/更早分组（更早默认折叠、头行可点+数量+lucide chevron），hover 工具组=重命名/归档/删除（两步确认不变），列表支持已归档过滤开关；一级导航栏默认收起（w-16 图标态，ToggleRail 展开）；AI 气泡身份头=名称+角色 badge（漏斗 aname/ainit 预计算，视图 computed 禁 fn 调用） | 一期会话列表信息密度与操作收敛 | AC-03, AC-04, AC-05 |
+| SD-02 | modify | docs/specs/modules/ui-compositions.md §3 | before：聊天页 ContentHeader=静态"聊天"+middle 搜索框+actions(SessionInfo)；after（UAT 终态）：标题=会话名（text-lg、定宽 truncate，可编辑）+流式状态点，middle 默认空（search icon 点击展开搜索），actions=重命名+搜索+归档三 icon（lucide），SessionInfo 与 agent 角色徽章退役（一会话未来可能多 agent） | 头部承载会话上下文与动作入口 | AC-06 |
+| SD-03 | modify | docs/specs/modules/autodown-consumption.md §5 | before：VM 对 math_inline attr 不消费、math 块降级面板="math · web-only"+裸文本；after（UAT 终态）：math_inline span=autodown_math LaTeX→Unicode 真渲染（mono+弱色 chip；希腊/运算/上下标映射，未命中命令剥反斜杠）+math 块降级面板正文同转换（头标签弱化小字）；`$$` 双美元块语法不支持=autodown 引擎债（单源 .at 扩展，另档） | 数学内容视觉兜底，消除"渲染故障"观感 | AC-01 |
 | SD-04 | modify | docs/specs/modules/autodown-consumption.md §3.1 | before：§3.1 表格 chrome 仅 web 轨达标；after：VM 轨 Table 臂补表头底色+行分隔线对齐同款（斑马纹可登记残留），table_resize 对齐语义不动（082 pin 保护） | 聊天表格两轨同源同款 | AC-02 |
 | SD-05 | add | docs/specs/modules/vm-data-semantics.md | before：会话无归档语义，chat_list 返回全量未删会话；after：ChatSession.archived（缺字段=false 兼容），chat_list 默认滤除 archived，归档 toggle 端点独立且不 bump updated_at | 归档=列表级隐藏，不改聊天数据 | AC-05 |
+| SD-06 | add | docs/specs/modules/ui-compositions.md §3 | before：composer 输入面自带边框、思考/审批菜单=absolute 向上弹出（VM 不消费致裁剪不可点）；after（UAT 终态）：合一 composer（textarea 无边框融入大圆角容器——VM text_editor 需文本色类方应用无边框样式臂），思考/审批=popover 浮层菜单（popover/popover-trigger(as_child)/popover-content，settings 同款；absolute 弹出 VM 不消费） | composer 一体化与浮层菜单契约 | AC-06 |
 
 ## 6. 测试设计
 
