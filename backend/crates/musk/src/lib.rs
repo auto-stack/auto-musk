@@ -4,6 +4,7 @@
 
 pub mod app_config;
 pub mod auth;
+pub mod canvas;
 pub mod chats;
 pub mod conversation;
 pub mod dev_seed;
@@ -190,7 +191,18 @@ pub fn build_agent_from_mode(
 
     // Wrap, applying the mode's extra_system_prompt as a Soul customization,
     // and the tier clamp (if any) so model_tier() honors allowed_tiers.
-    let mut owned = OwnedRole::new(role).with_extra_prompt(&mode.extra_system_prompt);
+    // PLAN-087 T-08: coding 模式追加画布生成指导（内嵌模板池 + canvas 工具
+    // 流程 + 已知坑节选）——模块化注入点，非 coding 模式不受影响。
+    let extra_prompt = if mode.name == "coding" {
+        format!(
+            "{}\n\n{}",
+            mode.extra_system_prompt,
+            crate::canvas::templates::generation_prompt()
+        )
+    } else {
+        mode.extra_system_prompt.clone()
+    };
+    let mut owned = OwnedRole::new(role).with_extra_prompt(&extra_prompt);
     if let Some(tier) = clamp_to {
         owned = owned.with_override_tier(tier);
     }
@@ -352,6 +364,13 @@ pub fn build_agent_with_context(
         for (name, tool) in &ws_spec_tools {
             if mode.tools.is_empty() || mode.tools.iter().any(|t| t == name) {
                 agent.register_shared(tool.clone());
+            }
+        }
+        // PLAN-087 T-06: canvas 工具五件（同白名单过滤；coding.at 已收录
+        // canvas_run/stop/snapshot/act/state）。
+        for (name, tool) in crate::canvas::tools::canvas_tool_registry(&ctx) {
+            if mode.tools.is_empty() || mode.tools.iter().any(|t| t == name) {
+                agent.register_shared(tool);
             }
         }
     }

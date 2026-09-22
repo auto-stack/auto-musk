@@ -54,6 +54,8 @@ pub struct AppState {
     pub chat_cancels: Arc<std::sync::Mutex<std::collections::HashMap<String, Arc<std::sync::atomic::AtomicBool>>>>,
     /// PLAN-071 需求⑤：LLM 空闲看门狗窗口——窗口内无任何流式事件即判挂死。
     pub run_idle_timeout: std::time::Duration,
+    /// PLAN-087：实况画布会话管理器（单会话，start=替换；四路由与五工具共用）。
+    pub canvas: Arc<crate::canvas::CanvasManager>,
 }
 
 impl AppState {
@@ -146,10 +148,13 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
     let registry =
         crate::workspace::WorkspaceRegistry::load(config_dir.join("workspaces.json"), default_root);
     registry.migrate_global_data(&config_dir);
+    // PLAN-087: canvas 管理器先建（关停钩子需独立句柄；state 构造即消费）。
+    let canvas = Arc::new(crate::canvas::CanvasManager::new());
     let state = AppState {
         client,
         auth: Arc::new(crate::auto_generated::auth::AuthStore::new(users_path)),
         registry: Arc::new(registry),
+        canvas: canvas.clone(),
         chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
         chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         run_idle_timeout: AppState::run_idle_timeout_from_env(),
@@ -272,6 +277,9 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         // Dev/demo run seeding (block-demo 展示) — hw route: inject a fully
         // formed RunEntry into the in-memory relay store (runs never persist).
         .merge(crate::dev_seed::dev_routes())
+        // App canvas (PLAN-087) — 实况画布四路由：start/frame/status/stop；
+        // app_path 经 resolve_multi 多根判定 fail-closed（AC-06）。
+        .merge(crate::canvas::canvas_routes())
         // Serve config-page.js + any other static assets at the root.
         .fallback_service(static_service)
         .layer(cors)
@@ -280,7 +288,15 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!("musk server listening on http://{addr}");
-    axum::serve(listener, app).await?;
+    // PLAN-087: canvas 会话收割关停钩子——ctrl-c 时先停画布子进程再退
+    // （AC-05 进程卫生；无画布会话时 no-op）。
+    let canvas_for_shutdown = canvas.clone();    axum::serve(listener, app)
+        .with_graceful_shutdown(async move {
+            let _ = tokio::signal::ctrl_c().await;
+            tracing::info!("shutdown signal received — reaping canvas session");
+            canvas_for_shutdown.shutdown().await;
+        })
+        .await?;
     Ok(())
 }
 
@@ -1131,6 +1147,7 @@ mod tests {
             client: Arc::new(MockClient) as Arc<dyn Client>,
             auth: tmp_auth(),
             registry: Arc::new(registry),
+            canvas: Arc::new(crate::canvas::CanvasManager::new()),
             chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             run_idle_timeout: std::time::Duration::from_secs(300),
             chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
@@ -3334,6 +3351,7 @@ mod tests {
             client,
             auth: tmp_auth(),
             registry: Arc::new(registry),
+            canvas: Arc::new(crate::canvas::CanvasManager::new()),
             chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             run_idle_timeout: std::time::Duration::from_secs(300),
             chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),

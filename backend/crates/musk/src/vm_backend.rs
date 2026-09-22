@@ -83,6 +83,7 @@ fn build_app_state(client: Arc<dyn Client>) -> Arc<AppState> {
         client,
         auth: Arc::new(crate::auto_generated::auth::AuthStore::new(users_path)),
         registry: Arc::new(registry),
+        canvas: Arc::new(crate::canvas::CanvasManager::new()),
         chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
         chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         run_idle_timeout: AppState::run_idle_timeout_from_env(),
