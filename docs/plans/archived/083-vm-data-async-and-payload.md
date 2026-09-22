@@ -1,6 +1,7 @@
 ---
 plan_id: PLAN-083
-status: reviewed
+status: archived
+completion_kind: delivered
 feature_name: VM 数据链异步化与大载荷治理（081 刷新链债 + 082 §10-7 三方向合并）
 author: [agent]
 created_at: 2026-09-22T00:00:00Z
@@ -509,3 +510,28 @@ auto-lang worktree spike：以 `LoadSessionList` 为试点，
     WIP 归位路由——§4 worktree 登记 ⚠ 项）。
   - 处置：T-05 checkbox 闭合（实测面：表格像素闭合+发送收束定界移交解锁
     计划），current_step=6，status→**reviewed**。
+
+- 2026-09-22 merge（plan_revision 1，**pass — delivered**）：
+  - stage: merge | PLAN-083 | r1 | **pass — delivered** |
+  - checkpoints:
+    - prepared：SD-01 落册随分支（454dff9→rebase 25b5d01）；ledger 提交
+      5b34a5d（KNOWN-DEBT 083 行+specs index.json updated_at，documentation-
+      only descendant of reviewed tip，delta 核对一致）。
+    - landed：musk main ff-only → **5b34a5d**（6×commit rebase 映射
+      243e09c→bcb8087 / 330a918→cb44398 / 471fe7f→18d6b5b / 132ff73→261d297
+      / 454dff9→25b5d01 / 4cea301→24dccf3，**range-diff 6/6 全等**）；
+      auto-lang master ff-only → **641e1b9f4**（2×commit rebase 映射
+      a57769b87→1fdcfcb5e / 6e77ce2da→641e1b9f4，**range-diff 2/2 全等**；
+      主检出他方在途 WIP（renderer.rs 同文件）经 stash 让路→落地→pop 干净
+      恢复，双方改动共存验证）。落地后门禁：主检出 musk **453/453**；
+      auto-lang rebase 后 **plan083 5/5 + tf 3722/3722**（master 含 678 增测）。
+    - ledger_refreshed：docs/plans/KNOWN-DEBT-AND-RISKS.md 083 行（P1 解锁项
+      =auto-lang Date.now() native 负垃圾既有缺陷+`D:/autostack/auto-musk/
+      tmp/p083-unlock/` 台架解锁路径+Stop 钮/微竞态/滚动翻页观察项+web 轨
+      跟进）+ docs/specs/index.json updated_at（随 5b34a5d 落地，主检出核验
+      在位）。
+    - archived：docs/plans/archived/083-vm-data-async-and-payload.md，
+      status: archived, completion_kind: delivered。
+  - 遗留移交：见 KNOWN-DEBT 083 行（解锁链=auto-lang 修 Date.now() → 跑
+    tmp/p083-unlock/rv3-sendonly.mjs 闭合 F-R1 尾项+Stop 钮确认；web 轨
+    8090 冒烟；§10-3 web 分页跟进用户排期）。PLAN-084 硬前置解除。
