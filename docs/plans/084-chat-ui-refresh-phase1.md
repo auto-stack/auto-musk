@@ -364,6 +364,12 @@ PLAN-083 合入后行号已修正，语义契约零变更）：
    popover 浮层 settings 同款，选档落库 label 刷新闭环实测）。**过程发现解析器
    健壮性债**：括号不平衡（depth+2）不报错而是 64GB 分配爆炸——登记 auto-lang
    P2（parse 期深度断言+收敛报错）。
+10. UAT⑪ AI 气泡身份头——名称+角色 badge 落地（漏斗预计算 aname/ainit：视图
+   computed 内 fn 调用静默返空=AgentAvatar/agentDisplayName 坑①复发，字段读
+   已证）。**头像色块三形态崩债（auto-lang P1-P2）**：span 任意值宽高/disabled
+   button/半透明 span 渲染单字母均触发 iced container.rs:291 unwrap（回填即崩，
+   X9-PANIC 三实锤；bisect 无头像轮 X9=0 稳定）——暂撤头像，需运行时定位
+   container unwrap 触发组合。
 5. 工具组改 hover——已恢复（mouse-area 子树旧解析器仅支持单臂 if：S002 `<else>`
    实锤；行内 class 预计算 store scls；截图实证列表渲染正常=mouse-area 仅快照
    失明非视觉缺陷——修正 T-07 轮"子树塌"结论的误判部分）。
