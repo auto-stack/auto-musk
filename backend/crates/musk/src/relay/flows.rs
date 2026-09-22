@@ -143,4 +143,36 @@ mod tests {
         assert_eq!(flow.steps[0].role_id, "assistant");
         assert_eq!(flow.steps[0].gate, GateType::Auto);
     }
+
+    /// PLAN-086 T-05 / AC-05: the four plan-flow professions' builtin model
+    /// configs — advisor/coder run Max (0.3/40), reviewer runs Pro (0.2/50,
+    /// a genuinely different model from the plan author), assistant runs Mid
+    /// (0.3/20, merge 降档省本). Reads `load_builtin` directly (skipping the
+    /// user RoleRegistry) so the assertion pins the SHIPPED defaults against
+    /// future drift in auto-ai-agent's builtin_roles/*.at.
+    /// Dev-env caveat: a `~/.config/autoos/roles/assistant.at` override would
+    /// shadow builtin assistant at resolve-time (PLAN-086 §10-2; the local
+    /// machine has one with tier=min from a VM e2e session — recorded in the
+    /// plan; this test intentionally bypasses it).
+    #[test]
+    fn plan_flow_professions_builtin_tier_matrix() {
+        use auto_ai_agent::ModelTier;
+        let cases: [(&str, ModelTier, f64, usize); 4] = [
+            ("advisor", ModelTier::Max, 0.3, 40),
+            ("coder", ModelTier::Max, 0.3, 40),
+            ("reviewer", ModelTier::Pro, 0.2, 50),
+            ("assistant", ModelTier::Mid, 0.3, 20),
+        ];
+        for (name, tier, temp, turns) in cases {
+            let role = auto_ai_agent::load_builtin(name)
+                .unwrap_or_else(|| panic!("builtin role {name} missing"));
+            assert_eq!(role.model_tier(), tier, "{name} tier");
+            assert!(
+                (role.temperature() - temp).abs() < 1e-9,
+                "{name} temperature {} != {temp}",
+                role.temperature()
+            );
+            assert_eq!(role.max_turns(), turns, "{name} max_turns");
+        }
+    }
 }
