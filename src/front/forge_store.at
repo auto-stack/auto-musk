@@ -80,6 +80,9 @@ store ForgeStore {
         // 归档 toggle 开时列表切到 archived_list；归档/取消归档后两表重拉。
         var archived_list []Value = []
         var show_archived bool = false
+        // PLAN-084 UAT⑦: "更早"分组默认折叠（用户裁定）——仅隐藏行，头行
+        // 常驻（含数量），点击头行切换。
+        var earlier_collapsed bool = true
         // PLAN-084 T-03: 分组后的列表标记行（视图单层 for 直读 store 字段
         // ——分组在 handler 域求值：store 内联纯 fn + handler 赋值均为 VM
         // 已证形态；视图 computed 内 use.web.fn 调用在 VM 侧静默返空的坑
@@ -103,6 +106,7 @@ store ForgeStore {
         RenameSession(str, str),
         ArchiveSession(str, bool),
         SetShowArchived(bool),
+        SetEarlierCollapsed(bool),
         RefreshSessionRows,
         RefreshHeader,
         StreamStarted(str),
@@ -513,10 +517,16 @@ store ForgeStore {
         // （sessionGroupsOf 纯函数；视图单层 for 直读 .store.session_rows）。
         .RefreshSessionRows -> {
             if .show_archived {
-                .session_rows = sessionGroupsOf(.archived_list, .session_id)
+                .session_rows = sessionGroupsOf(.archived_list, .session_id, .earlier_collapsed)
             } else {
-                .session_rows = sessionGroupsOf(.session_list, .session_id)
+                .session_rows = sessionGroupsOf(.session_list, .session_id, .earlier_collapsed)
             }
+        }
+
+        // SetEarlierCollapsed(v): "更早"分组折叠开关（头行点击切换）。
+        .SetEarlierCollapsed(v) -> {
+            .earlier_collapsed = v
+            .RefreshSessionRows()
         }
 
         // RefreshHeader: 头部三件套重算（标题=活跃会话名/身份徽章=mode→role
@@ -1479,7 +1489,7 @@ fn rebuildSessions(list obj) obj {
     return out
 }
 
-fn sessionGroupsOf(sessions obj, currentId str) obj {
+fn sessionGroupsOf(sessions obj, currentId str, hideEarlier bool) obj {
     var out list = []
     if sessions == None { return out }
     var today list = []
@@ -1500,7 +1510,7 @@ fn sessionGroupsOf(sessions obj, currentId str) obj {
         }
     }
     if today.length > 0 {
-        out.push({ row_key: "h-today", gkey: "today", row_kind: "header", label_key: "chat.groupToday" })
+        out.push({ row_key: "h-today", gkey: "today", row_kind: "header", label_key: "chat.groupToday", gcount: today.length })
         for s in today {
             // 拍平标量字段（r5 家族：行字面量禁嵌 JSON 产物对象——视图深读塌空）
             var rid = s.id ?? "x"
@@ -1516,7 +1526,7 @@ fn sessionGroupsOf(sessions obj, currentId str) obj {
         }
     }
     if yesterday.length > 0 {
-        out.push({ row_key: "h-yesterday", gkey: "yesterday", row_kind: "header", label_key: "chat.groupYesterday" })
+        out.push({ row_key: "h-yesterday", gkey: "yesterday", row_kind: "header", label_key: "chat.groupYesterday", gcount: yesterday.length })
         for s in yesterday {
             // 拍平标量字段（r5 家族：行字面量禁嵌 JSON 产物对象——视图深读塌空）
             var rid = s.id ?? "x"
@@ -1532,19 +1542,20 @@ fn sessionGroupsOf(sessions obj, currentId str) obj {
         }
     }
     if earlier.length > 0 {
-        out.push({ row_key: "h-earlier", gkey: "earlier", row_kind: "header", label_key: "chat.groupEarlier" })
-        for s in earlier {
-            // 拍平标量字段（r5 家族：行字面量禁嵌 JSON 产物对象——视图深读塌空）
-            var rid = s.id ?? "x"
-            var rname = s.name ?? ""
-            var rcount = s.message_count ?? 0
-            // scls 预计算（视图 mouse-area 子树不支持 if/else——S002 实锤；
-            // 选中态样式在 handler 域定，视图纯 dot 路径）。
-            var scls = "text-[13.6px] text-foreground flex-1 min-w-0 truncate leading-[1.45]"
-            if rid == currentId {
-                scls = "text-[13.6px] font-medium text-primary flex-1 min-w-0 truncate leading-[1.45]"
+        // PLAN-084 UAT⑦：头行常驻；hideEarlier=true 时仅头行（默认折叠）。
+        out.push({ row_key: "h-earlier", gkey: "earlier", row_kind: "header", label_key: "chat.groupEarlier", gcount: earlier.length })
+        if hideEarlier == false {
+            for s in earlier {
+                // 拍平标量字段（r5 家族：行字面量禁嵌 JSON 产物对象——视图深读塌空）
+                var rid = s.id ?? "x"
+                var rname = s.name ?? ""
+                var rcount = s.message_count ?? 0
+                var scls = "text-[13.6px] text-foreground flex-1 min-w-0 truncate leading-[1.45]"
+                if rid == currentId {
+                    scls = "text-[13.6px] font-medium text-primary flex-1 min-w-0 truncate leading-[1.45]"
+                }
+                out.push({ row_key: "s-" + rid, row_kind: "session", sid: rid, sname: rname, scount: rcount, scls: scls })
             }
-            out.push({ row_key: "s-" + rid, row_kind: "session", sid: rid, sname: rname, scount: rcount, scls: scls })
         }
     }
     return out

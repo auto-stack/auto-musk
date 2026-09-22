@@ -114,6 +114,8 @@ widget ChatsView {
         RenameFromHeader,
         // ArchiveRow(id, archived): 行内归档/取消归档（转发 store.ArchiveSession）。
         ArchiveRow(str, bool),
+        // ToggleEarlier: "更早"分组折叠切换（转发 store.SetEarlierCollapsed）。
+        ToggleEarlier,
     }
 
     model {
@@ -263,9 +265,26 @@ widget ChatsView {
                                     text t("chat.groupYesterday")
                                 }
                             } else {
+                                // PLAN-084 UAT⑦: "更早"头行可点折叠/展开（默认
+                                // 折叠，数量常显）；chevron 单臂 if（text 位
+                                // R046 规避）。
                                 span {
-                                    style: "text-[11px] font-medium text-muted-foreground tracking-wide"
+                                    style: "flex items-center gap-1 text-[11px] font-medium text-muted-foreground tracking-wide cursor-pointer hover:text-foreground"
+                                    onclick: .ToggleEarlier
                                     text t("chat.groupEarlier")
+                                    text "" + .r.gcount
+                                    if .store.earlier_collapsed {
+                                        span {
+                                            style: "text-[10px] leading-none"
+                                            text "▸"
+                                        }
+                                    }
+                                    if .store.earlier_collapsed == false {
+                                        span {
+                                            style: "text-[10px] leading-none"
+                                            text "▾"
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -727,6 +746,15 @@ widget ChatsView {
 
         // ToggleArchived: 归档过滤开关（无 ! 取反语法，显式双臂）。切出
         // 归档视图时一并退出行内编辑态。
+        // ToggleEarlier: "更早"折叠切换（当前态经 store 读，显式双臂转发）。
+        .ToggleEarlier -> {
+            if .store.earlier_collapsed {
+                store.SetEarlierCollapsed(false)
+            } else {
+                store.SetEarlierCollapsed(true)
+            }
+        }
+
         .ToggleArchived -> {
             if .store.show_archived {
                 store.SetShowArchived(false)
