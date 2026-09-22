@@ -58,7 +58,9 @@ widget App {
         var is_files bool = false
         var is_whitelist bool = false
         // PLAN-071 r4（需求③-3）：侧边栏收缩态。
-        var rail_collapsed bool = false
+        // PLAN-084 UAT⑥（用户裁定修正）：一级导航栏默认收起（w-16 图标态），
+        // 横向空间优先给内容；ToggleRail 随时展开。
+        var rail_collapsed bool = true
     }
 
     computed {

@@ -114,15 +114,11 @@ widget ChatsView {
         RenameFromHeader,
         // ArchiveRow(id, archived): 行内归档/取消归档（转发 store.ArchiveSession）。
         ArchiveRow(str, bool),
-        // ToggleSessionSidebar: 会话侧栏收起/展开（视图本地态）。
-        ToggleSessionSidebar,
     }
 
     model {
         var input str = ""
-        // PLAN-084 UAT⑥：会话侧栏默认收起（用户裁定——横向空间优先给
-        // 聊天内容）；ToggleSessionSidebar 切换（无持久化，每次启动收起）。
-        var sidebar_collapsed bool = true
+        var sidebar_collapsed bool = false
         var chat_search str = ""
         // PLAN-058: 待确认删除目标（会话 id 或 "__all__"；空串=无待确认）。
         // 沿 chat_search 先例的视图态 str 字段（VM 对 str 字段 SET/比较双轨实证）。
@@ -167,36 +163,12 @@ widget ChatsView {
     view {
         row {
             style: "flex flex-row h-full overflow-hidden"
-            // Session Sidebar（Plan 023 §3.1：共用 NavSidebar——header + list slot）。
-            // PLAN-084 UAT⑥：默认收起；收起态自绘窄条（NavSidebar w-12 收缩
-            // 形态会挤压标题/按钮组），窄条只有展开钮 + 会话数徽章。
-            if .sidebar_collapsed {
-                col {
-                    style: "w-10 shrink-0 h-full flex flex-col items-center py-2 gap-2 bg-muted/40 border-r border-border"
-                    button {
-                        onclick: .ToggleSessionSidebar
-                        title: t("chat.toggleSidebar")
-                        style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent border border-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-                        text "»"
-                    }
-                    span {
-                        style: "text-[11px] text-muted-foreground"
-                        text "" + .store.session_list.length
-                    }
-                }
-            } else {
+            // Session Sidebar（Plan 023 §3.1：共用 NavSidebar——header + list slot）
             NavSidebar {
                 title: t("chat.sessions")
-                collapsed: false
+                collapsed: .sidebar_collapsed
                 width_class: "w-[220px]"
                 slot(name: "actions") {
-                    // PLAN-084 UAT⑥：收起钮（«）——放动作组首位。
-                    button {
-                        onclick: .ToggleSessionSidebar
-                        title: t("chat.toggleSidebar")
-                        style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent border border-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-                        text "«"
-                    }
                     // Plan 407：lucide 图标作 button 子节点（parser 增强后原生支持）。
                     // PLAN-055: icon-only 方钮（variant="icon" 语义经单源类表达，
                     // 两轨一致——gen 侧 shadcn Button 无 icon variant，VM 侧默认
@@ -388,7 +360,6 @@ widget ChatsView {
             }
         }
                 }
-            }
             }
             }
             // Main Chat Area
@@ -767,15 +738,6 @@ widget ChatsView {
         }
 
         .ArchiveRow(id, archived) -> { store.ArchiveSession(id, archived) }
-
-        // ToggleSessionSidebar: 侧栏收起/展开（无 ! 取反语法，显式双臂）。
-        .ToggleSessionSidebar -> {
-            if .sidebar_collapsed {
-                .sidebar_collapsed = false
-            } else {
-                .sidebar_collapsed = true
-            }
-        }
 
         // SendInput(text): MentionInput 的 onsubmit 回调。先检测 /relay//superpower//spec1
         // 命令（relay_command_match 非 None 表示已处理，runner 接线执行），
