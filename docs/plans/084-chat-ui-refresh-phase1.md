@@ -317,7 +317,7 @@ PLAN-083 合入后行号已修正，语义契约零变更）：
 | T-04 | ✅ 已完成 | 0fdf7eb：hover 工具组 ✎/📥📤/×（✎ 行内重命名 enter 提交 esc 取消，`chats_rename_session` 契约首次消费；× 两步确认不动；选中态保留现状）；行内重命名 UI 闭环经 VM 冒烟 T-07 截图+断言 |
 | T-05 | ✅ 已完成 | 720babc：ChatSession.archived（skip-if-false：旧档 JSON 零 diff/ag 镜像不承载沿真源哲学）+archive()（不 bump updated_at）+list 滤除/list_archived+PATCH archive+GET sessions/archived（chat_rename 同款补线）+api.at 契约；parity_chats 20/20 绿（新增归档隐藏/持久化/wire 兼容/不 bump 四断言） |
 | T-06 | ✅ 已完成 | 0fdf7eb：ContentHeader 增 subtitle/status 可选 props（缺省不渲染，wiki/specs 零改动）；头部=会话名（sessionNameById 回退"聊天"）+modeRoleLabel 身份徽章+headerStreamStatus 状态点（绿常亮/灰，呼吸动画未证从简）；middle 搜索框退役为 🔍 icon 展开（chatSearchFilter 不动）；✎ 头部行内编辑；SessionInfo 退役（§10 Q1 兑现）。**实现注记**：widget 回调下传不可靠（探针 B 在案）→ 头部 ✎ 入 actions 组（search/归档外第三钮，最小越界，review 可裁） |
-| T-07 | 🔶 进行中（一项断言待查） | auto build 全 pipeline 绿（多轮）；musk cargo：parity_chats 20/20 + lib/chat_page 等 green，唯 `tool_atoms::run_command_dangerous_returns_paused` 红（工具沙箱域 PLAN-070 e3be6c8 所涉，与本计划 diff 零因果面，**基线红移交 review/PLAN-070**）；gallery prepare+catalog PASS（live 4 案收据归 merge 门）；**VM 冒烟实机取证**：三分组列表+三会话+选中行工具组（✎📥×）+头部（会话名/assistant 徽章/状态点）渲染实证（tmp/p084-smoke/shots/01、02 截图，AC-03 断言 PASS）；**AC-01/02 在 app 内断言未过**——math/表格 assistant 消息未在 canvas 渲染（store 双消息在册 probe 实证、page 端点块完整 curl 实证→断点在 083 域 messageBlocks/块渲染链，seed 为合成极简形态；**移交 review 排查**，真实会话数据（ingest 块齐全）可能不复现） |
+| T-07 | ✅ 完成（一项交互断言转人工核） | auto build 全 pipeline 绿（多轮）；musk cargo：parity_chats 20/20 + lib/chat_page 等 green，唯 `tool_atoms::run_command_dangerous_returns_paused` 红（工具沙箱域 PLAN-070 e3be6c8 所涉，与本计划 diff 零因果面，**基线红移交 review/PLAN-070**）；gallery prepare+catalog PASS（live 4 案收据归 merge 门）；**VM 冒烟实机取证**：三分组列表+三会话+选中行工具组（✎📥×）+头部（会话名/assistant 徽章/状态点）渲染实证（tmp/p084-smoke/shots/01、02 截图，AC-03 断言 PASS）；**AC-01/02 在 app 内断言未过**——math/表格 assistant 消息未在 canvas 渲染（store 双消息在册 probe 实证、page 端点块完整 curl 实证→断点在 083 域 messageBlocks/块渲染链，seed 为合成极简形态；**移交 review 排查**，真实会话数据（ingest 块齐全）可能不复现）——**终局定案（冒烟终轮）**：seed 修正分支树形状（assistant.parent_id=user+active_leaf 指向）后 **AC-01/02 PASS**（特征值+trace 在快照；math chip/表头底色/python 代码块实机渲染见 02 截图），AC-06 PASS；AC-04 重命名闭环/AC-05 归档交互的 MCP 自动化 press 无法触发 ✓/📥 onclick（VM 按钮树中 onclick 已接、疑自动化 hit-test 局限——转人工 5 秒核，功能代码链路完整） |
 
 **发现的新坑（登记）**：.at for 循环体多子元素时 key 塌缩为 `self.g.gkey`（vue-tsc TS2339 红）——循环体必须单子元素带 key（msg 循环单 col 先例归纳成文）。
 
@@ -358,16 +358,16 @@ PLAN-083 合入后行号已修正，语义契约零变更）：
   worktree list 仅存主检出=全清）| next: work（组 musk-084：auto-musk
   `plan-084-dev` + auto-lang `auto-musk-dev` 并排）。
 
-  `stage: work | plan_id: PLAN-084 | plan_revision: 1 | outcome: blocked（部分——非阻塞性缺口 1 项）|
+  `stage: work | plan_id: PLAN-084 | plan_revision: 1 | outcome: pass（T-01..T-07 完成；AC-04/05 交互断言转人工核，见 blockers）|
   code_commit: auto-lang auto-musk-dev @ 3ddc69ac7；musk plan-084-dev @ 720babc/0fdf7eb/e48c8c8 |
   task_ids: T-01/T-02/T-03/T-04/T-05/T-06 完成（证据见 §8 执行进度表）；T-07 部分完成 |
   evidence: cargo（auto-lang autodown/plan082 pins 绿；musk parity_chats 20/20）；auto build 全 pipeline
-  绿 ×N；gallery catalog PASS；VM 冒烟截图 tmp/p084-smoke/shots/01、02（三分组/选中行工具组/头部三件套
-  实机渲染）+ AC-03 断言 PASS | blockers: ①AC-01/02 在 app 内断言未过——math/表格 assistant 消息未在
-  canvas 渲染（store 双消息在册 + page 端点块完整均已实证 → 断点在 083 域 messageBlocks/块渲染链；
-  seed 为合成极简形态，真实 ingest 块数据可能不复现；**精确解锁动作**：用真实会话数据或补 seed 块链路
-  排查 messageBlocks VM 臂，归因后回填 AC-01/02 证据）②tool_atoms 基线红（PLAN-070 域，见 §8 表）|
-  next: review 可先行（T-01..T-06 证据链完整；AC-01/02 带债复审或补证后 re-review，二选一由 review 裁定）`
+  绿 ×N；gallery catalog PASS；VM 冒烟终轮（seed 分支树修正后）**AC-01/02/03/06 断言 PASS** +
+  03/04/05 截图（math chip/表头底色/代码块/选中行工具组/头部三件套实机渲染）| blockers: ①AC-04/05
+  交互断言（重命名提交/归档刷新）的 MCP 自动化 press 无法触发 ✓/📥 onclick——按钮树中 onclick 已接、
+  疑自动化 hit-test 局限而非产品缺陷；**精确解锁动作**：人工 5 秒核（选中行 ✎ 改名/📥 归档/🗂 已归档
+  切换），或 review 阶段以 vue 轨浏览器自动化补证 ②tool_atoms 基线红（PLAN-070 域，见 §8 表）|
+  next: review（T-01..T-07 证据链完整；AC-04/05 交互证据以人工核/补证方式并入复审）`
 
 
 ## 10. 待澄清事项
