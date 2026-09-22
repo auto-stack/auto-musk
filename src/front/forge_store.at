@@ -4,7 +4,7 @@
 // forge_stream.ts 逃生舱里，store 只管状态 + 简单调用，避开 codegen 对 store
 // handler 复杂控制流（嵌套 if/return/结构体字面量）的 parser 边界。
 
-use back.api: chats_list_sessions, chats_create_session, chats_send_message, chats_approve, chats_reject_all, chats_fork_session, chats_navigate_session, chats_set_thinking, chats_set_approval, chats_cancel_session
+use back.api: chats_list_sessions, chats_create_session, chats_send_message, chats_approve, chats_reject_all, chats_fork_session, chats_navigate_session, chats_set_thinking, chats_set_approval, chats_cancel_session, chats_rename_session, chats_archive_session, chats_list_archived_sessions
 
 store ForgeStore {
     model {
@@ -76,6 +76,10 @@ store ForgeStore {
         var next_before str = ""
         var older_loading bool = false
         var poll_inflight bool = false
+        // PLAN-084 T-05: 已归档会话（"已归档"过滤开关的数据面）+ 开关态。
+        // 归档 toggle 开时列表切到 archived_list；归档/取消归档后两表重拉。
+        var archived_list []Value = []
+        var show_archived bool = false
     }
 
         msg Msg {
@@ -83,6 +87,10 @@ store ForgeStore {
         LoadSessionList,
         NewSession,
         SwitchSession(str),
+        // PLAN-084 T-04/T-05: 会话重命名 + 归档 toggle + 归档视图开关。
+        RenameSession(str, str),
+        ArchiveSession(str, bool),
+        SetShowArchived(bool),
         StreamStarted(str),
         Send(str),
         StopStream,
@@ -266,6 +274,18 @@ store ForgeStore {
                 }
             }
             if ok {
+                // PLAN-084 T-05: 归档视图开着时随列表刷新归档面（切
+                // workspace 不残留上一 workspace 的归档表）。
+                if .show_archived {
+                    let al = chats_list_archived_sessions()
+                    if al != None {
+                        if al.sessions != None {
+                            .archived_list = al.sessions
+                        } else {
+                            .archived_list = []
+                        }
+                    }
+                }
                 if .session_id == "" {
                     if .session_list.length > 0 {
                         .session_id = .session_list[0].id
@@ -426,6 +446,57 @@ store ForgeStore {
             .next_before = ""
             .older_loading = false
             .FireDetailLoad()
+        }
+
+        // ── PLAN-084 T-04/T-05：重命名 / 归档 / 归档视图 ──────────────
+
+        // RenameSession(id, name): 行内/头部重命名（PATCH /session/{id}，
+        // api.at chats_rename_session 契约首次消费）。空名静默忽略；
+        // 成功后列表重拉（时间分组/排序随新名刷新）。
+        .RenameSession(id, name) -> {
+            if name != "" {
+                chats_rename_session(id, name)
+                .LoadSessionList()
+            }
+        }
+
+        // ArchiveSession(id, archived): 归档 toggle（PATCH /session/{id}/
+        // archive）。归档当前会话时清选中（防归档后面板仍挂旧会话——
+        // NewSession 清场面同款教训）；两表重拉（默认列表滤除/归档列表收录）。
+        .ArchiveSession(id, archived) -> {
+            chats_archive_session(id, archived)
+            if archived {
+                if .session_id == id {
+                    .session_id = ""
+                    .messages = []
+                    .active_leaf = ""
+                }
+            }
+            .LoadSessionList()
+            let al = chats_list_archived_sessions()
+            if al != None {
+                if al.sessions != None {
+                    .archived_list = al.sessions
+                } else {
+                    .archived_list = []
+                }
+            }
+        }
+
+        // SetShowArchived(v): "已归档"过滤开关（开启即拉归档表；关闭只切
+        // 视图不重拉——默认列表在 LoadSessionList/SessionsLoaded 已维护）。
+        .SetShowArchived(v) -> {
+            .show_archived = v
+            if v {
+                let al = chats_list_archived_sessions()
+                if al != None {
+                    if al.sessions != None {
+                        .archived_list = al.sessions
+                    } else {
+                        .archived_list = []
+                    }
+                }
+            }
         }
 
         // PLAN-043: 切换活跃分支（fork/navigate 同机制），随后重载会话。

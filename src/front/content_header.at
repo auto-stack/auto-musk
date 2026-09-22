@@ -10,13 +10,39 @@
 // 样式：inject_styles.ts 的 .content-header 系列已迁内联工具类
 //（PLAN-049 双轨收敛,单一样式源）。
 
-widget ContentHeader(title: str) {
+// PLAN-084 T-06: 可选 subtitle（agent 身份徽章文案，调用方经
+// modeRoleLabel(mode) 传入）与 status（""|"running"|"idle"，头部流式
+// 状态点）——缺省空串不渲染，wiki/specs 既有调用零改动。
+widget ContentHeader(title: str, subtitle: str = "", status: str = "") {
     view {
         div {
             style: "flex items-center justify-between h-12 shrink-0 px-5 border-b border-border bg-card"
-            span {
-                style: "text-xl font-bold text-foreground shrink-0"
-                text .title
+            div {
+                style: "flex items-center gap-2 shrink-0 min-w-0"
+                span {
+                    style: "text-xl font-bold text-foreground shrink-0 truncate"
+                    text .title
+                }
+                if .subtitle != "" {
+                    span {
+                        style: "text-xs text-muted-foreground border border-border rounded-md px-1.5 py-[1px] shrink-0 max-w-[160px] truncate"
+                        text .subtitle
+                    }
+                }
+                // 流式状态点：绿=运行中 / 灰=空闲（VM 轨呼吸动画未证，
+                // 常亮形态，T-07 实机核）。
+                if .status == "running" {
+                    span {
+                        style: "text-[10px] leading-none text-emerald-400 shrink-0"
+                        text "●"
+                    }
+                }
+                if .status == "idle" {
+                    span {
+                        style: "text-[10px] leading-none text-muted-foreground shrink-0"
+                        text "●"
+                    }
+                }
             }
             div {
                 style: "flex-1 min-w-0 flex justify-center"

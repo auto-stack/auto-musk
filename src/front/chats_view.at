@@ -19,6 +19,8 @@ use.web platformRunRelayCommand from "src/front/ports/platform.at"
 use.web platformFocusComposer from "src/front/ports/platform.at"
 use.web.fn extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.at"
 use.web.fn chatSearchFilter, chatLastMessageId, chatBranchLabel, chatBranchEntries, chatActivePath from "src/front/forge_helpers.at"
+// PLAN-084 T-03/T-06: 会话时间分组 + 头部标题/身份/状态 helpers。
+use.web.fn sessionGroups, sessionNameById, headerStreamStatus, modeRoleLabel from "src/front/forge_helpers.at"
 // PLAN-051 T8: SendInput 净空口径统一（原 .send(mention_trim(.text)) 调用位
 // 形态，实参内移后宿主侧复用同一 helper）。
 use.web.fn mention_trim from "src/front/mention_helpers.at"
@@ -48,7 +50,6 @@ use gate_card: GateCard
 use secretary_message_wrapper: SecretaryMessageWrapper
 use secretary_message: SecretaryMessage
 use chat_message: ChatMessage
-use session_info: SessionInfo
 
 widget ChatsView {
 
@@ -98,6 +99,23 @@ widget ChatsView {
         // 标题行右缘形态（此前 HoverSession 活体实证）。
         HoverSession(str),
         HoverSessionClear,
+        // ── PLAN-084 T-04/T-06：重命名与头部工具 ──
+        // StartRename: 进入行内重命名（列表行铅笔；预填当前名）。
+        StartRename(str),
+        // RenameDraft: 重命名输入框 oninput（视图态 str 字段，chat_search 先例）。
+        RenameDraft(str),
+        // ConfirmRename: Enter/✓ 提交（空名/未变更静默收场）；CancelRename: Esc/✕。
+        ConfirmRename,
+        CancelRename,
+        // ToggleSearch: 头部 search icon 展开/收起 middle 搜索框（搜索框
+        // 自 ChatHeader middle 常驻改为 icon 触发，用户裁定）。
+        ToggleSearch,
+        // ToggleArchived: 会话列表"已归档"过滤开关（转发 store.SetShowArchived）。
+        ToggleArchived,
+        // RenameFromHeader: 头部铅笔——标题在 middle 槽进入行内编辑。
+        RenameFromHeader,
+        // ArchiveRow(id, archived): 行内归档/取消归档（转发 store.ArchiveSession）。
+        ArchiveRow(str, bool),
     }
 
     model {
@@ -112,6 +130,15 @@ widget ChatsView {
         var delete_confirm_open bool = false
         // 当前 hover 的会话 id(× 按钮显隐;空串=无 hover)。
         var hover_session_id str = ""
+        // ── PLAN-084 T-04/T-06 ──
+        // 行内重命名目标会话 id + 草稿（"" = 非编辑态；VM 对 str 字段
+        // SET/比较双轨实证，沿 delete_pending_id 先例）。
+        var renaming_id str = ""
+        var rename_draft str = ""
+        // 头部搜索框展开态（icon 触发；收起时 middle 槽为空）。
+        var search_open bool = false
+        // 头部标题行内编辑态（middle 槽换输入框）。
+        var header_renaming bool = false
     }
 
     // Plan 028 T15：搜索过滤（原 useChatSearch composable → F2 多参 fn 直调）
@@ -126,6 +153,13 @@ widget ChatsView {
         // 动态索引均破坏 UI parser——扁平 {for_id, sib} 条目在此预算,视图按
         // for_id 相等匹配渲染兄弟按钮）。
         branchEntries => chatBranchEntries(.store.messages)
+        // PLAN-084 T-03: 时间分组会话行（今天/昨天/更早；数据源随归档
+        // 过滤开关切换——computed 位 if 表达式可用，olderLabel 先例）。
+        sessionRows => if .store.show_archived {
+            sessionGroups(.store.archived_list)
+        } else {
+            sessionGroups(.store.session_list)
+        }
     }
 
     // PLAN-049 T6：branch-row/branch-btn/retry-btn 已迁视图内联工具类（块删除）。
@@ -149,6 +183,18 @@ widget ChatsView {
                         style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent border border-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
                         title: t("chat.newSession")
                         Plus { size: 16 }
+                    }
+                    // PLAN-084 T-05: "已归档"过滤开关（开启=列表切已归档面，
+                    // 行内 hover 出 📤 取消归档；激活态反色提示）。
+                    button {
+                        onclick: .ToggleArchived
+                        style: if .store.show_archived {
+                            "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-accent border border-transparent text-foreground hover:bg-accent cursor-pointer"
+                        } else {
+                            "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent border border-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                        }
+                        title: t("chat.archivedToggle")
+                        text "🗂"
                     }
                     button {
                         // PLAN-058: 直删改两步确认；Trash2（use.web，VM 空内容）
@@ -187,7 +233,23 @@ widget ChatsView {
                                 div { style: "h-[52px] rounded-lg bg-muted animate-pulse" }
                             }
                         }
-                        for s in .store.session_list {
+                        // PLAN-084 T-03: 时间分组渲染（今天/昨天/更早，空组
+                        // 剪除；组头文案经 t(.g.label_key) 动态 key——useT
+                        // 普通 closure 两轨可用）。数据源随"已归档"开关切换。
+                        // 注意：g 循环体必须单子元素（组头+行同包一层 col）——
+                        // 多子元素 for 体 key 会塌成 self.g.gkey（vue-tsc 红，
+                        // msg 循环单 col 先例）。
+                        for g in .sessionRows {
+                            col {
+                                key: .g.gkey
+                                row {
+                                    style: "flex items-center px-1 pt-2 pb-1 w-full"
+                                    span {
+                                        style: "text-[11px] font-medium text-muted-foreground tracking-wide"
+                                        text t(.g.label_key)
+                                    }
+                                }
+                            for s in .g.items {
                             button {
                                 key: .s.id
                                 onclick: .SelectSession(.s.id)
@@ -214,16 +276,32 @@ widget ChatsView {
                                     // PLAN-071 r5（需求④-1）：标题单行 truncate
                                     // + title 悬停全名（break-all 换行形态在
                                     // 长标题场景溢出 box，退役）。
-                                    row {
-                                        style: "flex items-start w-full gap-1"
-                                        span {
-                                            title: .s.name
-                                            style: if .s.id == .store.session_id {
-                                                "text-[13.6px] font-medium text-primary flex-1 min-w-0 truncate leading-[1.45]"
-                                            } else {
-                                                "text-[13.6px] text-foreground flex-1 min-w-0 truncate leading-[1.45]"
+                                    // PLAN-084 T-04：行内重命名——该行处于编辑态
+                                    // 时标题换输入框（Enter 提交/Esc 取消），
+                                    // 其余行保持标题。
+                                    if .renaming_id == .s.id {
+                                        row {
+                                            style: "flex items-center w-full gap-1"
+                                            input {
+                                                style: "flex-1 min-w-0 h-6 text-[13.6px] text-foreground bg-background border border-primary/40 rounded px-1.5 outline-none"
+                                                value: .rename_draft
+                                                oninput: .RenameDraft($event)
+                                                onkeydown.enter.prevent: .ConfirmRename
+                                                onkeydown.esc.prevent: .CancelRename
                                             }
-                                            text .s.name
+                                        }
+                                    } else {
+                                        row {
+                                            style: "flex items-start w-full gap-1"
+                                            span {
+                                                title: .s.name
+                                                style: if .s.id == .store.session_id {
+                                                    "text-[13.6px] font-medium text-primary flex-1 min-w-0 truncate leading-[1.45]"
+                                                } else {
+                                                    "text-[13.6px] text-foreground flex-1 min-w-0 truncate leading-[1.45]"
+                                                }
+                                                text .s.name
+                                            }
                                         }
                                     }
                                     row {
@@ -235,19 +313,46 @@ widget ChatsView {
                                             style: "text-sm text-muted-foreground leading-5"
                                             text t("chat.msgs", { count: .s.message_count })
                                         }
-                                        // PLAN-071 r5（需求④-2）：× 移第二行右缘
-                                        // （与 "n 条" 同行；原标题行 absolute 形态
-                                        // 退役）。hover 显隐与两步删除逻辑不变。
+                                        // PLAN-071 r5（需求④-2）：hover 工具组挂
+                                        // 第二行右缘。PLAN-084 T-04：× 删除扩为
+                                        // 重命名 ✎ + 归档 📥/📤 + 删除 ×（两步
+                                        // 确认不变）；已归档视图显 📤（取消归档）。
                                         if .hover_session_id == .s.id {
-                                            span {
-                                                style: "session-delete-btn w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-destructive"
-                                                onclick.stop: .AskDelete(.s.id)
-                                                title: t("chat.deleteSession")
-                                                text "×"
+                                            row {
+                                                style: "flex items-center gap-0.5 shrink-0"
+                                                span {
+                                                    style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-foreground"
+                                                    onclick.stop: .StartRename(.s.id)
+                                                    title: t("chat.renameSession")
+                                                    text "✎"
+                                                }
+                                                if .store.show_archived {
+                                                    span {
+                                                        style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-foreground"
+                                                        onclick.stop: .ArchiveRow(.s.id, false)
+                                                        title: t("chat.unarchiveSession")
+                                                        text "📤"
+                                                    }
+                                                } else {
+                                                    span {
+                                                        style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-foreground"
+                                                        onclick.stop: .ArchiveRow(.s.id, true)
+                                                        title: t("chat.archiveSession")
+                                                        text "📥"
+                                                    }
+                                                }
+                                                span {
+                                                    style: "session-delete-btn w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-destructive"
+                                                    onclick.stop: .AskDelete(.s.id)
+                                                    title: t("chat.deleteSession")
+                                                    text "×"
+                                                }
                                             }
                                         }
                                     }
                                 }
+                            }
+                            }
                             }
                         }
                     }
@@ -256,30 +361,77 @@ widget ChatsView {
             // Main Chat Area
             col {
                 style: "flex-1 flex flex-col min-w-0 overflow-hidden"
-                // header（Plan 023 §3.1：共用 ContentHeader——标题 + middle 搜索 + actions）
+                // header（Plan 023 §3.1：共用 ContentHeader）。
+                // PLAN-084 T-06: 静态"聊天"标题 → 会话名（无选中回退"聊天"）
+                // + agent 身份徽章（mode→role）+ 流式状态点；middle 搜索框
+                // 退役为 search icon 触发（点击展开/收起）；actions =
+                // ✎ 重命名（标题行内编辑入口）+ 🔍 search + 📥 归档。
                 ContentHeader {
-                    title: t("chat.title")
+                    title: sessionNameById(.store.session_list, .store.session_id, t("chat.title"))
+                    subtitle: modeRoleLabel(.store.session_mode)
+                    status: headerStreamStatus(.store.session_id, .store.streaming)
                     slot(name: "middle") {
-                        // 搜索框（居中，对齐原版 .header-search）
-                        div {
-                            // PLAN-051 P2-③: 补 min-w-[200px] w-[320px]——VM 轨
-                            // flex-[0_1_320px] 任意值不支持整类丢弃 → 搜索框塌 0
-                            // 被挤压；web 侧仅极窄窗行为微改进（原可压到 0）。
-                            style: "flex items-center gap-[5px] max-w-[320px] min-w-[200px] w-[320px] flex-[0_1_320px] px-3 py-1.5 bg-muted-foreground/5 border border-muted-foreground/10 rounded-md text-muted-foreground"
-                            Search { size: 13, class: "shrink-0" }
-                            input {
-                                style: "w-full text-[13px] text-foreground bg-transparent border-none outline-none placeholder:text-muted-foreground"
-                                value: .chat_search
-                                oninput: .OnSearchInput($event)
-                                placeholder: t("chat.searchPlaceholder")
+                        // 头部标题行内编辑态：middle 槽换输入框（Enter 提交/
+                        // Esc 取消；沿行内重命名同一草稿与 handler）。
+                        if .header_renaming {
+                            div {
+                                style: "flex items-center gap-1 max-w-[320px] min-w-[200px] w-[320px]"
+                                input {
+                                    style: "flex-1 min-w-0 text-[14px] text-foreground bg-background border border-primary/40 rounded-md px-2 py-1 outline-none"
+                                    value: .rename_draft
+                                    oninput: .RenameDraft($event)
+                                    onkeydown.enter.prevent: .ConfirmRename
+                                    onkeydown.esc.prevent: .CancelRename
+                                }
+                            }
+                        } else {
+                            if .search_open {
+                                // 搜索框（原常驻形态，PLAN-084 改 icon 触发展开；
+                                // 过滤逻辑 chatSearchFilter 不动）。
+                                div {
+                                    // PLAN-051 P2-③: 补 min-w-[200px] w-[320px]——VM 轨
+                                    // flex-[0_1_320px] 任意值不支持整类丢弃 → 搜索框塌 0
+                                    // 被挤压；web 侧仅极窄窗行为微改进（原可压到 0）。
+                                    style: "flex items-center gap-[5px] max-w-[320px] min-w-[200px] w-[320px] flex-[0_1_320px] px-3 py-1.5 bg-muted-foreground/5 border border-muted-foreground/10 rounded-md text-muted-foreground"
+                                    Search { size: 13, class: "shrink-0" }
+                                    input {
+                                        style: "w-full text-[13px] text-foreground bg-transparent border-none outline-none placeholder:text-muted-foreground"
+                                        value: .chat_search
+                                        oninput: .OnSearchInput($event)
+                                        placeholder: t("chat.searchPlaceholder")
+                                    }
+                                }
                             }
                         }
                     }
                     slot(name: "actions") {
-                        // 右侧 SessionInfo 组件（info icon + tooltip，对齐原版）
+                        // PLAN-084 T-06: 工具栏 = ✎ 重命名 + 🔍 搜索 + 📥 归档
+                        // （SessionInfo info popover 退役——chat id/消息数/token
+                        // 成本入口收敛，KNOWN-DEBT 登记找回路径）。
                         div {
-                            style: "flex items-center gap-[5px] shrink-0"
-                            SessionInfo
+                            style: "flex items-center gap-1 shrink-0"
+                            button {
+                                onclick: .RenameFromHeader
+                                style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent border border-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                                title: t("chat.renameSession")
+                                text "✎"
+                            }
+                            button {
+                                onclick: .ToggleSearch
+                                style: if .search_open {
+                                    "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-accent border border-transparent text-foreground cursor-pointer"
+                                } else {
+                                    "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent border border-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                                }
+                                title: t("chat.searchPlaceholder")
+                                Search { size: 15 }
+                            }
+                            button {
+                                onclick: .ArchiveRow(.store.session_id, true)
+                                style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent border border-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                                title: t("chat.archiveSession")
+                                text "📥"
+                            }
                         }
                     }
                 }
@@ -513,6 +665,71 @@ widget ChatsView {
         // 离开清空,进入置 id——相邻卡先 clear 后 enter,无抖动)。
         .HoverSession(id) -> { .hover_session_id = id }
         .HoverSessionClear -> { .hover_session_id = "" }
+
+        // ── PLAN-084 T-04/T-06：重命名 / 搜索 / 归档视图 ──────────────
+
+        // StartRename(id): 行进入编辑态，草稿预填当前名（两表都查——归档
+        // 视图下的行在 archived_list）。
+        .StartRename(id) -> {
+            var nm = sessionNameById(.store.session_list, id, "")
+            if nm == "" {
+                nm = sessionNameById(.store.archived_list, id, "")
+            }
+            .renaming_id = id;
+            .rename_draft = nm
+        }
+
+        .RenameDraft(val) -> { .rename_draft = val }
+
+        // ConfirmRename: 空 draft 静默收场（不落空名）；头部/行内两态一并
+        // 复位。净空口径 mention_trim 与发送链一致。
+        .ConfirmRename -> {
+            let nn = mention_trim(.rename_draft)
+            if nn != "" {
+                store.RenameSession(.renaming_id, nn)
+            }
+            .renaming_id = "";
+            .header_renaming = false;
+            .rename_draft = ""
+        }
+
+        .CancelRename -> {
+            .renaming_id = "";
+            .header_renaming = false;
+            .rename_draft = ""
+        }
+
+        // RenameFromHeader: 头部铅笔——预填当前会话名并收起搜索框。
+        .RenameFromHeader -> {
+            if .store.session_id != "" {
+                .header_renaming = true;
+                .search_open = false;
+                .rename_draft = sessionNameById(.store.session_list, .store.session_id, "")
+            }
+        }
+
+        .ToggleSearch -> {
+            if .search_open {
+                .search_open = false
+            } else {
+                .search_open = true;
+                .header_renaming = false
+            }
+        }
+
+        // ToggleArchived: 归档过滤开关（无 ! 取反语法，显式双臂）。切出
+        // 归档视图时一并退出行内编辑态。
+        .ToggleArchived -> {
+            if .store.show_archived {
+                store.SetShowArchived(false)
+            } else {
+                store.SetShowArchived(true)
+            }
+            .renaming_id = "";
+            .header_renaming = false
+        }
+
+        .ArchiveRow(id, archived) -> { store.ArchiveSession(id, archived) }
 
         // SendInput(text): MentionInput 的 onsubmit 回调。先检测 /relay//superpower//spec1
         // 命令（relay_command_match 非 None 表示已处理，runner 接线执行），
