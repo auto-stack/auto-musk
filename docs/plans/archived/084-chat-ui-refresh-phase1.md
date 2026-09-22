@@ -1,6 +1,7 @@
 ---
 plan_id: PLAN-084
-status: reviewed
+status: archived
+completion_kind: delivered
 feature_name: 聊天 UI 一期优化（math 兜底 + 表格 chrome + 会话列表 + 聊天头部）
 author: [agent]
 created_at: 2026-09-22T00:00:00Z
@@ -419,6 +420,19 @@ PLAN-083 合入后行号已修正，语义契约零变更）：
   （musk 720babc/0fdf7eb/e48c8c8/a17ff57/c655d56/962c2e4/5dc80d8/b9f31fc/
   446d6a8/1ac9a15；auto-lang 3ddc69ac7/84ba4a58c/0c55f6c96）| 独立性声明：
   评审与实现同会话，verdict 由重跑门禁+工件重建（非实现者总结）| next: merge。
+
+- 2026-09-22 **merge 收据（PLAN-084:r1，keyed checkpoints）**：
+  `prepared`: 评审基线 1ac9a15+0c55f6c96/增量终稿 021b13f/目标=ui-compositions+
+  autodown-consumption+vm-data-semantics+KNOWN-DEBT 六债 | `landed`: musk main
+  **b21a508**（ff-only 无 merge commit；rebase 12 提交干净重放，Cargo.lock 差异=
+  main 侧 a2r-std 基线漂移非补丁语义）；auto-lang master **8fecfcf69**（ff-only；
+  range-diff 三提交全 `=` 等价=安全重写证明；旧→新映射 3ddc69ac7→9e0ca3448/
+  84ba4a58c→add1a1eb0/0c55f6c96→8fecfcf69）| `ledger_refreshed`: KNOWN-DEBT
+  六债（084-D1..D6）随 b21a508 落册；模块 specs 三文件增节随同；index.json
+  updated_at 见下 | `archived`: 本文件 archived/ + status:archived +
+  completion_kind:delivered | `cleaned`: 见后补（worktree 组 musk-084 四位
+  auto-musk/auto-lang/auto-down/auto-ai + 分支 plan-084-dev/auto-musk-dev）。
+  生产链重建：auto-lang master release exe + musk main launch-vm 冒烟。
 
 - 2026-09-22 **review 预审（work 准入，用户授权"通过即 work"）**：
   `stage: review | plan_id: PLAN-084 | plan_revision: 1 | outcome: pass（进入 work）|
