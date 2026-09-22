@@ -457,6 +457,14 @@ pub type ForgeSessionSummary = {
     preview: str,
     message_count: int,
     last_activity: int,
+    // PLAN-084 T-03/T-05: 列表展示元数据（后端本地时区现算；archived 旧档
+    // 缺字段=false）。day_group: 0=今天 1=昨天 2=更早；time_text="HH:mm"；
+    // date_text=本年 "MM-DD"/跨年 "YYYY-MM-DD"。
+    updated_at: int,
+    archived: bool,
+    day_group: int,
+    time_text: str,
+    date_text: str,
 }
 
 // 后端实际返回有包装层：{sessions:[...]} / {session:{...}}
@@ -494,6 +502,20 @@ pub fn chats_delete_all_sessions() {
 
 #[api(method = "PATCH", path = "/api/chats/session/{id}")]
 pub fn chats_rename_session(id str, name str) {
+    return None
+}
+
+// PLAN-084 T-05: 会话归档 toggle（archived=true 归档 / false 取消）。
+// 归档=列表级隐藏：默认 /api/chats/sessions 滤除归档态，不删数据、
+// 不 bump updated_at。
+#[api(method = "PATCH", path = "/api/chats/session/{id}/archive")]
+pub fn chats_archive_session(id str, archived bool) {
+    return None
+}
+
+// PLAN-084 T-05: 已归档会话列表（"已归档"过滤开关的数据面）。
+#[api(method = "GET", path = "/api/chats/sessions/archived")]
+pub fn chats_list_archived_sessions() SessionListResponse {
     return None
 }
 

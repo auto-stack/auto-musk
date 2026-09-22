@@ -237,6 +237,7 @@ fn parity_chat_session_wire_format() {
         active_leaf: None,
         thinking_level: None,
         approval_mode: "human".to_string(),
+        archived: false,
     };
     let ag_s = ag::ChatSession {
         id: "s1".into(),
@@ -282,6 +283,7 @@ fn parity_chat_session_wire_format() {
         workspace_id: None, active_leaf: None,
         thinking_level: None,
         approval_mode: "human".to_string(),
+        archived: false,
     };
     let ag_min = ag::ChatSession {
         id: "s2".into(),
@@ -847,4 +849,72 @@ fn parity_store_approve_spec_change() {
     assert!(ag_store
         .approve_spec_change("ghost", 0, ag_specs.clone())
         .is_err());
+}
+
+// ──────────────────────────────────────────────────────────
+// PLAN-084 T-05: 会话归档（hw 侧真源；ag 镜像不承载——「镜像仅承载
+// parity 所需字段」哲学，profession_id 先例）。
+// ──────────────────────────────────────────────────────────
+
+#[test]
+fn plan084_store_archive_hides_from_default_list() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = hw::ChatStore::at(dir.path().join("chats.json"));
+
+    let s1 = store.create("superpowers", None).unwrap();
+    let s2 = store.create("coding", None).unwrap();
+
+    // 初始：两会话都在默认列表，无归档。
+    assert_eq!(store.list().len(), 2);
+    assert!(store.list_archived().is_empty());
+
+    // 归档 s1：默认列表只剩 s2；归档列表只剩 s1。
+    let updated = store.archive(&s1.id, true).unwrap().unwrap();
+    assert!(updated.archived);
+    let default_ids: Vec<String> = store.list().iter().map(|s| s.id.clone()).collect();
+    let archived_ids: Vec<String> = store.list_archived().iter().map(|s| s.id.clone()).collect();
+    assert_eq!(default_ids, vec![s2.id.clone()]);
+    assert_eq!(archived_ids, vec![s1.id.clone()]);
+
+    // 归档不 bump updated_at（归档不是聊天活动，列表时间不得跳变）。
+    let s1_after = store.get(&s1.id).unwrap();
+    assert_eq!(s1_after.updated_at, s1.updated_at, "archive must not bump updated_at");
+    // 消息数据原样保留。
+    assert!(s1_after.messages.is_empty());
+
+    // 取消归档：回到默认列表。
+    store.archive(&s1.id, false).unwrap().unwrap();
+    assert_eq!(store.list().len(), 2);
+    assert!(store.list_archived().is_empty());
+}
+
+#[test]
+fn plan084_store_archive_persists_and_wire_compat() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("chats.json");
+    let store = hw::ChatStore::at(path.clone());
+
+    let s = store.create("superpowers", None).unwrap();
+    store.archive(&s.id, true).unwrap().unwrap();
+
+    // 旧档反序列化兼容：未归档会话（无 archived 键）→ false。
+    let raw_unarchived = format!(
+        "{{\"id\":\"old1\",\"name\":\"n\",\"mode\":\"m\",\"messages\":[],\"created_at\":1,\"updated_at\":2,\"approval_mode\":\"human\"}}"
+    );
+    let old: hw::ChatSession = serde_json::from_str(&raw_unarchived).unwrap();
+    assert!(!old.archived, "missing archived key must default to false");
+
+    // 归档态跨 store 实例（重开文件）保持。
+    let reopened = hw::ChatStore::at(path);
+    assert!(reopened.list().is_empty());
+    assert_eq!(reopened.list_archived().len(), 1);
+
+    // 未归档会话的 wire 无 archived 键（skip-if-false，旧前端零感知）。
+    let store2 = hw::ChatStore::at(dir.path().join("b.json"));
+    let s2 = store2.create("coding", None).unwrap();
+    let wire = serde_json::to_string(&s2).unwrap();
+    assert!(!wire.contains("archived"), "unarchived session wire must omit archived, got {wire}");
+
+    // 未知 id → Ok(None)，不报错。
+    assert!(store2.archive("ghost", true).unwrap().is_none());
 }

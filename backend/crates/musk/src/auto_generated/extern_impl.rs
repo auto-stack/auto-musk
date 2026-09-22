@@ -776,6 +776,19 @@ pub fn chats_list(s: &State<AppState>, q: Query<crate::auto_generated::server::W
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
     serde_json::json!({ "sessions": ws.chats.list() })
 }
+// PLAN-084 T-05: 已归档会话列表（默认列表已滤除归档态的对偶面）。
+pub fn chats_list_archived(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    serde_json::json!({ "sessions": ws.chats.list_archived() })
+}
+// PLAN-084 T-05: 会话归档 toggle（归档=列表级隐藏；详见 ChatStore::archive）。
+pub fn chats_archive(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>, b: Json<crate::auto_generated::server::ChatArchiveBody>) -> Value {
+    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
+    match ws.chats.archive(&p.0, b.archived) {
+        Ok(Some(session)) => serde_json::json!({ "session": session }),
+        _ => Value::Null,
+    }
+}
 pub fn chats_get(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
     match ws.chats.get(&p.0) {

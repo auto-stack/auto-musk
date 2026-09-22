@@ -23,6 +23,9 @@ clap = { version = "4", features = ["derive", "env"] }
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# PLAN-084 T-03: 会话列表 day_group/time_text/date_text 本地时区现算
+# （VM 轨无可用时钟——Date.now() 返负垃圾既有缺陷——日历运算收敛在后端）。
+chrono = "0.4"
 # HTTP server (musk serve — frontend talks to this on :8080)
 axum = { version = "0.8", features = ["macros", "multipart"] }
 # PLAN-065 T3/T4：set-header(静态服务 Cache-Control)+ trace(请求日志)；

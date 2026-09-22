@@ -18,6 +18,37 @@ fn now_sec() -> u64 {
         .unwrap_or(0)
 }
 
+/// PLAN-084 T-03: 会话列表时间展示三元组（本地时区日界分组 + 时刻/日期文本）。
+/// VM 轨无可用时钟（`Date.now()` 返负垃圾既有缺陷，KNOWN-DEBT 083 行），
+/// 日历运算收敛在后端——后端与桌面同机同时区。返回 `(day_group, time_text,
+/// date_text)`：group 0=今天 / 1=昨天 / 2=更早；今天与昨天给 `"HH:mm"`，
+/// 更早年给 `"MM-DD"`（跨年 `"YYYY-MM-DD"`）。时钟异常（epoch 前）回落
+/// "更早" + 空文本，不 panic。
+fn summary_time_fields(updated: u64) -> (u8, String, String) {
+    use chrono::{Datelike, TimeZone};
+    let now = chrono::Local::now();
+    let dt = match chrono::Local.timestamp_opt(updated as i64, 0).single() {
+        Some(dt) => dt,
+        None => return (2, String::new(), String::new()),
+    };
+    let today = now.date_naive();
+    let day = dt.date_naive();
+    let group = if day == today {
+        0
+    } else if day == today - chrono::Duration::days(1) {
+        1
+    } else {
+        2
+    };
+    let time_text = dt.format("%H:%M").to_string();
+    let date_text = if day.year() == today.year() {
+        dt.format("%m-%d").to_string()
+    } else {
+        dt.format("%Y-%m-%d").to_string()
+    };
+    (group, time_text, date_text)
+}
+
 /// A random hex id (re-uses auth.rs's rand approach, no new dep).
 fn new_id(nbytes: usize) -> String {
     use rand::RngCore;
@@ -172,6 +203,10 @@ pub struct ChatSession {
     /// 全流程。缺省/旧数据 = "human"（现行为，gate 等待人工决议）。
     #[serde(default = "default_approval_mode")]
     pub approval_mode: String,
+    /// PLAN-084 T-05: 归档态。归档只影响列表可见性（chat_list 滤除），
+    /// 不删消息、不 bump updated_at。false 跳过序列化（旧档 JSON 零 diff）。
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub archived: bool,
 }
 
 fn default_approval_mode() -> String {
@@ -188,6 +223,20 @@ pub struct ChatSessionSummary {
     /// First ~80 chars of the last user message, for a preview.
     pub preview: String,
     pub updated_at: u64,
+    /// PLAN-084 T-05: 归档态（列表级隐藏，不改消息数据）。false 时跳过
+    /// 序列化——旧档 JSON 零 diff、旧前端零感知（ag 镜像不承载本字段，
+    /// 沿「镜像仅承载 parity 所需字段」哲学）。
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub archived: bool,
+    /// PLAN-084 T-03: 展示元数据——后端本地时区现算（见 summary_time_fields）。
+    #[serde(default)]
+    pub day_group: u8,
+    /// 今天/昨天行的时刻文本（"HH:mm"）。
+    #[serde(default)]
+    pub time_text: String,
+    /// 更早行的日期文本（本年 "MM-DD"，跨年 "YYYY-MM-DD"）。
+    #[serde(default)]
+    pub date_text: String,
 }
 
 impl ChatSession {
@@ -205,6 +254,7 @@ impl ChatSession {
             active_leaf: None,
             thinking_level: None,
             approval_mode: default_approval_mode(),
+            archived: false,
         }
     }
 
@@ -223,6 +273,7 @@ impl ChatSession {
                 }
             })
             .unwrap_or_default();
+        let (day_group, time_text, date_text) = summary_time_fields(self.updated_at);
         ChatSessionSummary {
             id: self.id.clone(),
             name: self.name.clone(),
@@ -230,6 +281,10 @@ impl ChatSession {
             message_count: self.messages.len(),
             preview,
             updated_at: self.updated_at,
+            archived: self.archived,
+            day_group,
+            time_text,
+            date_text,
         }
     }
 
@@ -420,8 +475,27 @@ impl ChatStore {
     }
 
     /// List all sessions as summaries, newest first (by updated_at).
+    /// PLAN-084 T-05: 默认滤除已归档（wire 兼容——旧前端零感知归档态）；
+    /// 已归档面走 [`Self::list_archived`]。
     pub fn list(&self) -> Vec<ChatSessionSummary> {
-        let mut summaries: Vec<_> = self.load_map().values().map(|s| s.summary()).collect();
+        let mut summaries: Vec<_> = self
+            .load_map()
+            .values()
+            .map(|s| s.summary())
+            .filter(|s| !s.archived)
+            .collect();
+        summaries.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        summaries
+    }
+
+    /// PLAN-084 T-05: 已归档会话列表（"已归档"过滤开关的数据面），同序。
+    pub fn list_archived(&self) -> Vec<ChatSessionSummary> {
+        let mut summaries: Vec<_> = self
+            .load_map()
+            .values()
+            .map(|s| s.summary())
+            .filter(|s| s.archived)
+            .collect();
         summaries.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
         summaries
     }
@@ -438,6 +512,22 @@ impl ChatStore {
         if let Some(session) = map.get_mut(id) {
             session.name = name.to_string();
             session.updated_at = now_sec();
+            let updated = session.clone();
+            self.save_map(&map)?;
+            Ok(Some(updated))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// PLAN-084 T-05: 归档/取消归档。列表级隐藏（`list` 滤除 /
+    /// `list_archived` 收录），不删消息、不 bump updated_at（归档不是聊天
+    /// 活动，避免列表时间跳变）。返回更新后的会话，id 未知返 None。
+    pub fn archive(&self, id: &str, archived: bool) -> std::io::Result<Option<ChatSession>> {
+        let _write_guard = self.write_lock.lock().unwrap();
+        let mut map = self.load_map();
+        if let Some(session) = map.get_mut(id) {
+            session.archived = archived;
             let updated = session.clone();
             self.save_map(&map)?;
             Ok(Some(updated))

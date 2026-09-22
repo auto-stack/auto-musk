@@ -328,6 +328,12 @@ pub struct ChatRenameBody {
     pub name: String,
 }
 
+/// PLAN-084 T-05: 会话归档 toggle（true=归档 / false=取消归档）。
+#[derive(Debug, Deserialize)]
+pub struct ChatArchiveBody {
+    pub archived: bool,
+}
+
 /// PLAN-064: per-session thinking level. `null` clears (follow role default).
 #[derive(Debug, Deserialize)]
 pub struct ChatThinkingBody {
@@ -552,12 +558,25 @@ pub async fn chat_list(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Val
     return Json(list);
 }
 
+// PLAN-084 T-05: 已归档会话列表（默认 /api/chats/sessions 已滤除归档态；
+// "已归档"过滤开关的数据面）。
+pub async fn chat_list_archived(s: State<AppState>, q: Query<WorkspaceQuery>) -> Json<Value> {
+    let list = chats_list_archived(&s, q);
+    return Json(list);
+}
+
 pub async fn chat_get(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>) -> Response {
     return to_response(chats_get(&s, q, p), "session not found", 404);
 }
 
 pub async fn chat_rename(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ChatRenameBody>) -> Response {
     return to_response(chats_rename(&s, q, p, body), "session not found", 404);
+}
+
+// PLAN-084 T-05: 会话归档 toggle（chat_rename 同款补线；源 .at 不携带——
+// 纯 Rust 面，083 chat_page 先例）。
+pub async fn chat_archive(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<String>, body: Json<ChatArchiveBody>) -> Response {
+    return to_response(chats_archive(&s, q, p, body), "session not found", 404);
 }
 
 /// PLAN-064: set/clear a session's thinking level.
@@ -670,8 +689,13 @@ pub fn build_router() -> Router<AppState> {
     app = app.route("/api/app-harness/{kind}", get(app_harness_list));
     app = app.route("/api/app-harness/{kind}/{name}", put(app_harness_save).delete(app_harness_delete));
     app = app.route("/api/chats/sessions", get(chat_list).delete(chat_delete_all));
+    // PLAN-084 T-05: 已归档会话列表（归档 toggle 端点见下）。
+    app = app.route("/api/chats/sessions/archived", get(chat_list_archived));
     app = app.route("/api/chats/session", post(chat_create));
     app = app.route("/api/chats/session/{id}", get(chat_get).patch(chat_rename).delete(chat_delete));
+    // PLAN-084 T-05: 会话归档 toggle（PATCH body {archived: bool}；
+    // 归档=列表级隐藏，不删数据、不 bump updated_at）。
+    app = app.route("/api/chats/session/{id}/archive", patch(chat_archive));
     // PLAN-083 T-02: 会话详情分页 + 归一化直出（手写 handler，chat_cancel
     // 同款补线先例——分页契约 limit/before/has_more/next_before + 拍平块
     // blocks_normalized:true；缺省全量的上一行端点字节不变，web 旧消费零
