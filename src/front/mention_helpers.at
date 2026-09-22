@@ -227,7 +227,7 @@ fn render_mentions_default(text str) str {
  *  render_mentions_default 同款（Agent @词口径不变）;token badge 的
  *  hover title 查 paths。 */
 fn render_mentions_ref(text str, paths obj) str {
-    return render_mentions(text, build_mention_names(mention_default_professions()), "text-primary-foreground font-semibold bg-white/15 rounded-[3px] px-[0.2rem]", paths)
+    return render_mentions(text, build_mention_names(mention_default_professions()), "text-primary font-semibold bg-primary/10 rounded-[3px] px-[0.2rem]", paths)
 }
 
 // PLAN-493: render_input_mentions（输入框 backdrop 专用，末尾加换行）删除——

@@ -7,7 +7,6 @@
 
 use store: FilesStore
 use filetree: FileTree
-use nav_sidebar: NavSidebar
 use content_header: ContentHeader
 use.web component MarkdownRender from "src/front/ports/renderer.at"
 use.web component FileIcon from "src/front/ports/icons.at"
@@ -52,12 +51,14 @@ widget FilesView {
     view {
         row (style: "h-full w-full min-h-0") {
             // 二级导航：文件树栏
-            NavSidebar {
-                title: t("workspaceUi.filesTitle")
-                collapsed: false
-                width_class: "w-[240px]"
-                slot(name: "list") {
-                col { style: "flex-1 overflow-auto p-2"
+            col {
+                style: "w-[240px] shrink-0 flex flex-col h-full overflow-hidden bg-muted/20 border-r border-border"
+                row {
+                    style: "flex items-center h-12 shrink-0 px-3 border-b border-border"
+                    text t("workspaceUi.filesTitle") { style: "text-base font-semibold text-foreground" }
+                }
+                col {
+                style: "flex-1 overflow-auto p-2"
                 if !.store.file_loaded {
                     text t("files.loading") { style: "text-sm text-muted-foreground p-3" }
                 }
@@ -75,7 +76,6 @@ widget FilesView {
                         FileTree (nodes: .store.file_tree, onselect: .Pick($event))
                     }
                 }
-            }
                 }
             }
             // 内容面板

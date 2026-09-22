@@ -19,8 +19,26 @@ const STYLES = `
 /* ── 字体（离线系统字体栈，消除网络依赖，PLAN-075）── */
 body, button, input, textarea, select { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif; }
 
-/* Theme tokens are generated from pac.at for Vue and VM. */
+/* Web mode-specific palette. The shared brand primary/ring remains declared in
+   pac.at; these light/dark surface tokens compensate for theme{} currently
+   supporting only one partial color map across both modes. */
 :root {
+  --primary: 238 55% 58%;
+  --primary-foreground: 0 0% 100%;
+  --foreground: 220 15% 20%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 15% 20%;
+  --secondary: 220 14% 96%;
+  --secondary-foreground: 220 15% 20%;
+  --muted: 220 14% 96%;
+  --muted-foreground: 220 9% 46%;
+  --accent: 220 14% 96%;
+  --accent-foreground: 220 15% 20%;
+  --destructive: 0 72% 51%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 238 55% 58%;
+  --radius: 0.5rem;
   /* af-* 语义别名（原版组件逃生舱 CSS 用这些） */
   --af-bg: hsl(var(--background));
   --af-fg: hsl(var(--foreground));
@@ -32,6 +50,24 @@ body, button, input, textarea, select { font-family: -apple-system, BlinkMacSyst
   --af-primary-fg: hsl(var(--primary-foreground));
   --af-primary-soft: hsl(var(--primary) / 0.08);
   --af-secondary: hsl(var(--secondary));
+}
+.dark {
+  --background: 220 15% 8%;
+  --foreground: 220 10% 92%;
+  --card: 220 15% 10%;
+  --card-foreground: 220 10% 92%;
+  --primary: 238 55% 62%;
+  --primary-foreground: 220 15% 8%;
+  --secondary: 220 12% 16%;
+  --secondary-foreground: 220 10% 92%;
+  --muted: 220 12% 16%;
+  --muted-foreground: 220 9% 58%;
+  --accent: 220 12% 16%;
+  --accent-foreground: 220 10% 92%;
+  --destructive: 0 62% 45%;
+  --border: 220 12% 18%;
+  --input: 220 12% 18%;
+  --ring: 238 55% 62%;
 }
 /* 滚动条（对齐原版） */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

@@ -71,3 +71,16 @@
   整体替换**（容器键存在时 SET 合法），严禁 `b.f = v` 原地补缺失键。
 - **依据**：2026-09-20 桌面实机验收五项裁定（用户：统一重置而非逐按钮
   覆盖）；auto-lang 0cbf5a031；musk 1488482。
+
+## PLAN-085 增量：品牌色与明暗表面色边界（SD-02）
+
+- `pac.at` 继续作为 Vue 与 VM 的共享品牌色真源，至少声明 `primary`、
+  `primary-foreground` 与 `ring`。
+- 当前 AutoUI 的 `theme.colors` 是跨明暗模式的一份局部颜色表，尚不能同时
+  表达 Web 的 light/dark surface palette。`background`、`foreground`、`card`、
+  `muted`、`border` 等分模式 token 因此暂留在
+  `src/front/inject_styles.web-only.ts`。
+- Web surface token 是平台适配层，不得复制品牌语义或改变信息架构。待 AutoUI
+  支持分模式主题声明后，应将这些 token 迁入共享主题并删除 Web 补偿层。
+- 任何主题收敛都必须实测明暗模式的正文、弱化文字、描边和柔和主色背景，不能
+  仅以生成成功判定视觉等价。

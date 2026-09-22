@@ -21,6 +21,13 @@
 | mode.rs | agent 运行模式 |
 | auto_generated/ | a2r 转译模块（server/auth/relay_api/wiki） |
 
+## 工作区界面
+
+| 模块规范 | 职责 |
+|---|---|
+| [workspace-ui.md](workspace-ui.md) | 五栏目布局、状态、双端与规范权威边界 |
+| [ui-default-styles.md](ui-default-styles.md) | 默认样式、品牌色及平台主题适配边界 |
+
 ## 前端模块
 
 ### web/（原生）
