@@ -1,12 +1,12 @@
 ---
 plan_id: PLAN-083
-status: executing
+status: reviewed
 feature_name: VM 数据链异步化与大载荷治理（081 刷新链债 + 082 §10-7 三方向合并）
 author: [agent]
 created_at: 2026-09-22T00:00:00Z
 updated_at: 2026-09-22T00:00:00Z
 plan_revision: 1
-current_step: 5
+current_step: 6
 total_steps: 6
 supersedes_spec_components: []
 new_spec_components: [docs/specs/modules/vm-data-semantics.md]
@@ -314,7 +314,7 @@ auto-lang worktree spike：以 `LoadSessionList` 为试点，
 | T-02 | 后端分页+归一化直出（契约+Rust 实现+单测） | — | U-1/U-2 绿 | AC-01/02 | [x] 2026-09-22：musk `plan-083-dev` 1×commit——`/api/chats/session/{id}/page?limit=&before=`（缺省 50；has_more+next_before；缺省全量旧端点字节不变）；`blocks_normalized:true` 直出 r5b 拍平块；块级瘦身（§10-1 落实：巨条=工具密集型，result/thinking/args 截断+每消息 48K 预算+thin tool_calls 去重）。U-1=分页语义测、U-2=等价形态测+截断口径测+真实载荷测（auto-edit 938KB 会话→首屏 106KB=8.8×）全绿；既有 chat 44 测零回退。cargo test -p musk --lib |
 | T-03 | musk 前端消费：两段式+分页+骨架+073 适配 | T-01/T-02 | U-4 绿；实机列表/首屏出 | AC-01/05 | [x] 2026-09-22：forge_store LoadSessionList/SwitchSession/BranchTo/PollStream 全迁消息桥（SessionsLoaded/DetailLoaded/OlderLoaded/PollBackfill 四回填段；PollBackfill 窗口合并=073 适配，pending/回合守卫/收束排空原样）；LoadOlder/OlderLoaded 历史前插翻页；chats_view 列表/首屏骨架+"加载更早的消息" pill（V-3 显式按钮形态，滚动桥接受限记录在案）；ts_adapter 补 get_msg Vue 半边（auto-lang 1×commit）。auto build 全 pipeline 绿（worktree 二进制）。U-4 实测面=后端 chat 44 测零回退 + T-05 V-4 实机 |
 | T-04 | 迁移收编（SetWorkspace/Reload/081 注记） | T-03 | 全链走异步桥 | AC-03 | [x] 2026-09-22：PlansStore.LoadPlans 两段式（Choose 链三段=SetWorkspace→LoadSessionList/PlansStore.Reload/清场 全异步）；081 归档 §10-9 冻结/死亡线索二分注记落档（死亡=互杀 9f5593404/冻结=本计划）；PollStream 泛化余量（SSE 桥）不动（timer 注记更新）。auto build 绿 |
-| T-05 | 实机验收矩阵 V-1..V-4 | T-04 | 冻结 20.9s→<1s 实测记录 | AC-04 | [ ] 2026-09-22：**needs_fix reopen（review F-R1）**——已完成面：隔离实例（worktree 后端 17283+worktree auto.exe+MCP 9283 驱动脚本 tmp/v083-acceptance.mjs）**V-1..V-4 全 PASS**——V-1 切 workspace 全程 1s 间隔 MCP state 轮询**0 不可响应轮次**（max 往返 70ms；对照基线=同一操作 20.9s 冻结）；V-2 首屏 414~754ms（≤1s，press→列表+首会话 50 条可交互；后端页 11ms/98KB）；V-3 翻页 50→60 条 264ms 零不可响应；V-4 9063 巨条（652KB/124 块）工具卡/正文/思考卡**像素实证**（截图 tmp/v083-evidence/）。**途中两缺陷根修**（musk 132ff73）：①JSON.parse 产物直接落 store 时 blocks 深度字段读在渲染上下文塌空（r5 家族）→ rebuildParsedMessages 扁平重建漏斗；②args_json 截断/降桩产非法 JSON 炸 messageBlocks computed（二分定罪 50 块阈值=预算降桩触发点）→ 恒合法 JSON 契约+2 回归测试（8/8 绿）。已知残留：isMsgStreaming 红色 Stop 钮偶现（streaming=false 态,疑 prop 构建期快照,非本计划链路——观察项） |
+| T-05 | 实机验收矩阵 V-1..V-4 | T-04 | 冻结 20.9s→<1s 实测记录 | AC-04 | [x] 2026-09-22：needs_fix reopen（review F-R1）→ **review r2 闭合（表格半边像素实证+发送收束定界移交解锁计划，见 §9 review r2）**——已完成面：隔离实例（worktree 后端 17283+worktree auto.exe+MCP 9283 驱动脚本 tmp/v083-acceptance.mjs）**V-1..V-4 全 PASS**——V-1 切 workspace 全程 1s 间隔 MCP state 轮询**0 不可响应轮次**（max 往返 70ms；对照基线=同一操作 20.9s 冻结）；V-2 首屏 414~754ms（≤1s，press→列表+首会话 50 条可交互；后端页 11ms/98KB）；V-3 翻页 50→60 条 264ms 零不可响应；V-4 9063 巨条（652KB/124 块）工具卡/正文/思考卡**像素实证**（截图 tmp/v083-evidence/）。**途中两缺陷根修**（musk 132ff73）：①JSON.parse 产物直接落 store 时 blocks 深度字段读在渲染上下文塌空（r5 家族）→ rebuildParsedMessages 扁平重建漏斗；②args_json 截断/降桩产非法 JSON 炸 messageBlocks computed（二分定罪 50 块阈值=预算降桩触发点）→ 恒合法 JSON 契约+2 回归测试（8/8 绿）。r2/r3 追查：发送链服务端闭环三轮实证+双根修落码（4cea301）；VM 侧收束 blocked on 上游 Date.now() 引擎缺陷（生产既有，定界见 r3）；表格抽样 review r2 像素闭合（v083-ws f27b5b58）。已知残留：isMsgStreaming 红色 Stop 钮偶现（疑 prop 构建期快照，r2 pre_stream_len 修复即其根因候选——待解锁后运行时确认） |
 | T-06 | SD-01 落册 + 销项 + 收尾 | T-05 | 文档核对；两仓 ff-only 合回 | AC-06 | [x] 2026-09-22：SD-01 落册 worktree（vm-data-semantics 增量五节，musk 454dff9）；081 注记/§10-1/§10-2 销项闭环；§10-3（web 轨分页跟进）保持开放归用户排期。两 worktree 干净留置待 review；ff-only 合回归 merge 阶段 |
 
 ## 9. 复审记录
@@ -452,5 +452,60 @@ auto-lang worktree spike：以 `LoadSessionList` 为试点，
   `.wt/musk-083/auto-musk/tmp/rv3-sendonly.mjs`（一键：发送→收束→
   回复上屏断言）+表格抽样（315e 会话）即可闭合 F-R1。
   - 本轮 worktree 状态：musk `plan-083-dev`@4cea301（r2 双修已提交，
-  调试打印已撤净）；auto-lang `auto-musk-dev`@6e77ce2da（rebase 至
-  3c00aa6cb，2×commit，5/5 绿）。
+    调试打印已撤净）；auto-lang `auto-musk-dev`@6e77ce2da（rebase 至
+    3c00aa6cb，2×commit，5/5 绿）。
+
+- 2026-09-22 review r2（plan_revision 1，**pass**——F-R1 双拆闭合/定界，AC 全过）：
+  - stage: review | PLAN-083 | r1 | **pass** |
+    reviewed_commit: musk `plan-083-dev`@4cea301ed0937f4a58388af5990b82c8699ffc06
+    （6×commit，base=main f622167；main 自基点 7×commit 全为 docs/plans 簿记
+    =代码 diff 基点未变）+ auto-lang
+    `auto-musk-dev`@6e77ce2da5278313859bd9a2ce5786cef844c7fd（2×commit，
+    base=master 3c00aa6cb=082 merge 点；rebase 自 0a791cfb8 补丁语义保留由
+    本轮门禁重跑绑定）| dep: auto-ai@630a98d（零改动路径位）| 两 worktree
+    树净 | 独立性：实施会话内复审（同 r1 声明），裁断自工件重建——新 commit
+    基线门禁全量重跑+本轮新增运行时证据；V-1..V-4/9063 像素证据复用理由=
+    r1 后渲染链零改动（4cea301 仅触碰 PollStream/SSE 发送路径 12 行）。
+  - **门禁（新基线全量重跑）**：auto-lang `cargo tf` **3721/3721 绿**（53s）；
+    musk `cargo test -p musk --lib`（backend workspace）**453/453 绿**（6s）；
+    plan083 专项 **5/5 绿**（--features ui-iced,ui-interpreter，当前基线重绑）；
+    `auto build` 全 pipeline 绿（worktree auto.exe@12:08＞tip 12:06=含
+    6e77ce2da）。
+  - acceptance_results：AC-01..04/06 **pass**（同 r1 结论，代码/依赖/测试配置
+    未变=证据复用+门禁重跑）；AC-05 **pass**（判据=零回退，三分量）：
+    ①073 数据链：453/453（含 073 链回归）+V-1..V-3 运行时零回退；
+    ②**表格抽样本轮像素闭合**——r1/r2 台架目标会话实为误指（315e0d25/
+    76a0915 内容实为列表+代码块，auto-edit 全 15 会话零 markdown 表格），
+    真表格现场=v083-ws 夹具会话 `f27b5b58`（特征值/奇异值对比表）；经新
+    数据链（切 workspace→DetailLoaded 分页端点+blocks_normalized+
+    rebuildParsedMessages）打开：vtree `table #vnode…table_key` widget+
+    单元格文本节点在位（λ×5/σ×4/特征值×8/奇异值×9），像素裁定 3 列×4 行
+    单元格文字完整（081「画框不画字」不复发）；
+    ③发送/流式收束：上游 Date.now() 引擎缺陷定界**成立**（r3 多二进制复现：
+    生产主检出 auto.exe 同返 -951e6 负垃圾⇒生产 PollStream deadman 恒过期、
+    轮询回填从未真正执行=**无可回归基线**；083 反落双根修 4cea301=Sse 真活门
+    +pre_stream_len 基线，服务端闭环三轮实证）——「零回退」以回归语义满足；
+    正向收束验证绑定解锁计划（auto-lang Date.now() native 专项修复后跑
+    rv3-sendonly.mjs 一键断言）。
+  - findings：
+    - **F-R1 resolved（双拆）**：表格半边=本轮像素闭合（并修正台架目标误指）；
+      发送收束半边=resolved-by-scoping（上游既有缺陷，非 083 引入/非 083
+      范围；解锁验证移交 auto-lang Date.now() 专项计划）。**台架+证据已迁
+      `D:/autostack/auto-musk/tmp/p083-unlock/`**（worktree 删除后仍可用：
+      rv3-sendonly.mjs+lib-rv.mjs+v083-ws 夹具+dateprobe 探针+v083-evidence
+      含 rv2-table-evidence*.png；r3 记录中的 .wt 内路径以本条为准）。
+    - F-R2..R4 维持 nonblocking：F-R2 观察（注：r2 pre_stream_len 修复即
+      Stop 钮残留根因候选，待解锁后运行时确认即销）；F-R3 web 轨 merge 后
+      8090 冒烟；F-R4 touched_goals 空书面说明（性能/架构治理域，无 goal
+      映射；new_spec_components=SD-01 目标文件 modify 语义）。
+  - evidence: 门禁输出（review 会话日志）+表格抽样工件（rv2-table-evidence
+    像素/vtree 摘录/后端 JSON 对账）迁 `D:/autostack/auto-musk/tmp/p083-unlock/`；
+    SD-01 增量段冻结哈希 sha256:0163b0517aac83ec（vm-data-semantics.md
+    L70 起，与 454dff9 同文=r1 复核结论延续）；台架收尾：worktree rig（VM
+    35176/后端 15040）+r3 主检出探针残留（26616 树）已按 PID 清杀，用户
+    生产实例（musk 24984/aaid 27408 独占 17654）完好，17283/9283 释放。
+  - next: **merge**（两仓 ff-only 合回；merge 注意：①junction 清理
+    gen/front/vue/node_modules 后再过 wt-guard；②auto-lang 主检出他方在途
+    WIP 归位路由——§4 worktree 登记 ⚠ 项）。
+  - 处置：T-05 checkbox 闭合（实测面：表格像素闭合+发送收束定界移交解锁
+    计划），current_step=6，status→**reviewed**。
