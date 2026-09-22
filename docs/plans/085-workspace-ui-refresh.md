@@ -1,12 +1,12 @@
 ---
 plan_id: "085"
-status: executing
+status: execution_done
 feature_name: "五栏目 UI/UX 整理与双端布局收敛"
 author: Codex
 created_at: "2026-09-22"
 updated_at: "2026-09-23"
-plan_revision: 2
-current_step: 1
+plan_revision: 3
+current_step: 5
 total_steps: 5
 supersedes_spec_components: []
 new_spec_components: [workspace-ui]
@@ -69,10 +69,10 @@ AutoUI 限制：VM 无 CSS cascade，纯类名通过共享 style 解析；动态
 ## 8. 执行步骤
 
 - [x] T-01 完成来源分析与详细方案，记录084边界。（AC-01–04）证据：五视图、共享组件、AutoUI 主题与 ui-parity 脚本已核查；084 交付后基线更新为 dc15729。
-- [ ] T-02 公共导航/标题/主题与会话视觉整理。（AC-01/02，依赖T-01）
-- [ ] T-03 计划/规范/知识/文件状态和布局整理。（AC-03，依赖T-01）
-- [ ] T-04 生成、双端运行与交互验证，处理实际发现。（AC-01–04，依赖T-02/03）
-- [ ] T-05 模块规范、评审证据、合回归档及清理。（SD-01/02，依赖T-04）
+- [x] T-02 公共导航/标题/主题与会话视觉整理。（AC-01/02，依赖T-01）证据：`ee3df8b`、`6dc49b3`；统一 64/240/48px 层级、960px 会话阅读面与输入区，修正浅色用户气泡对比度。
+- [x] T-03 计划/规范/知识/文件状态和布局整理。（AC-03，依赖T-01）证据：`ee3df8b`、`6dc49b3`；五栏目空态、主要入口、加载/失败状态与文件标题完成。
+- [x] T-04 生成、双端运行与交互验证，处理实际发现。（AC-01–04，依赖T-02/03）证据：Auto 生成、Vue production build、ui-parity catalog 均通过；五栏目 1024/1280 明暗截图无水平溢出。VM live 在真实后端隔离工作区停于 `phase 1/2: VM arm` 超过 90 秒无首帧，人工终止；与 PLAN-084 已登记 VM container/启动基线缺陷同域，作为评审已知阻断，不表述为双端通过。
+- [x] T-05 准备模块规范与持久证据，交接 review/merge。（SD-01/02，依赖T-04）证据：新增 `docs/specs/modules/workspace-ui.md`，更新默认样式边界与 spec 索引；评审、合回、归档由后续阶段负责。
 
 ## 9. 复审记录
 
@@ -81,6 +81,10 @@ stage: new | plan_id: 085 | plan_revision: 1 | outcome: pass | changed: AC-01–
 stage: work | plan_id: 085 | plan_revision: 1 | outcome: executing | code_base: 639cf4e（待重放 dc15729） | task_ids: T-01 | evidence: Auto/Vue/VM 源码、现有 Specs、用户截图和 ui-parity 运行链完成调查 | blockers: none | next: T-02/T-03
 
 stage: new | plan_id: 085 | plan_revision: 2 | outcome: pass | changed: theme design,SD-02 | evidence: Web 实拍删除双模式 surface 覆盖后，暗色背景与前景 token 分属不同模式，规范侧栏文本对比失效；当前 pac.at theme.colors 无 light/dark 分表 | next: work
+
+stage: new | plan_id: 085 | plan_revision: 3 | outcome: pass | changed: T-05 phase boundary | reason: review/merge 不能作为 work 阶段完成条件，改为准备规范与证据后交接 | next: work
+
+stage: work | plan_id: 085 | plan_revision: 3 | outcome: execution_done | code_base: dc15729 | code_commit: 6dc49b397a3ed3bdd0548ce39d0374b936f52c32 | task_ids: T-02,T-03,T-04,T-05 | evidence: Auto gen PASS; Vue production build PASS; ui-parity 108 declarations/106 cases PASS; Web five views dark/light + 1024/1280 overflow PASS; VM live current-revision attempt stalled at VM arm >90s and was terminated | blockers: VM runtime evidence blocked by registered baseline engine/startup defect; no Web or source blocker | next: review
 
 ## 10. 待澄清事项
 
