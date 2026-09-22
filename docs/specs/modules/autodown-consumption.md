@@ -131,3 +131,25 @@ Musk 宿主前端代码仅通过统一端口抽象与原生 AST 组件消费 Aut
   - 同步 vendor 必须包含全量 dist 产物及 `.dist-stamp`。
   - 必须记录对应 `auto-down` master commit hash 与验证记录。
   - 禁止创建任何指向 vendor 的 symlink/junction。
+
+## PLAN-084 增量：VM 数学真渲染（LaTeX→Unicode）与表头 chrome（SD-03/04）
+
+> 单 $ 行内式与 math 块的 VM 视觉兜底升级为真渲染；`$$` 双美元块语法不支持=
+autodown 引擎债（单源 .at 扩展另档，web katex 同不渲染 $$ 内容）。
+
+### math_inline / MathBlock（SD-03，VM 轨）
+
+- `autodown_math::latex_to_unicode`：希腊字母/运算关系箭头 70+ 命令映射、
+  上下标（单字符与 {..} 形式）、字母类符号后跟字母数字词吞空格（TeX 语义
+  `\lambda v`→`λv`，算符保留 `a × b`）、未命中命令剥反斜杠（`\det`→`det`）、
+  悬空 ^/_ 流式安全、矩阵环境降级原文。
+- 消费点：math_inline span 内容（mono+bg-muted chip 样式不变，不新增 View
+  变体——四站点不触发）+ MathBlock 降级面板正文（头标签弱化 text-xs muted）。
+- 形态实证：parser 对单 $ 行内产出 math_inline 正常（"未渲染"历史=无符号
+  转换非解析缺陷）。
+
+### 表格 chrome（SD-04，VM 轨只读臂）
+
+- table_resize draw 增表头底色带（Muted 语义色随主题，State.header_w=layout
+  total_w，先画带再画格）；行分隔线/列对齐语义零动（PLAN-082 pin 保护）。
+

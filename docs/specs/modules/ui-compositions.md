@@ -84,3 +84,44 @@
 - **依据**：PLAN-081 r5/r6 实机定罪与像素实证（收据
   docs/reports/ui-parity/081-workspace-switch-ux.md r5/r6 节；musk
   0b70043/4945f61）。
+
+## PLAN-084 增量：会话列表分组折叠与默认形态 + 聊天头部终态 + composer 合一（SD-01/02/06）
+
+> UAT①-⑪ 实机迭代终态（2026-09-22 合入）。评审见 docs/plans/archived/084-*。
+
+### 会话列表（SD-01，§1 NavSidebar list slot）
+
+- 行=标题+相对时间+N 条；按 **今天/昨天/更早** 分组（后端 summary 现算
+  day_group/time_text/date_text，本地时区；前端只做纯分组 sessionGroupsOf）。
+- **"更早"默认折叠**：头行常驻（label+数量+lucide chevron），点击切换；
+  折叠时会话行不生成（store 域 hideEarlier 参数）。
+- **hover 工具组**：✎ 重命名 / 📥 归档（归档视图 📤 取消）/ × 删除（两步确认）；
+  mouse-area 子树仅支持单臂 if（`<else>` S002），行内选中样式预计算进
+  store（scls 字段），视图禁 if/else 对。
+- **已归档过滤开关**：NavSidebar 头部 🗂（lucide archive），开启切
+  archived_list 数据面。
+- 会话行 hover 亮度减半（bg-accent/40；选中态 primary/20）。
+
+### 一级导航栏（rail）
+
+- **默认收起**（w-16 图标态，`rail_collapsed=true`），ToggleRail 随时展开；
+  rail active 用 computed bool 绑定（表达式 prop `active: .x == "y"` VM 不消费）。
+
+### 聊天头部（SD-02，§3 ContentHeader）
+
+- 标题=会话名（text-lg、w-[250px] truncate、可编辑），无 agent 角色徽章
+  （一会话未来可能多 agent，角色标识易误导——用户裁定）；流式状态点常驻。
+- actions=✎ 重命名（标题行内编辑）+ 🔍 搜索（点击展开 middle 搜索框）+
+  📥 归档三 icon（lucide）；SessionInfo（chat id/token 成本）退役，token 成本
+  入口找回登记 KNOWN-DEBT。
+
+### composer（SD-06）
+
+- **合一容器**：textarea 无独立边框融入大圆角 composer-box——VM text_editor
+  仅在 style 含文本色类时应用无边框样式臂（`text-foreground` 必挂）。
+- **思考/审批菜单=popover 浮层**（popover/popover-trigger(as_child)/
+  popover-content，settings 同款）：absolute 向上弹出 VM 不消费（菜单掉文档流
+  被底缘裁剪）。菜单项 onclick 走 onpick/onpickapproval 落库链。
+- AI 气泡身份头=名称+角色 badge（漏斗 aname/ainit 预计算字段直读；视图
+  computed 内 fn 调用静默返空——坑①，AgentAvatar 组件内同踩）。
+

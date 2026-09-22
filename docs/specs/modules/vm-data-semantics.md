@@ -114,3 +114,18 @@ expanded="m1"/展开 true/收起 false）。obj-prop 传递依赖逐帧烘焙（
   `plan-083-dev` 5×commit：page 端点 8 测绿+938KB→106KB 实测、两段式
   迁移、V-1..V-4 实机矩阵全 PASS（0 不可响应轮次/首屏 414~754ms/
   翻页 264ms/巨条像素实证）——收据 tmp/v083-evidence/ + 本计划 §9）。
+
+## PLAN-084 增量：会话归档与列表元数据（SD-05 + 分组元数据）
+
+- **ChatSession.archived**（`#[serde(default, skip_serializing_if=not)]`——旧档
+  JSON 零 diff/旧前端零感知；ag 镜像不承载=「镜像仅承载 parity 所需字段」
+  哲学）：归档=列表级隐藏（list 滤除/list_archived 对偶面），不删消息、
+  **不 bump updated_at**。
+- 端点：`PATCH /api/chats/session/{id}/archive`（body {archived:bool}）、
+  `GET /api/chats/sessions/archived`（chat_rename 同款补线先例）。
+- **列表分组元数据后端现算**：summary 增 day_group(0=今天/1=昨天/2=更早)/
+  time_text("HH:mm")/date_text(本年 MM-DD/跨年 YYYY-MM-DD)——本地时区 chrono
+  现算（VM 无可用时钟：Date.now() 返负垃圾既有缺陷）；VM 轨日历运算收敛后端。
+- **get_msg 桥 sessions 位重建漏斗**：rebuildSessions 逐字段重建（JSON.parse
+  产物直接落 store 渲染上下文深读塌空=r5 家族 sessions 位显形；083 只给
+  messages 配了漏斗）。
