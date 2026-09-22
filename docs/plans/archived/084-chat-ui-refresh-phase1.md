@@ -432,7 +432,14 @@ PLAN-083 合入后行号已修正，语义契约零变更）：
   updated_at 见下 | `archived`: 本文件 archived/ + status:archived +
   completion_kind:delivered | `cleaned`: 见后补（worktree 组 musk-084 四位
   auto-musk/auto-lang/auto-down/auto-ai + 分支 plan-084-dev/auto-musk-dev）。
-  生产链重建：auto-lang master release exe + musk main launch-vm 冒烟。
+  生产链重建：auto-lang master release exe（1993-g8fecfcf69）+ musk main
+  release musk.exe + 主检出 auto build/gen 绿（R001 跨计划解阻 4414e78/
+  1f5fdbb：questionnaire/wiki_nav 分支同 key——auto-lang master 新严校验×
+  musk 旧文件）。**生产 VM 桌面窗口启动暂 blocked**：他方会话在 auto-lang
+  master 检出的未提交 WIP（renderer/shell_client）经 path-dep 污染 musk
+  VM 应用编译（D3D12/manifest E0308/E0277）——他方落地后于主检出重跑
+  `auto run --render vm` 即愈（backend 17201 已健康在跑）；后端+gen+全部
+  代码/规范/归档均已落 main。
 
 - 2026-09-22 **review 预审（work 准入，用户授权"通过即 work"）**：
   `stage: review | plan_id: PLAN-084 | plan_revision: 1 | outcome: pass（进入 work）|
