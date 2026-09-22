@@ -83,6 +83,15 @@ repository's naming rules. Never edit canonical Specs directly on main.
   code, dependencies, and Spec targets with the baseline. If they changed in a
   way that affects the review, return for re-review; resolve implementation
   conflicts through work. Preserve unrelated concurrent changes.
+- Guard the delta's canonical target: any spec-delta landing outside
+  `docs/specs/` (including empty spec-components justified by a "knowledge
+  lives elsewhere" note — module README, ledger-only, etc.) requires a
+  recorded, reviewed precedent for that knowledge base in this repo. No
+  precedent → stop and get a one-time user confirmation, then record the
+  convention (e.g. in `docs/specs/reviews`); an inherited "same-as-NNN" note
+  alone is not confirmation. Lesson (auto-edit, 2026-09-22): PLAN-002 silently
+  established a README-as-spec convention that five successor plans inherited
+  unchecked, leaving `docs/specs/` and the structured sections unbuilt.
 - Apply the approved delta to the affected module documents and their existing
   indexes. Preserve unrelated requirements and authored explanations. Record
   Plan provenance and reasons for retired rules.
