@@ -81,12 +81,15 @@ review；本计划 work 开工条件 = 083 完成 review+merge。
 
 - 前端 .at（`src/front/`，auto.exe `--render vm` 消费；web 轨 `web/src/views/ChatsView.vue`
   为 parity 对端）：
-  - 会话列表 = `chats_view.at` 内 `NavSidebar` slot("list")（:175 起）；选中态
-    `class: if .s.id == .store.session_id`（:181-185）；hover 删除按钮由
-    `mouse-area` `HoverSession/HoverSessionClear` 驱动（:96-97/:474-475/:226）。
-  - 头部 = `content_header.at` `ContentHeader(title)`（48px：标题+middle+actions），
-    `chats_view.at:245-267` 挂载：middle=`.chat_search` 输入框（`OnSearchInput`），
-    actions=`SessionInfo`（info popover：chat id/消息数/token 成本）。
+  - 会话列表 = `chats_view.at` 内 `NavSidebar` slot("list")（:190 起）；选中态
+    `class: if .s.id == .store.session_id`（:196）；hover 由
+    `HoverSession/HoverSessionClear`（:99-100/:212-213/:514-515）驱动，删除走
+    `AskDelete/ConfirmDelete`（:69-72）+ `use back.api chats_delete_session`（:14）
+    + `DeleteConfirmDialog` 端口。
+  - 头部 = `content_header.at` `ContentHeader(title)`（48px：标题+middle :23+actions
+    :25），`chats_view.at:260-282` 挂载：middle=`.chat_search` 输入框（:272-273，
+    `OnSearchInput`），actions=`SessionInfo`（:282，info popover：chat id/消息数/
+    token 成本）。
   - 消息块 = `chat_message.at` `ChatMessage`，text 块 → `ports/renderer.at` 的
     `Markdown` → VM `autodown { content, streaming }`（web 轨 → `@autodown/vue`
     StreamingRenderer）。
@@ -103,9 +106,12 @@ review；本计划 work 开工条件 = 083 完成 review+merge。
   code-block badge/copy 与表格 slot chrome。聊天两轨均已同源消费 engine 表格——
   本计划只补 VM 轨 chrome 缺口，不加新缝隙。
 - 后端（`backend/crates/musk/src/chats.rs`）：`ChatSessionSummary`
-  （:185-192，含 `message_count/preview/updated_at`），`GET /api/chats/sessions`。
+  （:183-190，含 `message_count/preview/updated_at`；`summary()` :211、`list()`
+  :423、`rename()` :435），`GET /api/chats/sessions`。
   重命名路由已存在：`PATCH /api/chats/session/{id}`（auto_generated/server.rs:560 →
   `chats_rename`，extern_impl.rs:786，ChatRenameBody），前端零消费。
+  `ChatSession` 已有 `#[serde(default, skip_serializing_if…)]` wire 兼容先例
+  （`pending_spec_changes`），T-05 `archived: bool` 沿用。
   **归档能力不存在**（无字段/无路由/无 UI）。
 
 改动面：
@@ -148,7 +154,8 @@ bounded 检查验证 snapshot 链对新增 class 的透传，若发现需要结�
   消费后尽快合回）；主检出仅 `docs/plans/` 状态与本文档。
 - 预算/自动续跑限制：用户未指定，按各任务验证命令自然收口。
 
-**背景调查证据**（勘察日期 2026-09-22，主检出 @ 6b91b37）：
+**背景调查证据**（勘察 2026-09-22 首稿 @ 6b91b37；**review 预审复核 @ 307da15**，
+PLAN-083 合入后行号已修正，语义契约零变更）：
 
 - 关键 file:line 证据见 §2；specs 依据：`autodown-consumption.md` §2/§3.1/§5.2、
   `chat-agent-identity.md`（mode→role 身份目录 + `AgentAvatar`/`agentDisplayName`
@@ -307,6 +314,25 @@ bounded 检查验证 snapshot 链对新增 class 的透传，若发现需要结�
   落地；两项默认裁定（SessionInfo 退役、归档入口=过滤开关）已记 §10 供 review
   翻案。`next: work`，硬前置 = PLAN-083 完成 review+merge 后开工；并行建议先把
   本计划送 `/auto-plan:review`。
+
+- 2026-09-22 **review 预审（work 准入，用户授权"通过即 work"）**：
+  `stage: review | plan_id: PLAN-084 | plan_revision: 1 | outcome: pass（进入 work）|
+  reviewed_commit: 84bb82c（计划文本）| base_commit: 307da15（musk main，083 合入后）|
+  dependency_revisions: auto-lang master 641e1b9f4（083 T-01/T-03 已落；主检出有他方
+  WIP 脏树 5 文件——不阻塞，worktree 独立检出，开工勿动其工作区）|
+  spec_inputs: ui-compositions §1(:6)/§3(:26)、autodown-consumption §2.1(:43)/§3.1(:55)/§5、
+  vm-data-semantics 083 增量(:70)——SD-05 叠加无冲突（083 分页按会话消息页，
+  归档过滤在 summary 列表层）| acceptance_results: 预审不含 AC 实现验证，
+  AC-01..07 全部待 execution_done 后实现性复审 | findings: **F-R1（低，已修正）**
+  §2/§4 行号为 083 合并前勘察——按 307da15 复核修正（chats_view.at 列表 :190 起/
+  选中 :196/hover :99-100+:212-213+:514-515/头部 :260-282；chats.rs
+  :183-190/:211/:423/:435；auto-lang autodown_render.rs 行号零漂移
+  :308/:326/:597/:834/:1557 全中）；证据性修正，语义契约零变更→revision 不增。
+  **F-R2（信息）** ChatSession serde skip 先例确认（pending_spec_changes），
+  T-05 wire 兼容方案有直接依据 | evidence: PLAN-083 归档收据
+  （docs/plans/archived/083-*.md status: archived；main 307da15 merge 收据 commit；
+  worktree list 仅存主检出=全清）| next: work（组 musk-084：auto-musk
+  `plan-084-dev` + auto-lang `auto-musk-dev` 并排）。
 
 ## 10. 待澄清事项
 
