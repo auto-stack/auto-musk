@@ -532,6 +532,25 @@ auto-lang worktree spike：以 `LoadSessionList` 为试点，
       在位）。
     - archived：docs/plans/archived/083-vm-data-async-and-payload.md，
       status: archived, completion_kind: delivered。
+    - cleaned：✅ wt-guard clean ×4——musk/auto-lang/auto-ai 三计划位 + 
+      auto-down 依赖位（组内第 4 worktree，分支 auto-musk-dev=master tip
+      fba6563 已并入 auto-down master，树净，一并清）；worktree ×4 移除、
+      分支 ×4 删除（plan-083-dev@5b34a5d / auto-musk-dev@641e1b9f4 /
+      auto-ai@630a98d / auto-down auto-musk-dev@fba6563）、组目录
+      .wt/musk-083 已删；四仓 worktree 注册表零残留（grep=0×4）。台架+
+      证据已预迁 `D:/autostack/auto-musk/tmp/p083-unlock/`（worktree 删除
+      无损）；aaid 无孤儿（17654=用户 daemon 独占）。
+  - 部署+冒烟（主检出已知良好）：①release 重建——auto-lang master
+    641e1b9f4（auto.exe 含 get_msg native）+ musk backend（5b34a5d 血统；
+    用户 17201 旧实例 09-21 二进制停替换新二进制重启，/api/health ok，
+    PID 23212）；②主检出 `auto build` 全 pipeline 绿（gen/dist 带新数据链，
+    8090 web 链就绪）；③**生产桌面链冒烟**：标准序起 VM——boot 走
+    get_msg 两段式桥正常（registry 默认 workspace 会话加载+消息渲染在位
+    =native 3148 生产链生效），切 auto-edit 首屏 **+354ms**（083 头条指标
+    生产复现；对照 20.9s 基线），截图
+    docs/plans/attachments/083-merge-smoke-main.png；④web 8090 快检
+    （F-R3 提前收口）：/api/health+SPA+sessions API 绿（新 dist）。冒烟
+    VM/serve 实例已清，17201 后端常驻保留（用户日常链）。
   - 遗留移交：见 KNOWN-DEBT 083 行（解锁链=auto-lang 修 Date.now() → 跑
     tmp/p083-unlock/rv3-sendonly.mjs 闭合 F-R1 尾项+Stop 钮确认；web 轨
     8090 冒烟；§10-3 web 分页跟进用户排期）。PLAN-084 硬前置解除。
