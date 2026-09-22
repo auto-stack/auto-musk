@@ -307,6 +307,29 @@ PLAN-083 合入后行号已修正，语义契约零变更）：
 - 收尾：rebase main → `--ff-only` 合回 → 删 worktree+分支；绑定 rebase 前 hash 的
   证据用 `git range-diff` 记录映射。
 
+### 执行进度（work 阶段登记，2026-09-22）
+
+| ID | 状态 | 证据 |
+|:---|:---|:---|
+| T-01 | ✅ 已完成 | auto-lang `auto-musk-dev` @ 3ddc69ac7：`span_class` 消费 `math_inline` attr（mono+bg-muted chip）+ math 面板头标签弱化 `text-xs text-muted-foreground`（QueryBlock tag 同词汇）；新测试 `math_inline_span_gets_chip_class` + `renders_degraded_math_block` 绿（`cargo nextest -p auto-lang --lib --features autodown` 口径在案）。**偏差记录**：勘察确认 PANEL_CHROME 降级面板本就是弱色底卡片（bg-muted+rounded+mono），重排缩为头标签弱化一处 |
+| T-02 | ✅ 已完成 | 同 commit：table_resize `State.header_w`（=layout total_w）+ draw 先画 Muted 语义色表头带再画格；**bounded 调查定案**：行分隔线（draw :488）与表头字重/色（apply_table_header_style，vue th 同款）已有，唯一缺口=表头底色；`View::Table` 变体零改动→四站点不触发；plan082 双 pin 绿（`--features autodown,iced-layout-tests`） |
+| T-03 | ✅ 已完成 | musk `plan-084-dev` @ 0fdf7eb（+T-05 @ 720babc 的 summary 元数据）：**偏差记录**——`updated_at` 已在响应但日历运算需时钟，VM `Date.now()` 负垃圾既有缺陷 → 后端 chrono 本地时区现算 `day_group/time_text/date_text`（summary_time_fields），前端 `sessionGroups` 纯函数只做分组；计划"零后端改动"修正为"后端现算元数据"，目标与验收不变 |
+| T-04 | ✅ 已完成 | 0fdf7eb：hover 工具组 ✎/📥📤/×（✎ 行内重命名 enter 提交 esc 取消，`chats_rename_session` 契约首次消费；× 两步确认不动；选中态保留现状）；行内重命名 UI 闭环经 VM 冒烟 T-07 截图+断言 |
+| T-05 | ✅ 已完成 | 720babc：ChatSession.archived（skip-if-false：旧档 JSON 零 diff/ag 镜像不承载沿真源哲学）+archive()（不 bump updated_at）+list 滤除/list_archived+PATCH archive+GET sessions/archived（chat_rename 同款补线）+api.at 契约；parity_chats 20/20 绿（新增归档隐藏/持久化/wire 兼容/不 bump 四断言） |
+| T-06 | ✅ 已完成 | 0fdf7eb：ContentHeader 增 subtitle/status 可选 props（缺省不渲染，wiki/specs 零改动）；头部=会话名（sessionNameById 回退"聊天"）+modeRoleLabel 身份徽章+headerStreamStatus 状态点（绿常亮/灰，呼吸动画未证从简）；middle 搜索框退役为 🔍 icon 展开（chatSearchFilter 不动）；✎ 头部行内编辑；SessionInfo 退役（§10 Q1 兑现）。**实现注记**：widget 回调下传不可靠（探针 B 在案）→ 头部 ✎ 入 actions 组（search/归档外第三钮，最小越界，review 可裁） |
+| T-07 | 🔶 进行中（一项断言待查） | auto build 全 pipeline 绿（多轮）；musk cargo：parity_chats 20/20 + lib/chat_page 等 green，唯 `tool_atoms::run_command_dangerous_returns_paused` 红（工具沙箱域 PLAN-070 e3be6c8 所涉，与本计划 diff 零因果面，**基线红移交 review/PLAN-070**）；gallery prepare+catalog PASS（live 4 案收据归 merge 门）；**VM 冒烟实机取证**：三分组列表+三会话+选中行工具组（✎📥×）+头部（会话名/assistant 徽章/状态点）渲染实证（tmp/p084-smoke/shots/01、02 截图，AC-03 断言 PASS）；**AC-01/02 在 app 内断言未过**——math/表格 assistant 消息未在 canvas 渲染（store 双消息在册 probe 实证、page 端点块完整 curl 实证→断点在 083 域 messageBlocks/块渲染链，seed 为合成极简形态；**移交 review 排查**，真实会话数据（ingest 块齐全）可能不复现） |
+
+**发现的新坑（登记）**：.at for 循环体多子元素时 key 塌缩为 `self.g.gkey`（vue-tsc TS2339 红）——循环体必须单子元素带 key（msg 循环单 col 先例归纳成文）。
+
+**T-07 冒烟轮新增定罪（VM 侧，均有 app stdout/快照实证）**：
+1. 视图 computed 内 use.web.fn 调用 → VM 静默返空（filteredMessages 同构却工作——差异在 fn/参数面，待 auto-lang 归因）→ 分组改 handler 域（sessionGroupsOf 内联 + session_rows 字段）。
+2. get_msg 桥 sessions=JSON.parse 产物，渲染上下文深读塌空（r5 家族 sessions 位显形）→ rebuildSessions 漏斗补齐（083 只给 messages 配了）。
+3. `ch.to_upper()` VM 返 None（`str + NoneType` 崩点，VM-HANDLER 栈实证）→ 徽章退 role 原文。
+4. `t(动态 key)` VM 返空（`t(字面量, params)` 有旧列表先例）→ 组头 gkey 三分支 + 字面量 t()；且 if 链须在 row 体位（span 内联 if=text 位 R046 变体）。
+5. mouse-area 事件参 loop-var 成员（`.HoverSession(.r.sid)`）→ 子树整体塌 → 工具组改选中行常显（两轨同形）。
+6. span 内多子元素带 key 的 template v-for 包裹塌 `self.*`（vue-tsc 红）。
+以上 1-5 均为 auto-lang/VM 侧待归因债，登记 KNOWN-DEBT 候选（merge 阶段落册）。
+
 ## 9. 复审记录
 
 - 2026-09-22 draft handoff（plan_revision 1）：`stage: new`，`PLAN-084` rev 1。
@@ -315,6 +338,7 @@ PLAN-083 合入后行号已修正，语义契约零变更）：
   翻案。`next: work`，硬前置 = PLAN-083 完成 review+merge 后开工；并行建议先把
   本计划送 `/auto-plan:review`。
 
+- 2026-09-22 **work 阶段交接（T-01..T-06 完成，T-07 部分）**：
 - 2026-09-22 **review 预审（work 准入，用户授权"通过即 work"）**：
   `stage: review | plan_id: PLAN-084 | plan_revision: 1 | outcome: pass（进入 work）|
   reviewed_commit: 84bb82c（计划文本）| base_commit: 307da15（musk main，083 合入后）|
@@ -333,6 +357,18 @@ PLAN-083 合入后行号已修正，语义契约零变更）：
   （docs/plans/archived/083-*.md status: archived；main 307da15 merge 收据 commit；
   worktree list 仅存主检出=全清）| next: work（组 musk-084：auto-musk
   `plan-084-dev` + auto-lang `auto-musk-dev` 并排）。
+
+  `stage: work | plan_id: PLAN-084 | plan_revision: 1 | outcome: blocked（部分——非阻塞性缺口 1 项）|
+  code_commit: auto-lang auto-musk-dev @ 3ddc69ac7；musk plan-084-dev @ 720babc/0fdf7eb/e48c8c8 |
+  task_ids: T-01/T-02/T-03/T-04/T-05/T-06 完成（证据见 §8 执行进度表）；T-07 部分完成 |
+  evidence: cargo（auto-lang autodown/plan082 pins 绿；musk parity_chats 20/20）；auto build 全 pipeline
+  绿 ×N；gallery catalog PASS；VM 冒烟截图 tmp/p084-smoke/shots/01、02（三分组/选中行工具组/头部三件套
+  实机渲染）+ AC-03 断言 PASS | blockers: ①AC-01/02 在 app 内断言未过——math/表格 assistant 消息未在
+  canvas 渲染（store 双消息在册 + page 端点块完整均已实证 → 断点在 083 域 messageBlocks/块渲染链；
+  seed 为合成极简形态，真实 ingest 块数据可能不复现；**精确解锁动作**：用真实会话数据或补 seed 块链路
+  排查 messageBlocks VM 臂，归因后回填 AC-01/02 证据）②tool_atoms 基线红（PLAN-070 域，见 §8 表）|
+  next: review 可先行（T-01..T-06 证据链完整；AC-01/02 带债复审或补证后 re-review，二选一由 review 裁定）`
+
 
 ## 10. 待澄清事项
 
