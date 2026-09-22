@@ -279,69 +279,78 @@ widget ChatsView {
                         } else {
                             "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground"
                         }
-                        if .renaming_id == .r.sid {
-                            row {
-                                style: "flex items-center w-full gap-1"
-                                input {
-                                    style: "flex-1 min-w-0 h-6 text-[13.6px] text-foreground bg-background border border-primary/40 rounded px-1.5 outline-none"
-                                    value: .rename_draft
-                                    oninput: .RenameDraft($event)
-                                    onkeydown.enter.prevent: .ConfirmRename
-                                    onkeydown.esc.prevent: .CancelRename
+                        mouse-area {
+                            style: "w-full"
+                            onmouseenter: .HoverSession(.r.sid)
+                            onmouseleave: .HoverSessionClear
+                            // PLAN-084 UAT⑤：hover 工具组回归。mouse-area 子树
+                            // 旧解析器仅支持单臂 if（S002 <else> 实锤）——所有
+                            // 分支单臂化；行内 class 预计算进 store（scls）。
+                            if .renaming_id == .r.sid {
+                                row {
+                                    style: "flex items-center w-full gap-1"
+                                    input {
+                                        style: "flex-1 min-w-0 h-6 text-[13.6px] text-foreground bg-background border border-primary/40 rounded px-1.5 outline-none"
+                                        value: .rename_draft
+                                        oninput: .RenameDraft($event)
+                                    }
+                                    span {
+                                        style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md text-sm cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground"
+                                        onclick.stop: .ConfirmRename
+                                        text "✓"
+                                    }
+                                    span {
+                                        style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md text-sm cursor-pointer text-muted-foreground hover:bg-accent hover:text-foreground"
+                                        onclick.stop: .CancelRename
+                                        text "✕"
+                                    }
                                 }
                             }
-                        } else {
                             row {
                                 style: "flex items-start w-full gap-1"
                                 span {
                                     title: .r.sname
-                                    style: if .r.sid == .store.session_id {
-                                        "text-[13.6px] font-medium text-primary flex-1 min-w-0 truncate leading-[1.45]"
-                                    } else {
-                                        "text-[13.6px] text-foreground flex-1 min-w-0 truncate leading-[1.45]"
-                                    }
+                                    style: .r.scls
                                     text .r.sname
                                 }
                             }
-                        }
-                        row {
-                            style: "flex items-center justify-between w-full gap-1"
-                            span {
-                                style: "text-sm text-muted-foreground leading-5"
-                                text t("chat.msgs", { count: .r.scount })
-                            }
-                            // PLAN-084 T-04: 工具组挂选中行常显（mouse-area 事件参
-                            // loop-var 成员在 083 桥链上子树塌，T-07 实证——
-                            // hover 显隐改选中态显隐，两轨同形）。
-                            if .r.sid == .store.session_id {
-                                row {
-                                    style: "flex items-center gap-0.5 shrink-0"
-                                    span {
-                                        style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-foreground"
-                                        onclick.stop: .StartRenameRow(.r.sid, .r.sname)
-                                        title: t("chat.renameSession")
-                                        text "✎"
-                                    }
-                                    if .store.show_archived {
+                            row {
+                                style: "flex items-center justify-between w-full gap-1"
+                                span {
+                                    style: "text-sm text-muted-foreground leading-5"
+                                    text t("chat.msgs", { count: .r.scount })
+                                }
+                                if .hover_session_id == .r.sid {
+                                    row {
+                                        style: "flex items-center gap-0.5 shrink-0"
                                         span {
                                             style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-foreground"
-                                            onclick.stop: .ArchiveRow(.r.sid, false)
-                                            title: t("chat.unarchiveSession")
-                                            text "📤"
+                                            onclick.stop: .StartRenameRow(.r.sid, .r.sname)
+                                            title: t("chat.renameSession")
+                                            text "✎"
                                         }
-                                    } else {
+                                        if .store.show_archived {
+                                            span {
+                                                style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-foreground"
+                                                onclick.stop: .ArchiveRow(.r.sid, false)
+                                                title: t("chat.unarchiveSession")
+                                                text "📤"
+                                            }
+                                        }
+                                        if .store.show_archived == false {
+                                            span {
+                                                style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-foreground"
+                                                onclick.stop: .ArchiveRow(.r.sid, true)
+                                                title: t("chat.archiveSession")
+                                                text "📥"
+                                            }
+                                        }
                                         span {
-                                            style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-foreground"
-                                            onclick.stop: .ArchiveRow(.r.sid, true)
-                                            title: t("chat.archiveSession")
-                                            text "📥"
+                                            style: "session-delete-btn w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-destructive"
+                                            onclick.stop: .AskDelete(.r.sid)
+                                            title: t("chat.deleteSession")
+                                            text "×"
                                         }
-                                    }
-                                    span {
-                                        style: "session-delete-btn w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-destructive"
-                                        onclick.stop: .AskDelete(.r.sid)
-                                        title: t("chat.deleteSession")
-                                        text "×"
                                     }
                                 }
                             }

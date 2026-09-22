@@ -48,6 +48,15 @@ widget App {
     model {
         // 当前视图（chats/specs/wiki）。不用 view（保留字）。
         var current_view str = "chats"
+        // PLAN-084 UAT：rail active 绑定用纯 bool computed——表达式 prop
+        // （active: .current_view == "chats"）在 VM extract_bool_expr 不消费
+        // （落回路由判定恒 false → 会话恒不高亮，用户实机反馈④）。
+        var is_chats bool = true
+        var is_plans bool = false
+        var is_specs bool = false
+        var is_wiki bool = false
+        var is_files bool = false
+        var is_whitelist bool = false
         // PLAN-071 r4（需求③-3）：侧边栏收缩态。
         var rail_collapsed bool = false
     }
@@ -162,38 +171,38 @@ widget App {
                         sidebar_provider (class: "w-full min-h-0 flex flex-col") {
                             sidebar_menu {
                                 sidebar_menu_item {
-                                    sidebar_menu_button (onclick: .ShowChats, active: .current_view == "chats", size: "lg") {
+                                    sidebar_menu_button (onclick: .ShowChats, active: .is_chats, size: "lg") {
                                         icon (name: "message-square") {}
                                         text "会话" {}
                                     }
                                 }
                                 sidebar_menu_item {
-                                    sidebar_menu_button (onclick: .ShowPlans, active: .current_view == "plans", size: "lg") {
+                                    sidebar_menu_button (onclick: .ShowPlans, active: .is_plans, size: "lg") {
                                         icon (name: "list-todo") {}
                                         text "计划" {}
                                     }
                                 }
                                 sidebar_menu_item {
-                                    sidebar_menu_button (onclick: .ShowSpecs, active: .current_view == "specs", size: "lg") {
+                                    sidebar_menu_button (onclick: .ShowSpecs, active: .is_specs, size: "lg") {
                                         icon (name: "scroll") {}
                                         text "规范" {}
                                     }
                                 }
                                 sidebar_menu_item {
-                                    sidebar_menu_button (onclick: .ShowWiki, active: .current_view == "wiki", size: "lg") {
+                                    sidebar_menu_button (onclick: .ShowWiki, active: .is_wiki, size: "lg") {
                                         icon (name: "book-open") {}
                                         text "知识库" {}
                                     }
                                 }
                                 sidebar_menu_item {
-                                    sidebar_menu_button (onclick: .ShowFiles, active: .current_view == "files", size: "lg") {
+                                    sidebar_menu_button (onclick: .ShowFiles, active: .is_files, size: "lg") {
                                         icon (name: "folder-open") {}
                                         text "文件" {}
                                     }
                                 }
                                 // PLAN-070：工作区目录白名单管理视图入口。
                                 sidebar_menu_item {
-                                    sidebar_menu_button (onclick: .ShowWhitelist, active: .current_view == "whitelist", size: "lg") {
+                                    sidebar_menu_button (onclick: .ShowWhitelist, active: .is_whitelist, size: "lg") {
                                         icon (name: "shield-check") {}
                                         text "白名单" {}
                                     }
@@ -262,6 +271,12 @@ widget App {
         }
         .ShowChats -> {
             .current_view = "chats";
+            .is_chats = true;
+            .is_plans = false;
+            .is_specs = false;
+            .is_wiki = false;
+            .is_files = false;
+            .is_whitelist = false;
             vsSetView("chats")
         }
         // Plan 029 T20：全局快捷键（原 useKeyboardShortcuts composable）。
@@ -283,6 +298,12 @@ widget App {
         }
         .ShowPlans -> {
             .current_view = "plans";
+            .is_chats = false;
+            .is_plans = true;
+            .is_specs = false;
+            .is_wiki = false;
+            .is_files = false;
+            .is_whitelist = false;
             vsSetView("plans");
             // PLAN-081：VM 轨子件 Init 不派发（PLAN-048 T5 口径），App 级
             // 代派进视图重拉（.ShowFiles → FilesStore.LoadTree 同款；web 轨
@@ -292,16 +313,34 @@ widget App {
         }
         .ShowSpecs -> {
             .current_view = "specs";
+            .is_chats = false;
+            .is_plans = false;
+            .is_specs = true;
+            .is_wiki = false;
+            .is_files = false;
+            .is_whitelist = false;
             vsSetView("specs")
         }
         .ShowWiki -> {
             .current_view = "wiki";
+            .is_chats = false;
+            .is_plans = false;
+            .is_specs = false;
+            .is_wiki = true;
+            .is_files = false;
+            .is_whitelist = false;
             vsSetView("wiki")
         }
         // PLAN-068: 进入文件视图即重拉 workspace 树（freshness 优先；
         // FilesView.Init 的 files_loaded 守卫只拦挂载期双触发）。
         .ShowFiles -> {
             .current_view = "files";
+            .is_chats = false;
+            .is_plans = false;
+            .is_specs = false;
+            .is_wiki = false;
+            .is_files = true;
+            .is_whitelist = false;
             vsSetView("files");
             FilesStore.LoadTree()
         }
@@ -309,6 +348,12 @@ widget App {
         // 无需 App 驱动 store）。
         .ShowWhitelist -> {
             .current_view = "whitelist";
+            .is_chats = false;
+            .is_plans = false;
+            .is_specs = false;
+            .is_wiki = false;
+            .is_files = false;
+            .is_whitelist = true;
             vsSetView("whitelist")
         }
     }

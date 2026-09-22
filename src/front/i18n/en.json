@@ -123,6 +123,7 @@
     "archiveSession": "Archive session",
     "unarchiveSession": "Unarchive",
     "archivedToggle": "Archived",
+    "confirmRename": "Confirm rename",
     "welcomeText": "Hi! I'm {name}, your AI coding assistant. I'm glad to help you build your next great project!",
     "sessionLog": "Session Log",
     "startRun": "Start a run to see agent activity",

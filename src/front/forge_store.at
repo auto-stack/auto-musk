@@ -327,6 +327,7 @@ store ForgeStore {
                 return
             }
             .ws_loading = true
+            print("[084-probe] FireDetailLoad sid=" + .session_id)
             Http.get_msg("/api/chats/session/" + encodeURIComponent(.session_id) + "/page?limit=50", "ForgeStore.DetailLoaded")
         }
 
@@ -344,6 +345,7 @@ store ForgeStore {
                     resp = JSON.parse(r.body)
                 }
             }
+            print("[084-probe] DetailLoaded arrived ok=" + (r.ok ?? "?"))
             if resp == None || resp.session == None {
                 .ws_loading = false
                 .messages = []
@@ -473,9 +475,12 @@ store ForgeStore {
         // api.at chats_rename_session 契约首次消费）。空名静默忽略；
         // 成功后列表重拉（时间分组/排序随新名刷新）。
         .RenameSession(id, name) -> {
-            if name != "" {
-                chats_rename_session(id, name)
-                .LoadSessionList()
+            print("[084-probe] rename id=" + (id ?? "None") + " name=" + (name ?? "None"))
+            if name != None {
+                if name != "" {
+                    chats_rename_session(id, name)
+                    .LoadSessionList()
+                }
             }
         }
 
@@ -508,9 +513,9 @@ store ForgeStore {
         // （sessionGroupsOf 纯函数；视图单层 for 直读 .store.session_rows）。
         .RefreshSessionRows -> {
             if .show_archived {
-                .session_rows = sessionGroupsOf(.archived_list)
+                .session_rows = sessionGroupsOf(.archived_list, .session_id)
             } else {
-                .session_rows = sessionGroupsOf(.session_list)
+                .session_rows = sessionGroupsOf(.session_list, .session_id)
             }
         }
 
@@ -1474,7 +1479,7 @@ fn rebuildSessions(list obj) obj {
     return out
 }
 
-fn sessionGroupsOf(sessions obj) obj {
+fn sessionGroupsOf(sessions obj, currentId str) obj {
     var out list = []
     if sessions == None { return out }
     var today list = []
@@ -1501,7 +1506,13 @@ fn sessionGroupsOf(sessions obj) obj {
             var rid = s.id ?? "x"
             var rname = s.name ?? ""
             var rcount = s.message_count ?? 0
-            out.push({ row_key: "s-" + rid, row_kind: "session", sid: rid, sname: rname, scount: rcount })
+            // scls 预计算（视图 mouse-area 子树不支持 if/else——S002 实锤；
+            // 选中态样式在 handler 域定，视图纯 dot 路径）。
+            var scls = "text-[13.6px] text-foreground flex-1 min-w-0 truncate leading-[1.45]"
+            if rid == currentId {
+                scls = "text-[13.6px] font-medium text-primary flex-1 min-w-0 truncate leading-[1.45]"
+            }
+            out.push({ row_key: "s-" + rid, row_kind: "session", sid: rid, sname: rname, scount: rcount, scls: scls })
         }
     }
     if yesterday.length > 0 {
@@ -1511,7 +1522,13 @@ fn sessionGroupsOf(sessions obj) obj {
             var rid = s.id ?? "x"
             var rname = s.name ?? ""
             var rcount = s.message_count ?? 0
-            out.push({ row_key: "s-" + rid, row_kind: "session", sid: rid, sname: rname, scount: rcount })
+            // scls 预计算（视图 mouse-area 子树不支持 if/else——S002 实锤；
+            // 选中态样式在 handler 域定，视图纯 dot 路径）。
+            var scls = "text-[13.6px] text-foreground flex-1 min-w-0 truncate leading-[1.45]"
+            if rid == currentId {
+                scls = "text-[13.6px] font-medium text-primary flex-1 min-w-0 truncate leading-[1.45]"
+            }
+            out.push({ row_key: "s-" + rid, row_kind: "session", sid: rid, sname: rname, scount: rcount, scls: scls })
         }
     }
     if earlier.length > 0 {
@@ -1521,7 +1538,13 @@ fn sessionGroupsOf(sessions obj) obj {
             var rid = s.id ?? "x"
             var rname = s.name ?? ""
             var rcount = s.message_count ?? 0
-            out.push({ row_key: "s-" + rid, row_kind: "session", sid: rid, sname: rname, scount: rcount })
+            // scls 预计算（视图 mouse-area 子树不支持 if/else——S002 实锤；
+            // 选中态样式在 handler 域定，视图纯 dot 路径）。
+            var scls = "text-[13.6px] text-foreground flex-1 min-w-0 truncate leading-[1.45]"
+            if rid == currentId {
+                scls = "text-[13.6px] font-medium text-primary flex-1 min-w-0 truncate leading-[1.45]"
+            }
+            out.push({ row_key: "s-" + rid, row_kind: "session", sid: rid, sname: rname, scount: rcount, scls: scls })
         }
     }
     return out

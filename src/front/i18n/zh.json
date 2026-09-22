@@ -136,6 +136,7 @@
     "archiveSession": "归档会话",
     "unarchiveSession": "取消归档",
     "archivedToggle": "已归档",
+    "confirmRename": "确认重命名",
     "welcomeText": "你好！我是{name}，您的 AI 编码助手。很高兴帮助您构建下一个伟大的项目！",
     "sessionLog": "会话日志",
     "startRun": "启动运行以查看智能体活动",

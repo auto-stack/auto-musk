@@ -20,7 +20,7 @@ widget ContentHeader(title: str, fallback: str = "", subtitle: str = "", status:
         div {
             style: "flex items-center justify-between h-12 shrink-0 px-5 border-b border-border bg-card"
             div {
-                style: "flex items-center gap-2 shrink-0 min-w-0"
+                style: "flex items-center gap-2 flex-1 min-w-0 overflow-hidden"
                 if .title != "" {
                     span {
                         style: "text-xl font-bold text-foreground shrink-0 truncate"
@@ -55,7 +55,7 @@ widget ContentHeader(title: str, fallback: str = "", subtitle: str = "", status:
                 }
             }
             div {
-                style: "flex-1 min-w-0 flex justify-center"
+                style: "shrink-0 min-w-0"
                 slot(name: "middle") {}
             }
             slot(name: "actions") {}
