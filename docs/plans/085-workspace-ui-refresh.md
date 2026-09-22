@@ -5,7 +5,7 @@ feature_name: "五栏目 UI/UX 整理与双端布局收敛"
 author: Codex
 created_at: "2026-09-22"
 updated_at: "2026-09-23"
-plan_revision: 1
+plan_revision: 2
 current_step: 1
 total_steps: 5
 supersedes_spec_components: []
@@ -48,12 +48,12 @@ AutoUI 限制：VM 无 CSS cascade，纯类名通过共享 style 解析；动态
 - 计划：保留列表和编辑/状态操作；空态说明计划用途与新建入口；列表加载失败显式错误和重试；状态按钮使用本地化名称，底层状态值不变。
 - 规范：概览可进入模块文件和索引视图，明确 docs/specs 权威、ledger 为索引历史；加载与空内容分开；文件模式具备标题/返回入口。
 - 知识：空态提供新建页面并说明资料整理用途，搜索和树保持；文件：标准顶栏、路径标题、加载提示。
-- 主题：保留品牌紫与已有 scaffold 明暗色板，rail 使用低对比底色；Web 仅保留字体/滚动条等增强，主题变量归 pac.at / AutoUI。
+- 主题：品牌主色仍由 pac.at / AutoUI 共享；rail 使用低对比底色。调查实证表明当前 `theme.colors` 是跨明暗模式的单份局部覆盖，无法表达 Web 已有的双模式 surface token，因此保留 Web 明暗 surface 映射，待 AutoUI 支持分模式主题声明后再收敛。
 
 | Delta | 类型 | 目标 | 变化 | 验收 |
 |---|---|---|---|---|
 | SD-01 | add | docs/specs/modules/workspace-ui.md | 记录五栏布局、信息层级、状态及双端约束 | AC-01–04 |
-| SD-02 | modify | docs/specs/modules/ui-default-styles.md | Web 不再另维护主题色表 | AC-01 |
+| SD-02 | modify | docs/specs/modules/ui-default-styles.md | 明确 pac.at 共享品牌色、Web 暂存分模式 surface token 的边界 | AC-01 |
 
 ## 6. 测试设计
 
@@ -79,6 +79,8 @@ AutoUI 限制：VM 无 CSS cascade，纯类名通过共享 style 解析；动态
 stage: new | plan_id: 085 | plan_revision: 1 | outcome: pass | changed: AC-01–04,T-01–05,SD-01/02 | next: work
 
 stage: work | plan_id: 085 | plan_revision: 1 | outcome: executing | code_base: 639cf4e（待重放 dc15729） | task_ids: T-01 | evidence: Auto/Vue/VM 源码、现有 Specs、用户截图和 ui-parity 运行链完成调查 | blockers: none | next: T-02/T-03
+
+stage: new | plan_id: 085 | plan_revision: 2 | outcome: pass | changed: theme design,SD-02 | evidence: Web 实拍删除双模式 surface 覆盖后，暗色背景与前景 token 分属不同模式，规范侧栏文本对比失效；当前 pac.at theme.colors 无 light/dark 分表 | next: work
 
 ## 10. 待澄清事项
 
