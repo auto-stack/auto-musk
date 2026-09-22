@@ -353,6 +353,11 @@ PLAN-083 合入后行号已修正，语义契约零变更）：
    codegen 升格默认样式 button 致字体变大根因）+右缘 lucide chevron；头部标题
    text-lg+w-[250px]+角色徽章退役；hover 全名提示行（VM 无 title tooltip）；
    行 hover 提亮减半（accent/40、primary/20）+工具图标去黑边+归档图标 lucide 化。
+8. UAT⑨ 三修——会话列表顶部空白根修（关闭态 DeleteConfirmDialog 不挂载：VM 受控
+   open 不门控布局）；"更早"数字贴标签；卡片内 hover 全名行撤除（用户否定形态），
+   **浮空 tooltip 登记 auto-lang 债（P2）**：title prop 实证仅进按钮 label
+   （settings_menu 注释）非悬停提示、iced tooltip 仅工具栏合成路径、tooltip prop
+   仅 sidebar_menu_button 原生件——通用元素浮空 tooltip 需运行时接线。
 5. 工具组改 hover——已恢复（mouse-area 子树旧解析器仅支持单臂 if：S002 `<else>`
    实锤；行内 class 预计算 store scls；截图实证列表渲染正常=mouse-area 仅快照
    失明非视觉缺陷——修正 T-07 轮"子树塌"结论的误判部分）。
