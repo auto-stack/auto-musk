@@ -78,11 +78,6 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
         // 只认 var/store 字段，computed 会踩 call 链 UAF 红线）。Init 即取默认
         // 表；Input 再刷一次收敛异步到达的 configs（静置缺口登记计划待澄清④）。
         var mentionNames []Value = []
-        // 思考档位 dropdown 开合态（触发钮 toggle 关闭,无外点关闭——
-        // 同 SessionInfo 登记差异）。
-        var thinkOpen bool = false
-        // PLAN-067 T-05: 审批模式 dropdown 开合态（同 thinkOpen 口径）。
-        var approvalOpen bool = false
         // PLAN-071 需求⑬：@ 菜单扩展数据——计划列表 + 规范文件树，首次
         // 触发 @ 时懒加载（extLoaded 防重复拉取）。
         var extLoaded bool = false
@@ -233,8 +228,7 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
         .cancel -> {}
         // 思考档位：菜单开合 + 选中收菜单（落库经父层 onpick →
         // chats_view.PickThinking → ForgeStore.SetThinkingLevel）。
-        .ToggleThinkMenu -> { .thinkOpen = !.thinkOpen }
-        .pick(level) -> { .thinkOpen = false }
+        .pick(level) -> {}
         // PLAN-067 T-05: 审批模式 dropdown 开合 + 选中收菜单（事件经父层
         // PickApproval → store.SetApprovalMode 落库）。
         // r6：msg 名 pick_approval → pickapproval——codegen emit 用 msg
@@ -242,8 +236,7 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
         // （onPickapproval）；Vue3 事件名精确匹配（camelize 兜底要
         // onPickApproval 也不等于 onPickapproval），下划线版事件永远
         // 悬空 → 选"自动"后 store 未收到任何调用（实测无网络请求）。
-        .ToggleApprovalMenu -> { .approvalOpen = !.approvalOpen }
-        .pickapproval(mode) -> { .approvalOpen = false }
+        .pickapproval(mode) -> {}
     }
     view {
         div {
@@ -258,7 +251,7 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
                     div {
                         style: "relative w-full min-h-[44px]"
                         textarea {
-                            style: "chats-input absolute inset-0 h-full py-2.5 px-3.5 block w-full border-none rounded-none bg-transparent text-[15px] leading-[1.5] caret-[hsl(var(--foreground))] outline-none resize-none focus:outline-none focus:shadow-none focus:border-none"
+                            style: "chats-input absolute inset-0 h-full py-2.5 px-3.5 block w-full border-none rounded-none bg-transparent text-foreground text-[15px] leading-[1.5] caret-[hsl(var(--foreground))] outline-none resize-none focus:outline-none focus:shadow-none focus:border-none"
                             value: .text
                             mentions: .mentionNames
                             // r10：高亮类串禁 padding——backdrop 与 textarea
@@ -283,23 +276,21 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
                         style: "flex items-center gap-1.5 px-2 pb-2 w-full shrink-0"
                         div {
                             style: "relative"
-                            button {
-                                onclick: .ToggleThinkMenu
+                            popover {
+                                popover-trigger (as_child: true) {
+                                button {
                                 disabled: .disabled
                                 title: i18n.t("chat.thinkingLevel")
-                                class: if .thinkOpen {
-                                    "flex items-center gap-1 h-8 px-2 rounded-md text-[13px] border-none bg-accent text-foreground cursor-pointer"
-                                } else {
-                                    "flex items-center gap-1 h-8 px-2 rounded-md text-[13px] border-none bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-                                }
+                                style: "flex items-center gap-1 h-8 px-2 rounded-md text-[13px] border-none bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
                                 Brain { size: 15 }
                                 text .thinkingLabel
                                 ChevronDown { size: 13 }
-                            }
+                                }
+                                }
                             // 向上弹出菜单（zcode 式）：当前档位打勾。
-                            if .thinkOpen {
+                                popover-content {
                                 div {
-                                    style: "absolute bottom-full left-0 mb-2 min-w-[120px] bg-card border border-border rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-1 z-50 flex flex-col"
+                                    style: "flex flex-col min-w-[150px]"
                                     button {
                                         // PLAN-071 需求⑩：显式"关"持久化为 "off"
                                         // （原发 "" 会被后端归一成 None=默认 low，
@@ -356,27 +347,26 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
                                         }
                                     }
                                 }
+                                }
                             }
                         }
                         // PLAN-067 T-05: 审批模式 dropdown（思考档位右侧,
                         // 同款开合/选中勾口径;human=人工[缺省],auto=自动）。
                         div {
                             style: "relative"
-                            button {
-                                onclick: .ToggleApprovalMenu
+                            popover {
+                                popover-trigger (as_child: true) {
+                                button {
                                 disabled: .disabled
                                 title: i18n.t("chat.approvalMode")
-                                class: if .approvalOpen {
-                                    "flex items-center gap-1 h-8 px-2 rounded-md text-[13px] border-none bg-accent text-foreground cursor-pointer"
-                                } else {
-                                    "flex items-center gap-1 h-8 px-2 rounded-md text-[13px] border-none bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-                                }
+                                style: "flex items-center gap-1 h-8 px-2 rounded-md text-[13px] border-none bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
                                 text .approvalLabel
                                 ChevronDown { size: 13 }
-                            }
-                            if .approvalOpen {
+                                }
+                                }
+                                popover-content {
                                 div {
-                                    style: "absolute bottom-full left-0 mb-2 min-w-[120px] bg-card border border-border rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-1 z-50 flex flex-col"
+                                    style: "flex flex-col min-w-[150px]"
                                     button {
                                         onclick: .pickapproval("human")
                                         disabled: .disabled
@@ -403,6 +393,7 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
                                             Check { size: 14 }
                                         }
                                     }
+                                }
                                 }
                             }
                         }
