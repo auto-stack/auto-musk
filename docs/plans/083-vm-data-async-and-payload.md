@@ -415,3 +415,20 @@ auto-lang worktree spike：以 `LoadSessionList` 为试点，
 | 1 | 首屏 limit 缺省值（50？）与超大单条消息（单条即 552KB）的次级截断（块内文本截断？）——552KB 若是单条消息，分页数限制不住它 | ✅ 闭环（T-02）：limit 缺省 50；巨条实测=工具密集型（84~109 tool 块非单块巨文本）——块级截断（result 4K/thinking 4K/args 2K+truncated 标记）+每消息 48K 预算（尾部优先，超预算更早 tool 块降桩）+thin tool_calls 去双份载荷（225KB 重复数组根除） |
 | 2 | C1 挂起恢复是否立项为 VM 长期方向（本计划倾向 C2 起步） | ✅ 闭环（T-01）：C2 定案落地；C1 登记长期方向（见 §5 T-01 决策工件），无需裁定 |
 | 3 | 分页对 PollStream 全量回填的语义改动的 web 轨跟进节奏 | web 可暂走全量旧路（缺省参数兼容）；跟进排期用户定 |
+
+- 2026-09-22 work r2（F-R1 追查，musk 8f5..1×commit "fix(PLAN-083 T-05 r2)"）：
+  - stage: work | PLAN-083 | r1 | 进行中（T-05 实测面）|
+  - **已实证**：发送链服务端全闭环三轮（POST create+message(run=true)→
+    agent 真跑→回复"收到"落盘 182f3a90/15de36eb/e78fa604）；UI 发起链
+    （输入→发送→乐观入列→streaming=true，0 冻结）；分脑定位=#[api] 桥
+    按 pac.at 17201 vs get_msg 按 AUTO_HTTP_BASE（-B 旗标统一后 POST 到
+    位；仪器环境缺陷，生产单后端无此构型）。
+  - **两根修（已提交源码）**：①PollStream SSE 真活门改 last_sse_at
+    （auto-lang master 起 Sse.open 不再抛/返句柄，旧门把 stub 句柄当
+    真流永堵轮询）；②pre_stream_len 基线挪乐观 push 前（旧位计数与
+    服务端终态恒等，完成启发式永假——旧链同构，Stop 钮残留即症状）。
+  - **仍开**：VM 侧收束未实证——修复进源码+vue 构建但 VM 运行码未体现
+    （touch 强刷无效，疑 AutoCache 编译缓存层）；表格抽样(315e)未跑。
+  - 清理：用户 backend store 两条 stray 会话已删（15de36eb/e2c631f）。
+  - next：①查 VM 编译缓存强刷法后复验收束+表格（work 续）；或②用户
+    实机（worktree 二进制）发一条消息+翻 315e 会话人工闭合 F-R1。
