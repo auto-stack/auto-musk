@@ -405,6 +405,7 @@ mod tests {
             active_leaf: None,
             thinking_level: None,
             approval_mode: "human".into(),
+            archived: false,
         }
     }
 

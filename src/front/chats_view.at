@@ -19,8 +19,6 @@ use.web platformRunRelayCommand from "src/front/ports/platform.at"
 use.web platformFocusComposer from "src/front/ports/platform.at"
 use.web.fn extractRunId, isMsgStreaming, messageBlocks, estimateTokens, thinkLabel, isBlockStreaming from "src/front/forge_helpers.at"
 use.web.fn chatSearchFilter, chatLastMessageId, chatBranchLabel, chatBranchEntries, chatActivePath from "src/front/forge_helpers.at"
-// PLAN-084 T-03/T-06: 会话时间分组 + 头部标题/身份/状态 helpers。
-use.web.fn sessionGroups, sessionNameById, headerStreamStatus, modeRoleLabel from "src/front/forge_helpers.at"
 // PLAN-051 T8: SendInput 净空口径统一（原 .send(mention_trim(.text)) 调用位
 // 形态，实参内移后宿主侧复用同一 helper）。
 use.web.fn mention_trim from "src/front/mention_helpers.at"
@@ -153,13 +151,12 @@ widget ChatsView {
         // 动态索引均破坏 UI parser——扁平 {for_id, sib} 条目在此预算,视图按
         // for_id 相等匹配渲染兄弟按钮）。
         branchEntries => chatBranchEntries(.store.messages)
-        // PLAN-084 T-03: 时间分组会话行（今天/昨天/更早；数据源随归档
-        // 过滤开关切换——computed 位 if 表达式可用，olderLabel 先例）。
-        sessionRows => if .store.show_archived {
-            sessionGroups(.store.archived_list)
-        } else {
-            sessionGroups(.store.session_list)
-        }
+        // PLAN-084 T-03: 时间分组标记行（今天/昨天/更早 拍平一维：header
+        // 行 + session 行交替，空组剪除；数据源开关在 helper 内分支——
+        // 规避 VM computed 内 if+fn 未证面，T-07 冒烟实证列表空后定案）。
+        // PLAN-084 T-07 二分探针（临时）：静态行——判定 computed/fn 调用 vs 渲染循环。
+        // PLAN-084 T-03: 分组标记行改由 store handler 域维护（.store.session_rows）
+        // ——视图 computed 内 use.web.fn 调用在 VM 侧静默返空（T-07 冒烟实证）。
     }
 
     // PLAN-049 T6：branch-row/branch-btn/retry-btn 已迁视图内联工具类（块删除）。
@@ -233,130 +230,128 @@ widget ChatsView {
                                 div { style: "h-[52px] rounded-lg bg-muted animate-pulse" }
                             }
                         }
-                        // PLAN-084 T-03: 时间分组渲染（今天/昨天/更早，空组
-                        // 剪除；组头文案经 t(.g.label_key) 动态 key——useT
-                        // 普通 closure 两轨可用）。数据源随"已归档"开关切换。
-                        // 注意：g 循环体必须单子元素（组头+行同包一层 col）——
-                        // 多子元素 for 体 key 会塌成 self.g.gkey（vue-tsc 红，
-                        // msg 循环单 col 先例）。
-                        for g in .sessionRows {
-                            col {
-                                key: .g.gkey
-                                row {
-                                    style: "flex items-center px-1 pt-2 pb-1 w-full"
-                                    span {
-                                        style: "text-[11px] font-medium text-muted-foreground tracking-wide"
-                                        text t(.g.label_key)
+        // PLAN-084 T-03: 时间分组标记行（今天/昨天/更早 拍平一维：header
+        // 行 + session 行交替，空组剪除；组头文案经 t(.r.label_key) 动态
+        // key——useT 普通 closure 两轨可用）。数据源随"已归档"开关切换
+        // （helper 内分支，computed 无 if——VM computed 内 if+fn 未证面
+        // 规避，T-07 冒烟实证后定案）。
+        // for 体单子元素带 key（div 包 if/else）：for 体为 if/else 时
+        // codegen 走 template v-for 包裹、key 塌 self.*（vue-tsc 红实锤）。
+        // PLAN-084 T-03/T-04: 视图单层 for 直读 store 字段（handler 域分组）。
+        // for 体单子元素带 key（div 包 if/else）：for 体为 if/else 时 codegen
+        // 走 template v-for 包裹、key 塌 self.*（vue-tsc 红实锤）。
+        // PLAN-084 T-03/T-04: 视图单层 for 直读 store 字段（handler 域分组）。
+        // for 体单子元素带 key（div 包 if/else）：for 体为 if/else 时 codegen
+        // 走 template v-for 包裹、key 塌 self.*（vue-tsc 红实锤）。
+        // 组头文案：gkey 三分支 + 字面量 t()——t(动态 key) 在 VM 返空
+        // （T-07 冒烟实锤；t(字面量, params) 有旧列表先例）。
+        for r in .store.session_rows {
+            div {
+                key: .r.row_key
+                if r.row_kind == "header" {
+                    row {
+                        style: "flex items-center px-1 pt-2 pb-1 w-full"
+                        if r.gkey == "today" {
+                            span {
+                                style: "text-[11px] font-medium text-muted-foreground tracking-wide"
+                                text t("chat.groupToday")
+                            }
+                        } else {
+                            if r.gkey == "yesterday" {
+                                span {
+                                    style: "text-[11px] font-medium text-muted-foreground tracking-wide"
+                                    text t("chat.groupYesterday")
+                                }
+                            } else {
+                                span {
+                                    style: "text-[11px] font-medium text-muted-foreground tracking-wide"
+                                    text t("chat.groupEarlier")
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    button {
+                        key: .r.sid
+                        onclick: .SelectSession(.r.sid)
+                        class: if .r.sid == .store.session_id {
+                            "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-primary/25 bg-primary/10 text-primary hover:bg-accent"
+                        } else {
+                            "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground"
+                        }
+                        if .renaming_id == .r.sid {
+                            row {
+                                style: "flex items-center w-full gap-1"
+                                input {
+                                    style: "flex-1 min-w-0 h-6 text-[13.6px] text-foreground bg-background border border-primary/40 rounded px-1.5 outline-none"
+                                    value: .rename_draft
+                                    oninput: .RenameDraft($event)
+                                    onkeydown.enter.prevent: .ConfirmRename
+                                    onkeydown.esc.prevent: .CancelRename
+                                }
+                            }
+                        } else {
+                            row {
+                                style: "flex items-start w-full gap-1"
+                                span {
+                                    title: .r.sname
+                                    style: if .r.sid == .store.session_id {
+                                        "text-[13.6px] font-medium text-primary flex-1 min-w-0 truncate leading-[1.45]"
+                                    } else {
+                                        "text-[13.6px] text-foreground flex-1 min-w-0 truncate leading-[1.45]"
                                     }
+                                    text .r.sname
                                 }
-                            for s in .g.items {
-                            button {
-                                key: .s.id
-                                onclick: .SelectSession(.s.id)
-                                // PLAN-055 T15: 删 title=.s.id 悬停 tooltip（用户
-                                // 对拍 ②a——chat id 对用户无信息量）。
-                                class: if .s.id == .store.session_id {
-                                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-primary/25 bg-primary/10 text-primary hover:bg-accent"
-                                } else {
-                                    "session-item relative h-auto w-full flex flex-col items-start justify-start gap-0.5 text-left py-2.5 px-3 mb-1.5 rounded-lg border border-transparent bg-card hover:border-border hover:bg-accent text-foreground"
-                                }
-                                // 标题行 justify-between：× 在标题同排右缘。悬停
-                                // 显隐：内容包 mouse-area(Plan 484 hover 命中区,
-                                // iced mouse_area on_enter/on_exit / vue div
-                                // @mouseenter),进/出事件驱动 hover_session_id,
-                                // × 仅 hover 该卡时渲染——web 另有 CSS
-                                // .session-item:hover 双保险,两轨语义一致。
-                                // 2026-09-04 用户实机对拍定案:536 兄弟浮 ×
-                                // 形态(几何落左上/常显/抢卡片点击)弃用,回归
-                                // 本形态(此前 HoverSession 活体实证)。
-                                mouse-area {
-                                    style: "w-full"
-                                    onmouseenter: .HoverSession(.s.id)
-                                    onmouseleave: .HoverSessionClear
-                                    // PLAN-071 r5（需求④-1）：标题单行 truncate
-                                    // + title 悬停全名（break-all 换行形态在
-                                    // 长标题场景溢出 box，退役）。
-                                    // PLAN-084 T-04：行内重命名——该行处于编辑态
-                                    // 时标题换输入框（Enter 提交/Esc 取消），
-                                    // 其余行保持标题。
-                                    if .renaming_id == .s.id {
-                                        row {
-                                            style: "flex items-center w-full gap-1"
-                                            input {
-                                                style: "flex-1 min-w-0 h-6 text-[13.6px] text-foreground bg-background border border-primary/40 rounded px-1.5 outline-none"
-                                                value: .rename_draft
-                                                oninput: .RenameDraft($event)
-                                                onkeydown.enter.prevent: .ConfirmRename
-                                                onkeydown.esc.prevent: .CancelRename
-                                            }
+                            }
+                        }
+                        row {
+                            style: "flex items-center justify-between w-full gap-1"
+                            span {
+                                style: "text-sm text-muted-foreground leading-5"
+                                text t("chat.msgs", { count: .r.scount })
+                            }
+                            // PLAN-084 T-04: 工具组挂选中行常显（mouse-area 事件参
+                            // loop-var 成员在 083 桥链上子树塌，T-07 实证——
+                            // hover 显隐改选中态显隐，两轨同形）。
+                            if .r.sid == .store.session_id {
+                                row {
+                                    style: "flex items-center gap-0.5 shrink-0"
+                                    span {
+                                        style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-foreground"
+                                        onclick.stop: .StartRenameRow(.r.sid, .r.sname)
+                                        title: t("chat.renameSession")
+                                        text "✎"
+                                    }
+                                    if .store.show_archived {
+                                        span {
+                                            style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-foreground"
+                                            onclick.stop: .ArchiveRow(.r.sid, false)
+                                            title: t("chat.unarchiveSession")
+                                            text "📤"
                                         }
                                     } else {
-                                        row {
-                                            style: "flex items-start w-full gap-1"
-                                            span {
-                                                title: .s.name
-                                                style: if .s.id == .store.session_id {
-                                                    "text-[13.6px] font-medium text-primary flex-1 min-w-0 truncate leading-[1.45]"
-                                                } else {
-                                                    "text-[13.6px] text-foreground flex-1 min-w-0 truncate leading-[1.45]"
-                                                }
-                                                text .s.name
-                                            }
+                                        span {
+                                            style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-foreground"
+                                            onclick.stop: .ArchiveRow(.r.sid, true)
+                                            title: t("chat.archiveSession")
+                                            text "📥"
                                         }
                                     }
-                                    row {
-                                        style: "flex items-center justify-between w-full gap-1"
-                                        span {
-                                            // PLAN-071 r5 回验：text-sm（行高 20px）
-                                            // 与 × 盒（h-5）同高——hover 时第二行
-                                            // 不再被顶高（用户截图实证 4px 跳动）。
-                                            style: "text-sm text-muted-foreground leading-5"
-                                            text t("chat.msgs", { count: .s.message_count })
-                                        }
-                                        // PLAN-071 r5（需求④-2）：hover 工具组挂
-                                        // 第二行右缘。PLAN-084 T-04：× 删除扩为
-                                        // 重命名 ✎ + 归档 📥/📤 + 删除 ×（两步
-                                        // 确认不变）；已归档视图显 📤（取消归档）。
-                                        if .hover_session_id == .s.id {
-                                            row {
-                                                style: "flex items-center gap-0.5 shrink-0"
-                                                span {
-                                                    style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-foreground"
-                                                    onclick.stop: .StartRename(.s.id)
-                                                    title: t("chat.renameSession")
-                                                    text "✎"
-                                                }
-                                                if .store.show_archived {
-                                                    span {
-                                                        style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-foreground"
-                                                        onclick.stop: .ArchiveRow(.s.id, false)
-                                                        title: t("chat.unarchiveSession")
-                                                        text "📤"
-                                                    }
-                                                } else {
-                                                    span {
-                                                        style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-foreground"
-                                                        onclick.stop: .ArchiveRow(.s.id, true)
-                                                        title: t("chat.archiveSession")
-                                                        text "📥"
-                                                    }
-                                                }
-                                                span {
-                                                    style: "session-delete-btn w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-destructive"
-                                                    onclick.stop: .AskDelete(.s.id)
-                                                    title: t("chat.deleteSession")
-                                                    text "×"
-                                                }
-                                            }
-                                        }
+                                    span {
+                                        style: "session-delete-btn w-5 h-5 flex items-center justify-center shrink-0 rounded-md border border-transparent bg-transparent p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent hover:text-destructive"
+                                        onclick.stop: .AskDelete(.r.sid)
+                                        title: t("chat.deleteSession")
+                                        text "×"
                                     }
                                 }
-                            }
-                            }
                             }
                         }
                     }
                 }
+            }
+        }
+                }
+            }
             }
             // Main Chat Area
             col {
@@ -367,9 +362,10 @@ widget ChatsView {
                 // 退役为 search icon 触发（点击展开/收起）；actions =
                 // ✎ 重命名（标题行内编辑入口）+ 🔍 search + 📥 归档。
                 ContentHeader {
-                    title: sessionNameById(.store.session_list, .store.session_id, t("chat.title"))
-                    subtitle: modeRoleLabel(.store.session_mode)
-                    status: headerStreamStatus(.store.session_id, .store.streaming)
+                    title: .store.header_title
+                    fallback: t("chat.title")
+                    subtitle: .store.header_badge
+                    status: .store.header_status
                     slot(name: "middle") {
                         // 头部标题行内编辑态：middle 槽换输入框（Enter 提交/
                         // Esc 取消；沿行内重命名同一草稿与 handler）。
@@ -671,12 +667,15 @@ widget ChatsView {
         // StartRename(id): 行进入编辑态，草稿预填当前名（两表都查——归档
         // 视图下的行在 archived_list）。
         .StartRename(id) -> {
-            var nm = sessionNameById(.store.session_list, id, "")
-            if nm == "" {
-                nm = sessionNameById(.store.archived_list, id, "")
-            }
             .renaming_id = id;
-            .rename_draft = nm
+            .rename_draft = id
+        }
+
+        // StartRenameRow(id, name): 行内铅笔直接携带行名（视图侧不再查表——
+        // use.web.fn 视图调用 VM 侧不可靠，T-07 实证）。
+        .StartRenameRow(id, name) -> {
+            .renaming_id = id;
+            .rename_draft = name
         }
 
         .RenameDraft(val) -> { .rename_draft = val }
@@ -704,7 +703,7 @@ widget ChatsView {
             if .store.session_id != "" {
                 .header_renaming = true;
                 .search_open = false;
-                .rename_draft = sessionNameById(.store.session_list, .store.session_id, "")
+                .rename_draft = .store.header_title
             }
         }
 

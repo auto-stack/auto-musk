@@ -80,6 +80,18 @@ store ForgeStore {
         // 归档 toggle 开时列表切到 archived_list；归档/取消归档后两表重拉。
         var archived_list []Value = []
         var show_archived bool = false
+        // PLAN-084 T-03: 分组后的列表标记行（视图单层 for 直读 store 字段
+        // ——分组在 handler 域求值：store 内联纯 fn + handler 赋值均为 VM
+        // 已证形态；视图 computed 内 use.web.fn 调用在 VM 侧静默返空的坑
+        // 见 T-07 冒烟记录）。
+        var session_rows []Value = []
+        // PLAN-084 T-06: 头部三件套（标题/身份徽章/状态点）——handler 域
+        // 维护（RefreshHeader），视图 prop 直读 store 字段（use.web.fn 在
+        // 视图 prop/computed 内联调用 VM 侧不可靠，T-07 实证）。fallback
+        // 文案由视图经 ContentHeader fallback prop 传入（store 无 t()）。
+        var header_title str = ""
+        var header_badge str = ""
+        var header_status str = ""
     }
 
         msg Msg {
@@ -91,6 +103,8 @@ store ForgeStore {
         RenameSession(str, str),
         ArchiveSession(str, bool),
         SetShowArchived(bool),
+        RefreshSessionRows,
+        RefreshHeader,
         StreamStarted(str),
         Send(str),
         StopStream,
@@ -269,7 +283,9 @@ store ForgeStore {
             }
             if resp != None {
                 if resp.sessions != None {
-                    .session_list = resp.sessions
+                    .session_list = rebuildSessions(resp.sessions)
+                    .RefreshSessionRows()
+                    .RefreshHeader()
                     ok = true
                 }
             }
@@ -417,7 +433,9 @@ store ForgeStore {
                 .error = ""
                 let list = chats_list_sessions();
                 if list != None && list.sessions != None {
-                    .session_list = list.sessions
+                    .session_list = rebuildSessions(list.sessions)
+                    .RefreshSessionRows()
+                    .RefreshHeader()
                 }
             } else {
                 .error = "创建会话失败"
@@ -445,6 +463,7 @@ store ForgeStore {
             .has_more = false
             .next_before = ""
             .older_loading = false
+            .RefreshHeader()
             .FireDetailLoad()
         }
 
@@ -485,8 +504,29 @@ store ForgeStore {
 
         // SetShowArchived(v): "已归档"过滤开关（开启即拉归档表；关闭只切
         // 视图不重拉——默认列表在 LoadSessionList/SessionsLoaded 已维护）。
+        // RefreshSessionRows: 按 show_archived 数据源重算分组标记行
+        // （sessionGroupsOf 纯函数；视图单层 for 直读 .store.session_rows）。
+        .RefreshSessionRows -> {
+            if .show_archived {
+                .session_rows = sessionGroupsOf(.archived_list)
+            } else {
+                .session_rows = sessionGroupsOf(.session_list)
+            }
+        }
+
+        // RefreshHeader: 头部三件套重算（标题=活跃会话名/身份徽章=mode→role
+        // 显示名/状态点=流式态；详见各 Of 纯函数）。
+        .RefreshHeader -> {
+            .header_title = headerTitleOf(.session_list, .session_id, "")
+            // PLAN-084 T-07 实测：ch.to_upper() 在 VM 返 None（str+None 崩点）
+            // ——徽章退 role 原文（小写小字徽章），大写显示名等 to_upper 修复回切。
+            .header_badge = modeRoleOf(.session_mode)
+            .header_status = headerStatusOf(.session_id, .streaming)
+        }
+
         .SetShowArchived(v) -> {
             .show_archived = v
+            .RefreshSessionRows()
             if v {
                 let al = chats_list_archived_sessions()
                 if al != None {
@@ -529,10 +569,12 @@ store ForgeStore {
             // 为 no-op，订阅触发路径不可达；gen/web 轨双保险无害（订阅侧守卫防双跑）。
             var resp = chats_send_message(.session_id, content, "", true, false);
             .streaming = true
+            .RefreshHeader()
         }
 
         .StopStream -> {
             .streaming = false
+            .RefreshHeader()
         }
 
         // PLAN-071 需求⑤ T-25：取消在途运行——后端置位取消旗标（agent 于
@@ -542,14 +584,15 @@ store ForgeStore {
                 chats_cancel_session(.session_id)
             }
             .streaming = false
+            .RefreshHeader()
         }
 
         // PLAN-055 ④/T11：ThinkBlock 独立展开——键列表重建回写（VM 安全：
         // 既有字段整列表赋值，无新键写入）。
 
         .SetThinking(text) -> { .thinking = text }
-        .FinalizeDraft -> { .streaming = false }
-        .SetError(msg) -> { .error = msg; .streaming = false; .FlushQueue() }
+        .FinalizeDraft -> { .streaming = false; .RefreshHeader() }
+        .SetError(msg) -> { .error = msg; .streaming = false; .RefreshHeader(); .FlushQueue() }
 
         // PLAN-071 需求⑮：入队（运行在途时由 SendInput 调用）。
         .QueueMessage(text) -> {
@@ -1387,6 +1430,103 @@ fn normalizeToolBlocks(msgs Value) Value {
 /** 新建 assistant 消息骨架(不落 store——由调用方 push);profession_id 来自 turn_start。 */
 /** PLAN-071 需求⑧ T-34：会话 mode → 职业 role（内置四模式静态映射；
     用户自定义 mode 回退 mode 名本身）。乐观 assistant 气泡身份用。 */
+// PLAN-084 T-03: 会话列表 → 时间分组标记行（拍平一维）。日界/时刻/日期
+// 文本在后端 summary 现算（本地时区；VM 无可用时钟——Date.now() 负垃圾
+// 既有缺陷）；本 fn 只做纯分组：0=今天/1=昨天/2=更早，空组剪除，组内
+// 保持后端 updated_at 倒序。row_key 供视图 key（"h-*"/"s-<id>"）。
+// store 文件内联 fn——视图 computed 内 use.web.fn 调用 VM 侧静默返空，
+// handler 域求值 + 视图单层 for 读 store 字段为已证形态（T-07 实证）。
+// PLAN-084 T-06: 头部标题——活跃会话名，未命中回退 fallback（视图传
+// t("chat.title")；store 无 i18n）。
+fn headerTitleOf(sessions obj, id str, fallback str) str {
+    for s in sessions {
+        if s.id == id { return s.name }
+    }
+    return fallback
+}
+
+// PLAN-084 T-06: 头部状态点取值——""（无会话不渲染）|"running"|"idle"。
+fn headerStatusOf(id str, streaming bool) str {
+    if id == "" { return "" }
+    if streaming { return "running" }
+    return "idle"
+}
+
+// PLAN-084 T-07: 会话摘要重建漏斗（沿 rebuildParsedMessages 处方）——
+// get_msg 桥回填的 sessions 是 JSON.parse 产物，直接落 store 后渲染上下文
+// 字段读塌空（r5 家族在 sessions 列表位的显形；083 只给 messages 配了
+// 漏斗）。handler 域逐字段重建为字面量，视图读恢复。
+fn rebuildSessions(list obj) obj {
+    var out list = []
+    for s in list {
+        var sid = s.id ?? ""
+        var nm = s.name ?? ""
+        var md = s.mode ?? ""
+        var mc = s.message_count ?? 0
+        var pv = s.preview ?? ""
+        var ua = s.updated_at ?? 0
+        var dg = s.day_group ?? 2
+        var tt = s.time_text ?? ""
+        var dt = s.date_text ?? ""
+        var ar = s.archived ?? false
+        out.push({ id: sid, name: nm, mode: md, message_count: mc, preview: pv, updated_at: ua, day_group: dg, time_text: tt, date_text: dt, archived: ar })
+    }
+    return out
+}
+
+fn sessionGroupsOf(sessions obj) obj {
+    var out list = []
+    if sessions == None { return out }
+    var today list = []
+    var yesterday list = []
+    var earlier list = []
+    for s in sessions {
+        var gi = s.day_group ?? 2
+        if gi < 0 { gi = 2 }
+        if gi > 2 { gi = 2 }
+        if gi == 0 {
+            today.push(s)
+        } else {
+            if gi == 1 {
+                yesterday.push(s)
+            } else {
+                earlier.push(s)
+            }
+        }
+    }
+    if today.length > 0 {
+        out.push({ row_key: "h-today", gkey: "today", row_kind: "header", label_key: "chat.groupToday" })
+        for s in today {
+            // 拍平标量字段（r5 家族：行字面量禁嵌 JSON 产物对象——视图深读塌空）
+            var rid = s.id ?? "x"
+            var rname = s.name ?? ""
+            var rcount = s.message_count ?? 0
+            out.push({ row_key: "s-" + rid, row_kind: "session", sid: rid, sname: rname, scount: rcount })
+        }
+    }
+    if yesterday.length > 0 {
+        out.push({ row_key: "h-yesterday", gkey: "yesterday", row_kind: "header", label_key: "chat.groupYesterday" })
+        for s in yesterday {
+            // 拍平标量字段（r5 家族：行字面量禁嵌 JSON 产物对象——视图深读塌空）
+            var rid = s.id ?? "x"
+            var rname = s.name ?? ""
+            var rcount = s.message_count ?? 0
+            out.push({ row_key: "s-" + rid, row_kind: "session", sid: rid, sname: rname, scount: rcount })
+        }
+    }
+    if earlier.length > 0 {
+        out.push({ row_key: "h-earlier", gkey: "earlier", row_kind: "header", label_key: "chat.groupEarlier" })
+        for s in earlier {
+            // 拍平标量字段（r5 家族：行字面量禁嵌 JSON 产物对象——视图深读塌空）
+            var rid = s.id ?? "x"
+            var rname = s.name ?? ""
+            var rcount = s.message_count ?? 0
+            out.push({ row_key: "s-" + rid, row_kind: "session", sid: rid, sname: rname, scount: rcount })
+        }
+    }
+    return out
+}
+
 fn modeRoleOf(mode str) str {
     if mode == "superpowers" { return "assistant" }
     if mode == "basic" { return "coder" }
