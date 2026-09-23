@@ -13,7 +13,7 @@
 //! 同步工具上下文与 async handler 两侧）；看门狗独占子进程与 MCP 客户端，
 //! 经 `watch` 停止旗标受控；stop 额外做一次立即 taskkill（不等看门狗拍）。
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
@@ -64,6 +64,8 @@ struct Shared {
     pid: Arc<Mutex<Option<u32>>>,
     /// 在途会话 MCP 基址（spawn/复活时登记；agent 工具通道据此建短连客户端）。
     mcp_base: Arc<Mutex<String>>,
+    /// 会话 app 相对 workspace 根的路径前缀（源码锚点 workspace 化用）。
+    app_rel: Arc<Mutex<String>>,
     /// 锚点索引（PLAN-088 T-03）：帧循环随取 vtree 原子换新；pick/overlay
     /// 读侧短临界，无锁竞争面。None = 尚无可用 vtree。
     anchor: Arc<RwLock<Option<Arc<AnchorIndex>>>>,
@@ -88,6 +90,7 @@ impl Shared {
             frame: Arc::new(Mutex::new(None)),
             pid: Arc::new(Mutex::new(None)),
             mcp_base: Arc::new(Mutex::new(String::new())),
+            app_rel: Arc::new(Mutex::new(String::new())),
             anchor: Arc::new(RwLock::new(None)),
             picked: Arc::new(Mutex::new(None)),
             overlay: Arc::new(Mutex::new(Vec::new())),
@@ -148,7 +151,9 @@ impl CanvasManager {
     }
 
     /// 启动（替换语义）：已有会话先停；spawn 成功后看门狗接管。
-    pub async fn start(&self, app_dir: PathBuf) -> Result<CanvasStatus, String> {
+    /// `ws_root` = workspace 根（源码锚点路径前缀：resolve_source 产出
+    /// app 相对路径，files API 消费 workspace 相对路径——T-08 实证）。
+    pub async fn start(&self, app_dir: PathBuf, ws_root: &Path) -> Result<CanvasStatus, String> {
         self.stop().await;
         {
             let mut st = self.shared.state.lock().unwrap();
@@ -162,6 +167,13 @@ impl CanvasManager {
         *self.shared.picked.lock().unwrap() = None;
         self.shared.overlay.lock().unwrap().clear();
         *self.shared.app_dir_raw.lock().unwrap() = Some(app_dir.clone());
+        // app 相对 ws 根前缀（"loop-app" 形态；越界解析已由上游沙箱保证）。
+        let app_rel = app_dir
+            .strip_prefix(ws_root)
+            .unwrap_or(app_dir.file_name().map(|n| Path::new(n)).unwrap_or(app_dir.as_path()))
+            .to_string_lossy()
+            .replace('\\', "/");
+        *self.shared.app_rel.lock().unwrap() = app_rel;
         *self.shared.pac.lock().unwrap() = read_pac_head(&app_dir);
         self.shared.seq.store(0, Ordering::Relaxed);
         self.stop_flag.store(false, Ordering::Relaxed);
@@ -242,19 +254,21 @@ impl CanvasManager {
     /// 坐标 pick（帧像素入参；T-02 契约：逻辑 = 像素 ÷ scale，scale =
     /// 帧宽/480）。命中 → 实质回溯 → 置 picked 并返回锚点；未命中 → None。
     pub fn pick_at(&self, px: f64, py: f64) -> Option<Value> {
-        let frame_w = self.frame_px_size()?.0 as f32;
-        let scale = frame_w / WINDOW_LOGICAL_W;
+        let (frame_w, frame_h) = self.frame_px_size()?;
+        let scale = frame_w as f32 / WINDOW_LOGICAL_W;
         let (lx, ly) = (px as f32 / scale, py as f32 / scale);
         let idx = self.shared.anchor.read().unwrap().clone()?;
         let hit = idx.hit_test(lx, ly)?;
         let vnode = idx.substantive_anchor(hit);
         let app_dir = self.shared.app_dir_raw.lock().unwrap().clone();
-        let resolver = |off: usize, len: usize| {
+        let app_rel = self.shared.app_rel.lock().unwrap().clone();
+        let resolver = move |off: usize, len: usize| {
             app_dir
                 .as_deref()
                 .and_then(|d| AnchorIndex::resolve_source(d, (off, len), ""))
+                .map(|(rel, line)| (format!("{app_rel}/{rel}"), line))
         };
-        let payload = idx.pick_json(vnode, scale, &resolver)?;
+        let payload = idx.pick_json(vnode, scale, frame_w, frame_h, &resolver)?;
         *self.shared.picked.lock().unwrap() = Some(payload.clone());
         Some(payload)
     }
@@ -267,20 +281,22 @@ impl CanvasManager {
 
     /// vnode 直选（u64 内核形态；协议面经 pick_vnode_str 的字符串形态）。
     pub fn pick_vnode(&self, vnode: u64) -> Option<Value> {
-        let frame_w = self.frame_px_size()?.0 as f32;
-        let scale = frame_w / WINDOW_LOGICAL_W;
+        let (frame_w, frame_h) = self.frame_px_size()?;
+        let scale = frame_w as f32 / WINDOW_LOGICAL_W;
         let idx = self.shared.anchor.read().unwrap().clone()?;
         if idx.get(vnode).is_none() {
             return None;
         }
         let vnode = idx.substantive_anchor(vnode);
         let app_dir = self.shared.app_dir_raw.lock().unwrap().clone();
-        let resolver = |off: usize, len: usize| {
+        let app_rel = self.shared.app_rel.lock().unwrap().clone();
+        let resolver = move |off: usize, len: usize| {
             app_dir
                 .as_deref()
                 .and_then(|d| AnchorIndex::resolve_source(d, (off, len), ""))
+                .map(|(rel, line)| (format!("{app_rel}/{rel}"), line))
         };
-        let payload = idx.pick_json(vnode, scale, &resolver)?;
+        let payload = idx.pick_json(vnode, scale, frame_w, frame_h, &resolver)?;
         *self.shared.picked.lock().unwrap() = Some(payload.clone());
         Some(payload)
     }
@@ -310,41 +326,41 @@ impl CanvasManager {
     /// status 全载荷（M2）：M1 基础字段 + picked + overlay + tree + pac。
     pub fn status_full(&self) -> Value {
         let st = self.shared.status();
-        let scale = self
-            .frame_px_size()
-            .map(|(w, _)| w as f32 / WINDOW_LOGICAL_W)
-            .unwrap_or(1.0);
+        let (frame_w, frame_h) = self.frame_px_size().unwrap_or((0, 0));
+        let scale = if frame_w > 0 { frame_w as f32 / WINDOW_LOGICAL_W } else { 1.0 };
         let anchor = self.shared.anchor.read().unwrap().clone();
         let overlay: Vec<Value> = match &anchor {
-            Some(idx) => self
-                .shared
-                .overlay
-                .lock()
-                .unwrap()
-                .iter()
-                .filter_map(|v| {
-                    let n = idx.get(*v)?;
-                    let r = n.bbox?;
-                    Some(json!({
-                        "vnode_id": format!("vnode_{v}"),
-                        "bbox_px": {
-                            "x": r.x * scale, "y": r.y * scale,
-                            "w": r.w * scale, "h": r.h * scale,
-                        },
-                        "bbox_pct": {
-                            "x": (r.x * scale) * 100.0, "y": (r.y * scale) * 100.0,
-                            "w": (r.w * scale) * 100.0, "h": (r.h * scale) * 100.0,
-                        },
-                    }))
-                })
-                .collect(),
+            Some(idx) => {
+                let (fw, fh) = (frame_w.max(1) as f32, frame_h.max(1) as f32);
+                self.shared
+                    .overlay
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .filter_map(|v| {
+                        let n = idx.get(*v)?;
+                        let r = n.bbox?;
+                        let (px, py, pw, ph) = (r.x * scale, r.y * scale, r.w * scale, r.h * scale);
+                        Some(json!({
+                            "vnode_id": format!("vnode_{v}"),
+                            "bbox_px": { "x": px, "y": py, "w": pw, "h": ph },
+                            "bbox_pct": {
+                                "x": px / fw * 100.0, "y": py / fh * 100.0,
+                                "w": pw / fw * 100.0, "h": ph / fh * 100.0,
+                            },
+                        }))
+                    })
+                    .collect()
+            }
             None => Vec::new(),
         };
         let app_dir = self.shared.app_dir_raw.lock().unwrap().clone();
+        let app_rel = self.shared.app_rel.lock().unwrap().clone();
         let resolver = move |off: usize, len: usize| {
             app_dir
                 .as_deref()
                 .and_then(|d| AnchorIndex::resolve_source(d, (off, len), ""))
+                .map(|(rel, line)| (format!("{app_rel}/{rel}"), line))
         };
         let tree = anchor.map(|a| a.tree_flat_json(&resolver)).unwrap_or(Value::Null);
         let frame = self
@@ -476,7 +492,10 @@ async fn watchdog(
             }
             // 子进程死亡快检：即刻走复活路径（不等 3 连失败）。
             if handle.has_exited() {
-                tracing::warn!("canvas: child exited (crash path)");
+                tracing::warn!(
+                    "canvas: child exited (crash path)\n--- child output tail ---\n{}",
+                    handle.output_tail(30)
+                );
                 break;
             }
             let started = std::time::Instant::now();

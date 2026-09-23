@@ -64,11 +64,12 @@ impl Tool for CanvasRun {
             .ok_or_else(|| ToolError::Args("missing 'app_path' argument".into()))?;
         let resolved = resolve_within_sandbox(&self.ctx, path)?;
         super::session::validate_app_dir(&resolved).map_err(ToolError::Exec)?;
+        let ws = self.ctx.state.registry.get(&self.ctx.workspace_id);
         let status = self
             .ctx
             .state
             .canvas
-            .start(resolved)
+            .start(resolved, &ws.root)
             .await
             .map_err(ToolError::Exec)?;
         Ok(ToolOutput::text(format!(
@@ -418,7 +419,7 @@ impl Tool for CanvasOverlay {
 }
 
 /// `vnode_N` / 裸数字 → u64（agent 面与路由共用口径）。
-fn parse_vnode_id(raw: &str) -> Option<u64> {
+pub(crate) fn parse_vnode_id(raw: &str) -> Option<u64> {
     raw.strip_prefix("vnode_")
         .unwrap_or(raw)
         .parse::<u64>()

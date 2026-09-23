@@ -170,13 +170,16 @@ impl AnchorIndex {
     }
 
     /// pick 锚点载荷（AC-01/03 同构面）。`scale` = 帧像素/逻辑像素（T-02
-    /// 契约：bbox 为逻辑坐标，前端覆盖框直接吃 bbox_px/bbox_pct）。
+    /// 契约：bbox 为逻辑坐标）；`frame_w/h` = 帧 PNG 像素尺寸（bbox_px 与
+    /// bbox_pct 的换算基准——pct = 像素/帧尺寸×100，前端百分比定位直吃）。
     /// `resolver` 把 span 换算 (path, line)（尽力；未解析缺省，非门）。
     /// vnode_id 字符串形态（>2^53 哈希，JSON number 静默截断）。
     pub fn pick_json(
         &self,
         vnode: u64,
         scale: f32,
+        frame_w: u32,
+        frame_h: u32,
         resolver: &dyn Fn(usize, usize) -> Option<(String, usize)>,
     ) -> Option<Value> {
         let n = self.get(vnode)?;
@@ -195,14 +198,13 @@ impl AnchorIndex {
             o["label"] = json!(l);
         }
         if let Some(r) = n.bbox {
+            let (fw, fh) = (frame_w.max(1) as f32, frame_h.max(1) as f32);
+            let (px, py, pw, ph) = (r.x * scale, r.y * scale, r.w * scale, r.h * scale);
             o["bbox"] = json!({ "x": r.x, "y": r.y, "w": r.w, "h": r.h });
-            o["bbox_px"] = json!({
-                "x": r.x * scale, "y": r.y * scale,
-                "w": r.w * scale, "h": r.h * scale,
-            });
+            o["bbox_px"] = json!({ "x": px, "y": py, "w": pw, "h": ph });
             o["bbox_pct"] = json!({
-                "x": (r.x * scale) * 100.0, "y": (r.y * scale) * 100.0,
-                "w": (r.w * scale) * 100.0, "h": (r.h * scale) * 100.0,
+                "x": px / fw * 100.0, "y": py / fh * 100.0,
+                "w": pw / fw * 100.0, "h": ph / fh * 100.0,
             });
         }
         if let Some((off, len)) = n.span {
@@ -669,13 +671,16 @@ mod tests {
     #[test]
     fn pick_json_shape_and_scale() {
         let idx = AnchorIndex::parse(SAMPLE, 1).unwrap();
-        let p = idx.pick_json(1403, 2.0, &resolver).unwrap();
+        // 帧 200×100 逻辑 100×50 → scale 2.0；pct = 像素/帧尺寸×100。
+        let p = idx.pick_json(1403, 2.0, 200, 100, &resolver).unwrap();
         assert_eq!(p["kind"], "button");
         // id 字符串形态（哈希 vnode > JS 2^53，数字会被静默截断）。
         assert_eq!(p["vnode_id"], "vnode_1403");
         assert_eq!(p["bbox"]["w"], 60.0);
         assert_eq!(p["bbox_px"]["w"], 120.0); // 逻辑 × scale
-        assert_eq!(p["bbox_pct"]["w"], 12000.0);
+        // pct 经 f32 除法有尾差，近似断言。
+        let pct_w = p["bbox_pct"]["w"].as_f64().unwrap_or(0.0);
+        assert!((pct_w - 60.0).abs() < 0.01, "pct w = {pct_w}");
         assert_eq!(p["source"], "src/front/app.at:4"); // offset 300 → line 4
         assert_eq!(p["ancestor_chain"], json!(["vnode_1201", "vnode_1403"]));
     }

@@ -43,7 +43,8 @@ fn rebuildCanvasTree(list obj) list {
             var fv = n.loop_value ?? ""
             for_label = "#" + fi + " " + fv
         }
-        var indent = "padding-left:" + (4 + depth * 12) + "px"
+        var pad int = 4 + depth * 12
+        var indent = "padding-left:" + pad + "px"
         out.push({ vid: vid, depth: depth, kind: kind, label: label, source: source, source_path: source_path, for_label: for_label, indent_style: indent })
     }
     return out
@@ -78,8 +79,9 @@ store CanvasStore {
         var cv_tree []Value = []
         // pac 头显示名。
         var cv_pac_title str = ""
-        // 源码预览开合（锚点 chip → RawPreview 抽屉）。
+        // 源码预览开合（锚点 chip → 源码抽屉）+ 已载文本。
         var cv_source_open bool = false
+        var cv_source_text str = ""
     }
 
     timer {
@@ -92,6 +94,7 @@ store CanvasStore {
         PickBackfill(str),
         ClearPick,
         ToggleSource,
+        SourceBackfill(str),
     }
 
     on {
@@ -105,6 +108,44 @@ store CanvasStore {
                 if r.ok == true {
                     let body = JSON.parse(r.body)
                     if body != None {
+                        .cv_state = body.state ?? "stopped"
+                        .cv_app = body.app_path ?? ""
+                        .cv_error = body.error ?? ""
+                        var seq int = body.seq ?? 0
+                        if seq != .cv_seq {
+                            .cv_seq = seq
+                            .cv_frame_url = "/api/canvas/frame?t=" + seq
+                        }
+                        if body.state == "stopped" {
+                            .cv_open = false
+                        } else {
+                            .cv_open = true
+                        }
+                        var pk obj = body.picked
+                        if pk != None {
+                            .cv_picked_id = pk.vnode_id ?? ""
+                            .cv_picked_kind = pk.kind ?? ""
+                            .cv_picked_label = pk.label ?? ""
+                            .cv_picked_source = pk.source ?? ""
+                            .cv_picked_source_path = pk.source_path ?? ""
+                            var fc obj = pk.forctx
+                            if fc != None {
+                                var fi obj = fc.index
+                                if fi != None {
+                                    .cv_picked_for = "#" + fi
+                                } else {
+                                    .cv_picked_for = ""
+                                }
+                            } else {
+                                .cv_picked_for = ""
+                            }
+                            var bp obj = pk.bbox_pct
+                            if bp != None {
+                                .cv_pick_style = "position:absolute;left:" + bp.x + "%;top:" + bp.y + "%;width:" + bp.w + "%;height:" + bp.h + "%;border:2px solid rgb(59,130,246);background:rgba(59,130,246,0.12);pointer-events:none;border-radius:2px"
+                            } else {
+                                .cv_pick_style = ""
+                            }
+                        }
                         .cv_overlay = rebuildCanvasOverlay(body.overlay ?? [])
                         .cv_tree = rebuildCanvasTree(body.tree ?? [])
                         var pc = body.pac_head
@@ -161,6 +202,10 @@ store CanvasStore {
 
         .ToggleSource -> {
             .cv_source_open = !.cv_source_open
+        }
+
+        .SourceBackfill(payload str) -> {
+            .cv_source_text = payload
         }
     }
 }

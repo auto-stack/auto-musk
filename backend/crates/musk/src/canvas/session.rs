@@ -8,6 +8,7 @@
 //! 信任注入值）。收割 = `taskkill /T /F`（live.mjs 同款）+ 端口探测确认退场。
 
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 /// 端点发现超时：VM 冷启动（首次 iced/wgpu 初始化）在慢盘上可到十几秒。
@@ -51,6 +52,18 @@ pub struct SessionHandle {
     child: tokio::process::Child,
     /// 每会话一次性 storage 镜像路径（Drop 清理）。
     storage_file: PathBuf,
+    /// 子进程输出环形缓冲（崩溃诊断；T-08 canvas 轨 ~35s 周期性 child
+    /// exited 定罪用——stderr 此前被丢弃，死因不可见）。
+    recent_output: Arc<Mutex<Vec<String>>>,
+}
+
+impl SessionHandle {
+    /// 子进程输出尾部（崩溃诊断用；最多 `n` 行）。
+    pub fn output_tail(&self, n: usize) -> String {
+        let buf = self.recent_output.lock().unwrap();
+        let start = buf.len().saturating_sub(n);
+        buf[start..].join("\n")
+    }
 }
 
 impl SessionHandle {
@@ -90,35 +103,58 @@ impl SessionHandle {
         let mut stdout = child.stdout.take().ok_or("stdout not piped")?;
         let mut stderr = child.stderr.take().ok_or("stderr not piped")?;
 
-        // 双流扫描监听行（stderr 为主，stdout 兜底）；行经 channel 汇聚。
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-        tokio::spawn(async move {
-            use tokio::io::AsyncBufReadExt;
-            let mut lines = tokio::io::BufReader::new(stderr).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                if tx.send(format!("E{line}")).is_err() {
-                    break;
+        // 双流汇聚任务：环形缓冲（崩溃诊断，T-08 定罪 canvas 轨 ~35s 周期性
+        // child exited 用——此前就绪后 stderr 被丢弃，死因不可见）+ 监听行
+        // 解析（发现即写 found）。主循环轮询 found。子进程死亡（管道 EOF）
+        // 时任务自然退场；缓冲随 recent Arc 存活供崩溃路径读取。
+        let recent: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let found: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+        {
+            let recent = recent.clone();
+            let found = found.clone();
+            tokio::spawn(async move {
+                use tokio::io::AsyncBufReadExt;
+                let mut es = tokio::io::BufReader::new(stderr).lines();
+                let mut os = tokio::io::BufReader::new(stdout).lines();
+                loop {
+                    tokio::select! {
+                        line = es.next_line() => {
+                            match line {
+                                Ok(Some(l)) => {
+                                    if let Some(addr) = parse_listening_line(&format!("E{l}")) {
+                                        *found.lock().unwrap() = Some(format!("http://{addr}"));
+                                    }
+                                    let mut buf = recent.lock().unwrap();
+                                    if buf.len() >= 200 { buf.remove(0); }
+                                    buf.push(l);
+                                }
+                                Ok(None) | Err(_) => break,
+                            }
+                        }
+                        line = os.next_line() => {
+                            match line {
+                                Ok(Some(l)) => {
+                                    if let Some(addr) = parse_listening_line(&format!("O{l}")) {
+                                        *found.lock().unwrap() = Some(format!("http://{addr}"));
+                                    }
+                                    let mut buf = recent.lock().unwrap();
+                                    if buf.len() >= 200 { buf.remove(0); }
+                                    buf.push(l);
+                                }
+                                Ok(None) | Err(_) => break,
+                            }
+                        }
+                    }
                 }
-            }
-        });
-        let (tx2, mut rx2) = tokio::sync::mpsc::unbounded_channel::<String>();
-        tokio::spawn(async move {
-            use tokio::io::AsyncBufReadExt;
-            let mut lines = tokio::io::BufReader::new(stdout).lines();
-            while let Ok(Some(line)) = lines.next_line().await {
-                if tx2.send(format!("O{line}")).is_err() {
-                    break;
-                }
-            }
-        });
-
+            });
+        }
         let deadline = tokio::time::Instant::now() + ENDPOINT_TIMEOUT;
-        let mut mcp_base: Option<String> = None;
         loop {
             if tokio::time::Instant::now() >= deadline {
                 let _ = reap_tree(pid).await;
+                let tail = recent.lock().unwrap().split_off(160).join("\n");
                 return Err(format!(
-                    "canvas: MCP endpoint not announced within {:?} (app: {})",
+                    "canvas: MCP endpoint not announced within {:?} (app: {})\n--- child output tail ---\n{tail}",
                     ENDPOINT_TIMEOUT,
                     app_dir.display()
                 ));
@@ -126,29 +162,13 @@ impl SessionHandle {
             // 子进程先行退出 = 坏 app（解析失败等），把退出码带给调用方。
             if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
                 let _ = reap_tree(pid).await;
+                let tail = recent.lock().unwrap().split_off(160).join("\n");
                 return Err(format!(
-                    "canvas: auto run exited early (status: {status}) for {}",
+                    "canvas: auto run exited early (status: {status}) for {}\n--- child output tail ---\n{tail}",
                     app_dir.display()
                 ));
             }
-            tokio::select! {
-                line = rx.recv() => {
-                    if let Some(line) = line {
-                        if let Some(addr) = parse_listening_line(&line) {
-                            mcp_base = Some(format!("http://{addr}"));
-                        }
-                    }
-                }
-                line = rx2.recv() => {
-                    if let Some(line) = line {
-                        if let Some(addr) = parse_listening_line(&line) {
-                            mcp_base = Some(format!("http://{addr}"));
-                        }
-                    }
-                }
-                _ = tokio::time::sleep(Duration::from_millis(100)) => {}
-            }
-            if let Some(base) = mcp_base {
+            if let Some(base) = found.lock().unwrap().clone() {
                 let mcp_port = base.rsplit(':').next().and_then(|p| p.parse().ok()).unwrap_or(port);
                 return Ok(Self {
                     app_dir,
@@ -156,8 +176,10 @@ impl SessionHandle {
                     mcp_port,
                     child,
                     storage_file,
+                    recent_output: recent,
                 });
             }
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
     }
 

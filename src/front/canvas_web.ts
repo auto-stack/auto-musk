@@ -73,6 +73,20 @@ export async function canvasPickNode(vnodeId: string): Promise<CanvasPickResult>
 }
 
 /**
+ * 源码抽屉文本加载（files 域同款形态）：/api/files/raw/{path} 不带 workspace
+ * 参数——fetch 拦截器自动注入 jwt+workspace（显式带上反而重复字段 400，
+ * T-08 实证）。行定位 AC-06 尽力项：M2 只做打开文件。
+ */
+export async function canvasLoadSource(path: string): Promise<{ ok: boolean; error: string; text?: string }> {
+    const response = await fetch(`/api/files/raw/${encodeURIComponent(path)}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'text/plain' },
+    });
+    if (!response.ok) return { ok: false, error: `HTTP ${response.status}` };
+    return { ok: true, error: '', text: await response.text() };
+}
+
+/**
  * 帧点选监听（面板 setup 调一次，幂等）：document 级委托——点击目标为画布
  * 帧 img（src 前缀判定）时，按 显示→自然 尺寸比换算帧像素坐标并 POST
  * /api/canvas/pick。结果不在此回接 store：后端置 picked 后经既有 1s 状态

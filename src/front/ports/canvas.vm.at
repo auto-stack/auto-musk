@@ -21,3 +21,8 @@ fn canvasPickNode(vnodeId str) {
 fn installCanvasFrameClicks() {
     // VM 轨无 DOM 委托面（面板不渲染——store 轮询桩恒 stopped）；空实现。
 }
+
+fn canvasLoadSource(path str) {
+    print("canvas load source skipped on vm target: " + path)
+    return { ok: false, error: "canvas panel is web-only in M2", text: "" }
+}

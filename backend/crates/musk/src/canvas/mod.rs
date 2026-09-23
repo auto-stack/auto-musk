@@ -41,12 +41,13 @@ pub struct CanvasStartRequest {
 }
 
 /// POST /api/canvas/pick 入参：{x, y}（帧 PNG 像素，点选）或
-/// {vnode_id}（层树联动/程序直选），二选一。
+/// {vnode_id: "vnode_N"}（层树联动/程序直选），二选一。id 字符串形态
+///（哈希 vnode > JS 2^53，数字形态静默截断）。
 #[derive(Debug, Deserialize)]
 pub struct CanvasPickRequest {
     pub x: Option<f64>,
     pub y: Option<f64>,
-    pub vnode_id: Option<u64>,
+    pub vnode_id: Option<String>,
 }
 
 /// POST /api/canvas/start?workspace={id} {app_path} —— 校验 + 启动（替换语义）。
@@ -77,7 +78,7 @@ async fn canvas_start(
         return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": msg })))
             .into_response();
     }
-    match state.canvas.start(resolved).await {
+    match state.canvas.start(resolved, &ws.root).await {
         Ok(status) => Json(serde_json::json!({
             "state": status.state,
             "app_path": status.app_path,
@@ -127,8 +128,8 @@ async fn canvas_pick(
         )
             .into_response();
     }
-    let result = match (body.vnode_id, body.x, body.y) {
-        (Some(v), _, _) => manager.pick_vnode(v),
+    let result = match (body.vnode_id.clone(), body.x, body.y) {
+        (Some(v), _, _) => manager.pick_vnode_str(&v),
         (None, Some(x), Some(y)) => manager.pick_at(x, y),
         _ => {
             return (

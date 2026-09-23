@@ -17,8 +17,7 @@
 use store: CanvasStore
 use.web useT from "src/front/ports/composables.at"
 use.web canvasStart, canvasStop from "src/front/ports/canvas.at"
-use.web canvasPickNode, installCanvasFrameClicks from "src/front/ports/canvas.at"
-use raw_preview: RawPreview
+use.web canvasPickNode, installCanvasFrameClicks, canvasLoadSource from "src/front/ports/canvas.at"
 
 widget CanvasPanel {
 
@@ -26,9 +25,6 @@ widget CanvasPanel {
         let t = useT()
         // 帧点选委托（幂等；VM 桩空实现）。
         installCanvasFrameClicks()
-        // 源码抽屉的 workspace id（storage 读法 whitelist_view 同款；
-        // setup 局部进视图 prop = useT 同款路径）。
-        let wid = storage.get("musk_workspace") ?? ""
     }
 
     msg Msg {
@@ -211,14 +207,18 @@ widget CanvasPanel {
                             }
                         }
                     }
-                    // 源码抽屉（RawPreview；行定位尽力——AC-06 非门）。
+                    // 源码抽屉（files 域同款加载形态；行定位尽力——AC-06 非门）。
                     if .store.cv_source_open {
                         if .store.cv_picked_source_path != "" {
-                            div {
-                                style: "shrink-0 h-[220px] border-t border-border overflow-hidden"
-                                RawPreview {
-                                    workspace: wid
-                                    path: .store.cv_picked_source_path
+                            col {
+                                style: "shrink-0 h-[220px] border-t border-border overflow-hidden bg-background"
+                                div {
+                                    style: "shrink-0 px-3 py-1 text-[10.5px] text-muted-foreground border-b border-border"
+                                    text .store.cv_picked_source_path
+                                }
+                                div {
+                                    style: "flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] whitespace-pre text-foreground/90"
+                                    text .store.cv_source_text
                                 }
                             }
                         }
@@ -250,6 +250,12 @@ widget CanvasPanel {
         }
         .ToggleSource -> {
             store.ToggleSource()
+            if .store.cv_picked_source_path != "" {
+                let r = canvasLoadSource(.store.cv_picked_source_path).await
+                if r.ok == true {
+                    store.SourceBackfill(r.text ?? "")
+                }
+            }
         }
     }
 }
