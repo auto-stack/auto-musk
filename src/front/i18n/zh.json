@@ -220,7 +220,8 @@
     "statusArchived": "已归档",
     "metaTitle": "元数据",
     "metaShow": "展开元数据",
-    "metaHide": "收起元数据"
+    "metaHide": "收起元数据",
+    "archivedSection": "已归档"
   },
   "wiki": {
     "title": "知识库",

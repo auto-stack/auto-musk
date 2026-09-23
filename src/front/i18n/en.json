@@ -207,7 +207,8 @@
     "statusArchived": "Archived",
     "metaTitle": "Metadata",
     "metaShow": "Show metadata",
-    "metaHide": "Hide metadata"
+    "metaHide": "Hide metadata",
+    "archivedSection": "Archived"
   },
   "wiki": {
     "title": "Wiki",

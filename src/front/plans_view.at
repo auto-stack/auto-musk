@@ -1,7 +1,10 @@
 // plans_view.at — Plans 视图（对应 web/src/views/PlansView.vue）
 //
 // PLAN-024 任务6：plan 列表 + 详情 + 状态流转 + merge 沉淀。
-// MVP：text 纯文本渲染 content（无 markdown），不含归档开关（plans_list 活跃）。
+// 0923 用户裁定三修：①已归档栏目（折叠组头，include_archived 同车分流）；
+// ②详情正文走 Markdown 组件（autodown 引擎；meta/正文改读 store 标量——
+// plans_frontmatter.ts 的 use.web fn 在 VM computed 静默返空=视图坑 #1）；
+// ③「编辑」按钮退役（编辑态机制保留 handler 域不删，未来换入口可复用）。
 
 use store: PlansStore
 
@@ -11,7 +14,6 @@ use.web component Plus from "src/front/ports/icons.at"
 // PLAN-063 T8 (D4): 详情 = frontmatter 元数据 chips + Markdown 正文
 // (复用聊天轨 Markdown 组件;裸文本/无围栏 md 回退 body=原文)。
 use.web component Markdown from "src/front/ports/renderer.at"
-use.web plansFrontmatterMeta, plansFrontmatterBody from "src/front/plans_frontmatter.ts"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
 use nav_sidebar: NavSidebar
@@ -38,6 +40,7 @@ widget PlansView {
         TransitionTo(str),
         CreateNameChanged,
         EditContentChanged,
+        ToggleArchived,
     }
 
     model {
@@ -46,6 +49,8 @@ widget PlansView {
         var new_name str = ""
         var editing bool = false
         var edit_content str = ""
+        // 已归档栏目折叠态（chats「更早」同款：头行常驻，行默认收起）。
+        var archived_open bool = false
         // PLAN-060 T3:流转目标状态常量——VM builder 丢弃纯字面量事件参数的
         // 按钮（onclick: .TransitionTo(.st_drafting) 整钮不渲染,实机快照实证;
         // gen vue 侧正常）,dot-path 实参是渲染安全形。
@@ -60,10 +65,6 @@ widget PlansView {
         // 第一篇后（store 内 LoadPlan 异步完成）高亮与内容保持一致；
         // selected_seq 保留为无选中时的回退。
         selectedSeq => if .store.current != None { .store.current.seq } else { .selected_seq }
-        // PLAN-063 T8 (D4): 详情拆分——current 空守卫经 detailContent 中转。
-        detailContent => if .store.current != None { .store.current.content } else { "" }
-        detailMeta => plansFrontmatterMeta(.detailContent)
-        detailBody => plansFrontmatterBody(.detailContent)
     }
 
     view {
@@ -122,6 +123,52 @@ widget PlansView {
                                     }
                                 }
                             }
+                            // 0923 用户裁定：已归档栏目——折叠组头（chats
+                            // 「更早」同构：头行常驻+计数+右缘 chevron，行
+                            // 默认收起）。点击归档行 plans_get 直读 archived/
+                            // 文件（plans.rs:655 既有语义）。
+                            if .store.archived_count > 0 {
+                                button {
+                                    onclick: .ToggleArchived
+                                    style: "w-full flex items-center justify-between px-3 py-1.5 mb-1 rounded-md text-muted-foreground hover:bg-accent/40 cursor-pointer"
+                                    span {
+                                        style: "text-[11px]"
+                                        text t("plans.archivedSection")
+                                        text " "
+                                        text "" + .store.archived_count
+                                    }
+                                    if .archived_open {
+                                        icon (name: "chevron-down", size: 12) {}
+                                    }
+                                    if .archived_open == false {
+                                        icon (name: "chevron-right", size: 12) {}
+                                    }
+                                }
+                                if .archived_open {
+                                    for plan in .store.archived_plans {
+                                        button {
+                                            key: .plan.seq
+                                            onclick: .SelectPlan(.plan.seq)
+                                            class: if .plan.seq == .selectedSeq {
+                                                "session-item h-auto w-full text-left flex flex-col items-start justify-start gap-0.5 py-2 px-3 mb-1 rounded-lg border border-transparent bg-primary/10 text-primary cursor-pointer"
+                                            } else {
+                                                "session-item h-auto w-full text-left flex flex-col items-start gap-0.5 py-2 px-3 mb-1 rounded-lg border border-transparent bg-transparent hover:bg-accent text-muted-foreground cursor-pointer"
+                                            }
+                                            span {
+                                                title: .plan.id + " — " + .plan.feature_name
+                                                style: "text-[13.6px] font-medium truncate max-w-full"
+                                                text .plan.id
+                                                text " — "
+                                                text .plan.feature_name
+                                            }
+                                            span {
+                                                style: "px-2 py-0.5 rounded-md text-xs bg-accent text-foreground"
+                                                text .plan.status
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -160,11 +207,6 @@ widget PlansView {
                                 }
                             }
                             button {
-                                onclick: .StartEdit
-                                style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border"
-                                text t("plans.edit")
-                            }
-                            button {
                                 onclick: .ArchiveCurrent
                                 style: "py-1.5 px-[14px] rounded-md text-[13px] cursor-pointer bg-card text-foreground border border-border"
                                 text t("plans.archive")
@@ -201,22 +243,25 @@ widget PlansView {
                             }
                         } else {
                             // PLAN-063 T8 (D4): meta chips + Markdown 正文。
+                            // 0923：chips 改读后端权威字段（PlanFile
+                            // id/status/feature_name）+ store 拆好的步进标尺；
+                            // 正文读 store.current_body（视图坑 #1 处方）。
                             col {
                                 style: "flex flex-col gap-3"
-                                if .detailMeta.plan_id != "" {
+                                if .store.current.id != "" {
                                     row {
                                         style: "flex flex-wrap items-center gap-2"
-                                        span { style: "px-2 py-0.5 rounded-md text-xs font-mono bg-primary/10 text-primary", text .detailMeta.plan_id }
-                                        span { style: "px-2 py-0.5 rounded-md text-xs bg-accent text-foreground", text .detailMeta.status }
-                                        if .detailMeta.step_label != "" {
-                                            span { style: "px-2 py-0.5 rounded-md text-xs font-mono bg-muted text-muted-foreground", text .detailMeta.step_label }
+                                        span { style: "px-2 py-0.5 rounded-md text-xs font-mono bg-primary/10 text-primary", text .store.current.id }
+                                        span { style: "px-2 py-0.5 rounded-md text-xs bg-accent text-foreground", text .store.current.status }
+                                        if .store.current_step_label != "" {
+                                            span { style: "px-2 py-0.5 rounded-md text-xs font-mono bg-muted text-muted-foreground", text .store.current_step_label }
                                         }
-                                        if .detailMeta.feature_name != "" {
-                                            span { style: "text-sm text-muted-foreground", text .detailMeta.feature_name }
+                                        if .store.current.feature_name != "" {
+                                            span { style: "text-sm text-muted-foreground", text .store.current.feature_name }
                                         }
                                     }
                                 }
-                                Markdown(source: .detailBody, streaming: false)
+                                Markdown(source: .store.current_body, streaming: false)
                             }
                         }
                     }
@@ -338,5 +383,14 @@ widget PlansView {
         // v-model marker handlers（U5）
         .CreateNameChanged -> { .new_name = .new_name }
         .EditContentChanged -> { .edit_content = .edit_content }
+
+        // 已归档栏目折叠切换（chats ToggleEarlier 同款视图本地态）。
+        .ToggleArchived -> {
+            if .archived_open {
+                .archived_open = false
+            } else {
+                .archived_open = true
+            }
+        }
     }
 }
