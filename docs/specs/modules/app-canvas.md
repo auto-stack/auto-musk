@@ -1,10 +1,12 @@
 # App Canvas（实况画布）模块规范
 
-> PLAN-087 M1 + PLAN-088 M2 落地（2026-09-23，work pass 待 review）。Design 013
-> （AI App Studio 战略）的 M1/M2 里程碑沉淀：一句话生成简单 Auto app →
+> PLAN-087 M1 + PLAN-088 M2 + PLAN-090 M3 落地（2026-09-23）。Design 013
+> （AI App Studio 战略）的 M1/M2/M3 里程碑沉淀：一句话生成简单 Auto app →
 > workspace 内产物 → chats 视图右侧实况画布（隔离 VM 子进程 + AutoUI MCP 截图
-> 流）→ agent 以 canvas_* 工具驱动与断言 → 画布点选↔源码锚点↔层树双向锚定。
-> M3（三层生成流）/M4（飞轮）扩展锚点见文末。
+> 流）→ agent 以 13 件 canvas_* / bp_* / ui_lint / app_example_* 工具驱动与断言 →
+> 画布点选↔源码锚点↔层树双向锚定 → 三层生成流（Blueprint 优先/参考实现/兜底模板 +
+> 53 widget 词表 + ui_lint 护栏）。
+> M4（飞轮）扩展锚点见文末。
 
 ## 会话生命周期（canvas/manager.rs）
 
@@ -109,24 +111,56 @@ bounds+引导帧 bounds 依赖项；devtools_open 不置位面板不出镜）；
 （workspace 根恒第一根 + 白名单），报错文案列全部根；`pac.at` 存在性校验。
 agent 工具面（canvas_run）同口径。
 
-## agent 工具七件（canvas/tools.rs，coding 模式白名单）
+## agent 工具十三件（canvas/{tools,bp_tools,ui_lint,examples_pool}.rs，coding 模式白名单）
 
-`canvas_run{app_path}` / `canvas_stop` / `canvas_snapshot`（最新帧落
-`{workspace}/.canvas/snap-{seq}.png` + `/api/files` markdown 图 + vtree 摘要
-2000 字截断）/ `canvas_act{element_id,action,value?}` / `canvas_state{fields?}` /
-`canvas_pick{element_id}`（锚点结构，M2）/ `canvas_overlay{element_ids[],clear?}`
-（高亮置位，M2）。注册走 `build_agent_with_context` 白名单过滤
-（`modes/coding.at` 收录七名）。
+注册走 `build_agent_with_context` 白名单过滤（`modes/coding.at` 收录全量十三名）：
 
-## 生成侧（canvas/templates.rs）
+1. **画布会话与操作（7 件）**：
+   - `canvas_run{app_path}`：启动隔离 VM 渲染画布，重置/替换前序会话
+   - `canvas_stop`：主动终止当前画布会话并收割子进程
+   - `canvas_snapshot`：当前帧落盘至 `{workspace}/.canvas/snap-{seq}.png`，输出 Markdown 图片与 vtree 摘要（2000 字符截断）
+   - `canvas_act{element_id,action,value?}`：向 VM 内指定元素派发动作（press/type_text/toggle 等）
+   - `canvas_state{fields?}`：读取 VM 内当前组件状态
+   - `canvas_pick{element_id}`：查询节点的双向锚点结构（ancestor_chain、逻辑/百分比坐标、源码文件与行号）
+   - `canvas_overlay{element_ids[],clear?}`：在画布覆盖层置琥珀高亮框
+2. **Blueprint 三件套（3 件，M3）**：
+   - `bp_list`：拉取 blueprint 目录清单（18+ blueprints、7 kinds），auto 不可达时输出降级提示
+   - `bp_show{kind,name}`：获取 blueprint 规约全文（含 props、slots、BehContract、known pitfall）
+   - `bp_check{path,spec?}`：静态行为契约检查器（沙箱内路径解析，严格校验 state/action/bounds）
+3. **Advisory 护栏（1 件，M3）**：
+   - `ui_lint{path}`：AutoUI 模式语法与已知坑快速扫描（L001-L008，非阻断 advisory 报告）
+4. **示例池查询（2 件，M3）**：
+   - `app_examples_list`：检索 auto-lang 内置 `examples/ui/` 样例应用清单与功能简述
+   - `app_example_read{name,file?}`：读取样例源码（只读，默认输出 `pac.at` 与 `src/front/app.at`，>32KB 截断保护）
 
-- 内嵌模板池：counter/hello 双模板（084 基线 examples/ui/{002,001} 精简拷贝，
-  剔除 .am/.auto 缓存）。coding 模式系统上下文追加生成指导
-  （`generation_prompt()`：模板源码 + "选模板→写文件→canvas_run→act/state
-  断言"流程 + widget 词汇 + 已知坑节选）。
-- 生成校验 = canvas_run 启动即验收（VM 轨对 .at 直接解释，无需 npm 工具链）；
-  `auto build -r vue` 为可选非门。
-- examples/ui 扩展池缓行（沙箱 read_file 不可达仓外路径）——M3 生成流再评估。
+## 三层生成流（canvas/{bp_tools,vocabulary,ui_lint,examples_pool,templates}.rs，PLAN-090 M3）
+
+M3 建立在 AutoUI 与 Blueprint 体系之上的三层生成体系：
+
+1. **三层复用梯级（Reuse Ladder L1 > L2 > L3）**：
+   - **L1 Blueprint 优先（Assemble & Spec）**：优先组装已通过 `bp_check` 契约的标准 Blueprint。先查 `bp_list` 与 `bp_show` 获取契约与 variants。
+   - **L2 Reference 拷贝微调（Clone & Adapt）**：若无匹配契约，通过 `app_examples_list` / `app_example_read` 找最相近样例（如 002-counter, 010-todo 等）全盘复刻后调整。
+   - **L3 Scaffold / Freeform 生成（Fallback）**：兜底使用内嵌 counter/hello 模板脚手架，以 safe-subset stdlib widgets 自由拼装。
+2. **层归属三问（Layer Attribution Three Questions）**：
+   - 动手前必须在思考流中明确：
+     - Q1: 这是一次性业务微调（改实例 prop/slot）？
+     - Q2: 还是跨页面模式级抽象（应升格为 Blueprint）？
+     - Q3: 还是平台通用基础交互（需 Stdlib 基础组件支撑）？
+3. **词汇表与目录上下文注入（templates.rs, vocabulary.rs）**：
+   - coding 模式系统提示注入 Stdlib 7 分类 53 种 widget 名单与 safe subset。
+   - 动态探测 `schema/aura.at` 与 `stdlib/aura/`，若不可达则回退到内嵌快照常数。
+   - 动态拼接 Blueprint catalog 摘要表。
+   - 严格尺寸门控：追加的系统提示文本总长度严格在 ≤8KB 预算内（单测强校验）。
+4. **Advisory Fast-gate（ui_lint）**：
+   - 提供 8 条经典规则（L001 `span+onclick`、L002 `computed 内 web fn`、L003 `t() 动态键`、L004 `handler 蛇形命名`、L005 `computed 内 .length`、L006 `list.join()`、L007 `style 块`、L008 `括号过深`）。
+   - Advisory 属性：报告指引修正，不阻塞执行流程（详见 `docs/specs/modules/ui-lint.md`）。
+5. **验证与修复闭环（≤3 轮纪律）**：
+   - 代码生成后：
+     1. 自跑 `ui_lint` 修复建议项；
+     2. 若使用 Blueprint，跑 `bp_check` 进行行为契约刚性验证；
+     3. 调用 `canvas_run` 启动实况 VM 验证（启动成功即为核心验收门）；
+     4. 调 `canvas_act` + `canvas_state` 或 `canvas_snapshot` 检验核心交互链路；
+     5. 遇到报错就地修复，最多迭代 3 轮。3 轮未能解决必须显式向用户汇报具体残留与阻塞原因。
 
 ## 前端面板（web 轨验收面）
 
@@ -145,17 +179,16 @@ VM 轨 mtime 脏标热重载（release 缺省 2000ms 轮询，`AUTOUI_HOT_RELOAD
 
 ## 测试口径（tests/canvas_live.rs）
 
-- live 双臂（`#[ignore]`+`#[serial]`，`-- --ignored` 显式跑，需 auto 可执行）：
-  lifecycle（spawn→端点→首帧 PNG→press→state 断言→stop→census 零孤儿）、
-  revival（manager.pid() 精确 kill→≤15s 恢复→restarts≥1）。
+- live 臂（`#[ignore]`+`#[serial]`，`-- --ignored` 显式跑，需 auto 可执行）：
+  - lifecycle（spawn→端点→首帧 PNG→press→state 断言→stop→census 零孤儿）；
+  - revival（manager.pid() 精确 kill→≤15s 恢复→restarts≥1）；
+  - generation flow e2e（`canvas_generation_flow_m3_e2e`：span 踩坑→ui_lint 拦截→修复→bp_check 验证→实况启动→交互断言→零孤儿退出）。
 - api 臂（常跑）：越界 400 列根 + 无帧 503。
-- 单测：监听行解析/路径校验/模板插值/路由形状。
+- 单测：监听行解析/路径校验/模板插值/路由形状/词表提取/ui_lint 规则/8KB 预算门控。
 - **spawn 类测试必串行**（共用全局进程表；并行会互杀他臂会话——首跑实证）。
 
 ## 后续里程碑锚点（未实现，扩展位）
 
-- M3 三层生成流：bp 注册表/词汇表注入、L1>L2>L3 复用序、`ui.lint` 护栏、
-  examples/ui 扩展池（含白名单引导）。
 - M4：`blueprint.extract` 飞轮、AppViewport 原生嵌入（路线 B）、VM 内
   OverlayInfo 高亮烘焙评估（M2 以前端覆盖框替代）。
 - 多画布会话并发（恒单会话）、画布内嵌用户交互（对用户只读——点击仅作

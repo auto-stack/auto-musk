@@ -19,14 +19,17 @@
 | relay/ | 编排引擎（driver/store/api/profession/flows/task_plan） |
 | orch_tools.rs | 编排工具（spawn_relay/dispatch/bring_in） |
 | mode.rs | agent 运行模式 |
+| canvas/ | 实况画布与生成流（manager/session/anchor/bp_tools/ui_lint/examples_pool/templates） |
 | auto_generated/ | a2r 转译模块（server/auth/relay_api/wiki） |
 
-## 工作区界面
+## 界面与生成流规范
 
 | 模块规范 | 职责 |
 |---|---|
 | [workspace-ui.md](workspace-ui.md) | 五栏目布局、状态、双端与规范权威边界 |
 | [ui-default-styles.md](ui-default-styles.md) | 默认样式、品牌色及平台主题适配边界 |
+| [app-canvas.md](app-canvas.md) | 实况画布生命周期、双向锚定、AutoUI MCP 驱动与三层生成流 |
+| [ui-lint.md](ui-lint.md) | UI Lint 静态扫描规约（8 条 advisory 护栏、红绿锚定、非阻断契约） |
 
 ## 前端模块
 
