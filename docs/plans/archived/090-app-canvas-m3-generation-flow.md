@@ -1,10 +1,11 @@
 ---
 plan_id: PLAN-090
-status: reviewed
+status: archived
+completion_kind: delivered
 feature_name: App Canvas M3 —— 三层生成流（bp/词汇表注入 + L1>L2>L3 复用序 + ui.lint 护栏 + examples 扩展池）
 author: [agent]
 created_at: 2026-09-23T13:42:38+08:00
-updated_at: 2026-09-23T23:53:00+08:00
+updated_at: 2026-09-23T23:55:00+08:00
 plan_revision: 2
 current_step: 8
 total_steps: 8
@@ -285,6 +286,13 @@ T-01 实测判定：`auto ui inspect` 诊断输出 exit code 恒 0 且无严格�
   `next: work`（由用户启动；建议先过 §10-1 blueprints 环境确认）。
 - 2026-09-23 work 实施完成：`stage: work | plan_id: PLAN-090 | plan_revision: 2 | outcome: pass | next: review`（T-01 至 T-08 全量交付：bp 工具三件套、词汇表 53 件注入、ui_lint 8 条规则注册表、examples 池只读通道、生成指导 v2 重构与 13 件白名单扩容、m3 e2e 生成流 live 闭环测试、app-canvas.md 与 ui-lint.md 规范沉淀；496 lib 单测 + bp/examples/live e2e 测全绿；wt-guard 洁净；待复审）
 - 2026-09-23 review 复审通过：`stage: review | plan_id: PLAN-090 | plan_revision: 2 | outcome: pass | reviewed_commit: b8683949be9f8379ee2166e99eb692b20a89ec6b | base_commit: 4f8bf458f9f7c845c6681f0ac27d135981175a78 | dependency_revisions: auto-ai=58bee8d, auto-lang=39863eb | spec_inputs: docs/specs/modules/app-canvas.md, docs/specs/modules/ui-lint.md, docs/specs/modules/README.md | acceptance_results: AC-01..AC-07 all pass | findings: none | evidence: tests/canvas_live.rs (canvas_generation_flow_m3_e2e pass 3.54s), bp_tools_test (3 pass), examples_pool_test (2 pass), 35 canvas unit tests pass, 496 lib tests pass, wt-guard clean | next: merge`
+- 2026-09-23 merge 合并与沉淀完成：
+  `stage: merge | plan_id: PLAN-090 | plan_revision: 2 | outcome: pass`
+  - **prepared**: reviewed_commit=b8683949be9f8379ee2166e99eb692b20a89ec6b; base_commit=4f8bf458f9f7c845c6681f0ac27d135981175a78; canonical specs=docs/specs/modules/app-canvas.md, docs/specs/modules/ui-lint.md, docs/specs/modules/README.md; delivery_commit=7f1389146df5d43ca6498305886657c9197c394c
+  - **landed**: main 快进合回（git merge --ff-only plan-090-dev -> 7f13891）；range-diff 7/7 补丁逐条全等等价（d7fce32=ba60d9c, 44bd88e=8a95e5b, d90466d=afe075f, 1a638f3=01d4880, fea5e5b=f1b3777, 1394cf3=d4f4e75, b868394=7f13891）；线性历史无 merge commit
+  - **ledger_refreshed**: docs/specs/index.json（spec_files 登记 modules/app-canvas.md 与 modules/ui-lint.md，updated_at=2026-09-23T23:54:00+08:00，commit 9325ac5）；.autoos/specs.json 离线原子刷新（app-canvas-D1 M3 增量与 sha256 dba0cc96...，新增 ui-lint-D1 sha256 bf6dea0f...，新增 app-canvas-R3 交付评审记录）
+  - **archived**: docs/plans/archived/090-app-canvas-m3-generation-flow.md；completion_kind=delivered
+  - **cleaned**: wt-guard clean；主 worktree D:/autostack/.wt/musk-090/auto-musk 已移除；plan-090-dev 本地开发分支已删除；兄弟 worktree auto-ai 与 auto-lang 干净折回并移除；组目录 D:/autostack/.wt/musk-090 已清理
 
 ## 10. 待澄清事项
 
