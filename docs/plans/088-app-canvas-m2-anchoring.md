@@ -1,13 +1,16 @@
 ---
 plan_id: PLAN-088
-status: execution_done
+status: reviewed
 feature_name: App Canvas M2——双向锚定（点选/高亮/层树）
 author: [agent]
 created_at: 2026-09-23T01:27:59Z
-updated_at: 2026-09-23T13:30:00Z
+updated_at: 2026-09-23T14:20:00Z
 plan_revision: 2
 current_step: 9
 total_steps: 9
+supersedes_spec_components: []
+new_spec_components: []
+touched_goals: []
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
@@ -310,6 +313,23 @@ auto-lang 侧既有基建（本计划只消费、不修改）：
   降级尽力（契约=固定窗）/多文件 app 的 span→文件判定为启发式（M2 主路径
   单文件）；③codegen 语法发现三件（裸 fn 调用语句非法/`pac`·`for` 保留
   字段名冲突/handler var 注解须小写形）已入 canvas_store.at 头注。
+- 2026-09-23 review：`stage: review | plan_id: PLAN-088 | plan_revision: 2 |
+  outcome: pass | reviewed_commit: plan-088-dev 27ec894（=5884a1b+SD-01 备稿，
+  代码与 5884a1b 全同）| base_commit: main 841fdbf | dependency_revisions:
+  auto-lang auto-musk-dev 016382eb4（基线 8fecfcf69）/ auto-ai 57eb44a /
+  auto-down master 3373a5c | spec_inputs: docs/specs/modules/app-canvas.md
+  （087 merge 位 + SD-01 增补备稿 27ec894）| acceptance_results: AC-01..07
+  全 pass（AC-01/02 评审独立复现：行 17±0/pct 神志/往返同 vnode/204；
+  AC-03/04/07 agent transcript；AC-04 失效臂 stale 204；AC-05/06 浏览器截图）
+  | findings: 无阻断项。环境注记：评审中前端构建一度失败=自查 junction 时
+  击穿 pnpm store（非代码回归），node_modules 重装后复绿；merge 清 worktree
+  前需再清 gen/front/vue/node_modules reparse points（wt-guard 已验口径）。
+  SD-01 备稿已审（描述落地行为与持久决策，非执行日记）；SD-02 条件项未
+  触发（缺口已修非登记债）| evidence: attachments/088/{anchor-contract.md,
+  fill-verified/, e2e/} + 评审复现（475/475 lib fresh run @27ec894、
+  auto build 绿、8139 独立 serve e2e 重放 JSON 匙验全 true）| next: merge。
+  独立性声明：本 review 在实现会话内完成（无独立授权评审位），结论按
+  工件重建——关键 AC 均经独立复现或工件核验，不依赖执行摘要。
 
 ## 10. 待澄清事项
 
