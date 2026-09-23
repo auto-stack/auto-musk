@@ -8,7 +8,8 @@ mode {
         search, list_dir, list_symbols, glob,
         run_command, skill,
         canvas_run, canvas_stop, canvas_snapshot, canvas_act, canvas_state,
-        canvas_pick, canvas_overlay
+        canvas_pick, canvas_overlay,
+        bp_list, bp_show, bp_check
     ]
     context_file : ".musk.md"
     extra_system_prompt : "You are in coding mode. Focus on writing and editing code efficiently. Use the test-driven-development skill when implementing features. Do NOT trigger the full brainstorm → plan → execute workflow unless explicitly asked."

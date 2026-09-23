@@ -13,7 +13,7 @@ use serde_json::{json, Value};
 
 use crate::tool_context::ToolContext;
 
-fn resolve_within_sandbox(ctx: &ToolContext, path: &str) -> Result<PathBuf, ToolError> {
+pub(crate) fn resolve_within_sandbox(ctx: &ToolContext, path: &str) -> Result<PathBuf, ToolError> {
     let ws = ctx.state.registry.get(&ctx.workspace_id);
     let mut roots = vec![ws.root.clone()];
     roots.extend(
@@ -436,5 +436,8 @@ pub fn canvas_tool_registry(ctx: &ToolContext) -> Vec<(&'static str, Arc<dyn Too
         ("canvas_state", Arc::new(CanvasState::new(ctx.clone()))),
         ("canvas_pick", Arc::new(CanvasPick::new(ctx.clone()))),
         ("canvas_overlay", Arc::new(CanvasOverlay::new(ctx.clone()))),
+        ("bp_list", Arc::new(super::bp_tools::BpList::new(ctx.clone()))),
+        ("bp_show", Arc::new(super::bp_tools::BpShow::new(ctx.clone()))),
+        ("bp_check", Arc::new(super::bp_tools::BpCheck::new(ctx.clone()))),
     ]
 }

@@ -8,6 +8,7 @@
 //! fail-closed，拒绝报文列全部根（AC-06）。
 
 pub mod anchor;
+pub mod bp_tools;
 pub mod manager;
 pub mod mcp_client;
 pub mod session;
