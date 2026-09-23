@@ -1,19 +1,17 @@
 ---
 plan_id: PLAN-088
-status: reviewed
+status: archived
 feature_name: App Canvas M2——双向锚定（点选/高亮/层树）
 author: [agent]
 created_at: 2026-09-23T01:27:59Z
-updated_at: 2026-09-23T14:20:00Z
+updated_at: 2026-09-23T14:45:00Z
 plan_revision: 2
 current_step: 9
 total_steps: 9
 supersedes_spec_components: []
 new_spec_components: []
 touched_goals: []
-supersedes_spec_components: []
-new_spec_components: []
-touched_goals: []
+completion_kind: delivered
 ---
 
 # PLAN-088 — App Canvas M2：双向锚定（点选→源码、AI 高亮、层树栏）
@@ -313,6 +311,19 @@ auto-lang 侧既有基建（本计划只消费、不修改）：
   降级尽力（契约=固定窗）/多文件 app 的 span→文件判定为启发式（M2 主路径
   单文件）；③codegen 语法发现三件（裸 fn 调用语句非法/`pac`·`for` 保留
   字段名冲突/handler var 注解须小写形）已入 canvas_store.at 头注。
+- 2026-09-23 merge 归档收据：`stage: merge | PLAN-088:r2 | outcome: pass`。
+  `prepared`: 27ec894（SD-01 备稿）。`landed`: main 2999cf5（ff-only 无合并
+  提交；range-diff 全等映射 1c2d781→a36b2cf / a611070→67542af / 5884a1b→
+  eca0c09 / 27ec894→2999cf5；rebase 期间他方推进 88235de/2d2a7fe 无冲突）。
+  `ledger_refreshed`: .autoos/specs.json v3 离线原子写（D1 更新至 M1+M2 索引，
+  source_sha256=312f939caf186d3fa62e6c8b4316a1785f0a6d4973de57c6abf802f7eb5ab8b1；
+  新增 app-canvas-R2 评审史；回读验证通过）。`archived`: 本文件（delivered）。
+  `cleaned`: 待清（worktree 移除后补记）。
+  环境呈报：main 检出存在他方 WIP（backend/crates/musk/src/auto_generated/
+  extern_impl.rs 的 models:None ×2，auto-ai 034 解阻补丁，本会话中途出现）
+  ——未并入本合并、未丢弃；请其所有者路由。主检出 musk 本地构建受 086 登记
+  的 auto-lang master 依赖漂移阻断（既有环境项，非本次回归）；已知良好性由
+  工作树同树内容 475/475 套件 + ff-only 字节等同保证。
 - 2026-09-23 review：`stage: review | plan_id: PLAN-088 | plan_revision: 2 |
   outcome: pass | reviewed_commit: plan-088-dev 27ec894（=5884a1b+SD-01 备稿，
   代码与 5884a1b 全同）| base_commit: main 841fdbf | dependency_revisions:
