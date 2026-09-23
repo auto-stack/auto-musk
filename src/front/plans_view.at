@@ -147,7 +147,10 @@ widget PlansView {
                                 if .archived_open {
                                     for plan in .store.archived_plans {
                                         button {
-                                            key: .plan.seq
+                                            // R001 去重：归档臂 key 加 arc- 前缀
+                                            //（与活跃臂同 seq 不再撞键；R046
+                                            // 安全拼接）。
+                                            key: "arc-" + .plan.seq
                                             onclick: .SelectPlan(.plan.seq)
                                             class: if .plan.seq == .selectedSeq {
                                                 "session-item h-auto w-full text-left flex flex-col items-start justify-start gap-0.5 py-2 px-3 mb-1 rounded-lg border border-transparent bg-primary/10 text-primary cursor-pointer"

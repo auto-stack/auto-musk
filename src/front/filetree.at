@@ -54,13 +54,21 @@ widget FileTree (nodes: List, default_expanded: List = []) {
                     } else {
                         div (style: "w-5 shrink-0") {}
                     }
-                    row (onclick: .Select(r.id), class: f"flex flex-row flex-1 items-center gap-1.5 py-1 pr-2 rounded-md cursor-pointer ${r.state}") {
-                        if r.icon != "" {
-                            TreeIcon (name: r.icon) {}
-                        }
-                        text r.label { style: "text-sm" }
-                        if r.badge != "" {
-                            text r.badge { style: "ml-auto text-xs text-muted-foreground" }
+                    // PLAN-089 T-07①: 行点击接线——VM 轨容器（row）不消费
+                    // onclick（builder 容器臂无 events 面，MCP press 报
+                    // No 'press' handler found=用户「点击无反应」根因）。
+                    // mouse-area 双轨同形可点：vue=div+@click（web 现状
+                    // 不变），VM=原生臂消费 onclick（本组件 chevron 同款
+                    // 先例）。hover/选中态类挂外臂，内 row 承横排布局。
+                    mouse-area (onclick: .Select(r.id), class: f"flex-1 min-w-0 cursor-pointer ${r.state}") {
+                        row (class: "flex flex-row items-center gap-1.5 py-1 pr-2 rounded-md w-full") {
+                            if r.icon != "" {
+                                TreeIcon (name: r.icon) {}
+                            }
+                            text r.label { style: "text-sm" }
+                            if r.badge != "" {
+                                text r.badge { style: "ml-auto text-xs text-muted-foreground" }
+                            }
                         }
                     }
                 }

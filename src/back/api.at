@@ -202,8 +202,26 @@ pub type FilesTreeResponse = {
     truncated: bool,
 }
 
+// PLAN-089 T-07: 文件正文后端通道。JSON 包裹——绑定固定
+// response.json()，对 text/plain 响应必炸的旧约束以此绕开（raw 端点因此
+// 不进 #[api]）；VM 轨视图侧 use.web fn 为 no-op 桩的缺口同车愈合。
+// error 字段诚实进契约：成功恒 ""，失败带消息（VM get_json 对非 2xx
+// 另包 {error,status} 形状兼容；web 生成端 !ok 直接 throw 进 catch 臂）。
+// 后端 hw 路由 = files_browser.rs `/api/files/text/{*path}`（通配符——web
+// 生成端裸拼接路径，`/` 保持原样直达；VM 侧单段占位全编码 %2F，axum
+// Path 解码后同形）。
+pub type FilesTextResponse = {
+    content: str,
+    error: str,
+}
+
+#[api(method = "GET", path = "/api/files/text/{path}")]
+pub fn files_text(path str) FilesTextResponse {
+    return None
+}
+
 // fs 形态节点（PLAN-614 FileTree 契约）：id=相对路径，children 恒存在
-// （叶子空数组），icon/badge 留空走组件自动映射。
+// （叶子空数组），icon/badge 留空走组件内自动映射。
 pub type FilesNode = {
     id: str,
     label: str,
@@ -214,9 +232,8 @@ pub type FilesNode = {
     badge: str,
 }
 
-// raw 端点不进 #[api]：生成绑定固定 response.json()，对文本/字节响应
-// 均不可用——文本经 ports/files.web.at 的 loadFilesFileText（.text()），
-// 媒体直接以 /api/files/raw URL 喂 <img>/<video>（path encodeURIComponent）。
+// raw 端点不进 #[api]：字节响应（图片/视频预览直喂 <img>/<video> URL，
+// path encodeURIComponent）；文本正文改走上方 files_text（T-07）。
 
 
 

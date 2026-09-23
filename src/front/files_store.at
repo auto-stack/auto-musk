@@ -11,7 +11,9 @@
 
 use back.api: files_tree
 
-/** 查看器类型分派（扩展名大小写不敏感）：image|video|markdown|code|other。 */
+/** 查看器类型分派（扩展名大小写不敏感）：image|video|markdown|code|other。
+ * .ad（autodown 文档格式，markdown 超集）随 markdown 臂走 autodown 真渲染
+ * （PLAN-089 T-08——此前落 "other" 空态=用户需求缺口实锤）。 */
 fn files_file_kind(path str) str {
     if Regex.test(path, "\.(png|jpe?g|gif|svg|webp|bmp|ico|avif)$", "i") {
         return "image"
@@ -19,7 +21,7 @@ fn files_file_kind(path str) str {
     if Regex.test(path, "\.(mp4|m4v|webm|mov)$", "i") {
         return "video"
     }
-    if Regex.test(path, "\.(md|markdown)$", "i") {
+    if Regex.test(path, "\.(md|markdown|ad)$", "i") {
         return "markdown"
     }
     if Regex.test(path, "\.(at|rs|ts|tsx|vue|js|mjs|cjs|json|toml|yaml|yml|css|html|htm|sh|bat|cmd|ps1|py|sql|txt|lock|xml|csv|gitignore)$", "i") {
@@ -28,7 +30,7 @@ fn files_file_kind(path str) str {
     return "other"
 }
 
-/** 代码 → 高亮语言名（fence 信息串；未知扩展名回空串）。 */
+/** 代码 → 高亮语言名（code_editor lang prop；未知扩展名回空串）。 */
 fn files_code_lang(path str) str {
     if Regex.test(path, "\.rs$", "i") {
         return "rust"
@@ -66,14 +68,6 @@ fn files_code_lang(path str) str {
     return ""
 }
 
-/** 代码内容 → 围栏 markdown（复用聊天 autodown 高亮管线，PLAN-038 真源）。 */
-fn files_code_markdown(content str, path str) str {
-    let lang = files_code_lang(path)
-    return "```" + lang + "
-" + content + "
-```"
-}
-
 /** raw 预览 URL。workspace 必须显式带上——<img>/<video> 不经 fetch 拦截器
  * （拦截器只给 /api 请求注入 jwt+workspace），缺省时服务端解析到 serve
  * 自身 CWD 工作区而非当前选中工作区（E2E 实证 404）。 */
@@ -106,12 +100,9 @@ store FilesStore {
         // computed 引 computed 未生成引用，实证 TS2304）。
         active_kind => files_file_kind(.active_path)
         active_url => files_raw_url(.active_path)
-        // markdown/代码统一经 autodown 管线渲染（代码围栏包装高亮）。
-        active_markdown => if files_file_kind(.active_path) == "code" {
-            files_code_markdown(.active_content, .active_path)
-        } else {
-            .active_content
-        }
+        // T-09：代码族走原生 code_editor（readonly 查看器，编辑归
+        // auto-edit 域）；markdown 臂直用 active_content（围栏包装退役）。
+        active_lang => files_code_lang(.active_path)
         active_video_html => files_video_html(files_raw_url(.active_path))
     }
 
@@ -130,9 +121,10 @@ store FilesStore {
             .file_loaded = true
         }
 
-        // SelectFile 只置路径与 loading；正文由视图侧 use.web 异步加载
-        // （api.at 绑定固定 response.json()，对文本响应必炸——E2E 实证），
-        // 经 SetContent/SetLoadFailed 回填。媒体只记路径（URL 惰性加载）。
+        // SelectFile 只置路径与 loading；正文由视图侧经 #[api] files_text
+        // 后端通道加载（JSON 包裹 {content}——绑定固定 response.json() 对
+        // 纯文本必炸的旧约束以此绕开，PLAN-089 T-07），经
+        // SetContent/SetLoadFailed 回填。媒体只记路径（URL 惰性加载）。
         .SelectFile(path) -> {
             .active_path = path
             .active_content = ""

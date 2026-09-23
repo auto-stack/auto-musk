@@ -10,7 +10,11 @@ use filetree: FileTree
 use content_header: ContentHeader
 use.web component MarkdownRender from "src/front/ports/renderer.at"
 use.web component FileIcon from "src/front/ports/icons.at"
-use.web loadFilesFileText from "src/front/ports/files.at"
+// PLAN-089 T-07: 正文加载走 #[api] files_text 后端通道（JSON 包裹——
+// 绑定固定 response.json()，纯文本必炸旧约束以此绕开）；VM 轨 no-op 桩
+// （ports/files.*.at loadFilesFileText）退役。视图直引 back.api 有
+// chats_view 先例。
+use back.api: files_text
 use.web useT from "src/front/ports/composables.at"
 
 widget FilesView {
@@ -35,12 +39,18 @@ widget FilesView {
 
         .Pick(path) -> {
             FilesStore.SelectFile(path);
-            // 文本类经 .text() 异步加载（视图侧 use.web——store 不消费
-            // use.web.fn；api.at 绑定 json() 对文本必炸）。
+            // 文本类经 #[api] files_text 后端通道加载（JSON {content}）。
+            // 错误双臂：非 2xx 时 VM get_json 包错误对象（{error,status}，
+            // `?? ""` 兜缺键）、web 生成绑定 throw——两臂同落 SetLoadFailed。
             if .store.active_kind == "code" || .store.active_kind == "markdown" {
                 try {
-                    let content = loadFilesFileText(path).await
-                    FilesStore.SetContent(content)
+                    let resp = files_text(path)
+                    var err str = resp.error ?? ""
+                    if err != "" {
+                        FilesStore.SetLoadFailed()
+                    } else {
+                        FilesStore.SetContent(resp.content ?? "")
+                    }
                 } catch (e) {
                     FilesStore.SetLoadFailed()
                 }
@@ -104,12 +114,21 @@ widget FilesView {
                             FileIcon { size: 28 }
                             text t("files.loadFailed") { style: "text-sm" }
                         }
-                    } else if .store.active_kind == "image" {
+                        } else if .store.active_kind == "image" {
                             img { src: .store.active_url, style: "max-w-full max-h-[70vh] rounded-md" }
                         } else if .store.active_kind == "video" {
                             div { html: .store.active_video_html }
-                        } else if .store.active_kind == "markdown" || .store.active_kind == "code" {
-                            MarkdownRender { content: .store.active_markdown }
+                        } else if .store.active_kind == "markdown" {
+                            // .md/.ad 同臂：autodown 真渲染（T-08——.ad 原生
+                            // 文档格式随 autodown 引擎解析）。
+                            MarkdownRender { content: .store.active_content }
+                        } else if .store.active_kind == "code" {
+                            // T-09：原生 code_editor 只读查看器（高亮/行号；
+                            // 编辑归 auto-edit 域，§6 裁定衔接）。key 恒定：
+                            // 切文件靠 §5.4 外部差分回写（readonly 无内部
+                            // 编辑，无残留面）。readonly 需 auto-lang
+                            // musk-089-dev readonly 穿透。
+                            code_editor (key: "files-viewer", lang: .store.active_lang, value: .store.active_content, readonly: true, line_numbers: true, style: "h-[560px] w-full rounded-md border") {}
                         } else {
                             div (style: "h-full flex flex-col items-center justify-center gap-2 text-muted-foreground") {
                                 FileIcon { size: 28 }

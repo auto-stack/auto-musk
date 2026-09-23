@@ -7,6 +7,7 @@
 //! Two endpoints:
 //!   GET /api/files/tree          → `{ tree: Vec<TreeNode>, truncated }`
 //!   GET /api/files/raw/{*path}   → raw bytes + MIME (confinement-guarded)
+//!   GET /api/files/text/{*path}  → `{ content }` JSON (PLAN-089 T-07)
 //!
 //! Differences vs the specs tree (all server-enforced; the frontend is not a
 //! security boundary):
@@ -83,10 +84,23 @@ pub struct FilesTreeResponse {
     pub truncated: bool,
 }
 
+/// PLAN-089 T-07: text-file body wrapped as JSON — the generated api
+/// bindings hard-wire `response.json()`, which explodes on text/plain
+/// responses (the reason raw stays out of `#[api]`). VM track api calls
+/// share the json() convention, so the wrapper serves both tracks.
+/// `error` is part of the honest contract: "" on success, a message on
+/// failure (the VM's non-2xx wrapper shape `{error,status}` is compatible).
+#[derive(Serialize)]
+pub struct FilesTextResponse {
+    pub content: String,
+    pub error: String,
+}
+
 pub fn files_routes() -> Router<AppState> {
     Router::new()
         .route("/api/files/tree", get(files_tree))
         .route("/api/files/raw/{*path}", get(files_raw))
+        .route("/api/files/text/{*path}", get(files_text))
 }
 
 fn ws_root_for(state: &AppState, q: &FilesQuery) -> std::path::PathBuf {
@@ -247,6 +261,32 @@ async fn files_raw(
     Ok(([(header::CONTENT_TYPE, mime)], data).into_response())
 }
 
+/// GET /api/files/text/{*path} — file body as `{ content }` JSON under the
+/// same confinement/size contract as raw (PLAN-089 T-07). Non-UTF-8 bytes
+/// decode lossily (text kinds only reach this route; binary goes raw).
+async fn files_text(
+    State(state): State<AppState>,
+    Query(q): Query<FilesQuery>,
+    Path(path): Path<String>,
+) -> Result<Json<FilesTextResponse>, (StatusCode, String)> {
+    let root = ws_root_for(&state, &q);
+    let canonical = resolve_confined(&root, &path)?;
+    let meta = std::fs::metadata(&canonical)
+        .map_err(|_| (StatusCode::NOT_FOUND, "file missing".into()))?;
+    if meta.is_dir() {
+        return Err((StatusCode::BAD_REQUEST, "path is a directory".into()));
+    }
+    if meta.len() > MAX_FILE_BYTES {
+        return Err((StatusCode::PAYLOAD_TOO_LARGE, "file too large".into()));
+    }
+    let data =
+        std::fs::read(&canonical).map_err(|_| (StatusCode::NOT_FOUND, "unreadable".into()))?;
+    Ok(Json(FilesTextResponse {
+        content: String::from_utf8_lossy(&data).to_string(),
+        error: String::new(),
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -387,6 +427,27 @@ mod tests {
 
         // Missing → 404-style error.
         assert!(resolve_confined(&root, "src/nope.rs").is_err());
+    }
+
+    /// PLAN-089 T-07: the text endpoint's JSON wrapper shape the generated
+    /// bindings consume (`response.json()` → `{content, error}`) — error is
+    /// "" on success (honest contract), plus lossy decode totality.
+    #[test]
+    fn files_text_response_shape_wraps_content() {
+        let resp = FilesTextResponse {
+            content: "# hello\n".to_string(),
+            error: String::new(),
+        };
+        let json = serde_json::to_value(&resp).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({ "content": "# hello\n", "error": "" })
+        );
+
+        // Lossy decode keeps the route total on non-UTF-8 bytes (only text
+        // kinds reach this route in practice; binary goes raw).
+        let lossy = String::from_utf8_lossy(&[0x66, 0x6e, 0xff, 0x20]).to_string();
+        assert_eq!(lossy, "fn\u{FFFD} ");
     }
 
 }
