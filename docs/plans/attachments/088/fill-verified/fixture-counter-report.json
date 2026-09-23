@@ -1,0 +1,29 @@
+{
+  "fixture": "fixture-counter",
+  "mcp": "http://127.0.0.1:42025",
+  "checks": {
+    "vtree_has_bbox_static1": true,
+    "vtree_has_bbox_static2": true,
+    "vtree_has_bbox_after_action": true,
+    "action_reply": "ActionResult\n  status: ok\n  element: #aura_0\n  action: press\n  handler: .App.__evt_onclick_3\n  state_changes:\n    count: 0 -> 1",
+    "vtree_has_source_prop": false,
+    "vtree_has_for_iter": false,
+    "vnode_count": 6,
+    "select_node_count": 1,
+    "select_spans": 1,
+    "select_sample": [
+      {
+        "id": "vnode_14695981039346656037",
+        "kind": "col",
+        "span": [
+          77,
+          312
+        ]
+      }
+    ]
+  },
+  "png": {
+    "width": 960,
+    "height": 1360
+  }
+}

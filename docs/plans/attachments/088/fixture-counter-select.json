@@ -1,0 +1,69 @@
+{
+  "surface": "vm",
+  "app": "App",
+  "rect": [
+    0.0,
+    0.0,
+    960.0,
+    1360.0
+  ],
+  "nodes": [
+    {
+      "id": "vnode_14695981039346656037",
+      "kind": "col",
+      "span": [
+        77,
+        312
+      ],
+      "source": "col {\n            text `Counter: ${.count}`\n            row {\n                button \"-\" { onclick: () => {.count -= 1} }\n                button \"Reset\" { onclick: () => {.count = 0} }\n                button \"+\" { onclick: () => {.count += 1} }\n            }\n            style: \"items-center gap-4 p-6\"\n        }",
+      "structure": {
+        "tag": "col",
+        "id": "vnode_14695981039346656037",
+        "props": {
+          "spacing": 0,
+          "padding": 0
+        },
+        "children": [
+          {
+            "tag": "text",
+            "id": "vnode_12642422519345821663",
+            "props": {
+              "content": "Counter: 1"
+            }
+          },
+          {
+            "tag": "row",
+            "id": "vnode_12642404927159776812",
+            "props": {
+              "spacing": 0,
+              "padding": 0
+            },
+            "children": [
+              {
+                "tag": "button",
+                "id": "vnode_4289760042030763204",
+                "props": {
+                  "label": "-"
+                }
+              },
+              {
+                "tag": "button",
+                "id": "vnode_4289777634216808055",
+                "props": {
+                  "label": "Reset"
+                }
+              },
+              {
+                "tag": "button",
+                "id": "vnode_4289795226402852906",
+                "props": {
+                  "label": "+"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

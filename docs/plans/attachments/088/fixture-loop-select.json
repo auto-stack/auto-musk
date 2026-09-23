@@ -1,0 +1,216 @@
+{
+  "surface": "vm",
+  "app": "App",
+  "rect": [
+    0.0,
+    0.0,
+    960.0,
+    1360.0
+  ],
+  "nodes": [
+    {
+      "id": "vnode_14695981039346656037",
+      "kind": "col",
+      "span": [
+        200,
+        355
+      ],
+      "source": "col {\n            text `Selected: ${.selected}`\n            for item in .items {\n                row {\n                    text item { style: \"flex-1\" }\n                    button \"Pick\" { onclick: .Select(item), style: \"px-2\" }\n                }\n                style: \"gap-2 p-2 border rounded m-1\"\n            }\n            style: \"p-4 gap-2\"\n        }",
+      "structure": {
+        "tag": "col",
+        "id": "vnode_14695981039346656037",
+        "props": {
+          "spacing": 0,
+          "padding": 0
+        },
+        "children": [
+          {
+            "tag": "text",
+            "id": "vnode_12642422519345821663",
+            "props": {
+              "content": "Selected: Delta task"
+            }
+          },
+          {
+            "tag": "col",
+            "id": "vnode_12642404927159776812",
+            "props": {
+              "spacing": 0,
+              "padding": 0
+            },
+            "children": [
+              {
+                "tag": "col",
+                "id": "vnode_4289760042030763204",
+                "props": {
+                  "spacing": 0,
+                  "padding": 0
+                },
+                "children": [
+                  {
+                    "tag": "row",
+                    "id": "vnode_12781790891868631308",
+                    "props": {
+                      "spacing": 0,
+                      "padding": 0
+                    },
+                    "children": [
+                      {
+                        "tag": "text",
+                        "id": "vnode_15900409796501198692",
+                        "props": {
+                          "content": "Alpha task"
+                        }
+                      },
+                      {
+                        "tag": "button",
+                        "id": "vnode_15900427388687243543",
+                        "props": {
+                          "label": "Pick"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "text",
+                    "id": "vnode_12781808484054676159"
+                  },
+                  {
+                    "tag": "text",
+                    "id": "vnode_12781826076240721010"
+                  }
+                ]
+              },
+              {
+                "tag": "col",
+                "id": "vnode_4289777634216808055",
+                "props": {
+                  "spacing": 0,
+                  "padding": 0
+                },
+                "children": [
+                  {
+                    "tag": "row",
+                    "id": "vnode_12797096093727462453",
+                    "props": {
+                      "spacing": 0,
+                      "padding": 0
+                    },
+                    "children": [
+                      {
+                        "tag": "text",
+                        "id": "vnode_7440309935637812751",
+                        "props": {
+                          "content": "Beta task"
+                        }
+                      },
+                      {
+                        "tag": "button",
+                        "id": "vnode_7440292343451767900",
+                        "props": {
+                          "label": "Pick"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "text",
+                    "id": "vnode_12797078501541417602"
+                  },
+                  {
+                    "tag": "text",
+                    "id": "vnode_12797060909355372751"
+                  }
+                ]
+              },
+              {
+                "tag": "col",
+                "id": "vnode_4289795226402852906",
+                "props": {
+                  "spacing": 0,
+                  "padding": 0
+                },
+                "children": [
+                  {
+                    "tag": "row",
+                    "id": "vnode_12812401295586293598",
+                    "props": {
+                      "spacing": 0,
+                      "padding": 0
+                    },
+                    "children": [
+                      {
+                        "tag": "text",
+                        "id": "vnode_17426954148483978426",
+                        "props": {
+                          "content": "Gamma task"
+                        }
+                      },
+                      {
+                        "tag": "button",
+                        "id": "vnode_17426971740670023277",
+                        "props": {
+                          "label": "Pick"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "text",
+                    "id": "vnode_12812418887772338449"
+                  },
+                  {
+                    "tag": "text",
+                    "id": "vnode_12812366111214203896"
+                  }
+                ]
+              },
+              {
+                "tag": "col",
+                "id": "vnode_4289812818588897757",
+                "props": {
+                  "spacing": 0,
+                  "padding": 0
+                },
+                "children": [
+                  {
+                    "tag": "row",
+                    "id": "vnode_12827706497445124743",
+                    "props": {
+                      "spacing": 0,
+                      "padding": 0
+                    },
+                    "children": [
+                      {
+                        "tag": "text",
+                        "id": "vnode_8966854287620592485",
+                        "props": {
+                          "content": "Delta task"
+                        }
+                      },
+                      {
+                        "tag": "button",
+                        "id": "vnode_8966836695434547634",
+                        "props": {
+                          "label": "Pick"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "text",
+                    "id": "vnode_12827688905259079892"
+                  },
+                  {
+                    "tag": "text",
+                    "id": "vnode_12827741681817214445"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

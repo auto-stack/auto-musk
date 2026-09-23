@@ -1,0 +1,406 @@
+{
+  "checks": {
+    "session_running": true,
+    "tree_nodes": 27,
+    "pac_head": {
+      "name": "loop-list",
+      "render": "vue",
+      "title": "Loop List",
+      "title_zh": "循环列表",
+      "window": "480x680"
+    },
+    "tree_buttons": 4,
+    "pick1_ok": true,
+    "pick3_ok": true,
+    "instances_distinct": true,
+    "same_template_line": true,
+    "for_context_0": 0,
+    "for_context_last": 3,
+    "pick1_line_content": "                    button \"Pick\" { onclick: .Select(item), style: \"px-2\" }",
+    "pick3_line_content": "                    button \"Pick\" { onclick: .Select(item), style: \"px-2\" }",
+    "line_has_button_kw": true,
+    "xy_roundtrip_same_vnode": true,
+    "miss_204": true,
+    "frame_bytes": 56786
+  },
+  "status_running": {
+    "state": "running",
+    "seq": 130,
+    "app_path": "D:/autostack/.wt/musk-088/auto-musk/tmp/t08/ws/loop-app",
+    "restarts": 0,
+    "error": "",
+    "frame": {
+      "w": 960,
+      "h": 1360
+    },
+    "picked": null,
+    "overlay": [],
+    "tree": [
+      {
+        "id": "vnode_14695981039346656037",
+        "depth": 0,
+        "kind": "col",
+        "source": "src/front/app.at:12",
+        "source_path": "src/front/app.at",
+        "source_line": 12
+      },
+      {
+        "id": "vnode_12642422519345821663",
+        "depth": 1,
+        "kind": "text",
+        "label": "Selected: ",
+        "source": "src/front/app.at:13",
+        "source_path": "src/front/app.at",
+        "source_line": 13
+      },
+      {
+        "id": "vnode_12642404927159776812",
+        "depth": 1,
+        "kind": "col",
+        "source": "src/front/app.at:14",
+        "source_path": "src/front/app.at",
+        "source_line": 14
+      },
+      {
+        "id": "vnode_4289760042030763204",
+        "depth": 2,
+        "kind": "col"
+      },
+      {
+        "id": "vnode_12781790891868631308",
+        "depth": 3,
+        "kind": "row",
+        "source": "src/front/app.at:15",
+        "source_path": "src/front/app.at",
+        "source_line": 15,
+        "loop_index": 0,
+        "loop_value": "Alpha task"
+      },
+      {
+        "id": "vnode_15900409796501198692",
+        "depth": 4,
+        "kind": "text",
+        "label": "Alpha task",
+        "source": "src/front/app.at:16",
+        "source_path": "src/front/app.at",
+        "source_line": 16
+      },
+      {
+        "id": "vnode_15900427388687243543",
+        "depth": 4,
+        "kind": "button",
+        "label": "Pick",
+        "source": "src/front/app.at:17",
+        "source_path": "src/front/app.at",
+        "source_line": 17
+      },
+      {
+        "id": "vnode_12781808484054676159",
+        "depth": 3,
+        "kind": "text",
+        "source": "src/front/app.at:19",
+        "source_path": "src/front/app.at",
+        "source_line": 19,
+        "loop_index": 0,
+        "loop_value": "Alpha task"
+      },
+      {
+        "id": "vnode_12781826076240721010",
+        "depth": 3,
+        "kind": "text",
+        "source": "src/front/app.at:19",
+        "source_path": "src/front/app.at",
+        "source_line": 19,
+        "loop_index": 0,
+        "loop_value": "Alpha task"
+      },
+      {
+        "id": "vnode_4289777634216808055",
+        "depth": 2,
+        "kind": "col"
+      },
+      {
+        "id": "vnode_12797096093727462453",
+        "depth": 3,
+        "kind": "row",
+        "source": "src/front/app.at:15",
+        "source_path": "src/front/app.at",
+        "source_line": 15,
+        "loop_index": 1,
+        "loop_value": "Beta task"
+      },
+      {
+        "id": "vnode_7440309935637812751",
+        "depth": 4,
+        "kind": "text",
+        "label": "Beta task",
+        "source": "src/front/app.at:16",
+        "source_path": "src/front/app.at",
+        "source_line": 16
+      },
+      {
+        "id": "vnode_7440292343451767900",
+        "depth": 4,
+        "kind": "button",
+        "label": "Pick",
+        "source": "src/front/app.at:17",
+        "source_path": "src/front/app.at",
+        "source_line": 17
+      },
+      {
+        "id": "vnode_12797078501541417602",
+        "depth": 3,
+        "kind": "text",
+        "source": "src/front/app.at:19",
+        "source_path": "src/front/app.at",
+        "source_line": 19,
+        "loop_index": 1,
+        "loop_value": "Beta task"
+      },
+      {
+        "id": "vnode_12797060909355372751",
+        "depth": 3,
+        "kind": "text",
+        "source": "src/front/app.at:19",
+        "source_path": "src/front/app.at",
+        "source_line": 19,
+        "loop_index": 1,
+        "loop_value": "Beta task"
+      },
+      {
+        "id": "vnode_4289795226402852906",
+        "depth": 2,
+        "kind": "col"
+      },
+      {
+        "id": "vnode_12812401295586293598",
+        "depth": 3,
+        "kind": "row",
+        "source": "src/front/app.at:15",
+        "source_path": "src/front/app.at",
+        "source_line": 15,
+        "loop_index": 2,
+        "loop_value": "Gamma task"
+      },
+      {
+        "id": "vnode_17426954148483978426",
+        "depth": 4,
+        "kind": "text",
+        "label": "Gamma task",
+        "source": "src/front/app.at:16",
+        "source_path": "src/front/app.at",
+        "source_line": 16
+      },
+      {
+        "id": "vnode_17426971740670023277",
+        "depth": 4,
+        "kind": "button",
+        "label": "Pick",
+        "source": "src/front/app.at:17",
+        "source_path": "src/front/app.at",
+        "source_line": 17
+      },
+      {
+        "id": "vnode_12812418887772338449",
+        "depth": 3,
+        "kind": "text",
+        "source": "src/front/app.at:19",
+        "source_path": "src/front/app.at",
+        "source_line": 19,
+        "loop_index": 2,
+        "loop_value": "Gamma task"
+      },
+      {
+        "id": "vnode_12812366111214203896",
+        "depth": 3,
+        "kind": "text",
+        "source": "src/front/app.at:19",
+        "source_path": "src/front/app.at",
+        "source_line": 19,
+        "loop_index": 2,
+        "loop_value": "Gamma task"
+      },
+      {
+        "id": "vnode_4289812818588897757",
+        "depth": 2,
+        "kind": "col"
+      },
+      {
+        "id": "vnode_12827706497445124743",
+        "depth": 3,
+        "kind": "row",
+        "source": "src/front/app.at:15",
+        "source_path": "src/front/app.at",
+        "source_line": 15,
+        "loop_index": 3,
+        "loop_value": "Delta task"
+      },
+      {
+        "id": "vnode_8966854287620592485",
+        "depth": 4,
+        "kind": "text",
+        "label": "Delta task",
+        "source": "src/front/app.at:16",
+        "source_path": "src/front/app.at",
+        "source_line": 16
+      },
+      {
+        "id": "vnode_8966836695434547634",
+        "depth": 4,
+        "kind": "button",
+        "label": "Pick",
+        "source": "src/front/app.at:17",
+        "source_path": "src/front/app.at",
+        "source_line": 17
+      },
+      {
+        "id": "vnode_12827688905259079892",
+        "depth": 3,
+        "kind": "text",
+        "source": "src/front/app.at:19",
+        "source_path": "src/front/app.at",
+        "source_line": 19,
+        "loop_index": 3,
+        "loop_value": "Delta task"
+      },
+      {
+        "id": "vnode_12827741681817214445",
+        "depth": 3,
+        "kind": "text",
+        "source": "src/front/app.at:19",
+        "source_path": "src/front/app.at",
+        "source_line": 19,
+        "loop_index": 3,
+        "loop_value": "Delta task"
+      }
+    ],
+    "pac_head": {
+      "name": "loop-list",
+      "render": "vue",
+      "title": "Loop List",
+      "title_zh": "循环列表",
+      "window": "480x680"
+    }
+  },
+  "pick_first": {
+    "_status": 200,
+    "vnode_id": "vnode_15900427388687243543",
+    "kind": "button",
+    "ancestor_chain": [
+      "vnode_14695981039346656037",
+      "vnode_12642404927159776812",
+      "vnode_4289760042030763204",
+      "vnode_12781790891868631308",
+      "vnode_15900427388687243543"
+    ],
+    "label": "Pick",
+    "bbox": {
+      "x": 419.5830078125,
+      "y": 44.79999923706055,
+      "w": 44.4169921875,
+      "h": 22
+    },
+    "bbox_px": {
+      "x": 839.166015625,
+      "y": 89.5999984741211,
+      "w": 88.833984375,
+      "h": 44
+    },
+    "bbox_pct": {
+      "x": 83916.6015625,
+      "y": 8960,
+      "w": 8883.3984375,
+      "h": 4400
+    },
+    "source": "src/front/app.at:17",
+    "source_path": "src/front/app.at",
+    "source_line": 17,
+    "forctx": {
+      "var": "item",
+      "index": 0,
+      "value": "Alpha task"
+    }
+  },
+  "pick_last": {
+    "_status": 200,
+    "vnode_id": "vnode_8966836695434547634",
+    "kind": "button",
+    "ancestor_chain": [
+      "vnode_14695981039346656037",
+      "vnode_12642404927159776812",
+      "vnode_4289812818588897757",
+      "vnode_12827706497445124743",
+      "vnode_8966836695434547634"
+    ],
+    "label": "Pick",
+    "bbox": {
+      "x": 419.5830078125,
+      "y": 110.80000305175781,
+      "w": 44.4169921875,
+      "h": 22
+    },
+    "bbox_px": {
+      "x": 839.166015625,
+      "y": 221.60000610351562,
+      "w": 88.833984375,
+      "h": 44
+    },
+    "bbox_pct": {
+      "x": 83916.6015625,
+      "y": 22160,
+      "w": 8883.3984375,
+      "h": 4400
+    },
+    "source": "src/front/app.at:17",
+    "source_path": "src/front/app.at",
+    "source_line": 17,
+    "forctx": {
+      "var": "item",
+      "index": 3,
+      "value": "Delta task"
+    }
+  },
+  "click_point": {
+    "cx": 884,
+    "cy": 112
+  },
+  "pick_xy": {
+    "_status": 200,
+    "vnode_id": "vnode_15900427388687243543",
+    "kind": "button",
+    "ancestor_chain": [
+      "vnode_14695981039346656037",
+      "vnode_12642404927159776812",
+      "vnode_4289760042030763204",
+      "vnode_12781790891868631308",
+      "vnode_15900427388687243543"
+    ],
+    "label": "Pick",
+    "bbox": {
+      "x": 419.5830078125,
+      "y": 44.79999923706055,
+      "w": 44.4169921875,
+      "h": 22
+    },
+    "bbox_px": {
+      "x": 839.166015625,
+      "y": 89.5999984741211,
+      "w": 88.833984375,
+      "h": 44
+    },
+    "bbox_pct": {
+      "x": 83916.6015625,
+      "y": 8960,
+      "w": 8883.3984375,
+      "h": 4400
+    },
+    "source": "src/front/app.at:17",
+    "source_path": "src/front/app.at",
+    "source_line": 17,
+    "forctx": {
+      "var": "item",
+      "index": 0,
+      "value": "Alpha task"
+    }
+  }
+}

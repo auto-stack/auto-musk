@@ -1,0 +1,6 @@
+State:
+  __emit_msg: "" (str)
+  __emit_payload: nil (unknown)
+  __toast: "" (str)
+  items: ["Alpha task", "Beta task", "Gamma task", "Delta task"] (list)
+  selected: "Delta task" (str)

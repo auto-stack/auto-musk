@@ -1,0 +1,17 @@
+auto exited early (1)
+[X9] main Err: 
+  × aborting due to 1 previous error
+  │   error[1]: Unknown section 窗口随内容自然尺寸收缩
+
+Error:   × aborting due to 1 previous error
+  │   error[1]: Unknown section 窗口随内容自然尺寸收缩
+
+
+--- stderr tail ---
+[X9] main Err: 
+  × aborting due to 1 previous error
+  │   error[1]: Unknown section 窗口随内容自然尺寸收缩
+
+Error:   × aborting due to 1 previous error
+  │   error[1]: Unknown section 窗口随内容自然尺寸收缩
+
