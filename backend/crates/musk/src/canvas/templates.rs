@@ -182,4 +182,22 @@ mod tests {
         assert_eq!(TEMPLATES[0].0, "counter");
         assert_eq!(TEMPLATES[1].0, "hello");
     }
+
+    #[test]
+    fn test_coding_mode_whitelist_contains_m3_tools() {
+        let coding_at_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("modes/coding.at");
+        let content = std::fs::read_to_string(coding_at_path).expect("read coding.at");
+        let expected = [
+            "canvas_run", "canvas_stop", "canvas_snapshot", "canvas_act", "canvas_state",
+            "canvas_pick", "canvas_overlay",
+            "bp_list", "bp_show", "bp_check", "ui_lint", "app_examples_list", "app_example_read"
+        ];
+        for tool in expected {
+            assert!(
+                content.contains(tool),
+                "coding.at must include tool '{}'",
+                tool
+            );
+        }
+    }
 }
