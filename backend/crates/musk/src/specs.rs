@@ -786,7 +786,8 @@ impl SpecsStore {
         }
         let bytes = serde_json::to_vec_pretty(doc)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        std::fs::write(&self.path, bytes)
+        // PLAN-044 T-05：原子替换
+        auto_lang::state_file::atomic_write(&self.path, &bytes)
     }
 
     /// Upsert an item into a section, bumping the document version. Creates the

@@ -457,7 +457,8 @@ impl ChatStore {
         }
         let bytes = serde_json::to_vec_pretty(map)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        std::fs::write(&self.path, bytes)
+        // PLAN-044 T-05：原子替换（会话全量单文件，撕裂代价最高）
+        auto_lang::state_file::atomic_write(&self.path, &bytes)
     }
 
     /// Create + persist a new session; return it.

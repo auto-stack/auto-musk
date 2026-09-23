@@ -135,7 +135,8 @@ impl AuthStore {
         }
         let bytes = serde_json::to_vec_pretty(users)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
-        std::fs::write(&self.users_path, bytes)
+        // PLAN-044 T-05：原子替换（同目录 tmp+flush+rename），写中被杀不再撕裂 users.json
+        auto_lang::state_file::atomic_write(&self.users_path, &bytes)
     }
 
     /// Verify credentials; on success create a session + return its token.

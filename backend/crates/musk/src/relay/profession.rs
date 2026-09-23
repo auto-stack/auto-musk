@@ -138,7 +138,9 @@ fn save_professions(professions: &[Profession]) -> Result<(), String> {
     let path = professions_path();
     let content =
         serde_json::to_string_pretty(professions).map_err(|e| format!("serialize: {}", e))?;
-    std::fs::write(&path, content).map_err(|e| format!("write {}: {}", path.display(), e))?;
+    // PLAN-044 T-05：原子替换
+    auto_lang::state_file::atomic_write(&path, content.as_bytes())
+        .map_err(|e| format!("write {}: {}", path.display(), e))?;
     Ok(())
 }
 

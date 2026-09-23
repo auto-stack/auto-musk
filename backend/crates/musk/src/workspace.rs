@@ -224,7 +224,8 @@ impl WorkspaceRegistry {
             let _ = std::fs::create_dir_all(parent);
         }
         if let Ok(json) = serde_json::to_string_pretty(idx) {
-            let _ = std::fs::write(path, json);
+            // PLAN-044 T-05：原子替换，双 musk 实例/写中崩溃不再撕裂索引
+            let _ = auto_lang::state_file::atomic_write(path, json.as_bytes());
         }
     }
 
