@@ -439,5 +439,6 @@ pub fn canvas_tool_registry(ctx: &ToolContext) -> Vec<(&'static str, Arc<dyn Too
         ("bp_list", Arc::new(super::bp_tools::BpList::new(ctx.clone()))),
         ("bp_show", Arc::new(super::bp_tools::BpShow::new(ctx.clone()))),
         ("bp_check", Arc::new(super::bp_tools::BpCheck::new(ctx.clone()))),
+        ("ui_lint", Arc::new(super::ui_lint::UiLint::new(ctx.clone()))),
     ]
 }

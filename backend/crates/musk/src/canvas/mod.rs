@@ -14,6 +14,7 @@ pub mod mcp_client;
 pub mod session;
 pub mod templates;
 pub mod tools;
+pub mod ui_lint;
 pub mod vocabulary;
 
 pub use manager::{CanvasManager, CanvasState, CanvasStatus};
