@@ -318,7 +318,14 @@ auto-lang 侧既有基建（本计划只消费、不修改）：
   `ledger_refreshed`: .autoos/specs.json v3 离线原子写（D1 更新至 M1+M2 索引，
   source_sha256=312f939caf186d3fa62e6c8b4316a1785f0a6d4973de57c6abf802f7eb5ab8b1；
   新增 app-canvas-R2 评审史；回读验证通过）。`archived`: 本文件（delivered）。
-  `cleaned`: 待清（worktree 移除后补记）。
+  `cleaned`: musk worktree+plan-088-dev 分支已删（main..dev 零未落提交核验；
+  gen/front/vue/node_modules reparse points 先清后过 wt-guard，残余目录因
+  评审 serve 进程持 cwd 二次清理，进程 census 零孤儿）；auto-lang 填充已
+  折回 master（fe785d185，ff-only；rebase 干净应用，stat 等价 3 文件 +31/-1，
+  016382eb4→fe785d185）+ auto-musk-dev 分支删 + 兄弟 worktree 全清
+  （auto-lang/auto-ai/auto-down 三位移除，组目录 .wt/musk-088 已空关）。
+  折回时他方 WIP 在案未触碰：auto-lang 主检出 back_prefix.rs + blueprints
+  删除态、musk 主检出 extern_impl.rs（见上呈报）。
   环境呈报：main 检出存在他方 WIP（backend/crates/musk/src/auto_generated/
   extern_impl.rs 的 models:None ×2，auto-ai 034 解阻补丁，本会话中途出现）
   ——未并入本合并、未丢弃；请其所有者路由。主检出 musk 本地构建受 086 登记
