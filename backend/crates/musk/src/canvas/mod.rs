@@ -9,6 +9,7 @@
 
 pub mod anchor;
 pub mod bp_tools;
+pub mod examples_pool;
 pub mod manager;
 pub mod mcp_client;
 pub mod session;
