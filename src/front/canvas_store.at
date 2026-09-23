@@ -1,13 +1,53 @@
-// canvas_store.at — PLAN-087 T-07: 画布会话轮询 store。
+// canvas_store.at — PLAN-087 T-07 + PLAN-088 T-07: 画布会话轮询 store。
 //
 // 状态命名 cv_*：避让潜在 api 绑定撞名（whitelist wl_* 同款口径）。
 // 轮询机制 = forge_store PollBackfill 同款：timer 拍发起 Http.get_msg
-// （入队即返），载荷以字符串回填消息解析（{"ok","status","body"} 信封，
-// body = {state,seq,app_path,restarts,error}）。启动/停止的 POST 不在
-// store（store 不消费 use.web）——面板视图走 ports/canvas 门面，状态由
-// 下一拍轮询自然反映。
+// （入队即返），载荷以字符串回填消息解析（{"ok","status","body"} 信封）。
+// body = {state,seq,app_path,restarts,error} + M2 锚定面 {frame,picked,
+// overlay,tree,pac}。M2 扁平重建漏斗（PLAN-084 T-07 rebuildSessions 处方）：
+// JSON.parse 产物直接落 store 后渲染上下文字段读塌空（r5 家族）——handler
+// 域逐字段重建为字面量，视图读恢复。id 全程字符串形态（哈希 vnode >
+// JS 2^53，数字静默截断）。
 // VM 轨：状态轮询会打到宿主桥（无 /api/canvas/* → ok!=true 被守卫吸收，
-// 面板恒收起）；画布面板 M1 验收面=web 轨（计划 §10-2）。
+// 面板恒收起）；画布面板验收面=web 轨（087 §10-2 口径延续）。
+
+// overlay 条目 → [{vid, style}]（agent 高亮=琥珀框，完整内联样式）。
+fn rebuildCanvasOverlay(list obj) list {
+    var out list = []
+    for s in list {
+        var vid = s.vnode_id ?? ""
+        var style str = ""
+        var bp = s.bbox_pct
+        if bp != None {
+            style = "position:absolute;left:" + bp.x + "%;top:" + bp.y + "%;width:" + bp.w + "%;height:" + bp.h + "%;border:2px solid rgb(245,158,11);background:rgba(245,158,11,0.15);pointer-events:none;border-radius:2px"
+        }
+        out.push({ vid: vid, style: style })
+    }
+    return out
+}
+
+// 层树扁平表 → [{vid, depth, kind, label, source, source_path, for_label,
+// row_style, indent_style}]（行样式预拼：选中底色视图侧靠 id 等值三臂）。
+fn rebuildCanvasTree(list obj) list {
+    var out list = []
+    for n in list {
+        var vid = n.id ?? ""
+        var depth = n.depth ?? 0
+        var kind = n.kind ?? ""
+        var label = n.label ?? ""
+        var source = n.source ?? ""
+        var source_path = n.source_path ?? ""
+        var for_label str = ""
+        var fi = n.loop_index
+        if fi != None {
+            var fv = n.loop_value ?? ""
+            for_label = "#" + fi + " " + fv
+        }
+        var indent = "padding-left:" + (4 + depth * 12) + "px"
+        out.push({ vid: vid, depth: depth, kind: kind, label: label, source: source, source_path: source_path, for_label: for_label, indent_style: indent })
+    }
+    return out
+}
 
 store CanvasStore {
     model {
@@ -23,6 +63,23 @@ store CanvasStore {
         var cv_error str = ""
         // 面板开合（有非 stopped 会话自动展开；stop 后收起）。
         var cv_open bool = false
+        // ── M2 锚定面（扁平重建漏斗产出） ──
+        var cv_picked_id str = ""
+        var cv_picked_kind str = ""
+        var cv_picked_label str = ""
+        var cv_picked_source str = ""
+        var cv_picked_source_path str = ""
+        var cv_picked_for str = ""
+        // 选中覆盖框内联 style（bbox_pct 百分比定位）。
+        var cv_pick_style str = ""
+        // agent 高亮框 [{vid, style}]。
+        var cv_overlay []Value = []
+        // 层树扁平表 [{vid, depth, kind, label, source, for_label}]。
+        var cv_tree []Value = []
+        // pac 头显示名。
+        var cv_pac_title str = ""
+        // 源码预览开合（锚点 chip → RawPreview 抽屉）。
+        var cv_source_open bool = false
     }
 
     timer {
@@ -32,6 +89,9 @@ store CanvasStore {
     msg Msg {
         Poll,
         StatusBackfill(str),
+        PickBackfill(str),
+        ClearPick,
+        ToggleSource,
     }
 
     on {
@@ -45,23 +105,62 @@ store CanvasStore {
                 if r.ok == true {
                     let body = JSON.parse(r.body)
                     if body != None {
-                        var st str = body.state ?? "stopped"
-                        var seq int = body.seq ?? 0
-                        if seq != .cv_seq {
-                            .cv_seq = seq
-                            .cv_frame_url = `/api/canvas/frame?t=${seq}`
-                        }
-                        .cv_state = st
-                        .cv_app = body.app_path ?? ""
-                        .cv_error = body.error ?? ""
-                        if st == "stopped" {
-                            .cv_open = false
+                        .cv_overlay = rebuildCanvasOverlay(body.overlay ?? [])
+                        .cv_tree = rebuildCanvasTree(body.tree ?? [])
+                        var pc = body.pac_head
+                        if pc != None {
+                            .cv_pac_title = pc.title ?? ""
                         } else {
-                            .cv_open = true
+                            .cv_pac_title = ""
                         }
                     }
                 }
             }
+        }
+
+        // 点选/树选即时回填（canvasPick 的 JSON 结果；不等下一拍轮询）。
+        // 载荷 = pick 锚点对象文本（同 status.picked 形态）。
+        .PickBackfill(payload str) -> {
+            let pd = JSON.parse(payload)
+            if pd != None {
+                .cv_picked_id = pd.vnode_id ?? ""
+                .cv_picked_kind = pd.kind ?? ""
+                .cv_picked_label = pd.label ?? ""
+                .cv_picked_source = pd.source ?? ""
+                .cv_picked_source_path = pd.source_path ?? ""
+                var fc obj = pd.forctx
+                if fc != None {
+                    var fi obj = fc.index
+                    if fi != None {
+                        .cv_picked_for = "#" + fi
+                    } else {
+                        .cv_picked_for = ""
+                    }
+                } else {
+                    .cv_picked_for = ""
+                }
+                var bp obj = pd.bbox_pct
+                if bp != None {
+                    .cv_pick_style = "position:absolute;left:" + bp.x + "%;top:" + bp.y + "%;width:" + bp.w + "%;height:" + bp.h + "%;border:2px solid rgb(59,130,246);background:rgba(59,130,246,0.12);pointer-events:none;border-radius:2px"
+                } else {
+                    .cv_pick_style = ""
+                }
+            }
+        }
+
+        .ClearPick -> {
+            .cv_picked_id = ""
+            .cv_picked_kind = ""
+            .cv_picked_label = ""
+            .cv_picked_source = ""
+            .cv_picked_source_path = ""
+            .cv_picked_for = ""
+            .cv_pick_style = ""
+            .cv_source_open = false
+        }
+
+        .ToggleSource -> {
+            .cv_source_open = !.cv_source_open
         }
     }
 }

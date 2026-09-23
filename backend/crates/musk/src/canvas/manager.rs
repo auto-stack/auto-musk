@@ -118,7 +118,10 @@ impl Shared {
         {
             let mut pk = self.picked.lock().unwrap();
             if let Some(p) = pk.as_ref() {
-                let vid = p.get("vnode_id").and_then(|v| v.as_u64());
+                let vid = p
+                    .get("vnode_id")
+                    .and_then(|v| v.as_str())
+                    .and_then(super::tools::parse_vnode_id);
                 if matches!(vid, Some(v) if !alive(v)) {
                     *pk = None;
                 }
@@ -257,6 +260,12 @@ impl CanvasManager {
     }
 
     /// vnode 直选（层树联动 / canvas_pick 工具共用）：索引直查，坐标臂同构。
+    pub fn pick_vnode_str(&self, vnode: &str) -> Option<Value> {
+        let id = super::tools::parse_vnode_id(vnode)?;
+        self.pick_vnode(id)
+    }
+
+    /// vnode 直选（u64 内核形态；协议面经 pick_vnode_str 的字符串形态）。
     pub fn pick_vnode(&self, vnode: u64) -> Option<Value> {
         let frame_w = self.frame_px_size()?.0 as f32;
         let scale = frame_w / WINDOW_LOGICAL_W;
@@ -317,10 +326,14 @@ impl CanvasManager {
                     let n = idx.get(*v)?;
                     let r = n.bbox?;
                     Some(json!({
-                        "vnode_id": v,
+                        "vnode_id": format!("vnode_{v}"),
                         "bbox_px": {
                             "x": r.x * scale, "y": r.y * scale,
                             "w": r.w * scale, "h": r.h * scale,
+                        },
+                        "bbox_pct": {
+                            "x": (r.x * scale) * 100.0, "y": (r.y * scale) * 100.0,
+                            "w": (r.w * scale) * 100.0, "h": (r.h * scale) * 100.0,
                         },
                     }))
                 })
@@ -333,17 +346,22 @@ impl CanvasManager {
                 .as_deref()
                 .and_then(|d| AnchorIndex::resolve_source(d, (off, len), ""))
         };
-        let tree = anchor.map(|a| a.tree_json(&resolver)).unwrap_or(Value::Null);
+        let tree = anchor.map(|a| a.tree_flat_json(&resolver)).unwrap_or(Value::Null);
+        let frame = self
+            .frame_px_size()
+            .map(|(w, h)| json!({ "w": w, "h": h }))
+            .unwrap_or(Value::Null);
         json!({
             "state": st.state,
             "seq": st.seq,
             "app_path": st.app_path,
             "restarts": st.restarts,
             "error": st.error,
+            "frame": frame,
             "picked": *self.shared.picked.lock().unwrap(),
             "overlay": overlay,
             "tree": tree,
-            "pac": *self.shared.pac.lock().unwrap(),
+            "pac_head": *self.shared.pac.lock().unwrap(),
         })
     }
 

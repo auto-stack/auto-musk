@@ -47,3 +47,58 @@ export async function canvasStart(workspace: string, appPath: string): Promise<C
 export async function canvasStop(): Promise<CanvasResult> {
     return canvasFetch('POST', '/api/canvas/stop');
 }
+
+// ── PLAN-088 T-07：点选/锚定 web 侧 ──────────────────────────────────────────
+
+export interface CanvasPickResult {
+    ok: boolean;
+    error: string;
+    /** pick 锚点对象 JSON 文本（同 status.picked 形态；供 PickBackfill）。 */
+    pick?: string;
+}
+
+/** vnode 直选（层树联动）。204 = 未命中。返回 pick JSON 文本。 */
+export async function canvasPickNode(vnodeId: string): Promise<CanvasPickResult> {
+    const response = await fetch('/api/canvas/pick', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vnode_id: vnodeId }),
+    });
+    if (!response.ok) {
+        if (response.status === 204) return { ok: false, error: 'element not in current frame' };
+        return { ok: false, error: `HTTP ${response.status}` };
+    }
+    const data = (await response.json().catch(() => null)) as unknown;
+    return { ok: true, error: '', pick: JSON.stringify(data) };
+}
+
+/**
+ * 帧点选监听（面板 setup 调一次，幂等）：document 级委托——点击目标为画布
+ * 帧 img（src 前缀判定）时，按 显示→自然 尺寸比换算帧像素坐标并 POST
+ * /api/canvas/pick。结果不在此回接 store：后端置 picked 后经既有 1s 状态
+ * 轮询带出（≤1s 滞后，M2 接受；零新通道）。
+ */
+export function installCanvasFrameClicks(): void {
+    if (typeof window === 'undefined') return;
+    const w = window as unknown as { __muskCanvasClicks?: boolean };
+    if (w.__muskCanvasClicks) return;
+    w.__muskCanvasClicks = true;
+    document.addEventListener('click', (ev) => {
+        const target = ev.target as HTMLElement | null;
+        const img = target?.closest?.('img') as HTMLImageElement | null;
+        if (!img) return;
+        const src = img.getAttribute('src') || '';
+        if (!src.startsWith('/api/canvas/frame')) return;
+        const rect = img.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0 || !img.naturalWidth) return;
+        // object-contain 字幕区（img 盒内留白）点击换算出界坐标 → 后端
+        // hit-test 未命中 → 204，语义即"点空白取消"，无需前端特判。
+        const x = ((ev.clientX - rect.left) / rect.width) * img.naturalWidth;
+        const y = ((ev.clientY - rect.top) / rect.height) * img.naturalHeight;
+        void fetch('/api/canvas/pick', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ x, y }),
+        });
+    });
+}

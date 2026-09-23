@@ -128,63 +128,66 @@ impl AnchorIndex {
         None
     }
 
-    /// 层树载荷（AC-05）：pac 头由调用方另拼；此处出 vnode 树
-    /// [{id, kind, label, source, for, children: [...]}]（文档序；全量，
-    /// 折叠展示由前端做——协议面不重复编码展开态）。
-    /// `source` = span 经 `resolver` 换算的 "path.at:LINE"（未解析则 null）。
-    pub fn tree_json(&self, resolver: &dyn Fn(usize, usize) -> Option<String>) -> Value {
-        fn node_json(
-            idx: &AnchorIndex,
-            vnode: u64,
-            resolver: &dyn Fn(usize, usize) -> Option<String>,
-        ) -> Value {
-            let n = idx.get(vnode);
-            let children: Vec<Value> = n
-                .map(|n| n.children.iter().map(|&c| node_json(idx, c, resolver)).collect())
-                .unwrap_or_default();
-            let mut o = json!({
-                "id": vnode,
-                "kind": n.map(|n| n.kind.as_str()).unwrap_or("?"),
-                "children": children,
-            });
-            if let Some(n) = n {
+    /// 层树载荷（AC-05）：扁平文档序表 [{id, depth, kind, label, source,
+    /// source_path, source_line, for_index}]——.at 无递归渲染面，前端按
+    /// depth 缩进平铺（全量；折叠由前端展示层做）。id 用 `"vnode_N"`
+    /// 字符串（哈希 id > JS 2^53 精度，数字形态会静默截断）。source 三件 =
+    /// span 经 `resolver` 换算（display "path:line" + 拆分字段；.at 侧无
+    /// split 能力）。未解析则缺省。
+    pub fn tree_flat_json(
+        &self,
+        resolver: &dyn Fn(usize, usize) -> Option<(String, usize)>,
+    ) -> Value {
+        let items: Vec<Value> = self
+            .nodes
+            .iter()
+            .map(|n| {
+                let mut o = json!({
+                    "id": format!("vnode_{}", n.vnode),
+                    "depth": n.depth,
+                    "kind": n.kind,
+                });
                 if let Some(l) = &n.label {
                     o["label"] = json!(l);
                 }
                 if let Some((off, len)) = n.span {
-                    if let Some(s) = resolver(off, len) {
-                        o["source"] = json!(s);
+                    if let Some((p, line)) = resolver(off, len) {
+                        o["source"] = json!(format!("{p}:{line}"));
+                        o["source_path"] = json!(p);
+                        o["source_line"] = json!(line);
                     }
                 }
                 if let Some(f) = &n.for_ctx {
-                    o["for"] = json!({
-                        "var": f.var_name,
-                        "index": f.index,
-                        "value": f.value,
-                    });
+                    if let Some(i) = f.index {
+                        o["loop_index"] = json!(i);
+                    }
+                    o["loop_value"] = json!(f.value);
                 }
-            }
-            o
-        }
-        // 根 = 无 parent 的首个文档序节点（VTree 单根；防御多根按序全出）。
-        let roots: Vec<u64> = self.nodes.iter().filter(|n| n.parent.is_none()).map(|n| n.vnode).collect();
-        Value::Array(roots.into_iter().map(|r| node_json(self, r, resolver)).collect())
+                o
+            })
+            .collect();
+        Value::Array(items)
     }
 
     /// pick 锚点载荷（AC-01/03 同构面）。`scale` = 帧像素/逻辑像素（T-02
-    /// 契约：bbox 为逻辑坐标，前端覆盖框直接吃 bbox_px）。`resolver` 把
-    /// span 换算 "path.at:LINE"（尽力；未解析 = null，非门）。
+    /// 契约：bbox 为逻辑坐标，前端覆盖框直接吃 bbox_px/bbox_pct）。
+    /// `resolver` 把 span 换算 (path, line)（尽力；未解析缺省，非门）。
+    /// vnode_id 字符串形态（>2^53 哈希，JSON number 静默截断）。
     pub fn pick_json(
         &self,
         vnode: u64,
         scale: f32,
-        resolver: &dyn Fn(usize, usize) -> Option<String>,
+        resolver: &dyn Fn(usize, usize) -> Option<(String, usize)>,
     ) -> Option<Value> {
         let n = self.get(vnode)?;
-        let chain = self.ancestor_chain(vnode);
+        let chain: Vec<String> = self
+            .ancestor_chain(vnode)
+            .into_iter()
+            .map(|v| format!("vnode_{v}"))
+            .collect();
         let for_ctx = self.for_context_of(vnode);
         let mut o = json!({
-            "vnode_id": vnode,
+            "vnode_id": format!("vnode_{}", vnode),
             "kind": n.kind,
             "ancestor_chain": chain,
         });
@@ -197,26 +200,32 @@ impl AnchorIndex {
                 "x": r.x * scale, "y": r.y * scale,
                 "w": r.w * scale, "h": r.h * scale,
             });
+            o["bbox_pct"] = json!({
+                "x": (r.x * scale) * 100.0, "y": (r.y * scale) * 100.0,
+                "w": (r.w * scale) * 100.0, "h": (r.h * scale) * 100.0,
+            });
         }
         if let Some((off, len)) = n.span {
-            if let Some(s) = resolver(off, len) {
-                o["source"] = json!(s);
+            if let Some((p, line)) = resolver(off, len) {
+                o["source"] = json!(format!("{p}:{line}"));
+                o["source_path"] = json!(p);
+                o["source_line"] = json!(line);
             }
         }
         if let Some(f) = for_ctx {
-            o["for_context"] = json!({ "var": f.var_name, "index": f.index, "value": f.value });
+            o["forctx"] = json!({ "var": f.var_name, "index": f.index, "value": f.value });
         }
         Some(o)
     }
 
-    /// span → `"相对路径.at:LINE"`（尽力）。文件判定：候选 = app 下 src 前
+    /// span → `(相对路径, 行号)`（尽力）。文件判定：候选 = app 下 src 前
     /// 后台 .at（有界集）；偏移落在文件长度内者中，择切片含 kind 关键词的，
     /// 缺判据取唯一命中。M2 主路径 = 单文件 app（多文件启发，登记契约记录）。
     pub fn resolve_source(
         app_dir: &std::path::Path,
         span: (usize, usize),
         kind: &str,
-    ) -> Option<String> {
+    ) -> Option<(String, usize)> {
         let (off, len) = span;
         let mut candidates: Vec<std::path::PathBuf> = Vec::new();
         for sub in ["src/front", "src/back", "src", ""] {
@@ -230,7 +239,7 @@ impl AnchorIndex {
             }
         }
         candidates.sort();
-        let mut fallback: Option<String> = None;
+        let mut fallback: Option<(String, usize)> = None;
         for p in candidates {
             let Ok(bytes) = std::fs::read(&p) else { continue };
             if off + len > bytes.len() {
@@ -240,10 +249,10 @@ impl AnchorIndex {
             let line = 1 + bytes[..off].iter().filter(|&&b| b == b'\n').count();
             let slice = String::from_utf8_lossy(&bytes[off..(off + len).min(bytes.len())]);
             if slice.to_lowercase().contains(&kind.to_lowercase()) {
-                return Some(format!("{rel}:{line}"));
+                return Some((rel, line));
             }
             if fallback.is_none() {
-                fallback = Some(format!("{rel}:{line}"));
+                fallback = Some((rel, line));
             }
         }
         fallback
@@ -597,8 +606,9 @@ mod tests {
 
     const LOOP_SAMPLE: &str = r##"col vnode_900 { bbox: {x: 0, y: 0, w: 200, h: 120}; span: {offset: 200, len: 355} col vnode_901 { bbox: {x: 0, y: 0, w: 200, h: 120}; for_iter: {var: "item", index: 0, value: "Alpha"}; span: {offset: 230, len: 120} row vnode_902 { bbox: {x: 0, y: 0, w: 200, h: 28}; span: {offset: 250, len: 100} text vnode_903 { content: "Alpha task"; bbox: {x: 0, y: 0, w: 160, h: 28}; span: {offset: 270, len: 60} } button vnode_904 { label: "Pick"; bbox: {x: 160, y: 0, w: 40, h: 28}; events: {press: ".Select"}; span: {offset: 290, len: 50} } } } col vnode_905 { bbox: {x: 0, y: 30, w: 200, h: 120}; for_iter: {var: "item", index: 1, value: "Beta"}; span: {offset: 230, len: 120} row vnode_906 { bbox: {x: 0, y: 30, w: 200, h: 28}; span: {offset: 250, len: 100} text vnode_907 { content: "Beta task"; bbox: {x: 0, y: 30, w: 160, h: 28}; span: {offset: 270, len: 60} } button vnode_908 { label: "Pick"; bbox: {x: 160, y: 30, w: 40, h: 28}; events: {press: ".Select"}; span: {offset: 290, len: 50} } } } }"##;
 
-    fn resolver(off: usize, _len: usize) -> Option<String> {
-        Some(format!("src/front/app.at:{}", 1 + off / 100))
+    fn resolver(off: usize, _len: usize) -> Option<(String, usize)> {
+        let line = 1 + off / 100;
+        Some(("src/front/app.at".to_string(), line))
     }
 
     #[test]
@@ -661,22 +671,27 @@ mod tests {
         let idx = AnchorIndex::parse(SAMPLE, 1).unwrap();
         let p = idx.pick_json(1403, 2.0, &resolver).unwrap();
         assert_eq!(p["kind"], "button");
-        assert_eq!(p["vnode_id"], 1403);
+        // id 字符串形态（哈希 vnode > JS 2^53，数字会被静默截断）。
+        assert_eq!(p["vnode_id"], "vnode_1403");
         assert_eq!(p["bbox"]["w"], 60.0);
         assert_eq!(p["bbox_px"]["w"], 120.0); // 逻辑 × scale
+        assert_eq!(p["bbox_pct"]["w"], 12000.0);
         assert_eq!(p["source"], "src/front/app.at:4"); // offset 300 → line 4
-        assert_eq!(p["ancestor_chain"], json!([1201, 1403]));
+        assert_eq!(p["ancestor_chain"], json!(["vnode_1201", "vnode_1403"]));
     }
 
     #[test]
-    fn tree_json_shape() {
+    fn tree_flat_shape() {
         let idx = AnchorIndex::parse(SAMPLE, 1).unwrap();
-        let t = idx.tree_json(&resolver);
-        let root = &t.as_array().unwrap()[0];
-        assert_eq!(root["kind"], "col");
-        assert_eq!(root["children"].as_array().unwrap().len(), 2);
-        assert_eq!(root["children"][1]["kind"], "button");
-        assert!(root["children"][1]["source"].as_str().unwrap().starts_with("src/front/app.at:"));
+        let t = idx.tree_flat_json(&resolver);
+        let items = t.as_array().unwrap();
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0]["kind"], "col");
+        assert_eq!(items[0]["depth"], 0);
+        assert_eq!(items[1]["depth"], 1);
+        assert_eq!(items[2]["kind"], "button");
+        assert_eq!(items[2]["id"], "vnode_1403");
+        assert!(items[2]["source"].as_str().unwrap().starts_with("src/front/app.at:"));
     }
 
     #[test]
