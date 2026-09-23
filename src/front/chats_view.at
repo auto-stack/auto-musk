@@ -361,8 +361,13 @@ widget ChatsView {
                                             title: t("chat.renameSession")
                                             text "✎"
                                         }
+                                        // 2026-09-23 用户实报：归档 icon 不渲染——
+                                        // span+onclick 升格 button 只保留拍平文本，
+                                        // icon（Image）子节点被静默丢弃（VM 坑 #24，
+                                        // ✎/× 为 text 子节点幸存）。显式 button 走
+                                        // icon 子节点臂（rail/头部同款已实证）。
                                         if .store.show_archived {
-                                            span {
+                                            button {
                                                 style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent/40 hover:text-foreground"
                                                 onclick.stop: .ArchiveRow(.r.sid, false)
                                                 title: t("chat.unarchiveSession")
@@ -370,7 +375,7 @@ widget ChatsView {
                                             }
                                         }
                                         if .store.show_archived == false {
-                                            span {
+                                            button {
                                                 style: "w-5 h-5 flex items-center justify-center shrink-0 rounded-md p-0 text-muted-foreground text-sm leading-none cursor-pointer hover:bg-accent/40 hover:text-foreground"
                                                 onclick.stop: .ArchiveRow(.r.sid, true)
                                                 title: t("chat.archiveSession")

@@ -171,7 +171,11 @@ widget WorkspaceSelector(collapsed: bool) {
                         style: if .collapsed { "rail-trigger-24 ws-btn-collapsed w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent" } else { "ws-btn w-full flex items-center gap-1 py-1.5 px-2 border border-border rounded-md bg-transparent text-foreground text-xs" }
                         title: .currentTitle
                         row {
-                            style: "items-center gap-1 w-full"
+                            // 2026-09-23 用户实报：收缩态 icon 靠左不居中——
+                            // w-full 行撑满 40px 按钮后图标作为行首子元素必然
+                            // 偏左；收缩态无文本兄弟，改 justify-center 居中，
+                            // 展开态保持 w-full（text flex-1 依赖）。
+                            style: if .collapsed { "items-center justify-center" } else { "items-center gap-1 w-full" }
                             Folder { size: .triggerIconSize }
                             if .collapsed {
                             } else {

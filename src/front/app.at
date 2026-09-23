@@ -163,52 +163,50 @@ widget App {
                         }
                     } else {
                     col {
-                        style: "gap-1 app-rail"
-                        // Plan 562（上游 auto-lang nav 族退役）：nav-item →
-                        // sidebar_menu_item + sidebar_menu_button。onclick/active/
-                        // size 语义不变（548/561 双端契约）；icon/label 改 children
-                        // 形态（Vue 548 臂不处理 icon:/label: props）。
-                        // size=lg：图标 20px——用户对拍 2026-09-03:VM 图标观感偏小,
-                        // 主导航抬档。
-                        sidebar_provider (class: "w-full min-h-0 flex flex-col") {
-                            sidebar_menu {
-                                sidebar_menu_item {
-                                    sidebar_menu_button (onclick: .ShowChats, active: .is_chats, size: "lg") {
-                                        icon (name: "message-square") {}
-                                        text "会话" {}
-                                    }
-                                }
-                                sidebar_menu_item {
-                                    sidebar_menu_button (onclick: .ShowPlans, active: .is_plans, size: "lg") {
-                                        icon (name: "list-todo") {}
-                                        text "计划" {}
-                                    }
-                                }
-                                sidebar_menu_item {
-                                    sidebar_menu_button (onclick: .ShowSpecs, active: .is_specs, size: "lg") {
-                                        icon (name: "scroll") {}
-                                        text "规范" {}
-                                    }
-                                }
-                                sidebar_menu_item {
-                                    sidebar_menu_button (onclick: .ShowWiki, active: .is_wiki, size: "lg") {
-                                        icon (name: "book-open") {}
-                                        text "知识库" {}
-                                    }
-                                }
-                                sidebar_menu_item {
-                                    sidebar_menu_button (onclick: .ShowFiles, active: .is_files, size: "lg") {
-                                        icon (name: "folder-open") {}
-                                        text "文件" {}
-                                    }
-                                }
-                                // PLAN-070：工作区目录白名单管理视图入口。
-                                sidebar_menu_item {
-                                    sidebar_menu_button (onclick: .ShowWhitelist, active: .is_whitelist, size: "lg") {
-                                        icon (name: "shield-check") {}
-                                        text "白名单" {}
-                                    }
-                                }
+                        style: "gap-1 app-rail w-full"
+                        // 2026-09-23 用户裁定：rail 选中高亮与二级导航（会话列表
+                        // 选中态）一致——文字/图标 text-primary、背景带 accent
+                        // 色调（bg-primary/10），弃 sidebar_menu_button 的
+                        // bg-sidebar-accent（shadcn sidebar 调色板=灰板岩，
+                        // web CSS --sidebar-accent 217°/17.5% 同灰，两轨皆非
+                        // accent）。手搓形态与收缩态 rail 同构（0921 裁定的
+                        // 容器 bg 承载 + 084⑨ 的 computed 布尔驱动），选中态
+                        // 视觉=会话列表 scls 同款。
+                        col { style: if .current_view == "chats" { "w-full rounded-md bg-primary/10" } else { "w-full" }
+                            button { onclick: .ShowChats; title: "会话"; style: if .current_view == "chats" { "w-full h-10 flex items-center gap-2 px-2 rounded-md text-primary" } else { "w-full h-10 flex items-center gap-2 px-2 rounded-md text-muted-foreground hover:bg-accent" }
+                                icon (name: "message-square", size: 20) {}
+                                text "会话" { style: if .current_view == "chats" { "text-sm text-primary" } else { "text-sm text-muted-foreground" } }
+                            }
+                        }
+                        col { style: if .current_view == "plans" { "w-full rounded-md bg-primary/10" } else { "w-full" }
+                            button { onclick: .ShowPlans; title: "计划"; style: if .current_view == "plans" { "w-full h-10 flex items-center gap-2 px-2 rounded-md text-primary" } else { "w-full h-10 flex items-center gap-2 px-2 rounded-md text-muted-foreground hover:bg-accent" }
+                                icon (name: "list-todo", size: 20) {}
+                                text "计划" { style: if .current_view == "plans" { "text-sm text-primary" } else { "text-sm text-muted-foreground" } }
+                            }
+                        }
+                        col { style: if .current_view == "specs" { "w-full rounded-md bg-primary/10" } else { "w-full" }
+                            button { onclick: .ShowSpecs; title: "规范"; style: if .current_view == "specs" { "w-full h-10 flex items-center gap-2 px-2 rounded-md text-primary" } else { "w-full h-10 flex items-center gap-2 px-2 rounded-md text-muted-foreground hover:bg-accent" }
+                                icon (name: "scroll", size: 20) {}
+                                text "规范" { style: if .current_view == "specs" { "text-sm text-primary" } else { "text-sm text-muted-foreground" } }
+                            }
+                        }
+                        col { style: if .current_view == "wiki" { "w-full rounded-md bg-primary/10" } else { "w-full" }
+                            button { onclick: .ShowWiki; title: "知识库"; style: if .current_view == "wiki" { "w-full h-10 flex items-center gap-2 px-2 rounded-md text-primary" } else { "w-full h-10 flex items-center gap-2 px-2 rounded-md text-muted-foreground hover:bg-accent" }
+                                icon (name: "book-open", size: 20) {}
+                                text "知识库" { style: if .current_view == "wiki" { "text-sm text-primary" } else { "text-sm text-muted-foreground" } }
+                            }
+                        }
+                        col { style: if .current_view == "files" { "w-full rounded-md bg-primary/10" } else { "w-full" }
+                            button { onclick: .ShowFiles; title: "文件"; style: if .current_view == "files" { "w-full h-10 flex items-center gap-2 px-2 rounded-md text-primary" } else { "w-full h-10 flex items-center gap-2 px-2 rounded-md text-muted-foreground hover:bg-accent" }
+                                icon (name: "folder-open", size: 20) {}
+                                text "文件" { style: if .current_view == "files" { "text-sm text-primary" } else { "text-sm text-muted-foreground" } }
+                            }
+                        }
+                        // PLAN-070：工作区目录白名单管理视图入口。
+                        col { style: if .current_view == "whitelist" { "w-full rounded-md bg-primary/10" } else { "w-full" }
+                            button { onclick: .ShowWhitelist; title: "白名单"; style: if .current_view == "whitelist" { "w-full h-10 flex items-center gap-2 px-2 rounded-md text-primary" } else { "w-full h-10 flex items-center gap-2 px-2 rounded-md text-muted-foreground hover:bg-accent" }
+                                icon (name: "shield-check", size: 20) {}
+                                text "白名单" { style: if .current_view == "whitelist" { "text-sm text-primary" } else { "text-sm text-muted-foreground" } }
                             }
                         }
                     }
