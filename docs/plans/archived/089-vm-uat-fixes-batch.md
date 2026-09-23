@@ -404,3 +404,10 @@ ff-only 合回 → worktree/分支/组目录删除；验证用 auto.exe 走**私
 - **archived**：docs/plans/archived/089-vm-uat-fixes-batch.md，status: archived，
   completion_kind: **delivered**（T-01..T-10 全勾；AC-1..5 pass 见 §9 review 行）。
 - **cleaned**：见下方补充行（wt/分支/组目录拆除回执）。
+- **cleaned**：musk worktree 注销+内容删除（wt-guard 首跑 BLOCKED=pnpm node_modules
+  864 个 junction——按处方逐链接 rmdir 清零后复跑 clean；空目录残壳被本会话 shell
+  句柄锁住，零内容零注册，会话后可删）；分支 plan-089-dev 已删（was 9a76eba）；
+  依赖兄弟位三件全清（auto-lang 分支 musk-089-dev was 7183ca386=master 同点/
+  auto-down 3373a5c/auto-ai 58bee8d，均 wt-guard clean+worktree remove+branch -d）；
+  隔离 target-auto/target-musk 缓存删除；组目录仅余上述空残壳。主检出 main
+  `b538bb1`（归档收据），`9a76eba`（delivery）。merge outcome: **pass**。
