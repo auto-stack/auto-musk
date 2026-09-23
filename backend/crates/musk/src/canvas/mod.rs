@@ -7,6 +7,7 @@
 //! 安全边界：start 的 app_path 经 `tool_safety::resolve_multi` 多根判定
 //! fail-closed，拒绝报文列全部根（AC-06）。
 
+pub mod anchor;
 pub mod manager;
 pub mod mcp_client;
 pub mod session;
@@ -30,12 +31,22 @@ pub fn canvas_routes() -> Router<AppState> {
         .route("/api/canvas/start", post(canvas_start))
         .route("/api/canvas/frame", get(canvas_frame))
         .route("/api/canvas/status", get(canvas_status))
+        .route("/api/canvas/pick", post(canvas_pick))
         .route("/api/canvas/stop", post(canvas_stop))
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CanvasStartRequest {
     pub app_path: String,
+}
+
+/// POST /api/canvas/pick 入参：{x, y}（帧 PNG 像素，点选）或
+/// {vnode_id}（层树联动/程序直选），二选一。
+#[derive(Debug, Deserialize)]
+pub struct CanvasPickRequest {
+    pub x: Option<f64>,
+    pub y: Option<f64>,
+    pub vnode_id: Option<u64>,
 }
 
 /// POST /api/canvas/start?workspace={id} {app_path} —— 校验 + 启动（替换语义）。
@@ -96,9 +107,41 @@ async fn canvas_frame(State(state): State<AppState>) -> Response {
     }
 }
 
-/// GET /api/canvas/status —— {state, seq, app_path, restarts, error}。
+/// GET /api/canvas/status —— M1 基础字段 + picked/overlay/tree/pac（M2 全载荷；
+/// 前端 1s 轮询同拍取走，零新通道）。
 async fn canvas_status(State(state): State<AppState>) -> Response {
-    Json(state.canvas.status()).into_response()
+    Json(state.canvas.status_full()).into_response()
+}
+
+/// POST /api/canvas/pick —— 点选→锚点（200 命中 / 204 未命中 / 503 无帧或
+/// 无索引）。命中即置 manager picked（status 下一拍带出，前端层树联动）。
+async fn canvas_pick(
+    State(state): State<AppState>,
+    Json(body): Json<CanvasPickRequest>,
+) -> Response {
+    let manager = &state.canvas;
+    if manager.frame().is_none() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({ "error": "no canvas frame yet" })),
+        )
+            .into_response();
+    }
+    let result = match (body.vnode_id, body.x, body.y) {
+        (Some(v), _, _) => manager.pick_vnode(v),
+        (None, Some(x), Some(y)) => manager.pick_at(x, y),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": "pick requires {x,y} (frame px) or {vnode_id}" })),
+            )
+                .into_response()
+        }
+    };
+    match result {
+        Some(anchor) => Json(anchor).into_response(),
+        None => StatusCode::NO_CONTENT.into_response(),
+    }
 }
 
 /// POST /api/canvas/stop —— 停止并收割（幂等）。

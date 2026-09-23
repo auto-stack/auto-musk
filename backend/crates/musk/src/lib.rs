@@ -366,8 +366,8 @@ pub fn build_agent_with_context(
                 agent.register_shared(tool.clone());
             }
         }
-        // PLAN-087 T-06: canvas 工具五件（同白名单过滤；coding.at 已收录
-        // canvas_run/stop/snapshot/act/state）。
+        // PLAN-087 T-06 + PLAN-088 T-04/T-06: canvas 工具七件（同白名单过
+        // 滤；coding.at 已收录 run/stop/snapshot/act/state/pick/overlay）。
         for (name, tool) in crate::canvas::tools::canvas_tool_registry(&ctx) {
             if mode.tools.is_empty() || mode.tools.iter().any(|t| t == name) {
                 agent.register_shared(tool);

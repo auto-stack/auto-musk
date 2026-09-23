@@ -296,6 +296,135 @@ impl Tool for CanvasState {
     }
 }
 
+// ── canvas_pick ─────────────────────────────────────────────────────────────
+
+pub struct CanvasPick {
+    ctx: ToolContext,
+}
+
+impl CanvasPick {
+    pub fn new(ctx: ToolContext) -> Self {
+        Self { ctx }
+    }
+}
+
+#[async_trait]
+impl Tool for CanvasPick {
+    fn name(&self) -> &str {
+        "canvas_pick"
+    }
+    fn description(&self) -> &str {
+        "Resolve an element's source anchor on the live canvas: returns the \
+         vnode id, kind, label, bounding box, source file:line and ancestor \
+         chain (same structure as the user's click-selection). Use this to \
+         say precisely WHICH element you are about to change. element_id \
+         comes from canvas_snapshot's structure tree (vnode_N)."
+    }
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "element_id": { "type": "string", "description": "target element id (vnode_N, from canvas_snapshot vtree)" }
+            },
+            "required": ["element_id"]
+        })
+    }
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
+        let raw = args["element_id"]
+            .as_str()
+            .ok_or_else(|| ToolError::Args("missing 'element_id' argument".into()))?;
+        let vnode = parse_vnode_id(raw).ok_or_else(|| {
+            ToolError::Args(format!("invalid element_id '{raw}' — expected 'vnode_N'"))
+        })?;
+        let manager = &self.ctx.state.canvas;
+        let payload = manager.pick_vnode(vnode).ok_or_else(|| {
+            ToolError::Exec(format!(
+                "canvas_pick: vnode_{vnode} not in current frame — re-read current ids via canvas_snapshot / autoui_find (hot reload may have renumbered the tree)"
+            ))
+        })?;
+        Ok(ToolOutput::text(
+            serde_json::to_string_pretty(&payload)
+                .unwrap_or_else(|_| payload.to_string()),
+        ))
+    }
+}
+
+// ── canvas_overlay ──────────────────────────────────────────────────────────
+
+pub struct CanvasOverlay {
+    ctx: ToolContext,
+}
+
+impl CanvasOverlay {
+    pub fn new(ctx: ToolContext) -> Self {
+        Self { ctx }
+    }
+}
+
+#[async_trait]
+impl Tool for CanvasOverlay {
+    fn name(&self) -> &str {
+        "canvas_overlay"
+    }
+    fn description(&self) -> &str {
+        "Highlight elements on the live canvas for the user: draws boxes on \
+         the frame over the given elements (they stay highlighted until the \
+         next canvas_overlay or a clear). Use it to point at WHAT you are \
+         talking about, e.g. before proposing an edit. Pass clear=true to \
+         remove all highlights."
+    }
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "element_ids": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "elements to highlight (vnode_N ids from canvas_snapshot)"
+                },
+                "clear": { "type": "boolean", "description": "clear all highlights instead" }
+            }
+        })
+    }
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
+        let manager = &self.ctx.state.canvas;
+        let clear = args["clear"].as_bool().unwrap_or(false);
+        if clear {
+            manager.set_overlay(Vec::new(), true).map_err(ToolError::Exec)?;
+            return Ok(ToolOutput::text("canvas overlay cleared.".to_string()));
+        }
+        let raw_ids = args["element_ids"]
+            .as_array()
+            .ok_or_else(|| ToolError::Args("missing 'element_ids' argument (or set clear=true)".into()))?;
+        let mut ids = Vec::new();
+        for v in raw_ids {
+            let s = v
+                .as_str()
+                .ok_or_else(|| ToolError::Args("element_ids items must be strings (vnode_N)".into()))?;
+            let id = parse_vnode_id(s)
+                .ok_or_else(|| ToolError::Args(format!("invalid element_id '{s}' — expected 'vnode_N'")))?;
+            ids.push(id);
+        }
+        manager.set_overlay(ids.clone(), false).map_err(ToolError::Exec)?;
+        let list = ids
+            .iter()
+            .map(|v| format!("vnode_{v}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        Ok(ToolOutput::text(format!(
+            "canvas overlay set: [{list}] — the user sees the highlight on the next frame."
+        )))
+    }
+}
+
+/// `vnode_N` / 裸数字 → u64（agent 面与路由共用口径）。
+fn parse_vnode_id(raw: &str) -> Option<u64> {
+    raw.strip_prefix("vnode_")
+        .unwrap_or(raw)
+        .parse::<u64>()
+        .ok()
+}
+
 /// 登记表（lib.rs build_agent_with_context 消费；名字须与白名单一致）。
 pub fn canvas_tool_registry(ctx: &ToolContext) -> Vec<(&'static str, Arc<dyn Tool>)> {
     vec![
@@ -304,5 +433,7 @@ pub fn canvas_tool_registry(ctx: &ToolContext) -> Vec<(&'static str, Arc<dyn Too
         ("canvas_snapshot", Arc::new(CanvasSnapshot::new(ctx.clone()))),
         ("canvas_act", Arc::new(CanvasAct::new(ctx.clone()))),
         ("canvas_state", Arc::new(CanvasState::new(ctx.clone()))),
+        ("canvas_pick", Arc::new(CanvasPick::new(ctx.clone()))),
+        ("canvas_overlay", Arc::new(CanvasOverlay::new(ctx.clone()))),
     ]
 }

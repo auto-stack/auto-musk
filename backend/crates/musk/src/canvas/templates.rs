@@ -13,7 +13,7 @@ scene: "ui"
 render: "vue"
 title: "Counter"
 title_zh: "计数器"
-# 窗口随内容自然尺寸收缩。
+// 窗口随内容自然尺寸收缩。
 window: "fit"
 "#;
 

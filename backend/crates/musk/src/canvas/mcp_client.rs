@@ -167,6 +167,23 @@ impl McpClient {
         )
         .await
     }
+
+    /// 实时 styled vtree（Atom 文本；include_source 默认 true 携 span +
+    /// for_iter）。锚点索引的数据源（PLAN-088 T-03）。
+    pub async fn vtree(&self) -> Result<String, String> {
+        self.call_tool("autoui_vtree", json!({}), SNAPSHOT_TIMEOUT).await
+    }
+
+    /// 矩形选区（json 信封 {nodes:[{id,kind,span,source,structure}]}）——
+    /// pick 正确性的交叉验证通道（T-08 用），不作运行时主路径。
+    pub async fn select_rect(&self, x: f64, y: f64, w: f64, h: f64) -> Result<String, String> {
+        self.call_tool(
+            "autoui_select_rect",
+            json!({ "x": x, "y": y, "w": w, "h": h, "format": "json" }),
+            SNAPSHOT_TIMEOUT,
+        )
+        .await
+    }
 }
 
 async fn read_png(path: &Path) -> Result<Vec<u8>, String> {

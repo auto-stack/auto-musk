@@ -71,6 +71,10 @@ impl SessionHandle {
             .env("AUTOUI_MCP_PORT", port.to_string())
             .env("AUTO_VM_STORAGE_FILE", &storage_file)
             .env("AUTO_VM_WINDOW", "480x680")
+            // PLAN-088 T-02B：debug 捕获面（devtools_open 不置位，面板不出镜）
+            // ——MCP vtree 通道的叶件 bounds + 引导帧 bounds 依赖项（auto-lang
+            // session.rs 同名门控）。M2 画布无真鼠点击/hover，402 回归面不适用。
+            .env("AUTO_DEBUG_CAPTURE", "1")
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
