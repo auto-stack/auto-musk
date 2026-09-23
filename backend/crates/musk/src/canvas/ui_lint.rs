@@ -47,7 +47,9 @@ pub fn lint_at_source(source: &str) -> Vec<LintDiagnostic> {
     // 括号跟踪（L008）
     let mut paren_stack: Vec<(char, usize)> = Vec::new();
 
-    // 块上下文跟踪（L002 computed 块, L004 msg/on 块）
+    // 块上下文跟踪（L001 span 块, L002 computed 块, L004 msg/on 块）
+    let mut in_span_block = false;
+    let mut span_brace_depth = 0;
     let mut in_computed_block = false;
     let mut computed_brace_depth = 0;
     let mut in_msg_block = false;
@@ -84,10 +86,13 @@ pub fn lint_at_source(source: &str) -> Vec<LintDiagnostic> {
             || code_part == "on";
 
         // L001: span 挂 onclick
-        // 匹配 `span` 出现且含有 `onclick:`
-        if (code_part.contains("span ") || code_part.starts_with("span{") || code_part == "span")
-            && code_part.contains("onclick:")
-        {
+        // 匹配 `span` 出现且含有 `onclick:`，或在 span 块内包含 onclick
+        let is_span_with_onclick = (in_span_block
+            || code_part.contains("span ")
+            || code_part.starts_with("span{")
+            || code_part == "span")
+            && code_part.contains("onclick:");
+        if is_span_with_onclick {
             diags.push(LintDiagnostic {
                 rule_id: "L001",
                 severity: Severity::Warning,
@@ -330,6 +335,19 @@ pub fn lint_at_source(source: &str) -> Vec<LintDiagnostic> {
             if on_brace_depth <= 0 {
                 in_on_block = false;
                 on_brace_depth = 0;
+            }
+        }
+
+        if code_part.contains("span ") || code_part.starts_with("span{") || code_part == "span" {
+            if code_part.contains('{') {
+                in_span_block = true;
+            }
+        }
+        if in_span_block {
+            span_brace_depth += open_count - close_count;
+            if span_brace_depth <= 0 {
+                in_span_block = false;
+                span_brace_depth = 0;
             }
         }
     }

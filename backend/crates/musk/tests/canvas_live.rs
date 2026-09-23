@@ -7,14 +7,49 @@
 //! 进程卫生判定（AC-05）：tasklist 口径数 auto.exe 前后零净增
 //! （scripts/vm-mcp-census.mjs 同口径的 Rust 内联版）。
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use auto_ai_agent::{Client, Tool};
+use auto_ai_client::{ClientError, CompletionRequest, CompletionResponse};
 use tower::ServiceExt;
 
 use musk::canvas::manager::{CanvasManager, CanvasState};
 use musk::canvas::session::resolve_auto_exe;
+use musk::tool_context::ToolContext;
+
+struct MockClient;
+#[async_trait::async_trait]
+impl Client for MockClient {
+    async fn complete(&self, _req: &CompletionRequest) -> Result<CompletionResponse, ClientError> {
+        Err(ClientError::DaemonUnavailable)
+    }
+}
+
+fn create_canvas_tool_context(ws_dir: &Path) -> ToolContext {
+    let registry = musk::workspace::WorkspaceRegistry::load(ws_dir.join("workspaces.json"), ws_dir.to_path_buf());
+    let state = musk::server::AppState {
+        client: Arc::new(MockClient) as Arc<dyn Client>,
+        auth: Arc::new(musk::auto_generated::auth::AuthStore::new(ws_dir.join("users.json"))),
+        registry: Arc::new(registry),
+        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+        chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        run_idle_timeout: Duration::from_secs(300),
+        canvas: Arc::new(CanvasManager::new()),
+    };
+    let ws_id = {
+        let q = musk::workspace::WorkspaceQuery { workspace: None };
+        q.id_or_default(&state.registry)
+    };
+    ToolContext {
+        state: Arc::new(state),
+        workspace_id: ws_id,
+        parent_conversation_id: "canvas-test-conv".to_string(),
+        progress: None,
+        approval_mode: None,
+    }
+}
 
 /// 测试工作区根（每测试独立，避免 workspace registry 串扰）。
 fn test_workspace(tag: &str) -> PathBuf {
@@ -105,7 +140,7 @@ async fn canvas_session_lifecycle_drive_and_census() {
     let before = count_auto_processes();
 
     let manager = Arc::new(CanvasManager::new());
-    let status = manager.start(app.clone()).await.expect("start");
+    let status = manager.start(app.clone(), &ws).await.expect("start");
     assert_eq!(status.state, CanvasState::Starting);
 
     // 首帧 ≤ 30s（冷启动含 iced/wgpu 初始化）。
@@ -180,7 +215,7 @@ async fn canvas_crash_revival_within_15s() {
     let app = write_counter_app(&ws, "counter-revive");
 
     let manager = Arc::new(CanvasManager::new());
-    manager.start(app.clone()).await.expect("start");
+    manager.start(app.clone(), &ws).await.expect("start");
     let got = wait_for(Duration::from_secs(30), || {
         manager.status().state == CanvasState::Running
     })
@@ -235,17 +270,6 @@ fn find_button_id(vtree: &str, label: &str) -> Option<String> {
 /// 同款 oneshot）。
 #[tokio::test]
 async fn canvas_api_out_of_root_rejected_with_roots_listed() {
-    use auto_ai_agent::Client;
-    use auto_ai_client::{ClientError, CompletionRequest, CompletionResponse};
-
-    struct MockClient;
-    #[async_trait::async_trait]
-    impl Client for MockClient {
-        async fn complete(&self, _req: &CompletionRequest) -> Result<CompletionResponse, ClientError> {
-            Err(ClientError::DaemonUnavailable)
-        }
-    }
-
     let dir = std::env::temp_dir().join(format!("musk-canvas-api-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(dir.join("inside")).unwrap();
@@ -302,3 +326,164 @@ async fn canvas_api_out_of_root_rejected_with_roots_listed() {
     assert_eq!(resp.status(), 503);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// PLAN-090 T-07: M3 e2e 生成流闭环测试（AC-04/AC-06）。
+/// 预置坑样例（span+onclick）→ ui_lint 抓 L001 → 修复 → 以 note-list bp spec
+/// 生成 workspace app → ui_lint 零红 + bp_check 过 → canvas 启动首帧 →
+/// vtree 定位按钮 → action press → state 断言 → stop → census 零孤儿。
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[serial_test::serial]
+#[ignore = "e2e generation flow with VM subprocess; run with -- --ignored"]
+async fn canvas_generation_flow_m3_e2e() {
+    if !require_auto_exe() {
+        return;
+    }
+    if musk::canvas::bp_tools::resolve_blueprints_dir().is_none() {
+        eprintln!("SKIP: blueprints dir not resolvable");
+        return;
+    }
+
+    let ws = test_workspace("m3-genflow");
+    let before = count_auto_processes();
+
+    // 1. 预置坑样例（span 带 onclick）
+    let pit_code = r#"
+widget BadPit {
+    model {
+        var count int = 0
+    }
+    view {
+        col {
+            span "Click me" {
+                onclick: () => { .count += 1 }
+            }
+        }
+    }
+}
+"#;
+    let diags = musk::canvas::ui_lint::lint_at_source(pit_code);
+    assert!(!diags.is_empty(), "pit code must trigger diagnostics");
+    assert!(diags.iter().any(|d| d.rule_id == "L001"), "must detect L001 for span with onclick");
+    let report = musk::canvas::ui_lint::format_lint_report("bad_pit.at", &diags);
+    assert!(report.contains("[L001]"), "report should mention L001: {report}");
+
+    // 2. 修复并生成符合 data-display/note-list 契约的 workspace app
+    let app_dir = ws.join("note-app");
+    std::fs::create_dir_all(app_dir.join("src/front")).unwrap();
+    std::fs::write(
+        app_dir.join("pac.at"),
+        "name: \"note-app\"\nversion: \"1.0.0\"\nscene: \"ui\"\nrender: \"vue\"\ntitle: \"Note App\"\nwindow: \"fit\"\n",
+    )
+    .unwrap();
+
+    let clean_code = r#"
+widget App {
+    model {
+        var count int = 0
+        var loading bool = false
+        var error str = ""
+    }
+    view {
+        col {
+            // ── EDIT: toolbar ──
+            input {
+                placeholder: "Search..."
+            }
+            separator {}
+            // ── EDIT: filter_bar ──
+            badge {
+                text: "Notes"
+            }
+            text `Count: ${.count}`
+            row {
+                button "+" { onclick: () => {.count += 1} }
+            }
+            if .loading {
+                text "Loading..."
+            }
+            if .error != "" {
+                text .error
+            }
+        }
+    }
+}
+"#;
+    let clean_file = app_dir.join("src/front/app.at");
+    std::fs::write(&clean_file, clean_code).unwrap();
+
+    // 3. 验证 ui_lint 零红
+    let diags_clean = musk::canvas::ui_lint::lint_at_source(clean_code);
+    assert!(diags_clean.is_empty(), "clean app must have 0 findings: {:?}", diags_clean);
+    let clean_report = musk::canvas::ui_lint::format_lint_report("app.at", &diags_clean);
+    assert!(clean_report.contains("CLEAN (0 findings)"), "report must be CLEAN: {clean_report}");
+
+    // 4. 验证 bp_check 通过 data-display/note-list 行为契约
+    let ctx = create_canvas_tool_context(&ws);
+    let bp_check_tool = musk::canvas::bp_tools::BpCheck::new(ctx.clone());
+    let check_res = bp_check_tool
+        .execute(&serde_json::json!({
+            "path": "note-app/src/front/app.at",
+            "spec": "data-display/note-list"
+        }))
+        .await
+        .expect("bp_check execute");
+    assert!(check_res.content.contains("PASS: bp_check passed"), "bp_check must pass: {}", check_res.content);
+    assert!(check_res.content.contains("3 passed"), "bp_check should pass 3 items: {}", check_res.content);
+
+    // 5. 启动 canvas_run 并等待首帧与 Running 状态
+    let manager = Arc::new(CanvasManager::new());
+    let status = manager.start(app_dir.clone(), &ws).await.expect("start");
+    assert_eq!(status.state, CanvasState::Starting);
+
+    let got_frame = wait_for(Duration::from_secs(30), || {
+        manager.frame().map(|f| !f.is_empty()).unwrap_or(false)
+    })
+    .await;
+    assert!(got_frame, "no frame within 30s");
+    let frame0 = manager.frame().unwrap();
+    assert_eq!(&frame0[..4], b"\x89PNG", "frame is not a PNG");
+
+    let running = wait_for(Duration::from_secs(5), || {
+        manager.status().state == CanvasState::Running
+    })
+    .await;
+    assert!(running, "session never reached running");
+
+    // 6. 驱动：vtree 定位 "+" 按钮 → action press → state 断言
+    let vtree = manager
+        .with_client(|c| c)
+        .await
+        .expect("client")
+        .snapshot(false)
+        .await
+        .expect("snapshot");
+    let plus_id = find_button_id(&vtree, "+").expect("'+' button id in vtree");
+    let _act = manager
+        .with_client(|c| c)
+        .await
+        .expect("client")
+        .action(&plus_id, "press", None)
+        .await
+        .expect("press +");
+
+    let state_text = manager
+        .with_client(|c| c)
+        .await
+        .expect("client")
+        .state(Some(vec!["count".to_string()]))
+        .await
+        .expect("state");
+    assert!(state_text.contains("1"), "count should be 1 after press: {state_text}");
+
+    // 7. stop → 检查 census 零孤儿
+    manager.stop().await;
+    assert_eq!(manager.status().state, CanvasState::Stopped);
+    let clean = wait_for(Duration::from_secs(5), || {
+        count_auto_processes() <= before
+    })
+    .await;
+    let after = count_auto_processes();
+    assert!(clean, "orphan auto processes after stop: before={before} after={after}");
+    let _ = std::fs::remove_dir_all(&ws);
+}
+
