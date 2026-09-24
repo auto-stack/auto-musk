@@ -5,7 +5,7 @@
 // CategoryList 的展开分支仍为占位,对拍面为折叠态 + 空态。
 
 use.web component ChevronRight, Inbox from "src/front/ports/icons.at"
-use.web specSummaryFor, goalsTreeRows from "src/front/specs_helpers.at"
+use.web specSummaryFor, goalsTreeRows, goalsExpandedMap, goalsToggleExpanded from "src/front/specs_helpers.at"
 
 // PLAN-037 P1: cross-file component refs (native alias form).
 use.web useT from "src/front/ports/composables.at"
@@ -188,15 +188,25 @@ widget GoalsTable(items: obj, project: str) {
 
     msg Msg {
         opendetail(obj),
-        ToggleNode(str),
+        // specs-toggle 修复:原 ToggleNode 声明而无 handler,.expanded 永不
+        // 更新——子目标树展开恒死。改小写 togglenode(对齐 on<msg> 生成约定)
+        // + 内部 handler 自持展开态(list+纯函数,禁 obj 键直写模型)。
+        togglenode(str),
     }
     model {
-        // id → bool 展开态(web treeExpanded Set)
-        var expanded obj = {}
+        // 展开的节点 id 列表(web treeExpanded Set 的 list 形态;filetree
+        // ftExpanded 同款)。goalsExpandedMap 转 obj 供 goalsTreeRows 消费。
+        var expanded_ids list = []
     }
     computed {
         isEmpty => .items.length == 0
-        rows => goalsTreeRows(.items, .expanded)
+        rows => goalsTreeRows(.items, goalsExpandedMap(.expanded_ids))
+    }
+
+    on {
+        .togglenode(id) -> {
+            .expanded_ids = goalsToggleExpanded(.expanded_ids, id)
+        }
     }
     style {
 .goals-tree-wrapper { display: flex; flex-direction: column; }
@@ -250,7 +260,7 @@ widget GoalsTable(items: obj, project: str) {
                                 div {
                                     class: row.toggleCls
                                     title: row.childCount + " sub-goals"
-                                    onclick: .ToggleNode(row.item.id)
+                                    onclick: .togglenode(row.item.id)
                                     if row.level == 0 {
                                         span {
                                             class: "node-children-count"

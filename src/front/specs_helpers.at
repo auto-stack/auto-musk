@@ -324,6 +324,35 @@ fn goalsAppendNode(out list, items obj, it obj, level int, expanded obj) {
     }
 }
 
+/** specs-toggle:展开 id 列表 → goalsTreeRows 消费的 id→bool 映射。
+ * (纯函数内联本文件——use.web.fn 在 VM computed 静默返空,plans_front_slice
+ * 同款约束;ids 局部 obj 键赋值有 goalsTreeRows ids 先例。) */
+fn goalsExpandedMap(ids list) obj {
+    let m obj = {}
+    for id in ids {
+        m[id] = true
+    }
+    return m
+}
+
+/** specs-toggle:展开集合翻转(命中剔除/未命中加入)——tree_util toggle_id
+ * 同构,内联避 import(use.web.fn handler 链 VM 缺口)。 */
+fn goalsToggleExpanded(ids list, id str) list {
+    var out list = []
+    var found bool = false
+    for cur in ids {
+        if cur == id {
+            found = true
+        } else {
+            out.push(cur)
+        }
+    }
+    if !found {
+        out.push(id)
+    }
+    return out
+}
+
 /** PLAN-041 T3:document.sections 中 section_type 命中的 items(无命中空表)。
  * PLAN-061 T2 (D1):比较前两侧小写归一——后端返回首字母大写("Goals"),
  * 视图以小写("goals")查询,全等比较恒不匹配致结构化视图空。 */

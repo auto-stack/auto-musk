@@ -193,10 +193,16 @@ widget SpecsView {
                         style: "mb-4 px-5 pb-5"
                         if .store.document != None {
                             // PLAN-041 T3:分域组件接线(web SpecsView 同构)。
+                            // specs-toggle 修复:五分域卡片此前漏绑行回调——
+                            // toggle/jump/edit 等事件发到组件边界即死,条目
+                            // 点击永远展不开(仅下方兜底 CategoryList 分支有
+                            // 绑定)。按同分支同形补齐;goals 行点击开
+                            // GoalDetailModal(onopendetail)。
                             if .active_section == "goals" {
                                 GoalsTable {
     items: specSectionItems(.store.document, .active_section)
     project: .store.project
+    onopendetail: .OpenDetailModal($event)
 }
                             } else {
                                 if .active_section == "architecture" {
@@ -205,6 +211,13 @@ widget SpecsView {
     project: .store.project
     expanded_id: .active_item_id
     editing_id: .editing_item_id
+    ontoggle: .SelectItem($event)
+    onjump: .JumpToItem($event)
+    onedititem: .EditItem($event)
+    onstatuschange: .RowStatusChange($event)
+    ondelete: .RowDelete($event)
+    onsavetest: .SaveTestItem($event)
+    oncanceledit: .CancelEdit
 }
                                 } else {
                                     if .active_section == "designs" {
@@ -213,6 +226,13 @@ widget SpecsView {
     project: .store.project
     expanded_id: .active_item_id
     editing_id: .editing_item_id
+    ontoggle: .SelectItem($event)
+    onjump: .JumpToItem($event)
+    onedititem: .EditItem($event)
+    onstatuschange: .RowStatusChange($event)
+    ondelete: .RowDelete($event)
+    onsavetest: .SaveTestItem($event)
+    oncanceledit: .CancelEdit
 }
                                     } else {
                                         if .active_section == "tests" {
@@ -221,6 +241,13 @@ widget SpecsView {
     project: .store.project
     expanded_id: .active_item_id
     editing_id: .editing_item_id
+    ontoggle: .SelectItem($event)
+    onjump: .JumpToItem($event)
+    onedititem: .EditItem($event)
+    onstatuschange: .RowStatusChange($event)
+    ondelete: .RowDelete($event)
+    onsavetest: .SaveTestItem($event)
+    oncanceledit: .CancelEdit
 }
                                         } else {
                                             if .active_section == "reviews" {
@@ -229,6 +256,13 @@ widget SpecsView {
     project: .store.project
     expanded_id: .active_item_id
     editing_id: .editing_item_id
+    ontoggle: .SelectItem($event)
+    onjump: .JumpToItem($event)
+    onedititem: .EditItem($event)
+    onstatuschange: .RowStatusChange($event)
+    ondelete: .RowDelete($event)
+    onsavetest: .SaveTestItem($event)
+    oncanceledit: .CancelEdit
 }
                                             } else {
                                                 if .active_section == "reports" {
@@ -237,6 +271,13 @@ widget SpecsView {
     project: .store.project
     expanded_id: .active_item_id
     editing_id: .editing_item_id
+    ontoggle: .SelectItem($event)
+    onjump: .JumpToItem($event)
+    onedititem: .EditItem($event)
+    onstatuschange: .RowStatusChange($event)
+    ondelete: .RowDelete($event)
+    onsavetest: .SaveTestItem($event)
+    oncanceledit: .CancelEdit
 }
                                                 } else {
                                                     // plans/api 及未知 section:通用 CategoryList。
