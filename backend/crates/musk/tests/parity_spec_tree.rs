@@ -121,26 +121,51 @@ async fn spec_tree_returns_nested_tree() {
     let arr = body.as_array().unwrap();
     // folders-first + alphabetical; dotfile dropped → 3 top-level nodes.
     assert_eq!(arr.len(), 3, "got {arr:?}");
-    // goals folder comes first (folders before files).
+    // goals folder comes first (folders before files). PLAN-091 T-01: the
+    // payload is the fs-shaped FilesNode (label/kind, children ALWAYS
+    // present — leaf = []), the schema the FileTree widget consumes.
     let goals = arr
         .iter()
-        .find(|n| n["name"] == "goals")
+        .find(|n| n["label"] == "goals")
         .expect("goals folder present");
-    assert_eq!(goals["type"], "folder");
+    assert_eq!(goals["kind"], "dir");
+    assert_eq!(goals["id"], "goals");
     let kids = goals["children"].as_array().unwrap();
     assert_eq!(kids.len(), 1);
-    assert_eq!(kids[0]["name"], "README.md"); // .md NOT stripped
+    assert_eq!(kids[0]["label"], "README.md"); // .md NOT stripped
+    assert_eq!(kids[0]["id"], "goals/README.md");
+    assert_eq!(kids[0]["kind"], "file");
+    assert_eq!(kids[0]["children"].as_array().unwrap().len(), 0);
     // two files after the folder, alphabetical.
     assert_eq!(
-        arr.iter().find(|n| n["name"] == "00-overview.md").unwrap()["type"],
+        arr.iter().find(|n| n["label"] == "00-overview.md").unwrap()["kind"],
         "file"
     );
     assert_eq!(
         arr.iter()
-            .find(|n| n["name"] == "01-architecture.md")
-            .unwrap()["type"],
+            .find(|n| n["label"] == "01-architecture.md")
+            .unwrap()["kind"],
         "file"
     );
+}
+
+/// PLAN-091 T-02: `/api/specs/text/{*path}` wraps the body as
+/// `{content, error}` JSON (the `#[api]` bindings fix `response.json()` —
+/// raw text bodies cannot be consumed); missing files stay 404.
+#[tokio::test]
+async fn spec_text_returns_json_wrapper() {
+    let (state, dir) = tmp_state();
+    seed_spec(&dir, "modules/plan-flow.md", "# plan flow\n\nbody");
+
+    let a = app(state);
+    let (s, body) = send(&a, "GET", "/api/specs/text/modules/plan-flow.md", None).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(body["error"], "");
+    assert_eq!(body["content"], "# plan flow\n\nbody");
+
+    // Missing file → 404 typed error (in-band `error` stays HTTP-level).
+    let (s, _b) = send(&a, "GET", "/api/specs/text/modules/nope.md", None).await;
+    assert_eq!(s, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
