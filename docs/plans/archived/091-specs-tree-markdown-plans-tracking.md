@@ -358,7 +358,11 @@ SD-01 的行为条款覆盖，不单独立 delta。
   **02ebe2cd**（离线读-改-写原子落盘，8090 无监听=独占写，回读验证）；
   其余 5 区/条目未触碰。**archived** — 本文件移入 docs/plans/archived/
   并置 status: archived，completion_kind: delivered。**cleaned** —
-  见下方 cleaned 补录。
+  wt-guard 复跑 clean 后 `git worktree remove` musk-091/auto-musk +
+  `git branch -d plan-091-dev`（was bcaf16a，已含于 main）；三个只读依赖
+  worktree 同组拆除（auto-ai 附带临时分支 auto-ai 删除 @79ff93a /
+  auto-lang detached @729dd4f2f / auto-down detached @3373a5c——三者主
+  检出零改动）；组目录 `.wt/musk-091` rmdir 空 removal ✓。
   **merge 观察项（登记不阻塞）**：主检出构建出现既有 SCHEMA_DRIFT 警告
   （`Markdown(source)` prop 未入 autodown schema 声明面——specs_detail
   自 PLAN-041 起五处同用，且本次 review IAB 走查实证 source 运行时正常
