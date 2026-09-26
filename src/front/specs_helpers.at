@@ -1092,3 +1092,23 @@ fn goalItemDepends(item obj) obj {
     }
     return []
 }
+
+/** PLAN-091 T-03: 按 id 查树节点 kind（"dir"|"file"|""=未命中）——
+ *  FileTree 行点击只携带 id，目录点击须拦截（不走正文拉取）。
+ *  无 mid-loop return（has_id 先例：VM 轨早退纪律），递归沿 filter_tree。 */
+fn spec_tree_node_kind(nodes list, id str) str {
+    var found str = ""
+    var i int = 0
+    while i < nodes.len() {
+        if found == "" {
+            var nd = nodes[i]
+            if nd.id == id {
+                found = nd.kind
+            } else {
+                found = spec_tree_node_kind(nd.children, id)
+            }
+        }
+        i = i + 1
+    }
+    return found
+}

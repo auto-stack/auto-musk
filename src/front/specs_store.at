@@ -5,7 +5,7 @@
 //
 // Plan 022 Phase 5: SpecsView 的数据层。
 
-use back.api: specs_list, specs_overview, specs_save_item, specs_delete_item, specs_rebuild_relations, specs_tree, specs_get_file
+use back.api: specs_list, specs_overview, specs_save_item, specs_delete_item, specs_rebuild_relations, specs_tree, specs_text
 
 store SpecsStore {
     model {
@@ -16,10 +16,20 @@ store SpecsStore {
         // overview 缓存（markdown 形式，由 LoadOverview 合成）。
         var overview str = ""
         var overview_loaded bool = false
-        // PLAN-025: docs/specs/ 文件树模式（扁平渲染；递归留作 KNOWN-DEBT）。
-        var spec_tree List<TreeNode> = []
+        // PLAN-091 T-03: docs/specs/ 文件树模式——fs 形 FilesNode（id/label/
+        // children 恒存在，FileTree 组件契约；wiki TreeNode schema 不匹配
+        // 是"扁平/破相"根因，递归由组件原生承担）。
+        var spec_tree List<FilesNode> = []
+        // 顶层目录 id（default_expanded——首屏可见性，树挂载时全展开一级）。
+        var spec_tree_default List = []
         var active_spec_file_path Option<str> = None
         var active_spec_file_content str = ""
+        // 正文加载三分支（workspace-ui「三个独立状态」条款）：loading /
+        // failed / 有内容；空内容且非失败 = 未选中。
+        var file_loading bool = false
+        var file_failed bool = false
+        // md 判定烤进 store 标量（视图端 Option 后缀方法访问面窄）。
+        var active_spec_is_md bool = false
         var spec_tree_loaded bool = false
     }
 
@@ -32,7 +42,10 @@ store SpecsStore {
         RebuildRelations,
         SetError(str),
         LoadSpecTree,
-        LoadSpecFile(str),
+        SelectFile(str),
+        SetContent(str),
+        SetLoadFailed,
+        ClearFile,
     }
 
     computed {
@@ -97,17 +110,49 @@ store SpecsStore {
 
         .SetError(msg) -> { .error = msg }
 
-        // PLAN-025: 文件树模式 —— 加载 docs/specs/ 树 / 读单文件正文。
+        // PLAN-025/091: 文件树模式 —— 加载 docs/specs/ 树（fs 形节点，
+        // 顶层目录烤成 default_expanded）。
         .LoadSpecTree -> {
             let tree = specs_tree()
             .spec_tree = tree
+            var tops list = []
+            for nd in tree {
+                if nd.kind == "dir" {
+                    tops.push(nd.id)
+                }
+            }
+            .spec_tree_default = tops;
             .spec_tree_loaded = true
         }
 
-        .LoadSpecFile(path) -> {
-            let content = specs_get_file(path)
-            .active_spec_file_path = path
-            .active_spec_file_content = content
+        // PLAN-091 T-03: 选中文件——路径/md 判定先落 store，正文由视图
+        // handler 经 specs_text JSON 通道拉取（files_view Pick 同款分工：
+        // try/catch 在视图臂，store 只收三态消息）。
+        .SelectFile(path) -> {
+            .active_spec_file_path = path;
+            .active_spec_is_md = path.ends_with(".md");
+            .file_loading = true;
+            .file_failed = false
+        }
+
+        .SetContent(content) -> {
+            .active_spec_file_content = content;
+            .file_loading = false
+        }
+
+        .SetLoadFailed() -> {
+            .active_spec_file_content = "";
+            .file_loading = false;
+            .file_failed = true
+        }
+
+        // PLAN-091 T-03: 目录点击回落未选中态（清残留正文/失败态）。
+        .ClearFile() -> {
+            .active_spec_file_path = None;
+            .active_spec_file_content = "";
+            .active_spec_is_md = false;
+            .file_loading = false;
+            .file_failed = false
         }
     }
 }

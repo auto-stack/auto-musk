@@ -5,8 +5,14 @@
 
 use store: SpecsStore
 
+// PLAN-091 T-03: 树模式正文 Markdown 渲染（specs_detail 同款 autodown
+// 管线）+ 正文加载走 #[api] specs_text JSON 通道（files_view Pick 同款：
+// try/catch 在视图臂，store 收三态消息）。
+use back.api: specs_text
+use.web component Markdown from "src/front/ports/renderer.at"
+
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web spec_next_id, spec_default_status, specSectionItems, specItemPatch, specFindItem, specSectionOfItem, specSectionRows from "src/front/specs_helpers.at"
+use.web spec_next_id, spec_default_status, specSectionItems, specItemPatch, specFindItem, specSectionOfItem, specSectionRows, spec_tree_node_kind from "src/front/specs_helpers.at"
 use.web useT from "src/front/ports/composables.at"
 use.web vsCurrentDetail, vsSetDetailPath from "src/front/ports/composables.at"
 
@@ -373,13 +379,21 @@ widget SpecsView {
             }
         }
         } else {
-            // PLAN-025 §10: 扁平文件树渲染（递归留作 KNOWN-DEBT）
+            // PLAN-025 §10 / PLAN-091 T-03: 递归文件树（FileTree 组件原生
+            // 折叠/guides——旧"扁平渲染"根因是 wiki TreeNode 数据 schema
+            // 与组件不匹配，后端已改产 fs 形 FilesNode）。空树独立提示。
             row {
                 style: "flex flex-row h-full overflow-hidden"
                 col {
                     style: "w-[240px] shrink-0 border-r border-border bg-card overflow-y-auto p-2 flex flex-col gap-1"
                     text t("workspaceUi.specFiles") { style: "text-base font-semibold text-foreground h-10 px-2" }
-                    FileTree(nodes: .store.spec_tree, onselect: .SelectSpecFile($event))
+                    if .store.spec_tree_loaded {
+                        if .store.spec_tree.len() == 0 {
+                            text t("specs.emptyTree") { style: "text-sm text-muted-foreground p-3" }
+                        } else {
+                            FileTree(nodes: .store.spec_tree, default_expanded: .store.spec_tree_default, onselect: .SelectSpecFile($event))
+                        }
+                    }
                 }
                 col {
                     style: "flex-1 overflow-y-auto flex flex-col"
@@ -406,12 +420,28 @@ widget SpecsView {
                             }
                         }
                     }
+                    // PLAN-091 T-03: 正文四独立状态（workspace-ui「三个独立
+                    // 状态」条款）——加载中 / 加载失败 / md 正文 Markdown
+                    // 渲染 / 其余（未选中或非 md 文件纯文本兜底）。
                     col {
-                        style: "flex-1 overflow-y-auto p-5 text-sm text-foreground font-mono whitespace-pre-wrap"
-                        if .store.active_spec_file_content != "" {
-                            text .store.active_spec_file_content
+                        style: "flex-1 overflow-y-auto p-5 text-sm text-foreground"
+                        if .store.file_loading {
+                            text t("specs.loading") { style: "text-sm text-muted-foreground" }
+                        } else if .store.file_failed {
+                            text t("workspaceUi.loadFailed") { style: "text-sm text-destructive p-3" }
                         } else {
-                            text t("specs.selectFile")
+                            if .store.active_spec_file_content != "" {
+                                if .store.active_spec_is_md {
+                                    Markdown(source: .store.active_spec_file_content, streaming: false)
+                                } else {
+                                    col {
+                                        style: "font-mono whitespace-pre-wrap"
+                                        text .store.active_spec_file_content
+                                    }
+                                }
+                            } else {
+                                text t("specs.selectFile") { style: "text-muted-foreground" }
+                            }
                         }
                     }
                 }
@@ -538,9 +568,33 @@ widget SpecsView {
             }
         }
 
-        // PLAN-025: 选中文件 → 读正文（文件夹点击忽略；扁平渲染不展开）。
+        // PLAN-025 / PLAN-091 T-03: 选中文件 → 路径先落 store（md 判定/
+        // loading 态），正文经 #[api] specs_text JSON 通道加载。目录点击
+        // 拦截（FileTree 行点击目录也派发 onselect——清正文回落未选中提示，
+        // 旧流 specs_get_file 对目录 404 同口径）。错误双臂：非 2xx 时 VM
+        // get_json 包错误对象（`?? ""` 兜缺键）、web 生成绑定 throw——两臂
+        // 同落失败态（files_view .Pick 同款）。
         .SelectSpecFile(path) -> {
-            store.LoadSpecFile(path)
+            let kind = spec_tree_node_kind(.store.spec_tree, path)
+            if kind == "dir" {
+                // PLAN-091：store 调用一律限定名——SelectFile/SetContent/
+                // SetLoadFailed 与 FilesStore 撞名，VM 轨 multi-store 消歧
+                // （plan-446 A1）要求限定，否则 App 级 handler 合成失败。
+                SpecsStore.ClearFile()
+            } else {
+                SpecsStore.SelectFile(path);
+                try {
+                    let resp = specs_text(path)
+                    var err str = resp.error ?? ""
+                    if err != "" {
+                        SpecsStore.SetLoadFailed()
+                    } else {
+                        SpecsStore.SetContent(resp.content ?? "")
+                    }
+                } catch (e) {
+                    SpecsStore.SetLoadFailed()
+                }
+            }
         }
 
         // ── PLAN-041 债务收口:行内编辑/详情接线(web handleSave 族) ──

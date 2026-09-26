@@ -156,8 +156,14 @@ store PlansStore {
             }
             // PLAN-071 需求⑫：初始无选中时默认加载第一篇（与会话轨 Init
             // 自动选中首会话同口径）。Transition/Archive/Merge 后的列表
-            // 刷新不抢当前选中（current 已有值即跳过）。
-            if .current == None {
+            // 刷新不抢当前选中。
+            // PLAN-091 T-05：已有选中时同步重载详情——plan flow coder 相位
+            // 回写 §8/frontmatter 后，切入计划页（每次 ShowPlans 都走
+            // LoadPlans→本段）即见新正文。编辑会话不受扰：视图 textarea 绑
+            // 视图本地 edit_content 拷贝，此处只刷新 current/current_body。
+            if .current != None {
+                LoadPlan(.current.seq)
+            } else {
                 if .plans.length > 0 {
                     LoadPlan(.plans[0].seq)
                 }

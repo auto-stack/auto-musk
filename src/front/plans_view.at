@@ -117,9 +117,24 @@ widget PlansView {
                                         text " — "
                                         text .plan.feature_name
                                     }
+                                    // PLAN-091 T-04（065-F1 余项）：状态徽标
+                                    // 本地化——静态键 if-chain（VM t 动态键
+                                    // quirk 规避），未知状态回退原始值。
                                     span {
                                         style: "px-2 py-0.5 rounded-md text-xs bg-accent text-foreground"
-                                        text .plan.status
+                                        if .plan.status == "drafting" {
+                                            text t("plans.statusDrafting")
+                                        } else if .plan.status == "executing" {
+                                            text t("plans.statusExecuting")
+                                        } else if .plan.status == "execution_done" {
+                                            text t("plans.statusExecutionDone")
+                                        } else if .plan.status == "reviewed" {
+                                            text t("plans.statusReviewed")
+                                        } else if .plan.status == "archived" {
+                                            text t("plans.statusArchived")
+                                        } else {
+                                            text .plan.status
+                                        }
                                     }
                                 }
                             }
@@ -164,9 +179,24 @@ widget PlansView {
                                                 text " — "
                                                 text .plan.feature_name
                                             }
+                                            // PLAN-091 T-04：归档栏徽标同链路
+                                            // 本地化（archived 恒命中，其余
+                                            // 分支兜异常数据）。
                                             span {
                                                 style: "px-2 py-0.5 rounded-md text-xs bg-accent text-foreground"
-                                                text .plan.status
+                                                if .plan.status == "drafting" {
+                                                    text t("plans.statusDrafting")
+                                                } else if .plan.status == "executing" {
+                                                    text t("plans.statusExecuting")
+                                                } else if .plan.status == "execution_done" {
+                                                    text t("plans.statusExecutionDone")
+                                                } else if .plan.status == "reviewed" {
+                                                    text t("plans.statusReviewed")
+                                                } else if .plan.status == "archived" {
+                                                    text t("plans.statusArchived")
+                                                } else {
+                                                    text .plan.status
+                                                }
                                             }
                                         }
                                     }
@@ -255,7 +285,24 @@ widget PlansView {
                                     row {
                                         style: "flex flex-wrap items-center gap-2"
                                         span { style: "px-2 py-0.5 rounded-md text-xs font-mono bg-primary/10 text-primary", text .store.current.id }
-                                        span { style: "px-2 py-0.5 rounded-md text-xs bg-accent text-foreground", text .store.current.status }
+                                        // PLAN-091 T-04（065-F1 余项）：详情
+                                        // 状态 chip 本地化，未知状态回退原值。
+                                        span {
+                                            style: "px-2 py-0.5 rounded-md text-xs bg-accent text-foreground"
+                                            if .store.current.status == "drafting" {
+                                                text t("plans.statusDrafting")
+                                            } else if .store.current.status == "executing" {
+                                                text t("plans.statusExecuting")
+                                            } else if .store.current.status == "execution_done" {
+                                                text t("plans.statusExecutionDone")
+                                            } else if .store.current.status == "reviewed" {
+                                                text t("plans.statusReviewed")
+                                            } else if .store.current.status == "archived" {
+                                                text t("plans.statusArchived")
+                                            } else {
+                                                text .store.current.status
+                                            }
+                                        }
                                         if .store.current_step_label != "" {
                                             span { style: "px-2 py-0.5 rounded-md text-xs font-mono bg-muted text-muted-foreground", text .store.current_step_label }
                                         }

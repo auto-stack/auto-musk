@@ -150,9 +150,14 @@ widget MentionInput(disabled: bool, professions: obj, thinkingLevel: str, approv
                     var files []Value = []
                     for node in (tr ?? []) {
                         if node != None {
-                            if node.type == "file" {
-                                if node.path != "" {
-                                    files.push({ "path": node.path, "name": node.name })
+                            // PLAN-091 T-01 涟漪适配：specs_tree 改产 fs 形
+                            // FilesNode——kind/id/label（wiki TreeNode 的
+                            // type/path/name 随 schema 退役）。push 的
+                            // {path,name} 键是下游 @spec token 契约，不变。
+                            // 仅顶层遍历维持既有口径（嵌套文件收录未扩）。
+                            if node.kind == "file" {
+                                if node.id != "" {
+                                    files.push({ "path": node.id, "name": node.label })
                                 }
                             }
                         }

@@ -625,6 +625,8 @@ dependencies = [
  "futures",
  "hex",
  "hmac",
+ "hyper",
+ "hyper-util",
  "iced",
  "iced_futures",
  "iced_runtime",

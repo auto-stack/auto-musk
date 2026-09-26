@@ -209,7 +209,7 @@ fn build_ws_tree(
 /// Resolve a workspace-relative path to a canonical file path, rejecting
 /// traversal (`validate_path_pub`) and symlink escapes (canonicalized file
 /// must stay under the canonicalized root). Missing paths → 404.
-fn resolve_confined(root: &std::path::Path, rel: &str) -> Result<std::path::PathBuf, (StatusCode, String)> {
+pub(crate) fn resolve_confined(root: &std::path::Path, rel: &str) -> Result<std::path::PathBuf, (StatusCode, String)> {
     validate_path_pub(rel)?;
     let canonical_root = root
         .canonicalize()
@@ -270,7 +270,22 @@ async fn files_text(
     Path(path): Path<String>,
 ) -> Result<Json<FilesTextResponse>, (StatusCode, String)> {
     let root = ws_root_for(&state, &q);
-    let canonical = resolve_confined(&root, &path)?;
+    let content = read_text_confined(&root, &path)?;
+    Ok(Json(FilesTextResponse {
+        content,
+        error: String::new(),
+    }))
+}
+
+/// Confined read of a text file under `root` as a lossy-UTF-8 string —
+/// PLAN-091 T-02: single confinement/size contract shared by `files_text`
+/// and `spec_tree`'s `specs_text` (same resolve → dir guard → size guard →
+/// read pipeline).
+pub(crate) fn read_text_confined(
+    root: &std::path::Path,
+    rel: &str,
+) -> Result<String, (StatusCode, String)> {
+    let canonical = resolve_confined(root, rel)?;
     let meta = std::fs::metadata(&canonical)
         .map_err(|_| (StatusCode::NOT_FOUND, "file missing".into()))?;
     if meta.is_dir() {
@@ -281,10 +296,7 @@ async fn files_text(
     }
     let data =
         std::fs::read(&canonical).map_err(|_| (StatusCode::NOT_FOUND, "unreadable".into()))?;
-    Ok(Json(FilesTextResponse {
-        content: String::from_utf8_lossy(&data).to_string(),
-        error: String::new(),
-    }))
+    Ok(String::from_utf8_lossy(&data).to_string())
 }
 
 #[cfg(test)]
