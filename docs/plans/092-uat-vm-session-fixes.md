@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-092
-status: executing
+status: reviewed
 feature_name: UAT 四缺陷收敛——会话id可见性 / VM流式刷新 / auto-plan技能自带 / 计划落盘
 author: [agent]
 created_at: 2026-09-27T17:30:00+08:00
-updated_at: 2026-09-27T20:25:00+08:00
+updated_at: 2026-09-27T22:55:00+08:00
 plan_revision: 1
 current_step: 4
 total_steps: 4
@@ -358,3 +358,35 @@ dbg 行增打 `inflight_at` 便于下次归因。
    ——①列表动态索引读返 -214748364x（poll_window 即开即过期全链根因）；
    ②bool 字段读同族垃圾；③Date.now() int32 回绕。T-02 r2 已在 musk 侧
    绕开，根修归 auto-lang state-scope 专项（与 536 T12 同族归并）。
+
+- 2026-09-27 review r1（实现会话内复审——**独立性局限声明**：复审与实现
+  同会话，结论按工件重建不采信执行者总结）：stage: review | plan_id:
+  PLAN-092 | plan_revision: 1 | outcome: **pass（AC-01 记 partial，债显式）**
+  | reviewed_commit: musk plan-092-dev **5443aa8**（+a2b4963；base acef32e）、
+  auto-ai auto-musk-dev **5a50a55** | dependency_revisions: auto-lang wt
+  c0a52de7b（=master）、auto-down wt 3373a5c（=master，review 期补建第 4
+  依赖 wt） | spec_inputs: chat-streaming.md（契约②④⑤ 域）/workspace-ui.md
+  （无 id 入口节=新增面）/plan-flow.md（skills 域）当前版
+  | acceptance_results: AC-01 **partial**（可见性双轨 ✓：VM vtree+web 快照；
+  复制 web 轨 ✓：clipboard.writeText 捕获值==session id c6ee0e8c 逐字对拍；
+  VM 复制臂 ✗=092-D1 上游债）；AC-02 **pass**（复审基线 5443aa8 重放：
+  UI 发送→零操作 +8s 上屏，run 6s，vtree 实证）；AC-03 **pass**（复审
+  基线重放：150s 空闲 0 请求 0 日志、POLL 总行数 27 有界、wins≤2；done
+  收窗后 wins==0 早退静默与 r2 设计一致）；AC-04 **pass**（work 证据复用：
+  代码未变；serve 日志 loaded 4 skills+agent 实载 auto-plan:new；重启
+  第四次 0 synced 行幂等）；AC-05 **pass**（数据面 review 复核：/api/plans
+  列 001 号；work E2E 全链证据）；AC-06 **pass 附注**（计划栏 VM 截图 ✓；
+  文件栏数据面 ✓：/api/files/tree 返回 docs/plans/001-minimal…md；
+  UI 展开演示受合成点击仪器限制）
+  | findings: F-1 非阻断（092-D1 上游债，AC-01 VM 复制臂；merge 时须入
+  workspace-ui.md 已知边界）；F-2 非阻断（mouse-area/合成点击仪器债，
+  089 同族，AC-06 文件栏展开演示）；F-3 非阻断（tool_atoms
+  run_command_dangerous_returns_paused 基线红=084-D6 族，主检出 acef32e
+  同红甄别，非本计划回归）；F-4 info（vm-probe 需第 4 依赖 wt auto-down，
+  083 已知坑，已补建）
+  | evidence: 门禁=musk cargo test 全套（1 基线红已甄别+其余全绿）/
+  vm-link-probe PASS（96572 bytes WARN 级趋势告警非门）/vitest 29 绿/
+  ui-parity 目录 PASS/终版 auto build exit 0；提交面零探针残留
+  （git show 5443aa8 扫描）；复审重放日志 tmp/vm-092-wt.log、
+  tmp/musk-serve-092-wt.log、截图 tmp/p092-plans-view.png（VM 计划栏）
+  | next: merge（SD-02 落地文本须含 092-D1 已知边界注记）。
