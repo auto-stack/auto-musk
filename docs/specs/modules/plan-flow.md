@@ -71,6 +71,28 @@ spec-impact 三字段）是四职业协作的唯一契约：advisor 产出 §0-�
 并回写（§8 勾选 + §10 阻塞），reviewer 回写（§9 + spec-impact），assistant
 消费 status 门禁执行 merge。改章节结构属 breaking change，须独立计划。
 
+## 产品内技能自带与轮次续跑（PLAN-092 SD-03/04）
+
+**技能真源与分发**：auto-plan 四技能（new/work/review/merge）以仓内
+`.agents/skills/` 为单一维护点（与 ZCode 侧同文件）；`musk serve` 启动
+序列（`builtin_skills::sync_builtin_skills`）把四技能**幂等**同步到
+`<config_dir>/skills/auto-plan-*/`（内容相同跳过、不同覆盖——真源单一
+策略；源解析 `MUSK_SKILLS_DIR` env → CWD → 构建期仓根，缺源 warn 不阻断
+serve）。产品 agent 侧无需额外拾取机制：`build_agent_from_mode` **每次
+run 重建 agent 即重扫**技能目录（`MUSK_CONFIG_DIR` 覆盖时经
+`autoos_skills_dir` 与分发目标单源），serve 同步的新技能下一次运行即可见。
+
+**技能驱动的轮次续跑契约**：agent 经 skill 工具加载技能内容后，轮次必须
+续跑至产出或显式报错——静默中断（无后续块、无 write、无错误）即缺陷。
+技能流程中的**等待用户输入属正常暂停**（如 auto-plan:new 无设计文档时
+问卷澄清），不算中断。产品内「/auto-plan:new 建计划」端到端须产出真实
+`docs/plans/NNN-*.md`；计划落盘后计划栏/文件栏切换即可见（files 树端点
+`/api/files/tree` 与 `/api/plans` 同源盘上数据）。诊断基建：aaid 对每笔
+LLM 请求打最小观测行（入口 model/stream/candidates + 结果 elapsed/usage
++ 流式起止 + 候选链穷尽）——轮次时序归因不得再依赖会话文件考古。
+（0927 实证教训：「trace 不完整」≠「run 中断」——先核落盘时机与观测面，
+再定罪轮次状态。）
+
 ## 已知限制
 
 - relay 工具面 = mode.tools 空 = 全量注册（plan 六件套 + 文件/命令 + orch），

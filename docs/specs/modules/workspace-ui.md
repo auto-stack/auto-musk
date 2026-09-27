@@ -30,6 +30,11 @@
 - 空态先说明当前栏目用途，再给出一个主要动作；按钮沿用既有业务消息，不改变后端状态值。
 - 新增用户可见文本必须同时提供中文和英文资源。
 - 1024px 和 1280px 宽度不得出现页面级水平滚动，内容区可独立滚动。
+- **会话 id 信息入口（PLAN-092 T-01）**：聊天头部 actions 槽常驻 i 信息钮
+  （Info 图标，展开态反色），点击展开/收起弱色单行信息条——`chat.chatId`
+  标签 + 当前会话 id（`font-mono truncate`，空态显示 `—`）+ 复制钮
+  （Copy→CopyCheck 成功态常驻至下次复制；`.at` 不表达 setTimeout 自动
+  复位）。会话 id 是调试/汇报锚点，不得只存在于存储层。
 
 ## 双端与主题边界
 
@@ -37,6 +42,15 @@
 2. 品牌 `primary`、`primary-foreground` 和 `ring` 由 `pac.at` 的 `theme` 共享给 Vue 与 VM。
 3. 当前 AutoUI `theme.colors` 只有跨模式的单份局部映射；Web 的明暗 surface token 暂留在 `inject_styles.web-only.ts`。AutoUI 支持分模式主题后，应迁回共享主题声明。
 4. Web 专用样式不得改变信息结构或核心操作；VM 不支持的视觉细节应自然降级。
+
+## 已知边界
+
+- **KNOWN-DEBT 092-D1（PLAN-092）**：VM 轨 `dom.copy_text` native 静默
+  失效——会话 id 信息条的复制半臂在 web 轨工作（`navigator.clipboard.
+  writeText` 对拍实证），VM 轨点击后无剪贴板写入（`let` 绑定形态 handler
+  中止、裸调用形态空转；接收者字段读正常）。根因在 auto-lang 2926
+  native 于视图 handler 上下文的分派，随上游收敛；收敛前 VM 轨会话 id
+  以可见性为限（`chat_message.at` 消息复制同 native 同病）。
 
 ## 验证
 

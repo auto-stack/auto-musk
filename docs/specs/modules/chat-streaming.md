@@ -24,16 +24,29 @@
    必须保证 active_leaf 指向其路径（新增消息挂 `parent_id` = 当前叶并推进叶；
    轮询回填时同步服务端 `active_leaf`）。**只写数组不推进叶 = 渲染不可见缺陷**
    （PLAN-067 T-01 实测定责，症状"AI 回复不自动刷新"）。
-4. **轮询为兜底**：`PollStream`（500ms，deadman 窗 2 分钟）仅在 SSE 不健康时
-   承担回填（PLAN-067：3s 内有流事件则跳过）。**PLAN-069 F-04 收紧**：
-   `.streaming && stream_es != None`（web 轨 SSE 已附加）期间回填**整体跳过**——
-   run 期间服务端仅存 turn 粒度增量快照（PLAN-073 P2-T3）、不含 turn 内直播
-   尾部，健康门放开后的回填会清掉直播内容（实测每轮边界"删掉重显"）；
-   done 臂落 streaming=false 后回填恢复兜底。完成启发式（回合增长守卫）
-   保留，并增 **pending 守卫**（PLAN-073 P2-T3）：末条为 pending 快照
-   （非终版）时不清窗不收束，等收束终版同 id 换入（pending 清除）后自然收束。
+4. **轮询为兜底**：`PollStream`（500ms tick，**deadman 活性窗=「最后一次回填
+   成功后 2 分钟」**）仅在 SSE 不健康时承担回填（PLAN-067：3s 内有流事件则
+   跳过）。**PLAN-069 F-04 收紧**：`.streaming && stream_es != None`（web 轨
+   SSE 已附加）期间回填**整体跳过**——run 期间服务端仅存 turn 粒度增量快照
+   （PLAN-073 P2-T3）、不含 turn 内直播尾部，健康门放开后的回填会清掉直播
+   内容（实测每轮边界"删掉重显"）；done 臂落 streaming=false 后回填恢复
+   兜底。完成启发式（回合增长守卫）保留，并增 **pending 守卫**（PLAN-073
+   P2-T3）：末条为 pending 快照（非终版）时不清窗不收束，等收束终版同 id
+   换入（pending 清除）后自然收束。
+   **PLAN-092 T-02 r2 增订（VM 臂门控语义）**：活性窗门控**全 int tick
+   计数**——`poll_seen_wins`（识别 Send/Attach 的 push 增长=活性）、
+   `poll_idle_ticks`（>240 tick≈120s 无活性即清窗，**expired 臂清窗一次后
+   静默**，空闲态 tick 在 wins==0 短路零日志）、`poll_inflight_ticks`（单飞
+   防重入；>20 tick≈10s 未回收判响应丢失自动放行）。续窗信号=窗增长或回填
+   成功复位 idle（原「`.streaming == true` 每 tick 续窗」退役——该标量 VM
+   读垃圾恒真曾致 wins 无界增长）。VM 轨禁用时间戳/bool 读/列表索引读作
+   门控（0927 实机定罪的平台读缺陷三件，见 vm-data-semantics 已知边界）；
+   web 轨两道 SSE 门（live 门+3s 健康门）原样保留（web Date.now 为原生
+   真时钟）。窗口戳仍以列表 push 承载（跨模块调用帧唯一可靠写，536 T12）。
 5. **双轨注记**：VM 轨无 SSE，轮询即主通道（Plan 051 T10 形态），叶同步规则
    同样适用；SSE 健康门在 VM 恒开（OnStreamEvent 不触发），不影响 VM 轮询。
+   **PLAN-092 实证**：r2 门控下 VM 轮询 2/秒全程到达、发送后零操作回复
+   自动上屏（契约② VM 臂达成）、145s 空闲 0 请求 0 日志。
 6. **块化组装规则（PLAN-069 W2）**：每次 ReAct 迭代的叙述文本独立成 text 块
    （跨轮不合并）；tool_call 与 tool_result 成对入块、按执行序穿插；`content`
    为全部 text 块的派生拼接、`tool_calls` 为 tool 块引用（兼容面）。前端
