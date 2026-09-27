@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-092
-status: reviewed
+status: archived
 feature_name: UAT 四缺陷收敛——会话id可见性 / VM流式刷新 / auto-plan技能自带 / 计划落盘
 author: [agent]
 created_at: 2026-09-27T17:30:00+08:00
-updated_at: 2026-09-27T22:55:00+08:00
+updated_at: 2026-09-27T23:15:00+08:00
 plan_revision: 1
 current_step: 4
 total_steps: 4
@@ -390,3 +390,34 @@ dbg 行增打 `inflight_at` 便于下次归因。
   （git show 5443aa8 扫描）；复审重放日志 tmp/vm-092-wt.log、
   tmp/musk-serve-092-wt.log、截图 tmp/p092-plans-view.png（VM 计划栏）
   | next: merge（SD-02 落地文本须含 092-D1 已知边界注记）。
+
+- 2026-09-27 stage:merge | **PLAN-092:r1** 收据（五 checkpoint 全过）：
+  **prepared** — reviewed 基线 5443aa8（+a2b4963）；SD-01..04 规范文本于
+  worktree 落 docs/specs/modules/{chat-streaming,workspace-ui,plan-flow}.md
+  （cfd7149，纯文档后裔——实现/依赖零变化已核）；SD-02 含 092-D1 已知边界
+  （review finding F-1 义务履行）。**landed** — auto-ai 先折回（wt-guard
+  clean → rebase main 无位移 → ff-only → auto-ai main=**5a50a55**，worktree
+  +分支即清）；musk worktree rebase：main 侧三 docs 提交（b8f2514/
+  243bdb4/bc2ca8c）无冲突，range-diff 三补丁全等（`=`）——**旧→新映射
+  a2b4963→5630ee2、5443aa8→19756e8、cfd7149→9042539**；`git merge
+  --ff-only plan-092-dev` → main tip=**9042539** 零 merge commit。落地
+  途中甄别：backend/Cargo.lock 工作树漂移系基线对照 cargo run 触发
+  auto-lang master 前进（c0a52de7b→5c558778f）重解析，非计划改动——
+  已 `git checkout --` 恢复提交版锁（落地代码按 worktree 快照
+  c0a52de7b 构建验证，auto-lang 前进的未来重解析归后续构建自然发生）。
+  **ledger_refreshed** — workspace=auto-musk 主检出 `.autoos/specs.json`
+  （运行时账本，gitignored）：workspace-ui-D1 source_sha256 02ebe2cd→
+  **c1f85695**；**新增** chat-streaming-D1（**832ed8e9**）与 plan-flow-D1
+  （**921fb41d**）两条现行知识索引（补账本缺口——两文件此前无 D 条目）；
+  离线读-改-写原子落盘（serve 暂停独占写，重启后 /api/plans + /api/
+  specs/tree 双 200），回读验证 designs 区 5 条 hash 全对。**archived** —
+  本文件 git mv 入 docs/plans/archived/ 并 status: archived，
+  completion_kind: delivered。**cleaned** — wt-guard 复跑 clean 后
+  `git worktree remove` musk-092/auto-musk + `git branch -d
+  plan-092-dev`；只读依赖 worktree 同组拆除（auto-lang @c0a52de7b /
+  auto-down @3373a5c，分支删除、主检出零改动；auto-down 的 auto-musk-dev
+  残留分支经祖先核验后 -B 重置挂载）；组目录 `.wt/musk-092` rmdir。
+  **merge 观察项（登记不阻塞）**：①生产 aaid（17654）仍跑 0924
+  release——T-04 打点需 `cargo build --release -p auto-ai-daemon` +
+  择隙重启共享 daemon 后方在生产面生效（auto-ai main 代码已就位）；
+  ②vm-probe 需组内第 4 依赖 worktree auto-down（083 已知坑，已补建）。
