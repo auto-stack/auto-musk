@@ -24,7 +24,8 @@ use.web.fn chatSearchFilter, chatLastMessageId, chatBranchLabel, chatBranchEntri
 use.web.fn mention_trim from "src/front/mention_helpers.at"
 use.web getQuestions, hasQuestionnaire from "src/front/questionnaire.at"
 use.web questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder from "src/front/questionnaire_helpers.at"
-use.web component Plus, Trash2, Search, Info from "src/front/ports/icons.at"
+// PLAN-092 T-01: Copy/CopyCheck 入口（会话 id 信息条复制态，session_info.at 先例）。
+use.web component Plus, Trash2, Search, Info, Copy, CopyCheck from "src/front/ports/icons.at"
 use.web useT from "src/front/ports/composables.at"
 // PLAN-058 三期:删除确认 web 轨 = AutoUI alert-dialog（components/
 // DeleteConfirmDialog.vue 薄适配:ui/alert-dialog 标准件组合,直连绑定沿
@@ -118,6 +119,12 @@ widget ChatsView {
         ArchiveRow(str, bool),
         // ToggleEarlier: "更早"分组折叠切换（转发 store.SetEarlierCollapsed）。
         ToggleEarlier,
+        // ── PLAN-092 T-01：会话 id 信息入口（084 退役 SessionInfo 的紧凑回归）──
+        // ToggleSessionInfo: 头部 i icon 展开/收起会话 id 信息条。
+        ToggleSessionInfo,
+        // CopySessionId: 复制当前会话 id（dom.copy_text；✓ 态常驻至下次复制，
+        // 029 已登记 setTimeout 自动复位不可表达）。
+        CopySessionId,
     }
 
     model {
@@ -141,6 +148,11 @@ widget ChatsView {
         var search_open bool = false
         // 头部标题行内编辑态（middle 槽换输入框）。
         var header_renaming bool = false
+        // ── PLAN-092 T-01 ──
+        // 会话 id 信息条展开态（头部 i icon 触发）。
+        var info_open bool = false
+        // 复制完成态（Copy → CopyCheck，常驻至下次复制）。
+        var info_copied bool = false
     }
 
     // Plan 028 T15：搜索过滤（原 useChatSearch composable → F2 多参 fn 直调）
@@ -161,6 +173,9 @@ widget ChatsView {
         // PLAN-084 T-07 二分探针（临时）：静态行——判定 computed/fn 调用 vs 渲染循环。
         // PLAN-084 T-03: 分组标记行改由 store handler 域维护（.store.session_rows）
         // ——视图 computed 内 use.web.fn 调用在 VM 侧静默返空（T-07 冒烟实证）。
+        // PLAN-092 T-01: 会话 id 展示文本（空态 —，session_info.at 先例；
+        // 纯 dot 路径 if——VM 侧 olderLabel 同构先例）。
+        sessionIdText => if .store.session_id != "" { .store.session_id } else { "—" }
     }
 
     // PLAN-049 T6：branch-row/branch-btn/retry-btn 已迁视图内联工具类（块删除）。
@@ -475,6 +490,44 @@ widget ChatsView {
                                 title: t("chat.archiveSession")
                                 icon (name: "archive", size: 15) {}
                             }
+                            // PLAN-092 T-01: 会话 id 信息入口（084 退役 SessionInfo
+                            // 的紧凑回归——仅 id + 复制，token 求和等重逻辑不回归）。
+                            button {
+                                onclick: .ToggleSessionInfo
+                                style: if .info_open {
+                                    "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-accent border border-transparent text-foreground cursor-pointer"
+                                } else {
+                                    "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent border border-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                                }
+                                title: t("chat.chatId")
+                                Info { size: 15 }
+                            }
+                        }
+                    }
+                }
+                // PLAN-092 T-01: 会话 id 信息条（i icon 展开；弱色单行——
+                // id 空态显示 —，session_info.at 先例；复制成功 CopyCheck
+                // 常驻至下次复制）。无 tooltip（084-D3 债）。
+                if .info_open {
+                    div {
+                        style: "flex items-center gap-2 shrink-0 px-5 py-1.5 border-b border-border bg-muted/40"
+                        span {
+                            style: "text-xs text-muted-foreground shrink-0"
+                            text t("chat.chatId")
+                        }
+                        code {
+                            style: "text-xs text-foreground flex-1 min-w-0 font-mono truncate"
+                            text .sessionIdText
+                        }
+                        button {
+                            onclick: .CopySessionId
+                            style: "flex items-center justify-center w-6 h-6 border-none rounded bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground shrink-0 cursor-pointer"
+                            title: t("chat.copyChatId")
+                            if .info_copied {
+                                CopyCheck { size: 13 }
+                            } else {
+                                Copy { size: 13 }
+                            }
                         }
                     }
                 }
@@ -765,6 +818,32 @@ widget ChatsView {
                 .search_open = true;
                 .header_renaming = false
             }
+        }
+
+        // ── PLAN-092 T-01：会话 id 信息入口 ──
+        // ToggleSessionInfo: i icon 展开/收起信息条（与搜索框互斥收起行内编辑，
+        // 沿 ToggleSearch 先例）。
+        .ToggleSessionInfo -> {
+            if .info_open {
+                .info_open = false
+            } else {
+                .info_open = true;
+                .header_renaming = false
+            }
+        }
+
+        // CopySessionId: dom.copy_text 直拷（029 T21 先例）；✓ 态常驻至下次
+        // 复制——收起再展开不清除，仅下次 CopyId 覆盖。
+        // CopySessionId: dom.copy_text 直拷（029 T21 先例）；✓ 态常驻至下次
+        // 复制——收起再展开不清除，仅下次 CopyId 覆盖。
+        // KNOWN-DEBT 092-D1：VM 轨 dom.copy_text native 静默失效（0927 实机
+        // 三探针定罪：handler 正常进入/字段读 len=24 正确/native 调用后无
+        // 剪贴板写入，let 绑定形态中止、裸调用形态静默空转；web 轨
+        // navigator.clipboard 正常）。auto-lang 平台债（2926 native 在视图
+        // handler 上下文），id 可见性半臂不受影响。
+        .CopySessionId -> {
+            dom.copy_text(.store.session_id);
+            .info_copied = true
         }
 
         // ToggleArchived: 归档过滤开关（无 ! 取反语法，显式双臂）。切出

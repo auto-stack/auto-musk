@@ -75,7 +75,13 @@ store ForgeStore {
         var has_more bool = false
         var next_before str = ""
         var older_loading bool = false
-        var poll_inflight bool = false
+        // PLAN-092 T-02 r2：轮询门控全 int 计数（bool 字段 VM 读垃圾
+        // -214748364x、Date.now int32 回绕、列表索引读垃圾——0927 实机
+        // 三探针定罪，见 PollStream 注）。timer/bridge 派发的 SET_FIELD
+        // 走根态（536 T12 口径），int 计数是唯一可靠读写面。
+        var poll_seen_wins int = 0
+        var poll_idle_ticks int = 0
+        var poll_inflight_ticks int = 0
         // PLAN-084 T-05: 已归档会话（"已归档"过滤开关的数据面）+ 开关态。
         // 归档 toggle 开时列表切到 archived_list；归档/取消归档后两表重拉。
         var archived_list []Value = []
@@ -225,7 +231,10 @@ store ForgeStore {
                     .has_more = false
                     .next_before = ""
                     .older_loading = false
-                    .poll_inflight = false
+                    // PLAN-092 T-02 r2：轮询计数器随清场复位。
+                    .poll_seen_wins = 0
+                    .poll_idle_ticks = 0
+                    .poll_inflight_ticks = 0
                     .ws_loading = false
                     .stream_es = Sse.close(.stream_es)
                     .error = ""
@@ -799,33 +808,60 @@ store ForgeStore {
             // PLAN-071 需求⑮：每拍驱动队列重试（busy 竞态退回后由此重发；
             // streaming 为真或队列空时是 no-op）。
             .FlushQueue()
-            // PLAN-536 T12(D4 修复,musk 侧④)：门控改 **deadman 时间窗**。
+            // PLAN-536 T12(D4 修复,musk 侧④)：门控改 **deadman 活性窗**。
             // 原因链（536 T12 实机时序实证）:跨模块调用帧（SendInput 体内
             // `store.Send/store.StartStream`）对 store 字段的 SET_FIELD
-            // 重绑定不达根态（同帧 .messages.push 经共享 vmref 可见、同帧
-            // .streaming/.pre_stream_len 重绑定不可见,autoui_state 对拍
-            // 实证;新立案 auto-lang KD——state-scope 专项）,.streaming 置位
-            // 不可靠 → when 门/handler 自守卫恒假 → 轮询永不启动。改以
-            // 发送时间戳 deadman 窗（2 分钟,窗戳经列表 push 承载,见
-            // StartStream 注⑤）门控:窗口内恒轮询（timer 派发走根态,回填
-            // 写入可靠）,窗口外静默;web 轨语义不受影响。
+            // 重绑定不达根态（同帧 .messages.push 经共享 vmref 可见）,
+            // .streaming 置位不可靠 → when 门/handler 自守卫恒假 → 轮询永不
+            // 启动。故窗戳以列表 push 承载（跨模块唯一可靠写）。
+            //
+            // PLAN-092 T-02（r2 重设计，全 int tick 计数）：0927 实机三探针
+            // 定罪本构建（auto-lang 702 段驱动 release）平台读缺陷三件——
+            // ①`wins[last]` 动态索引读返垃圾 -2147483647 → `now-started`
+            // 恒爆表 → 窗口即开即过期（UAT"window expired 2 行/秒刷屏 +
+            // PollBackfill 全天 0 到达"的全部根因）；②bool 字段读同族垃圾
+            // （dbg 实证 streaming/inflight=-214748364x）；③Date.now() 返
+            // int32 回绕值（now=-4.9e8，差分短窗内可用、跨期不可依赖）。
+            // 故门控弃用 时间戳/bool/索引读，改纯 int 字段计数（timer/bridge
+            // 派发走根态 SET_FIELD，536 T12 口径可靠）：
+            //   poll_seen_wins   上 tick 窗长（识别 Send/attach 的 push 增长）
+            //   poll_idle_ticks  距上次活性（窗增长/回填成功）的 tick 数，
+            //                    >240（≈120s）过期清窗
+            //   poll_inflight_ticks  发出后未回收 tick 数，0=无在途，
+            //                    >20（≈10s）判响应丢失放行
+            // 窗口语义：窗增长或回填成功即续窗（"最后一次回填成功后 2 分钟"）。
             let wins = .poll_window
-            if wins.length == 0 { return }
-            let started = wins[wins.length - 1]
-            // PLAN-071 需求⑥：deadman 窗随流式自动续期——原 120s 硬过期使
-            // 长任务（如 467s 深度思考）在窗口过期后 PollStream 永久沉默，
-            // SSE 侧任何迟滞都只能靠手动刷新看到结果。流式进行中每 tick
-            // 续窗；收束后窗口自然过期，恢复原语义。
-            if .streaming == true {
-                .poll_window.push(Date.now())
+            if wins.length == 0 {
+                if .poll_seen_wins != 0 {
+                    .poll_seen_wins = 0;
+                    .dbg_last = ""
+                }
+                return
             }
-            let dbg str = "wins=" + wins.length + " streaming=" + .streaming + " es=" + (.stream_es != None) + " last_sse=" + .last_sse_at
+            if wins.length > .poll_seen_wins {
+                // 窗增长 = Send/StartStream/AttachStream 的 push（跨模块
+                // 列表突变可靠）——活性信号，重置空闲计数。
+                .poll_idle_ticks = 0
+            }
+            .poll_seen_wins = wins.length
+            .poll_idle_ticks = .poll_idle_ticks + 1
+            let dbg str = "wins=" + wins.length + " idle=" + .poll_idle_ticks + " infl_t=" + .poll_inflight_ticks
             if dbg != .dbg_last {
                 .dbg_last = dbg
                 print("[POLL] " + dbg)
             }
-            if Date.now() - started > 120000 {
-                print("[POLL] window expired (>120s) — backfill off")
+            if .poll_idle_ticks > 240 {
+                // PLAN-092 T-02②：过期清理——expired 臂 pop 掉全部窗戳再
+                // return（旧形直 return → "[POLL] window expired" 每 500ms
+                // 刷两条，vm-0924.log 33 万行主源）。空闲态 tick 短路在
+                // wins.length==0，零日志。
+                print("[POLL] window expired (>240 ticks idle) — backfill off")
+                while .poll_window.length > 0 {
+                    let _pw4 = .poll_window.pop()
+                }
+                .poll_seen_wins = 0;
+                .poll_idle_ticks = 0;
+                .dbg_last = ""
                 return
             }
             // PLAN-069 F-04：流式期（web 轨 SSE 已附加）**绝不全量回填**——
@@ -839,22 +875,28 @@ store ForgeStore {
             // 恒非 None，旧形 `streaming && es != None` 把 stub 句柄当真流
             // 令轮询永久沉默（发送链实测卡收束）。真流事件必置 last_sse_at
             //（OnStreamEvent 入口），健康门独立兜底；stub 句柄无事件=不拦。
+            // PLAN-092 T-02 r2：两门原样保留（web 轨 Date.now 为原生真时钟，
+            // int32 回绕仅 VM 缺陷不涉此路径）；VM 轨 last_sse_at 恒 0，
+            // `!= 0` 恒假 → 两门在 VM 天然不拦，与 0927 定罪一致。
             if .streaming == true && .stream_es != None && .last_sse_at != 0 { return }
-            // PLAN-067 T-02：SSE 健康门——3 秒内有流事件就不回填。运行中
-            // 服务端快照不含未完成 assistant（完成后才持久化）,回填会反复
-            // 清掉 SSE 已上屏的流式内容;且回填不推进 active_leaf,叶链投影
-            // 会把新回合整体排除在渲染外（T-01 实测:轮询取到新数据但
-            // hasSent 恒 false）。SSE 断流（>3s 无事件）时本门自动放开,
-            // 轮询恢复兜底语义。
+            // PLAN-067 T-02：SSE 健康门——3 秒内有流事件就不回填。SSE 断流
+            // （>3s 无事件）时本门自动放开,轮询恢复兜底语义。
             if .last_sse_at != 0 && Date.now() - .last_sse_at < 3000 { return }
             let sid = .session_id
             if sid == "" { return }
-            // PLAN-083 T-03：回填请求异步化——Http.get_msg 入队即返（旧形
-            // 同步 chats_get_session 在 call_fn_by_name 忙等，流式期每
-            // 500ms 一拍全量 578KB 同步解析=切换冻结同源的 UI 卡顿）。
-            // poll_inflight 防重入：上一拍未回收不再发新拍（单飞轮询）。
-            if .poll_inflight { return }
-            .poll_inflight = true
+            // PLAN-083 T-03：回填请求异步化——Http.get_msg 入队即返。
+            // PLAN-092 T-02①：单飞带超时自愈，全 int 计数（bool 读垃圾不
+            // 可作门）。inflight_ticks=0 空闲可发；>20（≈10s）判响应丢失
+            // 放行（0927 UAT：首拍响应丢失 → 恒阻塞 → 全天零回填）。
+            if .poll_inflight_ticks > 0 {
+                if .poll_inflight_ticks > 20 {
+                    .poll_inflight_ticks = 0
+                    print("[POLL] inflight timeout (>20 ticks) — auto-release")
+                } else {
+                    return
+                }
+            }
+            .poll_inflight_ticks = 1
             Http.get_msg("/api/chats/session/" + encodeURIComponent(sid) + "/page?limit=50", "ForgeStore.PollBackfill")
         }
 
@@ -862,7 +904,7 @@ store ForgeStore {
         // 归一化载荷，按已加载窗口合并（073 链适配：has_more 历史前缀不
         // 因轮询整表替换丢失），完成启发式与 071⑮ 排空语义原样保留。
         .PollBackfill(payload str) -> {
-            .poll_inflight = false
+            .poll_inflight_ticks = 0
             let sid = .session_id
             if sid == "" { return }
             var resp = None
@@ -874,6 +916,11 @@ store ForgeStore {
             }
             if resp == None { return }
             if resp.session == None { return }
+            // PLAN-092 T-02 r2：续窗信号——回填成功即活性，重置空闲计数
+            // （窗口语义=「最后一次回填成功后 2 分钟」）。置于流式守卫之前：
+            // 生成期快照末消息尚为 user 时守卫臂 return 不合并，但请求-
+            // 响应链路本身健康，长任务（071⑥ 场景）不得因守卫断窗。
+            .poll_idle_ticks = 0
             // PLAN-071 需求⑧ T-36：流式期回填防清除——服务端快照在收束前
             // 不含 assistant，整表替换会把乐观消息连思考一起清掉（用户截图3
             // 实证：内容全清冻结至刷新）。仅当快照末消息已是 assistant
