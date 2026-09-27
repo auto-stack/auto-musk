@@ -148,6 +148,9 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
     let registry =
         crate::workspace::WorkspaceRegistry::load(config_dir.join("workspaces.json"), default_root);
     registry.migrate_global_data(&config_dir);
+    // PLAN-092 T-03: auto-plan 四技能幂等分发至 <config_dir>/skills/（musk
+    // 为真源；产品 agent 只扫该目录。源缺失仅 warn，不阻断 serve）。
+    crate::builtin_skills::sync_builtin_skills(&config_dir);
     // PLAN-087: canvas 管理器先建（关停钩子需独立句柄；state 构造即消费）。
     let canvas = Arc::new(crate::canvas::CanvasManager::new());
     let state = AppState {

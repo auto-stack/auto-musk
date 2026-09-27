@@ -4,6 +4,8 @@
 
 pub mod app_config;
 pub mod auth;
+// PLAN-092 T-03: auto-plan 四技能 serve 启动幂等分发（musk 为真源）。
+pub mod builtin_skills;
 pub mod canvas;
 pub mod chats;
 pub mod conversation;
@@ -248,10 +250,11 @@ pub fn build_agent_from_mode(
     // 3. Register the Skill tool if the mode enables skills. Plan 004: if the
     //    role declares a skills whitelist, only those skills are exposed;
     //    otherwise (empty whitelist) all installed skills are exposed.
+    //    PLAN-092 T-03: 目录解析改 autoos_skills_dir 单源（MUSK_CONFIG_DIR
+    //    覆盖时与 serve 技能分发目标一致）；agent 每 run 重建即重扫，
+    //    serve 启动同步的新技能下一次运行即可见。
     if mode.skills {
-        if let Some(skills_dir) =
-            dirs::home_dir().map(|h| h.join(".config/autoos/skills"))
-        {
+        if let Some(skills_dir) = crate::builtin_skills::autoos_skills_dir() {
             let mut registry =
                 auto_ai_agent::SkillRegistry::scan(&skills_dir);
             if !role_skills.is_empty() {
