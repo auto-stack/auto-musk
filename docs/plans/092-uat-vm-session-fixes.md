@@ -329,7 +329,8 @@ dbg 行增打 `inflight_at` 便于下次归因。
   001 号计划）、AC-06 部分（计划栏✓/文件栏受 089 mouse-area 仪器债）；
   门禁：cargo build 双仓绿 + builtin_skills 单测绿 + vitest 29 绿 +
   ui-parity 目录 PASS（4 live-required 缺 live 收据系既有态）+ auto build
-  首轮绿（r2 终版 vue 门在跑，收口注记补记） | blockers: 092-D1
+  终版绿（r2 终版 .at 的 vue codegen+生产构建 exit 0，20:5x 收口补记）
+  | blockers: 092-D1
   （dom.copy_text VM 失效）、089 仪器债（mouse-area MCP press）、
   536 族平台读缺陷三件（索引读/bool 读/Date.now 回绕，T-02 r2 已绕开、
   根修归上游） | next: review（含真鼠标走查 AC-06 文件栏 + 复制半臂
