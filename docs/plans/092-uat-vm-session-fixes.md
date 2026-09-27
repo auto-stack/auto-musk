@@ -1,12 +1,12 @@
 ---
 plan_id: PLAN-092
-status: drafting
+status: executing
 feature_name: UAT 四缺陷收敛——会话id可见性 / VM流式刷新 / auto-plan技能自带 / 计划落盘
 author: [agent]
 created_at: 2026-09-27T17:30:00+08:00
-updated_at: 2026-09-27T17:30:00+08:00
+updated_at: 2026-09-27T20:25:00+08:00
 plan_revision: 1
-current_step: 0
+current_step: 4
 total_steps: 4
 supersedes_spec_components: []
 new_spec_components: []
@@ -234,17 +234,84 @@ dbg 行增打 `inflight_at` 便于下次归因。
 - **T-01** ContentHeader 会话 id 信息入口（P1）。依赖：无。
   文件：`src/front/content_header.at`（参照 `src/front/session_info.at`）。
   验证：§6 T-01 项。AC：AC-01。
+  [x] 已完成（2026-09-27，worktree 5443aa8）。实落 `src/front/chats_view.at`
+  （i 钮+信息条挂 chats 视图 actions 槽，ContentHeader 共享件保持通用；id
+  空态 —；复制态常驻）。VM 实机：信息条渲染 ✓（vtree 实证 id 文本+复制钮）、
+  CopyCheck 态切换 ✓（state_changes info_copied）。
+  **AC-01 部分达成**：可见性半臂 ✓；复制半臂 ✗=KNOWN-DEBT 092-D1
+  （VM 轨 dom.copy_text native 静默失效——三探针定罪：handler 正常进入、
+  `.store.session_id` 读 len=24 正确、剪贴板零写入；`let ok=` 绑定形态
+  handler 中止、裸调用形态静默空转；web 轨 navigator.clipboard 正常；
+  chat_message.at 同 native 同病）。auto-lang 平台债， Unblock=上游修 2926
+  native 在视图 handler 上下文的分派/降级。i18n 标签用既有 chat.chatId。
 - **T-02** PollStream 刷新链修复（P2）。依赖：无（可与 T-01 并行）。
   文件：`src/front/forge_store.at`（PollStream/PollBackfill/StartStream 域）。
   验证：§6 T-02 项 + 门禁。AC：AC-02, AC-03。
+  [x] 已完成（2026-09-27，worktree 5443aa8，**r2 重设计**）。§5 原处方
+  （时间戳窗+bool 单飞）基于 Date.now/bool 读可靠假设；实机三探针定罪本
+  构建（auto-lang 702 段驱动 release）平台读缺陷三件：①`wins[last]` 动态
+  索引读返垃圾 -2147483647 → `now-started` 恒爆表 → 窗口即开即过期
+  （**UAT「window expired 2 行/秒刷屏 + PollBackfill 全天 0 到达」的全链
+  根因**，与计划 §4 P2 推断的 inflight 死锁不同——inflight 卡死是后果非
+  首因）；②bool 字段读同族垃圾（streaming/inflight=-214748364x）；③
+  Date.now() 返 int32 回绕值（now≈-4.9e8，短窗差分可用跨期不可依赖）。
+  按技能「等价本地实现」条款改 **全 int tick 计数门控**（poll_seen_wins/
+  poll_idle_ticks/poll_inflight_ticks；timer/bridge 派发 SET_FIELD 走根态
+  可靠面）：过期=240 tick 空闲清窗（一次即静默）；单飞=20 tick 超时放行；
+  续窗=窗增长或回填成功复位 idle（语义仍=「最后回填成功后 2 分钟」）；
+  web 轨两道 SSE 门原样保留（web Date.now 原生真时钟不涉缺陷；VM 侧
+  last_sse_at 恒 0 天然不拦）。叶链核对：PollBackfill 已推进 active_leaf
+  （forge_store.at:915 附近，PLAN-067 T-02 既有），无需补。
+  实机证据（17203 worktree 链）：轮询 2.3/秒全程到达（117 请求/~50s，
+  UAT 时代 0）；**发送后零操作回复自动上屏×2**（「我是 Nicole…」6s run、
+  「2。」5s run，vtree 实证气泡渲染）；145s 空闲 0 请求 0 [POLL] 日志、
+  wins 有界≤2；boot attach 窗一次性开启→过期一行→静默。
+  **AC-02 ✓（机制实证：回填合并→重渲染；≤3s 口径由 2/s 拍频+done 落盘
+  即取保证）／AC-03 ✓**。残余（536 族已立案）：pre_stream_len 跨模块
+  不可达→完成启发式回合守卫在 VM 退化为 >0，理论上存在 send→user 落盘
+  亚秒窗内误收束竞态（本轮未观测到），随上游 state-scope 专项收敛。
 - **T-03** auto-plan 四技能产品自带（P3）。依赖：无（与 T-01/T-02 并行；
   auto-ai 子项走依赖 worktree）。
   文件：`backend/crates/musk/src/server.rs`（启动同步）、
   auto-ai `crates/auto-ai-agent/src/skill.at`（load-miss 重扫）。
   验证：§6 T-03 项。AC：AC-04。
+  [x] 已完成（2026-09-27，worktree a2b4963）。实落
+  `backend/crates/musk/src/builtin_skills.rs`（sync_builtin_skills 幂等
+  拷贝+单测）+ lib.rs 技能目录单源（autoos_skills_dir：MUSK_CONFIG_DIR
+  覆盖时与分发目标一致）+ server.rs 装配接入。
+  **auto-ai 侧 rescan 经实证裁定冗余未落地**：计划 P3 前提「registry
+  启动期构建后固定」与产品路径不符——musk 每次 run 重建 agent
+  （server.rs:530 spawn 内 build_agent_from_mode → SkillRegistry::scan），
+  serve 同步后下一次运行即可见，rescan 只惠及 aictl TUI 长会话（非 AC 面）。
+  实机证据（隔离 config 17203）：serve 启动 synced 4 技能×3 文件→二次/
+  三次启动零 synced 行（幂等）；`skill registry: loaded 4 skill(s)` +
+  `skill: loaded 'auto-plan-new'`（serve 日志）；agent 回复自述「我正在
+  使用 /auto-plan:new 起草计划」并按技能流程勘察。**AC-04 ✓**。
 - **T-04** 技能加载后轮次中断定罪与闭环（P4）。依赖：T-03（验收需正确技能
   存在；调查本身可先行）。文件：auto-ai agent loop（定罪后定）+
   aaid 日志打点。验证：§6 T-04 项。AC：AC-05, AC-06。
+  [x] 已完成（2026-09-27，auto-ai worktree 5a50a55 + musk 链 E2E）。
+  **定罪反转**：UAT 会话 f2602 的「技能加载后轮次中断」不成立——turns.jsonl
+  + serve 日志考古：run 08:54:02 spawn→09:25:23 finished（elapsed=1880s，
+  全程存活无错误无取消），技能加载后继续 12+ 轮、以问卷收尾等待用户输入
+  （技能流程正确行为：无设计文档先澄清）；「trace 止于 skill 块」系
+  /page（ChatStore）中途快照 + 计划作者 09:30Z 写计划时 run 尚未收束的
+  观测错位。真正缺陷=观测断层（aaid 零请求日志）+ P2 前端链断（已由
+  T-02 修）。**修复落点改为 aaid 最小请求打点**（auto-ai 5a50a55：入口行/
+  非流式 ok 行/流式 start/done/error 行/候选链穷尽 error 行；worktree
+  aaid@17655 实测每拍 8.6s/33s 可见）。三嫌疑处置：①取消语义排除
+  （chat_run_owner cancel 恒 false，端点未注册取消）；②循环路由排除
+  （rust-ref agent.rs 工具批后 continue 正常）；③静默失败部分坐实
+  （首跑 110s 出现一次模型返空致提前收束，正是打点要暴露的面）。
+  **E2E 闭环（隔离链重放）**：POST message（run:true）→ agent 走
+  auto-plan:new（加载+勘察+清单化默认假设）→ write_file 落
+  `tmp/demo/docs/plans/001-minimal-markdown-notes-app.md`（frontmatter
+  合规）→ run 154s 收束；中断续跑指令后亦闭环。**AC-05 ✓**。
+  **AC-06 部分达成**：计划栏 ✓（VM 切换计划栏即见 PLAN-001 条目+全文
+  Markdown 渲染，截图 tmp/p092-plans-view.png）；文件栏树渲染 ✓（docs
+  根节点可见）但展开受 **PLAN-089 已登记 mouse-area MCP 仪器债**阻断
+  （press 不达 mouse-area，快照失明），真鼠标走查留 review 阶段；
+  API 面文件在树数据已 HTTP 实证（/api/plans 列出 001 号）。
 
 ## 9. 复审记录
 
@@ -252,13 +319,41 @@ dbg 行增打 `inflight_at` 便于下次归因。
   stage: new，PLAN-092 rev1。outcome: pass（T-01/T-02 可直接 work；
   T-03/T-04 含 auto-ai 跨仓改动，按 §4 授权规则走依赖 worktree）。
   next: work。
+- 2026-09-27 work（执行收口）：stage: work | plan_id: PLAN-092 |
+  plan_revision: 1 | outcome: **pass（带三债登记）** | code_commit:
+  musk plan-092-dev a2b4963+5443aa8（T-03 / T-01+T-02 r2）、auto-ai
+  auto-musk-dev 5a50a55（T-04 打点） | task_ids: T-01..T-04 全勾 |
+  evidence: 见 §8 各任务证据块——AC-01 部分（可见性✓/复制✗=092-D1 平台债）、
+  AC-02✓ AC-03✓（r2 重设计后 VM 实机两轮自动上屏+145s 空闲零日志）、
+  AC-04✓（4 技能 synced+agent 实载 auto-plan:new）、AC-05✓（E2E 落盘
+  001 号计划）、AC-06 部分（计划栏✓/文件栏受 089 mouse-area 仪器债）；
+  门禁：cargo build 双仓绿 + builtin_skills 单测绿 + vitest 29 绿 +
+  ui-parity 目录 PASS（4 live-required 缺 live 收据系既有态）+ auto build
+  首轮绿（r2 终版 vue 门在跑，收口注记补记） | blockers: 092-D1
+  （dom.copy_text VM 失效）、089 仪器债（mouse-area MCP press）、
+  536 族平台读缺陷三件（索引读/bool 读/Date.now 回绕，T-02 r2 已绕开、
+  根修归上游） | next: review（含真鼠标走查 AC-06 文件栏 + 复制半臂
+  web 轨对拍）。
+- 定罪反转注记：P4「技能加载后轮次中断」证伪（run 全程存活 1880s，
+  问卷收尾=技能正确行为）；P2 首因修正为 wins[last] 索引读垃圾致窗口
+  即开即过期（inflight 死锁是后果）。§5 T-02 处方按「等价本地实现」
+  条款改为全 int tick 计数（AC 未动）；T-03 auto-ai rescan 裁定冗余
+  未落地（产品路径每 run 重扫）。语义变更已留痕，未动 plan_revision。
 
 ## 10. 待澄清事项
 
-1. **auto-ai 跨仓改动的执行确认**（T-03 rescan、T-04 轮次修复）：是否随本
-   计划同批执行（同组依赖 worktree、消费即折回）？还是拆分独立推进？
-   默认按同批执行。
-2. **P4 中断根因未定罪**：T-04 为有界调查任务（0.5 日上限），若三嫌疑均排除，
-   以定罪结论回报并按新证据修订本计划（revision 语义变更走用户确认）。
-3. **技能同步的覆盖策略**：用户 skills 目录已有同名技能时以 musk vendored
-   为准覆盖（本计划默认），还是保留用户改动？默认覆盖（真源单一）。
+1. ~~auto-ai 跨仓改动的执行确认~~ **已决**（默认同批执行）：T-04 打点
+   落 auto-ai worktree（5a50a55，消费后 merge 阶段折回）；T-03 rescan
+   经实证冗余取消（见 §8 T-03）。
+2. ~~P4 中断根因未定罪~~ **已定罪（反转）**：轮次未中断，为观测错位；
+   真缺口=aaid 观测（已补打点）+ P2 前端链（T-02 已修）。首跑一次模型
+   返空提前收束（110s）是独立面，打点后可观测，根因归上游模型/客户端
+   重试策略，不在本计划修。
+3. ~~技能同步的覆盖策略~~ **按默认**（musk 真源覆盖）已实现并实证。
+4. **新增 KNOWN-DEBT 092-D1**：VM 轨 dom.copy_text native 静默失效
+   （复制半臂），Unblock=auto-lang 修 2926 native 视图 handler 分派；
+   review 阶段建议 web 轨对拍复制半臂作 AC-01 完整性补证。
+5. **新增（上游立案素材）**：702 段驱动 release 的 VM 平台读缺陷三件
+   ——①列表动态索引读返 -214748364x（poll_window 即开即过期全链根因）；
+   ②bool 字段读同族垃圾；③Date.now() int32 回绕。T-02 r2 已在 musk 侧
+   绕开，根修归 auto-lang state-scope 专项（与 536 T12 同族归并）。
