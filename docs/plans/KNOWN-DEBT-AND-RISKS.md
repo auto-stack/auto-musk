@@ -124,3 +124,11 @@
 | 084-D5 | P2 | auto-lang | .at 括号不平衡不报错而是 codegen 64GB 分配爆炸——parse 期深度断言+收敛报错 | UAT⑩ 过程实录（mention_input depth+2） |
 | 084-D6 | 基线红 | PLAN-070 | tool_atoms::run_command_dangerous_returns_paused 红：多根 confine 先于危险模式判定拒绝 `/`——084 diff 前即红（基线验证在案） | cargo test tool_atoms 单测对照 |
 
+
+## PLAN-092 遗留债（2026-09-28 生产实机复验登记）
+
+| ID | 级别 | 归属 | 内容 | 证据 |
+|:---|:---|:---|:---|:---|
+| 092-D1 | P2 | auto-lang | **VM 轨 `dom.copy_text` native 在视图 handler 上下文静默失效（复制半臂）**：handler 正常进入、`info_copied` 翻转、剪贴板零写入；web 轨 `navigator.clipboard.writeText` 正常（2026-09-28 生产实机探针捕获实参与会话 id 逐字对拍通过；自动化环境 NotAllowedError=文档未聚焦，非产品缺陷）。Unblock=auto-lang 修 2926 native 视图 handler 分派/降级；规范侧已知边界在 `docs/specs/modules/workspace-ui.md` | 本会话复验：MCP press CopySessionId → state info_copied false→true 且剪贴板保持哨兵值 SENTINEL-0928 |
+| 092-D2 | P2 | auto-ai/上游 | **agent tool_use 输入大载荷截断（≈8KB 族）+ 分段自愈中轮次静默收束**：write_file 单载荷 8014 字节 JSON 截断（"EOF while parsing a string at line 1 column 8014; raw len=8014"，空输入替代），agent 自愈改 `<!--PARTn-->` 标记分段写入；但首轮观测到 Part 1 落盘后轮次无续拍静默结束（追加段未执行、无错误行）——与 P4 原始"技能加载后中断"同族形态。续跑指令后闭环补完（全文 §0–§10）。T-04 打点已可逐拍观测复发；截断根因层（aaid 聚合 vs 模型端输出截断）未定罪，Unblock=用新打点抓复发现场 | tmp/demo/docs/plans/002-pomodoro-timer-web-app.md（终态 183 行完整）/ 会话 c6ee0e8c 轨迹（write_file×2+分段文本）/ tmp/aaid-0928.log |
+| 092-D3 | 流程债 | 本仓 | **merge 落地 ≠ 部署生效（三件套过期事故）**：PLAN-092 归档（09-27 晚）后生产仍跑旧面——musk.exe=09-27 12:16（早于计划开工）、aaid.exe=09-24（无 T-04 打点）、gen/front/vue/dist=09-26 23:32（web 轨无 T-01 i 钮）；归档收据仅登记 aaid 一件。2026-09-28 复验会话重建三件套+重启后四缺陷方在生产面实机闭环。处置：auto-plan-merge 技能已补「Landing is not deployment」收尾检查步（重建 backend release/依赖仓 daemon/gen dist 并择隙重启，或收据显式登记观察项）；本行留档事故本体 | musk main 8665610 时代进程 PATH/StartTime 取证（aaid 09-24 17:17 构建、musk 09-27 12:16 构建、dist 09-26 23:32）；重建后 2026-09-28 实机复验全绿 |

@@ -190,6 +190,18 @@ Only after landing and ledger verification succeed:
    `blocked` with cleanup pending, and retry only that operation.
    Authorized dependency worktrees follow their own review/integration gates
    and should already have been folded/cleaned promptly.
+5. **Landing is not deployment.** After `cleaned`, verify the
+   production-facing artifacts that consume the landed code are current:
+   the backend release binary (`cargo build --release`), release binaries of
+   dependency repos the Plan touched (e.g. the daemon), and the generated web
+   bundle (`auto build` → `gen/front/vue/dist`). A code-only merge leaves all
+   three stale while receipts still read delivered. Either rebuild and restart
+   the production processes now (check connections first; follow the repo's
+   shared-daemon restart protocol), or record an explicit observation item
+   naming each stale artifact and its build date in the merge receipt. Lesson
+   (auto-musk PLAN-092, 2026-09-27): all three artifacts predated the Plan's
+   fixes and the receipt registered only one of them; the defects persisted
+   on the running desktop until a later session rebuilt and restarted.
 
 A crash between the file move and status/receipt update is repaired from the
 verified delivery evidence, without rerunning completed publication. Do not
