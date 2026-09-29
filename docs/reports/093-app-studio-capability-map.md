@@ -117,3 +117,83 @@ Manager 内部：`begin_session`（spawn 前纯状态：冲突判定+归属登�
 oneshot 直打路由）——代次递增/冲突、归属停止守卫、未绑定语义、帧 seq/代次
 冲突不伪造历史、未命中清选、换代丢陈旧选、status 身份字段、路由 409/清选臂。
 
+
+## 8. T-03 接缝修复与实机验证记录（2026-09-29，work 会话续）
+
+### 8.1 阻塞②解除：VM serve 符号解析（musk 语料适配 Plan 545）
+
+- 根因：auto-lang Plan 545 移除隐式平铺导入——依赖模块导出仅注册
+  `mod#sym`/`mod.sym` 限定名；裸名 reloc 不再绑定依赖导出。语料
+  （仅 vm_entry.at 有裸 use）全部建立在旧语义上，首个跨模块调用即
+  `Undefined symbol: auth_header_token in module server`。
+- 适配（全在 musk 仓，46b1173）：242 个跨模块调用名静态盘点
+  （analyze_cross_module.js）；228 个指向 extern_sigs，其余为路由装配
+  （vm_entry→5 路由模块）与两处歧义签名裁定（drive_run→relay_driver、
+  build_agent_with_context→lib）。17 模块加具名条目导入
+  （`use X: a, b`，stdlib 先例 http_stream.at）；vm_entry 裸 use 升级条目
+  形态。歧义名 8 个中仅 2 个有真实跨模块调用点，逐一按签名/await 形态
+  裁定，其余无人调用不导入（避免 import_scope 遮蔽本地定义——
+  resolve_call_symbol 首查 import_scope）。
+- 实证：serve 启动 3601 路由、`/api/professions` 200。
+
+### 8.2 G-7（新登记）：ext/type 方法体解析不到模块导入
+
+- 实证：deps/auto.exe v0.4.2-2221 双 fixture——条目导入后顶层 fn 裸调用
+  解析 ✓；同文件 ext 块方法体内同一 fn 裸调用 → 裸 reloc link 失败；
+  限定调用 `mod.fn()` 在方法体内 → "Undefined variable"。dep 模块路径同症。
+- 影响：VM 加载集内仅 wiki（3 名 6 调用点），顶层 shim（`__wiki_*`）规避。
+  transpile-only 模块还有 25 个方法体调用点（auth/chats/orch_tools/
+  relay_driver/spec_tools/task_plan_engine/task_plan_registry/tools），
+  VM 轨不加载、暂不处理。
+- 解除动作（依赖任务）：auto-lang codegen 让 ext 方法体调用解析接
+  import_scope/known_module_prefixes，或 musk 语料全量 shim 化（后者的
+  a2r 轨影响需先评估）。
+
+### 8.3 VMHTTP 桥三处修复与五路由实证（8869f6a）
+
+- 桥内嵌套 runtime：canvas_*_host 宿主闭包在 tokio worker 内执行，
+  `Runtime::block_on` 直接 panic（"Cannot start a runtime from within a
+  runtime"，vmret5 实证）→ 专职线程桥（vm_backend mpsc_recv 同款）。
+- 3 提取器 handler：`(s,q,body)` 三提取器（async 与否皆）经 axum_adapter
+  派发触发引擎 RET 帧错位（engine.rs:9004 下溢；chat_get 3 参同症、
+  auth_login 2 参正常）→ 五 handler 去 State 提取器（宿主闭包本就用
+  STATE 单例自建 state，wire 契约不变）。
+- session.rs:155/165：`split_off(160)` 把"最后 160 行"误写成下标 160，
+  目标子进程早退（行数<160）即 panic → `len.saturating_sub(160)`。
+- 实证（curl 收据 /tmp/vmret9.log，本机易失，要点入本节）：status 200
+  （generation_id/owner_workspace_id/owner_conversation_id/frame.valid
+  全）·frame 503（无目标）·frame?generation=999 → 409·stop 200
+  `{"state":"stopped","generation_id":0}`·pick clear 200
+  `{"cleared":true}`·start 不存在路径 400（路径越界文案列根）。0 panic。
+
+### 8.4 G-8/G-9/G-10（新登记）：VM 轨引擎/续体缺陷（阻塞剩余验证）
+
+- G-8 .at 路由 handler 帧核算错位：axum_adapter 派发的 handler task
+  每请求触发 `[VM-RET] underflow guard: bp=1, n_args=1`（engine.rs:9010
+  守卫夹值保命）；start 的 spawn 长宿主调用路径则在下溢守卫之前的
+  减法处 panic（debug 构建）→ VM server 线程死亡（vmret11 实证）。
+  宿主侧 insert_http_response 直出的 200（curl 可见）掩盖 handler 任务
+  自身帧已破。解除动作（依赖任务）：auto-lang 引擎/适配器修帧核算与
+  长宿主调用下的 RET 路径；守卫前移到减法之前是最小止血。
+- G-9 VM 客户端 POST park 续体丢失：`Http.request(..).body(..).send()`
+  与 `Http.post(url,body)` 两形态，park 后 resume 到 completion 但调用方
+  状态写入丢失、后续 tick 停摆（vm11/12 实证）；GET 无 body 链
+  （probe-a 49 帧、probe-c status 轮询）可用。影响 ports/canvas.vm.at 的
+  canvasStart/canvasPickNode/canvasClearPick/canvasStop（全 POST）与
+  T-04 store 的全部 POST 调用形态。解除动作（依赖任务）：修 POST+body
+  的 park/resume 续体恢复；此前 T-04 的 POST 面需以轮询/委托形态绕行
+  （如 status 驱动 + runner 侧驱动），不得以降级表述冒充通过。
+- G-10 MCP autoui_state 回读滞后：park/resume 后的 tick 模型写入不进
+  MCP 快照（rust 模式后端日志证明状态机实际推进 source 步、快照恒
+  初值）。探针证据通道受限；产品 UI 不受影响（view 重建消费真模型）。
+  解除动作（依赖任务）：autoui_state 快照刷新时机对齐 park/resume 写回。
+
+### 8.5 对下游任务的约束
+
+- T-04：store 的 POST 面在 G-9 解除前不可用；轮询链（GET status/frame）
+  与 files/raw 可用。VM 臂"已同步/已展示"表述继续受 G-1（image 事件）
+  与本节 G-8 双重约束。
+- T-06：VM 臂覆盖框/点选依赖 G-2 与 G-8；web 臂不受影响。
+- T-13：V05 四模式矩阵在 G-8/9/10 + V01（静默 abort，45min 构建
+  26m33s exit 1 无诊断，/tmp/v01-full.log 要点已录）解除前无法全绿；
+  不得以部分证据冒充 AC-05/AC-16 通过。
