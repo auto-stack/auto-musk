@@ -291,3 +291,30 @@ G-7/G-8 修复；abort 归因不能精确到单一修复，按"门现绿"记账�
 **剩余**：G-9 残余（§8.7 证据包）。V05 最小四模式的 VM 臂两模式已绿
 （15×2）；Vue 臂两模式现可回补（V01 已通，gen/front/vue 就绪）——
 T-13 全量矩阵范围内执行。
+
+### 8.9 G-9 残余正修完成（2026-09-30 第四轮，auto-musk-dev@957543acb）
+
+内容指纹探针（SET_FIELD 写前对象现值）钉死最后疑点：**续体写全部落在
+正确的状态对象上且序列单调**（boot→poll→polls=1→r_start→source→
+r_source→done），VM 堆完全健康——问题 100% 在读取面：MCP 快照/视图
+同步被 view() 的 view_dirty 门跳过（PLAN-062 语义：视图不脏=快照仍准），
+而 park/resume 完成路径只抬 component.dirty、不抬 app 层 view_dirty
+（普通事件臂都抬，唯独 __parked_resume_tick 臂遗漏）——脏旗断层。
+视图模型绑定子节点消失 = 首帧同步的 vtree（PLAN-633 挂载帧同族：Init
+未写时的空值面）被门永久冻结。
+
+修复（一处一行级 + 一处加固）：
+- renderer `__parked_resume_tick` 臂：poll_parked_resumes 返回 mutated，
+  完成时同步抬 state.app.view_dirty → 同步门重开，快照/视图随写刷新。
+- 段模式 http 等待 30s 上限（AutoTask.waiting_http_since 打点 ×15 置位、
+  ×15 not-ready 重入出口统一超时）：结果丢失不再无限 rewind+re-park
+  自旋，超时回收并走 [VM-HANDLER] failed 错误面。
+
+验证：自然条件形态（生产 store 写法，哨兵撤除）探针 15/15 × 双后端
+（VMHTTP/RustHTTP）× 3 连跑确定绿；MCP 读回实时（polls=97/r_source=ok
+全程可见）；cargo tv 162/162。G-9 全链闭环，探针即回归哨兵。
+
+**五项上游缺口全部闭环**：G-7（Use 前置，c35a55ca8）、G-8（三根因，
+c93ed76a0）、G-9（脏旗断层+等待上限，957543acb）、G-10（随 G-9 消失：
+快照刷新后 MCP 读回实时）、V01（门通过，全链 exit 0）。S001/S004 漂移
+分类入 §8.8（Info 级非阻塞，判定项后续逐条处理）。
