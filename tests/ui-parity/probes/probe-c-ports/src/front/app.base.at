@@ -29,8 +29,8 @@ widget PortsProbe {
         }
 
         Tick -> {
-            // probe-a 同款形态：无条件每拍恰好一次 send()（顶层，无 .body 链），
-            // URL 按 phase 选择；写回与状态推进全部在 send 之后的顶层平铺。
+            // 诊断形态：pre-park 写无条件、post-resume 写在 if 内——定位
+            // 写回丢失的切分点（G-9）。
             var n int = .polls + 1
             .polls = n
             var url str = env.get("AUTO_HTTP_BASE") + "/api/canvas/status?t=" + n
