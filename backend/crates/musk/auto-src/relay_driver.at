@@ -9,6 +9,11 @@ use.rust crate::tool_context::ToolContext
 use.rust crate::mode::AgentMode
 use.rust auto_ai_agent::orchestration::AgentFactory
 use.rust serde_json::Value
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use extern_sigs: advance_is_none, advance_kind, advance_role_id, agent_run_stream_with_sink, agent_with_history, atomic_bool_false, drive_accumulated, drive_clear_root, drive_finalize_output, drive_handle_stream_event, drive_set_root, drive_submit_handoff, factory_build_agent, handoff_render, relay_advance, relay_publish, relay_step_context, relay_submit_error, step_err_is_err
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use lib: build_agent_with_context
+
 
 // AgentFactory spec（上游 orchestration trait）
 spec AgentFactory {

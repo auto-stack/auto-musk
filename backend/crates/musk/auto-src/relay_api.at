@@ -32,6 +32,9 @@ use.rust serde_json::to_value
 use.rust crate::server::AppState
 // StartRunRequest/StartRunStep 跨模块复用(relay_store.at 已有同 wire 类型)。
 use.rust crate::auto_generated::relay_store::StartRunRequest
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use extern_sigs: msg_is_none, msg_unwrap, ok_response, path_inner, relay_bus_subscribe, relay_flows_list, relay_professions_list, relay_rerun, relay_resolve_gate, relay_run_advance, relay_run_delete, relay_run_get, relay_run_set_title, relay_runs_list, relay_start_run, relay_sub_recv, relay_submit_handoff, relay_task_plan_delete, relay_task_plan_get, relay_task_plan_register, relay_task_plan_start, relay_task_plans_list, resp_err_code, resp_err_message, resp_is_err, sse_named_event, text_response, value_get, value_get_str, value_is_null
+
 
 // ============================================================
 // DTOs

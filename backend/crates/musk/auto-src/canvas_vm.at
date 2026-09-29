@@ -15,6 +15,9 @@ use.rust axum::extract::{State, Query}
 use.rust axum::Json
 use.rust serde_json::Value
 use.rust crate::server::AppState
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use extern_sigs: err_response
+
 
 // ── 宿主桥 extern（vm_backend.rs register_host_calls 注册） ────────────────
 // 返回 i64 句柄（宿主已构造完整响应）；网关无注册时回 null → 路由兜底 500。

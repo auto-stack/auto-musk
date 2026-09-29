@@ -27,6 +27,13 @@ use.rust crate::relay::handoff_store::HandoffStore
 use.rust crate::auto_generated::task_plan::{Phase, PhaseMode, RunRef, TaskMode, TaskPlan}
 use.rust crate::auto_generated::relay_flows::get_builtin_flow
 use.rust auto_ai_agent::orchestration::HandoffDocument
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use extern_sigs: handoff_resolve_path, task_plan_broadcast, task_plan_last_handoff, task_plan_run_status, task_plan_start_run, task_plan_uuidish
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use relay_driver: drive_run
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use relay_flows: get_builtin_flow
+
 
 // ============================================================
 // 类型

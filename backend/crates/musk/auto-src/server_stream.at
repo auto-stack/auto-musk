@@ -29,6 +29,9 @@ use.rust serde_json::to_value
 // AppState (opaque extern — real one in server.rs with Arc<dyn Client>)
 use.rust crate::server::AppState
 use.rust crate::tools::{ReadFile, WriteFile, RunCommand}
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use extern_sigs: agent_run, agent_run_stream, broadcast_recv, chat_run_stream, conv_event_id, conv_event_status, conv_event_turn, conversations_subscribe, err_json_response, err_response, mode_exists, mpsc_channel, mpsc_receiver, mpsc_recv, mpsc_sender, msg_is_none, msg_unwrap, ok_response, path_inner, resp_err_code, resp_err_message, resp_is_err, settings_link_do, sse_event, stream_event_map, sub_matches_conv, value_get_str, wf_run, wf_run_with_progress, workflow_event_map, workflow_exists
+
 
 // ============================================================
 // DTOs for daemon/SSE handlers (replacing json!() macros)

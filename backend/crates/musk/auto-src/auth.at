@@ -13,6 +13,9 @@ use.rust std::sync::Mutex
 use.rust std::fs
 use.rust serde::{Serialize, Deserialize}
 use.rust serde_json::{to_string_pretty, from_slice}
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use extern_sigs: hash_password, random_hex
+
 
 // ============================================================
 // Permission / Role — RBAC enums + logic

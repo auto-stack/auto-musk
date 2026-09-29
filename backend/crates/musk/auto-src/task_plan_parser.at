@@ -11,6 +11,9 @@
 use.rust auto_atom::{Atom, AtomParser}
 use.rust auto_val::Node
 use.rust crate::auto_generated::task_plan::TaskPlan
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use extern_sigs: atom_debug_value
+
 
 /// Parse Atom text into a `TaskPlan`(hw parse_task_plan)。
 pub fn parse_task_plan(input str) Result<TaskPlan, str> {

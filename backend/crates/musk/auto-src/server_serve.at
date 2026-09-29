@@ -7,6 +7,9 @@ use.rust std::sync::Arc
 use.rust std::path::PathBuf
 use.rust serde::{Serialize}
 use.rust serde_json::Value
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use extern_sigs: app_config_effective_daemon_url, app_config_load, error_response, http_post_json, json_response, serve_build_app, serve_build_cors, serve_build_static, serve_init_state, serve_listen, value_get_str
+
 
 #[derive(Serialize)]
 pub type SettingsLinkOk { status str, url str }

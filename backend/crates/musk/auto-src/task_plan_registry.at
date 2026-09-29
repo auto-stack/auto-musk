@@ -20,6 +20,13 @@ use.rust serde::Serialize
 use.rust crate::auto_generated::task_plan::TaskPlan
 use.rust crate::auto_generated::relay_flows::get_builtin_flow
 use.rust crate::auto_generated::task_plan_parser::parse_task_plan
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use extern_sigs: path_extension_str, task_plan_builtin_atom, task_plan_delete_file, task_plan_read_file, task_plan_write_atom
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use relay_flows: get_builtin_flow
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use task_plan_parser: parse_task_plan
+
 
 /// Source of a TaskPlan.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

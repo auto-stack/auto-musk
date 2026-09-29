@@ -32,6 +32,9 @@ use.rust serde_json::Value
 // extern (the real AppState provides them). For isolated transpile/verify we
 // treat AppState as an opaque extern type.
 use.rust crate::server::AppState
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use extern_sigs: app_config_load, app_config_write, auth_header_token, auth_login_result, auth_logout_token, auth_register_result, auth_role_from_token, auth_token_from_headers, auth_username_from_token, chats_approval, chats_approve, chats_create, chats_delete, chats_delete_all, chats_get, chats_list, chats_message, chats_reject, chats_reject_all, chats_rename, chats_thinking, config_build, conversations_delete, conversations_get, conversations_list, conversations_rename, err_response, forge_mode_load, forge_mode_write, harness_delete, harness_list, harness_save, modes_all, ok_response, professions_list, role_delete_of, role_get, role_save_of, roles_all, skills_all, specs_delete_of, specs_drift, specs_load, specs_overview_of, specs_rebuild, specs_related_of, specs_transition_of, specs_upsert_of, to_response, workflows_builtin_names, workspace_browse_of, workspace_file_do, workspace_initialize_of, workspace_list_all, workspace_open_of, workspace_status_of
+
 
 // ============================================================
 // Response DTOs (replacing json!() macros with typed structs)

@@ -19,6 +19,9 @@ use.rust std::fs
 use.rust std::time::{SystemTime, Duration}
 use.rust serde_json::{to_string_pretty, from_slice}
 use.rust crate::auto_generated::specs::{SpecChange, SpecItem, SpecsDocument, SpecsSection, SpecsStore}
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use extern_sigs: new_id
+
 
 fn now_sec() u64 {
     let now = SystemTime.now()

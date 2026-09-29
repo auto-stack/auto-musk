@@ -4,6 +4,9 @@
 use.rust auto_ai_agent::{Tool, ToolError}
 use.rust serde_json::Value
 use.rust std::fs
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use extern_sigs: command_needs_approval, edit_file_do, glob_files, list_directory, list_symbols_in, parse_json, resolve_within_project, run_shell_command, search_files, value_get_bool, value_get_str, write_file_do
+
 
 spec Tool {
     fn name() str

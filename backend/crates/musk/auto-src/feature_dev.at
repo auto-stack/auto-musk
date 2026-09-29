@@ -35,6 +35,11 @@ use.rust crate::server::AppState
 use.rust crate::workspace::WorkspaceStores
 use.rust crate::mode::AgentMode
 use.rust crate::auto_generated::auto_lib::build_agent_from_mode
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use extern_sigs: agent_error_msg, feature_dev_clear_root, feature_dev_set_root, mpsc_try_send
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use lib: build_agent_from_mode
+
 
 // ============================================================
 // Step spec 数据(hw FEATURE_DEV_STEPS 常量表)

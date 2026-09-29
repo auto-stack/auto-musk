@@ -2,6 +2,9 @@
 
 use.rust auto_ai_agent::{Tool, ToolError}
 use.rust serde_json::Value
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use extern_sigs: orch_bring_in, orch_dispatch, orch_spawn_relay, parse_json, value_get_str
+
 
 spec Tool {
     fn name() str

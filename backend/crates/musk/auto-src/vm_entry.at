@@ -18,11 +18,11 @@ dep auto_atom
 dep auto_val
 
 use extern_sigs
-use server
-use server_stream
-use relay_api
-use wiki
-use canvas_vm
+use server: build_router
+use server_stream: red_routes
+use relay_api: relay_routes, task_plan_routes
+use wiki: wiki_routes
+use canvas_vm: canvas_vm_routes
 
 fn main() {
     let app = build_router()

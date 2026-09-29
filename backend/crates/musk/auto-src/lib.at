@@ -4,6 +4,9 @@ use.rust crate::tools::{ReadFile, WriteFile, EditFile, Search, ListDir, ListSymb
 use.rust crate::spec_tools::{ReadSpecs, ListSpecs, WriteSpec, UpdateSpec, WriteGoals}
 use.rust crate::orch_tools::{SpawnRelay, Dispatch, BringIn}
 use.rust crate::tool_context::ToolContext
+// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
+use extern_sigs: agent_register_shared, agent_register_skill_tool, agent_with_context_file, ctx_is_some, ctx_unwrap, current_dir, find_ctx_upward, mode_tools_contains, read_at_file, registry_resolve, role_system_prompt
+
 
 #[derive(Clone)]
 type OwnedRole {
