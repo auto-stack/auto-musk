@@ -576,10 +576,16 @@ PID／进程树及起止收据，再做真实运行测试。
   cargo tv 162/162；新增定向单测 8/8。
   **剩余阻塞**：G-9 残余（send 条件化在 if 块内时 park 续体丢失——
   触发条件已钉死、复现器即 probe-c；探针已用可工作形态，生产 store
-  写法受约束）；G-7（ext 导入解析，wiki shim 撤除依赖）；V01（静默
-  abort + S001 真源再生）——三项正修都在 auto-lang，见 capability-map
-  §8.6 剩余清单。V05 最小四模式的 VM 臂两模式已绿；Vue 臂两模式待
-  V01 解除。
+  写法受约束）。
+  第三轮（capability-map §8.8）：G-7 正统修复（auto-musk-dev@c35a55ca8
+  ——Use 前置编译：ext 合并方法随 TypeDecl pass 编码而 Use 晚处理致
+  import_scope 恒空；dep/入口双路径修复）→ wiki shim 撤除（ea62d97）
+  → 双后端探针 15/15 维持；**V01 门通过**（auto build --gen-only
+  --strict exit 0（39m02s，60 组件）→ pnpm install → pnpm build
+  （vue-tsc+vite 9.74s）全链 exit 0；51 条 S001/S004 为 Info 不拦
+  strict，分类入 §8.8：Markdown(source) 系 use.web 误配、其余为
+  musk 透传属性待逐条判定）；此前"静默 abort"未复现（旧 CLI 产物，
+  观察项保留）。Vue 臂两模式的 V05 回补条件已就绪。
 
 ### [ ] T-04：重构CanvasStore投影与展示状态
 
@@ -729,6 +735,27 @@ PID／进程树及起止收据，再做真实运行测试。
 | T-11～T-14 | AC-01～AC-16（复验与证据） | SD-01～SD-05 |
 
 ## 9. 复审记录
+
+### work 阶段 T-03 G-7 修复 + V01 门通过交接
+
+- stage: work
+- plan_id: PLAN-093
+- plan_revision: 1
+- outcome: G-7 正统修复并撤除 wiki shim 绕法；V01 门全链通过
+  （gen-only strict + pnpm install + pnpm build 全 exit 0）；
+  T-03 整体保持进行中（G-9 残余一项）
+- code_commit: auto-musk-dev@c35a55ca8（G-7 Use 前置，双路径）+
+  252444066（BUILD-TRACE 工具）+ plan-093-dev@ea62d97（撤 shim）+
+  540ff03（capability-map §8.8）
+- task_ids: T-03（进行中）
+- evidence: 双 ext fixture 输出预期值（dep/入口路径）；cargo tv 162/162；
+  wiki 自然调用 VM serve 零链接错误；探针双后端 15/15（最新 CLI）；
+  V01 收据 /tmp/v01-trace.log（要点入 §8.8）；S001/S004 漂移分类
+  （use.web 误配类 + musk 透传类，均不拦 strict）。
+- blockers: G-9 残余一项（§8.7 证据包：条件 send 块内 park 续体；
+  四点 state_obj_id 仪表方案已列）。
+- next: work——G-9 残余引擎修复 → 探针恢复自然形态回归 → V05 四模式
+  回补（Vue 臂条件已就绪）→ T-04 起按依赖序。
 
 ### work 阶段 T-03 正统引擎修复与双后端全绿交接
 
