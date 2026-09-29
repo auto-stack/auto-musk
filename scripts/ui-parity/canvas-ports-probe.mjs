@@ -100,7 +100,11 @@ async function runMode(mode) {
   fs.mkdirSync(targetDir, { recursive: true });
   fs.mkdirSync(cfgDir, { recursive: true });
   // 目标应用 = probe-a fixture 副本（pac.at + src/），隔离目录内。
-  fs.cpSync(path.join(TARGET_SRC, 'pac.at'), path.join(targetDir, 'pac.at'));
+  // api 字段置 none：canvas 目标是纯 UI 应用，api:rust 会触发 `auto run`
+  // 的后端脚手架（rust-workspace/Cargo.toml 缺失即退出）。
+  const targetPac = fs.readFileSync(path.join(TARGET_SRC, 'pac.at'), 'utf8')
+    .replace('api: "rust"', 'api: "none"');
+  fs.writeFileSync(path.join(targetDir, 'pac.at'), targetPac);
   fs.cpSync(path.join(TARGET_SRC, 'src'), path.join(targetDir, 'src'), { recursive: true });
   // VM 轨尚无端口消费者（T-04 接线）——探针把仓库当前 ports/canvas.vm.at
   // 与 app.base.at 拼成单文件 app.at（.gitignore），恒测 T-03 交付面。
@@ -132,6 +136,7 @@ async function runMode(mode) {
     : {
         MUSK_CONFIG_DIR: cfgDir,
         MUSK_SERVE_ADDR: `127.0.0.1:${ports.back}`,
+        AUTO_EXE,
       };
   const backArgs = ['serve'];
   if (mode !== 'vm') backArgs.push('--workdir', wsRoot);
@@ -186,7 +191,7 @@ async function runMode(mode) {
   try {
     await waitFor(async () => {
       const s = await mcp.state(['r_start']).catch(() => '');
-      return /status-ok/.test(s) ? s : null;
+      return /polls=\d+ http=200/.test(s) ? s : null;
     }, 45000, 'probe status poll');
   } catch (e) {
     const lastState = await mcp.state(['phase', 'r_start']).catch(err => `MCP-ERR ${err}`);
@@ -234,14 +239,22 @@ async function runMode(mode) {
   }
 
   // 契约面：tree 锚点 + pick 200 / 未命中 204 / clear
+  // （VM 桥序列化的 tree 是节点数组；Rust 轨 AnchorIndex 是 {nodes,seq}）
   {
+    await waitFor(async () => {
+      const st = await jfetch(`http://127.0.0.1:${ports.back}/api/canvas/status`).catch(() => null);
+      const nodes = Array.isArray(st?.body?.tree) ? st.body.tree : (st?.body?.tree?.nodes ?? []);
+      return nodes.length > 0 ? nodes : null;
+    }, 30000, 'anchor tree publish').catch(() => null);
     const st = await jfetch(`http://127.0.0.1:${ports.back}/api/canvas/status`);
-    const nodes = st.body?.tree?.nodes ?? [];
+    const nodes = Array.isArray(st.body?.tree) ? st.body.tree : (st.body?.tree?.nodes ?? []);
     if (nodes.length > 0) {
-      const vnode = nodes[0].vnode;
+      // VM 桥节点形态 {"id":"vnode_<u64>",...}；Rust 轨为数值 vnode 字段。
+      const first = nodes[0];
+      const vnodeId = typeof first.id === 'string' ? first.id : `vnode_${first.vnode}`;
       const hit = await jfetch(`http://127.0.0.1:${ports.back}/api/canvas/pick`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ vnode_id: `vnode_${vnode}` }),
+        body: JSON.stringify({ vnode_id: vnodeId }),
       });
       const miss = await jfetch(`http://127.0.0.1:${ports.back}/api/canvas/pick`, {
         method: 'POST', headers: { 'content-type': 'application/json' },

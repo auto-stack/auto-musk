@@ -29,30 +29,31 @@ widget PortsProbe {
         }
 
         Tick -> {
-            // ── 轮询 status（GET，同 store 每拍节奏）──
-            if .phase == "poll" {
-                let rb = Http.request("GET", env.get("AUTO_HTTP_BASE") + "/api/canvas/status")
-                let res = rb.body("").send()
-                var code int = res.status_code()
-                .polls = .polls + 1
-                if code == 200 {
-                    .r_start = "polls=" + .polls + " status-ok"
-                    .phase = "source"
-                } else {
-                    .r_start = "FAILED http " + code
-                }
-            }
-            // ── source（GET，同 canvasLoadSource 链）──
+            // probe-a 同款形态：无条件每拍恰好一次 send()（顶层，无 .body 链），
+            // URL 按 phase 选择；写回与状态推进全部在 send 之后的顶层平铺。
+            var n int = .polls + 1
+            .polls = n
+            var url str = env.get("AUTO_HTTP_BASE") + "/api/canvas/status?t=" + n
             if .phase == "source" {
-                let rb = Http.request("GET", env.get("AUTO_HTTP_BASE") + "/api/files/raw/targets/probe-a/pac.at")
-                let res = rb.body("").send()
-                var code int = res.status_code()
+                url = env.get("AUTO_HTTP_BASE") + "/api/files/default/targets/probe-a/pac.at"
+            }
+            let rb = Http.request("GET", url)
+            let res = rb.send()
+            var code int = res.status_code()
+            .r_start = "polls=" + .polls + " http=" + code
+            if .phase == "poll" {
                 if code == 200 {
-                    .r_source = "ok"
-                } else {
-                    .r_source = "FAILED http " + code
+                    .phase = "source"
                 }
-                .phase = "done"
+            } else {
+                if .phase == "source" {
+                    if code == 200 {
+                        .r_source = "ok"
+                    } else {
+                        .r_source = "FAILED http " + code
+                    }
+                    .phase = "done"
+                }
             }
         }
     }

@@ -367,6 +367,13 @@ impl CanvasManager {
         }
         *self.shared.state.lock().unwrap() = CanvasState::Stopped;
         *self.shared.error.lock().unwrap() = String::new();
+        // PLAN-093 §5.3：停止 = 收割 + 清选 + 失效帧。工作台保留应用标题
+        // （pac/app_path）与代次；帧/锚点/选中/overlay 归零（与 begin_session
+        // 全字段清场同款）——frame 503、picked 不复活。
+        *self.shared.frame.lock().unwrap() = None;
+        *self.shared.anchor.write().unwrap() = None;
+        *self.shared.picked.lock().unwrap() = None;
+        self.shared.overlay.lock().unwrap().clear();
         Ok(current)
     }
 

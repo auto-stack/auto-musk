@@ -3660,11 +3660,20 @@ fn canvas_vm_json(status: u16, v: &SerdeJson) -> Result<i64, String> {
 }
 
 fn canvas_vm_query_str(q: &SerdeJson, key: &str) -> Option<String> {
-    q.get(key).and_then(|v| v.as_str()).map(str::to_string)
+    // VM 桥的 query 编组值为字符串（URL query 语义）；Rust 轨 Query<T> 经
+    // serde_urlencoded 解析同形——u64 数字在 VM 轨接受字符串形态（同判）。
+    q.get(key)
+        .and_then(|v| {
+            v.as_str().map(str::to_string).or_else(|| {
+                v.as_u64().map(|n| n.to_string())
+            })
+        })
 }
 
 fn canvas_vm_query_u64(q: &SerdeJson, key: &str) -> Option<u64> {
-    q.get(key).and_then(|v| v.as_u64())
+    q.get(key).and_then(|v| {
+        v.as_u64().or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+    })
 }
 
 fn canvas_vm_conflict(current: u64, msg: String) -> Result<i64, String> {

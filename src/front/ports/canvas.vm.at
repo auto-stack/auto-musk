@@ -95,10 +95,13 @@ fn canvasClearPick() {
 }
 
 /// 源码抽屉文本（files 域同款只读链；文本经 Response.body lossy UTF-8）。
-fn canvasLoadSource(path str) {
-    let url = canvas_http_base() + "/api/files/raw/" + path
+/// VM 服务器路由为 /api/files/{workspace_id}/{*path}（workspace 作为路径段，
+/// 与 Rust 轨 /api/files/raw/{*path} 的 query 语义分轨）——ws 由调用方
+/// （T-04 store 持有当前 workspace）传入。
+fn canvasLoadSource(ws str, path str) {
+    let url = canvas_http_base() + "/api/files/" + ws + "/" + path
     let rb = Http.request("GET", url)
-    let res = rb.send()
+    let res = rb.body("").send()
     var code = res.status_code()
     if code == 200 {
         return { ok: true, error: "", text: res.body() }
