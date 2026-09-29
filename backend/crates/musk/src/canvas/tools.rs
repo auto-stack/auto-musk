@@ -13,6 +13,20 @@ use serde_json::{json, Value};
 
 use crate::tool_context::ToolContext;
 
+/// PLAN-093 T-02：会话归属守卫。目标会话已归属其他会话时，本会话的
+/// canvas 工具不得操作（后台会话不得操作后来替换的应用）。未绑定预览
+///（无归属）保持旧语义：任何会话可用。
+fn ensure_session_owner(ctx: &ToolContext) -> Result<(), ToolError> {
+    if let Some(owner) = ctx.state.canvas.owner_conversation() {
+        if !owner.is_empty() && owner != ctx.parent_conversation_id {
+            return Err(ToolError::Exec(format!(
+                "canvas session belongs to conversation {owner} — this conversation cannot operate it (canvas_run to replace, or continue in the owning session)"
+            )));
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn resolve_within_sandbox(ctx: &ToolContext, path: &str) -> Result<PathBuf, ToolError> {
     let ws = ctx.state.registry.get(&ctx.workspace_id);
     let mut roots = vec![ws.root.clone()];
@@ -65,13 +79,26 @@ impl Tool for CanvasRun {
         let resolved = resolve_within_sandbox(&self.ctx, path)?;
         super::session::validate_app_dir(&resolved).map_err(ToolError::Exec)?;
         let ws = self.ctx.state.registry.get(&self.ctx.workspace_id);
-        let status = self
-            .ctx
+        // PLAN-093 T-02：工具启动登记归属（workspace + 所属会话），后续
+        // 其他会话的工具/停止按归属拒操作。
+        self.ctx
             .state
             .canvas
-            .start(resolved, &ws.root)
+            .start_owned(
+                resolved,
+                &ws.root,
+                &self.ctx.workspace_id,
+                Some(&self.ctx.parent_conversation_id),
+                None,
+            )
             .await
-            .map_err(ToolError::Exec)?;
+            .map_err(|e| match e {
+                super::StartError::Spawn(msg) => ToolError::Exec(msg),
+                super::StartError::GenerationConflict(_) => {
+                    ToolError::Exec("canvas: generation conflict on tool start".to_string())
+                }
+            })?;
+        let status = self.ctx.state.canvas.status();
         Ok(ToolOutput::text(format!(
             "canvas session starting for '{}' (state: {:?}). Frames stream to the \
              canvas panel; use canvas_snapshot / canvas_state to verify, canvas_act \
@@ -106,7 +133,20 @@ impl Tool for CanvasStop {
         json!({ "type": "object", "properties": {} })
     }
     async fn execute(&self, _args: &Value) -> Result<ToolOutput, ToolError> {
-        self.ctx.state.canvas.stop().await;
+        // PLAN-093 T-02：按归属守卫——其他会话的工具不得停掉当前目标。
+        self.ctx
+            .state
+            .canvas
+            .stop_guarded(None, Some(&self.ctx.parent_conversation_id))
+            .await
+            .map_err(|e| match e {
+                super::StopRefused::OwnedByOther { owner } => ToolError::Exec(format!(
+                    "canvas session belongs to conversation {owner} — not stopped from this conversation"
+                )),
+                super::StopRefused::GenerationConflict { .. } => {
+                    ToolError::Exec("canvas: generation conflict on tool stop".to_string())
+                }
+            })?;
         Ok(ToolOutput::text("canvas session stopped.".to_string()))
     }
 }
@@ -143,6 +183,7 @@ impl Tool for CanvasSnapshot {
     }
     async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let include_bounds = args["include_bounds"].as_bool().unwrap_or(false);
+        ensure_session_owner(&self.ctx)?;
         let manager = &self.ctx.state.canvas;
         let frame = manager.frame().ok_or_else(|| {
             ToolError::Exec("canvas: no frame yet (session starting or not running)".to_string())
@@ -229,6 +270,7 @@ impl Tool for CanvasAct {
         } else {
             None
         };
+        ensure_session_owner(&self.ctx)?;
         let manager = &self.ctx.state.canvas;
         let result = manager
             .with_client(|client| client)
@@ -285,6 +327,7 @@ impl Tool for CanvasState {
                     .filter_map(|v| v.as_str().map(str::to_string))
                     .collect()
             });
+        ensure_session_owner(&self.ctx)?;
         let manager = &self.ctx.state.canvas;
         let result = manager
             .with_client(|client| client)
@@ -337,6 +380,7 @@ impl Tool for CanvasPick {
         let vnode = parse_vnode_id(raw).ok_or_else(|| {
             ToolError::Args(format!("invalid element_id '{raw}' — expected 'vnode_N'"))
         })?;
+        ensure_session_owner(&self.ctx)?;
         let manager = &self.ctx.state.canvas;
         let payload = manager.pick_vnode(vnode).ok_or_else(|| {
             ToolError::Exec(format!(
@@ -388,6 +432,7 @@ impl Tool for CanvasOverlay {
         })
     }
     async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
+        ensure_session_owner(&self.ctx)?;
         let manager = &self.ctx.state.canvas;
         let clear = args["clear"].as_bool().unwrap_or(false);
         if clear {

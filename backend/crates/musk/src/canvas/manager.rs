@@ -51,6 +51,39 @@ pub struct CanvasStatus {
     pub error: String,
 }
 
+/// PLAN-093 T-02 预览身份（start 响应 / status 字段）。
+#[derive(Debug, Clone, Serialize)]
+pub struct StartIdentity {
+    pub generation: u64,
+    pub owner_workspace: String,
+    pub owner_conversation: Option<String>,
+}
+
+/// start 携带预期代次与当前不一致（不得替换新目标）。
+#[derive(Debug, Clone, Copy)]
+pub struct GenerationConflict {
+    pub current: u64,
+}
+
+#[derive(Debug)]
+pub enum StartError {
+    GenerationConflict(GenerationConflict),
+    Spawn(String),
+}
+
+#[derive(Debug)]
+pub enum StopRefused {
+    GenerationConflict { current: u64 },
+    OwnedByOther { owner: String },
+}
+
+/// frame 携带预期代次/seq 与当前不一致（不伪造历史帧）。
+#[derive(Debug, Clone, Copy)]
+pub enum FrameConflict {
+    Generation { current: u64 },
+    StaleSeq { current_seq: u64 },
+}
+
 /// 共享快照（manager 侧读写，看门狗侧更新）。
 #[derive(Clone)]
 struct Shared {
@@ -77,6 +110,12 @@ struct Shared {
     pac: Arc<Mutex<Value>>,
     /// 会话 app 目录原始 PathBuf（span→file:line 解析用；app_path 为展示形）。
     app_dir_raw: Arc<Mutex<Option<PathBuf>>>,
+    /// PLAN-093 预览代次：每次显式 start（替换）+1；watchdog 内部复活保留
+    /// 代次（归属不变）。0 = 尚未启动过。
+    generation: Arc<AtomicU64>,
+    /// 归属（PLAN-093 T-02）：start 时登记；HTTP/工具侧按此判冲突。
+    owner_workspace: Arc<Mutex<String>>,
+    owner_conversation: Arc<Mutex<Option<String>>>,
 }
 
 impl Shared {
@@ -96,6 +135,9 @@ impl Shared {
             overlay: Arc::new(Mutex::new(Vec::new())),
             pac: Arc::new(Mutex::new(Value::Null)),
             app_dir_raw: Arc::new(Mutex::new(None)),
+            generation: Arc::new(AtomicU64::new(0)),
+            owner_workspace: Arc::new(Mutex::new(String::new())),
+            owner_conversation: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -133,6 +175,13 @@ impl Shared {
         *self.anchor.write().unwrap() = Some(next);
         let _ = seq; // 索引自带 seq 字段（构建时戳）；此处仅语义对齐调用点。
     }
+
+    /// PLAN-093 T-02：帧原子发布（唯一写帧点）：seq 先自增后入缓存。
+    fn publish_frame(&self, bytes: Vec<u8>) -> u64 {
+        let seq = self.seq.fetch_add(1, Ordering::Relaxed) + 1;
+        *self.frame.lock().unwrap() = Some(Arc::new(bytes));
+        seq
+    }
 }
 
 pub struct CanvasManager {
@@ -154,29 +203,32 @@ impl CanvasManager {
     /// `ws_root` = workspace 根（源码锚点路径前缀：resolve_source 产出
     /// app 相对路径，files API 消费 workspace 相对路径——T-08 实证）。
     pub async fn start(&self, app_dir: PathBuf, ws_root: &Path) -> Result<CanvasStatus, String> {
+        self.start_owned(app_dir, ws_root, "", None, None)
+            .await
+            .map_err(|e| match e {
+                StartError::Spawn(msg) => msg,
+                StartError::GenerationConflict { .. } => {
+                    "canvas: generation conflict (legacy start carries no expected generation)".to_string()
+                }
+            })
+            .map(|id| self.shared.status())
+    }
+
+    /// PLAN-093 T-02：带归属/代次的启动。`expected_generation` 与当前代次
+    /// 不一致（且当前已有会话）→ 拒绝（GenerationConflict），不得替换新目标；
+    /// `None` = 旧无身份调用，保持既有无条件替换语义。
+    pub async fn start_owned(
+        &self,
+        app_dir: PathBuf,
+        ws_root: &Path,
+        owner_workspace: &str,
+        owner_conversation: Option<&str>,
+        expected_generation: Option<u64>,
+    ) -> Result<StartIdentity, StartError> {
         self.stop().await;
-        {
-            let mut st = self.shared.state.lock().unwrap();
-            *st = CanvasState::Starting;
-        }
-        *self.shared.app_path.lock().unwrap() = display_path(&app_dir);
-        *self.shared.restarts.lock().unwrap() = 0;
-        *self.shared.error.lock().unwrap() = String::new();
-        *self.shared.frame.lock().unwrap() = None;
-        *self.shared.anchor.write().unwrap() = None;
-        *self.shared.picked.lock().unwrap() = None;
-        self.shared.overlay.lock().unwrap().clear();
-        *self.shared.app_dir_raw.lock().unwrap() = Some(app_dir.clone());
-        // app 相对 ws 根前缀（"loop-app" 形态；越界解析已由上游沙箱保证）。
-        let app_rel = app_dir
-            .strip_prefix(ws_root)
-            .unwrap_or(app_dir.file_name().map(|n| Path::new(n)).unwrap_or(app_dir.as_path()))
-            .to_string_lossy()
-            .replace('\\', "/");
-        *self.shared.app_rel.lock().unwrap() = app_rel;
-        *self.shared.pac.lock().unwrap() = read_pac_head(&app_dir);
-        self.shared.seq.store(0, Ordering::Relaxed);
-        self.stop_flag.store(false, Ordering::Relaxed);
+        let generation = self
+            .begin_session(&app_dir, ws_root, owner_workspace, owner_conversation, expected_generation)
+            .map_err(StartError::GenerationConflict)?;
 
         let handle = SessionHandle::spawn(app_dir.clone()).await;
         match handle {
@@ -193,18 +245,115 @@ impl CanvasManager {
                 });
                 *self.worker.lock().unwrap() = Some(worker);
                 tracing::info!("canvas session starting: {} (mcp: {base})", app_dir.display());
-                Ok(self.shared.status())
+                Ok(self.identity(generation))
             }
             Err(e) => {
                 *self.shared.state.lock().unwrap() = CanvasState::Degraded;
                 *self.shared.error.lock().unwrap() = e.clone();
-                Err(e)
+                Err(StartError::Spawn(e))
             }
         }
     }
 
+    /// 纯状态准备（spawn 前）：代次冲突判定 + 归属登记 + 全字段清场。
+    /// 独立成 pub 使合同测试无须 spawn 真实进程即可驱动会话状态
+    ///（start_owned = stop + 本函数 + spawn/看门狗）。
+    pub fn begin_session(
+        &self,
+        app_dir: &Path,
+        ws_root: &Path,
+        owner_workspace: &str,
+        owner_conversation: Option<&str>,
+        expected_generation: Option<u64>,
+    ) -> Result<u64, GenerationConflict> {
+        let current = self.shared.generation.load(Ordering::Relaxed);
+        if let Some(exp) = expected_generation {
+            if current != 0 && exp != current {
+                return Err(GenerationConflict { current });
+            }
+        }
+        let generation = current + 1;
+        {
+            let mut st = self.shared.state.lock().unwrap();
+            *st = CanvasState::Starting;
+        }
+        *self.shared.app_path.lock().unwrap() = display_path(app_dir);
+        *self.shared.restarts.lock().unwrap() = 0;
+        *self.shared.error.lock().unwrap() = String::new();
+        *self.shared.frame.lock().unwrap() = None;
+        *self.shared.anchor.write().unwrap() = None;
+        *self.shared.picked.lock().unwrap() = None;
+        self.shared.overlay.lock().unwrap().clear();
+        *self.shared.app_dir_raw.lock().unwrap() = Some(app_dir.to_path_buf());
+        // app 相对 ws 根前缀（"loop-app" 形态；越界解析已由上游沙箱保证）。
+        let app_rel = app_dir
+            .strip_prefix(ws_root)
+            .unwrap_or(app_dir.file_name().map(|n| Path::new(n)).unwrap_or(app_dir))
+            .to_string_lossy()
+            .replace('\\', "/");
+        *self.shared.app_rel.lock().unwrap() = app_rel;
+        *self.shared.pac.lock().unwrap() = read_pac_head(app_dir);
+        *self.shared.owner_workspace.lock().unwrap() = owner_workspace.to_string();
+        *self.shared.owner_conversation.lock().unwrap() = owner_conversation.map(str::to_string);
+        self.shared.generation.store(generation, Ordering::Relaxed);
+        self.shared.seq.store(0, Ordering::Relaxed);
+        self.stop_flag.store(false, Ordering::Relaxed);
+        Ok(generation)
+    }
+
+    /// 当前预览身份（PLAN-093 T-02）。
+    pub fn identity(&self, generation: u64) -> StartIdentity {
+        StartIdentity {
+            generation,
+            owner_workspace: self.shared.owner_workspace.lock().unwrap().clone(),
+            owner_conversation: self.shared.owner_conversation.lock().unwrap().clone(),
+        }
+    }
+
+    pub fn generation(&self) -> u64 {
+        self.shared.generation.load(Ordering::Relaxed)
+    }
+
+    pub fn owner_conversation(&self) -> Option<String> {
+        self.shared.owner_conversation.lock().unwrap().clone()
+    }
+
+    /// 清选（PLAN-093 T-02：pick {clear:true} 与未命中共用）：picked 归零。
+    /// overlay 是 agent 高亮面（独立工具语义），不在此清除。
+    pub fn clear_pick(&self) {
+        *self.shared.picked.lock().unwrap() = None;
+    }
+
     /// 停止：置停止旗标 + 立即 taskkill + 等看门狗收尾（上限 ~2s，超时不等）。
     pub async fn stop(&self) {
+        let _ = self
+            .stop_guarded(None, None)
+            .await;
+    }
+
+    /// PLAN-093 T-02：带守卫的停止。
+    /// - `expected_generation` 与当前不一致（当前已有会话）→ 拒绝，不杀新目标。
+    /// - `requester_conversation` 与归属会话不一致（归属已登记时）→ 拒绝。
+    /// - 两者皆 None = 旧无身份调用，保持既有无条件停止语义。
+    /// 成功返回停止时的代次。
+    pub async fn stop_guarded(
+        &self,
+        expected_generation: Option<u64>,
+        requester_conversation: Option<&str>,
+    ) -> Result<u64, StopRefused> {
+        let current = self.shared.generation.load(Ordering::Relaxed);
+        if let Some(exp) = expected_generation {
+            if current != 0 && exp != current {
+                return Err(StopRefused::GenerationConflict { current });
+            }
+        }
+        if let Some(req) = requester_conversation {
+            if let Some(owner) = self.shared.owner_conversation.lock().unwrap().clone() {
+                if !owner.is_empty() && owner != req {
+                    return Err(StopRefused::OwnedByOther { owner });
+                }
+            }
+        }
         self.stop_flag.store(true, Ordering::Relaxed);
         let pid = *self.shared.pid.lock().unwrap();
         if let Some(pid) = pid {
@@ -218,6 +367,7 @@ impl CanvasManager {
         }
         *self.shared.state.lock().unwrap() = CanvasState::Stopped;
         *self.shared.error.lock().unwrap() = String::new();
+        Ok(current)
     }
 
     /// serve 关停钩子（graceful shutdown 内调用）。
@@ -234,8 +384,43 @@ impl CanvasManager {
         self.shared.frame.lock().unwrap().clone()
     }
 
+    /// PLAN-093 T-02：带身份校验的帧取用。`expected_generation`（帧请求
+    /// 携带的代次）或 `expected_seq`（客户端已展示版本）与当前不一致 →
+    /// Err（路由转 409，客户端重新取 status），不伪造历史帧。
+    pub fn frame_for(
+        &self,
+        expected_generation: Option<u64>,
+        expected_seq: Option<u64>,
+    ) -> Result<Arc<Vec<u8>>, FrameConflict> {
+        let current = self.shared.generation.load(Ordering::Relaxed);
+        if let Some(exp) = expected_generation {
+            if current != 0 && exp != current {
+                return Err(FrameConflict::Generation { current });
+            }
+        }
+        let seq = self.shared.seq.load(Ordering::Relaxed);
+        if let Some(exp) = expected_seq {
+            if exp != seq {
+                return Err(FrameConflict::StaleSeq { current_seq: seq });
+            }
+        }
+        self.shared.frame.lock().unwrap().clone().ok_or(FrameConflict::StaleSeq { current_seq: seq })
+    }
+
     pub fn seq(&self) -> u64 {
         self.shared.seq.load(Ordering::Relaxed)
+    }
+
+    /// PLAN-093 T-02：帧原子发布（唯一写帧点——看门狗生产、合同测试合成
+    /// 注入同径）：seq 先自增后入缓存，返回新 seq。
+    pub fn publish_frame(&self, bytes: Vec<u8>) -> u64 {
+        self.shared.publish_frame(bytes)
+    }
+
+    /// PLAN-093 T-02：锚点索引原子换新（唯一写锚点点——同 publish_frame
+    /// 口径）：换代时 overlay/picked 收敛到仍存在的 vnode。
+    pub fn publish_anchor(&self, idx: AnchorIndex, seq: u64) {
+        self.shared.swap_anchor(idx, seq);
     }
 
     /// 在途子进程 pid（测试/诊断用；None = 无在途进程）。
@@ -252,13 +437,18 @@ impl CanvasManager {
     }
 
     /// 坐标 pick（帧像素入参；T-02 契约：逻辑 = 像素 ÷ scale，scale =
-    /// 帧宽/480）。命中 → 实质回溯 → 置 picked 并返回锚点；未命中 → None。
+    /// 帧宽/480）。命中 → 实质回溯 → 置 picked 并返回锚点；未命中 → 清
+    /// picked 并返回 None（PLAN-093：未命中必须清选，禁止旧选复活）。
     pub fn pick_at(&self, px: f64, py: f64) -> Option<Value> {
         let (frame_w, frame_h) = self.frame_px_size()?;
         let scale = frame_w as f32 / WINDOW_LOGICAL_W;
         let (lx, ly) = (px as f32 / scale, py as f32 / scale);
         let idx = self.shared.anchor.read().unwrap().clone()?;
-        let hit = idx.hit_test(lx, ly)?;
+        let hit = idx.hit_test(lx, ly);
+        let Some(hit) = hit else {
+            *self.shared.picked.lock().unwrap() = None;
+            return None;
+        };
         let vnode = idx.substantive_anchor(hit);
         let app_dir = self.shared.app_dir_raw.lock().unwrap().clone();
         let app_rel = self.shared.app_rel.lock().unwrap().clone();
@@ -280,11 +470,13 @@ impl CanvasManager {
     }
 
     /// vnode 直选（u64 内核形态；协议面经 pick_vnode_str 的字符串形态）。
+    /// 未命中（索引存在但无此 vnode）→ 清 picked 并返回 None。
     pub fn pick_vnode(&self, vnode: u64) -> Option<Value> {
         let (frame_w, frame_h) = self.frame_px_size()?;
         let scale = frame_w as f32 / WINDOW_LOGICAL_W;
         let idx = self.shared.anchor.read().unwrap().clone()?;
         if idx.get(vnode).is_none() {
+            *self.shared.picked.lock().unwrap() = None;
             return None;
         }
         let vnode = idx.substantive_anchor(vnode);
@@ -365,7 +557,7 @@ impl CanvasManager {
         let tree = anchor.map(|a| a.tree_flat_json(&resolver)).unwrap_or(Value::Null);
         let frame = self
             .frame_px_size()
-            .map(|(w, h)| json!({ "w": w, "h": h }))
+            .map(|(w, h)| json!({ "w": w, "h": h, "valid": self.frame().is_some() }))
             .unwrap_or(Value::Null);
         json!({
             "state": st.state,
@@ -373,6 +565,10 @@ impl CanvasManager {
             "app_path": st.app_path,
             "restarts": st.restarts,
             "error": st.error,
+            // PLAN-093 T-02：预览身份与帧有效性（原字段保持兼容）。
+            "generation_id": self.shared.generation.load(Ordering::Relaxed),
+            "owner_workspace_id": self.shared.owner_workspace.lock().unwrap().clone(),
+            "owner_conversation_id": self.shared.owner_conversation.lock().unwrap().clone(),
             "frame": frame,
             "picked": *self.shared.picked.lock().unwrap(),
             "overlay": overlay,
@@ -506,9 +702,8 @@ async fn watchdog(
             .await;
             match shot {
                 Ok(Ok((path, bytes))) => {
-                    // 新帧入缓存；删上一帧文件防 tmp 堆积。
-                    shared.seq.fetch_add(1, Ordering::Relaxed);
-                    *shared.frame.lock().unwrap() = Some(Arc::new(bytes));
+                    // 新帧入缓存（唯一写帧点）；删上一帧文件防 tmp 堆积。
+                    shared.publish_frame(bytes);
                     if let Some(prev) = prev_frame.replace(path) {
                         let _ = std::fs::remove_file(prev);
                     }
@@ -582,6 +777,12 @@ async fn watchdog(
                     *shared.restarts.lock().unwrap() = restarts + 1;
                     *shared.pid.lock().unwrap() = h.pid();
                     *shared.mcp_base.lock().unwrap() = h.mcp_base.clone();
+                    // PLAN-093：watchdog 内部复活保留代次与归属，但失效帧/
+                    // 锚点/选择一律清场（按新实际帧恢复，旧帧不得串入）。
+                    *shared.frame.lock().unwrap() = None;
+                    *shared.anchor.write().unwrap() = None;
+                    *shared.picked.lock().unwrap() = None;
+                    shared.overlay.lock().unwrap().clear();
                     handle = h;
                     client = McpClient::new(handle.mcp_base.clone());
                     fail_streak = 0;

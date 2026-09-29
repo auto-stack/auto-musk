@@ -15,6 +15,8 @@
 | auto-lang 检出 | `e2deb4f879c27cf4e34597363f9866fe4bcf7ae2`（master 工作区；PLAN-705 已并入，检出处干净仅有 .tmp-* 杂物）——探针前执行了增量 `cargo build --bin auto` |
 | auto-ai / auto-down | `5a50a55844d7aa3523b593f21ba0fb03d18eac48` / `3373a5cc6e3a00336613133db51906fb0940777d`（与计划 §4 调查版一致，未动） |
 | 探针执行方式 | `node scripts/ui-parity/canvas-studio-probe.mjs [--probe a|b]`——本地 Node 帧服务器 + `auto run --render=vm` + AutoUI MCP（snapshot/autoui_state/autoui_action drag 合成） |
+| worktree 构建环境 | 宿主 shell 带 `RUSTC_WRAPPER=sccache`——**worktree 全新 target 下 sccache 使 test profile 编译损坏**（"only metadata stub for rlib `test`"、"crate X required in rlib format" 全家桶；full clean 后复现，去 sccache 后消失）。本计划所有 cargo 命令一律前置 `RUSTC_WRAPPER=` |
+| 依赖解析 | musk 后端 path deps（`../../../../auto-ai|auto-lang/...`）从组目录解析 → 已建同组依赖 worktree `D:/autostack/.wt/musk-093/auto-ai`（auto-musk-dev@main 5a50a55）、`D:/autostack/.wt/musk-093/auto-lang`（auto-musk-dev@master ec5adb7af；合回时按 AGENTS.md 尽快折叠清理） |
 | 收据 | `tmp/ui-parity/PLAN-093/probe-a-receipt.json`、`probe-b-receipt.json`（含模型状态原文、快照、命令环境） |
 
 ## 2. 探针结果
@@ -93,3 +95,25 @@
 - **Canvas 后端现状（T-02 改面）**：`CanvasManager`（单例、watchdog 1/2/4s×3、帧缓存 `(seq, PNG)`、锚点索引、picked/overlay）；路由 start/frame/status/pick/stop 无代次/归属概念；pick 未命中 204 但不清 picked；`ToolContext` 已有 workspace/parent_conversation_id 可挂归属。
 - **既有 web 前端债（T-04/T-06 改面）**：`canvas_store.at` 非 stopped 每拍强制 `cv_open=true`（轮询复活用户收起）；`canvas_web.ts` 以整 img 盒换算点选（contain 留白出界→后端 204 兜底）、document 级全局点击委托；`ports/canvas.vm.at` 全空桩。
 - **auto-lang 能力面（已核对 @e2deb4f）**：`imagesurface` iced:full（fit contain/width/one-to-one/free + zoom/pan，像素仅出自后台 decode LRU，UI 线程零解码）；`mouse-area` iced:full（onclick/ondblclick/onmousemove≤30Hz 限频+0.5px 量化，`coords` 逻辑幅面）；`image` iced:partial（同步 http 抓取 3s 超时、无鉴权头——禁用于帧链）；相对 URL 基址展开仅 `get_json` 族有，RequestBuilder 族无。
+
+## 7. T-02 接口表（已实现，2026-09-29，commit 见 worktree log）
+
+Canvas 预览身份契约落地（`backend/crates/musk/src/canvas/{manager,mod,tools}.rs`）：
+
+| 端点/入口 | 增量 | 兼容语义 |
+|---|---|---|
+| `POST /api/canvas/start` | body 增 `conversation_id?`、`expected_generation?`；响应增 `generation_id/owner_workspace_id/owner_conversation_id`（state/app_path 原样保留） | 无 expected = 旧无条件替换；expected 与当前不一致且当前≠0 → **409** `{error, generation_id}` 不替换新目标 |
+| `GET /api/canvas/frame` | query 增 `generation?`、`seq?` | 无参 = 现行 200/503；带 generation 不一致或 seq 为旧值（有帧）→ **409**（不伪造历史帧）；无帧 503 保持 |
+| `GET /api/canvas/status` | 载荷增 `generation_id/owner_workspace_id/owner_conversation_id`，`frame` 增 `valid` | 原字段全部保留 |
+| `POST /api/canvas/pick` | body 增 `clear?`（与 x/y/vnode_id 互斥，违者 400）、`expected_generation?`；**未命中（204）与显式 clear 均清 picked**；clear → 200 `{cleared:true}` | 旧 x/y/vnode_id 语义不变 |
+| `POST /api/canvas/stop` | query 增 `generation?` | 无参 = 旧无条件停止；不一致 → **409** 不杀新目标；响应增 `generation_id` |
+| 工具面 | `canvas_run` 登记归属（workspace+conversation）；`canvas_stop/pick/act/state/snapshot/overlay` 按 `ensure_session_owner` 守卫（归属他人 → Exec 错误拒绝）；未绑定预览（无归属）保持任意会话可用 | 成功文案不变 |
+
+Manager 内部：`begin_session`（spawn 前纯状态：冲突判定+归属登记+清场，测试直驱）、
+`publish_frame`/`publish_anchor`（帧/锚点唯一写点，seq 先自增）、watchdog 复活保留
+代次但清 frame/anchor/picked/overlay；代次仅显式 start 递增。
+
+测试：`backend/crates/musk/tests/canvas_studio_contract.rs`（19 例，无 spawn，
+oneshot 直打路由）——代次递增/冲突、归属停止守卫、未绑定语义、帧 seq/代次
+冲突不伪造历史、未命中清选、换代丢陈旧选、status 身份字段、路由 409/清选臂。
+
