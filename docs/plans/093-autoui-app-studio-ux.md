@@ -6,7 +6,7 @@ author: [agent]
 created_at: 2026-09-28T14:20:35Z
 updated_at: 2026-09-29T09:45:00Z
 plan_revision: 1
-current_step: 1
+current_step: 2
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-canvas.md
@@ -532,6 +532,18 @@ PID／进程树及起止收据，再做真实运行测试。
   工具调用使用工作区／会话上下文，不允许旧会话停掉新实例。
 - 验证 V02／V07：旧请求兼容、未命中204后picked为空、乱序旧stop409且新目标
   存活、frame seq不匹配不伪造历史帧；同步更新capability-map接口表。
+- [✅ 已完成] 证据（2026-09-29，commit 93bbccb@plan-093-dev）：
+  契约实现 manager/mod/tools（generation/owner、begin_session、
+  publish_frame/publish_anchor 唯一写点、stop_guarded、clear、frame_for、
+  watchdog 复活清场）；接口表 capability-map §7。
+  tests/canvas_studio_contract.rs 19 例全绿（代次冲突/归属停止守卫/未绑定
+  语义/帧 seq·代次冲突不伪造历史/未命中清选/换代丢陈旧选/status 身份字段/
+  路由 oneshot 409·clear 臂）。V02 全套 740 passed；唯一失败
+  tool_atoms::run_command_dangerous_returns_paused 经 stash 在 base 复现
+  （本机预存，与本计划无关）。V07（真实目标 VM 生命周期）按计划依赖归
+  T-12 回补。环境事实：worktree 构建（check→test 序列在 Windows 产生
+  metadata stub 中毒——test 前禁 cargo check；单测目标读 297MB rlib 偶发
+  E0786 由杀软扫描竞态，--no-run 收敛重试可解；sccache 排除嫌疑但已禁用）。
 
 ### [ ] T-03：接通VM请求和真实媒体帧端口
 
@@ -541,11 +553,23 @@ PID／进程树及起止收据，再做真实运行测试。
   新帧媒体适配文件只在T-01选定机制需要时创建并列入报告。
 - 为start／status／pick／clear／source／stop建立双端非阻塞回填通道；
   VMHTTP桥使用同一CanvasManager，二进制PNG／媒体ticket有真实响应，
-  不以打印“skipped”或固定stopped返回。
+  不以打印”skipped”或固定stopped返回。
 - JWT／workspace头沿用现有平台注入，避免重复query字段；加载图像携带身份
   与版本并回报loaded／failure；不在UI线程网络阻塞／decode。
 - 验证 V01，V07及V05最小四模式：真实运行得到帧、树选后有锚点、读源码、
   显式停止；响应缺失、401和旧代次均有可处理错误。
+- [▶ 进行中] 代码完成（commit a36413b@plan-093-dev，未验证不勾）：
+  canvas_vm.at 五路由薄装配 + 宿主桥 canvas_*_host（insert_http_response
+  字节通道，同一 CanvasManager）+ vm_backend 注册 + extern_impl 五桥 fn；
+  ports/canvas.vm.at 空桩退役（Http.request().send() 句柄族，绝对基址
+  自拼，446-E4 默认头注入；帧显示链按 T-01 §3 定案归 T-04 store）。
+  **验证被 base 预存破坏阻断**：MUSK_BACKEND=vm 的 musk serve 在无本计划
+  改动的 base 上即无法启动（”Undefined symbol: auth_header_token in module
+  server”——auto-lang master 前进后 VM 装载器模块符号解析规则变更，
+  extern_sigs 跨模块解析失效）。解除动作：auto-lang↔musk 接缝对齐
+  （上游恢复旧解析语义，或 musk auto-src 全语料适配新规则——需依 loader
+  实际语义定案，属依赖任务）；对齐后回补实机探活 + V05 最小四模式。
+  T-02 侧 contract 测试已覆盖同 CanvasManager 契约的行为面。
 
 ### [ ] T-04：重构CanvasStore投影与展示状态
 
@@ -695,6 +719,26 @@ PID／进程树及起止收据，再做真实运行测试。
 | T-11～T-14 | AC-01～AC-16（复验与证据） | SD-01～SD-05 |
 
 ## 9. 复审记录
+
+### work 阶段 T-02/T-03 交接
+
+- stage: work
+- plan_id: PLAN-093
+- plan_revision: 1
+- outcome: T-02 pass；T-03 代码完成、实机验证 blocked（base 预存破坏）
+- code_commit: 93bbccb（T-02）+ a36413b（T-03 wip）@plan-093-dev
+- task_ids: T-02（完成）、T-03（进行中）
+- evidence: tests/canvas_studio_contract.rs 19 绿；V02 全套 740 passed
+  （唯一失败经 stash 验证为 base 预存）；capability-map §7 接口表 +
+  环境事实（worktree check→test 中毒、杀软读竞态、sccache 禁用、依赖
+  worktree 组内解析）。
+- blockers: ①V01（auto build --gen-only --strict）base 即失败（S001
+  schema drift + 静默 abort）——T-05 起前端生成任务开工前必须先解除；
+  ②MUSK_BACKEND=vm serve base 即启动失败（auto-lang master 前进致
+  extern_sigs 跨模块符号解析失效）——T-03 实机验证与 T-13 四模式矩阵
+  被阻断。两项均为 auto-lang↔musk 接缝依赖任务，证据与解除动作见
+  capability-map §5 与计划 T-03 条目。
+- next: work（T-03 验证回补后 T-04；两项接缝对齐待用户/auto-lang 侧排期）
 
 ### work 阶段 T-01 交接
 
