@@ -24,7 +24,7 @@ pub enum RunEvent {
     StepStarted { #[serde(default)] timestamp: u64, step_id: String, role_id: String },
     StepCompleted { #[serde(default)] timestamp: u64, step_id: String, handoff_summary: String },
     GateWaiting { #[serde(default)] timestamp: u64, step_id: String, gate: String },
-    GateResolved { #[serde(default)] timestamp: u64, step_id: String, decision: String },
+    GateResolved { #[serde(default)] timestamp: u64, step_id: String, decision: String, #[serde(default)] note: Option<String> },
     /// PLAN-031 T5: carries the deterministic run report so the frontend
     /// ReportCard (web global slot / gen RunBox embed) lights up on completion.
     RunCompleted {
@@ -690,6 +690,18 @@ impl RunStore {
 
     /// Resolve a pending human gate.
     pub fn resolve_gate(&self, run_id: &str, decision: GateDecision) -> Option<(crate::relay::AdvanceResult, RunState)> {
+        self.resolve_gate_with_note(run_id, decision, None)
+    }
+
+    /// PLAN-094 T-03 (K4): resolve with an audit note — the auto-approve
+    /// branches pass what was injected on the user's behalf; it surfaces in
+    /// the GateResolved run event and the mirrored conversation audit turn.
+    pub fn resolve_gate_with_note(
+        &self,
+        run_id: &str,
+        decision: GateDecision,
+        note: Option<&str>,
+    ) -> Option<(crate::relay::AdvanceResult, RunState)> {
         let mut appended: Vec<RunEvent> = Vec::new();
         let (result, state) = {
             let mut runs = self.runs.lock().unwrap();
@@ -710,6 +722,7 @@ impl RunStore {
                 timestamp: now,
                 step_id: step_id.unwrap_or_default(),
                 decision: decision_str.into(),
+                note: note.map(str::to_string),
             });
             // resolve_gate may itself advance into ExecuteStep/WaitForHuman/etc.;
             // record the resulting transition.
@@ -900,6 +913,22 @@ impl RunStore {
             &entry.context,
         )
         .unwrap_or(initial_task);
+        // PLAN-094（UAT K5 定向重跑的前提）：门反馈必须送达被重做的相位。
+        // 引擎把 reject(feedback) 记在被门守卫的步名下（`feedback_for`），
+        // 但此组装点自 P2b.2 起从未消费它——重跑相位看不到反馈，定向重跑
+        // 等于盲目重放。反馈非空时以「门反馈」块附加在任务之后（反馈在
+        // 引擎 `rerun()` 才清除；plan 流各步单次进入，无重复注入面）。
+        let feedback = entry.engine.feedback_for(&step_id);
+        let task = if feedback.is_empty() {
+            task
+        } else {
+            let bullets = feedback
+                .iter()
+                .map(|f| format!("- {f}"))
+                .collect::<Vec<_>>()
+                .join("\n");
+            format!("{task}\n\n# 门反馈（审批门决议注入，本相位必须落实）\n{bullets}")
+        };
         let prior_md = entry
             .engine
             .step_history
@@ -925,6 +954,15 @@ impl RunStore {
         let runs = self.runs.lock().unwrap();
         runs.get(run_id)
             .and_then(|e| e.context.get(key).cloned())
+    }
+
+    /// PLAN-094 T-03: the pending human gate's step id (None = no gate
+    /// waiting). Feeds the execute-gate invariant checks in the gate handlers.
+    pub fn pending_gate_step(&self, run_id: &str) -> Option<String> {
+        let runs = self.runs.lock().unwrap();
+        runs.get(run_id)
+            .and_then(|e| e.engine.pending_gate.as_ref())
+            .map(|g| g.step_id.clone())
     }
 
     /// PLAN-030 试用修复：显式置败。agent 运行错误时 driver 调用——原先错误
@@ -1141,12 +1179,29 @@ mod tests {
 
         // reject(feedback)：带反馈重做被门守卫的步骤（redraft,非中止）。
         let (r, _) = store
-            .resolve_gate(&id, GateDecision::Reject { feedback: "计划缺验收标准".to_string() })
+            .resolve_gate_with_note(
+                &id,
+                GateDecision::Reject { feedback: "计划缺验收标准".to_string() },
+                Some("计划缺验收标准"),
+            )
             .unwrap();
         assert!(
             matches!(r, crate::relay::AdvanceResult::ExecuteStep { .. }),
             "reject redrafts the gated step"
         );
+        // PLAN-094（定向重跑前提）：门反馈必须送达重做相位的任务组装。
+        let (task, _) = store.step_context(&id).unwrap();
+        assert!(
+            task.contains("门反馈") && task.contains("计划缺验收标准"),
+            "redraft task must carry the gate feedback"
+        );
+        // GateResolved 审计事件带注入反馈（K4）。
+        let st = store.get(&id).unwrap();
+        let has_noted_gate_event = st
+            .events
+            .iter()
+            .any(|e| matches!(e, RunEvent::GateResolved { note: Some(n), .. } if n == "计划缺验收标准"));
+        assert!(has_noted_gate_event, "GateResolved audit must carry the note");
         // redraft 后流程继续走完剩余 Auto 步骤（plan flow 仅此一个 Human gate）。
         let mut r = store.submit_handoff(&id, handoff("plan-dev")).unwrap().0;
         let mut guard = 0;
@@ -1194,6 +1249,43 @@ mod tests {
         }
         let st2 = store2.get(&id2).unwrap();
         assert_eq!(st2.status, "completed", "approve resumes to completion");
+    }
+
+    /// PLAN-094 T-03（用例 3 human 臂判定核）：门等待中的真实 run 上，
+    /// `flow_of` + `pending_gate_step` + `context_var` 组合出不变式判定——
+    /// 缺 plan_file → Fail（handler 据此 409 且不消费门）；有 plan_file →
+    /// Proceed（照常放行，AC-04）。
+    #[test]
+    fn human_arm_invariant_composes_from_live_run_state() {
+        use crate::relay::plan_flow::{execute_gate_action, ExecuteGateAction};
+        let store = tmp_store();
+        let (id, _) = store.start_run(
+            &StartRunRequest { flow_id: Some("plan".into()), ..Default::default() },
+            None,
+        );
+        store.advance(&id).unwrap();
+        store.submit_handoff(&id, handoff("execute")).unwrap();
+        assert!(store.get(&id).unwrap().waiting_for_gate.is_some());
+
+        // 无 plan_file：Fail → handler 拒绝决议、门保持未消费。
+        let action = execute_gate_action(
+            store.flow_of(&id).as_deref(),
+            store.pending_gate_step(&id).as_deref(),
+            store.context_var(&id, "plan_file").as_deref(),
+        );
+        assert_eq!(action, Some(ExecuteGateAction::Fail));
+        assert!(store.get(&id).unwrap().waiting_for_gate.is_some(), "gate untouched");
+
+        // 绑定 plan_file 后：Proceed → handler 放行，门消费、execute 启动。
+        store.set_context_var(&id, "plan_file", "docs/plans/001-x.md");
+        let action = execute_gate_action(
+            store.flow_of(&id).as_deref(),
+            store.pending_gate_step(&id).as_deref(),
+            store.context_var(&id, "plan_file").as_deref(),
+        );
+        assert_eq!(action, Some(ExecuteGateAction::Proceed));
+        let (r, _) = store.resolve_gate(&id, GateDecision::Approve).unwrap();
+        assert!(matches!(r, crate::relay::AdvanceResult::ExecuteStep { .. }));
     }
 
     /// PLAN-035：ReportMeta 新增 structured 字段——旧 JSON（无该字段）可反

@@ -34,7 +34,10 @@
 
 - 相位模板：`relay/plan_flow.rs phase_task`，按目标职业校准口吻；纪律条目为
   模板固定内容——澄清-停止 / 幂等复用 / `PLAN_FILE:` 尾行协议 / TDD /
-  阻塞入 §10 / 信代码不信勾选 / spec-impact 三字段硬性要求 / status 门禁。
+  阻塞入 §10 / 信代码不信勾选 / spec-impact 三字段硬性要求 / status 门禁 /
+  **计划文件缺失硬失败**（PLAN-094：`{plan_file}` 双缺时不再是定位提示，
+  而是阻断性缺陷条款——立即停止并输出 blocker，不得开始/继续本相位、
+  不得正常完成本相位）。
 - **prior handoff render 注入在 plan/plan-merge 退役**：`relay/driver.rs
   injects_handoff`（纯函数）按 flow_id 门控——plan/plan-merge 不注入，
   deprecated 流保留注入语义，未知 flow（run 消失）fail-open 走注入。
@@ -42,7 +45,7 @@
 - 设计原则（用户裁定）：流程形状静态、每相位角色固定、传递内容固定；灵活性
   只保留 intake 路由与 Human gate 两处（对齐 auto-forge「流程过灵活」败因）。
 
-## 计划文件机械传递（绑定 > 标记 > hint）
+## 计划文件机械传递（绑定 > 标记 > 硬失败）
 
 计划文件路径经 run 上下文变量 `plan_file` 传递，写入优先级固定：
 
@@ -52,7 +55,42 @@
 2. **标记回退**：相位输出尾行 `PLAN_FILE: <path>` 由驱动提取——
    `plan_flow.rs plan_file_marker_write(existing, output)` 守门：绑定已存在
    不覆盖；hw `run_step` 与 ag `drive_submit_handoff` 双驱动共用此单源函数。
-3. **降级提示**：双缺时模板 `{plan_file}` 落 list_plans 定位提示。
+3. **硬失败条款**（PLAN-094）：双缺时模板 `{plan_file}` 落阻断性缺陷条款
+   （立即停止 + 输出 blocker），不再是"list_plans 自行定位"提示——UAT T3
+   实录该提示曾放任 coder 空转假完成（K5 级联面）。
+
+## execute 门前置不变式（PLAN-094，UAT K4/K5）
+
+`plan` 流 execute 门（唯一 Human gate）上的 **approve 前置不变式**：run 上下文
+`plan_file` 必须非空（绑定主通道或标记回退）。判定核单源
+`plan_flow.rs execute_gate_action`（纯函数），hw/ag 双驱动与两个人口共用：
+
+- **auto 臂**（会话 `approval_mode=auto`，`relay/driver.rs` 与 ag
+  `auto_generated/relay_driver.rs` 的放行分支）：`plan_file` 缺失 → **不放行，
+  直接 `fail_run`**，error =
+  `plan phase ended without a plan file — restart the run (advisor reuses
+  existing plans) or answer the advisor via reject+feedback in human mode`。
+  有计划文件 → 照常放行（行为不变，AC-04）。
+- **human 臂**（`POST …/gate`，hw `relay/api.rs` + ag
+  `extern_impl relay_resolve_gate`）：`plan_file` 缺失 → 409 错误**不消费门**
+  （提示改用 reject+feedback 或重开 run）。
+- **D1 退化记录**（计划 PLAN-094 §10 预授权）：设计原文为"auto 缺失时转
+  reject+feedback 定向重跑 plan 相位一次"。work 实测：引擎 redraft 语义
+  （`PipelineEngine::resolve_gate` Reject → 重做**被门守卫的步骤**）只会重跑
+  execute 相位，"重跑 plan 相位"在现引擎上不可表达（无 rewind API；让 coder
+  带反馈补写计划又与模板硬失败条款及 K7"相位不做计划外发挥"冲突）→ 按预授权
+  退化为直接 `run_failed`，仍满足"不放行"。恢复出路 = 重开 run（advisor 幂等
+  复用既有计划）或 human 模式下 reject+feedback。
+- **auto 放行审计（K4）**：auto 通过**任何** human 门时，审计事件/审计轮携带
+  注入反馈文本（`RunEvent::GateResolved` 新增 `note` 字段，缺省
+  `auto-approved; recorded defaults apply`；会话镜像轮正文
+  `Gate <step> <decision> — <note>`，`conversation.rs`）。
+- **门反馈送达（配套修复）**：`RunStore::step_context` 现消费引擎
+  `feedback_for(step_id)`——reject(feedback) 重做相位时，反馈以「门反馈」块
+  附加在相位模板之后（P2b.2 起该反馈从未被消费，定向反馈等同盲重放；此为
+  前置缺陷的顺手修复）。已知边界：引擎 redraft 的目标是**被门守卫的相位**
+  （execute），非 plan 相位——human 门的 reject+feedback 反馈到达 coder 而非
+  advisor（引擎语义，见 D1 记录）。
 
 ## 路由唯一源 = transition_plan 状态机
 

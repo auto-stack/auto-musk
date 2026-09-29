@@ -42,13 +42,58 @@ pub fn plan_file_marker_write(existing: Option<String>, output: &str) -> Option<
     extract_plan_file(output)
 }
 
+// ── PLAN-094 T-03: execute-gate plan-file invariant (UAT K4/K5) ────────────
+
+/// Terminal run error when an execute-gate approve finds no plan file (plan
+/// D1: loud failure instead of a gate pass — the engine's redraft reruns the
+/// GATED step (execute), so a true plan-phase rerun is not expressible; the
+/// recovery path is restarting the run, which the advisor handles idempotently).
+pub const PLAN_GATE_FAIL_ERROR: &str =
+    "plan phase ended without a plan file — restart the run (advisor reuses existing plans) or answer the advisor via reject+feedback in human mode";
+
+/// Default audit note carried on every auto-approved human gate (K4: the
+/// audit turn must say what was injected on the user's behalf).
+pub const AUTO_APPROVE_NOTE: &str = "auto-approved; recorded defaults apply";
+
+/// What the caller must do with an approve at the plan flow's execute gate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExecuteGateAction {
+    /// Plan file present — approve proceeds unchanged (AC-04 regression arm).
+    Proceed,
+    /// Plan file missing — do NOT pass the gate: auto mode fails the run
+    /// (plan D1), the human arm refuses the decision without consuming it.
+    Fail,
+}
+
+/// The execute-gate invariant (UAT K5): an approve at the `plan` flow's
+/// execute gate requires a materialized plan file — run context `plan_file`
+/// via the create_plan binding or the `PLAN_FILE:` marker fallback. Returns
+/// None when the approve is not at that gate (other flows/steps untouched).
+/// `flow_id`/`gate_step_id` come from `RunStore::flow_of` /
+/// `RunStore::pending_gate_step` (drivers may pass the WaitForHuman step_id —
+/// same value). Single-sourced here so the hw and ag drivers rule identically.
+pub fn execute_gate_action(
+    flow_id: Option<&str>,
+    gate_step_id: Option<&str>,
+    plan_file: Option<&str>,
+) -> Option<ExecuteGateAction> {
+    if flow_id != Some("plan") || gate_step_id != Some("execute") {
+        return None;
+    }
+    if plan_file.map(|s| !s.trim().is_empty()).unwrap_or(false) {
+        return Some(ExecuteGateAction::Proceed);
+    }
+    Some(ExecuteGateAction::Fail)
+}
+
 /// Compose the phase task for (flow_id, step_id). Returns None for flows
 /// without templates (legacy behavior: raw initial task).
 ///
 /// `initial_task` (the user's requirement) is embedded in every phase so the
 /// agent always knows what it is working on. `{plan_file}` is substituted
-/// from `context`; a missing value degrades to a locate-it-yourself hint
-/// instead of a dangling placeholder.
+/// from `context`; a missing value is a hard-fail blocker clause (PLAN-094
+/// T-04: the plan file is the sole inter-phase carrier — the old
+/// locate-it-yourself hint let a coder idle to a fake completion, UAT T3).
 pub fn phase_task(
     flow_id: &str,
     step_id: &str,
@@ -64,10 +109,15 @@ pub fn phase_task(
         return None;
     }
     let requirement = format!("# 需求（用户原话整理）\n{initial_task}\n\n");
-    let plan_file = context
-        .get("plan_file")
-        .cloned()
-        .unwrap_or_else(|| "(未知——用 list_plans 找到本需求对应的 plan 再继续)".into());
+    // PLAN-094 T-04 (UAT K5/K7)：双驱动门前置不变式的第二道保险——计划文件
+    // 缺失不再是"自行定位"的降级提示（UAT T3 实录：coder 借它空转假完成），
+    // 而是硬失败条款：立即停止并输出 blocker。
+    let plan_file = context.get("plan_file").cloned().unwrap_or_else(|| {
+        "(缺失——上游缺陷：计划文件未落实。这是阻断性缺陷：立即停止并输出 \
+         blocker 说明 plan_file 未落实；不得开始或继续本相位工作、不得正常\
+         完成本相位。)"
+            .into()
+    });
     let template = match step_id {
         "plan" => format!(
             "{requirement}# 任务：需求整理与计划撰写（plan 相位）\n\n\
@@ -223,13 +273,19 @@ mod tests {
     }
 
     #[test]
-    fn later_phases_substitute_plan_file_or_degrade() {
+    fn later_phases_substitute_plan_file_or_hard_fail() {
         let t = phase_task("plan", "execute", "需求", &ctx(Some("docs/plans/030-x.md"))).unwrap();
         assert!(t.contains("docs/plans/030-x.md"));
         assert!(!t.contains("{plan_file}"), "no dangling placeholder");
 
-        let t = phase_task("plan", "review", "需求", &ctx(None)).unwrap();
-        assert!(t.contains("list_plans"), "missing plan_file degrades to locate hint");
+        // PLAN-094 T-04 (用例 5): plan_file 缺失 → 硬失败 blocker 条款，
+        // 不再是"list_plans 自行定位"的降级提示（UAT T3 coder 空转的降级面）。
+        for step in ["execute", "review", "document"] {
+            let t = phase_task("plan", step, "需求", &ctx(None)).unwrap();
+            assert!(t.contains("阻断性缺陷"), "{step}: blocker clause present");
+            assert!(t.contains("立即停止"), "{step}: stop now instruction");
+            assert!(!t.contains("list_plans 找到"), "{step}: locate hint retired");
+        }
     }
 
     #[test]
@@ -274,5 +330,34 @@ mod tests {
         );
         // 双缺：无绑定亦无标记 → 不写（组装臂落 hint）。
         assert_eq!(plan_file_marker_write(None, "no marker"), None);
+    }
+
+    /// PLAN-094 T-03 (用例 3 的判定核)：execute 门不变式两分支——有计划文件
+    /// 照常放行（AC-04）；缺失即不放行（auto 置败 / human 决议报错，plan D1
+    /// 退化：引擎 redraft 只会重做被门守卫的 execute 相位而非 plan 相位，
+    /// 定向重跑 plan 相位不可表达 → 直接置败响亮失败）。非 execute 门 /
+    /// 非 plan 流程不适用（None）。
+    #[test]
+    fn execute_gate_invariant_two_way() {
+        use ExecuteGateAction::{Fail, Proceed};
+        // plan 流 execute 门：两判定。
+        assert_eq!(
+            execute_gate_action(Some("plan"), Some("execute"), Some("docs/plans/001-x.md")),
+            Some(Proceed)
+        );
+        assert_eq!(
+            execute_gate_action(Some("plan"), Some("execute"), None),
+            Some(Fail)
+        );
+        assert_eq!(
+            execute_gate_action(Some("plan"), Some("execute"), Some("")),
+            Some(Fail),
+            "empty plan_file counts as missing"
+        );
+        // 其它门/流程：不变式不适用。
+        assert_eq!(execute_gate_action(Some("plan"), Some("review"), None), None);
+        assert_eq!(execute_gate_action(Some("plan-merge"), Some("document"), None), None);
+        assert_eq!(execute_gate_action(Some("simple"), Some("execute"), None), None);
+        assert_eq!(execute_gate_action(None, Some("execute"), None), None);
     }
 }

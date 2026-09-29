@@ -3026,6 +3026,19 @@ pub fn relay_resolve_gate(
             return serde_json::json!({"error": {"code": 400, "message": format!("unknown gate decision '{d}' (want approve|reject|edit)")}})
         }
     };
+    // PLAN-094 T-03（UAT K5）human 臂：plan 流 execute 门上的 approve 在
+    // 计划文件未落实时拒绝且不消费门（409，用 reject+feedback 回答
+    // advisor）。（与 hw relay/api.rs 同规则，判定核单源 plan_flow。）
+    if matches!(decision, crate::relay::GateDecision::Approve) {
+        let action = crate::relay::plan_flow::execute_gate_action(
+            ws.relay.flow_of(r).as_deref(),
+            ws.relay.pending_gate_step(r).as_deref(),
+            ws.relay.context_var(r, "plan_file").as_deref(),
+        );
+        if action == Some(crate::relay::plan_flow::ExecuteGateAction::Fail) {
+            return serde_json::json!({"error": {"code": 409, "message": crate::relay::plan_flow::PLAN_GATE_FAIL_ERROR}});
+        }
+    }
     match ws.relay.resolve_gate(r, decision) {
         Some((result, run_state)) => {
             crate::relay::api::publish_advance_result_with_report(r, &result, ws.relay.run_report(r));

@@ -183,9 +183,32 @@ async fn drive_loop(
                 // PLAN-067 T-05：审批模式 = auto 时即刻放行并继续驱动
                 // （resolve_gate 内部 advance 出 ExecuteStep/Completed）。
                 // 放行本身经 store.resolve_gate 落 GateResolved 审计事件。
+                // PLAN-094 T-03（UAT K4/K5）：放行前先过 execute 门不变式——
+                // plan 流 execute 门上的 approve 必须有已落实的计划文件；缺失
+                // 时不放行、直接置败响亮失败（plan D1 退化：引擎 redraft 只会
+                // 重做被门守卫的 execute 相位，定向重跑 plan 相位不可表达）。
                 if ws.relay.context_var(run_id, "approval_mode").as_deref() == Some("auto") {
+                    let gate_step = ws.relay.pending_gate_step(run_id);
+                    if crate::relay::plan_flow::execute_gate_action(
+                        ws.relay.flow_of(run_id).as_deref(),
+                        gate_step.as_deref(),
+                        ws.relay.context_var(run_id, "plan_file").as_deref(),
+                    ) == Some(crate::relay::plan_flow::ExecuteGateAction::Fail)
+                    {
+                        tracing::error!(
+                            "drive_run: {run_id} execute gate without plan_file — failing run (no silent pass)"
+                        );
+                        let _ = ws
+                            .relay
+                            .fail_run(run_id, crate::relay::plan_flow::PLAN_GATE_FAIL_ERROR);
+                        return;
+                    }
                     tracing::info!("drive_run: {run_id} approval_mode=auto, auto-approving gate");
-                    let (res, _st) = match ws.relay.resolve_gate(run_id, GateDecision::Approve) {
+                    let (res, _st) = match ws.relay.resolve_gate_with_note(
+                        run_id,
+                        GateDecision::Approve,
+                        Some(crate::relay::plan_flow::AUTO_APPROVE_NOTE),
+                    ) {
                         Some(v) => v,
                         None => return,
                     };

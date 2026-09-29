@@ -258,3 +258,107 @@ fn parity_run_event_type_tags_match() {
     }
 }
 
+
+// ── PLAN-094 T-03 (UAT K4/K5): execute-gate plan-file invariant ─────────────
+
+/// Auto mode, plan flow, advisor never materializes a plan file: the execute
+/// gate must NOT pass — the run fails loudly with the contract error instead
+/// of the UAT T3 cascade (coder idling → reviewer death-loop). Plan D1: no
+/// gate-redirect rerun (the engine's redraft reruns the GATED step, i.e.
+/// execute, not the plan phase — a plan-phase rerun is not expressible), so
+/// the first miss fails directly. Both drive loops (hw + ag, single-sourced
+/// rule core in plan_flow::execute_gate_action) must behave identically.
+#[tokio::test]
+async fn plan094_auto_gate_without_plan_file_fails_without_passing() {
+    let hw_state = Arc::new(make_state(Arc::new(CannedClient) as Arc<dyn Client>));
+    let ag_state = hw_state.clone();
+    let ws_id = ws_id_of(&hw_state);
+
+    for rid in ["run-hw-k5", "run-ag-k5"] {
+        start_run(hw_state.clone(), &ws_id, "plan", rid);
+        hw_state.registry.get(&ws_id).relay.set_context_var(rid, "approval_mode", "auto");
+    }
+
+    hw_driver::drive_run(hw_state.clone(), ws_id.clone(), "run-hw-k5".into()).await;
+    ag_driver::drive_run(ag_state.clone(), &ws_id, "run-ag-k5")
+        .await
+        .expect("ag drive_run");
+
+    for (state, rid) in [(hw_state.clone(), "run-hw-k5"), (ag_state.clone(), "run-ag-k5")] {
+        let ws = state.registry.get(&ws_id);
+        let rs = ws.relay.get(rid).expect("run gone");
+        assert_eq!(rs.status, "failed", "{rid}: plan-less gate fails the run");
+        // The plan phase ran exactly once — no rerun, and no phase past the
+        // gate (the UAT T3 coder idle-run is impossible).
+        let advisor_runs = rs
+            .step_history
+            .iter()
+            .filter(|r| r.role_id == "advisor" && r.handoff.is_some())
+            .count();
+        assert_eq!(advisor_runs, 1, "{rid}: plan phase ran once, no blind rerun");
+        // No phase past the gate ever ran.
+        assert!(
+            !rs.step_history.iter().any(|r| r.role_id != "advisor"),
+            "{rid}: coder/reviewer/assistant must not run without a plan"
+        );
+        // Terminal event carries the contract error string.
+        assert!(
+            rs.events.iter().any(
+                |e| matches!(e, RunEvent::RunFailed { error, .. }
+                    if error == musk::relay::plan_flow::PLAN_GATE_FAIL_ERROR)
+            ),
+            "{rid}: RunFailed carries the plan-file error"
+        );
+        // The gate was never resolved (no approve slipped through).
+        assert!(
+            !rs.events.iter().any(|e| matches!(e, RunEvent::GateResolved { .. })),
+            "{rid}: gate must not be consumed"
+        );
+    }
+
+    // hw/ag parity on terminal status + event-type sequence.
+    let (hw_status, _) = run_summary(&hw_state, &ws_id, "run-hw-k5");
+    let (ag_status, _) = run_summary(&ag_state, &ws_id, "run-ag-k5");
+    assert_eq!(ag_status, hw_status, "status parity (K5 fail-fast)");
+    assert_eq!(
+        event_types(&hw_state, &ws_id, "run-hw-k5"),
+        event_types(&ag_state, &ws_id, "run-ag-k5"),
+        "event-type sequence parity (K5 fail-fast)"
+    );
+}
+
+/// AC-04 regression: with the plan file present (binding channel), the auto
+/// gate approves straight through — behavior unchanged from PLAN-067.
+#[tokio::test]
+async fn plan094_auto_gate_with_plan_file_approves_through() {
+    let hw_state = Arc::new(make_state(Arc::new(CannedClient) as Arc<dyn Client>));
+    let ag_state = hw_state.clone();
+    let ws_id = ws_id_of(&hw_state);
+
+    for rid in ["run-hw-ac04", "run-ag-ac04"] {
+        start_run(hw_state.clone(), &ws_id, "plan", rid);
+        let ws = hw_state.registry.get(&ws_id);
+        ws.relay.set_context_var(rid, "approval_mode", "auto");
+        ws.relay.set_context_var(rid, "plan_file", "docs/plans/001-x.md");
+    }
+
+    hw_driver::drive_run(hw_state.clone(), ws_id.clone(), "run-hw-ac04".into()).await;
+    ag_driver::drive_run(ag_state.clone(), &ws_id, "run-ag-ac04")
+        .await
+        .expect("ag drive_run");
+
+    for (state, rid) in [(hw_state.clone(), "run-hw-ac04"), (ag_state.clone(), "run-ag-ac04")] {
+        let ws = state.registry.get(&ws_id);
+        let rs = ws.relay.get(rid).expect("run gone");
+        assert_eq!(rs.status, "completed", "{rid}: plan file present → gate approves");
+        // K4 audit: the plain auto-approve still records its default note.
+        assert!(
+            rs.events.iter().any(|e| matches!(e, RunEvent::GateResolved { decision, note: Some(n), .. }
+                if decision == "approve" && n == musk::relay::plan_flow::AUTO_APPROVE_NOTE)),
+            "{rid}: auto-approve audit carries the default note"
+        );
+    }
+    let (hw_status, _) = run_summary(&hw_state, &ws_id, "run-hw-ac04");
+    let (ag_status, _) = run_summary(&ag_state, &ws_id, "run-ag-ac04");
+    assert_eq!(ag_status, hw_status, "status parity (AC-04)");
+}

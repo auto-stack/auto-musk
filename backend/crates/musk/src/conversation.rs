@@ -463,15 +463,21 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
             seq += 1;
         }
         RunEvent::GateResolved {
-            step_id, decision, ..
+            step_id, decision, note, ..
         } => {
+            // PLAN-094 T-03 (K4)：auto 放行的审计轮带注入反馈文本（note），
+            // 人工决议维持原样（"Gate execute approve"）。
+            let content = match &note {
+                Some(n) => format!("Gate {} {} — {n}", step_id, decision),
+                None => format!("Gate {} {}", step_id, decision),
+            };
             turns.push(Turn {
                 id: new_id(8),
                 seq,
                 from: "human".into(),
                 to: None,
                 kind: TurnKind::Gate,
-                content: format!("Gate {} {}", step_id, decision),
+                content,
                 tool: None,
                 gate: Some(GateRecord {
                     step_id: step_id.clone(),
@@ -1430,6 +1436,7 @@ mod tests {
             timestamp: 0,
             step_id: "gate1".into(),
             decision: "approve".into(),
+            note: None,
         };
         let w = run_event_to_turns(&waiting, 0);
         assert_eq!(w.len(), 1);
@@ -1440,6 +1447,17 @@ mod tests {
         assert_eq!(r.len(), 1);
         assert_eq!(r[0].from, "human");
         assert_eq!(r[0].gate.as_ref().unwrap().status, "approve");
+
+        // PLAN-094 T-03 (K4)：auto 放行的注入反馈进审计轮正文。
+        let auto = crate::relay::store::RunEvent::GateResolved {
+            timestamp: 0,
+            step_id: "execute".into(),
+            decision: "approve".into(),
+            note: Some("auto-approved; recorded defaults apply".into()),
+        };
+        let a = run_event_to_turns(&auto, 2);
+        assert_eq!(a.len(), 1);
+        assert!(a[0].content.contains("auto-approved; recorded defaults apply"));
     }
 
     #[test]

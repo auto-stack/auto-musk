@@ -94,7 +94,28 @@ async fn drive_loop(state: Arc<AppState>, ws_id: &str, run_id: &str) -> Result<b
                         }
                     }
                     if ws.relay.context_var(run_id, "approval_mode").as_deref() == Some("auto") {
-                        if let Some((res2, _st2)) = ws.relay.resolve_gate(run_id, crate::relay::GateDecision::Approve) {
+                        // PLAN-094 T-03（UAT K4/K5）：放行前先过 execute 门
+                        // 不变式——plan 流 execute 门上的 approve 必须有已落实
+                        // 的计划文件；缺失时不放行、直接置败响亮失败（plan D1
+                        // 退化：引擎 redraft 只会重做被门守卫的 execute 相位，
+                        // 定向重跑 plan 相位不可表达）。（与 hw relay/driver.rs
+                        // 同规则，判定核单源 crate::relay::plan_flow。）
+                        let gate_step = ws.relay.pending_gate_step(run_id);
+                        if crate::relay::plan_flow::execute_gate_action(
+                            ws.relay.flow_of(run_id).as_deref(),
+                            gate_step.as_deref(),
+                            ws.relay.context_var(run_id, "plan_file").as_deref(),
+                        ) == Some(crate::relay::plan_flow::ExecuteGateAction::Fail)
+                        {
+                            tracing::error!(
+                                "drive_run: {run_id} execute gate without plan_file — failing run (no silent pass)"
+                            );
+                            let _ = ws.relay.fail_run(run_id, crate::relay::plan_flow::PLAN_GATE_FAIL_ERROR);
+                        } else if let Some((res2, _st2)) = ws.relay.resolve_gate_with_note(
+                            run_id,
+                            crate::relay::GateDecision::Approve,
+                            Some(crate::relay::plan_flow::AUTO_APPROVE_NOTE),
+                        ) {
                             let mut kind2 = String::new();
                             let mut role2 = String::new();
                             match &res2 {

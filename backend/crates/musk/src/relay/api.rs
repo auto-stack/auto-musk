@@ -294,6 +294,22 @@ async fn resolve_gate(
                 .into_response()
         }
     };
+    // PLAN-094 T-03（UAT K5）human 臂：plan 流 execute 门上的 approve 在
+    // 计划文件未落实时拒绝且不消费门（用 reject+feedback 回答 advisor）。
+    if matches!(decision, GateDecision::Approve) {
+        let action = crate::relay::plan_flow::execute_gate_action(
+            ws.relay.flow_of(&run_id).as_deref(),
+            ws.relay.pending_gate_step(&run_id).as_deref(),
+            ws.relay.context_var(&run_id, "plan_file").as_deref(),
+        );
+        if action == Some(crate::relay::plan_flow::ExecuteGateAction::Fail) {
+            return (
+                StatusCode::CONFLICT,
+                crate::relay::plan_flow::PLAN_GATE_FAIL_ERROR.to_string(),
+            )
+                .into_response();
+        }
+    }
     match ws.relay.resolve_gate(&run_id, decision) {
         Some((result, run_state)) => {
             publish_advance_result_with_report(&run_id, &result, ws.relay.run_report(&run_id));
@@ -304,6 +320,7 @@ async fn resolve_gate(
                     timestamp: now_secs(),
                     step_id: step_id.clone(),
                     decision: body.decision.clone(),
+                    note: None,
                 };
                 publish_internal(&run_id, &gate_ev);
             }

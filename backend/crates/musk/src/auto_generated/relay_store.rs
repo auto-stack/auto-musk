@@ -56,7 +56,9 @@ pub enum RunEvent {
     StepStarted { timestamp: u64, step_id: String, role_id: String },
     StepCompleted { timestamp: u64, step_id: String, handoff_summary: String },
     GateWaiting { timestamp: u64, step_id: String, gate: String },
-    GateResolved { timestamp: u64, step_id: String, decision: String },
+    // PLAN-094 手补：note 与 hw 枚举 wire parity（auto 放行的注入反馈审计，
+    // K4；重生成后需手工补回——parity 测试编译期拦截）。
+    GateResolved { timestamp: u64, step_id: String, decision: String, #[serde(default)] note: Option<String> },
     // PLAN-031 T5: report payload (hw store::RunReportPayload — wire parity
     // with the handwritten enum; #[serde(default)] keeps old events loadable).
     RunCompleted { timestamp: u64, #[serde(default)] report: crate::relay::store::RunReportPayload },
