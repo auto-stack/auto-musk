@@ -4,9 +4,9 @@ status: executing
 feature_name: AutoUI 应用设计工作台与实时 Canvas 双端 UX
 author: [agent]
 created_at: 2026-09-28T14:20:35Z
-updated_at: 2026-09-29T00:00:00Z
+updated_at: 2026-09-29T09:45:00Z
 plan_revision: 1
-current_step: 0
+current_step: 1
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-canvas.md
@@ -486,7 +486,7 @@ PID／进程树及起止收据，再做真实运行测试。
 所有任务当前未开始。每项完成须记录实际命令、结果、代码版本与证据；仅写
 “已完成”不能打勾。T-01 是后续工作的第一项，而非本轮已完成的运行探针。
 
-### [ ] T-01：建立工作树并验证平台能力／固定接口
+### [x] T-01：建立工作树并验证平台能力／固定接口
 
 - 依赖：无。关联 AC-02、AC-05、AC-06、AC-10、AC-16。
 - 按 work 技能和 AGENTS.md 建／复用专用 worktree；依赖用 env／同组兄弟／
@@ -500,6 +500,26 @@ PID／进程树及起止收据，再做真实运行测试。
   backend Auto再生的实际命令与支持模式；执行一次V01／最小VM运行核对。
 - 完成门：证明VM链可实现并固定下游任务；若缺少必须的上游能力，给出最小
   依赖合同并needs_replan，停止依赖该能力的任务，不降低AC-05／AC-10。
+- [✅ 已完成] 证据（2026-09-29，commit d157387@plan-093-dev）：
+  worktree `D:/autostack/.wt/musk-093/auto-musk`；capability-map
+  `docs/reports/093-app-studio-capability-map.md`；双探针
+  （`tests/ui-parity/probes/`，runner `scripts/ui-parity/canvas-studio-probe.mjs`）
+  收据 `tmp/ui-parity/PLAN-093/probe-{a,b}-receipt.json`。
+  探针A PASS：Http.request().send() 非阻塞二进制帧→body_to_file 字节忠实
+  （428B 逐字节等）→open_session/current_uri 媒体 ticket→image_surface，
+  park/resume 全程 UI 不冻结。探针B PASS：mouse-area(coords) 内包 image
+  经 MCP drag 合成命中真实派发链（moves=3/clicks=1）；
+  vm.window_inner_width/height 实窗 1024x768。
+  上游缺口六项（G-1 ImageSurface onload 未接线、G-2 CSS-absolute 叠层
+  hoist 丢树、G-3 dom.focus_first no-op、G-4 queue URI 无访问器、
+  G-5 body_bytes 跨 park 丢 RC、G-6 合成通道 Double 位型错读）与最小依赖
+  合同见 capability-map §4；T-03 定案 VMHTTP 桥走宿主 insert_http_response
+  字节通道，帧运输定案 §3。Q-01/Q-02/Q-03 勘察结论落 §6。
+  V01 预存阻塞（与本计划无关）：`auto build --gen-only --strict` 在 base 上
+  即失败（S001 schema drift 5 条 + 静默 abort，两个 auto 二进制同症），
+  解除动作见 capability-map §5；VM 运行时路径（auto run --render=vm）不受
+  影响。needs_replan 不触发：无 AC 被删除或降门槛，G-1/G-2 仅约束 T-13
+  不得以降级表述冒充 AC-04/AC-06 通过。
 
 ### [ ] T-02：补齐Canvas身份、清选和帧版本契约
 
@@ -675,6 +695,23 @@ PID／进程树及起止收据，再做真实运行测试。
 | T-11～T-14 | AC-01～AC-16（复验与证据） | SD-01～SD-05 |
 
 ## 9. 复审记录
+
+### work 阶段 T-01 交接
+
+- stage: work
+- plan_id: PLAN-093
+- plan_revision: 1
+- outcome: pass（T-01 单任务完成；整体保持 executing）
+- code_commit: d157387（plan-093-dev，worktree D:/autostack/.wt/musk-093/auto-musk）
+- task_ids: T-01
+- evidence: docs/reports/093-app-studio-capability-map.md（worktree）+
+  tmp/ui-parity/PLAN-093/probe-{a,b}-receipt.json；探针双 PASS，六项上游
+  缺口与依赖合同、VMHTTP 桥定案、帧运输定案全部落报告。V01 strict 门为
+  预存阻塞（base 复现，证据 capability-map §5），不阻断已开工面；T-05 起
+  触前端生成的任务须先复测。
+- blockers: 无阻断性待决；上游依赖任务（G-1/G-2/G-3 优先）待与 auto-lang
+  侧排期，本计划继续 T-02（不依赖缺口能力）。
+- next: work（T-02）
 
 ### work 阶段启动（T-01 前）
 
