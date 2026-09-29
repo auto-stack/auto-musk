@@ -171,7 +171,7 @@ execute 模板中 `{plan_file}` 降级分支由"list_plans 自行定位"改为�
   **landed** — main 97fc677→**1993eaa** `git merge --ff-only plan-094-dev` 纯快进零 merge commit、零 rebase（main 未动 → 无 hash rewrite，免 range-diff）；落地后 main 冒烟 `cargo test -p musk --lib relay::plan_flow` 10/10 绿。
   **ledger_refreshed** — workspace=auto-musk（仓根 `.autoos/specs.json`，gitignored 运行时账本），**全程 store-mediated**（生产 serve :17201 `POST /api/specs/item`，新契约首次实战）：designs 新增 **specs-ledger-D1**（source_sha256 fe630b4b…，Approved）+ 刷新 **plan-flow-D1**（source_sha256 921fb41d→**2a904c69**，内容补 PLAN-094 门不变式要点，Approved）+ reviews 新增 **plan-flow-R1**（Published，PLAN-094 交付评审）；version 3→**10**，回读核验三条 status/content/hash 全对。**已知边界（登记 KNOWN-DEBT）**：`/api/specs/item` wire（SpecItemPayload）仅 id/title/content/status 四字段——file/milestone/module/tags/depends_on 无 store-mediated 写入通道，本三条以 content 文本承载规范路径/哈希/计划号（plan-flow-D1 刷新时按 store schema 归一化丢弃旧附加字段 description/spec_ref/spec_area/spec_key）。
   **archived** — 本文件（原为未跟踪簿记，按技能以适当文件移动归档）git mv 入 docs/plans/archived/ + status: archived + completion_kind: delivered。
-  **cleaned** — 见下一条收据（worktree/依赖 worktree/分支拆除）。
+  **cleaned** — 只读依赖 worktree 先拆（auto-ai@5a50a55、auto-lang@604c47e6 状态核实零改动后 `git worktree remove`，无分支残留）；wt-guard 复跑 clean 后 `git worktree remove` musk-094/auto-musk + `git branch -d plan-094-dev`（was 1993eaa）；组目录 `.wt/musk-094` rmdir 消失。无关未跟踪簿记（docs/plans/093 草稿）原样保留未纳入任何提交。
   **deployment 观察项（登记不阻塞）**：①生产 musk（:17201，PID 6104）仍跑 PLAN-094 前的 release 二进制——门不变式/响亮错误/审计 note 需 `cargo build --release -p musk` + 择隙重启后方在生产面生效（UAT 已在 worktree 构建上实证新行为）；②web bundle（gen/front/vue/dist）与 aaid release 不受本计划影响（源码零改动），无需重建。
 
 ## 10. 待澄清事项
