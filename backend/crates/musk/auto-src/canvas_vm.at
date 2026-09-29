@@ -15,47 +15,36 @@ use.rust axum::extract::{State, Query}
 use.rust axum::Json
 use.rust serde_json::Value
 use.rust crate::server::AppState
-// PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
-use extern_sigs: err_response
 
 
 // ── 宿主桥 extern（vm_backend.rs register_host_calls 注册） ────────────────
-// 返回 i64 句柄（宿主已构造完整响应）；网关无注册时回 null → 路由兜底 500。
+// 返回 i64 句柄（宿主已构造完整响应）；网关无注册时回 null → 适配器层
+// 以错误响应兜底（诚实失败，不静默空响应）。
 
-fn canvas_start_host(_s @T, _q Value, _b Value) Response { return musk_extern_dispatch("canvas_start_host", [_q, _b]) }
-fn canvas_status_host(_s @T, _q Value) Response { return musk_extern_dispatch("canvas_status_host", [_q]) }
-fn canvas_frame_host(_s @T, _q Value) Response { return musk_extern_dispatch("canvas_frame_host", [_q]) }
-fn canvas_pick_host(_s @T, _b Value) Response { return musk_extern_dispatch("canvas_pick_host", [_b]) }
-fn canvas_stop_host(_s @T, _q Value) Response { return musk_extern_dispatch("canvas_stop_host", [_q]) }
+fn canvas_start_host(_q Value, _b Value) Response { return musk_extern_dispatch("canvas_start_host", [_q, _b]) }
+fn canvas_status_host(_q Value) Response { return musk_extern_dispatch("canvas_status_host", [_q]) }
+fn canvas_frame_host(_q Value) Response { return musk_extern_dispatch("canvas_frame_host", [_q]) }
+fn canvas_pick_host(_b Value) Response { return musk_extern_dispatch("canvas_pick_host", [_b]) }
+fn canvas_stop_host(_q Value) Response { return musk_extern_dispatch("canvas_stop_host", [_q]) }
 
-/// 宿主桥缺失（未注册/回 null）→ 500 兜底（诚实失败，不静默空响应）。
-fn host_missing() Response {
-    return err_response("canvas vm bridge: host call not registered", 500u)
+pub fn canvas_vm_start(q Query<Value>, body Json<Value>) Response {
+    return canvas_start_host(q, body)
 }
 
-pub fn canvas_vm_start(s State<AppState>, q Query<Value>, body Json<Value>) ~Response {
-    if q == None { return host_missing() }
-    return canvas_start_host(s.view, q, body)
+pub fn canvas_vm_status(q Query<Value>) ~Response {
+    return canvas_status_host(q)
 }
 
-pub fn canvas_vm_status(s State<AppState>, q Query<Value>) ~Response {
-    if q == None { return host_missing() }
-    return canvas_status_host(s.view, q)
+pub fn canvas_vm_frame(q Query<Value>) ~Response {
+    return canvas_frame_host(q)
 }
 
-pub fn canvas_vm_frame(s State<AppState>, q Query<Value>) ~Response {
-    if q == None { return host_missing() }
-    return canvas_frame_host(s.view, q)
+pub fn canvas_vm_pick(body Json<Value>) ~Response {
+    return canvas_pick_host(body)
 }
 
-pub fn canvas_vm_pick(s State<AppState>, body Json<Value>) ~Response {
-    if body == None { return host_missing() }
-    return canvas_pick_host(s.view, body)
-}
-
-pub fn canvas_vm_stop(s State<AppState>, q Query<Value>) ~Response {
-    if q == None { return host_missing() }
-    return canvas_stop_host(s.view, q)
+pub fn canvas_vm_stop(q Query<Value>) ~Response {
+    return canvas_stop_host(q)
 }
 
 pub fn canvas_vm_routes() Router<AppState> {

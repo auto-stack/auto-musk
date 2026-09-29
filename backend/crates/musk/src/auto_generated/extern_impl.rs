@@ -3699,9 +3699,14 @@ pub fn canvas_start_host(s: &State<AppState>, q: SerdeJson, b: SerdeJson) -> Res
     }
     let conversation_id = b.get("conversation_id").and_then(|v| v.as_str()).map(str::to_string);
     let expected = b.get("expected_generation").and_then(|v| v.as_u64());
-    match tokio_block_on_canvas(async {
-        s.canvas
-            .start_owned(resolved, &ws.root, &ws_id, conversation_id.as_deref(), expected)
+    // 专职线程桥要求 'static future——所有权捕获（Arc/PathBuf/String），
+    // 不借 &State（T-03 实机：嵌套 runtime panic 由此修）。
+    let arc = s.0.clone();
+    let ws_root = ws.root.clone();
+    let ws_id_owned = ws_id.clone();
+    match tokio_block_on_canvas(async move {
+        arc.canvas
+            .start_owned(resolved, &ws_root, &ws_id_owned, conversation_id.as_deref(), expected)
             .await
     }) {
         Ok(identity) => {
@@ -3813,7 +3818,8 @@ pub fn canvas_pick_host(s: &State<AppState>, b: SerdeJson) -> Result<i64, String
 /// POST /api/canvas/stop?generation=
 pub fn canvas_stop_host(s: &State<AppState>, q: SerdeJson) -> Result<i64, String> {
     let generation = canvas_vm_query_u64(&q, "generation");
-    match tokio_block_on_canvas(async { s.canvas.stop_guarded(generation, None).await }) {
+    let arc = s.0.clone();
+    match tokio_block_on_canvas(async move { arc.canvas.stop_guarded(generation, None).await }) {
         Ok(stopped) => canvas_vm_json(
             200,
             &serde_json::json!({ "state": "stopped", "generation_id": stopped }),
@@ -3831,10 +3837,22 @@ pub fn canvas_stop_host(s: &State<AppState>, q: SerdeJson) -> Result<i64, String
     }
 }
 
-/// 宿主桥内的 async 执行体：VM owner 线程无 tokio 上下文，经专用 runtime
-/// block_on（vm_backend rt() 同款语义；单调用阻塞窗口 ≤ stop 收尾 2.5s 上限）。
-fn tokio_block_on_canvas<F: std::future::Future>(fut: F) -> F::Output {
+/// 宿主桥内的 async 执行体：VM HTTP server 跑在 tokio 上，宿主闭包在 tokio
+/// worker 内执行——直接 block_on 触发 "Cannot start a runtime from within a
+/// runtime"（T-03 实机实证）。mpsc_recv 同款专职线程桥：runtime 驻留独立
+/// 线程，当前线程只等结果（单调用阻塞窗口 ≤ stop 收尾 2.5s 上限）。
+fn tokio_block_on_canvas<F: std::future::Future + std::marker::Send + 'static>(fut: F) -> F::Output
+where
+    F::Output: std::marker::Send,
+{
     static RT: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
-    RT.get_or_init(|| tokio::runtime::Runtime::new().expect("canvas vm bridge runtime"))
-        .block_on(fut)
+    let rt = RT.get_or_init(|| tokio::runtime::Runtime::new().expect("canvas vm bridge runtime"));
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let out = rt.block_on(fut);
+        let _ = tx.send(out);
+    });
+    rx.recv()
+        .unwrap_or_else(|e| panic!("canvas vm bridge worker died: {e}"))
 }
+

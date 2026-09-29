@@ -1,0 +1,111 @@
+// ports/canvas.vm.at — PLAN-087 T-07 + PLAN-088 T-07 + PLAN-093 T-03: 画布域 VM adapter。
+//
+// PLAN-093 T-03：M1/M2 的空桩退役，接通真实通道（T-01 capability-map §3 定案）：
+//   - start/stop/pick/source = Http 句柄族非阻塞调用（PLAN-702 段派发
+//     park/resume，UI 不冻结；PLAN-080 F-2③ 改写不触达——一律走
+//     Http.request().send()）。默认 JWT/workspace 头经 Plan 446 E4 注入。
+//   - 帧显示不走本域：store 侧媒体链（Http → body_to_file → open_session →
+//     ticket → image_surface，T-04 落地）；帧点选由工作台面板 mouse-area
+//     承接（T-06），本域不再提供 document 级全局委托（web-only 概念）。
+//   - 相对 URL 基址展开仅 get_json 族有——本域自拼绝对基址（AUTO_HTTP_BASE
+//     → AUTO_HTTP_PORT，与 auto-lang resolve_http_base_url 同口径）。
+// 结果对象契约与 web facade 一致（.at catch 值 unknown，错误走对象）。
+
+fn canvas_http_base() str {
+    let base = env.get("AUTO_HTTP_BASE")
+    if base != "" {
+        return base
+    }
+    let port = env.get("AUTO_HTTP_PORT")
+    if port != "" {
+        return "http://127.0.0.1:" + port
+    }
+    return "http://127.0.0.1:8080"
+}
+
+fn canvasStart(wid str, appPath str) {
+    let url = canvas_http_base() + "/api/canvas/start?workspace=" + wid
+    let rb = Http.request("POST", url)
+    let res = rb.body("{\"app_path\": " + JSON.stringify(appPath) + "}").send()
+    var code = res.status_code()
+    if code == 200 {
+        return { ok: true, error: "", state: "starting", app_path: "" }
+    }
+    var body = res.body()
+    let parsed = JSON.parse(body)
+    var msg = "HTTP " + code
+    if parsed != None {
+        if parsed.error != None {
+            msg = parsed.error
+        }
+    }
+    return { ok: false, error: msg, state: "stopped", app_path: "" }
+}
+
+fn canvasStop() {
+    let url = canvas_http_base() + "/api/canvas/stop"
+    let rb = Http.request("POST", url)
+    let res = rb.body("{}").send()
+    var code = res.status_code()
+    if code == 200 {
+        return { ok: true, error: "", state: "stopped", app_path: "" }
+    }
+    var body = res.body()
+    let parsed = JSON.parse(body)
+    var msg = "HTTP " + code
+    if parsed != None {
+        if parsed.error != None {
+            msg = parsed.error
+        }
+    }
+    // 停止失败不得伪造已停止（PLAN-093 AC-12）。
+    return { ok: false, error: msg, state: "", app_path: "" }
+}
+
+/// 点选：200 命中（返回 pick JSON 文本，同 status.picked 形态）；
+/// 204 未命中（后端已清选）；其余错误。204 不产生 "null" 锚点（AC-08）。
+fn canvasPickNode(vnodeId str) {
+    let url = canvas_http_base() + "/api/canvas/pick"
+    let rb = Http.request("POST", url)
+    let res = rb.body("{\"vnode_id\": " + JSON.stringify(vnodeId) + "}").send()
+    var code = res.status_code()
+    if code == 204 {
+        return { ok: false, error: "element not in current frame", pick: "" }
+    }
+    if code == 200 {
+        return { ok: true, error: "", pick: res.body() }
+    }
+    var body = res.body()
+    let parsed = JSON.parse(body)
+    var msg = "HTTP " + code
+    if parsed != None {
+        if parsed.error != None {
+            msg = parsed.error
+        }
+    }
+    return { ok: false, error: msg, pick: "" }
+}
+
+/// 显式清选（PLAN-093 T-02 {clear:true}）。
+fn canvasClearPick() {
+    let url = canvas_http_base() + "/api/canvas/pick"
+    let rb = Http.request("POST", url)
+    let res = rb.body("{\"clear\": true}").send()
+    return { ok: res.status_code() == 200, error: "", pick: "" }
+}
+
+/// 源码抽屉文本（files 域同款只读链；文本经 Response.body lossy UTF-8）。
+fn canvasLoadSource(path str) {
+    let url = canvas_http_base() + "/api/files/raw/" + path
+    let rb = Http.request("GET", url)
+    let res = rb.send()
+    var code = res.status_code()
+    if code == 200 {
+        return { ok: true, error: "", text: res.body() }
+    }
+    return { ok: false, error: "HTTP " + code, text: "" }
+}
+
+/// web facade 兼容空实现：VM 命中区由工作台面板 mouse-area 承接（T-06）。
+fn installCanvasFrameClicks() {
+}

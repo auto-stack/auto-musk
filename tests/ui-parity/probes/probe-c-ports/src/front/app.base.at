@@ -1,0 +1,66 @@
+// app.base.at — PLAN-093 T-03 probe C: VM 客户端 GET 链验证（canvas ports 消费面）。
+//
+// 形态对齐 probe-a（park/resume 后模型写入已实证可靠）：send() 落在 handler
+// 顶层帧。已实证的上游限制（capability-map G-9）：POST+rb.body(...) 与
+// Http.post(url,body) 的 park/resume 丢调用方续体写入且停摆 tick 链——
+// start/pick/clear/stop 的 POST 端口调用因此由 runner 侧 fetch 驱动；本探针
+// 只走 GET 链：每拍轮询 /api/canvas/status（同 T-04 store 的轮询形态）直到
+// running，随后读 /api/files/raw（同 canvasLoadSource 链）。URL/判读逐字
+// 复用 ports/canvas.vm.at（runner 拼装其源并档作对照）。证据经 MCP 采集。
+
+widget PortsProbe {
+    msg {
+        Init,
+        Tick,
+    }    model {
+        var phase str = "boot"
+        var polls int = 0
+        var r_start str = ""
+        var r_source str = ""
+    }
+
+    timer {
+        Tick (every_ms: 800)
+    }
+
+    on {
+        Init -> {
+            .phase = "poll"
+        }
+
+        Tick -> {
+            // ── 轮询 status（GET，同 store 每拍节奏）──
+            if .phase == "poll" {
+                let rb = Http.request("GET", env.get("AUTO_HTTP_BASE") + "/api/canvas/status")
+                let res = rb.body("").send()
+                var code int = res.status_code()
+                .polls = .polls + 1
+                if code == 200 {
+                    .r_start = "polls=" + .polls + " status-ok"
+                    .phase = "source"
+                } else {
+                    .r_start = "FAILED http " + code
+                }
+            }
+            // ── source（GET，同 canvasLoadSource 链）──
+            if .phase == "source" {
+                let rb = Http.request("GET", env.get("AUTO_HTTP_BASE") + "/api/files/raw/targets/probe-a/pac.at")
+                let res = rb.body("").send()
+                var code int = res.status_code()
+                if code == 200 {
+                    .r_source = "ok"
+                } else {
+                    .r_source = "FAILED http " + code
+                }
+                .phase = "done"
+            }
+        }
+    }
+
+    col(class: "p-4 gap-2") {
+        text "ports-probe-c" { style: "text-sm font-medium" }
+        text model.phase { style: "text-xs" }
+        text model.r_start { style: "text-xs" }
+        text model.r_source { style: "text-xs" }
+    }
+}

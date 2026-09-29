@@ -152,7 +152,11 @@ impl SessionHandle {
         loop {
             if tokio::time::Instant::now() >= deadline {
                 let _ = reap_tree(pid).await;
-                let tail = recent.lock().unwrap().split_off(160).join("\n");
+                let tail = {
+                    let buf = recent.lock().unwrap();
+                    let start = buf.len().saturating_sub(160);
+                    buf[start..].join("\n")
+                };
                 return Err(format!(
                     "canvas: MCP endpoint not announced within {:?} (app: {})\n--- child output tail ---\n{tail}",
                     ENDPOINT_TIMEOUT,
@@ -162,7 +166,11 @@ impl SessionHandle {
             // 子进程先行退出 = 坏 app（解析失败等），把退出码带给调用方。
             if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
                 let _ = reap_tree(pid).await;
-                let tail = recent.lock().unwrap().split_off(160).join("\n");
+                let tail = {
+                    let buf = recent.lock().unwrap();
+                    let start = buf.len().saturating_sub(160);
+                    buf[start..].join("\n")
+                };
                 return Err(format!(
                     "canvas: auto run exited early (status: {status}) for {}\n--- child output tail ---\n{tail}",
                     app_dir.display()

@@ -1,0 +1,15 @@
+// pac.at — PLAN-093 T-03 probe C (canvas VM ports): 五端口(start/pick/clear/
+// source/stop)经 ports/canvas.vm.at 真实通道驱动,宿主 musk serve(VMHTTP 或
+// RustHTTP)拉起真实目标应用。Isolated fixture; runner drives it via
+// `auto run --render=vm` + AutoUI MCP. Not a production unit — probe evidence
+// only (see docs/reports/093-app-studio-capability-map.md).
+name: "probe-c-ports"
+version: "0.1.0"
+scene: "ui"
+render: "vue"
+api: "rust"
+front_port: 17950
+back_port: 18511
+title: "Probe C Canvas Ports"
+title_zh: "探针C 画布端口"
+theme: "dark"
