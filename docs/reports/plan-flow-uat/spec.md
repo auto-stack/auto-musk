@@ -74,13 +74,13 @@
 
 | ID | 现象 | 对策 |
 |---|---|---|
-| K1 | glm-5.3-flash 思考流耗尽服务商默认 4096 输出上限，响应截断后 run 提前收束（收束时最后轮 `out=4096`） | 会话设 `thinking_level=max`（PLAN-064：显式档位会把 max_tokens 抬到 budget+1024） |
+| K1 | glm-5.3-flash 思考流耗尽服务商默认 4096 输出上限，响应截断后 run 提前收束（收束时最后轮 `out=4096`） | 会话设 `thinking_level=max`（PLAN-064：显式档位会把 max_tokens 抬到 budget+1024）。**094 重跑实测补充：该变通只覆盖 chat 会话自身请求——Relay 相位（builtin 档位）的请求仍被 4096 截断**（见 2026-09-29 重跑记录 R1/R2），advisor 相位写计划轮截断即无法产出计划文件；根修候选（daemon 预设安全 max_tokens）登记于 KNOWN-DEBT |
 | K2 | 长任务 run 中途收束后**不会自动续跑** | 用"继续：接着完成当前阶段…"nudge 重发（T1 当轮两次） |
 | K3 | 工具循环检测（同参重复调用 4 次）会击杀 run | 属防护机制；失败后按上条 nudge 续跑或人工收敛 |
-| K4 | 会话 `approval_mode=auto` 会把 Relay human 门**同秒自动放行**（含 advisor 留给用户的澄清问卷）——无人值守的既定语义，但问卷等于按缺省执行 | 需要真实人审时用 `human` 模式 + `relay-watch.mjs` 在门处决议 |
-| K5 | Relay 断链模式：advisor 以问卷代计划且不调 `create_plan` → 计划文件缺席 → coder 空转 → reviewer 无物可审 | 待修复；重跑 T3 时检查 `docs/plans/` 是否出现新计划文件作为交接健康的首要信号 |
-| K6 | **ledger schema 不兼容 bug**：Relay reviewer 的 `update_spec` 读不了聊天侧 merge 写的 v1 ledger（`missing field project`），且会用旧六区 schema **整体重写** `~<ws>/.autoos/specs.json`，抹掉既有条目 | 重跑后核对 ledger；被抹可按归档计划 §9 收据手工恢复（本目录 spec 记录 2026-09-29 恢复一例）。README 已声明"应用内置流程尚未接入新的沉淀契约"，此为其具体表现 |
-| K7 | 阶段间经"完成摘要"传染臆造内容（coder 摘要臆造"PLAN-086"，reviewer 循此查证幻影计划）——印证"阶段只共享计划文件、不传摘要"的设计必要性 | 计划文件必须真实落盘（K5 修复后此传染源消失） |
+| K4 | 会话 `approval_mode=auto` 会把 Relay human 门**同秒自动放行**（含 advisor 留给用户的澄清问卷）——无人值守的既定语义，但问卷等于按缺省执行 | 需要真实人审时用 `human` 模式 + `relay-watch.mjs` 在门处决议。**PLAN-094 已收口一半**：auto 放行审计轮现带注入反馈文本（`Gate <step> <decision> — <note>`），且 execute 门有 plan_file 前置不变式（见 K5）——问卷门不再可能静默放行一个无计划 run |
+| K5 | Relay 断链模式：advisor 以问卷代计划且不调 `create_plan` → 计划文件缺席 → coder 空转 → reviewer 无物可审 | **PLAN-094 已修复（2026-09-29 重跑四 run 实证）**：execute 门 approve 前置不变式——`plan_file` 缺失时 auto=直接 `run_failed`（计划 D1 退化，引擎 redraft 只重做 execute 相位、重跑 plan 相位不可表达）、human=409 不消费门；级联（coder 空转→reviewer 死循环）不再可能。恢复出路：重开 run（advisor 幂等复用）或 human 门 reject+feedback |
+| K6 | **ledger schema 不兼容 bug**：Relay reviewer 的 `update_spec` 读不了聊天侧 merge 写的 v1 ledger（`missing field project`），且会用旧六区 schema **整体重写** `~<ws>/.autoos/specs.json`，抹掉既有条目 | **PLAN-094 已修复**：merge 技能钉死"只经 spec 工具写账本"（store-mediated）+ spec 工具 load 失败改为响亮错误（期望字段/六区清单/禁手改明令/恢复路径，文件字节不变，有字节不变单测）；外语格式不可能再被静默重写。094 重跑实测：document 相位经工具写出的 ledger 为原生六区格式、serde 可解析 |
+| K7 | 阶段间经"完成摘要"传染臆造内容（coder 摘要臆造"PLAN-086"，reviewer 循此查证幻影计划）——印证"阶段只共享计划文件、不传摘要"的设计必要性 | 计划文件必须真实落盘（K5 修复后 auto 路径的传染源消失——无计划 run 活不过门）。094 重跑仍观察到幻影（human-arm run 的 coder `read_plan seq 86`）——模板纪律属**指令级约束**，非机制强制；登记观察项 |
 
 ## 结果总表
 
@@ -89,6 +89,7 @@
 | T1 | 2026-09-28 | pass | PLAN-001 archived delivered；四收据齐 |
 | T2 | 2026-09-29 | pass | 自启 Relay plan 流程 |
 | T3 | 2026-09-29 | fail | K5 断链级联；循环检测收束 |
+| T3（094 重跑） | 2026-09-29 | **pass（门修复四断言 3/4 实证，第 4 断言受阻于 K1 预存债）** | 门不放行/ledger 零破坏/明确原因失败三断言四次 run 实证；"计划文件被 execute 消费"未能在实跑复现（advisor 相位自身产出被 K1 截断×2 + 澄清-停止×1），机制面由 driver 行为测试覆盖（hw+ag）；级联死亡 |
 | T4 | 2026-09-29 | pass | 零上下文自主路由 no-op 路径，证据全重建，收据一致 |
 
 ## 复现步骤（全新一轮）
@@ -96,3 +97,23 @@
 1. 重置 `tmp/demo`（见"环境与前置"）；确认 17201/17654 监听。
 2. 按 T1→T2→T3→T4 顺序执行；每用例新建会话并套用 K1/K4 配置。
 3. 每轮结束后：核对计划状态（`/api/plans?include_archived=true`）、spec↔ledger 哈希、`node --test`、`git status` 干净；回填结果总表与本文件的"结果"小节。
+
+## 2026-09-29 PLAN-094 重跑记录（T3 修复验证）
+
+环境：demo 工作区重置（基线 `8fe52ad`）；**修复版 musk**（worktree musk-094，调试构建）serve 于 ：17255（生产 ：17201 未动）；aaid 复用 ：17654；chat 会话 `approval=auto` + `thinking=max`。四断言按计划 PLAN-094 §6 用例 6 判定：
+
+| # | 断言 | 结果 | 证据 |
+|---|---|---|---|
+| 1 | 计划文件出现且被 execute 相位实际消费 | ✗（实跑未复现；机制面由测试覆盖） | 四次 run 的 advisor 相位均未真正落盘计划：R1/R2 = 输出在 4096 上限截断（R2 已写计划正文至 §5 详细设计处腰斩，K1 在 Relay 相位不受会话 thinking=max 变通保护）；R3 = advisor 完整收束但按"澄清-停止"纪律停在不调 create_plan；R4 = human 门 reject+feedback 重做的 coder 相位空转至"完成"（模板纪律指令级、非强制）。"有计划文件→门照常放行→execute 消费"由 driver 行为测试 `plan094_auto_gate_with_plan_file_approves_through`（hw+ag）钉死 |
+| 2 | 门不放行无计划 run | **✓（×4 实证）** | R1-R3（auto）：advisor 相位一结束、门即拒绝——`run_failed`，error=`plan phase ended without a plan file — restart the run (advisor reuses existing plans) or answer the advisor via reject+feedback in human mode`；事件序列 step_completed(plan)→gate_waiting→run_failed，**无 gate_resolved、无 coder/reviewer/assistant 轮次**。R4（human）：POST approve → 409 错误体且门保持 waiting（未消费） |
+| 3 | ledger 不被外语化重写 | **✓** | R1-R3 全程零 ledger 写；R4 document 相位经 spec 工具写出的 `.autoos/specs.json` 为原生 `{project, version, sections[6]}` 格式（goals/architecture/designs/tests/reviews/reports，serde 可解析）——与 K6 事故的外语形状（flat specs/history）对比鲜明 |
+| 4 | run 终态 delivered 或带明确原因失败 | **✓** | R1-R3 `failed` + 上述契约 error 文案；R4 显式人工 reject 放行后正常走完（completed） |
+
+四 run 清单（demo-1 工作区）：R1 `run-1790654109-eccbccc`（chat 自启，auto）；R2 `run-1790654229-255398d0`（nudge 重启，auto）；R3 `run-1790654564-c3ba84c`（轻需求，auto）；R4 `run-094-humanarm-8975`（直启，human 门实测 409 + reject 重做）。
+
+**结论**：UAT T3 的失败级联（无计划放行 → coder 空转 → reviewer 手术死循环）已不可能发生——门在 auto/human 两臂都拒绝无计划的 run。剩余缺口在 advisor 相位自身的产出可靠性（K1 截断在 Relay 相位不受现有变通保护 / 澄清-停止被沙盒语境误触发），属已登记的模型交互债，不在 PLAN-094 范围。
+
+**顺带实测发现（登记候选）**：
+- Relay 相位请求的 max_tokens 抬升缺口（K1 变通只覆盖 chat 会话）——根修候选：daemon 对 relay/builtin 档位请求预设安全 max_tokens。
+- 模板纪律为指令级约束：R4 的 coder 在"计划文件缺失=阻断性缺陷，立即停止"模板 + 门反馈下仍空转至"完成"——机制级强制（如 execute 相位开始时校验 plan_file 存在性）为后续增强候选。
+- ag 生成的 gate 路由对错误信封返回 HTTP 200（body 内 `{"error":{code:409}}`），与 hw 路由的真 409 状态行不同——a2r 接缝外观差异，消费者以 body error 为准。
