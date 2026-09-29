@@ -558,27 +558,28 @@ PID／进程树及起止收据，再做真实运行测试。
   与版本并回报loaded／failure；不在UI线程网络阻塞／decode。
 - 验证 V01，V07及V05最小四模式：真实运行得到帧、树选后有锚点、读源码、
   显式停止；响应缺失、401和旧代次均有可处理错误。
-- [▶ 进行中] 代码完成 + 接缝解除 + 首轮实机验证（未整体完成不勾）：
-  原代码（a36413b：canvas_vm.at 五路由薄装配 + 宿主桥 canvas_*_host +
-  vm_backend 注册 + extern_impl 五桥 fn；ports/canvas.vm.at 空桩退役）
-  之上的本轮进展（commit 46b1173/8869f6a/18a0431@plan-093-dev）：
-  ①阻塞②解除——auto-src 全语料适配 auto-lang Plan 545 链接语义
-  （242 跨模块调用盘点、17 模块条目导入、wiki 方法体 3 名 shim；
-  46b1173），VM serve 3601 路由启动实证；②VMHTTP 桥三处修复——宿主桥
-  专职线程桥（嵌套 runtime panic）、五 handler 去 State 提取器（3 提取器
-  触发 G-8 帧错位）、session.rs split_off(160) 越界（8869f6a）；
-  ③五路由 curl 实证：status 200（T-02 身份字段全）/frame 503·409/stop
-  200/pick clear 200/start 400 越界拒绝，0 panic；④ports 探针
-  （probe-c + canvas-ports-probe.mjs）建立，VM 客户端 GET 链真实到达。
-  contract 19/19 绿重绑当前树。
-  **剩余阻塞（全部 auto-lang 上游，已实证登记 capability-map §8）**：
-  G-8 .at 路由 handler 帧核算错位（start spawn 长宿主调用 RET 下溢崩
-  VM）——VMHTTP start 实路径未通；G-9 VM 客户端 POST park 丢续体——
-  canvasStart/Pick/Stop 四端口 VM 臂不可用，T-04 store POST 面同受限；
-  G-10 MCP autoui_state 回读滞后——探针证据通道受限；V01 静默 abort
-  维持（45min 构建 26m33s exit 1 无诊断）——T-05 起前端生成任务仍须先
-  解除。解除动作与下游约束见 capability-map §8；V05 最小四模式待
-  G-8/G-9 + V01 解除后回补，不得以部分证据冒充 AC-05 通过。
+- [▶ 进行中] 代码完成 + 阻塞②解除 + 正统引擎修复 + 双后端生命周期
+  实机全绿（未整体完成不勾，V05 四模式中 Vue 臂待 V01）：
+  第一轮（46b1173/8869f6a/18a0431）：语料接缝适配 + 桥修复 + 五路由
+  curl 实证 + 探针建立（详见 §8.1–8.5）。
+  第二轮（用户裁定"不用绕法、正修根因"后）：在组内依赖 worktree
+  （auto-musk-dev@c93ed76a0）完成 G-8 三根因的正统修复——①engine RET
+  守卫前移（原守卫在减法后，debug 必炸）；②resolve_params 声明名回退
+  补 '#' 分隔符（原只切 '.'，全语料路由 handler 0 参入栈、每请求
+  VM-RET 守卫）；③match_route 尾部 catch-all 消费剩余段（原段数严格
+  相等，多段路径永远 404——canvasLoadSource 链全断）。musk 侧配套：
+  stop_guarded 补 §5.3 清场、query 字符串数字双形态、canvasLoadSource
+  对齐 VM 文件路由（5532b88/2e61eda/8a98df9）。
+  **联动实证**：ports 探针 15 断言 × 双后端（VMHTTP + RustHTTP）全绿
+  ——spawn 真目标/真 PNG 帧/锚点树/点选·未命中 204·清选/源码读取/
+  带代次停止/终态 503/错误面 400；contract 19/19；auto-lang 语料档
+  cargo tv 162/162；新增定向单测 8/8。
+  **剩余阻塞**：G-9 残余（send 条件化在 if 块内时 park 续体丢失——
+  触发条件已钉死、复现器即 probe-c；探针已用可工作形态，生产 store
+  写法受约束）；G-7（ext 导入解析，wiki shim 撤除依赖）；V01（静默
+  abort + S001 真源再生）——三项正修都在 auto-lang，见 capability-map
+  §8.6 剩余清单。V05 最小四模式的 VM 臂两模式已绿；Vue 臂两模式待
+  V01 解除。
 
 ### [ ] T-04：重构CanvasStore投影与展示状态
 
@@ -728,6 +729,31 @@ PID／进程树及起止收据，再做真实运行测试。
 | T-11～T-14 | AC-01～AC-16（复验与证据） | SD-01～SD-05 |
 
 ## 9. 复审记录
+
+### work 阶段 T-03 正统引擎修复与双后端全绿交接
+
+- stage: work
+- plan_id: PLAN-093
+- plan_revision: 1
+- outcome: T-03 实质推进——G-8 三根因在 auto-lang 正统修复并经 musk
+  联动验证，VM 臂两模式生命周期探针 15/15 全绿；T-03 整体保持
+  进行中（G-9 残余/G-7/V01 未解，Vue 臂待 V01）
+- code_commit: auto-musk-dev@c93ed76a0（engine RET 守卫前移 +
+  param sig '#'/catch-all matcher，8 单测）+ plan-093-dev@5532b88
+  （stop 清场/query 双形态/files 路由）+ 2e61eda（探针形态定版）+
+  8a98df9（capability-map §8.6）
+- task_ids: T-03（进行中）
+- evidence: 探针 15 断言 × 双后端全绿（ports-probe-{vm,rust}-receipt
+  .json）；contract 19/19；cargo tv 162/162；capability-map §8.6 全记录。
+  授权：用户 2026-09-29 裁定"不用绕法、正修根因"，依赖 worktree 按
+  AGENTS.md 第三行（组内 auto-musk-dev）使用。
+- blockers: ①G-9 残余——send 条件化（if 块内）park 续体丢失（pre-park
+  写也丢、tick 链停摆；触发条件已钉死，复现器=probe-c fixture），
+  正修在引擎段派发/合成层；②G-7 ext 方法体导入解析（wiki shim 撤除
+  依赖）；③V01 静默 abort + S001 真源再生。三项均 auto-lang 侧，
+  在 auto-musk-dev 分支续作。
+- next: work——auto-lang 侧续修 G-9 残余/G-7/V01 → 撤 wiki shim →
+  probe 全形态回归 → V05 最小四模式回补（Vue 臂）→ T-04。
 
 ### work 阶段 T-03 接缝解除与首轮实机验证交接
 
