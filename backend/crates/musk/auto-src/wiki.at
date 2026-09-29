@@ -27,12 +27,6 @@ use.rust std::time::{SystemTime, Duration}
 // PLAN-093 seam: Plan 545 linker needs explicit imports for cross-module bare calls
 use extern_sigs: empty_response, ok_response, path_second, resp_err_code, resp_err_message, resp_is_err, text_response, value_is_null, wiki_delete_file, wiki_ensure_parent, wiki_raw_delete, wiki_raw_file, wiki_raw_mkdir, wiki_raw_upload, wiki_write_page, ws_raw_dir, ws_wiki_create, ws_wiki_delete, ws_wiki_dir, ws_wiki_get, ws_wiki_list, ws_wiki_search, ws_wiki_update
 
-// PLAN-093 seam（G-7）: Plan 545 装载器下 ext/type 方法体解析不到模块导入
-// （裸名与限定名皆不查 import_scope，已实测）。跨模块调用提升为顶层 shim
-// —— 方法体只调本模块顶层 fn（该链路实测可用）。
-fn __wiki_ensure_parent(path PathBuf) { return wiki_ensure_parent(path) }
-fn __wiki_write_page(path PathBuf, content str) Result<(), str> { return wiki_write_page(path, content) }
-fn __wiki_delete_file(path PathBuf) { return wiki_delete_file(path) }
 
 
 // ============================================================
@@ -292,8 +286,8 @@ ext WikiStore {
             updated_at: now_t
         )
         let page_path = self.wiki_dir.join(new_page.slug.clone() + ".md")
-        __wiki_ensure_parent(page_path.clone())
-        is __wiki_write_page(page_path, new_page.content.view) {
+        wiki_ensure_parent(page_path.clone())
+        is wiki_write_page(page_path, new_page.content.view) {
             Err(e) -> return Err(e),
             Ok(_) -> {}
         }
@@ -332,8 +326,8 @@ ext WikiStore {
                 new_page.version = new_page.version + 1
                 new_page.updated_at = now()
                 let page_path = self.wiki_dir.join(new_page.slug.clone() + ".md")
-                __wiki_ensure_parent(page_path.clone())
-                is __wiki_write_page(page_path, new_page.content.view) {
+                wiki_ensure_parent(page_path.clone())
+                is wiki_write_page(page_path, new_page.content.view) {
                     Err(e) -> return Err(e),
                     Ok(_) -> {}
                 }
@@ -367,7 +361,7 @@ ext WikiStore {
         }
         let page_path = self.wiki_dir.join(slug.clone() + ".md")
         if page_path.exists() {
-            __wiki_delete_file(page_path.clone())
+            wiki_delete_file(page_path.clone())
         }
         is guard2.get(slug) {
             Some(_) -> {},
@@ -397,7 +391,7 @@ ext WikiStore {
         is json_res {
             Ok(json) -> {
                 let path = self.wiki_dir.join("_manifest.json")
-                is __wiki_write_page(path, json.view) {
+                is wiki_write_page(path, json.view) {
                     Ok(_) -> {},
                     Err(_) -> {}
                 }
