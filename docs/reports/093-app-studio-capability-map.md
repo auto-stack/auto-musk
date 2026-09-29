@@ -197,3 +197,34 @@ oneshot 直打路由）——代次递增/冲突、归属停止守卫、未绑�
 - T-13：V05 四模式矩阵在 G-8/9/10 + V01（静默 abort，45min 构建
   26m33s exit 1 无诊断，/tmp/v01-full.log 要点已录）解除前无法全绿；
   不得以部分证据冒充 AC-05/AC-16 通过。
+
+### 8.6 正统修复落账（2026-09-29，auto-musk-dev@c93ed76a0 + musk@5532b88/2e61eda）
+
+用户裁定"不用绕法、正修根因"后，本会话在组内依赖 worktree
+（D:/autostack/.wt/musk-093/auto-lang，分支 auto-musk-dev）完成三处
+auto-lang 引擎/适配器修复并经 musk 联动验证：
+
+| 缺口 | 根因 | 修复 | 验证 |
+|---|---|---|---|
+| G-8①RET 下溢 | 守卫写在减法之后（debug 必炸） | engine.rs 守卫前移（checked 语义） | VMHTTP start spawn 路径不再崩 VM |
+| G-8②0 参入栈 | resolve_params 声明名回退只切 `.`，`mod#sym` 键永远 miss → 全语料路由 0 参、每请求 VM-RET 守卫 | 抽 param_sig_decl_name 同时切 `.`/`#` + 3 单测 | 守卫 0 触发；auth_login 等拿到真实参数 |
+| G-8③catch-all 404 | match_route 段数严格相等，`{*path}` 多段剩余永远 404 | 尾部 catch-all 消费剩余段（axum 语义）+ 5 单测 | /api/files/{ws}/*path 通 → canvasLoadSource 链通 |
+| G-10 | 实为 G-9 的读回面（探针层） | 随 G-9 形态修复后 MCP 回读实时 | client-status-poll 断言经 MCP 状态通过 |
+
+musk 侧配套修复：stop_guarded 补 §5.3 清场（帧/锚点/选中/overlay）；
+canvas_vm_query_* 字符串数字双形态（409 守卫恢复实效）；
+canvasLoadSource 对齐 VM 文件路由（/api/files/{ws}/*path，签名加 ws）。
+
+联动验证：ports 探针 15 断言 × 双后端（VMHTTP/RustHTTP）全绿——
+spawn 真目标、真 PNG 帧、锚点树、点选/未命中 204/清选、源码读取、
+带代次停止、终态 503、错误面 400；contract 19/19；auto-lang 语料档
+cargo tv 162/162；新增定向单测 8/8。
+
+**剩余（下一轮）**：
+- G-9 残余：send 位于 if 块内（条件 send）时 park 续体丢失
+  （pre-park 写也丢、tick 链停摆）——形态实验矩阵已钉死触发条件，
+  复现器即 probe-c fixture；正修在引擎段派发/合成层。探针当前用
+  顶层 send 形态（已留哨兵注释），生产 T-04 store 写法受其约束。
+- G-7：ext/type 方法体导入解析（wiki shim 撤除依赖此项）。
+- V01：`auto build --gen-only --strict` 静默 abort（26m33s exit 1
+  无诊断）+ S001 漂移对齐（SCHEMA_DRIFT_GENERATE_AT=1 再生真源）。
