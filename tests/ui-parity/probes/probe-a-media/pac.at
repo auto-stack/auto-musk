@@ -1,0 +1,14 @@
+// pac.at — PLAN-093 T-01 probe A (media transport): async Http.get PNG bytes
+// → file.write_bytes → image.queue ticket → image_surface onload. Isolated
+// fixture; runner drives it via `auto run -r vm` + AutoUI MCP. Not a
+// production unit — probe evidence only (see docs/reports/093-app-studio-capability-map.md).
+name: "probe-a-media"
+version: "0.1.0"
+scene: "ui"
+render: "vue"
+api: "rust"
+front_port: 17910
+back_port: 17911
+title: "Probe A Media"
+title_zh: "探针A 媒体链"
+theme: "dark"

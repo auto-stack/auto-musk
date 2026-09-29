@@ -1,0 +1,130 @@
+// app.at — PLAN-093 T-01 probe A: 真实 PNG 媒体运输链。
+//
+// 链路（每拍）：
+//   Http.get("http://127.0.0.1:<P>/frame.png?t=N")   非阻塞 async（默认头注入面）
+//   → res.status_code()==200 → res.body_bytes()      二进制完整性（PNG 解码成败即证）
+//   → file.write_bytes(<tmp>/frame-N.png)            落盘（每 seq 新路径——media
+//                                                    registry 以 path 为
+//                                                    fingerprint，同路径去重旧帧）
+//   → image.queue(path) → ticket.uri                 共享 worker 池异步解码
+//   → image_surface(src=ticket.uri)                  onload(w,h,rev) 版本门事件
+//
+// 证据：print("[probe-a] ...") 行 + 屏上 status 文本（MCP snapshot 采集）。
+// 环境变量：PROBE_BASE（默认 http://127.0.0.1:17901）、PROBE_TMP（帧文件目录）。
+
+widget App {
+    msg {
+        Init,
+        Tick,
+        Fetched(int),
+        LoadFail,
+        Loaded(int, int, int),
+    }    model {
+        var seq int = 0
+        var status str = "init"
+        var media_uri str = ""
+        var last_len int = 0
+        var load_count int = 0
+        var base str = ""
+        var tmp str = ""
+        // 单文件 viewer 会话句柄（open_session(file) → current_uri 取媒体
+        // URI；image.queue 返回不透明 handle、.at 面无 uri 访问器——probe
+        // 实证）。滚动保留两代，更早的 close 释放（未引用条目 30s 宽限 +
+        // 解码 LRU，展示中的帧不受影响）。
+        var sid_prev str = ""
+        var sid_prev2 str = ""
+    }
+
+    timer {
+        Tick (every_ms: 800)
+    }
+
+    view {
+        col {
+            style: "w-full h-screen flex-col bg-background text-foreground p-4 gap-2"
+            text "PLAN-093 probe A media transport" { style: "text-sm font-semibold" }
+            text .status { style: "text-xs text-muted-foreground" }
+            if .media_uri != "" {
+                image_surface (
+                    src: .media_uri,
+                    fit: "contain",
+                    width: 240,
+                    height: 160,
+                    onload: .Loaded,
+                    onerror: .LoadFail,
+                    style: "w-[240px] h-[160px] border border-border"
+                ) {}
+            } else {
+                text "no frame yet" { style: "text-xs text-muted-foreground" }
+            }
+        }
+    }
+
+    on {
+        Init -> {
+            .base = env.get("PROBE_BASE")
+            if .base == "" {
+                .base = "http://127.0.0.1:17901"
+            }
+            .tmp = env.get("PROBE_TMP")
+            if .tmp == "" {
+                .tmp = "probe-a-tmp"
+            }
+            .status = "ready base=" + .base
+            print("[probe-a] init base=" + .base + " tmp=" + .tmp)
+        }
+
+        // sid 仍在途（open_session 的条目在 detached worker 上补齐，当拍
+        // current_uri 恒空——probe 实证）——Tick 顶部每拍有界重试直到拿到 URI。
+        Tick -> {
+            if .media_uri == "" {
+                if .sid_prev != "" {
+                    .media_uri = image.current_uri(.sid_prev)
+                }
+            }
+            var n int = .seq + 1
+            .seq = n
+            // Http.request().send() = 句柄族（裸 Http.get 会被 PLAN-080 F-2③
+            // 编译期改写为 get_json+to_value，二进制体走不通——probe 实证）。
+            // body_bytes 的返回列表跨 park/CALL_SPEC 丢 RC 生命周期
+            //（plan-022 D4 已知上游限制；本次复现实证）→ 用 body_to_file
+            // 宿主侧直写盘（字节忠实），返回字节数作完整性证据。
+            let rb = Http.request("GET", .base + "/frame.png?t=" + n)
+            let res = rb.send()
+            var code int = res.status_code()
+            if code == 200 {
+                let path = .tmp + "/frame-" + n + ".png"
+                .last_len = res.body_to_file(path)
+                let sid = image.open_session(path)
+                .media_uri = image.current_uri(sid)
+                if .sid_prev2 != "" {
+                    let _closed = image.close_session(.sid_prev2)
+                }
+                .sid_prev2 = .sid_prev
+                .sid_prev = sid
+                .status = "fetched seq=" + n + " len=" + .last_len
+                print("[probe-a] fetched seq=" + n + " len=" + .last_len + " uri=" + .media_uri)
+                .Fetched(n)
+            } else {
+                .status = "http " + code + " seq=" + n
+                print("[probe-a] http " + code + " seq=" + n)
+                .LoadFail()
+            }
+        }
+
+        Loaded(w, h, rev) -> {
+            .load_count = .load_count + 1
+            .status = "loaded " + w + "x" + h + " rev=" + rev + " n=" + .load_count
+            print("[probe-a] loaded " + w + "x" + h + " rev=" + rev + " n=" + .load_count)
+        }
+
+        LoadFail -> {
+            .status = "failed seq=" + .seq
+            print("[probe-a] load failed seq=" + .seq)
+        }
+
+        Fetched(n) -> {
+            print("[probe-a] fetched-msg " + n)
+        }
+    }
+}

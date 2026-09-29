@@ -1,0 +1,122 @@
+// app.at — PLAN-093 T-01 probe B: 指针逻辑坐标 + 绝对叠层 + 窗口 KV。
+//
+// 验证面：
+//   1. image（media ticket 直挂，PROBE_PNG 路径经 open_session/current_uri，
+//      同 probe A 的可用链）在固定 240x160 盒 1:1 展示；
+//   2. mouse-area(coords:"240x160") onmousemove 收逻辑坐标（原点=命中区
+//      左上角），onclick 记点击；屏显最近坐标（MCP __mcp_drag 合成驱动）；
+//   3. absolute+z 子节点 hoist 成 Overlay（iced Stack）：在 PNG 已知蓝色
+//      标记块 (150,90,40,24) 上画红框，另加 (20,20) 角标签框——快照对照
+//      叠层是否成立；
+//   4. localStorage vm.window_inner_width/height 读出实窗尺寸。
+//
+// 文案一律预拼进 model 字段再 text .field 输出（canvas_panel 同款口径：
+// 元素实参位括号表达式不解析——probe 实证）。证据：MCP snapshot/state。
+
+widget App {
+    msg {
+        Init,
+        Tick,
+        Move(float, float),
+        Click,
+        Loaded(int, int, int),
+        LoadFail,
+    }
+
+    model {
+        var status str = "init"
+        var media_uri str = ""
+        var last_text str = "last=-"
+        var win_text str = "win ?x?"
+        var move_count int = 0
+        var click_count int = 0
+        var sid str = ""
+    }
+
+    timer {
+        Tick (every_ms: 500)
+    }
+
+    view {
+        col {
+            style: "w-full h-screen flex-col bg-background text-foreground p-4 gap-2"
+            text "PLAN-093 probe B pointer overlay" { style: "text-sm font-semibold" }
+            text .status { style: "text-xs text-muted-foreground" }
+            text .win_text { style: "text-xs text-muted-foreground" }
+            // 固定 240x160 内容盒；mouse-area 即内容矩形（无留白臂——
+            // contain 留白映射归 T-06 共享 helper，本探针只证 1:1 命中）。
+            col {
+                style: "relative w-[240px] h-[160px] border border-border bg-black"
+                mouse-area {
+                    coords: "240x160"
+                    onmousemove: .Move
+                    onclick: .Click
+                    style: "w-[240px] h-[160px]"
+                    image {
+                        src: .media_uri,
+                        fit: "fill",
+                        style: "w-[240px] h-[160px]"
+                    }
+                }
+            }
+            text .last_text { style: "text-xs text-muted-foreground" }
+        }
+    }
+
+    on {
+        Init -> {
+            let p = env.get("PROBE_PNG")
+            if p != "" {
+                .sid = image.open_session(p)
+                .status = "session opened"
+                print("[probe-b] queued " + p)
+            } else {
+                .status = "PROBE_PNG missing"
+                print("[probe-b] PROBE_PNG missing")
+            }
+        }
+
+        // open_session 条目在 detached worker 上补齐（当拍 current_uri 恒空
+        // ——probe A 同款实证）；窗口 KV 也要首轮重建后才发布。每拍轮询两者。
+        Tick -> {
+            if .media_uri == "" {
+                if .sid != "" {
+                    .media_uri = image.current_uri(.sid)
+                }
+            }
+            let w = localStorage.getItem("vm.window_inner_width")
+            let h = localStorage.getItem("vm.window_inner_height")
+            if w != None {
+                .win_text = "win " + w + "x" + h
+            } else {
+                .win_text = "win kv-missing"
+            }
+        }
+
+        Move(x, y) -> {
+            .move_count = .move_count + 1
+            .last_text = "last=" + x + "," + y + " moves=" + .move_count + " clicks=" + .click_count
+            if .move_count <= 12 {
+                print("[probe-b] move x=" + x + " y=" + y + " n=" + .move_count)
+            }
+            .status = "move"
+        }
+
+        Click -> {
+            .click_count = .click_count + 1
+            .last_text = "last=-,0 moves=" + .move_count + " clicks=" + .click_count
+            print("[probe-b] click n=" + .click_count + " " + .last_text)
+            .status = "click"
+        }
+
+        Loaded(w, h, rev) -> {
+            .status = "loaded " + w + "x" + h + " rev=" + rev
+            print("[probe-b] loaded " + w + "x" + h + " rev=" + rev)
+        }
+
+        LoadFail -> {
+            .status = "load failed"
+            print("[probe-b] load failed")
+        }
+    }
+}

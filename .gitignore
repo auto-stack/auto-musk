@@ -88,3 +88,8 @@ tmp/
 track-switch-diff-*.html
 web/pnpm-lock.yaml
 web/pnpm-workspace.yaml
+
+# PLAN-093 probe runtime artifacts
+tests/ui-parity/probes/probe-a-media/tmp-frames/
+tests/ui-parity/probes/probe-a-media/rust-workspace/
+tests/ui-parity/probes/probe-b-pointer/rust-workspace/

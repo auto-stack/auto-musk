@@ -1,0 +1,13 @@
+// pac.at — PLAN-093 T-01 probe B (pointer + overlay geometry): mouse-area
+// coords/onmousemove 逻辑坐标、absolute+z 叠层框、窗口宽高 KV。隔离 fixture；
+// 证据见 docs/reports/093-app-studio-capability-map.md。
+name: "probe-b-pointer"
+version: "0.1.0"
+scene: "ui"
+render: "vue"
+api: "rust"
+front_port: 17912
+back_port: 17913
+title: "Probe B Pointer"
+title_zh: "探针B 指针叠层"
+theme: "dark"
