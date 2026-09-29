@@ -574,9 +574,13 @@ PID／进程树及起止收据，再做真实运行测试。
   ——spawn 真目标/真 PNG 帧/锚点树/点选·未命中 204·清选/源码读取/
   带代次停止/终态 503/错误面 400；contract 19/19；auto-lang 语料档
   cargo tv 162/162；新增定向单测 8/8。
-  **剩余阻塞**：G-9 残余（send 条件化在 if 块内时 park 续体丢失——
-  触发条件已钉死、复现器即 probe-c；探针已用可工作形态，生产 store
-  写法受约束）。
+  **剩余阻塞**：无（五项上游缺口全部闭环，见 capability-map §8.9）。
+  第四轮（capability-map §8.9）：G-9 残余正修（auto-musk-dev@957543acb
+  ——内容指纹探针钉死"续体写全部落在正确对象"，问题在读取面：resume
+  完成只抬 component.dirty、不抬 app 层 view_dirty，MCP 快照/视图同步
+  门永不开。修复：__parked_resume_tick 臂同步抬旗 + 段模式 http 等待
+  30s 上限）。**自然条件形态（生产 store 写法）探针 15/15 × 双后端 ×
+  3 连跑**，哨兵撤除；cargo tv 162/162；MCP 读回实时。
   第三轮（capability-map §8.8）：G-7 正统修复（auto-musk-dev@c35a55ca8
   ——Use 前置编译：ext 合并方法随 TypeDecl pass 编码而 Use 晚处理致
   import_scope 恒空；dep/入口双路径修复）→ wiki shim 撤除（ea62d97）
@@ -585,7 +589,7 @@ PID／进程树及起止收据，再做真实运行测试。
   （vue-tsc+vite 9.74s）全链 exit 0；51 条 S001/S004 为 Info 不拦
   strict，分类入 §8.8：Markdown(source) 系 use.web 误配、其余为
   musk 透传属性待逐条判定）；此前"静默 abort"未复现（旧 CLI 产物，
-  观察项保留）。Vue 臂两模式的 V05 回补条件已就绪。
+  观察项保留）。V05 四模式的条件已全部就绪。
 
 ### [ ] T-04：重构CanvasStore投影与展示状态
 
@@ -735,6 +739,25 @@ PID／进程树及起止收据，再做真实运行测试。
 | T-11～T-14 | AC-01～AC-16（复验与证据） | SD-01～SD-05 |
 
 ## 9. 复审记录
+
+### work 阶段 T-03 G-9 残余正修交接（五项上游缺口全闭环）
+
+- stage: work
+- plan_id: PLAN-093
+- plan_revision: 1
+- outcome: G-9 残余正修完成（脏旗断层 + 段模式等待上限）；五项上游
+  缺口（G-7/G-8/G-9/G-10/V01）全部闭环；自然条件形态探针 15/15 ×
+  双后端 × 3 连跑；T-03 整体保持进行中（V05 四模式回补未跑完）
+- code_commit: auto-musk-dev@957543acb（view_dirty 同步抬旗 + 段模式
+  30s 上限 + G9 诊断仪表）+ plan-093-dev@d791201（capability-map
+  §8.9）
+- task_ids: T-03（进行中）
+- evidence: 内容指纹序列单调（同一对象全程推进，§8.9）；自然形态探针
+  15/15 × 双后端 × 3 连跑；cargo tv 162/162；MCP 读回实时。
+- blockers: 无阻塞项。S001/S004 逐条判定与验证器 use.web 白名单为
+  非阻塞改进项（auto-lang 后续）。
+- next: work——V05 四模式回补（Vue 臂两模式条件就绪）→ T-04 起按
+  依赖序（store 现可自由使用自然条件写法）。
 
 ### work 阶段 T-03 G-7 修复 + V01 门通过交接
 
