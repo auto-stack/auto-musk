@@ -9,7 +9,7 @@ auto-musk 是 Forge 继任者——Rust 后端的 AI 编码 agent。既是 CLI�
 ## 关键能力
 
 1. **Agent 运行**：基于 `auto-ai-agent` 的 ReAct 循环（一次性 / 流式 SSE），8 基础工具 + 5 spec 工具 + 5 编排工具，path confinement 安全沙箱。文件工具 pi parity（PLAN-039）：edit_file 多编辑/模糊匹配/CRLF-BOM 往返、read_file 分页截断、输出字符边界安全截断。run_command pi parity（PLAN-040）：tokio 流式执行、可选超时杀进程树、超限全量落临时文件、非零退出码错误化、ToolUpdate SSE 实时进度。
-2. **Spec 双落点**：结构化 ledger（`.autoos/specs.json` 6 区 + 状态机）+ 文件树知识层（`docs/specs/`，本目录）。
+2. **Spec 双落点**：结构化 ledger（`.autoos/specs.json` 6 区 + 状态机；契约见 [modules/specs-ledger.md](modules/specs-ledger.md)）+ 文件树知识层（`docs/specs/`，本目录，唯一权威）。
 3. **Plans 动态执行**：`docs/plans/NNN-*.md` 文件树，5 态状态机（drafting→executing→execution_done→review_done→merged），merge 沉淀到 Spec。
 4. **Relay 编排**：PipelineEngine 流水线 + TaskPlan DAG + 子会话（spawn_relay/dispatch/bring_in）。
 5. **双前端 parity（PLAN-074–079）**：Auto 轨 `.at` 源（`src/front/*.at`）为全量单一真源，经 AutoUI 编译器平权交付双端目标：生成 Vue 3 SPA（`gen/front/vue/`）与原生 VM/Iced 桌面 UI（`auto run -r vm`）。Block/Message 组件、业务视图与全局外壳（App）在两端共享同一套数据契约与主题（`pac.at` 主题紫）。后端同时支持 AutoVM HTTP 服务、Rust merged 进程内服务与传统 `musk serve`（:8080）。

@@ -751,6 +751,11 @@ impl SpecsStore {
         Self { path: path.into() }
     }
 
+    /// The backing JSON file path (PLAN-094: tests assert byte-invariance).
+    pub fn path(&self) -> &std::path::Path {
+        &self.path
+    }
+
     /// Load the document; create an empty one (persisted) if absent.
     pub fn load(&self) -> std::io::Result<SpecsDocument> {
         match std::fs::read(&self.path) {

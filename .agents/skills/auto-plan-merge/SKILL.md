@@ -33,6 +33,32 @@ the Plan is archived, and temporary worktrees are safely cleaned.
 - These are skill instructions and Plan receipts. They do not implement a
   durable Runner, database transaction, or automatic backend retry.
 
+## Ledger refresh (store-mediated)
+
+The spec ledger (`<workspace>/.autoos/specs.json`, workspace-scoped) is a
+derived view owned by the application's store. Every write goes through the
+spec tools — `write_spec` / `update_spec` (registered in chat sessions; the
+HTTP equivalent is `POST /api/specs/item`). Never write that file directly
+with scripts, text replacement, or a hand-assembled JSON document.
+
+- **Schema is store-owned**: `SpecsDocument{project, version, sections[6]}`.
+  Section ids are exactly `goals` / `architecture` / `designs` / `tests` /
+  `reviews` / `reports`. There is no `plans` section (retired in PLAN-024 —
+  anything written there is silently dropped on the next load). Item fields
+  are completed by `SpecItem::new` inside the tools; do not hand-assemble
+  JSON.
+- **Section mapping follows knowledge kind**: goals → `goals`, architecture
+  decisions → `architecture`, module/design contracts → `designs`, test
+  coverage → `tests`, review conclusions → `reviews`, deposit reports →
+  `reports`. Record the source hash and commit in the item's `tags`/`file`;
+  the body carries only the derived summary — never copy Plan chapters.
+- **Load failure means stop.** If `read_specs`/`list_specs` (or the HTTP GET)
+  reports the ledger unparseable, stop and follow the error guidance:
+  restore from a backup or rebuild from `docs/specs/`, then retry. Hand-edit
+  or delete-and-recreate the file is forbidden — that is how ledger data gets
+  destroyed (UAT 2026-09-29, K6: a reviewer's manual JSON surgery erased
+  existing entries).
+
 ## Gate and recovery baseline
 
 1. Resolve the Plan, main checkout, recorded development branch/worktree,
@@ -108,8 +134,9 @@ repository's naming rules. Never edit canonical Specs directly on main.
 
 Do not force-add ignored runtime data or overwrite existing workspace state.
 For tracked ledger data, prepare and commit its derived changes in the worktree.
-For runtime-only ledger data, prepare the intended projection in the worktree
-and publish it to the identified workspace after canonical Specs land.
+For runtime-only ledger data, draft the intended item contents in the worktree
+and publish them to the identified workspace after canonical Specs land —
+through store-mediated writers only (see "Ledger refresh (store-mediated)").
 
 ## Land and refresh the derived view
 
@@ -139,13 +166,15 @@ and publish it to the identified workspace after canonical Specs land.
 4. Confirm the default-branch tip equals the landed delivery commit and the
    expected canonical Spec contents are on main. Run the appropriate
    integration/smoke checks so main is known-good. Record `landed`.
-5. Publish/verify the derived ledger for the correct workspace. A live service
-   uses its existing non-archiving operations; inspect their current schema and
-   target workspace first. Respect any existing write-approval policy.
-   An unavailable service can use an offline read-modify-write of the projection
-   at its configured runtime path, with all other writers excluded. If safe
-   publication cannot be established, record `blocked`; keep the Plan active.
-   Tracked ledger file edits always go through the worktree and Git.
+5. Publish/verify the derived ledger for the correct workspace — only through
+   store-mediated writers (spec tools, or the `/api/specs/item` /
+   `/api/specs/transition` endpoints when a service is up; see "Ledger
+   refresh (store-mediated)"). Respect any existing write-approval policy.
+   Direct file writes — including an offline read-modify-write of the runtime
+   JSON — are forbidden: an unvalidated hand replacement is how foreign
+   schemas and lost entries happen. If no store-mediated writer is reachable,
+   record `blocked`; keep the Plan active. Tracked ledger file edits always go
+   through the worktree and Git.
 
 Projection rules:
 
@@ -160,8 +189,9 @@ Projection rules:
   Update only affected projections; detect overlapping changes using the
   captured source and ledger versions/hashes.
 - Use one writer. A read/check/write sequence is not a lock or transaction.
-  For offline updates, validate a temporary complete JSON document and replace
-  it atomically under exclusive access; never overwrite a changing live file.
+  All ledger updates flow through the store's upsert/transition operations
+  (spec tools or their HTTP endpoints) — never a hand-assembled file
+  replacement.
 - Maintain schema-required fields and valid statuses. Rebuild derived relations
   and version metadata through existing store logic when available. `related`
   is a computed reverse-link field, so it must not be the sole provenance store.

@@ -14,6 +14,22 @@ use serde_json::{json, Value};
 use crate::specs::{SpecItem, SpecStatus, SpecsStore};
 use crate::tool_context::ToolContext;
 
+/// PLAN-094 T-02 (UAT K6): loud, instructive load failure. A foreign-schema
+/// ledger (e.g. a hand-written JSON) must fail with recovery guidance — never
+/// be silently rewritten or "repaired" by hand. `load()` is read-only on
+/// error, so the fixture file's bytes stay untouched.
+fn load_err(e: std::io::Error) -> ToolError {
+    ToolError::Exec(format!(
+        "load specs: {e}\n\
+         The spec ledger is store-managed and must parse as a SpecsDocument: \
+         top-level fields `project` (string), `version` (number), `sections` \
+         (array) with exactly these section ids: goals, architecture, designs, \
+         tests, reviews, reports. Do NOT hand-edit or recreate \
+         `.autoos/specs.json` — restore it from a backup or rebuild it from \
+         `docs/specs/` via the spec tools, then retry."
+    ))
+}
+
 /// Resolve the workspace-scoped SpecsStore from a tool context (PLAN-030
 /// 复审修复：spec 工具在 server/relay 场景必须落 workspace 的
 /// `{root}/.autoos/specs.json`，而非 home 目录默认——否则 agent 写入与
@@ -56,7 +72,7 @@ impl Tool for ReadSpecs {
         "read_specs"
     }
     fn description(&self) -> &str {
-        "Read spec items. If `section_id` is given (e.g. 'goals', 'plans'), \
+        "Read spec items. If `section_id` is given (e.g. 'goals', 'designs'), \
          return that section's items; otherwise return a compact list of all \
          sections with their item ids + titles + statuses."
     }
@@ -64,15 +80,12 @@ impl Tool for ReadSpecs {
         json!({
             "type": "object",
             "properties": {
-                "section_id": { "type": "string", "description": "optional section id (goals/architecture/designs/plans/tests/reviews/reports)" }
+                "section_id": { "type": "string", "description": "optional section id (goals/architecture/designs/tests/reviews/reports)" }
             }
         })
     }
     async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
-        let mut doc = self
-            .store
-            .load()
-            .map_err(|e| ToolError::Exec(format!("load specs: {e}")))?;
+        let mut doc = self.store.load().map_err(load_err)?;
         doc.rebuild_relations();
         doc.derive_statuses();
         let section_id = args["section_id"].as_str();
@@ -149,10 +162,7 @@ impl Tool for ListSpecs {
         json!({ "type": "object", "properties": {} })
     }
     async fn execute(&self, _args: &Value) -> Result<ToolOutput, ToolError> {
-        let doc = self
-            .store
-            .load()
-            .map_err(|e| ToolError::Exec(format!("load specs: {e}")))?;
+        let doc = self.store.load().map_err(load_err)?;
         let ov = doc.overview();
         let mut out = format!(
             "project: {} (v{}, {} items)\n",
@@ -219,10 +229,7 @@ impl Tool for UpdateSpec {
         let section_id = args["section_id"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'section_id'".into()))?;
-        let mut doc = self
-            .store
-            .load()
-            .map_err(|e| ToolError::Exec(format!("load specs: {e}")))?;
+        let mut doc = self.store.load().map_err(load_err)?;
 
         match action {
             "upsert" => {
@@ -328,10 +335,7 @@ impl Tool for WriteSpec {
         let content = args["content"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'content'".into()))?;
-        let mut doc = self
-            .store
-            .load()
-            .map_err(|e| ToolError::Exec(format!("load specs: {e}")))?;
+        let mut doc = self.store.load().map_err(load_err)?;
 
         // Parse `## ID Title` headings; body until next heading.
         let mut items: Vec<(String, String, String)> = Vec::new(); // id, title, body
@@ -423,10 +427,7 @@ impl Tool for WriteGoals {
         let goals = args["goals"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'goals'".into()))?;
-        let mut doc = self
-            .store
-            .load()
-            .map_err(|e| ToolError::Exec(format!("load specs: {e}")))?;
+        let mut doc = self.store.load().map_err(load_err)?;
 
         // clear existing goals
         if let Some(section) = doc.sections.iter_mut().find(|s| s.id == "goals") {
@@ -588,5 +589,93 @@ mod tests {
         let out = out.content;
         assert!(out.contains("goals"));
         assert!(out.contains("2 items"));
+    }
+
+    /// PLAN-094 T-02 用例 1 (UAT K6): 外语格式 ledger（UAT 现场形状：flat
+    /// specs/history，无 `project`）上调用 spec 工具必须响亮失败——错误含
+    /// 期望字段 / 六区清单 / 禁手改指引，且 fixture 文件字节前后不变。
+    #[tokio::test]
+    async fn foreign_shape_ledger_fails_loud_and_intact() {
+        let store = tmp_store();
+        let fixture = r#"{
+  "version": 3,
+  "workspace": "demo-1",
+  "updated_at": 1790000000,
+  "specs": [{ "id": "SD-01", "title": "x" }],
+  "history": []
+}"#;
+        std::fs::write(store.path(), fixture).unwrap();
+        let before = std::fs::read(store.path()).unwrap();
+
+        let keywords = ["project", "goals", "architecture", "designs", "tests", "reviews", "reports", "Do NOT hand-edit"];
+        // read_specs / list_specs
+        for err in [
+            ReadSpecs::with_store(store.clone()).execute(&json!({})).await.unwrap_err().to_string(),
+            ListSpecs::with_store(store.clone()).execute(&json!({})).await.unwrap_err().to_string(),
+        ] {
+            for k in keywords {
+                assert!(err.contains(k), "error missing `{k}`:\n{err}");
+            }
+        }
+        // update_spec / write_spec
+        for err in [
+            UpdateSpec::with_store(store.clone())
+                .execute(&json!({
+                    "action": "upsert", "section_id": "goals",
+                    "item": { "id": "G1", "title": "t", "content": "", "status": "Empty",
+                        "depends_on": [], "related": [], "priority": null, "assignee": null,
+                        "test_file": null, "file": null, "milestone": null, "module": null,
+                        "tags": [], "created_at": 0, "modified_at": 0, "completed_at": null }
+                }))
+                .await
+                .unwrap_err()
+                .to_string(),
+            WriteSpec::with_store(store.clone())
+                .execute(&json!({ "section_id": "designs", "content": "## D1 X\nbody" }))
+                .await
+                .unwrap_err()
+                .to_string(),
+        ] {
+            assert!(err.contains("Do NOT hand-edit"), "error missing guidance:\n{err}");
+        }
+
+        let after = std::fs::read(store.path()).unwrap();
+        assert_eq!(before, after, "foreign-shape ledger bytes must be untouched");
+    }
+
+    /// PLAN-094 T-02 用例 2: 按 merge 技能契约（只经 write_goals/write_spec
+    /// upsert 语义）构造的 ledger 可被 `SpecsDocument` serde 解析，六区在位，
+    /// `read_specs` 可读。
+    #[tokio::test]
+    async fn skill_contract_ledger_parses_and_reads() {
+        let store = tmp_store();
+        WriteGoals::with_store(store.clone())
+            .execute(&json!({ "goals": "- ship the thing" }))
+            .await
+            .unwrap();
+        for (section, content) in [
+            ("designs", "## D1 Widget contract\nDoes the thing"),
+            ("tests", "## T1 Widget test\ncovers the thing"),
+            ("reports", "## R1 Deposit report\nPLAN-001 delivered"),
+        ] {
+            WriteSpec::with_store(store.clone())
+                .execute(&json!({ "section_id": section, "content": content }))
+                .await
+                .unwrap();
+        }
+
+        // Raw bytes serde-parse into the native document.
+        let bytes = std::fs::read(store.path()).unwrap();
+        let doc: crate::specs::SpecsDocument = serde_json::from_slice(&bytes).unwrap();
+        let ids: Vec<&str> = doc.sections.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["goals", "architecture", "designs", "tests", "reviews", "reports"]
+        );
+        assert_eq!(doc.sections.iter().map(|s| s.items.len()).sum::<usize>(), 4);
+
+        // And read_specs serves it.
+        let out = ReadSpecs::with_store(store).execute(&json!({})).await.unwrap();
+        assert!(out.content.contains("D1 Widget contract"));
     }
 }
