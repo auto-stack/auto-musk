@@ -228,3 +228,34 @@ cargo tv 162/162；新增定向单测 8/8。
 - G-7：ext/type 方法体导入解析（wiki shim 撤除依赖此项）。
 - V01：`auto build --gen-only --strict` 静默 abort（26m33s exit 1
   无诊断）+ S001 漂移对齐（SCHEMA_DRIFT_GENERATE_AT=1 再生真源）。
+
+### 8.7 G-9 残余侦查（2026-09-29 第二轮，AUTO_DEBUG_G9 探针实证）
+
+触发条件钉死（形态实验矩阵，同引擎同 fixture）：
+- 顶层无条件 send + 任意嵌套写回：全链正常（15 断言双后端绿）。
+- send 条件化（if 块内 park）：异常。签名：pre-park 写落地（服务端
+  t=1,3,4…13 递增实证）；post-resume 写全部丢失（r_start/phase 恒初值）；
+  视图模型绑定子节点整体消失（autoui_snapshot 只剩静态 text）；
+  tick 链可能停摆（parks=110 自旋态=async 结果丢失后段模式重入臂
+  无超时——忙等臂有 30s 上限，段模式没有）。
+
+机理实测（AUTO_DEBUG_G9=1）：rewind/re-fire 机械正确（ip 0x4ee→0x4f4、
+0x57c→0x582 各 +6）；两个请求后端都 200；handler 走到 RET
+（"resumed to completion"）。即：**续体代码执行了，但其 SET_FIELD
+写不落在 state_obj_id 对象上**——视图与 MCP 读的是 state_obj_id
+（见到 pre-park 值），续体写的是别处。首要假设：状态对象身份/rc
+核算——parked task 栈持 __state stake，完成时 rc_release_task_stack
+清账路径与 state 对象存活的交互；次疑：resume 泵与对象替换/回收。
+非确定性细节（vm13 两请求 vs vmg10 一请求 vs 本次全流程）提示竞态面。
+
+下一轮最短路径（仪表已就位）：
+1. vm_bridge 在 call_handler_for / register_parked / resume 完成 /
+   view build 四点打印 state_obj_id + 堆对象指针身份 → 定位"写往
+   别处"的分叉点。
+2. 审计 rc_release_task_stack 对 parked-完成任务的清账是否波及
+   state 对象（stake 表 vs 对象 refcount）。
+3. 段模式 re-fire 臂补超时（对齐忙等臂 30s），消灭 parks 自旋态。
+4. 修复后：探针恢复自然条件形态回归 15/15 ×2，撤哨兵注释。
+
+本轮收尾状态：探针以可工作形态双模式 15/15（219583b）；引擎诊断
+环境门控入库（auto-musk-dev@394739f05）。
