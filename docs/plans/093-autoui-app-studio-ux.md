@@ -4,7 +4,7 @@ status: executing
 feature_name: AutoUI 应用设计工作台与实时 Canvas 双端 UX
 author: [agent]
 created_at: 2026-09-28T14:20:35Z
-updated_at: 2026-09-29T09:45:00Z
+updated_at: 2026-09-29T21:00:00Z
 plan_revision: 1
 current_step: 2
 total_steps: 14
@@ -558,18 +558,27 @@ PID／进程树及起止收据，再做真实运行测试。
   与版本并回报loaded／failure；不在UI线程网络阻塞／decode。
 - 验证 V01，V07及V05最小四模式：真实运行得到帧、树选后有锚点、读源码、
   显式停止；响应缺失、401和旧代次均有可处理错误。
-- [▶ 进行中] 代码完成（commit a36413b@plan-093-dev，未验证不勾）：
-  canvas_vm.at 五路由薄装配 + 宿主桥 canvas_*_host（insert_http_response
-  字节通道，同一 CanvasManager）+ vm_backend 注册 + extern_impl 五桥 fn；
-  ports/canvas.vm.at 空桩退役（Http.request().send() 句柄族，绝对基址
-  自拼，446-E4 默认头注入；帧显示链按 T-01 §3 定案归 T-04 store）。
-  **验证被 base 预存破坏阻断**：MUSK_BACKEND=vm 的 musk serve 在无本计划
-  改动的 base 上即无法启动（”Undefined symbol: auth_header_token in module
-  server”——auto-lang master 前进后 VM 装载器模块符号解析规则变更，
-  extern_sigs 跨模块解析失效）。解除动作：auto-lang↔musk 接缝对齐
-  （上游恢复旧解析语义，或 musk auto-src 全语料适配新规则——需依 loader
-  实际语义定案，属依赖任务）；对齐后回补实机探活 + V05 最小四模式。
-  T-02 侧 contract 测试已覆盖同 CanvasManager 契约的行为面。
+- [▶ 进行中] 代码完成 + 接缝解除 + 首轮实机验证（未整体完成不勾）：
+  原代码（a36413b：canvas_vm.at 五路由薄装配 + 宿主桥 canvas_*_host +
+  vm_backend 注册 + extern_impl 五桥 fn；ports/canvas.vm.at 空桩退役）
+  之上的本轮进展（commit 46b1173/8869f6a/18a0431@plan-093-dev）：
+  ①阻塞②解除——auto-src 全语料适配 auto-lang Plan 545 链接语义
+  （242 跨模块调用盘点、17 模块条目导入、wiki 方法体 3 名 shim；
+  46b1173），VM serve 3601 路由启动实证；②VMHTTP 桥三处修复——宿主桥
+  专职线程桥（嵌套 runtime panic）、五 handler 去 State 提取器（3 提取器
+  触发 G-8 帧错位）、session.rs split_off(160) 越界（8869f6a）；
+  ③五路由 curl 实证：status 200（T-02 身份字段全）/frame 503·409/stop
+  200/pick clear 200/start 400 越界拒绝，0 panic；④ports 探针
+  （probe-c + canvas-ports-probe.mjs）建立，VM 客户端 GET 链真实到达。
+  contract 19/19 绿重绑当前树。
+  **剩余阻塞（全部 auto-lang 上游，已实证登记 capability-map §8）**：
+  G-8 .at 路由 handler 帧核算错位（start spawn 长宿主调用 RET 下溢崩
+  VM）——VMHTTP start 实路径未通；G-9 VM 客户端 POST park 丢续体——
+  canvasStart/Pick/Stop 四端口 VM 臂不可用，T-04 store POST 面同受限；
+  G-10 MCP autoui_state 回读滞后——探针证据通道受限；V01 静默 abort
+  维持（45min 构建 26m33s exit 1 无诊断）——T-05 起前端生成任务仍须先
+  解除。解除动作与下游约束见 capability-map §8；V05 最小四模式待
+  G-8/G-9 + V01 解除后回补，不得以部分证据冒充 AC-05 通过。
 
 ### [ ] T-04：重构CanvasStore投影与展示状态
 
@@ -719,6 +728,31 @@ PID／进程树及起止收据，再做真实运行测试。
 | T-11～T-14 | AC-01～AC-16（复验与证据） | SD-01～SD-05 |
 
 ## 9. 复审记录
+
+### work 阶段 T-03 接缝解除与首轮实机验证交接
+
+- stage: work
+- plan_id: PLAN-093
+- plan_revision: 1
+- outcome: T-03 推进（阻塞②解除 + 桥修复 + 五路由 curl 实证）；
+  T-03 整体验证仍 blocked（G-8/G-9/V01 上游）；整体保持 executing
+- code_commit: 46b1173（语料接缝）+ 8869f6a（桥修复+探针）+
+  18a0431（capability-map §8）@plan-093-dev
+- task_ids: T-03（进行中）
+- evidence: capability-map §8（本轮全部记录）；contract 19/19 绿
+  （8869f6a 树）；VM serve 3601 路由启动；五路由 curl 要点录
+  capability-map §8.3（临时收据 /tmp/vmret9.log 易失）；V01 全量构建
+  26m33s exit 1 无诊断（静默 abort 维持）。依赖版本：组内
+  auto-lang@auto-musk-dev ec5adb7af（运行时同探针版 e2deb4f）。
+- blockers: ①G-8 .at 路由 handler 帧核算错位（VMHTTP start 实路径崩
+  VM）②G-9 VM 客户端 POST park 丢续体（canvasStart/Pick/Stop 端口
+  VM 臂 + T-04 store POST 面受限）③V01 静默 abort（T-05+ 前端生成
+  前置）④G-10 MCP 回读滞后（证据通道）。四项均 auto-lang 上游依赖
+  任务；PLAN-095（drafting）覆盖 V01 与 G-1/2/3/6，G-7/8/9/10 为本轮
+  新实证，需并入 095 合同修订或另立依赖任务。
+- next: work——T-03 验证回补待上游解除后补 V05 最小四模式；不受阻的
+  下游任务按依赖序评估开工资格（T-04 的 POST 面受 G-9 约束、T-05 起
+  受 V01 约束）。
 
 ### work 阶段 T-02/T-03 交接
 
