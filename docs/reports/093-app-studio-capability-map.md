@@ -259,3 +259,35 @@ cargo tv 162/162；新增定向单测 8/8。
 
 本轮收尾状态：探针以可工作形态双模式 15/15（219583b）；引擎诊断
 环境门控入库（auto-musk-dev@394739f05）。
+
+### 8.8 G-7 修复 + V01 门通过（2026-09-29 第三轮）
+
+**G-7 正统修复**（auto-musk-dev@c35a55ca8）：根因 = 解析器把 ext 块合并进
+`type X`（AST 中 Ext 消失），合并方法随 TypeDecl pass 编码，而 Use 在
+后续 pass 才处理 → 方法体 import_scope 恒空 → 裸名 reloc 链接失败。
+修复：dep 路径（compile_module_to_bytecode）Use 提到 pass1 之前、pass3
+排除防双处理；入口路径（execute_autovm_with_path）Use 分区提出先于
+TypeDecl 编码，未合并的独立 Ext 归 other_stmts 按源序。验证：双 fixture
+（dep/入口路径）输出预期值；cargo tv 162/162；musk wiki.at 撤除
+__wiki_* shim 后自然调用经 VM serve 零链接错误；探针双后端 15/15。
+**绕法撤除完成**（ea62d97）。
+
+**V01 门通过**（本轮 CLI，含全部引擎修复）：`auto build --gen-only
+--strict` exit 0（39m02s，60 组件，51 S001 Info + S004 均不拦 strict）
+→ gen/front/vue `pnpm install` exit 0 → `pnpm build`（vue-tsc + vite）
+exit 0（9.74s）。收据：/tmp/v01-trace.log（本机易失；要点入账：59m
+墙钟内含 39m 生成 + pnpm 两步）。此前两次"静默 abort"（26m33s exit 1）
+未复现——失败运行用的是旧 CLI（gc8f86ef/e2deb4f 代），本轮 CLI 含
+G-7/G-8 修复；abort 归因不能精确到单一修复，按"门现绿"记账，观察项
+保留（若复现再以 AUTO_BUILD_TRACE=1 定位）。
+
+**S001/S004 漂移分类**（51 组 Info，不拦 strict，非阻塞）：
+- Markdown(source:) 为 use.web 组件导入（ports/renderer.at），验证器
+  误配 schema autodown 标签——验证器白名单类改进项（auto-lang）。
+- button/span 的 title、Check.size 等：stdlib 控件定义无此 prop，
+  musk 侧为透传/无效属性——逐条判定后 musk 对齐或 schema 手术式补充
+  （破坏性全量再生已否决：diff -219 行丢 Plan 注记/默认值/语义枚举）。
+
+**剩余**：G-9 残余（§8.7 证据包）。V05 最小四模式的 VM 臂两模式已绿
+（15×2）；Vue 臂两模式现可回补（V01 已通，gen/front/vue 就绪）——
+T-13 全量矩阵范围内执行。
