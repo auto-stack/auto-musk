@@ -22,6 +22,7 @@ use server
 use server_stream
 use relay_api
 use wiki
+use canvas_vm
 
 fn main() {
     let app = build_router()
@@ -29,5 +30,7 @@ fn main() {
     let relay = relay_routes()
     let tk = task_plan_routes()
     let wk = wiki_routes()
+    // PLAN-093 T-03: Canvas 五路由（宿主桥同 manager，见 canvas_vm.at）。
+    let cv = canvas_vm_routes()
     print("musk-vm-router-built")
 }

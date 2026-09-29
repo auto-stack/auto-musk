@@ -285,4 +285,23 @@ fn register_host_calls() {
         }
         enc(())
     });
+
+    // ── canvas 域（PLAN-093 T-03）：与手写 canvas_routes 同契约，宿主侧
+    // 直接消费 STATE 单例的 CanvasManager；响应经 insert_http_response
+    // （status/headers/body 字节）整包构造，.at handler 转发句柄。
+    host!("canvas_start_host", |a| {
+        enc(ei::canvas_start_host(&st_axum(&st()?), arg(a, 0), arg(a, 1))?)
+    });
+    host!("canvas_status_host", |a| {
+        enc(ei::canvas_status_host(&st_axum(&st()?), arg(a, 0))?)
+    });
+    host!("canvas_frame_host", |a| {
+        enc(ei::canvas_frame_host(&st_axum(&st()?), arg(a, 0))?)
+    });
+    host!("canvas_pick_host", |a| {
+        enc(ei::canvas_pick_host(&st_axum(&st()?), arg(a, 0))?)
+    });
+    host!("canvas_stop_host", |a| {
+        enc(ei::canvas_stop_host(&st_axum(&st()?), arg(a, 0))?)
+    });
 }

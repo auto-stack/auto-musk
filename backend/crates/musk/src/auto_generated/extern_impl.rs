@@ -3636,3 +3636,205 @@ mod chat_run_assemble_tests {
         assert_eq!(blocks[0].text, "turn1");
     }
 }
+
+// ── PLAN-093 T-03：Canvas VMHTTP 宿主桥（canvas_vm.at 的 extern 实现） ──────
+//
+// 与手写 canvas_routes（src/canvas/mod.rs，RustHTTP 轨）同契约：宿主持同一
+// CanvasManager（STATE 单例），响应经 insert_http_response 整包构造（status/
+// headers/body 字节），返回句柄 i64 交 .at 转发（Plan 442 C2 通道）。仅 VM
+// 后端消费（vm_backend.rs 注册 host call）；a2r 轨不触达。
+
+type SerdeJson = serde_json::Value;
+
+fn canvas_vm_response(status: u16, content_type: &str, body: Vec<u8>) -> Result<i64, String> {
+    Ok(auto_lang::vm::ffi::stdlib::insert_http_response(
+        status,
+        vec![("Content-Type".to_string(), content_type.to_string())],
+        body,
+    ) as i64)
+}
+
+fn canvas_vm_json(status: u16, v: &SerdeJson) -> Result<i64, String> {
+    let bytes = serde_json::to_vec(v).map_err(|e| format!("canvas vm bridge: {e}"))?;
+    canvas_vm_response(status, "application/json", bytes)
+}
+
+fn canvas_vm_query_str(q: &SerdeJson, key: &str) -> Option<String> {
+    q.get(key).and_then(|v| v.as_str()).map(str::to_string)
+}
+
+fn canvas_vm_query_u64(q: &SerdeJson, key: &str) -> Option<u64> {
+    q.get(key).and_then(|v| v.as_u64())
+}
+
+fn canvas_vm_conflict(current: u64, msg: String) -> Result<i64, String> {
+    canvas_vm_json(
+        409,
+        &serde_json::json!({ "error": msg, "generation_id": current }),
+    )
+}
+
+/// POST /api/canvas/start?workspace={id} {app_path, conversation_id?, expected_generation?}
+pub fn canvas_start_host(s: &State<AppState>, q: SerdeJson, b: SerdeJson) -> Result<i64, String> {
+    let ws_id = canvas_vm_query_str(&q, "workspace").unwrap_or_default();
+    let ws = s.registry.get(&ws_id);
+    let mut roots = vec![ws.root.clone()];
+    roots.extend(
+        s.registry
+            .extra_roots(&ws_id)
+            .into_iter()
+            .map(std::path::PathBuf::from),
+    );
+    let app_path = b
+        .get("app_path")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    let resolved = match crate::tool_safety::resolve_multi(&app_path, &roots) {
+        Ok(p) => p,
+        Err(msg) => return canvas_vm_json(400, &serde_json::json!({ "error": msg })),
+    };
+    if let Err(msg) = crate::canvas::session::validate_app_dir(&resolved) {
+        return canvas_vm_json(400, &serde_json::json!({ "error": msg }));
+    }
+    let conversation_id = b.get("conversation_id").and_then(|v| v.as_str()).map(str::to_string);
+    let expected = b.get("expected_generation").and_then(|v| v.as_u64());
+    match tokio_block_on_canvas(async {
+        s.canvas
+            .start_owned(resolved, &ws.root, &ws_id, conversation_id.as_deref(), expected)
+            .await
+    }) {
+        Ok(identity) => {
+            let st = s.canvas.status();
+            canvas_vm_json(
+                200,
+                &serde_json::json!({
+                    "state": st.state,
+                    "app_path": st.app_path,
+                    "generation_id": identity.generation,
+                    "owner_workspace_id": identity.owner_workspace,
+                    "owner_conversation_id": identity.owner_conversation,
+                }),
+            )
+        }
+        Err(crate::canvas::StartError::GenerationConflict(c)) => canvas_vm_conflict(
+            c.current,
+            format!(
+                "canvas generation conflict: expected {}, current {} — re-fetch /api/canvas/status",
+                expected.unwrap_or_default(),
+                c.current
+            ),
+        ),
+        Err(crate::canvas::StartError::Spawn(msg)) => {
+            canvas_vm_json(500, &serde_json::json!({ "error": msg }))
+        }
+    }
+}
+
+/// GET /api/canvas/status
+pub fn canvas_status_host(s: &State<AppState>, _q: SerdeJson) -> Result<i64, String> {
+    canvas_vm_json(200, &s.canvas.status_full())
+}
+
+/// GET /api/canvas/frame?generation=&seq= —— PNG 直出；身份不符 409；无帧 503。
+pub fn canvas_frame_host(s: &State<AppState>, q: SerdeJson) -> Result<i64, String> {
+    let generation = canvas_vm_query_u64(&q, "generation");
+    let seq = canvas_vm_query_u64(&q, "seq");
+    match s.canvas.frame_for(generation, seq) {
+        Ok(bytes) => canvas_vm_response(200, "image/png", bytes.as_ref().clone()),
+        Err(crate::canvas::FrameConflict::Generation { current }) => canvas_vm_conflict(
+            current,
+            format!(
+                "canvas frame generation mismatch — re-fetch /api/canvas/status (current {current})"
+            ),
+        ),
+        Err(crate::canvas::FrameConflict::StaleSeq { current_seq }) => {
+            if s.canvas.frame().is_some() {
+                canvas_vm_conflict(
+                    s.canvas.generation(),
+                    format!(
+                        "canvas frame seq mismatch — re-fetch /api/canvas/status (current seq {current_seq})"
+                    ),
+                )
+            } else {
+                canvas_vm_json(503, &serde_json::json!({ "error": "no canvas frame yet" }))
+            }
+        }
+    }
+}
+
+/// POST /api/canvas/pick {x,y | vnode_id | clear:true, expected_generation?}
+pub fn canvas_pick_host(s: &State<AppState>, b: SerdeJson) -> Result<i64, String> {
+    let manager = &s.canvas;
+    let clear = b.get("clear").and_then(|v| v.as_bool()).unwrap_or(false);
+    if let Some(exp) = b.get("expected_generation").and_then(|v| v.as_u64()) {
+        let current = manager.generation();
+        if current != 0 && exp != current {
+            return canvas_vm_conflict(
+                current,
+                format!(
+                    "canvas pick generation conflict: expected {exp}, current {current} — re-fetch /api/canvas/status"
+                ),
+            );
+        }
+    }
+    if clear {
+        if b.get("x").is_some() || b.get("y").is_some() || b.get("vnode_id").is_some() {
+            return canvas_vm_json(
+                400,
+                &serde_json::json!({ "error": "pick {clear:true} is mutually exclusive with x/y/vnode_id" }),
+            );
+        }
+        manager.clear_pick();
+        return canvas_vm_json(200, &serde_json::json!({ "cleared": true }));
+    }
+    if manager.frame().is_none() {
+        return canvas_vm_json(503, &serde_json::json!({ "error": "no canvas frame yet" }));
+    }
+    let vnode_id = b.get("vnode_id").and_then(|v| v.as_str()).map(str::to_string);
+    let (x, y) = (b.get("x").and_then(|v| v.as_f64()), b.get("y").and_then(|v| v.as_f64()));
+    let result = match (vnode_id, x, y) {
+        (Some(v), _, _) => manager.pick_vnode_str(&v),
+        (None, Some(x), Some(y)) => manager.pick_at(x, y),
+        _ => {
+            return canvas_vm_json(
+                400,
+                &serde_json::json!({ "error": "pick requires {x,y} (frame px), {vnode_id} or {clear:true}" }),
+            )
+        }
+    };
+    match result {
+        Some(anchor) => canvas_vm_json(200, &anchor),
+        // 未命中：manager 已清 picked（PLAN-093），204 语义保持。
+        None => canvas_vm_response(204, "application/json", Vec::new()),
+    }
+}
+
+/// POST /api/canvas/stop?generation=
+pub fn canvas_stop_host(s: &State<AppState>, q: SerdeJson) -> Result<i64, String> {
+    let generation = canvas_vm_query_u64(&q, "generation");
+    match tokio_block_on_canvas(async { s.canvas.stop_guarded(generation, None).await }) {
+        Ok(stopped) => canvas_vm_json(
+            200,
+            &serde_json::json!({ "state": "stopped", "generation_id": stopped }),
+        ),
+        Err(crate::canvas::StopRefused::GenerationConflict { current }) => canvas_vm_conflict(
+            current,
+            format!(
+                "canvas stop generation conflict — session was replaced (current {current}); re-fetch /api/canvas/status"
+            ),
+        ),
+        Err(crate::canvas::StopRefused::OwnedByOther { owner }) => canvas_vm_json(
+            409,
+            &serde_json::json!({ "error": format!("canvas session belongs to conversation {owner}") }),
+        ),
+    }
+}
+
+/// 宿主桥内的 async 执行体：VM owner 线程无 tokio 上下文，经专用 runtime
+/// block_on（vm_backend rt() 同款语义；单调用阻塞窗口 ≤ stop 收尾 2.5s 上限）。
+fn tokio_block_on_canvas<F: std::future::Future>(fut: F) -> F::Output {
+    static RT: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
+    RT.get_or_init(|| tokio::runtime::Runtime::new().expect("canvas vm bridge runtime"))
+        .block_on(fut)
+}

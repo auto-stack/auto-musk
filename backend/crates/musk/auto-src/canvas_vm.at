@@ -1,0 +1,66 @@
+/// canvas_vm.at — PLAN-093 T-03：VMHTTP 桥的 Canvas 路由（AutoVM 轨专用）。
+///
+/// 五路由与手写 Rust `canvas_routes()`（PLAN-093 T-02 接口表）同契约；
+/// 全部逻辑经 extern 桥（`canvas_*_host`，vm_backend.rs 注册）在宿主侧
+/// 执行——宿主持同一 CanvasManager 单例（STATE），响应经
+/// `insert_http_response`（status/headers/body 字节）构造、句柄 i64 回
+/// .at 直接转发（Plan 442 C2 通道，与 workspace_file_do 同型）。本文件
+/// 只做薄路由装配，不在 .at 侧复制任何业务规则。
+/// 不进 a2r 轨（axum serve 用手写 routes）；仅 vm_entry.at 装配。
+
+use.rust axum::Router
+use.rust axum::routing::{get, post}
+use.rust axum::response::Response
+use.rust axum::extract::{State, Query}
+use.rust axum::Json
+use.rust serde_json::Value
+use.rust crate::server::AppState
+
+// ── 宿主桥 extern（vm_backend.rs register_host_calls 注册） ────────────────
+// 返回 i64 句柄（宿主已构造完整响应）；网关无注册时回 null → 路由兜底 500。
+
+fn canvas_start_host(_s @T, _q Value, _b Value) Response { return musk_extern_dispatch("canvas_start_host", [_q, _b]) }
+fn canvas_status_host(_s @T, _q Value) Response { return musk_extern_dispatch("canvas_status_host", [_q]) }
+fn canvas_frame_host(_s @T, _q Value) Response { return musk_extern_dispatch("canvas_frame_host", [_q]) }
+fn canvas_pick_host(_s @T, _b Value) Response { return musk_extern_dispatch("canvas_pick_host", [_b]) }
+fn canvas_stop_host(_s @T, _q Value) Response { return musk_extern_dispatch("canvas_stop_host", [_q]) }
+
+/// 宿主桥缺失（未注册/回 null）→ 500 兜底（诚实失败，不静默空响应）。
+fn host_missing() Response {
+    return err_response("canvas vm bridge: host call not registered", 500u)
+}
+
+pub fn canvas_vm_start(s State<AppState>, q Query<Value>, body Json<Value>) ~Response {
+    if q == None { return host_missing() }
+    return canvas_start_host(s.view, q, body)
+}
+
+pub fn canvas_vm_status(s State<AppState>, q Query<Value>) ~Response {
+    if q == None { return host_missing() }
+    return canvas_status_host(s.view, q)
+}
+
+pub fn canvas_vm_frame(s State<AppState>, q Query<Value>) ~Response {
+    if q == None { return host_missing() }
+    return canvas_frame_host(s.view, q)
+}
+
+pub fn canvas_vm_pick(s State<AppState>, body Json<Value>) ~Response {
+    if body == None { return host_missing() }
+    return canvas_pick_host(s.view, body)
+}
+
+pub fn canvas_vm_stop(s State<AppState>, q Query<Value>) ~Response {
+    if q == None { return host_missing() }
+    return canvas_stop_host(s.view, q)
+}
+
+pub fn canvas_vm_routes() Router<AppState> {
+    var app = Router.new()
+    app = app.route("/api/canvas/start", post(canvas_vm_start))
+    app = app.route("/api/canvas/frame", get(canvas_vm_frame))
+    app = app.route("/api/canvas/status", get(canvas_vm_status))
+    app = app.route("/api/canvas/pick", post(canvas_vm_pick))
+    app = app.route("/api/canvas/stop", post(canvas_vm_stop))
+    return app
+}
