@@ -352,3 +352,20 @@ T-03 完成门：V01 全链 exit 0 ✓ / V07 contract 19 绿 ✓ / V05 最小四
   store.Collapse()/store.UnCollapse()）。
 - MCP 驱动备忘：store msg 经 autoui_action drag 派发，widget=CanvasStore、
   分隔符为真实 U+001F（可见符号 ␟ 无效）。
+
+### 8.12 T-05 增量记录（2026-09-30）
+
+第一增量（42c8352，VM 臂验证）：canvas_panel 三件套拆分 + studio 开关 +
+视口宽通道 + 布局条件。第二增量（527d99c，VM 臂验证）：面板槽三分支
+（工作台两列/空工作台/原面板）+ 空工作台与打开已有应用流 + view 闭括号
+修复（chats_view 解析失败 20 错——面板槽重排时 view 闭括号缺失，同类
+失衡复查建议纳入编辑清单）。
+
+**新发现（待查）**：T-05 改动后的全量生成静默 exit 1（28m04s，无诊断;
+AUTO_BUILD_TRACE 未设），退出点紧随 canvas_helpers.at 的 fn-only 警告
+——下一文件即拆分后的 canvas_panel.at（3 widget 共声明同一 store +
+CanvasPanel 无 msg 块）。前一轮全量（T-04 改动后、拆分前）exit 0 通过，
+拆分结构是首要嫌疑。dist 现状 = 上一完整生成的 T-04 版（一致可回滚）。
+下一步：AUTO_BUILD_TRACE=1 复现定位 + canvas_panel.vue 生成结构检查;
+短期回滚面 = git revert 拆分提交恢复单 widget 形态（studio 布局改走
+ChatsView 内联分支）。
