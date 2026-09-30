@@ -51,11 +51,17 @@ use secretary_message: SecretaryMessage
 use chat_message: ChatMessage
 // PLAN-087 T-07: 实况画布面板（chats 右侧第三列；cv_open 驱动显隐）。
 use canvas_panel: CanvasPanel, CanvasStudioSlot
+// PLAN-093 T-06:帧点选委托（幂等单例安装；VM 桩空实现）。
+use.web installCanvasFrameClicks from "src/front/ports/canvas.at"
 
 widget ChatsView {
 
     setup {
         let t = useT()
+        // PLAN-093 T-06:委托安装承接位——71c302b 移除面板侧两次调用时
+        // 未落此位，画布直点链路中断（几何取证 B/D2 实证）。setup 先于
+        // 帧 img 存在，capture load 打标不缺拍。
+        installCanvasFrameClicks()
     }
 
     msg Msg {

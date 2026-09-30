@@ -517,6 +517,7 @@
     "tabCanvas": "Canvas",
     "tabChat": "Chat",
     "tabStructure": "Structure",
+    "zoomToggle": "Toggle fit / 1:1",
     "structureToggle": "Toggle structure panel",
     "studioToggle": "App studio",
     "studioEmpty": "Describe an AutoUI app in the conversation, or open an existing app in the workspace",

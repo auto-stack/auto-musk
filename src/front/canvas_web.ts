@@ -7,6 +7,10 @@
 // workspace 显式携带（start 需要它做沙箱判定；拦截器对 /api/canvas/* 注入
 // 的 workspace 查询与显式 query 同名等价，显式传参以防拦截器缺位）。
 
+// PLAN-093 T-06:点选换算单源——canvas_helpers.at 经 use.web.fn 生成 ext
+// TS 模块（forge_helpers 同链），点击委托与 VM 消费同一映射规则。
+import { canvasMapPhysical } from './canvas_helpers';
+
 export interface CanvasResult {
     ok: boolean;
     error: string;
@@ -99,32 +103,71 @@ export async function canvasLoadSource(path: string): Promise<{ ok: boolean; err
 }
 
 /**
- * 帧点选监听（面板 setup 调一次，幂等）：document 级委托——点击目标为画布
- * 帧 img（src 前缀判定）时，按 显示→自然 尺寸比换算帧像素坐标并 POST
- * /api/canvas/pick。结果不在此回接 store：后端置 picked 后经既有 1s 状态
- * 轮询带出（≤1s 滞后，M2 接受；零新通道）。
+ * 帧点选监听（面板 setup 调一次，幂等；PLAN-093 T-06 收敛+守卫化）：
+ * document 级委托收敛为单实例，监听内身份/版本/几何三重守卫——
+ * ①身份：目标为画布帧 img（src 前缀判定）；
+ * ②版本：img 已加载且 dataset.cvLoadedSrc（capture load 监听打标）与
+ *   当前 src 一致——旧帧 img 加载完成不响应新版本点击（T-06 门控）；
+ * ③几何：点击落在内容包装层 .cv-frame-wrap（bbox_pct/点选的统一坐标
+ *   系）内 → canvasMapPhysical（canvas_helpers 单源，Vue/VM 同式）换算
+ *   帧物理像素 POST /api/canvas/pick；落在容器留白（盒内、包装层外）→
+ *   显式清选 {clear:true}（取代旧 object-contain 出界 204 巧合语义）。
+ * 结果不在此回接 store：后端置 picked 后经既有 1s 状态轮询带出。
  */
 export function installCanvasFrameClicks(): void {
     if (typeof window === 'undefined') return;
     const w = window as unknown as { __muskCanvasClicks?: boolean };
     if (w.__muskCanvasClicks) return;
     w.__muskCanvasClicks = true;
+    // 加载打标（capture——load 不冒泡）：帧 img 加载完成记录其 src 版本。
+    document.addEventListener('load', (ev) => {
+        const t = ev.target as HTMLImageElement | null;
+        if (!t || t.tagName !== 'IMG') return;
+        const src = t.getAttribute('src') || '';
+        if (src.startsWith('/api/canvas/frame')) t.dataset.cvLoadedSrc = src;
+    }, true);
     document.addEventListener('click', (ev) => {
         const target = ev.target as HTMLElement | null;
-        const img = target?.closest?.('img') as HTMLImageElement | null;
+        if (!target) return;
+        // 容器命中即处理（T-06 实测修正：留白点击目标是容器而非 img，
+        // 旧 closest('img') 早退使清选分支不可达）。
+        const wrap = target.closest('.cv-frame-wrap') as HTMLElement | null;
+        const box = (wrap ?? target.closest('.cv-frame-box')) as HTMLElement | null;
+        if (!box) return;
+        const img = box.querySelector('img[src^="/api/canvas/frame"]') as HTMLImageElement | null;
         if (!img) return;
         const src = img.getAttribute('src') || '';
-        if (!src.startsWith('/api/canvas/frame')) return;
-        const rect = img.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0 || !img.naturalWidth) return;
-        // object-contain 字幕区（img 盒内留白）点击换算出界坐标 → 后端
-        // hit-test 未命中 → 204，语义即"点空白取消"，无需前端特判。
-        const x = ((ev.clientX - rect.left) / rect.width) * img.naturalWidth;
-        const y = ((ev.clientY - rect.top) / rect.height) * img.naturalHeight;
+        // 版本守卫：未加载完成 / 打标版本 ≠ 当前版本 → 忽略（旧帧迟到
+        // 加载完成不切回旧代次响应）。
+        if (!img.complete || !img.naturalWidth) return;
+        if ((img.dataset.cvLoadedSrc || '') !== src) return;
+        if (!wrap) {
+            // 容器留白（内容盒外）→ 显式清选。
+            void fetch('/api/canvas/pick', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clear: true }),
+            });
+            return;
+        }
+        // 内容盒内 → 单源换算（canvas_helpers.at 生成模块——与 VM 同式）。
+        const rect = wrap.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) return;
+        const ox = Math.round(ev.clientX - rect.left);
+        const oy = Math.round(ev.clientY - rect.top);
+        const m = canvasMapPhysical(ox, oy, Math.round(rect.width), Math.round(rect.height), img.naturalWidth, img.naturalHeight);
+        if (!m.inside) {
+            void fetch('/api/canvas/pick', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clear: true }),
+            });
+            return;
+        }
         void fetch('/api/canvas/pick', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ x, y }),
+            body: JSON.stringify({ x: m.x, y: m.y }),
         });
     });
 }

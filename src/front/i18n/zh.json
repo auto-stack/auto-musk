@@ -517,6 +517,7 @@
     "tabCanvas": "画布",
     "tabChat": "对话",
     "tabStructure": "结构",
+    "zoomToggle": "切换适应 / 1:1",
     "structureToggle": "切换结构面板",
     "studioToggle": "应用设计",
     "studioEmpty": "在对话中描述一个 AutoUI 应用，或打开工作区内已有应用",

@@ -20,6 +20,38 @@ fn canvasFrameUrl(seq int, gen int) str {
     return "/api/canvas/frame?t=" + seq + "&gen=" + gen
 }
 
+/// PLAN-093 T-06: 帧内容包装层 style（适应/100% 双模式统一坐标系——
+/// 覆盖框百分比定位与点选换算都以本盒为基准，修 object-contain 留白期
+/// 选框相对容器错位）。fit=适应：aspect-ratio 定比 + max 约束 + margin
+/// auto 居中（object-contain 等效盒；真实 CSS，生成侧 :style 直绑合法）；
+/// 100%：帧物理 px 定尺寸（容器 overflow-auto 承担内滚）。
+/// 尺寸未知（w/h≤0）退化为占满盒（旧行为；VM 轨 aspect-ratio 未证面，
+/// 退化形态不改变既有 VM 渲染）。
+fn canvasContentStyle(natural_w int, natural_h int, fit bool) str {
+    if natural_w <= 0 || natural_h <= 0 {
+        return "position:relative;max-width:100%;max-height:100%;margin:auto"
+    }
+    if fit {
+        return "position:relative;aspect-ratio:" + natural_w + "/" + natural_h + ";max-width:100%;max-height:100%;margin:auto"
+    }
+    return "position:relative;width:" + natural_w + "px;height:" + natural_h + "px;margin:auto"
+}
+
+/// PLAN-093 T-06: 点选物理换算（单源规则——Vue/VM 同式，不得各猜）。
+/// ox/oy = 点击点相对内容盒左上的 CSS px；box = 内容盒 CSS 尺寸；
+/// natural = 帧物理尺寸。返回 {x,y,inside}（物理像素——§5.2 点选 API
+/// 口径）。纯 int 乘前除后（VM int×float 未打标签前科）；整除截断
+/// ≤1 CSS px（720 宽量级），框≤2px 预算内。
+fn canvasMapPhysical(ox int, oy int, box_w int, box_h int, natural_w int, natural_h int) {
+    if box_w <= 0 || box_h <= 0 || natural_w <= 0 || natural_h <= 0 {
+        return { x: 0, y: 0, inside: false }
+    }
+    let x = ox * natural_w / box_w
+    let y = oy * natural_h / box_h
+    let inside = ox >= 0 && oy >= 0 && ox < box_w && oy < box_h
+    return { x: x, y: y, inside: inside }
+}
+
 /// picked 锚点对象 → 扁平投影字面量（7 字段统一漏斗）。
 /// pk 为 None（204/清选/stopped）时返回全空投影 = 统一清场。
 fn canvasPickedProjection(pk obj) {

@@ -25,7 +25,7 @@
 // VM 轨：状态轮询打到宿主桥（VMHTTP canvas 路由 T-03 已通，同
 // CanvasManager）；面板行为双端同源（T-03 四模式探针护航）。
 
-use canvas_helpers: canvasPickedProjection, canvasFrameUrl, rebuildCanvasOverlay
+use canvas_helpers: canvasPickedProjection, canvasFrameUrl, rebuildCanvasOverlay, canvasContentStyle
 
 // 层树扁平表 → [{vid, depth, kind, label, source, source_path, for_label,
 // indent_style}]（行样式预拼：选中底色视图侧靠 id 等值三臂）。
@@ -93,6 +93,13 @@ store CanvasStore {
         // PLAN-093 T-05:视口宽（宽度分层驱动;web 键优先 VM 键兜底）。
         // studio 模式开关归 ChatsView 视图域（跨 store 写入无先例）。
         var cv_win_w int = 1280
+        // PLAN-093 T-06:帧物理尺寸（status.frame 回填——内容包装层
+        // aspect-ratio/100% 尺寸源）+ 适应/100% 缩放偏好 + 包装层 style
+        // （真实 CSS——store 动作域经 canvasContentStyle 单源重算）。
+        var cv_frame_w int = 0
+        var cv_frame_h int = 0
+        var cv_zoom_fit bool = true
+        var cv_frame_wrap_style str = "position:relative;max-width:100%;max-height:100%;margin:auto"
         // PLAN-093 T-05 §5.2 窄层（768-1023）：结构列默认不占位，按钮切换
         // （受控面板；用户偏好，停止/轮询不改）。
         var cv_structure_open bool = false
@@ -168,6 +175,10 @@ store CanvasStore {
                                 .cv_pick_style = ""
                                 .cv_overlay = []
                                 .cv_frame_url = ""
+                                // T-06:代次清场连带帧尺寸（旧帧几何不跨代次）。
+                                .cv_frame_w = 0
+                                .cv_frame_h = 0
+                                .cv_frame_wrap_style = canvasContentStyle(0, 0, .cv_zoom_fit)
                             }
                             .cv_state = body.state ?? "stopped"
                             // 停止后保留应用描述（已停止工作台的标题）。
@@ -203,6 +214,18 @@ store CanvasStore {
                             } else {
                                 .cv_pac_title = ""
                             }
+                            // PLAN-093 T-06:帧物理尺寸回填（status.frame；
+                            // 缺失/无效归零=包装层退化占满）+ 包装层样式
+                            // 单源重算。
+                            var fw2 = body.frame
+                            if fw2 != None {
+                                .cv_frame_w = fw2.w ?? 0
+                                .cv_frame_h = fw2.h ?? 0
+                            } else {
+                                .cv_frame_w = 0
+                                .cv_frame_h = 0
+                            }
+                            .cv_frame_wrap_style = canvasContentStyle(.cv_frame_w, .cv_frame_h, .cv_zoom_fit)
                             // 开合投影：有会话（非 stopped 或 有应用描述）且
                             // 未被用户收起。轮询不改 cv_collapsed。
                             var has_session bool = .cv_state != "stopped" || .cv_app != ""
@@ -267,6 +290,12 @@ store CanvasStore {
         // PLAN-093 T-05 §5.2 窄层（768-1023）：结构列显隐切换（受控面板）。
         .ToggleStructure -> {
             .cv_structure_open = !.cv_structure_open
+        }
+
+        // PLAN-093 T-06:适应/100% 缩放切换（用户偏好;包装层样式单源重算）。
+        .ToggleZoom -> {
+            .cv_zoom_fit = !.cv_zoom_fit
+            .cv_frame_wrap_style = canvasContentStyle(.cv_frame_w, .cv_frame_h, .cv_zoom_fit)
         }
 
         .SourceBackfill(payload str) -> {

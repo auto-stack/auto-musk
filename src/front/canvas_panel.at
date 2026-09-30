@@ -15,6 +15,9 @@ use store: CanvasStore
 use.web useT from "src/front/ports/composables.at"
 use.web canvasStop, canvasStart from "src/front/ports/canvas.at"
 use.web canvasPickNode, canvasClearPick, canvasLoadSource from "src/front/ports/canvas.at"
+// PLAN-093 T-06:点选换算单源的 ext TS 模块生成面（canvas_web.ts 点击委托
+// 消费同一规则；本件视图不直调）。
+use.web.fn canvasMapPhysical from "src/front/canvas_helpers.at"
 
 // ── 结构列：pac 头 + 层树 + 源码抽屉（studio 模式=左列） ──────────────
 widget CanvasStructureColumn {
@@ -155,6 +158,7 @@ widget CanvasCanvasColumn {
         Collapse,
         ClearPick,
         ToggleSource,
+        ToggleZoom,
     }
 
     view {
@@ -182,6 +186,17 @@ widget CanvasCanvasColumn {
                 }
                 row {
                     style: "flex items-center gap-1 shrink-0"
+                    // PLAN-093 T-06:适应/100% 缩放切换（钮面=将切往的模式）。
+                    button {
+                        onclick: .ToggleZoom
+                        style: "inline-flex items-center justify-center h-6 min-w-[24px] px-1 shrink-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent cursor-pointer text-[11px] leading-none"
+                        title: t("canvas.zoomToggle")
+                        if .store.cv_zoom_fit {
+                            text "1:1"
+                        } else {
+                            text "⤢"
+                        }
+                    }
                     button {
                         onclick: .Collapse
                         style: "inline-flex items-center justify-center h-6 w-6 px-0 py-0 shrink-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent cursor-pointer text-sm leading-none"
@@ -204,23 +219,35 @@ widget CanvasCanvasColumn {
                 }
             }
             // 帧区：有帧显帧（身份+seq 双键）+ 覆盖框层；无帧显占位 + 状态语。
+            // T-06:内容包装层（cv-frame-wrap）——bbox_pct 以帧物理尺寸为基，
+            // 盒=内容盒（aspect-ratio 定比/100% 定尺寸，store 单源样式）时
+            // 覆盖框与点选换算才对齐；容器留白区点击=显式清选（web 委托）。
             if .store.cv_frame_url != "" {
                 div {
-                    style: "relative flex-1 min-h-0 w-full bg-background"
-                    img {
-                        src: .store.cv_frame_url
-                        style: "w-full h-full object-contain bg-background"
+                    class: "cv-frame-box"
+                    style: if .store.cv_zoom_fit {
+                        "relative flex-1 min-h-0 w-full bg-background flex items-center justify-center overflow-hidden"
+                    } else {
+                        "relative flex-1 min-h-0 w-full bg-background overflow-auto"
                     }
-                    // agent 高亮框层（琥珀）。
-                    for ov in .store.cv_overlay {
-                        div {
-                            style: ov.style
+                    div {
+                        style: .store.cv_frame_wrap_style
+                        class: "cv-frame-wrap"
+                        img {
+                            src: .store.cv_frame_url
+                            style: "w-full h-full object-contain bg-background"
                         }
-                    }
-                    // 选中覆盖框（蓝）。
-                    if .store.cv_pick_style != "" {
-                        div {
-                            style: .store.cv_pick_style
+                        // agent 高亮框层（琥珀）。
+                        for ov in .store.cv_overlay {
+                            div {
+                                style: ov.style
+                            }
+                        }
+                        // 选中覆盖框（蓝）。
+                        if .store.cv_pick_style != "" {
+                            div {
+                                style: .store.cv_pick_style
+                            }
                         }
                     }
                 }
@@ -302,6 +329,10 @@ widget CanvasCanvasColumn {
                     store.SourceBackfill(r.text ?? "")
                 }
             }
+        }
+        // 适应/100% 缩放切换（store 偏好单源 + 包装层样式重算）。
+        .ToggleZoom -> {
+            store.ToggleZoom()
         }
     }
 }
