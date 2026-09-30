@@ -514,6 +514,9 @@
     "restarting": "app 进程退出——正在重启…",
     "degraded": "画布会话已降级",
     "collapse": "收起画布",
-    "studioToggle": "应用设计"
+    "studioToggle": "应用设计",
+    "studioEmpty": "在对话中描述一个 AutoUI 应用，或打开工作区内已有应用",
+    "openAppPath": "工作区内应用路径，如 apps/my-app",
+    "openAppStart": "启动"
   }
 }

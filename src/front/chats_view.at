@@ -51,6 +51,7 @@ use secretary_message: SecretaryMessage
 use chat_message: ChatMessage
 // PLAN-087 T-07: 实况画布面板（chats 右侧第三列；cv_open 驱动显隐）。
 use canvas_panel: CanvasPanel
+use.web canvasStart from "src/front/ports/canvas.at"
 
 widget ChatsView {
 
@@ -103,6 +104,8 @@ widget ChatsView {
         // PLAN-093 T-05:应用设计模式开关（studio 布局;侧栏偏好进出保存/
         // 恢复;canvas 状态单源 CanvasStore.cv_studio）。
         ToggleStudio,
+        StudioAppPathInput(str),
+        StartStudioApp,
         // ── PLAN-084 T-04/T-06：重命名与头部工具 ──
         // StartRename: 进入行内重命名（列表行铅笔；预填当前名）。
         StartRename(str),
@@ -135,6 +138,9 @@ widget ChatsView {
         var sidebar_collapsed bool = false
         // PLAN-093 T-05:进 studio 前的侧栏折叠态（退出恢复）。
         var sidebar_prev bool = false
+        // 空工作台"打开已有应用"：工作区内路径输入 + 启动错误面。
+        var studio_app_path str = ""
+        var studio_start_err str = ""
         var chat_search str = ""
         // PLAN-058: 待确认删除目标（会话 id 或 "__all__"；空串=无待确认）。
         // 沿 chat_search 先例的视图态 str 字段（VM 对 str 字段 SET/比较双轨实证）。
@@ -701,14 +707,59 @@ widget ChatsView {
                 }
             }
             // PLAN-087 T-07 + PLAN-093 T-05: 实况画布面板——根行第三列。
-            // studio 模式面板升主区（flex-1;结构列 220），正常 520 右列。
+            // studio 模式面板升主区（flex-1;结构列 220），正常 520 右列；
+            // studio 无会话 = 空工作台（描述入口 + 打开已有应用，AC-01）。
             col {
                 style: if .store.cv_studio {
-                    "flex-1 min-w-0 h-full flex flex-col overflow-hidden"
+                    "flex-1 min-w-0 h-full flex flex-col overflow-hidden border-l border-border bg-card"
                 } else {
                     "shrink-0 h-full flex flex-col overflow-hidden"
                 }
-                CanvasPanel {}
+                if .store.cv_studio {
+                    if .store.cv_open {
+                        row {
+                            style: "flex-1 min-w-0 h-full flex flex-row overflow-hidden"
+                            col {
+                                style: "w-[220px] shrink-0 h-full flex flex-col overflow-hidden border-r border-border"
+                                CanvasStructureColumn {}
+                            }
+                            col {
+                                style: "flex-1 min-w-0 h-full flex flex-col overflow-hidden"
+                                CanvasCanvasColumn {}
+                            }
+                        }
+                    } else {
+                        col {
+                            style: "flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-6"
+                            span {
+                                style: "text-[13px] text-muted-foreground"
+                                text t("canvas.studioEmpty")
+                            }
+                            div {
+                                style: "flex items-center gap-2 w-full max-w-[360px]"
+                                input {
+                                    style: "flex-1 min-w-0 h-8 text-[13px] text-foreground bg-background border border-border rounded-md px-2 outline-none"
+                                    value: .studio_app_path
+                                    oninput: .StudioAppPathInput($event)
+                                    placeholder: t("canvas.openAppPath")
+                                }
+                                button {
+                                    onclick: .StartStudioApp
+                                    style: "h-8 px-3 shrink-0 rounded-md bg-primary text-primary-foreground text-[12px] cursor-pointer disabled:opacity-50"
+                                    text t("canvas.openAppStart")
+                                }
+                            }
+                            if .studio_start_err != "" {
+                                span {
+                                    style: "text-[12px] text-destructive max-w-[360px] text-center"
+                                    text .studio_start_err
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    CanvasPanel {}
+                }
             }
         }
     }
@@ -717,6 +768,19 @@ widget ChatsView {
         .Init -> {
             ForgeStore.Init();
             // AgentConfigs 由 MentionInput 挂载时 Init（ professions 拉取）。
+        }
+
+        // PLAN-093 T-05:空工作台"打开已有应用"——canvasStart 走既有校验
+        // 与启动流（越界/无 pac.at 错误原样展示;成功后面板经状态轮询展开）。
+        .StudioAppPathInput(val) -> { .studio_app_path = val }
+        .StartStudioApp -> {
+            let r = canvasStart("", .studio_app_path).await
+            if r.ok == true {
+                .studio_start_err = ""
+                .studio_app_path = ""
+            } else {
+                .studio_start_err = r.error
+            }
         }
 
         // PLAN-093 T-05:studio 进出——侧栏偏好保存/恢复（退出还原进入前

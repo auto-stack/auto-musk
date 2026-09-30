@@ -514,6 +514,9 @@
     "restarting": "App crashed — restarting…",
     "degraded": "Canvas session degraded",
     "collapse": "Collapse canvas",
-    "studioToggle": "App studio"
+    "studioToggle": "App studio",
+    "studioEmpty": "Describe an AutoUI app in the conversation, or open an existing app in the workspace",
+    "openAppPath": "In-workspace app path, e.g. apps/my-app",
+    "openAppStart": "Start"
   }
 }
