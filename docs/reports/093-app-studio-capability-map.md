@@ -318,3 +318,22 @@ r_source→done），VM 堆完全健康——问题 100% 在读取面：MCP 快�
 c93ed76a0）、G-9（脏旗断层+等待上限，957543acb）、G-10（随 G-9 消失：
 快照刷新后 MCP 读回实时）、V01（门通过，全链 exit 0）。S001/S004 漂移
 分类入 §8.8（Info 级非阻塞，判定项后续逐条处理）。
+
+### 8.10 V05 四模式矩阵全绿（2026-09-30，T-03 验证门达成）
+
+| 前端 | 后端 | 断言 | 收据 |
+|---|---|---|---|
+| VM（iced，自然条件形态） | VMHTTP | 15/15 | ports-vm-receipt.json |
+| VM（iced） | RustHTTP | 15/15 | ports-rust-receipt.json |
+| Vue（dist+playwright 真面板） | RustHTTP | 8/8 | ports-vue-rust-receipt.json |
+| Vue（dist+playwright 真面板） | VMHTTP | 8/8 | ports-vue-vm-receipt.json |
+
+Vue 臂断言链：主壳渲染 → runner 启动真实目标 → 帧 img 真渲染
+（naturalWidth>0 = 浏览器解码真实 PNG）→ 树选 UI 点击经 canvasPickNode
+回流后端（status.picked 非空）→ 带代次停止 → 面板收起。工程注意（探针
+可复用件）：playwright keep-alive 连接需 closeAllConnections 强断
+（libuv UV_HANDLE_CLOSING 断言）；当前构建壳不强制登录（080 登录流已
+不在默认流上，探针等主壳"会话"渲染即可）。
+
+T-03 完成门：V01 全链 exit 0 ✓ / V07 contract 19 绿 ✓ / V05 最小四
+模式 ✓ —— **达成**（canvas_live 真目标生命周期回归按计划归 T-12）。
