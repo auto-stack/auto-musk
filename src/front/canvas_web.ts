@@ -94,13 +94,13 @@ export async function canvasClearPick(): Promise<CanvasResult> {
 }
 
 export async function canvasLoadSource(path: string): Promise<{ ok: boolean; error: string; text?: string }> {
-    // PLAN-093 T-07:files 读取走 workspace 路径段形态 /api/files/{ws}/{path}
-    // （canvas.vm.at 同款——VM serve 路由装配只含 ag 参数路由，raw query
-    // 形态未挂载、200 "null" 兜底体实测；Rust serve 该形态由 ag
-    // workspace_file 服务等价）。ws 走 musk_workspace localStorage
-    // （SetWorkspace 单源写入；本层无 store 访问，与 viewport_sync 同通道）。
+    // PLAN-093 T-07 G-13: 源码读取走 canvas 域 query 通道
+    // /api/canvas/source?workspace=&path=（/api/files/* 在 VM serve 落
+    // ag 参数路由 + VM 转译 handler registry 状态桥缺失 → 200 "null"
+    // 实测；Query Value 编组为 canvas 域已证通道）。ws 走 musk_workspace
+    // localStorage（SetWorkspace 单源写入；本层无 store 访问）。
     const wid = typeof localStorage !== 'undefined' ? (localStorage.getItem('musk_workspace') || '') : '';
-    const response = await fetch(`/api/files/${encodeURIComponent(wid)}/${path}`, {
+    const response = await fetch(`/api/canvas/source?workspace=${encodeURIComponent(wid)}&path=${encodeURIComponent(path)}`, {
         method: 'GET',
         headers: { 'Content-Type': 'text/plain' },
     });

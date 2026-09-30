@@ -3745,6 +3745,27 @@ pub fn canvas_start_host(s: &State<AppState>, q: SerdeJson, b: SerdeJson) -> Res
     }
 }
 
+/// PLAN-093 T-07 G-13: GET /api/canvas/source?workspace=&path= 的宿主桥
+/// （canvas 域源码只读通道——VM serve 转译路由的 registry 状态桥缺失，
+/// /api/files/* 域此前恒 200 "null" 实测；Query Value 编组走 canvas 域
+/// 已证通道）。root = registry.get(workspace).root，read_text_confined
+/// 同款 confinement/lossy 契约（files_browser pub(crate)）。
+pub fn canvas_source_host(s: &State<AppState>, q: SerdeJson) -> Result<i64, String> {
+    let ws_id = q.get("workspace").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+    let rel = q.get("path").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+    if ws_id.is_empty() || rel.is_empty() {
+        return canvas_vm_json(400, &serde_json::json!({ "error": "source: empty workspace or path" }));
+    }
+    let ws = s.registry.get(&ws_id);
+    let content = match crate::files_browser::read_text_confined(&ws.root, &rel) {
+        Ok(c) => c,
+        Err((status, msg)) => {
+            return canvas_vm_json(status.as_u16(), &serde_json::json!({ "error": msg }))
+        }
+    };
+    canvas_vm_response(200, "text/plain; charset=utf-8", content.into_bytes())
+}
+
 /// GET /api/canvas/status
 pub fn canvas_status_host(s: &State<AppState>, _q: SerdeJson) -> Result<i64, String> {
     canvas_vm_json(200, &s.canvas.status_full())

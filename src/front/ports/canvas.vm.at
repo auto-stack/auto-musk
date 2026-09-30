@@ -99,7 +99,9 @@ fn canvasClearPick() {
 /// 与 Rust 轨 /api/files/raw/{*path} 的 query 语义分轨）——ws 由调用方
 /// （T-04 store 持有当前 workspace）传入。
 fn canvasLoadSource(ws str, path str) {
-    let url = canvas_http_base() + "/api/files/" + ws + "/" + path
+    // PLAN-093 T-07 G-13: 源码读取走 canvas 域 query 通道（/api/files/*
+    // 在 VM serve 落 ag 参数路由 200 "null" 实测；Query Value 编组已证）。
+    let url = canvas_http_base() + "/api/canvas/source?workspace=" + ws + "&path=" + path
     let rb = Http.request("GET", url)
     let res = rb.body("").send()
     var code = res.status_code()

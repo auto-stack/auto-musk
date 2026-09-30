@@ -304,4 +304,11 @@ fn register_host_calls() {
     host!("canvas_stop_host", |a| {
         enc(ei::canvas_stop_host(&st_axum(&st()?), arg(a, 0))?)
     });
+
+    // ── canvas 源码只读（PLAN-093 T-07 G-13）：Query Value 编组（canvas
+    // 域已证通道；Path 元组编组丢段实测）。server.at/files 域状态桥缺失
+    // 的绕行面——/api/canvas/source?workspace=&path=。
+    host!("canvas_source_host", |a| {
+        enc(ei::canvas_source_host(&st_axum(&st()?), arg(a, 0))?)
+    });
 }

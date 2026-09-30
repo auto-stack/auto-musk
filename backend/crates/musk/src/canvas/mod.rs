@@ -40,6 +40,41 @@ pub fn canvas_routes() -> Router<AppState> {
         .route("/api/canvas/status", get(canvas_status))
         .route("/api/canvas/pick", post(canvas_pick))
         .route("/api/canvas/stop", post(canvas_stop))
+        // PLAN-093 T-07 G-13: 源码只读（结构列源码面板；双 serve 同契约——
+        // VM 轨经 canvas_vm.at 宿主桥同一 registry/read 语义）。
+        .route("/api/canvas/source", get(canvas_source))
+}
+
+/// GET /api/canvas/source?workspace=&path= —— 结构列源码面板只读通道
+/// （PLAN-093 T-07 G-13：/api/files/* 域在 VM serve 被 ag 参数路由承接
+/// 且 VM 转译 handler registry 状态桥缺失，恒 200 "null"——canvas 域
+/// 双 serve 同契约绕行）。read_text_confined 同款 confinement/lossy。
+async fn canvas_source(
+    State(state): State<AppState>,
+    Query(q): Query<std::collections::HashMap<String, String>>,
+) -> Response {
+    let ws_id = q.get("workspace").cloned().unwrap_or_default();
+    let rel = q.get("path").cloned().unwrap_or_default();
+    if ws_id.is_empty() || rel.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "source: empty workspace or path" })),
+        )
+            .into_response();
+    }
+    let ws = state.registry.get(&ws_id);
+    match crate::files_browser::read_text_confined(&ws.root, &rel) {
+        Ok(content) => (
+            [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+            content,
+        )
+            .into_response(),
+        Err((status, msg)) => (
+            status,
+            Json(serde_json::json!({ "error": msg })),
+        )
+            .into_response(),
+    }
 }
 
 #[derive(Debug, Deserialize)]
