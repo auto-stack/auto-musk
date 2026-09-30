@@ -555,3 +555,31 @@ files/* 全部落 ag 参数路由，VM 转译 handler 的 registry 状态桥缺�
 4887 字节真内容）。修复模式 = canvas 域先例（T-03：宿主 HostCall
 桥 + vm_entry.at 路由行，vm_backend.rs:289）。VM 臂源码面板/坐标
 点选消费与 G-11 同挂此后补。
+
+### 8.18 G-13 修复：canvas 域源码只读通道（2026-09-30 第十轮）
+
+**修复（9819f0b）**：/api/canvas/source?workspace=&path=（双 serve 同
+契约）：
+- canvas_vm.at：canvas_vm_source 路由 + dispatch（Query Value 编组——
+  canvas 域已证通道；Path 元组编组丢段实测 [p]→["ws"，第二段丢失]）。
+- extern_impl.rs：canvas_source_host——registry.get(workspace).root +
+  read_text_confined（confinement/lossy 同款）→ text/plain 整包响应
+  （i64 句柄经 insert_http_response，canvas 同型）。
+- vm_backend.rs：注册（**须带 ？ 解包**——漏 ？ 时 enc(Result) 把
+  {"Ok": 句柄} 整包当响应体泄漏，200 假成功实测）。
+- canvas/mod.rs：hw canvas_routes 补同名路由（Rust serve 同语义直调）。
+- canvas.vm.at / canvas_web.ts：源码读取切 query 通道。
+
+**根因链定稿（G-13）**：VM serve（vm_backend::serve → vm_entry.at）路
+由装配含 ag 参数路由 /api/files/{workspace_id}/{*path}，**不含 hw
+files_browser 三静态路由**（Rust serve 同链有——对照实证）→ /api/
+files/* 全落 ag workspace_file，VM 转译 handler 的 registry 状态桥缺
+失 → files 域恒 200 "null"（含必然 404 的缺失文件路径——应答者非
+files_raw 判别法）。修复面=canvas 域绕行（前缀零冲突）；/api/files
+域状态桥归 PLAN-044 follow-through（登记 095 候补）。
+
+**验证**：VM serve curl（真文件 200+487B 真内容、缺失 404 诚实错误
+JSON）；T-07 取证 ALL PASS 双后端（VM 后端 262 行+行 44 高亮；Rust
+后端网络观测确认新通道 200 真内容）；Vue 臂 ALL PASS × 双后端。
+取证方法论：拾取重渲染期的页签点击可能落空（点击后以面板出现为准
+重试，≤5 次）；宿主闭包 Result 须 ？ 解包（否则句柄泄漏假 200）。
