@@ -442,3 +442,37 @@ AUTO_BUILD_TRACE 逐文件追踪 + RUST_BACKTRACE 均未再捕捉到异常退出
 （3 轮）+ Vue 侧几何证据背书；输入焦点在模式切换瞬间重置（唯一 DOM
 本地态损失，草稿/展开/审批卡均 store/model 域保持）——如需可后续
 autofocus 恢复，非 AC 阻断。
+
+### 8.15 T-06 第一增量：内容包装层 + 点选单源 + 门控守卫（2026-09-30 第七轮）
+
+**落地（601f3a9）**：
+- 内容包装层 cv-frame-wrap（canvasContentStyle：fit=aspect-ratio 定比
+  盒、100%=帧物理 px 定尺寸+容器 overflow-auto 内滚）——覆盖框百分比
+  与点选换算统一坐标系，修 object-contain 留白期选框相对容器错位
+  （bbox_pct 以帧物理尺寸为基的语义终于有对应盒）。
+- 点选映射单源 canvasMapPhysical（纯 int 乘前除后）：经 use.web.fn
+  生成 ext/src/front/canvas_helpers.ts（forge_helpers 同链实证——
+  use.web.fn 声明面即可生成 helper 文件模块），canvas_web.ts 点击
+  委托消费同一规则；VM 侧后续坐标点选消费同源。
+- 委托收敛守卫化：身份（cv-frame-box/-wrap class 命中）+ 版本
+  （capture load 打标 dataset.cvLoadedSrc——旧帧迟到加载完成不切回
+  旧代次响应）+ 几何（盒内点选/留白出界=显式 {clear:true}）。
+- 帧尺寸通道：status.frame（后端 T-02 既有）→ cv_frame_w/h 随拍回填，
+  免 web 加载事件；代次清场连带帧尺寸归零。
+- **接线回归修复**：installCanvasFrameClicks 自 71c302b 起无人调用
+  （移除面板侧两次 setup 调用时"移到 ChatsView"未落）——画布直点
+  链路中断两轮未察觉（树选链路独立存活掩盖）；ChatsView setup 承接
+  （先于帧 img 存在，capture load 打标不缺拍）。
+- **委托命中面实测修正**：留白点击目标是容器而非 img（旧
+  closest('img') 早退使清选分支不可达）——按容器命中即处理重构。
+
+**验证**：几何取证 6/6（tmp/geom-forensic.mjs：A 定比包装层/B fit
+直点命中/C 留白清选/D 1:1 精确尺寸+内滚/D2 1:1 同链直点/E 回归）。
+方法教训：probe-a 活 fixture 帧间内容会动（同物理点 seq5 命中、seq6
+204）——点选类断言须锚定当前帧（树选取 picked.bbox 中心）而非固定
+坐标；picked 的框字段是 bbox（bbox_px 在 overlay 条目上）。
+双臂回归：Vue 臂 ALL PASS × 双后端；VM studio 周期 ALL PASS。
+
+**T-06 剩余**：VM 侧坐标点选消费（同源映射的 VM 臂）、V03 helper 边
+界测试（canvas-contract.mjs 新建）、V05 几何子场景（DPI 1/1.5/2、两
+种留白、边界点/滚动、框≤2px 精测）、loaded 门控的运行时负向用例。
