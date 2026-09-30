@@ -732,7 +732,7 @@ PID／进程树及起止收据，再做真实运行测试。
   2026-09-30）**——095 drafting 修订收纳本缺口（设计 §5.7、AC-11、
   SD-03 widget-composition），含 708 串行约束与 T-01 定罪义务。
 
-### [ ] T-07：实现组件树、选中详情与源码定位
+### [▶ 进行中] T-07：实现组件树、选中详情与源码定位
 
 - 依赖：T-04、T-05、T-06。关联 AC-07、AC-08、AC-09、AC-13。
 - 位置：现有 canvas_store.at、canvas_panel.at、canvasLoadSource门面；
@@ -743,6 +743,26 @@ PID／进程树及起止收据，再做真实运行测试。
   无source有明确状态；不引入直接写源码／属性编辑。
 - 验证 V03／V04／V05：大ID、父节点折叠、节点删改、单文件有效行定位、
   多文件不确定提示、路径越界、旧source迟到等场景。
+- [▶ 进行中] 第一增量（59eb61a，Rust 臂取证 + Vue 臂回归）：
+  canvas_structure.at（页签化结构列——结构/源码双页签取代底部抽屉，
+  折叠层树：折叠符/节点分行，vid 稳定折叠键跨树回填存活）+
+  canvas_source.at（源码面板状态机：''=提示选节点/ok=行对象渲染+
+  拾取行高亮/越界提示/error=错误文案；只读红线维持）+ canvas_store
+  七字段（折叠键/页签/源码状态机/拾取行）+ helpers（canvasTreeVisible
+  前序可见行 lastAt 深度祖先链 / canvasSourceLines / 投影补
+  source_line）。结构列迁出 canvas_panel.at（跨文件 use 行形态）。
+  本轮修复三跨层缺陷：①G-12 auto-lang store composable 发射器 range
+  助手注入缺失（已修 2327e0bba@auto-musk-dev）；②canvasLoadSource
+  改 workspace 路径段形态（VM serve 只挂 ag 参数路由，raw query 形态
+  未挂载 200 null 兜底体实测——canvas.vm.at 同款双轨通吃）；③解析
+  契约三新证（视图内 let 不支持 R016/text 拼接须字面量开头/字段名
+  撞硬关键字）。验证：V03 37/37；T-07 取证 4/4 @Rust（§8.17）；
+  Vue 臂 ALL PASS × 双后端。
+  剩余：**G-13**（musk 后端本仓——VM serve 转译路由漏挂 hw files 三
+  路由 + VM 转译 handler registry 状态桥缺失，files 域恒 200 null，
+  修复模式=canvas 域 HostCall 先例 vm_backend.rs:289）解除后 VM 臂
+  源码面板/坐标点选补跑；行自动滚动定位；多文件不确定提示（Q-04
+  confidence 面待后端契约）。
 
 ### [ ] T-08：接入元素附件与逐消息队列快照
 
