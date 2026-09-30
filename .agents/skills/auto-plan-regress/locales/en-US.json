@@ -1,0 +1,4 @@
+{
+  "displayName": "Batch Regression",
+  "brief": "Run the full regression gate on the main checkout after merged plans accumulate; writes a due-check receipt and triages new reds to fix-forward plans"
+}

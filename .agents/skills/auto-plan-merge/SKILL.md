@@ -232,6 +232,15 @@ Only after landing and ledger verification succeed:
    (auto-musk PLAN-092, 2026-09-27): all three artifacts predated the Plan's
    fixes and the receipt registered only one of them; the defects persisted
    on the running desktop until a later session rebuilt and restarted.
+6. **Batch regression due check (auto-lang, fix-test-tiering 2026-09-30).**
+   After `cleaned` (or after the artifact check above), read
+   `docs/plans/.last-batch-regression.json` on the default branch (missing
+   file = due). Due when a plan id divisible by 5 landed after the receipt's
+   `last_covered_plan_id`, or the receipt is older than 48h with any merge
+   (plan or L0 `fix-*`) after it. When due, hand over to
+   [regress](../auto-plan-regress/SKILL.md) to run the batch full gate on the
+   main checkout — single instance, never inside plan worktrees. A red batch
+   gate routes to a fix-forward plan; it never unmerges.
 
 A crash between the file move and status/receipt update is repaired from the
 verified delivery evidence, without rerunning completed publication. Do not
