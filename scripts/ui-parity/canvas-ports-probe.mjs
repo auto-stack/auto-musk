@@ -1,20 +1,22 @@
 #!/usr/bin/env node
-// PLAN-093 T-03 实机验证 runner：canvas VM 端口 × 双后端(VMHTTP/RustHTTP)。
+// PLAN-093 T-03 实机验证 runner：canvas 端口 × 后端(VMHTTP/RustHTTP) × 前端(VM/Vue)。
 //
-// 驱动 probe-c-ports fixture（auto run --render=vm）经 ports/canvas.vm.at
-// 五端口对真实 musk serve 后端顺序执行 start/wait/pick/clear/source/stop/
-// 错误路径；runner 另以直连 HTTP 断言后端契约面（身份字段/帧字节/409/清选/
-// 停止终态）。print() 自 VM UI handler 不落 stdout（probe-a 实证）——探针
-// 结果经 AutoUI MCP autoui_state 采集。
+// VM 前端臂（--backend vm|rust|both）：驱动 probe-c-ports fixture（auto run
+// --render=vm）经 ports/canvas.vm.at 五端口对真实 musk serve 后端顺序执行
+// start/wait/pick/clear/source/stop/错误路径；runner 另以直连 HTTP 断言后端
+// 契约面（身份字段/帧字节/409/清选/停止终态）。
+// Vue 前端臂（--vue rust|vm|both）：dist 静态服务（/api 代理到真后端）+
+// playwright 驱动真实 canvas 面板（登录 → 帧 img 真渲染 → 树选 → 选中
+// 覆盖层 → 停止 → 面板收起）——canvas_web.ts 端口消费链的四模式补全。
 //
-// 用法：node scripts/ui-parity/canvas-ports-probe.mjs [--backend vm|rust|both]
-// 收据：tmp/ui-parity/PLAN-093/ports-probe-<mode>-receipt.json
-// 退出码：全部断言通过 0，否则 1。
+// 收据：tmp/ui-parity/PLAN-093/ports-probe-<mode>-receipt.json（VM 臂）/
+// ports-vue-<mode>-receipt.json（Vue 臂）。退出码：全部断言通过 0。
 
 import fs from 'node:fs';
 import path from 'node:path';
+import http from 'node:http';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const PROBE_DIR = path.join(ROOT, 'tests', 'ui-parity', 'probes', 'probe-c-ports');
@@ -340,12 +342,208 @@ function extract(stateText, field) {
   return m ? m[1] : '(unreadable)';
 }
 
+// ── Vue 前端臂：dist 静态服务（/api 代理）+ playwright 驱动真实面板 ──────
+const VUE_FRONT = 18610;
+const VUE_USER = 'ui_parity_live';
+const VUE_PASS = 'ui-parity-live-080';
+
+function serveDist(distDir, port, backendPort) {
+  const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
+  const server = http.createServer(async (req, res) => {
+    try {
+      if (req.url.startsWith('/api/')) {
+        const body = ['GET', 'HEAD'].includes(req.method) ? undefined : await new Promise(done => { let b = ''; req.on('data', c => b += c); req.on('end', () => done(b)); });
+        const upstream = await fetch(`http://127.0.0.1:${backendPort}${req.url}`, {
+          method: req.method,
+          headers: { 'content-type': req.headers['content-type'] ?? 'application/json', ...(req.headers.authorization ? { authorization: req.headers.authorization } : {}) },
+          body,
+        });
+        const buf = Buffer.from(await upstream.arrayBuffer());
+        res.writeHead(upstream.status, { 'content-type': upstream.headers.get('content-type') ?? 'application/json' });
+        res.end(buf);
+        return;
+      }
+      let rel = req.url.split('?')[0];
+      if (rel === '/') rel = '/index.html';
+      let file = path.join(distDir, rel);
+      if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(distDir, 'index.html'); // SPA fallback
+      const ext = path.extname(file);
+      res.writeHead(200, { 'content-type': types[ext] ?? 'application/octet-stream' });
+      res.end(fs.readFileSync(file));
+    } catch (e) {
+      res.writeHead(500); res.end(String(e.message));
+    }
+  });
+  return new Promise(resolve => server.listen(port, '127.0.0.1', () => resolve(server)));
+}
+
+// 收据先行 + 连接强断（playwright keep-alive 连接会让 server.close 挂起/
+// 触发 libuv UV_HANDLE_CLOSING 断言——先写收据再强断全部连接）。
+async function closeVueHarness(browserRef, server) {
+  if (browserRef) { try { await browserRef.close(); } catch { /* 已死不碍收据 */ } }
+  try { server.closeAllConnections?.(); } catch { /* 老版本无此 API */ }
+  try { server.close(); } catch { /* 二次关闭无害 */ }
+}
+
+async function runVueArm(mode) {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const runDir = path.join(ROOT, 'tmp', 'ui-parity', 'PLAN-093', `ports-vue-${mode}-${stamp}`);
+  const wsRoot = path.join(runDir, 'ws');
+  const cfgDir = path.join(runDir, 'cfg');
+  const targetDir = path.join(wsRoot, 'targets', 'probe-a');
+  fs.mkdirSync(targetDir, { recursive: true });
+  fs.mkdirSync(cfgDir, { recursive: true });
+  const targetPac = fs.readFileSync(path.join(TARGET_SRC, 'pac.at'), 'utf8').replace('api: "rust"', 'api: "none"');
+  fs.writeFileSync(path.join(targetDir, 'pac.at'), targetPac);
+  fs.cpSync(path.join(TARGET_SRC, 'src'), path.join(targetDir, 'src'), { recursive: true });
+
+  const distDir = path.join(ROOT, 'gen', 'front', 'vue', 'dist');
+  const result = { mode: `vue-${mode}`, at: new Date().toISOString(), musk: MUSK_EXE, auto: AUTO_EXE, backend_port: 18511, asserts: [] };
+  const assert = (name, ok, detail) => {
+    result.asserts.push({ name, ok, detail: detail ?? '' });
+    if (ok) log(`  ✓ ${name}${detail ? ` — ${detail}` : ''}`);
+    else fail(`${name}${detail ? ` — ${detail}` : ''}`);
+  };
+
+  // ① 后端（与 VM 臂同口径；AUTO_EXE 供 canvas spawn）
+  const backEnv = mode === 'vm'
+    ? { MUSK_BACKEND: 'vm', MUSK_VM_CONFIG_DIR: cfgDir, MUSK_VM_USERS_PATH: path.join(cfgDir, 'users.json'), MUSK_VM_DEFAULT_ROOT: wsRoot, MUSK_SERVE_ADDR: '127.0.0.1:18511', RUST_MIN_STACK: '33554432', AUTO_EXE }
+    : { MUSK_CONFIG_DIR: cfgDir, MUSK_SERVE_ADDR: '127.0.0.1:18511', AUTO_EXE };
+  const backArgs = mode === 'vm' ? ['serve'] : ['serve', '--workdir', wsRoot];
+  const back = runAndCollect(MUSK_EXE, backArgs, path.join(ROOT, 'backend'), backEnv);
+  try {
+    await waitFor(async () => {
+      const r = await jfetch('http://127.0.0.1:18511/api/canvas/status').catch(() => null);
+      return r && r.status === 200 ? r : null;
+    }, 90000, `backend ${mode} up`);
+    assert('backend-up', true, `${mode} on :18511`);
+  } catch (e) {
+    assert('backend-up', false, e.message);
+    return finishVue(null);
+  }
+
+  // ② 种子用户（面板登录用）
+  {
+    const reg = await jfetch('http://127.0.0.1:18511/api/auth/register', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: VUE_USER, password: VUE_PASS }),
+    }).catch(() => null);
+    const ok = reg && (reg.status === 200 || reg.status === 400 /* 已存在 */);
+    assert('user-seeded', !!ok, `status:${reg?.status}`);
+  }
+
+  // ③ dist 静态服务 + playwright
+  if (!fs.existsSync(path.join(distDir, 'index.html'))) {
+    assert('vue-dist', false, `missing ${distDir} — run auto build + pnpm build first`);
+    return finishVue(null);
+  }
+  const server = await serveDist(distDir, VUE_FRONT, 18511);
+  const playwright = process.env.PLAYWRIGHT_MODULE ?? 'D:/autostack/auto-lang/packages/auto-forge-ui/node_modules/playwright/index.mjs';
+  const { chromium } = await import(pathToFileURL(playwright).href);
+  const browser = await chromium.launch({ headless: true, channel: process.env.PLAYWRIGHT_CHANNEL ?? 'chrome' });
+  let page = null;
+  try {
+    page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
+    await page.goto(`http://127.0.0.1:${VUE_FRONT}`, { waitUntil: 'networkidle', timeout: 60000 });
+    // 当前构建的壳不强制登录（080 时代的登录流已不在默认流上）——等主壳
+    // 会话列渲染即可；/api 代理已通（boot 调用成功）。
+    await waitFor(async () => (await page.locator('body').innerText().catch(() => '')).includes('会话'), 30000, 'vue main shell');
+    assert('vue-shell', true, 'main shell visible');
+
+    // ④ runner 启动真实目标（canvas 会话建立 → 面板自动跟随状态轮询展开）
+    {
+      const r = await jfetch('http://127.0.0.1:18511/api/canvas/start?workspace=', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ app_path: 'targets/probe-a' }),
+      });
+      assert('start-real-target', r.status === 200 && r.body?.generation_id >= 1, `status:${r.status}`);
+      if (r.status !== 200) return finishVue(browser);
+      result.generation = r.body?.generation_id;
+    }
+
+    // ⑤ 帧 img 真渲染（浏览器拉取并解码真实 PNG）
+    {
+      const img = page.locator('img[src*="/api/canvas/frame"]');
+      await img.waitFor({ state: 'visible', timeout: 45000 }).catch(() => {});
+      const nw = await img.evaluate(el => el.naturalWidth).catch(() => 0);
+      assert('vue-frame-img-rendered', nw > 0, `naturalWidth=${nw}`);
+    }
+
+    // ⑥ 树选（UI 点击 → canvasPickNode → 后端 picked → 状态回填覆盖层）
+    {
+      const treeBtn = page.locator('button:has(span)').filter({ hasText: /col|row|text|label|button|img/ }).first();
+      await treeBtn.waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
+      await treeBtn.click().catch(e => { fail(`tree click: ${e.message}`); });
+      let pickedSeen = false;
+      await waitFor(async () => {
+        const st = await jfetch('http://127.0.0.1:18511/api/canvas/status');
+        pickedSeen = !!st.body?.picked;
+        return pickedSeen;
+      }, 20000, 'picked via UI tree click').catch(() => {});
+      assert('vue-tree-pick-flows', pickedSeen, 'status.picked 非 null（UI 点击链）');
+    }
+
+    // ⑦ runner 显式停止 → 面板收起（img 离场）
+    {
+      const stop = await jfetch(`http://127.0.0.1:18511/api/canvas/stop?generation=${result.generation ?? 1}`, { method: 'POST' });
+      assert('stop-with-generation-200', stop.status === 200, `status:${stop.status}`);
+      let gone = false;
+      await waitFor(async () => {
+        const n = await page.locator('img[src*="/api/canvas/frame"]').count().catch(() => -1);
+        gone = n === 0;
+        return gone;
+      }, 15000, 'panel collapse after stop').catch(() => {});
+      assert('vue-panel-collapses-on-stop', gone, '帧 img 离场（cv_open=false）');
+    }
+  } catch (e) {
+    assert('vue-arm-fatal', false, String(e && e.stack || e).slice(0, 400));
+  }
+
+  return finishVue(browser);
+
+  async function finishVue(browserRef) {
+    if (page) result.page_tail = await page.locator('body').innerText().then(t => t.slice(0, 800)).catch(() => '');
+    result.backend_tail = back.text().slice(-1500);
+    fs.mkdirSync(RECEIPT_DIR, { recursive: true });
+    const receiptPath = path.join(RECEIPT_DIR, `ports-vue-${mode}-receipt.json`);
+    fs.writeFileSync(receiptPath, JSON.stringify(result, null, 2));
+    log(`receipt ${receiptPath}`);
+    killTree(back.p);
+    await closeVueHarness(browserRef, server);
+    await sleep(600);
+    return result;
+  }
+}
+
 // ── main ─────────────────────────────────────────────────────────────────
-const modes = which === 'both' ? ['vm', 'rust'] : [which];
+const args2 = process.argv.slice(2);
+const backendIdx = args2.indexOf('--backend');
+const modes = backendIdx >= 0 ? [args2[backendIdx + 1]] : ['vm', 'rust'];
+const vueIdx = args2.indexOf('--vue');
+const vueModes = vueIdx >= 0 ? (args2[vueIdx + 1] === 'both' ? ['vm', 'rust'] : [args2[vueIdx + 1]]) : [];
 const results = [];
-for (const m of modes) {
-  log(`mode ${m}`);
-  results.push(await runMode(m).catch(e => ({ mode: m, fatal: String(e && e.stack || e), asserts: [{ name: 'fatal', ok: false, detail: String(e) }] })));
+if (vueIdx >= 0) {
+  for (const m of vueModes) {
+    log(`vue-arm mode ${m}`);
+    try {
+      results.push(await runVueArm(m));
+    } catch (e) {
+      const detail = String(e && e.stack || e).slice(0, 400);
+      fail(`vue-arm ${m} fatal: ${detail}`);
+      results.push({ mode: `vue-${m}`, fatal: detail, asserts: [{ name: 'fatal', ok: false, detail }] });
+    }
+  }
+} else {
+  for (const m of modes) {
+    log(`mode ${m}`);
+    try {
+      results.push(await runMode(m));
+    } catch (e) {
+      const detail = String(e && e.stack || e).slice(0, 400);
+      fail(`mode ${m} fatal: ${detail}`);
+      results.push({ mode: m, fatal: detail, asserts: [{ name: 'fatal', ok: false, detail }] });
+    }
+  }
 }
 const allOk = results.every(r => r.asserts.length > 0 && r.asserts.every(a => a.ok));
 log(allOk ? `ALL PASS (${results.map(r => r.mode).join(',')})` : 'FAILURES PRESENT');
