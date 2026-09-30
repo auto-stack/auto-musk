@@ -65,10 +65,12 @@ widget CanvasSourcePanel {
                     }
                     // 行渲染（行号列 + 内容列；拾取行反色高亮）。
                     col {
+                        class: "cv-source-rows relative"
                         style: "flex-1 min-h-0 overflow-auto py-1 font-mono"
                         for row in .store.cv_source_rows {
                             if row.hl {
                                 row {
+                                    class: "cv-source-hl"
                                     style: "shrink-0 items-start bg-primary/10"
                                     span {
                                         style: "shrink-0 w-[34px] pr-1 text-right text-[10px] text-primary/70 select-none"

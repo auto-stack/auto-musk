@@ -93,6 +93,34 @@ export async function canvasClearPick(): Promise<CanvasResult> {
     return { ok: false, error: `HTTP ${response.status}`, state: '', app_path: '' };
 }
 
+/**
+ * 源码面板行定位（PLAN-093 T-07；面板 setup 幂等安装，单例守卫同点击委托）：
+ * MutationObserver 监听行渲染（拾取/载入/切页签都触发行对象重渲染），
+ * 高亮行（.cv-source-hl）出现且位置变化时滚动到容器垂直居中。offsetTop
+ * 去重（whitespace-pre 行高恒定——行变才滚，流式聊天重渲染不扰动）。
+ * DOM 测量/滚动 = web 平台门面（§5.2 允许面）；VM 轨空桩。
+ */
+export function installCanvasSourceScroll(): void {
+    if (typeof window === 'undefined') return;
+    const w = window as unknown as { __muskCanvasSourceScroll?: boolean };
+    if (w.__muskCanvasSourceScroll) return;
+    w.__muskCanvasSourceScroll = true;
+    let lastTop = -1;
+    const scrollNow = () => {
+        const hl = document.querySelector('.cv-source-hl');
+        if (!hl) return;
+        const box = hl.closest('.cv-source-rows');
+        if (!box) return;
+        const top = (hl as HTMLElement).offsetTop;
+        if (top === lastTop) return;
+        lastTop = top;
+        box.scrollTop = Math.max(0, top - box.clientHeight / 2);
+    };
+    const mo = new MutationObserver(() => scrollNow());
+    mo.observe(document.body, { childList: true, subtree: true });
+    setTimeout(scrollNow, 0);
+}
+
 export async function canvasLoadSource(path: string): Promise<{ ok: boolean; error: string; text?: string }> {
     // PLAN-093 T-07 G-13: 源码读取走 canvas 域 query 通道
     // /api/canvas/source?workspace=&path=（/api/files/* 在 VM serve 落

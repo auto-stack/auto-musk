@@ -114,3 +114,8 @@ fn canvasLoadSource(ws str, path str) {
 /// web facade 兼容空实现：VM 命中区由工作台面板 mouse-area 承接（T-06）。
 fn installCanvasFrameClicks() {
 }
+
+/// 源码面板行定位：VM 轨行容器滚动由 iced 布局自管理（web MutationObserver
+/// 通道的空桩——install 家族口径）。
+fn installCanvasSourceScroll() {
+}
