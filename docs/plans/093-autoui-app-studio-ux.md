@@ -792,6 +792,17 @@ PID／进程树及起止收据，再做真实运行测试。
   不提升来自label／源码的文字为系统权限。
 - 验证 V01／V02／V03及双端输入场景：IME／mention／斜线命令、A→B选中、
   busy重试、刷新回放、工作区切换；run=true只孵化一次，原生focus真实生效。
+- [▶ 进行中] 第一增量（ee411ef，后端三态 curl + 前端取证 5/5 @VM
+  后端 + Vue 臂 ALL PASS × 双后端）：元素附件 chip（双 store 挂载
+  PLAN-048 facade 实时读拾取面；聚焦/移除不改文本——移除双面清选防
+  轮询回填）+ SendInput 冻结 design_context（命令解析确认后；命令/
+  mention/IME 不受影响）+ 队列条目对象化逐条冻结（busy 原样退回/
+  stale 409 退回队首落错误面）+ 后端字段面校验与归属盖章（stale 拒
+  收不落盘不误发；serde default 旧文件默认读取）+ G-13 族 chats 长
+  尾 host 注册（create/get/message 未注册致 500 全链实测阻断）。
+  验证与剩余见 §8.20——剩余：队列条目级 UI、消息气泡轻量附件标记、
+  Agent turn 上下文说明注入、A→B 入队交错取证（busy 模拟）、会话切
+  换清待发送（chip 为实时视图的偏差记录）。
 
 ### [ ] T-09：呈现真实生成进度与运行／恢复状态
 
