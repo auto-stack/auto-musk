@@ -393,3 +393,52 @@ AUTO_BUILD_TRACE 逐文件追踪 + RUST_BACKTRACE 均未再捕捉到异常退出
 
 **验证**：Vue 臂 9/10→修复后 studio 断言细节完善中；VM 臂 studio 全
 周期绿（进/保持/出）；V01 生成门 23.4s exit 0 + pnpm ✓（新基线复验）。
+
+### 8.14 T-05 完成轮：Vue 侧收口 + §5.2 宽度分层全档（2026-09-30 第六轮）
+
+**T-05 第三增量（c9037c6）**——三处生成/接线缺口收口：
+- 工作台槽归位 CanvasStudioSlot（canvas_panel.at 新 widget，CanvasStore
+  域）：chats_view 原分支 `if .store.cv_open` 读的是 ForgeStore（字段
+  不存在 → undefined 恒走空工作台，studio 双列不渲染——Vue 臂 335px
+  取证 + 生成 ChatsView.vue:604 实证）。空工作台输入/启动流随迁
+  （model 本地态 path/err——gate_card 先例；canvasStart 在 widget 动作
+  域，store 文件不引 web 端口）。
+- 入口钮移 ContentHeader 常驻 actions 行：原在 `if .info_open` 信息条内
+  （须先点 ℹ 才渲染——"回 527d99c 重做第三步"时该迁移被丢弃，本轮补
+  落），样式族对齐行内钮（h-7 w-7）。
+- NavSidebar 宽度单源：折叠 w-12 与展开 width_class 双类并存（VM 轨
+  style 内联可胜，web 轨级联 240 压 w-12 → studio 强制收起失效，实测
+  工作台被挤到 556px）→ computed sidebarClass 按态全串（app 轨
+  railClass 同款；widget computed 先例 WorkspaceSelector；`.width_class
+  + " ..."` concat 生成器支持实证）。
+- 验证：Vue 臂 10/10 × 双后端 ALL PASS（studio=527px > normal=349px）；
+  VM 真机 studio 全周期 MCP 驱动绿（进：侧栏 240→48 + 空工作台元素；
+  保持 8s+ 快照稳定；出：恢复 240）——脚本 tmp/vm-studio-cycle.mjs。
+  VM 快照 label 含 PUA 图标字形前缀（U+EE03+"应用设计"）——精确等值
+  匹配恒假，须 includes（探针兼容口径）。
+
+**T-05 第四增量（3de5254）**——§5.2 宽度分层全档：
+- 对话右置：内容域包装 col + 可反转内容行（studio → flex-row-reverse，
+  VM Plan 412 支持）——聊天列原位单实例不重挂（草稿/焦点/展开态结构
+  性保持），对话列 [结构][画布][对话] 右置达成。
+- 分层：对话 360(≥1280)/320；结构 220/200；768-1023 结构列受控显隐
+  （cv_structure_open 偏好 + CanvasStudioSlot 左缘切换钮列）；<768 页签
+  画布/对话/结构（studio_tab 视图态 + 塌缩类 w-0↔flex-1 切换——VM 无
+  hidden 类，v-if 重挂被单实例原则排除）。
+- 驱动源：ForgeStore.fw_win_w（PollStream 随拍，canvas_store Poll 同款
+  读法）+ CanvasStore.cv_win_w 既有——两域各自消费同一 localStorage 键。
+- **生成器语义实证（重要）**：`style:` 字面量 → class 属性；内联 if →
+  :class 三元；`style: [x]` 数组 → :class join；**字段引用/concat 直形式
+  → :style 内联（类名串无效，布局塌）**——本轮三处改数组形式修复。
+- 验证：宽度分层取证 4 档全符合 §5.2 预算（tmp/tier-forensic.mjs 收据
+  tier-results.json）：1440=[360,968]/img747、1100=[320,668]/img467、
+  900=钮列36+img431（钮后 +结构200 → img231）、700=页签3+对话页签
+  [588,0]塌缩，全档零横溢出。Vue 臂 10/10 × 双后端（studio img 587）。
+  VM 真机全周期 3 轮绿。草稿保持取证 ✓（composer 草稿跨三次模式切换
+  原样，tmp/draft-persist.mjs）。
+
+**T-05 遗留（记录不阻断）**：VM 快照 rect 搅动期部分缺 bounds（080 已
+知通道缺陷），VM 侧右置几何以渲染器支持（renderer.rs:2421）+ 功能周期
+（3 轮）+ Vue 侧几何证据背书；输入焦点在模式切换瞬间重置（唯一 DOM
+本地态损失，草稿/展开/审批卡均 store/model 域保持）——如需可后续
+autofocus 恢复，非 AC 阻断。
