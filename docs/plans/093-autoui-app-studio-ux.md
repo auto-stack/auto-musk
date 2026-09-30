@@ -4,9 +4,9 @@ status: executing
 feature_name: AutoUI 应用设计工作台与实时 Canvas 双端 UX
 author: [agent]
 created_at: 2026-09-28T14:20:35Z
-updated_at: 2026-09-29T21:00:00Z
+updated_at: 2026-10-01T00:00:00Z
 plan_revision: 1
-current_step: 4
+current_step: 6
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-canvas.md
@@ -521,7 +521,7 @@ PID／进程树及起止收据，再做真实运行测试。
   影响。needs_replan 不触发：无 AC 被删除或降门槛，G-1/G-2 仅约束 T-13
   不得以降级表述冒充 AC-04/AC-06 通过。
 
-### [ ] T-02：补齐Canvas身份、清选和帧版本契约
+### [x] T-02：补齐Canvas身份、清选和帧版本契约
 
 - 依赖：T-01。关联 AC-03、AC-06、AC-08、AC-11、AC-12。
 - 位置：现有 backend/.../canvas/{mod,manager,tools,anchor}.rs、
@@ -816,7 +816,7 @@ PID／进程树及起止收据，再做真实运行测试。
   后补 VM 轨面板。会话切换清待发送——chip 为实时视图无复制态，偏差
   已记录（§8.20）。
 
-### [ ] T-09：呈现真实生成进度与运行／恢复状态
+### [✅] T-09：呈现真实生成进度与运行／恢复状态
 
 - 依赖：T-02、T-04、T-05、T-08。关联 AC-03、AC-04、AC-12、AC-15。
 - 位置：现有 canvas_panel.at、canvas_store.at、forge_store.at、
@@ -828,7 +828,7 @@ PID／进程树及起止收据，再做真实运行测试。
   失败详情可展开，运行／重试按钮带禁用理由，前端不新增重启循环。
 - 验证 V03／V05故障场景及V07：lint警告不是硬门通过、bp失败明示、
   无帧不能同步成功、stop失败不伪造、重启耗尽后可显式恢复。
-- [▶ 进行中] 第一增量（aa441ef，取证 2/2 + Vue 臂 ALL PASS × 双后
+- [✅] 第一增量（aa441ef，取证 2/2 + Vue 臂 ALL PASS × 双后
   端）：生命周期状态面 §5.3 矩阵化——stopped 空态区分（已停止面保
   持应用标题+说明+重新运行钮/初始无应用独立空态/未匹配态显真实
   state）+ degraded 面（简短原因+详情展开+红条内重运行钮）+
@@ -843,6 +843,23 @@ PID／进程树及起止收据，再做真实运行测试。
   臂提取（本轮实测路径——首启失败直落 degraded）。§8.23b。
   剩余（收敛）：生成/检查进度行（工具事件投影——跨 store facade，
   VM 轨随 G-11）。
+- [✅] 第三增量（2b0cce0，V03 57/57 + Vue 臂 ALL PASS × 双后端，
+  完成门达成）：§5.8 生成/检查进度投影——①后端盖章 canvas_details
+  （run+generation_id/stop/verify/lint+findings/bp_check+ok；content
+  原样、details 新增，SSE 透传既有；单测 1/1）；②投影单源
+  canvasProgressRows（blocks 双形态 r5b 同款；只投影有证据行不硬凑
+  五步；状态只来自 status 字段+实时状态不嗅探文本；预览行 CanvasStore
+  权威、代次章失配陈旧事件不冒充；verify 未执行显式未验证；帧行只写
+  最近画面已更新；V03 新 19 例）；③CanvasProgressSummary 生产组件
+  （canvas_progress.at 新建；ForgeStore 单例+画布状态 props 经
+  chats_view 双 store 挂载位；紧凑单行+可展开；i18n 22 键 × zh/en）。
+  顺手修复：chat_page.rs 测试夹具缺 T-08 design_context 字段（lib
+  test 目标 E0063 编译失败）；canvasTreeVisible range→while（PLAN-671
+  ③ use-imported fn 内联进 store 模块不注入 range 助手 TS2552 实证，
+  语义等价 V03 全绿）。V01 全链 exit 0（gen strict 34s + pnpm 10.91s）。
+  §8.25。归 T-12/T-13：V07 生命周期回归、M3 fixture 真实工具事件实况
+  投影、VM 轨消费（随 G-11——PLAN-095 T-07 依赖任务，不阻断 Vue 轨
+  交付面）。
 
 ### [▶ 进行中] T-10：收敛共享主题、中英文本和键盘交互
 
@@ -925,6 +942,36 @@ PID／进程树及起止收据，再做真实运行测试。
 | T-11～T-14 | AC-01～AC-16（复验与证据） | SD-01～SD-05 |
 
 ## 9. 复审记录
+
+### work 阶段 T-09 完成交接（生成/检查进度投影）
+
+- stage: work
+- plan_id: PLAN-093
+- plan_revision: 1
+- outcome: T-09 pass（三增量完成）——生命周期状态面 + degraded 故障
+  注入/tail 全链 + §5.8 生成/检查进度投影（工具事件→六行矩阵，Vue 轨
+  交付面）；整体保持 executing
+- code_commit: plan-093-dev@aa441ef（增一）+ 8033334（增二）+
+  2b0cce0（增三：盖章+投影+组件）+ d5d60ab 前序（capability-map
+  §8.24 记录位）
+- task_ids: T-09（完成）
+- evidence: ①V03 canvas-contract.mjs 57/57（canvasProgressRows 新
+  19 例：live/回放双形态、无证据零行、preview 权威投影、代次章失配
+  不冒充、gate_waiting、label_key 键）；②V05 Vue 臂 ALL PASS × 双
+  后端（ports-vue-{rust,vm}-receipt.json——原 10 断言回归绿 + 新 7
+  断言：进度条渲染/preview visible/帧行/未验证行/无证据行省略/展开
+  显工具名/收起还原）；③后端 details_tests 1/1 + chat_page 8/8（夹具
+  修复）+ canvas_studio_contract 19/19 + musk bin 构建；④V01 全链
+  exit 0（gen strict 34s/65 组件 + vue-tsc+vite 10.91s）。§8.25。
+  机制新证：PLAN-671 ③ use-imported fn 内联进 store 模块不注入
+  range 助手（canvasTreeVisible TS2552，range→while 有界规避）；SSE
+  tool_result details 透传承载盖章（content 原样）。
+- blockers: 无阻断。G-11（widget→widget VM 实例化）仍阻塞全部 studio
+  UI 的 VM 轨（T-06/T-07/T-08/T-09 VM 面同族），依赖任务 PLAN-095
+  T-07（drafting）承接；不阻断 Vue 轨交付面与后续任务。
+- next: work——T-11（确定性合同测试与 Gallery 用例汇总；T-06～T-10
+  的 G-11/Q-04 剩余项均为依赖外项或归 T-13 实机轮，V03/V04 汇总可
+  开工）。
 
 ### work 阶段 T-05 完成交接（双端验证 + 宽度分层全档）
 
