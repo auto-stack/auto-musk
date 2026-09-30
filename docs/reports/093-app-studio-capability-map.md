@@ -713,3 +713,21 @@ store facade 读法或后端投影面，增量二）；③原始日志 tail 后�
 **剩余**：busy 态 Harness（模拟 streaming 无真实 run——测试基建件，
 归 T-11 V03 汇总口径）；队列条目级 UI 交互断言同族（post-run 树重
 渲染期点击超时，F 部分验证）。
+
+### 8.23b T-09 第二增量：degraded 故障注入 + tail 全链（2026-09-30 第十六轮）
+
+**落地（8033334）**：
+- manager.rs：output_tail 进 Shared——**三采集点**（看门狗崩溃快检/
+  复活 reap/spawn Err 臂）+ status_full 暴露 + **begin_session 首启
+  spawn 失败臂**提取（坏 app 编译失败路径——本轮注入的实测路径，
+  首启失败即直落 degraded 不经看门狗）。
+- canvas_store.at：cv_output_tail（output_tail 随拍回填）；
+  canvas_panel.at：degraded 详情盒 = cv_error + output_tail 两段
+  （mono 滚动，分隔线）。
+
+**验证**：故障注入取证 ALL PASS（tmp/t09-degraded.mjs——broken
+target（语法垃圾 app.at）→ spawn 重试耗尽 → degraded（tail 577B）
+→ UI 红条+重运行+详情展开 tail 可见）；Vue 臂 ALL PASS × 双后端。
+
+**T-09 剩余（收敛）**：生成/检查进度行（工具事件投影——chat run
+tool_calls → 生成/检查状态行；跨 store facade 读法，VM 轨随 G-11）。
