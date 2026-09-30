@@ -476,3 +476,38 @@ autofocus 恢复，非 AC 阻断。
 **T-06 剩余**：VM 侧坐标点选消费（同源映射的 VM 臂）、V03 helper 边
 界测试（canvas-contract.mjs 新建）、V05 几何子场景（DPI 1/1.5/2、两
 种留白、边界点/滚动、框≤2px 精测）、loaded 门控的运行时负向用例。
+
+### 8.16 T-06 第二增量：V03 边界测试 + V05 几何子场景 + G-11 上游缺口（2026-09-30 第八轮）
+
+**落地（本轮）**：
+- **V03 canvas-contract.mjs（新，21/21 绿）**：被测对象=生成的 ext 生产
+  模块（不复制算法）——canvasMapPhysical 退化/边界点(0,0 含、box_w/
+  box_h 严格不含)/负偏移/整除截断扫描（maxErr=0，<2.07px 预算）/
+  DPI 无关契约；canvasContentStyle 双模式+退化；帧 URL 双键；picked
+  投影 7 字段（forctx.index→"#N"）；overlay 重建+不拦指针+蓝/琥珀分色。
+- **V05 几何子场景**：DPI 1/1.5/2 锚定直点三档全命中（映射输入为
+  CSS 量，deviceScaleFactor 不进公式——tmp/dpi-gate-forensic.mjs）；
+  两种留白——纵向（normal 349×764 盒，geom A）+横向（studio 短窗
+  587×584 盒，wrap 412 窄于容器高占满，tmp/letterbox-forensic.mjs
+  H/I/J 全绿，换算亚像素 239.42≈240）；版本门控负向用例——篡改
+  dataset.cvLoadedSrc 为陈旧值 → 内容盒点击 0 请求（守卫拒绝实证）。
+- 锚内个别节点 bbox 缺失实测（根 col 无 bbox、text 子节点有——
+  pick_json 对 n.bbox=None 的节点省略 bbox 字段，anchor.rs:210）——
+  取证锚定遍历多个树钮。
+
+**G-11（新上游缺口，阻断 VM 消费面）**：**VM 轨 widget→widget 子件
+实例化缺面**——musk 真实面板带活会话在 VM 上首次演练（本轮空工作台
+启动流 targets/probe-a 拉起 cv_open=true）发现：CanvasStudioSlot/
+CanvasPanel 的结构列/画布列子件整体空渲染（列壳样式在、子件内容
+零节点），normal/studio 双模式一致；view→widget 正常（壳层全量渲染
+对照）。canvas_panel.at 三件套自 PLAN-088 拆分起 VM 轨未带活会话
+演练过（T-04 VM 验证走独立 fixture probe-c），缺口潜伏至今。同文件
+widget 视图引用兄弟 widget（无 use 行）疑为触发面。修复在 auto-lang
+（VM aura builder / codegen 子件解析），本仓边界外。证据快照
+tmp/vm-studio-cycle/{wrap-missing,normal-panel}-snapshot.txt。
+VM 消费面（同一 .at fn 在 VM 解释器下的样式产出）待 G-11 解除后
+补跑；VM 空工作台启动流本身 ✓（type path→启动→cv_open 翻转实证）。
+
+**验证汇总**：V03 21/21；DPI 三档全命中；门控负向 ✓；双留白几何+
+直点+清选 ✓；Vue 臂 ALL PASS × 双后端（回归）；VM 功能周期 ALL PASS
+（studio/侧栏/启动流）。
