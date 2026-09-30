@@ -138,6 +138,9 @@ widget ChatsView {
         var sidebar_collapsed bool = false
         // PLAN-093 T-05:进 studio 前的侧栏折叠态（退出恢复）。
         var sidebar_prev bool = false
+        // studio 模式（本组件视图状态——跨 store 写入无先例,模式归视图域;
+        // canvas 数据仍单源 CanvasStore）。
+        var studio_mode bool = false
         // 空工作台"打开已有应用"：工作区内路径输入 + 启动错误面。
         var studio_app_path str = ""
         var studio_start_err str = ""
@@ -427,7 +430,7 @@ widget ChatsView {
             }
             // Main Chat Area（PLAN-093 T-05:studio 模式限宽 420 给工作台让位)
             col {
-                style: if .store.cv_studio {
+                style: if .studio_mode {
                     "flex-1 flex flex-col min-w-0 overflow-hidden max-w-[420px]"
                 } else {
                     "flex-1 flex flex-col min-w-0 overflow-hidden"
@@ -548,7 +551,7 @@ widget ChatsView {
                         // 激活态反色）。
                         button {
                             onclick: .ToggleStudio
-                            style: if .store.cv_studio {
+                            style: if .studio_mode {
                                 "flex items-center justify-center w-6 h-6 border-none rounded bg-accent text-foreground shrink-0 cursor-pointer"
                             } else {
                                 "flex items-center justify-center w-6 h-6 border-none rounded bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground shrink-0 cursor-pointer"
@@ -710,12 +713,12 @@ widget ChatsView {
             // studio 模式面板升主区（flex-1;结构列 220），正常 520 右列；
             // studio 无会话 = 空工作台（描述入口 + 打开已有应用，AC-01）。
             col {
-                style: if .store.cv_studio {
+                style: if .studio_mode {
                     "flex-1 min-w-0 h-full flex flex-col overflow-hidden border-l border-border bg-card"
                 } else {
                     "shrink-0 h-full flex flex-col overflow-hidden"
                 }
-                if .store.cv_studio {
+                if .studio_mode {
                     if .store.cv_open {
                         row {
                             style: "flex-1 min-w-0 h-full flex flex-row overflow-hidden"
@@ -786,13 +789,13 @@ widget ChatsView {
         // PLAN-093 T-05:studio 进出——侧栏偏好保存/恢复（退出还原进入前
         // 的折叠态;进入强制收起给工作台让宽）。
         .ToggleStudio -> {
-            if .store.cv_studio {
+            if .studio_mode {
+                .studio_mode = false
                 .sidebar_collapsed = .sidebar_prev
-                store.ExitStudio()
             } else {
+                .studio_mode = true
                 .sidebar_prev = .sidebar_collapsed
                 .sidebar_collapsed = true
-                store.EnterStudio()
             }
         }
 

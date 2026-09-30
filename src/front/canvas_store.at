@@ -90,9 +90,8 @@ store CanvasStore {
         // 源码预览开合（锚点 chip → 源码抽屉）+ 已载文本。
         var cv_source_open bool = false
         var cv_source_text str = ""
-        // PLAN-093 T-05:studio 模式（工作台布局开关;侧栏偏好由 ChatsView
-        // 进出时保存/恢复）+ 视口宽（宽度分层驱动;web 键优先 VM 键兜底）。
-        var cv_studio bool = false
+        // PLAN-093 T-05:视口宽（宽度分层驱动;web 键优先 VM 键兜底）。
+        // studio 模式开关归 ChatsView 视图域（跨 store 写入无先例）。
         var cv_win_w int = 1280
     }
 
@@ -109,8 +108,6 @@ store CanvasStore {
         UnCollapse,
         ToggleSource,
         SourceBackfill(str),
-        EnterStudio,
-        ExitStudio,
     }
 
     on {
@@ -262,15 +259,6 @@ store CanvasStore {
 
         .ToggleSource -> {
             .cv_source_open = !.cv_source_open
-        }
-
-        // studio 模式开关（工作台布局;侧栏偏好由 ChatsView 保存/恢复）。
-        .EnterStudio -> {
-            .cv_studio = true
-        }
-
-        .ExitStudio -> {
-            .cv_studio = false
         }
 
         .SourceBackfill(payload str) -> {

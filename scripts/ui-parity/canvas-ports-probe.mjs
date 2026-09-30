@@ -428,7 +428,7 @@ async function runVueArm(mode) {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ username: VUE_USER, password: VUE_PASS }),
     }).catch(() => null);
-    const ok = reg && (reg.status === 200 || reg.status === 400 /* 已存在 */);
+    const ok = reg && [200, 400, 409].includes(reg.status); // 已存在=409 同样算种子完成
     assert('user-seeded', !!ok, `status:${reg?.status}`);
   }
 
@@ -467,6 +467,28 @@ async function runVueArm(mode) {
       await img.waitFor({ state: 'visible', timeout: 45000 }).catch(() => {});
       const nw = await img.evaluate(el => el.naturalWidth).catch(() => 0);
       assert('vue-frame-img-rendered', nw > 0, `naturalWidth=${nw}`);
+      // T-05: studio 切换（应用设计钮）→ 面板槽 flex-1（画布区显著展宽），
+      // 再点退出还原（进出同一钮）。
+      {
+        const entry = page.locator('button[title="App studio"], button[title="应用设计"]').first();
+        await entry.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
+        await entry.dispatchEvent('click').catch(e => { fail(`studio entry click: ${e.message}`); });
+        await new Promise(r => setTimeout(r, 1200));
+        const probe1 = await page.evaluate(() => {
+          const btn = document.querySelector('button[title="App studio"], button[title="应用设计"]');
+          const img = document.querySelector('img[src*="/api/canvas/frame"]');
+          return { active: btn ? String(btn.className).includes('bg-accent') : null,
+            imgW: img ? Math.round(img.getBoundingClientRect().width) : null };
+        });
+        await entry.dispatchEvent('click').catch(() => {});
+        await new Promise(r => setTimeout(r, 1200));
+        const wNormal = await img.evaluate(el => el.getBoundingClientRect().width).catch(() => 0);
+        assert('vue-studio-layout-toggle', probe1.active === true && wNormal > 0,
+          `studio=${probe1.imgW}px normal=${wNormal}px activeAfter=${probe1.active}`);
+        // 恢复 studio 态（后续断言与收起持久性依赖面板可见）。
+        await entry.dispatchEvent('click').catch(() => {});
+        await new Promise(r => setTimeout(r, 1200));
+      }
     }
 
     // ⑥ 树选（UI 点击 → canvasPickNode → 后端 picked → 状态回填覆盖层）

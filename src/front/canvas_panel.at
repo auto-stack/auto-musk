@@ -146,8 +146,7 @@ widget CanvasCanvasColumn {
 
     setup {
         let t = useT()
-        // 帧点选委托（幂等；VM 桩空实现）。
-        installCanvasFrameClicks()
+        // 帧点选委托由 ChatsView setup 统一安装（幂等；plan-093 T-05）。
     }
 
     msg Msg {
@@ -311,8 +310,6 @@ widget CanvasPanel {
 
     setup {
         let t = useT()
-        // 帧点选委托（幂等；VM 桩空实现）——组合面兜底安装。
-        installCanvasFrameClicks()
     }
 
     view {

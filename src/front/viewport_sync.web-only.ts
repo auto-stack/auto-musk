@@ -14,7 +14,7 @@ function writeViewport(): void {
   }
 }
 
-export function platformSyncViewport(): void {
+export function syncViewport(): void {
   writeViewport();
   let scheduled = false;
   window.addEventListener('resize', () => {
