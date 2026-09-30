@@ -511,3 +511,47 @@ VM 消费面（同一 .at fn 在 VM 解释器下的样式产出）待 G-11 解�
 **验证汇总**：V03 21/21；DPI 三档全命中；门控负向 ✓；双留白几何+
 直点+清选 ✓；Vue 臂 ALL PASS × 双后端（回归）；VM 功能周期 ALL PASS
 （studio/侧栏/启动流）。
+
+### 8.17 T-07 第一增量：结构列页签化 + 折叠树 + 源码面板（2026-09-30 第九轮）
+
+**落地（59eb61a）**：
+- canvas_structure.at（新）：CanvasStructureColumn 页签化（结构/源码，
+  抽屉退役）；折叠层树（折叠符/节点分行，vid 稳定折叠键，可见行
+  store 单源重算）；页签切源码按需加载（state=='' 才拉，失败落
+  error 面）。
+- canvas_source.at（新）：CanvasSourcePanel 状态机（''/ok/error）+
+  行对象渲染（行号列+拾取行高亮+越界提示）；只读红线维持。
+- canvas_helpers.at：canvasTreeVisible（前序扁平→可见行，lastAt
+  深度祖先链，obj 字符串键）+ canvasSourceLines（char_code_at 10
+  切行）+ 投影补 source_line（8 字段）。
+- canvas_store.at：折叠键/页签/源码状态机七字段 + ToggleTreeNode/
+  SourceTab/SourceLoadFail；代次清场连带折叠键归零。
+- canvas_panel.at：结构列迁出（use canvas_structure——跨文件 use 行
+  形态）。
+
+**本轮修复的三个跨层缺陷**：
+1. **G-12（auto-lang，已修 2327e0bba）**：store composable 发射器
+   不注入 range 助手——store 本体动作与 use 导入 fn 内联两路经
+   range-for 均产出未定义调用（TS2552）。对齐 PLAN-055 fn 模块先例
+   补注入；同仓收编 AUTO_BUILD_TRACE 追踪暂存。
+2. **canvasLoadSource 双轨形态缺陷（已修）**：web 侧 raw query 形态
+   在 VM serve 不可用（VM serve 路由装配只含 ag 参数路由
+   /api/files/{workspace_id}/{*path}，hw files 三路由未挂载，落 ag
+   后 200 "null" 兜底体冒充内容实测）——改 workspace 路径段形态
+   /api/files/{ws}/{path}（canvas.vm.at 同款，双轨通吃）。
+3. **解析契约新证**：①视图体内 let 不支持（R016 垃圾节点——行对象
+   改 store 域预构建）；②text 拼接须字符串字面量开头（模型引用
+   开头泄漏垃圾节点）；③字段名不得撞元素硬关键字（row.text→body）。
+
+**验证**：V03 37/37（新增折叠/has_kids/同 vid 复用/行切分五态/投影
+8 字段）；T-07 取证 4/4 @Rust 后端（页签默认态/折叠跨轮询存活
+4→1→4/源码面板 262 行+拾取行 44 高亮+越界与提示面）；Vue 臂
+ALL PASS × 双后端。
+
+**G-13（新，musk 后端本仓，T-07 剩余）**：VM serve（vm_backend::
+serve，vm_entry.at 路由）**漏挂 hw files_browser 三路由**——/api/
+files/* 全部落 ag 参数路由，VM 转译 handler 的 registry 状态桥缺失
+→ files 域恒 200 "null"（树/文本/裸读全形态实测；Rust serve 对照
+4887 字节真内容）。修复模式 = canvas 域先例（T-03：宿主 HostCall
+桥 + vm_entry.at 路由行，vm_backend.rs:289）。VM 臂源码面板/坐标
+点选消费与 G-11 同挂此后补。
