@@ -93,6 +93,9 @@ store CanvasStore {
         // PLAN-093 T-05:视口宽（宽度分层驱动;web 键优先 VM 键兜底）。
         // studio 模式开关归 ChatsView 视图域（跨 store 写入无先例）。
         var cv_win_w int = 1280
+        // PLAN-093 T-05 §5.2 窄层（768-1023）：结构列默认不占位，按钮切换
+        // （受控面板；用户偏好，停止/轮询不改）。
+        var cv_structure_open bool = false
     }
 
     timer {
@@ -259,6 +262,11 @@ store CanvasStore {
 
         .ToggleSource -> {
             .cv_source_open = !.cv_source_open
+        }
+
+        // PLAN-093 T-05 §5.2 窄层（768-1023）：结构列显隐切换（受控面板）。
+        .ToggleStructure -> {
+            .cv_structure_open = !.cv_structure_open
         }
 
         .SourceBackfill(payload str) -> {

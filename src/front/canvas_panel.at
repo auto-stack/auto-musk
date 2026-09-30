@@ -332,10 +332,12 @@ widget CanvasPanel {
 }
 
 // ── studio 工作台槽（chats_view studio 模式宿主）：cv_open 分两列/空
-// 工作台；"打开已有应用"启动流在本件动作域（canvasStart web 端口），
-// 输入草稿与错误是本件 model 本地态（gate_card 先例）——chats_view 的
-// ForgeStore 不跨域读画布状态。 ─────────────────────────────────────
-widget CanvasStudioSlot {
+// 工作台；§5.2 宽度分层——结构 220（≥1280）/200（<1280），768-1023 结构
+// 受控显隐（切换钮列），<768 页签单区（tab: "canvas"/"structure"，对话
+// 页签由宿主塌缩类承载）。"打开已有应用"启动流在本件动作域（canvasStart
+// web 端口），输入草稿与错误是本件 model 本地态（gate_card 先例）——
+// chats_view 的 ForgeStore 不跨域读画布状态。 ──────────────────────────
+widget CanvasStudioSlot(tab: str) {
 
     setup {
         let t = useT()
@@ -349,19 +351,70 @@ widget CanvasStudioSlot {
     msg Msg {
         PathInput,
         StartApp,
+        ToggleStructure,
+    }
+
+    computed {
+        // 结构列宽分层（单层链——080 实证嵌套 if 分支值丢 return）。
+        structureW => if .store.cv_win_w >= 1280 { "w-[220px]" } else { "w-[200px]" }
+        structureColClass => .structureW + " shrink-0 h-full flex flex-col overflow-hidden border-r border-border"
     }
 
     view {
         if .store.cv_open {
-            row {
-                style: "flex-1 min-w-0 h-full flex flex-row overflow-hidden"
-                col {
-                    style: "w-[220px] shrink-0 h-full flex flex-col overflow-hidden border-r border-border"
-                    CanvasStructureColumn {}
+            if .store.cv_win_w < 768 {
+                // <768 页签单区：结构页签 = 结构列独占；画布页签 = 画布列独占。
+                if .tab == "structure" {
+                    row {
+                        style: "flex-1 min-w-0 h-full flex flex-row overflow-hidden"
+                        col {
+                            style: "flex-1 min-w-0 h-full flex flex-col overflow-hidden"
+                            CanvasStructureColumn {}
+                        }
+                    }
+                } else {
+                    row {
+                        style: "flex-1 min-w-0 h-full flex flex-row overflow-hidden"
+                        col {
+                            style: "flex-1 min-w-0 h-full flex flex-col overflow-hidden"
+                            CanvasCanvasColumn {}
+                        }
+                    }
                 }
-                col {
-                    style: "flex-1 min-w-0 h-full flex flex-col overflow-hidden"
-                    CanvasCanvasColumn {}
+            } else {
+                row {
+                    style: "flex-1 min-w-0 h-full flex flex-row overflow-hidden"
+                    if .store.cv_win_w < 1024 {
+                        // 768-1023:结构列受控显隐 + 左缘切换钮列（不叠加）。
+                        if .store.cv_structure_open {
+                            col {
+                                style: [.structureColClass]
+                                CanvasStructureColumn {}
+                            }
+                        }
+                        col {
+                            style: "w-9 shrink-0 h-full flex flex-col items-center pt-2 border-r border-border bg-muted/20"
+                            button {
+                                onclick: .ToggleStructure
+                                style: if .store.cv_structure_open {
+                                    "inline-flex items-center justify-center h-7 w-7 rounded-md bg-accent text-foreground cursor-pointer"
+                                } else {
+                                    "inline-flex items-center justify-center h-7 w-7 rounded-md bg-transparent text-muted-foreground hover:bg-accent cursor-pointer"
+                                }
+                                title: t("canvas.structureToggle")
+                                icon (name: "list-todo", size: 15) {}
+                            }
+                        }
+                    } else {
+                        col {
+                            style: [.structureColClass]
+                            CanvasStructureColumn {}
+                        }
+                    }
+                    col {
+                        style: "flex-1 min-w-0 h-full flex flex-col overflow-hidden"
+                        CanvasCanvasColumn {}
+                    }
                 }
             }
         } else {
@@ -409,6 +462,10 @@ widget CanvasStudioSlot {
             } else {
                 .err = r.error
             }
+        }
+        // 结构列显隐（窄层受控面板;store 偏好单源）。
+        .ToggleStructure -> {
+            store.ToggleStructure()
         }
     }
 }

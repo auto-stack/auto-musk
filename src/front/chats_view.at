@@ -129,6 +129,8 @@ widget ChatsView {
         // CopySessionId: 复制当前会话 id（dom.copy_text；✓ 态常驻至下次复制，
         // 029 已登记 setTimeout 自动复位不可表达）。
         CopySessionId,
+        // PLAN-093 T-05 §5.2 窄层（<768）：工作台页签（画布/对话/结构）。
+        StudioTabSet(str),
     }
 
     model {
@@ -139,6 +141,9 @@ widget ChatsView {
         // studio 模式（本组件视图状态——跨 store 写入无先例,模式归视图域;
         // canvas 数据仍单源 CanvasStore）。
         var studio_mode bool = false
+        // PLAN-093 T-05 §5.2 窄层（<768）：工作台页签（画布/对话/结构；
+        // 宽层忽略——塌缩类仅窄层消费）。
+        var studio_tab str = "canvas"
         var chat_search str = ""
         // PLAN-058: 待确认删除目标（会话 id 或 "__all__"；空串=无待确认）。
         // 沿 chat_search 先例的视图态 str 字段（VM 对 str 字段 SET/比较双轨实证）。
@@ -185,6 +190,18 @@ widget ChatsView {
         // PLAN-092 T-01: 会话 id 展示文本（空态 —，session_info.at 先例；
         // 纯 dot 路径 if——VM 侧 olderLabel 同构先例）。
         sessionIdText => if .store.session_id != "" { .store.session_id } else { "—" }
+        // ── PLAN-093 T-05 §5.2 宽度分层（对话列 360/320、窄层页签塌缩、
+        // studio 内容行反转右置）——单层链 computed（080 实证：嵌套 if
+        // 分支值 codegen 丢 return），宽度源 = ForgeStore.fw_win_w ──
+        chatTierClass => if .store.fw_win_w >= 1280 { "w-[360px] shrink-0" } else { "w-[320px] shrink-0" }
+        chatTabClass => if .studio_tab == "chat" { "flex-1" } else { "w-0" }
+        chatModeClass => if .store.fw_win_w < 768 { .chatTabClass } else { .chatTierClass }
+        chatColClass => if .studio_mode { .chatModeClass + " flex flex-col min-w-0 overflow-hidden" } else { "flex-1 flex flex-col min-w-0 overflow-hidden" }
+        panelTabClass => if .studio_tab == "chat" { "w-0" } else { "flex-1" }
+        panelStudioClass => if .store.fw_win_w < 768 { .panelTabClass + " h-full flex flex-col overflow-hidden" } else { "flex-1 min-w-0 h-full flex flex-col overflow-hidden border-l border-border bg-card" }
+        panelSlotClass => if .studio_mode { .panelStudioClass } else { "shrink-0 h-full flex flex-col overflow-hidden" }
+        contentRowClass => if .studio_mode { "flex flex-row-reverse flex-1 min-w-0 h-full overflow-hidden" } else { "flex flex-row flex-1 min-w-0 h-full overflow-hidden" }
+        narrowStudio => if .store.fw_win_w < 768 { true } else { false }
     }
 
     // PLAN-049 T6：branch-row/branch-btn/retry-btn 已迁视图内联工具类（块删除）。
@@ -423,13 +440,51 @@ widget ChatsView {
                 }
             }
             }
-            // Main Chat Area（PLAN-093 T-05:studio 模式限宽 420 给工作台让位)
+            // PLAN-093 T-05 §5.2:内容域包装（studio 窄层页签条 + 可反转
+            // 内容行）——对话右置经行反转（VM Plan 412 支持），聊天列体
+            // 原位不动保持单实例；宽度分层类见 computed 链。
             col {
-                style: if .studio_mode {
-                    "flex-1 flex flex-col min-w-0 overflow-hidden max-w-[420px]"
-                } else {
-                    "flex-1 flex flex-col min-w-0 overflow-hidden"
+                style: "flex-1 min-w-0 h-full flex flex-col overflow-hidden"
+                if .studio_mode {
+                    if .narrowStudio {
+                        row {
+                            style: "h-9 shrink-0 items-center gap-1 px-2 border-b border-border bg-card"
+                            button {
+                                onclick: .StudioTabSet("canvas")
+                                style: if .studio_tab == "canvas" {
+                                    "h-7 px-3 rounded-md bg-accent text-foreground text-[12px] cursor-pointer"
+                                } else {
+                                    "h-7 px-3 rounded-md bg-transparent text-muted-foreground hover:bg-accent cursor-pointer"
+                                }
+                                text t("canvas.tabCanvas")
+                            }
+                            button {
+                                onclick: .StudioTabSet("chat")
+                                style: if .studio_tab == "chat" {
+                                    "h-7 px-3 rounded-md bg-accent text-foreground text-[12px] cursor-pointer"
+                                } else {
+                                    "h-7 px-3 rounded-md bg-transparent text-muted-foreground hover:bg-accent cursor-pointer"
+                                }
+                                text t("canvas.tabChat")
+                            }
+                            button {
+                                onclick: .StudioTabSet("structure")
+                                style: if .studio_tab == "structure" {
+                                    "h-7 px-3 rounded-md bg-accent text-foreground text-[12px] cursor-pointer"
+                                } else {
+                                    "h-7 px-3 rounded-md bg-transparent text-muted-foreground hover:bg-accent cursor-pointer"
+                                }
+                                text t("canvas.tabStructure")
+                            }
+                        }
+                    }
                 }
+                row {
+                    style: [.contentRowClass]
+            // Main Chat Area（PLAN-093 T-05:studio 分层宽 360/320;<768
+            // 页签塌缩 w-0/flex-1——单实例不重挂）
+            col {
+                style: [.chatColClass]
                 // header（Plan 023 §3.1：共用 ContentHeader）。
                 // PLAN-084 T-06: 静态"聊天"标题 → 会话名（无选中回退"聊天"）
                 // + agent 身份徽章（mode→role）+ 流式状态点；middle 搜索框
@@ -704,20 +759,17 @@ widget ChatsView {
                     onpickapproval: .PickApproval($event)
                 }
             }
-            // PLAN-087 T-07 + PLAN-093 T-05: 实况画布面板——根行第三列。
-            // studio 模式工作台槽 CanvasStudioSlot 升主区（flex-1;两列/
-            // 空工作台分支与启动流在 CanvasStore 域子件内），正常 520 右列
-            // CanvasPanel。
+            // PLAN-087 T-07 + PLAN-093 T-05: 实况画布面板——工作台槽升主区
+            // （flex-1;两列/空工作台/页签分支在 CanvasStore 域子件内），正常
+            // 520 右列 CanvasPanel；<768 页签塌缩。
             col {
-                style: if .studio_mode {
-                    "flex-1 min-w-0 h-full flex flex-col overflow-hidden border-l border-border bg-card"
-                } else {
-                    "shrink-0 h-full flex flex-col overflow-hidden"
-                }
+                style: [.panelSlotClass]
                 if .studio_mode {
-                    CanvasStudioSlot {}
+                    CanvasStudioSlot { tab: .studio_tab }
                 } else {
                     CanvasPanel {}
+                }
+            }
                 }
             }
         }
@@ -740,6 +792,11 @@ widget ChatsView {
                 .sidebar_prev = .sidebar_collapsed
                 .sidebar_collapsed = true
             }
+        }
+
+        // PLAN-093 T-05 §5.2 窄层：工作台页签切换（画布/对话/结构）。
+        .StudioTabSet(val) -> {
+            .studio_tab = val
         }
 
         // PLAN-051 P3-②: 单参 oninput 双轨契约——vue codegen 自动包

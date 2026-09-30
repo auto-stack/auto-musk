@@ -16,6 +16,10 @@ store ForgeStore {
         var loading bool = false
         var error str = ""
         var streaming bool = false
+        // PLAN-093 T-05:视口宽随拍刷新（§5.2 宽度分层——studio 对话列
+        // 360/320 与窄屏页签的驱动源；读法同 canvas_store.at Poll，
+        // web 键 app.viewport_w，VM 键兜底）。
+        var fw_win_w int = 1280
         // PLAN-536 T12: 发送前回合基线（StartStream 乐观 push 后写定）——
         // PollStream 完成启发式的回合增长守卫用（防旧 assistant 尾部误判完成）。
         var pre_stream_len int = 0
@@ -805,6 +809,24 @@ store ForgeStore {
 
         // Plan 051 T10（G1 阶段1）：轮询拍——全量回填 + 完成启发式。
         .PollStream -> {
+            // PLAN-093 T-05:视口宽随拍刷新（canvas_store.at Poll 同款读法；
+            // web 键优先，VM 键兜底，默认 1280）。
+            var fw int = 1280
+            let faw = localStorage.getItem("app.viewport_w")
+            if faw != None {
+                let fv = faw.to_int()
+                if fv > 0 { fw = fv }
+            }
+            if fw == 1280 {
+                let fvw = localStorage.getItem("vm.window_inner_width")
+                if fvw != None {
+                    let fv2 = fvw.to_int()
+                    if fv2 > 0 { fw = fv2 }
+                }
+            }
+            if fw != .fw_win_w {
+                .fw_win_w = fw
+            }
             // PLAN-071 需求⑮：每拍驱动队列重试（busy 竞态退回后由此重发；
             // streaming 为真或队列空时是 no-op）。
             .FlushQueue()
