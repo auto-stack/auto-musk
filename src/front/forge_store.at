@@ -126,6 +126,7 @@ store ForgeStore {
         // PLAN-093 T-08:队列条目对象化（text + ctx 逐条冻结；busy 重入
         // 原样保留——FlushQueue 不读"当前选择"）。
         QueueWithCtx(str, any),
+        QueueRemoveText(str),
         StopStream,
         CancelRun,
         SetThinking(str),
@@ -647,6 +648,25 @@ store ForgeStore {
         // FlushQueue busy 退回原样（不读"当前选择"）。
         .QueueWithCtx(text, ctx) -> {
             .pending_msgs.push({ text: text, ctx: ctx })
+        }
+
+        // PLAN-093 T-08:队列条目移除（按文本匹配首个——for-in 无索引，
+        // 视图内联传参 ArchiveRow 先例）。
+        .QueueRemoveText(t str) -> {
+            var rest []Value = []
+            var removed = false
+            for m in .pending_msgs {
+                if removed == false {
+                    if m.text == t {
+                        removed = true
+                    } else {
+                        rest.push(m)
+                    }
+                } else {
+                    rest.push(m)
+                }
+            }
+            .pending_msgs = rest
         }
 
         // PLAN-071 需求⑮：流式收束后排空队列——取最旧一条直接 POST
@@ -1728,6 +1748,9 @@ fn rebuildParsedMessages(msgs Value) Value {
             blocks: nb,
             profession_id: m.profession_id ?? None,
             pending: m.pending ?? None,
+            // PLAN-093 T-08:元素附件快照透传（回放标记面；缺省 None 旧
+            // 消息兼容）。
+            design_context: m.design_context ?? None,
             // PLAN-084 UAT⑪: aname/ainit 预计算（身份展示字段）——视图
             // computed 内 fn 调用静默返空（坑①家族），字段读为已证形态；
             // 乐观消息（漏斗外）无此字段→回退 🤖 AI 徽章，回填后恢复。

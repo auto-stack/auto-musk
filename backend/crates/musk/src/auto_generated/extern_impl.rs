@@ -3785,6 +3785,22 @@ pub fn canvas_start_host(s: &State<AppState>, q: SerdeJson, b: SerdeJson) -> Res
     }
 }
 
+/// PLAN-093 T-08 G-13 族: GET /api/chats/session/{id}/page 的宿主桥
+/// （前端 LoadSession/Older/PollBackfill 全走分页端点；VM serve 路由装配
+/// 缺该路由 + VM 转译 registry 不达——会话加载失败横幅实测）。
+/// q 携 workspace/limit/before；p 为会话 id（单段 Path 编组实证可达）。
+pub fn chat_get_page_host(s: &State<AppState>, q: SerdeJson, id: &str) -> Result<i64, String> {
+    let ws_id = q.get("workspace").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+    let limit = q.get("limit").and_then(|v| v.as_u64()).unwrap_or(50).clamp(1, 500) as usize;
+    let before = q.get("before").and_then(|v| v.as_str()).map(str::to_string);
+    let ws = s.registry.get(&ws_id);
+    let Some(session) = ws.chats.get(id) else {
+        return canvas_vm_json(404, &serde_json::json!({ "error": "session not found" }));
+    };
+    let page = crate::chat_page::paginate_and_normalize(&session, limit, before.as_deref());
+    canvas_vm_json(200, &page)
+}
+
 /// PLAN-093 T-07 G-13: GET /api/canvas/source?workspace=&path= 的宿主桥
 /// （canvas 域源码只读通道——VM serve 转译路由的 registry 状态桥缺失，
 /// /api/files/* 域此前恒 200 "null" 实测；Query Value 编组走 canvas 域

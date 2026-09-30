@@ -536,6 +536,16 @@ pub fn workspace_file(s State<AppState>, p Path<(str, str)>) ~Response {
     return workspace_file_do(s.view, p)
 }
 
+// PLAN-093 T-08 G-13 族:会话分页（委托宿主桥；q 携 workspace/limit/
+// before，p 为会话 id——单段 Path 编组实证可达）。
+pub fn chat_get_page(s State<AppState>, q Query<Value>, p Path<str>) ~Response {
+    return chat_get_page_host(q, p)
+}
+
+fn chat_get_page_host(_q Value, _p @T) ~Response {
+    return musk_extern_dispatch("chat_get_page_host", [_q, _p])
+}
+
 
 pub fn build_router() Router<AppState> {
     var app = Router.new()
@@ -567,6 +577,9 @@ pub fn build_router() Router<AppState> {
     app = app.route("/api/chats/sessions", get(chat_list).delete(chat_delete_all))
     app = app.route("/api/chats/session", post(chat_create))
     app = app.route("/api/chats/session/{id}", get(chat_get).patch(chat_rename).delete(chat_delete))
+    // PLAN-093 T-08 G-13 族:分页加载（前端 LoadSession/Older/PollBackfill
+    // 唯一通道；宿主桥 chat_get_page_host——registry+归一化在宿主侧）。
+    app = app.route("/api/chats/session/{id}/page", get(chat_get_page))
     // PLAN-064: per-session thinking level (PATCH body {thinking_level|null}).
     app = app.route("/api/chats/session/{id}/thinking", patch(chat_thinking))
     // PLAN-067 T-05: per-session approval mode (PATCH body {approval_mode}).

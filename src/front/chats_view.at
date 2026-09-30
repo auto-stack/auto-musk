@@ -146,6 +146,8 @@ widget ChatsView {
         // PLAN-093 T-08:元素附件 chip（移除/聚焦 composer——不改文本）。
         CtxModifyFocus,
         CtxRemove,
+        // PLAN-093 T-08:队列条目移除（按文本匹配首个）。
+        QueueRemoveText(str),
     }
 
     model {
@@ -742,11 +744,35 @@ widget ChatsView {
                     // PLAN-071 需求⑨：启动窗口等待点与停止按钮均迁入
                     // ChatMessage 气泡（等待点 = 气泡内三点动画；停止钮 =
                     // 气泡工具栏复制/分叉旁）——本画布级独立停止按钮退役。
-                    // PLAN-071 需求⑮：排队消息指示条（流式收束后自动发送）。
+                    // PLAN-093 T-08:队列条目级 UI（逐条文本 + 附件标 + 移除）。
                     if .store.pending_msgs.length > 0 {
-                        row {
-                            style: "self-start mt-1 text-xs text-muted-foreground bg-transparent border border-border rounded-md px-2 py-1"
-                            text "⏳ 已排队 " + .store.pending_msgs.length + " 条，当前回复结束后自动发送"
+                        col {
+                            style: "shrink-0 mx-4 mb-1 rounded-md border border-border bg-muted/40 overflow-hidden"
+                            for q in .store.pending_msgs {
+                                row {
+                                    style: "items-center gap-2 px-3 py-1 border-b border-border last:border-b-0"
+                                    span {
+                                        style: "text-[11px] text-muted-foreground shrink-0"
+                                        text "⏳"
+                                    }
+                                    if q.ctx != None {
+                                        span {
+                                            style: "text-[10px] text-primary shrink-0"
+                                            text "📎"
+                                        }
+                                    }
+                                    span {
+                                        style: "flex-1 min-w-0 text-[11.5px] text-foreground/80 truncate"
+                                        text q.text
+                                    }
+                                    button {
+                                        onclick: .QueueRemoveText(q.text)
+                                        style: "shrink-0 w-5 h-5 px-0 flex items-center justify-center rounded-md bg-transparent text-muted-foreground hover:bg-accent text-[10px] cursor-pointer border-none"
+                                        title: "移除"
+                                        text "×"
+                                    }
+                                }
+                            }
                         }
                     }
                     if .store.error != "" {

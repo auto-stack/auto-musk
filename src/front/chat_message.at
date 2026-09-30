@@ -21,6 +21,7 @@
 // 容器 utilities 承担（VM 侧单侧边框降级登记）。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
+use.web useT from "src/front/ports/composables.at"
 use.web component Markdown from "src/front/ports/renderer.at"
 use.web component Copy from "src/front/ports/icons.at"
 // PLAN-055 T13: thinkLabel 进内联思考块（ThinkBlock 子件退役）；thinkIsOpen
@@ -113,6 +114,10 @@ style {
 }
 }
 
+    setup {
+        let t = useT()
+    }
+
     computed {
         role => .msg.role
         isUser => .role == "user"
@@ -143,6 +148,11 @@ style {
         agentProf => .msg.aname ?? ""
         showAgent => .isAssistant && .agentName != ""
         userContent => .msg.content
+        // PLAN-093 T-08:元素附件回放标记（轻量 chip——不塞 JSON 进气泡；
+        // 单层链 computed，None 安全）。
+        ctxKind => if .msg.design_context != None { .msg.design_context.kind ?? "" } else { "" }
+        ctxLabel => if .msg.design_context != None { .msg.design_context.label ?? "" } else { "" }
+        ctxSource => if .msg.design_context != None { .msg.design_context.source ?? "" } else { "" }
         // 展示用 blocks：text 已剥离问卷 JSON（问卷由 QuestionnaireCard 呈现），
         // 纯问卷消息的空 text 块已移除。多参 fn 收敛在 helper（.at if 条件不支持）。
         blocks => expandedMessageBlocks(.msg, .is_streaming, .think_open, .tool_open)
@@ -202,6 +212,17 @@ style {
                     // renderer 对 self-end 列改为 Shrink+右对齐（055 配套），
                     // 该类是 VM 侧抱合的触发器（web 侧冗余无害）。
                     style: "msg-bubble-user self-end px-[14px] py-[10px] rounded-xl rounded-br text-[15px] leading-[1.6] break-words bg-primary/10 text-foreground"
+                    // PLAN-093 T-08:附件回放标记（历史定位轻量标示）。
+                    if .ctxKind != "" {
+                        row {
+                            style: "shrink-0 items-center gap-1 px-2 py-0.5 rounded-md bg-muted/50 text-[10.5px] text-muted-foreground"
+                            if .ctxLabel != "" {
+                                text "📎 " + t("canvas.ctxSelected") + "：" + .ctxKind + " · " + .ctxLabel
+                            } else {
+                                text "📎 " + t("canvas.ctxSelected") + "：" + .ctxKind
+                            }
+                        }
+                    }
                     UserMessage(content: .userContent)
                 }
             } else {

@@ -341,4 +341,7 @@ fn register_host_calls() {
     host!("canvas_source_host", |a| {
         enc(ei::canvas_source_host(&st_axum(&st()?), arg(a, 0))?)
     });
+    host!("chat_get_page_host", |a| {
+        enc(ei::chat_get_page_host(&st_axum(&st()?), arg(a, 0), arg(a, 1).as_str().unwrap_or_default())?)
+    });
 }
