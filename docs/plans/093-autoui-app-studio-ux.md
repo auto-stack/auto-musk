@@ -627,7 +627,7 @@ PID／进程树及起止收据，再做真实运行测试。
   生命周期 running 不受影响）。双端验证完成，T-04 完成门达成
   （V03 确定性测试全集仍按计划归 T-11 汇总）。
 
-### [▶ 进行中] T-05：实现工作台壳与响应式会话布局
+### [✅] T-05：实现工作台壳与响应式会话布局
 
 - 依赖：T-01、T-04。关联 AC-01、AC-02、AC-03、AC-13。
 - 位置：现有 chats_view.at、canvas_panel.at、content_header.at、nav_sidebar.at；
@@ -638,36 +638,47 @@ PID／进程树及起止收据，再做真实运行测试。
   长路径只在详情内显示；收起／停止分开。
 - 验证 V01／V04；五尺寸resize与模式切换，页面无横溢出，草稿／展开／
   审批卡／输入焦点状态不丢。
-- [▶ 进行中] 第一增量（42c8352，VM 臂实机验证）：canvas_panel 拆分
+- [✅] 第一增量（42c8352，VM 臂实机验证）：canvas_panel 拆分
   三件套（CanvasStructureColumn/CanvasCanvasColumn/CanvasPanel 组合——
   状态单源、模板零复制，studio 左右列复用同一实现）；studio 模式开关
-  （cv_studio + 会话头部入口钮 layout-grid 激活态反色；侧栏偏好进出
+  （会话头部入口钮 layout-grid 激活态反色；侧栏偏好进出
   保存/恢复 sidebar_prev）；视口宽通道（viewport_sync.web-only.ts →
   localStorage('app.viewport_w')，store Poll 随拍读，VM 键兜底，宽通道
-  实测 cv_win_w=1280 自 VM KV）；布局条件（studio 下 chat 列限宽
-  420、面板 flex-1 结构列 220；正常 520/170 不变）。模式进出/保持
-  MCP 驱动实证。第二增量（VM 臂实机验证）：面板槽三分支（studio+有会话=工作台
+  实测 cv_win_w=1280 自 VM KV）。模式进出/保持 MCP 驱动实证。
+  [✅] 第二增量（527d99c，VM 臂实机验证）：面板槽三分支（studio+有会话=工作台
   两列 / studio+无会话=空工作台 / 正常=CanvasPanel 520）——空工作台
   渲染（描述提示/路径输入/启动钮全呈现）+ 打开已有应用流（canvasStart
   既有校验，坏路径错误原样落 studio_start_err）+ view 闭括号修复
   （解析失败 20 错实证）。
-  **Vue 侧受阻已解除（capability-map §8.12/§8.13）**："静默 exit 1"随
-  rebase 带来的 fix-ui-tier 去平方优化消失——生成 39m→23.4s/31s
-  （62 组件 exit 0），旧 28m 龟速即平方热点本身（疑可达内存上限后
-  环境终止，不再复现）。新门禁基线：auto-lang worktree 已 rebase 至
-  master c80887ab7（1 冲突 task.rs——PLAN-707 流字段 vs G-9 since
-  字段，两者都保留），cargo tv 162/162 绿（新档 1.9s）。
-  Vue 侧两轮构建暴露并修复两个真实缺口：①viewport_sync 导出名与
-  use.web 声明不一致（TS2305——ext re-export 链要求同名，已改名
-  syncViewport）；②面板槽重排的 view 闭括号缺失（解析失败 20 错，
-  已修）。
-  studio 模式归位视图域：ToggleStudio 经 ForgeStore 调
-  CanvasStore.EnterStudio 运行时 TypeError（跨 store 方法调用无先例，
-  $.EnterStudio is not a function 实证）——cv_studio/Enter/Exit 从
-  CanvasStore 退役，studio_mode 归 ChatsView 视图域（71c302b）。
-  VM 臂：studio 进/保持 8s+/出全周期绿。
-  继续项：ChatBody 提取（对话列右置——§5.2 精确排序）+ 宽度分层臂
-  （1024/768/<768）+ Vue 臂 studio 断言（构建已就绪）。
+  [✅] Vue 侧受阻解除与三缺口修复（capability-map §8.12/§8.13）：
+  "静默 exit 1"随 rebase 带来的 fix-ui-tier 去平方优化消失——生成
+  39m→23.4s/31s（62 组件 exit 0），旧 28m 龟速即平方热点本身（疑可达
+  内存上限后环境终止，不再复现）。新门禁基线：auto-lang worktree 已
+  rebase 至 master c80887ab7（1 冲突 task.rs——PLAN-707 流字段 vs G-9
+  since 字段，两者都保留），cargo tv 162/162 绿（新档 1.9s）。
+  构建暴露并修复：①viewport_sync 导出名与 use.web 声明不一致（TS2305
+  ——ext re-export 链要求同名，已改名 syncViewport）；②面板槽重排
+  view 闭括号缺失（解析失败 20 错）；③studio 模式跨 store 写入运行时
+  TypeError（$.EnterStudio is not a function）——cv_studio/Enter/Exit
+  退役，studio_mode 归 ChatsView 视图域（71c302b）。
+  [✅] 第三增量（c9037c6，双臂验证）：工作台槽归位 CanvasStudioSlot
+  （CanvasStore 域——chats_view 分支误读 ForgeStore.cv_open undefined
+  恒走空工作台，双列不渲染实证修复）；入口钮移头部常驻 actions 行
+  （原困 info_open 信息条内）；NavSidebar 宽度单源（双类并存 web 轨
+  级联 240 压 w-12 → computed sidebarClass，rail 同款）。Vue 臂 10/10
+  × 双后端 ALL PASS；VM 真机 studio 全周期 MCP 驱动绿。
+  [✅] 第四增量（3de5254，双臂验证）：§5.2 宽度分层全档——对话右置
+  （内容行 flex-row-reverse，VM Plan 412 支持；聊天列原位单实例）、
+  对话 360/320、结构 220/200、768-1023 结构受控（cv_structure_open +
+  切换钮列）、<768 页签（studio_tab + 塌缩类 w-0↔flex-1，VM 无
+  hidden 类的等价形态）；分层驱动源 fw_win_w（ForgeStore PollStream
+  随拍）。宽度取证 4 档全符合预算、零横溢出（§8.14 收据）。
+  完成门：V01 23s exit 0 + pnpm ✓；Vue 臂 10/10 × 双后端（studio
+  img 587>349）；VM 真机全周期 3 轮绿；五尺寸（1280 探针 + 1440/1100/
+  900/700 取证）× 模式切换 ✓；草稿保持取证 ✓（composer 草稿跨三次
+  切换原样；展开/审批卡在 ForgeStore/store 域结构性保持）。遗留记录：
+  VM 快照 rect 搅动（通道已知）、切换瞬间焦点重置（唯一 DOM 本地态
+  损失，autofocus 可后续补）——均不阻断（capability-map §8.14）。
 
 ### [ ] T-06：统一画布几何、比例、事件和覆盖层
 
@@ -794,6 +805,37 @@ PID／进程树及起止收据，再做真实运行测试。
 | T-11～T-14 | AC-01～AC-16（复验与证据） | SD-01～SD-05 |
 
 ## 9. 复审记录
+
+### work 阶段 T-05 完成交接（双端验证 + 宽度分层全档）
+
+- stage: work
+- plan_id: PLAN-093
+- plan_revision: 1
+- outcome: T-05 pass（四增量落地）——模式入口/空工作台/打开已有应用/
+  工作台壳/§5.2 宽度分层全档（右置/360-320/220-200/窄层结构受控/
+  <768 页签）；整体保持 executing
+- code_commit: plan-093-dev@42c8352（第一增量）+ 527d99c（第二增量）+
+  71c302b（视图域归位+导出名对齐）+ c9037c6（第三增量）+ 3de5254
+  （第四增量）+ 11d04c3（§8.14 账目）
+- task_ids: T-05（完成）
+- evidence: ①Vue 臂 10/10 × 双后端 ALL PASS（ports-vue-{vm,rust}-
+  receipt.json——studio 切换 587>349px/树选/收起持久/停止收起）；
+  ②VM 真机 studio 全周期 MCP 驱动 3 轮绿（进 240→48+空工作台/保持
+  8s+/出恢复 240，tmp/vm-studio-cycle.mjs）；③宽度分层取证 4 档全符
+  §5.2 预算、零横溢出（tmp/tier-forensic.mjs→tier-results.json：
+  1440=[360,968]/img747、1100=[320,668]/img467、900=钮列36+img431→
+  结构200+img231、700=页签3+塌缩[588,0]）；④草稿保持取证 ✓
+  （tmp/draft-persist.mjs——composer 草稿跨三次模式切换原样）；
+  ⑤V01 23s exit 0 + pnpm ✓（62→63 组件）。关键机制结论（§8.14）：
+  生成器 style 语义四形态（字面量→class/内联if→:class/数组→:class/
+  字段引用→:style 内联无效）、VM 快照 label PUA 前缀、widget
+  computed+model+concat 支持、行反转右置保单实例。
+- blockers: 无阻断。遗留记录（不阻断）：VM 快照 rect 搅动期部分缺
+  bounds（080 通道已知）；模式切换瞬间 composer 焦点重置（唯一 DOM
+  本地态损失，autofocus 可后续补）；"原计划 ChatBody 组件提取"被
+  行反转+塌缩类方案替代（单实例等价达成，app_studio.at 未建）。
+- next: work——T-06（统一画布几何、比例、事件和覆盖层；依赖 T-03/
+  T-04/T-05 均已具备）。
 
 ### work 阶段 T-04 完成交接（双端验证）
 
