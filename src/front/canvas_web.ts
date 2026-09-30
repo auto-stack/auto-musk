@@ -77,6 +77,18 @@ export async function canvasPickNode(vnodeId: string): Promise<CanvasPickResult>
  * 参数——fetch 拦截器自动注入 jwt+workspace（显式带上反而重复字段 400，
  * T-08 实证）。行定位 AC-06 尽力项：M2 只做打开文件。
  */
+/** PLAN-093 T-02/T-04: 显式清选（{clear:true}，与 x/y/vnode_id 互斥；
+ * 后端同步清 picked——204/200 均视为清选成功）。 */
+export async function canvasClearPick(): Promise<CanvasResult> {
+    const response = await fetch('/api/canvas/pick', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clear: true }),
+    });
+    if (response.status === 200) return { ok: true, error: '', state: 'stopped', app_path: '' };
+    return { ok: false, error: `HTTP ${response.status}`, state: '', app_path: '' };
+}
+
 export async function canvasLoadSource(path: string): Promise<{ ok: boolean; error: string; text?: string }> {
     const response = await fetch(`/api/files/raw/${encodeURIComponent(path)}`, {
         method: 'GET',

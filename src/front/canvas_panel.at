@@ -255,6 +255,13 @@ widget CanvasPanel {
             canvasClearPick().await
             store.ClearPick()
         }
+        // 收起/展开 = store 侧用户偏好（PLAN-093 T-04：显隐与生命周期分离）。
+        .Collapse -> {
+            store.Collapse()
+        }
+        .UnCollapse -> {
+            store.UnCollapse()
+        }
         .ToggleSource -> {
             store.ToggleSource()
             if .store.cv_picked_source_path != "" {

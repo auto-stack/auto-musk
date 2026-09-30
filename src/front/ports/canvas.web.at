@@ -5,4 +5,4 @@
 // .web.at/.vm.at 由构建解析）。
 
 use.web canvasStart, canvasStop from "src/front/canvas_web.ts"
-use.web canvasPickNode, installCanvasFrameClicks, canvasLoadSource from "src/front/canvas_web.ts"
+use.web canvasPickNode, canvasClearPick, installCanvasFrameClicks, canvasLoadSource from "src/front/canvas_web.ts"
