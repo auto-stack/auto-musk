@@ -337,3 +337,18 @@ Vue 臂断言链：主壳渲染 → runner 启动真实目标 → 帧 img 真渲
 
 T-03 完成门：V01 全链 exit 0 ✓ / V07 contract 19 绿 ✓ / V05 最小四
 模式 ✓ —— **达成**（canvas_live 真目标生命周期回归按计划归 T-12）。
+
+### 8.11 T-04 双端验证完成（2026-09-30）
+
+- VM 臂（MCP 驱动 musk 前端）：开合投影/帧 URL 双键 ?t=15&gen=1/
+  后端清选 3 拍内 picked 清空/收起 12+ 拍不复开（生命周期 running
+  不受影响）/expected_generation 重启 gen=2 清场且偏好保持/UnCollapse。
+- Vue 臂 9/9 × 双后端：新增 vue-collapse-persists（真实收起钮点击 →
+  帧隐藏 → 5s+ 多拍仍隐藏）。
+- 补齐缺口：web 门面 canvas.web.at/canvas_web.ts 导出 canvasClearPick
+  （vue-tsc TS2305 实证）；面板 Collapse/UnCollapse 消息路由（视图
+  onclick 解析到面板命名空间——生成器对未在 on-block 声明的 msg 产
+  空桩（"TODO: handler not defined in on-block"），修正为显式转调
+  store.Collapse()/store.UnCollapse()）。
+- MCP 驱动备忘：store msg 经 autoui_action drag 派发，widget=CanvasStore、
+  分隔符为真实 U+001F（可见符号 ␟ 无效）。
