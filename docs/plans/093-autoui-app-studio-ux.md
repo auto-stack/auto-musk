@@ -835,6 +835,14 @@ PID／进程树及起止收据，再做真实运行测试。
   RerunApp（canvasStart 既有流，失败落 error 面下一拍覆盖——前端无
   重启循环）。剩余：degraded 故障注入取证（spawn 重试耗尽路径）、
   生成/检查进度行（工具事件投影）、原始日志 tail 后端暴露（§8.22）。
+- [✅] 第二增量（8033334，故障注入取证 ALL PASS + Vue 臂 ALL PASS
+  × 双后端）：degraded 故障注入取证（broken target 语法垃圾 → spawn
+  重试耗尽 → degraded tail 577B → UI 红条+重运行+详情展开 tail 可见）
+  + 日志 tail 全链暴露（manager output_tail 三采集点进 Shared/
+  status_full；cv_output_tail 随拍回填；详情盒两段）+ 首启 spawn 失败
+  臂提取（本轮实测路径——首启失败直落 degraded）。§8.23b。
+  剩余（收敛）：生成/检查进度行（工具事件投影——跨 store facade，
+  VM 轨随 G-11）。
 
 ### [ ] T-10：收敛共享主题、中英文本和键盘交互
 
