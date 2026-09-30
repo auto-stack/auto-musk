@@ -706,12 +706,29 @@ PID／进程树及起止收据，再做真实运行测试。
   （forge_helpers.at:595，映射须纯 int 乘前除后）；use.web.fn 声明
   可生成 helper 文件的 ext TS 模块（forge_helpers.ts 41 导出实证），
   canvas_web.ts 消费同一换算规则的可行链路待实验验证（含未使用导入
-  与 tsconfig noUnusedLocals 风险）。第一增量拟态：内容包装层
-  （canvasContentStyle：fit=aspect-ratio 定比盒/100%=natural px 定
-  尺寸+容器内滚）+ canvasMapPhysical 整除映射（点选/清选/留白语义
-  显式化）+ loaded 版本门控（cv_frame_w/h/loaded_seq/gen 回填）+
-  委托收敛身份守卫；VM 侧坐标点选消费与 V03/V05 几何子场景随后续
-  增量。
+  与 tsconfig noUnusedLocals 风险）。
+- [✅] 第一增量（601f3a9，双臂验证）：内容包装层 + 点选映射单源 +
+  版本门控 + 委托收敛守卫——canvasContentStyle（fit 定比盒/100% 物理
+  px+内滚，退化占满）+ canvasMapPhysical（整除映射单源，use.web.fn
+  生成 ext 模块、canvas_web.ts 消费同一规则——链路实证）；帧尺寸走
+  status.frame 随拍回填（后端 T-02 既有，免加载事件）；委托身份/版本
+  （capture load 打标）/几何（盒内点选、留白显式清选）三重守卫。
+  **接线回归修复**：installCanvasFrameClicks 自 71c302b 起无人调用
+  （移除面板侧调用时未落 ChatsView）——画布直点链路中断两轮，setup
+  承接；委托命中面实测修正（留白点击目标是容器非 img）。几何取证
+  6/6 + Vue 臂 ALL PASS × 双后端 + VM 功能周期 ALL PASS（§8.15）。
+- [✅] 第二增量（本轮，§8.16）：V03 canvas-contract.mjs 21/21（被测=
+  生成的 ext 生产模块；映射边界/截断扫描/双模式样式/投影漏斗/双键
+  URL）；V05 几何子场景——DPI 1/1.5/2 锚定直点全命中、两种留白
+  （纵向 geom-A + 横向 studio 短窗 H/I/J）、版本门控负向用例（篡改
+  打标 → 0 请求）；锚内个别节点 bbox 缺失实测入账（pick_json 对无
+  bbox 节点省略字段）。
+- [▶ 进行中] 剩余（G-11 阻断面）：**G-11 上游缺口**——VM 轨
+  widget→widget 子件实例化缺面（canvas_panel.at 兄弟子件空渲染，
+  normal/studio 一致；view→widget 正常对照；PLAN-088 起 VM 未带活
+  会话演练过 musk 真实面板，潜伏缺口非本轮回归）——VM 消费面（同一
+  .at fn 在 VM 解释器下的样式产出）与 VM 坐标点选待其解除；V03 的
+  VM 臂消费证据同归此后补。auto-lang 侧修复任务待立（§8.16 证据）。
 
 ### [ ] T-07：实现组件树、选中详情与源码定位
 
