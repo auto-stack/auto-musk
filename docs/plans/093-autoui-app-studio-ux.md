@@ -651,13 +651,16 @@ PID／进程树及起止收据，再做真实运行测试。
   渲染（描述提示/路径输入/启动钮全呈现）+ 打开已有应用流（canvasStart
   既有校验，坏路径错误原样落 studio_start_err）+ view 闭括号修复
   （解析失败 20 错实证）。
-  **Vue 侧受阻（新发现，capability-map §8.12）**：全量生成静默 exit 1
-  （28m04s 无诊断），退出点紧随 canvas_helpers.at 警告——嫌疑=拆分后
-  的 canvas_panel.at（3 widget 共声明同一 store + CanvasPanel 无 msg
-  块）与 vue 管线的兼容问题；dist 现状=上一完整 T-04 版（一致）。
-  下一步：AUTO_BUILD_TRACE=1 定位 + 生成结构检查；回滚面=revert 拆分
-  改 ChatsView 内联分支。继续项：ChatBody 提取（对话列右置）+ 宽度
-  分层臂（1024/768/<768）。
+  **Vue 侧受阻（capability-map §8.12，定位进行中）**：全量生成静默
+  exit 1（28m04s 无诊断），退出点紧随 canvas_helpers.at 警告。
+  已排除项：拆分结构本身——最小 fixture（musk 同构：文件级 use store +
+  3 widget 含无 msg 组合件）生成成功（4 组件 exit 0）。AUTO_BUILD_
+  TRACE=1 + RUST_BACKTRACE=1 追踪复现运行中。
+  依赖侧同步：auto-lang worktree 已 rebase 至 master c80887ab7（测试
+  门禁改版基线；1 冲突 task.rs——PLAN-707 流字段 vs G-9 since 字段，
+  两者都保留），cargo tv 162/162 绿（新档 1.9s）。
+  下一步：按追踪结果定位生成退出点；继续项：ChatBody 提取（对话列
+  右置）+ 宽度分层臂（1024/768/<768）。
 
 ### [ ] T-06：统一画布几何、比例、事件和覆盖层
 
