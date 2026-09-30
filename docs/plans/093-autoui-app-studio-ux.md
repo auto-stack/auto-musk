@@ -769,9 +769,14 @@ PID／进程树及起止收据，再做真实运行测试。
   files 三静态路由 → /api/files/* 恒落 ag workspace_file → VM 转译
   registry 状态桥缺失恒 200 "null"；/api/files 域状态桥归 PLAN-044
   follow-through（095 候补登记）。
-  剩余：行自动滚动定位；多文件不确定提示（Q-04 confidence 面待后端
-  契约）；G-11（auto-lang widget→widget 子件，095 T-07）解除后 VM
-  轨（iced）面板本体渲染与坐标点选补跑。
+- [✅] 第二增量（06c2a9d，双后端回归）：源码面板行自动定位——
+  installCanvasSourceScroll（MutationObserver 高亮行居中滚动，
+  whitespace-pre 行高恒定 offsetTop 去重；web 门面 DOM 面，VM 空桩）。
+  取证 5/5（拾取行 44/262 → scrollTop 精确居中）+ Vue 臂 ALL PASS ×
+  双后端（§8.19）。
+  剩余（收敛，均不阻断 Vue 轨交付面）：多文件不确定提示（Q-04
+  confidence 契约——pick_json 无置信标记待后端面）；G-11（095 T-07）
+  解除后 VM 轨（iced）面板本体渲染与坐标点选补跑。
 
 ### [ ] T-08：接入元素附件与逐消息队列快照
 
