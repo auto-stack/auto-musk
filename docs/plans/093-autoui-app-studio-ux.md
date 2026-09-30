@@ -610,6 +610,15 @@ PID／进程树及起止收据，再做真实运行测试。
   VM门控遵守vm-data-semantics和092的tick处方，不能照抄web Date.now。
 - 验证 V03（随T-11补齐）及最小双端fixture：三拍不复选、收起不复开、
   seq不变零重复图请求、A→B迟到payload不污染B。
+- [▶ 进行中] 代码完成 + VM 臂行为验证全绿（Vue 侧待 dist 重建后同套
+  验证，构建后台进行中）：canvas_helpers.at 新建（picked 七字段统一
+  投影漏斗/样式拼装/帧 URL 双键）；store 重构（显隐分离 cv_collapsed、
+  cv_open 投影化、cv_gen 身份清场、poll 单飞+有界 tick 释放、picked
+  null/stopped 同漏斗清场）；面板收起钮 + ClearPick 补后端清选 +
+  i18n。实机（musk 前端 VM 渲染 + MCP 驱动）：start→cv_open/cv_gen=1、
+  帧 URL ?t=15&gen=1、后端清选 3 拍内 picked 清空、收起 12+ 拍不复开
+  （state=running 不受影响）、expected_generation 重启 gen=2 清场且
+  偏好保持、UnCollapse 恢复——全部通过（78f92b1）。
 
 ### [ ] T-05：实现工作台壳与响应式会话布局
 
