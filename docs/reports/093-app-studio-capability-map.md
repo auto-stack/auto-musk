@@ -369,3 +369,27 @@ CanvasPanel 无 msg 块）。前一轮全量（T-04 改动后、拆分前）exit
 下一步：AUTO_BUILD_TRACE=1 复现定位 + canvas_panel.vue 生成结构检查;
 短期回滚面 = git revert 拆分提交恢复单 widget 形态（studio 布局改走
 ChatsView 内联分支）。
+
+### 8.13 测试门禁基线同步 + T-05 Vue 侧阻塞解除（2026-09-30 第五轮）
+
+**门禁基线**：auto-lang worktree rebase 至 master c80887ab7（fix-ui-tier
+测试改版；1 冲突 task.rs：PLAN-707 流字段 vs G-9 since 字段——两者都
+保留），rebase 后 cargo check ✓、cargo tv 162/162（新档 1.9s）。
+
+**"静默 exit 1"定性翻案**：fix-ui-tier 的 ui_gen 去平方优化随 rebase
+生效后，musk 全量生成 39-28 分钟 → **23-31 秒**（62 组件 exit 0）——
+此前 28m 处的"静默退出"= 旧平方路径慢到环境终止，非独立缺陷；
+AUTO_BUILD_TRACE 逐文件追踪 + RUST_BACKTRACE 均未再捕捉到异常退出。
+
+**Vue 侧两个真实缺口（构建暴露，已修）**：
+- viewport_sync 导出名 ≠ use.web 声明名 → ext re-export 链 TS2305
+  （pnpm 自 T-05 起持续失败、dist 滞留 T-04 版的真因）。修正：导出
+  改名 syncViewport 与声明对齐（plan-037 门面口径：TS 导出名 =
+  use.web 名）。
+- chats_view 面板槽重排 view 闭括号缺失 → 解析失败 20 错。已修。
+- 另：studio 模式跨 store 写入（ForgeStore 调 CanvasStore.EnterStudio）
+  运行时 TypeError——模式归位 ChatsView 视图域，CanvasStore 的
+  cv_studio/Enter/Exit 退役（71c302b）。
+
+**验证**：Vue 臂 9/10→修复后 studio 断言细节完善中；VM 臂 studio 全
+周期绿（进/保持/出）；V01 生成门 23.4s exit 0 + pnpm ✓（新基线复验）。
