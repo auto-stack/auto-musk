@@ -40,6 +40,19 @@ pub(crate) fn resolve_within_sandbox(ctx: &ToolContext, path: &str) -> Result<Pa
     crate::tool_safety::resolve_multi(path, &roots).map_err(ToolError::Exec)
 }
 
+/// PLAN-093 T-09：工具结果结构化元数据盖章（§5.8——结果文本缺少预览身份
+/// 标识时补充 details.canvas，旧文本原样保留；SSE tool_result details
+/// 透传既有，前端进度投影按 kind/代次关联，不另开轮询引擎）。
+pub(crate) fn canvas_details(kind: &str, extra: Value) -> Option<Value> {
+    let mut canvas = json!({ "kind": kind });
+    if let (Some(dst), Some(src)) = (canvas.as_object_mut(), extra.as_object()) {
+        for (k, v) in src {
+            dst.insert(k.clone(), v.clone());
+        }
+    }
+    Some(json!({ "canvas": canvas }))
+}
+
 // ── canvas_run ──────────────────────────────────────────────────────────────
 
 pub struct CanvasRun {
@@ -99,12 +112,20 @@ impl Tool for CanvasRun {
                 }
             })?;
         let status = self.ctx.state.canvas.status();
-        Ok(ToolOutput::text(format!(
-            "canvas session starting for '{}' (state: {:?}). Frames stream to the \
-             canvas panel; use canvas_snapshot / canvas_state to verify, canvas_act \
-             to drive the UI.",
-            status.app_path, status.state
-        )))
+        Ok(ToolOutput {
+            content: format!(
+                "canvas session starting for '{}' (state: {:?}). Frames stream to the \
+                 canvas panel; use canvas_snapshot / canvas_state to verify, canvas_act \
+                 to drive the UI.",
+                status.app_path, status.state
+            ),
+            // PLAN-093 T-09：进度投影身份章（start 返回 ≠ 已可见——前端
+            // 以 CanvasStore 实际状态为权威，代次章供迟到事件去伪）。
+            details: canvas_details(
+                "run",
+                json!({ "generation_id": self.ctx.state.canvas.generation() }),
+            ),
+        })
     }
 }
 
@@ -147,7 +168,10 @@ impl Tool for CanvasStop {
                     ToolError::Exec("canvas: generation conflict on tool stop".to_string())
                 }
             })?;
-        Ok(ToolOutput::text("canvas session stopped.".to_string()))
+        Ok(ToolOutput {
+            content: "canvas session stopped.".to_string(),
+            details: canvas_details("stop", json!({})),
+        })
     }
 }
 
@@ -217,9 +241,12 @@ impl Tool for CanvasSnapshot {
             let cut: String = summary.chars().take(2000).collect();
             summary = format!("{cut}\n… (truncated)");
         }
-        Ok(ToolOutput::text(format!(
-            "![canvas snapshot]({url})\n\nUI structure:\n```\n{summary}\n```"
-        )))
+        Ok(ToolOutput {
+            content: format!(
+                "![canvas snapshot]({url})\n\nUI structure:\n```\n{summary}\n```"
+            ),
+            details: canvas_details("verify", json!({})),
+        })
     }
 }
 
@@ -279,7 +306,10 @@ impl Tool for CanvasAct {
             .action(element_id, action, value)
             .await
             .map_err(ToolError::Exec)?;
-        Ok(ToolOutput::text(result))
+        Ok(ToolOutput {
+            content: result,
+            details: canvas_details("verify", json!({})),
+        })
     }
 }
 
@@ -336,7 +366,10 @@ impl Tool for CanvasState {
             .state(fields)
             .await
             .map_err(ToolError::Exec)?;
-        Ok(ToolOutput::text(result))
+        Ok(ToolOutput {
+            content: result,
+            details: canvas_details("verify", json!({})),
+        })
     }
 }
 
@@ -488,4 +521,27 @@ pub fn canvas_tool_registry(ctx: &ToolContext) -> Vec<(&'static str, Arc<dyn Too
         ("app_examples_list", Arc::new(super::examples_pool::AppExamplesList::new(ctx.clone()))),
         ("app_example_read", Arc::new(super::examples_pool::AppExampleRead::new(ctx.clone()))),
     ]
+}
+
+#[cfg(test)]
+mod details_tests {
+    use super::*;
+
+    /// PLAN-093 T-09：details.canvas 盖章契约——kind 落位、extra 合并、
+    /// 旧文本面不受影响（盖章只加 details，content 原样）。
+    #[test]
+    fn canvas_details_kind_and_extra_merge() {
+        let d = canvas_details("run", json!({ "generation_id": 7u64 })).unwrap();
+        assert_eq!(d["canvas"]["kind"], "run");
+        assert_eq!(d["canvas"]["generation_id"], 7);
+
+        let d2 = canvas_details("bp_check", json!({ "ok": false })).unwrap();
+        assert_eq!(d2["canvas"]["kind"], "bp_check");
+        assert_eq!(d2["canvas"]["ok"], false);
+
+        // 空 extra：只 kind，无杂物。
+        let d3 = canvas_details("verify", json!({})).unwrap();
+        assert_eq!(d3["canvas"]["kind"], "verify");
+        assert_eq!(d3["canvas"].as_object().unwrap().len(), 1);
+    }
 }

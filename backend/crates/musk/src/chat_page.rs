@@ -389,6 +389,8 @@ mod tests {
             blocks,
             profession_id: None,
             pending: None,
+            // PLAN-093 T-08 新增字段（serde default）；测试夹具同步补位。
+            design_context: None,
         }
     }
 

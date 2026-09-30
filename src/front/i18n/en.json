@@ -534,6 +534,27 @@
     "studioToggle": "App studio",
     "studioEmpty": "Describe an AutoUI app in the conversation, or open an existing app in the workspace",
     "openAppPath": "In-workspace app path, e.g. apps/my-app",
-    "openAppStart": "Start"
+    "openAppStart": "Start",
+    "progTitle": "Progress",
+    "progToggle": "Toggle progress details",
+    "progRowGenerate": "Generate",
+    "progRowLint": "Lint advisory",
+    "progRowBp": "Blueprint check",
+    "progRowPreview": "Preview",
+    "progRowVerify": "Interaction verify",
+    "progRowFrame": "Frame",
+    "progSt_running": "Running",
+    "progSt_done": "Done",
+    "progSt_failed": "Failed",
+    "progSt_pass": "Pass",
+    "progSt_na": "N/A",
+    "progSt_visible": "Visible",
+    "progSt_waiting": "Waiting frame",
+    "progSt_starting": "Starting",
+    "progSt_restarting": "Restarting",
+    "progSt_stopped": "Stopped",
+    "progSt_requested": "Start requested",
+    "progSt_unverified": "Not verified",
+    "progSt_info": "Updated"
   }
 }

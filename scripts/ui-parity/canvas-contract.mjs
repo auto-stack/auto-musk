@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const HELPERS_TS = path.join(ROOT, 'gen', 'front', 'vue', 'src', 'ext', 'src', 'front', 'canvas_helpers.ts');
 
-const { canvasMapPhysical, canvasContentStyle, canvasFrameUrl, canvasPickedProjection, rebuildCanvasOverlay, canvasPickStyleFromBbox, canvasTreeVisible, canvasSourceLines } = await import(pathToFileURL(HELPERS_TS).href);
+const { canvasMapPhysical, canvasContentStyle, canvasFrameUrl, canvasPickedProjection, rebuildCanvasOverlay, canvasPickStyleFromBbox, canvasTreeVisible, canvasSourceLines, canvasProgressRows } = await import(pathToFileURL(HELPERS_TS).href);
 
 let pass = 0, fail = 0;
 const assert = (name, ok, detail) => {
@@ -143,6 +143,79 @@ console.log('[canvasSourceLines]');
   assert('None → 空表', canvasSourceLines(null).length === 0);
   const many = canvasSourceLines('x\n'.repeat(500));
   assert('长文本 500 行（尾空行）', many.length === 501 && many[499] === 'x' && many[500] === '');
+}
+
+// ── canvasProgressRows：工具事件投影契约（T-09 §5.8）─────────────────────
+console.log('[canvasProgressRows]');
+{
+  // 无事件不占行（不硬凑五步）：空消息 + stopped 无应用 → 0 行。
+  const empty = canvasProgressRows([], 'stopped', 0, '', 0, '');
+  assert('无事件+无预览 → 0 行（不硬凑步骤）', empty.length === 0, JSON.stringify(empty));
+
+  // live 块（tc 形态）：生成完成 + 运行中帧可见 → generate done / preview
+  // visible / verify 未验证 / frame info。
+  const liveMsg = {
+    id: 'm1',
+    blocks: [
+      { kind: 'text', text: 'hi' },
+      { kind: 'tool', tkey: 'k1', tc: { id: 'tc-1', name: 'write_file', status: 'completed', result: 'ok', details: null } },
+      { kind: 'tool', tkey: 'k2', tc: { id: 'tc-2', name: 'canvas_run', status: 'completed', result: 'starting', details: { canvas: { kind: 'run', generation_id: 3 } } } },
+    ],
+  };
+  const rowsA = canvasProgressRows([liveMsg], 'running', 15, 'apps/demo', 3, '');
+  const byKey = Object.fromEntries(rowsA.map(r => [r.key, r]));
+  assert('生成行 done（write_file 完成）', byKey.generate?.state === 'done', JSON.stringify(byKey.generate));
+  assert('预览行 visible（running+seq>0，CanvasStore 权威）', byKey.preview?.state === 'visible', JSON.stringify(byKey.preview));
+  assert('验证行未验证（无 canvas_act/state/snapshot）', byKey.verify?.state === 'unverified', JSON.stringify(byKey.verify));
+  assert('帧行 info（seq>0）', byKey.frame?.state === 'info', JSON.stringify(byKey.frame));
+  assert('lint/bp 无证据不占行', byKey.lint === undefined && byKey.bp === undefined);
+  assert('start 返回≠已可见：running+seq=0 → waiting', canvasProgressRows([liveMsg], 'running', 0, 'apps/demo', 3, '').find(r => r.key === 'preview')?.state === 'waiting');
+
+  // 回放块（扁平形态）：success/error 状态映射 + bp/lint 分行。
+  const replayMsg = {
+    id: 'm2',
+    blocks: [
+      { kind: 'tool', tool_name: 'bp_list', tool_status: 'success', tool_result: 'ok', tool_id: 'tc-3' },
+      { kind: 'tool', tool_name: 'bp_check', tool_status: 'error', tool_result: 'FAIL', tool_id: 'tc-4' },
+      { kind: 'tool', tool_name: 'ui_lint', tool_status: 'success', tool_result: '# 2 findings', tool_id: 'tc-5' },
+    ],
+  };
+  const rowsB = canvasProgressRows([replayMsg], 'stopped', 0, '', 0, '');
+  const byKeyB = Object.fromEntries(rowsB.map(r => [r.key, r]));
+  assert('生成行 done（bp_list 回放）', byKeyB.generate?.state === 'done', JSON.stringify(byKeyB.generate));
+  assert('bp 行 failed（bp_check error，回放扁平形态）', byKeyB.bp?.state === 'failed', JSON.stringify(byKeyB.bp));
+  assert('lint 行 pass（advisory，成功=有结果）', byKeyB.lint?.state === 'pass', JSON.stringify(byKeyB.lint));
+  assert('stopped+无应用+无 canvas_run → 预览行省略', byKeyB.preview === undefined);
+
+  // stopped+有应用描述 → 已停止（不隐去预览行）。
+  const rowsC = canvasProgressRows([liveMsg], 'stopped', 0, 'apps/demo', 3, '');
+  assert('stopped+有 app → 预览行 stopped', rowsC.find(r => r.key === 'preview')?.state === 'stopped');
+
+  // degraded → 预览失败。
+  assert('degraded → 预览行 failed', canvasProgressRows([liveMsg], 'degraded', 0, 'apps/demo', 3, 'spawn failed').find(r => r.key === 'preview')?.state === 'failed');
+
+  // 陈旧代次章：canvas_run details.canvas.generation_id=1 ≠ 当前 cv_gen=2
+  // 且 stopped 无应用 → 事件属被替换预览，不冒充当前状态（预览行省略）。
+  const staleRun = { id: 'm3', blocks: [{ kind: 'tool', tkey: 'k3', tc: { id: 'tc-6', name: 'canvas_run', status: 'completed', result: 'starting', details: { canvas: { kind: 'run', generation_id: 1 } } } }] };
+  assert('代次章失配 → 陈旧 run 不冒充预览', canvasProgressRows([staleRun], 'stopped', 0, '', 2, '').find(r => r.key === 'preview') === undefined);
+  // 同代次章：保留 requested（事件仍指当前预览）。
+  assert('代次章匹配 → requested 保留', canvasProgressRows([staleRun], 'stopped', 0, '', 1, '').find(r => r.key === 'preview')?.state === 'requested');
+
+  // 验证失败与运行中。
+  const verifyMsg = { id: 'm4', blocks: [{ kind: 'tool', tkey: 'k4', tc: { id: 'tc-7', name: 'canvas_act', status: 'failed', result: 'boom', details: { canvas: { kind: 'verify' } } } }, { kind: 'tool', tkey: 'k5', tc: { id: 'tc-8', name: 'canvas_state', status: 'running', result: '', details: null } }] };
+  assert('验证行 failed→running 优先（任一在跑）', canvasProgressRows([verifyMsg], 'running', 5, 'a', 1, '').find(r => r.key === 'verify')?.state === 'running');
+  const verifyFail = { id: 'm5', blocks: [{ kind: 'tool', tkey: 'k6', tc: { id: 'tc-9', name: 'canvas_act', status: 'failed', result: 'boom', details: null } }] };
+  assert('验证行 failed（最新失败）', canvasProgressRows([verifyFail], 'running', 5, 'a', 1, '').find(r => r.key === 'verify')?.state === 'failed');
+
+  // gate_waiting 计入运行中。
+  const gateMsg = { id: 'm6', blocks: [{ kind: 'tool', tkey: 'k7', tc: { id: 'tc-10', name: 'ui_lint', status: 'gate_waiting', result: '', details: null } }] };
+  assert('gate_waiting → 检查中', canvasProgressRows([gateMsg], 'stopped', 0, '', 0, '').find(r => r.key === 'lint')?.state === 'running');
+
+  // seq=0 无帧行。
+  assert('seq=0 → 无帧行', canvasProgressRows([], 'running', 0, 'a', 1, '').find(r => r.key === 'frame') === undefined);
+
+  // label_key 为完整 i18n 键（视图 t() 直查）。
+  assert('label_key 完整键', byKey.generate?.label_key === 'canvas.progRowGenerate' && byKey.frame?.label_key === 'canvas.progRowFrame');
 }
 
 console.log(`V03 canvas-contract: ${pass} pass / ${fail} fail`);

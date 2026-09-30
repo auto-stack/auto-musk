@@ -54,6 +54,8 @@ use secretary_message: SecretaryMessage
 use chat_message: ChatMessage
 // PLAN-087 T-07: 实况画布面板（chats 右侧第三列；cv_open 驱动显隐）。
 use canvas_panel: CanvasPanel, CanvasStudioSlot
+// PLAN-093 T-09: 生成/检查进度摘要（studio 对话区顶部；§5.8 投影）。
+use canvas_progress: CanvasProgressSummary
 // PLAN-093 T-06:帧点选委托（幂等单例安装；VM 桩空实现）。
 use.web installCanvasFrameClicks, installCanvasSourceScroll, canvasClearPick from "src/front/ports/canvas.at"
 
@@ -628,6 +630,18 @@ widget ChatsView {
                                 Copy { size: 13 }
                             }
                         }
+                    }
+                }
+                // PLAN-093 T-09: §5.8 生成/检查进度摘要——设计对话区顶部，
+                // 默认紧凑单行、可展开；仅 studio 模式（画布实时状态以
+                // canvasStore 为权威经 props 下入——prop 每帧重建刷新）。
+                if .studio_mode {
+                    CanvasProgressSummary {
+                        cv_state: canvasStore.cv_state
+                        cv_seq: canvasStore.cv_seq
+                        cv_app: canvasStore.cv_app
+                        cv_gen: canvasStore.cv_gen
+                        cv_error: canvasStore.cv_error
                     }
                 }
                 // canvas（SecretaryMessage/GateCard/ReportCard + 消息列表 + 流式 draft）

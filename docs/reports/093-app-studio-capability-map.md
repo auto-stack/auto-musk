@@ -751,3 +751,64 @@ JSON.stringify/store JSON.parse 往返（auth_store stringify 先例）；
 **T-10 剩余**：双端两主题（深/浅）两语言实操验收、confirm 命中区
 （≥28px）全控件巡检、Tab 序巡检——多为主体验收口径，归 T-13 实机
 验收轮汇总。
+
+### 8.25 T-09 第三增量：生成/检查进度投影 + 工具结果代次盖章（2026-10-01 第十八轮）
+
+**落地**（本轮 commit，plan-093-dev）：
+- **后端盖章（§5.8 结构化元数据）**：canvas/tools.rs 新 `canvas_details`
+  （pub(crate)）——canvas_run 章 `{canvas:{kind:"run",generation_id:N}}`
+  （manager 既有 `generation()` 访问器；start 返回≠已可见，前端以
+  CanvasStore 为权威）、canvas_stop=stop、canvas_snapshot/act/state=
+  verify；ui_lint=lint+findings 计数（advisory 语义不变）；bp_check=
+  bp_check+ok 位。全部 `ToolOutput{content 原样, details 新增}`——旧文本
+  保留，SSE tool_result details 透传（PLAN-042 既有）。新增单测
+  `details_tests::canvas_details_kind_and_extra_merge`（kind/extra 合并/
+  空 extra 无杂物）。
+- **前端投影单源**：canvas_helpers.at 新 `canvasProgressRows(messages,
+  cv_state, cv_seq, cv_app, cv_gen, cv_error)`——blocks 双形态读取
+  （live 块 tc / 回放块扁平字段，r5b 同款）；分类桶=生成（write_file/
+  edit_file/bp_list/bp_show/app_examples_*）/lint/bp/preview/verify；
+  只投影有证据的行（不硬凑五步）；状态只来自 status 字段+实时状态
+  （不嗅探文本，绿勾禁令）；预览行 CanvasStore 权威（running+seq>0=
+  visible / seq=0=waiting / starting / restarting / degraded=failed /
+  stopped+app=stopped），无实时状态回退 canvas_run 事件且**代次章失配
+  的陈旧事件不冒充当前预览**；verify 无事件且有预览=未验证；帧行纯
+  实时（seq>0=最近画面已更新，无因果证据不写热更新）；label_key 完整
+  i18n 键。canvasTreeVisible 的 range 循环改写 while 外计数——range
+  经 PLAN-671 ③ use-imported fn 内联进 store 模块不随行注入 range 助手
+  （TS2552 实证 V01 门；语义等价 V03 全绿），上游缺口形态记录。
+- **组件与挂载**：canvas_progress.at 新建（CanvasProgressSummary——
+  ForgeStore 单例 + 画布实时状态经 props 下入（chats_view 双 store 挂载
+  位，prop 每帧重建刷新 ChatMessage 先例）；紧凑单行=切换钮+标题+逐行
+  状态点+短文本；展开=逐行 label+state+工具名；失败详情不重复（画布
+  红条详情盒与消息流工具卡承载）；VM 轨视图 computed 内 use.web.fn
+  返空=整块隐藏不误报（坑①家族，随 G-11 后按 store 域预计算补跑））。
+  chats_view studio 分支挂载（ContentHeader 之后消息区之前）。i18n
+  canvas.prog* 22 键 × zh/en。
+
+**验证**：
+- 后端：details_tests 1/1；chat_page 8/8（顺手修复 T-08 遗留——
+  chat_page.rs 测试夹具 msg() 缺 design_context 字段致 lib test 目标
+  编译失败 E0063，补 `design_context: None`）；canvas_studio_contract
+  19/19；musk bin 构建过。
+- V01：auto build --gen-only --strict exit 0（34s，65 组件）+ pnpm
+  build（vue-tsc+vite 10.91s）——第一次构建暴露上述 range 内联缺口，
+  改写后全绿。
+- V03：canvas-contract.mjs **57/57**（原 38 + 新 canvasProgressRows
+  19 例：无事件零行/live·回放双形态/生成 done/lint advisory pass/bp
+  na·failed/preview visible·waiting·stopped·degraded·requested/代次章
+  失配不冒充/verify unverified·failed·running 优先/gate_waiting=进行中/
+  seq=0 无帧行/label_key 完整键）。
+- V05 Vue 臂 × 双后端 ALL PASS（ports-vue-{rust,vm}-receipt.json）：
+  原有 10 断言回归绿 + 新 7 断言（t09-summary-bar-visible/preview-
+  visible-row/frame-updated-row/verify-unverified-row/no-evidence-rows-
+  omitted/expand-shows-detail/collapse-hides-detail）——runner 直启
+  目标无工具事件的行面恰为 preview visible + verify unverified +
+  frame info（诚实投影的正向实证）。
+- 归 T-12/T-13：V07 真实生命周期回归、M3 fixture 工具事件实况投影
+  （真 run 的 generate/lint/bp 行实机面）、VM 轨消费（随 G-11）。
+
+**T-09 完成门**：V03 ✓/V05 故障场景（第二轮 degraded 注入）✓/Vue 轨
+交付面 ✓；lint 非硬门（advisory 行）、bp 失败明示、无帧不同步成功、
+stop 不伪造、重启耗尽可显式恢复——全部既有增量承载。剩余仅 VM 轨
+（G-11，PLAN-095 T-07 依赖任务；不阻断 Vue 轨交付面）。

@@ -534,6 +534,27 @@
     "studioToggle": "应用设计",
     "studioEmpty": "在对话中描述一个 AutoUI 应用，或打开工作区内已有应用",
     "openAppPath": "工作区内应用路径，如 apps/my-app",
-    "openAppStart": "启动"
+    "openAppStart": "启动",
+    "progTitle": "生成进度",
+    "progToggle": "展开/收起进度详情",
+    "progRowGenerate": "生成",
+    "progRowLint": "静态建议",
+    "progRowBp": "Blueprint 检查",
+    "progRowPreview": "启动预览",
+    "progRowVerify": "交互验证",
+    "progRowFrame": "画面更新",
+    "progSt_running": "进行中",
+    "progSt_done": "已结束",
+    "progSt_failed": "失败",
+    "progSt_pass": "通过",
+    "progSt_na": "不适用",
+    "progSt_visible": "已可见",
+    "progSt_waiting": "等待画面",
+    "progSt_starting": "启动中",
+    "progSt_restarting": "重启中",
+    "progSt_stopped": "已停止",
+    "progSt_requested": "已请求启动",
+    "progSt_unverified": "未验证",
+    "progSt_info": "已更新"
   }
 }

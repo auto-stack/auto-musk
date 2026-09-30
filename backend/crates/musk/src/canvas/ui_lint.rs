@@ -453,7 +453,15 @@ impl Tool for UiLint {
         let diags = lint_at_source(&content);
         let report = format_lint_report(path_str, &diags);
 
-        Ok(ToolOutput::text(report))
+        Ok(ToolOutput {
+            content: report,
+            // PLAN-093 T-09：advisory 结构化章（findings 计数；进度投影
+            // 展示用，不改变 advisory 语义——不得称硬性验收通过）。
+            details: super::tools::canvas_details(
+                "lint",
+                serde_json::json!({ "findings": diags.len() }),
+            ),
+        })
     }
 }
 

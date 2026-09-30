@@ -1,0 +1,120 @@
+// canvas_progress.at — PLAN-093 T-09: 生成/检查进度摘要（§5.8——设计对话
+// 区顶部默认紧凑、可展开；工具卡仍留在消息流，本件只投影不复制）。
+//
+// 数据面：ForgeStore.messages（blocks 双形态）+ 画布实时状态 props
+// （chats_view 双 store 挂载位传入——子件 prop 每帧重建刷新，ChatMessage
+// 先例）。行投影单源 canvasProgressRows（canvas_helpers.at，V03 直测）；
+// 状态只来自工具 status 字段与实时状态，不嗅探文本（§5.8 绿勾禁令）。
+// lint=advisory（"通过"≠硬性验收）、bp 未用=不适用、未验证=未验证、
+// 帧行只写"最近画面已更新"（无因果证据不写热更新）。
+// VM 轨：视图 computed 内 use.web.fn 调用 VM 侧返空（T-07 冒烟实证，
+// 坑①家族）——摘要整块隐藏不误报；VM 轨消费随 G-11（PLAN-095 T-07）
+// 解除后按 store 域预计算形态补跑（canvas_store handler 域调 helper 已
+// 证可行）。
+
+use store: ForgeStore
+use.web useT from "src/front/ports/composables.at"
+use.web.fn canvasProgressRows from "src/front/canvas_helpers.at"
+
+widget CanvasProgressSummary(cv_state: str, cv_seq: int, cv_app: str, cv_gen: int, cv_error: str) {
+
+    setup {
+        let t = useT()
+    }
+
+    model {
+        // 展开态（视图态；默认紧凑单行）。
+        var open bool = false
+    }
+
+    msg Msg {
+        Toggle,
+    }
+
+    computed {
+        // 行投影（canvas_helpers.at 纯函数；依赖 ForgeStore.messages 与
+        // 画布 props——任一变化重算）。
+        rows => canvasProgressRows(.store.messages, .cv_state, .cv_seq, .cv_app, .cv_gen, .cv_error)
+    }
+
+    view {
+        if .rows.length > 0 {
+            col {
+                style: "shrink-0 border-b border-border bg-muted/20 px-4 py-1"
+                row {
+                    style: "flex items-center gap-1 min-w-0"
+                    button {
+                        onclick: .Toggle
+                        style: "inline-flex items-center justify-center h-5 w-5 px-0 shrink-0 rounded bg-transparent border-none text-[11px] text-muted-foreground hover:text-foreground cursor-pointer leading-none"
+                        title: t("canvas.progToggle")
+                        if .open {
+                            text "▾"
+                        } else {
+                            text "▸"
+                        }
+                    }
+                    span {
+                        style: "text-[11px] font-medium text-muted-foreground shrink-0"
+                        text t("canvas.progTitle")
+                    }
+                    row {
+                        style: "flex items-center gap-2 flex-1 min-w-0 overflow-hidden pl-1"
+                        for r in .rows {
+                            span {
+                                key: r.key
+                                style: "inline-flex items-center gap-1 text-[11px] whitespace-nowrap min-w-0"
+                                if r.state == "running" {
+                                    span { style: "w-1.5 h-1.5 rounded-full bg-sky-500 shrink-0" }
+                                } else {
+                                    if r.state == "failed" {
+                                        span { style: "w-1.5 h-1.5 rounded-full bg-destructive shrink-0" }
+                                    } else {
+                                        if r.state == "done" || r.state == "pass" || r.state == "visible" {
+                                            span { style: "w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" }
+                                        } else {
+                                            span { style: "w-1.5 h-1.5 rounded-full bg-muted-foreground/40 shrink-0" }
+                                        }
+                                    }
+                                }
+                                text t(r.label_key) + " " + t("canvas.progSt_" + r.state)
+                            }
+                        }
+                    }
+                }
+                if .open {
+                    col {
+                        style: "flex flex-col gap-0.5 pt-1 pb-0.5 pl-6"
+                        for r in .rows {
+                            row {
+                                key: r.key
+                                style: "flex items-center gap-2 text-[11px] text-muted-foreground min-w-0"
+                                span {
+                                    style: "shrink-0 text-foreground"
+                                    text t(r.label_key)
+                                }
+                                span {
+                                    style: "shrink-0"
+                                    text t("canvas.progSt_" + r.state)
+                                }
+                                if r.tool != "" {
+                                    span {
+                                        style: "font-mono text-[11px] truncate min-w-0"
+                                        text r.tool
+                                    }
+                                }
+                            }
+                        }
+                        // 失败详情不在此重复：预览失败/degraded 原因与日志
+                        // tail 在画布列红条详情盒；lint/bp 全文在消息流工具卡。
+                    }
+                }
+            }
+        }
+    }
+
+    on {
+        .Toggle -> {
+            .open = !.open
+        }
+    }
+}

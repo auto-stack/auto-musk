@@ -505,6 +505,42 @@ async function runVueArm(mode) {
       }
     }
 
+    // ⑤b T-09 生成/检查进度摘要（§5.8 对话区顶部紧凑条）：本探针 runner
+    // 直启目标、无 agent 工具事件 → 行面 = preview visible + verify
+    // unverified + frame info；生成/静态建议/Blueprint 无证据不占行
+    // （不硬凑五步，AC-04 状态真实性面）。展开钮切详情行（canvas_run 工具名）。
+    {
+      await new Promise(r => setTimeout(r, 1200)); // 轮询拍回填 seq/state
+      const compact = await page.locator('body').innerText();
+      const barUp = compact.includes('生成进度');
+      assert('t09-summary-bar-visible', barUp, 'studio 态进度条渲染');
+      assert('t09-preview-visible-row', compact.includes('启动预览 已可见'), 'CanvasStore 权威投影');
+      assert('t09-frame-updated-row', compact.includes('画面更新 已更新'), 'seq>0 帧行');
+      assert('t09-verify-unverified-row', compact.includes('交互验证 未验证'), '未执行显式未验证');
+      assert('t09-no-evidence-rows-omitted',
+        !compact.includes('静态建议') && !compact.includes('Blueprint 检查') && !compact.includes('生成 已结束') && !compact.includes('生成 进行中'),
+        '无证据行不占位（不硬凑五步）');
+      const before = compact.includes('canvas_run');
+      const toggled = await page.evaluate(() => {
+        const btn = [...document.querySelectorAll('button')].find(b => b.title === '展开/收起进度详情');
+        if (!btn) return false;
+        btn.click();
+        return true;
+      });
+      await new Promise(r => setTimeout(r, 500));
+      const expanded = await page.locator('body').innerText();
+      assert('t09-expand-shows-detail', toggled && !before && expanded.includes('canvas_run'),
+        `toggle=${toggled} detailTool=${expanded.includes('canvas_run')}`);
+      // 收起还原（紧凑面）。
+      await page.evaluate(() => {
+        const btn = [...document.querySelectorAll('button')].find(b => b.title === '展开/收起进度详情');
+        btn?.click();
+      });
+      await new Promise(r => setTimeout(r, 300));
+      const collapsedTxt = await page.locator('body').innerText();
+      assert('t09-collapse-hides-detail', !collapsedTxt.includes('canvas_run'), '详情行收起');
+    }
+
     // ⑥ 树选（UI 点击 → canvasPickNode → 后端 picked → 状态回填覆盖层）
     {
       const treeBtn = page.locator('button:has(span)').filter({ hasText: /col|row|text|label|button|img/ }).first();

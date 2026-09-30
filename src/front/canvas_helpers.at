@@ -106,21 +106,28 @@ fn rebuildCanvasOverlay(list obj) list {
 /// （下一项深度 = 本深+1）与 open（有子且未折叠）供视图画折叠符。
 /// obj 缺键读返回 None；depth 缺省 0；键经 k + "" 字符串化（editedSpecs
 /// 先例）。纯 int/obj 运算（无 float）。
+/// T-09 注：循环用 while 外计数——range 循环经 PLAN-671 ③ use-imported
+/// fn 内联进 store 模块时不随行注入 range 助手（TS2552 实证，V01 门）；
+/// while 形态在任何宿主模块零依赖（canvasSourceLines 同款）。语义等价
+/// （V03 canvasTreeVisible 用例不变全绿）。
 fn canvasTreeVisible(flat list, collapsed obj) list {
     var out list = []
     var lastAt obj = {}
     var n = flat.length
-    for i in 0..n {
+    var i = 0
+    while i < n {
         let node = flat[i]
         let d = node.depth ?? 0
         var hidden = false
-        for k in 0..d {
+        var k = 0
+        while k < d {
             let av = lastAt[k + ""]
             if av != None {
                 if collapsed[av] == true {
                     hidden = true
                 }
             }
+            k = k + 1
         }
         if hidden == false {
             var hasKids = false
@@ -143,6 +150,7 @@ fn canvasTreeVisible(flat list, collapsed obj) list {
             })
         }
         lastAt[d + ""] = node.vid
+        i = i + 1
     }
     return out
 }
@@ -164,4 +172,186 @@ fn canvasSourceLines(text str) list {
     }
     out.push(text.substring(start, n))
     return out
+}
+
+/// PLAN-093 T-09: 工具事件投影 → 进度行（§5.8 生成/检查进度摘要的单源
+/// 分类器；V03 被测对象）。messages = ForgeStore.messages（blocks 双形态：
+/// live 块带 tc / 回放块扁平字段，messageBlocks r5b 同款读取）。
+/// 规则：只投影有证据的行（不把工具完成顺序硬凑成固定五步）；状态只来自
+/// 工具 status 字段与画布实时状态，不嗅探结果文本（绿勾禁令）；启动预览
+/// 行以 CanvasStore 实际状态为权威（start 返回 ≠ 已可见），无实时状态时
+/// 才回退 canvas_run 事件，代次章（details.canvas.generation_id）失配的
+/// 陈旧事件不冒充当前预览。label_key 为完整 i18n 键（视图 t() 直查）。
+fn canvasProgressRows(messages list, cv_state str, cv_seq int, cv_app str, cv_gen int, cv_error str) list {
+    // 分类桶累计：生成=文件/Blueprint 读取类；lint=ui_lint；bp=bp_check；
+    // run=canvas_run；verify=canvas_act/state/snapshot。
+    var g_has = false
+    var g_running = false
+    var g_last = ""
+    var g_name = ""
+    var l_has = false
+    var l_running = false
+    var l_last = ""
+    var b_has = false
+    var b_running = false
+    var b_last = ""
+    var bp_used = false
+    var r_has = false
+    var r_running = false
+    var r_last = ""
+    var r_gen_meta = 0
+    var v_has = false
+    var v_running = false
+    var v_last = ""
+    var v_name = ""
+    for m in messages {
+        let blocks = m.blocks ?? []
+        for b in blocks {
+            if b.kind == "tool" {
+                var name = ""
+                var status = ""
+                var gen_meta = 0
+                let tc = b.tc ?? None
+                if tc != None {
+                    name = tc.name ?? ""
+                    status = tc.status ?? ""
+                    let dt = tc.details ?? None
+                    if dt != None {
+                        let cvd = dt.canvas ?? None
+                        if cvd != None {
+                            let gme = cvd.generation_id ?? 0
+                            if gme > 0 { gen_meta = gme }
+                        }
+                    }
+                } else {
+                    name = b.tool_name ?? ""
+                    status = b.tool_status ?? ""
+                }
+                var failed = false
+                if status == "error" { failed = true }
+                if status == "failed" { failed = true }
+                var running = false
+                if status == "running" { running = true }
+                if status == "gate_waiting" { running = true }
+                var is_gen = false
+                if name == "write_file" { is_gen = true }
+                if name == "edit_file" { is_gen = true }
+                if name == "app_examples_list" { is_gen = true }
+                if name == "app_example_read" { is_gen = true }
+                if name == "bp_list" { is_gen = true }
+                if name == "bp_show" { is_gen = true }
+                if name == "bp_list" { bp_used = true }
+                if name == "bp_show" { bp_used = true }
+                if is_gen {
+                    g_has = true
+                    if running { g_running = true }
+                    g_last = status
+                    g_name = name
+                }
+                if name == "ui_lint" {
+                    l_has = true
+                    if running { l_running = true }
+                    l_last = status
+                }
+                if name == "bp_check" {
+                    b_has = true
+                    bp_used = true
+                    if running { b_running = true }
+                    b_last = status
+                }
+                if name == "canvas_run" {
+                    r_has = true
+                    if running { r_running = true }
+                    r_last = status
+                    if gen_meta > 0 { r_gen_meta = gen_meta }
+                }
+                var is_verify = false
+                if name == "canvas_act" { is_verify = true }
+                if name == "canvas_state" { is_verify = true }
+                if name == "canvas_snapshot" { is_verify = true }
+                if is_verify {
+                    v_has = true
+                    if running { v_running = true }
+                    v_last = status
+                    v_name = name
+                }
+            }
+        }
+    }
+    var rows = []
+    if g_has {
+        var st = "done"
+        if g_last == "error" || g_last == "failed" { st = "failed" }
+        if g_running { st = "running" }
+        rows.push({ key: "generate", state: st, label_key: "canvas.progRowGenerate", tool: g_name })
+    }
+    if l_has {
+        var st = "pass"
+        if l_last == "error" || l_last == "failed" { st = "failed" }
+        if l_running { st = "running" }
+        rows.push({ key: "lint", state: st, label_key: "canvas.progRowLint", tool: "ui_lint" })
+    }
+    if bp_used {
+        var st = "na"
+        if b_has {
+            st = "pass"
+            if b_last == "error" || b_last == "failed" { st = "failed" }
+            if b_running { st = "running" }
+        }
+        rows.push({ key: "bp", state: st, label_key: "canvas.progRowBp", tool: "bp_check" })
+    }
+    // 启动预览行（实时状态权威；stopped+无应用回退工具事件）。
+    var p_present = false
+    var p_state = ""
+    if cv_state == "running" {
+        p_present = true
+        if cv_seq > 0 {
+            p_state = "visible"
+        } else {
+            p_state = "waiting"
+        }
+    } else {
+        if cv_state == "starting" { p_present = true; p_state = "starting" }
+        if cv_state == "restarting" { p_present = true; p_state = "restarting" }
+        if cv_state == "degraded" { p_present = true; p_state = "failed" }
+        if cv_state == "stopped" {
+            if cv_app != "" {
+                p_present = true
+                p_state = "stopped"
+            } else {
+                if r_has {
+                    var stale = false
+                    if r_gen_meta > 0 && cv_gen > 0 {
+                        if r_gen_meta != cv_gen { stale = true }
+                    }
+                    if stale == false {
+                        p_present = true
+                        if r_last == "error" || r_last == "failed" {
+                            p_state = "failed"
+                        } else {
+                            p_state = "requested"
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if p_present {
+        rows.push({ key: "preview", state: p_state, label_key: "canvas.progRowPreview", tool: "canvas_run" })
+    }
+    // 交互验证行：有预览上下文才有意义；未执行显式"未验证"。
+    if v_has || p_present {
+        var st = "unverified"
+        if v_has {
+            st = "done"
+            if v_last == "error" || v_last == "failed" { st = "failed" }
+            if v_running { st = "running" }
+        }
+        rows.push({ key: "verify", state: st, label_key: "canvas.progRowVerify", tool: v_name })
+    }
+    // 帧行：纯实时投影（seq>0 = 最近画面已更新；无因果证据不写热更新）。
+    if cv_seq > 0 {
+        rows.push({ key: "frame", state: "info", label_key: "canvas.progRowFrame", tool: "" })
+    }
+    return rows
 }

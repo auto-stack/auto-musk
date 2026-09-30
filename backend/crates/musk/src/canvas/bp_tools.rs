@@ -359,19 +359,27 @@ impl Tool for BpCheck {
                 };
 
                 if status.success() {
-                    Ok(ToolOutput::text(format!(
-                        "PASS: bp_check passed for '{}'\n\n{}",
-                        path_str,
-                        combined.trim()
-                    )))
+                    Ok(ToolOutput {
+                        content: format!(
+                            "PASS: bp_check passed for '{}'\n\n{}",
+                            path_str,
+                            combined.trim()
+                        ),
+                        // PLAN-093 T-09：结构化章（ok 位——进度投影不嗅探
+                        // 文本前缀，§5.8）。
+                        details: super::tools::canvas_details("bp_check", json!({ "ok": true })),
+                    })
                 } else {
-                    Ok(ToolOutput::text(format!(
-                        "FAIL: bp_check failed for '{}' (exit code: {:?})\n\n{}\n\
-                         Please fix the behavior contract requirements (loading/error branches or palette).",
-                        path_str,
-                        status.code(),
-                        combined.trim()
-                    )))
+                    Ok(ToolOutput {
+                        content: format!(
+                            "FAIL: bp_check failed for '{}' (exit code: {:?})\n\n{}\n\
+                             Please fix the behavior contract requirements (loading/error branches or palette).",
+                            path_str,
+                            status.code(),
+                            combined.trim()
+                        ),
+                        details: super::tools::canvas_details("bp_check", json!({ "ok": false })),
+                    })
                 }
             }
         }
