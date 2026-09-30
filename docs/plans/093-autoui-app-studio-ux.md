@@ -6,7 +6,7 @@ author: [agent]
 created_at: 2026-09-28T14:20:35Z
 updated_at: 2026-09-29T21:00:00Z
 plan_revision: 1
-current_step: 2
+current_step: 3
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-canvas.md
@@ -545,7 +545,7 @@ PID／进程树及起止收据，再做真实运行测试。
   metadata stub 中毒——test 前禁 cargo check；单测目标读 297MB rlib 偶发
   E0786 由杀软扫描竞态，--no-run 收敛重试可解；sccache 排除嫌疑但已禁用）。
 
-### [ ] T-03：接通VM请求和真实媒体帧端口
+### [x] T-03：接通VM请求和真实媒体帧端口
 
 - 依赖：T-01、T-02。关联 AC-05、AC-06、AC-09、AC-11。
 - 位置：现有 ports/canvas.{web,vm}.at、canvas_web.ts、vm_backend.rs、
@@ -590,6 +590,15 @@ PID／进程树及起止收据，再做真实运行测试。
   strict，分类入 §8.8：Markdown(source) 系 use.web 误配、其余为
   musk 透传属性待逐条判定）；此前"静默 abort"未复现（旧 CLI 产物，
   观察项保留）。V05 四模式的条件已全部就绪。
+  第四轮补（capability-map §8.10）：**V05 最小四模式全绿，T-03 验证门
+  达成**——VM 臂 15 断言 × 2（VMHTTP/RustHTTP，自然条件形态 3 连跑）+
+  Vue 臂 8 断言 × 2（Vue×RustHTTP/Vue×VMHTTP：dist 静态服务+/api 代理
+  +playwright 驱动真实 canvas 面板——帧 img 真渲染 naturalWidth>0、
+  树选点击经 canvasPickNode 回流后端 picked 非空、带代次停止、面板
+  收起）。探针 Vue 臂工程注意：playwright keep-alive 连接需
+  closeAllConnections 强断（libuv 断言）；当前构建壳不强制登录
+  （080 登录流已不在默认流）。V01 ✓/V07 契约 19 绿 ✓/V05 最小四模式 ✓
+  ——T-03 完成门达成（canvas_live 真目标生命周期回归按计划归 T-12 回补）。
 
 ### [ ] T-04：重构CanvasStore投影与展示状态
 
@@ -739,6 +748,26 @@ PID／进程树及起止收据，再做真实运行测试。
 | T-11～T-14 | AC-01～AC-16（复验与证据） | SD-01～SD-05 |
 
 ## 9. 复审记录
+
+### work 阶段 T-03 完成交接（V05 四模式全绿）
+
+- stage: work
+- plan_id: PLAN-093
+- plan_revision: 1
+- outcome: T-03 pass（完成门达成）——五项上游缺口闭环后，V05 最小四
+  模式矩阵全绿；整体保持 executing（T-04 起未动）
+- code_commit: plan-093-dev@fcc1c18（探针 Vue 前端臂）+ 前序
+  957543acb/c35a55ca8/c93ed76a0（auto-musk-dev 三笔正修）
+- task_ids: T-03（完成）
+- evidence: 四模式矩阵——VM 前端 15 断言 × VMHTTP/RustHTTP（自然条件
+  形态 3 连跑确定绿）+ Vue 前端 8 断言 × RustHTTP/VMHTTP（真实面板
+  驱动：帧 img naturalWidth>0、树选点击→picked 非空、带代次停止、
+  面板收起）；收据 ports-{vm,rust,vue-rust,vue-vm}-receipt.json；
+  contract 19/19；V01 全链 exit 0；cargo tv 162/162。
+- blockers: 无。canvas_live 真目标生命周期回归按计划归 T-12 回补
+  （T-03 完成门不含）。
+- next: work——T-04（CanvasStore 投影与展示状态重构；store 可自由使用
+  自然条件写法）。
 
 ### work 阶段 T-03 G-9 残余正修交接（五项上游缺口全闭环）
 
