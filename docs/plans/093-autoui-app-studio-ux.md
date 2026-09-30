@@ -651,16 +651,23 @@ PID／进程树及起止收据，再做真实运行测试。
   渲染（描述提示/路径输入/启动钮全呈现）+ 打开已有应用流（canvasStart
   既有校验，坏路径错误原样落 studio_start_err）+ view 闭括号修复
   （解析失败 20 错实证）。
-  **Vue 侧受阻（capability-map §8.12，定位进行中）**：全量生成静默
-  exit 1（28m04s 无诊断），退出点紧随 canvas_helpers.at 警告。
-  已排除项：拆分结构本身——最小 fixture（musk 同构：文件级 use store +
-  3 widget 含无 msg 组合件）生成成功（4 组件 exit 0）。AUTO_BUILD_
-  TRACE=1 + RUST_BACKTRACE=1 追踪复现运行中。
-  依赖侧同步：auto-lang worktree 已 rebase 至 master c80887ab7（测试
-  门禁改版基线；1 冲突 task.rs——PLAN-707 流字段 vs G-9 since 字段，
-  两者都保留），cargo tv 162/162 绿（新档 1.9s）。
-  下一步：按追踪结果定位生成退出点；继续项：ChatBody 提取（对话列
-  右置）+ 宽度分层臂（1024/768/<768）。
+  **Vue 侧受阻已解除（capability-map §8.12/§8.13）**："静默 exit 1"随
+  rebase 带来的 fix-ui-tier 去平方优化消失——生成 39m→23.4s/31s
+  （62 组件 exit 0），旧 28m 龟速即平方热点本身（疑可达内存上限后
+  环境终止，不再复现）。新门禁基线：auto-lang worktree 已 rebase 至
+  master c80887ab7（1 冲突 task.rs——PLAN-707 流字段 vs G-9 since
+  字段，两者都保留），cargo tv 162/162 绿（新档 1.9s）。
+  Vue 侧两轮构建暴露并修复两个真实缺口：①viewport_sync 导出名与
+  use.web 声明不一致（TS2305——ext re-export 链要求同名，已改名
+  syncViewport）；②面板槽重排的 view 闭括号缺失（解析失败 20 错，
+  已修）。
+  studio 模式归位视图域：ToggleStudio 经 ForgeStore 调
+  CanvasStore.EnterStudio 运行时 TypeError（跨 store 方法调用无先例，
+  $.EnterStudio is not a function 实证）——cv_studio/Enter/Exit 从
+  CanvasStore 退役，studio_mode 归 ChatsView 视图域（71c302b）。
+  VM 臂：studio 进/保持 8s+/出全周期绿。
+  继续项：ChatBody 提取（对话列右置——§5.2 精确排序）+ 宽度分层臂
+  （1024/768/<768）+ Vue 臂 studio 断言（构建已就绪）。
 
 ### [ ] T-06：统一画布几何、比例、事件和覆盖层
 
