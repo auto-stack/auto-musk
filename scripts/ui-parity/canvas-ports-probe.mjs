@@ -483,6 +483,21 @@ async function runVueArm(mode) {
       assert('vue-tree-pick-flows', pickedSeen, 'status.picked 非 null（UI 点击链）');
     }
 
+    // ⑥b T-04 收起持久性：点收起钮（–）→ 帧 img 隐藏 → 5s 多拍后仍隐藏
+    // （轮询不复开用户收起的工作台；生命周期 running 不受影响）。
+    {
+      const st0 = await jfetch('http://127.0.0.1:18511/api/canvas/status');
+      const running0 = st0.body?.state === 'running';
+      const collapseBtn = page.locator('button[title="收起画布"]');
+      await collapseBtn.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+      await collapseBtn.click().catch(e => { fail(`collapse click: ${e.message}`); });
+      await waitFor(async () => (await page.locator('img[src*="/api/canvas/frame"]').count().catch(() => -1)) === 0, 15000, 'collapse hides frame');
+      await new Promise(r => setTimeout(r, 5000)); // ≥5 拍轮询
+      const n2 = await page.locator('img[src*="/api/canvas/frame"]').count().catch(() => -1);
+      const st1 = await jfetch('http://127.0.0.1:18511/api/canvas/status');
+      assert('vue-collapse-persists', n2 === 0 && st1.body?.state === 'running', `img count=${n2} state=${st1.body?.state}（收起不复开，生命周期继续）`);
+    }
+
     // ⑦ runner 显式停止 → 面板收起（img 离场）
     {
       const stop = await jfetch(`http://127.0.0.1:18511/api/canvas/stop?generation=${result.generation ?? 1}`, { method: 'POST' });
