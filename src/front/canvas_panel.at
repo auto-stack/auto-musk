@@ -37,6 +37,8 @@ widget CanvasCanvasColumn {
         ClearPick,
         ToggleSource,
         ToggleZoom,
+        ToggleErrorDetails,
+        RerunApp,
     }
 
     view {
@@ -89,11 +91,37 @@ widget CanvasCanvasColumn {
                     }
                 }
             }
-            // degraded 红条（后端错误文案原样展示）。
+            // degraded 红条（简短原因 + 可展开详情 + 重新运行入口——
+            // §5.3 degraded 面契约；原始日志 tail 待后端暴露，记录）。
             if .store.cv_state == "degraded" {
                 div {
-                    style: "shrink-0 px-3 py-1.5 text-[12px] text-destructive bg-destructive/10 border-b border-destructive/20"
-                    text .store.cv_error
+                    style: "shrink-0 px-3 py-1.5 text-[12px] text-destructive bg-destructive/10 border-b border-destructive/20 flex items-center gap-2"
+                    span {
+                        style: "flex-1 min-w-0 truncate"
+                        text .store.cv_error
+                    }
+                    button {
+                        onclick: .ToggleErrorDetails
+                        style: "shrink-0 h-5 px-1 rounded bg-transparent border-none text-destructive text-[10px] cursor-pointer"
+                        title: t("canvas.errorDetails")
+                        if .store.cv_error_details_open {
+                            text "▴"
+                        } else {
+                            text "▾"
+                        }
+                    }
+                    button {
+                        onclick: .RerunApp
+                        style: "shrink-0 h-5 px-2 rounded bg-destructive/20 border-none text-destructive text-[10px] cursor-pointer"
+                        title: t("canvas.rerun")
+                        text t("canvas.rerun")
+                    }
+                }
+                if .store.cv_error_details_open {
+                    div {
+                        style: "shrink-0 max-h-[120px] overflow-auto px-3 py-1.5 text-[10.5px] font-mono text-destructive/90 bg-destructive/5 border-b border-destructive/20 whitespace-pre-wrap"
+                        text .store.cv_error
+                    }
                 }
             }
             // 帧区：有帧显帧（身份+seq 双键）+ 覆盖框层；无帧显占位 + 状态语。
@@ -130,16 +158,46 @@ widget CanvasCanvasColumn {
                     }
                 }
             } else {
+                // §5.3 状态矩阵空态面：初始无应用（stopped+无 app 描述）≠
+                // 已停止（stopped+有 app 描述——保留标题与"重新运行"入口，
+                // 不得隐去全部操作）；starting/restarting 显等待原因。
                 col {
                     style: "flex-1 min-h-0 flex flex-col items-center justify-center gap-2 text-muted-foreground"
-                    text t("canvas.waiting")
-                    if .store.cv_state == "starting" {
-                        span { style: "text-[11px]"; text t("canvas.starting") }
-                    } else {
-                        if .store.cv_state == "restarting" {
-                            span { style: "text-[11px]"; text t("canvas.restarting") }
+                    if .store.cv_state == "stopped" {
+                        if .store.cv_app != "" {
+                            span {
+                                style: "text-[13px] font-medium text-foreground"
+                                text .store.cv_app
+                            }
+                            span {
+                                style: "text-[11px]"
+                                text t("canvas.stoppedNote")
+                            }
+                            button {
+                                onclick: .RerunApp
+                                style: "h-8 px-3 mt-1 rounded-md bg-primary text-primary-foreground text-[12px] cursor-pointer border-none"
+                                text t("canvas.rerun")
+                            }
                         } else {
-                            span { style: "text-[11px]"; text t("canvas.degraded") }
+                            span {
+                                style: "text-[11px]"
+                                text t("canvas.waiting")
+                            }
+                        }
+                    } else {
+                        text t("canvas.waiting")
+                        if .store.cv_state == "starting" {
+                            span { style: "text-[11px]"; text t("canvas.starting") }
+                        } else {
+                            if .store.cv_state == "restarting" {
+                                span { style: "text-[11px]"; text t("canvas.restarting") }
+                            } else {
+                                if .store.cv_state == "degraded" {
+                                    span { style: "text-[11px]"; text t("canvas.degraded") }
+                                } else {
+                                    span { style: "text-[11px]"; text .store.cv_state }
+                                }
+                            }
                         }
                     }
                 }
@@ -211,6 +269,20 @@ widget CanvasCanvasColumn {
         // 适应/100% 缩放切换（store 偏好单源 + 包装层样式重算）。
         .ToggleZoom -> {
             store.ToggleZoom()
+        }
+        // PLAN-093 T-09:degraded 详情展开切换（视图态，store 域字段）。
+        .ToggleErrorDetails -> {
+            store.ToggleErrorDetails()
+        }
+        // PLAN-093 T-09:重新运行（已停止/degraded 面可执行入口——
+        // canvasStart 走既有校验与启动流；失败原因经下一拍轮询落 error 面）。
+        .RerunApp -> {
+            if .store.cv_app != "" {
+                let r = canvasStart("", .store.cv_app).await
+                if r.ok != true {
+                    store.SetCanvasError(r.error ?? "rerun failed")
+                }
+            }
         }
     }
 }

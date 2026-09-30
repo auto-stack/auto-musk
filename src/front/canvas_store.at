@@ -129,6 +129,8 @@ store CanvasStore {
         // PLAN-093 T-05 §5.2 窄层（768-1023）：结构列默认不占位，按钮切换
         // （受控面板；用户偏好，停止/轮询不改）。
         var cv_structure_open bool = false
+        // PLAN-093 T-09:degraded 详情展开（视图态）。
+        var cv_error_details_open bool = false
     }
 
     timer {
@@ -358,6 +360,16 @@ store CanvasStore {
         .ToggleZoom -> {
             .cv_zoom_fit = !.cv_zoom_fit
             .cv_frame_wrap_style = canvasContentStyle(.cv_frame_w, .cv_frame_h, .cv_zoom_fit)
+        }
+
+        // PLAN-093 T-09:degraded 详情展开切换（视图态）。
+        .ToggleErrorDetails -> {
+            .cv_error_details_open = !.cv_error_details_open
+        }
+
+        // PLAN-093 T-09:重运行失败落 error 面（下一拍轮询以真实状态覆盖）。
+        .SetCanvasError(err str) -> {
+            .cv_error = err
         }
 
         .SourceBackfill(payload str) -> {
