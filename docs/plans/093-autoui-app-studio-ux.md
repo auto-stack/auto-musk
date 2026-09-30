@@ -6,7 +6,7 @@ author: [agent]
 created_at: 2026-09-28T14:20:35Z
 updated_at: 2026-09-29T21:00:00Z
 plan_revision: 1
-current_step: 3
+current_step: 4
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-canvas.md
@@ -600,7 +600,7 @@ PID／进程树及起止收据，再做真实运行测试。
   （080 登录流已不在默认流）。V01 ✓/V07 契约 19 绿 ✓/V05 最小四模式 ✓
   ——T-03 完成门达成（canvas_live 真目标生命周期回归按计划归 T-12 回补）。
 
-### [ ] T-04：重构CanvasStore投影与展示状态
+### [x] T-04：重构CanvasStore投影与展示状态
 
 - 依赖：T-02、T-03。关联 AC-01、AC-03、AC-04、AC-08、AC-11、AC-14。
 - 位置：现有 canvas_store.at；新 canvas_helpers.at（共享生产投影／几何helper）。
@@ -619,6 +619,13 @@ PID／进程树及起止收据，再做真实运行测试。
   帧 URL ?t=15&gen=1、后端清选 3 拍内 picked 清空、收起 12+ 拍不复开
   （state=running 不受影响）、expected_generation 重启 gen=2 清场且
   偏好保持、UnCollapse 恢复——全部通过（78f92b1）。
+  Vue 侧（78f92b1 之后）：web 门面补 canvasClearPick 导出（vue-tsc
+  TS2305 实证缺口）+ 面板 Collapse/UnCollapse 消息路由（视图 onclick
+  解析到面板命名空间生成空桩——生成器实证，显式转调 store 修正）；
+  再生 + vue-tsc/vite 通过；Vue 臂 9/9 × 双后端（含新增
+  vue-collapse-persists：真实收起钮点击 → 帧隐藏 → 5s+ 多拍仍隐藏、
+  生命周期 running 不受影响）。双端验证完成，T-04 完成门达成
+  （V03 确定性测试全集仍按计划归 T-11 汇总）。
 
 ### [ ] T-05：实现工作台壳与响应式会话布局
 
@@ -757,6 +764,25 @@ PID／进程树及起止收据，再做真实运行测试。
 | T-11～T-14 | AC-01～AC-16（复验与证据） | SD-01～SD-05 |
 
 ## 9. 复审记录
+
+### work 阶段 T-04 完成交接（双端验证）
+
+- stage: work
+- plan_id: PLAN-093
+- plan_revision: 1
+- outcome: T-04 pass（双端验证完成）——投影/显隐分离、身份清场、
+  单飞、统一漏斗全数落地；整体保持 executing
+- code_commit: plan-093-dev@78f92b1（helpers+store 重构+面板+i18n）+
+  后续（web 门面 canvasClearPick + 面板消息路由修正）
+- task_ids: T-04（完成）
+- evidence: VM 臂（MCP 驱动）——开合投影/帧 URL 双键 ?t=15&gen=1/
+  清选 3 拍内清空/收起 12+ 拍不复开/代次 gen=2 清场偏好保持/UnCollapse；
+  Vue 臂 9/9 × 双后端——真实收起钮点击后帧隐藏且 5s+ 多拍不复开、
+  生命周期 running 不受影响；再生 + vue-tsc/vite 全过；收据
+  ports-vue-{rust,vm}-receipt.json。V03 确定性测试全集按计划归 T-11。
+- blockers: 无。
+- next: work——T-05（工作台壳与响应式会话布局；收起/展开入口进
+  工作台壳）。
 
 ### work 阶段 T-03 完成交接（V05 四模式全绿）
 
