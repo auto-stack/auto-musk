@@ -800,9 +800,19 @@ PID／进程树及起止收据，再做真实运行测试。
   stale 409 退回队首落错误面）+ 后端字段面校验与归属盖章（stale 拒
   收不落盘不误发；serde default 旧文件默认读取）+ G-13 族 chats 长
   尾 host 注册（create/get/message 未注册致 500 全链实测阻断）。
-  验证与剩余见 §8.20——剩余：队列条目级 UI、消息气泡轻量附件标记、
-  Agent turn 上下文说明注入、A→B 入队交错取证（busy 模拟）、会话切
-  换清待发送（chip 为实时视图的偏差记录）。
+- [✅] 第二增量（a60c74b，双后端回归）：消息气泡附件回放标记（📎
+  轻量 chip——刷新回放取证过：乐观 push 无附件/持久化消息带标记的
+  双路径语义实证）+ Agent turn 上下文说明注入（[元素附件·定位参考]
+  单独 human turn，越权面声明在文案内）+ 队列条目级 UI（逐条 ⏳+📎+
+  文本+移除）+ G-13 族分页通道补桥（/api/chats/session/{id}/page——
+  LoadSession/Older/PollBackfill 唯一通道缺失致会话加载失败横幅实测；
+  chat_get_page_host 宿主桥 + rebuildParsedMessages design_context
+  透传）。验证：E 刷新回放标记 ✓、D 回放章 ✓、Vue 臂 ALL PASS × 双
+  后端（§8.21）。
+  剩余（收敛）：A→B 入队交错取证（busy 模拟 Harness——post-run 树
+  重渲染期点击超时，F 部分验证）；多文件不确定提示（Q-04）；G-11
+  后补 VM 轨面板。会话切换清待发送——chip 为实时视图无复制态，偏差
+  已记录（§8.20）。
 
 ### [ ] T-09：呈现真实生成进度与运行／恢复状态
 
