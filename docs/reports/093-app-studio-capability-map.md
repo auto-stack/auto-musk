@@ -692,3 +692,24 @@ widget→widget，095 T-07）解除后 VM 轨（iced）面板本体渲染与坐�
 度行（工具事件投影——chat 消息 tool_calls → 生成/检查状态行，跨
 store facade 读法或后端投影面，增量二）；③原始日志 tail 后端暴露
 （session output_tail 未进 status_full）。
+
+### 8.23 T-08 A→B 交错取证：Harness 限制定案（2026-09-30 第十五轮）
+
+**尝试与发现**（tmp/t08-interleave.mjs）：
+- A/B 拾取双点可达（root col 与 text 子节点 vnode 可异——text 钮按
+  label 子串定位）。
+- **流式期 composer 禁输**（MentionInput disabled=store.streaming →
+  textarea disabled → focus/type/Enter 全失效——黑盒无法在流式期
+  键入）→ 队列入队窗口 = 发送竞态秒级（真实产品 UX 即此），black-box
+  无法稳定驱动 A 入队→改选 B→B 入队的交错序列。
+
+**已验证面**（等价覆盖）：逐条冻结语义 = 双证——①单发冻结（t08 取
+证 C+D：POST ctx 与拾取一致 + 落盘带章）；②A→B 直接双发各携各的
+拾取快照（冻结时点即各自 Send 时刻，本轮 A=root POST ctx=root 实证
++ B=text-child 拾取异 vnode 实证）。队列条目结构 {text,ctx} 入队即
+冻（Store.QueueWithCtx 代码面：条目持独立 ctx 对象，拾取变更不触及
+已入队条目）+ FlushQueue 读 firstObj.ctx（代码面）。
+
+**剩余**：busy 态 Harness（模拟 streaming 无真实 run——测试基建件，
+归 T-11 V03 汇总口径）；队列条目级 UI 交互断言同族（post-run 树重
+渲染期点击超时，F 部分验证）。
