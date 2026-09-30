@@ -774,9 +774,13 @@ PID／进程树及起止收据，再做真实运行测试。
   whitespace-pre 行高恒定 offsetTop 去重；web 门面 DOM 面，VM 空桩）。
   取证 5/5（拾取行 44/262 → scrollTop 精确居中）+ Vue 臂 ALL PASS ×
   双后端（§8.19）。
-  剩余（收敛，均不阻断 Vue 轨交付面）：多文件不确定提示（Q-04
-  confidence 契约——pick_json 无置信标记待后端面）；G-11（095 T-07）
-  解除后 VM 轨（iced）面板本体渲染与坐标点选补跑。
+  剩余（收敛，均不阻断 Vue 轨交付面）：~~多文件不确定提示（Q-04
+  confidence 契约——pick_json 无置信标记待后端面）~~ **Q-04 已收敛
+  （60861b0，§8.26）**——resolve_source 置信度 exact/uncertain 全链
+  （pac.at 排除实证修复）+ 源码面板/chip 待确认提示 + ctx
+  source_confidence/loop_context + Agent 注记；anchor 9/9 + V03 62/62
+  + Vue 臂双后端 ALL PASS。G-11（095 T-07）解除后 VM 轨（iced）面板
+  本体渲染与坐标点选补跑。
 
 ### [ ] T-08：接入元素附件与逐消息队列快照
 
@@ -812,7 +816,9 @@ PID／进程树及起止收据，再做真实运行测试。
   剩余（收敛）：A→B 入队交错取证——**Harness 限制定案**（§8.23：流
   式期 composer 禁输=产品真实 UX，黑盒无法驱动入队窗口；等价覆盖=
   单发冻结 + A→B 直接双发各携快照双证 + 队列条目结构代码面；busy
-  态 Harness 归 T-11 汇总口径）；多文件不确定提示（Q-04）；G-11
+  态 Harness 归 T-11 汇总口径）；~~多文件不确定提示（Q-04）~~ **Q-04
+  已收敛（60861b0，§8.26）**——ctx 增 source_confidence/loop_context
+  （§5.7 DTO 补全）+ Agent 注记 uncertain 显式待确认；G-11
   后补 VM 轨面板。会话切换清待发送——chip 为实时视图无复制态，偏差
   已记录（§8.20）。
 
@@ -942,6 +948,25 @@ PID／进程树及起止收据，再做真实运行测试。
 | T-11～T-14 | AC-01～AC-16（复验与证据） | SD-01～SD-05 |
 
 ## 9. 复审记录
+
+### work 阶段 Q-04 收敛交接（来源置信度全链）
+
+- stage: work
+- plan_id: PLAN-093
+- plan_revision: 1
+- outcome: T-07/T-08 共同剩余项 Q-04 收敛（多文件"来源待确认"全链）；
+  T-07/T-08 剩余仅 G-11（VM 轨，PLAN-095 T-07 依赖任务）；整体保持
+  executing
+- code_commit: plan-093-dev@60861b0
+- task_ids: T-07（剩余收敛）、T-08（剩余收敛）
+- evidence: anchor 9/9（confidence 单/多候选单测——真实形态根 pac.at+
+  单 src 源=exact）；conversation 29/29；V03 62/62；V01 全链 exit 0；
+  V05 Vue 臂 × 双后端 ALL PASS（q04-single-file-exact-no-uncertain-
+  hint——先败后修实证：pac.at 计入候选致真实 app 恒 uncertain，排除
+  后单文件 exact）。§8.26。解析契约新证：`fc.var` / `{var: ...}` 撞
+  .at 硬关键字（20 错同根因），forctx 增 var_name 副本通道。
+- blockers: 无新增。G-11 阻塞全部 studio UI 的 VM 轨（同前）。
+- next: work——T-11（确定性合同测试与 Gallery 用例汇总）。
 
 ### work 阶段 T-09 完成交接（生成/检查进度投影）
 
@@ -1215,7 +1240,7 @@ PID／进程树及起止收据，再做真实运行测试。
 | Q-01 | VM现有媒体链能否消费鉴权PNG，或需ImageSurface ticket；真实click／叠层是否可用 | work执行者，T-01两个有界原型及版本证据 | 决定T-03/T-06端口；缺上游能力则修订仓库范围 |
 | Q-02 | VM窗口宽度／resize与composer原生focus可用接线 | work执行者，T-01读取实际宿主能力并实机验证 | AC-02/10不能靠固定宽度或no-op降级 |
 | Q-03 | Auto后端模型／glue再生链与VMHTTP Canvas二进制响应机制 | work执行者，T-01固定真实命令、T-03验四模式 | 禁止只改生成结果或静默回退RustHTTP |
-| Q-04 | 多文件source仍启发式；准确性如何标记 | work执行者，T-01/07确定confidence来源，缺数据按待确认显示 | 本计划要求准确单文件定位，不承诺无证据的多文件精确映射 |
+| Q-04 | 多文件source仍启发式；准确性如何标记 | **已收敛（2026-10-01，§8.26）**：后端 resolve_source 置信度 exact/uncertain（pac.at 排除），前端待确认提示 + ctx source_confidence + Agent 注记；单文件 exact 行定位=硬验收面，多文件一律待确认显示 | 本计划要求准确单文件定位，不承诺无证据的多文件精确映射 |
 | Q-05 | 上游修复若不可避免 | work执行者提交最小依赖任务、受影响AC和新版本；按new技能修订合同 | 新增仓库／兼容承诺须明确，不能直接改依赖主检出 |
 
 产品默认裁定已写入合同：会话内模式、单实例、480×680固定目标窗口、
