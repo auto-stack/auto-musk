@@ -24,6 +24,9 @@ use.web composerAutoGrow from "src/front/composer_autogrow.web-only.ts"
 // r10（PLAN-073 续）:引用 token 原子删除后的光标恢复(Backspace 场景,
 // Vue flush 后 setSelectionRange)。
 use.web restoreComposerCursor from "src/front/composer_cursor.web-only.ts"
+// PLAN-093 T-05:视口宽同步(store 宽度分层驱动;web 键 app.viewport_w 优先,
+// VM 键 vm.window_inner_width 由 iced renderer 发布)。
+use.web syncViewport from "src/front/viewport_sync.web-only.ts"
 
 fn platformInjectStyles() {
     injectStyles()
@@ -62,4 +65,10 @@ fn platformViewportHeight() int {
 // PLAN-045-E4/446-E4: web 侧 no-op——fetch 拦截器每请求读 localStorage,
 // 无需重注入(避免二次 monkey-patch 的 workspace query 重复追加)。
 fn platformRefreshAuth() {
+}
+
+// PLAN-093 T-05:视口宽同步——首装 + resize(rAF 节流)各写一次
+// localStorage('app.viewport_w');app.at setup 调用一次。
+fn platformSyncViewport() {
+    syncViewport()
 }

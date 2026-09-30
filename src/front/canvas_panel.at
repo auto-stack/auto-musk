@@ -1,232 +1,107 @@
-// canvas_panel.at — PLAN-087 T-07 + PLAN-088 T-07: chats 视图右侧实况画布面板。
+// canvas_panel.at — PLAN-087 T-07 + PLAN-088 T-07 + PLAN-093 T-05: 画布面板
+// （可组合三件套：结构列/画布列/组合面板）。
 //
-// 有非 stopped 会话自动展开（cv_open 由 store 轮询驱动）、stop 后收起；
-// 帧 img 以 seq 缓存击穿（?t={seq}），仅 seq 变化重拉。running 时帧即状态
-// （无独立状态条）；starting/restarting 占位提示；degraded 红条 + 错误
-// 文案。停止钮走 ports/canvas 门面（web 真调/VM 桩），收起由下一拍轮询
-// 自然完成（单源状态，不本地抢写）。状态文案用 t(字面量) 三分支显式臂
-// （computed 不捕获 setup 局部、t(动态键) VM 返空——两侧既有实证，规避）。
-// VM 轨：验收面=web 轨（087 §10-2 口径延续）；VM 桩下 cv_open 恒 false，
-// 组件不渲染。
-// PLAN-088 M2：左侧层树列（pac 头 + 扁平 vtree 树，节点带源码行）+ 帧上
-// 覆盖框层（agent 高亮=琥珀/选中=蓝，百分比定位 style 由 store 漏斗预拼）
-// + 帧点选（web 侧 document 委托，setup 装一次）+ 锚点 chip（点开
-// RawPreview 源码抽屉）。树点选 ↔ 画布高亮双向联动（pick 单源：后端
-// picked，前端经轮询/即时回填双路取）。点选结果 ≤1s 滞后（轮询拍）。
+// T-05 拆分：CanvasPanel（正常模式 520px 右列）= CanvasStructureColumn +
+// CanvasCanvasColumn 组合；studio 模式（ChatsView 工作台）直接挂两列子件
+// ——状态单源于 CanvasStore（子件各自 store 声明同一单例），视图模板零
+// 复制。帧 img 以 身份+seq 双键缓存击穿（T-04 canvasFrameUrl）。
+// 帧点选委托（web 侧 document 委托，幂等）随画布列 setup 装。
+// 树点选 ↔ 画布高亮双向联动（pick 单源：后端 picked，前端经轮询/即时
+// 回填双路取）。点选结果 ≤1s 滞后（轮询拍）。
+// VM 轨：VMHTTP canvas 路由 T-03 已通，双端同源（四模式探针护航）。
 
 use store: CanvasStore
 use.web useT from "src/front/ports/composables.at"
-use.web canvasStart, canvasStop from "src/front/ports/canvas.at"
-use.web canvasPickNode, canvasClearPick, installCanvasFrameClicks, canvasLoadSource from "src/front/ports/canvas.at"
+use.web canvasStop from "src/front/ports/canvas.at"
+use.web canvasPickNode, canvasClearPick, canvasLoadSource from "src/front/ports/canvas.at"
 
-widget CanvasPanel {
+// ── 结构列：pac 头 + 层树 + 源码抽屉（studio 模式=左列） ──────────────
+widget CanvasStructureColumn {
 
     setup {
         let t = useT()
-        // 帧点选委托（幂等；VM 桩空实现）。
-        installCanvasFrameClicks()
     }
 
     msg Msg {
-        Stop,
         TreeNodePicked(str),
         ClearPick,
         ToggleSource,
+        SourceBackfill(str),
     }
 
     view {
-        if .store.cv_open {
-            row {
-                style: "w-[520px] shrink-0 h-full flex flex-row overflow-hidden border-l border-border bg-card"
-                // ── 层树列（pac 头 + 扁平 vtree 树） ──
-                col {
-                    style: "w-[170px] shrink-0 h-full flex flex-col overflow-hidden border-r border-border bg-muted/30"
-                    div {
-                        style: "shrink-0 px-2 py-1.5 border-b border-border"
-                        span {
-                            style: "text-[11px] font-medium text-muted-foreground truncate"
-                            text .store.cv_pac_title
-                        }
-                    }
-                    col {
-                        style: "flex-1 min-h-0 overflow-y-auto py-1"
-                        for node in .store.cv_tree {
-                            if node.vid == .store.cv_picked_id {
-                                button {
-                                    onclick: .TreeNodePicked(node.vid)
-                                    style: node.indent_style + ";width:100%;text-align:left;flex-direction:column;items-start;background:rgb(59,130,246)/15"
-                                    span {
-                                        style: "text-[10.5px] text-primary truncate"
-                                        text node.kind
-                                    }
-                                    if node.label != "" {
-                                        span {
-                                            style: "text-[9.5px] text-muted-foreground truncate"
-                                            text node.label
-                                        }
-                                    }
-                                    if node.for_label != "" {
-                                        span {
-                                            style: "text-[9px] text-amber-500"
-                                            text node.for_label
-                                        }
-                                    }
+        col {
+            style: "w-full h-full flex flex-col overflow-hidden bg-muted/30"
+            // pac 头显示名。
+            div {
+                style: "shrink-0 px-2 py-1.5 border-b border-border"
+                span {
+                    style: "text-[11px] font-medium text-muted-foreground truncate"
+                    text .store.cv_pac_title
+                }
+            }
+            // 层树扁平列表。
+            col {
+                style: "flex-1 min-h-0 overflow-y-auto py-1"
+                for node in .store.cv_tree {
+                    if node.vid == .store.cv_picked_id {
+                        button {
+                            onclick: .TreeNodePicked(node.vid)
+                            style: node.indent_style + ";width:100%;text-align:left;flex-direction:column;items-start;background:rgb(59,130,246)/15"
+                            span {
+                                style: "text-[10.5px] text-primary truncate"
+                                text node.kind
+                            }
+                            if node.label != "" {
+                                span {
+                                    style: "text-[9.5px] text-muted-foreground truncate"
+                                    text node.label
                                 }
-                            } else {
-                                button {
-                                    onclick: .TreeNodePicked(node.vid)
-                                    style: node.indent_style + ";width:100%;text-align:left;flex-direction:column;items-start;background:transparent"
-                                    span {
-                                        style: "text-[10.5px] text-foreground/80 truncate"
-                                        text node.kind
-                                    }
-                                    if node.label != "" {
-                                        span {
-                                            style: "text-[9.5px] text-muted-foreground truncate"
-                                            text node.label
-                                        }
-                                    }
-                                    if node.for_label != "" {
-                                        span {
-                                            style: "text-[9px] text-amber-500/80"
-                                            text node.for_label
-                                        }
-                                    }
+                            }
+                            if node.for_label != "" {
+                                span {
+                                    style: "text-[9px] text-amber-500"
+                                    text node.for_label
+                                }
+                            }
+                        }
+                    } else {
+                        button {
+                            onclick: .TreeNodePicked(node.vid)
+                            style: node.indent_style + ";width:100%;text-align:left;flex-direction:column;items-start;background:transparent"
+                            span {
+                                style: "text-[10.5px] text-foreground/80 truncate"
+                                text node.kind
+                            }
+                            if node.label != "" {
+                                span {
+                                    style: "text-[9.5px] text-muted-foreground truncate"
+                                    text node.label
+                                }
+                            }
+                            if node.for_label != "" {
+                                span {
+                                    style: "text-[9px] text-amber-500/80"
+                                    text node.for_label
                                 }
                             }
                         }
                     }
                 }
-                // ── 主区（标题条 + 帧叠层 + chip） ──
-                col {
-                    style: "flex-1 min-w-0 h-full flex flex-col overflow-hidden"
-                    // 标题条：状态点 + app 名 + 停止钮。
-                    row {
-                        style: "h-9 shrink-0 flex items-center justify-between px-3 border-b border-border"
-                        row {
-                            style: "flex items-center gap-1.5 min-w-0"
-                            if .store.cv_state == "running" {
-                                span { style: "w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" }
-                            } else {
-                                if .store.cv_state == "degraded" {
-                                    span { style: "w-1.5 h-1.5 rounded-full bg-destructive shrink-0" }
-                                } else {
-                                    span { style: "w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" }
-                                }
-                            }
-                            span {
-                                title: .store.cv_app
-                                style: "text-[12.5px] font-medium text-foreground truncate"
-                                text .store.cv_app
-                            }
-                        }
-                        button {
-                            onclick: .Collapse
-                            style: "inline-flex items-center justify-center h-6 w-6 px-0 py-0 shrink-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent cursor-pointer text-sm leading-none"
-                            title: t("canvas.collapse")
-                            text "–"
-                        }
-                        button {
-                            onclick: .Stop
-                            style: "inline-flex items-center justify-center h-6 w-6 px-0 py-0 shrink-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent hover:text-destructive cursor-pointer text-sm leading-none"
-                            title: t("canvas.stop")
-                            text "×"
-                        }
-                    }
-                    // degraded 红条（后端错误文案原样展示）。
-                    if .store.cv_state == "degraded" {
+            }
+            // 源码抽屉（锚点 chip 的 ToggleSource 开合；结构/源码同列——§0
+            // "结构／源码"左列语义）。
+            if .store.cv_source_open {
+                if .store.cv_picked_source_path != "" {
+                    col {
+                        style: "shrink-0 h-[220px] border-t border-border overflow-hidden bg-background"
                         div {
-                            style: "shrink-0 px-3 py-1.5 text-[12px] text-destructive bg-destructive/10 border-b border-destructive/20"
-                            text .store.cv_error
+                            style: "shrink-0 px-3 py-1 text-[10.5px] text-muted-foreground border-b border-border"
+                            text .store.cv_picked_source_path
                         }
-                    }
-                    // 帧区：有帧显帧（seq 击穿）+ 覆盖框层；无帧显占位 + 状态语。
-                    if .store.cv_frame_url != "" {
                         div {
-                            style: "relative flex-1 min-h-0 w-full bg-background"
-                            img {
-                                src: .store.cv_frame_url
-                                style: "w-full h-full object-contain bg-background"
-                            }
-                            // agent 高亮框层（琥珀）。
-                            for ov in .store.cv_overlay {
-                                div {
-                                    style: ov.style
-                                }
-                            }
-                            // 选中覆盖框（蓝）。
-                            if .store.cv_pick_style != "" {
-                                div {
-                                    style: .store.cv_pick_style
-                                }
-                            }
-                        }
-                    } else {
-                        col {
-                            style: "flex-1 min-h-0 flex flex-col items-center justify-center gap-2 text-muted-foreground"
-                            text t("canvas.waiting")
-                            if .store.cv_state == "starting" {
-                                span { style: "text-[11px]"; text t("canvas.starting") }
-                            } else {
-                                if .store.cv_state == "restarting" {
-                                    span { style: "text-[11px]"; text t("canvas.restarting") }
-                                } else {
-                                    span { style: "text-[11px]"; text t("canvas.degraded") }
-                                }
-                            }
-                        }
-                    }
-                    // 锚点 chip：kind+label（for 实例缀）+ source 行；点击开
-                    // 源码抽屉；空点击清选。
-                    if .store.cv_picked_id != "" {
-                        row {
-                            style: "shrink-0 flex items-center gap-2 px-3 py-1.5 border-t border-border bg-muted/30"
-                            button {
-                                onclick: .ToggleSource
-                                style: "inline-flex items-center gap-1.5 h-6 px-2 rounded-md bg-primary/10 text-primary cursor-pointer text-[11px] font-medium"
-                                title: .store.cv_picked_source
-                                span { text .store.cv_picked_kind }
-                                if .store.cv_picked_label != "" {
-                                    span {
-                                        style: "text-muted-foreground font-normal"
-                                        text .store.cv_picked_label
-                                    }
-                                }
-                                if .store.cv_picked_for != "" {
-                                    span {
-                                        style: "text-amber-500 font-normal"
-                                        text .store.cv_picked_for
-                                    }
-                                }
-                                if .store.cv_picked_source != "" {
-                                    span {
-                                        style: "text-muted-foreground font-normal"
-                                        text .store.cv_picked_source
-                                    }
-                                }
-                            }
-                            button {
-                                onclick: .ClearPick
-                                style: "inline-flex items-center justify-center h-6 w-6 px-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent cursor-pointer text-xs leading-none"
-                                title: "clear"
-                                text "⨯"
-                            }
-                        }
-                    }
-                    // 源码抽屉（files 域同款加载形态；行定位尽力——AC-06 非门）。
-                    if .store.cv_source_open {
-                        if .store.cv_picked_source_path != "" {
-                            col {
-                                style: "shrink-0 h-[220px] border-t border-border overflow-hidden bg-background"
-                                div {
-                                    style: "shrink-0 px-3 py-1 text-[10.5px] text-muted-foreground border-b border-border"
-                                    text .store.cv_picked_source_path
-                                }
-                                div {
-                                    style: "flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] whitespace-pre text-foreground/90"
-                                    text .store.cv_source_text
-                                }
-                            }
+                            style: "flex-1 min-h-0 overflow-auto px-3 py-2 font-mono text-[11px] whitespace-pre text-foreground/90"
+                            text .store.cv_source_text
                         }
                     }
                 }
@@ -235,11 +110,6 @@ widget CanvasPanel {
     }
 
     on {
-        // 停止：POST /api/canvas/stop（web 真调/VM 桩）；面板收起与状态
-        // 复位由下一拍轮询统一落账（单源，不本地抢写）。
-        .Stop -> {
-            canvasStop().await
-        }
         // 层树节点点选：POST /api/canvas/pick {vnode_id}；结果经
         // PickBackfill 即时回填（选中框/芯片同拍呈现），picked 单源仍由
         // 后端持有（下一拍轮询对账）。
@@ -251,16 +121,10 @@ widget CanvasPanel {
                 }
             }
         }
+        // 芯片 ⨯ / 留白点击：后端 {clear:true} + 本地投影清（AC-08 双面）。
         .ClearPick -> {
             canvasClearPick().await
             store.ClearPick()
-        }
-        // 收起/展开 = store 侧用户偏好（PLAN-093 T-04：显隐与生命周期分离）。
-        .Collapse -> {
-            store.Collapse()
-        }
-        .UnCollapse -> {
-            store.UnCollapse()
         }
         .ToggleSource -> {
             store.ToggleSource()
@@ -268,6 +132,208 @@ widget CanvasPanel {
                 let r = canvasLoadSource(.store.cv_picked_source_path).await
                 if r.ok == true {
                     store.SourceBackfill(r.text ?? "")
+                }
+            }
+        }
+        .SourceBackfill(payload str) -> {
+            store.SourceBackfill(payload)
+        }
+    }
+}
+
+// ── 画布列：标题条 + 降级红条 + 帧叠层 + 锚点 chip（studio 模式=中列）──
+widget CanvasCanvasColumn {
+
+    setup {
+        let t = useT()
+        // 帧点选委托（幂等；VM 桩空实现）。
+        installCanvasFrameClicks()
+    }
+
+    msg Msg {
+        Stop,
+        Collapse,
+        ClearPick,
+        ToggleSource,
+    }
+
+    view {
+        col {
+            style: "w-full h-full flex flex-col overflow-hidden"
+            // 标题条：状态点 + app 名 + 收起/停止钮。
+            row {
+                style: "h-9 shrink-0 flex items-center justify-between px-3 border-b border-border"
+                row {
+                    style: "flex items-center gap-1.5 min-w-0"
+                    if .store.cv_state == "running" {
+                        span { style: "w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" }
+                    } else {
+                        if .store.cv_state == "degraded" {
+                            span { style: "w-1.5 h-1.5 rounded-full bg-destructive shrink-0" }
+                        } else {
+                            span { style: "w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" }
+                        }
+                    }
+                    span {
+                        title: .store.cv_app
+                        style: "text-[12.5px] font-medium text-foreground truncate"
+                        text .store.cv_app
+                    }
+                }
+                row {
+                    style: "flex items-center gap-1 shrink-0"
+                    button {
+                        onclick: .Collapse
+                        style: "inline-flex items-center justify-center h-6 w-6 px-0 py-0 shrink-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent cursor-pointer text-sm leading-none"
+                        title: t("canvas.collapse")
+                        text "–"
+                    }
+                    button {
+                        onclick: .Stop
+                        style: "inline-flex items-center justify-center h-6 w-6 px-0 py-0 shrink-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent hover:text-destructive cursor-pointer text-sm leading-none"
+                        title: t("canvas.stop")
+                        text "×"
+                    }
+                }
+            }
+            // degraded 红条（后端错误文案原样展示）。
+            if .store.cv_state == "degraded" {
+                div {
+                    style: "shrink-0 px-3 py-1.5 text-[12px] text-destructive bg-destructive/10 border-b border-destructive/20"
+                    text .store.cv_error
+                }
+            }
+            // 帧区：有帧显帧（身份+seq 双键）+ 覆盖框层；无帧显占位 + 状态语。
+            if .store.cv_frame_url != "" {
+                div {
+                    style: "relative flex-1 min-h-0 w-full bg-background"
+                    img {
+                        src: .store.cv_frame_url
+                        style: "w-full h-full object-contain bg-background"
+                    }
+                    // agent 高亮框层（琥珀）。
+                    for ov in .store.cv_overlay {
+                        div {
+                            style: ov.style
+                        }
+                    }
+                    // 选中覆盖框（蓝）。
+                    if .store.cv_pick_style != "" {
+                        div {
+                            style: .store.cv_pick_style
+                        }
+                    }
+                }
+            } else {
+                col {
+                    style: "flex-1 min-h-0 flex flex-col items-center justify-center gap-2 text-muted-foreground"
+                    text t("canvas.waiting")
+                    if .store.cv_state == "starting" {
+                        span { style: "text-[11px]"; text t("canvas.starting") }
+                    } else {
+                        if .store.cv_state == "restarting" {
+                            span { style: "text-[11px]"; text t("canvas.restarting") }
+                        } else {
+                            span { style: "text-[11px]"; text t("canvas.degraded") }
+                        }
+                    }
+                }
+            }
+            // 锚点 chip：kind+label（for 实例缀）+ source 行；点击开
+            // 源码抽屉；⨯ 清选（后端+本地双面）。
+            if .store.cv_picked_id != "" {
+                row {
+                    style: "shrink-0 flex items-center gap-2 px-3 py-1.5 border-t border-border bg-muted/30"
+                    button {
+                        onclick: .ToggleSource
+                        style: "inline-flex items-center gap-1.5 h-6 px-2 rounded-md bg-primary/10 text-primary cursor-pointer text-[11px] font-medium"
+                        title: .store.cv_picked_source
+                        span { text .store.cv_picked_kind }
+                        if .store.cv_picked_label != "" {
+                            span {
+                                style: "text-muted-foreground font-normal"
+                                text .store.cv_picked_label
+                            }
+                        }
+                        if .store.cv_picked_for != "" {
+                            span {
+                                style: "text-amber-500 font-normal"
+                                text .store.cv_picked_for
+                            }
+                        }
+                        if .store.cv_picked_source != "" {
+                            span {
+                                style: "text-muted-foreground font-normal"
+                                text .store.cv_picked_source
+                            }
+                        }
+                    }
+                    button {
+                        onclick: .ClearPick
+                        style: "inline-flex items-center justify-center h-6 w-6 px-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent cursor-pointer text-xs leading-none"
+                        title: "clear"
+                        text "⨯"
+                    }
+                }
+            }
+        }
+    }
+
+    on {
+        // 停止：POST /api/canvas/stop（双端真调）；面板收起与状态复位由
+        // 下一拍轮询统一落账（单源，不本地抢写）。
+        .Stop -> {
+            canvasStop().await
+        }
+        // 收起 = 用户偏好（store 投影），与停止分离（AC-03）。
+        .Collapse -> {
+            store.Collapse()
+        }
+        // 芯片 ⨯：后端 {clear:true} + 本地投影清（AC-08 双面）。
+        .ClearPick -> {
+            canvasClearPick().await
+            store.ClearPick()
+        }
+        .ToggleSource -> {
+            store.ToggleSource()
+            if .store.cv_picked_source_path != "" {
+                let r = canvasLoadSource(.store.cv_picked_source_path).await
+                if r.ok == true {
+                    store.SourceBackfill(r.text ?? "")
+                }
+            }
+        }
+    }
+}
+
+// ── 组合面板（正常模式右列 520px）：结构列 + 画布列 ──────────────────
+widget CanvasPanel {
+
+    setup {
+        let t = useT()
+        // 帧点选委托（幂等；VM 桩空实现）——组合面兜底安装。
+        installCanvasFrameClicks()
+    }
+
+    view {
+        if .store.cv_open {
+            row {
+                style: if .store.cv_studio {
+                    "flex-1 min-w-0 h-full flex flex-row overflow-hidden border-l border-border bg-card"
+                } else {
+                    "w-[520px] shrink-0 h-full flex flex-row overflow-hidden border-l border-border bg-card"
+                }
+                col {
+                    style: if .store.cv_studio {
+                        "w-[220px] shrink-0 h-full flex flex-col overflow-hidden border-r border-border"
+                    } else {
+                        "w-[170px] shrink-0 h-full flex flex-col overflow-hidden border-r border-border"
+                    }
+                    CanvasStructureColumn {}
+                }
+                col {
+                    style: "flex-1 min-w-0 h-full flex flex-col overflow-hidden"
+                    CanvasCanvasColumn {}
                 }
             }
         }

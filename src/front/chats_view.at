@@ -100,6 +100,9 @@ widget ChatsView {
         // 标题行右缘形态（此前 HoverSession 活体实证）。
         HoverSession(str),
         HoverSessionClear,
+        // PLAN-093 T-05:应用设计模式开关（studio 布局;侧栏偏好进出保存/
+        // 恢复;canvas 状态单源 CanvasStore.cv_studio）。
+        ToggleStudio,
         // ── PLAN-084 T-04/T-06：重命名与头部工具 ──
         // StartRename: 进入行内重命名（列表行铅笔；预填当前名）。
         StartRename(str),
@@ -130,6 +133,8 @@ widget ChatsView {
     model {
         var input str = ""
         var sidebar_collapsed bool = false
+        // PLAN-093 T-05:进 studio 前的侧栏折叠态（退出恢复）。
+        var sidebar_prev bool = false
         var chat_search str = ""
         // PLAN-058: 待确认删除目标（会话 id 或 "__all__"；空串=无待确认）。
         // 沿 chat_search 先例的视图态 str 字段（VM 对 str 字段 SET/比较双轨实证）。
@@ -414,9 +419,13 @@ widget ChatsView {
                 }
             }
             }
-            // Main Chat Area
+            // Main Chat Area（PLAN-093 T-05:studio 模式限宽 420 给工作台让位)
             col {
-                style: "flex-1 flex flex-col min-w-0 overflow-hidden"
+                style: if .store.cv_studio {
+                    "flex-1 flex flex-col min-w-0 overflow-hidden max-w-[420px]"
+                } else {
+                    "flex-1 flex flex-col min-w-0 overflow-hidden"
+                }
                 // header（Plan 023 §3.1：共用 ContentHeader）。
                 // PLAN-084 T-06: 静态"聊天"标题 → 会话名（无选中回退"聊天"）
                 // + agent 身份徽章（mode→role）+ 流式状态点；middle 搜索框
@@ -528,6 +537,18 @@ widget ChatsView {
                             } else {
                                 Copy { size: 13 }
                             }
+                        }
+                        // PLAN-093 T-05:应用设计模式入口（会话内;进出同一钮,
+                        // 激活态反色）。
+                        button {
+                            onclick: .ToggleStudio
+                            style: if .store.cv_studio {
+                                "flex items-center justify-center w-6 h-6 border-none rounded bg-accent text-foreground shrink-0 cursor-pointer"
+                            } else {
+                                "flex items-center justify-center w-6 h-6 border-none rounded bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground shrink-0 cursor-pointer"
+                            }
+                            title: t("canvas.studioToggle")
+                            icon (name: "layout-grid", size: 13) {}
                         }
                     }
                 }
@@ -679,10 +700,16 @@ widget ChatsView {
                     onpickapproval: .PickApproval($event)
                 }
             }
-            // PLAN-087 T-07: 实况画布面板——根行第三列（主聊天列右侧），
-            // 有非 stopped 会话自动展开、stop 后收起（cv_open 单源于 store
-            // 轮询；本视图零接线）。
-            CanvasPanel {}
+            // PLAN-087 T-07 + PLAN-093 T-05: 实况画布面板——根行第三列。
+            // studio 模式面板升主区（flex-1;结构列 220），正常 520 右列。
+            col {
+                style: if .store.cv_studio {
+                    "flex-1 min-w-0 h-full flex flex-col overflow-hidden"
+                } else {
+                    "shrink-0 h-full flex flex-col overflow-hidden"
+                }
+                CanvasPanel {}
+            }
         }
     }
 
@@ -690,6 +717,19 @@ widget ChatsView {
         .Init -> {
             ForgeStore.Init();
             // AgentConfigs 由 MentionInput 挂载时 Init（ professions 拉取）。
+        }
+
+        // PLAN-093 T-05:studio 进出——侧栏偏好保存/恢复（退出还原进入前
+        // 的折叠态;进入强制收起给工作台让宽）。
+        .ToggleStudio -> {
+            if .store.cv_studio {
+                .sidebar_collapsed = .sidebar_prev
+                store.ExitStudio()
+            } else {
+                .sidebar_prev = .sidebar_collapsed
+                .sidebar_collapsed = true
+                store.EnterStudio()
+            }
         }
 
         // PLAN-051 P3-②: 单参 oninput 双轨契约——vue codegen 自动包

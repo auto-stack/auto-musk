@@ -90,6 +90,10 @@ store CanvasStore {
         // 源码预览开合（锚点 chip → 源码抽屉）+ 已载文本。
         var cv_source_open bool = false
         var cv_source_text str = ""
+        // PLAN-093 T-05:studio 模式（工作台布局开关;侧栏偏好由 ChatsView
+        // 进出时保存/恢复）+ 视口宽（宽度分层驱动;web 键优先 VM 键兜底）。
+        var cv_studio bool = false
+        var cv_win_w int = 1280
     }
 
     timer {
@@ -105,11 +109,30 @@ store CanvasStore {
         UnCollapse,
         ToggleSource,
         SourceBackfill(str),
+        EnterStudio,
+        ExitStudio,
     }
 
     on {
         // poll 单飞：在途则计数（>3 拍释放——丢响应有界恢复），否则发起。
         .Poll -> {
+            // 视口宽随拍刷新（宽度分层布局的驱动源；写值才有视图意义）。
+            var w int = 1280
+            let aw = localStorage.getItem("app.viewport_w")
+            if aw != None {
+                let v = aw.to_int()
+                if v > 0 { w = v }
+            }
+            if w == 1280 {
+                let vw = localStorage.getItem("vm.window_inner_width")
+                if vw != None {
+                    let v2 = vw.to_int()
+                    if v2 > 0 { w = v2 }
+                }
+            }
+            if w != .cv_win_w {
+                .cv_win_w = w
+            }
             if .cv_inflight {
                 .cv_inflight_ticks = .cv_inflight_ticks + 1
                 if .cv_inflight_ticks > 3 {
@@ -239,6 +262,15 @@ store CanvasStore {
 
         .ToggleSource -> {
             .cv_source_open = !.cv_source_open
+        }
+
+        // studio 模式开关（工作台布局;侧栏偏好由 ChatsView 保存/恢复）。
+        .EnterStudio -> {
+            .cv_studio = true
+        }
+
+        .ExitStudio -> {
+            .cv_studio = false
         }
 
         .SourceBackfill(payload str) -> {

@@ -18,6 +18,7 @@ use.web platformInjectStyles, platformSetupAuthFetch, platformRefreshAuth from "
 use.web ensure_workspace, ws_resolve_current from "src/front/workspace_helpers.at"
 use.web useT from "src/front/ports/composables.at"
 use.web useGateRouter from "src/front/ports/composables.at"
+use.web platformSyncViewport from "src/front/ports/platform.at"
 // PLAN-041 T8:URL 路由桥(popstate→rail 点击;vsSetView pushState)。
 use.web useViewRouter, vsCurrentView, vsSetView from "src/front/ports/composables.at"
 
@@ -31,6 +32,8 @@ widget App {
         let t = useT()
         let gateRouter = useGateRouter()
         let viewRouter = useViewRouter()
+        // PLAN-093 T-05:视口宽入 localStorage(store 宽度分层读)。
+        platformSyncViewport()
     }
 
     msg Msg {

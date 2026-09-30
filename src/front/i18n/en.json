@@ -513,6 +513,7 @@
     "starting": "Starting the app (first frame within ~10s)…",
     "restarting": "App crashed — restarting…",
     "degraded": "Canvas session degraded",
-    "collapse": "Collapse canvas"
+    "collapse": "Collapse canvas",
+    "studioToggle": "App studio"
   }
 }

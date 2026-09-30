@@ -513,6 +513,7 @@
     "starting": "正在启动 app（首帧约 10s 内）…",
     "restarting": "app 进程退出——正在重启…",
     "degraded": "画布会话已降级",
-    "collapse": "收起画布"
+    "collapse": "收起画布",
+    "studioToggle": "应用设计"
   }
 }
