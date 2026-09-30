@@ -809,8 +809,10 @@ PID／进程树及起止收据，再做真实运行测试。
   chat_get_page_host 宿主桥 + rebuildParsedMessages design_context
   透传）。验证：E 刷新回放标记 ✓、D 回放章 ✓、Vue 臂 ALL PASS × 双
   后端（§8.21）。
-  剩余（收敛）：A→B 入队交错取证（busy 模拟 Harness——post-run 树
-  重渲染期点击超时，F 部分验证）；多文件不确定提示（Q-04）；G-11
+  剩余（收敛）：A→B 入队交错取证——**Harness 限制定案**（§8.23：流
+  式期 composer 禁输=产品真实 UX，黑盒无法驱动入队窗口；等价覆盖=
+  单发冻结 + A→B 直接双发各携快照双证 + 队列条目结构代码面；busy
+  态 Harness 归 T-11 汇总口径）；多文件不确定提示（Q-04）；G-11
   后补 VM 轨面板。会话切换清待发送——chip 为实时视图无复制态，偏差
   已记录（§8.20）。
 
