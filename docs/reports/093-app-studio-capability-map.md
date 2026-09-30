@@ -600,3 +600,39 @@ setup 安装（install 家族幂等）；VM 轨空桩（iced 滚动自管理）�
 pick_json 无置信标记，缺数据待后端契约）；G-11（auto-lang
 widget→widget，095 T-07）解除后 VM 轨（iced）面板本体渲染与坐标
 点选补跑。两项均不阻断 Vue 轨交付面。
+
+### 8.20 T-08 第一增量：元素附件 chip + design_context 冻结/校验/落盘（2026-09-30 第十二轮）
+
+**落地（ee411ef）**：
+- **跨 store 依赖首用**：chats_view.at 双 store 挂载（PLAN-048——第二
+  store 发独立 facade canvasStore；Vue 轨生成实证，VM 轨待 G-11 后
+  观察）。附件 chip 实时读 canvasStore 拾取面（无复制态——A→B 改选
+  自然反映），发送时冻结。
+- **chip**（composer 上方）：已选 kind·label + 在对话中修改（聚焦现有
+  composer 不发送不改文本——platformFocusComposer）+ 移除（后端
+  {clear:true} + 投影清双面——仅本地清会被轮询回填实测）。
+- **冻结语义**：SendInput 命令解析确认为普通消息后冻结（斜线命令/
+  mention/IME 不受上下文影响）；快照字段 = 设计 DTO 全集
+  （version/workspace/conversation/generation/frame_seq/app_path/
+  vnode/kind/label/source_path/source_line）。
+- **队列逐条冻结**：条目对象 {text,ctx}；FlushQueue busy 原样退回
+  （不读"当前选择"）；stale 409 整条退回队首 + 错误面提示（不自动
+  误发）。
+- **后端校验/落盘**（chats_message）：字段面校验（vnode_id/kind 非空
+  否则 400——用户文字不落盘）；归属盖章 ownership
+  no-canvas/current/stale（stale=canvas 活动代次与快照不符 → 拒收
+  不落盘，响应 stale:true 供队列退回）；ChatMessage.design_context
+  serde default（旧会话文件默认值读取，回放安全）。
+- **G-13 族扩充修复**：vm_backend.rs 补 chats 写/读长尾 host 注册
+  （chats_create/chats_get/chats_message——未注册 extern 网关回
+  null → to_response(null) 500，会话创建/发送/回放全链实测阻断）。
+
+**验证**：后端三态 curl（current 落盘/错代次 stale 拒收 B 未落盘/缺
+字段 400）；T-08 取证 5/5 @VM 后端（chip 出现/移除不改文本+重拾/
+发送冻结 POST ctx 与拾取一致/回放 ownership 章）；Vue 臂 ALL PASS
+× 双后端。
+
+**T-08 剩余**：队列条目级 UI（逐条移除/过期标示）；消息气泡轻量附件
+标记（回放面）；Agent turn 上下文说明注入（数据来源+历史定位——
+不塞内部 JSON 进气泡）；A→B 入队交错取证（需 busy 模拟）；会话/
+工作区切换清待发送选择（chip 为实时视图——v1 无复制态，记录偏差）。
