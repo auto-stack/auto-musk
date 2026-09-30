@@ -61,9 +61,14 @@ automatically.
 For each acceptance ID, reproduce its verification and record
 `pass / partial / fail`, command or inspection method, result, and evidence.
 
-- Run the repository-required full suite for code changes, including relevant
-  backend/target checks. In auto-lang this includes `cargo tf`, plus
-  `cargo tv`, `cargo tt`, or `cargo tb` for affected VM/transpiler/book work.
+- Run the repository-required test gate for code changes. In auto-lang
+  (fix-test-tiering, 2026-09-30) this is the daily full face `cargo t` in the
+  plan worktree, plus surface tiers for affected areas: `cargo tv` (VM/
+  compiler), `cargo tt` (transpiler), `cargo tb` (book), and scoped
+  `cargo taa` per the AGENTS scope map when aavm paths are touched.
+  `cargo tf` is NOT a per-plan review gate — it is the batch regression tier
+  (merge-time due check → [regress](../auto-plan-regress/SKILL.md), main
+  checkout, single instance); never run it inside plan worktrees.
   Documentation-only changes use applicable content, link, and format checks
   unless repository rules require more.
 - Exercise user-visible/API behavior where required; source inspection alone
@@ -130,7 +135,8 @@ completed tasks and all historical findings. Never leave a failed review in
 
 A phase-only review records its phase/commit verdict while the overall Plan
 stays `executing`; it cannot grant final `reviewed` status. Phase landing
-still requires its regression gate.
+still requires its regression gate (the scoped daily gate above — not the
+batch `cargo tf` tier).
 
 Do not merge or fix implementation within review. If the whole workflow is
 already authorized, hand control to the appropriate skill and honor the repair
