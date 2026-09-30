@@ -583,3 +583,20 @@ JSON）；T-07 取证 ALL PASS 双后端（VM 后端 262 行+行 44 高亮；Rus
 后端网络观测确认新通道 200 真内容）；Vue 臂 ALL PASS × 双后端。
 取证方法论：拾取重渲染期的页签点击可能落空（点击后以面板出现为准
 重试，≤5 次）；宿主闭包 Result 须 ？ 解包（否则句柄泄漏假 200）。
+
+### 8.19 T-07 第二增量：源码面板行自动定位（2026-09-30 第十一轮）
+
+**落地（06c2a9d）**：installCanvasSourceScroll（canvas_web.ts）——
+MutationObserver 监听行渲染（拾取/载入/切页签统一触发面），高亮行
+（.cv-source-hl）offsetTop 变化时容器 scrollTop 居中；whitespace-pre
+行高恒定 → offsetTop 去重（流式聊天重渲染不扰动）。行容器
+cv-source-rows relative（offsetParent 锚）+ 高亮行标记；ChatsView
+setup 安装（install 家族幂等）；VM 轨空桩（iced 滚动自管理）。
+
+**验证**：T-07 取证 5/5——新增 E 行定位：拾取行 44/262 → scrollTop=345
+= offsetTop 709 − 半容器 364（精确居中）；Vue 臂 ALL PASS × 双后端。
+
+**T-07 剩余（收敛）**：多文件不确定提示（Q-04 confidence 契约——
+pick_json 无置信标记，缺数据待后端契约）；G-11（auto-lang
+widget→widget，095 T-07）解除后 VM 轨（iced）面板本体渲染与坐标
+点选补跑。两项均不阻断 Vue 轨交付面。
