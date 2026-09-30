@@ -129,8 +129,10 @@ store CanvasStore {
         // PLAN-093 T-05 §5.2 窄层（768-1023）：结构列默认不占位，按钮切换
         // （受控面板；用户偏好，停止/轮询不改）。
         var cv_structure_open bool = false
-        // PLAN-093 T-09:degraded 详情展开（视图态）。
+        // PLAN-093 T-09:degraded 详情展开（视图态）+ 子进程输出 tail
+        // （status_full.output_tail 回填——错误详情盒诊断面）。
         var cv_error_details_open bool = false
+        var cv_output_tail str = ""
     }
 
     timer {
@@ -220,6 +222,7 @@ store CanvasStore {
                                 .cv_app = body.app_path
                             }
                             .cv_error = body.error ?? ""
+                            .cv_output_tail = body.output_tail ?? ""
                             var seq int = body.seq ?? 0
                             if .cv_state == "stopped" {
                                 .cv_seq = seq

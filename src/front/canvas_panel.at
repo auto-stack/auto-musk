@@ -118,9 +118,18 @@ widget CanvasCanvasColumn {
                     }
                 }
                 if .store.cv_error_details_open {
-                    div {
-                        style: "shrink-0 max-h-[120px] overflow-auto px-3 py-1.5 text-[10.5px] font-mono text-destructive/90 bg-destructive/5 border-b border-destructive/20 whitespace-pre-wrap"
-                        text .store.cv_error
+                    col {
+                        style: "shrink-0 max-h-[200px] overflow-auto bg-destructive/5 border-b border-destructive/20"
+                        div {
+                            style: "px-3 py-1.5 text-[10.5px] font-mono text-destructive/90 whitespace-pre-wrap"
+                            text .store.cv_error
+                        }
+                        if .store.cv_output_tail != "" {
+                            div {
+                                style: "px-3 pb-1.5 text-[10px] font-mono text-muted-foreground whitespace-pre-wrap border-t border-destructive/10 pt-1"
+                                text .store.cv_output_tail
+                            }
+                        }
                     }
                 }
             }

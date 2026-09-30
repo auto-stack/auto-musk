@@ -113,6 +113,9 @@ struct Shared {
     /// PLAN-093 预览代次：每次显式 start（替换）+1；watchdog 内部复活保留
     /// 代次（归属不变）。0 = 尚未启动过。
     generation: Arc<AtomicU64>,
+    /// PLAN-093 T-09:子进程输出 tail（崩溃/degraded 诊断面；看门狗每轮
+    /// 刷新——status_full 暴露给前端错误详情盒）。
+    output_tail: Arc<Mutex<String>>,
     /// 归属（PLAN-093 T-02）：start 时登记；HTTP/工具侧按此判冲突。
     owner_workspace: Arc<Mutex<String>>,
     owner_conversation: Arc<Mutex<Option<String>>>,
@@ -136,6 +139,7 @@ impl Shared {
             pac: Arc::new(Mutex::new(Value::Null)),
             app_dir_raw: Arc::new(Mutex::new(None)),
             generation: Arc::new(AtomicU64::new(0)),
+            output_tail: Arc::new(Mutex::new(String::new())),
             owner_workspace: Arc::new(Mutex::new(String::new())),
             owner_conversation: Arc::new(Mutex::new(None)),
         }
@@ -249,6 +253,13 @@ impl CanvasManager {
             }
             Err(e) => {
                 *self.shared.state.lock().unwrap() = CanvasState::Degraded;
+                // PLAN-093 T-09:首启 spawn 失败同样提取 tail 面（degraded
+                // 详情盒诊断源；error 保持整包）。
+                *self.shared.output_tail.lock().unwrap() = e
+                    .split("--- child output tail ---")
+                    .nth(1)
+                    .map(str::to_string)
+                    .unwrap_or_default();
                 *self.shared.error.lock().unwrap() = e.clone();
                 Err(StartError::Spawn(e))
             }
@@ -578,6 +589,7 @@ impl CanvasManager {
             "owner_conversation_id": self.shared.owner_conversation.lock().unwrap().clone(),
             "frame": frame,
             "picked": *self.shared.picked.lock().unwrap(),
+            "output_tail": self.shared.output_tail.lock().unwrap().clone(),
             "overlay": overlay,
             "tree": tree,
             "pac_head": *self.shared.pac.lock().unwrap(),
@@ -695,9 +707,11 @@ async fn watchdog(
             }
             // 子进程死亡快检：即刻走复活路径（不等 3 连失败）。
             if handle.has_exited() {
+                let tail = handle.output_tail(30);
+                *shared.output_tail.lock().unwrap() = tail.clone();
                 tracing::warn!(
                     "canvas: child exited (crash path)\n--- child output tail ---\n{}",
-                    handle.output_tail(30)
+                    tail
                 );
                 break;
             }
@@ -754,6 +768,9 @@ async fn watchdog(
 
         // ── 复活路径：收割 → 退避 → 重 spawn（封顶 3 次）→ degraded ──
         handle.reap().await;
+        // PLAN-093 T-09:收割前固化输出 tail（degraded 诊断面——退出检测
+        // 走截图失败/超时臂时本臂是唯一 tail 采集点）。
+        *shared.output_tail.lock().unwrap() = handle.output_tail(30);
         *shared.pid.lock().unwrap() = None;
         loop {
             if stop.load(Ordering::Relaxed) {
@@ -798,6 +815,14 @@ async fn watchdog(
                 }
                 Err(e) => {
                     *shared.restarts.lock().unwrap() = restarts + 1;
+                    // PLAN-093 T-09:spawn Err 文案内嵌 child output tail
+                    //（session.rs 两处 Err 均带）——提取到 tail 面供
+                    // degraded 详情盒（error 字段保持整包）。
+                    *shared.output_tail.lock().unwrap() = e
+                        .split("--- child output tail ---")
+                        .nth(1)
+                        .map(str::to_string)
+                        .unwrap_or_default();
                     *shared.error.lock().unwrap() = e;
                     // spawn 失败不回帧循环（旧 client 已失效），回预算判定。
                 }
