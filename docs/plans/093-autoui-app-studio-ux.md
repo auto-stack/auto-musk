@@ -627,7 +627,7 @@ PID／进程树及起止收据，再做真实运行测试。
   生命周期 running 不受影响）。双端验证完成，T-04 完成门达成
   （V03 确定性测试全集仍按计划归 T-11 汇总）。
 
-### [ ] T-05：实现工作台壳与响应式会话布局
+### [▶ 进行中] T-05：实现工作台壳与响应式会话布局
 
 - 依赖：T-01、T-04。关联 AC-01、AC-02、AC-03、AC-13。
 - 位置：现有 chats_view.at、canvas_panel.at、content_header.at、nav_sidebar.at；
@@ -638,6 +638,17 @@ PID／进程树及起止收据，再做真实运行测试。
   长路径只在详情内显示；收起／停止分开。
 - 验证 V01／V04；五尺寸resize与模式切换，页面无横溢出，草稿／展开／
   审批卡／输入焦点状态不丢。
+- [▶ 进行中] 第一增量（42c8352，VM 臂实机验证）：canvas_panel 拆分
+  三件套（CanvasStructureColumn/CanvasCanvasColumn/CanvasPanel 组合——
+  状态单源、模板零复制，studio 左右列复用同一实现）；studio 模式开关
+  （cv_studio + 会话头部入口钮 layout-grid 激活态反色；侧栏偏好进出
+  保存/恢复 sidebar_prev）；视口宽通道（viewport_sync.web-only.ts →
+  localStorage('app.viewport_w')，store Poll 随拍读，VM 键兜底，宽通道
+  实测 cv_win_w=1280 自 VM KV）；布局条件（studio 下 chat 列限宽
+  420、面板 flex-1 结构列 220；正常 520/170 不变）。模式进出/保持
+  MCP 驱动实证。下增量：ChatBody 提取（对话列右置——§5.2 精确排序
+  需模板分支，避免复制走子件单实例）、宽度分层臂（1024/768/<768
+  布列与页签）、空状态与打开已有应用流、Vue 侧重建验证。
 
 ### [ ] T-06：统一画布几何、比例、事件和覆盖层
 
