@@ -668,3 +668,27 @@ widget→widget，095 T-07）解除后 VM 轨（iced）面板本体渲染与坐�
 **T-08 剩余（收敛）**：A→B 入队交错取证（busy 模拟 Harness）；多文
 件不确定提示（Q-04）；G-11 后补 VM 轨面板。会话切换清待发送——chip
 为实时视图无复制态，偏差已记录。
+
+### 8.22 T-09 第一增量：生命周期状态面（2026-09-30 第十四轮）
+
+**落地（aa441ef）**：CanvasCanvasColumn 等待分支按 §5.3 状态矩阵化：
+- **stopped 空态区分**：stopped+有 app 描述 = 已停止面（应用标题 +
+  停止说明 + "重新运行"钮——"不得因 state=stopped 隐去全部操作"正
+  向落地；初始无应用与已停止应用是不同空状态 ✓）；stopped+无描述 =
+  初始无应用（waiting）；非 stopped 非匹配态兜底显示真实 state 字符
+  串（新增状态不静默）。
+- **degraded 面**：红条升级——简短原因 truncate + 详情展开 toggle
+  （cv_error 全文 mono 滚动盒，视图态 cv_error_details_open）+ 红条
+  内直接"重新运行"钮。
+- **RerunApp**：canvasStart 走既有校验与启动流；失败落 SetCanvasError
+  （下一拍轮询以真实状态覆盖——前端不新增重启循环 ✓，沿用后端
+  1/2/4s 最多三次策略）。
+
+**验证**：T-09 取证 2/2 @VM 后端（A stop 后已停止面三要素全在/B 重
+新运行离开 stopped → running 帧回归）；Vue 臂 ALL PASS × 双后端。
+
+**T-09 剩余**：①degraded 故障注入取证（spawn 失败重试耗尽路径——
+坏 pac/坏 app 构造，红条+详情+重运行动作面已就位）；②生成/检查进
+度行（工具事件投影——chat 消息 tool_calls → 生成/检查状态行，跨
+store facade 读法或后端投影面，增量二）；③原始日志 tail 后端暴露
+（session output_tail 未进 status_full）。
