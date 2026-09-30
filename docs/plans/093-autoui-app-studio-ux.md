@@ -680,7 +680,7 @@ PID／进程树及起止收据，再做真实运行测试。
   VM 快照 rect 搅动（通道已知）、切换瞬间焦点重置（唯一 DOM 本地态
   损失，autofocus 可后续补）——均不阻断（capability-map §8.14）。
 
-### [ ] T-06：统一画布几何、比例、事件和覆盖层
+### [▶ 进行中] T-06：统一画布几何、比例、事件和覆盖层
 
 - 依赖：T-03、T-04、T-05。关联 AC-05、AC-06、AC-08、AC-14。
 - 位置：现有 canvas_panel.at、canvas_web.ts、ports/canvas.*.at；
@@ -691,6 +691,27 @@ PID／进程树及起止收据，再做真实运行测试。
   Vue／VM用同一换算规则，不能分别猜bbox坐标。
 - 验证 V03与V05几何子场景：DPI1／1.5／2、两种留白、边界点和滚动；
   命中一致、框≤2px，旧frame加载完成不切回旧代次。
+- [▶ 进行中] 开工勘察（2026-09-30，capability-map 待补）：现状面——
+  ①canvas_helpers.at 仅投影函数（pick/overlay 样式、帧 URL、picked
+  投影、overlay 重建），**无几何/比例函数**；两个样式 fn 已带
+  pointer-events:none（overlay 不拦指针 ✓ 既有）；②覆盖框百分比定位
+  相对**容器**而非内容盒——object-contain 留白时选框错位（T-06 要修的
+  几何缺陷，需内容包装层 aspect-ratio 方案）；③web 点选 =
+  installCanvasFrameClicks document 全局委托（window 旗标一次性安装、
+  无卸载/身份/版本守卫，坐标映射内联 TS——ox*natural/rect 直除），
+  直 fetch /api/canvas/pick 未走端口面；VM 侧 canvasPickNode 走
+  vnodeId（树选），坐标点选 VM 无实现；④"点选 API 接收帧物理像素"
+  为 §5.2 既有口径（现映射方向正确）。约束面——onclick 无 $event
+  先例（原始事件仅 oninput 2 参形态），VM int×float 有未打标签前科
+  （forge_helpers.at:595，映射须纯 int 乘前除后）；use.web.fn 声明
+  可生成 helper 文件的 ext TS 模块（forge_helpers.ts 41 导出实证），
+  canvas_web.ts 消费同一换算规则的可行链路待实验验证（含未使用导入
+  与 tsconfig noUnusedLocals 风险）。第一增量拟态：内容包装层
+  （canvasContentStyle：fit=aspect-ratio 定比盒/100%=natural px 定
+  尺寸+容器内滚）+ canvasMapPhysical 整除映射（点选/清选/留白语义
+  显式化）+ loaded 版本门控（cv_frame_w/h/loaded_seq/gen 回填）+
+  委托收敛身份守卫；VM 侧坐标点选消费与 V03/V05 几何子场景随后续
+  增量。
 
 ### [ ] T-07：实现组件树、选中详情与源码定位
 
