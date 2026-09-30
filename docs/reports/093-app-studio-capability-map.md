@@ -731,3 +731,23 @@ target（语法垃圾 app.at）→ spawn 重试耗尽 → degraded（tail 577B�
 
 **T-09 剩余（收敛）**：生成/检查进度行（工具事件投影——chat run
 tool_calls → 生成/检查状态行；跨 store facade 读法，VM 轨随 G-11）。
+
+### 8.24 T-10 第一增量：键盘 Escape 收敛 + 字号下限（2026-09-30 第十七轮）
+
+**落地（c8a8d0c）**：
+- **Escape 收敛**：chats 视图根 onkeydown → Escape 关闭源码页签（回
+  结构）+ 错误详情盒——不触 stop（§5.2 键盘契约）；web/VM 双轨
+  （app.at GlobalKeydown 同款字段访问先例）。
+- **字号下限 §5.2 对齐**：树行 10.5/9.5/9 → 12/11/11；源码路径头/
+  行号 → 11、行文本 → 12；详情盒 → 11；队列 → 11。
+- **队列移除钮 title i18n 化**（canvas.queueRemove）。
+
+**codegen 契约新证**：msg 参数 `any` 型被误收自定义类型导入
+（TS2305——import type { any }）；修正=参数 str 化 + 视图
+JSON.stringify/store JSON.parse 往返（auth_store stringify 先例）；
+事件型 msg 无型声明（app.at GlobalKeydown 先例）。
+
+**验证**：Vue 臂 ALL PASS × 双后端。
+**T-10 剩余**：双端两主题（深/浅）两语言实操验收、confirm 命中区
+（≥28px）全控件巡检、Tab 序巡检——多为主体验收口径，归 T-13 实机
+验收轮汇总。
