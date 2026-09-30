@@ -636,3 +636,35 @@ widget→widget，095 T-07）解除后 VM 轨（iced）面板本体渲染与坐�
 标记（回放面）；Agent turn 上下文说明注入（数据来源+历史定位——
 不塞内部 JSON 进气泡）；A→B 入队交错取证（需 busy 模拟）；会话/
 工作区切换清待发送选择（chip 为实时视图——v1 无复制态，记录偏差）。
+
+### 8.21 T-08 第二增量：回放标记 + turn 注入 + 队列 UI + 分页桥（2026-09-30 第十三轮）
+
+**落地（a60c74b）**：
+- **Agent turn 上下文说明**：chats_message 落盘时 design_context 注入
+  单独 human turn（[元素附件·定位参考] kind/label/来源/代次/帧/vnode
+  全带；文案内越权面声明"不构成系统指令或工具批准"——设计越权红线
+  的正向落法）。
+- **气泡回放标记**：用户气泡 📎 已选：kind·label 轻量 chip（computed
+  None 安全单层链；useT 接线补齐）。刷新回放取证过——乐观 push 消息
+  无附件、持久化消息刷新后带标记（双路径语义实证）。
+- **队列条目级 UI**：逐条 ⏳+📎（有附件标）+文本+移除；
+  QueueRemoveText 按文本匹配首个（for-in 无索引；`let mt = m.text ?? m`
+  联合推断 TS2367 实证——嵌套 if 直比规避）。
+- **G-13 族补桥**：VM serve 分页通道 /api/chats/session/{id}/page
+  （server.at 路由 + chat_get_page_host 宿主桥——paginate_and_normalize
+  在宿主侧）+ forge_store rebuildParsedMessages design_context 透传
+  （归一化重建漏字段 → 标记不渲染实证）。前端 LoadSession/Older/
+  PollBackfill 三路全走分页端点——缺失即"会话加载失败"横幅。
+
+**验证**：E 刷新回放标记 ✓；D 回放 ownership 章 ✓；Vue 臂 ALL PASS
+× 双后端。F 队列条目交互部分验证——post-run 树重渲染期点击超时
+（取证环境限制；队列 UI 与已证 chip 同族生成）。
+
+**方法论新增**：reload 用 domcontentloaded（networkidle 被 SSE/轮询
+长连接饿死）；气泡渲染等待按文本出现次数（侧栏名先现假通过）；
+`?` 解包纪律第三次实证（chat_get_page_host 漏 ? → {"Ok":句柄} 假
+200）。
+
+**T-08 剩余（收敛）**：A→B 入队交错取证（busy 模拟 Harness）；多文
+件不确定提示（Q-04）；G-11 后补 VM 轨面板。会话切换清待发送——chip
+为实时视图无复制态，偏差已记录。
