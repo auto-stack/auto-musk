@@ -25,7 +25,22 @@
 // VM 轨：状态轮询打到宿主桥（VMHTTP canvas 路由 T-03 已通，同
 // CanvasManager）；面板行为双端同源（T-03 四模式探针护航）。
 
-use canvas_helpers: canvasPickedProjection, canvasFrameUrl, rebuildCanvasOverlay, canvasContentStyle
+use canvas_helpers: canvasPickedProjection, canvasFrameUrl, rebuildCanvasOverlay, canvasContentStyle, canvasTreeVisible, canvasSourceLines
+
+// PLAN-093 T-07: 行列表 + 拾取行 → 渲染行对象 [{no, text, hl}]
+// （视图体内 let 不受支持——行对象在 store 域预构建；no 为 1 基）。
+fn canvasSourceRows(lines list, hl int) list {
+    var out list = []
+    var lineNo = 1
+    // for-in + 外部计数（store 模块发射器不注入 range 助手——范围循环
+    // 在 store 文件产出未定义调用，TS2552 实证；fn 模块有局部 range，
+    // 上游缺口待立）。
+    for lineText in lines {
+        out.push({ no: lineNo, body: lineText, hl: lineNo == hl })
+        lineNo = lineNo + 1
+    }
+    return out
+}
 
 // 层树扁平表 → [{vid, depth, kind, label, source, source_path, for_label,
 // indent_style}]（行样式预拼：选中底色视图侧靠 id 等值三臂）。
@@ -78,6 +93,7 @@ store CanvasStore {
         var cv_picked_label str = ""
         var cv_picked_source str = ""
         var cv_picked_source_path str = ""
+        var cv_picked_source_line int = 0
         var cv_picked_for str = ""
         // 选中覆盖框内联 style（bbox_pct 百分比定位）。
         var cv_pick_style str = ""
@@ -88,8 +104,18 @@ store CanvasStore {
         // pac 头显示名。
         var cv_pac_title str = ""
         // 源码预览开合（锚点 chip → 源码抽屉）+ 已载文本。
-        var cv_source_open bool = false
-        var cv_source_text str = ""
+        // PLAN-093 T-07:结构/源码左列页签（chip 点击=切源码）与源码状态
+        // 机（""=无选中源码面 / "ok"=已载入 / "error"=读失败+cv_source_err）；
+        // 行列表随载入切分（渲染侧按 cv_picked_source_line 高亮/提示）。
+        var cv_source_tab str = "structure"
+        var cv_source_state str = ""
+        var cv_source_err str = ""
+        var cv_source_lines []Value = []
+        var cv_source_rows []Value = []
+        // T-07:折叠键（稳定字符串 vid → bool）与可见行（随树回填/折叠
+        // 切换单源重算）。
+        var cv_tree_collapsed obj = {}
+        var cv_tree_visible []Value = []
         // PLAN-093 T-05:视口宽（宽度分层驱动;web 键优先 VM 键兜底）。
         // studio 模式开关归 ChatsView 视图域（跨 store 写入无先例）。
         var cv_win_w int = 1280
@@ -173,8 +199,14 @@ store CanvasStore {
                                 .cv_picked_source_path = ""
                                 .cv_picked_for = ""
                                 .cv_pick_style = ""
+                                .cv_picked_source_line = 0
+                                .cv_source_state = ""
+                                .cv_source_lines = []
+                                .cv_source_rows = []
                                 .cv_overlay = []
                                 .cv_frame_url = ""
+                                .cv_tree_collapsed = {}
+                                .cv_tree_visible = []
                                 // T-06:代次清场连带帧尺寸（旧帧几何不跨代次）。
                                 .cv_frame_w = 0
                                 .cv_frame_h = 0
@@ -206,8 +238,13 @@ store CanvasStore {
                             .cv_picked_source_path = pp.source_path
                             .cv_picked_for = pp.for_label
                             .cv_pick_style = pp.style
+                            .cv_picked_source_line = pp.source_line
                             .cv_overlay = rebuildCanvasOverlay(body.overlay ?? [])
                             .cv_tree = rebuildCanvasTree(body.tree ?? [])
+                            .cv_tree_visible = canvasTreeVisible(.cv_tree, .cv_tree_collapsed)
+                            if .cv_source_state == "ok" {
+                                .cv_source_rows = canvasSourceRows(.cv_source_lines, .cv_picked_source_line)
+                            }
                             var pc = body.pac_head
                             if pc != None {
                                 .cv_pac_title = pc.title ?? ""
@@ -267,7 +304,8 @@ store CanvasStore {
             .cv_picked_source_path = pp.source_path
             .cv_picked_for = pp.for_label
             .cv_pick_style = pp.style
-            .cv_source_open = false
+            .cv_source_state = ""
+            .cv_source_rows = []
         }
 
         // 收起 = 用户偏好（工作台显隐），与生命周期分离：停止/轮询不改；
@@ -284,7 +322,31 @@ store CanvasStore {
         }
 
         .ToggleSource -> {
-            .cv_source_open = !.cv_source_open
+            .cv_source_tab = "source"
+        }
+
+        // T-07:左列页签切换（结构/源码）。
+        .SourceTab(tab str) -> {
+            .cv_source_tab = tab
+        }
+
+        // T-07:折叠切换（vid 稳定键）+ 可见行单源重算。
+        .ToggleTreeNode(vid str) -> {
+            let cur = .cv_tree_collapsed[vid]
+            if cur == true {
+                .cv_tree_collapsed[vid] = false
+            } else {
+                .cv_tree_collapsed[vid] = true
+            }
+            .cv_tree_visible = canvasTreeVisible(.cv_tree, .cv_tree_collapsed)
+        }
+
+        // T-07:源码读失败落账（面板 error 面文案）。
+        .SourceLoadFail(err str) -> {
+            .cv_source_state = "error"
+            .cv_source_err = err
+            .cv_source_lines = []
+            .cv_source_rows = []
         }
 
         // PLAN-093 T-05 §5.2 窄层（768-1023）：结构列显隐切换（受控面板）。
@@ -299,7 +361,10 @@ store CanvasStore {
         }
 
         .SourceBackfill(payload str) -> {
-            .cv_source_text = payload
+            .cv_source_lines = canvasSourceLines(payload)
+            .cv_source_rows = canvasSourceRows(.cv_source_lines, .cv_picked_source_line)
+            .cv_source_state = "ok"
+            .cv_source_err = ""
         }
     }
 }

@@ -62,12 +62,15 @@ fn canvasPickedProjection(pk obj) {
     var source_path = ""
     var for_label = ""
     var style = ""
+    var source_line = 0
     if pk != None {
         id = pk.vnode_id ?? ""
         kind = pk.kind ?? ""
         label = pk.label ?? ""
         source = pk.source ?? ""
         source_path = pk.source_path ?? ""
+        // T-07:行定位（pick_json source_line；缺省 0 = 无有效行）。
+        source_line = pk.source_line ?? 0
         var fc = pk.forctx
         if fc != None {
             var fi = fc.index
@@ -80,7 +83,7 @@ fn canvasPickedProjection(pk obj) {
             style = canvasPickStyleFromBbox(bp)
         }
     }
-    return { id: id, kind: kind, label: label, source: source, source_path: source_path, for_label: for_label, style: style }
+    return { id: id, kind: kind, label: label, source: source, source_path: source_path, for_label: for_label, style: style, source_line: source_line }
 }
 
 /// overlay 条目列表 → [{vid, style}]（agent 高亮=琥珀框，完整内联样式）。
@@ -95,5 +98,70 @@ fn rebuildCanvasOverlay(list obj) list {
         }
         out.push({ vid: vid, style: style })
     }
+    return out
+}
+
+/// PLAN-093 T-07: 层树扁平表（前序）→ 可见行。折叠键 = 节点 vid（稳定
+/// 字符串 ID——跨帧/删改存活）；被折叠祖先掩盖的整枝跳过。行含 has_kids
+/// （下一项深度 = 本深+1）与 open（有子且未折叠）供视图画折叠符。
+/// obj 缺键读返回 None；depth 缺省 0；键经 k + "" 字符串化（editedSpecs
+/// 先例）。纯 int/obj 运算（无 float）。
+fn canvasTreeVisible(flat list, collapsed obj) list {
+    var out list = []
+    var lastAt obj = {}
+    var n = flat.length
+    for i in 0..n {
+        let node = flat[i]
+        let d = node.depth ?? 0
+        var hidden = false
+        for k in 0..d {
+            let av = lastAt[k + ""]
+            if av != None {
+                if collapsed[av] == true {
+                    hidden = true
+                }
+            }
+        }
+        if hidden == false {
+            var hasKids = false
+            if i + 1 < n {
+                let nx = flat[i + 1]
+                if (nx.depth ?? 0) == d + 1 {
+                    hasKids = true
+                }
+            }
+            let cv = collapsed[node.vid]
+            out.push({
+                vid: node.vid,
+                depth: d,
+                kind: node.kind ?? "",
+                label: node.label ?? "",
+                for_label: node.for_label ?? "",
+                indent_style: node.indent_style ?? "",
+                has_kids: hasKids,
+                open: hasKids && cv != true,
+            })
+        }
+        lastAt[d + ""] = node.vid
+    }
+    return out
+}
+
+/// PLAN-093 T-07: 源码文本 → 行列表（\n 切分，尾行无换行照收；char_code_at
+/// 10 判行——estimateTokens 同族双轨原语，substring 前闭后开）。
+fn canvasSourceLines(text str) list {
+    var out list = []
+    if text == None { return out }
+    var start = 0
+    let n = text.length
+    var i = 0
+    while i < n {
+        if text.char_code_at(i) == 10 {
+            out.push(text.substring(start, i))
+            start = i + 1
+        }
+        i = i + 1
+    }
+    out.push(text.substring(start, n))
     return out
 }

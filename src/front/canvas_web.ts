@@ -94,7 +94,13 @@ export async function canvasClearPick(): Promise<CanvasResult> {
 }
 
 export async function canvasLoadSource(path: string): Promise<{ ok: boolean; error: string; text?: string }> {
-    const response = await fetch(`/api/files/raw/${encodeURIComponent(path)}`, {
+    // PLAN-093 T-07:files 读取走 workspace 路径段形态 /api/files/{ws}/{path}
+    // （canvas.vm.at 同款——VM serve 路由装配只含 ag 参数路由，raw query
+    // 形态未挂载、200 "null" 兜底体实测；Rust serve 该形态由 ag
+    // workspace_file 服务等价）。ws 走 musk_workspace localStorage
+    // （SetWorkspace 单源写入；本层无 store 访问，与 viewport_sync 同通道）。
+    const wid = typeof localStorage !== 'undefined' ? (localStorage.getItem('musk_workspace') || '') : '';
+    const response = await fetch(`/api/files/${encodeURIComponent(wid)}/${path}`, {
         method: 'GET',
         headers: { 'Content-Type': 'text/plain' },
     });

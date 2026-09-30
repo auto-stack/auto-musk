@@ -1,0 +1,101 @@
+// canvas_source.at — PLAN-093 T-07: 源码面板（结构列"源码"页签内容）。
+// 状态机（cv_source_state）：""=无选中源码面（提示选节点）/"ok"=已载入
+// （行对象表 cv_source_rows 按拾取行高亮；越界提示）/ "error"=读失败
+// （错误文案原样）。只读展示——不引入源码写入/属性编辑（计划红线）。
+// 行对象由 store 单源构建（视图体内 let 不受支持——解析实证 R016）；
+// 长文件滚动 = 行容器 overflow-auto；自动滚动定位待后续（记录）。
+
+use store: CanvasStore
+use.web useT from "src/front/ports/composables.at"
+
+widget CanvasSourcePanel {
+
+    setup {
+        let t = useT()
+    }
+
+    view {
+        col {
+            style: "flex-1 min-h-0 overflow-hidden bg-background"
+            if .store.cv_source_state == "error" {
+                col {
+                    style: "flex-1 min-h-0 items-center justify-center gap-1 px-4"
+                    span {
+                        style: "text-[11px] text-destructive text-center"
+                        text t("canvas.sourceLoadError")
+                    }
+                    if .store.cv_source_err != "" {
+                        span {
+                            style: "text-[10px] text-muted-foreground text-center font-mono"
+                            text .store.cv_source_err
+                        }
+                    }
+                }
+            } else {
+                if .store.cv_picked_source_path == "" {
+                    col {
+                        style: "flex-1 min-h-0 items-center justify-center px-4"
+                        span {
+                            style: "text-[11px] text-muted-foreground text-center"
+                            text t("canvas.sourceNoPick")
+                        }
+                    }
+                } else {
+                    // 路径 + 行信息头（text 拼接须字面量开头——模型引用
+                    // 开头的拼接泄漏垃圾节点 R016 实证；行段独立 span）。
+                    div {
+                        style: "shrink-0 px-3 py-1 text-[10.5px] text-muted-foreground border-b border-border font-mono"
+                        span {
+                            style: "text-muted-foreground"
+                            text .store.cv_picked_source_path
+                        }
+                        if .store.cv_picked_source_line > 0 {
+                            span {
+                                style: "text-foreground/70"
+                                text ":" + .store.cv_picked_source_line
+                            }
+                        }
+                    }
+                    // 行号无效提示（拾取带行但越界——单文件面）。
+                    if .store.cv_picked_source_line > .store.cv_source_lines.length {
+                        div {
+                            style: "shrink-0 px-3 py-1 text-[10px] text-amber-500 border-b border-border bg-amber-500/10"
+                            text t("canvas.sourceLineInvalid")
+                        }
+                    }
+                    // 行渲染（行号列 + 内容列；拾取行反色高亮）。
+                    col {
+                        style: "flex-1 min-h-0 overflow-auto py-1 font-mono"
+                        for row in .store.cv_source_rows {
+                            if row.hl {
+                                row {
+                                    style: "shrink-0 items-start bg-primary/10"
+                                    span {
+                                        style: "shrink-0 w-[34px] pr-1 text-right text-[10px] text-primary/70 select-none"
+                                        text row.no
+                                    }
+                                    span {
+                                        style: "flex-1 min-w-0 pr-3 text-[11px] text-foreground whitespace-pre"
+                                        text row.body
+                                    }
+                                }
+                            } else {
+                                row {
+                                    style: "shrink-0 items-start"
+                                    span {
+                                        style: "shrink-0 w-[34px] pr-1 text-right text-[10px] text-muted-foreground/50 select-none"
+                                        text row.no
+                                    }
+                                    span {
+                                        style: "flex-1 min-w-0 pr-3 text-[11px] text-foreground/80 whitespace-pre"
+                                        text row.body
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

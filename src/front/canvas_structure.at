@@ -1,0 +1,184 @@
+// canvas_structure.at — PLAN-093 T-07: 结构左列（页签化：结构树/源码；
+// 底部抽屉退役——§0"结构／源码"同列双页签语义）。折叠键 = 节点 vid
+// （稳定字符串 ID），可见行由 store 单源重算（canvasTreeVisible）。
+// studio 模式=左列，normal 模式=CanvasPanel 内左列（双处挂载同源）。
+
+use store: CanvasStore
+use.web useT from "src/front/ports/composables.at"
+use.web canvasPickNode, canvasClearPick, canvasLoadSource from "src/front/ports/canvas.at"
+use canvas_source: CanvasSourcePanel
+
+widget CanvasStructureColumn {
+
+    setup {
+        let t = useT()
+    }
+
+    msg Msg {
+        TreeNodePicked(str),
+        ToggleTreeNode(str),
+        ClearPick,
+        SourceTab(str),
+    }
+
+    view {
+        col {
+            style: "w-full h-full flex flex-col overflow-hidden bg-muted/30"
+            // 页签行：结构 | 源码（激活态反色；T-05 全局页签同款交互）。
+            row {
+                style: "shrink-0 h-8 items-center gap-1 px-2 border-b border-border bg-card"
+                button {
+                    onclick: .SourceTab("structure")
+                    style: if .store.cv_source_tab == "structure" {
+                        "h-6 px-2 rounded-md bg-accent text-foreground text-[11px] cursor-pointer"
+                    } else {
+                        "h-6 px-2 rounded-md bg-transparent text-muted-foreground hover:bg-accent cursor-pointer"
+                    }
+                    text t("canvas.tabStructure")
+                }
+                button {
+                    onclick: .SourceTab("source")
+                    style: if .store.cv_source_tab == "source" {
+                        "h-6 px-2 rounded-md bg-accent text-foreground text-[11px] cursor-pointer"
+                    } else {
+                        "h-6 px-2 rounded-md bg-transparent text-muted-foreground hover:bg-accent cursor-pointer"
+                    }
+                    text t("canvas.tabSource")
+                }
+            }
+            if .store.cv_source_tab == "source" {
+                CanvasSourcePanel {}
+            } else {
+                // pac 头显示名。
+                div {
+                    style: "shrink-0 px-2 py-1.5 border-b border-border"
+                    span {
+                        style: "text-[11px] font-medium text-muted-foreground truncate"
+                        text .store.cv_pac_title
+                    }
+                }
+                // 折叠层树（可见行单源 cv_tree_visible；行=折叠符+节点钮）。
+                col {
+                    style: "flex-1 min-h-0 overflow-y-auto py-1"
+                    for row in .store.cv_tree_visible {
+                        if row.vid == .store.cv_picked_id {
+                            row {
+                                style: row.indent_style + ";width:100%;padding-right:4px;align-items:flex-start"
+                                if row.has_kids {
+                                    button {
+                                        onclick: .ToggleTreeNode(row.vid)
+                                        style: "shrink-0 w-[14px] h-[16px] px-0 py-0 flex items-center justify-center bg-transparent border-none text-muted-foreground text-[9px] cursor-pointer"
+                                        if row.open {
+                                            text "▾"
+                                        } else {
+                                            text "▸"
+                                        }
+                                    }
+                                } else {
+                                    span { style: "shrink-0 w-[14px] h-[16px]" }
+                                }
+                                button {
+                                    onclick: .TreeNodePicked(row.vid)
+                                    style: "flex-1 min-w-0 flex flex-col items-start text-left;background:rgb(59,130,246)/15;border:none;cursor:pointer;padding:1px 2px"
+                                    span {
+                                        style: "text-[10.5px] text-primary truncate"
+                                        text row.kind
+                                    }
+                                    if row.label != "" {
+                                        span {
+                                            style: "text-[9.5px] text-muted-foreground truncate"
+                                            text row.label
+                                        }
+                                    }
+                                    if row.for_label != "" {
+                                        span {
+                                            style: "text-[9px] text-amber-500"
+                                            text row.for_label
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            row {
+                                style: row.indent_style + ";width:100%;padding-right:4px;align-items:flex-start"
+                                if row.has_kids {
+                                    button {
+                                        onclick: .ToggleTreeNode(row.vid)
+                                        style: "shrink-0 w-[14px] h-[16px] px-0 py-0 flex items-center justify-center bg-transparent border-none text-muted-foreground text-[9px] cursor-pointer"
+                                        if row.open {
+                                            text "▾"
+                                        } else {
+                                            text "▸"
+                                        }
+                                    }
+                                } else {
+                                    span { style: "shrink-0 w-[14px] h-[16px]" }
+                                }
+                                button {
+                                    onclick: .TreeNodePicked(row.vid)
+                                    style: "flex-1 min-w-0 flex flex-col items-start text-left;background:transparent;border:none;cursor:pointer;padding:1px 2px"
+                                    span {
+                                        style: "text-[10.5px] text-foreground/80 truncate"
+                                        text row.kind
+                                    }
+                                    if row.label != "" {
+                                        span {
+                                            style: "text-[9.5px] text-muted-foreground truncate"
+                                            text row.label
+                                        }
+                                    }
+                                    if row.for_label != "" {
+                                        span {
+                                            style: "text-[9px] text-amber-500/80"
+                                            text row.for_label
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    on {
+        // 层树节点点选：POST /api/canvas/pick {vnode_id}；结果经
+        // PickBackfill 即时回填（选中框/芯片同拍呈现），picked 单源仍由
+        // 后端持有（下一拍轮询对账）。
+        .TreeNodePicked(vid) -> {
+            let r = canvasPickNode(vid).await
+            if r.ok == true {
+                if r.pick != "" {
+                    store.PickBackfill(r.pick)
+                }
+            }
+        }
+        // 折叠切换（vid 稳定键；store 单源重算可见行）。
+        .ToggleTreeNode(vid) -> {
+            store.ToggleTreeNode(vid)
+        }
+        // 芯片 ⨯ / 留白点击：后端 {clear:true} + 本地投影清（AC-08 双面）。
+        .ClearPick -> {
+            canvasClearPick().await
+            store.ClearPick()
+        }
+        // 页签切换；切源码且尚未载入时按当前选中路径即载（读失败落
+        // error 面文案——T-07 状态机）。
+        .SourceTab(tab) -> {
+            store.SourceTab(tab)
+            if tab == "source" {
+                if .store.cv_source_state == "" {
+                    if .store.cv_picked_source_path != "" {
+                        let r = canvasLoadSource(.store.cv_picked_source_path).await
+                        if r.ok == true {
+                            store.SourceBackfill(r.text ?? "")
+                        } else {
+                            store.SourceLoadFail(r.error ?? "load failed")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

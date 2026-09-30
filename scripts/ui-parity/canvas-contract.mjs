@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const HELPERS_TS = path.join(ROOT, 'gen', 'front', 'vue', 'src', 'ext', 'src', 'front', 'canvas_helpers.ts');
 
-const { canvasMapPhysical, canvasContentStyle, canvasFrameUrl, canvasPickedProjection, rebuildCanvasOverlay, canvasPickStyleFromBbox } = await import(pathToFileURL(HELPERS_TS).href);
+const { canvasMapPhysical, canvasContentStyle, canvasFrameUrl, canvasPickedProjection, rebuildCanvasOverlay, canvasPickStyleFromBbox, canvasTreeVisible, canvasSourceLines } = await import(pathToFileURL(HELPERS_TS).href);
 
 let pass = 0, fail = 0;
 const assert = (name, ok, detail) => {
@@ -86,11 +86,13 @@ console.log('[canvasFrameUrl / canvasPickedProjection / rebuildCanvasOverlay]');
 
   const pk = {
     vnode_id: 'vnode_42', kind: 'button', label: '提交', source: 'src/a.at',
-    source_path: 'src/a.at', forctx: { index: 2 },
+    source_path: 'src/a.at', source_line: 7, forctx: { index: 2 },
     bbox_pct: { x: 10, y: 20, w: 30, h: 40 },
   };
   const p = canvasPickedProjection(pk);
-  assert('picked 投影 7 字段', p.id === 'vnode_42' && p.kind === 'button' && p.label === '提交' && p.source_path === 'src/a.at' && p.for_label === '#2' && p.style.includes('left:10%'), JSON.stringify(p).slice(0, 140));
+  assert('picked 投影 8 字段（含 source_line）', p.id === 'vnode_42' && p.kind === 'button' && p.label === '提交' && p.source_path === 'src/a.at' && p.for_label === '#2' && p.source_line === 7 && p.style.includes('left:10%'), JSON.stringify(p).slice(0, 160));
+  const pkNoLine = { ...pk, source_line: undefined };
+  assert('source_line 缺省 0（无有效行）', canvasPickedProjection(pkNoLine).source_line === 0);
   assert('覆盖框样式含 pointer-events:none', p.style.includes('pointer-events:none'));
 
   const ovs = rebuildCanvasOverlay([
@@ -100,6 +102,47 @@ console.log('[canvasFrameUrl / canvasPickedProjection / rebuildCanvasOverlay]');
   assert('overlay 重建 2 条', ovs.length === 2 && ovs[0].style.includes('left:0%'), JSON.stringify(ovs).slice(0, 120));
   assert('overlay 样式不拦指针', ovs.every(o => o.style.includes('pointer-events:none')));
   assert('pick 样式蓝/overlay 琥珀分色', canvasPickStyleFromBbox(pk.bbox_pct).includes('rgb(59,130,246)') && ovs[0].style.includes('rgb(245,158,11)'));
+}
+
+// ── canvasTreeVisible：折叠/展开/has_kids/前序可见性契约 ─────────────────
+console.log('[canvasTreeVisible]');
+{
+  const flat = [
+    { vid: 'a', depth: 0, kind: 'col', label: '', for_label: '', indent_style: 'padding-left:4px' },
+    { vid: 'b', depth: 1, kind: 'row', label: 'L1', for_label: '', indent_style: 'padding-left:16px' },
+    { vid: 'c', depth: 2, kind: 'text', label: 'T', for_label: '#1', indent_style: 'padding-left:28px' },
+    { vid: 'd', depth: 1, kind: 'button', label: 'B', for_label: '', indent_style: 'padding-left:16px' },
+  ];
+  const all = canvasTreeVisible(flat, {});
+  assert('全展开 4 行', all.length === 4, `len=${all.length}`);
+  assert('has_kids 标记（a、b 有子；c、d 无）', all[0].has_kids === true && all[1].has_kids === true && all[2].has_kids === false && all[3].has_kids === false);
+  assert('open 只对有子行为真（叶行恒 false）', all.filter(r => r.has_kids).every(r => r.open === true) && all.filter(r => !r.has_kids).every(r => r.open === false));
+
+  const colB = canvasTreeVisible(flat, { b: true });
+  assert('折叠 b → 整枝 c 隐藏（3 行）', colB.length === 3 && !colB.some(r => r.vid === 'c'), `len=${colB.length}`);
+  assert('折叠节点行保留且 open=false', colB.find(r => r.vid === 'b').open === false);
+
+  const colA = canvasTreeVisible(flat, { a: true });
+  assert('折叠根 → 仅根行', colA.length === 1 && colA[0].vid === 'a' && colA[0].open === false);
+
+  const dup = canvasTreeVisible([...flat, { ...flat[1], vid: 'b2' }], { b: true });
+  assert('同 vid 复用折叠键；兄弟分支不受影响', dup.length === 4 && dup.some(r => r.vid === 'b2'), `len=${dup.length}`);
+
+  assert('空树 → 空行', canvasTreeVisible([], {}).length === 0);
+  const d0 = canvasTreeVisible([{ vid: 'x', kind: 'col' }], {});
+  assert('depth 缺省 0 不崩', d0.length === 1 && d0[0].depth === 0);
+}
+
+// ── canvasSourceLines：行切分契约 ────────────────────────────────────────
+console.log('[canvasSourceLines]');
+{
+  assert('三行切分', JSON.stringify(canvasSourceLines('a\nb\nc')) === JSON.stringify(['a', 'b', 'c']));
+  assert('尾行无换行照收', JSON.stringify(canvasSourceLines('a\nb')) === JSON.stringify(['a', 'b']));
+  assert('空串单空行', canvasSourceLines('').length === 1 && canvasSourceLines('')[0] === '');
+  assert('空行保留', JSON.stringify(canvasSourceLines('a\n\nb')) === JSON.stringify(['a', '', 'b']));
+  assert('None → 空表', canvasSourceLines(null).length === 0);
+  const many = canvasSourceLines('x\n'.repeat(500));
+  assert('长文本 500 行（尾空行）', many.length === 501 && many[499] === 'x' && many[500] === '');
 }
 
 console.log(`V03 canvas-contract: ${pass} pass / ${fail} fail`);
