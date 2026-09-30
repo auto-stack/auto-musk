@@ -123,6 +123,12 @@ pub struct ChatMessage {
     /// 前端轮询据此区分"快照已换入但终版未落"与"收束完成"。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pending: Option<bool>,
+    /// PLAN-093 T-08：元素附件快照（design_context，可选增量）——用户
+    /// 拾取元素的定位数据（vnode/kind/label/source/归属代次）。旧会话
+    /// 文件缺字段反序列化为 None（默认值读取，回放安全）；落盘前经
+    /// chats_message 归属校验并盖 ownership 章。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub design_context: Option<serde_json::Value>,
 }
 
 /// 活动时间线块：kind = "text"（叙述/回答文本）| "tool"（一次工具调用，
@@ -149,6 +155,7 @@ impl ChatMessage {
             blocks: Vec::new(),
             profession_id: None,
             pending: None,
+            design_context: None,
         }
     }
     pub fn assistant(content: impl Into<String>) -> Self {
@@ -163,6 +170,7 @@ impl ChatMessage {
             blocks: Vec::new(),
             profession_id: None,
             pending: None,
+            design_context: None,
         }
     }
 }

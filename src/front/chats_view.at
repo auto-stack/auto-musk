@@ -10,6 +10,9 @@
 //   - 卡片走 use{component} 逃生舱（@click toggle 无法 .at 表达）。
 
 use store: ForgeStore
+// PLAN-093 T-08:跨 store 依赖（PLAN-048——第二 store 发独立 facade
+// canvasStore；元素附件 chip 实时读拾取面，发送时冻结快照）。
+use store: CanvasStore
 // #4 回流：会话删除按钮所需的 API 函数。
 use back.api: chats_delete_session, chats_delete_all_sessions
 
@@ -52,7 +55,7 @@ use chat_message: ChatMessage
 // PLAN-087 T-07: 实况画布面板（chats 右侧第三列；cv_open 驱动显隐）。
 use canvas_panel: CanvasPanel, CanvasStudioSlot
 // PLAN-093 T-06:帧点选委托（幂等单例安装；VM 桩空实现）。
-use.web installCanvasFrameClicks, installCanvasSourceScroll from "src/front/ports/canvas.at"
+use.web installCanvasFrameClicks, installCanvasSourceScroll, canvasClearPick from "src/front/ports/canvas.at"
 
 widget ChatsView {
 
@@ -140,6 +143,9 @@ widget ChatsView {
         CopySessionId,
         // PLAN-093 T-05 §5.2 窄层（<768）：工作台页签（画布/对话/结构）。
         StudioTabSet(str),
+        // PLAN-093 T-08:元素附件 chip（移除/聚焦 composer——不改文本）。
+        CtxModifyFocus,
+        CtxRemove,
     }
 
     model {
@@ -752,6 +758,33 @@ widget ChatsView {
                 // 式一体化改版,2026-09-07）——档位经 thinkingLevel prop 下入、
                 // pick 事件上抛,落库仍走 PickThinking → store.SetThinkingLevel
                 // （UI 态 + PATCH 持久化到会话；档位生效于下一次发送,流式中禁用）。
+                // PLAN-093 T-08:元素附件 chip（composer 上方；实时读
+                // canvasStore 拾取面——移除/聚焦不改文本，SendInput 冻结）。
+                if canvasStore.cv_picked_id != "" {
+                    row {
+                        style: "shrink-0 items-center gap-2 px-4 py-1.5 border-t border-border bg-muted/40"
+                        span {
+                            style: "text-[11px] text-foreground truncate flex-1 min-w-0"
+                            if canvasStore.cv_picked_label != "" {
+                                text t("canvas.ctxSelected") + "：" + canvasStore.cv_picked_kind + " · " + canvasStore.cv_picked_label
+                            } else {
+                                text t("canvas.ctxSelected") + "：" + canvasStore.cv_picked_kind
+                            }
+                        }
+                        button {
+                            onclick: .CtxModifyFocus
+                            style: "shrink-0 h-6 px-2 rounded-md bg-transparent text-muted-foreground hover:bg-accent text-[11px] cursor-pointer border-none"
+                            title: t("canvas.ctxModify")
+                            text t("canvas.ctxModify")
+                        }
+                        button {
+                            onclick: .CtxRemove
+                            style: "shrink-0 w-5 h-5 px-0 flex items-center justify-center rounded-md bg-transparent text-muted-foreground hover:bg-accent text-[11px] cursor-pointer border-none"
+                            title: t("canvas.ctxRemove")
+                            text "×"
+                        }
+                    }
+                }
                 MentionInput {
                     disabled: .store.streaming
                     // .at 无可选 props：professions 必填，传空串走 helper 兜底
@@ -806,6 +839,17 @@ widget ChatsView {
         // PLAN-093 T-05 §5.2 窄层：工作台页签切换（画布/对话/结构）。
         .StudioTabSet(val) -> {
             .studio_tab = val
+        }
+
+        // PLAN-093 T-08:附件 chip 动作——聚焦现有 composer（不发送、
+        // 不改文本）；移除走 CanvasStore.ClearPick（后端+本地双面）。
+        .CtxModifyFocus -> {
+            platformFocusComposer()
+        }
+        .CtxRemove -> {
+            // 后端 {clear:true}（防轮询回填）+ CanvasStore 投影清（双面）。
+            canvasClearPick().await
+            canvasStore.ClearPick()
         }
 
         // PLAN-051 P3-②: 单参 oninput 双轨契约——vue codegen 自动包
@@ -997,14 +1041,27 @@ widget ChatsView {
                 let cmd = relay_command_match(tt);
                 .input = "";
                 if cmd == None {
+                    // PLAN-093 T-08:附件快照冻结——确认普通消息后（命令/
+                    // mention 不受上下文影响）；快照 = 当前拾取面字段值。
+                    var ctx = None
+                    if canvasStore.cv_picked_id != "" {
+                        ctx = { version: "1", workspace_id: .store.workspace, conversation_id: .store.session_id, generation_id: canvasStore.cv_gen, frame_seq: canvasStore.cv_seq, app_path: canvasStore.cv_app, vnode_id: canvasStore.cv_picked_id, kind: canvasStore.cv_picked_kind, label: canvasStore.cv_picked_label, source_path: canvasStore.cv_picked_source_path, source_line: canvasStore.cv_picked_source_line }
+                    }
                     // PLAN-071 需求⑮：运行在途时消息入队（画布显示排队指示
                     // 条，流式收束后 store.FlushQueue 自动按 FIFO 发送），
                     // 不再触发后端 busy 拒绝链路（后者保留为跨标签页兜底）。
                     if .store.streaming {
-                        store.QueueMessage(tt)
+                        if ctx == None {
+                            store.QueueMessage(tt)
+                        } else {
+                            store.QueueWithCtx(tt, ctx)
+                        }
                     } else {
-                        store.Send(tt);
-                        store.StartStream(.store.session_id, .store.workspace, .store.token, tt)
+                        if ctx == None {
+                            store.Send(tt)
+                        } else {
+                            store.SendWithCtx(tt, ctx)
+                        }
                     }
                 } else {
                     platformRunRelayCommand(cmd)

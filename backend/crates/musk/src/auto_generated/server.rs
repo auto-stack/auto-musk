@@ -356,6 +356,9 @@ pub struct ChatMessageBody {
     /// 守卫占用时不落 busy 提示（只回 busy:true，前端会再次重试）。
     #[serde(default)]
     pub queued: bool,
+    /// PLAN-093 T-08：元素附件快照（可选增量；缺省 None 旧 API 兼容）。
+    #[serde(default)]
+    pub design_context: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]

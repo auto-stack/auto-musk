@@ -771,6 +771,10 @@ pub fn chats_create(s: &State<AppState>, q: Query<crate::auto_generated::server:
             );
             serde_json::json!({ "session": session })
         }
+        Err(ref e) => {
+            eprintln!("[T08DBG] chats_create io error: {e} (ws_id={ws_id})");
+            serde_json::json!({ "error": format!("chats_create: {e}") })
+        }
         Err(_) => Value::Null,
     }
 }
@@ -848,7 +852,43 @@ pub fn chats_delete_all(s: &State<AppState>, q: Query<crate::auto_generated::ser
 }
 pub fn chats_message(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<String>, b: Json<crate::auto_generated::server::ChatMessageBody>) -> Value {
     let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
-    let msg = crate::chats::ChatMessage::user(b.content.clone());
+    let mut msg = crate::chats::ChatMessage::user(b.content.clone());
+    // PLAN-093 T-08：元素附件快照——字段面校验 + 归属盖章（AC-11）。
+    // 必填字段（vnode_id/kind）缺失 → 400 拒收（用户文字不落盘，前端
+    // 保留输入）；canvas 活动代次与快照 generation_id 不符 → 落盘带
+    // ownership:"stale"（回放诚实标注，不静默混同当前代次）。
+    if let Some(dc) = b.design_context.clone() {
+        let vid = dc.get("vnode_id").and_then(|v| v.as_str()).unwrap_or("");
+        let kind = dc.get("kind").and_then(|v| v.as_str()).unwrap_or("");
+        if vid.is_empty() || kind.is_empty() {
+            return serde_json::json!({
+                "error": "design_context requires non-empty vnode_id and kind",
+            });
+        }
+        let mut dc = dc.clone();
+        let st_full = s.0.canvas.status_full();
+        let canvas_live = st_full.get("state").and_then(|v| v.as_str()) != Some("stopped");
+        let gen = dc.get("generation_id").and_then(|v| v.as_u64());
+        let cur_gen = st_full.get("generation_id").and_then(|v| v.as_u64());
+        let ownership = if !canvas_live {
+            "no-canvas"
+        } else if gen != None && gen == cur_gen {
+            "current"
+        } else {
+            "stale"
+        };
+        // T-08:代次失效拒收（设计：保留用户文字，提示移除附件或重新
+        // 选择，不自动误发）——队列消费方按 stale 标记整条退回队首。
+        if ownership == "stale" {
+            return serde_json::json!({
+                "stale": true,
+                "busy": false,
+                "error": "附件代次已失效（画布代次已切换）——请移除附件或重新选择后再发送",
+            });
+        }
+        dc["ownership"] = serde_json::json!(ownership);
+        msg.design_context = Some(dc);
+    }
     match ws.chats.append_message(&p.0, msg.clone()) {
         Ok(Some(session)) => {
             let seq_base = ws

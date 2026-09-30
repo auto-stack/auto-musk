@@ -174,6 +174,36 @@ fn register_host_calls() {
     // ── 状态数据（Query 第一参）──
     host!("specs_load", |a| enc(ei::specs_load(&st_axum(&st()?), wq_server(a))));
     host!("chats_list", |a| enc(ei::chats_list(&st_axum(&st()?), wq_server(a))));
+    // ── chats 写/读长尾（PLAN-093 T-08 G-13 族）：VM serve 的 chats.at
+    // handler 经 musk_extern_dispatch 委托——未注册时网关回 null →
+    // to_response(null) 500（会话创建/发送/回放全链实测）。args 序 =
+    // .at dispatch 数组序（state 不进 ABI）。
+    host!("chats_create", |a| {
+        let q = wq_server(a);
+        let b: crate::auto_generated::server::ChatCreateBody =
+            serde_json::from_value(arg(a, 1)).unwrap_or(crate::auto_generated::server::ChatCreateBody {
+                mode: None,
+                workspace_id: None,
+            });
+        enc(ei::chats_create(&st_axum(&st()?), q, axum::Json(b)))
+    });
+    host!("chats_get", |a| {
+        let q = wq_server(a);
+        let sid = arg(a, 1).as_str().unwrap_or_default().to_string();
+        enc(ei::chats_get(&st_axum(&st()?), q, axum::extract::Path(sid)))
+    });
+    host!("chats_message", |a| {
+        let q = wq_server(a);
+        let sid = arg(a, 1).as_str().unwrap_or_default().to_string();
+        let b: crate::auto_generated::server::ChatMessageBody =
+            serde_json::from_value(arg(a, 2)).unwrap_or(crate::auto_generated::server::ChatMessageBody {
+                content: String::new(),
+                run: None,
+                queued: false,
+                design_context: None,
+            });
+        enc(ei::chats_message(&st_axum(&st()?), q, axum::extract::Path(sid), axum::Json(b)))
+    });
     host!("conversations_list", |a| enc(ei::conversations_list(&st_axum(&st()?), wq_server(a))));
     host!("workspace_list_all", |_a| enc(ei::workspace_list_all(&st_axum(&st()?))));
     host!("relay_runs_list", |a| enc(ei::relay_runs_list(&st_axum(&st()?), wq_relay(a))));

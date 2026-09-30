@@ -121,6 +121,11 @@ store ForgeStore {
         RefreshHeader,
         StreamStarted(str),
         Send(str),
+        // PLAN-093 T-08:带元素附件快照的发送（ctx None = 纯文本，旧形态）。
+        SendWithCtx(str, any),
+        // PLAN-093 T-08:队列条目对象化（text + ctx 逐条冻结；busy 重入
+        // 原样保留——FlushQueue 不读"当前选择"）。
+        QueueWithCtx(str, any),
         StopStream,
         CancelRun,
         SetThinking(str),
@@ -595,7 +600,18 @@ store ForgeStore {
             // assistant 消息由 SSE delta 事件回写。
             // PLAN-055 ⑧(D1)：run=true 显式触发后端 agent 运行——VM 轨 Sse.open
             // 为 no-op，订阅触发路径不可达；gen/web 轨双保险无害（订阅侧守卫防双跑）。
-            var resp = chats_send_message(.session_id, content, "", true, false);
+            var resp = chats_send_message(.session_id, content, "", true, false, None);
+            .streaming = true
+            .RefreshHeader()
+        }
+
+        // PLAN-093 T-08:带附件发送（ctx 已由视图域冻结；后端字段面校验 +
+        // 归属盖章）。
+        .SendWithCtx(content, ctx) -> {
+            .current_draft = "";
+            .thinking = "";
+            .error = "";
+            var resp2 = chats_send_message(.session_id, content, "", true, false, ctx);
             .streaming = true
             .RefreshHeader()
         }
@@ -627,6 +643,12 @@ store ForgeStore {
             .pending_msgs.push(text)
         }
 
+        // PLAN-093 T-08:带 ctx 入队——条目对象 {text, ctx} 逐条冻结；
+        // FlushQueue busy 退回原样（不读"当前选择"）。
+        .QueueWithCtx(text, ctx) -> {
+            .pending_msgs.push({ text: text, ctx: ctx })
+        }
+
         // PLAN-071 需求⑮：流式收束后排空队列——取最旧一条直接 POST
         // （queued=true：守卫占用只回 busy:true 不落提示）。busy = 收束
         // 竞态窗口（done 已见、守卫未清）——整条退回队首，由 PollStream
@@ -635,7 +657,11 @@ store ForgeStore {
         .FlushQueue -> {
             if .streaming == false {
                 if .pending_msgs.length > 0 {
-                    let first = .pending_msgs[0]
+                    // PLAN-093 T-08:条目对象 {text, ctx}（旧字符串形态兼容
+                    // 读取——ctx 缺省 None）。
+                    var firstObj = .pending_msgs[0]
+                    var firstText = firstObj.text ?? firstObj
+                    var firstCtx = firstObj.ctx ?? None
                     var rest []Value = []
                     var idx = 0
                     for m in .pending_msgs {
@@ -644,21 +670,34 @@ store ForgeStore {
                         }
                         idx = idx + 1
                     }
-                    var resp = chats_send_message(.session_id, first, "", true, true);
+                    var resp = chats_send_message(.session_id, firstText, "", true, true, firstCtx);
                     if resp != None {
                         if resp.busy == true {
                             var restored []Value = []
-                            restored.push(first)
+                            restored.push(firstObj)
                             for m in rest {
                                 restored.push(m)
                             }
                             .pending_msgs = restored
                             return
                         }
+                        // T-08:附件代次失效——后端 409 stale（归属校验）。
+                        // 用户文字退回输入框由视图域承接（store 无视图引用），
+                        // 此处整条退回队首 + 落错误面提示，不自动误发。
+                        if resp.stale == true {
+                            var restored2 []Value = []
+                            restored2.push(firstObj)
+                            for m in rest {
+                                restored2.push(m)
+                            }
+                            .pending_msgs = restored2
+                            .SetError("附件已失效（画布代次已切换）——请移除附件或重新选择后再发送")
+                            return
+                        }
                     }
                     .pending_msgs = rest
                     .streaming = true
-                    .StartStream(.session_id, .workspace, .token, first)
+                    .StartStream(.session_id, .workspace, .token, firstText)
                 }
             }
         }
