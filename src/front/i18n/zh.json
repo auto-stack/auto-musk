@@ -523,6 +523,7 @@
     "stoppedNote": "应用已停止——工作台保留标题；重新运行可再次生成",
     "rerun": "重新运行",
     "errorDetails": "错误详情",
+    "queueRemove": "移除排队消息",
     "ctxSelected": "已选",
     "ctxModify": "在对话中修改",
     "ctxRemove": "移除附件",

@@ -523,6 +523,7 @@
     "stoppedNote": "App stopped — the workbench keeps its title; re-run to restart generation",
     "rerun": "Re-run",
     "errorDetails": "Error details",
+    "queueRemove": "Remove queued message",
     "ctxSelected": "Selected",
     "ctxModify": "Edit in conversation",
     "ctxRemove": "Remove attachment",

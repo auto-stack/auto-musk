@@ -81,18 +81,18 @@ widget CanvasStructureColumn {
                                     onclick: .TreeNodePicked(row.vid)
                                     style: "flex-1 min-w-0 flex flex-col items-start text-left;background:rgb(59,130,246)/15;border:none;cursor:pointer;padding:1px 2px"
                                     span {
-                                        style: "text-[10.5px] text-primary truncate"
+                                        style: "text-[12px] text-primary truncate"
                                         text row.kind
                                     }
                                     if row.label != "" {
                                         span {
-                                            style: "text-[9.5px] text-muted-foreground truncate"
+                                            style: "text-[11px] text-muted-foreground truncate"
                                             text row.label
                                         }
                                     }
                                     if row.for_label != "" {
                                         span {
-                                            style: "text-[9px] text-amber-500"
+                                            style: "text-[11px] text-amber-500"
                                             text row.for_label
                                         }
                                     }
@@ -123,13 +123,13 @@ widget CanvasStructureColumn {
                                     }
                                     if row.label != "" {
                                         span {
-                                            style: "text-[9.5px] text-muted-foreground truncate"
+                                            style: "text-[11px] text-muted-foreground truncate"
                                             text row.label
                                         }
                                     }
                                     if row.for_label != "" {
                                         span {
-                                            style: "text-[9px] text-amber-500/80"
+                                            style: "text-[11px] text-amber-500/80"
                                             text row.for_label
                                         }
                                     }

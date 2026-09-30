@@ -148,6 +148,8 @@ widget ChatsView {
         CtxRemove,
         // PLAN-093 T-08:队列条目移除（按文本匹配首个）。
         QueueRemoveText(str),
+        // PLAN-093 T-10:Escape 关闭展开面（app.at GlobalKeydown 无型先例）。
+        CanvasEscape,
     }
 
     model {
@@ -757,7 +759,7 @@ widget ChatsView {
                                     }
                                     if q.ctx != None {
                                         span {
-                                            style: "text-[10px] text-primary shrink-0"
+                                            style: "text-[11px] text-primary shrink-0"
                                             text "📎"
                                         }
                                     }
@@ -767,7 +769,7 @@ widget ChatsView {
                                     }
                                     button {
                                         onclick: .QueueRemoveText(q.text)
-                                        style: "shrink-0 w-5 h-5 px-0 flex items-center justify-center rounded-md bg-transparent text-muted-foreground hover:bg-accent text-[10px] cursor-pointer border-none"
+                                        style: "shrink-0 w-5 h-5 px-0 flex items-center justify-center rounded-md bg-transparent text-muted-foreground hover:bg-accent text-[11px] cursor-pointer border-none"
                                         title: "移除"
                                         text "×"
                                     }
@@ -1080,13 +1082,13 @@ widget ChatsView {
                         if ctx == None {
                             store.QueueMessage(tt)
                         } else {
-                            store.QueueWithCtx(tt, ctx)
+                            store.QueueWithCtx(tt, JSON.stringify(ctx))
                         }
                     } else {
                         if ctx == None {
                             store.Send(tt)
                         } else {
-                            store.SendWithCtx(tt, ctx)
+                            store.SendWithCtx(tt, JSON.stringify(ctx))
                         }
                     }
                 } else {

@@ -122,10 +122,12 @@ store ForgeStore {
         StreamStarted(str),
         Send(str),
         // PLAN-093 T-08:带元素附件快照的发送（ctx None = 纯文本，旧形态）。
-        SendWithCtx(str, any),
+        // ctx 参 = JSON 字符串（msg 参数 str 化——`any` 参数被 codegen
+        // 误收进自定义类型导入 TS2305 实证；store 域 parse 回对象）。
+        SendWithCtx(str, str),
         // PLAN-093 T-08:队列条目对象化（text + ctx 逐条冻结；busy 重入
         // 原样保留——FlushQueue 不读"当前选择"）。
-        QueueWithCtx(str, any),
+        QueueWithCtx(str, str),
         QueueRemoveText(str),
         StopStream,
         CancelRun,
@@ -608,11 +610,11 @@ store ForgeStore {
 
         // PLAN-093 T-08:带附件发送（ctx 已由视图域冻结；后端字段面校验 +
         // 归属盖章）。
-        .SendWithCtx(content, ctx) -> {
+        .SendWithCtx(content, ctxJson str) -> {
             .current_draft = "";
             .thinking = "";
             .error = "";
-            var resp2 = chats_send_message(.session_id, content, "", true, false, ctx);
+            var resp2 = chats_send_message(.session_id, content, "", true, false, JSON.parse(ctxJson));
             .streaming = true
             .RefreshHeader()
         }
@@ -646,8 +648,8 @@ store ForgeStore {
 
         // PLAN-093 T-08:带 ctx 入队——条目对象 {text, ctx} 逐条冻结；
         // FlushQueue busy 退回原样（不读"当前选择"）。
-        .QueueWithCtx(text, ctx) -> {
-            .pending_msgs.push({ text: text, ctx: ctx })
+        .QueueWithCtx(text, ctxJson str) -> {
+            .pending_msgs.push({ text: text, ctx: JSON.parse(ctxJson) })
         }
 
         // PLAN-093 T-08:队列条目移除（按文本匹配首个——for-in 无索引，
