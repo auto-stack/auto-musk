@@ -143,6 +143,19 @@ console.log('[canvasTreeVisible]');
   assert('空树 → 空行', canvasTreeVisible([], {}).length === 0);
   const d0 = canvasTreeVisible([{ vid: 'x', kind: 'col' }], {});
   assert('depth 缺省 0 不崩', d0.length === 1 && d0[0].depth === 0);
+
+  // T-11:大 ID（哈希 vnode > 2^53）全链字符串保真——数字形态静默截断。
+  const bigId = '9007199254740993';
+  const bigFlat = [
+    { vid: bigId, depth: 0, kind: 'col', label: 'root', for_label: '', indent_style: 'padding-left:4px' },
+    { vid: '9007199254740994', depth: 1, kind: 'button', label: 'child', for_label: '', indent_style: 'padding-left:16px' },
+  ];
+  const bigRows = canvasTreeVisible(bigFlat, {});
+  assert('大 ID 行保真（>2^53 字符串原样）', bigRows[0].vid === bigId && bigRows[1].vid === '9007199254740994', JSON.stringify(bigRows.map(r => r.vid)));
+  const bigFolded = canvasTreeVisible(bigFlat, { [bigId]: true });
+  assert('大 ID 折叠键命中（根折叠仅根行）', bigFolded.length === 1 && bigFolded[0].open === false, `len=${bigFolded.length}`);
+  const bigPick = canvasPickedProjection({ vnode_id: bigId, kind: 'text' });
+  assert('大 ID picked 投影保真', bigPick.id === bigId);
 }
 
 // ── canvasSourceLines：行切分契约 ────────────────────────────────────────

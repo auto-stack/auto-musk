@@ -454,6 +454,16 @@
       "owner": "PLAN-080",
       "plan": "PLAN-080",
       "live": true
+    },
+    {
+      "id": "canvas-studio-pair",
+      "unit": "CanvasCanvasColumn",
+      "logicalUnit": "canvas-studio",
+      "fixture": "canvas-studio-pair.json",
+      "mode": "render-and-interact",
+      "state": "empty-idle-zoom-roundtrip",
+      "owner": "agent",
+      "plan": "PLAN-093"
     }
   ]
 }

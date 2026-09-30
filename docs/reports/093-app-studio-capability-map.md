@@ -848,3 +848,58 @@ pac.at 排除实证）。uncertain 正向提示条由投影/V03+条件渲染+anc
 
 **下游**：T-07/T-08 的 Q-04 剩余项收敛；两者剩余仅 G-11（VM 轨，随
 PLAN-095 T-07）。
+
+### 8.27 T-11：确定性合同测试与 Gallery 用例汇总（2026-10-01 第二十轮）
+
+**落地**：
+- **V03 增补**：大 ID（哈希 vnode > 2^53）全链字符串保真 4 例——
+  canvasTreeVisible 行保真/折叠键命中（大 vid 字符串键）/
+  canvasPickedProjection 保真；ext 模块面（rebuildCanvasTree 在 store
+  域，不在 ext 直测面——边界记录）。**65/65**。
+- **V04 Gallery case `canvas-studio-pair`**（§6 计划固定 id）：unit=
+  CanvasCanvasColumn（真实 unit、无 props、双端可渲染面）；fixture
+  交互=缩放往返（`1:1`→`⤢`→`1:1`，按 title「切换适应」匹配——MCP
+  可访问名合成在点击后丢非 ASCII 子文本的观测记录）——VM MCP 驱动
+  下真实穿透「视图→store msg→canvasContentStyle helper→重渲染」链
+  （state_changes cv_zoom_fit true→false 实录；V03 只测 TS 面的互补
+  证据）；截图基线 plan093-canvas-studio-pair-vm.png（持久拷贝
+  tmp/ui-parity/PLAN-093/）。cases.json 注册（plan PLAN-093，owner
+  agent）。
+- **busy Harness 汇总口径（T-08 定案承接）**：不新建 ForgeStore 流式
+  模拟器。理由：流式期 composer 禁输=产品真实 UX（§8.23 黑盒无法
+  驱动入队窗口），等价覆盖已三面成立——①后端契约（stale 409 拒收/
+  归属守卫，canvas_studio_contract 19/19）；②冻结语义双证（单发冻结
+  POST ctx 落盘带章 + A→B 直接双发各携快照，§8.23）；③V03 投影面
+  （ctx 冻结字段分类直测）。新 JS 线束收益/成本比不成立，review 可
+  复核此口径。
+- **顺手修复（V04 VM 臂暴露）**：canvas_store.at StatusBackfill 的
+  `body.app_path != ""` 守卫对 undefined 判真（gallery stub `{}` 体
+  部分载荷实机暴露；web 侧同险）——`var ap = body.app_path ?? ""`
+  归一后，空载荷正确渲染「等待 app 窗口」空态（修复前后快照都在
+  V04 收据）。**V02 环境事故（新记录）**：宿主 shell `RUSTC_WRAPPER=
+  sccache` 在 worktree 全量 test 编译时毒化依赖 rlib（T-02 已记录
+  full clean 后复现）——本轮 17.9GB cargo clean + `RUSTC_WRAPPER=`
+  前缀重建；**高并发全量编译仍触发杀软竞态（错误集 37-41 振荡不收
+  敛）**，改逐目标串行编译+执行后全绿——V02 从此固定按目标串行跑
+  （33 集成目标 + lib）。
+- **顺手修复（V02 暴露）**：parity_chats.rs / parity_conversation.rs
+  共 4 处 hw::ChatMessage 测试夹具缺 T-08 `design_context` 字段
+  （E0063——此前各轮只跑定向目标未触达；chat_page.rs 同族已在
+  §8.25 修）。
+
+**验证**：
+- V02：lib 505 passed；集成目标全绿（chats 20/conversation 10/
+  task_plan 17/wiki 11/specs 11/tool_safety 7/…共 33 目标）；唯一
+  失败 tool_atoms::run_command_dangerous_returns_paused = T-02 已
+  记录本机预存（base 复现，与本计划无关）；ignored（真实 VM 生命
+  周期/M3）归 T-12。
+- V03：65/65。V04：双臂 exit 0（vue http-ok + vm snapshot-ok，
+  缩放往返两断言全过，reset 事件 spy ✓）。V06：catalog PASS
+  （114 declarations，explicit 47 cases）。
+- V01：终态复验 gen strict（65 组件）+ pnpm build 10.61s exit 0。
+
+**边界**：Gallery 结构列（CanvasStructureColumn/CanvasSourcePanel）
+未入 case（unit 单数物化模板约束）；其内容断言由 V03/live 探针承载，
+G-11 解除后 095 T-08 的消费用例可扩展。VM 轨组件 mounting 面在
+gallery 跨文件引用下工作正常（本 case 双端实证），应用级组装面
+（chats_view→slot→列）仍是 G-11（PLAN-095 T-07）。

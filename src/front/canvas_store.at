@@ -229,8 +229,12 @@ store CanvasStore {
                             }
                             .cv_state = body.state ?? "stopped"
                             // 停止后保留应用描述（已停止工作台的标题）。
-                            if body.app_path != "" {
-                                .cv_app = body.app_path
+                            // T-11:app_path ?? "" 归一——部分载荷（gallery
+                            // stub {} 体实机暴露）下 undefined 对 != "" 判
+                            // 真，空标题渲染成"已停止"面（V04 VM 臂取证）。
+                            var ap = body.app_path ?? ""
+                            if ap != "" {
+                                .cv_app = ap
                             }
                             .cv_error = body.error ?? ""
                             .cv_output_tail = body.output_tail ?? ""

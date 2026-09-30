@@ -1,0 +1,19 @@
+{
+  "props": {},
+  "expect": {
+    "visible": [
+      "等待 app 窗口…",
+      "1:1"
+    ]
+  },
+  "interactions": [
+    {
+      "click": "切换适应",
+      "visible": ["⤢"]
+    },
+    {
+      "click": "切换适应",
+      "visible": ["1:1"]
+    }
+  ]
+}
