@@ -29,34 +29,30 @@ widget PortsProbe {
         }
 
         Tick -> {
-            // G-9 哨兵：当前必须保持「顶层无条件 send」形态——send 条件化
-            // （if 块内 park）时 park/resume 续体异常（2026-09-29 实证：
-            // pre-park 写落地、post-resume 写丢失、视图模型绑定子节点
-            // 整体消失；复现器见 git 历史 app.base.at 条件形态版本 +
-            // AUTO_DEBUG_G9=1 引擎探针）。引擎修复后恢复自然形态回归。
-            var n int = .polls + 1
-            .polls = n
-            var url str = env.get("AUTO_HTTP_BASE") + "/api/canvas/status?t=" + n
-            if .phase == "source" {
-                url = env.get("AUTO_HTTP_BASE") + "/api/files/default/targets/probe-a/pac.at"
-            }
-            let rb = Http.request("GET", url)
-            let res = rb.send()
-            var code int = res.status_code()
-            .r_start = "polls=" + .polls + " http=" + code
+            // 自然形态（生产 store 写法）：send 条件化。G-9 已随引擎修复
+            // 闭合（2026-09-30 验证：条件形态确定性完成 full flow；本形态
+            // 即回归哨兵——若复发，此处首先复现）。
             if .phase == "poll" {
+                var n int = .polls + 1
+                .polls = n
+                let rb = Http.request("GET", env.get("AUTO_HTTP_BASE") + "/api/canvas/status?t=" + n)
+                let res = rb.send()
+                var code int = res.status_code()
+                .r_start = "polls=" + .polls + " http=" + code
                 if code == 200 {
                     .phase = "source"
                 }
-            } else {
-                if .phase == "source" {
-                    if code == 200 {
-                        .r_source = "ok"
-                    } else {
-                        .r_source = "FAILED http " + code
-                    }
-                    .phase = "done"
+            }
+            if .phase == "source" {
+                let rb = Http.request("GET", env.get("AUTO_HTTP_BASE") + "/api/files/default/targets/probe-a/pac.at")
+                let res = rb.send()
+                var code int = res.status_code()
+                if code == 200 {
+                    .r_source = "ok"
+                } else {
+                    .r_source = "FAILED http " + code
                 }
+                .phase = "done"
             }
         }
     }
