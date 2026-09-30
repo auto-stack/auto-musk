@@ -1,0 +1,67 @@
+/// canvas_helpers.at — PLAN-093 T-04: Canvas 共享生产投影 helper。
+///
+/// store/panel 共用的字段投影与样式拼装（扁平重建漏斗的产出侧——
+/// JSON.parse 产物不直接落 store，经此处重建为字面量，PLAN-084 T-07
+/// 处方）。纯函数：无 store/堆依赖，Vue/VM 双端同源。
+
+/// 选中覆盖框内联 style（蓝，bbox_pct 百分比定位）。
+fn canvasPickStyleFromBbox(bp obj) str {
+    return "position:absolute;left:" + bp.x + "%;top:" + bp.y + "%;width:" + bp.w + "%;height:" + bp.h + "%;border:2px solid rgb(59,130,246);background:rgba(59,130,246,0.12);pointer-events:none;border-radius:2px"
+}
+
+/// agent 高亮框内联 style（琥珀）。
+fn canvasOverlayStyleFromBbox(bp obj) str {
+    return "position:absolute;left:" + bp.x + "%;top:" + bp.y + "%;width:" + bp.w + "%;height:" + bp.h + "%;border:2px solid rgb(245,158,11);background:rgba(245,158,11,0.15);pointer-events:none;border-radius:2px"
+}
+
+/// 帧直出 URL：身份+seq 双键（代次防串帧，seq 驱动缓存击穿；
+/// 不用 Date.now——VM 门控遵循 vm-data-semantics 的 tick 处方）。
+fn canvasFrameUrl(seq int, gen int) str {
+    return "/api/canvas/frame?t=" + seq + "&gen=" + gen
+}
+
+/// picked 锚点对象 → 扁平投影字面量（7 字段统一漏斗）。
+/// pk 为 None（204/清选/stopped）时返回全空投影 = 统一清场。
+fn canvasPickedProjection(pk obj) {
+    var id = ""
+    var kind = ""
+    var label = ""
+    var source = ""
+    var source_path = ""
+    var for_label = ""
+    var style = ""
+    if pk != None {
+        id = pk.vnode_id ?? ""
+        kind = pk.kind ?? ""
+        label = pk.label ?? ""
+        source = pk.source ?? ""
+        source_path = pk.source_path ?? ""
+        var fc = pk.forctx
+        if fc != None {
+            var fi = fc.index
+            if fi != None {
+                for_label = "#" + fi
+            }
+        }
+        var bp = pk.bbox_pct
+        if bp != None {
+            style = canvasPickStyleFromBbox(bp)
+        }
+    }
+    return { id: id, kind: kind, label: label, source: source, source_path: source_path, for_label: for_label, style: style }
+}
+
+/// overlay 条目列表 → [{vid, style}]（agent 高亮=琥珀框，完整内联样式）。
+fn rebuildCanvasOverlay(list obj) list {
+    var out list = []
+    for s in list {
+        var vid = s.vnode_id ?? ""
+        var style str = ""
+        var bp = s.bbox_pct
+        if bp != None {
+            style = canvasOverlayStyleFromBbox(bp)
+        }
+        out.push({ vid: vid, style: style })
+    }
+    return out
+}

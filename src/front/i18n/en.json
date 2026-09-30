@@ -512,6 +512,7 @@
     "waiting": "Waiting for the app window…",
     "starting": "Starting the app (first frame within ~10s)…",
     "restarting": "App crashed — restarting…",
-    "degraded": "Canvas session degraded"
+    "degraded": "Canvas session degraded",
+    "collapse": "Collapse canvas"
   }
 }

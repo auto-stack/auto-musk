@@ -1,33 +1,34 @@
-// canvas_store.at — PLAN-087 T-07 + PLAN-088 T-07: 画布会话轮询 store。
+// canvas_store.at — PLAN-087 T-07 + PLAN-088 T-07 + PLAN-093 T-04: 画布会话
+// 轮询 store（投影与展示状态重构）。
 //
 // 状态命名 cv_*：避让潜在 api 绑定撞名（whitelist wl_* 同款口径）。
 // 轮询机制 = forge_store PollBackfill 同款：timer 拍发起 Http.get_msg
 // （入队即返），载荷以字符串回填消息解析（{"ok","status","body"} 信封）。
-// body = {state,seq,app_path,restarts,error} + M2 锚定面 {frame,picked,
-// overlay,tree,pac}。M2 扁平重建漏斗（PLAN-084 T-07 rebuildSessions 处方）：
-// JSON.parse 产物直接落 store 后渲染上下文字段读塌空（r5 家族）——handler
-// 域逐字段重建为字面量，视图读恢复。id 全程字符串形态（哈希 vnode >
-// JS 2^53，数字静默截断）。
-// VM 轨：状态轮询会打到宿主桥（无 /api/canvas/* → ok!=true 被守卫吸收，
-// 面板恒收起）；画布面板验收面=web 轨（087 §10-2 口径延续）。
+// body = {state,seq,app_path,restarts,error,generation_id,...} + M2 锚定面
+// {frame,picked,overlay,tree,pac}。M2 扁平重建漏斗（PLAN-084 T-07
+// rebuildSessions 处方）：JSON.parse 产物直接落 store 后渲染上下文字段读
+// 塌空（r5 家族）——handler 域经 canvas_helpers.at 投影函数逐字段重建为
+// 字面量，视图读恢复。id 全程字符串形态（哈希 vnode > JS 2^53，数字静默
+// 截断）。
+//
+// PLAN-093 T-04 重构面：
+// - 工作台显隐与生命周期分离：cv_collapsed（用户偏好）独立于会话状态；
+//   cv_open 为投影（有会话 且 未收起）——轮询不复开用户收起的工作台
+//   （AC-01），停止保留已停止工作台（AC-03）。
+// - 身份与陈旧防线：cv_gen 跟随 status.generation_id（T-02 契约），代次
+//   变化统一清选中/overlay/帧（A→B 不串，AC-11）；帧 URL 身份+seq 双键。
+// - 统一清场：picked=null（204/清选）、代次变化、stopped 三路都走
+//   canvasPickedProjection 全字段清（AC-08，修原 picked=null 不清字段）。
+// - poll 单飞（AC-14）：cv_inflight + 有界 tick 释放（>3 拍丢响应视为
+//   失联释放，不照抄 web Date.now——vm-data-semantics tick 处方）；
+//   非在途到达的回填载荷直接丢弃（迟到/自发载荷不落账）。
+// VM 轨：状态轮询打到宿主桥（VMHTTP canvas 路由 T-03 已通，同
+// CanvasManager）；面板行为双端同源（T-03 四模式探针护航）。
 
-// overlay 条目 → [{vid, style}]（agent 高亮=琥珀框，完整内联样式）。
-fn rebuildCanvasOverlay(list obj) list {
-    var out list = []
-    for s in list {
-        var vid = s.vnode_id ?? ""
-        var style str = ""
-        var bp = s.bbox_pct
-        if bp != None {
-            style = "position:absolute;left:" + bp.x + "%;top:" + bp.y + "%;width:" + bp.w + "%;height:" + bp.h + "%;border:2px solid rgb(245,158,11);background:rgba(245,158,11,0.15);pointer-events:none;border-radius:2px"
-        }
-        out.push({ vid: vid, style: style })
-    }
-    return out
-}
+use canvas_helpers: canvasPickedProjection, canvasFrameUrl, rebuildCanvasOverlay
 
 // 层树扁平表 → [{vid, depth, kind, label, source, source_path, for_label,
-// row_style, indent_style}]（行样式预拼：选中底色视图侧靠 id 等值三臂）。
+// indent_style}]（行样式预拼：选中底色视图侧靠 id 等值三臂）。
 fn rebuildCanvasTree(list obj) list {
     var out list = []
     for n in list {
@@ -54,16 +55,23 @@ store CanvasStore {
     model {
         // 会话状态（后端 CanvasState 小写串）。
         var cv_state str = "stopped"
+        // PLAN-093 T-04: 预览身份（status.generation_id；代次变化清场）。
+        var cv_gen int = 0
         // 帧序号（单调递增；驱动 img src 缓存击穿）。
         var cv_seq int = 0
-        // 帧直出 URL（seq 变化才重写，避免无脑刷帧）。
+        // 帧直出 URL（身份+seq 双键；seq 不变零重写）。
         var cv_frame_url str = ""
-        // 在跑的 app 目录显示名。
+        // 在跑的 app 目录显示名（停止后保留 = 已停止工作台的应用描述）。
         var cv_app str = ""
         // 最近错误（degraded 机理等）。
         var cv_error str = ""
-        // 面板开合（有非 stopped 会话自动展开；stop 后收起）。
+        // 面板开合投影：有会话（非 stopped 或 有应用描述）且 未收起。
+        // 用户收起走 Collapse（偏好位），轮询不改此偏好。
         var cv_open bool = false
+        var cv_collapsed bool = false
+        // poll 单飞：在途标记 + 有界释放计数（>3 拍丢响应视为失联）。
+        var cv_inflight bool = false
+        var cv_inflight_ticks int = 0
         // ── M2 锚定面（扁平重建漏斗产出） ──
         var cv_picked_id str = ""
         var cv_picked_kind str = ""
@@ -93,111 +101,140 @@ store CanvasStore {
         StatusBackfill(str),
         PickBackfill(str),
         ClearPick,
+        Collapse,
+        UnCollapse,
         ToggleSource,
         SourceBackfill(str),
     }
 
     on {
+        // poll 单飞：在途则计数（>3 拍释放——丢响应有界恢复），否则发起。
         .Poll -> {
-            Http.get_msg("/api/canvas/status", "CanvasStore.StatusBackfill")
+            if .cv_inflight {
+                .cv_inflight_ticks = .cv_inflight_ticks + 1
+                if .cv_inflight_ticks > 3 {
+                    .cv_inflight = false
+                    .cv_inflight_ticks = 0
+                }
+            } else {
+                .cv_inflight = true
+                Http.get_msg("/api/canvas/status", "CanvasStore.StatusBackfill")
+            }
         }
 
         .StatusBackfill(payload str) -> {
-            let r = JSON.parse(payload)
-            if r != None {
-                if r.ok == true {
-                    let body = JSON.parse(r.body)
-                    if body != None {
-                        .cv_state = body.state ?? "stopped"
-                        .cv_app = body.app_path ?? ""
-                        .cv_error = body.error ?? ""
-                        var seq int = body.seq ?? 0
-                        if seq != .cv_seq {
-                            .cv_seq = seq
-                            .cv_frame_url = "/api/canvas/frame?t=" + seq
-                        }
-                        if body.state == "stopped" {
-                            .cv_open = false
-                        } else {
-                            .cv_open = true
-                        }
-                        var pk obj = body.picked
-                        if pk != None {
-                            .cv_picked_id = pk.vnode_id ?? ""
-                            .cv_picked_kind = pk.kind ?? ""
-                            .cv_picked_label = pk.label ?? ""
-                            .cv_picked_source = pk.source ?? ""
-                            .cv_picked_source_path = pk.source_path ?? ""
-                            var fc obj = pk.forctx
-                            if fc != None {
-                                var fi obj = fc.index
-                                if fi != None {
-                                    .cv_picked_for = "#" + fi
-                                } else {
-                                    .cv_picked_for = ""
-                                }
-                            } else {
+            // 单飞对账：非在途到达 = 迟到/自发载荷，直接丢弃（不落账）。
+            if .cv_inflight {
+                let r = JSON.parse(payload)
+                if r != None {
+                    if r.ok == true {
+                        let body = JSON.parse(r.body)
+                        if body != None {
+                            .cv_inflight = false
+                            .cv_inflight_ticks = 0
+                            // 身份对账：代次变化（A→B/重启换代）统一清场。
+                            var gen int = body.generation_id ?? 0
+                            if gen != .cv_gen {
+                                .cv_gen = gen
+                                .cv_picked_id = ""
+                                .cv_picked_kind = ""
+                                .cv_picked_label = ""
+                                .cv_picked_source = ""
+                                .cv_picked_source_path = ""
                                 .cv_picked_for = ""
-                            }
-                            var bp obj = pk.bbox_pct
-                            if bp != None {
-                                .cv_pick_style = "position:absolute;left:" + bp.x + "%;top:" + bp.y + "%;width:" + bp.w + "%;height:" + bp.h + "%;border:2px solid rgb(59,130,246);background:rgba(59,130,246,0.12);pointer-events:none;border-radius:2px"
-                            } else {
                                 .cv_pick_style = ""
+                                .cv_overlay = []
+                                .cv_frame_url = ""
                             }
+                            .cv_state = body.state ?? "stopped"
+                            // 停止后保留应用描述（已停止工作台的标题）。
+                            if body.app_path != "" {
+                                .cv_app = body.app_path
+                            }
+                            .cv_error = body.error ?? ""
+                            var seq int = body.seq ?? 0
+                            if .cv_state == "stopped" {
+                                .cv_seq = seq
+                                .cv_frame_url = ""
+                            } else {
+                                if seq != .cv_seq {
+                                    .cv_seq = seq
+                                    .cv_frame_url = canvasFrameUrl(seq, .cv_gen)
+                                }
+                            }
+                            // picked 统一投影：null（204/清选/stopped）与有值
+                            // 同走一个漏斗——全字段清/填不再分叉（AC-08）。
+                            var pp = canvasPickedProjection(body.picked)
+                            .cv_picked_id = pp.id
+                            .cv_picked_kind = pp.kind
+                            .cv_picked_label = pp.label
+                            .cv_picked_source = pp.source
+                            .cv_picked_source_path = pp.source_path
+                            .cv_picked_for = pp.for_label
+                            .cv_pick_style = pp.style
+                            .cv_overlay = rebuildCanvasOverlay(body.overlay ?? [])
+                            .cv_tree = rebuildCanvasTree(body.tree ?? [])
+                            var pc = body.pac_head
+                            if pc != None {
+                                .cv_pac_title = pc.title ?? ""
+                            } else {
+                                .cv_pac_title = ""
+                            }
+                            // 开合投影：有会话（非 stopped 或 有应用描述）且
+                            // 未被用户收起。轮询不改 cv_collapsed。
+                            var has_session bool = .cv_state != "stopped" || .cv_app != ""
+                            .cv_open = has_session && !.cv_collapsed
                         }
-                        .cv_overlay = rebuildCanvasOverlay(body.overlay ?? [])
-                        .cv_tree = rebuildCanvasTree(body.tree ?? [])
-                        var pc = body.pac_head
-                        if pc != None {
-                            .cv_pac_title = pc.title ?? ""
-                        } else {
-                            .cv_pac_title = ""
-                        }
+                    } else {
+                        // 错误信封：释放在途（下一拍重试），其余不落账。
+                        .cv_inflight = false
+                        .cv_inflight_ticks = 0
                     }
                 }
             }
         }
 
         // 点选/树选即时回填（canvasPick 的 JSON 结果；不等下一拍轮询）。
-        // 载荷 = pick 锚点对象文本（同 status.picked 形态）。
+        // 载荷 = pick 锚点对象文本（同 status.picked 形态）；经同一投影
+        // 漏斗（与轮询对账面同源）。
         .PickBackfill(payload str) -> {
             let pd = JSON.parse(payload)
             if pd != None {
-                .cv_picked_id = pd.vnode_id ?? ""
-                .cv_picked_kind = pd.kind ?? ""
-                .cv_picked_label = pd.label ?? ""
-                .cv_picked_source = pd.source ?? ""
-                .cv_picked_source_path = pd.source_path ?? ""
-                var fc obj = pd.forctx
-                if fc != None {
-                    var fi obj = fc.index
-                    if fi != None {
-                        .cv_picked_for = "#" + fi
-                    } else {
-                        .cv_picked_for = ""
-                    }
-                } else {
-                    .cv_picked_for = ""
-                }
-                var bp obj = pd.bbox_pct
-                if bp != None {
-                    .cv_pick_style = "position:absolute;left:" + bp.x + "%;top:" + bp.y + "%;width:" + bp.w + "%;height:" + bp.h + "%;border:2px solid rgb(59,130,246);background:rgba(59,130,246,0.12);pointer-events:none;border-radius:2px"
-                } else {
-                    .cv_pick_style = ""
-                }
+                var pp = canvasPickedProjection(pd)
+                .cv_picked_id = pp.id
+                .cv_picked_kind = pp.kind
+                .cv_picked_label = pp.label
+                .cv_picked_source = pp.source
+                .cv_picked_source_path = pp.source_path
+                .cv_picked_for = pp.for_label
+                .cv_pick_style = pp.style
             }
         }
 
+        // 204/清选/节点消失统一清场（同投影漏斗空面）。
         .ClearPick -> {
-            .cv_picked_id = ""
-            .cv_picked_kind = ""
-            .cv_picked_label = ""
-            .cv_picked_source = ""
-            .cv_picked_source_path = ""
-            .cv_picked_for = ""
-            .cv_pick_style = ""
+            var pp = canvasPickedProjection(None)
+            .cv_picked_id = pp.id
+            .cv_picked_kind = pp.kind
+            .cv_picked_label = pp.label
+            .cv_picked_source = pp.source
+            .cv_picked_source_path = pp.source_path
+            .cv_picked_for = pp.for_label
+            .cv_pick_style = pp.style
             .cv_source_open = false
+        }
+
+        // 收起 = 用户偏好（工作台显隐），与生命周期分离：停止/轮询不改；
+        // PID、代次、帧序号继续有效。
+        .Collapse -> {
+            .cv_collapsed = true
+            .cv_open = false
+        }
+
+        .UnCollapse -> {
+            .cv_collapsed = false
+            var has_session bool = .cv_state != "stopped" || .cv_app != ""
+            .cv_open = has_session
         }
 
         .ToggleSource -> {
