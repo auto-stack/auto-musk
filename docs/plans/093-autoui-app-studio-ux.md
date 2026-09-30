@@ -758,11 +758,20 @@ PID／进程树及起止收据，再做真实运行测试。
   契约三新证（视图内 let 不支持 R016/text 拼接须字面量开头/字段名
   撞硬关键字）。验证：V03 37/37；T-07 取证 4/4 @Rust（§8.17）；
   Vue 臂 ALL PASS × 双后端。
-  剩余：**G-13**（musk 后端本仓——VM serve 转译路由漏挂 hw files 三
-  路由 + VM 转译 handler registry 状态桥缺失，files 域恒 200 null，
-  修复模式=canvas 域 HostCall 先例 vm_backend.rs:289）解除后 VM 臂
-  源码面板/坐标点选补跑；行自动滚动定位；多文件不确定提示（Q-04
-  confidence 面待后端契约）。
+- [✅] G-13 修复（9819f0b，双后端取证）：canvas 域源码只读通道
+  /api/canvas/source?workspace=&path=（Query Value 编组——canvas 域
+  已证通道；Path 元组编组丢段实测绕行）。VM serve：canvas_vm.at 路由
+  + extern_impl 宿主（registry root + read_text_confined confinement/
+  lossy）+ vm_backend 注册；Rust serve：hw canvas_routes 同名路由同
+  语义。双 serve 同契约——VM 臂源码面板取证 ALL PASS（262 行+拾取行
+  高亮）+ Rust 臂网络观测确认新通道 + Vue 臂 ALL PASS × 双后端
+  （§8.18）。根因链定稿：VM serve 路由装配含 ag 参数路由不含 hw
+  files 三静态路由 → /api/files/* 恒落 ag workspace_file → VM 转译
+  registry 状态桥缺失恒 200 "null"；/api/files 域状态桥归 PLAN-044
+  follow-through（095 候补登记）。
+  剩余：行自动滚动定位；多文件不确定提示（Q-04 confidence 面待后端
+  契约）；G-11（auto-lang widget→widget 子件，095 T-07）解除后 VM
+  轨（iced）面板本体渲染与坐标点选补跑。
 
 ### [ ] T-08：接入元素附件与逐消息队列快照
 
