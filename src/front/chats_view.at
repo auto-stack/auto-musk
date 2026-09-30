@@ -1085,9 +1085,12 @@ widget ChatsView {
                 if cmd == None {
                     // PLAN-093 T-08:附件快照冻结——确认普通消息后（命令/
                     // mention 不受上下文影响）；快照 = 当前拾取面字段值。
+                    // Q-04:source_confidence（exact/uncertain——多文件启发
+                    // 式来源随快照携带，Agent 注记"待确认"）+ loop_context
+                    // （§5.7 DTO 循环实例三字段）。
                     var ctx = None
                     if canvasStore.cv_picked_id != "" {
-                        ctx = { version: "1", workspace_id: .store.workspace, conversation_id: .store.session_id, generation_id: canvasStore.cv_gen, frame_seq: canvasStore.cv_seq, app_path: canvasStore.cv_app, vnode_id: canvasStore.cv_picked_id, kind: canvasStore.cv_picked_kind, label: canvasStore.cv_picked_label, source_path: canvasStore.cv_picked_source_path, source_line: canvasStore.cv_picked_source_line }
+                        ctx = { version: "1", workspace_id: .store.workspace, conversation_id: .store.session_id, generation_id: canvasStore.cv_gen, frame_seq: canvasStore.cv_seq, app_path: canvasStore.cv_app, vnode_id: canvasStore.cv_picked_id, kind: canvasStore.cv_picked_kind, label: canvasStore.cv_picked_label, source_path: canvasStore.cv_picked_source_path, source_line: canvasStore.cv_picked_source_line, source_confidence: canvasStore.cv_picked_confidence, loop_context: { var_name: canvasStore.cv_picked_loop_var, index: canvasStore.cv_picked_loop_index, value: canvasStore.cv_picked_loop_value } }
                     }
                     // PLAN-071 需求⑮：运行在途时消息入队（画布显示排队指示
                     // 条，流式收束后 store.FlushQueue 自动按 FIFO 发送），

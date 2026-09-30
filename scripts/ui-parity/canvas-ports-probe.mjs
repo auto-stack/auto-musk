@@ -553,6 +553,14 @@ async function runVueArm(mode) {
         return pickedSeen;
       }, 20000, 'picked via UI tree click').catch(() => {});
       assert('vue-tree-pick-flows', pickedSeen, 'status.picked 非 null（UI 点击链）');
+      // Q-04 单文件负向：probe-a 目标 = 单候选 .at → confidence=exact，
+      // 不出现"来源待确认"提示（多文件启发式提示只属 uncertain 面）。
+      const stQ4 = await jfetch('http://127.0.0.1:18511/api/canvas/status');
+      const conf = stQ4.body?.picked?.source_confidence ?? '';
+      const bodyQ4 = await page.locator('body').innerText();
+      assert('q04-single-file-exact-no-uncertain-hint',
+        conf === 'exact' && !bodyQ4.includes('来源待确认'),
+        `confidence=${conf}（单文件 exact 无提示条）`);
     }
 
     // ⑥b T-04 收起持久性：点收起钮（–）→ 帧 img 隐藏 → 5s 多拍后仍隐藏

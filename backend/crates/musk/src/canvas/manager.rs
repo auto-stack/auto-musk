@@ -474,7 +474,7 @@ impl CanvasManager {
             app_dir
                 .as_deref()
                 .and_then(|d| AnchorIndex::resolve_source(d, (off, len), ""))
-                .map(|(rel, line)| (format!("{app_rel}/{rel}"), line))
+                .map(|(rel, line, conf)| (format!("{app_rel}/{rel}"), line, conf))
         };
         let payload = idx.pick_json(vnode, scale, frame_w, frame_h, &resolver)?;
         *self.shared.picked.lock().unwrap() = Some(payload.clone());
@@ -504,7 +504,7 @@ impl CanvasManager {
             app_dir
                 .as_deref()
                 .and_then(|d| AnchorIndex::resolve_source(d, (off, len), ""))
-                .map(|(rel, line)| (format!("{app_rel}/{rel}"), line))
+                .map(|(rel, line, conf)| (format!("{app_rel}/{rel}"), line, conf))
         };
         let payload = idx.pick_json(vnode, scale, frame_w, frame_h, &resolver)?;
         *self.shared.picked.lock().unwrap() = Some(payload.clone());
@@ -570,7 +570,7 @@ impl CanvasManager {
             app_dir
                 .as_deref()
                 .and_then(|d| AnchorIndex::resolve_source(d, (off, len), ""))
-                .map(|(rel, line)| (format!("{app_rel}/{rel}"), line))
+                .map(|(rel, line, conf)| (format!("{app_rel}/{rel}"), line, conf))
         };
         let tree = anchor.map(|a| a.tree_flat_json(&resolver)).unwrap_or(Value::Null);
         let frame = self

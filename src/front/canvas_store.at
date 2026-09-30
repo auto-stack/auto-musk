@@ -95,6 +95,13 @@ store CanvasStore {
         var cv_picked_source_path str = ""
         var cv_picked_source_line int = 0
         var cv_picked_for str = ""
+        // PLAN-093 Q-04:来源置信度（exact/uncertain——多文件启发式来源
+        // 前端显示"来源待确认"，不假装准确锚定）+ 循环实例三字段（§5.7
+        // design_context loop_context DTO）。
+        var cv_picked_confidence str = ""
+        var cv_picked_loop_var str = ""
+        var cv_picked_loop_index int = -1
+        var cv_picked_loop_value str = ""
         // 选中覆盖框内联 style（bbox_pct 百分比定位）。
         var cv_pick_style str = ""
         // agent 高亮框 [{vid, style}]。
@@ -204,6 +211,10 @@ store CanvasStore {
                                 .cv_picked_for = ""
                                 .cv_pick_style = ""
                                 .cv_picked_source_line = 0
+                                .cv_picked_confidence = ""
+                                .cv_picked_loop_var = ""
+                                .cv_picked_loop_index = -1
+                                .cv_picked_loop_value = ""
                                 .cv_source_state = ""
                                 .cv_source_lines = []
                                 .cv_source_rows = []
@@ -244,6 +255,10 @@ store CanvasStore {
                             .cv_picked_for = pp.for_label
                             .cv_pick_style = pp.style
                             .cv_picked_source_line = pp.source_line
+                            .cv_picked_confidence = pp.confidence
+                            .cv_picked_loop_var = pp.loop_var
+                            .cv_picked_loop_index = pp.loop_index
+                            .cv_picked_loop_value = pp.loop_value
                             .cv_overlay = rebuildCanvasOverlay(body.overlay ?? [])
                             .cv_tree = rebuildCanvasTree(body.tree ?? [])
                             .cv_tree_visible = canvasTreeVisible(.cv_tree, .cv_tree_collapsed)
@@ -296,6 +311,11 @@ store CanvasStore {
                 .cv_picked_source_path = pp.source_path
                 .cv_picked_for = pp.for_label
                 .cv_pick_style = pp.style
+                .cv_picked_source_line = pp.source_line
+                .cv_picked_confidence = pp.confidence
+                .cv_picked_loop_var = pp.loop_var
+                .cv_picked_loop_index = pp.loop_index
+                .cv_picked_loop_value = pp.loop_value
             }
         }
 
@@ -309,6 +329,11 @@ store CanvasStore {
             .cv_picked_source_path = pp.source_path
             .cv_picked_for = pp.for_label
             .cv_pick_style = pp.style
+            .cv_picked_source_line = pp.source_line
+            .cv_picked_confidence = pp.confidence
+            .cv_picked_loop_var = pp.loop_var
+            .cv_picked_loop_index = pp.loop_index
+            .cv_picked_loop_value = pp.loop_value
             .cv_source_state = ""
             .cv_source_rows = []
         }

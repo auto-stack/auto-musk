@@ -520,6 +520,7 @@
     "sourceNoPick": "选中节点后可查看源码",
     "sourceLoadError": "源码读取失败",
     "sourceLineInvalid": "行号无效或超出文件",
+    "sourceUncertain": "来源待确认（多文件应用启发式定位）",
     "stoppedNote": "应用已停止——工作台保留标题；重新运行可再次生成",
     "rerun": "重新运行",
     "errorDetails": "错误详情",

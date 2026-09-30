@@ -129,14 +129,14 @@ impl AnchorIndex {
     }
 
     /// 层树载荷（AC-05）：扁平文档序表 [{id, depth, kind, label, source,
-    /// source_path, source_line, for_index}]——.at 无递归渲染面，前端按
-    /// depth 缩进平铺（全量；折叠由前端展示层做）。id 用 `"vnode_N"`
-    /// 字符串（哈希 id > JS 2^53 精度，数字形态会静默截断）。source 三件 =
-    /// span 经 `resolver` 换算（display "path:line" + 拆分字段；.at 侧无
-    /// split 能力）。未解析则缺省。
+    /// source_path, source_line, source_confidence, for_index}]——.at 无递归
+    /// 渲染面，前端按 depth 缩进平铺（全量；折叠由前端展示层做）。id 用
+    /// `"vnode_N"` 字符串（哈希 id > JS 2^53 精度，数字形态会静默截断）。
+    /// source 三件 = span 经 `resolver` 换算（display "path:line" + 拆分
+    /// 字段 + Q-04 置信度；.at 侧无 split 能力）。未解析则缺省。
     pub fn tree_flat_json(
         &self,
-        resolver: &dyn Fn(usize, usize) -> Option<(String, usize)>,
+        resolver: &dyn Fn(usize, usize) -> Option<(String, usize, &'static str)>,
     ) -> Value {
         let items: Vec<Value> = self
             .nodes
@@ -151,10 +151,11 @@ impl AnchorIndex {
                     o["label"] = json!(l);
                 }
                 if let Some((off, len)) = n.span {
-                    if let Some((p, line)) = resolver(off, len) {
+                    if let Some((p, line, conf)) = resolver(off, len) {
                         o["source"] = json!(format!("{p}:{line}"));
                         o["source_path"] = json!(p);
                         o["source_line"] = json!(line);
+                        o["source_confidence"] = json!(conf);
                     }
                 }
                 if let Some(f) = &n.for_ctx {
@@ -172,15 +173,15 @@ impl AnchorIndex {
     /// pick 锚点载荷（AC-01/03 同构面）。`scale` = 帧像素/逻辑像素（T-02
     /// 契约：bbox 为逻辑坐标）；`frame_w/h` = 帧 PNG 像素尺寸（bbox_px 与
     /// bbox_pct 的换算基准——pct = 像素/帧尺寸×100，前端百分比定位直吃）。
-    /// `resolver` 把 span 换算 (path, line)（尽力；未解析缺省，非门）。
-    /// vnode_id 字符串形态（>2^53 哈希，JSON number 静默截断）。
+    /// `resolver` 把 span 换算 (path, line, confidence)（尽力；未解析缺省，
+    /// 非门）。vnode_id 字符串形态（>2^53 哈希，JSON number 静默截断）。
     pub fn pick_json(
         &self,
         vnode: u64,
         scale: f32,
         frame_w: u32,
         frame_h: u32,
-        resolver: &dyn Fn(usize, usize) -> Option<(String, usize)>,
+        resolver: &dyn Fn(usize, usize) -> Option<(String, usize, &'static str)>,
     ) -> Option<Value> {
         let n = self.get(vnode)?;
         let chain: Vec<String> = self
@@ -208,26 +209,36 @@ impl AnchorIndex {
             });
         }
         if let Some((off, len)) = n.span {
-            if let Some((p, line)) = resolver(off, len) {
+            if let Some((p, line, conf)) = resolver(off, len) {
                 o["source"] = json!(format!("{p}:{line}"));
                 o["source_path"] = json!(p);
                 o["source_line"] = json!(line);
+                // PLAN-093 Q-04：多文件启发式来源必须可辨认（前端显示
+                // "来源待确认"）；单文件 exact，不假装已准确锚定。
+                o["source_confidence"] = json!(conf);
             }
         }
-        if let Some(f) = for_ctx {
-            o["forctx"] = json!({ "var": f.var_name, "index": f.index, "value": f.value });
-        }
+                if let Some(f) = for_ctx {
+                    // var_name = "var" 的关键字安全副本（.at 字段名撞硬关键字
+                    // ——fc.var 不可读；消费方统一走 var_name）。
+                    o["forctx"] = json!({ "var": f.var_name, "var_name": f.var_name, "index": f.index, "value": f.value });
+                }
         Some(o)
     }
 
-    /// span → `(相对路径, 行号)`（尽力）。文件判定：候选 = app 下 src 前
-    /// 后台 .at（有界集）；偏移落在文件长度内者中，择切片含 kind 关键词的，
-    /// 缺判据取唯一命中。M2 主路径 = 单文件 app（多文件启发，登记契约记录）。
+    /// span → `(相对路径, 行号, 置信度)`（尽力）。文件判定：候选 = app 下
+    /// src 前后台 .at（有界集）；偏移落在文件长度内者中，择切片含 kind
+    /// 关键词的，缺判据取唯一命中。M2 主路径 = 单文件 app（多文件启发，
+    /// 登记契约记录）。
+    /// PLAN-093 Q-04（§5.6）：置信度两档——`exact` = 单候选文件（唯一
+    /// 命中，硬验收面：单文件有效来源行定位准确）；`uncertain` = 多候选
+    /// 文件的启发式命中（无论 kind 关键词命中与否——多文件归定位不准，
+    /// 前端必须显示"来源待确认"，不得假装已准确锚定）。
     pub fn resolve_source(
         app_dir: &std::path::Path,
         span: (usize, usize),
         kind: &str,
-    ) -> Option<(String, usize)> {
+    ) -> Option<(String, usize, &'static str)> {
         let (off, len) = span;
         let mut candidates: Vec<std::path::PathBuf> = Vec::new();
         for sub in ["src/front", "src/back", "src", ""] {
@@ -236,11 +247,18 @@ impl AnchorIndex {
             for e in rd.flatten() {
                 let p = e.path();
                 if p.extension().and_then(|e| e.to_str()) == Some("at") {
+                    // Q-04：pac.at 是包清单（根目录），永远不是 widget span
+                    // 的来源——计入候选会让所有真实 app（根清单+src 源码）
+                    // 恒为多候选 uncertain，单文件硬验收面失真。
+                    if p.file_name().and_then(|n| n.to_str()) == Some("pac.at") {
+                        continue;
+                    }
                     candidates.push(p);
                 }
             }
         }
         candidates.sort();
+        let confidence: &'static str = if candidates.len() <= 1 { "exact" } else { "uncertain" };
         let mut fallback: Option<(String, usize)> = None;
         for p in candidates {
             let Ok(bytes) = std::fs::read(&p) else { continue };
@@ -251,13 +269,13 @@ impl AnchorIndex {
             let line = 1 + bytes[..off].iter().filter(|&&b| b == b'\n').count();
             let slice = String::from_utf8_lossy(&bytes[off..(off + len).min(bytes.len())]);
             if slice.to_lowercase().contains(&kind.to_lowercase()) {
-                return Some((rel, line));
+                return Some((rel, line, confidence));
             }
             if fallback.is_none() {
                 fallback = Some((rel, line));
             }
         }
-        fallback
+        fallback.map(|(p, l)| (p, l, confidence))
     }
 
     /// 重建索引（帧循环每拍调用；解析失败返回 Err，调用方保留旧索引）。
@@ -608,9 +626,9 @@ mod tests {
 
     const LOOP_SAMPLE: &str = r##"col vnode_900 { bbox: {x: 0, y: 0, w: 200, h: 120}; span: {offset: 200, len: 355} col vnode_901 { bbox: {x: 0, y: 0, w: 200, h: 120}; for_iter: {var: "item", index: 0, value: "Alpha"}; span: {offset: 230, len: 120} row vnode_902 { bbox: {x: 0, y: 0, w: 200, h: 28}; span: {offset: 250, len: 100} text vnode_903 { content: "Alpha task"; bbox: {x: 0, y: 0, w: 160, h: 28}; span: {offset: 270, len: 60} } button vnode_904 { label: "Pick"; bbox: {x: 160, y: 0, w: 40, h: 28}; events: {press: ".Select"}; span: {offset: 290, len: 50} } } } col vnode_905 { bbox: {x: 0, y: 30, w: 200, h: 120}; for_iter: {var: "item", index: 1, value: "Beta"}; span: {offset: 230, len: 120} row vnode_906 { bbox: {x: 0, y: 30, w: 200, h: 28}; span: {offset: 250, len: 100} text vnode_907 { content: "Beta task"; bbox: {x: 0, y: 30, w: 160, h: 28}; span: {offset: 270, len: 60} } button vnode_908 { label: "Pick"; bbox: {x: 160, y: 30, w: 40, h: 28}; events: {press: ".Select"}; span: {offset: 290, len: 50} } } } }"##;
 
-    fn resolver(off: usize, _len: usize) -> Option<(String, usize)> {
+    fn resolver(off: usize, _len: usize) -> Option<(String, usize, &'static str)> {
         let line = 1 + off / 100;
-        Some(("src/front/app.at".to_string(), line))
+        Some(("src/front/app.at".to_string(), line, "exact"))
     }
 
     #[test]
@@ -682,6 +700,7 @@ mod tests {
         let pct_w = p["bbox_pct"]["w"].as_f64().unwrap_or(0.0);
         assert!((pct_w - 60.0).abs() < 0.01, "pct w = {pct_w}");
         assert_eq!(p["source"], "src/front/app.at:4"); // offset 300 → line 4
+        assert_eq!(p["source_confidence"], "exact"); // 测试 resolver 固定章
         assert_eq!(p["ancestor_chain"], json!(["vnode_1201", "vnode_1403"]));
     }
 
@@ -708,5 +727,32 @@ mod tests {
     #[test]
     fn duplicate_vnode_rejected() {
         assert!(AnchorIndex::parse(r##"col vnode_1 { text vnode_1 { content: "x" } }"##, 1).is_err());
+    }
+
+    /// PLAN-093 Q-04：来源置信度两档——单候选文件 = exact（硬验收面），
+    /// 多候选 = uncertain（前端必须显示"来源待确认"）。pac.at 不计入
+    /// 候选（包清单非源码）。
+    #[test]
+    fn resolve_source_confidence_single_vs_multi() {
+        let tmp = std::env::temp_dir().join(format!("anchor-conf-{}", std::process::id()));
+        // 真实 app 形态：根 pac.at（清单，排除）+ 单一 src 源文件 → exact。
+        let single = tmp.join("single");
+        std::fs::create_dir_all(single.join("src")).unwrap();
+        std::fs::write(single.join("pac.at"), "app: \"demo\"\n").unwrap();
+        std::fs::write(single.join("src/app.at"), "widget App {\n  view {\n    col {\n      text \"hi\"\n    }\n  }\n}\n").unwrap();
+        let r = AnchorIndex::resolve_source(&single, (4, 30), "text").unwrap();
+        assert_eq!(r.0, "src/app.at");
+        assert_eq!(r.2, "exact", "pac.at 排除后单候选 → exact");
+
+        // 双源文件：同 span 两文件都容纳 → uncertain（启发式，不得假装
+        // 准确锚定）。
+        let multi = tmp.join("multi/src");
+        std::fs::create_dir_all(&multi).unwrap();
+        std::fs::write(multi.join("app.at"), "widget App {\n  view {\n    col {\n      text \"hi\"\n    }\n  }\n}\n").unwrap();
+        std::fs::write(multi.join("views.at"), "widget Views {\n  view {\n    col {\n      text \"there\"\n    }\n  }\n}\n").unwrap();
+        let r2 = AnchorIndex::resolve_source(&tmp.join("multi"), (4, 30), "text").unwrap();
+        assert_eq!(r2.2, "uncertain", "多候选 → uncertain");
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

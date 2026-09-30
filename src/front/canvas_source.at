@@ -63,6 +63,14 @@ widget CanvasSourcePanel {
                             text t("canvas.sourceLineInvalid")
                         }
                     }
+                    // PLAN-093 Q-04:多文件启发式来源——必须显示"来源待确认"，
+                    // 不假装已准确锚定（§5.6；后端 source_confidence=uncertain）。
+                    if .store.cv_picked_confidence == "uncertain" {
+                        div {
+                            style: "shrink-0 px-3 py-1 text-[10px] text-amber-500 border-b border-border bg-amber-500/10"
+                            text t("canvas.sourceUncertain")
+                        }
+                    }
                     // 行渲染（行号列 + 内容列；拾取行反色高亮）。
                     col {
                         class: "cv-source-rows relative"

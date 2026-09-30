@@ -520,6 +520,7 @@
     "sourceNoPick": "Pick a node to view its source",
     "sourceLoadError": "Source read failed",
     "sourceLineInvalid": "Line number invalid or out of range",
+    "sourceUncertain": "Source uncertain (heuristic match in multi-file app)",
     "stoppedNote": "App stopped — the workbench keeps its title; re-run to restart generation",
     "rerun": "Re-run",
     "errorDetails": "Error details",

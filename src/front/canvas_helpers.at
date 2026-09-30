@@ -52,8 +52,11 @@ fn canvasMapPhysical(ox int, oy int, box_w int, box_h int, natural_w int, natura
     return { x: x, y: y, inside: inside }
 }
 
-/// picked 锚点对象 → 扁平投影字面量（7 字段统一漏斗）。
+/// picked 锚点对象 → 扁平投影字面量（统一漏斗）。
 /// pk 为 None（204/清选/stopped）时返回全空投影 = 统一清场。
+/// PLAN-093 Q-04：confidence = 后端 source_confidence（exact/uncertain——
+/// 多文件启发式来源前端必须显示"来源待确认"）；loop 三字段 = forctx
+/// （§5.7 design_context loop_context DTO）。
 fn canvasPickedProjection(pk obj) {
     var id = ""
     var kind = ""
@@ -63,6 +66,10 @@ fn canvasPickedProjection(pk obj) {
     var for_label = ""
     var style = ""
     var source_line = 0
+    var confidence = ""
+    var loop_var = ""
+    var loop_index = -1
+    var loop_value = ""
     if pk != None {
         id = pk.vnode_id ?? ""
         kind = pk.kind ?? ""
@@ -71,19 +78,25 @@ fn canvasPickedProjection(pk obj) {
         source_path = pk.source_path ?? ""
         // T-07:行定位（pick_json source_line；缺省 0 = 无有效行）。
         source_line = pk.source_line ?? 0
+        confidence = pk.source_confidence ?? ""
         var fc = pk.forctx
         if fc != None {
             var fi = fc.index
             if fi != None {
                 for_label = "#" + fi
+                loop_index = fi
             }
+            // var_name = forctx"var"的关键字安全副本（fc.var 撞 .at 硬
+            // 关键字——解析失败实证；后端 payload 双字段）。
+            loop_var = fc.var_name ?? ""
+            loop_value = fc.value ?? ""
         }
         var bp = pk.bbox_pct
         if bp != None {
             style = canvasPickStyleFromBbox(bp)
         }
     }
-    return { id: id, kind: kind, label: label, source: source, source_path: source_path, for_label: for_label, style: style, source_line: source_line }
+    return { id: id, kind: kind, label: label, source: source, source_path: source_path, for_label: for_label, style: style, source_line: source_line, confidence: confidence, loop_var: loop_var, loop_index: loop_index, loop_value: loop_value }
 }
 
 /// overlay 条目列表 → [{vid, style}]（agent 高亮=琥珀框，完整内联样式）。

@@ -95,6 +95,18 @@ console.log('[canvasFrameUrl / canvasPickedProjection / rebuildCanvasOverlay]');
   assert('source_line 缺省 0（无有效行）', canvasPickedProjection(pkNoLine).source_line === 0);
   assert('覆盖框样式含 pointer-events:none', p.style.includes('pointer-events:none'));
 
+  // Q-04：source_confidence 透传 + loop_context 三字段（§5.7 DTO）。
+  assert('confidence 缺省空串（旧 picked 兼容）', p.confidence === '' && p.confidence !== undefined, String(p.confidence));
+  const pkExact = { ...pk, source_confidence: 'exact' };
+  assert('confidence=exact 透传', canvasPickedProjection(pkExact).confidence === 'exact');
+  const pkUnc = { ...pk, source_confidence: 'uncertain' };
+  const pu = canvasPickedProjection(pkUnc);
+  assert('confidence=uncertain 透传（前端待确认提示驱动）', pu.confidence === 'uncertain');
+  const pkLoop = { ...pk, forctx: { var: 'item', var_name: 'item', index: 2, value: 'Alpha' } };
+  const pl = canvasPickedProjection(pkLoop);
+  assert('loop 三字段投影（var_name/index/value——fc.var 撞关键字，读副本）', pl.loop_var === 'item' && pl.loop_index === 2 && pl.loop_value === 'Alpha' && pl.for_label === '#2', JSON.stringify(pl));
+  assert('null 投影 confidence/loop 全空', empty.confidence === '' && empty.loop_var === '' && empty.loop_index === -1);
+
   const ovs = rebuildCanvasOverlay([
     { vnode_id: 'vnode_1', bbox_pct: { x: 0, y: 0, w: 50, h: 50 } },
     { vnode_id: 'vnode_2', bbox_pct: { x: 50, y: 50, w: 50, h: 50 } },

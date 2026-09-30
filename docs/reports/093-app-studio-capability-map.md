@@ -812,3 +812,39 @@ JSON.stringify/store JSON.parse 往返（auth_store stringify 先例）；
 交付面 ✓；lint 非硬门（advisory 行）、bp 失败明示、无帧不同步成功、
 stop 不伪造、重启耗尽可显式恢复——全部既有增量承载。剩余仅 VM 轨
 （G-11，PLAN-095 T-07 依赖任务；不阻断 Vue 轨交付面）。
+
+### 8.26 Q-04 收敛：来源置信度 exact/uncertain 全链（2026-10-01 第十九轮）
+
+**落地**：
+- **后端**：anchor.rs `resolve_source` 返回三元组 `(rel, line,
+  confidence)`——单候选=`exact`（硬验收面）、多候选=`uncertain`（§5.6
+  多文件启发式必须显示"来源待确认"）；**pac.at 排除出候选**（包清单
+  非源码——不排除则所有真实 app 恒为多候选 uncertain，单文件硬验收
+  失真；Vue 臂负向断言实测暴露后修复）。pick_json/tree_flat_json 载荷
+  增 `source_confidence`；resolver 签名三元化（manager 三处闭包同步）。
+  forctx 增 `var_name` 关键字安全副本（`fc.var` 撞 .at 硬关键字——
+  解析失败实证：Expected term got Var/Expected key got Var，canvas_
+  helpers 与 chats_view 双文件 20 错同根因）。
+- **前端**：投影漏斗增 confidence + loop 三字段（null→空/-1 清场）；
+  store 增 cv_picked_confidence/loop_*（StatusBackfill/PickBackfill/
+  ClearPick/代次清场四路；顺手补齐 PickBackfill/ClearPick 漏设的
+  source_line）；源码面板 uncertain 提示条（amber）+ chip "？" 标记
+  （title=文案）；SendInput 冻结 ctx 增 `source_confidence` +
+  `loop_context{var_name,index,value}`（§5.7 DTO 补全，后端 Value
+  透传零校验改动）。
+- **Agent 注记**：conversation.rs design_context 注记对 uncertain 追加
+  "（来源待确认：多文件应用启发式定位）"——Agent 不把启发式定位当
+  准确事实。
+
+**验证**：anchor 9/9（新增 resolve_source_confidence_single_vs_multi：
+真实形态根 pac.at+单 src 源=exact / 双源文件=uncertain）；conversation
+29/29；details_tests 1/1；V03 **62/62**（投影 confidence/loop 新 5 例
+——夹具用 var_name 副本键）；V01 全链 exit 0（gen 65 组件+pnpm
+8.89s）；V05 Vue 臂 × 双后端 ALL PASS（新 q04-single-file-exact-no-
+uncertain-hint 断言：probe-a 单文件 exact 无提示条——先败后修的
+pac.at 排除实证）。uncertain 正向提示条由投影/V03+条件渲染+anchor
+单测承载（probe-a 单文件目标无多文件实况，T-12/T-13 多文件 app
+场景回补）。
+
+**下游**：T-07/T-08 的 Q-04 剩余项收敛；两者剩余仅 G-11（VM 轨，随
+PLAN-095 T-07）。

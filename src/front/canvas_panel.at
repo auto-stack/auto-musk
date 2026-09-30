@@ -239,6 +239,15 @@ widget CanvasCanvasColumn {
                                 text .store.cv_picked_source
                             }
                         }
+                        // PLAN-093 Q-04:多文件启发式来源标记（待确认，不假装
+                        // 准确锚定；详情见结构列源码面板提示条）。
+                        if .store.cv_picked_confidence == "uncertain" {
+                            span {
+                                style: "text-amber-500 font-normal"
+                                title: t("canvas.sourceUncertain")
+                                text "？"
+                            }
+                        }
                     }
                     button {
                         onclick: .ClearPick
