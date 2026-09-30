@@ -4,9 +4,9 @@ status: executing
 feature_name: AutoUI 应用设计工作台与实时 Canvas 双端 UX
 author: [agent]
 created_at: 2026-09-28T14:20:35Z
-updated_at: 2026-10-01T00:00:00Z
+updated_at: 2026-10-01T02:00:00Z
 plan_revision: 1
-current_step: 6
+current_step: 7
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-canvas.md
@@ -886,7 +886,7 @@ PID／进程树及起止收据，再做真实运行测试。
   剩余（归 T-13 实机轮）：双端两主题两语言实操、命中区巡检、Tab 序
   巡检。
 
-### [ ] T-11：补齐确定性合同测试与Gallery用例
+### [✅] T-11：补齐确定性合同测试与Gallery用例
 
 - 依赖：T-02～T-10（实现每个任务时先加必要边界测试，本项完成汇总）。
   关联 AC-01～AC-14、AC-16。
@@ -898,6 +898,26 @@ PID／进程树及起止收据，再做真实运行测试。
   不另写相同算法作为被测实现。Gallery引用工作台生产组件，不复制模板。
 - 验证 V02／V03／V04／V06：双端断言与事件spy有结果，缺运行证据失败，
   新单元全部入目录，旧Gallery案例保持通过。
+- [✅] 汇总轮（各任务增量用例累计 + 本轮补齐，60861b0→本轮 commit，
+  §8.27）：V03 canvas-contract.mjs **65/65**（几何边界/投影漏斗/折叠
+  保持/代次章失配/进度状态真实性/T-11 新增大 ID >2^53 全链字符串
+  保真 4 例）；clear复活/204/代次冲突/停止守卫由 V02
+  canvas_studio_contract 19/19 承载（后端契约面）；source迟到由
+  store 单飞机制+live 探针承载。V04 `run --plan 093 --case
+  canvas-studio-pair` 双臂 exit 0——unit=CanvasCanvasColumn（真实
+  unit；Gallery 引用工作台生产组件零复制），VM MCP 驱动缩放往返
+  断言真实穿透 store msg→canvasContentStyle helper→重渲染链
+  （state_changes 实录），截图基线持久化；本用例双端实证组件
+  mounting 在跨文件引用下工作正常（应用级组装面仍 G-11，归 095）。
+  busy Harness 口径定案：等价覆盖三面（后端契约 19/19+冻结双证
+  §8.23+V03 投影面），不新建流式模拟器（§8.27，供 review 复核）。
+  V06 catalog PASS（explicit 47 cases）。V02 全套绿（lib 505+33
+  集成目标；唯一失败=T-02 已记录本机预存 tool_atoms 项；ignored
+  真实生命周期归 T-12）；**跑法固定：V02 必须逐目标串行**——全量
+  并行编译触发杀软竞态不收敛（§8.27 环境事实增补）。顺手修复：①
+  canvas_store StatusBackfill app_path 守卫 undefined 判真（V04 VM
+  臂实机暴露，?? "" 归一）；②parity_chats/parity_conversation 4 处
+  测试夹具缺 T-08 design_context（E0063）。
 
 ### [ ] T-12：复验真实目标生命周期、工具与会话回归
 
@@ -948,6 +968,27 @@ PID／进程树及起止收据，再做真实运行测试。
 | T-11～T-14 | AC-01～AC-16（复验与证据） | SD-01～SD-05 |
 
 ## 9. 复审记录
+
+### work 阶段 T-11 完成交接（确定性测试与 Gallery 用例汇总）
+
+- stage: work
+- plan_id: PLAN-093
+- plan_revision: 1
+- outcome: T-11 pass——V03 65/65、V04 双臂全绿、V06 catalog PASS、
+  V02 全套绿（串行跑法）；busy Harness 口径定案；整体保持 executing
+- code_commit: plan-093-dev@2211d58（60861b0 之后）
+- task_ids: T-11（完成）
+- evidence: ①V03 65/65（大 ID 保真新 4 例）；②V04 canvas-studio-pair
+  双臂 exit 0（VM MCP 缩放往返穿透 store→helper 链 state_changes
+  实录+截图基线持久化）；③V02 lib 505 + 33 集成目标全绿（唯一失败
+  =T-02 已记录本机预存；**逐目标串行跑法固定**——并行全量编译触发
+  杀软竞态 37-41 振荡不收敛，§8.27）；④V06 catalog PASS；⑤V01 终态
+  gen strict+pnpm 10.61s。顺手修复：app_path 守卫 undefined 判真
+  （V04 实机暴露）、4 处 parity 测试夹具缺 design_context（E0063）。
+- blockers: 无新增。T-12 可开工（依赖 T-02/T-03/T-08/T-09/T-11 均已
+  完成）；T-13 的 VM 轨面仍挡 G-11（PLAN-095 T-07）。
+- next: work——T-12（真实目标生命周期/工具/会话回归；canvas_live
+  PID 树所有权改造 + ignored 实跑）。
 
 ### work 阶段 Q-04 收敛交接（来源置信度全链）
 
