@@ -650,9 +650,14 @@ PID／进程树及起止收据，再做真实运行测试。
   两列 / studio+无会话=空工作台 / 正常=CanvasPanel 520）——空工作台
   渲染（描述提示/路径输入/启动钮全呈现）+ 打开已有应用流（canvasStart
   既有校验，坏路径错误原样落 studio_start_err）+ view 闭括号修复
-  （解析失败 20 错实证）。下增量：ChatBody 提取（对话列右置——§5.2
-  精确排序需模板分支，避免复制走子件单实例）、宽度分层臂（1024/
-  768/<768 布列与页签）、Vue 侧重建验证（构建进行中）。
+  （解析失败 20 错实证）。
+  **Vue 侧受阻（新发现，capability-map §8.12）**：全量生成静默 exit 1
+  （28m04s 无诊断），退出点紧随 canvas_helpers.at 警告——嫌疑=拆分后
+  的 canvas_panel.at（3 widget 共声明同一 store + CanvasPanel 无 msg
+  块）与 vue 管线的兼容问题；dist 现状=上一完整 T-04 版（一致）。
+  下一步：AUTO_BUILD_TRACE=1 定位 + 生成结构检查；回滚面=revert 拆分
+  改 ChatsView 内联分支。继续项：ChatBody 提取（对话列右置）+ 宽度
+  分层臂（1024/768/<768）。
 
 ### [ ] T-06：统一画布几何、比例、事件和覆盖层
 
