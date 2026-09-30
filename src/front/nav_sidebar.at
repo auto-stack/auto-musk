@@ -13,14 +13,21 @@
 // 样式：inject_styles.ts 的 .nav-sidebar 系列已迁内联工具类（PLAN-049 双轨收敛）。
 
 widget NavSidebar(title: str, collapsed: bool, width_class: str) {
+    // PLAN-093 T-05:宽度单源化——折叠 w-12 与展开 width_class 此前分落
+    // 静态 class 与条件 style 两处（VM 轨 style 内联语义下折叠可胜;web 轨
+    // 两者皆类、级联让 240 压过 w-12,studio 强制收起失效实测 335px 之谜）。
+    // 类全串按态计算,两宽互斥（app 轨 railClass 同款;widget computed
+    // 先例 WorkspaceSelector）。
+    computed {
+        sidebarClass => if .collapsed {
+            "w-12 flex flex-col h-full shrink-0 overflow-hidden bg-muted/20 border-r border-border"
+        } else {
+            .width_class + " flex flex-col h-full shrink-0 overflow-hidden bg-muted/20 border-r border-border"
+        }
+    }
     view {
         div {
-            class: .width_class
-            style: if .collapsed {
-                "w-12 flex flex-col h-full shrink-0 overflow-hidden bg-muted/20 border-r border-border"
-            } else {
-                "flex flex-col h-full shrink-0 overflow-hidden bg-muted/20 border-r border-border"
-            }
+            style: [.sidebarClass]
             div {
                 style: "flex items-center gap-1.5 py-2 px-3 shrink-0 h-12 border-b border-border"
                 span {

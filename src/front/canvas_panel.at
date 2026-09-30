@@ -2,9 +2,10 @@
 // （可组合三件套：结构列/画布列/组合面板）。
 //
 // T-05 拆分：CanvasPanel（正常模式 520px 右列）= CanvasStructureColumn +
-// CanvasCanvasColumn 组合；studio 模式（ChatsView 工作台）直接挂两列子件
-// ——状态单源于 CanvasStore（子件各自 store 声明同一单例），视图模板零
-// 复制。帧 img 以 身份+seq 双键缓存击穿（T-04 canvasFrameUrl）。
+// CanvasCanvasColumn 组合；studio 模式宿主 = CanvasStudioSlot（cv_open 分
+// 两列/空工作台，输入与启动流走 store 域）——chats_view 只持视图域开关
+// studio_mode，画布状态单源于 CanvasStore（子件各自 store 声明同一单例），
+// 视图模板零复制。帧 img 以 身份+seq 双键缓存击穿（T-04 canvasFrameUrl）。
 // 帧点选委托（web 侧 document 委托，幂等）随画布列 setup 装。
 // 树点选 ↔ 画布高亮双向联动（pick 单源：后端 picked，前端经轮询/即时
 // 回填双路取）。点选结果 ≤1s 滞后（轮询拍）。
@@ -12,7 +13,7 @@
 
 use store: CanvasStore
 use.web useT from "src/front/ports/composables.at"
-use.web canvasStop from "src/front/ports/canvas.at"
+use.web canvasStop, canvasStart from "src/front/ports/canvas.at"
 use.web canvasPickNode, canvasClearPick, canvasLoadSource from "src/front/ports/canvas.at"
 
 // ── 结构列：pac 头 + 层树 + 源码抽屉（studio 模式=左列） ──────────────
@@ -306,6 +307,7 @@ widget CanvasCanvasColumn {
 }
 
 // ── 组合面板（正常模式右列 520px）：结构列 + 画布列 ──────────────────
+// studio 宽度分支随 CanvasStudioSlot（本件只在正常模式被挂）。
 widget CanvasPanel {
 
     setup {
@@ -315,23 +317,97 @@ widget CanvasPanel {
     view {
         if .store.cv_open {
             row {
-                style: if .store.cv_studio {
-                    "flex-1 min-w-0 h-full flex flex-row overflow-hidden border-l border-border bg-card"
-                } else {
-                    "w-[520px] shrink-0 h-full flex flex-row overflow-hidden border-l border-border bg-card"
-                }
+                style: "w-[520px] shrink-0 h-full flex flex-row overflow-hidden border-l border-border bg-card"
                 col {
-                    style: if .store.cv_studio {
-                        "w-[220px] shrink-0 h-full flex flex-col overflow-hidden border-r border-border"
-                    } else {
-                        "w-[170px] shrink-0 h-full flex flex-col overflow-hidden border-r border-border"
-                    }
+                    style: "w-[170px] shrink-0 h-full flex flex-col overflow-hidden border-r border-border"
                     CanvasStructureColumn {}
                 }
                 col {
                     style: "flex-1 min-w-0 h-full flex flex-col overflow-hidden"
                     CanvasCanvasColumn {}
                 }
+            }
+        }
+    }
+}
+
+// ── studio 工作台槽（chats_view studio 模式宿主）：cv_open 分两列/空
+// 工作台；"打开已有应用"启动流在本件动作域（canvasStart web 端口），
+// 输入草稿与错误是本件 model 本地态（gate_card 先例）——chats_view 的
+// ForgeStore 不跨域读画布状态。 ─────────────────────────────────────
+widget CanvasStudioSlot {
+
+    setup {
+        let t = useT()
+    }
+
+    model {
+        var path str = ""
+        var err str = ""
+    }
+
+    msg Msg {
+        PathInput,
+        StartApp,
+    }
+
+    view {
+        if .store.cv_open {
+            row {
+                style: "flex-1 min-w-0 h-full flex flex-row overflow-hidden"
+                col {
+                    style: "w-[220px] shrink-0 h-full flex flex-col overflow-hidden border-r border-border"
+                    CanvasStructureColumn {}
+                }
+                col {
+                    style: "flex-1 min-w-0 h-full flex flex-col overflow-hidden"
+                    CanvasCanvasColumn {}
+                }
+            }
+        } else {
+            col {
+                style: "flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-6"
+                span {
+                    style: "text-[13px] text-muted-foreground"
+                    text t("canvas.studioEmpty")
+                }
+                div {
+                    style: "flex items-center gap-2 w-full max-w-[360px]"
+                    input {
+                        style: "flex-1 min-w-0 h-8 text-[13px] text-foreground bg-background border border-border rounded-md px-2 outline-none"
+                        value: .path
+                        oninput: .PathInput($event)
+                        placeholder: t("canvas.openAppPath")
+                    }
+                    button {
+                        onclick: .StartApp
+                        style: "h-8 px-3 shrink-0 rounded-md bg-primary text-primary-foreground text-[12px] cursor-pointer disabled:opacity-50"
+                        text t("canvas.openAppStart")
+                    }
+                }
+                if .err != "" {
+                    span {
+                        style: "text-[12px] text-destructive max-w-[360px] text-center"
+                        text .err
+                    }
+                }
+            }
+        }
+    }
+
+    on {
+        .PathInput(val) -> {
+            .path = val
+        }
+        // 打开已有应用：canvasStart 走既有校验与启动流（越界/无 pac.at
+        // 错误原样展示；成功清输入，面板经状态轮询展开）。
+        .StartApp -> {
+            let r = canvasStart("", .path).await
+            if r.ok == true {
+                .err = ""
+                .path = ""
+            } else {
+                .err = r.error
             }
         }
     }

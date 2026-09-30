@@ -467,26 +467,40 @@ async function runVueArm(mode) {
       await img.waitFor({ state: 'visible', timeout: 45000 }).catch(() => {});
       const nw = await img.evaluate(el => el.naturalWidth).catch(() => 0);
       assert('vue-frame-img-rendered', nw > 0, `naturalWidth=${nw}`);
-      // T-05: studio 切换（应用设计钮）→ 面板槽 flex-1（画布区显著展宽），
-      // 再点退出还原（进出同一钮）。
+      // T-05: studio 切换（应用设计钮，会话头部常驻 actions 行）→ 面板槽
+      // flex-1（画布区显著展宽），再点退出还原（进出同一钮）。页面内
+      // el.click() 同步触发（轮询重渲染下 playwright 动作性检查/事件派发
+      // 不可靠）；激活态按 class token 严格匹配（inactive 的 hover:bg-accent
+      // 含 bg-accent 子串，子串匹配会假阳性）；pageerror 捕获兜诊断。
       {
-        const entry = page.locator('button[title="App studio"], button[title="应用设计"]').first();
-        await entry.waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
-        await entry.dispatchEvent('click').catch(e => { fail(`studio entry click: ${e.message}`); });
+        const clickStudio = () => page.evaluate(() => {
+          const btn = [...document.querySelectorAll('button')].find(b => b.title === 'App studio' || b.title === '应用设计');
+          if (!btn) return null;
+          const activeBefore = btn.className.split(/\s+/).includes('bg-accent');
+          btn.click();
+          return activeBefore;
+        });
+        const pageErrors = [];
+        const onErr = e => pageErrors.push(String(e).slice(0, 200));
+        page.on('pageerror', onErr);
+        const enterRet = await clickStudio();
         await new Promise(r => setTimeout(r, 1200));
         const probe1 = await page.evaluate(() => {
-          const btn = document.querySelector('button[title="App studio"], button[title="应用设计"]');
+          const btn = [...document.querySelectorAll('button')].find(b => b.title === 'App studio' || b.title === '应用设计');
           const img = document.querySelector('img[src*="/api/canvas/frame"]');
-          return { active: btn ? String(btn.className).includes('bg-accent') : null,
+          return { exists: !!btn,
+            active: btn ? btn.className.split(/\s+/).includes('bg-accent') : null,
             imgW: img ? Math.round(img.getBoundingClientRect().width) : null };
         });
-        await entry.dispatchEvent('click').catch(() => {});
+        await clickStudio(); // 退出 studio
         await new Promise(r => setTimeout(r, 1200));
         const wNormal = await img.evaluate(el => el.getBoundingClientRect().width).catch(() => 0);
-        assert('vue-studio-layout-toggle', probe1.active === true && wNormal > 0,
-          `studio=${probe1.imgW}px normal=${wNormal}px activeAfter=${probe1.active}`);
-        // 恢复 studio 态（后续断言与收起持久性依赖面板可见）。
-        await entry.dispatchEvent('click').catch(() => {});
+        page.off('pageerror', onErr);
+        assert('vue-studio-layout-toggle',
+          enterRet === false && probe1.exists && probe1.active === true && (probe1.imgW ?? 0) > wNormal && pageErrors.length === 0,
+          `studio=${probe1.imgW}px normal=${Math.round(wNormal)}px activeBefore=${enterRet} activeAfter=${probe1.active} err=${pageErrors[0] ?? 'none'}`);
+        // 恢复 studio 态（后续断言在 studio 工作台布局上继续——T-05 主形态）。
+        await clickStudio();
         await new Promise(r => setTimeout(r, 1200));
       }
     }
