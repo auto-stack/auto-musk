@@ -760,6 +760,11 @@ T-01核对CLI命令及features后固定实际调用；受影响的required门不
 - 部署观察项：共享生产 CLI/主检出二进制未触碰；auto-lang 依赖分支
   （auto-musk-095-dev，基线 e0fb4e4e4 上 6 提交）合回 auto-lang master
   留 merge 阶段；auto-down/auto-ai 只读兄弟检出（--detach）随计划清理
+- merge 清理注意（wt-guard 实测）：musk worktree 的 gen/front/vue/
+  node_modules 含 pnpm 标准符号链接（V07 pnpm install 产物，非手工
+  junction）——worktree remove 前须按 guard 处方先以
+  MSYS_NO_PATHCONV=1 cmd /c rmdir 逐链接卸除（只删链接不穿透目标），
+  再重跑 guard 至 clean；auto-lang 侧 guard clean 无此项
 
 ## 10. 待澄清事项
 
