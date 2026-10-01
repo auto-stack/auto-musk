@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-093
-status: execution_done
+status: reviewed
 feature_name: AutoUI 应用设计工作台与实时 Canvas 双端 UX
 author: [agent]
 created_at: 2026-09-28T14:20:35Z
@@ -1024,6 +1024,51 @@ PID／进程树及起止收据，再做真实运行测试。
   独立执行（用户已授权路线），T-13 待 G-11 解除后收口。
 
 ## 9. 复审记录
+
+## 9. 复审记录
+
+### review 阶段最终评审（execution_done 入口，全量复验）
+
+- stage: review
+- plan_id: PLAN-093
+- plan_revision: 1
+- outcome: **pass**（plan 状态 executing → reviewed；next = merge）
+- reviewed_commit: plan-093-dev@a1fd18ecfbaacba11052c6d46b69c5956fe180c0
+  （worktree 干净零未提交实现）
+- base_commit: f8f99f3dc066b557b4c5b003dd2e0d3faa8bb428（阶段合入后
+  主检出基座=fc727dc，最终 merge 以 rebase+range-diff 重定映射）
+- dependency_revisions: auto-lang sibling auto-musk-dev@fbf55f913
+  （G-12/G-16 修复承载，干净；折回 master 放 merge 阶段、需用户确认
+  ——主检出 27 文件 WIP）；auto-ai@5a50a55；auto-down@3373a5c
+- spec_inputs: docs/reports/093-app-studio-spec-delta.md（SD-01～05）
+  + 计划 §5 规范增量表；canonical 目标核验：app-studio-ui.md 未建
+  （merge 新建 ✓）、app-canvas/workspace-ui/web-input-contracts/
+  chat-streaming/ui-parity.md 存在 ✓；**work 阶段 canonical 零变更
+  （git diff main..HEAD -- docs/specs/ 空，红线保持）**
+- acceptance_results: AC-01～AC-16 全部 pass（AC-06/AC-13 带记档
+  限制——限制面由另一轨承载或列复验项，未降门槛）；逐项映射见
+  docs/reports/093-app-studio-evidence.md（绑定本提交）。现场重跑：
+  V01 gen strict 65 组件+pnpm 9.70s、V03 65/65、V06 catalog PASS、
+  contract 21/21、lib 505/505——全部于 a1fd18e 内容重跑通过。复用
+  证据及理由：V05 四模式 ALL PASS（canvas-studio-live-receipt.json，
+  运行内容与 a1fd18e 一致——其后提交仅含本报告与编排脚本入库）；
+  V07 4×ignored（Rust 测试与生产码自运行后零变更）；V02 串行全套
+  （生产 Rust 自运行后零变更——T-12 后仅测试/前端/文档）。
+- findings: 无阻断。两项 minor（非阻断，留档）：①AC-13 的 Tab 序
+  巡检与双主题实拍未单独留证（构造性证据齐：i18n 双语键全量、主题
+  token 沿用未新增、Escape 已证；review 建议复验时补实拍，不阻
+  merge）；②VM chip ⨯ 快照断言待 label 形态对齐（清选链由契约
+  21/21 + Vue 臂承载）。G-15/G-17 与 wrap :style 限制为已登记上游
+  /codegen 已知项（证据报告记档，非本计划范围）。
+- evidence: 本评审会话现场重跑四项门禁（V01/V03/V06/contract+lib）
+  于 a1fd18e 内容；独立性限制声明：实现会话内评审（用户直接授权
+  流程），结论从磁盘工件重建（收据重读+现场重跑），未采信执行者
+  摘要。Spec delta 冻结：docs/reports/093-app-studio-spec-delta.md
+  @a1fd18e。
+- next: **merge**（/auto-plan:merge——wt-guard/rebase/range-diff/
+  ff-only 合回 main；canonical 规格沉淀 SD-01～05 + app-studio-ui.md
+  新建 + index 注册 + ledger 派生刷新；worktree 归档清理；auto-lang
+  修复折回 master 时机需用户确认——主检出有用户 WIP）。
 
 ### work 阶段 execution_done 交接（T-13/T-14 完成，全任务收口）
 
