@@ -984,6 +984,48 @@ PID／进程树及起止收据，再做真实运行测试。
 
 ## 9. 复审记录
 
+### review 阶段阶段验收（T-01..T-05、T-09、T-11、T-12 阶段合入前）
+
+- stage: review（**phase-only**——阶段合入验收，整体保持 executing，
+  不授予最终 reviewed）
+- plan_id: PLAN-093
+- plan_revision: 1
+- outcome: pass（阶段范围内全部完成项复验通过，无阻断发现）
+- reviewed_commit: plan-093-dev@49a4819b568fda27ba94f5fa79bab46115dbb285
+  （worktree 干净；rebase 后以 range-diff 等价性映射为准，见后续记录）
+- base_commit: f8f99f3dc066b557b4c5b003dd2e0d3faa8bb428（自该基点
+  main 侧代码路径零变更——rebase 冲突风险≈0）
+- dependency_revisions: auto-lang 组内 worktree auto-musk-dev@2327e0bba
+  （干净，承载 G-7/G-8/G-9 正统修复）；auto-ai@5a50a55；auto-down@895f8d0
+- spec_inputs: SD-01～SD-05 拟议（canonical 目标
+  docs/specs/modules/{app-canvas,workspace-ui,web-input-contracts,
+  chat-streaming,ui-parity}.md 存在；app-studio-ui.md 为 merge 阶段
+  新建；T-14 的 093-app-studio-spec-delta.md 报告未写——属后续任务，
+  阶段评审不发布 canonical 规格与 ledger）
+- acceptance_results（阶段任务映射）:
+  T-01 探针双 PASS+capability-map ✓；T-02 契约 19→21 例 ✓；
+  T-03 V05 四模式全绿 ✓；T-04 投影/显隐分离双端 ✓；T-05 工作台壳+
+  宽度分层双端 ✓；T-09 进度投影/盖章/生命周期面（V03+Vue 臂双后端）✓；
+  T-11 V03 65/V04 双臂/V02 串行全套/V06 ✓；T-12 V07 4×ignored
+  26.81s+PID 收据 18 笔 ✓。未完成项（阶段外，保持原状）：T-06/07/08
+  VM 轨剩余（G-11，PLAN-095 T-07 承接）、T-10 双主题实操（归 T-13）、
+  T-13/T-14 未开工。
+- findings: 无阻断。观察三项（均不阻断）：①T-11 app_path 守卫修复
+  后未重跑 V05 式 Vue 全矩阵——行为面由 V04（post-fix gallery）与
+  V01 承载，T-13 将全量重跑；②V03/V04 runner 偶发 libuv 退出断言
+  （进程退出噪声，测试结果不受影响）；③origin/main 落后本地 main
+  （未推送的簿记+skills 合并）——仓库推送卫生，计划流程外。
+- evidence: 现场重跑 V03 65/65、V06 catalog PASS、contract 21/21、
+  canvas_live 非 ignored 1/1（本评审会话执行）；复用证据及理由：
+  V01/V02/V04/V07/V05 臂——生产代码与依赖自各轮运行后零变更
+  （T-12 仅改测试文件且已单独复验），符合「代码/依赖/测试配置未变
+  方可复用」条款。评审独立性限制：本评审在实现会话内进行（用户
+  授权的阶段流程），结论按技能要求从磁盘工件重建（收据重读+门禁
+  现场重跑），未采信执行者摘要。
+- next: 阶段合入（wt-guard→rebase main→range-diff 等价验证→
+  ff-only→保留 worktree 与 executing→旧→新映射入账）；合入后 095
+  独立执行（用户已授权路线），T-13 待 G-11 解除后收口。
+
 ### work 阶段 T-12 完成交接（真实生命周期/工具/会话回归）
 
 - stage: work
