@@ -1,0 +1,41 @@
+click composer: CLICKED 70,154
+shot1: autoui-screenshot-1790832213296.png
+click miss: CLICKED 70,250
+click input: CLICKED 70,202
+=====STATES=====
+s1: State:   __emit_msg: "" (str)   __emit_payload: nil (unknown)   __focus_result: "ok" (str)   __toast: "" (str)   text: "focust-ran" (str)   ti_text: "" (str) 
+s2: State:   __emit_msg: "" (str)   __emit_payload: nil (unknown)   __focus_result: "miss:.NoSuch" (str)   __toast: "" (str)   text: "focust-ran" (str)   ti_text: "miss-ran" (str) 
+s3: State:   __emit_msg: "" (str)   __emit_payload: nil (unknown)   __focus_result: "ok" (str)   __toast: "" (str)   text: "focust-ran" (str)   ti_text: "focusi-ran" (str) 
+=====CHECKS=====
+{
+ "composerFocusResultOk": true,
+ "composerHandlerMarker": true,
+ "missObservable": true,
+ "inputFocusResultOk": true,
+ "inputHandlerMarker": true,
+ "screenshotTaken": true
+}
+=====OUTTAIL=====
+e::eyreish::Report>>
+  71: std::rt::lang_start::<core::result::Result<(), miette::eyreish::Report>>::{closure#0}
+  72: std::rt::lang_start_internal::closure$0
+             at /rustc/88d9e12ae178fab0fb5cc050a94da85685d449ea/library\std\src\rt.rs:175
+  73: std::panicking::catch_unwind::do_call
+             at /rustc/88d9e12ae178fab0fb5cc050a94da85685d449ea/library\std\src\panicking.rs:576
+  74: std::panicking::catch_unwind
+             at /rustc/88d9e12ae178fab0fb5cc050a94da85685d449ea/library\std\src\panicking.rs:544
+  75: std::panic::catch_unwind
+             at /rustc/88d9e12ae178fab0fb5cc050a94da85685d449ea/library\std\src\panic.rs:359
+  76: std::rt::lang_start_internal
+             at /rustc/88d9e12ae178fab0fb5cc050a94da85685d449ea/library\std\src\rt.rs:171
+  77: std::rt::lang_start::<core::result::Result<(), miette::eyreish::Report>>
+  78: main
+  79: invoke_main
+             at D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl:78
+  80: __scrt_common_main_seh
+             at D:\a\_work\1\s\src\vctools\crt\vcstartup\src\startup\exe_common.inl:288
+  81: BaseThreadInitThunk
+  82: RtlUserThreadStart
+
+[session] app update panicked (plan-453 T6 boundary): Any { .. }
+
