@@ -11,6 +11,16 @@
 //     → AUTO_HTTP_PORT，与 auto-lang resolve_http_base_url 同口径）。
 // 结果对象契约与 web facade 一致（.at catch 值 unknown，错误走对象）。
 
+/// PLAN-093 T-13（vm-rust 格）：错误体安全解析——axum Query 拒绝等
+/// 非 JSON 体（纯文本）直接 JSON.parse 会抛异常炸掉 park/resume
+/// （StartApp resume failed 实证）；非 `{` 开头一律 None 走 HTTP 码面。
+fn canvas_parse_body(body str) {
+    if body.substring(0, 1) == "{" {
+        return JSON.parse(body)
+    }
+    return None
+}
+
 fn canvas_http_base() str {
     let base = env.get("AUTO_HTTP_BASE")
     if base != "" {
@@ -24,7 +34,14 @@ fn canvas_http_base() str {
 }
 
 fn canvasStart(wid str, appPath str) {
-    let url = canvas_http_base() + "/api/canvas/start?workspace=" + wid
+    // T-13：空 wid 不拼 workspace 键——rust 后端宿主注入会追加自己的
+    // workspace 键，空键+宿主键=双键 Query 400（vm-rust 实证）；vm 后端
+    // 无宿主追加，无键=默认工作区语义不变。
+    var q = ""
+    if wid != "" {
+        q = "?workspace=" + wid
+    }
+    let url = canvas_http_base() + "/api/canvas/start" + q
     let rb = Http.request("POST", url)
     let res = rb.body("{\"app_path\": " + JSON.stringify(appPath) + "}").send()
     var code = res.status_code()
@@ -32,7 +49,7 @@ fn canvasStart(wid str, appPath str) {
         return { ok: true, error: "", state: "starting", app_path: "" }
     }
     var body = res.body()
-    let parsed = JSON.parse(body)
+    let parsed = canvas_parse_body(body)
     var msg = "HTTP " + code
     if parsed != None {
         if parsed.error != None {
@@ -51,7 +68,7 @@ fn canvasStop() {
         return { ok: true, error: "", state: "stopped", app_path: "" }
     }
     var body = res.body()
-    let parsed = JSON.parse(body)
+    let parsed = canvas_parse_body(body)
     var msg = "HTTP " + code
     if parsed != None {
         if parsed.error != None {
@@ -77,7 +94,7 @@ fn canvasPickAt(px float, py float) {
         return { ok: true, miss: false, error: "", pick: res.body() }
     }
     var body = res.body()
-    let parsed = JSON.parse(body)
+    let parsed = canvas_parse_body(body)
     var msg = "HTTP " + code
     if parsed != None {
         if parsed.error != None {
@@ -101,7 +118,7 @@ fn canvasPickNode(vnodeId str) {
         return { ok: true, error: "", pick: res.body() }
     }
     var body = res.body()
-    let parsed = JSON.parse(body)
+    let parsed = canvas_parse_body(body)
     var msg = "HTTP " + code
     if parsed != None {
         if parsed.error != None {
