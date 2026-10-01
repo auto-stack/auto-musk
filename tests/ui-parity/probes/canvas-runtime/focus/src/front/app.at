@@ -1,0 +1,78 @@
+// app.at — PLAN-095 T-04: ui.focus runtime contract.
+//
+// 三个按钮分别聚焦 composer（textarea/.Input）、单行 input（.TiInput）、
+// 不存在目标（.NoSuch）。真键盘（SendInput UNICODE）在聚焦后直接打字：
+// 文本必须落进目标控件（AC-05）；__focus_result 模型字段承载 renderer
+// 回写的 ok/miss 结果（声明为模型字段——write_state 按声明字段名查找）。
+
+widget FocusProbe {
+    msg {
+        Init,
+        Input(str),
+        TiInput(str),
+        FocusT,
+        FocusI,
+        FocusMiss,
+    }
+
+    model {
+        var text str = ""
+        var ti_text str = ""
+        var __focus_result str = ""
+    }
+
+    view {
+        col {
+            style: "w-full h-full flex-col bg-background text-foreground p-4 gap-2"
+            input {
+                placeholder: "single-line"
+                value: .ti_text
+                oninput: .TiInput
+            }
+            textarea {
+                placeholder: "composer"
+                value: .text
+                oninput: .Input
+                height: 72
+            }
+            button "focus-composer" {
+                style: "h-10"
+                onclick: .FocusT
+            }
+            button "focus-input" {
+                style: "h-10"
+                onclick: .FocusI
+            }
+            button "focus-miss" {
+                style: "h-10"
+                onclick: .FocusMiss
+            }
+            text .__focus_result
+            text .text
+            text .ti_text
+        }
+    }
+
+    on {
+        Init -> {
+        }
+        Input(v) -> {
+            .text = v
+        }
+        TiInput(v) -> {
+            .ti_text = v
+        }
+        FocusT -> {
+            .text = "focust-ran"
+            ui.focus(".Input")
+        }
+        FocusI -> {
+            .ti_text = "focusi-ran"
+            ui.focus(".TiInput")
+        }
+        FocusMiss -> {
+            .ti_text = "miss-ran"
+            ui.focus(".NoSuch")
+        }
+    }
+}

@@ -1,0 +1,8 @@
+// pac.at — PLAN-095 T-08 media soak fixture: bounded A/B cycling for 5 min.
+name: "canvas-runtime-soak"
+version: "0.1.0"
+scene: "ui"
+render: "vue"
+api: "rust"
+title: "Canvas Runtime Soak"
+theme: "dark"

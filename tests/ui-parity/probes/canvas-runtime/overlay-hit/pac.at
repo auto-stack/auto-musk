@@ -1,0 +1,13 @@
+// pac.at — PLAN-095 T-01 G-2 minimal repro: absolute+z overlay children on a
+// content host. 093 probe evidence reported the whole host subtree vanishing
+// when absolute+z children are hoisted to View::Overlay. fold_floats itself
+// keeps base (explore verification at e0fb4e4e4) — this fixture attributes
+// the actual loss layer on the current VM track.
+name: "t01-overlay-host"
+version: "0.1.0"
+scene: "ui"
+render: "vue"
+api: "rust"
+title: "T01 Overlay Host"
+title_zh: "T01 叠层宿主"
+theme: "dark"

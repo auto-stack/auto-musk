@@ -1,0 +1,8 @@
+// pac.at — PLAN-095 T-04 programmatic focus probe.
+name: "t04-focus"
+version: "0.1.0"
+scene: "ui"
+render: "vue"
+api: "rust"
+title: "T04 Focus"
+theme: "dark"

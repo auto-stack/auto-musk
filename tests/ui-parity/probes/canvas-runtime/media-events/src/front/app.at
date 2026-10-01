@@ -1,0 +1,117 @@
+// app.at — PLAN-095 T-02: real ImageSurface loaded/error runtime contract.
+//
+// Flow: Init queues the good PNG (image.open_session) → Tick publishes its
+// media URI into src → loaded must fire exactly once with (w, h, rev) →
+// after loaded, the corrupt PNG is queued and src switches to it (A→B) →
+// the old subscription must not re-fire and the failure must fire error
+// exactly once with a locatable reason. Spy state fields are read back via
+// AutoUI MCP autoui_state.
+
+widget MediaEvents {
+    msg {
+        Init,
+        Tick,
+        Loaded(int, int, int),
+        LoadFail(str),
+    }
+
+    model {
+        var sid_a str = ""
+        var sid_b str = ""
+        var uri_a str = ""
+        var uri_b str = ""
+        var src str = ""
+        var load_count int = 0
+        var load_info str = ""
+        var error_count int = 0
+        var error_reason str = ""
+        var phase str = "init"
+        var tick_count int = 0
+        var snap str = ""
+        var sid_c str = ""
+        var snap_c str = ""
+        var path_echo str = ""
+    }
+
+    timer {
+        Tick (every_ms: 200)
+    }
+
+    view {
+        col {
+            style: "w-full h-screen flex-col bg-background text-foreground p-4 gap-2"
+            text .phase
+            image_surface {
+                src: .src
+                alt: "probe surface"
+                width: 160
+                height: 120
+                onload: .Loaded
+                onerror: .LoadFail
+            }
+            text .load_info
+            text .error_reason
+            text .tick_count
+            text .snap
+            text .snap_c
+            text .path_echo
+        }
+    }
+
+    on {
+        Init -> {
+            let good = env.get("PROBE_GOOD_PNG")
+            if good != "" {
+                .sid_a = image.open_session(good)
+                .path_echo = good
+                .sid_c = image.open_session(env.get("PROBE_DIR"))
+                .phase = "queued-good"
+                print("[t02] queued good " + good)
+            } else {
+                .phase = "missing PROBE_GOOD_PNG"
+            }
+        }
+
+        Tick -> {
+            .tick_count = .tick_count + 1
+            if .tick_count == 3 { .snap = image.snapshot(.sid_a) }
+            if .tick_count == 8 { .snap_c = image.snapshot(.sid_c) }
+            if .uri_a == "" && .sid_a != "" {
+                .uri_a = image.current_uri(.sid_a)
+            }
+            if .src == "" && .uri_a != "" {
+                .src = .uri_a
+                .phase = "showing-good"
+            }
+            // loaded(A) 到手后再换坏图（A→B 换订阅），旧订阅不得再发。
+            if .load_count > 0 && .sid_b == "" {
+                let bad = env.get("PROBE_BAD_PNG")
+                if bad != "" {
+                    .sid_b = image.open_session(bad)
+                    .phase = "queued-bad"
+                }
+            }
+            if .uri_b == "" && .sid_b != "" {
+                .uri_b = image.current_uri(.sid_b)
+            }
+            if .uri_b != "" && .src == .uri_a && .load_count > 0 {
+                .src = .uri_b
+                .phase = "showing-bad"
+            }
+        }
+
+        Loaded(w, h, rev) -> {
+            .load_count = .load_count + 1
+            .load_info = "loaded " + w + "x" + h + " rev=" + rev + " n=" + .load_count
+            .phase = "loaded"
+            print("[t02] loaded " + w + "x" + h + " rev=" + rev)
+        }
+
+        LoadFail(reason) -> {
+            .error_count = .error_count + 1
+            .error_reason = "error n=" + .error_count + " reason=" + reason
+            .phase = "failed"
+            print("[t02] load failed: " + reason)
+        }
+    }
+}

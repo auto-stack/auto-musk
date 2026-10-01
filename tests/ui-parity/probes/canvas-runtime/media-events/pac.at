@@ -1,0 +1,8 @@
+// pac.at — PLAN-095 T-02 runtime media event probe (loaded/error contract).
+name: "t02-media-events"
+version: "0.1.0"
+scene: "ui"
+render: "vue"
+api: "rust"
+title: "T02 Media Events"
+theme: "dark"

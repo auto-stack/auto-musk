@@ -1,0 +1,95 @@
+// app.at — PLAN-095 T-08 soak: continuous good/corrupt image cycling on one
+// ImageSurface. Contract (AC-09): loaded/error notifications stay bounded
+// (one per cycle), memory/files bounded, no feedback loops, app stays
+// responsive. The driver reads cycle counters after 5 minutes.
+
+widget SoakApp {
+    msg {
+        Init,
+        Tick,
+        Loaded(int, int, int),
+        LoadFail(str),
+    }
+
+    model {
+        var sid str = ""
+        var uri str = ""
+        var src str = ""
+        var expect_bad bool = false
+        var cycles int = 0
+        var load_count int = 0
+        var error_count int = 0
+        var mismatches int = 0
+    }
+
+    timer {
+        Tick (every_ms: 300)
+    }
+
+    view {
+        col {
+            style: "w-full h-full flex-col bg-background text-foreground p-4 gap-2"
+            image_surface {
+                src: .src
+                width: 160
+                height: 120
+                onload: .Loaded
+                onerror: .LoadFail
+            }
+            text .cycles
+        }
+    }
+
+    on {
+        Init -> {
+            let good = env.get("SOAK_GOOD_PNG")
+            if good != "" {
+                .sid = image.open_session(good)
+            }
+        }
+
+        Tick -> {
+            // 换图循环推进：uri 未发布→发布；src 空→挂 A；事件到位→翻面换票。
+            if .uri == "" && .sid != "" {
+                .uri = image.current_uri(.sid)
+            }
+            if .src == "" && .uri != "" {
+                .src = .uri
+                .expect_bad = false
+            }
+            if .uri != "" && .src != "" {
+                // 事件计数与 cycles 对账在 driver 侧；此处仅翻面。
+                if .cycles < .load_count + .error_count {
+                    .cycles = .load_count + .error_count
+                    // 下一面：好/坏交替（坏面复用同一坏图路径，走失败通知）。
+                    let next_bad = !.expect_bad
+                    let path = if next_bad {
+                        env.get("SOAK_BAD_PNG")
+                    } else {
+                        env.get("SOAK_GOOD_PNG")
+                    }
+                    if path != "" {
+                        .sid = image.open_session(path)
+                        .uri = ""
+                        .src = ""
+                        .expect_bad = next_bad
+                    }
+                }
+            }
+        }
+
+        Loaded(w, h, rev) -> {
+            .load_count = .load_count + 1
+            if .expect_bad {
+                .mismatches = .mismatches + 1
+            }
+        }
+
+        LoadFail(reason) -> {
+            .error_count = .error_count + 1
+            if !.expect_bad {
+                .mismatches = .mismatches + 1
+            }
+        }
+    }
+}

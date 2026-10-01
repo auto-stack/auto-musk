@@ -1,0 +1,56 @@
+// app.at — PLAN-095 T-05: __mcp_drag synthetic coordinates must arrive at the
+// .at float handlers with the SAME numeric encoding as the real pointer path
+// (Float, ≤0.5px tolerance). Pre-fix the synthetic channel pushed Double →
+// nanbox 位型错读 (garbage ints). State fields carry the raw handler args as
+// strings for the driver to parse.
+
+widget CoordsProbe {
+    msg {
+        Init,
+        Down(str),
+        Move(float, float),
+        Up(float, float),
+    }
+
+    model {
+        var last_down str = ""
+        var last_move str = ""
+        var last_up str = ""
+        var move_n int = 0
+        var mx float = 0.0
+        var my float = 0.0
+    }
+
+    view {
+        col {
+            style: "w-full h-full flex-col bg-background text-foreground p-4 gap-2"
+            mouse-area {
+                coords: "400x300"
+                onmousedown: .Down
+                onmousemove: .Move
+                onmouseup: .Up
+                style: "w-[400px] h-[300px] border border-border"
+            }
+            text .last_down
+            text .last_move
+            text .last_up
+        }
+    }
+
+    on {
+        Init -> {
+        }
+        Down(e) -> {
+            .last_down = "down"
+        }
+        Move(x, y) -> {
+            .move_n = .move_n + 1
+            .mx = x
+            .my = y
+            .last_move = x + "," + y
+        }
+        Up() -> {
+            .last_up = "up"
+        }
+    }
+}

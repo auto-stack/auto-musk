@@ -1,0 +1,8 @@
+// pac.at — PLAN-095 T-05 MCP synthetic coordinate contract probe.
+name: "t05-coords"
+version: "0.1.0"
+scene: "ui"
+render: "vue"
+api: "rust"
+title: "T05 Coords"
+theme: "dark"

@@ -1,0 +1,47 @@
+// app.at — PLAN-095 T-01 G-2 minimal repro. A content host (base text nodes
+// + fixed-size box) with TWO absolute children: one z-index higher (amber
+// agent frame), one same-z later sibling (blue selection frame). Contract:
+// base text AND both frames all appear in the VM snapshot; passive frames
+// must not swallow the host.
+
+widget OverlayHost {
+    msg {
+        Init,
+    }
+
+    model {
+        var marker str = "host-base"
+    }
+
+    view {
+        col {
+            style: "w-full h-screen flex-col bg-background text-foreground p-4 gap-2"
+            text "overlay host probe"
+            // 内容宿主：base 子内容 + 两个 absolute 框（z 不同 + 同 z 源序）。
+            col {
+                style: "relative w-[240px] h-[160px] border border-border bg-black"
+                text "base content inside host"
+                text "second base line"
+                col {
+                    style: "absolute left-[20px] top-[20px] w-[80px] h-[40px] border-2 border-blue-500 z-10"
+                    text "sel-frame"
+                }
+                col {
+                    style: "absolute left-[120px] top-[60px] w-[90px] h-[50px] border-2 border-amber-500 z-20"
+                    text "agent-frame"
+                }
+                col {
+                    style: "position:absolute;left:40px;top:110px;width:120px;height:36px;border:2px solid rgb(34,197,94);background:rgba(34,197,94,0.12);pointer-events:none;border-radius:2px"
+                    text "css-frame"
+                }
+            }
+            text "host tail outside overlay box"
+        }
+    }
+
+    on {
+        Init -> {
+            print("[g2] host init")
+        }
+    }
+}
