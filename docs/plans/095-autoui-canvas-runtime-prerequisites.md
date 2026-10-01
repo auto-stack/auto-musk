@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-095
-status: execution_done
+status: reviewed
 feature_name: AutoUI Canvas VM 基础能力补齐与 PLAN-093 依赖闭环
 author: [agent]
 created_at: 2026-09-29T09:57:59Z
@@ -765,6 +765,50 @@ T-01核对CLI命令及features后固定实际调用；受影响的required门不
   junction）——worktree remove 前须按 guard 处方先以
   MSYS_NO_PATHCONV=1 cmd /c rmdir 逐链接卸除（只删链接不穿透目标），
   再重跑 guard 至 clean；auto-lang 侧 guard clean 无此项
+
+### review 阶段记录（2026-10-01，独立复跑重建判定）
+
+- stage: review
+- plan_id: PLAN-095
+- plan_revision: 2
+- outcome: pass
+- reviewed_commit: auto-musk plan-095-dev@cc9886e（review 补证 1a9210a 仅
+  docs/evidence）；auto-lang auto-musk-095-dev@e2da944e3
+- base_commit: auto-musk main@22f06ba；auto-lang master@e0fb4e4e4（review
+  时上游已前进至 7491719b8——Q-02：本计划消费基线维持 e0fb4e4e4，语义
+  变化后写方重建，不回改本判定）
+- dependency_revisions: auto-down master@895f8d0（只读）、auto-ai
+  master@（只读）、CLI 89c22af15c048019（auto-musk-095 构建）
+- spec_inputs: docs/specs/modules/app-canvas.md、ui-parity.md（现版）；
+  增量提案 docs/reports/095-canvas-runtime-spec-delta.md（SD-01～05+
+  已知债 6 项，frozen 于 cc9886e）
+- acceptance_results: AC-01 pass（baseline 报告+git 对照）；AC-02/03 pass
+  （review 现场复跑 media probe：单发/可定位/驻留稳定）；AC-04 pass
+  （review 现场复跑 t03 真指针穿透 hit=1/pop=1+% 几何落位；DPI/contain
+  以 093 §8.16 V05 收据为基线引用）；AC-05 pass（focus probe 双目标
+  ok+miss 可定位 + **review 补证 1a9210a：聚焦后 text_input 渲染
+  Focused 边框截图**——iced 聚焦任务生效视觉实证；OS 键盘投递为本会话
+  前台锁环境限制，记档不降级）；AC-06 pass（coords probe typed float
+  ≤0.01）；AC-07 pass（strict EXIT=0+V07 打包 9.89s+非法输入非零可定位
+  收据）；AC-08 pass（V06 三探针 review 现场复跑全 PASS+fixtures 随仓）；
+  AC-09 pass（soak 499 周期通知有界/进程存活收据）；AC-11 pass（g11
+  进程内回归 1/1 review 复跑+端到端快照+use 对照）；AC-10 pass（回归门
+  收据齐：V02 1/1、V03 scoped 195/196+20/20、tv 161/162+单跑过、V05
+  327/330（3 败基线同败鉴别）、musk lib 505/0、cargo t 20 败逐项对照
+  实验=预存/环境红）
+- findings: F-1 已知债 6 项（spec-delta 报告登记：.at float→str 拼接
+  位型误渲染/快照 raw_class 错配/OS 键盘前台锁/Vue live 实拍/A→B→A
+  专项证据/% 偏移配对边界）——均为非阻断改进或证据补充项，不属验收内
+  失败；F-2 cargo t 预存红 20 个（基线对照实验逐一鉴别，非本计划引入）
+- evidence: 本记录所引探针均为 review 现场复跑（同 commit 同二进制
+  89c22af1）；重用未复跑项（soak 5min/tv/cargo t/auto-man/musk lib）
+  的显式理由=代码/依赖/测试配置自收据后零变更（commit 未动）；证据
+  路径 docs/reports/095-evidence/（随仓持久）+ tmp/ui-parity/PLAN-095/
+  收据；review 补证截图 docs/reports/095-evidence/t04-focus-border-
+  review.png
+- 独立性声明：review 在实现会话内执行——判定按技能要求从工件与现场
+  复跑重建（非执行摘要采信）
+- next: merge
 
 ## 10. 待澄清事项
 
