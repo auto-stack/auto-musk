@@ -998,7 +998,12 @@ PID／进程树及起止收据，再做真实运行测试。
   按 index 条目重建投影
 - archived: docs/plans/archived/093-autoui-app-studio-ux.md
   （status: archived，completion_kind: delivered）
-- cleaned: 见下轮记录（worktree/branch 移除后回填）
+- cleaned: **部分完成**——git worktree 已注销（list 零 musk-093 条目）
+  + 分支 plan-093-dev 已删（was b131c4c）；目录壳
+  D:/autostack/.wt/musk-093/auto-musk 删除受阻（Device/resource busy，
+  锁持有者不可见——进程过滤/handle 均无）——**cleanup pending**：
+  手动 rmdir 或重启后清除即可（目录内容全为 git-ignored 产物，无
+  数据损失）；组目录因兄弟（auto-lang/auto-ai/auto-down）保留。
 - 生产工件观察（landing ≠ deployment）：release 二进制（musk/auto-
   lang）与 gen/front/vue/dist 均早于本合并——按 PLAN-092 教训显式
   记档；重建/重启时机由用户决定
