@@ -1,0 +1,22 @@
+=====GEOM=====
+{
+ "contentBox": null,
+ "blueErr": null,
+ "amberErr": null,
+ "shotPath": "D:\\autostack\\.wt\\musk-095\\auto-lang\\tmp\\t03-overlay-hit\\src\\front\\tmp\\autoui-screenshot-1790830227478.png",
+ "geomNote": "bounds unavailable — screenshot is the geometry evidence"
+}
+click1: CLICKED scale=1 at phys 223,234 client 1024x768
+click2: CLICKED scale=1 at phys 311,172 client 1024x768
+=====STATES=====
+after blue-centre click: State:   hit_count: 1 (int)   pop_count: 0 (int)   status: "hit" (str) 
+after panel-btn click  : State:   hit_count: 1 (int)   pop_count: 1 (int)   status: "pop" (str) 
+=====CHECKS=====
+{
+ "screenshotCaptured": true,
+ "passThroughRealPointer": true,
+ "interactiveFloatStillCaptures": true,
+ "hit1": 1,
+ "hit2": 1,
+ "pop2": 1
+}

@@ -1,0 +1,19 @@
+=====FINAL_STATE=====
+State:
+  error_count: 1 (int)
+  error_reason: "error n=1 reason=unsupported image format" (str)
+  load_count: 1 (int)
+  load_info: "loaded 240x160 rev=1 n=1" (str)
+  phase: "failed" (str)
+  src: "/api/__auto/media/86a86dfb89e29ccc93dd637dad2cf01c/1" (str)
+
+=====CHECKS=====
+{
+  "loadedFired": true,
+  "errorFired": true,
+  "singleFire": true,
+  "reasonLocatable": true,
+  "load1": 1,
+  "err1": 1,
+  "reason": "unsupported image format\" (str)"
+}
