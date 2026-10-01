@@ -93,3 +93,13 @@
   **立场：保留**（无真 SSE 事件流下唯一恢复路径）；⑤SSE 健康门（last_sse_at
   3 秒内不回填，067）；⑥流式期跳过回填（069）。
   前端 blocks 消费面不变。
+
+## 附件与流式/轮询交点（PLAN-093）
+
+- 附件快照随消息持久化（serde default 旧文件兼容）+ 分页通道
+  （blocks_normalized）透传 design_context——刷新回放诚实标注（乐观
+  push 无附件/持久化带标记双路径）。
+- 流式期 composer 禁输 = 产品真实 UX：队列入队窗口 = 发送竞态秒级；
+  busy 重入不换附件（队列条目级冻结）。
+- VM 轮询轨与 web SSE 轨同构消费：tool_result details（UI 载荷）透传，
+  刷新回放 details 缺省 None 兼容。

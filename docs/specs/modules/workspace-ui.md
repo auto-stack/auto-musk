@@ -67,3 +67,11 @@
 - `src/front/chats_view.at`、`chat_message.at`、`mention_input.at`
 - `src/front/plans_view.at`、`specs_view.at`、`wiki_view.at`、`files_view.at`
 - `src/front/inject_styles.web-only.ts`
+
+## 应用设计模式（PLAN-093）
+
+- 会话栏目增加「应用设计」模式：进入暂收会话列表（进出保存/恢复折叠
+  偏好）；工作台三段布局（结构/画布/对话右置）与窄层规则见
+  `modules/app-studio-ui.md`（本模块不复制其契约）。
+- 消息链与 composer 单实例：模式切换不重挂——草稿、展开态、审批卡保持；
+  退出模式恢复原侧栏折叠态与会话内容。

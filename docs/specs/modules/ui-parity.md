@@ -66,3 +66,18 @@ VM 轨运行时合同（媒体事件/叠层穿透/聚焦/坐标/子件组合）�
 锚与已知债见 `modules/autoui-canvas-runtime.md`；Vue 轨生成面由
 image_surface_contract 三轨合同 + V07 vue-tsc/vite 打包门承载；浏览器
 live 实拍复用 ui-parity live 基建（PLAN-095 未执行，见其证据报告边界）。
+
+## 工作台双端 live 收据（PLAN-093）
+
+- V05 门 = `canvas-studio-live.mjs` 四模式（Vue/VM × RustHTTP/VMHTTP）
+  ALL PASS：Vue 臂（真实 dist + playwright：帧渲染/studio 切换/树选/
+  委托点选/收起持久/停止收起/进度摘要）+ VM 臂（真机 cycle：studio
+  进出/启动流/真实帧/wrap+mouse-area/缩放往返/结构树/坐标点选端到端/
+  源码面板）。
+- Gallery：`canvas-studio-pair` 案例（真实 CanvasCanvasColumn，零模板
+  复制）——VM MCP 驱动缩放往返穿透 store→helper→重渲染链。
+- 确定性合同：`canvas-contract.mjs`（几何/投影/大 ID/折叠/代次章/
+  进度状态真实性）以生成的 ext 生产模块为被测对象。
+- VM 已知限制记档：进度摘要 computed fn 返空隐藏（G-15）；studio 模式
+  快照 rect 全零（G-17，渲染不受影响）；wrap 动态 :style 字段引用不
+  产出（静态等比回退承载）。缺运行证据失败；不以编译通过代替运行态。

@@ -204,3 +204,23 @@ Canvas 面板依赖的 VM 运行时能力已交付并有可信验收锚（合同
 验收探针：`node scripts/ui-parity/canvas-runtime-probe.mjs`（收据
 tmp/ui-parity/PLAN-095/）。本文件的业务范围（工作台 UX、Canvas 身份/
 归属、会话上下文）仍归 PLAN-093 交付状态，不受本锚影响。
+
+## 预览身份、清选与坐标点选（PLAN-093）
+
+- **预览身份**：`begin_session/start_owned` 登记 generation_id +
+  owner_workspace_id + owner_conversation_id；start/status/frame 携预期
+  身份，旧代次 409 不杀新目标；未绑定预览（无归属）保持旧语义。工具
+  结果 `details.canvas`（kind/generation_id/findings/ok）结构化章——
+  content 原样保留，消费方按 kind/代次关联（进度投影）。
+- **清选**：pick 显式 `{clear:true}` 与坐标/vnode 互斥；未命中（204）
+  必须清 picked（禁复活）；status.picked=null 与 stopped 统一投影全字段清。
+- **坐标点选**：pick 接受 `{x,y}` 帧物理像素（`pick_at`：逻辑=像素÷scale，
+  scale=帧宽/480）；未命中清 picked。VM 前端 = mouse-area（coords=目标
+  逻辑窗）逻辑坐标→物理映射→canvasPickAt；web 前端 = 内容盒委托
+  （留白清选）。
+- **来源置信**：`resolve_source` 两档——exact（单候选 .at，pac.at 排除）/ 
+  uncertain（多候选启发式）；uncertain 必须显示「来源待确认」并随
+  design_context 携带（Agent 注记同步声明）。
+- **VM 坐标测试通道**：`__mcp_drag` = Widget␟Down(str)␟Move(float,float)␟
+  Up()␟points（逻辑坐标=mouse-area coords 值域；Down 1 事件参——Plan 576
+  D4 元数契约）；真实 OS 指针由 mouse-area onmousemove/onclick 承载。

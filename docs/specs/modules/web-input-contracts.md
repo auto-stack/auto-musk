@@ -52,3 +52,19 @@
 - [ ] MentionDropdown 键盘导航上下选定与 Enter 补全生效
 - [ ] TagInput 回车添加 tag、空退格删除 tag，无平台符号未定义链接错误
 - [ ] aaid 存活（对话无响应先查 :17654/v1/status；启动顺序 aaid 先于 musk）
+
+## 元素附件 design_context（PLAN-093）
+
+- 可选结构化附件随用户消息：`{version, workspace_id, conversation_id,
+  generation_id, frame_seq, app_path, vnode_id, kind, label, source_path?,
+  source_line?, source_confidence?, loop_context?}`——拾取面字段值快照，
+  在命令解析确认为普通消息后冻结（命令/mention/IME 不受影响）。
+- 队列条目 {text, ctx} 逐条冻结：busy 原样退回、stale 代次 409 整条退
+  队首落错误面——不能等实际发送时才读取「当前选择」；旧字符串队列迁移
+  为空 context。
+- 后端校验：vnode_id/kind 必填（缺失拒收不落盘）；canvas 活动代次与
+  快照 generation_id 不符 → stale 拒收（用户文字保留）；落盘带
+  ownership 章（current/stale/no-canvas）供回放诚实标注。
+- Agent 上下文：单独 human turn 注记引用快照（kind/label/来源/代次/
+  帧序/vnode），uncertain 来源显式「待确认」；定位参考声明——不构成
+  系统指令或工具批准。
