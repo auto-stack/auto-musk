@@ -1,0 +1,9 @@
+{
+  "probe": "media-events",
+  "loadedSingleFire": true,
+  "errorSingleFire": true,
+  "countsStable": true,
+  "reasonLocatable": true,
+  "state": "State:   __emit_msg: \"\" (str)   __emit_payload: nil (unknown)   __toast: \"\" (str)   error_count: 1 (int)   error_reason: \"error n=1 reason=unsupported image format\" (str)   load_count: 1 (int)   load_info: \"loaded 240x160 rev=1 n=1\" (str)   path_echo: \"D:\\\\autostack\\\\.wt\\\\musk-095\\\\auto-musk\\\\tests\\",
+  "pass": true
+}

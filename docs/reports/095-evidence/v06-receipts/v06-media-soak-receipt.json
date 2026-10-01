@@ -1,0 +1,11 @@
+{
+  "probe": "media-soak",
+  "durationMs": 300000,
+  "cycles": 499,
+  "loads": 1,
+  "errors": 499,
+  "mismatches": 499,
+  "boundedNotifications": true,
+  "appAlive": true,
+  "pass": true
+}
