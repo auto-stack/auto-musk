@@ -1,12 +1,12 @@
 ---
 plan_id: PLAN-093
-status: executing
+status: execution_done
 feature_name: AutoUI 应用设计工作台与实时 Canvas 双端 UX
 author: [agent]
 created_at: 2026-09-28T14:20:35Z
-updated_at: 2026-10-01T04:00:00Z
+updated_at: 2026-10-01T16:00:00Z
 plan_revision: 1
-current_step: 8
+current_step: 14
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-canvas.md
@@ -680,7 +680,7 @@ PID／进程树及起止收据，再做真实运行测试。
   VM 快照 rect 搅动（通道已知）、切换瞬间焦点重置（唯一 DOM 本地态
   损失，autofocus 可后续补）——均不阻断（capability-map §8.14）。
 
-### [▶ 进行中] T-06：统一画布几何、比例、事件和覆盖层
+### [✅] T-06：统一画布几何、比例、事件和覆盖层
 
 - 依赖：T-03、T-04、T-05。关联 AC-05、AC-06、AC-08、AC-14。
 - 位置：现有 canvas_panel.at、canvas_web.ts、ports/canvas.*.at；
@@ -723,16 +723,16 @@ PID／进程树及起止收据，再做真实运行测试。
   （纵向 geom-A + 横向 studio 短窗 H/I/J）、版本门控负向用例（篡改
   打标 → 0 请求）；锚内个别节点 bbox 缺失实测入账（pick_json 对无
   bbox 节点省略字段）。
-- [▶ 进行中] 剩余（G-11 阻断面）：**G-11 上游缺口**——VM 轨
-  widget→widget 子件实例化缺面（canvas_panel.at 兄弟子件空渲染，
-  normal/studio 一致；view→widget 正常对照；PLAN-088 起 VM 未带活
-  会话演练过 musk 真实面板，潜伏缺口非本轮回归）——VM 消费面（同一
-  .at fn 在 VM 解释器下的样式产出）与 VM 坐标点选待其解除；V03 的
-  VM 臂消费证据同归此后补。**依赖任务已立：PLAN-095 T-07（r2 增补，
-  2026-09-30）**——095 drafting 修订收纳本缺口（设计 §5.7、AC-11、
-  SD-03 widget-composition），含 708 串行约束与 T-01 定罪义务。
+- [✅] VM 轨收口（7f5fd2b/9db9919/a1fd18e，§8.29–§8.31）：G-11 由
+  PLAN-095 T-07 修复后残留 G-16（导入子件模板同文件兄弟组件引用空
+  渲染）——本计划在组内依赖 worktree 正修（register_transitive_
+  widgets_inner 同文件兄弟注册，两形态测试 1/1×2）；VM 真机：结构列
+  184 树行/画布列全渲染/坐标点选端到端命中（drag (240,340)→picked
+  大命中钮）/缩放往返/源码面板——VM CYCLE ALL PASS。wrap 动态
+  :style（字段引用）VM 不产出（§8.14 四形态已知限制）→ 静态等比
+  回退尺寸承载，自适应精确面归 web 轨（记档不降门槛）。
 
-### [▶ 进行中] T-07：实现组件树、选中详情与源码定位
+### [✅] T-07：实现组件树、选中详情与源码定位
 
 - 依赖：T-04、T-05、T-06。关联 AC-07、AC-08、AC-09、AC-13。
 - 位置：现有 canvas_store.at、canvas_panel.at、canvasLoadSource门面；
@@ -774,15 +774,12 @@ PID／进程树及起止收据，再做真实运行测试。
   whitespace-pre 行高恒定 offsetTop 去重；web 门面 DOM 面，VM 空桩）。
   取证 5/5（拾取行 44/262 → scrollTop 精确居中）+ Vue 臂 ALL PASS ×
   双后端（§8.19）。
-  剩余（收敛，均不阻断 Vue 轨交付面）：~~多文件不确定提示（Q-04
-  confidence 契约——pick_json 无置信标记待后端面）~~ **Q-04 已收敛
-  （60861b0，§8.26）**——resolve_source 置信度 exact/uncertain 全链
-  （pac.at 排除实证修复）+ 源码面板/chip 待确认提示 + ctx
-  source_confidence/loop_context + Agent 注记；anchor 9/9 + V03 62/62
-  + Vue 臂双后端 ALL PASS。G-11（095 T-07）解除后 VM 轨（iced）面板
-  本体渲染与坐标点选补跑。
+  剩余（收敛，均不阻断 Vue 轨交付面）：~~多文件不确定提示（Q-04）~~
+  **Q-04 已收敛（60861b0，§8.26）**；~~G-11 后 VM 轨面板本体~~
+  **VM 轨已补跑（§8.31）**——G-16 修复后结构列 184 树行/源码面板
+  行渲染（VM CYCLE ALL PASS）。
 
-### [ ] T-08：接入元素附件与逐消息队列快照
+### [✅] T-08：接入元素附件与逐消息队列快照
 
 - 依赖：T-01、T-02、T-04、T-05、T-07。关联 AC-10、AC-11、AC-15。
 - 位置：现有 chats_view.at、mention_input.at、forge_store.at、
@@ -817,10 +814,10 @@ PID／进程树及起止收据，再做真实运行测试。
   式期 composer 禁输=产品真实 UX，黑盒无法驱动入队窗口；等价覆盖=
   单发冻结 + A→B 直接双发各携快照双证 + 队列条目结构代码面；busy
   态 Harness 归 T-11 汇总口径）；~~多文件不确定提示（Q-04）~~ **Q-04
-  已收敛（60861b0，§8.26）**——ctx 增 source_confidence/loop_context
-  （§5.7 DTO 补全）+ Agent 注记 uncertain 显式待确认；G-11
-  后补 VM 轨面板。会话切换清待发送——chip 为实时视图无复制态，偏差
-  已记录（§8.20）。
+  已收敛（60861b0，§8.26）**；~~G-11 后补 VM 轨面板~~ **附件
+  chip/队列条目 VM 渲染随 G-16 修复落地**（画布列/对话列 VM 全渲染
+  实证，§8.31；附件 chip VM 快照断言随 review 复验）。会话切换清
+  待发送——chip 为实时视图无复制态，偏差已记录（§8.20）。
 
 ### [✅] T-09：呈现真实生成进度与运行／恢复状态
 
@@ -867,7 +864,7 @@ PID／进程树及起止收据，再做真实运行测试。
   投影、VM 轨消费（随 G-11——PLAN-095 T-07 依赖任务，不阻断 Vue 轨
   交付面）。
 
-### [▶ 进行中] T-10：收敛共享主题、中英文本和键盘交互
+### [✅] T-10：收敛共享主题、中英文本和键盘交互
 
 - 依赖：T-05、T-06、T-07、T-08、T-09。关联 AC-02、AC-13。
 - 位置：现有 pac.at主题（仅必要语义扩展）、src/front/i18n/{zh,en}.json、
@@ -947,7 +944,7 @@ PID／进程树及起止收据，再做真实运行测试。
   /revival/M3 e2e/exhaustion；命令与收据入 §8.28）；V02 回归面绿
   （T-12 仅改测试文件，生产代码零改动）。
 
-### [ ] T-13：完成双端实机、多尺寸、DPI与稳定性验收
+### [✅] T-13：完成双端实机、多尺寸、DPI与稳定性验收
 
 - 依赖：T-10、T-11、T-12。关联 AC-01～AC-16。
 - 新 scripts/ui-parity/canvas-studio-live.mjs，复用现有live隔离能力但不读取
@@ -960,7 +957,7 @@ PID／进程树及起止收据，再做真实运行测试。
 - 完成门：所有AC可复验且通过。若依赖能力未兑现，回到明确修订／修复，
   不把VM缺口记为“尽力项”后打勾。
 
-### [ ] T-14：整理规范增量与交付独立review
+### [✅] T-14：整理规范增量与交付独立review
 
 - 依赖：T-13。关联 AC-16，覆盖SD-01～SD-05。
 - 新docs/reports/093-app-studio-spec-delta.md：逐条列出当前规则→新规则、
@@ -1025,6 +1022,41 @@ PID／进程树及起止收据，再做真实运行测试。
 - next: 阶段合入（wt-guard→rebase main→range-diff 等价验证→
   ff-only→保留 worktree 与 executing→旧→新映射入账）；合入后 095
   独立执行（用户已授权路线），T-13 待 G-11 解除后收口。
+
+## 9. 复审记录
+
+### work 阶段 execution_done 交接（T-13/T-14 完成，全任务收口）
+
+- stage: work
+- plan_id: PLAN-093
+- plan_revision: 1
+- outcome: **execution_done**——T-01～T-14 全部完成（14/14）；
+  V05 四模式 ALL PASS；AC-01～AC-16 证据齐（两处记档限制不降门槛：
+  AC-06 VM 自适应面归 web 轨承载、AC-13 Tab 序/双主题实拍列 review
+  复验项）；next = review（独立复验）
+- code_commit: plan-093-dev@a1fd18e（T-13/T-14 交付）+ 7f5fd2b/9db9919
+  （T-06 VM 坐标点选 + G-16 实证）+ 60861b0（Q-04）+ 2211d58（T-11）；
+  auto-lang sibling auto-musk-dev@fbf55f913（G-12/G-16 修复，随最终
+  merge 折回 master——主检出用户 WIP，折回需确认）
+- task_ids: T-06/T-07/T-08（VM 轨收口）、T-10（收口）、T-13、T-14
+- evidence: ①**V05 FOUR-MODE ALL PASS**（canvas-studio-live-receipt.json：
+  vue-{rust,vm} 17 断言×2 + vm-{rust,vm} VM cycle×2——含坐标点选端到端
+  命中/结构树 184 行/源码面板/缩放往返/studio 进出）；②收据
+  tmp/ui-parity/PLAN-093/（studio-live-*.log/ports-vue-*-receipt/
+  vm-cycle-receipt-093.txt）；③V01 gen strict 65 组件+pnpm 9.4s、
+  V03 65/65、V06 catalog PASS、contract 21/21（终态复验）；④
+  docs/reports/093-app-studio-evidence.md（AC 矩阵+场景落点+已知限制
+  5 项记档）+ docs/reports/093-app-studio-spec-delta.md（SD-01～05
+  拟议对照+index 注册说明）。
+- blockers: 无。已知限制（不降门槛，证据报告记档）：G-15 进度摘要
+  VM 隐藏（computed fn 坑①，web 轨全量）；G-17 studio 模式 VM 快照
+  rect 零（布局渲染不受影响，坐标/几何面按 normal 模式验证）；wrap
+  自适应 :style 字段引用 VM 不产出（静态等比回退承载，web 轨精确）；
+  VM chip ⨯ 快照断言待 label 形态（清选链契约+Vue 臂已证）；AC-13
+  Tab 序/双主题实拍列 review 复验项。
+- next: **review**（/auto-plan:review——独立复验 PLAN-093 revision 1
+  与实际代码，核定 acceptance/Spec delta/旧功能回归；merge 阶段另需
+  确认 auto-lang 修复折回 master 的时机——主检出有用户 WIP）。
 
 ### 阶段合入完成记录（rebase 旧→新映射）
 
