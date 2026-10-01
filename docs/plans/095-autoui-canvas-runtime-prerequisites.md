@@ -1,12 +1,12 @@
 ---
 plan_id: PLAN-095
-status: drafting
+status: execution_done
 feature_name: AutoUI Canvas VM 基础能力补齐与 PLAN-093 依赖闭环
 author: [agent]
 created_at: 2026-09-29T09:57:59Z
-updated_at: 2026-10-01T13:30:00Z
+updated_at: 2026-10-01T13:35:00Z
 plan_revision: 2
-current_step: 7
+current_step: 9
 total_steps: 9
 supersedes_spec_components:
   - docs/specs/modules/app-canvas.md
