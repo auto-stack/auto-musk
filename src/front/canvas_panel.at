@@ -14,7 +14,7 @@
 use store: CanvasStore
 use.web useT from "src/front/ports/composables.at"
 use.web canvasStop, canvasStart from "src/front/ports/canvas.at"
-use.web canvasPickNode, canvasClearPick, canvasLoadSource from "src/front/ports/canvas.at"
+use.web canvasPickNode, canvasClearPick, canvasPickAt, canvasLoadSource from "src/front/ports/canvas.at"
 // PLAN-093 T-06:点选换算单源的 ext TS 模块生成面（canvas_web.ts 点击委托
 // 消费同一规则；本件视图不直调）。
 use.web.fn canvasMapPhysical from "src/front/canvas_helpers.at"
@@ -39,6 +39,18 @@ widget CanvasCanvasColumn {
         ToggleZoom,
         ToggleErrorDetails,
         RerunApp,
+        // PLAN-093 T-06（VM 轨收口）：帧区坐标点选——mouse-area 逻辑坐标
+        // move 记迹 + click 取最后位置（onclick 无坐标，Plan 498；move 流
+        // 仅 VM 臂派发（Plan 499），web 臂 move_has 恒 false = 委托独家，
+        // 双轨互斥由构造保证）。
+        FrameMove(float, float),
+        FrameClick,
+    }
+
+    model {
+        var move_x float = 0
+        var move_y float = 0
+        var move_has bool = false
     }
 
     view {
@@ -148,20 +160,26 @@ widget CanvasCanvasColumn {
                     div {
                         style: .store.cv_frame_wrap_style
                         class: "cv-frame-wrap"
-                        img {
-                            src: .store.cv_frame_url
-                            style: "w-full h-full object-contain bg-background"
-                        }
-                        // agent 高亮框层（琥珀）。
-                        for ov in .store.cv_overlay {
-                            div {
-                                style: ov.style
+                        mouse-area {
+                            coords: "480x680"
+                            onmousemove: .FrameMove
+                            onclick: .FrameClick
+                            style: "w-full h-full"
+                            img {
+                                src: .store.cv_frame_url
+                                style: "w-full h-full object-contain bg-background"
                             }
-                        }
-                        // 选中覆盖框（蓝）。
-                        if .store.cv_pick_style != "" {
-                            div {
-                                style: .store.cv_pick_style
+                            // agent 高亮框层（琥珀）。
+                            for ov in .store.cv_overlay {
+                                div {
+                                    style: ov.style
+                                }
+                            }
+                            // 选中覆盖框（蓝）。
+                            if .store.cv_pick_style != "" {
+                                div {
+                                    style: .store.cv_pick_style
+                                }
                             }
                         }
                     }
@@ -291,6 +309,33 @@ widget CanvasCanvasColumn {
         // PLAN-093 T-09:degraded 详情展开切换（视图态，store 域字段）。
         .ToggleErrorDetails -> {
             store.ToggleErrorDetails()
+        }
+        // PLAN-093 T-06:VM 坐标点选——move 记迹（引擎 screen→logical，
+        // 原点=mouse-area 即内容盒）。
+        .FrameMove(x float, y float) -> {
+            .move_x = x
+            .move_y = y
+            .move_has = true
+        }
+        .FrameClick -> {
+            if .move_has {
+                if .store.cv_frame_w > 0 {
+                    let px = .move_x * .store.cv_frame_w / 480
+                    let py = .move_y * .store.cv_frame_h / 680
+                    let r = canvasPickAt(px, py).await
+                    if r.ok == true {
+                        if r.pick != "" {
+                            store.PickBackfill(r.pick)
+                        }
+                    } else {
+                        // 204 未命中：后端已清 picked（T-02），前端规范化
+                        // 为清选成功（§5.4；同委托 204 臂）。
+                        if r.miss == true {
+                            store.ClearPick()
+                        }
+                    }
+                }
+            }
         }
         // PLAN-093 T-09:重新运行（已停止/degraded 面可执行入口——
         // canvasStart 走既有校验与启动流；失败原因经下一拍轮询落 error 面）。

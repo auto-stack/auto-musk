@@ -55,6 +55,7 @@ export async function canvasStop(): Promise<CanvasResult> {
 // ── PLAN-088 T-07：点选/锚定 web 侧 ──────────────────────────────────────────
 
 export interface CanvasPickResult {
+  miss?: boolean;
     ok: boolean;
     error: string;
     /** pick 锚点对象 JSON 文本（同 status.picked 形态；供 PickBackfill）。 */
@@ -83,6 +84,23 @@ export async function canvasPickNode(vnodeId: string): Promise<CanvasPickResult>
  */
 /** PLAN-093 T-02/T-04: 显式清选（{clear:true}，与 x/y/vnode_id 互斥；
  * 后端同步清 picked——204/200 均视为清选成功）。 */
+// PLAN-093 T-06: 坐标点选（帧物理像素；web 轨主路径仍是 document 委托——
+// 本导出保证 ports facade 双端同名完整；VM 臂为 mouse-area 主路径）。
+export async function canvasPickAt(x: number, y: number): Promise<CanvasPickResult> {
+  const response = await fetch('/api/canvas/pick', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ x, y }),
+  });
+  if (response.status === 204) {
+    return { ok: false, miss: true, error: 'element not in current frame', pick: '' };
+  }
+  if (response.ok) {
+    return { ok: true, miss: false, error: '', pick: await response.text() };
+  }
+  return { ok: false, miss: false, error: `HTTP ${response.status}`, pick: '' };
+}
+
 export async function canvasClearPick(): Promise<CanvasResult> {
     const response = await fetch('/api/canvas/pick', {
         method: 'POST',

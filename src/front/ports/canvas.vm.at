@@ -62,6 +62,31 @@ fn canvasStop() {
     return { ok: false, error: msg, state: "", app_path: "" }
 }
 
+/// PLAN-093 T-06（VM 轨收口）：坐标点选（帧物理像素入参——§5.2 口径；
+/// 面板 mouse-area 逻辑坐标经理换 helper 映射后调用）。200 命中 / 204
+/// 未命中（miss 位——前端规范化为清选成功，同 canvasPickNode 语义）。
+fn canvasPickAt(px float, py float) {
+    let url = canvas_http_base() + "/api/canvas/pick"
+    let rb = Http.request("POST", url)
+    let res = rb.body("{\"x\": " + JSON.stringify(px) + ", \"y\": " + JSON.stringify(py) + "}").send()
+    var code = res.status_code()
+    if code == 204 {
+        return { ok: false, miss: true, error: "element not in current frame", pick: "" }
+    }
+    if code == 200 {
+        return { ok: true, miss: false, error: "", pick: res.body() }
+    }
+    var body = res.body()
+    let parsed = JSON.parse(body)
+    var msg = "HTTP " + code
+    if parsed != None {
+        if parsed.error != None {
+            msg = parsed.error
+        }
+    }
+    return { ok: false, miss: false, error: msg, pick: "" }
+}
+
 /// 点选：200 命中（返回 pick JSON 文本，同 status.picked 形态）；
 /// 204 未命中（后端已清选）；其余错误。204 不产生 "null" 锚点（AC-08）。
 fn canvasPickNode(vnodeId str) {
