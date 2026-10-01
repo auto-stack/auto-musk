@@ -4,9 +4,9 @@ status: executing
 feature_name: AutoUI 应用设计工作台与实时 Canvas 双端 UX
 author: [agent]
 created_at: 2026-09-28T14:20:35Z
-updated_at: 2026-10-01T02:00:00Z
+updated_at: 2026-10-01T04:00:00Z
 plan_revision: 1
-current_step: 7
+current_step: 8
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-canvas.md
@@ -919,7 +919,7 @@ PID／进程树及起止收据，再做真实运行测试。
   臂实机暴露，?? "" 归一）；②parity_chats/parity_conversation 4 处
   测试夹具缺 T-08 design_context（E0063）。
 
-### [ ] T-12：复验真实目标生命周期、工具与会话回归
+### [✅] T-12：复验真实目标生命周期、工具与会话回归
 
 - 依赖：T-02、T-03、T-08、T-09、T-11。关联 AC-03、AC-11、AC-12、AC-15。
 - 位置：现有 backend/tests中的canvas_live.rs、parity_chats.rs及新
@@ -931,6 +931,21 @@ PID／进程树及起止收据，再做真实运行测试。
 - 同步回归会话守卫／流式或VM轮询、审批门、队列、附件回放和旧JSON兼容。
 - 验证 V02／V07，保存命令、工具实际结果和自己创建的PID起止收据；
   ignore测试未实际运行不能算完成。
+- [✅] 完成轮（49a4819，§8.28）：①孤儿判据 PID 树化——canvas_live
+  弃全机 census 门禁（本机常驻 3 个 auto.exe 实测旧判据必然误判），
+  改 owned-PID 起止（tasklist /FI PID eq 精确制导，stop 后须消亡），
+  census 降为观察性 println；PID 起止收据 JSONL 逐笔（18 笔，
+  tmp/ui-parity/PLAN-093/musk-canvas-live-pid-receipts.jsonl）。②
+  新增 ignored 实机测试 canvas_restart_budget_exhaustion_then_
+  degraded——连杀 4 次：3 次有界复活（restarts=1/2/3，PID 链实测
+  更新）→ 第 4 死预算耗尽 → degraded（error 含 budget+tail 750B）
+  → degraded 态显式 stop 可用；谓词教训：kill 后须先等「离开
+  Running」再等 seq 增长（仅 Running 判据假阳性，首轮 FAIL 实证）。
+  ③契约 2 新例：design_context stale 拒收不落盘 + 当前代次落盘带
+  ownership 章 + 缺 vnode_id 字段面拒收（21/21）。**V07：4 ignored
+  全部实跑，合并单轮 4 passed / 0 failed / 26.81s**（lifecycle 全链
+  /revival/M3 e2e/exhaustion；命令与收据入 §8.28）；V02 回归面绿
+  （T-12 仅改测试文件，生产代码零改动）。
 
 ### [ ] T-13：完成双端实机、多尺寸、DPI与稳定性验收
 
@@ -968,6 +983,32 @@ PID／进程树及起止收据，再做真实运行测试。
 | T-11～T-14 | AC-01～AC-16（复验与证据） | SD-01～SD-05 |
 
 ## 9. 复审记录
+
+### work 阶段 T-12 完成交接（真实生命周期/工具/会话回归）
+
+- stage: work
+- plan_id: PLAN-093
+- plan_revision: 1
+- outcome: T-12 pass——孤儿判据 PID 树化 + PID 起止收据 + V07 四项
+  ignored 实跑全绿（含新增重启耗尽 degraded 臂）+ 附件契约 2 新例；
+  整体保持 executing
+- code_commit: plan-093-dev@49a4819
+- task_ids: T-12（完成）
+- evidence: ①V07 合并单轮 4 passed / 0 failed / 26.81s（lifecycle
+  全链 / crash revival / M3 e2e / restart exhaustion→degraded，
+  命令与工具实际结果录 §8.28）；②PID 起止收据 18 笔（owned-PID
+  confirmed-dead ×4 面）；③canvas_studio_contract 21/21（stale 拒收
+  /当前代次带章/缺字段拒收路由臂）；④V02 回归面绿（仅改测试文件）。
+  环境事实增补：全机 census 在本机常驻 3 个 auto.exe——旧判据必然
+  误判，PID 树改制后互证；kill 后等待谓词必须「离开 Running→seq
+  增长回 Running」两段式。
+- blockers: 无新增。T-13 开工在即：Vue 轨面无阻；VM 轨面（studio
+  双列组装/进度摘要/几何点选 VM 消费）挡 G-11（PLAN-095 T-07，
+  drafting）——**T-13 无法在 G-11 下全绿，需要用户决策**：授权执行
+  PLAN-095（先解依赖再回 093 收口），或对 093 做 needs_replan 修订
+  （VM 验收面变更须显式批准，不能静默降级）。
+- next: blocked-on-decision（T-13 Vue 轨预备项可先做；VM 轨面等上
+  述决策）。
 
 ### work 阶段 T-11 完成交接（确定性测试与 Gallery 用例汇总）
 
