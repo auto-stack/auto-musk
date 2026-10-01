@@ -1002,3 +1002,37 @@ boot 重试包裹（T-13 待办）。
 
 **下一步**：G-16 修复（auto-lang，焦点=子件模板组件引用的渲染期
 解析）→ vm-studio-cycle 全绿 → T-13 矩阵（Vue 轨无阻可先行）。
+
+### 8.30 G-16 修复 + VM 坐标点选链状态（2026-10-01 第二十三轮）
+
+**G-16 已修复**（auto-lang sibling auto-musk-dev，复现测试
+g16_imported_sibling_vm_tests 1/1）：真修复点 =
+`register_transitive_widgets_inner`（lib.rs ~3985——嵌套导入的传递
+装载器）的 use items 过滤把同文件兄弟逐出 registry。改为
+registry-miss 即注册（先到优先；显式 use 同名覆写沿 095 口径）。
+早前两处试验位（根文件臂 ~4121 已由 095 修；rail 视图装载环
+~4328——canvas_panel 不走该环，G16 诊断打印实证只出 9 个 rail
+视图）非本形态路径。另：tracked 组件臂补 [AURA-CHILD-MISS][tracked]
+诊断（原静默 `<Name />` 文本占位——零 MISS 排障的直接障碍）。
+
+**VM 真机实证（修复后）**：musk 真面板画布列完整渲染——标题条/
+缩放钮/收起/停止 + cv-frame-box/cv-frame-wrap + **mouse-area**
+（onclick .FrameClick / onmousemove .FrameMove 在快照可观测）+
+结构列树行 184 行全渲染。T-07 结构列 VM 面 ✓；G-16 前的
+「画布列空渲染」消除。
+
+**剩余切片（T-06 VM 坐标点选的最后一段）**：mouse-area 容器在
+VM 布局中 rect 退化（0,0）——中心合成 (0,0) 未命中。根因链：
+wrap 动态 :style（cv_frame_wrap_style 字段引用）在 VM 不产出
+（§8.14 四形态已知限制）→ 已加静态等比回退 class
+（w-[360px] h-[510px]，快照确认类在）；下一步=查 wrap/mouse-area
+的实际 rect 是否随 class 生效（pick-fail-snapshot.txt 落点已接
+线——pick 失败自动存快照），并核对 mouse-area 容器（w-full
+h-full）在固定尺寸父盒内的布局展开。**aspect 精确保留 web 轨**
+（VM 侧「字段引用 :style」限制记档，映射以渲染盒归一）。
+
+**cycle 脚本状态**：tmp/vm-studio-cycle.mjs 全链就绪——启动状态
+显式断言/wrap 节点断言/缩放往返/结构树行/真指针坐标合成（095
+t03/t05 drag 通道 SEP=US 形态，坐标=wrap 中心窗口逻辑）/chip
+清选/源码页签/摘要 VM 面观测；pick 失败自动落快照。AUTO_EXE 后端
+接线（sibling debug 二进制）。

@@ -159,7 +159,12 @@ widget CanvasCanvasColumn {
                     }
                     div {
                         style: .store.cv_frame_wrap_style
-                        class: "cv-frame-wrap"
+                        // 静态等比回退尺寸（360x510 = 480:680×0.75）：VM 轨
+                        // 「字段引用→:style」codegen 限制（§8.14 四形态）下
+                        // 动态样式不产出 → 布局链塌零（mouse-area 0 尺寸实
+                        // 证）；class 尺寸撑起内容盒，web 侧 inline 优先覆
+                        // 盖、等比一致行为不变（T-06 VM 轨收口）。
+                        class: "cv-frame-wrap w-[360px] h-[510px]"
                         mouse-area {
                             coords: "480x680"
                             onmousemove: .FrameMove
