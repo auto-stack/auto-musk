@@ -42,9 +42,14 @@ widget CanvasCanvasColumn {
         // PLAN-093 T-06（VM 轨收口）：帧区坐标点选——mouse-area 逻辑坐标
         // move 记迹 + click 取最后位置（onclick 无坐标，Plan 498；move 流
         // 仅 VM 臂派发（Plan 499），web 臂 move_has 恒 false = 委托独家，
-        // 双轨互斥由构造保证）。
+        // 双轨互斥由构造保证）。FrameDown/FrameUp = __mcp_drag 合成通道
+        // （Widget␟Down␟Move␟Up␟points——与 PointerArea 闭包同构，逻辑
+        // 坐标=coords 值域；MCP 测试注入面）。
         FrameMove(float, float),
         FrameClick,
+        // __mcp_drag 的 Down 位（1 事件参——Plan 576 D4 元数契约；坐标走
+        // Move 位）。
+        FrameDown(str),
     }
 
     model {
@@ -341,6 +346,10 @@ widget CanvasCanvasColumn {
                     }
                 }
             }
+        }
+        // __mcp_drag 通道 Down 位（1 事件参；坐标经 Move 位记迹，Up 位=
+        // FrameClick 复用——0 参同构）。
+        .FrameDown(e str) -> {
         }
         // PLAN-093 T-09:重新运行（已停止/degraded 面可执行入口——
         // canvasStart 走既有校验与启动流；失败原因经下一拍轮询落 error 面）。

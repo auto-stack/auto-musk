@@ -1036,3 +1036,40 @@ h-full）在固定尺寸父盒内的布局展开。**aspect 精确保留 web 轨
 t03/t05 drag 通道 SEP=US 形态，坐标=wrap 中心窗口逻辑）/chip
 清选/源码页签/摘要 VM 面观测；pick 失败自动落快照。AUTO_EXE 后端
 接线（sibling debug 二进制）。
+
+### 8.31 T-06 VM 坐标点选端到端打通（2026-10-01 第二十四轮）
+
+**VM STUDIO CYCLE: ALL PASS**（收据 tmp/vm-cycle-receipt-093.txt）：
+studio 进出（侧栏 240→48→240）/空工作台启动流→真实帧（running
+seq:1）/wrap 节点+缩放往返/结构列树行 184/**坐标点选端到端命中**
+（drag 通道 target-logical (240,340) → FrameDown(str)/FrameMove
+(float,float)/FrameClick() → canvasPickAt(360,510) → 后端 hit_test
+→ picked=大命中钮 bbox/ancestor_chain 完整）/源码面板行渲染 ✓。
+
+**修复/落地**：
+- G-16（auto-lang sibling fbf55f913）：传递装载器同文件兄弟注册
+  （真修复点 register_transitive_widgets_inner）+ 装载位对应面
+  （rail 视图环）+ tracked 组件臂 [AURA-CHILD-MISS][tracked] 诊断
+  + g16_imported_sibling_vm_tests 1/1（两形态：装载位/传递位）。
+- canvas_panel.at：mouse-area（coords 480x680）+ FrameMove/FrameClick
+  （真实 OS 指针面）+ FrameDown(str)（drag Down 位 1 事件参——Plan
+  576 D4 元数契约）+ 静态等比回退尺寸 class（w-[360px] h-[510px]，
+  web 侧 inline :style 优先覆盖等比一致）。
+- canvas.vm.at/canvas_web.ts+web.at：canvasPickAt 双端同名。
+- drag 通道语义定案（mcp_server.rs ~1704）：__mcp_drag = 按 widget
+  名分发 Down/Move/Up 处理器（与 PointerArea 闭包同构，逻辑坐标=
+  coords 值域）——**非位置命中**；真实 OS 指针面由 mouse-area
+  onmousemove/onclick 承载（生产 UX），测试注入走 drag 通道。
+
+**记档（非阻断）**：
+- G-15：进度摘要 VM 隐藏（computed use.web.fn 返空，坑①家族）。
+- G-17：studio 模式 VM 布局全零 rect（内容行/rail 全 0；normal
+  真实）——坐标/树/源码面按 normal 模式验证（同一组件链）；
+  studio 布局 rect 待上游。
+- wrap 动态 :style（字段引用）VM 不产出（§8.14 四形态）——静态
+  等比回退 class 承载尺寸；aspect 精确自适应保留 web 轨。
+- chip ⨯ 清选断言未跑（快照 label 形态待对）——清选链后端契约
+  19/21 例 + Vue 臂已证。
+- 待办：auto-lang sibling 两笔修复（G-12 前序 + G-16）折回
+  auto-lang master——主检出有用户 WIP（27 dirty），折回时机与
+  用户确认（093 最终 merge 阶段处理）。
