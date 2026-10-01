@@ -194,3 +194,13 @@ VM 轨 mtime 脏标热重载（release 缺省 2000ms 轮询，`AUTOUI_HOT_RELOAD
 - 多画布会话并发（恒单会话）、画布内嵌用户交互（对用户只读——点击仅作
   选区不作驱动）、行级源码定位（M2 打开文件为止）、fit-window app 锚定
   精化、多文件 span 判定精确化。
+
+## 运行时依赖锚（PLAN-095，2026-10-01）
+
+Canvas 面板依赖的 VM 运行时能力已交付并有可信验收锚（合同详见
+`modules/autoui-canvas-runtime.md`；平台规则见 auto-lang 仓 design 文档）：
+媒体 loaded/error 事件（含代次过滤）、叠层宿主保持与被动框穿透、
+`ui.focus` 程序化聚焦、合成指针 Float 坐标、同文件兄弟子件 VM 实例化。
+验收探针：`node scripts/ui-parity/canvas-runtime-probe.mjs`（收据
+tmp/ui-parity/PLAN-095/）。本文件的业务范围（工作台 UX、Canvas 身份/
+归属、会话上下文）仍归 PLAN-093 交付状态，不受本锚影响。

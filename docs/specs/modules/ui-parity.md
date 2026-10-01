@@ -59,3 +59,10 @@
   ESC 属真机手验项）。
 - **依据**：080 定罪收据 `docs/reports/ui-parity/080-*.pre-fix.json` +
   终局收据 `tmp/ui-parity/PLAN-080/`；live.mjs 实现注释内联定罪记录。
+
+## PLAN-095 增量：Canvas 运行时双轨验收锚（2026-10-01）
+
+VM 轨运行时合同（媒体事件/叠层穿透/聚焦/坐标/子件组合）已交付，验收
+锚与已知债见 `modules/autoui-canvas-runtime.md`；Vue 轨生成面由
+image_surface_contract 三轨合同 + V07 vue-tsc/vite 打包门承载；浏览器
+live 实拍复用 ui-parity live 基建（PLAN-095 未执行，见其证据报告边界）。
