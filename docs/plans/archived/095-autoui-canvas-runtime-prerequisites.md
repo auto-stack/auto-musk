@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-095
-status: reviewed
+status: archived
 feature_name: AutoUI Canvas VM 基础能力补齐与 PLAN-093 依赖闭环
 author: [agent]
 created_at: 2026-09-29T09:57:59Z
@@ -809,6 +809,33 @@ T-01核对CLI命令及features后固定实际调用；受影响的required门不
 - 独立性声明：review 在实现会话内执行——判定按技能要求从工件与现场
   复跑重建（非执行摘要采信）
 - next: merge
+
+### merge 阶段收据（2026-10-01，PLAN-095:r2）
+
+- checkpoint prepared: 基线 cc9886e+e2da944e3/reviewed；canonical Spec diff
+  落盘（musk 新模块 autoui-canvas-runtime.md+两锚+index；auto-lang design
+  四篇+四文件增量节）；交付提交=worktree 提交
+- checkpoint landed: auto-lang master@501460ebe（ff-only；三次 rebase 应对
+  master 前进 718/720/复审；range-diff 6/7 全等+1 冲突消解 frame+ui 并留；
+  旧→新映射 36f11503f→d1d9e4be6、fce48632e→67c7cb0f4、cba6516d3→
+  dbd3e8f9a、0cdf4b548→6362fec9a、919ade13a→c4fc99774、e2da944e3→
+  033de1c52、0326efd4e→57ad5664d）；auto-musk main@51ab2b9（ff-only；
+  映射 b2d39ad→6c83b3c、0391c20→16b52a1、98d67d2→e1d16ae、8ac49a3→
+  9a7c137、ab1fb4b→b11fbff、cc9886e→6d62e44；catalog PASS 冒烟）
+- checkpoint ledger_refreshed: .autoos/specs.json（workspace
+  D:/autostack/auto-musk）——store 写者不可达（8080:000，同 718 状态），
+  循 711/713/714/715/717/718 先例守卫式外科插入：designs 6→7（
+  autoui-canvas-runtime-D1，file=canonical spec，source_sha256=55ce73ab…）
+  + reviews 5→6（autoui-canvas-runtime-R1）；守卫=全量 items 存续+回读+
+  其余 section 零扰动+reload；脚本 ledger_refresh_095.py（worktree 内）
+- checkpoint archived: 本文件（git mv 至 docs/plans/archived/，
+  status archived，delivered）
+- checkpoint cleaned: （待清理后回填）
+- 部署观察（landing ≠ deployment）：backend release 二进制、daemon、
+  gen/front/vue/dist 均未在本 merge 内重建——生产消费面更新为显式后续
+  步骤；本计划 CLI（89c22af1）为 095 worktree 产物，主检出共享 CLI 未动
+- 批量回归到期：095 % 5 == 0 → merge 后移交 auto-plan:regress（主检出
+  单实例 cargo tf 档）
 
 ## 10. 待澄清事项
 
