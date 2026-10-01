@@ -903,3 +903,55 @@ PLAN-095 T-07）。
 G-11 解除后 095 T-08 的消费用例可扩展。VM 轨组件 mounting 面在
 gallery 跨文件引用下工作正常（本 case 双端实证），应用级组装面
 （chats_view→slot→列）仍是 G-11（PLAN-095 T-07）。
+
+### 8.28 T-12：真实目标生命周期 / 工具 / 会话回归（2026-10-01 第二十一轮）
+
+**落地**：
+- **孤儿判据 PID 树化（计划 §6 预定改造）**：canvas_live.rs 弃用全机
+  auto.exe census 门禁（开发机上有别的在用 Auto 进程时误判——本轮
+  实测机器常驻 3 个 auto.exe，旧判据直接不可用），改 **owned-PID 树
+  起止判据**：start 后记录 `manager.pid()`，stop 后 `pid_alive(pid)`
+  （tasklist /FI PID eq 精确制导）须消亡；census 只作观察性 println。
+  全程不触碰、不判断别人的进程。**PID 起止收据**：JSONL 逐笔追加
+  （MUSK_TEST_RECEIPT_DIR，{test,pid,phase,at}——start/killed/revived/
+  stop-requested/confirmed-dead），本轮收据
+  tmp/ui-parity/PLAN-093/musk-canvas-live-pid-receipts.jsonl（18 笔）。
+- **新增 ignored 实机测试 `canvas_restart_budget_exhaustion_then_
+  degraded`**（AC-12 后端面）：好 app 连杀 4 次——前 3 次有界复活
+  （退避 1/2/4s，restarts=1/2/3，PID 链逐轮更新 14456→18724→21580
+  →22268 实测），第 4 次死亡预算耗尽 → degraded（error 含 budget、
+  output_tail 750B 非空）→ degraded 态显式 stop 可用。**谓词教训
+  （首轮 FAIL 实证）**：kill 后仅判 `state==Running` 是假阳性（死亡
+  侦测 ~3-4s 内 state 未翻转）——必须先等「离开 Running」（死亡被
+  侦测）再等「seq 增长回 Running」（revival 测试的 seq 判据同源）。
+- **契约测试 2 新例（canvas_studio_contract 21/21）**：
+  route_chat_message_stale_design_context_rejected（附件带陈旧代次 →
+  stale 信封拒收不落盘；当前代次 → 落盘带 ownership:"current" 章）+
+  route_chat_message_design_context_missing_required_fields_rejected
+  （缺 vnode_id → 字段面拒收，用户文字不落盘）——T-08 curl 实证面
+  升级为可复跑契约。夹具注意：chats.create() 自动生成 id（"s1" 不
+  存在 → append_message Ok(None) → 404 "session not found"），须用
+  真实 sid。
+
+**验证（V07——ignore 测试实跑，非默认面）**：
+- 命令：`MUSK_TEST_RECEIPT_DIR=… RUSTC_WRAPPER= cargo test -p musk
+  --test canvas_live -- --ignored --test-threads=1 --nocapture`
+- **4 passed / 0 failed / 26.81s**（合并单轮）：
+  ①canvas_session_lifecycle_drive_and_census（spawn→首帧 PNG 21917B
+  seq1→press "+"→state count=1→stop→owned PID confirmed-dead）；
+  ②canvas_crash_revival_within_15s（kill→≤15s 复活 restarts=1→stop→
+  复活 PID confirmed-dead）；③canvas_generation_flow_m3_e2e（M3 链：
+  坑样例 L001→修复→ui_lint CLEAN→bp_check PASS 3 items→canvas_run
+  首帧→press→state→stop→owned PID dead）；④canvas_restart_budget_
+  exhaustion_then_degraded（上述新测试）。
+- V02 回归面：canvas_studio_contract 21/21 + canvas_live 非 ignored
+  （越界 400/无帧 503）1/1；parity_chats/conversation/chat_page/
+  tool_safety 等承载会话守卫/审批门/队列/附件回放/旧 JSON 兼容
+  （T-11 V02 全套绿同源，T-12 仅改测试文件未触生产代码）。
+- 环境事实：machine census=3 常驻 auto.exe（别的开发进程）——旧
+  census 判据在本机必然误判，PID 树改制后 4 测试全绿互证。
+
+**T-12 完成门**：V07 ignored 全部实跑 ✓（4/4，PID 起止收据齐）；
+sandbox（越界 400+tool_safety 7/7）、崩溃恢复（revival）、有界重启
+（exhaustion）、停止清理（owned-PID dead×4）；会话/审批/队列/回放/
+旧 JSON 回归（V02 全套同源绿）。

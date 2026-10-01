@@ -4,8 +4,11 @@
 //! auto 二进制），不进默认测试面；评审/验收显式跑：
 //!   cargo test --test canvas_live -- --ignored --nocapture
 //! 前置：auto 可执行可解析（AUTO_EXE 或 auto-lang 主检出 release 构建）。
-//! 进程卫生判定（AC-05）：tasklist 口径数 auto.exe 前后零净增
-//! （scripts/vm-mcp-census.mjs 同口径的 Rust 内联版）。
+//! 进程卫生判定（PLAN-093 T-12 改制）：**本次拥有的会话进程树**起止判据
+//! ——start 后记录 manager.pid()，stop 后该 PID 必须消亡（tasklist /FI
+//! PID eq 精确制导）；全机 auto.exe census 只作观察性 println，不再作
+//! 门禁（开发机上有别的在用 Auto 进程时全机计数会误判，AC-05/T-12）。
+//! PID 起止收据：JSONL 追加到 MUSK_TEST_RECEIPT_DIR（缺省临时目录）。
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -90,7 +93,8 @@ fn require_auto_exe() -> bool {
     true
 }
 
-/// tasklist 口径统计 auto.exe 进程数（census 内联版）。
+/// tasklist 口径统计 auto.exe 进程数（观察性 println 用——不再作门禁，
+/// T-12：孤儿判据改本次拥有的 PID 树，全机计数在有别的 Auto 进程时误判）。
 fn count_auto_processes() -> u32 {
     #[cfg(windows)]
     {
@@ -111,6 +115,48 @@ fn count_auto_processes() -> u32 {
     }
 }
 
+/// PLAN-093 T-12:本次拥有的会话进程活性（tasklist /FI PID eq 精确制导
+/// ——不是全机计数；不触碰、不判断别人的进程）。
+fn pid_alive(pid: u32) -> bool {
+    #[cfg(windows)]
+    {
+        let out = std::process::Command::new("tasklist")
+            .args(["/FI", &format!("PID eq {pid}"), "/FO", "CSV", "/NH"])
+            .output()
+            .expect("tasklist");
+        // 消亡时 tasklist 打印 "INFO: No tasks are running..."；存活时
+        // CSV 行含该 PID。
+        String::from_utf8_lossy(&out.stdout).contains(&pid.to_string())
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new("sh")
+            .args(["-c", &format!("kill -0 {pid} 2>/dev/null")])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+}
+
+/// PLAN-093 T-12:PID 起止收据（JSONL 追加；MUSK_TEST_RECEIPT_DIR 优先，
+/// 缺省临时目录）——{"test","pid","phase","at"}。
+fn record_pid_receipt(test: &str, pid: u32, phase: &str) {
+    use std::io::Write;
+    let dir = std::env::var("MUSK_TEST_RECEIPT_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir());
+    let _ = std::fs::create_dir_all(&dir);
+    let path = dir.join("musk-canvas-live-pid-receipts.jsonl");
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let _ = writeln!(f, r#"{{"test":"{test}","pid":{pid},"phase":"{phase}","at":{ts}}}"#);
+        println!("[pid-receipt] {test} {phase} pid={pid} -> {}", path.display());
+    }
+}
+
 /// 轮询等待谓词成立（deadline 内）。
 async fn wait_for<F>(deadline: Duration, mut pred: F) -> bool
 where
@@ -126,7 +172,8 @@ where
     false
 }
 
-/// T-02/T-03 全链：spawn→端点发现→首帧 PNG→press +1→state 断言→stop→零孤儿。
+/// T-02/T-03 全链：spawn→端点发现→首帧 PNG→press +1→state 断言→stop→
+/// 本次拥有的进程树零残留（T-12 判据）。
 /// 串行口径（#[serial]）：与 revival 臂共用全局进程表（census）。
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 #[serial_test::serial]
@@ -137,7 +184,9 @@ async fn canvas_session_lifecycle_drive_and_census() {
     }
     let ws = test_workspace("lifecycle");
     let app = write_counter_app(&ws, "counter-live");
+    // 全机 census 仅观察（开发机可能有别的在用 Auto 进程）。
     let before = count_auto_processes();
+    println!("[lifecycle] census before (informational): {before}");
 
     let manager = Arc::new(CanvasManager::new());
     let status = manager.start(app.clone(), &ws).await.expect("start");
@@ -152,6 +201,10 @@ async fn canvas_session_lifecycle_drive_and_census() {
     let frame0 = manager.frame().unwrap();
     assert_eq!(&frame0[..4], b"\x89PNG", "frame is not a PNG");
     println!("[lifecycle] first frame: {} bytes (seq {})", frame0.len(), manager.seq());
+
+    // T-12:记录本次拥有的会话 PID（起止收据 + 孤儿判据主体）。
+    let owned_pid = manager.pid().expect("session pid after start");
+    record_pid_receipt("lifecycle", owned_pid, "start");
 
     // 等状态 running。
     let running = wait_for(Duration::from_secs(5), || {
@@ -189,15 +242,14 @@ async fn canvas_session_lifecycle_drive_and_census() {
     println!("[lifecycle] state after press: {state_text}");
     assert!(state_text.contains("1"), "count should be 1 after one press: {state_text}");
 
-    // stop → 进程树零残留（census 前后零净增）。
+    // stop → 本次拥有的进程树消亡（T-12 判据：PID 精确制导，不管全机）。
     manager.stop().await;
     assert_eq!(manager.status().state, CanvasState::Stopped);
-    let clean = wait_for(Duration::from_secs(5), || {
-        count_auto_processes() <= before
-    })
-    .await;
-    let after = count_auto_processes();
-    assert!(clean, "orphan auto processes after stop: before={before} after={after}");
+    record_pid_receipt("lifecycle", owned_pid, "stop-requested");
+    let owned_gone = wait_for(Duration::from_secs(10), || !pid_alive(owned_pid)).await;
+    assert!(owned_gone, "owned session pid {owned_pid} still alive after stop");
+    record_pid_receipt("lifecycle", owned_pid, "confirmed-dead");
+    println!("[lifecycle] census after (informational): {}", count_auto_processes());
     let _ = std::fs::remove_dir_all(&ws);
 }
 
@@ -222,9 +274,14 @@ async fn canvas_crash_revival_within_15s() {
     .await;
     assert!(got, "session never reached running");
 
+    // T-12:收据起笔。
+    let pid0 = manager.pid().expect("session pid after start");
+    record_pid_receipt("revival", pid0, "start");
+
     // kill 本会话子进程树（模拟崩溃；manager.pid() 精确制导，不误伤他臂）。
     let pid = manager.pid().expect("session pid after start");
     musk::canvas::session::reap_tree_blocking(pid);
+    record_pid_receipt("revival", pid, "killed");
 
     // ≤15s 帧恢复（复活成功 → running + 新帧 seq 增长）。
     let seq_before = manager.seq();
@@ -238,8 +295,19 @@ async fn canvas_crash_revival_within_15s() {
     let restarts = manager.status().restarts;
     assert!(restarts >= 1, "restart counter not incremented: {restarts}");
     println!("[revival] recovered, restarts={restarts}");
+    let revived_pid = manager.pid();
+    if let Some(new_pid) = revived_pid {
+        record_pid_receipt("revival", new_pid, "revived");
+    }
 
     manager.stop().await;
+    // T-12:stop 后本次拥有的（复活的）进程树消亡（stop 清 shared.pid，
+    // 判据用 stop 前捕获的复活 PID）。
+    if let Some(alive_pid) = revived_pid {
+        let gone = wait_for(Duration::from_secs(10), || !pid_alive(alive_pid)).await;
+        assert!(gone, "owned revived pid {alive_pid} still alive after stop");
+        record_pid_receipt("revival", alive_pid, "confirmed-dead");
+    }
     let _ = std::fs::remove_dir_all(&ws);
 }
 
@@ -345,6 +413,7 @@ async fn canvas_generation_flow_m3_e2e() {
 
     let ws = test_workspace("m3-genflow");
     let before = count_auto_processes();
+    println!("[m3] census before (informational): {before}");
 
     // 1. 预置坑样例（span 带 onclick）
     let pit_code = r#"
@@ -443,6 +512,10 @@ widget App {
     let frame0 = manager.frame().unwrap();
     assert_eq!(&frame0[..4], b"\x89PNG", "frame is not a PNG");
 
+    // T-12:本次拥有的会话 PID（起止收据 + 孤儿判据主体）。
+    let owned_pid = manager.pid().expect("session pid after start");
+    record_pid_receipt("m3-genflow", owned_pid, "start");
+
     let running = wait_for(Duration::from_secs(5), || {
         manager.status().state == CanvasState::Running
     })
@@ -475,15 +548,89 @@ widget App {
         .expect("state");
     assert!(state_text.contains("1"), "count should be 1 after press: {state_text}");
 
-    // 7. stop → 检查 census 零孤儿
+    // 7. stop → 本次拥有的进程树消亡（T-12 判据）。
     manager.stop().await;
     assert_eq!(manager.status().state, CanvasState::Stopped);
-    let clean = wait_for(Duration::from_secs(5), || {
-        count_auto_processes() <= before
+    record_pid_receipt("m3-genflow", owned_pid, "stop-requested");
+    let owned_gone = wait_for(Duration::from_secs(10), || !pid_alive(owned_pid)).await;
+    assert!(owned_gone, "owned session pid {owned_pid} still alive after stop");
+    record_pid_receipt("m3-genflow", owned_pid, "confirmed-dead");
+    println!("[m3] census after (informational): {}", count_auto_processes());
+    let _ = std::fs::remove_dir_all(&ws);
+}
+
+/// PLAN-093 T-12:有界重启耗尽 → degraded（AC-12 后端实机面）。
+/// 好 app 连杀 4 次：前 3 次触发有界复活（退避 1/2/4s，restarts 计数），
+/// 第 4 次死亡时预算耗尽 → degraded（"restart budget exhausted"）。
+/// 全程只杀本次拥有的会话进程（PID 精确制导），起止收据逐笔落账。
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[serial_test::serial]
+#[ignore = "spawns a real VM subprocess; run with -- --ignored"]
+async fn canvas_restart_budget_exhaustion_then_degraded() {
+    if !require_auto_exe() {
+        return;
+    }
+    let ws = test_workspace("exhaustion");
+    let app = write_counter_app(&ws, "counter-exhaust");
+
+    let manager = Arc::new(CanvasManager::new());
+    manager.start(app.clone(), &ws).await.expect("start");
+    let ready = wait_for(Duration::from_secs(30), || {
+        manager.status().state == CanvasState::Running
     })
     .await;
-    let after = count_auto_processes();
-    assert!(clean, "orphan auto processes after stop: before={before} after={after}");
+    assert!(ready, "session never reached running");
+    let pid0 = manager.pid().expect("session pid after start");
+    record_pid_receipt("exhaustion", pid0, "start");
+
+    // 前 3 次：kill → 死亡被侦测（离开 Running）→ 有界复活回 Running
+    // （restarts 1/2/3；seq 必须增长——仅 Running 判据会假阳性，首轮实证）。
+    for cycle in 1..=3u32 {
+        let seq_before = manager.seq();
+        let pid = manager.pid().expect("session pid before kill");
+        musk::canvas::session::reap_tree_blocking(pid);
+        record_pid_receipt("exhaustion", pid, "killed");
+        let detected = wait_for(Duration::from_secs(40), || {
+            manager.status().state != CanvasState::Running
+        })
+        .await;
+        assert!(detected, "death not detected on cycle {cycle}");
+        let back = wait_for(Duration::from_secs(60), || {
+            manager.status().state == CanvasState::Running && manager.seq() > seq_before
+        })
+        .await;
+        assert!(back, "no bounded recovery on cycle {cycle}");
+        println!("[exhaustion] cycle {cycle}: recovered, restarts={}", manager.status().restarts);
+        if let Some(new_pid) = manager.pid() {
+            record_pid_receipt("exhaustion", new_pid, "revived");
+        }
+    }
+    assert_eq!(manager.status().restarts, 3, "restarts should be 3 after three kills");
+
+    // 第 4 次死亡：预算耗尽 → degraded（不再复活）。
+    let seq_before = manager.seq();
+    let pid = manager.pid().expect("session pid before final kill");
+    musk::canvas::session::reap_tree_blocking(pid);
+    record_pid_receipt("exhaustion", pid, "killed-final");
+    let detected = wait_for(Duration::from_secs(40), || {
+        manager.status().state != CanvasState::Running
+    })
+    .await;
+    assert!(detected, "final death not detected");
+    let degraded = wait_for(Duration::from_secs(60), || {
+        manager.status().state == CanvasState::Degraded
+    })
+    .await;
+    assert!(degraded, "no degraded within 60s after budget exhaustion");
+    let st = manager.status();
+    assert!(st.error.contains("budget"), "degraded error must name budget: {}", st.error);
+    let tail = manager.status_full()["output_tail"].as_str().unwrap_or("").to_string();
+    assert!(!tail.is_empty(), "degraded must carry output tail for diagnosis");
+    println!("[exhaustion] degraded reached; error={} tail_bytes={}", st.error.len(), tail.len());
+
+    // degraded 态显式停止可用（AC-12 恢复动作面），owned PID 消亡。
+    manager.stop().await;
+    assert_eq!(manager.status().state, CanvasState::Stopped);
     let _ = std::fs::remove_dir_all(&ws);
 }
 

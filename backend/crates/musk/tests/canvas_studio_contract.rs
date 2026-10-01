@@ -379,3 +379,129 @@ async fn route_status_carries_identity() {
     assert_eq!(v["generation_id"], 1);
     assert_eq!(v["owner_conversation_id"], "conv-A");
 }
+
+// ── T-12：附件上下文归属校验（chats_message 路由臂） ────────────────────────
+
+fn full_router() -> axum::Router<musk::server::AppState> {
+    musk::auto_generated::server::build_router()
+}
+
+/// PLAN-093 T-12（AC-11）：design_context 携陈旧代次 → 拒收（stale 信封，
+/// 用户文字不落盘）；当前代次 → 收章（ownership:"current"）。缺省无 canvas
+/// 会话 → "no-canvas"（旧 API 兼容面）。
+#[tokio::test]
+async fn route_chat_message_stale_design_context_rejected() {
+    let (state, dir) = test_state();
+    state.canvas.begin_session(&dir, &dir, "ws-1", Some("conv-A"), None).unwrap();
+    let sid = state.registry.get("ws-1").chats.create("basic", Some("ws-1".into())).unwrap().id;
+    let app: BoxCloneService<Request<Body>, axum::response::Response, std::convert::Infallible> =
+        full_router().with_state((*state).clone()).boxed_clone();
+
+    // 陈旧代次（当前 gen=1，附件带 42）→ 200 信封内 stale:true（不落盘）。
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/chats/session/{sid}/message?workspace=ws-1"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "content": "把按钮改大一点",
+                        "design_context": {
+                            "version": "1", "vnode_id": "vnode_42", "kind": "button",
+                            "generation_id": 42
+                        }
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let st = res.status();
+    let body = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+    let dbg_body = String::from_utf8_lossy(&body).to_string();
+    assert_eq!(st, StatusCode::OK, "stale rejection rides an OK envelope; body={dbg_body}");
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["stale"], true, "must be the stale envelope: {v}");
+    assert!(v["error"].as_str().unwrap_or("").contains("失效"), "stale error text: {v}");
+
+    // 当前代次（gen=1）→ 正常接收；消息落盘带 ownership:"current" 章。
+    let res2 = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/chats/session/{sid}/message?workspace=ws-1"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "content": "把按钮改大一点",
+                        "design_context": {
+                            "version": "1", "vnode_id": "vnode_42", "kind": "button",
+                            "generation_id": 1
+                        }
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let st2 = res2.status();
+    let body2 = axum::body::to_bytes(res2.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(st2, StatusCode::OK, "current-gen status");
+    eprintln!("[dbg] sessions: {:?}", state.registry.get("ws-1").chats.list().iter().map(|s| s.id.clone()).collect::<Vec<_>>());
+    let v2: serde_json::Value = serde_json::from_slice(&body2).unwrap();
+    assert!(v2.get("stale").is_none(), "current generation must not be stale: {v2}");
+    // 落盘面：会话消息里的 design_context 带章（回放诚实标注）。
+    let ws = state.registry.get("ws-1");
+    let msgs = ws.chats.get(&sid).map(|s| s.messages).unwrap_or_default();
+    let stamped = msgs.iter().any(|m| {
+        m.role == musk::chats::Role::User
+            && m.design_context
+                .as_ref()
+                .and_then(|d| d.get("ownership"))
+                .and_then(|o| o.as_str())
+                == Some("current")
+    });
+    assert!(stamped, "accepted design_context must be persisted with ownership stamp");
+}
+
+/// T-12：缺 vnode_id/kind 的 design_context → 字段面拒收（400 语义），
+/// 用户文字不落盘（T-08 契约的路由臂回归）。
+#[tokio::test]
+async fn route_chat_message_design_context_missing_required_fields_rejected() {
+    let (state, dir) = test_state();
+    state.canvas.begin_session(&dir, &dir, "ws-1", Some("conv-A"), None).unwrap();
+    let sid = state.registry.get("ws-1").chats.create("basic", Some("ws-1".into())).unwrap().id;
+    let app: BoxCloneService<Request<Body>, axum::response::Response, std::convert::Infallible> =
+        full_router().with_state((*state).clone()).boxed_clone();
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/chats/session/{sid}/message?workspace=ws-1"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "content": "正文",
+                        "design_context": { "version": "1", "kind": "button" }
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(v["error"].as_str().unwrap_or("").contains("vnode_id"), "missing-field error: {v}");
+    // 拒收不落盘。
+    let ws = state.registry.get("ws-1");
+    let msgs = ws.chats.get(&sid).map(|s| s.messages).unwrap_or_default();
+    assert!(
+        !msgs.iter().any(|m| m.role == musk::chats::Role::User && m.content == "正文"),
+        "rejected message content must not be persisted"
+    );
+}
