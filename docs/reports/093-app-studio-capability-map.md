@@ -955,3 +955,50 @@ gallery 跨文件引用下工作正常（本 case 双端实证），应用级组
 sandbox（越界 400+tool_safety 7/7）、崩溃恢复（revival）、有界重启
 （exhaustion）、停止清理（owned-PID dead×4）；会话/审批/队列/回放/
 旧 JSON 回归（V02 全套同源绿）。
+
+### 8.29 T-06/07/08/09 VM 轨收口开局 + G-16 定罪（2026-10-01 第二十二轮）
+
+**环境基线重建**：095 已交付归档（G-11 主修复落地 auto-lang master）。
+本组依赖 worktree auto-musk-dev 落后 master 197 提交——rebase 上去（7
+个本组提交重放；G-9 提交与 master PLAN-711/712 重设计冲突，裁决采纳
+master 侧——其帧泵集中抬 view_dirty + 异常化传输取代本组补丁形态，
+幸存 43 行全为 AUTO_DEBUG_G9 门控仪表）。auto.exe 于 sibling 重建。
+另发现：auto-lang 主检出 release 二进制已清——canvas 目标 spawn 的
+AUTO_EXE 须显式指向组内 sibling debug 二进制（vm-studio-cycle 后端
+env 已补；其他 live runner 同口径）。
+
+**T-06 实现（d5b2bf4，V01/V03 绿）**：VM 坐标点选三件套——
+①canvas_panel.at 帧内容包 mouse-area（coords="480x680" 目标逻辑窗
+镜像）+ FrameMove 记迹/FrameClick 取最后 move 位置（onclick 无坐标
+=Plan 498；move 流仅 VM 臂派发=Plan 499，web 臂 move_has 恒 false →
+委托独家，双轨互斥由构造保证）；②canvas.vm.at canvasPickAt（f64
+物理像素，204→miss 位）；③canvas_web.ts/web.at facade 同名导出
+（vue-tsc 链完整）。逻辑→物理=逻辑×帧物理/逻辑窗（渲染尺寸归一，
+fit/100%/滚动/DPI 通用）。
+
+**G-16 定罪（新上游缺口，阻塞 VM 轨收口）**：use 导入子件模板内的
+同文件兄弟组件引用渲染为空容器——musk 真机实证（VM 快照：结构列
+[跨文件 canvas_structure.at] 完整渲染含树行；画布列 [同文件
+canvas_panel.at 兄弟] 根缺席）。判别证据：095 g11_sibling fixture
+（根视图引同文件兄弟）PASS；musk 形态（chats_view→[use]
+CanvasPanel→[同文件] CanvasCanvasColumn）画布列空 + **零
+AURA-CHILD-MISS**（==组件臂 registry 查找未到达——子件模板提取期
+未展开组件节点在子件渲染路径直接空容器化，aura_view_builder
+4300 行注释已知形态"Without this the call stays as an unexpanded
+component node and renders empty in VM mode"）。095 修复覆盖根文件
+兄弟（build_dynamic_component_inner）；导入模块装载位（lib.rs
+~4328 use items 过滤）与子件渲染路径均未覆盖。本轮装载位补注册
+试验过：必要不充分（仍空、仍零 MISS）——已回退，sibling 恢复
+rebase 后干净态（dfa45941a）。修复方向：子件模板渲染路径对
+registry 可解析组件引用递归（或提取期内联）。
+
+**VM 周期脚本扩展**（tmp/vm-studio-cycle.mjs）：目标种中心大钮
+（img 中心 240,340 必中）+ 显式启动状态断言（degraded 早退）+
+结构列树行断言 + 坐标点选端到端/chip 清选 + 源码页签 + 进度摘要
+VM 面（坑① computed fn 返空=摘要隐藏，登记 G-15——与 G-16 并列
+的 VM 消费缺口）。启动偶发缺拍（快照空 180s+，app 心跳与轮询正常
+无 panic）——负载相关，无并行构建时通过率回升；live runner 需
+boot 重试包裹（T-13 待办）。
+
+**下一步**：G-16 修复（auto-lang，焦点=子件模板组件引用的渲染期
+解析）→ vm-studio-cycle 全绿 → T-13 矩阵（Vue 轨无阻可先行）。
