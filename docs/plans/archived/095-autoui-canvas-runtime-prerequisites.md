@@ -830,7 +830,13 @@ T-01核对CLI命令及features后固定实际调用；受影响的required门不
   其余 section 零扰动+reload；脚本 ledger_refresh_095.py（worktree 内）
 - checkpoint archived: 本文件（git mv 至 docs/plans/archived/，
   status archived，delivered）
-- checkpoint cleaned: （待清理后回填）
+- checkpoint cleaned: wt-guard 两树 clean（musk 侧先按处方以
+  MSYS_NO_PATHCONV=1 cmd /c rmdir 卸除 pnpm node_modules 符号链接后过闸）；
+  auto-musk worktree remove --force（tmp 收据先固化 docs/reports/
+  095-evidence/v06-receipts/）+ branch plan-095-dev 删除（@51ab2b9）；
+  auto-lang worktree+branch auto-musk-095-dev 删除（@501460ebe，已于
+  landed 步 fold 回 master）；auto-down/auto-ai 只读兄弟检出移除+
+  registration prune；组目录 D:/autostack/.wt/musk-095 移除
 - 部署观察（landing ≠ deployment）：backend release 二进制、daemon、
   gen/front/vue/dist 均未在本 merge 内重建——生产消费面更新为显式后续
   步骤；本计划 CLI（89c22af1）为 095 worktree 产物，主检出共享 CLI 未动
@@ -850,3 +856,6 @@ T-01核对CLI命令及features后固定实际调用；受影响的required门不
 以上不妨碍先实施T-01核验，尚无必须先作产品选择的事项。后续直接试用Canvas、
 应用资产复用与计划自动循环应各有独立合同；当前先解除已实证的交付依赖。
 
+
+- 批量回归到期确认：missing file = due；095 % 5 == 0 → 到期成立，移交
+  auto-plan:regress（主检出单实例 cargo tf 档，独立执行）
