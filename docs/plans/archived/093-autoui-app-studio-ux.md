@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-093
-status: reviewed
+status: archived
 feature_name: AutoUI 应用设计工作台与实时 Canvas 双端 UX
 author: [agent]
 created_at: 2026-09-28T14:20:35Z
@@ -980,6 +980,30 @@ PID／进程树及起止收据，再做真实运行测试。
 | T-11～T-14 | AC-01～AC-16（复验与证据） | SD-01～SD-05 |
 
 ## 9. 复审记录
+
+### merge 阶段收据（PLAN-093:r1）
+
+- stage: merge ｜ delivered ｜ 2026-10-01
+- prepared: 评审基线 a1fd18e（reviewed@9ab19fe 记录）；canonical diff
+  = SD-01～05（spec-delta 报告冻结件）；projection targets =
+  docs/specs/modules/{app-studio-ui(新),app-canvas,workspace-ui,
+  web-input-contracts,chat-streaming,ui-parity}.md + index.json
+- landed: **main@b131c4c**（ff-only，无 merge commit）；rebase 映射
+  a1fd18e→a75b1a7、1e6f15a→b131c4c，range-diff 14 项 `=` / 0 项 `!`
+  （等价证明）；落地前 wt-guard clean（864 个 pnpm 链接按处方清除）
+- ledger_refreshed: canonical docs/specs/*.md + index.json 注册随
+  b131c4c 落地（沿 095 先例——tracked docs/specs 为派生视图承载）；
+  运行时 ledger（.autoos/specs.json）store 写者不可达（8080 无服务）
+  ——记录 pending，恢复路径=任一 musk serve 起来后经 /api/specs/item
+  按 index 条目重建投影
+- archived: docs/plans/archived/093-autoui-app-studio-ux.md
+  （status: archived，completion_kind: delivered）
+- cleaned: 见下轮记录（worktree/branch 移除后回填）
+- 生产工件观察（landing ≠ deployment）：release 二进制（musk/auto-
+  lang）与 gen/front/vue/dist 均早于本合并——按 PLAN-092 教训显式
+  记档；重建/重启时机由用户决定
+- 批量回归到期：093 % 5 ≠ 0；.last-batch-regression.json 到期状态
+  另查（regress 技能口径）
 
 ### review 阶段阶段验收（T-01..T-05、T-09、T-11、T-12 阶段合入前）
 
