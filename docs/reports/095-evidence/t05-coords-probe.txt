@@ -1,0 +1,10 @@
+drag: Dragged CoordsProbe via aura_0 (down=Down move=Move up=Up) (status: ok)
+state: State:   __emit_msg: "" (str)   __emit_payload: nil (unknown)   __toast: "" (str)   last_down: "down" (str)   last_move: "-1062209585,-1058539569" (str)   last_up: "up" (str)   move_n: 3 (int)   mx: -5.50 (float)   my: -7.25 (float) 
+=====CHECKS=====
+{
+ "typedFloatAccurate": true,
+ "protocolShapeFired": true,
+ "moveCountOk": true,
+ "mx": "-5.50",
+ "my": "-7.25"
+}
