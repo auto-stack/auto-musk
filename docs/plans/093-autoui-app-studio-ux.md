@@ -1026,6 +1026,21 @@ PID／进程树及起止收据，再做真实运行测试。
   ff-only→保留 worktree 与 executing→旧→新映射入账）；合入后 095
   独立执行（用户已授权路线），T-13 待 G-11 解除后收口。
 
+### 阶段合入完成记录（rebase 旧→新映射）
+
+- 49a4819b（评审绑定）→ **fc727dc9**（rebase 后新 tip）——55 提交
+  全量重放，`git range-diff f8f99f3..49a4819 f8f99f3..fc727dc`：
+  **89 项补丁逐条等价（`=`），0 项修改（`!`）**；rebase 前后
+  wt-guard 双 clean（期间按闸门处方清除 worktree 内 1727 个
+  pnpm/node_modules 工具链接——只删链接本体，目标未穿透；均可经
+  pnpm install 再生成）。
+- 2026-10-01 `git merge --ff-only plan-093-dev` 于主检出成功，
+  main@fc727dc；**worktree 保留**（阶段合入口径——T-13/T-14 继续
+  在 plan-093-dev 上工作），整体保持 executing。生产代码基座自此
+  与 093 全部已完成工作一致，PLAN-095 可以此为主检出基座开工。
+- origin/main 落后本地 main（含本次合入的代码）——推送时机由用户
+  决定，非本计划流程步骤。
+
 ### work 阶段 T-12 完成交接（真实生命周期/工具/会话回归）
 
 - stage: work
