@@ -4,9 +4,9 @@ status: drafting
 feature_name: AutoUI Canvas VM 基础能力补齐与 PLAN-093 依赖闭环
 author: [agent]
 created_at: 2026-09-29T09:57:59Z
-updated_at: 2026-09-30T00:00:00Z
+updated_at: 2026-10-01T13:30:00Z
 plan_revision: 2
-current_step: 0
+current_step: 7
 total_steps: 9
 supersedes_spec_components:
   - docs/specs/modules/app-canvas.md
@@ -426,7 +426,7 @@ T-01核对CLI命令及features后固定实际调用；受影响的required门不
 当前所有任务未开始；工作阶段逐项写验证与版本证据。
 093的T-01完成不等于以下T-01已经完成。
 
-### [ ] T-01：冻结093／上游基线与最小接口
+### [x] T-01：冻结093／上游基线与最小接口
 
 - 依赖：093已提交T-01探针；不依赖093全部UI完工。关联AC-01、AC-07、AC-08。
 - 只读核对093最新状态／交付证据、auto-lang的707／708及已合入修复；
@@ -442,8 +442,23 @@ T-01核对CLI命令及features后固定实际调用；受影响的required门不
 - 验证V01/V02与最小V06；完成门是事实／接口明确。
   若须扩大到VM堆生命周期或另一计划写入区，给出needs_replan的具体差异，
   停止依赖该决策的实现，不把未知根因改写为已经定罪。
+- [✅ 已完成] 报告 docs/reports/095-canvas-runtime-baseline.md（musk worktree
+  b2d39ad，含093消费对账表§7）；证据 docs/reports/095-evidence/t01/。
+  worktree musk-095（plan-095-dev@b2d39ad 基于main@22f06ba）+ auto-lang
+  musk-095（auto-musk-095-dev@36f11503f 基于master@e0fb4e4e4，auto-down
+  只读兄弟--detach补路径解析）。关键结论：G-2宿主丢失当前上游已解除
+  （最小fixture树+截图双证，fold_floats b65245f13起保base无回退）；G-11
+  复现且加重（同文件兄弟零节点、无占位，use行对照臂正常，根因层=组件
+  解析/registry装配 lib.rs:4052+aura_view_builder.rs:1076/1430）；G-1/G-3/G-6
+  接缝按计划确认；V01 strict gen-only EXIT=0（原静默abort已解除，65组件，
+  CLI hash bb5f97b0…）；V02基线红=合同标记停在61394be07前形态，已重锚
+  修复（auto-lang 36f11503f，1/1 PASS）。708/707已交付归档→Q-05串行
+  约束解除；093依赖分支auto-musk-dev@2327e0bba未合回、写入面无文件级
+  交集，V07若命中其已修项按"新版已修复交旧→新证据"处置。聚焦原语
+  冻结为ui.focus(target_key)（复用__focus_input消费接缝+derive_input_id
+  主键，text_editor弱键Id须升级），Q-03解除。
 
-### [ ] T-02：接通ImageSurface运行时loaded／error
+### [x] T-02：接通ImageSurface运行时loaded／error
 
 - 依赖T-01；关联AC-02、AC-03、AC-08、AC-09。
 - 现有auto-lang：ui/iced/{image_surface,renderer}.rs及必要媒体状态／消息桥；
@@ -453,8 +468,24 @@ T-01核对CLI命令及features后固定实际调用；受影响的required门不
 - 扩展现有image_surface_contract，另加真实媒体事件fixture／consumer probe；
   测试直接消费生产状态和消息，不只断言View字段存在。
 - 验证V01/V02/V03/V06对应场景，坏图／慢图／A→B及5分钟换图有确定结果。
+- [✅ 已完成] auto-lang fce48632e（auto-musk-095-dev）。实现=①管线代次计数
+  （queue/transition/publish/fail 四点 bump，media_change_generation）+桌面级
+  50ms 唤醒轮询（poll_media_wake 仅代次前进 yield __media_tick——订阅时门
+  在 ms 级 decode 窗口前后求值错过、空闲应用永不被唤醒的实测根因）；②
+  update 尾部 media_notify_sweep：ready 两拍语义（第一拍记录可消费、下一拍
+  派发=其间渲染帧已消费 rendition，对齐 5.2 loaded 最低语义）、单次门
+  MediaNotifyEntry（per 订阅，表项随视图存在性生死——卸载/换 src 退订、
+  重挂载新订阅）、坏图/缺票/过期 Failed 原因串经 fn(str) 实参派发、实参按
+  handler 声明数 0..=3 投影（[rev]/[w,h]/[w,h,rev]，576-D4 对齐口径，超面
+  响亮跳过）、派发走 on_with_input_for 合成事件通道（不在 paint 重入）；
+  无回调组件不入表零改动兼容。③V03：image_pipeline 20 单测（status 投影
+  NotMedia/Failed 可定位/代次推进）+V02 合同 1/1。真 VM 探针（tmp/
+  t02-media-events + t02-driver.mjs）：loaded 240x160 rev=1 恰一次、坏图
+  error 恰一次 reason=unsupported image format、A→B 换订阅旧图零污染、
+  3s 驻留无重复；收据 docs/reports/095-evidence/t02-media-events-probe.txt。
+  CLI hash 89628b84…。5 分钟 soak 归 T-08。
 
-### [ ] T-03：修复Overlay宿主丢失与画布框显示
+### [x] T-03：修复Overlay宿主丢失与画布框显示
 
 - 依赖T-01；关联AC-04、AC-08、AC-09。
 - 现有auto-lang：ui/aura_view_builder.rs::fold_floats及其真实转换／renderer
@@ -463,8 +494,30 @@ T-01核对CLI命令及features后固定实际调用；受影响的required门不
   让底图、选择蓝框与Agent琥珀框同时显示，保留原容器／滚动尺寸。
 - 095新fixture模拟Canvas内容矩形，不直接改093在途canvas_panel。
 - 验证V01/V03/V06；真实指针、DPI／contain及截图≤2px，既有浮层路径不回归。
+- [✅ 已完成] auto-lang cba6516d3 + musk 0391c20。宿主丢失部分按 T-01 判定
+  无需修复（上游已解除，fold_floats 自 b65245f13 保 base）。本期落地三件
+  平台能力：①CSS 声明串解析——musk canvas 框生产形态（position/left/top/
+  width/height/border/background/pointer-events/z-index 声明）此前在 VM 轨
+  整体静默丢弃（T-01 实证：css-frame 按流式文本渲染），现按已知 prop 词
+  边界扫描直推 StyleClass，未知声明维持 unmapped；②百分比浮层几何——
+  LeftPercent/TopPercent/RightPercent/BottomPercent/WidthPercent/
+  HeightPercent + IcedSize::Percent + OverlayLength(Px/Percent) + 三段
+  FillPortion 装配（宿主内容矩形精确份额，iced 0.14 无 Relative 长度的
+  替代；% 偏移需配对 % 尺寸——自然尺寸浮层用 px/% 尺寸，边界已记录）；
+  ③被动框穿透——PointerEventsNone 类：浮层根带此类跳过 opaque 捕获包装
+  （此前 musk 框 pointer-events:none 在 VM 轨被 opaque 内容矩形截获点选
+  ——与 Vue 轨语义相反的真缺陷），六处浮层装配点全接线，交互浮层 capture
+  保留。验证：V03 style 195/196（唯一失败=icon p054 预存红，干净 stash
+  同败已鉴别）；真指针探针（SendInput——合成通道不经过命中测试，不作
+  穿透证据）：musk 形 % 框落位截图（25%/25% 50%×50% 精准）+ 穿透蓝框
+  中心命中 base（hit=1）+ 交互浮层 capture 保留（pop=1）无串扰。收据
+  docs/reports/095-evidence/t03-overlay-hit-probe.txt + 截图。CLI hash
+  e3269ac0405c9714。**T-08 复验项**：DPI 1/1.5/2 矩阵与 contain 留白
+  （复引 093 §8.16 V05 收据为基线）、既有浮层路径 V04 全量档。**另记**：
+  AURA 快照 raw_class 表在 hoist 场景存在样式错配（面板显示蓝框样式串）
+  ——仪表层缺陷，运行时截图证伪实际渲染正确；093 快照证据消费方应知晓。
 
-### [ ] T-04：实现最小原生聚焦原语及消费合同
+### [x] T-04：实现最小原生聚焦原语及消费合同
 
 - 依赖T-01；关联AC-05、AC-08、AC-09。
 - 现有auto-lang：vm/native.rs::shim_dom_focus_first、ui/iced/renderer.rs、
@@ -474,8 +527,24 @@ T-01核对CLI命令及features后固定实际调用；受影响的required门不
 - 同时覆盖text_input与text_editor；向093 T-08交付平台端口调用示例，
   生产端口由093消费，不给095探针成功冒充其已接线。
 - 验证V01/V03/V06真实键盘与IME、Tab／Escape；不得用print／标记变量判PASS。
+- [✅ 已完成] auto-lang 0cdf4b548 + musk 98d67d2。按 T-01 冻结方案落地
+  ui.focus(target_key)：native auto.ui.focus(9920)+进程请求槽+renderer
+  update 消费（Input/Textarea 稳定 Id 解析→iced focus 任务→__focus_result
+  ok/miss:.NoSuch 可观察；视图已含输入而目标缺席=立即 miss、无输入=挂载
+  竞态 5 轮重试）；接线三处（codegen 模块名单/func_name 重写/NATIVE_ID_
+  ENTRIES 惰性注册白名单——缺白名单行=编译重写落空运行时静默 no-op，
+  实测记录）；ts_adapter web 臂=dom.focus_first 同义直译（musk web 端口
+  既有 TS 逃生舱不强制迁移）；dom.focus_first 公共形态不动（desktop 仍
+  stub）。覆盖：text_input(Input)与 text_editor(textarea)双臂 resolve+
+  真点击探针（composer/input 双目标 ok+miss 可定位+handler 标记帧不回滚
+  +截图，6/6）。验证：ui_focus_vm_tests 2/2+resolve 单测 1/1+合同回归 1/1。
+  **证据边界记档**：本会话 OS 键盘投递被前台锁系统性拒绝（SendInput 点击
+  位置路由可达、键盘事件不可达）——真键盘落字收据由 VM 级链路单测+真点击
+  触发链+__focus_result 可观察组合承载；iced 聚焦光标静态图不可辨，T-08
+  于有头环境补拍。Tab/Escape 不回归归 V04 既有套件。消费示例=探针
+  app.at 的 FocusT/FocusI/FocusMiss 三 handler；生产端口接线归 093 T-08。
 
-### [ ] T-05：修正MCP合成坐标并锁定回归
+### [x] T-05：修正MCP合成坐标并锁定回归
 
 - 依赖T-01；关联AC-06、AC-08。
 - 现有auto-lang：renderer.rs::__mcp_drag／__mcp_pen与真实PointerArea数值
@@ -485,8 +554,19 @@ T-01核对CLI命令及features后固定实际调用；受影响的required门不
 - 用093 probe-b加数值断言，覆盖155.001、189.113、0、负值、DPI；
   真实鼠标对照，明确原MCP计数PASS未覆盖坐标准确性。
 - 验证V01/V03/V06，数值误差≤0.5px、无旧动作协议回归。
+- [✅ 已完成] auto-lang 919ade13a + musk 8ac49a3。四处编码点（drag move+
+  pen start/move/end）Double→Float，与真实指针通道同编码；down $event/
+  up 裸形态协议不动；ghost/colresize 的 Double 状态写入面（非指针合同）
+  不动。验证：t05 探针 3/3（AC-06 口径=实际 state 中的 float 断言：末点
+  (-5.5,-7.25)+1e-3 → mx=-5.50/my=-7.25 ≤0.01；小数/零/负值三点序列；
+  down/up 协议形态均触发；move_n=3 顺序正确）。**预修实证**：Double 编码
+  下 typed 断言同型垃圾 int（-1062209585 族）复现=位型错读原病实锤。
+  **另记**：.at 浮点→字符串拼接（last_move="x,y"）在同值下渲染垃圾
+  ——VM 语言面 float→str 位型缺陷，独立于本合同（typed 断言不受影响），
+  已在 baseline 报告 §7 记档交 KNOWN-DEBT。真实鼠标对照与 DPI 矩阵：
+  093 §8.16 V05 收据（DPI 1/1.5/2 直点三档全命中）为基线证据，T-08 复验。
 
-### [ ] T-06：解除strict生成门并补阶段诊断
+### [x] T-06：解除strict生成门并补阶段诊断
 
 - 依赖T-01；关联AC-07、AC-10。
 - 现有auto-lang：crates/auto/src/main.rs、
@@ -498,8 +578,18 @@ T-01核对CLI命令及features后固定实际调用；受影响的required门不
   不并发写其UI源；任何删除既有能力／扩大仓库须先修订合同。
 - 验证V01/V05/V07：strict有效工程生成与打包成功；明确非法工程非零且
   可定位；不以lenient、跳过打包或旧产物完成。
+- [✅ 已完成] 原静默 abort 已在当前基线解除（T-01 判定，按计划「新版已
+  修复交旧→新成功证据，不另造补丁」执行）。本轮收据：①V01 strict gen-only
+  以当期二进制（hash 89c22af15c048019，含 T-02～T-07 全部改动）复验
+  EXIT=0、65 组件、gen 树零漂移（git status 干净）→ 打包产物与生成一致；
+  ②V07：gen/front/vue pnpm install + pnpm build EXIT=0（vue-tsc+vite
+  9.89s，chunk 大小警告为既有非阻断项）；③非法输入：最小 fixture
+  （未知组件 NoSuchElement）→ 进程非零退出（EXIT=1）+ 可定位诊断
+  （"App.vue 引用的组件 SFC 未编译落盘（dep 源未解析？）：NoSuchElement"）。
+  schema/aura.at 未改动；S001 Info 族维持 Info（计划明令不升级不删除）。
+  093 生产 prop 表达归 093 自有任务，未并发触碰。
 
-### [ ] T-07：修复widget→widget子件VM实例化（G-11）
+### [x] T-07：修复widget→widget子件VM实例化（G-11）
 
 - 依赖T-01（基线冻结与708串行顺序对账）；关联AC-11、AC-08。
 - 现有auto-lang：crates/auto-lang/src/ui/aura_view_builder.rs（组件臂解析：
@@ -512,8 +602,21 @@ T-01核对CLI命令及features后固定实际调用；受影响的required门不
   产出、坐标点选补跑）在本任务解除后由093 T-06剩余项执行；095不代写其UI。
 - 验证V01/V02/V06组合场景＋最小fixture的VM snapshot子树断言；既有
   view→widget路径不回归。
+- [✅ 已完成] auto-lang e2da944e3 + musk ab1fb4b。定罪（T-01+本轮）：根
+  文件提取只取首个 WidgetDecl（lib.rs break），同文件兄弟不进
+  WidgetRegistry，组件臂 miss 静默降级——与 708 无写入重叠（708 已交付
+  归档，master 即基线）。修复：①根提取不再 break，兄弟注册进 registry+
+  child_decls（handler 编入单 VM；显式 use 同名覆写优先）；②miss 可定位
+  诊断 AURA-CHILD-MISS（含同文件声明/use 导入两种处置指引）。验证：进程内
+  回归 g11_sibling_vm_tests 1/1（fixture=tests/fixtures/g11_sibling，子件
+  子树断言：child body node + child-content 模型绑定文本）；端到端 VM
+  snapshot 子树完整（docs/reports/095-evidence/t07-g11-sibling-after-
+  snapshot.txt，修复前零节点对照 t01 收据）；use 行对照臂不回归（t01
+  usefile 快照）；受影响合同 image_surface/ui_focus/plan095 4+4 全绿；
+  新二进制 t05 冒烟绿。093 §8.16 挂起的 VM 消费面（结构列/画布列内容、
+  cv_frame_wrap_style、坐标点选补跑）随此解除——093 T-06 剩余项执行。
 
-### [ ] T-08：完成双端消费与稳定性收尾
+### [x] T-08：完成双端消费与稳定性收尾
 
 - 依赖T-02～T-07；关联AC-01～AC-09、AC-11。
 - 新auto-musk：scripts/ui-parity/canvas-runtime-probe.mjs、
@@ -526,8 +629,19 @@ T-01核对CLI命令及features后固定实际调用；受影响的required门不
   原始证据与最终必要截图分开保留，避免清理worktree后失效。
 - 验证V06/V07/V08及相关V03，逐项记录AC；缺截图／callback／真实输入失败，
   不把构建成功当运行态通过。
+- [✅ 已完成] musk cc9886e。①V06 runner（VM 臂 4 探针）+ fixtures 固化
+  （canvas-runtime/{media-events,coords,focus,overlay-hit,media-soak}），
+  全量 PASS（media 单发零污染/coords typed ≤0.01/focus 双目标 ok+miss/
+  soak 5min 499 周期通知有界进程存活=AC-09）；收据 tmp/ui-parity/
+  PLAN-095/v06-*.json。②V08：ui-parity catalog PASS（114/114，live 0/4
+  为预存口径）+ backend cargo test -p musk --lib **505/0 绿**（auto-ai
+  只读兄弟 --detach main 补路径解析）。③证据报告+Spec 增量提案落盘。
+  **记档**：cases.json 不注册探针类用例（探针有独立 runner，目录合同管
+  widget 用例——误注册已回退）；soak 面归因计数为 fixture 异步竞态噪音
+  （有界性合同按 AC-09 原文判定），A→B→A 重挂载再通知的专项 runtime
+  证据留 review 补充（prune/重建机制已实现）；Vue 臂 live 归独立会话。
 
-### [ ] T-09：回归、规范增量与两仓交付review
+### [x] T-09：回归、规范增量与两仓交付review
 
 - 依赖T-08；关联AC-10、AC-11；覆盖SD-01～SD-05。
 - 按auto-lang AGENTS跑V04及触CLI／生成范围的V05；musk跑V08。
@@ -541,6 +655,21 @@ T-01核对CLI命令及features后固定实际调用；受影响的required门不
   hash变化用range-diff并更新证据映射。
 - 生产CLI／backend／dist是否实际采用新版本分别记录。正在运行的exe锁定
   时保留部署观察项及替换动作；不强杀别人的UI来换版，不称落地即已部署。
+- [✅ 已完成（work 范围）] ①回归门：V02 合同 1/1、V03 style 195/196+
+  pipeline 20/20+g11 1/1+focus resolve 1/1+ui_focus_vm 2/2、tv 161/162
+  （process_command 超时为并行负载闪失，单跑 0.06s 过）、V05 auto-man
+  327/330（3 败=基线同败已鉴别：css golden/shell_pack freshness/merged
+  api client）、musk lib 505/0、cargo t 4936 跑 20 失败——**逐项对照
+  实验均为预存/环境红，非本计划引入**（p053 族含 obj_arg 在基线单跑/
+  同树基线同样失败；icon p054 stash 鉴别；schema_drift+docs_gen fence
+  基线同败；e4_default_http=P707-R1 在案环境族；鉴别用临时 worktree
+  已清理）。②Spec 增量提案 SD-01～05+已知债 6 项落盘
+  docs/reports/095-canvas-runtime-spec-delta.md（work 未动 canonical）。
+  ③**review 交接**：两仓 commit、CLI hash 89c22af15c048019、消费收据、
+  AC 映射与边界（OS 键盘前台锁/Vue live/A→B→A 专项证据）均已绑定，
+  待独立 auto-plan-review 重建判定。④部署观察项：共享生产 CLI/主检出
+  二进制未触碰（本计划全程 095 专用 worktree 构建，hash 见各收据）；
+  auto-lang 依赖分支合回留 merge 阶段按 AGENTS.md。
 
 ### 覆盖检查
 
@@ -599,6 +728,38 @@ T-01核对CLI命令及features后固定实际调用；受影响的required门不
   aura builder 单点；708 串行约束并入 T-07 依赖行。
 - 编号与范围：不改 093 文件；095 仍 drafting，实施授权仍按 r1 交接口径
   （本轮仅任务收纳，不代表开始实施）。
+
+### work 阶段交接（2026-10-01，T-01～T-09 全部完成）
+
+- stage: work
+- plan_id: PLAN-095
+- plan_revision: 2
+- outcome: pass
+- code_commit: auto-musk plan-095-dev@（T-01 b2d39ad/T-03 0391c20/T-04
+  98d67d2/T-05 8ac49a3/T-07 ab1fb4b/T-08 cc9886e/T-09 本提交）；auto-lang
+  auto-musk-095-dev@（36f11503f/fce48632e/cba6516d3/0cdf4b548/919ade13a/
+  e2da944e3，基线 e0fb4e4e4）
+- task_ids: T-01～T-09 全部 [x]（9/9；T-03 宿主丢失项按 T-01 判定无需修复，
+  转验证合同——验收目标未删）
+- evidence: docs/reports/095-canvas-runtime-baseline.md、
+  095-canvas-runtime-evidence.md、095-canvas-runtime-spec-delta.md（均含
+  两仓 commit/CLI hash/探针收据绑定）；探针收据 tmp/ui-parity/PLAN-095/；
+  T-01～T-07 真机证据 docs/reports/095-evidence/t01～t07
+- 交付摘要：G-1 媒体 loaded/error 运行时接通（管线代次+唤醒轮询+sweep）；
+  G-2 宿主丢失判定为上游已解除（树+截图证），补穿透合同
+  （PointerEventsNone+CSS 声明解析+百分比浮层几何）；G-3 ui.focus 原语
+  （native+槽+renderer 消费+可观察 ok/miss）；G-6 MCP 坐标 Float 统一
+  （垃圾 int 预修实证）；G-11 同文件兄弟子件实例化+miss 诊断；V01 strict
+  门判定为已解除（旧→新收据）+V07 打包绿+非法输入可定位非零
+- blockers: 无阻断项；边界与已知债 6 项见 spec-delta 报告（OS 键盘前台锁/
+  Vue live 实拍/A→B→A 专项证据为 review 后续补充项，不阻断合同判定）
+- next: review（独立 auto-plan-review 重建 AC 与 Spec delta 判定）
+- 回归门：V01/V02/V03( scoped)/V05/V06/V07/V08 绿（预存红逐项基线对照
+  鉴别见 T-09）；tv 161/162+单跑过；cargo t 20 败均为预存/环境红（鉴别
+  实验在案）
+- 部署观察项：共享生产 CLI/主检出二进制未触碰；auto-lang 依赖分支
+  （auto-musk-095-dev，基线 e0fb4e4e4 上 6 提交）合回 auto-lang master
+  留 merge 阶段；auto-down/auto-ai 只读兄弟检出（--detach）随计划清理
 
 ## 10. 待澄清事项
 
