@@ -1,0 +1,16 @@
+=====SNAPSHOT=====
+AURA Snapshot v2 (rendered)
+widget: "G11UseHost"
+
+tree:
+col #vnode_14695981039346656037 {
+  style: "w-full h-screen flex-col bg-background text-foreground p-4 gap-2"
+  text #vnode_12642422519345821663 "host above (use form)"
+  col #vnode_12642404927159776812 {
+    style: "border border-border p-2 gap-1"
+    text #vnode_4289760042030763204 "child body node (use form)"
+    text #vnode_4289777634216808055 "child-content"
+  }
+  text #vnode_12642457703717911365 "host below (use form)"
+}
+

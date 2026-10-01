@@ -1,0 +1,28 @@
+=====SNAPSHOT=====
+AURA Snapshot v2 (rendered)
+widget: "OverlayHost"
+
+tree:
+col #vnode_14695981039346656037 {
+  style: "w-full h-screen flex-col bg-background text-foreground p-4 gap-2"
+  text #vnode_12642422519345821663 "overlay host probe"
+  col #vnode_12642404927159776812 {
+    style: "relative w-[240px] h-[160px] border border-border bg-black"
+    col #vnode_4289760042030763204 {
+      col #vnode_12781790891868631308 {
+        text #vnode_15900409796501198692 "base content inside host"
+        text #vnode_15900427388687243543 "second base line"
+      }
+      col #vnode_12781808484054676159 {
+        text #vnode_15915714998360029837 "sel-frame"
+      }
+    }
+    col #vnode_4289777634216808055 {
+      text #vnode_12797096093727462453 "agent-frame"
+    }
+  }
+  text #vnode_12642457703717911365 "host tail outside overlay box"
+}
+
+=====SCREENSHOT=====
+Screenshot saved to: \\?\D:\autostack\.wt\musk-095\auto-lang\tmp\t01-overlay-host\src\front\tmp\autoui-screenshot-1790826744430.png
