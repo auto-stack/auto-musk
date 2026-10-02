@@ -55,6 +55,27 @@ pub struct MuskAgentFactory {
     pub run_id: String,
 }
 
+impl MuskAgentFactory {
+    /// PLAN-096 T-04: the execution scope of the step about to run — the
+    /// registered dev-worktree root for `execute`/`review` phases of a bound
+    /// plan run, None otherwise (plan/document phases and unbound runs keep
+    /// the workspace multi-root resolution).
+    pub fn execution_scope_for_current_step(&self) -> Option<std::sync::Arc<std::path::PathBuf>> {
+        let ws = self.state.registry.get(&self.workspace_id);
+        let state = ws.relay.get(&self.run_id)?;
+        let step_id = state.steps.get(state.current_step).map(|s| s.id.clone())?;
+        if !matches!(step_id.as_str(), "execute" | "review") {
+            return None;
+        }
+        let binding = ws
+            .relay
+            .plan_execution(&self.run_id)
+            .and_then(|pe| pe.binding)?;
+        let root = binding.execution_root?;
+        Some(std::sync::Arc::new(std::path::PathBuf::from(root)))
+    }
+}
+
 impl AgentFactory for MuskAgentFactory {
     fn build_agent(
         &self,
@@ -73,6 +94,10 @@ impl AgentFactory for MuskAgentFactory {
             extra_system_prompt: String::new(),
         };
         // Build agent with orchestration tool context (spawn_relay, dispatch).
+        // PLAN-096 T-04（§5.3/AC-03）：execute/review 相位的显式执行作用域 =
+        // 登记的开发 worktree（binding.execution_root）——文件/命令工具与
+        // Canvas 路径解析落 worktree，主检出代码不注册为可写根；plan/document
+        // 相位与无绑定 run 维持 workspace 多根（计划共享状态走 plan 工具）。
         let tool_ctx = crate::tool_context::ToolContext {
             approval_mode: None,
             state: self.state.clone(),
@@ -81,6 +106,7 @@ impl AgentFactory for MuskAgentFactory {
             // PLAN-040 T5:relay 步骤的工具进度挂在 run_id 上——run SSE
             // (/runs/{id}/events)订阅同一条总线,ToolUpdate 自动透传前端。
             progress: Some(crate::tool_context::ProgressSink::for_run(&self.run_id)),
+            execution_root: self.execution_scope_for_current_step(),
         };
         let mut agent =
             crate::build_agent_with_context(&mode, self.state.client.clone(), Some(tool_ctx))?;

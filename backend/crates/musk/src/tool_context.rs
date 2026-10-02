@@ -22,6 +22,11 @@ pub struct ToolContext {
     /// PLAN-069 W3:会话审批模式透传("human" → run_command 越界首触即挂
     /// 审批门;None/"auto" → 维持硬拒 + 继续)。relay 驱动路径暂不启用。
     pub approval_mode: Option<String>,
+    /// PLAN-096 T-04(§5.3):plan 流 execute/review 相位的显式执行作用域——
+    /// 文件/命令工具与 Canvas 路径解析限定在该 run 的开发 worktree;
+    /// 主检出代码不注册为可写根(计划共享状态仍经 plan 工具走主 PlansStore)。
+    /// None = 常规 workspace 多根判定(白名单语义不变,用户配置不改动)。
+    pub execution_root: Option<std::sync::Arc<std::path::PathBuf>>,
 }
 
 /// PLAN-040 T5:工具侧进度通道——进程级 broadcast 总线的 sender + 目标 id

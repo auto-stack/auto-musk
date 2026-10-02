@@ -51,6 +51,7 @@ fn create_canvas_tool_context(ws_dir: &Path) -> ToolContext {
         parent_conversation_id: "canvas-test-conv".to_string(),
         progress: None,
         approval_mode: None,
+        execution_root: None,
     }
 }
 

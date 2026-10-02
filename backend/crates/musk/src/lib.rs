@@ -27,6 +27,8 @@ pub mod plans;
 pub mod report_tools;
 pub mod plan_merge;
 pub mod plan_tools;
+// PLAN-096 T-04: 计划执行专用 worktree（租约/守卫/安全移除）。
+pub mod plan_worktree;
 pub mod command_runner;
 pub mod output_accumulator;
 pub mod tool_context;
@@ -297,9 +299,15 @@ pub fn build_agent_with_context(
     // 注册的双跳形态退役——覆盖窗口内 thread-local 回调仍可能漏出）。
     // PLAN-070 T-02：多根 = [workspace 根, *白名单]（sandbox_roots 现读，
     // 白名单增删对后续运行即时生效）。
+    // PLAN-096 T-04（§5.3）：plan 流 execute/review 相位携带显式 execution
+    // scope——文件/命令工具的根 = 该 run 的开发 worktree（主检出代码不注册
+    // 为可写根，白名单配置不改动）；Canvas 工具经同字段解析（见 canvas）。
     let base_roots = ctx
         .as_ref()
-        .map(|c| c.state.registry.sandbox_roots(&c.workspace_id));
+        .map(|c| match &c.execution_root {
+            Some(root) => std::sync::Arc::new(vec![(**root).clone()]),
+            None => c.state.registry.sandbox_roots(&c.workspace_id),
+        });
     let mut agent = build_agent_from_mode(mode, client, base_roots.as_ref())?;
     if let Some(ctx) = ctx {
         // PLAN-030 T3: plan tools are workspace-scoped (docs/plans/), so they
@@ -328,8 +336,11 @@ pub fn build_agent_with_context(
         // PLAN-069 W1+W3：七个文件工具已在 base 构建期按 ws_roots 注入（见上），
         // 仅 run_command 需在此覆盖注册以挂进度通道与审批门（human 会话
         // 越界首触暂停，W3）。PLAN-070 T-02：门判定与 cwd 同走多根。
-        let ws_roots: std::sync::Arc<Vec<std::path::PathBuf>> =
-            ctx.state.registry.sandbox_roots(&ctx.workspace_id);
+        // PLAN-096 T-04：execution scope 存在时根 = worktree（cwd 同落）。
+        let ws_roots: std::sync::Arc<Vec<std::path::PathBuf>> = match &ctx.execution_root {
+            Some(root) => std::sync::Arc::new(vec![(**root).clone()]),
+            None => ctx.state.registry.sandbox_roots(&ctx.workspace_id),
+        };
         let gate_session = if ctx.approval_mode.as_deref() == Some("human") {
             Some(ctx.parent_conversation_id.clone())
         } else {

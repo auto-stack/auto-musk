@@ -28,6 +28,12 @@ fn ensure_session_owner(ctx: &ToolContext) -> Result<(), ToolError> {
 }
 
 pub(crate) fn resolve_within_sandbox(ctx: &ToolContext, path: &str) -> Result<PathBuf, ToolError> {
+    // PLAN-096 T-04（§5.3/AC-03）：plan 流 execute/review 相位的 run 级
+    // 授权根——目标 App 允许落在该 run 的开发 worktree（并显示该归属）。
+    if let Some(root) = &ctx.execution_root {
+        return crate::tool_safety::resolve_multi(path, &[root.as_ref().clone()])
+            .map_err(ToolError::Exec);
+    }
     let ws = ctx.state.registry.get(&ctx.workspace_id);
     let mut roots = vec![ws.root.clone()];
     roots.extend(

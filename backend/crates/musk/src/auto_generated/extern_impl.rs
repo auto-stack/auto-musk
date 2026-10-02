@@ -2194,6 +2194,7 @@ pub async fn chat_run_owner(
             progress: Some(crate::tool_context::ProgressSink::for_run(&session_id)),
             // PLAN-069 W3：审批模式透传（human → run_command 越界首触挂门）。
             approval_mode: Some(session.approval_mode.clone()),
+            execution_root: None,
         };
         let mut agent = match crate::build_agent_with_context(&agent_mode, client, Some(tool_ctx)) {
             Ok(a) => a,

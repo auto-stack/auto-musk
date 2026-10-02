@@ -28,6 +28,7 @@ impl MuskAgentFactory {
         // PLAN-040 T5：工具进度挂 run_id（与 hw relay/driver.rs 同款）。
         let tool_ctx = ToolContext { state: self.state.clone(), workspace_id: self.workspace_id.clone(), parent_conversation_id: self.run_id.clone(), progress: Some(crate::tool_context::ProgressSink::for_run(&self.run_id)),
             approval_mode: None,
+            execution_root: None,
         };
         let agent = build_agent_with_context(mode, self.state.client.clone(), Some(tool_ctx));
         match handoff {

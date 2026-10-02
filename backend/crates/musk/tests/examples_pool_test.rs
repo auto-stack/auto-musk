@@ -48,6 +48,7 @@ fn create_test_context(tag: &str) -> (ToolContext, PathBuf) {
         parent_conversation_id: "test-conv".to_string(),
         progress: None,
         approval_mode: None,
+        execution_root: None,
     };
     (ctx, dir)
 }
