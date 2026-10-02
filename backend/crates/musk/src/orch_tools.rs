@@ -151,8 +151,8 @@ impl Tool for SpawnRelay {
             run_id, flow_id, ws_id
         );
         tokio::spawn(async move {
-            // Plan 020 Phase G: switched to the transpiled ag drive_run.
-            let _ = crate::auto_generated::relay_driver::drive_run(state, &ws_id, &run_id_clone).await;
+            // Plan 020 Phase G → PLAN-096 T-12：经受控分流。
+            crate::relay::plan_control::drive_run_dispatched(state, ws_id, run_id_clone.clone()).await;
             tracing::info!("spawn_relay: driver finished for {}", run_id_clone);
         });
 

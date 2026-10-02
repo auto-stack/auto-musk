@@ -1523,9 +1523,10 @@ pub fn handoff_resolve_path(store: &crate::relay::handoff_store::HandoffStore, p
 /// 委托 ag relay_driver::drive_run(Phase G 产物);Result 丢弃(ag executor 不检查
 /// drive_run 的 bool 返回,与 hw drive_task_plan_run 不检查 drive_run 的 () 一致)。
 pub async fn drive_run(s: &Arc<AppState>, w: &str, r: &str) -> bool {
-    crate::auto_generated::relay_driver::drive_run(s.clone(), w, r)
-        .await
-        .is_ok()
+    // PLAN-096 T-12：经受控分流（plan run → hw 受控驱动）。
+    crate::relay::plan_control::drive_run_dispatched(s.clone(), w.to_string(), r.to_string())
+        .await;
+    true
 }
 /// Plan 020 Phase H: ws.relay.start_run(extern 内部构造 StartRunRequest 字面量,
 /// a2r 不能跨 crate 构造 hw struct)。等价 hw drive_task_plan_run:478-484。
@@ -2149,7 +2150,7 @@ pub async fn chat_run_owner(
             session_id
         );
         tokio::spawn(async move {
-            let _ = crate::auto_generated::relay_driver::drive_run(state2, &ws_id2, &rid).await;
+            crate::relay::plan_control::drive_run_dispatched(state2, ws_id2, rid).await;
         });
         // SSE（SseEventDto 严格枚举——无 relay_spawned 变体，改用原生
         // tool_call/tool_result 形状携带 run_id，前端据此实时渲染 Run 卡片）。
@@ -3086,7 +3087,7 @@ pub fn relay_run_advance(s: &State<AppState>, q: Query<crate::auto_generated::re
     let state_arc = Arc::new(s.0.clone());
     let run_id_clone = r.to_string();
     tokio::spawn(async move {
-        let _ = crate::auto_generated::relay_driver::drive_run(state_arc, &ws_id, &run_id_clone).await;
+        crate::relay::plan_control::drive_run_dispatched(state_arc, ws_id, run_id_clone).await;
     });
     match ws.relay.get(r) {
         Some(sn) => serde_json::to_value(&sn).unwrap_or(Value::Null),
@@ -3162,7 +3163,7 @@ pub fn relay_resolve_gate(
                 let state_arc = Arc::new(s.0.clone());
                 let run_id_clone = r.to_string();
                 tokio::spawn(async move {
-                    let _ = crate::auto_generated::relay_driver::drive_run(state_arc, &ws_id, &run_id_clone).await;
+                    crate::relay::plan_control::drive_run_dispatched(state_arc, ws_id, run_id_clone).await;
                 });
             }
             serde_json::to_value(&run_state).unwrap_or(Value::Null)

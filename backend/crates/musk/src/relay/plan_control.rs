@@ -251,6 +251,25 @@ fn now_secs() -> u64 {
         .as_secs()
 }
 
+/// 驱动孵化分流（T-12 live 实证缺口修复 / AC-12 双轨同合同）：带
+/// plan_execution 的 run 走 hw 受控驱动（plan_control 阶段路由/门绑定/
+/// 交付检查点）；其余流走 ag 转译驱动（既有 parity 面）。live 取证：ag
+/// 驱动对 plan run 盲提交 handoff 完全绕过受控路由（L3 首跑 completed
+/// 实录）——所有孵化点必须经本分流。
+pub async fn drive_run_dispatched(state: std::sync::Arc<crate::server::AppState>, ws_id: String, run_id: String) {
+    let routed = state
+        .registry
+        .get(&ws_id)
+        .relay
+        .plan_execution(&run_id)
+        .is_some();
+    if routed {
+        let _ = crate::relay::driver::drive_run(state, ws_id, run_id).await;
+    } else {
+        let _ = crate::auto_generated::relay_driver::drive_run(state, &ws_id, &run_id).await;
+    }
+}
+
 /// Push a controller facts event (run history + SSE bus + conversation
 /// mirror — the standard RunStore path).
 pub fn push_facts(store: &RunStore, run_id: &str, facts: crate::relay::plan_contract::RunPlanEvent) {
