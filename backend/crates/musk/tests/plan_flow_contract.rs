@@ -481,7 +481,7 @@ fn stage_routing_full_lifecycle_matrix() {
     c.acceptance_results = vec![AcResult {
         id: "AC-01".into(),
         status: "pass".into(),
-        evidence: "e".into(),
+        evidence: "cmd:check".into(),
     }];
     record_stage_claim(&ws.relay, &run_id, c).unwrap();
     match on_stage_end(&env.state, &env.ws_id, &run_id) {
@@ -499,9 +499,9 @@ fn stage_routing_full_lifecycle_matrix() {
     c.acceptance_results = vec![AcResult {
         id: "AC-01".into(),
         status: "pass".into(),
-        evidence: format!("verified {rnd}"),
+        evidence: format!("cmd:cargo test -- --nocapture # verified {rnd}"),
     }];
-    c.evidence = vec![format!("cargo test green ({rnd})")];
+    c.evidence = vec![format!("cmd:cargo test green ({rnd})")];
     record_stage_claim(&ws.relay, &run_id, c).unwrap();
     assert!(matches!(
         on_stage_end(&env.state, &env.ws_id, &run_id),
@@ -544,7 +544,7 @@ fn stage_routing_full_lifecycle_matrix() {
     c.acceptance_results = vec![AcResult {
         id: "AC-01".into(),
         status: "pass".into(),
-        evidence: "verified again".into(),
+        evidence: "cmd:cargo test verified again".into(),
     }];
     record_stage_claim(&ws.relay, &run_id, c).unwrap();
     assert!(matches!(
@@ -585,9 +585,9 @@ fn repair_limit_exhaustion_stops() {
         c.acceptance_results = vec![AcResult {
             id: "AC-01".into(),
             status: "pass".into(),
-            evidence: format!("ev{round}"),
+            evidence: format!("cmd:verify round {round}"),
         }];
-        c.evidence = vec![format!("ev{round}")];
+        c.evidence = vec![format!("cmd:ev{round}")];
         record_stage_claim(&ws.relay, &run_id, c).unwrap();
         assert!(matches!(
             on_stage_end(&env.state, &env.ws_id, &run_id),
@@ -710,9 +710,9 @@ fn semantic_drift_rules() {
     c.acceptance_results = vec![AcResult {
         id: "AC-01".into(),
         status: "pass".into(),
-        evidence: "e".into(),
+        evidence: "cmd:check".into(),
     }];
-    c.evidence = vec!["ev".into()];
+    c.evidence = vec!["cmd:ev".into()];
     record_stage_claim(&ws.relay, &run_id, c).unwrap();
     assert!(matches!(
         on_stage_end(&env.state, &env.ws_id, &run_id),
@@ -731,7 +731,7 @@ fn semantic_drift_rules() {
     c.acceptance_results = vec![AcResult {
         id: "AC-01".into(),
         status: "pass".into(),
-        evidence: "e".into(),
+        evidence: "cmd:check".into(),
     }];
     record_stage_claim(&ws.relay, &run_id, c).unwrap();
     match on_stage_end(&env.state, &env.ws_id, &run_id) {
@@ -829,4 +829,159 @@ async fn truncation_gets_one_bounded_continuation_then_fails_loud() {
     }
     clear(&run_id);
     std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
+}
+
+/// T-07/AC-07：伪证据路径拒绝——evidence 指向不存在的工件 → execute pass
+/// 被拒；cmd: 前缀 = 命令记录（不执行、不解析路径）。
+#[test]
+#[serial]
+fn fake_evidence_paths_are_rejected() {
+    let env = route_env("fakeev");
+    let ws = env.state.registry.get(&env.ws_id);
+    let run_id = start_bound_run(&env, "fakeev");
+    let wt = reach_execute(&env, &run_id);
+    std::fs::write(wt.join("impl.txt"), "x\n").unwrap();
+    git_args(&wt, &["add", "."]);
+    git_args(&wt, &["commit", "-m", "impl"]);
+    let head = git_args(&wt, &["rev-parse", "HEAD"]);
+
+    // 伪路径证据 → 拒（报文点名工件）。
+    let mut c = claim("execute", "pass", 1);
+    c.commit = Some(head.clone());
+    c.acceptance_results = vec![AcResult {
+        id: "AC-01".into(),
+        status: "pass".into(),
+        evidence: "cmd:check".into(),
+    }];
+    c.evidence = vec!["evidence/nope-自诩报告.md".into()];
+    record_stage_claim(&ws.relay, &run_id, c).unwrap();
+    match on_stage_end(&env.state, &env.ws_id, &run_id) {
+        StageRouting::Fail(e) => {
+            assert!(e.contains("does not exist") && e.contains("nope-"), "{e}")
+        }
+        other => panic!("fake evidence path must be rejected, got {other:?}"),
+    }
+
+    // 真实工件路径（worktree 相对）→ 过。
+    std::fs::write(wt.join("evidence.txt"), "real proof\n").unwrap();
+    git_args(&wt, &["add", "."]);
+    git_args(&wt, &["commit", "-m", "evidence"]);
+    let head2 = git_args(&wt, &["rev-parse", "HEAD"]);
+    let mut c = claim("execute", "pass", 1);
+    c.commit = Some(head2);
+    c.acceptance_results = vec![AcResult {
+        id: "AC-01".into(),
+        status: "pass".into(),
+        evidence: "cmd:check".into(),
+    }];
+    c.evidence = vec!["evidence.txt".into(), "cmd:git log --oneline -3".into()];
+    record_stage_claim(&ws.relay, &run_id, c).unwrap();
+    assert!(matches!(
+        on_stage_end(&env.state, &env.ws_id, &run_id),
+        StageRouting::Advance
+    ));
+    std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
+}
+
+/// T-07/AC-07：依赖漂移——批准后 MUSK_PLAN_DEP_DIRS 指向的仓 tip 前移
+/// → review pass 被拒（needs_replan，重新复审）。
+#[test]
+#[serial]
+fn dependency_drift_refuses_review_pass() {
+    // 依赖仓：独立临时 git 仓。
+    let dep_td = tempfile::tempdir().unwrap();
+    let dep = dep_td.path().join("dep");
+    std::fs::create_dir_all(&dep).unwrap();
+    git_args(&dep, &["init", "-b", "master"]);
+    git_args(&dep, &["config", "user.email", "t@t"]);
+    git_args(&dep, &["config", "user.name", "t"]);
+    std::fs::write(dep.join("lib.txt"), "v1\n").unwrap();
+    git_args(&dep, &["add", "."]);
+    git_args(&dep, &["commit", "-m", "v1"]);
+    let tip1 = git_args(&dep, &["rev-parse", "HEAD"]);
+    std::env::set_var(
+        "MUSK_PLAN_DEP_DIRS",
+        format!("dep={}", dep.display()),
+    );
+
+    let env = route_env("depdrift");
+    let ws = env.state.registry.get(&env.ws_id);
+    let run_id = start_bound_run(&env, "depdrift");
+    let wt = reach_execute(&env, &run_id);
+    // 绑定已冻结 dep@tip1。
+    let binding = ws.relay.plan_execution(&run_id).unwrap().binding.unwrap();
+    assert_eq!(binding.dependency_revisions.get("dep").map(String::as_str), Some(tip1.as_str()));
+
+    std::fs::write(wt.join("impl.txt"), "x\n").unwrap();
+    git_args(&wt, &["add", "."]);
+    git_args(&wt, &["commit", "-m", "impl"]);
+    let head = git_args(&wt, &["rev-parse", "HEAD"]);
+    let mut c = claim("execute", "pass", 1);
+    c.commit = Some(head.clone());
+    c.acceptance_results = vec![AcResult {
+        id: "AC-01".into(),
+        status: "pass".into(),
+        evidence: "cmd:check".into(),
+    }];
+    c.evidence = vec!["cmd:ev".into()];
+    record_stage_claim(&ws.relay, &run_id, c).unwrap();
+    assert!(matches!(
+        on_stage_end(&env.state, &env.ws_id, &run_id),
+        StageRouting::Advance
+    ));
+
+    // 依赖仓前移 → review pass 被拒。
+    std::fs::write(dep.join("lib.txt"), "v2\n").unwrap();
+    git_args(&dep, &["add", "."]);
+    git_args(&dep, &["commit", "-m", "v2"]);
+    let mut c = claim("review", "pass", 1);
+    c.commit = Some(head);
+    c.acceptance_results = vec![AcResult {
+        id: "AC-01".into(),
+        status: "pass".into(),
+        evidence: "cmd:check".into(),
+    }];
+    c.evidence = vec!["cmd:ev".into()];
+    record_stage_claim(&ws.relay, &run_id, c).unwrap();
+    match on_stage_end(&env.state, &env.ws_id, &run_id) {
+        StageRouting::Fail(e) => {
+            assert!(e.contains("dependency drift") && e.contains("re-review"), "{e}")
+        }
+        other => panic!("dep drift must refuse deposition, got {other:?}"),
+    }
+    std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
+    std::env::remove_var("MUSK_PLAN_DEP_DIRS");
+}
+
+/// T-07（§5.6）：review 相位任务携带批准绑定事实（机械输入）——reviewer
+/// 不靠 coder 自述，凭据核验面向绑定（plan_revision/base/worktree）。
+#[test]
+fn review_template_carries_binding_facts() {
+    use std::collections::HashMap;
+    let mut ctx = HashMap::new();
+    ctx.insert("plan_file".to_string(), "docs/plans/001-x.md".to_string());
+    ctx.insert(
+        "binding_facts".to_string(),
+        "plan_revision=1 contract_hash=abcdef123456 semantic_hash=123456abcdef base_commit=deadbeef1234 default_branch=master reviewed_commit=(none yet) worktree=/tmp/wt dep_revisions=(none frozen)".to_string(),
+    );
+    let mut snap = SkillSnapshot::default();
+    snap.skills.insert(
+        "auto-plan-review".into(),
+        SkillEntry {
+            name: "auto-plan-review".into(),
+            path: "/p".into(),
+            sha256: "h".into(),
+            content: "# review discipline".into(),
+        },
+    );
+    let t = phase_task("plan", "review", "需求", &ctx, &snap).unwrap();
+    assert!(t.contains("批准绑定事实"), "binding facts block injected");
+    assert!(t.contains("plan_revision=1"));
+    assert!(t.contains("base_commit=deadbeef1234"));
+    assert!(t.contains("worktree=/tmp/wt"));
+    // 无绑定时该块缺省（旧 run 兼容）。
+    let mut ctx2 = HashMap::new();
+    ctx2.insert("plan_file".to_string(), "docs/plans/001-x.md".to_string());
+    let t2 = phase_task("plan", "review", "需求", &ctx2, &snap).unwrap();
+    assert!(!t2.contains("批准绑定事实"));
 }

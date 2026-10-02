@@ -217,16 +217,25 @@ worktree（主检出的计划共享状态仍经 plan 工具读写，不要直接
                 result_protocol(step_id),
             )
         }
-        "review" => format!(
+        "review" => {
+            // PLAN-096 T-07（§5.6）：工件绑定事实（批准版本/commit/依赖冻结）
+            // 作为机械输入注入——reviewer 的凭据核验面向绑定事实与真实工件，
+            // 不接收 coder 的完成自述。
+            let binding_facts = context
+                .get("binding_facts")
+                .map(|f| format!("- 批准绑定事实：{f}\n"))
+                .unwrap_or_default();
+            format!(
             "{requirement}# 任务：复审（review 相位）\n\n\
 你是本需求的复审人（reviewer，第三相位职业——独立于起草与执行的凭据核验者，\
 不接收执行相位的 history 或完成自述）。技能快照与机械输入如下；\
 完成后按结果提交协议调用 `complete_plan_stage`。\n\n\
 {}\n\
-{mech_plan_file}{}\n",
+{mech_plan_file}{binding_facts}{}\n",
             skill_block(step_id, &skills.skills),
             result_protocol(step_id),
-        ),
+        )
+        }
         "document" => {
             // PLAN-034：plan-merge 单相位 run 只做沉淀（执行/复审均已完成）
             let preamble = if flow_id == "plan-merge" {

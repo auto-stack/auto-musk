@@ -938,11 +938,47 @@ impl RunStore {
             .get(entry.engine.current_step)
             .map(|s| s.id.clone())
             .unwrap_or_default();
+        // PLAN-096 T-07（§5.6）：review 相位的工件绑定事实（批准版本/
+        // base commit/依赖冻结/worktree）作为机械输入注入——reviewer 不接收
+        // coder 的 history/完成自述，凭据核验面向这些绑定事实。
+        let mut context = entry.context.clone();
+        if let Some(pe) = entry.plan_execution.as_ref() {
+            let pe_reviewed_commit = pe
+                .reviewed_commit
+                .as_deref()
+                .map(|c| &c[..c.len().min(12)])
+                .unwrap_or("(none yet)")
+                .to_string();
+            if let Some(b) = pe.binding.as_ref() {
+                context.insert(
+                    "binding_facts".into(),
+                    format!(
+                        "plan_revision={} contract_hash={}… semantic_hash={}… base_commit={}…                          default_branch={} reviewed_commit={}… worktree={} dep_revisions={}",
+                        b.plan_revision,
+                        &b.contract_hash[..b.contract_hash.len().min(12)],
+                        &b.semantic_hash[..b.semantic_hash.len().min(12)],
+                        &b.base_commit[..b.base_commit.len().min(12)],
+                        b.default_branch,
+                        pe_reviewed_commit,
+                        b.execution_root.as_deref().unwrap_or("(none)"),
+                        if b.dependency_revisions.is_empty() {
+                            "(none frozen)".to_string()
+                        } else {
+                            b.dependency_revisions
+                                .iter()
+                                .map(|(k, v)| format!("{k}={}", &v[..v.len().min(12)]))
+                                .collect::<Vec<_>>()
+                                .join(",")
+                        }
+                    ),
+                );
+            }
+        }
         let task = super::plan_flow::phase_task(
             &entry.engine.flow.id,
             &step_id,
             &initial_task,
-            &entry.context,
+            &context,
             &entry
                 .plan_execution
                 .as_ref()

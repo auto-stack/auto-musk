@@ -430,7 +430,7 @@ pub fn attach_binding_on_gate_approve(
         dev_branch: Some(lease.branch.clone()),
         authorization,
         repair_limit: pe.repair_limit,
-        dependency_revisions: std::collections::BTreeMap::new(),
+        dependency_revisions: freeze_dependency_revisions(),
     });
     ws.relay.set_plan_execution(run_id, pe.clone());
     push_facts(&ws.relay, run_id, facts_of(&pe, "approve", "bound", None, None));
@@ -672,6 +672,100 @@ fn verify_committed_work(
     Ok(head)
 }
 
+/// PLAN-096 T-07（§5.6/AC-07）：证据完整性核验——事实/完整性面（不执行
+/// 任何模型文本）。规则：`cmd:` 前缀 = 命令记录（逐字登记，语义正确性由
+/// reviewer 真实测试负责）；其余条目必须能解析为存在的工件（worktree/
+/// 主根相对或绝对路径）。伪路径/不存在 → 拒。
+fn verify_evidence_artifacts(
+    binding: &crate::relay::plan_contract::PlanExecutionBinding,
+    claim: &crate::relay::plan_contract::StageResult,
+) -> Result<(), String> {
+    let wt = binding.execution_root.as_deref();
+    let main = std::path::Path::new(&binding.main_root);
+    for ev in &claim.evidence {
+        if ev.starts_with("cmd:") {
+            if ev.len() <= 4 {
+                return Err("cmd: evidence entry carries no command record".into());
+            }
+            continue;
+        }
+        // 相对/绝对工件必须存在。
+        let candidates = [
+            std::path::PathBuf::from(ev),
+            wt.map(|w| std::path::Path::new(w).join(ev)).unwrap_or_default(),
+            main.join(ev),
+        ];
+        if !candidates.iter().any(|c| c.is_file() || c.is_dir()) {
+            return Err(format!(
+                "evidence artifact '{ev}' does not exist (worktree/main-root relative or                  absolute; 'cmd:' prefix records a command without a path)"
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// PLAN-096 T-07（AC-07）：依赖冻结——绑定时记录 MUSK_PLAN_DEP_DIRS
+/// （name=path;name=path）各仓 git tip；review/pass 与交付前复验漂移。
+pub fn freeze_dependency_revisions() -> std::collections::BTreeMap<String, String> {
+    let mut out = std::collections::BTreeMap::new();
+    let Ok(spec) = std::env::var("MUSK_PLAN_DEP_DIRS") else {
+        return out;
+    };
+    for pair in spec.split(';') {
+        let Some((name, path)) = pair.split_once('=') else {
+            continue;
+        };
+        let p = std::path::Path::new(path);
+        let out_ok = std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(p)
+            .output();
+        if let Ok(o) = out_ok {
+            if o.status.success() {
+                out.insert(
+                    name.trim().to_string(),
+                    String::from_utf8_lossy(&o.stdout).trim().to_string(),
+                );
+            }
+        }
+    }
+    out
+}
+
+fn verify_dependencies_unchanged(
+    binding: &crate::relay::plan_contract::PlanExecutionBinding,
+) -> Result<(), String> {
+    for (name, frozen) in &binding.dependency_revisions {
+        let Some((_, path)) = std::env::var("MUSK_PLAN_DEP_DIRS")
+            .ok()
+            .and_then(|spec| {
+                spec.split(';')
+                    .find_map(|pair| pair.split_once('=').map(|(n, p)| (n.to_string(), p.to_string())))
+                    .filter(|(n, _)| n == name)
+            })
+        else {
+            continue; // env 变了：无法复验的条目跳过（冻结值保留在绑定里）
+        };
+        let o = std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&path)
+            .output()
+            .map_err(|e| format!("dep {name} probe failed: {e}"))?;
+        if !o.status.success() {
+            return Err(format!("dep {name} at {path} is no longer a working git checkout"));
+        }
+        let tip = String::from_utf8_lossy(&o.stdout).trim().to_string();
+        if tip != *frozen {
+            return Err(format!(
+                "dependency drift: {name} moved {}..{} since approval — deposition refused, re-review required",
+                &frozen[..frozen.len().min(12)],
+                &tip[..tip.len().min(12)]
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Every §7 AC must be covered by a pass record with evidence (AC-04).
 fn verify_acceptance_covered(
     contract: &crate::relay::plan_contract::PlanContract,
@@ -750,6 +844,13 @@ fn route_execute_end(
     if let Err(e) = verify_acceptance_covered(&contract, claim) {
         return StageRouting::Fail(e);
     }
+    // 证据完整性与依赖漂移（T-07/AC-07）。
+    if let Err(e) = verify_evidence_artifacts(&binding, claim) {
+        return StageRouting::Fail(e);
+    }
+    if let Err(e) = verify_dependencies_unchanged(&binding) {
+        return StageRouting::Fail(format!("needs_replan: {e}"));
+    }
     // 计划状态机：executing → execution_done。
     if let Err(e) = transition_plan_status(ws, pe, "execution_done") {
         return StageRouting::Fail(format!("plan transition failed: {e}"));
@@ -790,6 +891,12 @@ fn route_review_end(
             };
             if let Err(e) = verify_acceptance_covered(&contract, claim) {
                 return StageRouting::Fail(format!("review pass rejected: {e}"));
+            }
+            if let Err(e) = verify_evidence_artifacts(&binding, claim) {
+                return StageRouting::Fail(format!("review pass rejected: {e}"));
+            }
+            if let Err(e) = verify_dependencies_unchanged(&binding) {
+                return StageRouting::Fail(format!("needs_replan: {e}"));
             }
             if let Err(e) = transition_plan_status(ws, &pe, "reviewed") {
                 return StageRouting::Fail(format!("plan transition failed: {e}"));
