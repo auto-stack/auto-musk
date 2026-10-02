@@ -121,6 +121,7 @@ export async function waitForRound({ base, token, runId, timeoutMs = 3600000, on
   const headers = token ? { authorization: `Bearer ${token}` } : {};
   const deadline = Date.now() + timeoutMs;
   let last = '';
+  const seenWarnings = new Set();
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 5000));
     const res = await fetch(`${base}/api/forge/relay/runs/${encodeURIComponent(runId)}`, { headers });
@@ -146,10 +147,10 @@ export async function waitForRound({ base, token, runId, timeoutMs = 3600000, on
       continue;
     }
     const verdict = roundStopVerdict(facts);
-    // 事件面合同警告留痕（continuation 等枚举外事件——权威面 plan_execution
-    // 不受影响;T-12 live 合同漂移修订）
+    // 事件面合同警告留痕（continuation/approve 等枚举外事件——权威面
+    // plan_execution 不受影响;去重避免每拍刷屏）
     for (const w of facts._contract_warnings ?? []) {
-      if (!last.includes(w)) onProgress?.(`warning ${w}`);
+      if (!seenWarnings.has(w)) { seenWarnings.add(w); onProgress?.(`warning ${w}`); }
     }
     const line = `status=${facts.status} phase=${facts.plan_execution?.phase ?? '-'} attempt=${facts.plan_execution?.attempt ?? '-'} repair=${facts.plan_execution?.repair_count ?? '-'}`;
     if (line !== last) { last = line; onProgress?.(line); }
