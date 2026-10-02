@@ -462,10 +462,22 @@ live 三场景：L1 清晰小工程从裸需求或显式 plan 入口完成（无
   reviews 的 canonical/归档源仍在，未迁移记档于此）|
   archived: status=archived + 移入 archived/（本提交），completion_kind=
   delivered |
-  cleaned: 清理后补记 |
-  工件核对: release musk.exe 需重建（2ed2210 lib 变更，重建后补 hash）；
-  web bundle 与 daemon 未被本计划触碰（后端仓内变更+只读依赖）；
-  批量回归 due 检查：.last-batch-regression.json 见后续补记
+  cleaned: wt-guard clean（两次：移除前+移除中）；plan-096-dev 分支已删
+  （@2427996 全部合入 main 实证 merge-base --is-ancestor 通过）；
+  worktree D:/autostack/.wt/musk-096/auto-musk 已移除、组目录
+  D:/autostack/.wt/musk-096/ 已消失（只读依赖兄弟 auto-ai/auto-lang/
+  auto-down detached 检出一并移除）；main 仅余主检出与本计划无关的
+  并发会话 musk-097 工作区（未触碰）|
+  工件核对: release musk.exe 已于落地码重建
+  sha256=beeb6d55b2c556d2c221553206381599a1d8f108422a6b3a0fe0a8d2196aa44a
+  （含迭代 B lib 变更；生产 8080 serve 本就不在运行，无重启面）；
+  web bundle（gen/front）与 daemon 未被本计划触碰——后端仓内变更+只读
+  依赖，无陈旧风险 |
+  批量回归 due 检查: docs/plans/.last-batch-regression.json 不存在
+  （形式上 due），但该 due-check 协议自身 scope=auto-lang 仓库
+  （fix-test-tiering 2026-09-30）；auto-musk 的计划级门=V02～V05/V07
+  已全绿，批量回归按 auto-lang 协议不适用本仓，记档为 N/A |
+  本计划收束：delivered
 
 ## 9. 复审记录
 
