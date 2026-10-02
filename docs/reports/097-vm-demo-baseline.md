@@ -197,3 +197,30 @@ store facade 基目录序（CWD 相对首基应命中 worktree 文件）或提�
 **实现注记**：widget 列表 prop 类型须用具体数组形态（`[]obj`，StreamingTable
 先例）；单 .at 文件单 widget（双 widget + widget 内 use store 解析失败实测，
 Feed 独立成 canvas_prog_feed.at）。
+
+## T-05 附页② — 依赖缺口更正与 auto-lang 修复尝试记录（2026-10-02 晚）
+
+用户授权在本计划内开 auto-lang 依赖 worktree 修复。调查结论**修正**了附页①
+的缺口定性：
+
+1. **"store facade 解析到主检出"已在 auto-lang 今日 master 修复**。实证：
+   worktree 构建的 auto（master ecc2d6710,auto-musk-dev-097 分支调试构建）
+   运行同一探针，`store facade: use store: AuthStore resolved to
+   D:\autostack\.wt\musk-097\auto-musk\src\front\auth_store.at`——worktree
+   解析正确。附页①登记的缺陷是**旧二进制行为**（PATH 上的
+   target/debug/auto.exe 构建于 982e8004@13:06，早于修复落点）。
+   auto-lang 侧无需新代码：本次开的依赖 worktree/分支/插桩已全部还原
+   清理（零提交落地）。
+2. **流程缺口（保留为硬约束）**：探针/演示的 VM 跑必须显式构建并锁定
+   当日 auto-lang 二进制（AUTO_EXE 指向），不得沿用 PATH 上可能滞后的
+   构建——本次 blocking 误诊即源于此。T-06 vm-session.mjs 冻结此规则。
+3. **新阻断（更窄，替代附页①的缺口）**：换用当日 master 构建后，store
+   解析正确，但 chats_view studio 块内的子件实例化整体静默失败
+   （studio_mode=true、按钮激活态、块容器渲染，子件零实例——含此前
+   已实证可渲染的 5-prop 形态）。master 正被 PLAN-728~730 活跃开发，
+   本轮未在移动靶上继续追。下一步：锁定一个 auto-lang 稳定构建点
+   （与在途计划 owner 协调）后单变量复验 probe-g15.mjs；若仍复现，
+   按新证据立 auto-lang 修复计划。
+
+探针件/收据不变：tmp/plan097-t01/probe-g15.mjs、
+D:/autostack/.demo/musk-097/t05-g15/*（含 vm-full.log 全量日志）。
