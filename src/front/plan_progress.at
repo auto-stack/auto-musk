@@ -1,0 +1,175 @@
+// plan_progress.at — PLAN-097 T-04: PlanProgressCard（VM 计划进度紧凑卡）。
+//
+// 消费 PlanProgressStore（T-03 单飞轮询 + 代次绑定）。挂在 chat_message
+// 的 spawn_relay 卡位（RelayRunBox 上方）——不另建主栏目，不打断 composer
+// 草稿/审批/Canvas 状态（§5.1）。
+//
+// 展示面（§5.1）：相位轨（规划→实施→复审→沉淀→已交付）、plan/revision/
+// attempt/修复计数摘要、blocker 横幅、交付检查点行、可展开阶段记录；
+// 终态显式标「已完成阶段记录」（不伪装正在运行）；断连显示陈旧横幅；
+// contract_version 不兼容显示不兼容横幅（不默认为成功）。
+// 中英经 i18n catalog（src/front/i18n/{zh,en}.json planProgress.*）。
+
+use store: PlanProgressStore
+use plan_progress_helpers: planPhaseIndex, planPhaseTabStyle, planRunTerminal
+use.web useI18n from "src/front/ports/composables.at"
+
+widget PlanProgressCard(runId: str) {
+
+    setup {
+        let i18n = useI18n()
+        refs i18n: [locale]
+    }
+
+    model {
+        var expanded bool = false
+    }
+
+    computed {
+        show => .runId != "" && store.pp_has_facts
+        phaseIdx => planPhaseIndex(store.pp_phase)
+        isHistory => planRunTerminal(store.pp_run_status)
+        hasBlocker => store.pp_blocker != ""
+        contractBad => !store.pp_contract_ok
+        hasStages => store.pp_stage_rows.length > 0
+        cpRows => store.pp_checkpoint_rows
+        stageRows => store.pp_stage_rows
+    }
+
+    on {
+        // 挂载即 Attach（单 store 文件内派发——VM 轨 handler 域跨 store
+        // 实例调用是已知破绽，本组件自持生命周期，父级只传 runId）。
+        .Init -> {
+            if .runId != "" {
+                store.Attach("", .runId)
+            }
+        }
+        .Destroy -> {
+            store.Detach()
+        }
+        .Toggle -> {
+            .expanded = !.expanded
+        }
+    }
+
+    view {
+        if .show {
+            col {
+                style: "plan-progress w-full border border-border/60 rounded-lg px-3 py-2 mb-1 bg-card/30 text-[12px]"
+
+                // 摘要行：相位轨 + 历史/失败标签
+                row {
+                    style: "flex items-center gap-2 flex-wrap w-full"
+                    text i18n.t("planProgress.phaseLabel") { style: "text-[10.5px] uppercase tracking-wide text-muted-foreground/70" }
+                    text i18n.t("planProgress.phasePlan") { style: planPhaseTabStyle(0, .phaseIdx) }
+                    text "→" { style: "text-muted-foreground/40 text-[10px]" }
+                    text i18n.t("planProgress.phaseExecute") { style: planPhaseTabStyle(1, .phaseIdx) }
+                    text "→" { style: "text-muted-foreground/40 text-[10px]" }
+                    text i18n.t("planProgress.phaseReview") { style: planPhaseTabStyle(2, .phaseIdx) }
+                    text "→" { style: "text-muted-foreground/40 text-[10px]" }
+                    text i18n.t("planProgress.phaseDocument") { style: planPhaseTabStyle(3, .phaseIdx) }
+                    text "→" { style: "text-muted-foreground/40 text-[10px]" }
+                    text i18n.t("planProgress.phaseDelivered") { style: planPhaseTabStyle(4, .phaseIdx) }
+                    if .isHistory {
+                        text i18n.t("planProgress.historyTag") { style: "ml-auto text-[10.5px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground" }
+                    }
+                }
+
+                // 身份/进度摘要行：plan · r{rev} · {phase} · 尝试 {n} · 修复 {c}/{lim}
+                row {
+                    style: "flex items-center gap-2 flex-wrap w-full mt-1"
+                    text `${store.pp_plan_id}` { style: "font-medium text-foreground text-[12px]" }
+                    text `r${store.pp_plan_revision}` { style: "text-muted-foreground" }
+                    text `${store.pp_phase}` { style: "text-muted-foreground" }
+                    text `${store.pp_attempt}` { style: "text-muted-foreground" }
+                    text i18n.t("planProgress.attemptLabel") { style: "text-muted-foreground" }
+                    text `${store.pp_repair_count}/${store.pp_repair_limit}` { style: "text-muted-foreground" }
+                    text i18n.t("planProgress.repairLabel") { style: "text-muted-foreground" }
+                }
+
+                // 交付检查点行（冻结序五点）
+                row {
+                    style: "flex items-center gap-2 flex-wrap w-full mt-1"
+                    text i18n.t("planProgress.checkpointsLabel") { style: "text-[10.5px] text-muted-foreground/70" }
+                    for cp in .cpRows {
+                        row {
+                            style: "flex items-center gap-1"
+                            if cp.done {
+                                text "✓" { style: "text-green-500 text-[11px]" }
+                            } else {
+                                text "○" { style: "text-muted-foreground/50 text-[11px]" }
+                            }
+                            text i18n.t("planProgress.cp_" + cp.key) { style: "text-[11px] text-muted-foreground" }
+                        }
+                    }
+                }
+
+                // blocker 横幅（blocked/needs_replan 事实可见，AC-01）
+                if .hasBlocker {
+                    row {
+                        style: "flex items-start gap-1.5 mt-1.5 w-full rounded bg-destructive/10 border border-destructive/30 px-2 py-1"
+                        text i18n.t("planProgress.blockerBanner") { style: "text-[11.5px] text-destructive shrink-0" }
+                        text store.pp_blocker { style: "text-[11.5px] text-destructive break-all" }
+                    }
+                }
+
+                // 断连陈旧横幅（最后成功快照 + 明确陈旧，AC-02）
+                if store.pp_stale {
+                    row {
+                        style: "flex items-center gap-1.5 mt-1.5 w-full rounded bg-amber-500/10 border border-amber-500/30 px-2 py-1"
+                        text i18n.t("planProgress.staleBanner") { style: "text-[11.5px] text-amber-600" }
+                    }
+                }
+
+                // 合同版本不兼容横幅（未知版本显式呈现，不默认为成功）
+                if .contractBad {
+                    row {
+                        style: "flex items-center gap-1.5 mt-1.5 w-full rounded bg-destructive/10 border border-destructive/30 px-2 py-1"
+                        text i18n.t("planProgress.incompatibleBanner") { style: "text-[11.5px] text-destructive" }
+                    }
+                }
+
+                // 展开开关：阶段记录 + reviewed_commit + receipt
+                if .hasStages || store.pp_reviewed_commit != "" || store.pp_receipt_ref != "" {
+                    button {
+                        onclick: .Toggle
+                        style: "mt-1.5 flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-[11px] text-muted-foreground hover:text-foreground"
+                        if .expanded {
+                            text "▼"
+                        } else {
+                            text "▶"
+                        }
+                        text i18n.t("planProgress.stageRecordsLabel")
+                    }
+                }
+                if .expanded {
+                    col {
+                        style: "mt-1 flex flex-col gap-1 pl-3 border-l border-border/60"
+                        for sr in .stageRows {
+                            row {
+                                style: "flex items-center gap-2"
+                                text sr.stage { style: "text-[11px] text-foreground" }
+                                text `#${sr.attempt}` { style: "text-[11px] text-muted-foreground" }
+                                text i18n.t("planProgress.oc_" + sr.outcome) { style: "text-[11px] text-muted-foreground" }
+                            }
+                        }
+                        if store.pp_reviewed_commit != "" {
+                            row {
+                                style: "flex items-center gap-2"
+                                text i18n.t("planProgress.reviewedCommitLabel") { style: "text-[11px] text-muted-foreground" }
+                                text store.pp_reviewed_commit { style: "text-[11px] font-mono text-muted-foreground" }
+                            }
+                        }
+                        if store.pp_receipt_ref != "" {
+                            row {
+                                style: "flex items-center gap-2"
+                                text i18n.t("planProgress.receiptLabel") { style: "text-[11px] text-muted-foreground" }
+                                text store.pp_receipt_ref { style: "text-[11px] font-mono text-muted-foreground break-all" }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

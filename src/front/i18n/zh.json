@@ -569,5 +569,32 @@
     "progSt_requested": "已请求启动",
     "progSt_unverified": "未验证",
     "progSt_info": "已更新"
+  },
+  "planProgress": {
+    "phaseLabel": "阶段",
+    "phasePlan": "规划",
+    "phaseExecute": "实施",
+    "phaseReview": "复审",
+    "phaseDocument": "沉淀",
+    "phaseDelivered": "已交付",
+    "attemptLabel": "尝试",
+    "repairLabel": "修复",
+    "blockerBanner": "阻塞：",
+    "staleBanner": "连接中断——显示最近已知进度",
+    "incompatibleBanner": "计划事实合同版本不兼容——请核对部署",
+    "checkpointsLabel": "交付检查点",
+    "cp_prepared": "准备",
+    "cp_landed": "落地",
+    "cp_ledger_refreshed": "账本",
+    "cp_archived": "归档",
+    "cp_cleaned": "清理",
+    "stageRecordsLabel": "阶段记录",
+    "historyTag": "已完成阶段记录",
+    "receiptLabel": "交付收据",
+    "reviewedCommitLabel": "复审提交",
+    "oc_pass": "通过",
+    "oc_needs_fix": "需修复",
+    "oc_needs_replan": "需重规划",
+    "oc_blocked": "阻塞"
   }
 }

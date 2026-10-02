@@ -38,6 +38,7 @@ use user_message: UserMessage
 use agent_avatar: AgentAvatar
 use errand_card: ErrandCard
 use relay_run_box: RelayRunBox
+use plan_progress: PlanProgressCard
 use task_plan_card: TaskPlanCard
 use report_card: ReportCard
 // PLAN-073 F-B：审批门卡片接入聊天消息视图——原 ToolGateCard 只挂在已退役
@@ -382,6 +383,11 @@ style {
                                     // 后恢复可用；历史坑①观测以此验证）。双通道
                                     // 互为兜底：任一通道取到 run_id 即渲染运行框。
                                     if .block.tc.run_id != "" || extractRunId(.block.tc) != "" {
+                                        // PLAN-097 T-04: 计划进度紧凑卡（自持
+                                        // Attach/Detach 生命周期，单 store 文件）
+                                        PlanProgressCard {
+                                            runId: if .block.tc.run_id != "" { .block.tc.run_id } else { extractRunId(.block.tc) }
+                                        }
                                         RelayRunBox {
                                             runId: if .block.tc.run_id != "" { .block.tc.run_id } else { extractRunId(.block.tc) }
                                         }

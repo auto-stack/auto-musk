@@ -569,5 +569,32 @@
     "progSt_requested": "Start requested",
     "progSt_unverified": "Not verified",
     "progSt_info": "Updated"
+  },
+  "planProgress": {
+    "phaseLabel": "Phase",
+    "phasePlan": "Plan",
+    "phaseExecute": "Execute",
+    "phaseReview": "Review",
+    "phaseDocument": "Document",
+    "phaseDelivered": "Delivered",
+    "attemptLabel": "Attempt",
+    "repairLabel": "Repairs",
+    "blockerBanner": "Blocked: ",
+    "staleBanner": "Connection lost — showing last known progress",
+    "incompatibleBanner": "Plan facts contract version incompatible — check deployment",
+    "checkpointsLabel": "Delivery checkpoints",
+    "cp_prepared": "Prepared",
+    "cp_landed": "Landed",
+    "cp_ledger_refreshed": "Ledger",
+    "cp_archived": "Archived",
+    "cp_cleaned": "Cleanup",
+    "stageRecordsLabel": "Stage records",
+    "historyTag": "Completed stage record",
+    "receiptLabel": "Delivery receipt",
+    "reviewedCommitLabel": "Reviewed commit",
+    "oc_pass": "pass",
+    "oc_needs_fix": "needs fix",
+    "oc_needs_replan": "needs replan",
+    "oc_blocked": "blocked"
   }
 }
