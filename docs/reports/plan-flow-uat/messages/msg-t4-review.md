@@ -1,0 +1,1 @@
+这是一个新的会话，你没有任何前置上下文。demo 仓库里有一份已归档的计划 docs/plans/archived/001-password-generator-web-app.md（PLAN-001）。请用 /auto-plan:review 技能对它做一次复核：按技能对 archived 请求的规则做核实性验证（no-op 路径），核对归档收据与实际落地状态是否一致（main 提交、spec 文件、测试），给出你的结论。
