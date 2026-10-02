@@ -491,12 +491,13 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
    节点动作与截图可达，实时取景优先，完成记录明确标签，缺事实不能补造。
 4. **无链接构建 staging 与现有依赖解析。** owner=B T-01；记录真实复制/
    构建命令和源 hash。若工具写链接进 worktree，改到外部 staging 后再跑。
-5. **T-05 VM 行内容阻断（依赖面更正，见 §9 phase 记录）。** 原登记的
-   "store facade worktree 解析到主检出"已被 auto-lang 今日 master 修复
-   （ecc2d6710 实证，原观察为旧二进制行为）；现行阻断=当日构建下
-   chats_view studio 块子件实例化静默失败（更窄，疑似在途 PLAN-728~730
-   相关回归面）。解阻塞动作：与在途 owner 协调锁定稳定构建点后
-   probe-g15.mjs 复验；详见 baseline 附页②。
+5. **T-05 VM 行内容阻断（两轮更正后定案，见 §9 phase 记录与 baseline
+   附页①②③）。** ①store facade worktree 解析已在 auto-lang master 修复
+   （旧二进制行为）；②子件实例化失败在 PLAN-729 稳定点消失；③现行阻断=
+   auto-lang VM 运行时在 store handler 域调用模块级 fn 返回空列表
+   （同文件/跨模块同症；musk 侧终版设计已就位,52b7733/b2285ac）。
+   解阻塞动作：auto-lang 立项修 VM fn 调用语义;最小复现 probe-g15.mjs +
+   canvas_store.at 内联 fn；修后 musk 侧零改动,行内容自然到达。
 
 以上均有本计划内的有界调查任务，当前无须用户重复确认既有示例方向。调查
 导致目标/验收/允许仓库范围改变时，按 auto-plan:new 修订并保留原 AC 与证据。
