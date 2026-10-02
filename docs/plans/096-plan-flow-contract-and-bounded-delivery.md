@@ -454,7 +454,8 @@ live 三场景：L1 清晰小工程从裸需求或显式 plan 入口完成（无
   逐项失败实录见 evidence §2）。T-13 docs/reports/096-plan-flow-spec-delta.md
   （SD-01～04 before/after + B 消费合同定版样例）。T-14 终门：V01 绿；
   V02 19 绿/V03 6 绿/V04 9 绿（--test-threads=1）；V05 5 套全绿；V07 lib
-  534 绿；V08 release 重建于 2dc05df（hash 见下）；wt-guard clean；
+  534 绿；V08 release 重建于 2dc05df
+  - 终版 release（2dc05df）：musk.exe sha256=cedfee7c4f1ca0abd1f6daeb9b0ceffbcc0a7c06ba81c4e773f68d21643c5c6a（71a788c→2dc05df 仅 tests/docs 变更，lib 码一致故 hash 相同；重建实测 1.04s 无重编）。；wt-guard clean；
   worktree 提交干净。
 - stage: work | plan_id: PLAN-096 | plan_revision: 1 | outcome: 进行中 |
   code_commit(worktree plan-096-dev): c11562a（T-05；此前 8ca8a6d=T-03、
