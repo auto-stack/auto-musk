@@ -79,6 +79,9 @@ export function bootstrapRepo({ repoDir, sourceDir }) {
 - 界面跑在 Musk 原生 VM Canvas 上;数据文件放 app 目录内(app 相对路径
   实际落在 <app>/src/front/data/,跨 Canvas stop/start 存活)。
 - 需求原文见 requests/;每轮需求独立提交,不带前几轮聊天上下文(P003 新会话)。
+- 计划文档硬格式（控制器 plan_contract 校验,不合规 = run 失败）：§7 验收
+  标准与 §8 执行步骤必须用 markdown checkbox 行（每条一行 "- [ ]"），
+  §8 至少 1 条任务,frontmatter total_steps 必须等于 §8 任务数。
 `);
   created.push('AGENTS.md');
 
