@@ -1,0 +1,43 @@
+{
+ "props": {
+  "runId": "fixture-run"
+ },
+ "mock": {
+  "/api/forge/relay/runs/fixture-run": {
+   "run_id": "fixture-run",
+   "status": "completed",
+   "plan_execution": {
+    "contract_version": 1,
+    "plan_id": "PLAN-FIXTURE",
+    "plan_seq": 1,
+    "plan_path": "docs/plans/fixture.md",
+    "plan_revision": 1,
+    "phase": "delivered",
+    "attempt": 1,
+    "outcome": "pass",
+    "repair_count": 0,
+    "repair_limit": 3,
+    "continuations": {},
+    "blocker": null,
+    "binding": { "contract_version": 1, "authorization": "auto", "repair_limit": 3 },
+    "reviewed_commit": "ffffffffffffffffffffffffffffffffffffffff",
+    "delivery_checkpoints": {
+     "prepared": { "checkpoint": "prepared" },
+     "landed": { "checkpoint": "landed" },
+     "ledger_refreshed": { "checkpoint": "ledger_refreshed" },
+     "archived": { "checkpoint": "archived" },
+     "cleaned": { "checkpoint": "cleaned" }
+    },
+    "receipt_ref": ".autoos/plan-delivery/PLAN-FIXTURE.json",
+    "skills": {},
+    "stage_results": []
+   }
+  }
+ },
+ "expect": {
+  "visible": ["PLAN-FIXTURE", "已交付", "交付检查点", "✓", "已完成阶段记录"]
+ },
+ "interactions": [
+  { "click": "阶段记录", "visible": ["复审提交", "ffffffffffffffffffffffffffffffffffffffff"] }
+ ]
+}

@@ -89,9 +89,17 @@ async function runMode(mode, caseId) {
   const render = mode === 'vm' ? 'vm' : 'vue';
   const executable = process.env.AUTO_EXE ?? 'auto';
   const requests = [];
+  // PLAN-097 T-10: fixture.mock 提供确定性 API 响应（如 relay RunState）——
+  // 消费型组件（PlanProgressStore 轮询）在 gallery 内可渲染生产合同事实。
   const mock = createServer(async (req, res) => {
     let body = ''; for await (const chunk of req) body += chunk;
     requests.push({ method: req.method, path: req.url, body });
+    const route = (fixture.mock ?? {})[req.url.split('?')[0]];
+    if (route !== undefined) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(typeof route === 'string' ? route : JSON.stringify(route));
+      return;
+    }
     res.writeHead(200, { 'content-type': 'application/json' }); res.end('{}');
   });
   await new Promise(resolve => mock.listen(0, '127.0.0.1', resolve));
@@ -118,10 +126,12 @@ async function runMode(mode, caseId) {
       }
       await waitFor(endpoint, Math.max(5000, deadline - Date.now()));
       const payload = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'autoui_snapshot', arguments: { mode: 'rendered' } } });
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 28; i++) {
         snapshotBody = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload }).then(r => r.text());
         const readyText = mcpText(snapshotBody);
-        const expected = [caseId];
+        // PLAN-097 T-10: expect.visible 并入就绪门——消费型组件的事实经
+        // store timer 轮询到达（~1-2 拍），静态 fixture 首拍即过。
+        const expected = [caseId, ...(fixture.expect?.visible ?? [])];
         if (expected.every(value => readyText.includes(value))) break;
         await new Promise(r => setTimeout(r, 250));
       }

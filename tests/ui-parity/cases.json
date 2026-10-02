@@ -214,6 +214,24 @@
       "plan": "PLAN-077"
     },
     {
+      "id": "plan-progress-card",
+      "unit": "PlanProgressCard",
+      "fixture": "plan-progress-card.json",
+      "mode": "render-and-interact",
+      "state": "production-contract",
+      "owner": "PLAN-097",
+      "plan": "PLAN-097"
+    },
+    {
+      "id": "canvas-progress-summary",
+      "unit": "CanvasProgressSummary",
+      "fixture": "canvas-progress-summary.json",
+      "mode": "render-and-interact",
+      "state": "store-projection",
+      "owner": "PLAN-097",
+      "plan": "PLAN-097"
+    },
+    {
       "id": "chat-multi-round",
       "unit": "ChatMessage",
       "fixture": "chat-multi-round.json",
