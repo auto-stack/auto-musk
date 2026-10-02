@@ -4,9 +4,9 @@ status: executing
 feature_name: VM 计划开发演示与全流程证据
 author: [agent]
 created_at: 2026-10-02T01:40:31Z
-updated_at: 2026-10-02T09:22:00Z
+updated_at: 2026-10-02T09:55:00Z
 plan_revision: 1
-current_step: 1
+current_step: 2
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-studio-ui.md
@@ -342,7 +342,7 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
 | 完成/任务 | 依赖 | 文件/符号与产出 | 验证与预期 | AC |
 |---|---|---|---|---|
 | [x] T-01 | 无；可与 A 并行 | 新 docs/reports/097-vm-demo-baseline.md；只读 canvas/mcp_client.rs、session.rs、scripts/ui-parity/live.mjs、relay_store.at、既有 VM 文件能力；四项有限探针，记录截图/动作/私有端口/跨启保存/无链接构建路线 | V01 等价探针全部具备命令与决定；缺能力明确定位，不预制业务、不改依赖仓 | 04,06,11,14,15 |
-| [ ] T-02 | T-01；A review/merge 已交付 | 冻结 A plan-execution-contract/实际 query 与入口、DTO/event/成功失败样例/hash 到 baseline；新增 scripts/demo/contract.mjs；确定 store owner、确切异步通道与 staging 命令 | V01/V02 正确事实可消费，未知版本/缺件明确拒绝；必要 A 缺口回交，不解析叙述补事实 | 01,02,08,16 |
+| [x] T-02 | T-01；A review/merge 已交付 | 冻结 A plan-execution-contract/实际 query 与入口、DTO/event/成功失败样例/hash 到 baseline；新增 scripts/demo/contract.mjs；确定 store owner、确切异步通道与 staging 命令 | V01/V02 正确事实可消费，未知版本/缺件明确拒绝；必要 A 缺口回交，不解析叙述补事实 | 01,02,08,16 |
 | [ ] T-03 | T-02 | 新 plan_progress_store.at/plan_progress_helpers.at（或有据并入 RelayStore）；接 relay_store.at/forge_store.at；单飞、身份/代次、陈旧、终态、纯投影 | V02/V04 乱序/切换/断连/修复/交付缺项；新身份不受迟到污染 | 01,02,08 |
 | [ ] T-04 | T-03 | 新 plan_progress.at；接 chats_view.at/relay_run_box.at；摘要、展开阶段记录/历史标签/receipt；src/front/i18n/{zh,en}.json 与 lib/i18n.at 既有接线 | V03/V04 原生 VM 可见四阶段与失败，中英/宽度/草稿保留；历史不能标实时 | 01,05,07,15 |
 | [ ] T-05 | T-03 | canvas_progress.at/canvas_helpers.at/forge_store.at 与相关 CanvasStore 消息；必要 rows 预计算，消除 G-15，保持工具事实分类 | V03/V04 真 VM tool→store→可见摘要；未验证/失败不绿，seq 不宣称因果 | 03,04,15 |
@@ -399,6 +399,28 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
 - blockers: 无（发现 1/3/4 已在报告定级，均不阻断 T-02）
 - next: T-02（A 的 plan-execution-contract 已随 096 交付落地，冻结消费合同/
   DTO/hash 到 baseline；随后 T-03 起接线）
+
+### work 阶段记录（T-02 完成）
+
+- stage: work | plan_id: PLAN-097 | plan_revision: 1 | outcome: pass
+- code_commit(worktree plan-097-dev): c41fd1d
+- task_ids: T-02
+- evidence: baseline 报告新增「T-02 冻结」节——冻结来源 hash×5（spec
+  43c26a74/dto e95fa755/control a23500e3/store 20e84b7f/probe 49dc9fdc）；
+  实测通道形状（列表 {"runs":[RunSummary]} 不含 plan_execution；详情
+  RunState 顶层键 run_id + 500 条事件窗口；缺 run=纯文本 404，非 null body，
+  contract.mjs 已识别）；DTO 必填/default/skip 面 + phase/outcome 枚举 +
+  五检查点键 + delivered⇒五键全在（缺件完成不绿）；成功/失败样例冻结于
+  contract.mjs（live 全量样例 T-12 绑定）。新增 scripts/demo/contract.mjs
+  （零依赖）+ tests/demo/contract.test.mjs：V02 拒绝矩阵 13/13 绿（未知
+  版本/缺件/坏枚举/未知检查点/delivered 缺件/绝对收据路径/坏事件/404 文本/
+  非法 JSON 显式拒绝）；V01 live 烟测（真后端：空列表、404 识别、发现通道
+  空→null）。三项决策落定：store owner=独立 plan_progress_store.at（不并
+  RelayStore——SSE 无关+生命周期不同）；异步通道=ForgeStore 发即返+回填+
+  inflight 单飞+代次拒收+终态停拍（1Hz）；staging 命令沿 T-01 冻结配方。
+  无 A 侧缺口需回交。
+- blockers: 无
+- next: T-03（plan_progress_store.at/helpers 接线单飞轮询与纯投影）
 
 ## 10. 待澄清事项
 
