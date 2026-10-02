@@ -224,6 +224,8 @@ fn factory_execution_scope_follows_phase_and_binding() {
         plan_revision: 1,
         contract_hash: "ch".into(),
         semantic_hash: "sh".into(),
+        semantic_parts: Default::default(),
+        approved_canonical: None,
         skills_hashes: Default::default(),
         default_branch: "master".into(),
         base_commit: "base".into(),
