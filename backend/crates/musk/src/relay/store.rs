@@ -974,7 +974,7 @@ impl RunStore {
                 );
             }
         }
-        let task = super::plan_flow::phase_task(
+        let mut task = super::plan_flow::phase_task(
             &entry.engine.flow.id,
             &step_id,
             &initial_task,
@@ -988,6 +988,27 @@ impl RunStore {
                 .unwrap_or_default(),
         )
         .unwrap_or(initial_task);
+        // PLAN-096 T-05（AC-05）：修复轮的 coder 必须看到复审发现——
+        // needs_fix 回退后 attempt>1 且相位为 execute 时，追加最近一轮
+        // review/needs_fix 的 findings（控制器注入的 repair_findings）。
+        if entry.engine.flow.id == "plan" && step_id == "execute" {
+            if let Some(pe) = entry.plan_execution.as_ref() {
+                if pe.phase == "execute" && pe.attempt > 1 {
+                    if let Some(f) = entry.context.get("repair_findings") {
+                        if !f.is_empty() {
+                            let round = pe.attempt - 1;
+                            task.push_str(&format!(
+                                "
+
+# 复审发现（第 {round} 轮 needs_fix，本相位必须逐条落实）
+{f}
+"
+                            ));
+                        }
+                    }
+                }
+            }
+        }
         // PLAN-094（UAT K5 定向重跑的前提）：门反馈必须送达被重做的相位。
         // 引擎把 reject(feedback) 记在被门守卫的步名下（`feedback_for`），
         // 但此组装点自 P2b.2 起从未消费它——重跑相位看不到反馈，定向重跑

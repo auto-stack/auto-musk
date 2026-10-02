@@ -997,6 +997,24 @@ fn route_review_end(
                 pe.outcome = Some("needs_fix".into());
                 Ok(())
             });
+            // 修复轮的 coder 必须看到复审发现（引擎 history 已截断，模板
+            // 不带 coder 自述）——findings 注入上下文，step_context 消费。
+            let findings_block = claim
+                .findings
+                .iter()
+                .map(|f| {
+                    format!(
+                        "- [{}] task={} ac={}：{}",
+                        f.id,
+                        f.task.as_deref().unwrap_or("-"),
+                        f.ac.as_deref().unwrap_or("-"),
+                        f.description
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("
+");
+            ws.relay.set_context_var(run_id, "repair_findings", &findings_block);
             match rewound {
                 Some(Ok(())) => {}
                 Some(Err(e)) => return StageRouting::Fail(format!("rewind failed: {e}")),
