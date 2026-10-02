@@ -743,3 +743,90 @@ fn semantic_drift_rules() {
     }
     std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
 }
+
+/// T-06/AC-09：截断响应不准跨阶段成功——一次有界续做（同相位重入，与
+/// 修复轮分开计数），再截断 → 带工件位置的响亮失败。
+#[tokio::test]
+#[serial]
+async fn truncation_gets_one_bounded_continuation_then_fails_loud() {
+    use auto_ai_agent::Client as _C;
+    use auto_ai_client::{ClientError as _CE, CompletionRequest as _CR, CompletionResponse as _CRes};
+    use musk::relay::plan_runtime_client::{clear, truncated_for};
+
+    struct TruncClient;
+    #[async_trait::async_trait]
+    impl _C for TruncClient {
+        async fn complete(&self, _req: &_CR) -> Result<_CRes, _CE> {
+            Err(_CE::DaemonUnavailable)
+        }
+    }
+
+    let env = route_env("trunc");
+    let ws = env.state.registry.get(&env.ws_id);
+    let run_id = start_bound_run(&env, "trunc");
+    ws.relay.advance(&run_id).unwrap();
+
+    // 模拟一次截断响应（真实链路由 PlanRuntimeClient 记录；此处经同一
+    // 注册表 API 登记，与包装器落点一致）。
+    let wrapper = musk::relay::plan_runtime_client::PlanRuntimeClient::new(
+        Arc::new(TruncClient) as Arc<dyn _C>,
+        &run_id,
+        1024,
+    );
+    // wrapper 只在成功响应后登记 stop——直接走单元级注册面：用内部可写
+    // 的 records 通道不可行（私有），改为经 MockInner 成功路径登记。
+    struct TruncOkClient;
+    #[async_trait::async_trait]
+    impl _C for TruncOkClient {
+        async fn complete(&self, _req: &_CR) -> Result<_CRes, _CE> {
+            Ok(_CRes {
+                content: "partial…".into(),
+                tool_calls: Vec::new(),
+                stop_reason: Some("max_tokens".into()),
+                usage: None,
+                model: "mock".into(),
+                error: None,
+                model_meta: None,
+            })
+        }
+    }
+    drop(wrapper);
+    let wrapper = musk::relay::plan_runtime_client::PlanRuntimeClient::new(
+        Arc::new(TruncOkClient) as Arc<dyn _C>,
+        &run_id,
+        1024,
+    );
+    let _ = wrapper.complete(&_CR::single("m", "x")).await;
+    assert!(truncated_for(&run_id));
+
+    // 阶段收束：截断 → 一次有界续做（同相位重入；声明作废）。
+    record_stage_claim(&ws.relay, &run_id, claim("plan", "pass", 1)).unwrap();
+    assert!(matches!(
+        on_stage_end(&env.state, &env.ws_id, &run_id),
+        StageRouting::RewoundToExecute
+    ));
+    let pe = ws.relay.plan_execution(&run_id).unwrap();
+    assert_eq!(pe.continuations.get("plan"), Some(&1));
+    assert_eq!(pe.repair_count, 0, "continuation is NOT a repair round");
+    assert!(
+        !pe.stage_results.iter().any(|r| r.stage == "plan"),
+        "stale claim invalidated for the continuation"
+    );
+    // 续做内再截断 → 响亮失败（带工件位置）。
+    let w2 = musk::relay::plan_runtime_client::PlanRuntimeClient::new(
+        Arc::new(TruncOkClient) as Arc<dyn _C>,
+        &run_id,
+        1024,
+    );
+    let _ = w2.complete(&_CR::single("m", "x")).await;
+    record_stage_claim(&ws.relay, &run_id, claim("plan", "pass", 1)).unwrap();
+    match on_stage_end(&env.state, &env.ws_id, &run_id) {
+        StageRouting::Fail(e) => {
+            assert!(e.contains("continuation budget exhausted"), "{e}");
+            assert!(e.contains("docs/plans/"), "error carries artifact location: {e}");
+        }
+        other => panic!("second truncation must fail loud, got {other:?}"),
+    }
+    clear(&run_id);
+    std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
+}

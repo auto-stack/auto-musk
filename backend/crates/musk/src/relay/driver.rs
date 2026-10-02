@@ -108,8 +108,34 @@ impl AgentFactory for MuskAgentFactory {
             progress: Some(crate::tool_context::ProgressSink::for_run(&self.run_id)),
             execution_root: self.execution_scope_for_current_step(),
         };
-        let mut agent =
-            crate::build_agent_with_context(&mode, self.state.client.clone(), Some(tool_ctx))?;
+        // PLAN-096 T-06（§5.5/AC-09）：plan 流 run 的请求走 musk 局部包装
+        // ——缺省补 max_tokens 输出上限 + stop_reason 截断登记；两轨 factory
+        // 共用（ag 经 extern_impl 委托 hw）。其他流/全局 daemon 不变。
+        let flow_id_for_client = self
+            .state
+            .registry
+            .get(&self.workspace_id)
+            .relay
+            .flow_of(&self.run_id);
+        let client: Arc<dyn auto_ai_agent::Client> =
+            if matches!(flow_id_for_client.as_deref(), Some("plan") | Some("plan-merge"))
+                && self
+                    .state
+                    .registry
+                    .get(&self.workspace_id)
+                    .relay
+                    .plan_execution(&self.run_id)
+                    .is_some()
+            {
+                Arc::new(crate::relay::plan_runtime_client::PlanRuntimeClient::new(
+                    self.state.client.clone(),
+                    &self.run_id,
+                    crate::relay::plan_runtime_client::effective_max_tokens(),
+                ))
+            } else {
+                self.state.client.clone()
+            };
+        let mut agent = crate::build_agent_with_context(&mode, client, Some(tool_ctx))?;
         // Inject prior handoff context if this isn't the first step — unless
         // the flow retired the channel (PLAN-086 T-02: plan/plan-merge rely
         // on the plan file as the sole inter-phase carrier). The ag factory

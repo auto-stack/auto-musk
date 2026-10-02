@@ -477,7 +477,39 @@ fn on_stage_end_inner(
         return StageRouting::Fail("stage end on a run without plan execution".into());
     };
     let stage = pe.phase.clone();
-    // 1. 必须有本 attempt 的有效结果（Done/handoff/绿勾不能替代，AC-04）。
+    // 1.5 输出截断（T-06/AC-09）：截断形态响应登记为不完整——不准以截断
+    // 跨阶段成功；每个阶段允许一次有界续做（读取已落盘工件、不重复
+    // create_plan；与修复轮分开计数），仍截断/无结果 → 带工件位置响亮失败。
+    if crate::relay::plan_runtime_client::truncated_for(run_id) {
+        let used = pe.continuations.get(&pe.phase).copied().unwrap_or(0);
+        if used == 0 {
+            ws.relay.mutate_plan_execution(run_id, |pe| {
+                *pe.continuations.entry(pe.phase.clone()).or_insert(0) += 1;
+                // 旧 attempt 的同相位声明作废（续做重新提交）。
+                let (ph, at) = (pe.phase.clone(), pe.attempt);
+                pe.stage_results
+                    .retain(|r| !(r.stage == ph && r.attempt == at));
+            });
+            crate::relay::plan_runtime_client::clear(run_id);
+            let pe2 = ws.relay.plan_execution(run_id).unwrap();
+            let f = facts_of(&pe2, &pe2.phase, "continuation", None, None);
+            push_facts(&ws.relay, run_id, f);
+            // 游标未动（本相位未提交 handoff）——直接重入同相位。
+            return StageRouting::RewoundToExecute;
+        }
+        let artifact = if pe.plan_path.is_empty() {
+            ws.relay
+                .context_var(run_id, "plan_file")
+                .filter(|p| !p.trim().is_empty())
+                .unwrap_or_else(|| "(plan file not yet materialized)".into())
+        } else {
+            pe.plan_path.clone()
+        };
+        return StageRouting::Fail(format!(
+            "output truncated twice for phase '{stage}' — continuation budget exhausted;              on-disk artifacts at {artifact} for manual resume"
+        ));
+    }
+    // 2. 必须有本 attempt 的有效结果（Done/handoff/绿勾不能替代，AC-04）。
     let Some(claim) = latest_claim(&pe, &stage) else {
         let f = facts_of(&pe, &stage, "stage_incomplete", None, None);
         push_facts(&ws.relay, run_id, f);

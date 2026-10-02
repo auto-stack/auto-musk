@@ -28,6 +28,7 @@ pub use flows::{builtin_flows, get_builtin_flow};
 pub mod plan_contract;
 pub mod plan_control;
 pub mod plan_flow;
+pub mod plan_runtime_client;
 pub mod profession;
 pub mod store;
 pub mod task_plan;
