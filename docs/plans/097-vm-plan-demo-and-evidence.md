@@ -4,9 +4,9 @@ status: executing
 feature_name: VM 计划开发演示与全流程证据
 author: [agent]
 created_at: 2026-10-02T01:40:31Z
-updated_at: 2026-10-02T13:40:00Z
+updated_at: 2026-10-02T14:10:00Z
 plan_revision: 1
-current_step: 5
+current_step: 6
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-studio-ui.md
@@ -347,7 +347,7 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
 | [x] T-04 | T-03 | 新 plan_progress.at；接 chats_view.at/relay_run_box.at；摘要、展开阶段记录/历史标签/receipt；src/front/i18n/{zh,en}.json 与 lib/i18n.at 既有接线 | V03/V04 原生 VM 可见四阶段与失败，中英/宽度/草稿保留；历史不能标实时 | 01,05,07,15 |
 | [ ] T-05 | T-03 | canvas_progress.at/canvas_helpers.at/forge_store.at 与相关 CanvasStore 消息；必要 rows 预计算，消除 G-15，保持工具事实分类 | V03/V04 真 VM tool→store→可见摘要；未验证/失败不绿，seq 不宣称因果 | 03,04,15 |
 | [x] T-06 | T-02 | 新 scripts/demo/vm-session.mjs 与 demo-focusboard.mjs preflight；私有配置/端口、实际端点发现、源/二进制指纹、owned 关停 | V01/V02/V08 端口冲突、旧产物拒绝、非 owned PID 不终止；无 worktree 链接 | 08,14,16 |
-| [ ] T-07 | T-04,T-06 | 新 capture.mjs/evidence.mjs；宿主/目标采集、状态稳定/身份二次核验、manifest v1、历史标识、缺件失败、外部保存 | V02 删除图/错 hash/跨身份/截图超时/缺阶段注入全部失败；原图可读 | 06,07,08,16,17 |
+| [x] T-07 | T-04,T-06 | 新 capture.mjs/evidence.mjs；宿主/目标采集、状态稳定/身份二次核验、manifest v1、历史标识、缺件失败、外部保存 | V02 删除图/错 hash/跨身份/截图超时/缺阶段注入全部失败；原图可读 | 06,07,08,16,17 |
 | [ ] T-08 | T-02,T-06 | 新 scripts/demo/focusboard.mjs 与 examples/focusboard-demo/{README.md,requests/001.md,002.md,003.md}（仅需求/约定）；空仓 bootstrap、三轮正式入口、新会话、交付等待、工程外置 worktree | V02 bootstrap 白名单与不写业务审计；停止条件正确，无手工 nudge/外部修复 | 09,10,12,14,16 |
 | [ ] T-09 | T-07,T-08 | 目标 VM 行为断言/跨启保存/Canvas锚点；既有 Wiki API 同正文发布/回读；Specs/ledger/归档/ff/清理对账 | V02/V05各轮断言、Wiki hash、P003上下文来源；工程未交付不发下一需求 | 04,10,11,12,13 |
 | [ ] T-10 | T-03～T-09 | 新 tests/demo/*.test.mjs；生产 helper 针对性测试；tests/ui-parity/cases.json/fixtures 与 Gallery 新组件接入；覆盖失败/乱序/归属/过期/缺件 | V02 全部针对性测试及 V03 静态对账，无镜像实现测试替代行为验证 | 01～10,13,14,16,17 |
@@ -546,3 +546,22 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
   (ownershipVerdict+L2 只杀自有)/无链接(S3)全覆盖。
 - blockers: 无
 - next: T-07（capture.mjs/evidence.mjs）
+
+### work 阶段记录（T-07 完成）
+
+- stage: work | plan_id: PLAN-097 | plan_revision: 1 | outcome: pass
+- code_commit(worktree plan-097-dev): 本轮 capture/evidence 提交
+- task_ids: T-07
+- evidence: capture.mjs（captureHostVm:稳定帧+采集前后身份双验+原图搬运
+  留痕/截图超时显式失败;captureTargetCanvas:generation 核验+409 拒——
+  跨计划/重启代次归属拒绝;pngInfo 签名+IHDR 可读断言）+ evidence.mjs
+  （manifest v1:阶段事实登记/capture 必填与来源/kind 枚举/completed-
+  stage-record 强制绑定事实/live 缺阶段注入拒绝(场景级整屏显式
+  allowUnstaged 且落记录)/verifyManifest 删除图+错 hash+schema 校验/
+  外部落盘读回）。V02:8/8(删除图/错 hash/跨身份/超时/缺阶段注入全失败
+  +原图可读+有效流过)。集成烟测 ALL PASS(.demo/musk-097/t07-*):VmSession
+  隔离启动→seed→宿主 1920x1200→canvas 720x1020→manifest 校验→owned
+  清理。顺手修正:seed 凭据字段 username(422 实证)/Mcp.waitForSnapshot
+  容错轮询(UI 未渲染不炸,超时带末快照)/allowUnstaged 落记录。
+- blockers: 无
+- next: T-08（focusboard.mjs 编排 + 空仓 bootstrap/三轮入口/交付等待）
