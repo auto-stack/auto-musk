@@ -78,6 +78,83 @@
 | §5.2 | 载体候选 task-local 或显式传递 | 显式注入（D2） | 计划列出的候选之一，非偏差 |
 | §5.3 | relay 遥测写入 assistant turn | 相位边界轮承载相位聚合（D4） | **偏差**：流式碎片不可对齐（F4 实测）；AC-02 可观察面不变，V05 断言按 D4 形状书写 |
 
+## T-02 遥测装饰器与关联上下文（worktree e2f906c）
+
+- 新模块 `backend/crates/musk/src/telemetry.rs`：`TelemetryClient`（装饰器，
+  双路捕获 complete/complete_stream）、`TelemetryContext`（Chat/Relay 显式
+  关联）、`TelemetrySink`（实例私有 Arc<Mutex<Vec>>；poison 恢复）、
+  `fold_records`（§5.3 折叠）、run 键控 sink 注册表（relay factory 与
+  store.submit_handoff 折叠点解耦共享；上限 128 驱逐防泄漏——旁路语义）。
+- 注入：relay = `MuskAgentFactory::build_agent` 遥测最外层
+  （`TelemetryClient(PlanRuntimeClient(AiClient))`，D3；hw factory 为双轨
+  唯一 step-agent 构造点——ag drive_submit_handoff/`factory_build_agent`
+  均委托 hw，实证见 T-03 V05）；chat = `chat_run_owner`（唯一孵化入口）
+  会话级包装；`main.rs`/`serve()` 不动（T-01 D1 偏差）。
+- V01：8 新单测（双路/回退真值/显式空值/带内+传输错误透传/poison 恢复/
+  并发双会话零错配/折叠形状/relay correlation）+ 全 lib 542 绿。
+- 依赖组兄弟 worktree（只读，detach）：auto-ai@5a50a55、auto-lang@d5215b477
+  （相对路径 deps 解析需组内兄弟；无 junction；098 不改依赖，收尾即删）。
+
+## T-03 落盘与事件接线（worktree 2778e33）
+
+- `Turn.telemetry` / `ChatMessage.telemetry` 可选字段（serde default +
+  skip_serializing_if）：旧行照读零迁移；**.at 真源
+  （auto-src/conversation.at）与生成镜像（auto_generated/conversation.rs）
+  锁步手修**（KNOWN-DEBT 086 定式；镜像profession_id 已先例漂移）。
+- chat 折叠：`chat_run_owner` 三收束臂（done/failed/idle_timeout）drain→
+  fold→挂收束 Message 轮（`chat_message_to_turns` 投影到最后一个 Message
+  轮）；turn 快照臂不带遥测（终版同 id 原位替换）。
+- relay 折叠单点 = `RunStore::submit_handoff`（hw/ag 双轨委托单点）：
+  drain(run_id, step_id 过滤)→fold→`StepCompleted` 新增 serde default
+  telemetry 字段（双向 wire 兼容）→`run_event_to_turns` 投影到相位边界轮
+  （T-01 D4）。
+- SSE：ag chat on_event 在 DTO 序列化后 Value 级追加 `model_meta`
+  （provider/model/usage；turn_end/done 已知才加）；DTO 枚举与帧形状其余
+  不变；hw `/api/run` 无遥测包装 → 永不附加（D5）。
+- 测试：V01 545 绿（+3 投影/兼容）；V05
+  `plan098_relay_telemetry_correlates_and_folds` 绿——hw+ag 双轨、并发双
+  run 零错配、correlation(run/step/role) 逐相位断言、model/requested/out
+  透传、provider 显式 null、折叠即 drain；parity_conversation/chats/
+  relay_store、plan_flow_contract、plan_delivery_contract 全绿。
+
+## T-04 collect-telemetry.mjs 与 fixture（worktree f9ae074）
+
+- 脚本契约见文件头；要点：退出码 0（产出）/2（输入缺失列出）/3（--expect
+  不符）；签名 K1-K5；aaid 去 ANSI 解析四种行（`chat req`/`stream start`/
+  `stream done`/`chat ok`——provider 仅在 start/ok 行）；join=±5s+model+
+  stream 旗标，唯一候选=high；`--since/--until` 同时作用于轮与日志行。
+- fixture：签名阳性 relay run（K1-K5 全命中路径）+ chat 旧格式兼容样本 +
+  带 ANSI aaid 片段 + expect 断言集；时间基线/行形状取自 run-094 真实产物
+  与 daemon 源码实测格式。
+- V03 矩阵：relay+expect=24 断言 OK（4 签名全命中、provider=zhipu join、
+  high 置信、K1 行 out=4096/stop=max_tokens）；chat+expect=13 断言 OK；
+  无 aaid 变体 exit 0 且 provider=null+skipped 注记；`--session no-such`
+  → exit 2 列缺失项。
+
+## T-05 实况 smoke（V04）与 D6 语义修订
+
+- 环境：worktree release musk（:17298 专用端口，生产 :17201 未动）+
+  在跑 aaid（:17654，auto-ai@5a50a55 构建的进程，zhipu 池）。demo-1 会话
+  `db7b23cedffcf99423379abc`：auto 审批，两轮（第一轮含 list_dir 工具调用，
+  第二轮追问）。
+- **AC-01 实证**（turns.jsonl 原文）：
+  - 轮 1（seq3）：`model=glm-5.3-flash`、`requested=tier:mid`、`in=0`、
+    `out=184`（=50+64）、`elapsed=12165`、`stop=end_turn`、`stream=true`、
+    `requests[]=2`（tool_use→end_turn 折叠）、correlation{chat,demo-1,sid}。
+  - 轮 2（seq5）：单请求行，model 同、out=59。
+  - 端到端：collect-telemetry 对该会话 exit 0，6 轮解析、3 请求行、
+    0 无遥测轮、签名全 0（健康 run）。
+- **K8 观察项复现并登记**（spec.md 已知问题表）：三轮流式请求 `in=0`
+  全数复现（非流式 probe `in=123` 正常）——musk 侧如实记 0，摘要标注。
+- **D6 修订（live 证据驱动的 §5.1 语义修正，rev 不变）**：daemon 在 config
+  未声明 context_window 时 model_meta 恒缺（/v1/models metadata 全空 +
+  非流式响应无 model_meta 字段，curl 直探实证）；但 daemon 对 `tier:mid`
+  请求回 `model="glm-5.3-flash"`——**resp.model 即解析后的实际服务模型**
+  （tier 回退已反映，非请求回显）。故 model 权威序改为：model_meta.id →
+  resp.model（非空）→ null；provider 恒 null 不变。原规则（model_meta 缺
+  失即 null）会使 AC-01 在部署态 daemon 上不可满足且丢弃可得真值；修订记
+  录于此，交 review 核定。
+
 ## 命令记录
 
 （各任务完成后追加）
@@ -87,3 +164,14 @@
 | T-01 | `git -C D:/autostack/auto-musk worktree list --porcelain` | main + musk-097 | 一致；新建 musk-098@plan-098-dev（base=da748ac） | musk main@da748ac |
 | T-01 | `ls docs/plans/archived/096-*.md` + `ls backend/crates/musk/src/relay/plan_runtime_client.rs` | 存在 | 存在（096 合并门过） | musk main@da748ac |
 | T-01 | `grep -rln chat_run_owner backend/crates/musk/auto-src/*.at` | 空（无 .at 真源） | 空 | musk main@da748ac |
+| T-02 | `cargo test -p musk --lib`（worktree/backend） | 全绿 | 542 passed 0 failed（含 8 新遥测单测） | plan-098-dev@e2f906c 前工作树 |
+| T-03 | `cargo test -p musk --lib` + `--test parity_relay_driver` | 全绿 | 545 passed；parity 7 passed（含 V05 新测试） | plan-098-dev@2778e33 前工作树 |
+| T-03 | `--test parity_conversation --test parity_chats --test parity_relay_store --test plan_flow_contract --test plan_delivery_contract` | 全绿 | 20/10/7/7/9 passed | 同上 |
+| T-04 | `node collect-telemetry.mjs --run run-fixture-098 --autoos fixtures --aaid-log fixtures/aaid-fixture.log --out tmp/098/v03/relay --expect fixtures/expect-relay.json` | exit 0 断言全过 | 24 assertions OK，exit 0 | plan-098-dev@f9ae074 |
+| T-04 | 同上（chat-fixture-098/expect-chat.json） | exit 0 | 13 assertions OK，exit 0 | 同上 |
+| T-04 | `--session no-such-session …` | exit 2 列缺失 | exit 2 | 同上 |
+| T-04 | chat fixture 无 `--aaid-log` | exit 0，provider null | exit 0，provider null+skipped | 同上 |
+| T-05 | `cargo build -p musk --release`（worktree） | 构建成功 | Finished release 3m50s（D6 后重建 33.7s） | plan-098-dev 工作树 |
+| T-05 | musk serve :17298 + demo-1 两轮 chat | 两轮收束 | 会话 db7b23cedffcf99423379abc，两轮 assistant 轮带遥测真值 | aaid@17654（5a50a55 构建） |
+| T-05 | `collect-telemetry.mjs --session db7b23… --autoos D:/autostack/auto-musk/tmp/demo/.autoos --out tmp/098/v04/live` | exit 0 摘要 | 6 轮/3 请求行/0 缺遥测/签名 0，exit 0 | 同上 |
+| T-05 | `curl POST :17654/v1/chat/completions`（tier:mid 与显式 model） | 观察 resp.model/model_meta | resp.model=解析后真值；model_meta 字段缺席（config 无 context_window）→ D6 修订 | aaid@17654 |

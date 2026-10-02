@@ -82,10 +82,12 @@ pub struct TelemetryRecord {
     /// side today; the aaid log join in collect-telemetry.mjs attributes it
     /// with a confidence mark. Explicit null, never fabricated.
     pub provider: Option<String>,
-    /// Actually-served model id (`model_meta.id`); `None` when the daemon
-    /// sent no `model_meta` (per plan §5.1: record null, don't guess from
-    /// `resp.model` — its provenance predates PLAN-031 and may echo the
-    /// request on old daemons).
+    /// Actually-served model id. Authority order (T-01 D6, live-evidence
+    /// amended): `model_meta.id` (PLAN-031) first; else `resp.model` — the
+    /// daemon resolves tiers BEFORE calling the provider, so this is the
+    /// served model even without model_meta (verified live: `tier:mid` →
+    /// `model:"glm-5.3-flash"` on a daemon whose config declares no
+    /// context windows); null only when neither is present.
     pub model: Option<String>,
     pub in_tokens: Option<u64>,
     pub out_tokens: Option<u64>,
@@ -216,7 +218,13 @@ impl TelemetryClient {
         let (provider, model, in_tokens, out_tokens, stop_reason, inband_error) = match resp {
             Some(r) => (
                 None, // wire carries no provider (T-01 F9) — explicit null
-                r.model_meta.as_ref().map(|m| m.id.clone()),
+                r.model_meta
+                    .as_ref()
+                    .map(|m| m.id.clone())
+                    .or_else(|| {
+                        let m = r.model.trim();
+                        (!m.is_empty()).then(|| r.model.clone())
+                    }),
                 r.usage.as_ref().map(|u| u.input_tokens as u64),
                 r.usage.as_ref().map(|u| u.output_tokens as u64),
                 r.stop_reason.clone(),
@@ -450,17 +458,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn missing_meta_and_usage_recorded_as_explicit_nulls() {
-        // model_meta 缺失 → provider/model 记 null（§5.1；resp.model 不可信
-        // —— 其来源早于 PLAN-031，旧 daemon 可能回显请求值）。usage 缺失 → null。
+    async fn missing_meta_usage_provider_recorded_explicitly() {
+        // model_meta 缺失（部署态 daemon config 未声明 context_window 时恒缺）
+        // → model 回退 resp.model（daemon 解析 tier 后的实际服务值，live 实证
+        // T-01 D6）；provider 恒 null（wire 无此字段）；usage 缺失 → null。
         let inner = Arc::new(MockInner::ok(None, None));
         let tel = TelemetryClient::new(inner, chat_ctx("s1"));
         tel.complete(&CompletionRequest::single("m", "x")).await.unwrap();
         let v = tel.sink().records()[0].to_json();
-        assert_eq!(v["provider"], serde_json::Value::Null);
-        assert_eq!(v["model"], serde_json::Value::Null);
+        assert_eq!(v["provider"], serde_json::Value::Null, "wire 无 provider → 显式 null");
+        assert_eq!(v["model"], "mock", "model_meta 缺失回退 resp.model（D6）");
         assert_eq!(v["in_tokens"], serde_json::Value::Null);
         assert_eq!(v["out_tokens"], serde_json::Value::Null);
+        // resp.model 为空且无 model_meta → 显式 null（不伪造）。
+        let mut blank = MockInner::ok(None, None);
+        blank.resp.as_mut().unwrap().model = String::new();
+        let tel = TelemetryClient::new(Arc::new(blank), chat_ctx("s2"));
+        tel.complete(&CompletionRequest::single("m", "x")).await.unwrap();
+        assert_eq!(tel.sink().records()[0].model, None);
         // usage 缺失但流式 input=0 时如实记 0（in 字段存在值可为 0）。
         let inner = Arc::new(MockInner::ok(
             Some(served_meta("m1")),
@@ -470,7 +485,7 @@ mod tests {
                 ..Default::default()
             }),
         ));
-        let tel = TelemetryClient::new(inner, chat_ctx("s2"));
+        let tel = TelemetryClient::new(inner, chat_ctx("s3"));
         tel.complete_stream(&CompletionRequest::single("m", "x"), Arc::new(|_| {}))
             .await
             .unwrap();

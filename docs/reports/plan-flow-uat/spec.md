@@ -83,6 +83,7 @@
 | K5 | Relay 断链模式：advisor 以问卷代计划且不调 `create_plan` → 计划文件缺席 → coder 空转 → reviewer 无物可审 | **PLAN-094 已修复（2026-09-29 重跑四 run 实证）**：execute 门 approve 前置不变式——`plan_file` 缺失时 auto=直接 `run_failed`（计划 D1 退化，引擎 redraft 只重做 execute 相位、重跑 plan 相位不可表达）、human=409 不消费门；级联（coder 空转→reviewer 死循环）不再可能。恢复出路：重开 run（advisor 幂等复用）或 human 门 reject+feedback |
 | K6 | **ledger schema 不兼容 bug**：Relay reviewer 的 `update_spec` 读不了聊天侧 merge 写的 v1 ledger（`missing field project`），且会用旧六区 schema **整体重写** `~<ws>/.autoos/specs.json`，抹掉既有条目 | **PLAN-094 已修复**：merge 技能钉死"只经 spec 工具写账本"（store-mediated）+ spec 工具 load 失败改为响亮错误（期望字段/六区清单/禁手改明令/恢复路径，文件字节不变，有字节不变单测）；外语格式不可能再被静默重写。094 重跑实测：document 相位经工具写出的 ledger 为原生六区格式、serde 可解析 |
 | K7 | 阶段间经"完成摘要"传染臆造内容（coder 摘要臆造"PLAN-086"，reviewer 循此查证幻影计划）——印证"阶段只共享计划文件、不传摘要"的设计必要性 | 计划文件必须真实落盘（K5 修复后 auto 路径的传染源消失——无计划 run 活不过门）。094 重跑仍观察到幻影（human-arm run 的 coder `read_plan seq 86`）——模板纪律属**指令级约束**，非机制强制；登记观察项 |
+| K8 | aaid 流式请求的 usage **in_tokens 恒 0**（input token 未回填）：PLAN-098 实况 smoke（2026-10-03，worktree@plan-098-dev 两轮 chat）三轮流式请求 `in=0` 全数复现，非流式请求 `in=123` 正常；out_tokens 正常 | 观察项，不阻塞判定：musk 侧 telemetry 如实记 0（collect-telemetry 摘要打"daemon 流式 usage 未回填"观察标注），cost/时长对比以 out_tokens+elapsed_ms 为准；根修在 daemon 侧（auto-ai 只读，不在 PLAN-098 范围） |
 
 ## 结果总表
 
