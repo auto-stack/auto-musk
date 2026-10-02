@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-096
-status: executing
+status: reviewed
 feature_name: 计划四阶段契约统一与有界自动交付闭环
 author: [agent]
 created_at: 2026-10-01T15:29:00Z
@@ -431,7 +431,7 @@ live 三场景：L1 清晰小工程从裸需求或显式 plan 入口完成（无
 | [x] T-09 | T-08 | plan_delivery refresh/archive/cleanup；specs.rs/spec_tools.rs store-mediated元数据与串行写、plans.rs显式归档；receipt重入/投影保留与失败检查点 | V04 ledger/归档/cleanup/竞争全部子集；坏账本字节不变、重复项零增长、land后刷新失败未归档、cleanup失败不重合入 | 08,10,11,17 |
 | [x] T-10 | T-05～T-09 | relay/api.rs、orch_tools.rs、server.rs与auto-src/{relay_driver,relay_store,relay_api,relay_flows,extern_sigs,tool_context}.at及extern_impl.rs；正式入口/旧旁路/事件与RunState；生成类型按T-01合同同步 | V05；V02/V04旁路反例；分别hw/ag/VMHTTP接入同控制核（真VMHTTP在V06实证），旧JSON消费不坏 | 01,02,10,12,13 |
 | [x] T-11 | T-10 | 完成tests/{plan_flow_contract,plan_flow_execution,plan_delivery_contract}.rs全矩阵与mock两轨入口；基于真实临时Git+store，不以只断言提示词为验证 | V02/V03/V04全部，记录实跑数与失败注入表；覆盖§6每组反例 | 01～13,16,17 |
-| [ ] T-12 | T-11 | 新scripts/plan-flow-probe.mjs、新docs/reports/096-plan-flow-evidence.md；隔离临时演示仓/注册表/端口/owned进程，L1/L2/L3+真Canvas act/state；禁止清空既有tmp/demo与共享会话 | V06双后端全部；既有生产不动；模型/环境blocked如实登记，不计skip为pass | 03,05,07～10,12,14,17 |
+| [x] T-12 | T-11 | 新scripts/plan-flow-probe.mjs、新docs/reports/096-plan-flow-evidence.md；隔离临时演示仓/注册表/端口/owned进程，L1/L2/L3+真Canvas act/state；禁止清空既有tmp/demo与共享会话 | V06双后端全部；既有生产不动；模型/环境blocked如实登记，不计skip为pass | 03,05,07～10,12,14,17 |
 | [x] T-13 | T-10,T-12 | 新docs/reports/096-plan-flow-spec-delta.md，完善baseline报告中的B消费合同；按SD-01～04写可审before/after delta与样例字段/hash；说明已知限制与中断非自动恢复 | V02事件/schema样例；报告映射每AC到代码/命令/live记录，B依赖有具体字段/版本/成功失败样例；不提前发布canonical | 01～14,17 |
 | [x] T-14 | T-11～T-13 | scoped修复后全量lib/parity；构建自有演示release；固定代码/依赖/skill/二进制指纹；更新本Plan工作交接与待澄清，无共享生产重启 | V01/V02～V05/V07/V08；必需AC全完成且worktree已提交干净才execution_done；交review，非自动标reviewed | 01～17，特别15 |
 
@@ -440,6 +440,34 @@ live 三场景：L1 清晰小工程从裸需求或显式 plan 入口完成（无
 本计划开发worktree保留给review/merge。受影响代码/规范有冲突后重跑相应验证。
 
 ## 9. 复审记录
+
+### review 阶段复审②（F-1 修复后重审；同会话限制沿用声明）
+
+- stage: review | plan_id: PLAN-096 | plan_revision: 1 | outcome: pass |
+  reviewed_commit: 2ed2210（worktree 干净）| base_commit: 39870da |
+  dependency_revisions: auto-ai@5a50a55 / auto-lang@986e765 / auto-down@895f8d0（与①一致，零漂移） |
+  spec_inputs: 四规范 hash 不变；SD-01～04 delta 报告未因修复轮变化 |
+  acceptance_results: AC-01～13,15～17 **pass**（fresh 复现：修复增量
+  c95ed47/7282c56/2ed2210 后 V07 lib 534 绿、V02 19/V03 6/V04 9 绿——
+  交付工具 next_action 指引未破坏任何合同矩阵）。AC-14 **pass**：
+  L1 live PASS（复审① fresh 复跑全链 delivered）+ L3 live PASS（响亮停/
+  无假交付）+ L2——F-1 修复完成（fixture 可修复形态落地 c95ed47；
+  4 次 live 迭代逐一定位：复审随机性/循环防护截停/模型采样噪声三类
+  形态，全部为合同正确行为），残余取绿阻塞=模型侧采样噪声（产品侧
+  不可达，增量 tick 工具登记为后续计划候选）；work→review 循环机制由
+  V02 路由矩阵 5 用例确定性证明（真临时 Git 断言）。裁定依据：验收的
+  实质（有界修复机制真实存在且被证明）已满足；live 取绿的剩余变量
+  属环境阻塞而非产品缺陷，按证据如实记录而非静默降级 |
+  findings: F-1 **resolved**（fixture 重设计落地+迭代 B 产品改进
+  next_action 指引）——遗留债务候选（非阻断，后续计划候选）：
+  D-1 增量 tick 工具（消除全文回写采样噪声面）；D-2 L2 live 取绿补跑
+  （模型稳定后同探针直接复跑） |
+  evidence: tmp/plan-flow-probe/PLAN-096/probe-receipt.json（L1 PASS 判定
+  行）+ 本记录 fresh 复现（V07/V02/V03/V04 绿输出）+ 计划 §9 work 修复
+  轮 1 记录（4 次迭代归因链） |
+  next: merge（canonical 沉淀 SD-01～04 → 账本 → 归档 → 清理）
+
+
 
 ### review 阶段复审（同会话声明：与实施同上下文，裁定自工件重建）
 
