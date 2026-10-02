@@ -3084,6 +3084,13 @@ pub fn relay_resolve_gate(
         if action == Some(crate::relay::plan_flow::ExecuteGateAction::Fail) {
             return serde_json::json!({"error": {"code": 409, "message": crate::relay::plan_flow::PLAN_GATE_FAIL_ERROR}});
         }
+        // PLAN-096 T-05：human 批准绑定当前计划契约（hw api.rs 同规则单源）。
+        // 旧式 plan run（无 plan_execution）跳过绑定——兼容。
+        if ws.relay.plan_execution(r).is_some() {
+            if let Err(e) = crate::relay::plan_control::attach_binding_on_gate_approve(&s.0, &ws_id, r) {
+                return serde_json::json!({"error": {"code": 409, "message": format!("approval binding failed — gate not consumed: {e}")}});
+            }
+        }
     }
     match ws.relay.resolve_gate(r, decision) {
         Some((result, run_state)) => {

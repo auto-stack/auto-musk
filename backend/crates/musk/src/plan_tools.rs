@@ -412,6 +412,98 @@ impl Tool for MergePlan {
     }
 }
 
+// ── complete_plan_stage（PLAN-096 T-05，§5.4）──────────────────────────────
+
+/// 结构化阶段结果提交——plan 流四相位的唯一合法推进凭据。自然语言 handoff
+/// 只用于显示；只发 Done 而未提交有效结果 → stage_incomplete（AC-04）。
+/// 工具校验形状（run 绑定/相位/attempt/计划身份）；服务器事实核验与路由
+/// 在驱动收束时由 PlanControl::on_stage_end 执行（不信任模型自述）。
+pub struct CompletePlanStage {
+    relay: Arc<crate::relay::store::RunStore>,
+    run_id: String,
+}
+
+impl CompletePlanStage {
+    pub fn from_ctx(ctx: &ToolContext) -> Self {
+        let ws: Arc<WorkspaceStores> = ctx.state.registry.get(&ctx.workspace_id);
+        Self {
+            relay: ws.relay.clone(),
+            run_id: ctx.parent_conversation_id.clone(),
+        }
+    }
+    pub fn with_run(relay: Arc<crate::relay::store::RunStore>, run_id: String) -> Self {
+        Self { relay, run_id }
+    }
+}
+
+#[async_trait]
+impl Tool for CompletePlanStage {
+    fn name(&self) -> &str {
+        "complete_plan_stage"
+    }
+    fn description(&self) -> &str {
+        "Submit the structured result of the current plan-flow phase (the          ONLY valid stage-advance credential). Params: stage (plan|execute|         review|document), plan_id, plan_revision, outcome (pass|needs_fix|         needs_replan|blocked), commit (worktree HEAD hash when code was          committed), acceptance_results [{id,status(pass|partial|fail),         evidence}], findings [{id,task,ac,description}] (required for          needs_fix), evidence [strings], spec_delta_ref (document stage).          A bare Done without this submission leaves the phase incomplete."
+    }
+    fn parameters(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "stage": { "type": "string", "enum": ["plan", "execute", "review", "document"] },
+                "plan_id": { "type": "string" },
+                "plan_revision": { "type": "integer" },
+                "outcome": { "type": "string", "enum": ["pass", "needs_fix", "needs_replan", "blocked"] },
+                "commit": { "type": "string", "description": "dev-worktree HEAD hash (execute/review pass)" },
+                "acceptance_results": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": { "type": "string" },
+                            "status": { "type": "string", "enum": ["pass", "partial", "fail"] },
+                            "evidence": { "type": "string" }
+                        },
+                        "required": ["id", "status"]
+                    }
+                },
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": { "type": "string" },
+                            "task": { "type": "string" },
+                            "ac": { "type": "string" },
+                            "description": { "type": "string" }
+                        },
+                        "required": ["id", "description"]
+                    }
+                },
+                "evidence": { "type": "array", "items": { "type": "string" } },
+                "spec_delta_ref": { "type": "string" }
+            },
+            "required": ["stage", "plan_id", "plan_revision", "outcome"]
+        })
+    }
+    async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
+        let mut result: crate::relay::plan_contract::StageResult =
+            serde_json::from_value(args.clone())
+                .map_err(|e| ToolError::Args(format!("invalid stage result: {e}")))?;
+        result.timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        crate::relay::plan_control::record_stage_claim(&self.relay, &self.run_id, result.clone())
+            .map_err(ToolError::Exec)?;
+        Ok(ToolOutput::text(json!({
+            "recorded": true,
+            "stage": result.stage,
+            "attempt": result.attempt,
+            "outcome": result.outcome,
+            "note": "claim recorded — the controller verifies server-side facts at phase end (plan file read-back, git, evidence); a fake pass is rejected there"
+        }).to_string()))
+    }
+}
+
 // ============================================================
 // Tests
 // ============================================================

@@ -371,6 +371,20 @@ async fn resolve_gate(
             )
                 .into_response();
         }
+        // PLAN-096 T-05（§5.2）：human 批准绑定当前计划契约（合同 hash/
+        // Git 事实/worktree 租约）。失败 → 409 不消费门（可修复后重批）。
+        // 旧式 plan run（无 plan_execution，本特性前启动）跳过绑定——兼容。
+        if ws.relay.plan_execution(&run_id).is_some() {
+            if let Err(e) = crate::relay::plan_control::attach_binding_on_gate_approve(
+                &state, &ws_id, &run_id,
+            ) {
+                return (
+                    StatusCode::CONFLICT,
+                    format!("approval binding failed — gate not consumed: {e}"),
+                )
+                    .into_response();
+            }
+        }
     }
     match ws.relay.resolve_gate(&run_id, decision) {
         Some((result, run_state)) => {

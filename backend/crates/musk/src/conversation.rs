@@ -582,6 +582,20 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
         }
         // PLAN-040: 流式 partial 是易态,只走 SSE 实时进度,不落会话历史。
         RunEvent::ToolUpdate { .. } => {}
+        // PLAN-096 T-05：控制器阶段事实事件 → 系统轮（AC-13 会话镜像落盘）。
+        RunEvent::PlanStageFacts { facts, .. } => {
+            let mut line = format!(
+                "Plan {} {} (attempt {}, repair {}/{})",
+                facts.stage, facts.outcome, facts.attempt, facts.repair_count, facts.repair_limit
+            );
+            if let Some(b) = &facts.blocker {
+                line.push_str(&format!(" — {b}"));
+            }
+            if let Some(cp) = &facts.delivery_checkpoint {
+                line.push_str(&format!(" [checkpoint: {cp}]"));
+            }
+            push_system!("plan-control".into(), line);
+        }
     }
     turns
 }

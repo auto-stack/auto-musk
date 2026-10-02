@@ -559,6 +559,10 @@ fn semantic_hash_of(c: &PlanContract) -> String {
 pub struct StageResult {
     pub stage: String,
     pub plan_id: String,
+    /// Attempt this claim belongs to (server-stamped at record time; the
+    /// model's copy is ignored).
+    #[serde(default)]
+    pub attempt: u32,
     #[serde(default)]
     pub plan_revision: u32,
     /// pass | needs_fix | needs_replan | blocked
@@ -715,7 +719,7 @@ pub struct PlanExecutionBinding {
 /// A controller-emitted facts event payload (mirrored onto RunEvent
 /// `plan_stage_facts` in T-10; kept here so the serde shape is single-sourced
 /// for the B-track consumption contract).
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RunPlanEvent {
     #[serde(default)]
     pub timestamp: u64,

@@ -28,6 +28,8 @@ use crate::relay::plan_contract::{
 };
 use crate::relay::store::RunStore;
 
+use crate::plan_worktree::validate_main_checkout;
+
 /// Per-run owner guard registry: PlanControl routes one stage transition at a
 /// time per run. Key = run_id. Value = whether the run currently holds the
 /// plan owner (stage in flight / delivery action in flight).
@@ -114,7 +116,13 @@ pub fn engine_rewind_to_step(
     engine.current_step = idx;
     engine.step_history.truncate(idx);
     engine.pending_gate = None;
-    engine.gate_resolved_for_step = None;
+    // 修复轮回退不重开已过的人审门（AC-05：无手工 nudge；AC-06：原契约内
+    // 修复保留授权）——回退目标是 gated 步时保留/补写 resolved 标记。
+    if matches!(engine.flow.steps[idx].gate, crate::relay::GateType::Human) {
+        engine.gate_resolved_for_step = Some(step_id.to_string());
+    } else {
+        engine.gate_resolved_for_step = None;
+    }
     engine.gate_feedback.remove(step_id);
     engine.status = crate::relay::PipelineStatus::Idle;
     engine.resumed_step_id = None;
@@ -214,6 +222,687 @@ pub fn bootstrap_plan_run_default(
 ) -> Result<Bootstrap, String> {
     let src = crate::relay::plan_contract::plan_skills_source_root()?;
     bootstrap_plan_run(flow_id, task, plans_dir, &src)
+}
+
+// ── T-05: stage-result validation & single-writer routing (§5.4) ───────────
+
+/// What the driver must do after a plan-flow stage ends.
+#[derive(Debug, Clone, PartialEq)]
+pub enum StageRouting {
+    /// Server facts validated — submit the handoff and let the engine route
+    /// (plan → gate, execute → review, review/pass → document).
+    Advance,
+    /// review/needs_fix accepted within the repair bound — the engine cursor
+    /// was rewound to `execute` and the attempt bumped; the driver continues
+    /// its loop (new coder attempt).
+    RewoundToExecute,
+    /// document/pass with all delivery checkpoints settled — run completes.
+    Complete,
+    /// Terminal failure: stage_incomplete / validation refusal / repair limit
+    /// / no-progress / needs_replan / blocked / cancellation. The error is
+    /// the reason (recorded on the run + plan §10-grade facts).
+    Fail(String),
+}
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+/// Push a controller facts event (run history + SSE bus + conversation
+/// mirror — the standard RunStore path).
+pub fn push_facts(store: &RunStore, run_id: &str, facts: crate::relay::plan_contract::RunPlanEvent) {
+    store.push_event(
+        run_id,
+        crate::relay::store::RunEvent::PlanStageFacts {
+            timestamp: now_secs(),
+            facts,
+        },
+    );
+}
+
+fn facts_of(
+    pe: &crate::relay::plan_contract::PlanExecutionState,
+    stage: &str,
+    outcome: &str,
+    blocker: Option<String>,
+    delivery_checkpoint: Option<String>,
+) -> crate::relay::plan_contract::RunPlanEvent {
+    crate::relay::plan_contract::RunPlanEvent {
+        timestamp: now_secs(),
+        plan_id: pe.plan_id.clone(),
+        stage: stage.to_string(),
+        attempt: pe.attempt,
+        outcome: outcome.to_string(),
+        repair_count: pe.repair_count,
+        repair_limit: pe.repair_limit,
+        blocker,
+        reviewed_commit: pe.reviewed_commit.clone(),
+        delivery_checkpoint,
+        receipt_ref: pe.receipt_ref.clone(),
+    }
+}
+
+/// Record the model's raw stage claim (from the `complete_plan_stage` tool).
+/// Validates shape (run is a bound plan run, stage == current phase, ids and
+/// revision match) and appends to the attempt log. Server-side fact
+/// verification happens later in [`on_stage_end`].
+pub fn record_stage_claim(
+    store: &RunStore,
+    run_id: &str,
+    result: crate::relay::plan_contract::StageResult,
+) -> Result<(), String> {
+    let pe = store
+        .plan_execution(run_id)
+        .ok_or_else(|| "run carries no plan execution".to_string())?;
+    let phase = pe.phase.clone();
+    let attempt = pe.attempt;
+    if result.stage != phase {
+        return Err(format!(
+            "stage '{}' does not match the run's current phase '{}'",
+            result.stage, phase
+        ));
+    }
+    // plan 相位（bootstrap 时身份未知，plan_id 为空）放行任意声明——身份
+    // 由 plan 路由/门批准从真实文件回填；其余相位必须与绑定一致。
+    if !pe.plan_id.is_empty() && result.plan_id != pe.plan_id {
+        return Err(format!(
+            "plan_id '{}' does not match the bound plan '{}'",
+            result.plan_id, pe.plan_id
+        ));
+    }
+    if pe.plan_revision != 0 && result.plan_revision != pe.plan_revision {
+        return Err(format!(
+            "plan_revision {} does not match the bound revision {}",
+            result.plan_revision, pe.plan_revision
+        ));
+    }
+    if result.outcome.is_empty() {
+        return Err("outcome is required (pass|needs_fix|needs_replan|blocked)".into());
+    }
+    let mut result = result;
+    result.attempt = attempt;
+    store.mutate_plan_execution(run_id, |pe| {
+        pe.stage_results.push(result);
+    });
+    Ok(())
+}
+
+/// The latest recorded claim for the run's current (stage, attempt).
+fn latest_claim(
+    pe: &crate::relay::plan_contract::PlanExecutionState,
+    stage: &str,
+) -> Option<crate::relay::plan_contract::StageResult> {
+    pe.stage_results
+        .iter()
+        .rev()
+        .find(|r| r.stage == stage && r.attempt == pe.attempt)
+        .cloned()
+}
+
+/// Gate-approve binding (§5.2): freeze the approved contract (exact +
+/// semantic hashes), git facts (detected default branch + base commit), the
+/// skill hashes, and the run-scoped authorization into the binding, then
+/// create / reuse the dev worktree. Called from the execute-gate approve
+/// paths (hw + ag) BEFORE the gate decision is applied; a failure refuses
+/// the approval (auto → run fails loud; human → 409, gate not consumed).
+pub fn attach_binding_on_gate_approve(
+    state: &crate::server::AppState,
+    ws_id: &str,
+    run_id: &str,
+) -> Result<(), String> {
+    use crate::relay::plan_contract::PlanExecutionBinding;
+    let ws = state.registry.get(ws_id);
+    let plan_file = ws
+        .relay
+        .context_var(run_id, "plan_file")
+        .filter(|p| !p.trim().is_empty())
+        .ok_or_else(|| "gate approve without a plan file — approval refused".to_string())?;
+    let authorization = ws
+        .relay
+        .context_var(run_id, "plan_authorization")
+        .unwrap_or_else(|| "human".into());
+    // 完整合同读取（绑定主根 docs/plans/ 下的真实文件）。
+    let plan_path = ws.root.join(&plan_file);
+    let contract = crate::relay::plan_contract::PlanContract::read(&plan_path, None)?;
+    contract.validate_complete()?;
+    let seq = contract
+        .plan_id
+        .trim_start_matches("PLAN-")
+        .parse::<u32>()
+        .map_err(|_| format!("plan id '{}' carries no sequence number", contract.plan_id))?;
+    let main_root = validate_main_checkout(&ws.root)?;
+    let default_branch = crate::plan_worktree::default_branch_of(&main_root)?;
+    let base_commit = {
+        let out = std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&main_root)
+            .output()
+            .map_err(|e| format!("git spawn failed: {e}"))?;
+        if !out.status.success() {
+            return Err("base commit resolve failed (not a git checkout?)".into());
+        }
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    };
+    let lease = crate::plan_worktree::ensure_plan_worktree(
+        &main_root,
+        &contract.plan_id,
+        seq,
+        &base_commit,
+    )?;
+    // 批准即开工：计划状态机 drafting → executing（execute 相位的起点）。
+    {
+        let plans = crate::plans::PlansStore::new(main_root.join("docs/plans"));
+        plans
+            .transition(seq, crate::plans::PlanStatus::Executing)
+            .map_err(|e| format!("plan transition to executing failed: {e}"))?;
+    }
+    let mut pe = ws
+        .relay
+        .plan_execution(run_id)
+        .ok_or_else(|| "run carries no plan execution".to_string())?;
+    // plan 相位完成即回填身份（bootstrap 阶段 plan 流还没有 plan_id）。
+    pe.plan_id = contract.plan_id.clone();
+    pe.plan_seq = seq;
+    pe.plan_path = plan_file.clone();
+    pe.plan_revision = contract.plan_revision;
+    pe.binding = Some(PlanExecutionBinding {
+        contract_version: crate::relay::plan_contract::PLAN_EXECUTION_CONTRACT_VERSION,
+        workspace_id: ws_id.to_string(),
+        main_root: main_root.display().to_string(),
+        plan_id: contract.plan_id.clone(),
+        plan_path: plan_file.clone(),
+        plan_revision: contract.plan_revision,
+        contract_hash: contract.contract_hash.clone(),
+        semantic_hash: contract.semantic_hash.clone(),
+        skills_hashes: {
+            let mut m = std::collections::BTreeMap::new();
+            for (k, v) in &pe.skills {
+                m.insert(k.clone(), v.sha256.clone());
+            }
+            m
+        },
+        default_branch,
+        base_commit,
+        execution_root: Some(lease.worktree_root.clone()),
+        dev_branch: Some(lease.branch.clone()),
+        authorization,
+        repair_limit: pe.repair_limit,
+        dependency_revisions: std::collections::BTreeMap::new(),
+    });
+    ws.relay.set_plan_execution(run_id, pe.clone());
+    push_facts(&ws.relay, run_id, facts_of(&pe, "approve", "bound", None, None));
+    Ok(())
+}
+
+/// Stage end: validate server-side facts for the latest claim and route
+/// (§5.4 table). The driver calls this INSTEAD of a blind `submit_handoff`
+/// for plan-flow steps. Single-writer: one routing at a time per run (AC-10).
+pub fn on_stage_end(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> StageRouting {
+    if !owner_try_claim(run_id) {
+        return StageRouting::Fail(format!(
+            "run {run_id} plan stage routing already in progress (single owner)"
+        ));
+    }
+    let routing = on_stage_end_inner(state, ws_id, run_id);
+    owner_release(run_id);
+    routing
+}
+
+fn on_stage_end_inner(
+    state: &crate::server::AppState,
+    ws_id: &str,
+    run_id: &str,
+) -> StageRouting {
+    let ws = state.registry.get(ws_id);
+    // 取消旗标：停止推进，保留现场（AC-10）。
+    if let Some(flag) = cancel_flag(run_id) {
+        if flag.load(std::sync::atomic::Ordering::SeqCst) {
+            if let Some(pe) = ws.relay.plan_execution(run_id) {
+                let f = facts_of(
+                    &pe,
+                    &pe.phase,
+                    "cancelled",
+                    Some("run cancelled — plan left active, scene kept".into()),
+                    None,
+                );
+                push_facts(&ws.relay, run_id, f);
+            }
+            return StageRouting::Fail("run cancelled — plan left active (scene kept)".into());
+        }
+    }
+    let Some(pe) = ws.relay.plan_execution(run_id) else {
+        return StageRouting::Fail("stage end on a run without plan execution".into());
+    };
+    let stage = pe.phase.clone();
+    // 1. 必须有本 attempt 的有效结果（Done/handoff/绿勾不能替代，AC-04）。
+    let Some(claim) = latest_claim(&pe, &stage) else {
+        let f = facts_of(&pe, &stage, "stage_incomplete", None, None);
+        push_facts(&ws.relay, run_id, f);
+        return StageRouting::Fail(format!(
+            "stage_incomplete: agent ended phase '{stage}' without a valid complete_plan_stage result"
+        ));
+    };
+    // 2. needs_replan / blocked：停止、保留现场、计划留 active（不 document）。
+    if matches!(claim.outcome.as_str(), "needs_replan" | "blocked") {
+        let blocker = claim
+            .findings
+            .first()
+            .map(|f| f.description.clone())
+            .or_else(|| claim.evidence.first().cloned())
+            .unwrap_or_else(|| format!("{} reported by {}", claim.outcome, stage));
+        ws.relay.mutate_plan_execution(run_id, |pe| {
+            pe.blocker = Some(blocker.clone());
+        });
+        let f = facts_of(&pe, &stage, &claim.outcome, Some(blocker.clone()), None);
+        push_facts(&ws.relay, run_id, f);
+        return StageRouting::Fail(format!("{}: {blocker}", claim.outcome));
+    }
+    match stage.as_str() {
+        "plan" => route_plan_end(&ws, run_id, &pe, &claim),
+        "execute" => route_execute_end(&ws, run_id, &pe, &claim),
+        "review" => route_review_end(&ws, run_id, &pe, &claim),
+        "document" => route_document_end(&ws, run_id, &pe, &claim),
+        other => StageRouting::Fail(format!("unknown plan stage '{other}'")),
+    }
+}
+
+type WsStores = Arc<crate::workspace::WorkspaceStores>;
+
+fn route_plan_end(
+    ws: &WsStores,
+    run_id: &str,
+    pe: &crate::relay::plan_contract::PlanExecutionState,
+    claim: &crate::relay::plan_contract::StageResult,
+) -> StageRouting {
+    use crate::relay::plan_contract::PlanContract;
+    if claim.outcome != "pass" {
+        return StageRouting::Fail(format!(
+            "plan phase outcome '{}' is not routable (want pass|needs_replan|blocked)",
+            claim.outcome
+        ));
+    }
+    // 服务器回读计划文件：存在、完整、身份一致（AC-02）。
+    let plan_path = match pe.binding.as_ref() {
+        Some(b) => std::path::Path::new(&b.main_root).join(&b.plan_path),
+        None => match ws.relay.context_var(run_id, "plan_file") {
+            Some(p) if !p.trim().is_empty() => ws.root.join(p.trim()),
+            _ => {
+                let f = facts_of(pe, "plan", "stage_incomplete", None, None);
+                push_facts(&ws.relay, run_id, f);
+                return StageRouting::Fail(
+                    "plan phase pass without a materialized plan file (no binding, no plan_file)"
+                        .into(),
+                );
+            }
+        },
+    };
+    let contract = match PlanContract::read(&plan_path, None) {
+        Ok(c) => c,
+        Err(e) => return StageRouting::Fail(format!("plan read-back failed: {e}")),
+    };
+    if let Err(e) = contract.validate_complete() {
+        return StageRouting::Fail(format!("plan contract incomplete: {e}"));
+    }
+    if let Some(b) = pe.binding.as_ref() {
+        if b.plan_id != contract.plan_id {
+            return StageRouting::Fail(format!(
+                "plan identity drift: binding '{}' vs file '{}'",
+                b.plan_id, contract.plan_id
+            ));
+        }
+    }
+    // 回填身份 + 推进相位。
+    let filename = plan_path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    ws.relay.mutate_plan_execution(run_id, |pe| {
+        pe.plan_id = contract.plan_id.clone();
+        pe.plan_seq = contract
+            .plan_id
+            .trim_start_matches("PLAN-")
+            .parse()
+            .unwrap_or(pe.plan_seq);
+        pe.plan_path = format!("docs/plans/{filename}");
+        pe.plan_revision = contract.plan_revision;
+        pe.phase = "execute".into();
+        pe.attempt = 1;
+        pe.outcome = Some("pass".into());
+    });
+    let pe2 = ws.relay.plan_execution(run_id).unwrap();
+    push_facts(&ws.relay, run_id, facts_of(&pe2, "plan", "pass", None, None));
+    StageRouting::Advance
+}
+
+/// Approval-scope verification for execute/review stages: the plan file's
+/// semantic hash must still match the approved binding (AC-06: in-contract
+/// fixes keep authorization; semantic edits expire it → needs_replan).
+fn verify_binding_intact(
+    pe: &crate::relay::plan_contract::PlanExecutionState,
+) -> Result<crate::relay::plan_contract::PlanContract, String> {
+    use crate::relay::plan_contract::PlanContract;
+    let binding = pe
+        .binding
+        .as_ref()
+        .ok_or_else(|| "no approval binding — plan was never approved".to_string())?;
+    let path = std::path::Path::new(&binding.main_root).join(&binding.plan_path);
+    let contract = PlanContract::read(&path, Some(&binding.plan_id))?;
+    if contract.semantic_hash != binding.semantic_hash {
+        return Err(format!(
+            "semantic contract drift since approval — re-approval required (old {})",
+            &binding.semantic_hash[..8.min(binding.semantic_hash.len())]
+        ));
+    }
+    Ok(contract)
+}
+
+/// Worktree facts: clean status + HEAD != base (real commits landed, AC-04).
+fn verify_committed_work(
+    binding: &crate::relay::plan_contract::PlanExecutionBinding,
+) -> Result<String, String> {
+    let wt = binding
+        .execution_root
+        .as_ref()
+        .ok_or_else(|| "no execution worktree registered".to_string())?;
+    let wt = std::path::Path::new(wt);
+    if !wt.is_dir() {
+        return Err(format!("execution worktree missing: {}", wt.display()));
+    }
+    let run = |args: &[&str]| -> Result<String, String> {
+        let out = std::process::Command::new("git")
+            .args(args)
+            .current_dir(wt)
+            .output()
+            .map_err(|e| format!("git spawn failed: {e}"))?;
+        if !out.status.success() {
+            return Err(format!(
+                "git {} failed: {}",
+                args.first().unwrap_or(&""),
+                String::from_utf8_lossy(&out.stderr)
+            ));
+        }
+        Ok(String::from_utf8_lossy(&out.stdout).to_string())
+    };
+    let status = run(&["status", "--porcelain"])?;
+    if !status.trim().is_empty() {
+        return Err(format!(
+            "worktree has uncommitted changes — commit before claiming pass:\n{}",
+            status.trim()
+        ));
+    }
+    let head = run(&["rev-parse", "HEAD"])?.trim().to_string();
+    if head == binding.base_commit {
+        return Err("no commits since base — nothing was implemented".into());
+    }
+    Ok(head)
+}
+
+/// Every §7 AC must be covered by a pass record with evidence (AC-04).
+fn verify_acceptance_covered(
+    contract: &crate::relay::plan_contract::PlanContract,
+    claim: &crate::relay::plan_contract::StageResult,
+) -> Result<(), String> {
+    for ac in &contract.acceptance {
+        let rec = claim.acceptance_results.iter().find(|r| r.id == ac.id);
+        match rec {
+            None => return Err(format!("AC {} has no verification record", ac.id)),
+            Some(r) => {
+                if r.status != "pass" {
+                    return Err(format!("AC {} is '{}', not pass", ac.id, r.status));
+                }
+                if r.evidence.trim().is_empty() {
+                    return Err(format!("AC {} pass carries no evidence", ac.id));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn transition_plan_status(
+    ws: &WsStores,
+    pe: &crate::relay::plan_contract::PlanExecutionState,
+    to: &str,
+) -> Result<(), String> {
+    use crate::plans::PlanStatus;
+    let binding = pe
+        .binding
+        .as_ref()
+        .ok_or_else(|| "no binding".to_string())?;
+    let main_root = std::path::Path::new(&binding.main_root);
+    let plans = crate::plans::PlansStore::new(main_root.join("docs/plans"));
+    let status = match to {
+        "executing" => PlanStatus::Executing,
+        "execution_done" => PlanStatus::ExecutionDone,
+        "reviewed" => PlanStatus::Reviewed,
+        other => return Err(format!("unsupported plan status '{other}'")),
+    };
+    plans.transition(pe.plan_seq, status).map(|_| ())
+}
+
+fn route_execute_end(
+    ws: &WsStores,
+    run_id: &str,
+    pe: &crate::relay::plan_contract::PlanExecutionState,
+    claim: &crate::relay::plan_contract::StageResult,
+) -> StageRouting {
+    if claim.outcome != "pass" {
+        return StageRouting::Fail(format!(
+            "execute phase outcome '{}' is not routable (review reports needs_fix; execute stops via needs_replan|blocked)",
+            claim.outcome
+        ));
+    }
+    let binding = match pe.binding.as_ref() {
+        Some(b) => b.clone(),
+        None => return StageRouting::Fail("execute end without approval binding".into()),
+    };
+    // 语义漂移 → 停（AC-06）。
+    let contract = match verify_binding_intact(pe) {
+        Ok(c) => c,
+        Err(e) => {
+            ws.relay.mutate_plan_execution(run_id, |pe| pe.blocker = Some(e.clone()));
+            let f = facts_of(pe, "execute", "needs_replan", Some(e.clone()), None);
+            push_facts(&ws.relay, run_id, f);
+            return StageRouting::Fail(format!("needs_replan: {e}"));
+        }
+    };
+    // 提交事实（AC-04：未提交不能 execution_done）。
+    let head = match verify_committed_work(&binding) {
+        Ok(h) => h,
+        Err(e) => return StageRouting::Fail(e),
+    };
+    // AC 覆盖。
+    if let Err(e) = verify_acceptance_covered(&contract, claim) {
+        return StageRouting::Fail(e);
+    }
+    // 计划状态机：executing → execution_done。
+    if let Err(e) = transition_plan_status(ws, pe, "execution_done") {
+        return StageRouting::Fail(format!("plan transition failed: {e}"));
+    }
+    ws.relay.mutate_plan_execution(run_id, |pe| {
+        // 轮次制：execute/review 共享同一轮次号（review/needs_fix 回退时
+        // attempt+1）；跨轮比对（无进展判定）依赖该单调性。
+        pe.phase = "review".into();
+        pe.outcome = Some("pass".into());
+    });
+    let pe2 = ws.relay.plan_execution(run_id).unwrap();
+    let mut f = facts_of(&pe2, "execute", "pass", None, None);
+    f.reviewed_commit = Some(head);
+    push_facts(&ws.relay, run_id, f);
+    StageRouting::Advance
+}
+
+fn route_review_end(
+    ws: &WsStores,
+    run_id: &str,
+    pe: &crate::relay::plan_contract::PlanExecutionState,
+    claim: &crate::relay::plan_contract::StageResult,
+) -> StageRouting {
+    let pe = pe.clone();
+    match claim.outcome.as_str() {
+        "pass" => {
+            let binding = match pe.binding.as_ref() {
+                Some(b) => b.clone(),
+                None => return StageRouting::Fail("review end without approval binding".into()),
+            };
+            let contract = match verify_binding_intact(&pe) {
+                Ok(c) => c,
+                Err(e) => return StageRouting::Fail(format!("needs_replan: {e}")),
+            };
+            let head = match verify_committed_work(&binding) {
+                Ok(h) => h,
+                Err(e) => return StageRouting::Fail(e),
+            };
+            if let Err(e) = verify_acceptance_covered(&contract, claim) {
+                return StageRouting::Fail(format!("review pass rejected: {e}"));
+            }
+            if let Err(e) = transition_plan_status(ws, &pe, "reviewed") {
+                return StageRouting::Fail(format!("plan transition failed: {e}"));
+            }
+            ws.relay.mutate_plan_execution(run_id, |pe| {
+                pe.phase = "document".into();
+                pe.outcome = Some("pass".into());
+                pe.reviewed_commit = Some(head.clone());
+            });
+            let pe2 = ws.relay.plan_execution(run_id).unwrap();
+            let mut f = facts_of(&pe2, "review", "pass", None, None);
+            f.reviewed_commit = Some(head);
+            push_facts(&ws.relay, run_id, f);
+            StageRouting::Advance
+        }
+        "needs_fix" => {
+            // 有界修复（AC-05）：findings 必须带稳定 id；无进展早停。
+            if claim.findings.is_empty() {
+                return StageRouting::Fail(
+                    "needs_fix without findings — reviewer must name stable finding/task/AC ids"
+                        .into(),
+                );
+            }
+            // no-progress 判定（§5.4）：同一 finding 的代码与验收证据均无
+            // 变化 → 提前停。比对键 =（本轮 findings id 集, 本轮 execute
+            // 提交, 本轮 evidence）vs 上一修复轮同键。
+            let prev_review = pe
+                .stage_results
+                .iter()
+                .rev()
+                .find(|r| {
+                    r.stage == "review"
+                        && r.outcome == "needs_fix"
+                        && r.attempt + 1 == pe.attempt
+                })
+                .cloned();
+            if let Some(prev) = prev_review {
+                let exec_of = |round: u32| {
+                    pe.stage_results
+                        .iter()
+                        .rev()
+                        .find(|r| r.stage == "execute" && r.attempt == round)
+                        .and_then(|r| r.commit.clone())
+                };
+                let ids = |r: &crate::relay::plan_contract::StageResult| {
+                    let mut v: Vec<String> = r.findings.iter().map(|f| f.id.clone()).collect();
+                    v.sort();
+                    v
+                };
+                if ids(claim) == ids(&prev)
+                    && !claim.evidence.is_empty()
+                    && claim.evidence == prev.evidence
+                    && exec_of(pe.attempt).is_some()
+                    && exec_of(pe.attempt) == exec_of(pe.attempt - 1)
+                {
+                    ws.relay.mutate_plan_execution(run_id, |pe| {
+                        pe.blocker = Some(
+                            "no progress: identical findings, commit and evidence across repair attempts"
+                                .into(),
+                        );
+                    });
+                    let pe2 = ws.relay.plan_execution(run_id).unwrap();
+                    let f = facts_of(&pe2, "review", "no_progress", pe2.blocker.clone(), None);
+                    push_facts(&ws.relay, run_id, f);
+                    return StageRouting::Fail(
+                        "no_progress: identical findings/commit/evidence across repair attempts — stopping early"
+                            .into(),
+                    );
+                }
+            }
+            // 修复轮上限（默认 3，work 技能界定的产品默认）。
+            if pe.repair_count >= pe.repair_limit {
+                let pe2 = ws.relay.plan_execution(run_id).unwrap();
+                let f = facts_of(&pe2, "review", "repair_limit", None, None);
+                push_facts(&ws.relay, run_id, f);
+                return StageRouting::Fail(format!(
+                    "repair limit exhausted ({} rounds) — stopping",
+                    pe.repair_limit
+                ));
+            }
+            // 计划状态机回退 executing；引擎回退到 execute（Q-01 受控入口）；
+            // attempt/repair 计数推进——三者在一个 runs 锁内原子完成。
+            if let Err(e) = transition_plan_status(ws, &pe, "executing") {
+                return StageRouting::Fail(format!("plan transition failed: {e}"));
+            }
+            let rewound = ws.relay.mutate_engine_and_plan(run_id, |engine, pe| {
+                engine_rewind_to_step(engine, "execute")?;
+                pe.phase = "execute".into();
+                pe.attempt += 1;
+                pe.repair_count += 1;
+                pe.outcome = Some("needs_fix".into());
+                Ok(())
+            });
+            match rewound {
+                Some(Ok(())) => {}
+                Some(Err(e)) => return StageRouting::Fail(format!("rewind failed: {e}")),
+                None => return StageRouting::Fail("run vanished during rewind".into()),
+            }
+            let pe2 = ws.relay.plan_execution(run_id).unwrap();
+            let f = facts_of(&pe2, "review", "needs_fix", None, None);
+            push_facts(&ws.relay, run_id, f);
+            StageRouting::RewoundToExecute
+        }
+        other => StageRouting::Fail(format!(
+            "review outcome '{other}' is not routable (want pass|needs_fix|needs_replan|blocked)"
+        )),
+    }
+}
+
+fn route_document_end(
+    ws: &WsStores,
+    run_id: &str,
+    pe: &crate::relay::plan_contract::PlanExecutionState,
+    claim: &crate::relay::plan_contract::StageResult,
+) -> StageRouting {
+    if claim.outcome != "pass" {
+        return StageRouting::Fail(format!(
+            "document outcome '{}' is not routable (delivery checkpoints live in plan_delivery; needs_replan|blocked stop the run)",
+            claim.outcome
+        ));
+    }
+    // 交付检查点事实核对（AC-08）：五个检查点必须已由 plan_delivery 工具
+    // 逐项登记（动作本体在 T-08/T-09 的 plan_delivery）。
+    let required = ["prepared", "landed", "ledger_refreshed", "archived", "cleaned"];
+    let missing: Vec<&str> = required
+        .iter()
+        .filter(|cp| !pe.delivery_checkpoints.contains_key(**cp))
+        .copied()
+        .collect();
+    if !missing.is_empty() {
+        return StageRouting::Fail(format!(
+            "delivery checkpoints missing: {missing:?} — run plan_delivery actions first"
+        ));
+    }
+    ws.relay.mutate_plan_execution(run_id, |pe| {
+        pe.phase = "delivered".into();
+        pe.outcome = Some("pass".into());
+    });
+    let pe2 = ws.relay.plan_execution(run_id).unwrap();
+    push_facts(
+        &ws.relay,
+        run_id,
+        facts_of(&pe2, "document", "pass", None, Some("all".into())),
+    );
+    StageRouting::Complete
 }
 
 #[cfg(test)]

@@ -8,6 +8,9 @@
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::Arc;
+
+use auto_ai_client::{ClientError, CompletionRequest, CompletionResponse};
 
 use musk::relay::plan_contract::{
     parse_frontmatter_yaml, sha256_hex, PlanContract, SkillEntry, SkillSnapshot,
@@ -245,4 +248,498 @@ fn frontmatter_yaml_parses_lists() {
         other => panic!("touched_goals must be a list, got {other:?}"),
     }
     assert_eq!(doc["plan_id"].as_str().unwrap(), "PLAN-042");
+}
+
+// ── T-05: stage routing / results / owner / cancel matrix (real git) ───────
+
+use auto_ai_agent::Client as _ClientT;
+use musk::relay::plan_control::{
+    attach_binding_on_gate_approve, on_stage_end, record_stage_claim, StageRouting,
+};
+use musk::relay::plan_contract::{AcResult, Finding, StageResult};
+use musk::server::AppState;
+
+struct RouteMockClient;
+#[async_trait::async_trait]
+impl _ClientT for RouteMockClient {
+    async fn complete(&self, _req: &CompletionRequest) -> Result<CompletionResponse, ClientError> {
+        Err(ClientError::DaemonUnavailable)
+    }
+}
+
+/// 真 Git 仓工作环境：workspace root = 临时 git 仓（默认分支 master）。
+struct RouteEnv {
+    _td: tempfile::TempDir,
+    state: AppState,
+    ws_id: String,
+    main_root: std::path::PathBuf,
+}
+
+fn git_args(dir: &std::path::Path, args: &[&str]) -> String {
+    let out = std::process::Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "git {args:?} failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
+fn route_env(tag: &str) -> RouteEnv {
+    let td = tempfile::tempdir().unwrap();
+    let main_root = td.path().join("repo");
+    std::fs::create_dir_all(&main_root).unwrap();
+    git_args(&main_root, &["init", "-b", "master"]);
+    git_args(&main_root, &["config", "user.email", "t@t"]);
+    git_args(&main_root, &["config", "user.name", "t"]);
+    std::fs::write(main_root.join("README.md"), "seed\n").unwrap();
+    git_args(&main_root, &["add", "."]);
+    git_args(&main_root, &["commit", "-m", "seed"]);
+    std::env::set_var("MUSK_PLAN_WORKTREE_ROOT", td.path().join(format!("wt-{tag}")));
+    let registry = musk::workspace::WorkspaceRegistry::load(
+        main_root.join(".autoos-ws.json"),
+        main_root.clone(),
+    );
+    let state = AppState {
+        client: Arc::new(RouteMockClient) as Arc<dyn _ClientT>,
+        auth: Arc::new(musk::auto_generated::auth::AuthStore::new(
+            main_root.join(".autoos/users.json"),
+        )),
+        registry: Arc::new(registry),
+        canvas: Arc::new(musk::canvas::CanvasManager::new()),
+        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+        chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        run_idle_timeout: std::time::Duration::from_secs(300),
+    };
+    let ws_id = {
+        let q = musk::workspace::WorkspaceQuery { workspace: None };
+        q.id_or_default(&state.registry)
+    };
+    RouteEnv { _td: td, state, ws_id, main_root }
+}
+
+const PLAN_BODY: &str = "---\n\
+plan_id: PLAN-001\n\
+status: drafting\n\
+feature_name: route-demo\n\
+created_at: 2026-10-02T00:00:00Z\n\
+updated_at: 2026-10-02T00:00:00Z\n\
+plan_revision: 1\n\
+current_step: 0\n\
+total_steps: 1\n\
+supersedes_spec_components: []\n\
+new_spec_components: []\n\
+touched_goals: []\n\
+---\n\n\
+# [PLAN-001] route-demo\n\n\
+## 1. 目标\n\n- 交付演示功能\n\n\
+## 7. 验收标准\n\n- [ ] AC-01 演示可验证\n\n\
+## 8. 执行步骤\n\n- [ ] T-01 实现演示\n";
+
+fn start_bound_run(env: &RouteEnv, tag: &str) -> String {
+    let ws = env.state.registry.get(&env.ws_id);
+    let plans = musk::plans::PlansStore::new(ws.root.join("docs/plans"));
+    let pf = plans.create("route-demo", PLAN_BODY).unwrap();
+    assert_eq!(pf.seq, 1);
+    let (run_id, _) = ws.relay.start_run(
+        &musk::relay::store::StartRunRequest {
+            run_id: Some(format!("run-{tag}-{}", uuid_tag())),
+            flow_id: Some("plan".into()),
+            steps: Vec::new(),
+            task: Some("做演示".into()),
+            authorization: Some("human".into()),
+        },
+        Some(env.ws_id.clone()),
+    );
+    let b = musk::relay::plan_control::bootstrap_plan_run_default(
+        "plan",
+        "做演示",
+        &ws.plans.plans_dir,
+    )
+    .unwrap();
+    ws.relay.set_plan_execution(&run_id, b.state).unwrap();
+    ws.relay
+        .set_context_var(&run_id, "plan_file", &format!("docs/plans/{}", pf.filename));
+    ws.relay.set_context_var(&run_id, "plan_authorization", "human");
+    run_id
+}
+
+fn claim(stage: &str, outcome: &str, plan_rev: u32) -> StageResult {
+    StageResult {
+        stage: stage.into(),
+        plan_id: "PLAN-001".into(),
+        attempt: 0,
+        plan_revision: plan_rev,
+        outcome: outcome.into(),
+        commit: None,
+        acceptance_results: vec![],
+        findings: vec![],
+        evidence: vec![],
+        spec_delta_ref: None,
+        timestamp: 0,
+        server_facts: None,
+    }
+}
+
+fn uuid_tag() -> String {
+    format!(
+        "{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .subsec_nanos()
+    )
+}
+
+/// 推进到 execute 相位（plan pass → handoff → 批准绑定 → 门批准）。
+fn reach_execute(env: &RouteEnv, run_id: &str) -> std::path::PathBuf {
+    let ws = env.state.registry.get(&env.ws_id);
+    ws.relay.advance(run_id).unwrap();
+    record_stage_claim(&ws.relay, run_id, claim("plan", "pass", 1)).unwrap();
+    assert!(matches!(
+        on_stage_end(&env.state, &env.ws_id, run_id),
+        StageRouting::Advance
+    ));
+    ws.relay
+        .submit_handoff(run_id, {
+            let mut h = auto_ai_agent::orchestration::HandoffDocument::new("advisor", "coder");
+            h.summary = "plan done".into();
+            h
+        })
+        .unwrap();
+    attach_binding_on_gate_approve(&env.state, &env.ws_id, run_id).unwrap();
+    let binding = ws.relay.plan_execution(run_id).unwrap().binding.unwrap();
+    let wt = std::path::PathBuf::from(binding.execution_root.unwrap());
+    ws.relay
+        .resolve_gate(run_id, musk::relay::GateDecision::Approve)
+        .unwrap();
+    wt
+}
+
+/// AC-04/05/06/10 主矩阵：plan→批准绑定→execute（未提交拒/提交过）→
+/// review（needs_fix 回退、无进展早停）+ 取消 + 迟到结果 + 语义漂移。
+#[test]
+#[serial]
+fn stage_routing_full_lifecycle_matrix() {
+    let env = route_env("matrix");
+    let ws = env.state.registry.get(&env.ws_id);
+    let run_id = start_bound_run(&env, "matrix");
+
+    // ── plan 相位 ──
+    ws.relay.advance(&run_id).unwrap();
+    // Done 无结果 → stage_incomplete（AC-04）。
+    match on_stage_end(&env.state, &env.ws_id, &run_id) {
+        StageRouting::Fail(e) => assert!(e.contains("stage_incomplete"), "{e}"),
+        other => panic!("expected stage_incomplete, got {other:?}"),
+    }
+    // 迟到/错相位声明被工具入口拒绝。
+    let err = record_stage_claim(&ws.relay, &run_id, claim("review", "pass", 1)).unwrap_err();
+    assert!(err.contains("does not match"), "{err}");
+    // 正常 plan pass → Advance。
+    record_stage_claim(&ws.relay, &run_id, claim("plan", "pass", 1)).unwrap();
+    assert!(matches!(
+        on_stage_end(&env.state, &env.ws_id, &run_id),
+        StageRouting::Advance
+    ));
+    let pe = ws.relay.plan_execution(&run_id).unwrap();
+    assert_eq!(pe.phase, "execute");
+    assert_eq!(pe.plan_id, "PLAN-001");
+
+    // ── 执行门：human 批准绑定 ──
+    ws.relay
+        .submit_handoff(&run_id, {
+            let mut h = auto_ai_agent::orchestration::HandoffDocument::new("advisor", "coder");
+            h.summary = "plan done".into();
+            h
+        })
+        .unwrap();
+    assert!(ws.relay.plan_execution(&run_id).unwrap().binding.is_none());
+    attach_binding_on_gate_approve(&env.state, &env.ws_id, &run_id).unwrap();
+    let binding = ws.relay
+        .plan_execution(&run_id)
+        .unwrap()
+        .binding
+        .expect("bound at approval");
+    assert_eq!(binding.default_branch, "master");
+    assert_eq!(binding.authorization, "human");
+    assert_eq!(binding.repair_limit, 3);
+    assert_eq!(binding.dev_branch.as_deref(), Some("plan-001-dev"));
+    assert_eq!(binding.skills_hashes.len(), 4);
+    let wt = std::path::PathBuf::from(binding.execution_root.clone().unwrap());
+    assert!(wt.is_dir(), "worktree created at approval");
+    ws.relay
+        .resolve_gate(&run_id, musk::relay::GateDecision::Approve)
+        .unwrap();
+
+    // ── execute 相位 ──
+    // 伪 pass（无提交）→ 拒（AC-04）。
+    let mut c = claim("execute", "pass", 1);
+    c.acceptance_results = vec![AcResult {
+        id: "AC-01".into(),
+        status: "pass".into(),
+        evidence: "e".into(),
+    }];
+    record_stage_claim(&ws.relay, &run_id, c).unwrap();
+    match on_stage_end(&env.state, &env.ws_id, &run_id) {
+        StageRouting::Fail(e) => assert!(e.contains("no commits since base"), "{e}"),
+        other => panic!("uncommitted pass must fail, got {other:?}"),
+    }
+    // 真提交 + AC 覆盖 → Advance（进 review，轮次 1）。
+    let rnd = uuid_tag();
+    std::fs::write(wt.join(format!("app-{rnd}.txt")), "implementation\n").unwrap();
+    git_args(&wt, &["add", "."]);
+    git_args(&wt, &["commit", "-m", &format!("feat: demo {rnd}")]);
+    let head1 = git_args(&wt, &["rev-parse", "HEAD"]);
+    let mut c = claim("execute", "pass", 1);
+    c.commit = Some(head1.clone());
+    c.acceptance_results = vec![AcResult {
+        id: "AC-01".into(),
+        status: "pass".into(),
+        evidence: format!("verified {rnd}"),
+    }];
+    c.evidence = vec![format!("cargo test green ({rnd})")];
+    record_stage_claim(&ws.relay, &run_id, c).unwrap();
+    assert!(matches!(
+        on_stage_end(&env.state, &env.ws_id, &run_id),
+        StageRouting::Advance
+    ));
+    let pe = ws.relay.plan_execution(&run_id).unwrap();
+    assert_eq!(pe.phase, "review");
+    assert_eq!(pe.attempt, 1, "round 1");
+    let plans = musk::plans::PlansStore::new(ws.root.join("docs/plans"));
+    assert_eq!(plans.get(1).unwrap().status.as_str(), "execution_done");
+
+    // ── review：needs_fix 有界回退 ──
+    let mut c = claim("review", "needs_fix", 1);
+    c.findings = vec![Finding {
+        id: "F-1".into(),
+        task: Some("T-01".into()),
+        ac: Some("AC-01".into()),
+        description: "输出不完整".into(),
+    }];
+    c.evidence = vec![format!("review notes round1 ({rnd})")];
+    record_stage_claim(&ws.relay, &run_id, c).unwrap();
+    assert!(matches!(
+        on_stage_end(&env.state, &env.ws_id, &run_id),
+        StageRouting::RewoundToExecute
+    ));
+    let pe = ws.relay.plan_execution(&run_id).unwrap();
+    assert_eq!(pe.phase, "execute");
+    assert_eq!(pe.attempt, 2);
+    assert_eq!(pe.repair_count, 1);
+    assert_eq!(plans.get(1).unwrap().status.as_str(), "executing");
+    let (r, _) = ws.relay.advance(&run_id).unwrap();
+    assert!(
+        matches!(&r, musk::relay::AdvanceResult::ExecuteStep { role_id, .. } if role_id == "coder"),
+        "engine rewound to coder: {r:?}"
+    );
+
+    // ── 修复轮 2：无进展早停（同 findings/同提交/同证据）──
+    let mut c = claim("execute", "pass", 1);
+    c.commit = Some(head1.clone()); // 无新提交
+    c.acceptance_results = vec![AcResult {
+        id: "AC-01".into(),
+        status: "pass".into(),
+        evidence: "verified again".into(),
+    }];
+    record_stage_claim(&ws.relay, &run_id, c).unwrap();
+    assert!(matches!(
+        on_stage_end(&env.state, &env.ws_id, &run_id),
+        StageRouting::Advance
+    ));
+    let mut c = claim("review", "needs_fix", 1);
+    c.findings = vec![Finding {
+        id: "F-1".into(),
+        task: None,
+        ac: None,
+        description: "还是不完整".into(),
+    }];
+    c.evidence = vec![format!("review notes round1 ({rnd})")]; // 同证据
+    record_stage_claim(&ws.relay, &run_id, c).unwrap();
+    match on_stage_end(&env.state, &env.ws_id, &run_id) {
+        StageRouting::Fail(e) => assert!(e.contains("no_progress"), "{e}"),
+        other => panic!("identical round must no_progress, got {other:?}"),
+    }
+    std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
+}
+
+/// 修复轮上限：needs_fix 三轮后明确停止（AC-05）。
+#[test]
+#[serial]
+fn repair_limit_exhaustion_stops() {
+    let env = route_env("limit");
+    let ws = env.state.registry.get(&env.ws_id);
+    let run_id = start_bound_run(&env, "limit");
+    let wt = reach_execute(&env, &run_id);
+    for round in 1..=4usize {
+        std::fs::write(wt.join(format!("f{round}-{}.txt", uuid_tag())), "x\n").unwrap();
+        git_args(&wt, &["add", "."]);
+        git_args(&wt, &["commit", "-m", &format!("round {round}")]);
+        let head = git_args(&wt, &["rev-parse", "HEAD"]);
+        let mut c = claim("execute", "pass", 1);
+        c.commit = Some(head);
+        c.acceptance_results = vec![AcResult {
+            id: "AC-01".into(),
+            status: "pass".into(),
+            evidence: format!("ev{round}"),
+        }];
+        c.evidence = vec![format!("ev{round}")];
+        record_stage_claim(&ws.relay, &run_id, c).unwrap();
+        assert!(matches!(
+            on_stage_end(&env.state, &env.ws_id, &run_id),
+            StageRouting::Advance
+        ));
+        let mut c = claim("review", "needs_fix", 1);
+        c.findings = vec![Finding {
+            id: format!("F-{round}"),
+            task: None,
+            ac: None,
+            description: "n".into(),
+        }];
+        c.evidence = vec![format!("notes{round}")];
+        record_stage_claim(&ws.relay, &run_id, c).unwrap();
+        let r = on_stage_end(&env.state, &env.ws_id, &run_id);
+        if round < 4 {
+            assert!(
+                matches!(r, StageRouting::RewoundToExecute),
+                "round {round}: {r:?}"
+            );
+        } else {
+            match r {
+                StageRouting::Fail(e) => assert!(e.contains("repair limit"), "{e}"),
+                other => panic!("round 4 must exhaust, got {other:?}"),
+            }
+        }
+    }
+    std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
+}
+
+/// 取消：旗标置位 → 收束即停，现场保留（AC-10）。
+#[test]
+#[serial]
+fn cancel_stops_routing_and_keeps_scene() {
+    let env = route_env("cancel");
+    let ws = env.state.registry.get(&env.ws_id);
+    let run_id = start_bound_run(&env, "cancel");
+    ws.relay.advance(&run_id).unwrap();
+    musk::relay::plan_control::cancel_register(&run_id);
+    assert!(musk::relay::plan_control::cancel_set(&run_id));
+    record_stage_claim(&ws.relay, &run_id, claim("plan", "pass", 1)).unwrap();
+    match on_stage_end(&env.state, &env.ws_id, &run_id) {
+        StageRouting::Fail(e) => assert!(e.contains("cancelled"), "{e}"),
+        other => panic!("cancel must stop, got {other:?}"),
+    }
+    assert!(ws.relay.plan_execution(&run_id).is_some(), "scene kept");
+    musk::relay::plan_control::cancel_remove(&run_id);
+    std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
+}
+
+/// needs_replan：明确停止、计划留 executing、不 document（AC-06）。
+#[test]
+#[serial]
+fn needs_replan_stops_without_document() {
+    let env = route_env("replan");
+    let ws = env.state.registry.get(&env.ws_id);
+    let run_id = start_bound_run(&env, "replan");
+    ws.relay.advance(&run_id).unwrap();
+    record_stage_claim(&ws.relay, &run_id, claim("plan", "pass", 1)).unwrap();
+    assert!(matches!(
+        on_stage_end(&env.state, &env.ws_id, &run_id),
+        StageRouting::Advance
+    ));
+    ws.relay
+        .submit_handoff(&run_id, {
+            let mut h = auto_ai_agent::orchestration::HandoffDocument::new("advisor", "coder");
+            h.summary = "x".into();
+            h
+        })
+        .unwrap();
+    attach_binding_on_gate_approve(&env.state, &env.ws_id, &run_id).unwrap();
+    ws.relay
+        .resolve_gate(&run_id, musk::relay::GateDecision::Approve)
+        .unwrap();
+    let mut c = claim("execute", "needs_replan", 1);
+    c.findings = vec![Finding {
+        id: "B-1".into(),
+        task: None,
+        ac: None,
+        description: "需求缺关键约束".into(),
+    }];
+    record_stage_claim(&ws.relay, &run_id, c).unwrap();
+    match on_stage_end(&env.state, &env.ws_id, &run_id) {
+        StageRouting::Fail(e) => {
+            assert!(e.contains("needs_replan") && e.contains("需求缺关键约束"), "{e}")
+        }
+        other => panic!("needs_replan must stop, got {other:?}"),
+    }
+    let pe = ws.relay.plan_execution(&run_id).unwrap();
+    assert_eq!(pe.blocker.as_deref(), Some("需求缺关键约束"));
+    let plans = musk::plans::PlansStore::new(ws.root.join("docs/plans"));
+    assert_eq!(plans.get(1).unwrap().status.as_str(), "executing");
+    std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
+}
+
+/// 语义漂移：批准后仅进度变化不失效；语义变化（目标改写）→ needs_replan 停。
+#[test]
+#[serial]
+fn semantic_drift_rules() {
+    let env = route_env("drift");
+    let ws = env.state.registry.get(&env.ws_id);
+    let run_id = start_bound_run(&env, "drift");
+    let wt = reach_execute(&env, &run_id);
+    let plan_path = ws.root.join("docs/plans/001-route-demo.md");
+
+    // 仅进度变化：勾选+证据 → 批准保持（AC-06 正向）。
+    let content = std::fs::read_to_string(&plan_path).unwrap();
+    std::fs::write(
+        &plan_path,
+        content.replace("- [ ] T-01 实现演示", "- [x] T-01 实现演示 [✅ 已完成]\n  证据：进行中"),
+    )
+    .unwrap();
+
+    std::fs::write(wt.join("impl.txt"), "x\n").unwrap();
+    git_args(&wt, &["add", "."]);
+    git_args(&wt, &["commit", "-m", "impl"]);
+    let head = git_args(&wt, &["rev-parse", "HEAD"]);
+    let mut c = claim("execute", "pass", 1);
+    c.commit = Some(head.clone());
+    c.acceptance_results = vec![AcResult {
+        id: "AC-01".into(),
+        status: "pass".into(),
+        evidence: "e".into(),
+    }];
+    c.evidence = vec!["ev".into()];
+    record_stage_claim(&ws.relay, &run_id, c).unwrap();
+    assert!(matches!(
+        on_stage_end(&env.state, &env.ws_id, &run_id),
+        StageRouting::Advance
+    ));
+
+    // 语义变化：目标文字改写 → 旧批准失效（review pass 被拒 → needs_replan）。
+    let content = std::fs::read_to_string(&plan_path).unwrap();
+    std::fs::write(
+        &plan_path,
+        content.replace("交付演示功能", "交付演示功能（范围重定义）"),
+    )
+    .unwrap();
+    let mut c = claim("review", "pass", 1);
+    c.commit = Some(head);
+    c.acceptance_results = vec![AcResult {
+        id: "AC-01".into(),
+        status: "pass".into(),
+        evidence: "e".into(),
+    }];
+    record_stage_claim(&ws.relay, &run_id, c).unwrap();
+    match on_stage_end(&env.state, &env.ws_id, &run_id) {
+        StageRouting::Fail(e) => assert!(
+            e.contains("semantic contract drift") && e.contains("needs_replan"),
+            "{e}"
+        ),
+        other => panic!("semantic drift must stop, got {other:?}"),
+    }
+    std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
 }

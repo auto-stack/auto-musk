@@ -230,6 +230,26 @@ async fn drive_loop(
                         return;
                     }
                     tracing::info!("drive_run: {run_id} approval_mode=auto, auto-approving gate");
+                    // PLAN-096 T-05：auto 放行前先冻结批准绑定（合同/hash/
+                    // Git 事实/worktree）。失败 = 不放行（与 K5 缺计划同款
+                    // 响亮失败，不消费门）。
+                    {
+                        // 旧式 plan run（无 plan_execution）跳过绑定——兼容。
+                        if ws.relay.plan_execution(run_id).is_some() {
+                        let state_arc = std::sync::Arc::new(state.clone());
+                        let ws_id_for_gate = ws.relay.workspace_of(run_id).unwrap_or_default();
+                        if let Err(e) = crate::relay::plan_control::attach_binding_on_gate_approve(
+                            &state_arc, &ws_id_for_gate, run_id,
+                        ) {
+                            tracing::error!("drive_run: {run_id} gate binding failed: {e}");
+                            let _ = ws.relay.fail_run(
+                                run_id,
+                                &format!("approval binding failed — gate not passed: {e}"),
+                            );
+                            return;
+                        }
+                        }
+                    }
                     let (res, _st) = match ws.relay.resolve_gate_with_note(
                         run_id,
                         GateDecision::Approve,
@@ -413,7 +433,51 @@ async fn run_step(
         },
     );
 
-    // Wrap into a HandoffDocument and submit (the engine routes to the next step).
+    // PLAN-096 T-05：plan 流收束走受控路由——Done 不再天然推进。
+    // PlanControl 校验阶段结果与服务器事实（计划回读/Git/证据）后决定
+    // Advance / RewoundToExecute / Complete / Fail（stage_incomplete、
+    // needs_replan、修复上限、无进展……）。plan-merge 的 document 相位
+    // 同管（交付检查点核对）。其他流保持原样：直接提交 handoff。
+    let flow_is_plan = matches!(
+        ws.relay.flow_of(run_id).as_deref(),
+        Some("plan") | Some("plan-merge")
+    );
+    if flow_is_plan && ws.relay.plan_execution(run_id).is_some() {
+        let ws_id = ws.relay.workspace_of(run_id).unwrap_or_default();
+        let state_arc = std::sync::Arc::new(state.clone());
+        match crate::relay::plan_control::on_stage_end(&state_arc, &ws_id, run_id) {
+            crate::relay::plan_control::StageRouting::Advance
+            | crate::relay::plan_control::StageRouting::Complete => {
+                // 正常推进/交付完成：提交 handoff（引擎路由下一相位/门/收束）。
+                submit_handoff_for(ws, run_id, role_id, final_output.clone(), result)?;
+                Ok(final_output)
+            }
+            crate::relay::plan_control::StageRouting::RewoundToExecute => {
+                // 修复轮：引擎游标已回 execute，直接返回（外层循环 advance
+                // 会重新执行 coder）。本轮不提交 handoff（旧 attempt 的
+                // history 已被截断保留在事件流里）。
+                Ok(final_output)
+            }
+            crate::relay::plan_control::StageRouting::Fail(reason) => {
+                let _ = ws.relay.fail_run(run_id, &reason);
+                Err(reason)
+            }
+        }
+    } else {
+        submit_handoff_for(ws, run_id, role_id, final_output.clone(), result)?;
+        Ok(final_output)
+    }
+}
+
+/// Wrap the final output into a HandoffDocument and submit it (the engine
+/// routes to the next step). Factored from the tail of the former run_step.
+fn submit_handoff_for(
+    ws: &std::sync::Arc<crate::workspace::WorkspaceStores>,
+    run_id: &str,
+    role_id: &str,
+    final_output: String,
+    result: auto_ai_agent::AgentResult,
+) -> Result<(), String> {
     let next_profession = ws.relay.next_profession(run_id).unwrap_or_default();
     let mut handoff = HandoffDocument::new(role_id, &next_profession);
     handoff.summary = final_output.clone();
@@ -425,8 +489,7 @@ async fn run_step(
         .submit_handoff(run_id, handoff)
         .ok_or_else(|| "run vanished after step".to_string())?;
     // submit_handoff already pushes StepCompleted/TokenSpend + publishes.
-    let _ = result;
-    Ok(final_output)
+    Ok(())
 }
 
 fn now_secs() -> u64 {

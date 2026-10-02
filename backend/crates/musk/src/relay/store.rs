@@ -90,6 +90,16 @@ pub enum RunEvent {
         #[serde(default)] tool_name: String,
         #[serde(default)] partial: String,
     },
+    /// PLAN-096 T-05 (AC-13): controller-emitted plan-execution facts —
+    /// real stage outcomes, repair counts, blockers, delivery checkpoints.
+    /// Mirrored onto the bus + conversation like every other run event;
+    /// payload shape = `plan_contract::RunPlanEvent` (B-track surface).
+    PlanStageFacts {
+        #[serde(default)]
+        timestamp: u64,
+        #[serde(default)]
+        facts: crate::relay::plan_contract::RunPlanEvent,
+    },
 }
 
 /// PLAN-032: 汇报报告元数据（emit_report 工具产物登记；本体文件在
@@ -216,7 +226,8 @@ impl RunEvent {
             | RunEvent::TurnError { timestamp, .. }
             | RunEvent::TurnBudgetWarning { timestamp, .. }
             | RunEvent::TurnBudgetExceeded { timestamp, .. }
-            | RunEvent::ToolUpdate { timestamp, .. } => *timestamp,
+            | RunEvent::ToolUpdate { timestamp, .. }
+            | RunEvent::PlanStageFacts { timestamp, .. } => *timestamp,
         }
     }
 
@@ -240,6 +251,7 @@ impl RunEvent {
             RunEvent::TurnBudgetWarning { .. } => "turn_budget_warning",
             RunEvent::TurnBudgetExceeded { .. } => "turn_budget_exceeded",
             RunEvent::ToolUpdate { .. } => "tool_update",
+            RunEvent::PlanStageFacts { .. } => "plan_stage_facts",
         }
     }
 }
@@ -1020,6 +1032,27 @@ impl RunStore {
     ) -> Option<crate::relay::plan_contract::PlanExecutionState> {
         let runs = self.runs.lock().unwrap();
         runs.get(run_id).and_then(|e| e.plan_execution.clone())
+    }
+
+    /// PLAN-096 T-05: atomically mutate the engine cursor AND the plan facts
+    /// under one runs-lock acquisition (review/needs_fix rewind: cursor,
+    /// phase, attempt and repair count move together — no torn state between
+    /// the two maps). Err propagates from the closure; None = unknown run or
+    /// missing plan execution.
+    pub fn mutate_engine_and_plan<R>(
+        &self,
+        run_id: &str,
+        f: impl FnOnce(
+            &mut PipelineEngine,
+            &mut crate::relay::plan_contract::PlanExecutionState,
+        ) -> Result<R, String>,
+    ) -> Option<Result<R, String>> {
+        let mut runs = self.runs.lock().unwrap();
+        let entry = runs.get_mut(run_id)?;
+        let pe = entry.plan_execution.as_mut()?;
+        let r = f(&mut entry.engine, pe);
+        entry.updated_at = now_secs();
+        Some(r)
     }
 
     /// PLAN-094 T-03: the pending human gate's step id (None = no gate

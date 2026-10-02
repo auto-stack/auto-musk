@@ -326,6 +326,7 @@ pub fn build_agent_with_context(
             ("update_plan", Arc::new(crate::plan_tools::UpdatePlan::from_ctx(&ctx))),
             ("transition_plan", Arc::new(crate::plan_tools::TransitionPlan::from_ctx(&ctx))),
             ("merge_plan", Arc::new(crate::plan_tools::MergePlan::from_ctx(&ctx))),
+            ("complete_plan_stage", Arc::new(crate::plan_tools::CompletePlanStage::from_ctx(&ctx))),
             ("emit_report", Arc::new(crate::report_tools::EmitReport::from_ctx(&ctx))),
         ];
         for (name, tool) in &orch_tools {
