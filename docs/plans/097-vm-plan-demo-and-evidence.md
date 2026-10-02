@@ -498,8 +498,12 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
    （同文件/跨模块同症；musk 侧终版设计已就位,52b7733/b2285ac）。
    解阻塞动作：auto-lang 立项修 VM fn 调用语义;最小复现 probe-g15.mjs +
    canvas_store.at 内联 fn；修后 musk 侧零改动,行内容自然到达。
-   **已立项：auto-lang PLAN-733**（docs/plans/733-vm-fn-call-semantics.md,
-   drafting,2026-10-02;T-01 有界调查先行,AC-03=本计划 T-05 零改动解阻）。
+   **已立项：auto-lang PLAN-733**（同日 archived/delivered,修复合入
+   0b5c8758d/投影 550895b68）。**交付后复验未通过**（2026-10-03,附页④）:
+   550895b68 纯净构建下 handler 域 fn 调用仍返空（卡片挂载/store 读已解）,
+   而 PLAN-733 owner 的验证二进制（lang-733 worktree 构建,已清理）当时
+   全渲染——landing integrity 待 PLAN-733 owner 裁定（纯净构建重跑
+   probe-g15 或比对工作树差异）。musk 侧终版不变,复验命令不变。
 
 以上均有本计划内的有界调查任务，当前无须用户重复确认既有示例方向。调查
 导致目标/验收/允许仓库范围改变时，按 auto-plan:new 修订并保留原 AC 与证据。
