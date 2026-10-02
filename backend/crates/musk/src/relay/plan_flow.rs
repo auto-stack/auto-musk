@@ -204,6 +204,11 @@ pub fn phase_task(
 - §8 格式契约（机械要求）：每个任务必须是独立 checkbox 行 \
 `- [ ] T-NN 描述`（禁止表格/无 checkbox 列表——服务器按 checkbox 逐项 \
 核验推进）；§7 同理用 `- [ ] AC-NN 描述` 行。\n\
+- §7 范围契约（机械要求）：每条 AC 必须在**本相位内可独立验证为 pass**\
+（证据=真实命令/工件）。execute 相位的 AC 只覆盖实现本身；交付闭环\
+（prepare/land/账本/归档/清理）由 plan_delivery 检查点机械核验，**不要**\
+写成 execute 的 AC 或任务——否则该 AC 在 execute 物理上无法 pass，\
+本相位将无法通过。\n\
 {}\n\
 最终输出以单独一行结尾（驱动器解析）：`PLAN_FILE: docs/plans/NNN-slug.md`\n",
             skill_block(step_id, &skills.skills),

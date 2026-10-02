@@ -208,7 +208,7 @@ async function L1() {
     git(s.repo, 'add', '.'); git(s.repo, 'commit', '-m', 'seed');
     const r = await api(s, 'POST', '/api/forge/relay/runs', {
       flow_id: 'plan',
-      task: '在 README.md 末尾追加章节 "## Plan Flow"，内容一行：plan-flow live ok。完成后按流程交付（准备/合入/账本/归档/清理）。',
+      task: '在 README.md 末尾追加章节 "## Plan Flow"，内容一行：plan-flow live ok。验收只针对 README 内容本身；交付（合入/账本/归档/清理）由交付流程机械完成。',
       authorization: 'auto',
     });
     if (r.status !== 200) return { id: 'L1', outcome: 'FAIL', why: `start ${r.status}: ${r.text.slice(0, 200)}` };
