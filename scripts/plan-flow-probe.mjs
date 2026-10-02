@@ -268,6 +268,12 @@ async function L2() {
     const runId = r.json.run_id;
     const done = await driveToTerminal(s, runId, { timeoutMs: 45 * 60000, label: 'L2' });
     if (!done) return { id: 'L2', outcome: 'FAIL', why: 'timeout', runId };
+    // 失败诊断：终态错误随记录落收据（迭代定位用）。
+    const errEv = (done.events ?? []).filter(e => e.type === 'run_failed').pop();
+    if (done.status !== 'completed') {
+      return { id: 'L2', outcome: 'FAIL',
+        why: `run ${done.status}: ${(errEv?.error ?? '?').slice(0, 400)}`, runId };
+    }
     const pe = done.plan_execution ?? {};
     const needsFixRounds = facts(done, 'needs_fix').filter(f => f.stage === 'review');
     const assertions = [
