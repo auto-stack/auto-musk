@@ -1,5 +1,17 @@
 //! Phase task templates for the plan flow (PLAN-030 T8; PLAN-086 fixed
-//! professions).
+//! professions; PLAN-096 T-02 contract rework).
+//!
+//! PLAN-096 SD-01: the templates no longer inline the four-phase discipline.
+//! The `/auto-plan:{new,work,review,merge}` skills are the single discipline
+//! source — their full content is frozen at run start
+//! ([`crate::relay::plan_contract::snapshot_plan_skills`]) and injected
+//! verbatim into the phase task as a mechanical input, so the model never
+//! has to "remember to load" its discipline. What remains in the template:
+//! the fixed profession, the mechanical inputs (requirement, plan file,
+//! binding facts), the stage-result protocol
+//! (`complete_plan_stage` — Done without a valid result is
+//! `stage_incomplete`), and — for the execute phase — the Canvas generation
+//! guidance (previously `mode.name == "coding"`-only, §5.1).
 //!
 //! `FlowStep` has no per-step prompt field (the orchestration types stay
 //! generic), so the musk driver injects phase-specific instructions here:
@@ -8,16 +20,10 @@
 //! substituted from the run context — fed by the create_plan binding channel
 //! first, the `PLAN_FILE:` marker extraction as fallback
 //! ([`plan_file_marker_write`]).
-//!
-//! The four templates internalize the `/auto-plan:*` skill disciplines
-//! (008 §6): new (clarify-or-draft, numbered sections, atomic tasks),
-//! work (plan as sole context, tick + verify, blockers to 待澄清事项),
-//! review (trust the code, re-verify acceptance, fill spec-impact), merge
-//! (gate on reviewed, deposit, archive). PLAN-086 pins each phase to a
-//! fixed profession — advisor/coder/reviewer/assistant — and voices the
-//! template accordingly; the discipline items themselves are unchanged.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+
+use super::plan_contract::{SkillEntry, SkillSnapshot};
 
 /// Extract the `PLAN_FILE: <path>` marker from a step's accumulated output.
 /// The plan phase must emit it as the last line; later phases' templates
@@ -86,19 +92,81 @@ pub fn execute_gate_action(
     Some(ExecuteGateAction::Fail)
 }
 
+/// The stage→skill mapping (§5.1): plan→auto-plan-new, execute→auto-plan-work,
+/// review→auto-plan-review, document→auto-plan-merge.
+pub fn stage_skill(step_id: &str) -> &'static str {
+    match step_id {
+        "plan" => "auto-plan-new",
+        "execute" => "auto-plan-work",
+        "review" => "auto-plan-review",
+        "document" => "auto-plan-merge",
+        _ => "",
+    }
+}
+
+/// The result-protocol block every plan-flow phase carries: Done without a
+/// valid `complete_plan_stage` submission is `stage_incomplete` (AC-04).
+fn result_protocol(step_id: &str) -> String {
+    let stage_facts = match step_id {
+        "plan" => "stage=\"plan\"、outcome=\"pass\"（或受阻时 needs_replan/blocked）、\
+plan_id/plan_revision 取自创建的计划 frontmatter",
+        "execute" => "stage=\"execute\"、outcome=\"pass\"（复审发现问题时由 review 相位发 \
+needs_fix；本相位不自行回退）、commit=开发 worktree 内已提交的完整 hash、\
+acceptance_results=逐条 AC 的 pass/fail+证据、evidence=验证命令与输出路径",
+        "review" => "stage=\"review\"、outcome∈pass|needs_fix|needs_replan|blocked；\
+needs_fix 必须带稳定 finding id 与对应 task/AC id；pass 必须带逐 AC 判定与证据",
+        "document" => "stage=\"document\"、outcome=\"pass\"（交付检查点由 plan_delivery \
+工具逐项核验后登记，不要自报 delivered）",
+        _ => "",
+    };
+    format!(
+        "# 结果提交协议（机械要求）\n\n\
+本相位完成时必须调用 `complete_plan_stage` 工具提交结构化结果：{stage_facts}。\n\
+只输出 Done/总结而不提交有效结果 → 本相位按 stage_incomplete 处理，不进入下一相位（AC-04）。\n\
+工具调用被服务器校验（回读计划文件/Git/证据工件）；伪 pass、缺提交、缺证据都会被拒绝。\n\n"
+    )
+}
+
+/// Missing-discipline blocker clause (skill snapshot absent at template
+/// compose time — upstream defect, same treatment as a missing plan file).
+fn skill_blocker_clause(step_id: &str) -> String {
+    format!(
+        "# 阻断性缺陷\n\n\
+技能纪律源（{skill}）未随本 run 注入。这是阻断性缺陷：立即停止并输出 \
+blocker 说明技能快照缺失；不得开始或继续本相位工作、不得正常完成本相位。\n\n",
+        skill = stage_skill(step_id)
+    )
+}
+
+fn skill_block(step: &str, skills: &BTreeMap<String, SkillEntry>) -> String {
+    match skills.get(stage_skill(step)) {
+        Some(entry) => format!(
+            "# 纪律源（唯一，机械注入；版本 sha256:{}）\n\n\
+以下为 `{}` 技能全文——它是本相位的唯一纪律来源，逐步遵守；与本模板冲突时以技能为准：\n\n\
+<header-skills>\n{}\n</header-skills>\n\n",
+            entry.sha256,
+            entry.name,
+            entry.content,
+        ),
+        None => skill_blocker_clause(step),
+    }
+}
+
 /// Compose the phase task for (flow_id, step_id). Returns None for flows
 /// without templates (legacy behavior: raw initial task).
 ///
 /// `initial_task` (the user's requirement) is embedded in every phase so the
 /// agent always knows what it is working on. `{plan_file}` is substituted
 /// from `context`; a missing value is a hard-fail blocker clause (PLAN-094
-/// T-04: the plan file is the sole inter-phase carrier — the old
-/// locate-it-yourself hint let a coder idle to a fake completion, UAT T3).
+/// T-04). `skills` is the run's frozen skill snapshot (PLAN-096 §5.1); when
+/// the phase's skill is absent the template degrades to a blocker clause —
+/// the phase must not run without its discipline source.
 pub fn phase_task(
     flow_id: &str,
     step_id: &str,
     initial_task: &str,
     context: &HashMap<String, String>,
+    skills: &SkillSnapshot,
 ) -> Option<String> {
     // plan-merge（PLAN-034）只有 document 模板；plan 四相位全有；其它流程无。
     if flow_id == "plan-merge" {
@@ -118,77 +186,71 @@ pub fn phase_task(
          完成本相位。)"
             .into()
     });
+    let mech_plan_file = format!("# 机械输入\n\n- 计划文件：{plan_file}\n");
     let template = match step_id {
         "plan" => format!(
             "{requirement}# 任务：需求整理与计划撰写（plan 相位）\n\n\
-你是本需求的规划师（advisor，PLAN-086 固定四职业之首），全程以计划文件为唯一事实源。请产出一份可直接执行的实施计划：\n\n\
-1. 先用 `list_plans` 检查是否已有对应此需求的 plan（按 feature 与 status 判断）——幂等续跑：已存在则复用它（输出其路径即可），**不要新建重复计划**。\n\
-2. 若需求模糊、缺关键约束：列出澄清问题（编号、一次问全），然后**停止**，不要开始写计划。用户会在审批门用「拒绝 + 反馈」回答你，届时重跑本相位。\n\
-3. 需求清晰则用 `create_plan` 写完整计划，正文章节**必须带编号**（merge 引擎按编号映射沉淀）：\n\
-   `## 0. 变更摘要` / `## 1. 目标` / `## 2. 架构方案` / `## 3. 技术栈` / `## 4. 需求分析与背景调查` / `## 5. 详细设计（含关键代码示例）` / `## 6. 测试设计` / `## 7. 验收标准（checkbox，逐条可独立验证）` / `## 8. 执行步骤（原子任务：精确文件路径 + 操作 + 验证命令；禁止 TBD/TODO）` / `## 9. 复审记录（留空）` / `## 10. 待澄清事项（留空）`\n\
-4. 写完自审一遍：章节齐全、任务原子、验证命令真实可跑、frontmatter 完整——**必须含 `current_step: 0` 与 `total_steps`（= §8 任务数）**。\n\
-5. 最终输出必须以单独一行结尾（驱动器解析它路由后续相位）：\n\
-   `PLAN_FILE: docs/plans/NNN-slug.md`\n"
+你是本需求的规划师（advisor，固定四职业之首）。技能快照与机械输入如下；\
+完成后按结果提交协议调用 `complete_plan_stage`。\n\n\
+{}\n\
+{mech_plan_file}- 计划写入：用 `create_plan` 工具落主检出 `docs/plans/`\
+（工具返回的路径即绑定通道，零 AI 参与；已存在对应计划时幂等复用，不要新建重复计划）。\n\
+{}\n\
+最终输出以单独一行结尾（驱动器解析）：`PLAN_FILE: docs/plans/NNN-slug.md`\n",
+            skill_block(step_id, &skills.skills),
+            result_protocol(step_id),
         ),
-        "execute" => format!(
-            "{requirement}# 任务：按计划实施（execute 相位）\n\n\
-你是本需求的实现工程师（coder，PLAN-086 第二相位职业），计划是你唯一的工作上下文——不做计划外发挥。\n\n\
-执行计划文件：{plan_file}\n\n\
-1. `read_plan` 载入上述计划——它是你唯一的工作上下文。\n\
-2. `transition_plan` 到 `executing`。\n\
-3. 逐项执行 `## 8. 执行步骤`：严格按任务描述操作（精确文件路径 + 动作）；每完成一项就跑它的验证命令，通过后用 `update_plan` 勾选（`[✅ 已完成]` + 一行证据）并推进 frontmatter 的 `current_step`。\n\
-4. TDD：涉及代码与测试的任务，先写失败测试、确认失败，再实现到通过。\n\
-5. 受阻或歧义：只把问题追加进 `## 10. 待澄清事项`，继续做下一个不受阻的任务；**不要脱离计划即兴调研或改设计**。\n\
-6. 全部任务完成后，完整跑一遍 `## 7. 验收标准` 的验证；然后 `transition_plan` 到 `execution_done`，汇报逐项证据。\n"
-        ),
+        "execute" => {
+            // PLAN-096 §5.1：Canvas 生成指引补齐——原 `mode.name=="coding"`
+            // 专享条件使 relay coder 有工具无纪律；现随相位模板机械注入。
+            let canvas = crate::canvas::templates::generation_prompt();
+            format!(
+                "{requirement}# 任务：按计划实施（execute 相位）\n\n\
+你是本需求的实现工程师（coder，第二相位职业）。技能快照与机械输入如下；\
+完成后按结果提交协议调用 `complete_plan_stage`。\n\n\
+{}\n\
+{mech_plan_file}- 工作根：本相位的文件/命令工具已限定在本计划的开发 \
+worktree（主检出的计划共享状态仍经 plan 工具读写，不要直接改主检出代码）。\n\
+{}\n\
+# Canvas 生成指引（目标工程为 Auto 应用时适用）\n\n{canvas}\n",
+                skill_block(step_id, &skills.skills),
+                result_protocol(step_id),
+            )
+        }
         "review" => format!(
             "{requirement}# 任务：复审（review 相位）\n\n\
-你是本需求的复审人（reviewer，PLAN-086 第三相位职业——独立于起草与执行的凭据核验者）。\n\n\
-复审计划文件：{plan_file}\n\n\
-Trust the code, not the checkboxes：\n\n\
-1. `read_plan` 载入计划，逐条重验 `## 7. 验收标准`——对照实际代码与真实命令输出（记录 pass/partial/fail + `file:line` 证据）。绿勾是主张，不是证据。\n\
-2. 检查执行丢项、workaround、行为偏差——登记为债务候选。\n\
-3. 用 `update_plan` 填写 `## 9. 复审记录`（复审人 / 时间 / 逐标准判定表 / 债务候选）。\n\
-4. 用 `update_plan` 填 frontmatter 的 spec-impact 三字段（E2E 实测易漏，
-   **硬性要求**）：`supersedes_spec_components` / `new_spec_components` /
-   `touched_goals` 必须给出具体条目列表；确实无关联时保留 `[]` 并在
-   `## 9.` 中写明原因。同时核对 `total_steps` 与 §8 任务数一致、
-   `current_step` 反映实际进度（merge 相位会逐字消费这些字段）。\n\
-5. 全部通过 → `transition_plan` 到 `reviewed`；有不通过 → `transition_plan` 回 `executing`，并在输出中列明缺口与建议（run 会正常结束，用户决定是否重开续跑修复）。\n"
+你是本需求的复审人（reviewer，第三相位职业——独立于起草与执行的凭据核验者，\
+不接收执行相位的 history 或完成自述）。技能快照与机械输入如下；\
+完成后按结果提交协议调用 `complete_plan_stage`。\n\n\
+{}\n\
+{mech_plan_file}{}\n",
+            skill_block(step_id, &skills.skills),
+            result_protocol(step_id),
         ),
         "document" => {
             // PLAN-034：plan-merge 单相位 run 只做沉淀（执行/复审均已完成）
             let preamble = if flow_id == "plan-merge" {
                 String::from(
-                    "# 任务：智能沉淀（plan-merge 单相位 run）\n\n\
-                     你是本计划的知识管理员（assistant，PLAN-086 起本相位固定职业）。\n\
-                     目标计划：见下方需求中的 PLAN 编号（用 `read_plan` 按编号读取）。\n\
-                     本 run 只做沉淀——执行与复审均已完成，不要重做。\n\n",
+                    "# 任务：受控交付（plan-merge 单相位 run）\n\n\
+                     你是本计划的知识管理员（assistant）。目标计划见下方机械输入；\
+                     本 run 只做交付——执行与复审均已完成，不要重做。\n\n",
                 )
             } else {
                 String::new()
             };
             format!(
-            "{preamble}{requirement}# 任务：知识沉淀（document 相位）\n\n\
-你是本计划的知识管理员（assistant，PLAN-086 末相位职业，merge 降档省本）。\n\n\
-沉淀计划文件：{plan_file}\n\n\
-1. `read_plan` 检查 status 必须是 `reviewed`；不是则输出「复审未通过/未完成，跳过沉淀」并结束——**不要强行 merge**。\n\
-2. `merge_plan` 把计划按章节映射沉淀进 Spec ledger 6 区（幂等 upsert，`P<seq>-<n>` 稳定 id）。\n\
-3. 按 frontmatter 的 spec-impact 三字段，用文件工具更新 `docs/specs/` 模块树 markdown：改了哪个模块就更新哪个模块文档，新增模块建档，移除的模块标注。\n\
-4. 汇报 `sections_touched` / `items_created` 与 `docs/specs/` 树的具体改动。\n\
-5. `emit_report` 登记汇报报告（PLAN-036：交付 `.ad` 文档——**主信息走 \
-frontmatter（渲染为卡片 blocks：目标/流程图/交付物 badges）**，正文只是\
-可选补充；版面与指标由系统机械渲染，**不要**自编步骤/令牌/时长数字）。\
-`ad` 参数为完整 `.ad` 全文：\n\
-   ---\n\
-   title: <PLAN-NNN> <feature> 沉淀报告\n\
-   objective: 一句话目标（取自计划 §1）\n\
-   goal_links: [{{id: G1, label: 名称}}]        // 可空\n\
-   stages: [{{title: 门禁校验, outcome: reviewed 通过}}, {{title: 机械沉淀, outcome: 4 条目入 3 区}}]  // 流程图各阶段（必填≥1）\n\
-   deliverables: [{{kind: spec, name: 路径, change: M, detail: 说明}}]  // 可空；kind∈code/spec/doc/file/report，change∈+/-/M\n\
-   ---\n\
-   正文（可选补充，一两句即可——主信息已进 frontmatter，避免重复）。\n"
-            )
+            "{preamble}{requirement}# 任务：受控交付（document 相位）\n\n\
+你是本计划的知识管理员（assistant，末相位职业）。技能快照与机械输入如下。\n\n\
+{}\n\
+{mech_plan_file}- 交付操作：用 `plan_delivery` 工具按序执行 \
+prepare → land → refresh → archive → cleanup；每个检查点由服务器核验并落收据，\
+不要自报 delivered、不要手拼账本 JSON、不要直接在主检出跑 Git 写操作。\n\
+{}\n\
+汇报 `sections_touched` / `items_created` 与 `docs/specs/` 树的具体改动；\
+`emit_report` 可选（frontmatter 主信息走机械渲染，不要自编步骤/令牌/时长数字）。\n",
+            skill_block(step_id, &skills.skills),
+            result_protocol(step_id),
+        )
         }
         _ => return None,
     };
@@ -199,6 +261,31 @@ frontmatter（渲染为卡片 blocks：目标/流程图/交付物 badges）**，
 mod tests {
     use super::*;
 
+    fn snap_with(names: &[&str]) -> SkillSnapshot {
+        let mut s = SkillSnapshot::default();
+        for n in names {
+            s.skills.insert(
+                n.to_string(),
+                SkillEntry {
+                    name: n.to_string(),
+                    path: format!("/{n}/SKILL.md"),
+                    sha256: format!("hash-of-{n}"),
+                    content: format!("# {n} discipline\n\n按技能步骤执行。"),
+                },
+            );
+        }
+        s
+    }
+
+    fn full_snap() -> SkillSnapshot {
+        snap_with(&[
+            "auto-plan-new",
+            "auto-plan-work",
+            "auto-plan-review",
+            "auto-plan-merge",
+        ])
+    }
+
     fn ctx(plan_file: Option<&str>) -> HashMap<String, String> {
         let mut m = HashMap::new();
         if let Some(p) = plan_file {
@@ -207,11 +294,17 @@ mod tests {
         m
     }
 
+    fn task(flow: &str, step: &str, ctx: &HashMap<String, String>) -> String {
+        phase_task(flow, step, "做一个功能", ctx, &full_snap()).unwrap_or_else(|| {
+            panic!("step {step} must have a template")
+        })
+    }
+
+    /// 四相位模板齐全且机械嵌入需求原文。
     #[test]
     fn phase_task_covers_all_four_plan_steps() {
         for step in ["plan", "execute", "review", "document"] {
-            let t = phase_task("plan", step, "做一个功能", &ctx(Some("docs/plans/031-x.md")))
-                .unwrap_or_else(|| panic!("step {step} must have a template"));
+            let t = task("plan", step, &ctx(Some("docs/plans/031-x.md")));
             assert!(t.contains("做一个功能"), "{step}: requirement embedded");
         }
     }
@@ -227,75 +320,132 @@ mod tests {
             ("document", "assistant"),
         ];
         for (step, role) in roles {
-            let t = phase_task("plan", step, "需求", &ctx(None)).unwrap();
+            let t = task("plan", step, &ctx(None));
             assert!(t.contains(&format!("（{role}")), "{step} template names {role}");
         }
-        let pm = phase_task("plan-merge", "document", "沉淀 PLAN-007", &ctx(None)).unwrap();
+        let pm = phase_task(
+            "plan-merge",
+            "document",
+            "沉淀 PLAN-007",
+            &ctx(None),
+            &full_snap(),
+        )
+        .unwrap();
         assert!(pm.contains("（assistant"), "plan-merge document names assistant");
         // 旧单角色称呼不得残留。
         for (step, _) in roles {
-            let t = phase_task("plan", step, "需求", &ctx(None)).unwrap();
+            let t = task("plan", step, &ctx(None));
             assert!(!t.contains("plan-dev"), "{step} must not mention plan-dev");
         }
     }
 
     #[test]
     fn phase_task_none_for_other_flows_and_steps() {
-        assert!(phase_task("default", "advise", "t", &ctx(None)).is_none());
-        assert!(phase_task("plan", "unknown-step", "t", &ctx(None)).is_none());
+        let empty = SkillSnapshot::default();
+        assert!(phase_task("default", "advise", "t", &ctx(None), &full_snap()).is_none());
+        assert!(phase_task("plan", "unknown-step", "t", &ctx(None), &full_snap()).is_none());
+        assert!(phase_task("plan-merge", "execute", "t", &ctx(None), &full_snap()).is_none());
+        assert!(phase_task("plan-merge", "plan", "t", &ctx(None), &empty).is_none());
     }
 
-    /// PLAN-034：plan-merge 只有 document 模板，且带智能沉淀前言。
+    /// PLAN-096 SD-01：纪律取自技能快照——相位模板注入对应技能全文与版本
+    /// hash；stage→skill 映射固定（new/work/review/merge）。
     #[test]
-    fn plan_merge_flow_document_template_has_smart_deposit_preamble() {
-        let t = phase_task("plan-merge", "document", "沉淀 PLAN-007", &ctx(None)).unwrap();
-        assert!(t.contains("PLAN-007"), "requirement (plan id) embedded");
-        assert!(t.contains("智能沉淀"));
-        assert!(t.contains("read_plan"));
-        assert!(t.contains("merge_plan"));
-        assert!(t.contains("emit_report"));
-        assert!(t.contains("不要重做"));
-        // 其余步骤无模板（流程只有 document 一步）
-        assert!(phase_task("plan-merge", "execute", "t", &ctx(None)).is_none());
-        assert!(phase_task("plan-merge", "plan", "t", &ctx(None)).is_none());
-        // plan 流程的 document 模板不带前言（行为不变）
-        let t2 = phase_task("plan", "document", "需求", &ctx(None)).unwrap();
-        assert!(!t2.contains("智能沉淀"));
+    fn templates_inject_stage_skill_content_and_hash() {
+        assert_eq!(stage_skill("plan"), "auto-plan-new");
+        assert_eq!(stage_skill("execute"), "auto-plan-work");
+        assert_eq!(stage_skill("review"), "auto-plan-review");
+        assert_eq!(stage_skill("document"), "auto-plan-merge");
+        let t = task("plan", "execute", &ctx(None));
+        assert!(t.contains("# auto-plan-work discipline"), "skill content injected");
+        assert!(t.contains("hash-of-auto-plan-work"), "version hash surfaced");
+        assert!(t.contains("唯一纪律来源"), "discipline-source statement present");
+        // 其它相位拿到的是各自技能。
+        let p = task("plan", "plan", &ctx(None));
+        assert!(p.contains("# auto-plan-new discipline"));
+        let r = task("plan", "review", &ctx(None));
+        assert!(r.contains("# auto-plan-review discipline"));
+        let d = task("plan", "document", &ctx(None));
+        assert!(d.contains("# auto-plan-merge discipline"));
+    }
+
+    /// 缺技能快照 → 阻断性缺陷条款（不静默降级到无纪律模板）。
+    #[test]
+    fn missing_skill_snapshot_is_a_blocker_clause() {
+        let empty = SkillSnapshot::default();
+        let t = phase_task("plan", "execute", "需求", &ctx(None), &empty).unwrap();
+        assert!(t.contains("阻断性缺陷"), "blocker clause present");
+        assert!(t.contains("auto-plan-work"), "names the missing skill");
+        assert!(t.contains("立即停止"), "stop-now instruction present");
+        assert!(!t.contains("# auto-plan-work discipline"));
+    }
+
+    /// AC-04：结果提交协议注入每个相位——Done 不算完成。
+    #[test]
+    fn result_protocol_injected_in_every_phase() {
+        for step in ["plan", "execute", "review", "document"] {
+            let t = task("plan", step, &ctx(None));
+            assert!(t.contains("complete_plan_stage"), "{step}: tool named");
+            assert!(t.contains("stage_incomplete"), "{step}: incomplete consequence");
+        }
+        let plan_t = task("plan", "plan", &ctx(None));
+        assert!(plan_t.contains(r#"stage="plan""#));
+        let rev_t = task("plan", "review", &ctx(None));
+        assert!(rev_t.contains("needs_fix"), "review protocol mentions fix routing");
+    }
+
+    /// §5.1：execute 相位注入 Canvas 生成指引（原 coding 模式专享条件补齐）。
+    #[test]
+    fn execute_phase_carries_canvas_guidance() {
+        let t = task("plan", "execute", &ctx(None));
+        assert!(t.contains("Canvas 生成指引"), "canvas guidance block present");
+        assert!(!crate::canvas::templates::generation_prompt().is_empty());
+        // 其它相位不注入（advisor/reviewer 无关画布）。
+        let p = task("plan", "plan", &ctx(None));
+        assert!(!p.contains("Canvas 生成指引"));
+    }
+
+    /// plan-merge document 模板：merge 技能 + plan_delivery 受控交付指引。
+    #[test]
+    fn plan_merge_document_template_carries_delivery_contract() {
+        let pm = phase_task(
+            "plan-merge",
+            "document",
+            "沉淀 PLAN-007",
+            &ctx(None),
+            &full_snap(),
+        )
+        .unwrap();
+        assert!(pm.contains("PLAN-007"), "requirement (plan id) embedded");
+        assert!(pm.contains("受控交付"));
+        assert!(pm.contains("# auto-plan-merge discipline"));
+        assert!(pm.contains("plan_delivery"));
+        assert!(pm.contains("prepare"));
+        assert!(pm.contains("不要自报 delivered"));
+        assert!(pm.contains("complete_plan_stage"));
     }
 
     #[test]
     fn plan_template_carries_plan_file_protocol() {
-        let t = phase_task("plan", "plan", "需求", &ctx(None)).unwrap();
+        let t = task("plan", "plan", &ctx(Some("docs/plans/096-x.md")));
         assert!(t.contains("PLAN_FILE: docs/plans/NNN-slug.md"));
-        // 澄清-停止纪律 + 幂等复用
-        assert!(t.contains("不要新建重复计划"));
-        assert!(t.contains("停止"));
+        // 幂等复用纪律保留（技能内详解，模板保留指针）。
+        assert!(t.contains("幂等复用") || t.contains("不要新建重复计划"));
     }
 
     #[test]
     fn later_phases_substitute_plan_file_or_hard_fail() {
-        let t = phase_task("plan", "execute", "需求", &ctx(Some("docs/plans/030-x.md"))).unwrap();
+        let t = task("plan", "execute", &ctx(Some("docs/plans/030-x.md")));
         assert!(t.contains("docs/plans/030-x.md"));
         assert!(!t.contains("{plan_file}"), "no dangling placeholder");
 
-        // PLAN-094 T-04 (用例 5): plan_file 缺失 → 硬失败 blocker 条款，
-        // 不再是"list_plans 自行定位"的降级提示（UAT T3 coder 空转的降级面）。
+        // PLAN-094 T-04 (用例 5): plan_file 缺失 → 硬失败 blocker 条款。
         for step in ["execute", "review", "document"] {
-            let t = phase_task("plan", step, "需求", &ctx(None)).unwrap();
+            let t = task("plan", step, &ctx(None));
             assert!(t.contains("阻断性缺陷"), "{step}: blocker clause present");
             assert!(t.contains("立即停止"), "{step}: stop now instruction");
             assert!(!t.contains("list_plans 找到"), "{step}: locate hint retired");
         }
-    }
-
-    #[test]
-    fn templates_reference_status_machine_actions() {
-        let ex = phase_task("plan", "execute", "t", &ctx(None)).unwrap();
-        assert!(ex.contains("`executing`") && ex.contains("`execution_done`"));
-        let rv = phase_task("plan", "review", "t", &ctx(None)).unwrap();
-        assert!(rv.contains("`reviewed`") && rv.contains("spec-impact"));
-        let dc = phase_task("plan", "document", "t", &ctx(None)).unwrap();
-        assert!(dc.contains("`reviewed`") && dc.contains("`merge_plan`"));
     }
 
     #[test]

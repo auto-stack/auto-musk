@@ -57,6 +57,10 @@ auto-val = { path = "../../../../auto-lang/crates/auto-val", features = ["serde"
 tempfile = "3"
 # PLAN-039: edit_file 模糊匹配的 NFKC 规范化(pi edit-diff.ts 同源);纯 Rust 无构建脚本
 unicode-normalization = "0.1"
+# PLAN-096 T-02（Q-02）：完整 plan frontmatter 读取（含 spec-impact 三列表）。
+# 旧 plans.rs 标量 parser 丢列表不作权威；yaml-rust 0.4 已在锁文件
+# （syntect 传递引入），直接声明无新包入锁。
+yaml-rust = "0.4"
 # PLAN-039: per-path 写互斥(edit_file 读-改-写串行化);纯 Rust 无构建脚本
 dashmap = "6"
 # POST /api/workspace/pick:原生系统文件夹选择器(浏览器拿不到所选目录绝对路径,

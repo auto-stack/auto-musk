@@ -283,6 +283,11 @@ pub struct RunState {
     /// Per-profession token totals (key = role_id).
     #[serde(default)]
     pub profession_tokens: HashMap<String, u64>,
+    /// PLAN-096 AC-13: plan-execution facts (optional; absent for non-plan
+    /// flows and legacy runs — old consumers keep reading status/steps).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan_execution:
+        Option<crate::relay::plan_contract::PlanExecutionState>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -316,6 +321,12 @@ pub struct RunEntry {
     /// `PLAN_FILE:` marker).
     #[serde(default)]
     pub context: HashMap<String, String>,
+    /// PLAN-096: plan-flow execution facts (binding, phase, attempts, repair
+    /// count, delivery checkpoints, frozen skill snapshot). None for every
+    /// non-plan flow (serde default keeps old serialized shapes compatible).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan_execution:
+        Option<crate::relay::plan_contract::PlanExecutionState>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -468,6 +479,7 @@ impl RunStore {
                 root_run_id: None,
             },
             context: HashMap::new(),
+            plan_execution: None,
         };
         let state = build_run_state(&entry);
         self.runs.lock().unwrap().insert(run_id.clone(), entry);
@@ -911,6 +923,13 @@ impl RunStore {
             &step_id,
             &initial_task,
             &entry.context,
+            &entry
+                .plan_execution
+                .as_ref()
+                .map(|pe| crate::relay::plan_contract::SkillSnapshot {
+                    skills: pe.skills.clone(),
+                })
+                .unwrap_or_default(),
         )
         .unwrap_or(initial_task);
         // PLAN-094（UAT K5 定向重跑的前提）：门反馈必须送达被重做的相位。
@@ -1099,6 +1118,7 @@ fn build_run_state(entry: &RunEntry) -> RunState {
         title: entry.metadata.title.clone(),
         current_step_started_at,
         profession_tokens,
+        plan_execution: entry.plan_execution.clone(),
     }
 }
 
