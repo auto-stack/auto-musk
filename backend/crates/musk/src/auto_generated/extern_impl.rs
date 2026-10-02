@@ -2208,6 +2208,19 @@ pub async fn chat_run_owner(
     };
 
     let client = s.0.client.clone();
+    // PLAN-098 T-02（D1/D2）：聊天遥测注入——chat_run_owner 是会话运行唯一
+    // 孵化入口（PLAN-071 T-02），每 run 包一层遥测装饰器，构造期携带会话
+    // 关联（并发会话各持实例 sink，结构上零错配）。本 run 的全部 LLM 请求
+    // 记入 sink；折叠（落盘 turns）与 SSE model_meta 富化在收束臂（T-03）。
+    let chat_telemetry = Arc::new(crate::telemetry::TelemetryClient::new(
+        client,
+        crate::telemetry::TelemetryContext::Chat {
+            workspace_id: ws_id.clone(),
+            session_id: session_id.clone(),
+        },
+    ));
+    let chat_telemetry_sink = chat_telemetry.sink();
+    let client: Arc<dyn auto_ai_agent::Client> = chat_telemetry;
     let chats = ws.chats.clone();
     let conversations = ws.conversations.clone();
     let ws_root = ws.root.clone();

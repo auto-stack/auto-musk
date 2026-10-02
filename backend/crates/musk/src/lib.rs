@@ -31,6 +31,8 @@ pub mod plan_tools;
 pub mod plan_worktree;
 // PLAN-096 T-08/T-09: 受控交付（prepare/land/refresh/archive/cleanup + 收据）。
 pub mod plan_delivery;
+// PLAN-098: 运行遥测装饰器（每 run 模型归因；聊天/relay 注入与折叠见模块文档）。
+pub mod telemetry;
 pub mod command_runner;
 pub mod output_accumulator;
 pub mod tool_context;

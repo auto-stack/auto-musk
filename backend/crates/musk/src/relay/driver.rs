@@ -119,7 +119,7 @@ impl AgentFactory for MuskAgentFactory {
             .get(&self.workspace_id)
             .relay
             .flow_of(&self.run_id);
-        let client: Arc<dyn auto_ai_agent::Client> =
+        let inner: Arc<dyn auto_ai_agent::Client> =
             if matches!(flow_id_for_client.as_deref(), Some("plan") | Some("plan-merge"))
                 && self
                     .state
@@ -137,6 +137,28 @@ impl AgentFactory for MuskAgentFactory {
             } else {
                 self.state.client.clone()
             };
+        // PLAN-098 T-02（D1/D3）：遥测最外层——budget 层只改 max_tokens（不动
+        // model 字段），外层记录的 requested_model 即最终发出值、响应原样透传
+        // 即最终响应值（AC-02：每相位 correlation 含 run/step/role）。sink 按
+        // run_id 键控共享，折叠点在 store.submit_handoff（双轨委托单点）。
+        let step_id = self
+            .state
+            .registry
+            .get(&self.workspace_id)
+            .relay
+            .get(&self.run_id)
+            .and_then(|st| st.steps.get(st.current_step).map(|s| s.id.clone()))
+            .unwrap_or_default();
+        let telemetry_client = crate::telemetry::TelemetryClient::with_sink(
+            inner,
+            crate::telemetry::TelemetryContext::Relay {
+                run_id: self.run_id.clone(),
+                step_id,
+                role: role_id.to_string(),
+            },
+            crate::telemetry::relay_sink(&self.run_id),
+        );
+        let client: Arc<dyn auto_ai_agent::Client> = Arc::new(telemetry_client);
         let mut agent = crate::build_agent_with_context(&mode, client, Some(tool_ctx))?;
         // Inject prior handoff context if this isn't the first step — unless
         // the flow retired the channel (PLAN-086 T-02: plan/plan-merge rely
