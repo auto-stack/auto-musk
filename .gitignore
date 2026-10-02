@@ -14,7 +14,10 @@ gen/
 # a2vue codegen by-products (Plan 022): api client + rust backend scaffolding
 # emitted by `auto build` from src/front + src/back .at. Regenerated each build.
 dist/
-examples/
+examples/*
+# PLAN-097: 演示需求件（仅需求/约定，非示例代码）——目录级忽略改逐项,
+# 否则子级无法反排除(git 不进入被忽略目录)
+!examples/focusboard-demo
 # PLAN-038: vendored @autodown/vue dist 快照入库（file: 依赖目标,须可提交）
 !vendor/@autodown/vue/dist/
 !vendor/@autodown/vue/dist/**

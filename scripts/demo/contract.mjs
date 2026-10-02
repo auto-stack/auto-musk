@@ -17,12 +17,13 @@
 export const PLAN_EXECUTION_CONTRACT_VERSION = 1;
 export const CONTRACT_FROZEN = {
   at_commit: '7924304',
+  // 路径 → 冻结时 SHA-256 前 16 位（preflight 对账用；漂移=演示身份失真）
   sources: {
-    spec: '43c26a74df899fff',
-    dto: 'e95fa7556c30bf2b',
-    control: 'a23500e350926042',
-    store: '20e84b7f30c605d0',
-    probe: '49dc9fdc9a93f374',
+    'docs/specs/modules/plan-execution-contract.md': '43c26a74df899fff',
+    'backend/crates/musk/src/relay/plan_contract.rs': 'e95fa7556c30bf2b',
+    'backend/crates/musk/src/relay/plan_control.rs': 'a23500e350926042',
+    'backend/crates/musk/src/relay/store.rs': '20e84b7f30c605d0',
+    'scripts/plan-flow-probe.mjs': '49dc9fdc9a93f374',
   },
 };
 
