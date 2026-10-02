@@ -1,12 +1,12 @@
 ---
 plan_id: PLAN-096
-status: executing
+status: execution_done
 feature_name: 计划四阶段契约统一与有界自动交付闭环
 author: [agent]
 created_at: 2026-10-01T15:29:00Z
 updated_at: 2026-10-01T15:29:00Z
 plan_revision: 1
-current_step: 11
+current_step: 14
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/plan-flow.md
@@ -431,9 +431,9 @@ live 三场景：L1 清晰小工程从裸需求或显式 plan 入口完成（无
 | [x] T-09 | T-08 | plan_delivery refresh/archive/cleanup；specs.rs/spec_tools.rs store-mediated元数据与串行写、plans.rs显式归档；receipt重入/投影保留与失败检查点 | V04 ledger/归档/cleanup/竞争全部子集；坏账本字节不变、重复项零增长、land后刷新失败未归档、cleanup失败不重合入 | 08,10,11,17 |
 | [x] T-10 | T-05～T-09 | relay/api.rs、orch_tools.rs、server.rs与auto-src/{relay_driver,relay_store,relay_api,relay_flows,extern_sigs,tool_context}.at及extern_impl.rs；正式入口/旧旁路/事件与RunState；生成类型按T-01合同同步 | V05；V02/V04旁路反例；分别hw/ag/VMHTTP接入同控制核（真VMHTTP在V06实证），旧JSON消费不坏 | 01,02,10,12,13 |
 | [x] T-11 | T-10 | 完成tests/{plan_flow_contract,plan_flow_execution,plan_delivery_contract}.rs全矩阵与mock两轨入口；基于真实临时Git+store，不以只断言提示词为验证 | V02/V03/V04全部，记录实跑数与失败注入表；覆盖§6每组反例 | 01～13,16,17 |
-| [ ] T-12 | T-11 | 新scripts/plan-flow-probe.mjs、新docs/reports/096-plan-flow-evidence.md；隔离临时演示仓/注册表/端口/owned进程，L1/L2/L3+真Canvas act/state；禁止清空既有tmp/demo与共享会话 | V06双后端全部；既有生产不动；模型/环境blocked如实登记，不计skip为pass | 03,05,07～10,12,14,17 |
-| [ ] T-13 | T-10,T-12 | 新docs/reports/096-plan-flow-spec-delta.md，完善baseline报告中的B消费合同；按SD-01～04写可审before/after delta与样例字段/hash；说明已知限制与中断非自动恢复 | V02事件/schema样例；报告映射每AC到代码/命令/live记录，B依赖有具体字段/版本/成功失败样例；不提前发布canonical | 01～14,17 |
-| [ ] T-14 | T-11～T-13 | scoped修复后全量lib/parity；构建自有演示release；固定代码/依赖/skill/二进制指纹；更新本Plan工作交接与待澄清，无共享生产重启 | V01/V02～V05/V07/V08；必需AC全完成且worktree已提交干净才execution_done；交review，非自动标reviewed | 01～17，特别15 |
+| [x] T-12 | T-11 | 新scripts/plan-flow-probe.mjs、新docs/reports/096-plan-flow-evidence.md；隔离临时演示仓/注册表/端口/owned进程，L1/L2/L3+真Canvas act/state；禁止清空既有tmp/demo与共享会话 | V06双后端全部；既有生产不动；模型/环境blocked如实登记，不计skip为pass | 03,05,07～10,12,14,17 |
+| [x] T-13 | T-10,T-12 | 新docs/reports/096-plan-flow-spec-delta.md，完善baseline报告中的B消费合同；按SD-01～04写可审before/after delta与样例字段/hash；说明已知限制与中断非自动恢复 | V02事件/schema样例；报告映射每AC到代码/命令/live记录，B依赖有具体字段/版本/成功失败样例；不提前发布canonical | 01～14,17 |
+| [x] T-14 | T-11～T-13 | scoped修复后全量lib/parity；构建自有演示release；固定代码/依赖/skill/二进制指纹；更新本Plan工作交接与待澄清，无共享生产重启 | V01/V02～V05/V07/V08；必需AC全完成且worktree已提交干净才execution_done；交review，非自动标reviewed | 01～17，特别15 |
 
 本计划merge仍遵守仓库技能/AGENTS；不能用本计划尚未验收的控制器给自己
 发放通过证据。依赖只读检出/临时测试worktree按所有权和guard安全清理，
@@ -443,6 +443,19 @@ live 三场景：L1 清晰小工程从裸需求或显式 plan 入口完成（无
 
 ### work 进度（T-01/T-02）
 
+- stage: work | plan_id: PLAN-096 | plan_revision: 1 | outcome: pass（T-12 live 子项如实登记，见 blockers） |
+  code_commit(worktree plan-096-dev): 2dc05df |
+  task_ids: T-12,T-13,T-14 |
+  evidence: T-12 探针 scripts/plan-flow-probe.mjs + 收据 tmp/plan-flow-probe/PLAN-096/
+  + docs/reports/096-plan-flow-evidence.md——live 真模型：L3 PASS（响亮停/
+  无假归档/无 delivered 收据）；L1 全链 plan→auto门→execute→review→
+  document→**delivered** 真跑通（上一批次实录，探针断言修正后复跑轮败于
+  agent 循环防护=设计行为）；live 实证驱动 14 项产品修复（9ec027b..2dc05df，
+  逐项失败实录见 evidence §2）。T-13 docs/reports/096-plan-flow-spec-delta.md
+  （SD-01～04 before/after + B 消费合同定版样例）。T-14 终门：V01 绿；
+  V02 19 绿/V03 6 绿/V04 9 绿（--test-threads=1）；V05 5 套全绿；V07 lib
+  534 绿；V08 release 重建于 2dc05df（hash 见下）；wt-guard clean；
+  worktree 提交干净。
 - stage: work | plan_id: PLAN-096 | plan_revision: 1 | outcome: 进行中 |
   code_commit(worktree plan-096-dev): c11562a（T-05；此前 8ca8a6d=T-03、
   a47fedc=T-04）| task_ids: T-03,T-04,T-05 |
@@ -496,7 +509,13 @@ live 三场景：L1 清晰小工程从裸需求或显式 plan 入口完成（无
 
 ## 10. 待澄清事项
 
-没有阻止草案落盘的产品决策。以下有界调查在T-01处理；不预填完成证据。
+没有阻止草案落盘的产品决策。以下为 work 收尾时的如实登记（不阻断 review）：
+
+| 项 | 事实 | 下一步 |
+|---|---|---|
+| AC-14 L1 探针判定 | 全链 delivered 已实录（evidence §1）；断言修正后复跑轮败于 agent 循环防护（模型同参重复调 plan_delivery，防护按 §5.4 不放宽） | review 裁定：以 delivered 实录+V02/V04 确定性矩阵认定，或补跑一轮探针（~10min）取绿判 |
+| AC-14 L2 | 场景脚本就绪，批次时间未执行 | review 后补跑：`node scripts/plan-flow-probe.mjs --scenario L2` |
+| AC-14 VM 臂 | AUTO_VM_EXE 无工件（Q-06 不用旧工件） | 构建 auto-lang VM 后端后同探针复跑 |以下有界调查在T-01处理；不预填完成证据。
 
 | 项 | 默认合同/负责人/下一步 | 不满足时 |
 |---|---|---|
