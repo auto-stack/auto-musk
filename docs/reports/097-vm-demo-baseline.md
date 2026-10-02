@@ -245,3 +245,25 @@ canvas_store.at 内联 fn（b2285ac）,切 studio + canvas running 即触发。
 **musk 侧状态**：终版设计（own-store 自持卡片+store 域预计算+内联 fn）
 已全部落地（52b7733/b2285ac）,web 轨全功能;VM 行内容在 auto-lang 修复
 fn 调用语义后自然到达（无需再改 musk 侧——行源/门/渲染全部就位）。
+
+## T-05 附页④ — PLAN-733 交付后复验与 A/B 定位（2026-10-03,用户指令）
+
+PLAN-733（VM fn 调用语义）已 archived/delivered（修复合入 0b5c8758d,
+投影 550895b68,均确认在 master HEAD 祖先链）。按用户指令复验:
+
+| 构建 | probe-g15 结果 |
+|---|---|
+| master 713119788 构建（v0.4.2-2638,含 733 修复） | ❌ 摘要不可见 ×2 |
+| **550895b68 构建（733 修复落点,ab-733 临时 worktree 纯净构建）** | ❌ 摘要不可见;CPSV3 判别:卡片挂载✓、own-store 读旧字段✓（st=running）、`cp_prog_has=false` 真实落账、`cp_prog_err` 空=**handler 域 fn 调用仍未抛错返空** |
+| lang-733 worktree 构建（PLAN-733 owner 的 T-04 验证二进制,23:26 Oct 2） | ✅ 收据全文渲染（生成进度+启动预览+已可见+交互验证;`.demo/lang-733/RECEIPT-g15-p733fix.txt`）,其 probe 副本与本方仅路径/判词差异 |
+
+**结论（归 PLAN-733 owner 裁定）**：修复语义从落地提交（550895b68 与
+master 同内容）构建后,在真实 musk 启动链上**不可复现**;owner 的通过
+二进制为其 worktree 构建且 worktree 已清理——无法排除验证时工作树含
+未提交状态（landing integrity 问题）。另一待查面:进程内矩阵
+（plan733_fn_call_semantics_tests）与真实 am 装载链（AmConfig/index/
+端口簿）的编译路径差异。**升级动作**:PLAN-733 owner 用 550895b68 纯净
+构建重跑 probe-g15（复现则补修并追加落地;不复现则比对自身工作树
+差异）。musk 侧终版不变（52b7733/b2285ac）,复验命令不变。
+
+A/B 环境（.wt/ab-733 临时 worktree ×2）已清理（guard clean,组目录移除）。
