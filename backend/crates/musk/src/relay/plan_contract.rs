@@ -322,7 +322,10 @@ pub fn task_count_of(content: &str) -> u32 {
 /// One task/criterion line: `- [ ] T-01 something` / `- [x] AC-03 …`.
 /// Checkbox inner text: space/`x`/`X`/`✅ …` (the skill's `[✅ 已完成]` form).
 fn parse_checklist(body: &str) -> Vec<(bool, String)> {
-    let re = regex::Regex::new(r"(?m)^[ \t]*[-*][ \t]*\[[ xX✅][^]]*\][ \t]*(.+)$")
+    // checkbox 组用惰性量词：任务行内可能还有第二个 `]`（live 实证 L1：
+    // `- [x] T-01 … [✅ 已完成] 证据…`）——贪婪 `[^]]*` 会吞掉整段致行
+    // 解析失败、任务丢失。
+    let re = regex::Regex::new(r"(?m)^[ \t]*[-*][ \t]*\[[ xX✅][^]]*?\][ \t]*(.+)$")
         .expect("static regex");
     re.captures_iter(body)
         .map(|c| {
@@ -507,18 +510,17 @@ fn normalize_semantic_line(line: &str) -> String {
         }
     }
     let mut out = out.trim_end().to_string();
-    // 行尾裸完成尾标（tick 形态变体）同样是进度噪声——live 实证（L1）。
-    let tail = regex::Regex::new(r"[ ]*(\[?✅[^]\n]*\]?|（完成）|\(done\))[ ]*$").expect("static regex");
-    while tail.is_match(&out) {
-        out = tail.replace(&out, "").trim_end().to_string();
+    // 进度标记（✅/⏳，含 `[✅ 已完成]`/`[⏳ …]` 形态）之后的一切内容都是
+    // tick/证据注记——live 实证（L1）：模型把完成标记与证据全部追加在
+    // 任务行内，标记后文本不得进语义。
+    if let Some(i) = out.find(|c: char| c == '✅' || c == '⏳') {
+        out.truncate(i);
     }
-    let out = out.as_str();
-    // Drop the `[✅ 已完成]` completion tag (progress noise), then normalize
-    // any remaining single-char checkbox (`[x]`/`[X]`/`[ ]`) to `[_]`.
-    let done_re = regex::Regex::new(r"\s*\[✅[^]]*\]").expect("static regex");
-    let no_done = done_re.replace_all(out, "");
+    // 截断可能留下标记的前半括号（`…第一步 [`）——剥悬挂括号。
+    let out = out.trim_end().trim_end_matches(['[', '(', '（']).trim_end();
+    // 剩余 checkbox（`[x]`/`[X]`/`[ ]`）归一为 `[_]`。
     let cb_re = regex::Regex::new(r"\[[xX ]\]").expect("static regex");
-    let replaced = cb_re.replace_all(no_done.trim_end(), "[_]");
+    let replaced = cb_re.replace_all(out, "[_]");
     replaced.trim_end().to_string()
 }
 
