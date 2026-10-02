@@ -186,7 +186,13 @@ pub fn phase_task(
          完成本相位。)"
             .into()
     });
-    let mech_plan_file = format!("# 机械输入\n\n- 计划文件：{plan_file}\n");
+    // plan 相位是计划的创建者——plan_file 缺失是合法起点；阻断条款只
+    // 适用于消费计划文件的后续相位（PLAN-094 的硬失败条款语义不变）。
+    let mech_plan_file = if step_id == "plan" {
+        "# 机械输入\n\n- 计划写入：见下（create_plan 落盘即绑定通道）\n".to_string()
+    } else {
+        format!("# 机械输入\n\n- 计划文件：{plan_file}\n")
+    };
     let template = match step_id {
         "plan" => format!(
             "{requirement}# 任务：需求整理与计划撰写（plan 相位）\n\n\
