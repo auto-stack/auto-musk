@@ -158,7 +158,19 @@ if (command === 'preflight') {
 } else if (command === 'verify') {
   const { verifyCommand } = await import('./demo/run.mjs');
   process.exit(await verifyCommand({ manifestPath: opt('--manifest', ''), evidenceDir: opt('--evidence-dir', '') }));
+} else if (command === 'report') {
+  const { buildReport } = await import('./demo/report.mjs');
+  const runDir = opt('--run-dir', '');
+  if (!runDir || !fs.existsSync(path.join(runDir, 'evidence-manifest.json'))) {
+    console.error(`[report] --run-dir 必须含 evidence-manifest.json: ${runDir}`);
+    process.exit(2);
+  }
+  const r = buildReport(runDir);
+  console.log(`[report] md=${r.md}`);
+  console.log(`[report] html=${r.html}`);
+  console.log(`[report] plans=${r.plans} captures=${r.captures}`);
+  process.exit(0);
 } else {
-  console.error(`unknown command: ${command}(report 属 T-13 增量)`);
+  console.error(`unknown command: ${command}`);
   process.exit(2);
 }

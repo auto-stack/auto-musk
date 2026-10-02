@@ -135,7 +135,12 @@ export async function waitForRound({ base, token, runId, timeoutMs = 3600000, on
         if (line !== last) { last = line; onProgress?.(line); }
         return { facts: raw, verdict };
       }
-      continue; // 校验失败但非终态:继续等（可能仍在装配）
+      // 校验失败但非终态：plan_execution 空壳（plan 未绑定,启动期常态）
+      // ——降级行保留可见性（T-12 首跑实证:静默 continue 会吞掉全部日志）
+      const turnN = (raw?.events ?? []).length;
+      const line = `status=${raw?.status ?? '?'} (facts degraded, plan unbound; events=${turnN})`;
+      if (line !== last) { last = line; onProgress?.(line); }
+      continue;
     }
     const verdict = roundStopVerdict(facts);
     const line = `status=${facts.status} phase=${facts.plan_execution?.phase ?? '-'} attempt=${facts.plan_execution?.attempt ?? '-'} repair=${facts.plan_execution?.repair_count ?? '-'}`;
