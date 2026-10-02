@@ -506,7 +506,13 @@ fn normalize_semantic_line(line: &str) -> String {
             out.truncate(i);
         }
     }
-    let out = out.trim_end();
+    let mut out = out.trim_end().to_string();
+    // 行尾裸完成尾标（tick 形态变体）同样是进度噪声——live 实证（L1）。
+    let tail = regex::Regex::new(r"[ ]*(\[?✅[^]\n]*\]?|（完成）|\(done\))[ ]*$").expect("static regex");
+    while tail.is_match(&out) {
+        out = tail.replace(&out, "").trim_end().to_string();
+    }
+    let out = out.as_str();
     // Drop the `[✅ 已完成]` completion tag (progress noise), then normalize
     // any remaining single-char checkbox (`[x]`/`[X]`/`[ ]`) to `[_]`.
     let done_re = regex::Regex::new(r"\s*\[✅[^]]*\]").expect("static regex");
@@ -532,6 +538,32 @@ pub fn semantic_canonical_text(c: &PlanContract) -> String {
         buf.push_str(&format!("\n{label}: [{}]", list.join(" | ")));
     }
     for num in ["1", "2", "5", "7", "8"] {
+        // §7/§8 的语义面 = checklist 行本身（id + 规范化文本）；节内其余行
+        // （证据子行、执行记录）是进度噪声——live 实证（L1）：coder 在
+        // §8 内追加执行记录曾被误判为语义漂移。
+        match num {
+            "7" => {
+                buf.push_str("\n## 7 验收标准\n");
+                for ac in &c.acceptance {
+                    let norm = normalize_semantic_line(&ac.text);
+                    if !norm.is_empty() {
+                        buf.push_str(&format!("- [_] {norm}\n"));
+                    }
+                }
+                continue;
+            }
+            "8" => {
+                buf.push_str("\n## 8 执行步骤\n");
+                for t in &c.tasks {
+                    let norm = normalize_semantic_line(&t.text);
+                    if !norm.is_empty() {
+                        buf.push_str(&format!("- [_] {norm}\n"));
+                    }
+                }
+                continue;
+            }
+            _ => {}
+        }
         match c.sections.get(num) {
             Some(s) => {
                 buf.push_str(&format!("\n## {} {}\n", s.number, s.title));
