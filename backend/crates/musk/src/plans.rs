@@ -491,6 +491,14 @@ impl PlansStore {
         let pf = self.get(seq).ok_or_else(|| format!("plan {:03} not found", seq))?;
         // 保留原 plan_id（若新 content 的 frontmatter 缺失/冲突，以原 id 为准）
         let body = set_field(content, "plan_id", &pf.id);
+        // PLAN-096 T-12 live 实证：status 是 store 拥有的状态机字段——模型
+        // 回写内容缺 status 时机械保留现值（模型改状态走 transition 审计面）。
+        let fm = parse_frontmatter(&body);
+        let body = if fm.get("status").map(String::as_str).unwrap_or("").is_empty() {
+            set_field(&body, "status", pf.status.as_str())
+        } else {
+            body
+        };
         let body = set_field(&body, "updated_at", &now_iso());
         let path = self.plans_dir.join(&pf.filename);
         let path = if path.exists() {
