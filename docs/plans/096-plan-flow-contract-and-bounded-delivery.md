@@ -443,6 +443,23 @@ live 三场景：L1 清晰小工程从裸需求或显式 plan 入口完成（无
 
 ### review 阶段复审（同会话声明：与实施同上下文，裁定自工件重建）
 
+- stage: work | plan_id: PLAN-096 | plan_revision: 1 | outcome: pass（F-1 修复单元完成；L2 取绿与否交 review 裁定） |
+  code_commit(worktree plan-096-dev): 2ed2210（fixture c95ed47+诊断 8940 段+迭代B next_action 指引） |
+  task_ids: T-12（F-1） |
+  evidence: F-1 修复轮 1 共 4 次 live 迭代——①fixture 重设计落地（AC-01 零值
+  断言字面行要求，矛盾型→可修复型）；②③重跑新证据：复审轮1未检出缺口
+  （模型随机性）、document 相位 plan_delivery 同参循环防护截停（设计行为，
+  防护不放宽）；④迭代B（plan_delivery 成功带 next_action+相位门报错指名
+  下一动作，产品改进已落地）后重跑：execute 相位死于模型全文回写单汉字
+  采样损坏（`行为契约`→`行??契约`，语义合同正确 needs_replan）——第 4 次
+  实录同一噪声类。L2 取绿的残余阻塞=模型稳定性，产品侧不可达（增量 tick
+  工具属后续计划范围）。AC-05 循环机制由 V02 矩阵确定性覆盖（5 用例绿）；
+  L1/L3 live PASS 不受影响 |
+  blockers: 无产品侧可行动作；L2 取绿需模型稳定性或增量 tick 工具（后续
+  计划候选） |
+  next: review（裁定 AC-14：L1 PASS+L3 PASS+L2 三形态实录+V02 确定性
+  矩阵 是否满足"修复场景"验收；若认可→pass 进 merge）
+
 - stage: review | plan_id: PLAN-096 | plan_revision: 1 | outcome: needs_fix |
   reviewed_commit: 2dc05df（worktree 干净）| base_commit: 39870da |
   dependency_revisions: auto-ai@5a50a55 / auto-lang@986e765 / auto-down@895f8d0（只读冻结） |
