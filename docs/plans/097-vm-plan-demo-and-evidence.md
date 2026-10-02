@@ -498,6 +498,8 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
    （同文件/跨模块同症；musk 侧终版设计已就位,52b7733/b2285ac）。
    解阻塞动作：auto-lang 立项修 VM fn 调用语义;最小复现 probe-g15.mjs +
    canvas_store.at 内联 fn；修后 musk 侧零改动,行内容自然到达。
+   **已立项：auto-lang PLAN-733**（docs/plans/733-vm-fn-call-semantics.md,
+   drafting,2026-10-02;T-01 有界调查先行,AC-03=本计划 T-05 零改动解阻）。
 
 以上均有本计划内的有界调查任务，当前无须用户重复确认既有示例方向。调查
 导致目标/验收/允许仓库范围改变时，按 auto-plan:new 修订并保留原 AC 与证据。
