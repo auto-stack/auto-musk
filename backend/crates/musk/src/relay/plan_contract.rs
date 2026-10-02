@@ -513,7 +513,7 @@ fn normalize_semantic_line(line: &str) -> String {
     // 进度标记（✅/⏳，含 `[✅ 已完成]`/`[⏳ …]` 形态）之后的一切内容都是
     // tick/证据注记——live 实证（L1）：模型把完成标记与证据全部追加在
     // 任务行内，标记后文本不得进语义。
-    if let Some(i) = out.find(|c: char| c == '✅' || c == '⏳') {
+    if let Some(i) = out.find(|c: char| c == '✅' || c == '⏳' || c == '【') {
         out.truncate(i);
     }
     // 悬挂括号/破折号（live diff 实录：模型 tick 用孤立 em-dash 接注记）。
