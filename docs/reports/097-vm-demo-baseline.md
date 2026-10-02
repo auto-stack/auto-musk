@@ -163,3 +163,37 @@ A 已 review/merge 交付（main @ 7924304）。本节把消费面冻结为版�
   文本 404 被 contract.mjs 显式拒绝、discoverPlanRun(空)→null（run dir
   `D:/autostack/.demo/musk-097/t02-smoke2`）。带 plan_execution 的全量 live
   样例绑定推迟到 T-12（需真实模型 run），届时用 contract.mjs 原样校验。
+
+## T-05 附页 — VM 轨表达式语义实证矩阵与依赖缺口（2026-10-02）
+
+G-15 修复过程中以原生 VM 真机插桩（快照文本直读）系统实证了 VM 轨各表达式
+通道的可用性。这组事实对 T-06～T-14 的所有前端实现都是硬约束：
+
+| 表达式形态 | VM 轨 | 证据 |
+|---|---|---|
+| 模板插值直读 prop（`${.cv_state}`） | ✅ 工作 | DBG 轮快照 `st=running` |
+| handler 域调 helper + store 字段写（canvas_store StatusBackfill/Poll） | ✅ 工作 | canvas 面板状态每秒存活 |
+| 视图 for-in（成员链源） | ✅ 工作（既有 UI 实证） | 消息列表/画布树 |
+| 视图 if + bool prop（`if .cp_has`） | ✅ 工作 | cp_has=true 时卡片渲染 |
+| 跨 store **属性位**读旧字段（`cv_state: canvasStore.cv_state`） | ✅ 工作 | prop 传入值正确 |
+| computed 内函数调用（use.web.fn 与 use.web 两形态等同） | ❌ 恒空 | 三轮插桩,rows 恒空 |
+| 视图/模板 `.x.length` 成员链 | ❌ 恒空 | CPR=/CC=/RC= 全空(非 0) |
+| 模板插值跨 store 读（`text \`${canvasStore.x}\``） | ❌ 恒空 | DBG2 空 |
+| 跨 store 属性位读**新增** store 字段 | ❌ 表达式失败 → prop 失绑(模板字面 `${cp_err}`) | cp_err 挪首位仍字面 |
+| store 模块解析目标（worktree 运行） | **指向主检出** | `store facade: use store: AuthStore resolved to D:\autostack\auto-musk\src\front\auth_store.at`（worktree 运行日志铁证） |
+
+**依赖缺口（阻塞 T-05 行内容，登记 auto-lang 另行规划）**：worktree 的
+`auto run --render=vm` 把 `use store:` 模块解析到主检出同名文件（AutoManCache
+按 pac.at 项目名存 home 目录 + store facade 基目录链共同作用；AUTO_CACHE_ENABLED
+=false 不解除）。后果：worktree 新增的 store 字段/消息在 VM 里不存在——
+cp_prog_rows 永空、进度行内容不可见。**精确解阻塞动作**：auto-lang 侧修
+store facade 基目录序（CWD 相对首基应命中 worktree 文件）或提供 per-worktree
+缓存/解析隔离；修后同一探针（tmp/plan097-t01/probe-g15.mjs）直接复验。
+
+**G-15 现状**：摘要卡标题（生成进度）已在原生 VM 首次可见（cp_has 门实证）；
+行内容（启动预览/验证/帧等）待上述缺口解除后由 cp_rows prop 自然到达。
+设计本身双端同源（vue 侧 CanvasStore 同码，web 轨全功能）。
+
+**实现注记**：widget 列表 prop 类型须用具体数组形态（`[]obj`，StreamingTable
+先例）；单 .at 文件单 widget（双 widget + widget 内 use store 解析失败实测，
+Feed 独立成 canvas_prog_feed.at）。
