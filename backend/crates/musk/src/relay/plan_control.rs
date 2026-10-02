@@ -734,15 +734,25 @@ fn verify_evidence_artifacts(
             }
             continue;
         }
+        // 路径启发式（live 实证：模型混写描述句与路径）：无空白且含 /
+        // 或形如裸文件名（name.ext）→ 路径候选，必须真实存在；含空格的
+        // 描述句 = 描述性记录，逐字登记不解析。
+        let t = ev.trim();
+        let looks_like_path = !t.is_empty()
+            && !t.chars().any(|c| c.is_whitespace())
+            && (t.contains('/') || std::path::Path::new(t).extension().is_some());
+        if !looks_like_path {
+            continue;
+        }
         // 相对/绝对工件必须存在。
         let candidates = [
-            std::path::PathBuf::from(ev),
+            std::path::PathBuf::from(t),
             wt.map(|w| std::path::Path::new(w).join(ev)).unwrap_or_default(),
             main.join(ev),
         ];
         if !candidates.iter().any(|c| c.is_file() || c.is_dir()) {
             return Err(format!(
-                "evidence artifact '{ev}' does not exist (worktree/main-root relative or                  absolute; 'cmd:' prefix records a command without a path)"
+                "evidence artifact '{t}' does not exist (worktree/main-root relative or absolute; 'cmd:' prefix records a command without a path)"
             ));
         }
     }
