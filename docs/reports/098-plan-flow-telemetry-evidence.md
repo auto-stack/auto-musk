@@ -155,6 +155,29 @@
   失即 null）会使 AC-01 在部署态 daemon 上不可满足且丢弃可得真值；修订记
   录于此，交 review 核定。
 
+## T-06 RUNBOOK 落账与回归收口
+
+- RUNBOOK §4 增第 0 步：每 run 先跑 collect-telemetry.mjs，摘要 JSON/MD 存
+  `docs/reports/plan-flow-uat/runs/<date>-<sid>`，结果总表/历史行引用摘要
+  路径；provider null 常态/K8 in=0/旁证置信三口径写入。spec.md 判定标准
+  未动（仅 K8 观察项加行，T-05）。
+- **V02 全套逐目标串行**（38 目标）：全绿除 2 项——`parity_handoff_store`
+  （编译错：`StartRunRequest` 缺 `authorization` 字段）与
+  `tool_atoms::run_command_dangerous_returns_paused`（'/' 越界先于门断言
+  panic）。**二者在 main@da748ac 同样复现（定谳命令见下表）= 存量红，
+  PLAN-098 零新增红（AC-07 口径）**。前者疑为 PLAN-096 T-12
+  （4393199 锁步手修）漏改的 parity 夹具；后者为环境敏感断言（根目录解析
+  差异）。均不在本计划范围，交 review 裁定归属与去向（修夹具/KNOWN-DEBT）。
+- V06 兼容：`telemetry_field_backward_compatible`（094 真实行照读+回写不
+  新增键+新行可读）在 lib 套件内绿；旧会话/旧 run 零告警面由该测试与
+  parity_conversation/chats 套件覆盖。
+
+| 补充命令 | 预期 | 实际 |
+|---|---|---|
+| `cargo test -p musk --test parity_handoff_store`（worktree 与 main 各跑） | — | 两处同错 E0063 缺 `authorization` → 存量 |
+| `cargo test -p musk --test tool_atoms run_command_dangerous`（main） | — | 同 panic（'/' 解析越界）→ 存量 |
+| RUNBOOK §4 评审 | 含脚本步骤与产物路径约定 | 第 0 步落纸（AC-06 文档面） |
+
 ## 命令记录
 
 （各任务完成后追加）
@@ -175,3 +198,5 @@
 | T-05 | musk serve :17298 + demo-1 两轮 chat | 两轮收束 | 会话 db7b23cedffcf99423379abc，两轮 assistant 轮带遥测真值 | aaid@17654（5a50a55 构建） |
 | T-05 | `collect-telemetry.mjs --session db7b23… --autoos D:/autostack/auto-musk/tmp/demo/.autoos --out tmp/098/v04/live` | exit 0 摘要 | 6 轮/3 请求行/0 缺遥测/签名 0，exit 0 | 同上 |
 | T-05 | `curl POST :17654/v1/chat/completions`（tier:mid 与显式 model） | 观察 resp.model/model_meta | resp.model=解析后真值；model_meta 字段缺席（config 无 context_window）→ D6 修订 | aaid@17654 |
+| T-06 | V02 全套逐目标串行（lib + 37 test 目标，后台顺序执行） | 全绿 | 36 目标绿；`parity_handoff_store` 编译错 + `tool_atoms` 1 用例 panic——均在 main@da748ac 复现同错 = 存量红，零新增红 | plan-098-dev@abe9c77 工作树 |
+| T-06 | V06：lib 套件内 `telemetry_field_backward_compatible` + parity_conversation/chats | 旧行零迁移 | 绿（545 passed 内） | 同上 |

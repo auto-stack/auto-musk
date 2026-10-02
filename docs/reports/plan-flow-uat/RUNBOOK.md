@@ -59,7 +59,30 @@
 
 ## 4. 跑完后必做（对比记录的落账）
 
-1. 回填 [spec.md](./spec.md) 结果总表：用例 | 日期 | 结果 | 备注（含 demo main 提交链、run_id、耗时）。
+0. **产出遥测摘要（PLAN-098 起，第 0 步）**：对每个跑过的会话/relay run 执行
+   `collect-telemetry.mjs`（与本脚本同目录，零依赖），摘要 JSON/MD 存入本轮
+   记录并在下述回填中引用其路径：
+
+   ```bash
+   node docs/reports/plan-flow-uat/collect-telemetry.mjs \
+     --session <sid>|--run <rid> --autoos <demo>/.autoos \
+     [--aaid-log <aaid.log> --since <t> --until <t>] \
+     --out docs/reports/plan-flow-uat/runs/<date>-<sid>
+   ```
+
+   - 摘要含：按角色/相位聚合（轮数/工具数/时间跨度）、逐请求
+     provider/model/token/耗时表、失败签名自动标记（K1 截断 / K3 循环 /
+     K4 门同秒放行 / K5 无计划）。退出码 2=输入缺失（列出缺失项）；确定性
+     断言可用 `--expect <json>`（不符退出 3）。
+   - `provider` 为 null 属常态（daemon wire 不携带 provider，muskside 记
+     显式空值）；传入 aaid 日志时由时间窗启发式 join 回填并标注置信——
+     **旁证不冒充权威**。
+   - `in=0` 为 K8 已知观察项（daemon 流式 usage 未回填，见 spec.md K 表），
+     摘要已自动标注；重跑对比以 `out_tokens`+`elapsed_ms` 为准。
+   - 结果总表回填与 §5 历史行追加时**引用该摘要路径**：重跑对比直接读两轮
+     摘要 JSON（逐请求 model/token/耗时 + 签名计数），无需手工对齐时间戳。
+
+1. 回填 [spec.md](./spec.md) 结果总表：用例 | 日期 | 结果 | 备注（含 demo main 提交链、run_id、耗时、遥测摘要路径）。
 2. 在本文件 §5 追加一行历史记录（日期、轮次、结论、commit 指针）。
 3. **记录环境指纹**：musk/aaid 构建版本（git describe）、日期、模型与 thinking 档位——缺环境指纹的对比记录无效。
 4. 新发现的已知问题：登记 `docs/plans/KNOWN-DEBT-AND-RISKS.md`，并在 spec.md K 表加行。
