@@ -1108,7 +1108,7 @@ fn route_document_end(
         .collect();
     if !missing.is_empty() {
         return StageRouting::Fail(format!(
-            "delivery checkpoints missing: {missing:?} — run plan_delivery actions first"
+            "delivery checkpoints missing: {missing:?} — call plan_delivery with the FIRST missing action in order (prepare/land/refresh/archive/cleanup, one call per checkpoint); do NOT re-call an action that already returned its checkpoint"
         ));
     }
     ws.relay.mutate_plan_execution(run_id, |pe| {

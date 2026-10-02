@@ -271,7 +271,7 @@ pub fn prepare(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Re
             .unwrap_or_default();
         let (head, _) = worktree_head_clean(&ctx.worktree)?;
         if head == commit {
-            return Ok(json!({"checkpoint": "prepared", "delivery_commit": commit, "idempotent": true}));
+            return Ok(json!({"checkpoint": "prepared", "delivery_commit": commit, "idempotent": true, "next_action": "land"}));
         }
         return Err(format!(
             "prepared checkpoint records {commit} but worktree HEAD is now {head} — re-review required"
@@ -320,7 +320,7 @@ pub fn prepare(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Re
         "base_commit": ctx.binding.base_commit,
     });
     record_checkpoint(state, ws_id, run_id, &ctx, "prepared", facts, None)?;
-    Ok(json!({"checkpoint": "prepared", "delivery_commit": delivery_commit, "files": spec_files}))
+    Ok(json!({"checkpoint": "prepared", "delivery_commit": delivery_commit, "files": spec_files, "next_action": "land"}))
 }
 
 /// **land** — rebase with equivalence proof, then ff-only the main checkout.
@@ -335,7 +335,7 @@ pub fn land(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Resul
             .trim()
             .to_string();
         if main_tip == commit {
-            return Ok(json!({"checkpoint": "landed", "delivery_commit": commit, "idempotent": true}));
+            return Ok(json!({"checkpoint": "landed", "delivery_commit": commit, "idempotent": true, "next_action": "refresh"}));
         }
         return Err(format!(
             "landed checkpoint records {commit} but default branch tip is {main_tip} — reconcile before continuing"
@@ -429,7 +429,7 @@ pub fn land(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Resul
         "main_tip": main_tip,
     });
     record_checkpoint(state, ws_id, run_id, &ctx, "landed", facts, None)?;
-    Ok(json!({"checkpoint": "landed", "delivery_commit": new_head, "old_commit": old_head}))
+    Ok(json!({"checkpoint": "landed", "delivery_commit": new_head, "old_commit": old_head, "next_action": "refresh"}))
 }
 
 /// **refresh** — ledger via the workspace SpecsStore (store-mediated only).
@@ -563,7 +563,7 @@ pub fn refresh(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Re
         "store": "SpecsStore upsert (store-mediated)",
     });
     record_checkpoint(state, ws_id, run_id, &ctx, "ledger_refreshed", facts, None)?;
-    Ok(json!({"checkpoint": "ledger_refreshed", "targets": touched}))
+    Ok(json!({"checkpoint": "ledger_refreshed", "targets": touched, "next_action": "archive"}))
 }
 
 /// **archive** — explicit finalize after the earlier checkpoints verified.
@@ -577,7 +577,7 @@ pub fn archive(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Re
                 let facts = json!({"completion_kind": "delivered", "plan_path": format!("docs/plans/archived/{}", pf.filename)});
                 record_checkpoint(state, ws_id, run_id, &ctx, "archived", facts, Some("delivered"))?;
             }
-            return Ok(json!({"checkpoint": "archived", "idempotent": true, "completion_kind": "delivered"}));
+            return Ok(json!({"checkpoint": "archived", "idempotent": true, "completion_kind": "delivered", "next_action": "cleanup"}));
         }
     }
     for required in ["prepared", "landed", "ledger_refreshed"] {
@@ -594,7 +594,7 @@ pub fn archive(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Re
         "status": pf.status.as_str(),
     });
     record_checkpoint(state, ws_id, run_id, &ctx, "archived", facts, Some("delivered"))?;
-    Ok(json!({"checkpoint": "archived", "completion_kind": "delivered", "plan_path": format!("docs/plans/archived/{}", pf.filename)}))
+    Ok(json!({"checkpoint": "archived", "completion_kind": "delivered", "plan_path": format!("docs/plans/archived/{}", pf.filename), "next_action": "cleanup"}))
 }
 
 /// **cleanup** — guard + ownership verified removal of the run's own
@@ -603,7 +603,7 @@ pub fn archive(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Re
 pub fn cleanup(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Result<serde_json::Value, String> {
     let ctx = delivery_ctx(state, ws_id, run_id)?;
     if ctx.pe.delivery_checkpoints.get("cleaned").is_some() {
-        return Ok(json!({"checkpoint": "cleaned", "idempotent": true}));
+        return Ok(json!({"checkpoint": "cleaned", "idempotent": true, "next_action": "submit complete_plan_stage(document, pass)"}));
     }
     if ctx.pe.delivery_checkpoints.get("archived").is_none() {
         return Err("cleanup requires the archived checkpoint (delivery first, then cleanup)".into());
@@ -631,7 +631,7 @@ pub fn cleanup(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Re
                 "group_dir_pruned_if_empty": true,
             });
             record_checkpoint(state, ws_id, run_id, &ctx, "cleaned", facts, None)?;
-            Ok(json!({"checkpoint": "cleaned"}))
+            Ok(json!({"checkpoint": "cleaned", "next_action": "submit complete_plan_stage(document, pass) — all five checkpoints settled"}))
         }
         Err(e) => {
             // cleanup_pending：delivered 保留，不重跑前面副作用。
