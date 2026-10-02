@@ -4,9 +4,9 @@ status: executing
 feature_name: VM 计划开发演示与全流程证据
 author: [agent]
 created_at: 2026-10-02T01:40:31Z
-updated_at: 2026-10-02T13:05:00Z
+updated_at: 2026-10-02T13:40:00Z
 plan_revision: 1
-current_step: 4
+current_step: 5
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-studio-ui.md
@@ -346,7 +346,7 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
 | [x] T-03 | T-02 | 新 plan_progress_store.at/plan_progress_helpers.at（或有据并入 RelayStore）；接 relay_store.at/forge_store.at；单飞、身份/代次、陈旧、终态、纯投影 | V02/V04 乱序/切换/断连/修复/交付缺项；新身份不受迟到污染 | 01,02,08 |
 | [x] T-04 | T-03 | 新 plan_progress.at；接 chats_view.at/relay_run_box.at；摘要、展开阶段记录/历史标签/receipt；src/front/i18n/{zh,en}.json 与 lib/i18n.at 既有接线 | V03/V04 原生 VM 可见四阶段与失败，中英/宽度/草稿保留；历史不能标实时 | 01,05,07,15 |
 | [ ] T-05 | T-03 | canvas_progress.at/canvas_helpers.at/forge_store.at 与相关 CanvasStore 消息；必要 rows 预计算，消除 G-15，保持工具事实分类 | V03/V04 真 VM tool→store→可见摘要；未验证/失败不绿，seq 不宣称因果 | 03,04,15 |
-| [ ] T-06 | T-02 | 新 scripts/demo/vm-session.mjs 与 demo-focusboard.mjs preflight；私有配置/端口、实际端点发现、源/二进制指纹、owned 关停 | V01/V02/V08 端口冲突、旧产物拒绝、非 owned PID 不终止；无 worktree 链接 | 08,14,16 |
+| [x] T-06 | T-02 | 新 scripts/demo/vm-session.mjs 与 demo-focusboard.mjs preflight；私有配置/端口、实际端点发现、源/二进制指纹、owned 关停 | V01/V02/V08 端口冲突、旧产物拒绝、非 owned PID 不终止；无 worktree 链接 | 08,14,16 |
 | [ ] T-07 | T-04,T-06 | 新 capture.mjs/evidence.mjs；宿主/目标采集、状态稳定/身份二次核验、manifest v1、历史标识、缺件失败、外部保存 | V02 删除图/错 hash/跨身份/截图超时/缺阶段注入全部失败；原图可读 | 06,07,08,16,17 |
 | [ ] T-08 | T-02,T-06 | 新 scripts/demo/focusboard.mjs 与 examples/focusboard-demo/{README.md,requests/001.md,002.md,003.md}（仅需求/约定）；空仓 bootstrap、三轮正式入口、新会话、交付等待、工程外置 worktree | V02 bootstrap 白名单与不写业务审计；停止条件正确，无手工 nudge/外部修复 | 09,10,12,14,16 |
 | [ ] T-09 | T-07,T-08 | 目标 VM 行为断言/跨启保存/Canvas锚点；既有 Wiki API 同正文发布/回读；Specs/ledger/归档/ff/清理对账 | V02/V05各轮断言、Wiki hash、P003上下文来源；工程未交付不发下一需求 | 04,10,11,12,13 |
@@ -524,3 +524,25 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
   构建点 + 单变量复验（probe-g15.mjs 就绪）
 - next: 与用户/在途 owner 协调稳定构建点后复验；或 T-05 保持 blocked，
   先行 T-06/T-07/T-08（不依赖该面）
+
+### work 阶段记录（T-06 完成）
+
+- stage: work | plan_id: PLAN-097 | plan_revision: 1 | outcome: pass
+- code_commit(worktree plan-097-dev): 953ec31
+- task_ids: T-06
+- evidence: scripts/demo/vm-session.mjs（VmSession:私有配置/端口隔离启动、
+  stderr 端点发现+回退拒绝、netstat PID 归属双验、owned taskkill 树+端口
+  回收验收、VM 早退显式暴露;纯决策函数 parseListeningPids/
+  decidePortConflict/ownershipVerdict/fingerprintVerdict/parseMcpEndpoint
+  单独导出）+ scripts/demo-focusboard.mjs preflight（S1 指纹锁当日构建/
+  S2 端口/S3 wt-guard/S4 合同 hash 对账——contract.mjs sources 改
+  路径→hash 映射/S5 需求件/S6 staging/L1-L2 live serve 冒烟+owned 关停）
+  + 需求件四篇（examples/focusboard-demo,gitignore examples/* 化+反排除）。
+  硬规则沉淀:VM 探针/演示必须显式 AUTO_EXE 锁当日 auto-lang 构建
+  （T-05 误诊根因,VmSession 构造器强制）。V01:preflight 真机全绿
+  CAPABILITY OK(.demo/musk-097/preflight-20261002131405,auto=
+  v0.4.2-2607-gb3149f74f 当日构建)。V02:18/18。V08 检查面:端口冲突
+  (S2+决策函数测试)/旧产物拒绝(fingerprintVerdict)/非 owned PID 不终止
+  (ownershipVerdict+L2 只杀自有)/无链接(S3)全覆盖。
+- blockers: 无
+- next: T-07（capture.mjs/evidence.mjs）
