@@ -14,7 +14,7 @@
 | 场景 | 结果 | 事实 |
 |---|---|---|
 | L3 账本故障明确停止 | **PASS** | run failed（模型在 document 相位误报 needs_fix 被控制器拒绝置败——错误分类不路由，AC-04/06 契约面真实拦截）；计划未归档、无 delivered 收据（无假交付）。注入点：.autoos/specs.json 外语格式；ledger load 响亮失败路径由 V04 `refresh_store_mediated_…corrupt_ledger` 确定性覆盖（字节不变断言）。 |
-| L1 全链交付 | **FAIL→机制归因**（见 §2） | plan→门（auto 放行）→execute 全程真模型驱动；历次失败逐一归因为可修产品缺陷并修复（§2 共 13 项，commit 9ec027b..4bc32b4）；末轮败因=模型 update_plan 全文回写时单汉字采样损坏（`影响`→`影U+FFFD U+FFFD`），语义合同正确检出置 needs_replan——AC-06 行为符合设计，属模型侧噪声非产品缺陷。 |
+| L1 全链交付 | **全链 delivered 实证 + 探针判定未复绿**（见 §2/§4） | 末轮批次：plan→门（auto 放行）→execute→review→document→**phase=delivered, status=completed** 全链真模型跑通（五检查点齐、无 nudge）；当时探针唯一失败项为其自身断言缺陷（git show --name-only 只看 tip 单笔），修正后复跑轮败于 agent 循环防护（模型同参重复调 plan_delivery ≥3——防护按设计不放宽，随机行为）。历次失败共归因修复 14 项产品缺陷（§2）；单汉字采样损坏触发 needs_replan 属合同正确行为（AC-06）。 |
 | L2 修复循环 | **BLOCKED（时间预算）** | 场景脚本就绪（预写 §8 任务/§7 AC 矛盾计划）；本批次未获执行窗口（L1 多轮迭代耗尽批次时间）。技能/模板/matrix 修复循环行为由 V02 路由矩阵（needs_fix 回退/门保留/findings 注入/无进展早停）确定性覆盖。 |
 | VM 后端臂 | **BLOCKED** | AUTO_VM_EXE 未指向存在的 VM 后端工件（Q-06：不用旧工件验新行为）；探针如实报 blocked，不以 skip 计 pass。 |
 
