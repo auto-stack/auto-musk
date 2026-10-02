@@ -233,9 +233,10 @@ async function L1() {
           JSON.parse(fs.readFileSync(path.join(p, f), 'utf8')).completion_kind === 'delivered');
       })()],
       ['delivery landed on default branch', (() => {
-        const tip = git(s.repo, 'rev-parse', 'master');
-        const files = git(s.repo, 'show', '--name-only', '--format=', tip);
-        return files.includes('README.md');
+        // 主检出工作树内容断言（ff 合入后 master 工作树即交付结果；
+        // git show --name-only 只看 tip 单笔，README 在 execute 父提交）。
+        const readme = fs.readFileSync(path.join(s.repo, 'README.md'), 'utf8');
+        return readme.includes('## Plan Flow') && readme.includes('plan-flow live ok');
       })()],
       ['worktree cleaned up', (() => {
         const p = path.join(s.wtRoot);
