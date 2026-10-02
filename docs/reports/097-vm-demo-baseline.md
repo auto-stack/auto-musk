@@ -224,3 +224,24 @@ Feed 独立成 canvas_prog_feed.at）。
 
 探针件/收据不变：tmp/plan097-t01/probe-g15.mjs、
 D:/autostack/.demo/musk-097/t05-g15/*（含 vm-full.log 全量日志）。
+
+## T-05 附页③ — PLAN-729 稳定点复验（2026-10-02 晚,用户指令）
+
+auto-lang PLAN-729 合入（master 7d50989f7,工作树干净）后按用户指令复验,
+重建当日二进制（v0.4.2-2607-gb3149f74f 之后含 729 全量）并跑 probe-g15：
+
+**进展**：附页②的"studio 块子件实例化静默失败"在 729 稳定点**消失**——
+CanvasProgressSummary（own-store 形态,52b7733）正常挂载,own-store 读
+旧字段（.store.cv_state="running"）工作。挂载面已解。
+
+**仍阻断（新证据,归 auto-lang）**：CanvasStore.StatusBackfill 域内调用
+canvasProgressRows（列表首参六参模块级 fn）返回空列表（cp_prog_has=false
+真实落账、cp_prog_err 空=未抛错）——**同文件内联 fn 与跨模块 import 同症**
+（内联实验 b2285ac）。即 VM 运行时在 store handler 域的模块级 fn 调用
+（多参/列表参形态）返回空,与视图 computed 的 fn 调用返空（附页①矩阵）
+同族。归 auto-lang VM 调用语义立项;最小复现 = probe-g15.mjs +
+canvas_store.at 内联 fn（b2285ac）,切 studio + canvas running 即触发。
+
+**musk 侧状态**：终版设计（own-store 自持卡片+store 域预计算+内联 fn）
+已全部落地（52b7733/b2285ac）,web 轨全功能;VM 行内容在 auto-lang 修复
+fn 调用语义后自然到达（无需再改 musk 侧——行源/门/渲染全部就位）。
