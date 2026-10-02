@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-096
-status: execution_done
+status: executing
 feature_name: 计划四阶段契约统一与有界自动交付闭环
 author: [agent]
 created_at: 2026-10-01T15:29:00Z
@@ -431,7 +431,7 @@ live 三场景：L1 清晰小工程从裸需求或显式 plan 入口完成（无
 | [x] T-09 | T-08 | plan_delivery refresh/archive/cleanup；specs.rs/spec_tools.rs store-mediated元数据与串行写、plans.rs显式归档；receipt重入/投影保留与失败检查点 | V04 ledger/归档/cleanup/竞争全部子集；坏账本字节不变、重复项零增长、land后刷新失败未归档、cleanup失败不重合入 | 08,10,11,17 |
 | [x] T-10 | T-05～T-09 | relay/api.rs、orch_tools.rs、server.rs与auto-src/{relay_driver,relay_store,relay_api,relay_flows,extern_sigs,tool_context}.at及extern_impl.rs；正式入口/旧旁路/事件与RunState；生成类型按T-01合同同步 | V05；V02/V04旁路反例；分别hw/ag/VMHTTP接入同控制核（真VMHTTP在V06实证），旧JSON消费不坏 | 01,02,10,12,13 |
 | [x] T-11 | T-10 | 完成tests/{plan_flow_contract,plan_flow_execution,plan_delivery_contract}.rs全矩阵与mock两轨入口；基于真实临时Git+store，不以只断言提示词为验证 | V02/V03/V04全部，记录实跑数与失败注入表；覆盖§6每组反例 | 01～13,16,17 |
-| [x] T-12 | T-11 | 新scripts/plan-flow-probe.mjs、新docs/reports/096-plan-flow-evidence.md；隔离临时演示仓/注册表/端口/owned进程，L1/L2/L3+真Canvas act/state；禁止清空既有tmp/demo与共享会话 | V06双后端全部；既有生产不动；模型/环境blocked如实登记，不计skip为pass | 03,05,07～10,12,14,17 |
+| [ ] T-12 | T-11 | 新scripts/plan-flow-probe.mjs、新docs/reports/096-plan-flow-evidence.md；隔离临时演示仓/注册表/端口/owned进程，L1/L2/L3+真Canvas act/state；禁止清空既有tmp/demo与共享会话 | V06双后端全部；既有生产不动；模型/环境blocked如实登记，不计skip为pass | 03,05,07～10,12,14,17 |
 | [x] T-13 | T-10,T-12 | 新docs/reports/096-plan-flow-spec-delta.md，完善baseline报告中的B消费合同；按SD-01～04写可审before/after delta与样例字段/hash；说明已知限制与中断非自动恢复 | V02事件/schema样例；报告映射每AC到代码/命令/live记录，B依赖有具体字段/版本/成功失败样例；不提前发布canonical | 01～14,17 |
 | [x] T-14 | T-11～T-13 | scoped修复后全量lib/parity；构建自有演示release；固定代码/依赖/skill/二进制指纹；更新本Plan工作交接与待澄清，无共享生产重启 | V01/V02～V05/V07/V08；必需AC全完成且worktree已提交干净才execution_done；交review，非自动标reviewed | 01～17，特别15 |
 
@@ -440,6 +440,37 @@ live 三场景：L1 清晰小工程从裸需求或显式 plan 入口完成（无
 本计划开发worktree保留给review/merge。受影响代码/规范有冲突后重跑相应验证。
 
 ## 9. 复审记录
+
+### review 阶段复审（同会话声明：与实施同上下文，裁定自工件重建）
+
+- stage: review | plan_id: PLAN-096 | plan_revision: 1 | outcome: needs_fix |
+  reviewed_commit: 2dc05df（worktree 干净）| base_commit: 39870da |
+  dependency_revisions: auto-ai@5a50a55 / auto-lang@986e765 / auto-down@895f8d0（只读冻结） |
+  spec_inputs: plan-flow/specs-ledger/workspace-sandbox/chat-run-policy 四规范 hash
+  与计划 §4 全部一致；SD-01～04 delta 报告（worktree
+  docs/reports/096-plan-flow-spec-delta.md）目标路径真实、goal ID
+  （goal-agent/relay/spec-knowledge/security）经 goals/README.md 核实 |
+  acceptance_results: AC-01～13,15～17 **pass**（复审 fresh 复现：V07 lib
+  534 绿；V02 19/V03 6/V04 9 绿（--test-threads=1，真临时 Git 断言）；
+  V05 五套全绿；V08 release cedfee7c…@2dc05df；wt-guard clean）。AC-14
+  **partial**：L1 live **PASS**（复审 fresh 复跑：全链 plan→auto门→
+  execute→review→document→delivered，探针全断言绿——计划归档+主检出
+  README 内容交付+worktree 清理，收据 probe-receipt.json）；L3 PASS
+  （work 批次：响亮停/无假归档/无 delivered）；**L2 FAIL×2**（响亮停） |
+  findings: **F-1**（severity: medium，affected: T-12/AC-14）——L2 场景
+  fixture 为"矛盾型"设计（§8 要求 5 / §7 要求 4），合同正确产物是
+  needs_replan 响亮停，演示目标（work→review 修复循环）结构性不可达；
+  AC-05 机制本身已由 V02 路由矩阵确定性证明（needs_fix 回退/门保留/
+  findings 注入/无进展早停/上限耗尽 5 用例绿）。修复动作：fixture 重设计
+  为可修复形态（AC 要求零值用例覆盖而 §8 任务未提及——复审可检出、coder
+  可修复）后重跑 L2 取绿。修复尝试（fixture 改写脚本）因转义失败未落盘，
+  T-12 复选框已重开 |
+  evidence: tmp/plan-flow-probe/PLAN-096/probe-receipt.json（L1 PASS 判定
+  行）+ 本记录 fresh 复现命令（V07/V02/V03/V04/V05 全绿输出） |
+  next: work（F-1 有界修复：L2 fixture 重设计+重跑；修复轮 1/3）→ review
+  复审 → merge
+
+
 
 ### work 进度（T-01/T-02）
 
