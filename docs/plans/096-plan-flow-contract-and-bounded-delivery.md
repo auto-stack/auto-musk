@@ -6,7 +6,7 @@ author: [agent]
 created_at: 2026-10-01T15:29:00Z
 updated_at: 2026-10-01T15:29:00Z
 plan_revision: 1
-current_step: 2
+current_step: 5
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/plan-flow.md
@@ -422,9 +422,9 @@ live 三场景：L1 清晰小工程从裸需求或显式 plan 入口完成（无
 |---|---|---|---|---|
 | [x] T-01 | — | 新docs/reports/096-plan-flow-baseline.md；核对依赖、技能、现有红、阶段引擎公开状态、YAML读取、Auto桥再生、Client上限、临时端口与scope方案；固定有限设计决策及B合同初稿，不改共享生产 | V01基线；既有parity scoped基线；记录真实命令/版本/失败归因；纯musk实现可行，否则needs_replan给最小依赖修订 | 02,03,09,12,15 |
 | [x] T-02 | T-01 | 新relay/plan_contract.rs；builtin_skills.rs、relay/plan_flow.rs、driver.rs、lib.rs；完整PlanContract读取+技能hash快照+机械阶段任务+Canvas指引；新tests/plan_flow_contract.rs初始子集；消费合同初稿 | V01；V02技能/列表/语义hash子集，必要用例实际执行且全绿；缺源/日志变化/AC变更反例 | 01,02,06,13 |
-| [ ] T-03 | T-02 | plans.rs::create/归档守卫、plan_tools.rs CreatePlan/TransitionPlan、relay/api.rs/store.rs与orch_tools.rs；身份绑定、批准快照、CreateNew分配互斥及unknown-workspace拒绝；保留human/auto语义 | V02计划/授权子集；V03并发分配子集（新test文件），同号冲突无覆盖；V05相关回归 | 02,06,12,16 |
-| [ ] T-04 | T-03 | 新plan_worktree.rs；tool_context.rs、lib.rs::build_agent_with_context、tools.rs/tool_safety.rs受限scope、plan_tools.rs、canvas/tools.rs；登记自有worktree+阶段root+main只读/Plan例外；新tests/plan_flow_execution.rs | V01/V03；实际临时Git/worktree代码变更仅在dev、主代码零改、碰撞/链接拒绝、Canvas路径scope可验 | 03,10,11,16 |
-| [ ] T-05 | T-03,T-04 | 新relay/plan_control.rs；plan_tools.rs complete_plan_stage、relay/store.rs/driver.rs、取消桥；结果校验、唯一owner、受控回退≤3、no_progress、needs_replan停下；共享阶段核供两轨调用 | V02路由/结果/owner/取消矩阵；Done/伪pass/迟到结果反例；旧普通流回归V05 | 04,05,06,10,12 |
+| [x] T-03 | T-02 | plans.rs::create/归档守卫、plan_tools.rs CreatePlan/TransitionPlan、relay/api.rs/store.rs与orch_tools.rs；身份绑定、批准快照、CreateNew分配互斥及unknown-workspace拒绝；保留human/auto语义 | V02计划/授权子集；V03并发分配子集（新test文件），同号冲突无覆盖；V05相关回归 | 02,06,12,16 |
+| [x] T-04 | T-03 | 新plan_worktree.rs；tool_context.rs、lib.rs::build_agent_with_context、tools.rs/tool_safety.rs受限scope、plan_tools.rs、canvas/tools.rs；登记自有worktree+阶段root+main只读/Plan例外；新tests/plan_flow_execution.rs | V01/V03；实际临时Git/worktree代码变更仅在dev、主代码零改、碰撞/链接拒绝、Canvas路径scope可验 | 03,10,11,16 |
+| [x] T-05 | T-03,T-04 | 新relay/plan_control.rs；plan_tools.rs complete_plan_stage、relay/store.rs/driver.rs、取消桥；结果校验、唯一owner、受控回退≤3、no_progress、needs_replan停下；共享阶段核供两轨调用 | V02路由/结果/owner/取消矩阵；Done/伪pass/迟到结果反例；旧普通流回归V05 | 04,05,06,10,12 |
 | [ ] T-06 | T-02,T-05 | 新relay/plan_runtime_client.rs；factory显式注入包装；有效max_tokens/stop_reason/一次有界续做，保持stream/tool/usage/model链；不改auto-ai | V02 mock complete+stream全链；截断/不支持上限/重试计数断言；V01 | 01,05,09,10 |
 | [ ] T-07 | T-04,T-05 | plan_contract/plan_control阶段检查；独立reviewer输入与验证证据注册；frozen delta、revision/commit/deps核验与失效；新增V02/V03提交/命令证据反例 | V02/V03；旧pass在commit/deps/delta漂移时拒绝、语义修改停下、未提交不能execution_done | 04,06,07 |
 | [ ] T-08 | T-04,T-07 | 新plan_delivery.rs prepare/land；Git参数化操作、Spec路径与hash核验、guard、rebase/range-diff映射、ff-only与主分支实际tip检查；新tests/plan_delivery_contract.rs | V04 prepare/land矩阵；冲突触发复验，脏主根/非等价补丁拒绝，未涉及文件零扰动 | 07,08,10,11 |
@@ -444,6 +444,19 @@ live 三场景：L1 清晰小工程从裸需求或显式 plan 入口完成（无
 ### work 进度（T-01/T-02）
 
 - stage: work | plan_id: PLAN-096 | plan_revision: 1 | outcome: 进行中 |
+  code_commit(worktree plan-096-dev): c11562a（T-05；此前 8ca8a6d=T-03、
+  a47fedc=T-04）| task_ids: T-03,T-04,T-05 |
+  evidence: T-03 V03 并发分配 3 绿（CreateNew 唯一/撞号重分配/>999 阻断）
+  + V05 回归绿 + REST/SpawnRelay unknown-workspace 400 拒绝。T-04 V03
+  scope 3 绿（工具落 worktree/主检出零改/越界拒列授权根/工厂相位判定/
+  Canvas 路径）+ plan_worktree 真Git 单测 5 绿（创建复用/外部占用拒/
+  未合入保留现场/合入后安全移除/junction guard）。T-05 V02 路由矩阵
+  5 用例全绿（全生命周期 stage_incomplete→plan pass→批准绑定→execute
+  伪pass拒→提交过→review needs_fix 回退（门保留）→无进展早停；修复
+  上限第4轮耗尽；取消留现场；needs_replan 留 executing；语义漂移
+  needs_replan/仅进度不失效）+ lib 530 绿 + V05 5 套绿。attempt 语义
+  修正记录：execute/review 共享轮次号（初版每相位重置为 1 会破坏修复
+  轮计数，已改为轮次制并测试钉住）。
   code_commit(worktree plan-096-dev): 7f4bdbb |
   task_ids: T-01,T-02 |
   evidence: T-01 基线报告 docs/reports/096-plan-flow-baseline.md（V01 PASS 1m42s；
