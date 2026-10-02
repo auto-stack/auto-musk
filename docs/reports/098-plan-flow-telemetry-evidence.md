@@ -200,3 +200,37 @@
 | T-05 | `curl POST :17654/v1/chat/completions`（tier:mid 与显式 model） | 观察 resp.model/model_meta | resp.model=解析后真值；model_meta 字段缺席（config 无 context_window）→ D6 修订 | aaid@17654 |
 | T-06 | V02 全套逐目标串行（lib + 37 test 目标，后台顺序执行） | 全绿 | 36 目标绿；`parity_handoff_store` 编译错 + `tool_atoms` 1 用例 panic——均在 main@da748ac 复现同错 = 存量红，零新增红 | plan-098-dev@abe9c77 工作树 |
 | T-06 | V06：lib 套件内 `telemetry_field_backward_compatible` + parity_conversation/chats | 旧行零迁移 | 绿（545 passed 内） | 同上 |
+
+
+## AC 覆盖映射（收口核对）
+
+| AC | 结果 | 实证锚点 |
+|---|---|---|
+| AC-01 | ✅ | V04 实况：会话 db7b23… 两 assistant 轮 telemetry 真值（model=glm-5.3-flash 回退后真值、requested、out、elapsed、stop_reason；in 字段存在=0，K8 注记）；伪造/缺行=失败条款无违例（多请求折叠 requests[] 齐） |
+| AC-02 | ✅（含 T-01 D4 形状偏差，已记录待 review 核定） | V05 `plan098_relay_telemetry_correlates_and_folds`：hw+ag 双轨、并发双 run 零错配、correlation{run,step,role} 逐相位断言；现场 relay 记录=StepCompleted 边界轮聚合（D4：流式碎片不可对齐） |
+| AC-03 | ✅ | SSE Value 级 model_meta 追加（已知才加）；DTO 枚举/帧形状不变；V02 前端契约面（parity_* 全绿）零回归；hw /api/run 无遥测→字段恒省略（未知省略语义自洽） |
+| AC-04 | ✅ | V06 `telemetry_field_backward_compatible`（094 真实行照读、回写不新增键、新行可读）+ parity_conversation/chats 绿 |
+| AC-05 | ✅ | V03：relay 24 断言（K1-K5 全命中、聚合数一致、provider=zhipu join 置信 high）+ chat 13 断言；输入缺失 exit 2 列缺失项；aaid 旁证标注置信不冒充权威 |
+| AC-06 | ✅（终判=review 文档评审 + 后续真实重跑使用） | RUNBOOK §4 第 0 步落纸（摘要路径引用/无需手工对齐时间戳口径）；V04 摘要端到端 exit 0 |
+| AC-07 | ✅ | V02 全套 36/38 绿；2 红经 main@da748ac 复现定谳=存量（非 098 新增）；遥测故障不产生用户可见错误=poison 恢复单测 + 旁路结构（sink 写失败仅 warn）+ V04 实况两轮正常收束 |
+
+## work 收口记录
+
+- stage: work ｜ plan_id: PLAN-098 ｜ plan_revision: 1 ｜ outcome: **pass** ｜
+  code_commit: plan-098-dev@ccfa573（T-01 330768c → T-02 e2f906c → T-03
+  2778e33 → T-04 f9ae074 → T-05 abe9c77 → T-06/07 ccfa573） ｜
+  task_ids: T-01～T-07 全勾 ｜ blockers: 无 ｜
+  next: review（/auto-plan:review 独立复验）
+- 交 review 核定项：① SD-03 挂载目标（plan-flow.md 维持 vs 改挂
+  plan-execution-contract.md，两案并列见 spec-delta 报告）；② T-01 D4
+  relay 折叠形状偏差与 D6 model 权威序修订（live 证据驱动，§5.1 语义
+  修正）；③ 两个存量红（parity_handoff_store / tool_atoms）的归属与去向；
+  ④ §10 原留核定项"relay 路径真实 run 实况加强"——V04 仅覆盖 chat 面，
+  relay 实况记录以 V05 契约断言 + 既有 094 真实产物为准，未做 plan 流
+  全实跑（计划明文不作为完成门）。
+- 环境指纹：musk worktree plan-098-dev@ccfa573 release 构建；aaid
+  进程=auto-ai@5a50a55 构建（:17654，复用在跑实例）；demo-1 会话
+  db7b23cedffcf99423379abc（V04）；依赖只读兄弟 worktree detach
+  （auto-ai@main、auto-lang@master）随本计划收尾清理。
+- rebase 绑定：本报告各 commit 锚定 plan-098-dev；merge 阶段 rebase 后按
+  技能以 range-diff 重绑并记录旧→新映射。
