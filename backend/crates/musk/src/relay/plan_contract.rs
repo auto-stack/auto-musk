@@ -519,7 +519,7 @@ fn normalize_semantic_line(line: &str) -> String {
     // 悬挂括号/破折号（live diff 实录：模型 tick 用孤立 em-dash 接注记）。
     let out = out
         .trim_end()
-        .trim_end_matches(['[', '(', '（', '—', '–'])
+        .trim_end_matches(['[', '(', '（', '［', '【', '〈', '《', '「', '『', '—', '–', '…'])
         .trim_end();
     // 剩余 checkbox（`[x]`/`[X]`/`[ ]`）归一为 `[_]`。
     let cb_re = regex::Regex::new(r"\[[xX ]\]").expect("static regex");
