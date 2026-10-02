@@ -1,0 +1,15 @@
+{
+  "input.kind": "chat",
+  "llm_rows": 2,
+  "turns_without_telemetry": 1,
+  "signatures.k1_truncation_4096": 0,
+  "signatures.k3_loop_ge4_same_args": 0,
+  "signatures.k4_gate_same_second": 0,
+  "signatures.k5_plan_without_create_plan": 0,
+  "aaid.chat_req": 6,
+  "aaid.stream_done_in_zero": 5,
+  "llm_rows.0.in_tokens": 0,
+  "llm_rows.1.provider": "zhipu",
+  "llm_rows.1.in_tokens": 123,
+  "llm_rows.1.confidence": "high"
+}
