@@ -4,9 +4,9 @@ status: executing
 feature_name: VM 计划开发演示与全流程证据
 author: [agent]
 created_at: 2026-10-02T01:40:31Z
-updated_at: 2026-10-02T14:10:00Z
+updated_at: 2026-10-02T14:40:00Z
 plan_revision: 1
-current_step: 6
+current_step: 7
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-studio-ui.md
@@ -348,7 +348,7 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
 | [ ] T-05 | T-03 | canvas_progress.at/canvas_helpers.at/forge_store.at 与相关 CanvasStore 消息；必要 rows 预计算，消除 G-15，保持工具事实分类 | V03/V04 真 VM tool→store→可见摘要；未验证/失败不绿，seq 不宣称因果 | 03,04,15 |
 | [x] T-06 | T-02 | 新 scripts/demo/vm-session.mjs 与 demo-focusboard.mjs preflight；私有配置/端口、实际端点发现、源/二进制指纹、owned 关停 | V01/V02/V08 端口冲突、旧产物拒绝、非 owned PID 不终止；无 worktree 链接 | 08,14,16 |
 | [x] T-07 | T-04,T-06 | 新 capture.mjs/evidence.mjs；宿主/目标采集、状态稳定/身份二次核验、manifest v1、历史标识、缺件失败、外部保存 | V02 删除图/错 hash/跨身份/截图超时/缺阶段注入全部失败；原图可读 | 06,07,08,16,17 |
-| [ ] T-08 | T-02,T-06 | 新 scripts/demo/focusboard.mjs 与 examples/focusboard-demo/{README.md,requests/001.md,002.md,003.md}（仅需求/约定）；空仓 bootstrap、三轮正式入口、新会话、交付等待、工程外置 worktree | V02 bootstrap 白名单与不写业务审计；停止条件正确，无手工 nudge/外部修复 | 09,10,12,14,16 |
+| [x] T-08 | T-02,T-06 | 新 scripts/demo/focusboard.mjs 与 examples/focusboard-demo/{README.md,requests/001.md,002.md,003.md}（仅需求/约定）；空仓 bootstrap、三轮正式入口、新会话、交付等待、工程外置 worktree | V02 bootstrap 白名单与不写业务审计；停止条件正确，无手工 nudge/外部修复 | 09,10,12,14,16 |
 | [ ] T-09 | T-07,T-08 | 目标 VM 行为断言/跨启保存/Canvas锚点；既有 Wiki API 同正文发布/回读；Specs/ledger/归档/ff/清理对账 | V02/V05各轮断言、Wiki hash、P003上下文来源；工程未交付不发下一需求 | 04,10,11,12,13 |
 | [ ] T-10 | T-03～T-09 | 新 tests/demo/*.test.mjs；生产 helper 针对性测试；tests/ui-parity/cases.json/fixtures 与 Gallery 新组件接入；覆盖失败/乱序/归属/过期/缺件 | V02 全部针对性测试及 V03 静态对账，无镜像实现测试替代行为验证 | 01～10,13,14,16,17 |
 | [ ] T-11 | T-10 | 自有 Vue staging + VM 两后端运行；scripts/ui-parity.mjs 受影响 case；受影响后端 query/parity 回归证据 | V03/V04/V07 无新增红，真机原图与事实匹配；已有 G-17 不用伪 bounds 豁免操作 | 01～05,14,15 |
@@ -565,3 +565,25 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
   容错轮询(UI 未渲染不炸,超时带末快照)/allowUnstaged 落记录。
 - blockers: 无
 - next: T-08（focusboard.mjs 编排 + 空仓 bootstrap/三轮入口/交付等待）
+
+### work 阶段记录（T-08 完成）
+
+- stage: work | plan_id: PLAN-097 | plan_revision: 1 | outcome: pass
+- code_commit(worktree plan-097-dev): 需求件在 953ec31;编排模块本轮提交
+- task_ids: T-08
+- evidence: scripts/demo/focusboard.mjs——bootstrapRepo（物化
+  README/AGENTS/requests 三篇→白名单审计(BOOTSTRAP_WHITELIST 外即违规)
+  →git init -b master+初始提交,空仓断言:无 src/docs/specs/tests）+
+  startRound（正式入口=096 探针同源:POST runs{flow_id:'plan',task=需求
+  全文,authorization:'auto'}→advance）+ waitForRound（contract.mjs 校验
+  轮询,roundStopVerdict 停止条件:completed+delivered 正常/failed+canceled
+  响亮停/needs_replan+blocked 授权边界停/repair 封顶停——零 nudge）。
+  V02:4/4(白名单+业务违规/停止条件矩阵/空仓断言)。CLI bootstrap 烟测:
+  files 五篇+audit clean+head 落盘。需求件四篇(README/AGENTS 约定+
+  requests 三篇增量需求)已随 T-06 提交。三轮 run 全编排(run 命令)与
+  真模型驱动属 T-12;工程外置 worktree 路径约定
+  .wt/focusboard-<run_id>-<NNN> 已入需求件 AGENTS.md。
+- blockers: 无
+- next: T-09（目标 VM 行为断言/Wiki 发布/Specs 对账）——注:T-09 部分
+  断言面依赖 T-05 blocked 的 VM 渲染面(用户裁定回溯),可先做
+  Wiki 发布/Specs 对账等不依赖面
