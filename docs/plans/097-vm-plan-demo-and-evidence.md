@@ -6,7 +6,7 @@ author: [agent]
 created_at: 2026-10-02T01:40:31Z
 updated_at: 2026-10-02T14:40:00Z
 plan_revision: 1
-current_step: 8
+current_step: 11
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-studio-ui.md
@@ -349,11 +349,11 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
 | [x] T-06 | T-02 | 新 scripts/demo/vm-session.mjs 与 demo-focusboard.mjs preflight；私有配置/端口、实际端点发现、源/二进制指纹、owned 关停 | V01/V02/V08 端口冲突、旧产物拒绝、非 owned PID 不终止；无 worktree 链接 | 08,14,16 |
 | [x] T-07 | T-04,T-06 | 新 capture.mjs/evidence.mjs；宿主/目标采集、状态稳定/身份二次核验、manifest v1、历史标识、缺件失败、外部保存 | V02 删除图/错 hash/跨身份/截图超时/缺阶段注入全部失败；原图可读 | 06,07,08,16,17 |
 | [x] T-08 | T-02,T-06 | 新 scripts/demo/focusboard.mjs 与 examples/focusboard-demo/{README.md,requests/001.md,002.md,003.md}（仅需求/约定）；空仓 bootstrap、三轮正式入口、新会话、交付等待、工程外置 worktree | V02 bootstrap 白名单与不写业务审计；停止条件正确，无手工 nudge/外部修复 | 09,10,12,14,16 |
-| [ ] T-09 | T-07,T-08 | 目标 VM 行为断言/跨启保存/Canvas锚点；既有 Wiki API 同正文发布/回读；Specs/ledger/归档/ff/清理对账 | V02/V05各轮断言、Wiki hash、P003上下文来源；工程未交付不发下一需求 | 04,10,11,12,13 |
-| [ ] T-10 | T-03～T-09 | 新 tests/demo/*.test.mjs；生产 helper 针对性测试；tests/ui-parity/cases.json/fixtures 与 Gallery 新组件接入；覆盖失败/乱序/归属/过期/缺件 | V02 全部针对性测试及 V03 静态对账，无镜像实现测试替代行为验证 | 01～10,13,14,16,17 |
-| [ ] T-11 | T-10 | 自有 Vue staging + VM 两后端运行；scripts/ui-parity.mjs 受影响 case；受影响后端 query/parity 回归证据 | V03/V04/V07 无新增红，真机原图与事实匹配；已有 G-17 不用伪 bounds 豁免操作 | 01～05,14,15 |
+| [x] T-09 | T-07,T-08 | 目标 VM 行为断言/跨启保存/Canvas锚点；既有 Wiki API 同正文发布/回读；Specs/ledger/归档/ff/清理对账 | V02/V05各轮断言、Wiki hash、P003上下文来源；工程未交付不发下一需求 | 04,10,11,12,13 |
+| [x] T-10 | T-03～T-09 | 新 tests/demo/*.test.mjs；生产 helper 针对性测试；tests/ui-parity/cases.json/fixtures 与 Gallery 新组件接入；覆盖失败/乱序/归属/过期/缺件 | V02 全部针对性测试及 V03 静态对账，无镜像实现测试替代行为验证 | 01～10,13,14,16,17 |
+| [x] T-11 | T-10 | 自有 Vue staging + VM 两后端运行；scripts/ui-parity.mjs 受影响 case；受影响后端 query/parity 回归证据 | V03/V04/V07 无新增红，真机原图与事实匹配；已有 G-17 不用伪 bounds 豁免操作 | 01～05,14,15 |
 | [ ] T-12 | T-09,T-11 | 新跑真实模型完整 P001～003；正式 VM+RustHTTP；全量 screenshot/log/receipt/行为矩阵；失败保留现场，修复走 A 或本计划 scoped 代码 | V05/V06 三个 delivered +全部行为/截图/知识证据；不得直接改示例来使验收变绿 | 06～14,16,17 |
-| [ ] T-13 | T-12 | 新 docs/reports/097-vm-demo-evidence.md、097-vm-demo-spec-delta.md；HTML/Markdown report命令；SD-01～04 可审 before/after 文本及 AC 索引 | V06 离线核 hash/覆盖/收据；外部路径长期可读，区别模型行为与脚本出版步骤；canonical 不提前改 | 07,08,13,17 |
+| [x] T-13 | T-12 | 新 docs/reports/097-vm-demo-evidence.md、097-vm-demo-spec-delta.md；HTML/Markdown report命令；SD-01～04 可审 before/after 文本及 AC 索引 | V06 离线核 hash/覆盖/收据；外部路径长期可读，区别模型行为与脚本出版步骤；canonical 不提前改 | 07,08,13,17 |
 | [ ] T-14 | T-11～T-13 | scoped 修复后重跑受影响门；提交待审实现、固定当前产物 hash；本 Plan 进度/交接更新；owned 进程清理核验 | V02～V08；所有必需 AC 绑定待审提交、worktree 已提交干净，才 execution_done → 独立 review；不自标 reviewed/merged | 01～17 |
 
 ## 9. 复审记录
@@ -615,3 +615,146 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
   误升级已在记录中说明。
 - blockers: 无
 - next: T-09（目标 VM 行为断言/Wiki 发布/Specs 对账——不依赖面先行）
+
+### work 阶段记录（T-09 完成）
+
+- stage: work | plan_id: PLAN-097 | plan_revision: 1 | outcome: pass
+  （V02 67/67 绿;V05 各轮真机断言属 T-12 实证——如实登记）
+- code_commit(worktree plan-097-dev): b2f2ba9
+- task_ids: T-09
+- evidence: ①assertions.mjs——快照树硬化解析（零 rect→null 不造坐标）+
+  actByLabel（每拍重拍快照,VNode not found 重试——vnode 重编号规则）+
+  canvasRestart（stop 携带停止前代次/start 同一 app_path/等新代次
+  running+帧有效,generation 不变判失败）+ 磁盘交叉验证（<repo>/
+  src/front/data 扫描）+ wip/无效输入/anchor/deliveredGate 判言 +
+  P003 上下文三判言（新会话/输入=需求原文/事件窗 turn_tool_call 真实
+  读取证据）+ P001/P002/P003 三轮 check 流（匹配器容错,来自需求验收
+  口径;inCardOf 卡片内按钮定位）+ pickAnchor（vnode 直选+期望代次,
+  204/409 响亮）。②wiki.mjs——既有 API（wiki.rs 冻结面）create→409
+  幂等 update→回读 hash 对账。③landing.mjs——线性历史（merge commit
+  空）/分支清理/git worktree 注册表/run 域 worktree 目录残留/Specs+
+  ledger+归档+Wiki 文件对账,collect*（真实 git/fs）+ verdict*（纯函数）
+  分离。④focusboard.mjs verifyRoundDelivery——交付门（未交付抛错,
+  工程未交付不发下一需求）→行为断言→Wiki 发布回读→落地对账复合,
+  fetchImpl 全链可注入。V02:67/67——含缺陷变体响亮红（重启丢任务/
+  不限流/降限丢任务/wiki 篡改正文）。V05 真机断言+Live Wiki/落地取证
+  由 run 命令在 T-12 承载,本阶段不冒充通过。
+- blockers: 无
+- next: T-10（tests/demo 针对性测试收口+生产 helper 针对性测试+
+  ui-parity cases/fixtures 与 Gallery 新组件接入）
+
+### work 阶段记录（T-10 完成）
+
+- stage: work | plan_id: PLAN-097 | plan_revision: 1 | outcome: pass
+- code_commit(worktree plan-097-dev): c7b403f（ui-parity 接入）;T-09 b2f2ba9
+  已含 tests/demo 六文件针对性矩阵
+- task_ids: T-10
+- evidence: ①tests/demo V02 矩阵收口 67/67——失败（contract 失败样例/
+  capture 超时/canvasRestart 未运行/actByLabel 超时）、乱序与迟到（capture
+  generation 409 拒/pickAnchor 409/404/204、evidence 跨身份、store 代次面
+  由 V04 真机承载）、归属（vm-session ownershipVerdict/capture verifyIdentity/
+  restart 代次）、过期（fingerprintVerdict 旧产物）、缺件（deliveredGate 五
+  检查点/wiki 404/anchorVerdict 缺 source/diskVerdict）全臂有断言;合规假应用
+  （tests/demo/helpers/fake-board.mjs）驱动三轮流全绿+缺陷变体（重启丢任务/
+  不限流/降限丢任务/wiki 篡改）响亮红——行为流接线经 V02 实证,非镜像测试。
+  ②ui-parity 新组件双端接入（c7b403f）——显式 case plan-progress-card
+  （fixture.mock 冻结 RunState delivered 形态,expect=PLAN-FIXTURE/已交付/
+  检查点✓/已完成阶段记录,交互=展开阶段记录见 reviewed_commit）+
+  canvas-progress-summary（msgs 工具事件 fixture→CanvasStore.Poll 每拍投影,
+  expect=生成进度/生成/交互验证,交互=展开见 write_file/canvas_act）owner=
+  PLAN-097;runMode 增 fixture.mock 确定性 API 响应通道+expect.visible 并入
+  就绪门（消费型组件事实经 store timer 到达）。V03 三门:gen-only strict
+  exit 0（66 组件）+ vm-link-probe PASS（107799B,仅既有 ChatsView 两处基线
+  债+WARN 体积趋势）+ ui-parity catalog PASS 115/115（两新组件显式 case 取
+  代自动 inventory,声明全分配）。gallery materialize 两 case 冒烟 OK
+  （275 源字节复制+host 生成）;V04 真机双端渲染属 T-11 实证。
+- blockers: 无
+- next: T-11（自有 Vue staging+VM 两后端运行受影响 case+后端回归证据）
+
+### work 阶段记录（T-11 完成——含三处 VM 渲染根因修复）
+
+- stage: work | plan_id: PLAN-097 | plan_revision: 1 | outcome: pass
+  （VM+VMHTTP split 臂=上游缺口登记,如实降级）
+- code_commit(worktree plan-097-dev): 33a3425（根因修复+取证）+ e2d1bc9（T-12 编排,先行落地）
+- task_ids: T-11
+- evidence: ①V04 真机——ui-parity case plan-progress-card/canvas-progress-
+  summary/relay-run-box/canvas-studio-pair 在 VM+RustHTTP 全部 snapshot-ok
+  （fixture.mock 冻结 RunState→PlanProgressCard 渲染生产合同事实:相位轨
+  高亮/PLAN-FIXTURE·r1·delivered·1·0/3 摘要/五检查点✓/已完成阶段记录
+  标签/展开见 reviewed_commit;CanvasSummary 经 CanvasStore.Poll 投影工具
+  行+展开见 write_file/canvas_act）;Vue+VMHTTP 三 case http-ok。
+  ②三处根因修复（33a3425）——(a) PlanProgressCard 文本位 store 读（模板
+  插值与直读同症）被 VM 渲染器丢弃:摘要/blocker/详情改 handler 域预构建
+  列表+for 局部读,has_stages/has_details 改布尔落账（computed 内 .length
+  同为断点,T-05 矩阵扩展）;(b) CanvasProgressSummary 全仓唯一双 on 块
+  widget 在 VM 只一块生效,Init 被丢弃致 ProgInput 从未触发（工具行恒空;
+  probe-g15 只证过 canvas 状态行——实证更正）——合并单 on 块;(c) plain
+  use 不暴露 Vue 模板符号（vue-tsc TS2339）——use.web 形态（077
+  task_plan_card 先例）。③Vue staging 离线构建过（vue-tsc+vite 10.45s,
+  T-01 配方）。④V07 后端回归:parity_relay 6 绿(1 ignored=手动门)+
+  parity_relay_store 7 绿+parity_relay_api 6 绿+musk lib 534/534。
+  ⑤V03 复验:gen-only strict exit 0（66 组件）+vm-link-probe PASS
+  （113697B WARN 趋势）+catalog PASS 115/115。
+- blockers: **VM+VMHTTP split 接线=auto-lang 上游缺口**——`--render vm
+  --server vm`（AUTO_VM_MERGE=0 split）下 VM 后端 HTTP 起后解释器永不
+  进入（3 次复现含 AUTO_VM_WINDOW/STORAGE env;Vue+VMHTTP 同参数正常,
+  VM+RustHTTP merge 正常）→AC-15 该臂无真机证据;按 §1 依赖政策登记,
+  解阻塞=auto-lang 修 split 模式 VM 启动路径,修后 runner --vm-http 臂
+  直接复验。**过程合规事件**:Vue 轨 gallery run 把 pnpm node_modules
+  （864 junction）装进 worktree 被 wt-guard 拦截——按处方逐链接 rmdir
+  （不穿透）+生成物清理,guard 复 clean;沉淀:ui-parity vue 模式运行后
+  必须清理 gallery gen/（已在 T-14 检查单）。
+- next: T-12（run 编排已先行落地 e2d1bc9,真实三轮 run 发射）
+
+### work 阶段记录（T-12 blocked——A/平台侧解阻塞待定;T-13 完成）
+
+- stage: work | plan_id: PLAN-097 | plan_revision: 1 | outcome: blocked
+  （T-12 三轮 delivered 未达成;T-13 完成;整体 Plan 保持 executing）
+- code_commit(worktree plan-097-dev): e2d1bc9（run 编排）+ 2f595b3（取证
+  强化）+ 7d87d39（合同漂移修订）+ 634a511（AGENTS 格式约定）+ 56ba904
+  （证据报告）;T-13 含 d403742（report 命令+SD-01~04 可审文本）
+- task_ids: T-12（blocked）, T-13（完成）
+- evidence: **T-12 五次真实模型尝试,四类互异失败面,全部 A/平台侧**
+  （docs/reports/097-vm-demo-evidence.md 全矩阵）——①attempt1 execute
+  循环防护（canvas_act 同参×16,canvas 本身工作:买牛奶输入成功回读
+  state_changes）;②attempt2 本计划合同修复期主动终止;③④plan 相位
+  格式拒（§7/§8 非 checkbox 行,plan_contract parse_checklist 仅认
+  `- [ ]`）;⑤execute 循环防护（canvas_snapshot ×4,canvas 卡
+  Starting）——serve.log 实证平台三因素:probe 应用 exit1/**canvas_run
+  计划 worktree 路径双拼硬 bug**（`wt\plan-001\focusboard` 重复拼接,
+  20:34:02 复现）/Starting 无超时反馈。**AGENTS 格式约定实证有效**
+  （attempt5 plan 一次过:PLAN-001 bind→execute,9406 tokens）。
+  **驱动管线全链真模型验证通过**（隔离启动×5 owned 关停
+  allGone+portsFreed/bootstrap 白名单/shell 渲染门/原图采集/停止分类/
+  交付门截停/失败留场）。**合同漂移修订**（live 实证,V02 14/14）:
+  stage facts 载荷嵌套 facts 键（serde 形态,此前读顶层致全部拒收）;
+  事件面违约降级 _contract_warnings（continuation/approve/bound 为
+  控制器通知面枚举外值）,权威面 plan_execution 枚举保持严格。
+  T-13 产物:report 命令（V02 1 绿+对失败现场真跑:verify 缺 capture
+  响亮非零=不静默绿实证）+SD-01~04 可审文本（097-vm-demo-spec-delta.md）
+  +证据报告（097-vm-demo-evidence.md）。
+- blockers: **T-12 = A/平台侧四项解阻塞动作**（证据报告 §5,均绑现场）:
+  ①canvas_run 路径双拼（硬 bug）;②canvas Starting 无超时/错误透传;
+  ③循环防护与 canvas 验证工作流相容（启动 70s+ vs 4 次击杀）;④plan
+  格式方差回流修复通道（约定已缓解）。A 侧修复后 B 重跑（驱动/断言/
+  证据链就绪,免改）:`node scripts/demo-focusboard.mjs run --run-id <id>
+  --auto-exe <当日构建> --aaid http://127.0.0.1:17654 --rounds
+  p001,p002,p003`
+- next: 用户裁定——(a) A 侧解阻塞后 T-12 重跑;(b) 接受当前证据面
+  （驱动管线+ui-parity 真机+五失败现场）进 review,T-12 未尽面随
+  blocker 另行规划
+
+### work 阶段记录（T-14 部分——最终门+提交+清理;完成度受 T-12 blocked 约束）
+
+- stage: work | plan_id: PLAN-097 | plan_revision: 1 | outcome: pass
+  （执行面;整体 Plan 保持 executing——T-12 blocked 在案）
+- code_commit(worktree plan-097-dev): 56ba904（终态待审提交）
+- task_ids: T-14（部分:V02~V03/V07 门+提交+清理核验;V05/V08 的三轮
+  delivered 绑定与产物 hash 固化待 T-12 解阻后补）
+- evidence: 最终门全绿——V02 69/69;V03 gen-only strict exit 0（66 组件）+
+  vm-link-probe PASS+ui-parity catalog 115/115;wt-guard clean;V07 后端
+  回归 parity_relay 6+store 7+api 6+lib 534/534（T-11 批）;owned 进程
+  零残留（五跑 allGone+portsFreed）;依赖 worktree .wt/musk-097/auto-lang
+  保留（cargo 相对路径依赖需要在场,merge 收尾随清理）。
+- blockers: 同 T-12（A 侧四项）
+- next: 用户裁定（同上 a/b）
