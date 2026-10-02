@@ -6,7 +6,7 @@ author: [agent]
 created_at: 2026-10-01T15:29:00Z
 updated_at: 2026-10-01T15:29:00Z
 plan_revision: 1
-current_step: 0
+current_step: 2
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/plan-flow.md
@@ -420,8 +420,8 @@ live 三场景：L1 清晰小工程从裸需求或显式 plan 入口完成（无
 
 | 任务 | 依赖 | 文件/符号与预期结果 | 验证与完成条件 | AC |
 |---|---|---|---|---|
-| [ ] T-01 | — | 新docs/reports/096-plan-flow-baseline.md；核对依赖、技能、现有红、阶段引擎公开状态、YAML读取、Auto桥再生、Client上限、临时端口与scope方案；固定有限设计决策及B合同初稿，不改共享生产 | V01基线；既有parity scoped基线；记录真实命令/版本/失败归因；纯musk实现可行，否则needs_replan给最小依赖修订 | 02,03,09,12,15 |
-| [ ] T-02 | T-01 | 新relay/plan_contract.rs；builtin_skills.rs、relay/plan_flow.rs、driver.rs、lib.rs；完整PlanContract读取+技能hash快照+机械阶段任务+Canvas指引；新tests/plan_flow_contract.rs初始子集；消费合同初稿 | V01；V02技能/列表/语义hash子集，必要用例实际执行且全绿；缺源/日志变化/AC变更反例 | 01,02,06,13 |
+| [x] T-01 | — | 新docs/reports/096-plan-flow-baseline.md；核对依赖、技能、现有红、阶段引擎公开状态、YAML读取、Auto桥再生、Client上限、临时端口与scope方案；固定有限设计决策及B合同初稿，不改共享生产 | V01基线；既有parity scoped基线；记录真实命令/版本/失败归因；纯musk实现可行，否则needs_replan给最小依赖修订 | 02,03,09,12,15 |
+| [x] T-02 | T-01 | 新relay/plan_contract.rs；builtin_skills.rs、relay/plan_flow.rs、driver.rs、lib.rs；完整PlanContract读取+技能hash快照+机械阶段任务+Canvas指引；新tests/plan_flow_contract.rs初始子集；消费合同初稿 | V01；V02技能/列表/语义hash子集，必要用例实际执行且全绿；缺源/日志变化/AC变更反例 | 01,02,06,13 |
 | [ ] T-03 | T-02 | plans.rs::create/归档守卫、plan_tools.rs CreatePlan/TransitionPlan、relay/api.rs/store.rs与orch_tools.rs；身份绑定、批准快照、CreateNew分配互斥及unknown-workspace拒绝；保留human/auto语义 | V02计划/授权子集；V03并发分配子集（新test文件），同号冲突无覆盖；V05相关回归 | 02,06,12,16 |
 | [ ] T-04 | T-03 | 新plan_worktree.rs；tool_context.rs、lib.rs::build_agent_with_context、tools.rs/tool_safety.rs受限scope、plan_tools.rs、canvas/tools.rs；登记自有worktree+阶段root+main只读/Plan例外；新tests/plan_flow_execution.rs | V01/V03；实际临时Git/worktree代码变更仅在dev、主代码零改、碰撞/链接拒绝、Canvas路径scope可验 | 03,10,11,16 |
 | [ ] T-05 | T-03,T-04 | 新relay/plan_control.rs；plan_tools.rs complete_plan_stage、relay/store.rs/driver.rs、取消桥；结果校验、唯一owner、受控回退≤3、no_progress、needs_replan停下；共享阶段核供两轨调用 | V02路由/结果/owner/取消矩阵；Done/伪pass/迟到结果反例；旧普通流回归V05 | 04,05,06,10,12 |
@@ -440,6 +440,22 @@ live 三场景：L1 清晰小工程从裸需求或显式 plan 入口完成（无
 本计划开发worktree保留给review/merge。受影响代码/规范有冲突后重跑相应验证。
 
 ## 9. 复审记录
+
+### work 进度（T-01/T-02）
+
+- stage: work | plan_id: PLAN-096 | plan_revision: 1 | outcome: 进行中 |
+  code_commit(worktree plan-096-dev): 7f4bdbb |
+  task_ids: T-01,T-02 |
+  evidence: T-01 基线报告 docs/reports/096-plan-flow-baseline.md（V01 PASS 1m42s；
+  V05 scoped parity 基线全绿 5+6+6+7 无既有红；四技能与四规范 SHA-256 逐一命中
+  计划 §4 表；Q-01 定案=musk 侧 engine_rewind_to_step 受控回退不改 auto-ai；
+  Q-02 定案=直接声明锁内 yaml-rust 0.4 完整解析；Q-04 定案=共享核落 hw 新模块、
+  ag 经 extern_sigs/extern_impl 委托、最小再生）。
+  T-02 evidence: V01 PASS；V02 plan_flow_contract 初始子集 7/7 绿（完整列表
+  读取/身份与完整性反例/语义哈希正反样例/技能缺源硬失败/真源技能指纹/模板
+  消费冻结技能）；全量 lib 518/518 绿（T-02 后时点）；V07 纯净 main 基线
+  后台回填基线报告。依赖冻结 auto-ai@5a50a55 / auto-lang@986e765ac /
+  auto-down@895f8d0（组内只读 detached 兄弟）。
 
 ### new 阶段草案交接
 
