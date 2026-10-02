@@ -6,7 +6,7 @@ author: [agent]
 created_at: 2026-10-02T01:40:31Z
 updated_at: 2026-10-02T14:40:00Z
 plan_revision: 1
-current_step: 7
+current_step: 8
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-studio-ui.md
@@ -345,7 +345,7 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
 | [x] T-02 | T-01；A review/merge 已交付 | 冻结 A plan-execution-contract/实际 query 与入口、DTO/event/成功失败样例/hash 到 baseline；新增 scripts/demo/contract.mjs；确定 store owner、确切异步通道与 staging 命令 | V01/V02 正确事实可消费，未知版本/缺件明确拒绝；必要 A 缺口回交，不解析叙述补事实 | 01,02,08,16 |
 | [x] T-03 | T-02 | 新 plan_progress_store.at/plan_progress_helpers.at（或有据并入 RelayStore）；接 relay_store.at/forge_store.at；单飞、身份/代次、陈旧、终态、纯投影 | V02/V04 乱序/切换/断连/修复/交付缺项；新身份不受迟到污染 | 01,02,08 |
 | [x] T-04 | T-03 | 新 plan_progress.at；接 chats_view.at/relay_run_box.at；摘要、展开阶段记录/历史标签/receipt；src/front/i18n/{zh,en}.json 与 lib/i18n.at 既有接线 | V03/V04 原生 VM 可见四阶段与失败，中英/宽度/草稿保留；历史不能标实时 | 01,05,07,15 |
-| [ ] T-05 | T-03 | canvas_progress.at/canvas_helpers.at/forge_store.at 与相关 CanvasStore 消息；必要 rows 预计算，消除 G-15，保持工具事实分类 | V03/V04 真 VM tool→store→可见摘要；未验证/失败不绿，seq 不宣称因果 | 03,04,15 |
+| [x] T-05 | T-03 | canvas_progress.at/canvas_helpers.at/forge_store.at 与相关 CanvasStore 消息；必要 rows 预计算，消除 G-15，保持工具事实分类 | V03/V04 真 VM tool→store→可见摘要；未验证/失败不绿，seq 不宣称因果 | 03,04,15 |
 | [x] T-06 | T-02 | 新 scripts/demo/vm-session.mjs 与 demo-focusboard.mjs preflight；私有配置/端口、实际端点发现、源/二进制指纹、owned 关停 | V01/V02/V08 端口冲突、旧产物拒绝、非 owned PID 不终止；无 worktree 链接 | 08,14,16 |
 | [x] T-07 | T-04,T-06 | 新 capture.mjs/evidence.mjs；宿主/目标采集、状态稳定/身份二次核验、manifest v1、历史标识、缺件失败、外部保存 | V02 删除图/错 hash/跨身份/截图超时/缺阶段注入全部失败；原图可读 | 06,07,08,16,17 |
 | [x] T-08 | T-02,T-06 | 新 scripts/demo/focusboard.mjs 与 examples/focusboard-demo/{README.md,requests/001.md,002.md,003.md}（仅需求/约定）；空仓 bootstrap、三轮正式入口、新会话、交付等待、工程外置 worktree | V02 bootstrap 白名单与不写业务审计；停止条件正确，无手工 nudge/外部修复 | 09,10,12,14,16 |
@@ -496,14 +496,15 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
    （旧二进制行为）；②子件实例化失败在 PLAN-729 稳定点消失；③现行阻断=
    auto-lang VM 运行时在 store handler 域调用模块级 fn 返回空列表
    （同文件/跨模块同症；musk 侧终版设计已就位,52b7733/b2285ac）。
-   解阻塞动作：auto-lang 立项修 VM fn 调用语义;最小复现 probe-g15.mjs +
-   canvas_store.at 内联 fn；修后 musk 侧零改动,行内容自然到达。
-   **已立项：auto-lang PLAN-733**（同日 archived/delivered,修复合入
-   0b5c8758d/投影 550895b68）。**交付后复验未通过**（2026-10-03,附页④）:
-   550895b68 纯净构建下 handler 域 fn 调用仍返空（卡片挂载/store 读已解）,
-   而 PLAN-733 owner 的验证二进制（lang-733 worktree 构建,已清理）当时
-   全渲染——landing integrity 待 PLAN-733 owner 裁定（纯净构建重跑
-   probe-g15 或比对工作树差异）。musk 侧终版不变,复验命令不变。
+   **已解决（2026-10-03 闭项）。** auto-lang PLAN-733 同日
+   archived/delivered（三腿修复合入 0b5c8758d/投影 550895b68）。末轮曲折
+   记录：本侧复验三轮失败曾误判为 landing integrity（附页④）,经 733
+   owner 专项复查定谳——**真实根因 = musk 提交树缺重算接线**（owner 的
+   PASS 收据带 8 行临时插桩拍毕即回滚,F-2 已预警;本侧 A/B 把
+   "有插桩 vs 无插桩"误读为二进制差异,推断撤回）。按 733 §10.3 形态
+   接线（StatusBackfill 每拍重算,try/catch 落账）后 probe-g15 SMOKE
+   PASS——生成进度/启动预览/已可见/交互验证在原生 VM 全渲染,G-15 消除
+   实证完成（30e16b0）。附页④的 landing-integrity 结论由本条更正。
 
 以上均有本计划内的有界调查任务，当前无须用户重复确认既有示例方向。调查
 导致目标/验收/允许仓库范围改变时，按 auto-plan:new 修订并保留原 AC 与证据。
@@ -594,3 +595,23 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
 - next: T-09（目标 VM 行为断言/Wiki 发布/Specs 对账）——注:T-09 部分
   断言面依赖 T-05 blocked 的 VM 渲染面(用户裁定回溯),可先做
   Wiki 发布/Specs 对账等不依赖面
+
+### work 阶段记录（T-05 完成——依赖修复闭环+接线解阻）
+
+- stage: work | plan_id: PLAN-097 | plan_revision: 1 | outcome: pass
+- code_commit(worktree plan-097-dev): 30e16b0（接线）；前置 52b7733/b2285ac
+  （终版设计+内联 fn）
+- task_ids: T-05
+- evidence: StatusBackfill 每拍重算接线（cp_prog_rows/has/err,try/catch,
+  行源 fn 调用=0b5c8758d 同名歧义修复腿的实测面）——**probe-g15 SMOKE
+  PASS**:G-15 RESULT summary VISIBLE {title:true,preview:true,visible:true},
+  生成进度/启动预览/已可见/交互验证在原生 VM 全渲染;快照收据
+  .demo/musk-097/t05-g15/snapshot-g15.txt。V03:gen-only strict exit 0 +
+  vm-link-probe PASS + ui-parity 115/115;V02 30/30。依赖闭环:auto-lang
+  PLAN-733 三腿修复（archived/delivered）+ 本侧 8 行接线 = T-05 解阻
+  （733 §10.3 预告形态）。**过程更正**:本侧前轮"landing integrity"推断
+  经 733 owner 专项复查推翻——真实根因为 musk 树缺接线（A/B 的二进制
+  变量实为"有/无临时插桩"）,附页④由 §10 本条更正;对 733 owner 的
+  误升级已在记录中说明。
+- blockers: 无
+- next: T-09（目标 VM 行为断言/Wiki 发布/Specs 对账——不依赖面先行）
