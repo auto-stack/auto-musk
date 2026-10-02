@@ -1,0 +1,182 @@
+// plan_progress_store.at — PLAN-097 T-03: 计划进度事实 store（B 轨消费）。
+//
+// 消费 PLAN-096 交付的 run facts（合同冻结见 docs/reports/097-vm-demo-
+// baseline.md §T-02；owner 决策=独立 store，不并入 RelayStore——本 store
+// 无 SSE 依赖、生命周期为"卡片挂载即轮询"）。
+//
+// 轮询机 = canvas_store/forge_store 已实证配方（PLAN-093 T-04 同源）：
+// timer 拍发起 Http.get_msg（入队即返），载荷以 {"ok","status","body"}
+// 字符串信封回填。AC-02 语义：
+// - 单飞：pp_inflight + 有界 tick 释放（>3 拍丢响应视为失联 → 标陈旧）；
+// - 身份/代次：Attach/Detach 递增 pp_epoch；在途请求以 pp_req_epoch 快照
+//   对账——迟到/跨身份载荷直接丢弃，不落账（切 run/会话不串台）；
+// - 断连：错误信封/失联保留最后成功快照但标 pp_stale，恢复即清；
+// - 终态：run status ∈ completed|failed|canceled 停拍（事实保留展示）；
+// - 不兼容：contract_version != 1 → pp_contract_ok=false 显式呈现，不默认
+//   为成功，不猜测。
+// 事实落账走 plan_progress_helpers 扁平重建漏斗（r5 家族防线）。
+
+use plan_progress_helpers: planProgressProjection, planRunTerminal
+
+store PlanProgressStore {
+    model {
+        // 身份与代次（AC-02）
+        var pp_ws str = ""
+        var pp_run_id str = ""
+        var pp_epoch int = 0
+        var pp_req_epoch int = -1
+        // 轮询机（单飞 + 有界释放）
+        var pp_attached bool = false
+        var pp_inflight bool = false
+        var pp_inflight_ticks int = 0
+        // 事实面（投影产物，逐字段落账）
+        var pp_has_facts bool = false
+        var pp_contract_ok bool = true
+        var pp_run_status str = ""
+        var pp_plan_id str = ""
+        var pp_plan_path str = ""
+        var pp_plan_revision int = 0
+        var pp_phase str = ""
+        var pp_attempt int = 0
+        var pp_outcome str = ""
+        var pp_repair_count int = 0
+        var pp_repair_limit int = 0
+        var pp_blocker str = ""
+        var pp_reviewed_commit str = ""
+        var pp_receipt_ref str = ""
+        var pp_checkpoint_rows []Value = []
+        var pp_stage_rows []Value = []
+        // 陈旧与错误（断连保留快照但可见）
+        var pp_stale bool = false
+        var pp_error str = ""
+    }
+
+    timer {
+        Poll (every_ms: 1000)
+    }
+
+    msg Msg {
+        Poll,
+        Backfill(str),
+        Attach(str, str),
+        Detach,
+    }
+
+    on {
+        // 挂载即轮询（widget Init 调；ws 暂记身份，URL 走后端默认工作区
+        // 解析——RelayStore 同口径）
+        .Attach(ws str, runId str) -> {
+            .pp_epoch = .pp_epoch + 1
+            .pp_req_epoch = -1
+            .pp_inflight = false
+            .pp_inflight_ticks = 0
+            .pp_ws = ws
+            .pp_run_id = runId
+            .pp_attached = runId != ""
+            // 清事实面：新身份不继承旧快照
+            .pp_has_facts = false
+            .pp_contract_ok = true
+            .pp_run_status = ""
+            .pp_plan_id = ""
+            .pp_plan_path = ""
+            .pp_plan_revision = 0
+            .pp_phase = ""
+            .pp_attempt = 0
+            .pp_outcome = ""
+            .pp_repair_count = 0
+            .pp_repair_limit = 0
+            .pp_blocker = ""
+            .pp_reviewed_commit = ""
+            .pp_receipt_ref = ""
+            .pp_checkpoint_rows = []
+            .pp_stage_rows = []
+            .pp_stale = false
+            .pp_error = ""
+        }
+
+        .Detach -> {
+            .pp_epoch = .pp_epoch + 1
+            .pp_req_epoch = -1
+            .pp_inflight = false
+            .pp_inflight_ticks = 0
+            .pp_attached = false
+            .pp_has_facts = false
+            .pp_run_id = ""
+        }
+
+        .Poll -> {
+            if .pp_attached {
+                if .pp_inflight {
+                    .pp_inflight_ticks = .pp_inflight_ticks + 1
+                    if .pp_inflight_ticks > 3 {
+                        // 丢响应有界恢复：释放在途并标陈旧（快照保留）
+                        .pp_inflight = false
+                        .pp_inflight_ticks = 0
+                        .pp_stale = true
+                    }
+                } else {
+                    if .pp_run_id != "" {
+                        .pp_inflight = true
+                        .pp_inflight_ticks = 0
+                        .pp_req_epoch = .pp_epoch
+                        Http.get_msg("/api/forge/relay/runs/" + encodeURIComponent(.pp_run_id), "PlanProgressStore.Backfill")
+                    }
+                }
+            }
+        }
+
+        .Backfill(payload str) -> {
+            // 迟到/跨身份拒收：非在途 或 代次不匹配（Attach/Detach 后到达）
+            // 直接丢弃，不落账。
+            if .pp_inflight && .pp_req_epoch == .pp_epoch {
+                let env = JSON.parse(payload)
+                if env != None {
+                    if env.ok == true {
+                        let body = JSON.parse(env.body)
+                        if body != None {
+                            .pp_inflight = false
+                            .pp_inflight_ticks = 0
+                            // 终态停拍：事实保留展示（AC-02）
+                            if planRunTerminal(body.status ?? "") {
+                                .pp_attached = false
+                            }
+                            // 扁平重建漏斗：纯 helper 产字面量，逐字段落账
+                            var p = planProgressProjection(body)
+                            .pp_has_facts = p.has_facts
+                            .pp_contract_ok = p.contract_ok
+                            .pp_run_status = p.run_status
+                            .pp_plan_id = p.plan_id
+                            .pp_plan_path = p.plan_path
+                            .pp_plan_revision = p.plan_revision
+                            .pp_phase = p.phase
+                            .pp_attempt = p.attempt
+                            .pp_outcome = p.outcome
+                            .pp_repair_count = p.repair_count
+                            .pp_repair_limit = p.repair_limit
+                            .pp_blocker = p.blocker
+                            .pp_reviewed_commit = p.reviewed_commit
+                            .pp_receipt_ref = p.receipt_ref
+                            .pp_checkpoint_rows = p.checkpoint_rows
+                            .pp_stage_rows = p.stage_rows
+                            .pp_stale = false
+                            .pp_error = ""
+                        } else {
+                            // body 不可解析：响亮可见（不静默绿）
+                            .pp_inflight = false
+                            .pp_stale = true
+                            .pp_error = "plan facts body parse failed"
+                        }
+                    } else {
+                        // 错误信封：释放在途、保留快照标陈旧（AC-02 断连可见）
+                        .pp_inflight = false
+                        .pp_inflight_ticks = 0
+                        .pp_stale = true
+                    }
+                } else {
+                    .pp_inflight = false
+                    .pp_stale = true
+                }
+            }
+        }
+    }
+}

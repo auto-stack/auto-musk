@@ -1,0 +1,131 @@
+// plan_progress_helpers.at — PLAN-097 T-03: 计划进度纯投影 helpers。
+//
+// 消费 PLAN-096 B 轨事实面（docs/reports/097-vm-demo-baseline.md §T-02 冻结：
+// RunState.plan_execution + status；contract_version=1）。只产字面量/
+// 标量（扁平重建漏斗，canvas_helpers 同口径），不访问任何 store 字段、
+// 不发起 IO——JSON.parse 产物直接落 store 后渲染上下文字段读塌空
+//（PLAN-084 r5 家族），视图读的全部字段经此处逐字段重建。
+
+// RunState.status 终态（AC-02 终态停拍判据）
+fn planRunTerminal(status str) bool {
+    var t bool = status == "completed" || status == "failed" || status == "canceled"
+    return t
+}
+
+// 相位序（rail 渲染用；未知相位 -1，视图回退显示原文）
+fn planPhaseIndex(phase str) int {
+    var i int = -1
+    if phase == "plan" {
+        i = 0
+    } else if phase == "execute" {
+        i = 1
+    } else if phase == "review" {
+        i = 2
+    } else if phase == "document" {
+        i = 3
+    } else if phase == "delivered" {
+        i = 4
+    }
+    return i
+}
+
+// 相位轨单档样式（done/active/future 三态；视图侧直用）
+fn planPhaseTabStyle(idx int, cur int) str {
+    var s str = "text-[11.5px] text-muted-foreground/50"
+    if cur >= 0 {
+        if idx < cur {
+            s = "text-[11.5px] text-muted-foreground"
+        } else if idx == cur {
+            s = "text-[11.5px] font-semibold text-primary"
+        }
+    }
+    return s
+}
+
+// 交付检查点行（冻结序 prepared/landed/ledger_refreshed/archived/cleaned；
+// 未知键不显示——contract.mjs 侧同名单拒绝）
+fn planCheckpointRows(cps Value) list {
+    var out list = []
+    var keys list = ["prepared", "landed", "ledger_refreshed", "archived", "cleaned"]
+    for k in keys {
+        var done bool = false
+        if cps != None {
+            if cps[k] != None {
+                done = true
+            }
+        }
+        out.push({ key: k, done: done })
+    }
+    return out
+}
+
+// 已核验阶段结果行（StageResult → 展示行；attempt 为服务器盖章轮次）
+fn planStageRows(results list) list {
+    var out list = []
+    if results != None {
+        for r in results {
+            out.push({ stage: r.stage ?? "", attempt: r.attempt ?? 0, outcome: r.outcome ?? "" })
+        }
+    }
+    return out
+}
+
+// 扁平重建漏斗：RunState（已 parse）→ 全部展示字段字面量对象。
+// has_facts=false = 无 plan_execution（非计划流 run）——卡片隐藏。
+// contract_ok=false = 未知 contract_version——显式不兼容，不默认为成功。
+fn planProgressProjection(body Value) Value {
+    var st str = ""
+    var pe Value = None
+    if body != None {
+        st = body.status ?? ""
+        pe = body.plan_execution
+    }
+    var hasFacts bool = false
+    var contractOk bool = true
+    var pid str = ""
+    var ppath str = ""
+    var prev int = 0
+    var phase str = ""
+    var attempt int = 0
+    var outcome str = ""
+    var repairCount int = 0
+    var repairLimit int = 0
+    var blocker str = ""
+    var reviewed str = ""
+    var receipt str = ""
+    var cpRows list = []
+    var stRows list = []
+    if pe != None {
+        hasFacts = true
+        pid = pe.plan_id ?? ""
+        ppath = pe.plan_path ?? ""
+        prev = pe.plan_revision ?? 0
+        phase = pe.phase ?? ""
+        attempt = pe.attempt ?? 0
+        var oc = pe.outcome
+        if oc != None {
+            outcome = oc
+        }
+        repairCount = pe.repair_count ?? 0
+        repairLimit = pe.repair_limit ?? 0
+        var bl = pe.blocker
+        if bl != None {
+            blocker = bl
+        }
+        var rc = pe.reviewed_commit
+        if rc != None {
+            reviewed = rc
+        }
+        var rr = pe.receipt_ref
+        if rr != None {
+            receipt = rr
+        }
+        var ver = pe.contract_version ?? 0
+        if ver != 1 {
+            contractOk = false
+        }
+        cpRows = planCheckpointRows(pe.delivery_checkpoints)
+        stRows = planStageRows(pe.stage_results)
+    }
+    return { has_facts: hasFacts, contract_ok: contractOk, run_status: st, plan_id: pid, plan_path: ppath, plan_revision: prev, phase: phase, attempt: attempt, outcome: outcome, repair_count: repairCount, repair_limit: repairLimit, blocker: blocker, reviewed_commit: reviewed, receipt_ref: receipt, checkpoint_rows: cpRows, stage_rows: stRows }
+}
