@@ -109,6 +109,11 @@ export async function startRound({ base, token, round, reqText }) {
 
 // 交付等待：轮询 facts 至停止条件（roundStopVerdict）；不 nudge。
 // 返回 { facts, verdict }；超时 = 响亮失败。
+// 合同容错（T-12 干跑实证）：启动即失败的 run 其 plan_execution 为空壳
+// （serde default,plan_id/plan_path 空）——严格校验拒收会让失败轮无法
+// 归类。故：校验失败时降级取原始 JSON,若 status 已 failed/canceled 则按
+// 响亮停止路径返回原始事实（verdict 分类器消费 status/outcome）;仍在跑
+// 则继续轮询。completed 但事实违约不降级（缺件完成不绿,保持响亮）。
 export async function waitForRound({ base, token, runId, timeoutMs = 3600000, onProgress = null }) {
   const headers = token ? { authorization: `Bearer ${token}` } : {};
   const deadline = Date.now() + timeoutMs;
@@ -117,7 +122,21 @@ export async function waitForRound({ base, token, runId, timeoutMs = 3600000, on
     await new Promise(r => setTimeout(r, 5000));
     const res = await fetch(`${base}/api/forge/relay/runs/${encodeURIComponent(runId)}`, { headers });
     if (res.status === 404) continue; // run 尚未可见
-    const facts = parseRunStateResponse(await res.text());
+    const text = await res.text();
+    let facts;
+    try {
+      facts = parseRunStateResponse(text);
+    } catch (e) {
+      let raw = null;
+      try { raw = JSON.parse(text); } catch { /* 非 JSON:继续轮询 */ }
+      if (raw?.status === 'failed' || raw?.status === 'canceled') {
+        const verdict = roundStopVerdict(raw);
+        const line = `status=${raw.status} (contract-invalid facts degraded for terminal state: ${e.message.slice(0, 80)})`;
+        if (line !== last) { last = line; onProgress?.(line); }
+        return { facts: raw, verdict };
+      }
+      continue; // 校验失败但非终态:继续等（可能仍在装配）
+    }
     const verdict = roundStopVerdict(facts);
     const line = `status=${facts.status} phase=${facts.plan_execution?.phase ?? '-'} attempt=${facts.plan_execution?.attempt ?? '-'} repair=${facts.plan_execution?.repair_count ?? '-'}`;
     if (line !== last) { last = line; onProgress?.(line); }
@@ -136,7 +155,7 @@ export async function waitForRound({ base, token, runId, timeoutMs = 3600000, on
 const ROUND_BUILDERS = { p001: p001Checks, p002: p002Checks, p003: p003Checks };
 
 export async function verifyRoundDelivery({ round, planLabel, facts, mcp, repoDir, base, token, workspaceId,
-  wikiFiles = [], runId, planMarker = null, log = () => {}, fetchImpl = fetch }) {
+  wikiFiles = [], runId, planMarker = null, log = () => {}, fetchImpl = fetch, wtRoot }) {
   deliveredGate(facts, { planLabel }); // 未交付在此抛——不发下一需求
 
   const withRestart = {
@@ -164,7 +183,7 @@ export async function verifyRoundDelivery({ round, planLabel, facts, mcp, repoDi
 
   let landingCheck;
   try {
-    const facts2 = collectLandingFacts({ repoDir, runId, planMarker });
+    const facts2 = collectLandingFacts({ repoDir, runId, planMarker, wtRoot });
     const lv = landingVerdict(facts2);
     landingCheck = { name: `landing 对账(${planLabel}: specs/ledger/归档/ff/清理)`, ok: lv.ok, detail: lv.errors.join('; ') || '线性合入+分支/worktree 清理+Specs/ledger/归档/Wiki 齐' };
   } catch (e) {
@@ -189,7 +208,7 @@ export function p003ContextChecks({ p003SessionId, priorSessionIds, inputText, r
 }
 
 // CLI：bootstrap 独立可跑（T-08 V01 验收面）
-if (import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}` || process.argv[1]?.endsWith('focusboard.mjs')) {
+if (process.argv[1] && (import.meta.url === `file:///${process.argv[1].replace(/\\/g, '/')}` || process.argv[1]?.endsWith('focusboard.mjs'))) {
   const args = process.argv.slice(2);
   if (args[0] === 'bootstrap') {
     const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };

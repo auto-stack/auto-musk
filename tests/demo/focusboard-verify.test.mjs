@@ -88,6 +88,7 @@ test('verifyRoundDelivery: 合规应用全绿(行为+wiki hash+落地对账)', a
     round: 'p001', planLabel: 'P001', facts: DELIVERED, mcp, repoDir: repo,
     base: 'http://x', workspaceId: 'ws1', wikiFiles: ['docs/wiki/usage.md'],
     runId: 'runT', planMarker: '001-basic-board', log: () => {}, fetchImpl,
+    wtRoot: path.join(repo, 'wt-empty'),
   });
   assert.equal(r.ok, true, JSON.stringify(r.checks.filter(c => !c.ok), null, 1));
   assert.ok(r.checks.some(c => /usage\.md/.test(c.name) && c.ok));
@@ -104,6 +105,7 @@ test('verifyRoundDelivery: wiki 回读 hash 被改 → 红(不静默绿)', async
     round: 'p001', planLabel: 'P001', facts: DELIVERED, mcp, repoDir: repo,
     base: 'http://x', workspaceId: 'ws1', wikiFiles: ['docs/wiki/usage.md'],
     runId: 'runT', planMarker: '001-basic-board', log: () => {}, fetchImpl,
+    wtRoot: path.join(repo, 'wt-empty'),
   });
   const w = r.checks.find(c => /usage\.md/.test(c.name));
   assert.equal(w.ok, false);

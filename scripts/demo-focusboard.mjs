@@ -145,7 +145,20 @@ async function preflight() {
 
 if (command === 'preflight') {
   await preflight();
+} else if (command === 'run') {
+  const { runDemo } = await import('./demo/run.mjs');
+  process.exit(await runDemo({
+    runId: opt('--run-id', `t12-${new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14)}`),
+    autoExe: AUTO_EXE, muskExe: MUSK_EXE,
+    ports: PORTS, aaidUrl: opt('--aaid', process.env.AAID_URL_DEMO ?? 'http://127.0.0.1:17654'),
+    rounds: (opt('--rounds', 'p001,p002,p003')).split(',').map(s => s.trim()).filter(Boolean),
+    roundTimeoutMs: Number(opt('--round-timeout-ms', '5400000')),
+    root: ROOT,
+  }));
+} else if (command === 'verify') {
+  const { verifyCommand } = await import('./demo/run.mjs');
+  process.exit(await verifyCommand({ manifestPath: opt('--manifest', ''), evidenceDir: opt('--evidence-dir', '') }));
 } else {
-  console.error(`unknown command: ${command}(run/verify/report 属 T-08/T-12/T-13 增量)`);
+  console.error(`unknown command: ${command}(report 属 T-13 增量)`);
   process.exit(2);
 }

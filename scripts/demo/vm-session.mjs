@@ -184,10 +184,13 @@ export class VmSession {
       if (!v.ok) throw new Error(`vm-session: ${name} port ${port} ${v.reason}`);
     }
     // serve（自有进程；隔离配置 + AAID 指向 + AUTO_EXE 传导给 canvas spawn）
+    // extraServeEnv（T-12）：plan 流所需的 MUSK_SKILLS_DIR/MUSK_PLAN_WORKTREE_ROOT/
+    // MUSK_PLAN_MAX_TOKENS 等由 run 编排注入（096 探针同配方）。
     const serve = spawn(o.muskExe, ['serve', '--workdir', o.workspaceDir], {
       cwd: o.workspaceDir,
       env: { ...process.env, MUSK_SERVE_PORT: String(this.ports.back), MUSK_CONFIG_DIR: path.join(o.runRoot, 'home'),
-             AAID_URL: o.aaidUrl ?? 'http://127.0.0.1:9', AUTO_EXE: o.autoExe, RUST_MIN_STACK: '16777216' },
+             AAID_URL: o.aaidUrl ?? 'http://127.0.0.1:9', AUTO_EXE: o.autoExe, RUST_MIN_STACK: '16777216',
+             ...(o.extraServeEnv ?? {}) },
       windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
     });
     this.procs.push({ role: 'serve', p: serve, out: '' });

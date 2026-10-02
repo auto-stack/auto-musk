@@ -29,11 +29,15 @@ export function branchesVerdict(branchNames, { defaultBranch = 'master' } = {}) 
   return { ok: true, reason: `only ${defaultBranch} remains` };
 }
 
-// worktree 清理：本 run 的外置工程 worktree 目录必须已删（无残留）。
-export function worktreeCleanupVerdict(existingDirs, runId) {
+// worktree 清理：约定外置目录（focusboard-<run_id>-*）与后端托管计划目录
+// （MUSK_PLAN_WORKTREE_ROOT/<plan_id>/<repo>，plan_worktree.rs 布局）都必须
+// 已删或已空（merge 收尾实证）。
+export function worktreeCleanupVerdict(existingDirs, runId, { backendManagedDirs = [] } = {}) {
   const re = new RegExp(`focusboard-${escapeRe(runId)}-`);
   const leftover = existingDirs.filter(d => re.test(d.replace(/\\/g, '/')));
   if (leftover.length) return { ok: false, reason: `demo worktree 残留: ${leftover.join(',')}` };
+  const dirty = backendManagedDirs.filter(d => d.files.length > 0);
+  if (dirty.length) return { ok: false, reason: `计划 worktree 未清: ${dirty.map(d => d.dir).join(',')}` };
   return { ok: true, reason: `no worktree leftovers for run ${runId}` };
 }
 
@@ -47,12 +51,14 @@ export function worktreeListVerdict(listOutput) {
 }
 
 // 落地文件对账：Specs 权威（≥1 md）、ledger 派生（约定路径之一存在）、
-// 计划归档（本轮 plan marker 命中归档目录）、Wiki 产出存在。
+// 计划归档（有 marker 则命中；无 marker 要求归档目录非空——agent 计划
+// 文件名先行未知，归档非空即 AC-10 归档证据）、Wiki 产出存在。
 export function landingFilesVerdict({ specs = [], ledgerPaths = [], archived = [], wiki = [], planMarker = null }) {
   const errors = [];
   if (!specs.length) errors.push('docs/specs/ 无任何 .md（业务 Specs 权威缺位）');
   if (!ledgerPaths.length) errors.push('ledger 派生缺位（docs/specs/index.json 与 specs-ledger 均无）');
   if (planMarker && !archived.some(a => a.includes(planMarker))) errors.push(`归档缺本轮计划（docs/plans/archived 无 ${planMarker}）`);
+  if (!planMarker && !archived.length) errors.push('docs/plans/archived 为空（归档缺件）');
   if (!wiki.length) errors.push('docs/wiki/ 无产出（用法/取舍 Wiki 缺件）');
   return { ok: errors.length === 0, errors };
 }
@@ -61,8 +67,9 @@ export function landingFilesVerdict({ specs = [], ledgerPaths = [], archived = [
 
 const git = (repoDir, args) => execFileSync('git', ['-C', repoDir, ...args], { encoding: 'utf8', windowsHide: true });
 
-export function collectLandingFacts({ repoDir, wtRoot = 'D:/autostack/.wt', runId, planMarker = null }) {
+export function collectLandingFacts({ repoDir, wtRoot, runId, planMarker = null }) {
   if (!fs.existsSync(path.join(repoDir, '.git'))) throw new Error(`landing: not a git repo: ${repoDir}`);
+  if (!wtRoot) throw new Error('landing: wtRoot required（不得默认扫共享 .wt 根——会误伤其他 plan 的在途 worktree）');
   const merges = git(repoDir, ['log', '--merges', '--format=%H']).split(/\r?\n/).filter(Boolean);
   const branches = git(repoDir, ['branch', '--format=%(refname:short)']).split(/\r?\n/).map(s => s.trim()).filter(Boolean);
   const worktreeList = git(repoDir, ['worktree', 'list', '--porcelain']);
@@ -70,6 +77,18 @@ export function collectLandingFacts({ repoDir, wtRoot = 'D:/autostack/.wt', runI
   const wtDirs = fs.existsSync(wtRootAbs)
     ? fs.readdirSync(wtRootAbs).map(d => path.join(wtRootAbs, d).replace(/\\/g, '/'))
     : [];
+  // 后端托管计划目录（<plan_id>/<repo>）内容清点（plan_worktree.rs 布局）
+  const backendManagedDirs = [];
+  for (const d of wtDirs) {
+    let subs = [];
+    try { subs = fs.readdirSync(d); } catch { /* not a dir */ }
+    for (const sub of subs) {
+      const inner = path.join(d, sub);
+      let files = [];
+      try { files = fs.readdirSync(inner); } catch { /* not a dir */ }
+      backendManagedDirs.push({ dir: inner.replace(/\\/g, '/'), files });
+    }
+  }
   const specsDir = path.join(repoDir, 'docs', 'specs');
   const specs = fs.existsSync(specsDir)
     ? (function walk(dir, base = '') {
@@ -94,7 +113,7 @@ export function collectLandingFacts({ repoDir, wtRoot = 'D:/autostack/.wt', runI
     linearHistory: linearHistoryVerdict(merges),
     branches: branchesVerdict(branches),
     worktreeRegistry: worktreeListVerdict(worktreeList),
-    worktreeCleanup: worktreeCleanupVerdict(wtDirs, runId),
+    worktreeCleanup: worktreeCleanupVerdict(wtDirs, runId, { backendManagedDirs }),
     files: landingFilesVerdict({ specs, ledgerPaths, archived, wiki, planMarker }),
   };
 }
