@@ -162,7 +162,7 @@ async function runOneRound({ round, sess, session, runRoot, repoDir, evidenceDir
 
   const seenPhases = new Set();
   const { runId: relayRunId, facts } = await startAndWait({
-    base, token, round, reqText, timeoutMs: roundTimeoutMs,
+    base, token, round, reqText, timeoutMs: roundTimeoutMs, runRoot,
     onPhase: async phase => {
       if (seenPhases.has(phase)) return;
       seenPhases.add(phase);
@@ -207,6 +207,13 @@ async function runOneRound({ round, sess, session, runRoot, repoDir, evidenceDir
     log: m => log(m),
   });
 
+  // 本轮落地提交（master HEAD;线性合回证据,AC-10）
+  let landingCommit = null;
+  try { landingCommit = execFileSync('git', ['-C', repoDir, 'rev-parse', 'master'], { encoding: 'utf8' }).trim(); } catch { /* master 尚不存在 */ }
+  const lastFacts = manifest.plans[manifest.plans.length - 1];
+  if (lastFacts) lastFacts.landing_commit = landingCommit;
+  (manifest.landing.receipts ??= []).push({ round, commit: landingCommit, checks_fail: vr.checks.filter(c => !c.ok).length });
+
   // 交付后采集：最终 UI（场景级）+ 目标 Canvas 帧（generation 归属核验）
   let canvasGen = null;
   try {
@@ -241,7 +248,7 @@ async function runOneRound({ round, sess, session, runRoot, repoDir, evidenceDir
 }
 
 // startRound + waitForRound 组合;onPhase 在相位变化时回调（采集钩子）。
-async function startAndWait({ base, token, round, reqText, timeoutMs, onPhase, log }) {
+async function startAndWait({ base, token, round, reqText, timeoutMs, onPhase, log, runRoot }) {
   let lastPhase = '';
   const { runId } = await startRound({ base, token, round, reqText });
   log(`relay run=${runId}`);
@@ -256,7 +263,11 @@ async function startAndWait({ base, token, round, reqText, timeoutMs, onPhase, l
       }
     },
   });
-  // 校验过的事实（contract.validateRunState 在 waitForRound 内已验）
+  // 终态 RunState 全量落盘（失败/交付现场都可考;turns.jsonl 不含工具载荷）
+  try {
+    const raw = await fetch(`${base}/api/forge/relay/runs/${encodeURIComponent(runId)}`);
+    fs.writeFileSync(path.join(runRoot, `${round}-final-runstate.json`), await raw.text());
+  } catch (e) { log(`final runstate dump failed: ${e.message}`); }
   return { runId, facts: facts };
 }
 

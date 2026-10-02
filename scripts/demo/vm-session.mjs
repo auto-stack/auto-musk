@@ -183,6 +183,10 @@ export class VmSession {
       const v = decidePortConflict(listeningPids(port));
       if (!v.ok) throw new Error(`vm-session: ${name} port ${port} ${v.reason}`);
     }
+    // serve/VM 双流落盘（T-12 首跑实证：内存缓冲在 owned 关停后丢失,
+    // 失败 run 无法取证）——append 流,失败现场完整。
+    this.serveLog = fs.createWriteStream(path.join(o.runRoot, 'serve.log'), { flags: 'a' });
+    this.vmLog = fs.createWriteStream(path.join(o.runRoot, 'vm.log'), { flags: 'a' });
     // serve（自有进程；隔离配置 + AAID 指向 + AUTO_EXE 传导给 canvas spawn）
     // extraServeEnv（T-12）：plan 流所需的 MUSK_SKILLS_DIR/MUSK_PLAN_WORKTREE_ROOT/
     // MUSK_PLAN_MAX_TOKENS 等由 run 编排注入（096 探针同配方）。
@@ -194,8 +198,8 @@ export class VmSession {
       windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
     });
     this.procs.push({ role: 'serve', p: serve, out: '' });
-    serve.stdout.on('data', b => { this.procs[0].out += b; });
-    serve.stderr.on('data', b => { this.procs[0].out += b; });
+    serve.stdout.on('data', b => { this.procs[0].out += b; this.serveLog?.write(b); });
+    serve.stderr.on('data', b => { this.procs[0].out += b; this.serveLog?.write(b); });
     const base = `http://127.0.0.1:${this.ports.back}`;
     await waitFor(async () => (await fetch(`${base}/api/health`)).status < 500, 30000, 'serve /api/health');
     const backVerdict = ownershipVerdict(listeningPids(this.ports.back), serve.pid);
@@ -212,8 +216,8 @@ export class VmSession {
       windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
     });
     this.procs.push({ role: 'vm', p: vm, out: '' });
-    vm.stdout.on('data', b => { this.procs[1].out += b; });
-    vm.stderr.on('data', b => { this.procs[1].out += b; });
+    vm.stdout.on('data', b => { this.procs[1].out += b; this.vmLog?.write(b); });
+    vm.stderr.on('data', b => { this.procs[1].out += b; this.vmLog?.write(b); });
 
     this.mcpEndpoint = await waitFor(() => {
       if (vm.exitCode !== null) throw new Error(`VM exited early code=${vm.exitCode}（基线发现③;调用方应整跑重试）`);
