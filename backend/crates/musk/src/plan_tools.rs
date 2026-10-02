@@ -479,6 +479,7 @@ mod tests {
                 flow_id: Some("plan".into()),
                 steps: Vec::new(),
                 task: Some("做一个功能".into()),
+                authorization: None,
             },
             None,
         );

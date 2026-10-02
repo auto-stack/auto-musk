@@ -26,6 +26,7 @@ pub mod feature_dev;
 pub mod flows;
 pub use flows::{builtin_flows, get_builtin_flow};
 pub mod plan_contract;
+pub mod plan_control;
 pub mod plan_flow;
 pub mod profession;
 pub mod store;

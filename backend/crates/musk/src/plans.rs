@@ -358,6 +358,9 @@ pub struct PlansStore {
     pub plans_dir: PathBuf,
     /// 归档目录（`root/docs/plans/archived`）。
     pub archived_dir: PathBuf,
+    /// PLAN-096 T-03（AC-16）：同进程 create 分配互斥。跨进程一致性由
+    /// 写入端 `create_new` 原子性兜底（撞号 → 重算 next_seq 重分配）。
+    alloc_lock: std::sync::Mutex<()>,
 }
 
 impl PlansStore {
@@ -370,6 +373,7 @@ impl PlansStore {
         Self {
             plans_dir,
             archived_dir,
+            alloc_lock: std::sync::Mutex::new(()),
         }
     }
 
@@ -430,32 +434,56 @@ impl PlansStore {
 
     /// 新建 plan：自动分配序号、注入 frontmatter、写盘。返回新建的 PlanFile。
     /// `content` 为空则使用最小模板。
+    ///
+    /// PLAN-096 T-03（AC-16）：分配在「主/归档全扫描 + 同进程互斥」后以
+    /// `create_new` 原子写入——撞号（并发写者）重新分配序号重试，绝不覆盖
+    /// 既有计划；序号越过 999 明确阻断（不截断、不环绕）。
     pub fn create(&self, feature_name: &str, content: &str) -> Result<PlanFile, String> {
-        let seq = self.next_seq();
-        let id = format!("PLAN-{:03}", seq);
+        let _guard = self.alloc_lock.lock().unwrap();
         let slug = slugify(feature_name);
-        let filename = format!("{:03}-{}.md", seq, slug);
-        let path = self.plans_dir.join(&filename);
-        if path.exists() {
-            return Err(format!("plan file already exists: {}", path.display()));
-        }
         let now = now_iso();
-        let body = if content.trim().is_empty() {
-            default_template(&id, feature_name)
-        } else {
-            content.to_string()
-        };
-        // 注入/更新 frontmatter 必需字段
-        let body = set_field(&body, "plan_id", &id);
-        let body = set_field(&body, "status", PlanStatus::Drafting.as_str());
-        let body = set_field(&body, "feature_name", feature_name);
-        let body = set_field(&body, "created_at", &now);
-        let body = set_field(&body, "updated_at", &now);
-        if let Some(parent) = path.parent() {
-            let _ = std::fs::create_dir_all(parent);
+        // 分配重试上限：撞号循环有界（每次重算 next_seq 必然前进）。
+        for _attempt in 0..1100usize {
+            let seq = self.next_seq();
+            if seq > 999 {
+                return Err(format!(
+                    "plan numbering exhausted: next seq {seq} exceeds 999 — \
+                     allocation blocked (no truncation, no overwrite)"
+                ));
+            }
+            let id = format!("PLAN-{seq:03}");
+            let filename = format!("{seq:03}-{slug}.md");
+            let path = self.plans_dir.join(&filename);
+            let base = if content.trim().is_empty() {
+                default_template(&id, feature_name)
+            } else {
+                content.to_string()
+            };
+            // 注入/更新 frontmatter 必需字段
+            let body = set_field(&base, "plan_id", &id);
+            let body = set_field(&body, "status", PlanStatus::Drafting.as_str());
+            let body = set_field(&body, "feature_name", feature_name);
+            let body = set_field(&body, "created_at", &now);
+            let body = set_field(&body, "updated_at", &now);
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            use std::io::Write;
+            let mut file = match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+            {
+                Ok(f) => f,
+                // 撞号（并发写者/手工文件）：重算序号再来。
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(format!("failed to create plan: {e}")),
+            };
+            file.write_all(body.as_bytes())
+                .map_err(|e| format!("failed to write plan: {e}"))?;
+            return PlanFile::from_path(&path, &self.plans_dir);
         }
-        std::fs::write(&path, &body).map_err(|e| format!("failed to write plan: {}", e))?;
-        PlanFile::from_path(&path, &self.plans_dir)
+        Err("plan allocation failed: repeated sequence collisions".into())
     }
 
     /// 覆盖正文（保留 frontmatter 的 plan_id；刷新 updated_at）。
@@ -552,6 +580,18 @@ impl PlansStore {
         let _ = std::fs::create_dir_all(&self.archived_dir);
         std::fs::rename(&src, &dst).map_err(|e| format!("failed to archive plan: {}", e))?;
         PlanFile::from_path(&dst, &self.plans_dir)
+    }
+
+    /// PLAN-096 T-09（AC-08）：受控交付的显式归档半段——供 plan_delivery
+    /// 在 prepared/landed/ledger_refreshed 检查点核对通过后调用。与
+    /// `merge_plan_stores` 共用 `move_to_archived`（状态与位置恒一致）；
+    /// 幂等。旧 `archive()` 对 reviewed 计划的拒绝语义保留不变。
+    pub fn finalize_archived(&self, seq: u32) -> Result<PlanFile, String> {
+        let pf = self.get(seq).ok_or_else(|| format!("plan {:03} not found", seq))?;
+        if pf.archived {
+            return Ok(pf);
+        }
+        self.move_to_archived(seq)
     }
 }
 

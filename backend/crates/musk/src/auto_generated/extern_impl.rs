@@ -1536,6 +1536,7 @@ pub fn task_plan_start_run(s: &Arc<AppState>, w: &str, r: &str, f: &str, t: &str
         flow_id: Some(f.to_string()),
         steps: Vec::new(),
         task: Some(t.to_string()),
+        authorization: None,
     };
     ws.relay.start_run(&req, Some(w.to_string()));
 }
@@ -2054,6 +2055,7 @@ pub async fn chat_run_owner(
             flow_id: Some("plan-merge".into()),
             steps: Vec::new(),
             task: Some(task.clone()),
+            authorization: None,
         };
         let (run_id, _initial) = ws.relay.start_run(&req, Some(ws_id.clone()));
         // PLAN-034 T9：登记发起会话——driver 完成时把报告消息写回这里。
@@ -2961,6 +2963,9 @@ pub fn relay_start_run(
             })
             .collect(),
         task: b.0.task.clone(),
+        // PLAN-096 T-10：ag 侧 authorization 字段随 relay_store.at 再生接入；
+        // 当前 ag 请求形状无此字段 → REST 语义缺省 human。
+        authorization: None,
     };
     let (run_id, run_state) = ws.relay.start_run(&hw_req, Some(ws_id.clone()));
     // 合成 relay_update,让任何存活订阅者刷新(hw api.rs start_run 同款)。

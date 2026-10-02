@@ -110,10 +110,24 @@ attempt 记录里（AC-05 计数可回读）。
 - **边界**：实际模型对 max_tokens 的接受度、计费、thinking 语义在 T-12 live
   前置核对（L1 先行验证），不预设所有供应商接受；live 未就绪按 blocked 登记。
 
-## 8. 附录：基线命令执行记录（回填）
+## 8. 附录：基线命令执行记录
 
-- V05 基线：见文末执行日志摘录（提交前回填）。
-- V07 基线：同上。
+- **V05 基线**（worktree@39870da，2026-10-02）：
+  `cargo test … --test parity_relay --test parity_relay_driver --test parity_relay_store --test parity_relay_api --test parity_plans -- --test-threads=1`
+  → 全绿无既有红：parity_plans 5 passed / parity_relay_api 6 passed+1 ignored /
+  parity_relay_driver 6 passed / parity_relay_store 7 passed（exit 0）。
+- **V07 基线**（main 检出@39870da 纯净树，2026-10-02）：
+  `cargo test --manifest-path backend/Cargo.toml -p musk --lib -- --test-threads=1`
+  → **505 passed / 0 failed** / 1 ignored（exit 0）。无既有红；本计划引入的
+  红必须全数归因。
+  （注：worktree 内首跑 V07 与 T-02 在途编辑相竞产生 4 个瞬时编译错误，
+  已作废；纯净基线以 main 检出重跑为准，T-02 落盘后同口径
+  518 passed / 0 failed。）
+
+## 10. 现有红登记
+
+V05/V07 基线均无既有红（0 failed）。本计划引入的红一律在任务证据中归因，
+不允许豁免受影响必需 AC。
 
 ## 9. 临时端口与 scope 方案（T-12 用）
 

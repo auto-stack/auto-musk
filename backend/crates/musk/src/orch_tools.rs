@@ -82,6 +82,25 @@ impl Tool for SpawnRelay {
 
         let ws = self.ctx.state.registry.get(&self.ctx.workspace_id);
 
+        // PLAN-096 T-03（AC-02）：plan 流 spawn 的启动前置——技能快照冻结 +
+        // plan-merge 目标合同可读；失败即拒绝启动（无半启动 run）。授权语义
+        // 保留：发起会话的审批模式在 start 后落上下文（批准时绑定）。
+        let mut bootstrap_state = None;
+        if matches!(flow_id.as_str(), "plan" | "plan-merge") {
+            match crate::relay::plan_control::bootstrap_plan_run_default(
+                &flow_id,
+                &task,
+                &ws.plans.plans_dir,
+            ) {
+                Ok(b) => bootstrap_state = Some(b.state),
+                Err(e) => {
+                    return Err(ToolError::Exec(format!(
+                        "spawn_relay: plan flow bootstrap failed: {e}"
+                    )))
+                }
+            }
+        }
+
         // 1. Start the relay run FIRST. PLAN-030 T9 (会话唯一化): start_run's
         //    dual-write link creates the single Flow conversation sharing the
         //    run's id — no separate shell conversation anymore.
@@ -90,9 +109,17 @@ impl Tool for SpawnRelay {
             flow_id: Some(flow_id.clone()),
             steps: Vec::new(),
             task: Some(task.clone()),
+            authorization: None,
         };
         let (run_id, _initial_state) =
             ws.relay.start_run(&req, Some(self.ctx.workspace_id.clone()));
+        if let Some(pe) = bootstrap_state {
+            if ws.relay.set_plan_execution(&run_id, pe).is_none() {
+                return Err(ToolError::Exec(format!(
+                    "spawn_relay: run {run_id} vanished while attaching plan execution"
+                )));
+            }
+        }
         // PLAN-034 T9：登记发起会话——driver 完成时把报告消息写回这里。
         ws.relay
             .set_context_var(&run_id, "chat_session_id", &self.ctx.parent_conversation_id);

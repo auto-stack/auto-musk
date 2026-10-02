@@ -88,6 +88,7 @@ fn start_run(state: Arc<AppState>, ws_id: &str, flow_id: &str, run_id: &str) {
         flow_id: Some(flow_id.to_string()),
         steps: Vec::new(),
         task: Some("build a small parser".into()),
+        authorization: None,
     };
     ws.relay.start_run(&req, Some(ws_id.to_string()));
 }

@@ -123,9 +123,71 @@ async fn start_run(
     State(state): State<AppState>,
     Query(q): Query<WorkspaceQuery>,
     Json(req): Json<StartRunRequest>,
-) -> impl IntoResponse {
+) -> Response {
     let ws_id = q.id_or_default(&state.registry);
+    // PLAN-096 T-03 (AC-02): 显式携带的 workspace 必须真实存在——未知/越界
+    // 拒绝（400），不得静默回退默认工作区；缺省（空）才落默认。
+    if let Some(id) = q.workspace.as_deref() {
+        if !id.is_empty() && state.registry.get_exact(id).is_none() {
+            return (
+                StatusCode::BAD_REQUEST,
+                format!("unknown workspace '{id}' — plan flows refuse fallback resolution"),
+            )
+                .into_response();
+        }
+    }
     let ws = state.registry.get(&ws_id);
+    // PLAN-096 T-03: plan 流启动前置——授权取值合法 + 技能快照冻结
+    // （缺源硬失败）+ plan-merge 目标合同可读。失败即拒绝启动（无半启动 run）。
+    let flow_id = req.flow_id.clone().unwrap_or_else(|| "plan".into());
+    if matches!(flow_id.as_str(), "plan" | "plan-merge") {
+        match req.authorization.as_deref() {
+            None | Some("human") | Some("auto") => {}
+            Some(other) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    format!("invalid authorization '{other}' (want human|auto)"),
+                )
+                    .into_response()
+            }
+        }
+        let bootstrap = crate::relay::plan_control::bootstrap_plan_run_default(
+            &flow_id,
+            req.task.as_deref().unwrap_or_default(),
+            &ws.plans.plans_dir,
+        );
+        let bootstrap = match bootstrap {
+            Ok(b) => b,
+            Err(e) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    format!("plan flow bootstrap failed: {e}"),
+                )
+                    .into_response()
+            }
+        };
+        let (run_id, run_state) = ws.relay.start_run(&req, Some(ws_id.clone()));
+        if ws.relay.set_plan_execution(&run_id, bootstrap.state).is_none() {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("run {run_id} vanished while attaching plan execution"),
+            )
+                .into_response();
+        }
+        // 技能快照来源记入上下文（诊断）；授权取值同样落上下文（批准时绑定）。
+        ws.relay.set_context_var(&run_id, "plan_authorization", req.authorization.as_deref().unwrap_or("human"));
+        let state = ws.relay.get(&run_id).unwrap_or(run_state);
+        publish(
+            &run_id,
+            &RunEvent::RelayUpdate {
+                timestamp: now_secs(),
+                step_id: String::new(),
+                role_id: String::new(),
+                status: "idle".into(),
+            },
+        );
+        return Json(serde_json::json!({ "run_id": run_id, "state": state })).into_response();
+    }
     let (run_id, run_state) = ws.relay.start_run(&req, Some(ws_id));
     // Publish a synthetic run_started so any live listeners refresh.
     publish(
@@ -137,7 +199,7 @@ async fn start_run(
             status: "idle".into(),
         },
     );
-    Json(serde_json::json!({ "run_id": run_id, "state": run_state }))
+    Json(serde_json::json!({ "run_id": run_id, "state": run_state })).into_response()
 }
 
 /// `GET /api/forge/relay/runs/{run_id}` — detailed run state.

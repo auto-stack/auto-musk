@@ -377,6 +377,14 @@ pub struct StartRunRequest {
     pub steps: Vec<StartRunStep>,
     #[serde(default)]
     pub task: Option<String>,
+    /// PLAN-096 T-03 (§5.2): plan-flow run authorization adopted from the
+    /// calling context — REST defaults to `human` (explicit submissions may
+    /// carry the equivalent "auto"); anything else is rejected at the entry.
+    /// Never agent-asserted: the value travels from the user's session mode
+    /// or an explicit REST field, and is recorded into the binding at
+    /// approval time.
+    #[serde(default)]
+    pub authorization: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -975,6 +983,45 @@ impl RunStore {
             .and_then(|e| e.context.get(key).cloned())
     }
 
+    /// PLAN-096 T-03: attach (or replace) the plan-execution facts of a run
+    /// and return the refreshed state. None when the run is unknown.
+    pub fn set_plan_execution(
+        &self,
+        run_id: &str,
+        pe: crate::relay::plan_contract::PlanExecutionState,
+    ) -> Option<RunState> {
+        let mut runs = self.runs.lock().unwrap();
+        let entry = runs.get_mut(run_id)?;
+        entry.plan_execution = Some(pe);
+        entry.updated_at = now_secs();
+        Some(build_run_state(entry))
+    }
+
+    /// PLAN-096 T-05: mutate the plan-execution facts under the runs lock
+    /// (single-writer controller access). None when the run is unknown or
+    /// carries no plan execution.
+    pub fn mutate_plan_execution<R>(
+        &self,
+        run_id: &str,
+        f: impl FnOnce(&mut crate::relay::plan_contract::PlanExecutionState) -> R,
+    ) -> Option<R> {
+        let mut runs = self.runs.lock().unwrap();
+        let entry = runs.get_mut(run_id)?;
+        let pe = entry.plan_execution.as_mut()?;
+        let r = f(pe);
+        entry.updated_at = now_secs();
+        Some(r)
+    }
+
+    /// PLAN-096 T-05: the run's plan-execution facts (cloned).
+    pub fn plan_execution(
+        &self,
+        run_id: &str,
+    ) -> Option<crate::relay::plan_contract::PlanExecutionState> {
+        let runs = self.runs.lock().unwrap();
+        runs.get(run_id).and_then(|e| e.plan_execution.clone())
+    }
+
     /// PLAN-094 T-03: the pending human gate's step id (None = no gate
     /// waiting). Feeds the execute-gate invariant checks in the gate handlers.
     pub fn pending_gate_step(&self, run_id: &str) -> Option<String> {
@@ -1352,6 +1399,7 @@ mod tests {
                 flow_id: Some("plan".into()),
                 steps: Vec::new(),
                 task: Some("做一个登录功能".into()),
+                authorization: None,
             },
             None,
         );
@@ -1381,6 +1429,7 @@ mod tests {
                 flow_id: Some("simple".into()),
                 steps: Vec::new(),
                 task: Some("裸任务文本".into()),
+                authorization: None,
             },
             None,
         );
@@ -1399,6 +1448,7 @@ mod tests {
                 flow_id: Some("plan".into()),
                 steps: Vec::new(),
                 task: None,
+                authorization: None,
             },
             None,
         );
@@ -1483,6 +1533,7 @@ mod tests {
                 flow_id: None,
                 steps: Vec::new(),
                 task: None,
+                authorization: None,
             }
         }
     }
@@ -1515,6 +1566,7 @@ mod tests {
             &StartRunRequest {
                 flow_id: Some("simple".into()),
                 task: Some("build it".into()),
+                authorization: None,
                 ..Default::default()
             },
             Some("ws1".into()),

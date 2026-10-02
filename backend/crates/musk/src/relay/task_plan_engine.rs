@@ -480,6 +480,7 @@ pub async fn drive_task_plan_run(
         flow_id: Some(req.run_ref.flow_id.clone()),
         steps: Vec::new(),
         task: Some(req.task.clone()),
+        authorization: None,
     };
     let (_run_id, _state) = ws.relay.start_run(&start_req, Some(ctx.workspace_id.clone()));
 
