@@ -6,13 +6,14 @@ version = 4
 name = "a2r-std"
 version = "0.1.0"
 dependencies = [
+ "futures",
  "redis",
+ "reqwest",
  "rusqlite",
  "serde",
  "serde_json",
  "sysinfo",
  "tokio",
- "ureq",
 ]
 
 [[package]]
