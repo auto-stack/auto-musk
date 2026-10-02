@@ -192,7 +192,7 @@ touched_goals: []
 
 ## 7. 验收标准
 
-- [ ] AC-01 \`node calc.test.mjs\` 退出码 0 且 add(2,2) === 4。
+- [ ] AC-01 \`node calc.test.mjs\` 退出码 0，add(2,2) === 4，且测试套件覆盖零值用例 add(0,0) === 0（复审将重验测试文件本身，缺零值用例即 fail）。
 
 ## 8. 执行步骤
 
