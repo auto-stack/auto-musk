@@ -87,8 +87,12 @@ test('run-level: plan_stage_facts in events window validated; non-array events r
   const run = { run_id: 'r1', status: 'running', plan_execution: null, events: [{ type: 'step_started' }, { type: 'plan_stage_facts', plan_id: 'PLAN-XXX', stage: 'review', outcome: 'needs_fix', attempt: 2, repair_count: 1 }] };
   assert.equal(validateRunState(run).ok, true);
   assert.ok(!validateRunState({ run_id: 'r1', events: 'nope' }).ok);
-  const badEv = clone(run); badEv.events[1] = { type: 'plan_stage_facts', plan_id: '', stage: 'review', outcome: 'pass' };
-  assert.ok(!validateRunState(badEv).ok);
+  // T-12 live 修订:事件违约降级为警告（不拒收整个 RunState;权威面是
+  // plan_execution），载荷嵌套在 facts 键（RunEvent serde 形态）
+  const badEv = clone(run); badEv.events[1] = { type: 'plan_stage_facts', facts: { plan_id: '', stage: 'review', outcome: 'pass' } };
+  const v = validateRunState(badEv);
+  assert.ok(v.ok, 'bad event no longer rejects state');
+  assert.ok(v.warnings.some(w => /events\[1\]/.test(w)), `warning recorded: ${JSON.stringify(v.warnings)}`);
 });
 
 test('parseRunStateResponse: non-JSON throws; null (404) throws; valid passes', () => {
@@ -114,3 +118,18 @@ test('discoverPlanRun: skips failed, fetches details, returns first with plan_ex
   assert.equal(await discoverPlanRun([], async () => { throw new Error('x'); }), null);
 });
 
+test('continuation-stage event degrades to warning, not rejection (T-12 live drift)', () => {
+  const run = {
+    run_id: 'r1', status: 'running',
+    plan_execution: { contract_version: 1, plan_id: 'PLAN-001', plan_path: 'docs/plans/x.md', phase: 'execute', outcome: null },
+    events: [
+      { type: 'plan_stage_facts', facts: { plan_id: 'PLAN-001', stage: 'execute', outcome: 'continuation' } },
+    ],
+  };
+  const parsed = parseRunStateResponse(JSON.stringify(run));
+  assert.equal(parsed.status, 'running', 'state accepted');
+  assert.ok((parsed._contract_warnings ?? []).some(w => /continuation|not in/.test(w)), 'warning recorded');
+  // 权威面枚举仍严格:plan_execution.outcome 非法仍响亮拒
+  const bad = { ...run, plan_execution: { ...run.plan_execution, outcome: 'continuation' } };
+  assert.throws(() => parseRunStateResponse(JSON.stringify(bad)), /contract validation/);
+});

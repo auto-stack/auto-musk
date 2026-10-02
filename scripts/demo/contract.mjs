@@ -145,10 +145,15 @@ export function validatePlanEvent(ev) {
   return { ok: errors.length === 0, errors };
 }
 
-// 校验 run 响应整体：顶层 status + plan_execution + events 窗口内的事实事件
+// 校验 run 响应整体：顶层 status + plan_execution + events 窗口内的事实事件。
+// 事件面（T-12 live 实证合同漂移修订）：A 控制器会发出 outcome='continuation'
+// 等枚举外的事实事件（同阶段续跑通知）——事件是通知面,权威面是顶层
+// plan_execution（其 outcome 枚举保持严格）。事件违约不拒收整个 RunState,
+// 降级为 _contract_warnings 由消费方留痕（响亮可见,不静默）。
 export function validateRunState(run) {
   const errors = [];
-  if (!run || typeof run !== 'object') { err(errors, 'run state missing or not an object'); return { ok: false, errors }; }
+  const warnings = [];
+  if (!run || typeof run !== 'object') { err(errors, 'run state missing or not an object'); return { ok: false, errors, warnings }; }
   if (!isStr(run.run_id)) err(errors, 'run.run_id missing/empty');
   if (run.plan_execution !== null && run.plan_execution !== undefined) {
     const r = validatePlanExecution(run.plan_execution);
@@ -159,16 +164,20 @@ export function validateRunState(run) {
     else {
       for (const [i, ev] of run.events.entries()) {
         if (ev?.type !== 'plan_stage_facts') continue;
-        const r = validatePlanEvent(ev);
-        if (!r.ok) for (const e of r.errors) err(errors, `events[${i}]: ${e}`);
+        // RunEvent::PlanStageFacts serde 形态 = { type, timestamp, facts: RunPlanEvent }
+        // （T-12 live 实证:载荷嵌套在 facts 键;顶层直挂形态兼容读）
+        const payload = ev.facts ?? ev;
+        const r = validatePlanEvent(payload);
+        if (!r.ok) for (const e of r.errors) warnings.push(`events[${i}]: ${e}`);
       }
     }
   }
-  return { ok: errors.length === 0, errors };
+  return { ok: errors.length === 0, errors, warnings };
 }
 
 // 解析 run 详情响应。404 形态 = 纯文本 "run 'x' not found"（relay_api.rs
 // get_run: value_is_null → text_response 404），非 JSON、非 null body。
+// 事件面警告附在 `_contract_warnings`（消费方留痕;见 validateRunState）。
 export function parseRunStateResponse(text) {
   let j;
   try { j = JSON.parse(text); } catch {
@@ -178,6 +187,7 @@ export function parseRunStateResponse(text) {
   if (j === null) throw new Error('run state response is null (run not found semantics)');
   const v = validateRunState(j);
   if (!v.ok) { const e = new Error(`run state failed contract validation: ${v.errors.join('; ')}`); e.errors = v.errors; throw e; }
+  if (v.warnings.length) j._contract_warnings = v.warnings;
   return j;
 }
 
