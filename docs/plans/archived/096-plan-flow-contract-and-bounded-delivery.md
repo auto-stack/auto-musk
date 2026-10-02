@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-096
-status: reviewed
+status: archived
 feature_name: 计划四阶段契约统一与有界自动交付闭环
 author: [agent]
 created_at: 2026-10-01T15:29:00Z
@@ -438,6 +438,34 @@ live 三场景：L1 清晰小工程从裸需求或显式 plan 入口完成（无
 本计划merge仍遵守仓库技能/AGENTS；不能用本计划尚未验收的控制器给自己
 发放通过证据。依赖只读检出/临时测试worktree按所有权和guard安全清理，
 本计划开发worktree保留给review/merge。受影响代码/规范有冲突后重跑相应验证。
+
+## 9. 复审记录
+
+### merge 收据（PLAN-096:r1）
+
+- stage: merge | plan_id: PLAN-096 | plan_revision: 1 | outcome: pass |
+  prepared: ffd6726——worktree 内 canonical SD-01～04 落盘（新模块
+  plan-execution-contract.md；plan-flow/specs-ledger/workspace-sandbox
+  修订节；index.json 注册）；审查基线 reviewed 2ed2210，实现零变更，
+  documentation-only descendant |
+  landed: rebase main→plan-096-dev（34 commits 重写，旧 tip ffd6726 →
+  交付提交 2427996，range-diff 0 非等价行=安全重写证明）；主检出
+  --ff-only 至 2427996，tip 与交付提交一致，canonical 内容已上 main |
+  ledger_refreshed: 主检出 .autoos/specs.json 经 store 通道刷新
+  （owned musk serve :18099，POST /api/specs/item）——5/5 条目 upsert
+  200、回读 version 5 items 5（4×designs：plan-execution-contract/
+  plan-flow/specs-ledger/worktree-scope + 1×reports：delivery 收据）。
+  重建事件：原账本由旧版 writer 写成（section_type PascalCase），现行
+  store serde 不可解析——按 K6 认可恢复路径：字节备份
+  .autoos/specs.json.bak-plan096 → store NotFound 自愈重建 → 从
+  canonical 重推本计划范围条目（不做全库迁移；旧派生项 7 designs+6
+  reviews 的 canonical/归档源仍在，未迁移记档于此）|
+  archived: status=archived + 移入 archived/（本提交），completion_kind=
+  delivered |
+  cleaned: 清理后补记 |
+  工件核对: release musk.exe 需重建（2ed2210 lib 变更，重建后补 hash）；
+  web bundle 与 daemon 未被本计划触碰（后端仓内变更+只读依赖）；
+  批量回归 due 检查：.last-batch-regression.json 见后续补记
 
 ## 9. 复审记录
 
