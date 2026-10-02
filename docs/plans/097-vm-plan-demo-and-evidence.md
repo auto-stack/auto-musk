@@ -4,7 +4,7 @@ status: executing
 feature_name: VM 计划开发演示与全流程证据
 author: [agent]
 created_at: 2026-10-02T01:40:31Z
-updated_at: 2026-10-02T12:05:00Z
+updated_at: 2026-10-02T13:05:00Z
 plan_revision: 1
 current_step: 4
 total_steps: 14
@@ -491,10 +491,36 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
    节点动作与截图可达，实时取景优先，完成记录明确标签，缺事实不能补造。
 4. **无链接构建 staging 与现有依赖解析。** owner=B T-01；记录真实复制/
    构建命令和源 hash。若工具写链接进 worktree，改到外部 staging 后再跑。
-5. **auto-lang store facade worktree 解析缺口（T-05 blocked）。** owner=
-   auto-lang（另行规划）；T-05 行内容与 T-11 双端真机保真度依赖此修复。
-   解阻塞后 probe-g15.mjs 复验；详见 docs/reports/097-vm-demo-baseline.md
-   T-05 附页。
+5. **T-05 VM 行内容阻断（依赖面更正，见 §9 phase 记录）。** 原登记的
+   "store facade worktree 解析到主检出"已被 auto-lang 今日 master 修复
+   （ecc2d6710 实证，原观察为旧二进制行为）；现行阻断=当日构建下
+   chats_view studio 块子件实例化静默失败（更窄，疑似在途 PLAN-728~730
+   相关回归面）。解阻塞动作：与在途 owner 协调锁定稳定构建点后
+   probe-g15.mjs 复验；详见 baseline 附页②。
 
 以上均有本计划内的有界调查任务，当前无须用户重复确认既有示例方向。调查
 导致目标/验收/允许仓库范围改变时，按 auto-plan:new 修订并保留原 AC 与证据。
+
+### work 阶段记录（依赖修复 phase：auto-lang worktree 调查——用户授权，缺口已被上游修复，零代码落地）
+
+- stage: work | plan_id: PLAN-097 | plan_revision: 1 | outcome: blocked
+  （T-05 VM 行内容；阻断面更正为"当日构建下子件实例化失败"）
+- code_commit(worktree plan-097-dev): 52b7733（终版设计）+ 36d370d（附页②）
+- task_ids: T-05（依赖修复 phase）
+- evidence: 用户授权开 auto-lang 依赖 worktree（.wt/musk-097/auto-lang，
+  分支 auto-musk-dev-097 @ master ecc2d6710——既有 auto-musk-dev 名被
+  musk-093 遗留 worktree 占用，命名偏差已在收据注明）。插桩实证：worktree
+  构建的 auto 下 store facade 正确解析 worktree 文件（AuthStore→.wt 路径
+  日志铁证）——附页①登记的"解析到主检出"缺陷已在 auto-lang 今日 master
+  修复，原观察为 PATH 旧二进制（982e8004@13:06）行为；按 AGENTS 依赖政策
+  无需落地 auto-lang 代码，worktree/分支/插桩零提交清理完毕（guard clean）。
+  新证据：当日构建下 studio 块子件实例化静默失败（含已实证可渲染的
+  5-prop 形态），master 正被 PLAN-728~730 活跃开发，未在移动靶上追；
+  流程规则沉淀：VM 探针/演示必须锁定当日 auto-lang 构建并显式 AUTO_EXE
+  （T-06 vm-session.mjs 冻结）。T-05 终版设计同轮落地（52b7733）：摘要
+  组件自持 CanvasStore（own-store 读=canvas_structure VM 实证通道），
+  Feed 并入，跨 store 新字段读通道退役。
+- blockers: 当日 master 构建下子件实例化失败（在途开发相关面）；需稳定
+  构建点 + 单变量复验（probe-g15.mjs 就绪）
+- next: 与用户/在途 owner 协调稳定构建点后复验；或 T-05 保持 blocked，
+  先行 T-06/T-07/T-08（不依赖该面）
