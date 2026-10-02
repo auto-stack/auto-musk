@@ -103,6 +103,9 @@ async function startScenario(tag) {
     MUSK_CONFIG_DIR: cfg,
     MUSK_SKILLS_DIR: path.join(ROOT, '.agents', 'skills'),
     MUSK_PLAN_WORKTREE_ROOT: wtRoot,
+    // 部署配置：live 相位输出预算（thinking 模型单响应消耗大；16384
+    // 在 execute 相位两次截断实录）。有效值随收据记录。
+    MUSK_PLAN_MAX_TOKENS: '32768',
     MUSK_SERVE_ADDR: `127.0.0.1:${port}`,
   };
   const child = spawn(MUSK, ['serve', '--workdir', repo],
