@@ -161,6 +161,10 @@ pub type StartRunRequest {
     #[serde(default)]
     steps List<StartRunStep>
     task Option<str>
+    /// PLAN-096 T-10：plan 流运行授权（human|auto；缺省 human）。
+    /// ag 侧经本字段与 hw 同合同（REST 显式授权，不凭 Agent 一句话）。
+    #[serde(default)]
+    authorization Option<str>
 }
 
 #[derive(Clone, Debug, Deserialize)]

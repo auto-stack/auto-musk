@@ -3005,9 +3005,8 @@ pub fn relay_start_run(
             })
             .collect(),
         task: b.0.task.clone(),
-        // PLAN-096 T-10：ag 侧 authorization 字段随 relay_store.at 再生接入；
-        // 当前 ag 请求形状无此字段 → REST 语义缺省 human。
-        authorization: None,
+        // PLAN-096 T-10：ag 侧 authorization 随 relay_store.at 接入（同合同）。
+        authorization: b.0.authorization.clone(),
     };
     let (run_id, run_state) = ws.relay.start_run(&hw_req, Some(ws_id.clone()));
     // PLAN-096 T-10（AC-12）：ag 轨 plan 流启动同合同——bootstrap（技能

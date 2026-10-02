@@ -182,6 +182,9 @@ pub struct StartRunRequest {
     #[serde(default)]
     pub steps: Vec<StartRunStep>,
     pub task: Option<String>,
+    /// PLAN-096 T-10：plan 流运行授权（human|auto；缺省 human）。
+    #[serde(default)]
+    pub authorization: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
