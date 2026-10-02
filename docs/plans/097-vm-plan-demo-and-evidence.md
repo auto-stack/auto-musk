@@ -4,7 +4,7 @@ status: executing
 feature_name: VM 计划开发演示与全流程证据
 author: [agent]
 created_at: 2026-10-02T01:40:31Z
-updated_at: 2026-10-02T10:40:00Z
+updated_at: 2026-10-02T12:05:00Z
 plan_revision: 1
 current_step: 4
 total_steps: 14
@@ -452,6 +452,34 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
 - blockers: 无
 - next: T-05（canvas_progress G-15 消除：rows 预计算迁移 handler/store）
 
+### work 阶段记录（T-05：实现完成，VM 行内容 blocked——依赖缺口）
+
+- stage: work | plan_id: PLAN-097 | plan_revision: 1 | outcome: blocked
+  （代码范围内全部完成且 V03 三门绿；VM 行内容依赖 auto-lang 缺口修复）
+- code_commit(worktree plan-097-dev): 6084a76（实现）+ fa7c58d（baseline 附页）
+- task_ids: T-05
+- evidence: ①G-15 消除设计落地——CanvasStore.Poll 域每拍重算
+  cp_prog_rows/has（try 界定，handler 域调 helper=StatusBackfill 已证通道）+
+  CanvasProgFeed 零可见件（canvas_prog_feed.at 独立文件——单文件双 widget +
+  widget 内 use store 解析失败实测）挂载期推送 messages 快照 + 摘要组件改
+  纯 prop 渲染（零 computed/零成员链）。V03：gen-only strict exit 0 +
+  vm-link-probe PASS（无新增合成失败）+ ui-parity check 116/116。
+  ②VM 标题门实证：真机插桩（快照直读）多轮判别后，「生成进度」标题在原生
+  VM 首次可见（cp_has 门实证）；G-15 的"摘要整块隐藏"面已消除。
+  ③根因矩阵（baseline 附页，10 形态实证）：computed 内函数调用/
+  .length 成员链/模板跨 store 读在 VM 恒空；prop 直读、handler 域 helper、
+  属性位跨 store 读旧字段可用。
+- blockers: **auto-lang 依赖缺口**——worktree 的 `auto run --render=vm`
+  把 `use store:` 模块解析到主检出同名文件（store facade 日志铁证：
+  AuthStore resolved to D:utostackuto-musk\...；AutoManCache 按
+  pac.at 项目名共享 + 基目录链作用，AUTO_CACHE_ENABLED=false 不解除），
+  worktree 新增 store 字段在 VM 不存在 → cp_rows 永空 → 进度行内容
+  不可见。精确解阻塞动作：auto-lang 修 store facade 基目录序或提供
+  per-worktree 解析隔离；修后 tmp/plan097-t01/probe-g15.mjs 直接复验。
+  按计划依赖政策（§1 只读依赖、缺口另行规划）登记，不在本计划内修。
+- next: 待用户裁定（a. 先立 auto-lang 修复计划解 T-05 缺口；
+  b. T-05 保持 blocked 先行 T-06/T-07/T-08 等不依赖该缺口的任务）
+
 ## 10. 待澄清事项
 
 1. **A 的定版消费合同尚未交付。** owner=A 的 T-10/T-13 与 B T-02；可以
@@ -463,6 +491,10 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
    节点动作与截图可达，实时取景优先，完成记录明确标签，缺事实不能补造。
 4. **无链接构建 staging 与现有依赖解析。** owner=B T-01；记录真实复制/
    构建命令和源 hash。若工具写链接进 worktree，改到外部 staging 后再跑。
+5. **auto-lang store facade worktree 解析缺口（T-05 blocked）。** owner=
+   auto-lang（另行规划）；T-05 行内容与 T-11 双端真机保真度依赖此修复。
+   解阻塞后 probe-g15.mjs 复验；详见 docs/reports/097-vm-demo-baseline.md
+   T-05 附页。
 
 以上均有本计划内的有界调查任务，当前无须用户重复确认既有示例方向。调查
 导致目标/验收/允许仓库范围改变时，按 auto-plan:new 修订并保留原 AC 与证据。
