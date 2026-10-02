@@ -64,7 +64,9 @@ impl MuskAgentFactory {
         let ws = self.state.registry.get(&self.workspace_id);
         let state = ws.relay.get(&self.run_id)?;
         let step_id = state.steps.get(state.current_step).map(|s| s.id.clone())?;
-        if !matches!(step_id.as_str(), "execute" | "review") {
+        // execute/review：代码工作；document：在 worktree 撰写 docs/specs
+        // 增量（plan_delivery prepare 提交）。plan 相位不落 worktree。
+        if !matches!(step_id.as_str(), "execute" | "review" | "document") {
             return None;
         }
         let binding = ws

@@ -29,6 +29,8 @@ pub mod plan_merge;
 pub mod plan_tools;
 // PLAN-096 T-04: 计划执行专用 worktree（租约/守卫/安全移除）。
 pub mod plan_worktree;
+// PLAN-096 T-08/T-09: 受控交付（prepare/land/refresh/archive/cleanup + 收据）。
+pub mod plan_delivery;
 pub mod command_runner;
 pub mod output_accumulator;
 pub mod tool_context;
@@ -327,6 +329,7 @@ pub fn build_agent_with_context(
             ("transition_plan", Arc::new(crate::plan_tools::TransitionPlan::from_ctx(&ctx))),
             ("merge_plan", Arc::new(crate::plan_tools::MergePlan::from_ctx(&ctx))),
             ("complete_plan_stage", Arc::new(crate::plan_tools::CompletePlanStage::from_ctx(&ctx))),
+            ("plan_delivery", Arc::new(crate::plan_delivery::PlanDelivery::from_ctx(&ctx))),
             ("emit_report", Arc::new(crate::report_tools::EmitReport::from_ctx(&ctx))),
         ];
         for (name, tool) in &orch_tools {

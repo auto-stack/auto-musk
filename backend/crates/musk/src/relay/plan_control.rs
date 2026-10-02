@@ -732,6 +732,13 @@ pub fn freeze_dependency_revisions() -> std::collections::BTreeMap<String, Strin
     out
 }
 
+/// 交付面（plan_delivery）复用同一依赖漂移核验（AC-07）。
+pub fn verify_dependencies_for_delivery(
+    binding: &crate::relay::plan_contract::PlanExecutionBinding,
+) -> Result<(), String> {
+    verify_dependencies_unchanged(binding)
+}
+
 fn verify_dependencies_unchanged(
     binding: &crate::relay::plan_contract::PlanExecutionBinding,
 ) -> Result<(), String> {
