@@ -17,6 +17,7 @@ use musk::relay::plan_contract::{
 };
 use musk::relay::plan_flow::phase_task;
 use serial_test::serial;
+use tower::ServiceExt;
 
 fn fixture(content: &str, dir: &std::path::Path, name: &str) -> PathBuf {
     let p = dir.join(name);
@@ -984,4 +985,139 @@ fn review_template_carries_binding_facts() {
     ctx2.insert("plan_file".to_string(), "docs/plans/001-x.md".to_string());
     let t2 = phase_task("plan", "review", "需求", &ctx2, &snap).unwrap();
     assert!(!t2.contains("批准绑定事实"));
+}
+
+// ── T-11: matrix gaps — missing-AC rejection, unknown-ws HTTP, ag entry ────
+
+/// AC-04：漏 AC 反例——execute pass 声明缺少任一 §7 条目的核验记录 → 拒。
+#[test]
+#[serial]
+fn missing_acceptance_record_rejects_execute_pass() {
+    let env = route_env("missac");
+    let ws = env.state.registry.get(&env.ws_id);
+    let run_id = start_bound_run(&env, "missac");
+    let wt = reach_execute(&env, &run_id);
+    std::fs::write(wt.join("impl.txt"), "x\n").unwrap();
+    git_args(&wt, &["add", "."]);
+    git_args(&wt, &["commit", "-m", "impl"]);
+    let head = git_args(&wt, &["rev-parse", "HEAD"]);
+    // AC-01 有记录但状态 fail → 拒。
+    let mut c = claim("execute", "pass", 1);
+    c.commit = Some(head.clone());
+    c.acceptance_results = vec![AcResult {
+        id: "AC-01".into(),
+        status: "fail".into(),
+        evidence: "still red".into(),
+    }];
+    record_stage_claim(&ws.relay, &run_id, c).unwrap();
+    match on_stage_end(&env.state, &env.ws_id, &run_id) {
+        StageRouting::Fail(e) => assert!(e.contains("AC-01") && e.contains("not pass"), "{e}"),
+        other => panic!("failing AC must reject, got {other:?}"),
+    }
+    // AC-01 无任何记录 → 拒。
+    let mut c = claim("execute", "pass", 1);
+    c.commit = Some(head);
+    c.acceptance_results = vec![];
+    record_stage_claim(&ws.relay, &run_id, c).unwrap();
+    match on_stage_end(&env.state, &env.ws_id, &run_id) {
+        StageRouting::Fail(e) => assert!(e.contains("no verification record"), "{e}"),
+        other => panic!("missing AC record must reject, got {other:?}"),
+    }
+    std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
+}
+
+/// AC-02：unknown workspace HTTP 400（REST 显式 workspace 必须存在）。
+#[tokio::test]
+#[serial]
+async fn start_run_unknown_workspace_rejected() {
+    let env = route_env("unknownws");
+    let app = axum::Router::new()
+        .merge(musk::relay::api::relay_routes())
+        .with_state(env.state.clone());
+    let resp = app
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/api/forge/relay/runs?workspace=no-such-ws")
+                .header("content-type", "application/json")
+                .body(axum::body::Body::from(
+                    r#"{"flow_id":"plan","task":"做演示 PLAN-001","authorization":"human"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 400, "unknown workspace refused");
+    // 非法 authorization 同拒。
+    let app = axum::Router::new()
+        .merge(musk::relay::api::relay_routes())
+        .with_state(env.state.clone());
+    let resp = app
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/api/forge/relay/runs")
+                .header("content-type", "application/json")
+                .body(axum::body::Body::from(
+                    r#"{"flow_id":"plan","task":"x","authorization":"agent-said-so"}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 400, "invalid authorization refused");
+    std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
+}
+
+/// AC-12：ag 轨入口同合同——extern_impl::relay_start_run 启动 plan 流同样
+/// bootstrap + 绑定登记 + 事实面；plan-merge 目标缺失同样拒绝。
+#[test]
+#[serial]
+fn ag_start_run_entry_follows_same_contract() {
+    // 复用 route_env 的仓库（workspace root = 真 git 仓）。
+    let env = route_env("agstart");
+    let ws = env.state.registry.get(&env.ws_id);
+    let plans = musk::plans::PlansStore::new(ws.root.join("docs/plans"));
+    let pf = plans.create("route-demo", PLAN_BODY).unwrap();
+
+    let state = env.state.clone();
+    let body = serde_json::json!({
+        "flow_id": "plan",
+        "task": "做演示",
+        "run_id": format!("run-ag-{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().subsec_nanos()),
+    });
+    let ag_req: musk::auto_generated::relay_store::StartRunRequest =
+        serde_json::from_value(body).unwrap();
+    let out = musk::auto_generated::extern_impl::relay_start_run(
+        &axum::extract::State(state.clone()),
+        axum::extract::Query(musk::auto_generated::relay_api::WorkspaceQuery {
+            workspace: Some(env.ws_id.clone()),
+        }),
+        axum::Json(ag_req),
+    );
+    assert!(out.get("error").is_none(), "ag start must succeed: {out}");
+    let run_id = out["run_id"].as_str().unwrap().to_string();
+    let pe = ws.relay.plan_execution(&run_id).expect("ag entry attaches plan execution");
+    assert_eq!(pe.phase, "plan");
+    assert_eq!(pe.skills.len(), 4);
+    assert!(musk::relay::plan_control::cancel_flag(&run_id).is_some(), "cancel flag registered");
+
+    // plan-merge 目标缺失 → 错误信封。
+    let ag_req2: musk::auto_generated::relay_store::StartRunRequest = serde_json::from_value(
+        serde_json::json!({"flow_id": "plan-merge", "task": "沉淀 PLAN-777"}),
+    )
+    .unwrap();
+    let out2 = musk::auto_generated::extern_impl::relay_start_run(
+        &axum::extract::State(state),
+        axum::extract::Query(musk::auto_generated::relay_api::WorkspaceQuery {
+            workspace: Some(env.ws_id.clone()),
+        }),
+        axum::Json(ag_req2),
+    );
+    assert!(
+        out2.get("error").is_some() && out2.to_string().contains("bootstrap failed"),
+        "ag plan-merge bootstrap failure surfaces: {out2}"
+    );
+    let _ = pf;
+    std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
 }
