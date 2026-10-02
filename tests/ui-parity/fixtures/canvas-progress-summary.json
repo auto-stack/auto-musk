@@ -1,14 +1,52 @@
 {
  "props": {
   "msgs": [
-   { "blocks": [ { "kind": "tool", "tc": { "id": "g1", "name": "write_file", "status": "completed", "arguments": { "path": "src/front/app.at" }, "result": "ok" } } ] },
-   { "blocks": [ { "kind": "tool", "tc": { "id": "v1", "name": "canvas_act", "status": "completed", "arguments": {}, "result": "ok" } } ] }
+   {
+    "blocks": [
+     {
+      "kind": "tool",
+      "tc": {
+       "id": "g1",
+       "name": "write_file",
+       "status": "completed",
+       "arguments": {
+        "path": "src/front/app.at"
+       },
+       "result": "ok"
+      }
+     }
+    ]
+   },
+   {
+    "blocks": [
+     {
+      "kind": "tool",
+      "tc": {
+       "id": "v1",
+       "name": "canvas_act",
+       "status": "completed",
+       "arguments": {},
+       "result": "ok"
+      }
+     }
+    ]
+   }
   ]
  },
  "expect": {
-  "visible": ["生成进度", "生成", "交互验证"]
+  "visible": [
+   "生成进度",
+   "生成",
+   "交互验证"
+  ]
  },
  "interactions": [
-  { "click": "▸", "visible": ["write_file", "canvas_act"] }
+  {
+   "click": "展开/收起进度详情",
+   "visible": [
+    "write_file",
+    "canvas_act"
+   ]
+  }
  ]
 }

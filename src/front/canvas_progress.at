@@ -41,8 +41,14 @@ widget CanvasProgressSummary(msgs: []obj) {
     on {
         // 挂载即推送 messages 快照（Init 派发 = relay_run_box/
         // PlanProgressCard 已证形态）；canvas 状态行由 Poll 每拍重算。
+        // （PLAN-097 T-11：单 widget 双 on 块在 VM 只有一块生效——本件
+        // 曾是全仓唯一双 on 块 widget,Init 被丢弃致工具行恒空;合并为
+        // 单块,ui-parity case 真机实证。）
         .Init -> {
             store.ProgInput(.msgs)
+        }
+        .Toggle -> {
+            .open = !.open
         }
     }
 
@@ -121,9 +127,4 @@ widget CanvasProgressSummary(msgs: []obj) {
         }
     }
 
-    on {
-        .Toggle -> {
-            .open = !.open
-        }
-    }
 }

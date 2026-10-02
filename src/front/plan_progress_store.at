@@ -46,6 +46,13 @@ store PlanProgressStore {
         var pp_receipt_ref str = ""
         var pp_checkpoint_rows []Value = []
         var pp_stage_rows []Value = []
+        // 摘要列表（PLAN-097 T-11：文本位 store 读被 VM 渲染器丢弃——
+        // for-源列表+循环局部读为已证通道，canvas_progress 同款）
+        var pp_summary_rows []Value = []
+        var pp_blocker_rows []Value = []
+        var pp_detail_rows []Value = []
+        var pp_has_stages bool = false
+        var pp_has_details bool = false
         // 陈旧与错误（断连保留快照但可见）
         var pp_stale bool = false
         var pp_error str = ""
@@ -90,6 +97,11 @@ store PlanProgressStore {
             .pp_receipt_ref = ""
             .pp_checkpoint_rows = []
             .pp_stage_rows = []
+            .pp_summary_rows = []
+            .pp_blocker_rows = []
+            .pp_detail_rows = []
+            .pp_has_stages = false
+            .pp_has_details = false
             .pp_stale = false
             .pp_error = ""
         }
@@ -158,6 +170,11 @@ store PlanProgressStore {
                             .pp_receipt_ref = p.receipt_ref
                             .pp_checkpoint_rows = p.checkpoint_rows
                             .pp_stage_rows = p.stage_rows
+                            .pp_summary_rows = p.summary_rows
+                            .pp_blocker_rows = p.blocker_rows
+                            .pp_detail_rows = p.detail_rows
+                            .pp_has_stages = p.has_stages
+                            .pp_has_details = p.has_details
                             .pp_stale = false
                             .pp_error = ""
                         } else {

@@ -64,7 +64,10 @@ fn planStageRows(results list) list {
     var out list = []
     if results != None {
         for r in results {
-            out.push({ stage: r.stage ?? "", attempt: r.attempt ?? 0, outcome: r.outcome ?? "" })
+            // attempt_label 预构建（PLAN-097 T-11）：VM 轨模板插值跨 store 读
+            // 恒空（T-05 矩阵同族，真机 ui-parity case 实证）——行内 "#" 前缀
+            // 在 handler 域拼好，视图直读字符串字段。
+            out.push({ stage: r.stage ?? "", attempt: r.attempt ?? 0, attempt_label: "#" + (r.attempt ?? 0), outcome: r.outcome ?? "" })
         }
     }
     return out
@@ -127,5 +130,34 @@ fn planProgressProjection(body Value) Value {
         cpRows = planCheckpointRows(pe.delivery_checkpoints)
         stRows = planStageRows(pe.stage_results)
     }
-    return { has_facts: hasFacts, contract_ok: contractOk, run_status: st, plan_id: pid, plan_path: ppath, plan_revision: prev, phase: phase, attempt: attempt, outcome: outcome, repair_count: repairCount, repair_limit: repairLimit, blocker: blocker, reviewed_commit: reviewed, receipt_ref: receipt, checkpoint_rows: cpRows, stage_rows: stRows }
+    // 摘要面预构建（PLAN-097 T-11 真机实证升级）：VM 轨文本位的 store 成员
+    // 读（模板插值与直读同症）被渲染器丢弃——ui-parity case 快照缺节点实证。
+    // 已证通道 = for-源列表 + 循环局部成员读（canvas_progress 同款）。因此
+    // 摘要行/阻塞横幅/详情行全部以 handler 域列表落账：
+    //   summary_rows [{key,text}] / blocker_rows [{text}] / detail_rows [{label_key,text}]
+    var revLabel = "r" + prev
+    var attemptLabel = "" + attempt
+    var repairLabel = "" + repairCount + "/" + repairLimit
+    var summaryRows = []
+    summaryRows.push({ key: "plan_id", text: pid })
+    summaryRows.push({ key: "rev", text: revLabel })
+    summaryRows.push({ key: "phase", text: phase })
+    summaryRows.push({ key: "attempt", text: attemptLabel })
+    summaryRows.push({ key: "repair", text: repairLabel })
+    var blockerRows = []
+    if blocker != "" {
+        blockerRows.push({ text: blocker })
+    }
+    var detailRows = []
+    if reviewed != "" {
+        detailRows.push({ label_key: "reviewedCommitLabel", text: reviewed })
+    }
+    if receipt != "" {
+        detailRows.push({ label_key: "receiptLabel", text: receipt })
+    }
+    // has_stages/has_details 在 handler 域算好（computed 内 .length 成员链
+    // 是 T-05 矩阵断点——真机实证；handler 域 .length 为已证通道）
+    var hasStagesB = stRows.length > 0
+    var hasDetailsB = detailRows.length > 0
+    return { has_facts: hasFacts, contract_ok: contractOk, run_status: st, plan_id: pid, plan_path: ppath, plan_revision: prev, phase: phase, attempt: attempt, outcome: outcome, repair_count: repairCount, repair_limit: repairLimit, blocker: blocker, reviewed_commit: reviewed, receipt_ref: receipt, checkpoint_rows: cpRows, stage_rows: stRows, summary_rows: summaryRows, blocker_rows: blockerRows, detail_rows: detailRows, has_stages: hasStagesB, has_details: hasDetailsB }
 }

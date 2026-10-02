@@ -106,7 +106,9 @@ async function runMode(mode, caseId) {
   const mockUrl = `http://127.0.0.1:${mock.address().port}`;
   const env = { AUTOUI_MCP_PORT: String(mcpPort), AUTO_PARITY_CASE: caseId, AUTO_BACKEND_IMPL: 'vm', AUTO_HTTP_BASE: mockUrl, AUTO_BACKEND: mockUrl, AUTO_HTTP_PROXY: mockUrl };
   const runArgs = ['run', '--render', render, '--port', String(frontPort), '--back-port', String(backPort)];
-  if (mode === 'vue') runArgs.push('--server', 'vm');
+  // PLAN-097 T-11：--vm-http = VM 轨改走 VMHTTP（--server vm）——VM+RustHTTP
+  // 之外的第二后端接线取证臂（V04 矩阵）。
+  if (mode === 'vue' || has('--vm-http')) runArgs.push('--server', 'vm');
   const c = child(executable, runArgs, GALLERY, env);
   const timeoutMs = Number(option('--timeout-ms') ?? 120000);
   const started = Date.now(); let status = 'missing'; let endpoint = ''; let snapshotBody = ''; let screenshotBody = ''; let interactionBody = ''; let resetEventSpy = false;

@@ -11,7 +11,9 @@
 // 中英经 i18n catalog（src/front/i18n/{zh,en}.json planProgress.*）。
 
 use store: PlanProgressStore
-use plan_progress_helpers: planPhaseIndex, planPhaseTabStyle, planRunTerminal
+// PLAN-097 T-11：use.web 形态双轨可用（task_plan_card/077 VM 先例）——
+// plain use 在 Vue 轨不暴露模板符号（vue-tsc TS2339 实证）。
+use.web planPhaseIndex, planPhaseTabStyle, planRunTerminal from "src/front/plan_progress_helpers.at"
 use.web useI18n from "src/front/ports/composables.at"
 
 widget PlanProgressCard(runId: str) {
@@ -31,7 +33,11 @@ widget PlanProgressCard(runId: str) {
         isHistory => planRunTerminal(store.pp_run_status)
         hasBlocker => store.pp_blocker != ""
         contractBad => !store.pp_contract_ok
-        hasStages => store.pp_stage_rows.length > 0
+        // PLAN-097 T-11：has_stages/has_details 由 handler 域布尔落账
+        // （computed 内 .length 成员链为 T-05 矩阵断点，真机实证）
+        hasStages => store.pp_has_stages
+        hasDetails => store.pp_has_details
+        isStale => store.pp_stale
         cpRows => store.pp_checkpoint_rows
         stageRows => store.pp_stage_rows
     }
@@ -76,14 +82,15 @@ widget PlanProgressCard(runId: str) {
                 }
 
                 // 身份/进度摘要行：plan · r{rev} · {phase} · 尝试 {n} · 修复 {c}/{lim}
+                // （PLAN-097 T-11：文本位 store 读（模板插值与直读同症）被
+                // VM 渲染器丢弃——真机 ui-parity case 快照缺节点实证；摘要
+                // 文本由 handler 域预构建列表落账，for 循环局部读渲染。）
                 row {
                     style: "flex items-center gap-2 flex-wrap w-full mt-1"
-                    text `${store.pp_plan_id}` { style: "font-medium text-foreground text-[12px]" }
-                    text `r${store.pp_plan_revision}` { style: "text-muted-foreground" }
-                    text `${store.pp_phase}` { style: "text-muted-foreground" }
-                    text `${store.pp_attempt}` { style: "text-muted-foreground" }
+                    for r in .store.pp_summary_rows {
+                        text r.text { style: "text-[12px] text-muted-foreground" }
+                    }
                     text i18n.t("planProgress.attemptLabel") { style: "text-muted-foreground" }
-                    text `${store.pp_repair_count}/${store.pp_repair_limit}` { style: "text-muted-foreground" }
                     text i18n.t("planProgress.repairLabel") { style: "text-muted-foreground" }
                 }
 
@@ -109,12 +116,14 @@ widget PlanProgressCard(runId: str) {
                     row {
                         style: "flex items-start gap-1.5 mt-1.5 w-full rounded bg-destructive/10 border border-destructive/30 px-2 py-1"
                         text i18n.t("planProgress.blockerBanner") { style: "text-[11.5px] text-destructive shrink-0" }
-                        text store.pp_blocker { style: "text-[11.5px] text-destructive break-all" }
+                        for b in .store.pp_blocker_rows {
+                            text b.text { style: "text-[11.5px] text-destructive break-all" }
+                        }
                     }
                 }
 
                 // 断连陈旧横幅（最后成功快照 + 明确陈旧，AC-02）
-                if store.pp_stale {
+                if .isStale {
                     row {
                         style: "flex items-center gap-1.5 mt-1.5 w-full rounded bg-amber-500/10 border border-amber-500/30 px-2 py-1"
                         text i18n.t("planProgress.staleBanner") { style: "text-[11.5px] text-amber-600" }
@@ -130,7 +139,7 @@ widget PlanProgressCard(runId: str) {
                 }
 
                 // 展开开关：阶段记录 + reviewed_commit + receipt
-                if .hasStages || store.pp_reviewed_commit != "" || store.pp_receipt_ref != "" {
+                if .hasStages || .hasDetails {
                     button {
                         onclick: .Toggle
                         style: "mt-1.5 flex items-center gap-1 bg-transparent border-none p-0 cursor-pointer text-[11px] text-muted-foreground hover:text-foreground"
@@ -149,22 +158,15 @@ widget PlanProgressCard(runId: str) {
                             row {
                                 style: "flex items-center gap-2"
                                 text sr.stage { style: "text-[11px] text-foreground" }
-                                text `#${sr.attempt}` { style: "text-[11px] text-muted-foreground" }
+                                text sr.attempt_label { style: "text-[11px] text-muted-foreground" }
                                 text i18n.t("planProgress.oc_" + sr.outcome) { style: "text-[11px] text-muted-foreground" }
                             }
                         }
-                        if store.pp_reviewed_commit != "" {
+                        for d in .store.pp_detail_rows {
                             row {
                                 style: "flex items-center gap-2"
-                                text i18n.t("planProgress.reviewedCommitLabel") { style: "text-[11px] text-muted-foreground" }
-                                text store.pp_reviewed_commit { style: "text-[11px] font-mono text-muted-foreground" }
-                            }
-                        }
-                        if store.pp_receipt_ref != "" {
-                            row {
-                                style: "flex items-center gap-2"
-                                text i18n.t("planProgress.receiptLabel") { style: "text-[11px] text-muted-foreground" }
-                                text store.pp_receipt_ref { style: "text-[11px] font-mono text-muted-foreground break-all" }
+                                text i18n.t("planProgress." + d.label_key) { style: "text-[11px] text-muted-foreground" }
+                                text d.text { style: "text-[11px] font-mono text-muted-foreground break-all" }
                             }
                         }
                     }
