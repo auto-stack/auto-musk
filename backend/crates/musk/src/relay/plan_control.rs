@@ -437,6 +437,7 @@ pub fn attach_binding_on_gate_approve(
         contract_hash: contract.contract_hash.clone(),
         semantic_hash: contract.semantic_hash.clone(),
         semantic_parts: crate::relay::plan_contract::semantic_parts(&contract),
+        approved_canonical: Some(crate::relay::plan_contract::semantic_canonical_text(&contract)),
         skills_hashes: {
             let mut m = std::collections::BTreeMap::new();
             for (k, v) in &pe.skills {
@@ -651,8 +652,23 @@ fn verify_binding_intact(
             .filter(|(k, v)| new_parts.get(*k) != Some(v))
             .map(|(k, _)| k.clone())
             .collect();
+        let mut diff_note = String::new();
+        if let Some(approved) = &binding.approved_canonical {
+            let current = crate::relay::plan_contract::semantic_canonical_text(&contract);
+            for (a, b) in approved.lines().zip(current.lines()) {
+                if a != b {
+                    diff_note.push_str(&format!("  - approved: {a}
+  + current: {b}
+"));
+                    if diff_note.len() > 1200 {
+                        break;
+                    }
+                }
+            }
+        }
         return Err(format!(
-            "semantic contract drift since approval — re-approval required (drifted parts: {:?}; old {})",
+            "semantic contract drift since approval — re-approval required (drifted parts: {:?}; old {})
+{diff_note}",
             drifted,
             &binding.semantic_hash[..8.min(binding.semantic_hash.len())]
         ));

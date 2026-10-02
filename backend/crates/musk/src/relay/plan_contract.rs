@@ -797,6 +797,10 @@ pub struct PlanExecutionBinding {
     /// 分部件语义哈希（诊断面）：漂移报文点名哪个语义面变化。
     #[serde(default)]
     pub semantic_parts: std::collections::BTreeMap<String, String>,
+    /// 批准时 canonical 文本快照（仅内存；不进 receipt——重入后无快照时
+    /// 漂移报文退化为部件名）。
+    #[serde(skip)]
+    pub approved_canonical: Option<String>,
     /// without invalidating; semantic changes expire the approval).
     pub semantic_hash: String,
     #[serde(default)]
