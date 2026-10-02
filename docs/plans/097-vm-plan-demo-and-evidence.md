@@ -4,9 +4,9 @@ status: executing
 feature_name: VM 计划开发演示与全流程证据
 author: [agent]
 created_at: 2026-10-02T01:40:31Z
-updated_at: 2026-10-02T09:55:00Z
+updated_at: 2026-10-02T10:40:00Z
 plan_revision: 1
-current_step: 2
+current_step: 4
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-studio-ui.md
@@ -343,8 +343,8 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
 |---|---|---|---|---|
 | [x] T-01 | 无；可与 A 并行 | 新 docs/reports/097-vm-demo-baseline.md；只读 canvas/mcp_client.rs、session.rs、scripts/ui-parity/live.mjs、relay_store.at、既有 VM 文件能力；四项有限探针，记录截图/动作/私有端口/跨启保存/无链接构建路线 | V01 等价探针全部具备命令与决定；缺能力明确定位，不预制业务、不改依赖仓 | 04,06,11,14,15 |
 | [x] T-02 | T-01；A review/merge 已交付 | 冻结 A plan-execution-contract/实际 query 与入口、DTO/event/成功失败样例/hash 到 baseline；新增 scripts/demo/contract.mjs；确定 store owner、确切异步通道与 staging 命令 | V01/V02 正确事实可消费，未知版本/缺件明确拒绝；必要 A 缺口回交，不解析叙述补事实 | 01,02,08,16 |
-| [ ] T-03 | T-02 | 新 plan_progress_store.at/plan_progress_helpers.at（或有据并入 RelayStore）；接 relay_store.at/forge_store.at；单飞、身份/代次、陈旧、终态、纯投影 | V02/V04 乱序/切换/断连/修复/交付缺项；新身份不受迟到污染 | 01,02,08 |
-| [ ] T-04 | T-03 | 新 plan_progress.at；接 chats_view.at/relay_run_box.at；摘要、展开阶段记录/历史标签/receipt；src/front/i18n/{zh,en}.json 与 lib/i18n.at 既有接线 | V03/V04 原生 VM 可见四阶段与失败，中英/宽度/草稿保留；历史不能标实时 | 01,05,07,15 |
+| [x] T-03 | T-02 | 新 plan_progress_store.at/plan_progress_helpers.at（或有据并入 RelayStore）；接 relay_store.at/forge_store.at；单飞、身份/代次、陈旧、终态、纯投影 | V02/V04 乱序/切换/断连/修复/交付缺项；新身份不受迟到污染 | 01,02,08 |
+| [x] T-04 | T-03 | 新 plan_progress.at；接 chats_view.at/relay_run_box.at；摘要、展开阶段记录/历史标签/receipt；src/front/i18n/{zh,en}.json 与 lib/i18n.at 既有接线 | V03/V04 原生 VM 可见四阶段与失败，中英/宽度/草稿保留；历史不能标实时 | 01,05,07,15 |
 | [ ] T-05 | T-03 | canvas_progress.at/canvas_helpers.at/forge_store.at 与相关 CanvasStore 消息；必要 rows 预计算，消除 G-15，保持工具事实分类 | V03/V04 真 VM tool→store→可见摘要；未验证/失败不绿，seq 不宣称因果 | 03,04,15 |
 | [ ] T-06 | T-02 | 新 scripts/demo/vm-session.mjs 与 demo-focusboard.mjs preflight；私有配置/端口、实际端点发现、源/二进制指纹、owned 关停 | V01/V02/V08 端口冲突、旧产物拒绝、非 owned PID 不终止；无 worktree 链接 | 08,14,16 |
 | [ ] T-07 | T-04,T-06 | 新 capture.mjs/evidence.mjs；宿主/目标采集、状态稳定/身份二次核验、manifest v1、历史标识、缺件失败、外部保存 | V02 删除图/错 hash/跨身份/截图超时/缺阶段注入全部失败；原图可读 | 06,07,08,16,17 |
@@ -421,6 +421,36 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
   无 A 侧缺口需回交。
 - blockers: 无
 - next: T-03（plan_progress_store.at/helpers 接线单飞轮询与纯投影）
+
+### work 阶段记录（T-03/T-04 完成）
+
+- stage: work | plan_id: PLAN-097 | plan_revision: 1 | outcome: pass（V03 三门绿
+  + live 烟测 ALL PASS；V04 真机保真度待 T-11 实证——如实登记）
+- code_commit(worktree plan-097-dev): 7a8e9d6（T-03）/ 1ec62fe（T-04）
+- task_ids: T-03, T-04
+- evidence: T-03——plan_progress_store.at（owner=独立 store 落地：单飞
+  pp_inflight+有界 3 拍释放；代次快照 pp_req_epoch==pp_epoch 拒迟到/跨身份；
+  错误信封/失联保留快照标陈旧；终态 completed|failed|canceled 停拍；
+  contract_version!=1 → contract_ok=false 显式不兼容）+ plan_progress_helpers.at
+  （纯投影扁平重建漏斗：planProgressProjection/planCheckpointRows 冻结序/
+  planStageRows/planRunTerminal/planPhaseIndex；零 store 字段访问）。
+  T-04——PlanProgressCard（相位轨五档高亮/plan·r·attempt·修复摘要/检查点行/
+  blocker/陈旧/不兼容三横幅/展开阶段记录+reviewed_commit+receipt/终态历史
+  标签「已完成阶段记录」）+ chat_message spawn_relay 卡位挂载（自持
+  Attach/Detach 生命周期，父级只传 runId——规避 VM 轨 handler 域跨 store
+  实例调用破绽）+ i18n zh/en planProgress.* 27 键 + catalog 再生（28 节）。
+  接线修订（有据）：未改 relay_store.at/forge_store.at——挂载点生命周期驱动
+  替代跨 store 写入（VM 轨 handler 域跨 store 实例调用为基线发现#1 同款
+  破绽），T-02 已决策 store 独立。
+- 验证：V03 gen-only --strict exit 0（66 组件）+ vm-link-probe PASS
+  （110667B，无新增 handler 合成失败——仅既有 ChatsView 两处基线债）+
+  ui-parity check PASS（115/115）；live 烟测（宿主 VM 真机）ALL PASS——
+  shell 启动/渲染/动作/截图/清理无回归（.demo/musk-097/t01-20261002093343）。
+  V02 承载面=T-02 contract.mjs 矩阵（13/13）。V04 真机四阶段/中英/宽度/
+  草稿保留保真度验证需真实 plan run（T-08/T-11 依赖），本阶段不可达，
+  不冒充通过。
+- blockers: 无
+- next: T-05（canvas_progress G-15 消除：rows 预计算迁移 handler/store）
 
 ## 10. 待澄清事项
 
