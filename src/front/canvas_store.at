@@ -616,6 +616,17 @@ store CanvasStore {
                             // 未被用户收起。轮询不改 cv_collapsed。
                             var has_session bool = .cv_state != "stopped" || .cv_app != ""
                             .cv_open = has_session && !.cv_collapsed
+                            // PLAN-097 T-05（733 §10.3 接线,owner 复验形态）:
+                            // 每拍重算进度行（fresh canvas 状态 + msgs 快照）,
+                            // 行源 fn 调用即 0b5c8758d 同名歧义修复腿的实测面。
+                            .cp_prog_has = false
+                            try {
+                                .cp_prog_rows = canvasProgressRows(.cp_prog_msgs, .cv_state, .cv_seq, .cv_app, .cv_gen, .cv_error)
+                                .cp_prog_has = .cp_prog_rows.length > 0
+                                .cp_prog_err = ""
+                            } catch {
+                                .cp_prog_err = "recompute failed"
+                            }
                         }
                     } else {
                         // 错误信封：释放在途（下一拍重试），其余不落账。
