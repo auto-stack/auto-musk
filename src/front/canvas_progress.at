@@ -12,11 +12,9 @@
 // 解除后按 store 域预计算形态补跑（canvas_store handler 域调 helper 已
 // 证可行）。
 
-use store: ForgeStore
 use.web useT from "src/front/ports/composables.at"
-use.web.fn canvasProgressRows from "src/front/canvas_helpers.at"
 
-widget CanvasProgressSummary(cv_state: str, cv_seq: int, cv_app: str, cv_gen: int, cv_error: str) {
+widget CanvasProgressSummary(cv_state: str, cv_seq: int, cv_app: str, cv_gen: int, cv_error: str, cp_rows: []obj, cp_has: bool, cp_err: str) {
 
     setup {
         let t = useT()
@@ -31,14 +29,11 @@ widget CanvasProgressSummary(cv_state: str, cv_seq: int, cv_app: str, cv_gen: in
         Toggle,
     }
 
-    computed {
-        // 行投影（canvas_helpers.at 纯函数；依赖 ForgeStore.messages 与
-        // 画布 props——任一变化重算）。
-        rows => canvasProgressRows(.store.messages, .cv_state, .cv_seq, .cv_app, .cv_gen, .cv_error)
-    }
-
     view {
-        if .rows.length > 0 {
+        // 行源 = cp_rows prop（CanvasStore.Poll 域预计算）;非空门 = cp_has
+        // bool prop（store 域判言）——VM 视图 .length 成员链求值为空,
+        // 全件零 computed、零成员链（T-05 插桩实证矩阵,见 baseline 报告）。
+        if .cp_has {
             col {
                 style: "shrink-0 border-b border-border bg-muted/20 px-4 py-1"
                 row {
@@ -59,7 +54,7 @@ widget CanvasProgressSummary(cv_state: str, cv_seq: int, cv_app: str, cv_gen: in
                     }
                     row {
                         style: "flex items-center gap-2 flex-1 min-w-0 overflow-hidden pl-1"
-                        for r in .rows {
+                        for r in .cp_rows {
                             span {
                                 key: r.key
                                 style: "inline-flex items-center gap-1 text-[11px] whitespace-nowrap min-w-0"
@@ -84,7 +79,7 @@ widget CanvasProgressSummary(cv_state: str, cv_seq: int, cv_app: str, cv_gen: in
                 if .open {
                     col {
                         style: "flex flex-col gap-0.5 pt-1 pb-0.5 pl-6"
-                        for r in .rows {
+                        for r in .cp_rows {
                             row {
                                 key: r.key
                                 style: "flex items-center gap-2 text-[11px] text-muted-foreground min-w-0"

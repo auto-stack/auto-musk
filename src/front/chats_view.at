@@ -57,7 +57,8 @@ use canvas_panel: CanvasPanel, CanvasStudioSlot
 // PLAN-102 T-03: 外部分隔条（聊天区 ↔ 画布外框；捕获层在本件 contentRow）。
 use canvas_workbench: DivOuter
 // PLAN-093 T-09: 生成/检查进度摘要（studio 对话区顶部；§5.8 投影）。
-use canvas_progress: CanvasProgressSummary
+use canvas_progress: CanvasProgressCardX
+use canvas_prog_feed: CanvasProgFeed
 // PLAN-093 T-06:帧点选委托（幂等单例安装；VM 桩空实现）。
 use.web installCanvasFrameClicks, installCanvasSourceScroll, canvasClearPick, canvasPickSnapshot from "src/front/ports/canvas.at"
 
@@ -651,12 +652,20 @@ widget ChatsView {
                 // 默认紧凑单行、可展开；仅 studio 模式（画布实时状态以
                 // canvasStore 为权威经 props 下入——prop 每帧重建刷新）。
                 if .studio_mode {
+                    // PLAN-097 T-05:messages 快照推送 + 行源改 store 预计算
+                    // 字段（G-15 消除,见 canvas_progress.at/canvas_store.at 头注）。
+                    CanvasProgFeed {
+                        msgs: .store.messages
+                    }
                     CanvasProgressSummary {
                         cv_state: canvasStore.cv_state
                         cv_seq: canvasStore.cv_seq
                         cv_app: canvasStore.cv_app
                         cv_gen: canvasStore.cv_gen
                         cv_error: canvasStore.cv_error
+                        cp_rows: canvasStore.cp_prog_rows
+                        cp_has: canvasStore.cp_prog_has
+                        cp_err: canvasStore.cp_prog_err
                     }
                 }
                 // canvas（SecretaryMessage/GateCard/ReportCard + 消息列表 + 流式 draft）
