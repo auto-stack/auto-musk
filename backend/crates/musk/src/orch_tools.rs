@@ -296,6 +296,7 @@ impl Tool for Dispatch {
                 child_conversation: None,
                 tokens: None,
                 profession_id: None,
+                telemetry: None,
                 timestamp: conversation::now_secs(),
             },
         );
@@ -323,6 +324,7 @@ impl Tool for Dispatch {
                         child_conversation: None,
                         tokens: None,
                         profession_id: None,
+                        telemetry: None,
                         timestamp: conversation::now_secs(),
                     },
                 );
@@ -435,6 +437,7 @@ impl Tool for BringIn {
                 child_conversation: None,
                 tokens: None,
                 profession_id: None,
+                telemetry: None,
                 timestamp: conversation::now_secs(),
             },
         );
@@ -460,6 +463,7 @@ impl Tool for BringIn {
                         child_conversation: None,
                         tokens: None,
                         profession_id: None,
+                        telemetry: None,
                         timestamp: conversation::now_secs(),
                     },
                 );
@@ -525,6 +529,7 @@ fn append_run_summary_to_parent(
         child_conversation: Some(run_id.into()),
         tokens: None,
         profession_id: None,
+        telemetry: None,
         timestamp: conversation::now_secs(),
     };
     ws.conversations.append_turn(parent_conv_id, turn);
@@ -549,6 +554,7 @@ fn build_toolcall_turn(tool_name: &str, args: &Value, child_id: &str) -> Turn {
         child_conversation: Some(child_id.into()),
         tokens: None,
         profession_id: None,
+        telemetry: None,
         timestamp: conversation::now_secs(),
     }
 }

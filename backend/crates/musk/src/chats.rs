@@ -129,6 +129,11 @@ pub struct ChatMessage {
     /// chats_message 归属校验并盖 ownership 章。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub design_context: Option<serde_json::Value>,
+    /// PLAN-098：本条 assistant 消息的运行遥测（chat_run_owner 收束臂折叠
+    /// 注入，§5.3）；经 chat_message_to_turns 投影到收束 Message 轮。
+    /// 旧会话零迁移（serde default 照读）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telemetry: Option<serde_json::Value>,
 }
 
 /// 活动时间线块：kind = "text"（叙述/回答文本）| "tool"（一次工具调用，
@@ -156,6 +161,7 @@ impl ChatMessage {
             profession_id: None,
             pending: None,
             design_context: None,
+            telemetry: None,
         }
     }
     pub fn assistant(content: impl Into<String>) -> Self {
@@ -171,6 +177,7 @@ impl ChatMessage {
             profession_id: None,
             pending: None,
             design_context: None,
+            telemetry: None,
         }
     }
 }

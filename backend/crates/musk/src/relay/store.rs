@@ -22,7 +22,10 @@ use crate::relay::{GateDecision, PipelineEngine, PipelineStatus, RelayMode};
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum RunEvent {
     StepStarted { #[serde(default)] timestamp: u64, step_id: String, role_id: String },
-    StepCompleted { #[serde(default)] timestamp: u64, step_id: String, handoff_summary: String },
+    /// PLAN-098：相位遥测（T-01 D4 折叠挂点）——相位收束时 submit_handoff
+    /// 从 run 键控 sink drain 本步记录折叠注入。serde default 可选字段：
+    /// 旧事件文件照读（缺省 None）、旧版读新事件忽略未知字段，双向兼容。
+    StepCompleted { #[serde(default)] timestamp: u64, step_id: String, handoff_summary: String, #[serde(default, skip_serializing_if = "Option::is_none")] telemetry: Option<serde_json::Value> },
     GateWaiting { #[serde(default)] timestamp: u64, step_id: String, gate: String },
     GateResolved { #[serde(default)] timestamp: u64, step_id: String, decision: String, #[serde(default)] note: Option<String> },
     /// PLAN-031 T5: carries the deterministic run report so the frontend
@@ -669,6 +672,14 @@ impl RunStore {
             let now = now_secs();
             entry.updated_at = now;
             if let Some(sid) = &step_id {
+                // PLAN-098 T-03（T-01 D4 折叠挂点）：相位收束时从 run 键控
+                // 遥测 sink drain 本步记录，折叠为单个 telemetry 对象注入
+                // StepCompleted（hw/ag 双轨驱动都经本单点提交 handoff）。
+                // 无记录 → None（字段省略，不写空对象）。
+                let step_telemetry = crate::telemetry::fold_records(&crate::telemetry::relay_drain(
+                    run_id,
+                    sid,
+                ));
                 appended.push(RunEvent::StepCompleted {
                     timestamp: now,
                     step_id: sid.clone(),
@@ -678,6 +689,7 @@ impl RunStore {
                         .last()
                         .and_then(|r| r.handoff.as_ref().map(|h| h.summary.clone()))
                         .unwrap_or_default(),
+                    telemetry: step_telemetry,
                 });
                 appended.push(RunEvent::TokenSpend {
                     timestamp: now,

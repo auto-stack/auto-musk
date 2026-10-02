@@ -172,7 +172,7 @@ fn parity_run_event_wire_and_event_type() {
     // Every variant, serialized identically + event_type() string parity.
     let hw_events = vec![
         hw::RunEvent::StepStarted { timestamp: 1, step_id: "s".into(), role_id: "r".into() },
-        hw::RunEvent::StepCompleted { timestamp: 2, step_id: "s".into(), handoff_summary: "h".into() },
+        hw::RunEvent::StepCompleted { timestamp: 2, step_id: "s".into(), handoff_summary: "h".into(), telemetry: None },
         hw::RunEvent::GateWaiting { timestamp: 3, step_id: "s".into(), gate: "human".into() },
         hw::RunEvent::GateResolved { timestamp: 4, step_id: "s".into(), decision: "approve".into(), note: None },
         hw::RunEvent::RunCompleted { timestamp: 5, report: Default::default() },

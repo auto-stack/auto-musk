@@ -154,6 +154,10 @@ pub type Turn {
     child_conversation Option<str>
     #[serde(default, skip_serializing_if = "Option::is_none")]
     tokens Option<u64>
+    // PLAN-098: 运行遥测（模型归因/usage）——可选增量字段，旧数据零迁移
+    // （serde default + 省略序列化，与手写 conversation.rs 锁步）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    telemetry Option<Value>
     timestamp u64
 }
 

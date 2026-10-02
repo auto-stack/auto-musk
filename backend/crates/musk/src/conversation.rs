@@ -105,6 +105,12 @@ pub struct Turn {
     /// 仅 Message 主 turn 填充，tool/tool_result turn 恒 None）。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profession_id: Option<String>,
+    /// PLAN-098：运行遥测（实际服务 model/usage/耗时/stop_reason/correlation）。
+    /// 仅 assistant 产物轮携带——聊天=收束 assistant 轮，relay=相位边界
+    /// StepCompleted 轮（T-01 D4：流式 delta 碎片不可对齐请求边界）。
+    /// serde default + 省略序列化：旧文件零迁移照读（V06 兼容夹具）。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telemetry: Option<serde_json::Value>,
     pub timestamp: u64,
 }
 
@@ -193,6 +199,7 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
                         child_conversation: None,
                         tokens: None,
                         profession_id: msg.profession_id.clone(),
+                        telemetry: None,
                         timestamp: msg.created_at,
                     });
                 }
@@ -216,6 +223,7 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
                         child_conversation: None,
                         tokens: None,
                         profession_id: None,
+                        telemetry: None,
                         timestamp: msg.created_at,
                     });
                     turns.push(Turn {
@@ -236,12 +244,14 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
                         child_conversation: None,
                         tokens: None,
                         profession_id: None,
+                        telemetry: None,
                         timestamp: msg.created_at,
                     });
                 }
                 _ => {}
             }
         }
+        attach_message_telemetry(&mut turns, msg);
         return turns;
     }
 
@@ -259,6 +269,7 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
             child_conversation: None,
             tokens: None,
             profession_id: msg.profession_id.clone(),
+            telemetry: None,
             timestamp: msg.created_at,
         });
 
@@ -298,6 +309,7 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
                     child_conversation: None,
                     tokens: None,
                     profession_id: None,
+                    telemetry: None,
                     timestamp: msg.created_at,
                 });
             }
@@ -324,6 +336,7 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
             child_conversation: None,
             tokens: None,
             profession_id: None,
+            telemetry: None,
             timestamp: msg.created_at,
         });
         turns.push(Turn {
@@ -344,11 +357,30 @@ pub fn chat_message_to_turns(msg: &ChatMessage, seq_base: usize) -> Vec<Turn> {
             child_conversation: None,
             tokens: None,
             profession_id: None,
+            telemetry: None,
             timestamp: msg.created_at,
         });
     }
 
+    attach_message_telemetry(&mut turns, msg);
     turns
+}
+
+/// PLAN-098（T-03）：assistant 消息遥测投影——挂到**最后一个 Message 轮**
+/// （收束回答）；一条消息一个 telemetry 对象（§5.3 读取简单性）。无 Message
+/// 轮（极端全工具消息）或消息无遥测 → 字段整体省略，绝不写空对象。
+fn attach_message_telemetry(turns: &mut [Turn], msg: &ChatMessage) {
+    let Some(tel) = &msg.telemetry else { return };
+    if tel.is_null() {
+        return;
+    }
+    if let Some(t) = turns
+        .iter_mut()
+        .rev()
+        .find(|t| matches!(t.kind, TurnKind::Message))
+    {
+        t.telemetry = Some(tel.clone());
+    }
 }
 
 /// Convert a relay `RunEvent` to zero or more `Turn`s. This is the dual-write
@@ -375,6 +407,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
                 child_conversation: None,
                 tokens: None,
                 profession_id: None,
+                telemetry: None,
                 timestamp: ts,
             });
             seq += 1;
@@ -395,12 +428,36 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
         RunEvent::StepCompleted {
             step_id,
             handoff_summary,
+            telemetry,
             ..
         } => {
-            push_system!(
-                "system".into(),
-                format!("Step '{}' completed: {}", step_id, handoff_summary)
-            );
+            // PLAN-098（T-01 D4）：相位遥测折叠在 StepCompleted 边界轮——
+            // relay 的 Message 轮是流式 delta 碎片（与请求边界不可对齐），
+            // 相位级聚合（requests[] 全行含 correlation）承载在相位收束轮。
+            let telemetry = telemetry.clone().filter(|v| !v.is_null());
+            if let Some(tel) = telemetry {
+                turns.push(Turn {
+                    id: new_id(8),
+                    seq,
+                    from: "system".to_string(),
+                    to: None,
+                    kind: TurnKind::System,
+                    content: format!("Step '{}' completed: {}", step_id, handoff_summary),
+                    tool: None,
+                    gate: None,
+                    child_conversation: None,
+                    tokens: None,
+                    profession_id: None,
+                    telemetry: Some(tel),
+                    timestamp: ts,
+                });
+                seq += 1;
+            } else {
+                push_system!(
+                    "system".into(),
+                    format!("Step '{}' completed: {}", step_id, handoff_summary)
+                );
+            }
         }
         RunEvent::TurnDelta {
             role_id,
@@ -419,6 +476,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
                 child_conversation: None,
                 tokens: None,
                 profession_id: None,
+                telemetry: None,
                 timestamp: ts,
             });
             seq += 1;
@@ -447,6 +505,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
                 child_conversation: None,
                 tokens: None,
                 profession_id: None,
+                telemetry: None,
                 timestamp: ts,
             });
             seq += 1;
@@ -475,6 +534,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
                 child_conversation: None,
                 tokens: None,
                 profession_id: None,
+                telemetry: None,
                 timestamp: ts,
             });
             seq += 1;
@@ -499,6 +559,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
                 child_conversation: None,
                 tokens: None,
                 profession_id: None,
+                telemetry: None,
                 timestamp: ts,
             });
             seq += 1;
@@ -528,6 +589,7 @@ pub fn run_event_to_turns(event: &crate::relay::store::RunEvent, seq_base: usize
                 child_conversation: None,
                 tokens: None,
                 profession_id: None,
+                telemetry: None,
                 timestamp: ts,
             });
             seq += 1;
@@ -1163,6 +1225,7 @@ mod tests {
                 child_conversation: None,
                 tokens: None,
                 profession_id: None,
+                telemetry: None,
                 timestamp: now_secs(),
             },
         );
@@ -1218,6 +1281,7 @@ mod tests {
                 child_conversation: None,
                 tokens: None,
                 profession_id: None,
+                telemetry: None,
                 timestamp: now_secs(),
             },
         );
@@ -1275,6 +1339,7 @@ mod tests {
                     child_conversation: None,
                     tokens: Some(100),
                     profession_id: None,
+                    telemetry: None,
                     timestamp: now_secs(),
                 },
             );
@@ -1564,5 +1629,84 @@ mod tests {
         let turns = chat_message_to_turns(&msg, 0);
         assert_eq!(turns.len(), 3);
         assert_eq!(turns[0].content, "legacy text");
+    }
+
+    // --- PLAN-098 T-03：遥测投影与兼容 ---
+
+    /// AC-01/AC-04（V06 兼容面）：旧 turns.jsonl（无 telemetry 字段）照读 +
+    /// 回放序列化不再新增键；带 telemetry 的新行可读可回读。
+    #[test]
+    fn telemetry_field_backward_compatible() {
+        // 094 时代真实样本行（run-094-humanarm-8975，无 telemetry）。
+        let old_line = r#"{"id":"e0206333","seq":0,"from":"advisor","kind":"system","content":"Step 'plan' started (advisor)","timestamp":1790655343}"#;
+        let turn: Turn = serde_json::from_str(old_line).expect("旧行零迁移照读");
+        assert!(turn.telemetry.is_none());
+        // 回放序列化：telemetry 键不得被添加（skip_serializing_if）。
+        let round: serde_json::Value = serde_json::to_value(&turn).unwrap();
+        assert!(round.get("telemetry").is_none(), "旧数据回写不得新增 telemetry 键: {round}");
+        // 新行：带 telemetry 照读。
+        let new_line = r#"{"id":"a1","seq":1,"from":"assistant","kind":"message","content":"hi","telemetry":{"model":"glm-5.3","out_tokens":10},"timestamp":1790655400}"#;
+        let turn: Turn = serde_json::from_str(new_line).expect("新行可读");
+        assert_eq!(turn.telemetry.as_ref().unwrap()["model"], "glm-5.3");
+    }
+
+    /// AC-01：assistant 消息遥测投影到最后一个 Message 轮（块化与 legacy
+    /// 两路都挂收束轮）；无遥测 → 全部轮省略字段。
+    #[test]
+    fn chat_telemetry_projects_onto_last_message_turn() {
+        let tel = serde_json::json!({"model": "glm-5.3", "out_tokens": 699});
+        // 块化：叙述→工具→收束叙述。
+        let mut msg = ChatMessage::assistant("final");
+        msg.telemetry = Some(tel.clone());
+        msg.blocks = vec![
+            ChatBlock { kind: "text".into(), text: "iter1".into(), tool: None },
+            ChatBlock { kind: "tool".into(), text: String::new(), tool: Some(ToolCall { tool: "read_file".into(), args: serde_json::json!({"p":"x"}), result: "ok".into(), status: "success".into(), id: "tc-1".into() }) },
+            ChatBlock { kind: "text".into(), text: "final".into(), tool: None },
+        ];
+        let turns = chat_message_to_turns(&msg, 0);
+        let last_msg = turns.iter().rev().find(|t| matches!(t.kind, TurnKind::Message)).unwrap();
+        assert_eq!(last_msg.telemetry.as_ref().unwrap()["out_tokens"], 699, "挂收束 Message 轮");
+        assert!(turns[0].telemetry.is_none(), "中间叙述轮不挂");
+        assert!(turns.iter().filter(|t| matches!(t.kind, TurnKind::ToolCall)).all(|t| t.telemetry.is_none()));
+        // legacy 投影同规则。
+        let mut legacy = ChatMessage::assistant("answer");
+        legacy.telemetry = Some(tel);
+        let turns = chat_message_to_turns(&legacy, 0);
+        assert_eq!(turns[0].telemetry.as_ref().unwrap()["model"], "glm-5.3");
+        // 无遥测消息 → 全省略。
+        let plain = chat_message_to_turns(&ChatMessage::assistant("no tel"), 0);
+        assert!(plain.iter().all(|t| t.telemetry.is_none()));
+    }
+
+    /// AC-02（T-01 D4 折叠挂点）：StepCompleted 的 telemetry 投影到相位
+    /// 边界系统轮；无遥测事件照旧投影（None）。
+    #[test]
+    fn step_completed_telemetry_lands_on_boundary_turn() {
+        let tel = serde_json::json!({
+            "model": "glm-5.3", "out_tokens": 100, "elapsed_ms": 500,
+            "correlation": {"kind": "relay", "run_id": "r1", "step_id": "plan", "role": "advisor"},
+            "requests": [],
+        });
+        let ev = crate::relay::store::RunEvent::StepCompleted {
+            timestamp: 7,
+            step_id: "plan".into(),
+            handoff_summary: "done".into(),
+            telemetry: Some(tel),
+        };
+        let turns = run_event_to_turns(&ev, 0);
+        assert_eq!(turns.len(), 1);
+        assert_eq!(turns[0].from, "system");
+        let got = turns[0].telemetry.as_ref().expect("相位遥测落边界轮");
+        assert_eq!(got["correlation"]["step_id"], "plan");
+        assert_eq!(got["out_tokens"], 100);
+        // 无遥测事件 → turn 无 telemetry 字段（既有行为不变）。
+        let ev = crate::relay::store::RunEvent::StepCompleted {
+            timestamp: 7,
+            step_id: "plan".into(),
+            handoff_summary: "done".into(),
+            telemetry: None,
+        };
+        let turns = run_event_to_turns(&ev, 0);
+        assert!(turns[0].telemetry.is_none());
     }
 }

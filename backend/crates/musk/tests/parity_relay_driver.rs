@@ -245,7 +245,7 @@ fn parity_run_event_type_tags_match() {
             "step_started",
         ),
         (
-            RunEvent::StepCompleted { timestamp: now, step_id: "s".into(), handoff_summary: "h".into() },
+            RunEvent::StepCompleted { timestamp: now, step_id: "s".into(), handoff_summary: "h".into(), telemetry: None },
             "step_completed",
         ),
         (RunEvent::RunCompleted { timestamp: now, report: Default::default() }, "run_completed"),
@@ -256,6 +256,98 @@ fn parity_run_event_type_tags_match() {
     ];
     for (ev, expected) in cases {
         assert_eq!(ev.event_type(), expected, "event_type tag for {expected}");
+    }
+}
+
+
+// ── PLAN-098 T-03 (V05 / AC-02): relay 注入路径遥测关联与折叠 ───────────────
+
+/// Mock serving client: responds with actual-served model metadata (PLAN-031
+/// shape) and usage, so the factory-injected TelemetryClient records a real
+/// attribution row per request.
+struct ServedClient;
+
+#[async_trait::async_trait]
+impl Client for ServedClient {
+    async fn complete(&self, req: &CompletionRequest) -> Result<CompletionResponse, ClientError> {
+        Ok(CompletionResponse {
+            content: "mock answer".into(),
+            tool_calls: vec![],
+            stop_reason: Some("end_turn".into()),
+            usage: Some(auto_ai_client::Usage {
+                input_tokens: 11,
+                output_tokens: 22,
+                ..Default::default()
+            }),
+            model: "tier:mid".into(),
+            error: None,
+            model_meta: Some(auto_ai_client::ModelMeta {
+                id: "glm-5.3-test".into(),
+                context_window: 200_000,
+                max_output_tokens: None,
+            }),
+        })
+    }
+}
+
+/// V05（AC-02）：factory 遥测包装按 run/step/role 关联记录；相位收束在
+/// store.submit_handoff（双轨委托单点）折叠注入 StepCompleted；并发双 run
+/// 零错配。hw 与 ag 两条驱动轨都经 hw MuskAgentFactory 构造 step agent，
+/// 分别断言。
+#[tokio::test]
+async fn plan098_relay_telemetry_correlates_and_folds() {
+    let state = Arc::new(make_state(Arc::new(ServedClient) as Arc<dyn Client>));
+    let ws_id = ws_id_of(&state);
+
+    // 并发双 run（同 workspace，交错驱动）——correlation 各归各 run。
+    for rid in ["run-tel-hw", "run-tel-ag"] {
+        start_run(state.clone(), &ws_id, "simple", rid);
+    }
+
+    hw_driver::drive_run(state.clone(), ws_id.clone(), "run-tel-hw".into()).await;
+    ag_driver::drive_run(state.clone(), &ws_id, "run-tel-ag")
+        .await
+        .expect("ag drive_run");
+
+    for (rid, driver_tag) in [("run-tel-hw", "hw"), ("run-tel-ag", "ag")] {
+        let ws = state.registry.get(&ws_id);
+        let rs = ws.relay.get(rid).expect("run gone");
+        assert_eq!(rs.status, "completed", "{rid} completed");
+        let completed: Vec<&RunEvent> = rs
+            .events
+            .iter()
+            .filter(|e| e.event_type() == "step_completed")
+            .collect();
+        assert!(completed.len() >= 2, "{driver_tag}: simple flow has 2 steps");
+        for ev in completed {
+            let RunEvent::StepCompleted { step_id, telemetry, .. } = ev else {
+                unreachable!()
+            };
+            let tel = telemetry.as_ref().unwrap_or_else(|| {
+                panic!("{driver_tag}: StepCompleted {step_id} must carry telemetry")
+            });
+            assert_eq!(tel["correlation"]["kind"], "relay");
+            assert_eq!(tel["correlation"]["run_id"], rid, "correlation 归本 run（零错配）");
+            assert_eq!(tel["correlation"]["step_id"], *step_id);
+            assert!(
+                tel["correlation"]["role"].is_string()
+                    && !tel["correlation"]["role"].as_str().unwrap().is_empty(),
+                "role 非空"
+            );
+            // 实际服务模型（回退后真值以 model_meta 为权威）与 usage 透传。
+            assert_eq!(tel["model"], "glm-5.3-test", "served model recorded");
+            // 请求模型 = 最终发出的值（角色 tier 解析结果，非空即可——
+            // TelemetryClient 位于最外层，记录的是实际发出的请求字段）。
+            let requested = tel["requested_model"].as_str().unwrap_or_default();
+            assert!(!requested.is_empty(), "requested_model recorded, got {tel}");
+            assert_ne!(requested, "glm-5.3-test", "requested ≠ served（回退场景形状）");
+            assert_eq!(tel["out_tokens"], 22);
+            // provider 不上 wire（T-01 F9）→ 显式 null。
+            assert!(tel["provider"].is_null());
+        }
+        // 折叠即 drain：fold 后注册表不残留该 run 的条目。
+        let recs = musk::telemetry::relay_drain(rid, "nonexistent-step");
+        assert!(recs.is_empty(), "{driver_tag}: sink drained by fold");
     }
 }
 

@@ -322,9 +322,23 @@ fn run_sinks() -> &'static Mutex<std::collections::HashMap<String, TelemetrySink
 }
 
 /// The telemetry sink for a relay run (created on first use; the factory
-/// wraps every step of the run into this same sink).
+/// wraps every step of the run into this same sink). Registry is capped:
+/// a run that dies without reaching `submit_handoff` (fail path) would
+/// otherwise leak its entry — over the cap, stale entries are evicted
+/// (telemetry is a side channel: a dropped row is a missing field, never
+/// an error).
 pub fn relay_sink(run_id: &str) -> TelemetrySink {
+    const CAP: usize = 128;
     let mut map = run_sinks().lock().unwrap_or_else(|e| e.into_inner());
+    if !map.contains_key(run_id) && map.len() >= CAP {
+        // Evict down to half the cap; telemetry rows under extreme
+        // concurrency are best-effort by contract (§5.1 旁路不成为失败源).
+        let keep = CAP / 2;
+        let victims: Vec<String> = map.keys().take(map.len() - keep).cloned().collect();
+        for v in victims {
+            map.remove(&v);
+        }
+    }
     map.entry(run_id.to_string())
         .or_insert_with(TelemetrySink::new)
         .clone()

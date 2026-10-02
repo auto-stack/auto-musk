@@ -152,6 +152,7 @@ fn parity_chat_message_wire_format() {
         pending: None,
         profession_id: None,
             design_context: None,
+            telemetry: None,
     };
     let ag_msg = ag::ChatMessage {
         id: "m1".into(),
@@ -179,6 +180,7 @@ fn parity_chat_message_wire_format() {
         pending: None,
         profession_id: None,
             design_context: None,
+            telemetry: None,
     };
     let ag_empty = ag::ChatMessage {
         id: "m2".into(),
@@ -225,6 +227,7 @@ fn parity_chat_session_wire_format() {
         pending: None,
         profession_id: None,
             design_context: None,
+            telemetry: None,
         }],
         created_at: 100,
         updated_at: 200,

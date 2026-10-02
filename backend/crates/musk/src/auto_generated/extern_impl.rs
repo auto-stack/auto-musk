@@ -2341,6 +2341,10 @@ pub async fn chat_run_owner(
         // PLAN-071 需求⑤：超时/失败落盘臂专用的总线发射器（emit_bus 本体
         // 已被 on_event 捕获）。
         let emit_bus_tail = emit_bus.clone();
+        // PLAN-098 T-03：遥测 sink 双克隆——events 份供 on_event 的 SSE
+        // model_meta 富化（turn_end/done），fold 份供收束臂折叠落盘。
+        let tel_sink_events = chat_telemetry_sink.clone();
+        let tel_sink_fold = chat_telemetry_sink;
         let on_event: Arc<dyn Fn(auto_ai_agent::StreamEvent) + Send + Sync> =
             Arc::new(move |ev| {
                 use auto_ai_agent::StreamEvent;
@@ -2409,7 +2413,18 @@ pub async fn chat_run_owner(
                         SseEventDto::Error { message: message.clone() }
                     }
                 };
-                let value = serde_json::to_value(&dto).unwrap_or(Value::Null);
+                let mut value = serde_json::to_value(&dto).unwrap_or(Value::Null);
+                // PLAN-098 T-03（SD-02）：turn_end/done 已知时附 model_meta
+                // （provider/model/usage）——sink 末记录即刚收束的请求；未知
+                // 省略字段。DTO 枚举不动（序列化后 Value 级增量追加，帧协议
+                // 形状其余不变，前端零消费零回归）。
+                if matches!(dto, SseEventDto::TurnEnd { .. } | SseEventDto::Done { .. }) {
+                    if let Some(rec) = tel_sink_events.latest() {
+                        if let Some(obj) = value.as_object_mut() {
+                            obj.insert("model_meta".into(), rec.model_meta_json());
+                        }
+                    }
+                }
                 // PLAN-071 T-02：双发——镜像上总线供订阅方（chat_run_stream）
                 // 转发；本运行 tx 在 chats_message spawn 路径为 Null，总线是
                 // 唯一活通道。
@@ -2659,6 +2674,9 @@ pub async fn chat_run_owner(
                 Some(&text),
             );
             msg.id = run_msg_id.clone();
+            // PLAN-098 T-03（§5.3）：折叠本 run 全部请求记录为单个 telemetry
+            // 对象挂收束消息（多请求=轮级合计+requests[]；无记录=None 省略）。
+            msg.telemetry = crate::telemetry::fold_records(&tel_sink_fold.drain());
             persist_chat_run_msg(&chats, &session_id, &msg, "idle_timeout");
             let seq_base = conversations
                 .get(&session_id)
@@ -2693,6 +2711,8 @@ pub async fn chat_run_owner(
                     None,
                 );
                 msg.id = run_msg_id.clone();
+                // PLAN-098 T-03（§5.3）：收束折叠（成功臂）。
+                msg.telemetry = crate::telemetry::fold_records(&tel_sink_fold.drain());
                 persist_chat_run_msg(&chats, &session_id, &msg, "done");
                 // Dual-write: mirror the assistant message (+ tool calls) into
                 // the conversation as turns.
@@ -2738,6 +2758,9 @@ pub async fn chat_run_owner(
                     Some(&text),
                 );
                 msg.id = run_msg_id.clone();
+                // PLAN-098 T-03（§5.3）：收束折叠（失败臂）——部分请求记录
+                // 如实保留，不静默缺行。
+                msg.telemetry = crate::telemetry::fold_records(&tel_sink_fold.drain());
                 persist_chat_run_msg(&chats, &session_id, &msg, "failed");
                 let seq_base = conversations
                     .get(&session_id)

@@ -391,6 +391,8 @@ mod tests {
             pending: None,
             // PLAN-093 T-08 新增字段（serde default）；测试夹具同步补位。
             design_context: None,
+            // PLAN-098 T-03 新增字段（serde default）；测试夹具同步补位。
+            telemetry: None,
         }
     }
 
