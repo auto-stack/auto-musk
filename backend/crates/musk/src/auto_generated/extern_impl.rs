@@ -3023,7 +3023,12 @@ pub fn relay_start_run(
             Ok(b) => {
                 if ws.relay.set_plan_execution(&run_id, b.state).is_some() {
                     crate::relay::plan_control::cancel_register(&run_id);
-                    ws.relay.set_context_var(&run_id, "plan_authorization", hw_req.authorization.as_deref().unwrap_or("human"));
+                    let auth = hw_req.authorization.as_deref().unwrap_or("human");
+                    ws.relay.set_context_var(&run_id, "plan_authorization", auth);
+                    if auth == "auto" {
+                        // authorization=auto → 会话级 approval_mode（驱动门放行）。
+                        ws.relay.set_context_var(&run_id, "approval_mode", "auto");
+                    }
                 }
             }
             Err(e) => {

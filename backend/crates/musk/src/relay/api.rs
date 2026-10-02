@@ -177,7 +177,13 @@ async fn start_run(
         // AC-10：取消旗标随 run 注册（/cancel 端点可置位）。
         crate::relay::plan_control::cancel_register(&run_id);
         // 技能快照来源记入上下文（诊断）；授权取值同样落上下文（批准时绑定）。
-        ws.relay.set_context_var(&run_id, "plan_authorization", req.authorization.as_deref().unwrap_or("human"));
+        // authorization=auto 桥接为会话级 approval_mode=auto——驱动在 human
+        // 门按既有语义即刻放行（等价于会话 auto 模式；§5.2 显式运行授权）。
+        let auth = req.authorization.as_deref().unwrap_or("human");
+        ws.relay.set_context_var(&run_id, "plan_authorization", auth);
+        if auth == "auto" {
+            ws.relay.set_context_var(&run_id, "approval_mode", "auto");
+        }
         let state = ws.relay.get(&run_id).unwrap_or(run_state);
         publish(
             &run_id,
