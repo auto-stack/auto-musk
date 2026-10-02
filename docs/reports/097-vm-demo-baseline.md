@@ -98,3 +98,68 @@ pnpm build                # vue-tsc && vite build,实测 13.5s exit 0 → dist/
 - §5.5「截图保留原始画面」：本次 PNG 为 `autoui_screenshot` 原图直存，无重绘/拼接；hash 已记录。
 - §4「work 必须重拍实际基线和二进制 hash」：即本报告指纹节；musk.exe 为 worktree 自建 release（7924304）。
 - 探针产物落仓外 `D:/autostack/.demo{,-build}/musk-097/t01*`，worktree 无残留（tmp/ 探针件为临时调试用，不入提交）。
+
+## T-02 冻结 — A(PLAN-096)交付的 B 轨消费合同(2026-10-02)
+
+A 已 review/merge 交付（main @ 7924304）。本节把消费面冻结为版本绑定事实；
+实现模块 `scripts/demo/contract.mjs`（零依赖）+ `tests/demo/contract.test.mjs`
+（V02 拒绝矩阵 13/13 绿）。
+
+### 冻结来源 hash（SHA-256 前 16 位）
+
+| 文件 | hash | 角色 |
+|---|---|---|
+| docs/specs/modules/plan-execution-contract.md | `43c26a74df899fff` | canonical 合同（PLAN-096 定型 2026-10-02, reviewed 2ed2210） |
+| backend/crates/musk/src/relay/plan_contract.rs | `e95fa7556c30bf2b` | DTO 单一来源（`PLAN_EXECUTION_CONTRACT_VERSION=1`） |
+| backend/crates/musk/src/relay/plan_control.rs | `a23500e350926042` | 阶段路由/有界修复/单写者 |
+| backend/crates/musk/src/relay/store.rs | `20e84b7f30c605d0` | RunState/RunEntry 挂载 plan_execution |
+| scripts/plan-flow-probe.mjs | `49dc9fdc9a93f374` | live 断言形状参照 |
+
+### 实际查询与入口
+
+| 通道 | 形状（landed 实测） |
+|---|---|
+| `GET /api/forge/relay/runs?workspace=<id>` | `{"runs":[RunSummary]}`（run_id/status/steps/token/updated_at，**不含 plan_execution**，newest first） |
+| `GET /api/forge/relay/runs/{run_id}?workspace=<id>` | RunState 全量 serde（**顶层键 `run_id`**；含 `events` 500 条窗口 + `plan_execution` 可选）；无此 run = **纯文本 404** `run 'x' not found`（非 null body——contract.mjs 已按此识别） |
+| 事件 | RunState.events 内 `type:"plan_stage_facts"`（RunPlanEvent 载荷：timestamp/plan_id/stage/attempt/outcome/repair_count/repair_limit/blocker/reviewed_commit/delivery_checkpoint/receipt_ref）；事件只作刷新提示，B 不依赖 SSE |
+| 收据 | `receipt_ref` 为 workspace 相对路径 `{ws}/.autoos/plan-delivery/PLAN-NNN.json`，键 `PLAN-NNN:r{revision}`，completion_kind=delivered 为交付事实 |
+
+### DTO 冻结（plan_execution，contract_version=1）
+
+- 必填：`contract_version/plan_id/plan_path/phase`；serde default 可缺席：
+  `plan_seq/plan_revision/attempt/outcome/repair_count/repair_limit/
+  continuations/blocker/binding/reviewed_commit/delivery_checkpoints/
+  receipt_ref/skills/stage_results`（skip_serializing_if 空）。
+- `phase ∈ plan|execute|review|document|delivered`；`outcome ∈
+  pass|needs_fix|needs_replan|blocked`。
+- `delivery_checkpoints` 键 ∈ `prepared/landed/ledger_refreshed/archived/
+  cleaned`；**phase=delivered ⇒ 五键全在**（缺件完成不绿，contract.mjs 拒绝）。
+- 样例：SUCCESS_SAMPLE（delivered：status=completed+五检查点+receipt
+  completion_kind=delivered；live 汇总见 archived 096 doc d1dd7f0）与
+  FAILURE_SAMPLE（L3 形态：status=failed+blocker 落事实+无 delivered 收据）
+  冻结在 contract.mjs；**live 全量 JSON 样例于 T-12 真实三轮演示时绑定**。
+
+### T-02 决策（计划 §5.1 留待本任务的三项）
+
+1. **store owner = 独立 `plan_progress_store.at`（不并入 RelayStore）**。
+   依据：生命周期不同（run 详情/门/步事实仍归 RelayStore；plan facts 需要
+   自己的单飞轮询状态机 + 代次绑定），B 明确不依赖 SSE（RelayStore 的
+   subscribeToRun 是 SSE 通道），避免把 AC-02 的乱序/陈旧/终态停轮询语义
+   缠进现有 OnRelayEvent 分支。投影 helper 独立成 `plan_progress_helpers.at`
+   （纯函数，可 V02 直接测）。
+2. **异步通道 = ForgeStore 已实证的"发即返 + 回填"模式**：`PollProgress
+   (every_ms: 1000)` 计时器拍 + `Http.get_msg` 形态异步请求（入队即返）+
+   `poll_inflight_ticks` 单飞守卫 + 请求代次（workspace/run/plan 身份 +
+   epoch 计数）迟到拒收 + 终态（delivered/failed/canceled）停拍。对齐 AC-02。
+3. **staging 命令 = T-01 §无链接构建 staging 冻结配方**（gen-only strict →
+   镜像 vendor 的 staging → lockfile+`--offline` → build），无修订。
+
+### V01/V02 状态
+
+- V02：`node --test tests/demo/contract.test.mjs` 13/13 绿（未知版本/缺件/
+  坏枚举/未知名检查点/delivered 缺件/绝对收据路径/坏事件形态/404 文本/
+  非法 JSON 全部显式拒绝；成功/失败样例通过）。
+- V01（live 路由绑定）：真后端烟测通过——空列表 `{"runs":[]}`、缺 run 纯
+  文本 404 被 contract.mjs 显式拒绝、discoverPlanRun(空)→null（run dir
+  `D:/autostack/.demo/musk-097/t02-smoke2`）。带 plan_execution 的全量 live
+  样例绑定推迟到 T-12（需真实模型 run），届时用 contract.mjs 原样校验。
