@@ -1,20 +1,29 @@
 // canvas_progress.at — PLAN-093 T-09: 生成/检查进度摘要（§5.8——设计对话
 // 区顶部默认紧凑、可展开；工具卡仍留在消息流，本件只投影不复制）。
 //
-// 数据面：ForgeStore.messages（blocks 双形态）+ 画布实时状态 props
-// （chats_view 双 store 挂载位传入——子件 prop 每帧重建刷新，ChatMessage
-// 先例）。行投影单源 canvasProgressRows（canvas_helpers.at，V03 直测）；
+// 数据面（PLAN-097 T-05，G-15 消除）：行源 = CanvasStore.cp_prog_rows
+//（store 域每拍预计算）。此前 VM 轨 computed 内函数调用/子件 store 字段
+// 读/.length 成员链恒返空（T-07 冒烟 + 本轮十余轮真机插桩实证，矩阵见
+// docs/reports/097-vm-demo-baseline.md T-05 附页）——摘要整块隐藏即
+// G-15。终版形态 = 本件自持 `use store: CanvasStore`（canvas_structure
+// 同款 own-store 读，VM 真机实证通道）：
+//   Init 推送 messages 快照（store.ProgInput）→ CanvasStore.Poll 每拍
+//   以自有 canvas 状态 + 该快照重算 cp_prog_rows → 视图直读
+//   .store.cp_prog_has / .store.cp_prog_rows（零 computed、零跨 store
+//   新字段读、零成员链判言）。web/VM 双轨同源（vue 侧 CanvasStore 同码）。
+//
 // 状态只来自工具 status 字段与实时状态，不嗅探文本（§5.8 绿勾禁令）。
 // lint=advisory（"通过"≠硬性验收）、bp 未用=不适用、未验证=未验证、
 // 帧行只写"最近画面已更新"（无因果证据不写热更新）。
-// VM 轨：视图 computed 内 use.web.fn 调用 VM 侧返空（T-07 冒烟实证，
-// 坑①家族）——摘要整块隐藏不误报；VM 轨消费随 G-11（PLAN-095 T-07）
-// 解除后按 store 域预计算形态补跑（canvas_store handler 域调 helper 已
-// 证可行）。
+// 已知边界：工具行以进 studio 时刻的 messages 快照投影（Init 单拍推送）；
+// studio 敞开期间新到消息的工具行需重进 studio 刷新——canvas 状态行
+//（启动预览/验证/帧）每拍实时。全 live 工具行刷新待跨 store 通道
+//（KNOWN-DEBT 候选）。
 
+use store: CanvasStore
 use.web useT from "src/front/ports/composables.at"
 
-widget CanvasProgressSummary(cv_state: str, cv_seq: int, cv_app: str, cv_gen: int, cv_error: str, cp_rows: []obj, cp_has: bool, cp_err: str) {
+widget CanvasProgressSummary(msgs: []obj) {
 
     setup {
         let t = useT()
@@ -29,11 +38,16 @@ widget CanvasProgressSummary(cv_state: str, cv_seq: int, cv_app: str, cv_gen: in
         Toggle,
     }
 
+    on {
+        // 挂载即推送 messages 快照（Init 派发 = relay_run_box/
+        // PlanProgressCard 已证形态）；canvas 状态行由 Poll 每拍重算。
+        .Init -> {
+            store.ProgInput(.msgs)
+        }
+    }
+
     view {
-        // 行源 = cp_rows prop（CanvasStore.Poll 域预计算）;非空门 = cp_has
-        // bool prop（store 域判言）——VM 视图 .length 成员链求值为空,
-        // 全件零 computed、零成员链（T-05 插桩实证矩阵,见 baseline 报告）。
-        if .cp_has {
+        if .store.cp_prog_has {
             col {
                 style: "shrink-0 border-b border-border bg-muted/20 px-4 py-1"
                 row {
@@ -54,7 +68,7 @@ widget CanvasProgressSummary(cv_state: str, cv_seq: int, cv_app: str, cv_gen: in
                     }
                     row {
                         style: "flex items-center gap-2 flex-1 min-w-0 overflow-hidden pl-1"
-                        for r in .cp_rows {
+                        for r in .store.cp_prog_rows {
                             span {
                                 key: r.key
                                 style: "inline-flex items-center gap-1 text-[11px] whitespace-nowrap min-w-0"
@@ -79,7 +93,7 @@ widget CanvasProgressSummary(cv_state: str, cv_seq: int, cv_app: str, cv_gen: in
                 if .open {
                     col {
                         style: "flex flex-col gap-0.5 pt-1 pb-0.5 pl-6"
-                        for r in .cp_rows {
+                        for r in .store.cp_prog_rows {
                             row {
                                 key: r.key
                                 style: "flex items-center gap-2 text-[11px] text-muted-foreground min-w-0"
