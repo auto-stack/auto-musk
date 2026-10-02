@@ -214,6 +214,10 @@ impl Tool for CreatePlan {
         if let Some((relay, run_id)) = &self.binding {
             relay.set_context_var(run_id, "plan_file", &format!("docs/plans/{}", pf.filename));
         }
+        // PLAN-096 T-12 live 实证：bookkeeping frontmatter 机械回填——
+        // 模型省略 plan_revision/current_step/total_steps 不再致命（语义面
+        // 章节任务验收仍由合同校验拒绝）；回填零 AI 参与。
+        mechanical_backfill(&self.plans, pf.seq);
         Ok(ToolOutput::text(json!({
             "seq": pf.seq,
             "plan_id": pf.id,
@@ -222,6 +226,37 @@ impl Tool for CreatePlan {
             "status": pf.status.as_str(),
         })
         .to_string()))
+    }
+}
+
+/// PLAN-096 T-12：bookkeeping frontmatter 机械回填。模型负责语义面
+/// （章节/任务/验收/spec-impact 列表）；plan_revision/current_step/
+/// total_steps 属机械簿记——创建时缺省补齐（total_steps = §8 checklist
+/// 任务数），读取端合同校验不再因簿记缺省而置败。
+fn mechanical_backfill(plans: &PlansStore, seq: u32) {
+    let Some(pf) = plans.get(seq) else { return };
+    let mut content = pf.content.clone();
+    let fm = match crate::relay::plan_contract::parse_frontmatter_yaml(&content) {
+        Ok(fm) => fm,
+        Err(_) => return, // 非法 YAML 由合同读取响亮拒绝，不在此猜
+    };
+    let has = |k: &str| !matches!(fm[k], yaml_rust::Yaml::Null | yaml_rust::Yaml::BadValue);
+    let mut changed = false;
+    if !has("plan_revision") {
+        content = crate::plans::set_field(&content, "plan_revision", "1");
+        changed = true;
+    }
+    if !has("current_step") {
+        content = crate::plans::set_field(&content, "current_step", "0");
+        changed = true;
+    }
+    if !has("total_steps") {
+        let tasks = crate::relay::plan_contract::task_count_of(&content);
+        content = crate::plans::set_field(&content, "total_steps", &tasks.to_string());
+        changed = true;
+    }
+    if changed {
+        let _ = plans.update(seq, &content);
     }
 }
 

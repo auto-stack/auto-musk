@@ -309,6 +309,16 @@ pub fn parse_sections(content: &str) -> Vec<PlanSection> {
     sections
 }
 
+/// Count §8 checklist tasks from raw content (mechanical backfill helper;
+/// lenient — 0 when §8 absent).
+pub fn task_count_of(content: &str) -> u32 {
+    parse_sections(content)
+        .into_iter()
+        .find(|s| s.number == "8")
+        .map(|s| parse_checklist(&s.body).len() as u32)
+        .unwrap_or(0)
+}
+
 /// One task/criterion line: `- [ ] T-01 something` / `- [x] AC-03 …`.
 /// Checkbox inner text: space/`x`/`X`/`✅ …` (the skill's `[✅ 已完成]` form).
 fn parse_checklist(body: &str) -> Vec<(bool, String)> {
