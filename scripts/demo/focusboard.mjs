@@ -12,6 +12,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { parseRunStateResponse } from './contract.mjs';
+import { deliveredGate, runChecks, canvasRestart, p001Checks, p002Checks, p003Checks, p003SessionVerdict, p003InputVerdict, p003ReadEvidence } from './assertions.mjs';
+import { readAgentWiki, publishWiki, readbackWiki, wikiHashVerdict } from './wiki.mjs';
+import { collectLandingFacts, landingVerdict } from './landing.mjs';
 
 // bootstrap 白名单（V02 直测）：仅需求/约定物。任何其他路径 = 违规。
 export const BOOTSTRAP_WHITELIST = [
@@ -121,6 +124,68 @@ export async function waitForRound({ base, token, runId, timeoutMs = 3600000, on
     if (verdict.stop) return { facts, verdict };
   }
   throw new Error(`focusboard: round ${runId} timeout after ${timeoutMs}ms（响亮失败,现场保留）`);
+}
+
+// ── T-09: 轮次交付验证复合 ──────────────────────────────────────────────
+// 每轮 waitForRound 停在 delivered 后调用：①交付门（未交付抛错——工程未
+// 交付不发下一需求，由调用方据此终止）；②目标 VM 行为断言（P00X 流，
+// canvasRestart 绑定为 mcp.__restart）；③Agent Wiki 正文经既有 API 发布/
+// 回读（hash 一致）；④工程落地对账（Specs/ledger/归档/ff/清理）。
+// 返回 {ok, checks, landing}；ok=false 时调用方不得进入下一轮。
+
+const ROUND_BUILDERS = { p001: p001Checks, p002: p002Checks, p003: p003Checks };
+
+export async function verifyRoundDelivery({ round, planLabel, facts, mcp, repoDir, base, token, workspaceId,
+  wikiFiles = [], runId, planMarker = null, log = () => {}, fetchImpl = fetch }) {
+  deliveredGate(facts, { planLabel }); // 未交付在此抛——不发下一需求
+
+  const withRestart = {
+    ...mcp,
+    __restart: mcp.__restart ?? (() => canvasRestart({ base, token, fetchImpl })),
+  };
+  const builder = ROUND_BUILDERS[round];
+  if (!builder) throw new Error(`focusboard: unknown round '${round}'（expected p001|p002|p003）`);
+  const behavior = await runChecks(builder({ mcp: withRestart, repoDir }), { log });
+
+  const wikiChecks = [];
+  for (const rel of wikiFiles) {
+    try {
+      const content = readAgentWiki(repoDir, rel);
+      const slug = rel.replace(/^docs[\\/]wiki[\\/]/, '').replace(/\.md$/, '');
+      const pub = await publishWiki({ base, token, workspaceId, slug, title: slug, content, fetchImpl });
+      const rb = await readbackWiki({ base, token, workspaceId, slug, fetchImpl });
+      const v = wikiHashVerdict(pub.sourceSha256, rb.readbackSha256);
+      wikiChecks.push({ name: `wiki ${rel}（${pub.action}+回读）`, ok: v.ok, detail: v.reason });
+    } catch (e) {
+      wikiChecks.push({ name: `wiki ${rel}`, ok: false, detail: e.message });
+    }
+    log(`[wiki] ${rel} → ${wikiChecks[wikiChecks.length - 1].ok ? 'PASS' : 'FAIL'}`);
+  }
+
+  let landingCheck;
+  try {
+    const facts2 = collectLandingFacts({ repoDir, runId, planMarker });
+    const lv = landingVerdict(facts2);
+    landingCheck = { name: `landing 对账(${planLabel}: specs/ledger/归档/ff/清理)`, ok: lv.ok, detail: lv.errors.join('; ') || '线性合入+分支/worktree 清理+Specs/ledger/归档/Wiki 齐' };
+  } catch (e) {
+    landingCheck = { name: `landing 对账(${planLabel})`, ok: false, detail: e.message };
+  }
+  log(`[landing] ${landingCheck.ok ? 'PASS' : 'FAIL'} ${landingCheck.detail}`);
+
+  const checks = [...behavior.checks, ...wikiChecks, landingCheck];
+  return { ok: checks.every(c => c.ok), checks, behavior, landing: landingCheck };
+}
+
+// P003 上下文来源复合（AC-12）：新会话 + 输入=需求原文 + 事件窗内真实读取。
+export function p003ContextChecks({ p003SessionId, priorSessionIds, inputText, requestText, events }) {
+  const s = p003SessionVerdict(p003SessionId, priorSessionIds ?? []);
+  const i = p003InputVerdict(inputText, requestText);
+  const r = p003ReadEvidence(events);
+  return [
+    { name: 'P003 新会话(无前两轮聊天注入)', ok: s.ok, detail: s.reason },
+    { name: 'P003 会话输入=需求原文', ok: i.ok, detail: i.reason },
+    { name: 'P003 真实读取 Specs/工件(事件窗证据)', ok: r.verdict.ok, detail: r.verdict.ok ? `${r.paths.length} reads: ${r.paths.slice(0, 5).join(', ')}` : r.verdict.reason },
+  ];
 }
 
 // CLI：bootstrap 独立可跑（T-08 V01 验收面）
