@@ -71,3 +71,15 @@ cargo lib：隔离（多工作区互不可见）/往返去重持久化（重载�
 vitest：i18n 中英键 parity（whitelist.* + nav.whitelist）；E2E：:8083 serve
 走查（ADD canonical 入账 → 400 文案三类 → 重启仍在 → REMOVE 即时空；
 registry 快照-还原口径）。
+
+## PLAN-096 修订（run 级执行作用域，2026-10-02）
+
+- plan 流 execute/review/document 相位：`ToolContext.execution_root`
+  显式执行作用域——文件/命令工具根与 Canvas 路径解析（resolve_within_
+  sandbox 优先该字段）限定在 `plan_worktree::ensure_plan_worktree` 登记
+  的开发 worktree；主检出代码**不注册为可写根**，白名单语义与用户配置
+  不变（run 级注入根 ≠ 全局白名单扩权）。plan 相位与无作用域 run 维持
+  本章多根判定。
+- worktree 租约纪律：main checkout 校验、默认分支探测（不硬编码）、
+  占用不接管、reparse point guard、合入核对前置的安全移除——详见
+  `plan-execution-contract.md`。

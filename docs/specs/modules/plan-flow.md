@@ -136,7 +136,37 @@ LLM 请求打最小观测行（入口 model/stream/candidates + 结果 elapsed/u
 - relay 工具面 = mode.tools 空 = 全量注册（plan 六件套 + 文件/命令 + orch），
   无 per-职业最小权限 enforcement（`professions.json` 的 allowed_tools 不在
   relay 路径消费）——最小权限另立计划。
-- relay factory `skills: false`：相位纪律内化于模板，不挂 skill 工具。
+- ~~relay factory `skills: false`：相位纪律内化于模板，不挂 skill 工具。~~
+  **PLAN-096 修订**：纪律源=四技能快照机械注入相位任务（factory 仍
+  skills:false 不挂 skill 工具，但模板内嵌技能全文+版本 hash；缺源硬失败）
+  ——执行合同详见 `plan-execution-contract.md`。
 - 冒烟取证注意：GET run 的事件为 500 条窗口视图，早期事件（含 GateWaiting /
   首相位工具调用）会被挤出，全量证据需落盘 `/events` 或提前快照（PLAN-086
   F-R1）；coder 40 turns 对超长 execute 相位的充分性仍为运行观察项。
+
+## PLAN-096 修订（受控执行合同，2026-10-02）
+
+本节取代上文与 PLAN-096 冲突的行为描述；未冲突部分（流程形状/固定职业/
+门位置/handoff 注入门控/计划文件机械传递）继续有效。
+
+- **相位输入**：模板 = 固定职业 + 技能全文快照（`plan_contract::
+  snapshot_plan_skills`，缺源硬失败）+ 机械输入（需求/plan_file/绑定事实）
+  + 结果提交协议（`complete_plan_stage`）。phase→skill 固定映射：
+  plan→auto-plan-new、execute→auto-plan-work、review→auto-plan-review、
+  document→auto-plan-merge；execute 另注入 Canvas 生成指引（原
+  `mode.name=="coding"` 专享条件补齐）。plan 相位是计划创建者——不适用
+  plan_file 缺失阻断条款（该条款仅约束 execute/review/document）。
+- **路由唯一源**：~~transition_plan 状态机~~ → `PlanControl::on_stage_end`
+  单写者路由（阶段结果+服务器事实核验），计划状态机推进成为路由的
+  **结果**而非输入；transition_plan/merge_plan 工具对受管计划拒绝（409）。
+  review 失败不再"run 结束等用户"——needs_fix 自动回退（≤3 轮+无进展
+  早停+findings 注入），needs_replan/blocked 响亮停止。细节见
+  `plan-execution-contract.md`。
+- **沉淀**：~~`merge_plan` 章节复制+立即归档~~ → `plan_delivery` 五检查点
+  （prepare/land/refresh/archive/cleanup，canonical 先合入、账本经 store
+  刷新、显式归档殿后、清理失败=cleanup_pending）。SD-03。
+- **execute 门**：approve 即冻结批准绑定（合同/Git 事实/worktree 租约）
+  并推进计划 drafting→executing；authorization=auto 桥接 approval_mode
+  （会话 auto 语义等价；REST 显式授权同路径）。
+- **执行作用域**：execute/review/document 相位文件/命令/Canvas 工具落
+  run 的开发 worktree（execution_root）；主检出代码不注册为可写根。SD-04。

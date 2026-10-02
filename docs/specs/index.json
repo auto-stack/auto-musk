@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "updated_at": "2026-10-01T17:00:00+08:00",
+  "updated_at": "2026-10-02T15:30:00+08:00",
   "based_on": "full code scan 2026-08-14 (backend Rust + dual frontend + codegen)",
   "spec_files": [
     "00-overview.md",
@@ -23,7 +23,8 @@
     "modules/app-canvas.md",
     "modules/autoui-canvas-runtime.md",
     "modules/ui-lint.md",
-    "modules/app-studio-ui.md"
+    "modules/app-studio-ui.md",
+    "modules/plan-execution-contract.md"
   ],
   "goals": [
     "goal-agent",

@@ -70,3 +70,16 @@ section 复用，不新造重复条目。
 - `load()` 不做隔离改名（读路径保持无副作用）；响亮错误 + 禁手改指引已足够。
 - 单文件 JSON 存储（无并发事务）；多写者协调靠"一个写者"纪律，工具序列
   read/check/write 不构成锁。
+
+## PLAN-096 修订（受控交付的账本刷新，2026-10-02）
+
+- 正式交付的 ledger 刷新唯一通道 = `plan_delivery refresh`（SpecsStore
+  upsert；canonical 先经 land 合入主检出，账本后刷——顺序不可倒置）。
+  item `file`=canonical 路径、`tags`=[source:<sha256>, commit:<交付提交>,
+  plan:<PLAN-NNN>]，写后回读核验。受管计划的 `merge_plan` 章节复制沉淀
+  拒绝（409）——本章上文"区映射建议"的 P<seq>-<n> 通道仅余未受管旧计划。
+- 重复刷新幂等（同 id upsert 零增长）；无关条目与历史保留。
+- 交付链遇 load 失败 → blocked 响亮（不假 delivered、字节零破坏）——
+  K6 条款在交付链的落地。
+- 元数据写能力经 store 语义补足（source hash/commit 入 tags/file），
+  不手拼 JSON。
