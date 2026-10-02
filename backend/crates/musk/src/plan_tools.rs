@@ -288,16 +288,23 @@ impl Tool for UpdatePlan {
 /// `merge_plan`，搁置走 HTTP archive（PLAN-033 单一终态）。
 pub struct TransitionPlan {
     plans: Arc<PlansStore>,
+    /// PLAN-096 T-10（AC-12）：受管计划拒绝旧状态机入口（受控路由唯一）。
+    managed_check: Option<Arc<crate::relay::store::RunStore>>,
 }
 
 impl TransitionPlan {
     pub fn from_ctx(ctx: &ToolContext) -> Self {
+        let ws: Arc<WorkspaceStores> = ctx.state.registry.get(&ctx.workspace_id);
         Self {
-            plans: stores_of(ctx).0,
+            plans: ws.plans.clone(),
+            managed_check: Some(ws.relay.clone()),
         }
     }
     pub fn with_store(plans: Arc<PlansStore>) -> Self {
-        Self { plans }
+        Self {
+            plans,
+            managed_check: None,
+        }
     }
 }
 
@@ -335,6 +342,13 @@ impl Tool for TransitionPlan {
         let to = args["to"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'to'".into()))?;
+        if let Some(relay) = &self.managed_check {
+            if let Some(run_id) = relay.managed_by(seq) {
+                return Err(ToolError::Exec(format!(
+                    "plan {seq:03} is managed by plan-flow run {run_id} — submit results via complete_plan_stage; the controller owns transitions"
+                )));
+            }
+        }
         let new_status = PlanStatus::from_str_lossy(to);
         match self.plans.transition(seq, new_status) {
             Ok(pf) => Ok(ToolOutput::text(format!(
@@ -363,15 +377,25 @@ impl Tool for TransitionPlan {
 pub struct MergePlan {
     plans: Arc<PlansStore>,
     specs: Arc<SpecsStore>,
+    /// PLAN-096 T-10（AC-12/SD-03）：受管计划拒绝旧 merge（plan_delivery 唯一）。
+    managed_check: Option<Arc<crate::relay::store::RunStore>>,
 }
 
 impl MergePlan {
     pub fn from_ctx(ctx: &ToolContext) -> Self {
-        let (plans, specs) = stores_of(ctx);
-        Self { plans, specs }
+        let ws: Arc<WorkspaceStores> = ctx.state.registry.get(&ctx.workspace_id);
+        Self {
+            plans: ws.plans.clone(),
+            specs: ws.specs.clone(),
+            managed_check: Some(ws.relay.clone()),
+        }
     }
     pub fn with_stores(plans: Arc<PlansStore>, specs: Arc<SpecsStore>) -> Self {
-        Self { plans, specs }
+        Self {
+            plans,
+            specs,
+            managed_check: None,
+        }
     }
 }
 
@@ -401,6 +425,13 @@ impl Tool for MergePlan {
             .as_u64()
             .and_then(|n| u32::try_from(n).ok())
             .ok_or_else(|| ToolError::Args("missing/invalid 'seq'".into()))?;
+        if let Some(relay) = &self.managed_check {
+            if let Some(run_id) = relay.managed_by(seq) {
+                return Err(ToolError::Exec(format!(
+                    "plan {seq:03} is managed by plan-flow run {run_id} — delivery goes through plan_delivery (prepare/land/refresh/archive/cleanup)"
+                )));
+            }
+        }
         let result = merge_plan_stores(&self.plans, &self.specs, seq).map_err(ToolError::Exec)?;
         Ok(ToolOutput::text(json!({
             "plan_id": result.plan_id,

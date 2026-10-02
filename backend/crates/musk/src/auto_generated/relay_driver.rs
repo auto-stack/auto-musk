@@ -95,6 +95,23 @@ async fn drive_loop(state: Arc<AppState>, ws_id: &str, run_id: &str) -> Result<b
                         }
                     }
                     if ws.relay.context_var(run_id, "approval_mode").as_deref() == Some("auto") {
+                        // PLAN-096 T-10：auto 放行前冻结批准绑定（hw 同规则
+                        // 单源 attach_binding_on_gate_approve；旧式无绑定
+                        // run 跳过）。失败 = 不放行、置败响亮失败。
+                        if ws.relay.plan_execution(run_id).is_some() {
+                            let state_arc = std::sync::Arc::new(state.clone());
+                            let ws_id_for_gate = ws.relay.workspace_of(run_id).unwrap_or_default();
+                            if let Err(e) = crate::relay::plan_control::attach_binding_on_gate_approve(
+                                &state_arc, &ws_id_for_gate, run_id,
+                            ) {
+                                tracing::error!("drive_run: {run_id} gate binding failed: {e}");
+                                let _ = ws.relay.fail_run(
+                                    run_id,
+                                    &format!("approval binding failed — gate not passed: {e}"),
+                                );
+                                return Ok(false);
+                            }
+                        }
                         // PLAN-094 T-03（UAT K4/K5）：放行前先过 execute 门
                         // 不变式——plan 流 execute 门上的 approve 必须有已落实
                         // 的计划文件；缺失时不放行、直接置败响亮失败（plan D1

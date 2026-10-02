@@ -174,6 +174,8 @@ async fn start_run(
             )
                 .into_response();
         }
+        // AC-10：取消旗标随 run 注册（/cancel 端点可置位）。
+        crate::relay::plan_control::cancel_register(&run_id);
         // 技能快照来源记入上下文（诊断）；授权取值同样落上下文（批准时绑定）。
         ws.relay.set_context_var(&run_id, "plan_authorization", req.authorization.as_deref().unwrap_or("human"));
         let state = ws.relay.get(&run_id).unwrap_or(run_state);
@@ -247,6 +249,22 @@ async fn run_report_html(
     }
 }
 
+/// `POST /api/forge/relay/runs/{run_id}/cancel` — PLAN-096 T-10（AC-10）：
+/// 置位 plan owner 取消旗标——控制器在下一次阶段收束即停，保留现场并阻止
+/// 继续 land/archive。非 plan 流 run 是 no-op（返回当前状态）。
+async fn cancel_run(
+    State(state): State<AppState>,
+    Path(run_id): Path<String>,
+    Query(q): Query<WorkspaceQuery>,
+) -> Response {
+    let ws = state.registry.get(&q.id_or_default(&state.registry));
+    if ws.relay.get(&run_id).is_none() {
+        return (StatusCode::NOT_FOUND, format!("run '{run_id}' not found")).into_response();
+    }
+    let cancelled = crate::relay::plan_control::cancel_set(&run_id);
+    Json(serde_json::json!({ "run_id": run_id, "cancel_registered": cancelled })).into_response()
+}
+
 /// `DELETE /api/forge/relay/runs/{run_id}` — delete a run.
 async fn delete_run(
     State(state): State<AppState>,
@@ -254,6 +272,8 @@ async fn delete_run(
     Query(q): Query<WorkspaceQuery>,
 ) -> Response {
     let ws = state.registry.get(&q.id_or_default(&state.registry));
+    // 删除前清 plan 取消旗标（防悬挂）。
+    crate::relay::plan_control::cancel_remove(&run_id);
     if ws.relay.delete(&run_id) {
         Json(serde_json::json!({"status": "deleted", "id": run_id})).into_response()
     } else {
@@ -325,6 +345,16 @@ async fn submit_handoff(
             return (StatusCode::BAD_REQUEST, format!("invalid handoff: {e}")).into_response()
         }
     };
+    // PLAN-096 T-10（AC-04/AC-12）：plan 流 run 的外部 handoff REST 受管——
+    // 自然语言 handoff 不能替代阶段结果推进。
+    if ws.relay.plan_execution(&run_id).is_some() {
+        return (
+            StatusCode::CONFLICT,
+            "plan-flow runs advance only through complete_plan_stage results (external handoff refused)"
+                .to_string(),
+        )
+            .into_response();
+    }
     match ws.relay.submit_handoff(&run_id, handoff) {
         Some((result, state)) => {
             publish_advance_result_with_report(&run_id, &result, ws.relay.run_report(&run_id));
@@ -424,6 +454,16 @@ async fn rerun_run(
     Query(q): Query<WorkspaceQuery>,
 ) -> Response {
     let ws = state.registry.get(&q.id_or_default(&state.registry));
+    // PLAN-096 T-10（AC-12）：plan 流 run 不允许 rerun 跳步（受控路由唯一
+    // 回退通道；needs_fix 由控制器回拨）。
+    if ws.relay.plan_execution(&run_id).is_some() {
+        return (
+            StatusCode::CONFLICT,
+            "plan-flow runs do not support rerun — repair routing is controller-owned (needs_fix → execute)"
+                .to_string(),
+        )
+            .into_response();
+    }
     match ws.relay.rerun(&run_id) {
         Some(state) => Json(state).into_response(),
         None => (StatusCode::NOT_FOUND, format!("run '{run_id}' not found")).into_response(),
@@ -720,6 +760,7 @@ pub fn relay_routes() -> Router<AppState> {
         .route("/api/forge/relay/runs/{run_id}/rerun", post(rerun_run))
         .route("/api/forge/relay/runs/{run_id}/handoff", post(submit_handoff))
         .route("/api/forge/relay/runs/{run_id}/gate", post(resolve_gate))
+        .route("/api/forge/relay/runs/{run_id}/cancel", post(cancel_run))
         .route("/api/forge/relay/runs/{run_id}/events", get(run_events))
         .route("/api/forge/relay/runs/{run_id}/report", get(run_report_html))
         .route("/api/forge/relay/professions", get(list_professions))

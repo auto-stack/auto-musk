@@ -2050,6 +2050,42 @@ pub async fn chat_run_owner(
 
     if let Some(plan_id) = crate::server::parse_plan_merge_command(&user_msg) {
         let task = format!("沉淀 {plan_id} 到 Spec 知识库");
+        // PLAN-096 T-10（§5.8）：/auto-plan:merge 短路统一走受控交付——
+        // bootstrap（目标合同可读 + 技能快照冻结）失败时向会话回真实错误，
+        // 不再启动注定失败的旧式 run。
+        let bootstrap = match crate::relay::plan_control::bootstrap_plan_run_default(
+            "plan-merge",
+            &task,
+            &ws.plans.plans_dir,
+        ) {
+            Ok(b) => b,
+            Err(e) => {
+                let summary = format!(
+                    "⚠️ **智能沉淀未启动**（{plan_id}）：{e}
+
+修复后重新发起 /auto-plan:merge。"
+                );
+                let mut msg = crate::chats::ChatMessage::assistant(summary.clone());
+                let _ = ws.chats.append_message(&session_id, msg.clone());
+                let seq_base = ws
+                    .conversations
+                    .get(&session_id)
+                    .map(|c| c.turns.len())
+                    .unwrap_or(0);
+                for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
+                    let _ = ws.conversations.append_turn(&session_id, turn);
+                }
+                let ev = serde_json::json!({"type": "delta", "text": summary});
+                emit_bus(&ev);
+                mpsc_try_send(&tx, ev);
+                let ev_done = serde_json::json!({"type": "done", "output": summary, "turns": 1, "tool_calls": []});
+                emit_bus(&ev_done);
+                mpsc_try_send(&tx, ev_done);
+                s.0.chat_run_finish(&run_key);
+                close_channel(&tx);
+                return;
+            }
+        };
         let req = crate::relay::store::StartRunRequest {
             run_id: None,
             flow_id: Some("plan-merge".into()),
@@ -2058,6 +2094,10 @@ pub async fn chat_run_owner(
             authorization: None,
         };
         let (run_id, _initial) = ws.relay.start_run(&req, Some(ws_id.clone()));
+        if ws.relay.set_plan_execution(&run_id, bootstrap.state).is_none() {
+            tracing::error!("plan-merge shortcut: run {run_id} vanished while attaching plan execution");
+        }
+        crate::relay::plan_control::cancel_register(&run_id);
         // PLAN-034 T9：登记发起会话——driver 完成时把报告消息写回这里。
         ws.relay.set_context_var(&run_id, "chat_session_id", &session_id);
         // PLAN-067 T-05：登记审批模式（plan-merge 流无 gate,登记为一致性
@@ -2969,6 +3009,28 @@ pub fn relay_start_run(
         authorization: None,
     };
     let (run_id, run_state) = ws.relay.start_run(&hw_req, Some(ws_id.clone()));
+    // PLAN-096 T-10（AC-12）：ag 轨 plan 流启动同合同——bootstrap（技能
+    // 快照 + plan-merge 目标合同）+ 绑定登记 + 取消旗标；失败即删 run 并
+    // 返回错误信封（与 hw api.rs 同规则单源）。
+    let flow_for_boot = hw_req.flow_id.clone().unwrap_or_else(|| "plan".into());
+    if matches!(flow_for_boot.as_str(), "plan" | "plan-merge") {
+        match crate::relay::plan_control::bootstrap_plan_run_default(
+            &flow_for_boot,
+            hw_req.task.as_deref().unwrap_or_default(),
+            &ws.plans.plans_dir,
+        ) {
+            Ok(b) => {
+                if ws.relay.set_plan_execution(&run_id, b.state).is_some() {
+                    crate::relay::plan_control::cancel_register(&run_id);
+                    ws.relay.set_context_var(&run_id, "plan_authorization", hw_req.authorization.as_deref().unwrap_or("human"));
+                }
+            }
+            Err(e) => {
+                ws.relay.delete(&run_id);
+                return serde_json::json!({"error": {"code": 400, "message": format!("plan flow bootstrap failed: {e}")}});
+            }
+        }
+    }
     // 合成 relay_update,让任何存活订阅者刷新(hw api.rs start_run 同款)。
     crate::relay::api::publish(
         &run_id,

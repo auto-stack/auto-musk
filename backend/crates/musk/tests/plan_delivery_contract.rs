@@ -8,6 +8,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use tower::ServiceExt;
+
 use auto_ai_agent::Client;
 use auto_ai_client::{ClientError, CompletionRequest, CompletionResponse};
 use musk::server::AppState;
@@ -454,5 +456,171 @@ fn document_stage_end_gates_on_checkpoints() {
     musk::plan_delivery::cleanup(&env.state, &env.ws_id, &env.run_id).unwrap();
     record_stage_claim(&ws.relay, &env.run_id, claim("document", "pass")).unwrap();
     assert!(matches!(on_stage_end(&env.state, &env.ws_id, &env.run_id), StageRouting::Complete));
+    std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
+}
+
+// ── T-10: legacy bypasses / facts surface (AC-04/12/13) ────────────────────
+
+/// AC-12：受管计划的旧入口全部拒绝——merge_plan / transition_plan 工具与
+/// POST /api/plans/{seq}/merge|transition HTTP 端点（受控通道唯一）。
+#[tokio::test]
+#[serial]
+async fn managed_plan_refuses_legacy_bypasses() {
+    use auto_ai_agent::Tool;
+    let env = reach_document("bypass");
+    let ws = env.state.registry.get(&env.ws_id);
+    assert!(ws.relay.managed_by(1).is_some(), "run manages plan 001");
+
+    // 工具旁路：merge_plan。
+    let merge = musk::plan_tools::MergePlan::from_ctx(&musk::tool_context::ToolContext {
+        state: Arc::new(env.state.clone()),
+        workspace_id: env.ws_id.clone(),
+        parent_conversation_id: env.run_id.clone(),
+        progress: None,
+        approval_mode: None,
+        execution_root: None,
+    });
+    let err = merge
+        .execute(&serde_json::json!({ "seq": 1 }))
+        .await
+        .unwrap_err();
+    assert!(format!("{err}").contains("plan_delivery"), "{err}");
+
+    // 工具旁路：transition_plan。
+    let tp = musk::plan_tools::TransitionPlan::from_ctx(&musk::tool_context::ToolContext {
+        state: Arc::new(env.state.clone()),
+        workspace_id: env.ws_id.clone(),
+        parent_conversation_id: env.run_id.clone(),
+        progress: None,
+        approval_mode: None,
+        execution_root: None,
+    });
+    let err = tp
+        .execute(&serde_json::json!({ "seq": 1, "to": "execution_done" }))
+        .await
+        .unwrap_err();
+    assert!(format!("{err}").contains("controller owns transitions"), "{err}");
+
+    // HTTP 旁路：/api/plans/1/merge 与 /transition。
+    let app = axum::Router::new().merge(musk::plans::plans_routes()).with_state(env.state.clone());
+    let resp = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/api/plans/1/merge")
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 409, "managed merge refused");
+    let resp = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/api/plans/1/transition")
+                .header("content-type", "application/json")
+                .body(axum::body::Body::from(r#"{"status":"execution_done"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 409, "managed transition refused");
+    // 未受管的计划不受影响（无 run 绑定 → 旧语义照旧：此处 seq=2 不存在，
+    // 404 而非 409 即证明守卫只作用于受管计划）。
+    let resp = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/api/plans/2/merge")
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 404, "unmanaged plan keeps legacy semantics");
+    std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
+}
+
+/// AC-04/12：plan 流 run 的外部 handoff 与 rerun REST 拒绝；AC-13：
+/// RunState.plan_execution 事实面与 plan_stage_facts 事件可消费（旧字段兼容）。
+#[test]
+#[serial]
+fn plan_run_external_handoff_rerun_refused_and_facts_surface() {
+    let env = reach_document("surf");
+    let ws = env.state.registry.get(&env.ws_id);
+
+    // RunState.plan_execution 携带真实事实（B 消费面样例形状）。
+    let state = ws.relay.get(&env.run_id).unwrap();
+    let pe = state.plan_execution.as_ref().expect("plan_execution exposed");
+    assert_eq!(pe.contract_version, 1);
+    assert_eq!(pe.plan_id, "PLAN-001");
+    assert_eq!(pe.phase, "document");
+    assert_eq!(pe.repair_limit, 3);
+    let binding = pe.binding.as_ref().unwrap();
+    assert_eq!(binding.default_branch, "master");
+    assert!(binding.execution_root.is_some());
+    assert_eq!(binding.skills_hashes.len(), 4);
+
+    // 事件流包含 plan_stage_facts（approve/bound、plan pass、execute pass、
+    // review pass 等）——B 轨按 event_type 消费。
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    // run.events 经 RunState 暴露（500 窗口内）。
+    assert!(
+        state
+            .events
+            .iter()
+            .any(|e| e.event_type() == "plan_stage_facts"),
+        "plan_stage_facts mirrored into run events"
+    );
+
+    // 外部 handoff REST：409。
+    let rt = rt;
+    let _ = rt;
+    // （直接调 store 级等价面即可——HTTP 层守卫已在 api.rs 内联，
+    // 此处验证守卫条件与拒绝语义的绑定面。）
+    assert!(ws.relay.plan_execution(&env.run_id).is_some());
+    std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
+}
+
+/// 外部 handoff REST 的 HTTP 级拒绝（完整 axum oneshot）。
+#[tokio::test]
+#[serial]
+async fn external_handoff_rest_refused_for_plan_runs() {
+    let env = reach_document("hdoff");
+    let app = axum::Router::new()
+        .merge(musk::relay::api::relay_routes())
+        .with_state(env.state.clone());
+    let resp = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri(format!("/api/forge/relay/runs/{}/handoff", env.run_id))
+                .header("content-type", "application/json")
+                .body(axum::body::Body::from(
+                    r#"{"handoff":{"from":"assistant","to":"end","summary":"fake done","decisions":[],"open_questions":[],"work_product":[],"token_usage":{"step_tokens":0,"cumulative":0,"budget_remaining":0},"context_for_next":{"files_to_read":[],"files_to_test":[],"warnings":[]}}}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 409, "external handoff refused for plan runs");
+    // rerun 同拒。
+    let resp = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri(format!("/api/forge/relay/runs/{}/rerun", env.run_id))
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 409, "rerun refused for plan runs");
     std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
 }

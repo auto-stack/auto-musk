@@ -1061,6 +1061,27 @@ impl RunStore {
         Some(r)
     }
 
+    /// PLAN-096 T-10 (AC-12): the run currently managing plan `seq`'s
+    /// delivery, if any (non-terminal, not yet delivered). Managed plans
+    /// refuse the legacy merge/transition/archive bypasses.
+    pub fn managed_by(&self, seq: u32) -> Option<String> {
+        let runs = self.runs.lock().unwrap();
+        runs.values()
+            .find(|e| {
+                let pe = match e.plan_execution.as_ref() {
+                    Some(pe) => pe,
+                    None => return false,
+                };
+                pe.plan_seq == seq
+                    && pe.phase != "delivered"
+                    && !matches!(
+                        e.engine.status,
+                        PipelineStatus::Failed { .. } | PipelineStatus::Completed
+                    )
+            })
+            .map(|e| e.run_id.clone())
+    }
+
     /// PLAN-096 T-05: the run's plan-execution facts (cloned).
     pub fn plan_execution(
         &self,

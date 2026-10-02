@@ -737,6 +737,13 @@ async fn plans_transition(
     Json(req): Json<TransitionPlanRequest>,
 ) -> Result<Json<PlanFile>, (StatusCode, String)> {
     let ws = state.registry.get(&q.workspace.id_or_default(&state.registry));
+    // PLAN-096 T-10（AC-12）：受管计划的旧状态机入口拒绝（受控路由唯一）。
+    if let Some(run_id) = ws.relay.managed_by(seq) {
+        return Err((
+            StatusCode::CONFLICT,
+            format!("plan {seq:03} is managed by plan-flow run {run_id} — use the controlled routing, not the legacy transition endpoint"),
+        ));
+    }
     let new_status = PlanStatus::from_str_lossy(&req.status);
     ws.plans
         .transition(seq, new_status)
@@ -752,6 +759,13 @@ async fn plans_archive(
     AxumPath(seq): AxumPath<u32>,
 ) -> Result<Json<PlanFile>, (StatusCode, String)> {
     let ws = state.registry.get(&q.workspace.id_or_default(&state.registry));
+    // PLAN-096 T-10（AC-12）：受管计划拒绝旧归档入口（交付归档唯一）。
+    if let Some(run_id) = ws.relay.managed_by(seq) {
+        return Err((
+            StatusCode::CONFLICT,
+            format!("plan {seq:03} is managed by plan-flow run {run_id} — delivery archive is controller-owned"),
+        ));
+    }
     ws.plans
         .archive(seq)
         .map(Json)
@@ -773,6 +787,14 @@ async fn plans_merge(
     AxumPath(seq): AxumPath<u32>,
 ) -> Result<Json<crate::plan_merge::MergeResult>, (StatusCode, String)> {
     let ws = state.registry.get(&q.workspace.id_or_default(&state.registry));
+    // PLAN-096 T-10（AC-12/SD-03）：受管计划拒绝旧 merge（章节复制沉淀已被
+    // 受控交付取代；plan_delivery 的 store-mediated refresh 是唯一通道）。
+    if let Some(run_id) = ws.relay.managed_by(seq) {
+        return Err((
+            StatusCode::CONFLICT,
+            format!("plan {seq:03} is managed by plan-flow run {run_id} — delivery goes through plan_delivery, not the legacy merge"),
+        ));
+    }
     merge_plan_stores(&ws.plans, &ws.specs, seq)
         .map(Json)
         .map_err(|e| {

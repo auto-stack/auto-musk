@@ -119,6 +119,8 @@ impl Tool for SpawnRelay {
                     "spawn_relay: run {run_id} vanished while attaching plan execution"
                 )));
             }
+            // AC-10：取消旗标随 run 注册。
+            crate::relay::plan_control::cancel_register(&run_id);
         }
         // PLAN-034 T9：登记发起会话——driver 完成时把报告消息写回这里。
         ws.relay
