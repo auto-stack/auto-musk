@@ -594,6 +594,59 @@ fn semantic_hash_of(c: &PlanContract) -> String {
     sha256_hex(semantic_canonical_text(c).as_bytes())
 }
 
+/// 分部件语义哈希（诊断面）：漂移时报文可点名哪个语义面变化
+/// （identity / lists / s1 / s2 / s5 / s7 / s8）。
+pub fn semantic_parts(c: &PlanContract) -> BTreeMap<String, String> {
+    let mut m = BTreeMap::new();
+    let mut ident = String::new();
+    ident.push_str(&format!("plan_id: {}\nfeature_name: {}", c.plan_id, c.feature_name));
+    m.insert("identity".into(), sha256_hex(ident.as_bytes()));
+    let lists = format!(
+        "supersedes: [{}]\nnew: [{}]\ngoals: [{}]",
+        c.supersedes_spec_components.join(" | "),
+        c.new_spec_components.join(" | "),
+        c.touched_goals.join(" | ")
+    );
+    m.insert("lists".into(), sha256_hex(lists.as_bytes()));
+    for num in ["1", "2", "5", "7", "8"] {
+        let mut buf = String::new();
+        match num {
+            "7" => {
+                buf.push_str("\n## 7 验收标准\n");
+                for ac in &c.acceptance {
+                    let norm = normalize_semantic_line(&ac.text);
+                    if !norm.is_empty() {
+                        buf.push_str(&format!("- [_] {norm}\n"));
+                    }
+                }
+            }
+            "8" => {
+                buf.push_str("\n## 8 执行步骤\n");
+                for t in &c.tasks {
+                    let norm = normalize_semantic_line(&t.text);
+                    if !norm.is_empty() {
+                        buf.push_str(&format!("- [_] {norm}\n"));
+                    }
+                }
+            }
+            _ => {
+                if let Some(sec) = c.sections.get(num) {
+                    buf.push_str(&format!("\n## {} {}\n", sec.number, sec.title));
+                    for line in sec.body.lines() {
+                        let norm = normalize_semantic_line(line);
+                        if !norm.is_empty() {
+                            buf.push_str(&norm);
+                            buf.push('\n'.to_string().pop().unwrap());
+                        }
+                    }
+                }
+            }
+        }
+        m.insert(format!("s{num}"), sha256_hex(buf.as_bytes()));
+    }
+    m
+}
+
 // ── Execution facts surface (B-track consumption contract draft) ───────────
 
 /// Structured result submitted by an agent through the `complete_plan_stage`
@@ -741,6 +794,9 @@ pub struct PlanExecutionBinding {
     /// Exact-bytes hash bound by the approval.
     pub contract_hash: String,
     /// Progress-insensitive semantic hash (execution may tick progress
+    /// 分部件语义哈希（诊断面）：漂移报文点名哪个语义面变化。
+    #[serde(default)]
+    pub semantic_parts: std::collections::BTreeMap<String, String>,
     /// without invalidating; semantic changes expire the approval).
     pub semantic_hash: String,
     #[serde(default)]

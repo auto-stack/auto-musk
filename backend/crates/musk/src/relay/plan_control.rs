@@ -436,6 +436,7 @@ pub fn attach_binding_on_gate_approve(
         plan_revision: contract.plan_revision,
         contract_hash: contract.contract_hash.clone(),
         semantic_hash: contract.semantic_hash.clone(),
+        semantic_parts: crate::relay::plan_contract::semantic_parts(&contract),
         skills_hashes: {
             let mut m = std::collections::BTreeMap::new();
             for (k, v) in &pe.skills {
@@ -642,8 +643,17 @@ fn verify_binding_intact(
     let path = std::path::Path::new(&binding.main_root).join(&binding.plan_path);
     let contract = PlanContract::read(&path, Some(&binding.plan_id))?;
     if contract.semantic_hash != binding.semantic_hash {
+        // 分部件对比：报文点名哪个语义面漂移（确定性诊断，live 取证用）。
+        let old_parts = binding.semantic_parts.clone();
+        let new_parts = crate::relay::plan_contract::semantic_parts(&contract);
+        let drifted: Vec<String> = old_parts
+            .iter()
+            .filter(|(k, v)| new_parts.get(*k) != Some(v))
+            .map(|(k, _)| k.clone())
+            .collect();
         return Err(format!(
-            "semantic contract drift since approval — re-approval required (old {})",
+            "semantic contract drift since approval — re-approval required (drifted parts: {:?}; old {})",
+            drifted,
             &binding.semantic_hash[..8.min(binding.semantic_hash.len())]
         ));
     }
