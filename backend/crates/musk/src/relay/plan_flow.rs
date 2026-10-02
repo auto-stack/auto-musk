@@ -201,6 +201,9 @@ pub fn phase_task(
 {}\n\
 {mech_plan_file}- 计划写入：用 `create_plan` 工具落主检出 `docs/plans/`\
 （工具返回的路径即绑定通道，零 AI 参与；已存在对应计划时幂等复用，不要新建重复计划）。\n\
+- §8 格式契约（机械要求）：每个任务必须是独立 checkbox 行 \
+`- [ ] T-NN 描述`（禁止表格/无 checkbox 列表——服务器按 checkbox 逐项 \
+核验推进）；§7 同理用 `- [ ] AC-NN 描述` 行。\n\
 {}\n\
 最终输出以单独一行结尾（驱动器解析）：`PLAN_FILE: docs/plans/NNN-slug.md`\n",
             skill_block(step_id, &skills.skills),
