@@ -128,6 +128,22 @@ export class Mcp {
     }
     return prev;
   }
+
+  // 容错轮询:等待谓词命中的快照(UI 未渲染/MCP isError 视为未就绪继续等)。
+  // 超时抛最后错误(调用方决定整跑重试——基线发现③)。
+  async waitForSnapshot(predicate, timeoutMs, label = 'snapshot') {
+    const deadline = Date.now() + timeoutMs;
+    let lastErr = 'no attempt';
+    let snap = '';
+    while (Date.now() < deadline) {
+      try {
+        snap = await this.snapshot();
+        if (predicate(snap)) return snap;
+      } catch (e) { lastErr = e.message; }
+      await new Promise(r => setTimeout(r, 400));
+    }
+    throw new Error(`vm-session: timeout waiting ${label} (last: ${lastErr}; snapshot: ${snap.slice(0, 120)})`);
+  }
 }
 
 export class VmSession {
@@ -213,7 +229,9 @@ export class VmSession {
   // 失败臂消息确定性落盘；正式演示传真实 aaidUrl 后由调用方自行发需求）
   async seed() {
     const base = this.base;
-    const cred = this.opts.credentials ?? { user: 'demo', password: 'demo-097' };
+    // 字段名 = username(/api/auth/register 422 实证);token 尽力获取——
+    // 当前 build 无 auth 中间件,后续 build 需携带,seed 统一返回 token。
+    const cred = this.opts.credentials ?? { username: 'demo', password: 'demo-097' };
     const reg = await (await fetch(`${base}/api/auth/register`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(cred) })).json();
     const token = reg?.token ?? (await (await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(cred) })).json())?.token;
     const list = await (await fetch(`${base}/api/workspace/list`, { headers: { authorization: `Bearer ${token}` } })).json();
