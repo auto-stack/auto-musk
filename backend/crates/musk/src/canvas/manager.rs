@@ -29,6 +29,11 @@ use super::session::SessionHandle;
 const FAIL_THRESHOLD: u32 = 3;
 /// 重启退避序列（秒），封顶 3 次。
 const BACKOFF_SECS: [u64; 3] = [1, 2, 4];
+/// PLAN-097 解阻②：Starting 无首帧看门狗。窗口永不呈现（最小化/运行期
+/// 崩溃白屏）时 "Screenshot skipped" 臂不计数、会话永久卡 Starting——
+/// 真机 t12-real-05 实证：agent 恒收同一 "no frame yet" 文案直至循环
+/// 防护击杀。超时 → 走复活路径换机会，预算尽 → degraded + 专属错误面。
+const STARTING_TIMEOUT: Duration = Duration::from_secs(120);
 /// 会话注入 AUTO_VM_WINDOW 的逻辑宽（T-02 契约：scale = 帧宽/此值）。
 const WINDOW_LOGICAL_W: f32 = 480.0;
 
@@ -693,10 +698,14 @@ async fn watchdog(
 ) {
     let mut fail_streak: u32 = 0;
     let mut prev_frame: Option<PathBuf> = None;
+    // 破局原因（复活/降级错误面用——区分崩溃退场与无首帧超时）。
+    let mut break_reason = String::from("screenshot failed");
 
     'session: loop {
         client.initialize().await;
         *shared.state.lock().unwrap() = CanvasState::Starting;
+        // 本次（重）启动的入场时刻——首帧看门狗基准。
+        let entered = std::time::Instant::now();
 
         // ── 帧循环：~1s 一拍 ──
         loop {
@@ -712,6 +721,21 @@ async fn watchdog(
                 tracing::warn!(
                     "canvas: child exited (crash path)\n--- child output tail ---\n{}",
                     tail
+                );
+                break_reason = "child process exited".to_string();
+                break;
+            }
+            // PLAN-097 解阻②：Starting 无首帧看门狗。"Screenshot skipped"
+            // 臂不计数（可恢复语义），但窗口永不呈现时会话必须能在有限
+            // 时间内进入复活/降级面——agent 侧才能看到 degraded+error
+            // 而非恒同 "no frame yet" 文案。
+            if entered.elapsed() > STARTING_TIMEOUT {
+                tracing::warn!(
+                    "canvas: no first frame within {STARTING_TIMEOUT:?} — restarting (window never presented?)"
+                );
+                break_reason = format!(
+                    "no first frame within {}s (window never presented - minimized, hidden, or runtime failure; see output tail)",
+                    STARTING_TIMEOUT.as_secs()
                 );
                 break;
             }
@@ -780,8 +804,9 @@ async fn watchdog(
             if restarts >= BACKOFF_SECS.len() as u32 {
                 tracing::error!("canvas: restart budget exhausted → degraded");
                 *shared.state.lock().unwrap() = CanvasState::Degraded;
-                *shared.error.lock().unwrap() =
-                    "canvas: app process keeps dying (restart budget exhausted)".to_string();
+                *shared.error.lock().unwrap() = format!(
+                    "canvas: app process keeps dying (restart budget exhausted) - last break: {break_reason}"
+                );
                 return;
             }
             let backoff = BACKOFF_SECS[restarts as usize];

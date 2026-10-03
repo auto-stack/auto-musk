@@ -1021,6 +1021,30 @@ impl RunStore {
                 }
             }
         }
+        // PLAN-097 解阻④：plan 相位格式修复轮——advisor 重入时必须看到
+        // 服务器校验失败的具体原因（§7/§8 checkbox 行硬格式等），否则盲
+        // 重放必然再撞同一校验。
+        if entry.engine.flow.id == "plan" && step_id == "plan" {
+            if let Some(pe) = entry.plan_execution.as_ref() {
+                if pe.phase == "plan" && pe.attempt > 1 {
+                    if let Some(e) = entry.context.get("plan_repair_error") {
+                        if !e.is_empty() {
+                            let round = pe.attempt - 1;
+                            task.push_str(&format!(
+                                "
+
+# 计划合同校验失败（第 {round} 轮修复，本次重入必须修正后重新提交）
+服务器回读计划文件时校验失败：
+{e}
+
+硬格式要求：§7 验收标准与 §8 执行步骤的每一条必须各自独占一行、以 markdown checkbox 行书写（即 [ ] 前缀的 `- ` 列表行）；§8 至少 1 条任务；frontmatter total_steps 必须等于 §8 任务条数。修正计划文件后重新提交 complete_plan_stage。
+"
+                            ));
+                        }
+                    }
+                }
+            }
+        }
         // PLAN-094（UAT K5 定向重跑的前提）：门反馈必须送达被重做的相位。
         // 引擎把 reject(feedback) 记在被门守卫的步名下（`feedback_for`），
         // 但此组装点自 P2b.2 起从未消费它——重跑相位看不到反馈，定向重跑

@@ -96,7 +96,34 @@ impl Tool for CanvasRun {
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'app_path' argument".into()))?;
         let resolved = resolve_within_sandbox(&self.ctx, path)?;
-        super::session::validate_app_dir(&resolved).map_err(ToolError::Exec)?;
+        // PLAN-097 解阻③：解析候选不存在时给出自解释错误。resolve_multi
+        // 的写语义回退臂会拼出"根+给定相对路径"的幻影路径且不查存在性——
+        // t12-real-05 实证：coder 传 run 目录相对路径，execute 相位
+        // execution_root 单根下拼出 <worktree>\wt\plan-001\focusboard 双拼，
+        // 报错只有 "is not a directory" 不含定位线索，模型无从自纠。
+        // 这里列出 path/解析根/解析结果与期望形态，模型一跳自纠。
+        if let Err(e) = super::session::validate_app_dir(&resolved) {
+            let exec_root = self
+                .ctx
+                .execution_root
+                .as_ref()
+                .map(|r| r.display().to_string())
+                .unwrap_or_else(|| {
+                    self.ctx
+                        .state
+                        .registry
+                        .get(&self.ctx.workspace_id)
+                        .root
+                        .display()
+                        .to_string()
+                });
+            let resolved_disp = resolved.display().to_string();
+            return Err(ToolError::Exec(format!(
+                "{e}\n\
+                 canvas_run resolution: app_path='{path}' resolved against root '{exec_root}' -> '{resolved_disp}' (not found / not an app dir).\n\
+                 Expected: an app directory that CONTAINS pac.at, given relative to that root — app at the root itself: app_path=\".\"; app in a subdir: app_path=\"my-app\" (where my-app/pac.at exists). Run list_dir on the root first to locate the app directory."
+            )));
+        }
         let ws = self.ctx.state.registry.get(&self.ctx.workspace_id);
         // PLAN-093 T-02：工具启动登记归属（workspace + 所属会话），后续
         // 其他会话的工具/停止按归属拒操作。

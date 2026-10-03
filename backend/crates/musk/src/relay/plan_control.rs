@@ -592,13 +592,50 @@ fn route_plan_end(
             }
         },
     };
+    // PLAN-097 解阻④：plan 相位格式方差回流修复轮（有界）。advisor 偶发
+    // 产出非 checkbox 行的 §7/§8（t12-real-03/04 实证：parse_checklist 仅
+    // 认 `- [ ]` 行,编号列表 = 0 任务/0 验收 → 整 run 失败）。读回失败/
+    // 校验失败 → 错误注入 plan_repair_error（step_context 消费,模板追加）
+    // + attempt 递增重入 plan 相位,至多 2 轮;身份漂移仍响亮 Fail（非格式类）。
+    let plan_repair_limit: u32 = 2;
+    let read_or_validate: Result<(), String> = match PlanContract::read(&plan_path, None) {
+        Ok(c) => c
+            .validate_complete()
+            .map_err(|e| format!("plan contract incomplete: {e}")),
+        Err(e) => Err(format!("plan read-back failed: {e}")),
+    };
+    if let Err(e) = read_or_validate {
+        let used = ws
+            .relay
+            .context_var(run_id, "plan_repair_count")
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or(0);
+        if used >= plan_repair_limit {
+            return StageRouting::Fail(format!(
+                "{e} — plan format repair budget exhausted ({used} rounds)"
+            ));
+        }
+        ws.relay
+            .set_context_var(run_id, "plan_repair_count", &(used + 1).to_string());
+        ws.relay
+            .set_context_var(run_id, "plan_repair_error", &e);
+        ws.relay.mutate_plan_execution(run_id, |pe| {
+            pe.attempt += 1;
+            pe.outcome = Some("needs_fix".into());
+            // 旧 attempt 的同相位声明作废（修复轮必须重新提交结果）。
+            let (ph, at) = (pe.phase.clone(), pe.attempt - 1);
+            pe.stage_results.retain(|r| !(r.stage == ph && r.attempt == at));
+        });
+        let pe2 = ws.relay.plan_execution(run_id).unwrap();
+        let f = facts_of(&pe2, "plan", "needs_fix", Some(e.clone()), None);
+        push_facts(&ws.relay, run_id, f);
+        // 游标未动（plan 相位未提交 handoff）——直接重入 plan 相位。
+        return StageRouting::RewoundToExecute;
+    }
     let contract = match PlanContract::read(&plan_path, None) {
         Ok(c) => c,
         Err(e) => return StageRouting::Fail(format!("plan read-back failed: {e}")),
     };
-    if let Err(e) = contract.validate_complete() {
-        return StageRouting::Fail(format!("plan contract incomplete: {e}"));
-    }
     if let Some(b) = pe.binding.as_ref() {
         if b.plan_id != contract.plan_id {
             return StageRouting::Fail(format!(
