@@ -170,3 +170,14 @@ LLM 请求打最小观测行（入口 model/stream/candidates + 结果 elapsed/u
   （会话 auto 语义等价；REST 显式授权同路径）。
 - **执行作用域**：execute/review/document 相位文件/命令/Canvas 工具落
   run 的开发 worktree（execution_root）；主检出代码不注册为可写根。SD-04。
+
+## 运行遥测（PLAN-098，2026-10-03）
+
+四阶段 run 的 turn 产物满足 `modules/run-telemetry.md` 记录契约（引用而非
+复制规则）：每相位收束（`StepCompleted` 边界轮）携带该相位聚合遥测，
+`correlation` 含 run_id/step_id/role；聊天会话收束轮同契约。aaid 日志仅为
+旁证（daemon 无关联键，时间窗启发式 join 并标注置信）；重跑对比以
+turns.jsonl 内嵌遥测与 `collect-telemetry.mjs` 摘要为权威记录物——
+RUNBOOK §4 第 0 步（每 run 产出摘要并在结果总表/历史记录引用其路径）是
+落账前置。失败签名自动标记（K1/K3/K4/K5）与逐请求 provider/model/token/
+耗时表见 run-telemetry.md 与 RUNBOOK。

@@ -103,3 +103,14 @@
   busy 重入不换附件（队列条目级冻结）。
 - VM 轮询轨与 web SSE 轨同构消费：tool_result details（UI 载荷）透传，
   刷新回放 details 缺省 None 兼容。
+
+## 运行遥测暴露（PLAN-098 SD-02）
+
+`turn_end`/`done` 事件在模型事实**已知时**附 `model_meta` 对象
+（`provider`/`model`/`usage.{in,out}`），未知**省略该字段**（不写 null 占
+位）——旧前端/消费方零感知。实现为 SseEventDto 序列化后的 Value 级增量
+追加：DTO 严格枚举与帧协议形状其余不变（wire 兼容增量）。前端零消费要求
+保持（Vue/VM 不读取，行为零回归）；字段为消费方预留（含 PLAN-097 演示类
+用途）。规则源：`modules/run-telemetry.md`（缺失语义/provider 权威序/
+K8 流式 in=0 观察项均在那边）。无遥测包装的路径（`/api/run` 等无会话落
+盘面）字段恒省略。
