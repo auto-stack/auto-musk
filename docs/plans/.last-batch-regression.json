@@ -1,0 +1,14 @@
+{
+  "last_covered_plan_id": 98,
+  "timestamp": "2026-10-03T00:53:56.538Z",
+  "covered_commit": "b767bc5",
+  "legs": [
+    "musk-full-serial-38-targets"
+  ],
+  "new_reds": [],
+  "known_reds_seen": [
+    "098-R1 parity_handoff_store: E0063 StartRunRequest missing authorization (KNOWN-DEBT 098-R1, pre-existing since 096 T-12)",
+    "098-R2 tool_atoms::run_command_dangerous_returns_paused: env-sensitive root-resolution panic (KNOWN-DEBT 098-R2)"
+  ],
+  "notes": "auto-musk 全量门=逐目标串行 38 测试目标（本仓无 auto-lang tf/tt/tb 别名；同收据模式）。36 绿；known-reds-only 判定。"
+}
