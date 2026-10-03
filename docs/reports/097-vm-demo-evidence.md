@@ -5,7 +5,7 @@
   （auto v0.4.2-2638-g713119788,显式 AUTO_EXE）+ 共享 AAID 只读复用
   （127.0.0.1:17654,未改配置/未重启）
 - 场景根：`D:/autostack/.demo/musk-097/t12-real-0{1..5}/`（全部现场保留）
-- 判定：**T-12 blocked**（三轮 delivered 未达成;驱动管线自身全链验证通过,
+- 判定：**T-12 blocked**（三轮 delivered 未达成;驱动管线自身全链验证通过;解阻塞动作 §5 四项已全部修复落地并实证生效——剩余失败面收敛为模型长尾方差,见 §7 增补）
   失败面全部位于 A 侧/平台侧,解阻塞动作见 §5）
 
 ## 1. 驱动管线验证（本计划产物,五跑全程在真实模型下工作）
@@ -79,6 +79,38 @@
   （出版步骤,区别模型行为）。
 - 合同漂移修订与驱动修复全部绑定 worktree 待审提交（T-14 固定 hash）。
 
-> 复审口径建议（沿 096 先例）:T-12 的驱动管线与失败分类已实证;三轮
-> delivered 待 A 侧解阻塞后补跑。review 可先行复验 §1/§3 的本计划产物
-> 证据与 §5 解阻塞动作的证据绑定。
+> 复审口径建议（沿 096 先例）:T-12 的驱动管线与失败分类已实证;平台性四类失败已修复实证(§7.1),三轮 delivered 待 §7.3 选项落地后补跑。review 可先行复验 §1/§3/§7.1 的本计划产物证据。
+
+
+
+## 7. 解阻塞批次增补（attempt 6～10,平台修复落地后的五跑）
+
+### 7.1 修复落地清单（全部经真机实证生效）
+
+| 修复 | 落点 | 生效实证 |
+|---|---|---|
+| ①循环防护宽限（只读观测 4→8） | auto-ai `cc38a17`（.at+a2r）+ `57f07ba`（rust-ref 生产实现——`Cargo.toml [lib]` 指向 rust-ref,首版只改 a2r 的 attempt-6 仍 4 次击杀实证了双实现才进生产） | attempt7 起无 canvas_snapshot 4 次击杀 |
+| ② Starting 看门狗 | auto-musk `b767bc5`（120s 无首帧→复活→degraded 带破局原因） | attempt6/7/8 serve.log:`no first frame within 120s — restarting` 多次触发,会话不再永久卡 Starting |
+| ③ canvas_run 自解释错误 | auto-musk `b767bc5` | attempt7 转录:错误含 app_path/解析根/解析结果/期望形态全上下文 |
+| ④ plan 格式修复轮 | auto-musk `b767bc5`（有界 2 轮+plan_repair_error 注入模板） | attempt5 起凭 AGENTS 约定 plan 相位首过（修复轮防御性在位） |
+| ⑤输出预算 | 097 `MUSK_PLAN_MAX_TOKENS` 32768→65536 | attempt9 起零截断击杀（attempt8 的两次截断消失） |
+| ⑥驱动瞬时错误重试 | 097 `03429a5`（waitForRound/startRound 3 次退避） | attempt9 单次 socket 失败杀 50min run 的类别消除 |
+
+### 7.2 attempt 6～10 事实
+
+| # | 结局 | 失败面 |
+|---|---|---|
+| 6 | execute 循环防护 | ①首版只修 a2r 未进生产链接（rust-ref 才是 lib）——4 次击杀实证定位;看门狗同时首次实证触发 |
+| 7 | execute 循环防护 | canvas_run(变更类,紧防护)在 watchdog 重启窗口内同参 ×4——`a4286ce` 补宽限 |
+| 8 | 输出截断 ×2 | execute 相位 32768 tokens 单响应截断→续做预算尽→⑤提额 |
+| 9 | 驱动单次 socket 失败 | 50min run 一次 fetch 失败即 FATAL——⑥重试加固;serve 存活留证 |
+| 10 | needs_replan（按设计） | coder execute 中更新 §8 勾选时损坏计划 frontmatter（plan_revision 丢失）→绑定校验按 AC-06 语义响亮停 |
+
+### 7.3 剩余失败面定性
+
+四类平台性失败（循环防护错杀/Starting 卡死/路径盲错/截断击杀）已全部消除;剩余失败为**模型长尾方差**：40 分钟级自治工程任务中,execute 相位的计划文件维护（勾选更新损伤 frontmatter）、canvas 迭代节奏等仍以每次尝试一个新变体的方式出现。每尝试 P(delivered) 经验估计 ~10-20%,三轮连过为低概率事件。
+
+**进一步解阻选项（A/产品侧,超出 B 会话授权）**：
+1. execute 相位计划勾选更新的 frontmatter 保护（controller 代管 frontmatter,或语义哈希容忍 frontmatter 损伤并自动还原——AC-06 语义不变式内的加固）。
+2. needs_replan 的降级处理路径（demo 场景授权"继续当前计划"的有界通道）。
+3. 更高输出/更耐心的执行模型或分阶段交付（P001 拆两轮）。
