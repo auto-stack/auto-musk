@@ -99,9 +99,17 @@ export function bootstrapRepo({ repoDir, sourceDir }) {
 export async function startRound({ base, token, round, reqText }) {
   const headers = { 'content-type': 'application/json' };
   if (token) headers.authorization = `Bearer ${token}`;
-  const res = await fetch(`${base}/api/forge/relay/runs`, {
-    method: 'POST', headers, body: JSON.stringify({ flow_id: 'plan', task: reqText, authorization: 'auto' }),
-  });
+  let res = null;
+  let lastNetErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      res = await fetch(`${base}/api/forge/relay/runs`, {
+        method: 'POST', headers, body: JSON.stringify({ flow_id: 'plan', task: reqText, authorization: 'auto' }),
+      });
+      lastNetErr = null; break;
+    } catch (e) { lastNetErr = e; await new Promise(r => setTimeout(r, 2000)); }
+  }
+  if (res === null) throw new Error(`focusboard: start round ${round} fetch failed after 3 attempts: ${lastNetErr?.message}`);
   const text = await res.text();
   if (res.status !== 200) throw new Error(`focusboard: start round ${round} -> ${res.status}: ${text.slice(0, 200)}`);
   const { run_id: runId } = JSON.parse(text);
@@ -124,7 +132,15 @@ export async function waitForRound({ base, token, runId, timeoutMs = 3600000, on
   const seenWarnings = new Set();
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 5000));
-    const res = await fetch(`${base}/api/forge/relay/runs/${encodeURIComponent(runId)}`, { headers });
+    // 瞬时网络错误重试（t12-real-09 实证:50min 长跑单次 fetch 失败即
+    // FATAL——3 次退避重试,全败才抛）
+    let res = null;
+    let lastNetErr = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try { res = await fetch(`${base}/api/forge/relay/runs/${encodeURIComponent(runId)}`, { headers }); lastNetErr = null; break; }
+      catch (e) { lastNetErr = e; await new Promise(r => setTimeout(r, 2000)); }
+    }
+    if (res === null) throw new Error(`run state fetch failed after 3 attempts: ${lastNetErr?.message}`);
     if (res.status === 404) continue; // run 尚未可见
     const text = await res.text();
     let facts;
