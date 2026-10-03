@@ -75,7 +75,9 @@ export async function runDemo({ runId, autoExe, muskExe, ports, aaidUrl, rounds,
     extraServeEnv: {
       MUSK_SKILLS_DIR: path.join(root, '.agents', 'skills'),
       MUSK_PLAN_WORKTREE_ROOT: wtRoot,
-      MUSK_PLAN_MAX_TOKENS: '32768',
+      // 65536（t12-real-08 实证:32768 下 execute 相位 coder 两次截断→
+      // 续做预算尽响亮停;部署吞吐旋钮,非有界修复上限,随收据记录）
+      MUSK_PLAN_MAX_TOKENS: '65536',
     },
   });
 
