@@ -557,14 +557,20 @@ main 承接 plan-flow.md 的相位产物章节，SD-03 的挂载目标由 review
   5→7）；无手工 JSON 写入。
 - **archived**：本计划归档至 `docs/plans/archived/098-plan-flow-telemetry.md`
   （untracked 计划随文件移动+`git add` 落库），frontmatter status: archived。
-- **cleaned**：worktree `D:/autostack/.wt/musk-098/auto-musk`（plan-098-dev
-  分支）删除前 wt-guard clean 复验；依赖只读兄弟 detach worktree
-  （auto-ai@main、auto-lang@master）同批移除；组目录清空后删除。
-- **产物检查（landing is not deployment）**：musk release binary 于落地后
-  在主检出重建（本收据提交前完成）；aaid（auto-ai 只读未触及）与
-  gen/front/vue/dist（零前端改动）不适用重建，登记为未触及观察项。
-- **批量回归到期核查**：`.last-batch-regression.json` 检查记录于下方
-  （098 非整除 5；receipt 48h 窗口判定见合并时实际读取）。
+  归档提交 27c4299。
+- **cleaned**：worktree `D:/autostack/.wt/musk-098/auto-musk` 移除前
+  wt-guard clean 复验 + `HEAD 是 main 祖先`核验（全部提交已落地）；分支
+  `plan-098-dev` 删除（was ce37460）；依赖只读兄弟 detach worktree
+  （auto-ai@main、auto-lang@master，各自源仓移除）；组目录
+  `D:/autostack/.wt/musk-098` 已删（空）；`git worktree list` 无 musk-098
+  残留。
+- **产物检查（landing is not deployment）实测**：musk release binary 主检出
+  落地后重建完成（`cargo build -p musk --release` 3m04s Finished，二进制含
+  遥测面）；aaid=auto-ai 只读未触及（:17654 在跑实例继续有效）；
+  gen/front/vue/dist 零前端改动不适用重建；生产 :17201 serve 当时未运行
+  （无运行面需重启）。
+- **批量回归到期核查**：`docs/plans/.last-batch-regression.json` **缺失
+  = 到期**；已按技能交 `/auto-plan:regress` 在主检出跑批量全量门（单实例）。
 
 ## 10. 待澄清事项
 
