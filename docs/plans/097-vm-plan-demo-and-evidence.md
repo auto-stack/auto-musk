@@ -733,22 +733,27 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
   T-13 产物:report 命令（V02 1 绿+对失败现场真跑:verify 缺 capture
   响亮非零=不静默绿实证）+SD-01~04 可审文本（097-vm-demo-spec-delta.md）
   +证据报告（097-vm-demo-evidence.md）。
-- blockers: **T-12 = A/平台侧四项解阻塞动作**（证据报告 §5,均绑现场）:
-  ①canvas_run 路径双拼（硬 bug）;②canvas Starting 无超时/错误透传;
-  ③循环防护与 canvas 验证工作流相容（启动 70s+ vs 4 次击杀）;④plan
-  格式方差回流修复通道（约定已缓解）。A 侧修复后 B 重跑（驱动/断言/
-  证据链就绪,免改）:`node scripts/demo-focusboard.mjs run --run-id <id>
-  --auto-exe <当日构建> --aaid http://127.0.0.1:17654 --rounds
-  p001,p002,p003`
-- next: 用户裁定——(a) A 侧解阻塞后 T-12 重跑;(b) 接受当前证据面
-  （驱动管线+ui-parity 真机+五失败现场）进 review,T-12 未尽面随
-  blocker 另行规划
+- blockers: ~~A/平台侧四项~~ **已全部修复落地并实证生效**（用户裁定 (a)
+  后的解阻批次,证据报告 §7.1）:①循环防护宽限 auto-ai `cc38a17`+`57f07ba`
+  （rust-ref 才是生产 lib 的双实现教训——首版只修 a2r 的 attempt6 仍
+  4 次击杀实证）;②Starting 看门狗 auto-musk `b767bc5`（attempt6/7/8
+  serve.log 多次触发）;③canvas_run 自解释错误（attempt7 转录全上下文
+  实证）;④plan 格式修复轮（防御性在位,AGENTS 约定下 plan 相位首过）——
+  另加⑤输出预算 65536（attempt9 起零截断）、⑥驱动瞬时错误重试
+  （03429a5）。
+- next: **T-12 仍 blocked——剩余失败面收敛为模型长尾方差**（attempt6~10
+  每跑一个新变体:attempt10 = execute 相位 coder 更新 §8 勾选时损伤计划
+  frontmatter → needs_replan 按设计响亮停;每尝试 P(delivered) 经验估计
+  ~10-20%,三轮连过低概率）。进一步解阻选项三项（execute 相位 frontmatter
+  controller 代管/needs_replan demo 降级通道/分阶段交付）超出 B 会话授权,
+  见证据报告 §7.3——待用户/A 侧产品裁定
 
 ### work 阶段记录（T-14 部分——最终门+提交+清理;完成度受 T-12 blocked 约束）
 
 - stage: work | plan_id: PLAN-097 | plan_revision: 1 | outcome: pass
   （执行面;整体 Plan 保持 executing——T-12 blocked 在案）
-- code_commit(worktree plan-097-dev): 56ba904（终态待审提交）
+- code_commit(worktree plan-097-dev): 56ba904（终态待审提交;重基后
+  终态 @ dfc1e63,含解阻批次增量）
 - task_ids: T-14（部分:V02~V03/V07 门+提交+清理核验;V05/V08 的三轮
   delivered 绑定与产物 hash 固化待 T-12 解阻后补）
 - evidence: 最终门全绿——V02 69/69;V03 gen-only strict exit 0（66 组件）+
