@@ -1079,6 +1079,16 @@ pub fn workspace_open_of(s: &State<AppState>, b: Json<crate::auto_generated::ser
     s.0.registry.touch(&meta.id);
     serde_json::json!({ "workspace": meta })
 }
+/// PLAN-fix(vm-ws-pick)：原生目录选择器（hw workspace.rs::workspace_pick 同源
+/// —— wire `{"path": "…"}` / 取消 `{"path": null}`）。VM 轨 handler 非 tokio
+/// worker：同步阻塞形态（fs extern 同为先例），模态期间其余请求排队、
+/// 选择/取消后恢复。rfd 在 Windows 自理 COM 初始化。
+pub fn workspace_pick_of() -> Value {
+    let picked = rfd::FileDialog::new().pick_folder();
+    serde_json::json!({
+        "path": picked.map(|p| p.to_string_lossy().to_string())
+    })
+}
 pub fn workspace_status_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>) -> Value {
     let hw_q = crate::workspace::WorkspaceQuery { workspace: q.workspace.clone() };
     let ws_id = hw_q.id_or_default(&s.0.registry);

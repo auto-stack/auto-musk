@@ -26,6 +26,14 @@ pub fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn std::err
         .unwrap_or("8080")
         .to_string();
     std::env::set_var("AUTO_HTTP_PORT", &port);
+    // PLAN-fix(vm-ws-pick)：请求超时 30s 默认对「打开文件夹」原生模态太紧
+    // （实测 31s 即回 "request wait timed out"，用户浏览目录树稍慢 pick 即
+    // 丢失——对话框线程仍挂起、响应已死）。VM 轨唯一长阻塞 handler 就是
+    // pick；抬高到 5min 给足浏览时间，上限仍可兜死真挂死请求。env 显式
+    // 设置时以调用方为准（set_var 不覆盖已有值）。
+    if std::env::var("AUTO_HTTP_REQUEST_TIMEOUT_MS").is_err() {
+        std::env::set_var("AUTO_HTTP_REQUEST_TIMEOUT_MS", "300000");
+    }
 
     // AppState 单例：host 闭包捕获的真身（T3 起 extern 实现消费）。
     let state = build_app_state(client);
@@ -206,6 +214,20 @@ fn register_host_calls() {
     });
     host!("conversations_list", |a| enc(ei::conversations_list(&st_axum(&st()?), wq_server(a))));
     host!("workspace_list_all", |_a| enc(ei::workspace_list_all(&st_axum(&st()?))));
+    // ── workspace 切换域补齐（PLAN-fix vm-ws-pick）──此前仅 list 注册：
+    // open（路径注册腿）/status（当前态解析）/initialize（空目录初始化）/
+    // pick（原生目录选择器）在 VM handler 经 musk_extern_dispatch 委托时
+    // 网关回 null → 500/静默失败——「打开文件夹」前后腿全断的根因之一。
+    host!("workspace_open_of", |a| {
+        let b: crate::auto_generated::server::OpenWorkspaceBody =
+            serde_json::from_value(arg(a, 0)).unwrap_or(crate::auto_generated::server::OpenWorkspaceBody {
+                path: String::new(),
+            });
+        enc(ei::workspace_open_of(&st_axum(&st()?), axum::Json(b)))
+    });
+    host!("workspace_status_of", |a| enc(ei::workspace_status_of(&st_axum(&st()?), wq_server(a))));
+    host!("workspace_initialize_of", |a| enc(ei::workspace_initialize_of(&st_axum(&st()?), wq_server(a))));
+    host!("workspace_pick_of", |_a| enc(ei::workspace_pick_of()));
     host!("relay_runs_list", |a| enc(ei::relay_runs_list(&st_axum(&st()?), wq_relay(a))));
     host!("relay_task_plans_list", |a| enc(ei::relay_task_plans_list(&st_axum(&st()?), wq_relay(a))));
     host!("ws_wiki_list", |a| enc(ei::ws_wiki_list(&st_axum(&st()?), wq_wiki(a))));

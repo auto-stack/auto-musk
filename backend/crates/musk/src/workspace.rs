@@ -624,7 +624,8 @@ impl WorkspaceStores {
 // 浏览器拿不到用户所选目录的绝对路径(File System Access API 只暴露
 // handle 名),而 /api/workspace/open 需要绝对路径——由本机 serve 进程经
 // rfd 弹原生系统文件夹选择器,选中即回路径。与 plans::plans_routes 同
-// 模式(hw 路由;KNOWN-DEBT: a2r 对齐后可迁 ag 轨)。
+// 模式(hw 路由;PLAN-fix(vm-ws-pick) 起 ag 轨 server.at 有同款路由——经
+// extern_impl::workspace_pick_of 同源 rfd 调用,双轨并存)。
 // ============================================================
 
 use axum::{

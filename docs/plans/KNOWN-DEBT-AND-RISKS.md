@@ -147,3 +147,11 @@
 |:---|:---|:---|:---|:---|
 | 098-R1 | P2 | 本仓（PLAN-096 T-12 修补面） | **`tests/parity_handoff_store.rs` 编译错**：两处 `StartRunRequest` 字面量缺 `authorization` 字段（E0063）——096 T-12（4393199）给 `StartRunRequest` 补 authorization 字段时锁步手修漏改该 parity 夹具，目标自彼时起不可编译。修法=夹具两处补 `authorization: None`（纯夹具改动） | worktree plan-098-dev@319cb4f 与 main@da748ac 同错复现（`cargo test -p musk --test parity_handoff_store`） |
 | 098-R2 | P3 | 本仓（测试环境面） | **`tool_atoms::run_command_dangerous_returns_paused` 环境敏感 panic**：'/' 路径参数在断言门语义前先触发越界解析错误（`'/' resolves to '\?\D:\' outside project root '.'`），测试期望 paused 门但收到路径错误 unwrap 失败——断言与项目根解析耦合，跨检出/盘符环境脆。修法=断言与根解析解耦（接受任一安全拒绝形态）或固定测试根 | main@da748ac 同 panic 复现（`cargo test -p musk --test tool_atoms run_command_dangerous`）；review 复跑同像 |
+
+## VM 轨依赖与域缺口登记（2026-10-03，vm-ws-pick 修复实证）
+
+| ID | 级别 | 归属 | 内容 | 证据 |
+|:---|:---|:---|:---|:---|
+| VM-DEP-G7 | P1 | auto-lang | **musk VM 轨需要 auto-lang G-7 引擎修复合入 master**：musk 语料自 PLAN-093（015c2cb 撤 shim）起依赖 G-7（Use 前置编译/跨模块自然调用，auto-musk-dev@200b17a3b，现存线 tip fbf55f913 含 G-16）；master 缺失 → 主检出构建的 `MUSK_BACKEND=vm` 启动即死（`Undefined symbol: wiki_ensure_parent in module wiki`，两代 musk 二进制同证）。解阻=auto-lang 侧把 G-7 合回 master（其 734/735/736 计划纪律下由 auto-lang 会话收口）；在此之前 musk 主检出 VM 面只能经组内 auto-musk-dev 兄弟构建验证 | 本机双二进制复现日志（main@0d71120 与 musk-097@7a27340 构建同错）；vm-ws-pick 组内 detach auto-musk-dev@fbf55f913 构建启动成功 |
+| VM-WS-FILES | P3 | 本仓 | **VM 轨文件浏览域 extern 未注册**：`workspace_browse_of`/`workspace_file_do`（/api/workspace/browse、/api/files/**）gateway 缺 arm → null/500。属文件浏览器域，不在 workspace 切换链内，本轮未修；同款补法=vm_backend.rs `host!` 两行+（如需）Handler 参数核对 | vm_backend.rs register_host_calls 白名单清单（workspace 域本轮补 pick/open/status/initialize） |
+| VM-PICK-TIMEOUT | P3 | 本仓（已缓解） | **VM 服务器默认请求超时 30s 对模态 pick 偏紧**（实测 31s 即回 "request wait timed out"，用户浏览目录稍慢 pick 丢失、对话框线程仍挂）。已缓解：vm_backend serve 缺省抬高 `AUTO_HTTP_REQUEST_TIMEOUT_MS`=300000（env 显式设置优先）；残余=超时后对话框仍开（用户取消即净），可接受 | auto-lang http_transport.rs:79 env 旋钮；本机实测 31s 超时与旋钮后 45s 仍 pending |

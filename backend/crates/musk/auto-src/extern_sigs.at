@@ -92,6 +92,9 @@ fn workspace_open_of(_s @T, _b Value) Value { return musk_extern_dispatch("works
 fn workspace_status_of(_s @T, _q Value) Value { return musk_extern_dispatch("workspace_status_of", [_q]) }
 fn workspace_browse_of(_q @T) Value { return musk_extern_dispatch("workspace_browse_of", [_q]) }
 fn workspace_initialize_of(_s @T, _q Value) Value { return musk_extern_dispatch("workspace_initialize_of", [_q]) }
+// PLAN-fix(vm-ws-pick)：原生目录选择器（hw workspace.rs::workspace_pick 同源；
+// 取消/失败 → {"path": null}，前端 ws_pick 静默不动）。
+fn workspace_pick_of() Value { return musk_extern_dispatch("workspace_pick_of", []) }
 fn workflows_builtin_names() Value { return musk_extern_dispatch("workflows_builtin_names", []) }
 fn wf_run(_s @T, _q Value, _b Value) Value { return musk_extern_dispatch("wf_run", [_q, _b]) }
 fn wf_run_with_progress(_s @T, _q Value, _b Value, _sink Value) { return musk_extern_dispatch("wf_run_with_progress", [_q, _b, _sink]) }
