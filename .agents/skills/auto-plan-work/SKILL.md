@@ -92,6 +92,24 @@ For auto-lang:
    Fold an authorized dependency change back promptly after its own verification
    and successful consumer integration, then guard and clean its worktree.
 
+For one active Plan, implementation, internal check, and final review share
+this authoritative worktree per repository, regardless of model or chat. Do not
+create a per-agent copy or use Git synchronization between review and execution
+trees as the handoff. Cross-repository sibling trees remain separate by repo.
+Record the resolved path, repository, branch, base/current commit, dependency
+revisions, and next responsible role at each handoff. Each agent explicitly
+sets its tool working directory to that path; a chat's default checkout is not
+proof that it is operating on the Plan tree.
+
+Transfer write ownership sequentially. Before review, commit implementation,
+resolve dirty tracked/untracked delivery files, and pause implementation writes
+until the verdict. Reviewers inspect/test the frozen baseline and update the
+shared Plan's evidence; implementation repairs return to work in this same tree.
+Do not run concurrent writers or competing build jobs in the shared tree.
+Ignored build outputs are allowed, but changed implementation, dependencies, or
+verification configuration invalidate affected evidence. Before resuming work,
+reread the shared Plan and verify the handoff against the tree's actual state.
+
 The worktree mandate covers every code-writing entry, not only plan execution:
 L0 trivial fixes and walkthrough/verification-session incidental fixes likewise
 require a dedicated fix worktree (the `fix-<slug>` row above; auto-lang
@@ -133,6 +151,21 @@ and pre-landing gates unless new failures, changes, or repository requirements
 justify another run. Do not add tests that merely mirror wording or trivial
 implementation details.
 
+## Repair the invariant, not only the reported example
+
+On needs_fix, reproduce the finding against the bound baseline, then list the
+other applicable branches, call sites, consumers, or lifecycle states sharing
+its cause. Record `finding → invariant → affected paths → fix → regression
+cases → current results`. Investigate uncovered paths instead of assuming the
+latest example exhausts the requirement; scope stays within the contract.
+
+Retain a meaningful regression for the old failure and representative sibling
+paths. Check the required observable behavior: a final CLI error is not proof
+of consumer isolation, timeout is not proof of resource cleanup, and existence
+is not proof of target identity when the contract distinguishes them.
+Fixture mutations must actually change the intended input; verification
+summaries and counts come from executed cases, with skips/pending explicit.
+
 ## Adapt or route from evidence
 
 | Situation | Action |
@@ -152,19 +185,28 @@ automatic continuation, use the user's limit; if none was set, cap automatic
 work/review repair cycles at three, then diagnose or hand back the blocker.
 Repeated identical failure without progress stops blind retries sooner.
 This is a skill-level bound, not a background scheduler.
+After two consecutive failed final reviews of the same delivery, diagnose
+contract/oracle gaps, partial fixes, regressions, and changed inputs before the
+next repair. Count across semantic revisions; an internal pass does not reset
+the sequence. Record the resulting coverage/design adjustment and continue
+authorized work. This is a diagnostic checkpoint, not an automatic stop or a
+new request for already-granted approval.
 
 ## Completion and handoff
 
-Before setting `execution_done`, verify that all tasks and acceptance mappings
-are accounted for, required scoped checks passed on the current code, completed
-changes are committed, and no blocking question remains. Incomplete work stays
-`executing`.
+Before setting `execution_done`, verify that all work-owned tasks and criteria
+are complete, required scoped checks passed on the current code, completed
+changes are committed, and no blocking question remains. Identify the remaining
+review/merge-owned tasks and gates without marking them complete. Legacy Plans
+may record these owners in the handoff without changing their requirements.
+Incomplete implementation stays `executing`; counts still include all tasks.
 
 Append a short record under `9. 复审记录`; blockers also appear under
 `10. 待澄清事项`:
 
-`stage: work | plan_id | plan_revision | outcome | code_commit |
-task_ids | evidence | blockers | next`
+`stage: work | plan_id | plan_revision | outcome | worktree_path | branch |
+base_commit | code_commit | dependency_revisions | task_ids | evidence |
+blockers | next_responsible_role`
 
 - `pass`: set `execution_done`; next is review.
 - `needs_replan`: keep `executing`; next is new with affected tasks.

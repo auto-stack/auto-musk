@@ -81,7 +81,12 @@ touched_goals: []
 - Give executable tasks stable IDs such as `T-01`, dependencies, affected
   files or symbols verified against the repository, the intended outcome,
   linked acceptance IDs, and verification commands with expected results.
-  Identify genuinely new paths as new.
+  Identify genuinely new paths as new. Give tasks and acceptance criteria an
+  `owner_stage` in the Markdown contract: `work`, `review`, or `merge`.
+  Future review/closeout operations remain unchecked until actually performed;
+  they are not prerequisites for handing completed implementation to review.
+  Merge-owned criteria describe closeout effects; do not assign implementation
+  correctness to merge to bypass final acceptance review.
 - Size tasks by independently verifiable outcomes. The former 2–5 minute rule
   is a heuristic, not a gate. Detail the next executable work; do not invent
   exact implementation mechanics for unresolved research. Use a bounded
@@ -96,6 +101,35 @@ touched_goals: []
   approved scope/revision, allowed repositories/actions, and any user-specified
   budget or automatic continuation limits. Do not invent approvals or budgets.
   Unknown constraints that affect correctness go to `10. 待澄清事项`.
+
+## Verification depth and review roles
+
+For compiler/IR contracts, trusted validation, resource lifetimes, publication
+transactions, or a rule shared by multiple consumers, read
+[verification-contract.md](references/verification-contract.md). Under section
+6, state the invariant, representative valid/invalid inputs, verification
+entrypoint, observable oracle, applicable paths/states, and coverage boundary.
+Choose cases that distinguish a plausible incorrect implementation; a green
+test family alone is not the oracle. Ordinary low-impact changes need only
+their scoped checks, not a mandatory matrix or a new checker.
+
+Preflight the contract before handing off: identify contradictory rules,
+unowned required paths, and cases whose expected result is still undefined.
+Resolve them or assign a bounded investigation with a decision artifact before
+dependent implementation. Proposed fixtures for a new interface are not
+already executable evidence; say which task will make them runnable.
+
+Record user-assigned implementation, internal-check, and final-review roles in
+section 6. When internal and final reviewers differ, internal pass only means
+ready for final review; final review precedes merge/archive/cleanup. Do not
+prescribe model names globally or create another agent/chat without authority.
+Record the intended implementation worktree path and branch in the Markdown
+handoff; work confirms their actual repository/path/commit once the tree exists.
+There is one authoritative implementation worktree per Plan per repository.
+Implementation, internal check, and final review use that same tree in sequence;
+independent review means independent context, not a second checkout synchronized
+through Git. Cross-repository work retains one sibling tree per repository.
+These are Markdown workflow instructions, not new backend fields or statuses.
 
 ## Revisions and authorization
 
@@ -115,6 +149,10 @@ actual changes. Missing revision or approval fields are not evidence of approval
 
 Never remove acceptance criteria or silently defer work to make a Plan pass.
 Mark affected prior verification as stale; preserve it as history.
+Keep sections 5–8 as the single current contract, with one authoritative task
+row per ID. Preserve superseded wording, findings, and receipts in section 9,
+Git revisions, or linked durable reports; do not append competing current task
+lists or leave historical "current/pending" prose as live instructions.
 
 For a draft, keep `drafting`. A revision of an in-progress Plan stays
 `executing` and records any pending decision explicitly; it is not reset to

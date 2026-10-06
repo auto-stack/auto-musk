@@ -123,9 +123,12 @@ the ladder:
    Legacy active reviews without a verifiable baseline need
    [review](../auto-plan-review/SKILL.md); never fill missing evidence with an
    assumed pass. Archived requests use the recovery-only rule in step 5.
-3. Ensure required tasks and acceptance criteria are complete. Unrelated open
-   checkboxes in examples/history are not delivery blockers; actual unmet
-   requirements or unapproved deferrals return to work/review.
+   If the Plan assigns internal and final reviewers, require the assigned final
+   review, not an internal pass. Never land/archive while waiting for it.
+3. Ensure implementation/review tasks and criteria are complete. Only explicitly
+   merge-owned operations/gates may remain pending; perform them before claiming
+   delivered pass. Unrelated checkboxes in examples/history are not blockers;
+   unmet implementation requirements or unapproved deferrals return to work/review.
 4. Verify reviewed commits against the real repository. A missing worktree is
    not proof of landing; inspect ancestry and previous receipts.
 5. An archived Plan is eligible only for a verified no-op or finishing a
@@ -172,7 +175,11 @@ or changed condition makes progress possible.
 
 ## Prepare canonical Specs in the worktree
 
-Use the Plan's existing worktree; all canonical document edits belong there.
+Use the Plan's existing worktree, shared by work and the designated review roles;
+all canonical document edits belong there. Verify the handoff path/branch and
+reviewed baseline before taking write ownership. Do not create a model-specific
+merge copy. Retain this tree through final review and verified closeout;
+cleanup ends its lifetime.
 If a legacy Plan's implementation was already landed and its worktree removed,
 verify that landing and create a dedicated consolidation worktree under the
 repository's naming rules. Never edit canonical Specs directly on main.
@@ -283,16 +290,28 @@ Only after landing and ledger verification succeed:
    set `status: archived`. Use `git mv` for a tracked Plan; preserve an
    untracked Plan through the appropriate file move. Do not use a lifecycle
    bypass that archives before the preceding checks.
-2. Record `completion_kind: delivered` and the archive checkpoint in the
-   receipt. Check that active/archive paths and frontmatter agree, and that
-   provenance links resolve. Commit the target Plan's final bookkeeping.
+2. Verify the actual archived state before recording the archive checkpoint:
+   task IDs and counts agree, delivery/review/archival effects are verified,
+   remaining cleanup work is explicitly pending, state and location match,
+   links resolve from the real parent, required affected
+   README/module references are present, and navigation/history targets identify
+   this Plan rather than any existing file. Canonical knowledge entries still
+   point to their Specs. Use the repo's reusable gate when available; otherwise
+   record direct checks, not an unverified one-off checker. A pre-archive
+   simulation is useful but does not replace this actual-state check.
+   Record `completion_kind: delivered`, the verified checkpoint and results;
+   commit final bookkeeping. If this gate fails, keep the worktree for closeout
+   repair, record the pending recovery checkpoint, and do not claim pass or
+   clean up. Do not reopen passed implementation for a document-only repair.
 3. Recheck the worktree is clean and all its commits are landed. Immediately
    before removal, verify the resolved absolute path is within its intended
    group and require a fresh `wt-guard.sh` clean result. Remove the worktree
    and its merged branch; remove only the empty group directory. Never create
    junctions/symlinks or bypass the guard.
-4. Verify removal and record `cleaned` in the archived Plan; commit that
-   receipt update. If cleanup fails, keep the delivered archive, report
+4. Verify removal, complete its owned tasks, recompute final counts, and record
+   `cleaned` in the archived Plan. Verify the final task/count/reference state
+   before committing that receipt update or reporting merge pass. If cleanup
+   fails, leave its tasks pending, keep the delivered archive, report
    `blocked` with cleanup pending, and retry only that operation.
    Authorized dependency worktrees follow their own review/integration gates
    and should already have been folded/cleaned promptly.
