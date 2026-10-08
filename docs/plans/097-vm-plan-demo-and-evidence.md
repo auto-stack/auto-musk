@@ -742,6 +742,17 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
   另加⑤输出预算 65536（attempt9 起零截断）、⑥驱动瞬时错误重试
   （03429a5）。
 - next: **T-12 仍 blocked——剩余失败面收敛为模型长尾方差**（attempt6~10
+  + 用户实机反馈轮:canvas 生态已端到端可见——结构树/生成进度条/FocusBoard
+  均渲染,唯 canvas 原生窗独立弹出遮宿主。架构澄清:原生窗 = 帧渲染源,
+  Musk 面板镜像才是内嵌呈现面(iced 无 re-parent,真 OS 级内嵌不可行)。
+  停靠契约已落地三仓:auto-lang `97f18f78d`(AUTO_VM_POSITION 四入口)+
+  `d99be3103`(Standalone/rqhost 级联点覆盖)+`91ae002d3`(rq 守护
+  MUSK_CANVAS_WINDOW_POS 按 Hello app_name 停靠映射——per-window 位置
+  无需协议扩展,守护环境=首客户端孵化继承);musk `e5fe941`(spawn 透传
+  +裸 main 检出 pick 路由双注册 panic 的落地债修复);097 `861525f`
+  (宿主 80,80+画布 <repo>=1380,80 停靠映射)。端到端窗位视觉终验待
+  用户下次实机 run 确认(rq 采纳路径的实测与 PLAN-735/736 桌面协议
+  在途改动同域,留给 owner 视角复核)
   每跑一个新变体:attempt10 = execute 相位 coder 更新 §8 勾选时损伤计划
   frontmatter → needs_replan 按设计响亮停;每尝试 P(delivered) 经验估计
   ~10-20%,三轮连过低概率）。进一步解阻选项三项（execute 相位 frontmatter
