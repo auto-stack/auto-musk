@@ -92,6 +92,18 @@ impl SessionHandle {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .kill_on_drop(true);
+        // PLAN-097 演示 UX：画布原生窗确定性停靠位——serve 级
+        // `MUSK_CANVAS_WINDOW_POS=x,y`（演示驱动按宿主窗右侧计算）透传
+        // auto-lang `AUTO_VM_POSITION`，画布窗不遮宿主。原生窗 = 帧渲染
+        // 源，Musk 面板镜像才是"内嵌"呈现面；Windows 上 Level::AlwaysOn
+        // Bottom 非粘性（激活即抬升，t12 解阻批次实证），位置停靠为可行解。
+        // 缺省 = OS 选择（独立运行形态不变）。
+        if let Ok(pos) = std::env::var("MUSK_CANVAS_WINDOW_POS") {
+            let pos = pos.trim();
+            if !pos.is_empty() {
+                cmd.env("AUTO_VM_POSITION", pos);
+            }
+        }
         // 不继承任何可能让 VM 复用既有后端/窗口的环境（隔离优先）。
         cmd.env_remove("AUTO_REUSE_BACKEND");
         cmd.env_remove("AUTO_HTTP_BASE");

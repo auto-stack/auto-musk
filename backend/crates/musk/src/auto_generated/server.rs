@@ -655,9 +655,6 @@ pub async fn workspace_initialize(s: State<AppState>, q: Query<WorkspaceQuery>) 
     return to_response(workspace_initialize_of(&s, q), "failed to initialize workspace", 500);
 }
 
-pub async fn workspace_pick() -> Json<Value> {
-    return Json(workspace_pick_of());
-}
 
 async fn workflows() -> Json<WorkflowsResp> {
     let list = workflows_builtin_names();
@@ -729,6 +726,5 @@ pub fn build_router() -> Router<AppState> {
     app = app.route("/api/workspace/status", get(workspace_status));
     app = app.route("/api/workspace/browse", get(workspace_browse));
     app = app.route("/api/workspace/initialize", post(workspace_initialize));
-    app = app.route("/api/workspace/pick", post(workspace_pick));
     return app;
 }
