@@ -82,7 +82,9 @@ export async function runDemo({ runId, autoExe, muskExe, ports, aaidUrl, rounds,
       // (1380,80;480 宽窗沿)——面板镜像为内嵌呈现面,原生渲染源窗
       // 不遮宿主(auto-lang AUTO_VM_POSITION/musk MUSK_CANVAS_WINDOW_POS)。
       AUTO_VM_POSITION: '80,80',
-      MUSK_CANVAS_WINDOW_POS: \,
+      // app_name 停靠映射(rq 守护按 Hello app_name 匹配——auto-lang
+      // 91ae002d3);demo 仓名恒为 focusboard(repoDir basename)。
+      MUSK_CANVAS_WINDOW_POS: `${path.basename(repoDir)}=1380,80`,
     },
   });
 
