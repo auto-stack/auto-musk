@@ -78,6 +78,11 @@ export async function runDemo({ runId, autoExe, muskExe, ports, aaidUrl, rounds,
       // 65536（t12-real-08 实证:32768 下 execute 相位 coder 两次截断→
       // 续做预算尽响亮停;部署吞吐旋钮,非有界修复上限,随收据记录）
       MUSK_PLAN_MAX_TOKENS: '65536',
+      // 演示 UX:宿主窗确定性停靠(80,80)+画布原生窗停靠宿主右侧
+      // (1380,80;480 宽窗沿)——面板镜像为内嵌呈现面,原生渲染源窗
+      // 不遮宿主(auto-lang AUTO_VM_POSITION/musk MUSK_CANVAS_WINDOW_POS)。
+      AUTO_VM_POSITION: '80,80',
+      MUSK_CANVAS_WINDOW_POS: '1380,80',
     },
   });
 
