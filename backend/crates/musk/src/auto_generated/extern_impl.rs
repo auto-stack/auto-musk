@@ -2261,7 +2261,31 @@ pub async fn chat_run_owner(
     let sup_session = session_id.clone();
     let sup_role = agent_mode.role.clone();
     tokio::spawn(async move {
-        let inner = tokio::spawn(async move {
+        // PLAN-099 回归修复（实验）：去嵌套 spawn——368c2f9 的双层 spawn 令
+        // run 主体成为子任务后在首个工具执行处冻结（基线 cb7d8dc 对照实证：
+        // 单层 spawn 工具轮正常；嵌套形态 tool_call 后零 tool_result、看门狗
+        // 睡眠注册后永不唤醒）。监督回退为单层 + Drop 守卫。
+        struct GuardOnDrop {
+            state: std::sync::Arc<AppState>,
+            key: String,
+            done: std::sync::atomic::AtomicBool,
+        }
+        impl Drop for GuardOnDrop {
+            fn drop(&mut self) {
+                if !self.done.load(std::sync::atomic::Ordering::SeqCst) {
+                    // panic 展开路径：守卫/取消旗标兜底清理（正常路径已在
+                    // 各出口显式清理，此处幂等）。
+                    self.state.chat_run_finish(&self.key);
+                    self.state.chat_cancel_remove(&self.key);
+                    tracing::warn!("chat run guard released via drop (panic unwind?): key={}", self.key);
+                }
+            }
+        }
+        let guard_on_drop = GuardOnDrop {
+            state: state_for_ctx.clone(),
+            key: run_key2.clone(),
+            done: std::sync::atomic::AtomicBool::new(false),
+        };
         // PLAN-069 W1：root 注入由 build_agent_with_context 完成（thread-local 退役）。
         // Build agent with orchestration tool context (spawn_relay, dispatch).
         let tool_ctx = crate::tool_context::ToolContext {
@@ -2507,13 +2531,21 @@ pub async fn chat_run_owner(
                                 status: "running".into(),
                                 id: id.clone(),
                             };
-                            let mut bl = blocks2.lock().unwrap();
-                            bl.push(crate::chats::ChatBlock {
-                                kind: "tool".into(),
-                                text: String::new(),
-                                tool: Some(tc),
-                            });
-                            tool_idx2.lock().unwrap().insert(id, bl.len() - 1);
+                            // PLAN-099 回归修复：blocks2 守卫收紧到块推送作用域
+                            // ——原形 `bl` 横跨臂尾，工具边界快照的 persist_snapshot
+                            // 在同一持锁下再锁 blocks2 = 同线程自死锁（e2e phase-C
+                            // 冻结定谳：[099-SNAP] enter 后无 done；基线 cb7d8dc
+                            // 对照工具轮正常）。tool_result 臂的 bl 本就 if 内作用
+                            // 域，无需改。
+                            {
+                                let mut bl = blocks2.lock().unwrap();
+                                bl.push(crate::chats::ChatBlock {
+                                    kind: "tool".into(),
+                                    text: String::new(),
+                                    tool: Some(tc),
+                                });
+                                tool_idx2.lock().unwrap().insert(id, bl.len() - 1);
+                            }
                             // PLAN-099 T-03：工具边界增量快照（≥1s 节流）——单长
                             // turn 中途死亡（preview-live-02：写计划/修乱码后卡
                             // search，turn_end 永不到达 → 该 turn 全丢）也有工具
@@ -2706,13 +2738,18 @@ pub async fn chat_run_owner(
             format!("{}{}", user_msg, agent_refs_block)
         };
         let mut idle_timed_out = false;
+        eprintln!("[099-WD] select enter idle={:?} t0=now", idle_timeout);
         let run_out = tokio::select! {
-            r = agent.run_stream(&agent_input, on_event, cancel) => Some(r),
+            r = agent.run_stream(&agent_input, on_event, cancel) => { eprintln!("[099-WD] run_stream returned"); Some(r) }
             _ = async {
                 loop {
                     let last = *wd_rx.borrow();
+                    eprintln!("[099-WD] arm sleep {:?}+{:?}", last.elapsed(), idle_timeout);
                     tokio::time::sleep_until(tokio::time::Instant::from_std(last + idle_timeout)).await;
-                    if *wd_rx.borrow() <= last { break; }
+                    if *wd_rx.borrow() <= last {
+                        eprintln!("[099-WD] BREAK fire at elapsed={:?}", last.elapsed());
+                        break;
+                    }
                 }
             } => { idle_timed_out = true; None }
         };
@@ -2856,43 +2893,8 @@ pub async fn chat_run_owner(
         bridge.abort();
         // PLAN-055 ⑧(D1): run 结束（Ok/Err 两路汇合点）——清 per-session 守卫。
         state_for_ctx.chat_run_finish(&run_key2);
+        guard_on_drop.done.store(true, std::sync::atomic::Ordering::SeqCst);
         close_channel(&tx2);
-        });
-        // 监督者收尾：panic（或任务被取消）时运行体的收束臂/清守卫没跑——
-        // 补可见错误落盘 + 总线事件 + 守卫/取消旗标幂等清理（正常路径幂等
-        // no-op；TTL reaper 是其时钟兜底，本臂是其同步兜底）。
-        if let Err(je) = inner.await {
-            let detail = if je.is_panic() {
-                match je.into_panic().downcast::<&str>() {
-                    Ok(s) => s.to_string(),
-                    Err(p) => match p.downcast::<String>() {
-                        Ok(s) => *s,
-                        Err(_) => "panic（非字符串载荷）".to_string(),
-                    },
-                }
-            } else {
-                format!("{je}")
-            };
-            let text = format!("⚠ 运行内部错误（任务异常终止）：{detail}");
-            tracing::error!("chat run panicked: session={} err={}", sup_session, detail);
-            let mut msg = crate::chats::ChatMessage::assistant(text.clone());
-            msg.profession_id = Some(sup_role);
-            let _ = persist_chat_run_msg(&sup_chats, &sup_session, &msg, "panic");
-            let seq_base = sup_convs
-                .get(&sup_session)
-                .map(|c| c.turns.len())
-                .unwrap_or(0);
-            for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
-                let _ = sup_convs.append_turn(&sup_session, turn);
-            }
-            let _ = crate::relay::api::relay_bus().send(crate::relay::api::BusEvent {
-                run_id: sup_session.clone(),
-                event_type: "chat_event".into(),
-                payload: serde_json::json!({"type": "error", "message": text}),
-            });
-        }
-        sup_state.chat_run_finish(&sup_key);
-        sup_state.chat_cancel_remove(&sup_key);
     });
 }
 /// Plan 020 Phase G (relay_driver.at run_step): bridge agent.run_stream's
