@@ -4,11 +4,21 @@ rem §10-9 note: self-launched process (not going through the agent shell) — l
 rem 2026-09-21 merge: PLAN-080 landed — paths switched from .wt/musk-080 worktrees to main checkouts
 cd /d D:\autostack\auto-musk
 
+rem ⓪ Pick backend binary: release first, fall back to debug
+set MUSK_EXE=backend\target\release\musk.exe
+if not exist "%MUSK_EXE%" set MUSK_EXE=backend\target\debug\musk.exe
+if not exist "%MUSK_EXE%" (
+    echo [launch-vm] musk.exe not found. Build it first:
+    echo   cd /d D:\autostack\auto-musk\backend ^&^& cargo build --release
+    pause
+    exit /b 1
+)
+
 rem ① Start backend (if 17201 is not occupied)
 curl -s -m 2 http://127.0.0.1:17201/api/health >nul 2>&1
 if errorlevel 1 (
-    echo Starting backend musk.exe serve @17201 ...
-    start "musk-backend" /min cmd /c "set MUSK_SERVE_PORT=17201&& backend\target\release\musk.exe serve"
+    echo Starting backend %MUSK_EXE% serve @17201 ...
+    start "musk-backend" /min cmd /c "set MUSK_SERVE_PORT=17201&& %MUSK_EXE% serve"
     timeout /t 3 >nul
 ) else (
     echo Backend already running @17201, reusing.
