@@ -298,11 +298,14 @@ D-1/D-2/D-3a 的部分根因挂载点**已被证据推翻**，实际缺陷面收
   PLAN-099-canvas-embed+PLAN-099-chat-run-liveness/reviews PLAN-099-review/reports
   PLAN-099-delivery；API 回读+磁盘双验证，无关条目 PLAN-096/098 保留）·
   archived=本文件（status:archived）·cleaned=见收据尾 |
-  artifacts_note（落地≠部署）: musk release 二进制——**主检出 backend/target/release 为旧版**
-  （含 PLAN-097 pick 双注册 panic 债，serve 启动即 panic 实证于本轮）；worktree 构建产物
-  （15:2x）已含全部修复但随 worktree 删除；gen/front/vue/dist 已含 poll_list_ticks（auto build
-  于 forge_store.at 修改后跑过）；auto-ai daemon（aaid.exe 运行实例）为旧版不含 f1c7794——
-  **三项（musk release/aaid/gen dist 交由下次 auto build）重建+重启归部署轮，UAT/演示前必做** |
+  artifacts_note（2026-10-09 用户裁定修订）: **测试一律 debug 版**——主检出 target 已 cargo
+  clean（清 34.8GiB 旧产物）并 debug 重建，UAT/回归/演示验证用 debug 二进制（含全部 099 修复，
+  serve 启动即证 main 已无 PLAN-097 pick 双注册 panic 债）。release 重建仅真部署（对外发布）轮
+  才需要。更正：E-STREAM-HANG 根修在 auto-ai-client crate（随 musk 二进制链接走），daemon
+  （aaid.exe）代码未动无需重建——原稿把 aaid 列入重建项有误。gen/front/vue/dist 已含
+  poll_list_ticks（auto build 于 forge_store.at 修改后跑过）。**debug 重建落地实证（同日）**：
+  cargo clean（34.8GiB）→ debug 构建 2m05s → serve 冒烟全绿（health/specs v14[4×099]/chats/canvas
+  200——启动即证 main 无 pick panic 债）→ cargo test -p musk --lib **548 绿**（main known-good）|
   dependencies: auto-ai f1c7794 已折回 main ✓（auto-musk-dev-2 分支留档可删）；auto-lang
   auto-musk-dev aa382b11b 折回 BLOCKED（主检出外来 WIP PLAN-721 media 6 文件未提交，
   含 renderer.rs 同文件不同 hunk——待属主处置后 `git merge --ff-only auto-musk-dev` 即可；
