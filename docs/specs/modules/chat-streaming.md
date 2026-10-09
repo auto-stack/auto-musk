@@ -82,6 +82,17 @@
    重排不串位、卸载复建保持。双端验收以 `tests/ui-parity` 同一断言集
    回放为准（VM snapshot 内容断言 + Vue 真实交互 + 事件/请求 spy），
    适用 case 双端全绿；未达项登记证据报告，不得藏入遗留桶。
+   **PLAN-100 SD-02 增订（验收面扩展）**：验收面显式覆盖 relay 运行身份
+   块——web/VM 双轨的 `spawn_relay` 工具块必须渲染 RelayRunBox（运行框，
+   run 状态可见），不得退化为通用摘要芯片；`gate_waiting` 必须渲染
+   ToolGateCard/审批条且 UI 决议（approve/reject）可推进 run。数据面
+   保障：chat_page 分页端点对 relay 身份块（spawn_relay）**豁免预算降桩**
+   （tool_result 是 run_id 唯一来源，降桩清空 = 长消息前段运行框永久
+   退化——VM 轮询回填快照为最终态）；并直出 `tool_run_id` 浅字段
+   （服务端从 result/args JSON 提取）——VM 对 JSON.parse 产物的深字段
+   读按深度退化、视图模板内 fn 调用静默返空（坑①家族），故消费链纪律 =
+   分支判定只读预计算浅字段（`tc.run_id`），`extractRunId` 保留 parse 臂
+   仅为 web 轨兜底。
 
 ## 关联实现
 

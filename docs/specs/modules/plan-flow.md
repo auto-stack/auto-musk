@@ -181,3 +181,20 @@ turns.jsonl 内嵌遥测与 `collect-telemetry.mjs` 摘要为权威记录物—�
 RUNBOOK §4 第 0 步（每 run 产出摘要并在结果总表/历史记录引用其路径）是
 落账前置。失败签名自动标记（K1/K3/K4/K5）与逐请求 provider/model/token/
 耗时表见 run-telemetry.md 与 RUNBOOK。
+
+## PLAN-100 修订（相位收束催交，2026-10-10）
+
+修订 PLAN-096 的 AC-04 语义：相位结束无有效 `complete_plan_stage` 提交
+不再直接 `stage_incomplete` 失败——`PlanControl::on_stage_end` 先消费该
+相位的**一次催交预算**（`PlanExecutionState.nudges`，每相位独立、上限 1，
+与输出截断续做/修复轮预算互不占用）：push `stage_nudge` facts 并
+`RewoundToExecute` 同相位重入（游标不动、不提交 handoff），重入任务由
+`step_context` 注入 `nudge_directive`（唯一任务 = 补交结构化结果，禁止
+重做相位工作）。预算耗尽仍无 claim 才 `stage_incomplete` 响亮失败，失败
+文案携带自助恢复指引（`POST /api/forge/relay/runs/{run_id}/rerun`）。
+取消旗标与截断续做臂的优先级高于催交（顺序即现排）。配套反模式条款入
+每相位结果提交协议：禁止以纯文本输出收尾（收尾动作只有落盘
+`create_plan` + `complete_plan_stage` 提交）；`plan_id/plan_revision`
+参数逐字取自 `create_plan` 返回值或机械输入，不得凭记忆书写。
+（run-1791532877 实录：advisor 文本收尾忘交即遭旧规则一击致命；L1 探针
+健康基线证明工具链在位，失败源 = 模型随机不合规。）
