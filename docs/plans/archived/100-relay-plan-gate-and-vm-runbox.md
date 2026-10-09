@@ -347,7 +347,7 @@ run 停在 `waiting_approval`，用户在 **VM 轨聊天里**看到运行框与�
 | landed | rebase main 后 range-diff 等价（160153c→6461c2a、4f7de1b→d1a887b，第三提交为新增 spec）；ff-only 落 main，tip=e7911c66062a7040bbf22da89ad2effaa22bce26，无 merge commit |
 | ledger_refreshed | workspace=auto-musk（store-mediated POST /api/specs/item ×4，200）：designs PLAN-100-plan-flow-nudge / PLAN-100-relay-runbox、reviews PLAN-100-review、reports PLAN-100-delivery；读回验证 specs v14→v18 四项在案 |
 | archived | docs/plans/archived/100-relay-plan-gate-and-vm-runbox.md（status: archived，本节即收据） |
-| cleaned | wt-guard clean → musk-100 组三 worktree（auto-musk/auto-ai/auto-lang detached）+ 分支 plan-100-dev 移除 |
+| cleaned | wt-guard clean ×3 → 三 worktree 移除 + 分支 plan-100-dev 已删（was e7911c6）+ 组目录清除；残留句柄占用者 auto-musk-back.exe（rust-workspace 构建产物，E2E 期遗留）已终止后清 |
 
 产物新鲜度观察项（landing ≠ deployment）：主检出 backend/target/{debug,release}/musk.exe 与 gen/front/vue/dist 均先于本计划——debug musk 已于 cleaned 后重建（含修复）；release 与 web bundle 留待部署轮（沿 PLAN-099 收据先例：release 仅真部署轮）。
 
