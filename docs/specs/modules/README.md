@@ -29,6 +29,7 @@
 | [workspace-ui.md](workspace-ui.md) | 五栏目布局、状态、双端与规范权威边界 |
 | [ui-default-styles.md](ui-default-styles.md) | 默认样式、品牌色及平台主题适配边界 |
 | [app-canvas.md](app-canvas.md) | 实况画布生命周期、双向锚定、AutoUI MCP 驱动与三层生成流 |
+| [canvas-embed.md](canvas-embed.md) | canvas 应用画面的宿主内嵌呈现契约（镜像架构、帧区接线、VM 轨相对 URL 解析、会话重绑） |
 | [ui-lint.md](ui-lint.md) | UI Lint 静态扫描规约（8 条 advisory 护栏、红绿锚定、非阻断契约） |
 
 ## 前端模块
