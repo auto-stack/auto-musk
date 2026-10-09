@@ -606,16 +606,6 @@ fn expandedMessageBlocks(msg obj, streaming bool, thinking str, tools str) obj {
         let btkey = b.tkey ?? ""
         if bkind == "thinking" { expanded = blockIsOpen(thinking, btkey) }
         if bkind == "tool" { expanded = blockIsOpen(tools, btkey) }
-        // PLAN-100 出海口探针：tc 字段实值（name 渲染了但 run_id 判空——
-        // 定位 run_id 在哪一跳丢）。
-        if bkind == "tool" {
-            let ptid = b.tc ?? None
-            if ptid != None {
-                print("[P100-OUT] tc.name=" + (ptid.name ?? "MISS") + " tc.run_id=[" + (ptid.run_id ?? "MISS") + "] b.tool_run_id=[" + (b.tool_run_id ?? "MISS") + "]")
-            } else {
-                print("[P100-OUT] tc=None b.tool_run_id=[" + (b.tool_run_id ?? "MISS") + "] b.tool_name=[" + (b.tool_name ?? "MISS") + "]")
-            }
-        }
         out.push({ kind: bkind, text: b.text ?? "", state: b.state ?? "done", tkey: btkey, summary: b.summary ?? "", tc: b.tc ?? None, expanded: expanded })
     }
     return out
