@@ -307,5 +307,9 @@ D-1/D-2/D-3a 的部分根因挂载点**已被证据推翻**，实际缺陷面收
   auto-musk-dev aa382b11b 折回 BLOCKED（主检出外来 WIP PLAN-721 media 6 文件未提交，
   含 renderer.rs 同文件不同 hunk——待属主处置后 `git merge --ff-only auto-musk-dev` 即可；
   **组内 auto-lang worktree 保留至折回完成，auto-ai/auto-down 只读 worktree 随清理**） |
-  next: cleaned→批量回归 due check（099 非 5 整除；.last-batch-regression.json 48h 规则另查）。
+  next: 完成。
+  cleaned（终态）: auto-musk worktree 移除+plan-099-dev 删除（0ede9f8 已含于 main ✓）；
+  auto-ai 只读 worktree+auto-musk-dev-2 删除（f1c7794 已在 main ✓）；auto-down 只读移除；
+  组目录保留 auto-lang（折回 BLOCKED 待办，见 dependencies）；三次 wt-guard clean 均在移除前过。
+  batch-regression due check: **DUE**——last_covered_plan_id=98（099 非整除不触发），但回执时间戳 2026-10-03（今 2026-10-09，>48h）且期间有合并（099 landed 0ede9f8/10dd22a）→ 48h 规则到期，移交 /auto-plan:regress（主检出单实例跑 musk 全量门 38 目标串行；known-reds 098-R1/R2 参照在案）。
 
