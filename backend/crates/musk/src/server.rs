@@ -3651,6 +3651,98 @@ mod tests {
         );
     }
 
+    /// PLAN-099 T-03：turn 内工具边界增量快照——agent 循环的 ToolStart 到达
+    /// on_event 后 pending 快照立即落盘（chats store 可见思考+工具卡现场），
+    /// 不等 run 收束；turn 2 挂死（E-STREAM-HANG 病理）时快照仍在。
+    #[tokio::test]
+    async fn chat_run_tool_boundary_snapshot_persists_mid_run() {
+        use auto_ai_client::{CompletionRequest, CompletionResponse, ToolCall};
+        use crate::auto_generated::server as ag_server;
+        struct ToolThenStallClient;
+        #[async_trait]
+        impl Client for ToolThenStallClient {
+            async fn complete(
+                &self,
+                _req: &CompletionRequest,
+            ) -> Result<CompletionResponse, ClientError> {
+                unreachable!("run_stream 走 complete_stream")
+            }
+            async fn complete_stream(
+                &self,
+                _req: &CompletionRequest,
+                on_event: Arc<dyn Fn(serde_json::Value) + Send + Sync>,
+            ) -> Result<CompletionResponse, ClientError> {
+                static CALLS: std::sync::atomic::AtomicUsize =
+                    std::sync::atomic::AtomicUsize::new(0);
+                let n = CALLS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                if n == 0 {
+                    // turn 1：思考 + 带工具的响应——agent 执行工具前发
+                    // ToolStart（agent.rs 工具循环），经 sink 到达 musk
+                    // on_event → 工具边界快照落盘。
+                    on_event(serde_json::json!({"type": "thinking", "thinking": "先看文件"}));
+                    Ok(CompletionResponse {
+                        content: String::new(),
+                        tool_calls: vec![ToolCall {
+                            id: "t1".into(),
+                            name: "read_file".into(),
+                            input: serde_json::json!({"path": "README.md"}),
+                        }],
+                        stop_reason: Some("tool_use".into()),
+                        usage: None,
+                        model: "mock".into(),
+                        error: None,
+                        model_meta: None,
+                    })
+                } else {
+                    // turn 2：流挂死（既有病理），run 停在 turn 2 中途。
+                    std::future::pending::<()>().await;
+                    unreachable!()
+                }
+            }
+        }
+        let mut state = tmp_state_with_client(Arc::new(ToolThenStallClient));
+        state.run_idle_timeout = std::time::Duration::from_secs(300);
+        let ws = state.registry.get("");
+        let runs = state.chat_runs.clone();
+        let sess = ws
+            .chats
+            .create("basic", Some(String::new()))
+            .expect("create session");
+        ws.chats
+            .append_message(&sess.id, crate::chats::ChatMessage::user("read it"))
+            .expect("append user message");
+        let app = axum::Router::new()
+            .route(
+                "/api/chats/session/{id}/message",
+                axum::routing::post(ag_server::chat_message),
+            )
+            .with_state(state);
+        let st = post_message(app, &sess.id, r#"{"content":"read it","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        // 轮询 chats store：快照应在 ToolStart 后 1s 内落盘（不等收束）。
+        let mut snap = None;
+        for _ in 0..100 {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            let updated = ws.chats.get(&sess.id).expect("session exists");
+            if let Some(m) = updated
+                .messages
+                .iter()
+                .find(|m| m.role == crate::chats::Role::Assistant && m.pending == Some(true))
+            {
+                snap = Some(m.clone());
+                break;
+            }
+        }
+        let snap = snap.expect("turn 内工具边界快照应落盘");
+        assert_eq!(snap.tool_calls.len(), 1, "工具卡随快照保留: {snap:?}");
+        assert_eq!(snap.tool_calls[0].tool, "read_file");
+        assert!(
+            snap.blocks.iter().any(|b| b.kind == "tool"),
+            "blocks 应含工具块"
+        );
+        let _ = runs; // run 仍悬挂（守卫在途）——测试结束随 runtime 丢弃
+    }
+
     /// PLAN-071 需求⑤ T-22：client 失败路径——错误 assistant 消息落盘 +
     /// 守卫清理（原 Err 臂只发瞬态 SSE，失败对用户不可见）。
     #[tokio::test]

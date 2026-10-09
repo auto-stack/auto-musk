@@ -5,6 +5,10 @@
 > PLAN-073 Phase 2 增订（2026-09-20，reviewed e5e098e）：收束三臂统一组装
 > 现场 + turn 增量落盘（pending 快照 / upsert 原位替换保树链）+ 空闲订阅
 > idle 帧即收；详见"收束落盘与增量快照"节与 chat-streaming 契约。
+> PLAN-099 增订（2026-10-09，work 轮 368c2f9/08598cc）：turn 内工具边界
+> 1s 节流快照、孤儿 pending 启动恢复、run 任务监督者、守卫活性 reaper
+> （独立时钟兜底）；详见"收束落盘与增量快照"与"SSE 订阅/运行生命周期"
+> 两节增订段。
 
 ## 会话沙箱绑定（fail-closed 不变量）
 
@@ -44,6 +48,16 @@
 - **turn 增量落盘**：run 起跑即定本 run 的消息 id；每个 `turn_end` 边界把
   当前积累（thinking/工具卡/叙述）以 `pending=true` 快照 upsert 落盘——
   run 进行中刷新页面即可见已完成轮次的现场。
+  **PLAN-099 增订（turn 内工具边界粒度）**：`tool_call`/`tool_result` 事件
+  亦为快照边界，**≥1s 节流**（与 turn_end 共用节流基准防连击）——单长
+  turn 中途死亡（preview-live-02：写计划/修乱码后卡 search，turn_end 永不
+  到达 → 该 turn 曾全丢）也保留工具卡级现场；前端 500ms 轮询链合并 pending
+  快照 = 会话视图 ≤2s 活性（chat-streaming 契约② VM 轨达成路径）。
+- **孤儿 pending 恢复（PLAN-099）**：kill/崩溃于 turn 中途遗留的
+  `pending=true` 快照是该 turn 的唯一现场（PLAN-073 §6.5 登记残项）——
+  工作区 stores 首建时（每进程每工作区一次）`ChatStore::recover_orphan_pending`
+  清 pending 旗（前端完成启发式不再悬挂）+ 会话尾注一条可见"运行中断"
+  提示；无孤儿零写盘（幂等，测试钉死）。
 - **终版同 id 换入**：收束终版与快照共用消息 id，`ChatStore::upsert_message`
   按 id 原位替换并清除 pending；session 内无该 id 时退化为 append（parent/
   leaf 语义同 append_message）。
@@ -90,6 +104,21 @@
   流式事件 → drop run_stream future（中止在途 LLM 流）→ 按超时收束：错误
   事件 + **错误消息持久化** + 守卫清理。run_command 默认超时
   `AUTO_CMD_TIMEOUT_SECS`（默认 300s，超时杀树保留部分输出）。
+- **守卫活性 reaper（PLAN-099，独立时钟兜底）**：守卫值带时间戳
+  （`chat_runs: HashMap<String, Instant>`），流事件/工具进度每拍**活性触摸**
+  （`chat_run_touch`；门等待前推 1800s 窗口外不误杀合法长门）。独立
+  reaper 任务（10s 一拍；axum 轨 tokio::spawn、VM 轨专线程专 runtime）
+  回收 `idle_timeout + 30s` 无活性的守卫键：强制清除 + 取消旗标清理 +
+  持久化可见"守卫超时回收"提示 + 总线 error 事件。**活性口径与看门狗
+  一致**（健康长跑事件持续刷新，永不误杀）。存在必要性：同步桥
+  `Handle::block_on` 停泊 worker 时（KNOWN-DEBT E-STREAM-HANG）run 任务
+  内的看门狗 select 一并冻结，独立线程 reaper 是唯一活路（e2e phase-D
+  实证 +170s 回收）。
+- **run 任务监督者（PLAN-099）**：`chat_run_owner` 运行体外包监督者任务
+  （内层 JoinHandle）——运行体 panic/取消时（收束臂与清守卫未跑）由监督
+  者收尾：可见错误消息持久化（"任务异常终止"）+ 总线 error 事件 + 守卫/
+  取消旗标幂等清理。看门狗/清守卫与运行体同任务，任务死则三者同死
+  （preview-live-02 守卫泄漏定谳），监督者是 panic 路的同步兜底。
 - **取消**：`POST /api/chats/session/{id}/cancel` 置位 per-session 取消旗标
   （owner 孵化注册、出口移除）；agent 于迭代边界检查收束并落盘已有内容；
   流内 stall 由看门狗兜底。

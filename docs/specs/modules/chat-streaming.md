@@ -6,6 +6,9 @@
 > 会话载入即附加（AttachStream）、完成启发式 pending 守卫。
 > PLAN-077 增订（2026-09-20，reviewed fbca482）：双端 Block 状态/回放验收
 > （契约⑧，SD-01）。
+> PLAN-099 增订（2026-10-09，work 轮 368c2f9/08598cc）：turn 内工具边界
+> 增量快照（契约④增订）、VM 轨 ≤2s 达成路径（契约②增订）、守卫活性
+> reaper 与 run 监督者（运行生命周期，见 chat-run-policy 同步增订）。
 
 ## 契约
 
@@ -19,6 +22,12 @@
    （server_stream 白名单），前端 `idle` 臂复位运行态并关流。
 2. **实时性口径**：发送后乐观 user 消息立即上屏；assistant 首增量 ≤2s 内渲染；
    工具 Block / gate 卡片出现延迟 ≤2s。违反任一即缺陷，不得以"刷新后可见"替代。
+   **PLAN-099 增订（VM 轨达成路径）**：web 轨由 SSE 增量承载；VM 轨（Sse.open
+   为 no-op stub）由「服务端 turn 内增量快照 + 500ms PollStream 轮询合并」
+   承载——turn 内工具边界（tool_call/tool_result）1s 节流 pending 快照落盘
+   （chat-run-policy"turn 增量落盘"节），快照到达 → 下一轮询拍合并上屏，
+   端到端 ≤2s。纯文本长 turn（无工具边界、未到 turn_end）不承诺 ≤2s，
+   以 turn_end 快照为界（登记于 KNOWN-DEBT E-STREAM-HANG 关联观察）。
 3. **叶链投影一致性**：会话渲染按 `chatActivePath(messages, active_leaf)` 父链
    投影。任何写入 `.messages` 的新消息（乐观 user、流式 assistant、回填数据）
    必须保证 active_leaf 指向其路径（新增消息挂 `parent_id` = 当前叶并推进叶；
@@ -33,6 +42,11 @@
    兜底。完成启发式（回合增长守卫）保留，并增 **pending 守卫**（PLAN-073
    P2-T3）：末条为 pending 快照（非终版）时不清窗不收束，等收束终版同 id
    换入（pending 清除）后自然收束。
+   **PLAN-099 增订**：①回填快照面升级为「turn 粒度 + turn 内工具边界粒度」
+   双层（服务端 1s 节流，见 chat-run-policy）——流式期跳过回填的 web 轨
+   语义不变；VM 轨回填即主通道，合并语义按 pending 快照消费。②运行窗内
+   会话列表每 4 拍（≈2s）轻量重拉（SessionsLoaded 直通道不经 ws_loading
+   骨架门；session_id 非空无自动切换面）——计数徽章活性。
    **PLAN-092 T-02 r2 增订（VM 臂门控语义）**：活性窗门控**全 int tick
    计数**——`poll_seen_wins`（识别 Send/Attach 的 push 增长=活性）、
    `poll_idle_ticks`（>240 tick≈120s 无活性即清窗，**expired 臂清窗一次后
