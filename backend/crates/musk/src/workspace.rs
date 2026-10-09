@@ -610,6 +610,10 @@ impl WorkspaceStores {
         };
         // Migrate old chat sessions into the unified conversation model (idempotent).
         stores.conversations.migrate_chats(&stores.chats);
+        // PLAN-099 T-03：孤儿 pending 快照恢复（每进程每工作区一次——stores
+        // 首建即本进程启动后首次访问该工作区；kill 于 turn 中途的 pending
+        // 快照清旗 + 尾注中断提示）。
+        stores.chats.recover_orphan_pending();
         // Link the run store to the conversation store so relay events are
         // dual-written as turns into a Flow conversation sharing the run id.
         stores

@@ -2239,6 +2239,9 @@ pub async fn chat_run_owner(
     let idle_timeout = s.0.run_idle_timeout;
     let tx2 = tx.clone();
     let run_key2 = run_key.clone();
+    // PLAN-099 T-03：turn 内增量快照节流戳（工具边界事件 ≥1s 才落一次盘，
+    // 与 turn_end 全量快照共用时间基准防连击）。
+    let last_snap = std::sync::Arc::new(std::sync::Mutex::new(std::time::Instant::now()));
     // PLAN-064: 会话思考档位（spawn 任务内用克隆）。
     // PLAN-071 需求⑩：默认档位改为 low——未设置（None/旧会话）一律按
     // "low" 生效；显式 "off"（需求⑩起由前端持久化）仍可完全关闭。
@@ -2246,7 +2249,19 @@ pub async fn chat_run_owner(
         .thinking_level
         .clone()
         .or_else(|| Some("low".to_string()));
+    // PLAN-099 T-04：监督者外层——run 主体任何形态的静默死亡（panic 等）
+    // 由 JoinHandle 收尾：可见错误消息持久化 + 总线错误事件 + 守卫/取消
+    // 旗标幂等清理。此前看门狗与清守卫与运行体同任务，任务 panic 即整体
+    // 静默消失（守卫泄漏 = 该会话永久 busy；preview-live-02 两会话实机
+    // 取证：spawned 后无任何收束日志、7.5 分钟后 spawn skipped guard held）。
+    let sup_state = state_for_ctx.clone();
+    let sup_key = run_key2.clone();
+    let sup_chats = chats.clone();
+    let sup_convs = conversations.clone();
+    let sup_session = session_id.clone();
+    let sup_role = agent_mode.role.clone();
     tokio::spawn(async move {
+        let inner = tokio::spawn(async move {
         // PLAN-069 W1：root 注入由 build_agent_with_context 完成（thread-local 退役）。
         // Build agent with orchestration tool context (spawn_relay, dispatch).
         let tool_ctx = crate::tool_context::ToolContext {
@@ -2355,6 +2370,8 @@ pub async fn chat_run_owner(
         // model_meta 富化（turn_end/done），fold 份供收束臂折叠落盘。
         let tel_sink_events = chat_telemetry_sink.clone();
         let tel_sink_fold = chat_telemetry_sink;
+        // PLAN-099 T-03：节流戳进 on_event（工具边界拍共享同一时间基准）。
+        let last_snap2 = last_snap.clone();
         let on_event: Arc<dyn Fn(auto_ai_agent::StreamEvent) + Send + Sync> =
             Arc::new(move |ev| {
                 use auto_ai_agent::StreamEvent;
@@ -2485,6 +2502,19 @@ pub async fn chat_run_owner(
                                 tool: Some(tc),
                             });
                             tool_idx2.lock().unwrap().insert(id, bl.len() - 1);
+                            // PLAN-099 T-03：工具边界增量快照（≥1s 节流）——单长
+                            // turn 中途死亡（preview-live-02：写计划/修乱码后卡
+                            // search，turn_end 永不到达 → 该 turn 全丢）也有工具
+                            // 卡级现场；前端 500ms 轮询合并 pending 快照 = 会话
+                            // 视图 ≤2s 活性（chat-streaming 契约② VM 轨达成路径）。
+                            {
+                                let mut ls = last_snap2.lock().unwrap();
+                                if ls.elapsed() >= std::time::Duration::from_secs(1) {
+                                    *ls = std::time::Instant::now();
+                                    drop(ls);
+                                    persist_snapshot();
+                                }
+                            }
                         }
                         "tool_result" => {
                             let id = value
@@ -2510,6 +2540,16 @@ pub async fn chat_run_owner(
                                     }
                                 }
                             }
+                            // PLAN-099 T-03：工具完成也是快照边界（同 1s 节流；
+                            // 与 tool_call 臂共用节流戳防成对事件连击落盘）。
+                            {
+                                let mut ls = last_snap2.lock().unwrap();
+                                if ls.elapsed() >= std::time::Duration::from_secs(1) {
+                                    *ls = std::time::Instant::now();
+                                    drop(ls);
+                                    persist_snapshot();
+                                }
+                            }
                         }
                         "done" => {
                             let pending = cur_text2.lock().unwrap().clone();
@@ -2526,6 +2566,9 @@ pub async fn chat_run_owner(
                         // clone 组装（不动累积器），刷新页面即可见已完成
                         // 轮次的现场。
                         "turn_end" => {
+                            // PLAN-099 T-03：turn_end 全量快照刷新节流基准
+                            // （后续工具边界拍从本点起算 1s 窗）。
+                            *last_snap2.lock().unwrap() = std::time::Instant::now();
                             persist_snapshot();
                         }
                         // PLAN-073 T-03/T-04：daemon 降级告警（如工具流式参数
@@ -2789,6 +2832,42 @@ pub async fn chat_run_owner(
         // PLAN-055 ⑧(D1): run 结束（Ok/Err 两路汇合点）——清 per-session 守卫。
         state_for_ctx.chat_run_finish(&run_key2);
         close_channel(&tx2);
+        });
+        // 监督者收尾：panic（或任务被取消）时运行体的收束臂/清守卫没跑——
+        // 补可见错误落盘 + 总线事件 + 守卫/取消旗标幂等清理（正常路径幂等
+        // no-op；TTL reaper 是其时钟兜底，本臂是其同步兜底）。
+        if let Err(je) = inner.await {
+            let detail = if je.is_panic() {
+                match je.into_panic().downcast::<&str>() {
+                    Ok(s) => s.to_string(),
+                    Err(p) => match p.downcast::<String>() {
+                        Ok(s) => *s,
+                        Err(_) => "panic（非字符串载荷）".to_string(),
+                    },
+                }
+            } else {
+                format!("{je}")
+            };
+            let text = format!("⚠ 运行内部错误（任务异常终止）：{detail}");
+            tracing::error!("chat run panicked: session={} err={}", sup_session, detail);
+            let mut msg = crate::chats::ChatMessage::assistant(text.clone());
+            msg.profession_id = Some(sup_role);
+            let _ = persist_chat_run_msg(&sup_chats, &sup_session, &msg, "panic");
+            let seq_base = sup_convs
+                .get(&sup_session)
+                .map(|c| c.turns.len())
+                .unwrap_or(0);
+            for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
+                let _ = sup_convs.append_turn(&sup_session, turn);
+            }
+            let _ = crate::relay::api::relay_bus().send(crate::relay::api::BusEvent {
+                run_id: sup_session.clone(),
+                event_type: "chat_event".into(),
+                payload: serde_json::json!({"type": "error", "message": text}),
+            });
+        }
+        sup_state.chat_run_finish(&sup_key);
+        sup_state.chat_cancel_remove(&sup_key);
     });
 }
 /// Plan 020 Phase G (relay_driver.at run_step): bridge agent.run_stream's

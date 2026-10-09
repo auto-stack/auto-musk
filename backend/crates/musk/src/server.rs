@@ -47,7 +47,10 @@ pub struct AppState {
     /// PLAN-055 ⑧(D1): per-session chat run 守卫（键 "ws_id:session_id"）。
     /// `POST /message {run:true}` 显式 spawn 前置位（chats_message），由
     /// chat_run_stream 的全部出口清除；SSE 订阅触发路径不置位、清除为 no-op。
-    pub chat_runs: Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+    /// PLAN-099 T-04：值 = 置位时刻（TTL reaper 依据）——运行体静默死亡
+    /// （panic/饿死）时守卫曾永久泄漏（preview-live-02 实证），监督者 +
+    /// reaper 双兜底后泄漏窗有界。
+    pub chat_runs: Arc<std::sync::Mutex<std::collections::HashMap<String, std::time::Instant>>>,
     /// PLAN-071 需求⑤：在途运行的取消旗标注册表（键同守卫）。owner 孵化时
     /// 注册、出口移除；cancel 端点查表置位（agent 于迭代边界检查，流内 stall
     /// 由空闲看门狗兜底）。
@@ -107,7 +110,11 @@ impl AppState {
 impl AppState {
     /// 置位并报告是否抢到（false = 该会话已有进行中的 run，防双跑）。
     pub fn chat_run_try_start(&self, key: &str) -> bool {
-        self.chat_runs.lock().unwrap().insert(key.to_string())
+        self.chat_runs
+            .lock()
+            .unwrap()
+            .insert(key.to_string(), std::time::Instant::now())
+            .is_none()
     }
 
     /// 清除运行标记（chat_run_stream 各出口调用；未置位时为 no-op）。
@@ -118,7 +125,71 @@ impl AppState {
     /// PLAN-069 W3/F-03：只读窥探——运行在途判定（不移除守卫键）。
     /// 订阅路径据此决定附加转发或空闲等待，**绝不孵化**。
     pub fn chat_run_active(&self, key: &str) -> bool {
-        self.chat_runs.lock().unwrap().contains(key)
+        self.chat_runs.lock().unwrap().contains_key(key)
+    }
+}
+
+/// PLAN-099 T-04：守卫 TTL reaper——独立于运行任务的时钟兜底。运行体静默
+/// 死亡（panic/饿死/看门狗同死）时守卫曾永久泄漏、该会话后续消息被
+/// `spawn skipped (guard held)` 永久拒绝（preview-live-02 实证）。本任务
+/// 周期扫描守卫表：超过 `idle_timeout + 120s`（任何合法看门狗窗 + 裕量）
+/// 的键强制清除 + 会话内落一条可见错误消息（持久化）+ 总线错误事件。
+/// 返回值仅用于测试注入（生产经 [`chat_reaper_spawn`] 启动）。
+pub fn chat_run_reaper_tick(state: &AppState) -> Vec<String> {
+    let ttl = state.run_idle_timeout + std::time::Duration::from_secs(120);
+    let expired: Vec<String> = state
+        .chat_runs
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(_, t)| t.elapsed() > ttl)
+        .map(|(k, _)| k.clone())
+        .collect();
+    for key in &expired {
+        state.chat_run_finish(key);
+        state.chat_cancel_remove(key);
+        let (ws_id, session_id) = match key.split_once(':') {
+            Some((w, s)) => (w.to_string(), s.to_string()),
+            None => (String::new(), key.clone()),
+        };
+        let ws = state.registry.get(&ws_id);
+        let text = format!(
+            "⚠ 运行守卫超时回收（>{:?} 无收束）：运行已强制终止，请重新发送消息。",
+            ttl
+        );
+        tracing::warn!("chat run guard TTL reaper: force-cleared key={key}");
+        let msg = crate::chats::ChatMessage::assistant(text.clone());
+        let _ = ws.chats.append_message(&session_id, msg.clone());
+        let seq_base = ws
+            .conversations
+            .get(&session_id)
+            .map(|c| c.turns.len())
+            .unwrap_or(0);
+        for turn in crate::conversation::chat_message_to_turns(&msg, seq_base) {
+            let _ = ws.conversations.append_turn(&session_id, turn);
+        }
+        let _ = crate::relay::api::relay_bus().send(crate::relay::api::BusEvent {
+            run_id: session_id.clone(),
+            event_type: "chat_event".into(),
+            payload: serde_json::json!({ "type": "error", "message": text }),
+        });
+    }
+    expired
+}
+
+/// PLAN-099 T-04：启动守卫 reaper 周期任务（10s 一拍；需 tokio 上下文——
+/// axum serve 轨直接调用；VM 轨走 [`chat_reaper_loop`] 专线程）。
+pub fn chat_reaper_spawn(state: std::sync::Arc<AppState>) {
+    tokio::spawn(chat_reaper_loop(state));
+}
+
+/// PLAN-099 T-04：reaper 循环体（vm_backend 的 std 线程以专 runtime
+/// block_on 驱动）。
+pub async fn chat_reaper_loop(state: std::sync::Arc<AppState>) {
+    let mut tick = tokio::time::interval(std::time::Duration::from_secs(10));
+    loop {
+        tick.tick().await;
+        let _ = chat_run_reaper_tick(&state);
     }
 }
 
@@ -158,10 +229,12 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         auth: Arc::new(crate::auto_generated::auth::AuthStore::new(users_path)),
         registry: Arc::new(registry),
         canvas: canvas.clone(),
-        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         run_idle_timeout: AppState::run_idle_timeout_from_env(),
     };
+    // PLAN-099 T-04：守卫 TTL reaper（独立时钟兜底，见 chat_reaper_spawn）。
+    chat_reaper_spawn(std::sync::Arc::new(state.clone()));
 
     // Static assets: the web app (Chats/Specs SPA) lives at `web/dist`
     // (built by `npm run build` in web/). The legacy config-page ESM bundle
@@ -1153,7 +1226,7 @@ mod tests {
             canvas: Arc::new(crate::canvas::CanvasManager::new()),
             chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             run_idle_timeout: std::time::Duration::from_secs(300),
-            chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+            chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         }
     }
 
@@ -3357,7 +3430,7 @@ mod tests {
             canvas: Arc::new(crate::canvas::CanvasManager::new()),
             chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             run_idle_timeout: std::time::Duration::from_secs(300),
-            chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+            chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         }
     }
 
@@ -3504,6 +3577,55 @@ mod tests {
             err_msg.content
         );
         assert!(runs.lock().unwrap().is_empty(), "守卫应已清理");
+    }
+
+    /// PLAN-099 T-04：守卫 TTL reaper——运行体静默死亡（守卫滞留超 TTL）时
+    /// 强制清除 + 可见错误消息持久化（preview-live-02 守卫泄漏回归）。
+    #[tokio::test]
+    async fn chat_guard_reaper_force_clears_expired_guard() {
+        let mut state = tmp_state_with_client(Arc::new(HangingClient {
+            calls: std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        }));
+        state.run_idle_timeout = std::time::Duration::from_secs(0);
+        let ws = state.registry.get("");
+        let sess = ws
+            .chats
+            .create("basic", Some(String::new()))
+            .expect("create session");
+        // 模拟静默死亡：守卫键滞留且时间戳远老于 TTL（idle_timeout=0 → TTL=120s）。
+        let aged = std::time::Instant::now()
+            .checked_sub(std::time::Duration::from_secs(10_000))
+            .expect("aged instant");
+        state
+            .chat_runs
+            .lock()
+            .unwrap()
+            .insert(format!(":{}", sess.id), aged);
+        let cleared = chat_run_reaper_tick(&state);
+        assert_eq!(cleared.len(), 1, "滞留守卫应被回收");
+        assert!(state.chat_runs.lock().unwrap().is_empty(), "守卫表应已清空");
+        let updated = ws.chats.get(&sess.id).expect("session exists");
+        let note = updated
+            .messages
+            .iter()
+            .find(|m| m.role == crate::chats::Role::Assistant)
+            .expect("回收提示应持久化");
+        assert!(
+            note.content.contains("守卫超时回收"),
+            "回收提示文案: {}",
+            note.content
+        );
+        // 新鲜守卫（未超 TTL）不受影响。
+        state
+            .chat_run_try_start(&format!(":{}", sess.id))
+            .then_some(())
+            .expect("fresh guard");
+        assert!(chat_run_reaper_tick(&state).is_empty(), "新鲜守卫不动");
+        assert_eq!(
+            state.chat_run_active(&format!(":{}", sess.id)),
+            true,
+            "新鲜守卫应保留"
+        );
     }
 
     /// PLAN-071 需求⑤ T-22：client 失败路径——错误 assistant 消息落盘 +

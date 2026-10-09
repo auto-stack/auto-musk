@@ -686,6 +686,42 @@ impl ChatStore {
         }
     }
 
+    /// PLAN-099 T-03：孤儿 pending 快照恢复（serve 启动后工作区 stores 首建
+    /// 时调用一次）。kill/崩溃于 turn 中途遗留的 `pending=true` 增量快照是
+    /// 该 turn 的唯一现场（PLAN-073 §6.5 登记残项）：pending 清除（前端完成
+    /// 启发式不再悬挂、徽章计数口径回归持久化语义）+ 尾注一条可见中断提示。
+    /// 无孤儿的会话零写盘。返回清理的孤儿快照数。
+    pub fn recover_orphan_pending(&self) -> usize {
+        let _write_guard = self.write_lock.lock().unwrap();
+        let mut map = self.load_map();
+        let mut recovered = 0usize;
+        for session in map.values_mut() {
+            let mut has_orphan = false;
+            for m in &mut session.messages {
+                if m.pending == Some(true) {
+                    m.pending = None;
+                    has_orphan = true;
+                    recovered += 1;
+                }
+            }
+            if has_orphan {
+                let note = ChatMessage::assistant(
+                    "⚠ 检测到上次运行中途中断（serve 重启），以上为已持久化的部分现场；可重新发送消息继续。"
+                        .to_string(),
+                );
+                session.append(note);
+                session.updated_at = now_sec();
+            }
+        }
+        if recovered > 0 {
+            if let Err(e) = self.save_map(&map) {
+                tracing::warn!("chats: orphan pending recovery save failed: {e}");
+            }
+            tracing::info!("chats: recovered {recovered} orphan pending snapshot(s)");
+        }
+        recovered
+    }
+
     // ── Spec-change approval (Plan 009 P1b) ──────────────────
 
     /// Queue a spec change proposed by the agent (not yet applied). Returns
@@ -889,6 +925,38 @@ mod tests {
         assert_eq!(updated.messages[1].pending, Some(true));
         assert!(updated.messages[1].parent_id.is_some());
         assert_eq!(updated.active_leaf.as_deref(), Some(updated.messages[1].id.as_str()));
+    }
+
+    // ── PLAN-099 T-03：孤儿 pending 快照恢复（serve 重启后 stores 首建）──
+
+    #[test]
+    fn recover_orphan_pending_clears_flag_and_appends_note() {
+        let (store, _f) = temp_store();
+        let s = store.create("superpowers", None).unwrap();
+        store
+            .append_message(&s.id, ChatMessage::user("run this"))
+            .unwrap()
+            .unwrap();
+        let mut snap = ChatMessage::assistant("partial work");
+        snap.pending = Some(true);
+        store.upsert_message(&s.id, snap).unwrap().unwrap();
+
+        let n = store.recover_orphan_pending();
+        assert_eq!(n, 1, "一个孤儿快照被恢复");
+        let loaded = store.get(&s.id).unwrap();
+        assert_eq!(loaded.messages[1].pending, None, "pending 旗标应清除");
+        assert_eq!(loaded.messages[1].content, "partial work", "现场内容保留");
+        let note = loaded.messages.last().unwrap();
+        assert_eq!(note.role, Role::Assistant);
+        assert!(
+            note.content.contains("运行中途中断"),
+            "中断提示应落盘: {}",
+            note.content
+        );
+        // 幂等：二次恢复零处理零写盘。
+        assert_eq!(store.recover_orphan_pending(), 0, "无孤儿时零恢复");
+        let again = store.get(&s.id).unwrap();
+        assert_eq!(again.messages.len(), loaded.messages.len(), "不重复落提示");
     }
 
     #[test]

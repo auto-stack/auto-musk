@@ -86,6 +86,10 @@ store ForgeStore {
         var poll_seen_wins int = 0
         var poll_idle_ticks int = 0
         var poll_inflight_ticks int = 0
+        // PLAN-099 T-02：运行窗内会话列表重拉节拍（4 拍≈2s）——列表此前只在
+        // Init/切换/重命名/归档时刷新，run 期间计数徽章恒冻结在发送前快照
+        // （preview-live-02 实证"0 条"贯穿全程）。
+        var poll_list_ticks int = 0
         // PLAN-084 T-05: 已归档会话（"已归档"过滤开关的数据面）+ 开关态。
         // 归档 toggle 开时列表切到 archived_list；归档/取消归档后两表重拉。
         var archived_list []Value = []
@@ -247,6 +251,7 @@ store ForgeStore {
                     .poll_seen_wins = 0
                     .poll_idle_ticks = 0
                     .poll_inflight_ticks = 0
+                    .poll_list_ticks = 0
                     .ws_loading = false
                     .stream_es = Sse.close(.stream_es)
                     .error = ""
@@ -928,6 +933,16 @@ store ForgeStore {
             }
             .poll_seen_wins = wins.length
             .poll_idle_ticks = .poll_idle_ticks + 1
+            // PLAN-099 T-02：运行窗内每 4 拍（≈2s）轻量重拉会话列表——计数
+            // 徽章活性（服务端 message_count 含 pending 增量快照，随快照落盘
+            // 即增长）。走 SessionsLoaded 直通道不经 LoadSessionList（后者置
+            // ws_loading 骨架门，运行中会闪骨架）；SessionsLoaded 在
+            // session_id 非空时无自动切换面，流式态安全。
+            .poll_list_ticks = .poll_list_ticks + 1
+            if .poll_list_ticks >= 4 {
+                .poll_list_ticks = 0
+                Http.get_msg("/api/chats/sessions", "ForgeStore.SessionsLoaded")
+            }
             let dbg str = "wins=" + wins.length + " idle=" + .poll_idle_ticks + " infl_t=" + .poll_inflight_ticks
             if dbg != .dbg_last {
                 .dbg_last = dbg
@@ -944,6 +959,7 @@ store ForgeStore {
                 }
                 .poll_seen_wins = 0;
                 .poll_idle_ticks = 0;
+                .poll_list_ticks = 0;
                 .dbg_last = ""
                 return
             }
