@@ -434,6 +434,17 @@
       "live": true
     },
     {
+      "id": "composer-send-timely",
+      "unit": "ChatsView",
+      "logicalUnit": "shell",
+      "fixture": "live-composer-send-timely.json",
+      "mode": "live-behavior",
+      "state": "real-backend-send-poll-window",
+      "owner": "PLAN-101",
+      "plan": "PLAN-101",
+      "live": true
+    },
+    {
       "id": "settings-popover",
       "unit": "SettingsMenu",
       "logicalUnit": "shell",

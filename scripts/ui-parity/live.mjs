@@ -34,6 +34,12 @@ export const LIVE = {
   // 快照/DOM 可见性断言用拉丁前缀 marker——VM 快照文本按渲染宽度裁剪，
   // 中文长文全文匹配恒假（080 定罪运行实证）。
   marker: 'live-parity-width-probe',
+  // composer-send-timely 专用拉丁 marker（B 相消息；A 相触发完成链）。
+  sendMarker: 'live-send-timely-probe',
+  // 发送→消息节点出现时延预算。窗戳链健康时回填 ≤1 拍即并；渲染随
+  // 服务端叶链推进（assistant 首帧），故预算须容纳模型 TTFB 抖动——
+  // 本断言目标是「不再需要点会话列表才上屏」（哑态=永不出现）。
+  timelyBudgetMs: Number(process.env.AUTO_LIVE_TIMELY_MS ?? 8000),
   timeoutMs: Number(process.env.AUTO_LIVE_TIMEOUT_MS ?? 420000),
 };
 
@@ -714,6 +720,78 @@ const collectors = {
       return { triggerText: vueText, trigger: trigger?.rect ?? null, sessionClickOk };
     },
   },
+  'composer-send-timely': {
+    // 两阶段：A 相经 composer 发送并等 done 臂清 poll_window（复现哑态
+    // 前提——上一回合完成后窗被关，回归即「发送后不上屏、点会话列表才
+    // 刷新」）；B 相（拉丁 marker）测发送→消息节点出现时延。断言锚定
+    // 对话区容器子树，不搜全局（textarea 值/输入缓冲污染全文匹配）。
+    vm: async arm => {
+      const sendViaComposer = async text => {
+        // vnode id 每帧重渲染变化——动作前必须重拍快照（080 首跑实证）。
+        const nodes = parseVmSnapshot(await arm.mcp.snapshot());
+        const ta = nodes.find(n => n.kind === 'textarea');
+        if (!ta) throw new Error('vm composer textarea not found');
+        await arm.mcp.call('autoui_type', { element_id: ta.id, text, clear_first: true });
+        const nodes2 = parseVmSnapshot(await arm.mcp.snapshot());
+        const btnWrap = nodes2.find(n => n.classes.includes('rounded-full') && n.classes.includes('min-w-9'));
+        const btn = btnWrap ? vmDescendantButton(nodes2, btnWrap) : null;
+        if (!btn) throw new Error('vm send button not found');
+        await arm.mcp.call('autoui_action', { element_id: btn.id, action: 'press' });
+      };
+      const messagesHasMarker = async () => {
+        const nodes = parseVmSnapshot(await arm.mcp.snapshot());
+        const ci = nodes.findIndex(n => n.classes.includes('overflow-y-auto') && n.classes.includes('p-4'));
+        if (ci < 0) return false;
+        for (let j = ci + 1; j < nodes.length; j++) {
+          if (nodes[j].indent <= nodes[ci].indent) break;
+          if ((nodes[j].text ?? '').includes(LIVE.sendMarker)) return true;
+        }
+        return false;
+      };
+      await sendViaComposer('live-send-timely phase-a');
+      // 等 done 臂关窗（seed 环境 run 秒败 <2s；上限 90s 防挂）。
+      let windowClosed = true;
+      try {
+        await waitFor(async () =>
+          (await arm.mcp.call('autoui_state', { widget: 'ForgeStore' })).includes('poll_window: []') ? true : null,
+          90000, 'vm phase-a poll window close');
+      } catch { windowClosed = false; }
+      if (!windowClosed) return { error: 'phase-a poll window never closed (90s) — done-arm chain broken' };
+      const t0 = Date.now();
+      await sendViaComposer(LIVE.sendMarker + ' timely-b');
+      let appearedMs = null;
+      for (let i = 0; i < 20; i++) {
+        await new Promise(r => setTimeout(r, 250));
+        if (await messagesHasMarker()) { appearedMs = Date.now() - t0; break; }
+      }
+      return { appearedMs, found: appearedMs != null };
+    },
+    vue: async arm => {
+      const page = arm.page;
+      const sendViaComposer = async text => {
+        await page.locator('textarea.chats-input').first().fill(text);
+        await page.locator('button.min-w-9.rounded-full').last().click();
+      };
+      const messagesText = async () =>
+        page.locator('.overflow-y-auto.p-4').first().innerText().catch(() => '');
+      await sendViaComposer('live-send-timely phase-a');
+      // web 轨无 store 直读——等 A 相回显出现后再缓冲 2s 供 done 臂清窗
+      // （seed 环境 run 秒败，错误帧即 assistant 终态）。
+      try {
+        await waitFor(async () => (await messagesText()).includes('phase-a') ? true : null,
+          30000, 'vue phase-a echo');
+      } catch { return { error: 'vue phase-a message never appeared' }; }
+      await page.waitForTimeout(2000);
+      const t0 = Date.now();
+      await sendViaComposer(LIVE.sendMarker + ' timely-b');
+      let appearedMs = null;
+      for (let i = 0; i < 20; i++) {
+        await new Promise(r => setTimeout(r, 250));
+        if ((await messagesText()).includes(LIVE.sendMarker)) { appearedMs = Date.now() - t0; break; }
+      }
+      return { appearedMs, found: appearedMs != null };
+    },
+  },
   'settings-popover': {
     vm: async arm => {
       const open = await vmOpenSettings(arm);
@@ -799,6 +877,16 @@ function compareCase(caseId, vm, vue, seed) {
     geom('ws-trigger', m => m.trigger, 15);
     if (vm.sessionClickOk === false) issues.push('vm: session row click did not reveal seeded message');
     if (vue.sessionClickOk === false) issues.push('vue: session row click did not reveal seeded message');
+  }
+  if (caseId === 'composer-send-timely') {
+    // 行为断言（非几何对拍）：两臂 B 相消息必须在预算内出现在对话区。
+    // 出现即证窗戳链健康（done 清窗 → 发送重开窗 → 轮询回填）；缺席 =
+    // 「发送后不上屏、点会话列表才刷新」回归（实机复现定谳的哑态）。
+    for (const [armName, m] of [['vm', vm], ['vue', vue]]) {
+      if (m.error) { issues.push(`${armName}: ${m.error}`); continue; }
+      if (!m.found) issues.push(`${armName}: sent message did not appear within ${LIVE.timelyBudgetMs}ms (send→poll-window chain broken)`);
+      else if (m.appearedMs > LIVE.timelyBudgetMs) issues.push(`${armName}: message appeared in ${m.appearedMs}ms > ${LIVE.timelyBudgetMs}ms budget`);
+    }
   }
   if (caseId === 'settings-popover') {
     // 锚定断言（各臂相对判据）：面板 GSD 行贴触发件 x（±24px）且不超

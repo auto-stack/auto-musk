@@ -604,12 +604,18 @@ store ForgeStore {
             .thinking = "";
             .error = "";
             // 发送消息到后端。不覆盖 messages（避免和 SSE 回写竞态）——
-            // user 消息由 startForgeStream 在建连前乐观 push（见 forge_stream.ts），
-            // assistant 消息由 SSE delta 事件回写。
+            // 直接发送路径的 user 消息与 assistant 回复由 PollStream 回填
+            // 带上屏；乐观插入与 SSE 订阅属 StartStream 链（问卷/排队路径）。
             // PLAN-055 ⑧(D1)：run=true 显式触发后端 agent 运行——VM 轨 Sse.open
             // 为 no-op，订阅触发路径不可达；gen/web 轨双保险无害（订阅侧守卫防双跑）。
             var resp = chats_send_message(.session_id, content, "", true, false, None);
             .streaming = true
+            // 发送后必须重开轮询窗：上一回合完成时 done 臂已 pop 清窗
+            // （PLAN-062），本 handler 不经 StartStream（其窗戳随乐观 push
+            // 落下）——不开窗则 PollStream 恒早退，消息不上屏、点会话列表
+            // 才刷新（实机复现定谳）。列表 push = 跨模块可靠写（536 T12
+            // 机制）；此处 SET_FIELD 域不可靠，仅窗戳可达。
+            .poll_window.push(Date.now())
             .RefreshHeader()
         }
 
@@ -621,6 +627,8 @@ store ForgeStore {
             .error = "";
             var resp2 = chats_send_message(.session_id, content, "", true, false, JSON.parse(ctxJson));
             .streaming = true
+            // 同 .Send：重开轮询窗（done 臂清窗后本路径无其他开窗点）。
+            .poll_window.push(Date.now())
             .RefreshHeader()
         }
 

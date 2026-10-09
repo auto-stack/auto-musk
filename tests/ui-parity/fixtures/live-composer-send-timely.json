@@ -1,0 +1,8 @@
+{
+  "live": true,
+  "case": "composer-send-timely",
+  "note": "PLAN-101 后继 L0：composer 发送后消息必须经 PollStream 回填及时上屏（≤3s）。两阶段——先发 A 等回合完成（done 臂 pop 清 poll_window，复现哑态），再发 marker B 测出现时延；窗戳链断裂（done 清窗后 Send 不重开窗）时 B 永不上屏，须点会话列表才刷新（实机复现定谳）。",
+  "budget_ms": 8000,
+  "viewport": [1280, 800],
+  "metrics": ["appearedMs"]
+}
