@@ -335,9 +335,15 @@ style {
                                         errands: .errands
                                     }
                                 } else if .block.tc.name == "spawn_relay" {
-                                    if extractRunId(.block.tc) != "" {
+                                    // PLAN-100：分支改判 tc.run_id 预计算字段——
+                                    // 视图模板内 fn 调用在 VM 静默返空（坑①家族，
+                                    // forge_store ainit 注记同族），extractRunId
+                                    // 恒空致运行框分支永不可达（web 轨 fn 正常，
+                                    // 差异即用户所见退化）。run_id 由 messageBlocks
+                                    // 拍平臂预置（服务端 tool_run_id 直出）。
+                                    if .block.tc.run_id != "" {
                                         RelayRunBox {
-                                            runId: extractRunId(.block.tc)
+                                            runId: .block.tc.run_id
                                         }
                                     } else {
                                         col {

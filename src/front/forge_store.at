@@ -387,6 +387,17 @@ store ForgeStore {
                 return
             }
             .messages = rebuildParsedMessages(resp.session.messages)
+            // PLAN-100 取证临印：page 快照进 store 后 spawn_relay 块字段实值。
+            var p100_dbg = "none"
+            let p100_msgs = resp.session.messages ?? []
+            if p100_msgs.length > 1 {
+                let p100_blks = p100_msgs[1].blocks ?? []
+                if p100_blks.length > 0 {
+                    let b0 = p100_blks[0]
+                    p100_dbg = "tool_name=[" + (b0.tool_name ?? "MISS") + "] result=[" + (b0.tool_result ?? "MISS").slice(0, 30) + "] args=[" + (b0.tool_args_json ?? "MISS").slice(0, 30) + "] status=[" + (b0.tool_status ?? "MISS") + "]"
+                }
+            }
+            print("[P100] detail blk0: " + p100_dbg)
             .active_leaf = resp.session.active_leaf ?? ""
             .thinking_level = resp.session.thinking_level ?? "low"
             // PLAN-067 T-05: 会话审批模式随载入回填（缺省 human）。

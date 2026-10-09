@@ -104,10 +104,10 @@ pub fn stage_skill(step_id: &str) -> &'static str {
     }
 }
 
-/// The result-protocol block every plan-flow phase carries: Done without a
-/// valid `complete_plan_stage` submission is `stage_incomplete` (AC-04).
-fn result_protocol(step_id: &str) -> String {
-    let stage_facts = match step_id {
+/// Per-phase structured-result facts (shared by the phase template's result
+/// protocol and the PLAN-100 nudge directive — single source).
+fn stage_facts(step_id: &str) -> &'static str {
+    match step_id {
         "plan" => "stage=\"plan\"、outcome=\"pass\"（或受阻时 needs_replan/blocked）、\
 plan_id/plan_revision 取自创建的计划 frontmatter",
         "execute" => "stage=\"execute\"、outcome=\"pass\"（复审发现问题时由 review 相位发 \
@@ -118,12 +118,41 @@ needs_fix 必须带稳定 finding id 与对应 task/AC id；pass 必须带逐 AC
         "document" => "stage=\"document\"、outcome=\"pass\"（交付检查点由 plan_delivery \
 工具逐项核验后登记，不要自报 delivered）",
         _ => "",
-    };
+    }
+}
+
+/// The result-protocol block every plan-flow phase carries: Done without a
+/// valid `complete_plan_stage` submission is `stage_incomplete` (AC-04).
+/// PLAN-100：补两条反模式禁令——run-1791532877 实录（advisor 以计划正文
+/// 文本收尾、未调工具提交）的针对性条款。
+fn result_protocol(step_id: &str) -> String {
     format!(
         "# 结果提交协议（机械要求）\n\n\
 本相位完成时必须调用 `complete_plan_stage` 工具提交结构化结果：{stage_facts}。\n\
 只输出 Done/总结而不提交有效结果 → 本相位按 stage_incomplete 处理，不进入下一相位（AC-04）。\n\
-工具调用被服务器校验（回读计划文件/Git/证据工件）；伪 pass、缺提交、缺证据都会被拒绝。\n\n"
+工具调用被服务器校验（回读计划文件/Git/证据工件）；伪 pass、缺提交、缺证据都会被拒绝。\n\
+反模式禁令：禁止以计划/总结的**纯文本输出**作为本相位结尾——收尾动作只有两个：落盘（plan 相位 `create_plan`）+ `complete_plan_stage` 提交。\n\
+`complete_plan_stage` 的 plan_id/plan_revision 参数按 {source} 逐字取用，不得凭记忆书写。\n\n",
+        stage_facts = stage_facts(step_id),
+        source = if step_id == "plan" {
+            "`create_plan` 工具返回值/新落计划 frontmatter"
+        } else {
+            "机械输入（计划文件 frontmatter）"
+        },
+    )
+}
+
+/// PLAN-100 SD-01：相位催交指令（收束检测到无 complete_plan_stage 提交后
+/// 的重入注入——本轮唯一任务是补交结构化结果，不重做相位工作）。
+pub fn nudge_directive(step_id: &str) -> String {
+    format!(
+        "# 阶段收尾提醒（机械）\n\n\
+上一轮结束时**没有**调用 `complete_plan_stage`——本相位目前没有任何有效的\
+结构化结果在案；若本轮仍不提交，本 run 将按 stage_incomplete 失败。\n\
+本轮唯一任务：立即调用 `complete_plan_stage` 工具，按结果提交协议提交本相位的结构化结果：{}。\n\
+不要重做相位工作、不要输出叙述性总结；相位产物已存在（如计划文件已落盘）\
+时直接基于既有工件提交。\n\n",
+        stage_facts(step_id),
     )
 }
 
@@ -415,6 +444,36 @@ mod tests {
         assert!(plan_t.contains(r#"stage="plan""#));
         let rev_t = task("plan", "review", &ctx(None));
         assert!(rev_t.contains("needs_fix"), "review protocol mentions fix routing");
+    }
+
+    /// PLAN-100：反模式禁令注入每个相位——纯文本收尾与凭记忆写 plan_id
+    /// 双禁令（run-1791532877 实录的针对性条款）。
+    #[test]
+    fn result_protocol_carries_antipattern_clauses() {
+        for step in ["plan", "execute", "review", "document"] {
+            let t = task("plan", step, &ctx(None));
+            assert!(
+                t.contains("反模式禁令"),
+                "{step}: text-ending antipattern banned"
+            );
+            assert!(
+                t.contains("不得凭记忆书写"),
+                "{step}: plan_id must be copied verbatim"
+            );
+        }
+    }
+
+    /// PLAN-100 SD-01：催交指令（nudge）——点名工具、限定唯一任务、
+    /// 警告二次失败；不与相位模板混淆（独立函数，由 step_context 注入）。
+    #[test]
+    fn nudge_directive_names_tool_and_bounds_task() {
+        for step in ["plan", "execute", "review", "document"] {
+            let n = nudge_directive(step);
+            assert!(n.contains("`complete_plan_stage`"), "{step}: tool named");
+            assert!(n.contains("本轮唯一任务"), "{step}: single task bounded");
+            assert!(n.contains("stage_incomplete"), "{step}: failure warning");
+            assert!(n.contains("不要重做相位工作"), "{step}: no rework");
+        }
     }
 
     /// §5.1：execute 相位注入 Canvas 生成指引（原 coding 模式专享条件补齐）。

@@ -531,11 +531,38 @@ fn on_stage_end_inner(
         ));
     }
     // 2. 必须有本 attempt 的有效结果（Done/handoff/绿勾不能替代，AC-04）。
+    // PLAN-100 SD-01：忘交结构化结果不再即刻响亮失败——先消费一次同相位
+    // 催交（重入任务唯一 = 提交 `complete_plan_stage`，不重做相位工作；
+    // 计数独立于截断续做与修复轮）；预算耗尽仍无 claim 才失败，失败文案
+    // 带 rerun 自助恢复指引。
     let Some(claim) = latest_claim(&pe, &stage) else {
+        let nudged = pe.nudges.get(&pe.phase).copied().unwrap_or(0);
+        if nudged == 0 {
+            ws.relay.mutate_plan_execution(run_id, |pe| {
+                *pe.nudges.entry(pe.phase.clone()).or_insert(0) += 1;
+            });
+            let pe2 = ws.relay.plan_execution(run_id).unwrap();
+            let f = facts_of(
+                &pe2,
+                &pe2.phase,
+                "stage_nudge",
+                Some(
+                    "phase ended without a complete_plan_stage submission — \
+re-entering once to request the structured result"
+                        .into(),
+                ),
+                None,
+            );
+            push_facts(&ws.relay, run_id, f);
+            // 游标未动（本相位未提交 handoff）——直接重入同相位（与截断
+            // 续做臂同形状；重入任务的强调指令由 step_context 注入）。
+            return StageRouting::RewoundToExecute;
+        }
         let f = facts_of(&pe, &stage, "stage_incomplete", None, None);
         push_facts(&ws.relay, run_id, f);
         return StageRouting::Fail(format!(
-            "stage_incomplete: agent ended phase '{stage}' without a valid complete_plan_stage result"
+            "stage_incomplete: agent ended phase '{stage}' without a valid \
+complete_plan_stage result; recover via POST /api/forge/relay/runs/{run_id}/rerun"
         ));
     };
     // 2. needs_replan / blocked：停止、保留现场、计划留 active（不 document）。
@@ -1236,6 +1263,144 @@ mod tests {
         );
         assert_eq!(parse_plan_id("no plan here"), None);
         assert_eq!(parse_plan_id("PLAN-abc"), None);
+    }
+
+    // ── PLAN-100 SD-01：相位收束催交（nudge）────────────────────────────
+
+    struct NudgeFixture {
+        state: std::sync::Arc<crate::server::AppState>,
+        ws_id: String,
+        run_id: String,
+        relay: std::sync::Arc<crate::relay::store::RunStore>,
+        _td: tempfile::TempDir,
+    }
+
+    fn nudge_fixture(tag: &str) -> NudgeFixture {
+        struct NoopClient;
+        #[async_trait::async_trait]
+        impl auto_ai_agent::Client for NoopClient {
+            async fn complete(
+                &self,
+                _req: &auto_ai_client::CompletionRequest,
+            ) -> Result<
+                auto_ai_client::CompletionResponse,
+                auto_ai_client::ClientError,
+            > {
+                Err(auto_ai_client::ClientError::DaemonUnavailable)
+            }
+        }
+        let td = tempfile::tempdir().unwrap();
+        let root = td.path().join(tag);
+        std::fs::create_dir_all(&root).unwrap();
+        let state = std::sync::Arc::new(crate::server::AppState {
+            client: std::sync::Arc::new(NoopClient),
+            auth: std::sync::Arc::new(
+                crate::auto_generated::auth::AuthStore::new(root.join("users.json")),
+            ),
+            registry: std::sync::Arc::new(crate::workspace::WorkspaceRegistry::load(
+                root.join("workspaces.json"),
+                root.clone(),
+            )),
+            chat_runs: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+            chat_cancels: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
+            run_idle_timeout: std::time::Duration::from_secs(300),
+            canvas: std::sync::Arc::new(crate::canvas::CanvasManager::new()),
+        });
+        // registry.open 建 ws（.autoos 全家桶）并返回 id——on_stage_end 内部
+        // 经 registry.get(ws_id) 取到的是同一缓存实例（root 键控）。
+        let meta = state.registry.open(&root.to_string_lossy());
+        let ws_id = meta.id.clone();
+        let ws = state.registry.get(&ws_id);
+        let (run_id, _st) = ws.relay.start_run(
+            &crate::relay::store::StartRunRequest {
+                run_id: Some(format!("run-nudge-{tag}")),
+                flow_id: Some("plan".into()),
+                steps: Vec::new(),
+                task: Some("取证需求".into()),
+                authorization: None,
+            },
+            Some(ws_id.clone()),
+        );
+        ws.relay
+            .set_plan_execution(&run_id, PlanExecutionState::new("", 0, "", 0));
+        NudgeFixture {
+            state,
+            ws_id,
+            run_id,
+            relay: ws.relay.clone(),
+            _td: td,
+        }
+    }
+
+    #[test]
+    fn stage_end_without_claim_nudges_once_and_reenters() {
+        let f = nudge_fixture("first");
+        let routing = on_stage_end(&f.state, &f.ws_id, &f.run_id);
+        assert!(
+            matches!(routing, StageRouting::RewoundToExecute),
+            "首收束无 claim → 催交重入"
+        );
+        let pe = f.relay.plan_execution(&f.run_id).unwrap();
+        assert_eq!(pe.nudges.get("plan").copied(), Some(1), "催交计数落账");
+        // run 未被判失败（still running/idle）。
+        assert_ne!(
+            f.relay.get(&f.run_id).unwrap().status,
+            "failed",
+            "催交不判失败"
+        );
+        owner_release(&f.run_id);
+    }
+
+    #[test]
+    fn stage_end_second_bare_end_fails_with_rerun_hint() {
+        let f = nudge_fixture("second");
+        let _ = on_stage_end(&f.state, &f.ws_id, &f.run_id);
+        let routing = on_stage_end(&f.state, &f.ws_id, &f.run_id);
+        match routing {
+            StageRouting::Fail(reason) => {
+                assert!(
+                    reason.contains("recover via POST /api/forge/relay/runs/"),
+                    "失败文案带 rerun 恢复指引: {reason}"
+                );
+                assert!(reason.contains("stage_incomplete"));
+            }
+            other => panic!("二次裸收束应失败，实际 {other:?}"),
+        }
+        // 注：run 置 failed 是驱动器臂（StageRouting::Fail → fail_run），
+        // 控制器路由本身不落状态——失败语义的落账在 driver 测试面覆盖。
+        owner_release(&f.run_id);
+    }
+
+    #[test]
+    fn nudge_budget_independent_of_truncation_continuation() {
+        let f = nudge_fixture("indep");
+        // 预置截断续做已用尽——nudge 预算不受影响。
+        f.relay.mutate_plan_execution(&f.run_id, |pe| {
+            pe.continuations.insert("plan".into(), 1);
+        });
+        let routing = on_stage_end(&f.state, &f.ws_id, &f.run_id);
+        assert!(matches!(routing, StageRouting::RewoundToExecute));
+        let pe = f.relay.plan_execution(&f.run_id).unwrap();
+        assert_eq!(pe.nudges.get("plan").copied(), Some(1));
+        assert_eq!(pe.continuations.get("plan").copied(), Some(1), "截断计数不动");
+        owner_release(&f.run_id);
+    }
+
+    #[test]
+    fn cancel_flag_beats_nudge() {
+        let f = nudge_fixture("cancel");
+        cancel_register(&f.run_id);
+        assert!(cancel_set(&f.run_id));
+        let routing = on_stage_end(&f.state, &f.ws_id, &f.run_id);
+        match routing {
+            StageRouting::Fail(reason) => {
+                assert!(reason.contains("cancelled"), "取消优先: {reason}");
+            }
+            other => panic!("取消旗标下不应催交，实际 {other:?}"),
+        }
+        owner_release(&f.run_id);
     }
 
     #[test]

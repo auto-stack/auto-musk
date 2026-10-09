@@ -176,7 +176,20 @@ fn flatten_blocks_budgeted(blocks: &[ChatBlock]) -> Vec<serde_json::Value> {
     for b in normalized.iter().rev() {
         let cost = serde_json::to_string(b).map(|s| s.len() as i64).unwrap_or(0);
         let over = budget - cost < 0;
-        let entry = if over && b.get("kind").and_then(|k| k.as_str()) == Some("tool") {
+        // PLAN-100 SD-02：relay 运行身份块豁免降桩——spawn_relay 的
+        // tool_result 是前端 RelayRunBox（运行框）提取 run_id 的唯一来源，
+        // 降桩清空后运行框永久退化为摘要芯片（VM 实测：长消息 thinking/正文
+        // 耗尽 48KB 预算，消息前段的 spawn_relay 被降桩，而 VM 轨轮询回填
+        // 快照为最终态——活流渲染出的运行框下一拍即被打回芯片）。本块的
+        // result/args 为百字节级，保留成本在预算尺度上是噪声。
+        let is_relay_identity = b
+            .get("tool_name")
+            .and_then(|v| v.as_str())
+            == Some("spawn_relay");
+        let entry = if over
+            && b.get("kind").and_then(|k| k.as_str()) == Some("tool")
+            && !is_relay_identity
+        {
             // 降桩：字符串字段保留（含 summary），重载字段收缩——args_json
             // 契约恒合法 JSON（V-4 实测二次定罪：降桩清空串令消费侧
             // messageBlocks r5b 臂 JSON.parse("") 抛异常炸掉整条渲染
@@ -197,6 +210,26 @@ fn flatten_blocks_budgeted(blocks: &[ChatBlock]) -> Vec<serde_json::Value> {
     }
     out.reverse();
     out
+}
+
+/// PLAN-100：从工具 result/args JSON 文本提取 `run_id`（relay 运行身份）。
+/// 宽容解析：JSON parse 失败回落正则——聊天序列化形态（空格/键序）无关。
+fn extract_run_id(text: &str) -> Option<String> {
+    if text.is_empty() {
+        return None;
+    }
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(text) {
+        if let Some(s) = v.get("run_id").and_then(|x| x.as_str()) {
+            if !s.is_empty() {
+                return Some(s.to_string());
+            }
+        }
+    }
+    let re = regex::Regex::new(r#""run_id"\s*:\s*"([^"]+)""#).ok()?;
+    re.captures(text)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().to_string())
+        .filter(|s| !s.is_empty())
 }
 
 /// 单块归一化（无预算考量）：tool→拍平字符串字段；thinking→done 态；
@@ -222,6 +255,13 @@ fn normalize_block(b: &ChatBlock) -> serde_json::Value {
                 // 块载荷仅 name/args/result/status/id（chats.rs ToolCall），
                 // gate_* 字段恒空串对齐消费侧缺省；escape_paths 缺席 = TS
                 // `?? []` → "[]"。
+                // PLAN-100 SD-02：relay 运行身份浅字段——run_id 从
+                // result/args JSON 服务端提取直出。VM 对 JSON.parse 产物的
+                // 深字段读按深度退化（P100 E2E 实测定音：blk 字面量浅字段
+                // 可靠、parse 产物 .run_id 恒 None），消费侧 extractRunId
+                // 优先读本字段（浅字符串），parse 臂仅 web 轨兜底。
+                let run_id =
+                    extract_run_id(&tc.result).or_else(|| extract_run_id(&args_json));
                 let mut v = serde_json::json!({
                     "kind": "tool",
                     "tool_name": tc.tool,
@@ -232,6 +272,7 @@ fn normalize_block(b: &ChatBlock) -> serde_json::Value {
                     "tool_pending_cmd": "",
                     "tool_escape_paths_text": "[]",
                     "tool_args_json": args_json,
+                    "tool_run_id": run_id.unwrap_or_default(),
                     "summary": summary_text_of(&tc.args),
                 });
                 if result_cut || args_cut {
@@ -594,6 +635,57 @@ mod tests {
             .map(|b| serde_json::to_string(b).unwrap().len())
             .sum();
         assert!(total < MSG_BUDGET_BYTES * 2, "total={} bytes", total);
+    }
+
+    /// PLAN-100 SD-02：relay 运行身份块豁免降桩——长消息预算耗尽时，
+    /// 早期 spawn_relay 块的 tool_result（run_id 唯一来源）保留原值，
+    /// 同消息的普通工具块照常降桩。
+    #[test]
+    fn budget_stub_exempt_spawn_relay_identity() {
+        // 用户实录形态：spawn_relay 在消息前段，后随大量工具/思考/正文块
+        // 把 48KB 预算吃穿（每块先被单块截断钳到 ~4KB，需 12+ 块才超支）。
+        let big = "x".repeat(TOOL_RESULT_CAP + 100);
+        let mut blocks = vec![
+            tool_block(
+                "spawn_relay",
+                serde_json::json!({"flow_id": "plan", "task": "focusboard"}),
+                r#"{"run_id":"run-1791532877-7ff2c90","status":"started"}"#,
+            ),
+            tool_block("read_file", serde_json::json!({"path": "a.rs"}), &big),
+        ];
+        for i in 0..14 {
+            blocks.push(tool_block(
+                &format!("run_command{i}"),
+                serde_json::json!({"cmd": "cargo test"}),
+                &big,
+            ));
+        }
+        blocks.push(ChatBlock { kind: "thinking".into(), text: big.clone(), tool: None });
+        blocks.push(ChatBlock { kind: "text".into(), text: big, tool: None });
+        let m = msg("a1", crate::chats::Role::Assistant, blocks);
+        let p = paginate_and_normalize(&session(vec![m]), 50, None);
+        let out = p["session"]["messages"][0]["blocks"].as_array().unwrap();
+
+        let relay = &out[0];
+        assert_eq!(relay["tool_name"], serde_json::json!("spawn_relay"));
+        assert!(
+            relay["tool_result"]
+                .as_str()
+                .unwrap()
+                .contains("run-1791532877-7ff2c90"),
+            "spawn_relay 身份块豁免降桩：result 保真，实际 {}",
+            relay["tool_result"]
+        );
+        // 同消息的普通工具块照常降桩（豁免不是全局放宽）。
+        let ordinary = &out[1];
+        assert_eq!(ordinary["tool_name"], serde_json::json!("read_file"));
+        assert_eq!(ordinary["tool_result"], serde_json::json!(""));
+        assert_eq!(ordinary["truncated"], serde_json::json!(true));
+        // SD-02 续：run_id 浅字段直出（VM 深字段读退化的规避面）。
+        assert_eq!(
+            relay["tool_run_id"],
+            serde_json::json!("run-1791532877-7ff2c90")
+        );
     }
 
     /// thin tool_calls：载荷字段（arguments/result）不再随消息级数组双发。

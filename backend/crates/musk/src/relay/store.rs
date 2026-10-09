@@ -1061,6 +1061,22 @@ impl RunStore {
                 .join("\n");
             format!("{task}\n\n# 门反馈（审批门决议注入，本相位必须落实）\n{bullets}")
         };
+        // PLAN-100 SD-01：相位催交重入——收束检测到无 complete_plan_stage
+        // 提交后的同相位重入必须看到明确的催交指令（本轮唯一任务 = 补交），
+        // 否则盲重放大概率再次以文本收尾、二次撞 stage_incomplete。
+        let task = if entry.engine.flow.id == "plan" || entry.engine.flow.id == "plan-merge" {
+            match entry.plan_execution.as_ref() {
+                Some(pe) if pe.phase == step_id && pe.nudges.get(&pe.phase).copied().unwrap_or(0) > 0 => {
+                    format!(
+                        "{task}\n\n{}",
+                        super::plan_flow::nudge_directive(&step_id)
+                    )
+                }
+                _ => task,
+            }
+        } else {
+            task
+        };
         let prior_md = entry
             .engine
             .step_history

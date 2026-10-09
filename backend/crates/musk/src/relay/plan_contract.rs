@@ -759,6 +759,13 @@ pub struct PlanExecutionState {
     /// Validated stage results (routing + no-progress evidence).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stage_results: Vec<StageResult>,
+    /// Per-phase stage-end nudge counter (PLAN-100 SD-01): a phase ending
+    /// without a valid `complete_plan_stage` claim gets ONE re-entry whose
+    /// sole task is the submission; a second bare end still fails
+    /// stage_incomplete. Independent of the truncation-continuation and
+    /// repair-round budgets (kept per-phase, max 1).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub nudges: BTreeMap<String, u32>,
 }
 
 impl PlanExecutionState {

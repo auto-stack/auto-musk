@@ -55,21 +55,46 @@ fn getErrandToolCalls(errands obj, tc obj) obj {
 
 // ─── Relay helpers ───────────────────────────────────────────────────────────
 
-/** 从 tool_call 的 arguments.run_id 或 result JSON 里提取 run_id。 */
+/** 从 tool_call 的 arguments.run_id 或 result JSON 里提取 run_id。
+ * PLAN-100：形状容错——arguments/result 兼容 obj 与 JSON 字符串双形态
+ * （活流 tc 与持久化拍平两链的序列化漂移防御）；每臂独立 try，任一形态
+ * 解析失败不拖垮其余臂，全落空回落 ""。 */
 fn extractRunId(tc obj) str {
+    // ① arguments obj 直读（字符串形态此臂软返 None/抛出皆安全滑落后臂）。
     try {
-        let a = tc.arguments ?? {}
-        if a.run_id != None { return a.run_id }
-        if tc.result != None {
-            if tc.result != "" {
-                let result = JSON.parse(tc.result)
-                if result.run_id != None { return result.run_id }
+        let a = tc.arguments
+        if a != None {
+            if a.run_id != None { return a.run_id }
+        }
+    } catch { }
+    // ② arguments JSON 字符串解析。
+    try {
+        let a2 = tc.arguments
+        if a2 != None {
+            if a2 != "" {
+                let pa = JSON.parse(a2)
+                if pa.run_id != None { return pa.run_id }
             }
         }
-        return ""
-    } catch {
-        return ""
-    }
+    } catch { }
+    // ③ result obj 直读（防活流把载荷改成对象形态）。
+    try {
+        let r = tc.result
+        if r != None {
+            if r.run_id != None { return r.run_id }
+        }
+    } catch { }
+    // ④ result 字符串解析（主路径：spawn_relay 结果即 JSON 文本）。
+    try {
+        let r2 = tc.result
+        if r2 != None {
+            if r2 != "" {
+                let pr = JSON.parse(r2)
+                if pr.run_id != None { return pr.run_id }
+            }
+        }
+    } catch { }
+    return ""
 }
 
 fn getRelayStatus(relays obj, tc obj) obj {
@@ -356,6 +381,7 @@ fn messageBlocks(msg obj) obj {
                         id: b.tool_id ?? "",
                         arguments: JSON.parse(b.tool_args_json ?? "{}"),
                         result: b.tool_result ?? "",
+                        run_id: b.tool_run_id ?? "",
                         details: None,
                         gate_id: b.tool_gate_id ?? "",
                         pending_cmd: b.tool_pending_cmd ?? "",
@@ -580,6 +606,16 @@ fn expandedMessageBlocks(msg obj, streaming bool, thinking str, tools str) obj {
         let btkey = b.tkey ?? ""
         if bkind == "thinking" { expanded = blockIsOpen(thinking, btkey) }
         if bkind == "tool" { expanded = blockIsOpen(tools, btkey) }
+        // PLAN-100 出海口探针：tc 字段实值（name 渲染了但 run_id 判空——
+        // 定位 run_id 在哪一跳丢）。
+        if bkind == "tool" {
+            let ptid = b.tc ?? None
+            if ptid != None {
+                print("[P100-OUT] tc.name=" + (ptid.name ?? "MISS") + " tc.run_id=[" + (ptid.run_id ?? "MISS") + "] b.tool_run_id=[" + (b.tool_run_id ?? "MISS") + "]")
+            } else {
+                print("[P100-OUT] tc=None b.tool_run_id=[" + (b.tool_run_id ?? "MISS") + "] b.tool_name=[" + (b.tool_name ?? "MISS") + "]")
+            }
+        }
         out.push({ kind: bkind, text: b.text ?? "", state: b.state ?? "done", tkey: btkey, summary: b.summary ?? "", tc: b.tc ?? None, expanded: expanded })
     }
     return out
