@@ -2254,12 +2254,6 @@ pub async fn chat_run_owner(
     // 旗标幂等清理。此前看门狗与清守卫与运行体同任务，任务 panic 即整体
     // 静默消失（守卫泄漏 = 该会话永久 busy；preview-live-02 两会话实机
     // 取证：spawned 后无任何收束日志、7.5 分钟后 spawn skipped guard held）。
-    let sup_state = state_for_ctx.clone();
-    let sup_key = run_key2.clone();
-    let sup_chats = chats.clone();
-    let sup_convs = conversations.clone();
-    let sup_session = session_id.clone();
-    let sup_role = agent_mode.role.clone();
     tokio::spawn(async move {
         // PLAN-099 回归修复（实验）：去嵌套 spawn——368c2f9 的双层 spawn 令
         // run 主体成为子任务后在首个工具执行处冻结（基线 cb7d8dc 对照实证：
