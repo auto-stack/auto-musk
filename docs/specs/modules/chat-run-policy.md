@@ -104,6 +104,14 @@
   流式事件 → drop run_stream future（中止在途 LLM 流）→ 按超时收束：错误
   事件 + **错误消息持久化** + 守卫清理。run_command 默认超时
   `AUTO_CMD_TIMEOUT_SECS`（默认 300s，超时杀树保留部分输出）。
+  **PLAN-099 增订（客户端侧第一道恢复面）**：LLM 流读循环自持空闲超时
+  （auto-ai-client rust-ref f1c7794，env `AUTO_AI_CLIENT_STREAM_IDLE_TIMEOUT_SECS`
+  缺省 90s = daemon 30s 上游窗 ×3 余量）——上游停滞终结为 Http 错误交
+  运行侧失败臂（落盘+清守卫），先于本看门狗触发；运行侧恢复面（本条+
+  活性 reaper）为其兜底。**事件回调纪律**：on_event 在双线程上下文并发
+  执行（client 读循环阻塞线程 + agent 循环 run 任务），共享累积器 Mutex
+  的守卫不得横跨任何子调用（arm 作用域守卫跨持久化=同线程自死锁族，
+  E-STREAM-HANG 教训②）。
 - **守卫活性 reaper（PLAN-099，独立时钟兜底）**：守卫值带时间戳
   （`chat_runs: HashMap<String, Instant>`），流事件/工具进度每拍**活性触摸**
   （`chat_run_touch`；门等待前推 1800s 窗口外不误杀合法长门）。独立
