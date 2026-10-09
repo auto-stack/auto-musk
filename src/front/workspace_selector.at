@@ -20,8 +20,8 @@
 // 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.ws-btn 等）。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web component Folder, FolderPlus, ChevronDown, Search, Check from "src/front/ports/icons.at"
-use.web ws_load_recent, ws_find, ws_filter_recent, ws_pick, ws_open from "src/front/workspace_helpers.at"
+use.web component Folder, FolderPlus, ChevronDown, Search from "src/front/ports/icons.at"
+use.web ws_load_recent, ws_find, ws_filter_recent, ws_tag_current, ws_pick, ws_open from "src/front/workspace_helpers.at"
 // PLAN-081 需求②：切换后 VM 轨默认 query（Http.set_default_query workspace）
 // 重注入——web 实现为 no-op（fetch 拦截器每请求读 localStorage）。
 use.web platformRefreshAuth from "src/front/ports/platform.at"
@@ -52,7 +52,11 @@ widget WorkspaceSelector(collapsed: bool) {
     // shadcn Popover/PopoverTrigger(as-child)/PopoverContent,reka 原生开合同
     // 语义。此前手搓 ws-backdrop+ws-panel 流内承载,VM 不消费 absolute 退化为
     // 嵌入侧栏（用户原始吐槽点之一）。
-    msg Msg { Choose(str), UpdateQuery(str), PickFolder }
+    msg Msg { Choose(str), UpdateQuery(str), PickFolder,
+        // PLAN-101 T-03：workspace 解析完成后的定向重标（app.at 解析链
+        // 晚于本组件 Init——Init 打标可能拿到空 workspace；VM 无登录
+        // 重挂载兜底（web 登录后 selector 重挂走 Init 读 store 真值））。
+        WsResolved(str) }
     model {
         var recent obj = []
         // 搜索框可见行（handler 侧过滤；str.contains 只在 fn 内正确转译）
@@ -63,7 +67,13 @@ widget WorkspaceSelector(collapsed: bool) {
         .Init -> {
             // helpers 内部自带 try/catch（失败返回 []/null），.at 侧无需再包 try。
             // current 不再在此解析（PLAN-080 T-02 单源：store 持真值）。
-            .recent = ws_load_recent().await;
+            // PLAN-101 T-03：行数据预打 is_current（VM 模板条件直读
+            // store/computed 为断点族，当前项标记走循环局部读）。
+            // 080 F-2③教训：fn 间 .await 链死亡现场——先取结果再 tagging，
+            // 不嵌套 `ws_tag_current(ws_load_recent().await, ...)`。
+            let loaded = ws_load_recent().await;
+            .recent = loaded;
+            .recent = ws_tag_current(.recent, .store.workspace);
             .shown = .recent
         }
         .Choose(id) -> {
@@ -75,13 +85,21 @@ widget WorkspaceSelector(collapsed: bool) {
             // → 计划强刷（Reload 重置选中防旧 workspace 详情串台）。web 侧
             // platformRefreshAuth 为 no-op；reload 仅 web 有意义（VM 为
             // auto.dom.reload no-op stub，语义已由 store 链承接）。
+            // PLAN-101 T-03：VM 下 reload 为 no-op，弹层可能保持开启——
+            // 即时重标 is_current，下次渲染即新当前项。
             platformRefreshAuth();
             ForgeStore.SetWorkspace(ws_find(.recent, id));
             PlansStore.Reload();
+            .recent = ws_tag_current(.recent, id);
+            .shown = ws_filter_recent(.recent, .query);
             location.reload()
         }
         .UpdateQuery(q) -> {
             .query = q;
+            .shown = ws_filter_recent(.recent, .query)
+        }
+        .WsResolved(id) -> {
+            .recent = ws_tag_current(.recent, id);
             .shown = ws_filter_recent(.recent, .query)
         }
 
@@ -97,6 +115,9 @@ widget WorkspaceSelector(collapsed: bool) {
                     platformRefreshAuth();
                     ForgeStore.SetWorkspace(meta);
                     PlansStore.Reload();
+                    // PLAN-101 T-03：同 Choose，即时重标。
+                    .recent = ws_tag_current(.recent, meta.id);
+                    .shown = ws_filter_recent(.recent, .query);
                     location.reload()
                 }
             }
@@ -199,6 +220,10 @@ widget WorkspaceSelector(collapsed: bool) {
                     for w in .shown {
                         button {
                             onclick: .Choose(w.id)
+                            // PLAN-101 T-03：✓ 经行数据 mark 文本位渲染
+                            // （text 成员读=实证通道；VM 模板 if 成员读与
+                            // 动态 style 字段引用均为引擎已知断点，静态
+                            // 样式串保留——高亮登记为引擎限制不入 AC）。
                             style: "ws-item w-full flex items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-foreground hover:bg-accent"
                             title: .w.path
                             Folder { size: 15 }
@@ -206,11 +231,9 @@ widget WorkspaceSelector(collapsed: bool) {
                                 style: "ws-item-name"
                                 text .w.name
                             }
-                            if .hasWs && .store.workspace == w.id {
-                                span {
-                                    style: "ws-item-check"
-                                    Check { size: 15 }
-                                }
+                            span {
+                                style: "ws-item-check"
+                                text .w.mark
                             }
                         }
                     }

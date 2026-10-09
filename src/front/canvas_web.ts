@@ -112,6 +112,63 @@ export async function canvasClearPick(): Promise<CanvasResult> {
 }
 
 /**
+ * PLAN-101 T-02：发送时拾取 ctx 快照（PLAN-093 Q-04 DTO，与 VM 端口
+ * ports/canvas.vm.at canvasPickSnapshot 逐字段一致）。无态直查后端
+ * status（与 CanvasStore 投影同源）——.at handler 域读第二 store 在 VM
+ * 不可解析（poison-drop），双轨同走本端口。picked 空/请求失败返 null
+ * （发送不带 ctx，不阻断）。
+ */
+export async function canvasPickSnapshot(
+    workspace: string,
+    session: string,
+): Promise<unknown> {
+    try {
+        const response = await fetch(
+            `/api/canvas/status?workspace=${encodeURIComponent(workspace)}`,
+        );
+        if (!response.ok) return null;
+        const body: {
+            generation_id?: number;
+            seq?: number;
+            app_path?: string;
+            picked?: {
+                vnode_id?: string;
+                kind?: string;
+                label?: string;
+                source_path?: string;
+                source_line?: number;
+                source_confidence?: string;
+                forctx?: { var_name?: string; index?: number; value?: string };
+            } | null;
+        } | null = await response.json().catch(() => null);
+        const picked = body?.picked;
+        if (!picked || typeof picked !== 'object') return null;
+        const fc = picked.forctx ?? null;
+        return {
+            version: '1',
+            workspace_id: workspace,
+            conversation_id: session,
+            generation_id: body?.generation_id ?? 0,
+            frame_seq: body?.seq ?? 0,
+            app_path: body?.app_path ?? '',
+            vnode_id: picked.vnode_id ?? '',
+            kind: picked.kind ?? '',
+            label: picked.label ?? '',
+            source_path: picked.source_path ?? '',
+            source_line: picked.source_line ?? 0,
+            source_confidence: picked.source_confidence ?? '',
+            loop_context: {
+                var_name: fc?.var_name ?? '',
+                index: fc?.index ?? -1,
+                value: fc?.value ?? '',
+            },
+        };
+    } catch {
+        return null;
+    }
+}
+
+/**
  * 源码面板行定位（PLAN-093 T-07；面板 setup 幂等安装，单例守卫同点击委托）：
  * MutationObserver 监听行渲染（拾取/载入/切页签都触发行对象重渲染），
  * 高亮行（.cv-source-hl）出现且位置变化时滚动到容器垂直居中。offsetTop

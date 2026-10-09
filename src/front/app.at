@@ -266,6 +266,12 @@ widget App {
             // 无参、全靠默认 query 带 workspace）会打错工作区。web no-op。
             platformRefreshAuth();
             ForgeStore.SetWorkspace(resolved_ws);
+            // PLAN-101 T-03：workspace 解析完成的定向重标——selector
+            // Init 与本解析存在时序竞争（Init 先 resume 时 store 仍空），
+            // 行数据预拼 is_current 后需此补拍覆盖两种挂载时序。
+            if resolved_ws != None {
+                WorkspaceSelector.WsResolved(resolved_ws.id)
+            }
             // URL → 视图(挂载恢复,web useViewState 初始解析对拍)。
             .current_view = vsCurrentView()
         }

@@ -136,6 +136,43 @@ fn canvasClearPick() {
     return { ok: res.status_code() == 200, error: "", pick: "" }
 }
 
+/// PLAN-101 T-02：发送时拾取 ctx 快照（PLAN-093 Q-04 DTO，与 web 端口
+/// canvas_web.ts 逐字段一致）。无态直查后端 status（与 CanvasStore 投影
+/// 同源）——handler 域不得读第二 store（裸别名/模块 fn 均 poison-drop
+/// 实证），Http.request 段派发 park/resume 为已证通道。picked 空/请求
+/// 失败返 None（发送不带 ctx，不阻断）。
+fn canvasPickSnapshot(ws str, session str) {
+    let url = canvas_http_base() + "/api/canvas/status?workspace=" + encodeURIComponent(ws)
+    let rb = Http.request("GET", url)
+    let res = rb.body("").send()
+    if res.status_code() != 200 {
+        return None
+    }
+    var body = canvas_parse_body(res.body())
+    if body == None {
+        return None
+    }
+    var picked = body.picked
+    if picked == None {
+        return None
+    }
+    // loop_context 映射同 canvasPickedProjection（forctx 缺席 = index -1
+    // 三字段空）。
+    var loop_index = -1
+    var loop_var = ""
+    var loop_value = ""
+    var fc = picked.forctx
+    if fc != None {
+        var fi = fc.index
+        if fi != None {
+            loop_index = fi
+        }
+        loop_var = fc.var_name ?? ""
+        loop_value = fc.value ?? ""
+    }
+    return { version: "1", workspace_id: ws, conversation_id: session, generation_id: body.generation_id ?? 0, frame_seq: body.seq ?? 0, app_path: body.app_path ?? "", vnode_id: picked.vnode_id ?? "", kind: picked.kind ?? "", label: picked.label ?? "", source_path: picked.source_path ?? "", source_line: picked.source_line ?? 0, source_confidence: picked.source_confidence ?? "", loop_context: { var_name: loop_var, index: loop_index, value: loop_value } }
+}
+
 /// 源码抽屉文本（files 域同款只读链；文本经 Response.body lossy UTF-8）。
 /// VM 服务器路由为 /api/files/{workspace_id}/{*path}（workspace 作为路径段，
 /// 与 Rust 轨 /api/files/raw/{*path} 的 query 语义分轨）——ws 由调用方

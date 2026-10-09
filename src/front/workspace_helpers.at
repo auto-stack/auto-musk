@@ -104,6 +104,34 @@ fn ws_filter_recent(recent []Value, query str) []Value {
     return out
 }
 
+/** PLAN-101 T-03：给最近列表逐行克隆并标注 is_current（current_id 命中
+ * 为 true）。纯 fn 双轨同语义；VM 轨模板条件不得直读 store/computed
+ * （断点族），当前项标记改经行数据布尔 + 循环局部读（097 T-11 同款）。
+ * JSON 克隆而非循环变量就地写字段——handler 域对 for 绑定值 SET_FIELD
+ * 实机 RuntimeError（Init resume 失败实证），局部对象写字段为已证通道
+ * （gate_init_edited_specs 同款）。 */
+/** PLAN-101 T-03：给最近列表逐行克隆并标注当前项 ✓（mark 字段）。
+ * 纯 fn 双轨同语义。实现约束（实机二分实证）：
+ * ① 静态名写字段（item.x = ...）在 VM handler 续体 RuntimeError——
+ *    JSON 克隆后必须 **动态键**（item["x"]，gate_init_edited_specs 同款）；
+ * ② VM 模板 if 条件不支持成员访问（w.is_current 实测不渲染）、动态
+ *    style 字段引用不产出（app-studio-ui 已知限制族）——✓ 走 text 成员读
+ *    （text .w.name 同款实证通道），非当前行 mark="" 视觉等价不渲染。 */
+fn ws_tag_current(recent []Value, current_id str) []Value {
+    var out []Value = []
+    for w in recent {
+        var item = JSON.parse(JSON.stringify(w))
+        let cur = (item.id == current_id)
+        if cur {
+            item["mark"] = "✓"
+        } else {
+            item["mark"] = ""
+        }
+        out.push(item)
+    }
+    return out
+}
+
 /** 弹出系统文件夹选择器（本机 serve 进程代弹原生对话框；取消/失败返回 None）。 */
 fn ws_pick() Value {
     try {
