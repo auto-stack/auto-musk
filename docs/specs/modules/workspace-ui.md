@@ -75,3 +75,17 @@
   `modules/app-studio-ui.md`（本模块不复制其契约）。
 - 消息链与 composer 单实例：模式切换不重挂——草稿、展开态、审批卡保持；
   退出模式恢复原侧栏折叠态与会话内容。
+
+## 选择器当前项标记（PLAN-101）
+
+- workspace 选择器弹层中当前 workspace 行必须以可见标记呈现（✓；背景
+  高亮受 VM 动态 style 字段引用引擎限制，恢复后补，登记 PLAN-101 §10）。
+- VM 轨实现约束：模板 `if` 条件不得直读 store/computed 或循环变量成员
+  访问（断点族）——当前项标记经 handler 域预构建行数据（`ws_tag_current`
+  纯 fn：JSON 克隆 + 动态键写 `mark`，静态名 SET_FIELD 在 VM handler
+  续体 RuntimeError）+ 模板文本位成员读（`text .w.mark`）实现；web 轨
+  同函数同语义（单源双轨）。
+- `Init` 与 workspace 解析链存在时序竞争（Init 先 resume 时 store 仍
+  空）：`app.at` 解析完成后定向 emit `WorkspaceSelector.WsResolved(id)`
+  补拍重标；`Choose`/`PickFolder` 成功链内即时重标（VM 下 reload 为
+  no-op，弹层保持开启）；`UpdateQuery` 过滤保留行数据已带标记。

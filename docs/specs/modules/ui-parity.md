@@ -81,3 +81,14 @@ live 实拍复用 ui-parity live 基建（PLAN-095 未执行，见其证据报�
 - VM 已知限制记档：进度摘要 computed fn 返空隐藏（G-15）；studio 模式
   快照 rect 全零（G-17，渲染不受影响）；wrap 动态 :style 字段引用不
   产出（静态等比回退承载）。缺运行证据失败；不以编译通过代替运行态。
+
+## VM live 冒烟增补（PLAN-101）
+
+- live-required 断言组件增补两条 VM 端行为：**composer 发送出现 user
+  消息节点**（注入路径以发送钮为锚——合成 Enter 需原生焦点，MCP 三臂
+  均不可达，登记为 harness 限制；发送钮与 Enter 键绑定同一
+  `.send` → `ChatsView.SendInput` emit 链）；**选择器当前行含 check
+  节点**（`workspace-selector-current` 既有 case 的行为面扩充）。
+- fixture 回归覆盖 `ws_tag_current` 行数据 mark 投影（命中/未命中/
+  空列表/重复 id/克隆不变异）；`ws_tag_current`/`canvasPickSnapshot`
+  不入声明清单（catalog 计数 114/114 维持）。

@@ -65,3 +65,18 @@
   全零（布局渲染不受影响；坐标/几何面按 normal 模式验证）。
 - 键盘：Escape 收敛（源码页签→结构/错误详情收起，不触 stop）；Tab 序
   与双主题实拍列 review 复验项。
+
+## Composer 发送双轨合同（PLAN-101）
+
+- composer 发送在 VM 轨必须可用：`ChatsView` 的 `SendInput`/`CtxRemove`
+  handler **不得引用第二 store 裸别名**（`canvasStore` 等）——VM 轨
+  handler/模块 fn 域的第二 store 别名解析为合成断点（poison-drop 实证，
+  auto-lang 上游缺口已登记 PLAN-101 §10）；跨 store 动作用限定式 emit
+  （`CanvasStore.ClearPick()`，形态同 `PlansStore.Reload()` 先例）。
+- 拾取 ctx 快照（PLAN-093 Q-04 DTO）经双轨同名端口 `canvasPickSnapshot`
+  构造：无态直查 `GET /api/canvas/status`（与 CanvasStore 投影同源），
+  web 实现在 `canvas_web.ts`、VM 实现在 `ports/canvas.vm.at`，DTO 逐字段
+  对齐（forctx 缺席 = index -1 三字段空）；picked 空/请求失败返空值 →
+  不带 ctx 发送，不阻断。
+- 拾取 chip 的 VM 可见性（`chats_view.at` 模板跨 store 条件同族断点）
+  登记为引擎模板条件族既有边界，不属本模块承诺；上游修复后自然恢复。
