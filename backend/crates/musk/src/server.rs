@@ -127,16 +127,39 @@ impl AppState {
     pub fn chat_run_active(&self, key: &str) -> bool {
         self.chat_runs.lock().unwrap().contains_key(key)
     }
+
+    /// PLAN-099 T-04 r2：守卫活性触摸——每个流事件/工具进度刷新时间戳。
+    /// reaper 口径从「置位起算」修正为「最后活性起算」（与空闲看门狗同
+    /// 语义）：健康长跑（演示 run 常 >10 分钟）事件持续到达，永不误杀；
+    /// 悬挂任务停止触摸，idle+裕量后被回收。返回键是否存在（诊断用）。
+    pub fn chat_run_touch(&self, key: &str) -> bool {
+        self.chat_run_touch_until(key, std::time::Instant::now())
+    }
+
+    /// 活性触摸的前推变体——门等待（1800s 超时窗）在事件点把时间戳推到
+    /// 窗口外，reaper 的 elapsed 判定在窗口内恒 0，不误杀合法长门。
+    pub fn chat_run_touch_until(&self, key: &str, until: std::time::Instant) -> bool {
+        let mut runs = self.chat_runs.lock().unwrap();
+        match runs.get_mut(key) {
+            Some(t) => {
+                *t = until;
+                true
+            }
+            None => false,
+        }
+    }
 }
 
 /// PLAN-099 T-04：守卫 TTL reaper——独立于运行任务的时钟兜底。运行体静默
-/// 死亡（panic/饿死/看门狗同死）时守卫曾永久泄漏、该会话后续消息被
-/// `spawn skipped (guard held)` 永久拒绝（preview-live-02 实证）。本任务
-/// 周期扫描守卫表：超过 `idle_timeout + 120s`（任何合法看门狗窗 + 裕量）
-/// 的键强制清除 + 会话内落一条可见错误消息（持久化）+ 总线错误事件。
-/// 返回值仅用于测试注入（生产经 [`chat_reaper_spawn`] 启动）。
+/// 死亡（panic/饿死/同步桥停泊——PLAN-099 实测 complete_stream 的
+/// `Handle::block_on` 会停泊 worker 致任务内看门狗 select 一并冻结）时
+/// 守卫曾永久泄漏、该会话后续消息被 `spawn skipped (guard held)` 永久
+/// 拒绝（preview-live-02 实证）。本任务周期扫描守卫表：超过
+/// `idle_timeout + 30s` **无活性触摸**（chat_run_touch）的键强制清除 +
+/// 会话内落一条可见错误消息（持久化）+ 总线错误事件。活性口径与看门狗
+/// 一致：健康长跑事件持续刷新，永不误杀。
 pub fn chat_run_reaper_tick(state: &AppState) -> Vec<String> {
-    let ttl = state.run_idle_timeout + std::time::Duration::from_secs(120);
+    let ttl = state.run_idle_timeout + std::time::Duration::from_secs(30);
     let expired: Vec<String> = state
         .chat_runs
         .lock()

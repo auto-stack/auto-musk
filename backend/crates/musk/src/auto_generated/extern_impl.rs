@@ -2372,10 +2372,22 @@ pub async fn chat_run_owner(
         let tel_sink_fold = chat_telemetry_sink;
         // PLAN-099 T-03：节流戳进 on_event（工具边界拍共享同一时间基准）。
         let last_snap2 = last_snap.clone();
+        // PLAN-099 T-04 r2：守卫活性触摸——每事件刷新 reaper 时间戳
+        // （健康长跑不误杀；悬挂即停触摸 → idle+30s 被回收）。
+        let touch_guard = {
+            let st = state_for_ctx.clone();
+            let k = run_key2.clone();
+            move |until: std::time::Instant| {
+                st.chat_run_touch_until(&k, until);
+            }
+        };
+        let touch_guard_bridge = touch_guard.clone();
         let on_event: Arc<dyn Fn(auto_ai_agent::StreamEvent) + Send + Sync> =
             Arc::new(move |ev| {
                 use auto_ai_agent::StreamEvent;
                 let _ = wd_tx2.send(std::time::Instant::now());
+                // PLAN-099 T-04 r2：reaper 活性触摸（与看门狗喂狗同点）。
+                touch_guard(std::time::Instant::now());
                 let id = match &ev {
                     StreamEvent::ToolStart { .. } => {
                         let n = { let mut c = tc_counter.lock().unwrap(); *c += 1; *c };
@@ -2662,6 +2674,19 @@ pub async fn chat_run_owner(
                                 );
                             } else {
                                 let _ = wd_tx_bridge.send(std::time::Instant::now());
+                            }
+                            // PLAN-099 T-04 r2：工具进度/门等待同喂 reaper 活性
+                            // ——门等待把时间戳推到 1800s 窗口外（elapsed 恒 0
+                            // 不误杀合法长门），普通进度触摸 now。
+                            if ev.event_type == "tool_gate_waiting"
+                                || ev.event_type == "relay_gate_waiting"
+                            {
+                                touch_guard_bridge(
+                                    std::time::Instant::now()
+                                        + std::time::Duration::from_secs(1800),
+                                );
+                            } else {
+                                touch_guard_bridge(std::time::Instant::now());
                             }
                             mpsc_try_send(&tx_bridge, ev.payload);
                         }
