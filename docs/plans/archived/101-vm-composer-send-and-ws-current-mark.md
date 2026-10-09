@@ -405,4 +405,5 @@ worktree 内禁止 junction/symlink；Vue 依赖安装一律外部 staging
   重启即生效（无需构建）；②gen/front/vue/dist 为 merge 前构建（web 轨
   stale，按需 `auto build`+pnpm build 重建）；③backend release musk.exe
   缺位——本计划未触后端，launch-vm.cmd 已具 release→debug 回退
-- cleaned: （清理后补记）
+- cleaned: wt-guard fresh clean 后 remove worktree + branch -d（was 13509e9）
+  + 组目录 .wt/musk-101 已清；git worktree list 仅余他计划在途组
