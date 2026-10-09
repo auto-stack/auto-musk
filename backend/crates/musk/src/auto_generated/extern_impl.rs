@@ -2738,18 +2738,13 @@ pub async fn chat_run_owner(
             format!("{}{}", user_msg, agent_refs_block)
         };
         let mut idle_timed_out = false;
-        eprintln!("[099-WD] select enter idle={:?} t0=now", idle_timeout);
         let run_out = tokio::select! {
-            r = agent.run_stream(&agent_input, on_event, cancel) => { eprintln!("[099-WD] run_stream returned"); Some(r) }
+            r = agent.run_stream(&agent_input, on_event, cancel) => Some(r),
             _ = async {
                 loop {
                     let last = *wd_rx.borrow();
-                    eprintln!("[099-WD] arm sleep {:?}+{:?}", last.elapsed(), idle_timeout);
                     tokio::time::sleep_until(tokio::time::Instant::from_std(last + idle_timeout)).await;
-                    if *wd_rx.borrow() <= last {
-                        eprintln!("[099-WD] BREAK fire at elapsed={:?}", last.elapsed());
-                        break;
-                    }
+                    if *wd_rx.borrow() <= last { break; }
                 }
             } => { idle_timed_out = true; None }
         };
