@@ -1097,6 +1097,24 @@ store ForgeStore {
                 let last_srv = srv_msgs[srv_msgs.length - 1] ?? None
                 if last_srv == None || last_srv.role != "assistant" { return }
             }
+            // vm-send-timely r3：乐观回合保护——本地尾部还是本轮乐观占位
+            // （newAssistantMsg：id "a-*"、content 空）而服务端尚未产出本轮
+            // assistant 帧（末条仍是 user）→ 跳过合并，占位打转不被清。
+            // r2 实测：守卫放开后 TTFB 窗口内回填整表换尾把占位当尾巴换掉
+            // =「框架闪一下就消失，AI 区空白直到整帧到货」（用户复测实报）。
+            // 服务端 assistant 帧一落（pending 即可）本护栏自然放行，合并
+            // 流动、内容随 099 增量快照流式跟进；done 臂收束语义不变。
+            let localNow = .messages
+            if localNow.length > 0 {
+                let lastLocal = localNow[localNow.length - 1]
+                if lastLocal.role == "assistant" {
+                    if (lastLocal.content ?? "") == "" {
+                        let srvAll = resp.session.messages ?? []
+                        let srvLast = srvAll[srvAll.length - 1] ?? None
+                        if srvLast == None || srvLast.role != "assistant" { return }
+                    }
+                }
+            }
             // 按已加载窗口合并：快照首条在现表有锚点→保锚点前缀（用户已
             // 翻页加载的历史）换尾部；无锚点（fork/叶切换/空表）→整表
             // 换入。归一化免本地（blocks_normalized 直出）。
