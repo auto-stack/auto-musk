@@ -150,7 +150,8 @@ fn looks_like_windows_switch(token) bool:
   - `ledger_refreshed`：workspace `auto-musk`（store-mediated POST /api/specs/item @17201），version 21→24，读回校验三条目在案：designs/PLAN-103-chat-gate-visibility、reviews/PLAN-103-review、reports/PLAN-103-delivery（均 Draft，source 引 delivery a12b18e）。
   - `archived`：docs/plans/archived/103-chat-gate-visibility-and-flag-safety.md，status: archived，completion_kind: delivered。
   - 工件时点观察（landing ≠ deployment）：①backend `target/debug/musk.exe` 为 2026-10-10 00:04 旧构建——运行中实例**不含**本计划修复，重建（`cd backend && cargo build`）+ 重启 VM 后即生效，亦为实机 UAT（F-01 走查清单）前置；②release musk.exe 缺位（launch-vm.cmd 走 debug 回退）；③VM UI 轨源码即时编译，重启即生效；④web 轨未触及，gen/front bundle 不涉及。
-  - 批量回归到期判定：PLAN-103 非洲期 id（103 % 5 ≠ 0）；见 `.last-batch-regression.json` 时点核记于 cleaned 后。
+  - 批量回归到期判定：PLAN-103 非洲期 id（103 % 5 ≠ 0）；`.last-batch-regression.json`（covered 98 @ 2026-10-03）——PLAN-100（整除 5）晚于其落地且收据超 48h 有多次合并 → **批量回归到期**，移交 /auto-plan-regress（主检出单实例）。
+  - `cleaned`：三 worktree（auto-musk/auto-ai/auto-lang）wt-guard fresh clean 后 remove；分支 plan-103-dev（was a12b18e=delivery）与 auto-musk-dev-103 ×2 删除；组目录 `.wt/musk-103` 已清；git worktree list 仅余他计划在途组（musk-097/102）。归档提交 6a69c25。
 
 ## 10. 待澄清事项
 
