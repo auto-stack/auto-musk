@@ -94,6 +94,81 @@ async function freePort() {
     s.on('error', rej);
   });
 }
+// ── 桌面协议最小 JS 编解码（PLAN-102 P6——drawlist-renderer codec.ts 同源
+// 词汇子集：信封 + Hello 编码 / Welcome·FrameReadyV2 定位解码 / InputMsg
+// 编码。Rust message.rs tag 表手工镜像；golden 对拍锚在上游包，此处探针
+// 面按需子集）。────────────────────────────────────────────────────────
+const DP_MAGIC = [0x41, 0x50, 0x44, 0x4c];
+function dpEnvelope(channel, payload) {
+  const out = Buffer.alloc(12 + payload.length);
+  Buffer.from(DP_MAGIC).copy(out, 0);
+  out.writeUInt16LE(1, 4);
+  out[6] = channel;
+  out.writeUInt32LE(payload.length, 8);
+  payload.copy(out, 12);
+  return out;
+}
+function dpDecodeEnvelope(buf) {
+  if (buf.length < 12 || buf[0] !== 0x41 || buf[1] !== 0x50 || buf[2] !== 0x44 || buf[3] !== 0x4c) return null;
+  const channel = buf[6];
+  const len = buf.readUInt32LE(8);
+  if (buf.length < 12 + len) return null;
+  return { channel, payload: buf.subarray(12, 12 + len) };
+}
+/** Hello（镜像订阅）：空 fonts/surfaces。 */
+function dpHello(appName, w, h) {
+  const parts = [];
+  const str = (s) => { const b = Buffer.from(s, 'utf8'); const l = Buffer.alloc(4); l.writeUInt32LE(b.length); parts.push(l, b); };
+  const f32 = (v) => { const b = Buffer.alloc(4); b.writeFloatLE(v); parts.push(b); };
+  parts.push(Buffer.from([1, 1, 0])); // tag=1 HELLO, version=1(u16 LE)
+  str(appName); str('');
+  parts.push(Buffer.from([0])); // icon none
+  f32(w); f32(h);
+  const l4 = Buffer.alloc(4); l4.writeUInt32LE(0); parts.push(l4); // fonts: 0
+  // surfaces 空 = 尾段省略（既有消息字节级不变）
+  return Buffer.concat(parts);
+}
+/** PointerPressed(2)/Released(3)：[tag][u64 wid][u8 button][f32 x][f32 y][u8 mods]。 */
+function dpPointer(tag, wid, x, y) {
+  const b = Buffer.alloc(1 + 8 + 1 + 4 + 4 + 1);
+  b[0] = tag;
+  Number(BigInt(wid) & 0xffffffffn); // wid ≤ 2^32（虚拟窗分配序）
+  b.writeBigUInt64LE(BigInt(wid), 1);
+  b[9] = 1;
+  b.writeFloatLE(x, 10);
+  b.writeFloatLE(y, 14);
+  b[18] = 0;
+  return b;
+}
+/** Welcome 定位解码：[tag=2][u64 app_id][u64 wid]… → wid。 */
+function dpWelcomeWid(p) {
+  if (p[0] !== 2) return null;
+  return p.readBigUInt64LE(1);
+}
+/** FrameReadyV2 定位解码：[tag=12][u64 wid][u64 frame_id][u8 slot][bool dmg]
+ * [u64 revision][DisplayList: [tag=2][bool clear][u32 ops][ops…]]。 */
+function dpFrameReadyV2(p) {
+  if (p[0] !== 12) return null;
+  const wid = p.readBigUInt64LE(1);
+  const frameId = p.readBigUInt64LE(9);
+  const revision = p.readBigUInt64LE(19);
+  return { wid, frameId, revision, display: p.subarray(27) };
+}
+/** 在 DisplayList 字节里找 TextStyled 文本 op 的绘制位：TextStyled 布局
+ * [tag=2][x][y][size][lh][color4][weight2][italic1][len4][text]——按文本
+ * 前缀反推 x/y（T = len 字段起点）。 */
+function dpFindTextPos(display, text) {
+  const pat = Buffer.alloc(4 + text.length);
+  pat.writeUInt32LE(text.length);
+  Buffer.from(text, 'utf8').copy(pat, 4);
+  const t = display.indexOf(pat);
+  if (t < 27 + 1 + 1 + 4) return null; // display 头（tag/bool/ops 计数）内命中 = 误配
+  const x = display.readFloatLE(t - 23);
+  const y = display.readFloatLE(t - 19);
+  const size = display.readFloatLE(t - 15);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || size <= 0 || size > 100) return null;
+  return { x, y, size };
+}
 
 // ── win32 窗口 census / ShowWindow（宿主侧呈现切换原语） ──────────────────
 // PS 脚本落盘 + 参数数组调用（-Command 串过 cmd.exe 会被引号/变量搅碎——
@@ -550,9 +625,115 @@ async function probeRemoteArm() {
   return result;
 }
 
+// ── P6 bridge-host（D-1：去窗 rq 宿主 + WS 桥——选定路线的宿主面） ──────
+// `auto rqhost --bridge-ws`：adopt/pump/composed 复用 daemon core，事件面
+// 换 WS 桥（无任何 OS 窗）。断言：宿主零窗 census / Welcome 订阅 /
+// FrameReadyV2 帧到达与随动（md5 变化）/ WS 坐标输入闭环（点击 inc 文本
+// 位 → count+1，经 WS→pipe→app→新帧全链）/ app headless。
+async function probeBridgeHost() {
+  const result = { probe: 'P6-bridge-host' };
+  const bridgePort = await freePort();
+  const daemon = spawn(AUTO_EXE, [
+    'rqhost', '--pipe', 'musk102-p6-bridge', '--bridge-ws', String(bridgePort), '--bridge-token', 'musk102-p6',
+  ], { cwd: FIXTURE, env: { ...process.env }, windowsHide: true, shell: false });
+  let daemonOut = '';
+  daemon.stdout.on('data', (b) => (daemonOut += b));
+  daemon.stderr.on('data', (b) => (daemonOut += b));
+  const h = await spawnFixture({
+    storageTag: 'p6',
+    env: { AUTO_RQHOST_WELLKNOWN: 'musk102-p6-bridge', AUTO_RQHOST_PIPE: 'musk102-p6-bridge', AUTO_VM_RENDER: 'remote' },
+  });
+  let ws = null;
+  try {
+    // 就绪：bridge WS 监听行。
+    const t0 = Date.now();
+    while (Date.now() - t0 < 20000 && !/rqhost-bridge\] ws listening on/.test(daemonOut)) await sleep(300);
+    result.bridgeWsUp = /ws listening on/.test(daemonOut);
+    if (!result.bridgeWsUp) throw new Error('bridge WS 20s 未监听: ' + daemonOut.slice(-300));
+    // D-1 主断言：宿主进程零可见窗（去窗 rq 宿主）。
+    await sleep(2500);
+    const dwins = windowCensus(daemon.pid);
+    result.hostWindowCount = dwins.filter((w) => w.visible && w.titleLen > 0).length;
+    result.hostHeadless = result.hostWindowCount === 0;
+    // MCP 就绪（D-2）+ app headless。
+    const mcp = await awaitMcp(h, 20000);
+    result.appMcpUp = !!mcp;
+    const awins = windowCensus(h.p.pid);
+    result.appHeadless = awins.filter((w) => w.titleLen > 0).length === 0;
+    // WS 连接 + Hello 订阅。
+    ws = new WebSocket(`ws://127.0.0.1:${bridgePort}/?token=musk102-p6`);
+    ws.binaryType = 'arraybuffer';
+    const msgs = [];
+    ws.addEventListener('message', (ev) => {
+      const buf = Buffer.from(ev.data);
+      const dec = dpDecodeEnvelope(buf);
+      if (dec) msgs.push(dec);
+    });
+    await new Promise((res, rej) => {
+      ws.addEventListener('open', res, { once: true });
+      ws.addEventListener('error', () => rej(new Error('ws connect failed')), { once: true });
+    });
+    ws.send(dpEnvelope(1, dpHello('EmbedFixture', 480, 680)));
+    // Welcome + 首帧 FrameReadyV2。
+    const tW = Date.now();
+    let welcomeWid = null;
+    let firstFrame = null;
+    while (Date.now() - tW < 20000 && (welcomeWid === null || firstFrame === null)) {
+      for (const m of msgs) {
+        if (m.channel === 1 && welcomeWid === null) welcomeWid = dpWelcomeWid(m.payload);
+        if (m.channel === 2 && firstFrame === null) firstFrame = dpFrameReadyV2(m.payload);
+      }
+      await sleep(200);
+    }
+    result.welcomeReceived = welcomeWid !== null;
+    result.firstFrameV2 = firstFrame !== null;
+    if (!welcomeWid || !firstFrame) throw new Error('Welcome/首帧超时');
+    // 帧内容定位：inc 文本绘制位（坐标输入的落点）。
+    const inc = dpFindTextPos(firstFrame.display, 'inc');
+    result.incTextLocated = !!inc;
+    result.incPos = inc;
+    const frameMd5A = crypto.createHash('md5').update(firstFrame.display).digest('hex');
+    const countBefore = Number(/count: (\d+)/.exec(await mcp.state())?.[1] ?? -1);
+    // WS 坐标输入闭环：点击 inc 文本位 → app count+1 → 新帧推送。
+    ws.send(dpEnvelope(3, dpPointer(2, welcomeWid, inc.x + 12, inc.y + inc.size / 2 + 1)));
+    ws.send(dpEnvelope(3, dpPointer(3, welcomeWid, inc.x + 12, inc.y + inc.size / 2 + 1)));
+    const tClick = Date.now();
+    let countAfter = countBefore;
+    let frameMd5B = null;
+    while (Date.now() - tClick < 15000 && (countAfter === countBefore || frameMd5B === null)) {
+      const st = await mcp.state().catch(() => '');
+      countAfter = Number(/count: (\d+)/.exec(st)?.[1] ?? countBefore);
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const f = dpFrameReadyV2(msgs[i].payload);
+        if (f && f.frameId > firstFrame.frameId) { frameMd5B = crypto.createHash('md5').update(f.display).digest('hex'); break; }
+      }
+      await sleep(200);
+    }
+    result.wsInputClosedLoop = countAfter === countBefore + 1;
+    result.frameFollowsInput = frameMd5B !== null && frameMd5B !== frameMd5A;
+    result.countEcho = { before: countBefore, after: countAfter };
+    result.hostAlive = daemon.exitCode === null && h.p.exitCode === null;
+    result.pass = result.bridgeWsUp && result.hostHeadless && result.appMcpUp && result.appHeadless &&
+      result.welcomeReceived && result.firstFrameV2 && result.incTextLocated &&
+      result.wsInputClosedLoop && result.frameFollowsInput && result.hostAlive;
+  } catch (e) {
+    result.error = String(e.message ?? e);
+    result.pass = false;
+    result.daemonOutTail = daemonOut.slice(-500);
+  } finally {
+    try { if (ws) ws.close(); } catch { /* best effort */ }
+    killTree(h.p); killTree(daemon); h.dummy.close();
+    try { fs.rmSync(h.storage, { force: true }); } catch { /* best effort */ }
+  }
+  receipt('P6-bridge-host', result);
+  return result;
+}
+
+
 // ── 主流程 ───────────────────────────────────────────────────────────────
 // 候选选择（T-01 决策门产物，docs/reports/102-canvas-embed-decision.md）：
-//   A（缺省）：remote/rq 臂——P1 + P5。B 证伪后选定路线的Capability面。
+//   A（缺省）：remote/rq 臂——P1 + P5 + P6（P5=remote 臂上臂 + D-2 MCP 面；
+//      P6=D-1 bridge 宿主 WS 面）。B 证伪后选定路线的Capability面。
 //   B：隐藏窗 + MCP——P1 + P2 + P3 + P4（本栈实证冻结——保留为证伪仪器，
 //      收据即决策文档的否证证据；预期红）。
 //   both：全量。
@@ -570,6 +751,7 @@ async function main() {
   if (candidate === 'A' || candidate === 'both') {
     results.push(await probeBaseline());
     results.push(await probeRemoteArm());
+    results.push(await probeBridgeHost());
   }
 
   if (candidate === 'B' || candidate === 'both') {
