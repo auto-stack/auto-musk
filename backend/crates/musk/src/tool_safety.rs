@@ -158,6 +158,24 @@ pub fn is_within_project(path: &str) -> bool {
     resolve_within_project(path).is_ok()
 }
 
+/// PLAN-103 T-01：Windows 命令开关形态——`/` 起始 + 纯字母数字单段（不含
+/// `\` `.` `:` 或第二个 `/`），且按路径在磁盘上不存在。cmd 语义下单段
+/// `/x` 不是合法路径引用（Windows 绝对路径必含 `\` 或盘符）；`dir /b /ad`
+/// 曾被误判越界、human 会话误挂 30 分钟审批门（会话 00c663835 实机定罪）。
+/// 带分隔符的 `/x/y`、反斜杠、盘符路径不受豁免照常收集；磁盘存在性兜住
+/// `/tmp` 这类与真实目录同形的极端情形。残余风险：Unix 风格单段根路径
+/// 在 cmd 下不可达，记入 workspace-sandbox 规范（SD-01）。
+fn looks_like_windows_switch(token: &str) -> bool {
+    let rest = match token.strip_prefix('/') {
+        Some(r) => r,
+        None => return false,
+    };
+    if rest.is_empty() || !rest.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return false;
+    }
+    !Path::new(token).exists()
+}
+
 /// PLAN-027 ③: 校验 `run_command` 的 cmd 文本里的路径参数也在 workspace 内
 /// （堵 run_command 绕过 path confinement 的安全漏洞）。
 ///
@@ -171,6 +189,9 @@ pub fn confine_offending_paths(cmd: &str) -> Vec<String> {
     let mut offending: Vec<String> = Vec::new();
     for token in cmd.split_whitespace() {
         if token.starts_with('-') {
+            continue;
+        }
+        if looks_like_windows_switch(token) {
             continue;
         }
         let looks_like_path = token.contains('/')
@@ -235,6 +256,9 @@ pub fn confine_offending_paths_multi(cmd: &str, roots: &[PathBuf]) -> Vec<String
         if token.starts_with('-') {
             continue;
         }
+        if looks_like_windows_switch(token) {
+            continue;
+        }
         let looks_like_path = token.contains('/')
             || token.contains('\\')
             || token.contains("..")
@@ -254,6 +278,7 @@ pub fn confine_offending_paths_multi(cmd: &str, roots: &[PathBuf]) -> Vec<String
 pub fn confine_command_paths_multi(cmd: &str, roots: &[PathBuf]) -> Result<(), String> {
     for token in cmd.split_whitespace() {
         if token.starts_with('-') { continue; }  // 跳过 flag（-x / --foo）
+        if looks_like_windows_switch(token) { continue; }  // PLAN-103：/x 纯字母数字单段 = 开关
         let looks_like_path = token.contains('/')
             || token.contains('\\')
             || token.contains("..")
@@ -270,6 +295,7 @@ pub fn confine_command_paths_multi(cmd: &str, roots: &[PathBuf]) -> Result<(), S
 pub fn confine_command_paths(cmd: &str) -> Result<(), String> {
     for token in cmd.split_whitespace() {
         if token.starts_with('-') { continue; }  // 跳过 flag（-x / --foo）
+        if looks_like_windows_switch(token) { continue; }  // PLAN-103：/x 纯字母数字单段 = 开关
         let looks_like_path = token.contains('/')
             || token.contains('\\')
             || token.contains("..")
@@ -414,6 +440,55 @@ mod tests {
     fn classify_exactly_whitelisted() {
         // "echo" alone (no args) should match.
         assert_eq!(classify_command("echo"), CommandTier::Allowed);
+    }
+
+    // ── PLAN-103 T-01：Windows 开关 token 豁免（dir /b /ad 实机定罪）──
+
+    #[test]
+    fn windows_switch_tokens_not_offending() {
+        let roots = [std::env::temp_dir()];
+        // 事故原样：/b、/ad 纯字母数字单段 = cmd 开关，不是越界路径。
+        assert_eq!(
+            confine_offending_paths_multi("dir /b /ad", &roots),
+            Vec::<String>::new()
+        );
+        // 单根变体与硬拒变体同口径。
+        assert_eq!(confine_offending_paths("dir /b /ad"), Vec::<String>::new());
+        assert_eq!(
+            confine_command_paths_multi("dir /b /ad", &roots),
+            Ok(())
+        );
+        // 更多开关形态。
+        assert_eq!(
+            confine_offending_paths_multi("xcopy /y a b", &roots),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            confine_offending_paths_multi("robocopy /mir /mt src dst", &roots),
+            Vec::<String>::new()
+        );
+    }
+
+    #[test]
+    fn real_out_of_root_paths_still_offending() {
+        let roots = [std::env::temp_dir()];
+        // 盘符绝对路径照收。
+        let offending = confine_offending_paths_multi("type C:\\Windows\\win.ini", &roots);
+        assert!(offending.contains(&"C:\\Windows\\win.ini".to_string()));
+        // 带分隔符的正斜杠多段路径不受开关豁免（落当前盘绝对命名空间）。
+        assert!(
+            !confine_offending_paths_multi(
+                "cat /Windows/System32/drivers/etc/hosts",
+                &roots
+            )
+            .is_empty()
+        );
+        // `..` 穿越照收。
+        assert!(
+            !confine_offending_paths_multi("cat ..\\..\\..\\outside", &roots).is_empty()
+        );
+        // 硬拒变体同样拒绝盘符绝对路径。
+        assert!(confine_command_paths_multi("type C:\\Windows\\win.ini", &roots).is_err());
     }
 
     #[test]
