@@ -90,11 +90,16 @@ store ForgeStore {
         // Init/切换/重命名/归档时刷新，run 期间计数徽章恒冻结在发送前快照
         // （preview-live-02 实证"0 条"贯穿全程）。
         var poll_list_ticks int = 0
-        // toolbar-icons 2026-10-10：等待 Loader 呼吸相位（0..3，SpinTick
-        // 200ms 步进）——仅流式中步进（驱动 ChatMessage spinClass 的文字色
-        // alpha 呼吸；VM 轨 iced 无 transform/CSS 动画，旋转降级为呼吸）。
-        // int 计数沿 PLAN-092 口径（store 唯一可靠读写面）。
+        // toolbar-icons 2026-10-10 r2：等待 Loader 动效相位——原"文字色 alpha
+        // 呼吸"实机无效（VM 轨语义色 alpha 在 tint 链路被弃，图标恒静态）。
+        // 改双通道：spin_phase 0..3（PollStream 500ms 心跳步进，r3）+
+        // spin_char 帧字符（store
+        // 内联纯 fn 求值,handler 域赋值——VM 已证形态；视图 computed 内 fn
+        // 调用 VM 静默返空故不下放）。web 轨 Loader 由 animate-spin 旋转,
+        // 帧字符经 .spin-char（web-only CSS display:none）隐藏;VM 轨 iced
+        // 无 CSS 动画,帧字符文本逐拍换内容=最基础已证渲染路径,承担动效。
         var spin_phase int = 0
+        var spin_char str = ""
         // PLAN-084 T-05: 已归档会话（"已归档"过滤开关的数据面）+ 开关态。
         // 归档 toggle 开时列表切到 archived_list；归档/取消归档后两表重拉。
         var archived_list []Value = []
@@ -176,9 +181,6 @@ store ForgeStore {
         PollBackfill(str),
         FireDetailLoad,
         LoadOlder,
-        // toolbar-icons 2026-10-10：等待 Loader 呼吸拍（timer 驱动，见 SpinTick
-        // every_ms 声明与 .SpinTick handler）。
-        SpinTick,
     }
 
     // Plan 051 T10（G1 阶段1）：VM 轨无 SSE 形态期间，流式回复以 500ms
@@ -195,9 +197,6 @@ store ForgeStore {
         // 在 handler 之前整体丢弃，deadman 窗（handler 内）永无执行机会。
         // 门控职责已由 handler 内 deadman 窗接管。
         PollStream (every_ms: 500)
-        // toolbar-icons 2026-10-10：等待 Loader 呼吸拍——streaming 中步进
-        // spin_phase（0..3），空闲臂零写入不触发重渲染。
-        SpinTick (every_ms: 200)
     }
 
     on {
@@ -699,22 +698,12 @@ store ForgeStore {
             .RefreshHeader()
         }
 
-        // SpinTick：等待 Loader 呼吸相位——仅流式中步进（0..3 环回）；收束
-        // 归零一拍，之后零写入不触发重渲染。web 轨旋转由 CSS animate-spin
-        // 承担，本相位只供 VM alpha 呼吸（web 同样无害——透明度微调）。
-        .SpinTick -> {
-            if .streaming {
-                if .spin_phase >= 3 {
-                    .spin_phase = 0
-                } else {
-                    .spin_phase = .spin_phase + 1
-                }
-            } else {
-                if .spin_phase != 0 {
-                    .spin_phase = 0
-                }
-            }
-        }
+        // toolbar-icons 2026-10-10 r3：SpinTick 独立 timer 退役——其 iced
+        // 订阅（Plan 051 C7 WidgetEvent）注册实证存在（AUTOUI_TIMESOURCE_
+        // DEBUG [TS_PATH]）但真实发送期间派发不达（实机两轮 trigger 发送
+        // 全程 0 tick；唯 fixture 直写 streaming 态时偶发），属 auto-lang
+        // timer 订阅引擎债。帧步进改挂 PollStream 心跳（运行窗内每 500ms
+        // 必经之路——VM 轨消息增量回填同一时钟），见 .PollStream handler。
 
         // PLAN-055 ④/T11：ThinkBlock 独立展开——键列表重建回写（VM 安全：
         // 既有字段整列表赋值，无新键写入）。
@@ -1011,6 +1000,26 @@ store ForgeStore {
                 }
                 return
             }
+            // toolbar-icons 2026-10-10 r3：等待 Loader 帧步进——挂 PollStream
+            // 心跳（运行窗存续期每 500ms 必经，先于一切门控 early-return）。
+            // 流式中步进 4 帧 braille（spinFrameChar）；收束后一拍清空，此后
+            // 零写入不触发重渲染。web 轨同码无害（Loader 由 animate-spin 旋
+            // 转，帧字符被 .spin-char scoped CSS 隐藏）。
+            if .streaming {
+                if .spin_phase >= 3 {
+                    .spin_phase = 0
+                } else {
+                    .spin_phase = .spin_phase + 1
+                }
+                .spin_char = spinFrameChar(.spin_phase)
+                print("[spin] " + .spin_char)
+            } else {
+                if .spin_char != "" {
+                    .spin_char = ""
+                    .spin_phase = 0
+                    print("[spin-off] cleared (streaming ended)")
+                }
+            }
             if wins.length > .poll_seen_wins {
                 // 窗增长 = Send/StartStream/AttachStream 的 push（跨模块
                 // 列表突变可靠）——活性信号，重置空闲计数。
@@ -1072,11 +1081,17 @@ store ForgeStore {
             // PLAN-092 T-02①：单飞带超时自愈，全 int 计数（bool 读垃圾不
             // 可作门）。inflight_ticks=0 空闲可发；>20（≈10s）判响应丢失
             // 放行（0927 UAT：首拍响应丢失 → 恒阻塞 → 全天零回填）。
+            // toolbar-icons 2026-10-10 r3：卡死修复——原 else 臂直 return
+            // 不递增，计数恒停在 1，">20 自愈"永不达成（实机 [POLL]
+            // infl_t=1 从 idle=2 卡到 143）：一次响应丢失即轮询瘫痪至窗过
+            // 期（≈120s），期间 morph/loader 状态链全断。改门内逐拍递增，
+            // 20 拍后真自愈。
             if .poll_inflight_ticks > 0 {
                 if .poll_inflight_ticks > 20 {
                     .poll_inflight_ticks = 0
                     print("[POLL] inflight timeout (>20 ticks) — auto-release")
                 } else {
+                    .poll_inflight_ticks = .poll_inflight_ticks + 1
                     return
                 }
             }
@@ -1827,6 +1842,16 @@ fn modeRoleOf(mode str) str {
     if mode == "coding" { return "coder" }
     if mode == "review" { return "reviewer" }
     return mode
+}
+
+// toolbar-icons 2026-10-10 r3：等待 Loader 帧字符（braille 四帧）——
+// PollStream 心跳域调用（store 内联纯 fn，VM 已证形态；视图 computed 内
+// fn 调用 VM 静默返空故不进视图域）。500ms/帧=2s/圈，VM 心跳即节拍。
+fn spinFrameChar(phase int) str {
+    if phase == 0 { return "⠋" }
+    if phase == 1 { return "⠙" }
+    if phase == 2 { return "⠹" }
+    return "⠸"
 }
 
 // PLAN-083 T-03：分页回填的扁平重建漏斗——JSON.parse 产物直接落 store 时，

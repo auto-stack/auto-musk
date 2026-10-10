@@ -731,10 +731,10 @@ widget ChatsView {
                                 // 只读自身 props;prop 每帧重建刷新）。
                                 think_open: .store.think_open
                                 tool_open: .store.tool_open
-                                // toolbar-icons 2026-10-10：等待 Loader 呼吸相位
-                                // （int prop 每帧刷新,基元跨边界安全——think_open
-                                // 同款通道）。
-                                spin_phase: .store.spin_phase
+                                // toolbar-icons 2026-10-10 r2：等待 Loader 帧
+                                // 字符（store handler 域求值，str prop 每帧
+                                // 刷新——think_open 同款通道）。
+                                spin_char: .store.spin_char
                                 // PLAN-077 T-04：onfork 双端皆断（VM 派发键
                                 // "on"+msg 名折叠 = onforkfrom ≠ onfork；Vue
                                 // @fork 对 emit('ForkFrom') 不命中）——改 snake

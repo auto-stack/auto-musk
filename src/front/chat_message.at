@@ -47,7 +47,7 @@ use report_card: ReportCard
 use tool_gate_card: ToolGateCard
 
 
-widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, think_open: str, tool_open: str, spin_phase: int) {
+widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, think_open: str, tool_open: str, spin_char: str) {
     // PLAN-060 T2:ForkFrom 上抛分叉请求（mid=msg.id）——子件空 handler,
     // 经 onfork 声明路由直达宿主 BranchTo（零参帧对齐根修后单参载荷同链）。
     // toolbar-icons 2026-10-10:CancelRun 撤除——"停止回复"退出 AI 消息工具栏,
@@ -101,10 +101,13 @@ style {
 .tool-block-slot { width: 100%; }
 /* PLAN-071 需求⑨：AI 启动窗口等待指示——原三点跳动（typing-dot keyframes）
    2026-10-10 退役：scoped 动画 VM 轨 style 块不注入且 span 无宽高即整组
-   不可见（用户实机：VM 等待期无任何 loading）。改 lucide Loader 图标——
-   web 轨 animate-spin 旋转；VM 轨 iced 无 transform/元素级 opacity，旋转
-   降级为文字色 alpha 呼吸（spin_dim 经 ForgeStore.SpinTick 200ms 驱动，
-   svg tint 跟随 text 色 alpha——renderer 6754/6768 已证通路）。 */
+   不可见（用户实机：VM 等待期无任何 loading）。改 lucide Loader 图标 +
+   帧字符双通道：web 轨 animate-spin 旋转 Loader，帧字符由 .spin-char 隐藏
+   （本 style 块 web-only 注入）；VM 轨 iced 无 CSS 动画，Loader 静态展示，
+   帧字符（ForgeStore.SpinTick 120ms 换内容）承担动效——r1 的文字色 alpha
+   呼吸实机无效（语义色 alpha 在 svg tint 链路被弃），本轨仅文本内容逐拍
+   换为已证渲染路径。 */
+.spin-char { display: none; }
 }
 
     setup {
@@ -168,16 +171,11 @@ style {
         hasError => .msg.error != ""
         errorText => if .hasError { .msg.error } else { "" }
         // PLAN-071 需求⑨：AI 启动窗口（流式中且展示块为空）——等待指示显隐。
-        // toolbar-icons 2026-10-10：等待点换 lucide Loader——spin_phase 由
-        // ForgeStore.SpinTick（200ms，流式中步进 0..3）驱动 alpha 呼吸
-        // （VM 轨 svg tint 跟随 text 色 alpha；web 轨另有 animate-spin 旋转）。
+        // toolbar-icons 2026-10-10 r2：Loader 图标行类静态化（r1 alpha 呼吸
+        // 实机无效）；帧字符 spin_char 经 store handler 域求值 + str prop
+        // 下传（think_open 同款通道），VM 轨逐拍换内容承担动效。
         showWaiting => msgIsWaiting(.msg, .is_streaming)
-        spinDim => .spin_phase == 1 || .spin_phase == 2
-        spinClass => if .spinDim {
-            "msg-waiting flex items-center py-[2px] px-[2px] animate-spin text-muted-foreground/30"
-        } else {
-            "msg-waiting flex items-center py-[2px] px-[2px] animate-spin text-muted-foreground"
-        }
+        spinText => .spin_char ?? ""
     }
     view {
         col {
@@ -246,14 +244,14 @@ style {
                     // 到达前气泡内动态 "..."（三点跳动），告知后台正在干活；
                     // 块到达即消失（msgIsWaiting 判定，块循环同窗渲染）。
                     if .showWaiting {
-                        // toolbar-icons 2026-10-10：三点跳动 span 组退役（VM 无
-                        // scoped CSS 即不可见）——lucide Loader 图标行：web
-                        // animate-spin 旋转；VM animate-spin 不识别，呼吸由
-                        // spinClass 的 text-muted-foreground(/30) alpha 步进
-                        // 承载（svg tint 跟随，SpinTick 200ms 驱动）。
+                        // toolbar-icons 2026-10-10 r2：lucide Loader 图标 +
+                        // 帧字符。web：animate-spin 旋转图标，.spin-char 由
+                        // scoped CSS 隐藏；VM：图标静态展示（iced 无 CSS
+                        // 动画），帧字符逐拍换内容（SpinTick 120ms）承担动效。
                         row {
-                            class: .spinClass
+                            class: "msg-waiting flex items-center py-[2px] px-[2px] animate-spin text-muted-foreground"
                             Loader { size: 14 }
+                            text .spinText { class: "spin-char text-[13px]" }
                         }
                     }
                     // 有序 block 流：文本 / 思考 / 工具按到达顺序，块不删除。
