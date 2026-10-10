@@ -54,6 +54,8 @@ use secretary_message: SecretaryMessage
 use chat_message: ChatMessage
 // PLAN-087 T-07: 实况画布面板（chats 右侧第三列；cv_open 驱动显隐）。
 use canvas_panel: CanvasPanel, CanvasStudioSlot
+// PLAN-102 T-03: 外部分隔条（聊天区 ↔ 画布外框；捕获层在本件 contentRow）。
+use canvas_workbench: DivOuter
 // PLAN-093 T-09: 生成/检查进度摘要（studio 对话区顶部；§5.8 投影）。
 use canvas_progress: CanvasProgressSummary
 // PLAN-093 T-06:帧点选委托（幂等单例安装；VM 桩空实现）。
@@ -161,6 +163,10 @@ widget ChatsView {
         QueueRemoveText(str),
         // PLAN-093 T-10:Escape 关闭展开面（app.at GlobalKeydown 无型先例）。
         CanvasEscape,
+        // PLAN-102 T-03:外框拖动捕获层（contentRow mouse-area——move 换算
+        // 像素 delta / up 持久化；与工作台捕获层同构，以 cv_drag_kind 门控）。
+        OuterCapMove(float, float),
+        OuterCapUp,
     }
 
     model {
@@ -178,6 +184,9 @@ widget ChatsView {
         // PLAN-093 T-05 §5.2 窄层（<768）：工作台页签（画布/对话/结构；
         // 宽层忽略——塌缩类仅窄层消费）。
         var studio_tab str = "canvas"
+        // PLAN-102 T-03: 外框拖动基线（contentRow 捕获层 4096 逻辑域；
+        // <0 = 未设——起拖后首个 move 设定，up 复位；工作台捕获层同款）。
+        var obase_x float = -1.0
         var chat_search str = ""
         // PLAN-058: 待确认删除目标（会话 id 或 "__all__"；空串=无待确认）。
         // 沿 chat_search 先例的视图态 str 字段（VM 对 str 字段 SET/比较双轨实证）。
@@ -513,8 +522,17 @@ widget ChatsView {
                         }
                     }
                 }
-                row {
-                    style: [.contentRowClass]
+                // PLAN-102 T-03:contentRow 捕获层（mouse-area 单子件包
+                // 裹——VM mouse-area 多子件强制 col 化，row 布局职责留在
+                // 内层 row；仅 outer 拖动态消费事件，其余直通丢弃——嵌套
+                // 交互子件不吞事件有本文件会话行先例）。
+                mouse-area {
+                    coords: "4096x4096"
+                    onmousemove: .OuterCapMove
+                    onmouseup: .OuterCapUp
+                    style: "flex-1 min-h-0 w-full"
+                    row {
+                        style: [.contentRowClass]
             // Main Chat Area（PLAN-093 T-05:studio 分层宽 360/320;<768
             // 页签塌缩 w-0/flex-1——单实例不重挂）
             col {
@@ -869,9 +887,12 @@ widget ChatsView {
                     onpickapproval: .PickApproval($event)
                 }
             }
-            // PLAN-087 T-07 + PLAN-093 T-05: 实况画布面板——工作台槽升主区
-            // （flex-1;两列/空工作台/页签分支在 CanvasStore 域子件内），正常
-            // 520 右列 CanvasPanel；<768 页签塌缩。
+            // PLAN-087 T-07 + PLAN-093 T-05 + PLAN-102 T-03: 实况画布面板——
+            // studio 工作台槽升主区；正常模式 = 外部分隔条 DivOuter + 右列
+            // CanvasPanel（外框宽 cv_outer_w_decl 可拖；520 固定宽退役）。
+            if .studio_mode == false {
+                DivOuter {}
+            }
             col {
                 style: [.panelSlotClass]
                 if .studio_mode {
@@ -880,6 +901,7 @@ widget ChatsView {
                     CanvasPanel {}
                 }
             }
+                    }
                 }
             }
         }
@@ -1178,6 +1200,30 @@ widget ChatsView {
             if .text != "" {
                 store.Send(.text);
                 store.StartStream(.store.session_id, .store.workspace, .store.token, .text)
+            }
+        }
+
+        // ── PLAN-102 T-03：外框拖动捕获层（与工作台捕获层同构——store
+        // cv_drag_kind 门控，起拖后首个 move 定基线；4096 逻辑域按行宽
+        // 换算像素。行宽 = 视口 - 侧栏（展开 240/收起 w-12=48——本件视图
+        // 域两态皆知，无跨 store 断路面）。 ─────────────────────────────
+        .OuterCapMove(x float, y float) -> {
+            if canvasStore.cv_drag_kind == "outer" {
+                if .obase_x < 0.0 {
+                    .obase_x = x
+                } else {
+                    var row_w int = .store.fw_win_w - 240
+                    if .sidebar_collapsed { row_w = .store.fw_win_w - 48 }
+                    if row_w < 1 { row_w = 1 }
+                    var px int = int((x - .obase_x) * row_w / 4096.0)
+                    CanvasStore.OuterDragMove(px)
+                }
+            }
+        }
+        .OuterCapUp -> {
+            if canvasStore.cv_drag_kind == "outer" {
+                CanvasStore.OuterDragEnd()
+                .obase_x = -1.0
             }
         }
     }

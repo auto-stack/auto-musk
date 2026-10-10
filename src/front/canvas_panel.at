@@ -22,6 +22,7 @@ use.web.fn canvasMapPhysical from "src/front/canvas_helpers.at"
 // PLAN-093 T-07:结构列迁出至 canvas_structure.at（页签化结构树/源码）——
 // 本文件经 use canvas_structure 跨文件引用（子件两形态之 use 行形态）。
 use canvas_structure: CanvasStructureColumn
+use canvas_workbench: CanvasWorkbench
 
 // ── 画布列：标题条 + 降级红条 + 帧叠层 + 锚点 chip（studio 模式=中列）──
 widget CanvasCanvasColumn {
@@ -364,26 +365,17 @@ widget CanvasCanvasColumn {
     }
 }
 
-// ── 组合面板（正常模式右列 520px）：结构列 + 画布列 ──────────────────
-// studio 宽度分支随 CanvasStudioSlot（本件只在正常模式被挂）。
+// ── 组合面板（正常模式右列，宿主配置件）：外框宽 = CanvasStore
+// cv_outer_w_decl（PLAN-102 T-03——固定 520px 退役；拖动经外部分隔条
+// DivOuter（chats_view 挂）+ store Outer 动作族）。布局本体在
+// CanvasWorkbench（停靠/分隔条/降级单源）。
 widget CanvasPanel {
-
-    setup {
-        let t = useT()
-    }
 
     view {
         if .store.cv_open {
-            row {
-                style: "w-[520px] shrink-0 h-full flex flex-row overflow-hidden border-l border-border bg-card"
-                col {
-                    style: "w-[170px] shrink-0 h-full flex flex-col overflow-hidden border-r border-border"
-                    CanvasStructureColumn {}
-                }
-                col {
-                    style: "flex-1 min-w-0 h-full flex flex-col overflow-hidden"
-                    CanvasCanvasColumn {}
-                }
+            col {
+                style: .store.cv_outer_w_decl
+                CanvasWorkbench {}
             }
         }
     }

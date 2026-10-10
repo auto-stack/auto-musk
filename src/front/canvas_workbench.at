@@ -26,6 +26,9 @@ use store: CanvasStore
 use canvas_structure: CanvasStructureColumn
 use canvas_panel: CanvasCanvasColumn
 use.web useT from "src/front/ports/composables.at"
+// 容器尺寸实测装载（web 侧 500ms 轮询写 canvas.wb_* 键；VM 空桩——store
+// Poll 派生源兜底）。
+use.web installCanvasLayoutSync from "src/front/ports/canvas.at"
 // 布局纯函数生成面（合同脚本 canvas-layout-contract.mjs 直测 ext TS；
 // store 侧消费同一模块——单源）。
 use.web.fn canvasDockMode, canvasClampDockW, canvasClampDockH, canvasClampOuterW, canvasDockWDecl, canvasDockHDecl, canvasOuterWDecl from "src/front/canvas_layout_helpers.at"
@@ -34,6 +37,7 @@ widget CanvasWorkbench {
 
     setup {
         let t = useT()
+        installCanvasLayoutSync()
     }
 
     model {
@@ -54,7 +58,7 @@ widget CanvasWorkbench {
 
     view {
         col {
-            style: "relative w-full h-full flex flex-col overflow-hidden bg-card"
+            style: "cv-workbench relative w-full h-full flex flex-col overflow-hidden bg-card"
             // 停靠条（紧凑——T-04 并入预览顶部工具栏）：left/bottom/right/
             // hidden 四停靠 + 键盘步进组 + tabs 降级页签。
             row {
@@ -318,6 +322,28 @@ widget DivB {
     on {
         .Down -> {
             store.DockDragStart("b", .store.cv_dock_h, .store.cv_dock_h)
+        }
+    }
+}
+
+// ── 外部分隔条（聊天区 ↔ 画布外框；正常模式宿主 chats_view 挂） ────────
+// mousedown 起拖（store 记外框基线）；拖动几何由宿主 contentRow 捕获层
+// 接管（chats_view OuterCapMove——外框拖动指针主要在聊天区侧移动，捕获
+// 必须覆盖聊天区，故捕获层在宿主而非本件/面板内）。
+
+widget DivOuter {
+    msg Msg { Down }
+    view {
+        mouse-area {
+            coords: "4096x4096"
+            onmousedown: .Down
+            style: "shrink-0 w-1.5 h-full flex items-center justify-center cursor-col-resize hover:bg-primary/20"
+            div { style: "w-px h-full bg-border" }
+        }
+    }
+    on {
+        .Down -> {
+            store.OuterDragStart(.store.cv_outer_w, .store.cv_outer_w)
         }
     }
 }

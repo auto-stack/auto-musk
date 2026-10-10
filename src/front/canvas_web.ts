@@ -196,6 +196,43 @@ export function installCanvasSourceScroll(): void {
     setTimeout(scrollNow, 0);
 }
 
+/**
+ * 工作台容器尺寸实测（PLAN-102 T-03：LayoutContainer 的 web 实测源）。
+ * DOM 测量 = web 平台门面（installCanvasSourceScroll 同款口径）；VM 轨
+ * 空桩、store 走派生源（canvas.wb_* 键缺席 → outer_w/窗口高-常数）。
+ * 500ms 轮询 querySelector('.cv-workbench')（面板随 cv_open 挂卸，事件
+ * 观察需挂卸重连——轮询对挂卸天然鲁棒；值变化才写，store Poll 拍内
+ * 消费做钳制/降级判定）。写 localStorage 键 canvas.wb_w / canvas.wb_h
+ *（viewport_sync 的 app.viewport_w 同款桥）。
+ */
+export function installCanvasLayoutSync(): void {
+    if (typeof window === 'undefined') return;
+    const w = window as unknown as { __muskCanvasLayoutSync?: boolean };
+    if (w.__muskCanvasLayoutSync) return;
+    w.__muskCanvasLayoutSync = true;
+    let lastW = -1;
+    let lastH = -1;
+    const measure = () => {
+        const el = document.querySelector('.cv-workbench') as HTMLElement | null;
+        if (!el) return;
+        const cw = Math.round(el.clientWidth);
+        const chh = Math.round(el.clientHeight);
+        if (cw <= 0 || chh <= 0) return;
+        if (cw !== lastW || chh !== lastH) {
+            lastW = cw;
+            lastH = chh;
+            try {
+                localStorage.setItem('canvas.wb_w', String(cw));
+                localStorage.setItem('canvas.wb_h', String(chh));
+            } catch {
+                // localStorage 不可用面：store 派生源兜底，不致命。
+            }
+        }
+    };
+    setInterval(measure, 500);
+    setTimeout(measure, 0);
+}
+
 export async function canvasLoadSource(path: string): Promise<{ ok: boolean; error: string; text?: string }> {
     // PLAN-093 T-07 G-13: 源码读取走 canvas 域 query 通道
     // /api/canvas/source?workspace=&path=（/api/files/* 在 VM serve 落

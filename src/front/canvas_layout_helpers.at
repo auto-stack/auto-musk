@@ -3,65 +3,59 @@
 // canvas_store.at 消费；边界测试 = scripts/ui-parity/canvas-layout-contract.mjs
 //（经 use.web.fn 生成链直测本模块，不复制算法）。
 //
-// 常量（§5.3）：工具区水平 240/最小 180；底部 240/最小 140；画布最小
-// 240x180；正常模式外框初值 640、聊天区最小 320。
-
-const CANVAS_DOCK_INIT_W = 240
-const CANVAS_DOCK_MIN_W = 180
-const CANVAS_DOCK_INIT_H = 240
-const CANVAS_DOCK_MIN_H = 140
-const CANVAS_MIN_W = 240
-const CANVAS_MIN_H = 180
-const CANVAS_OUTER_INIT_W = 640
-const CANVAS_CHAT_MIN_W = 320
+// 常量表（§5.3；模块级 const 不进 ext TS 发射面——字面量内联，本表单源）：
+//   工具区水平 240/最小 180；底部 240/最小 140；画布最小 240x180；
+//   正常模式外框初值 640、聊天区最小 320；
+//   VM 工作台容器高派生 chrome = 78（ContentHeader 49 + 停靠条 29）；
+//   外框容器侧栏估算 = 240。
 
 // ── 钳制 ────────────────────────────────────────────────────────────────
 
-/** 工具区水平宽钳制：[DOCK_MIN_W, container - CANVAS_MIN_W]（容器不足时
- * 收敛到 DOCK_MIN_W——降级判定由 canvasDockNarrow 承担，这里只保数值
- * 合法：不负、不塌）。 */
+/** 工具区水平宽钳制：[180, container - 240]（容器不足时收敛到 180——
+ * 降级判定由 canvasDockNarrow 承担，这里只保数值合法：不负、不塌）。 */
 fn canvasClampDockW(container_w int, w int) int {
-    var hi int = container_w - CANVAS_MIN_W
-    if hi < CANVAS_DOCK_MIN_W { hi = CANVAS_DOCK_MIN_W }
+    var hi int = container_w - 240
+    if hi < 180 { hi = 180 }
     var v int = w
-    if v < CANVAS_DOCK_MIN_W { v = CANVAS_DOCK_MIN_W }
+    if v < 180 { v = 180 }
     if v > hi { v = hi }
     return v
 }
 
-/** 底部工具区高钳制：[DOCK_MIN_H, container_h - CANVAS_MIN_H]。 */
+/** 底部工具区高钳制：[140, container_h - 180]。 */
 fn canvasClampDockH(container_h int, h int) int {
-    var hi int = container_h - CANVAS_MIN_H
-    if hi < CANVAS_DOCK_MIN_H { hi = CANVAS_DOCK_MIN_H }
+    var hi int = container_h - 180
+    if hi < 140 { hi = 140 }
     var v int = h
-    if v < CANVAS_DOCK_MIN_H { v = CANVAS_DOCK_MIN_H }
+    if v < 140 { v = 140 }
     if v > hi { v = hi }
     return v
 }
 
-/** 正常模式外框宽钳制：[CANVAS_MIN_W, container_w - CHAT_MIN_W]（容器
- * 不足时收敛到 CANVAS_MIN_W——页签单区判定在宿主层）。 */
+/** 正常模式外框宽钳制：[240, container_w - 320]（容器不足时收敛到
+ * 240——页签单区判定在宿主层）。 */
 fn canvasClampOuterW(container_w int, w int) int {
-    var hi int = container_w - CANVAS_CHAT_MIN_W
-    if hi < CANVAS_MIN_W { hi = CANVAS_MIN_W }
+    var hi int = container_w - 320
+    if hi < 240 { hi = 240 }
     var v int = w
-    if v < CANVAS_MIN_W { v = CANVAS_MIN_W }
+    if v < 240 { v = 240 }
     if v > hi { v = hi }
     return v
 }
 
 // ── 布局决策 ────────────────────────────────────────────────────────────
 
-/** 水平窄容器判定：容器容不下「画布最小宽 + 工具最小宽」→ 工具/画布
- * 降为单区页签（用户停靠与尺寸偏好保留，变宽自动恢复）。底部停靠不
- * 受宽约束（只受高约束，canvasDockNarrowH）。 */
+/** 水平窄容器判定：容器容不下「画布最小宽 240 + 工具最小宽 180」→
+ * 工具/画布降为单区页签（用户停靠与尺寸偏好保留，变宽自动恢复）。
+ * 底部停靠不受宽约束（只受高约束，canvasDockNarrowH）。 */
 fn canvasDockNarrow(container_w int) bool {
-    return container_w < CANVAS_MIN_W + CANVAS_DOCK_MIN_W
+    return container_w < 420
 }
 
-/** 垂直窄容器判定（底部停靠）：容器容不下「画布最小高 + 底部最小高」。 */
+/** 垂直窄容器判定（底部停靠）：容器容不下「画布最小高 180 + 底部最小
+ * 高 140」。 */
 fn canvasDockNarrowH(container_h int) bool {
-    return container_h < CANVAS_MIN_H + CANVAS_DOCK_MIN_H
+    return container_h < 320
 }
 
 /** 当前停靠下的布局模式："tabs"（单区页签降级）| "dock"（正常停靠）。
@@ -76,28 +70,6 @@ fn canvasDockMode(dock str, container_w int, container_h int) str {
     }
     if canvasDockNarrow(container_w) { return "tabs" }
     return "dock"
-}
-
-// ── 动态尺寸声明串（W-03-1 spike 裁定形态） ─────────────────────────────
-// 双轨单通道：`style: .store.<decl>` 装 CSS 声明串。VM 侧经
-// split_css_declarations（PLAN-095）映射 width/height/overflow；web 侧
-// 生成 :style 真 CSS。web 专属键（flex-shrink）VM 词法扫描落 remainder
-// token 管线、未知类静默跳过——双轨各自消费可懂段。禁止 class:+style:
-// 并存承载动态值（VM extract class 优先短路 style——spike C1 臂 472 实测）。
-
-/** 左/右停靠工具列声明串。 */
-fn canvasDockWDecl(w int) str {
-    return "width:" + w + "px;height:100%;overflow:hidden;flex-shrink:0"
-}
-
-/** 底部停靠工具行声明串。 */
-fn canvasDockHDecl(h int) str {
-    return "height:" + h + "px;width:100%;overflow:hidden;flex-shrink:0"
-}
-
-/** 正常模式外框声明串（宿主 = CanvasPanel 右列；分隔线走外部分隔条件）。 */
-fn canvasOuterWDecl(w int) str {
-    return "width:" + w + "px;height:100%;overflow:hidden;flex-shrink:0"
 }
 
 // ── 拖动 ────────────────────────────────────────────────────────────────
@@ -117,8 +89,8 @@ fn canvasDockDragSize(dock str, kind str, container_w int, container_h int, orig
 /** 键盘步进（方向键 ±10；Home 恢复初值）。step_px 可负。 */
 fn canvasDockNudgeSize(dock str, kind str, container_w int, container_h int, origin int, step_px int) int {
     if step_px == 0 {
-        if kind == "h" { return canvasClampDockW(container_w, CANVAS_DOCK_INIT_W) }
-        return canvasClampDockH(container_h, CANVAS_DOCK_INIT_H)
+        if kind == "h" { return canvasClampDockW(container_w, 240) }
+        return canvasClampDockH(container_h, 240)
     }
     var d int = step_px
     if dock == "right" && kind == "h" { d = 0 - step_px }
@@ -144,21 +116,63 @@ fn canvasLayoutPrefEncode(dock str, dock_w int, dock_h int, outer_w int) str {
 /** 偏好解析：畸形段回落缺省；dock 值域外回落 "left"。负尺寸回落初值。 */
 fn canvasLayoutPrefDecode(raw str) obj {
     var dock str = "left"
-    var w int = CANVAS_DOCK_INIT_W
-    var h int = CANVAS_DOCK_INIT_H
-    var outer int = CANVAS_OUTER_INIT_W
+    var w int = 240
+    var h int = 240
+    var outer int = 640
     if raw != "" && raw != None {
         var parts list = raw.split("|")
         if parts.len() == 4 {
             var d str = parts[0] ?? "left"
             if d == "left" || d == "right" || d == "bottom" || d == "hidden" { dock = d }
             var pw int = (parts[1] ?? "0").to_int()
-            if pw >= CANVAS_DOCK_MIN_W { w = pw }
+            if pw >= 180 { w = pw }
             var ph int = (parts[2] ?? "0").to_int()
-            if ph >= CANVAS_DOCK_MIN_H { h = ph }
+            if ph >= 140 { h = ph }
             var po int = (parts[3] ?? "0").to_int()
-            if po >= CANVAS_MIN_W { outer = po }
+            if po >= 240 { outer = po }
         }
     }
     return { dock: dock, dock_w: w, dock_h: h, outer_w: outer }
+}
+
+// ── 动态尺寸声明串（W-03-1 spike 裁定形态） ─────────────────────────────
+// 双轨单通道：`style: .store.<decl>` 装 CSS 声明串。VM 侧经
+// split_css_declarations（PLAN-095）映射 width/height/overflow；web 侧
+// 生成 :style 真 CSS。web 专属键（flex-shrink）VM 词法扫描落 remainder
+// token 管线、未知类静默跳过——双轨各自消费可懂段。禁止 class:+style:
+// 并存承载动态值（VM extract class 优先短路 style——spike C1 臂 472 实测）。
+
+/** 左/右停靠工具列声明串。 */
+fn canvasDockWDecl(w int) str {
+    return "width:" + w + "px;height:100%;overflow:hidden;flex-shrink:0"
+}
+
+/** 底部停靠工具行声明串。 */
+fn canvasDockHDecl(h int) str {
+    return "height:" + h + "px;width:100%;overflow:hidden;flex-shrink:0"
+}
+
+/** 正常模式外框声明串（宿主 = CanvasPanel 右列；分隔线走外部分隔件）。 */
+fn canvasOuterWDecl(w int) str {
+    return "width:" + w + "px;height:100%;overflow:hidden;flex-shrink:0"
+}
+
+// ── 容器尺寸推导（VM 轨派生源；web 轨实测量优先） ───────────────────────
+// chrome 常数 = ContentHeader（h-12+border=49）+ 工作台停靠条（h-7+border
+// =29）；侧栏宽估算 = 展开 240（收窄时外框 max 偏保守——聊天区只会更宽，
+// 无害；跨 store 读侧栏真实态在 VM 轨是断路面——PLAN-101 毒签先例）。
+// web 轨 canvas.wb_* 键缺席时本族生效；实机探针按 vtree bbox 校准。
+
+/** VM 轨工作台容器高（窗口高 - chrome 常数）。 */
+fn canvasWbEstH(win_h int) int {
+    var v int = win_h - 78
+    if v < 1 { v = 1 }
+    return v
+}
+
+/** 外框钳制容器宽（视口宽 - 侧栏估算 240）。 */
+fn canvasOuterContainerW(win_w int) int {
+    var v int = win_w - 240
+    if v < 240 { v = 240 }
+    return v
 }

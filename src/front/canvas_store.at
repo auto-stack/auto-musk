@@ -29,7 +29,7 @@ use canvas_helpers: canvasPickedProjection, canvasFrameUrl, rebuildCanvasOverlay
 // PLAN-102 T-03：布局纯函数（canvas_helpers 同族跨轨消费；ext TS 生成面
 // 由 canvas_workbench.at 的 use.web.fn 触发——合同脚本 canvas-layout-
 // contract.mjs 直测生成模块）。
-use canvas_layout_helpers: canvasLayoutPrefKey, canvasLayoutPrefEncode, canvasLayoutPrefDecode, canvasDockMode, canvasDockDragSize, canvasDockNudgeSize, canvasClampDockW, canvasClampDockH, canvasClampOuterW, canvasDockWDecl, canvasDockHDecl, canvasOuterWDecl
+use canvas_layout_helpers: canvasLayoutPrefKey, canvasLayoutPrefEncode, canvasLayoutPrefDecode, canvasDockMode, canvasDockDragSize, canvasDockNudgeSize, canvasClampDockW, canvasClampDockH, canvasClampOuterW, canvasDockWDecl, canvasDockHDecl, canvasOuterWDecl, canvasWbEstH, canvasOuterContainerW
 
 // PLAN-093 T-07: 行列表 + 拾取行 → 渲染行对象 [{no, text, hl}]
 // （视图体内 let 不受支持——行对象在 store 域预构建；no 为 1 基）。
@@ -226,12 +226,47 @@ store CanvasStore {
                 .cv_outer_w = pref102.outer_w ?? 640
                 if .cv_wb_w > 0 { .cv_dock_w = canvasClampDockW(.cv_wb_w, .cv_dock_w) }
                 if .cv_wb_h > 0 { .cv_dock_h = canvasClampDockH(.cv_wb_h, .cv_dock_h) }
-                .cv_outer_w = canvasClampOuterW(w, .cv_outer_w)
+                .cv_outer_w = canvasClampOuterW(canvasOuterContainerW(w), .cv_outer_w)
                 .cv_dock_w_decl = canvasDockWDecl(.cv_dock_w)
                 .cv_dock_h_decl = canvasDockHDecl(.cv_dock_h)
                 .cv_outer_w_decl = canvasOuterWDecl(.cv_outer_w)
                 .cv_layout_mode = canvasDockMode(.cv_dock, .cv_wb_w, .cv_wb_h)
                 .cv_layout_loaded = true
+            }
+            // 工作台容器尺寸随拍（PLAN-102 T-03）：web 实测量
+            //（installCanvasLayoutSync → canvas.wb_* 键）优先；VM 轨派生
+            //（外框宽即工作台容器宽 / 窗口高 - chrome 常数）。变化即重钳
+            //（窄→宽自动恢复；宽→窄降级判定由 canvasDockMode 承担）。
+            var wbw int = 0
+            var wbh int = 0
+            let cww102 = localStorage.getItem("canvas.wb_w")
+            if cww102 != None {
+                let vv = cww102.to_int()
+                if vv > 0 { wbw = vv }
+            }
+            let cwh102 = localStorage.getItem("canvas.wb_h")
+            if cwh102 != None {
+                let vv2 = cwh102.to_int()
+                if vv2 > 0 { wbh = vv2 }
+            }
+            if wbw <= 0 { wbw = .cv_outer_w }
+            if wbh <= 0 {
+                let vh102 = localStorage.getItem("vm.window_inner_height")
+                if vh102 != None {
+                    let vv3 = vh102.to_int()
+                    if vv3 > 78 { wbh = canvasWbEstH(vv3) }
+                }
+            }
+            if wbw > 0 && wbh > 0 {
+                if wbw != .cv_wb_w || wbh != .cv_wb_h {
+                    .cv_wb_w = wbw
+                    .cv_wb_h = wbh
+                    .cv_dock_w = canvasClampDockW(wbw, .cv_dock_w)
+                    .cv_dock_h = canvasClampDockH(wbh, .cv_dock_h)
+                    .cv_dock_w_decl = canvasDockWDecl(.cv_dock_w)
+                    .cv_dock_h_decl = canvasDockHDecl(.cv_dock_h)
+                    .cv_layout_mode = canvasDockMode(.cv_dock, wbw, wbh)
+                }
             }
             if .cv_inflight {
                 .cv_inflight_ticks = .cv_inflight_ticks + 1
@@ -550,7 +585,9 @@ store CanvasStore {
             .cv_drag_size0 = size0
         }
         .OuterDragMove(delta_px int) -> {
-            .cv_outer_w = canvasClampOuterW(.cv_wb_w + .cv_outer_w, .cv_drag_origin + delta_px)
+            // 容器 = 视口 - 侧栏估算（切片①误用 wb_w+outer_w——工作台容器
+            // 宽≈outer_w，两者相加≠行宽；统一走 canvasOuterContainerW）。
+            .cv_outer_w = canvasClampOuterW(canvasOuterContainerW(.cv_win_w), .cv_drag_origin + delta_px)
             .cv_outer_w_decl = canvasOuterWDecl(.cv_outer_w)
         }
         .OuterDragEnd -> {

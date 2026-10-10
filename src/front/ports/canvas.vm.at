@@ -198,3 +198,9 @@ fn installCanvasFrameClicks() {
 /// 通道的空桩——install 家族口径）。
 fn installCanvasSourceScroll() {
 }
+
+/// 工作台容器尺寸实测（PLAN-102 T-03）：VM 轨走派生源——store Poll 以
+/// cv_outer_w（外框即工作台容器宽）与 vm.window_inner_height - chrome 常数
+/// 推算，canvas.wb_* 键缺席自动生效；实机探针按 vtree bbox 校准常数。
+fn installCanvasLayoutSync() {
+}
