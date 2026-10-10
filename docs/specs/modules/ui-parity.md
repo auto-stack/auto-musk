@@ -27,6 +27,11 @@
    - **静态对账门**：`node scripts/ui-parity.mjs check` 必须覆盖 100% 声明（108 声明单元，105 用例），出现未分类、无 fixture 或重复 ID 时非零失败。
    - **运行时发布门**：`node scripts/ui-parity.mjs run --plan 079` 双端（Vue http-ok + VM snapshot-ok）100% 通过；缺失截图、状态漂移或 MCP 丢失必须显式置失败。
    - **三仓版本锁定**：发布基线必须同时绑定 auto-musk、auto-lang、auto-down 三仓 HEAD SHA 及 CLI 工具链版本，禁止浮动版本验收。
+6. **问卷卡渲染口径（PLAN-103）**：VM 与 web 同口径——凡 assistant 消息解析出
+   问卷（```json questionnaire 围栏或 free-text 启发式）即渲染 `QuestionnaireCard`，
+   **不限于最新一条消息**；气泡文本侧 `stripQuestionnaire` 的围栏剥离以卡片
+   常驻为前提，二者不得同时缺失（历史消息问题曾双面不可见，实机 00c663835
+   定罪）。已答旧问卷重现空表单为 web 现行为，双端一致，接受。
 
 ## 关联实现与工具
 

@@ -760,16 +760,17 @@ widget ChatsView {
                                 on_fork_from: .ForkFrom($event)
                             }
                             // 问卷卡片（专门的提问 block）：解析 assistant 消息里的
-                            // 问卷 JSON/问题列表渲染为可选项表单。仅随最新一条消息
-                            // 显示（lastMessageId 来自 useChatSearch composable，
-                            // .at if 条件不支持多参 fn）——已回答的旧问题不再常驻表单。
+                            // 问卷 JSON/问题列表渲染为可选项表单。PLAN-103 T-04：
+                            // 去掉"仅随最新一条"限制——历史消息的问卷曾被气泡剥
+                            // 围栏 + 卡片不渲染双面夹击，问题在任何位置都不可见
+                            // （实机 00c663835 定罪）；改为凡解析出问卷即渲染，
+                            // 与 web 版 ChatsView.vue:217 完全同口径（web 无
+                            // latest 限制）。
                             if .msg.role == "assistant" {
                                 if hasQuestionnaire(.msg) {
-                                    if .msg.id == .lastMsgId {
-                                        QuestionnaireCard {
-                                            questions: getQuestions(.msg)
-                                            onsubmit: .OnQuestionnaireSubmit($event)
-                                        }
+                                    QuestionnaireCard {
+                                        questions: getQuestions(.msg)
+                                        onsubmit: .OnQuestionnaireSubmit($event)
                                     }
                                 }
                             }
