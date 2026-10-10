@@ -195,6 +195,8 @@ hidden: [          Canvas              ]  ← 工具栏可重新打开
 
 2026-10-10 T-02 musk 侧执行记录：`stage: work`，`plan: PLAN-102`，`revision: 1`，`outcome: executing（后端 embedded 会话落地，T-02 部分红）`，`code_commit`: musk worktree `402234d`，`task_ids`: T-02（部分），`evidence`: 合同门 `cargo test -p musk --test canvas_studio_contract` 21/21 绿（含修 PLAN-099 遗留 chat_runs 基线红）；新增 `embedded_spawn_contract_live`（#[ignore] 实机）spawn/status/presentation{mode=embedded,bridge_ws_url}/vtree 断言全过，`blockers`: **F-02-1（开放）**：am split-mode 在 `-q` 形态遗留脱离 `taskkill /T` 树的 `run -r vm` 子进程（幸存者 cmdline 实证：`auto.exe run -r vm`，父进程已亡）——零孤儿 census 断言红；夹具已对齐 canvas 产线 pac 形态（无 api 字段）后仍现，疑 rq 臂进程拓扑（am 装配）与 legacy 不同，需下程定罪（对照 legacy spawn 同夹具是否同样遗留 + am 装配链），`next`: F-02-1 定罪 → embedded_spawn_contract_live 全绿 → T-02 收口（present 切换路由 + canvas_vm.at/vm_backend 外接线）。
 
+2026-10-10 T-02 收口记录：`stage: work`，`plan: PLAN-102`，`revision: 1`，`outcome: executing（T-02 主体收口）`，`code_commit`: musk worktree（present 路由 + census 收窄两提交），`task_ids`: T-02，`evidence`: **F-02-1 结案=环境污染假红**（对照实验 legacy/rq 两臂同收割零新孤儿；"孤儿"实为他会话进程——另一 ZCode 会话 bash 的 legacy 实验与 vm_matrix.mjs 的子进程，父进程链实证）；`embedded_spawn_contract_live` 全绿（spawn/running/presentation{embedded,ws_url 可连}/vtree/停止收窄 census 零残留）；present 路由 3 合同（stale gen 409 / no-session 400 / embedded 幂等 + window 诚实 501 + 非法 400）；**合同门 24/24 绿**。`blockers`: T-02 余项（登记非阻塞）：VMHTTP 轨 present 路由镜像（extern_impl.rs 为生成产物——需走 extern_sigs.at + gen_extern_sigs.js 管线，下程实施）；canvas_live.rs 实机臂（#[ignore]）按 embedded 形态适配归 T-06 回归批。`next`: T-03（前端共用停靠布局——CanvasWorkbench/停靠/分隔条/偏好）。
+
 ## 10. 待澄清事项
 
 1. ~~用户未要求本轮实现~~ → 用户已授权执行（2026-10-10 `/auto-plan:work 102`）。
