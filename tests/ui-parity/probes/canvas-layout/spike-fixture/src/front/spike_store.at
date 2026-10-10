@@ -1,0 +1,30 @@
+// spike_store.at — PLAN-102 W-03-1: 动态宽度出程 spike 状态面。
+//
+// 四臂载荷全部住在 store model（字段值由动作整体重写——测的就是「视图
+// 引用形态」而非「值怎么来」）：
+//   ladder_cls : 枚举字面量类串（A1 臂——canvas_workbench 阶梯候选）
+//   w_decl     : CSS 声明串（B1 臂——连续 px 候选；canvas_frame_wrap_style
+//                同族，PLAN-095 split_css_declarations 消费面）
+//   w_cls      : 类名文本经裸引用（B2 臂——web :style 内联陷阱对照，仅
+//                记录 VM 能力，非门）
+//   wpx        : 整数宽（B3 臂视图内联拼接消费——indent_style 形态的
+//                store 引用变体）
+// Cycle 动作一次重写全部字段（240/280/320 档 → 300/330/380 档），探针
+// 在前后各测一轮 vtree bbox，证明运行时动态出程而非仅静态首帧。
+
+store SpikeStore {
+    model {
+        var wpx int = 240
+        var ladder_cls str = "w-[240px] h-[100px] shrink-0 border border-border"
+        var w_decl str = "width:280px;height:100px"
+        var w_cls str = "w-[320px] h-[100px] shrink-0 border border-border"
+    }
+    on {
+        Cycle -> {
+            .wpx = 300
+            .ladder_cls = "w-[300px] h-[100px] shrink-0 border border-border"
+            .w_decl = "width:330px;height:100px"
+            .w_cls = "w-[380px] h-[100px] shrink-0 border border-border"
+        }
+    }
+}

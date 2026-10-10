@@ -29,7 +29,7 @@ use canvas_helpers: canvasPickedProjection, canvasFrameUrl, rebuildCanvasOverlay
 // PLAN-102 T-03：布局纯函数（canvas_helpers 同族跨轨消费；ext TS 生成面
 // 由 canvas_workbench.at 的 use.web.fn 触发——合同脚本 canvas-layout-
 // contract.mjs 直测生成模块）。
-use canvas_layout_helpers: canvasLayoutPrefKey, canvasLayoutPrefEncode, canvasLayoutPrefDecode, canvasDockMode, canvasDockDragSize, canvasDockNudgeSize, canvasClampDockW, canvasClampDockH, canvasClampOuterW
+use canvas_layout_helpers: canvasLayoutPrefKey, canvasLayoutPrefEncode, canvasLayoutPrefDecode, canvasDockMode, canvasDockDragSize, canvasDockNudgeSize, canvasClampDockW, canvasClampDockH, canvasClampOuterW, canvasDockWDecl, canvasDockHDecl, canvasOuterWDecl
 
 // PLAN-093 T-07: 行列表 + 拾取行 → 渲染行对象 [{no, text, hl}]
 // （视图体内 let 不受支持——行对象在 store 域预构建；no 为 1 基）。
@@ -152,6 +152,14 @@ store CanvasStore {
         var cv_dock_w int = 240
         var cv_dock_h int = 240
         var cv_outer_w int = 640
+        // W-03-1 spike 裁定的动态尺寸通道：声明串字段随尺寸写点同步重算
+        //（视图 style: .store.<decl> 单通道消费；canvas_layout_helpers 组合）。
+        var cv_dock_w_decl str = "width:240px;height:100%;overflow:hidden;flex-shrink:0"
+        var cv_dock_h_decl str = "height:240px;width:100%;overflow:hidden;flex-shrink:0"
+        var cv_outer_w_decl str = "width:640px;height:100%;overflow:hidden;flex-shrink:0"
+        // 布局模式投影（"dock"|"tabs"）：canvasDockMode 纯函数在动作域算，
+        // 视图只读字段（视图域 fn 调用出程未证——不冒险）。
+        var cv_layout_mode str = "dock"
         var cv_layout_loaded bool = false
         var cv_wb_w int = 0
         var cv_wb_h int = 0
@@ -219,6 +227,10 @@ store CanvasStore {
                 if .cv_wb_w > 0 { .cv_dock_w = canvasClampDockW(.cv_wb_w, .cv_dock_w) }
                 if .cv_wb_h > 0 { .cv_dock_h = canvasClampDockH(.cv_wb_h, .cv_dock_h) }
                 .cv_outer_w = canvasClampOuterW(w, .cv_outer_w)
+                .cv_dock_w_decl = canvasDockWDecl(.cv_dock_w)
+                .cv_dock_h_decl = canvasDockHDecl(.cv_dock_h)
+                .cv_outer_w_decl = canvasOuterWDecl(.cv_outer_w)
+                .cv_layout_mode = canvasDockMode(.cv_dock, .cv_wb_w, .cv_wb_h)
                 .cv_layout_loaded = true
             }
             if .cv_inflight {
@@ -460,18 +472,22 @@ store CanvasStore {
         // 停靠切换（hidden 保留方向外的一切：页签/选择/树折叠原样）。
         .SetDock(d str) -> {
             .cv_dock = d
+            .cv_layout_mode = canvasDockMode(.cv_dock, .cv_wb_w, .cv_wb_h)
             let ws102 = localStorage.getItem("musk_workspace") ?? ""
             localStorage.setItem(canvasLayoutPrefKey(ws102), canvasLayoutPrefEncode(.cv_dock, .cv_dock_w, .cv_dock_h, .cv_outer_w))
         }
 
         // 宿主报告工作台容器实际尺寸（非视口替代——外框/停靠双钳制源）；
-        // 变化即重钳当前偏好尺寸（窄→宽自动恢复合法值）。
+        // 变化即重钳当前偏好尺寸（窄→宽自动恢复合法值）+ 重算模式与声明串。
         .LayoutContainer(w int, h int) -> {
             if w != .cv_wb_w || h != .cv_wb_h {
                 .cv_wb_w = w
                 .cv_wb_h = h
                 .cv_dock_w = canvasClampDockW(w, .cv_dock_w)
                 .cv_dock_h = canvasClampDockH(h, .cv_dock_h)
+                .cv_dock_w_decl = canvasDockWDecl(.cv_dock_w)
+                .cv_dock_h_decl = canvasDockHDecl(.cv_dock_h)
+                .cv_layout_mode = canvasDockMode(.cv_dock, .cv_wb_w, .cv_wb_h)
             }
         }
 
@@ -485,9 +501,11 @@ store CanvasStore {
         .DockDragMove(delta_px int) -> {
             if .cv_drag_kind == "h" {
                 .cv_dock_w = canvasDockDragSize(.cv_dock, "h", .cv_wb_w, .cv_wb_h, .cv_drag_origin, delta_px)
+                .cv_dock_w_decl = canvasDockWDecl(.cv_dock_w)
             } else {
                 if .cv_drag_kind == "b" {
                     .cv_dock_h = canvasDockDragSize(.cv_dock, "b", .cv_wb_w, .cv_wb_h, .cv_drag_origin, delta_px)
+                    .cv_dock_h_decl = canvasDockHDecl(.cv_dock_h)
                 }
             }
         }
@@ -499,9 +517,11 @@ store CanvasStore {
         .DockDragCancel -> {
             if .cv_drag_kind == "h" {
                 .cv_dock_w = .cv_drag_size0
+                .cv_dock_w_decl = canvasDockWDecl(.cv_dock_w)
             } else {
                 if .cv_drag_kind == "b" {
                     .cv_dock_h = .cv_drag_size0
+                    .cv_dock_h_decl = canvasDockHDecl(.cv_dock_h)
                 }
             }
             .cv_drag_kind = ""
@@ -511,9 +531,11 @@ store CanvasStore {
         .DockNudge(kind str, step int) -> {
             if kind == "h" {
                 .cv_dock_w = canvasDockNudgeSize(.cv_dock, "h", .cv_wb_w, .cv_wb_h, .cv_dock_w, step)
+                .cv_dock_w_decl = canvasDockWDecl(.cv_dock_w)
             } else {
                 if kind == "b" {
                     .cv_dock_h = canvasDockNudgeSize(.cv_dock, "b", .cv_wb_w, .cv_wb_h, .cv_dock_h, step)
+                    .cv_dock_h_decl = canvasDockHDecl(.cv_dock_h)
                 }
             }
             let ws102 = localStorage.getItem("musk_workspace") ?? ""
@@ -529,6 +551,7 @@ store CanvasStore {
         }
         .OuterDragMove(delta_px int) -> {
             .cv_outer_w = canvasClampOuterW(.cv_wb_w + .cv_outer_w, .cv_drag_origin + delta_px)
+            .cv_outer_w_decl = canvasOuterWDecl(.cv_outer_w)
         }
         .OuterDragEnd -> {
             .cv_drag_kind = ""
@@ -537,6 +560,7 @@ store CanvasStore {
         }
         .OuterDragCancel -> {
             .cv_outer_w = .cv_drag_size0
+            .cv_outer_w_decl = canvasOuterWDecl(.cv_outer_w)
             .cv_drag_kind = ""
         }
 

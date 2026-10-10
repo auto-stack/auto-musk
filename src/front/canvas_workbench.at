@@ -1,0 +1,323 @@
+// canvas_workbench.at — PLAN-102 T-03: Canvas 工作台组合件（共用停靠
+// 布局）。CanvasPanel（正常模式右列，外框宽 + 外部分隔条）与
+// CanvasStudioSlot（studio 中列）仅作宿主配置——布局/停靠/分隔条/窄容器
+// 降级收敛在本件 + canvas_layout_helpers.at（单源）。
+//
+// 动态宽度出程（W-03-1 spike 裁定，收据 tmp/ui-parity/PLAN-102/
+// W-03-1-vm-style-spike-receipt.json）：停靠列尺寸走
+// `style: .store.cv_dock_w_decl`（store 域组合的 CSS 声明串）——VM 侧
+// split_css_declarations 映射 width/height/overflow、web 侧 :style 真
+// CSS、web 专属键（flex-shrink）VM 静默跳过。禁止 class:+style: 并存
+// 承载动态值（VM extract class 优先短路 style——spike C1 臂 472 实测）；
+// 类名文本裸引用亦禁（web :style 内联无效——B2 臂）。视觉分隔线由
+// DivH/DivB 自带 w-px/h-px 线承担，停靠列不带 border。
+//
+// 拖动机制（双轨同构）：DivH/DivB mouse-area mousedown 起拖（store 记
+// 基线）；捕获层 = 常驻包裹主体的 mouse-area（非绝对覆盖——iced 无绝对
+// 定位，inset 解析保存但渲染降级；包裹式 = 全覆盖零定位依赖，嵌套交互
+// 子件不吞事件有 chats_view 会话行先例），handler 以 store.cv_drag_kind
+// 门控：起拖后首个 move 定基线（4096 逻辑域），后续 move 按容器实际尺
+// 寸换算像素 delta → store 钳制即时预览；up 持久化。Escape 取消挂
+// store.DockDragCancel（键盘接线归 T-05 AC-08 面收口）。
+// 键盘面 = 停靠条紧凑步进钮组（±10 / Home——原生按钮键盘可达；方向键
+// 直挂分隔条归 T-05 打磨）。
+
+use store: CanvasStore
+use canvas_structure: CanvasStructureColumn
+use canvas_panel: CanvasCanvasColumn
+use.web useT from "src/front/ports/composables.at"
+// 布局纯函数生成面（合同脚本 canvas-layout-contract.mjs 直测 ext TS；
+// store 侧消费同一模块——单源）。
+use.web.fn canvasDockMode, canvasClampDockW, canvasClampDockH, canvasClampOuterW, canvasDockWDecl, canvasDockHDecl, canvasOuterWDecl from "src/front/canvas_layout_helpers.at"
+
+widget CanvasWorkbench {
+
+    setup {
+        let t = useT()
+    }
+
+    model {
+        // 拖动基线（捕获层 4096 逻辑域；<0 = 未设——起拖后首个 move 设定，
+        // up/取消复位）。视图本地瞬态：不进偏好、不跨 store。
+        var base_x float = -1.0
+        var base_y float = -1.0
+    }
+
+    msg Msg {
+        Dock(str),
+        Solo(str),
+        CapMove(float, float),
+        CapUp,
+        KeyNudge(str, int),
+        KeyHome(str),
+    }
+
+    view {
+        col {
+            style: "relative w-full h-full flex flex-col overflow-hidden bg-card"
+            // 停靠条（紧凑——T-04 并入预览顶部工具栏）：left/bottom/right/
+            // hidden 四停靠 + 键盘步进组 + tabs 降级页签。
+            row {
+                style: "h-7 shrink-0 flex items-center gap-0.5 px-1 border-b border-border bg-muted/30"
+                button {
+                    onclick: .Dock("left")
+                    style: if .store.cv_dock == "left" {
+                        "h-5 px-1.5 rounded text-[10px] cursor-pointer bg-primary/15 text-primary"
+                    } else {
+                        "h-5 px-1.5 rounded text-[10px] cursor-pointer bg-transparent text-muted-foreground hover:bg-accent"
+                    }
+                    title: t("canvas.dockLeft")
+                    text "◧"
+                }
+                button {
+                    onclick: .Dock("bottom")
+                    style: if .store.cv_dock == "bottom" {
+                        "h-5 px-1.5 rounded text-[10px] cursor-pointer bg-primary/15 text-primary"
+                    } else {
+                        "h-5 px-1.5 rounded text-[10px] cursor-pointer bg-transparent text-muted-foreground hover:bg-accent"
+                    }
+                    title: t("canvas.dockBottom")
+                    text "▄"
+                }
+                button {
+                    onclick: .Dock("right")
+                    style: if .store.cv_dock == "right" {
+                        "h-5 px-1.5 rounded text-[10px] cursor-pointer bg-primary/15 text-primary"
+                    } else {
+                        "h-5 px-1.5 rounded text-[10px] cursor-pointer bg-transparent text-muted-foreground hover:bg-accent"
+                    }
+                    title: t("canvas.dockRight")
+                    text "◨"
+                }
+                button {
+                    onclick: .Dock("hidden")
+                    style: if .store.cv_dock == "hidden" {
+                        "h-5 px-1.5 rounded text-[10px] cursor-pointer bg-primary/15 text-primary"
+                    } else {
+                        "h-5 px-1.5 rounded text-[10px] cursor-pointer bg-transparent text-muted-foreground hover:bg-accent"
+                    }
+                    title: t("canvas.dockHidden")
+                    text "✕"
+                }
+                // 键盘步进组（§5.3：±10 / Home 初值——原生按钮键盘可达 +
+                // title 可读名）。
+                if .store.cv_dock == "left" || .store.cv_dock == "right" {
+                    button {
+                        onclick: .KeyNudge("h", -10)
+                        style: "h-5 px-1 rounded bg-transparent text-muted-foreground hover:bg-accent text-[10px] cursor-pointer"
+                        title: t("canvas.dockNarrower")
+                        text "‹‹"
+                    }
+                    button {
+                        onclick: .KeyNudge("h", 10)
+                        style: "h-5 px-1 rounded bg-transparent text-muted-foreground hover:bg-accent text-[10px] cursor-pointer"
+                        title: t("canvas.dockWider")
+                        text "››"
+                    }
+                    button {
+                        onclick: .KeyHome("h")
+                        style: "h-5 px-1 rounded bg-transparent text-muted-foreground hover:bg-accent text-[10px] cursor-pointer"
+                        title: t("canvas.dockReset")
+                        text "⌂"
+                    }
+                }
+                if .store.cv_dock == "bottom" {
+                    button {
+                        onclick: .KeyNudge("b", -10)
+                        style: "h-5 px-1 rounded bg-transparent text-muted-foreground hover:bg-accent text-[10px] cursor-pointer"
+                        title: t("canvas.dockShorter")
+                        text "⌃⌃"
+                    }
+                    button {
+                        onclick: .KeyNudge("b", 10)
+                        style: "h-5 px-1 rounded bg-transparent text-muted-foreground hover:bg-accent text-[10px] cursor-pointer"
+                        title: t("canvas.dockTaller")
+                        text "⌄⌄"
+                    }
+                    button {
+                        onclick: .KeyHome("b")
+                        style: "h-5 px-1 rounded bg-transparent text-muted-foreground hover:bg-accent text-[10px] cursor-pointer"
+                        title: t("canvas.dockReset")
+                        text "⌂"
+                    }
+                }
+                // tabs 降级页签。
+                if .store.cv_layout_mode == "tabs" {
+                    button {
+                        onclick: .Solo("canvas")
+                        style: if .store.cv_solo_tab == "canvas" {
+                            "h-5 px-1.5 rounded text-[10px] cursor-pointer bg-primary/15 text-primary"
+                        } else {
+                            "h-5 px-1.5 rounded text-[10px] cursor-pointer bg-transparent text-muted-foreground hover:bg-accent"
+                        }
+                        text t("canvas.soloCanvas")
+                    }
+                    button {
+                        onclick: .Solo("tools")
+                        style: if .store.cv_solo_tab == "tools" {
+                            "h-5 px-1.5 rounded text-[10px] cursor-pointer bg-primary/15 text-primary"
+                        } else {
+                            "h-5 px-1.5 rounded text-[10px] cursor-pointer bg-transparent text-muted-foreground hover:bg-accent"
+                        }
+                        text t("canvas.soloTools")
+                    }
+                }
+            }
+            // 捕获层：常驻包裹主体（非拖动态 handler 直通丢弃；拖动态接管
+            // move/up——越窗界前持续收 move）。
+            mouse-area {
+                coords: "4096x4096"
+                onmousemove: .CapMove
+                onmouseup: .CapUp
+                style: "flex-1 min-h-0 w-full"
+                if .store.cv_layout_mode == "tabs" {
+                    // 窄容器降级：单区页签（偏好保留——变宽自动恢复方向）。
+                    if .store.cv_solo_tab == "tools" {
+                        col {
+                            style: "flex-1 min-h-0 flex flex-col overflow-hidden"
+                            CanvasStructureColumn {}
+                        }
+                    } else {
+                        col {
+                            style: "flex-1 min-h-0 flex flex-col overflow-hidden"
+                            CanvasCanvasColumn {}
+                        }
+                    }
+                } else {
+                    if .store.cv_dock == "left" {
+                        row {
+                            style: "flex-1 min-h-0 w-full flex flex-row overflow-hidden"
+                            col {
+                                style: .store.cv_dock_w_decl
+                                CanvasStructureColumn {}
+                            }
+                            DivH {}
+                            col {
+                                style: "flex-1 min-w-0 h-full flex flex-col overflow-hidden"
+                                CanvasCanvasColumn {}
+                            }
+                        }
+                    } else {
+                        if .store.cv_dock == "right" {
+                            row {
+                                style: "flex-1 min-h-0 w-full flex flex-row overflow-hidden"
+                                col {
+                                    style: "flex-1 min-w-0 h-full flex flex-col overflow-hidden"
+                                    CanvasCanvasColumn {}
+                                }
+                                DivH {}
+                                col {
+                                    style: .store.cv_dock_w_decl
+                                    CanvasStructureColumn {}
+                                }
+                            }
+                        } else {
+                            if .store.cv_dock == "bottom" {
+                                col {
+                                    style: "flex-1 min-h-0 w-full flex flex-col overflow-hidden"
+                                    col {
+                                        style: "flex-1 min-h-0 w-full flex flex-col overflow-hidden"
+                                        CanvasCanvasColumn {}
+                                    }
+                                    DivB {}
+                                    col {
+                                        style: .store.cv_dock_h_decl
+                                        CanvasStructureColumn {}
+                                    }
+                                }
+                            } else {
+                                // hidden：画布独占（停靠条即重新打开入口）。
+                                col {
+                                    style: "flex-1 min-h-0 w-full flex flex-col overflow-hidden"
+                                    CanvasCanvasColumn {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    on {
+        .Dock(d str) -> {
+            store.SetDock(d)
+        }
+        .Solo(tab str) -> {
+            store.SoloTab(tab)
+        }
+        .CapMove(x float, y float) -> {
+            if .store.cv_drag_kind != "" {
+                if .base_x < 0.0 {
+                    .base_x = x
+                    .base_y = y
+                } else {
+                    if .store.cv_drag_kind == "h" {
+                        var px int = int((x - .base_x) * .store.cv_wb_w / 4096.0)
+                        store.DockDragMove(px)
+                    } else {
+                        if .store.cv_drag_kind == "b" {
+                            var py int = int((y - .base_y) * .store.cv_wb_h / 4096.0)
+                            store.DockDragMove(py)
+                        }
+                    }
+                }
+            }
+        }
+        .CapUp -> {
+            if .store.cv_drag_kind != "" {
+                if .store.cv_drag_kind == "outer" {
+                    store.OuterDragEnd()
+                } else {
+                    store.DockDragEnd()
+                }
+                .base_x = -1.0
+                .base_y = -1.0
+            }
+        }
+        .KeyNudge(kind str, step int) -> {
+            store.DockNudge(kind, step)
+        }
+        .KeyHome(kind str) -> {
+            store.DockNudge(kind, 0)
+        }
+    }
+}
+
+// ── 内部分隔条（水平宽 / 底部高；可见线 1px、命中 6px） ─────────────────
+// 局部 widget（文件内私有组合件；store 经文件顶 use 行共享）。mousedown
+// 即起拖（store 记基线尺寸与取消基线）；拖动几何全部由工作台捕获层接管。
+
+widget DivH {
+    msg Msg { Down }
+    view {
+        mouse-area {
+            coords: "4096x4096"
+            onmousedown: .Down
+            style: "shrink-0 w-1.5 h-full flex items-center justify-center cursor-col-resize hover:bg-primary/20"
+            div { style: "w-px h-full bg-border" }
+        }
+    }
+    on {
+        .Down -> {
+            store.DockDragStart("h", .store.cv_dock_w, .store.cv_dock_w)
+        }
+    }
+}
+
+widget DivB {
+    msg Msg { Down }
+    view {
+        mouse-area {
+            coords: "4096x4096"
+            onmousedown: .Down
+            style: "shrink-0 w-full h-1.5 flex items-center justify-center cursor-row-resize hover:bg-primary/20"
+            div { style: "h-px w-full bg-border" }
+        }
+    }
+    on {
+        .Down -> {
+            store.DockDragStart("b", .store.cv_dock_h, .store.cv_dock_h)
+        }
+    }
+}

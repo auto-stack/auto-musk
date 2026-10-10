@@ -65,15 +65,39 @@ fn canvasDockNarrowH(container_h int) bool {
 }
 
 /** 当前停靠下的布局模式："tabs"（单区页签降级）| "dock"（正常停靠）。
- * hidden 恒 dock（工具区不占位，无降级面）。 */
+ * hidden 恒 dock（工具区不占位，无降级面）。容器尺寸未知（<=0，宿主
+ * LayoutContainer 未报到）时不降级——降级必须有窄容器证据。 */
 fn canvasDockMode(dock str, container_w int, container_h int) str {
     if dock == "hidden" { return "dock" }
+    if container_w <= 0 || container_h <= 0 { return "dock" }
     if dock == "bottom" {
         if canvasDockNarrowH(container_h) { return "tabs" }
         return "dock"
     }
     if canvasDockNarrow(container_w) { return "tabs" }
     return "dock"
+}
+
+// ── 动态尺寸声明串（W-03-1 spike 裁定形态） ─────────────────────────────
+// 双轨单通道：`style: .store.<decl>` 装 CSS 声明串。VM 侧经
+// split_css_declarations（PLAN-095）映射 width/height/overflow；web 侧
+// 生成 :style 真 CSS。web 专属键（flex-shrink）VM 词法扫描落 remainder
+// token 管线、未知类静默跳过——双轨各自消费可懂段。禁止 class:+style:
+// 并存承载动态值（VM extract class 优先短路 style——spike C1 臂 472 实测）。
+
+/** 左/右停靠工具列声明串。 */
+fn canvasDockWDecl(w int) str {
+    return "width:" + w + "px;height:100%;overflow:hidden;flex-shrink:0"
+}
+
+/** 底部停靠工具行声明串。 */
+fn canvasDockHDecl(h int) str {
+    return "height:" + h + "px;width:100%;overflow:hidden;flex-shrink:0"
+}
+
+/** 正常模式外框声明串（宿主 = CanvasPanel 右列；分隔线走外部分隔条件）。 */
+fn canvasOuterWDecl(w int) str {
+    return "width:" + w + "px;height:100%;overflow:hidden;flex-shrink:0"
 }
 
 // ── 拖动 ────────────────────────────────────────────────────────────────

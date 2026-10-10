@@ -1,0 +1,7 @@
+// pac.at — PLAN-102 W-03-1: VM 动态宽度出程 spike 夹具。
+name: "style-spike"
+version: "0.1.0"
+scene: "ui"
+render: "vue"
+title: "Style Spike"
+theme: "dark"

@@ -1,0 +1,64 @@
+// app.at — PLAN-102 W-03-1: VM 动态宽度出程 spike 夹具视图。
+//
+// 五臂对照（每个探针 col 内放唯一文本标记，探针按标记回溯最近前位
+// `col vnode_N` 取 bbox 宽）：
+//   A0 字面量对照（仪器健全性——恒 240）
+//   A1 数组字面量集 [.store.ladder_cls]（CanvasStudioSlot 先例形态）
+//   B1 裸引用 .store.w_decl（CSS 声明串——连续 px 候选）
+//   B2 裸引用 .store.w_cls（类名文本——web :style 陷阱对照，非门）
+//   B3 内联拼接 "width:" + .store.wpx + "px"（indent_style 形态的
+//      store 引用变体——视图域 int 拼接出程待证）
+// cycle 按钮触发 store.Cycle() 重写四载荷，探针测前后两轮几何。
+
+use store: SpikeStore
+
+widget SpikeApp {
+
+    view {
+        col {
+            style: "w-full h-full flex flex-col gap-1 p-1 overflow-hidden bg-background"
+            // A0：字面量对照。
+            col {
+                style: "w-[240px] h-[100px] shrink-0 border border-border"
+                text "A0"
+            }
+            // A1：数组字面量集（枚举阶梯候选）。
+            col {
+                style: [.store.ladder_cls]
+                text "A1"
+            }
+            // B1：裸引用 CSS 声明串（连续 px 候选）。
+            col {
+                style: .store.w_decl
+                text "B1"
+            }
+            // B2：裸引用类名文本（对照臂，非门）。
+            col {
+                style: .store.w_cls
+                text "B2"
+            }
+            // B3：内联拼接 int 宽（indent_style 形态变体）。
+            col {
+                style: "width:" + .store.wpx + "px;height:100px"
+                text "B3"
+            }
+            // C1：class 静态工具类 + style 动态声明串组合（workbench 停靠
+            // 列目标形态：宽度动态、其余工具类静态字面量）。
+            col {
+                class: "shrink-0 border border-border"
+                style: .store.w_decl
+                text "C1"
+            }
+            button "cycle" {
+                style: "h-9 px-3 shrink-0 rounded-md bg-primary text-primary-foreground"
+                onclick: .Cycle
+            }
+        }
+    }
+
+    on {
+        .Cycle -> {
+            store.Cycle()
+        }
+    }
+}
