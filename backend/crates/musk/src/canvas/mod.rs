@@ -40,6 +40,8 @@ pub fn canvas_routes() -> Router<AppState> {
         .route("/api/canvas/status", get(canvas_status))
         .route("/api/canvas/pick", post(canvas_pick))
         .route("/api/canvas/stop", post(canvas_stop))
+        // PLAN-102 T-02：呈现模式切换（embedded↔window；身份守卫）。
+        .route("/api/canvas/present", post(canvas_present))
         // PLAN-093 T-07 G-13: 源码只读（结构列源码面板；双 serve 同契约——
         // VM 轨经 canvas_vm.at 宿主桥同一 registry/read 语义）。
         .route("/api/canvas/source", get(canvas_source))
@@ -297,6 +299,63 @@ async fn canvas_stop(
         Err(StopRefused::OwnedByOther { owner }) => (
             StatusCode::CONFLICT,
             Json(serde_json::json!({ "error": format!("canvas session belongs to conversation {owner}") })),
+        )
+            .into_response(),
+    }
+}
+
+/// PLAN-102 T-02：呈现模式切换（POST /api/canvas/present?workspace=&generation=
+/// body {"mode":"embedded"|"window"}）。身份守卫与 stop 同律（陈旧
+/// generation 409——不得控制新会话）；会话不重启、generation 不变。
+/// - `embedded`：幂等成功（当前唯一支持形态——bridge WS 数据面）。
+/// - `window`：显式未就绪（501）——独立窗呈现待上游 rq 客户端宿主切换
+///   重连 seam（决策文档 §5），不冒充、不动会话。
+async fn canvas_present(
+    State(state): State<AppState>,
+    Query(q): Query<CanvasIdentityQuery>,
+    Json(body): Json<serde_json::Value>,
+) -> Response {
+    let current = state.canvas.generation();
+    if let Some(exp) = q.generation {
+        if current != 0 && exp != current {
+            return conflict_409(
+                format!(
+                    "canvas present generation conflict — session was replaced (current {current}); re-fetch /api/canvas/status"
+                ),
+                current,
+            );
+        }
+    }
+    if current == 0 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "no active canvas session to present" })),
+        )
+            .into_response();
+    }
+    let mode = body.get("mode").and_then(|m| m.as_str()).unwrap_or("");
+    match mode {
+        "embedded" => {
+            let status = state.canvas.status_full();
+            Json(serde_json::json!({
+                "mode": "embedded",
+                "generation_id": current,
+                "presentation": status["presentation"],
+            }))
+            .into_response()
+        }
+        "window" => (
+            StatusCode::NOT_IMPLEMENTED,
+            Json(serde_json::json!({
+                "error": "window presentation pending upstream reconnect seam (PLAN-102 decision doc §5); session unchanged",
+                "mode": "embedded",
+                "generation_id": current,
+            })),
+        )
+            .into_response(),
+        _ => (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "mode must be \"embedded\" or \"window\"" })),
         )
             .into_response(),
     }

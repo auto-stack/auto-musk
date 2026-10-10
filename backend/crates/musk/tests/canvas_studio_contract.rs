@@ -506,6 +506,67 @@ async fn route_chat_message_design_context_missing_required_fields_rejected() {
     );
 }
 
+// ── PLAN-102 T-02：present 切换路由合同（身份守卫/幂等/window 诚实 501） ──
+async fn present_call(
+    state: &Arc<musk::server::AppState>,
+    uri: &str,
+    body: &str,
+) -> (StatusCode, serde_json::Value) {
+    let app: BoxCloneService<Request<Body>, axum::response::Response, std::convert::Infallible> =
+        canvas_routes().with_state((**state).clone()).boxed_clone();
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(uri)
+                .header("content-type", "application/json")
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = res.status();
+    let bytes = axum::body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+    (status, serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null))
+}
+
+#[tokio::test]
+async fn route_present_stale_generation_409() {
+    let (state, dir) = test_state();
+    state.canvas.begin_session(&dir, &dir, "ws-1", Some("conv-A"), None).unwrap();
+    let (status, v) = present_call(&state, "/api/canvas/present?generation=42", r#"{"mode":"embedded"}"#).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(v["generation_id"], 1);
+}
+
+#[tokio::test]
+async fn route_present_no_session_400() {
+    let (state, _dir) = test_state();
+    let (status, _v) = present_call(&state, "/api/canvas/present", r#"{"mode":"embedded"}"#).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn route_present_embedded_idempotent_and_window_honest_501() {
+    let (state, dir) = test_state();
+    state.canvas.begin_session(&dir, &dir, "ws-1", Some("conv-A"), None).unwrap();
+    // embedded：幂等成功（当前唯一支持形态；presentation 面板随行）。
+    let (status, v) = present_call(&state, "/api/canvas/present?generation=1", r#"{"mode":"embedded"}"#).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(v["mode"], "embedded");
+    assert_eq!(v["generation_id"], 1);
+    assert!(v["presentation"]["mode"].is_string());
+    // window：诚实 501（上游重连 seam 未就绪——不冒充、不动会话）。
+    let (status, v) = present_call(&state, "/api/canvas/present?generation=1", r#"{"mode":"window"}"#).await;
+    assert_eq!(status, StatusCode::NOT_IMPLEMENTED);
+    assert!(v["error"].as_str().unwrap().contains("reconnect seam"));
+    // 会话未被动：generation 不变。
+    assert_eq!(state.canvas.generation(), 1);
+    // 非法 mode：400。
+    let (status, _v) = present_call(&state, "/api/canvas/present?generation=1", r#"{"mode":"floating"}"#).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
 // ── PLAN-102 T-02：embedded 呈现会话合同（实机；AUTO_EXE + 夹具） ─────────
 // spawn_embedded 双子进程（bridge 宿主 + rq remote app）：status 携
 // presentation.mode=embedded 与 bridge WS 端点（可连）；会话 running；停止
