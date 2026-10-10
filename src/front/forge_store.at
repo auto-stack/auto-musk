@@ -603,18 +603,35 @@ store ForgeStore {
             .current_draft = "";
             .thinking = "";
             .error = "";
-            // 发送消息到后端。不覆盖 messages（避免和 SSE 回写竞态）——
-            // 直接发送路径的 user 消息与 assistant 回复由 PollStream 回填
-            // 带上屏；乐观插入与 SSE 订阅属 StartStream 链（问卷/排队路径）。
-            // PLAN-055 ⑧(D1)：run=true 显式触发后端 agent 运行——VM 轨 Sse.open
-            // 为 no-op，订阅触发路径不可达；gen/web 轨双保险无害（订阅侧守卫防双跑）。
+            // 发送消息到后端。PLAN-055 ⑧(D1)：run=true 显式触发后端 agent
+            // 运行——VM 轨 Sse.open 为 no-op，订阅触发路径不可达；gen/web
+            // 轨双保险无害（订阅侧守卫防双跑）。
             var resp = chats_send_message(.session_id, content, "", true, false, None);
             .streaming = true
-            // 发送后必须重开轮询窗：上一回合完成时 done 臂已 pop 清窗
-            // （PLAN-062），本 handler 不经 StartStream（其窗戳随乐观 push
-            // 落下）——不开窗则 PollStream 恒早退，消息不上屏、点会话列表
-            // 才刷新（实机复现定谳）。列表 push = 跨模块可靠写（536 T12
-            // 机制）；此处 SET_FIELD 域不可靠，仅窗戳可达。
+            // 乐观回合 UI（同 StartStream 序列 minus SSE，见 071⑧ T-34/
+            // 067 T-02）：用户气泡即时上屏 + assistant 占位打转；渲染依赖
+            // 叶链，跨模块帧内 .active_leaf 写可能不达根态（536 T12）——
+            // 未及渲染时由首个回填的叶同步兜底（≤1 拍）。流式期回填合并
+            // 受 PollBackfill 守卫调节（last_sse_at 判别，见该处注）。
+            // 轮询窗戳同 push：done 臂清窗（PLAN-062）后本路径无其他开窗点，
+            // 不开窗则 PollStream 恒早退 = 消息永不自动上屏（实机复现定谳）。
+            .pre_stream_len = .messages.length
+            let msgs0 = .messages
+            var dup = false
+            if msgs0.length > 0 {
+                if msgs0[msgs0.length - 1].role == "user" {
+                    if msgs0[msgs0.length - 1].content == content { dup = true }
+                }
+            }
+            if dup == false {
+                let uid = "u-" + Date.now()
+                .messages.push({ id: uid, role: "user", content: content, created_at: nowSec(), thinking: "", tool_calls: [], profession_id: "", parent_id: .active_leaf })
+                .active_leaf = uid
+                var amsg = newAssistantMsg(modeRoleOf(.session_mode))
+                amsg.parent_id = .active_leaf
+                .active_leaf = amsg.id
+                .messages.push(amsg)
+            }
             .poll_window.push(Date.now())
             .RefreshHeader()
         }
@@ -627,7 +644,24 @@ store ForgeStore {
             .error = "";
             var resp2 = chats_send_message(.session_id, content, "", true, false, JSON.parse(ctxJson));
             .streaming = true
-            // 同 .Send：重开轮询窗（done 臂清窗后本路径无其他开窗点）。
+            // 同 .Send：乐观回合 UI + 重开轮询窗。
+            .pre_stream_len = .messages.length
+            let msgs0 = .messages
+            var dup = false
+            if msgs0.length > 0 {
+                if msgs0[msgs0.length - 1].role == "user" {
+                    if msgs0[msgs0.length - 1].content == content { dup = true }
+                }
+            }
+            if dup == false {
+                let uid = "u-" + Date.now()
+                .messages.push({ id: uid, role: "user", content: content, created_at: nowSec(), thinking: "", tool_calls: [], profession_id: "", parent_id: .active_leaf })
+                .active_leaf = uid
+                var amsg = newAssistantMsg(modeRoleOf(.session_mode))
+                amsg.parent_id = .active_leaf
+                .active_leaf = amsg.id
+                .messages.push(amsg)
+            }
             .poll_window.push(Date.now())
             .RefreshHeader()
         }
@@ -782,7 +816,9 @@ store ForgeStore {
             // 计数恒等，`msgs.length > pre_stream_len` 永假，streaming 永不
             // 收束（实测卡死；旧链同构，靠 120s deadman 窗静默+Stop 钮
             // 残留暴露）。基线=发送前存量，服务端到货 2 条必 > 0。
-            .pre_stream_len = .messages.length
+            // vm-send-timely r2：基线写定挪入未重入分支——.Send 乐观序列
+            // 已插对（尾部=空 assistant 占位且其 parent user 同文）时不得
+            // 重写基线（push 后写定会让 done 增长守卫恒假，卡收束）。
             // 乐观插入 user 消息（不等 API 返回；与 Send 并发执行）
             if userContent.trim() != "" {
                 let msgs = .messages
@@ -791,8 +827,20 @@ store ForgeStore {
                     if msgs[msgs.length - 1].role == "user" {
                         if msgs[msgs.length - 1].content == userContent { dup = true }
                     }
+                    if dup == false && msgs[msgs.length - 1].role == "assistant" {
+                        // .Send 乐观序列刚插过本轮对（空占位 + 同文 user）→
+                        // 只补窗/SSE，不再双插（问卷路径 Send+StartStream 同文）
+                        if (msgs[msgs.length - 1].content ?? "") == "" {
+                            if msgs.length > 1 {
+                                if msgs[msgs.length - 2].role == "user" {
+                                    if msgs[msgs.length - 2].content == userContent { dup = true }
+                                }
+                            }
+                        }
+                    }
                 }
                 if dup == false {
+                    .pre_stream_len = .messages.length
                     let uid = "u-" + Date.now()
                     // PLAN-055 ⑦：乐观消息改写后端契约字段 created_at（秒）
                     // ——此前写 timestamp（毫秒）导致重载/格式化读不到值。
@@ -812,10 +860,14 @@ store ForgeStore {
                 // （标题栏立即可见；profession=会话 mode 映射 role）。后续
                 // thinking/delta 事件经 currentAssistantMsgIn 命中本消息
                 // 追加；done 后回填换入持久化版本（含思考块）。
-                var amsg = newAssistantMsg(modeRoleOf(.session_mode))
-                amsg.parent_id = .active_leaf
-                .active_leaf = amsg.id
-                .messages.push(amsg)
+                // vm-send-timely r2：dup（.Send 乐观序列已插本轮对）时跳过
+                // ——否则问卷路径 Send+StartStream 双插 assistant 占位。
+                if dup == false {
+                    var amsg = newAssistantMsg(modeRoleOf(.session_mode))
+                    amsg.parent_id = .active_leaf
+                    .active_leaf = amsg.id
+                    .messages.push(amsg)
+                }
             }
             let path0 = "/api/chats/session/" + encodeURIComponent(sid0) + "/stream"
             var qs = ""
@@ -1032,7 +1084,15 @@ store ForgeStore {
             // 不含 assistant，整表替换会把乐观消息连思考一起清掉（用户截图3
             // 实证：内容全清冻结至刷新）。仅当快照末消息已是 assistant
             // （收束落盘）才换入；换入后完成启发式自然清窗收束。
-            if .streaming == true {
+            // vm-send-timely r2：守卫加真实 SSE 判别（last_sse_at，与
+            // PollStream 首门同判据）——该守卫的本意是护 web 轨 SSE 直播
+            // 内容；VM 轨无真实流（last_sse_at 恒 0），守卫常开曾把回填
+            // 合并整个 TTFB 窗口全部跳过（.Send 置位跨模块粘住时实锤：
+            // 轮询在跑、合并恒跳过，用户消息+占位全不上屏）→ VM 的直播
+            // 机制本就是轮询（PLAN-051 T10），099 回合增量快照使服务端
+            // 末消息=pending assistant 时合并照常流动。web 无流窗口期
+            // （TTFB）同样获益：user 气泡不再等首帧。
+            if .streaming == true && .last_sse_at != 0 {
                 let srv_msgs = resp.session.messages ?? []
                 let last_srv = srv_msgs[srv_msgs.length - 1] ?? None
                 if last_srv == None || last_srv.role != "assistant" { return }
