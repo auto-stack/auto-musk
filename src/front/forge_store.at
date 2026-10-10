@@ -100,6 +100,11 @@ store ForgeStore {
         // 无 CSS 动画,帧字符文本逐拍换内容=最基础已证渲染路径,承担动效。
         var spin_phase int = 0
         var spin_char str = ""
+        // toolbar-icons 2026-10-10 r5：职业表（/api/forge/relay/professions，
+        // {id,name}）——ChatMessage 头部名字槽按 profession_id 解析 Agent
+        // 显示名（Nicole 类人名，badge 固定角色 id）。Init 异步拉取 +
+        // ProfConfigsLoaded 回填（SessionsLoaded 同款桥）。
+        var prof_configs []Value = []
         // PLAN-084 T-05: 已归档会话（"已归档"过滤开关的数据面）+ 开关态。
         // 归档 toggle 开时列表切到 archived_list；归档/取消归档后两表重拉。
         var archived_list []Value = []
@@ -181,6 +186,11 @@ store ForgeStore {
         PollBackfill(str),
         FireDetailLoad,
         LoadOlder,
+        // toolbar-icons 2026-10-10 r5：职业表回填段（Init 拉取，见
+        // prof_configs 字段与 .ProfConfigsLoaded handler）。(str)——codegen
+        // handler 签名取自 msg 清单声明（PollBackfill(str) 同款），裸名会
+        // 生成无参函数致 payload 未定义。
+        ProfConfigsLoaded(str),
     }
 
     // Plan 051 T10（G1 阶段1）：VM 轨无 SSE 形态期间，流式回复以 500ms
@@ -294,7 +304,28 @@ store ForgeStore {
             if tk != None {
                 .token = tk
             };
+            // toolbar-icons 2026-10-10 r5：职业表拉取（/api/forge/relay/
+            // professions，{id,name}——Agent 显示名配置面，用户可编辑
+            // professions.json）。ChatMessage 头部名字槽按 profession_id 解析
+            // （Nicole 类人名）；不走 AgentConfigs（其 Init 跨模块 SET_FIELD
+            // 落 536-T12 病灶，VM 恒空）。异步桥同 SessionsLoaded。
+            Http.get_msg("/api/forge/relay/professions", "ForgeStore.ProfConfigsLoaded")
             .LoadSessionList()
+        }
+
+        // ProfConfigsLoaded：职业表回填段（PollBackfill 同款 {ok,body} 双
+        // 解包）——prof_configs 供 ChatMessage 头部名字槽按 id 解析显示名。
+        .ProfConfigsLoaded(payload str) -> {
+            var resp = None
+            let r = JSON.parse(payload)
+            if r != None {
+                if r.ok == true {
+                    resp = JSON.parse(r.body)
+                }
+            }
+            if resp == None { return }
+            if resp.professions == None { return }
+            .prof_configs = resp.professions
         }
 
         // LoadSessionList（PLAN-083 T-03 两段式）：发起段只置骨架门 +
@@ -395,7 +426,7 @@ store ForgeStore {
                 .LoadSessionList()
                 return
             }
-            .messages = rebuildParsedMessages(resp.session.messages)
+            .messages = rebuildParsedMessages(resp.session.messages, .prof_configs)
             .active_leaf = resp.session.active_leaf ?? ""
             .thinking_level = resp.session.thinking_level ?? "low"
             // PLAN-067 T-05: 会话审批模式随载入回填（缺省 human）。
@@ -434,7 +465,7 @@ store ForgeStore {
             }
             if resp == None { return }
             if resp.session == None { return }
-            let older = rebuildParsedMessages(resp.session.messages)
+            let older = rebuildParsedMessages(resp.session.messages, .prof_configs)
             if older == None { return }
             // 前插：older 全量 + 现有中 id 不在 older 的条目（页边界重叠
             // 去重；流式乐观尾部天然保留）。
@@ -637,6 +668,10 @@ store ForgeStore {
                 .messages.push({ id: uid, role: "user", content: content, created_at: nowSec(), thinking: "", tool_calls: [], profession_id: "", parent_id: .active_leaf })
                 .active_leaf = uid
                 var amsg = newAssistantMsg(modeRoleOf(.session_mode))
+                // toolbar-icons 2026-10-10 r6：乐观消息即解析 Agent 显示名
+                // （职业表按 id 取 name——根上下文 handler 循环+局部对象写,
+                // 已证形态;头部名字槽显人名如 Nicole,badge 仍角色 id）。
+                amsg.aname = profNameOf(.prof_configs, amsg.profession_id ?? "")
                 amsg.parent_id = .active_leaf
                 .active_leaf = amsg.id
                 .messages.push(amsg)
@@ -667,6 +702,10 @@ store ForgeStore {
                 .messages.push({ id: uid, role: "user", content: content, created_at: nowSec(), thinking: "", tool_calls: [], profession_id: "", parent_id: .active_leaf })
                 .active_leaf = uid
                 var amsg = newAssistantMsg(modeRoleOf(.session_mode))
+                // toolbar-icons 2026-10-10 r6：乐观消息即解析 Agent 显示名
+                // （职业表按 id 取 name——根上下文 handler 循环+局部对象写,
+                // 已证形态;头部名字槽显人名如 Nicole,badge 仍角色 id）。
+                amsg.aname = profNameOf(.prof_configs, amsg.profession_id ?? "")
                 amsg.parent_id = .active_leaf
                 .active_leaf = amsg.id
                 .messages.push(amsg)
@@ -1158,7 +1197,7 @@ store ForgeStore {
             // 按已加载窗口合并：快照首条在现表有锚点→保锚点前缀（用户已
             // 翻页加载的历史）换尾部；无锚点（fork/叶切换/空表）→整表
             // 换入。归一化免本地（blocks_normalized 直出）。
-            .messages = mergeTailWindow(.messages, rebuildParsedMessages(resp.session.messages))
+            .messages = mergeTailWindow(.messages, rebuildParsedMessages(resp.session.messages, .prof_configs))
             // PLAN-067 T-02：回填时同步服务端活跃叶——否则叶链投影沿旧叶
             // 回溯,新回合不在链上,依旧"数据到了但不渲染"。
             if resp.session.active_leaf != None { .active_leaf = resp.session.active_leaf }
@@ -1844,6 +1883,24 @@ fn modeRoleOf(mode str) str {
     return mode
 }
 
+// toolbar-icons 2026-10-10 r6：职业显示名解析——职业表（prof_configs，
+// /api/forge/relay/professions 的 {id,name}，用户可编辑 professions.json）
+// 按 id 取 name（Agent 人名如 Nicole）；未命中回退空串（调用方再回退
+// 角色 id）。无早退分支（store 内联纯 fn VM 保守形态）。
+fn profNameOf(configs obj, pid str) str {
+    var out str = ""
+    if pid != "" {
+        for c in configs {
+            if c.id == pid {
+                if out == "" {
+                    out = c.name ?? ""
+                }
+            }
+        }
+    }
+    return out
+}
+
 // toolbar-icons 2026-10-10 r3：等待 Loader 帧字符（braille 四帧）——
 // PollStream 心跳域调用（store 内联纯 fn，VM 已证形态；视图 computed 内
 // fn 调用 VM 静默返空故不进视图域）。500ms/帧=2s/圈，VM 心跳即节拍。
@@ -1861,7 +1918,7 @@ fn spinFrameChar(phase int) str {
 // handler 上下文把每消息/每块重建为字面量对象——分页载荷已是扁平字符串
 // 块（blocks_normalized），重建是纯拷贝非拍平，有界（≤50 消息，毫秒级）。
 // 三个回填 handler（DetailLoaded/OlderLoaded/PollBackfill）统一过此漏斗。
-fn rebuildParsedMessages(msgs Value) Value {
+fn rebuildParsedMessages(msgs Value, configs Value) Value {
     if msgs == None { return [] }
     var out list = []
     var mi = 0
@@ -1895,6 +1952,11 @@ fn rebuildParsedMessages(msgs Value) Value {
         // PLAN-084 UAT⑪: ainit 两步式（括号链表达式在漏斗字面量值位产生
         // NaN-box 垃圾→渲染期 container unwrap 崩，三形态实测定案）。
         var apid = m.profession_id ?? "a"
+        // toolbar-icons 2026-10-10 r6：aname=职业显示名（Nicole 类人名，
+        // 按 profession_id 查职业表；未命中回退角色 id）——头部名字槽显
+        // 人名、badge 显角色的数据面。
+        var disp = profNameOf(configs, m.profession_id ?? "")
+        if disp == "" { disp = m.profession_id ?? "" }
         out.push({
             id: m.id ?? "",
             role: m.role ?? "user",
@@ -1913,7 +1975,7 @@ fn rebuildParsedMessages(msgs Value) Value {
             // 乐观消息（漏斗外）无此字段→回退 🤖 AI 徽章，回填后恢复。
             // ainit=角色首字母（ASCII slice 安全）；anavatar 头像暂缺
             // （AgentAvatar 组件内 fn 调用同坑，改视图直渲染色块）。
-            aname: m.profession_id ?? "",
+            aname: disp,
             ainit: apid.slice(0, 1)
         })
         mi = mi + 1

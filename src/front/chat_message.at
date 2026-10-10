@@ -45,6 +45,11 @@ use report_card: ReportCard
 // 会话越界命令暂停后既无 approve/deny 入口（运行挂到 1800s 门超时），状态
 // 又被 else 兜底渲染成绿色 completed（用户侧呈现"卡住但显示完成"）。
 use tool_gate_card: ToolGateCard
+// toolbar-icons 2026-10-10 r6：名字槽=消息 aname 字段（ForgeStore 在消息
+// 创建点解析：乐观消息 Send/SendWithCtx 写、回填消息 rebuildParsedMessages
+// 漏斗写——均为根上下文已证形态；名字源=/api/forge/relay/professions 的
+// {id,name}，用户可编辑 professions.json）。子件不读职业表：store 绑定读
+// 不达根态、list prop 跨界不可迭代（PLAN-051），视图循环解析两路皆弃。
 
 
 widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, think_open: str, tool_open: str, spin_char: str) {
@@ -153,11 +158,16 @@ style {
         // （newAssistantMsg(modeRoleOf)）即带 profession_id 而回填投影才有
         // aname，原单级读使等待期头部恒落 "AI"（用户对拍 2026-10-10：应与
         // 完成态同为 assistant+徽章）。
+        // toolbar-icons 2026-10-10 r5：名字槽/角色槽分离（用户对拍：头部
+        // 双 assistant，名字应显 Agent 人名如 Nicole 而非角色）——名字槽=
+        // AgentConfigs 职业表按 profession_id 解析（{id,name}，用户可编辑
+        // professions.json；.store.configs 字段读+视图 for+if 均为已证形态，
+        // 不涉坑①的 computed fn 调用）；badge 槽固定角色 id。表未载（首帧
+        // 竞速）回退 aname→profession_id 链。
         agentAname => .msg.aname ?? ""
         agentApid => .msg.profession_id ?? ""
         agentName => if .agentAname != "" { .agentAname } else { .agentApid }
-        agentProf => .agentName
-        showAgent => .isAssistant && .agentName != ""
+        showAgent => .isAssistant && .agentApid != ""
         userContent => .msg.content
         // PLAN-093 T-08:元素附件回放标记（轻量 chip——不塞 JSON 进气泡；
         // 单层链 computed，None 安全）。
@@ -206,11 +216,15 @@ style {
                     // 崩（渲染期，回填后即崩，X9-PANIC 三实锤）——暂撤，ainit
                     // 字段数据就绪，待 auto-lang 定位 container unwrap 触发
                     // 组合后复上（登记债）。
+                    // toolbar-icons 2026-10-10 r6：名字槽=aname（ForgeStore
+                    // 在消息创建点解析职业表写入，见 forge_store Send/
+                    // rebuildParsedMessages），badge 槽固定角色 id（用户对拍：
+                    // 名字显 Agent 人名而非角色）。
                     text .agentName { style: "text-[13.6px] font-semibold text-muted-foreground" }
                     // PLAN-084 UAT⑪: 角色 badge（用户裁定：icon+名称+角色）。
                     span {
                         style: "text-[11px] text-muted-foreground border border-border rounded-md px-1.5 py-[1px]"
-                        text .agentProf
+                        text .agentApid
                     }
                 } else {
                     text .badge { style: [.badgeClass] }
