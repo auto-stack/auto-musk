@@ -1301,7 +1301,12 @@ mod tests {
                 root.join("workspaces.json"),
                 root.clone(),
             )),
-            chat_runs: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+            // 368c2f9 把 chat_runs 改为 HashMap<String, Instant>（TTL reaper
+            // 带时间戳）时漏改本测试构造处——主线 --lib 自此编译红，修复以
+            // 解阻（同款构造见 server.rs:255）。
+            chat_runs: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
             chat_cancels: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashMap::new(),
             )),
