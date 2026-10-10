@@ -1335,6 +1335,7 @@ pub fn relay_append_report_message_to(
         result: String::new(),
         status: "success".into(),
         id: "report-1".into(),
+        ..Default::default()
     }];
     // PLAN-071 r3：报告回写身份 = 发起会话 mode 的 role（未注册回退 mode 名）。
     if let Some(sess) = ws.chats.get(&session_id) {
@@ -2127,6 +2128,7 @@ pub async fn chat_run_owner(
             result: tc_result.clone(),
             status: "success".into(),
             id: "tc-1".into(),
+            ..Default::default()
         };
         let summary = format!(
             "📦 **智能沉淀已启动**（{plan_id}）\n\nRun `{run_id}`（flow: plan-merge）：\
@@ -2381,6 +2383,9 @@ pub async fn chat_run_owner(
                 persist_chat_run_msg(&chats_snap, &sid_snap, &msg, "turn_snapshot");
             }
         };
+        // PLAN-103 T-03：门载荷落快照——bridge 臂用的克隆必须在 on_event
+        // （move 闭包）夺走 persist_snapshot 所有权**之前**摘下。
+        let persist_bridge = persist_snapshot.clone();
         // PLAN-071 需求⑤：超时/失败落盘臂专用的总线发射器（emit_bus 本体
         // 已被 on_event 捕获）。
         let emit_bus_tail = emit_bus.clone();
@@ -2524,6 +2529,7 @@ pub async fn chat_run_owner(
                                 result: String::new(),
                                 status: "running".into(),
                                 id: id.clone(),
+                                ..Default::default()
                             };
                             // PLAN-099 回归修复：blocks2 守卫收紧到块推送作用域
                             // ——原形 `bl` 横跨臂尾，工具边界快照的 persist_snapshot
@@ -2653,6 +2659,7 @@ pub async fn chat_run_owner(
                         tool, args, result,
                         status: String::from("success"),
                         id: id.unwrap_or_default(),
+                        ..Default::default()
                     });
                 }
                 mpsc_try_send(&tx3, value);
@@ -2672,6 +2679,10 @@ pub async fn chat_run_owner(
         let tx_bridge = tx2.clone();
         let wd_tx_bridge = wd_tx.clone();
         let bridge_sid = session_id.clone();
+        // PLAN-103 T-03：门载荷落快照——bridge 臂就地补 gate 字段
+        // （send_gate_waiting 的 tool_call_id 为空串，按"最后一个 running
+        // 工具块"匹配在途命令）并触发一次快照落盘。
+        let blocks_bridge = blocks.clone();
         let bridge = tokio::spawn(async move {
             loop {
                 match bridge_rx.recv().await {
@@ -2685,32 +2696,82 @@ pub async fn chat_run_owner(
                                 || ev.event_type == "tool_gate_waiting"
                                 || ev.event_type == "relay_gate_waiting")
                         {
-                            // PLAN-073 r3：gate 等待事件把空闲窗推到门超时
-                            // （1800s）之外再留一个完整窗口（+300s 余量）——
-                            // 喂 now+1500s 会让看门狗与门超时同时到期再次
+                            // PLAN-073 r3：gate 等待事件把空闲窗推到门超时之外
+                            // 再留一个完整窗口（+300s 余量）——喂
+                            // now+1500s 会让看门狗与门超时同时到期再次
                             // 竞速（实测看门狗又胜，运行被误杀）。门超时
                             // 先自然发生 → deny 结果回灌模型，运行继续；
                             // 看门狗只兜底真正的管道级停顿。
+                            // PLAN-103 T-02：门超时常量化（原 1800s 硬编码
+                            // → crate::tools::gate_timeout()，env 可覆盖），
+                            // 推窗 = 门超时 + 300s 同源联动。
+                            let gate_push = crate::tools::gate_timeout()
+                                + std::time::Duration::from_secs(300);
                             if ev.event_type == "tool_gate_waiting"
                                 || ev.event_type == "relay_gate_waiting"
                             {
                                 let _ = wd_tx_bridge.send(
-                                    std::time::Instant::now()
-                                        + std::time::Duration::from_secs(1800),
+                                    std::time::Instant::now() + gate_push,
                                 );
                             } else {
                                 let _ = wd_tx_bridge.send(std::time::Instant::now());
                             }
+                            // PLAN-103 T-03：门载荷落快照——tool_gate_waiting 把
+                            // gate_id/待决议命令/越界路径就地补进最后一个
+                            // running 工具块并立即落快照；轮询/重载路径的
+                            // ToolGateCard 数据面（chat-streaming 契约：gate 卡
+                            // ≤2s 可见，不得以"刷新后可见"替代）。决议后
+                            // tool_result 臂按既有 status 翻转收口，无需在此
+                            // 清理。relay_gate_waiting 是发起会话镜像事件
+                            // （payload 无门载荷），不 patch。
+                            if ev.event_type == "tool_gate_waiting" {
+                                let gate_id = ev
+                                    .payload
+                                    .get("gate_id")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
+                                let pending_cmd = ev
+                                    .payload
+                                    .get("cmd")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string();
+                                let escape_paths: Vec<String> = ev
+                                    .payload
+                                    .get("paths")
+                                    .and_then(|v| v.as_array())
+                                    .map(|a| {
+                                        a.iter()
+                                            .filter_map(|p| p.as_str().map(String::from))
+                                            .collect()
+                                    })
+                                    .unwrap_or_default();
+                                {
+                                    let mut bl = blocks_bridge.lock().unwrap();
+                                    for b in bl.iter_mut().rev() {
+                                        if b.kind == "tool" {
+                                            if let Some(tc) = b.tool.as_mut() {
+                                                if tc.status == "running" {
+                                                    tc.status = "gate_waiting".into();
+                                                    tc.gate_id = gate_id;
+                                                    tc.pending_cmd = pending_cmd;
+                                                    tc.escape_paths = escape_paths;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                persist_bridge();
+                            }
                             // PLAN-099 T-04 r2：工具进度/门等待同喂 reaper 活性
-                            // ——门等待把时间戳推到 1800s 窗口外（elapsed 恒 0
+                            // ——门等待把时间戳推到门超时窗口外（elapsed 恒 0
                             // 不误杀合法长门），普通进度触摸 now。
                             if ev.event_type == "tool_gate_waiting"
                                 || ev.event_type == "relay_gate_waiting"
                             {
-                                touch_guard_bridge(
-                                    std::time::Instant::now()
-                                        + std::time::Duration::from_secs(1800),
-                                );
+                                touch_guard_bridge(std::time::Instant::now() + gate_push);
                             } else {
                                 touch_guard_bridge(std::time::Instant::now());
                             }
@@ -3818,6 +3879,7 @@ mod chat_run_assemble_tests {
             result: "ok".into(),
             status: "success".into(),
             id: "tc-1".into(),
+            ..Default::default()
         }
     }
 

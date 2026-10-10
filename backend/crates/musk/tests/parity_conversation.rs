@@ -393,6 +393,7 @@ fn parity_chat_message_to_turns_assistant_with_tool_calls() {
         result: "ok".into(),
         status: "success".into(),
         id: "".into(),
+        ..Default::default()
     };
     let ag_tc = ag::ToolCall {
         tool: "read_file".into(),
@@ -419,6 +420,7 @@ fn parity_chat_message_to_turns_empty_content_with_tools() {
         result: "ok".into(),
         status: "success".into(),
         id: "".into(),
+        ..Default::default()
     };
     let ag_tc = ag::ToolCall {
         tool: "read_file".into(),

@@ -85,6 +85,32 @@ pub struct ToolCall {
     /// Stable id matching the SSE `tool_call`/`tool_result` pair (e.g. `tc-1`).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub id: String,
+    /// PLAN-103 T-03：审批门载荷（gate 等待期落快照）——`status="gate_waiting"`
+    /// 时有效；轮询/重载路径的 ToolGateCard 渲染数据面（chat-streaming 契约：
+    /// gate 卡 ≤2s 可见，不得以"刷新后可见"替代）。空值跳序列化，旧档零 diff。
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub gate_id: String,
+    /// 门等待期间待决议的命令原文（门卡展示）。
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub pending_cmd: String,
+    /// 越界路径清单（门卡决策展示）。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub escape_paths: Vec<String>,
+}
+
+impl Default for ToolCall {
+    fn default() -> Self {
+        Self {
+            tool: String::new(),
+            args: serde_json::Value::Null,
+            result: String::new(),
+            status: default_status(),
+            id: String::new(),
+            gate_id: String::new(),
+            pending_cmd: String::new(),
+            escape_paths: Vec::new(),
+        }
+    }
 }
 
 fn default_status() -> String { "success".into() }

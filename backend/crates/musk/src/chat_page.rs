@@ -251,10 +251,9 @@ fn normalize_block(b: &ChatBlock) -> serde_json::Value {
                 } else {
                     (args_full, false)
                 };
-                // gate 面（tool_gate 越界暂停）在 ToolCall 结构外——持久化
-                // 块载荷仅 name/args/result/status/id（chats.rs ToolCall），
-                // gate_* 字段恒空串对齐消费侧缺省；escape_paths 缺席 = TS
-                // `?? []` → "[]"。
+                // PLAN-103 T-03：gate 面（tool_gate 等待）随 ToolCall 结构
+                // 字段直出（gate_id/pending_cmd/escape_paths），不再是恒空——
+                // 门等待期轮询/重载即可渲染审批卡（chat-streaming 契约）。
                 // PLAN-100 SD-02：relay 运行身份浅字段——run_id 从
                 // result/args JSON 服务端提取直出。VM 对 JSON.parse 产物的
                 // 深字段读按深度退化（P100 E2E 实测定音：blk 字面量浅字段
@@ -268,9 +267,13 @@ fn normalize_block(b: &ChatBlock) -> serde_json::Value {
                     "tool_id": tc.id,
                     "tool_status": tc.status,
                     "tool_result": result,
-                    "tool_gate_id": "",
-                    "tool_pending_cmd": "",
-                    "tool_escape_paths_text": "[]",
+                    // PLAN-103 T-03：gate 载荷随分页直出（ToolCall 结构新增
+                    // 字段透传）——VM 轨轮询链的 ToolGateCard 数据面；空值
+                    // 形态与既有消费侧缺省一致。
+                    "tool_gate_id": tc.gate_id,
+                    "tool_pending_cmd": tc.pending_cmd,
+                    "tool_escape_paths_text": serde_json::to_string(&tc.escape_paths)
+                        .unwrap_or_else(|_| "[]".into()),
                     "tool_args_json": args_json,
                     "tool_run_id": run_id.unwrap_or_default(),
                     "summary": summary_text_of(&tc.args),
@@ -414,6 +417,7 @@ mod tests {
                 result: result.into(),
                 status: "success".into(),
                 id: format!("tc-{}", name),
+                ..Default::default()
             }),
         }
     }
@@ -571,6 +575,7 @@ mod tests {
         let b = ChatBlock { kind: "tool".into(), text: String::new(), tool: Some(ToolCall {
             tool: "edit_file".into(), args: big_args, result: "r".into(),
             status: "success".into(), id: "tc-1".into(),
+            ..Default::default()
         })};
         let out = normalize_block(&b);
         let raw = out["tool_args_json"].as_str().unwrap();
@@ -702,6 +707,7 @@ mod tests {
             result: "r".into(),
             status: "success".into(),
             id: "tc-read_file".into(),
+            ..Default::default()
         });
         let p = paginate_and_normalize(&session(vec![m]), 50, None);
         let tc = &p["session"]["messages"][0]["tool_calls"][0];

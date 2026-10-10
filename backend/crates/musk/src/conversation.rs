@@ -1146,6 +1146,7 @@ mod tests {
             result: "file contents".into(),
             status: "success".into(),
             id: "tc-1".into(),
+            ..Default::default()
         });
         let turns = chat_message_to_turns(&msg, 0);
         assert_eq!(turns.len(), 3); // message + tool_call + tool_result
@@ -1612,7 +1613,7 @@ mod tests {
         let mut msg = ChatMessage::assistant("final");
         msg.blocks = vec![
             ChatBlock { kind: "text".into(), text: "iter1".into(), tool: None },
-            ChatBlock { kind: "tool".into(), text: String::new(), tool: Some(ToolCall { tool: "run_command".into(), args: serde_json::json!({"cmd": "dir"}), result: "ok".into(), status: "success".into(), id: "tc-1".into() }) },
+            ChatBlock { kind: "tool".into(), text: String::new(), tool: Some(ToolCall { tool: "run_command".into(), args: serde_json::json!({"cmd": "dir"}), result: "ok".into(), status: "success".into(), id: "tc-1".into(), ..Default::default() }) },
             ChatBlock { kind: "text".into(), text: "final".into(), tool: None },
         ];
         let turns = chat_message_to_turns(&msg, 0);
@@ -1625,7 +1626,7 @@ mod tests {
     #[test]
     fn legacy_projection_unchanged() {
         let mut msg = ChatMessage::assistant("legacy text");
-        msg.tool_calls = vec![ToolCall { tool: "glob".into(), args: serde_json::Value::Null, result: "r".into(), status: "success".into(), id: "tc-9".into() }];
+        msg.tool_calls = vec![ToolCall { tool: "glob".into(), args: serde_json::Value::Null, result: "r".into(), status: "success".into(), id: "tc-9".into(), ..Default::default() }];
         let turns = chat_message_to_turns(&msg, 0);
         assert_eq!(turns.len(), 3);
         assert_eq!(turns[0].content, "legacy text");
@@ -1660,7 +1661,7 @@ mod tests {
         msg.telemetry = Some(tel.clone());
         msg.blocks = vec![
             ChatBlock { kind: "text".into(), text: "iter1".into(), tool: None },
-            ChatBlock { kind: "tool".into(), text: String::new(), tool: Some(ToolCall { tool: "read_file".into(), args: serde_json::json!({"p":"x"}), result: "ok".into(), status: "success".into(), id: "tc-1".into() }) },
+            ChatBlock { kind: "tool".into(), text: String::new(), tool: Some(ToolCall { tool: "read_file".into(), args: serde_json::json!({"p":"x"}), result: "ok".into(), status: "success".into(), id: "tc-1".into(), ..Default::default() }) },
             ChatBlock { kind: "text".into(), text: "final".into(), tool: None },
         ];
         let turns = chat_message_to_turns(&msg, 0);

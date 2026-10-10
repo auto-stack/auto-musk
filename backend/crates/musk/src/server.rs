@@ -3743,6 +3743,122 @@ mod tests {
         let _ = runs; // run 仍悬挂（守卫在途）——测试结束随 runtime 丢弃
     }
 
+    /// PLAN-103 T-03：门等待期快照携带 gate 载荷——tool_gate_waiting 事件臂
+    /// 把 gate_id/pending_cmd/escape_paths 补进在途 tool 块并落盘（轮询/重载
+    /// 路径的 ToolGateCard 数据面，chat-streaming 契约"gate 卡 ≤2s 可见"）；
+    /// deny 决议后状态随 tool_result 臂翻转收口。
+    #[tokio::test]
+    async fn chat_run_gate_waiting_snapshot_carries_gate_payload() {
+        use auto_ai_client::{CompletionRequest, CompletionResponse, ToolCall};
+        use crate::auto_generated::server as ag_server;
+        struct GateThenStallClient;
+        #[async_trait]
+        impl Client for GateThenStallClient {
+            async fn complete(
+                &self,
+                _req: &CompletionRequest,
+            ) -> Result<CompletionResponse, ClientError> {
+                unreachable!("run_stream 走 complete_stream")
+            }
+            async fn complete_stream(
+                &self,
+                _req: &CompletionRequest,
+                on_event: Arc<dyn Fn(serde_json::Value) + Send + Sync>,
+            ) -> Result<CompletionResponse, ClientError> {
+                static CALLS: std::sync::atomic::AtomicUsize =
+                    std::sync::atomic::AtomicUsize::new(0);
+                let n = CALLS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                if n == 0 {
+                    // turn 1：run_command 越界（盘符绝对路径）→ human 门挂起。
+                    on_event(serde_json::json!({"type": "thinking", "thinking": "看系统文件"}));
+                    Ok(CompletionResponse {
+                        content: String::new(),
+                        tool_calls: vec![ToolCall {
+                            id: "t1".into(),
+                            name: "run_command".into(),
+                            input: serde_json::json!({"cmd": "type C:\\Windows\\win.ini"}),
+                        }],
+                        stop_reason: Some("tool_use".into()),
+                        usage: None,
+                        model: "mock".into(),
+                        error: None,
+                        model_meta: None,
+                    })
+                } else {
+                    // turn 2：流挂死——run 停在门等待/决议后的 turn 2 中途。
+                    std::future::pending::<()>().await;
+                    unreachable!()
+                }
+            }
+        }
+        let mut state = tmp_state_with_client(Arc::new(GateThenStallClient));
+        state.run_idle_timeout = std::time::Duration::from_secs(300);
+        let ws = state.registry.get("");
+        let runs = state.chat_runs.clone();
+        let sess = ws
+            .chats
+            .create("basic", Some(String::new()))
+            .expect("create session");
+        ws.chats
+            .append_message(&sess.id, crate::chats::ChatMessage::user("read it"))
+            .expect("append user message");
+        let app = axum::Router::new().route(
+            "/api/chats/session/{id}/message",
+            axum::routing::post(ag_server::chat_message),
+        ).with_state(state);
+        let st = post_message(app, &sess.id, r#"{"content":"read it","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        // 轮询快照：门挂起即落盘（不等 gate_timeout）。
+        let mut gate_id = String::new();
+        for _ in 0..100 {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            let updated = ws.chats.get(&sess.id).expect("session exists");
+            if let Some(m) = updated
+                .messages
+                .iter()
+                .find(|m| m.role == crate::chats::Role::Assistant && m.pending == Some(true))
+            {
+                if let Some(b) = m.blocks.iter().find(|b| b.kind == "tool") {
+                    if let Some(tc) = &b.tool {
+                        if tc.status == "gate_waiting" {
+                            assert_eq!(tc.pending_cmd, "type C:\\Windows\\win.ini");
+                            assert!(
+                                tc.escape_paths.iter().any(|p| p.contains("C:")),
+                                "escape_paths 应含越界路径: {:?}",
+                                tc.escape_paths
+                            );
+                            gate_id = tc.gate_id.clone();
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        assert!(!gate_id.is_empty(), "门等待快照应携带 gate 载荷");
+        // deny 决议 → 门等待唤醒为拒绝 → tool_result 臂翻转 status（卡收口）。
+        assert!(crate::tool_gate::resolve(&gate_id, false));
+        let mut resolved = false;
+        for _ in 0..100 {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            let updated = ws.chats.get(&sess.id).expect("session exists");
+            if let Some(m) = updated
+                .messages
+                .iter()
+                .find(|m| m.role == crate::chats::Role::Assistant && m.pending == Some(true))
+            {
+                let waiting = m.blocks.iter().any(|b| {
+                    b.tool.as_ref().is_some_and(|tc| tc.status == "gate_waiting")
+                });
+                if !waiting {
+                    resolved = true;
+                    break;
+                }
+            }
+        }
+        assert!(resolved, "deny 后门等待状态应随 tool_result 翻转收口");
+        let _ = runs;
+    }
+
     /// PLAN-071 需求⑤ T-22：client 失败路径——错误 assistant 消息落盘 +
     /// 守卫清理（原 Err 臂只发瞬态 SSE，失败对用户不可见）。
     #[tokio::test]

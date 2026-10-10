@@ -53,6 +53,12 @@
   turn 中途死亡（preview-live-02：写计划/修乱码后卡 search，turn_end 永不
   到达 → 该 turn 曾全丢）也保留工具卡级现场；前端 500ms 轮询链合并 pending
   快照 = 会话视图 ≤2s 活性（chat-streaming 契约② VM 轨达成路径）。
+  **PLAN-103 增订（门载荷落快照）**：`tool_gate_waiting` 事件把
+  `gate_id`/`pending_cmd`/`escape_paths` 就地补进最后一个 running 工具块
+  （`status="gate_waiting"`）并立即落一次快照——审批卡在**轮询/重载路径**
+  亦可渲染、可决议（chat-streaming"gate 卡 ≤2s 可见、不得以刷新后可见
+  替代"的数据面）；决议后由 `tool_result` 臂按既有 status 翻转收口。
+  `ToolCall` 结构新增三字段（serde default + 空值跳序列化，旧档零 diff）。
 - **孤儿 pending 恢复（PLAN-099）**：kill/崩溃于 turn 中途遗留的
   `pending=true` 快照是该 turn 的唯一现场（PLAN-073 §6.5 登记残项）——
   工作区 stores 首建时（每进程每工作区一次）`ChatStore::recover_orphan_pending`
@@ -79,7 +85,13 @@
   ToolGateCard 卡片：命令全文 + 越界路径）。
 - 决议：`POST /api/chats/tool-gate/{gid}/approve|deny`。approve → 放行执行该命令
   **一次**（放行半径单次，不做前缀/目录授权）；deny → `[security denied]` 拒绝
-  回灌、运行继续。**1800s 超时 = deny**。
+  回灌、运行继续。**超时 = deny**（PLAN-103：缺省 300s，env
+  `AUTO_GATE_TIMEOUT_SECS` 合法正数可覆盖；原 1800s 硬编码在门卡不可见时等于
+  把会话纯挂 30 分钟——空闲看门狗/reaper 推窗随门超时同源联动 =
+  门超时 + 300s，维持"门超时先自然发生"的竞速口径）。
+- 触点豁免（PLAN-103）：token 形如 Windows 开关（`/` + 纯字母数字单段、磁盘
+  不存在）不入越界收集——`dir /b /ad` 类命令直接执行（详见 workspace-sandbox
+  "Windows 开关豁免"）。
 - auto / force / 无会话：维持硬拒 + 继续（PLAN-027 ③口径不变），不弹门。
 - 文件读写工具无门：越界恒硬拒（v1 仅命令类工具有"先问再放行"语义）。
 

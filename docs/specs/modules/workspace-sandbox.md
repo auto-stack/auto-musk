@@ -19,6 +19,12 @@
   `confine_command_paths_multi`（auto 硬拒变体）按注入多根判定。070 顺带
   修复：旧 `confine_*` 走全局链（thread-local 退役后 = startup CWD），与
   注入 scope 脱节——workspace 内绝对路径误判越界（human 误弹门/auto 误拒）。
+- **Windows 开关豁免（PLAN-103）**：token 形如 `/` + 纯字母数字单段（不含
+  `\` `.` `:` 或第二个 `/`）且按路径在磁盘上不存在 → 视为命令开关，不入
+  越界收集（`dir /b /ad` 曾被误判、human 会话误挂整段门等待，实机定罪）。
+  cmd 语义下单段 `/x` 不是合法路径引用；带分隔符 `/x/y`、反斜杠、盘符路径
+  与磁盘存在路径不受豁免照常收集（残余风险：Unix 风格单段根路径在 cmd 下
+  不可达，记为已知边界）。
 - **报错即事实**：`map_path_error` SecurityDenied 的 `root` 字段列出全部
   注入根；hint 指引"白名单视图添加目录"。
 
