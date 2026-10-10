@@ -108,6 +108,12 @@ style {
    呼吸实机无效（语义色 alpha 在 svg tint 链路被弃），本轨仅文本内容逐拍
    换为已证渲染路径。 */
 .spin-char { display: none; }
+/* toolbar-icons 2026-10-10 r4：消息级工具栏 hover 显隐（web 轨）——悬停
+   AI 消息区域渐显分割线+工具栏（ChatGPT 式）。base opacity-0 走 tailwind
+   单类(0,1,0)，本规则双类+hover(0,3,0) 特异性胜出；pointer-events 防隐
+   形态吃点击。VM 轨不注入本块且不消费容器 opacity → 工具栏常驻（降级）。 */
+.msg-root-ai:hover .msg-toolbar { opacity: 1; pointer-events: auto; }
+.msg-toolbar { pointer-events: none; }
 }
 
     setup {
@@ -120,10 +126,13 @@ style {
         isAssistant => .role == "assistant"
         // PLAN-071 r4（需求③-1）：两侧对称限宽 70%——AI 回复不再占满全宽，
         // 与用户气泡同宽（用户 85%→70% 统一）。
+        // toolbar-icons 2026-10-10 r4：AI 分支加 msg-root-ai 标记类——消息级
+        // 工具栏 hover 显隐的 hover 锚点（web 轨 .msg-root-ai:hover 渐显，
+        // 见 scoped CSS；VM 轨 iced 无 hover 选择器常驻降级）。
         rowClass => if .isUser {
             "flex flex-col gap-[3px] max-w-[70%] self-end items-end"
         } else {
-            "flex flex-col gap-[5px] self-stretch items-stretch max-w-[70%]"
+            "msg-root-ai flex flex-col gap-[5px] self-stretch items-stretch max-w-[70%]"
         }
         headerClass => if .isUser {
             "flex items-center gap-2 px-1 justify-end"
@@ -434,26 +443,34 @@ style {
             // size 16 + text-muted-foreground,原 fork "⑂" 字形钮退役）；停止钮
             // 撤出消息工具栏——归位 composer 发送钮 morph（ChatGPT 式,用户裁定
             // 2026-10-10）,流式停止统一走 MentionInput oncancel→CancelRun。
+            // toolbar-icons 2026-10-10 r4：消息级工具栏改造（用户对拍）——
+            // ① 缩一号：按钮 h-7 w-7→h-6 w-6,图标 16→14（消息级非界面级刻度）；
+            // ② 回复与工具栏之间细暗分割线（border-t border-border,VM 单侧
+            //    边框=1px border-border 色填充线,renderer apply_side_borders）；
+            // ③ hover 显隐：web 轨 .msg-root-ai:hover 渐显（scoped CSS,见下）；
+            //    VM 轨 iced 无 hover 选择器、容器无元素级透明度,opacity-0 不
+            //    消费 → 常驻降级（登记债,升格需 mouse-area hover 事件引擎支持）。
             if .isAssistant {
-                row {
-                    style: "flex items-center justify-start gap-1 mt-[2px] px-[3px]"
-                    button {
-                        onclick: .CopyContent
-                        style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-                        title: "Copy"
-                        // size 13→16(用户对拍 2026-09-03:VM 图标观感偏小,统一抬到 16;
-                        // web 端 lucide size 同步,两轨一致)。
-                        Copy { size: 16 }
-                    }
-                    button {
-                        // PLAN-060 T2:分叉入口（chats_fork_session 此前无 UI 触发面,
-                        // 分叉切换器只切既有分支）——lucide GitFork（toolbar-icons
-                        // 2026-10-10:原 "⑂" 字形文本钮与 Copy 刻度/色彩不一,统一
-                        // lucide 同 size 同色）。
-                        onclick: .ForkFrom(.msg.id)
-                        style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-                        title: "Fork"
-                        GitFork { size: 16 }
+                col {
+                    class: "msg-toolbar self-stretch mt-[6px] pt-[3px] border-t border-border opacity-0 transition-opacity duration-150"
+                    row {
+                        style: "flex items-center justify-start gap-1 px-[3px]"
+                        button {
+                            onclick: .CopyContent
+                            style: "inline-flex items-center justify-center h-6 w-6 px-0 py-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                            title: "Copy"
+                            Copy { size: 14 }
+                        }
+                        button {
+                            // PLAN-060 T2:分叉入口（chats_fork_session 此前无 UI 触发面,
+                            // 分叉切换器只切既有分支）——lucide GitFork（toolbar-icons
+                            // 2026-10-10:原 "⑂" 字形文本钮与 Copy 刻度/色彩不一,统一
+                            // lucide 同 size 同色）。
+                            onclick: .ForkFrom(.msg.id)
+                            style: "inline-flex items-center justify-center h-6 w-6 px-0 py-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                            title: "Fork"
+                            GitFork { size: 14 }
+                        }
                     }
                 }
             }
