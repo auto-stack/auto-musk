@@ -1,0 +1,146 @@
+// app.at — PLAN-102 T-01: canvas 内嵌能力探针夹具（计数器 + 中文输入 +
+// 提交 + 滚动列表 + 坐标拖动）。全部能力经 MCP 可观察状态断言：
+//   press/type_text(中文)/enter/scroll → autoui_state 字段；
+//   __mcp_drag 坐标 → drag_n/mx/my（Float 编码同真实指针路径，typed 态
+//   断言——float→str 拼接位型缺陷规避，不用于断言面）。
+// 探针脚本：scripts/ui-parity/canvas-embed-probe.mjs。
+
+// 滚动列表行（fn 模块 range 可用——canvas_store 同族注释口径）。
+fn embedRows() list {
+    var out list = []
+    for i in 0..30 {
+        out.push({ id: i, label: "row-" + i })
+    }
+    return out
+}
+
+widget EmbedFixture {
+
+    msg {
+        Init,
+        Inc,
+        Reset,
+        NameInput(str),
+        CommitName,
+        ToggleOn,
+        PickRow(int),
+        Down(str),
+        Move(float, float),
+        Up,
+    }
+
+    model {
+        var count int = 0
+        var name str = ""
+        var committed str = ""
+        var on bool = false
+        var picked_row int = -1
+        var rows list = []
+        var drag_n int = 0
+        var mx float = 0.0
+        var my float = 0.0
+        var drag_done bool = false
+    }
+
+    view {
+        col {
+            style: "w-full h-full flex flex-col bg-background text-foreground p-4 gap-2 overflow-hidden"
+            // 计数器行（AC-01/02 操作计数器）。
+            row {
+                style: "flex items-center gap-2"
+                button "inc" {
+                    style: "h-10 px-4 rounded-md bg-primary text-primary-foreground"
+                    onclick: .Inc
+                }
+                text .count
+                button "reset" {
+                    style: "h-10 px-3 rounded-md border border-border"
+                    onclick: .Reset
+                }
+            }
+            // 中文输入 + Enter 提交（type_text / onenter 通道）。
+            row {
+                style: "flex items-center gap-2"
+                input {
+                    placeholder: "姓名（中文）"
+                    value: .name
+                    oninput: .NameInput
+                    onenter: .CommitName
+                    style: "flex-1 h-9 rounded-md border border-border px-2 text-[14px]"
+                }
+                button "commit" {
+                    style: "h-9 px-3 rounded-md bg-primary/10 text-primary"
+                    onclick: .CommitName
+                }
+            }
+            text .committed
+            // toggle（press 通道布尔翻转）。
+            row {
+                style: "flex items-center gap-2"
+                button "toggle" {
+                    style: "h-9 px-3 rounded-md border border-border"
+                    onclick: .ToggleOn
+                }
+                if .on {
+                    text "on"
+                } else {
+                    text "off"
+                }
+            }
+            // 滚动列表（scroll 后点击初始视口外行——滚动行为的真断言）。
+            col {
+                style: "flex-1 min-h-0 w-full overflow-y-auto border border-border rounded-md"
+                for item in .rows {
+                    text item.label {
+                        onclick: .PickRow(item.id)
+                        style: "h-10 shrink-0 w-full text-left px-3 border-b border-border/50 text-[13px] flex items-center cursor-pointer"
+                    }
+                }
+            }
+            // 坐标拖动面（__mcp_drag：Down␟Move␟Up Float 编码；coords 值域
+            // = 逻辑坐标域，与 PointerArea 闭包同构——PLAN-093 契约）。
+            mouse-area {
+                coords: "400x160"
+                onmousedown: .Down
+                onmousemove: .Move
+                onmouseup: .Up
+                style: "w-[400px] h-[160px] shrink-0 border border-border rounded-md"
+            }
+        }
+    }
+
+    on {
+        Init -> {
+            .rows = embedRows()
+        }
+        Inc -> {
+            .count = .count + 1
+        }
+        Reset -> {
+            .count = 0
+        }
+        NameInput(v) -> {
+            .name = v
+        }
+        CommitName -> {
+            .committed = "committed: " + .name
+        }
+        ToggleOn -> {
+            .on = !.on
+        }
+        PickRow(i) -> {
+            .picked_row = i
+        }
+        Down(e) -> {
+            .drag_done = false
+        }
+        Move(x, y) -> {
+            .drag_n = .drag_n + 1
+            .mx = x
+            .my = y
+        }
+        Up -> {
+            .drag_done = true
+        }
+    }
+}

@@ -1,0 +1,8 @@
+// pac.at — PLAN-102 T-01 canvas 内嵌能力探针夹具。
+name: "embed-fixture"
+version: "0.1.0"
+scene: "ui"
+render: "vue"
+api: "rust"
+title: "Embed Fixture"
+theme: "dark"
