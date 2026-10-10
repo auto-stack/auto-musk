@@ -559,22 +559,29 @@ async fn embedded_spawn_contract_live() {
         status = m.status_full();
     }
     assert!(!status["tree"].is_null(), "vtree never arrived: {status}");
-    // 停止：双子进程收割（tasklist census 零残留——桥 + app）。
+    // 停止：双子进程收割。census 域 = 本会话进程形态（`-q` app 臂 +
+    // `--bridge-ws` 桥）——机器上常有其他会话的 legacy 形态 auto.exe
+    //（`--render vm`/`-r vm`，F-02-1 定谳：曾误计为孤儿；对照实验证明
+    // 本会话两臂收割零残留），全名计数在本机恒假红。
     m.stop_guarded(None, Some("conv-p102")).await.expect("stop");
     tokio::time::sleep(Duration::from_millis(1500)).await;
-    let image = std::path::Path::new(&exe)
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
-    let out = std::process::Command::new("tasklist")
-        .args(["/FI", &format!("IMAGENAME eq {image}")])
+    let out = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command",
+            "Get-CimInstance Win32_Process -Filter \"Name='auto.exe'\" | ForEach-Object { $_.CommandLine }"])
         .output()
         .unwrap()
         .stdout;
     let text = String::from_utf8_lossy(&out);
-    let count = text.matches(&image).count();
-    assert_eq!(count, 0, "auto.exe instances remain after stop:
-{text}");
+    let mine: Vec<&str> = text
+        .lines()
+        .filter(|l| l.contains("--render=vm -q") || l.contains("--bridge-ws"))
+        .collect();
+    assert!(
+        mine.is_empty(),
+        "embedded-session processes remain after stop:
+{}",
+        mine.join("
+")
+    );
     let _ = std::fs::remove_dir_all(ws_root);
 }
