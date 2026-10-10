@@ -118,6 +118,11 @@ widget ChatsView {
         // 标题行右缘形态（此前 HoverSession 活体实证）。
         HoverSession(str),
         HoverSessionClear,
+        // toolbar-icons 2026-10-10 r7b：消息级工具栏 hover（ChatMessage
+        // mouse-area enter/exit 上抛;显隐键=hover_msg,见 model 与
+        // ChatMessage hover_msg prop）。(str) 签名取自 msg 清单声明。
+        HoverMsgIn(str),
+        HoverMsgOut,
         // PLAN-093 T-05:应用设计模式开关（studio 布局;侧栏偏好进出保存/
         // 恢复;模式归本组件视图域——跨 store 写入无先例;工作台槽与启动流
         // 见 canvas_panel.at CanvasStudioSlot）。
@@ -160,6 +165,10 @@ widget ChatsView {
 
     model {
         var input str = ""
+        // toolbar-icons 2026-10-10 r7b：悬停中的 AI 消息 id——消息级工具栏
+        // 显隐键（mouse-area enter/exit 驱动,会话行 HoverSession 同款双轨
+        // 已证通道;状态在根视图单实例,避开子件 model 全实例共享陷阱）。
+        var hover_msg str = ""
         var sidebar_collapsed bool = false
         // PLAN-093 T-05:进 studio 前的侧栏折叠态（退出恢复）。
         var sidebar_prev bool = false
@@ -735,6 +744,14 @@ widget ChatsView {
                                 // 字符（store handler 域求值，str prop 每帧
                                 // 刷新——think_open 同款通道）。
                                 spin_char: .store.spin_char
+                                // toolbar-icons 2026-10-10 r7b：消息级工具栏
+                                // hover 键（str prop,think_open 同款通道）。
+                                hover_msg: .hover_msg
+                                // r7b hover 上抛（on_fork_from 同款 snake
+                                // 全名绑定：VM 折叠剥下划线命中,Vue
+                                // snake_to_pascal → @HoverIn/@HoverOut）。
+                                on_hover_in: .HoverMsgIn($event)
+                                on_hover_out: .HoverMsgOut
                                 // PLAN-077 T-04：onfork 双端皆断（VM 派发键
                                 // "on"+msg 名折叠 = onforkfrom ≠ onfork；Vue
                                 // @fork 对 emit('ForkFrom') 不命中）——改 snake
@@ -978,6 +995,12 @@ widget ChatsView {
         // 离开清空,进入置 id——相邻卡先 clear 后 enter,无抖动)。
         .HoverSession(id) -> { .hover_session_id = id }
         .HoverSessionClear -> { .hover_session_id = "" }
+
+        // toolbar-icons 2026-10-10 r7b：消息级工具栏 hover 键（ChatMessage
+        // mouse-area enter/exit 上抛——HoverSession 相邻卡先 clear 后 enter
+        // 同款无抖动时序；离开消息进空白处清空）。
+        .HoverMsgIn(mid str) -> { .hover_msg = mid }
+        .HoverMsgOut -> { .hover_msg = "" }
 
         // ── PLAN-084 T-04/T-06：重命名 / 搜索 / 归档视图 ──────────────
 

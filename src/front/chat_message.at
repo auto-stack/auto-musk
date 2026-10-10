@@ -52,12 +52,15 @@ use tool_gate_card: ToolGateCard
 // 不达根态、list prop 跨界不可迭代（PLAN-051），视图循环解析两路皆弃。
 
 
-widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, think_open: str, tool_open: str, spin_char: str) {
+widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, think_open: str, tool_open: str, spin_char: str, hover_msg: str) {
     // PLAN-060 T2:ForkFrom 上抛分叉请求（mid=msg.id）——子件空 handler,
     // 经 onfork 声明路由直达宿主 BranchTo（零参帧对齐根修后单参载荷同链）。
     // toolbar-icons 2026-10-10:CancelRun 撤除——"停止回复"退出 AI 消息工具栏,
     // 归位 composer 发送钮（发送⇄停止 morph,oncancel→ForgeStore.CancelRun）。
-    msg Msg { CopyContent, ToggleThink(str), ToolToggleKey(str), ForkFrom(str) }
+    // toolbar-icons 2026-10-10 r7b：HoverIn/HoverOut——mouse-area hover
+    // 上抛（空 handler 路由,父层 on_hover_in/on_hover_out 绑定直达宿主,
+    // ForkFrom 同款 snake 全名绑定形态）。
+    msg Msg { CopyContent, ToggleThink(str), ToolToggleKey(str), ForkFrom(str), HoverIn(str), HoverOut }
     on {
         // 【2026-09-04 三次定案】展开态回归 ForgeStore 键列表——二次修正的
         // 消息对象直写（.msg.think_expanded/.msg.tool_expanded）在 VM 为
@@ -71,6 +74,12 @@ widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task
             ForgeStore.ToolToggle(key)
         }
         .ForkFrom(mid str) -> {
+        }
+        // toolbar-icons 2026-10-10 r7b：hover 上抛空路由（真处理在父层
+        // on_hover_in/on_hover_out 绑定——ForkFrom 同款路由形态）。
+        .HoverIn(mid str) -> {
+        }
+        .HoverOut -> {
         }
         // PLAN-055: AI 消息工具栏 copy（对齐 web 原版 message-toolbar）。
         .CopyContent -> {
@@ -113,12 +122,6 @@ style {
    呼吸实机无效（语义色 alpha 在 svg tint 链路被弃），本轨仅文本内容逐拍
    换为已证渲染路径。 */
 .spin-char { display: none; }
-/* toolbar-icons 2026-10-10 r4：消息级工具栏 hover 显隐（web 轨）——悬停
-   AI 消息区域渐显分割线+工具栏（ChatGPT 式）。base opacity-0 走 tailwind
-   单类(0,1,0)，本规则双类+hover(0,3,0) 特异性胜出；pointer-events 防隐
-   形态吃点击。VM 轨不注入本块且不消费容器 opacity → 工具栏常驻（降级）。 */
-.msg-root-ai:hover .msg-toolbar { opacity: 1; pointer-events: auto; }
-.msg-toolbar { pointer-events: none; }
 }
 
     setup {
@@ -131,13 +134,10 @@ style {
         isAssistant => .role == "assistant"
         // PLAN-071 r4（需求③-1）：两侧对称限宽 70%——AI 回复不再占满全宽，
         // 与用户气泡同宽（用户 85%→70% 统一）。
-        // toolbar-icons 2026-10-10 r4：AI 分支加 msg-root-ai 标记类——消息级
-        // 工具栏 hover 显隐的 hover 锚点（web 轨 .msg-root-ai:hover 渐显，
-        // 见 scoped CSS；VM 轨 iced 无 hover 选择器常驻降级）。
         rowClass => if .isUser {
             "flex flex-col gap-[3px] max-w-[70%] self-end items-end"
         } else {
-            "msg-root-ai flex flex-col gap-[5px] self-stretch items-stretch max-w-[70%]"
+            "flex flex-col gap-[5px] self-stretch items-stretch max-w-[70%]"
         }
         headerClass => if .isUser {
             "flex items-center gap-2 px-1 justify-end"
@@ -168,6 +168,10 @@ style {
         agentApid => .msg.profession_id ?? ""
         agentName => if .agentAname != "" { .agentAname } else { .agentApid }
         showAgent => .isAssistant && .agentApid != ""
+        // toolbar-icons 2026-10-10 r7b：消息级工具栏 hover 门——父层
+        // hover_msg（mouse-area enter/exit 上抛的悬停消息 id）与本消息
+        // id 相等即显（两 str prop 比较,子件 computed 已证形态）。
+        tbVisible => .hover_msg == .msg.id
         userContent => .msg.content
         // PLAN-093 T-08:元素附件回放标记（轻量 chip——不塞 JSON 进气泡；
         // 单层链 computed，None 安全）。
@@ -255,8 +259,14 @@ style {
                     UserMessage(content: .userContent)
                 }
             } else {
-                // 内容区容器：上下 hairline 只框 block 区，标题栏留在框线上方。
-                // 块间节奏 0.4rem 与 markdown 流内间距对齐（原 style{} 块注记）。
+                // toolbar-icons 2026-10-10 r7b：hover 命中区——mouse-area 包
+                // 正文+工具栏，enter/exit 上抛 HoverIn(.msg.id)/HoverOut（会话
+                // 行 HoverSession 同款双轨已证形态；mouse-area 不捕获未声明
+                // 事件，内层思考/工具卡交互不受影响）。
+                mouse-area {
+                    onmouseenter: .HoverIn(.msg.id)
+                    onmouseleave: .HoverOut
+                    style: "w-full"
                 col {
                     // PLAN-081 r6：gap-3 撤除——VM 渲染器把 for 块包一层列，
                     // gap 只作用于直接子级故 VM 恒不生效；块间距改由每块
@@ -449,52 +459,33 @@ style {
                         }
                     }
                 }
-            }
-            // PLAN-055: AI 消息工具栏。copy 靠左（用户反馈 2026-09-03：右侧是
-            // user 气泡的对齐侧,assistant 工具栏占右观感错位）——对齐 assistant
-            // 内容列的左缘。单源新增,gen Vue 轨同步获得。
-            // toolbar-icons 2026-10-10:图标统一 lucide 同刻度（Copy/GitFork 均
-            // size 16 + text-muted-foreground,原 fork "⑂" 字形钮退役）；停止钮
-            // 撤出消息工具栏——归位 composer 发送钮 morph（ChatGPT 式,用户裁定
-            // 2026-10-10）,流式停止统一走 MentionInput oncancel→CancelRun。
-            // toolbar-icons 2026-10-10 r4：消息级工具栏改造（用户对拍）——
-            // ① 缩一号：按钮 h-7 w-7→h-6 w-6,图标 16→14（消息级非界面级刻度）；
-            // ② 回复与工具栏之间细暗分割线（border-t border-border,VM 单侧
-            //    边框=1px border-border 色填充线,renderer apply_side_borders）；
-            // ③ hover 显隐：web 轨 .msg-root-ai:hover 渐显（scoped CSS,见下）；
-            //    VM 轨 iced 无 hover 选择器、容器无元素级透明度,opacity-0 不
-            //    消费 → 常驻降级（登记债,升格需 mouse-area hover 事件引擎支持）。
-            // toolbar-icons 2026-10-10 r7（用户对拍）——④ 按钮去边框：codegen
-            //   button 映射 shadcn Button default variant（bg-muted border
-            //   border-border ...），业务类串 border-0 经 tw-merge 覆盖之；
-            //   [&_svg]:size-[14px] 同理压 cva 基座 [&_svg]:size-4（否则 size
-            //   属性被 CSS 钉 16px,缩小不生效）；⑤ 分隔线贴近正文：末块
-            //   mb-12+气泡 py-11 叠加致线距正文 ~29px,-mt-[10px] 抵消一部分
-            //   （VM -mt- arbitrary 解析 class.rs:934 已证）。
-            if .isAssistant {
-                col {
-                    class: "msg-toolbar self-stretch -mt-[10px] pt-[3px] border-t border-border opacity-0 transition-opacity duration-150"
-                    row {
-                        style: "flex items-center justify-start gap-1 px-[3px]"
-                        button {
-                            onclick: .CopyContent
-                            style: "inline-flex items-center justify-center h-6 w-6 px-0 py-0 rounded-md border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer [&_svg]:size-[14px]"
-                            title: "Copy"
-                            Copy { size: 14 }
-                        }
-                        button {
-                            // PLAN-060 T2:分叉入口（chats_fork_session 此前无 UI 触发面,
-                            // 分叉切换器只切既有分支）——lucide GitFork（toolbar-icons
-                            // 2026-10-10:原 "⑂" 字形文本钮与 Copy 刻度/色彩不一,统一
-                            // lucide 同 size 同色）。
-                            onclick: .ForkFrom(.msg.id)
-                            style: "inline-flex items-center justify-center h-6 w-6 px-0 py-0 rounded-md border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer [&_svg]:size-[14px]"
-                            title: "Fork"
-                            GitFork { size: 14 }
+                // toolbar-icons 2026-10-10 r7b：消息级工具栏——分割线常驻
+                // （占位固定,无布局跳动）,按钮按 tbVisible 门控显隐（r4 的
+                // "VM 无 hover 常驻降级"由此升格;web scoped CSS hover 退役,
+                // 单机制双轨）。缩一号/去边框/图标 14 沿 r4/r7。
+                if .tbVisible {
+                    col {
+                        class: "msg-toolbar self-stretch -mt-[10px] pt-[3px] border-t border-border"
+                        row {
+                            style: "flex items-center justify-start gap-1 px-[3px]"
+                            button {
+                                onclick: .CopyContent
+                                style: "inline-flex items-center justify-center h-6 w-6 px-0 py-0 rounded-md border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer [&_svg]:size-[14px]"
+                                title: "Copy"
+                                Copy { size: 14 }
+                            }
+                            button {
+                                onclick: .ForkFrom(.msg.id)
+                                style: "inline-flex items-center justify-center h-6 w-6 px-0 py-0 rounded-md border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer [&_svg]:size-[14px]"
+                                title: "Fork"
+                                GitFork { size: 14 }
+                            }
                         }
                     }
                 }
+                }
             }
+            // PLAN-055: AI 消息工具栏。copy 靠左（用户反馈 2026-09-03：右侧是
             if .hasError {
                 text .errorText { style: "text-destructive text-[14px] py-2 px-3 bg-destructive/10 rounded-lg self-start max-w-full" }
             }
