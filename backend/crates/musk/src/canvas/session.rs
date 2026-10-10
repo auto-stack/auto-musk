@@ -55,6 +55,28 @@ pub struct SessionHandle {
     /// 子进程输出环形缓冲（崩溃诊断；T-08 canvas 轨 ~35s 周期性 child
     /// exited 定罪用——stderr 此前被丢弃，死因不可见）。
     recent_output: Arc<Mutex<Vec<String>>>,
+    /// PLAN-102 T-02：embedded 呈现的 bridge 宿主子进程（`auto rqhost
+    /// --bridge-ws`——去窗 rq 宿主 + WS 桥，D-1）。None = windowed 旧轨
+    ///（可见原生窗 spawn——保留为 legacy/窗口模式呈现源）。
+    bridge: Option<BridgeChild>,
+}
+
+/// PLAN-102 T-02：bridge 宿主子进程与其数据面端点。
+pub struct BridgeChild {
+    pub child: tokio::process::Child,
+    /// 会话专用 well-known 管道名（app 侧 AUTO_RQHOST_PIPE 同值）。
+    pub pipe: String,
+    /// WS 数据面端口（回环 + token）。
+    pub ws_port: u16,
+    /// 静态 token（回环 WS 准入；status 携给前端直连 bridge）。
+    pub token: String,
+}
+
+impl BridgeChild {
+    /// 前端直连 URL（drawlist/remote-frame 消费面）。
+    pub fn ws_url(&self) -> String {
+        format!("ws://127.0.0.1:{}/?token={}", self.ws_port, self.token)
+    }
 }
 
 impl SessionHandle {
@@ -68,6 +90,10 @@ impl SessionHandle {
 
 impl SessionHandle {
     /// Spawn 隔离 VM 实例并等待 MCP 端点就绪。失败时进程已被收割。
+    /// PLAN-102 T-02 起产品路径 = [`Self::spawn_embedded`]（bridge 呈现）；
+    /// 本形态（可见原生窗）保留为窗口呈现源/legacy 通道——rq 重连 seam
+    /// 落地后由呈现切换路由按需启用。
+    #[allow(dead_code)]
     pub async fn spawn(app_dir: PathBuf) -> Result<Self, String> {
         let exe = resolve_auto_exe().ok_or_else(|| {
             "auto executable not found: set AUTO_EXE or build auto-lang (target/release/auto.exe)".to_string()
@@ -197,6 +223,7 @@ impl SessionHandle {
                     child,
                     storage_file,
                     recent_output: recent,
+                    bridge: None,
                 });
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -207,18 +234,229 @@ impl SessionHandle {
         self.child.id()
     }
 
+    /// PLAN-102 T-02：embedded 呈现 spawn——bridge 宿主（`auto rqhost
+    /// --bridge-ws`，D-1 去窗 rq 宿主 + WS 桥）+ rq remote app（headless
+    /// iced，DisplayList v2 帧源；MCP 共位 D-2——vtree/state/act 面经
+    /// AUTOUI_MCP_PORT 上线）。数据面（帧/输入）= 前端直连 bridge WS；
+    /// 控制面（status/pick/收割）= 既有 MCP/HTTP 路由。失败时两子进程
+    /// 均已收割。
+    pub async fn spawn_embedded(app_dir: PathBuf) -> Result<(Self, BridgeEndpoint), String> {
+        let exe = resolve_auto_exe().ok_or_else(|| {
+            "auto executable not found: set AUTO_EXE or build auto-lang (target/release/auto.exe)".to_string()
+        })?;
+        let port = alloc_port().await?;
+        let ws_port = alloc_port().await?;
+        // 会话专用 well-known 管道 + 回环 WS 静态 token（pid+纳秒——不引
+        // rand 依赖的充分熵；威胁模型 = 本机 stray 进程，同 remote WS 律）。
+        let pipe = format!("musk-canvas-{}-{}", std::process::id(), port);
+        let token = format!("musk-canvas-{:x}-{:x}", std::process::id(), std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0));
+        // ── bridge 宿主子进程（stdout/stderr 不参与监听行发现——诊断弃置；
+        //    其就绪判据 = WS 端口可连）。
+        let mut bridge_cmd = tokio::process::Command::new(&exe);
+        bridge_cmd
+            .args(["rqhost", "--pipe", &pipe, "--bridge-ws", &ws_port.to_string(), "--bridge-token", &token])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .kill_on_drop(true);
+        let mut bridge_child = bridge_cmd
+            .spawn()
+            .map_err(|e| format!("failed to spawn bridge host: {e}"))?;
+        // WS 端口就绪等待（~10s；超时 = 收割两子进程后报错）。
+        let ws_ready = 'ws: {
+            let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+            while tokio::time::Instant::now() < deadline {
+                if bridge_child.try_wait().map_err(|e| e.to_string())?.is_some() {
+                    break 'ws Err("bridge host exited during startup".to_string());
+                }
+                if tokio::net::TcpStream::connect(("127.0.0.1", ws_port)).await.is_ok() {
+                    break 'ws Ok(());
+                }
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+            break 'ws Err(format!("bridge ws not listening within 10s on port {ws_port}"));
+        };
+        if let Err(e) = ws_ready {
+            let _ = bridge_child.kill().await;
+            if let Some(pid) = bridge_child.id() {
+                reap_tree(Some(pid)).await;
+            }
+            return Err(e);
+        }
+        // ── app 子进程（rq remote 臂）：MCP 监听行就绪发现复用既有机制。
+        let storage_file = std::env::temp_dir().join(format!(
+            "musk-canvas-{}-{}.json",
+            std::process::id(),
+            port
+        ));
+        let mut cmd = tokio::process::Command::new(&exe);
+        cmd.args(["run", "--render=vm", "-q"])
+            .current_dir(&app_dir)
+            .env("AUTOUI_MCP_PORT", port.to_string())
+            .env("AUTO_VM_STORAGE_FILE", &storage_file)
+            // 逻辑表面尺寸（rq 客户端 Hello 凭据——帧/输入坐标系值域）。
+            .env("AUTO_VM_WINDOW", "480x680")
+            // PLAN-088 debug 捕获面（MCP vtree 通道依赖）。
+            .env("AUTO_DEBUG_CAPTURE", "1")
+            // PLAN-102 呈现臂：bridge 宿主采纳 + remote 渲染（headless）。
+            .env("AUTO_RQHOST_WELLKNOWN", &pipe)
+            .env("AUTO_RQHOST_PIPE", &pipe)
+            .env("AUTO_VM_RENDER", "remote")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .kill_on_drop(true);
+        // 不继承任何可能让 VM 复用既有后端/窗口的环境（隔离优先）。
+        // 例外：musk 自身被显式赋予 AUTO_REUSE_BACKEND=1 时透传（探针/
+        // 合同测试的 dummy 后端约定——canvas-runtime-probe 同款；产线
+        // serve 不设 = 零变化）。
+        match std::env::var("AUTO_REUSE_BACKEND") {
+            Ok(v) if v == "1" => {
+                cmd.env("AUTO_REUSE_BACKEND", "1");
+                if let Ok(p) = std::env::var("AUTO_HTTP_PORT") {
+                    cmd.env("AUTO_HTTP_PORT", p);
+                }
+            }
+            _ => {
+                cmd.env_remove("AUTO_REUSE_BACKEND");
+                cmd.env_remove("AUTO_HTTP_BASE");
+            }
+        }
+
+        let mut child = match cmd.spawn() {
+            Ok(c) => c,
+            Err(e) => {
+                // bridge 宿主已在跑——同步收割（同进程树；kill_on_drop 兜底）。
+                if let Some(bpid) = bridge_child.id() {
+                    reap_tree_blocking(bpid);
+                }
+                let _ = bridge_child.kill();
+                return Err(format!("failed to spawn {}: {e}", exe.display()));
+            }
+        };
+        let app_pid = child.id();
+        let mut stdout = child.stdout.take().ok_or("stdout not piped")?;
+        let mut stderr = child.stderr.take().ok_or("stderr not piped")?;
+        let recent: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let found: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+        {
+            let recent = recent.clone();
+            let found = found.clone();
+            tokio::spawn(async move {
+                use tokio::io::AsyncBufReadExt;
+                let mut es = tokio::io::BufReader::new(stderr).lines();
+                let mut os = tokio::io::BufReader::new(stdout).lines();
+                loop {
+                    tokio::select! {
+                        line = es.next_line() => {
+                            match line {
+                                Ok(Some(l)) => {
+                                    if let Some(addr) = parse_listening_line(&format!("E{l}")) {
+                                        *found.lock().unwrap() = Some(format!("http://{addr}"));
+                                    }
+                                    let mut buf = recent.lock().unwrap();
+                                    if buf.len() >= 200 { buf.remove(0); }
+                                    buf.push(l);
+                                }
+                                Ok(None) | Err(_) => break,
+                            }
+                        }
+                        line = os.next_line() => {
+                            match line {
+                                Ok(Some(l)) => {
+                                    if let Some(addr) = parse_listening_line(&format!("O{l}")) {
+                                        *found.lock().unwrap() = Some(format!("http://{addr}"));
+                                    }
+                                    let mut buf = recent.lock().unwrap();
+                                    if buf.len() >= 200 { buf.remove(0); }
+                                    buf.push(l);
+                                }
+                                Ok(None) | Err(_) => break,
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        let deadline = tokio::time::Instant::now() + ENDPOINT_TIMEOUT;
+        loop {
+            if tokio::time::Instant::now() >= deadline {
+                let _ = reap_tree(app_pid).await;
+                let _ = bridge_child.kill().await;
+                if let Some(bpid) = bridge_child.id() {
+                    reap_tree(Some(bpid)).await;
+                }
+                let tail = {
+                    let buf = recent.lock().unwrap();
+                    let start = buf.len().saturating_sub(160);
+                    buf[start..].join("\n")
+                };
+                return Err(format!(
+                    "canvas: MCP endpoint not announced within {:?} (app: {})\n--- child output tail ---\n{tail}",
+                    ENDPOINT_TIMEOUT,
+                    app_dir.display()
+                ));
+            }
+            if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
+                let _ = reap_tree(app_pid).await;
+                let _ = bridge_child.kill().await;
+                if let Some(bpid) = bridge_child.id() {
+                    reap_tree(Some(bpid)).await;
+                }
+                let tail = {
+                    let buf = recent.lock().unwrap();
+                    let start = buf.len().saturating_sub(160);
+                    buf[start..].join("\n")
+                };
+                return Err(format!(
+                    "canvas: auto run exited early (status: {status}) for {}\n--- child output tail ---\n{tail}",
+                    app_dir.display()
+                ));
+            }
+            if let Some(base) = found.lock().unwrap().clone() {
+                let mcp_port = base.rsplit(':').next().and_then(|p| p.parse().ok()).unwrap_or(port);
+                let bridge = BridgeChild { child: bridge_child, pipe: pipe.clone(), ws_port, token: token.clone() };
+                let endpoint = BridgeEndpoint { pipe, ws_port, token };
+                return Ok((Self {
+                    app_dir,
+                    mcp_base: base,
+                    mcp_port,
+                    child,
+                    storage_file,
+                    recent_output: recent,
+                    bridge: Some(bridge),
+                }, endpoint));
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    }
+
+    /// bridge 数据面端点（embedded 会话；windowed 旧轨 None）。
+    pub fn bridge(&self) -> Option<&BridgeChild> {
+        self.bridge.as_ref()
+    }
+
     /// 子进程是否已退出（看门狗每拍快检，死亡即刻走复活而非等截图失败）。
     pub fn has_exited(&mut self) -> bool {
         matches!(self.child.try_wait(), Ok(Some(_)))
     }
 
     /// 收割进程树并确认端口退场。幂等（taskkill 对已死 pid 报错即忽略）。
+    /// PLAN-102 T-02：embedded 会话连带收割 bridge 宿主子进程。
     pub async fn reap(&mut self) {
         let pid = self.child.id();
         let port = self.mcp_port;
         let storage = self.storage_file.clone();
+        let bridge_pid = self.bridge.as_mut().and_then(|b| b.child.id());
         let _ = self.child.kill().await; // kill_on_drop 兜底
+        if let Some(mut bridge) = self.bridge.take() {
+            let _ = bridge.child.kill().await; // kill_on_drop 兜底
+        }
         reap_tree(pid).await;
+        if let Some(bpid) = bridge_pid {
+            reap_tree(Some(bpid)).await;
+        }
         // 端口探测确认退场：最多 ~2s， refused = 已无人监听。
         for _ in 0..10 {
             if std::net::TcpStream::connect_timeout(
@@ -242,7 +480,28 @@ impl Drop for SessionHandle {
         if let Some(pid) = self.child.id() {
             reap_tree_blocking(pid);
         }
+        if let Some(bridge) = self.bridge.as_mut() {
+            if let Some(bpid) = bridge.child.id() {
+                reap_tree_blocking(bpid);
+            }
+            let _ = bridge.child.kill();
+        }
         let _ = std::fs::remove_file(&self.storage_file);
+    }
+}
+
+/// PLAN-102 T-02：embedded 会话数据面端点（spawn_embedded 返回——
+/// manager 登记 status / 前端直连 bridge WS 消费）。
+#[derive(Debug, Clone)]
+pub struct BridgeEndpoint {
+    pub pipe: String,
+    pub ws_port: u16,
+    pub token: String,
+}
+
+impl BridgeEndpoint {
+    pub fn ws_url(&self) -> String {
+        format!("ws://127.0.0.1:{}/?token={}", self.ws_port, self.token)
     }
 }
 

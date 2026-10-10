@@ -124,6 +124,12 @@ struct Shared {
     /// 归属（PLAN-093 T-02）：start 时登记；HTTP/工具侧按此判冲突。
     owner_workspace: Arc<Mutex<String>>,
     owner_conversation: Arc<Mutex<Option<String>>>,
+    /// PLAN-102 T-02：embedded 呈现数据面端点（bridge 宿主 WS——spawn
+    /// 登记换代清；None = 无会话）。(ws_port, token)。
+    bridge: Arc<Mutex<Option<(u16, String)>>>,
+    /// 最近一拍 vtree 原子（PLAN-102：seq 前进的比较基线——帧数据不经
+    /// musk，seq 语义 = 结构内容版本）。
+    last_atom: Arc<Mutex<Option<String>>>,
 }
 
 impl Shared {
@@ -147,6 +153,8 @@ impl Shared {
             output_tail: Arc::new(Mutex::new(String::new())),
             owner_workspace: Arc::new(Mutex::new(String::new())),
             owner_conversation: Arc::new(Mutex::new(None)),
+            bridge: Arc::new(Mutex::new(None)),
+            last_atom: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -239,14 +247,17 @@ impl CanvasManager {
             .begin_session(&app_dir, ws_root, owner_workspace, owner_conversation, expected_generation)
             .map_err(StartError::GenerationConflict)?;
 
-        let handle = SessionHandle::spawn(app_dir.clone()).await;
+        // PLAN-102 T-02：embedded 呈现（bridge 宿主 + rq remote app 双子
+        // 进程；数据面 = 前端直连 bridge WS）。
+        let handle = SessionHandle::spawn_embedded(app_dir.clone()).await;
         match handle {
-            Ok(mut h) => {
+            Ok((mut h, endpoint)) => {
                 let pid = h.pid();
                 let base = h.mcp_base.clone();
                 let client = McpClient::new(base.clone());
                 *self.shared.pid.lock().unwrap() = pid;
                 *self.shared.mcp_base.lock().unwrap() = base.clone();
+                *self.shared.bridge.lock().unwrap() = Some((endpoint.ws_port, endpoint.token));
                 let shared = self.shared.clone();
                 let stop = self.stop_flag.clone();
                 let worker = tokio::spawn(async move {
@@ -297,6 +308,8 @@ impl CanvasManager {
         *self.shared.restarts.lock().unwrap() = 0;
         *self.shared.error.lock().unwrap() = String::new();
         *self.shared.frame.lock().unwrap() = None;
+        *self.shared.bridge.lock().unwrap() = None;
+        *self.shared.last_atom.lock().unwrap() = None;
         *self.shared.anchor.write().unwrap() = None;
         *self.shared.picked.lock().unwrap() = None;
         self.shared.overlay.lock().unwrap().clear();
@@ -387,6 +400,8 @@ impl CanvasManager {
         // （pac/app_path）与代次；帧/锚点/选中/overlay 归零（与 begin_session
         // 全字段清场同款）——frame 503、picked 不复活。
         *self.shared.frame.lock().unwrap() = None;
+        *self.shared.bridge.lock().unwrap() = None;
+        *self.shared.last_atom.lock().unwrap() = None;
         *self.shared.anchor.write().unwrap() = None;
         *self.shared.picked.lock().unwrap() = None;
         self.shared.overlay.lock().unwrap().clear();
@@ -582,6 +597,17 @@ impl CanvasManager {
             .frame_px_size()
             .map(|(w, h)| json!({ "w": w, "h": h, "valid": self.frame().is_some() }))
             .unwrap_or(Value::Null);
+        let presentation = {
+            let bridge = self.shared.bridge.lock().unwrap().clone();
+            match bridge {
+                Some((ws_port, token)) => json!({
+                    "mode": "embedded",
+                    "bridge_ws_url": format!("ws://127.0.0.1:{ws_port}/?token={token}"),
+                    "bridge_ws_port": ws_port,
+                }),
+                None => json!({ "mode": "window", "bridge_ws_url": "", "bridge_ws_port": 0 }),
+            }
+        };
         json!({
             "state": st.state,
             "seq": st.seq,
@@ -598,6 +624,9 @@ impl CanvasManager {
             "overlay": overlay,
             "tree": tree,
             "pac_head": *self.shared.pac.lock().unwrap(),
+            // PLAN-102 T-02：呈现面（embedded = bridge WS 数据面直连端点；
+            // mode "window" = 独立窗——待上游重连 seam（决策文档 §5））。
+            "presentation": presentation,
         })
     }
 
@@ -697,9 +726,8 @@ async fn watchdog(
     stop: Arc<AtomicBool>,
 ) {
     let mut fail_streak: u32 = 0;
-    let mut prev_frame: Option<PathBuf> = None;
     // 破局原因（复活/降级错误面用——区分崩溃退场与无首帧超时）。
-    let mut break_reason = String::from("screenshot failed");
+    let mut break_reason = String::from("mcp health failed");
 
     'session: loop {
         client.initialize().await;
@@ -739,38 +767,50 @@ async fn watchdog(
                 );
                 break;
             }
+            // PLAN-102 T-02：embedded 呈现健康面——帧数据不经 musk（前端
+            // 直连 bridge WS 消费），看门狗判据 = MCP state（D-2 共位）+
+            // 子进程存活；vtree 随拍锚定（PLAN-088 语义保留），seq 以
+            // vtree 原子内容变化前进（帧缓存恒 None——/frame 路由 503 为
+            // 诚实无 PNG 面；PNG 帧源属 windowed 旧轨，前端消费面切换随
+            // T-04）。
             let started = std::time::Instant::now();
-            let shot = tokio::time::timeout(
+            let health = tokio::time::timeout(
                 super::mcp_client::CALL_TIMEOUT + Duration::from_secs(2),
-                client.screenshot(),
+                client.state(None),
             )
             .await;
-            match shot {
-                Ok(Ok((path, bytes))) => {
-                    // 新帧入缓存（唯一写帧点）；删上一帧文件防 tmp 堆积。
-                    shared.publish_frame(bytes);
-                    if let Some(prev) = prev_frame.replace(path) {
-                        let _ = std::fs::remove_file(prev);
-                    }
+            match health {
+                Ok(Ok(_text)) => {
                     fail_streak = 0;
                     *shared.state.lock().unwrap() = CanvasState::Running;
-                    // 锚点索引随帧重建（PLAN-088 T-03）：尽力而为，失败保留
-                    // 旧索引（陈旧无害，换代时 overlay/picked 交集收敛）。
-                    let seq = shared.seq.load(Ordering::Relaxed);
+                    // 锚点索引随拍重建：尽力而为，失败保留旧索引（陈旧无
+                    // 害，换代时 overlay/picked 交集收敛）。
                     match client.vtree().await {
-                        Ok(atom) => match AnchorIndex::parse(&atom, seq) {
-                            Ok(idx) => shared.swap_anchor(idx, seq),
-                            Err(e) => tracing::debug!("canvas: vtree parse failed: {e}"),
-                        },
+                        Ok(atom) => {
+                            let fresh = {
+                                let mut last = shared.last_atom.lock().unwrap();
+                                if last.as_deref() != Some(atom.as_str()) {
+                                    *last = Some(atom.clone());
+                                    true
+                                } else {
+                                    false
+                                }
+                            };
+                            if fresh {
+                                shared.seq.fetch_add(1, Ordering::Relaxed);
+                            }
+                            let seq = shared.seq.load(Ordering::Relaxed);
+                            match AnchorIndex::parse(&atom, seq) {
+                                Ok(idx) => shared.swap_anchor(idx, seq),
+                                Err(e) => tracing::debug!("canvas: vtree parse failed: {e}"),
+                            }
+                        }
                         Err(e) => tracing::debug!("canvas: vtree fetch failed: {e}"),
                     }
                 }
-                Ok(Err(text)) if text.contains("Screenshot skipped") => {
-                    // 最小化窗护栏：可恢复，不计失败（下一轮重试）。
-                }
                 Ok(Err(e)) => {
                     fail_streak += 1;
-                    tracing::warn!("canvas: screenshot failed ({fail_streak}): {e}");
+                    tracing::warn!("canvas: mcp health failed ({fail_streak}): {e}");
                     if started.elapsed() > Duration::from_secs(10)
                         || fail_streak >= FAIL_THRESHOLD
                     {
@@ -781,7 +821,7 @@ async fn watchdog(
                     // timeout 包裹层超时（>CALL_TIMEOUT+2s）。
                     fail_streak += 1;
                     tracing::warn!(
-                        "canvas: screenshot timeout ({fail_streak}) after {:?}",
+                        "canvas: mcp health timeout ({fail_streak}) after {:?}",
                         started.elapsed()
                     );
                     break;
@@ -821,8 +861,9 @@ async fn watchdog(
                 return;
             }
             let app_dir = handle.app_dir.clone();
-            match SessionHandle::spawn(app_dir).await {
-                Ok(mut h) => {
+            match SessionHandle::spawn_embedded(app_dir).await {
+                Ok((mut h, endpoint)) => {
+                    *shared.bridge.lock().unwrap() = Some((endpoint.ws_port, endpoint.token));
                     *shared.restarts.lock().unwrap() = restarts + 1;
                     *shared.pid.lock().unwrap() = h.pid();
                     *shared.mcp_base.lock().unwrap() = h.mcp_base.clone();
@@ -832,10 +873,10 @@ async fn watchdog(
                     *shared.anchor.write().unwrap() = None;
                     *shared.picked.lock().unwrap() = None;
                     shared.overlay.lock().unwrap().clear();
+                    *shared.last_atom.lock().unwrap() = None;
                     handle = h;
                     client = McpClient::new(handle.mcp_base.clone());
                     fail_streak = 0;
-                    prev_frame = None;
                     continue 'session;
                 }
                 Err(e) => {

@@ -54,7 +54,7 @@ fn test_state() -> (Arc<musk::server::AppState>, PathBuf) {
         client: Arc::new(DeadClient) as Arc<dyn Client>,
         auth: Arc::new(musk::auto_generated::auth::AuthStore::new(dir.join("users.json"))),
         registry: Arc::new(registry),
-        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         run_idle_timeout: Duration::from_secs(300),
         canvas: Arc::new(CanvasManager::new()),
@@ -504,4 +504,77 @@ async fn route_chat_message_design_context_missing_required_fields_rejected() {
         !msgs.iter().any(|m| m.role == musk::chats::Role::User && m.content == "正文"),
         "rejected message content must not be persisted"
     );
+}
+
+// ── PLAN-102 T-02：embedded 呈现会话合同（实机；AUTO_EXE + 夹具） ─────────
+// spawn_embedded 双子进程（bridge 宿主 + rq remote app）：status 携
+// presentation.mode=embedded 与 bridge WS 端点（可连）；会话 running；停止
+// 收割两子进程树（tasklist census 零残留）。窗口模式重连 seam 落地前
+// window 臂不冒充（决策文档 §5）。
+#[tokio::test]
+#[serial_test::serial]
+#[ignore = "live spawn: requires AUTO_EXE + canvas-embed fixture"]
+async fn embedded_spawn_contract_live() {
+    let exe = std::env::var("AUTO_EXE").expect("AUTO_EXE must point at auto.exe (musk-102 dep build)");
+    assert!(std::path::Path::new(&exe).exists(), "AUTO_EXE missing: {exe}");
+    let manifest = env!("CARGO_MANIFEST_DIR");
+    let fixture = std::path::Path::new(manifest)
+        .join("../../../tests/ui-parity/probes/canvas-embed/embed-fixture")
+        .canonicalize()
+        .expect("fixture dir");
+    let ws_root = tmp_dir("p102-embed");
+    // 夹具 = canvas 产线 app 形态（pac 无 api 字段——纯前端，无后端
+    // split-mode；api: "rust" 形态会经 am 机制自起脱离 /T 树的后端子
+    // 进程，census 假红——canvas-run 生成 app 均无 api 字段）。
+    let m = new_manager();
+    // 显式 start（归属链路同产线）：embedded spawn + endpoint 登记。
+    let ident = m
+        .start_owned(fixture.clone(), &ws_root, "ws-p102", Some("conv-p102"), None)
+        .await
+        .expect("embedded spawn");
+    assert!(ident.generation >= 1);
+    // status：presentation embedded + WS 端点可连 + Running。
+    let mut status = m.status_full();
+    for _ in 0..60 {
+        if status["state"] == "running" {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        status = m.status_full();
+    }
+    assert_eq!(status["state"], "running", "status: {status}");
+    assert_eq!(status["presentation"]["mode"], "embedded");
+    let ws_url = status["presentation"]["bridge_ws_url"].as_str().unwrap().to_string();
+    let ws_port = status["presentation"]["bridge_ws_port"].as_u64().unwrap();
+    assert!(ws_url.starts_with("ws://127.0.0.1:") && ws_url.contains("token="));
+    tokio::net::TcpStream::connect(("127.0.0.1", ws_port as u16))
+        .await
+        .expect("bridge ws port connectable");
+    // vtree 面（D-2）：树到达 = 锚定通道活。
+    for _ in 0..40 {
+        if !status["tree"].is_null() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        status = m.status_full();
+    }
+    assert!(!status["tree"].is_null(), "vtree never arrived: {status}");
+    // 停止：双子进程收割（tasklist census 零残留——桥 + app）。
+    m.stop_guarded(None, Some("conv-p102")).await.expect("stop");
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    let image = std::path::Path::new(&exe)
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
+    let out = std::process::Command::new("tasklist")
+        .args(["/FI", &format!("IMAGENAME eq {image}")])
+        .output()
+        .unwrap()
+        .stdout;
+    let text = String::from_utf8_lossy(&out);
+    let count = text.matches(&image).count();
+    assert_eq!(count, 0, "auto.exe instances remain after stop:
+{text}");
+    let _ = std::fs::remove_dir_all(ws_root);
 }
