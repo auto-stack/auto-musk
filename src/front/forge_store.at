@@ -90,6 +90,11 @@ store ForgeStore {
         // Init/切换/重命名/归档时刷新，run 期间计数徽章恒冻结在发送前快照
         // （preview-live-02 实证"0 条"贯穿全程）。
         var poll_list_ticks int = 0
+        // toolbar-icons 2026-10-10：等待 Loader 呼吸相位（0..3，SpinTick
+        // 200ms 步进）——仅流式中步进（驱动 ChatMessage spinClass 的文字色
+        // alpha 呼吸；VM 轨 iced 无 transform/CSS 动画，旋转降级为呼吸）。
+        // int 计数沿 PLAN-092 口径（store 唯一可靠读写面）。
+        var spin_phase int = 0
         // PLAN-084 T-05: 已归档会话（"已归档"过滤开关的数据面）+ 开关态。
         // 归档 toggle 开时列表切到 archived_list；归档/取消归档后两表重拉。
         var archived_list []Value = []
@@ -171,6 +176,9 @@ store ForgeStore {
         PollBackfill(str),
         FireDetailLoad,
         LoadOlder,
+        // toolbar-icons 2026-10-10：等待 Loader 呼吸拍（timer 驱动，见 SpinTick
+        // every_ms 声明与 .SpinTick handler）。
+        SpinTick,
     }
 
     // Plan 051 T10（G1 阶段1）：VM 轨无 SSE 形态期间，流式回复以 500ms
@@ -187,6 +195,9 @@ store ForgeStore {
         // 在 handler 之前整体丢弃，deadman 窗（handler 内）永无执行机会。
         // 门控职责已由 handler 内 deadman 窗接管。
         PollStream (every_ms: 500)
+        // toolbar-icons 2026-10-10：等待 Loader 呼吸拍——streaming 中步进
+        // spin_phase（0..3），空闲臂零写入不触发重渲染。
+        SpinTick (every_ms: 200)
     }
 
     on {
@@ -686,6 +697,23 @@ store ForgeStore {
             }
             .streaming = false
             .RefreshHeader()
+        }
+
+        // SpinTick：等待 Loader 呼吸相位——仅流式中步进（0..3 环回）；收束
+        // 归零一拍，之后零写入不触发重渲染。web 轨旋转由 CSS animate-spin
+        // 承担，本相位只供 VM alpha 呼吸（web 同样无害——透明度微调）。
+        .SpinTick -> {
+            if .streaming {
+                if .spin_phase >= 3 {
+                    .spin_phase = 0
+                } else {
+                    .spin_phase = .spin_phase + 1
+                }
+            } else {
+                if .spin_phase != 0 {
+                    .spin_phase = 0
+                }
+            }
         }
 
         // PLAN-055 ④/T11：ThinkBlock 独立展开——键列表重建回写（VM 安全：

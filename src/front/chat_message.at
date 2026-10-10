@@ -23,7 +23,7 @@
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web useT from "src/front/ports/composables.at"
 use.web component Markdown from "src/front/ports/renderer.at"
-use.web component Copy, GitFork from "src/front/ports/icons.at"
+use.web component Copy, GitFork, Loader from "src/front/ports/icons.at"
 // PLAN-055 T13: thinkLabel 进内联思考块（ThinkBlock 子件退役）；thinkIsOpen
 // 走 store.think_open 键列表（键=msg.id）。
 // 2026-09-03:工具卡内联（ToolBlock/GenericToolCard 子件退役,沿 ThinkBlock
@@ -47,7 +47,7 @@ use report_card: ReportCard
 use tool_gate_card: ToolGateCard
 
 
-widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, think_open: str, tool_open: str) {
+widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, think_open: str, tool_open: str, spin_phase: int) {
     // PLAN-060 T2:ForkFrom 上抛分叉请求（mid=msg.id）——子件空 handler,
     // 经 onfork 声明路由直达宿主 BranchTo（零参帧对齐根修后单参载荷同链）。
     // toolbar-icons 2026-10-10:CancelRun 撤除——"停止回复"退出 AI 消息工具栏,
@@ -99,16 +99,12 @@ style {
 .tool-section-title { font-size: 0.73rem; font-weight: 500; text-transform: uppercase; color: hsl(var(--muted-foreground)); margin-bottom: 0.2rem; letter-spacing: 0.02em; }
 .tool-code { font-size: 0.83rem; color: hsl(var(--muted-foreground)); background: hsl(var(--muted-foreground) / 0.04); padding: 0.35rem 0.5rem; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; font-family: 'Geist Mono', 'Fira Code', monospace; margin: 0; }
 .tool-block-slot { width: 100%; }
-/* PLAN-071 需求⑨：AI 启动窗口等待点——三点跳动（keyframes/nth-child
-   先例：relay_run_box rb-spin、streaming_table nth-child）。scoped 动画
-   web 轨生效；VM 轨 style 块不注入，退化为无动画静态点（登记已知项）。 */
-.typing-dot { width: 7px; height: 7px; border-radius: 9999px; background: hsl(var(--muted-foreground) / 0.6); display: inline-block; animation: typing-bounce 1.2s ease-in-out infinite; }
-.typing-dot:nth-child(2) { animation-delay: 0.15s; }
-.typing-dot:nth-child(3) { animation-delay: 0.3s; }
-@keyframes typing-bounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
-  30% { transform: translateY(-4px); opacity: 1; }
-}
+/* PLAN-071 需求⑨：AI 启动窗口等待指示——原三点跳动（typing-dot keyframes）
+   2026-10-10 退役：scoped 动画 VM 轨 style 块不注入且 span 无宽高即整组
+   不可见（用户实机：VM 等待期无任何 loading）。改 lucide Loader 图标——
+   web 轨 animate-spin 旋转；VM 轨 iced 无 transform/元素级 opacity，旋转
+   降级为文字色 alpha 呼吸（spin_dim 经 ForgeStore.SpinTick 200ms 驱动，
+   svg tint 跟随 text 色 alpha——renderer 6754/6768 已证通路）。 */
 }
 
     setup {
@@ -141,8 +137,14 @@ style {
         // 生成器 store 单别名限制；未携带身份回退 "🤖 AI" 徽章）。
         // PLAN-084 UAT⑪: 身份展示改漏斗预计算字段（aname）——视图 computed
         // 内 fn 调用静默返空（坑①），字段读已证；aname 空=乐观期回退徽章。
-        agentName => .msg.aname ?? ""
-        agentProf => .msg.aname ?? ""
+        // toolbar-icons 2026-10-10:aname→profession_id 双级兜底——乐观消息
+        // （newAssistantMsg(modeRoleOf)）即带 profession_id 而回填投影才有
+        // aname，原单级读使等待期头部恒落 "AI"（用户对拍 2026-10-10：应与
+        // 完成态同为 assistant+徽章）。
+        agentAname => .msg.aname ?? ""
+        agentApid => .msg.profession_id ?? ""
+        agentName => if .agentAname != "" { .agentAname } else { .agentApid }
+        agentProf => .agentName
         showAgent => .isAssistant && .agentName != ""
         userContent => .msg.content
         // PLAN-093 T-08:元素附件回放标记（轻量 chip——不塞 JSON 进气泡；
@@ -165,8 +167,17 @@ style {
         thinkOpen => .think_open == .msg.id
         hasError => .msg.error != ""
         errorText => if .hasError { .msg.error } else { "" }
-        // PLAN-071 需求⑨：AI 启动窗口（流式中且展示块为空）——等待点显隐。
+        // PLAN-071 需求⑨：AI 启动窗口（流式中且展示块为空）——等待指示显隐。
+        // toolbar-icons 2026-10-10：等待点换 lucide Loader——spin_phase 由
+        // ForgeStore.SpinTick（200ms，流式中步进 0..3）驱动 alpha 呼吸
+        // （VM 轨 svg tint 跟随 text 色 alpha；web 轨另有 animate-spin 旋转）。
         showWaiting => msgIsWaiting(.msg, .is_streaming)
+        spinDim => .spin_phase == 1 || .spin_phase == 2
+        spinClass => if .spinDim {
+            "msg-waiting flex items-center py-[2px] px-[2px] animate-spin text-muted-foreground/30"
+        } else {
+            "msg-waiting flex items-center py-[2px] px-[2px] animate-spin text-muted-foreground"
+        }
     }
     view {
         col {
@@ -235,17 +246,14 @@ style {
                     // 到达前气泡内动态 "..."（三点跳动），告知后台正在干活；
                     // 块到达即消失（msgIsWaiting 判定，块循环同窗渲染）。
                     if .showWaiting {
+                        // toolbar-icons 2026-10-10：三点跳动 span 组退役（VM 无
+                        // scoped CSS 即不可见）——lucide Loader 图标行：web
+                        // animate-spin 旋转；VM animate-spin 不识别，呼吸由
+                        // spinClass 的 text-muted-foreground(/30) alpha 步进
+                        // 承载（svg tint 跟随，SpinTick 200ms 驱动）。
                         row {
-                            style: "msg-waiting flex items-center gap-[5px] py-[2px] px-[2px]"
-                            span {
-                                class: "typing-dot"
-                            }
-                            span {
-                                class: "typing-dot"
-                            }
-                            span {
-                                class: "typing-dot"
-                            }
+                            class: .spinClass
+                            Loader { size: 14 }
                         }
                     }
                     // 有序 block 流：文本 / 思考 / 工具按到达顺序，块不删除。

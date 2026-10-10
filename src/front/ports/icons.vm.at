@@ -157,6 +157,12 @@ widget ListTodo(size: int = 24) {
     }
 }
 
+widget Loader(size: int = 24) {
+    view {
+        icon { name: "loader", size: .size }
+    }
+}
+
 widget Loader2(size: int = 24) {
     view {
         icon { name: "loader-circle", size: .size }
