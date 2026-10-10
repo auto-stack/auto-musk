@@ -471,15 +471,15 @@ style {
                         if .tbVisible {
                             button {
                                 onclick: .CopyContent
-                                style: "inline-flex items-center justify-center h-6 w-6 px-0 py-0 rounded-md border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer [&_svg]:size-[14px]"
+                                style: "inline-flex items-center justify-center h-6 w-6 px-0 py-0 rounded-md border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer [&_svg]:size-[12px]"
                                 title: "Copy"
-                                Copy { size: 14 }
+                                Copy { size: 12 }
                             }
                             button {
                                 onclick: .ForkFrom(.msg.id)
-                                style: "inline-flex items-center justify-center h-6 w-6 px-0 py-0 rounded-md border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer [&_svg]:size-[14px]"
+                                style: "inline-flex items-center justify-center h-6 w-6 px-0 py-0 rounded-md border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer [&_svg]:size-[12px]"
                                 title: "Fork"
-                                GitFork { size: 14 }
+                                GitFork { size: 12 }
                             }
                         }
                     }
