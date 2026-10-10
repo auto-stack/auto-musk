@@ -270,6 +270,27 @@ impl Tool for WriteFile {
 // 狗窗口 300s——命令超时先自然收束回传结果，看门狗只对真停顿兜底。
 pub(crate) const DEFAULT_CMD_TIMEOUT_SECS: f64 = 120.0;
 
+/// PLAN-103 T-02：审批门等待上限。原硬编码 1800s——门卡在轮询/重载路径
+/// 不可见时（D2 修复前）等于把会话纯挂 30 分钟（00c663835 实机定罪）。
+/// 缺省收紧为 300s；env `AUTO_GATE_TIMEOUT_SECS` 合法正数可覆盖（非法/
+/// 非正回退缺省，沿 [`resolve_default_timeout_secs`] T-02 测试锚点形态）。
+pub(crate) const DEFAULT_GATE_TIMEOUT_SECS: f64 = 300.0;
+
+/// 纯函数形态（env 值作参，测试免 env 竞态）；[`gate_timeout`] 为 env
+/// 读取包装。看门狗/reaper 推窗（extern_impl）消费同一函数 + 300s 余量，
+/// 维持"门超时先自然发生"的 PLAN-073 r3 竞速口径。
+pub(crate) fn gate_timeout_from_env(env_val: Option<&str>) -> std::time::Duration {
+    let secs = env_val
+        .and_then(|v| v.parse::<f64>().ok())
+        .filter(|v| v.is_finite() && *v > 0.0)
+        .unwrap_or(DEFAULT_GATE_TIMEOUT_SECS);
+    std::time::Duration::from_secs_f64(secs)
+}
+
+pub(crate) fn gate_timeout() -> std::time::Duration {
+    gate_timeout_from_env(std::env::var("AUTO_GATE_TIMEOUT_SECS").ok().as_deref())
+}
+
 /// 解析默认命令超时：AUTO_CMD_TIMEOUT_SECS 的合法正数优先，否则
 /// [`DEFAULT_CMD_TIMEOUT_SECS`]（env 非法值一律回退默认——T-02 测试锚点）。
 fn resolve_default_timeout_secs(env_val: Option<&str>) -> Option<f64> {
@@ -435,12 +456,7 @@ impl Tool for RunCommand {
                     sink.send_gate_waiting(&gate_id, "", "run_command", cmd, &offending);
                 }
                 let rx = crate::tool_gate::register(&gate_id);
-                let approved = match tokio::time::timeout(
-                    std::time::Duration::from_secs(1800),
-                    rx,
-                )
-                .await
-                {
+                let approved = match tokio::time::timeout(gate_timeout(), rx).await {
                     Ok(Ok(v)) => v,
                     _ => false,
                 };
@@ -1283,6 +1299,24 @@ mod tests {
         // 看门狗窗口默认 300s（server.rs AUTO_RUN_IDLE_TIMEOUT_SECS 缺省），
         // 默认命令超时必须严格小于它——T-02 的关系锚点。
         assert!(DEFAULT_CMD_TIMEOUT_SECS < 300.0);
+    }
+
+    #[test]
+    fn gate_timeout_defaults_to_300s_env_overridable() {
+        // PLAN-103 T-02：门等待上限缺省 300s（原 1800s 硬编码在门卡不可见
+        // 时等于纯挂 30 分钟）；env 合法正数覆盖，非法/非正回退缺省。
+        assert_eq!(gate_timeout_from_env(None).as_secs(), 300);
+        assert_eq!(gate_timeout_from_env(Some("")).as_secs(), 300);
+        assert_eq!(gate_timeout_from_env(Some("abc")).as_secs(), 300);
+        assert_eq!(gate_timeout_from_env(Some("0")).as_secs(), 300);
+        assert_eq!(gate_timeout_from_env(Some("-5")).as_secs(), 300);
+        assert_eq!(gate_timeout_from_env(Some("nan")).as_secs(), 300);
+        assert_eq!(gate_timeout_from_env(Some("120")).as_secs(), 120);
+        assert_eq!(
+            gate_timeout_from_env(Some("1800")).as_secs(),
+            1800
+        );
+        assert_eq!(DEFAULT_GATE_TIMEOUT_SECS, 300.0);
     }
 
     #[tokio::test]
