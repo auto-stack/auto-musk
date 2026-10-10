@@ -26,6 +26,10 @@
 // CanvasManager）；面板行为双端同源（T-03 四模式探针护航）。
 
 use canvas_helpers: canvasPickedProjection, canvasFrameUrl, rebuildCanvasOverlay, canvasContentStyle, canvasTreeVisible, canvasSourceLines
+// PLAN-102 T-03：布局纯函数（canvas_helpers 同族跨轨消费；ext TS 生成面
+// 由 canvas_workbench.at 的 use.web.fn 触发——合同脚本 canvas-layout-
+// contract.mjs 直测生成模块）。
+use canvas_layout_helpers: canvasLayoutPrefKey, canvasLayoutPrefEncode, canvasLayoutPrefDecode, canvasDockMode, canvasDockDragSize, canvasDockNudgeSize, canvasClampDockW, canvasClampDockH, canvasClampOuterW
 
 // PLAN-093 T-07: 行列表 + 拾取行 → 渲染行对象 [{no, text, hl}]
 // （视图体内 let 不受支持——行对象在 store 域预构建；no 为 1 基）。
@@ -140,6 +144,21 @@ store CanvasStore {
         // （status_full.output_tail 回填——错误详情盒诊断面）。
         var cv_error_details_open bool = false
         var cv_output_tail str = ""
+        // ── PLAN-102 T-03：停靠布局与偏好（canvas_layout_helpers 单源钳制）──
+        // 停靠位 left|right|bottom|hidden；工具区水平宽/底部高；正常模式
+        // 外框宽；load-once 门（轮询不覆写偏好）；拖动瞬态（kind/origin/
+        // 取消基线）；tabs 降级单区页签（canvas|tools）。
+        var cv_dock str = "left"
+        var cv_dock_w int = 240
+        var cv_dock_h int = 240
+        var cv_outer_w int = 640
+        var cv_layout_loaded bool = false
+        var cv_wb_w int = 0
+        var cv_wb_h int = 0
+        var cv_drag_kind str = ""
+        var cv_drag_origin int = 0
+        var cv_drag_size0 int = 0
+        var cv_solo_tab str = "canvas"
     }
 
     timer {
@@ -155,6 +174,19 @@ store CanvasStore {
         UnCollapse,
         ToggleSource,
         SourceBackfill(str),
+        // PLAN-102 T-03：停靠布局动作族。
+        SetDock(str),
+        LayoutContainer(int, int),
+        DockDragStart(str, int, int),
+        DockDragMove(int),
+        DockDragEnd,
+        DockDragCancel,
+        DockNudge(str, int),
+        OuterDragStart(int, int),
+        OuterDragMove(int),
+        OuterDragEnd,
+        OuterDragCancel,
+        SoloTab(str),
     }
 
     on {
@@ -176,6 +208,18 @@ store CanvasStore {
             }
             if w != .cv_win_w {
                 .cv_win_w = w
+            }
+            if .cv_layout_loaded == false {
+                let ws102 = localStorage.getItem("musk_workspace") ?? ""
+                let pref102 = canvasLayoutPrefDecode(localStorage.getItem(canvasLayoutPrefKey(ws102)) ?? "")
+                .cv_dock = pref102.dock ?? "left"
+                .cv_dock_w = pref102.dock_w ?? 240
+                .cv_dock_h = pref102.dock_h ?? 240
+                .cv_outer_w = pref102.outer_w ?? 640
+                if .cv_wb_w > 0 { .cv_dock_w = canvasClampDockW(.cv_wb_w, .cv_dock_w) }
+                if .cv_wb_h > 0 { .cv_dock_h = canvasClampDockH(.cv_wb_h, .cv_dock_h) }
+                .cv_outer_w = canvasClampOuterW(w, .cv_outer_w)
+                .cv_layout_loaded = true
             }
             if .cv_inflight {
                 .cv_inflight_ticks = .cv_inflight_ticks + 1
@@ -410,5 +454,96 @@ store CanvasStore {
             .cv_source_state = "ok"
             .cv_source_err = ""
         }
+
+        // ── PLAN-102 T-03：停靠布局动作族 ──────────────────────────────
+
+        // 停靠切换（hidden 保留方向外的一切：页签/选择/树折叠原样）。
+        .SetDock(d str) -> {
+            .cv_dock = d
+            let ws102 = localStorage.getItem("musk_workspace") ?? ""
+            localStorage.setItem(canvasLayoutPrefKey(ws102), canvasLayoutPrefEncode(.cv_dock, .cv_dock_w, .cv_dock_h, .cv_outer_w))
+        }
+
+        // 宿主报告工作台容器实际尺寸（非视口替代——外框/停靠双钳制源）；
+        // 变化即重钳当前偏好尺寸（窄→宽自动恢复合法值）。
+        .LayoutContainer(w int, h int) -> {
+            if w != .cv_wb_w || h != .cv_wb_h {
+                .cv_wb_w = w
+                .cv_wb_h = h
+                .cv_dock_w = canvasClampDockW(w, .cv_dock_w)
+                .cv_dock_h = canvasClampDockH(h, .cv_dock_h)
+            }
+        }
+
+        // 内部分隔条拖动：Start 记基线（取消恢复）；Move 即时钳制预览
+        //（不持久化）；End 持久化；Cancel 恢复起始尺寸（不停应用）。
+        .DockDragStart(kind str, origin_px int, size0 int) -> {
+            .cv_drag_kind = kind
+            .cv_drag_origin = origin_px
+            .cv_drag_size0 = size0
+        }
+        .DockDragMove(delta_px int) -> {
+            if .cv_drag_kind == "h" {
+                .cv_dock_w = canvasDockDragSize(.cv_dock, "h", .cv_wb_w, .cv_wb_h, .cv_drag_origin, delta_px)
+            } else {
+                if .cv_drag_kind == "b" {
+                    .cv_dock_h = canvasDockDragSize(.cv_dock, "b", .cv_wb_w, .cv_wb_h, .cv_drag_origin, delta_px)
+                }
+            }
+        }
+        .DockDragEnd -> {
+            .cv_drag_kind = ""
+            let ws102 = localStorage.getItem("musk_workspace") ?? ""
+            localStorage.setItem(canvasLayoutPrefKey(ws102), canvasLayoutPrefEncode(.cv_dock, .cv_dock_w, .cv_dock_h, .cv_outer_w))
+        }
+        .DockDragCancel -> {
+            if .cv_drag_kind == "h" {
+                .cv_dock_w = .cv_drag_size0
+            } else {
+                if .cv_drag_kind == "b" {
+                    .cv_dock_h = .cv_drag_size0
+                }
+            }
+            .cv_drag_kind = ""
+        }
+
+        // 键盘步进（±10 / 0=Home 恢复初值；nudge 亦持久化）。
+        .DockNudge(kind str, step int) -> {
+            if kind == "h" {
+                .cv_dock_w = canvasDockNudgeSize(.cv_dock, "h", .cv_wb_w, .cv_wb_h, .cv_dock_w, step)
+            } else {
+                if kind == "b" {
+                    .cv_dock_h = canvasDockNudgeSize(.cv_dock, "b", .cv_wb_w, .cv_wb_h, .cv_dock_h, step)
+                }
+            }
+            let ws102 = localStorage.getItem("musk_workspace") ?? ""
+            localStorage.setItem(canvasLayoutPrefKey(ws102), canvasLayoutPrefEncode(.cv_dock, .cv_dock_w, .cv_dock_h, .cv_outer_w))
+        }
+
+        // 正常模式外框（与聊天区间的外部分隔条；与内部 DevTools 分隔条
+        // 分别管理尺寸）。
+        .OuterDragStart(origin_px int, size0 int) -> {
+            .cv_drag_kind = "outer"
+            .cv_drag_origin = origin_px
+            .cv_drag_size0 = size0
+        }
+        .OuterDragMove(delta_px int) -> {
+            .cv_outer_w = canvasClampOuterW(.cv_wb_w + .cv_outer_w, .cv_drag_origin + delta_px)
+        }
+        .OuterDragEnd -> {
+            .cv_drag_kind = ""
+            let ws102 = localStorage.getItem("musk_workspace") ?? ""
+            localStorage.setItem(canvasLayoutPrefKey(ws102), canvasLayoutPrefEncode(.cv_dock, .cv_dock_w, .cv_dock_h, .cv_outer_w))
+        }
+        .OuterDragCancel -> {
+            .cv_outer_w = .cv_drag_size0
+            .cv_drag_kind = ""
+        }
+
+        // tabs 降级单区页签切换（画布/工具）。
+        .SoloTab(tab str) -> {
+            .cv_solo_tab = tab
+        }
+
     }
 }

@@ -1,0 +1,140 @@
+// canvas_layout_helpers.at — PLAN-102 T-03: Canvas 工作台停靠布局纯函数
+//（钳制/窄容器降级/拖动结果/偏好序列化）。被 canvas_workbench.at 与
+// canvas_store.at 消费；边界测试 = scripts/ui-parity/canvas-layout-contract.mjs
+//（经 use.web.fn 生成链直测本模块，不复制算法）。
+//
+// 常量（§5.3）：工具区水平 240/最小 180；底部 240/最小 140；画布最小
+// 240x180；正常模式外框初值 640、聊天区最小 320。
+
+const CANVAS_DOCK_INIT_W = 240
+const CANVAS_DOCK_MIN_W = 180
+const CANVAS_DOCK_INIT_H = 240
+const CANVAS_DOCK_MIN_H = 140
+const CANVAS_MIN_W = 240
+const CANVAS_MIN_H = 180
+const CANVAS_OUTER_INIT_W = 640
+const CANVAS_CHAT_MIN_W = 320
+
+// ── 钳制 ────────────────────────────────────────────────────────────────
+
+/** 工具区水平宽钳制：[DOCK_MIN_W, container - CANVAS_MIN_W]（容器不足时
+ * 收敛到 DOCK_MIN_W——降级判定由 canvasDockNarrow 承担，这里只保数值
+ * 合法：不负、不塌）。 */
+fn canvasClampDockW(container_w int, w int) int {
+    var hi int = container_w - CANVAS_MIN_W
+    if hi < CANVAS_DOCK_MIN_W { hi = CANVAS_DOCK_MIN_W }
+    var v int = w
+    if v < CANVAS_DOCK_MIN_W { v = CANVAS_DOCK_MIN_W }
+    if v > hi { v = hi }
+    return v
+}
+
+/** 底部工具区高钳制：[DOCK_MIN_H, container_h - CANVAS_MIN_H]。 */
+fn canvasClampDockH(container_h int, h int) int {
+    var hi int = container_h - CANVAS_MIN_H
+    if hi < CANVAS_DOCK_MIN_H { hi = CANVAS_DOCK_MIN_H }
+    var v int = h
+    if v < CANVAS_DOCK_MIN_H { v = CANVAS_DOCK_MIN_H }
+    if v > hi { v = hi }
+    return v
+}
+
+/** 正常模式外框宽钳制：[CANVAS_MIN_W, container_w - CHAT_MIN_W]（容器
+ * 不足时收敛到 CANVAS_MIN_W——页签单区判定在宿主层）。 */
+fn canvasClampOuterW(container_w int, w int) int {
+    var hi int = container_w - CANVAS_CHAT_MIN_W
+    if hi < CANVAS_MIN_W { hi = CANVAS_MIN_W }
+    var v int = w
+    if v < CANVAS_MIN_W { v = CANVAS_MIN_W }
+    if v > hi { v = hi }
+    return v
+}
+
+// ── 布局决策 ────────────────────────────────────────────────────────────
+
+/** 水平窄容器判定：容器容不下「画布最小宽 + 工具最小宽」→ 工具/画布
+ * 降为单区页签（用户停靠与尺寸偏好保留，变宽自动恢复）。底部停靠不
+ * 受宽约束（只受高约束，canvasDockNarrowH）。 */
+fn canvasDockNarrow(container_w int) bool {
+    return container_w < CANVAS_MIN_W + CANVAS_DOCK_MIN_W
+}
+
+/** 垂直窄容器判定（底部停靠）：容器容不下「画布最小高 + 底部最小高」。 */
+fn canvasDockNarrowH(container_h int) bool {
+    return container_h < CANVAS_MIN_H + CANVAS_DOCK_MIN_H
+}
+
+/** 当前停靠下的布局模式："tabs"（单区页签降级）| "dock"（正常停靠）。
+ * hidden 恒 dock（工具区不占位，无降级面）。 */
+fn canvasDockMode(dock str, container_w int, container_h int) str {
+    if dock == "hidden" { return "dock" }
+    if dock == "bottom" {
+        if canvasDockNarrowH(container_h) { return "tabs" }
+        return "dock"
+    }
+    if canvasDockNarrow(container_w) { return "tabs" }
+    return "dock"
+}
+
+// ── 拖动 ────────────────────────────────────────────────────────────────
+
+/** 内部分隔条拖动结果：kind "h"（水平宽，left/right 停靠）/ "b"（底部
+ * 高）；delta_px = 指针位移（右/下为正）。left/bottom：正位移 = 工具区
+ * 变大；right 停靠反向。返回钳制后的新尺寸。 */
+fn canvasDockDragSize(dock str, kind str, container_w int, container_h int, origin int, delta_px int) int {
+    var d int = delta_px
+    if dock == "right" && kind == "h" { d = 0 - delta_px }
+    if kind == "h" {
+        return canvasClampDockW(container_w, origin + d)
+    }
+    return canvasClampDockH(container_h, origin + d)
+}
+
+/** 键盘步进（方向键 ±10；Home 恢复初值）。step_px 可负。 */
+fn canvasDockNudgeSize(dock str, kind str, container_w int, container_h int, origin int, step_px int) int {
+    if step_px == 0 {
+        if kind == "h" { return canvasClampDockW(container_w, CANVAS_DOCK_INIT_W) }
+        return canvasClampDockH(container_h, CANVAS_DOCK_INIT_H)
+    }
+    var d int = step_px
+    if dock == "right" && kind == "h" { d = 0 - step_px }
+    if kind == "h" {
+        return canvasClampDockW(container_w, origin + d)
+    }
+    return canvasClampDockH(container_h, origin + d)
+}
+
+// ── 偏好（workspace 键；轮询不覆写——load-once 由 store 门） ─────────────
+
+fn canvasLayoutPrefKey(ws str) str {
+    var w str = ws
+    if w == "" { w = "default" }
+    return "canvas.layout." + w
+}
+
+/** 偏好序列化（dock|w|h|outer 竖线串——localStorage 单键面）。 */
+fn canvasLayoutPrefEncode(dock str, dock_w int, dock_h int, outer_w int) str {
+    return dock + "|" + dock_w + "|" + dock_h + "|" + outer_w
+}
+
+/** 偏好解析：畸形段回落缺省；dock 值域外回落 "left"。负尺寸回落初值。 */
+fn canvasLayoutPrefDecode(raw str) obj {
+    var dock str = "left"
+    var w int = CANVAS_DOCK_INIT_W
+    var h int = CANVAS_DOCK_INIT_H
+    var outer int = CANVAS_OUTER_INIT_W
+    if raw != "" && raw != None {
+        var parts list = raw.split("|")
+        if parts.len() == 4 {
+            var d str = parts[0] ?? "left"
+            if d == "left" || d == "right" || d == "bottom" || d == "hidden" { dock = d }
+            var pw int = (parts[1] ?? "0").to_int()
+            if pw >= CANVAS_DOCK_MIN_W { w = pw }
+            var ph int = (parts[2] ?? "0").to_int()
+            if ph >= CANVAS_DOCK_MIN_H { h = ph }
+            var po int = (parts[3] ?? "0").to_int()
+            if po >= CANVAS_MIN_W { outer = po }
+        }
+    }
+    return { dock: dock, dock_w: w, dock_h: h, outer_w: outer }
+}
