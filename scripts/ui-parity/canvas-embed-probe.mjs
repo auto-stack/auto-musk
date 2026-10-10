@@ -472,11 +472,11 @@ async function probeToggle(h) {
   return result;
 }
 
-// ── P5 remote-arm-census（rqhost + remote 臂，候选 A 上臂证据） ──────────
-// 实证口径（T-01 勘定）：rq 客户端臂**不启动 MCP**（run_vm_rqhost_client
-// 绕过 run_session，MCP/vtree/pick 面缺席）——记录为依赖缺口 finding，
-// 非探针失败面；输入闭环以 PLAN-508 T6 实机收据在案佐证
-//（auto-lang docs/plans/reports/assets/508/p508-t6-browser-after.png 等）。
+// ── P5 remote-arm-census（rqhost + remote 臂，候选 A 选定路线上臂证据） ──
+// D-2 落地后（auto-lang McpHeadlessSource）：rq 客户端臂经显式
+// AUTOUI_MCP_PORT 共位 MCP——vtree/state/act 断言为本探针的正式验收面
+//（此前缺口 finding 已闭合）；screenshot 在该臂快速失败（帧由
+// DisplayList 宿主承载）；输入协议闭环以 PLAN-508 T6 实机收据在案佐证。
 async function probeRemoteArm() {
   const result = { probe: 'P5-remote-arm-census' };
   const daemon = spawn(AUTO_EXE, ['rqhost', '--pipe', 'musk102-p5-rqhost'], {
@@ -509,10 +509,35 @@ async function probeRemoteArm() {
     const dwins = windowCensus(daemon.pid);
     result.daemonWindowCount = dwins.filter((w) => w.visible && w.titleLen > 0).length;
     result.daemonAlive = daemon.exitCode === null;
-    // finding：rq 客户端 MCP 缺席（vtree/pick/state 面不可用——依赖缺口 D-2）。
-    result.findingMcpAbsentOnRqClient = !/AutoUI MCP: listening on/.test(h.getOut());
+    // D-2：MCP 共位验收（vtree 发布 / state / action 闭环 / 截图快速失败）。
+    const mcp = await awaitMcp(h, 8000);
+    result.mcpUpOnRqClient = !!mcp;
+    if (mcp) {
+      let vt = '';
+      const tv = Date.now();
+      while (Date.now() - tv < 20000) {
+        vt = await mcp.vtree();
+        if (!vt.startsWith('Error:')) break;
+        await sleep(400);
+      }
+      result.vtreePublished = vt.includes('inc') && vt.includes('row-');
+      const st0 = await mcp.state();
+      result.stateWorks = /count: \d+ \(int\)/.test(st0);
+      const incBtn = /button (vnode_\d+) \{label: "inc"/.exec(vt)?.[1] ?? '';
+      await mcp.action(incBtn, 'press', '');
+      await sleep(800);
+      const st1 = await mcp.state();
+      const c0 = Number(/count: (\d+)/.exec(st0)?.[1] ?? -1);
+      const c1 = Number(/count: (\d+)/.exec(st1)?.[1] ?? -2);
+      result.mcpActionLoop = c1 === c0 + 1;
+      const tShot = Date.now();
+      const shotReply = await mcp.call('autoui_screenshot', {});
+      result.screenshotFastFail = shotReply.includes('headless rq render arm') && Date.now() - tShot < 2000;
+    }
     result.pass = result.appHeadless && result.appAlive && result.daemonEmbedsFixture &&
-      result.daemonAlive && result.adoptMs >= 0;
+      result.daemonAlive && result.adoptMs >= 0 &&
+      result.mcpUpOnRqClient && result.vtreePublished === true && result.stateWorks === true &&
+      result.mcpActionLoop === true && result.screenshotFastFail === true;
   } catch (e) {
     result.error = String(e.message ?? e);
     result.pass = false;
