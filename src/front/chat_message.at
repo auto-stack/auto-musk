@@ -459,15 +459,16 @@ style {
                         }
                     }
                 }
-                // toolbar-icons 2026-10-10 r7b：消息级工具栏——分割线常驻
-                // （占位固定,无布局跳动）,按钮按 tbVisible 门控显隐（r4 的
-                // "VM 无 hover 常驻降级"由此升格;web scoped CSS hover 退役,
-                // 单机制双轨）。缩一号/去边框/图标 14 沿 r4/r7。
-                if .tbVisible {
-                    col {
-                        class: "msg-toolbar self-stretch -mt-[10px] pt-[3px] border-t border-border"
-                        row {
-                            style: "flex items-center justify-start gap-1 px-[3px]"
+                // toolbar-icons 2026-10-10 r8：占位修正（用户对拍：hover 出现
+                // 时挤压下方内容）——r7b 把整个工具栏容器都做了门控,隐藏态
+                // 分割线+行一起消失,出现时下方内容下移 ~27px。改：容器与
+                // 分割线常驻,行固定 h-6 占位,仅按钮按 tbVisible 门控显隐
+                // （hidden=按钮隐身,空间保留,零布局跳动,双轨一致）。
+                col {
+                    class: "msg-toolbar self-stretch -mt-[10px] pt-[3px] border-t border-border"
+                    row {
+                        style: "flex items-center justify-start gap-1 h-6 px-[3px]"
+                        if .tbVisible {
                             button {
                                 onclick: .CopyContent
                                 style: "inline-flex items-center justify-center h-6 w-6 px-0 py-0 rounded-md border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer [&_svg]:size-[14px]"
