@@ -197,6 +197,8 @@ hidden: [          Canvas              ]  ← 工具栏可重新打开
 
 2026-10-10 T-02 收口记录：`stage: work`，`plan: PLAN-102`，`revision: 1`，`outcome: executing（T-02 主体收口）`，`code_commit`: musk worktree（present 路由 + census 收窄两提交），`task_ids`: T-02，`evidence`: **F-02-1 结案=环境污染假红**（对照实验 legacy/rq 两臂同收割零新孤儿；"孤儿"实为他会话进程——另一 ZCode 会话 bash 的 legacy 实验与 vm_matrix.mjs 的子进程，父进程链实证）；`embedded_spawn_contract_live` 全绿（spawn/running/presentation{embedded,ws_url 可连}/vtree/停止收窄 census 零残留）；present 路由 3 合同（stale gen 409 / no-session 400 / embedded 幂等 + window 诚实 501 + 非法 400）；**合同门 24/24 绿**。`blockers`: T-02 余项（登记非阻塞）：VMHTTP 轨 present 路由镜像（extern_impl.rs 为生成产物——需走 extern_sigs.at + gen_extern_sigs.js 管线，下程实施）；canvas_live.rs 实机臂（#[ignore]）按 embedded 形态适配归 T-06 回归批。`next`: T-03（前端共用停靠布局——CanvasWorkbench/停靠/分隔条/偏好）。
 
+2026-10-10 T-03 执行记录：`stage: work`，`plan: PLAN-102`，`revision: 1`，`outcome: executing（T-03 切片①）`，`code_commit`: musk worktree `ff66612`，`task_ids`: T-03（部分），`evidence`: `auto build --gen-only --strict` 65 组件通过（canvas_layout_helpers.at 纯函数 + canvas_store.at 偏好/拖动/钳制动作族；load-once 轮询不覆写；persist 内联）。`blockers`: **W-03-1（设计前置）**：组合件视图稿（canvas_workbench.at.draft）暂缓编译——动态宽度需先验证 VM 轨出程形态（§8.14 四形态限制：`style: <字段>` VM 不产出；既有可行先例 = CanvasStudioSlot `style: [.structureColClass]` 方括号字面量集），下程第一步 = 宽度阶梯 vs 内联 style 双轨 spike（build+探针实测），定稿 workbench；随后 canvas_panel.at 宿主化改造 + 外部分隔条 + i18n 键 + canvas-layout-contract.mjs 合同门。
+
 ## 10. 待澄清事项
 
 1. ~~用户未要求本轮实现~~ → 用户已授权执行（2026-10-10 `/auto-plan:work 102`）。
