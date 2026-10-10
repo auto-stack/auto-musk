@@ -127,6 +127,12 @@ widget FolderPlus(size: int = 24) {
     }
 }
 
+widget GitFork(size: int = 24) {
+    view {
+        icon { name: "git-fork", size: .size }
+    }
+}
+
 widget HelpCircle(size: int = 24) {
     view {
         icon { name: "help-circle", size: .size }

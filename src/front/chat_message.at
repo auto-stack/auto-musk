@@ -23,7 +23,7 @@
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web useT from "src/front/ports/composables.at"
 use.web component Markdown from "src/front/ports/renderer.at"
-use.web component Copy from "src/front/ports/icons.at"
+use.web component Copy, GitFork from "src/front/ports/icons.at"
 // PLAN-055 T13: thinkLabel 进内联思考块（ThinkBlock 子件退役）；thinkIsOpen
 // 走 store.think_open 键列表（键=msg.id）。
 // 2026-09-03:工具卡内联（ToolBlock/GenericToolCard 子件退役,沿 ThinkBlock
@@ -50,7 +50,9 @@ use tool_gate_card: ToolGateCard
 widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task_plans: obj, think_open: str, tool_open: str) {
     // PLAN-060 T2:ForkFrom 上抛分叉请求（mid=msg.id）——子件空 handler,
     // 经 onfork 声明路由直达宿主 BranchTo（零参帧对齐根修后单参载荷同链）。
-    msg Msg { CopyContent, ToggleThink(str), ToolToggleKey(str), ForkFrom(str), CancelRun }
+    // toolbar-icons 2026-10-10:CancelRun 撤除——"停止回复"退出 AI 消息工具栏,
+    // 归位 composer 发送钮（发送⇄停止 morph,oncancel→ForgeStore.CancelRun）。
+    msg Msg { CopyContent, ToggleThink(str), ToolToggleKey(str), ForkFrom(str) }
     on {
         // 【2026-09-04 三次定案】展开态回归 ForgeStore 键列表——二次修正的
         // 消息对象直写（.msg.think_expanded/.msg.tool_expanded）在 VM 为
@@ -64,11 +66,6 @@ widget ChatMessage(msg: obj, is_streaming: bool, errands: obj, relays: obj, task
             ForgeStore.ToolToggle(key)
         }
         .ForkFrom(mid str) -> {
-        }
-        // PLAN-071 需求⑨：取消在途运行（后端 cancel 端点置位旗标 + 本地退出
-        // 流式态；沿 ToggleThink 跨件直调 store 先例）。
-        .CancelRun -> {
-            ForgeStore.CancelRun()
         }
         // PLAN-055: AI 消息工具栏 copy（对齐 web 原版 message-toolbar）。
         .CopyContent -> {
@@ -427,6 +424,10 @@ style {
             // PLAN-055: AI 消息工具栏。copy 靠左（用户反馈 2026-09-03：右侧是
             // user 气泡的对齐侧,assistant 工具栏占右观感错位）——对齐 assistant
             // 内容列的左缘。单源新增,gen Vue 轨同步获得。
+            // toolbar-icons 2026-10-10:图标统一 lucide 同刻度（Copy/GitFork 均
+            // size 16 + text-muted-foreground,原 fork "⑂" 字形钮退役）；停止钮
+            // 撤出消息工具栏——归位 composer 发送钮 morph（ChatGPT 式,用户裁定
+            // 2026-10-10）,流式停止统一走 MentionInput oncancel→CancelRun。
             if .isAssistant {
                 row {
                     style: "flex items-center justify-start gap-1 mt-[2px] px-[3px]"
@@ -440,23 +441,13 @@ style {
                     }
                     button {
                         // PLAN-060 T2:分叉入口（chats_fork_session 此前无 UI 触发面,
-                        // 分叉切换器只切既有分支）——⑂ 字形文本钮(VM 居中安全)。
+                        // 分叉切换器只切既有分支）——lucide GitFork（toolbar-icons
+                        // 2026-10-10:原 "⑂" 字形文本钮与 Copy 刻度/色彩不一,统一
+                        // lucide 同 size 同色）。
                         onclick: .ForkFrom(.msg.id)
                         style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
                         title: "Fork"
-                        text "⑂"
-                    }
-                    // PLAN-071 需求⑨：停止按钮归位——从画布底部独立按钮移入
-                    // 流式消息的工具栏（复制/分叉并排）；仅流式中的消息显示，
-                    // 收束即消失。直调 store 取消在途运行（ToggleThink 跨件
-                    // 直调先例），destructive 色示警。
-                    if .is_streaming {
-                        button {
-                            onclick: .CancelRun
-                            style: "inline-flex items-center justify-center h-7 w-7 px-0 py-0 rounded-md bg-transparent text-destructive hover:bg-accent hover:text-destructive cursor-pointer"
-                            title: "Stop"
-                            text "■" { style: "text-[10px] leading-none" }
-                        }
+                        GitFork { size: 16 }
                     }
                 }
             }

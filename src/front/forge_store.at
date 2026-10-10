@@ -133,7 +133,6 @@ store ForgeStore {
         // 原样保留——FlushQueue 不读"当前选择"）。
         QueueWithCtx(str, str),
         QueueRemoveText(str),
-        StopStream,
         CancelRun,
         SetThinking(str),
         FinalizeDraft,
@@ -666,16 +665,24 @@ store ForgeStore {
             .RefreshHeader()
         }
 
-        .StopStream -> {
-            .streaming = false
-            .RefreshHeader()
-        }
+        // toolbar-icons 2026-10-10：原 .StopStream 双同名臂退役撤除（后臂
+        // 遮蔽前臂——编译仅存关 SSE 臂且不清 streaming，composer 停止钮
+        // 点击后 UI 卡停止态的根因）；停止语义并入 .CancelRun（下方，
+        // 后端旗标 + 关 SSE + 清窗 + 退出流式态）。
 
         // PLAN-071 需求⑤ T-25：取消在途运行——后端置位取消旗标（agent 于
         // 迭代边界收束并落盘已有内容），本地立即退出流式态。
+        // toolbar-icons 2026-10-10：本臂升级为停止的唯一入口（composer 发送
+        // 钮停止态）——补关本地 SSE + 清 deadman 窗（沿 StopStream PLAN-062
+        // 口径）：OnStreamEvent 入口对在途事件置回 streaming=true，不关流则
+        // 取消后事件一到立即复活流式态；后端侧旗标照旧置位。
         .CancelRun -> {
             if .session_id != "" {
                 chats_cancel_session(.session_id)
+            }
+            .stream_es = Sse.close(.stream_es)
+            while .poll_window.length > 0 {
+                let _pw0 = .poll_window.pop()
             }
             .streaming = false
             .RefreshHeader()
@@ -894,16 +901,6 @@ store ForgeStore {
             print("[SSE] open: " + path0 + qs)
             .stream_es = Sse.open(path0 + qs, .OnStreamEvent)
         }
-
-        .StopStream -> {
-            .stream_es = Sse.close(.stream_es)
-            // PLAN-062：显式停止即关 deadman 窗——pop 清空窗戳（完成/
-            // 异常/手动停止后窗口立即关闭；列表突变经共享 vmref 可靠，
-            // 与 StartStream 的 push 同机制）。
-            while .poll_window.length > 0 {
-                let _pw0 = .poll_window.pop()
-            }
- }
 
         // PLAN-073 P2-T4：会话打开（切换/刷新载入）即重挂在途 run——后端
         // chat_run_stream 入口窥探守卫：无在途立即回 idle 帧收流；有在途则
@@ -1317,7 +1314,10 @@ store ForgeStore {
                 while .poll_window.length > 0 {
                     let _pw3 = .poll_window.pop()
                 }
-                .StopStream()
+                // toolbar-icons 2026-10-10：原 .StopStream() 调用内联为关流
+                // （该臂已退役；error 臂自身已清 streaming/deadman 窗，这里
+                // 只差 Sse.close 释放连接）。
+                .stream_es = Sse.close(.stream_es)
                 // PLAN-071 需求⑮：收束即排空排队消息。
                 .FlushQueue()
                 return

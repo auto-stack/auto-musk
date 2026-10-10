@@ -91,10 +91,14 @@ widget ChatsView {
         // "加载更早的消息" pill，V-3）。
         LoadOlder,
         // PLAN-071 需求⑤ T-25：取消在途运行（转发 ForgeStore）。
-        // PLAN-071 需求⑨：按钮迁入 ChatMessage 工具栏（子件直调
-        // ForgeStore.CancelRun），本视图级消息与 handler 退役。
+        // PLAN-071 需求⑨：按钮曾迁入 ChatMessage 工具栏。
+        // toolbar-icons 2026-10-10："停止回复"撤出 AI 消息工具栏，归位
+        // composer 发送钮（发送⇄停止 morph，ChatGPT 式）——本视图级消息
+        // 复用为 MentionInput oncancel 的落点，转发 ForgeStore.CancelRun
+        // （后端 cancel 端点置位旗标 + 本地退出流式态；原转发 store.
+        // StopStream 只关本地 SSE 不清 streaming，且后端继续跑，弃）。
         SendInput(str),
-        StopStream,
+        CancelRun,
         ApproveGate,
         RejectGate,
         SecretaryApprove,
@@ -838,7 +842,7 @@ widget ChatsView {
                     // PATCH 持久化;后端 relay driver 遇 gate 读会话模式）。
                     approvalMode: .store.approval_mode
                     onsend: .SendInput($event)
-                    oncancel: .StopStream
+                    oncancel: .CancelRun
                     onpick: .PickThinking($event)
                     onpickapproval: .PickApproval($event)
                 }
@@ -1114,9 +1118,13 @@ widget ChatsView {
             }
         }
 
-        // StopStream: 停止 SSE 流。
-        .StopStream -> {
-            store.StopStream()
+        // CancelRun: composer 发送钮的停止态（MentionInput oncancel）——
+        // 真停在途运行：后端 chats_cancel_session 置位旗标（agent 于迭代
+        // 边界收束落盘）+ 本地退出流式态（streaming=false,发送钮回
+        // 发送形态）。toolbar-icons 2026-10-10 前身 .StopStream 只关本地
+        // SSE（且 store 双同名臂后者生效,连 streaming 都不清,UI 卡停止态）。
+        .CancelRun -> {
+            store.CancelRun()
         }
 
         // B 类批4：ApproveGate/RejectGate 调真实 API（store.ApproveGate/RejectGate
