@@ -81,15 +81,21 @@ Musk canvas 内嵌的呈现与输入底座；候选 B（隐藏窗 + MCP 截图�
   pick/overlay 通道（经 D-2 补齐的 MCP）。
 - vtree/pick/state 锚定面与 DevTools 结构树：继续走 MCP（D-2 前置）。
 
-## 5. 依赖修改点（auto-lang 接缝清单）
+## 5. 依赖修改点（auto-lang 接缝清单）——落地进度
 
-| ID | 接缝 | 形态 | 规模 |
-|:---|:---|:---|:---|
-| S1 | `AUTO_VM_HIDDEN=1` boot 隐藏位 | 已落地（renderer.rs `startup_window_hidden()` + `visible: !opts.pixels && !startup_window_hidden()`）——本轮探针仪器；产品路线 A 不依赖，是否合回上游由复审裁定 | 小（~20 行） |
-| D-1 | 帧宿主可嵌入库：`run_daemon` 去窗化（或抽 host endpoint 库）供 musk backend 作 rq 宿主 | 待 T-02 起草 | 中 |
-| D-2 | rq 客户端臂补 MCP server 启动（vtree/pick/state 面与渲染臂解耦） | 待实施 | 中小 |
-| J2 | `.at` `remote-frame` widget（VM 轨 DisplayList 消费面：schema/codegen + `displaylist_element`/`paint_ops_v2` 复用 + pipe/WS 传输 + 输入映射） | 待实施 | 大（本计划最大单项） |
-| 上游 spec 增量 | `docs/design/autoui/desktop-protocol-v1.md`（若帧宿主语义变化）/ ui overview 增补 | 随 D-1/J2 定稿 | — |
+| ID | 接缝 | 状态 |
+|:---|:---|:---|
+| S1 | `AUTO_VM_HIDDEN=1` boot 隐藏位 | ✅ 已落地（探针仪器；候选 B 证伪后产品不依赖，是否合回上游由复审裁定） |
+| D-1 | 去窗 rq 宿主 + WS 桥（`auto rqhost --pipe <p> --bridge-ws <port> --bridge-token <tok>`） | ✅ 已落地并实机验证（提交 `9b45a6c82`）：adopt/pump/composed 复用 daemon core（`RqServe`/`adopt_one`/`pump_client`/`composed_v2`），事件面换 WS——镜像 Hello 订阅 → Welcome + FrameReadyV2 变化帧推送（v1 客户端退化 FrameReady）；InputMsg 直投 app；ImeRequest/SetCursor 透传。**P6 收据：宿主零窗 census + WS 坐标点击 → app count 0→1 → 新帧回推（WS→pipe→headless app→帧全链闭环）** |
+| D-2 | rq 客户端臂 MCP 共位（`McpHeadlessSource`） | ✅ 已落地并实机验证（提交 `d3042f5f6`）：显式 `AUTOUI_MCP_PORT` 才启动（桌面子批零变化）；每产线帧发布 vtree（span 伴跨）+ state + input_map（run_session §S3a 同源词汇）；`poll_tick` 排水 action → `on_with_input_for`；screenshot 快速失败。**P5 收据：mcpUp 261ms / vtree 4056B / action count 0→1 全绿** |
+| J2 | `.at` remote-frame widget（VM 轨消费面） | ⬜ 未实施（T-04 主项；渲染积木 `displaylist_element`/`paint_ops_v2` 已在 broker_surface.rs） |
+| TS-v2 | drawlist-renderer v2 解码（web 轨消费面） | ⬜ 未实施（现包仅 v1 子集——PLAN-508；FrameReadyV2/DisplayList 追加式超集待镜像） |
+| 上游 spec 增量 | desktop-protocol / ui overview | ⬜ 随 D-1/J2 定稿补 |
+
+**T-02 musk 侧集成地图**（选定架构下的数据面/控制面分工）：
+- 控制面（musk backend，既有 MCP/HTTP）：spawn = bridge daemon 子进程（`--pipe <会话专用>` + 动态分配 WS 口 + 随机 token）+ app 子进程（`AUTO_RQHOST_PIPE` + `AUTO_VM_RENDER=remote` + `AUTOUI_MCP_PORT`）；status/pick/overlay/stop/reap 走 MCP 与既有路由；看门狗截图循环换子进程存活 + MCP 健康。
+- 数据面（bridge WS 直连）：前端经 status 携带的 `ws://127.0.0.1:<port>/?token=` 直连 bridge（回环 + token 同 remote WS 律）——帧（FrameReadyV2）与输入（InputMsg）不过 musk 中继。
+- AC-02 无重启窗口切换：**遗留设计位**——rq 客户端现行为 exit-on-EOF（宿主亡即退）；需上游把宿主切换纳入重连预算（app 进程不亡 = 会话/状态保持），或宿主侧第二呈现面。T-02 实施时定案并实机验证。
 
 上游 spec 权威：`D:/autostack/auto-lang/docs/specs/auto-lang/ui/overview.md`
 （remote 四值 PLAN-683 SD-02 + 交互完备四面 PLAN-690 SD-02 段）。
@@ -121,18 +127,21 @@ Musk canvas 内嵌的呈现与输入底座；候选 B（隐藏窗 + MCP 截图�
 
 ## 8. 探针收据索引
 
-- 脚本：`scripts/ui-parity/canvas-embed-probe.mjs`（worktree）。
+- 脚本：`scripts/ui-parity/canvas-embed-probe.mjs`（worktree，候选 A = P1+P5+P6）。
 - 收据：`tmp/ui-parity/PLAN-102/{P1-baseline-visible,P2-hidden-frames,
-  P3-input-complete,P4-toggle-norestart,P5-remote-arm-census}-receipt.json`。
+  P3-input-complete,P4-toggle-norestart,P5-remote-arm-census,
+  P6-bridge-host}-receipt.json`。
 - 命令与退出码：
   - `node scripts/ui-parity/canvas-embed-probe.mjs --frontend both`
-    （候选 A，缺省）→ **P1 PASS + P5 PASS，退出 0**。
+    （候选 A，缺省）→ **P1 + P5 + P6 全 PASS，退出 0**（2026-10-10 两轮：
+    D-2 落地轮 + D-1 落地轮）。
   - `node scripts/ui-parity/canvas-embed-probe.mjs --frontend both
     --candidate B`（证伪仪器）→ P1 PASS，P2/P3/P4 FAIL（预期红=否证证据）。
 - 夹具：`tests/ui-parity/probes/canvas-embed/embed-fixture/`（计数器 +
   中文输入 + 提交 + 30 行滚动列表 + 坐标拖动面）。
 - 聚焦实验（tmp/，未入库）：`hidden-frame-test.mjs`（隐藏/可见对照）、
-  `swhide-frame-test.mjs`（SW_HIDE 冻结链）、`capture-autoui-devtools.mjs`。
+  `swhide-frame-test.mjs`（SW_HIDE 冻结链）、`capture-autoui-devtools.mjs`、
+  `d2-verify.mjs`（D-2 落地验证）。
 
 ## 9. 对计划任务的影响（T-02 起的执行合同落点）
 
