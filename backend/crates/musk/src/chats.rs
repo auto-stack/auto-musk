@@ -442,6 +442,21 @@ pub struct ChatStore {
 }
 
 impl ChatStore {
+    /// 全序比较器：updated_at 倒序 → created_at 倒序 → id 字典序升序。
+    /// HashMap 迭代序每次实例化随机化 + 同秒 updated_at 并列 + 稳定排序 =
+    /// 每次 list() 洗牌（VM 会话列表"昨天"组几秒一变的根因）；并列必须
+    /// 收成与输入序无关的全序。次级键 created_at 延续"最新在前"语义，
+    /// 末级 id 保证 created_at 也并列时的确定性。在映射成 summary 前
+    /// 施加（ChatSession 才携带 created_at；summary 不加线字段）。
+    fn session_order(a: &ChatSession, b: &ChatSession) -> std::cmp::Ordering {
+        b.updated_at
+            .cmp(&a.updated_at)
+            .then_with(|| b.created_at.cmp(&a.created_at))
+            .then_with(|| a.id.cmp(&b.id))
+    }
+}
+
+impl ChatStore {
     /// Open a store at an explicit path (mainly for tests).
     pub fn at(path: impl Into<std::path::PathBuf>) -> Self {
         Self {
@@ -490,30 +505,22 @@ impl ChatStore {
         Ok(session)
     }
 
-    /// List all sessions as summaries, newest first (by updated_at).
+    /// List all sessions as summaries, newest first. Ordering is a total
+    /// order ([`Self::session_order`]) — same-second updated_at ties must
+    /// not reshuffle between calls (HashMap iteration order is randomized).
     /// PLAN-084 T-05: 默认滤除已归档（wire 兼容——旧前端零感知归档态）；
     /// 已归档面走 [`Self::list_archived`]。
     pub fn list(&self) -> Vec<ChatSessionSummary> {
-        let mut summaries: Vec<_> = self
-            .load_map()
-            .values()
-            .map(|s| s.summary())
-            .filter(|s| !s.archived)
-            .collect();
-        summaries.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-        summaries
+        let mut sessions: Vec<_> = self.load_map().into_values().filter(|s| !s.archived).collect();
+        sessions.sort_by(Self::session_order);
+        sessions.into_iter().map(|s| s.summary()).collect()
     }
 
     /// PLAN-084 T-05: 已归档会话列表（"已归档"过滤开关的数据面），同序。
     pub fn list_archived(&self) -> Vec<ChatSessionSummary> {
-        let mut summaries: Vec<_> = self
-            .load_map()
-            .values()
-            .map(|s| s.summary())
-            .filter(|s| s.archived)
-            .collect();
-        summaries.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
-        summaries
+        let mut sessions: Vec<_> = self.load_map().into_values().filter(|s| s.archived).collect();
+        sessions.sort_by(Self::session_order);
+        sessions.into_iter().map(|s| s.summary()).collect()
     }
 
     /// Get one full session by id.
@@ -881,11 +888,48 @@ mod tests {
         let b = store.create("coding", None).unwrap();
         let list = store.list();
         assert_eq!(list.len(), 2);
-        // Both created within the same second → equal updated_at; ordering
-        // between them is unspecified, so just assert both are present.
+        // Both created within the same second → equal updated_at AND
+        // created_at; the id tiebreak of session_order keeps the order
+        // deterministic, so both presence and stability hold.
         let ids: Vec<_> = list.iter().map(|s| s.id.clone()).collect();
         assert!(ids.contains(&a.id));
         assert!(ids.contains(&b.id));
+    }
+
+    #[test]
+    fn list_same_updated_at_is_total_order_not_reshuffle() {
+        // VM 会话列表"昨天"组几秒一变的根因回归：load_map 每次新解析出
+        // HashMap（迭代序随机化），同秒 updated_at 并列 + 稳定排序 = 每次
+        // list() 洗牌。并列必须收成 created_at 倒序 → id 升序的全序。
+        let (store, f) = temp_store();
+        let a = store.create("superpowers", None).unwrap();
+        let b = store.create("coding", None).unwrap();
+        let c = store.create("coding", None).unwrap();
+        // 直接改档绕开时钟：三会话 updated_at 同秒，created_at 互相错开。
+        let mut map: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_slice(&std::fs::read(f.path()).unwrap()).unwrap();
+        for (id, created) in [(&a.id, &100u64), (&b.id, &200), (&c.id, &300)] {
+            let s = map.get_mut(id).unwrap();
+            s["created_at"] = serde_json::json!(created);
+            s["updated_at"] = serde_json::json!(999u64);
+        }
+        std::fs::write(f.path(), serde_json::to_vec(&map).unwrap()).unwrap();
+
+        let expected = vec![c.id.clone(), b.id.clone(), a.id.clone()];
+        // 每次调用都重读档 → 每次都是一次新的 HashMap 随机迭代序。
+        for _ in 0..16 {
+            let ids: Vec<String> =
+                ChatStore::at(f.path()).list().into_iter().map(|s| s.id).collect();
+            assert_eq!(ids, expected);
+        }
+        // 已归档面同序（把 b 归档后单独验证）。
+        store.archive(&b.id, true).unwrap();
+        let archived: Vec<String> = ChatStore::at(f.path())
+            .list_archived()
+            .into_iter()
+            .map(|s| s.id)
+            .collect();
+        assert_eq!(archived, vec![b.id.clone()]);
     }
 
     #[test]
