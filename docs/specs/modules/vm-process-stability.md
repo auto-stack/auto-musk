@@ -58,3 +58,30 @@ AutoUI MCP server 绑定：同端口 3 次重试（Plan 065）后跨
 
 证据归档：`docs/plans/attachments/066-kd048a-conviction/`（定罪报告+A/B
 soak summary+hangwatch 时序+审计行样本）。
+
+## PLAN-104 修订（活跃会话客户端面 + 审计消费增补，2026-10-12）
+
+UAT 手动复跑（demo2/会话 87af4d4b，353 轮）定谳三事实并落契约：
+
+1. **客户端回填增变检门（K9 契约化）**：会话页轮询路径必须增变跳过——
+   tier1 body 等长预检（空闲期免大载荷二次 parse）+ tier2 窗口指纹
+   （条数+末条 id/正文长/blocks 数+活跃叶；流式拍不跳门）+ 等值不写
+   （`forge_store.at poll_window_fp`/`last_poll_blen`）。旧行为内容未变的
+   拍也全量重建重渲染=持续分配源。结构性事实：静态会话持续轮询已退役
+   （page 仅选中时单拉+canvas 心跳 1/s），K9 驱动面随之消失。
+2. **大会话行为基准（K10 收口）**：350 轮/261KB 页载荷会话渲染健康
+   （54 marker 快照断言）、10min 轮询存活、全程零 RuntimeError——降级
+   （尾窗/横幅）无适应症不实施。服务端投影既有界（50 条窗+`before` 游标
+   +双 CAP+blocks 预算，`chat_page.rs`）。
+3. **审计判读增补（active 场景 + 假象警示）**：①仪器对 VM 的
+   taskkill 收尾击杀会被 exit 处理器先于错误栈打印误读为"自退"——判读
+   前先核对收尾标记（仪器 `cleaningUp` 纪律，765 后记⑦）；②依赖直调
+   ExitProcess 零痕盲区由 auto-lang 765 F-10 `ExitProcess` IAT 追踪钩
+   （env `P765_EXIT_TRACE=1` 门控常驻诊断件）闭合，本仓仪器可复用；
+   ③MCP 监听根路径（`/mcp` 为 404 空文，端点发现勿空转）。
+
+新增常驻仪器：`scripts/soak-active-session.mjs`（隔离栈+分相位内存采样
++VM 输出落盘；斜率=MB/min 最小二乘）与 `scripts/bigpage-matrix.mjs`
+（350 轮合成+MCP 开会话渲染断言+长寿相位）。修复后基准：idle
+0.717MB/min（门 0.1MB/s=6MB/min 的 8.4× 余量）；退出面审计归零
+（1h 轮询存活，PLAN-765 稳态+本仓检门共同覆盖）。
