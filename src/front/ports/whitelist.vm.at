@@ -1,18 +1,38 @@
-// ports/whitelist.vm.at — PLAN-066 T-12 同族:白名单域 VM adapter。
+// ports/whitelist.vm.at — 白名单域 VM adapter（PLAN-105 T-07 真接线）。
 //
-// web 侧 whitelist.web.at re-export whitelist_web.ts（fetch 白名单工作区
-// 根增删查，400 error body 原样透传）。VM 轨白名单走后端桥的等价 face
-// 尚未接线（PLAN-070 VM 轨缺口在案），域内 fn 以安全空值桩补位——链接
-// 可解析、加载返回空列表、增删返回 error 空串（调用面判 res.error）。
+// 原 PLAN-066 T-12 空桩（{ok:true} 零效果）是 UAT 87af4d4b P7 实锤：用户
+// 在 VM 视图添加 .wt 显示成功、实际零效果（PLAN-070 VM 轨缺口）。
+//
+// 接线路径：musk_extern_dispatch → vm_backend host! 注册表
+// （workspace_roots_list/add/remove，PLAN-066 同族 in-process 后端桥）。
+// 不走 HTTP face：VM http native 非 2xx 丢响应体（{"error":"HTTP 400"}），
+// 而白名单视图必须原样展示拒绝原因（目录不存在/黑名单拒绝/未知
+// workspace）——web 轨 whitelist_web.ts 为此特意绕开生成绑定，本轨对等
+// 语义经 in-process 桥达成（add/remove 的 Err 文案直透 error 字段）。
+//
+// 宿主未注册（无 musk 后端的裸 VM）→ dispatch 回 null → 诚实报错
+// （消灭 ok:true 假成功形态；红线：接线前空桩必须诚实）。
 
 fn loadWorkspaceRoots(wid str) {
-    return { ok: true, roots: [], error: "" }
+    let r = musk_extern_dispatch("workspace_roots_list", [wid])
+    if r == None {
+        return { ok: false, roots: [], error: "VM 轨白名单后端未接线（宿主未注册 workspace_roots_list）" }
+    }
+    return r
 }
 
 fn addWorkspaceRoot(wid str, path str) {
-    return { ok: true, error: "" }
+    let r = musk_extern_dispatch("workspace_roots_add", [wid, path])
+    if r == None {
+        return { ok: false, roots: [], error: "VM 轨白名单后端未接线（宿主未注册 workspace_roots_add）" }
+    }
+    return r
 }
 
 fn removeWorkspaceRoot(wid str, path str) {
-    return { ok: true, error: "" }
+    let r = musk_extern_dispatch("workspace_roots_remove", [wid, path])
+    if r == None {
+        return { ok: false, roots: [], error: "VM 轨白名单后端未接线（宿主未注册 workspace_roots_remove）" }
+    }
+    return r
 }

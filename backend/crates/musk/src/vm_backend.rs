@@ -124,7 +124,7 @@ pub fn state() -> Option<Arc<AppState>> {
 /// 网关转发（args 为 JSON 数组,状态参由本侧闭包捕获,不进 ABI）。首期覆盖
 /// parity 数据面的核心集;长尾 extern 未注册时网关回退 null（handler 错误
 /// 包络兜底）,后续按域补齐。
-fn register_host_calls() {
+pub(crate) fn register_host_calls() {
     type SerdeValue = serde_json::Value;
 
     fn st() -> Result<Arc<AppState>, String> {
@@ -242,6 +242,42 @@ fn register_host_calls() {
     host!("relay_runs_list", |a| enc(ei::relay_runs_list(&st_axum(&st()?), wq_relay(a))));
     host!("relay_task_plans_list", |a| enc(ei::relay_task_plans_list(&st_axum(&st()?), wq_relay(a))));
     host!("ws_wiki_list", |a| enc(ei::ws_wiki_list(&st_axum(&st()?), wq_wiki(a))));
+
+    // ── 白名单域（PLAN-105 T-07/P7）：VM 视图增删查 workspace 白名单根。
+    // 不走 HTTP face：VM http native 非 2xx 丢 body（{"error":"HTTP 400"}），
+    // 白名单视图必须原样展示拒绝原因（web 轨 whitelist_web.ts 语义）——
+    // in-process 桥直调 registry，add/remove 的 Err 文案（目录不存在/
+    // 黑名单拒绝/未知 workspace 等）原样透传进 error 字段。UAT 87af4d4b
+    // 17:28:06 空桩假成功（{ok:true} 零效果）的收口。
+    host!("workspace_roots_list", |a| {
+        let id = arg(a, 0).as_str().unwrap_or_default().to_string();
+        let st = st()?;
+        if id.is_empty() {
+            return enc(serde_json::json!({"ok": false, "roots": [], "error": "missing workspace id"}));
+        }
+        if st.registry.get_exact(&id).is_none() {
+            return enc(serde_json::json!({"ok": false, "roots": [], "error": format!("unknown workspace '{id}'")}));
+        }
+        enc(serde_json::json!({"ok": true, "roots": st.registry.extra_roots(&id), "error": ""}))
+    });
+    host!("workspace_roots_add", |a| {
+        let id = arg(a, 0).as_str().unwrap_or_default().to_string();
+        let root = arg(a, 1).as_str().unwrap_or_default().to_string();
+        let st = st()?;
+        match st.registry.add_extra_root(&id, &root) {
+            Ok(roots) => enc(serde_json::json!({"ok": true, "roots": roots, "error": ""})),
+            Err(e) => enc(serde_json::json!({"ok": false, "roots": [], "error": e})),
+        }
+    });
+    host!("workspace_roots_remove", |a| {
+        let id = arg(a, 0).as_str().unwrap_or_default().to_string();
+        let root = arg(a, 1).as_str().unwrap_or_default().to_string();
+        let st = st()?;
+        match st.registry.remove_extra_root(&id, &root) {
+            Ok(roots) => enc(serde_json::json!({"ok": true, "roots": roots, "error": ""})),
+            Err(e) => enc(serde_json::json!({"ok": false, "roots": [], "error": e})),
+        }
+    });
 
     // ── SSE/mpsc 域（T4）── mpsc 句柄即 JSON 数字,HANDLES side-table 在宿主,
     // 直接过网关;async 生产者(agent/chat/wf stream)经 tokio spawn 并发推 tx,
@@ -382,4 +418,130 @@ fn register_host_calls() {
     host!("chat_get_page_host", |a| {
         enc(ei::chat_get_page_host(&st_axum(&st()?), arg(a, 0), arg(a, 1).as_str().unwrap_or_default())?)
     });
+}
+
+#[cfg(test)]
+mod tests {
+    //! PLAN-105 T-07（P7/AC-07）：VM 白名单 host 桥回环——经
+    //! musk_extern_dispatch 网关同路径（call_host）直调注册表，验证
+    //! 增删查往返、错误文案透传、未知 workspace 拒绝。UAT 87af4d4b
+    //! 空桩假成功（add 返 {ok:true} 零效果）的收口钉测。
+
+    use super::*;
+
+    struct NoopClient;
+    #[async_trait::async_trait]
+    impl auto_ai_agent::Client for NoopClient {
+        async fn complete(
+            &self,
+            _req: &auto_ai_client::CompletionRequest,
+        ) -> Result<auto_ai_client::CompletionResponse, auto_ai_client::ClientError> {
+            unreachable!("whitelist host tests never call the LLM")
+        }
+    }
+
+    fn setup() -> String {
+        let dir = std::env::temp_dir().join(format!(
+            "musk-q105-wlhost-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let registry =
+            crate::workspace::WorkspaceRegistry::load(dir.join("workspaces.json"), dir.clone());
+        init_state(std::sync::Arc::new(AppState {
+            client: std::sync::Arc::new(NoopClient) as std::sync::Arc<dyn auto_ai_agent::Client>,
+            auth: std::sync::Arc::new(crate::auto_generated::auth::AuthStore::new(
+                dir.join("users.json"),
+            )),
+            registry: std::sync::Arc::new(registry),
+            canvas: std::sync::Arc::new(crate::canvas::CanvasManager::new()),
+            chat_runs: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+            chat_cancels: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
+            run_idle_timeout: std::time::Duration::from_secs(300),
+            run_auto_continue: false,
+            chat_pending: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
+        }));
+        register_host_calls();
+        // 真实默认 workspace id（与 HTTP 面同口径：get_exact 拒空串——
+        // 前端传 storage 里的非空 id）。
+        state()
+            .and_then(|st| st.registry.list().first().map(|m| m.id.clone()))
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn whitelist_host_bridge_roundtrip_and_error_passthrough() {
+        let ws = setup();
+        let target = std::env::temp_dir().join(format!(
+            "musk-q105-wltarget-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&target).unwrap();
+
+        // ① 增：真实目录 → ok，roots 含目标（VM 内添加即生效——文件工具
+        // 下一轮 run 经 sandbox_roots 即刻可见）。
+        let args = serde_json::json!([ws, target.display().to_string()]).to_string();
+        let r = auto_lang::vm::host_bridge::call_host("workspace_roots_add", &args)
+            .expect("host call ok");
+        let v: serde_json::Value = serde_json::from_str(&r).unwrap();
+        assert_eq!(v["ok"], serde_json::json!(true), "add: {v}");
+        assert!(
+            v["roots"].as_array().map(|a| !a.is_empty()).unwrap_or(false),
+            "roots 应含新根: {v}"
+        );
+
+        // ② 查：list 与 add 后状态一致。
+        let args2 = serde_json::json!([ws]).to_string();
+        let r2 = auto_lang::vm::host_bridge::call_host("workspace_roots_list", &args2)
+            .expect("host call ok");
+        let v2: serde_json::Value = serde_json::from_str(&r2).unwrap();
+        assert_eq!(v2["ok"], serde_json::json!(true), "list: {v2}");
+        assert!(
+            v2["roots"].as_array().map(|a| !a.is_empty()).unwrap_or(false),
+            "list 应含已加根: {v2}"
+        );
+
+        // ③ 错误文案透传：不存在的目录 → ok:false + 原因（web 轨 400
+        // body 同语义——VM http face 丢 body，本桥不丢）。
+        let args3 = serde_json::json!([ws, "D:/definitely/not/exist/q105"]).to_string();
+        let r3 = auto_lang::vm::host_bridge::call_host("workspace_roots_add", &args3)
+            .expect("host call ok");
+        let v3: serde_json::Value = serde_json::from_str(&r3).unwrap();
+        assert_eq!(v3["ok"], serde_json::json!(false), "bad add: {v3}");
+        assert!(
+            !v3["error"].as_str().unwrap_or("").is_empty(),
+            "错误文案应透传: {v3}"
+        );
+
+        // ④ 未知 workspace → 拒绝。
+        let r4 = auto_lang::vm::host_bridge::call_host(
+            "workspace_roots_list",
+            r#"["no-such-ws-q105"]"#,
+        )
+        .expect("host call ok");
+        let v4: serde_json::Value = serde_json::from_str(&r4).unwrap();
+        assert_eq!(v4["ok"], serde_json::json!(false), "unknown ws: {v4}");
+
+        // ⑤ 删：移除后 roots 不再含目标。
+        let args5 = serde_json::json!([ws, target.display().to_string()]).to_string();
+        let r5 = auto_lang::vm::host_bridge::call_host("workspace_roots_remove", &args5)
+            .expect("host call ok");
+        let v5: serde_json::Value = serde_json::from_str(&r5).unwrap();
+        assert_eq!(v5["ok"], serde_json::json!(true), "remove: {v5}");
+        assert_eq!(
+            v5["roots"].as_array().map(|a| a.len()).unwrap_or(1),
+            0,
+            "删后应空: {v5}"
+        );
+    }
 }
