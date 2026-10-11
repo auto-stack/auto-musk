@@ -4,7 +4,7 @@ status: executing
 feature_name: Canvas 内嵌交互预览与 DevTools 可停靠布局
 author: [agent]
 created_at: 2026-10-10T05:20:55Z
-updated_at: 2026-10-11T10:30:00Z
+updated_at: 2026-10-11T17:50:00Z
 plan_revision: 1
 current_step: 5
 total_steps: 6
@@ -221,6 +221,9 @@ hidden: [          Canvas              ]  ← 工具栏可重新打开
 
 
 2026-10-11 T-06 四轨全绿执行记录：`stage: work`，`plan: PLAN-102`，`revision: 1`，`outcome: executing（T-06 主体收口：四轨矩阵 ALL PASS；余 J2 后 P-embed 终跑）`，`code_commit`: musk worktree（本切片提交），`task_ids`: T-06（主体），`evidence`: **F-06-1/F-06-2 双闭环 + V05 FOUR-MODE ALL PASS**（`tmp/ui-parity/PLAN-102/canvas-studio-live-receipt.json`：vue-rust 18/18 + vue-vm 18/18 + vm-rust 14/14 + vm-vm 14/14）。① **F-06-1 根因与修复（真产品缺陷）**：双根因——驱动曾误用主检出旧版 musk.exe（worktree 后端未构建，MUSK_EXE 兜底链落旧版）+ embedded rq 会话帧缓存设计上恒 None（T-02 口径）而 pick 无帧门/vnode 几何双双误伤：修复 = 帧门限坐标形态（axum canvas_pick + extern_impl canvas_pick_host 双面同律）+ pick_vnode 无帧以逻辑窗 480x680 基准（scale=1，bbox_pct 语义不变）——合同 +2（`pick_vnode_without_frame_uses_logical_basis` / `route_pick_frame_gate_scoped_to_coord_form`，29/29 绿）。② **F-06-2 根因**：驱动定位器正则被历史 sed 毁（`vnode_d+`）+ 文本 × 首匹配误中他钮；链路本身定向复现证通（handler .Stop 按下 → stopped）——驱动定位锚改 events onclick。③ **vm-cycle 前端时序修复**：vm 后端 AutoVM 初始化 ~40s，前端先起 → daemon-ensure 自起 rust musk 抢 17201 同口（尾日志时间线定罪）→ 前端 spawn 延后至后端就绪。④ **Vue 臂消费面死锁修复**：embed_ready 原找到宿主才写 vs 键在才渲染宿主互锁——改安装即写；to_int 跨轨类型安全形态 = 三语句字符串中转（单表达式括号被生成器重排结合序实测）。⑤ **ports-probe 断言现代化**（PLAN-102 后口径）：img 帧断言 → embed 消费面（宿主+canvas 注入）；studio 宽度对比 → 槽特征类。⑥ 回归门：gen 69 / canvas-contract 65/0 / layout-contract 59/0 / embed-probe 3/3 / canvas_studio_contract 29/29。`blockers`: 无阻塞；编排器首行打印 plan=093 为遗留字面量（收据路径已按 102 落盘——下轮顺手清理）。`next`: 760（J2 remote-frame）交付后——canvas_panel VM 分支换件 + P-embed 断言臂（DrawList 帧内容/操作输入）→ T-04 收口 → T-06 终跑四轨 + 收据索引 → review。
+
+
+2026-10-11 T-04 收口执行记录（760 交付后）：`stage: work`，`plan: PLAN-102`，`revision: 1`，`outcome: executing（T-04 P-embed 输入闭环已通；余两观察项）`，`code_commit`: musk worktree（本切片两提交）+ auto-lang master `92067662c`（F-RF-1），`task_ids`: T-04（主体收口），`evidence`: ① remote-frame 元件接入 canvas_panel（embedded 帧区双轨同源；img 降级退役至非 embedded）；② bridge `&app=` 订阅名织参（session 尾随 bridge stderr 解析 adopted 名→status URL——Hello app_name 精确匹配缺参永不命中，帧区恒占位定罪）+ `mcp_base` 出 status；③ **P-embed 输入闭环**（vm-cycle `embed-operate-input-roundtrip` ✔ count 0→1）：原子点击器 `scripts/ui-py/click-hwnd.py`（760 e2e send_click 移植+自寻窗单进程——两步定位窗口漂移 +362/+16 物理像素为最后根因）；该断言同时证明帧已渲染（点击按 contain 换算命中夹具钮位）；④ **上游 F-RF-1 修复**（auto-lang master `92067662c`）：to_remote 拉伸→contain 逆映射（宽高比不等输入渲染错位；宽窗 e2e 复现+修复 11/11，760 原 1:1 宿主掩盖）；⑤ vm-cycle rust 臂 **16/17**。`blockers`: **F-04-3（开放）**：`embed-frame-follows-input` md5 断言红——疑 iced canvas 帧到达无 invalidation（内容变化不重绘、重连面会重绘——上游 F-RF-2 候选）或 autoui_screenshot 文件身份；定向诊断 = 计数变化后 hover canvas 再截图（交互 invalidation 对照）；**F-04-4（开放）**：vm 后端臂 13/17——原子点击器 nowin（窗口标题/可见性定位毛刺）+ dock 断言红（疑同轮 boot 毛刺——该臂此前 14/14 过）；两臂均需复跑定性。`next`: F-04-3/F-04-4 诊断 → vm 臂全绿 → 矩阵终跑 → T-04/T-06 checkbox → review。
 
 ## 10. 待澄清事项
 
