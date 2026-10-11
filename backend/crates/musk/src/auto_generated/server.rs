@@ -125,6 +125,9 @@ pub struct RelatedInfo {
 pub struct TransitionOk {
     pub status: String,
     pub new_status: String,
+    /// PLAN-105 T-06（P6③）：服务端**应用后**状态真值（snake_case）；
+    /// new_status 保留请求原串仅作对照（未知串已在解析层 400，到不了这）。
+    pub applied_status: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -474,11 +477,24 @@ pub async fn specs_related(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path
 }
 
 pub async fn specs_upsert(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<SpecsUpsertRequest>) -> Response {
-    return to_response(specs_upsert_of(&s, q, body), "upsert failed", 400);
+    // PLAN-105 T-06（P6④）：错误体透传——delegate 返回
+    // {"error":{code,message}} 包络时按其 code/message 响应（未知状态串
+    // 带合法值清单），不再压成常串。
+    let v = specs_upsert_of(&s, q, body);
+    if resp_is_err(&v) {
+        return err_response(resp_err_message(&v), resp_err_code(&v));
+    }
+    to_response(v, "upsert failed", 400)
 }
 
 pub async fn specs_transition(s: State<AppState>, q: Query<WorkspaceQuery>, body: Json<SpecsTransitionRequest>) -> Response {
-    return to_response(specs_transition_of(&s, q, body), "transition failed", 400);
+    // PLAN-105 T-06（P6④）：错误体透传——transition_item 的 Err 原文
+    // （非法转移 from→to 详情 / section、item 未找到 / 未知状态串带清单）。
+    let v = specs_transition_of(&s, q, body);
+    if resp_is_err(&v) {
+        return err_response(resp_err_message(&v), resp_err_code(&v));
+    }
+    to_response(v, "transition failed", 400)
 }
 
 pub async fn specs_delete(s: State<AppState>, q: Query<WorkspaceQuery>, p: Path<(String, String)>) -> Response {

@@ -85,7 +85,13 @@ impl SectionType {
 
 /// Lifecycle status of a spec item or section. Full 23-variant set retained
 /// for serialization compatibility; the state machine (later) uses ~17.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+///
+/// PLAN-105 T-06（P6⑤）：线格式统一 snake_case——Serialize 经
+/// `rename_all`；Deserialize 手写宽容读（既有磁盘/历史负载上的帕斯卡值
+/// 「UnderReview」归一为枚举，未知串显式报错——`from_str_lossy` 的静默
+/// Draft 兜底只保留给内部宽容面，不再进入线协议）。
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SpecStatus {
     Empty,
     Proposed,
@@ -143,6 +149,8 @@ impl SpecStatus {
     }
 
     /// Parse from a string. Unknown → Draft (lossy, matches auto-forge).
+    /// PLAN-105 T-06：仅内部宽容面（进程内既有调用）；API 边界一律
+    /// [`SpecStatus::parse_exact`]，未知串显式 400。
     pub fn from_str_lossy(s: &str) -> Self {
         match s {
             "empty" => SpecStatus::Empty,
@@ -170,6 +178,84 @@ impl SpecStatus {
             "obsolete" => SpecStatus::Obsolete,
             _ => SpecStatus::Draft,
         }
+    }
+
+    /// PLAN-105 T-06（P6①）：严格解析——只收 snake_case 精确值，未知/大小写
+    /// 不符返回 None（API 边界据此 400 带合法值清单）。
+    pub fn parse_exact(s: &str) -> Option<Self> {
+        match s {
+            "empty" => Some(SpecStatus::Empty),
+            "proposed" => Some(SpecStatus::Proposed),
+            "draft" => Some(SpecStatus::Draft),
+            "under_review" => Some(SpecStatus::UnderReview),
+            "approved" => Some(SpecStatus::Approved),
+            "in_progress" => Some(SpecStatus::InProgress),
+            "in_implementation" => Some(SpecStatus::InImplementation),
+            "implemented" => Some(SpecStatus::Implemented),
+            "verified" => Some(SpecStatus::Verified),
+            "done" => Some(SpecStatus::Done),
+            "archived" => Some(SpecStatus::Archived),
+            "rejected" => Some(SpecStatus::Rejected),
+            "backlog" => Some(SpecStatus::Backlog),
+            "ready" => Some(SpecStatus::Ready),
+            "in_review" => Some(SpecStatus::InReview),
+            "blocked" => Some(SpecStatus::Blocked),
+            "superseded" => Some(SpecStatus::Superseded),
+            "outdated" => Some(SpecStatus::Outdated),
+            "stable" => Some(SpecStatus::Stable),
+            "deprecated" => Some(SpecStatus::Deprecated),
+            "published" => Some(SpecStatus::Published),
+            "analysed" => Some(SpecStatus::Analysed),
+            "obsolete" => Some(SpecStatus::Obsolete),
+            _ => None,
+        }
+    }
+
+    /// PLAN-105 T-06（P6⑤ 读侧归一）：宽容解析——snake_case 精确命中，否则
+    /// 去下划线小写比较（「UnderReview」/「InReview」/「inreview」归一），
+    /// 仍未知 → None（反序列化报错，不再静默 Draft）。
+    pub fn parse_lenient(s: &str) -> Option<Self> {
+        if let Some(v) = Self::parse_exact(s) {
+            return Some(v);
+        }
+        let norm = s.replace('_', "").to_ascii_lowercase();
+        const ALL: [(SpecStatus, &str); 23] = [
+            (SpecStatus::Empty, "empty"),
+            (SpecStatus::Proposed, "proposed"),
+            (SpecStatus::Draft, "draft"),
+            (SpecStatus::UnderReview, "underreview"),
+            (SpecStatus::Approved, "approved"),
+            (SpecStatus::InProgress, "inprogress"),
+            (SpecStatus::InImplementation, "inimplementation"),
+            (SpecStatus::Implemented, "implemented"),
+            (SpecStatus::Verified, "verified"),
+            (SpecStatus::Done, "done"),
+            (SpecStatus::Archived, "archived"),
+            (SpecStatus::Rejected, "rejected"),
+            (SpecStatus::Backlog, "backlog"),
+            (SpecStatus::Ready, "ready"),
+            (SpecStatus::InReview, "inreview"),
+            (SpecStatus::Blocked, "blocked"),
+            (SpecStatus::Superseded, "superseded"),
+            (SpecStatus::Outdated, "outdated"),
+            (SpecStatus::Stable, "stable"),
+            (SpecStatus::Deprecated, "deprecated"),
+            (SpecStatus::Published, "published"),
+            (SpecStatus::Analysed, "analysed"),
+            (SpecStatus::Obsolete, "obsolete"),
+        ];
+        ALL.iter().find(|(_, k)| *k == norm).map(|(v, _)| *v)
+    }
+}
+
+impl<'de> Deserialize<'de> for SpecStatus {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        SpecStatus::parse_lenient(&s).ok_or_else(|| {
+            serde::de::Error::custom(format!(
+                "unknown spec status '{s}' (expected snake_case, e.g. under_review)"
+            ))
+        })
     }
 }
 
@@ -703,11 +789,19 @@ impl SectionConfig {
     /// Idempotent (from == to) is always allowed. Otherwise the pair must be in
     /// `allowed_transitions`. (The loose "to ∈ allowed_statuses" rule is
     /// intentionally NOT applied — see docs/plans/009 Task 1.)
+    /// PLAN-105 T-06：同态仍过（幂等重放合法），但 API 响应回显应用后状态
+    /// （applied_status），不再与「未知串兜底 Draft」叠加成 200 假成功
+    /// （解析已严格化——未知串到不了这里）。
     pub fn can_transition(&self, from: SpecStatus, to: SpecStatus) -> bool {
         if from == to {
             return true;
         }
         self.allowed_transitions.contains(&(from, to))
+    }
+
+    /// PLAN-105 T-06：本区合法状态 snake_case 清单（API 400 错误体用）。
+    pub fn allowed_status_strs(&self) -> Vec<&'static str> {
+        self.allowed_statuses.iter().map(|s| s.to_str()).collect()
     }
 }
 
@@ -1016,9 +1110,25 @@ mod tests {
     fn spec_item_serializes_with_status_string() {
         let item = SpecItem::new("A1", "arch");
         let json = serde_json::to_string(&item).unwrap();
-        // status serializes as the variant name (serde default); the to_str/
-        // from_str_lossy pair is the canonical wire form for .ad files.
-        assert!(json.contains("Empty"));
+        // PLAN-105 T-06（P6⑤）：线格式统一 snake_case（GET/POST 对称——
+        // 读到的值可直接写回）；读侧对既有磁盘帕斯卡值归一兼容
+        // （parse_lenient），见 spec_status_deserializes_lenient_pascal。
+        assert!(json.contains("\"empty\""), "wire snake_case: {json}");
+        assert!(!json.contains("Empty"), "不得再出帕斯卡: {json}");
+    }
+
+    /// PLAN-105 T-06（P6⑤ 读侧归一）：既有磁盘/历史负载的帕斯卡值
+    /// （UnderReview/InReview）反序列化归一；未知串显式报错（不再静默
+    /// Draft）。
+    #[test]
+    fn spec_status_deserializes_lenient_pascal() {
+        let pas: SpecStatus = serde_json::from_str("\"UnderReview\"").unwrap();
+        assert_eq!(pas, SpecStatus::UnderReview);
+        let pas2: SpecStatus = serde_json::from_str("\"InReview\"").unwrap();
+        assert_eq!(pas2, SpecStatus::InReview);
+        let snake: SpecStatus = serde_json::from_str("\"under_review\"").unwrap();
+        assert_eq!(snake, SpecStatus::UnderReview);
+        assert!(serde_json::from_str::<SpecStatus>("\"Nonsense\"").is_err());
     }
 
     #[test]
