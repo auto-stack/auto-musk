@@ -127,3 +127,66 @@
   须移除——merge 清单在案）。
 - 代码生成/链接门禁二进制：auto-lang release auto.exe（10-10 构建，
   PLAN-760 登记落后观察项；.at 语法面无涉本次改动语义）。
+
+## T-07 回归收口与 UAT 复验（2026-10-11 晚，隔离栈）
+
+### V07 T1 简版复跑（主用例，AC-06 实证）
+
+- **栈**：worktree 构建 musk.exe（plan-104-dev @ ac5b22d）serve :17255 +
+  `MUSK_CONFIG_DIR` 私有注册表（demo-t1 → tmp/demo-t1）+ 共享 aaid :17654；
+  自动门禁技能分发核验（4 技能来自 worktree，含 T-05/T-06 新文本）。
+- **形态**：RUNBOOK §2 + PLAN-104 对策（分阶段新会话 / 白名单预注册
+  `D:\autostack\.wt\demo-plan-001`（roots/add）/ 终检追加）。消息四条按
+  msg-1 原文 + msg-2/3/4 改写（去首轮硬编码提交号）。
+- **结果**：**pass**——
+  - new（2aceea2c，4.2min）→ PLAN-001 drafting；
+  - work resume（b815eb06，21.5min，首会话 9d569e1a 见事故①）→
+    execution_done 5/5，worktree 单元提交 5c93041（4 文件 +493 行）；
+  - review（0c32f001，10.8min）→ reviewed，outcome pass @r2 绑 5c93041；
+  - merge（27069ba9，13.1min，首会话 fe215347 见事故③）→ main 快进
+    `b779ca3→5c93041→f5ae990`、四收据齐、worktree 组+分支已清、
+    `git status` 干净、`node --test` 15/15。
+  - **台账 4 条全带 file+tags**（DES/TST/REV/REP；spec-blob:3acb55f6 与
+    `git hash-object` 逐字一致）——AC-06 的 K12/K13 合同实证。
+  - 全程 **零 K2 人工 nudge**（与 87af4d4b 轮 3 次 nudge 对比；阶段切分
+    + 分会话形态下 K2 未触发）。
+- **观察项（K 表候选）**：归档计划文件 frontmatter `status` 停留
+  `reviewed` 未翻 `archived`（API `archived:true` 正确、目录归位正确；
+  判读以 archived 标志为准，status 字段属 merge 技能簿记缺口）。
+- 遥测摘要：`docs/reports/plan-flow-uat/runs/2026-10-11-{2aceea2c,
+  9d569e1a,b815eb06,0c32f001,fe215347,27069ba9}*.{json,md}`。
+
+### 事故记录（复跑期间三项）
+
+1. **auto 模式 taskkill 自毁零防护（K 表新行）**：work 首会话（9d569e1a）
+   13:07:27 连续踩 run_command 引号损坏（node -e 多行崩溃 → 下一条命令
+   "文件名/目录语法错误"）后，一命令将 **musk.exe 按映像整体清除**——
+   隔离栈 :17255 与上午 demo2 栈 :17201 双亡（tasklist 双证、本侧等待器
+   ECONNRESET、后台任务 exit 127）。auto 审批模式（PLAN-073 F-D"不打断"）
+   对宿主自杀命令无任何拦截。demo2 栈未在本轮恢复（重启属用户裁量）。
+   关联：PLAN-105 P4/P5（引号保真，直接诱因）与 P8（进程收割面，缺
+   宿主保护语义）；resume 会话以进程红线约束重启后正常走完。
+2. **serve 硬死 → run 转录全丢**：被杀会话 turns.jsonl 仅存用户消息 1 行
+   （run 事件全部未落盘；PLAN-099 T-03 工具边界快照在 serve 进程死亡
+   形态下不提供任何持久化）。关联 PLAN-105 P1 家族（收束/持久化面）。
+3. **上游 LLM 瞬时 500**：merge 首会话（fe215347）ev#3 即死（zhipu
+   code 1234 网络错误）；新会话重发一次成功。外部因素，K 表备注即可。
+
+### V06 复验处置
+
+- 自动门禁（gen-only strict / vm-link-probe / ui-parity）HEAD ac5b22d
+  已绿（T-02 精化后复跑，见命令表）。
+- **实机冒烟（新增）**：auto-lang dde29cf2c auto.exe `run --render=vm`
+  （AUTO_HTTP_PORT=17255）对隔离栈实跑 5+ 分钟，5124 行日志
+  **零 RuntimeError / panic / Field not found**（StatusBackfill 流动证
+  实桥接在线——:17201 已死仍存活即指向 :17255）。
+- **FilesView 物理点击：本轮未执行**——computer-use 桌面驱动能力在本
+  ZCode 会话未启用，无法编程点击原生窗口。K11 修复的静态门禁全绿 +
+  097 T-11 同族先例 + 冒烟零错；点击复验留 review 裁定（或用户在 VM
+  窗口随手点一次 Files 即可闭）。
+
+### V05 复核
+
+- 沿用 T-02 精化轮的全套判定（37 目标：11 绿 + tool_atoms 存量红 098
+  F-2 + 20 编译错 base 预存）；本轮未改 musk 代码面（evidence/RUNBOOK/
+  telemetry 文档落账不触代码），无需重跑。

@@ -107,3 +107,4 @@
 | 2026-09-28 | 首轮 T1（ZCode 会话 sess_47ea3a2c；musks@a17201 + aaid@17654） | **pass**——PLAN-001 archived delivered，四收据齐，终检全过 | spec.md T1；驱动消息 [messages/msg-1..4](./messages/) |
 | 2026-09-29 | 首轮 T2/T3/T4 | T2 pass（自启 Relay）；T3 fail（K5–K7 级联，催生 PLAN-094）；T4 pass | spec.md T2/T3/T4 与 K 表；main `97fc677` |
 | 2026-09-29 | PLAN-094 修复验证重跑（demo baseline `8fe52ad`，修复版 musk@:17255） | 门修复 3/4 断言实证（门不放行无计划 run ×4 / ledger 零破坏 / 失败带明确原因）；advisor 产出可靠性受阻于 K1 预存债 | spec.md"2026-09-29 PLAN-094 重跑记录"；main `1993eaa` |
+| 2026-10-11 | PLAN-104 T-07 简版复跑（隔离栈 :17255/worktree ac5b22d；分阶段新会话+白名单预注册） | **pass**——四阶段 4.2/21.5/10.8/13.1min，main `b779ca3→5c93041→f5ae990`，四收据齐，台账 4 条含 file/tags，零 K2 nudge；事故三项 K14-K16（taskkill 自毁/serve 硬死转录丢/zhipu 500） | spec.md T1 复跑行 + runs/2026-10-11-* 遥测 |

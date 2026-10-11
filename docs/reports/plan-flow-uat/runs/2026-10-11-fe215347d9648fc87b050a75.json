@@ -1,0 +1,64 @@
+{
+  "plan": "PLAN-098",
+  "generated_at": "2026-10-11T14:10:38.565Z",
+  "input": {
+    "session": "fe215347d9648fc87b050a75",
+    "run": null,
+    "kind": "chat",
+    "turns_lines": 2,
+    "turns_parsed": 2,
+    "bad_lines": 0,
+    "aaid_log": null
+  },
+  "by_from": {
+    "human": {
+      "turns": 1,
+      "tool_calls": 0,
+      "first_ts": 1791726201,
+      "last_ts": 1791726201,
+      "span_s": 0
+    },
+    "assistant": {
+      "turns": 1,
+      "tool_calls": 0,
+      "first_ts": 1791726210,
+      "last_ts": 1791726210,
+      "span_s": 0
+    }
+  },
+  "phases": [],
+  "llm_rows": [
+    {
+      "turn_seq": 1,
+      "from": "assistant",
+      "carrier": "assistant_turn",
+      "step_id": null,
+      "role": "assistant",
+      "session_id": "fe215347d9648fc87b050a75",
+      "ts_ms": 1791726210404,
+      "elapsed_ms": 9318,
+      "requested_model": "tier:mid",
+      "provider": null,
+      "model": null,
+      "in_tokens": null,
+      "out_tokens": null,
+      "stop_reason": null,
+      "stream": true,
+      "error": "upstream error (500): {\"type\":\"error\",\"error\":{\"type\":\"api_error\",\"code\":\"1234\",\"message\":\"[1234][网络错误，错误id 202610112143211989e864815e4ada ，请稍后重试。][202610112143211989e864815e4ada]\"},\"request_id\":\"202610112143211989e864815e4ada\"}",
+      "provider_source": null,
+      "confidence": null
+    }
+  ],
+  "turns_without_telemetry": 0,
+  "signatures": {
+    "k1_truncation_4096": [],
+    "k3_loop_ge4_same_args": [],
+    "k4_gate_same_second": [],
+    "k5_plan_without_create_plan": []
+  },
+  "aaid": {
+    "skipped": "no --aaid-log provided; provider 归因不可用（musk 侧 telemetry.provider 恒 null）",
+    "in_zero_note": null
+  },
+  "observations": []
+}

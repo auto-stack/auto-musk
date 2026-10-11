@@ -87,12 +87,16 @@
 | K9 | **VM 客户端活跃会话内存累积（2026-10-11 手动 UAT）**：会话传内容期间 ~1MB/s 增长（无新内容也持续），会话停止即走平；同轮 20 次 VM 静默退出集中在重流式时段（私有 MCP 口在用，端口争抢定罪不适用）。机理=每 500ms 回填拍无条件全量重建重渲染（KNOWN-DEBT UAT-K9 行） | PLAN-104 T-02 增变检门修复（worktree 0cb5656）；复验=soak active 场景斜率对比。重跑过渡对策：长会话分段观察，VM 空白/卡顿时重启实例（对话数据在 serve 侧无损） |
 | K10 | **VM 客户端大会话页静默空渲染（同轮）**：353 轮会话（page 292KB）在长寿实例渲染为空（服务端 200/数据完好/客户端零报错） | 首选对策=重启 VM 实例或改用 Vue 页观看；根修随 K9（累积族）+PLAN-104 T-03 矩阵兜底 |
 | K12/13 | **聊天会话 merge 账本步骤工具缺口 + merge 收尾欠账（同轮）**：superpowers 白名单缺 spec 工具（PLAN-030 覆盖注册连带被过滤）、errand 派工绑家目录账本、HTTP DTO 缺 file/tags；ledger 单条欠填、docs/ 未纳入版本控制（K13 详见 KNOWN-DEBT） | **PLAN-104 已修**（09d9d0e）：白名单+四件/errand 工作域覆盖/HTTP file/tags/三通道文本（merge SKILL.md + specs-ledger.md SD-02 最少条目合同）；重跑按新合同验证账本 ≥3 条含 file/tags、docs/ 受控 |
+| K14 | **auto 模式 taskkill 宿主自毁零防护（2026-10-11 复跑实录）**：work 会话验证受挫（run_command 引号损坏连败，见 105 P4/P5）后一条命令按映像名清除 musk.exe——隔离栈与旁站 serve 双亡、run 转录全丢（turns.jsonl 仅存用户消息）。auto 审批（PLAN-073 F-D 不打断）对自杀命令无拦截 | 短期=驱动消息带进程红线（本轮 resume 实证有效）；根修面归 PLAN-105（P4/P5 引号保真为诱因、P8 收割面补宿主保护）；K 表登记 |
+| K15 | **serve 硬死 → run 转录零落盘（同轮）**：进程死亡形态下工具边界快照（099 T-03）不提供持久化，run 全部事件丢失 | 关联 105 P1 收束/持久化家族；过渡对策=serve 崩溃后以 worktree 产物+计划勾选对账恢复（本轮实证可行） |
+| K16 | **上游 LLM 瞬时 500（zhipu code 1234）杀 run（同轮）**：merge 首发会话 ev#3 即死，错误如实落盘；新会话重发即过 | 外部因素备注；重跑手册容忍（RUNBOOK §2.4 已有重发语义） |
 
 ## 结果总表
 
 | 用例 | 日期 | 结果 | 备注 |
 |---|---|---|---|
 | T1 | 2026-09-28 | pass | PLAN-001 archived delivered；四收据齐 |
+| T1（104 复跑，简版分阶段新会话） | 2026-10-11 | **pass** | worktree ac5b22d 隔离栈 :17255（demo-t1 新仓 b779ca3）；new 4.2min/work 21.5min/review 10.8min/merge 13.1min；main `b779ca3→5c93041→f5ae990`、四收据齐、台账 4 条全带 file+tags、node --test 15/15、零 K2 nudge；事故三项见 K14-K16；遥测 runs/2026-10-11-* |
 | T2 | 2026-09-29 | pass | 自启 Relay plan 流程 |
 | T3 | 2026-09-29 | fail | K5 断链级联；循环检测收束 |
 | T3（094 重跑） | 2026-09-29 | **pass（门修复四断言 3/4 实证，第 4 断言受阻于 K1 预存债）** | 门不放行/ledger 零破坏/明确原因失败三断言四次 run 实证；"计划文件被 execute 消费"未能在实跑复现（advisor 相位自身产出被 K1 截断×2 + 澄清-停止×1），机制面由 driver 行为测试覆盖（hw+ag）；级联死亡 |
