@@ -4,8 +4,8 @@ status: executing
 feature_name: Canvas 内嵌交互预览与 DevTools 可停靠布局
 author: [agent]
 created_at: 2026-10-10T05:20:55Z
-updated_at: 2026-10-11T17:50:00Z
-plan_revision: 1
+updated_at: 2026-10-11T20:05:00Z
+plan_revision: 2
 current_step: 5
 total_steps: 6
 supersedes_spec_components:
@@ -164,13 +164,13 @@ hidden: [          Canvas              ]  ← 工具栏可重新打开
 | ID | 可观察结果 | 验证与预期 |
 |---|---|---|
 | AC-01 | 默认内嵌应用可见并持续更新，无额外可见 app 小窗 | Vue/VM 实拍+窗口 census；操作计数器5次，应用状态+5且帧更新；连续运行60秒无无故 degraded |
-| AC-02 | 内嵌/独立窗口往返保留同会话状态 | 往返3次，PID/generation及输入值/计数不变；只存在应可见的窗，不重新 spawn |
+| AC-02 | 内嵌呈现生命周期身份保持；window 模式显式 501（v2 修订） | 呈现切换/幂等/身份守卫合同（stale gen 409、embedded 幂等、window 诚实 501 不动会话、非法 mode 400——axum+vmhost 双面同律）；会话生命周期 PID/generation 稳定（vm-cycle session 断言）。~~原 v1 文本：内嵌/独立窗口往返保留同会话状态~~——window 往返归 v0.6（见 §10 决议 6） |
 | AC-03 | 操作态与检查态分工正确 | 操作按钮/文本/中文IME/滚动/拖动及编辑键成功；检查点击只改变 picked、计数不变；留白无应用副作用 |
 | AC-04 | 左/右/底部/隐藏可选择并恢复 | 两宿主两前端逐项切换，Canvas与DevTools相对位置正确；隐藏后画布回收空间，重新打开保留选择/页签 |
 | AC-05 | 内外分隔条真可拖，输入和高亮随之正确 | OS拖动/MCP辅助覆盖最小/最大/越界释放/取消；尺寸不负不塌；100%/150%DPI点选与overlay误差≤2逻辑px；拖动不误触应用 |
 | AC-06 | 响应式、偏好与聊天状态保持 | 三种容器宽度+工作区A/B+关闭重开；尺寸钳制、窄屏页签、扩宽恢复通过；对话草稿/消息/审批卡不重挂丢失 |
 | AC-07 | 会话失败与陈旧事件安全且四轨一致 | Vue/VM×RustHTTP/VMHTTP新收据全部通过；A→B迟到帧/输入拒绝，stop/restart错误明确，无孤儿进程/端口 |
-| AC-08 | 工具区视觉与无障碍可用 | 双主题/语言截图无主要动作溢出或零宽文本；树/源码各自滚动；键盘调divider、Tab焦点、tooltip/名称可用 |
+| AC-08 | 工具区视觉与无障碍可用 | 双主题/语言截图无主要动作溢出或零宽文本；树/源码各自滚动；键盘调divider、Tab焦点、tooltip/名称可用。证据面注记（复审补证）：双主题×双语言四格截图 = web 轨（`W-08web-{dark,light}-{zh,en}.png`，客观标记同场取证）；VM 轨上游 iced 渲染器 dark-only（`theme_fn` 恒 Dark——能力边界，见 §10 决议 6），VM 轨证据 = dark/zh 实拍 |
 
 ## 8. 执行步骤
 
@@ -229,6 +229,10 @@ hidden: [          Canvas              ]  ← 工具栏可重新打开
 
 2026-10-11 计划复审（全量，F-RF-3 修复 + F-04-3/F-04-4 闭环 + 矩阵终跑后）：`stage: review`，`plan: PLAN-102`，`plan_revision: 1`，`outcome: needs_fix`，`reviewed_commit`: musk worktree plan-102-dev `7f4aa24`（+ 主检出文档 `a1484a5`；worktree 领先 main 21 提交、main 领先 worktree 3 提交含 1 代码修复 28f3415——合流时须 rebase），`base_commit`: musk main `2b1c9dc`，`dependency_revisions`: auto-lang master `6da3e6201`（含 F-RF-1 `92067662c`/F-RF-3/PLAN-760 全套）；auto-down 无改动，`spec_inputs`: docs/specs/modules/{canvas-embed,app-canvas,app-studio-ui,autoui-canvas-runtime}.md 四目标在位（delta 应用归 merge），`acceptance_results`: AC-01 pass（remote-frame 嵌入 + headless census P5=0 窗 + 帧随动 md5 双臂 + 四轨矩阵）；**AC-02 fail-as-written**（window 呈现模式诚实 501——决策文档 §5 遗留设计位 rq 客户端 exit-on-EOF 重连 seam，T-02 定案为"不冒装"，但 AC 表未修订、用户未裁决 descope）；AC-03 pass（OS 点击 count 递增双臂 + operate↔inspect 隔离 + pick 只改 picked + P6 输入闭环 + 760 e2e char 面）；AC-04 pass（layout-live 20/20×2 四停靠翻转/隐藏恢复/偏好保持）；AC-05 pass（拖动 ±10/越界释放/钳制边界/DPI 2x 实测换算/Escape 取消/capture 层不误触）；AC-06 pass（窄容器 tabs 降级恢复 + workspace 偏好键 + ports-probe 槽断言）；AC-07 pass（**四轨矩阵 ALL PASS 本会话终跑** + 身份守卫 29/29 + stale gen 409 + 泄漏清场纪律）；**AC-08 partial**（键盘 divider/tooltip/树源码滚动/走查截图断言过，gen strict 69；**双主题×双语言截图矩阵未拍**——T-05 记录自列为 review 复验项后未执行），`findings`: **R-F1（major，AC-02/T-02）**：window 往返未实现——须用户裁决二选一：①plan 修订 descope（AC-02 改为"embedded 生命周期身份保持 + window 显式 501 + seam 已定性"，plan_revision 递增）；②另立上游项 F-RF-4（rq 客户端宿主切换纳入重连预算）后回补。不得静默以债务记录充完成。**R-F2（minor，AC-08/T-05）**：双主题（musk-theme=light）×双语言截图矩阵缺证——一次走查补拍（storage 键注入）即可闭环。R-F3（informational）：musk main 领先的 28f3415（rail tab 居中）触碰 front 区域，合流 rebase 时留意，`evidence`: 本会话新鲜重跑 canvas-contract 65/0 + canvas-layout-contract 59/0 + canvas-embed-probe 3/3 + canvas_studio_contract 29/29（1 ignored 预存）+ gen --gen-only --strict 69 + vm-cycle rust 17/17 + vm 17/17 + canvas-studio-live 四轨 ALL PASS + remote_frame_e2e 11/11 + 实机视觉 W-04-embed-frame-visual.png；收据 tmp/ui-parity/PLAN-102/{W-06-vm-cycle-{rust,vm},canvas-studio-live}-receipt.json，`next`: 用户裁决 R-F1（descope 修订或立 F-RF-4）→ 补 R-F2 截图证据 → 重审（其余全绿面无需重验，按 unchanged-code 复用理由）。
 
+2026-10-11 计划修订 v2（用户裁决 R-F1）+ R-F2 补证：`stage: review`，`plan: PLAN-102`，`plan_revision: 1→2`，`outcome: 修订生效（用户 2026-10-11 裁决）`：AC-02 改为"内嵌呈现生命周期身份保持；window 模式显式 501"——本版（v0.5）仅内嵌；独立窗口双向支持归下一版 v0.6，且 **v0.6 架构方向定为 VM 原生内嵌**（ui-gallery/AppViewport 同进程组件形态——运行时装载任意 app + DevTools 改从宿主树取 vtree/pick/state；RF 远程链为 v0.6 迁移后的退役候选，详见 §10 决议 6）。R-F2 补证完成：**web 轨双主题×双语言四格截图**（`W-08web-{dark,light}-{zh,en}.png`，playwright + localStorage 键 musk-theme/musk-language 种子，客观文本标记同场取证——en 格 body 含 Sessions/Chat/Structure/Source、zh 格含 会话/聊天/结构/源码；light 均值 RGB 250 vs dark 24）；VM 轨 light 主题**结构性不可产出**（上游 iced 渲染器 dark-only：`renderer.rs theme_fn` 恒 `Theme::Dark`、`dom.set_dark` VM 臂仅写 storage、`dom.prefers_dark` 恒 true——上游能力边界非本计划缺陷），VM 轨证据 = dark/zh 实拍（W-03-5-walkthrough-vm.png + 双臂矩阵）。附带发现（登记不阻塞）：VM 轨语言种子（musk-language=en storage）后 UI 仍 zh（读取链或渲染时序缺口，web 轨同键生效——差异待 v0.6 原生内嵌一并处理）；"上传代码"字串未入 i18n 目录（硬编码 zh）。
+
+2026-10-11 计划复审第二次（修订 v2 后快速重审）：`stage: review`，`plan: PLAN-102`，`plan_revision: 2`，`outcome: pass`，`reviewed_commit`: musk worktree plan-102-dev `7f4aa24`（实现零改动——修订纯验收合同与证据面，unchanged-code 复用前次全量门禁：contract 65/0 + layout 59/0 + embed-probe 3/3 + cargo 29/29 + gen 69 + vm-cycle 双臂 17/17 + 四轨矩阵 ALL PASS + e2e 11/11），`base_commit`: musk main `2b1c9dc`，`dependency_revisions`: auto-lang master `6da3e6201`，`acceptance_results`: AC-01 pass；**AC-02 pass（v2 修订后）**——身份保持/幂等/stale 409/window 诚实 501/非法 400 合同双面在册（`route_present_embedded_idempotent_and_window_honest_501` + `vmhost_present_embedded_idempotent_window_501_invalid_400`，本轮 29/29 新鲜绿）+ 会话生命周期稳定（vm-cycle session 断言双臂）；AC-03..AC-07 pass（同前次记录）；**AC-08 pass（补证后）**——web 轨四格 + VM dark-only 边界注记入 AC 表，`findings`: 无阻塞项；v0.6 方向已登记（§10 决议 6：VM 原生内嵌 + RF 退役候选 + VM light 主题随原生内嵌补），`evidence`: 前次记录全量 + `W-08web-*.png` 四格 + 双 501 合同测试名，`next`: merge（`/auto-plan:merge`——worktree rebase onto main 含 28f3415 留意 front 冲突）。
+
 ## 10. 待澄清事项
 
 1. ~~用户未要求本轮实现~~ → 用户已授权执行（2026-10-10 `/auto-plan:work 102`）。
@@ -236,3 +240,4 @@ hidden: [          Canvas              ]  ← 工具栏可重新打开
 3. ~~remote或持续帧方案待T-01裁定~~ → 已裁定：remote/rq 臂选定；持续帧（隐藏窗）方案证伪（决策文档 §1/§3）。VM 轨消费面 J2（.at remote-frame widget）与 D-2（rq 臂 MCP 缺席）为主要上游接缝，规模与排期见决策文档 §5——若 J2 排期超出本计划容量，需向用户呈报降级方案（VM 轨受控降级）再定，不得静默缩减 AC。
 4. 默认内嵌、默认操作态、工具区默认左停靠是本计划产品假设；提供独立窗口与其他停靠选项满足用户选择。工具尺寸初值以可读性走查修正，不改变最小空间和验收要求。
 5. **F-03-1（2026-10-11 登记当日闭环）**：musk VM 前端探针交互下间歇性静默退出——根因定罪为 `Math.floor` 外源浮点穿 int 边界 + float→str 拼接位型缺陷 → decl 毒化 `width:0px` → 0 宽退化布局随机触发静默退出（见 §9 收口记录）；musk 侧已以 `.to_int()` 习语规避并 20/20×2 无复现。**上游 auto-lang 的 float→str 拼接缺口本身仍开放**（VM 数据语义已知缺口家族），修复另立上游项；若 musk 侧复现崩溃则重开本条。
+6. **v0.6 方向决议（用户 2026-10-11，本版 v0.5 收尾裁定）**：① 本版仅支持内嵌呈现（AC-02 v2：embedded 生命周期身份保持 + window 显式 501）；② 内嵌/独立窗口双向支持归 v0.6；③ **v0.6 内嵌架构 = VM 原生内嵌**（auto-os ui-gallery 的 `AppViewport` 同进程组件形态）——本版 RF 远程链（bridge/WS/DisplayList 重放）为迁移后的退役候选；④ 前置上游能力：任意 app 路径组件运行时装载（ui-gallery 为构建期静态导入固定集）+ DevTools vtree/pick/state 改从宿主渲染树取（现依赖目标 app 独立 MCP）；⑤ VM 轨 light 主题为上游 iced 渲染器 dark-only 能力边界（`theme_fn` 恒 Dark），随原生内嵌/v0.6 一并补；⑥ VM 轨语言切换疑似缺口（storage 键种子后 UI 未翻转，web 轨同键生效）与硬编码 zh 字串（"上传代码"）登记为 v0.6 清理项。
