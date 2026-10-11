@@ -29,6 +29,10 @@ store ForgeStore {
         // 的拍也全量重建重渲染 = 活跃会话 ~1MB/s 分配累积实测源）。
         // ProfConfigsLoaded / SwitchSession 重置强制一次重建。
         var last_poll_fp str = ""
+        // PLAN-104 T-02 tier1: 上次回填 body 等长预检（idle 期在二次 parse
+        // 之前跳过——292KB 级 parse×2拍/s 本身就是分配源，指纹门在其后
+        // 只省 rebuild 不省 parse）。
+        var last_poll_blen int = 0
         // PLAN-067 T-02: 最近一次流事件时间戳（OnStreamEvent 入口写定）——
         // PollStream 的 SSE 健康门：流活着就不做全量回填（运行中服务端
         // 快照不含未完成 assistant,回填会反复清掉流式内容）。
@@ -334,6 +338,7 @@ store ForgeStore {
             // PLAN-104 T-02：职业表到货影响消息投影（职业名解析），重置
             // 回填指纹强制下一拍重建。
             .last_poll_fp = ""
+            .last_poll_blen = 0
         }
 
         // LoadSessionList（PLAN-083 T-03 两段式）：发起段只置骨架门 +
@@ -545,6 +550,7 @@ store ForgeStore {
             .older_loading = false
             // PLAN-104 T-02：会话切换重置回填指纹（跨会话指纹不得复用）。
             .last_poll_fp = ""
+            .last_poll_blen = 0
             .RefreshHeader()
             .FireDetailLoad()
         }
@@ -1152,13 +1158,26 @@ store ForgeStore {
         // 归一化载荷，按已加载窗口合并（073 链适配：has_more 历史前缀不
         // 因轮询整表替换丢失），完成启发式与 071⑮ 排空语义原样保留。
         .PollBackfill(payload str) -> {
-            .poll_inflight_ticks = 0
+            // PLAN-104 T-02：等值不写（写即状态变更）——两个活性 tick 在
+            // 空闲期恒 0，条件化后空闲拍零 store 写入。
+            if .poll_inflight_ticks != 0 { .poll_inflight_ticks = 0 }
             let sid = .session_id
             if sid == "" { return }
             var resp = None
             let r = JSON.parse(payload)
             if r != None {
                 if r.ok == true {
+                    // PLAN-104 T-02 tier1：body 等长预检（idle 专用）——
+                    // 省掉大载荷二次 parse（292KB 级 parse×2 拍/s 本身就是
+                    // 分配源，tier2 指纹门在其后只省 rebuild 不省 parse）。
+                    // 等长≠同内容，但 idle 期内容冻结（run 已收束无写入面），
+                    // 假阴性仅理论存在；流式拍不预检。
+                    let body = r.body ?? ""
+                    let blen = body.length
+                    if .streaming != true && blen > 0 && blen == .last_poll_blen {
+                        return
+                    }
+                    if blen != .last_poll_blen { .last_poll_blen = blen }
                     resp = JSON.parse(r.body)
                 }
             }
@@ -1168,7 +1187,8 @@ store ForgeStore {
             // （窗口语义=「最后一次回填成功后 2 分钟」）。置于流式守卫之前：
             // 生成期快照末消息尚为 user 时守卫臂 return 不合并，但请求-
             // 响应链路本身健康，长任务（071⑥ 场景）不得因守卫断窗。
-            .poll_idle_ticks = 0
+            // PLAN-104 T-02：条件写（等值不写，空闲拍零 store 写入）。
+            if .poll_idle_ticks != 0 { .poll_idle_ticks = 0 }
             // PLAN-071 需求⑧ T-36：流式期回填防清除——服务端快照在收束前
             // 不含 assistant，整表替换会把乐观消息连思考一起清掉（用户截图3
             // 实证：内容全清冻结至刷新）。仅当快照末消息已是 assistant

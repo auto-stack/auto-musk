@@ -65,6 +65,58 @@
 | V06（T-04） | `auto build --gen-only --strict` | EXIT=0，65 components |
 | V06（T-04） | `scripts\vm-link-probe.cmd` | PASS，linked 108365B（WARN 体积趋势，FAIL 阈 131072） |
 | V06（T-04） | `node scripts/ui-parity.mjs check` | catalog PASS（116 declarations / 117 cases；live-required 0/5 属 live 面） |
+| V06（T-02 精化后复跑） | gen-only strict + vm-link-probe + ui-parity check | EXIT=0 / PASS 108973B / catalog PASS |
+
+## T-01/T-02 runtime 判定（soak active 场景，2026-10-11）
+
+仪器：`scripts/soak-active-session.mjs`（隔离 serve+VM、私有端口/配置、
+纯文本长流式会话、分相位 2s 采样 VM 私有内存；RED/GREEN 唯一变量=VM
+启动目录编译的 .at 版本，serve 侧同为 worktree 构建）。auto-lang 二进制：
+兄弟 worktree dde29cf2c `cargo build --release -p auto`（当日构建锁定）。
+
+| 轮次 | VM .at | stream 斜率 MB/min | idle 斜率 MB/min | VM 退出 |
+|---|---|---|---|---|
+| RED | main（旧，无门） | +143.0（7 样本） | +48.0（41 样本） | **code=1** |
+| GREEN-1 | worktree（tier2 指纹门） | +123.3 | +30.1 | **code=1** |
+| GREEN-2 | worktree（+tier1 等长预检+tick 条件写） | +74.0 | +52.6 | **code=1** |
+| GREEN-3 | 同上 | +40.3 | +56.0 | **code=1** |
+| AUDIT | 同上 + AUTO_DESKTOP_EXIT_LOG | −14.1（噪声/GC 波动） | +72.6 | **code=1** |
+
+判读：
+
+1. **流式期改善方向一致**（143→40~123，样本方差大），tier1+tier2 有效
+   削减 musk 客户端每拍全量重建；
+2. **idle 残留 ~30-72MB/min 跨 .at 形态稳定存在**——tier1 已把回填路径的
+   parse/重建全部跳过（空闲拍零 store 写入），残留只能来自每拍 HTTP 响应
+   缓冲（292KB 级瞬态垃圾，~584KB/s）未被 VM GC 完全回收 + 每帧重绘的
+   分配（KD-062 残留族）——**auto-lang 运行时/渲染器面，超出本计划边界**；
+3. **静默退出归因定谳**：AUTO_DESKTOP_EXIT_LOG 审计**零记录** + code=1
+   = 原生层 `std::process::exit`/外部终止（vm-process-stability 判读矩阵
+   第 4 类），非 panic 非 main_return 非 Auto 层退出；与轮询/渲染负载强
+   相关（空闲 VM 不退，仪器条件下 2-4 分钟内必退）；隔离端口、无并发
+   会话——KD-066 端口争抢定罪不适用。**归属 auto-lang，随残留面一并移交**。
+
+### V05 全套回归判定（base 28f3415 对照）
+
+37 个集成目标逐目标串行：**11 目标绿**（含本计划新增 specs_upsert_payload
+3/3 与 parity_specs/plan_flow_contract 等核心面）、**tool_atoms 1 测试失败**
+（098 review F-2 存量红，环境敏感）、**20 目标编译错**——抽查定谳为
+**base 预存**：`parity_plans.rs:46` 夹具 `chat_runs: HashSet::new()` vs
+`server.rs:53` 字段 `HashMap<String, Instant>` 在 base 28f3415 即不匹配
+（`git show` 双证），本计划 diff 零触及失败目标文件（`git diff
+28f3415..HEAD --name-only` 核对）。归属=并发会话改后端字段未同步夹具，
+非本计划引入；去向=夹具同步批次（登记 KNOWN-DEBT 候选，随 merge 交裁定）。
+
+## AC 状态裁定（依计划 §10① 预案）
+
+- **AC-01（idle 斜率 ≤0.1MB/s）：blocked on auto-lang**——musk 侧杠杆
+  （重建跳过+parse 跳过+等值不写）已用尽，残留为每拍 HTTP 瞬态垃圾的
+  GC 回收不全 + 每帧重绘分配，均在渲染器/运行时面。解阻动作=auto-lang
+  专项（HTTP 响应缓冲生命周期 + 每帧重绘分配剖面 + 原生 exit(1) 归因；
+  仪器与数据已备：scripts/soak-active-session.mjs + 本表五轮数据）。
+- **AC-02/AC-03**：K10 大页矩阵与 K11 实机点击被退出面干扰（VM 2-4 分钟
+  必退，无法构造长寿实例对照）——随 auto-lang 退出归因后补跑。
+- **AC-04～AC-07 的 musk 侧面**：全部达成（见命令表）。
 
 ## 环境指纹
 

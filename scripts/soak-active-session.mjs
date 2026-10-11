@@ -11,7 +11,7 @@
 //   --vm-cwd 决定 VM 编译哪份 src/front（main=旧 .at=RED；worktree=新 .at=GREEN）。
 // aaid 复用 :17654 在跑实例；musk.exe 取 <repo>/backend/target/debug（调用方先建）。
 import { spawn, spawnSync } from "node:child_process";
-import fs from "node:fs";
+import fs, { openSync } from "node:fs";
 import path from "node:path";
 
 const arg = (k, d) => {
@@ -74,11 +74,12 @@ try {
   await until(async () => (await fetch(`${BASE}/api/health`)).status < 500, 30000, "serve health");
   log(`serve up pid=${serve.pid} workdir=${workdir}`);
 
-  // 2) VM（--vm-cwd 决定编译哪份 src/front）
+  // 2) VM（--vm-cwd 决定编译哪份 src/front；输出落盘——退出原因取证面）
+  const vmLog = openSync(`${OUT}.vm.log`, "a");
   const vm = spawn(AUTO_EXE, ["run", "--render", "vm", "--back-port", String(PORT)], {
     cwd: VM_CWD,
     env: { ...process.env, AUTO_REUSE_BACKEND: "1", AUTOUI_MCP_PORT: String(MCP), RUST_MIN_STACK: "16777216" },
-    stdio: ["ignore", "ignore", "ignore"], shell: false,
+    stdio: ["ignore", vmLog, vmLog], shell: false,
   });
   vmPid = vm.pid; procs.push(vmPid);
   vm.on("exit", (c) => { vmDied = true; log(`VM EXITED code=${c}`); });
