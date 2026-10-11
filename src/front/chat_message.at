@@ -281,9 +281,14 @@ style {
                         // 帧字符。web：animate-spin 旋转图标，.spin-char 由
                         // scoped CSS 隐藏；VM：图标静态展示（iced 无 CSS
                         // 动画），帧字符逐拍换内容（SpinTick 120ms）承担动效。
+                        // 2026-10-11：animate-spin 从整行挪到 Loader 本体——
+                        // 行是块级 flex 撑满气泡宽，rotate 以行中心为原点，
+                        // 14px 图标绕大圈（用户截图红弧实锤）；落到 svg 上
+                        // 才是原位自转。VM 轨该键词法扫描跳过，动效仍由
+                        // SpinTick 帧字符承担，不受影响。
                         row {
-                            class: "msg-waiting flex items-center py-[2px] px-[2px] animate-spin text-muted-foreground"
-                            Loader { size: 14 }
+                            class: "msg-waiting flex items-center py-[2px] px-[2px] text-muted-foreground"
+                            Loader { size: 14, class: "animate-spin" }
                             text .spinText { class: "spin-char text-[13px]" }
                         }
                     }
