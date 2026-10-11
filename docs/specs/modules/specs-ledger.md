@@ -3,6 +3,10 @@
 > PLAN-094 SD-01 定型（UAT K6 实测教训：无契约文本导致聊天侧 merge 即兴手写
 > 外语格式 JSON、reviewer 手工 JSON 手术抹掉既有条目）。本文为账本的规范性
 > 描述；实现锚点见各节行内引用。
+> PLAN-105 增订（2026-10-12，reviewed 62e6a2c）：状态机 API 诚实化五条
+> （见文末专节）——UAT 87af4d4b 两次帕斯卡 `Approved` 得 200「成功」而
+> 状态纹丝不动（未知串兜底 Draft × 同态恒过 × 回显请求串三连叠加）的
+> 假成功簇收口。
 
 ## 性质：派生视图，非权威
 
@@ -83,3 +87,27 @@ section 复用，不新造重复条目。
   K6 条款在交付链的落地。
 - 元数据写能力经 store 语义补足（source hash/commit 入 tags/file），
   不手拼 JSON。
+
+## 状态机 API 诚实化（PLAN-105）
+
+- **状态串严格解析**：API 边界（`specs_transition_of`/`specs_upsert_of`）
+  用 `SpecStatus::parse_exact`——未知/大小写不符 → 400 且错误体带**该区
+  合法值清单**与收到的原串；`from_str_lossy` 的未知串兜底 Draft 仅保留
+  给内部宽容面（不再进入线协议——帕斯卡 `Approved` 兜底 Draft × 同态
+  恒过 × 回显请求串 = 200 假成功的叠加链就此断开）。
+- **错误体透传**：`transition_item` 的 Err 原文透传（非法转移的
+  `from -> to` 详情、section/item 未找到原因）——`"transition failed"`
+  常串退役（模型曾无从得知首个小写 `approved` 被 400 实为状态机正确拒绝
+  `Draft→Approved` 不合法）。
+- **响应回显应用后状态**：`TransitionOk.applied_status` = 服务端应用后
+  枚举的 snake_case 真值；`new_status` 保留请求原串仅作对照。
+- **大小写对称（线格式统一 snake_case）**：`SpecStatus` 序列化经
+  `rename_all = "snake_case"`（GET 返回 `under_review`）；反序列化手写
+  宽容读——既有磁盘/历史负载的帕斯卡值（`UnderReview`）归一为枚举，
+  未知串显式报错。GET 返回值可直接作 POST 入参（前端本就 snake 约定，
+  对齐双赢）。
+- **upsert 直写标注**：upsert 保留直写能力（merge 技能回退路径），但当
+  写入状态 ≠ 现状且不属该区合法转移时，响应顶层标注
+  `bypassed_transition: true` 供 merge 技能与审计识别（磁盘 doc 不落
+  标注；设计区 `Empty→Draft→UnderReview→{Approved|Rejected}` 链是有意
+  设计，不放宽）。

@@ -5,6 +5,9 @@
 > 语义等价 workspace 根。白名单只能由**用户**经 UI/API 显式维护（模型/工具
 > 无写路径）；workspace 根恒为第一根且不可移除；白名单之外一律拒绝
 > （fail-closed 不变）。
+> PLAN-105 增订（2026-10-12，reviewed 62e6a2c）：run_command 引号保真合同、
+> 引号感知词法（confinement 与执行层共用）、run 进程收割（Job Object）、
+> VM 轨白名单真接线；详见对应各节。
 
 ## 多根判定（tool_safety::resolve_multi）
 
@@ -66,8 +69,39 @@
   （不走 api.at 绑定：绑定非 2xx 丢弃 error body，400 文案须原样展示；
   结果对象取 error 不用 catch——.at catch 值 unknown TS2571）。workspace
   显式携带（拦截器对 `/api/workspace/*` 豁免注入）。
-- **VM 轨缺口**：无白名单视图（whitelist.vm.at 缺，web-only 门面）——
-  登记差异非回归（PLAN-068 files 同口径）；VM CLI/VM 运行无白名单入口。
+- **VM 轨（PLAN-105 真接线）**：`ports/whitelist.vm.at` 经
+  `musk_extern_dispatch` → `vm_backend` host! 注册表
+  （`workspace_roots_list/add/remove`，in-process registry 直调）——不走
+  HTTP face（VM http native 非 2xx 丢响应体，白名单须原样展示拒绝原因），
+  add/remove 的 Err 文案经桥透传 = web 轨 400 body 同语义；宿主未注册 →
+  诚实 `{ok:false,error}`（原 `{ok:true}` 空桩假成功——UAT 87af4d4b
+  17:28:06 实锤——已退役）。
+
+## run_command 执行合同（PLAN-105）
+
+- **引号保真（Windows）**：`cmd /S /C` + 命令串整体 `raw_arg`（外层包
+  引号；/S 语义 = 剥最外层引号后原样执行，等价交互式 cmd 输入）。原
+  `.arg(cmd)` 经 Rust argv 引用规则 + cmd /C 剥引号把字面引号送进 argv
+  （UAT 87af4d4b 四类损坏：`git -C '"D:/…"' Invalid argument`、
+  `git commit -m "…"` 引号丢失中止、findstr 多词失配、curl 带引号 URL
+  exit 3）。Unix `sh -c` 语义本就保真，不变。
+- **引号感知词法（共用）**：`tool_safety::tokenize_command` 是
+  confinement/classify 词法的单一来源——双引号段内不切分、引号自身剥离
+  （`"D:/path with space"` 是一个 token）、相邻引号段拼接、反斜杠字面
+  （cmd 习惯）、未闭合引号保守吞尾、单引号普通字符。原
+  `split_whitespace` 引号盲——引号内越界路径以「首残片恰在根内」形态
+  漏判（补红两例在案）。
+- **进程收割**：run_command spawn 后立即上报进程凭证（`ExecOptions.on_proc`）
+  进 `AppState.chat_procs` 注册表（键同守卫，经 build_agent_with_context
+  闭包注入）——Windows = **kill-on-close Job Object** 句柄（`start` 分离
+  孙进程唯一可靠收割面；pid+taskkill /T 对「父已退、孙分离」无效，UAT
+  PID 8008 锁 worktree 实锤）、Unix = pid（spawn 已 process_group(0)
+  组杀）。chat_run_owner 全部收束出口 + panic GuardOnDrop 统一收割
+  （CloseHandle / killpg，≤5s）；正常完成的工具**不**注销凭证（分离孙
+  在工具返回后仍活，收割点在 run 收束）。仅收 run_command 面（用户自启/
+  画布/CDP 不碰）。宿主进程死亡 → 句柄全关 = 子孙全灭（进程卫生兜底）。
+- **邻接合同**：超时臂读任务收尾 2s 有界（管道被存活孙持有时 EOF 永不到，
+  裸 await 会把超时臂自身悬死——15 分钟实测复现后修复）。
 
 ## 测试口径
 
