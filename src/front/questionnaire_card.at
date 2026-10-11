@@ -22,7 +22,7 @@
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web component HelpCircle, Send from "src/front/ports/icons.at"
-use.web questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder, eventInputValue, formatQuestionnaireAnswers from "src/front/questionnaire_helpers.at"
+use.web questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder, questionnaireQuestionNumber, eventInputValue, formatQuestionnaireAnswers from "src/front/questionnaire_helpers.at"
 
 widget QuestionnaireCard(questions: obj) {
     // 注意：视图内 reactive 位（class/disabled/onclick 载荷）一律 helpers 直调，
@@ -59,7 +59,7 @@ widget QuestionnaireCard(questions: obj) {
                     style: "flex flex-col gap-[5.6px]"
                     div {
                         style: "text-[14.1px] font-medium text-foreground leading-[1.4]"
-                        text "Q" + .q.text
+                        text "Q" + questionnaireQuestionNumber(.questions, .q.id) + ". " + .q.text
                     }
                     if .q.type == "single" {
                         div {

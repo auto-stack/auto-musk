@@ -52,6 +52,18 @@ fn questionnaireOtherKey(qid str) str {
     return qid + "__other"
 }
 
+/** 题目序号（1-based）：按 id 定位（questionnaireFor 的 id 恒唯一）。
+ *  .at 的 for-in 无索引绑定，沿 formatQuestionnaireAnswers 的 while-idx
+ *  模式补齐 "Q1. / Q2." 题号（手写版 web/src 的 Q{{idx+1}}. 形态）。 */
+fn questionnaireQuestionNumber(questions obj, qid str) int {
+    var idx = 0
+    while idx < questions.length {
+        if questions[idx].id == qid { return idx + 1 }
+        idx = idx + 1
+    }
+    return 0
+}
+
 /** 是否可提交：所有非 optional 问题都有答案。 */
 fn questionnaireCanSubmit(questions obj, answers obj) bool {
     for q in questions {
