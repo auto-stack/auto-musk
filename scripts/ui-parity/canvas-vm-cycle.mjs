@@ -22,6 +22,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
+import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -357,43 +358,66 @@ async function main() {
         const rect = /rect (-?\d+),(-?\d+),(-?\d+),(-?\d+)/.exec(rectOut);
         const hwndInt = Number(/rect (-?\d+),(-?\d+),(-?\d+),(-?\d+),(\d+)/.exec(rectOut)?.[5] ?? 0);
         result.embedRectOut = rectOut.slice(0, 300);
+        // 截图/md5 取证助手（先声明后使用；正则反斜杠曾被历史 sed 削毁——
+        // shotFile 恒 null → md5 断言退化为 'nof' 前缀比较（F-06-2 家族））。
+        const shotFile = (t) => { const m = /saved to:\s*(\S+)/.exec(String(t)); if (!m) return null; let f = m[1]; if (f.startsWith(String.fromCharCode(92, 92, 63, 92))) f = f.slice(4); return f; };
+        const fileMd5 = (f) => { try { return crypto.createHash('md5').update(fs.readFileSync(f)).digest('hex'); } catch { return null; } };
+        const md5 = (t) => { const f = shotFile(t); return f ? fileMd5(f) : 'nof' + String(t).slice(0, 16); };
+        // 外框 decl 解析（vtree → {x,y,w,h}；点击重试时以最新几何重算点位）。
+        const outerOf = (vtText) => {
+          const re2 = /(\w[-\w]*) (vnode_\d+) \{/g; let m2;
+          while ((m2 = re2.exec(vtText))) {
+            const st2 = m2.index; let d2 = 0, e2 = -1;
+            for (let i = vtText.indexOf('{', st2); i < vtText.length; i++) { if (vtText[i] === '{') d2++; else if (vtText[i] === '}') { d2--; if (d2 === 0) { e2 = i; break; } } }
+            if (e2 < 0) continue;
+            const sp2 = vtText.slice(st2, e2);
+            const cl2 = sp2.match(/class:\s*"([^"]*)"/)?.[1] ?? '';
+            if (cl2.startsWith('width:') && sp2.includes('cv-workbench')) {
+              const bb3 = sp2.match(/bbox:\s*\{[^}]*\}/)?.[0] ?? '';
+              const num3 = (k) => { const q = bb3.match(new RegExp(k + ':\\s*(-?[\\d.]+)')); return q ? Number(q[1]) : null; };
+              return { x: num3('x'), y: num3('y'), w: num3('w'), h: num3('h') };
+            }
+          }
+          return null;
+        };
         // 截图基线（帧内容随动证据）。
         const shot0 = await mcp.call('autoui_screenshot', {}).catch(() => '');
-        // fit 换算：remote-frame bbox（窗口逻辑域）→ 屏幕点；夹具逻辑域
-        // 480x680 contain 居中。
-        let clicked = false, detail = `rect=${rectOut.slice(0, 40)}`;
-        if (rect) {
-          // PostMessage lparam = 窗口逻辑域（1280x800）直通：帧盒 = 外框
-          // bbox − 停靠列 − 分隔条 − 停靠条29 + 头部36；夹具 480x680 contain。
-          const dockW = dockCol(vt)?.w ?? 240;
-          const fx0 = (outerBox.x ?? 0) + dockW + 6;
-          const fy0 = (outerBox.y ?? 0) + 29 + 36;
-          const fw = (outerBox.w ?? 640) - dockW - 6;
-          const fh = (outerBox.h ?? 800) - 29 - 36;
+        // 点击（≤3 次重测重试：boot/布局毛刺下单测点位可能漂移；命中
+        // 判据 = 夹具 count 实际递增，点击器返回值仅取证）。
+        let clicked = false, detail = `rect=${rectOut.slice(0, 40)}`, count1 = null;
+        for (let attempt = 0; attempt < 3 && count1 == null; attempt++) {
+          const vtN = attempt === 0 ? vt : (await vtRetry() || vt);
+          const ob = attempt === 0 ? outerBox : (outerOf(vtN) ?? outerBox);
+          if (!ob) break;
+          // PostMessage lparam = 窗口逻辑域直通：帧盒 = 外框 bbox − 停靠列
+          // − 分隔条 6 − 停靠条29 + 头部36；夹具 480x680 contain 居中。
+          const dockW = dockCol(vtN)?.w ?? 240;
+          const fx0 = (ob.x ?? 0) + dockW + 6;
+          const fy0 = (ob.y ?? 0) + 29 + 36;
+          const fw = (ob.w ?? 640) - dockW - 6;
+          const fh = (ob.h ?? 800) - 29 - 36;
           const s = Math.min(fw / 480, fh / 680);
           const ox = (fw - 480 * s) / 2, oy = (fh - 680 * s) / 2;
           const lx = Math.round(fx0 + ox + 48 * s);
           const ly = Math.round(fy0 + oy + 36 * s);
-const clickOut = spawnSync('python', [path.join(ROOT, 'scripts/ui-py/click-hwnd.py'), String(lx), String(ly), '2.0'], { encoding: 'utf8', timeout: 30000, windowsHide: true });
+          const clickOut = spawnSync('python', [path.join(ROOT, 'scripts/ui-py/click-hwnd.py'), String(lx), String(ly), '2.0'], { encoding: 'utf8', timeout: 30000, windowsHide: true });
           clicked = (clickOut.stdout ?? '').includes('clicked');
-          detail = `lp=${lx},${ly} dockW=${dockW} ${clicked ? 'ok' : clickOut.slice(0, 30)}`;
+          detail = `lp=${lx},${ly} dockW=${dockW} try=${attempt + 1} ${clicked ? 'posted' : String(clickOut.stdout ?? clickOut.stderr ?? '').slice(0, 30)}`;
+          for (let i = 0; i < 6; i++) { const c = await fxState(); if (c != null && Number(c) > Number(count0 ?? 0)) { count1 = c; break; } await sleep(500); }
         }
         await sleep(2500);
-        const count1 = await fxState();
+        if (count1 == null) count1 = await fxState();
         const shot1 = await mcp.call('autoui_screenshot', {}).catch(() => '');
-        // 帧随动取证：两帧落盘（画布区像素差肉眼/仪器可查）。
+        // 帧随动取证：两帧落盘 + md5（编码确定——md5 相异即内容真变）。
         try {
           const f0 = shotFile(shot0), f1 = shotFile(shot1);
           if (f0) fs.copyFileSync(f0, path.join(RECEIPT_DIR, 'W-06-pembed-shot0.png'));
           if (f1) fs.copyFileSync(f1, path.join(RECEIPT_DIR, 'W-06-pembed-shot1.png'));
           result.embedShots = { md5_0: md5(shot0), md5_1: md5(shot1) };
         } catch { /* best effort */ }
-const shotFile = (t) => { const m = /saved to:s*(S+)/.exec(String(t)); if (!m) return null; let f = m[1]; if (f.startsWith(String.fromCharCode(92,92,63,92))) f = f.slice(4); return f; };
-        const fileMd5 = (f) => { try { return require('node:crypto').createHash('md5').update(require('node:fs').readFileSync(f)).digest('hex'); } catch { return null; } };
-        const md5 = (t) => { const f = shotFile(t); return f ? fileMd5(f) : 'nof' + String(t).slice(0, 16); };
-        result.embedOperate = { count0, count1, clicked, rect: rectOut.slice(0, 30) };
+        result.embedOperate = { count0, count1, clicked, detail };
         assert('embed-operate-input-roundtrip',
-          clicked && count0 != null && count1 != null && Number(count1) > Number(count0),
+          count0 != null && count1 != null && Number(count1) > Number(count0),
           `count ${count0}→${count1}（OS 点击→remote-frame→WS→夹具）${detail}`);
         assert('embed-frame-follows-input', md5(shot0) !== md5(shot1), `截图 md5 随输入变化（帧内容更新）`);
       } else {
