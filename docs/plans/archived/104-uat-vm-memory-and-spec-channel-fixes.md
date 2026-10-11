@@ -517,3 +517,42 @@ seq 游标，无新内容跳过重渲染——直接消除"没有新内容也在
 - 随 V05 登记候选：**并发会话后端字段改动未同步测试夹具**（20 目标编译
   错，base 28f3415 预存，parity_plans 等；夹具同步批次归属并发会话/独立
   小计划，非本计划范围）。
+
+### merge 阶段收据（PLAN-104:r1，completion_kind: delivered，2026-10-12）
+
+- **prepared**：SD-01 canonical 备稿（vm-process-stability.md 增「PLAN-104 修订」
+  节）提交于 9ae4c8b（reviewed f00fa34 纯文档后代=delivery 前置）；SD-02
+  （specs-ledger.md）随 T-06 在分支。
+- **landed**：rebase main（并行 PLAN-102/105 大量落库；冲突 1 处=extern_impl
+  specs_upsert_of，解法=纳 main 状态重构+本 delta file/tags）；range-diff
+  （28f3415..3182fd2 对 main..plan-104-dev）：12/14 补丁全等（=）+1 冲突
+  解决（7c7570c）+1 夹具对齐（spec_tools AppState 补 PLAN-105 三字段，
+  commit 178605a）。git merge --ff-only 落地 **178605a**（9ae4c8b→178605a
+  两 docs/夹具提交为 delivery 组成）。落地后 main 冒烟：lib **579 绿 0 红**
+  （含 F-R2 并发隔离测试；CWD 敏感测试在 main CWD 通过）。
+- **ledger_refreshed**：store-mediated HTTP（landed musk serve :17305，用毕
+  停）：v30→**v38**——designs/PLAN-104-vm-process-stability（draft→
+  under_review→**approved**，file+tags[source/commit/plan]）、designs/
+  PLAN-096-specs-ledger 原位更新（SD-02 三通道+最少条目合同，保 draft）、
+  reviews/PLAN-104-review（→**published**）、reports/PLAN-104-delivery
+  （→**published**）。回读双验。状态机勘误：PLAN-105 严格化后 designs 须经
+  under_review、reports 无 done 态（096 的 done 为严格化前祖传态）。
+- **archived**：本计划 mv 至 docs/plans/archived/（untracked 计划 mv+add
+  落库），frontmatter status: archived。归档提交 e35b668（含一次 amend
+  勘误交付哈希）。
+- **cleaned**：三兄弟只读 worktree 的 untracked Cargo.lock 先移除→四
+  worktree wt-guard 全 clean→auto-musk/auto-ai/auto-lang/auto-down 四处
+  git worktree remove（兄弟自各自主仓移除）→分支 plan-104-dev 删除（was
+  178605a）→组目录 D:/autostack/.wt/musk-104 已删（git worktree list 无
+  musk-104 残留）。
+- **产物检查（landing is not deployment）**：release musk.exe 重建 ✓
+  （10-12 04:43，含全部 104 修复）；gen/front/vue/src 再生 ✓（04:43，含
+  .at 改动）；**gen/front/vue/dist 陈旧（10-03）——重建被 PLAN-102 在途
+  canvas_embed_web.ts TS 错误阻断（@auto/drawlist-renderer 缺失），归属
+  PLAN-102 会话，其完成即解阻**；aaid 零触及（运行实例继续有效）。
+- **批量回归**：不负——.last-batch-regression.json 已由并行会话刷新至
+  105（5bb825b，今日）；104 不被 5 整除、receipt 新鲜无 48h 触发。
+- 移交/呈报链：PLAN-765（r1+r2 delivered，两残留面修复）→ 本计划 T-03
+  收口 → 本 merge。遗留候选（非本计划债务）：①PLAN-105 send-stall 测试
+  CWD 敏感（worktree backend 必现超窗，main 检出稳定过）；②20 目标编译
+  错夹具批次（F-R3）；③脏 localStorage 高分配态（并行会话登记新 K 候选）。
