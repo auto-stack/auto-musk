@@ -119,6 +119,19 @@ Resolve them or assign a bounded investigation with a decision artifact before
 dependent implementation. Proposed fixtures for a new interface are not
 already executable evidence; say which task will make them runnable.
 
+For applicable high-risk Plans, give required supplemental cases stable IDs
+and bind each to an AC, work owner, actual entrypoint, distinguishing assertion,
+and coverage boundary. A fixed corpus does not replace required supplemental
+oracles. Validate proposed expected results against the prose contract; resolve
+conflicts before implementation rather than letting a fixture weaken a rule.
+
+Resolve material resource-support decisions before dependent implementation:
+which inputs are supported, what resource limits are approved, and how resource
+rejection differs from malformed syntax or runtime failure. If the implementation
+strategy is uncertain, require a bounded whole-path feasibility probe first.
+No fixed syntax limit does not promise infinite resources or arbitrary-scale
+performance. See the reference for traversal, lifetime, and publication examples.
+
 Record user-assigned implementation, internal-check, and final-review roles in
 section 6. When internal and final reviewers differ, internal pass only means
 ready for final review; final review precedes merge/archive/cleanup. Do not

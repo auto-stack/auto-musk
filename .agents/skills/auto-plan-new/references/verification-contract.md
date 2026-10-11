@@ -49,6 +49,51 @@ Explicitly state exclusions and pending decisions. A later review must identify
 whether a finding violates this contract, clarifies it, or proposes new scope.
 Do not retroactively treat every new case as an original explicit requirement.
 
+## Resolve support and implementation feasibility early
+
+For an input-processing Plan where depth or size can change admission, state
+whether a limit is part of the approved profile. Define any material limit's
+unit, applicable entrypoints, boundary behavior and diagnostic classification;
+choose valid/invalid controls on both sides. Do not add a fixed syntax exclusion
+as an incidental crash repair. No artificial syntax limit is distinct from
+infinite memory, arbitrary-scale performance, or termination guarantees.
+
+When the design is uncertain, assign a bounded probe before dependent work.
+For recursive compiler structures, inspect representative flat chains,
+continuous and interleaved nesting, calls and blocks, including malformed
+partial trees. Check relevant parsing, resolution, validation, emission and
+construction/destruction paths; iterating one traversal does not establish the
+whole pipeline. Select feasible representative scales and record what was
+actually established, rather than creating a universal stress threshold.
+
+For subprocess or publication work, identify an existing verified facility and
+its actual consumers before creating another implementation. If replacement is
+necessary, give it representative success, failure and cleanup controls; it
+cannot inherit the prior helper's pass merely by keeping its interface.
+
+## Make mandatory oracles traceable
+
+Give required supplemental cases stable IDs, linked ACs, work owners, entrypoints
+and distinguishing assertions. Add current evidence/status during execution;
+a narrative claim or corpus total does not mean the supplement ran. Proposed
+case expectations must agree with the prose contract before implementation.
+A skip or unavailable required oracle remains a gap unless an approved contract
+change removes it; review/merge-owned future operations remain separately pending.
+
+Use controls that isolate the promised property. For a scope test, a same-type
+out-of-scope reference avoids an unrelated type error proving the wrong rule.
+For a Bundle gate, mutate the actual Bundle and prove mutation occurred. For
+three-file rollback, start with three real old files and exercise the promised
+failure stage, then compare all three. For a process deadline, observe complete
+output/error propagation and owned child/reader cleanup, not only caller return.
+These are examples for the applicable contract, not requirements for every Plan.
+
+Readiness evidence should name the actual assertion and current artifact.
+Preserve raw review counterexamples and accepted controls as a shared replay
+set. A repair replays affected cases plus representative sibling combinations;
+changed implementation states need fresh controls. Reuse unchanged evidence
+only with the explicit dependency/configuration justification required by review.
+
 ## Separate task ownership and review roles
 
 Use `owner_stage` in the Markdown task/AC tables or handoff. These are workflow
@@ -116,12 +161,27 @@ During repair, use a concise closure table:
 | Finding | Violated invariant | Applicable paths/consumers/states | Fix and permanent cases | Current result / remaining gap |
 |---|---|---|---|---|
 
-After two failed final reviews of the same delivery, review this table and the
-oracle before another repair. Preserve scope authorization and continue work;
+After two consecutive failed final reviews of the same Plan, diagnose this
+table and the oracle before another repair. Count across repair commits and
+semantic revisions. Link a concise diagnosis in section 9 with:
+
+| Remaining invariant | Why the earlier check missed it | Affected paths/states | Design or oracle adjustment | Current result / blocker |
+|---|---|---|---|---|
+
+Verify the adjustment before the next ready-for-review handoff. Known open
+in-contract findings, mandatory oracle gaps or unresolved support decisions
+prevent execution_done regardless of aggregate green tests. Partial work stays
+executing; future review/merge-owned tasks remain pending without blocking a
+work-complete handoff. Preserve scope authorization and continue repairs;
 ask only for a genuinely changed requirement or missing decision.
 
-Keep one current task row per stable ID. Update current requirements and link
-prior revisions/findings/receipts rather than accumulating repeated active
-checkboxes. Detailed logs belong in durable evidence reports. Reuse an existing
+Two or three final reviews is a convergence target, not permission to pass
+unfinished work. Record actual final-review count and repair regressions; do
+not reset the sequence on an internal pass or hide rounds through relabeling.
+
+Keep one current task row per stable ID. Use short current status/evidence links
+in sections 5–8; put detailed per-round repair narratives and raw logs in linked
+reports, with concise history under section 9. Do not let old completion prose
+or repeated receipt blocks hide a current remaining gap. Reuse an existing
 repository closeout gate when it fits; writing a new general checker is its own
 bounded implementation task, not a requirement for every Plan.

@@ -153,18 +153,32 @@ implementation details.
 
 ## Repair the invariant, not only the reported example
 
+For needs_fix or applicable high-risk implementation, read
+[verification-contract.md](../auto-plan-new/references/verification-contract.md).
 On needs_fix, reproduce the finding against the bound baseline, then list the
 other applicable branches, call sites, consumers, or lifecycle states sharing
-its cause. Record `finding → invariant → affected paths → fix → regression
-cases → current results`. Investigate uncovered paths instead of assuming the
-latest example exhausts the requirement; scope stays within the contract.
+its cause. Keep one current closure row per finding:
+`finding → invariant → affected paths/states → fix and permanent cases →
+current results → remaining gap`. A passed original example does not close an
+invariant while a declared or discovered in-contract gap remains.
 
-Retain a meaningful regression for the old failure and representative sibling
-paths. Check the required observable behavior: a final CLI error is not proof
-of consumer isolation, timeout is not proof of resource cleanup, and existence
-is not proof of target identity when the contract distinguishes them.
-Fixture mutations must actually change the intended input; verification
-summaries and counts come from executed cases, with skips/pending explicit.
+Use prior review counterexamples, including accepted controls, as a shared
+replay set. Consume durable inputs and expected results from the review rather
+than reconstructing them from a summary; identify the input and current code.
+Replay findings affected by the repair and representative sibling combinations,
+and preserve assertions for previously cleared behavior. For a substantial
+parser, traversal, or executor rewrite, reassess its changed grammar/lifecycle
+states; do not assume the old passing corpus covers the new implementation.
+This calls for representative coverage, not an exhaustive Cartesian product.
+
+Check the required observable behavior: a final CLI error is not proof of
+consumer isolation, timeout is not proof of resource cleanup, and existence is
+not proof of target identity when the contract distinguishes them. Fixture
+mutations must actually change the intended input and protect the specified
+objects; verification totals come from executed cases, with skips/pending
+explicit. An adjacent type check, earlier pipeline stage, or smaller artifact
+set cannot stand in for the required oracle. Bind permanent regressions to
+actual test entrypoints and assertions, not only case names or a green banner.
 
 ## Adapt or route from evidence
 
@@ -185,21 +199,42 @@ automatic continuation, use the user's limit; if none was set, cap automatic
 work/review repair cycles at three, then diagnose or hand back the blocker.
 Repeated identical failure without progress stops blind retries sooner.
 This is a skill-level bound, not a background scheduler.
-After two consecutive failed final reviews of the same delivery, diagnose
-contract/oracle gaps, partial fixes, regressions, and changed inputs before the
-next repair. Count across semantic revisions; an internal pass does not reset
-the sequence. Record the resulting coverage/design adjustment and continue
-authorized work. This is a diagnostic checkpoint, not an automatic stop or a
-new request for already-granted approval.
+After two consecutive failed final reviews of the same Plan, diagnose before
+the next repair and retain a linked diagnosis in section 9. Count across repair
+commits and semantic revisions; an internal pass does not reset the sequence.
+Name each remaining invariant, why earlier checks missed it, the affected
+paths/states, and the design/oracle adjustment. Implement and verify that
+adjustment before another ready-for-review handoff; restating the findings or
+passing only the old examples is insufficient. If an architecture change is
+needed, route the bounded decision through new under existing authorization.
+This checkpoint does not stop authorized work or require approval again for
+the unchanged scope. Aim for two or three final reviews by improving detection
+and repair; the target never waives acceptance or changes the automatic retry
+limit above. Do not hide extra final reviews by relabeling them internal.
 
 ## Completion and handoff
 
 Before setting `execution_done`, verify that all work-owned tasks and criteria
 are complete, required scoped checks passed on the current code, completed
-changes are committed, and no blocking question remains. Identify the remaining
-review/merge-owned tasks and gates without marking them complete. Legacy Plans
-may record these owners in the handoff without changing their requirements.
-Incomplete implementation stays `executing`; counts still include all tasks.
+changes are committed, and no blocking question remains. For needs_fix or a
+high-risk Plan, include a concise readiness record in the handoff:
+
+- Work-owned AC results, linked to current test/assertion evidence.
+- Open in-contract findings, required coverage gaps, and unresolved contract
+  decisions: each must be empty before a ready-for-review pass.
+- Affected prior-case replay and sibling-state results; distinguish actual
+  closure from a fixed original example with remaining work.
+- Current code/dependency/configuration identity and, when triggered, the
+  two-failure diagnosis plus verified adjustment.
+
+Aggregate tests passing cannot override an admitted remaining task, partial
+criterion, skipped required case, or unapproved support reduction. Keep such
+work `executing`, mark affected evidence incomplete, and continue authorized
+repairs or report the precise blocker. Do not hand unfinished implementation
+to final review to decide whether the existing contract still applies.
+Identify remaining review/merge-owned tasks and gates without marking them
+complete; they do not block a work-complete handoff. Legacy Plans may record
+these owners without changing their requirements. Counts include all tasks.
 
 Append a short record under `9. 复审记录`; blockers also appear under
 `10. 待澄清事项`:

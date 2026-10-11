@@ -24,9 +24,16 @@ landing. Output: reproducible evidence and an unambiguous next action.
   as evidence of what exists; do not treat a mismatch as permission to weaken
   the agreed requirement.
 - Normal entry is `execution_done`. If `executing` claims all tasks done,
-  verify that claim before treating it as ready. A draft or incomplete Plan
-  returns to work. A re-review is appropriate on explicit request or when
-  merge detects stale evidence. Do not reopen an archived Plan.
+  verify that claim before treating it as ready. For high-risk or repaired work,
+  reconcile the readiness record and finding closure table with the actual
+  contract, code, and assertions; an internal pass or test total is not the gate.
+  Known unfinished work-owned criteria or required oracles return to work,
+  even if the receipt says execution_done. Record the concrete gap; do not
+  spend another full final-review cycle merely to reconfirm admitted unfinished
+  implementation. Explicit investigation or targeted review requests can still
+  examine partial work, but cannot issue final pass. A re-review is appropriate
+  on explicit request or when merge detects stale evidence. Do not reopen an
+  archived Plan.
 - Prefer an independent review session/context when available and authorized.
   A separate role/model is optional; do not claim independence merely from a
   role name. If reviewing in the implementation session, state that limitation
@@ -97,10 +104,24 @@ For each acceptance ID, reproduce its verification and record
 
 For the Plan's high-risk invariants, inspect the complete declared path/state
 matrix and independently choose representative counterexamples, not only the
-executor's regression inputs. Cover the identified risk areas in the first
-review rather than stopping at the first defect. New scope is a contract change,
-not an undisclosed acceptance requirement. For document contracts, check rule
-consistency and dependency feasibility, not only field or example counts.
+executor's regression inputs. Read
+[verification-contract.md](../auto-plan-new/references/verification-contract.md)
+when applicable. Cover the identified risk areas in the first review rather
+than stopping at the first defect; mark unexamined areas pending with reasons.
+New scope is a contract change, not an undisclosed acceptance requirement.
+For document contracts, check rule consistency and dependency feasibility,
+not only field or example counts.
+
+On re-review, distinguish old-example closure, full-invariant closure, and
+new repair regressions. Replay affected prior inputs and accepted controls
+against the new baseline, with hashes when input identity matters. A changed
+parser/traversal/executor needs representative combination or failure-exit
+checks for its new paths; earlier helper evidence does not cover a replacement.
+Keep counterexample input, expected behavior, command and actual result durable
+and directly reusable by work. Describe the violated existing rule and coverage
+boundary, so a new probe does not silently become a new scale promise. After
+two failed final reviews, verify the diagnosis and coverage/design adjustment
+from work before treating the next handoff as ready.
 
 Check raw invocation/results against claimed case IDs and totals. For a
 validator used as acceptance evidence, test meaningful valid and invalid
