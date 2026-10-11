@@ -3906,6 +3906,265 @@ mod tests {
         );
     }
 
+    // ── PLAN-105 T-01：P1 run 不收束复现器（87af4d4b 定罪三形态）───────────
+    //
+    // UAT 87af4d4b7e7a9c25e2d44114 定罪链：末轮流（out=2647）17:46:37 收完、
+    // 工具批全部执行（turns 落盘为证），下一轮 LLM 请求从未到达 daemon
+    // （aaid 零日志），run 悬挂 300s 被看门狗强杀。落点=auto-ai-client
+    // rust-ref AiClient 的 send 阶段无超时（reqwest::Client::new() 裸构）；
+    // PLAN-099 的 90s 读空闲只覆盖响应体读循环。以下三测试钉收束时限：
+    // A/B 为收尾形态回归钉（应恒绿），D 为定罪形态（修复前红）。
+
+    /// 形态 A（文本收尾）：末轮流纯文本无工具调用——run 应秒级收束（守卫
+    /// 释放 + assistant 消息落盘非 pending），绝不落入看门狗窗（AC-01）。
+    #[tokio::test]
+    async fn chat_run_text_final_converges_without_watchdog() {
+        use crate::auto_generated::server as ag_server;
+        struct TextFinalClient;
+        #[async_trait]
+        impl Client for TextFinalClient {
+            async fn complete(
+                &self,
+                _req: &CompletionRequest,
+            ) -> Result<CompletionResponse, ClientError> {
+                unreachable!("run_stream 走 complete_stream")
+            }
+            async fn complete_stream(
+                &self,
+                _req: &CompletionRequest,
+                on_event: Arc<dyn Fn(serde_json::Value) + Send + Sync>,
+            ) -> Result<CompletionResponse, ClientError> {
+                on_event(serde_json::json!({"type": "delta", "text": "完成。"}));
+                Ok(CompletionResponse {
+                    content: "完成。".into(),
+                    tool_calls: vec![],
+                    stop_reason: Some("end_turn".into()),
+                    usage: None,
+                    model: "mock".into(),
+                    error: None,
+                    model_meta: None,
+                })
+            }
+        }
+        let mut state = tmp_state_with_client(Arc::new(TextFinalClient));
+        // 看门狗放宽到 30s：若收敛依赖看门狗，本测试必红（收束必须秒级）。
+        state.run_idle_timeout = std::time::Duration::from_secs(30);
+        let ws = state.registry.get("");
+        let runs = state.chat_runs.clone();
+        let sess = ws
+            .chats
+            .create("basic", Some(String::new()))
+            .expect("create session");
+        ws.chats
+            .append_message(&sess.id, crate::chats::ChatMessage::user("hi"))
+            .expect("append user message");
+        let app = axum::Router::new().route(
+            "/api/chats/session/{id}/message",
+            axum::routing::post(ag_server::chat_message),
+        )
+        .with_state(state);
+        let t0 = std::time::Instant::now();
+        let st = post_message(app, &sess.id, r#"{"content":"hi","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        wait_until(|| runs.lock().unwrap().is_empty()).await;
+        let elapsed = t0.elapsed();
+        assert!(
+            elapsed < std::time::Duration::from_secs(10),
+            "文本收尾应 ≤10s 收束（实测 {elapsed:?}）"
+        );
+        let updated = ws.chats.get(&sess.id).expect("session exists");
+        let done_msg = updated
+            .messages
+            .iter()
+            .find(|m| m.role == crate::chats::Role::Assistant)
+            .expect("assistant 消息应落盘");
+        assert_eq!(done_msg.content, "完成。");
+        assert!(done_msg.pending != Some(true), "终版不应停留在 pending");
+    }
+
+    /// 形态 B（工具轮→文本收尾）：末轮前一轮带工具调用（对应 UAT 末轮
+    /// 「正要发工具调用」形态），工具结果回灌后文本收尾——同样秒级收束。
+    #[tokio::test]
+    async fn chat_run_tool_round_then_text_converges_without_watchdog() {
+        use crate::auto_generated::server as ag_server;
+        use auto_ai_client::ToolCall;
+        struct ToolThenTextClient;
+        #[async_trait]
+        impl Client for ToolThenTextClient {
+            async fn complete(
+                &self,
+                _req: &CompletionRequest,
+            ) -> Result<CompletionResponse, ClientError> {
+                unreachable!("run_stream 走 complete_stream")
+            }
+            async fn complete_stream(
+                &self,
+                _req: &CompletionRequest,
+                on_event: Arc<dyn Fn(serde_json::Value) + Send + Sync>,
+            ) -> Result<CompletionResponse, ClientError> {
+                static CALLS: std::sync::atomic::AtomicUsize =
+                    std::sync::atomic::AtomicUsize::new(0);
+                let n = CALLS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                if n == 0 {
+                    on_event(serde_json::json!({"type": "delta", "text": "对策："}));
+                    Ok(CompletionResponse {
+                        content: "对策：".into(),
+                        tool_calls: vec![ToolCall {
+                            id: "t1".into(),
+                            name: "read_file".into(),
+                            input: serde_json::json!({"path": "README.md"}),
+                        }],
+                        stop_reason: Some("tool_use".into()),
+                        usage: None,
+                        model: "mock".into(),
+                        error: None,
+                        model_meta: None,
+                    })
+                } else {
+                    on_event(serde_json::json!({"type": "delta", "text": "完成。"}));
+                    Ok(CompletionResponse {
+                        content: "完成。".into(),
+                        tool_calls: vec![],
+                        stop_reason: Some("end_turn".into()),
+                        usage: None,
+                        model: "mock".into(),
+                        error: None,
+                        model_meta: None,
+                    })
+                }
+            }
+        }
+        let mut state = tmp_state_with_client(Arc::new(ToolThenTextClient));
+        state.run_idle_timeout = std::time::Duration::from_secs(30);
+        let ws = state.registry.get("");
+        let runs = state.chat_runs.clone();
+        let sess = ws
+            .chats
+            .create("basic", Some(String::new()))
+            .expect("create session");
+        ws.chats
+            .append_message(&sess.id, crate::chats::ChatMessage::user("go"))
+            .expect("append user message");
+        let app = axum::Router::new().route(
+            "/api/chats/session/{id}/message",
+            axum::routing::post(ag_server::chat_message),
+        )
+        .with_state(state);
+        let t0 = std::time::Instant::now();
+        let st = post_message(app, &sess.id, r#"{"content":"go","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        wait_until(|| runs.lock().unwrap().is_empty()).await;
+        let elapsed = t0.elapsed();
+        assert!(
+            elapsed < std::time::Duration::from_secs(10),
+            "工具轮+文本收尾应 ≤10s 收束（实测 {elapsed:?}）"
+        );
+        let updated = ws.chats.get(&sess.id).expect("session exists");
+        let done_msg = updated
+            .messages
+            .iter()
+            .find(|m| m.role == crate::chats::Role::Assistant)
+            .expect("assistant 消息应落盘");
+        assert!(
+            done_msg.content.ends_with("完成。"),
+            "文本收尾内容（跨轮累积后以末轮结尾）: {}",
+            done_msg.content
+        );
+    }
+    /// 形态 D（定罪形态：下一轮 LLM 请求 send 阶段悬死）。真 AiClient 打
+    /// stub daemon：请求 1 正常回 SSE（delta + done 带 read_file 工具调用，
+    /// Connection: close 强制请求 2 另开连接），请求 2 accept 后永不响应。
+    /// client send 阶段超时（env 1s，修复新增）应令 run 以可见错误收束并
+    /// 保留工具现场，守卫释放——远小于看门狗窗。修复前（send 无超时）：
+    /// run 悬挂至看门狗 60s，本测试红（8s 轮询窗内守卫不释放）。
+    #[tokio::test]
+    async fn chat_run_llm_send_stall_converges_bounded() {
+        use crate::auto_generated::server as ag_server;
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            // 请求 1：读走请求（单次大读足够小请求体），回 SSE 流。
+            let Ok((mut s1, _)) = listener.accept() else { return };
+            let mut buf = [0u8; 65536];
+            let _ = s1.read(&mut buf);
+            let _ = s1.write_all(
+                b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n",
+            );
+            let frames = [
+                "data: {\"type\":\"delta\",\"text\":\"对策：\"}\n\n",
+                "data: {\"type\":\"done\",\"model\":\"mock\",\"usage\":null,\"tool_calls\":[{\"id\":\"t1\",\"name\":\"read_file\",\"input\":{\"path\":\"README.md\"}}],\"stop_reason\":\"tool_use\"}\n\n",
+            ];
+            for f in frames {
+                let p = f.as_bytes();
+                let _ = s1.write_all(format!("{:x}\r\n", p.len()).as_bytes());
+                let _ = s1.write_all(p);
+                let _ = s1.write_all(b"\r\n");
+            }
+            let _ = s1.write_all(b"0\r\n\r\n");
+            let _ = s1.flush();
+            // 请求 2（工具结果回灌后的下一轮）：accept 后持连不响应——UAT
+            // 87af4d4b 的 send 阶段悬死形态。
+            let Ok((mut s2, _)) = listener.accept() else { return };
+            let mut buf2 = [0u8; 65536];
+            let _ = s2.read(&mut buf2);
+            std::thread::sleep(std::time::Duration::from_secs(120));
+        });
+        std::env::set_var("AUTO_AI_CLIENT_SEND_TIMEOUT_SECS", "1");
+        let client =
+            Arc::new(auto_ai_client::AiClient::with_url(format!("http://127.0.0.1:{port}")));
+        let mut state = tmp_state_with_client(client);
+        state.run_idle_timeout = std::time::Duration::from_secs(60);
+        let ws = state.registry.get("");
+        let runs = state.chat_runs.clone();
+        let sess = ws
+            .chats
+            .create("basic", Some(String::new()))
+            .expect("create session");
+        ws.chats
+            .append_message(&sess.id, crate::chats::ChatMessage::user("stall"))
+            .expect("append user message");
+        let app = axum::Router::new().route(
+            "/api/chats/session/{id}/message",
+            axum::routing::post(ag_server::chat_message),
+        )
+        .with_state(state);
+        let st = post_message(app, &sess.id, r#"{"content":"stall","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        // 8s 轮询窗（send 超时 1s × 重试 1 次 + 工具轮 ≈2-3s；看门狗 60s
+        // 不可依赖）。修复前：守卫悬挂不释放 → 超窗红。
+        let mut cleared = false;
+        for _ in 0..160 {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            if runs.lock().unwrap().is_empty() {
+                cleared = true;
+                break;
+            }
+        }
+        assert!(
+            cleared,
+            "send 悬死应在远小于看门狗的时限内收束（守卫释放）"
+        );
+        let updated = ws.chats.get(&sess.id).expect("session exists");
+        let err_msg = updated
+            .messages
+            .iter()
+            .find(|m| m.role == crate::chats::Role::Assistant)
+            .expect("失败消息应持久化");
+        assert!(
+            err_msg.content.contains("运行失败"),
+            "失败消息: {}",
+            err_msg.content
+        );
+        // 失败臂保现场：首轮工具卡应保留在 blocks。
+        assert!(
+            err_msg.blocks.iter().any(|b| b.kind == "tool"),
+            "失败收束应保留工具现场: {:?}",
+            err_msg.blocks
+        );
+    }
+
     /// PLAN-073 P2-T2/P2-T3 回归：失败臂保现场——首个响应带工具调用（积累
     /// 工具卡 + turn_end 增量快照落盘），第二个响应失败。失败收束必须保留
     /// 已积累的 tool_calls/blocks（⚠ 文案作尾块）；终版与快照同 id 原位
