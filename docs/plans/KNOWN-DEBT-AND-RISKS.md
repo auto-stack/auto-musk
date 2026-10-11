@@ -129,6 +129,8 @@
 | — | **UAT-K14 auto 模式 taskkill 宿主自毁零防护（2026-10-11 复跑实录；PLAN-105 已修引号诱因，宿主保护语义残余开放）**：work 会话在 run_command 引号损坏连败（git commit -m/node -e/curl 全中，105 P4/P5）后，一条命令按映像名清除 musk.exe——验证隔离栈与旁站 demo2 栈双亡、被杀 run 转录全丢（turns.jsonl 仅存用户消息行）。auto 审批模式（PLAN-073 F-D「不打断」）对宿主自杀命令零拦截；本轮 resume 以消息级进程红线（禁 /IM、禁按端口反查杀）续跑成功。PLAN-105 已落 P4/P5 引号保真（诱因消除：模型不再需要绕行子流）与 P8 进程收割（run_command 面凭证收割）；**残余开放**：auto 审批模式对按映像名/端口反查杀宿主命令（`taskkill /IM musk.exe` 类）仍零拦截——宿主保护语义（自毁命令硬拒/挂门）未实现，留待后续计划。 | [plan-flow-uat spec K14](../reports/plan-flow-uat/spec.md) / tmp/t1-serve.log（双 WARN 后进程消失）/ docs/plans/105-*.md |
 | — | **UAT-K15 serve 硬死 → run 转录零落盘（同轮）**：musk serve 进程死亡形态下，工具边界增量快照（PLAN-099 T-03）不提供任何持久化，run 全部事件随进程消失（对照：LLM 侧 aaid 日志与 worktree 产物仍在，对账恢复可行——本轮实证）。关联 105 P1 收束/持久化家族与 K2 残面。 | [plan-flow-uat spec K15](../reports/plan-flow-uat/spec.md) / tmp/demo-t1/.autoos/conversations/9d569e1a*/turns.jsonl（1 行） |
 
+| — | **tests 编译旧伤族：21 个 integration 目标不自 368c2f9（PLAN-099 chat_runs HashMap 化）以来编译（2026-10-12 批量回归定谳）**：三类——①`chat_runs` HashSet→HashMap 漏改 tests 构造（E0308×17 目标：bp_tools/canvas_live/examples_pool/parity_{chat_branch,config_endpoints,feature_dev,files,forge_mode,plans,relay,relay_api,relay_driver,settings_link,spec_tree,task_plan_execute,wiki_http}/plan_{delivery,flow_contract,flow_execution}）；②`chats::ToolCall` 缺 escape_paths/gate_id/pending_cmd（PLAN-103 漏改，parity_chats）；③`StartRunRequest.authorization`（PLAN-096 T-12，parity_handoff_store=098-R1）。基线 11c5db5 干净 worktree 22 目标 23 errors 实证（PLAN-105 证据）；102 落地已修复 canvas_studio_contract。修法机械（字面量补字段）但目标久未运行、修后或有运行期红——独立清偿计划承接。 | backend/crates/musk/tests/*（三类构造点）/ docs/reports/105-uat-run-lifecycle-fixes-evidence.md（基线对照） |
+
 ## PLAN-084 遗留债（2026-09-22 合入登记，六项均范围外/不削弱 AC）
 
 | ID | 级别 | 归属 | 内容 | 证据 |

@@ -1,14 +1,15 @@
 {
-  "last_covered_plan_id": 98,
-  "timestamp": "2026-10-03T00:53:56.538Z",
-  "covered_commit": "b767bc5",
+  "last_covered_plan_id": 105,
+  "timestamp": "2026-10-11T16:32:45Z",
+  "covered_commit": "1baad2d",
   "legs": [
-    "musk-full-serial-38-targets"
+    "musk-full-serial-38-targets+lib"
   ],
   "new_reds": [],
   "known_reds_seen": [
-    "098-R1 parity_handoff_store: E0063 StartRunRequest missing authorization (KNOWN-DEBT 098-R1, pre-existing since 096 T-12)",
-    "098-R2 tool_atoms::run_command_dangerous_returns_paused: env-sensitive root-resolution panic (KNOWN-DEBT 098-R2)"
+    "098-R1 parity_handoff_store: E0063 StartRunRequest missing authorization (KNOWN-DEBT 098-R1)",
+    "098-R2 tool_atoms::run_command_dangerous_returns_paused: env-sensitive root-resolution (KNOWN-DEBT 098-R2)",
+    "tests-compile-debt family: 21 integration targets E0308 HashSet / E0063 ToolCall fields (pre-existing since 368c2f9/PLAN-103; baseline 11c5db5 proven; family now recorded in KNOWN-DEBT)"
   ],
-  "notes": "auto-musk 全量门=逐目标串行 38 测试目标（本仓无 auto-lang tf/tt/tb 别名；同收据模式）。36 绿；known-reds-only 判定。"
+  "notes": "窗口=b767bc5..1baad2d（PLAN-102+PLAN-105）。绿 16 项（--lib 578、canvas_studio_contract 29[102 修复]、plan105_specs_transition_honesty 4[105 新增] 等）；零新增红。VM 冒烟门 0+2 ignored（手动门在 105 复审已跑 2/2）。"
 }
