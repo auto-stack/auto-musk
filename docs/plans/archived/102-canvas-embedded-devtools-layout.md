@@ -1,10 +1,10 @@
 ---
 plan_id: PLAN-102
-status: executing
+status: archived
 feature_name: Canvas 内嵌交互预览与 DevTools 可停靠布局
 author: [agent]
 created_at: 2026-10-10T05:20:55Z
-updated_at: 2026-10-11T20:05:00Z
+updated_at: 2026-10-11T20:30:00Z
 plan_revision: 2
 current_step: 5
 total_steps: 6
@@ -241,3 +241,11 @@ hidden: [          Canvas              ]  ← 工具栏可重新打开
 4. 默认内嵌、默认操作态、工具区默认左停靠是本计划产品假设；提供独立窗口与其他停靠选项满足用户选择。工具尺寸初值以可读性走查修正，不改变最小空间和验收要求。
 5. **F-03-1（2026-10-11 登记当日闭环）**：musk VM 前端探针交互下间歇性静默退出——根因定罪为 `Math.floor` 外源浮点穿 int 边界 + float→str 拼接位型缺陷 → decl 毒化 `width:0px` → 0 宽退化布局随机触发静默退出（见 §9 收口记录）；musk 侧已以 `.to_int()` 习语规避并 20/20×2 无复现。**上游 auto-lang 的 float→str 拼接缺口本身仍开放**（VM 数据语义已知缺口家族），修复另立上游项；若 musk 侧复现崩溃则重开本条。
 6. **v0.6 方向决议（用户 2026-10-11，本版 v0.5 收尾裁定）**：① 本版仅支持内嵌呈现（AC-02 v2：embedded 生命周期身份保持 + window 显式 501）；② 内嵌/独立窗口双向支持归 v0.6；③ **v0.6 内嵌架构 = VM 原生内嵌**（auto-os ui-gallery 的 `AppViewport` 同进程组件形态）——本版 RF 远程链（bridge/WS/DisplayList 重放）为迁移后的退役候选；④ 前置上游能力：任意 app 路径组件运行时装载（ui-gallery 为构建期静态导入固定集）+ DevTools vtree/pick/state 改从宿主渲染树取（现依赖目标 app 独立 MCP）；⑤ VM 轨 light 主题为上游 iced 渲染器 dark-only 能力边界（`theme_fn` 恒 Dark），随原生内嵌/v0.6 一并补；⑥ VM 轨语言切换疑似缺口（storage 键种子后 UI 未翻转，web 轨同键生效）与硬编码 zh 字串（"上传代码"）登记为 v0.6 清理项。
+
+2026-10-11 沉淀收据（merge，completion_kind: delivered）：`stage: merge`，`plan: PLAN-102`，`revision: 2`，`outcome: pass`。
+- `prepared`：reviewed baseline = 重审 pass（r2）@ plan-102-dev `7f4aa24`；规范增量 SD-01..04 在 worktree 落稿（4 模块文件，+129/−54）——纯文档后代成为 delivery commit。
+- `landed`：worktree rebase onto main 零冲突（20 提交重放；range-diff 全 `=`，reviewed 提交映射 `7f4aa24 → 7463ee1`）→ main `git merge --ff-only plan-102-dev` → **main tip = `6a0e461`**（线性、无 merge commit）。
+- `ledger_refreshed`：workspace `auto-musk`（store-mediated POST /api/specs/item @8080），version 24→27，读回校验三条目：designs/PLAN-102-canvas-embed-workbench、reviews/PLAN-102-review、reports/PLAN-102-delivery（均 Draft）。
+- `archived`：git mv → docs/plans/archived/102-canvas-embedded-devtools-layout.md，frontmatter status: archived。
+- `cleaned`：worktree `D:/autostack/.wt/musk-102/auto-musk` + 分支 plan-102-dev 移除（guard 复验后）；组内兄弟 auto-lang/auto-ai/auto-down 处置见下。
+- 环境注：主检出既有脏文件 docs/plans/KNOWN-DEBT-AND-RISKS.md（他会在途，未动）；104 计划草稿 untracked（未动）。
