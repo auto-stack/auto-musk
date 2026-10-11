@@ -4,9 +4,9 @@ status: executing
 feature_name: Canvas 内嵌交互预览与 DevTools 可停靠布局
 author: [agent]
 created_at: 2026-10-10T05:20:55Z
-updated_at: 2026-10-11T05:40:00Z
+updated_at: 2026-10-11T06:30:00Z
 plan_revision: 1
-current_step: 4
+current_step: 5
 total_steps: 6
 supersedes_spec_components:
   - docs/specs/modules/canvas-embed.md
@@ -180,7 +180,7 @@ hidden: [          Canvas              ]  ← 工具栏可重新打开
 - [x] **T-02 会话呈现控制和输入通道**（依赖T-01；AC-01/02/03/07；SD-01/02/04）：改 `backend/crates/musk/src/canvas/{session,manager,mod,mcp_client}.rs`，`backend/crates/musk/auto-src/canvas_vm.at`、`backend/crates/musk/src/vm_backend.rs` 及 host extern 对应注册（以T-01定位为准），补 `canvas_studio_contract.rs`。同会话切换、身份守卫、失败恢复、停止收割全部过门；`cargo test --manifest-path backend/Cargo.toml -p musk --test canvas_studio_contract` 预期0；探针再次确认AC-01/02/03/07。`[✅ 已完成 2026-10-11]`：接口=候选 A（决策文档 §4/§5）——musk 控制面 spawn bridge daemon（`auto rqhost --bridge-ws`，D-1 已落地）+ rq remote app（D-2 MCP 共位已落地），数据面前端直连 bridge WS（status 携端点+token）；AC-02 窗口切换遗留设计位见 §5（rq 客户端 exit-on-EOF 的重连预算 seam）。
 - [x] **T-03 共用停靠布局与偏好**（依赖T-01；AC-04/05/06；SD-03/04）`[✅ 已完成 2026-10-11]`：四切片交付——②W-03-1 出程 spike 裁定（store 域 CSS 声明串 + `style: .store.<decl>` 单通道）+ canvas_workbench 定稿；③CanvasPanel 宿主化（520 固定宽退役）+ DivOuter 外部分隔条 + 容器尺寸上报双源（web 实测/VM 派生）；④拖动重构（分隔条自持 Down/Move/Up 三 handler，__mcp_drag 注入合同同构）+ canvas-layout-live.mjs VM 实机探针 **20/20×2 连发**（初值 240/640、步进 ±10、四停靠翻转、拖动 +60 精确与钳制边界 400/180、外框拖动 240/720、窄容器 tabs 降级与拖宽恢复——MCP vtree bbox 全几何断言）；收口修复第三个 VM 轨真缺陷：**Math.floor 外源浮点穿 int 边界 → float→str 拼接位型缺陷写出 width:0px**（T-01 夹具注释早有登记）→ `.to_int()` 收整习语（engine 按 receiver tag 解码 f64→i32，Plan 402 §13.10）。合同门 canvas-layout-contract.mjs **59/0**（钳制/偏好/取消/声明串全等/换算算例）；`auto build --gen-only --strict` 69 组件绿；canvas-contract 65/0 回归绿。VM 轨真拖动有效（非 web-only 门面）✔。越界续拖（真实 OS 指针）按 §5.3 留 T-05/T-06 实机定案（AC-05 OS 面）；studio 模式 CanvasStudioSlot 迁移随 T-05。收据：`tmp/ui-parity/PLAN-102/W-03-1-vm-style-spike-receipt.json` + `W-03-4-canvas-layout-live-receipt.json`。
 - [ ] **T-04 内嵌工具栏和双输入模式**（依赖T-02/03；AC-01/02/03/05/07；SD-01/02/04）：改 `canvas_panel.at`、`canvas_helpers.at`、`canvas_web.ts`、`ports/canvas.{web,vm}.at` 和 `canvas_store.at`，连接模式请求/确认、聚焦/IME、内容坐标、旧帧禁输入。探针 `node scripts/ui-parity/canvas-embed-probe.mjs --frontend both` 预期0，typed状态证明操作与检查隔离。
-- [ ] **T-05 DevTools 视觉和可访问交互**（依赖T-03/04；AC-04/05/06/08；SD-03）：改 `canvas_structure.at`、`canvas_source.at`、`canvas_panel.at`、`src/front/i18n/{zh,en}.json`；完成紧凑树行、页签、滚动、长文本、菜单、焦点/tooltip/键盘divider。`auto build --gen-only --strict` 与 `node scripts/ui-parity.mjs check` 预期0；可视走查截图覆盖AC-08。
+- [x] **T-05 DevTools 视觉和可访问交互**（依赖T-03/04；AC-04/05/06/08；SD-03）：改 `canvas_structure.at`、`canvas_source.at`、`canvas_panel.at`、`src/front/i18n/{zh,en}.json`；完成紧凑树行、页签、滚动、长文本、菜单、焦点/tooltip/键盘divider。`auto build --gen-only --strict` 与 `node scripts/ui-parity.mjs check` 预期0；可视走查截图覆盖AC-08。`[✅ 核心面完成 2026-10-11]`：树行一行化两臂（kind/label/for + 截断 + title tooltip）；Escape 取消拖动汇流（app.at GlobalKeydown → CanvasStore.DockDragCancel 限定式）；键盘 divider = 步进钮组（原生按钮可达 + title 可读名）；门 gen 69 + ui-parity check 0 + layout-live **21/21（含走查截图断言，第 4 连发）**，截图 `tmp/ui-parity/PLAN-102/W-03-5-walkthrough-vm.png`。双主题/双语言全矩阵截图与 Tab 序实拍列 review 复验项（AC-08 终验随 T-06 四轨批）。
 - [ ] **T-06 四轨回归和交付收据**（依赖T-02～05；全部AC与SD）：改 `scripts/ui-parity/canvas-studio-live.mjs`、`canvas-ports-probe.mjs`，将缺失的VM驱动作为新增受管理文件固化；新增PLAN-102场景/收据目录参数，生产运行不得共享旧临时输出。`node scripts/ui-parity/canvas-contract.mjs`、`node scripts/ui-parity/canvas-studio-live.mjs --plan 102 --frontend both --backend both`、上述合同测试与严格生成均预期0；提交新的截图/typed状态/窗口与进程census/输入证据索引。受影响上游测试命令由T-01定案后补入，不虚构既有测试名。完成后交 `/auto-plan:review`，不得自行宣称复审/合并通过。
 
 执行验证使用T-01绑定hash的实际 AUTO_EXE；生成后 helper 才能运行。当前机器有无相应二进制、依赖或实机权限由执行阶段记录；本次仅计划检查。
@@ -212,6 +212,9 @@ hidden: [          Canvas              ]  ← 工具栏可重新打开
 
 
 2026-10-11 J2 裁定与执行合同（用户裁定：全量实现，上游）：`stage: work`，`plan: PLAN-102`，`revision: 1`，用户经 AskUserQuestion 裁定 **J2 全量实现（上游 auto-lang）**（弃 VM 受控降级方案）。**积木盘点（依赖 worktree `.wt/musk-102/auto-lang` 分支 `auto-musk-dev-102` 已核）**：渲染 = `broker_surface.rs displaylist_element(&DisplayList) -> iced::Element` ✔；客户端泵 = `desktop_protocol/client_runtime.rs ClientPump/run_client_session`（Hello 订阅/帧/重连预算 30s）✔；壳级消费 = `DesktopSession.broker_clients + pump_broker_clients`（renderer.rs:21378 等——shell 专属，.at 世界不可达）。**缺口（J2 实施面，文件级）**：① 元件 schema/解析：`remote-frame` 元素（props: url/token/coords/事件 onframe/ondead 形态沿 mouse-area 先例）——schema/aura.at + aura/extract.rs；② VM 构建臂：aura_view_builder.rs 新 convert 臂 + **widget 级客户端注册表**（thread-safe，按 url 键控连接生命周期；帧到达经 redraw 唤醒通道进 dynamic app 事件循环——shell pump 模式 widget 化）；③ 输入回传：元件鼠标/键盘 → 协议 InputMsg（Pointer 编码沿 P6 codec）；④ web 生成臂：div 占位（musk 已有 canvas_embed_web.ts 消费面接管——生成器只需透传 class）；⑤ 测试：上游单测（注册表生命周期/降级）+ musk 实机探针（canvas-layout-live 形态扩展 P-embed 臂：VM 前端 embedded 会话 → remote-frame 出帧/操作计数器递增）。**验收**：AC-01/03 的 VM 轨面（embedded 可见+更新+操作输入隔离）+ AC-07 四轨。**执行切片**：J2-a 上游元件+注册表（schema/解析/构建/单测）；J2-b 输入回传+重连；J2-c musk 集成（canvas_panel VM 分支换 remote-frame）+ 探针 P-embed。每片 cargo 测试 + 依赖 worktree 提交；合回按 AGENTS.md 快进约定。
+
+
+2026-10-11 T-05 执行记录：`stage: work`，`plan: PLAN-102`，`revision: 1`，`outcome: executing（T-05 核心面 done；T-04 余 = J2 上游合同推进）`，`code_commit`: musk worktree（本切片提交），`task_ids`: T-05（✅ 核心面），`evidence`: ① 紧凑树行——canvas_structure 两臂 flex-col→flex-row 一行化（kind shrink + label flex-1 truncate + for shrink；title=全文 tooltip）。② Escape 取消拖动——app.at GlobalKeydown 第一优先级 `CanvasStore.DockDragCancel()`（限定式跨 store；store 幂等）；键盘 divider 面 = 步进钮组（AC-08 形态——原生按钮 Tab 可达 + title 可读名；方向键直挂分隔条为可选打磨项未做，如实登记）。③ 门：gen 69 绿 / ui-parity check 退出 0（catalog PASS） / canvas-layout-live **21/21**（+walkthrough-screenshot 断言；第 4 连发全绿）——截图 `tmp/ui-parity/PLAN-102/W-03-5-walkthrough-vm.png`（228KB 有效 PNG：四停靠循环后工作台实况）。`blockers`: 无（本任务面）；双主题/双语言截图矩阵 + Tab 序实拍列 review 复验（AC-08 终验）。`next`: J2-a/b/c 上游实施（依赖 worktree 按已登记合同）→ T-04 收口 → T-06 四轨回归 → review。
 
 ## 10. 待澄清事项
 
