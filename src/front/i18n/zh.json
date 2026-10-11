@@ -532,6 +532,7 @@
     "tabStructure": "结构",
     "zoomToggle": "切换适应 / 1:1",
     "structureToggle": "切换结构面板",
+    "inputModeToggle": "切换操作 / 检查（检查态只拾取，不触应用）",
     "dockLeft": "工具区停靠左侧",
     "dockBottom": "工具区停靠底部",
     "dockRight": "工具区停靠右侧",

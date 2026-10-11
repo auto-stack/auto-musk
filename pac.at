@@ -52,4 +52,7 @@ npm_deps: {
   // 以 vendor shim(同 vue 0.2.0 实现,零行为变化)按新包名供给,保
   // `auto build` 门禁绿。真实消费另立计划后移除本行与 shim。
   "@autodown/engine": "file:../../../vendor/@autodown/engine"
+  // PLAN-102 T-04:embedded 呈现消费面（DrawList→Canvas2D + WS 连接管理；
+  // 纯 TS 源快照，scripts/vendor-drawlist-renderer.mjs 再生）。
+  "@auto/drawlist-renderer": "file:../../../vendor/@auto/drawlist-renderer"
 }

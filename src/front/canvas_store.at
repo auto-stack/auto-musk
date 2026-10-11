@@ -144,6 +144,17 @@ store CanvasStore {
         // （status_full.output_tail 回填——错误详情盒诊断面）。
         var cv_error_details_open bool = false
         var cv_output_tail str = ""
+        // ── PLAN-102 T-04：呈现面板与双输入模式 ──
+        // presentation 面板（status 回填）：embedded 会话携带 bridge WS
+        // 端点；window 会话 url 空。cv_input_mode = operate|inspect（默认
+        // operate；inspect 只走既有 pick 通道，不触应用副作用）。
+        var cv_embed bool = false
+        var cv_bridge_url str = ""
+        var cv_input_mode str = "operate"
+        // web 轨 embed 消费面就绪（installCanvasEmbed 写 canvas.embed_ready
+        // 键；VM 轨无此键 → 帧区走既有 img 降级——J2 remote-frame 未就绪
+        // 前不冒充，T-04 切片②收口）。
+        var cv_embed_web bool = false
         // ── PLAN-102 T-03：停靠布局与偏好（canvas_layout_helpers 单源钳制）──
         // 停靠位 left|right|bottom|hidden；工具区水平宽/底部高；正常模式
         // 外框宽；load-once 门（轮询不覆写偏好）；拖动瞬态（kind/origin/
@@ -197,6 +208,8 @@ store CanvasStore {
         OuterDragEnd,
         OuterDragCancel,
         SoloTab(str),
+        // PLAN-102 T-04：双输入模式。
+        ToggleInputMode,
     }
 
     on {
@@ -321,6 +334,30 @@ store CanvasStore {
                                 .cv_frame_wrap_style = canvasContentStyle(0, 0, .cv_zoom_fit)
                             }
                             .cv_state = body.state ?? "stopped"
+                            // PLAN-102 T-04：presentation 面板（embedded
+                            // 携带 bridge WS 端点；代次变化时清场由上方
+                            // gen 分支承担——桥由消费模块按 url 重连）。
+                            var pres = body.presentation
+                            if pres != None {
+                                var pm = pres.mode ?? "window"
+                                if pm == "embedded" {
+                                    .cv_embed = true
+                                    .cv_bridge_url = pres.bridge_ws_url ?? ""
+                                } else {
+                                    .cv_embed = false
+                                    .cv_bridge_url = ""
+                                }
+                            }
+                            // 桥端点仅变化时落键（web 消费模块轮询本键建连；
+                            // 1s 拍直写会淹键——SetDock 同款变化守卫）。
+                            var prev_bridge = localStorage.getItem("canvas.bridge_url") ?? ""
+                            if prev_bridge != .cv_bridge_url {
+                                localStorage.setItem("canvas.bridge_url", .cv_bridge_url)
+                            }
+                            // web 消费面就绪标记（installCanvasEmbed 写键；
+                            // VM 轨缺席 → img 降级）。
+                            var embed_ready = localStorage.getItem("canvas.embed_ready")
+                            .cv_embed_web = embed_ready == "1"
                             // 停止后保留应用描述（已停止工作台的标题）。
                             // T-11:app_path ?? "" 归一——部分载荷（gallery
                             // stub {} 体实机暴露）下 undefined 对 != "" 判
@@ -628,6 +665,19 @@ store CanvasStore {
         // tabs 降级单区页签切换（画布/工具）。
         .SoloTab(tab str) -> {
             .cv_solo_tab = tab
+        }
+
+        // ── PLAN-102 T-04：双输入模式 ──────────────────────────────────
+
+        // operate ↔ inspect（工具栏切换；operate 输入发应用，inspect 只
+        // 拾取——web 消费模块经 canvas.input_mode 键感知）。
+        .ToggleInputMode -> {
+            if .cv_input_mode == "operate" {
+                .cv_input_mode = "inspect"
+            } else {
+                .cv_input_mode = "operate"
+            }
+            localStorage.setItem("canvas.input_mode", .cv_input_mode)
         }
 
     }

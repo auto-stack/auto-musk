@@ -6,3 +6,5 @@
 
 use.web canvasStart, canvasStop from "src/front/canvas_web.ts"
 use.web canvasPickNode, canvasClearPick, canvasPickAt, installCanvasFrameClicks, installCanvasSourceScroll, installCanvasLayoutSync, canvasLoadSource, canvasPickSnapshot from "src/front/canvas_web.ts"
+// PLAN-102 T-04：embedded 呈现 web 消费面（drawlist-renderer 全链）。
+use.web installCanvasEmbed from "src/front/canvas_embed_web.ts"

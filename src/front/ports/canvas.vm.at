@@ -204,3 +204,8 @@ fn installCanvasSourceScroll() {
 /// 推算，canvas.wb_* 键缺席自动生效；实机探针按 vtree bbox 校准常数。
 fn installCanvasLayoutSync() {
 }
+
+/// embedded 呈现消费面（PLAN-102 T-04）：VM 轨 img 降级（store 以
+/// canvas.embed_ready 键缺席判非 web——J2 remote-frame 切片②收口前不冒充）。
+fn installCanvasEmbed() {
+}

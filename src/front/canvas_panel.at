@@ -15,6 +15,8 @@ use store: CanvasStore
 use.web useT from "src/front/ports/composables.at"
 use.web canvasStop, canvasStart from "src/front/ports/canvas.at"
 use.web canvasPickNode, canvasClearPick, canvasPickAt, canvasLoadSource from "src/front/ports/canvas.at"
+// PLAN-102 T-04：embedded 呈现消费面装载（web 全链；VM 桩空——img 降级）。
+use.web installCanvasEmbed from "src/front/ports/canvas.at"
 // PLAN-093 T-06:点选换算单源的 ext TS 模块生成面（canvas_web.ts 点击委托
 // 消费同一规则；本件视图不直调）。
 use.web.fn canvasMapPhysical from "src/front/canvas_helpers.at"
@@ -29,6 +31,8 @@ widget CanvasCanvasColumn {
 
     setup {
         let t = useT()
+        // PLAN-102 T-04：embed 消费面（幂等单例；宿主 div 出现后建连）。
+        installCanvasEmbed()
         // 帧点选委托由 ChatsView setup 统一安装（幂等；plan-093 T-05）。
     }
 
@@ -40,6 +44,8 @@ widget CanvasCanvasColumn {
         ToggleZoom,
         ToggleErrorDetails,
         RerunApp,
+        // PLAN-102 T-04：双输入模式切换（转发 store.ToggleInputMode）。
+        ToggleInputMode,
         // PLAN-093 T-06（VM 轨收口）：帧区坐标点选——mouse-area 逻辑坐标
         // move 记迹 + click 取最后位置（onclick 无坐标，Plan 498；move 流
         // 仅 VM 臂派发（Plan 499），web 臂 move_has 恒 false = 委托独家，
@@ -84,6 +90,22 @@ widget CanvasCanvasColumn {
                 }
                 row {
                     style: "flex items-center gap-1 shrink-0"
+                    // PLAN-102 T-04：双输入模式切换（operate=输入发应用 /
+                    // inspect=只拾取不触副作用；默认 operate）。
+                    button {
+                        onclick: .ToggleInputMode
+                        style: if .store.cv_input_mode == "inspect" {
+                            "inline-flex items-center justify-center h-6 min-w-[24px] px-1 shrink-0 rounded-md bg-primary/15 text-primary cursor-pointer text-[11px] leading-none"
+                        } else {
+                            "inline-flex items-center justify-center h-6 min-w-[24px] px-1 shrink-0 rounded-md bg-transparent text-muted-foreground hover:bg-accent cursor-pointer text-[11px] leading-none"
+                        }
+                        title: t("canvas.inputModeToggle")
+                        if .store.cv_input_mode == "inspect" {
+                            text "🔍"
+                        } else {
+                            text "🖱"
+                        }
+                    }
                     // PLAN-093 T-06:适应/100% 缩放切换（钮面=将切往的模式）。
                     button {
                         onclick: .ToggleZoom
@@ -151,11 +173,24 @@ widget CanvasCanvasColumn {
                     }
                 }
             }
+            // PLAN-102 T-04：embedded 呈现帧区（web 消费面就绪时——
+            // .cv-embed-frame 宿主 div + installCanvasEmbed 注 canvas/WS/
+            // 输入回传；VM 轨 cv_embed_web 恒 false → 落下方既有 img 降级
+            //（J2 remote-frame 切片②收口））。
+            if .store.cv_embed {
+                if .store.cv_embed_web {
+                    div {
+                        class: "cv-embed-frame"
+                        style: "flex-1 min-h-0 w-full bg-background"
+                    }
+                }
+            }
             // 帧区：有帧显帧（身份+seq 双键）+ 覆盖框层；无帧显占位 + 状态语。
             // T-06:内容包装层（cv-frame-wrap）——bbox_pct 以帧物理尺寸为基，
             // 盒=内容盒（aspect-ratio 定比/100% 定尺寸，store 单源样式）时
             // 覆盖框与点选换算才对齐；容器留白区点击=显式清选（web 委托）。
-            if .store.cv_frame_url != "" {
+            // 互斥：web embed 态走上方消费面（不叠 img 链）。
+            if .store.cv_frame_url != "" && (.store.cv_embed == false || .store.cv_embed_web == false) {
                 div {
                     class: "cv-frame-box"
                     style: if .store.cv_zoom_fit {
@@ -314,6 +349,10 @@ widget CanvasCanvasColumn {
             }
         }
         // 适应/100% 缩放切换（store 偏好单源 + 包装层样式重算）。
+        // PLAN-102 T-04：双输入模式切换（本件工具栏钮 → store 单源）。
+        .ToggleInputMode -> {
+            store.ToggleInputMode()
+        }
         .ToggleZoom -> {
             store.ToggleZoom()
         }

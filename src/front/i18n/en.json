@@ -532,6 +532,7 @@
     "tabStructure": "Structure",
     "zoomToggle": "Toggle fit / 1:1",
     "structureToggle": "Toggle structure panel",
+    "inputModeToggle": "Toggle operate / inspect (inspect picks only)",
     "dockLeft": "Dock tools left",
     "dockBottom": "Dock tools bottom",
     "dockRight": "Dock tools right",
