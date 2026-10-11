@@ -83,6 +83,7 @@ function dial(st: EmbedState, url: string): void {
       onWelcome: (w) => {
         st.logical = { w: w.rect?.w ?? 480, h: w.rect?.h ?? 680 };
       },
+      onHits: () => { /* v1 不消费命中区（operate 输入直发） */ },
       onFrame: (f) => {
         if (!st.ctx) return;
         renderFrame(st.ctx, f.payload);
@@ -98,7 +99,9 @@ export function installCanvasEmbed(): void {
   if (w.__muskCanvasEmbed) return;
   w.__muskCanvasEmbed = true;
   const st: EmbedState = { host: null, canvas: null, ctx: null, conn: null, url: '', logical: { w: 0, h: 0 } };
-  let readyMarked = false;
+  // 就绪标记在安装时即写（非找到宿主后）：store 据 cv_embed_web 切帧区分支
+  // → .cv-embed-frame 渲染 → 本模块接管——安装期标记打断鸡生蛋死锁。
+  try { localStorage.setItem('canvas.embed_ready', '1'); } catch { /* 不致命 */ }
 
   const measure = () => {
     const host = document.querySelector('.cv-embed-frame') as HTMLDivElement | null;
@@ -122,10 +125,6 @@ export function installCanvasEmbed(): void {
         st.canvas.width = cw;
         st.canvas.height = chh;
       }
-    }
-    if (!readyMarked && st.ctx) {
-      readyMarked = true;
-      try { localStorage.setItem('canvas.embed_ready', '1'); } catch { /* 不致命 */ }
     }
     // 桥端点变化 → 重连（旧连接迟到帧不污染新代次）。
     const url = readKey('canvas.bridge_url');

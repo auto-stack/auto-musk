@@ -87,20 +87,29 @@ async function main() {
   const back = spawn(MUSK_EXE, backArgs, { cwd: path.join(ROOT, 'backend'), env: { ...process.env, ...backEnv }, windowsHide: true, shell: false });
   let backOut = ''; back.stdout.on('data', (b) => (backOut += b)); back.stderr.on('data', (b) => (backOut += b));
 
+  // 前端 spawn 延后到后端就绪之后（VMHTTP 臂实测根因：vm 后端 AutoVM
+  // 初始化 ~40s，前端先起时 boot 检测 17201 不通 → daemon-ensure 自起
+  // rust 模式 musk 抢同口 → 前端轮询打到错误实例。后端先就绪则前端
+  // AUTO_REUSE_BACKEND 复用本后端——定向复现序）。
   const storage = path.join(RECEIPT_DIR, `cycle-storage-${Date.now()}.json`);
-  const front = spawn(AUTO_EXE, ['run', '--render', 'vm'], {
-    cwd: ROOT,
-    env: { ...process.env, AUTOUI_MCP_PORT: String(mcpPort), AUTO_VM_STORAGE_FILE: storage, AUTO_VM_WINDOW: '1280x800', AUTO_REUSE_BACKEND: '1', AUTO_HTTP_PORT: String(PORT), AUTO_HTTP_BASE: `http://127.0.0.1:${PORT}`, RUST_MIN_STACK: '16777216' },
-    windowsHide: true, shell: false,
-  });
-  let frontOut = ''; front.stdout.on('data', (b) => (frontOut += b)); front.stderr.on('data', (b) => (frontOut += b));
-  const killAll = () => { for (const p of [back, front]) { try { spawnSync('taskkill', ['/pid', String(p.pid), '/T', '/F'], { windowsHide: true }); } catch {} } };
+  let front = null;
+  const spawnFront = () => {
+    front = spawn(AUTO_EXE, ['run', '--render', 'vm'], {
+      cwd: ROOT,
+      env: { ...process.env, AUTOUI_MCP_PORT: String(mcpPort), AUTO_VM_STORAGE_FILE: storage, AUTO_VM_WINDOW: '1280x800', AUTO_REUSE_BACKEND: '1', AUTO_HTTP_PORT: String(PORT), AUTO_HTTP_BASE: `http://127.0.0.1:${PORT}`, RUST_MIN_STACK: '16777216' },
+      windowsHide: true, shell: false,
+    });
+  };
+  let frontOut = ''; const attachFront = () => { if (front) { front.stdout.on('data', (b) => (frontOut += b)); front.stderr.on('data', (b) => (frontOut += b)); } };
+  const killAll = () => { for (const p of [back, front]) { if (p) { try { spawnSync('taskkill', ['/pid', String(p.pid), '/T', '/F'], { windowsHide: true }); } catch {} } } };
 
   try {
     let up = false;
     for (let i = 0; i < 90 && !up; i++) { up = (await jfetch(`http://127.0.0.1:${PORT}/api/canvas/status`).catch(() => null))?.status === 200; if (!up) await sleep(1000); }
     assert(`backend-up-${backend}`, up, `:${PORT}`);
     if (!up) throw new Error('backend 90s 未就绪');
+    spawnFront();
+    attachFront();
 
     const st = await jfetch(`http://127.0.0.1:${PORT}/api/canvas/start?workspace=`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ app_path: 'targets/embed-fixture' }),
@@ -266,13 +275,20 @@ async function main() {
     await sleep(600);
 
     // ── stop：停止会话 ──────────────────────────────────────────────────
+    // 定位锚 = events onclick: ".Stop"（定向复现实证：handler 直达
+    // CanvasCanvasColumn.Stop → cv_state=stopped；文本 × 首匹配会误中
+    // 他钮——F-06-2 定罪）。
     vt = await vtRetry();
     {
-      const wbNode = nodeByClass(vt, 'cv-workbench');
-      const li = (wbNode?.span ?? '').indexOf('content: "×"');
-      const start = li >= 0 ? (wbNode.span).slice(0, li).lastIndexOf('button vnode_') : -1;
-      const sid = start >= 0 ? (wbNode.span).slice(start).match(/^button (vnode_d+)/)?.[1] : '';
-      if (sid) { await mcp.action(sid, 'press', ''); } else { await pressByContent(vt, '×'); }
+      const re = new RegExp('button (vnode_' + String.fromCharCode(92) + 'd+) ' + String.fromCharCode(92) + '{[^{}]*?label: "×"[^{}]*?events: ' + String.fromCharCode(92) + '{[^}]*onclick: "' + String.fromCharCode(92) + '.Stop"');
+      let sid = re.exec(vt)?.[1] ?? '';
+      if (!sid) {
+        const j = vt.indexOf('.Stop');
+        const st2 = j >= 0 ? vt.slice(0, j).lastIndexOf('button vnode_') : -1;
+        sid = st2 >= 0 ? vt.slice(st2).match(/^button (vnode_\d+)/)?.[1] ?? '' : '';
+      }
+      result.stopPress = { sid, echo: null };
+      if (sid) { result.stopPress.echo = String(await mcp.action(sid, 'press', '').catch((e) => `ERR ${e.message}`)).slice(0, 90); } else { await pressByContent(vt, '×'); }
       await sleep(400);
     }
     let stateEnd = 'running';
@@ -287,8 +303,8 @@ async function main() {
     result.error = String(e.message ?? e);
     result.pass = false;
   } finally {
-    result.backendTail = backOut.slice(-2000);
-    result.frontendTail = frontOut.slice(-2000);
+    result.backendTail = backOut.slice(-9000);
+    result.frontendTail = frontOut.slice(-9000);
     killAll();
     await sleep(1500);
     try { fs.rmSync(storage, { force: true }); } catch {}

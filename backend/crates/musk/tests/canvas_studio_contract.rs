@@ -213,6 +213,63 @@ async fn clear_pick_api_resets_selection() {
     assert!(m.status_full()["picked"].is_null());
 }
 
+// ── PLAN-102 T-06（F-06-1）：embedded 无帧态拾取 ────────────────────────────
+
+/// embedded rq 会话帧缓存设计上恒 None（T-02 口径）——vnode 拾取以逻辑窗
+/// 尺寸为基准（scale=1），不再被 PNG 帧源门挡住；bbox_pct 百分比语义不变。
+#[tokio::test]
+async fn pick_vnode_without_frame_uses_logical_basis() {
+    let m = new_manager();
+    begin(&m, None);
+    // 无 publish_frame——embedded 形态。
+    m.publish_anchor(AnchorIndex::parse(ATOM, 1).unwrap(), 1);
+    let hit = m.pick_vnode(1403).expect("无帧态 vnode 拾取不再依赖 PNG");
+    assert_eq!(hit["vnode_id"], "vnode_1403");
+    // scale=1：bbox_px == bbox（逻辑）；pct 按逻辑窗（480 基准）。
+    assert_eq!(hit["bbox"]["w"], hit["bbox_px"]["w"]);
+    let pct_w = hit["bbox_pct"]["w"].as_f64().unwrap();
+    let logical_w = hit["bbox"]["w"].as_f64().unwrap();
+    assert!((pct_w - logical_w / 480.0 * 100.0).abs() < 0.01, "pct 按逻辑窗基准");
+}
+
+/// 路由面：无帧态坐标形态保持 503（帧像素换算确需 PNG）；vnode 形态不再 503。
+#[tokio::test]
+async fn route_pick_frame_gate_scoped_to_coord_form() {
+    let (state, dir) = test_state();
+    state.canvas.begin_session(&dir, &dir, "ws-1", None, None).unwrap();
+    state.canvas.publish_anchor(AnchorIndex::parse(ATOM, 1).unwrap(), 1);
+    // 无帧。坐标形态 → 503。
+    let app: BoxCloneService<Request<Body>, axum::response::Response, std::convert::Infallible> =
+        canvas_routes().with_state((*state).clone()).boxed_clone();
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/canvas/pick")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"x": 10, "y": 10}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+    // vnode 形态 → 非 503（命中 200 或未命中 204——不被帧门挡）。
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/canvas/pick")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"vnode_id": "vnode_1403"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_ne!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(res.status(), StatusCode::OK);
+}
+
 #[tokio::test]
 async fn anchor_generation_drops_stale_pick() {
     let m = new_manager();

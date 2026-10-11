@@ -461,17 +461,26 @@ async function runVueArm(mode) {
       result.generation = r.body?.generation_id;
     }
 
-    // ⑤ 帧 img 真渲染（浏览器拉取并解码真实 PNG）
+    // ⑤ 帧面真渲染——PLAN-102 T-02 后会话恒 embedded（rq bridge；帧缓存
+    // 设计上恒 None→/frame 503，img 通道退役）。web 消费面 =
+    // .cv-embed-frame 注入 canvas（installCanvasEmbed：bridge WS →
+    // drawlist-renderer）。断言：宿主 div 存在且 canvas 已注入（真帧
+    // 归 P-embed/J2 后的 DrawList 断言，此处验消费面挂载与零 pageerror）。
     {
-      const img = page.locator('img[src*="/api/canvas/frame"]');
-      await img.waitFor({ state: 'visible', timeout: 45000 }).catch(() => {});
-      const nw = await img.evaluate(el => el.naturalWidth).catch(() => 0);
-      assert('vue-frame-img-rendered', nw > 0, `naturalWidth=${nw}`);
+      await page.waitForSelector('.cv-embed-frame', { timeout: 45000 }).catch(() => {});
+      // canvas 注入为 500ms 轮询拍——显式等注入完成（≤8s）。
+      await page.waitForSelector('.cv-embed-frame canvas', { timeout: 8000 }).catch(() => {});
+      const embed = await page.evaluate(() => {
+        const host = document.querySelector('.cv-embed-frame');
+        return { host: !!host, canvas: host ? !!host.querySelector('canvas') : false };
+      }).catch(() => ({ host: false, canvas: false }));
+      assert('vue-embed-consumer-mounted', embed.host && embed.canvas, `host=${embed.host} canvas=${embed.canvas}（PLAN-102 embedded 消费面）`);
       // T-05: studio 切换（应用设计钮，会话头部常驻 actions 行）→ 面板槽
-      // flex-1（画布区显著展宽），再点退出还原（进出同一钮）。页面内
-      // el.click() 同步触发（轮询重渲染下 playwright 动作性检查/事件派发
-      // 不可靠）；激活态按 class token 严格匹配（inactive 的 hover:bg-accent
-      // 含 bg-accent 子串，子串匹配会假阳性）；pageerror 捕获兜诊断。
+      // 换 CanvasStudioSlot（PLAN-102：工作台布局面；class 断言），
+      // 再点退出还原（进出同一钮）。页面内 el.click() 同步触发（轮询重渲染
+      // 下 playwright 动作性检查/事件派发不可靠）；激活态按 class token
+      // 严格匹配（inactive 的 hover:bg-accent 含 bg-accent 子串，子串匹配
+      // 会假阳性）；pageerror 捕获兜诊断。
       {
         const clickStudio = () => page.evaluate(() => {
           const btn = [...document.querySelectorAll('button')].find(b => b.title === 'App studio' || b.title === '应用设计');
@@ -487,18 +496,20 @@ async function runVueArm(mode) {
         await new Promise(r => setTimeout(r, 1200));
         const probe1 = await page.evaluate(() => {
           const btn = [...document.querySelectorAll('button')].find(b => b.title === 'App studio' || b.title === '应用设计');
-          const img = document.querySelector('img[src*="/api/canvas/frame"]');
+          // studio 槽特征：CanvasStudioSlot 结构列宽度类（w-[200px]/w-[220px]）。
+          const studioCol = document.querySelector('[class*="w-[200px]"], [class*="w-[220px]"]');
+          const wb = document.querySelector('.cv-workbench');
           return { exists: !!btn,
             active: btn ? btn.className.split(/\s+/).includes('bg-accent') : null,
-            imgW: img ? Math.round(img.getBoundingClientRect().width) : null };
+            studioSlot: !!studioCol, workbench: !!wb };
         });
         await clickStudio(); // 退出 studio
         await new Promise(r => setTimeout(r, 1200));
-        const wNormal = await img.evaluate(el => el.getBoundingClientRect().width).catch(() => 0);
+        const backNormal = await page.evaluate(() => !!document.querySelector('.cv-workbench')).catch(() => false);
         page.off('pageerror', onErr);
         assert('vue-studio-layout-toggle',
-          enterRet === false && probe1.exists && probe1.active === true && (probe1.imgW ?? 0) > wNormal && pageErrors.length === 0,
-          `studio=${probe1.imgW}px normal=${Math.round(wNormal)}px activeBefore=${enterRet} activeAfter=${probe1.active} err=${pageErrors[0] ?? 'none'}`);
+          enterRet === false && probe1.exists && probe1.active === true && probe1.studioSlot && backNormal && pageErrors.length === 0,
+          `studioSlot=${probe1.studioSlot} wbBack=${backNormal} activeBefore=${enterRet} activeAfter=${probe1.active} err=${pageErrors[0] ?? 'none'}`);
         // 恢复 studio 态（后续断言在 studio 工作台布局上继续——T-05 主形态）。
         await clickStudio();
         await new Promise(r => setTimeout(r, 1200));

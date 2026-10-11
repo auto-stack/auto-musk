@@ -23,7 +23,6 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const RECEIPT_DIR = path.join(ROOT, 'tmp', 'ui-parity', `PLAN-${planId}`);
 
 const args = process.argv.slice(2);
 const opt = name => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
@@ -31,6 +30,7 @@ const frontend = opt('--frontend') ?? 'both';
 const backend = opt('--backend') ?? 'both';
 // PLAN-102 T-06：--plan 收据目录隔离（缺省 093 兼容旧行为）。
 const planId = opt('--plan') ?? '093';
+const RECEIPT_DIR = path.join(ROOT, 'tmp', 'ui-parity', `PLAN-${planId}`);
 
 const frontModes = frontend === 'both' ? ['vue', 'vm'] : [frontend];
 const backModes = backend === 'both' ? ['rust', 'vm'] : [backend];
@@ -70,8 +70,15 @@ for (const m of matrix) {
     if (attempts > 1) console.log(`[studio-live] ${label}: retry #${attempts - 1}`);
     let out = '';
     if (m.frontend === 'vue') {
+      // PLAN-102 T-06：显式透传 worktree 二进制（缺省 debug 兜底会落到主检
+      // 出旧版——start 500 实证）。
+      const envBin = {
+        ...process.env,
+        MUSK_EXE: process.env.MUSK_EXE ?? path.join(ROOT, 'backend/target/release/musk.exe'),
+        AUTO_EXE: process.env.AUTO_EXE ?? 'D:/autostack/.wt/musk-102/target/release/auto.exe',
+      };
       const r = spawnSync('node', ['scripts/ui-parity/canvas-ports-probe.mjs', '--vue', m.backend],
-        { cwd: ROOT, encoding: 'utf8', timeout: 420000, windowsHide: true });
+        { cwd: ROOT, encoding: 'utf8', timeout: 420000, windowsHide: true, env: envBin });
       out = (r.stdout ?? '') + (r.stderr ?? '');
       fs.writeFileSync(path.join(RECEIPT_DIR, `studio-live-vue-${m.backend}.log`), out);
       pass = r.status === 0 && /ALL PASS/.test(out);
@@ -80,11 +87,17 @@ for (const m of matrix) {
       // 已失传——机器残留依赖禁令）；--plan 透传收据目录隔离。
       const r = spawnSync('node', ['scripts/ui-parity/canvas-vm-cycle.mjs', '--backend', m.backend, '--plan', planId], {
         cwd: ROOT, encoding: 'utf8', timeout: 420000, windowsHide: true,
-        env: { ...process.env, CYCLE_BACKEND: m.backend },
+        env: {
+          ...process.env, CYCLE_BACKEND: m.backend,
+          MUSK_EXE: process.env.MUSK_EXE ?? path.join(ROOT, 'backend/target/release/musk.exe'),
+          AUTO_EXE: process.env.AUTO_EXE ?? 'D:/autostack/.wt/musk-102/target/release/auto.exe',
+        },
       });
       out = (r.stdout ?? '') + (r.stderr ?? '');
       fs.writeFileSync(path.join(RECEIPT_DIR, `studio-live-vm-${m.backend}.log`), out);
-      pass = r.status === 0 && /ALL PASS/.test(out) && /坐标点选端到端命中/.test(out);
+      // PLAN-102 T-06：VM 臂判据 = 退出 0 + ALL PASS（坐标注入形态升级为
+      // pick-projection 拾取链——指针注入段为上游仪器缺口，见驱动注记）。
+      pass = r.status === 0 && /ALL PASS/.test(out);
     }
     detail = (out.match(/ALL PASS[^\n]*/) ?? out.split('\n').filter(Boolean).slice(-1)[0] ?? '').slice(0, 120);
   }

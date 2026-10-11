@@ -509,9 +509,15 @@ impl CanvasManager {
 
     /// vnode 直选（u64 内核形态；协议面经 pick_vnode_str 的字符串形态）。
     /// 未命中（索引存在但无此 vnode）→ 清 picked 并返回 None。
+    /// PLAN-102 T-06（F-06-1）：embedded rq 会话帧缓存设计上恒 None（T-02
+    /// 口径）——锚点 bbox 本为逻辑坐标，无 PNG 帧时以 scale=1 + 逻辑窗
+    /// 尺寸（480×680）为换算基准（bbox_pct 百分比语义对前端不变）；有
+    /// PNG 帧时沿用像素基准。
     pub fn pick_vnode(&self, vnode: u64) -> Option<Value> {
-        let (frame_w, frame_h) = self.frame_px_size()?;
-        let scale = frame_w as f32 / WINDOW_LOGICAL_W;
+        let (frame_w, frame_h, scale) = match self.frame_px_size() {
+            Some((w, h)) => (w, h, w as f32 / WINDOW_LOGICAL_W),
+            None => (480, 680, 1.0),
+        };
         let idx = self.shared.anchor.read().unwrap().clone()?;
         if idx.get(vnode).is_none() {
             *self.shared.picked.lock().unwrap() = None;

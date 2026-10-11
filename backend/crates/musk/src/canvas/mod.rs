@@ -255,7 +255,11 @@ async fn canvas_pick(
         manager.clear_pick();
         return Json(serde_json::json!({ "cleared": true })).into_response();
     }
-    if manager.frame().is_none() {
+    // PLAN-102 T-06（F-06-1 修复）：无帧门只限坐标形态——坐标拾取要帧像素
+    // 几何换算；vnode_id 拾取走 MCP vtree（embedded rq 会话帧缓存设计上恒
+    // None——T-02 注释口径），不应被 PNG 帧源门挡住。
+    let is_coord_form = body.vnode_id.is_none() && body.x.is_some() && body.y.is_some();
+    if is_coord_form && manager.frame().is_none() {
         return (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(serde_json::json!({ "error": "no canvas frame yet" })),

@@ -4162,7 +4162,10 @@ pub fn canvas_pick_host(s: &State<AppState>, b: SerdeJson) -> Result<i64, String
         manager.clear_pick();
         return canvas_vm_json(200, &serde_json::json!({ "cleared": true }));
     }
-    if manager.frame().is_none() {
+    // PLAN-102 T-06（F-06-1 镜像）：无帧门只限坐标形态（embedded rq 会话帧
+    // 缓存设计上恒 None；vnode 拾取走 MCP vtree——与 axum canvas_pick 同律）。
+    let is_coord_form = b.get("vnode_id").is_none() && b.get("x").is_some() && b.get("y").is_some();
+    if is_coord_form && manager.frame().is_none() {
         return canvas_vm_json(503, &serde_json::json!({ "error": "no canvas frame yet" }));
     }
     let vnode_id = b.get("vnode_id").and_then(|v| v.as_str()).map(str::to_string);

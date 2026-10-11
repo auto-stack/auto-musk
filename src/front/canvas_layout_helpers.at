@@ -184,6 +184,7 @@ fn canvasOuterContainerW(win_w int) int {
  * 402 §13.10；ext TS 生成 parseInt）——Math.floor 返回外源浮点，穿 int
  * 边界后 str 拼接位型缺陷把它写成 0（切片④实测 width:0px）。 */
 fn canvasLogicalToPx(delta int, container int) int {
-    var v int = (delta * container / 4096).to_int()
+    var t str = "" + delta * container / 4096
+    var v int = t.to_int()
     return v
 }

@@ -282,7 +282,9 @@ widget DivH {
                 if .base < 0.0 {
                     .base = x
                 } else {
-                    var d int = (x - .base).to_int()
+                    var f float = x - .base
+                    var t str = "" + f
+                    var d int = t.to_int()
                     store.DockDragLogical("h", d)
                 }
             }
@@ -319,7 +321,9 @@ widget DivB {
                 if .base < 0.0 {
                     .base = y
                 } else {
-                    var d int = (y - .base).to_int()
+                    var f float = y - .base
+                    var t str = "" + f
+                    var d int = t.to_int()
                     store.DockDragLogical("b", d)
                 }
             }
@@ -360,7 +364,9 @@ widget DivOuter {
                 if .base < 0.0 {
                     .base = x
                 } else {
-                    var d int = (x - .base).to_int()
+                    var f float = x - .base
+                    var t str = "" + f
+                    var d int = t.to_int()
                     store.OuterDragLogical(d)
                 }
             }
