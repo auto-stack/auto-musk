@@ -26,6 +26,8 @@ fn canvas_status_host(_q Value) Response { return musk_extern_dispatch("canvas_s
 fn canvas_frame_host(_q Value) Response { return musk_extern_dispatch("canvas_frame_host", [_q]) }
 fn canvas_pick_host(_b Value) Response { return musk_extern_dispatch("canvas_pick_host", [_b]) }
 fn canvas_stop_host(_q Value) Response { return musk_extern_dispatch("canvas_stop_host", [_q]) }
+// PLAN-102 T-02 余项：present 切换（宿主桥同 axum 合同——.at 侧薄转发）。
+fn canvas_present_host(_q Value, _b Value) Response { return musk_extern_dispatch("canvas_present_host", [_q, _b]) }
 
 // PLAN-093 T-07 G-13: 源码只读（Query Value 编组——Path 元组编组丢段
 // 实测绕行；结构列源码面板的 VM 轨通道）。
@@ -51,6 +53,10 @@ pub fn canvas_vm_stop(q Query<Value>) ~Response {
     return canvas_stop_host(q)
 }
 
+pub fn canvas_vm_present(q Query<Value>, body Json<Value>) ~Response {
+    return canvas_present_host(q, body)
+}
+
 pub fn canvas_vm_source(q Query<Value>) ~Response {
     return canvas_source_host(q)
 }
@@ -62,6 +68,8 @@ pub fn canvas_vm_routes() Router<AppState> {
     app = app.route("/api/canvas/status", get(canvas_vm_status))
     app = app.route("/api/canvas/pick", post(canvas_vm_pick))
     app = app.route("/api/canvas/stop", post(canvas_vm_stop))
+    // PLAN-102 T-02 余项：present 切换镜像（与 axum 路由同 URI/合同）。
+    app = app.route("/api/canvas/present", post(canvas_vm_present))
     // PLAN-093 T-07 G-13: 源码只读（结构列源码面板；files 域状态桥缺失绕行）。
     app = app.route("/api/canvas/source", get(canvas_vm_source))
     return app

@@ -567,6 +567,59 @@ async fn route_present_embedded_idempotent_and_window_honest_501() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
+// ── PLAN-102 T-02 余项：present 的 VMHTTP 宿主桥镜像合同（canvas_vm.at
+// 薄转发 → canvas_present_host；直调 glue + lookup_http_response 解码，
+// 断言语义与 axum 路由合同逐条同律） ─────────────────────────────────────
+
+fn present_host_call(
+    state: &Arc<musk::server::AppState>,
+    q: &str,
+    body: &str,
+) -> (u16, serde_json::Value) {
+    let st = axum::extract::State((**state).clone());
+    let qv: serde_json::Value = serde_json::from_str(q).unwrap_or(serde_json::Value::Null);
+    let bv: serde_json::Value = serde_json::from_str(body).unwrap_or(serde_json::Value::Null);
+    let handle = musk::auto_generated::extern_impl::canvas_present_host(&st, qv, bv).unwrap();
+    let (status, _headers, body) =
+        auto_lang::vm::ffi::stdlib::lookup_http_response(handle as u64).unwrap();
+    (status, serde_json::from_slice(&body).unwrap_or(serde_json::Value::Null))
+}
+
+#[tokio::test]
+async fn vmhost_present_stale_generation_409() {
+    let (state, dir) = test_state();
+    state.canvas.begin_session(&dir, &dir, "ws-1", Some("conv-A"), None).unwrap();
+    let q = serde_json::json!({ "generation": "42" }).to_string();
+    let (status, v) = present_host_call(&state, &q, r#"{"mode":"embedded"}"#);
+    assert_eq!(status, 409);
+    assert_eq!(v["generation_id"], 1);
+}
+
+#[tokio::test]
+async fn vmhost_present_no_session_400() {
+    let (state, _dir) = test_state();
+    let (status, _v) = present_host_call(&state, r#"{}"#, r#"{"mode":"embedded"}"#);
+    assert_eq!(status, 400);
+}
+
+#[tokio::test]
+async fn vmhost_present_embedded_idempotent_window_501_invalid_400() {
+    let (state, dir) = test_state();
+    state.canvas.begin_session(&dir, &dir, "ws-1", Some("conv-A"), None).unwrap();
+    let q1 = serde_json::json!({ "generation": "1" }).to_string();
+    let (status, v) = present_host_call(&state, &q1, r#"{"mode":"embedded"}"#);
+    assert_eq!(status, 200);
+    assert_eq!(v["mode"], "embedded");
+    assert_eq!(v["generation_id"], 1);
+    assert!(v["presentation"]["mode"].is_string());
+    let (status, v) = present_host_call(&state, &q1, r#"{"mode":"window"}"#);
+    assert_eq!(status, 501);
+    assert!(v["error"].as_str().unwrap().contains("reconnect seam"));
+    assert_eq!(state.canvas.generation(), 1);
+    let (status, _v) = present_host_call(&state, &q1, r#"{"mode":"floating"}"#);
+    assert_eq!(status, 400);
+}
+
 // ── PLAN-102 T-02：embedded 呈现会话合同（实机；AUTO_EXE + 夹具） ─────────
 // spawn_embedded 双子进程（bridge 宿主 + rq remote app）：status 携
 // presentation.mode=embedded 与 bridge WS 端点（可连）；会话 running；停止

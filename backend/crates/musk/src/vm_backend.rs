@@ -365,6 +365,11 @@ fn register_host_calls() {
     host!("canvas_stop_host", |a| {
         enc(ei::canvas_stop_host(&st_axum(&st()?), arg(a, 0))?)
     });
+    // PLAN-102 T-02 余项：present 切换镜像（与 axum canvas_present 同合同：
+    // 身份守卫 409/无会话 400/embedded 幂等/window 诚实 501/非法 400）。
+    host!("canvas_present_host", |a| {
+        enc(ei::canvas_present_host(&st_axum(&st()?), arg(a, 0), arg(a, 1))?)
+    });
 
     // ── canvas 源码只读（PLAN-093 T-07 G-13）：Query Value 编组（canvas
     // 域已证通道；Path 元组编组丢段实测）。server.at/files 域状态桥缺失

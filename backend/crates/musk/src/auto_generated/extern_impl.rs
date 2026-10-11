@@ -4206,6 +4206,55 @@ pub fn canvas_stop_host(s: &State<AppState>, q: SerdeJson) -> Result<i64, String
     }
 }
 
+/// PLAN-102 T-02 余项：present 切换的 VMHTTP 宿主桥（与 axum canvas_present
+/// 同合同——身份守卫 409 / 无会话 400 / embedded 幂等 / window 诚实 501 /
+/// 非法 mode 400；会话不重启、generation 不变）。.at 侧薄转发不复制规则。
+pub fn canvas_present_host(s: &State<AppState>, q: SerdeJson, b: SerdeJson) -> Result<i64, String> {
+    let current = s.canvas.generation();
+    if let Some(exp) = canvas_vm_query_u64(&q, "generation") {
+        if current != 0 && exp != current {
+            return canvas_vm_conflict(
+                current,
+                format!(
+                    "canvas present generation conflict — session was replaced (current {current}); re-fetch /api/canvas/status"
+                ),
+            );
+        }
+    }
+    if current == 0 {
+        return canvas_vm_json(
+            400,
+            &serde_json::json!({ "error": "no active canvas session to present" }),
+        );
+    }
+    let mode = b.get("mode").and_then(|m| m.as_str()).unwrap_or("");
+    match mode {
+        "embedded" => {
+            let status = s.canvas.status_full();
+            canvas_vm_json(
+                200,
+                &serde_json::json!({
+                    "mode": "embedded",
+                    "generation_id": current,
+                    "presentation": status["presentation"],
+                }),
+            )
+        }
+        "window" => canvas_vm_json(
+            501,
+            &serde_json::json!({
+                "error": "window presentation pending upstream reconnect seam (PLAN-102 decision doc §5); session unchanged",
+                "mode": "embedded",
+                "generation_id": current,
+            }),
+        ),
+        _ => canvas_vm_json(
+            400,
+            &serde_json::json!({ "error": "mode must be \"embedded\" or \"window\"" }),
+        ),
+    }
+}
+
 /// 宿主桥内的 async 执行体：VM HTTP server 跑在 tokio 上，宿主闭包在 tokio
 /// worker 内执行——直接 block_on 触发 "Cannot start a runtime from within a
 /// runtime"（T-03 实机实证）。mpsc_recv 同款专职线程桥：runtime 驻留独立
