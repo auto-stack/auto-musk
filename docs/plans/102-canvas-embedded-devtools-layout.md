@@ -4,7 +4,7 @@ status: executing
 feature_name: Canvas 内嵌交互预览与 DevTools 可停靠布局
 author: [agent]
 created_at: 2026-10-10T05:20:55Z
-updated_at: 2026-10-11T05:10:00Z
+updated_at: 2026-10-11T05:40:00Z
 plan_revision: 1
 current_step: 4
 total_steps: 6
@@ -209,6 +209,9 @@ hidden: [          Canvas              ]  ← 工具栏可重新打开
 
 
 2026-10-11 T-04 切片①执行记录：`stage: work`，`plan: PLAN-102`，`revision: 1`，`outcome: executing（T-04 切片①：web 消费面 + 双输入模式）`，`code_commit`: musk worktree（本切片提交），`task_ids`: T-04（部分），`evidence`: ① web 轨 embedded 消费面落地——`canvas_embed_web.ts`（installCanvasEmbed：宿主 div 轮询接管 + `@auto/drawlist-renderer` connect() 全链：Hello 订阅/FrameReady→renderFrame Canvas2D/DPR 感知/30s 重连预算/operate 输入回传 DOM 指针+键盘字符（逻辑域×缩放换算；inspect 只观察）；桥 url 变化整体重连防迟到帧跨代次）；包以 `vendor/@auto/drawlist-renderer` 纯 TS 源快照供给（`scripts/vendor-drawlist-renderer.mjs` 再生，vendor-autodown 先例；pac npm_deps file:）。② store：presentation 面板回填（cv_embed/cv_bridge_url 变化落键）+ cv_input_mode/ToggleInputMode + cv_embed_web（canvas.embed_ready 键缺席 → VM 恒 false）。③ canvas_panel：工具栏 🖱/🔍 双模式钮 + 帧区互斥分支（web embed 消费面 vs 既有 img 链——VM 轨 img 降级为受控形态，J2 切片②前不冒充）。④ 门：gen 69 绿 / canvas-contract 65/0 / layout-contract 59/0 / **canvas-embed-probe --frontend both 3/3 退出 0**（P1/P5/P6）。`blockers`: 无阻塞；**J2（VM 轨 remote-frame）容量裁定呈报用户**（§10.3 预留决策点：上游 client_runtime 泵/displaylist_element/传输积木全在，缺 .at 元件接线——独立上游项目级体量）。`next`: 用户裁定 J2 全量 vs VM 受控降级。
+
+
+2026-10-11 J2 裁定与执行合同（用户裁定：全量实现，上游）：`stage: work`，`plan: PLAN-102`，`revision: 1`，用户经 AskUserQuestion 裁定 **J2 全量实现（上游 auto-lang）**（弃 VM 受控降级方案）。**积木盘点（依赖 worktree `.wt/musk-102/auto-lang` 分支 `auto-musk-dev-102` 已核）**：渲染 = `broker_surface.rs displaylist_element(&DisplayList) -> iced::Element` ✔；客户端泵 = `desktop_protocol/client_runtime.rs ClientPump/run_client_session`（Hello 订阅/帧/重连预算 30s）✔；壳级消费 = `DesktopSession.broker_clients + pump_broker_clients`（renderer.rs:21378 等——shell 专属，.at 世界不可达）。**缺口（J2 实施面，文件级）**：① 元件 schema/解析：`remote-frame` 元素（props: url/token/coords/事件 onframe/ondead 形态沿 mouse-area 先例）——schema/aura.at + aura/extract.rs；② VM 构建臂：aura_view_builder.rs 新 convert 臂 + **widget 级客户端注册表**（thread-safe，按 url 键控连接生命周期；帧到达经 redraw 唤醒通道进 dynamic app 事件循环——shell pump 模式 widget 化）；③ 输入回传：元件鼠标/键盘 → 协议 InputMsg（Pointer 编码沿 P6 codec）；④ web 生成臂：div 占位（musk 已有 canvas_embed_web.ts 消费面接管——生成器只需透传 class）；⑤ 测试：上游单测（注册表生命周期/降级）+ musk 实机探针（canvas-layout-live 形态扩展 P-embed 臂：VM 前端 embedded 会话 → remote-frame 出帧/操作计数器递增）。**验收**：AC-01/03 的 VM 轨面（embedded 可见+更新+操作输入隔离）+ AC-07 四轨。**执行切片**：J2-a 上游元件+注册表（schema/解析/构建/单测）；J2-b 输入回传+重连；J2-c musk 集成（canvas_panel VM 分支换 remote-frame）+ 探针 P-embed。每片 cargo 测试 + 依赖 worktree 提交；合回按 AGENTS.md 快进约定。
 
 ## 10. 待澄清事项
 
