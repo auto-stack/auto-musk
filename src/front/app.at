@@ -111,7 +111,12 @@ widget App {
                             button {
                                 onclick: .ToggleRail
                                 title: "Auto Musk v0.1.0-p073r8"
-                                style: "w-10 h-10 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent mx-auto"
+                                // p-0 压掉 Vue 轨 cva defaultVariants 的 px-4 py-2：
+                                // w-10 减边框减 32px 内边距后内容区仅 ~6px，
+                                // preflight img{max-width:100%} 把 w-6 鹿图压成
+                                // 竖细条（2026-10-11 用户截图）。VM 轨缺省无
+                                // padding 预设，p-0 恒等无副作用。
+                                style: "w-10 h-10 p-0 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent mx-auto"
                                 img (src: .deerDarkSrc) { class: "deer-icon-dark w-6 h-6 rounded-lg" }
                                 // PLAN-081 需求③a：VM 轨无 CSS 引擎，双鹿并排
                                 // （light 鹿恒渲染）——hidden 类在 VM 按桌面语义
@@ -124,7 +129,9 @@ widget App {
                             button {
                                 onclick: .ToggleRail
                                 title: "Auto Musk v0.1.0-p073r8"
-                                style: "w-8 h-8 shrink-0 flex items-center justify-center rounded-lg hover:bg-accent cursor-pointer"
+                                // 同上 p-0：w-8 配 cva 缺省 px-4 内容区为负，
+                                // 鹿图被 preflight max-width 压没（展开态同病）。
+                                style: "w-8 h-8 p-0 shrink-0 flex items-center justify-center rounded-lg hover:bg-accent cursor-pointer"
                                 img (src: .deerDarkSrc) { class: "deer-icon-dark w-6 h-6 rounded-lg" }
                                 img (src: .deerLightSrc) { class: "deer-icon-light w-6 h-6 rounded-lg hidden" }
                             }
