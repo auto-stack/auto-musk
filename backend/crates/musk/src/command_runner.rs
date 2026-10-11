@@ -120,11 +120,22 @@ async fn read_stream<R: tokio::io::AsyncRead + Unpin>(
 impl CommandRunner for LocalRunner {
     async fn exec(&self, cmd: &str, cwd: &Path, opts: ExecOptions) -> Result<ExecOutcome, ToolError> {
         use std::process::Stdio;
-        let mut command = if cfg!(windows) {
-            let mut c = tokio::process::Command::new("cmd");
-            c.arg("/C").arg(cmd);
-            c
-        } else {
+        // PLAN-105 T-05（P4）：Windows 引号保真——`/S /C` + 命令串整体
+        // raw_arg（外层包引号）。原 `.arg(cmd)` 经 Rust argv 引用规则 +
+        // cmd /C 剥引号，字面引号进 argv（UAT 87af4d4b 实锤：`git -C
+        // '"D:/…"' Invalid argument`、`git commit -m "…"` 引号丢失中止、
+        // findstr 多词失配、curl 带引号 URL exit 3——模型被迫整段子流
+        // 绕行）。/S 语义 = 剥最外层引号后原样执行，等价交互式 cmd 输入。
+        // Unix `sh -c` 语义本就引号保真，不变。
+        #[cfg(windows)]
+        let mut command = {
+            let mut c = std::process::Command::new("cmd");
+            use std::os::windows::process::CommandExt;
+            c.arg("/S").arg("/C").raw_arg(format!("\"{cmd}\""));
+            tokio::process::Command::from(c)
+        };
+        #[cfg(not(windows))]
+        let mut command = {
             let mut c = tokio::process::Command::new("sh");
             c.arg("-c").arg(cmd);
             c
@@ -400,5 +411,134 @@ mod tests {
             after <= before,
             "process-tree kill left orphans: before {before}, after {after}"
         );
+    }
+
+    /// PLAN-105 T-05（P4/AC-04）：引号保真矩阵——`/S /C` 整串 raw_arg 后，
+    /// 四类 UAT 87af4d4b 损坏命令语义正确。Windows 钉测（Unix sh -c 语义
+    /// 本就保真）。
+    #[cfg(windows)]
+    fn unique_tmp(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "musk-q105-{tag}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn windows_quote_fidelity_git_commit_message() {
+        let repo = unique_tmp("commit");
+        for a in [
+            ["init", "-q"].as_slice(),
+            ["config", "user.email", "t@t"].as_slice(),
+            ["config", "user.name", "t"].as_slice(),
+            ["add", "-A"].as_slice(),
+        ] {
+            std::process::Command::new("git")
+                .args(a)
+                .current_dir(&repo)
+                .status()
+                .unwrap();
+        }
+        std::fs::write(repo.join("f.txt"), b"x").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "f.txt"])
+            .current_dir(&repo)
+            .status()
+            .unwrap();
+        let msg = "fix: a b c";
+        let out = LocalRunner
+            .exec(&format!("git commit -m \"{msg}\""), &repo, ExecOptions::default())
+            .await
+            .expect("exec ok");
+        assert_eq!(
+            out.exit_code,
+            Some(0),
+            "commit 应成功: {}",
+            String::from_utf8_lossy(&out.combined)
+        );
+        let log = std::process::Command::new("git")
+            .args(["log", "-1", "--pretty=%B"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&log.stdout).trim().to_string();
+        assert_eq!(text, msg, "commit message 引号保真（含空格整体入参）");
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn windows_quote_fidelity_git_c_quoted_space_path() {
+        let parent = unique_tmp("gitc");
+        let repo = parent.join("space dir");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::process::Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(&repo)
+            .status()
+            .unwrap();
+        // 从 parent 目录用带引号的 -C 子目录路径操作（UAT 形态：
+        // `git -C '"D:/…"' Invalid argument`）。
+        let out = LocalRunner
+            .exec("git -C \"space dir\" status --porcelain", &parent, ExecOptions::default())
+            .await
+            .expect("exec ok");
+        assert_eq!(
+            out.exit_code,
+            Some(0),
+            "-C 带空格路径应生效: {}",
+            String::from_utf8_lossy(&out.combined)
+        );
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn windows_quote_fidelity_curl_quoted_output_name() {
+        let dir = unique_tmp("curl");
+        std::fs::write(dir.join("src.txt"), b"hello-quote").unwrap();
+        let src_url = format!(
+            "file:///{}",
+            dir.join("src.txt").to_string_lossy().replace('\\', "/").replace(' ', "%20")
+        );
+        let out = LocalRunner
+            .exec(
+                &format!("curl -s -o \"my out.txt\" \"{src_url}\""),
+                &dir,
+                ExecOptions::default(),
+            )
+            .await
+            .expect("exec ok");
+        assert_eq!(
+            out.exit_code,
+            Some(0),
+            "curl 应成功: {}",
+            String::from_utf8_lossy(&out.combined)
+        );
+        let got = std::fs::read(dir.join("my out.txt")).expect("带空格输出名应落盘");
+        assert_eq!(String::from_utf8_lossy(&got), "hello-quote");
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn windows_quote_fidelity_findstr_multword() {
+        let dir = unique_tmp("findstr");
+        std::fs::write(dir.join("f.txt"), b"alpha two words beta\nother line\n").unwrap();
+        let out = LocalRunner
+            .exec("findstr /C:\"two words\" f.txt", &dir, ExecOptions::default())
+            .await
+            .expect("exec ok");
+        assert_eq!(
+            out.exit_code,
+            Some(0),
+            "findstr 多词模式应命中: {}",
+            String::from_utf8_lossy(&out.combined)
+        );
+        let text = String::from_utf8_lossy(&out.combined);
+        assert!(text.contains("alpha two words beta"), "命中行: {text}");
     }
 }

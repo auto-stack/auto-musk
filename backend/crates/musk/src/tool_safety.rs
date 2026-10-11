@@ -176,22 +176,59 @@ fn looks_like_windows_switch(token: &str) -> bool {
     !Path::new(token).exists()
 }
 
+/// PLAN-105 T-05（P5）：引号感知切词——confinement/classify 词法的单一来源，
+/// 与执行层的 cmd /S /C 原样语义（T-05 执行侧）对齐：双引号段内的空白不
+/// 切分、引号自身剥离（`"D:/path with space"` 是一个 token）；相邻引号段
+/// 拼接为一个 token；反斜杠字面（cmd 习惯，无 `\x` 转义）；未闭合引号保守
+/// 吞到串尾（长 token 仍会过路径判定，宁严勿漏）。单引号是普通字符（cmd
+/// 语义——模型常写的 `'"D:/x"'` 形态由双引号层正确处理）。
+pub fn tokenize_command(cmd: &str) -> Vec<String> {
+    let mut tokens: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    let mut in_quotes = false;
+    let mut has_token = false;
+    for ch in cmd.chars() {
+        match ch {
+            '"' => {
+                in_quotes = !in_quotes;
+                has_token = true;
+            }
+            c if c.is_whitespace() && !in_quotes => {
+                if has_token {
+                    tokens.push(std::mem::take(&mut cur));
+                    has_token = false;
+                }
+            }
+            c => {
+                cur.push(c);
+                has_token = true;
+            }
+        }
+    }
+    if has_token {
+        tokens.push(cur);
+    }
+    tokens
+}
+
 /// PLAN-027 ③: 校验 `run_command` 的 cmd 文本里的路径参数也在 workspace 内
 /// （堵 run_command 绕过 path confinement 的安全漏洞）。
 ///
 /// 简易实现：按空白拆 token，对"看起来像路径"的 token（含分隔符 / `..`
-/// / `~`）调 `resolve_within_project` 校验。**局限**：不解析引号
-/// （`"my dir"/x` 会被拆错），不覆盖 `$(...)`/反引号里的动态路径 ——
-/// 这些留待后续切 Ash shell（Design 004）时统一处理。
+/// / `~`）调 `resolve_within_project` 校验。**局限**：不覆盖 `$(...)`/
+/// 反引号里的动态路径 —— 这些留待后续切 Ash shell（Design 004）时统一处理。
 /// PLAN-069 W3：收集命令中全部越界路径 token（confine_command_paths 的
 /// 收集变体——human 模式审批门需要完整越界清单做决策展示）。
+/// PLAN-105 T-05：切词换 [`tokenize_command`]（引号感知——原
+/// `split_whitespace` 把 `"D:/path with space"` 拆成残片，引号内越界路径
+/// 以「首残片恰在根内」形态漏判，见 confine 补红用例）。
 pub fn confine_offending_paths(cmd: &str) -> Vec<String> {
     let mut offending: Vec<String> = Vec::new();
-    for token in cmd.split_whitespace() {
+    for token in tokenize_command(cmd) {
         if token.starts_with('-') {
             continue;
         }
-        if looks_like_windows_switch(token) {
+        if looks_like_windows_switch(&token) {
             continue;
         }
         let looks_like_path = token.contains('/')
@@ -202,7 +239,7 @@ pub fn confine_offending_paths(cmd: &str) -> Vec<String> {
         if !looks_like_path {
             continue;
         }
-        if resolve_within_project(token).is_err() && !offending.contains(&token.to_string()) {
+        if resolve_within_project(&token).is_err() && !offending.contains(&token.to_string()) {
             offending.push(token.to_string());
         }
     }
@@ -252,11 +289,11 @@ pub fn resolve_multi(path: &str, roots: &[PathBuf]) -> Result<PathBuf, String> {
 /// 用）——越界判定按注入的全部根（workspace 根 + 白名单）；空 roots = 旧链。
 pub fn confine_offending_paths_multi(cmd: &str, roots: &[PathBuf]) -> Vec<String> {
     let mut offending: Vec<String> = Vec::new();
-    for token in cmd.split_whitespace() {
+    for token in tokenize_command(cmd) {
         if token.starts_with('-') {
             continue;
         }
-        if looks_like_windows_switch(token) {
+        if looks_like_windows_switch(&token) {
             continue;
         }
         let looks_like_path = token.contains('/')
@@ -267,7 +304,7 @@ pub fn confine_offending_paths_multi(cmd: &str, roots: &[PathBuf]) -> Vec<String
         if !looks_like_path {
             continue;
         }
-        if resolve_multi(token, roots).is_err() && !offending.contains(&token.to_string()) {
+        if resolve_multi(&token, roots).is_err() && !offending.contains(&token.to_string()) {
             offending.push(token.to_string());
         }
     }
@@ -276,16 +313,16 @@ pub fn confine_offending_paths_multi(cmd: &str, roots: &[PathBuf]) -> Vec<String
 
 /// PLAN-070 T-02：[`confine_command_paths`] 的多根硬拒变体（auto/无门路径）。
 pub fn confine_command_paths_multi(cmd: &str, roots: &[PathBuf]) -> Result<(), String> {
-    for token in cmd.split_whitespace() {
+    for token in tokenize_command(cmd) {
         if token.starts_with('-') { continue; }  // 跳过 flag（-x / --foo）
-        if looks_like_windows_switch(token) { continue; }  // PLAN-103：/x 纯字母数字单段 = 开关
+        if looks_like_windows_switch(&token) { continue; }  // PLAN-103：/x 纯字母数字单段 = 开关
         let looks_like_path = token.contains('/')
             || token.contains('\\')
             || token.contains("..")
             || token.starts_with("./")
             || token.starts_with('~');
         if !looks_like_path { continue; }
-        resolve_multi(token, roots).map_err(|e| {
+        resolve_multi(&token, roots).map_err(|e| {
             format!("run_command path argument '{token}': {e}")
         })?;
     }
@@ -293,16 +330,16 @@ pub fn confine_command_paths_multi(cmd: &str, roots: &[PathBuf]) -> Result<(), S
 }
 
 pub fn confine_command_paths(cmd: &str) -> Result<(), String> {
-    for token in cmd.split_whitespace() {
+    for token in tokenize_command(cmd) {
         if token.starts_with('-') { continue; }  // 跳过 flag（-x / --foo）
-        if looks_like_windows_switch(token) { continue; }  // PLAN-103：/x 纯字母数字单段 = 开关
+        if looks_like_windows_switch(&token) { continue; }  // PLAN-103：/x 纯字母数字单段 = 开关
         let looks_like_path = token.contains('/')
             || token.contains('\\')
             || token.contains("..")
             || token.starts_with("./")
             || token.starts_with('~');
         if !looks_like_path { continue; }
-        resolve_within_project(token).map_err(|e| {
+        resolve_within_project(&token).map_err(|e| {
             format!("run_command path argument '{token}': {e}")
         })?;
     }
@@ -393,6 +430,72 @@ mod tests {
         // Use the test's CWD as project root.
         let cwd = std::env::current_dir().unwrap();
         let _ = PROJECT_ROOT.set(std::fs::canonicalize(&cwd).unwrap_or(cwd));
+    }
+
+    // ── PLAN-105 T-05（P5/AC-05）：引号感知词法 ────────────────────────────
+
+    #[test]
+    fn tokenize_command_quote_aware() {
+        // 双引号段内不切分、引号剥离、相邻段拼接、单引号是普通字符。
+        assert_eq!(
+            tokenize_command("git -C \"D:/path with space\" status"),
+            vec!["git".to_string(), "-C".into(), "D:/path with space".into(), "status".into()]
+        );
+        assert_eq!(
+            tokenize_command("type \"a b\"\"c d\""),
+            vec!["type".to_string(), "a bc d".to_string()]
+        );
+        assert_eq!(
+            tokenize_command("git -C '\"D:/x y\"' log"),
+            vec![
+                "git".to_string(),
+                "-C".into(),
+                "'D:/x y'".to_string(),
+                "log".into()
+            ]
+        );
+        // 未闭合引号：吞到串尾（保守，长 token 仍过路径判定）。
+        assert_eq!(
+            tokenize_command("type \"un closed path"),
+            vec!["type".to_string(), "un closed path".to_string()]
+        );
+    }
+
+    /// AC-05 补红（≥2 条）：引号内越界路径此前漏判——旧 `split_whitespace`
+    /// 把 `"<root> x/evil.txt"` 拆成首残片 `<root>`（恰为根内绝对路径 →
+    /// 放行）+ 尾残片（相对不存在 → 按「新建归第一根」放行），整条命令
+    /// 漏判；新词法整段判定 → 越界拒。
+    #[test]
+    fn confine_quoted_escape_paths_previously_missed() {
+        let tmp = std::env::temp_dir().join(format!(
+            "musk-q105-confine-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&tmp).unwrap();
+        let roots = vec![tmp.clone()];
+        // 越界目标：根目录的带空格兄弟（无需真实存在——绝对路径判定）。
+        let outside = format!("{} x/evil.txt", tmp.display());
+        // ① type 形态
+        let cmd1 = format!("type \"{outside}\"");
+        assert!(
+            !confine_offending_paths_multi(&cmd1, &roots).is_empty(),
+            "引号内越界路径（type）应判定越界: {cmd1}"
+        );
+        // ② git -C 形态（UAT 实锤命令族）
+        let cmd2 = format!("git -C \"{} x\" status", tmp.display());
+        assert!(
+            !confine_offending_paths_multi(&cmd2, &roots).is_empty(),
+            "引号内越界路径（git -C）应判定越界: {cmd2}"
+        );
+        // 对照（不误伤）：引号内带空格路径在根内 → 放行。
+        let cmd3 = format!("type \"{}\"", tmp.join("my notes.txt").display());
+        assert!(
+            confine_offending_paths_multi(&cmd3, &roots).is_empty(),
+            "根内带空格路径不应误判: {cmd3}"
+        );
     }
 
     #[test]
