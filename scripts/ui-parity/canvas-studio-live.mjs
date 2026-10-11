@@ -23,12 +23,14 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const RECEIPT_DIR = path.join(ROOT, 'tmp', 'ui-parity', 'PLAN-093');
+const RECEIPT_DIR = path.join(ROOT, 'tmp', 'ui-parity', `PLAN-${planId}`);
 
 const args = process.argv.slice(2);
 const opt = name => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
 const frontend = opt('--frontend') ?? 'both';
 const backend = opt('--backend') ?? 'both';
+// PLAN-102 T-06：--plan 收据目录隔离（缺省 093 兼容旧行为）。
+const planId = opt('--plan') ?? '093';
 
 const frontModes = frontend === 'both' ? ['vue', 'vm'] : [frontend];
 const backModes = backend === 'both' ? ['rust', 'vm'] : [backend];
@@ -74,7 +76,9 @@ for (const m of matrix) {
       fs.writeFileSync(path.join(RECEIPT_DIR, `studio-live-vue-${m.backend}.log`), out);
       pass = r.status === 0 && /ALL PASS/.test(out);
     } else {
-      const r = spawnSync('node', ['tmp/vm-studio-cycle.mjs'], {
+      // PLAN-102 T-06：VM 臂驱动固化为受管理脚本（tmp/vm-studio-cycle.mjs
+      // 已失传——机器残留依赖禁令）；--plan 透传收据目录隔离。
+      const r = spawnSync('node', ['scripts/ui-parity/canvas-vm-cycle.mjs', '--backend', m.backend, '--plan', planId], {
         cwd: ROOT, encoding: 'utf8', timeout: 420000, windowsHide: true,
         env: { ...process.env, CYCLE_BACKEND: m.backend },
       });
@@ -90,7 +94,7 @@ for (const m of matrix) {
 }
 
 const receipt = {
-  plan: 'PLAN-093',
+  plan: `PLAN-${planId}`,
   runner: 'canvas-studio-live.mjs',
   at: new Date().toISOString(),
   matrix,
