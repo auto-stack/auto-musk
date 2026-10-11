@@ -49,6 +49,7 @@ fn tmp_state() -> AppState {
         run_idle_timeout: std::time::Duration::from_secs(300),
         run_auto_continue: false,
         chat_pending: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        chat_procs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
     }
 }
 

@@ -314,36 +314,47 @@ pub struct RunCommand {
     /// PLAN-073 F-D:自动审批(auto 模式)——非白名单/越界命令直接放行执行,
     /// 不挂门不 PAUSED(用户裁定:自动模式 = 不打断)。human/legacy 恒 false。
     auto_approve: bool,
+    /// PLAN-105 T-08（P8）：进程凭证登记回调——spawn 即时上报（Windows
+    /// kill-on-close job 句柄 / Unix pid），run 收束统一收割。None = 测试/
+    /// CLI 不登记。正常完成的工具不注销：`start` 分离孙在工具返回后仍活，
+    /// 收割点在 run 收束。
+    proc_register: Option<std::sync::Arc<dyn Fn(usize) + Send + Sync>>,
 }
 
 impl RunCommand {
-    pub fn new() -> Self { Self { roots: None, progress: None, gate_session: None, auto_approve: false } }
+    pub fn new() -> Self { Self { roots: None, progress: None, gate_session: None, auto_approve: false, proc_register: None } }
     pub fn with_root(root: std::sync::Arc<std::path::PathBuf>) -> Self {
-        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])), progress: None, gate_session: None, auto_approve: false }
+        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])), progress: None, gate_session: None, auto_approve: false, proc_register: None }
     }
     /// PLAN-070 T-02：多根构造（[workspace 根, *白名单] 合成向量）。
     pub fn with_roots(roots: std::sync::Arc<Vec<std::path::PathBuf>>) -> Self {
-        Self { roots: Some(roots), progress: None, gate_session: None, auto_approve: false }
+        Self { roots: Some(roots), progress: None, gate_session: None, auto_approve: false, proc_register: None }
     }
     /// PLAN-069 W3 + PLAN-070：human 会话的 live 门构造（多根版）。
     pub fn with_roots_progress_gate(
         roots: std::sync::Arc<Vec<std::path::PathBuf>>,
         progress: Option<crate::tool_context::ProgressSink>,
         gate_session: Option<String>,
-    ) -> Self { Self { roots: Some(roots), progress, gate_session, auto_approve: false } }
+    ) -> Self { Self { roots: Some(roots), progress, gate_session, auto_approve: false, proc_register: None } }
     /// PLAN-073 F-D：审批策略构造——human 挂门 / auto 自动放行。
     pub fn with_roots_progress_policy(
         roots: std::sync::Arc<Vec<std::path::PathBuf>>,
         progress: Option<crate::tool_context::ProgressSink>,
         gate_session: Option<String>,
         auto_approve: bool,
-    ) -> Self { Self { roots: Some(roots), progress, gate_session, auto_approve } }
+    ) -> Self { Self { roots: Some(roots), progress, gate_session, auto_approve, proc_register: None } }
+    /// PLAN-105 T-08：挂进程凭证登记回调（build_agent_with_context 以
+    /// ToolContext.state + run 键闭包注入；chat_run_owner 收束收割）。
+    pub fn with_proc_register(mut self, reg: std::sync::Arc<dyn Fn(usize) + Send + Sync>) -> Self {
+        self.proc_register = Some(reg);
+        self
+    }
     /// PLAN-040 T4:workspace root + 前端进度通道（单根兼容；测试用）。
     pub fn with_root_and_progress(
         root: std::sync::Arc<std::path::PathBuf>,
         progress: Option<crate::tool_context::ProgressSink>,
     ) -> Self {
-        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])), progress, gate_session: None, auto_approve: false }
+        Self { roots: Some(std::sync::Arc::new(vec![(*root).clone()])), progress, gate_session: None, auto_approve: false, proc_register: None }
     }
     fn roots(&self) -> &[std::path::PathBuf] {
         self.roots.as_ref().map(|v| v.as_slice()).unwrap_or(&[])
@@ -581,6 +592,9 @@ impl Tool for RunCommand {
             on_data: Some(on_data),
             timeout: timeout_secs.map(std::time::Duration::from_secs_f64),
             env,
+            // PLAN-105 T-08：spawn 凭证即时上报（不依赖工具完成路径——
+            // 看门狗 drop 场景登记已发生）。
+            on_proc: self.proc_register.clone(),
         };
         let out = LocalRunner.exec(cmd, &root, opts).await?;
 

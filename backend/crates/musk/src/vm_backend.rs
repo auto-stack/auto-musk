@@ -106,6 +106,7 @@ fn build_app_state(client: Arc<dyn Client>) -> Arc<AppState> {
         run_idle_timeout: AppState::run_idle_timeout_from_env(),
         run_auto_continue: AppState::run_auto_continue_from_env(),
         chat_pending: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        chat_procs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
     })
 }
 
@@ -465,6 +466,9 @@ mod tests {
             run_idle_timeout: std::time::Duration::from_secs(300),
             run_auto_continue: false,
             chat_pending: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
+            chat_procs: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashMap::new(),
             )),
         }));

@@ -39,6 +39,68 @@ pub struct ExecOptions {
     pub timeout: Option<std::time::Duration>,
     /// 额外环境变量(在继承环境上叠加)。
     pub env: HashMap<String, String>,
+    /// PLAN-105 T-08（P8）：spawn 后立即回调「进程凭证」——Windows =
+    /// Job Object 句柄（kill-on-close，含 `start` 分离孙进程），Unix =
+    /// 子进程 pid（process_group(0) 组杀）。调用方登记进 run 级注册表，
+    /// run 收束时统一收割。回调发生在工具 await 期间（run 可能被看门狗
+    /// drop——凭证先于工具返回登记，不依赖完成路径）。
+    pub on_proc: Option<std::sync::Arc<dyn Fn(usize) + Send + Sync>>,
+}
+
+// ── PLAN-105 T-08：Windows Job Object（kill-on-close）───────────────────
+// `start /min … python …` 形态：cmd 即退、python 分离成孙进程——pid+
+// taskkill /T 对已退出父的分离孙无效（UAT 87af4d4b PID 8008 锁 worktree
+// 实锤）。Job Object 是唯一可靠面：子进程及其全部后代（含 start 分离
+// 孙）自动入 job，最后一个句柄 CloseHandle 即整 job 终止。句柄裸存
+// （内核对象引用计数），reap 方 CloseHandle 收割；musk 进程死亡时句柄
+// 全量关闭 = 子孙全灭（进程卫生兜底）。
+#[cfg(windows)]
+mod win_job {
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, SetInformationJobObject,
+        JobObjectExtendedLimitInformation, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+
+    /// 建 kill-on-close job,返回裸句柄(isize)。失败返回 None(降级为
+    /// 无 job——pid+taskkill 路径仍兜底直子树)。
+    pub fn create() -> Option<isize> {
+        unsafe {
+            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            if job.is_null() {
+                return None;
+            }
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            let ok = SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                &info as *const _ as *const core::ffi::c_void,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            if ok == 0 {
+                windows_sys::Win32::Foundation::CloseHandle(job);
+                return None;
+            }
+            Some(job as isize)
+        }
+    }
+
+    /// 把子进程挂进 job(经其进程句柄)。spawn 后立即调用(进程未退出前)。
+    pub fn assign(job: isize, child: &tokio::process::Child) -> bool {
+        // tokio Child 的 Windows raw_handle()（std AsRawHandle 等价面）。
+        let Some(h) = child.raw_handle() else { return false };
+        unsafe {
+            AssignProcessToJobObject(job as *mut core::ffi::c_void, h as *mut core::ffi::c_void) != 0
+        }
+    }
+
+    /// 关闭句柄 = 触发 kill-on-close(job 内全部进程终止)。
+    pub fn close(handle: isize) {
+        unsafe {
+            windows_sys::Win32::Foundation::CloseHandle(handle as *mut core::ffi::c_void);
+        }
+    }
 }
 
 /// 执行结果:合并输出 + 退出码 + 超时标记(非零退出码的"错误化"由工具层做)。
@@ -62,11 +124,17 @@ pub trait CommandRunner: Send + Sync {
 /// (沿用重写前的 shell 选择);Unix 侧 `process_group(0)` + `kill_on_drop`。
 pub struct LocalRunner;
 
+/// PLAN-105 T-08：收割侧入口（AppState.chat_proc_reap 调）——CloseHandle
+/// 触发 kill-on-close（job 内全部进程终止，含 `start` 分离孙）。
+#[cfg(windows)]
+pub(crate) fn win_job_close(handle: usize) {
+    win_job::close(handle as isize);
+}
+
 /// 杀整个进程树(pi `shell.ts killProcessTree`):Windows `taskkill /F /T`;
 /// Unix 对进程组 SIGKILL(spawn 时 process_group(0),pgid == pid)。
 /// 尽力而为:进程已退出时忽略失败。
-pub fn kill_process_tree(pid: u32) {
-    if cfg!(windows) {
+pub fn kill_process_tree(pid: u32) {    if cfg!(windows) {
         use std::process::Stdio;
         let _ = std::process::Command::new("taskkill")
             .args(["/F", "/T", "/PID", &pid.to_string()])
@@ -159,6 +227,29 @@ impl CommandRunner for LocalRunner {
         let mut child = command
             .spawn()
             .map_err(|e| ToolError::Exec(format!("spawn '{cmd}': {e}")))?;
+        // PLAN-105 T-08（P8）：spawn 后立即上报进程凭证并登记——Windows
+        // 先建 kill-on-close job 并挂子（后代自动入 job，含 `start` 分离
+        // 孙）；Unix 报 pid（process_group(0) 组杀）。在工具 await 期内
+        // 即完成（看门狗 drop 不影响登记）。
+        #[cfg(windows)]
+        {
+            if let Some(job) = win_job::create() {
+                let _ = win_job::assign(job, &child);
+                if let Some(cb) = &opts.on_proc {
+                    cb(job as usize);
+                }
+            }
+        }
+        #[cfg(unix)]
+        {
+            if let (Some(cb), Some(pid)) = (&opts.on_proc, child.id()) {
+                cb(pid as usize);
+            }
+        }
+        #[cfg(not(any(windows, unix)))]
+        {
+            let _ = &opts.on_proc;
+        }
         let pid = child.id();
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
@@ -199,8 +290,14 @@ impl CommandRunner for LocalRunner {
                         combined.extend_from_slice(&chunk);
                     }
                     // 等读任务收尾,防 kill_on_drop 兜底误杀无关句柄。
-                    let _ = h_out.await;
-                    let _ = h_err.await;
+                    // PLAN-105 T-08：读任务收尾加界——`start /b` 形态的存活
+                    // 孙持有管道写端,EOF 永不到,裸 await 会把超时臂自身
+                    // 悬死（15 分钟实测复现）；有界放弃,管道随收割（job
+                    // close）/孙自然退出而关闭。
+                    let _ =
+                        tokio::time::timeout(std::time::Duration::from_secs(2), h_out).await;
+                    let _ =
+                        tokio::time::timeout(std::time::Duration::from_secs(2), h_err).await;
                     return Ok(ExecOutcome {
                         combined,
                         exit_code: status.as_ref().ok().and_then(|s| s.code()),
@@ -370,6 +467,62 @@ mod tests {
     fn kill_process_tree_tolerates_missing_pid() {
         // PID 0xFFF0C0DE 大概率不存在;taskkill 失败被忽略。
         kill_process_tree(0xFFF0_C0DE & 0xFFFF_FFFF);
+    }
+
+    /// PLAN-105 T-08（P8/V06）：Job Object kill-on-close——`start /b` 分离
+    /// 存活孙进程（UAT 87af4d4b：python http.server PID 8008 锁 worktree）
+    /// 在工具返回后仍活（凭证已报 on_proc），CloseHandle 收割后端口 ≤5s
+    /// 释放。pid+taskkill /T 对「父已退、孙分离」形态无效，job 是唯一面。
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn windows_job_kills_detached_server_on_close() {
+        fn port_bound(port: u16) -> bool {
+            std::net::TcpStream::connect(("127.0.0.1", port)).is_ok()
+        }
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        drop(l);
+        let tokens = std::sync::Arc::new(std::sync::Mutex::new(Vec::<usize>::new()));
+        let t2 = tokens.clone();
+        let opts = ExecOptions {
+            on_proc: Some(std::sync::Arc::new(move |tok| t2.lock().unwrap().push(tok))),
+            // start /b 的 python 继承 cmd 管道且永活——EOF 永不到，工具层
+            // 靠默认超时收口（生产同款；此形态正是 UAT P8 的孳生面）。
+            timeout: Some(std::time::Duration::from_secs(5)),
+            ..Default::default()
+        };
+        // start /b：cmd 即退、python 存活（detached 孙形态，UAT 87af4d4b
+        // 的 `start /min … python -m http.server` 同族）。
+        let out = LocalRunner
+            .exec(&format!("start /b python -m http.server {port}"), &tmp_dir(), opts)
+            .await
+            .expect("exec ok");
+        assert!(out.timed_out, "管道被存活孙持有 → 工具超时收口（预期形态）");
+        let toks = tokens.lock().unwrap().clone();
+        assert!(!toks.is_empty(), "spawn 凭证应已上报");
+        // 服务起来（≤15s 容差——python 启动 + 端口绑定）。
+        let mut up = false;
+        for _ in 0..150 {
+            if port_bound(port) {
+                up = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        assert!(up, "http.server 应存活并绑端口 {port}");
+        // 收割（run 收束动作）：CloseHandle → kill-on-close。
+        for t in toks {
+            win_job_close(t);
+        }
+        // ≤5s 端口释放（AC-08 时限）。
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while port_bound(port) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "job close 后 5s 内端口应释放"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
     }
 
     /// PLAN-040 T7: Windows 进程树终止实测——`start /b` 分离孙进程 ping +

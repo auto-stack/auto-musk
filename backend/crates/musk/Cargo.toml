@@ -79,3 +79,14 @@ tower = { version = "0.5", features = ["util"] }
 # PLAN-040: LocalRunner Unix 进程组终止 killpg(仅 unix 目标拉取)
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+# PLAN-105 T-08: run 进程收割——Windows Job Object kill-on-close
+# （`start` 分离孙进程唯一可靠收割面;pid+taskkill /T 对已退出父的分离
+# 孙无效,UAT 87af4d4b PID 8008 http.server 锁 worktree 实锤）。
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_System_JobObjects",
+    "Win32_System_Threading",
+    "Win32_Foundation",
+    "Win32_Security",
+] }

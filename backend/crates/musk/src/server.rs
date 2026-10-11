@@ -64,6 +64,12 @@ pub struct AppState {
     /// 入队（内存态，重启丢失可接受——与旧 ⚠ 提示同级），run 收束后按序
     /// 自动触发新一轮（键同守卫 "ws_id:session_id"）。
     pub chat_pending: Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<String>>>>,
+    /// PLAN-105 T-08（P8）：run 级进程凭证注册表——run_command spawn 的
+    /// 子进程凭证（Windows = kill-on-close Job Object 句柄；Unix = pid），
+    /// chat_run_owner 全部收束出口统一收割（键同守卫）。正常完成的工具
+    /// **不**注销凭证：`start` 分离孙（http.server 等）工具返回后仍活，
+    /// 收割点在 run 收束（AC-08）。
+    pub chat_procs: Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<usize>>>>,
     /// PLAN-087：实况画布会话管理器（单会话，start=替换；四路由与五工具共用）。
     pub canvas: Arc<crate::canvas::CanvasManager>,
 }
@@ -111,6 +117,42 @@ impl AppState {
             pend.remove(key);
         }
         Some(msg)
+    }
+
+    /// PLAN-105 T-08：登记 run_command 子进程凭证（spawn 即时——run 可能
+    /// 被看门狗 drop，不依赖工具完成路径）。
+    pub fn chat_proc_register(&self, key: &str, token: usize) {
+        self.chat_procs
+            .lock()
+            .unwrap()
+            .entry(key.to_string())
+            .or_default()
+            .push(token);
+    }
+
+    /// PLAN-105 T-08：收割本 run 全部存活凭证（Windows：CloseHandle 触发
+    /// job kill-on-close——含 `start` 分离孙；Unix：进程组杀）。返回收割
+    /// 条数（0 = 无残留）。run 收束出口/panic 守卫调用，幂等。
+    pub fn chat_proc_reap(&self, key: &str) -> usize {
+        let drained: Vec<usize> = self
+            .chat_procs
+            .lock()
+            .unwrap()
+            .remove(key)
+            .unwrap_or_default();
+        let n = drained.len();
+        for token in drained {
+            #[cfg(windows)]
+            crate::command_runner::win_job_close(token);
+            #[cfg(unix)]
+            crate::command_runner::kill_process_tree(token as u32);
+            #[cfg(not(any(windows, unix)))]
+            let _ = token;
+        }
+        if n > 0 {
+            tracing::info!("chat run reaped {n} process token(s): key={key}");
+        }
+        n
     }
 
     /// 注册取消旗标（owner 孵化时）。
@@ -298,6 +340,7 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         run_idle_timeout: AppState::run_idle_timeout_from_env(),
         run_auto_continue: AppState::run_auto_continue_from_env(),
         chat_pending: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        chat_procs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
     };
     // PLAN-099 T-04：守卫 TTL reaper（独立时钟兜底，见 chat_reaper_spawn）。
     chat_reaper_spawn(std::sync::Arc::new(state.clone()));
@@ -1294,6 +1337,7 @@ mod tests {
             run_idle_timeout: std::time::Duration::from_secs(300),
             run_auto_continue: false,
             chat_pending: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        chat_procs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         }
     }
@@ -3500,6 +3544,7 @@ mod tests {
             run_idle_timeout: std::time::Duration::from_secs(300),
             run_auto_continue: false,
             chat_pending: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        chat_procs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         }
     }
@@ -4725,6 +4770,92 @@ mod tests {
         let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["busy"], serde_json::json!(true), "busy 指示: {json}");
+    }
+
+    /// T-08 run 级端到端（P8/AC-08）：agent 经 run_command 起 http.server
+    /// （python 白名单直跑；服务器不退 → 看门狗中止本轮）——run 收束统一
+    /// 收割，守卫清后 ≤5s 端口释放（UAT 87af4d4b PID 8008 锁 worktree 的
+    /// 收口形态）。顺带复验停滞型文案（在途工具）。
+    #[tokio::test]
+    async fn chat_run_reaps_run_command_processes_on_convergence() {
+        use crate::auto_generated::server as ag_server;
+        use auto_ai_client::ToolCall;
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        drop(l);
+        struct ServerToolClient(u16);
+        #[async_trait]
+        impl Client for ServerToolClient {
+            async fn complete(
+                &self,
+                _req: &CompletionRequest,
+            ) -> Result<CompletionResponse, ClientError> {
+                unreachable!("run_stream 走 complete_stream")
+            }
+            async fn complete_stream(
+                &self,
+                _req: &CompletionRequest,
+                _on_event: Arc<dyn Fn(serde_json::Value) + Send + Sync>,
+            ) -> Result<CompletionResponse, ClientError> {
+                Ok(CompletionResponse {
+                    content: String::new(),
+                    tool_calls: vec![ToolCall {
+                        id: "t1".into(),
+                        name: "run_command".into(),
+                        input: serde_json::json!({
+                            "cmd": format!("python -m http.server {}", self.0)
+                        }),
+                    }],
+                    stop_reason: Some("tool_use".into()),
+                    usage: None,
+                    model: "mock".into(),
+                    error: None,
+                    model_meta: None,
+                })
+            }
+        }
+        let mut state = tmp_state_with_client(Arc::new(ServerToolClient(port)));
+        state.run_idle_timeout = std::time::Duration::from_secs(2);
+        state.run_auto_continue = false;
+        let ws = state.registry.get("");
+        let runs = state.chat_runs.clone();
+        let sess = ws
+            .chats
+            .create("basic", Some(String::new()))
+            .expect("create session");
+        ws.chats
+            .append_message(&sess.id, crate::chats::ChatMessage::user("serve"))
+            .expect("append user message");
+        let app = axum::Router::new().route(
+            "/api/chats/session/{id}/message",
+            axum::routing::post(ag_server::chat_message),
+        )
+        .with_state(state);
+        let st = post_message(app, &sess.id, r#"{"content":"serve","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        // 看门狗 2s 中止（服务器静默无事件）→ 收束 → 收割。
+        wait_until(|| runs.lock().unwrap().is_empty()).await;
+        let cleared_at = std::time::Instant::now();
+        let updated = ws.chats.get(&sess.id).expect("session exists");
+        let msg = updated
+            .messages
+            .iter()
+            .find(|m| m.role == crate::chats::Role::Assistant)
+            .expect("超时消息应落盘");
+        assert!(
+            msg.content.contains("运行停滞"),
+            "在途工具停滞型文案: {}",
+            msg.content
+        );
+        // AC-08：守卫清后 ≤5s 端口释放（job kill-on-close 收割）。
+        let deadline = cleared_at + std::time::Duration::from_secs(5);
+        while std::net::TcpStream::connect(("127.0.0.1", port)).is_ok() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "run 收束后 5s 内 http.server 端口应释放（进程收割）"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
     }
 
     /// PLAN-071 需求⑤ T-25：cancel 端点对在途运行置位取消旗标。

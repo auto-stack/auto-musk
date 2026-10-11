@@ -1315,6 +1315,9 @@ mod tests {
             chat_pending: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashMap::new(),
             )),
+            chat_procs: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
             canvas: std::sync::Arc::new(crate::canvas::CanvasManager::new()),
         });
         // registry.open 建 ws（.autoos 全家桶）并返回 id——on_stage_end 内部

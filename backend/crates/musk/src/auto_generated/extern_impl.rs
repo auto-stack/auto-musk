@@ -2353,6 +2353,8 @@ pub async fn chat_run_owner(
                     // 各出口显式清理，此处幂等）。
                     self.state.chat_run_finish(&self.key);
                     self.state.chat_cancel_remove(&self.key);
+                    // PLAN-105 T-08：panic 路径同样收割本 run 存活进程。
+                    self.state.chat_proc_reap(&self.key);
                     tracing::warn!("chat run guard released via drop (panic unwind?): key={}", self.key);
                 }
             }
@@ -3110,6 +3112,10 @@ pub async fn chat_run_owner(
         break;
         }
         bridge.abort();
+        // PLAN-105 T-08（P8）：run 收束统一收割——本 run 经 run_command
+        // 启动且仍存活的进程树（Windows job kill-on-close 含 `start` 分离
+        // 孙；Unix 进程组），不再锁 worktree（UAT 87af4d4b PID 8008）。
+        state_for_ctx.chat_proc_reap(&run_key2);
         // PLAN-055 ⑧(D1): run 结束（Ok/Err 两路汇合点）——清 per-session 守卫。
         state_for_ctx.chat_run_finish(&run_key2);
         guard_on_drop.done.store(true, std::sync::atomic::Ordering::SeqCst);

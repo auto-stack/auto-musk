@@ -355,15 +355,27 @@ pub fn build_agent_with_context(
         // PLAN-073 F-D：auto 模式自动放行（非白名单/越界直接执行，不打断）；
         // human 挂 live 门（UI approve/deny）；其余（CLI/relay 无会话）legacy。
         let auto_approve = ctx.approval_mode.as_deref() == Some("auto");
+        // PLAN-105 T-08（P8）：进程凭证登记闭包——run_command spawn 的
+        // 子进程凭证（Windows job 句柄/Unix pid）进 run 级注册表，键与
+        // chat_run_owner 守卫同款（ws:session / ws:relay-run），收束出口
+        // 统一收割（UAT 87af4d4b：http.server PID 8008 锁 worktree）。
+        let proc_state = ctx.state.clone();
+        let proc_key = format!("{}:{}", ctx.workspace_id, ctx.parent_conversation_id);
+        let proc_register = std::sync::Arc::new(move |token: usize| {
+            proc_state.chat_proc_register(&proc_key, token);
+        });
         let scoped_run_command: Vec<(&str, Arc<dyn auto_ai_agent::Tool>)> = vec![
             (
                 "run_command",
-                Arc::new(crate::tools::RunCommand::with_roots_progress_policy(
-                    ws_roots.clone(),
-                    ctx.progress.clone(),
-                    gate_session,
-                    auto_approve,
-                )),
+                {
+                    let rc = crate::tools::RunCommand::with_roots_progress_policy(
+                        ws_roots.clone(),
+                        ctx.progress.clone(),
+                        gate_session,
+                        auto_approve,
+                    );
+                    Arc::new(rc.with_proc_register(proc_register))
+                },
             ),
         ];
         for (name, tool) in &scoped_run_command {
