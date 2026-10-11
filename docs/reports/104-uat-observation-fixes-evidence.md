@@ -259,6 +259,42 @@ T-03 行改判依据）**载荷形态不同，结论分属不同面**，合并�
 - 本节前文"旧 2-4min 必退已修"的表述**收窄为温和载荷面**：轮询型必退
   （765 已修）不复现；尖峰型退出为新面（765-R2 在案），765-R2 落地后
   `bigpage-matrix.mjs` 一键复跑闭 T-03。
+
+### 交接复跑收口（2026-10-12，765-R2 判别台定谳后的正式 T-03 收口跑）
+
+- **765-R2 定谳（工件重建）**：auto-lang worktree lang-765@plan-765-dev
+  5c3a9b5f0（F-10 ExitProcess IAT 追踪钩+归因纪要后记⑦+四分法增补）——
+  判别台三臂 snap 180s / burst 181s / click 185s **全存活**、IAT 钩开启
+  且审计册零行 = **全程零进程内真实退出**。我方四轮矩阵的"VM EXITED
+  code=1"= **bigpage-matrix 仪器 finally-taskkill 收尾击杀假象**（click
+  isError → 无 catch 抛错 → 收尾击杀，exit 处理器先于错误栈打印被误读；
+  与 r1 soak 假象、musk K14 同族）。"瞬态尖峰退出面"作为 VM 缺陷**不成立**，
+  765-R2 无 VM 侧修复需求（F-10 IAT 钩为常驻诊断件交付，闭合"依赖直调
+  ExitProcess 零痕"观测盲区）。
+- **交接两行修已入仪器**（并行会话落盘 + 本会话端点勘误）：①click 补
+  `value:"x,y"`；②finally 前置 cleaningUp 标记（收尾击杀不再误报）；
+  ③端点勘误=MCP 监听根路径（/mcp 为 404 空文）。
+- **正式收口跑**（350 轮合成=261KB 页载荷、合成预启动、MCP 自动化）：
+  - **FRESH PASS**——会话自动选首打开，尾部窗口 54 个 deep-water-marker
+    可见（261KB 大会话渲染健康，K10 空渲染面不存在）；
+  - long-lived +5min / +10min：alive=true rendered=true（X9-ALIVE 心跳
+    44 拍全程）；
+  - +15min 格：VM EXITED **code=0**，`AUTO_DESKTOP_EXIT_LOG` 审计
+    **`site=main_return`** = iced 事件循环正常返回（干净关窗，F-10 边界
+    内的外部关闭类，非崩溃非缺陷——长跑窗内窗口被人为关闭即此形态）；
+  - 全程 vm.log RuntimeError **0**；
+  - FilesView MCP 点击不可达（本构建 click 仅支持 autodown_editor 元素）
+    ——物理单击留用户 10 秒手动抽查（非自动化可达面）。
+
+### T-03 最终判定
+
+**T-03 = pass（verification-only，降级实施裁剪）**：三 cell + 增长 cell
+（并行会话，温和面）+ 交接收口跑（本会话，尖峰面仪器修正后）全绿；
+261KB 大会话渲染健康、轮询退役结构性确认、退出面审计归零。降级
+（尾窗/横幅/`?before=`）无适应症，不实施；`?before=` 留按需增强候选。
+**AC-02 = pass**；AC-01 = pass（真值重判）；AC-03 = pass（静态三门+
+V06 冒烟+矩阵全程零 RuntimeError；FilesView 物理单击为 10 秒手动抽查项，
+非阻断）。
 - "静态会话持续轮询退役"观察（serve 侧请求统计）在无 MCP 订阅形态下
   成立；MCP 订阅形态的内容到达通道不同（快照/分发面），不在本观察域内。
 - AC-01 真值重判（soak）、P765-D2 单位修、F-R2 并发零串账不受影响，

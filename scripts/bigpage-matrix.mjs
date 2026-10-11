@@ -36,7 +36,9 @@ class Mcp {
     return mcpText(text);
   }
   snapshot() { return this.call("autoui_snapshot", { include_state: true, include_status: true }); }
-  async action(element_id, action = "click") { return this.call("autoui_action", { element_id, action }); }
+  // 765-R2 交接修①：本构建 autoui_action 的 click 要求 value:"x,y"（部件
+  // 局部坐标）——缺省即 isError，曾被误读为 VM 退出（纪要后记⑦）。
+  async action(element_id, action = "click", value = "12,12") { return this.call("autoui_action", { element_id, action, value }); }
 }
 function parseTree(text) {
   const nodes = []; const stack = [];
@@ -60,7 +62,7 @@ mkdirSync(path.dirname(path.resolve(OUT)), { recursive: true });
 const workdir = fs.mkdtempSync(path.join(path.dirname(path.resolve(OUT)), `bigpage-ws-`));
 const home = fs.mkdtempSync(path.join(path.dirname(path.resolve(OUT)), `bigpage-home-`));
 const vmLog = openSync(`${OUT}.vm.log`, "a");
-let vmPid = null, vmDied = false;
+let vmPid = null, vmDied = false, cleaningUp = false;
 try {
   const serve = spawn(MUSK_EXE, ["serve", "--workdir", workdir], {
     cwd: workdir, env: { ...process.env, MUSK_SERVE_PORT: String(PORT), MUSK_CONFIG_DIR: home,
@@ -89,11 +91,14 @@ try {
     cwd: VM_CWD, env: { ...process.env, AUTO_REUSE_BACKEND: "1", AUTOUI_MCP_PORT: String(MCP_PORT), RUST_MIN_STACK: "16777216" },
     stdio: ["ignore", vmLog, vmLog], shell: false });
   vmPid = vm.pid; procs.push(vmPid);
-  vm.on("exit", (c) => { vmDied = true; log(`VM EXITED code=${c}`); });
+  // 765-R2 交接修②：收尾击杀与真实退出区分——cleaningUp 置位后的 exit
+  // 是仪器自身 taskkill（恰码 1），不得再作为"VM EXITED"失败信号上报。
+  vm.on("exit", (c) => { vmDied = true; if (!cleaningUp) log(`VM EXITED code=${c}`); });
   await sleep(20000);
 
   const mcp = new Mcp(`http://127.0.0.1:${MCP_PORT}/mcp`);
-  // 兼容端点发现（097：stderr 端点发现；此处直接试标准路径，404 再试根）。
+  // 端点发现：本构建 MCP 监听根路径（/mcp 返回 404 空文——本轮 run1 空转实证）
+  if ((await mcp.snapshot()) === "") mcp.endpoint = `http://127.0.0.1:${MCP_PORT}`;
   let snap = await mcp.snapshot();
   log(`mcp up (${snap.length} bytes snapshot) @${new Date().toISOString()}`);
 
@@ -108,8 +113,10 @@ try {
   }
   if (vmDied) throw new Error("VM died before open");
   if (!entry) throw new Error("session entry not found in snapshot");
-  await mcp.action(entry.id, "click");
-  log("session clicked; waiting chat render…");
+  // click 仅支持 autodown_editor 元素（本构建语义，765-R2 判别台同结论）
+  // ——会话行不可点；本工作区单会话由前端"自动选首个"打开，点击容错续行。
+  try { await mcp.action(entry.id, "click"); log("session clicked; waiting chat render…"); }
+  catch (e) { log(`click unavailable (${String(e.message).slice(0, 90)}) — auto-selected session continues`); }
   let freshOk = false, freshDetail = "";
   for (let i = 0; i < 6 && !freshOk; i++) {
     await sleep(8000);
@@ -138,6 +145,7 @@ try {
   fs.writeFileSync(OUT, JSON.stringify(result, null, 1));
   log(`verdict=${result.verdict} → ${OUT}`);
 } finally {
+  cleaningUp = true; // 先置标记再击杀：区分收尾 killTree 与真实退出
   for (const pid of procs) killTree(pid);
   await sleep(1500);
 }
