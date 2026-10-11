@@ -731,6 +731,14 @@ mod tests {
             chat_runs: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashMap::new(),
             )),
+            // PLAN-105 三字段对齐（rebase 后 AppState 字面量补齐）。
+            run_auto_continue: false,
+            chat_pending: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
+            chat_procs: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
             run_idle_timeout: std::time::Duration::from_secs(300),
         });
 
