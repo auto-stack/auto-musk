@@ -315,7 +315,7 @@ async function main() {
           '$pt.X = 0; $pt.Y = 0',
           '[M102C.W]::ClientToScreen($h2, [ref]$pt) | Out-Null',
           '$r.L = $pt.X; $r.T = $pt.Y; $r.R = $pt.X + $r.R; $r.B = $pt.Y + $r.B',
-          'Write-Output ("rect " + $r.L + "," + $r.T + "," + $r.R + "," + $r.B)',
+          'Write-Output ("rect " + $r.L + "," + $r.T + "," + $r.R + "," + $r.B + "," + [int64]$h2)',
           '# 前台化（AttachThreadInput 旁路；非前台全局注入 press 被丢——760 e2e 注记）。',
           '$fg = [M102C.W]::GetForegroundWindow()',
           'if ($fg -ne $h2) {',
@@ -355,6 +355,7 @@ async function main() {
         // lparam = 窗口逻辑域，无需屏幕换算）。
         const rectOut = psRun([`-TargetPid ${front.pid}`, '-X 0', '-Y 0']);
         const rect = /rect (-?\d+),(-?\d+),(-?\d+),(-?\d+)/.exec(rectOut);
+        const hwndInt = Number(/rect (-?\d+),(-?\d+),(-?\d+),(-?\d+),(\d+)/.exec(rectOut)?.[5] ?? 0);
         result.embedRectOut = rectOut.slice(0, 300);
         // 截图基线（帧内容随动证据）。
         const shot0 = await mcp.call('autoui_screenshot', {}).catch(() => '');
@@ -373,14 +374,23 @@ async function main() {
           const ox = (fw - 480 * s) / 2, oy = (fh - 680 * s) / 2;
           const lx = Math.round(fx0 + ox + 48 * s);
           const ly = Math.round(fy0 + oy + 36 * s);
-          const clickOut = psRun([`-TargetPid ${front.pid}`, `-X ${lx}`, `-Y ${ly}`]);
-          clicked = clickOut.includes('clicked');
+const clickOut = spawnSync('python', [path.join(ROOT, 'scripts/ui-py/click-hwnd.py'), String(lx), String(ly), '2.0'], { encoding: 'utf8', timeout: 30000, windowsHide: true });
+          clicked = (clickOut.stdout ?? '').includes('clicked');
           detail = `lp=${lx},${ly} dockW=${dockW} ${clicked ? 'ok' : clickOut.slice(0, 30)}`;
         }
         await sleep(2500);
         const count1 = await fxState();
         const shot1 = await mcp.call('autoui_screenshot', {}).catch(() => '');
-        const md5 = (t) => /"md5":\s*"([0-9a-f]+)"/.exec(String(t))?.[1] ?? /md5=\w+/.exec(String(t))?.[0] ?? String(t).slice(0, 24);
+        // 帧随动取证：两帧落盘（画布区像素差肉眼/仪器可查）。
+        try {
+          const f0 = shotFile(shot0), f1 = shotFile(shot1);
+          if (f0) fs.copyFileSync(f0, path.join(RECEIPT_DIR, 'W-06-pembed-shot0.png'));
+          if (f1) fs.copyFileSync(f1, path.join(RECEIPT_DIR, 'W-06-pembed-shot1.png'));
+          result.embedShots = { md5_0: md5(shot0), md5_1: md5(shot1) };
+        } catch { /* best effort */ }
+const shotFile = (t) => { const m = /saved to:s*(S+)/.exec(String(t)); if (!m) return null; let f = m[1]; if (f.startsWith(String.fromCharCode(92,92,63,92))) f = f.slice(4); return f; };
+        const fileMd5 = (f) => { try { return require('node:crypto').createHash('md5').update(require('node:fs').readFileSync(f)).digest('hex'); } catch { return null; } };
+        const md5 = (t) => { const f = shotFile(t); return f ? fileMd5(f) : 'nof' + String(t).slice(0, 16); };
         result.embedOperate = { count0, count1, clicked, rect: rectOut.slice(0, 30) };
         assert('embed-operate-input-roundtrip',
           clicked && count0 != null && count1 != null && Number(count1) > Number(count0),
