@@ -103,13 +103,34 @@ bounds+引导帧 bounds 依赖项；devtools_open 不置位面板不出镜）；
 |:---|:---|:---|
 | `POST /api/canvas/start?workspace={id}` `{app_path}` | 校验+启动（替换） | 越界 400（报文列全部根）；非 app 目录 400；spawn 失败 500 |
 | `GET /api/canvas/frame` | 当前帧 PNG 直出 | 无帧 503 |
-| `GET /api/canvas/status` | M1 五字段 + frame/picked/overlay/tree/pac_head（M2） | — |
-| `POST /api/canvas/pick` | `{x,y}`（帧像素）或 `{vnode_id}` → 锚点载荷 | 未命中 204；无帧/无索引 503；缺参 400（M2） |
+| `GET /api/canvas/status` | M1 五字段 + frame/picked/overlay/tree/pac_head（M2）+ presentation/mcp_base（PLAN-102） | — |
+| `POST /api/canvas/pick` | `{x,y}`（帧像素）或 `{vnode_id}` → 锚点载荷 | 未命中 204；无帧/无索引 503；缺参 400（M2）；无帧坐标形态门限（PLAN-102 F-06-1） |
 | `POST /api/canvas/stop` | 停止+收割（幂等） | — |
 
 安全边界：`app_path` 经 `tool_safety::resolve_multi` 多根判定 fail-closed
 （workspace 根恒第一根 + 白名单），报错文案列全部根；`pac.at` 存在性校验。
 agent 工具面（canvas_run）同口径。
+
+## 呈现控制与输入消费（PLAN-102，修订 v2）
+
+- **`POST /api/canvas/present?generation=<g>` `{mode}`**：身份守卫呈现
+  控制——stale generation 409（携当前值）；`mode=embedded` 幂等（已
+  embedded 重入 200 不动会话）；`mode=window` **诚实 501**（上游 rq
+  客户端 exit-on-EOF 重连 seam 未就绪——不冒装、不重启 app、不换
+  generation；双向支持归 v0.6，见 canvas-embed.md 已知边界）；非法
+  mode 400。axum（mod.rs）与 vmhost（extern_impl）双面同律。
+- **spawn 形态（embedded 恒 bridge 双子进程）**：`auto rqhost --pipe
+  <name> --bridge-ws <port> --bridge-token <t>` + 目标 app
+  `AUTO_VM_RENDER=remote`（headless）；session 尾随 bridge stderr 解析
+  `adopted \`NAME\`` → status `bridge_ws_url` 织 `&app=<名>`；MCP 健康
+  看门狗 + stop 收割双子进程（vm-cycle stop 断言）。
+- **status 增益**：`presentation{mode,bridge_ws_url,bridge_ws_port}` +
+  `mcp_base`（目标 app MCP 基址——typed 状态断言/agent 工具直连）。
+- **陈旧事件纪律**：迟到帧/输入不污染下一 generation（身份守卫 +
+  StatusBackfill 统一清场，canvas-embed.md 契约 3）。
+- **测试口径**：`canvas_studio_contract.rs`
+  `route_present_embedded_idempotent_and_window_honest_501` +
+  `vmhost_present_embedded_idempotent_window_501_invalid_400`（29/29）。
 
 ## agent 工具十三件（canvas/{tools,bp_tools,ui_lint,examples_pool}.rs，coding 模式白名单）
 

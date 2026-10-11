@@ -64,6 +64,22 @@
   Info 维持 Info；升级或删除需逐条判断合法性。
 - 收据必须绑定实际 CLI 文件 hash；不以 lenient / 旧产物 / 跳过打包判绿。
 
+## 7. canvas 宿主动态尺寸与双输入模式（PLAN-102）
+
+- **动态内容几何**：宿主（musk）canvas 面板以 store 域 CSS 声明串 +
+  `style: .store.<decl>` 单通道下发动态尺寸（W-03-1 裁定，禁
+  class:+style: 并存——VM extract class 优先短路 style）；浮点收整
+  `.to_int()`（三语句中转——`Math.floor` 外源浮点穿 int 边界 +
+  float→str 拼接位型缺陷，F-03-1）。
+- **操作/检查双输入模式**：operate 态指针/键盘经 remote-frame →
+  InputMsg（contain 逆映射换算，目标逻辑域）；inspect 态点选只走
+  pick/overlay（不触发应用副作用）；模式切换经 CanvasStore 单源。
+- **拖动输入**：分隔条自持 Down/Move/Up（__mcp_drag 注入合同同构）；
+  外框分隔条真 OS 拖动（SetCursorPos+PostMessage 真移组合——canvas
+  Program::update 只吃真实 move）。
+- **探针仪器**：AUTO_RF_DEBUG（registry 状态行）/AUTO_RF_TEXTDUMP
+  （DisplayList 双端文本转储，PLAN-102 F-RF-3 取证仪器）。
+
 ## 已知债（2026-10-01 登记）
 
 1. `.at` float→字符串拼接位型误渲染（typed 值正确、str 拼接垃圾）——
@@ -73,3 +89,6 @@
 4. Vue 臂浏览器 live 实拍基建复用 093 live.mjs，未在 095 内执行。
 5. % 偏移需配对 % 尺寸（浮层几何 v1 边界）。
 6. 多 surface 共享同一 handler 键的通知合并（v1 单通知）。
+7. VM 轨主题 dark-only（iced 渲染器 `theme_fn` 恒 Dark；`dom.set_dark`
+   仅写 storage）+ VM 语言切换种子不生效疑点（web 轨同键生效）——
+   PLAN-102 复审登记，随 v0.6 原生内嵌处理。

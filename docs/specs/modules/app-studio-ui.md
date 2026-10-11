@@ -20,21 +20,41 @@
 ## 布局与视觉
 
 - 内容行 studio 模式 row-reverse（对话右置）；宽度分层：对话 360（<1280
-  320）、结构 220（<1280 200）；768-1023 结构列受控显隐（切换钮列）；
-  <768 页签塌缩（画布/对话/结构单区，切换保持草稿与选择）。宽度驱动源
-  = ForgeStore.fw_win_w（PollStream 随拍）+ CanvasStore.cv_win_w（web 键
-  优先 VM 窗口 KV 兜底）。
+  320）；<768 页签塌缩（画布/对话/工具单区，切换保持草稿与选择）。宽度
+  驱动源 = ForgeStore.fw_win_w（PollStream 随拍）+ CanvasStore.cv_win_w
+  （web 键优先 VM 窗口 KV 兜底）。
+- **共用可停靠 DevTools 工作台（PLAN-102，替换固定结构 220 左列）**：
+  CanvasWorkbench 外框（正常聊天初值 ~640、聊天区 ≥320 保底）内含工具
+  区（左/右/底部/隐藏四停靠 + 停靠条 29）+ 分隔条 + Canvas 预览列。
+  工具区初值 240（底部高 240），最小 180（底部 140）；canvas 最小内容
+  240x180；窄容器两侧最小不满足 → 画布/工具单区页签降级，变宽恢复原
+  方向（偏好保持）。
+- **尺寸通道（W-03-1 裁定）**：store 域 CSS 声明串（如
+  `width:250px;height:100%;overflow:hidden;flex-shrink:0`）+
+  `style: .store.<decl>` 单通道下发；**禁 class:+style: 并存**（VM
+  extract class 优先短路 style）与类名文本裸引用。浮点→px 收整用
+  `.to_int()`（三语句字符串中转；`Math.floor` 外源浮点穿 int 边界 +
+  float→str 拼接位型缺陷曾写出 `width:0px` 致 0 宽静默退出——F-03-1）。
+- **拖动契约**：分隔条可见 1px/命中 ~6px，自持 Down/Move/Up 三 handler
+  （__mcp_drag 注入合同同构）；越界续拖经 capture 层（contentRow 包裹
+  式）；Escape 取消本次拖动恢复起始尺寸（app.at GlobalKeydown 限定式
+  汇流）；键盘 divider = 步进钮组（±10/Home，title 可读名）。
+- **偏好**：停靠方向/水平宽/底部高/外框宽按 workspace + 前端轨持久
+  （轮询不覆写）；隐藏/恢复保留方向、页签、树折叠。
 - 视觉沿 pac.at 语义 token（background/card/muted/border/foreground/
   primary）；状态同时有文本/图标不单靠颜色；树行 12px、次要 11px 下限；
-  主要动作命中 ≥32px。不新增主题面。
+  主要动作命中 ≥32px。不新增主题面（VM 轨上游 dark-only——双主题证据
+  面在 web 轨，F-RF 复审补证）。
 
-## 结构 / 源码左列
+## 结构 / 源码工具区
 
 - 页签化（结构|源码）。结构树从实际 vtree 扁平表渲染：折叠键 = 稳定
-  字符串 vid（>2^53 安全），跨帧回填/折叠保持；循环节点显示 index/value。
+  字符串 vid（>2^53 安全），跨帧回填/折叠保持；循环节点显示 index/value；
+  树行一行化（kind/label/for + 截断 + title tooltip）。
 - 源码面板：只读；行对象由 store 域构建（视图内不 parse）；拾取行高亮 +
   自动滚动定位；非法行号/读失败/无 source/来源待确认各有明确状态；
-  来源置信度 exact/uncertain（多文件启发式必须显示「来源待确认」）。
+  来源置信度 exact/uncertain（多文件启发式必须显示「来源待确认」）；
+  树/源码各自滚动（scroll 双界 flex-1 min-h-0）。
 
 ## 帧区与坐标点选
 
