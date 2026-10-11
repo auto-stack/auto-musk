@@ -4,7 +4,7 @@ status: archived
 feature_name: 聊天驱动演示四缺陷修复（实时流渲染/计数徽章/会话卡住守卫泄漏/canvas 内嵌）
 author: [agent]
 created_at: 2026-10-09T04:10:00Z
-updated_at: 2026-10-09T16:40:00Z
+updated_at: 2026-10-11T03:30:00Z
 plan_revision: 4
 current_step: 7
 total_steps: 7
@@ -239,13 +239,26 @@ D-1/D-2/D-3a 的部分根因挂载点**已被证据推翻**，实际缺陷面收
   维持 KNOWN-DEBT 既有登记；E-STREAM-HANG 为独立新条（挂死形态不同：
   非 4096 整点、client 侧 EOF 消费悬挂）。
 
-- **auto-lang 折回待办（依赖收尾）**：auto-musk-dev 两提交
+- **auto-lang 折回待办（依赖收尾）——✅ 已完成（2026-10-11 折回落账）**：
+  原 待办正文（存档）：auto-musk-dev 两提交
   （6afac0405 渲染器相对 URL + 6a8c5e2d8 复现矩阵）已 rebase 到 master
   09849576b 之上，ff 折回被主检出的外来未提交 WIP 阻（PLAN-721 media
   6 文件，crates/auto-lang/src/ui/ 含 renderer.rs——与本项目改动同文件
   不同 hunk）。按"主检出零 WIP"裁决须该 WIP 属主先处置（路由进 worktree），
   之后 `git merge --ff-only auto-musk-dev` 即可。musk 侧消费不受阻（组内
   worktree 分支即构建源）。
+  **折回执行记录**：外来 WIP 已被属主处置（主检出 tracked 全净）→ 二次
+  rebase 到 master 1f2e08577（期间 master 因 PLAN-755/758 并发落地由
+  09849576b 前进，第一次 rebase 基点 5fce09eb6 作废重来）→
+  `git merge --ff-only` 落地：master 1f2e08577 → **7d51954d4**。
+  hash 映射（range-diff 逐条 `=` 等价验证，2/2）：6afac0405→8efd12124
+  (rebase@09849576b)→**be51414da**(终)；6a8c5e2d8→aa382b11b
+  (rebase@09849576b)→**7d51954d4**(终)。落地后复验（终树）：
+  a2r-std stream_hang_repro 3 绿 + auto-lang lib check 过 +
+  http_base_url_resolution 1 绿。worktree 验证期间的 workspace path
+  解析（`../../../auto-down` 组内兄弟）用 `git archive` 抽取 auto-down
+  engine crate 20 文件到组内临时满足（真文件非链接，验证后删除，
+  wt-guard clean）。
 - **引擎根修折回记录**：auto-ai f1c7794 已折回 main ✓（auto-musk-dev-2
   分支留档）；a2r-std 复现矩阵随 auto-lang 折回落 master。
 - stage: review | plan_id: PLAN-099 | plan_revision: 4 | outcome: needs_fix(轻——两项收尾修正,无 AC 失败) |
@@ -307,12 +320,14 @@ D-1/D-2/D-3a 的部分根因挂载点**已被证据推翻**，实际缺陷面收
   cargo clean（34.8GiB）→ debug 构建 2m05s → serve 冒烟全绿（health/specs v14[4×099]/chats/canvas
   200——启动即证 main 无 pick panic 债）→ cargo test -p musk --lib **548 绿**（main known-good）|
   dependencies: auto-ai f1c7794 已折回 main ✓（auto-musk-dev-2 分支留档可删）；auto-lang
-  auto-musk-dev aa382b11b 折回 BLOCKED（主检出外来 WIP PLAN-721 media 6 文件未提交，
-  含 renderer.rs 同文件不同 hunk——待属主处置后 `git merge --ff-only auto-musk-dev` 即可；
-  **组内 auto-lang worktree 保留至折回完成，auto-ai/auto-down 只读 worktree 随清理**） |
+  auto-musk-dev 折回 **✅ 已完成（2026-10-11）**——原 BLOCKED 状态（主检出外来 WIP PLAN-721
+  media 6 文件未提交，含 renderer.rs 同文件不同 hunk）解除后，rebase master 1f2e08577 →
+  ff-only 落地 7d51954d4（hash 映射与终树复验明细见 §10 折回执行记录）|
   next: 完成。
   cleaned（终态）: auto-musk worktree 移除+plan-099-dev 删除（0ede9f8 已含于 main ✓）；
   auto-ai 只读 worktree+auto-musk-dev-2 删除（f1c7794 已在 main ✓）；auto-down 只读移除；
-  组目录保留 auto-lang（折回 BLOCKED 待办，见 dependencies）；三次 wt-guard clean 均在移除前过。
+  ~~组目录保留 auto-lang~~ → **auto-lang worktree+auto-musk-dev 分支+组目录 musk-099
+  已于 2026-10-11 折回完成后全部清理**（移除前 wt-guard clean ×2；临时抽取的 auto-down
+  engine crate 助手目录随组清理）；PLAN-099 无残留 worktree/分支/组目录。
   batch-regression due check: **DUE**——last_covered_plan_id=98（099 非整除不触发），但回执时间戳 2026-10-03（今 2026-10-09，>48h）且期间有合并（099 landed 0ede9f8/10dd22a）→ 48h 规则到期，移交 /auto-plan:regress（主检出单实例跑 musk 全量门 38 目标串行；known-reds 098-R1/R2 参照在案）。
 
