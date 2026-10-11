@@ -47,6 +47,7 @@ fn tmp_state() -> AppState {
         auth: Arc::new(AuthStore::new(dir.join("users.json"))),
         registry: Arc::new(registry),
         canvas: Arc::new(musk::canvas::CanvasManager::new()),
+        chat_procs: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         run_idle_timeout: std::time::Duration::from_secs(300),

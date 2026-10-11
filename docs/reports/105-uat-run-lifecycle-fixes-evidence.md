@@ -69,4 +69,54 @@
 
 ---
 
+## T-02～T-08 落地证据（V01–V07）
+
+| 任务 | 验证 | 结果 |
+|---|---|---|
+| T-02 收束修复 | V01 红→绿 | musk 形态 D 10.15s 红 → **2.11s 绿**（守卫释放+失败消息+工具现场保留）；client 6/6（send 钉测试 ~2s=1s 窗+重试）；daemon 73/73 |
+| T-03 文案分型+自动续跑 | V05 | 停滞型（点名在途工具 run_command）/挂起型两测绿；续跑注入 2 次调用恢复终答、防链式恰 2 次、关闭路径不注入；env `AUTO_RUN_AUTO_CONTINUE` |
+| T-04 待发队列 | V05/V08 | guard 占用入队+⏳ 提示；收束重放两轮按序（一轮完成→提示→二轮完成）；人工边界新消息 id |
+| T-05 引号保真+词法 | V03 | 引号矩阵四测绿（commit -m「fix: a b c」回读一致/git -C "space dir"/curl -o "my out.txt" 落盘/findstr /C:"two words" 命中）；tokenizer 单测+confinement 漏判补红两例+根内带空格不误伤；runner/safety 27 绿 |
+| T-06 specs 诚实化 | V04 | 帕斯卡 Approved→400 带该区清单；合法转移 applied_status 回显+GET/POST 对称回写；非法 400 带 `from -> to` 因；upsert bypassed_transition 标注；specs lib 39 绿 |
+| T-07 VM 白名单 | V07 | host 桥回环五点绿（增/查/错误透传/未知 ws 拒/删）+ VM serve 冒烟门 2/2（.at 全量编译含新端口） |
+| T-08 进程收割 | V06 | runner 级：start /b 分离 server→job close→端口 ≤5s 释放；run 级端到端：看门狗中止→收割→端口释放（4.09s，兼验停滞型文案）。邻接真缺陷修复：超时臂读任务裸 await 悬死（15 分钟复现）→2s 有界 |
+
+全 lib 回归：**578 passed / 0 failed / 1 ignored**（T-09 时点）。
+
+## T-09 回归与场景复跑（V02/V08）
+
+### V02 全量（逐目标串行）
+
+- **绿**：--lib 578；integration 14 目标全绿（含本计划新增
+  `plan105_specs_transition_honesty` 4/4、修复的 `parity_workspace_endpoints`
+  4/4）。
+- **红（既有，非本计划引入）**：22 个 integration 目标编译红——三类旧伤：
+  ①`chat_runs` HashSet→HashMap（368c2f9/PLAN-099 漏改 tests 构造，仓内注释
+  自证）；②`chats::ToolCall` 缺 escape_paths/gate_id/pending_cmd
+  （PLAN-103 同款漏改）；③`StartRunRequest.authorization` 缺字段。
+  **基线对照**：plan 基提交 11c5db5 干净 worktree 上 `--tests --no-run`
+  = 22 目标 23 errors 同款红集；`tool_atoms::run_command_dangerous_returns_paused`
+  运行红在 pre-T-05 提交 a18913b 与基线 11c5db5 同样复现（环境依赖：'/'
+  解析到 D:\ 根）。**零新增红成立**；本计划顺手修复了全部 AppState 字面量
+  （chat_pending/run_auto_continue/chat_procs 三字段 21+ 文件）。
+- 既有测试偶发（chat_busy/cancel/failure_preserves 批跑偶 404/500）：
+  Windows fs 并行竞态（`chats.get()` 无锁读 vs 原子写窗口），基线（stash
+  对照）同样复现——非本计划引入，建议另行立项。
+
+### V08 实机复跑（新演示 workspace `v08-demo` + 隔离 MUSK_CONFIG_DIR + 真栈 aaid）
+
+| 点 | 实机证据 | 判定 |
+|---|---|---|
+| P6 | 帕斯卡 `Approved` → **400** `unknown status 'Approved' … valid for section 'designs': empty, draft, under_review, approved, rejected, superseded, outdated`（区专属清单+原串）；合法 `draft→under_review` → 200 `{"applied_status":"under_review"}`；非法 `under_review→draft` → 400 `invalid status transition for designs: under_review -> draft` | ✅ 实机 |
+| P4 | 真 LLM（basic 模式 4 轮）：`git commit -m "v08 quote test: a b c"` 首触 PAUSED（白名单外）→ force 执行 → **root-commit b8d5808 消息原样**，`git log -1 --pretty=%B` 回读 `v08 quote test: a b c` 一致（UAT 中同款命令引号丢失中止） | ✅ 实机 |
+| P1/P3/P7 | P1=send 悬死（网络竞态形态，不可确定性复演；musk 形态 D 复现器红→绿 + client 钉测试双层覆盖）；P3=队列重放（V05 集成测）；P7=host 桥回环 + VM serve 起服门 | ✅ 双层确定性证据（建议复审抽样实机） |
+
+### 遗留（merge 阶段）
+
+- KNOWN-DEBT K2 行改写 + Q-1（自动续跑缺省值）回用户确认。
+- auto-ai 依赖 worktree（auto-musk-dev-105）保留至本计划 merge
+  （musk worktree path 解析耦合组内兄弟——musk-102 组同款先例），
+  merge 时随本组一并收尾；auto-lang 为只读镜像（detached）同批清理。
+
 （T-02+ 证据随任务推进续记。）
+

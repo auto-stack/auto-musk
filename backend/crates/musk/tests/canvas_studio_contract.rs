@@ -58,6 +58,9 @@ fn test_state() -> (Arc<musk::server::AppState>, PathBuf) {
         chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         run_idle_timeout: Duration::from_secs(300),
         canvas: Arc::new(CanvasManager::new()),
+        chat_pending: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        run_auto_continue: false,
+        chat_procs: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
     };
     (Arc::new(state), dir)
 }

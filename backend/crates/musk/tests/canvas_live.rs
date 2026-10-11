@@ -40,6 +40,9 @@ fn create_canvas_tool_context(ws_dir: &Path) -> ToolContext {
         chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         run_idle_timeout: Duration::from_secs(300),
         canvas: Arc::new(CanvasManager::new()),
+        chat_pending: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        run_auto_continue: false,
+        chat_procs: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
     };
     let ws_id = {
         let q = musk::workspace::WorkspaceQuery { workspace: None };
