@@ -173,15 +173,15 @@ widget CanvasCanvasColumn {
                     }
                 }
             }
-            // PLAN-102 T-04：embedded 呈现帧区（web 消费面就绪时——
-            // .cv-embed-frame 宿主 div + installCanvasEmbed 注 canvas/WS/
-            // 输入回传；VM 轨 cv_embed_web 恒 false → 落下方既有 img 降级
-            //（J2 remote-frame 切片②收口））。
+            // PLAN-102 T-04 收口：embedded 呈现帧区 = remote-frame 元件
+            //（PLAN-760 交付）双轨同源——VM = 订阅-渲染-输入一体 iced 元件
+            //（remote_frame_registry 按 url 键控连接）；web = 透传 div 占位
+            //（data-remote-frame 标记）由 installCanvasEmbed 消费面接管
+            //（.cv-embed-frame 类定位 → canvas 注入 + WS 全链）。
             if .store.cv_embed {
-                if .store.cv_embed_web {
-                    div {
-                        class: "cv-embed-frame"
-                        style: "flex-1 min-h-0 w-full bg-background"
+                if .store.cv_bridge_url != "" {
+                    remote-frame (url: .store.cv_bridge_url) {
+                        class: "cv-embed-frame flex-1 min-h-0 w-full"
                     }
                 }
             }
@@ -189,8 +189,9 @@ widget CanvasCanvasColumn {
             // T-06:内容包装层（cv-frame-wrap）——bbox_pct 以帧物理尺寸为基，
             // 盒=内容盒（aspect-ratio 定比/100% 定尺寸，store 单源样式）时
             // 覆盖框与点选换算才对齐；容器留白区点击=显式清选（web 委托）。
-            // 互斥：web embed 态走上方消费面（不叠 img 链）。
-            if .store.cv_frame_url != "" && (.store.cv_embed == false || .store.cv_embed_web == false) {
+            // 互斥：embedded 态走上方 remote-frame 消费面（不叠 img 链——
+            // 窗口/旧轨会话 cv_embed=false 落此分支）。
+            if .store.cv_frame_url != "" && .store.cv_embed == false {
                 div {
                     class: "cv-frame-box"
                     style: if .store.cv_zoom_fit {
@@ -231,9 +232,11 @@ widget CanvasCanvasColumn {
                     }
                 }
             } else {
+                if .store.cv_embed == false {
                 // §5.3 状态矩阵空态面：初始无应用（stopped+无 app 描述）≠
                 // 已停止（stopped+有 app 描述——保留标题与"重新运行"入口，
                 // 不得隐去全部操作）；starting/restarting 显等待原因。
+                // embedded 态帧区由上方 remote-frame 独占（空态面不叠加）。
                 col {
                     style: "flex-1 min-h-0 flex flex-col items-center justify-center gap-2 text-muted-foreground"
                     if .store.cv_state == "stopped" {
@@ -273,6 +276,7 @@ widget CanvasCanvasColumn {
                             }
                         }
                     }
+                }
                 }
             }
             // 锚点 chip：kind+label（for 实例缀）+ source 行；点击开

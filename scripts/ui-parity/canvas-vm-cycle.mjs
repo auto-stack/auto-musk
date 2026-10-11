@@ -71,6 +71,15 @@ async function main() {
   const result = { probe: `W-06-vm-cycle-${backend}`, plan: planId, at: new Date().toISOString(), musk: MUSK_EXE, auto: AUTO_EXE, asserts: [], pass: false };
   const assert = (n, ok, d) => { result.asserts.push({ name: n, ok, detail: d ?? '' }); console.log(`  ${ok ? '✓' : '✗'} ${n}${d ? ` — ${d}` : ''}`); };
 
+  // 泄漏清场（P-embed 前置）：早前探针残留的同题 musk/auto 进程会持最大化
+  // 窗抢占标题定位（实测 -7,-7,1926,1238 点击入残留窗）。路径过滤只杀本
+  // 组（*musk-102*）——studio-live cleanupBetween 同款口径。
+  try {
+    spawnSync('powershell', ['-NoProfile', '-Command',
+      "Get-Process auto,musk -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*musk-102*' } | ForEach-Object { Stop-Process -Id $_.Id -Force }"],
+      { timeout: 30000, windowsHide: true });
+  } catch { /* best effort */ }
+
   fs.mkdirSync(path.join(WS_ROOT, 'targets'), { recursive: true });
   fs.mkdirSync(CFG_DIR, { recursive: true });
   fs.cpSync(path.join(ROOT, 'tests/ui-parity/probes/canvas-embed/embed-fixture'), path.join(WS_ROOT, 'targets/embed-fixture'), { recursive: true });
@@ -96,7 +105,7 @@ async function main() {
   const spawnFront = () => {
     front = spawn(AUTO_EXE, ['run', '--render', 'vm'], {
       cwd: ROOT,
-      env: { ...process.env, AUTOUI_MCP_PORT: String(mcpPort), AUTO_VM_STORAGE_FILE: storage, AUTO_VM_WINDOW: '1280x800', AUTO_REUSE_BACKEND: '1', AUTO_HTTP_PORT: String(PORT), AUTO_HTTP_BASE: `http://127.0.0.1:${PORT}`, RUST_MIN_STACK: '16777216' },
+      env: { ...process.env, AUTOUI_MCP_PORT: String(mcpPort), AUTO_VM_STORAGE_FILE: storage, AUTO_VM_WINDOW: '1280x800', AUTO_REUSE_BACKEND: '1', AUTO_HTTP_PORT: String(PORT), AUTO_HTTP_BASE: `http://127.0.0.1:${PORT}`, RUST_MIN_STACK: '16777216', AUTO_RF_DEBUG: '1' },
       windowsHide: true, shell: false,
     });
   };
@@ -140,7 +149,7 @@ async function main() {
         if ((span.match(/class:\s*"([^"]*)"/)?.[1] ?? '').includes(sub)) {
           const bb = span.match(/bbox:\s*\{[^}]*\}/)?.[0] ?? '';
           const num = (k) => { const x = bb.match(new RegExp(`${k}:\\s*(-?[\\d.]+)`)); return x ? Number(x[1]) : null; };
-          return { id: m[2], cls: span.match(/class:\s*"([^"]*)"/)[1], span, w: num('w') };
+          return { id: m[2], cls: span.match(/class:\s*"([^"]*)"/)[1], span, x: num('x'), y: num('y'), w: num('w'), h: num('h') };
         }
       }
       return null;
@@ -158,7 +167,9 @@ async function main() {
         const sp = wbNode.span.slice(start, end);
         if ((sp.match(/class:\s*"([^"]*)"/)?.[1] ?? '').startsWith('width:')) {
           const x = sp.match(/bbox:\s*\{[^}]*\}/)?.[0].match(/w:\s*(-?[\d.]+)/);
-          return { id: m[2], w: x ? Number(x[1]) : null };
+          const bb2 = sp.match(/bbox:\s*\{[^}]*\}/)?.[0] ?? '';
+            const num2 = (k) => { const q = bb2.match(new RegExp(k + ':\s*(-?[\d.]+)')); return q ? Number(q[1]) : null; };
+            return { id: m[2], x: num2('x'), y: num2('y'), w: x ? Number(x[1]) : null, h: num2('h') };
         }
       }
       return null;
@@ -204,6 +215,181 @@ async function main() {
     assert('frame-channel-live', frameUrl.includes('/api/canvas/frame'), `frame_url=${String(frameUrl).slice(0, 40)} seq ${seq0}→${seq1}`);
     const treeN = stPick(st2, 'cv_tree_visible');
     assert('structure-tree-visible', !/^\[\]$|^None/.test(treeN) && treeN !== '?', `tree=${String(treeN).slice(0, 36)}`);
+
+    // ── P-embed（PLAN-102 T-04/T-06 收口臂）：remote-frame 元件 + 操作输
+    // 入闭环（760 e2e 同口径）。① 元件在树且几何 laid out；② OS SendInput
+    // 点夹具 inc 钮位（vtree bbox + 窗口屏幕原点 + 480x680 fit 换算）→
+    // 夹具 MCP 直读 count 递增（status.mcp_base）——remote-frame 输入→
+    // bridge WS→app 的完整操作链；③ 截图 md5 变化（帧内容随动）。
+    {
+      // vtree 宿主叶零 bbox（content "[RemoteFrame]"）——在场断言按类标记；
+      // 帧盒由外框 decl 节点（width:640px 类、已证精确）与停靠列 decl 推导：
+      // 帧盒 = 外框 − 停靠列宽 − 分隔条 6 − 画布列头部 36。
+      const rfPresent = vt.includes('cv-embed-frame') && vt.includes('[RemoteFrame]');
+      // 外框 = 含 cv-workbench 的 decl 节点（layout-live outerCol 同口径）。
+      let outerBox = null;
+      {
+        const re2 = /(\w[-\w]*) (vnode_\d+) \{/g; let m2;
+        while ((m2 = re2.exec(vt))) {
+          const st2 = m2.index; let d2 = 0, e2 = -1;
+          for (let i = vt.indexOf('{', st2); i < vt.length; i++) { if (vt[i] === '{') d2++; else if (vt[i] === '}') { d2--; if (d2 === 0) { e2 = i; break; } } }
+          if (e2 < 0) continue;
+          const sp2 = vt.slice(st2, e2);
+          const cl2 = sp2.match(/class:\s*"([^"]*)"/)?.[1] ?? '';
+          if (cl2.startsWith('width:') && sp2.includes('cv-workbench')) {
+            const bb3 = sp2.match(/bbox:\s*\{[^}]*\}/)?.[0] ?? '';
+            const num3 = (k) => { const q = bb3.match(new RegExp(k + ':\\s*(-?[\\d.]+)')); return q ? Number(q[1]) : null; };
+            outerBox = { x: num3('x'), y: num3('y'), w: num3('w'), h: num3('h') };
+            break;
+          }
+        }
+      }
+      assert('embed-remote-frame-present', rfPresent && outerBox != null && (outerBox.w ?? 0) > 300, rfPresent ? `outer bbox=${outerBox?.w}@${outerBox?.x},${outerBox?.y}` : '未找到');
+      const sNow2 = (await jfetch(`http://127.0.0.1:${PORT}/api/canvas/status`)).body ?? {};
+      if (rfPresent && outerBox && sNow2.mcp_base) {
+        const fxState = async () => {
+          try {
+            const r = await fetch(`http://${String(sNow2.mcp_base).replace(/^https?:\/\//, '').replace(/\/$/, '')}/mcp`, {
+              method: 'POST', headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'autoui_state', arguments: {} } }),
+            });
+            const t = await r.text();
+            return /count: (\d+)/.exec(t)?.[1] ?? null;
+          } catch { return null; }
+        };
+        const count0 = await fxState();
+        // 窗口屏幕原点 + 点击（PS1 user32；委托形态沿 canvas-embed-probe
+        // PS1_SRC——显式 EnumWindowsProc 委托，System.Func 内联 PS 编组失败）。
+        const ps1 = path.join(RECEIPT_DIR, 'vm-cycle-click.ps1');
+        const PS1C = [
+          'param([int]$TargetPid,[int]$X,[int]$Y)',
+          'Add-Type -Namespace M102C -Name W -MemberDefinition @"',
+          '[DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc cb, IntPtr l);',
+          '[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();',
+          'public delegate bool EnumWindowsProc(IntPtr h, IntPtr l);',
+          '[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);',
+          '[DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);',
+          '[DllImport("user32.dll")] public static extern int GetWindowTextLength(IntPtr h);',
+          '[DllImport("user32.dll")] public static extern int GetWindowText(IntPtr h, System.Text.StringBuilder s, int n);',
+          '[DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);',
+          '[DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out RECT r);',
+          '[DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref POINT p);',
+          'public struct POINT { public int X; public int Y; }',
+          '[DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);',
+          '[DllImport("user32.dll")] public static extern bool PostMessageW(IntPtr h, uint m, UIntPtr w, IntPtr l);',
+          '[DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);',
+          '[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();',
+          '[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);',
+          '[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr pid);',
+          '[DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();',
+          '[DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool at);',
+          '[DllImport("user32.dll")] public static extern void mouse_event(uint f, uint dx, uint dy, uint data, UIntPtr extra);',
+          'public struct RECT { public int L; public int T; public int R; public int B; }',
+          '"@',
+          '# DPI 感知（2x 显示器实测：非感知坐标错 2 倍——点击落聊天区）。',
+          '[M102C.W]::SetProcessDPIAware() | Out-Null',
+          '$hits = New-Object System.Collections.ArrayList',
+          '$cb = {',
+          '  param($h, $l)',
+          '  if ([M102C.W]::IsWindowVisible($h)) {',
+          '    $sb = New-Object System.Text.StringBuilder 256',
+          '    [void][M102C.W]::GetWindowText($h, $sb, 256)',
+          '    $t = $sb.ToString()',
+          '    if ($t -like "*Musk*") { [void]$hits.Add("$h|" + $t) }',
+          '  }',
+          '  return $true',
+          '}',
+          '[M102C.W]::EnumWindows($cb, [IntPtr]::Zero) | Out-Null',
+          '# 非零 rect 候选（同名零矩形代理窗实测存在）。',
+          '$h2 = [IntPtr]::Zero',
+          'foreach ($e in $hits) {',
+          '  $c = [IntPtr]::new([int64](($e -split "\\|")[0]))',
+          '  $rr = New-Object M102C.W+RECT',
+          '  [M102C.W]::GetWindowRect($c, [ref]$rr) | Out-Null',
+          '  if ($rr.R - $rr.L -gt 100 -and $rr.B - $rr.T -gt 100) { $h2 = $c; break }',
+          '}',
+          'if ($h2 -eq [IntPtr]::Zero) { Write-Output "nowin"; exit 1 }',
+          '$r = New-Object M102C.W+RECT',
+          '[M102C.W]::GetClientRect($h2, [ref]$r) | Out-Null',
+          '$pt = New-Object M102C.W+POINT',
+          '$pt.X = 0; $pt.Y = 0',
+          '[M102C.W]::ClientToScreen($h2, [ref]$pt) | Out-Null',
+          '$r.L = $pt.X; $r.T = $pt.Y; $r.R = $pt.X + $r.R; $r.B = $pt.Y + $r.B',
+          'Write-Output ("rect " + $r.L + "," + $r.T + "," + $r.R + "," + $r.B)',
+          '# 前台化（AttachThreadInput 旁路；非前台全局注入 press 被丢——760 e2e 注记）。',
+          '$fg = [M102C.W]::GetForegroundWindow()',
+          'if ($fg -ne $h2) {',
+          '  $ct = [M102C.W]::GetCurrentThreadId()',
+          '  $ft = [M102C.W]::GetWindowThreadProcessId($fg, [IntPtr]::Zero)',
+          '  $tt = [M102C.W]::GetWindowThreadProcessId($h2, [IntPtr]::Zero)',
+          '  [void][M102C.W]::AttachThreadInput($ct, $ft, $true)',
+          '  [void][M102C.W]::AttachThreadInput($ct, $tt, $true)',
+          '  [void][M102C.W]::SetForegroundWindow($h2)',
+          '  [void][M102C.W]::AttachThreadInput($ct, $ft, $false)',
+          '  [void][M102C.W]::AttachThreadInput($ct, $tt, $false)',
+          '  Start-Sleep -Milliseconds 250',
+          '}',
+          '# PostMessage 直投（WM_MOUSEMOVE/0x200、DOWN/0x201、UP/0x202）——',
+          '# lparam = 窗口逻辑域（DPI 由 winit 消化，760 e2e 逐点对账实测）。',
+          '# 真移光标（canvas 只吃真实 move；760 e2e 同款 SetCursorPos+Post）。',
+          '$dpi = [M102C.W]::GetDpiForWindow($h2) / 96.0',
+          'if ($dpi -lt 0.5) { $dpi = 1.0 }',
+          '[M102C.W]::SetCursorPos([int]($r.L + $X * $dpi), [int]($r.T + $Y * $dpi)) | Out-Null',
+          'Start-Sleep -Milliseconds 150',
+          '$lp = [IntPtr]::new((($Y -shl 16) -bor ($X -band 0xFFFF)))',
+          '[void][M102C.W]::PostMessageW($h2, 0x200, [UIntPtr]::Zero, $lp)',
+          'Start-Sleep -Milliseconds 60',
+          '[void][M102C.W]::PostMessageW($h2, 0x201, [UIntPtr]::new([uint64]1), $lp)',
+          'Start-Sleep -Milliseconds 60',
+          '[void][M102C.W]::PostMessageW($h2, 0x202, [UIntPtr]::Zero, $lp)',
+          'Start-Sleep -Milliseconds 60',
+          '[void][M102C.W]::PostMessageW($h2, 0x200, [UIntPtr]::Zero, $lp)',
+          'Write-Output "clicked"',
+        ].join('\r\n');
+        fs.writeFileSync(ps1, PS1C, 'utf8');
+        const psRun = (args2) => {
+          const r = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', ps1, ...args2], { encoding: 'utf8', timeout: 20000, windowsHide: true });
+          return (r.stdout ?? '') + (r.stderr ?? '');
+        };
+        // 窗口定位（标题 × 非零客户区；rect 仅取证——点击走 PostMessage
+        // lparam = 窗口逻辑域，无需屏幕换算）。
+        const rectOut = psRun([`-TargetPid ${front.pid}`, '-X 0', '-Y 0']);
+        const rect = /rect (-?\d+),(-?\d+),(-?\d+),(-?\d+)/.exec(rectOut);
+        result.embedRectOut = rectOut.slice(0, 300);
+        // 截图基线（帧内容随动证据）。
+        const shot0 = await mcp.call('autoui_screenshot', {}).catch(() => '');
+        // fit 换算：remote-frame bbox（窗口逻辑域）→ 屏幕点；夹具逻辑域
+        // 480x680 contain 居中。
+        let clicked = false, detail = `rect=${rectOut.slice(0, 40)}`;
+        if (rect) {
+          // PostMessage lparam = 窗口逻辑域（1280x800）直通：帧盒 = 外框
+          // bbox − 停靠列 − 分隔条 − 停靠条29 + 头部36；夹具 480x680 contain。
+          const dockW = dockCol(vt)?.w ?? 240;
+          const fx0 = (outerBox.x ?? 0) + dockW + 6;
+          const fy0 = (outerBox.y ?? 0) + 29 + 36;
+          const fw = (outerBox.w ?? 640) - dockW - 6;
+          const fh = (outerBox.h ?? 800) - 29 - 36;
+          const s = Math.min(fw / 480, fh / 680);
+          const ox = (fw - 480 * s) / 2, oy = (fh - 680 * s) / 2;
+          const lx = Math.round(fx0 + ox + 48 * s);
+          const ly = Math.round(fy0 + oy + 36 * s);
+          const clickOut = psRun([`-TargetPid ${front.pid}`, `-X ${lx}`, `-Y ${ly}`]);
+          clicked = clickOut.includes('clicked');
+          detail = `lp=${lx},${ly} dockW=${dockW} ${clicked ? 'ok' : clickOut.slice(0, 30)}`;
+        }
+        await sleep(2500);
+        const count1 = await fxState();
+        const shot1 = await mcp.call('autoui_screenshot', {}).catch(() => '');
+        const md5 = (t) => /"md5":\s*"([0-9a-f]+)"/.exec(String(t))?.[1] ?? /md5=\w+/.exec(String(t))?.[0] ?? String(t).slice(0, 24);
+        result.embedOperate = { count0, count1, clicked, rect: rectOut.slice(0, 30) };
+        assert('embed-operate-input-roundtrip',
+          clicked && count0 != null && count1 != null && Number(count1) > Number(count0),
+          `count ${count0}→${count1}（OS 点击→remote-frame→WS→夹具）${detail}`);
+        assert('embed-frame-follows-input', md5(shot0) !== md5(shot1), `截图 md5 随输入变化（帧内容更新）`);
+      } else {
+        assert('embed-operate-input-roundtrip', false, sNow2.mcp_base ? 'rfNode 缺' : 'mcp_base 缺');
+      }
+    }
 
     // ── pick-projection：拾取链 E2E 后半（后端→前端投影） ─────────────
     // 坐标形态（{x,y}）对 rq 会话未接（实测 204）；UI 指针注入段有嵌套
@@ -305,6 +491,7 @@ async function main() {
   } finally {
     result.backendTail = backOut.slice(-9000);
     result.frontendTail = frontOut.slice(-9000);
+    try { fs.writeFileSync(path.join(RECEIPT_DIR, 'W-06-vm-cycle-' + backend + '-frontend-full.log'), frontOut, 'utf8'); } catch { /* best effort */ }
     killAll();
     await sleep(1500);
     try { fs.rmSync(storage, { force: true }); } catch {}

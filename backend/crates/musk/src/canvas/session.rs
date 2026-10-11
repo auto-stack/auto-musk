@@ -70,6 +70,10 @@ pub struct BridgeChild {
     pub ws_port: u16,
     /// 静态 token（回环 WS 准入；status 携给前端直连 bridge）。
     pub token: String,
+    /// PLAN-102 T-06：宿主采纳的目标 app 名（bridge stderr `adopted \`NAME\``
+    /// 解析——remote-frame/镜像订阅按 Hello app_name 精确匹配，URL 缺
+    /// app 参数将永不命中；槽在采纳后异步填充）。
+    pub app_name: Arc<Mutex<Option<String>>>,
 }
 
 impl BridgeChild {
@@ -80,6 +84,11 @@ impl BridgeChild {
 }
 
 impl SessionHandle {
+    /// PLAN-102 T-06：bridge 采纳名槽（status URL 织参源）。
+    pub fn bridge_app(&self) -> Option<Arc<Mutex<Option<String>>>> {
+        self.bridge.as_ref().map(|b| b.app_name.clone())
+    }
+
     /// 子进程输出尾部（崩溃诊断用；最多 `n` 行）。
     pub fn output_tail(&self, n: usize) -> String {
         let buf = self.recent_output.lock().unwrap();
@@ -258,11 +267,29 @@ impl SessionHandle {
             .args(["rqhost", "--pipe", &pipe, "--bridge-ws", &ws_port.to_string(), "--bridge-token", &token])
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
+            // PLAN-102 T-06：stderr 尾随——`adopted \`NAME\`` 解析出订阅名
+            //（Hello app_name 精确匹配的 URL 织参源）。
+            .stderr(std::process::Stdio::piped())
             .kill_on_drop(true);
         let mut bridge_child = bridge_cmd
             .spawn()
             .map_err(|e| format!("failed to spawn bridge host: {e}"))?;
+        let bridge_app: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+        if let Some(berr) = bridge_child.stderr.take() {
+            let sink = bridge_app.clone();
+            tokio::spawn(async move {
+                use tokio::io::{AsyncBufReadExt, BufReader};
+                let mut lines = BufReader::new(berr).lines();
+                while let Ok(Some(l)) = lines.next_line().await {
+                    if let Some(n) = l.split("adopted `").nth(1).and_then(|r| r.split('`').next()) {
+                        let mut g = sink.lock().unwrap();
+                        if g.is_none() {
+                            *g = Some(n.to_string());
+                        }
+                    }
+                }
+            });
+        }
         // WS 端口就绪等待（~10s；超时 = 收割两子进程后报错）。
         let ws_ready = 'ws: {
             let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
@@ -416,7 +443,7 @@ impl SessionHandle {
             }
             if let Some(base) = found.lock().unwrap().clone() {
                 let mcp_port = base.rsplit(':').next().and_then(|p| p.parse().ok()).unwrap_or(port);
-                let bridge = BridgeChild { child: bridge_child, pipe: pipe.clone(), ws_port, token: token.clone() };
+                let bridge = BridgeChild { child: bridge_child, pipe: pipe.clone(), ws_port, token: token.clone(), app_name: bridge_app };
                 let endpoint = BridgeEndpoint { pipe, ws_port, token };
                 return Ok((Self {
                     app_dir,

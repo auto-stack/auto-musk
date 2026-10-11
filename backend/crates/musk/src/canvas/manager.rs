@@ -127,6 +127,8 @@ struct Shared {
     /// PLAN-102 T-02：embedded 呈现数据面端点（bridge 宿主 WS——spawn
     /// 登记换代清；None = 无会话）。(ws_port, token)。
     bridge: Arc<Mutex<Option<(u16, String)>>>,
+    /// PLAN-102 T-06：bridge 采纳的目标 app 名（URL 织参源；spawn 登记）。
+    bridge_app: Arc<Mutex<Option<Arc<Mutex<Option<String>>>>>>,
     /// 最近一拍 vtree 原子（PLAN-102：seq 前进的比较基线——帧数据不经
     /// musk，seq 语义 = 结构内容版本）。
     last_atom: Arc<Mutex<Option<String>>>,
@@ -154,6 +156,7 @@ impl Shared {
             owner_workspace: Arc::new(Mutex::new(String::new())),
             owner_conversation: Arc::new(Mutex::new(None)),
             bridge: Arc::new(Mutex::new(None)),
+            bridge_app: Arc::new(Mutex::new(None)),
             last_atom: Arc::new(Mutex::new(None)),
         }
     }
@@ -258,6 +261,7 @@ impl CanvasManager {
                 *self.shared.pid.lock().unwrap() = pid;
                 *self.shared.mcp_base.lock().unwrap() = base.clone();
                 *self.shared.bridge.lock().unwrap() = Some((endpoint.ws_port, endpoint.token));
+                *self.shared.bridge_app.lock().unwrap() = h.bridge_app();
                 let shared = self.shared.clone();
                 let stop = self.stop_flag.clone();
                 let worker = tokio::spawn(async move {
@@ -309,6 +313,7 @@ impl CanvasManager {
         *self.shared.error.lock().unwrap() = String::new();
         *self.shared.frame.lock().unwrap() = None;
         *self.shared.bridge.lock().unwrap() = None;
+        *self.shared.bridge_app.lock().unwrap() = None;
         *self.shared.last_atom.lock().unwrap() = None;
         *self.shared.anchor.write().unwrap() = None;
         *self.shared.picked.lock().unwrap() = None;
@@ -401,6 +406,7 @@ impl CanvasManager {
         // 全字段清场同款）——frame 503、picked 不复活。
         *self.shared.frame.lock().unwrap() = None;
         *self.shared.bridge.lock().unwrap() = None;
+        *self.shared.bridge_app.lock().unwrap() = None;
         *self.shared.last_atom.lock().unwrap() = None;
         *self.shared.anchor.write().unwrap() = None;
         *self.shared.picked.lock().unwrap() = None;
@@ -606,11 +612,24 @@ impl CanvasManager {
         let presentation = {
             let bridge = self.shared.bridge.lock().unwrap().clone();
             match bridge {
-                Some((ws_port, token)) => json!({
+    Some((ws_port, token)) => {
+                // PLAN-102 T-06：app 参数织入（remote-frame/镜像订阅按
+                // Hello app_name 精确匹配——缺参永不命中；采纳名异步就绪
+                // 前短暂缺参 = 消费端重连预算内自愈）。
+                let app = self
+                    .shared
+                    .bridge_app
+                    .lock()
+                    .unwrap()
+                    .clone()
+                    .and_then(|g| g.lock().unwrap().clone());
+                let app_q = app.map(|n| format!("&app={n}")).unwrap_or_default();
+                json!({
                     "mode": "embedded",
-                    "bridge_ws_url": format!("ws://127.0.0.1:{ws_port}/?token={token}"),
+                    "bridge_ws_url": format!("ws://127.0.0.1:{ws_port}/?token={token}{app_q}"),
                     "bridge_ws_port": ws_port,
-                }),
+                })
+            },
                 None => json!({ "mode": "window", "bridge_ws_url": "", "bridge_ws_port": 0 }),
             }
         };
@@ -633,6 +652,9 @@ impl CanvasManager {
             // PLAN-102 T-02：呈现面（embedded = bridge WS 数据面直连端点；
             // mode "window" = 独立窗——待上游重连 seam（决策文档 §5））。
             "presentation": presentation,
+            // PLAN-102 T-06（P-embed）：目标 app MCP 基址（spawn 登记；探针
+            // typed 状态断言直连——760 e2e 同口径；无会话空串）。
+            "mcp_base": *self.shared.mcp_base.lock().unwrap(),
         })
     }
 
@@ -870,6 +892,7 @@ async fn watchdog(
             match SessionHandle::spawn_embedded(app_dir).await {
                 Ok((mut h, endpoint)) => {
                     *shared.bridge.lock().unwrap() = Some((endpoint.ws_port, endpoint.token));
+                    *shared.bridge_app.lock().unwrap() = h.bridge_app();
                     *shared.restarts.lock().unwrap() = restarts + 1;
                     *shared.pid.lock().unwrap() = h.pid();
                     *shared.mcp_base.lock().unwrap() = h.mcp_base.clone();
