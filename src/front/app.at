@@ -4,6 +4,9 @@
 // 注意: 字段名用 current_view 而非 view（view 是 AutoUI 保留关键字）。
 
 use store: AuthStore
+// PLAN-102 T-05：Escape 取消工作台拖动（限定式跨 store emit——chats_view
+// 双 store 先例；毒签口径禁裸别名调用）。
+use store: CanvasStore
 use login: LoginPage
 use specs_view: SpecsView
 use wiki_view: WikiView
@@ -303,6 +306,12 @@ widget App {
         // 监听挂在视图根元素（document 级监听不可表达——焦点需在应用内，
         // 实际等价：快捷键的目标元素都在应用内）。
         .GlobalKeydown(e) -> {
+            // PLAN-102 T-05：Escape 汇流第一优先级 = 取消工作台拖动（恢复
+            // 起始尺寸，不停应用——§5.3；store 侧 kind="" 幂等无副作用，
+            // 无拖动时不扰动其他 Escape 语义）。
+            if e.key == "Escape" {
+                CanvasStore.DockDragCancel()
+            }
             if (e.ctrlKey || e.metaKey) && e.shiftKey {
                 if e.key.to_lower() == "s" {
                     e.preventDefault();

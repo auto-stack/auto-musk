@@ -376,6 +376,25 @@ async function main() {
     const dN = await dockCol();
     assert('widen-outer-dock-restored', dN != null && dN.w >= 180, `w=${dN?.w}（偏好保留+重钳）`);
 
+    // ── T-05 走查截图（AC-08 证据面：四停靠布局 + 紧凑树行实况） ─────────
+    {
+      const shot = await mcp.call('autoui_screenshot', {}).catch(() => null);
+      let copied = '';
+      try {
+        // 回文本 "Screenshot saved to: <path>"（P1 shot() 同源形态）。
+        const m = /saved to:\s*(\S+)/.exec(String(shot ?? ''));
+        if (m?.[1]) {
+          const src = m[1].replace(/^\\\\\?\\/, '');
+          if (fs.existsSync(src)) {
+            const dst = path.join(RECEIPT_DIR, 'W-03-5-walkthrough-vm.png');
+            fs.copyFileSync(src, dst);
+            copied = path.relative(ROOT, dst);
+          }
+        }
+      } catch { /* best effort */ }
+      assert('walkthrough-screenshot', !!copied, copied || `shot=${String(shot).slice(0, 80)}`);
+    }
+
     result.pass = result.asserts.every((a) => a.ok);
   } catch (e) {
     result.error = String(e.message ?? e);
