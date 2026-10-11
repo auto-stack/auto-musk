@@ -36,10 +36,25 @@ the Plan is archived, and temporary worktrees are safely cleaned.
 ## Ledger refresh (store-mediated)
 
 The spec ledger (`<workspace>/.autoos/specs.json`, workspace-scoped) is a
-derived view owned by the application's store. Every write goes through the
-spec tools — `write_spec` / `update_spec` (registered in chat sessions; the
-HTTP equivalent is `POST /api/specs/item`). Never write that file directly
-with scripts, text replacement, or a hand-assembled JSON document.
+derived view owned by the application's store. Three sanctioned write
+channels, all routing into the same workspace store (PLAN-104: since the
+superpowers whitelist carries `read_specs`/`list_specs`/`write_spec`/
+`update_spec`, chat-session agents use the in-session tools directly;
+dispatched errand agents get the same workspace-bound overrides):
+
+1. **In-session spec tools** — `write_spec` / `update_spec` (chat sessions;
+   workspace-bound since PLAN-030's override + PLAN-104's whitelist fix).
+   Prefer this channel.
+2. **HTTP equivalent** — `POST /api/specs/item` with
+   `{"section", "item": {id, title, content, status, file?, tags?}}` and
+   `POST /api/specs/transition` for status edges. `file`/`tags` are supported
+   since PLAN-104 (use them to record the source hash and commit).
+3. **Dispatched errand** — a `dispatch` sub-agent holds the same
+   workspace-bound spec tools (PLAN-104); usable when the ledger step is
+   delegated.
+
+Never write that file directly with scripts, text replacement, or a
+hand-assembled JSON document.
 
 - **Schema is store-owned**: `SpecsDocument{project, version, sections[6]}`.
   Section ids are exactly `goals` / `architecture` / `designs` / `tests` /

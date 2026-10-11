@@ -72,7 +72,7 @@ pub type LoginResponse { token str, user UserInfo }
 pub type SpecsUpsertRequest { section str, item SpecItemPayload }
 
 #[derive(Debug, Deserialize)]
-pub type SpecItemPayload { id str, title str, content str, status str }
+pub type SpecItemPayload { id str, title str, content str, status str, file Option<str>, tags Option<List<str>> }
 
 #[derive(Debug, Deserialize)]
 pub type SpecsTransitionRequest { section str, item_id str, new_status str }

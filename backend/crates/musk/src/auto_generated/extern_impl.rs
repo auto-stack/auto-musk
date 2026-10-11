@@ -311,6 +311,10 @@ pub fn specs_upsert_of(s: &State<AppState>, q: Query<crate::auto_generated::serv
     let mut item = crate::specs::SpecItem::new(b.item.id.clone(), b.item.title.clone());
     item.content = b.item.content.clone();
     item.status = status;
+    // PLAN-104 T-05（UAT-K12 附带）：merge 技能要求条目记录 source hash/commit
+    // （file/tags），HTTP 等价通道此前无法携带——现与工具通道对齐（缺省 = None/空）。
+    item.file = b.item.file.clone();
+    item.tags = b.item.tags.clone().unwrap_or_default();
     match ws.specs.upsert_item(&mut doc, &b.section, item) {
         Ok(_) => {
             if ws.specs.save(&doc).is_err() {

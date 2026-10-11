@@ -176,6 +176,15 @@ mod tests {
         assert!(mode.skills);
         assert_eq!(mode.role, "assistant");
         assert!(!mode.tools.is_empty()); // has tool list
+        // PLAN-104 T-05（UAT-K12①）：聊天会话白名单必须携带 spec 工具四件——
+        // 缺任一件则 lib.rs 的白名单过滤会连 PLAN-030 的 workspace 覆盖注册
+        // 一起跳过，merge 的账本步骤在会话内无工具可用（UAT 2026-10-11 实证）。
+        for tool in ["read_specs", "list_specs", "write_spec", "update_spec"] {
+            assert!(
+                mode.tools.iter().any(|t| t == tool),
+                "superpowers whitelist missing spec tool '{tool}'"
+            );
+        }
     }
 
     #[test]

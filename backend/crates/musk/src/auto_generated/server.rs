@@ -79,6 +79,8 @@ pub struct SpecItemPayload {
     pub title: String,
     pub content: String,
     pub status: String,
+    pub file: Option<String>,
+    pub tags: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]

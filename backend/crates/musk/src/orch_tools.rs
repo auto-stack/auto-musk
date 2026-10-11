@@ -304,7 +304,7 @@ impl Tool for Dispatch {
         // 4. Build + run the target agent for one turn (synchronous — errands
         //    are short by design).
         crate::tool_safety::set_current_root(ws.root.clone());
-        let result = run_errand_agent(&self.ctx.state, &target, &task, &child.id, &ws).await;
+        let result = run_errand_agent(&self.ctx, &target, &task, &child.id, &ws).await;
         crate::tool_safety::clear_current_root();
 
         match result {
@@ -444,7 +444,7 @@ impl Tool for BringIn {
 
         // 4. Build + run the specialist agent (synchronous, multi-turn).
         crate::tool_safety::set_current_root(ws.root.clone());
-        let result = run_errand_agent(&self.ctx.state, &target, &task, &child.id, &ws).await;
+        let result = run_errand_agent(&self.ctx, &target, &task, &child.id, &ws).await;
         crate::tool_safety::clear_current_root();
 
         match result {
@@ -562,7 +562,7 @@ fn build_toolcall_turn(tool_name: &str, args: &Value, child_id: &str) -> Turn {
 /// Run a single agent turn for an errand. Builds the agent from the target
 /// profession, runs run_stream, returns the output.
 async fn run_errand_agent(
-    state: &crate::server::AppState,
+    ctx: &ToolContext,
     target: &str,
     task: &str,
     _child_id: &str,
@@ -581,8 +581,23 @@ async fn run_errand_agent(
         extra_system_prompt: String::new(),
     };
     // PLAN-069 W1：errand 子代理同样注入 ws 沙箱根（PLAN-070：多根含白名单）。
-    let ws_roots = state.registry.sandbox_roots_by_path(&ws.root);
-    let mut agent = crate::build_agent_from_mode(&mode, state.client.clone(), Some(&ws_roots))?;
+    let ws_roots = ctx.state.registry.sandbox_roots_by_path(&ws.root);
+    let mut agent = crate::build_agent_from_mode(&mode, ctx.state.client.clone(), Some(&ws_roots))?;
+    // PLAN-104 T-05（UAT-K12③）：errand 构建不经过 build_agent_from_mode 的
+    // ctx 块，base 注册的 spec 工具是家目录 store——dispatch 派工写账本会落
+    // ~/.config/autoos/specs.json。此处按 PLAN-030 同款覆盖注册工作域五件
+    // （register_shared 后写覆盖同名），mode.tools 为空 = 全量注册面，五件
+    // 全部生效且与父会话同一工作区账本。
+    let ws_spec_tools: Vec<(&str, Arc<dyn Tool>)> = vec![
+        ("read_specs", Arc::new(crate::spec_tools::ReadSpecs::from_ctx(ctx))),
+        ("list_specs", Arc::new(crate::spec_tools::ListSpecs::from_ctx(ctx))),
+        ("write_spec", Arc::new(crate::spec_tools::WriteSpec::from_ctx(ctx))),
+        ("update_spec", Arc::new(crate::spec_tools::UpdateSpec::from_ctx(ctx))),
+        ("write_goals", Arc::new(crate::spec_tools::WriteGoals::from_ctx(ctx))),
+    ];
+    for (name, tool) in &ws_spec_tools {
+        agent.register_shared(tool.clone());
+    }
 
     let result = agent.run(task).await.map_err(|e| format!("agent: {e}"))?;
     Ok(result.output)
