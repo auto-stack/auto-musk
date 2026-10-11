@@ -248,4 +248,8 @@ hidden: [          Canvas              ]  ← 工具栏可重新打开
 - `ledger_refreshed`：workspace `auto-musk`（store-mediated POST /api/specs/item @8080），version 24→27，读回校验三条目：designs/PLAN-102-canvas-embed-workbench、reviews/PLAN-102-review、reports/PLAN-102-delivery（均 Draft）。
 - `archived`：git mv → docs/plans/archived/102-canvas-embedded-devtools-layout.md，frontmatter status: archived。
 - `cleaned`：worktree `D:/autostack/.wt/musk-102/auto-musk` + 分支 plan-102-dev 移除（guard 复验后）；组内兄弟 auto-lang/auto-ai/auto-down 处置见下。
+
+- `cleaned`（补记）：worktree/分支全清——auto-musk（plan-102-dev @6a0e461）+ auto-lang（auto-musk-dev-102，早已并入其 master）+ auto-ai/auto-down 兄弟 worktree 各自仓注销；**组目录 D:/autostack/.wt/musk-102 整体删除（含 target 8G + target-musk 12G 缓存）**；探针收据 51 件保全至主检出 tmp/ui-parity/PLAN-102/。
+- 产物时效（observation，Landing≠deployment）：① 主检出 backend/target/release/musk.exe **缺失**（未构建，无观察消费者；后续 serve/探针前须 cargo build --release）；② gen/front/vue/dist 10-03 版**过期**（PLAN-102 前端变更未入；vue 臂探针前须 auto build + pnpm build）；③ auto-lang 主检出 auto.exe 已于本会话 18:38 以 6da3e6201 重建 ✔。
+- 批量回归到期：`.last-batch-regression.json` last_covered_plan_id=98 @2026-10-03（>48h 且其后 99/100/101/103/102 合并）→ **due**，待 /auto-plan:regress 单实例跑批（主检出；重 CPU，独立触发）。
 - 环境注：主检出既有脏文件 docs/plans/KNOWN-DEBT-AND-RISKS.md（他会在途，未动）；104 计划草稿 untracked（未动）。
