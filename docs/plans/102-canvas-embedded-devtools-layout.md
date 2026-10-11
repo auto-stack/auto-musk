@@ -4,7 +4,7 @@ status: executing
 feature_name: Canvas 内嵌交互预览与 DevTools 可停靠布局
 author: [agent]
 created_at: 2026-10-10T05:20:55Z
-updated_at: 2026-10-11T07:15:00Z
+updated_at: 2026-10-11T08:50:00Z
 plan_revision: 1
 current_step: 5
 total_steps: 6
@@ -215,6 +215,9 @@ hidden: [          Canvas              ]  ← 工具栏可重新打开
 
 
 2026-10-11 T-05 执行记录：`stage: work`，`plan: PLAN-102`，`revision: 1`，`outcome: executing（T-05 核心面 done；T-04 余 = J2 上游合同推进）`，`code_commit`: musk worktree（本切片提交），`task_ids`: T-05（✅ 核心面），`evidence`: ① 紧凑树行——canvas_structure 两臂 flex-col→flex-row 一行化（kind shrink + label flex-1 truncate + for shrink；title=全文 tooltip）。② Escape 取消拖动——app.at GlobalKeydown 第一优先级 `CanvasStore.DockDragCancel()`（限定式跨 store；store 幂等）；键盘 divider 面 = 步进钮组（AC-08 形态——原生按钮 Tab 可达 + title 可读名；方向键直挂分隔条为可选打磨项未做，如实登记）。③ 门：gen 69 绿 / ui-parity check 退出 0（catalog PASS） / canvas-layout-live **21/21**（+walkthrough-screenshot 断言；第 4 连发全绿）——截图 `tmp/ui-parity/PLAN-102/W-03-5-walkthrough-vm.png`（228KB 有效 PNG：四停靠循环后工作台实况）。`blockers`: 无（本任务面）；双主题/双语言截图矩阵 + Tab 序实拍列 review 复验（AC-08 终验）。`next`: J2-a/b/c 上游实施（依赖 worktree 按已登记合同）→ T-04 收口 → T-06 四轨回归 → review。
+
+
+2026-10-11 T-06 基础设施执行记录：`stage: work`，`plan: PLAN-102`，`revision: 1`，`outcome: executing（T-06 驱动固化；阻塞 F-06-1/F-06-2 诊断）`，`code_commit`: musk worktree（本切片提交），`task_ids`: T-06（部分：VM 臂驱动 + 编排器接线），`evidence`: ① `scripts/ui-parity/canvas-vm-cycle.mjs` 受管理 VM 驱动（替代失传 tmp/vm-studio-cycle.mjs；093 V05 断言集按 T-02 后形态重建：帧通道/结构树/拾取投影/缩放/停靠 240-250/双输入模式/studio 槽/停止）；② canvas-studio-live.mjs VM 臂改指受管理脚本 + `--plan` 收据目录隔离（缺省 093 兼容）；③ rust 臂当轮 **12/14**。仪器发现：vtree CJK 前有 U+EE03 私有区哨兵（裸文本定位适配）；__mcp_drag 对嵌套 mouse-area 回执 ok 不达 handler（帧区指针注入需上游仪器增强——PLAN-760 相邻观察项）。`blockers`: **F-06-1（开放，产品级）**：VM 前端挂载时 rq 会话 pick 恒 503×5「无帧」（独立直探 t+20/47s 均 200 对照）——manager 帧缓存与前端 status/frame 消费的交互缺陷，需 manager 侧诊断；**F-06-2（开放）**：stop × 按下后 cv_state 12s 仍 running、尾日志无 stop POST——需长尾日志 + press 回执定罪（按钮命中 or 端口链）。Vue 臂需 gen dist 构建（pnpm install 含新 vendored 依赖——下轮）。`next`: F-06-1/F-06-2 定罪修复 → vm 臂全绿 → vm 后端臂 + Vue 臂（dist 构建）→ 四轨矩阵 → 760 交付后 T-04 收口合并回归。
 
 ## 10. 待澄清事项
 
