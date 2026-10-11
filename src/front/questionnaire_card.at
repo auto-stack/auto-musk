@@ -11,19 +11,26 @@
 //   - 数组 includes/toggle + canSubmit 遍历校验 + placeholder 兜底 → questionnaire_helpers.ts fn
 //   - 文本输入 v-model（value: + oninput:）→ 动态键 answers[q.id]
 //
-// 样式：逃生舱 scoped 由 inject_styles.ts 全局兜底（.questionnaire-card 等）。
+// 样式：PLAN-049 T6 双轨收敛（沿 GateCard 先例）——原 style{} 块（.q-* 系）
+// 全量迁内联工具类，VM 轨不再出现"整卡纯 primary 色块"（旧卡 bg-primary/[0.04]
+// 的分数 alpha 括号形 VM 解析回退 100% 饱和，自定义类名又全被跳过）。
+// 色裁定：hsl(var(--primary)/0.04)→bg-primary/5、/0.15→border-primary/15、
+// hover /0.06→hover:bg-primary/5、checked /0.08→bg-primary/10（5 的倍数刻度，
+// tailwind 刻度内且 VM u8 百分比可解析）；0.85/0.88/0.82rem→13.6/14.1/13.1px。
+// checked 圈内白点/白勾原为 ::after 伪元素（iced 无对应）→ 条件渲染子元素：
+// radio 内点 5px 圆、checkbox 白勾近似为 ✓ 字形（web 同形）。
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 use.web component HelpCircle, Send from "src/front/ports/icons.at"
 use.web questionnaireSingleChecked, questionnaireMultiChecked, questionnaireToggleAnswer, questionnaireOtherKey, questionnaireCanSubmit, questionnairePlaceholder, eventInputValue, formatQuestionnaireAnswers from "src/front/questionnaire_helpers.at"
 
 widget QuestionnaireCard(questions: obj) {
-    computed {
-        canSubmit => questionnaireCanSubmit(.questions, .answers)
-        // 提交载荷：格式化后的可读文本（"Q1: A; Q2: B"），父组件直接作为
-        // user 消息发送——而非裸 answers 对象（对话历史不可读）。
-        submitText => formatQuestionnaireAnswers(.questions, .answers)
-    }
+    // 注意：视图内 reactive 位（class/disabled/onclick 载荷）一律 helpers 直调，
+    // 不走 computed——VM 端 PLAN-047 computed 信号网对 model obj 的动态键原地
+    // mutation（.answers[qid] = ...）不失效，computed 值会卡在首帧（实测
+    // SelectSingle 后 canSubmit 恒 false → Submit 永久禁用；同缺口使旧版
+    // VM 轨 Submit 从未真正可点）。helpers 直调每帧重算，Vue 模板同表达式
+    // 亦天然响应式，双轨一致。
     // 注意：msg 变体不声明 payload——多参变体的 emit 类型在 Vue 路径只取第一个参数
     // （codegen 注释：multi-param variants are a Rust-backend feature）。让 on-block
     // handler 参数驱动 emit 类型（fallback 给 [any, any]），避免 TS 不匹配。
@@ -38,95 +45,57 @@ widget QuestionnaireCard(questions: obj) {
         .OtherChanged(qid, e) -> { .answers[questionnaireOtherKey(qid)] = eventInputValue(e) }
         .submit(answers) -> {}
     }
-    style {
-.q-header { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-weight: 600; color: var(--af-primary); }
-.q-item { display: flex; flex-direction: column; gap: 0.35rem; }
-.q-text { font-size: 0.88rem; font-weight: 500; color: var(--af-fg); line-height: 1.4; }
-.q-options { display: flex; flex-direction: column; gap: 0.15rem; padding-left: 1.1rem; align-items: stretch; }
-.q-option {
-  display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.5rem;
-  border: none; border-radius: 6px; background: transparent; cursor: pointer;
-  transition: background 0.1s; font-size: 0.85rem; color: var(--af-fg); text-align: left; width: 100%; justify-content: flex-start;
-}
-.q-option:hover { background: hsl(var(--primary) / 0.06); }
-.q-option.checked { background: hsl(var(--primary) / 0.08); }
-.q-check {
-  width: 14px; height: 14px; border: 2px solid var(--af-border); border-radius: 50%;
-  flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s;
-}
-.q-check.square { border-radius: 4px; }
-.q-option.checked .q-check { border-color: var(--af-primary); background: var(--af-primary); }
-.q-option.checked .q-check::after {
-  content: ''; width: 5px; height: 5px; border-radius: 50%; background: #fff;
-}
-.q-option.checked .q-check.square::after {
-  width: 6px; height: 3px; border-radius: 0; background: transparent;
-  border-left: 2px solid #fff; border-bottom: 2px solid #fff;
-  transform: rotate(-45deg); margin-bottom: 1px;
-}
-.q-label { line-height: 1.3; }
-.q-text-input input, .q-other-input {
-  width: 100%; padding: 0.4rem 0.6rem; border: 1px solid var(--af-border); border-radius: 6px;
-  background: var(--af-bg); color: var(--af-fg); font-size: 0.85rem; outline: none; transition: border-color 0.15s;
-}
-.q-text-input input:focus, .q-other-input:focus { border-color: var(--af-primary); }
-.q-other-row { display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.5rem; font-size: 0.85rem; color: var(--af-fg); }
-.q-other-label { flex-shrink: 0; color: var(--af-muted); }
-.q-other-input { flex: 1; min-width: 0; }
-.q-submit {
-  display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem;
-  align-self: flex-start; padding: 0.4rem 0.8rem; border: none; border-radius: 6px;
-  background: var(--af-primary); color: #fff; font-size: 0.82rem; font-weight: 500;
-  cursor: pointer; transition: opacity 0.15s;
-}
-.q-submit:disabled { opacity: 0.5; cursor: not-allowed; }
-.q-submit:hover:not(:disabled) { opacity: 0.9; }
-.questionnaire-card {
-  background: hsl(var(--primary) / 0.04); border: 1px solid hsl(var(--primary) / 0.15);
-  border-radius: 10px; padding: 0.75rem 1rem; margin-top: 0.55rem; width: 100%; box-sizing: border-box;
-  display: flex; flex-direction: column; gap: 0.75rem;
-}
-    }
-
     view {
         div {
-            style: "questionnaire-card border border-primary/[0.15] rounded-[10px] bg-primary/[0.04] px-[1rem] py-[0.75rem] w-full box-border"
+            style: "w-full mt-[8.8px] px-[16px] py-[12px] rounded-lg border border-primary/15 bg-primary/5 flex flex-col gap-[12px] box-border"
             div {
-                style: "q-header"
+                style: "flex items-center gap-[6.4px] text-[13.6px] font-semibold text-primary"
                 HelpCircle { size: 16 }
                 span "Quick Questions"
             }
             for q in .questions {
                 div {
                     key: .q.id
-                    style: "q-item"
+                    style: "flex flex-col gap-[5.6px]"
                     div {
-                        style: "q-text"
-                        text "Q"
-                        text .q.text
+                        style: "text-[14.1px] font-medium text-foreground leading-[1.4]"
+                        text "Q" + .q.text
                     }
                     if .q.type == "single" {
                         div {
-                            style: "q-options"
+                            style: "flex flex-col items-stretch gap-[2.4px] pl-[17.6px]"
                             for opt in .q.options {
                                 button {
                                     onclick: .SelectSingle(.q.id, opt)
                                     key: "single-" + opt
-                                    class: if questionnaireSingleChecked(.answers, .q.id, opt) { "q-option checked" } else { "q-option" }
-                                    span { style: "q-check" }
-                                    span { style: "q-label", text opt }
+                                    class: if questionnaireSingleChecked(.answers, .q.id, opt) {
+                                        "w-full flex items-center justify-start gap-[6.4px] py-[5.6px] px-2 rounded-md border-none bg-primary/10 text-left text-[13.6px] text-foreground cursor-pointer leading-[1.3] hover:bg-primary/10"
+                                    } else {
+                                        "w-full flex items-center justify-start gap-[6.4px] py-[5.6px] px-2 rounded-md border-none bg-transparent text-left text-[13.6px] text-foreground cursor-pointer leading-[1.3] hover:bg-primary/5"
+                                    }
+                                    div {
+                                        class: if questionnaireSingleChecked(.answers, .q.id, opt) {
+                                            "w-[14px] h-[14px] shrink-0 rounded-full border-2 border-primary bg-primary flex items-center justify-center"
+                                        } else {
+                                            "w-[14px] h-[14px] shrink-0 rounded-full border-2 border-border bg-transparent flex items-center justify-center"
+                                        }
+                                        if questionnaireSingleChecked(.answers, .q.id, opt) {
+                                            span { style: "w-[5px] h-[5px] rounded-full bg-white" }
+                                        }
+                                    }
+                                    span { style: "leading-[1.3]", text opt }
                                 }
                             }
                             if .q.otherLabel != None {
                                 div {
-                                    style: "q-other-row"
+                                    style: "flex items-center gap-[6.4px] py-[5.6px] px-2 text-[13.6px] text-foreground"
                                     span {
-                                        style: "q-other-label"
+                                        style: "shrink-0 text-muted-foreground"
                                         text .q.otherLabel
                                     }
                                     input {
                                         type: "text"
-                                        style: "q-other-input"
+                                        style: "w-full py-[6.4px] px-[9.6px] border border-border rounded-md bg-background text-foreground text-[13.6px] outline-none focus:border-primary"
                                         value: .answers[questionnaireOtherKey(.q.id)]
                                         oninput: .OtherChanged(.q.id, $event)
                                         placeholder: questionnairePlaceholder(.q, "Type here...")
@@ -136,26 +105,39 @@ widget QuestionnaireCard(questions: obj) {
                         }
                     } else if .q.type == "multiple" {
                         div {
-                            style: "q-options"
+                            style: "flex flex-col items-stretch gap-[2.4px] pl-[17.6px]"
                             for choice in .q.options {
                                 button {
                                     onclick: .SelectMultiple(.q.id, choice)
                                     key: "multi-" + choice
-                                    class: if questionnaireMultiChecked(.answers, .q.id, choice) { "q-option checked" } else { "q-option" }
-                                    span { style: "q-check square" }
-                                    span { style: "q-label", text choice }
+                                    class: if questionnaireMultiChecked(.answers, .q.id, choice) {
+                                        "w-full flex items-center justify-start gap-[6.4px] py-[5.6px] px-2 rounded-md border-none bg-primary/10 text-left text-[13.6px] text-foreground cursor-pointer leading-[1.3] hover:bg-primary/10"
+                                    } else {
+                                        "w-full flex items-center justify-start gap-[6.4px] py-[5.6px] px-2 rounded-md border-none bg-transparent text-left text-[13.6px] text-foreground cursor-pointer leading-[1.3] hover:bg-primary/5"
+                                    }
+                                    div {
+                                        class: if questionnaireMultiChecked(.answers, .q.id, choice) {
+                                            "w-[14px] h-[14px] shrink-0 rounded border-2 border-primary bg-primary flex items-center justify-center"
+                                        } else {
+                                            "w-[14px] h-[14px] shrink-0 rounded border-2 border-border bg-transparent flex items-center justify-center"
+                                        }
+                                        if questionnaireMultiChecked(.answers, .q.id, choice) {
+                                            span { style: "text-[9px] leading-none font-bold text-white", text "✓" }
+                                        }
+                                    }
+                                    span { style: "leading-[1.3]", text choice }
                                 }
                             }
                             if .q.otherLabel != None {
                                 div {
-                                    style: "q-other-row"
+                                    style: "flex items-center gap-[6.4px] py-[5.6px] px-2 text-[13.6px] text-foreground"
                                     span {
-                                        style: "q-other-label"
+                                        style: "shrink-0 text-muted-foreground"
                                         text .q.otherLabel
                                     }
                                     input {
                                         type: "text"
-                                        style: "q-other-input"
+                                        style: "w-full py-[6.4px] px-[9.6px] border border-border rounded-md bg-background text-foreground text-[13.6px] outline-none focus:border-primary"
                                         value: .answers[questionnaireOtherKey(.q.id)]
                                         oninput: .OtherChanged(.q.id, $event)
                                         placeholder: questionnairePlaceholder(.q, "Type here...")
@@ -165,10 +147,9 @@ widget QuestionnaireCard(questions: obj) {
                         }
                     } else if .q.type == "text" {
                         div {
-                            style: "q-text-input"
                             input {
                                 type: "text"
-                                class: "q-text-input-field"
+                                style: "w-full py-[6.4px] px-[9.6px] border border-border rounded-md bg-background text-foreground text-[13.6px] outline-none focus:border-primary"
                                 value: .answers[q.id]
                                 oninput: .TextChanged(.q.id, $event)
                                 placeholder: questionnairePlaceholder(.q, "Type your answer...")
@@ -177,12 +158,26 @@ widget QuestionnaireCard(questions: obj) {
                     }
                 }
             }
-            button {
-                onclick: .submit(.submitText)
-                style: "q-submit"
-                disabled: !.canSubmit
-                Send { size: 13 }
-                text "Submit Answers"
+            div {
+                style: "flex"
+                button {
+                    onclick: .submit(formatQuestionnaireAnswers(.questions, .answers))
+                    disabled: !questionnaireCanSubmit(.questions, .answers)
+                    // w-auto：iced 0.14 button 宽度=内容 size_hint 的 fluid()，文本子节点
+                    // 带 Fill 时按钮被撑满整行——显式 Shrink 收缩到内容宽（对齐 Vue
+                    // align-self:flex-start 的左置窄钮）。
+                    // 禁用变暗：VM 无 disabled:opacity 消费面（Plan 423 只压灰文本色），
+                    // Vue codegen 对 button 的 disabled: 恒不发射 :disabled（既有缺口，
+                    // 迁移前 q-submit 时代同样缺失）——故 canSubmit 条件化底色
+                    // bg-primary/50 在双轨承载 disabled:opacity-50 的观感。
+                    class: if questionnaireCanSubmit(.questions, .answers) {
+                        "w-auto inline-flex items-center justify-center gap-[4.8px] py-[6.4px] px-[12.8px] rounded-md border-none bg-primary text-white text-[13.1px] font-medium cursor-pointer hover:opacity-90"
+                    } else {
+                        "w-auto inline-flex items-center justify-center gap-[4.8px] py-[6.4px] px-[12.8px] rounded-md border-none bg-primary/50 text-white text-[13.1px] font-medium cursor-pointer"
+                    }
+                    Send { size: 13 }
+                    text "Submit Answers"
+                }
             }
         }
     }

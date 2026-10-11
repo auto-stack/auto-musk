@@ -4,19 +4,40 @@
       {
         "id": "q1",
         "type": "single",
-        "question": "Choose fixture",
+        "text": "Choose fixture",
         "options": [
           "Alpha",
           "Beta"
         ],
+        "otherLabel": "Other:",
+        "otherPlaceholder": "Type additional details...",
         "required": true
+      },
+      {
+        "id": "q2",
+        "type": "multiple",
+        "text": "Pick many",
+        "options": [
+          "Red",
+          "Green"
+        ],
+        "required": true
+      },
+      {
+        "id": "q3",
+        "type": "text",
+        "text": "Free answer",
+        "placeholder": "Type your answer...",
+        "required": false
       }
     ]
   },
   "expect": {
     "visible": [
       "Alpha",
-      "Beta"
+      "Beta",
+      "Red",
+      "Green"
     ]
   }
 }

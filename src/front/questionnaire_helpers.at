@@ -3,28 +3,48 @@
 //
 // Plan 028 T12（M3）：F1 字典 + F5 Index v-model 承载 answers 动态键后，
 // 全部答案逻辑可原生化。行为与旧 TS 逐函数对齐。
+//
+// VM 缺键哨兵：VM GET_ELEM 对 obj 缺键读回 int 0（engine.rs 多臂共用的
+// 0 哨兵契约，非 None）——`?? []` 接不住、`String(0)` 直接让 VM fn 中止
+// （返回 None，QuestionnaireCard 的 canSubmit 因此在 VM 轨恒 false，
+// Submit 永久禁用）。questionnaireAnswerOf 统一读键并归一化 0→None；
+// 答案值域恒为 str/list，永不合法地等于 int 0。上游缺键语义修复前，
+// 所有 answers[qid] 读面必须走这里。
+
+/** 读取答案值：VM 缺键的 int 0 哨兵归一化为 None（Vue 轨 undefined 直通）。 */
+fn questionnaireAnswerOf(answers obj, qid str) any {
+    let ans = answers[qid]
+    if ans == 0 { return None }
+    return ans
+}
 
 /** 单选是否选中（answers[qid] === opt）。 */
 fn questionnaireSingleChecked(answers obj, qid str, opt str) bool {
-    return answers[qid] == opt
+    let ans = questionnaireAnswerOf(answers, qid)
+    if ans == None { return false }
+    return ans == opt
 }
 
-/** 多选是否选中（answers[qid] 数组 includes opt）。 */
+/** 多选是否选中（answers[qid] 精确项匹配）。 */
 fn questionnaireMultiChecked(answers obj, qid str, opt str) bool {
-    let cur = answers[qid] ?? []
-    return cur.includes(opt)
+    let cur = questionnaireAnswerOf(answers, qid)
+    if cur == None { return false }
+    // 多选存储 = "|" 连接字符串（VM 轨动态键存 list 读回即 0 哨兵——上游
+    // GET_ELEM 无 List 编组臂；字符串是双轨安全的最小公共承载）。
+    return ("" + cur).split("|").includes(opt)
 }
 
-/** 多选 toggle：opt 已在则移除，否则追加（返回新数组）。 */
-fn questionnaireToggleAnswer(answers obj, qid str, opt str) obj {
-    let cur = answers[qid] ?? []
-    if cur.includes(opt) {
-        return cur.filter(x => x != opt)
+/** 多选 toggle：opt 已在则移除，否则追加（返回 "|" 连接字符串）。 */
+fn questionnaireToggleAnswer(answers obj, qid str, opt str) str {
+    let raw = questionnaireAnswerOf(answers, qid)
+    if raw == None { return opt }
+    let parts = ("" + raw).split("|")
+    if parts.includes(opt) {
+        let kept = parts.filter(x => x != opt)
+        return kept.join("|")
     }
-    var out = []
-    for c in cur { out.push(c) }
-    out.push(opt)
-    return out
+    parts.push(opt)
+    return parts.join("|")
 }
 
 /** other 输入框的答案键（qid + '__other'）。 */
@@ -36,14 +56,13 @@ fn questionnaireOtherKey(qid str) str {
 fn questionnaireCanSubmit(questions obj, answers obj) bool {
     for q in questions {
         if q.optional { continue }
-        let ans = answers[q.id]
-        if q.type == "multiple" {
-            let arr = ans ?? []
-            if arr.length == 0 { return false }
-        } else {
-            if ans == None { return false }
-            if String(ans).trim() == "" { return false }
-        }
+        let ans = questionnaireAnswerOf(answers, q.id)
+        if ans == None { return false }
+        // 多选与单选/文本统一为字符串承载（多选 = "|" 连接），非空即已答。
+        // 注意：不用 String(ans)——VM 对非 str 实参直接中止 fn；
+        // str+int 拼接是 VM 安全的字符串化通道（与 print 探针同法）。
+        let trimmed = ("" + ans).trim()
+        if trimmed == "" { return false }
     }
     return true
 }
@@ -69,27 +88,24 @@ fn formatQuestionnaireAnswers(questions obj, answers obj) str {
     var     idx = 0
     while idx < questions.length {
         var q = questions[idx]
-        let answer = answers[q.id]
-        let other = answers[questionnaireOtherKey(q.id)]
+        let answer = questionnaireAnswerOf(answers, q.id)
+        let other = questionnaireAnswerOf(answers, questionnaireOtherKey(q.id))
         var n = idx + 1
         let qNum = "Q" + n
-        if Array.isArray(answer) {
-            if answer.length > 0 {
-                var seg = qNum + ": " + answer.join(", ")
-                if other != None { seg = seg + ", Other: " + other }
-                parts.push(seg)
+        // 多选 = "|" 连接字符串存储（见 questionnaireMultiChecked 注）。
+        if answer != None && ("" + answer).trim() != "" {
+            var shown = "" + answer
+            if q.type == "multiple" {
+                shown = shown.split("|").join(", ")
             }
+            var seg = qNum + ": " + shown
+            if other != None && ("" + other).trim() != "" {
+                seg = seg + ", Other: " + other
+            }
+            parts.push(seg)
         } else {
-            if answer != None {
-                if String(answer).trim() != "" {
-                    var seg2 = qNum + ": " + answer
-                    if other != None { seg2 = seg2 + ", Other: " + other }
-                    parts.push(seg2)
-                } else {
-                    if other != None { parts.push(qNum + ": Other: " + other) }
-                }
-            } else {
-                if other != None { parts.push(qNum + ": Other: " + other) }
+            if other != None && ("" + other).trim() != "" {
+                parts.push(qNum + ": Other: " + other)
             }
         }
         idx = idx + 1
