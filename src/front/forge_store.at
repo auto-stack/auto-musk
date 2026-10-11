@@ -24,6 +24,11 @@ store ForgeStore {
         // PollStream 完成启发式的回合增长守卫用（防旧 assistant 尾部误判完成）。
         var pre_stream_len int = 0
         var poll_window []Value = []
+        // PLAN-104 T-02（UAT-K9）: 最近一次回填窗口指纹（poll_window_fp 产
+        // 出）——等值且空闲的回填拍跳过 rebuild 与整表赋值（旧行为内容未变
+        // 的拍也全量重建重渲染 = 活跃会话 ~1MB/s 分配累积实测源）。
+        // ProfConfigsLoaded / SwitchSession 重置强制一次重建。
+        var last_poll_fp str = ""
         // PLAN-067 T-02: 最近一次流事件时间戳（OnStreamEvent 入口写定）——
         // PollStream 的 SSE 健康门：流活着就不做全量回填（运行中服务端
         // 快照不含未完成 assistant,回填会反复清掉流式内容）。
@@ -326,6 +331,9 @@ store ForgeStore {
             if resp == None { return }
             if resp.professions == None { return }
             .prof_configs = resp.professions
+            // PLAN-104 T-02：职业表到货影响消息投影（职业名解析），重置
+            // 回填指纹强制下一拍重建。
+            .last_poll_fp = ""
         }
 
         // LoadSessionList（PLAN-083 T-03 两段式）：发起段只置骨架门 +
@@ -535,6 +543,8 @@ store ForgeStore {
             .has_more = false
             .next_before = ""
             .older_loading = false
+            // PLAN-104 T-02：会话切换重置回填指纹（跨会话指纹不得复用）。
+            .last_poll_fp = ""
             .RefreshHeader()
             .FireDetailLoad()
         }
@@ -1194,13 +1204,28 @@ store ForgeStore {
                     }
                 }
             }
+            // PLAN-104 T-02（UAT-K9）：回填增变检门——窗口指纹未变且空闲
+            // （非流式）时跳过 rebuild 与整表赋值。旧行为每拍无条件重建
+            // +新数组赋值 = store 变更 = 全量重渲染，内容未变的拍也全跑
+            // （大会话 292KB/拍 × 2 拍/s ≈ 1MB/s 分配累积实测源）。指纹含
+            // 条数/末条 id/正文长/blocks 数/活跃叶；流式拍不跳（完成启发
+            // 式与 pending 换入必须在场）；ProfConfigsLoaded / SwitchSession
+            // 重置指纹强制一次重建。
+            let poll_fp = poll_window_fp(resp.session.messages, resp.session.active_leaf)
+            if poll_fp != "" && poll_fp == .last_poll_fp && .streaming != true {
+                return
+            }
+            .last_poll_fp = poll_fp
             // 按已加载窗口合并：快照首条在现表有锚点→保锚点前缀（用户已
             // 翻页加载的历史）换尾部；无锚点（fork/叶切换/空表）→整表
             // 换入。归一化免本地（blocks_normalized 直出）。
             .messages = mergeTailWindow(.messages, rebuildParsedMessages(resp.session.messages, .prof_configs))
             // PLAN-067 T-02：回填时同步服务端活跃叶——否则叶链投影沿旧叶
             // 回溯,新回合不在链上,依旧"数据到了但不渲染"。
-            if resp.session.active_leaf != None { .active_leaf = resp.session.active_leaf }
+            // PLAN-104 T-02：等值不写（写即状态变更，无谓重渲染同族）。
+            if resp.session.active_leaf != None && resp.session.active_leaf != .active_leaf {
+                .active_leaf = resp.session.active_leaf
+            }
             // PLAN-536 T12(D4 修复,musk 侧③)：完成启发式补**回合增长守卫**
             // ——原形只看"末回合=非空 assistant",竞态:发送后首个轮询拍若
             // 后端读模型尚无新 user turn（或上一对话尾部本就是 assistant）,
@@ -1918,6 +1943,26 @@ fn spinFrameChar(phase int) str {
 // handler 上下文把每消息/每块重建为字面量对象——分页载荷已是扁平字符串
 // 块（blocks_normalized），重建是纯拷贝非拍平，有界（≤50 消息，毫秒级）。
 // 三个回填 handler（DetailLoaded/OlderLoaded/PollBackfill）统一过此漏斗。
+/** PLAN-104 T-02（UAT-K9）：回填窗口指纹——条数+末条 id/正文长/blocks 数
+ * + 活跃叶。等值 = 服务端窗口与上次回填一致（工具卡终态更新只发生在流式
+ * 期，流式拍不跳门；见 .PollBackfill 门注释）。空窗口返回 "0"（仍可等值
+ * 跳过）；resp 缺失返回 ""（不记录，下一拍重试）。 */
+fn poll_window_fp(msgs Value, leaf Value) str {
+    if msgs == None { return "" }
+    let n = msgs.length
+    if n == 0 { return "0" }
+    let last = msgs[n - 1]
+    var nb = 0
+    let blocks = last.blocks ?? None
+    if blocks != None { nb = blocks.length }
+    var clen = 0
+    let c = last.content ?? None
+    if c != None { clen = c.length }
+    var leaf_s = ""
+    if leaf != None { leaf_s = "" + leaf }
+    return "" + n + "|" + (last.id ?? "") + "|" + clen + "|" + nb + "|" + leaf_s
+}
+
 fn rebuildParsedMessages(msgs Value, configs Value) Value {
     if msgs == None { return [] }
     var out list = []
