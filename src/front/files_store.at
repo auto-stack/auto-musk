@@ -93,17 +93,15 @@ store FilesStore {
         var active_content str = ""
         var active_loading bool = false
         var active_failed bool = false
-    }
-
-    computed {
-        // 查看器分派面（视图只读；各自自包含，不引兄弟 computed——
-        // computed 引 computed 未生成引用，实证 TS2304）。
-        active_kind => files_file_kind(.active_path)
-        active_url => files_raw_url(.active_path)
-        // T-09：代码族走原生 code_editor（readonly 查看器，编辑归
-        // auto-edit 域）；markdown 臂直用 active_content（围栏包装退役）。
-        active_lang => files_code_lang(.active_path)
-        active_video_html => files_video_html(files_raw_url(.active_path))
+        // PLAN-104 T-04（UAT-K11）：查看器分派面落账取代 computed——
+        // computed 内函数调用在 VM 恒空且不物化为 App_State 字段（097 T-11
+        // 矩阵同族），handler/模板读 .store.active_kind 即抛
+        // `Field 'active_kind' not found`（3 次实机复现）。改由 SelectFile
+        // 处理器域落账，双轨同构（vue 消费 var 与 computed 同形）。
+        var active_kind str = ""
+        var active_url str = ""
+        var active_lang str = ""
+        var active_video_html str = ""
     }
 
     msg Msg {
@@ -124,13 +122,17 @@ store FilesStore {
         // SelectFile 只置路径与 loading；正文由视图侧经 #[api] files_text
         // 后端通道加载（JSON 包裹 {content}——绑定固定 response.json() 对
         // 纯文本必炸的旧约束以此绕开，PLAN-089 T-07），经
-        // SetContent/SetLoadFailed 回填。媒体只记路径（URL 惰性加载）。
+        // SetContent/SetLoadFailed 回填。媒体分派面随路径同拍落账（K11）。
         .SelectFile(path) -> {
             .active_path = path
             .active_content = ""
             .active_failed = false
             let kind = files_file_kind(path)
             .active_loading = kind == "code" || kind == "markdown"
+            .active_kind = kind
+            .active_url = files_raw_url(path)
+            .active_lang = files_code_lang(path)
+            .active_video_html = files_video_html(files_raw_url(path))
         }
 
         .SetContent(content) -> {
