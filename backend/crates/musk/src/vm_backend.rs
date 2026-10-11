@@ -104,6 +104,8 @@ fn build_app_state(client: Arc<dyn Client>) -> Arc<AppState> {
         chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         run_idle_timeout: AppState::run_idle_timeout_from_env(),
+        run_auto_continue: AppState::run_auto_continue_from_env(),
+        chat_pending: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
     })
 }
 

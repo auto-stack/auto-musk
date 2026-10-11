@@ -57,6 +57,13 @@ pub struct AppState {
     pub chat_cancels: Arc<std::sync::Mutex<std::collections::HashMap<String, Arc<std::sync::atomic::AtomicBool>>>>,
     /// PLAN-071 需求⑤：LLM 空闲看门狗窗口——窗口内无任何流式事件即判挂死。
     pub run_idle_timeout: std::time::Duration,
+    /// PLAN-105 T-03：异常收束有界自动续跑开关（env `AUTO_RUN_AUTO_CONTINUE`，
+    /// 缺省 1=开、0=关；注入轮自身的异常收束不再续，防链式）。
+    pub run_auto_continue: bool,
+    /// PLAN-105 T-04：per-session 待发队列——run 占用守卫期间到达的用户消息
+    /// 入队（内存态，重启丢失可接受——与旧 ⚠ 提示同级），run 收束后按序
+    /// 自动触发新一轮（键同守卫 "ws_id:session_id"）。
+    pub chat_pending: Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<String>>>>,
     /// PLAN-087：实况画布会话管理器（单会话，start=替换；四路由与五工具共用）。
     pub canvas: Arc<crate::canvas::CanvasManager>,
 }
@@ -70,6 +77,40 @@ impl AppState {
             .filter(|v| *v > 0)
             .map(std::time::Duration::from_secs)
             .unwrap_or(std::time::Duration::from_secs(300))
+    }
+
+    /// 从环境读自动续跑开关（PLAN-105 T-03）；缺省开（1）。解析失败/未设
+    /// 均按缺省，仅显式 0（或负数）关闭。
+    pub fn run_auto_continue_from_env() -> bool {
+        std::env::var("AUTO_RUN_AUTO_CONTINUE")
+            .ok()
+            .and_then(|v| v.parse::<i64>().ok())
+            .map(|v| v > 0)
+            .unwrap_or(true)
+    }
+
+    /// PLAN-105 T-04：入队一条待发消息（守卫占用分支调用）。
+    pub fn chat_pending_push(&self, key: &str, msg: &str) {
+        self.chat_pending
+            .lock()
+            .unwrap()
+            .entry(key.to_string())
+            .or_default()
+            .push(msg.to_string());
+    }
+
+    /// PLAN-105 T-04：按序取走一条待发消息（收束出口轮询；空返回 None）。
+    pub fn chat_pending_pop(&self, key: &str) -> Option<String> {
+        let mut pend = self.chat_pending.lock().unwrap();
+        let q = pend.get_mut(key)?;
+        if q.is_empty() {
+            return None;
+        }
+        let msg = q.remove(0);
+        if q.is_empty() {
+            pend.remove(key);
+        }
+        Some(msg)
     }
 
     /// 注册取消旗标（owner 孵化时）。
@@ -255,6 +296,8 @@ pub async fn serve(addr: &str, client: Arc<dyn Client>) -> Result<(), Box<dyn st
         chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         run_idle_timeout: AppState::run_idle_timeout_from_env(),
+        run_auto_continue: AppState::run_auto_continue_from_env(),
+        chat_pending: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
     };
     // PLAN-099 T-04：守卫 TTL reaper（独立时钟兜底，见 chat_reaper_spawn）。
     chat_reaper_spawn(std::sync::Arc::new(state.clone()));
@@ -1249,6 +1292,8 @@ mod tests {
             canvas: Arc::new(crate::canvas::CanvasManager::new()),
             chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             run_idle_timeout: std::time::Duration::from_secs(300),
+            run_auto_continue: false,
+            chat_pending: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         }
     }
@@ -3453,6 +3498,8 @@ mod tests {
             canvas: Arc::new(crate::canvas::CanvasManager::new()),
             chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             run_idle_timeout: std::time::Duration::from_secs(300),
+            run_auto_continue: false,
+            chat_pending: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         }
     }
@@ -3595,8 +3642,8 @@ mod tests {
             .find(|m| m.role == crate::chats::Role::Assistant)
             .expect("错误消息应持久化");
         assert!(
-            err_msg.content.contains("空闲超时"),
-            "超时错误消息: {}",
+            err_msg.content.contains("运行挂起"),
+            "超时错误消息（PLAN-105 T-03 挂起型文案）: {}",
             err_msg.content
         );
         assert!(runs.lock().unwrap().is_empty(), "守卫应已清理");
@@ -4162,6 +4209,402 @@ mod tests {
             err_msg.blocks.iter().any(|b| b.kind == "tool"),
             "失败收束应保留工具现场: {:?}",
             err_msg.blocks
+        );
+    }
+
+    // ── PLAN-105 T-03/T-04（V05）：看门狗文案分型 + 有界自动续跑 + 待发队列 ──
+
+    /// T-03 停滞型文案：在途工具无进展被看门狗中止——文案点名工具、保留
+    /// 拆小建议、并告知「继续」可续跑。
+    #[tokio::test]
+    async fn chat_idle_timeout_stall_type_names_inflight_tool() {
+        use crate::auto_generated::server as ag_server;
+        use auto_ai_client::ToolCall;
+        struct ToolSleepClient;
+        #[async_trait]
+        impl Client for ToolSleepClient {
+            async fn complete(
+                &self,
+                _req: &CompletionRequest,
+            ) -> Result<CompletionResponse, ClientError> {
+                unreachable!("run_stream 走 complete_stream")
+            }
+            async fn complete_stream(
+                &self,
+                _req: &CompletionRequest,
+                _on_event: Arc<dyn Fn(serde_json::Value) + Send + Sync>,
+            ) -> Result<CompletionResponse, ClientError> {
+                Ok(CompletionResponse {
+                    content: String::new(),
+                    tool_calls: vec![ToolCall {
+                        id: "t1".into(),
+                        name: "run_command".into(),
+                        // 无引号形态（引号形态正是 T-05 要修的 P4——此处
+                        // 避开）；node 白名单内、10s 静默无输出。
+                        input: serde_json::json!({
+                            "cmd": "node -e setTimeout(console.log,10000)"
+                        }),
+                    }],
+                    stop_reason: Some("tool_use".into()),
+                    usage: None,
+                    model: "mock".into(),
+                    error: None,
+                    model_meta: None,
+                })
+            }
+        }
+        let mut state = tmp_state_with_client(Arc::new(ToolSleepClient));
+        state.run_idle_timeout = std::time::Duration::from_secs(1);
+        state.run_auto_continue = false;
+        let ws = state.registry.get("");
+        let runs = state.chat_runs.clone();
+        let sess = ws
+            .chats
+            .create("basic", Some(String::new()))
+            .expect("create session");
+        ws.chats
+            .append_message(&sess.id, crate::chats::ChatMessage::user("slow"))
+            .expect("append user message");
+        let app = axum::Router::new().route(
+            "/api/chats/session/{id}/message",
+            axum::routing::post(ag_server::chat_message),
+        )
+        .with_state(state);
+        let st = post_message(app, &sess.id, r#"{"content":"slow","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        wait_until(|| runs.lock().unwrap().is_empty()).await;
+        let updated = ws.chats.get(&sess.id).expect("session exists");
+        let err_msg = updated
+            .messages
+            .iter()
+            .find(|m| m.role == crate::chats::Role::Assistant)
+            .expect("超时消息应持久化");
+        assert!(
+            err_msg.content.contains("运行停滞"),
+            "停滞型文案: {}",
+            err_msg.content
+        );
+        assert!(
+            err_msg.content.contains("run_command"),
+            "应点名在途工具: {}",
+            err_msg.content
+        );
+        assert!(
+            err_msg.content.contains("继续"),
+            "应含续跑指引: {}",
+            err_msg.content
+        );
+    }
+
+    /// T-03 有界自动续跑：异常收束（client Err）后注入一次「继续」自驱轮，
+    /// 无人值守收束到正常终答；中间不落失败消息（单消息跨轮现场）。
+    #[tokio::test]
+    async fn chat_run_auto_continue_recovers_abnormal_convergence() {
+        use crate::auto_generated::server as ag_server;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        struct FailThenTextClient {
+            calls: Arc<AtomicUsize>,
+        }
+        #[async_trait]
+        impl Client for FailThenTextClient {
+            async fn complete(
+                &self,
+                _req: &CompletionRequest,
+            ) -> Result<CompletionResponse, ClientError> {
+                unreachable!("run_stream 走 complete_stream")
+            }
+            async fn complete_stream(
+                &self,
+                _req: &CompletionRequest,
+                on_event: Arc<dyn Fn(serde_json::Value) + Send + Sync>,
+            ) -> Result<CompletionResponse, ClientError> {
+                let n = self.calls.fetch_add(1, Ordering::SeqCst);
+                if n == 0 {
+                    Err(ClientError::Http("llm send timeout".into()))
+                } else {
+                    on_event(serde_json::json!({"type": "delta", "text": "续跑完成"}));
+                    Ok(CompletionResponse {
+                        content: "续跑完成".into(),
+                        tool_calls: vec![],
+                        stop_reason: Some("end_turn".into()),
+                        usage: None,
+                        model: "mock".into(),
+                        error: None,
+                        model_meta: None,
+                    })
+                }
+            }
+        }
+        let calls = Arc::new(AtomicUsize::new(0));
+        let mut state =
+            tmp_state_with_client(Arc::new(FailThenTextClient { calls: calls.clone() }));
+        state.run_auto_continue = true;
+        let ws = state.registry.get("");
+        let runs = state.chat_runs.clone();
+        let sess = ws
+            .chats
+            .create("basic", Some(String::new()))
+            .expect("create session");
+        ws.chats
+            .append_message(&sess.id, crate::chats::ChatMessage::user("go"))
+            .expect("append user message");
+        let app = axum::Router::new().route(
+            "/api/chats/session/{id}/message",
+            axum::routing::post(ag_server::chat_message),
+        )
+        .with_state(state);
+        let st = post_message(app, &sess.id, r#"{"content":"go","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        wait_until(|| runs.lock().unwrap().is_empty()).await;
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            2,
+            "异常收束后应自动注入一轮"
+        );
+        let updated = ws.chats.get(&sess.id).expect("session exists");
+        let final_msg = updated
+            .messages
+            .iter()
+            .find(|m| m.role == crate::chats::Role::Assistant)
+            .expect("续跑终答应落盘");
+        assert!(
+            final_msg.content.contains("续跑完成"),
+            "终答内容: {}",
+            final_msg.content
+        );
+        assert!(
+            !final_msg.content.contains("运行失败"),
+            "注入路径不落中间失败消息: {}",
+            final_msg.content
+        );
+    }
+
+    /// T-03 防链式：注入轮自身再异常不再续（两次 Err 后收束，恰 2 次调用）。
+    #[tokio::test]
+    async fn chat_run_auto_continue_no_chain_on_injected_round_failure() {
+        use crate::auto_generated::server as ag_server;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        struct AlwaysFailClient {
+            calls: Arc<AtomicUsize>,
+        }
+        #[async_trait]
+        impl Client for AlwaysFailClient {
+            async fn complete(
+                &self,
+                _req: &CompletionRequest,
+            ) -> Result<CompletionResponse, ClientError> {
+                unreachable!("run_stream 走 complete_stream")
+            }
+            async fn complete_stream(
+                &self,
+                _req: &CompletionRequest,
+                _on_event: Arc<dyn Fn(serde_json::Value) + Send + Sync>,
+            ) -> Result<CompletionResponse, ClientError> {
+                self.calls.fetch_add(1, Ordering::SeqCst);
+                Err(ClientError::Http("llm send timeout".into()))
+            }
+        }
+        let calls = Arc::new(AtomicUsize::new(0));
+        let mut state =
+            tmp_state_with_client(Arc::new(AlwaysFailClient { calls: calls.clone() }));
+        state.run_auto_continue = true;
+        let ws = state.registry.get("");
+        let runs = state.chat_runs.clone();
+        let sess = ws
+            .chats
+            .create("basic", Some(String::new()))
+            .expect("create session");
+        ws.chats
+            .append_message(&sess.id, crate::chats::ChatMessage::user("go"))
+            .expect("append user message");
+        let app = axum::Router::new().route(
+            "/api/chats/session/{id}/message",
+            axum::routing::post(ag_server::chat_message),
+        )
+        .with_state(state);
+        let st = post_message(app, &sess.id, r#"{"content":"go","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        wait_until(|| runs.lock().unwrap().is_empty()).await;
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            2,
+            "注入轮异常后不再链式（原始轮 + 注入轮各一次）"
+        );
+        let updated = ws.chats.get(&sess.id).expect("session exists");
+        let err_msg = updated
+            .messages
+            .iter()
+            .find(|m| m.role == crate::chats::Role::Assistant)
+            .expect("失败消息应落盘");
+        assert!(
+            err_msg.content.contains("运行失败"),
+            "注入轮失败按失败臂落盘: {}",
+            err_msg.content
+        );
+    }
+
+    /// T-03 关闭路径（run_auto_continue=false，等价 env AUTO_RUN_AUTO_CONTINUE=0）：
+    /// 异常收束直接落失败消息，不注入。
+    #[tokio::test]
+    async fn chat_run_auto_continue_off_persists_failure() {
+        use crate::auto_generated::server as ag_server;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        struct FailOnceClient {
+            calls: Arc<AtomicUsize>,
+        }
+        #[async_trait]
+        impl Client for FailOnceClient {
+            async fn complete(
+                &self,
+                _req: &CompletionRequest,
+            ) -> Result<CompletionResponse, ClientError> {
+                unreachable!("run_stream 走 complete_stream")
+            }
+            async fn complete_stream(
+                &self,
+                _req: &CompletionRequest,
+                _on_event: Arc<dyn Fn(serde_json::Value) + Send + Sync>,
+            ) -> Result<CompletionResponse, ClientError> {
+                self.calls.fetch_add(1, Ordering::SeqCst);
+                Err(ClientError::Api("provider exploded".into()))
+            }
+        }
+        let calls = Arc::new(AtomicUsize::new(0));
+        let state = tmp_state_with_client(Arc::new(FailOnceClient { calls: calls.clone() }));
+        let ws = state.registry.get("");
+        let runs = state.chat_runs.clone();
+        let sess = ws
+            .chats
+            .create("basic", Some(String::new()))
+            .expect("create session");
+        ws.chats
+            .append_message(&sess.id, crate::chats::ChatMessage::user("boom"))
+            .expect("append user message");
+        let app = axum::Router::new().route(
+            "/api/chats/session/{id}/message",
+            axum::routing::post(ag_server::chat_message),
+        )
+        .with_state(state);
+        let st = post_message(app, &sess.id, r#"{"content":"boom","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        wait_until(|| runs.lock().unwrap().is_empty()).await;
+        assert_eq!(calls.load(Ordering::SeqCst), 1, "关闭时不得注入");
+        let updated = ws.chats.get(&sess.id).expect("session exists");
+        let err_msg = updated
+            .messages
+            .iter()
+            .find(|m| m.role == crate::chats::Role::Assistant)
+            .expect("失败消息应落盘");
+        assert!(
+            err_msg.content.contains("运行失败"),
+            "失败消息: {}",
+            err_msg.content
+        );
+    }
+
+    /// T-04 在途消息不丢：run 占用守卫期间到达的用户消息入服务端待发队列
+    /// （UAT 17:18:51「继续」被丢的形态），run 收束后自动作为下一轮输入
+    /// 执行；重放轮是新消息边界（新 assistant 消息）。
+    #[tokio::test]
+    async fn chat_pending_message_replayed_after_run() {
+        use crate::auto_generated::server as ag_server;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        struct DelayedScriptedClient {
+            calls: Arc<AtomicUsize>,
+        }
+        #[async_trait]
+        impl Client for DelayedScriptedClient {
+            async fn complete(
+                &self,
+                _req: &CompletionRequest,
+            ) -> Result<CompletionResponse, ClientError> {
+                unreachable!("run_stream 走 complete_stream")
+            }
+            async fn complete_stream(
+                &self,
+                _req: &CompletionRequest,
+                on_event: Arc<dyn Fn(serde_json::Value) + Send + Sync>,
+            ) -> Result<CompletionResponse, ClientError> {
+                let n = self.calls.fetch_add(1, Ordering::SeqCst);
+                if n == 0 {
+                    // 首轮拖延，制造守卫占用窗口供第二条消息到达。
+                    tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+                    on_event(serde_json::json!({"type": "delta", "text": "一轮完成"}));
+                    Ok(CompletionResponse {
+                        content: "一轮完成".into(),
+                        tool_calls: vec![],
+                        stop_reason: Some("end_turn".into()),
+                        usage: None,
+                        model: "mock".into(),
+                        error: None,
+                        model_meta: None,
+                    })
+                } else {
+                    on_event(serde_json::json!({"type": "delta", "text": "二轮完成"}));
+                    Ok(CompletionResponse {
+                        content: "二轮完成".into(),
+                        tool_calls: vec![],
+                        stop_reason: Some("end_turn".into()),
+                        usage: None,
+                        model: "mock".into(),
+                        error: None,
+                        model_meta: None,
+                    })
+                }
+            }
+        }
+        let calls = Arc::new(AtomicUsize::new(0));
+        let state =
+            tmp_state_with_client(Arc::new(DelayedScriptedClient { calls: calls.clone() }));
+        let ws = state.registry.get("");
+        let runs = state.chat_runs.clone();
+        let sess = ws
+            .chats
+            .create("basic", Some(String::new()))
+            .expect("create session");
+        ws.chats
+            .append_message(&sess.id, crate::chats::ChatMessage::user("first"))
+            .expect("append user message");
+        let app = axum::Router::new().route(
+            "/api/chats/session/{id}/message",
+            axum::routing::post(ag_server::chat_message),
+        )
+        .with_state(state);
+        let st = post_message(app.clone(), &sess.id, r#"{"content":"first","run":true}"#).await;
+        assert_eq!(st, StatusCode::OK);
+        // 守卫占用窗口内发第二条（重试语义不带 queued 标记）。
+        wait_until(|| calls.load(Ordering::SeqCst) >= 1).await;
+        let st2 = post_message(app, &sess.id, r#"{"content":"second","run":true}"#).await;
+        assert_eq!(st2, StatusCode::OK, "占用期消息照常追加");
+        wait_until(|| runs.lock().unwrap().is_empty()).await;
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            2,
+            "收束后应自动重放待发消息"
+        );
+        let updated = ws.chats.get(&sess.id).expect("session exists");
+        let contents: Vec<String> = updated
+            .messages
+            .iter()
+            .filter(|m| m.role == crate::chats::Role::Assistant)
+            .map(|m| m.content.clone())
+            .collect();
+        let notice_idx = contents
+            .iter()
+            .position(|c| c.contains("待发队列"))
+            .expect("应落待发队列提示");
+        let r1 = contents
+            .iter()
+            .position(|c| c.contains("一轮完成"))
+            .expect("首轮终答应落盘");
+        let r2 = contents
+            .iter()
+            .position(|c| c.contains("二轮完成"))
+            .expect("重放轮终答应落盘");
+        assert!(r1 < r2, "两轮按序: {contents:?}");
+        assert!(
+            notice_idx < r2,
+            "队列提示先于重放轮应答: {contents:?}"
         );
     }
 

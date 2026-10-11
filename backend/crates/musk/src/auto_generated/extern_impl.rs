@@ -923,14 +923,19 @@ pub fn chats_message(s: &State<AppState>, q: Query<crate::auto_generated::server
                     // PLAN-071 需求⑮：b.queued=true 为前端队列自动重发——
                     // 收束竞态窗口内的重试不落提示（否则每拍重试都会写入
                     // 一条 ⚠），只回 busy:true 由前端稍后再试。
+                    // PLAN-105 T-04：消息入服务端待发队列（chat_pending）——
+                    // run 收束后自动以其为下一轮输入（VM 轨 Sse.open no-op、
+                    // web 前端重试双轨之外的第三轨：服务端保证不丢）。前端
+                    // 重试语义保留不破坏；b.queued 重试拍不重复入队。
                     tracing::warn!(
                         "chat run spawn skipped (guard held): session={} ws={}",
                         p.0,
                         q.workspace.clone().unwrap_or_default()
                     );
                     if !b.queued {
+                        s.0.chat_pending_push(&run_key, &b.content);
                         let notice = crate::chats::ChatMessage::assistant(
-                            "⚠ 已有运行在途，本条消息未执行；待当前运行结束后请重新发送。"
+                            "⏳ 已有运行在途，本条消息已进入待发队列——当前运行结束后将自动执行。"
                                 .to_string(),
                         );
                         let _ = ws.chats.append_message(&p.0, notice.clone());
@@ -2343,8 +2348,9 @@ pub async fn chat_run_owner(
         // PLAN-073 P2-T3：run 消息 id——turn 快照与收束终版共用（upsert 原位
         // 替换的键）。快照闭包：turn_end 边界把当前积累（clone，不消耗累积
         // 器）组装成 pending 消息落盘——刷新页面即可见已完成轮次的现场，
-        // 收束终版以同 id 换入并清 pending。
-        let run_msg_id = crate::chats::new_message_id();
+        // 收束终版以同 id 换入并清 pending。PLAN-105 T-04：改共享 cell——
+        // 待发队列重放的人工消息边界换新 id（快照闭包与收束臂读同一真值）。
+        let run_msg_id = std::sync::Arc::new(std::sync::Mutex::new(crate::chats::new_message_id()));
         let persist_snapshot = {
             let chats_snap = chats.clone();
             let sid_snap = session_id.clone();
@@ -2378,7 +2384,7 @@ pub async fn chat_run_owner(
                     &blocks_v,
                     None,
                 );
-                msg.id = rid_snap.clone();
+                msg.id = rid_snap.lock().unwrap().clone();
                 msg.pending = Some(true);
                 persist_chat_run_msg(&chats_snap, &sid_snap, &msg, "turn_snapshot");
             }
@@ -2784,17 +2790,27 @@ pub async fn chat_run_owner(
                 }
             }
         });
-        // PLAN-071 需求⑤ T-22：空闲看门狗 select——窗口内无任何流式事件即
-        // drop run_stream future（中止在途 LLM 流），按超时收束并落盘。
         // PLAN-071 需求⑭：agent 输入 = 原文 + @引用解析块（有引用才追加）。
         let agent_input = if agent_refs_block.is_empty() {
             user_msg.clone()
         } else {
             format!("{}{}", user_msg, agent_refs_block)
         };
+        // PLAN-105 T-03/T-04：轮循环体——收束出口统一裁决（①人工待发队列
+        // 优先重放（T-04，新消息边界=新 run_msg_id + 累积器复位）→ ②异常
+        // 收束且有界自动续跑（T-03，注入「继续」自驱轮一次；注入轮自身
+        // 的异常收束不再链式）→ ③落盘收束退出）。守卫跨轮保持（同一 run
+        // 会话语义，单守卫不变）；轮首重置看门狗基线防上轮超时残留立即
+        // 再触发。
+        let mut round_input = agent_input;
+        let mut injected_round = false;
+        let mut auto_continue_budget = if state_for_ctx.run_auto_continue { 1u8 } else { 0u8 };
+        loop {
+        // 轮首重置看门狗基线（上轮收束到本轮首批事件间的间隙不吃旧窗）。
+        let _ = wd_tx.send(std::time::Instant::now());
         let mut idle_timed_out = false;
         let run_out = tokio::select! {
-            r = agent.run_stream(&agent_input, on_event, cancel) => Some(r),
+            r = agent.run_stream(&round_input, on_event.clone(), cancel.clone()) => Some(r),
             _ = async {
                 loop {
                     let last = *wd_rx.borrow();
@@ -2803,15 +2819,66 @@ pub async fn chat_run_owner(
                 }
             } => { idle_timed_out = true; None }
         };
+        // PLAN-105 T-03/T-04：收束裁决（在落盘臂之前——注入路径不落中间
+        // 消息，人工重放路径先落再续）。abnormal = 看门狗超时或 run_stream
+        // 返回 Err。
+        let abnormal = idle_timed_out || matches!(&run_out, Some(Err(_)));
+        let queued_msg = if abnormal { state_for_ctx.chat_pending_pop(&run_key2) } else { None };
+        if abnormal
+            && queued_msg.is_none()
+            && !injected_round
+            && auto_continue_budget > 0
+            && !cancel_flag.load(std::sync::atomic::Ordering::SeqCst)
+        {
+            // 注入「继续」自驱轮：transient 通知上总线/SSE（前端按未知类型
+            // 忽略亦无碍），不写会话历史——终版单消息跨轮累积现场。
+            let notice = serde_json::json!({
+                "type": "auto_continue",
+                "message": "⏱ 异常收束，自动以「继续」语义续跑（不重做已完成部分）"
+            });
+            emit_bus_tail(&notice);
+            mpsc_try_send(&tx2, notice);
+            tracing::info!(
+                "chat run auto-continue: session={} elapsed={}s",
+                session_id,
+                run_started.elapsed().as_secs()
+            );
+            round_input = "继续：从中断处推进，不重做已完成部分。".to_string();
+            injected_round = true;
+            auto_continue_budget = 0;
+            continue;
+        }
         if idle_timed_out {
             // 需求⑤：超时收束——错误事件上总线/SSE，且错误消息**持久化**。
             // PLAN-073 T-04：中止前的部分产物（叙述/思考/工具卡/时间线）按
             // 成功路径同款组装落盘，超时通知作尾块追加——会话 90ed3ae0 里
             // 用户看到的执行痕迹曾随超时整体丢失，只剩一行超时文案。
-            let text = format!(
-                "⏱ 运行空闲超时：{}s 内无任何流式事件，已中止本轮。建议把任务拆小后重发。",
-                idle_timeout.as_secs()
-            );
+            // PLAN-105 T-03：超时文案分型——在途工具（停滞型：工具执行中
+            // 无进展事件）vs 无在途（挂起型：请求/收束间隙停滞）。停滞型
+            // 保留拆小建议并点名工具；挂起型指明「发『继续』可从中断处
+            // 续跑」+ 部分产物已保留（UAT 87af4d4b P2：原文案归因错误且未
+            // 告知可行操作）。
+            let stalled_tool = {
+                let bl = blocks.lock().unwrap();
+                bl.iter()
+                    .rev()
+                    .find(|b| b.kind == "tool")
+                    .and_then(|b| b.tool.as_ref())
+                    .filter(|tc| tc.status == "running" || tc.status == "gate_waiting")
+                    .map(|tc| tc.tool.clone())
+            };
+            let text = match &stalled_tool {
+                Some(tool) => format!(
+                    "⏱ 运行停滞：{}s 无进展（工具 {tool} 在途，本轮已 {}s）。已中止本轮并保留现场。建议把任务拆小后重发；发送「继续」也可从中断处续跑。",
+                    idle_timeout.as_secs(),
+                    run_started.elapsed().as_secs()
+                ),
+                None => format!(
+                    "⏱ 运行挂起：{}s 无事件推进（本轮已 {}s）。已中止本轮并保留部分产物。发送「继续」可从中断处续跑；若反复出现建议把任务拆小。",
+                    idle_timeout.as_secs(),
+                    run_started.elapsed().as_secs()
+                ),
+            };
             tracing::warn!(
                 "chat run idle-timeout: session={} idle={}s elapsed={}s",
                 session_id, idle_timeout.as_secs(), run_started.elapsed().as_secs()
@@ -2838,7 +2905,7 @@ pub async fn chat_run_owner(
                 &blocks_v,
                 Some(&text),
             );
-            msg.id = run_msg_id.clone();
+            msg.id = run_msg_id.lock().unwrap().clone();
             // PLAN-098 T-03（§5.3）：折叠本 run 全部请求记录为单个 telemetry
             // 对象挂收束消息（多请求=轮级合计+requests[]；无记录=None 省略）。
             msg.telemetry = crate::telemetry::fold_records(&tel_sink_fold.drain());
@@ -2875,7 +2942,7 @@ pub async fn chat_run_owner(
                     &blocks_v,
                     None,
                 );
-                msg.id = run_msg_id.clone();
+                msg.id = run_msg_id.lock().unwrap().clone();
                 // PLAN-098 T-03（§5.3）：收束折叠（成功臂）。
                 msg.telemetry = crate::telemetry::fold_records(&tel_sink_fold.drain());
                 persist_chat_run_msg(&chats, &session_id, &msg, "done");
@@ -2922,7 +2989,7 @@ pub async fn chat_run_owner(
                     &blocks_v,
                     Some(&text),
                 );
-                msg.id = run_msg_id.clone();
+                msg.id = run_msg_id.lock().unwrap().clone();
                 // PLAN-098 T-03（§5.3）：收束折叠（失败臂）——部分请求记录
                 // 如实保留，不静默缺行。
                 msg.telemetry = crate::telemetry::fold_records(&tel_sink_fold.drain());
@@ -2939,6 +3006,33 @@ pub async fn chat_run_owner(
                 mpsc_try_send(&tx2, serde_json::json!({"type": "error", "message": text}));
             }
             }
+        }
+        // PLAN-105 T-04：落盘臂完成——人工待发队列重放（异常路径在裁决处
+        // 已 pop 一次，正常路径在此 pop）。新人工消息边界：累积器/块图/
+        // 节流戳复位 + 新 run_msg_id（快照闭包读同一 cell）；注入额度随
+        // 人工边界回复（每条人工消息至多一次自驱续跑，注入轮自身不链式）。
+        if let Some(next) = queued_msg.or_else(|| state_for_ctx.chat_pending_pop(&run_key2)) {
+            tracing::info!(
+                "chat run replay pending message: session={} len={}",
+                session_id,
+                next.len()
+            );
+            accumulated.lock().unwrap().clear();
+            thinking_acc.lock().unwrap().clear();
+            tool_calls.lock().unwrap().clear();
+            blocks.lock().unwrap().clear();
+            cur_text.lock().unwrap().clear();
+            tool_idx.lock().unwrap().clear();
+            *last_snap.lock().unwrap() = std::time::Instant::now();
+            *run_msg_id.lock().unwrap() = crate::chats::new_message_id();
+            round_input = next;
+            injected_round = false;
+            if state_for_ctx.run_auto_continue {
+                auto_continue_budget = 1;
+            }
+            continue;
+        }
+        break;
         }
         bridge.abort();
         // PLAN-055 ⑧(D1): run 结束（Ok/Err 两路汇合点）——清 per-session 守卫。
