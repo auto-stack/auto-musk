@@ -4,7 +4,7 @@ status: executing
 feature_name: Canvas 内嵌交互预览与 DevTools 可停靠布局
 author: [agent]
 created_at: 2026-10-10T05:20:55Z
-updated_at: 2026-10-11T04:05:00Z
+updated_at: 2026-10-11T05:10:00Z
 plan_revision: 1
 current_step: 4
 total_steps: 6
@@ -206,6 +206,9 @@ hidden: [          Canvas              ]  ← 工具栏可重新打开
 2026-10-11 T-03 切片④执行记录：`stage: work`，`plan: PLAN-102`，`revision: 1`，`outcome: executing（T-03 切片④：VM 实机探针 + 拖动重构；阻塞 F-03-1）`，`code_commit`: musk worktree `8e6af1f`（切片③ `39b757b`、切片② `c2028e4`），`task_ids`: T-03（部分），`evidence`: ① 拖动机制重构——捕获层退役（iced 嵌套 mouse_area 双投递双计 delta；绝对覆盖层 Plan 412 已证降级）；DivH/DivB/DivOuter 自持 `Down(str)/Move(float,float)/Up` 三 handler（__mcp_drag 单 widget 注入合同同构，embed 夹具先例）；逻辑 delta 换算单源 store（DockDragLogical/OuterDragLogical × canvasLogicalToPx）；chats_view 捕获层/OuterCap 族同步移除。② VM 轨真缺陷×2（autoui_state 取证定罪）：`int()` 强转 VM link 失败（Undefined symbol → 弃用改合法习语）；视图域负整数字面量事件参被毁（‹‹ -10 → 钳 180 而 +10 精确 250）→ KeyNarrow/KeyWiden 负值 handler 域 `0-10` 组合（修复后 240 精确）。③ chrome 常数实机校准 78→29（wb 根 bbox=全窗高，ContentHeader 在聊天列内部）。④ canvas-layout-live.mjs 实机探针落地（真 musk serve 后端+真会话 spawn embed 夹具+musk VM 前端：17201 固定口——pac daemon 绑定 freePort 无效；MCP vtree bbox+autoui_state 双通道；vtree 空串重试+稳定双读+域限定定位防外框/停靠列互串），当轮最佳 18/20（凡完成断言全精确）。`blockers`: F-03-1 当轮开放（间歇静默退出）。`next`: F-03-1 定罪（见收口记录）。
 
 2026-10-11 T-03 收口记录：`stage: work`，`plan: PLAN-102`，`revision: 1`，`outcome: executing（T-03 done，转 T-04）`，`code_commit`: musk worktree（本切片提交），`task_ids`: T-03（✅），`evidence`: **F-03-1 根因闭环 + 探针 20/20×2 连发**。定罪链：事件日志（Application Id=1000）无 auto.exe fault 记录 → 非原生崩溃；探针补 exit 捕获（frontExit code=1 无信号）+ 全量前端日志（W-03-4-frontend-full.log）+ 声明串字段状态取证（stateSnap 增 w_decl/h_decl/outer_decl）→ **撕裂现场**：drag-60 `dock_w=300 (unknown)` vs `w_decl="width:0px"`——nudge 路（纯 int）`250 (int)`/decl 一致对照。**根因**：`Math.floor` 在 VM 返回外源 f64，穿 int 边界不被类型化局部/fn 参数收整，最终 `str + float` 拼接位型缺陷（T-01 夹具注释已登记的已知缺口）把 300.0 写成 "0" → decl 毒化 `width:0px` 持久驻留 → 0 宽退化布局在后续任意交互点触发**静默退出**（与 F-03-1 崩点随机性吻合——dock 按下/拖动/外拖宽处都出现过即毒化 decl 的下游消费点）。**修复**：`.to_int()` 收整习语（engine.rs Plan 402 §13.10 按 receiver tag 解码 f64→i32；ext TS 生成 parseInt）——canvasLogicalToPx 与三分隔条 Move 的 delta 全部换装；类型化局部绑定（forge_helpers 先例形态）实测**不足以**收整外源浮点（曾试无效）。修复后：canvas-layout-live **20/20 连发两轮**（drag +60 → `w=300 cls=width:300px` 状态渲染一致）、canvas-layout-contract 59/0、gen 69 绿、canvas-contract 65/0 回归绿、无崩溃复现。`blockers`: 无。F-03-1 §10 条目更新为「根因闭环，若复现重开」（上游 auto-lang 的 float→str 拼接缺口本身仍开放——属 VM 数据语义已知缺口家族，musk 侧已用 to_int 习语规避，上游修复另立）。`next`: T-04（内嵌工具栏和双输入模式——依赖 T-02 余项 VMHTTP present 路由镜像也在册）。
+
+
+2026-10-11 T-04 切片①执行记录：`stage: work`，`plan: PLAN-102`，`revision: 1`，`outcome: executing（T-04 切片①：web 消费面 + 双输入模式）`，`code_commit`: musk worktree（本切片提交），`task_ids`: T-04（部分），`evidence`: ① web 轨 embedded 消费面落地——`canvas_embed_web.ts`（installCanvasEmbed：宿主 div 轮询接管 + `@auto/drawlist-renderer` connect() 全链：Hello 订阅/FrameReady→renderFrame Canvas2D/DPR 感知/30s 重连预算/operate 输入回传 DOM 指针+键盘字符（逻辑域×缩放换算；inspect 只观察）；桥 url 变化整体重连防迟到帧跨代次）；包以 `vendor/@auto/drawlist-renderer` 纯 TS 源快照供给（`scripts/vendor-drawlist-renderer.mjs` 再生，vendor-autodown 先例；pac npm_deps file:）。② store：presentation 面板回填（cv_embed/cv_bridge_url 变化落键）+ cv_input_mode/ToggleInputMode + cv_embed_web（canvas.embed_ready 键缺席 → VM 恒 false）。③ canvas_panel：工具栏 🖱/🔍 双模式钮 + 帧区互斥分支（web embed 消费面 vs 既有 img 链——VM 轨 img 降级为受控形态，J2 切片②前不冒充）。④ 门：gen 69 绿 / canvas-contract 65/0 / layout-contract 59/0 / **canvas-embed-probe --frontend both 3/3 退出 0**（P1/P5/P6）。`blockers`: 无阻塞；**J2（VM 轨 remote-frame）容量裁定呈报用户**（§10.3 预留决策点：上游 client_runtime 泵/displaylist_element/传输积木全在，缺 .at 元件接线——独立上游项目级体量）。`next`: 用户裁定 J2 全量 vs VM 受控降级。
 
 ## 10. 待澄清事项
 
