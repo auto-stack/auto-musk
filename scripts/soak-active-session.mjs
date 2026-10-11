@@ -53,7 +53,9 @@ function slopeMBPerMin(samples) {
   const sxy = samples.reduce((a, s) => a + s.t * s.mb, 0), sxx = samples.reduce((a, s) => a + s.t * s.t, 0);
   const denom = n * sxx - sx * sx;
   if (denom === 0) return null;
-  return (n * sxy - sx * sy) / denom * 60; // t in minutes
+  // P765-D2：样本 t 本就是分钟（见采样点），斜率即 MB/min——历史版本误乘
+  // 60，报值实为 MB/hour（"30-72MB/min" 基线实为 0.5-1.2MB/hour）。
+  return (n * sxy - sx * sy) / denom;
 }
 
 const procs = [];
