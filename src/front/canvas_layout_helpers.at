@@ -158,14 +158,15 @@ fn canvasOuterWDecl(w int) str {
 }
 
 // ── 容器尺寸推导（VM 轨派生源；web 轨实测量优先） ───────────────────────
-// chrome 常数 = ContentHeader（h-12+border=49）+ 工作台停靠条（h-7+border
-// =29）；侧栏宽估算 = 展开 240（收窄时外框 max 偏保守——聊天区只会更宽，
-// 无害；跨 store 读侧栏真实态在 VM 轨是断路面——PLAN-101 毒签先例）。
-// web 轨 canvas.wb_* 键缺席时本族生效；实机探针按 vtree bbox 校准。
+// chrome 常数 = 工作台自身停靠条（h-7=28 + border-b 1 = 29）——切片④实机
+// 校准：ContentHeader 在聊天列内部、面板根即全窗高（wb 根 bbox=窗口高），
+// 拆分容器 = 根高 - 停靠条。侧栏宽估算 = 展开 240（收窄时外框 max 偏
+// 保守——聊天区只会更宽，无害；跨 store 读侧栏真实态在 VM 轨是断路面
+// ——PLAN-101 毒签先例）。web 轨 canvas.wb_* 键缺席时本族生效。
 
 /** VM 轨工作台容器高（窗口高 - chrome 常数）。 */
 fn canvasWbEstH(win_h int) int {
-    var v int = win_h - 78
+    var v int = win_h - 29
     if v < 1 { v = 1 }
     return v
 }
@@ -175,4 +176,10 @@ fn canvasOuterContainerW(win_w int) int {
     var v int = win_w - 240
     if v < 240 { v = 240 }
     return v
+}
+
+/** 4096 逻辑域 delta → 像素（容器维度单源换算；分隔条 move 增量与探针
+ * 注入共用——逻辑域语义 = 全容器宽映射到 4096）。 */
+fn canvasLogicalToPx(delta int, container int) int {
+    return Math.floor(delta * container / 4096)
 }

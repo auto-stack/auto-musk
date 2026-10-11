@@ -23,7 +23,7 @@ const {
   canvasClampDockW, canvasClampDockH, canvasClampOuterW,
   canvasDockNarrow, canvasDockNarrowH, canvasDockMode,
   canvasDockWDecl, canvasDockHDecl, canvasOuterWDecl,
-  canvasWbEstH, canvasOuterContainerW,
+  canvasWbEstH, canvasOuterContainerW, canvasLogicalToPx,
   canvasDockDragSize, canvasDockNudgeSize,
   canvasLayoutPrefKey, canvasLayoutPrefEncode, canvasLayoutPrefDecode,
 } = await import(pathToFileURL(HELPERS_TS).href);
@@ -132,10 +132,24 @@ console.log('[decl]');
 // ── VM 派生源 ────────────────────────────────────────────────────────────
 console.log('[vm-derive]');
 {
-  assert('wb 高派生 = 窗口-78', canvasWbEstH(680) === 602, `=${canvasWbEstH(680)}`);
-  assert('wb 高派生下限 1', canvasWbEstH(0) === 1 && canvasWbEstH(78) === 1);
+  // chrome=29（工作台自身停靠条；切片④实机校准——面板根即全窗高）。
+  assert('wb 高派生 = 窗口-29', canvasWbEstH(680) === 651, `=${canvasWbEstH(680)}`);
+  assert('wb 高派生下限 1', canvasWbEstH(0) === 1 && canvasWbEstH(29) === 1);
   assert('外框容器 = 视口-240', canvasOuterContainerW(1280) === 1040, `=${canvasOuterContainerW(1280)}`);
   assert('外框容器下限 240', canvasOuterContainerW(300) === 240 && canvasOuterContainerW(400) === 240);
+}
+
+// ── 逻辑域→像素换算（分隔条 move 增量通道） ─────────────────────────────
+console.log('[logical-to-px]');
+{
+  // 全域 = 容器宽：4096 → container。
+  assert('全域映射', canvasLogicalToPx(4096, 640) === 640, `=${canvasLogicalToPx(4096, 640)}`);
+  assert('半域映射', canvasLogicalToPx(2048, 640) === 320);
+  assert('负向', canvasLogicalToPx(-2048, 640) === -320);
+  assert('零', canvasLogicalToPx(0, 640) === 0);
+  // 探针算例：wb=640 下拖宽 60px → 逻辑 384。
+  assert('探针算例 60px', canvasLogicalToPx(384, 640) === 60, `=${canvasLogicalToPx(384, 640)}`);
+  assert('小值截断方向', canvasLogicalToPx(100, 640) === 15, `=${canvasLogicalToPx(100, 640)}`);
 }
 
 console.log(`\n[canvas-layout-contract] ${pass} pass / ${fail} fail`);

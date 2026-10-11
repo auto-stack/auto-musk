@@ -29,7 +29,7 @@ use canvas_helpers: canvasPickedProjection, canvasFrameUrl, rebuildCanvasOverlay
 // PLAN-102 T-03：布局纯函数（canvas_helpers 同族跨轨消费；ext TS 生成面
 // 由 canvas_workbench.at 的 use.web.fn 触发——合同脚本 canvas-layout-
 // contract.mjs 直测生成模块）。
-use canvas_layout_helpers: canvasLayoutPrefKey, canvasLayoutPrefEncode, canvasLayoutPrefDecode, canvasDockMode, canvasDockDragSize, canvasDockNudgeSize, canvasClampDockW, canvasClampDockH, canvasClampOuterW, canvasDockWDecl, canvasDockHDecl, canvasOuterWDecl, canvasWbEstH, canvasOuterContainerW
+use canvas_layout_helpers: canvasLayoutPrefKey, canvasLayoutPrefEncode, canvasLayoutPrefDecode, canvasDockMode, canvasDockDragSize, canvasDockNudgeSize, canvasClampDockW, canvasClampDockH, canvasClampOuterW, canvasDockWDecl, canvasDockHDecl, canvasOuterWDecl, canvasWbEstH, canvasOuterContainerW, canvasLogicalToPx
 
 // PLAN-093 T-07: 行列表 + 拾取行 → 渲染行对象 [{no, text, hl}]
 // （视图体内 let 不受支持——行对象在 store 域预构建；no 为 1 基）。
@@ -187,11 +187,13 @@ store CanvasStore {
         LayoutContainer(int, int),
         DockDragStart(str, int, int),
         DockDragMove(int),
+        DockDragLogical(str, int),
         DockDragEnd,
         DockDragCancel,
         DockNudge(str, int),
         OuterDragStart(int, int),
         OuterDragMove(int),
+        OuterDragLogical(int),
         OuterDragEnd,
         OuterDragCancel,
         SoloTab(str),
@@ -254,7 +256,7 @@ store CanvasStore {
                 let vh102 = localStorage.getItem("vm.window_inner_height")
                 if vh102 != None {
                     let vv3 = vh102.to_int()
-                    if vv3 > 78 { wbh = canvasWbEstH(vv3) }
+                    if vv3 > 29 { wbh = canvasWbEstH(vv3) }
                 }
             }
             if wbw > 0 && wbh > 0 {
@@ -544,6 +546,23 @@ store CanvasStore {
                 }
             }
         }
+        // 分隔条 move 增量（4096 逻辑域；切片④形态——换算单源进 store，
+        // 探针注入与真实指针共用同一常量）。容器维度未报（0）时丢弃。
+        .DockDragLogical(kind str, delta_logical int) -> {
+            if kind == "h" {
+                if .cv_wb_w > 0 {
+                    .cv_dock_w = canvasDockDragSize(.cv_dock, "h", .cv_wb_w, .cv_wb_h, .cv_drag_origin, canvasLogicalToPx(delta_logical, .cv_wb_w))
+                    .cv_dock_w_decl = canvasDockWDecl(.cv_dock_w)
+                }
+            } else {
+                if kind == "b" {
+                    if .cv_wb_h > 0 {
+                        .cv_dock_h = canvasDockDragSize(.cv_dock, "b", .cv_wb_w, .cv_wb_h, .cv_drag_origin, canvasLogicalToPx(delta_logical, .cv_wb_h))
+                        .cv_dock_h_decl = canvasDockHDecl(.cv_dock_h)
+                    }
+                }
+            }
+        }
         .DockDragEnd -> {
             .cv_drag_kind = ""
             let ws102 = localStorage.getItem("musk_workspace") ?? ""
@@ -588,6 +607,11 @@ store CanvasStore {
             // 容器 = 视口 - 侧栏估算（切片①误用 wb_w+outer_w——工作台容器
             // 宽≈outer_w，两者相加≠行宽；统一走 canvasOuterContainerW）。
             .cv_outer_w = canvasClampOuterW(canvasOuterContainerW(.cv_win_w), .cv_drag_origin + delta_px)
+            .cv_outer_w_decl = canvasOuterWDecl(.cv_outer_w)
+        }
+        // 外部分隔条 move 增量（4096 逻辑域；换算容器 = 外框容器宽）。
+        .OuterDragLogical(delta_logical int) -> {
+            .cv_outer_w = canvasClampOuterW(canvasOuterContainerW(.cv_win_w), .cv_drag_origin + canvasLogicalToPx(delta_logical, canvasOuterContainerW(.cv_win_w)))
             .cv_outer_w_decl = canvasOuterWDecl(.cv_outer_w)
         }
         .OuterDragEnd -> {

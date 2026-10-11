@@ -12,13 +12,16 @@
 // 类名文本裸引用亦禁（web :style 内联无效——B2 臂）。视觉分隔线由
 // DivH/DivB 自带 w-px/h-px 线承担，停靠列不带 border。
 //
-// 拖动机制（双轨同构）：DivH/DivB mouse-area mousedown 起拖（store 记
-// 基线）；捕获层 = 常驻包裹主体的 mouse-area（非绝对覆盖——iced 无绝对
-// 定位，inset 解析保存但渲染降级；包裹式 = 全覆盖零定位依赖，嵌套交互
-// 子件不吞事件有 chats_view 会话行先例），handler 以 store.cv_drag_kind
-// 门控：起拖后首个 move 定基线（4096 逻辑域），后续 move 按容器实际尺
-// 寸换算像素 delta → store 钳制即时预览；up 持久化。Escape 取消挂
-// store.DockDragCancel（键盘接线归 T-05 AC-08 面收口）。
+// 拖动机制（双轨同构）：DivH/DivB mouse-area 自持三 handler
+//（mousedown 起拖 / move 增量 / up 收尾——T-01 embed 夹具生产先例形态，
+// 与 MCP __mcp_drag 注入合同「单 widget Down␟Move␟Up」同构）。move 的
+// 逻辑 delta（4096 域）交 store.DockDragLogical 换算像素（容器维度单源
+// in store）再钳制即时预览；up 持久化。越界续拖（指针离开分隔条 6px
+// 命中带后的持续收 move）需 pointer capture/等效窗口事件——捕获层方案
+//（包裹式 mouse-area）与三 handler 形态在 iced 嵌套双投递下会双计
+// delta，切片④裁定退役捕获层，越界面留待 T-05/T-06 以真实 OS 输入
+// 证据定案（AC-05 实机项）。Escape 取消挂 store.DockDragCancel（键盘
+// 接线归 T-05 AC-08 面收口）。
 // 键盘面 = 停靠条紧凑步进钮组（±10 / Home——原生按钮键盘可达；方向键
 // 直挂分隔条归 T-05 打磨）。
 
@@ -40,19 +43,11 @@ widget CanvasWorkbench {
         installCanvasLayoutSync()
     }
 
-    model {
-        // 拖动基线（捕获层 4096 逻辑域；<0 = 未设——起拖后首个 move 设定，
-        // up/取消复位）。视图本地瞬态：不进偏好、不跨 store。
-        var base_x float = -1.0
-        var base_y float = -1.0
-    }
-
     msg Msg {
         Dock(str),
         Solo(str),
-        CapMove(float, float),
-        CapUp,
-        KeyNudge(str, int),
+        KeyNarrow(str),
+        KeyWiden(str),
         KeyHome(str),
     }
 
@@ -107,13 +102,13 @@ widget CanvasWorkbench {
                 // title 可读名）。
                 if .store.cv_dock == "left" || .store.cv_dock == "right" {
                     button {
-                        onclick: .KeyNudge("h", -10)
+                        onclick: .KeyNarrow("h")
                         style: "h-5 px-1 rounded bg-transparent text-muted-foreground hover:bg-accent text-[10px] cursor-pointer"
                         title: t("canvas.dockNarrower")
                         text "‹‹"
                     }
                     button {
-                        onclick: .KeyNudge("h", 10)
+                        onclick: .KeyWiden("h")
                         style: "h-5 px-1 rounded bg-transparent text-muted-foreground hover:bg-accent text-[10px] cursor-pointer"
                         title: t("canvas.dockWider")
                         text "››"
@@ -127,13 +122,13 @@ widget CanvasWorkbench {
                 }
                 if .store.cv_dock == "bottom" {
                     button {
-                        onclick: .KeyNudge("b", -10)
+                        onclick: .KeyNarrow("b")
                         style: "h-5 px-1 rounded bg-transparent text-muted-foreground hover:bg-accent text-[10px] cursor-pointer"
                         title: t("canvas.dockShorter")
                         text "⌃⌃"
                     }
                     button {
-                        onclick: .KeyNudge("b", 10)
+                        onclick: .KeyWiden("b")
                         style: "h-5 px-1 rounded bg-transparent text-muted-foreground hover:bg-accent text-[10px] cursor-pointer"
                         title: t("canvas.dockTaller")
                         text "⌄⌄"
@@ -167,14 +162,8 @@ widget CanvasWorkbench {
                     }
                 }
             }
-            // 捕获层：常驻包裹主体（非拖动态 handler 直通丢弃；拖动态接管
-            // move/up——越窗界前持续收 move）。
-            mouse-area {
-                coords: "4096x4096"
-                onmousemove: .CapMove
-                onmouseup: .CapUp
-                style: "flex-1 min-h-0 w-full"
-                if .store.cv_layout_mode == "tabs" {
+            // 主体区（四停靠 / tabs 降级）。
+            if .store.cv_layout_mode == "tabs" {
                     // 窄容器降级：单区页签（偏好保留——变宽自动恢复方向）。
                     if .store.cv_solo_tab == "tools" {
                         col {
@@ -239,7 +228,6 @@ widget CanvasWorkbench {
                         }
                     }
                 }
-            }
         }
     }
 
@@ -250,37 +238,13 @@ widget CanvasWorkbench {
         .Solo(tab str) -> {
             store.SoloTab(tab)
         }
-        .CapMove(x float, y float) -> {
-            if .store.cv_drag_kind != "" {
-                if .base_x < 0.0 {
-                    .base_x = x
-                    .base_y = y
-                } else {
-                    if .store.cv_drag_kind == "h" {
-                        var px int = int((x - .base_x) * .store.cv_wb_w / 4096.0)
-                        store.DockDragMove(px)
-                    } else {
-                        if .store.cv_drag_kind == "b" {
-                            var py int = int((y - .base_y) * .store.cv_wb_h / 4096.0)
-                            store.DockDragMove(py)
-                        }
-                    }
-                }
-            }
+        // 步进 ±10 的负值在 handler 域组合（0-N 习语）——视图域负整数字
+        // 面量事件参 VM 轨实测被毁（T-03 切片④探针：‹‹ -10 → 钳 180）。
+        .KeyNarrow(kind str) -> {
+            store.DockNudge(kind, 0 - 10)
         }
-        .CapUp -> {
-            if .store.cv_drag_kind != "" {
-                if .store.cv_drag_kind == "outer" {
-                    store.OuterDragEnd()
-                } else {
-                    store.DockDragEnd()
-                }
-                .base_x = -1.0
-                .base_y = -1.0
-            }
-        }
-        .KeyNudge(kind str, step int) -> {
-            store.DockNudge(kind, step)
+        .KeyWiden(kind str) -> {
+            store.DockNudge(kind, 10)
         }
         .KeyHome(kind str) -> {
             store.DockNudge(kind, 0)
@@ -288,62 +252,121 @@ widget CanvasWorkbench {
     }
 }
 
-// ── 内部分隔条（水平宽 / 底部高；可见线 1px、命中 6px） ─────────────────
-// 局部 widget（文件内私有组合件；store 经文件顶 use 行共享）。mousedown
-// 即起拖（store 记基线尺寸与取消基线）；拖动几何全部由工作台捕获层接管。
+// ── 分隔条（水平宽 / 底部高 / 外框；可见线 1px、命中 6px） ─────────────
+// 局部 widget（文件内私有组合件；store 经文件顶 use 行共享）。拖动全生
+// 周期自持：mousedown 起拖（store 记尺寸基线与取消基线）→ move 增量
+//（4096 逻辑域，store.DockDragLogical 按容器维度换算像素后钳制即时预览）
+// → up 持久化。三 handler 形态与 MCP __mcp_drag 注入合同同构（T-01 embed
+// 夹具先例）。基线为本件 model 瞬态（起拖后首个 move 设定）。
 
 widget DivH {
-    msg Msg { Down }
+    model { var base float = -1.0 }
+    msg Msg { Down(str), Move(float, float), Up }
     view {
         mouse-area {
             coords: "4096x4096"
             onmousedown: .Down
+            onmousemove: .Move
+            onmouseup: .Up
             style: "shrink-0 w-1.5 h-full flex items-center justify-center cursor-col-resize hover:bg-primary/20"
             div { style: "w-px h-full bg-border" }
         }
     }
     on {
-        .Down -> {
+        .Down(p str) -> {
+            .base = -1.0
             store.DockDragStart("h", .store.cv_dock_w, .store.cv_dock_w)
+        }
+        .Move(x float, y float) -> {
+            if .store.cv_drag_kind == "h" {
+                if .base < 0.0 {
+                    .base = x
+                } else {
+                    store.DockDragLogical("h", Math.floor(x - .base))
+                }
+            }
+        }
+        .Up -> {
+            if .store.cv_drag_kind == "h" {
+                store.DockDragEnd()
+            }
+            .base = -1.0
         }
     }
 }
 
 widget DivB {
-    msg Msg { Down }
+    model { var base float = -1.0 }
+    msg Msg { Down(str), Move(float, float), Up }
     view {
         mouse-area {
             coords: "4096x4096"
             onmousedown: .Down
+            onmousemove: .Move
+            onmouseup: .Up
             style: "shrink-0 w-full h-1.5 flex items-center justify-center cursor-row-resize hover:bg-primary/20"
             div { style: "h-px w-full bg-border" }
         }
     }
     on {
-        .Down -> {
+        .Down(p str) -> {
+            .base = -1.0
             store.DockDragStart("b", .store.cv_dock_h, .store.cv_dock_h)
+        }
+        .Move(x float, y float) -> {
+            if .store.cv_drag_kind == "b" {
+                if .base < 0.0 {
+                    .base = y
+                } else {
+                    store.DockDragLogical("b", Math.floor(y - .base))
+                }
+            }
+        }
+        .Up -> {
+            if .store.cv_drag_kind == "b" {
+                store.DockDragEnd()
+            }
+            .base = -1.0
         }
     }
 }
 
 // ── 外部分隔条（聊天区 ↔ 画布外框；正常模式宿主 chats_view 挂） ────────
-// mousedown 起拖（store 记外框基线）；拖动几何由宿主 contentRow 捕获层
-// 接管（chats_view OuterCapMove——外框拖动指针主要在聊天区侧移动，捕获
-// 必须覆盖聊天区，故捕获层在宿主而非本件/面板内）。
+// 同族三 handler；逻辑 delta 交 store.OuterDragLogical 换算（外框容器维
+// 度 = 视口-侧栏估算，store 单源）。
 
 widget DivOuter {
-    msg Msg { Down }
+    model { var base float = -1.0 }
+    msg Msg { Down(str), Move(float, float), Up }
     view {
         mouse-area {
             coords: "4096x4096"
             onmousedown: .Down
+            onmousemove: .Move
+            onmouseup: .Up
             style: "shrink-0 w-1.5 h-full flex items-center justify-center cursor-col-resize hover:bg-primary/20"
             div { style: "w-px h-full bg-border" }
         }
     }
     on {
-        .Down -> {
+        .Down(p str) -> {
+            .base = -1.0
             store.OuterDragStart(.store.cv_outer_w, .store.cv_outer_w)
+        }
+        .Move(x float, y float) -> {
+            if .store.cv_drag_kind == "outer" {
+                if .base < 0.0 {
+                    .base = x
+                } else {
+                    store.OuterDragLogical(Math.floor(x - .base))
+                }
+            }
+        }
+        .Up -> {
+            if .store.cv_drag_kind == "outer" {
+                store.OuterDragEnd()
+            }
+            .base = -1.0
         }
     }
 }
