@@ -190,3 +190,57 @@
 - 沿用 T-02 精化轮的全套判定（37 目标：11 绿 + tool_atoms 存量红 098
   F-2 + 20 编译错 base 预存）；本轮未改 musk 代码面（evidence/RUNBOOK/
   telemetry 文档落账不触代码），无需重跑。
+
+## T-03 大页矩阵与 AC-01 真值重判（2026-10-12 凌晨，post-765 解阻后）
+
+### 前置：PLAN-765 落地与本仓解阻件
+
+- PLAN-765 已合入 auto-lang main（ff-only 4f53653fd + 归档 0eb915077，批量
+  回归绿 43a816b47，worktree 已清）；post-765 `auto.exe`（auto-lang main
+  release 构建）承载以下全部验证。
+- **P765-D2 单位修（commit 0e06161）**：soak 仪器 slope 样本 t 已为分钟、
+  误乘 60——历史报值实为 MB/hour 量级口径混乱，本报告历史斜率数字一律
+  以"报值（旧仪器）"标注；新仪器为真值 MB/min。
+- **F-R2 并发零串账（同 commit 0e06161）**：spec_tools 集成测试
+  `concurrent_two_workspace_spec_writes_stay_isolated`——双工作区 from_ctx
+  绑定并发各 upsert 15 条，读回+磁盘双验零交叉（0.22s 绿）。
+
+### AC-01 真值重判（soak，修复后仪器 + post-765 auto.exe）
+
+- `node scripts/soak-active-session.mjs --vm-cwd <worktree> --label green765
+  --duration-s 300 --idle-s 180`（MUSK_EXE=release）：
+  **stream 1.287 MB/min（7 样本，流早收于 3105 字符）/ idle 0.717 MB/min
+  （213 样本）**——对 AC-01 门限 0.1MB/s（=6MB/min）分别 4.7×/8.4× 余量。
+  **AC-01 = pass（真值口径）**；残留与 P765-D1（~1MB/min 线性缓漏）同级、
+  门内。旧报值"GREEN idle 30-72"按单位修正即 0.5-1.2 本单位。
+- 退出面旁证：soak VM 全相位存活（收尾 taskkill 为仪器自身清场）。
+
+### T-03 矩阵（三 cell + 增长 cell，全部 post-765）
+
+- **载荷形态**：API 种子会话（run=false 纯追加），m50/m150/m350 =
+  50/150/350 轮、尾部肥消息使 page 窗 266,330B（≥250KB，K10 同量级）。
+- **cell 结果（新实例轴）**：m50 3min / m150 4min / m350b 6min（干净
+  AUTO_VM_STORAGE_FILE 隔离）——全部存活、VM 日志零错误
+  （RuntimeError/panic/Field not found 计 0）。**六实例累计 ~35min 零原生
+  退出**（旧缺陷：负载下 2-4min 必退）——765 exit 面修复实证。
+- **增长 cell（9min）**：VM 盯会话 + 追加 24 条肥消息（K10 复现形态）——
+  存活、零错误、**全程斜率 1.22 MB/min / 尾窗 0.80 MB/min**（门 6MB/min）。
+- **结构性发现：静态会话持续轮询已退役**——serve 侧请求统计证实：会话
+  page 仅在选中时拉取一次（266KB×1），增长追加不触发重拉，无 SSE 挂载，
+  唯一持续流量为 canvas/status 心跳 1/s。K9 的驱动面（500ms 全载荷轮询）
+  在当前前端已不存在——K10 累积路径随之失效。
+- **异常形态记录（新 K 候选）**：脏 localStorage（工作区钉住 m50）+ 伴生
+  rust-workspace 后端 bind 17255 失败的组合态下，出现 21-35 MB/min 的
+  高分配态（m50/m150/m350 三 cell 旧跑）——干净存储隔离后消失（1.48
+  MB/min）。归因未做（auto-musk-back 伴生失败重试/心跳错工作区 churn 候
+  选），单独立项候选。
+- **残留缺口（如实）**：①"渲染出内容"的视觉确认无自动化通道（computer-
+  use 未启用），六个可观测通道（存活/错误/内存/请求形态）全绿但未见屏；
+  ②长寿轴以 9min 增长 cell 为界（原矩阵设想 ~50min 级），持续观察转
+  review 裁定。
+
+### 判定
+
+- **AC-01 pass（真值重判）**；**AC-02 的自动化轴全绿**（存活/零错/有界/
+  大载荷单次拉取）+ 视觉确认缺口移交 review；T-03 以"矩阵自动化轴通过 +
+  轮询退役结构性发现"收口。
