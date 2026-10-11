@@ -179,7 +179,11 @@ fn canvasOuterContainerW(win_w int) int {
 }
 
 /** 4096 逻辑域 delta → 像素（容器维度单源换算；分隔条 move 增量与探针
- * 注入共用——逻辑域语义 = 全容器宽映射到 4096）。 */
+ * 注入共用——逻辑域语义 = 全容器宽映射到 4096）。.to_int() 是 VM 轨唯
+ * 一可靠的 float→int 收整（engine 按 receiver tag 解码 f64→i32，Plan
+ * 402 §13.10；ext TS 生成 parseInt）——Math.floor 返回外源浮点，穿 int
+ * 边界后 str 拼接位型缺陷把它写成 0（切片④实测 width:0px）。 */
 fn canvasLogicalToPx(delta int, container int) int {
-    return Math.floor(delta * container / 4096)
+    var v int = (delta * container / 4096).to_int()
+    return v
 }

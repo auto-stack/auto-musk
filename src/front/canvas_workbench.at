@@ -282,7 +282,8 @@ widget DivH {
                 if .base < 0.0 {
                     .base = x
                 } else {
-                    store.DockDragLogical("h", Math.floor(x - .base))
+                    var d int = (x - .base).to_int()
+                    store.DockDragLogical("h", d)
                 }
             }
         }
@@ -318,7 +319,8 @@ widget DivB {
                 if .base < 0.0 {
                     .base = y
                 } else {
-                    store.DockDragLogical("b", Math.floor(y - .base))
+                    var d int = (y - .base).to_int()
+                    store.DockDragLogical("b", d)
                 }
             }
         }
@@ -358,7 +360,8 @@ widget DivOuter {
                 if .base < 0.0 {
                     .base = x
                 } else {
-                    store.OuterDragLogical(Math.floor(x - .base))
+                    var d int = (x - .base).to_int()
+                    store.OuterDragLogical(d)
                 }
             }
         }

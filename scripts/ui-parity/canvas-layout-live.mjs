@@ -179,6 +179,14 @@ async function main() {
   let frontOut = '';
   front.stdout.on('data', (b) => (frontOut += b));
   front.stderr.on('data', (b) => (frontOut += b));
+  result.frontExit ??= null;
+  front.on('exit', (code, sig) => {
+    result.frontExit = { code, sig, at: new Date().toISOString(), outBytes: frontOut.length };
+    try { fs.mkdirSync(RECEIPT_DIR, { recursive: true }); fs.writeFileSync(path.join(RECEIPT_DIR, 'W-03-4-frontend-full.log'), frontOut, 'utf8'); } catch { /* best effort */ }
+  });
+  back.on('exit', (code, sig) => {
+    result.backExit ??= { code, sig, at: new Date().toISOString() };
+  });
 
   const procs = [back, front];
   const killAll = () => { for (const p of procs) { try { spawnSync('taskkill', ['/pid', String(p.pid), '/T', '/F'], { windowsHide: true }); } catch { /* best effort */ } } };
@@ -292,6 +300,7 @@ async function main() {
         dock: pick('cv_dock'), dock_w: pick('cv_dock_w'), dock_h: pick('cv_dock_h'),
         outer_w: pick('cv_outer_w'), wb_w: pick('cv_wb_w'), wb_h: pick('cv_wb_h'),
         mode: pick('cv_layout_mode'), drag: pick('cv_drag_kind'),
+        w_decl: pick('cv_dock_w_decl'), h_decl: pick('cv_dock_h_decl'), outer_decl: pick('cv_outer_w_decl'),
       };
       (result.states ??= []).push(snap);
       return snap;
