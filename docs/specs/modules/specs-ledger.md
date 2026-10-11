@@ -33,14 +33,22 @@
 ## 写入通道：只经 store 语义（store-mediated）
 
 对 `{root}/.autoos/specs.json`（workspace 作用域）的一切写操作必须经过
-store 的 upsert/transition 语义，二选一：
+store 的 upsert/transition 语义。三条认可通道（同一 `SpecsStore`，写入即
+工作区账本；PLAN-104 定型，UAT 2026-10-11 实证此前聊天通道不可达）：
 
-1. **spec 工具**：`write_spec` / `update_spec`（及只读的 `read_specs` /
-   `list_specs` / `write_goals`）——聊天会话与 Relay 相位均已注册，
-   workspace 作用域（`spec_tools.rs ws_specs_of`）。
+1. **spec 工具（会话内，首选）**：`read_specs` / `list_specs` /
+   `write_spec` / `update_spec`——聊天会话可用性由**模式白名单与覆盖注册
+   双闸门**决定：工具名必须入模式 `tools` 白名单（superpowers.at，缺失则
+   lib.rs 的 base 注册与 PLAN-030 工作域覆盖注册一起被过滤），有
+   ToolContext 的运行场景一律以 `ws_specs_of` 工作域覆盖注册生效
+   （PLAN-030 机制 + PLAN-104 白名单补全）。
 2. **HTTP 等价端点**：`POST /api/specs/item`（upsert）与
    `/api/specs/transition`——同样走 `load → SpecItem::new → upsert_item →
    save`（`extern_impl.rs specs_upsert_of`），ledger 不可解析时同样失败。
+   载荷支持 `file`/`tags`（PLAN-104；缺省 None/空，旧客户端零破坏）。
+3. **dispatch errand**：派工子 agent 与父会话同一工作区账本（PLAN-104
+   穿线 ToolContext 后 `run_errand_agent` 覆盖注册同款五件）；适合把账本
+   步骤委派给专职子任务的编排形态。
 
 **禁止**以任何脚本、文本替换、手拼 JSON 直写该文件（含"离线读改写"变体）：
 未经 schema 校验的手工替换是外语格式与丢数据的成因（K6）。没有可达的
@@ -67,6 +75,20 @@ store-mediated 写通道时，正确动作是**记录 blocked**，不是绕过�
 `reviews`；沉淀报告 → `reports`。源哈希与 commit 写入 item 的 `tags`/`file`；
 正文只放派生摘要，不复制 Plan 章节。现有同目标 item 按 canonical target +
 section 复用，不新造重复条目。
+
+### 每 merge 最少条目合同（PLAN-104 SD-02，UAT-K13）
+
+`ledger_refreshed` 收据对应的刷新**不是可选单条**——存在对应知识类型即必记：
+
+- `designs` ≥ 1：本计划新增/修订的模块契约（有 canonical 规格文件时）；
+- `reviews` ≥ 1：本计划的独立复审结论（review 阶段产出即存在）；
+- `reports` ≥ 1：本次交付沉淀报告（merge 本身即产出）；
+- `tests`：有新增测试资产时记录。
+
+每条带 `file`（canonical 路径）与 `tags`（source/commit/plan）；版本控制
+收尾（docs/ 产物提交）未完成前 `cleaned` 收据不成立。PLAN-098 刷 2 条、
+PLAN-099 刷 4 条为既有惯例基线；PLAN-104 前的 UAT 实录单条+空 file/tags
+即为欠填反例。
 
 ## 已知限制
 

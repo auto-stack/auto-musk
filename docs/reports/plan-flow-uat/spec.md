@@ -84,6 +84,9 @@
 | K6 | **ledger schema 不兼容 bug**：Relay reviewer 的 `update_spec` 读不了聊天侧 merge 写的 v1 ledger（`missing field project`），且会用旧六区 schema **整体重写** `~<ws>/.autoos/specs.json`，抹掉既有条目 | **PLAN-094 已修复**：merge 技能钉死"只经 spec 工具写账本"（store-mediated）+ spec 工具 load 失败改为响亮错误（期望字段/六区清单/禁手改明令/恢复路径，文件字节不变，有字节不变单测）；外语格式不可能再被静默重写。094 重跑实测：document 相位经工具写出的 ledger 为原生六区格式、serde 可解析 |
 | K7 | 阶段间经"完成摘要"传染臆造内容（coder 摘要臆造"PLAN-086"，reviewer 循此查证幻影计划）——印证"阶段只共享计划文件、不传摘要"的设计必要性 | 计划文件必须真实落盘（K5 修复后 auto 路径的传染源消失——无计划 run 活不过门）。094 重跑仍观察到幻影（human-arm run 的 coder `read_plan seq 86`）——模板纪律属**指令级约束**，非机制强制；登记观察项 |
 | K8 | aaid 流式请求的 usage **in_tokens 恒 0**（input token 未回填）：PLAN-098 实况 smoke（2026-10-03，worktree@plan-098-dev 两轮 chat）三轮流式请求 `in=0` 全数复现，非流式请求 `in=123` 正常；out_tokens 正常 | 观察项，不阻塞判定：musk 侧 telemetry 如实记 0（collect-telemetry 摘要打"daemon 流式 usage 未回填"观察标注），cost/时长对比以 out_tokens+elapsed_ms 为准；根修在 daemon 侧（auto-ai 只读，不在 PLAN-098 范围） |
+| K9 | **VM 客户端活跃会话内存累积（2026-10-11 手动 UAT）**：会话传内容期间 ~1MB/s 增长（无新内容也持续），会话停止即走平；同轮 20 次 VM 静默退出集中在重流式时段（私有 MCP 口在用，端口争抢定罪不适用）。机理=每 500ms 回填拍无条件全量重建重渲染（KNOWN-DEBT UAT-K9 行） | PLAN-104 T-02 增变检门修复（worktree 0cb5656）；复验=soak active 场景斜率对比。重跑过渡对策：长会话分段观察，VM 空白/卡顿时重启实例（对话数据在 serve 侧无损） |
+| K10 | **VM 客户端大会话页静默空渲染（同轮）**：353 轮会话（page 292KB）在长寿实例渲染为空（服务端 200/数据完好/客户端零报错） | 首选对策=重启 VM 实例或改用 Vue 页观看；根修随 K9（累积族）+PLAN-104 T-03 矩阵兜底 |
+| K12/13 | **聊天会话 merge 账本步骤工具缺口 + merge 收尾欠账（同轮）**：superpowers 白名单缺 spec 工具（PLAN-030 覆盖注册连带被过滤）、errand 派工绑家目录账本、HTTP DTO 缺 file/tags；ledger 单条欠填、docs/ 未纳入版本控制（K13 详见 KNOWN-DEBT） | **PLAN-104 已修**（09d9d0e）：白名单+四件/errand 工作域覆盖/HTTP file/tags/三通道文本（merge SKILL.md + specs-ledger.md SD-02 最少条目合同）；重跑按新合同验证账本 ≥3 条含 file/tags、docs/ 受控 |
 
 ## 结果总表
 

@@ -44,6 +44,18 @@
    ```
 
    中途 run 提前收束属已知现象（K1 截断/K2 不自动续跑）：按 spec.md K2 用"继续：接着完成当前阶段…"nudge 从 stdin 重发（`node plan-driver.mjs send "$SID"` + `wait`）。
+
+   **2026-10-11 手动 UAT 补充对策（PLAN-104 起）**：
+   - **长会话分阶段新会话**——四阶段各用全新会话（K9：单会话页载荷随轮数
+     增长，292KB+ 时 VM 客户端内存累积/空渲染面在案）；每个新会话仍按步 3
+     套 approval/thinking 配置。
+   - **重跑前预注册 worktree 白名单**——work 阶段的 worktree 目录
+     （如 `D:/autostack/.wt/<组>/demo`）若不在工作区白名单，agent 的
+     list_dir/edit 会被 path_confined 拦截（本轮实测卡停一次）；启动栈后
+     先经 UI 白名单视图或工作区 extra_roots 注册。
+   - **终检追加**：ledger ≥3 条（designs/reviews/reports）且含 file/tags
+     （K12/13 新合同，spec.md K 表）；docs/ 产物已提交 main（untracked
+     docs/ = archived 不成立）。
 5. **终检清单**（全部满足才记 pass；判定细节见 spec.md T1）：
    - `GET /api/plans?include_archived=true&workspace=demo-1` → PLAN-001 `status: archived`、`archived: true`
    - spec 文件 SHA-256 与 `.autoos/specs.json` ledger 派生哈希一致

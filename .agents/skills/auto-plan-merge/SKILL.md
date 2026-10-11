@@ -105,8 +105,24 @@ commit/hash/path evidence; do not mark an operation done before verifying it:
 | `prepared` | Reviewed baseline, canonical Spec diff, projection targets, expected source versions, delivery commit |
 | `landed` | Default-branch tip equal to the delivery commit after a `--ff-only` merge (no merge commit); old→new rebase hash mapping with `git range-diff` equivalence when landing rewrote the branch |
 | `ledger_refreshed` | Target workspace/path, verified item IDs, source references, version/hash |
-| `archived` | Archive path and delivered outcome |
+| `archived` | Archive path and delivered outcome, **plus the plan/docs artifacts committed to the default branch (untracked docs/ = not archived; PLAN-104 UAT-K13)** |
 | `cleaned` | Guard result and confirmed worktree/branch removal |
+
+**Minimum ledger entries per merge (PLAN-104 SD-02, per specs-ledger.md):**
+`designs` ≥ 1 (module contracts added/revised by this Plan), `reviews` ≥ 1
+(the independent review conclusion — it always exists by merge time),
+`reports` ≥ 1 (this deposit itself); `tests` when new test assets landed.
+Every entry carries `file` (canonical path) and `tags` (source hash / commit
+/ plan id) — all three channels support these fields since PLAN-104. A
+single-entry refresh with empty `file`/`tags` is under-fill, not a receipt.
+
+**Version-control closing is part of the flow, not an afterthought:** the
+demo-workspace UAT of 2026-10-11 (K13) landed code ff-only but left
+`docs/plans/**` and `.autoos/**` untracked with no receipts commit — the
+plan file was "archived on disk" yet outside version control, and the
+linear-history final check failed. Before recording `archived`/`cleaned`:
+commit docs/ artifacts to the default branch, verify `git status` clean, and
+confirm the expected linear history segments.
 
 Before retrying, reconcile the receipt with disk, Git, and live ledger state.
 A timeout or missing receipt is not proof that a side effect did not happen.
