@@ -678,4 +678,123 @@ mod tests {
         let out = ReadSpecs::with_store(store).execute(&json!({})).await.unwrap();
         assert!(out.content.contains("D1 Widget contract"));
     }
+
+    /// PLAN-104 F-R2（scoped review 遗留）：两会话并发零串账——工作域绑定
+    /// 注册（from_ctx）下，两个 workspace 的 spec 工具并发写入各落各账本，
+    /// 读回与磁盘落盘双验零交叉（ToolContext/AppState 集成面，对应
+    /// orch_tools.rs :591 注释口径的集成测试承载）。
+    #[tokio::test]
+    async fn concurrent_two_workspace_spec_writes_stay_isolated() {
+        use auto_ai_agent::Client;
+        use auto_ai_client::{ClientError, CompletionRequest, CompletionResponse};
+        use crate::server::AppState;
+        use crate::tool_context::ToolContext;
+        use crate::workspace::WorkspaceRegistry;
+
+        struct NoopClient;
+        #[async_trait]
+        impl Client for NoopClient {
+            async fn complete(
+                &self,
+                _req: &CompletionRequest,
+            ) -> Result<CompletionResponse, ClientError> {
+                Err(ClientError::Http("noop: not exercised".into()))
+            }
+        }
+
+        let base = std::env::temp_dir().join(format!(
+            "musk_fr2_ws_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let wsa = base.join("wsa");
+        let wsb = base.join("wsb");
+        std::fs::create_dir_all(&wsa).unwrap();
+        std::fs::create_dir_all(&wsb).unwrap();
+        let registry = WorkspaceRegistry::load(base.join("workspaces.json"), wsa.clone());
+        let meta_b = registry.open(&wsb.to_string_lossy());
+        assert_eq!(meta_b.id, "wsb", "open 应按目录名注册第二个工作区");
+
+        let state = std::sync::Arc::new(AppState {
+            client: std::sync::Arc::new(NoopClient),
+            auth: std::sync::Arc::new(crate::auto_generated::auth::AuthStore::new(
+                base.join("users.json"),
+            )),
+            registry: std::sync::Arc::new(registry),
+            canvas: std::sync::Arc::new(crate::canvas::CanvasManager::new()),
+            chat_cancels: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
+            chat_runs: std::sync::Arc::new(std::sync::Mutex::new(
+                std::collections::HashMap::new(),
+            )),
+            run_idle_timeout: std::time::Duration::from_secs(300),
+        });
+
+        let ctx_for = |ws: &str| ToolContext {
+            state: state.clone(),
+            workspace_id: ws.to_string(),
+            parent_conversation_id: String::new(),
+            progress: None,
+            approval_mode: None,
+            execution_root: None,
+        };
+
+        let upsert_args = |tag: &str, i: u32| {
+            json!({
+                "action": "upsert",
+                "section_id": "designs",
+                "item": {
+                    "id": format!("item-{tag}-{i}"),
+                    "title": format!("{tag} #{i}"),
+                    "content": format!("workspace-{tag} 独有条目 {i}"),
+                    "status": "Draft",
+                    "depends_on": [],
+                    "related": [],
+                    "tags": [format!("ws-{tag}")],
+                    "created_at": 0,
+                    "modified_at": 0
+                }
+            })
+        };
+
+        // 两工作区并发写者：各 upsert 15 条，join 同拍竞争后读回。
+        let write_all = |ws: &'static str, tag: &'static str| {
+            let ctx = ctx_for(ws);
+            async move {
+                let w = UpdateSpec::from_ctx(&ctx);
+                for i in 0..15u32 {
+                    w.execute(&upsert_args(tag, i)).await.unwrap();
+                }
+            }
+        };
+        tokio::join!(write_all("wsa", "a"), write_all("wsb", "b"));
+
+        for (ws, tag, other) in [("wsa", "a", "item-b-"), ("wsb", "b", "item-a-")] {
+            // 工具面读回：designs 恰好自己前缀的 15 条，零串入对方。
+            let ctx = ctx_for(ws);
+            let out = ReadSpecs::from_ctx(&ctx)
+                .execute(&json!({ "section_id": "designs" }))
+                .await
+                .unwrap()
+                .content;
+            assert_eq!(
+                out.matches(&format!("item-{tag}-")).count(),
+                15,
+                "{ws} 应只含自己前缀的 15 条"
+            );
+            assert!(
+                !out.contains(other),
+                "{ws} 不得串入另一工作区条目（F-R2 零串账）"
+            );
+            // 磁盘面双验：落到自己 .autoos/specs.json，未碰对方文件。
+            let bytes = std::fs::read(base.join(ws).join(".autoos").join("specs.json")).unwrap();
+            let text = String::from_utf8_lossy(&bytes);
+            assert!(text.contains(&format!("item-{tag}-0\"")), "{ws} 磁盘应有自己条目");
+            assert!(!text.contains(other), "{ws} 磁盘不得有对方条目");
+        }
+    }
 }
