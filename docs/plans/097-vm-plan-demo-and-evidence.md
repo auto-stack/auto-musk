@@ -4,9 +4,9 @@ status: executing
 feature_name: VM 计划开发演示与全流程证据
 author: [agent]
 created_at: 2026-10-02T01:40:31Z
-updated_at: 2026-10-02T14:40:00Z
-plan_revision: 1
-current_step: 11
+updated_at: 2026-10-12T01:37:55Z
+plan_revision: 2
+current_step: 13
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-studio-ui.md
@@ -38,6 +38,20 @@ FocusBoard 从仅含工程约定和需求的空仓开始，由 auto-musk 的阶�
 
 本计划是演示能力与真实验收，不是预制 FocusBoard 的实现。A 控制推进与交付，
 B 只消费事实并记录现场；成功必须同时具备工程结果、四阶段交付收据和 VM 截图。
+
+### 修订 v2（2026-10-12 用户裁定：v0.5 范围收窄，canvas 完整演示延期 v0.6）
+
+T-12 的「真实模型三轮完整 delivered 演示」完成几率低（十次尝试后剩余
+失败面已收敛为模型长尾方差，单轮 delivered 经验估计 ~10-20%，三轮连过
+低概率），继续推进需大规模修改与完善。用户裁定：**canvas 完整功能推迟
+到 v0.6；v0.5 只保证 PLAN-098 形态的非 canvas 小型工程跑通**。因此
+T-12 不再作为本计划收口阻塞项——其 v0.5 证据面重定为「驱动管线全链
+真模型验证 + 五跑失败矩阵 + 解阻批次六项落地实证」（均已达成）；
+三轮 delivered 完整演示、三项进一步解阻选项（execute 相位 frontmatter
+controller 代管 / needs_replan demo 降级通道 / 分阶段交付）与窗位视觉
+终验一并记入债务台账（097-D1/D2，v0.6 继续面）。本裁定与 canvas-embed
+规约 2026-10-11 用户裁决（v0.5 仅内嵌、双向支持归 v0.6）同向。v1
+验收条目全部保留为历史，受影响 AC 的 v2 判读见 §7「v2 验收范围裁定」。
 
 ## 1. 目标
 
@@ -114,6 +128,11 @@ UI 与演示驱动不能推进内部阶段、写完成标记或制造评审结�
 “继续规划任务 B”。本轮授权为编写此执行合同，不启动实施 Agent、不开始演示，
 不替用户授权远程副作用。后续 work 使用已有范围授权及 A 的实际启动授权合同。
 用户未指定费用或时间预算；不虚构额度。演示不自行提高 A 的有界修复上限。
+
+修订 v2 授权（2026-10-12 用户会话指令）：T-12 完成几率低且需大规模修改，
+canvas 完整功能推迟 v0.6，v0.5 只保证 098 形态非 canvas 小型工程跑通；
+T-12 不等待完整跑通即可收口本计划，剩余问题记入债务台账（097-D1/D2）
+待 v0.6 继续。
 
 规划时主检出干净，auto-musk main 为
 3a9b2e5d273e55c618ac3cd38770650f792ca0a3；PLAN-096 revision 1，executing，
@@ -334,6 +353,18 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
 | AC-16 | 三轮失败/needs_replan/封顶/缺截图停止演示并非零，保留失败现场；不改 A 上限、不覆盖旧跑、不伪最终成功 | V02/V05失败注入 |
 | AC-17 | 图文报告和机器 verify 均可复用，外部证据清理后仍可读；每 AC/Spec delta 有版本绑定证据，缺件或变动不会通过 | V06/V08 与独立 review |
 
+### v2 验收范围裁定（2026-10-12 用户裁定）
+
+| AC | v2 处置 |
+|---|---|
+| AC-01～03、05、08、14、15 | 照 v1 验收不变（V02/V03/V04/V07 证据在案，非 canvas 三轮交付面） |
+| AC-04、07、09～13 | 三轮真机 delivered 交付面延期 v0.6（DEBTS 097-D1）；v0.5 证据面=五跑真机失败矩阵+驱动管线全链验证+V01/V02 离线门（attempt 矩阵与全部现场已保留） |
+| AC-06、16 | v0.5 以已采真机截图（五跑现场原图）+V02 失败注入+V06 离线 verify 为证据面；三轮全覆盖随 097-D1 延期 |
+| AC-17 | V06 离线 verify 与独立 review 照常执行；三轮绑定面随 097-D1 延期 |
+
+v1 原表全部保留为历史判读；本表只登记 v2 裁定后的收口证据面，不删除任何
+验收条目、不弱化既有已验证面。
+
 ## 8. 执行步骤
 
 执行 AC 列中的数字均指 AC-XX。步骤完成需写实跑命令/退出码/工件路径；
@@ -352,7 +383,7 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
 | [x] T-09 | T-07,T-08 | 目标 VM 行为断言/跨启保存/Canvas锚点；既有 Wiki API 同正文发布/回读；Specs/ledger/归档/ff/清理对账 | V02/V05各轮断言、Wiki hash、P003上下文来源；工程未交付不发下一需求 | 04,10,11,12,13 |
 | [x] T-10 | T-03～T-09 | 新 tests/demo/*.test.mjs；生产 helper 针对性测试；tests/ui-parity/cases.json/fixtures 与 Gallery 新组件接入；覆盖失败/乱序/归属/过期/缺件 | V02 全部针对性测试及 V03 静态对账，无镜像实现测试替代行为验证 | 01～10,13,14,16,17 |
 | [x] T-11 | T-10 | 自有 Vue staging + VM 两后端运行；scripts/ui-parity.mjs 受影响 case；受影响后端 query/parity 回归证据 | V03/V04/V07 无新增红，真机原图与事实匹配；已有 G-17 不用伪 bounds 豁免操作 | 01～05,14,15 |
-| [ ] T-12 | T-09,T-11 | 新跑真实模型完整 P001～003；正式 VM+RustHTTP；全量 screenshot/log/receipt/行为矩阵；失败保留现场，修复走 A 或本计划 scoped 代码 | V05/V06 三个 delivered +全部行为/截图/知识证据；不得直接改示例来使验收变绿 | 06～14,16,17 |
+| [x] T-12 | T-09,T-11 | 新跑真实模型完整 P001～003；正式 VM+RustHTTP；全量 screenshot/log/receipt/行为矩阵；失败保留现场，修复走 A 或本计划 scoped 代码。**v2 重定范围（2026-10-12 用户裁定）**：三轮 delivered 完整演示延期 v0.6（DEBTS 097-D1）；v0.5 证据面=驱动管线全链真模型验证（隔离启动×5 owned 关停/bootstrap 白名单/渲染门/原图采集/停止分类/交付门截停/失败留场）+五跑失败矩阵+解阻批次六项实证——均已达成（docs/reports/097-vm-demo-evidence.md、§9 记录） | V05/V06 三个 delivered +全部行为/截图/知识证据；不得直接改示例来使验收变绿（v1 原文保留；v2 判读见 §7「v2 验收范围裁定」） | 06～14,16,17 |
 | [x] T-13 | T-12 | 新 docs/reports/097-vm-demo-evidence.md、097-vm-demo-spec-delta.md；HTML/Markdown report命令；SD-01～04 可审 before/after 文本及 AC 索引 | V06 离线核 hash/覆盖/收据；外部路径长期可读，区别模型行为与脚本出版步骤；canonical 不提前改 | 07,08,13,17 |
 | [ ] T-14 | T-11～T-13 | scoped 修复后重跑受影响门；提交待审实现、固定当前产物 hash；本 Plan 进度/交接更新；owned 进程清理核验 | V02～V08；所有必需 AC 绑定待审提交、worktree 已提交干净，才 execution_done → 独立 review；不自标 reviewed/merged | 01～17 |
 
@@ -505,6 +536,11 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
    接线（StatusBackfill 每拍重算,try/catch 落账）后 probe-g15 SMOKE
    PASS——生成进度/启动预览/已可见/交互验证在原生 VM 全渲染,G-15 消除
    实证完成（30e16b0）。附页④的 landing-integrity 结论由本条更正。
+6. **T-12 三轮 delivered 完整演示延期 v0.6（修订 v2 裁定，2026-10-12
+   用户指令）。** 剩余失败面=模型长尾方差（三项进一步解阻选项超 B 会话
+   授权，待产品裁定）+窗位视觉终验待实机 run，均已入债务台账
+   097-D1/D2；本计划按收窄后的 v0.5 证据面（§7 v2 验收范围裁定）
+   收口，不再阻塞。
 
 以上均有本计划内的有界调查任务，当前无须用户重复确认既有示例方向。调查
 导致目标/验收/允许仓库范围改变时，按 auto-plan:new 修订并保留原 AC 与证据。
@@ -773,4 +809,21 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
   零残留（五跑 allGone+portsFreed）;依赖 worktree .wt/musk-097/auto-lang
   保留（cargo 相对路径依赖需要在场,merge 收尾随清理）。
 - blockers: 同 T-12（A 侧四项）
-- next: 用户裁定（同上 a/b）
+- next: 用户裁定（同上 a/b）——**已裁定（2026-10-12，修订 v2）**：canvas
+  完整功能延期 v0.6，本计划按收窄证据面收口，见 §0/§4/§7 修订记录。
+
+### 修订 v2 交接（用户裁定收窄收口范围）
+
+- stage: new | plan_id: PLAN-097 | plan_revision: 1→2 | outcome: pass
+- 授权：用户 2026-10-12 会话指令——T-12 完成几率低需大规模修改；canvas
+  完整功能推迟 v0.6；v0.5 只保证 098 形态非 canvas 小型工程跑通；T-12
+  不等完整跑通即可收口，剩余问题记入 DEBTS 待 v0.6。与 canvas-embed
+  规约 2026-10-11 用户裁决（v0.5 仅内嵌/双向归 v0.6）同向。
+- 变更面：§0 增修订块；§4 增 v2 授权；§7 增「v2 验收范围裁定」
+  （AC-04/07/09～13 三轮交付面延期 v0.6；AC-06/16/17 以既有真机证据
+  +离线门为 v0.5 证据面；其余照 v1）；§8 T-12 按 v2 重定范围勾选
+  （v1 原文保留）；债务台账新增 097-D1/D2；§10 增第 6 条闭项。
+- prior verification: T-12 的 v1 验证（三轮 delivered）标记为延期而非
+  失败；五跑尝试、失败矩阵与全部现场保留为历史证据，供 v0.6 继续。
+- next: work（T-14 终局收口：现行 tip 重跑受影响门 → execution_done →
+  review → merge）
