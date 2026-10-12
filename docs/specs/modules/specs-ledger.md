@@ -7,6 +7,10 @@
 > （见文末专节）——UAT 87af4d4b 两次帕斯卡 `Approved` 得 200「成功」而
 > 状态纹丝不动（未知串兜底 Draft × 同态恒过 × 回显请求串三连叠加）的
 > 假成功簇收口。
+> 2026-10-12 用户裁定增订：写入通道按执行 agent 分双轨——A 轨（auto-ai
+> 框架会话）维持 store-mediated 三通道不变；B 轨（ZCode/Codex 等外部
+> 成熟 agent）新增"HTTP 优先 + 受护离线投影"认可路径（见"写入通道"节；
+> auto-lang PLAN-764 blocked 误判的矫正）。
 
 ## 性质：派生视图，非权威
 
@@ -30,11 +34,17 @@
   file / milestone / module / tags / created_at / modified_at /
   completed_at）；`related` 是计算的反向链接字段，不得作为唯一出处存储。
 
-## 写入通道：只经 store 语义（store-mediated）
+## 写入通道：按执行 agent 分双轨
 
 对 `{root}/.autoos/specs.json`（workspace 作用域）的一切写操作必须经过
-store 的 upsert/transition 语义。三条认可通道（同一 `SpecsStore`，写入即
-工作区账本；PLAN-104 定型，UAT 2026-10-11 实证此前聊天通道不可达）：
+store 的 upsert/transition **语义**——但"经哪条通道"是执行 merge 的
+agent 会话的属性，不是账本的属性（2026-10-12 用户裁定增订；auto-lang
+PLAN-764 实录：ZCode 会话因技能索要其永远无法注册的 auto-ai 会话工具而
+错误 blocked）。先判轨，另一轨的通道要求既不适用、也不构成 blocked。
+
+**A 轨：auto-ai / AutoMusk 框架会话**（会话工具表携带 spec 四件）。
+三条认可通道（同一 `SpecsStore`，写入即工作区账本；PLAN-104 定型，
+UAT 2026-10-11 实证此前聊天通道不可达）：
 
 1. **spec 工具（会话内，首选）**：`read_specs` / `list_specs` /
    `write_spec` / `update_spec`——聊天会话可用性由**模式白名单与覆盖注册
@@ -50,9 +60,32 @@ store 的 upsert/transition 语义。三条认可通道（同一 `SpecsStore`，
    穿线 ToolContext 后 `run_errand_agent` 覆盖注册同款五件）；适合把账本
    步骤委派给专职子任务的编排形态。
 
-**禁止**以任何脚本、文本替换、手拼 JSON 直写该文件（含"离线读改写"变体）：
-未经 schema 校验的手工替换是外语格式与丢数据的成因（K6）。没有可达的
-store-mediated 写通道时，正确动作是**记录 blocked**，不是绕过。
+本轨**禁止**以任何脚本、文本替换、手拼 JSON 直写该文件。
+
+**B 轨：外部成熟 agent**（ZCode / Codex / Claude 式 CLI 编辑器等，无法
+在会话内注册 auto-ai spec 工具）。按阶梯选通道：
+
+1. **store 服务在跑时优先 HTTP 端点**——A 轨通道 2 是任何 agent 都能调
+   的普通 HTTP；活 store 拥有该文件，直写会与 store 内部写竞争。
+2. **无任何可达 store 写通道时，受护离线投影（guarded offline
+   projection）是认可通道**——这是正常完成，不是 blocked（auto-lang
+   PLAN-720 `beae54b07` 先例，收紧定型）：
+   - 动文件前先做**字节级备份**；任一护栏失败即从备份恢复；
+   - **程序化读改写**（脚本 JSON RMW），永不手打全文、永不删除重建；
+   - **外科作用域**：只碰受影响区/条目，其余一切（含顶层字段）与备份
+     字节相同（diff 证零扰动），文档带 `version` 时恰 +1；
+   - 写后按 store schema **校验**：六区 id 恰为 `goals` / `architecture`
+     / `designs` / `tests` / `reviews` / `reports`（无 `plans` 区）；
+     条目按 `SpecItem::new` 语义补全字段
+     （`backend/crates/musk/src/specs.rs`）并带 `file`/`tags`；
+   - **回读核验** id/内容/链接；收据如实记通道（"受护离线投影，无
+     store 写通道可达"），不冒充 store 成功。
+
+**双轨共同底线**：K6 禁令针对的是*未经校验*的手工替换（外语格式与
+丢数据的成因）——受护离线投影的全部护栏正是为满足同一条底线而设。
+账本不可解析时两轨同样停止（备份恢复，或以 `docs/specs/` 重建后重试）；
+`blocked` 仅在账本不可解析或护栏本身失败时成立，"没有 auto-ai 工具"
+本身不构成 blocked。
 
 ## 解析失败：响亮失败 + 零破坏
 

@@ -33,14 +33,21 @@ the Plan is archived, and temporary worktrees are safely cleaned.
 - These are skill instructions and Plan receipts. They do not implement a
   durable Runner, database transaction, or automatic backend retry.
 
-## Ledger refresh (store-mediated)
+## Ledger refresh (writer regimes)
 
 The spec ledger (`<workspace>/.autoos/specs.json`, workspace-scoped) is a
-derived view owned by the application's store. Three sanctioned write
-channels, all routing into the same workspace store (PLAN-104: since the
-superpowers whitelist carries `read_specs`/`list_specs`/`write_spec`/
-`update_spec`, chat-session agents use the in-session tools directly;
-dispatched errand agents get the same workspace-bound overrides):
+derived view owned by the application's store. The sanctioned write channel
+is a property of the executing session, not of the ledger — determine the
+regime first, and a channel requirement from the other regime neither
+applies nor blocks (2026-10-12 user ruling; auto-lang PLAN-764 lesson: a
+ZCode session deadlocked on `blocked` because the skill demanded auto-ai
+in-session tools such a session can never have).
+
+**Regime A — auto-ai / AutoMusk framework sessions** (the session's tool
+list carries `read_specs`/`list_specs`/`write_spec`/`update_spec`; PLAN-104
+whitelist. Dispatched errand agents get the same workspace-bound
+overrides). Three sanctioned channels, all routing into the same workspace
+store:
 
 1. **In-session spec tools** — `write_spec` / `update_spec` (chat sessions;
    workspace-bound since PLAN-030's override + PLAN-104's whitelist fix).
@@ -53,26 +60,59 @@ dispatched errand agents get the same workspace-bound overrides):
    workspace-bound spec tools (PLAN-104); usable when the ledger step is
    delegated.
 
-Never write that file directly with scripts, text replacement, or a
-hand-assembled JSON document.
+In this regime never write that file directly with scripts, text
+replacement, or a hand-assembled JSON document.
+
+**Regime B — external mature agents** (ZCode, Codex, Claude-style CLI
+editors, …) that cannot register auto-ai spec tools in-session. Work down
+the ladder:
+
+1. **HTTP first when the store service is up** — channel 2 above is plain
+   HTTP any agent can call, and a live store owns the file, so prefer it
+   over touching the file directly.
+2. **Guarded offline projection** when no store writer is reachable at
+   all. This is a sanctioned completion, not `blocked` (auto-lang PLAN-720
+   `beae54b07` precedent, tightened):
+   - Take a byte-exact backup of `specs.json` before any edit; restore
+     from it whenever a guard below fails.
+   - Edit programmatically (scripted JSON read-modify-write). Never
+     hand-type the document; never delete-and-recreate the file.
+   - Surgical scope: touch only the affected sections/items; everything
+     else — including top-level fields — must stay byte-identical to the
+     backup (a diff proves zero disturbance), and `version` increments by
+     exactly one when the document carries it.
+   - Validate against the store schema afterwards: six sections with ids
+     exactly `goals`/`architecture`/`designs`/`tests`/`reviews`/`reports`
+     (no `plans` section — retired in PLAN-024); items complete the same
+     fields `SpecItem::new` would set (see
+     `backend/crates/musk/src/specs.rs`) and carry `file`/`tags`.
+   - Read the result back and verify IDs, content, and links; name the
+     channel honestly in the receipt ("guarded offline projection, no
+     store writer reachable") — never claim store success.
+
+**Both regimes**:
 
 - **Schema is store-owned**: `SpecsDocument{project, version, sections[6]}`.
   Section ids are exactly `goals` / `architecture` / `designs` / `tests` /
   `reviews` / `reports`. There is no `plans` section (retired in PLAN-024 —
   anything written there is silently dropped on the next load). Item fields
-  are completed by `SpecItem::new` inside the tools; do not hand-assemble
-  JSON.
+  are completed by `SpecItem::new` inside the tools; Regime B mirrors the
+  same field completion per `backend/crates/musk/src/specs.rs`. Do not
+  hand-assemble JSON in either regime.
 - **Section mapping follows knowledge kind**: goals → `goals`, architecture
   decisions → `architecture`, module/design contracts → `designs`, test
   coverage → `tests`, review conclusions → `reviews`, deposit reports →
   `reports`. Record the source hash and commit in the item's `tags`/`file`;
   the body carries only the derived summary — never copy Plan chapters.
-- **Load failure means stop.** If `read_specs`/`list_specs` (or the HTTP GET)
-  reports the ledger unparseable, stop and follow the error guidance:
-  restore from a backup or rebuild from `docs/specs/`, then retry. Hand-edit
-  or delete-and-recreate the file is forbidden — that is how ledger data gets
-  destroyed (UAT 2026-09-29, K6: a reviewer's manual JSON surgery erased
-  existing entries).
+- **Load failure means stop.** If `read_specs`/`list_specs` (or the HTTP GET,
+  or a parse attempt in Regime B) reports the ledger unparseable, stop and
+  follow the error guidance: restore from a backup or rebuild from
+  `docs/specs/`, then retry. An unvalidated hand-edit or
+  delete-and-recreate is forbidden — that is how ledger data gets destroyed
+  (UAT 2026-09-29, K6: a reviewer's manual JSON surgery erased existing
+  entries). The K6 ban targets unvalidated replacement; the Regime B
+  offline projection exists only for a ledger that already parses, and its
+  guards enforce the same bottom line.
 
 ## Gate and recovery baseline
 
@@ -104,7 +144,7 @@ commit/hash/path evidence; do not mark an operation done before verifying it:
 |---|---|
 | `prepared` | Reviewed baseline, canonical Spec diff, projection targets, expected source versions, delivery commit |
 | `landed` | Default-branch tip equal to the delivery commit after a `--ff-only` merge (no merge commit); old→new rebase hash mapping with `git range-diff` equivalence when landing rewrote the branch |
-| `ledger_refreshed` | Target workspace/path, verified item IDs, source references, version/hash |
+| `ledger_refreshed` | Target workspace/path, verified item IDs, source references, version/hash, and the write channel used (spec tools / HTTP / guarded offline projection) |
 | `archived` | Archive path and delivered outcome, **plus the plan/docs artifacts committed to the default branch (untracked docs/ = not archived; PLAN-104 UAT-K13)** |
 | `cleaned` | Guard result and confirmed worktree/branch removal |
 
@@ -113,7 +153,8 @@ commit/hash/path evidence; do not mark an operation done before verifying it:
 (the independent review conclusion — it always exists by merge time),
 `reports` ≥ 1 (this deposit itself); `tests` when new test assets landed.
 Every entry carries `file` (canonical path) and `tags` (source hash / commit
-/ plan id) — all three channels support these fields since PLAN-104. A
+/ plan id) — all Regime A channels support these fields since PLAN-104, and
+a Regime B offline projection writes them identically. A
 single-entry refresh with empty `file`/`tags` is under-fill, not a receipt.
 
 **Version-control closing is part of the flow, not an afterthought:** the
@@ -167,7 +208,8 @@ Do not force-add ignored runtime data or overwrite existing workspace state.
 For tracked ledger data, prepare and commit its derived changes in the worktree.
 For runtime-only ledger data, draft the intended item contents in the worktree
 and publish them to the identified workspace after canonical Specs land —
-through store-mediated writers only (see "Ledger refresh (store-mediated)").
+through the channel your regime sanctions (see "Ledger refresh
+(writer regimes)").
 
 ## Land and refresh the derived view
 
@@ -197,15 +239,18 @@ through store-mediated writers only (see "Ledger refresh (store-mediated)").
 4. Confirm the default-branch tip equals the landed delivery commit and the
    expected canonical Spec contents are on main. Run the appropriate
    integration/smoke checks so main is known-good. Record `landed`.
-5. Publish/verify the derived ledger for the correct workspace — only through
-   store-mediated writers (spec tools, or the `/api/specs/item` /
-   `/api/specs/transition` endpoints when a service is up; see "Ledger
-   refresh (store-mediated)"). Respect any existing write-approval policy.
-   Direct file writes — including an offline read-modify-write of the runtime
-   JSON — are forbidden: an unvalidated hand replacement is how foreign
-   schemas and lost entries happen. If no store-mediated writer is reachable,
-   record `blocked`; keep the Plan active. Tracked ledger file edits always go
-   through the worktree and Git.
+5. Publish/verify the derived ledger for the correct workspace — through the
+   channel your regime sanctions (see "Ledger refresh (writer regimes)"):
+   spec tools in auto-ai sessions; the `/api/specs/item` /
+   `/api/specs/transition` endpoints when a service is up (any agent);
+   the guarded offline projection for external agents with no reachable
+   store writer. Respect any existing write-approval policy. What stays
+   forbidden in every regime is an *unvalidated* hand replacement of the
+   file — that is how foreign schemas and lost entries happen — which is
+   exactly why the offline projection carries backup, scope, schema, and
+   read-back guards. Record `blocked` only when the ledger is unparseable
+   or the guarded procedure itself fails; keep the Plan active then.
+   Tracked ledger file edits always go through the worktree and Git.
 
 Projection rules:
 
@@ -220,9 +265,9 @@ Projection rules:
   Update only affected projections; detect overlapping changes using the
   captured source and ledger versions/hashes.
 - Use one writer. A read/check/write sequence is not a lock or transaction.
-  All ledger updates flow through the store's upsert/transition operations
-  (spec tools or their HTTP endpoints) — never a hand-assembled file
-  replacement.
+  All ledger updates flow through exactly one channel per merge — the
+  store's upsert/transition operations, or one guarded offline projection
+  when no store writer exists — never a hand-assembled file replacement.
 - Maintain schema-required fields and valid statuses. Rebuild derived relations
   and version metadata through existing store logic when available. `related`
   is a computed reverse-link field, so it must not be the sole provenance store.
