@@ -1,6 +1,7 @@
 ---
 plan_id: PLAN-097
-status: reviewed
+status: archived
+completion_kind: delivered
 feature_name: VM 计划开发演示与全流程证据
 author: [agent]
 created_at: 2026-10-02T01:40:31Z
@@ -357,7 +358,7 @@ HTML/Markdown 图文入口及机器结果；不得把未经 review 的证据自�
 
 | AC | v2 处置 |
 |---|---|
-| AC-01～03、05、08、14、15 | 照 v1 验收不变（V02/V03/V04/V07 证据在案，非 canvas 三轮交付面） |
+| AC-01～03、05、08、14、15 | 照 v1 验收不变（V02/V03/V04/V07 证据在案，非 canvas 三轮交付面）。AC-15 注（复审 F-2）：VM+VMHTTP split 臂=auto-lang 上游缺口（KNOWN-DEBT 097-D3），RustHTTP 臂+Vue+VMHTTP 臂证据在案 |
 | AC-04、07、09～13 | 三轮真机 delivered 交付面延期 v0.6（DEBTS 097-D1）；v0.5 证据面=五跑真机失败矩阵+驱动管线全链验证+V01/V02 离线门（attempt 矩阵与全部现场已保留） |
 | AC-06、16 | v0.5 以已采真机截图（五跑现场原图）+V02 失败注入+V06 离线 verify 为证据面；三轮全覆盖随 097-D1 延期 |
 | AC-17 | V06 离线 verify 与独立 review 照常执行；三轮绑定面随 097-D1 延期 |
@@ -892,3 +893,41 @@ v1 原表全部保留为历史判读；本表只登记 v2 裁定后的收口证�
 - 独立性声明：复审由独立子代理会话执行（从工件重建裁决，非执行者
   总结），主会话未干预其运行
 - next: merge（落地+归档+组清理；随并落实 F-2/F-4 两项 merge 侧动作）
+  ——**已完成，见下条 merge 收据**
+
+### merge 收据（PLAN-097:r2）
+
+- stage: merge | plan_id: PLAN-097 | plan_revision: 2 | outcome: pass
+- prepared: reviewed 基线 861525f（worktree plan-097-dev，revision 2 pass，
+  spec_inputs blob e0176663/6e6ec026 冻结）；canonical 备稿=纯文档/投影
+  后代 fdb6491（SD-01~04 四目标沉淀+index.json 登记+F-4 报告刷新，
+  实现零改动）
+- landed: rebase main 对齐——31 提交重放，3 处冲突解决（chat_message.at
+  PLAN-100 双通道×T-04 卡位并存 / canvas_store.at ×2 PLAN-102 布局面×
+  T-05 进度面并存+内联 fn），range-diff 其余全等（旧 861525f→新
+  c999fa7，rerere 记录在案）；`git merge --ff-only plan-097-dev` 成功，
+  main tip=fdb6491（零 merge commit）
+- 重基态受影响验证：V03a gen-only --strict exit 0（70 组件）/V03b
+  vm-link-probe PASS（120192B WARN 趋势=既有）/V03c catalog PASS
+  （121 声明/122 用例）/V02 69/69/V07 lib 578 过 1 失败——失败=
+  chat_run_llm_send_stall CWD 敏感已知红（main 178605a 登记，worktree
+  backend 必现、main 检出稳过，归 PLAN-105 环境敏感批次）；V07 三件套
+  parity_relay/parity_relay_api E0308=PLAN-099 chat_runs HashSet→HashMap
+  构造族（KNOWN-DEBT「tests 编译旧伤族」在案，独立清偿计划承接）——
+  均非本 delta 回归；V08 release 重建 exit 0，hash 4fbd015742722cdde
+  aa1760e80c5eee7b9587d1a90a50c2451cad5755dbee4de
+- ledger_refreshed: 工作区 .autoos/specs.json（Regime B 守护式离线投影，
+  无 store writer 在线——通道如实命名）；v38→39；designs +4（demo-
+  evidence/canvas-progress-vm/plan-progress-card/ui-parity-consumable）
+  +tests +1（demo-suite）+reviews +1（PLAN-097-review）+reports +1
+  （PLAN-097-delivery），全带 file/tags（source hash+commit fdb6491+
+  plan id）；范围守卫（四节 outer 逐字节同）+schema+回读三验过
+- F-2 落实：KNOWN-DEBT 增 097-D3（VM+VMHTTP split 臂=auto-lang 上游
+  缺口）；§7 v2 AC-15 行加注。F-4 落实：证据报告/spec-delta 头绑定
+  终态+AC 索引 v2 判读（随 fdb6491 落地）
+- archived: 本文件 git mv 至 docs/plans/archived/，status=archived，
+  completion_kind=delivered
+- cleaned: **pending**（worktree/分支/组目录清理后回填）
+- 部署观察（Landing is not deployment）：main 检出 backend release
+  musk.exe 与 gen/front/vue/dist 待重建（当前无生产进程在跑，无重启
+  面）；外部重建随下次部署窗口执行并核 hash
