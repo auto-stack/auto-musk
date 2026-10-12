@@ -97,3 +97,22 @@ live 实拍复用 ui-parity live 基建（PLAN-095 未执行，见其证据报�
 - fixture 回归覆盖 `ws_tag_current` 行数据 mark 投影（命中/未命中/
   空列表/重复 id/克隆不变异）；`ws_tag_current`/`canvasPickSnapshot`
   不入声明清单（catalog 计数 114/114 维持）。
+
+## PLAN-097 增量：消费型组件事实通道与运行卫生
+
+- **fixture.mock 通道**：fixture 可携带 `mock`（路径→确定性 JSON 响应），
+  runner 的 mock server 按路径精确回放——消费型组件（store 轮询类）在
+  gallery 内可渲染生产合同事实，而非空态挂载。
+- **expect.visible 并入就绪门**：runner 等待 `expect.visible` 全部出现
+  才判 snapshot-ok（上限 28×250ms）——消费型组件的事实经 store timer
+  到达（~1-2 拍），静态 fixture 首拍即过，行为不变。
+- **新进度组件双端门**：`plan-progress-card`（owner PLAN-097，
+  production-contract）与 `canvas-progress-summary`（store-projection）
+  为显式 case；断言面覆盖相位轨/检查点✓/历史标签/展开阶段记录
+  （reviewed_commit）与工具行/展开 tool 名。
+- **--vm-http 臂**：runner 支持 VM 轨切换 VMHTTP（`--server vm`）作
+  第二后端取证面；该臂受 auto-lang split 启动缺口阻断（`--render vm
+  --server vm` 下 HTTP 起后解释器不进，KNOWN-DEBT 097-D3），修后直接
+  复验。
+- **运行卫生**：vue 模式 gallery 运行会安装 node_modules（junction）——
+  运行后必须清理 gallery `gen/` 并过 wt-guard（Plan 529 红线）。

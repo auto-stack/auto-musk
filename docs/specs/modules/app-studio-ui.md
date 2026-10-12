@@ -1,6 +1,7 @@
 # app-studio-ui — 会话内应用设计工作台
 
-> 来源：PLAN-093（2026-10-01 落地）。会话内「应用设计」工作台：结构/源码 ·
+> 来源：PLAN-093（2026-10-01 落地）+ PLAN-097（G-15 消除与 VM 渲染合同，
+> 2026-10-12 沉淀）。会话内「应用设计」工作台：结构/源码 ·
 > 实时画布 · 设计对话三段布局；与实况画布模块（app-canvas.md）共用
 > CanvasStore 单源与生命周期，本模块只约束界面布局、状态投影与交互契约。
 > 实现真源：`src/front/{chats_view,canvas_panel,canvas_structure,canvas_source,
@@ -76,12 +77,30 @@
   的陈旧事件不冒充）、交互验证（未执行显式「未验证」）、画面更新
   （seq 变化，无因果证据只写「最近画面已更新」）。状态只来自工具
   status 字段与实时状态，不嗅探文本（绿勾禁令）。
-- web 轨 computed use.web.fn 消费；VM 轨 computed 返空 → 摘要隐藏
-  （已知限制，不误报）。
+- **G-15 消除（PLAN-097 已实证）**：进度行数据由 CanvasStore 在 Poll 拍内
+  handler 域预计算（`cp_prog_rows/cp_prog_has`，try 界定），摘要组件
+  `CanvasProgressSummary` 自持 store（own-store 读），视图仅做 for-源列表 +
+  循环局部成员读 + prop 直渲——零 computed、零模板插值、零成员链判言。
+  VM 与 Vue 双轨同义可见（probe-g15 SMOKE PASS + T-11 真机 snapshot-ok）。
+
+## VM 轨渲染合同（PLAN-097 T-11 真机实证）
+
+- 文本位的 store 成员读（模板插值 `${store.x}` 与 `text store.x` 直读）
+  被 VM 渲染器丢弃——须走 handler 域预构建列表 + for 局部读。
+- computed 内 `.length` 成员链恒空——布尔化后在 handler 域落账。
+- 单 widget 多个顶层 `on` 块只有一块生效（CanvasProgressSummary 双块
+  实证：Init 被丢弃）——每 widget 一个 on 块。
+- 模块 fn 进模板须 `use.web` 形态（plain use 不暴露 Vue 符号；VM 轨
+  两者皆通）。
+- store handler 域调用模块级 fn 返回空（同文件与跨模块同症，归
+  auto-lang VM 调用语义）——运行时依赖的 fn 以同文件内联副本承载
+  （`canvasProgressRows` 内联先例，与 canvas_helpers.at 单源同步由
+  注释锚定）。
 
 ## 已知限制
 
-- G-15：进度摘要 VM 轨隐藏（见上）。G-17：studio 模式 VM 快照 rect
+- ~~G-15：进度摘要 VM 轨隐藏~~ **已消除（PLAN-097）**，见「生成/检查
+  进度摘要」。G-17：studio 模式 VM 快照 rect
   全零（布局渲染不受影响；坐标/几何面按 normal 模式验证）。
 - 键盘：Escape 收敛（源码页签→结构/错误详情收起，不触 stop）；Tab 序
   与双主题实拍列 review 复验项。

@@ -3,10 +3,15 @@
 计划 PLAN-097 的规范增量准备稿（work 产出，供独立 review 绑定版本；
 canonical Spec 的实际沉淀属 merge 阶段——本文不提前改 `docs/specs/**`）。
 
-- 基线：worktree plan-097-dev @ 待审提交（T-14 固定）
+- 基线：worktree plan-097-dev 终态 861525f（rebase 后 c999fa7，revision 2
+  复审绑定 blob e0176663；F-4 更正——本头原为 v1 待审态占位）
 - 消费合同冻结：PLAN-096 交付面（baseline §T-02，hash 绑定）
 - 真机证据：`docs/reports/097-vm-demo-evidence.md`（T-13 另文）+ run 目录
   manifest（D:/autostack/.demo/musk-097/<run_id>/evidence-manifest.json）
+- 修订 v2（2026-10-12 用户裁定）：下表 AC 索引原 v1 的「T-12 运行中」等状态
+  为 v1 历史判读；v2 收口判读=三轮 delivered 交付面延期 v0.6
+  （KNOWN-DEBT 097-D1/D2），v0.5 证据面以已交付管线+五跑矩阵为准
+  （plan §7「v2 验收范围裁定」为权威）
 
 ---
 
@@ -159,13 +164,13 @@ canonical Spec 的实际沉淀属 merge 阶段——本文不提前改 `docs/spe
 
 | AC | 主证据 | 状态 |
 |---|---|---|
-| AC-01/02 | ui-parity plan-progress-card（VM snapshot-ok）+ store 单飞/代次 V02 矩阵 + T-12 真实 run 事实 | T-11✅ + T-12 运行中 |
-| AC-03/04 | probe-g15 SMOKE + canvas-progress-summary（VM snapshot-ok）+ T-12 行为断言 | T-11✅ + T-12 运行中 |
+| AC-01/02 | ui-parity plan-progress-card（VM snapshot-ok）+ store 单飞/代次 V02 矩阵 + T-12 真实 run 事实 | T-11✅ + T-12 v2 收口（延期 097-D1） |
+| AC-03/04 | probe-g15 SMOKE + canvas-progress-summary（VM snapshot-ok）+ T-12 行为断言 | T-11✅ + T-12 v2 收口（延期 097-D1） |
 | AC-05 | PlanProgressCard 中英 i18n（27 键）+ V04 快照 | T-11✅ |
-| AC-06～08 | capture/evidence 模块 V02 8/8 + T-12 manifest | T-12 运行中 |
-| AC-09～12 | bootstrap 白名单 + waitForRound 停止条件 + deliveredGate + 三轮真实 run | T-12 运行中 |
-| AC-13 | wiki.mjs 发布/回读 hash（V02 5/5）+ T-12 各轮发布记录 | T-12 运行中 |
-| AC-14 | VmSession 端口/归属/指纹 V02 18/18 + T-12 owned 清理 | T-06✅ + T-12 |
+| AC-06～08 | capture/evidence 模块 V02 8/8 + T-12 manifest | T-12 v2 收口（延期 097-D1） |
+| AC-09～12 | bootstrap 白名单 + waitForRound 停止条件 + deliveredGate + 三轮真实 run | T-12 v2 收口（延期 097-D1） |
+| AC-13 | wiki.mjs 发布/回读 hash（V02 5/5）+ T-12 各轮发布记录 | T-12 v2 收口（延期 097-D1） |
+| AC-14 | VmSession 端口/归属/指纹 V02 18/18 + T-12 owned 清理 | T-06✅ + T-12 v2 收口（延期 097-D1） |
 | AC-15 | V03 三门 + V04 四 case VM + Vue staging 构建 + V07 全绿；VM+VMHTTP 臂=上游缺口登记 | T-11✅（一臂缺口） |
 | AC-16 | waitForRound 响亮停 + 干跑失败留证 | T-12 干跑✅ |
 | AC-17 | verifyManifest 独立核验 + 本 delta 版本绑定 | T-13/T-14 |

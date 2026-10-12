@@ -65,6 +65,7 @@
 - `src/front/nav_sidebar.at`
 - `src/front/content_header.at`
 - `src/front/chats_view.at`、`chat_message.at`、`mention_input.at`
+- `src/front/plan_progress.at`、`plan_progress_store.at`（PLAN-097）
 - `src/front/plans_view.at`、`specs_view.at`、`wiki_view.at`、`files_view.at`
 - `src/front/inject_styles.web-only.ts`
 
@@ -89,3 +90,23 @@
   空）：`app.at` 解析完成后定向 emit `WorkspaceSelector.WsResolved(id)`
   补拍重标；`Choose`/`PickFolder` 成功链内即时重标（VM 下 reload 为
   no-op，弹层保持开启）；`UpdateQuery` 过滤保留行数据已带标记。
+
+## 计划进度呈现（PLAN-097）
+
+- **PlanProgressCard（`src/front/plan_progress.at`）**挂在 chat_message
+  的 spawn_relay 卡位（RelayRunBox 上方，run_id 判定与 PLAN-100 双通道
+  同源），自持 Attach/Detach 生命周期，消费独立
+  `plan_progress_store.at`（单飞 1Hz 轮询 + 代次拒收 + 终态停拍）：
+  - 相位轨（规划→实施→复审→沉淀→已交付）+ 当前相位高亮；
+  - plan_id · r{revision} · phase · attempt · 修复 c/limit 摘要行
+    （handler 域预构建标签，VM/Vue 同义）；
+  - 交付检查点行（prepared/landed/ledger_refreshed/archived/cleaned
+    冻结序，✓/○）；
+  - blocker 横幅（blocked/needs_replan 事实可见）；
+  - 断连陈旧横幅（最后成功快照 + 明确陈旧标记）与
+    contract_version 不兼容横幅（未知版本显式呈现，不默认成功）；
+  - 可展开阶段记录（stage/attempt/outcome + reviewed_commit + receipt）；
+  - 终态显式标「已完成阶段记录」，不伪装正在运行。
+- **不另建主栏目**：不打断 composer 草稿、审批与 Canvas 状态；五栏目
+  布局保留；中英 i18n 键齐备（planProgress.*）。
+- 只有 A 控制器 delivered 事实才显示已交付；检查点缺件不绿。
