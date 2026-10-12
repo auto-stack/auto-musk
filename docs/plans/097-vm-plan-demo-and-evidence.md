@@ -1,12 +1,12 @@
 ---
 plan_id: PLAN-097
-status: executing
+status: execution_done
 feature_name: VM 计划开发演示与全流程证据
 author: [agent]
 created_at: 2026-10-02T01:40:31Z
 updated_at: 2026-10-12T01:37:55Z
 plan_revision: 2
-current_step: 13
+current_step: 14
 total_steps: 14
 supersedes_spec_components:
   - docs/specs/modules/app-studio-ui.md
@@ -385,7 +385,7 @@ v1 原表全部保留为历史判读；本表只登记 v2 裁定后的收口证�
 | [x] T-11 | T-10 | 自有 Vue staging + VM 两后端运行；scripts/ui-parity.mjs 受影响 case；受影响后端 query/parity 回归证据 | V03/V04/V07 无新增红，真机原图与事实匹配；已有 G-17 不用伪 bounds 豁免操作 | 01～05,14,15 |
 | [x] T-12 | T-09,T-11 | 新跑真实模型完整 P001～003；正式 VM+RustHTTP；全量 screenshot/log/receipt/行为矩阵；失败保留现场，修复走 A 或本计划 scoped 代码。**v2 重定范围（2026-10-12 用户裁定）**：三轮 delivered 完整演示延期 v0.6（DEBTS 097-D1）；v0.5 证据面=驱动管线全链真模型验证（隔离启动×5 owned 关停/bootstrap 白名单/渲染门/原图采集/停止分类/交付门截停/失败留场）+五跑失败矩阵+解阻批次六项实证——均已达成（docs/reports/097-vm-demo-evidence.md、§9 记录） | V05/V06 三个 delivered +全部行为/截图/知识证据；不得直接改示例来使验收变绿（v1 原文保留；v2 判读见 §7「v2 验收范围裁定」） | 06～14,16,17 |
 | [x] T-13 | T-12 | 新 docs/reports/097-vm-demo-evidence.md、097-vm-demo-spec-delta.md；HTML/Markdown report命令；SD-01～04 可审 before/after 文本及 AC 索引 | V06 离线核 hash/覆盖/收据；外部路径长期可读，区别模型行为与脚本出版步骤；canonical 不提前改 | 07,08,13,17 |
-| [ ] T-14 | T-11～T-13 | scoped 修复后重跑受影响门；提交待审实现、固定当前产物 hash；本 Plan 进度/交接更新；owned 进程清理核验 | V02～V08；所有必需 AC 绑定待审提交、worktree 已提交干净，才 execution_done → 独立 review；不自标 reviewed/merged | 01～17 |
+| [x] T-14 | T-11～T-13 | scoped 修复后重跑受影响门；提交待审实现、固定当前产物 hash；本 Plan 进度/交接更新；owned 进程清理核验。**v2 收口（2026-10-12）**：现行 tip 861525f 重跑受影响门（V02 69/69/V07 三件套+lib 545 绿/V08 release 重建 hash 18f48b9c…，详见 §9 终局记录）；V05/V06 三轮绑定面按 §7 v2 裁定随 097-D1 延期 | V02～V08；所有必需 AC 绑定待审提交、worktree 已提交干净，才 execution_done → 独立 review；不自标 reviewed/merged | 01～17 |
 
 ## 9. 复审记录
 
@@ -826,4 +826,33 @@ v1 原表全部保留为历史判读；本表只登记 v2 裁定后的收口证�
 - prior verification: T-12 的 v1 验证（三轮 delivered）标记为延期而非
   失败；五跑尝试、失败矩阵与全部现场保留为历史证据，供 v0.6 继续。
 - next: work（T-14 终局收口：现行 tip 重跑受影响门 → execution_done →
-  review → merge）
+  review → merge）——**已完成，见下条终局记录**
+
+### work 阶段记录（T-14 完成——修订 v2 收口；execution_done）
+
+- stage: work | plan_id: PLAN-097 | plan_revision: 2 | outcome: pass
+  （T-12 按 v2 重定范围收口、T-14 完成；全部任务 accounted，Plan 进
+  execution_done）
+- code_commit(worktree plan-097-dev): 终态 861525f（dfc1e63 后 9 提交 =
+  T-12 解阻批次+vm-ws-pick 后端补面+停靠映射；worktree 干净，wt-guard
+  clean）
+- task_ids: T-12（v2 收口）, T-14（完成）
+- evidence: 现行 tip 861525f 受影响门重跑——V02 69/69（node --test
+  tests/demo/*.test.mjs）；V07 parity 三件套 exit 0（parity_relay 6 +
+  parity_relay_store 7 + parity_relay_api 6，--test-threads=1）+ musk
+  lib 545 通过/0 失败/1 ignored（T-11 批 534 + vm-ws-pick 增量 11）；
+  V08 release 重建 2m39s，musk.exe SHA256=
+  18f48b9ca2348fc91007f690caac3cb5281209b5ee7c512173fc16056c68b6d3
+  （2026-10-12 09:47）；V03 前端面 dfc1e63 后零 src/front 变更，沿引
+  既有证据（gen-only strict 66 组件+vm-link-probe PASS+catalog 115/115）；
+  owned 进程零残留（tasklist 无 musk/auto demo 进程）；V05/V06 三轮
+  delivered 绑定面按 §7 v2 裁定随 097-D1 延期，不伪称通过。
+  过程事件（如实登记）：依赖 worktree .wt/musk-097/auto-lang 曾于
+  2026-10-12 会话被清理（其分支内容已全在 master，判定零丢失），本次
+  T-14 重跑实证 musk crate 以相对路径消费兄弟 auto-lang 源码（auto-atom
+  等，路径依赖不走 AGENTS 回退链），已按原状态 d5215b477 逐位恢复
+  （detached，wt-guard clean）——T-14 前记录的「依赖 worktree 需要在
+  场」约束成立，merge 收尾随清理。
+- blockers: 无（T-12 阻塞已由修订 v2 用户裁定解除——延期 v0.6 入
+  097-D1/D2）
+- next: review（独立复审，revision 2 契约；随后 merge 落地+归档+组清理）
