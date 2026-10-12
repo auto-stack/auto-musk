@@ -1,6 +1,6 @@
 ---
 plan_id: PLAN-097
-status: execution_done
+status: reviewed
 feature_name: VM 计划开发演示与全流程证据
 author: [agent]
 created_at: 2026-10-02T01:40:31Z
@@ -856,3 +856,39 @@ v1 原表全部保留为历史判读；本表只登记 v2 裁定后的收口证�
 - blockers: 无（T-12 阻塞已由修订 v2 用户裁定解除——延期 v0.6 入
   097-D1/D2）
 - next: review（独立复审，revision 2 契约；随后 merge 落地+归档+组清理）
+  ——**已完成，见下条复审记录**
+
+### review 阶段记录（修订 v2 契约独立复审——pass）
+
+- stage: review | plan_id: PLAN-097 | plan_revision: 2 | outcome: pass
+- reviewed_commit: 861525f4359c327faef8c780a74594c8f04d3c6d（plan-097-dev
+  tip，worktree 干净复核）
+- base_commit: e5fe941cf6ca0a86a075ad3d533ea3eda9794739（merge-base，
+  31 提交领先）
+- dependency_revisions: .wt/musk-097/auto-lang @ d5215b477（detached，
+  cargo 相对路径消费实证）；auto-ai/auto-down 仅运行期（AUTO_EXE/AAID）
+- spec_inputs: 097-vm-demo-spec-delta.md blob e0176663b49f983183293a72de
+  f0dedfd65c762（SD-01~04 逐条可审）；097-vm-demo-evidence.md blob
+  6e6ec0265855f361cf017bf0475b057175ce620a
+- acceptance_results: AC-01/03/05/08/14/15 pass；AC-15 一臂缺口（VM+
+  VMHTTP split=auto-lang 上游缺口，T-11/SD-03 如实披露，F-2 随 merge
+  补注）；AC-02 partial（F-3：fixture 变体待补，非阻塞）；AC-04/06/07/
+  09~13/16/17 partial[延期 097-D1]——**无任何延期面被当已完成**（T-14
+  终局记录明示不伪称通过）
+- findings: F-1(P3) 三件套计数笔误（relay 实 5、ignored 在 api 侧），
+  merge 收据按实跑数记录；F-2(P2) AC-15 split 臂未入 §7 v2 表注与
+  债务台账——merge 补 097-D3+AC-15 行加注；F-3(P3) plan-progress
+  fixture 单形态，后续/v0.6 补变体；F-4(P3) 证据报告头仍指 rebase 前
+  孤儿 634a511、spec-delta 索引多行「T-12 运行中」未随 v2 刷新——
+  merge 绑定版本时更新并记旧→新映射；F-5(P3) 519cc3a/861525f 同题
+  双提交历史噪音，无动作
+- evidence: 门重跑（独立复跑）——V02 69/69 exit 0；V07 三件套 exit 0
+  （relay 5+api 6[+1 ignored]+store 7）；lib 545/0/1 exit 0；V03
+  catalog 实跑 PASS 115/115；gen-only/vm-link-probe 沿引 dfc1e63
+  （dfc1e63..tip 的 src/front+tests/ui-parity 树级零 diff 成立）；musk.exe
+  SHA256 18f48b9c…与 §9 声称逐位一致；外部现场 .demo/musk-097/
+  t12-real-01~10 十目录在位；auto-lang 三停靠提交 97f18f78d/d99be3103/
+  91ae002d3 经 is-ancestor 验证均已合 master
+- 独立性声明：复审由独立子代理会话执行（从工件重建裁决，非执行者
+  总结），主会话未干预其运行
+- next: merge（落地+归档+组清理；随并落实 F-2/F-4 两项 merge 侧动作）
