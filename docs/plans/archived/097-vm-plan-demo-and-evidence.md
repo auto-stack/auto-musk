@@ -927,7 +927,20 @@ v1 原表全部保留为历史判读；本表只登记 v2 裁定后的收口证�
   终态+AC 索引 v2 判读（随 fdb6491 落地）
 - archived: 本文件 git mv 至 docs/plans/archived/，status=archived，
   completion_kind=delivered
-- cleaned: **pending**（worktree/分支/组目录清理后回填）
-- 部署观察（Landing is not deployment）：main 检出 backend release
-  musk.exe 与 gen/front/vue/dist 待重建（当前无生产进程在跑，无重启
-  面）；外部重建随下次部署窗口执行并核 hash
+- cleaned: **done（2026-10-12）**——musk-097 组四 worktree（auto-musk/
+  auto-lang[恢复态 d5215b477]/auto-ai/auto-down）+分支 plan-097-dev@fdb6491/
+  canvas-unblock-ref@a4286ce 全删，组目录清零；canvas-embed 组遗留三件
+  同批清（auto-musk-dev-2@91ae002d3 由 auto-lang PLAN-764 会话先行清理，
+  canvas-embed-dep-ai@a4286ce/canvas-embed-dep@895f8d0 经 0 领先验证后
+  删，组目录清零）；全部移除前 wt-guard clean
+- 部署观察闭环（Landing is not deployment）：main 检出 musk.exe 经
+  cargo Fresh+空 backend diff（78e196a..fdb6491）双重定谳=已是 fdb6491
+  当前产物（SHA256 f8555d8c9cbcd39c591201f69719fd74c9e573a535211882b8
+  867a7d52c32410；097 后端改动早已同内容在 main）；gen/front/vue/dist
+  陈旧（2026-10-03，早于 102+097 前端面）——**观察项**：下次部署窗口
+  按 baseline 冻结 staging 配方外部重建并核 hash（沿 732 先例）；当前
+  无生产进程在跑，无重启面
+- 批量回归 due check：**未到期**——.last-batch-regression.json
+  last_covered_plan_id=105（2026-10-11T16:32Z，~11h 前 <48h），此后仅
+  097 落地（97 非 5 倍数）；其 known_reds 清单与本收据重基态两红族
+  定谳互证一致
