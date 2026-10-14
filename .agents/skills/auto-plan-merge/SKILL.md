@@ -218,6 +218,27 @@ and publish them to the identified workspace after canonical Specs land —
 through the channel your regime sanctions (see "Ledger refresh
 (writer regimes)").
 
+## Auto-lang post-review regression gate
+
+For auto-lang (2026-10-14 ruling), merge owns the unified regression gate.
+After final code/acceptance/Spec review passes and the delivery baseline is frozen,
+run bare cargo t plus only the surface tiers required by AGENTS.md before landing.
+Do not run these whole tiers during work, internal review, individual needs_fix
+repairs, implementation commits or final-review resubmission. Required targeted
+acceptance verification is still work/review-owned. cargo tf remains due-triggered,
+main-checkout single-instance batch regression, never a Plan repair gate.
+
+Bind each result to the actual commit, dependencies, verification configuration
+and inputs; record pending/passed/failed gates in the Plan. A review pass with
+pending merge-owned gates cannot authorize landing or a delivered claim. On a
+failure, diagnose it without silently waiving a required gate; code fixes return
+to work and affected re-review before rerunning affected gates on the new frozen
+baseline. Reuse prior evidence only with an explicit unchanged-input/baseline
+justification. Rebase or later edits that affect the tested baseline invalidate
+that evidence; check the final delivery identity before landing.
+
+Other repositories retain their own current gate timing and test tiers.
+
 ## Land and refresh the derived view
 
 1. Require a clean committed worktree before landing. Surface unexpected dirty

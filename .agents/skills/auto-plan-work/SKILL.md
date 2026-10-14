@@ -146,9 +146,16 @@ For each task:
    be prepared in the worktree, but do not publish them or edit the live ledger
    as an independent source of requirements.
 
-Use scoped verification during implementation. Full suites belong at review
-and pre-landing gates unless new failures, changes, or repository requirements
-justify another run. Do not add tests that merely mirror wording or trivial
+Use scoped verification during implementation, including needs_fix repairs.
+For auto-lang (2026-10-14 ruling), repair all findings, run affected counterexamples
+and necessary module/type checks, then commit and hand off for final code and
+acceptance review. Neither a small repair, implementation commit, internal review,
+nor resubmission triggers whole-tier cargo t/tv/tt/tb/tu/taa. Required targeted
+acceptance checks still run during work/review. The unified daily and surface
+gates are merge-owned: run them on the frozen commit only after final review passes
+and before landing; keep them pending in work/review receipts. cargo tf remains
+main-checkout single-instance batch regression only. Other repositories follow
+their own current test timing rules. Do not add tests that merely mirror wording or trivial
 implementation details.
 
 ## Repair the invariant, not only the reported example

@@ -91,7 +91,15 @@ automatically.
 For each acceptance ID, reproduce its verification and record
 `pass / partial / fail`, command or inspection method, result, and evidence.
 
-- Run the target repository current change-scoped review gates and applicable backend/target checks. Its test-tier and serialization rules govern; do not substitute a stale global full-suite example. Documentation-only changes use applicable content/link/format checks unless repository rules require more.
+- For auto-lang (2026-10-14 ruling), finish final code, acceptance and Spec
+  review before unified regression. Work/internal review/needs_fix re-review use
+  affected finding replays and required targeted acceptance checks, not whole-tier
+  cargo t/tv/tt/tb/tu/taa. Record the applicable daily/surface tiers as pending
+  merge-owned gates in a final pass; reviewed does not mean delivered or permit
+  landing before those gates pass. cargo tf is batch-only on main. A gate failure
+  requiring code repair returns to work, followed by affected re-review and gates
+  on the new frozen baseline.
+- Run the target repository current change-scoped review gates and applicable backend/target checks, respecting the auto-lang timing above. Its test-tier and serialization rules govern; do not substitute a stale global full-suite example. Documentation-only changes use applicable content/link/format checks unless repository rules require more.
 - For a multi-repository Plan, identify and run each target repository own required gates; do not apply one repository tier by analogy to another.
 - Exercise user-visible/API behavior where required; source inspection alone
   does not demonstrate a runtime acceptance criterion.
@@ -192,7 +200,8 @@ completed tasks and all historical findings. Never leave a failed review in
 A phase-only review records its phase/commit verdict while the overall Plan
 stays `executing`; it cannot grant final `reviewed` status. Phase landing
 still requires its regression gate (the scoped daily gate above — not the
-batch `cargo tf` tier).
+batch `cargo tf` tier); for auto-lang run it after the phase acceptance review
+passes, before landing, not during each repair.
 
 Do not merge or fix implementation within review. If the whole workflow is
 already authorized, hand control to the appropriate skill and honor the repair
