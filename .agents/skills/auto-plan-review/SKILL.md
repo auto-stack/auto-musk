@@ -141,6 +141,19 @@ Map `AC IDs → task IDs → code/artifacts → evidence`. Look for missing
 sub-items, configuration/call-site gaps, unapproved scope reductions,
 deferrals, or workarounds. Findings need stable IDs, affected acceptance/tasks,
 severity, evidence, and a concrete correction or investigation.
+Use the shared reference's reproducible finding package: violated existing rule,
+bound input/setup and command/entrypoint, expected versus observed values,
+established cause versus hypothesis, affected sibling paths and legitimate
+controls, and the closing oracle with its coverage boundary. Do not supply an
+unverified implementation prescription as a confirmed root cause. A durable
+replay and concise package serve work better than a longer narrative or more
+test totals.
+
+Before treating a failed probe as a product defect, verify that its input
+reaches the claimed production path/state and that its expected result follows
+the agreed contract. Keep an incorrect or environment-bound probe's raw record,
+correct the probe, and classify it separately; do not weaken a valid assertion
+or add a new product promise to make the probe pass.
 
 Recording an unmet requirement as debt does not make it complete. Distinguish
 nonblocking improvements outside the agreed scope from failures within it.

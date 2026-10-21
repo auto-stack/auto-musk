@@ -49,6 +49,93 @@ Explicitly state exclusions and pending decisions. A later review must identify
 whether a finding violates this contract, clarifies it, or proposes new scope.
 Do not retroactively treat every new case as an original explicit requirement.
 
+## One compact execution contract, used by all three stages
+
+For a high-risk task, fill or link these fields in the existing sections 5–8.
+Keep one current row per rule/case ID; combine fields where clearer. Ordinary
+doc edits or a clear local fix use scoped checks without this template,
+a new Plan, a mandatory matrix, or a new approval gate unless repository rules
+already require them. Complexity follows the change's risk, not the template.
+
+| Field | Required content for the applicable risk |
+|---|---|
+| Rule and boundary | Existing AC/task IDs, protected behavior, supported profile, exclusions and pending decisions |
+| Actual path | Input → producer → stored/intermediate representation → consumer/output; verified paths/symbols, with new/unverified mechanisms labeled |
+| Ownership and states | Who retains/consumes each relevant object; representative success, rejection, cancellation/close and last-owner transitions when applicable |
+| Distinguishing cases | Legitimate valid control and representative invalid/failure input or plausible wrong implementation; actual entrypoint and expected values |
+| Oracle and closure | What observes the property, where it observes it, assertion/diagnostic, owner_stage, and evidence required before the row closes |
+
+The entry for the next dependency-ready task also names the current baseline,
+closed/open dependencies and unresolved decisions. Do not duplicate the whole
+Plan. A closing condition is executable or directly inspectable: state what
+must be observed and what still prevents closure. New-interface fixtures name
+their enabling task; never label planned checks as already run.
+
+Stage responsibilities:
+
+- **new** grounds these rows in Specs/code and resolves behavior decisions, or
+  schedules an owned bounded probe before dependent implementation.
+- **work**, before substantive edits, reconciles the rows with the current
+  code and makes routine choices under existing authorization. If design or
+  required semantics are unresolved, route the affected work rather than
+  guessing. Before readiness, fill closure evidence and explicit residual gaps.
+- **review** independently follows the actual path and checks the oracle,
+  then returns a reproducible finding package for each unmet existing rule.
+  A first review covers the identified risks within the declared scope;
+  unexamined required areas stay pending with reasons.
+
+The Plan must carry the consequential decisions, cases and closing conditions,
+not merely a link to a personal skill. Local skill edits alone do not update
+another model's tooling; verify the recipient's instruction source when it is
+part of the handoff.
+
+## Match the observation to the claim
+
+Use only the applicable examples; they are not new acceptance requirements:
+
+| Claim | Insufficient proxy | Distinguishing observation |
+|---|---|---|
+| Changed-function-only frontend work | Caller increments a changed counter; suite passes | Actual parse/resolve/typecheck/emission dispatch and whole-module fallback; compare unchanged and changed functions on the supported path |
+| Reused executable payload | Wrapper identity is stable | Identity/data flow of the payload actually dispatched; forced-copy control must be distinguishable if reuse is promised |
+| Resource release on close | History length is zero, store handle cleared | Remaining session owners release current/history payloads; authorized external pins may retain them until their last owner finishes/drops; test both cases |
+| Cached data safely admitted | Endpoints/shape match, or eventual execution errors | All contract-relevant identity fields at admission and consumption, applicable primary/repair/cold write-back paths, plus legitimate nonzero IDs remaining accepted |
+| Cancellation behavior | Flag set or a short program returned | Execution actually reaches the documented poll/state; assert its promised outcome without inventing immediate-cancellation semantics |
+
+Choose a small set that separates the faulty mechanism from the required
+behavior, including accepted controls. Expand when a changed path or shared
+cause warrants it; a full Cartesian product is not the default. For example,
+a cache-admission repair needs sibling identity fields and consumers checked,
+not a universal requirement that every Plan run a 24-cell matrix.
+
+Before counting a gate as evidence, establish its sensitivity to the relevant
+fault where practical: a pre-fix replay, controlled actual mutation, or another
+directly distinguishing observation. Record limitations when no safe red
+control is feasible. Do not add production instrumentation or a general checker
+without a justified implementation task. Existing focused checks can suffice.
+Structural checks can detect missing IDs, duplicate rows, zero selected tests
+or stale fingerprints; they cannot establish semantic correctness.
+
+When repair/publication promises future usability, close the loop with the
+next actual read/restore of the resulting state. A successful current fallback
+or write is insufficient; distinguish first-use correctness from durable
+healing, using the contract's expected selection/admission behavior.
+
+## Reproducible finding and repair handoff
+
+A finding package contains:
+`ID + severity + affected AC/task + violated existing rule | baseline and durable
+input/setup | entrypoint/command | expected vs observed values | established
+cause / remaining hypothesis | affected sibling paths and accepted controls |
+closing oracle + coverage boundary`.
+
+Link raw artifacts instead of embedding long logs. State whether the finding
+is an existing requirement failure, clarification/new scope, repair regression,
+probe error or environment limitation. Do not turn an independent holdout into
+a retroactive requirement. Work records one closure row referencing the prior
+replay/control, actual fix, permanent assertion, current result and residual
+gap. Review checks invariant closure and new regressions, not just the original
+sample. One plausible cause is a starting hypothesis until evidence supports it.
+
 ## Resolve support and implementation feasibility early
 
 For an input-processing Plan where depth or size can change admission, state

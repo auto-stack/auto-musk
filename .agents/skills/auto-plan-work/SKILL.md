@@ -129,6 +129,22 @@ clean. Final project cleanup belongs to [merge](../auto-plan-merge/SKILL.md).
 Choose the next dependency-ready task. Respect ordering dependencies; continue
 independent authorized work when another task is blocked.
 
+For high-risk work or needs_fix, reconcile the next task's execution entry
+before substantive edits, using the shared reference below. In the existing
+contract rows, confirm the actual producer-to-consumer path, owners/lifetime,
+representative states, distinguishing oracle and closing conditions against
+the code. Fill evidence and ordinary implementation choices; route invalid
+design or missing semantic decisions through the adaptation table. Do not
+silently invent acceptance, re-ask approval for unchanged scope, or block
+independent work. An ordinary local/doc fix needs no extra entry or matrix.
+
+For those high-risk tasks, check that the oracle distinguishes a plausible wrong
+implementation. Where practical, use the pre-fix failure or a controlled
+mutation and a legitimate accepted control; otherwise record the evidence
+and limitation. A future test name or an unconnected counter is not this
+check. This is targeted verification, not a requirement for universal TDD,
+fault injection infrastructure, or whole-tier regression.
+
 For each task:
 
 1. Implement its intended outcome. Keep work within the approved scope.
@@ -186,6 +202,12 @@ objects; verification totals come from executed cases, with skips/pending
 explicit. An adjacent type check, earlier pipeline stage, or smaller artifact
 set cannot stand in for the required oracle. Bind permanent regressions to
 actual test entrypoints and assertions, not only case names or a green banner.
+For each closure row, identify the durable prior input/control, applicable new
+or existing check and its assertion/inspection, observed result and remaining
+coverage boundary. A doc/local repair may use a content or diff inspection.
+Preserve any permanent regressions required by the agreed contract.
+For a targeted handoff within an unfinished Plan, report only that scope's readiness and leave
+the overall Plan executing.
 
 ## Adapt or route from evidence
 

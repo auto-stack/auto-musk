@@ -113,11 +113,23 @@ Choose cases that distinguish a plausible incorrect implementation; a green
 test family alone is not the oracle. Ordinary low-impact changes need only
 their scoped checks, not a mandatory matrix or a new checker.
 
-Preflight the contract before handing off: identify contradictory rules,
-unowned required paths, and cases whose expected result is still undefined.
-Resolve them or assign a bounded investigation with a decision artifact before
-dependent implementation. Proposed fixtures for a new interface are not
-already executable evidence; say which task will make them runnable.
+Before handoff, prepare the next task's execution entry in sections 5–8:
+baseline/source references, dependency-ready task IDs, relevant closed/open work,
+and decisions that block it. For high-risk work, use the reference's compact
+contract rows to connect data flow and ownership to real producers/consumers,
+representative states, observable results, and executable closing conditions.
+Reuse existing tables and IDs; do not add a competing checklist or dump the
+entire repair history into the entry. These details travel in the Plan so an
+executor using another tool/model need not have these local skills installed.
+For a simple task, its existing task row suffices; no separate brief is required.
+
+Preflight those rows for contradictions, unowned paths and undefined results.
+Mark which path facts are observed and which mechanisms remain hypotheses.
+Resolve consequential uncertainty or assign a bounded investigation with a
+decision artifact before dependent implementation; let work choose equivalent
+local mechanics. Proposed fixtures are not executed evidence: identify the
+task that makes them runnable. A required decision is distinct from renewed
+approval; inherit authorization for unchanged scope.
 
 For applicable high-risk Plans, give required supplemental cases stable IDs
 and bind each to an AC, work owner, actual entrypoint, distinguishing assertion,
