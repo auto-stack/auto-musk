@@ -148,7 +148,8 @@ fault injection infrastructure, or whole-tier regression.
 For each task:
 
 1. Implement its intended outcome. Keep work within the approved scope.
-2. Run the specified or justified equivalent verification. Record command,
+2. Run the specified or justified equivalent verification for the current
+   stage, using the test-scope rules below. Record command,
    expected result, actual result, and evidence tied to the code/dependency
    revision. In TDD, an expected failing test is evidence of the red phase;
    the final implementation still requires the passing result.
@@ -162,17 +163,44 @@ For each task:
    be prepared in the worktree, but do not publish them or edit the live ledger
    as an independent source of requirements.
 
-Use scoped verification during implementation, including needs_fix repairs.
-For auto-lang (2026-10-14 ruling), repair all findings, run affected counterexamples
-and necessary module/type checks, then commit and hand off for final code and
-acceptance review. Neither a small repair, implementation commit, internal review,
-nor resubmission triggers whole-tier cargo t/tv/tt/tb/tu/taa. Required targeted
-acceptance checks still run during work/review. The unified daily and surface
-gates are merge-owned: run them on the frozen commit only after final review passes
-and before landing; keep them pending in work/review receipts. cargo tf remains
-main-checkout single-instance batch regression only. Other repositories follow
-their own current test timing rules. Do not add tests that merely mirror wording or trivial
-implementation details.
+## Test scope during implementation and repair
+
+**A repair round verifies its findings and affected behavior; it does not restart
+the Plan's complete test campaign.** This applies to every executor/model and
+to scripts and standalone probe workspaces as well as the main test aliases.
+
+- Before running checks, select the smallest set that covers each current
+  finding: its durable counterexample, an accepted control, representative
+  sibling paths sharing the cause, and necessary module/type/build checks.
+  Keep a short `check → finding/invariant` mapping in the closure evidence.
+- Finish the related fixes, then run shared affected checks once on the final
+  repair revision. Do not run a global suite after each fix, commit, internal
+  check, or resubmission. Fast counterexample checks during debugging remain
+  appropriate; a new fix only repeats checks whose assumptions it changes.
+- Do not substitute `cargo test --workspace`, the entire probe package, all
+  test families, `verify -Scope all/acceptance/closeout`, or another aggregate
+  script for a finding-specific test/filter. An aggregate runner's name or a
+  standalone workspace does not make its full suite scoped verification.
+  Broaden to an affected module/integration path only with a concrete shared
+  dependency, changed configuration, or observed regression; record that reason.
+- Reuse identified passing evidence for unaffected behavior after checking its
+  relevant code, dependencies, configuration and inputs are unchanged. A new
+  overall HEAD alone does not invalidate unrelated evidence. Do not rerun GC,
+  scale/churn, full performance scenarios or unrelated compatibility families
+  merely because another finding remains open. An expensive oracle that the
+  repair actually affects is still required; scope is determined by impact.
+- Run unified regression only after all work-owned features and in-contract
+  findings are complete and the code is frozen. Keep that gate explicitly
+  pending in the work handoff; its owner is final review or merge according to
+  the repository workflow. Missing this future gate does not block submission
+  of otherwise complete, committed repairs for acceptance review.
+
+For auto-lang (2026-10-14 ruling), work, internal review and needs_fix re-review
+must not run whole-tier cargo t/tv/tt/tb/tu/taa. Merge owns bare cargo t and the
+required surface tiers after final code/acceptance review passes, before landing.
+cargo tf remains main-checkout single-instance batch regression only. Other
+repositories retain their own final-gate owner and timing. Do not add tests that
+merely mirror wording or trivial implementation details.
 
 ## Repair the invariant, not only the reported example
 
@@ -253,6 +281,9 @@ high-risk Plan, include a concise readiness record in the handoff:
   decisions: each must be empty before a ready-for-review pass.
 - Affected prior-case replay and sibling-state results; distinguish actual
   closure from a fixed original example with remaining work.
+- Tests run for this repair, identified unchanged evidence reused, and unified
+  regression still pending with its owner; do not demand a full-suite pass as
+  an extra repair handoff prerequisite.
 - Current code/dependency/configuration identity and, when triggered, the
   two-failure diagnosis plus verified adjustment.
 

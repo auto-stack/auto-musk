@@ -88,27 +88,59 @@ automatically.
 
 ## Verify coverage and behavior
 
-For each acceptance ID, reproduce its verification and record
-`pass / partial / fail`, command or inspection method, result, and evidence.
+Maintain an acceptance-ID evidence map with `pass / partial / fail`, command or
+inspection method, result, and the revision/input covered. The initial review
+checks all work-owned criteria; a repair re-review updates affected entries and
+retains applicable evidence for the rest. It does not re-execute every AC merely
+because this submission is called a final review.
 
-- For auto-lang (2026-10-14 ruling), finish final code, acceptance and Spec
-  review before unified regression. Work/internal review/needs_fix re-review use
-  affected finding replays and required targeted acceptance checks, not whole-tier
-  cargo t/tv/tt/tb/tu/taa. Record the applicable daily/surface tiers as pending
-  merge-owned gates in a final pass; reviewed does not mean delivered or permit
-  landing before those gates pass. cargo tf is batch-only on main. A gate failure
-  requiring code repair returns to work, followed by affected re-review and gates
-  on the new frozen baseline.
-- Run the target repository current change-scoped review gates and applicable backend/target checks, respecting the auto-lang timing above. Its test-tier and serialization rules govern; do not substitute a stale global full-suite example. Documentation-only changes use applicable content/link/format checks unless repository rules require more.
-- For a multi-repository Plan, identify and run each target repository own required gates; do not apply one repository tier by analogy to another.
+### Repair re-review test scope
+
+- Start from the prior verdict, current repair diff and closure rows. Reproduce
+  the affected findings and accepted controls; independently inspect their
+  shared invariant and choose representative sibling/failure cases where the
+  changed mechanism warrants them. Record the `check → finding/invariant` scope.
+- Do not require the executor to run global tests to become reviewable, and do
+  not run them again yourself after each repair. This includes full standalone
+  probe/workspace suites, every test family, and aggregate all/acceptance/closeout
+  scripts. A module or integration expansion needs a concrete impact reason;
+  a new HEAD, a high-risk label, or a request to re-review is insufficient.
+- Reuse identified evidence when the relevant implementation, dependencies,
+  verification configuration and inputs are unchanged. Re-run only checks
+  invalidated by the repair or new evidence. Do not replay unrelated GC/scale,
+  full performance matrices or already-closed compatibility families by default.
+- If an in-contract blocker remains, finish the necessary targeted diagnosis
+  and return its reproducible finding package. Do not spend a global regression
+  run on code already known to need repair. Keep untouched AC evidence and the
+  future unified gate separate from the affected failure.
+
+### Final unified regression
+
+Only after all work-owned features/findings are complete and the code is frozen
+does the repository's designated final-review or merge owner run the unified
+regression gate. Reuse a valid run on that same baseline; the next role does not
+repeat it just because ownership changes. If it fails, diagnose the failure,
+repair with targeted checks, re-review affected criteria, then rerun the gates
+invalidated by that change on the new frozen baseline.
+
+For auto-lang (2026-10-14 ruling), complete final code, acceptance and Spec review
+first. Work/internal review/needs_fix re-review do not run whole-tier cargo
+t/tv/tt/tb/tu/taa. A final pass records bare cargo t and applicable surface tiers
+as pending merge-owned gates; reviewed does not permit landing before they pass.
+cargo tf remains batch-only on main. Other repositories retain their current
+gate owner, timing, test tiers and serialization rules. Documentation-only changes
+use applicable content/link/format checks unless repository rules require more.
+
+### Behavioral evidence
+
+- For a multi-repository Plan, identify each repository's own checks and gate
+  owner. Run its affected repair checks now and leave its unified gate to the
+  assigned final stage; do not apply one repository's tier by analogy to another.
 - Exercise user-visible/API behavior where required; source inspection alone
   does not demonstrate a runtime acceptance criterion.
 - Verify test assertions and negative cases, not just exit codes. Separate
   baseline/environment failures from regressions, but never turn an unverified
   required criterion into a pass.
-- Reproduce verification for this review baseline. If a repeated review has
-  unchanged code, dependencies, and test configuration, reuse identified
-  evidence only with an explicit reason; rerun checks whose assumptions changed.
 
 For the Plan's high-risk invariants, inspect the complete declared path/state
 matrix and independently choose representative counterexamples, not only the
@@ -141,6 +173,8 @@ Map `AC IDs → task IDs → code/artifacts → evidence`. Look for missing
 sub-items, configuration/call-site gaps, unapproved scope reductions,
 deferrals, or workarounds. Findings need stable IDs, affected acceptance/tasks,
 severity, evidence, and a concrete correction or investigation.
+Give each repair finding its minimal replay/affected-check scope; leave the
+Plan-wide regression pending instead of attaching it to every finding.
 Use the shared reference's reproducible finding package: violated existing rule,
 bound input/setup and command/entrypoint, expected versus observed values,
 established cause versus hypothesis, affected sibling paths and legitimate
