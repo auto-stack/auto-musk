@@ -348,6 +348,13 @@ Only after landing and ledger verification succeed:
      measurement and replay anchors) and all logs, receipts, frozen sources,
      and probes.
    Record what was removed (paths/kind) with the `cleaned` evidence.
+   Apply the same intermediates reclaim (target trees, `.pdb`; keep `.exe`
+   and evidence sources/logs) to any scratch-*/evidence checkouts left
+   inside the Plan's worktree-group directory (`D:/autostack/.wt/<group>/`)
+   before deciding group-dir removal — registered worktrees and foreign
+   trees there are removed through their own repos/owners, never deleted
+   directly (PLAN-841 lesson, 2026-10-27: two scratch-792 checkouts kept
+   31 GB of target trees alive after a delivered merge).
 4. Verify removal, complete its owned tasks, recompute final counts, and record
    `cleaned` in the archived Plan. Verify the final task/count/reference state
    before committing that receipt update or reporting merge pass. If cleanup
