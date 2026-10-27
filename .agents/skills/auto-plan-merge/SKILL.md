@@ -15,6 +15,24 @@ Input: a reviewed Plan reference, or a retry of its recorded consolidation.
 Outcome: canonical Specs and their ledger view reflect verified delivered work,
 the Plan is archived, and temporary worktrees are safely cleaned.
 
+## Evidence storage policy (2026-10-28 user ruling)
+
+- Evidence files — probe sources/outputs, logs, screenshots, gate/ledger
+  dumps, delivery copies under `docs/plans/attachments/**` — are LOCAL-ONLY
+  working artifacts. **Never `git add`, commit, or push them**: everything
+  under `docs/plans/attachments/` except `*.md` is gitignored and the
+  pre-commit hook rejects staged evidence paths. Bulk evidence grew unpushed
+  history by ~1GB across a few dozen plans and loses value once the code
+  moves.
+- Land evidence as concise SUMMARIES inside the (archived) Plan file:
+  verdicts, commands, exit codes, key numbers, and the local attachment
+  path plus content hash for traceability. Deliberate `*.md`
+  summaries/contracts under `attachments/` may still be committed.
+- Override for a genuinely load-bearing non-md artifact:
+  `AUTO_LANG_ALLOW_EVIDENCE=1 git commit` with the reason recorded in the
+  Plan. Already-pushed legacy evidence is intentionally left as-is; unpushed
+  legacy evidence is scheduled for history filtering before the next push.
+
 ## Authority and compatibility
 
 - **`docs/specs/` is the authoritative source of current project knowledge.**

@@ -14,6 +14,22 @@ Announce: "I'm using /auto-plan:review to verify plan NNN."
 Input: a Plan reference, optionally a named phase for an approved incremental
 landing. Output: reproducible evidence and an unambiguous next action.
 
+## Evidence storage policy (2026-10-28 user ruling)
+
+- Evidence files — probe sources/outputs, logs, screenshots, gate/ledger
+  dumps, delivery copies under `docs/plans/attachments/**` — are LOCAL-ONLY
+  working artifacts. **Never `git add`, commit, or push them**: everything
+  under `docs/plans/attachments/` except `*.md` is gitignored and the
+  pre-commit hook rejects staged evidence paths. They matter during review
+  and repair only; keep them on disk for that window.
+- Record evidence as concise SUMMARIES inside the Plan file: verdict,
+  command, exit code, key numbers, and the local attachment path plus
+  content hash for traceability. Deliberate `*.md` summaries/contracts
+  under `attachments/` may still be committed.
+- Override for a genuinely load-bearing non-md artifact:
+  `AUTO_LANG_ALLOW_EVIDENCE=1 git commit` with the reason recorded in the
+  Plan. Already-pushed legacy evidence is intentionally left as-is.
+
 ## Entry, authority, and independence
 
 - Read the Plan from the main checkout. Read the implementation and diff in

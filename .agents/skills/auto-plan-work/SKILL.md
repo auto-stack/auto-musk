@@ -15,6 +15,22 @@ Input: a Plan reference, optionally with review findings. Resolve it from the
 request or active task context; if multiple candidates remain, ask which Plan
 instead of selecting the newest unrelated draft.
 
+## Evidence storage policy (2026-10-28 user ruling)
+
+- Evidence files — probe sources/outputs, logs, screenshots, gate/ledger
+  dumps, delivery copies under `docs/plans/attachments/**` — are LOCAL-ONLY
+  working artifacts. **Never `git add`, commit, or push them**: everything
+  under `docs/plans/attachments/` except `*.md` is gitignored and the
+  pre-commit hook rejects staged evidence paths. They matter during review
+  and repair only; keep them on disk for that window.
+- Record evidence as concise SUMMARIES inside the Plan file: command, exit
+  code, key numbers, and the local attachment path plus content hash for
+  traceability. Deliberate `*.md` summaries/contracts under `attachments/`
+  may still be committed.
+- Override for a genuinely load-bearing non-md artifact:
+  `AUTO_LANG_ALLOW_EVIDENCE=1 git commit` with the reason recorded in the
+  Plan. Already-pushed legacy evidence is intentionally left as-is.
+
 ## Entry and context
 
 - Read the Plan on the main checkout, repository instructions, task evidence,
