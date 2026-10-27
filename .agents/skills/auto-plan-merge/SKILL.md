@@ -149,7 +149,7 @@ commit/hash/path evidence; do not mark an operation done before verifying it:
 | `landed` | Default-branch tip equal to the delivery commit after a `--ff-only` merge (no merge commit); old→new rebase hash mapping with `git range-diff` equivalence when landing rewrote the branch |
 | `ledger_refreshed` | Target workspace/path, verified item IDs, source references, version/hash, and the write channel used (spec tools / HTTP / guarded offline projection) |
 | `archived` | Archive path and delivered outcome, **plus the plan/docs artifacts committed to the default branch (untracked docs/ = not archived; PLAN-104 UAT-K13)** |
-| `cleaned` | Guard result and confirmed worktree/branch removal, plus the cargo `target` caches reclaimed under `D:/autostack/plan-artifacts/plan-<NNN>/` |
+| `cleaned` | Guard result and confirmed worktree/branch removal, plus build intermediates (cargo `target` trees, `.pdb`) reclaimed under `D:/autostack/plan-artifacts/plan-<NNN>/` while keeping `.exe` outputs |
 
 **Minimum ledger entries per merge (PLAN-104 SD-02, per specs-ledger.md):**
 `designs` ≥ 1 (module contracts added/revised by this Plan), `reviews` ≥ 1
@@ -329,18 +329,25 @@ Only after landing and ledger verification succeed:
    group and require a fresh `wt-guard.sh` clean result. Remove the worktree
    and its merged branch; remove only the empty group directory. Never create
    junctions/symlinks or bypass the guard.
-   After worktree removal, also reclaim the Plan's local build caches: in the
-   Plan's artifact directory under `D:/autostack/plan-artifacts/` (typically
-   `plan-<NNN>/`; if no such directory exists there is nothing to reclaim),
-   search recursively for cargo `target` directories and delete only those
-   trees. Their locations are not fixed — consumer/merge/repair checkouts and
-   worktree-group layouts nest them at varying depths, and one Plan can hold
-   several (2026-10 measured 15 GB in a single `plan-856/target`) — so locate
-   them by search (e.g.
-   `find <dir> -type d -name target -not -path '*/target/*'`), confirm each
-   hit is a cargo build cache (a `CACHEDIR.TAG` file inside) before deleting,
-   and keep every other artifact (logs, receipts, frozen sources, probes)
-   intact. Record the removed target paths with the `cleaned` evidence.
+   After worktree removal, also reclaim the Plan's build intermediates: in
+   the Plan's artifact directory under `D:/autostack/plan-artifacts/`
+   (typically `plan-<NNN>/`; if no such directory exists there is nothing to
+   reclaim), delete compilation intermediates — cargo `target` trees and
+   `.pdb` debug-symbol files — while keeping final linked outputs and every
+   other artifact intact. Rule (2026-10-27 user ruling: keep built `.exe`,
+   drop intermediates; the exe↔pdb GUID pairing breakage is accepted):
+   - `target` trees: their locations are not fixed (consumer/merge/repair
+     checkouts and worktree-group layouts nest them at varying depths, and
+     one Plan can hold several — 2026-10 measured 15 GB in a single
+     `plan-856/target`), so locate them by search (e.g.
+     `find <dir> -type d -iname target -not -path '*/target/*'`) and confirm
+     each hit is a cargo build cache (a `CACHEDIR.TAG` file inside) before
+     deleting.
+   - `.pdb` files: delete wherever they appear under the Plan's directory.
+   - Keep `.exe` binaries (runner/evidence executables are the hash-anchored
+     measurement and replay anchors) and all logs, receipts, frozen sources,
+     and probes.
+   Record what was removed (paths/kind) with the `cleaned` evidence.
 4. Verify removal, complete its owned tasks, recompute final counts, and record
    `cleaned` in the archived Plan. Verify the final task/count/reference state
    before committing that receipt update or reporting merge pass. If cleanup
