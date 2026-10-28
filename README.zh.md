@@ -52,11 +52,12 @@ auto-lang      → Auto 源码编译、代码生成与 VM 运行时
 
 ```text
 auto-musk/
-├── .agents/skills/               仓库开发使用的四个技能
+├── .agents/skills/               仓库开发使用的技能
 │   ├── auto-plan-new/
 │   ├── auto-plan-work/
 │   ├── auto-plan-review/
-│   └── auto-plan-merge/
+│   ├── auto-plan-merge/
+│   └── auto-plan-goal/
 ├── skills/                      应用 Agent 技能库
 ├── src/front/                   Auto UI 源码与平台适配
 ├── src/back/api.at              前端 API 契约
@@ -169,9 +170,9 @@ VM 路线仍在持续开发中。前端源码约定见 [Auto UI 开发说明](sr
 
 ## 开发流程使用方式
 
-### 四个仓库技能
+### 仓库技能
 
-[.agents/skills](.agents/skills) 中的四个技能用于能够加载仓库技能的 Coding Agent 宿主。以下示例是**对话指令**，不是 `musk` 的 shell 子命令；具体斜杠命令的呈现方式取决于宿主。
+[.agents/skills](.agents/skills) 中的技能用于能够加载仓库技能的 Coding Agent 宿主。以下示例是**对话指令**，不是 `musk` 的 shell 子命令；具体斜杠命令的呈现方式取决于宿主。
 
 | 阶段 | 对话示例 | 产出 |
 |---|---|---|
@@ -179,6 +180,17 @@ VM 路线仍在持续开发中。前端源码约定见 [Auto UI 开发说明](sr
 | [work](.agents/skills/auto-plan-work/SKILL.md) | `/auto-plan:work 42` 或“执行 Plan 42” | 实现与逐项验证证据；完成后进入 `execution_done` |
 | [review](.agents/skills/auto-plan-review/SKILL.md) | `/auto-plan:review 42` 或“复审 Plan 42” | 重新验证的验收结果、问题清单与规范影响元数据 |
 | [merge](.agents/skills/auto-plan-merge/SKILL.md) | `/auto-plan:merge 42` 或“沉淀 Plan 42” | 合入通过复审的代码、沉淀知识、归档计划并清理 worktree |
+| [goal](.agents/skills/auto-plan-goal/SKILL.md) | `/goal 用 /auto-plan-goal 完成计划 42` | 自动跑完整链，直至交付或明确的阻塞点 |
+
+### 用 goal 技能一次交付
+
+别的会话（或 `/auto-plan:new`）已经写好 Plan 时，正常需要手动下五道指令：work、review、修复、再 review、merge。`auto-plan-goal` 把它收敛为一个 goal 目标：
+
+```text
+/goal 用 /auto-plan-goal 完成计划 42
+```
+
+该技能是编排器而非第五个阶段：每到阶段边界就用 `skill` 工具加载对应阶段技能全文并完整执行。它按 Plan 状态与 §9 收据推导下一阶段（因此会话中断或恢复后能接着跑），继承 Plan 上已记录的一次性授权，把 work↔review 修复轮限制为三轮，每轮写一条 `stage: goal` 收据，只在计划已归档并清理完成时结束——或需要改变目标、验收标准、范围的决策时停下。宿主没有 goal 续跑能力时，它在单轮内顺序跑同一套循环。
 
 典型操作步骤：
 
@@ -200,7 +212,7 @@ drafting → executing → execution_done → reviewed → archived
 
 Plan 正文包括目标、架构、背景分析、详细设计、测试设计、验收标准、执行任务、复审记录与待澄清事项。Frontmatter 保存 ID、状态、语义版本 `plan_revision`、进度，以及 `supersedes_spec_components`、`new_spec_components`、`touched_goals` 等规范影响字段。稳定的任务与验收 ID 将实施和证据关联起来；计划中的拟议规范增量由 review 对照代码与权威文档核准。
 
-仓库技能允许按需查阅相关代码和规范，并在既有授权范围内做有边界的调整。各阶段按情况使用 `pass`、`needs_fix`、`needs_replan`、`blocked` 交接结果，与 Plan 状态分开。复审失败统一返回 `executing`，通过则记录对应的计划版本和代码提交。已获完整流程授权时，可以继续下一个技能，并限制自动修复次数；这些记录尚不提供后端重启恢复能力。
+仓库技能允许按需查阅相关代码和规范，并在既有授权范围内做有边界的调整。各阶段按情况使用 `pass`、`needs_fix`、`needs_replan`、`blocked` 交接结果，与 Plan 状态分开。复审失败统一返回 `executing`，通过则记录对应的计划版本和代码提交。已获完整流程授权时，可以继续下一个技能，并限制自动修复次数；[auto-plan-goal](.agents/skills/auto-plan-goal/SKILL.md) 把这份授权与阶段状态机显式化。这些记录尚不提供后端重启恢复能力。
 
 ### 应用内置 Relay 流程
 

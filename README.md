@@ -52,11 +52,12 @@ The default HTTP backend is Rust/axum, combining handwritten infrastructure with
 
 ```text
 auto-musk/
-├── .agents/skills/               Four repository development skills
+├── .agents/skills/               Repository development skills
 │   ├── auto-plan-new/
 │   ├── auto-plan-work/
 │   ├── auto-plan-review/
-│   └── auto-plan-merge/
+│   ├── auto-plan-merge/
+│   └── auto-plan-goal/
 ├── skills/                      Application agent skills
 ├── src/front/                   Auto UI sources and platform adapters
 ├── src/back/api.at              Frontend API contract
@@ -169,7 +170,7 @@ VM paths are under active development. For frontend source conventions, see [the
 
 ## Using the development workflow
 
-### Four repository skills
+### Repository skills
 
 The skills in [.agents/skills](.agents/skills) are intended for a coding-agent host that loads repository skills. The examples below are **conversation instructions**, not `musk` shell subcommands; exact slash-command presentation depends on the host.
 
@@ -179,6 +180,17 @@ The skills in [.agents/skills](.agents/skills) are intended for a coding-agent h
 | [work](.agents/skills/auto-plan-work/SKILL.md) | `/auto-plan:work 42` | Implementation and per-task evidence; `execution_done` when complete |
 | [review](.agents/skills/auto-plan-review/SKILL.md) | `/auto-plan:review 42` | Reproduced acceptance checks, findings, and Spec-impact metadata |
 | [merge](.agents/skills/auto-plan-merge/SKILL.md) | `/auto-plan:merge 42` | Reviewed code landed, knowledge deposited, Plan archived, and worktree cleaned up |
+| [goal](.agents/skills/auto-plan-goal/SKILL.md) | `/goal 用 /auto-plan-goal 完成计划 42` | The whole chain below, driven to delivery or a concrete blocker |
+
+### One-command delivery with the goal skill
+
+A Plan drafted by another session normally needs five manual instructions: work, review, repair, re-review, merge. `auto-plan-goal` turns that into one goal objective:
+
+```text
+/goal 用 /auto-plan-goal 完成计划 42
+```
+
+The skill is an orchestrator, not a fifth stage: at every boundary it loads the corresponding stage skill and follows it in full. It derives the next stage from the Plan's status and receipts (so an interrupted or resumed session continues where it stopped), inherits the single authorization already recorded for the Plan, caps work↔review repair cycles at three, writes one `stage: goal` receipt per round, and stops only when the Plan is archived and cleaned up — or when it needs a decision that changes the goal, acceptance criteria, or scope. Without a goal-capable host it runs the same loop sequentially.
 
 Typical use:
 
@@ -200,7 +212,7 @@ Review failure returns the work for correction. Archiving can also mean shelving
 
 A Plan contains goals, architecture, background analysis, detailed design, test design, acceptance criteria, execution tasks, review records, and open questions. Frontmatter carries its ID, status, semantic `plan_revision`, progress, and Spec-impact fields: `supersedes_spec_components`, `new_spec_components`, and `touched_goals`. Stable task and acceptance IDs connect work to evidence. The Plan includes a proposed Spec delta that review validates against code and canonical documents.
 
-The repository skills allow relevant code/Spec lookup and bounded adjustments within existing authorization. Handoffs use `pass`, `needs_fix`, `needs_replan`, or `blocked` as appropriate to the stage, separate from Plan status. Failed review returns to `executing`; successful review records its Plan revision and code commit. An already authorized end-to-end workflow can continue through the next skill, with bounded repair attempts. These records do not provide backend restart recovery.
+The repository skills allow relevant code/Spec lookup and bounded adjustments within existing authorization. Handoffs use `pass`, `needs_fix`, `needs_replan`, or `blocked` as appropriate to the stage, separate from Plan status. Failed review returns to `executing`; successful review records its Plan revision and code commit. An already authorized end-to-end workflow can continue through the next skill with bounded repair attempts — [auto-plan-goal](.agents/skills/auto-plan-goal/SKILL.md) is that authorization and stage machine made explicit. These records do not provide backend restart recovery.
 
 ### Built-in Relay flow
 

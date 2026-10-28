@@ -62,3 +62,9 @@ git branch -d <name>              # 删掉对应的开发分支
 进 worktree。四阶段职责拆分见 `/auto-plan:{new,work,review,merge}` 技能说明：
 work 建 `plan-<NNN>-dev` 并在其中干活 → review 在其中复验 → merge 先把分支
 合回 main 并删掉 worktree + 分支，再做沉淀与归档。
+
+整链委托给一个 agent 时用 `/auto-plan-goal`（goal 会话，例如
+`/goal 用 /auto-plan-goal 完成计划 NNN`）：它按计划状态与 §9 收据逐段加载
+work/review/merge 技能并自动续跑，修复轮上限与停下条件见该技能。它与 relay
+`plan` 流是互斥入口——同一计划不得两处同时驱动；计划文件仍只在主检出上由
+单一写者更新。

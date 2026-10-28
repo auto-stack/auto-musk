@@ -1,0 +1,4 @@
+{
+  "displayName": "计划全流程交付",
+  "brief": "在 goal 会话中串联 work→review→修复→merge，直至交付或阻塞"
+}

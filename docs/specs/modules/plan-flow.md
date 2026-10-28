@@ -120,6 +120,17 @@ serve）。产品 agent 侧无需额外拾取机制：`build_agent_from_mode` **
 run 重建 agent 即重扫**技能目录（`MUSK_CONFIG_DIR` 覆盖时经
 `autoos_skills_dir` 与分发目标单源），serve 同步的新技能下一次运行即可见。
 
+**会话侧整链编排（auto-plan-goal）**：四相位技能各自以 handoff 收尾，默认由
+用户逐段点名下一步；`auto-plan-goal` 把「work → review → 有限修复 → merge」
+的状态机、授权继承、修复轮上限与停下条件集中到一处，使一个 `/goal 用
+/auto-plan-goal 完成计划 NNN` 目标即可跑完整链。约束：每阶段仍以 skill 工具
+加载对应相位技能全文执行——编排技能不复制、不弱化相位纪律，只决定何时与
+是否；它与 relay `plan` 流（`PlanControl` 单写者路由）是**互斥入口**，同一
+计划不得同时由 relay run 与会话编排驱动（双写计划文件）。它不参与相位快照
+注入与 serve 分发（`plan_contract::PLAN_SKILLS` 与 `BUILTIN_SKILLS` 仍为四件）
+——产品内会话已有 relay 自动路由，goal 编排面向直接加载 `.agents/skills` 的
+宿主会话（如 DSH）。
+
 **技能驱动的轮次续跑契约**：agent 经 skill 工具加载技能内容后，轮次必须
 续跑至产出或显式报错——静默中断（无后续块、无 write、无错误）即缺陷。
 技能流程中的**等待用户输入属正常暂停**（如 auto-plan:new 无设计文档时
