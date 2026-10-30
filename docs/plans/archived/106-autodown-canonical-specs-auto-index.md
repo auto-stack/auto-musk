@@ -1,12 +1,13 @@
 ---
 plan_id: PLAN-106
-status: reviewed
+status: archived
+completion_kind: delivered
 feature_name: AutoDown 权威 Spec 文档维护、应用自动索引与旧账本迁移
 author: [agent]
 created_at: 2026-10-30T00:00:00+08:00
 updated_at: 2026-10-30T00:00:00+08:00
 plan_revision: 5
-current_step: 9
+current_step: 10
 total_steps: 11
 supersedes_spec_components:
   - docs/specs/00-overview.md
@@ -198,7 +199,7 @@ touched_goals:
 - [x] T-07（owner_stage: work）技能、提示、规范及分发生效核对。
 - [x] T-08（owner_stage: work）风险验证及实施证据齐备。
 - [x] T-09（owner_stage: review）独立最终复审。
-- [ ] T-10（owner_stage: merge）线性合回与归档。
+- [x] T-10（owner_stage: merge）线性合回与归档。
 - [ ] T-11（owner_stage: merge）清理与生产产物观察。
 
 上表为每个 Task 的唯一设计合同；checklist 仅记录执行状态，不建立另一份任务定义。代码/技能/迁移文档在 worktree，只有 Plan 本身共享记账在主检出；不因本计划修改 merge 技能而绕过尚未完成的 review。
@@ -332,6 +333,15 @@ touched_goals:
 - stage: merge | outcome: in_progress | checkpoint: prepared | policy: document-source-v1。承接用户整链授权和当前 r5 最终 pass；reviewed/delivery candidate 75be939d6a682c569561f5b22cb867776765e2b5，Spec delta/49 canonical+历史源 blob 指纹见 final review，源码/依赖未变。
 - 主检出只有本共享 Plan 未跟踪，按 AGENTS/merge 技能的共享 Plan 例外先提交本计划收据，再在专用 worktree rebase main，并用 range-diff 核验三项开发补丁逐条等价；不把此 bookkeeping 当产品变更。
 - AC-09/T-10/T-11 尚待实际落地/归档/清理，不预勾选。缓存/应用/旧 JSON 无发布动作或门禁。
+
+
+### PLAN-106:r5 — landed / canonical_verified / archived
+
+- stage: merge | policy: document-source-v1 | delivery_commit: ac1c0ca93738922235fc09292d940b0639f9d693。主检出先提交共享 Plan 收据 f894ddf880e5c57c92f99dbf3c73ed415245b451；guard clean → rebase main → guard clean；三项 range-diff 全部等号，未改补丁/依赖，最终复审继续有效。
+- rebase mapping：迁移 2bed232→540be2a；实现 b03a703→9515892；复审修复 75be939d6a682c569561f5b22cb867776765e2b5→ac1c0ca93738922235fc09292d940b0639f9d693。main --ff-only 成功且当时 tip 等于 delivery_commit，未产生 merge commit。
+- canonical_verified：review-source-facts 中 49 个已提交 canonical/历史文档 SHA256 与已落地 Git blob 逐一相同，10 个合同目标齐全；index.json 已退役；旧 specs.json SHA256 仍为 4d73a7aadbf4e3a2c83942d024f0921e5099763b94af4172e9430463f9561367。没有 JSON/cache 发布动作。main Node 集成 smoke 38 passed，code/依赖与已通过复审基线补丁等价。
+- 实际技能：C:/Users/zhaop/.config/autoos/skills 下六技能文件及 locales 已从 landed main 源同步并逐文件字节核验；Codex 四阶段目录 C:/Users/zhaop/.codex/skills 与 goal/regress 目录 C:/Users/zhaop/.agents/skills 的既有 Junction 均指向 main/.agents/skills 同名源。skills-effective.json 本地保存路径/六 hash，未引入 worktree 链接。
+- archived：docs/plans/archived/106-autodown-canonical-specs-auto-index.md；completion_kind=delivered；T-10 完成，current_step 10/11。实际位置/状态、任务唯一 ID/计数和相对链接在提交前核对。T-11/AC-09 仍待清理与生产产物观察完成；此归档收据将提交主分支，随后才移除 worktree。
 
 ## 10. 待澄清事项
 
