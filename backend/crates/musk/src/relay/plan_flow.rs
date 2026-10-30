@@ -171,7 +171,7 @@ fn skill_block(step: &str, skills: &BTreeMap<String, SkillEntry>) -> String {
     match skills.get(stage_skill(step)) {
         Some(entry) => format!(
             "# 纪律源（唯一，机械注入；版本 sha256:{}）\n\n\
-以下为 `{}` 技能全文——它是本相位的唯一纪律来源，逐步遵守；与本模板冲突时以技能为准：\n\n\
+以下为 `{}` 的批准时技能快照，逐步遵守；仅 document 相位中的旧中央账本发布义务由 document-source-v1 策略覆盖，其他纪律仍以技能为准：\n\n\
 <header-skills>\n{}\n</header-skills>\n\n",
             entry.sha256,
             entry.name,
@@ -293,12 +293,13 @@ worktree（主检出的计划共享状态仍经 plan 工具读写，不要直接
             format!(
             "{preamble}{requirement}# 任务：受控交付（document 相位）\n\n\
 你是本计划的知识管理员（assistant，末相位职业）。技能快照与机械输入如下。\n\n\
+当前交付策略 document-source-v1 优先于旧技能快照中的账本发布要求：只维护和核验 docs/specs 权威文档，应用自动生成索引，禁止 agent 写 specs.json；无需 ledger_refreshed，不把索引成功设为门禁。保留批准绑定、复审、提交、依赖及归档清理门禁。\n\n\
 {}\n\
 {mech_plan_file}- 交付操作：用 `plan_delivery` 工具按序执行 \
-prepare → land → refresh → archive → cleanup；每个检查点由服务器核验并落收据，\
+prepare → land → archive → cleanup；每个检查点由服务器核验并落收据，\
 不要自报 delivered、不要手拼账本 JSON、不要直接在主检出跑 Git 写操作。\n\
 {}\n\
-汇报 `sections_touched` / `items_created` 与 `docs/specs/` 树的具体改动；\
+汇报 canonical 文档路径、内容指纹与交付提交；无需账本条目配额；\
 `emit_report` 可选（frontmatter 主信息走机械渲染，不要自编步骤/令牌/时长数字）。\n",
             skill_block(step_id, &skills.skills),
             result_protocol(step_id),

@@ -315,7 +315,7 @@ fn route_env(tag: &str) -> RouteEnv {
         chat_pending: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         run_auto_continue: false,
         chat_procs: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
-        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         run_idle_timeout: std::time::Duration::from_secs(300),
     };
@@ -435,7 +435,8 @@ fn stage_routing_full_lifecycle_matrix() {
 
     // ── plan 相位 ──
     ws.relay.advance(&run_id).unwrap();
-    // Done 无结果 → stage_incomplete（AC-04）。
+    // PLAN-100: first missing result nudges once; second remains a hard failure.
+    assert!(matches!(on_stage_end(&env.state, &env.ws_id, &run_id), StageRouting::RewoundToExecute));
     match on_stage_end(&env.state, &env.ws_id, &run_id) {
         StageRouting::Fail(e) => assert!(e.contains("stage_incomplete"), "{e}"),
         other => panic!("expected stage_incomplete, got {other:?}"),

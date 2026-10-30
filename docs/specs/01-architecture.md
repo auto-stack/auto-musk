@@ -100,15 +100,15 @@ Rust + axum 0.8 HTTP 服务。`lib.rs:5-29` 声明手写模块 + `lib.rs:28` `au
 
 前端 `POST /api/chats/session/{id}/message` 排队（run=true 时取 per-session 守卫孵化运行）→ `GET .../stream`（SSE，订阅即附加/空闲流）→ `build_agent_with_context` / `build_agent_from_mode`（workspace 根**注入式**，PLAN-069 后运行路径无 `set_current_root`）→ `agent.run_stream` → ReAct loop（工具本地执行）→ StreamEvent → SSE JSON → 前端 `forge_stream.ts` 路由 → 持久化 assistant + dual-write conversation。
 
-### Spec CRUD（双落点）
+### Spec 文档单源（PLAN-106）
 
-- **Ledger**（`.autoos/specs.json`）：6 区 `SpecsDocument`，每次 upsert → `rebuild_relations` + `derive_statuses` + version++
-- **文件树**（`docs/specs/`）：`spec_tree.rs` 复用 `wiki::build_tree`
-- **Merge 桥接**：review_done plan → `plan_to_items`（§N→section 映射）→ `upsert_items_into_doc`
+- AutoDown → `/api/specs/document/{path}` → docs/specs 权威文件；哈希条件与跨进程文件锁保护保存。
+- spec_index 按需扫描文档和归档 Plan，生成分类/关系/历史，不写中央缓存。
+- merge 验证 canonical landing 后归档/清理，不写 specs.json，不依赖索引成功；旧章节复制合并退役。
 
 ### Plan 状态机
 
-`Drafting→Executing|ReviewDone` → `ExecutionDone→ReviewDone` → `ReviewDone→Merged`（merge = `plan_to_items` + `upsert_items_into_doc` + archive）。磁盘唯一事实源（`docs/plans/NNN-*.md` frontmatter）。
+`Drafting→Executing|ReviewDone` → `ExecutionDone→ReviewDone` → `ReviewDone→Merged`（交付 = reviewed canonical landing + archive，不复制章节进账本）。磁盘唯一事实源（`docs/plans/NNN-*.md` frontmatter）。
 
 ### Tool 执行安全
 

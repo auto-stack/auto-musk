@@ -26,6 +26,36 @@ impl Client for MockClient {
     }
 }
 
+#[tokio::test]
+async fn document_http_roundtrip_conflict_and_index_without_ledger() {
+    let (state, root) = tmp_state();
+    let a = app(state);
+    std::fs::create_dir_all(root.join(".autoos")).unwrap();
+    std::fs::write(root.join(".autoos/specs.json"), "broken legacy bytes").unwrap();
+    let original = "---\nspec_id: example\nsection: designs\ncustom: retained\n---\n# 中文\n";
+    let (status, saved) = send(&a, "PUT", "/api/specs/document/modules/example.md", Some(serde_json::json!({"content": original, "expected_hash": null}))).await;
+    assert_eq!(status, StatusCode::OK, "{saved}");
+    let hash = saved["hash"].as_str().unwrap();
+    assert_eq!(saved["preamble"], "---\nspec_id: example\nsection: designs\ncustom: retained\n---\n");
+    assert_eq!(saved["body"], "# 中文\n");
+    let (status, read) = send(&a, "GET", "/api/specs/document/modules/example.md", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(read["content"], original);
+    let (status, _) = send(&a, "PUT", "/api/specs/document/modules/example.md", Some(serde_json::json!({"content": "", "expected_hash": hash}))).await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _) = send(&a, "PUT", "/api/specs/document/modules/example.md", Some(serde_json::json!({"content": "stale", "expected_hash": hash}))).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(std::fs::read_to_string(root.join("docs/specs/modules/example.md")).unwrap(), "");
+    let (status, indexed) = send(&a, "GET", "/api/specs/index", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(indexed["fresh"], true);
+    assert_eq!(indexed["document"]["sections"][2]["items"].as_array().unwrap().len(), 1);
+    assert_eq!(std::fs::read_to_string(root.join(".autoos/specs.json")).unwrap(), "broken legacy bytes");
+    let (status, _) = send(&a, "PUT", "/api/specs/document/modules/foreign.md?workspace=not-a-workspace", Some(serde_json::json!({"content":"x"}))).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(!root.join("docs/specs/modules/foreign.md").exists());
+}
+
 /// Build an isolated temp workspace; returns `(state, root)` so tests can
 /// seed `docs/specs/` files on disk before exercising the routes.
 fn tmp_state() -> (AppState, PathBuf) {
@@ -48,7 +78,7 @@ fn tmp_state() -> (AppState, PathBuf) {
         chat_pending: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         run_auto_continue: false,
         chat_procs: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
-        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             run_idle_timeout: std::time::Duration::from_secs(300),
     };

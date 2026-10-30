@@ -46,7 +46,7 @@ fn tmp_state() -> AppState {
         chat_pending: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         run_auto_continue: false,
         chat_procs: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
-        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             run_idle_timeout: std::time::Duration::from_secs(300),
     }
@@ -299,36 +299,17 @@ async fn plans_merge_gate_and_flow() {
     .await;
     assert_eq!(s, StatusCode::OK);
 
-    // Merge → 200 + result.
-    let (s, body) = send(&a, "POST", "/api/plans/1/merge", None).await;
-    assert_eq!(s, StatusCode::OK);
-    assert_eq!(body["plan_id"], "PLAN-001");
-    assert!(body["items_created"].as_u64().unwrap() > 0);
-    assert!(body["sections_touched"].as_array().unwrap().len() > 0);
-
-    // Plan is now archived + status=archived（沉淀即归档，单一终态）.
-    let (_s, body) = send(&a, "GET", "/api/plans?include_archived=true", None).await;
-    let plan = &body["plans"][0];
-    assert_eq!(plan["archived"], true);
-    assert_eq!(plan["status"], "archived");
-
-    // Specs ledger now has merged items (read directly via the store).
+    // PLAN-106: combined chapter-copy merge is retired even for reviewed plans.
+    let (status, body) = send(&a, "POST", "/api/plans/1/merge", None).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(body.to_string().contains("Combined merge retired"));
+    let (_, body) = send(&a, "GET", "/api/plans?include_archived=true", None).await;
+    assert_eq!(body["plans"][0]["archived"], false);
+    assert_eq!(body["plans"][0]["status"], "reviewed");
     let default_id = musk::workspace::WorkspaceQuery::default().id_or_default(&state.registry);
     let ws = state.registry.get(&default_id);
-    let doc = ws.specs.load().expect("specs load");
-    let total: usize = doc.sections.iter().map(|s| s.items.len()).sum();
-    assert!(total > 0, "specs ledger should contain merged items");
-    // At least one item traces back to the plan.
-    let has_source = doc.sections.iter().any(|s| {
-        s.items
-            .iter()
-            .any(|i| i.file.as_deref() == Some("docs/plans/001-merge-test.md"))
-    });
-    assert!(has_source, "some item should reference the plan file");
+    assert!(!ws.root.join(".autoos/specs.json").exists());
 
-    // Idempotent re-merge is rejected (plan now archived, not reviewed).
-    let (s, _body) = send(&a, "POST", "/api/plans/1/merge", None).await;
-    assert_eq!(s, StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]

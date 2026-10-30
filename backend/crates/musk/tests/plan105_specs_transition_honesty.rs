@@ -94,178 +94,22 @@ async fn send(
 }
 
 /// 建 designs 区 D1 条目（upsert，绕状态机直写为合法链起点）。
-async fn seed_design_item(app: &axum::Router, id: &str, status: &str) {
-    let (s, v) = send(
-        app,
-        "POST",
-        "/api/specs/item",
-        Some(json!({
-            "section": "designs",
-            "item": {"id": id, "title": id, "content": "c", "status": status}
-        })),
-    )
-    .await;
-    assert_eq!(s, StatusCode::OK, "seed upsert: {v}");
-}
-
 #[tokio::test]
-async fn pascal_status_rejected_with_reason_not_fake_ok() {
-    let app = ag_app(tmp_state());
-    seed_design_item(&app, "D1", "draft").await;
-    // UAT 形态：`Approved`（帕斯卡）。旧链：未知串→Draft→同态恒过→200
-    // 假成功、状态纹丝不动。新链：400 + 原串 + 合法值清单。
-    let (s, v) = send(
-        &app,
-        "POST",
-        "/api/specs/transition",
-        Some(json!({"section": "designs", "item_id": "D1", "new_status": "Approved"})),
-    )
-    .await;
-    assert_eq!(s, StatusCode::BAD_REQUEST, "帕斯卡串应 400: {v}");
-    let msg = v["error"].as_str().unwrap_or_else(|| v["error"]["message"].as_str().unwrap_or_default());
-    assert!(
-        msg.contains("unknown status") && msg.contains("Approved"),
-        "错误体含原串: {msg}"
-    );
-    assert!(
-        msg.contains("under_review") && msg.contains("approved"),
-        "错误体含合法值清单（snake_case）: {msg}"
-    );
-    // 状态未动（回读仍 draft——GET snake_case）。
-    let (gs, gv) = send(&app, "GET", "/api/specs", None).await;
-    assert_eq!(gs, StatusCode::OK);
-    let status = gv["sections"]
-        .as_array()
-        .and_then(|secs| {
-            secs.iter()
-                .find(|sec| sec["id"] == "designs")
-                .and_then(|sec| sec["items"].as_array().and_then(|items| {
-                    items
-                        .iter()
-                        .find(|i| i["id"] == "D1")
-                        .and_then(|i| i["status"].as_str().map(String::from))
-                }))
-        })
-        .expect("D1 in GET");
-    assert_eq!(status, "draft", "GET 状态应 snake_case 且未动");
-}
-
-#[tokio::test]
-async fn legal_transition_applies_and_echoes_applied_status() {
-    let app = ag_app(tmp_state());
-    seed_design_item(&app, "D1", "draft").await;
-    // 合法转移 draft → under_review。
-    let (s, v) = send(
-        &app,
-        "POST",
-        "/api/specs/transition",
-        Some(json!({"section": "designs", "item_id": "D1", "new_status": "under_review"})),
-    )
-    .await;
-    assert_eq!(s, StatusCode::OK, "合法转移应 200: {v}");
-    assert_eq!(v["applied_status"], json!("under_review"), "回显应用后真值");
-    assert_eq!(v["new_status"], json!("under_review"), "请求串对照保留");
-    // 回读一致 + GET/POST 对称：GET 到的值直接作下一笔 POST 入参。
-    let (_, gv) = send(&app, "GET", "/api/specs", None).await;
-    let status = gv["sections"]
-        .as_array()
-        .and_then(|secs| {
-            secs.iter()
-                .find(|sec| sec["id"] == "designs")
-                .and_then(|sec| sec["items"].as_array().and_then(|items| {
-                    items
-                        .iter()
-                        .find(|i| i["id"] == "D1")
-                        .and_then(|i| i["status"].as_str().map(String::from))
-                }))
-        })
-        .expect("D1 in GET");
-    assert_eq!(status, "under_review", "回读与应用一致");
-    // GET 值写回（under_review → approved，合法链下一步）——对称闭环。
-    let (s2, v2) = send(
-        &app,
-        "POST",
-        "/api/specs/transition",
-        Some(json!({"section": "designs", "item_id": "D1", "new_status": status})),
-    )
-    .await;
-    assert_eq!(s2, StatusCode::OK, "GET 值应可直接作 POST 入参: {v2}");
-    assert_eq!(v2["applied_status"], json!("under_review"), "同态幂等重放 ok");
-}
-
-#[tokio::test]
-async fn illegal_transition_400_carries_real_reason() {
-    let app = ag_app(tmp_state());
-    seed_design_item(&app, "D1", "draft").await;
-    // 设计区状态机正确拒绝 draft → approved（跳过 under_review）——但错误
-    // 体必须带因（旧链恒 "transition failed"，模型无从得知原因）。
-    let (s, v) = send(
-        &app,
-        "POST",
-        "/api/specs/transition",
-        Some(json!({"section": "designs", "item_id": "D1", "new_status": "approved"})),
-    )
-    .await;
-    assert_eq!(s, StatusCode::BAD_REQUEST, "非法转移应 400: {v}");
-    let msg = v["error"].as_str().unwrap_or_else(|| v["error"]["message"].as_str().unwrap_or_default());
-    assert!(
-        msg.contains("draft -> approved"),
-        "错误体应含 from -> to 详情: {msg}"
-    );
-}
-
-#[tokio::test]
-async fn upsert_bypassed_transition_annotation() {
-    let app = ag_app(tmp_state());
-    seed_design_item(&app, "D1", "draft").await;
-    // ① 合法转移形态的 upsert（draft → under_review）：不标 bypass。
-    let (s, v) = send(
-        &app,
-        "POST",
-        "/api/specs/item",
-        Some(json!({
-            "section": "designs",
-            "item": {"id": "D1", "title": "D1", "content": "c", "status": "under_review"}
-        })),
-    )
-    .await;
-    assert_eq!(s, StatusCode::OK, "合法 upsert: {v}");
-    assert_eq!(
-        v["bypassed_transition"], json!(false),
-        "合法转移路径不标 bypass: {v}"
-    );
-    // ② 绕状态机直写（D2 从 draft 直写 approved——跳过 under_review
-    // review 决议的非法转移）：标注 bypassed。
-    seed_design_item(&app, "D2", "draft").await;
-    let (s, v) = send(
-        &app,
-        "POST",
-        "/api/specs/item",
-        Some(json!({
-            "section": "designs",
-            "item": {"id": "D2", "title": "D2", "content": "c", "status": "approved"}
-        })),
-    )
-    .await;
-    assert_eq!(s, StatusCode::OK, "直写能力保留: {v}");
-    assert_eq!(
-        v["bypassed_transition"], json!(true),
-        "绕状态机直写应标注: {v}"
-    );
-    // ③ upsert 未知串 → 400（不再静默 Draft）。
-    let (s, v) = send(
-        &app,
-        "POST",
-        "/api/specs/item",
-        Some(json!({
-            "section": "designs",
-            "item": {"id": "D1", "title": "D1", "content": "c", "status": "Reviewed"}
-        })),
-    )
-    .await;
-    assert_eq!(s, StatusCode::BAD_REQUEST, "upsert 未知串应 400: {v}");
-    assert!(
-        v["error"].as_str().unwrap_or_default().contains("unknown status"),
-        "错误体: {v}"
-    );
+async fn retired_writes_are_explicit_for_all_status_inputs() {
+    let state=tmp_state(); let a=ag_app(state.clone());
+    for status in ["Approved","approved","under_review","not-a-status"] {
+        for (uri,body) in [
+            ("/api/specs/item",serde_json::json!({"section":"designs","item":{"id":"D1","title":"example","content":"x","status":status}})),
+            ("/api/specs/transition",serde_json::json!({"section":"designs","item_id":"D1","new_status":status})),
+        ] {
+            let (code,body)=send(&a,"POST",uri,Some(body)).await;
+            assert_eq!(code,axum::http::StatusCode::GONE,"{body}");
+            assert!(body.to_string().contains("retired"),"{body}");
+        }
+    }
+    let (code, body) = send(&a, "DELETE", "/api/specs/item/designs/D1", None).await;
+    assert_eq!(code, axum::http::StatusCode::GONE, "{body}");
+    assert!(body.to_string().contains("retired"));
+    let id=musk::workspace::WorkspaceQuery::default().id_or_default(&state.registry);
+    assert!(!state.registry.get(&id).root.join(".autoos/specs.json").exists());
 }

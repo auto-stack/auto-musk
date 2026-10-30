@@ -16,6 +16,10 @@
 // PLAN-049 T8：inject_styles.ts 退役,余量（全局段+web-only 增强）拆本文件。
 use.web injectStyles from "src/front/inject_styles.web-only.ts"
 use.web setupAuthFetch from "src/front/setup_auth_fetch.ts"
+use.web markSpecDirty, specMayLeave from "src/front/spec_edit_guard.ts"
+
+fn platformSpecDirty(value bool) { markSpecDirty(value) }
+fn platformSpecMayLeave() bool { return specMayLeave() }
 use.web runRelayCommand from "src/front/composables/relay_command_runner.ts"
 // PLAN-061 T16 (D22):新建会话后聚焦 composer(DOM 查询逃生舱)。
 use.web focusComposer from "src/front/focus_composer.ts"

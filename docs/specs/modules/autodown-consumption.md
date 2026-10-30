@@ -153,3 +153,9 @@ autodown 引擎债（单源 .at 扩展另档，web katex 同不渲染 $$ 内容�
 - table_resize draw 增表头底色带（Muted 语义色随主题，State.header_w=layout
   total_w，先画带再画格）；行分隔线/列对齐语义零动（PLAN-082 pin 保护）。
 
+
+## PLAN-106：权威 Spec 文档编辑
+
+SpecsView 默认文件树；可编辑工作区以原生 autodown_editor 维护完整源文档。正文和元数据经 document API 一起往返，版本冲突保留草稿，主检出只读。分类为只读投影，索引自动生成，agent 不刷新 JSON。
+
+原生运行工具必须启用 auto-ui-runtime 的 autodown 特征（ui-iced 默认含 code-editor）；否则编辑标签会走文本降级，不满足本合同。PLAN-106 修复工具闭包特征装配，并以公开核心输入回归保护普通 Home/End/Left/Right 不将点击残留锚点扩为误删除选区；Shift 的有意选区仍保留。

@@ -42,11 +42,11 @@ fn planPhaseTabStyle(idx int, cur int) str {
     return s
 }
 
-// 交付检查点行（冻结序 prepared/landed/ledger_refreshed/archived/cleaned；
+// 交付检查点行（冻结序 prepared/landed/archived/cleaned；
 // 未知键不显示——contract.mjs 侧同名单拒绝）
 fn planCheckpointRows(cps Value) list {
     var out list = []
-    var keys list = ["prepared", "landed", "ledger_refreshed", "archived", "cleaned"]
+    var keys list = ["prepared", "landed", "archived", "cleaned"]
     for k in keys {
         var done bool = false
         if cps != None {

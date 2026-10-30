@@ -1,8 +1,7 @@
 ---
 name: auto-plan-merge
 description: |
-  Land a reviewed Plan, update canonical docs/specs knowledge, refresh the
-  derived ledger, then archive and clean its worktree with recovery receipts.
+  Land a reviewed Plan, verify canonical docs/specs knowledge, then archive and clean its worktree with recovery receipts.
   Use for "merge plan", "沉淀计划", or "/auto-plan:merge". Requires revision-bound
   review evidence; distinguishes completed delivery from shelving a Plan.
 ---
@@ -12,7 +11,7 @@ description: |
 Announce: "I'm using /auto-plan:merge to consolidate plan NNN."
 
 Input: a reviewed Plan reference, or a retry of its recorded consolidation.
-Outcome: canonical Specs and their ledger view reflect verified delivered work,
+Outcome: canonical Specs reflect verified delivered work,
 the Plan is archived, and temporary worktrees are safely cleaned.
 
 ## Evidence storage policy (2026-10-28 user ruling)
@@ -46,91 +45,28 @@ the Plan is archived, and temporary worktrees are safely cleaned.
   through a reviewed delta, and preserve unrelated/history entries.
 - Current `merge_plan` and `POST /api/plans/{seq}/merge` copy Plan chapters
   and archive immediately. **Do not use these combined operations for this
-  workflow.** Use existing non-archiving Spec operations or a validated offline
-  projection, followed by explicit archival after verification.
+  workflow.** Land the reviewed canonical documents, verify source identity,
+  then explicitly archive. Combined chapter-copy operations are retired.
 - These are skill instructions and Plan receipts. They do not implement a
   durable Runner, database transaction, or automatic backend retry.
 
-## Ledger refresh (writer regimes)
+## Document-source policy (PLAN-106)
 
-The spec ledger (`<workspace>/.autoos/specs.json`, workspace-scoped) is a
-derived view owned by the application's store. The sanctioned write channel
-is a property of the executing session, not of the ledger — determine the
-regime first, and a channel requirement from the other regime neither
-applies nor blocks (2026-10-12 user ruling; auto-lang PLAN-764 lesson: a
-ZCode session deadlocked on `blocked` because the skill demanded auto-ai
-in-session tools such a session can never have).
+`docs/specs/` is the only current-knowledge authority. Agents maintain the reviewed
+canonical documents in the Plan worktree and land them through Git. The application
+automatically derives navigation, classifications, relations and history from those
+files and archived Plan receipts. No agent publishes an index or writes specs.json.
 
-**Regime A — auto-ai / AutoMusk framework sessions** (the session's tool
-list carries `read_specs`/`list_specs`/`write_spec`/`update_spec`; PLAN-104
-whitelist. Dispatched errand agents get the same workspace-bound
-overrides). Three sanctioned channels, all routing into the same workspace
-store:
+Cache/index existence, application availability, and legacy ledger parseability do
+not gate delivery. A missing or failed index is an application diagnostic and is
+rebuildable from sources; do not replace ledger_refreshed with a mandatory
+index_refreshed checkpoint. There are no section entry quotas or offline JSON
+projection steps. Never copy Plan chapters into a second specification.
 
-1. **In-session spec tools** — `write_spec` / `update_spec` (chat sessions;
-   workspace-bound since PLAN-030's override + PLAN-104's whitelist fix).
-   Prefer this channel.
-2. **HTTP equivalent** — `POST /api/specs/item` with
-   `{"section", "item": {id, title, content, status, file?, tags?}}` and
-   `POST /api/specs/transition` for status edges. `file`/`tags` are supported
-   since PLAN-104 (use them to record the source hash and commit).
-3. **Dispatched errand** — a `dispatch` sub-agent holds the same
-   workspace-bound spec tools (PLAN-104); usable when the ledger step is
-   delegated.
-
-In this regime never write that file directly with scripts, text
-replacement, or a hand-assembled JSON document.
-
-**Regime B — external mature agents** (ZCode, Codex, Claude-style CLI
-editors, …) that cannot register auto-ai spec tools in-session. Work down
-the ladder:
-
-1. **HTTP first when the store service is up** — channel 2 above is plain
-   HTTP any agent can call, and a live store owns the file, so prefer it
-   over touching the file directly.
-2. **Guarded offline projection** when no store writer is reachable at
-   all. This is a sanctioned completion, not `blocked` (auto-lang PLAN-720
-   `beae54b07` precedent, tightened):
-   - Take a byte-exact backup of `specs.json` before any edit; restore
-     from it whenever a guard below fails.
-   - Edit programmatically (scripted JSON read-modify-write). Never
-     hand-type the document; never delete-and-recreate the file.
-   - Surgical scope: touch only the affected sections/items; everything
-     else — including top-level fields — must stay byte-identical to the
-     backup (a diff proves zero disturbance), and `version` increments by
-     exactly one when the document carries it.
-   - Validate against the store schema afterwards: six sections with ids
-     exactly `goals`/`architecture`/`designs`/`tests`/`reviews`/`reports`
-     (no `plans` section — retired in PLAN-024); items complete the same
-     fields `SpecItem::new` would set (see
-     `backend/crates/musk/src/specs.rs`) and carry `file`/`tags`.
-   - Read the result back and verify IDs, content, and links; name the
-     channel honestly in the receipt ("guarded offline projection, no
-     store writer reachable") — never claim store success.
-
-**Both regimes**:
-
-- **Schema is store-owned**: `SpecsDocument{project, version, sections[6]}`.
-  Section ids are exactly `goals` / `architecture` / `designs` / `tests` /
-  `reviews` / `reports`. There is no `plans` section (retired in PLAN-024 —
-  anything written there is silently dropped on the next load). Item fields
-  are completed by `SpecItem::new` inside the tools; Regime B mirrors the
-  same field completion per `backend/crates/musk/src/specs.rs`. Do not
-  hand-assemble JSON in either regime.
-- **Section mapping follows knowledge kind**: goals → `goals`, architecture
-  decisions → `architecture`, module/design contracts → `designs`, test
-  coverage → `tests`, review conclusions → `reviews`, deposit reports →
-  `reports`. Record the source hash and commit in the item's `tags`/`file`;
-  the body carries only the derived summary — never copy Plan chapters.
-- **Load failure means stop.** If `read_specs`/`list_specs` (or the HTTP GET,
-  or a parse attempt in Regime B) reports the ledger unparseable, stop and
-  follow the error guidance: restore from a backup or rebuild from
-  `docs/specs/`, then retry. An unvalidated hand-edit or
-  delete-and-recreate is forbidden — that is how ledger data gets destroyed
-  (UAT 2026-09-29, K6: a reviewer's manual JSON surgery erased existing
-  entries). The K6 ban targets unvalidated replacement; the Regime B
-  offline projection exists only for a ledger that already parses, and its
-  guards enforce the same bottom line.
+Legacy checkpoints remain historical facts. A landed Plan can resume canonical
+verification and archive without ledger_refreshed; a ledger_refreshed record alone
+never proves landing. Preserve old receipts and verify actual Git ancestry and
+canonical source identity. New source changes still need normal review.
 
 ## Gate and recovery baseline
 
@@ -163,20 +99,11 @@ commit/hash/path evidence; do not mark an operation done before verifying it:
 
 | Checkpoint | Evidence |
 |---|---|
-| `prepared` | Reviewed baseline, canonical Spec diff, projection targets, expected source versions, delivery commit |
+| `prepared` | Reviewed baseline, canonical Spec diff, source targets, expected source versions, delivery commit |
 | `landed` | Default-branch tip equal to the delivery commit after a `--ff-only` merge (no merge commit); old→new rebase hash mapping with `git range-diff` equivalence when landing rewrote the branch |
-| `ledger_refreshed` | Target workspace/path, verified item IDs, source references, version/hash, and the write channel used (spec tools / HTTP / guarded offline projection) |
+| `canonical_verified` | Landed canonical paths, source hashes and delivery commit; approved no-impact delta when applicable. This is source verification, not an index publication. |
 | `archived` | Archive path and delivered outcome, **plus the plan/docs artifacts committed to the default branch (untracked docs/ = not archived; PLAN-104 UAT-K13)** |
 | `cleaned` | Guard result and confirmed worktree/branch removal, plus build intermediates (cargo `target` trees, `.pdb`) reclaimed under `D:/autostack/plan-artifacts/plan-<NNN>/` while keeping `.exe` outputs |
-
-**Minimum ledger entries per merge (PLAN-104 SD-02, per specs-ledger.md):**
-`designs` ≥ 1 (module contracts added/revised by this Plan), `reviews` ≥ 1
-(the independent review conclusion — it always exists by merge time),
-`reports` ≥ 1 (this deposit itself); `tests` when new test assets landed.
-Every entry carries `file` (canonical path) and `tags` (source hash / commit
-/ plan id) — all Regime A channels support these fields since PLAN-104, and
-a Regime B offline projection writes them identically. A
-single-entry refresh with empty `file`/`tags` is under-fill, not a receipt.
 
 **Version-control closing is part of the flow, not an afterthought:** the
 demo-workspace UAT of 2026-10-11 (K13) landed code ff-only but left
@@ -186,7 +113,7 @@ linear-history final check failed. Before recording `archived`/`cleaned`:
 commit docs/ artifacts to the default branch, verify `git status` clean, and
 confirm the expected linear history segments.
 
-Before retrying, reconcile the receipt with disk, Git, and live ledger state.
+Before retrying, reconcile the receipt with disk, Git, and canonical source state.
 A timeout or missing receipt is not proof that a side effect did not happen.
 Complete only missing operations. Stop automatic retries when no new evidence
 or changed condition makes progress possible.
@@ -221,20 +148,13 @@ repository's naming rules. Never edit canonical Specs directly on main.
 - Inspect the resulting Spec diff against the frozen delta, code, and acceptance
   evidence. Check links and document structure. Any new requirement or altered
   contract goes back through revision/review.
-- Prepare ledger entries from these documents using the current
-  `SpecsDocument/SpecItem` schema in `backend/crates/musk/src/specs.rs`.
-  Record each canonical target, section, stable item ID, and source hash.
 - Commit the prepared changes. A documentation/projection-only descendant of
   `reviewed_commit` may become `delivery_commit` after checking that exact
   delta and confirming implementation/dependencies are unchanged. Otherwise
   the delivery commit needs renewed review.
 
-Do not force-add ignored runtime data or overwrite existing workspace state.
-For tracked ledger data, prepare and commit its derived changes in the worktree.
-For runtime-only ledger data, draft the intended item contents in the worktree
-and publish them to the identified workspace after canonical Specs land —
-through the channel your regime sanctions (see "Ledger refresh
-(writer regimes)").
+Do not force-add ignored runtime data. Indexes are application-owned and optional;
+no cache/projection draft or publication belongs in the merge worktree.
 
 ## Auto-lang post-review regression gate
 
@@ -257,7 +177,7 @@ that evidence; check the final delivery identity before landing.
 
 Other repositories retain their own current gate timing and test tiers.
 
-## Land and refresh the derived view
+## Land and verify canonical sources
 
 1. Require a clean committed worktree before landing. Surface unexpected dirty
    changes to the user; never discard or silently include them. Shared Plan
@@ -285,45 +205,14 @@ Other repositories retain their own current gate timing and test tiers.
 4. Confirm the default-branch tip equals the landed delivery commit and the
    expected canonical Spec contents are on main. Run the appropriate
    integration/smoke checks so main is known-good. Record `landed`.
-5. Publish/verify the derived ledger for the correct workspace — through the
-   channel your regime sanctions (see "Ledger refresh (writer regimes)"):
-   spec tools in auto-ai sessions; the `/api/specs/item` /
-   `/api/specs/transition` endpoints when a service is up (any agent);
-   the guarded offline projection for external agents with no reachable
-   store writer. Respect any existing write-approval policy. What stays
-   forbidden in every regime is an *unvalidated* hand replacement of the
-   file — that is how foreign schemas and lost entries happen — which is
-   exactly why the offline projection carries backup, scope, schema, and
-   read-back guards. Record `blocked` only when the ledger is unparseable
-   or the guarded procedure itself fails; keep the Plan active then.
-   Tracked ledger file edits always go through the worktree and Git.
-
-Projection rules:
-
-- Reuse an existing current-knowledge item by canonical target and section.
-  If absent, allocate a stable ID once and record it in the receipt. Retries
-  reuse that mapping; different Plans updating the same target update the same
-  current-knowledge item. Section order is not an identity.
-- Current items' `file` points at `docs/specs/...`; content is a derived
-  summary/reference. Review/report history preserves the Plan ID, reviewed
-  revision/commit, and eventual `docs/plans/archived/...` path.
-- Preserve unrelated entries, unknown compatible fields, and existing history.
-  Update only affected projections; detect overlapping changes using the
-  captured source and ledger versions/hashes.
-- Use one writer. A read/check/write sequence is not a lock or transaction.
-  All ledger updates flow through exactly one channel per merge — the
-  store's upsert/transition operations, or one guarded offline projection
-  when no store writer exists — never a hand-assembled file replacement.
-- Maintain schema-required fields and valid statuses. Rebuild derived relations
-  and version metadata through existing store logic when available. `related`
-  is a computed reverse-link field, so it must not be the sole provenance store.
-  Verify links, IDs, content, and schema by reading back the result.
-- No Spec impact is valid when review justifies it. Do not create artificial
-  knowledge or require the ledger's byte size/item count to grow.
+5. Verify the reviewed Spec delta is present in the landed commit (or record its
+   approved no-impact conclusion), and record canonical paths/source hashes.
+   Proceed to archive without any application/index/legacy-ledger write. Optional
+   index diagnostics must not change the delivery outcome.
 
 ## Archive last, then clean up
 
-Only after landing and ledger verification succeed:
+Only after landing and canonical-source verification succeed:
 
 1. On the main checkout, move the shared Plan to `docs/plans/archived/` and
    set `status: archived`. Use `git mv` for a tracked Plan; preserve an
@@ -409,9 +298,9 @@ claim cross-file or cross-repository atomicity.
 ## Report
 
 Record/report `stage: merge`, Plan ID/revision, `outcome`, delivery commit,
-canonical Spec paths, ledger targets, archive path, and cleanup state.
+canonical Spec paths/source hashes, archive path, and cleanup state.
 
-- `pass`: delivery, derived view, archival, and cleanup are all verified,
+- `pass`: delivery, canonical sources, archival, and cleanup are all verified,
   or a repeat request confirms that complete result without duplicate writes.
 - `needs_fix` / `needs_replan`: return an active Plan to `executing`,
   invalidate affected evidence, and route to work/new.

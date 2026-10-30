@@ -1112,3 +1112,9 @@ fn spec_tree_node_kind(nodes list, id str) str {
     }
     return found
 }
+
+// Projection rows locate their single canonical source, never update a ledger.
+fn specSourceRelative(s str) str {
+    if s.slice(0, 11) == "docs/specs/" { return s.slice(11) }
+    return ""
+}

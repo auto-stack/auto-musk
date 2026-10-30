@@ -5,7 +5,7 @@
 //
 // Plan 022 Phase 5: SpecsView 的数据层。
 
-use back.api: specs_list, specs_overview, specs_save_item, specs_delete_item, specs_rebuild_relations, specs_tree, specs_text
+use back.api: specs_list, specs_index, specs_overview, specs_save_item, specs_delete_item, specs_rebuild_relations, specs_tree, specs_text
 
 store SpecsStore {
     model {
@@ -64,11 +64,20 @@ store SpecsStore {
         .LoadDocument -> {
             .loading = true
             .error = ""
-            let doc = specs_list()
-            .loading = false
-            if doc != None {
-                .document = doc
+            try {
+                let projection = specs_index()
+                if (projection.fresh ?? false) {
+                    .document = projection.document
+                    if projection.diagnostics.len() > 0 {
+                        .error = "索引诊断：" + projection.diagnostics[0]
+                    }
+                } else {
+                    .error = "索引暂不可用或源文件正在变化；文档仍可独立读取和保存。"
+                }
+            } catch (e) {
+                .error = "索引加载失败；文档仍可独立读取和保存。"
             }
+            .loading = false
         }
 
         // LoadOverview: GET /api/specs/overview 合成 markdown 摘要。
@@ -130,7 +139,7 @@ store SpecsStore {
         // try/catch 在视图臂，store 只收三态消息）。
         .SelectFile(path) -> {
             .active_spec_file_path = path;
-            .active_spec_is_md = path.ends_with(".md");
+            .active_spec_is_md = path.ends_with(".md") || path.ends_with(".markdown") || path.ends_with(".ad");
             .file_loading = true;
             .file_failed = false
         }

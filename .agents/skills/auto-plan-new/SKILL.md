@@ -15,6 +15,16 @@ Input: a requirement, or an existing Plan reference and the reason for revision.
 Output: one Plan in `docs/plans/`, with verifiable outcomes and an explicit
 handoff to [work](../auto-plan-work/SKILL.md).
 
+## Document-source contract (PLAN-106)
+
+Current knowledge lives in docs/specs/ documents; archived Plans retain review and
+delivery history. The application generates indexes automatically. Agents never
+write specs.json or manually maintain index.json lists, and merge has no index or
+ledger publication prerequisite. Missing/corrupt caches and an offline application
+do not block source delivery. Read/list tools may expose a derived six-category
+view; retired item-write tools must direct callers to canonical source files.
+
+
 ## Authority and context
 
 - **`docs/specs/` is authoritative for current agreed project knowledge.**

@@ -99,7 +99,9 @@ pub fn resp_err_message(v: &Value) -> String {
 /// 复审 A3:委托函数约定 `Value::Null` = 错误。handler 统一经此 helper 转成
 /// `err_response(msg, code)`;成功值直接 ok_response。修复"错误 → 200+null"回归。
 pub fn to_response(v: Value, msg: &str, code: u16) -> axum::response::Response {
-    if v.is_null() {
+    if resp_is_err(&v) {
+        err_response(resp_err_message(&v), resp_err_code(&v))
+    } else if v.is_null() {
         err_response(msg, code)
     } else {
         ok_response(v)
@@ -246,9 +248,6 @@ pub fn specs_rebuild(s: &State<AppState>, q: Query<crate::auto_generated::server
     };
     doc.rebuild_relations();
     doc.derive_statuses();
-    if ws.specs.save(&doc).is_err() {
-        return Value::Null;
-    }
     serde_json::to_value(doc).unwrap_or(Value::Null)
 }
 /// ② 委托:related = load + rebuild + 找 item 返回 depends_on/related(与 hw 一致)。
@@ -281,58 +280,7 @@ pub fn specs_related_of(s: &State<AppState>, q: Query<crate::auto_generated::ser
 /// 不同于现状且不属该区合法转移时，响应顶层标注 `bypassed_transition:true`
 /// 供 merge 技能与审计识别（磁盘 doc 不落标注）。
 pub fn specs_upsert_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, b: Json<crate::auto_generated::server::SpecsUpsertRequest>) -> Value {
-    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
-    let status = match crate::specs::SpecStatus::parse_exact(&b.item.status) {
-        Some(v) => v,
-        None => {
-            return serde_json::json!({
-                "error": {"code": 400, "message": format!(
-                    "unknown status '{}' — use snake_case (e.g. under_review); known: {}",
-                    b.item.status,
-                    crate::specs::SpecStatus::parse_lenient(&b.item.status)
-                        .map(|v| v.to_str().to_string())
-                        .unwrap_or_else(|| "not a known status in any casing".into())
-                )}
-            });
-        }
-    };
-    let mut doc = match ws.specs.load() {
-        Ok(d) => d,
-        Err(_) => return Value::Null,
-    };
-    // 现状查询（bypassed 判定用）：同区同 id 的既有状态。
-    let prior_status = doc.sections.iter()
-        .find(|sec| sec.id == b.section)
-        .and_then(|sec| sec.items.iter().find(|i| i.id == b.item.id))
-        .map(|i| i.status);
-    let section_type = doc.sections.iter()
-        .find(|sec| sec.id == b.section)
-        .map(|sec| sec.section_type);
-    let mut item = crate::specs::SpecItem::new(b.item.id.clone(), b.item.title.clone());
-    item.content = b.item.content.clone();
-    item.status = status;
-    // PLAN-104 T-05（UAT-K12 附带）：merge 技能要求条目记录 source hash/commit
-    // （file/tags），HTTP 等价通道此前无法携带——现与工具通道对齐（缺省 = None/空）。
-    item.file = b.item.file.clone();
-    item.tags = b.item.tags.clone().unwrap_or_default();
-    match ws.specs.upsert_item(&mut doc, &b.section, item) {
-        Ok(_) => {
-            if ws.specs.save(&doc).is_err() {
-                return Value::Null;
-            }
-            let mut v = serde_json::to_value(&doc).unwrap_or(Value::Null);
-            let bypassed = match (prior_status, section_type) {
-                (Some(prior), Some(st)) => prior != status
-                    && !crate::specs::can_transition(st, prior, status),
-                _ => false,
-            };
-            if let Some(obj) = v.as_object_mut() {
-                obj.insert("bypassed_transition".into(), serde_json::json!(bypassed));
-            }
-            v
-        }
-        Err(_) => Value::Null,
-    }
+    serde_json::json!({"error": {"code": 410, "message": "Spec item writes retired: edit the source in docs/specs using /api/specs/document/{path} with expected_hash, in a dedicated worktree"}})
 }
 /// ② 委托:transition = load + transition_item + save + 返回 TransitionOk wire 形状。
 /// 复审 A3:错误 → `Value::Null`(handler 经 to_response 转 400)。
@@ -342,85 +290,18 @@ pub fn specs_upsert_of(s: &State<AppState>, q: Query<crate::auto_generated::serv
 /// 回显**应用后**状态（applied_status，服务端真值 snake_case），请求串
 /// 仅作对照保留。
 pub fn specs_transition_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, b: Json<crate::auto_generated::server::SpecsTransitionRequest>) -> Value {
-    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
-    let new_status = match crate::specs::SpecStatus::parse_exact(&b.new_status) {
-        Some(v) => v,
-        None => {
-            // 该区合法值清单（区未知时给全量 snake_case 词表）。
-            let doc = ws.specs.load().ok();
-            let allowed: Vec<String> = match doc
-                .as_ref()
-                .and_then(|d| d.sections.iter().find(|sec| sec.id == b.section))
-            {
-                Some(sec) => crate::specs::SectionConfig::for_type(sec.section_type)
-                    .allowed_status_strs()
-                    .into_iter()
-                    .map(String::from)
-                    .collect(),
-                None => Vec::new(),
-            };
-            let listed = if allowed.is_empty() {
-                "empty, proposed, draft, under_review, approved, in_progress, \
-                 in_implementation, implemented, verified, done, archived, rejected, \
-                 backlog, ready, in_review, blocked, superseded, outdated, stable, \
-                 deprecated, published, analysed, obsolete"
-                    .to_string()
-            } else {
-                allowed.join(", ")
-            };
-            return serde_json::json!({
-                "error": {"code": 400, "message": format!(
-                    "unknown status '{}' (received as-is) — use snake_case; valid for section '{}': {}",
-                    b.new_status, b.section, listed
-                )}
-            });
-        }
-    };
-    let mut doc = match ws.specs.load() {
-        Ok(d) => d,
-        Err(_) => return Value::Null,
-    };
-    match ws.specs.transition_item(&mut doc, &b.section, &b.item_id, new_status) {
-        Ok(_) => {
-            let _ = ws.specs.save(&doc);
-            serde_json::to_value(crate::auto_generated::server::TransitionOk {
-                status: "ok".to_string(),
-                new_status: b.new_status.clone(),
-                applied_status: new_status.to_str().to_string(),
-            })
-            .unwrap_or(Value::Null)
-        }
-        Err(e) => serde_json::json!({
-            "error": {"code": 400, "message": e}
-        }),
-    }
+    serde_json::json!({"error": {"code": 410, "message": "Spec item writes retired: edit the source in docs/specs using /api/specs/document/{path} with expected_hash, in a dedicated worktree"}})
 }
 /// ② 委托:delete = load + delete_item + save + 返回 Deleted wire 形状。
 /// 复审 A3:错误 → `Value::Null`(handler 经 to_response 转 404)。
 pub fn specs_delete_of(s: &State<AppState>, q: Query<crate::auto_generated::server::WorkspaceQuery>, p: Path<(String, String)>) -> Value {
-    let ws = s.0.registry.get(&q.workspace.clone().unwrap_or_default());
-    let (section_id, item_id) = p.0;
-    let mut doc = match ws.specs.load() {
-        Ok(d) => d,
-        Err(_) => return Value::Null,
-    };
-    match ws.specs.delete_item(&mut doc, &section_id, &item_id) {
-        Ok(true) => {
-            let _ = ws.specs.save(&doc);
-            serde_json::to_value(crate::auto_generated::server::Deleted {
-                status: "deleted".to_string(),
-                id: item_id,
-            })
-            .unwrap_or(Value::Null)
-        }
-        Ok(false) | Err(_) => Value::Null,
-    }
+    serde_json::json!({"error": {"code": 410, "message": "Spec item writes retired: edit the source in docs/specs using /api/specs/document/{path} with expected_hash, in a dedicated worktree"}})
 }
 pub fn specs_read(_s: String) -> String { String::new() }
 pub fn specs_list() -> String { String::new() }
-pub fn specs_write(_s: String, _c: String) -> String { "ok".into() }
-pub fn specs_update(_a: String, _s: String, _v: Value) -> String { "ok".into() }
-pub fn specs_write_goals(_g: String) -> String { "ok".into() }
+pub fn specs_write(_s: String, _c: String) -> String { "retired: edit docs/specs source documents".into() }
+pub fn specs_update(_a: String, _s: String, _v: Value) -> String { "retired: edit docs/specs source documents".into() }
+pub fn specs_write_goals(_g: String) -> String { "retired: edit docs/specs source documents".into() }
 /// ③ 委托(config 页):professions/config/modes/skills/roles 走真实 registry,
 /// 返回 hw wire 形状的 Value。
 pub fn professions_list() -> Value {

@@ -191,6 +191,37 @@ pub fn specs_text(path str) FilesTextResponse {
     return None
 }
 
+pub type SpecDocument = {
+    content: str,
+    body: str,
+    preamble: str,
+    hash: str,
+    editable: bool,
+    error: str,
+}
+
+pub type SpecIndexResponse = {
+    document: SpecsDocument,
+    source_hash: str,
+    fresh: bool,
+    diagnostics: []str,
+}
+
+#[api(method = "GET", path = "/api/specs/index")]
+pub fn specs_index() SpecIndexResponse {
+    return None
+}
+
+#[api(method = "GET", path = "/api/specs/document/{path}")]
+pub fn specs_document(path str) SpecDocument {
+    return None
+}
+
+#[api(method = "PUT", path = "/api/specs/document/{path}")]
+pub fn specs_save_document(path str, content str, expected_hash str) SpecDocument {
+    return None
+}
+
 #[api(method = "GET", path = "/api/specs/file/{path}")]
 pub fn specs_get_file(path str) str {
     return None

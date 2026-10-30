@@ -594,7 +594,7 @@ impl WorkspaceStores {
         let data = autoos_dir(&root);
         let _ = std::fs::create_dir_all(&data);
         let stores = Self {
-            specs: Arc::new(SpecsStore::new(data.join("specs.json"))),
+            specs: Arc::new(SpecsStore::for_documents(root.clone())),
             plans: Arc::new(crate::plans::PlansStore::new(root.join("docs/plans"))),
             chats: Arc::new(ChatStore::at(data.join("chats.json"))),
             wiki: Arc::new(WikiStore::new(data.join("wiki"), data.join("raw"))),

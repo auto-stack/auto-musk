@@ -124,7 +124,7 @@ fn reach_document(tag: &str) -> DeliveryEnv {
         chat_pending: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         run_auto_continue: false,
         chat_procs: std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
-        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+        chat_runs: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         chat_cancels: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         run_idle_timeout: std::time::Duration::from_secs(300),
     };
@@ -286,75 +286,26 @@ fn land_rebase_equiv_and_ff_only_with_conflict_refusal() {
 /// 回读一致、重复刷新零增长；坏账本响亮失败且字节不变。
 #[test]
 #[serial]
-fn refresh_store_mediated_preserves_and_fails_loud_on_corrupt_ledger() {
+fn refresh_verifies_sources_and_ignores_corrupt_legacy_ledger() {
     let env = reach_document("refresh");
-    let ws = env.state.registry.get(&env.ws_id);
-    // 预置不相关条目（经 store，测试亦守 store-mediated 纪律）。
-    {
-        let mut doc = ws.specs.load().unwrap();
-        let mut item = musk::specs::SpecItem::new("legacy-keep", "既有条目");
-        item.content = "必须保留".into();
-        ws.specs.upsert_item(&mut doc, "goals", item).unwrap();
-        ws.specs.save(&doc).unwrap();
-    }
-    // 未 land 直接 refresh → 拒（canonical 先行）。
     let err = musk::plan_delivery::refresh(&env.state, &env.ws_id, &env.run_id).unwrap_err();
     assert!(err.contains("landed checkpoint"), "{err}");
-
-    // prepare + land。
     std::fs::create_dir_all(env.worktree.join("docs/specs/modules")).unwrap();
     std::fs::write(env.worktree.join(DELTA_MODULE), "# demo-module\n\ndelta.\n").unwrap();
     musk::plan_delivery::prepare(&env.state, &env.ws_id, &env.run_id).unwrap();
     musk::plan_delivery::land(&env.state, &env.ws_id, &env.run_id).unwrap();
-
-    let out = musk::plan_delivery::refresh(&env.state, &env.ws_id, &env.run_id).unwrap();
-    assert_eq!(out["checkpoint"], "ledger_refreshed");
-    // 目标条目 + 交付收据条目 + 不相关条目共存。
-    let doc = ws.specs.load().unwrap();
-    let ids: Vec<&str> = doc.sections.iter().flat_map(|s| s.items.iter().map(|i| i.id.as_str())).collect();
-    assert!(ids.iter().any(|i| *i == "PLAN-001-demo-module.md"), "delta item: {ids:?}");
-    assert!(ids.iter().any(|i| *i == "PLAN-001-delivery"), "delivery item");
-    assert!(ids.iter().any(|i| *i == "legacy-keep"), "unrelated item preserved");
-    let delta_item = doc
-        .sections
-        .iter()
-        .flat_map(|s| s.items.iter())
-        .find(|i| i.id == "PLAN-001-demo-module.md")
-        .unwrap();
-    assert!(delta_item.tags.iter().any(|t| t.starts_with("source:")));
-    assert!(delta_item.tags.iter().any(|t| t.starts_with("commit:")));
-    assert_eq!(delta_item.file.as_deref(), Some(DELTA_MODULE));
-    let version_after_first = doc.version;
-    drop(doc);
-
-    // 重复刷新 → 幂等（零增长）。
-    let out2 = musk::plan_delivery::refresh(&env.state, &env.ws_id, &env.run_id).unwrap();
-    assert_eq!(out2["idempotent"], true);
-    let doc2 = ws.specs.load().unwrap();
-    assert_eq!(doc2.version, version_after_first, "no duplicate items on re-refresh");
-    assert_eq!(
-        doc2.sections.iter().flat_map(|s| s.items.iter()).filter(|i| i.id.starts_with("PLAN-001")).count(),
-        2
-    );
-
-    // 坏账本：响亮失败 + 字节不变（另一个环境）。
-    let env2 = reach_document("refreshbad");
-    {
-        let ws2 = env2.state.registry.get(&env2.ws_id);
-        std::fs::create_dir_all(env2.worktree.join("docs/specs/modules")).unwrap();
-        std::fs::write(env2.worktree.join(DELTA_MODULE), "# delta\n").unwrap();
-        musk::plan_delivery::prepare(&env2.state, &env2.ws_id, &env2.run_id).unwrap();
-        musk::plan_delivery::land(&env2.state, &env2.ws_id, &env2.run_id).unwrap();
-        // 破坏账本。
-        let ledger = env2.main_root.join(".autoos/specs.json");
-        std::fs::write(&ledger, "{corrupt json").unwrap();
-        let before = std::fs::read(&ledger).unwrap();
-        let err = musk::plan_delivery::refresh(&env2.state, &env2.ws_id, &env2.run_id).unwrap_err();
-        assert!(err.contains("load failed") || err.contains("blocked"), "{err}");
-        let after = std::fs::read(&ledger).unwrap();
-        assert_eq!(before, after, "corrupt ledger bytes must be untouched");
-        let _ = ws2;
+    let ledger=env.main_root.join(".autoos/specs.json");
+    std::fs::create_dir_all(ledger.parent().unwrap()).unwrap();
+    std::fs::write(&ledger,"{corrupt json").unwrap();
+    let before=std::fs::read(&ledger).unwrap();
+    for _ in 0..2 {
+        let out=musk::plan_delivery::refresh(&env.state,&env.ws_id,&env.run_id).unwrap();
+        assert_eq!(out["checkpoint"],"canonical_verified");
+        assert_eq!(out["ledger_written"],false);
     }
+    assert_eq!(std::fs::read(&ledger).unwrap(),before);
+    let pe=env.state.registry.get(&env.ws_id).relay.plan_execution(&env.run_id).unwrap();
+    assert!(!pe.delivery_checkpoints.contains_key("ledger_refreshed"));
 }
 
 /// T-09：archive 门禁顺序 + finalize；cleanup 移除自有 worktree/分支并
@@ -372,9 +323,7 @@ fn archive_cleanup_order_and_pending_semantics() {
     let err = musk::plan_delivery::archive(&env.state, &env.ws_id, &env.run_id).unwrap_err();
     assert!(err.contains("landed"), "{err}");
     musk::plan_delivery::land(&env.state, &env.ws_id, &env.run_id).unwrap();
-    let err = musk::plan_delivery::archive(&env.state, &env.ws_id, &env.run_id).unwrap_err();
-    assert!(err.contains("ledger_refreshed"), "{err}");
-    musk::plan_delivery::refresh(&env.state, &env.ws_id, &env.run_id).unwrap();
+    // Canonical landing suffices; no index/ledger refresh is required.
     // 未完成 cleanup 前 cleanup 自身先拒（archive 未做）。
     let err = musk::plan_delivery::cleanup(&env.state, &env.ws_id, &env.run_id).unwrap_err();
     assert!(err.contains("archived checkpoint"), "{err}");
@@ -443,7 +392,7 @@ fn document_stage_end_gates_on_checkpoints() {
     record_stage_claim(&ws.relay, &env.run_id, claim("document", "pass")).unwrap();
     match on_stage_end(&env.state, &env.ws_id, &env.run_id) {
         StageRouting::Fail(e) => {
-            for cp in ["prepared", "landed", "ledger_refreshed", "archived", "cleaned"] {
+            for cp in ["prepared", "landed", "archived", "cleaned"] {
                 assert!(e.contains(cp), "missing {cp} named: {e}");
             }
         }
@@ -544,7 +493,7 @@ async fn managed_plan_refuses_legacy_bypasses() {
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), 404, "unmanaged plan keeps legacy semantics");
+    assert_eq!(resp.status(), 400, "combined merge is retired for unmanaged plans too");
     std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
 }
 
@@ -626,4 +575,58 @@ async fn external_handoff_rest_refused_for_plan_runs() {
         .unwrap();
     assert_eq!(resp.status(), 409, "rerun refused for plan runs");
     std::env::remove_var("MUSK_PLAN_WORKTREE_ROOT");
+}
+
+
+#[test]
+#[serial]
+fn prepare_accepts_the_canonical_delta_already_in_the_reviewed_commit() {
+    let env = reach_document("committed-docs");
+    std::fs::create_dir_all(env.worktree.join("docs/specs/modules")).unwrap();
+    std::fs::write(env.worktree.join(DELTA_MODULE), "# Reviewed Spec\n").unwrap();
+    git_args(&env.worktree, &["add", "docs/specs"]);
+    git_args(&env.worktree, &["commit", "-m", "reviewed implementation and canonical document"]);
+    let reviewed = git_args(&env.worktree, &["rev-parse", "HEAD"]);
+    let ws = env.state.registry.get(&env.ws_id);
+    ws.relay.mutate_plan_execution(&env.run_id, |pe| pe.reviewed_commit=Some(reviewed.clone()));
+    let out = musk::plan_delivery::prepare(&env.state,&env.ws_id,&env.run_id).unwrap();
+    assert_eq!(out["delivery_commit"],reviewed);
+    musk::plan_delivery::land(&env.state,&env.ws_id,&env.run_id).unwrap();
+    musk::plan_delivery::archive(&env.state,&env.ws_id,&env.run_id).unwrap();
+    assert!(!env.main_root.join(".autoos/specs.json").exists());
+}
+
+#[test]
+#[serial]
+fn reviewed_no_spec_impact_can_land_without_synthetic_docs_or_a_ledger() {
+    let env=reach_document("no-spec-impact");
+    let path=env.main_root.join("docs/plans/001-delivery-demo.md");
+    let text=std::fs::read_to_string(&path).unwrap().lines()
+        .filter(|line| line.trim() != "- docs/specs/modules/demo-module.md")
+        .map(|line| if line.starts_with("new_spec_components:") { "new_spec_components: []" } else { line })
+        .collect::<Vec<_>>().join("\n");
+    std::fs::write(&path,text).unwrap();
+    let contract=musk::relay::plan_contract::PlanContract::read(&path,Some("PLAN-001")).unwrap();
+    assert!(contract.new_spec_components.is_empty());
+    let ws=env.state.registry.get(&env.ws_id);
+    // This test explicitly constructs the approved, reviewed no-impact binding.
+    // The existing semantic-drift test covers changing it without rebinding.
+    ws.relay.mutate_plan_execution(&env.run_id,|pe|{
+        let binding=pe.binding.as_mut().unwrap();
+        binding.semantic_hash=contract.semantic_hash.clone();
+        binding.contract_hash=contract.contract_hash.clone();
+    });
+    musk::plan_delivery::prepare(&env.state,&env.ws_id,&env.run_id).unwrap();
+    musk::plan_delivery::land(&env.state,&env.ws_id,&env.run_id).unwrap();
+    musk::plan_delivery::archive(&env.state,&env.ws_id,&env.run_id).unwrap();
+    assert!(!env.main_root.join(".autoos/specs.json").exists());
+}
+
+#[test]
+#[serial]
+fn missing_review_commit_is_never_a_delivery_pass() {
+    let env=reach_document("missing-review");
+    env.state.registry.get(&env.ws_id).relay.mutate_plan_execution(&env.run_id,|pe|pe.reviewed_commit=None);
+    let error=musk::plan_delivery::prepare(&env.state,&env.ws_id,&env.run_id).unwrap_err();
+    assert!(error.contains("reviewed_commit"),"{error}");
 }

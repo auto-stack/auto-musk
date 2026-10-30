@@ -309,7 +309,7 @@ export function deliveredGate(facts, { planLabel = 'round' } = {}) {
     throw new Error(`assertions: ${planLabel} 未交付（status=${facts?.status} phase=${pe.phase} outcome=${pe.outcome}）——工程未交付不发下一需求`);
   }
   const cps = Object.keys(pe.delivery_checkpoints ?? {});
-  const missing = ['prepared', 'landed', 'ledger_refreshed', 'archived', 'cleaned'].filter(k => !cps.includes(k));
+  const missing = ['prepared', 'landed', 'archived', 'cleaned'].filter(k => !cps.includes(k));
   if (missing.length) throw new Error(`assertions: ${planLabel} delivered 但检查点缺件 ${missing.join(',')}（缺件完成不绿）`);
   return true;
 }

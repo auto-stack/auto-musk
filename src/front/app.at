@@ -17,7 +17,7 @@ use whitelist_view: WhitelistView
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
 // PLAN-081: platformRefreshAuth 增入——boot 解析回填前重注入 VM 默认 query。
-use.web platformInjectStyles, platformSetupAuthFetch, platformRefreshAuth from "src/front/ports/platform.at"
+use.web platformSpecDirty, platformSpecMayLeave, platformInjectStyles, platformSetupAuthFetch, platformRefreshAuth from "src/front/ports/platform.at"
 use.web ensure_workspace, ws_resolve_current from "src/front/workspace_helpers.at"
 use.web useT from "src/front/ports/composables.at"
 use.web useGateRouter from "src/front/ports/composables.at"
@@ -261,6 +261,7 @@ widget App {
 
     on {
         .Init -> {
+            platformSpecDirty(false);
             platformInjectStyles();
             platformSetupAuthFetch();
             ensure_workspace();
@@ -292,6 +293,7 @@ widget App {
             .rail_collapsed = !.rail_collapsed
         }
         .ShowChats -> {
+            if !platformSpecMayLeave() { return }
             .current_view = "chats";
             .is_chats = true;
             .is_plans = false;
@@ -325,6 +327,7 @@ widget App {
             }
         }
         .ShowPlans -> {
+            if !platformSpecMayLeave() { return }
             .current_view = "plans";
             .is_chats = false;
             .is_plans = true;
@@ -352,6 +355,7 @@ widget App {
             SpecsStore.LoadOverview()
         }
         .ShowWiki -> {
+            if !platformSpecMayLeave() { return }
             .current_view = "wiki";
             .is_chats = false;
             .is_plans = false;
@@ -365,6 +369,7 @@ widget App {
         // PLAN-068: 进入文件视图即重拉 workspace 树（freshness 优先；
         // FilesView.Init 的 files_loaded 守卫只拦挂载期双触发）。
         .ShowFiles -> {
+            if !platformSpecMayLeave() { return }
             .current_view = "files";
             .is_chats = false;
             .is_plans = false;
@@ -378,6 +383,7 @@ widget App {
         // PLAN-070：白名单视图——进入即由视图 Init 重拉（v-if 重挂载语义，
         // 无需 App 驱动 store）。
         .ShowWhitelist -> {
+            if !platformSpecMayLeave() { return }
             .current_view = "whitelist";
             .is_chats = false;
             .is_plans = false;

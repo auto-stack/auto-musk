@@ -173,9 +173,9 @@ LLM 请求打最小观测行（入口 model/stream/candidates + 结果 elapsed/u
   review 失败不再"run 结束等用户"——needs_fix 自动回退（≤3 轮+无进展
   早停+findings 注入），needs_replan/blocked 响亮停止。细节见
   `plan-execution-contract.md`。
-- **沉淀**：~~`merge_plan` 章节复制+立即归档~~ → `plan_delivery` 五检查点
-  （prepare/land/refresh/archive/cleanup，canonical 先合入、账本经 store
-  刷新、显式归档殿后、清理失败=cleanup_pending）。SD-03。
+- **沉淀**：~~`merge_plan` 章节复制+立即归档~~ → `plan_delivery` 四检查点
+  （prepare/land/archive/cleanup，canonical 先合入并核验、
+  显式归档殿后、清理失败=cleanup_pending）。SD-03。
 - **execute 门**：approve 即冻结批准绑定（合同/Git 事实/worktree 租约）
   并推进计划 drafting→executing；authorization=auto 桥接 approval_mode
   （会话 auto 语义等价；REST 显式授权同路径）。
@@ -209,3 +209,7 @@ RUNBOOK §4 第 0 步（每 run 产出摘要并在结果总表/历史记录引�
 参数逐字取自 `create_plan` 返回值或机械输入，不得凭记忆书写。
 （run-1791532877 实录：advisor 文本收尾忘交即遭旧规则一击致命；L1 探针
 健康基线证明工具链在位，失败源 = 模型随机不合规。）
+
+## PLAN-106：文档源交付策略覆盖
+
+此前 refresh/SpecsStore upsert/ledger_refreshed 发布要求退役，仅为历史背景。当前 prepare → land → archive → cleanup，核验已合入的 canonical Spec；索引由应用生成且非门禁。旧 refresh 仅验证源。skills_hashes 保留批准快照，旧 run 的 document 相位覆盖旧发布义务而维持合同/提交/依赖门禁；不补写历史 checkpoint。见 [spec-document-store.md](spec-document-store.md)。

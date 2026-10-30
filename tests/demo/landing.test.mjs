@@ -35,15 +35,15 @@ test('worktreeCleanupVerdict/worktreeListVerdict: run-scoped leftovers rejected'
   assert.equal(two.ok, false);
 });
 
-test('landingFilesVerdict: specs/ledger/archived/wiki 全链缺一响亮', () => {
+test('landingFilesVerdict: canonical Specs/archived/wiki required; generated ledger optional', () => {
   const good = landingFilesVerdict({
     specs: ['board.md'], ledgerPaths: ['docs/specs/index.json'],
     archived: ['001-basic-board.md'], wiki: ['usage.md'], planMarker: '001-basic-board',
   });
   assert.equal(good.ok, true, JSON.stringify(good.errors));
   const noLedger = landingFilesVerdict({ specs: ['board.md'], ledgerPaths: [], archived: ['a.md'], wiki: ['usage.md'], planMarker: 'a' });
-  assert.equal(noLedger.ok, false);
-  assert.ok(noLedger.errors.some(e => /ledger/.test(e)));
+  assert.equal(noLedger.ok, true);
+  assert.equal(noLedger.errors.some(e => /ledger/.test(e)), false);
   const noWiki = landingFilesVerdict({ specs: ['board.md'], ledgerPaths: ['x'], archived: ['a.md'], wiki: [], planMarker: 'a' });
   assert.ok(noWiki.errors.some(e => /Wiki/.test(e)));
   const noSpecs = landingFilesVerdict({ specs: [], ledgerPaths: ['x'], archived: [], wiki: ['u.md'], planMarker: null });

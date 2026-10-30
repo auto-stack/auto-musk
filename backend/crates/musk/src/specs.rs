@@ -837,13 +837,20 @@ pub fn transition(
 /// at `path`. Good enough for single-user; a real DB is a later phase.
 pub struct SpecsStore {
     path: std::path::PathBuf,
+    document_root: Option<std::path::PathBuf>,
 }
 
 impl SpecsStore {
     /// Open (or create) a store at `path`.
     pub fn new(path: impl Into<std::path::PathBuf>) -> Self {
-        Self { path: path.into() }
+        Self { path: path.into(), document_root: None }
     }
+
+    /// Application stores are read-only projections, never JSON writers.
+    pub fn for_documents(root: std::path::PathBuf) -> Self {
+        Self { path: root.join(".autoos/specs.json"), document_root: Some(root) }
+    }
+    pub fn is_projection(&self) -> bool { self.document_root.is_some() }
 
     /// The backing JSON file path (PLAN-094: tests assert byte-invariance).
     pub fn path(&self) -> &std::path::Path {
@@ -852,6 +859,11 @@ impl SpecsStore {
 
     /// Load the document; create an empty one (persisted) if absent.
     pub fn load(&self) -> std::io::Result<SpecsDocument> {
+        if let Some(root) = &self.document_root {
+            let projection = crate::spec_index::build(root)?;
+            if !projection.fresh { return Err(std::io::Error::other("Spec sources changed; retry read")); }
+            return Ok(projection.document);
+        }
         match std::fs::read(&self.path) {
             Ok(bytes) => {
                 let mut doc: SpecsDocument = serde_json::from_slice(&bytes).map_err(|e| {
@@ -880,6 +892,10 @@ impl SpecsStore {
 
     /// Persist the document.
     pub fn save(&self, doc: &SpecsDocument) -> std::io::Result<()> {
+        if self.document_root.is_some() {
+            return Err(std::io::Error::new(std::io::ErrorKind::Unsupported,
+                "Spec item writes retired: edit the source in docs/specs via the document API with expected_hash, or use file tools in a dedicated worktree"));
+        }
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent)?;
         }

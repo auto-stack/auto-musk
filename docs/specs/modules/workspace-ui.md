@@ -100,7 +100,7 @@
   - 相位轨（规划→实施→复审→沉淀→已交付）+ 当前相位高亮；
   - plan_id · r{revision} · phase · attempt · 修复 c/limit 摘要行
     （handler 域预构建标签，VM/Vue 同义）；
-  - 交付检查点行（prepared/landed/ledger_refreshed/archived/cleaned
+  - 交付检查点行（prepared/landed/archived/cleaned
     冻结序，✓/○）；
   - blocker 横幅（blocked/needs_replan 事实可见）；
   - 断连陈旧横幅（最后成功快照 + 明确陈旧标记）与
@@ -110,3 +110,7 @@
 - **不另建主栏目**：不打断 composer 草稿、审批与 Canvas 状态；五栏目
   布局保留；中英 i18n 键齐备（planProgress.*）。
 - 只有 A 控制器 delivered 事实才显示已交付；检查点缺件不绿。
+
+## PLAN-106：交付进度卡的文档源策略
+
+交付检查点固定为 prepared/landed/archived/cleaned；新 run 不等待 ledger_refreshed。旧收据里的 ledger_refreshed 可作历史信息，不能成为缺件提示或替代 landing。应用自动索引状态不影响 delivered，源文件与已落地提交仍须核验。

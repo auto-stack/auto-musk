@@ -18,6 +18,16 @@ Output: a receipt at `docs/plans/.last-batch-regression.json` committed on
 the default branch, plus a triage verdict (green / known-reds-only /
 new-reds with plan attribution).
 
+## Document-source contract (PLAN-106)
+
+Current knowledge lives in docs/specs/ documents; archived Plans retain review and
+delivery history. The application generates indexes automatically. Agents never
+write specs.json or manually maintain index.json lists, and merge has no index or
+ledger publication prerequisite. Missing/corrupt caches and an offline application
+do not block source delivery. Read/list tools may expose a derived six-category
+view; retired item-write tools must direct callers to canonical source files.
+
+
 ## Why this tier exists
 
 Per-plan review runs the scoped daily gate (`cargo t` + surface tiers

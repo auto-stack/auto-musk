@@ -30,7 +30,7 @@ export const CONTRACT_FROZEN = {
 export const PHASES = ['plan', 'execute', 'review', 'document', 'delivered'];
 export const OUTCOMES = ['pass', 'needs_fix', 'needs_replan', 'blocked'];
 // 交付检查点（plan_delivery.rs record_checkpoint 键；delivered 相位要求全五在列）
-export const DELIVERY_CHECKPOINTS = ['prepared', 'landed', 'ledger_refreshed', 'archived', 'cleaned'];
+export const DELIVERY_CHECKPOINTS = ['prepared', 'landed', 'archived', 'cleaned'];
 // PlanExecutionState 必填（缺任一 = 后端合同损坏，显式拒绝；serde default 字段可缺席）
 export const PLAN_EXECUTION_REQUIRED = ['contract_version', 'plan_id', 'plan_path', 'phase'];
 // RunPlanEvent（事件名 plan_stage_facts）必填
@@ -113,7 +113,7 @@ export function validatePlanExecution(pe) {
       err(errors, 'delivery_checkpoints must be an object');
     } else {
       for (const k of Object.keys(pe.delivery_checkpoints)) {
-        if (!DELIVERY_CHECKPOINTS.includes(k)) err(errors, `delivery_checkpoints key "${k}" unknown`);
+        if (!DELIVERY_CHECKPOINTS.includes(k) && k !== "ledger_refreshed") err(errors, `delivery_checkpoints key "${k}" unknown`);
       }
       if (pe.phase === 'delivered') {
         for (const k of DELIVERY_CHECKPOINTS) {

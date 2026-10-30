@@ -1,35 +1,11 @@
 //! PLAN-096 T-08/T-09: controlled delivery — the server-owned Git / store /
 //! archive operations behind the `plan_delivery` tool (§5.7, AC-08/10/11/17).
 //!
-//! Five checkpoints in order, each verified against real facts before the
-//! previous side effects are considered settled, and each recorded in a
-//! durable receipt keyed `PLAN-NNN:rN` under
-//! `{ws_root}/.autoos/plan-delivery/{plan_id}.json`:
-//!
-//! 1. **prepared** — review facts verified (plan reviewed, binding intact,
-//!    worktree HEAD == reviewed_commit, deps unchanged); the reviewed spec
-//!    delta authored under `docs/specs/` in the WORKTREE is committed there
-//!    (delivery_commit). Same-implementation doc descendants may become the
-//!    delivery commit; implementation drift must go back to review (the
-//!    binding/HEAD checks enforce that).
-//! 2. **landed** — fresh guard clean; rebase onto the detected default
-//!    branch with a recorded old→new mapping and a `git range-diff`
-//!    equivalence check (any changed-diff line refuses); the main checkout
-//!    is fast-forwarded `--ff-only` only (no merge fallback), and the
-//!    actual tip must equal the rebased canonical commit.
-//! 3. **ledger_refreshed** — via the workspace SpecsStore (same semantics as
-//!    write_spec/update_spec): per spec-delta target upsert a derived item
-//!    carrying the canonical path, source hash and delivery commit; the
-//!    store is re-loaded to verify. Load errors / unwritable ledger →
-//!    blocked loud (never a hand-written JSON pass). Unrelated items and
-//!    history are preserved by upsert semantics.
-//! 4. **archived** — only after the above verified: the shared plan is
-//!    explicitly finalized (status=archived + moved), completion_kind=
-//!    delivered recorded with the receipt.
-//! 5. **cleaned** — fresh guard + merged check, then the run's own worktree
-//!    and dev branch are removed; the layout group dir is pruned only when
-//!    empty. Cleanup failure keeps the delivered archive and reports
-//!    `cleanup_pending` — earlier side effects are never re-run.
+//! Document-source policy: prepare -> land -> archive -> cleanup. Canonical
+//! documents are verified against real Git landing facts; indexes are automatic
+//! and never gate delivery. The legacy refresh action only verifies canonical
+//! sources and does not write a ledger. Recovery preserves historical checkpoint
+//! facts without requiring a ledger_refreshed entry. No cross-file atomicity.
 //!
 //! Cross-step re-entry is reconciled from the receipt (explicit plan-merge
 //! re-runs read it and only fill the missing checkpoints).
@@ -246,6 +222,9 @@ fn verify_review_facts(ctx: &DeliveryCtx) -> Result<(), String> {
     }
     // worktree HEAD 仍是复审通过的提交。
     let (head, _clean) = worktree_head_clean(&ctx.worktree)?;
+    if ctx.pe.reviewed_commit.is_none() {
+        return Err("delivery requires a revision-bound reviewed_commit".into());
+    }
     if let Some(rev) = &ctx.pe.reviewed_commit {
         if head != *rev {
             return Err(format!(
@@ -287,17 +266,32 @@ pub fn prepare(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Re
         .filter(|p| p.starts_with("docs/specs/"))
         .collect();
     if spec_files.is_empty() {
-        return Err(
-            "prepare: no changes under docs/specs/ — author the reviewed spec delta in the \
-             worktree first (file tools are scoped to the dev worktree)"
-                .into(),
-        );
+        // Work/review may already have committed the canonical delta. An
+        // approved no-impact contract also needs no synthetic document edit.
+        if !status.trim().is_empty() {
+            return Err("prepare requires a clean worktree or the reviewed Spec-only delta".into());
+        }
+        let contract = crate::relay::plan_contract::PlanContract::read(
+            &ctx.main_root.join(&ctx.binding.plan_path), Some(&ctx.binding.plan_id))?;
+        let targets: Vec<_> = contract.new_spec_components.iter().chain(&contract.supersedes_spec_components).collect();
+        let (delivery_commit, _) = worktree_head_clean(&ctx.worktree)?;
+        let mut hashes = serde_json::Map::new();
+        for target in &targets {
+            let relative = target.strip_prefix("docs/specs/").ok_or("Spec target outside docs/specs")?;
+            let file = crate::spec_documents::resolve(&ctx.worktree, relative).map_err(|e| e.to_string())?;
+            git(&ctx.worktree, &["cat-file", "-e", &format!("HEAD:{target}")])
+                .map_err(|e| format!("no changes under docs/specs and declared target is missing: {e}"))?;
+            hashes.insert((*target).clone(), json!(crate::spec_documents::hash(&std::fs::read(file).map_err(|e| e.to_string())?)));
+        }
+        let facts = json!({"delivery_commit":delivery_commit,"files":targets,"target_hashes":hashes,
+            "base_commit":ctx.binding.base_commit,"policy":"document-source-v1","approved_no_spec_impact":targets.is_empty()});
+        record_checkpoint(state, ws_id, run_id, &ctx, "prepared", facts, None)?;
+        return Ok(json!({"checkpoint":"prepared","delivery_commit":delivery_commit,"next_action":"land"}));
     }
     git(&ctx.worktree, &["add", "docs/specs"])?;
     let review_desc = format!(
-        "plan({}) spec delta delivery (SD targets: {})",
-        ctx.binding.plan_id,
-        spec_files.len()
+        "docs(plan {}): deposit reviewed canonical spec delta ({} files)",
+        ctx.pe.plan_seq, spec_files.len()
     );
     git(&ctx.worktree, &["commit", "-m", &review_desc])?;
     let (delivery_commit, clean) = worktree_head_clean(&ctx.worktree)?;
@@ -335,7 +329,7 @@ pub fn land(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Resul
             .trim()
             .to_string();
         if main_tip == commit {
-            return Ok(json!({"checkpoint": "landed", "delivery_commit": commit, "idempotent": true, "next_action": "refresh"}));
+            return Ok(json!({"checkpoint": "landed", "delivery_commit": commit, "idempotent": true, "next_action": "archive"}));
         }
         return Err(format!(
             "landed checkpoint records {commit} but default branch tip is {main_tip} — reconcile before continuing"
@@ -429,141 +423,34 @@ pub fn land(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Resul
         "main_tip": main_tip,
     });
     record_checkpoint(state, ws_id, run_id, &ctx, "landed", facts, None)?;
-    Ok(json!({"checkpoint": "landed", "delivery_commit": new_head, "old_commit": old_head, "next_action": "refresh"}))
+    Ok(json!({"checkpoint": "landed", "delivery_commit": new_head, "old_commit": old_head, "next_action": "archive"}))
 }
 
-/// **refresh** — ledger via the workspace SpecsStore (store-mediated only).
+/// Compatibility-only action: verify canonical landing; never refresh a ledger.
 pub fn refresh(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Result<serde_json::Value, String> {
     let ctx = delivery_ctx(state, ws_id, run_id)?;
-    if let Some(existing) = ctx.pe.delivery_checkpoints.get("ledger_refreshed") {
-        return Ok(json!({"checkpoint": "ledger_refreshed", "idempotent": true, "facts": existing}));
+    verify_canonical_landing(&ctx)?;
+    Ok(json!({"checkpoint": "canonical_verified", "policy": "document-source-v1", "next_action": "archive", "legacy_action": "refresh", "ledger_written": false}))
+}
+
+fn verify_canonical_landing(ctx: &DeliveryCtx) -> Result<(), String> {
+    let landed = ctx.pe.delivery_checkpoints.get("landed").ok_or("archive requires landed checkpoint")?;
+    let commit = landed.get("delivery_commit").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).ok_or("landed lacks delivery commit")?;
+    let prepared = ctx.pe.delivery_checkpoints.get("prepared")
+        .and_then(|v| v.get("delivery_commit")).and_then(|v| v.as_str())
+        .ok_or("canonical verification requires the prepared delivery commit")?;
+    if commit != prepared && landed.get("old_commit").and_then(|v| v.as_str()) != Some(prepared) {
+        return Err("landed commit is not bound to the prepared delivery (rebase mapping missing)".into());
     }
-    let landed = ctx
-        .pe
-        .delivery_checkpoints
-        .get("landed")
-        .ok_or("ledger refresh requires the landed checkpoint (canonical first)")?
-        .clone();
-    let delivery_commit = landed
-        .get("delivery_commit")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .to_string();
-    // 合同（批准范围）的 spec 增量目标。
+    git(&ctx.main_root, &["merge-base", "--is-ancestor", commit, &ctx.binding.default_branch])?;
     let contract = crate::relay::plan_contract::PlanContract::read(
-        &ctx.main_root.join(&ctx.binding.plan_path),
-        Some(&ctx.binding.plan_id),
-    )?;
-    let ws = state.registry.get(ws_id);
-    let specs = ws.specs.clone();
-    let mut touched: Vec<String> = Vec::new();
-    for target in contract
-        .new_spec_components
-        .iter()
-        .chain(contract.supersedes_spec_components.iter())
-    {
-        let canon = ctx.main_root.join(target.trim_start_matches("./"));
-        let bytes = std::fs::read(&canon)
-            .map_err(|e| format!("spec target {target} unreadable after landing: {e}"))?;
-        let hash = crate::relay::plan_contract::sha256_hex(&bytes);
-        let mut doc = specs.load().map_err(|e| {
-            format!(
-                "ledger load failed — blocked (never hand-write specs.json): {e}; \
-                 restore from backup or rebuild from docs/specs/ then retry"
-            )
-        })?;
-        let base = Path::new(target)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| target.clone());
-        let mut item = crate::specs::SpecItem::new(
-            format!("{}-{base}", ctx.binding.plan_id),
-            format!("{} — spec delta ({})", contract.feature_name, base),
-        );
-        item.status = crate::specs::SpecStatus::Empty;
-        item.file = Some(target.clone());
-        item.module = Some(base.trim_end_matches(".md").to_string());
-        item.tags = vec![
-            format!("source:{hash}"),
-            format!("commit:{delivery_commit}"),
-            format!("plan:{}", ctx.binding.plan_id),
-        ];
-        item.content = format!(
-            "Derived from {} spec delta landed at {delivery_commit}; canonical source: {target} (source:{hash}).",
-            ctx.binding.plan_id
-        );
-        specs
-            .upsert_item(&mut doc, "designs", item)
-            .map_err(|e| format!("ledger upsert failed: {e}"))?;
-        specs.save(&doc).map_err(|e| {
-            format!(
-                "ledger save failed — blocked: {e}; the ledger must go through the store, never a hand-written pass"
-            )
-        })?;
-        touched.push(target.clone());
+        &ctx.main_root.join(&ctx.binding.plan_path), Some(&ctx.binding.plan_id))?;
+    for target in contract.new_spec_components.iter().chain(&contract.supersedes_spec_components) {
+        let relative = target.strip_prefix("docs/specs/").ok_or("Spec target outside docs/specs")?;
+        crate::spec_documents::resolve(&ctx.main_root, relative).map_err(|e| e.to_string())?;
+        git(&ctx.main_root, &["cat-file", "-e", &format!("{commit}:{target}")])?;
     }
-    // 交付收据摘要条目（reports 区）。
-    {
-        let mut doc = specs
-            .load()
-            .map_err(|e| format!("ledger load failed — blocked: {e}"))?;
-        let mut item = crate::specs::SpecItem::new(
-            format!("{}-delivery", ctx.binding.plan_id),
-            format!("{} — delivery receipt", contract.feature_name),
-        );
-        item.status = crate::specs::SpecStatus::Empty;
-        item.tags = vec![
-            format!("plan:{}", ctx.binding.plan_id),
-            format!("commit:{delivery_commit}"),
-            format!(
-                "receipt:{}",
-                receipt_rel_path(&ctx.binding.plan_id)
-            ),
-        ];
-        item.content = format!(
-            "delivery checkpoints: {:?}",
-            ctx.pe.delivery_checkpoints.keys().collect::<Vec<_>>()
-        );
-        specs
-            .upsert_item(&mut doc, "reports", item)
-            .map_err(|e| format!("ledger upsert failed: {e}"))?;
-        specs
-            .save(&doc)
-            .map_err(|e| format!("ledger save failed — blocked: {e}"))?;
-    }
-    // 回读核验（AC-17）：load 再成功 + 条目在且 hash 正确。
-    {
-        let doc = specs
-            .load()
-            .map_err(|e| format!("ledger reload failed after refresh — blocked: {e}"))?;
-        for target in &touched {
-            let base = Path::new(target)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| target.clone());
-            let id = format!("{}-{base}", ctx.binding.plan_id);
-            let found = doc
-                .sections
-                .iter()
-                .flat_map(|s| s.items.iter())
-                .find(|i| i.id == id);
-            match found {
-                Some(item) => {
-                    if !item.tags.iter().any(|t| t.starts_with("source:")) {
-                        return Err(format!("ledger item {id} lost its source metadata"));
-                    }
-                }
-                None => return Err(format!("ledger item {id} missing after refresh")),
-            }
-        }
-    }
-    let facts = json!({
-        "delivery_commit": delivery_commit,
-        "targets": touched,
-        "store": "SpecsStore upsert (store-mediated)",
-    });
-    record_checkpoint(state, ws_id, run_id, &ctx, "ledger_refreshed", facts, None)?;
-    Ok(json!({"checkpoint": "ledger_refreshed", "targets": touched, "next_action": "archive"}))
+    Ok(())
 }
 
 /// **archive** — explicit finalize after the earlier checkpoints verified.
@@ -580,11 +467,12 @@ pub fn archive(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Re
             return Ok(json!({"checkpoint": "archived", "idempotent": true, "completion_kind": "delivered", "next_action": "cleanup"}));
         }
     }
-    for required in ["prepared", "landed", "ledger_refreshed"] {
+    for required in ["prepared", "landed"] {
         if ctx.pe.delivery_checkpoints.get(required).is_none() {
             return Err(format!("archive requires the {required} checkpoint first"));
         }
     }
+    verify_canonical_landing(&ctx)?;
     let pf = plans
         .finalize_archived(ctx.pe.plan_seq)
         .map_err(|e| format!("archive failed: {e}"))?;
@@ -677,8 +565,7 @@ impl auto_ai_agent::Tool for PlanDelivery {
         "Controlled plan delivery (document phase only). Actions, executed and \
          verified by the server in order: prepare (commit the reviewed docs/\
          specs/ delta in the dev worktree) → land (rebase with range-diff \
-         equivalence proof + fast-forward the main checkout) → refresh \
-         (update the Spec ledger via the store) → archive (finalize the plan \
+         equivalence proof + fast-forward the main checkout) → archive (finalize the plan \
          as delivered) → cleanup (remove the dev worktree/branch). Each \
          checkpoint is fact-checked and recorded in a durable receipt; \
          re-runs reconcile from the receipt and only fill missing steps."

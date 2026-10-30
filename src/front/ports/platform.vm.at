@@ -20,6 +20,15 @@ fn platformInjectStyles() {
     // web-only:全局 CSS 注入。iced 渲染主题由 renderer 自管,空实现。
 }
 
+fn platformSpecDirty(value bool) {
+    if value { localStorage.setItem("musk-spec-unsaved", "yes") }
+    else { localStorage.setItem("musk-spec-unsaved", "") }
+}
+fn platformSpecMayLeave() bool {
+    let value = localStorage.getItem("musk-spec-unsaved") ?? ""
+    return value != "yes"
+}
+
 fn platformSetupAuthFetch() {
     // PLAN-045-E4/446-E4 实装:经 auto-lang Http.set_default_header/query
     // natives 注入(默认头/默认 query 于两 send 汇聚处生效)。web 侧等价物

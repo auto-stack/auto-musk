@@ -31,6 +31,19 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
+    /// Explicit legacy Spec import. Default is a non-mutating dry-run.
+    SpecMigrate {
+        #[arg(long)]
+        root: std::path::PathBuf,
+        #[arg(long)]
+        source: std::path::PathBuf,
+        #[arg(long)]
+        journal: std::path::PathBuf,
+        #[arg(long, default_value = "dry-run", value_parser = ["dry-run", "apply", "rollback"])]
+        action: String,
+        #[arg(long)]
+        legacy_writer_stopped: bool,
+    },
     /// Run an agent on a task (one-shot, prints result to stdout).
     Run {
         /// The task description for the agent.
@@ -84,6 +97,24 @@ fn init_tracing() {
 fn main() {
     init_tracing();
     let cli = Cli::parse();
+    if let Cmd::SpecMigrate { root, source, journal, action, legacy_writer_stopped } = &cli.cmd {
+        let result = match action.as_str() {
+            "dry-run" => musk::spec_migration::dry_run(root, source).and_then(|manifest| {
+                println!("{} records, {} need reconciliation", manifest.entries.len() - 1,
+                    manifest.entries.iter().filter(|e| e.disposition == "needs-reconciliation").count());
+                musk::spec_migration::write_manifest(&manifest, journal)
+            }),
+            _ => musk::spec_migration::read_manifest(journal).and_then(|m| {
+                if root.canonicalize()? != m.root || source.canonicalize()? != m.source {
+                    return Err(std::io::Error::other("Migration manifest belongs to a different root/source"));
+                }
+                if action == "apply" { musk::spec_migration::apply(&m, *legacy_writer_stopped) }
+                else { musk::spec_migration::rollback(&m) }
+            }),
+        };
+        if let Err(e) = result { eprintln!("migration: {e}"); std::process::exit(1); }
+        return;
+    }
 
     // `serve --workdir <dir>` chdir()s into that directory before anything
     // else, so the project-root snapshot (Design 004) and the default workspace
@@ -106,6 +137,7 @@ fn main() {
     musk::app_config::apply_app_config();
 
     match cli.cmd {
+        Cmd::SpecMigrate { .. } => unreachable!(),
         Cmd::Professions => {
             list_professions();
             return;

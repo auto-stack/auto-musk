@@ -14,6 +14,16 @@ Announce: "I'm using /auto-plan:review to verify plan NNN."
 Input: a Plan reference, optionally a named phase for an approved incremental
 landing. Output: reproducible evidence and an unambiguous next action.
 
+## Document-source contract (PLAN-106)
+
+Current knowledge lives in docs/specs/ documents; archived Plans retain review and
+delivery history. The application generates indexes automatically. Agents never
+write specs.json or manually maintain index.json lists, and merge has no index or
+ledger publication prerequisite. Missing/corrupt caches and an offline application
+do not block source delivery. Read/list tools may expose a derived six-category
+view; retired item-write tools must direct callers to canonical source files.
+
+
 ## Evidence storage policy (2026-10-28 user ruling)
 
 - Evidence files — probe sources/outputs, logs, screenshots, gate/ledger
@@ -226,8 +236,8 @@ Plan using the verified implementation. For each add/modify/retire operation:
 - Finalize `supersedes_spec_components`, `new_spec_components`, and
   `touched_goals`. Use exact `docs/specs/...` paths and real goal IDs.
   Empty impact requires a written explanation.
-- Review any prepared Spec diff in the worktree. The ledger will be derived
-  from these canonical documents and review/history artifacts at merge.
+- Review any prepared Spec diff in the worktree. The application automatically derives its index
+  from canonical documents and archived review/history artifacts; agents do not publish projections.
 
 Do not publish canonical Specs or modify the live ledger during review.
 If correcting the delta changes the semantic contract, increment its revision

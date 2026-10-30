@@ -8,11 +8,12 @@ use store: SpecsStore
 // PLAN-091 T-03: 树模式正文 Markdown 渲染（specs_detail 同款 autodown
 // 管线）+ 正文加载走 #[api] specs_text JSON 通道（files_view Pick 同款：
 // try/catch 在视图臂，store 收三态消息）。
-use back.api: specs_text
+use back.api: specs_text, specs_document, specs_save_document
+use.web platformSpecDirty from "src/front/ports/platform.at"
 use.web component Markdown from "src/front/ports/renderer.at"
 
 // PLAN-037 Phase 3: web ecosystem imports (use.web).
-use.web spec_next_id, spec_default_status, specSectionItems, specItemPatch, specFindItem, specSectionOfItem, specSectionRows, spec_tree_node_kind from "src/front/specs_helpers.at"
+use.web specSourceRelative, spec_next_id, spec_default_status, specSectionItems, specItemPatch, specFindItem, specSectionOfItem, specSectionRows, spec_tree_node_kind from "src/front/specs_helpers.at"
 use.web useT from "src/front/ports/composables.at"
 use.web vsCurrentDetail, vsSetDetailPath from "src/front/ports/composables.at"
 
@@ -50,6 +51,9 @@ widget SpecsView {
         EnterStructuredMode,
         EnterTreeMode,
         SelectSpecFile(str),
+        SpecDraft(str),
+        SpecSave,
+        SpecDiscard,
         // PLAN-041 债务收口:行内编辑/详情接线(web handleSave/status/jump 族)。
         EditItem(Value),
         RowStatusChange(str),
@@ -60,6 +64,7 @@ widget SpecsView {
         OpenDetailModal(obj),
         CloseDetailModal,
         DetailEdit,
+        OpenSource(Value),
         DetailCancelEdit,
         DetailSaveGoal(obj),
         DetailStatusChange(str),
@@ -75,7 +80,15 @@ widget SpecsView {
         var active_item_id Option<str> = None
         var nav_collapsed bool = false
         // PLAN-025: 文件树模式 toggle（structured | tree）。
-        var view_mode str = "structured"
+        var view_mode str = "tree"
+        var spec_draft str = ""
+        var spec_saved_body str = ""
+        var spec_preamble str = ""
+        var spec_hash str = ""
+        var spec_editable bool = false
+        var spec_dirty bool = false
+        var spec_saving bool = false
+        var spec_notice str = ""
         // 编辑面板状态
         var editing_item_id Option<str> = None
         var edit_title str = ""
@@ -144,6 +157,9 @@ widget SpecsView {
             // 右侧主内容区
             col {
                 style: "flex-1 overflow-y-auto flex flex-col"
+                if .spec_notice != "" {
+                    text .spec_notice { style: "text-sm text-destructive p-2" }
+                }
                 if .show_overview {
                     ContentHeader { title: t("workspaceUi.specIndex") }
                     col {
@@ -425,14 +441,37 @@ widget SpecsView {
                     // 渲染 / 其余（未选中或非 md 文件纯文本兜底）。
                     col {
                         style: "flex-1 overflow-y-auto p-5 text-sm text-foreground"
+                        if .spec_notice != "" {
+                            text .spec_notice { style: "text-sm text-destructive p-2" }
+                        }
+                        if .store.error != "" {
+                            text .store.error { style: "text-xs text-muted-foreground" }
+                        }
+                        if .spec_dirty {
+                            text "尚未保存；离开前请保存或放弃更改。" { style: "text-xs text-muted-foreground" }
+                            row {
+                                button "保存文档" { onclick: .SpecSave; disabled: .spec_saving }
+                                button "放弃未保存更改" { onclick: .SpecDiscard }
+                            }
+                        }
                         if .store.file_loading {
                             text t("specs.loading") { style: "text-sm text-muted-foreground" }
                         } else if .store.file_failed {
                             text t("workspaceUi.loadFailed") { style: "text-sm text-destructive p-3" }
                         } else {
-                            if .store.active_spec_file_content != "" {
+                            if .store.active_spec_file_path != None {
                                 if .store.active_spec_is_md {
-                                    Markdown(source: .store.active_spec_file_content, streaming: false)
+                                    if .spec_editable {
+                                        autodown_editor {
+                                            key: "spec-document-editor"
+                                            content: .spec_draft
+                                            can_edit: true
+                                            oninput: .SpecDraft($event)
+                                        }
+                                    } else {
+                                        text "只读；在专用工作树中打开可编辑此文档。" { style: "text-xs text-muted-foreground" }
+                                        Markdown(source: .store.active_spec_file_content, streaming: false)
+                                    }
                                 } else {
                                     col {
                                         style: "font-mono whitespace-pre-wrap"
@@ -451,7 +490,9 @@ widget SpecsView {
 
     on {
         .Init -> {
+            platformSpecDirty(false);
             SpecsStore.Init();
+            SpecsStore.LoadSpecTree();
             store.LoadOverview();
             // URL detail 子路径恢复(web restoreSpecsFromUrl:/<view>/<section>/<item>)。
             let d = vsCurrentDetail()
@@ -491,21 +532,13 @@ widget SpecsView {
 
         // AddItem: 用 getNextId/getDefaultStatus 创建新 item，进入编辑。
         .AddItem -> {
-            let new_id = spec_next_id(.active_section, []);
-            .edit_title = "New " + .active_section;
-            .edit_content = "";
-            .edit_status = spec_default_status(.active_section);
-            .editing_item_id = new_id;
-            .adding_item = true;
-            .active_item_id = new_id
+            .spec_notice = "请在工作树 docs/specs 下创建源文档，应用会自动生成索引。"
         }
 
         // StartEditItem(id): 加载现有 item 到编辑面板。
         .StartEditItem(id) -> {
-            .editing_item_id = id;
-            .edit_title = id;
-            .edit_content = "";
-            .edit_status = "draft"
+            let item = specFindItem(.store.document, id)
+            if item != None { .OpenSource(item) }
         }
 
         .CancelEdit -> {
@@ -515,41 +548,12 @@ widget SpecsView {
 
         // SaveEditItem: 保存编辑（新建或更新）。
         .SaveEditItem -> {
-            if .editing_item_id != None {
-                // VM 轨:struct 字面量字段值经通用表达式编译,`.x` 的 self 别名
-                // 不在绑定面——状态读取先提升为局部变量(442 B 探针裁定)。
-                let eid = .editing_item_id
-                let etitle = .edit_title
-                let econtent = .edit_content
-                let estatus = .edit_status
-                let item = SpecItem {
-                    id: eid,
-                    title: etitle,
-                    content: econtent,
-                    status: estatus,
-                    depends_on: [],
-                    related: [],
-                    priority: "",
-                    assignee: "",
-                    test_file: "",
-                    file: "",
-                    milestone: "",
-                    module: "",
-                    tags: [],
-                    created_at: 0,
-                    modified_at: 0,
-                    completed_at: 0,
-                };
-                store.SaveItem(.active_section, item);
-                .editing_item_id = None;
-                .adding_item = false
-            }
+            .spec_notice = "结构化视图由源文档生成，请打开源文档后保存。"
         }
 
         // DeleteItem(id): 删除 item。
         .DeleteItem(id) -> {
-            store.DeleteItem(.active_section, id);
-            .active_item_id = None
+            .spec_notice = "请在工作树中删除对应源文档；索引会自动更新。"
         }
 
         // v-model marker handlers（U5）。
@@ -558,6 +562,10 @@ widget SpecsView {
 
         // PLAN-025: 文件树模式 toggle。首次切到 tree 时加载 docs/specs/ 树。
         .EnterStructuredMode -> {
+            if .spec_dirty {
+                .spec_notice = "有未保存的更改，请先保存或放弃。"
+                return
+            }
             .view_mode = "structured"
         }
 
@@ -575,6 +583,11 @@ widget SpecsView {
         // get_json 包错误对象（`?? ""` 兜缺键）、web 生成绑定 throw——两臂
         // 同落失败态（files_view .Pick 同款）。
         .SelectSpecFile(path) -> {
+            if .spec_dirty {
+                .spec_notice = "有未保存的更改，请先保存或放弃。"
+                return
+            }
+            .spec_notice = ""
             let kind = spec_tree_node_kind(.store.spec_tree, path)
             if kind == "dir" {
                 // PLAN-091：store 调用一律限定名——SelectFile/SetContent/
@@ -584,12 +597,18 @@ widget SpecsView {
             } else {
                 SpecsStore.SelectFile(path);
                 try {
-                    let resp = specs_text(path)
+                    let resp = specs_document(path)
+                    if .store.active_spec_file_path != path { return }
                     var err str = resp.error ?? ""
                     if err != "" {
                         SpecsStore.SetLoadFailed()
                     } else {
-                        SpecsStore.SetContent(resp.content ?? "")
+                        SpecsStore.SetContent(resp.content ?? "");
+                        .spec_draft = resp.body ?? "";
+                        .spec_saved_body = resp.body ?? "";
+                        .spec_preamble = resp.preamble ?? "";
+                        .spec_hash = resp.hash ?? "";
+                        .spec_editable = resp.editable ?? false
                     }
                 } catch (e) {
                     SpecsStore.SetLoadFailed()
@@ -597,30 +616,71 @@ widget SpecsView {
             }
         }
 
+        .SpecDraft(value) -> {
+            .spec_draft = value;
+            .spec_dirty = value != .spec_saved_body
+            platformSpecDirty(.spec_dirty)
+        }
+        .SpecDiscard -> {
+            if .spec_saving { return }
+            .spec_draft = .spec_saved_body;
+            .spec_dirty = false;
+            platformSpecDirty(false);
+            .spec_notice = ""
+        }
+        .SpecSave -> {
+            if .spec_saving { return }
+            .spec_saving = true;
+            if .store.active_spec_file_path != None {
+                try {
+                    let result = specs_save_document(.store.active_spec_file_path, .spec_preamble + .spec_draft, .spec_hash)
+                    if (result.error ?? "") != "" {
+                        .spec_notice = "保存未完成：草稿已保留，请检查最新文档或工作树写入权限后重试。"
+                    } else {
+                        .spec_hash = result.hash;
+                        .spec_saved_body = result.body;
+                        .spec_preamble = result.preamble;
+                        SpecsStore.SetContent(result.content);
+                        .spec_dirty = false;
+                        platformSpecDirty(false);
+                        .spec_notice = "文档已保存；索引将在下次读取时自动更新。";
+                        SpecsStore.LoadDocument()
+                    }
+                } catch (e) {
+                    .spec_notice = "保存未完成：文档可能已被修改，请保留草稿并重新读取最新内容。"
+                }
+            }
+            .spec_saving = false
+        }
+
         // ── PLAN-041 债务收口:行内编辑/详情接线(web handleSave 族) ──
 
         // EditItem(item):既有条目进入行内编辑(web startEditItem)。
+        .OpenSource(item) -> {
+            let relative = specSourceRelative(item.file ?? "")
+            if relative != "" {
+                .CloseDetailModal()
+                .EnterTreeMode()
+                .SelectSpecFile(relative)
+            } else {
+                .CloseDetailModal()
+                .spec_notice = "这是历史记录，请在文件视图中查看归档计划；当前规范位于 docs/specs。"
+            }
+        }
+
         .EditItem(item) -> {
-            .active_item_id = item.id;
-            .editing_item_id = item.id;
-            .adding_item = false
+            .OpenSource(item)
         }
 
         // RowStatusChange(status):当前展开条目的状态迁移(web handleStatusChange
         // ——payload 只携带新状态,id 取展开行 active_item_id)。
         .RowStatusChange(status) -> {
-            if .active_item_id != None {
-                let item = specFindItem(.store.document, .active_item_id)
-                if item != None {
-                    store.SaveItem(.active_section, specItemPatch(item, {status: status}))
-                }
-            }
+            .spec_notice = "请打开源文档修改状态元数据；结构化视图只读。"
         }
 
         // RowDelete(id):行内删除(web handleDelete)。
         .RowDelete(id) -> {
-            store.DeleteItem(.active_section, id);
-            .active_item_id = None
+            .spec_notice = "请在工作树中删除对应源文档；索引会自动更新。"
         }
 
         // JumpToItem(id):跨 section 跳转(web jumpToItem,flash 高亮舍弃)。
@@ -635,9 +695,7 @@ widget SpecsView {
 
         // SaveTestItem(item):TestEditor 保存(payload 已在行级合并为完整 item)。
         .SaveTestItem(item) -> {
-            store.SaveItem(.active_section, item);
-            .editing_item_id = None;
-            .adding_item = false
+            .spec_notice = "请打开源文档保存测试说明；结构化视图只读。"
         }
 
         // ── GoalDetailModal 接线(web openDetailModal 族) ──
@@ -653,7 +711,7 @@ widget SpecsView {
         }
 
         .DetailEdit -> {
-            .detail_editing = true
+            if .detail_item != None { .OpenSource(.detail_item) }
         }
 
         .DetailCancelEdit -> {
@@ -661,28 +719,17 @@ widget SpecsView {
         }
 
         .DetailSaveGoal(payload) -> {
-            if .detail_item != None {
-                let item = specFindItem(.store.document, .detail_item.id)
-                if item != None {
-                    store.SaveItem("goals", specItemPatch(item, payload))
-                }
-            }
-            .detail_editing = false
+            .spec_notice = "请打开源文档保存目标；结构化视图只读。"
         }
 
         .DetailStatusChange(status) -> {
-            if .detail_item != None {
-                let item = specFindItem(.store.document, .detail_item.id)
-                if item != None {
-                    store.SaveItem("goals", specItemPatch(item, {status: status}))
-                }
-            }
+            .spec_notice = "请打开源文档修改状态元数据；结构化视图只读。"
+            .CloseDetailModal()
         }
 
         .DetailDelete(id) -> {
-            store.DeleteItem("goals", id);
-            .detail_item = None;
-            .detail_editing = false
+            .spec_notice = "请在工作树中删除对应源文档；索引会自动更新。"
+            .CloseDetailModal()
         }
 
         .DetailJump(id) -> {

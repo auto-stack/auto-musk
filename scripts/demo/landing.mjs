@@ -56,7 +56,7 @@ export function worktreeListVerdict(listOutput) {
 export function landingFilesVerdict({ specs = [], ledgerPaths = [], archived = [], wiki = [], planMarker = null }) {
   const errors = [];
   if (!specs.length) errors.push('docs/specs/ 无任何 .md（业务 Specs 权威缺位）');
-  if (!ledgerPaths.length) errors.push('ledger 派生缺位（docs/specs/index.json 与 specs-ledger 均无）');
+  // PLAN-106: document sources are sufficient; an application index is rebuildable.
   if (planMarker && !archived.some(a => a.includes(planMarker))) errors.push(`归档缺本轮计划（docs/plans/archived 无 ${planMarker}）`);
   if (!planMarker && !archived.length) errors.push('docs/plans/archived 为空（归档缺件）');
   if (!wiki.length) errors.push('docs/wiki/ 无产出（用法/取舍 Wiki 缺件）');

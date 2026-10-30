@@ -564,6 +564,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "auto-ast"
+version = "0.1.0"
+dependencies = [
+ "auto-lex",
+ "auto-val",
+ "serde",
+]
+
+[[package]]
 name = "auto-atom"
 version = "0.1.0"
 dependencies = [
@@ -599,16 +608,36 @@ dependencies = [
 ]
 
 [[package]]
-name = "auto-lang"
+name = "auto-diagnostics"
 version = "0.1.0"
+dependencies = [
+ "auto-lex",
+ "auto-val",
+ "miette",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "auto-lang"
+version = "0.2.0"
 dependencies = [
  "a2r-std",
  "ansi_term",
- "arboard",
+ "auto-ast",
  "auto-atom",
  "auto-bindgen",
  "auto-cache",
+ "auto-diagnostics",
+ "auto-lang-core",
+ "auto-lex",
  "auto-macros",
+ "auto-media-core",
+ "auto-parser-api",
+ "auto-terminal-core",
+ "auto-text-core",
+ "auto-ui-compiler",
+ "auto-ui-dialect",
+ "auto-ui-runtime",
  "auto-val",
  "axum",
  "base64 0.22.1",
@@ -616,7 +645,6 @@ dependencies = [
  "blake3",
  "chrono",
  "colored",
- "cosmic-text",
  "csv",
  "dashmap",
  "dirs 6.0.0",
@@ -628,15 +656,7 @@ dependencies = [
  "hmac",
  "hyper",
  "hyper-util",
- "iced",
- "iced_futures",
- "iced_runtime",
- "iced_tiny_skia",
- "iced_widget",
- "image",
- "imara-diff",
  "inventory",
- "kamadak-exif",
  "lazy_static",
  "libloading",
  "log",
@@ -644,12 +664,8 @@ dependencies = [
  "miette",
  "mime_guess",
  "normalize-path",
- "notify",
- "raw-window-handle",
  "regex",
  "reqwest",
- "resvg",
- "rfd",
  "roxmltree 0.18.1",
  "rustyline",
  "same-file",
@@ -659,25 +675,106 @@ dependencies = [
  "sha1 0.10.7",
  "sha2",
  "shim-metadata",
+ "socket2 0.5.10",
  "stacker",
  "strum",
  "strum_macros",
  "syn 2.0.118",
- "syntect",
  "sysinfo",
  "tar",
  "thiserror 2.0.18",
- "tiny-skia",
  "tokio",
  "tokio-tungstenite",
  "toml",
  "trans",
  "tungstenite 0.24.0",
- "ureq",
  "url",
  "urlencoding",
  "walkdir",
- "windows 0.58.0",
+]
+
+[[package]]
+name = "auto-lang-core"
+version = "0.1.0"
+dependencies = [
+ "a2r-std",
+ "ansi_term",
+ "auto-ast",
+ "auto-atom",
+ "auto-bindgen",
+ "auto-cache",
+ "auto-diagnostics",
+ "auto-lex",
+ "auto-macros",
+ "auto-media-core",
+ "auto-parser-api",
+ "auto-terminal-core",
+ "auto-text-core",
+ "auto-val",
+ "axum",
+ "base64 0.22.1",
+ "bincode",
+ "blake3",
+ "chrono",
+ "colored",
+ "csv",
+ "dashmap",
+ "dirs 6.0.0",
+ "ecow",
+ "fastrand",
+ "flate2",
+ "futures",
+ "hex",
+ "hmac",
+ "hyper",
+ "hyper-util",
+ "inventory",
+ "lazy_static",
+ "libloading",
+ "log",
+ "md-5",
+ "miette",
+ "mime_guess",
+ "normalize-path",
+ "notify",
+ "regex",
+ "reqwest",
+ "roxmltree 0.18.1",
+ "rustyline",
+ "same-file",
+ "semver 1.0.28",
+ "serde",
+ "serde_json",
+ "sha1 0.10.7",
+ "sha2",
+ "shim-metadata",
+ "socket2 0.5.10",
+ "stacker",
+ "strum",
+ "strum_macros",
+ "syn 2.0.118",
+ "sysinfo",
+ "tar",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-tungstenite",
+ "toml",
+ "trans",
+ "tungstenite 0.24.0",
+ "url",
+ "urlencoding",
+ "walkdir",
+]
+
+[[package]]
+name = "auto-lex"
+version = "0.1.0"
+dependencies = [
+ "auto-val",
+ "miette",
+ "serde",
+ "strum_macros",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -688,6 +785,121 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.118",
+]
+
+[[package]]
+name = "auto-media-core"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "fastrand",
+ "image",
+ "kamadak-exif",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "auto-parser-api"
+version = "0.1.0"
+dependencies = [
+ "auto-ast",
+ "auto-diagnostics",
+ "auto-lex",
+ "serde",
+]
+
+[[package]]
+name = "auto-terminal-core"
+version = "0.1.0"
+dependencies = [
+ "libloading",
+]
+
+[[package]]
+name = "auto-text-core"
+version = "0.1.0"
+dependencies = [
+ "imara-diff",
+]
+
+[[package]]
+name = "auto-ui-compiler"
+version = "0.1.0"
+dependencies = [
+ "auto-atom",
+ "auto-lang-core",
+ "auto-parser-api",
+ "auto-ui-dialect",
+ "auto-val",
+ "log",
+ "miette",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "toml",
+ "walkdir",
+]
+
+[[package]]
+name = "auto-ui-dialect"
+version = "0.2.0"
+dependencies = [
+ "auto-ast",
+ "auto-parser-api",
+ "auto-val",
+ "serde",
+ "serde_json",
+ "serde_stacker",
+]
+
+[[package]]
+name = "auto-ui-runtime"
+version = "0.2.0"
+dependencies = [
+ "a2r-std",
+ "arboard",
+ "auto-lang-core",
+ "auto-media-core",
+ "auto-parser-api",
+ "auto-terminal-core",
+ "auto-text-core",
+ "auto-ui-compiler",
+ "auto-ui-dialect",
+ "auto-val",
+ "axum",
+ "base64 0.22.1",
+ "blake3",
+ "chrono",
+ "cosmic-text",
+ "dirs 6.0.0",
+ "futures",
+ "iced",
+ "iced_futures",
+ "iced_runtime",
+ "iced_tiny_skia",
+ "iced_widget",
+ "image",
+ "kamadak-exif",
+ "lazy_static",
+ "log",
+ "miette",
+ "notify",
+ "raw-window-handle",
+ "regex",
+ "reqwest",
+ "resvg",
+ "rfd",
+ "serde",
+ "serde_json",
+ "syntect",
+ "thiserror 2.0.18",
+ "tiny-skia",
+ "tokio",
+ "tokio-tungstenite",
+ "ureq",
+ "urlencoding",
+ "windows 0.58.0",
 ]
 
 [[package]]
@@ -1748,6 +1960,9 @@ name = "ecow"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78e4f79b296fbaab6ce2e22d52cb4c7f010fe0ebe7a32e34fa25885fd797bd02"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "either"
@@ -5635,6 +5850,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf41e0cfaf7226dca15e8197172c295a782857fcb97fad1808a166870dee75a3"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "serde_stacker"
+version = "0.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4936375d50c4be7eff22293a9344f8e46f323ed2b3c243e52f89138d9bb0f4a"
+dependencies = [
+ "serde",
+ "serde_core",
+ "stacker",
 ]
 
 [[package]]

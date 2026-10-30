@@ -8,7 +8,7 @@
 Rust 后端的 ReAct agent，经 aaid 代理调 LLM，工具在本地执行（读/写/编辑/搜索/命令/spec 读写/编排），path confinement 安全沙箱限制在 workspace 内。
 
 ### 2. Spec 知识沉淀（goal-spec-knowledge）
-双落点：结构化 ledger（`.autoos/specs.json` 6 区 + 状态机 + relations）+ 文件树知识层（`docs/specs/`，本目录）。Plans 5 态状态机 + merge 沉淀（review_done → 拆解进 ledger + archive）。
+PLAN-106：docs/specs 文档单源，AutoDown 直接编辑；应用自动生成分类、关系和历史。Plans 保留阶段门禁，merge 验证 canonical landing 后归档，不写中央 JSON。
 
 ### 3. Relay 编排（goal-relay）
 多 agent 流水线编排（PipelineEngine + TaskPlan DAG），含 spawn_relay / dispatch / bring_in 编排工具，gate 审批，子会话管理。

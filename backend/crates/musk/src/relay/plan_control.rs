@@ -1164,7 +1164,7 @@ fn route_document_end(
     }
     // 交付检查点事实核对（AC-08）：五个检查点必须已由 plan_delivery 工具
     // 逐项登记（动作本体在 T-08/T-09 的 plan_delivery）。
-    let required = ["prepared", "landed", "ledger_refreshed", "archived", "cleaned"];
+    let required = ["prepared", "landed", "archived", "cleaned"];
     let missing: Vec<&str> = required
         .iter()
         .filter(|cp| !pe.delivery_checkpoints.contains_key(**cp))
@@ -1172,7 +1172,7 @@ fn route_document_end(
         .collect();
     if !missing.is_empty() {
         return StageRouting::Fail(format!(
-            "delivery checkpoints missing: {missing:?} — call plan_delivery with the FIRST missing action in order (prepare/land/refresh/archive/cleanup, one call per checkpoint); do NOT re-call an action that already returned its checkpoint"
+            "delivery checkpoints missing: {missing:?} — call plan_delivery with the FIRST missing action in order (prepare/land/archive/cleanup, one call per checkpoint); do NOT re-call an action that already returned its checkpoint"
         ));
     }
     ws.relay.mutate_plan_execution(run_id, |pe| {

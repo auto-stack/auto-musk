@@ -15,6 +15,16 @@ Input: a Plan reference, optionally with review findings. Resolve it from the
 request or active task context; if multiple candidates remain, ask which Plan
 instead of selecting the newest unrelated draft.
 
+## Document-source contract (PLAN-106)
+
+Current knowledge lives in docs/specs/ documents; archived Plans retain review and
+delivery history. The application generates indexes automatically. Agents never
+write specs.json or manually maintain index.json lists, and merge has no index or
+ledger publication prerequisite. Missing/corrupt caches and an offline application
+do not block source delivery. Read/list tools may expose a derived six-category
+view; retired item-write tools must direct callers to canonical source files.
+
+
 ## Evidence storage policy (2026-10-28 user ruling)
 
 - Evidence files — probe sources/outputs, logs, screenshots, gate/ledger

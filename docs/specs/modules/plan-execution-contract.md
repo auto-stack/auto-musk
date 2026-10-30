@@ -69,17 +69,13 @@
   工具根与 Canvas 路径解析限定 worktree（主检出代码不注册为可写根；
   白名单配置不变；plan 工具仍写主 PlansStore）。
 
-## 受控交付（plan_delivery.rs，五检查点）
+## 受控交付（plan_delivery.rs，四检查点）
 
-- prepare（worktree 内提交 docs/specs/ 增量 → delivery_commit；无增量拒；
-  幂等按 HEAD 核对）→ land（guard+clean、rebase 默认分支+旧→新映射+
-  range-diff 等价证明（任何 `!` 行拒绝）、主检出 `--ff-only` 无 merge
-  回退、canonical tip 核对）→ refresh（SpecsStore upsert：item.file=
-  canonical 路径、tags=[source:hash, commit:交付提交, plan:PLAN-NNN]；
-  回读核验；load 失败 blocked 响亮、字节零破坏）→ archive
-  （finalize_archived、completion_kind=delivered）→ cleanup（guard+合入
-  核对+移除自有 worktree/分支+空组目录裁剪；失败=cleanup_pending，
-  archive 保持 delivered，只补 cleanup）。
+- prepare 核验复审提交和合同，接受已经提交的 canonical delta、复审范围内待提交的 Spec 增量，或已批准的无 Spec 影响合同；不制造虚假增量。
+- land 执行 guard、干净状态核对、rebase、旧→新映射与 range-diff 等价证明，再向主检出 `--ff-only`；失败保留现场并要求受影响复审。
+- archive 在核验 canonical 文件存在于已落地提交、该提交属于默认分支且绑定 prepared/rebase 映射后，标记 delivered 并归档。
+- cleanup 核验合入状态并清理自有 worktree/分支及空组目录。失败记 cleanup_pending，归档保持 delivered，只补清理。
+- 旧 refresh 仅作 canonical 核验兼容入口，不写账本，也不新增必需检查点；缺失或损坏的 JSON、应用离线均不阻止源文档交付。
 - durable receipt：`{ws}/.autoos/plan-delivery/{PLAN-NNN}.json`，键
   `PLAN-NNN:r{revision}`；重入对账只补缺项。每成功结果带 `next_action`
   顺序指引；前置缺失报错指名下一动作（降低同参盲重试；agent 循环防护
@@ -114,3 +110,7 @@ receipt_ref/skills/stage_results；serde default 旧消费者兼容）；RunEven
 - live 探针（scripts/plan-flow-probe.mjs）：L1 全链 delivered、L3 响亮停
   已真模型 PASS；L2 循环演示受复审随机性与采样噪声影响未取绿（机制由
   V02 矩阵确定性覆盖），模型稳定后可同探针复跑（D-2）。
+
+## PLAN-106：文档源交付策略覆盖
+
+此前 refresh/SpecsStore upsert/ledger_refreshed 发布要求退役，仅为历史背景。当前 prepare → land → archive → cleanup，核验已合入的 canonical Spec；索引由应用生成且非门禁。旧 refresh 仅验证源。skills_hashes 保留批准快照，旧 run 的 document 相位覆盖旧发布义务而维持合同/提交/依赖门禁；不补写历史 checkpoint。见 [spec-document-store.md](spec-document-store.md)。

@@ -1,18 +1,20 @@
-//! PLAN-092 T-03: auto-plan 四技能产品自带——musk 为真源，serve 为分发点。
+//! PLAN-092 T-03: auto-plan 六技能产品自带——musk 为真源，serve 为分发点。
 //!
 //! 产品内 agent（aaid）只扫 `<config>/autoos/skills/`（全局技能目录）；
 //! 仓内 `.agents/skills/auto-plan-*` 是 ZCode 侧与产品的单一维护点。serve
-//! 启动时把四技能幂等同步过去：目标存在且内容相同则跳过，不同则覆盖
+//! 启动时把六技能幂等同步过去：目标存在且内容相同则跳过，不同则覆盖
 //! （真源单一策略，PLAN-092 §10-3 默认）。源目录缺失仅 warn 不阻断 serve。
 
 use std::path::{Path, PathBuf};
 
 /// Vendored 技能名（仓内 `.agents/skills/` 真源，缺一即 warn）。
-const BUILTIN_SKILLS: [&str; 4] = [
+const BUILTIN_SKILLS: [&str; 6] = [
     "auto-plan-new",
     "auto-plan-work",
     "auto-plan-review",
     "auto-plan-merge",
+    "auto-plan-goal",
+    "auto-plan-regress",
 ];
 
 /// 解析 vendored 技能源根：`MUSK_SKILLS_DIR` env → 运行 CWD `.agents/skills`

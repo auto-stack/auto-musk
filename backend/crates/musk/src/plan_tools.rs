@@ -440,11 +440,7 @@ impl Tool for MergePlan {
         "merge_plan"
     }
     fn description(&self) -> &str {
-        "Deposit a reviewed plan into the Spec ledger: extracts mapped \
-         sections (变更摘要→reports, 目标→goals, 架构方案→architecture, \
-         详细设计→designs, 测试设计→tests, 验收标准/复审记录→reviews) as \
-         id-stable items, sets the plan to archived (terminal) and moves \
-         it into archived/. Gate: the plan must be reviewed."
+        "Retired combined merge. Land reviewed docs/specs changes, verify canonical sources, then explicitly archive via plan_delivery (prepare/land/archive/cleanup). No ledger writes."
     }
     fn parameters(&self) -> Value {
         json!({
@@ -463,7 +459,7 @@ impl Tool for MergePlan {
         if let Some(relay) = &self.managed_check {
             if let Some(run_id) = relay.managed_by(seq) {
                 return Err(ToolError::Exec(format!(
-                    "plan {seq:03} is managed by plan-flow run {run_id} — delivery goes through plan_delivery (prepare/land/refresh/archive/cleanup)"
+                    "plan {seq:03} is managed by plan-flow run {run_id} — delivery goes through plan_delivery (prepare/land/archive/cleanup)"
                 )));
             }
         }

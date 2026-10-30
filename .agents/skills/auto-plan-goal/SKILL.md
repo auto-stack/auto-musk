@@ -16,6 +16,16 @@ resolved from the goal objective or the request and located with the host's plan
 listing (`list_plans`) or `docs/plans/NNN-*.md`. If the reference is missing or
 matches more than one Plan, ask which Plan; never pick one by recency.
 
+## Document-source contract (PLAN-106)
+
+Current knowledge lives in docs/specs/ documents; archived Plans retain review and
+delivery history. The application generates indexes automatically. Agents never
+write specs.json or manually maintain index.json lists, and merge has no index or
+ledger publication prerequisite. Missing/corrupt caches and an offline application
+do not block source delivery. Read/list tools may expose a derived six-category
+view; retired item-write tools must direct callers to canonical source files.
+
+
 ## Purpose
 
 The four stage skills each end in a handoff and assume the next stage is invoked
@@ -44,7 +54,7 @@ It is an orchestrator, not a fifth stage:
 `/goal 用 /auto-plan-goal 完成计划 NNN` is the user's authorization for the
 whole chain: work in the Plan's worktree (including creating it), review,
 bounded repair within the approved contract, and merge (canonical Specs,
-derived ledger, archive, worktree cleanup, landing checks). Record the grant in
+automatic index diagnostics (non-blocking), archive, worktree cleanup, landing checks). Record the grant in
 §4 and in the first goal receipt; later stages inherit it and must not ask
 again.
 
@@ -202,7 +212,7 @@ Stop, write the §10 question/blocker plus a goal receipt with
 - a required user decision appears (goal/acceptance/scope/budget/repository
   change, unowned worktree, main-checkout WIP, conflicting relay run);
 - a stage returns `blocked`, or its own stop condition fires (merge: guard
-  failure, archive gate failure → cleanup pending, ledger unwritable);
+  failure, archive gate failure → cleanup pending, canonical source verification failed);
 - caps fire (repair cycles, waiting rounds, goal rounds).
 
 Report the exact unblock action, not a general "needs attention". Preserve
@@ -215,8 +225,8 @@ reported:
 
 1. merge `pass` for the delivered revision, delivery commit on the default
    branch, fast-forward history intact;
-2. canonical Specs and derived ledger refreshed with `file`/`tags` per the merge
-   skill (or its recorded no-impact justification);
+2. canonical Specs verified in the landed commit per the merge skill (or its
+   approved no-impact justification); application indexes are automatic and non-blocking;
 3. Plan moved to `docs/plans/archived/` with `status: archived`, docs committed;
 4. worktree removed and branch deleted after a clean `wt-guard.sh`, group
    directory removed when empty;

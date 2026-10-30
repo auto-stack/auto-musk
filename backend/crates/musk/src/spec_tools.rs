@@ -40,10 +40,7 @@ fn ws_specs_of(ctx: &ToolContext) -> Arc<SpecsStore> {
 
 /// The default spec-store path (matches server.rs AppState::specs).
 fn default_store() -> Arc<SpecsStore> {
-    let path = dirs::home_dir()
-        .map(|h| h.join(".config/autoos/specs.json"))
-        .unwrap_or_else(|| std::path::PathBuf::from("specs.json"));
-    Arc::new(SpecsStore::new(path))
+    Arc::new(SpecsStore::for_documents(crate::tool_safety::project_root()))
 }
 
 // ── read_specs ─────────────────────────────────────────────
@@ -86,8 +83,7 @@ impl Tool for ReadSpecs {
     }
     async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
         let mut doc = self.store.load().map_err(load_err)?;
-        doc.rebuild_relations();
-        doc.derive_statuses();
+        if !self.store.is_projection() { doc.rebuild_relations(); doc.derive_statuses(); }
         let section_id = args["section_id"].as_str();
         if let Some(sid) = section_id {
             let section = doc
@@ -223,6 +219,9 @@ impl Tool for UpdateSpec {
         })
     }
     async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
+        if self.store.is_projection() {
+            return Err(ToolError::Exec("Spec item writes retired: edit the source file under docs/specs in a dedicated worktree, or use the document API with expected_hash; never write specs.json".into()));
+        }
         let action = args["action"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'action'".into()))?;
@@ -329,6 +328,9 @@ impl Tool for WriteSpec {
         })
     }
     async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
+        if self.store.is_projection() {
+            return Err(ToolError::Exec("Spec item writes retired: edit the source file under docs/specs in a dedicated worktree, or use the document API with expected_hash; never write specs.json".into()));
+        }
         let section_id = args["section_id"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'section_id'".into()))?;
@@ -424,6 +426,9 @@ impl Tool for WriteGoals {
         })
     }
     async fn execute(&self, args: &Value) -> Result<ToolOutput, ToolError> {
+        if self.store.is_projection() {
+            return Err(ToolError::Exec("Spec item writes retired: edit the source file under docs/specs in a dedicated worktree, or use the document API with expected_hash; never write specs.json".into()));
+        }
         let goals = args["goals"]
             .as_str()
             .ok_or_else(|| ToolError::Args("missing 'goals'".into()))?;

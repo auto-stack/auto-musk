@@ -54,6 +54,43 @@ pub fn spec_tree_routes() -> Router<AppState> {
         .route("/api/specs/tree", get(spec_tree))
         .route("/api/specs/text/{*path}", get(spec_text))
         .route("/api/specs/file/{*path}", get(spec_file))
+        .route("/api/specs/document/{*path}", get(spec_document).put(save_document))
+        .route("/api/specs/index", get(spec_index))
+}
+
+fn document_error(e: std::io::Error) -> (StatusCode, String) {
+    use std::io::ErrorKind;
+    (match e.kind() {
+        ErrorKind::AlreadyExists => StatusCode::CONFLICT,
+        ErrorKind::PermissionDenied => StatusCode::FORBIDDEN,
+        ErrorKind::NotFound => StatusCode::NOT_FOUND,
+        ErrorKind::InvalidInput | ErrorKind::InvalidData => StatusCode::BAD_REQUEST,
+        _ => StatusCode::INTERNAL_SERVER_ERROR,
+    }, e.to_string())
+}
+fn document_root(state: &AppState, q: &SpecTreeQuery) -> Result<PathBuf, (StatusCode, String)> {
+    state.registry.get_exact(&q.workspace.id_or_default(&state.registry))
+        .map(|ws| ws.root.clone()).ok_or((StatusCode::NOT_FOUND, "Unknown workspace".into()))
+}
+async fn spec_document(State(state): State<AppState>, Query(q): Query<SpecTreeQuery>, Path(path): Path<String>)
+    -> Result<Json<crate::spec_documents::Document>, (StatusCode, String)> {
+    let root = document_root(&state, &q)?;
+    crate::spec_documents::read(&root, &path).map(Json).map_err(document_error)
+}
+#[derive(Deserialize)]
+pub struct DocumentSave {
+    pub content: String,
+    pub expected_hash: Option<String>,
+}
+async fn save_document(State(state): State<AppState>, Query(q): Query<SpecTreeQuery>, Path(path): Path<String>, Json(body): Json<DocumentSave>)
+    -> Result<Json<crate::spec_documents::Document>, (StatusCode, String)> {
+    let root = document_root(&state, &q)?;
+    crate::spec_documents::save(&root, &path, &body.content, body.expected_hash.as_deref()).map(Json).map_err(document_error)
+}
+async fn spec_index(State(state): State<AppState>, Query(q): Query<SpecTreeQuery>)
+    -> Result<Json<crate::spec_index::Projection>, (StatusCode, String)> {
+    let root = document_root(&state, &q)?;
+    crate::spec_index::build(&root).map(Json).map_err(document_error)
 }
 
 /// Spec-tree build: wiki `build_tree` ordering semantics (folders first +

@@ -7,9 +7,10 @@
 | 模块 | 职责 |
 |---|---|
 | server.rs | HTTP 外壳 + AppState + SSE + 路由组装 |
-| specs.rs | 6 区 Spec Ledger + 状态机 |
+| specs.rs / spec_index.rs | 文档派生六类只读索引与兼容状态 |
+| spec_documents.rs / spec_migration.rs | 权威文档条件保存、显式旧数据迁移 |
 | plans.rs | Plan 文件树 + 5 态状态机 |
-| plan_merge.rs | Plan→Spec 合并引擎 |
+| plan_delivery.rs | reviewed canonical landing → archive → cleanup |
 | spec_tree.rs | docs/specs/ 文件树 API |
 | tools.rs | 9 本地工具 + map_path_error |
 | tool_safety.rs | path confinement + run_command 安全 |
@@ -26,6 +27,7 @@
 
 | 模块规范 | 职责 |
 |---|---|
+| [spec-document-store.md](spec-document-store.md) | 权威文档编辑、自动索引及旧账本迁移 |
 | [workspace-ui.md](workspace-ui.md) | 五栏目布局、状态、双端与规范权威边界 |
 | [ui-default-styles.md](ui-default-styles.md) | 默认样式、品牌色及平台主题适配边界 |
 | [app-canvas.md](app-canvas.md) | 实况画布生命周期、双向锚定、AutoUI MCP 驱动与三层生成流 |

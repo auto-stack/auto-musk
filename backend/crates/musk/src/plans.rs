@@ -619,21 +619,8 @@ pub fn merge_plan_stores(
     specs: &crate::specs::SpecsStore,
     seq: u32,
 ) -> Result<crate::plan_merge::MergeResult, String> {
-    let plan = plans
-        .get(seq)
-        .ok_or_else(|| format!("plan {:03} not found", seq))?;
-    if plan.status != PlanStatus::Reviewed {
-        return Err(format!(
-            "plan {:03} is {:?}, must be reviewed to merge",
-            seq, plan.status
-        ));
-    }
-    let (items, result) = crate::plan_merge::plan_to_items(&plan);
-    let mut doc = specs.load().map_err(|e| e.to_string())?;
-    crate::plan_merge::upsert_items_into_doc(&mut doc, items);
-    specs.save(&doc).map_err(|e| e.to_string())?;
-    plans.move_to_archived(seq)?;
-    Ok(result)
+    let _ = (plans, specs, seq);
+    Err("Combined merge retired: land reviewed docs/specs changes, verify canonical landing, then explicitly archive via plan_delivery; no ledger writes".into())
 }
 
 // ============================================================
