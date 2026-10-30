@@ -14,38 +14,37 @@ Input: a reviewed Plan reference, or a retry of its recorded consolidation.
 Outcome: canonical Specs reflect verified delivered work,
 the Plan is archived, and temporary worktrees are safely cleaned.
 
-## Evidence retention (2026-10-30 user ruling; supersedes permanent exe retention)
+## Evidence retention (2026-10-30 latest-five user ruling)
 
-- Keep durable Plan/review summaries (commands, exit codes, source/dependency identity,
-  counts, limitations and evidence hashes) in version control. Raw evidence stays local.
-- Raw evidence, including exe replay anchors, expires 14 days after final review and
-  landing. Existing unclassified history gets one 14-day adoption window, not a new
-  window every run. Hashes are identity records, not a promise of permanent replay.
-- In-flight Plans and necessary evidence for unresolved issues are protected. Register
-  a hold with exact scope/paths, reason, owner and next review date (within 14 days).
-  Review dates trigger reassessment, never automatic deletion of an unresolved hold.
-  Unknown ownership, frozen dependency sources and recovery material fail closed.
-- Keep only necessary final executable roles; do not archive every build/test executable
-  or entire worktree/target/node_modules trees. Promote enduring regressions/fixtures
-  and unique dependency sources into their owning source repository before retiring copies.
-- Default budgets: 500 MiB unique data per Plan and 10 GiB globally under
-  D:/autostack/plan-artifacts. Check before producing more artifacts and at cleanup.
-  Do not grow an over-budget scope without a named, reasoned, time-bounded exception;
-  do not evict protected evidence to force a green budget. Report legacy excess honestly.
-- Registry: D:/autostack/plan-artifacts/.retention/policy.json. Register owner/status,
-  retention_started_at/expires_at, explicitly classified expire_files (size, mtime_ns and SHA-256) and holds. Refresh
-  status/holds from actual Plans and active consumers before each maintenance run.
-  Classify expendable logs/screenshots/probes explicitly; never expire arbitrary sources
-  or SDK trees by extension/mtime. Preserve the first failure while an issue is open.
-- Use auto-plan-merge/scripts/artifact_retention.py (relative to the installed skills
-  root): preview first; --apply --deduplicate reclaims closed-scope Cargo caches/PDB/
-  node_modules and expired listed files, and deduplicates full-SHA256-equal exe files.
-  It skips active processes, unknown/held scopes and reparse points. Duplicate paths
-  share read-only NTFS hardlinks, never symlinks/junctions; retained binaries are immutable.
-  Rebuild into a fresh path; never overwrite an archived executable in place.
-- Run maintenance at merge closeout and the daily retention follow-up. Record the
-  receipt, file-data/storage-byte savings and any hold/budget/error. Exit 2 means budget excess,
-  not test failure or permission to erase evidence. No full Rust gate is needed.
+- Treat D:/autostack/plan-artifacts as a temporary workspace. Across repositories,
+  retain the five most recently completed Plans with evidence, ordered by actual
+  archive/landing time, not directory mtime or incomparable repository Plan numbers.
+  Group all copies/logs/aliases for one repository/Plan identity into one slot.
+- Also protect unfinished Plans, unresolved issues and necessary evidence consumed
+  by ongoing work. Holds require a specific reason, owner and closure/review evidence.
+  A later feature/capability gap or historical closed finding is not automatically
+  an unresolved defect. Unknown ownership/status fails closed and must be reported.
+- Completely delete every older completed, issue-free Plan's local evidence scopes,
+  including exe, source/consumer copies, logs, screenshots and caches. There is no
+  14-day wait or permanent exe exemption. Keep durable summaries/tests/fixtures and
+  unique required dependency sources in their owning repository before retiring copies.
+- Registry: D:/autostack/plan-artifacts/.retention/policy.json (schema v2, plans grouped
+  by owner). Refresh authoritative status, archive time, source-document hash,
+  issues_clear and exact scopes before maintenance. Review current debt/closures;
+  archived status alone does not prove all issues are resolved. Do not release a hold
+  just because its review date passed. New/unregistered scopes stay protected.
+- Use auto-plan-merge/scripts/artifact_retention.py: preview, then --apply. It removes
+  only reviewed older issue-free scopes, skips busy processes and changed completion
+  documents, uses a single-instance lock and scope-level recovery journal. Reparse
+  points are removed as links without following targets; readonly shared inode
+  attributes must not be changed. Never recurse through a junction or delete an active registered worktree.
+- Run at merge closeout and daily 03:00 maintenance. Refresh the registry first so
+  newer completed Plans roll the window. Preserve latest-five/issue protections even
+  above the existing 500 MiB/Plan and 10 GiB total monitoring thresholds; report excess
+  rather than inventing extra retention exceptions. The latest-five rule replaces
+  v1's 14-day adoption window, expiry lists and immutable executable dedup workflow.
+- Raw evidence stays local; only concise Plan/review/cleanup summaries belong in Git.
+  Report removed Plans, protected exceptions, actual file-data reclaimed and errors.
 
 ## Authority and compatibility
 
@@ -273,10 +272,10 @@ Only after landing and canonical-source verification succeed:
    group and require a fresh `wt-guard.sh` clean result. Remove the worktree
    and its merged branch; remove only the empty group directory. Never create
    junctions/symlinks or bypass the guard.
-   After worktree removal, register the final archived scope and 14-day expiry,
-   classify dispensable evidence, and run the retention helper described above.
-   Reclaim compilation intermediates now; retain only necessary unique exe roles
-   through the review window. Follow the same policy for owned scratch checkouts;
+   After worktree removal, register the final archived Plan/owner, completion time and unresolved-issue
+   status, then run the latest-five retention helper described above.
+   Keep its full local contents while it is in the newest-five window or has
+   an unresolved issue; remove older issue-free Plan scopes completely. Follow the same policy for owned scratch checkouts;
    foreign/registered worktrees still require their own repo/owner and fresh guard.
    Do not move build caches into plan-artifacts merely to make a worktree removable.
    This replaces the 2026-10-27 instruction to keep every exe and other artifact.
