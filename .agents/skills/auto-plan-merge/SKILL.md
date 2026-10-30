@@ -14,23 +14,38 @@ Input: a reviewed Plan reference, or a retry of its recorded consolidation.
 Outcome: canonical Specs reflect verified delivered work,
 the Plan is archived, and temporary worktrees are safely cleaned.
 
-## Evidence storage policy (2026-10-28 user ruling)
+## Evidence retention (2026-10-30 user ruling; supersedes permanent exe retention)
 
-- Evidence files — probe sources/outputs, logs, screenshots, gate/ledger
-  dumps, delivery copies under `docs/plans/attachments/**` — are LOCAL-ONLY
-  working artifacts. **Never `git add`, commit, or push them**: everything
-  under `docs/plans/attachments/` except `*.md` is gitignored and the
-  pre-commit hook rejects staged evidence paths. Bulk evidence grew unpushed
-  history by ~1GB across a few dozen plans and loses value once the code
-  moves.
-- Land evidence as concise SUMMARIES inside the (archived) Plan file:
-  verdicts, commands, exit codes, key numbers, and the local attachment
-  path plus content hash for traceability. Deliberate `*.md`
-  summaries/contracts under `attachments/` may still be committed.
-- Override for a genuinely load-bearing non-md artifact:
-  `AUTO_LANG_ALLOW_EVIDENCE=1 git commit` with the reason recorded in the
-  Plan. Already-pushed legacy evidence is intentionally left as-is; unpushed
-  legacy evidence is scheduled for history filtering before the next push.
+- Keep durable Plan/review summaries (commands, exit codes, source/dependency identity,
+  counts, limitations and evidence hashes) in version control. Raw evidence stays local.
+- Raw evidence, including exe replay anchors, expires 14 days after final review and
+  landing. Existing unclassified history gets one 14-day adoption window, not a new
+  window every run. Hashes are identity records, not a promise of permanent replay.
+- In-flight Plans and necessary evidence for unresolved issues are protected. Register
+  a hold with exact scope/paths, reason, owner and next review date (within 14 days).
+  Review dates trigger reassessment, never automatic deletion of an unresolved hold.
+  Unknown ownership, frozen dependency sources and recovery material fail closed.
+- Keep only necessary final executable roles; do not archive every build/test executable
+  or entire worktree/target/node_modules trees. Promote enduring regressions/fixtures
+  and unique dependency sources into their owning source repository before retiring copies.
+- Default budgets: 500 MiB unique data per Plan and 10 GiB globally under
+  D:/autostack/plan-artifacts. Check before producing more artifacts and at cleanup.
+  Do not grow an over-budget scope without a named, reasoned, time-bounded exception;
+  do not evict protected evidence to force a green budget. Report legacy excess honestly.
+- Registry: D:/autostack/plan-artifacts/.retention/policy.json. Register owner/status,
+  retention_started_at/expires_at, explicitly classified expire_files (size, mtime_ns and SHA-256) and holds. Refresh
+  status/holds from actual Plans and active consumers before each maintenance run.
+  Classify expendable logs/screenshots/probes explicitly; never expire arbitrary sources
+  or SDK trees by extension/mtime. Preserve the first failure while an issue is open.
+- Use auto-plan-merge/scripts/artifact_retention.py (relative to the installed skills
+  root): preview first; --apply --deduplicate reclaims closed-scope Cargo caches/PDB/
+  node_modules and expired listed files, and deduplicates full-SHA256-equal exe files.
+  It skips active processes, unknown/held scopes and reparse points. Duplicate paths
+  share read-only NTFS hardlinks, never symlinks/junctions; retained binaries are immutable.
+  Rebuild into a fresh path; never overwrite an archived executable in place.
+- Run maintenance at merge closeout and the daily retention follow-up. Record the
+  receipt, file-data/storage-byte savings and any hold/budget/error. Exit 2 means budget excess,
+  not test failure or permission to erase evidence. No full Rust gate is needed.
 
 ## Authority and compatibility
 
@@ -103,7 +118,7 @@ commit/hash/path evidence; do not mark an operation done before verifying it:
 | `landed` | Default-branch tip equal to the delivery commit after a `--ff-only` merge (no merge commit); old→new rebase hash mapping with `git range-diff` equivalence when landing rewrote the branch |
 | `canonical_verified` | Landed canonical paths, source hashes and delivery commit; approved no-impact delta when applicable. This is source verification, not an index publication. |
 | `archived` | Archive path and delivered outcome, **plus the plan/docs artifacts committed to the default branch (untracked docs/ = not archived; PLAN-104 UAT-K13)** |
-| `cleaned` | Guard result and confirmed worktree/branch removal, plus build intermediates (cargo `target` trees, `.pdb`) reclaimed under `D:/autostack/plan-artifacts/plan-<NNN>/` while keeping `.exe` outputs |
+| `cleaned` | Guard result and confirmed worktree/branch removal, plus build intermediates (cargo `target` trees, `.pdb`) reclaimed under `D:/autostack/plan-artifacts/plan-<NNN>/` with bounded evidence retention and a retention/budget receipt |
 
 **Version-control closing is part of the flow, not an afterthought:** the
 demo-workspace UAT of 2026-10-11 (K13) landed code ff-only but left
@@ -258,32 +273,14 @@ Only after landing and canonical-source verification succeed:
    group and require a fresh `wt-guard.sh` clean result. Remove the worktree
    and its merged branch; remove only the empty group directory. Never create
    junctions/symlinks or bypass the guard.
-   After worktree removal, also reclaim the Plan's build intermediates: in
-   the Plan's artifact directory under `D:/autostack/plan-artifacts/`
-   (typically `plan-<NNN>/`; if no such directory exists there is nothing to
-   reclaim), delete compilation intermediates — cargo `target` trees and
-   `.pdb` debug-symbol files — while keeping final linked outputs and every
-   other artifact intact. Rule (2026-10-27 user ruling: keep built `.exe`,
-   drop intermediates; the exe↔pdb GUID pairing breakage is accepted):
-   - `target` trees: their locations are not fixed (consumer/merge/repair
-     checkouts and worktree-group layouts nest them at varying depths, and
-     one Plan can hold several — 2026-10 measured 15 GB in a single
-     `plan-856/target`), so locate them by search (e.g.
-     `find <dir> -type d -iname target -not -path '*/target/*'`) and confirm
-     each hit is a cargo build cache (a `CACHEDIR.TAG` file inside) before
-     deleting.
-   - `.pdb` files: delete wherever they appear under the Plan's directory.
-   - Keep `.exe` binaries (runner/evidence executables are the hash-anchored
-     measurement and replay anchors) and all logs, receipts, frozen sources,
-     and probes.
-   Record what was removed (paths/kind) with the `cleaned` evidence.
-   Apply the same intermediates reclaim (target trees, `.pdb`; keep `.exe`
-   and evidence sources/logs) to any scratch-*/evidence checkouts left
-   inside the Plan's worktree-group directory (`D:/autostack/.wt/<group>/`)
-   before deciding group-dir removal — registered worktrees and foreign
-   trees there are removed through their own repos/owners, never deleted
-   directly (PLAN-841 lesson, 2026-10-27: two scratch-792 checkouts kept
-   31 GB of target trees alive after a delivered merge).
+   After worktree removal, register the final archived scope and 14-day expiry,
+   classify dispensable evidence, and run the retention helper described above.
+   Reclaim compilation intermediates now; retain only necessary unique exe roles
+   through the review window. Follow the same policy for owned scratch checkouts;
+   foreign/registered worktrees still require their own repo/owner and fresh guard.
+   Do not move build caches into plan-artifacts merely to make a worktree removable.
+   This replaces the 2026-10-27 instruction to keep every exe and other artifact.
+
 4. Verify removal, complete its owned tasks, recompute final counts, and record
    `cleaned` in the archived Plan. Verify the final task/count/reference state
    before committing that receipt update or reporting merge pass. If cleanup

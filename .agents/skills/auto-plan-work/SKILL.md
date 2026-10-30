@@ -25,21 +25,38 @@ do not block source delivery. Read/list tools may expose a derived six-category
 view; retired item-write tools must direct callers to canonical source files.
 
 
-## Evidence storage policy (2026-10-28 user ruling)
+## Evidence retention (2026-10-30 user ruling; supersedes permanent exe retention)
 
-- Evidence files — probe sources/outputs, logs, screenshots, gate/ledger
-  dumps, delivery copies under `docs/plans/attachments/**` — are LOCAL-ONLY
-  working artifacts. **Never `git add`, commit, or push them**: everything
-  under `docs/plans/attachments/` except `*.md` is gitignored and the
-  pre-commit hook rejects staged evidence paths. They matter during review
-  and repair only; keep them on disk for that window.
-- Record evidence as concise SUMMARIES inside the Plan file: command, exit
-  code, key numbers, and the local attachment path plus content hash for
-  traceability. Deliberate `*.md` summaries/contracts under `attachments/`
-  may still be committed.
-- Override for a genuinely load-bearing non-md artifact:
-  `AUTO_LANG_ALLOW_EVIDENCE=1 git commit` with the reason recorded in the
-  Plan. Already-pushed legacy evidence is intentionally left as-is.
+- Keep durable Plan/review summaries (commands, exit codes, source/dependency identity,
+  counts, limitations and evidence hashes) in version control. Raw evidence stays local.
+- Raw evidence, including exe replay anchors, expires 14 days after final review and
+  landing. Existing unclassified history gets one 14-day adoption window, not a new
+  window every run. Hashes are identity records, not a promise of permanent replay.
+- In-flight Plans and necessary evidence for unresolved issues are protected. Register
+  a hold with exact scope/paths, reason, owner and next review date (within 14 days).
+  Review dates trigger reassessment, never automatic deletion of an unresolved hold.
+  Unknown ownership, frozen dependency sources and recovery material fail closed.
+- Keep only necessary final executable roles; do not archive every build/test executable
+  or entire worktree/target/node_modules trees. Promote enduring regressions/fixtures
+  and unique dependency sources into their owning source repository before retiring copies.
+- Default budgets: 500 MiB unique data per Plan and 10 GiB globally under
+  D:/autostack/plan-artifacts. Check before producing more artifacts and at cleanup.
+  Do not grow an over-budget scope without a named, reasoned, time-bounded exception;
+  do not evict protected evidence to force a green budget. Report legacy excess honestly.
+- Registry: D:/autostack/plan-artifacts/.retention/policy.json. Register owner/status,
+  retention_started_at/expires_at, explicitly classified expire_files (size, mtime_ns and SHA-256) and holds. Refresh
+  status/holds from actual Plans and active consumers before each maintenance run.
+  Classify expendable logs/screenshots/probes explicitly; never expire arbitrary sources
+  or SDK trees by extension/mtime. Preserve the first failure while an issue is open.
+- Use auto-plan-merge/scripts/artifact_retention.py (relative to the installed skills
+  root): preview first; --apply --deduplicate reclaims closed-scope Cargo caches/PDB/
+  node_modules and expired listed files, and deduplicates full-SHA256-equal exe files.
+  It skips active processes, unknown/held scopes and reparse points. Duplicate paths
+  share read-only NTFS hardlinks, never symlinks/junctions; retained binaries are immutable.
+  Rebuild into a fresh path; never overwrite an archived executable in place.
+- Run maintenance at merge closeout and the daily retention follow-up. Record the
+  receipt, file-data/storage-byte savings and any hold/budget/error. Exit 2 means budget excess,
+  not test failure or permission to erase evidence. No full Rust gate is needed.
 
 ## Entry and context
 
