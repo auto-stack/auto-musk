@@ -5,9 +5,9 @@ completion_kind: delivered
 feature_name: AutoDown 权威 Spec 文档维护、应用自动索引与旧账本迁移
 author: [agent]
 created_at: 2026-10-30T00:00:00+08:00
-updated_at: 2026-10-30T00:00:00+08:00
+updated_at: 2026-10-30T13:34:09+08:00
 plan_revision: 5
-current_step: 10
+current_step: 11
 total_steps: 11
 supersedes_spec_components:
   - docs/specs/00-overview.md
@@ -169,7 +169,7 @@ touched_goals:
 - [x] AC-06（owner_stage: work）迁移清单覆盖所有旧条目及扩展字段，dry-run 不写源，apply 幂等、冲突不覆盖、部分失败可恢复且回滚不毁后续编辑；V-06/V-07 通过；当前工作区真实数据 dry-run 有逐条去向报告。
 - [x] AC-07（owner_stage: work）旧查询、写 API/工具/分类视图无双事实源、无假成功；工作区隔离；V-04/V-08 通过，兼容及退役清单完整。
 - [x] AC-08（owner_stage: review）独立复审核实 SD-01…05、AC-01…07 与真实消费者路径，新旧恢复及迁移风险已覆盖，绑定 reviewed_commit/依赖/冻结规范增量；不得以内部检查替代最终复审。
-- [ ] AC-09（owner_stage: merge）按新合同线性合回并归档；真实迁移变更须单独可审阅后合入，账本独有内容未丢失；记录归档路径、技能实际生效来源、生产产物状态、工作树清理和缓存非阻断状态，不新增 ledger 刷新义务。
+- [x] AC-09（owner_stage: merge）按新合同线性合回并归档；真实迁移变更须单独可审阅后合入，账本独有内容未丢失；记录归档路径、技能实际生效来源、生产产物状态、工作树清理和缓存非阻断状态，不新增 ledger 刷新义务。
 
 ## 8. 执行步骤
 
@@ -200,7 +200,7 @@ touched_goals:
 - [x] T-08（owner_stage: work）风险验证及实施证据齐备。
 - [x] T-09（owner_stage: review）独立最终复审。
 - [x] T-10（owner_stage: merge）线性合回与归档。
-- [ ] T-11（owner_stage: merge）清理与生产产物观察。
+- [x] T-11（owner_stage: merge）清理与生产产物观察。
 
 上表为每个 Task 的唯一设计合同；checklist 仅记录执行状态，不建立另一份任务定义。代码/技能/迁移文档在 worktree，只有 Plan 本身共享记账在主检出；不因本计划修改 merge 技能而绕过尚未完成的 review。
 
@@ -343,6 +343,17 @@ touched_goals:
 - 实际技能：C:/Users/zhaop/.config/autoos/skills 下六技能文件及 locales 已从 landed main 源同步并逐文件字节核验；Codex 四阶段目录 C:/Users/zhaop/.codex/skills 与 goal/regress 目录 C:/Users/zhaop/.agents/skills 的既有 Junction 均指向 main/.agents/skills 同名源。skills-effective.json 本地保存路径/六 hash，未引入 worktree 链接。
 - archived：docs/plans/archived/106-autodown-canonical-specs-auto-index.md；completion_kind=delivered；T-10 完成，current_step 10/11。实际位置/状态、任务唯一 ID/计数和相对链接在提交前核对。T-11/AC-09 仍待清理与生产产物观察完成；此归档收据将提交主分支，随后才移除 worktree。
 
+
+### PLAN-106:r5 — cleaned / merge pass / goal completed
+
+- stage: merge | outcome: pass | next: done | completion_kind: delivered | delivery_commit: ac1c0ca93738922235fc09292d940b0639f9d693。archive_commit: 7620b6a2a19f38dd2145d4b03e596552ceb7c40c；本最终清理收据将另提交 main，均为线性文档后继，不改变已复审产品补丁。
+- cleaned：合入祖先关系核验、工作树 tracked 状态 clean、fresh wt-guard clean；git worktree remove 已注销本树并删除内容，最终空目录因本次测试自动启动的 aaid 句柄占用暂未删除。只读进程 current-directory 核实 PID 16548 属于本次工作树，父 PID 27844 已退出、仅监听 127.0.0.1:17654 无活动连接；停止该自有空闲遗留进程后成功删除空目录及空组。plan-106-dev 已删除，D:/autostack/.wt/musk-106 不存在。无其他计划 worktree/分支被改动；os-v050 的既有 prunable 记录保留给其 owner。
+- 编译清理：四个真实 Cargo cache 已回收：本计划 artifacts/backend-target（cargo clean 报 15.9GiB）、native-tool-target（1.7GiB）、target（36.1GiB），以及已删除工作树 rust-workspace/target。安全审查拒绝批量递归删除，改用 Cargo 专用 clean 成功。artifact 树跳过链接及 node_modules 后无 CACHEDIR.TAG、无 .pdb。
+- 所有 631 个原 cache 内 .exe（1,347,006,464 bytes）事先保全到 artifacts/saved-executables 并逐文件 SHA256 复核，日志/收据/源/迁移备份及构建 bundle 保留。映射 cleanup-preserved-executables.json SHA256 6e316fd3c712e24d95f27a58511f9602ab268c28d6e46841228331bfa135253c。最终后端 artifacts/musk-delivery.exe SHA256 4353d6b96f5ef39b4cbd3b6f11a33b7baee28e92ef6896397985633057cf7090；最终 native-ui-tool.exe 的已记录哈希不变。
+- main 已知良好：Node smoke 38 passed；从 main 源运行已验证后端隔离 HTTP smoke：源可读/索引 fresh、主检出 PUT403且源不变、旧 tree/text/file 的 unknown workspace 均404，exit0；自有 smoke 进程已退出。日志 D:\autostack\plan-artifacts\plan-106-main-http-smoke.log，SHA256 85fdee776073cf387083c849afc25c470d964c13dbb067db83c2aff8d60eaa4c。没有启动生产进程或把索引成功设为合并门禁。
+- 生产产物观察（2026-10-30，本次未部署/未重启生产）：D:/autostack/auto-musk/backend/target/release/musk.exe 不存在（无构建日期）；main gen/front/vue/dist/index.html 为 2026-10-03 13:19:43，旧 bundle；D:/autostack/auto-ai/target/release/aaid.exe 为 2026-10-11 14:49:34，旧 release；D:/autostack/auto-ui/target/release/auto-ui-tool.exe 不存在，main target/debug/auto-ui-tool.exe 为 2026-10-30 10:19:37，早于本次修复。当前验证产物在 plan-artifacts/plan-106/musk-delivery.exe、native-ui-tool.exe、full-web-source/gen/front/vue/dist；不能把已合入代码描述为生产已生效。全局六技能已同步生效，具体来源/hash 见上一收据。
+- AC-01…09、T-01…11 全部完成，current_step=11/total_steps=11；实际归档位置/状态/唯一任务ID/计数/链接及无 merge commit 再核验。原 legacy SHA256 与迁移清单相符，37 项逐条保全，未批量迁移其他项目。auto-lang 批量回归门仅适用于其仓库，此次 auto-musk 不新增该门。
+
 ## 10. 待澄清事项
 
-无阻止计划进入后续 work 的用户决策。T-01 拥有以下技术核实：真实生成源与双端写接口能力、文档元数据往返、技能分发副本、index.json 消费者、索引扫描与失效机制、旧收据/skills_hashes 兼容细节。若必须改外部依赖或出现超出 §1 的目标变更，先记录事实并修订合同；不得以“继续用旧 JSON 写入”替代本计划验收标准。
+本计划已交付并归档，无待澄清用户决策。技术调查、必要依赖修复授权、迁移保全及最终复审均已在 §9 闭合；生产旧构建状态见 merge 观察收据。
