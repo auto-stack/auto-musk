@@ -630,3 +630,20 @@ fn missing_review_commit_is_never_a_delivery_pass() {
     let error=musk::plan_delivery::prepare(&env.state,&env.ws_id,&env.run_id).unwrap_err();
     assert!(error.contains("reviewed_commit"),"{error}");
 }
+
+#[test]
+#[serial]
+fn archived_status_alone_never_fabricates_delivery_and_valid_reentry_verifies_sources() {
+    let env=reach_document("archived-without-landing");
+    musk::plans::PlansStore::new(env.main_root.join("docs/plans")).finalize_archived(1).unwrap();
+    let error=musk::plan_delivery::archive(&env.state,&env.ws_id,&env.run_id).unwrap_err();
+    assert!(error.contains("prepared"),"{error}");
+    assert!(!env.state.registry.get(&env.ws_id).relay.plan_execution(&env.run_id).unwrap().delivery_checkpoints.contains_key("archived"));
+    let env=reach_document("archive-reentry");
+    std::fs::create_dir_all(env.worktree.join("docs/specs/modules")).unwrap();
+    std::fs::write(env.worktree.join(DELTA_MODULE),"# Spec\n").unwrap();
+    musk::plan_delivery::prepare(&env.state,&env.ws_id,&env.run_id).unwrap();
+    musk::plan_delivery::land(&env.state,&env.ws_id,&env.run_id).unwrap();
+    musk::plan_delivery::archive(&env.state,&env.ws_id,&env.run_id).unwrap();
+    assert_eq!(musk::plan_delivery::archive(&env.state,&env.ws_id,&env.run_id).unwrap()["idempotent"],true);
+}

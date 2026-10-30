@@ -44,9 +44,10 @@ pub struct SpecTreeQuery {
 }
 
 /// Resolve the `docs/specs/` directory for the requested workspace.
-fn specs_dir_for(state: &AppState, q: &SpecTreeQuery) -> PathBuf {
-    let ws = state.registry.get(&q.workspace.id_or_default(&state.registry));
-    ws.root.join("docs").join("specs")
+fn specs_dir_for(state: &AppState, q: &SpecTreeQuery) -> Result<PathBuf, (StatusCode, String)> {
+    let root = document_root(state, q)?;
+    let checked = crate::spec_documents::resolve(&root, "_scope.md").map_err(document_error)?;
+    Ok(checked.parent().unwrap().to_path_buf())
 }
 
 pub fn spec_tree_routes() -> Router<AppState> {
@@ -111,6 +112,13 @@ fn build_spec_tree(root: &std::path::Path, prefix: &str) -> Vec<FilesNode> {
             .then(a.file_name().to_string_lossy().cmp(&b.file_name().to_string_lossy()))
     });
     for entry in &dir_entries {
+        let Ok(meta) = std::fs::symlink_metadata(entry.path()) else { continue };
+        if meta.file_type().is_symlink() { continue }
+        #[cfg(windows)] {
+            use std::os::windows::fs::MetadataExt;
+            if meta.file_attributes() & 0x400 != 0 { continue }
+        }
+
         let name = entry.file_name().to_string_lossy().to_string();
         if name.starts_with('.') || name == "_manifest.json" || name == "manifest.json" {
             continue;
@@ -153,9 +161,9 @@ fn build_spec_tree(root: &std::path::Path, prefix: &str) -> Vec<FilesNode> {
 async fn spec_tree(
     State(state): State<AppState>,
     Query(q): Query<SpecTreeQuery>,
-) -> Json<Vec<FilesNode>> {
-    let dir = specs_dir_for(&state, &q);
-    Json(build_spec_tree(&dir, ""))
+) -> Result<Json<Vec<FilesNode>>, (StatusCode, String)> {
+    let dir = specs_dir_for(&state, &q)?;
+    Ok(Json(build_spec_tree(&dir, "")))
 }
 
 /// GET /api/specs/text/{*path} — spec file body as `{ content, error }` JSON
@@ -169,7 +177,7 @@ async fn spec_text(
     Query(q): Query<SpecTreeQuery>,
     Path(path): Path<String>,
 ) -> Result<Json<FilesTextResponse>, (StatusCode, String)> {
-    let dir = specs_dir_for(&state, &q);
+    let dir = specs_dir_for(&state, &q)?;
     let content = read_text_confined(&dir, &path)?;
     Ok(Json(FilesTextResponse {
         content,
@@ -188,8 +196,8 @@ async fn spec_file(
     Path(path): Path<String>,
 ) -> Result<Response, StatusCode> {
     validate_path_pub(&path).map_err(|_| StatusCode::BAD_REQUEST)?;
-    let dir = specs_dir_for(&state, &q);
-    let file_path = dir.join(&path);
+    let root = document_root(&state, &q).map_err(|e| e.0)?;
+    let file_path = crate::spec_documents::resolve(&root, &path).map_err(|e| document_error(e).0)?;
     let data = std::fs::read(&file_path).map_err(|_| StatusCode::NOT_FOUND)?;
     let mime = guess_mime(&file_path);
     Ok(([(header::CONTENT_TYPE, mime)], data).into_response())

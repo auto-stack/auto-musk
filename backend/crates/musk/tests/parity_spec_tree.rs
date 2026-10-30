@@ -246,3 +246,43 @@ async fn spec_file_rejects_traversal() {
         "secret leaked via traversal: {leaked}"
     );
 }
+
+#[tokio::test]
+async fn legacy_read_routes_never_fall_back_to_another_workspace() {
+    let (state, root) = tmp_state();
+    std::fs::create_dir_all(root.join("docs/specs")).unwrap();
+    std::fs::write(root.join("docs/specs/secret.md"), "private source").unwrap();
+    let a = app(state);
+    for path in ["tree", "text/secret.md", "file/secret.md", "document/secret.md", "index"] {
+        let (status, body) = send(&a,"GET",&format!("/api/specs/{path}?workspace=not-a-workspace"),None).await;
+        assert_eq!(status,StatusCode::NOT_FOUND,"{path}: {body}");
+        assert!(!body.to_string().contains("private source"));
+    }
+    let (status,body)=send(&a,"GET","/api/specs/file/secret.md",None).await;
+    assert_eq!(status,StatusCode::OK);
+    assert_eq!(body,"private source");
+}
+
+#[cfg(windows)]
+#[tokio::test]
+async fn legacy_read_routes_do_not_follow_linked_sources() {
+    let (state, root)=tmp_state();
+    let external=tempfile::tempdir().unwrap();
+    std::fs::write(external.path().join("secret.md"),"outside secret").unwrap();
+    std::fs::create_dir_all(root.join("docs/specs")).unwrap();
+    let link=root.join("docs/specs/linked");
+    let out=std::process::Command::new("cmd").args(["/c","mklink","/J"])
+        .arg(link.to_str().unwrap().replace('/',"\\"))
+        .arg(external.path().to_str().unwrap().replace('/',"\\")).output().unwrap();
+    assert!(out.status.success(),"{}",String::from_utf8_lossy(&out.stderr));
+    let a=app(state);
+    for kind in ["text","file","document"] {
+        let (status,body)=send(&a,"GET",&format!("/api/specs/{kind}/linked/secret.md"),None).await;
+        let rejected = if kind == "text" { StatusCode::BAD_REQUEST } else { StatusCode::FORBIDDEN };
+        assert_eq!(status,rejected,"{kind}: {body}");
+        assert!(!body.to_string().contains("outside secret"));
+    }
+    let (_,tree)=send(&a,"GET","/api/specs/tree",None).await;
+    assert!(!tree.to_string().contains("linked"));
+    std::fs::remove_dir(link).unwrap();
+}

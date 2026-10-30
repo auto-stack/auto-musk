@@ -443,8 +443,12 @@ fn verify_canonical_landing(ctx: &DeliveryCtx) -> Result<(), String> {
         return Err("landed commit is not bound to the prepared delivery (rebase mapping missing)".into());
     }
     git(&ctx.main_root, &["merge-base", "--is-ancestor", commit, &ctx.binding.default_branch])?;
+    let original_path = ctx.main_root.join(&ctx.binding.plan_path);
+    let contract_path = if original_path.exists() { original_path.clone() } else {
+        ctx.main_root.join("docs/plans/archived").join(original_path.file_name().ok_or("Invalid Plan path")?)
+    };
     let contract = crate::relay::plan_contract::PlanContract::read(
-        &ctx.main_root.join(&ctx.binding.plan_path), Some(&ctx.binding.plan_id))?;
+        &contract_path, Some(&ctx.binding.plan_id))?;
     for target in contract.new_spec_components.iter().chain(&contract.supersedes_spec_components) {
         let relative = target.strip_prefix("docs/specs/").ok_or("Spec target outside docs/specs")?;
         crate::spec_documents::resolve(&ctx.main_root, relative).map_err(|e| e.to_string())?;
@@ -457,6 +461,12 @@ fn verify_canonical_landing(ctx: &DeliveryCtx) -> Result<(), String> {
 pub fn archive(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Result<serde_json::Value, String> {
     let ctx = delivery_ctx(state, ws_id, run_id)?;
     let plans = crate::plans::PlansStore::new(ctx.main_root.join("docs/plans"));
+    for required in ["prepared", "landed"] {
+        if ctx.pe.delivery_checkpoints.get(required).is_none() {
+            return Err(format!("archive requires the {required} checkpoint first"));
+        }
+    }
+    verify_canonical_landing(&ctx)?;
     if let Some(pf) = plans.get(ctx.pe.plan_seq) {
         if pf.archived {
             // 幂等：已归档即核对收据。
@@ -467,12 +477,6 @@ pub fn archive(state: &crate::server::AppState, ws_id: &str, run_id: &str) -> Re
             return Ok(json!({"checkpoint": "archived", "idempotent": true, "completion_kind": "delivered", "next_action": "cleanup"}));
         }
     }
-    for required in ["prepared", "landed"] {
-        if ctx.pe.delivery_checkpoints.get(required).is_none() {
-            return Err(format!("archive requires the {required} checkpoint first"));
-        }
-    }
-    verify_canonical_landing(&ctx)?;
     let pf = plans
         .finalize_archived(ctx.pe.plan_seq)
         .map_err(|e| format!("archive failed: {e}"))?;
