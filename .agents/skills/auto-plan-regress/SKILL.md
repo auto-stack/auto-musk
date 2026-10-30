@@ -5,7 +5,7 @@ description: |
   checkout as a single instance, then write a due-check receipt and triage
   new reds to plans. Use for "batch regression", "批量回归",
   "/auto-plan:regress", or when auto-plan-merge detects the batch gate is
-  due. Auto-lang tiering (fix-test-tiering, 2026-09-30); never runs inside
+  due. Auto-lang module scheduling (PLAN-888 r3, 2026-10-30); never runs inside
   plan worktrees and never merges or fixes code itself.
 ---
 
@@ -30,12 +30,13 @@ view; retired item-write tools must direct callers to canonical source files.
 
 ## Why this tier exists
 
-Per-plan review runs the scoped daily gate (`cargo t` + surface tiers
-`tv`/`tt`/`tb`/scoped `taa`) inside the plan worktree. Full tiers
-(`cargo tf`) are machine-monopoly workloads — in-test nested cargo builds,
-the ~800s zero-cache gallery fence — so they are batched here: run alone,
-on the main checkout, never in parallel with plan worktrees or other full
-tiers (see the 2026-09-30 parallel-`cargo tf` saturation incident).
+Per-plan work/review uses counterexamples and affected `cargo tm` modules in
+the Plan worktree. After final review, merge owns the frozen complete module
+and consumer/integration union; valid evidence may be reused. Periodic breadth
+is separate: `cargo tf --batch` runs the explicit recipe-to-leaf schedule once,
+with the UI/Man owner legs. Heavy tests can include nested builds and long
+gallery fences, so this queue runs alone on main, not alongside another gate.
+Do not restore a per-plan t + tv/tt/tb/taa stack or use this skill for repairs.
 
 ## Due check (trigger)
 
@@ -59,29 +60,33 @@ directly at any time.
   (`tasklist | grep -iE "nextest|cargo"` on Windows) and no plan worktree is
   mid-review-gate; if one is, wait for it — do not start a second full tier.
 - The main checkout is clean apart from documented shared bookkeeping.
-- Warm-cache budget ≈ 15 minutes (the gallery fence dominates); a cold
-  target dir costs more — say so in the report rather than guessing.
+- Use current module observations to describe expected work; old aggregate
+  timing is not a budget promise. Report preparation/cold compilation apart
+  from execution. A due run is one scheduled pass, not three global rounds.
 
 ## Legs
 
-- Always: `cargo tf`, `cargo tt`, `cargo tb`. The latter two (~24s each)
-  close the gap of surface tiers that per-plan review only runs "when
-  touched".
-- Conditional: bare `cargo taa` only when any change merged since the last
-  receipt touched aavm trigger paths (`auto/lib/*.at`, `test/vm/aavm2/**`,
-  `parity/**`, `crates/auto-lang/src/tests/aavm2_*` / `aavm_runner_tests.rs`,
-  `lib.rs` aavm lib sources). Window diff:
-  `git log --name-only <covered_commit>..HEAD`.
-- Never here: `cargo t3` (milestone-only), per-plan scoped tests, or fixes
-  to the failures found (those route to fix-forward plans).
+- Run the repository's `cargo tf --batch` queue. The language leg consumes
+  `scripts/test-governance/periodic-module-schedule.json` and the current
+  source-bound catalog, lists the real leaves and executes their union once.
+- Keep UI/Man legs and their manual/platform conditions under their owners.
+  Read actual driver receipts; do not infer their success from language PASS.
+- Do not separately run cargo tt/tb/taa after the scheduled language union.
+  Keep original ignored/manual/milestone conditions; T3 is not automatically
+  enabled. Conditional exclusions, awaiting decisions and failures are visible,
+  not a passing whole-environment claim. No automatic deletion or disabling.
+- Do not run per-plan repair checks or fix the failures here; route new reds
+  to their fix-forward owner. Other repositories use their own batch commands.
 
 ## Known reds baseline
 
-Compare results against recorded pre-existing failures before reporting:
-the daily-tier pre-existing reds on file (AGENTS 564-Q6 list), taa's
-`charts_gallery` pre-existing red, and anything already recorded in
-`docs/plans/KNOWN-DEBT-AND-RISKS.md`. Only NEW reds act; known reds are
-listed in the receipt as `known_reds_seen` without blocking.
+Compare actual module/atomic identities and failure shapes with the prior
+driver receipts, archived Plan evidence and `docs/plans/KNOWN-DEBT-AND-RISKS.md`.
+Do not grant a blanket exception from a historical tier or test-family name.
+List established existing failures as `known_reds_seen`; a known-reds-only
+verdict is not all-green. Pending or unexecuted slow/conditional work stays
+explicit. New regressions need attribution and fix-forward handling; calling
+an unmet current requirement old does not make it pass.
 
 ## Triage new reds
 
@@ -103,14 +108,18 @@ truth for the next due check; its git history is the regression log):
   "last_covered_plan_id": 710,
   "timestamp": "2026-09-30T13:00:00Z",
   "covered_commit": "<HEAD sha at run time>",
-  "legs": ["tf", "tt", "tb"],
+  "command": "cargo tf --batch",
+  "legs": ["<actual driver leg names>"],
   "new_reds": [],
   "known_reds_seen": []
 }
 ```
 
 `last_covered_plan_id` = the highest plan id landed at run time (0 when
-none). Report the verdict, leg timings, and any triage actions taken.
+none). Record the actual leg names, selected module IDs/obligations, catalog
+and execution receipt paths, exclusions/pending, source/dependency/config/input
+identity, and per-leg timings. Selection-only or incomplete work must not
+advance the covered receipt as if the queue passed. Report triage actions.
 
 Sibling repos may adopt the same receipt pattern with their own full gate;
 this skill's legs are auto-lang's.

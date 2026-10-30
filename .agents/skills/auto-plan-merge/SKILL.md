@@ -156,15 +156,39 @@ repository's naming rules. Never edit canonical Specs directly on main.
 Do not force-add ignored runtime data. Indexes are application-owned and optional;
 no cache/projection draft or publication belongs in the merge worktree.
 
-## Auto-lang post-review regression gate
+## Auto-lang post-review module gate (PLAN-888 r3, 2026-10-30)
 
-For auto-lang (2026-10-14 ruling), merge owns the unified regression gate.
-After final code/acceptance/Spec review passes and the delivery baseline is frozen,
-run bare cargo t plus only the surface tiers required by AGENTS.md before landing.
-Do not run these whole tiers during work, internal review, individual needs_fix
-repairs, implementation commits or final-review resubmission. Required targeted
-acceptance verification is still work/review-owned. cargo tf remains due-triggered,
-main-checkout single-instance batch regression, never a Plan repair gate.
+Merge owns the frozen affected module gate after final code/acceptance/Spec
+review. Use `cargo tm` to run complete affected leaves plus their actual
+consumer/integration closure once; do not require bare cargo t plus tv/tt/tb/taa.
+Inside the Plan worktree, inspect and execute explicit module IDs, or use:
+
+```text
+cargo tm --list
+cargo tm --changes <paths-file> --select-only --out <fresh-selection-dir>
+cargo tm --changes <paths-file> --out <fresh-execution-dir>
+```
+
+The paths file contains one repository-relative change per line, including
+deleted paths. Review the generated selection, fallback expansion and closure;
+unknown changes must not disappear. Output directories must be fresh. Record
+the actual selected IDs, catalog/source/dependency/config/input identities and
+execution receipt. A select-only receipt is not an execution pass.
+
+Do not run a whole catalog to commit, repair or resubmit review. Reuse valid
+single-module/targeted evidence when the relevant mechanism, members, inputs,
+dependencies and configuration are unchanged. New HEAD alone is not a reason
+to repeat it. Modules aim for <=60s; preparation/cold builds are separate. Do
+not demand three global warm rounds, a global P90 or an A/B/C matrix. Preserve
+original per-case formal samples, budgets and oracles. Long/conditional/pending
+and known-red outcomes remain explicit; module ownership is not approval for
+daily admission or silent disabling. Pure docs/assets use scoped content checks.
+
+`cargo tf --batch` is only the due-triggered, main-checkout single-instance
+periodic gate. It consumes the explicit module recipe schedule and external
+owner legs; do not independently add tt/tb/taa to repeat its language coverage.
+Legacy t/tv/tt/tb/th are compatibility navigation through 2026-11-30, not new
+Plan gates. Other repositories retain their own commands and gate timing.
 
 Bind each result to the actual commit, dependencies, verification configuration
 and inputs; record pending/passed/failed gates in the Plan. A review pass with
@@ -174,8 +198,6 @@ to work and affected re-review before rerunning affected gates on the new frozen
 baseline. Reuse prior evidence only with an explicit unchanged-input/baseline
 justification. Rebase or later edits that affect the tested baseline invalidate
 that evidence; check the final delivery identity before landing.
-
-Other repositories retain their own current gate timing and test tiers.
 
 ## Land and verify canonical sources
 

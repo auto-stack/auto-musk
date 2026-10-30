@@ -221,11 +221,19 @@ to scripts and standalone probe workspaces as well as the main test aliases.
   the repository workflow. Missing this future gate does not block submission
   of otherwise complete, committed repairs for acceptance review.
 
-For auto-lang (2026-10-14 ruling), work, internal review and needs_fix re-review
-must not run whole-tier cargo t/tv/tt/tb/tu/taa. Merge owns bare cargo t and the
-required surface tiers after final code/acceptance review passes, before landing.
-cargo tf remains main-checkout single-instance batch regression only. Other
-repositories retain their own final-gate owner and timing. Do not add tests that
+For auto-lang (PLAN-888 r3, 2026-10-30), use `cargo tm` for affected complete
+modules and their consumer/integration closure, not stacked legacy tiers.
+Use `cargo tm --list` to inspect IDs or `cargo tm --changes <paths-file>
+--select-only --out <fresh-selection-dir>` to inspect the selection; the file
+contains one repository-relative changed path per line, including deletions.
+Remove `--select-only` with a fresh output directory to execute. Preserve real
+counterexample replays during debugging and reuse evidence for unchanged inputs.
+Merge owns the frozen affected module union after final code/acceptance/Spec
+review; do not require bare cargo t plus tv/tt/tb/taa for a commit or handoff.
+`cargo tf --batch` remains due-triggered, main-checkout single-instance work.
+Module ownership is not daily admission: do not silently filter research or
+long tests, change ignores, reduce samples or treat pending as passed. Other
+repositories retain their own gate owner and commands. Do not add tests that
 merely mirror wording or trivial implementation details.
 
 ## Repair the invariant, not only the reported example

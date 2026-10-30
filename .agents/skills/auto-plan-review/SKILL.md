@@ -149,13 +149,18 @@ repeat it just because ownership changes. If it fails, diagnose the failure,
 repair with targeted checks, re-review affected criteria, then rerun the gates
 invalidated by that change on the new frozen baseline.
 
-For auto-lang (2026-10-14 ruling), complete final code, acceptance and Spec review
-first. Work/internal review/needs_fix re-review do not run whole-tier cargo
-t/tv/tt/tb/tu/taa. A final pass records bare cargo t and applicable surface tiers
-as pending merge-owned gates; reviewed does not permit landing before they pass.
-cargo tf remains batch-only on main. Other repositories retain their current
-gate owner, timing, test tiers and serialization rules. Documentation-only changes
-use applicable content/link/format checks unless repository rules require more.
+For auto-lang (PLAN-888 r3, 2026-10-30), finish final code, acceptance and Spec
+review first. Review uses finding-specific replays and affected `cargo tm`
+modules; it does not stack legacy t/tv/tt/tb/taa or repeat the full catalog.
+Inspect the explicit module IDs or changed-path selection, complete leaves and
+actual consumer/integration closure, source/dependency/config/input identities,
+and original atomic outcomes. Final pass records the frozen affected module
+union as pending merge-owned work, not a bare cargo t prerequisite. Reviewed
+does not permit landing with an unmet gate. Valid evidence for unchanged inputs
+may be reused; exclusions/pending and known reds remain explicit, not green.
+`cargo tf --batch` is due-triggered on main as a single instance. Other
+repositories retain their own gate commands and timing. Documentation-only
+changes use content/link/format checks unless repository rules require more.
 
 ### Behavioral evidence
 
@@ -272,9 +277,9 @@ completed tasks and all historical findings. Never leave a failed review in
 
 A phase-only review records its phase/commit verdict while the overall Plan
 stays `executing`; it cannot grant final `reviewed` status. Phase landing
-still requires its regression gate (the scoped daily gate above — not the
-batch `cargo tf` tier); for auto-lang run it after the phase acceptance review
-passes, before landing, not during each repair.
+still requires its affected regression gate; for auto-lang this is the frozen
+`cargo tm` module/consumer union after phase acceptance review, before landing,
+not a new `cargo tf --batch` run or legacy-tier stack during each repair.
 
 Do not merge or fix implementation within review. If the whole workflow is
 already authorized, hand control to the appropriate skill and honor the repair
