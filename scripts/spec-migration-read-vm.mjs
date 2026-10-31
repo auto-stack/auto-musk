@@ -12,12 +12,17 @@ async function call(name,args={}){
 }
 const snapshot=()=>call('autoui_snapshot',{include_state:false});
 const press=element_id=>call('autoui_action',{element_id,action:'press'});
-const row=JSON.parse(fs.readFileSync(path.join(directory,'source-registry.json'))).sources.find(r=>r.project==='auto-down');
+const row=JSON.parse(fs.readFileSync(path.join(directory,'source-registry.json'))).sources.find(r=>r.key==='auto-musk-backend');
 const manifest=JSON.parse(fs.readFileSync(path.join(directory,'journals',row.key,row.sha256+'.json')));
-const sample=manifest.entries[0];
+const sample=manifest.entries.find(e=>e.source!=='envelope'&&e.original_record.content?.length>100);
 let text=await snapshot();
-const workspace=text.split('\n').find(l=>l.includes('button #')&&l.includes('musk-107\\auto-down'));
+const workspace=text.split('\n').find(l=>l.includes('button #')&&l.includes(`musk-107\\${row.project}`));
 assert.ok(workspace,'registered native workspace');await press(workspace.match(/#(vnode_\d+)/)[1]);
+for(let attempt=0;attempt<40;attempt++){
+  const state=await call('autoui_state',{fields:['ws_loading','loading']});
+  if(state.includes('ws_loading: false')&&state.includes('loading: false'))break;
+  await new Promise(resolve=>setTimeout(resolve,250));
+}
 text=await snapshot();await press(text.split('\n').find(l=>l.includes('button #')&&l.includes('规范')).match(/#(vnode_\d+)/)[1]);
 const names=sample.target.slice('docs/specs/'.length).split('/');
 for(let i=0;i<names.length;i++){
