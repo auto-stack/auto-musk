@@ -5,7 +5,7 @@ description: |
   checkout as a single instance, then write a due-check receipt and triage
   new reds to plans. Use for "batch regression", "批量回归",
   "/auto-plan:regress", or when auto-plan-merge detects the batch gate is
-  due. Auto-lang module scheduling (PLAN-888 r3, 2026-10-30); never runs inside
+  due. Auto-lang fixed-group batch (PLAN-896/898); never runs inside
   plan worktrees and never merges or fixes code itself.
 ---
 
@@ -30,13 +30,12 @@ view; retired item-write tools must direct callers to canonical source files.
 
 ## Why this tier exists
 
-Per-plan work/review uses counterexamples and affected `cargo tm` modules in
-the Plan worktree. After final review, merge owns the frozen complete module
-and consumer/integration union; valid evidence may be reused. Periodic breadth
-is separate: `cargo tf --batch` runs the explicit recipe-to-leaf schedule once,
-with the UI/Man owner legs. Heavy tests can include nested builds and long
+Per-plan work/review uses counterexamples and affected `cargo t` fixed
+groups in the Plan worktree. After final review, merge owns the frozen complete
+fixed-group union; valid evidence may be reused. Periodic breadth is separate:
+the batch runs `cargo t all` once, with the UI/Man owner legs. Heavy tests can include nested builds and long
 gallery fences, so this queue runs alone on main, not alongside another gate.
-Do not restore a per-plan t + tv/tt/tb/taa stack or use this skill for repairs.
+Do not restore a per-plan stacked-tier habit or use this skill for repairs.
 
 ## Due check (trigger)
 
@@ -60,18 +59,17 @@ directly at any time.
   (`tasklist | grep -iE "nextest|cargo"` on Windows) and no plan worktree is
   mid-review-gate; if one is, wait for it — do not start a second full tier.
 - The main checkout is clean apart from documented shared bookkeeping.
-- Use current module observations to describe expected work; old aggregate
+- Use current fixed-group definitions to describe expected work; old aggregate
   timing is not a budget promise. Report preparation/cold compilation apart
   from execution. A due run is one scheduled pass, not three global rounds.
 
 ## Legs
 
-- Run the repository's `cargo tf --batch` queue. The language leg consumes
-  `scripts/test-governance/periodic-module-schedule.json` and the current
-  source-bound catalog, lists the real leaves and executes their union once.
+- Run the repository's `cargo t all` queue. The language leg executes the
+  explicit fixed-group union from `scripts/test-groups.toml` once.
 - Keep UI/Man legs and their manual/platform conditions under their owners.
   Read actual driver receipts; do not infer their success from language PASS.
-- Do not separately run cargo tt/tb/taa after the scheduled language union.
+- Do not separately rerun groups after the scheduled language union.
   Keep original ignored/manual/milestone conditions; T3 is not automatically
   enabled. Conditional exclusions, awaiting decisions and failures are visible,
   not a passing whole-environment claim. No automatic deletion or disabling.
@@ -108,7 +106,7 @@ truth for the next due check; its git history is the regression log):
   "last_covered_plan_id": 710,
   "timestamp": "2026-09-30T13:00:00Z",
   "covered_commit": "<HEAD sha at run time>",
-  "command": "cargo tf --batch",
+  "command": "cargo t all",
   "legs": ["<actual driver leg names>"],
   "new_reds": [],
   "known_reds_seen": []
@@ -116,8 +114,7 @@ truth for the next due check; its git history is the regression log):
 ```
 
 `last_covered_plan_id` = the highest plan id landed at run time (0 when
-none). Record the actual leg names, selected module IDs/obligations, catalog
-and execution receipt paths, exclusions/pending, source/dependency/config/input
+none). Record the actual leg names, selected groups and execution receipt paths, exclusions/pending, source/dependency/config/input
 identity, and per-leg timings. Selection-only or incomplete work must not
 advance the covered receipt as if the queue passed. Report triage actions.
 

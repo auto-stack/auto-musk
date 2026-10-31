@@ -53,7 +53,10 @@ view; retired item-write tools must direct callers to canonical source files.
   above the existing 500 MiB/Plan and 10 GiB total monitoring thresholds; report excess
   rather than inventing extra retention exceptions. The latest-five rule replaces
   v1's 14-day adoption window, expiry lists and immutable executable dedup workflow.
-- Raw evidence stays local; only concise Plan/review/cleanup summaries belong in Git.
+- Raw evidence is local, transient scratch; the durable form is concise markdown
+  summaries (commands, exit codes, key numbers, short code/log excerpts) written
+  into the Plan file itself. At closure, merge folds everything needed into the
+  Plan file and deletes `docs/plans/attachments/<NNN>/` (2026-10-31 user ruling).
   Report removed Plans, protected exceptions, actual file-data reclaimed and errors.
 
 ## Entry, authority, and independence
@@ -166,15 +169,15 @@ repair with targeted checks, re-review affected criteria, then rerun the gates
 invalidated by that change on the new frozen baseline.
 
 For auto-lang (PLAN-888 r3, 2026-10-30), finish final code, acceptance and Spec
-review first. Review uses finding-specific replays and affected `cargo tm`
-modules; it does not stack legacy t/tv/tt/tb/taa or repeat the full catalog.
-Inspect the explicit module IDs or changed-path selection, complete leaves and
-actual consumer/integration closure, source/dependency/config/input identities,
+review first. Review uses finding-specific replays and affected `cargo t <fixed-group>`
+groups; it does not stack whole-repo rounds or repeat the full catalog.
+Inspect the explicit group selection, complete groups and
+necessary integration closure, source/dependency/config/input identities,
 and original atomic outcomes. Final pass records the frozen affected module
 union as pending merge-owned work, not a bare cargo t prerequisite. Reviewed
 does not permit landing with an unmet gate. Valid evidence for unchanged inputs
 may be reused; exclusions/pending and known reds remain explicit, not green.
-`cargo tf --batch` is due-triggered on main as a single instance. Other
+The periodic `cargo t all` batch is due-triggered on main as a single instance. Other
 repositories retain their own gate commands and timing. Documentation-only
 changes use content/link/format checks unless repository rules require more.
 
@@ -274,9 +277,12 @@ dependency_revisions |
 spec_inputs | acceptance_results | pending_closeout_gates | findings | evidence |
 next`
 
-Keep evidence paths resolvable after worktree removal: record durable repository
-artifacts or concise command/result excerpts in the Plan, not only temporary logs.
-The evidence package includes a frozen copy/hash of the reviewed Spec delta.
+Keep evidence paths resolvable after worktree removal: durable evidence is
+concise command/result excerpts recorded in the Plan file itself, not separate
+attachment files or temporary logs. The evidence package includes a frozen
+copy/hash of the reviewed Spec delta. At closure, merge folds any remaining
+attachment records into the Plan file and deletes that Plan's attachments
+directory (2026-10-31 user ruling).
 
 | Outcome | Plan state | Next action |
 |---|---|---|
@@ -294,8 +300,8 @@ completed tasks and all historical findings. Never leave a failed review in
 A phase-only review records its phase/commit verdict while the overall Plan
 stays `executing`; it cannot grant final `reviewed` status. Phase landing
 still requires its affected regression gate; for auto-lang this is the frozen
-`cargo tm` module/consumer union after phase acceptance review, before landing,
-not a new `cargo tf --batch` run or legacy-tier stack during each repair.
+`cargo t` fixed-group union after phase acceptance review, before landing,
+not a new `cargo t all` run or whole-repo stack during each repair.
 
 Do not merge or fix implementation within review. If the whole workflow is
 already authorized, hand control to the appropriate skill and honor the repair

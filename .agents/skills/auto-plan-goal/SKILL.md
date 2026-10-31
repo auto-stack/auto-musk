@@ -178,10 +178,12 @@ Count from §9 receipts so a resumed session cannot reset them:
 
 ## Evidence and receipts
 
-Follow the stage skills' evidence policy exactly: evidence under
-`docs/plans/attachments/**` stays local-only (only deliberate `*.md`
-summaries/contracts are committed); receipts are concise summaries with
-command, exit code, key numbers, and the local path plus hash.
+Follow the stage skills' evidence policy exactly: raw evidence is local,
+transient scratch; the durable form is concise markdown summaries (commands,
+exit codes, key numbers, short code/log excerpts) written into the Plan file
+itself, and receipts follow the same shape with the local path plus hash.
+At closure, merge consolidates all evidence into the Plan file and deletes
+`docs/plans/attachments/<NNN>/` (2026-10-31 user ruling).
 
 The goal adds exactly one record type, appended to §9 after each stage:
 

@@ -112,12 +112,12 @@ touched_goals: []
   budget or automatic continuation limits. Do not invent approvals or budgets.
   Unknown constraints that affect correctness go to `10. 待澄清事项`.
 
-For auto-lang (PLAN-888 r3, 2026-10-30), draft verification around `cargo tm`
-complete affected modules and consumer/integration closure. Name existing
-module IDs or a changed-path selection, and mark proposed tests as unexecuted.
+For auto-lang (PLAN-888 r3, 2026-10-30), draft verification around `cargo t <fixed-group>`
+complete affected groups and necessary integration groups. Name existing
+group IDs from `cargo t --list`, and mark proposed tests as unexecuted.
 Work/review own targeted counterexamples; merge owns the frozen module union
-after final review. Do not prescribe bare cargo t plus tv/tt/tb/taa or three
-global rounds. `cargo tf --batch` is due-triggered periodic work on main.
+after final review. Do not prescribe stacked whole-repo rounds or three
+global passes. The periodic `cargo t all` batch is due-triggered work on main.
 Keep original oracles, samples and conditions; module registration is not
 daily-admission approval. Other repositories retain their own commands.
 

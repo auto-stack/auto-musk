@@ -54,7 +54,10 @@ view; retired item-write tools must direct callers to canonical source files.
   above the existing 500 MiB/Plan and 10 GiB total monitoring thresholds; report excess
   rather than inventing extra retention exceptions. The latest-five rule replaces
   v1's 14-day adoption window, expiry lists and immutable executable dedup workflow.
-- Raw evidence stays local; only concise Plan/review/cleanup summaries belong in Git.
+- Raw evidence is local, transient scratch; the durable form is concise markdown
+  summaries (commands, exit codes, key numbers, short code/log excerpts) written
+  into the Plan file itself. At closure, merge folds everything needed into the
+  Plan file and deletes `docs/plans/attachments/<NNN>/` (2026-10-31 user ruling).
   Report removed Plans, protected exceptions, actual file-data reclaimed and errors.
 
 ## Entry and context
@@ -237,16 +240,14 @@ to scripts and standalone probe workspaces as well as the main test aliases.
   the repository workflow. Missing this future gate does not block submission
   of otherwise complete, committed repairs for acceptance review.
 
-For auto-lang (PLAN-888 r3, 2026-10-30), use `cargo tm` for affected complete
-modules and their consumer/integration closure, not stacked legacy tiers.
-Use `cargo tm --list` to inspect IDs or `cargo tm --changes <paths-file>
---select-only --out <fresh-selection-dir>` to inspect the selection; the file
-contains one repository-relative changed path per line, including deletions.
-Remove `--select-only` with a fresh output directory to execute. Preserve real
+For auto-lang (PLAN-888 r3, 2026-10-30), use `cargo t <fixed-group>` for affected complete
+groups and their necessary integration groups.
+Use `cargo t --list` to inspect group names or `cargo t <group> --select-only`
+to inspect the selection; execute by dropping `--select-only`. Preserve real
 counterexample replays during debugging and reuse evidence for unchanged inputs.
 Merge owns the frozen affected module union after final code/acceptance/Spec
-review; do not require bare cargo t plus tv/tt/tb/taa for a commit or handoff.
-`cargo tf --batch` remains due-triggered, main-checkout single-instance work.
+review; do not require whole-repo reruns for a commit or handoff.
+The periodic `cargo t all` batch remains due-triggered, main-checkout single-instance work.
 Module ownership is not daily admission: do not silently filter research or
 long tests, change ignores, reduce samples or treat pending as passed. Other
 repositories retain their own gate owner and commands. Do not add tests that

@@ -43,17 +43,40 @@ the Plan is archived, and temporary worktrees are safely cleaned.
   above the existing 500 MiB/Plan and 10 GiB total monitoring thresholds; report excess
   rather than inventing extra retention exceptions. The latest-five rule replaces
   v1's 14-day adoption window, expiry lists and immutable executable dedup workflow.
-- Raw evidence stays local; only concise Plan/review/cleanup summaries belong in Git.
+- Raw evidence is local and transient; durable evidence is concise markdown
+  summaries inside the Plan file itself (see Evidence consolidation below).
   Report removed Plans, protected exceptions, actual file-data reclaimed and errors.
+
+## Evidence consolidation at closure (2026-10-31 user ruling)
+
+- At closeout, consolidate ALL Plan-related evidence — probe sources/outputs,
+  logs, gate/ledger dumps, screenshots, repair/review/merge records — into
+  concise markdown inside the Plan file itself: commands, exit codes, key
+  numbers, and short code/log excerpts under the Plan's verification and
+  review-record sections. The Plan file is the only durable evidence home;
+  never leave evidence behind as files under `docs/plans/attachments/`.
+- `docs/plans/attachments/<NNN>/` is transient local scratch for work/review
+  rounds. Before recording `archived`, fold every still-needed attachment
+  record (receipts, handoffs, spec deltas) into the Plan file, then delete
+  that Plan's whole attachments directory. Only a named unresolved-issue hold
+  (owner + reason recorded in the Plan) may keep a local scope temporarily.
+- Rationale: historical Plans rarely need their original evidence again — later
+  verification re-runs against current code. Attachment directories otherwise
+  grow without bound and bloat both the checkout and Git history.
+- This extends the 2026-10-28 local-only rule: local-only is not enough —
+  closure must also fold summaries into the Plan file and delete the directory.
+  The `*.md`-only .gitignore and pre-commit guard stay as the enforcement
+  backstop; nothing under attachments is ever pushed.
 
 ## Authority and compatibility
 
 - **`docs/specs/` is the authoritative source of current project knowledge.**
   Apply the reviewed add/modify/retire delta to these documents.
 - The ledger's six sections are derived indexes, relations, and history.
-  Current-knowledge items link to canonical Specs; historical review/report
-  items link to durable evidence or the archived Plan. Never copy Plan chapters
-  into a second independently maintained specification.
+Current-knowledge items link to canonical Specs; historical review/report
+items link to the archived Plan (closure folds evidence summaries into the
+Plan file itself). Never copy Plan chapters
+into a second independently maintained specification.
 - Legacy ledger-only knowledge is not discarded. Reconcile relevant entries
   with code and approved intent, promote enduring content into module Specs
   through a reviewed delta, and preserve unrelated/history entries.
@@ -117,7 +140,7 @@ commit/hash/path evidence; do not mark an operation done before verifying it:
 | `landed` | Default-branch tip equal to the delivery commit after a `--ff-only` merge (no merge commit); old→new rebase hash mapping with `git range-diff` equivalence when landing rewrote the branch |
 | `canonical_verified` | Landed canonical paths, source hashes and delivery commit; approved no-impact delta when applicable. This is source verification, not an index publication. |
 | `archived` | Archive path and delivered outcome, **plus the plan/docs artifacts committed to the default branch (untracked docs/ = not archived; PLAN-104 UAT-K13)** |
-| `cleaned` | Guard result and confirmed worktree/branch removal, plus build intermediates (cargo `target` trees, `.pdb`) reclaimed under `D:/autostack/plan-artifacts/plan-<NNN>/` with bounded evidence retention and a retention/budget receipt |
+| `cleaned` | Guard result and confirmed worktree/branch removal, plus build intermediates (cargo `target` trees, `.pdb`) reclaimed under `D:/autostack/plan-artifacts/plan-<NNN>/` with bounded evidence retention and a retention/budget receipt, **and `docs/plans/attachments/<NNN>/` deleted after its records were folded into the Plan file (2026-10-31 ruling)** |
 
 **Version-control closing is part of the flow, not an afterthought:** the
 demo-workspace UAT of 2026-10-11 (K13) landed code ff-only but left
@@ -170,24 +193,22 @@ repository's naming rules. Never edit canonical Specs directly on main.
 Do not force-add ignored runtime data. Indexes are application-owned and optional;
 no cache/projection draft or publication belongs in the merge worktree.
 
-## Auto-lang post-review module gate (PLAN-888 r3, 2026-10-30)
+## Auto-lang post-review fixed-group gate (PLAN-896/898)
 
-Merge owns the frozen affected module gate after final code/acceptance/Spec
-review. Use `cargo tm` to run complete affected leaves plus their actual
-consumer/integration closure once; do not require bare cargo t plus tv/tt/tb/taa.
-Inside the Plan worktree, inspect and execute explicit module IDs, or use:
+Merge owns the frozen affected fixed-group gate after final code/acceptance/Spec
+review. Use `cargo t <group> ...` to run complete affected groups plus their
+necessary integration groups once. Inside the Plan worktree, inspect and
+execute explicit group names:
 
 ```text
-cargo tm --list
-cargo tm --changes <paths-file> --select-only --out <fresh-selection-dir>
-cargo tm --changes <paths-file> --out <fresh-execution-dir>
+cargo t --list
+cargo t <group> --select-only
+cargo t <group> ...
 ```
 
-The paths file contains one repository-relative change per line, including
-deleted paths. Review the generated selection, fallback expansion and closure;
-unknown changes must not disappear. Output directories must be fresh. Record
-the actual selected IDs, catalog/source/dependency/config/input identities and
-execution receipt. A select-only receipt is not an execution pass.
+Review the generated selection; unmapped concerns must not disappear.
+Record the actual selected groups, source/dependency/config/input identities
+and execution receipt. A select-only plan is not an execution pass.
 
 Do not run a whole catalog to commit, repair or resubmit review. Reuse valid
 single-module/targeted evidence when the relevant mechanism, members, inputs,
@@ -198,11 +219,10 @@ original per-case formal samples, budgets and oracles. Long/conditional/pending
 and known-red outcomes remain explicit; module ownership is not approval for
 daily admission or silent disabling. Pure docs/assets use scoped content checks.
 
-`cargo tf --batch` is only the due-triggered, main-checkout single-instance
-periodic gate. It consumes the explicit module recipe schedule and external
-owner legs; do not independently add tt/tb/taa to repeat its language coverage.
-Legacy t/tv/tt/tb/th are compatibility navigation through 2026-11-30, not new
-Plan gates. Other repositories retain their own commands and gate timing.
+The periodic `cargo t all` batch is the due-triggered, main-checkout
+single-instance gate (PLAN-898). UI/Man owner legs keep their own queues; do
+not independently rerun its language coverage. The legacy t/tv/tt/tb/th aliases
+are retired and deleted (PLAN-898). Other repositories retain their own commands and gate timing.
 
 Bind each result to the actual commit, dependencies, verification configuration
 and inputs; record pending/passed/failed gates in the Plan. A review pass with
