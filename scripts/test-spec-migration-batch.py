@@ -36,7 +36,7 @@ class MigrationBatchContract(unittest.TestCase):
             head = git(work, 'rev-parse', 'HEAD').stdout.strip()
             origin = main / '.autoos/specs.json'
             origin.parent.mkdir()
-            raw = json.dumps({'unknown': {'keep': 42}, 'sections': {'designs': [{'id': 'same', 'content': name}]}}).encode()
+            raw = json.dumps({'unknown': {'keep': 42}, 'sections': {'designs': [{'id': 'same', 'content': name + '\r\n旧正文'}]}}).encode()
             origin.write_bytes(raw)
             snapshot = self.base / ('snapshot-' + name + '.json')
             snapshot.write_bytes(raw)
@@ -99,6 +99,23 @@ class MigrationBatchContract(unittest.TestCase):
         self.registry.write_text(json.dumps(registry))
         self.batch('prepare', success=False)
         self.assertFalse((Path(self.rows[0]['worktree']) / 'docs').exists())
+
+    def test_git_checkout_keeps_preview_hash_with_crlf_original_content(self):
+        self.batch('prepare')
+        self.batch('apply')
+        for row in self.rows:
+            root = Path(row['worktree'])
+            git(root, 'config', 'core.autocrlf', 'input')
+            git(root, 'add', 'docs/specs')
+            git(root, 'commit', '-m', 'migration')
+            target = next((root / 'docs/specs/history/legacy-ledger').rglob('*-0.md'))
+            before = target.read_bytes()
+            self.assertNotIn(b'\r\n', before)
+            relative = str(target.relative_to(root))
+            target.unlink()
+            git(root, 'restore', '--', relative)
+            self.assertEqual(target.read_bytes(), before)
+        self.batch('verify')
 
     def test_two_actual_apply_processes_share_the_project_lock(self):
         self.batch('prepare')

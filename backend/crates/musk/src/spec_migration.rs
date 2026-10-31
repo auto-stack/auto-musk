@@ -235,7 +235,7 @@ pub fn dry_run_with_source_key(
             let content = format!("---\nspec_id: {}\nsection: reports\ntags: [historical, legacy-import]\n---\n\n# Legacy Spec: {}\n\nHistorical preservation; current requirements remain in canonical module Specs.\n\n- Source: `{section_id}/{id}` (position {section_pos}/{item_pos})\n- Ledger SHA256: `{source_hash}`\n- Disposition: {disposition}\n- Canonical reference: {}\n- Archived Plan: {}\n\n## Original content\n\n{}\n\n## Original record (all fields, immutable import)\n\n{record_json}\n",
                     json_string(&identity), item["title"].as_str().unwrap_or(id),
                     canonical.as_deref().unwrap_or("unresolved"), archived.as_deref().unwrap_or("unresolved"),
-                    item["content"].as_str().unwrap_or(""));
+                    item["content"].as_str().unwrap_or("")).replace("\r\n", "\n");
             let before_hash = match fs::read(root.join(&target)) {
                 Ok(b) => Some(hash(&b)),
                 Err(e) if e.kind() == io::ErrorKind::NotFound => None,

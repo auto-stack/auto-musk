@@ -10,6 +10,8 @@
 
 来源键、完整源 SHA256、区块键/位置与条目位置共同定义迁移身份，旧 ID 非全局唯一键。v2使用完整哈希的路径命名空间；不同项目或 root/backend 不因内容或 ID 碰巧相同而合并。
 
+生成 Markdown 统一使用 LF，包含用于阅读的旧正文；围栏中的原 JSON 字符串仍保留原始 CRLF 值，源字节备份不变。输出字节哈希必须跨 Git 提交/检出保持一致。旧混合换行 manifest 遇到 Git 归一化后的文件应明确报告指纹漂移；保留旧 journal，重新 dry-run 生成独立恢复材料，不覆盖或伪造旧证据。
+
 ## 显式批次
 
 `musk spec-migrate --root <worktree> --source <snapshot> --source-key <registered-key> --journal <local-journal>` 默认 dry-run；apply/rollback 仍使用相同引擎。source-key 不得含路径字符，目标只能在受限 history 目录。专用工作树可写，主检出拒绝。
