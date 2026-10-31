@@ -422,3 +422,9 @@ next: /auto-plan-merge；实施写入保持冻结，若rebase内容变化则返�
 
 - 代码/规范/数据交付与canonical验证先于归档完成；最终默认分支root为0e378ab，其他15仓见最终landing表。实际归档位置docs/plans/archived/107-cross-project-specs-autodown-migration.md；本次归档文件将提交Git，尚未记录cleaned。T-12/AC-09只待最终安全清理及计数复验。
 - PATH实际生产入口观察：auto-man/target/debug/auto.exe构建2026-10-31 11:37:01，auto-man/target/debug/auto-ui-tool.exe构建2026-10-31 16:34:12，均早于本次原生字体修复提交17:06之后；需要发行重建原生工具。仅记录观察，不在本次强制重启共享宿主。
+
+### PLAN-107:r3 — 工作树清理完成 / scratch清理授权
+
+- 15外仓均fresh guard clean后worktree+auto-musk-dev删除；根Plan树fresh guard clean、已合入祖先验证后Git注销成功，空目录一度被本计划后端65996启动的aaid子进程70940占用。17654端口仅Listen、0 Established，用户明确允许仅清理本计划临时资源后停止该空闲子进程，等待句柄释放后空目录删除。根plan-107-dev和整个空musk-107组均已删除；其他工作树/分支保留。
+- 自动批准审核曾拦截该进程/目录清理，仅回blocked by policy；用户随后明确授权，重查归属/0连接后才执行。未停止共享生产进程。
+- 待删scratch范围：plan-artifacts/plan-107及52个plan-107-*直属日志文件；scope已精确登记，无hold。目录内55362个普通文件、44184646662字节（约44.2 GB）；866个reparse链接均在隔离Web构建目录中，删除前仅移除链接本身，不沿链接遍历外部依赖。原JSON、16仓Git文档/归档、其他计划scope不在清理集合。实际删除结果仍待最后核验。
