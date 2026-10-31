@@ -1,0 +1,227 @@
+//! PLAN-107: actual command-line migration and failure/recovery contracts.
+use musk::spec_migration as migration;
+use serde_json::{json, Value};
+use std::{
+    fs,
+    path::Path,
+    process::{Command, Output},
+};
+fn source(root: &Path, value: &Value) -> std::path::PathBuf {
+    let path = root.join("input.json");
+    fs::write(&path, serde_json::to_vec(value).unwrap()).unwrap();
+    path
+}
+fn cli(root: &Path, source: &Path, journal: &Path, key: &str, action: &str) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_musk"))
+        .args(["spec-migrate", "--root"])
+        .arg(root)
+        .arg("--source")
+        .arg(source)
+        .arg("--journal")
+        .arg(journal)
+        .args([
+            "--source-key",
+            key,
+            "--action",
+            action,
+            "--legacy-writer-stopped",
+        ])
+        .current_dir(std::env::temp_dir())
+        .output()
+        .unwrap()
+}
+fn ok(output: Output) {
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+fn values(manifest: &migration::Manifest) -> Vec<Value> {
+    manifest
+        .entries
+        .iter()
+        .filter(|e| e.source != "envelope")
+        .map(|e| e.original_record.clone().unwrap())
+        .collect()
+}
+#[test]
+fn array_and_both_map_shapes_preserve_records_and_envelope_unknown_fields() {
+    let record = json!({"id":"x","content":"# 中文\n````json\nold fence\n````", "status":"Unknown","extra":{"keep":[1,null,false]}});
+    for input in [
+        json!({"top":{"keep":42},"sections":[{"id":"designs","note":"kept","items":[record.clone()]}]}),
+        json!({"top":{"keep":42},"sections":{"designs":[record.clone()],"goals":[]}}),
+        json!({"top":{"keep":42},"sections":{"designs":{"note":"kept","items":[record.clone()]}}}),
+    ] {
+        let td = tempfile::tempdir().unwrap();
+        let src = source(td.path(), &input);
+        let manifest = migration::dry_run_with_source_key(td.path(), &src, "shape").unwrap();
+        assert_eq!(values(&manifest), vec![record.clone()]);
+        assert_eq!(
+            manifest
+                .entries
+                .last()
+                .unwrap()
+                .original_record
+                .as_ref()
+                .unwrap()["top"],
+            input["top"]
+        );
+        // Read the actual Markdown JSON fence, not only the manifest metadata.
+        let body = &manifest.entries[0].content;
+        let rendered = body
+            .rsplit_once("## Original record (all fields, immutable import)\n\n")
+            .unwrap()
+            .1;
+        let (opening, rest) = rendered.split_once('\n').unwrap();
+        let delimiter = opening.strip_suffix("json").unwrap();
+        let raw = rest.strip_suffix(&format!("\n{delimiter}\n")).unwrap();
+        assert_eq!(serde_json::from_str::<Value>(raw).unwrap(), record);
+        let journal = td.path().join("journal.json");
+        migration::write_manifest(&manifest, &journal).unwrap();
+        migration::write_manifest(&manifest, &journal).unwrap(); // Interrupted exact publication can complete.
+        ok(cli(td.path(), &src, &journal, "shape", "apply"));
+        ok(cli(td.path(), &src, &journal, "shape", "apply"));
+        ok(cli(td.path(), &src, &journal, "shape", "rollback"));
+        ok(cli(td.path(), &src, &journal, "shape", "rollback"));
+        assert!(!td.path().join(&manifest.entries[0].target).exists());
+    }
+}
+#[test]
+fn malformed_shapes_fail_before_any_document_or_recovery_publication() {
+    for input in [
+        json!({}),
+        json!({"sections":false}),
+        json!({"sections":[1]}),
+        json!({"sections":[{"id":"designs","items":{}}]}),
+        json!({"sections":{"designs":[null]}}),
+        json!({"sections":{"designs":{"unknown":[]}}}),
+    ] {
+        let td = tempfile::tempdir().unwrap();
+        let src = source(td.path(), &input);
+        let raw = fs::read(&src).unwrap();
+        let journal = td.path().join("journal.json");
+        let out = cli(td.path(), &src, &journal, "bad", "dry-run");
+        assert!(!out.status.success());
+        assert_eq!(fs::read(&src).unwrap(), raw);
+        assert!(!journal.exists());
+        assert!(!td.path().join("docs").exists());
+    }
+}
+#[test]
+fn source_namespaces_and_duplicate_ids_do_not_overwrite_other_records() {
+    let td = tempfile::tempdir().unwrap();
+    let src = source(
+        td.path(),
+        &json!({"sections":{
+        "reports":[{"id":"P016-1","content":"A"}],"designs":[{"id":"P016-1","content":"B"}]}}),
+    );
+    let a = migration::dry_run_with_source_key(td.path(), &src, "root").unwrap();
+    let b = migration::dry_run_with_source_key(td.path(), &src, "backend").unwrap();
+    assert_ne!(a.entries[0].target, b.entries[0].target);
+    assert_ne!(a.entries[0].target, a.entries[1].target);
+    migration::apply(&a, true).unwrap();
+    migration::apply(&b, true).unwrap();
+    for e in a.entries.iter().chain(&b.entries) {
+        assert_eq!(
+            fs::read_to_string(td.path().join(&e.target)).unwrap(),
+            e.content
+        );
+    }
+    assert!(migration::dry_run_with_source_key(td.path(), &src, "../escape").is_err());
+}
+#[test]
+fn archive_and_archived_and_prefixed_references_link_only_inside_target_project() {
+    let td = tempfile::tempdir().unwrap();
+    let root = td.path();
+    fs::create_dir_all(root.join("docs/plans/archive")).unwrap();
+    fs::write(root.join("docs/plans/archive/016-old.md"), "# Plan").unwrap();
+    let project = root.file_name().unwrap().to_string_lossy();
+    let src = source(
+        root,
+        &json!({"sections":[{"id":"designs","items":[
+        {"id":"P016-1","content":"x"},{"id":"other","file":format!("{project}/docs/plans/archive/016-old.md#anchor"),"content":"y"},
+        {"id":"escape","file":"../outside.md","content":"z"}]}]}),
+    );
+    let m = migration::dry_run_with_source_key(root, &src, "links").unwrap();
+    assert_eq!(
+        m.entries[0].reference.as_deref(),
+        Some("docs/plans/archive/016-old.md")
+    );
+    assert_eq!(
+        m.entries[1].reference.as_deref(),
+        Some("docs/plans/archive/016-old.md#anchor")
+    );
+    assert!(m.entries[2].reference.is_none());
+}
+#[test]
+fn actual_cli_recovery_detects_journal_backup_source_and_target_changes() {
+    let td = tempfile::tempdir().unwrap();
+    let src = source(
+        td.path(),
+        &json!({"sections":{"designs":[{"id":"a","content":"A"},{"id":"b","content":"B"}]}}),
+    );
+    let journal = td.path().join("journal.json");
+    ok(cli(td.path(), &src, &journal, "recover", "dry-run"));
+    let m = migration::read_manifest(&journal).unwrap();
+    let first = td.path().join(&m.entries[0].target);
+    fs::create_dir_all(first.parent().unwrap()).unwrap();
+    fs::write(&first, &m.entries[0].content).unwrap();
+    ok(cli(td.path(), &src, &journal, "recover", "apply"));
+    let journal_bytes = fs::read(&journal).unwrap();
+    fs::write(&journal, [journal_bytes.clone(), b" ".to_vec()].concat()).unwrap();
+    assert!(!cli(td.path(), &src, &journal, "recover", "apply")
+        .status
+        .success());
+    fs::write(&journal, &journal_bytes).unwrap();
+    let backup = journal.with_extension("legacy-backup");
+    let raw = fs::read(&backup).unwrap();
+    fs::write(&backup, "wrong").unwrap();
+    assert!(!cli(td.path(), &src, &journal, "recover", "rollback")
+        .status
+        .success());
+    fs::write(&backup, &raw).unwrap();
+    fs::write(&src, "changed source").unwrap();
+    assert!(!cli(td.path(), &src, &journal, "recover", "apply")
+        .status
+        .success());
+    fs::write(&src, &raw).unwrap();
+    fs::write(&first, "later user edit").unwrap();
+    assert!(!cli(td.path(), &src, &journal, "recover", "rollback")
+        .status
+        .success());
+    assert_eq!(fs::read_to_string(&first).unwrap(), "later user edit");
+    assert!(!cli(td.path(), &src, &journal, "foreign-key", "apply")
+        .status
+        .success());
+}
+#[test]
+fn v1_recovery_remains_readable_without_a_v2_digest_sidecar() {
+    let td = tempfile::tempdir().unwrap();
+    let src = source(td.path(), &json!({"sections":[]}));
+    let journal = td.path().join("v1.json");
+    let manifest = migration::dry_run(td.path(), &src).unwrap();
+    migration::write_manifest(&manifest, &journal).unwrap();
+    fs::remove_file(journal.with_extension("manifest-sha256")).unwrap();
+    migration::read_manifest(&journal).unwrap();
+    migration::apply(&manifest, true).unwrap();
+    migration::rollback(&manifest).unwrap();
+}
+
+#[test]
+fn unknown_large_json_numbers_are_not_rounded_during_preservation() {
+    let td = tempfile::tempdir().unwrap();
+    let input: Value = serde_json::from_str(
+        r#"{"sections":{"designs":[{"id":"big","extra":123456789012345678901234567890}]}}"#,
+    )
+    .unwrap();
+    let src = source(td.path(), &input);
+    let m = migration::dry_run_with_source_key(td.path(), &src, "large").unwrap();
+    assert!(m.entries[0]
+        .content
+        .contains("123456789012345678901234567890"));
+    assert_eq!(
+        m.entries[0].original_record.as_ref().unwrap()["extra"].to_string(),
+        "123456789012345678901234567890"
+    );
+}

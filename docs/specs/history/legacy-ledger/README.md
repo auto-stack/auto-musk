@@ -47,3 +47,28 @@
 18 条设计摘要逐项核对：当前文档承载其长期合同；关于旧五检查点、账本三通道/配额的说明仅为历史，其退休规则见 PLAN-106 新规范。所有未知/兼容字段留在每条 Original record，区级/顶层元数据留在 envelope。
 
 [Envelope](4d73a7aadbf4e3a2/envelope.md)。本地 journal：D:/autostack/plan-artifacts/plan-106/migration-manifest.json；备份同目录 migration-manifest.legacy-backup。
+
+<!-- PLAN-107 migration reconciliation -->
+
+## PLAN-107：auto-musk-backend
+
+旧源：`auto-musk/backend/.autoos/specs.json`。
+
+原字节 SHA256：`9cf74525a18f6985d384bc5121db7479c7455e4ecb9ed740b7dc5843fa75261d`；本批 245 条 + 1 envelope，全部原记录可从 AutoDown Markdown JSON 围栏回读。原 JSON 不改写、不删除。
+
+提交归属：auto-musk PLAN-107；执行基线 `3b291c91d9c1668396b192665245494fc7d2a28d`。最终迁移提交和默认分支落地映射记录在该计划 §9；本报告与保全文档由同一仓库迁移提交管理。
+
+本批核对每条记录的来源、归属、当前/历史边界及保全内容；现有 canonical 文档优先，历史执行数字不重新认证，也不将旧状态改成 approved。无正文占位和外部历史收据有显式处理结果。
+
+- [auto-musk-backend section 0：38 条](plan-107-auto-musk-backend-section-0.md)
+- [auto-musk-backend section 1：36 条](plan-107-auto-musk-backend-section-1.md)
+- [auto-musk-backend section 2：35 条](plan-107-auto-musk-backend-section-2.md)
+- [auto-musk-backend section 3：36 条](plan-107-auto-musk-backend-section-3.md)
+- [auto-musk-backend section 4：61 条](plan-107-auto-musk-backend-section-4.md)
+- [auto-musk-backend section 5：39 条](plan-107-auto-musk-backend-section-5.md)
+
+### 恢复与回滚
+
+未合入时使用同一 manifest 的 rollback，仅删除迁移自有且 after hash 未变的导入文件；修改过的文件明确拒绝。报告、规范提炼和规则变更在完整 Git 写集合中审阅。合入后从专用回滚工作树对本批提交作新的 `git revert`，无关后续修改保留，重叠修改先解决冲突；不 reset 默认分支。批次状态按项目记录，局部失败不伪称跨仓原子成功。
+
+原字节备份/journal/逐文件指纹在本地批次目录，遵守当前证据保留规则；长期回滚依据各仓 Git 提交、本文及原值保全文档，不能仅依赖临时附件。

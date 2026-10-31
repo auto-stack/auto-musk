@@ -33,6 +33,8 @@ struct Cli {
 enum Cmd {
     /// Explicit legacy Spec import. Default is a non-mutating dry-run.
     SpecMigrate {
+        #[arg(long, default_value = "")]
+        source_key: String,
         #[arg(long)]
         root: std::path::PathBuf,
         #[arg(long)]
@@ -97,9 +99,9 @@ fn init_tracing() {
 fn main() {
     init_tracing();
     let cli = Cli::parse();
-    if let Cmd::SpecMigrate { root, source, journal, action, legacy_writer_stopped } = &cli.cmd {
+    if let Cmd::SpecMigrate { root, source, journal, action, legacy_writer_stopped, source_key } = &cli.cmd {
         let result = match action.as_str() {
-            "dry-run" => musk::spec_migration::dry_run(root, source).and_then(|manifest| {
+            "dry-run" => musk::spec_migration::dry_run_with_source_key(root, source, source_key).and_then(|manifest| {
                 println!("{} records, {} need reconciliation", manifest.entries.len() - 1,
                     manifest.entries.iter().filter(|e| e.disposition == "needs-reconciliation").count());
                 musk::spec_migration::write_manifest(&manifest, journal)
@@ -107,6 +109,9 @@ fn main() {
             _ => musk::spec_migration::read_manifest(journal).and_then(|m| {
                 if root.canonicalize()? != m.root || source.canonicalize()? != m.source {
                     return Err(std::io::Error::other("Migration manifest belongs to a different root/source"));
+                }
+                if !source_key.is_empty() && *source_key != m.source_key {
+                    return Err(std::io::Error::other("Migration source key mismatch"));
                 }
                 if action == "apply" { musk::spec_migration::apply(&m, *legacy_writer_stopped) }
                 else { musk::spec_migration::rollback(&m) }

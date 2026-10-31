@@ -27,6 +27,7 @@
 
 | 模块规范 | 职责 |
 |---|---|
+| [spec-batch-migration.md](spec-batch-migration.md) | 多项目旧格式/来源登记、去重及恢复回滚 |
 | [spec-document-store.md](spec-document-store.md) | 权威文档编辑、自动索引及旧账本迁移 |
 | [workspace-ui.md](workspace-ui.md) | 五栏目布局、状态、双端与规范权威边界 |
 | [ui-default-styles.md](ui-default-styles.md) | 默认样式、品牌色及平台主题适配边界 |

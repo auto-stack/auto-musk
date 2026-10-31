@@ -35,3 +35,7 @@ depends_on 生成反向关系并诊断断链，兼容正文 ID 关系扫描。�
 prepare → land → archive → cleanup；归档核验 landed commit 为默认分支祖先及 canonical 目标存在于该提交，不要求 ledger/index checkpoint。refresh 仅作旧调用兼容的 canonical 验证，不写 JSON。旧 ledger_refreshed 为历史事实，不能证明 landing。
 
 skills_hashes 保留批准快照作审计，不静默改写。新 run 使用更新技能，旧 run 的 document 相位须以当前文档策略覆盖旧发布要求，同时维持合同、提交、依赖检查。已 landed 恢复不补写账本，已归档只验证/清理、不重放旧规范增量。
+
+## 多来源兼容扩展（PLAN-107）
+
+迁移现支持区块数组与两类字典，原位置/未知字段/任意精度JSON数值及原字节保全；--source-key提供独立来源命名空间，v2校验manifest摘要，v1恢复保留。跨项目显式选择、root/backend解析、子模块去重、完整对账与分阶段回滚见 [spec-batch-migration.md](spec-batch-migration.md)。旧归档目录archive/archived都按实际来源识别；原记录不自动晋升为当前要求。
