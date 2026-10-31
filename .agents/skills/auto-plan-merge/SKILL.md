@@ -14,65 +14,46 @@ Input: a reviewed Plan reference, or a retry of its recorded consolidation.
 Outcome: canonical Specs reflect verified delivered work,
 the Plan is archived, and temporary worktrees are safely cleaned.
 
-## Evidence retention (2026-10-30 latest-five user ruling)
+## Evidence handling: plan-artifacts scratch, delete-at-merge (2026-10-31 rulings)
 
-- Treat D:/autostack/plan-artifacts as a temporary workspace. Across repositories,
-  retain the five most recently completed Plans with evidence, ordered by actual
-  archive/landing time, not directory mtime or incomparable repository Plan numbers.
-  Group all copies/logs/aliases for one repository/Plan identity into one slot.
-- Also protect unfinished Plans, unresolved issues and necessary evidence consumed
-  by ongoing work. Holds require a specific reason, owner and closure/review evidence.
-  A later feature/capability gap or historical closed finding is not automatically
-  an unresolved defect. Unknown ownership/status fails closed and must be reported.
-- Completely delete every older completed, issue-free Plan's local evidence scopes,
-  including exe, source/consumer copies, logs, screenshots and caches. There is no
-  14-day wait or permanent exe exemption. Keep durable summaries/tests/fixtures and
-  unique required dependency sources in their owning repository before retiring copies.
-- Registry: D:/autostack/plan-artifacts/.retention/policy.json (schema v2, plans grouped
-  by owner). Refresh authoritative status, archive time, source-document hash,
-  issues_clear and exact scopes before maintenance. Review current debt/closures;
-  archived status alone does not prove all issues are resolved. Do not release a hold
-  just because its review date passed. New/unregistered scopes stay protected.
-- Use auto-plan-merge/scripts/artifact_retention.py: preview, then --apply. It removes
-  only reviewed older issue-free scopes, skips busy processes and changed completion
-  documents, uses a single-instance lock and scope-level recovery journal. Reparse
-  points are removed as links without following targets; readonly shared inode
-  attributes must not be changed. Never recurse through a junction or delete an active registered worktree.
-- Run at merge closeout and daily 03:00 maintenance. Refresh the registry first so
-  newer completed Plans roll the window. Preserve latest-five/issue protections even
-  above the existing 500 MiB/Plan and 10 GiB total monitoring thresholds; report excess
-  rather than inventing extra retention exceptions. The latest-five rule replaces
-  v1's 14-day adoption window, expiry lists and immutable executable dedup workflow.
-- Raw evidence is local and transient; durable evidence is concise markdown
-  summaries inside the Plan file itself (see Evidence consolidation below).
-  Report removed Plans, protected exceptions, actual file-data reclaimed and errors.
-
-## Evidence handling: worktree-group scratch, Plan-file durability (2026-10-31 rulings)
-
-- Raw evidence — probe sources/outputs, logs, gate/ledger dumps, screenshots,
-  repair/review/merge records — NEVER enters any repository checkout.
-  `docs/plans/attachments/` is fully git-ignored in auto-lang/auto-musk/auto-down
-  (nothing under it is tracked or pushed, `*.md` included); do not recreate it.
-- The transient scratch home is the Plan's worktree-group evidence directory:
-  `D:/autostack/.wt/<group>/evidence/<NNN>/`, a sibling of the repo checkout(s)
-  inside the group dir (cross-repo groups share one evidence dir). Sibling
-  placement keeps the checkout clean — worktree removal needs no `--force` and
-  wt-guard stays meaningful — and the evidence dies with the group at merge.
-  Worktree-less docs-only work uses the OS temp dir, never the repo.
-- The Plan file is the only durable evidence home. At closeout, consolidate ALL
-  Plan-related evidence into concise markdown inside the Plan file itself:
+- `D:/autostack/plan-artifacts/plan-<NNN>/` is the SINGLE scratch home for
+  everything Plan-related except the Plan file itself: probe sources/outputs,
+  logs, gate/ledger dumps, screenshots, repair/review/merge records, receipts/
+  handoffs, and any build products or copies worth keeping while the Plan is
+  in flight. Lightweight no-plan tasks use their task slug
+  (e.g. `plan-artifacts/fix-<slug>/`). Create the directory when work starts;
+  an in-flight Plan's scope is protected. Nothing evidence-like lives inside
+  any repository checkout: `docs/plans/attachments/` is fully git-ignored in
+  auto-lang/auto-musk/auto-down (nothing tracked or pushed, `*.md` included)
+  and must not be recreated; the same-day `.wt/<group>/evidence/` convention
+  is retired. Worktree-less docs-only work uses the OS temp dir, never the repo.
+- The Plan file is the only durable evidence home. At closeout, consolidate
+  ALL Plan-related evidence into concise markdown inside the Plan file itself:
   commands, exit codes, key numbers, short code/log excerpts, and local-path
   plus hash for anything kept, under the Plan's verification and review-record
-  sections. Never leave evidence behind inside any repo checkout.
-- At worktree-group cleanup, fold everything still needed into the Plan file,
-  then delete the group evidence directory together with the group dir (it sits
-  outside the guarded checkout, so remove it before the final `rmdir`). Only a
-  named unresolved-issue hold (owner + reason recorded in the Plan) may keep a
-  local scope temporarily, e.g. under `D:/autostack/plan-artifacts/plan-<NNN>/`.
-- Rationale: historical Plans rarely need their original evidence again — later
-  verification re-runs against current code. In-repo attachment directories
-  grew without bound and leaked into Git history (8916 tracked files untracked
-  on 2026-10-31). Enforcement backstop: repo gitignore plus auto-lang's
+  sections.
+- Delete at merge (2026-10-31 user ruling, superseding the 2026-10-30
+  latest-five window and its 500 MiB/10 GiB monitoring tiers and daily 03:00
+  maintenance): after folding, delete the Plan's whole plan-artifacts scope.
+  Build intermediates (cargo `target` trees, `.pdb`, exe copies) are NOT
+  reclaimed — they die with the worktree. Only a named unresolved-issue hold
+  (owner + reason + closure condition recorded in the Plan and the registry)
+  may keep a local scope. Cleanup is self-service at merge closeout plus
+  opportunistic orphan sweeping; unknown/unregistered scopes still fail
+  closed — verify ownership and status, report, never blind-delete.
+- Registry: `D:/autostack/plan-artifacts/.retention/policy.json` stays as the
+  index of what exists on disk and why (in-flight scopes, named holds).
+  Refresh it at merge closeout: record scope deletions and holds with
+  owner/reason/closure condition. Archived status alone never proves issues
+  are resolved; a hold is not released just because time passed — check the
+  Plan and current debt records. `auto-plan-merge/scripts/artifact_retention.py`
+  remains available as a conservative manual sweep/preview tool for legacy
+  orphans; its latest-five logic no longer defines policy.
+- Rationale: historical Plans rarely need their original evidence again —
+  later verification re-runs against current code. Dual scratch homes plus a
+  retention window accumulated 67 GB of build intermediates while in-repo
+  attachment directories leaked 8916 files into Git history (untracked
+  2026-10-31). Enforcement backstop: repo gitignore plus auto-lang's
   pre-commit reject any staging under `docs/plans/attachments/`; the escape
   hatch `AUTO_LANG_ALLOW_EVIDENCE=1` still requires a recorded reason.
 
@@ -148,7 +129,7 @@ commit/hash/path evidence; do not mark an operation done before verifying it:
 | `landed` | Default-branch tip equal to the delivery commit after a `--ff-only` merge (no merge commit); old→new rebase hash mapping with `git range-diff` equivalence when landing rewrote the branch |
 | `canonical_verified` | Landed canonical paths, source hashes and delivery commit; approved no-impact delta when applicable. This is source verification, not an index publication. |
 | `archived` | Archive path and delivered outcome, **plus the plan/docs artifacts committed to the default branch (untracked docs/ = not archived; PLAN-104 UAT-K13)** |
-| `cleaned` | Guard result and confirmed worktree/branch removal, plus build intermediates (cargo `target` trees, `.pdb`) reclaimed under `D:/autostack/plan-artifacts/plan-<NNN>/` with bounded evidence retention and a retention/budget receipt, **and the worktree-group evidence directory (`D:/autostack/.wt/<group>/evidence/`) deleted after its records were folded into the Plan file, together with the group dir (2026-10-31 ruling)** |
+| `cleaned` | Guard result and confirmed worktree/branch removal; build intermediates (cargo `target` trees, `.pdb`, exe copies) NOT reclaimed — deleted with the worktree; **the Plan's whole `plan-artifacts/plan-<NNN>/` scope deleted after its records were folded into the Plan file, registry refreshed, only named unresolved-issue holds kept (2026-10-31 delete-at-merge ruling)** |
 
 **Version-control closing is part of the flow, not an afterthought:** the
 demo-workspace UAT of 2026-10-11 (K13) landed code ff-only but left
@@ -298,17 +279,17 @@ Only after landing and canonical-source verification succeed:
 3. Recheck the worktree is clean and all its commits are landed. Immediately
    before removal, verify the resolved absolute path is within its intended
    group and require a fresh `wt-guard.sh` clean result. Remove the worktree
-   and its merged branch; fold any remaining evidence records into the Plan
-   file, delete the group evidence directory (`<group>/evidence/`, outside the
-   guarded checkout), then remove only the empty group directory. Never create
-   junctions/symlinks or bypass the guard.
-   After worktree removal, register the final archived Plan/owner, completion time and unresolved-issue
-   status, then run the latest-five retention helper described above.
-   Keep its full local contents while it is in the newest-five window or has
-   an unresolved issue; remove older issue-free Plan scopes completely. Follow the same policy for owned scratch checkouts;
-   foreign/registered worktrees still require their own repo/owner and fresh guard.
-   Do not move build caches into plan-artifacts merely to make a worktree removable.
-   This replaces the 2026-10-27 instruction to keep every exe and other artifact.
+   and its merged branch — build intermediates die with it, nothing is
+   reclaimed into plan-artifacts — then remove only the empty group directory.
+   Never create junctions/symlinks or bypass the guard.
+   After worktree removal, fold any remaining evidence records into the Plan
+   file, delete the Plan's whole `plan-artifacts/plan-<NNN>/` scope, and
+   refresh the registry (final archived Plan/owner, completion time, deletion
+   or named unresolved-issue hold with owner + reason + closure condition).
+   Unregistered or unknown scopes fail closed: verify and report, never
+   blind-delete. This deletes-at-merge (2026-10-31 ruling) and replaces the
+   2026-10-30 latest-five window, the daily 03:00 maintenance run, and the
+   2026-10-27 instruction to keep every exe and other artifact.
 
 4. Verify removal, complete its owned tasks, recompute final counts, and record
    `cleaned` in the archived Plan. Verify the final task/count/reference state

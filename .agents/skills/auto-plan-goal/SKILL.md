@@ -179,13 +179,15 @@ Count from §9 receipts so a resumed session cannot reset them:
 ## Evidence and receipts
 
 Follow the stage skills' evidence policy exactly: raw evidence is local,
-transient scratch kept in the worktree-group evidence directory
-`D:/autostack/.wt/<group>/evidence/<NNN>/` — never inside any repo checkout;
-the durable form is concise markdown summaries (commands, exit codes, key
-numbers, short code/log excerpts) written into the Plan file itself, and
-receipts follow the same shape with the local path plus hash. At closure,
-merge consolidates all evidence into the Plan file and the evidence directory
-dies with the worktree group (2026-10-31 user ruling).
+transient scratch kept in the single scratch home
+`D:/autostack/plan-artifacts/plan-<NNN>/` — never inside any repo checkout
+(`docs/plans/attachments/` is fully git-ignored and must not be recreated;
+the `.wt/<group>/evidence/` convention is retired); the durable form is
+concise markdown summaries (commands, exit codes, key numbers, short
+code/log excerpts) written into the Plan file itself, and receipts follow
+the same shape with the local path plus hash. At closure, merge consolidates
+all evidence into the Plan file and deletes the Plan's whole plan-artifacts
+scope — only named unresolved-issue holds survive (2026-10-31 rulings).
 
 The goal adds exactly one record type, appended to §9 after each stage:
 

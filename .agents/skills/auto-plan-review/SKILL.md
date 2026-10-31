@@ -24,43 +24,25 @@ do not block source delivery. Read/list tools may expose a derived six-category
 view; retired item-write tools must direct callers to canonical source files.
 
 
-## Evidence retention (2026-10-30 latest-five user ruling)
+## Evidence: plan-artifacts scratch, Plan-file durability (2026-10-31 rulings)
 
-- Treat D:/autostack/plan-artifacts as a temporary workspace. Across repositories,
-  retain the five most recently completed Plans with evidence, ordered by actual
-  archive/landing time, not directory mtime or incomparable repository Plan numbers.
-  Group all copies/logs/aliases for one repository/Plan identity into one slot.
-- Also protect unfinished Plans, unresolved issues and necessary evidence consumed
-  by ongoing work. Holds require a specific reason, owner and closure/review evidence.
-  A later feature/capability gap or historical closed finding is not automatically
-  an unresolved defect. Unknown ownership/status fails closed and must be reported.
-- Completely delete every older completed, issue-free Plan's local evidence scopes,
-  including exe, source/consumer copies, logs, screenshots and caches. There is no
-  14-day wait or permanent exe exemption. Keep durable summaries/tests/fixtures and
-  unique required dependency sources in their owning repository before retiring copies.
-- Registry: D:/autostack/plan-artifacts/.retention/policy.json (schema v2, plans grouped
-  by owner). Refresh authoritative status, archive time, source-document hash,
-  issues_clear and exact scopes before maintenance. Review current debt/closures;
-  archived status alone does not prove all issues are resolved. Do not release a hold
-  just because its review date passed. New/unregistered scopes stay protected.
-- Use auto-plan-merge/scripts/artifact_retention.py: preview, then --apply. It removes
-  only reviewed older issue-free scopes, skips busy processes and changed completion
-  documents, uses a single-instance lock and scope-level recovery journal. Reparse
-  points are removed as links without following targets; readonly shared inode
-  attributes must not be changed. Never recurse through a junction or delete an active registered worktree.
-- Run at merge closeout and daily 03:00 maintenance. Refresh the registry first so
-  newer completed Plans roll the window. Preserve latest-five/issue protections even
-  above the existing 500 MiB/Plan and 10 GiB total monitoring thresholds; report excess
-  rather than inventing extra retention exceptions. The latest-five rule replaces
-  v1's 14-day adoption window, expiry lists and immutable executable dedup workflow.
-- Raw evidence is local, transient scratch kept in the worktree-group evidence
-  directory `D:/autostack/.wt/<group>/evidence/<NNN>/` — never inside any repo
-  checkout (`docs/plans/attachments/` is fully git-ignored and must not be
-  recreated); the durable form is concise markdown summaries (commands, exit
-  codes, key numbers, short code/log excerpts) written into the Plan file
-  itself. At closure, merge folds everything needed into the Plan file and the
-  evidence directory dies with the worktree group (2026-10-31 user ruling).
-  Report removed Plans, protected exceptions, actual file-data reclaimed and errors.
+- All Plan-related files except the Plan file itself live in the single
+  scratch home `D:/autostack/plan-artifacts/plan-<NNN>/` (no-plan tasks use
+  the task slug, e.g. `fix-<slug>`) — never inside any repo checkout:
+  `docs/plans/attachments/` is fully git-ignored and must not be recreated,
+  and the `.wt/<group>/evidence/` convention is retired. Raw evidence never
+  enters any repository or Git.
+- The durable form is concise markdown summaries (commands, exit codes, key
+  numbers, short code/log excerpts) written into the Plan file itself, with
+  receipts as local path plus hash.
+- At merge closeout everything still needed is folded into the Plan file and
+  the Plan's whole plan-artifacts scope is deleted; build intermediates die
+  with the worktree. Only named unresolved-issue holds (owner + reason +
+  closure condition recorded in the Plan and registry) survive. The
+  2026-10-30 latest-five window, its monitoring tiers and the daily 03:00
+  maintenance are superseded (2026-10-31 delete-at-merge ruling); unknown or
+  unregistered scopes fail closed. The full policy and the registry's role
+  live in merge's Evidence handling section.
 
 ## Entry, authority, and independence
 
@@ -284,8 +266,8 @@ Keep evidence paths resolvable after worktree removal: durable evidence is
 concise command/result excerpts recorded in the Plan file itself, not separate
 attachment files or temporary logs. The evidence package includes a frozen
 copy/hash of the reviewed Spec delta. At closure, merge folds any remaining
-evidence records into the Plan file and the worktree-group evidence directory
-dies with the group (2026-10-31 user ruling).
+evidence records into the Plan file and deletes the Plan's whole
+plan-artifacts scope (2026-10-31 rulings).
 
 | Outcome | Plan state | Next action |
 |---|---|---|
