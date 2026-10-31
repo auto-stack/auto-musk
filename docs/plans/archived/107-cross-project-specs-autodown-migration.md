@@ -1,10 +1,12 @@
 ---
 plan_id: PLAN-107
-status: reviewed
+status: archived
+completion_kind: delivered
+cleanup_state: pending
 feature_name: 跨项目旧 Spec 账本格式兼容、AutoDown 文档迁移与去重回滚
 author: [agent]
 created_at: 2026-10-30T13:49:01+08:00
-updated_at: 2026-10-30T13:49:01+08:00
+updated_at: 2026-10-31T17:20:17+08:00
 plan_revision: 3
 current_step: 11
 total_steps: 12
@@ -348,3 +350,75 @@ next: /auto-plan-merge；实施写入保持冻结，若rebase内容变化则返�
 
 - 当前reviewed基线有效；实际默认分支较起点推进：auto-down b1805ed（证据附件退役），auto-musk ded1220（当前技能政策及附件退役），auto-reader e4dbb51（其他Plan文档），auto-lang 15d978c59（Plan890落地代码/规范及政策）。不覆盖这些并行结果。先rebase并重新核验新落地引用/规约；auto-lang代码推进会影响原生/后端依赖，需在当前依赖上补受影响集成验证，不能仅靠range-diff称依赖未变。
 - prepared：各仓Spec及报告均在committed review baseline；原JSON只读；不发布任何中央JSON/索引，不用后端自动归档。最终range-diff与新交付SHA记录待完成。
+
+### PLAN-107:r3 — F-107-M01 / canonical gate needs_fix
+
+- stage: merge | outcome: needs_fix | finding:F-107-M01 | AC-01/04/05/08、T-02/05/11 reopening；16仓已ff-only但未归档/清树。默认检出按manifest逐字节核对，只有auto-lang 3-118.md旧正文含CRLF，Git规范化成LF；围栏原JSON字符串仍完全保留CRLF值，未丢字段。合并前WT预览/原manifest是混合换行，不能把原字节hash误报为检出后hash。
+- Closing oracle：生成可阅读Markdown统一LF、fenced JSON原值全等；真实Git commit→删除自有fixture输出→git restore后字节hash不变。旧mixed-EOL manifest仍需保留为当时事实，新dry-run写独立journal；最终核验默认分支Git blob与磁盘字节。只改迁移器渲染及对应回归和当前合同，不重跑未变UI核心/Web全套。已落地不得reset，用本计划根开发分支的后续修复提交ff-only。
+
+### PLAN-107:r3 — F-107-M01 修复交接
+
+- 只影响auto-lang-root的1份文件3-118.md，全部其他2486导入条目与16 envelope字节未变；该文件Git blob已经是LF且原record字符串仍保留CRLF。根迁移器修复提交`0e378ab`将展示Markdown生成统一LF，未重写原JSON/未知字段。
+- 受影响验证：Rust spec_migration_batch_contract 7 passed (2.24s)，三种结构fixture增加CRLF正文但围栏回读值仍全等；Python7 passed (24.521s)，新增真实Git commit→删除自有输出→restore→原hash不变，全部6既有保护场景也用CRLF fixture通过。
+- 独立post-git dry-run在auto-lang主检出只读生成1499条预览，独立journal位于post-git-journals；未覆盖旧mixed-EOL journal，不改变原导入所有权或回滚历史。最终全16仓默认分支检查：2487记录+16 envelope的磁盘SHA256与已提交Git blob均精确等于实际预览；根37字段回读pass，所有原源与alias字节hash不变。
+- 其他已通过readers/恢复/path门机制未变，复用已记录真实运行；auto-lang并行历史变化经diff确认Rust/包/脚本源无变化，只是提交重放与文档/证据政策更新；rebase后locked Rust11+7、UI新进程1及工具build仍通过，5050链接仍零断链。
+
+### PLAN-107:r3 — F-107-M01 final repair re-review / pass
+
+- stage: review | review_scope: final | outcome: pass | reviewed_commit:`0e378ab024880e6c18936180714e303ef5cd77a4` | base_commit:`b11007f64af36e1f152b090a3bdc9415d2c6b124` | worktree:D:/autostack/.wt/musk-107/auto-musk | branch:plan-107-dev | 同实施上下文限制保留。检查完整4文件修复diff、CLI原始结果、AST确认fixture实际含字符13/10（不是字面反斜杠），Git真实检出回归有效。
+- F-107-M01 closed：展示LF与原record CRLF保全分别验证；Rust7/Python7和默认分支全量Git blob/磁盘/字段核验通过。修复只触及渲染字符串、测试与现行合同，其他14个验收映射和16仓冻结评审适用；未新增产品功能。原生初始化已在auto-ui 598347a落地，受影响新进程1及真VM pass保持。
+- 冻结Spec增量 SHA256：`cc8fee3b9c2a95b134c3c8cb92d4236cf3723f355628c98fa465cb9a64d1b590`；merge-owned只剩修复提交ff/source验证、归档及清理。
+
+### PLAN-107:r3 — landed / canonical_verified（最终）
+
+- 16仓全部guard clean→rebase→guard clean→ff-only，默认分支均为实际main/master且tip等于对应delivery commit；无merge commit、未push、未更新六组合子模块gitlink。既有他方主检出WIP在merge前后binary diff相同，未纳入本计划。
+- auto-lang普通rebase发现旧并行Plan890提交重写导致会尝试重放119条非本计划提交，立即abort恢复干净；改为明确`rebase --onto <default> <execution_head>`仅重放本计划1条，经range-diff `=`证明等价。其余推进仓亦记录准确映射；没有skip/丢弃业务提交。语言Rust/包/脚本与执行基线内容一致，rebase后locked后端11+7、UI新进程1/build通过。
+- 最终canonical gate：2487记录+16 envelope的默认分支Git blob SHA1与磁盘SHA256逐项匹配真实预览，全部原record/envelope字段回读一致；根37保全/skip通过。唯一CRLF原展示经独立post-git预览证明与落地LF一致，原JSON字符串仍保持原值；原JSON/快照/6alias hash全部不变。5050报告链接零断链。root docs/specs/modules/spec-batch-migration.md额外LF修复已落0e378ab。
+
+| 仓库 | 默认分支 | 最终delivery commit / 反向提交对象 |
+|---|---|---|
+| auto-blog | main | `4b9273b9149c62634295029e73d0dbdc9287776f` |
+| auto-charts | main | `8f7ce7023924ef49bfdc543cd037b685a6d9940b` |
+| auto-database | main | `f159b417a37ae3792c40177616efe2286ccaaa99` |
+| auto-edit | main | `b21a509f6746ced41fecd3ac700f0c09bfae1f9f` |
+| auto-launcher | main | `8c6e3f2357c2398870b79813e8458445b0605253` |
+| auto-os | main | `dab860d6dc5661da871385e07e3bc7c2527d03a2` |
+| auto-os-config | main | `e294e4ee432ded5fdc6f3d7d8dee397da54d1d8f` |
+| auto-paint | main | `7e0161705e9526eebcd812cc71ec8c392eb522e3` |
+| auto-reader | main | `7bb0d7af0deef9ef9edd2a4e89811812326cdca3` |
+| auto-term | main | `80227e18f1be565a72c32f92e9e2ee2027609035` |
+| auto-web | master | `332717fe7da4f0a6f3a654d15017dd7759561816` |
+| auto-man | master | `be740b6882eaeb0bd63db82e339246e8ffce9850` |
+| auto-lang | master | `bca991ddabf74cc12ddb1474608be3d54955b141` |
+| auto-down | master | `84ddfad811874771822c26643eb95d2e00c9a01d` |
+| auto-ui | master | `598347af8a922fb5a1afa3e4152770366f75a00e` |
+| auto-musk | main | `0e378ab024880e6c18936180714e303ef5cd77a4` |
+
+重写映射（review→delivery；range-diff每条均`=`）：
+- auto-lang: `08eaeada142e9e97ed1e3488443f5b483fe232e9` → `bca991ddabf74cc12ddb1474608be3d54955b141`；onto `15d978c59d41271968a99a9a405ad015e1212695`。
+- auto-down: `dea5bd2626eceedd7d661bb92398e10ee23fbfd2` → `84ddfad811874771822c26643eb95d2e00c9a01d`；onto `b1805edc77176571456cd1a68fa4e29969085736`。
+- auto-musk: `522e010c03dad3b60755128aff80fb0c6b4206ed` → `b11007f64af36e1f152b090a3bdc9415d2c6b124`；onto `3a658bb390950b9b06fb278a01fcdfee3648350c`。
+
+#### 长期撤销路径
+
+- 每仓在新的专用回滚工作树从当前默认分支执行新的反向提交，不能reset默认分支或覆盖后续用户编辑。表内单提交仓以其delivery commit为revert对象。根auto-musk有3个实施提交：按`0e378ab024880e6c18936180714e303ef5cd77a4`、`b11007f64af36e1f152b090a3bdc9415d2c6b124`、`a39f2725136d8e13b2b2beb71738eb68b207f42f`顺序反向处理；不回滚用户另行授权的六技能原WIP提交或共享Plan收据。先核对完整SHA/祖先再执行；重叠改动显式解决冲突，部分撤销按仓记录。真实fixture已经演练保留无关后续提交及重叠冲突abort。
+- 原旧JSON逐字节保留、上表§9源hash与Git中的逐项JSON围栏/envelope长期存在；scratch备份/journal只用于实施恢复，本计划未依赖其永久保存。需要重做预览时用保留原源和已落地CLI在新工作树重新dry-run到新journal，不覆盖旧证据或重新把所有历史视为当前规范。
+
+#### 生产产物与周期门观察
+
+- 未部署/重启生产进程；只运行并停止本计划独立18771/18774验证服务。主检出`auto-musk/gen/front/vue/dist/index.html`最后构建2026-10-03 13:19:43，旧于本次交付；backend/target/release/musk.exe、target/release/musk.exe与auto-ui/target/release/auto-ui-tool.exe未发现。生产后端与原生工具必须由发行流程按新源重建，不能将本次临时验证exe当作已上线。其他15仓主要为文档变化，应用重扫后可直接读取新源。
+- auto-lang周期门收据last_covered_plan_id=895，timestamp=2026-10-30T15:25:49Z，verdict=waived_by_user（非执行绿）；本次只落文档、未新增语言Rust编译面。实际default尚无895之后可整除5的新归档Plan，距时间不足48h，当前不触发语言全组批次。auto-musk旧本地receipt最后覆盖105且时间已过48h，属于该仓旧串行队列的到期观察；当前regress技能定义语言固定组，不能冒称已执行musk旧全库门。其历史编译债保持可见，本Plan affected门均通过。
+- auto-os既有auto-charts组合pin偏移及auto-ui全lib旧测试18处符号缺失保留为原范围外观察，不标全环境绿色、不改用户WIP。
+
+#### 验证记录指纹（原始scratch按当前规则将清理）
+- `D:\autostack\plan-artifacts\plan-107-eol-rust.log` SHA256 `fbefe98e4972d2660175b263b20b832fa22ce4df7f157a21732624765636ccef`；命令/结果已在上文摘录，不是后续必须读取的附件。
+- `D:\autostack\plan-artifacts\plan-107-eol-python.log` SHA256 `2dcbecd6f3f708c3b5e3704ca3dcec257eeb38e0f15b63d49681b285605415ff`；命令/结果已在上文摘录，不是后续必须读取的附件。
+- `D:\autostack\plan-artifacts\plan-107-rebased-rust.log` SHA256 `82a18b791e03dd3dc85b3ff59a6f54861e40bc0f7793a7c9c3d9ee86581ec6a6`；命令/结果已在上文摘录，不是后续必须读取的附件。
+- `D:\autostack\plan-artifacts\plan-107-rebased-native.log` SHA256 `dda8064f49ab14dff8497be5142adee62bacdb94d5333b4c66dfe4a55a474350`；命令/结果已在上文摘录，不是后续必须读取的附件。
+- `D:\autostack\plan-artifacts\plan-107-read-vm-fixed2.log` SHA256 `3b83024a1687fe9b693e3764847da660b199c5d866a8927556a85f403c664cf9`；命令/结果已在上文摘录，不是后续必须读取的附件。
+- `D:\autostack\plan-artifacts\plan-107-read-web2.log` SHA256 `796b48daae3510ea6f954959fe3bb8db2a516dbc185790e60c05743456b25400`；命令/结果已在上文摘录，不是后续必须读取的附件。
+
+### PLAN-107:r3 — archived / cleanup pending
+
+- 代码/规范/数据交付与canonical验证先于归档完成；最终默认分支root为0e378ab，其他15仓见最终landing表。实际归档位置docs/plans/archived/107-cross-project-specs-autodown-migration.md；本次归档文件将提交Git，尚未记录cleaned。T-12/AC-09只待最终安全清理及计数复验。
+- PATH实际生产入口观察：auto-man/target/debug/auto.exe构建2026-10-31 11:37:01，auto-man/target/debug/auto-ui-tool.exe构建2026-10-31 16:34:12，均早于本次原生字体修复提交17:06之后；需要发行重建原生工具。仅记录观察，不在本次强制重启共享宿主。
