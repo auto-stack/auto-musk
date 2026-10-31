@@ -24,6 +24,12 @@ ledger publication prerequisite. Missing/corrupt caches and an offline applicati
 do not block source delivery. Read/list tools may expose a derived six-category
 view; retired item-write tools must direct callers to canonical source files.
 
+Legacy per-project ledgers, including `.autoos/specs.json` and
+`backend/.autoos/specs.json`, are read-only migration inputs. During ordinary
+Plan delivery, never create, append, rewrite, upsert, or sync them, directly or
+through a helper/API. Historical Plans, old section quotas, receipt retries, and
+offline fallbacks do not authorize these writes; maintain canonical AutoDown
+documents in `docs/specs/` and let the application derive its indexes.
 
 ## Authority and context
 

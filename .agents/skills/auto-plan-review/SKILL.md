@@ -23,6 +23,12 @@ ledger publication prerequisite. Missing/corrupt caches and an offline applicati
 do not block source delivery. Read/list tools may expose a derived six-category
 view; retired item-write tools must direct callers to canonical source files.
 
+Legacy per-project ledgers, including `.autoos/specs.json` and
+`backend/.autoos/specs.json`, are read-only migration inputs. During ordinary
+Plan delivery, never create, append, rewrite, upsert, or sync them, directly or
+through a helper/API. Historical Plans, old section quotas, receipt retries, and
+offline fallbacks do not authorize these writes; maintain canonical AutoDown
+documents in `docs/specs/` and let the application derive its indexes.
 
 ## Evidence: plan-artifacts scratch, Plan-file durability (2026-10-31 rulings)
 
@@ -106,6 +112,8 @@ exposed, and limitations otherwise; never fabricate a model or session ID.
    while uncommitted implementation is being tested.
 3. Check authorization for the actual scope and any plan revisions. Preserve
    acceptance IDs and prior review records.
+   Flag Plan-owned legacy-ledger writes, including helper/API side effects, as
+   `needs_fix`; do not approve them merely because the JSON is valid.
 4. Recheck HEAD, implementation cleanliness, dependencies, and verification
    configuration before recording the verdict. Unexpected drift makes affected
    evidence stale; reconcile it instead of passing the originally named commit

@@ -94,6 +94,13 @@ verification and archive without ledger_refreshed; a ledger_refreshed record alo
 never proves landing. Preserve old receipts and verify actual Git ancestry and
 canonical source identity. New source changes still need normal review.
 
+Legacy per-project ledgers, including `.autoos/specs.json` and
+`backend/.autoos/specs.json`, are read-only migration inputs. During ordinary
+Plan delivery, never create, append, rewrite, upsert, or sync them, directly or
+through a helper/API. Historical Plans, old section quotas, receipt retries, and
+offline fallbacks do not authorize these writes; maintain canonical AutoDown
+documents in `docs/specs/` and let the application derive its indexes.
+
 ## Gate and recovery baseline
 
 1. Resolve the Plan, main checkout, recorded development branch/worktree,
@@ -168,9 +175,10 @@ repository's naming rules. Never edit canonical Specs directly on main.
   alone is not confirmation. Lesson (auto-edit, 2026-09-22): PLAN-002 silently
   established a README-as-spec convention that five successor plans inherited
   unchecked, leaving `docs/specs/` and the structured sections unbuilt.
-- Apply the approved delta to the affected module documents and their existing
-  indexes. Preserve unrelated requirements and authored explanations. Record
-  Plan provenance and reasons for retired rules.
+- Apply the approved delta to the affected module documents and authored
+  navigation links. Leave generated indexes to the application. Preserve
+  unrelated requirements and authored explanations. Record Plan provenance and
+  reasons for retired rules.
 - Inspect the resulting Spec diff against the frozen delta, code, and acceptance
   evidence. Check links and document structure. Any new requirement or altered
   contract goes back through revision/review.
@@ -223,6 +231,14 @@ justification. Rebase or later edits that affect the tested baseline invalidate
 that evidence; check the final delivery identity before landing.
 
 ## Land and verify canonical sources
+
+Before landing, inspect the Plan-owned diff and the side effects of its helpers,
+including ignored/untracked outputs it created. A Plan-owned legacy-ledger write
+is `needs_fix`: return to work to remove that write path and repair only the
+Plan-owned change before renewed review. Never restore or overwrite another
+writer's ledger data. Unrelated pre-existing ledger drift is not a canonical
+source-delivery gate; missing or malformed old JSON must not trigger creation,
+repair, synchronization, or an offline write-back.
 
 1. Require a clean committed worktree before landing. Surface unexpected dirty
    changes to the user; never discard or silently include them. Shared Plan
