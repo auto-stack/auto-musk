@@ -2,13 +2,13 @@
 plan_id: PLAN-107
 status: archived
 completion_kind: delivered
-cleanup_state: pending
+cleanup_state: cleaned
 feature_name: 跨项目旧 Spec 账本格式兼容、AutoDown 文档迁移与去重回滚
 author: [agent]
 created_at: 2026-10-30T13:49:01+08:00
-updated_at: 2026-10-31T17:20:17+08:00
+updated_at: 2026-10-31T17:26:56+08:00
 plan_revision: 3
-current_step: 11
+current_step: 12
 total_steps: 12
 supersedes_spec_components:
   - docs/specs/modules/spec-document-store.md
@@ -178,7 +178,7 @@ SD-05/06 的跨仓路径必须带 repo 标识登记，不能误填为 auto-musk 
 - [x] AC-06（owner_stage: work）各仓必要活跃流程规约及其上游设计源已一致切换；旧写者停写/隔离有实际证据，源漂移正确拒绝，无agent手填索引或JSON发布门；V-05/10及规则核对通过。
 - [x] AC-07（owner_stage: work）各仓文档通过实际自动索引/阅读核验，Web/VM可读代表性迁移文档；SD-01…06与仓库规范一致，所有缺失/坏源都有诚实诊断，不因应用/缓存不可用放弃保全；V-10通过。
 - [x] AC-08（owner_stage: review）最终复审核对全部来源/去重/完整对账/语义提炼/回滚路径，抽取正常与反例验证，绑定每仓 reviewed_commit、来源快照与规范增量；必须先通过才能合回相应仓库。
-- [ ] AC-09（owner_stage: merge）所有目标仓都按已评审版本线性合回、最终报告落Git；保留部分失败/反向提交事实且无假全量成功；技能/规约实际来源、原JSON不变、生产旧产物观察与工作树/分支清理均有收据，Plan最终真实归档。
+- [x] AC-09（owner_stage: merge）所有目标仓都按已评审版本线性合回、最终报告落Git；保留部分失败/反向提交事实且无假全量成功；技能/规约实际来源、原JSON不变、生产旧产物观察与工作树/分支清理均有收据，Plan最终真实归档。
 
 ## 8. 执行步骤
 
@@ -208,7 +208,7 @@ SD-05/06 的跨仓路径必须带 repo 标识登记，不能误填为 auto-musk 
 - [x] T-09（owner_stage: work）规约切换和规范增量。
 - [x] T-10（owner_stage: work）真实阅读及全批对账验证。
 - [x] T-11（owner_stage: review）逐仓及最终复审。
-- [ ] T-12（owner_stage: merge）合回、真实归档与清理。
+- [x] T-12（owner_stage: merge）合回、真实归档与清理。
 
 执行入口：T-01正在执行；2026-10-31重新盘点冻结17个来源、6份子模块别名，尚未apply。先继承本文的明确数据范围，重读各仓baseline/规约/在途写者并冻结实际来源，确认停写窗口后才apply；T-02…05建立兼容与安全oracle后才批量落数据。小项目pilot只改变实施顺序，不能削减大项目和backend范围。所有跨仓实现/数据/规范更改在该仓同一专用树中接受复审，已通过的仓尽快合回清理，整批仍保持executing直到全部work任务完成。
 
@@ -428,3 +428,11 @@ next: /auto-plan-merge；实施写入保持冻结，若rebase内容变化则返�
 - 15外仓均fresh guard clean后worktree+auto-musk-dev删除；根Plan树fresh guard clean、已合入祖先验证后Git注销成功，空目录一度被本计划后端65996启动的aaid子进程70940占用。17654端口仅Listen、0 Established，用户明确允许仅清理本计划临时资源后停止该空闲子进程，等待句柄释放后空目录删除。根plan-107-dev和整个空musk-107组均已删除；其他工作树/分支保留。
 - 自动批准审核曾拦截该进程/目录清理，仅回blocked by policy；用户随后明确授权，重查归属/0连接后才执行。未停止共享生产进程。
 - 待删scratch范围：plan-artifacts/plan-107及52个plan-107-*直属日志文件；scope已精确登记，无hold。目录内55362个普通文件、44184646662字节（约44.2 GB）；866个reparse链接均在隔离Web构建目录中，删除前仅移除链接本身，不沿链接遍历外部依赖。原JSON、16仓Git文档/归档、其他计划scope不在清理集合。实际删除结果仍待最后核验。
+
+### PLAN-107:r3 — cleaned / merge pass（最终收尾）
+
+- stage: merge | outcome: pass | completion_kind: delivered | cleanup_state: cleaned。16仓全部线性交付及源验证完成，实际归档在Git；最终任务12/12、验收9/9，无实施遗留。最终auto-musk代码0e378ab024880e6c18936180714e303ef5cd77a4，归档/收据为其default后继文档提交。
+- 已验证16个本计划worktree与临时分支、整个musk-107组均不存在；根树最后一次guard为clean，Git移除后残空目录只在用户明确授权、测试子进程归属/0客户端确认后删除。未删除其他任务worktree，原有os-v050 prunable登记及主检出技能__pycache__保留。
+- 用户授权scratch清理已实际完成：53个登记scope删除，home目录不存在，52个直属日志不存在；866个构建reparse链接只移除链接本身后才递归删普通目录，未沿链接遍历。临时构建/验证材料约44.2 GB已释放；保留策略登记已刷新为archived/cleaned、scopes=[]、issues_clear=true、无hold。原证据命令、结果、问题与修复、源指纹和逐仓回滚提交均已折叠在本Plan，后续无需临时材料。
+- 清理后再次按本Plan源表实查17份原JSON：全部SHA256相同；Git默认检出保存2524条（本次2487、此前37），16分支及组目录均不存在。root主检出仅留本任务开始前既有未跟踪技能__pycache__；本Plan-owned路径无脏改动。
+- 交付范围包括auto-web/auto-ui/auto-man各5条以及auto-musk/backend245条；6子模块副本不重复导入、发行pin未更新。auto-launcher两条历史复审缺源保持明确诊断。生产旧后端/工具/Web产物观察如上，未声称部署或全环境全库测试绿色。
