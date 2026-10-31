@@ -54,10 +54,13 @@ view; retired item-write tools must direct callers to canonical source files.
   above the existing 500 MiB/Plan and 10 GiB total monitoring thresholds; report excess
   rather than inventing extra retention exceptions. The latest-five rule replaces
   v1's 14-day adoption window, expiry lists and immutable executable dedup workflow.
-- Raw evidence is local, transient scratch; the durable form is concise markdown
-  summaries (commands, exit codes, key numbers, short code/log excerpts) written
-  into the Plan file itself. At closure, merge folds everything needed into the
-  Plan file and deletes `docs/plans/attachments/<NNN>/` (2026-10-31 user ruling).
+- Raw evidence is local, transient scratch kept in the worktree-group evidence
+  directory `D:/autostack/.wt/<group>/evidence/<NNN>/` — never inside any repo
+  checkout (`docs/plans/attachments/` is fully git-ignored and must not be
+  recreated); the durable form is concise markdown summaries (commands, exit
+  codes, key numbers, short code/log excerpts) written into the Plan file
+  itself. At closure, merge folds everything needed into the Plan file and the
+  evidence directory dies with the worktree group (2026-10-31 user ruling).
   Report removed Plans, protected exceptions, actual file-data reclaimed and errors.
 
 ## Entry and context

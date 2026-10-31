@@ -96,3 +96,8 @@ web/pnpm-workspace.yaml
 tests/ui-parity/probes/probe-a-media/tmp-frames/
 tests/ui-parity/probes/probe-a-media/rust-workspace/
 tests/ui-parity/probes/probe-b-pointer/rust-workspace/
+
+# 计划证据整目录不入库（2026-10-31 用户裁定，含 *.md）：证据暂存放
+# .wt/<group>/evidence/<NNN>/（merge 时随组目录删除），摘要折叠进计划文件。
+docs/plans/attachments/
+

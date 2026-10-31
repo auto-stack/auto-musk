@@ -47,26 +47,34 @@ the Plan is archived, and temporary worktrees are safely cleaned.
   summaries inside the Plan file itself (see Evidence consolidation below).
   Report removed Plans, protected exceptions, actual file-data reclaimed and errors.
 
-## Evidence consolidation at closure (2026-10-31 user ruling)
+## Evidence handling: worktree-group scratch, Plan-file durability (2026-10-31 rulings)
 
-- At closeout, consolidate ALL Plan-related evidence — probe sources/outputs,
-  logs, gate/ledger dumps, screenshots, repair/review/merge records — into
-  concise markdown inside the Plan file itself: commands, exit codes, key
-  numbers, and short code/log excerpts under the Plan's verification and
-  review-record sections. The Plan file is the only durable evidence home;
-  never leave evidence behind as files under `docs/plans/attachments/`.
-- `docs/plans/attachments/<NNN>/` is transient local scratch for work/review
-  rounds. Before recording `archived`, fold every still-needed attachment
-  record (receipts, handoffs, spec deltas) into the Plan file, then delete
-  that Plan's whole attachments directory. Only a named unresolved-issue hold
-  (owner + reason recorded in the Plan) may keep a local scope temporarily.
+- Raw evidence — probe sources/outputs, logs, gate/ledger dumps, screenshots,
+  repair/review/merge records — NEVER enters any repository checkout.
+  `docs/plans/attachments/` is fully git-ignored in auto-lang/auto-musk/auto-down
+  (nothing under it is tracked or pushed, `*.md` included); do not recreate it.
+- The transient scratch home is the Plan's worktree-group evidence directory:
+  `D:/autostack/.wt/<group>/evidence/<NNN>/`, a sibling of the repo checkout(s)
+  inside the group dir (cross-repo groups share one evidence dir). Sibling
+  placement keeps the checkout clean — worktree removal needs no `--force` and
+  wt-guard stays meaningful — and the evidence dies with the group at merge.
+  Worktree-less docs-only work uses the OS temp dir, never the repo.
+- The Plan file is the only durable evidence home. At closeout, consolidate ALL
+  Plan-related evidence into concise markdown inside the Plan file itself:
+  commands, exit codes, key numbers, short code/log excerpts, and local-path
+  plus hash for anything kept, under the Plan's verification and review-record
+  sections. Never leave evidence behind inside any repo checkout.
+- At worktree-group cleanup, fold everything still needed into the Plan file,
+  then delete the group evidence directory together with the group dir (it sits
+  outside the guarded checkout, so remove it before the final `rmdir`). Only a
+  named unresolved-issue hold (owner + reason recorded in the Plan) may keep a
+  local scope temporarily, e.g. under `D:/autostack/plan-artifacts/plan-<NNN>/`.
 - Rationale: historical Plans rarely need their original evidence again — later
-  verification re-runs against current code. Attachment directories otherwise
-  grow without bound and bloat both the checkout and Git history.
-- This extends the 2026-10-28 local-only rule: local-only is not enough —
-  closure must also fold summaries into the Plan file and delete the directory.
-  The `*.md`-only .gitignore and pre-commit guard stay as the enforcement
-  backstop; nothing under attachments is ever pushed.
+  verification re-runs against current code. In-repo attachment directories
+  grew without bound and leaked into Git history (8916 tracked files untracked
+  on 2026-10-31). Enforcement backstop: repo gitignore plus auto-lang's
+  pre-commit reject any staging under `docs/plans/attachments/`; the escape
+  hatch `AUTO_LANG_ALLOW_EVIDENCE=1` still requires a recorded reason.
 
 ## Authority and compatibility
 
@@ -140,7 +148,7 @@ commit/hash/path evidence; do not mark an operation done before verifying it:
 | `landed` | Default-branch tip equal to the delivery commit after a `--ff-only` merge (no merge commit); old→new rebase hash mapping with `git range-diff` equivalence when landing rewrote the branch |
 | `canonical_verified` | Landed canonical paths, source hashes and delivery commit; approved no-impact delta when applicable. This is source verification, not an index publication. |
 | `archived` | Archive path and delivered outcome, **plus the plan/docs artifacts committed to the default branch (untracked docs/ = not archived; PLAN-104 UAT-K13)** |
-| `cleaned` | Guard result and confirmed worktree/branch removal, plus build intermediates (cargo `target` trees, `.pdb`) reclaimed under `D:/autostack/plan-artifacts/plan-<NNN>/` with bounded evidence retention and a retention/budget receipt, **and `docs/plans/attachments/<NNN>/` deleted after its records were folded into the Plan file (2026-10-31 ruling)** |
+| `cleaned` | Guard result and confirmed worktree/branch removal, plus build intermediates (cargo `target` trees, `.pdb`) reclaimed under `D:/autostack/plan-artifacts/plan-<NNN>/` with bounded evidence retention and a retention/budget receipt, **and the worktree-group evidence directory (`D:/autostack/.wt/<group>/evidence/`) deleted after its records were folded into the Plan file, together with the group dir (2026-10-31 ruling)** |
 
 **Version-control closing is part of the flow, not an afterthought:** the
 demo-workspace UAT of 2026-10-11 (K13) landed code ff-only but left
@@ -290,7 +298,9 @@ Only after landing and canonical-source verification succeed:
 3. Recheck the worktree is clean and all its commits are landed. Immediately
    before removal, verify the resolved absolute path is within its intended
    group and require a fresh `wt-guard.sh` clean result. Remove the worktree
-   and its merged branch; remove only the empty group directory. Never create
+   and its merged branch; fold any remaining evidence records into the Plan
+   file, delete the group evidence directory (`<group>/evidence/`, outside the
+   guarded checkout), then remove only the empty group directory. Never create
    junctions/symlinks or bypass the guard.
    After worktree removal, register the final archived Plan/owner, completion time and unresolved-issue
    status, then run the latest-five retention helper described above.
