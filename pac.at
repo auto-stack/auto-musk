@@ -39,6 +39,17 @@ daemon: "auto-musk"
 // Plan 407 扩充了 nav/chat/app key，配合 .at text t() 表达式实现完整 i18n。
 i18n: ["src/front/i18n/zh.json", "src/front/i18n/en.json"]
 
+// auto-os/PLAN-061 T-02：官方主题包正式接入——`vendor/themes` 为 UI 管理渠道
+// 发布的**固定版本快照**（themes 0.2.0，内容 digest
+// 9fa07742dc68aa5377ae06cb2d966386002063f184c515b6c5dddf8a6bef838e，
+// per-file sha256 与源包逐文件校验同律；不可二次编辑、非第二权威源）。
+// theme 标量键保持缺省 = follow 宿主；上方 theme{} 结构化品牌主题
+// （PLAN-075，对齐 Musk 品牌紫）= 品牌 overlay 合法保留。主合同反链见
+// README。
+dep themes {
+    path: "vendor/themes"
+}
+
 // Plan 022 Phase 6 → PLAN-038 Phase 3: 渲染真源切换 @autodown/vue（vendored 快照,
 // 来源 ../auto-down,再生 scripts/vendor-autodown-vue.mjs;file: 直链上游被其
 // workspace:* 依赖阻塞,故 vendor shim 入库）。路径相对 gen/front/vue/。

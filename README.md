@@ -249,3 +249,13 @@ The next step is to make the existing workflow reliably automated while preservi
 5. **Automate recoverable consolidation.** Implement the skills' canonical-Spec-first ordering and receipts in the backend, with concurrency control and recovery for publication, archival, and cleanup.
 6. **Route agents by capability.** Use independent review contexts and evaluated role/model choices; add parallel work where task dependencies and write ownership permit it.
 7. **Measure before scaling.** Evaluate on representative historical Plans, tracking human intervention, missed requirements, recovery success, time, and cost before increasing unattended concurrency.
+
+## 主题接入(auto-os/PLAN-061)
+
+本仓经 auto-os/PLAN-061 接入 AutoUI 官方主题包:`vendor/themes` 固定快照
+(themes 0.2.0)+ pac `dep themes` + app.at design Auto/明暗派生(`dark_mode`
+契约位);theme 标量键保持缺省 = follow 宿主。PLAN-075 结构化品牌主题
+(purple primary/ring)= 品牌 overlay 合法保留——默认 boot 品牌紫生效,宿主
+策略完整候选(官方族 family/mode)整体接管。主题主合同:auto-os
+`docs/plans/`(PLAN-061,061-external-workspaces-theme-adoption);宿主策略
+规范:auto-os `docs/specs/shell/host-theme-policy-and-delivery.md`。
