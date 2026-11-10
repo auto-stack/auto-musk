@@ -91,7 +91,7 @@ pub fn cancel_remove(run_id: &str) {
 
 /// Parse `PLAN-NNN` out of free text (plan-merge entry / handoff task).
 pub fn parse_plan_id(text: &str) -> Option<(u32, String)> {
-    let re = regex::Regex::new(r"PLAN-([0-9]{1,3})").ok()?;
+    let re = regex::Regex::new(r"PLAN-([0-9]+)").ok()?;
     let caps = re.captures(text)?;
     let seq: u32 = caps[1].parse().ok()?;
     Some((seq, format!("PLAN-{seq:03}")))
@@ -1261,8 +1261,33 @@ mod tests {
             parse_plan_id("沉淀 PLAN-042 到 Spec"),
             Some((42, "PLAN-042".into()))
         );
+        // 四位编号不得截断成 100（PLAN-1001 T-01 前置）。
+        assert_eq!(
+            parse_plan_id("沉淀 PLAN-1001 到 Spec"),
+            Some((1001, "PLAN-1001".into()))
+        );
+        // 超 u32 的编号优雅拒绝，不 panic。
+        assert_eq!(parse_plan_id("PLAN-99999999999"), None);
         assert_eq!(parse_plan_id("no plan here"), None);
         assert_eq!(parse_plan_id("PLAN-abc"), None);
+    }
+
+    #[test]
+    fn bootstrap_plan_merge_resolves_four_digit_plan() {
+        // 发现→读取→路由→交接：四位号端到端（PLAN-1001 T-01 前置）。
+        let td = tempfile::tempdir().unwrap();
+        let src = skill_src(td.path());
+        let pd = plan_dir(td.path());
+        std::fs::write(
+            pd.join("1001-four-digit.md"),
+            "---\nplan_id: PLAN-1001\nstatus: reviewed\nfeature_name: Four Digit\ncreated_at: 2026-11-10T00:00:00Z\nupdated_at: 2026-11-10T00:00:00Z\nplan_revision: 1\ncurrent_step: 1\ntotal_steps: 1\nsupersedes_spec_components: []\nnew_spec_components: []\ntouched_goals: []\n---\n\n# [PLAN-1001] Four Digit\n\n## 1. 目标\n\n- A\n\n## 7. 验收标准\n\n- [x] AC-01 ok\n\n## 8. 执行步骤\n\n- [x] T-01 done\n",
+        )
+        .unwrap();
+        let b =
+            bootstrap_plan_run("plan-merge", "沉淀 PLAN-1001 到 Spec", &pd, &src).unwrap();
+        assert_eq!(b.state.plan_id, "PLAN-1001");
+        assert_eq!(b.state.plan_seq, 1001);
+        assert_eq!(b.state.plan_path, "docs/plans/1001-four-digit.md");
     }
 
     // ── PLAN-100 SD-01：相位收束催交（nudge）────────────────────────────

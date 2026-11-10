@@ -1028,7 +1028,7 @@ async fn chat_stream(
 /// PLAN-034 修正：解析 `/auto-plan:merge <PLAN-NNN|NNN>` 指令，返回规范化
 /// 的 `PLAN-NNN` 编号；不匹配返回 None（走正常 LLM 轮次）。
 pub fn parse_plan_merge_command(text: &str) -> Option<String> {
-    let re = regex::Regex::new(r"(?i)^/auto-plan:merge\s+(PLAN-\d{1,3}|\d{1,3})\b").ok()?;
+    let re = regex::Regex::new(r"(?i)^/auto-plan:merge\s+(PLAN-\d+|\d+)\b").ok()?;
     let m = re.captures(text.trim())?;
     let raw = m.get(1)?.as_str();
     if raw.chars().all(|c| c.is_ascii_digit()) {
@@ -1047,7 +1047,7 @@ pub fn parse_plan_merge_command(text: &str) -> Option<String> {
 ///   specs_tree，只列真实文件），提示 agent 用文件工具按路径读取。
 /// 无引用或引用无法解析（如计划不存在）返回空串——不阻断运行、不改写原文。
 pub fn resolve_chat_mention_refs(content: &str, plans: &crate::plans::PlansStore) -> String {
-    let plan_re = regex::Regex::new(r"@plan/(\d{1,3})").ok();
+    let plan_re = regex::Regex::new(r"@plan/(\d+)").ok();
     let spec_re = regex::Regex::new(r"@spec/([A-Za-z0-9_\-./]+\.[A-Za-z0-9]+)").ok();
     let mut lines: Vec<String> = Vec::new();
     if let Some(re) = plan_re.as_ref() {
@@ -1621,9 +1621,37 @@ mod tests {
             parse_plan_merge_command("  /auto-plan:merge plan-012 请沉淀").as_deref(),
             Some("PLAN-012")
         );
+        // 四位编号不截断（PLAN-1001 T-01 前置）。
+        assert_eq!(
+            parse_plan_merge_command("/auto-plan:merge PLAN-1001").as_deref(),
+            Some("PLAN-1001")
+        );
+        assert_eq!(
+            parse_plan_merge_command("/auto-plan:merge 1001").as_deref(),
+            Some("PLAN-1001")
+        );
         assert_eq!(parse_plan_merge_command("普通消息"), None);
         assert_eq!(parse_plan_merge_command("/plan merge PLAN-007"), None);
         assert_eq!(parse_plan_merge_command("/auto-plan:merge"), None);
+    }
+
+    /// `@plan/<seq>` 引用解析：四位号读取链（PlansStore 发现 + 注记生成）。
+    #[test]
+    fn resolve_chat_mention_refs_four_digit_plan() {
+        let td = tempfile::tempdir().unwrap();
+        let plans_dir = td.path().join("docs/plans");
+        std::fs::create_dir_all(&plans_dir).unwrap();
+        std::fs::write(
+            plans_dir.join("1001-four-digit.md"),
+            "---\nplan_id: PLAN-1001\nstatus: executing\nfeature_name: 四位\ncreated_at: 2026-11-10T00:00:00Z\nupdated_at: 2026-11-10T00:00:00Z\n---\n\n# [PLAN-1001] 四位\n",
+        )
+        .unwrap();
+        let plans = crate::plans::PlansStore::new(plans_dir);
+        let out = resolve_chat_mention_refs("看 @plan/1001 这个计划", &plans);
+        assert!(
+            out.contains("@plan/1001 → docs/plans/1001-four-digit.md"),
+            "got: {out}"
+        );
     }
 
     /// C1 重新评估 PoC(plan 018 §11 ②):extern_impl 的 specs_load 走

@@ -105,7 +105,7 @@ impl PlanStatus {
 pub struct PlanFile {
     /// `PLAN-024`（= 文件名前缀 024，frontmatter `plan_id` 权威）。
     pub id: String,
-    /// 3 位序号的数值（24）。
+    /// 序号的数值（24 / 1001；文件名数字前缀宽度不限）。
     pub seq: u32,
     /// 文件名（`024-auto-plan-architecture.md`）。
     pub filename: String,
@@ -146,10 +146,14 @@ impl PlanFile {
             .file_name()
             .and_then(|n| n.to_str())
             .ok_or_else(|| "invalid filename".to_string())?;
-        // seq 从文件名 3 位前缀推导
-        let seq = filename
-            .get(..3)
-            .and_then(|s| s.parse::<u32>().ok())
+        // seq 从文件名数字前缀推导（宽度不限：3 位历史与 4 位如 1001- 都接受）
+        let digit_prefix: String = filename
+            .chars()
+            .take_while(|c| c.is_ascii_digit())
+            .collect();
+        let seq = digit_prefix
+            .parse::<u32>()
+            .ok()
             .ok_or_else(|| format!("filename lacks NNN prefix: {}", filename))?;
         let fm = parse_frontmatter(&content);
         let id = fm
@@ -377,7 +381,8 @@ impl PlansStore {
         }
     }
 
-    /// 扫描某目录下所有 `NNN-*.md` 文件（NNN = 3 位数字），返回解析结果。
+    /// 扫描某目录下所有 `NNN-*.md` 文件（NNN = 数字前缀，宽度不限——3 位历史
+    /// 与 4 位如 `1001-` 都接受），返回解析结果。
     fn scan_dir(&self, dir: &Path) -> Vec<PlanFile> {
         let Ok(entries) = std::fs::read_dir(dir) else {
             return Vec::new();
@@ -391,12 +396,13 @@ impl PlansStore {
             let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
                 continue;
             };
-            if !(name.len() >= 4 && name.as_bytes()[0].is_ascii_digit() && name.ends_with(".md")) {
+            if !(name.len() >= 2 && name.as_bytes()[0].is_ascii_digit() && name.ends_with(".md")) {
                 continue;
             }
-            // 必须形如 NNN-（前 3 位数字 + '-'）
-            if name.len() < 4 || !name.as_bytes()[..3].iter().all(|b| b.is_ascii_digit()) || name.as_bytes()[3] != b'-' {
-                continue;
+            // 必须形如 NNN-（非空数字前缀 + '-'，宽度不限）
+            match name.find('-') {
+                Some(dash) if dash > 0 && name.as_bytes()[..dash].iter().all(|b| b.is_ascii_digit()) => {}
+                _ => continue,
             }
             if let Ok(pf) = PlanFile::from_path(&path, &self.plans_dir) {
                 plans.push(pf);
@@ -898,6 +904,38 @@ mod tests {
         assert_eq!(fm.get("plan_id").unwrap(), "PLAN-024");
         assert_eq!(fm.get("status").unwrap(), "executing");
         assert_eq!(fm.get("feature_name").unwrap(), "Hello World");
+    }
+
+    #[test]
+    fn from_content_parses_four_digit_seq() {
+        // 四位编号（如 auto-lang PLAN-1001）：数字前缀宽度不限，不得截断成 100。
+        let td = tempfile::tempdir().unwrap();
+        let plans_dir = td.path().join("docs/plans");
+        fs::create_dir_all(&plans_dir).unwrap();
+        let content = "---\nplan_id: PLAN-1001\nstatus: executing\nfeature_name: 四位\ncreated_at: 2026-11-10T00:00:00Z\nupdated_at: 2026-11-10T00:00:00Z\n---\n\n# [PLAN-1001] 四位\n\nbody";
+        let pf =
+            PlanFile::from_content(content.into(), &plans_dir.join("1001-four-digit.md"), &plans_dir)
+                .unwrap();
+        assert_eq!(pf.seq, 1001);
+        assert_eq!(pf.id, "PLAN-1001");
+        assert_eq!(pf.filename, "1001-four-digit.md");
+    }
+
+    #[test]
+    fn store_discovers_and_gets_four_digit_plan() {
+        // 发现链：scan_dir 曾要求恰好「3 位数字 + '-'」，1001-* 会被整文件跳过。
+        let td = tempfile::tempdir().unwrap();
+        let plans_dir = td.path().join("docs/plans");
+        fs::create_dir_all(&plans_dir).unwrap();
+        fs::write(
+            plans_dir.join("1001-four-digit.md"),
+            "---\nplan_id: PLAN-1001\nstatus: executing\nfeature_name: 四位\ncreated_at: 2026-11-10T00:00:00Z\nupdated_at: 2026-11-10T00:00:00Z\n---\n\n# [PLAN-1001] 四位\n",
+        )
+        .unwrap();
+        let store = PlansStore::new(plans_dir);
+        let pf = store.get(1001).expect("four-digit plan must be discoverable");
+        assert_eq!(pf.id, "PLAN-1001");
+        assert_ne!(pf.seq, 100); // 不路由 100
     }
 
     #[test]
