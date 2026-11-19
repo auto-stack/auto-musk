@@ -94,15 +94,22 @@ touched_goals: []
   dependencies, assumptions, and what success looks like.
 - Give acceptance criteria stable IDs such as `AC-01`. Each states observable
   behavior and a concrete verification method, including expected results.
-- Give executable tasks stable IDs such as `T-01`, dependencies, affected
-  files or symbols verified against the repository, the intended outcome,
-  linked acceptance IDs, and verification commands with expected results.
+- Under `8. 执行步骤`, start each task with a standalone checkbox line such as
+  `- [ ] T-01 Verify AV input binding`. Put the stable ID first and keep the
+  title short enough to display in a TODO panel. Use plain sub-bullets for
+  dependencies, affected files or symbols verified against the repository,
+  intended outcomes, linked acceptance IDs, and verification commands with
+  expected results.
   Identify genuinely new paths as new. Give tasks and acceptance criteria an
   `owner_stage` in the Markdown contract: `work`, `review`, or `merge`.
   Future review/closeout operations remain unchecked until actually performed;
   they are not prerequisites for handing completed implementation to review.
   Merge-owned criteria describe closeout effects; do not assign implementation
   correctness to merge to bypass final acceptance review.
+- Introduce the §8 task list with a short instruction to register its task IDs
+  in the current harness before implementation when a native TODO tool is
+  available. See [work](../auto-plan-work/SKILL.md#track-work-in-the-current-harness)
+  for tracking and resume rules.
 - Size tasks by independently verifiable outcomes. The former 2–5 minute rule
   is a heuristic, not a gate. Detail the next executable work; do not invent
   exact implementation mechanics for unresolved research. Use a bounded

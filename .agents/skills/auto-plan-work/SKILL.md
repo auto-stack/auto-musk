@@ -71,6 +71,22 @@ documents in `docs/specs/` and let the application derive its indexes.
   verify it before repeating side effects. A checked task with stale evidence
   needs verification.
 
+### Track work in the current harness
+
+- Before the first implementation edit on start or resume, use the session's
+  native TODO tool when available (for example `update_plan`, `TaskCreate` /
+  `TaskUpdate`, `TodoWrite`, or `write_todos`). Register the §8 tasks in scope
+  for the work stage with their `T-xx` IDs and short titles. Reuse existing
+  entries for the same Plan and task IDs. Restore verified completions and
+  return reopened tasks to pending.
+- Mark a dependency-ready task in progress when starting it. Show blocked
+  tasks as blocked where supported, or leave them pending and report the
+  dependency. Keep the panel aligned with the Plan and current evidence.
+- If the session lacks a native task tool or the update fails, continue the
+  authorized work and report completed, current, blocked, and remaining
+  task IDs in progress updates. Use the Plan and verification evidence to
+  resume across sessions.
+
 ## Worktree and write ownership
 
 Follow the repository's `AGENTS.md`. For auto-musk:
@@ -191,7 +207,8 @@ For each task:
    the final implementation still requires the passing result.
 3. Replace its open checkbox with `[x]` and append concise evidence
    (`[✅ 已完成]` may be retained for legacy Plans). Do not count a checkbox
-   and a legacy completion marker as separate tasks.
+   and a legacy completion marker as separate tasks. Then mark the matched
+   harness entry complete if the session provides one.
 4. Set `current_step` to the number of completed executable tasks and
    `total_steps` to their total count. These are counts, not a resume cursor;
    stable task IDs, dependencies, and evidence determine remaining work.
