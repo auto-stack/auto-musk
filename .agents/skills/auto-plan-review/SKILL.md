@@ -126,6 +126,31 @@ automatically.
 
 ## Verify coverage and behavior
 
+### Mandatory test-cost and build review (user ruling 2026-11-14)
+
+Read and apply the shared
+[test discipline](../auto-plan-work/references/test-discipline.md). Inventory
+the Plan's added test obligations against the base and require actual per-case
+wall time. **Any new case exceeding 10 seconds returns needs_fix** for programmer
+investigation, even if its assertions pass; missing timing is not a pass.
+Record its full identity, behavior, command, profile, duration and minimal
+replay/investigation. Moving it to PERF or ignoring it does not waive the limit.
+
+Verify daily tests cannot compile prerequisites through helpers, subprocesses,
+recipes or cache-miss/recovery paths; preparation is explicit and source-bound.
+Daily preparation/build/test uses debug/dev/test with incremental compilation,
+not release or a profile switch used to hide a slow case. Follow the shared
+reference for in-process compiler tests and explicit build/PERF lanes.
+Reachable implicit daily builds or routine release paths are `needs_fix`,
+including a cache-miss build path not exercised by the current warm run.
+
+Before a review-owned unified regression or preparation build, check active
+test/build jobs across other agents and worktrees. If busy, wait, notify the
+user with actual groups/command and phase, and recheck before starting. Reuse
+valid evidence instead of starting a duplicate run. Include this session's
+module/scope timings and new-case behavior/timings in the review record and
+user-facing report, including failures, resource waiting and unobserved phases.
+
 Maintain an acceptance-ID evidence map with `pass / partial / fail`, command or
 inspection method, result, and the revision/input covered. The initial review
 checks all work-owned criteria; a repair re-review updates affected entries and
@@ -276,6 +301,12 @@ attachment files or temporary logs. The evidence package includes a frozen
 copy/hash of the reviewed Spec delta. At closure, merge folds any remaining
 evidence records into the Plan file and deletes the Plan's whole
 plan-artifacts scope (2026-10-31 rulings).
+
+The record and user-facing verdict also carry the module/scope timing and
+added-case behavior/timing tables required by
+[test-discipline.md](../auto-plan-work/references/test-discipline.md). State no
+new cases or no executed product tests when applicable; identify unchanged
+evidence reused instead of presenting it as a new session run.
 
 | Outcome | Plan state | Next action |
 |---|---|---|

@@ -190,6 +190,22 @@ repository's naming rules. Never edit canonical Specs directly on main.
 Do not force-add ignored runtime data. Indexes are application-owned and optional;
 no cache/projection draft or publication belongs in the merge worktree.
 
+## Test/build occupancy and cost gate (user ruling 2026-11-14)
+
+Before a merge-owned unified test run **or its preparation builds**, read and
+apply [test-discipline.md](../auto-plan-work/references/test-discipline.md).
+Check other agents' active tests/builds across the machine and worktrees. If
+busy, wait and notify the user with the actual groups/command, current phase
+and blocking job; recheck before starting and use the existing shared lease
+when available. Do not start competing builds or stop another agent's work.
+
+Daily verification uses explicit debug/dev/test incremental preparation, not
+release, and test bodies cannot compile their prerequisites. Verify the review
+includes <=10-second timings for every added case; an overrun or missing
+required evidence returns to work/review instead of being waived at merge.
+Reuse valid frozen evidence. Include actual session module/scope timings,
+new-case behavior/durations and any resource wait in the merge report.
+
 ## Auto-lang post-review fixed-group gate (PLAN-896/898)
 
 Merge owns the frozen affected fixed-group gate after final code/acceptance/Spec
@@ -244,8 +260,10 @@ repair, synchronization, or an offline write-back.
    changes to the user; never discard or silently include them. Shared Plan
    bookkeeping on main is a separate authorized exception: preserve it and
    commit only the target Plan if needed for a clean landing.
-2. Verify the absolute worktree path and run the repository's
-   `wt-guard.sh`; it must report clean. For auto-musk the expected group is
+2. Verify the absolute worktree path and run
+   `pwsh -NoProfile -File D:/autostack/wt-guard.ps1 <worktree>` (the repo's
+   reparse-point gate); it must report clean. Run it with pwsh, never WSL/Git
+   Bash. For auto-musk the expected group is
    `D:/autostack/.wt/musk-NNN/auto-musk`, branch `plan-NNN-dev`.
    Check ownership rather than inferring it from a name.
 3. Land the verified delivery commit on the actual default branch with linear
@@ -294,7 +312,7 @@ Only after landing and canonical-source verification succeed:
    clean up. Do not reopen passed implementation for a document-only repair.
 3. Recheck the worktree is clean and all its commits are landed. Immediately
    before removal, verify the resolved absolute path is within its intended
-   group and require a fresh `wt-guard.sh` clean result. Remove the worktree
+   group and require a fresh `wt-guard.ps1` clean result. Remove the worktree
    and its merged branch — build intermediates die with it, nothing is
    reclaimed into plan-artifacts — then remove only the empty group directory.
    Never create junctions/symlinks or bypass the guard.
@@ -314,15 +332,15 @@ Only after landing and canonical-source verification succeed:
    `blocked` with cleanup pending, and retry only that operation.
    Authorized dependency worktrees follow their own review/integration gates
    and should already have been folded/cleaned promptly.
-5. **Landing is not deployment.** After `cleaned`, verify the
-   production-facing artifacts that consume the landed code are current:
-   the backend release binary (`cargo build --release`), release binaries of
-   dependency repos the Plan touched (e.g. the daemon), and the generated web
-   bundle (`auto build` → `gen/front/vue/dist`). A code-only merge leaves all
-   three stale while receipts still read delivered. Either rebuild and restart
-   the production processes now (check connections first; follow the repo's
-   shared-daemon restart protocol), or record an explicit observation item
-   naming each stale artifact and its build date in the merge receipt. Lesson
+5. **Landing is not deployment.** After `cleaned`, inspect the freshness of
+   production-facing artifacts the Plan affects: backend/dependency release
+   binaries and generated web bundles. Ordinary daily verification or merge
+   must not implicitly trigger release/package builds or production restarts.
+   Rebuild/restart only when release/deployment is explicitly within the user's
+   authorized delivery scope; keep its time and result separate from daily
+   debug/test verification and follow the shared-daemon restart protocol.
+   Otherwise record the stale artifact and build date as a deployment
+   observation, without claiming it has been refreshed. Lesson
    (auto-musk PLAN-092, 2026-09-27): all three artifacts predated the Plan's
    fixes and the receipt registered only one of them; the defects persisted
    on the running desktop until a later session rebuilt and restarted.
@@ -345,6 +363,13 @@ claim cross-file or cross-repository atomicity.
 Record/report `stage: merge`, Plan ID/revision, `outcome`, delivery commit,
 canonical Spec paths/source hashes, archive path, and cleanup state.
 
+Also include this session's exact test modules/scopes and measured times,
+and any new cases' tested behavior and duration, using the tables in
+[test-discipline.md](../auto-plan-work/references/test-discipline.md). Separate
+preparation, tests, cleanup and resource waiting; mark reused/unobserved/NOT_RUN
+honestly, and say no new cases when applicable. Do not report only an unnamed
+"group union" total or implicitly perform release builds to fill the report.
+
 - `pass`: delivery, canonical sources, archival, and cleanup are all verified,
   or a repeat request confirms that complete result without duplicate writes.
 - `needs_fix` / `needs_replan`: return an active Plan to `executing`,
@@ -355,3 +380,9 @@ canonical Spec paths/source hashes, archive path, and cleanup state.
 
 Do not invoke unrelated close-out skills or migrate the entire knowledge base.
 The current task's reviewed delta defines the consolidation scope.
+
+
+
+
+
+

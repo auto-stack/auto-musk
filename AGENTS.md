@@ -34,11 +34,11 @@ D:/autostack/<repo> 主检出`。
 
 任务或计划完成后（保持主分支线性历史，不产生 merge commit）：
 
-```bash
+```powershell
 # ① 在 worktree 内：把主分支最新提交 rebase 到开发分支之下
-bash D:/autostack/wt-guard.sh D:/autostack/.wt/<组>/<项目>   # 必须输出 clean 才继续
+pwsh -NoProfile -File D:/autostack/wt-guard.ps1 D:/autostack/.wt/<组>/<项目>   # 必须输出 clean 才继续
 git rebase main                   # 冲突就地解决；触碰代码后重跑受影响验证
-bash D:/autostack/wt-guard.sh D:/autostack/.wt/<组>/<项目>   # rebase 后再验一次 clean
+pwsh -NoProfile -File D:/autostack/wt-guard.ps1 D:/autostack/.wt/<组>/<项目>   # rebase 后再验一次 clean
 # ② 在主检出：快进合回并清理
 git merge --ff-only <dev-branch>  # 必须快进成功；失败说明 rebase 未做完，回 ①
 git worktree remove D:/autostack/.wt/<组>/<项目>
@@ -68,3 +68,4 @@ work 建 `plan-<NNN>-dev` 并在其中干活 → review 在其中复验 → merg
 work/review/merge 技能并自动续跑，修复轮上限与停下条件见该技能。它与 relay
 `plan` 流是互斥入口——同一计划不得两处同时驱动；计划文件仍只在主检出上由
 单一写者更新。
+

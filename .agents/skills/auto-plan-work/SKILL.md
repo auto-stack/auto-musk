@@ -173,8 +173,8 @@ build on it: surface it to the user and help its owner route the WIP into a
 worktree before proceeding.
 
 Before any worktree removal, verify the resolved absolute target is inside its
-intended group and require `bash D:/autostack/wt-guard.sh <worktree>` to report
-clean. Final project cleanup belongs to [merge](../auto-plan-merge/SKILL.md).
+intended group and require `pwsh -NoProfile -File D:/autostack/wt-guard.ps1 <worktree>` to report
+clean (Windows: run it with pwsh, never WSL or Git Bash; WSL is only for Linux-specific tests). Final project cleanup belongs to [merge](../auto-plan-merge/SKILL.md).
 
 ## Execute verifiable units
 
@@ -217,6 +217,23 @@ For each task:
    as an independent source of requirements.
 
 ## Test scope during implementation and repair
+
+### Test cost and build requirements (user ruling 2026-11-14)
+
+Before preparing or running tests, read and apply
+[test-discipline.md](references/test-discipline.md). Every test case added by
+this Plan must finish in <=10 seconds, including its setup, child work and
+cleanup; collect per-case timings and investigate overruns before handoff.
+Daily tests must consume prepared, source-bound prerequisites, never trigger
+their compilation from a test/helper/recipe or a cache-miss fallback. Use
+debug/dev/test and incremental builds for daily work, not release.
+
+Before a unified run or its preparation builds, check other agents' active
+test/build jobs across the machine; if busy, wait and notify the user with
+actual groups/command and phase. The shared reference defines scope and evidence.
+The completion report must name this session's test modules/scopes and times,
+and every new case's tested behavior and measured duration. These are readiness
+requirements, not optional reporting suggestions.
 
 **A repair round verifies its findings and affected behavior; it does not restart
 the Plan's complete test campaign.** This applies to every executor/model and
@@ -345,6 +362,11 @@ high-risk Plan, include a concise readiness record in the handoff:
   an extra repair handoff prerequisite.
 - Current code/dependency/configuration identity and, when triggered, the
   two-failure diagnosis plus verified adjustment.
+- This session's actual test module/scope timing table and new-case
+  behavior/timing table from [test-discipline.md](references/test-discipline.md),
+  in both the durable record and user-facing report. Distinguish preparation,
+  execution, cleanup, resource waiting and reused evidence; say no new cases
+  when applicable. A >10-second added case is not ready for review as passing.
 
 Aggregate tests passing cannot override an admitted remaining task, partial
 criterion, skipped required case, or unapproved support reduction. Keep such
@@ -370,3 +392,4 @@ Keep the worktree for review and merge. If the user already authorized the
 whole workflow, continue with the next skill after satisfying its entry gate;
 a request for work alone ends at this handoff. These outcome records are
 distinct from the backend's five Plan statuses.
+

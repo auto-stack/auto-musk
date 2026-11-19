@@ -210,7 +210,7 @@ Delegated to work/review/merge, verified at each handoff:
 - writes only inside that tree; the shared Plan stays on the main checkout;
 - independent review means an independent context on the same tree — never a
   second checkout, copy, or Git-synchronized tree;
-- no junctions/symlinks anywhere in a worktree; `wt-guard.sh` clean before
+- no junctions/symlinks anywhere in a worktree; `wt-guard.ps1` clean before
   removal;
 - never run concurrent writers or competing builds in the tree.
 
@@ -240,7 +240,7 @@ reported:
 2. canonical Specs verified in the landed commit per the merge skill (or its
    approved no-impact justification); application indexes are automatic and non-blocking;
 3. Plan moved to `docs/plans/archived/` with `status: archived`, docs committed;
-4. worktree removed and branch deleted after a clean `wt-guard.sh`, group
+4. worktree removed and branch deleted after a clean `wt-guard.ps1`, group
    directory removed when empty;
 5. main checkout clean; landing checks recorded (rebuild/restart or an explicit
    stale-artifact observation).
@@ -254,3 +254,5 @@ merge-owned gates.
 One short block: Plan/revision, stage just finished, outcome, evidence anchor
 (commit + command), next stage, and — only when stopping — the decision or
 unblock action. Do not repeat the Plan's content.
+
+
